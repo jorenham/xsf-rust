@@ -1,0 +1,13 @@
+{
+  "files.readonlyInclude": {
+    "xsf/**": true
+  },
+  "files.associations": {
+    "*.jinja": "jinja-html",
+    "*.prysma": "python",
+    "*.toml": "toml",
+    ".mypyignore": "plaintext",
+    "LICENSE": "plaintext",
+    "__locale": "cpp"
+  }
+}

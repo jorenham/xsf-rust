@@ -1,0 +1,18 @@
+[package]
+name = "xsf-rust"
+version = "0.1.0"
+edition = "2024"
+description = "Rust bindings for scipy's xsf special functions library"
+license = "BSD-3-Clause"
+
+[build-dependencies]
+bindgen = "0.72"
+cc = "1.2.31"
+
+[dependencies]
+num-traits = "0.2.19"
+paste = "1.0"
+# num-complex = "0.4.6"
+
+[dev-dependencies]
+float-cmp = "0.10.0"
