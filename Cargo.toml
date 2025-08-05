@@ -2,15 +2,19 @@
 name = "xsf-rust"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Rust bindings for scipy's xsf special functions library"
+repository = "https://github.com/jorenham/xsf-rust"
+authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 license = "BSD-3-Clause"
+readme = "README.md"
 
 [build-dependencies]
 bindgen = "0.72"
 cc = "1.2.31"
 
-[dev-dependencies]
-float-cmp = "0.10.0"
-
 [dependencies]
 paste = "1.0.15"
+
+[dev-dependencies]
+float-cmp = "0.10.0"
