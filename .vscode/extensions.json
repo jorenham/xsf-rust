@@ -3,6 +3,6 @@
     "dprint.dprint",
     "fill-labs.dependi",
     "panicbit.cargo",
-    "rust-lang.rust-analyzer"
-  ]
+    "rust-lang.rust-analyzer",
+  ],
 }

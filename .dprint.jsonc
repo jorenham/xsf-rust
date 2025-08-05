@@ -4,7 +4,11 @@
   "json": {
     "array.preferSingleLine": true,
     "indentWidth": 2,
-    "jsonTrailingCommaFiles": [".vscode/c_cpp_properties.json", ".vscode/settings.json"],
+    "jsonTrailingCommaFiles": [
+      ".vscode/c_cpp_properties.json",
+      ".vscode/extensions.json",
+      ".vscode/settings.json",
+    ],
   },
   "markdown": {
     "emphasisKind": "asterisks",
