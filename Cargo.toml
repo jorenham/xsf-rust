@@ -11,3 +11,6 @@ cc = "1.2.31"
 
 [dev-dependencies]
 float-cmp = "0.10.0"
+
+[dependencies]
+paste = "1.0.15"

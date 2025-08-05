@@ -4,38 +4,149 @@ mod ffi {
 
 pub mod xsf64 {
     use crate::ffi;
+    use std::ffi::c_int;
 
-    pub fn gamma(x: f64) -> f64 {
-        unsafe { ffi::xsf_gamma(x) }
+    macro_rules! xsf_impl {
+        ($name:ident, $($param:ident: $type:ty),*) => {
+            paste::paste! {
+                pub fn $name($($param: $type),*) -> f64 {
+                    unsafe { ffi::[<xsf_ $name>]($($param),*) }
+                }
+            }
+        };
     }
 
-    pub fn gammaln(x: f64) -> f64 {
-        unsafe { ffi::xsf_gammaln(x) }
-    }
-
-    pub fn gammasgn(x: f64) -> f64 {
-        unsafe { ffi::xsf_gammasgn(x) }
-    }
-
-    pub fn gammainc(a: f64, x: f64) -> f64 {
-        unsafe { ffi::xsf_gammainc(a, x) }
-    }
-
-    pub fn gammaincinv(a: f64, p: f64) -> f64 {
-        unsafe { ffi::xsf_gammaincinv(a, p) }
-    }
-
-    pub fn gammaincc(a: f64, x: f64) -> f64 {
-        unsafe { ffi::xsf_gammaincc(a, x) }
-    }
-
-    pub fn gammainccinv(a: f64, p: f64) -> f64 {
-        unsafe { ffi::xsf_gammainccinv(a, p) }
-    }
-
-    pub fn gamma_ratio(a: f64, b: f64) -> f64 {
-        unsafe { ffi::xsf_gamma_ratio(a, b) }
-    }
+    // alg.h
+    xsf_impl!(cbrt, x: f64);
+    // beta.h
+    xsf_impl!(beta, a: f64, b: f64);
+    xsf_impl!(betaln, a: f64, b: f64);
+    // binom.h
+    xsf_impl!(binom, n: f64, k: f64);
+    // digamma.h
+    xsf_impl!(digamma, z: f64);
+    // erf.h
+    xsf_impl!(erf, x: f64);
+    xsf_impl!(erfc, x: f64);
+    xsf_impl!(erfcx, x: f64);
+    xsf_impl!(erfi, x: f64);
+    xsf_impl!(voigt_profile, x: f64, sigma: f64, gamma: f64);
+    xsf_impl!(dawsn, x: f64);
+    // exp.h
+    xsf_impl!(expm1, x: f64);
+    xsf_impl!(exp2, x: f64);
+    xsf_impl!(exp10, x: f64);
+    // expint.h
+    xsf_impl!(exp1, x: f64);
+    xsf_impl!(expi, x: f64);
+    xsf_impl!(scaled_exp1, x: f64);
+    // fp_error_metrics.h
+    xsf_impl!(extended_absolute_error, actual: f64, desired: f64);
+    xsf_impl!(extended_relative_error, actual: f64, desired: f64);
+    // gamma.h
+    xsf_impl!(gamma, x: f64);
+    xsf_impl!(gammaln, x: f64);
+    xsf_impl!(gammasgn, x: f64);
+    xsf_impl!(gammainc, a: f64, x: f64);
+    xsf_impl!(gammaincinv, a: f64, p: f64);
+    xsf_impl!(gammaincc, a: f64, x: f64);
+    xsf_impl!(gammainccinv, a: f64, p: f64);
+    xsf_impl!(gamma_ratio, a: f64, b: f64);
+    // hyp2f1.h
+    xsf_impl!(hyp2f1, a: f64, b: f64, c: f64, x: f64);
+    // iv_ratio.h
+    xsf_impl!(iv_ratio, v: f64, x: f64);
+    xsf_impl!(iv_ratio_c, v: f64, x: f64);
+    // kelvin.h
+    xsf_impl!(ber, x: f64);
+    xsf_impl!(bei, x: f64);
+    xsf_impl!(ker, x: f64);
+    xsf_impl!(kei, x: f64);
+    xsf_impl!(berp, x: f64);
+    xsf_impl!(beip, x: f64);
+    xsf_impl!(kerp, x: f64);
+    xsf_impl!(keip, x: f64);
+    // legendre.h
+    xsf_impl!(legendre_p, n: c_int, z: f64);
+    xsf_impl!(sph_legendre_p, n: c_int, m: c_int, theta: f64);
+    // log_exp.h
+    xsf_impl!(expit, x: f64);
+    xsf_impl!(exprel, x: f64);
+    xsf_impl!(logit, x: f64);
+    xsf_impl!(log_expit, x: f64);
+    xsf_impl!(log1mexp, x: f64);
+    // log.h
+    xsf_impl!(log1p, x: f64);
+    xsf_impl!(log1pmx, x: f64);
+    xsf_impl!(xlogy, x: f64, y: f64);
+    xsf_impl!(xlog1py, x: f64, y: f64);
+    // loggamma.h
+    xsf_impl!(loggamma, x: f64);
+    xsf_impl!(rgamma, z: f64);
+    // mathieu.h
+    xsf_impl!(cem_cva, m: f64, q: f64);
+    xsf_impl!(sem_cva, m: f64, q: f64);
+    // specfun.h
+    xsf_impl!(hypu, a: f64, b: f64, x: f64);
+    xsf_impl!(hyp1f1, a: f64, b: f64, x: f64);
+    xsf_impl!(pmv, m: f64, v: f64, x: f64);
+    // sphd_wave.h
+    xsf_impl!(prolate_segv, m: f64, n: f64, c: f64);
+    xsf_impl!(oblate_segv, m: f64, n: f64, c: f64);
+    // stats.h
+    xsf_impl!(bdtr, k: f64, n: c_int, p: f64);
+    xsf_impl!(bdtrc, k: f64, n: c_int, p: f64);
+    xsf_impl!(bdtri, k: f64, n: c_int, y: f64);
+    xsf_impl!(chdtr, df: f64, x: f64);
+    xsf_impl!(chdtrc, df: f64, x: f64);
+    xsf_impl!(chdtri, df: f64, y: f64);
+    xsf_impl!(fdtr, a: f64, b: f64, x: f64);
+    xsf_impl!(fdtrc, a: f64, b: f64, x: f64);
+    xsf_impl!(fdtri, a: f64, b: f64, y: f64);
+    xsf_impl!(gdtr, a: f64, b: f64, x: f64);
+    xsf_impl!(gdtrc, a: f64, b: f64, x: f64);
+    xsf_impl!(kolmogorov, x: f64);
+    xsf_impl!(kolmogc, x: f64);
+    xsf_impl!(kolmogi, x: f64);
+    xsf_impl!(kolmogp, x: f64);
+    xsf_impl!(ndtr, x: f64);
+    xsf_impl!(ndtri, x: f64);
+    xsf_impl!(log_ndtr, x: f64);
+    xsf_impl!(nbdtr, k: c_int, n: c_int, p: f64);
+    xsf_impl!(nbdtrc, k: c_int, n: c_int, p: f64);
+    xsf_impl!(nbdtri, k: c_int, n: c_int, p: f64);
+    xsf_impl!(owens_t, h: f64, a: f64);
+    xsf_impl!(pdtr, k: f64, m: f64);
+    xsf_impl!(pdtrc, k: f64, m: f64);
+    xsf_impl!(pdtri, k: c_int, y: f64);
+    xsf_impl!(smirnov, n: c_int, x: f64);
+    xsf_impl!(smirnovc, n: c_int, x: f64);
+    xsf_impl!(smirnovi, n: c_int, x: f64);
+    xsf_impl!(smirnovp, n: c_int, x: f64);
+    xsf_impl!(tukeylambdacdf, x: f64, lmbda: f64);
+    // struve.h
+    xsf_impl!(itstruve0, x: f64);
+    xsf_impl!(it2struve0, x: f64);
+    xsf_impl!(itmodstruve0, x: f64);
+    xsf_impl!(struve_h, v: f64, z: f64);
+    xsf_impl!(struve_l, v: f64, z: f64);
+    // trig.h
+    xsf_impl!(sinpi, x: f64);
+    xsf_impl!(cospi, x: f64);
+    xsf_impl!(sindg, x: f64);
+    xsf_impl!(cosdg, x: f64);
+    xsf_impl!(tandg, x: f64);
+    xsf_impl!(cotdg, x: f64);
+    xsf_impl!(radian, d: f64, m: f64, s: f64);
+    xsf_impl!(cosm1, x: f64);
+    // wright_bessel.h
+    // xsf_impl!(wright_bessel_t, a: f64, b: f64, x: f64);
+    xsf_impl!(wright_bessel, a: f64, b: f64, x: f64);
+    xsf_impl!(log_wright_bessel, a: f64, b: f64, x: f64);
+    // zeta.h
+    xsf_impl!(riemann_zeta, s: f64);
+    xsf_impl!(zeta, s: f64, q: f64);
+    xsf_impl!(zetac, s: f64);
 }
 
 #[cfg(test)]
