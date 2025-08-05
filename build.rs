@@ -246,7 +246,8 @@ fn build_cpp_library(wrapper_cpp: &str, xsf_path: &str) {
         .std("c++17")
         .file(wrapper_cpp)
         .include(format!("{xsf_path}/include"))
-        .flag("-Wno-unused-parameter")
+        .flag_if_supported("-Wno-unused-parameter")
+        .flag_if_supported("-Wno-logical-op-parentheses")
         .compile("xsf_wrapper_impl");
 }
 
