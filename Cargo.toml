@@ -9,10 +9,5 @@ license = "BSD-3-Clause"
 bindgen = "0.72"
 cc = "1.2.31"
 
-[dependencies]
-num-traits = "0.2.19"
-paste = "1.0"
-# num-complex = "0.4.6"
-
 [dev-dependencies]
 float-cmp = "0.10.0"
