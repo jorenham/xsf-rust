@@ -1,75 +1,48 @@
-use num_traits::Float;
-
 mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-macro_rules! xsf_function {
-    ($fn_name:ident, 1, $(($rust_type:ty, $ffi_func:ident)),+) => {
-        paste::paste! {
-            pub trait [<$fn_name:camel>]<T: Float> {
-                fn [<xsf_ $fn_name>](x: T) -> T;
-            }
+pub mod xsf64 {
+    use crate::ffi;
 
-            $(
-                impl [<$fn_name:camel>]<$rust_type> for $rust_type {
-                    fn [<xsf_ $fn_name>](x: $rust_type) -> $rust_type {
-                        unsafe { ffi::$ffi_func(x) }
-                    }
-                }
-            )+
+    pub fn gamma(x: f64) -> f64 {
+        unsafe { ffi::xsf_gamma(x) }
+    }
 
-            pub fn $fn_name<T>(x: T) -> T
-            where
-                T: [<$fn_name:camel>]<T> + Float,
-            {
-                T::[<xsf_ $fn_name>](x)
-            }
-        }
-    };
-    ($fn_name:ident, 2, $(($rust_type:ty, $ffi_func:ident)),+) => {
-        paste::paste! {
-            pub trait [<$fn_name:camel>]<T: Float> {
-                fn [<xsf_ $fn_name>](a: T, x: T) -> T;
-            }
+    pub fn gammaln(x: f64) -> f64 {
+        unsafe { ffi::xsf_gammaln(x) }
+    }
 
-            $(
-                impl [<$fn_name:camel>]<$rust_type> for $rust_type {
-                    fn [<xsf_ $fn_name>](a: $rust_type, x: $rust_type) -> $rust_type {
-                        unsafe { ffi::$ffi_func(a, x) }
-                    }
-                }
-            )+
+    pub fn gammasgn(x: f64) -> f64 {
+        unsafe { ffi::xsf_gammasgn(x) }
+    }
 
-            pub fn $fn_name<T>(a: T, x: T) -> T
-            where
-                T: [<$fn_name:camel>]<T> + Float,
-            {
-                T::[<xsf_ $fn_name>](a, x)
-            }
-        }
-    };
+    pub fn gammainc(a: f64, x: f64) -> f64 {
+        unsafe { ffi::xsf_gammainc(a, x) }
+    }
+
+    pub fn gammaincinv(a: f64, p: f64) -> f64 {
+        unsafe { ffi::xsf_gammaincinv(a, p) }
+    }
+
+    pub fn gammaincc(a: f64, x: f64) -> f64 {
+        unsafe { ffi::xsf_gammaincc(a, x) }
+    }
+
+    pub fn gammainccinv(a: f64, p: f64) -> f64 {
+        unsafe { ffi::xsf_gammainccinv(a, p) }
+    }
+
+    pub fn gamma_ratio(a: f64, b: f64) -> f64 {
+        unsafe { ffi::xsf_gamma_ratio(a, b) }
+    }
 }
-
-xsf_function!(gamma, 1, (f32, gamma_f), (f64, gamma_d));
-xsf_function!(gammaln, 1, (f32, gammaln_f), (f64, gammaln_d));
-xsf_function!(gammasgn, 1, (f32, gammasgn_f), (f64, gammasgn_d));
-xsf_function!(gammainc, 2, (f32, gammainc_f), (f64, gammainc_d));
-xsf_function!(gammaincinv, 2, (f32, gammaincinv_f), (f64, gammaincinv_d));
-xsf_function!(gammaincc, 2, (f32, gammaincc_f), (f64, gammaincc_d));
-xsf_function!(
-    gammainccinv,
-    2,
-    (f32, gammainccinv_f),
-    (f64, gammainccinv_d)
-);
-xsf_function!(gamma_ratio, 2, (f32, gamma_ratio_f), (f64, gamma_ratio_d));
 
 #[cfg(test)]
 mod tests {
     use std::f64::consts::LN_2;
 
-    use super::*;
+    use super::xsf64::*;
     use float_cmp::assert_approx_eq;
 
     const LN_3: f64 = 1.098_612_288_668_109_7;
@@ -78,7 +51,6 @@ mod tests {
 
     #[test]
     fn test_gamma() {
-        assert_eq!(gamma(1.0f32), 1.0);
         assert_eq!(gamma(1.0), 1.0);
         assert_eq!(gamma(2.0), 1.0);
         assert_eq!(gamma(3.0), 2.0);
@@ -96,7 +68,6 @@ mod tests {
 
     #[test]
     fn test_gammaln() {
-        assert_eq!(gammaln(1.0f32), 0.0);
         assert_eq!(gammaln(1.0), 0.0);
         assert_eq!(gammaln(2.0), 0.0);
         assert_eq!(gammaln(3.0), LN_2);
@@ -114,7 +85,6 @@ mod tests {
     #[test]
     fn test_gammasgn() {
         // Test positive gamma values (sign should be 1.0)
-        assert_eq!(gammasgn(1.0f32), 1.0);
         assert_eq!(gammasgn(1.0), 1.0);
         assert_eq!(gammasgn(2.0), 1.0);
         assert_eq!(gammasgn(0.5), 1.0);
@@ -146,9 +116,6 @@ mod tests {
             ulps = 2
         );
 
-        // Test f32 version
-        assert_approx_eq!(f32, gammainc(1.0f32, 0.0f32), 0.0, ulps = 1);
-
         // Test edge cases
         assert_approx_eq!(f64, gammainc(1.0, f64::INFINITY), 1.0, ulps = 1);
         assert!(gammainc(f64::NAN, 1.0).is_nan());
@@ -167,9 +134,6 @@ mod tests {
         let a = 2.5;
         let x = 1.5;
         assert_approx_eq!(f64, gammainc(a, x) + gammaincc(a, x), 1.0, ulps = 2);
-
-        // Test f32 version
-        assert_approx_eq!(f32, gammaincc(1.0f32, 0.0f32), 1.0, ulps = 1);
 
         // Test edge cases
         assert_approx_eq!(f64, gammaincc(1.0, f64::INFINITY), 0.0, ulps = 1);
@@ -191,10 +155,6 @@ mod tests {
         assert_eq!(gammaincinv(1.0, 0.0), 0.0);
         assert_eq!(gammaincinv(1.0, 1.0), f64::INFINITY);
 
-        // Test f32 version
-        let x_f32 = gammaincinv(2.0f32, 0.5f32);
-        assert_approx_eq!(f32, gammainc(2.0f32, x_f32), 0.5, ulps = 3);
-
         // Test edge cases
         assert!(gammaincinv(f64::NAN, 0.5).is_nan());
         assert!(gammaincinv(1.0, f64::NAN).is_nan());
@@ -213,10 +173,6 @@ mod tests {
         // Test boundary values
         assert_eq!(gammainccinv(1.0, 1.0), 0.0);
         assert_eq!(gammainccinv(1.0, 0.0), f64::INFINITY);
-
-        // Test f32 version
-        let x_f32 = gammainccinv(2.0f32, 0.3f32);
-        assert_approx_eq!(f32, gammaincc(2.0f32, x_f32), 0.3, ulps = 3);
 
         // Test edge cases
         assert!(gammainccinv(f64::NAN, 0.5).is_nan());
@@ -238,9 +194,6 @@ mod tests {
         // Test with fractional values
         // Γ(1.5) = sqrt(π)/2, Γ(0.5) = sqrt(π), so Γ(1.5)/Γ(0.5) = 0.5
         assert_approx_eq!(f64, gamma_ratio(1.5, 0.5), 0.5, ulps = 2);
-
-        // Test f32 version
-        assert_approx_eq!(f32, gamma_ratio(3.0f32, 2.0f32), 2.0, ulps = 1);
 
         // Test edge cases
         assert!(gamma_ratio(f64::NAN, 1.0).is_nan());

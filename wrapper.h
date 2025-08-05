@@ -4,29 +4,14 @@
 extern "C" {
 #endif
 
-float gamma_f(float x);
-double gamma_d(double x);
-
-float gammaln_f(float x);
-double gammaln_d(double x);
-
-float gammasgn_f(float x);
-double gammasgn_d(double x);
-
-float gammainc_f(float a, float x);
-double gammainc_d(double a, double x);
-
-float gammaincinv_f(float a, float p);
-double gammaincinv_d(double a, double p);
-
-float gammaincc_f(float a, float x);
-double gammaincc_d(double a, double x);
-
-float gammainccinv_f(float a, float p);
-double gammainccinv_d(double a, double p);
-
-float gamma_ratio_f(float a, float b);
-double gamma_ratio_d(double a, double b);
+double xsf_gamma(double x);
+double xsf_gammaln(double x);
+double xsf_gammasgn(double x);
+double xsf_gammainc(double a, double x);
+double xsf_gammaincinv(double a, double p);
+double xsf_gammaincc(double a, double x);
+double xsf_gammainccinv(double a, double p);
+double xsf_gamma_ratio(double a, double b);
 
 #ifdef __cplusplus
 } // extern "C"
