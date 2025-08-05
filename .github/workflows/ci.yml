@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -42,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: cargo build
         run: cargo build --verbose
