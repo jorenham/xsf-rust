@@ -12,7 +12,7 @@ const XSF_HEADERS: &[&str] = &[
     "xsf/erf.h",
     "xsf/exp.h",
     "xsf/expint.h",
-    "xsf/fp_error_metrics.h",
+    // "xsf/fp_error_metrics.h",
     // "xsf/fresnel.h",
     "xsf/gamma.h",
     "xsf/hyp2f1.h",
@@ -64,8 +64,8 @@ const WRAPPER_FUNCTIONS: &[(&str, &str)] = &[
     ("expi", "double x"),
     ("scaled_exp1", "double x"),
     // fp_error_metrics.h
-    ("extended_absolute_error", "double actual, double desired"),
-    ("extended_relative_error", "double actual, double desired"),
+    // ("extended_absolute_error", "double actual, double desired"),
+    // ("extended_relative_error", "double actual, double desired"),
     // gamma.h
     ("gamma", "double x"),
     ("gammaln", "double x"),

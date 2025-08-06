@@ -1,159 +1,251 @@
+use std::ffi::c_int;
+
 mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-pub mod xsf64 {
-    use crate::ffi;
-    use std::ffi::c_int;
-
-    macro_rules! xsf_impl {
-        ($name:ident, $($param:ident: $type:ty),*) => {
-            paste::paste! {
-                pub fn $name($($param: $type),*) -> f64 {
-                    unsafe { ffi::[<xsf_ $name>]($($param),*) }
-                }
-            }
-        };
-    }
-
-    // alg.h
-    xsf_impl!(cbrt, x: f64);
-    // beta.h
-    xsf_impl!(beta, a: f64, b: f64);
-    xsf_impl!(betaln, a: f64, b: f64);
-    // binom.h
-    xsf_impl!(binom, n: f64, k: f64);
-    // digamma.h
-    xsf_impl!(digamma, z: f64);
-    // erf.h
-    xsf_impl!(erf, x: f64);
-    xsf_impl!(erfc, x: f64);
-    xsf_impl!(erfcx, x: f64);
-    xsf_impl!(erfi, x: f64);
-    xsf_impl!(voigt_profile, x: f64, sigma: f64, gamma: f64);
-    xsf_impl!(dawsn, x: f64);
-    // exp.h
-    xsf_impl!(expm1, x: f64);
-    xsf_impl!(exp2, x: f64);
-    xsf_impl!(exp10, x: f64);
-    // expint.h
-    xsf_impl!(exp1, x: f64);
-    xsf_impl!(expi, x: f64);
-    xsf_impl!(scaled_exp1, x: f64);
-    // fp_error_metrics.h
-    xsf_impl!(extended_absolute_error, actual: f64, desired: f64);
-    xsf_impl!(extended_relative_error, actual: f64, desired: f64);
-    // gamma.h
-    xsf_impl!(gamma, x: f64);
-    xsf_impl!(gammaln, x: f64);
-    xsf_impl!(gammasgn, x: f64);
-    xsf_impl!(gammainc, a: f64, x: f64);
-    xsf_impl!(gammaincinv, a: f64, p: f64);
-    xsf_impl!(gammaincc, a: f64, x: f64);
-    xsf_impl!(gammainccinv, a: f64, p: f64);
-    xsf_impl!(gamma_ratio, a: f64, b: f64);
-    // hyp2f1.h
-    xsf_impl!(hyp2f1, a: f64, b: f64, c: f64, x: f64);
-    // iv_ratio.h
-    xsf_impl!(iv_ratio, v: f64, x: f64);
-    xsf_impl!(iv_ratio_c, v: f64, x: f64);
-    // kelvin.h
-    xsf_impl!(ber, x: f64);
-    xsf_impl!(bei, x: f64);
-    xsf_impl!(ker, x: f64);
-    xsf_impl!(kei, x: f64);
-    xsf_impl!(berp, x: f64);
-    xsf_impl!(beip, x: f64);
-    xsf_impl!(kerp, x: f64);
-    xsf_impl!(keip, x: f64);
-    // legendre.h
-    xsf_impl!(legendre_p, n: c_int, z: f64);
-    xsf_impl!(sph_legendre_p, n: c_int, m: c_int, theta: f64);
-    // log_exp.h
-    xsf_impl!(expit, x: f64);
-    xsf_impl!(exprel, x: f64);
-    xsf_impl!(logit, x: f64);
-    xsf_impl!(log_expit, x: f64);
-    xsf_impl!(log1mexp, x: f64);
-    // log.h
-    xsf_impl!(log1p, x: f64);
-    xsf_impl!(log1pmx, x: f64);
-    xsf_impl!(xlogy, x: f64, y: f64);
-    xsf_impl!(xlog1py, x: f64, y: f64);
-    // loggamma.h
-    xsf_impl!(loggamma, x: f64);
-    xsf_impl!(rgamma, z: f64);
-    // mathieu.h
-    xsf_impl!(cem_cva, m: f64, q: f64);
-    xsf_impl!(sem_cva, m: f64, q: f64);
-    // specfun.h
-    xsf_impl!(hypu, a: f64, b: f64, x: f64);
-    xsf_impl!(hyp1f1, a: f64, b: f64, x: f64);
-    xsf_impl!(pmv, m: f64, v: f64, x: f64);
-    // sphd_wave.h
-    xsf_impl!(prolate_segv, m: f64, n: f64, c: f64);
-    xsf_impl!(oblate_segv, m: f64, n: f64, c: f64);
-    // stats.h
-    xsf_impl!(bdtr, k: f64, n: c_int, p: f64);
-    xsf_impl!(bdtrc, k: f64, n: c_int, p: f64);
-    xsf_impl!(bdtri, k: f64, n: c_int, y: f64);
-    xsf_impl!(chdtr, df: f64, x: f64);
-    xsf_impl!(chdtrc, df: f64, x: f64);
-    xsf_impl!(chdtri, df: f64, y: f64);
-    xsf_impl!(fdtr, a: f64, b: f64, x: f64);
-    xsf_impl!(fdtrc, a: f64, b: f64, x: f64);
-    xsf_impl!(fdtri, a: f64, b: f64, y: f64);
-    xsf_impl!(gdtr, a: f64, b: f64, x: f64);
-    xsf_impl!(gdtrc, a: f64, b: f64, x: f64);
-    xsf_impl!(kolmogorov, x: f64);
-    xsf_impl!(kolmogc, x: f64);
-    xsf_impl!(kolmogi, x: f64);
-    xsf_impl!(kolmogp, x: f64);
-    xsf_impl!(ndtr, x: f64);
-    xsf_impl!(ndtri, x: f64);
-    xsf_impl!(log_ndtr, x: f64);
-    xsf_impl!(nbdtr, k: c_int, n: c_int, p: f64);
-    xsf_impl!(nbdtrc, k: c_int, n: c_int, p: f64);
-    xsf_impl!(nbdtri, k: c_int, n: c_int, p: f64);
-    xsf_impl!(owens_t, h: f64, a: f64);
-    xsf_impl!(pdtr, k: f64, m: f64);
-    xsf_impl!(pdtrc, k: f64, m: f64);
-    xsf_impl!(pdtri, k: c_int, y: f64);
-    xsf_impl!(smirnov, n: c_int, x: f64);
-    xsf_impl!(smirnovc, n: c_int, x: f64);
-    xsf_impl!(smirnovi, n: c_int, x: f64);
-    xsf_impl!(smirnovp, n: c_int, x: f64);
-    xsf_impl!(tukeylambdacdf, x: f64, lmbda: f64);
-    // struve.h
-    xsf_impl!(itstruve0, x: f64);
-    xsf_impl!(it2struve0, x: f64);
-    xsf_impl!(itmodstruve0, x: f64);
-    xsf_impl!(struve_h, v: f64, z: f64);
-    xsf_impl!(struve_l, v: f64, z: f64);
-    // trig.h
-    xsf_impl!(sinpi, x: f64);
-    xsf_impl!(cospi, x: f64);
-    xsf_impl!(sindg, x: f64);
-    xsf_impl!(cosdg, x: f64);
-    xsf_impl!(tandg, x: f64);
-    xsf_impl!(cotdg, x: f64);
-    xsf_impl!(radian, d: f64, m: f64, s: f64);
-    xsf_impl!(cosm1, x: f64);
-    // wright_bessel.h
-    // xsf_impl!(wright_bessel_t, a: f64, b: f64, x: f64);
-    xsf_impl!(wright_bessel, a: f64, b: f64, x: f64);
-    xsf_impl!(log_wright_bessel, a: f64, b: f64, x: f64);
-    // zeta.h
-    xsf_impl!(riemann_zeta, s: f64);
-    xsf_impl!(zeta, s: f64, q: f64);
-    xsf_impl!(zetac, s: f64);
+macro_rules! xsf_impl {
+    ($name:ident, $xsf_name:ident, $($param:ident: $type:ty),*) => {
+        xsf_impl!($name, $xsf_name, "", $($param: $type),*);
+    };
+    ($name:ident, $xsf_name:ident, $docs:expr, $($param:ident: $type:ty),*) => {
+        #[allow(clippy::empty_docs)]
+        #[doc = $docs]
+        pub fn $name($($param: $type),*) -> f64 {
+            unsafe { ffi::$xsf_name($($param),*) }
+        }
+    };
 }
+
+// alg.h
+xsf_impl!(cbrt, xsf_cbrt, "Cube root", x: f64);
+
+// beta.h
+xsf_impl!(beta, xsf_beta, "Beta function", a: f64, b: f64);
+xsf_impl!(betaln, xsf_betaln, "Natural log of `|beta|`", a: f64, b: f64);
+
+// binom.h
+xsf_impl!(binom, xsf_binom, "Binomial coefficient", n: f64, k: f64);
+
+// digamma.h
+xsf_impl!(digamma, xsf_digamma, "Digamma function", x: f64);
+
+// erf.h
+xsf_impl!(erf, xsf_erf, "Error function", x: f64);
+xsf_impl!(erfc, xsf_erfc, "Complementary error function `1 - erf(x)`", x: f64);
+xsf_impl!(erfcx, xsf_erfcx, "Scaled complementary error function `exp(x^2) * erfc(x)`", x: f64);
+xsf_impl!(erfi, xsf_erfi, "Imaginary error function `-i erf(ix)`", x: f64);
+xsf_impl!(voigt_profile, xsf_voigt_profile, "Voigt profile", x: f64, sigma: f64, gamma: f64);
+xsf_impl!(dawsn, xsf_dawsn, "Dawson function `sqrt(pi)/2 * exp(-x^2) * erfi(x)`", x: f64);
+
+// exp.h
+xsf_impl!(expm1, xsf_expm1, "`exp(x) - 1`", x: f64);
+xsf_impl!(exp2, xsf_exp2, "`2^x`", x: f64);
+xsf_impl!(exp10, xsf_exp10, "`10^x`", x: f64);
+
+// expint.h
+xsf_impl!(exp1, xsf_exp1, "Exponential integral `E_1(x)`", x: f64);
+xsf_impl!(expi, xsf_expi, "Exponential integral `E_i(x)`", x: f64);
+xsf_impl!(
+    scaled_exp1,
+    xsf_scaled_exp1,
+    "Scaled version of the exponential integral `E_1(x)`",
+    x: f64
+);
+
+// fp_error_metrics.h
+// xsf_impl!(extended_absolute_error, xsf_extended_absolute_error, actual: f64, desired: f64);
+// xsf_impl!(extended_relative_error, xsf_extended_relative_error, actual: f64, desired: f64);
+
+// gamma.h
+xsf_impl!(gamma, xsf_gamma, "Gamma function", x: f64);
+xsf_impl!(gamma_ratio, xsf_gamma_ratio, "`gamma(a) / gamma(b)`", a: f64, b: f64);
+xsf_impl!(gammainc, xsf_gammainc, "Incomplete Gamma integral", a: f64, x: f64);
+xsf_impl!(gammaincc, xsf_gammaincc, "Complemented incomplete Gamma integral", a: f64, x: f64);
+xsf_impl!(gammaincinv, xsf_gammaincinv, "Inverse of `gammainc`", a: f64, p: f64);
+xsf_impl!(gammainccinv, xsf_gammainccinv, "Inverse of `gammaincc`", a: f64, p: f64);
+xsf_impl!(gammaln, xsf_gammaln, "Natural logarithm of Gamma function", x: f64);
+xsf_impl!(gammasgn, xsf_gammasgn, "Sign of the Gamma function", x: f64);
+
+// hyp2f1.h
+xsf_impl!(hyp2f1, xsf_hyp2f1, "Gauss hypergeometric function `2F1`", a: f64, b: f64, c: f64, x: f64);
+
+// iv_ratio.h
+xsf_impl!(
+    iv_ratio,
+    xsf_iv_ratio,
+    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind",
+    v: f64,
+    x: f64
+);
+xsf_impl!(
+    iv_ratio_c,
+    xsf_iv_ratio_c,
+    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind",
+    v: f64,
+    x: f64
+);
+
+// kelvin.h
+xsf_impl!(ber, xsf_ber, "Kelvin function `ber`", x: f64);
+xsf_impl!(bei, xsf_bei,  "Kelvin function `bei`", x: f64);
+xsf_impl!(ker, xsf_ker, "Kelvin function `ker`", x: f64);
+xsf_impl!(kei, xsf_kei, "Kelvin function `kei`", x: f64);
+xsf_impl!(berp, xsf_berp, "Derivative of the Kelvin function `ber`", x: f64);
+xsf_impl!(beip, xsf_beip, "Derivative of the Kelvin function `bei`", x: f64);
+xsf_impl!(kerp, xsf_kerp, "Derivative of the Kelvin function `ker`", x: f64);
+xsf_impl!(keip, xsf_keip, "Derivative of the Kelvin function `kei`", x: f64);
+
+// legendre.h
+xsf_impl!(legendre_p, xsf_legendre_p, "Legendre polynomial of degree n", n: c_int, x: f64);
+xsf_impl!(
+    sph_legendre_p,
+    xsf_sph_legendre_p,
+    "Spherical Legendre polynomial of degree n and order m",
+    n: c_int,
+    m: c_int,
+    theta: f64
+);
+
+// log_exp.h
+xsf_impl!(expit, xsf_expit, "Expit function, `1/(1 + exp(-x))`", x: f64);
+xsf_impl!(exprel, xsf_exprel, "Relative error exponential, `(exp(x) - 1)/x`", x: f64);
+xsf_impl!(logit, xsf_logit, "Logit function, `log(x / (1 - x))`", x: f64);
+xsf_impl!(log_expit, xsf_log_expit, "Log of the expit function, `log(expit(x))`", x: f64);
+xsf_impl!(log1mexp, xsf_log1mexp, "Compute `log(1 - exp(x))`", x: f64);
+
+// log.h
+xsf_impl!(log1p, xsf_log1p, "Compute `log(1 + x)`", x: f64);
+xsf_impl!(log1pmx, xsf_log1pmx, "Compute `log(1 + x) - x`", x: f64);
+xsf_impl!(xlogy, xsf_xlogy, "Compute `x * log(y)`", x: f64, y: f64);
+xsf_impl!(xlog1py, xsf_xlog1py, "Compute `x * log(1 + y)`", x: f64, y: f64);
+
+// loggamma.h
+xsf_impl!(loggamma, xsf_loggamma, "Principal branch of the logarithm of `gamma(x)`", x: f64);
+xsf_impl!(rgamma, xsf_rgamma, "Reciprocal Gamma function", x: f64);
+
+// mathieu.h
+xsf_impl!(cem_cva, xsf_cem_cva, "Characteristic value of even Mathieu functions", m: f64, q: f64);
+xsf_impl!(sem_cva, xsf_sem_cva, "Characteristic value of odd Mathieu functions", m: f64, q: f64);
+
+// specfun.h
+xsf_impl!(hypu, xsf_hypu, "Confluent hypergeometric function `U`", a: f64, b: f64, x: f64);
+xsf_impl!(hyp1f1, xsf_hyp1f1, "Confluent hypergeometric function `1F1`", a: f64, b: f64, x: f64);
+xsf_impl!(
+    pmv,
+    xsf_pmv,
+    "Associated Legendre function of integer order and real degree",
+    m: f64,
+    v: f64,
+    x: f64
+);
+
+// sphd_wave.h
+xsf_impl!(
+    prolate_segv,
+    xsf_prolate_segv,
+    "Characteristic value of prolate spheroidal function",
+    m: f64,
+    n: f64,
+    c: f64
+);
+xsf_impl!(
+    oblate_segv,
+    xsf_oblate_segv,
+    "Characteristic value of oblate spheroidal function",
+    m: f64,
+    n: f64,
+    c: f64
+);
+
+// stats.h
+xsf_impl!(bdtr, xsf_bdtr, "Binomial distribution function", k: f64, n: c_int, p: f64);
+xsf_impl!(bdtrc, xsf_bdtrc, "Binomial survival function", k: f64, n: c_int, p: f64);
+xsf_impl!(bdtri, xsf_bdtri, "Binomial quantile function", k: f64, n: c_int, y: f64);
+xsf_impl!(chdtr, xsf_chdtr, "Chi-squared distribution function", df: f64, x: f64);
+xsf_impl!(chdtrc, xsf_chdtrc, "Chi-squared survival function", df: f64, x: f64);
+xsf_impl!(chdtri, xsf_chdtri, "Chi-squared quantile function", df: f64, y: f64);
+xsf_impl!(fdtr, xsf_fdtr, "F distribution function", a: f64, b: f64, x: f64);
+xsf_impl!(fdtrc, xsf_fdtrc, "F survival function", a: f64, b: f64, x: f64);
+xsf_impl!(fdtri, xsf_fdtri, "F quantile function", a: f64, b: f64, y: f64);
+xsf_impl!(gdtr, xsf_gdtr, "Gamma distribution function", a: f64, b: f64, x: f64);
+xsf_impl!(gdtrc, xsf_gdtrc, "Gamma survival function", a: f64, b: f64, x: f64);
+xsf_impl!(kolmogorov, xsf_kolmogorov, "Kolmogorov survival function", x: f64);
+xsf_impl!(kolmogc, xsf_kolmogc, "Kolmogorov distribution function", x: f64);
+xsf_impl!(kolmogi, xsf_kolmogi, "Inverse of `kolmogorov`", x: f64);
+xsf_impl!(kolmogp, xsf_kolmogp, "Derivative of `kolmogorov`", x: f64);
+xsf_impl!(ndtr, xsf_ndtr, "Normal distribution function", x: f64);
+xsf_impl!(ndtri, xsf_ndtri, "Normal quantile function", x: f64);
+xsf_impl!(log_ndtr, xsf_log_ndtr, "Log of the normal distribution function", x: f64);
+xsf_impl!(nbdtr, xsf_nbdtr, "Negative binomial distribution function", k: c_int, n: c_int, p: f64);
+xsf_impl!(nbdtrc, xsf_nbdtrc, "Negative binomial survival function", k: c_int, n: c_int, p: f64);
+xsf_impl!(nbdtri, xsf_nbdtri, "Negative binomial quantile function", k: c_int, n: c_int, p: f64);
+xsf_impl!(owens_t, xsf_owens_t, "Owen's T function", h: f64, a: f64);
+xsf_impl!(pdtr, xsf_pdtr, "Poisson distribution function", k: f64, m: f64);
+xsf_impl!(pdtrc, xsf_pdtrc, "Poisson survival function", k: f64, m: f64);
+xsf_impl!(pdtri, xsf_pdtri, "Poisson quantile function", k: c_int, y: f64);
+xsf_impl!(smirnov, xsf_smirnov, "Kolmogorov-Smirnov survival function", n: c_int, x: f64);
+xsf_impl!(smirnovc, xsf_smirnovc, "Kolmogorov-Smirnov distribution function", n: c_int, x: f64);
+xsf_impl!(smirnovi, xsf_smirnovi, "Inverse of `smirnov`", n: c_int, x: f64);
+xsf_impl!(smirnovp, xsf_smirnovp, "Derivative of `smirnov`", n: c_int, x: f64);
+xsf_impl!(
+    tukeylambdacdf,
+    xsf_tukeylambdacdf,
+    "Tukey-Lambda distribution function",
+    x: f64,
+    lmbda: f64
+);
+
+// struve.h
+xsf_impl!(itstruve0, xsf_itstruve0, "Integral of the Struve function of order 0", x: f64);
+xsf_impl!(it2struve0, xsf_it2struve0, "Integral related to the Struve function of order 0", x: f64);
+xsf_impl!(
+    itmodstruve0,
+    xsf_itmodstruve0,
+    "Integral of the modified Struve function of order 0",
+    x: f64
+);
+xsf_impl!(struve_h, xsf_struve_h, "Struve `H` function", v: f64, x: f64);
+xsf_impl!(struve_l, xsf_struve_l, "Struve `L` function", v: f64, x: f64);
+
+// trig.h
+xsf_impl!(sinpi, xsf_sinpi, "Compute `sin(pi * x)`", x: f64);
+xsf_impl!(cospi, xsf_cospi, "Compute `cos(pi * x)`", x: f64);
+xsf_impl!(sindg, xsf_sindg, "Circular sine of angle in degrees", x: f64);
+xsf_impl!(cosdg, xsf_cosdg, "Circular cosine of angle in degrees", x: f64);
+xsf_impl!(tandg, xsf_tandg, "Circular tangent of argument in degrees", x: f64);
+xsf_impl!(cotdg, xsf_cotdg, "Circular cotangent of argument in degrees", x: f64);
+xsf_impl!(radian, xsf_radian, "Degrees, minutes, seconds to radians", d: f64, m: f64, s: f64);
+xsf_impl!(cosm1, xsf_cosm1, "Compute `cos(x) - 1`", x: f64);
+
+// wright_bessel.h
+xsf_impl!(
+    wright_bessel,
+    xsf_wright_bessel,
+    "Wright's generalized Bessel function for scalar arguments",
+    a: f64,
+    b: f64,
+    x: f64
+);
+xsf_impl!(
+    log_wright_bessel,
+    xsf_log_wright_bessel,
+    "Logarithm of `wright_bessel`",
+    a: f64,
+    b: f64,
+    x: f64
+);
+
+// zeta.h
+xsf_impl!(riemann_zeta, xsf_riemann_zeta, "Riemann zeta function", x: f64);
+xsf_impl!(zeta, xsf_zeta, "Riemann zeta function of two arguments", x: f64, q: f64);
+xsf_impl!(zetac, xsf_zetac, "Riemann zeta function, minus one", x: f64);
 
 #[cfg(test)]
 mod tests {
     use std::f64::consts::LN_2;
 
-    use super::xsf64::*;
+    use super::*;
     use float_cmp::assert_approx_eq;
 
     const LN_3: f64 = 1.098_612_288_668_109_7;
