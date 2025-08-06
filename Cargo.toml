@@ -4,16 +4,16 @@ version = "0.0.0+0.1.2"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 categories = ["api-bindings", "mathematics", "science"]
 edition = "2024"
+exclude = [
+  "**/.github/*",
+  "**/.vscode/*",
+]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause AND MIT AND BSD-3-Clause-LBNL AND Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 repository = "https://github.com/jorenham/xsf-rust"
 rust-version = "1.88"
 description = "Rust bindings for scipy's xsf special functions library"
-exclude = [
-    "**/.github/*",
-    "**/.vscode/*",
-]
 
 [build-dependencies]
 bindgen = "0.72"
