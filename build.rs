@@ -45,14 +45,42 @@ const XSF_HEADERS: &[&str] = &[
 ];
 // e.g. `("spam", "if->d")` becomes `double xsf_spam(int x0, float x1)`
 const XSF_TYPES: &[(&str, &str)] = &[
+    // airy.h
+    // TODO: `airyb`, `airyzo`, `airy`, `airye`, `itairy`
     // alg.h
     ("cbrt", "d->d"),
+    // bessel.h
+    // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
+    // TODO: `rctj`, `rcty`,
+    // TODO: `cyl_hankel_1`, `cyl_hankel_1e`, `cyl_hankel_2`, `cyl_hankel_2e`
+    ("cyl_bessel_j", "dd->d"),  // TODO: complex
+    ("cyl_bessel_je", "dd->d"), // TODO: complex
+    ("cyl_bessel_j0", "d->d"),
+    ("cyl_bessel_j1", "d->d"),
+    ("cyl_bessel_y", "dd->d"),  // TODO: complex
+    ("cyl_bessel_ye", "dd->d"), // TODO: complex
+    ("cyl_bessel_y0", "d->d"),
+    ("cyl_bessel_y1", "d->d"),
+    ("cyl_bessel_i", "dd->d"),  // TODO: complex
+    ("cyl_bessel_ie", "dd->d"), // TODO: complex
+    ("cyl_bessel_i0", "d->d"),
+    ("cyl_bessel_i0e", "d->d"),
+    ("cyl_bessel_i1", "d->d"),
+    ("cyl_bessel_i1e", "d->d"),
+    ("cyl_bessel_k", "dd->d"),  // TODO: complex
+    ("cyl_bessel_ke", "dd->d"), // TODO: complex
+    ("cyl_bessel_k0", "d->d"),
+    ("cyl_bessel_k0e", "d->d"),
+    ("cyl_bessel_k1", "d->d"),
+    ("cyl_bessel_k1e", "d->d"),
+    ("besselpoly", "ddd->d"),
     // beta.h
     ("beta", "dd->d"),
     ("betaln", "dd->d"),
     // binom.h
-    // cdflib.h  (TODO: `gdtrib`)
     ("binom", "dd->d"),
+    // cdflib.h
+    // TODO: `gdtrib`
     // digamma.h
     ("digamma", "d->d"),
     // erf.h
@@ -62,7 +90,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("erfi", "d->d"),
     ("voigt_profile", "ddd->d"),
     ("dawsn", "d->d"),
-    // evalpoly.h  (TODO: `cevalpoly`)
+    // evalpoly.h
+    // TODO: `cevalpoly`
     // exp.h
     ("expm1", "d->d"),
     ("exp2", "d->d"),
@@ -71,7 +100,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("exp1", "d->d"),
     ("expi", "d->d"),
     ("scaled_exp1", "d->d"),
-    // fresnel.h  (TODO: `fresnel`, `fcszo`)
+    // fresnel.h
+    // TODO: `fresnel`, `fcszo`
     // gamma.h
     ("gamma", "d->d"), // TODO: complex
     ("gammaln", "d->d"),
@@ -86,7 +116,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // iv_ratio.h
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),
-    // kelvin.h (TODO: `kelvin`, `klvnzo`)
+    // kelvin.h
+    // TODO: `kelvin`, `klvnzo`
     ("ber", "d->d"),
     ("bei", "d->d"),
     ("ker", "d->d"),
@@ -95,7 +126,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("beip", "d->d"),
     ("kerp", "d->d"),
     ("keip", "d->d"),
-    // legendre.h  (TODO: `assoc_legendre_p`, `lqn`, `lqmn`)
+    // legendre.h
+    // TODO: `assoc_legendre_p`, `lqn`, `lqmn`
     ("legendre_p", "id->d"),
     ("sph_legendre_p", "iid->d"),
     // log_exp.h
@@ -112,10 +144,12 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // loggamma.h
     ("loggamma", "d->d"),
     ("rgamma", "d->d"),
-    // mathieu.h  (TODO: `cen`, `sem`, `mcm1`, `msm1`, `mcm2`, `msm2`)
+    // mathieu.h
+    // TODO: `cen`, `sem`, `mcm1`, `msm1`, `mcm2`, `msm2`
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
-    // specfun.h  (TODO: `chyp2f1`, `cerf`)
+    // specfun.h
+    // TODO: `chyp2f1`, `cerf`
     ("hypu", "ddd->d"),
     ("hyp1f1", "ddd->d"),
     ("pmv", "ddd->d"),

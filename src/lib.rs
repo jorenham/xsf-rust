@@ -20,6 +20,82 @@ macro_rules! xsf_impl {
 // alg.h
 xsf_impl!(cbrt, xsf_cbrt, "Cube root", x: f64);
 
+// bessel.h
+xsf_impl!(cyl_bessel_j, xsf_cyl_bessel_j, "Bessel function, 1st kind", v: f64, x: f64);
+xsf_impl!(
+    cyl_bessel_je,
+    xsf_cyl_bessel_je,
+    "Exponentially scaled Bessel function, 1st kind",
+    v: f64,
+    x: f64
+);
+xsf_impl!(cyl_bessel_y, xsf_cyl_bessel_y, "Bessel function, 2nd kind", v: f64, x: f64);
+xsf_impl!(
+    cyl_bessel_ye,
+    xsf_cyl_bessel_ye,
+    "Exponentially scaled Bessel function, 2nd kind",
+    v: f64,
+    x: f64
+);
+xsf_impl!(cyl_bessel_i, xsf_cyl_bessel_i, "Modified Bessel function, 1st kind", v: f64, x: f64);
+xsf_impl!(
+    cyl_bessel_ie,
+    xsf_cyl_bessel_ie,
+    "Exponentially scaled modified Bessel function, 1st kind",
+    v: f64,
+    x: f64
+);
+xsf_impl!(cyl_bessel_k, xsf_cyl_bessel_k, "Modified Bessel function, 2nd kind", v: f64, x: f64);
+xsf_impl!(
+    cyl_bessel_ke,
+    xsf_cyl_bessel_ke,
+    "Exponentially scaled modified Bessel function, 2nd kind",
+    v: f64,
+    x: f64
+);
+
+xsf_impl!(cyl_bessel_j0, xsf_cyl_bessel_j0, "Bessel function, 1st kind, order 0", x: f64);
+xsf_impl!(cyl_bessel_j1, xsf_cyl_bessel_j1, "Bessel function, 1st kind, order 1", x: f64);
+xsf_impl!(cyl_bessel_y0, xsf_cyl_bessel_y0, "Bessel function, 2nd kind, order 0", x: f64);
+xsf_impl!(cyl_bessel_y1, xsf_cyl_bessel_y1, "Bessel function, 2nd kind, order 1", x: f64);
+xsf_impl!(cyl_bessel_i0, xsf_cyl_bessel_i0, "Modified Bessel function, 1st kind, order 0", x: f64);
+xsf_impl!(
+    cyl_bessel_i0e,
+    xsf_cyl_bessel_i0e,
+    "Exponentially scaled modified Bessel function, 1st kind, order 0",
+    x: f64
+);
+xsf_impl!(cyl_bessel_i1, xsf_cyl_bessel_i1, "Modified Bessel function, 1st kind, order 1", x: f64);
+xsf_impl!(
+    cyl_bessel_i1e,
+    xsf_cyl_bessel_i1e,
+    "Exponentially scaled modified Bessel function, 1st kind, order 1",
+    x: f64
+);
+xsf_impl!(cyl_bessel_k0, xsf_cyl_bessel_k0, "Modified Bessel function, 2nd kind, order 0", x: f64);
+xsf_impl!(
+    cyl_bessel_k0e,
+    xsf_cyl_bessel_k0e,
+    "Exponentially scaled modified Bessel function, 2nd kind, order 0",
+    x: f64
+);
+xsf_impl!(cyl_bessel_k1, xsf_cyl_bessel_k1, "Modified Bessel function, 2nd kind, order 1", x: f64);
+xsf_impl!(
+    cyl_bessel_k1e,
+    xsf_cyl_bessel_k1e,
+    "Exponentially scaled modified Bessel function, 2nd kind, order 1",
+    x: f64
+);
+
+xsf_impl!(
+    besselpoly,
+    xsf_besselpoly,
+    "Weighted integral of the Bessel function of the first kind",
+    a: f64,
+    lambda: f64,
+    nu: f64
+);
+
 // beta.h
 xsf_impl!(beta, xsf_beta, "Beta function", a: f64, b: f64);
 xsf_impl!(betaln, xsf_betaln, "Natural log of `|beta|`", a: f64, b: f64);
@@ -74,14 +150,14 @@ xsf_impl!(hyp2f1, xsf_hyp2f1, "Gauss hypergeometric function `2F1`", a: f64, b: 
 xsf_impl!(
     iv_ratio,
     xsf_iv_ratio,
-    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind",
+    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function, 1st kind",
     v: f64,
     x: f64
 );
 xsf_impl!(
     iv_ratio_c,
     xsf_iv_ratio_c,
-    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind",
+    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function, 1st kind",
     v: f64,
     x: f64
 );
