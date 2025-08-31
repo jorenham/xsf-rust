@@ -47,8 +47,6 @@ const XSF_HEADERS: &[&str] = &[
 const XSF_TYPES: &[(&str, &str)] = &[
     // airy.h
     // TODO: `airyb`, `airyzo`, `airy`, `airye`, `itairy`
-    // alg.h
-    ("cbrt", "d->d"),
     // bessel.h
     // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
     // TODO: `rctj`, `rcty`,
@@ -84,18 +82,12 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // digamma.h
     ("digamma", "d->d"),
     // erf.h
-    ("erf", "d->d"),
-    ("erfc", "d->d"),
     ("erfcx", "d->d"),
     ("erfi", "d->d"),
     ("voigt_profile", "ddd->d"),
     ("dawsn", "d->d"),
     // evalpoly.h
     // TODO: `cevalpoly`
-    // exp.h
-    ("expm1", "d->d"),
-    ("exp2", "d->d"),
-    ("exp10", "d->d"),
     // expint.h
     ("exp1", "d->d"),
     ("expi", "d->d"),
@@ -103,7 +95,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // fresnel.h
     // TODO: `fresnel`, `fcszo`
     // gamma.h
-    ("gamma", "d->d"), // TODO: complex
     ("gammaln", "d->d"),
     ("gammasgn", "d->d"),
     ("gammainc", "dd->d"),
@@ -137,7 +128,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("log_expit", "d->d"),
     ("log1mexp", "d->d"),
     // log.h
-    ("log1p", "d->d"),
     ("log1pmx", "d->d"),
     ("xlogy", "dd->d"),
     ("xlog1py", "dd->d"),
@@ -203,7 +193,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("radian", "ddd->d"),
     ("cosm1", "d->d"),
     // wright_bessel.h
-    // ("wright_bessel_t", "ddd->d"),
     ("wright_bessel", "ddd->d"),
     ("log_wright_bessel", "ddd->d"),
     // zeta.h
@@ -249,7 +238,8 @@ fn fmt_return(types: &str) -> String {
 fn fmt_func(name: &str, types: &str) -> String {
     let ret = fmt_return(types);
     let params = fmt_params(types, true);
-    format!("{} xsf_{}({})", ret, name, params)
+    // format!("{} xsf_{}({})", ret, name, params)
+    format!("{} {}({})", ret, name, params)
 }
 
 fn fmt_call(name: &str, types: &str) -> String {
@@ -309,10 +299,9 @@ fn build_wrapper(dir_out: &str, include: &str) {
         .compile(WRAPPER_NAME);
 }
 
-fn generate_bindings(dir_out: &str, file_hpp: &str) {
+fn generate_bindings(dir_out: &str, header: &str) {
     bindgen::Builder::default()
-        .header(file_hpp)
-        .allowlist_function("xsf_.*")
+        .header(header)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .unwrap()
