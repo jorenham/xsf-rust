@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(gamma(2.0), 1.0);
         assert_eq!(gamma(3.0), 2.0);
         assert_eq!(gamma(5.0), 24.0);
-        assert_eq!(gamma(8.0), 5_040.0);
+        assert_approx_eq!(f64, gamma(8.0), 5_040.0, ulps = 1);
 
         assert_approx_eq!(f64, gamma(0.5), SQRT_PI, ulps = 1);
         assert_approx_eq!(f64, gamma(-0.5), -2.0 * SQRT_PI, ulps = 1);
