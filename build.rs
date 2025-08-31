@@ -238,7 +238,6 @@ fn fmt_return(types: &str) -> String {
 fn fmt_func(name: &str, types: &str) -> String {
     let ret = fmt_return(types);
     let params = fmt_params(types, true);
-    // format!("{} xsf_{}({})", ret, name, params)
     format!("{} {}({})", ret, name, params)
 }
 
