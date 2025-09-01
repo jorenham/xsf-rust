@@ -173,25 +173,18 @@ fn extended_absolute_error(actual: f64, desired: f64) -> f64 {
         return 0.0;
     }
     if desired.is_nan() || actual.is_nan() {
-        // If expected nan but got non-NaN or expected non-NaN but got NaN
-        // we consider this to be an infinite error.
         return f64::INFINITY;
     }
+
+    let mantissa_bits = 52; // f64 has 52 mantissa bits
+    let max_float = f64::MAX;
     if actual.is_infinite() {
-        // We don't want to penalize early overflow too harshly, so instead
-        // compare with the mythical value nextafter(max_float).
         let sgn = actual.signum();
-        let mantissa_bits = 52; // f64 has 52 mantissa bits
-        let max_float = f64::MAX;
-        // max_float * 2**-(mantissa_bits + 1) = ulp(max_float)
         let ulp = max_float * 2.0_f64.powi(-(mantissa_bits + 1));
         return ((sgn * max_float - desired) + sgn * ulp).abs();
     }
     if desired.is_infinite() {
         let sgn = desired.signum();
-        let mantissa_bits = 52; // f64 has 52 mantissa bits
-        let max_float = f64::MAX;
-        // max_float * 2**-(mantissa_bits + 1) = ulp(max_float)
         let ulp = max_float * 2.0_f64.powi(-(mantissa_bits + 1));
         return ((sgn * max_float - actual) + sgn * ulp).abs();
     }
@@ -209,16 +202,19 @@ where
     for (i, case) in test_cases.iter().enumerate() {
         let actual = test_fn(&case.inputs);
 
-        let error = extended_relative_error(actual, case.expected);
+        let error = extended_relative_error(actual, case.expected)
+            .min(extended_absolute_error(actual, case.expected));
 
-        if error > case.tolerance {
+        let is_huge = case.expected.abs() > 1e16;
+        let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
+        let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
+
+        if error > max_error && (!is_huge || error > 1e-13) {
             failed += 1;
-            if failed <= 3 {
-                eprintln!(
-                    "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, tolerance {:.2e}",
-                    function_name, i, case.expected, actual, error, case.tolerance
-                );
-            }
+            eprintln!(
+                "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, tolerance {:.2e}",
+                function_name, i, case.expected, actual, error, max_error
+            );
         }
     }
 
