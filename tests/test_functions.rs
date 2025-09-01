@@ -124,7 +124,6 @@ generate_tests!(scaled_exp1, "d-d");
 
 // Hypergeometric functions
 generate_tests!(hyp2f1, "d_d_d_d-d");
-generate_tests!(hyperu, "d_d_d-d");
 // generate_tests!(hyp1f1, "d_d_d-d");  // xsref table only exists for complex
 
 // Kelvin functions

@@ -188,10 +188,6 @@ xsf_impl!(cem_cva, (m: f64, q: f64), "Characteristic value of even Mathieu funct
 xsf_impl!(sem_cva, (m: f64, q: f64), "Characteristic value of odd Mathieu functions");
 
 // specfun.h
-/// See `hypu`
-pub fn hyperu(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { ffi::hypu(a, b, x) }
-}
 xsf_impl!(hypu, (a: f64, b: f64, x: f64), "Confluent hypergeometric function `U`");
 xsf_impl!(hyp1f1, (a: f64, b: f64, x: f64), "Confluent hypergeometric function `1F1`");
 xsf_impl!(pmv, (m: f64, v: f64, x: f64), "Associated Legendre function");
