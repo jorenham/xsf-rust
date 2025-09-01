@@ -206,6 +206,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("zeta", "dd->d"),
     ("zetac", "d->d"),
 ];
+// Functions that need renaming because they clash with standard library names
 const XSF_RENAME: &[(&str, &str)] = &[
     ("cbrt", "cbrt_"),
     ("gamma", "gamma_"),
