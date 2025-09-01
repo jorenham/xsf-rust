@@ -13,8 +13,10 @@ rust-version = "1.88"
 description = "Rust bindings for scipy's xsf special functions library"
 
 [build-dependencies]
-bindgen = "0.72"
-cc = "1.2.32"
+bindgen = "0.72.1"
+cc = "1.2.35"
 
 [dev-dependencies]
-float-cmp = "0.10.0"
+arrow = "56.1.0"
+parquet = "56.1.0"
+paste = "1.0"

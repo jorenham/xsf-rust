@@ -1,0 +1,219 @@
+//! Tests for xsf special functions
+//!
+//! Each function gets individual basic and reference data tests that appear
+//! as separate tests in `cargo test` output.
+
+mod parquet;
+
+/// Helper macro to generate the test body
+macro_rules! test_body {
+    ($name:ident, $sig:literal, $test_fn:expr) => {
+        paste::paste! {
+            #[test]
+            fn [<test_ $name>]() {
+                let test_fn = $test_fn;
+                parquet::test_function(stringify!($name), $sig, test_fn).unwrap();
+            }
+        }
+    };
+}
+
+/// Generate a test function for xsf functions
+macro_rules! generate_tests {
+    ($name:ident, "d-d") => {
+        test_body!($name, "d-d", |xs: &[f64]| xsf::$name(xs[0]));
+    };
+    ($name:ident, "d_d-d") => {
+        test_body!($name, "d_d-d", |xs: &[f64]| xsf::$name(xs[0], xs[1]));
+    };
+    ($name:ident, "d_d_d-d") => {
+        test_body!($name, "d_d_d-d", |xs: &[f64]| xsf::$name(
+            xs[0], xs[1], xs[2]
+        ));
+    };
+    ($name:ident, "d_d_d_d-d") => {
+        test_body!($name, "d_d_d_d-d", |xs: &[f64]| xsf::$name(
+            xs[0], xs[1], xs[2], xs[3]
+        ));
+    };
+    ($name:ident, "p_d-d") => {
+        test_body!($name, "p_d-d", |xs: &[f64]| xsf::$name(xs[0] as i32, xs[1]));
+    };
+    ($name:ident, "p_p_d-d") => {
+        test_body!($name, "p_p_d-d", |xs: &[f64]| xsf::$name(
+            xs[0] as i32,
+            xs[1] as i32,
+            xs[2]
+        ));
+    };
+    ($name:ident, "d_p_d-d") => {
+        test_body!($name, "d_p_d-d", |xs: &[f64]| xsf::$name(
+            xs[0],
+            xs[1] as i32,
+            xs[2]
+        ));
+    };
+}
+
+// Basic mathematical functions
+generate_tests!(gamma, "d-d");
+generate_tests!(erf, "d-d");
+generate_tests!(erfc, "d-d");
+generate_tests!(cbrt, "d-d");
+generate_tests!(expm1, "d-d");
+generate_tests!(exp2, "d-d");
+generate_tests!(exp10, "d-d");
+
+// Gamma-related functions
+generate_tests!(digamma, "d-d");
+generate_tests!(gammaln, "d-d");
+generate_tests!(gammasgn, "d-d");
+generate_tests!(gammainc, "d_d-d");
+generate_tests!(gammaincinv, "d_d-d");
+generate_tests!(gammaincc, "d_d-d");
+generate_tests!(gammainccinv, "d_d-d");
+generate_tests!(loggamma, "d-d");
+generate_tests!(rgamma, "d-d");
+
+// Bessel functions (single parameter)
+generate_tests!(cyl_bessel_j0, "d-d");
+generate_tests!(cyl_bessel_j1, "d-d");
+generate_tests!(cyl_bessel_y0, "d-d");
+generate_tests!(cyl_bessel_y1, "d-d");
+generate_tests!(cyl_bessel_i0, "d-d");
+generate_tests!(cyl_bessel_i0e, "d-d");
+generate_tests!(cyl_bessel_i1, "d-d");
+generate_tests!(cyl_bessel_i1e, "d-d");
+generate_tests!(cyl_bessel_k0, "d-d");
+generate_tests!(cyl_bessel_k0e, "d-d");
+generate_tests!(cyl_bessel_k1, "d-d");
+generate_tests!(cyl_bessel_k1e, "d-d");
+
+// Bessel functions (two parameters)
+generate_tests!(cyl_bessel_j, "d_d-d");
+generate_tests!(cyl_bessel_je, "d_d-d");
+generate_tests!(cyl_bessel_y, "d_d-d");
+generate_tests!(cyl_bessel_ye, "d_d-d");
+generate_tests!(cyl_bessel_i, "d_d-d");
+generate_tests!(cyl_bessel_ie, "d_d-d");
+generate_tests!(cyl_bessel_k, "d_d-d");
+generate_tests!(cyl_bessel_ke, "d_d-d");
+generate_tests!(iv_ratio, "d_d-d");
+generate_tests!(iv_ratio_c, "d_d-d");
+
+// Bessel functions (three parameters)
+generate_tests!(besselpoly, "d_d_d-d");
+
+// Beta functions
+generate_tests!(beta, "d_d-d");
+generate_tests!(betaln, "d_d-d");
+
+// Binomial functions
+generate_tests!(binom, "d_d-d");
+
+// Error functions
+generate_tests!(erfcx, "d-d");
+generate_tests!(erfi, "d-d");
+generate_tests!(dawsn, "d-d");
+generate_tests!(voigt_profile, "d_d_d-d");
+
+// Exponential integral functions
+generate_tests!(exp1, "d-d");
+generate_tests!(expi, "d-d");
+generate_tests!(scaled_exp1, "d-d");
+
+// Hypergeometric functions
+generate_tests!(hyp2f1, "d_d_d_d-d");
+generate_tests!(hyperu, "d_d_d-d");
+// generate_tests!(hyp1f1, "d_d_d-d");  // xsref table only exists for complex
+
+// Kelvin functions
+generate_tests!(ber, "d-d");
+generate_tests!(bei, "d-d");
+generate_tests!(ker, "d-d");
+generate_tests!(kei, "d-d");
+generate_tests!(berp, "d-d");
+generate_tests!(beip, "d-d");
+generate_tests!(kerp, "d-d");
+generate_tests!(keip, "d-d");
+
+// Legendre functions
+// generate_tests!(legendre_p, "p_d-d");  // no xsref table
+// generate_tests!(sph_legendre_p, "p_p_d-d");  // no xsref table
+generate_tests!(pmv, "d_d_d-d");
+
+// Log and exponential functions
+generate_tests!(expit, "d-d");
+generate_tests!(exprel, "d-d");
+generate_tests!(logit, "d-d");
+generate_tests!(log_expit, "d-d");
+// generate_tests!(log1mexp, "d-d");  // no xsref table
+generate_tests!(log1pmx, "d-d");
+generate_tests!(xlogy, "d_d-d");
+generate_tests!(xlog1py, "d_d-d");
+
+// Mathieu functions
+generate_tests!(cem_cva, "d_d-d");
+generate_tests!(sem_cva, "d_d-d");
+
+// Spheroidal wave functions
+generate_tests!(prolate_segv, "d_d_d-d");
+// generate_tests!(oblate_segv, "d_d_d-d"); // no xsref table??
+
+// Statistical functions
+generate_tests!(bdtr, "d_p_d-d");
+generate_tests!(bdtrc, "d_p_d-d");
+generate_tests!(bdtri, "d_p_d-d");
+generate_tests!(chdtr, "d_d-d");
+generate_tests!(chdtrc, "d_d-d");
+generate_tests!(chdtri, "d_d-d");
+generate_tests!(fdtr, "d_d_d-d");
+generate_tests!(fdtrc, "d_d_d-d");
+generate_tests!(fdtri, "d_d_d-d");
+generate_tests!(gdtr, "d_d_d-d");
+generate_tests!(gdtrc, "d_d_d-d");
+generate_tests!(kolmogorov, "d-d");
+generate_tests!(kolmogc, "d-d");
+generate_tests!(kolmogi, "d-d");
+generate_tests!(kolmogp, "d-d");
+generate_tests!(ndtr, "d-d");
+generate_tests!(ndtri, "d-d");
+// generate_tests!(log_ndtr, "d-d");  // no xsref table
+generate_tests!(nbdtr, "p_p_d-d");
+generate_tests!(nbdtrc, "p_p_d-d");
+// generate_tests!(nbdtri, "p_p_d-d");  // no xsref table
+generate_tests!(owens_t, "d_d-d");
+generate_tests!(pdtr, "d_d-d");
+generate_tests!(pdtrc, "d_d-d");
+generate_tests!(pdtri, "p_d-d");
+generate_tests!(smirnov, "p_d-d");
+generate_tests!(smirnovc, "p_d-d");
+generate_tests!(smirnovi, "p_d-d");
+generate_tests!(smirnovp, "p_d-d");
+// generate_tests!(tukeylambdacdf, "d_d-d");  // no xsref table
+
+// Struve functions
+generate_tests!(itstruve0, "d-d");
+generate_tests!(it2struve0, "d-d");
+generate_tests!(itmodstruve0, "d-d");
+generate_tests!(struve_h, "d_d-d");
+generate_tests!(struve_l, "d_d-d");
+
+// Trigonometric functions
+generate_tests!(sinpi, "d-d");
+generate_tests!(cospi, "d-d");
+generate_tests!(sindg, "d-d");
+generate_tests!(cosdg, "d-d");
+generate_tests!(tandg, "d-d");
+generate_tests!(cotdg, "d-d");
+generate_tests!(cosm1, "d-d");
+generate_tests!(radian, "d_d_d-d");
+
+// Wright Bessel functions
+generate_tests!(wright_bessel, "d_d_d-d");
+generate_tests!(log_wright_bessel, "d_d_d-d");
+
+// Zeta functions
+generate_tests!(riemann_zeta, "d-d");
+generate_tests!(zeta, "d_d-d");
+generate_tests!(zetac, "d-d");
