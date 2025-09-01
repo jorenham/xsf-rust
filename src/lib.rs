@@ -2,15 +2,6 @@ use std::ffi::c_int;
 
 mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-    unsafe extern "C" {
-        pub fn cbrt(x: f64) -> f64;
-        pub fn erf(x: f64) -> f64;
-        pub fn erfc(x: f64) -> f64;
-        pub fn expm1(x: f64) -> f64;
-        pub fn exp2(x: f64) -> f64;
-        pub fn exp10(x: f64) -> f64;
-    }
 }
 
 macro_rules! xsf_impl {
@@ -25,7 +16,7 @@ macro_rules! xsf_impl {
 // alg.h
 /// Cube root
 pub fn cbrt(x: f64) -> f64 {
-    unsafe { ffi::cbrt(x) }
+    unsafe { ffi::cbrt_(x) }
 }
 
 // bessel.h
@@ -92,11 +83,11 @@ xsf_impl!(digamma, (x: f64), "Digamma function");
 // erf.h
 /// Error function
 pub fn erf(x: f64) -> f64 {
-    unsafe { ffi::erf(x) }
+    unsafe { ffi::erf_(x) }
 }
 /// Complementary error function `1 - erf(x)`
 pub fn erfc(x: f64) -> f64 {
-    unsafe { ffi::erfc(x) }
+    unsafe { ffi::erfc_(x) }
 }
 xsf_impl!(erfcx, (x: f64), "Scaled complementary error function `exp(x^2) * erfc(x)`");
 xsf_impl!(erfi, (x: f64), "Imaginary error function `-i erf(ix)`");
@@ -106,15 +97,15 @@ xsf_impl!(dawsn, (x: f64), "Dawson function `sqrt(pi)/2 * exp(-x^2) * erfi(x)`")
 // exp.h
 /// `exp(x) - 1`
 pub fn expm1(x: f64) -> f64 {
-    unsafe { ffi::expm1(x) }
+    unsafe { ffi::expm1_(x) }
 }
 /// `2^x`
 pub fn exp2(x: f64) -> f64 {
-    unsafe { ffi::exp2(x) }
+    unsafe { ffi::exp2_(x) }
 }
 /// `10^x`
 pub fn exp10(x: f64) -> f64 {
-    unsafe { ffi::exp10(x) }
+    unsafe { ffi::exp10_(x) }
 }
 
 // expint.h
@@ -125,7 +116,7 @@ xsf_impl!(scaled_exp1, (x: f64), "Scaled version of the exponential integral `E_
 // gamma.h
 /// Gamma function
 pub fn gamma(x: f64) -> f64 {
-    unsafe { ffi::gamma_ratio(x, 1.0) }
+    unsafe { ffi::gamma_(x) }
 }
 xsf_impl!(gammainc, (a: f64, x: f64), "Incomplete Gamma integral");
 xsf_impl!(gammaincc, (a: f64, x: f64), "Complemented incomplete Gamma integral");
