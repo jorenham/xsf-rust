@@ -1,432 +1,410 @@
-//! Tests for xsf special functions
-//!
-//! Each function gets individual basic and reference data tests that appear
-//! as separate tests in `cargo test` output.
+//! Automatic testing of the `scipy/xsf` rust bindings using the `scipy/xsref` tables.
+mod xsref {
+    use std::env;
+    use std::fs::File;
+    use std::path::PathBuf;
 
-//! Comprehensive parquet table validation and testing utilities for xsf functions
-//!
-//! Provides extensive validation of parquet table integrity including checksums,
-//! metadata consistency, type validation, and reference data testing.
-//! Closely matches the functionality of xsref/tests/test_tables.py.
-
-use std::env;
-use std::fs::File;
-use std::path::PathBuf;
-
-use arrow::array::{Array, Float32Array, Float64Array, Int32Array, Int64Array};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum TestError {
-    Io(std::io::Error),
-    DataFormat,
-}
-
-impl From<std::io::Error> for TestError {
-    fn from(err: std::io::Error) -> Self {
-        TestError::Io(err)
-    }
-}
-
-impl From<arrow::error::ArrowError> for TestError {
-    fn from(_: arrow::error::ArrowError) -> Self {
-        TestError::DataFormat
-    }
-}
-
-impl From<parquet::errors::ParquetError> for TestError {
-    fn from(_: parquet::errors::ParquetError) -> Self {
-        TestError::DataFormat
-    }
-}
-
-/// Test case with inputs, expected output, and tolerance
-#[derive(Debug, Clone)]
-pub struct TestCase {
-    pub inputs: Vec<f64>,
-    pub expected: f64,
-    pub tolerance: f64,
-}
-
-/// Get path to SciPy reference test data
-pub fn reference_data_path() -> PathBuf {
-    env::var("XSREF_TABLES_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/xsref/tables"))
-}
-
-/// Load test cases for a function
-pub fn load_test_cases(name: &str, signature: &str) -> Result<Vec<TestCase>, TestError> {
-    let base_path = reference_data_path().join("scipy_special_tests").join(name);
-
-    let input_file = File::open(base_path.join(format!("In_{}.parquet", signature)))?;
-    let output_file = File::open(base_path.join(format!("Out_{}.parquet", signature)))?;
-
-    // Try platform-specific tolerance file, fall back to generic
-    let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
-        "gcc-linux-x86_64"
-    } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
-        "clang-darwin-aarch64"
-    } else {
-        "other"
+    use arrow::array::{
+        Array, Float32Array as ArrayF32, Float64Array as ArrayF64, Int32Array as ArrayI32,
+        Int64Array as ArrayI64,
     };
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-    let tolerance_file =
-        File::open(base_path.join(format!("Err_{}_{}.parquet", signature, platform)))
-            .or_else(|_| File::open(base_path.join(format!("Err_{}_other.parquet", signature))))?;
+    #[derive(Debug)]
+    struct TestCase {
+        pub inputs: Vec<f64>,
+        pub expected: f64,
+        pub tolerance: f64,
+    }
 
-    let inputs = read_parquet_rows(input_file)?;
-    let outputs = read_parquet_column(output_file)?;
-    let tolerances = read_parquet_column(tolerance_file)?;
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    pub enum TestError {
+        Io(std::io::Error),
+        DataFormat,
+    }
 
-    let test_cases = inputs
-        .into_iter()
-        .zip(outputs)
-        .zip(tolerances)
-        .map(|((inputs, expected), tolerance)| TestCase {
-            inputs,
-            expected,
-            tolerance,
-        })
-        .collect();
+    impl From<std::io::Error> for TestError {
+        fn from(err: std::io::Error) -> Self {
+            TestError::Io(err)
+        }
+    }
 
-    Ok(test_cases)
-}
+    impl From<arrow::error::ArrowError> for TestError {
+        fn from(_: arrow::error::ArrowError) -> Self {
+            TestError::DataFormat
+        }
+    }
 
-/// Read all rows from a parquet file (for multi-column input data)
-fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-    let reader = builder.build()?;
+    impl From<parquet::errors::ParquetError> for TestError {
+        fn from(_: parquet::errors::ParquetError) -> Self {
+            TestError::DataFormat
+        }
+    }
 
-    let mut rows = Vec::new();
-    for batch_result in reader {
-        let batch = batch_result?;
-        for row_idx in 0..batch.num_rows() {
-            let mut row = Vec::new();
-            for col_idx in 0..batch.num_columns() {
-                let column = batch.column(col_idx);
-                // Handle different data types
-                if let Some(f64_array) = column.as_any().downcast_ref::<Float64Array>() {
-                    row.push(f64_array.value(row_idx));
-                } else if let Some(f32_array) = column.as_any().downcast_ref::<Float32Array>() {
-                    row.push(f32_array.value(row_idx) as f64);
-                } else if let Some(i32_array) = column.as_any().downcast_ref::<Int32Array>() {
-                    row.push(i32_array.value(row_idx) as f64);
-                } else if let Some(i64_array) = column.as_any().downcast_ref::<Int64Array>() {
-                    row.push(i64_array.value(row_idx) as f64);
+    fn read_parquet_rows(file: File) -> Vec<Vec<f64>> {
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let reader = builder.build().unwrap();
+
+        let mut rows = Vec::new();
+        for batch_result in reader {
+            let batch = batch_result.unwrap();
+            for row_idx in 0..batch.num_rows() {
+                let mut row = Vec::new();
+                for col_idx in 0..batch.num_columns() {
+                    let column = batch.column(col_idx).as_any();
+                    if let Some(f64_array) = column.downcast_ref::<ArrayF64>() {
+                        row.push(f64_array.value(row_idx));
+                    } else if let Some(f32_array) = column.downcast_ref::<ArrayF32>() {
+                        row.push(f32_array.value(row_idx) as f64);
+                    } else if let Some(i32_array) = column.downcast_ref::<ArrayI32>() {
+                        row.push(i32_array.value(row_idx) as f64);
+                    } else if let Some(i64_array) = column.downcast_ref::<ArrayI64>() {
+                        row.push(i64_array.value(row_idx) as f64);
+                    }
+                }
+                rows.push(row);
+            }
+        }
+        rows
+    }
+
+    fn read_parquet_column(file: File) -> Vec<f64> {
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let reader = builder.build().unwrap();
+
+        let mut values = Vec::new();
+        for batch_result in reader {
+            let batch = batch_result.unwrap();
+            let col0 = batch.column(0).as_any();
+
+            if let Some(column) = col0.downcast_ref::<ArrayF64>() {
+                for i in 0..column.len() {
+                    values.push(column.value(i));
+                }
+            } else if let Some(column) = col0.downcast_ref::<ArrayF32>() {
+                for i in 0..column.len() {
+                    values.push(column.value(i) as f64);
                 }
             }
-            rows.push(row);
+        }
+        values
+    }
+
+    fn load_testcases(name: &str, signature: &str) -> Result<Vec<TestCase>, TestError> {
+        let tables_dir = env::var("XSREF_TABLES_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/xsref/tables")
+            })
+            .join("scipy_special_tests")
+            .join(name);
+
+        let get_table = |name: &str| File::open(tables_dir.join(format!("{}.parquet", name)));
+
+        let table_in = read_parquet_rows(get_table(&format!("In_{}", signature))?);
+        let table_out = read_parquet_column(get_table(&format!("Out_{}", signature))?);
+
+        let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
+            "gcc-linux-x86_64"
+        } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
+            "clang-darwin-aarch64"
+        } else {
+            "other"
+        };
+
+        let table_err_file = get_table(&format!("Err_{}_{}", signature, platform))
+            .or_else(|_| get_table(&format!("Err_{}_other", signature)))?;
+        let table_err = read_parquet_column(table_err_file);
+
+        let test_cases = table_in
+            .into_iter()
+            .zip(table_out)
+            .zip(table_err)
+            .map(|((inputs, expected), tolerance)| TestCase {
+                inputs,
+                expected,
+                tolerance,
+            })
+            .collect();
+
+        Ok(test_cases)
+    }
+
+    /// based on `xsref.float_tools.extended_absolute_error`
+    fn absolute_error(actual: f64, desired: f64) -> f64 {
+        if actual == desired || (actual.is_nan() && desired.is_nan()) {
+            return 0.0;
+        } else if desired.is_nan() || actual.is_nan() {
+            return f64::INFINITY;
+        }
+
+        // f64::MAX + ULP
+        let max1p = f64::MAX * (1.0 + 2.0_f64.powi(-(f64::MANTISSA_DIGITS as i32)));
+        if actual.is_infinite() {
+            (actual.signum() * max1p - desired).abs()
+        } else if desired.is_infinite() {
+            (actual - desired.signum() * max1p).abs()
+        } else {
+            (actual - desired).abs()
         }
     }
-    Ok(rows)
-}
 
-/// Read first column from a parquet file (for single-column output/tolerance data)
-fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-    let reader = builder.build()?;
+    /// based on `xsref.float_tools.extended_relative_error`
+    fn relative_error(actual: f64, desired: f64) -> f64 {
+        let abserr0 = if desired == 0.0 {
+            f64::MIN_POSITIVE
+        } else if desired.is_infinite() {
+            f64::MAX
+        } else if desired.is_nan() {
+            1.0
+        } else {
+            desired.abs()
+        };
 
-    let mut values = Vec::new();
-    for batch_result in reader {
-        let batch = batch_result?;
-        if let Some(column) = batch.column(0).as_any().downcast_ref::<Float64Array>() {
-            for i in 0..column.len() {
-                values.push(column.value(i));
+        let abserr = absolute_error(actual, desired);
+        (abserr / abserr0).min(abserr)
+    }
+
+    pub fn test<F>(name: &str, signature: &str, test_fn: F)
+    where
+        F: Fn(&[f64]) -> f64,
+    {
+        let cases = load_testcases(name, signature).unwrap();
+
+        let mut failed = 0;
+        for (i, case) in cases.iter().enumerate() {
+            let actual = test_fn(&case.inputs);
+            let desired = case.expected;
+
+            let is_huge = desired.abs() > 1e16;
+            let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
+            let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
+
+            let error = relative_error(actual, desired);
+            if error > max_error {
+                failed += 1;
+                eprintln!(
+                    "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, max {:.2e}",
+                    name, i, desired, actual, error, max_error
+                );
             }
-        } else if let Some(column) = batch.column(0).as_any().downcast_ref::<Float32Array>() {
-            for i in 0..column.len() {
-                values.push(column.value(i) as f64);
-            }
         }
+
+        let tested = cases.len();
+        assert!(failed == 0, "{}: {}/{} tests failed", name, failed, tested);
+        println!("{}: {}/{} tests passed", name, tested - failed, tested);
     }
-    Ok(values)
-}
-
-/// based on `xsref.float_tools.extended_relative_error`
-fn extended_relative_error(actual: f64, desired: f64) -> f64 {
-    let abs_error = extended_absolute_error(actual, desired);
-    let abs_desired = if desired == 0.0 {
-        // If the desired result is 0.0, normalize by smallest subnormal instead
-        // of zero. Some answers are still better than others and we want to guard
-        f64::MIN_POSITIVE
-    } else if desired.is_infinite() {
-        f64::MAX
-    } else if desired.is_nan() {
-        // extended_relative_error(nan, nan) = 0, otherwise
-        // extended_relative_error(x0, x1) with one of x0 or x1 NaN is infinity.
-        1.0
-    } else {
-        desired.abs()
-    };
-
-    (abs_error / abs_desired).min(abs_error)
-}
-
-/// based on `xsref.float_tools.extended_absolute_error`
-fn extended_absolute_error(actual: f64, desired: f64) -> f64 {
-    if actual == desired || (actual.is_nan() && desired.is_nan()) {
-        return 0.0;
-    }
-    if desired.is_nan() || actual.is_nan() {
-        return f64::INFINITY;
-    }
-
-    let mantissa_bits = 52; // f64 has 52 mantissa bits
-    let max_float = f64::MAX;
-    if actual.is_infinite() {
-        let sgn = actual.signum();
-        let ulp = max_float * 2.0_f64.powi(-(mantissa_bits + 1));
-        return ((sgn * max_float - desired) + sgn * ulp).abs();
-    }
-    if desired.is_infinite() {
-        let sgn = desired.signum();
-        let ulp = max_float * 2.0_f64.powi(-(mantissa_bits + 1));
-        return ((sgn * max_float - actual) + sgn * ulp).abs();
-    }
-    (actual - desired).abs()
-}
-
-pub fn test_function<F>(name: &str, signature: &str, test_fn: F) -> Result<(), TestError>
-where
-    F: Fn(&[f64]) -> f64,
-{
-    let mut failed = 0;
-
-    let test_cases = load_test_cases(name, signature)?;
-    for (i, case) in test_cases.iter().enumerate() {
-        let actual = test_fn(&case.inputs);
-
-        let is_huge = case.expected.abs() > 1e16;
-        let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
-        let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
-
-        let error = extended_relative_error(actual, case.expected);
-        if error > max_error && (!is_huge || error > 1e-13) {
-            failed += 1;
-            eprintln!(
-                "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, tolerance {:.2e}",
-                name, i, case.expected, actual, error, max_error
-            );
-        }
-    }
-
-    let tested = test_cases.len();
-    assert!(failed == 0, "{}: {}/{} tests failed", name, failed, tested,);
-    println!("{}: {}/{} tests passed", name, tested - failed, tested,);
-
-    Ok(())
 }
 
 /// Helper macro to generate the test body
-macro_rules! test_body {
-    ($name:ident, $sig:literal, $test_fn:expr) => {
+macro_rules! _test {
+    ($f:ident, $sig:literal, $test_fn:expr) => {
         paste::paste! {
             #[test]
-            fn [<test_ $name>]() {
-                let test_fn = $test_fn;
-                test_function(stringify!($name), $sig, test_fn).unwrap();
+            fn [<test_ $f>]() {
+                xsref::test(stringify!($f), $sig, $test_fn);
             }
         }
     };
 }
 
 /// Generate a test function for xsf functions
-macro_rules! generate_tests {
-    ($name:ident, "d-d") => {
-        test_body!($name, "d-d", |xs: &[f64]| xsf::$name(xs[0]));
+macro_rules! xsref_test {
+    ($f:ident, "d->d") => {
+        _test!($f, "d-d", |x: &[f64]| xsf::$f(x[0]));
     };
-    ($name:ident, "d_d-d") => {
-        test_body!($name, "d_d-d", |xs: &[f64]| xsf::$name(xs[0], xs[1]));
+    ($f:ident, "dd->d") => {
+        _test!($f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]));
     };
-    ($name:ident, "d_d_d-d") => {
-        test_body!($name, "d_d_d-d", |xs: &[f64]| xsf::$name(
-            xs[0], xs[1], xs[2]
+    ($f:ident, "id->d") => {
+        _test!($f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]));
+    };
+    ($f:ident, "ddd->d") => {
+        _test!($f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]));
+    };
+    ($f:ident, "did->d") => {
+        _test!($f, "d_p_d-d", |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]));
+    };
+    ($f:ident, "iid->d") => {
+        _test!($f, "p_p_d-d", |x: &[f64]| xsf::$f(
+            x[0] as i32,
+            x[1] as i32,
+            x[2]
         ));
     };
-    ($name:ident, "d_d_d_d-d") => {
-        test_body!($name, "d_d_d_d-d", |xs: &[f64]| xsf::$name(
-            xs[0], xs[1], xs[2], xs[3]
-        ));
-    };
-    ($name:ident, "p_d-d") => {
-        test_body!($name, "p_d-d", |xs: &[f64]| xsf::$name(xs[0] as i32, xs[1]));
-    };
-    ($name:ident, "p_p_d-d") => {
-        test_body!($name, "p_p_d-d", |xs: &[f64]| xsf::$name(
-            xs[0] as i32,
-            xs[1] as i32,
-            xs[2]
-        ));
-    };
-    ($name:ident, "d_p_d-d") => {
-        test_body!($name, "d_p_d-d", |xs: &[f64]| xsf::$name(
-            xs[0],
-            xs[1] as i32,
-            xs[2]
-        ));
+    ($f:ident, "dddd->d") => {
+        _test!($f, "d_d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]));
     };
 }
 
-// Basic mathematical functions
-generate_tests!(gamma, "d-d");
-generate_tests!(erf, "d-d");
-generate_tests!(erfc, "d-d");
-generate_tests!(cbrt, "d-d");
-generate_tests!(expm1, "d-d");
-generate_tests!(exp2, "d-d");
-generate_tests!(exp10, "d-d");
+// alg.h
+xsref_test!(cbrt, "d->d");
 
-// Gamma-related functions
-generate_tests!(digamma, "d-d");
-generate_tests!(gammaln, "d-d");
-generate_tests!(gammasgn, "d-d");
-generate_tests!(gammainc, "d_d-d");
-generate_tests!(gammaincinv, "d_d-d");
-generate_tests!(gammaincc, "d_d-d");
-generate_tests!(gammainccinv, "d_d-d");
-generate_tests!(loggamma, "d-d");
-generate_tests!(rgamma, "d-d");
+// bessel.h
+xsref_test!(cyl_bessel_j, "dd->d");
+xsref_test!(cyl_bessel_je, "dd->d");
+xsref_test!(cyl_bessel_y, "dd->d");
+xsref_test!(cyl_bessel_ye, "dd->d");
+xsref_test!(cyl_bessel_i, "dd->d");
+xsref_test!(cyl_bessel_ie, "dd->d");
+xsref_test!(cyl_bessel_k, "dd->d");
+xsref_test!(cyl_bessel_ke, "dd->d");
+xsref_test!(cyl_bessel_j0, "d->d");
+xsref_test!(cyl_bessel_j1, "d->d");
+xsref_test!(cyl_bessel_y0, "d->d");
+xsref_test!(cyl_bessel_y1, "d->d");
+xsref_test!(cyl_bessel_i0, "d->d");
+xsref_test!(cyl_bessel_i0e, "d->d");
+xsref_test!(cyl_bessel_i1, "d->d");
+xsref_test!(cyl_bessel_i1e, "d->d");
+xsref_test!(cyl_bessel_k0, "d->d");
+xsref_test!(cyl_bessel_k0e, "d->d");
+xsref_test!(cyl_bessel_k1, "d->d");
+xsref_test!(cyl_bessel_k1e, "d->d");
+xsref_test!(besselpoly, "ddd->d");
 
-// Bessel functions (single parameter)
-generate_tests!(cyl_bessel_j0, "d-d");
-generate_tests!(cyl_bessel_j1, "d-d");
-generate_tests!(cyl_bessel_y0, "d-d");
-generate_tests!(cyl_bessel_y1, "d-d");
-generate_tests!(cyl_bessel_i0, "d-d");
-generate_tests!(cyl_bessel_i0e, "d-d");
-generate_tests!(cyl_bessel_i1, "d-d");
-generate_tests!(cyl_bessel_i1e, "d-d");
-generate_tests!(cyl_bessel_k0, "d-d");
-generate_tests!(cyl_bessel_k0e, "d-d");
-generate_tests!(cyl_bessel_k1, "d-d");
-generate_tests!(cyl_bessel_k1e, "d-d");
+// beta.h
+xsref_test!(beta, "dd->d");
+xsref_test!(betaln, "dd->d");
 
-// Bessel functions (two parameters)
-generate_tests!(cyl_bessel_j, "d_d-d");
-generate_tests!(cyl_bessel_je, "d_d-d");
-generate_tests!(cyl_bessel_y, "d_d-d");
-generate_tests!(cyl_bessel_ye, "d_d-d");
-generate_tests!(cyl_bessel_i, "d_d-d");
-generate_tests!(cyl_bessel_ie, "d_d-d");
-generate_tests!(cyl_bessel_k, "d_d-d");
-generate_tests!(cyl_bessel_ke, "d_d-d");
-generate_tests!(iv_ratio, "d_d-d");
-generate_tests!(iv_ratio_c, "d_d-d");
+// binom.h
+xsref_test!(binom, "dd->d");
 
-// Bessel functions (three parameters)
-generate_tests!(besselpoly, "d_d_d-d");
+// digamma.h
+xsref_test!(digamma, "d->d");
 
-// Beta functions
-generate_tests!(beta, "d_d-d");
-generate_tests!(betaln, "d_d-d");
+// erf.h
+xsref_test!(erf, "d->d");
+xsref_test!(erfc, "d->d");
+xsref_test!(erfcx, "d->d");
+xsref_test!(erfi, "d->d");
+xsref_test!(voigt_profile, "ddd->d");
+xsref_test!(dawsn, "d->d");
 
-// Binomial functions
-generate_tests!(binom, "d_d-d");
+// exp.h
+xsref_test!(expm1, "d->d");
+xsref_test!(exp2, "d->d");
+xsref_test!(exp10, "d->d");
 
-// Error functions
-generate_tests!(erfcx, "d-d");
-generate_tests!(erfi, "d-d");
-generate_tests!(dawsn, "d-d");
-generate_tests!(voigt_profile, "d_d_d-d");
+// expint.h
+xsref_test!(exp1, "d->d");
+xsref_test!(expi, "d->d");
+xsref_test!(scaled_exp1, "d->d");
 
-// Exponential integral functions
-generate_tests!(exp1, "d-d");
-generate_tests!(expi, "d-d");
-generate_tests!(scaled_exp1, "d-d");
+// gamma.h
+xsref_test!(gamma, "d->d");
+xsref_test!(gammainc, "dd->d");
+xsref_test!(gammaincc, "dd->d");
+xsref_test!(gammaincinv, "dd->d");
+xsref_test!(gammainccinv, "dd->d");
+xsref_test!(gammaln, "d->d");
+xsref_test!(gammasgn, "d->d");
 
-// Hypergeometric functions
-generate_tests!(hyp2f1, "d_d_d_d-d");
-// generate_tests!(hyp1f1, "d_d_d-d");  // xsref table only exists for complex
+// hyp2f1.h
+xsref_test!(hyp2f1, "dddd->d");
 
-// Kelvin functions
-generate_tests!(ber, "d-d");
-generate_tests!(bei, "d-d");
-generate_tests!(ker, "d-d");
-generate_tests!(kei, "d-d");
-generate_tests!(berp, "d-d");
-generate_tests!(beip, "d-d");
-generate_tests!(kerp, "d-d");
-generate_tests!(keip, "d-d");
+// iv_ratio.h
+xsref_test!(iv_ratio, "dd->d");
+xsref_test!(iv_ratio_c, "dd->d");
 
-// Legendre functions
-// generate_tests!(legendre_p, "p_d-d");  // no xsref table
-// generate_tests!(sph_legendre_p, "p_p_d-d");  // no xsref table
-generate_tests!(pmv, "d_d_d-d");
+// kelvin.h
+xsref_test!(ber, "d->d");
+xsref_test!(bei, "d->d");
+xsref_test!(ker, "d->d");
+xsref_test!(kei, "d->d");
+xsref_test!(berp, "d->d");
+xsref_test!(beip, "d->d");
+xsref_test!(kerp, "d->d");
+xsref_test!(keip, "d->d");
 
-// Log and exponential functions
-generate_tests!(expit, "d-d");
-generate_tests!(exprel, "d-d");
-generate_tests!(logit, "d-d");
-generate_tests!(log_expit, "d-d");
-// generate_tests!(log1mexp, "d-d");  // no xsref table
-generate_tests!(log1pmx, "d-d");
-generate_tests!(xlogy, "d_d-d");
-generate_tests!(xlog1py, "d_d-d");
+// legendre.h
+// xsref_test!(legendre_p, "id->d");  // no xsref table
+// xsref_test!(sph_legendre_p, "iid->d");  // no xsref table
 
-// Mathieu functions
-generate_tests!(cem_cva, "d_d-d");
-generate_tests!(sem_cva, "d_d-d");
+// log_exp.h
+xsref_test!(expit, "d->d");
+xsref_test!(exprel, "d->d");
+xsref_test!(logit, "d->d");
+xsref_test!(log_expit, "d->d");
+// xsref_test!(log1mexp, "d->d");  // no xsref table
 
-// Spheroidal wave functions
-generate_tests!(prolate_segv, "d_d_d-d");
-// generate_tests!(oblate_segv, "d_d_d-d"); // no xsref table??
+// log.h
+xsref_test!(log1pmx, "d->d");
+xsref_test!(xlogy, "dd->d");
+xsref_test!(xlog1py, "dd->d");
 
-// Statistical functions
-generate_tests!(bdtr, "d_p_d-d");
-generate_tests!(bdtrc, "d_p_d-d");
-generate_tests!(bdtri, "d_p_d-d");
-generate_tests!(chdtr, "d_d-d");
-generate_tests!(chdtrc, "d_d-d");
-generate_tests!(chdtri, "d_d-d");
-generate_tests!(fdtr, "d_d_d-d");
-generate_tests!(fdtrc, "d_d_d-d");
-generate_tests!(fdtri, "d_d_d-d");
-generate_tests!(gdtr, "d_d_d-d");
-generate_tests!(gdtrc, "d_d_d-d");
-generate_tests!(kolmogorov, "d-d");
-generate_tests!(kolmogc, "d-d");
-generate_tests!(kolmogi, "d-d");
-generate_tests!(kolmogp, "d-d");
-generate_tests!(ndtr, "d-d");
-generate_tests!(ndtri, "d-d");
-// generate_tests!(log_ndtr, "d-d");  // no xsref table
-generate_tests!(nbdtr, "p_p_d-d");
-generate_tests!(nbdtrc, "p_p_d-d");
-// generate_tests!(nbdtri, "p_p_d-d");  // no xsref table
-generate_tests!(owens_t, "d_d-d");
-generate_tests!(pdtr, "d_d-d");
-generate_tests!(pdtrc, "d_d-d");
-generate_tests!(pdtri, "p_d-d");
-generate_tests!(smirnov, "p_d-d");
-generate_tests!(smirnovc, "p_d-d");
-generate_tests!(smirnovi, "p_d-d");
-generate_tests!(smirnovp, "p_d-d");
-// generate_tests!(tukeylambdacdf, "d_d-d");  // no xsref table
+// loggamma.h
+xsref_test!(loggamma, "d->d");
+xsref_test!(rgamma, "d->d");
 
-// Struve functions
-generate_tests!(itstruve0, "d-d");
-generate_tests!(it2struve0, "d-d");
-generate_tests!(itmodstruve0, "d-d");
-generate_tests!(struve_h, "d_d-d");
-generate_tests!(struve_l, "d_d-d");
+// mathieu.h
+xsref_test!(cem_cva, "dd->d");
+xsref_test!(sem_cva, "dd->d");
 
-// Trigonometric functions
-generate_tests!(sinpi, "d-d");
-generate_tests!(cospi, "d-d");
-generate_tests!(sindg, "d-d");
-generate_tests!(cosdg, "d-d");
-generate_tests!(tandg, "d-d");
-generate_tests!(cotdg, "d-d");
-generate_tests!(cosm1, "d-d");
-generate_tests!(radian, "d_d_d-d");
+// specfun.h
+// xsref_test!(hypu, "ddd->d");  // no xsref table
+// xsref_test!(hyp1f1, "ddd->d");  // xsref table only exists for complex
+xsref_test!(pmv, "ddd->d");
 
-// Wright Bessel functions
-generate_tests!(wright_bessel, "d_d_d-d");
-generate_tests!(log_wright_bessel, "d_d_d-d");
+// sphd_wave.h
+xsref_test!(prolate_segv, "ddd->d");
+// xsref_test!(oblate_segv, "ddd->d");  // no xsref table??
 
-// Zeta functions
-generate_tests!(riemann_zeta, "d-d");
-generate_tests!(zeta, "d_d-d");
-generate_tests!(zetac, "d-d");
+// stats.h
+xsref_test!(bdtr, "did->d");
+xsref_test!(bdtrc, "did->d");
+xsref_test!(bdtri, "did->d");
+xsref_test!(chdtr, "dd->d");
+xsref_test!(chdtrc, "dd->d");
+xsref_test!(chdtri, "dd->d");
+xsref_test!(fdtr, "ddd->d");
+xsref_test!(fdtrc, "ddd->d");
+xsref_test!(fdtri, "ddd->d");
+xsref_test!(gdtr, "ddd->d");
+xsref_test!(gdtrc, "ddd->d");
+xsref_test!(kolmogorov, "d->d");
+xsref_test!(kolmogc, "d->d");
+xsref_test!(kolmogi, "d->d");
+xsref_test!(kolmogp, "d->d");
+xsref_test!(ndtr, "d->d");
+xsref_test!(ndtri, "d->d");
+// xsref_test!(log_ndtr, "d->d");  // no xsref table
+xsref_test!(nbdtr, "iid->d");
+xsref_test!(nbdtrc, "iid->d");
+// xsref_test!(nbdtri, "iid->d");  // no xsref table
+xsref_test!(owens_t, "dd->d");
+xsref_test!(pdtr, "dd->d");
+xsref_test!(pdtrc, "dd->d");
+xsref_test!(pdtri, "id->d");
+xsref_test!(smirnov, "id->d");
+xsref_test!(smirnovc, "id->d");
+xsref_test!(smirnovi, "id->d");
+xsref_test!(smirnovp, "id->d");
+// xsref_test!(tukeylambdacdf, "dd->d");  // no xsref table
+
+// struve.h
+xsref_test!(itstruve0, "d->d");
+xsref_test!(it2struve0, "d->d");
+xsref_test!(itmodstruve0, "d->d");
+xsref_test!(struve_h, "dd->d");
+xsref_test!(struve_l, "dd->d");
+
+// trig.h
+xsref_test!(sinpi, "d->d");
+xsref_test!(cospi, "d->d");
+xsref_test!(sindg, "d->d");
+xsref_test!(cosdg, "d->d");
+xsref_test!(tandg, "d->d");
+xsref_test!(cotdg, "d->d");
+xsref_test!(radian, "ddd->d");
+xsref_test!(cosm1, "d->d");
+
+// wright_bessel.h
+xsref_test!(wright_bessel, "ddd->d");
+xsref_test!(log_wright_bessel, "ddd->d");
+
+// zeta.h
+xsref_test!(riemann_zeta, "d->d");
+xsref_test!(zeta, "dd->d");
+xsref_test!(zetac, "d->d");
