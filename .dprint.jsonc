@@ -1,5 +1,5 @@
 {
-  "excludes": ["**/*-lock.json", "**/*.lock", "target/", "xsf/"],
+  "excludes": ["**/*-lock.json", "**/*.lock", "target/", "xsf/", "tests/xsref/"],
   "lineWidth": 100,
   "json": {
     "array.preferSingleLine": true,
