@@ -1,0 +1,410 @@
+//! Automatic testing of the `scipy/xsf` rust bindings using the `scipy/xsref` tables.
+mod xsref {
+    use std::env;
+    use std::fs::File;
+    use std::path::PathBuf;
+
+    use arrow::array::{
+        Array, Float32Array as ArrayF32, Float64Array as ArrayF64, Int32Array as ArrayI32,
+        Int64Array as ArrayI64,
+    };
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+    #[derive(Debug)]
+    struct TestCase {
+        pub inputs: Vec<f64>,
+        pub expected: f64,
+        pub tolerance: f64,
+    }
+
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    pub enum TestError {
+        Io(std::io::Error),
+        DataFormat,
+    }
+
+    impl From<std::io::Error> for TestError {
+        fn from(err: std::io::Error) -> Self {
+            TestError::Io(err)
+        }
+    }
+
+    impl From<arrow::error::ArrowError> for TestError {
+        fn from(_: arrow::error::ArrowError) -> Self {
+            TestError::DataFormat
+        }
+    }
+
+    impl From<parquet::errors::ParquetError> for TestError {
+        fn from(_: parquet::errors::ParquetError) -> Self {
+            TestError::DataFormat
+        }
+    }
+
+    fn read_parquet_rows(file: File) -> Vec<Vec<f64>> {
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let reader = builder.build().unwrap();
+
+        let mut rows = Vec::new();
+        for batch_result in reader {
+            let batch = batch_result.unwrap();
+            for row_idx in 0..batch.num_rows() {
+                let mut row = Vec::new();
+                for col_idx in 0..batch.num_columns() {
+                    let column = batch.column(col_idx).as_any();
+                    if let Some(f64_array) = column.downcast_ref::<ArrayF64>() {
+                        row.push(f64_array.value(row_idx));
+                    } else if let Some(f32_array) = column.downcast_ref::<ArrayF32>() {
+                        row.push(f32_array.value(row_idx) as f64);
+                    } else if let Some(i32_array) = column.downcast_ref::<ArrayI32>() {
+                        row.push(i32_array.value(row_idx) as f64);
+                    } else if let Some(i64_array) = column.downcast_ref::<ArrayI64>() {
+                        row.push(i64_array.value(row_idx) as f64);
+                    }
+                }
+                rows.push(row);
+            }
+        }
+        rows
+    }
+
+    fn read_parquet_column(file: File) -> Vec<f64> {
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let reader = builder.build().unwrap();
+
+        let mut values = Vec::new();
+        for batch_result in reader {
+            let batch = batch_result.unwrap();
+            let col0 = batch.column(0).as_any();
+
+            if let Some(column) = col0.downcast_ref::<ArrayF64>() {
+                for i in 0..column.len() {
+                    values.push(column.value(i));
+                }
+            } else if let Some(column) = col0.downcast_ref::<ArrayF32>() {
+                for i in 0..column.len() {
+                    values.push(column.value(i) as f64);
+                }
+            }
+        }
+        values
+    }
+
+    fn load_testcases(name: &str, signature: &str) -> Result<Vec<TestCase>, TestError> {
+        let tables_dir = env::var("XSREF_TABLES_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/xsref/tables")
+            })
+            .join("scipy_special_tests")
+            .join(name);
+
+        let get_table = |name: &str| File::open(tables_dir.join(format!("{}.parquet", name)));
+
+        let table_in = read_parquet_rows(get_table(&format!("In_{}", signature))?);
+        let table_out = read_parquet_column(get_table(&format!("Out_{}", signature))?);
+
+        let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
+            "gcc-linux-x86_64"
+        } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
+            "clang-darwin-aarch64"
+        } else {
+            "other"
+        };
+
+        let table_err_file = get_table(&format!("Err_{}_{}", signature, platform))
+            .or_else(|_| get_table(&format!("Err_{}_other", signature)))?;
+        let table_err = read_parquet_column(table_err_file);
+
+        let test_cases = table_in
+            .into_iter()
+            .zip(table_out)
+            .zip(table_err)
+            .map(|((inputs, expected), tolerance)| TestCase {
+                inputs,
+                expected,
+                tolerance,
+            })
+            .collect();
+
+        Ok(test_cases)
+    }
+
+    /// based on `xsref.float_tools.extended_absolute_error`
+    fn absolute_error(actual: f64, desired: f64) -> f64 {
+        if actual == desired || (actual.is_nan() && desired.is_nan()) {
+            return 0.0;
+        } else if desired.is_nan() || actual.is_nan() {
+            return f64::INFINITY;
+        }
+
+        // f64::MAX + ULP
+        let max1p = f64::MAX * (1.0 + 2.0_f64.powi(-(f64::MANTISSA_DIGITS as i32)));
+        if actual.is_infinite() {
+            (actual.signum() * max1p - desired).abs()
+        } else if desired.is_infinite() {
+            (actual - desired.signum() * max1p).abs()
+        } else {
+            (actual - desired).abs()
+        }
+    }
+
+    /// based on `xsref.float_tools.extended_relative_error`
+    fn relative_error(actual: f64, desired: f64) -> f64 {
+        let abserr0 = if desired == 0.0 {
+            f64::MIN_POSITIVE
+        } else if desired.is_infinite() {
+            f64::MAX
+        } else if desired.is_nan() {
+            1.0
+        } else {
+            desired.abs()
+        };
+
+        let abserr = absolute_error(actual, desired);
+        (abserr / abserr0).min(abserr)
+    }
+
+    pub fn test<F>(name: &str, signature: &str, test_fn: F)
+    where
+        F: Fn(&[f64]) -> f64,
+    {
+        let cases = load_testcases(name, signature).unwrap();
+
+        let mut failed = 0;
+        for (i, case) in cases.iter().enumerate() {
+            let actual = test_fn(&case.inputs);
+            let desired = case.expected;
+
+            let is_huge = desired.abs() > 1e16;
+            let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
+            let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
+
+            let error = relative_error(actual, desired);
+            if error > max_error {
+                failed += 1;
+                eprintln!(
+                    "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, max {:.2e}",
+                    name, i, desired, actual, error, max_error
+                );
+            }
+        }
+
+        let tested = cases.len();
+        assert!(failed == 0, "{}: {}/{} tests failed", name, failed, tested);
+        println!("{}: {}/{} tests passed", name, tested - failed, tested);
+    }
+}
+
+/// Helper macro to generate the test body
+macro_rules! _test {
+    ($f:ident, $sig:literal, $test_fn:expr) => {
+        paste::paste! {
+            #[test]
+            fn [<test_ $f>]() {
+                xsref::test(stringify!($f), $sig, $test_fn);
+            }
+        }
+    };
+}
+
+/// Generate a test function for xsf functions
+macro_rules! xsref_test {
+    ($f:ident, "d->d") => {
+        _test!($f, "d-d", |x: &[f64]| xsf::$f(x[0]));
+    };
+    ($f:ident, "dd->d") => {
+        _test!($f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]));
+    };
+    ($f:ident, "id->d") => {
+        _test!($f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]));
+    };
+    ($f:ident, "ddd->d") => {
+        _test!($f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]));
+    };
+    ($f:ident, "did->d") => {
+        _test!($f, "d_p_d-d", |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]));
+    };
+    ($f:ident, "iid->d") => {
+        _test!($f, "p_p_d-d", |x: &[f64]| xsf::$f(
+            x[0] as i32,
+            x[1] as i32,
+            x[2]
+        ));
+    };
+    ($f:ident, "dddd->d") => {
+        _test!($f, "d_d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]));
+    };
+}
+
+// alg.h
+xsref_test!(cbrt, "d->d");
+
+// bessel.h
+xsref_test!(cyl_bessel_j, "dd->d");
+xsref_test!(cyl_bessel_je, "dd->d");
+xsref_test!(cyl_bessel_y, "dd->d");
+xsref_test!(cyl_bessel_ye, "dd->d");
+xsref_test!(cyl_bessel_i, "dd->d");
+xsref_test!(cyl_bessel_ie, "dd->d");
+xsref_test!(cyl_bessel_k, "dd->d");
+xsref_test!(cyl_bessel_ke, "dd->d");
+xsref_test!(cyl_bessel_j0, "d->d");
+xsref_test!(cyl_bessel_j1, "d->d");
+xsref_test!(cyl_bessel_y0, "d->d");
+xsref_test!(cyl_bessel_y1, "d->d");
+xsref_test!(cyl_bessel_i0, "d->d");
+xsref_test!(cyl_bessel_i0e, "d->d");
+xsref_test!(cyl_bessel_i1, "d->d");
+xsref_test!(cyl_bessel_i1e, "d->d");
+xsref_test!(cyl_bessel_k0, "d->d");
+xsref_test!(cyl_bessel_k0e, "d->d");
+xsref_test!(cyl_bessel_k1, "d->d");
+xsref_test!(cyl_bessel_k1e, "d->d");
+xsref_test!(besselpoly, "ddd->d");
+
+// beta.h
+xsref_test!(beta, "dd->d");
+xsref_test!(betaln, "dd->d");
+
+// binom.h
+xsref_test!(binom, "dd->d");
+
+// digamma.h
+xsref_test!(digamma, "d->d");
+
+// erf.h
+xsref_test!(erf, "d->d");
+xsref_test!(erfc, "d->d");
+xsref_test!(erfcx, "d->d");
+xsref_test!(erfi, "d->d");
+xsref_test!(voigt_profile, "ddd->d");
+xsref_test!(dawsn, "d->d");
+
+// exp.h
+xsref_test!(expm1, "d->d");
+xsref_test!(exp2, "d->d");
+xsref_test!(exp10, "d->d");
+
+// expint.h
+xsref_test!(exp1, "d->d");
+xsref_test!(expi, "d->d");
+xsref_test!(scaled_exp1, "d->d");
+
+// gamma.h
+xsref_test!(gamma, "d->d");
+xsref_test!(gammainc, "dd->d");
+xsref_test!(gammaincc, "dd->d");
+xsref_test!(gammaincinv, "dd->d");
+xsref_test!(gammainccinv, "dd->d");
+xsref_test!(gammaln, "d->d");
+xsref_test!(gammasgn, "d->d");
+
+// hyp2f1.h
+xsref_test!(hyp2f1, "dddd->d");
+
+// iv_ratio.h
+xsref_test!(iv_ratio, "dd->d");
+xsref_test!(iv_ratio_c, "dd->d");
+
+// kelvin.h
+xsref_test!(ber, "d->d");
+xsref_test!(bei, "d->d");
+xsref_test!(ker, "d->d");
+xsref_test!(kei, "d->d");
+xsref_test!(berp, "d->d");
+xsref_test!(beip, "d->d");
+xsref_test!(kerp, "d->d");
+xsref_test!(keip, "d->d");
+
+// legendre.h
+// xsref_test!(legendre_p, "id->d");  // no xsref table
+// xsref_test!(sph_legendre_p, "iid->d");  // no xsref table
+
+// log_exp.h
+xsref_test!(expit, "d->d");
+xsref_test!(exprel, "d->d");
+xsref_test!(logit, "d->d");
+xsref_test!(log_expit, "d->d");
+// xsref_test!(log1mexp, "d->d");  // no xsref table
+
+// log.h
+xsref_test!(log1pmx, "d->d");
+xsref_test!(xlogy, "dd->d");
+xsref_test!(xlog1py, "dd->d");
+
+// loggamma.h
+xsref_test!(loggamma, "d->d");
+xsref_test!(rgamma, "d->d");
+
+// mathieu.h
+xsref_test!(cem_cva, "dd->d");
+xsref_test!(sem_cva, "dd->d");
+
+// specfun.h
+// xsref_test!(hypu, "ddd->d");  // no xsref table
+// xsref_test!(hyp1f1, "ddd->d");  // xsref table only exists for complex
+xsref_test!(pmv, "ddd->d");
+
+// sphd_wave.h
+xsref_test!(prolate_segv, "ddd->d");
+// xsref_test!(oblate_segv, "ddd->d");  // no xsref table??
+
+// stats.h
+xsref_test!(bdtr, "did->d");
+xsref_test!(bdtrc, "did->d");
+xsref_test!(bdtri, "did->d");
+xsref_test!(chdtr, "dd->d");
+xsref_test!(chdtrc, "dd->d");
+xsref_test!(chdtri, "dd->d");
+xsref_test!(fdtr, "ddd->d");
+xsref_test!(fdtrc, "ddd->d");
+xsref_test!(fdtri, "ddd->d");
+xsref_test!(gdtr, "ddd->d");
+xsref_test!(gdtrc, "ddd->d");
+xsref_test!(kolmogorov, "d->d");
+xsref_test!(kolmogc, "d->d");
+xsref_test!(kolmogi, "d->d");
+xsref_test!(kolmogp, "d->d");
+xsref_test!(ndtr, "d->d");
+xsref_test!(ndtri, "d->d");
+// xsref_test!(log_ndtr, "d->d");  // no xsref table
+xsref_test!(nbdtr, "iid->d");
+xsref_test!(nbdtrc, "iid->d");
+// xsref_test!(nbdtri, "iid->d");  // no xsref table
+xsref_test!(owens_t, "dd->d");
+xsref_test!(pdtr, "dd->d");
+xsref_test!(pdtrc, "dd->d");
+xsref_test!(pdtri, "id->d");
+xsref_test!(smirnov, "id->d");
+xsref_test!(smirnovc, "id->d");
+xsref_test!(smirnovi, "id->d");
+xsref_test!(smirnovp, "id->d");
+// xsref_test!(tukeylambdacdf, "dd->d");  // no xsref table
+
+// struve.h
+xsref_test!(itstruve0, "d->d");
+xsref_test!(it2struve0, "d->d");
+xsref_test!(itmodstruve0, "d->d");
+xsref_test!(struve_h, "dd->d");
+xsref_test!(struve_l, "dd->d");
+
+// trig.h
+xsref_test!(sinpi, "d->d");
+xsref_test!(cospi, "d->d");
+xsref_test!(sindg, "d->d");
+xsref_test!(cosdg, "d->d");
+xsref_test!(tandg, "d->d");
+xsref_test!(cotdg, "d->d");
+xsref_test!(radian, "ddd->d");
+xsref_test!(cosm1, "d->d");
+
+// wright_bessel.h
+xsref_test!(wright_bessel, "ddd->d");
+xsref_test!(log_wright_bessel, "ddd->d");
+
+// zeta.h
+xsref_test!(riemann_zeta, "d->d");
+xsref_test!(zeta, "dd->d");
+xsref_test!(zetac, "d->d");

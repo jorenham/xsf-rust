@@ -27,7 +27,7 @@ jobs:
       - name: dprint
         uses: dprint/check@v2.3
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.14.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.14.1
         with:
           components: clippy, rustfmt
 
@@ -54,4 +54,4 @@ jobs:
         run: cargo build --verbose
 
       - name: cargo test
-        run: cargo test --verbose
+        run: cargo test --verbose -- --nocapture

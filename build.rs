@@ -47,6 +47,7 @@ const XSF_HEADERS: &[&str] = &[
 const XSF_TYPES: &[(&str, &str)] = &[
     // airy.h
     // TODO: `airyb`, `airyzo`, `airy`, `airye`, `itairy`
+    ("cbrt", "d->d"),
     // bessel.h
     // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
     // TODO: `rctj`, `rcty`,
@@ -82,6 +83,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // digamma.h
     ("digamma", "d->d"),
     // erf.h
+    ("erf", "d->d"),
+    ("erfc", "d->d"),
     ("erfcx", "d->d"),
     ("erfi", "d->d"),
     ("voigt_profile", "ddd->d"),
@@ -89,19 +92,22 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // evalpoly.h
     // TODO: `cevalpoly`
     // expint.h
+    ("expm1", "d->d"),
+    ("exp2", "d->d"),
+    ("exp10", "d->d"),
     ("exp1", "d->d"),
     ("expi", "d->d"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
     // TODO: `fresnel`, `fcszo`
     // gamma.h
+    ("gamma", "d->d"), // TODO: complex
     ("gammaln", "d->d"),
     ("gammasgn", "d->d"),
     ("gammainc", "dd->d"),
     ("gammaincinv", "dd->d"),
     ("gammaincc", "dd->d"),
     ("gammainccinv", "dd->d"),
-    ("gamma_ratio", "dd->d"),
     // hyp2f1.h
     ("hyp2f1", "dddd->d"), // TODO: complex
     // iv_ratio.h
@@ -200,6 +206,16 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("zeta", "dd->d"),
     ("zetac", "d->d"),
 ];
+// Functions that need renaming because they clash with standard library names
+const XSF_RENAME: &[(&str, &str)] = &[
+    ("cbrt", "cbrt_"),
+    ("gamma", "gamma_"),
+    ("erf", "erf_"),
+    ("erfc", "erfc_"),
+    ("expm1", "expm1_"),
+    ("exp2", "exp2_"),
+    ("exp10", "exp10_"),
+];
 
 fn get_ctype(code: char) -> &'static str {
     match code {
@@ -238,6 +254,11 @@ fn fmt_return(types: &str) -> String {
 fn fmt_func(name: &str, types: &str) -> String {
     let ret = fmt_return(types);
     let params = fmt_params(types, true);
+    let name = XSF_RENAME
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, r)| *r)
+        .unwrap_or(name);
     format!("{} {}({})", ret, name, params)
 }
 
