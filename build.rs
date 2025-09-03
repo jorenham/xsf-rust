@@ -51,7 +51,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // bessel.h
     // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
     // TODO: `rctj`, `rcty`,
-    // TODO: `cyl_hankel_1`, `cyl_hankel_1e`, `cyl_hankel_2`, `cyl_hankel_2e`
     ("cyl_bessel_j", "dd->d"),  // TODO: complex
     ("cyl_bessel_je", "dd->d"), // TODO: complex
     ("cyl_bessel_j0", "d->d"),
@@ -276,12 +275,10 @@ fn generate_header(dir_out: &str) -> String {
     let mut source = String::from(WRAPPER_PREAMBLE);
 
     push_line(&mut source, "#pragma once");
-    push_line(&mut source, "");
-    push_line(&mut source, "extern \"C\" {");
+    push_line(&mut source, "#include <complex>");
     for func in XSF_TYPES.iter().map(|(n, s)| fmt_func(n, s)) {
-        push_line(&mut source, &format!("    {func};"));
+        push_line(&mut source, &format!("{func};"));
     }
-    push_line(&mut source, "}");
 
     let file = format!("{dir_out}/{WRAPPER_NAME}.hpp");
     std::fs::write(&file, source).unwrap();
@@ -295,16 +292,13 @@ fn build_wrapper(dir_out: &str, include: &str) {
     for xsf_header in XSF_HEADERS {
         push_line(&mut source, &format!("#include \"xsf/{xsf_header}\""));
     }
-    push_line(&mut source, "");
 
-    push_line(&mut source, "extern \"C\" {");
     for (func, call) in XSF_TYPES
         .iter()
         .map(|(n, s)| (fmt_func(n, s), fmt_call(n, s)))
     {
-        push_line(&mut source, &format!("    {func} {{ return {call}; }}"));
+        push_line(&mut source, &format!("{func} {{ return {call}; }}"));
     }
-    push_line(&mut source, "}");
 
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
     std::fs::write(&file_cpp, source).unwrap();
@@ -320,8 +314,25 @@ fn build_wrapper(dir_out: &str, include: &str) {
 }
 
 fn generate_bindings(dir_out: &str, header: &str) {
+    let allowlist_pattern = XSF_TYPES
+        .iter()
+        .map(|(name, _)| {
+            XSF_RENAME
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, r)| *r)
+                .unwrap_or(name)
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+
     bindgen::Builder::default()
         .header(header)
+        .size_t_is_usize(true)
+        .sort_semantically(true)
+        .opaque_type("std::*")
+        .allowlist_function(&allowlist_pattern)
+        .blocklist_type("std::complex_value_type")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .unwrap()
