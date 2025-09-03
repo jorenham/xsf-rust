@@ -514,8 +514,8 @@ xsref_test!(exp2, "d->d");
 xsref_test!(exp10, "d->d");
 
 // expint.h
-xsref_test!(exp1, "d->d");
-xsref_test!(expi, "d->d");
+xsref_test!(expi, "d->d", "D->D");
+xsref_test!(exp1, "d->d", "D->D");
 xsref_test!(scaled_exp1, "d->d");
 
 // gamma.h

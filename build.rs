@@ -121,8 +121,10 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("exp2", "d->d"),
     ("exp10", "d->d"),
     // expint.h
-    ("exp1", "d->d"), // TODO: complex
-    ("expi", "d->d"), // TODO: complex
+    ("exp1", "d->d"),
+    ("exp1", "D->D"),
+    ("expi", "d->d"),
+    ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
     // TODO: `fresnel`, `fcszo`

@@ -51,9 +51,8 @@ mod exp;
 pub use exp::{exp2, exp10, expm1};
 
 // expint.h
-xsf_impl!(exp1, (x: f64), "Exponential integral `E_1(x)`");
-xsf_impl!(expi, (x: f64), "Exponential integral `E_i(x)`");
-xsf_impl!(scaled_exp1, (x: f64), "Scaled version of the exponential integral `E_1(x)`");
+mod expint;
+pub use expint::{exp1, expi, scaled_exp1};
 
 // gamma.h
 /// Gamma function
