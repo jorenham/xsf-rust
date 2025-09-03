@@ -71,6 +71,10 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("cyl_bessel_k0e", "d->d"),
     ("cyl_bessel_k1", "d->d"),
     ("cyl_bessel_k1e", "d->d"),
+    ("cyl_hankel_1", "dD->D"),
+    ("cyl_hankel_1e", "dD->D"),
+    ("cyl_hankel_2", "dD->D"),
+    ("cyl_hankel_2e", "dD->D"),
     ("besselpoly", "ddd->d"),
     // beta.h
     ("beta", "dd->d"),

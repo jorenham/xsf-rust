@@ -1,14 +1,41 @@
-use std::ffi::c_int;
+#![allow(non_snake_case)]
 
-mod ffi {
+use num_complex::Complex;
+use std::os::raw::c_int;
+
+mod xsf {
+    use num_complex::Complex;
+
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+    impl<T> std_complex<T> {
+        fn new(re: T, im: T) -> Self {
+            Self {
+                _phantom_0: std::marker::PhantomData,
+                _M_real: re,
+                _M_imag: im,
+            }
+        }
+    }
+
+    impl<T> From<std_complex<T>> for Complex<T> {
+        fn from(val: std_complex<T>) -> Self {
+            Complex::new(val._M_real, val._M_imag)
+        }
+    }
+
+    impl<T> From<Complex<T>> for std_complex<T> {
+        fn from(c: Complex<T>) -> Self {
+            Self::new(c.re, c.im)
+        }
+    }
 }
 
 macro_rules! xsf_impl {
     ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
         #[doc = $docs]
         pub fn $name($($param: $type),*) -> f64 {
-            unsafe { ffi::$name($($param),*) }
+            unsafe { xsf::$name($($param),*) }
         }
     };
 }
@@ -16,7 +43,7 @@ macro_rules! xsf_impl {
 // alg.h
 /// Cube root
 pub fn cbrt(x: f64) -> f64 {
-    unsafe { ffi::cbrt_(x) }
+    unsafe { xsf::cbrt_(x) }
 }
 
 // bessel.h
@@ -64,6 +91,22 @@ xsf_impl!(
     (x: f64),
     "Exponentially scaled modified Bessel function, 2nd kind, order 1"
 );
+/// Hankel function, 1st kind
+pub fn cyl_hankel_1(v: f64, z: Complex<f64>) -> Complex<f64> {
+    unsafe { xsf::cyl_hankel_1(v, z.into()) }.into()
+}
+/// Exponentially scaled Hankel function, 1st kind
+pub fn cyl_hankel_1e(v: f64, z: Complex<f64>) -> Complex<f64> {
+    unsafe { xsf::cyl_hankel_1e(v, z.into()) }.into()
+}
+/// Hankel function, 2nd kind
+pub fn cyl_hankel_2(v: f64, z: Complex<f64>) -> Complex<f64> {
+    unsafe { xsf::cyl_hankel_2(v, z.into()) }.into()
+}
+/// Exponentially scaled Hankel function, 2nd kind
+pub fn cyl_hankel_2e(v: f64, z: Complex<f64>) -> Complex<f64> {
+    unsafe { xsf::cyl_hankel_2e(v, z.into()) }.into()
+}
 xsf_impl!(
     besselpoly,
     (a: f64, lambda: f64, nu: f64),
@@ -83,11 +126,11 @@ xsf_impl!(digamma, (x: f64), "Digamma function");
 // erf.h
 /// Error function
 pub fn erf(x: f64) -> f64 {
-    unsafe { ffi::erf_(x) }
+    unsafe { xsf::erf_(x) }
 }
 /// Complementary error function `1 - erf(x)`
 pub fn erfc(x: f64) -> f64 {
-    unsafe { ffi::erfc_(x) }
+    unsafe { xsf::erfc_(x) }
 }
 xsf_impl!(erfcx, (x: f64), "Scaled complementary error function `exp(x^2) * erfc(x)`");
 xsf_impl!(erfi, (x: f64), "Imaginary error function `-i erf(ix)`");
@@ -97,15 +140,15 @@ xsf_impl!(dawsn, (x: f64), "Dawson function `sqrt(pi)/2 * exp(-x^2) * erfi(x)`")
 // exp.h
 /// `exp(x) - 1`
 pub fn expm1(x: f64) -> f64 {
-    unsafe { ffi::expm1_(x) }
+    unsafe { xsf::expm1_(x) }
 }
 /// `2^x`
 pub fn exp2(x: f64) -> f64 {
-    unsafe { ffi::exp2_(x) }
+    unsafe { xsf::exp2_(x) }
 }
 /// `10^x`
 pub fn exp10(x: f64) -> f64 {
-    unsafe { ffi::exp10_(x) }
+    unsafe { xsf::exp10_(x) }
 }
 
 // expint.h
@@ -116,7 +159,7 @@ xsf_impl!(scaled_exp1, (x: f64), "Scaled version of the exponential integral `E_
 // gamma.h
 /// Gamma function
 pub fn gamma(x: f64) -> f64 {
-    unsafe { ffi::gamma_(x) }
+    unsafe { xsf::gamma_(x) }
 }
 xsf_impl!(gammainc, (a: f64, x: f64), "Incomplete Gamma integral");
 xsf_impl!(gammaincc, (a: f64, x: f64), "Complemented incomplete Gamma integral");
