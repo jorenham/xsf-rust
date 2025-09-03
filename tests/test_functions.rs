@@ -492,6 +492,13 @@ xsref_test!(gdtrib, "ddd->d");
 // digamma.h
 xsref_test!(digamma, "d->d", "D->D");
 
+// ellip.h
+xsref_test!(ellipk, "d->d");
+xsref_test!(ellipkm1, "d->d");
+xsref_test!(ellipkinc, "dd->d");
+xsref_test!(ellipe, "d->d");
+xsref_test!(ellipeinc, "dd->d");
+
 // erf.h
 xsref_test!(erf, "d->d", "D->D");
 xsref_test!(erfc, "d->d", "D->D");

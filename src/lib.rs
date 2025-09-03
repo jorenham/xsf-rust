@@ -35,6 +35,11 @@ xsf_impl!(gdtrib, (a: f64, p: f64, x: f64), "Inverse of `p = gdtr(a, b, x)` with
 mod digamma;
 pub use digamma::digamma;
 
+// ellip.h
+#[macro_use]
+mod ellip;
+pub use ellip::{ellipe, ellipeinc, ellipk, ellipkinc, ellipkm1};
+
 // erf.h
 #[macro_use]
 mod erf;

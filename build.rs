@@ -13,7 +13,7 @@ const XSF_HEADERS: &[&str] = &[
     "binom.h",
     "cdflib.h",
     "digamma.h",
-    // "ellip.h",
+    "ellip.h",
     "erf.h",
     // "evalpoly.h"
     "exp.h",
@@ -93,6 +93,13 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // digamma.h
     ("digamma", "d->d"),
     ("digamma", "D->D"),
+    // ellip.h
+    // TODO: ellipj
+    ("ellipk", "d->d"),
+    ("ellipkm1", "d->d"),
+    ("ellipkinc", "dd->d"),
+    ("ellipe", "d->d"),
+    ("ellipeinc", "dd->d"),
     // erf.h
     ("erf", "d->d"),
     ("erf", "D->D"),
