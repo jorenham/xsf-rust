@@ -4,10 +4,8 @@ pub(crate) mod bindings;
 use bindings::xsf_impl;
 
 // alg.h
-/// Cube root
-pub fn cbrt(x: f64) -> f64 {
-    unsafe { bindings::cbrt_(x) }
-}
+mod alg;
+pub use alg::cbrt;
 
 // bessel.h
 mod bessel;
@@ -20,14 +18,16 @@ pub use bessel::{
 };
 
 // beta.h
-xsf_impl!(beta, (a: f64, b: f64), "Beta function");
-xsf_impl!(betaln, (a: f64, b: f64), "Natural log of `|beta|`");
+mod beta;
+pub use beta::{beta, betaln};
 
 // binom.h
-xsf_impl!(binom, (n: f64, k: f64), "Binomial coefficient");
+mod binom;
+pub use binom::binom;
 
 // cdflib.h
-xsf_impl!(gdtrib, (a: f64, p: f64, x: f64), "Inverse of `p = gdtr(a, b, x)` with respect to `b`");
+mod cdflib;
+pub use cdflib::gdtrib;
 
 // digamma.h
 mod digamma;
@@ -58,16 +58,8 @@ mod hyp2f1;
 pub use hyp2f1::hyp2f1;
 
 // iv_ratio.h
-xsf_impl!(
-    iv_ratio,
-    (v: f64, x: f64),
-    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function, 1st kind"
-);
-xsf_impl!(
-    iv_ratio_c,
-    (v: f64, x: f64),
-    "Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function, 1st kind"
-);
+mod iv_ratio;
+pub use iv_ratio::{iv_ratio, iv_ratio_c};
 
 // kelvin.h
 xsf_impl!(ber, (x: f64), "Kelvin function `ber`");
