@@ -8,12 +8,69 @@ mod xsref {
         Array, Float32Array as ArrayF32, Float64Array as ArrayF64, Int32Array as ArrayI32,
         Int64Array as ArrayI64,
     };
+    use num_complex::Complex;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
+    pub trait TestOutput: Copy {
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self>;
+        fn error(actual: Self, expected: Self) -> f64;
+        fn magnitude(self) -> f64;
+        fn format_value(self) -> String;
+    }
+
+    impl TestOutput for f64 {
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
+            rows.into_iter().map(|row| row[0]).collect()
+        }
+
+        fn error(actual: Self, expected: Self) -> f64 {
+            relative_error(actual, expected)
+        }
+
+        fn magnitude(self) -> f64 {
+            self.abs()
+        }
+
+        fn format_value(self) -> String {
+            format!("{:.6e}", self)
+        }
+    }
+
+    impl TestOutput for Complex<f64> {
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
+            rows.into_iter()
+                .map(|row| Complex::new(row[0], row[1]))
+                .collect()
+        }
+
+        fn error(actual: Self, expected: Self) -> f64 {
+            let diff = actual - expected;
+            let abs_diff = diff.norm();
+            let abs_expected = if expected.norm() == 0.0 {
+                f64::MIN_POSITIVE
+            } else if expected.norm().is_infinite() {
+                f64::MAX
+            } else if expected.norm().is_nan() {
+                1.0
+            } else {
+                expected.norm()
+            };
+            (abs_diff / abs_expected).min(abs_diff)
+        }
+
+        fn magnitude(self) -> f64 {
+            self.norm()
+        }
+
+        fn format_value(self) -> String {
+            format!("{:.6e}+{:.6e}i", self.re, self.im)
+        }
+    }
+
     #[derive(Debug)]
-    struct TestCase {
+    struct TestCase<T: TestOutput> {
         pub inputs: Vec<f64>,
-        pub expected: f64,
+        pub expected: T,
         pub tolerance: f64,
     }
 
@@ -91,7 +148,34 @@ mod xsref {
         values
     }
 
-    fn load_testcases(name: &str, signature: &str) -> Result<Vec<TestCase>, TestError> {
+    fn read_parquet_output<T: TestOutput>(file: File) -> Vec<T> {
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+        let reader = builder.build().unwrap();
+
+        let mut rows = Vec::new();
+        for batch_result in reader {
+            let batch = batch_result.unwrap();
+            for row_idx in 0..batch.num_rows() {
+                let mut row = Vec::new();
+                for col_idx in 0..batch.num_columns() {
+                    let column = batch.column(col_idx).as_any();
+                    if let Some(f64_array) = column.downcast_ref::<ArrayF64>() {
+                        row.push(f64_array.value(row_idx));
+                    } else if let Some(f32_array) = column.downcast_ref::<ArrayF32>() {
+                        row.push(f32_array.value(row_idx) as f64);
+                    }
+                }
+                rows.push(row);
+            }
+        }
+        T::from_parquet_rows(rows)
+    }
+
+    fn load_testcases<T: TestOutput>(
+        name: &str,
+        signature: &str,
+    ) -> Result<Vec<TestCase<T>>, TestError> {
+        let parquet_signature = signature.replace('D', "cd").replace('F', "cf");
         let tables_dir = env::var("XSREF_TABLES_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
@@ -102,8 +186,8 @@ mod xsref {
 
         let get_table = |name: &str| File::open(tables_dir.join(format!("{}.parquet", name)));
 
-        let table_in = read_parquet_rows(get_table(&format!("In_{}", signature))?);
-        let table_out = read_parquet_column(get_table(&format!("Out_{}", signature))?);
+        let table_in = read_parquet_rows(get_table(&format!("In_{}", parquet_signature))?);
+        let table_out = read_parquet_output::<T>(get_table(&format!("Out_{}", parquet_signature))?);
 
         let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
             "gcc-linux-x86_64"
@@ -113,8 +197,8 @@ mod xsref {
             "other"
         };
 
-        let table_err_file = get_table(&format!("Err_{}_{}", signature, platform))
-            .or_else(|_| get_table(&format!("Err_{}_other", signature)))?;
+        let table_err_file = get_table(&format!("Err_{}_{}", parquet_signature, platform))
+            .or_else(|_| get_table(&format!("Err_{}_other", parquet_signature)))?;
         let table_err = read_parquet_column(table_err_file);
 
         let test_cases = table_in
@@ -166,27 +250,33 @@ mod xsref {
         (abserr / abserr0).min(abserr)
     }
 
-    pub fn test<F>(name: &str, signature: &str, test_fn: F)
+    pub fn test<T, F>(name: &str, signature: &str, test_fn: F)
     where
-        F: Fn(&[f64]) -> f64,
+        T: TestOutput,
+        F: Fn(&[f64]) -> T,
     {
-        let cases = load_testcases(name, signature).unwrap();
+        let cases = load_testcases::<T>(name, signature).unwrap();
 
         let mut failed = 0;
         for (i, case) in cases.iter().enumerate() {
             let actual = test_fn(&case.inputs);
             let desired = case.expected;
 
-            let is_huge = desired.abs() > 1e16;
+            let is_huge = desired.magnitude() > 1e16;
             let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
             let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
 
-            let error = relative_error(actual, desired);
+            let error = T::error(actual, desired);
             if error > max_error {
                 failed += 1;
                 eprintln!(
-                    "{}: test {}, expected {:.6e}, got {:.6e}, error {:.2e}, max {:.2e}",
-                    name, i, desired, actual, error, max_error
+                    "{}: test {}, expected {}, got {}, error {:.2e}, max {:.2e}",
+                    name,
+                    i,
+                    desired.format_value(),
+                    actual.format_value(),
+                    error,
+                    max_error
                 );
             }
         }
@@ -199,11 +289,19 @@ mod xsref {
 
 /// Helper macro to generate the test body
 macro_rules! _test {
-    ($f:ident, $sig:literal, $test_fn:expr) => {
+    ($f:ident, $sig:literal, $test_fn:expr, f64) => {
         paste::paste! {
             #[test]
             fn [<test_ $f>]() {
-                xsref::test(stringify!($f), $sig, $test_fn);
+                xsref::test::<f64, _>(stringify!($f), $sig, $test_fn);
+            }
+        }
+    };
+    ($f:ident, $sig:literal, $test_fn:expr, Complex<f64>) => {
+        paste::paste! {
+            #[test]
+            fn [<test_ $f>]() {
+                xsref::test::<num_complex::Complex<f64>, _>(stringify!($f), $sig, $test_fn);
             }
         }
     };
@@ -212,29 +310,48 @@ macro_rules! _test {
 /// Generate a test function for xsf functions
 macro_rules! xsref_test {
     ($f:ident, "d->d") => {
-        _test!($f, "d-d", |x: &[f64]| xsf::$f(x[0]));
+        _test!($f, "d-d", |x: &[f64]| xsf::$f(x[0]), f64);
     };
     ($f:ident, "dd->d") => {
-        _test!($f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]));
+        _test!($f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]), f64);
     };
     ($f:ident, "id->d") => {
-        _test!($f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]));
+        _test!($f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]), f64);
     };
     ($f:ident, "ddd->d") => {
-        _test!($f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]));
+        _test!($f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]), f64);
     };
     ($f:ident, "did->d") => {
-        _test!($f, "d_p_d-d", |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]));
+        _test!(
+            $f,
+            "d_p_d-d",
+            |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]),
+            f64
+        );
     };
     ($f:ident, "iid->d") => {
-        _test!($f, "p_p_d-d", |x: &[f64]| xsf::$f(
-            x[0] as i32,
-            x[1] as i32,
-            x[2]
-        ));
+        _test!(
+            $f,
+            "p_p_d-d",
+            |x: &[f64]| xsf::$f(x[0] as i32, x[1] as i32, x[2]),
+            f64
+        );
     };
     ($f:ident, "dddd->d") => {
-        _test!($f, "d_d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]));
+        _test!(
+            $f,
+            "d_d_d_d-d",
+            |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]),
+            f64
+        );
+    };
+    ($f:ident, "dD->D") => {
+        _test!(
+            $f,
+            "d_D-D",
+            |x: &[f64]| xsf::$f(x[0], num_complex::Complex::new(x[1], x[2])),
+            Complex<f64>
+        );
     };
 }
 
@@ -262,6 +379,10 @@ xsref_test!(cyl_bessel_k0, "d->d");
 xsref_test!(cyl_bessel_k0e, "d->d");
 xsref_test!(cyl_bessel_k1, "d->d");
 xsref_test!(cyl_bessel_k1e, "d->d");
+xsref_test!(cyl_hankel_1, "dD->D");
+xsref_test!(cyl_hankel_1e, "dD->D");
+xsref_test!(cyl_hankel_2, "dD->D");
+xsref_test!(cyl_hankel_2e, "dD->D");
 xsref_test!(besselpoly, "ddd->d");
 
 // beta.h
