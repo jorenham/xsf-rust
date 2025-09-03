@@ -16,6 +16,9 @@ description = "Rust bindings for scipy's xsf special functions library"
 bindgen = "0.72.1"
 cc = "1.2.35"
 
+[dependencies]
+num-complex = "0.4.6"
+
 [dev-dependencies]
 arrow = "56.1.0"
 parquet = "56.1.0"
