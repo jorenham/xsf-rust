@@ -171,7 +171,6 @@ mod xsref {
         name: &str,
         signature: &str,
     ) -> Result<Vec<TestCase<T>>, TestError> {
-        let parquet_signature = signature.replace('D', "cd").replace('F', "cf");
         let tables_dir = env::var("XSREF_TABLES_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
@@ -182,8 +181,8 @@ mod xsref {
 
         let get_table = |name: &str| File::open(tables_dir.join(format!("{}.parquet", name)));
 
-        let table_in = read_parquet_rows(get_table(&format!("In_{}", parquet_signature))?);
-        let table_out = read_parquet_output::<T>(get_table(&format!("Out_{}", parquet_signature))?);
+        let table_in = read_parquet_rows(get_table(&format!("In_{}", signature))?);
+        let table_out = read_parquet_output::<T>(get_table(&format!("Out_{}", signature))?);
 
         let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
             "gcc-linux-x86_64"
@@ -193,8 +192,8 @@ mod xsref {
             "other"
         };
 
-        let table_err_file = get_table(&format!("Err_{}_{}", parquet_signature, platform))
-            .or_else(|_| get_table(&format!("Err_{}_other", parquet_signature)))?;
+        let table_err_file = get_table(&format!("Err_{}_{}", signature, platform))
+            .or_else(|_| get_table(&format!("Err_{}_other", signature)))?;
         let table_err = read_parquet_column(table_err_file);
 
         let test_cases = table_in
@@ -430,7 +429,7 @@ macro_rules! xsref_test {
             _test!(
                 [<test_ $f _ cd>],
                 $f,
-                "D-D",
+                "cd-cd",
                 |x: &[f64]| xsf::$f(num_complex::Complex::new(x[0], x[1])),
                 Complex<f64>
             );
@@ -441,7 +440,7 @@ macro_rules! xsref_test {
             _test!(
                 [<test_ $f _ cd>],
                 $f,
-                "d_D-D",
+                "d_cd-cd",
                 |x: &[f64]| xsf::$f(x[0], num_complex::Complex::new(x[1], x[2])),
                 Complex<f64>
             );
@@ -452,8 +451,23 @@ macro_rules! xsref_test {
             _test!(
                 [<test_ $f _ cd>],
                 $f,
-                "d_d_d_D-D",
+                "d_d_d_cd-cd",
                 |x: &[f64]| xsf::$f(x[0], x[1], x[2], num_complex::Complex::new(x[3], x[4])),
+                Complex<f64>
+            );
+        }
+    };
+    (@single $f:ident, "Dld->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "cd_p_d-cd",
+                |x: &[f64]| xsf::$f(
+                    num_complex::Complex::new(x[0], x[1]),
+                    x[2] as std::os::raw::c_long,
+                    x[3],
+                ),
                 Complex<f64>
             );
         }
@@ -554,6 +568,9 @@ xsref_test!(berp, "d->d");
 xsref_test!(beip, "d->d");
 xsref_test!(kerp, "d->d");
 xsref_test!(keip, "d->d");
+
+// lambertw.h
+xsref_test!(lambertw, "Dld->D");
 
 // legendre.h
 // xsref_test!(legendre_p, "id->d");  // no xsref table

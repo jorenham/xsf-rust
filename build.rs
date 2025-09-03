@@ -24,7 +24,7 @@ const XSF_HEADERS: &[&str] = &[
     "hyp2f1.h",
     "iv_ratio.h",
     "kelvin.h",
-    // "lambertw.h",
+    "lambertw.h",
     "legendre.h",
     "log_exp.h",
     "log.h",
@@ -154,6 +154,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("beip", "d->d"),
     ("kerp", "d->d"),
     ("keip", "d->d"),
+    // lambertw.h
+    ("lambertw", "Dld->D"),
     // legendre.h
     // TODO: `assoc_legendre_p`, `lqn`, `lqmn`
     ("legendre_p", "id->d"),
@@ -251,6 +253,7 @@ const XSF_RENAME: &[(&str, &str)] = &[
 fn get_ctype(code: char) -> &'static str {
     match code {
         'i' => "int",
+        'l' => "long",
         'f' => "float",
         'd' => "double",
         'F' => "std::complex<float>",

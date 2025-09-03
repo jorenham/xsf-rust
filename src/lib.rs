@@ -65,6 +65,10 @@ pub use iv_ratio::{iv_ratio, iv_ratio_c};
 mod kelvin;
 pub use kelvin::{bei, beip, ber, berp, kei, keip, ker, kerp};
 
+// lambertw.h
+mod lambertw;
+pub use lambertw::lambertw;
+
 // legendre.h
 xsf_impl!(legendre_p, (n: c_int, x: f64), "Legendre polynomial of degree n");
 xsf_impl!(
