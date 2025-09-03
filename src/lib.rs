@@ -1,117 +1,24 @@
-#![allow(non_snake_case)]
-
-use num_complex::Complex;
 use std::os::raw::c_int;
 
-mod xsf {
-    use num_complex::Complex;
-
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-    impl<T> std_complex<T> {
-        fn new(re: T, im: T) -> Self {
-            Self {
-                _phantom_0: std::marker::PhantomData,
-                _M_real: re,
-                _M_imag: im,
-            }
-        }
-    }
-
-    impl<T> From<std_complex<T>> for Complex<T> {
-        fn from(val: std_complex<T>) -> Self {
-            Complex::new(val._M_real, val._M_imag)
-        }
-    }
-
-    impl<T> From<Complex<T>> for std_complex<T> {
-        fn from(c: Complex<T>) -> Self {
-            Self::new(c.re, c.im)
-        }
-    }
-}
-
-macro_rules! xsf_impl {
-    ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
-        #[doc = $docs]
-        pub fn $name($($param: $type),*) -> f64 {
-            unsafe { xsf::$name($($param),*) }
-        }
-    };
-}
+pub(crate) mod bindings;
+use bindings::xsf_impl;
 
 // alg.h
 /// Cube root
 pub fn cbrt(x: f64) -> f64 {
-    unsafe { xsf::cbrt_(x) }
+    unsafe { bindings::cbrt_(x) }
 }
 
 // bessel.h
-xsf_impl!(cyl_bessel_j, (v: f64, x: f64), "Bessel function, 1st kind");
-xsf_impl!(cyl_bessel_je, (v: f64, x: f64), "Exponentially scaled Bessel function, 1st kind");
-xsf_impl!(cyl_bessel_y, (v: f64, x: f64), "Bessel function, 2nd kind");
-xsf_impl!(cyl_bessel_ye, (v: f64, x: f64), "Exponentially scaled Bessel function, 2nd kind");
-xsf_impl!(cyl_bessel_i, (v: f64, x: f64), "Modified Bessel function, 1st kind");
-xsf_impl!(
-    cyl_bessel_ie,
-    (v: f64, x: f64),
-    "Exponentially scaled modified Bessel function, 1st kind"
-);
-xsf_impl!(cyl_bessel_k, (v: f64, x: f64), "Modified Bessel function, 2nd kind");
-xsf_impl!(
-    cyl_bessel_ke,
-    (v: f64, x: f64),
-    "Exponentially scaled modified Bessel function, 2nd kind"
-);
-xsf_impl!(cyl_bessel_j0, (x: f64), "Bessel function, 1st kind, order 0");
-xsf_impl!(cyl_bessel_j1, (x: f64), "Bessel function, 1st kind, order 1");
-xsf_impl!(cyl_bessel_y0, (x: f64), "Bessel function, 2nd kind, order 0");
-xsf_impl!(cyl_bessel_y1, (x: f64), "Bessel function, 2nd kind, order 1");
-xsf_impl!(cyl_bessel_i0, (x: f64), "Modified Bessel function, 1st kind, order 0");
-xsf_impl!(
-    cyl_bessel_i0e,
-    (x: f64),
-    "Exponentially scaled modified Bessel function, 1st kind, order 0"
-);
-xsf_impl!(cyl_bessel_i1, (x: f64), "Modified Bessel function, 1st kind, order 1");
-xsf_impl!(
-    cyl_bessel_i1e,
-    (x: f64),
-    "Exponentially scaled modified Bessel function, 1st kind, order 1"
-);
-xsf_impl!(cyl_bessel_k0, (x: f64), "Modified Bessel function, 2nd kind, order 0");
-xsf_impl!(
-    cyl_bessel_k0e,
-    (x: f64),
-    "Exponentially scaled modified Bessel function, 2nd kind, order 0"
-);
-xsf_impl!(cyl_bessel_k1, (x: f64), "Modified Bessel function, 2nd kind, order 1");
-xsf_impl!(
-    cyl_bessel_k1e,
-    (x: f64),
-    "Exponentially scaled modified Bessel function, 2nd kind, order 1"
-);
-/// Hankel function, 1st kind
-pub fn cyl_hankel_1(v: f64, z: Complex<f64>) -> Complex<f64> {
-    unsafe { xsf::cyl_hankel_1(v, z.into()) }.into()
-}
-/// Exponentially scaled Hankel function, 1st kind
-pub fn cyl_hankel_1e(v: f64, z: Complex<f64>) -> Complex<f64> {
-    unsafe { xsf::cyl_hankel_1e(v, z.into()) }.into()
-}
-/// Hankel function, 2nd kind
-pub fn cyl_hankel_2(v: f64, z: Complex<f64>) -> Complex<f64> {
-    unsafe { xsf::cyl_hankel_2(v, z.into()) }.into()
-}
-/// Exponentially scaled Hankel function, 2nd kind
-pub fn cyl_hankel_2e(v: f64, z: Complex<f64>) -> Complex<f64> {
-    unsafe { xsf::cyl_hankel_2e(v, z.into()) }.into()
-}
-xsf_impl!(
-    besselpoly,
-    (a: f64, lambda: f64, nu: f64),
-    "Weighted integral of the Bessel function of the first kind"
-);
+#[macro_use]
+mod bessel;
+pub use bessel::{
+    besselpoly, cyl_bessel_i, cyl_bessel_i0, cyl_bessel_i0e, cyl_bessel_i1, cyl_bessel_i1e,
+    cyl_bessel_ie, cyl_bessel_j, cyl_bessel_j0, cyl_bessel_j1, cyl_bessel_je, cyl_bessel_k,
+    cyl_bessel_k0, cyl_bessel_k0e, cyl_bessel_k1, cyl_bessel_k1e, cyl_bessel_ke, cyl_bessel_y,
+    cyl_bessel_y0, cyl_bessel_y1, cyl_bessel_ye, cyl_hankel_1, cyl_hankel_1e, cyl_hankel_2,
+    cyl_hankel_2e,
+};
 
 // beta.h
 xsf_impl!(beta, (a: f64, b: f64), "Beta function");
@@ -126,11 +33,11 @@ xsf_impl!(digamma, (x: f64), "Digamma function");
 // erf.h
 /// Error function
 pub fn erf(x: f64) -> f64 {
-    unsafe { xsf::erf_(x) }
+    unsafe { bindings::erf_(x) }
 }
 /// Complementary error function `1 - erf(x)`
 pub fn erfc(x: f64) -> f64 {
-    unsafe { xsf::erfc_(x) }
+    unsafe { bindings::erfc_(x) }
 }
 xsf_impl!(erfcx, (x: f64), "Scaled complementary error function `exp(x^2) * erfc(x)`");
 xsf_impl!(erfi, (x: f64), "Imaginary error function `-i erf(ix)`");
@@ -140,15 +47,15 @@ xsf_impl!(dawsn, (x: f64), "Dawson function `sqrt(pi)/2 * exp(-x^2) * erfi(x)`")
 // exp.h
 /// `exp(x) - 1`
 pub fn expm1(x: f64) -> f64 {
-    unsafe { xsf::expm1_(x) }
+    unsafe { bindings::expm1_(x) }
 }
 /// `2^x`
 pub fn exp2(x: f64) -> f64 {
-    unsafe { xsf::exp2_(x) }
+    unsafe { bindings::exp2_(x) }
 }
 /// `10^x`
 pub fn exp10(x: f64) -> f64 {
-    unsafe { xsf::exp10_(x) }
+    unsafe { bindings::exp10_(x) }
 }
 
 // expint.h
@@ -159,7 +66,7 @@ xsf_impl!(scaled_exp1, (x: f64), "Scaled version of the exponential integral `E_
 // gamma.h
 /// Gamma function
 pub fn gamma(x: f64) -> f64 {
-    unsafe { xsf::gamma_(x) }
+    unsafe { bindings::gamma_(x) }
 }
 xsf_impl!(gammainc, (a: f64, x: f64), "Incomplete Gamma integral");
 xsf_impl!(gammaincc, (a: f64, x: f64), "Complemented incomplete Gamma integral");

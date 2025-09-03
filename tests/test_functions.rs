@@ -289,18 +289,18 @@ mod xsref {
 
 /// Helper macro to generate the test body
 macro_rules! _test {
-    ($f:ident, $sig:literal, $test_fn:expr, f64) => {
+    ($test_name:ident, $f:ident, $sig:literal, $test_fn:expr, f64) => {
         paste::paste! {
             #[test]
-            fn [<test_ $f>]() {
+            fn $test_name() {
                 xsref::test::<f64, _>(stringify!($f), $sig, $test_fn);
             }
         }
     };
-    ($f:ident, $sig:literal, $test_fn:expr, Complex<f64>) => {
+    ($test_name:ident, $f:ident, $sig:literal, $test_fn:expr, Complex<f64>) => {
         paste::paste! {
             #[test]
-            fn [<test_ $f>]() {
+            fn $test_name() {
                 xsref::test::<num_complex::Complex<f64>, _>(stringify!($f), $sig, $test_fn);
             }
         }
@@ -309,49 +309,82 @@ macro_rules! _test {
 
 /// Generate a test function for xsf functions
 macro_rules! xsref_test {
-    ($f:ident, "d->d") => {
-        _test!($f, "d-d", |x: &[f64]| xsf::$f(x[0]), f64);
+    // Single signature (backward compatibility)
+    ($f:ident, $sig:tt) => {
+        xsref_test!(@single $f, $sig);
     };
-    ($f:ident, "dd->d") => {
-        _test!($f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]), f64);
+
+    // Multiple signatures (variadic)
+    ($f:ident, $($sig:tt),+ $(,)?) => {
+        $(
+            xsref_test!(@single $f, $sig);
+        )+
     };
-    ($f:ident, "id->d") => {
-        _test!($f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]), f64);
+
+    // Internal helper for single signature processing
+    (@single $f:ident, "d->d") => {
+        paste::paste! {
+            _test!([<test_ $f _ d>], $f, "d-d", |x: &[f64]| xsf::$f(x[0]), f64);
+        }
     };
-    ($f:ident, "ddd->d") => {
-        _test!($f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]), f64);
+    (@single $f:ident, "dd->d") => {
+        paste::paste! {
+            _test!([<test_ $f _ d>], $f, "d_d-d", |x: &[f64]| xsf::$f(x[0], x[1]), f64);
+        }
     };
-    ($f:ident, "did->d") => {
-        _test!(
-            $f,
-            "d_p_d-d",
-            |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]),
-            f64
-        );
+    (@single $f:ident, "id->d") => {
+        paste::paste! {
+            _test!([<test_ $f _ d>], $f, "p_d-d", |x: &[f64]| xsf::$f(x[0] as i32, x[1]), f64);
+        }
     };
-    ($f:ident, "iid->d") => {
-        _test!(
-            $f,
-            "p_p_d-d",
-            |x: &[f64]| xsf::$f(x[0] as i32, x[1] as i32, x[2]),
-            f64
-        );
+    (@single $f:ident, "ddd->d") => {
+        paste::paste! {
+            _test!([<test_ $f _ d>], $f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]), f64);
+        }
     };
-    ($f:ident, "dddd->d") => {
-        _test!(
-            $f,
-            "d_d_d_d-d",
-            |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]),
-            f64
-        );
+    (@single $f:ident, "did->d") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d_p_d-d",
+                |x: &[f64]| xsf::$f(x[0], x[1] as i32, x[2]),
+                f64
+            );
+        }
     };
-    ($f:ident, "dD->D") => {
-        _test!(
-            $f,
-            "d_D-D",
-            |x: &[f64]| xsf::$f(x[0], num_complex::Complex::new(x[1], x[2])),
-            Complex<f64>
-        );
+    (@single $f:ident, "iid->d") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "p_p_d-d",
+                |x: &[f64]| xsf::$f(x[0] as i32, x[1] as i32, x[2]),
+                f64
+            );
+        }
+    };
+    (@single $f:ident, "dddd->d") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d_d_d_d-d",
+                |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]),
+                f64
+            );
+        }
+    };
+    (@single $f:ident, "dD->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "d_D-D",
+                |x: &[f64]| xsf::$f(x[0], num_complex::Complex::new(x[1], x[2])),
+                Complex<f64>
+            );
+        }
     };
 }
 
@@ -359,14 +392,6 @@ macro_rules! xsref_test {
 xsref_test!(cbrt, "d->d");
 
 // bessel.h
-xsref_test!(cyl_bessel_j, "dd->d");
-xsref_test!(cyl_bessel_je, "dd->d");
-xsref_test!(cyl_bessel_y, "dd->d");
-xsref_test!(cyl_bessel_ye, "dd->d");
-xsref_test!(cyl_bessel_i, "dd->d");
-xsref_test!(cyl_bessel_ie, "dd->d");
-xsref_test!(cyl_bessel_k, "dd->d");
-xsref_test!(cyl_bessel_ke, "dd->d");
 xsref_test!(cyl_bessel_j0, "d->d");
 xsref_test!(cyl_bessel_j1, "d->d");
 xsref_test!(cyl_bessel_y0, "d->d");
@@ -379,6 +404,14 @@ xsref_test!(cyl_bessel_k0, "d->d");
 xsref_test!(cyl_bessel_k0e, "d->d");
 xsref_test!(cyl_bessel_k1, "d->d");
 xsref_test!(cyl_bessel_k1e, "d->d");
+xsref_test!(cyl_bessel_j, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_je, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_y, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_ye, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_i, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_ie, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_k, "dd->d", "dD->D");
+xsref_test!(cyl_bessel_ke, "dd->d", "dD->D");
 xsref_test!(cyl_hankel_1, "dD->D");
 xsref_test!(cyl_hankel_1e, "dD->D");
 xsref_test!(cyl_hankel_2, "dD->D");

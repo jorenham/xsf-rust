@@ -51,22 +51,30 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // bessel.h
     // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
     // TODO: `rctj`, `rcty`,
-    ("cyl_bessel_j", "dd->d"),  // TODO: complex
-    ("cyl_bessel_je", "dd->d"), // TODO: complex
+    ("cyl_bessel_j", "dd->d"),
+    ("cyl_bessel_j", "dD->D"),
+    ("cyl_bessel_je", "dd->d"),
+    ("cyl_bessel_je", "dD->D"),
     ("cyl_bessel_j0", "d->d"),
     ("cyl_bessel_j1", "d->d"),
-    ("cyl_bessel_y", "dd->d"),  // TODO: complex
-    ("cyl_bessel_ye", "dd->d"), // TODO: complex
+    ("cyl_bessel_y", "dd->d"),
+    ("cyl_bessel_y", "dD->D"),
+    ("cyl_bessel_ye", "dd->d"),
+    ("cyl_bessel_ye", "dD->D"),
     ("cyl_bessel_y0", "d->d"),
     ("cyl_bessel_y1", "d->d"),
-    ("cyl_bessel_i", "dd->d"),  // TODO: complex
-    ("cyl_bessel_ie", "dd->d"), // TODO: complex
+    ("cyl_bessel_i", "dd->d"),
+    ("cyl_bessel_i", "dD->D"),
+    ("cyl_bessel_ie", "dd->d"),
+    ("cyl_bessel_ie", "dD->D"),
     ("cyl_bessel_i0", "d->d"),
     ("cyl_bessel_i0e", "d->d"),
     ("cyl_bessel_i1", "d->d"),
     ("cyl_bessel_i1e", "d->d"),
-    ("cyl_bessel_k", "dd->d"),  // TODO: complex
-    ("cyl_bessel_ke", "dd->d"), // TODO: complex
+    ("cyl_bessel_k", "dd->d"),
+    ("cyl_bessel_k", "dD->D"),
+    ("cyl_bessel_ke", "dd->d"),
+    ("cyl_bessel_ke", "dD->D"),
     ("cyl_bessel_k0", "d->d"),
     ("cyl_bessel_k0e", "d->d"),
     ("cyl_bessel_k1", "d->d"),
@@ -254,15 +262,20 @@ fn fmt_return(types: &str) -> String {
     get_ctype(chars.chars().next().unwrap()).to_string()
 }
 
-fn fmt_func(name: &str, types: &str) -> String {
+fn fmt_func(name: &str, types: &str, suffix: &str) -> String {
     let ret = fmt_return(types);
     let params = fmt_params(types, true);
-    let name = XSF_RENAME
+    let base_name = XSF_RENAME
         .iter()
         .find(|(n, _)| *n == name)
         .map(|(_, r)| *r)
         .unwrap_or(name);
-    format!("{} {}({})", ret, name, params)
+    let func_name = if suffix.is_empty() {
+        base_name.to_string()
+    } else {
+        format!("{}_{}", base_name, suffix)
+    };
+    format!("{} {}({})", ret, func_name, params)
 }
 
 fn fmt_call(name: &str, types: &str) -> String {
@@ -280,8 +293,15 @@ fn generate_header(dir_out: &str) -> String {
 
     push_line(&mut source, "#pragma once");
     push_line(&mut source, "#include <complex>");
-    for func in XSF_TYPES.iter().map(|(n, s)| fmt_func(n, s)) {
-        push_line(&mut source, &format!("{func};"));
+
+    // Generate unique function names for overloads
+    let mut name_counts = std::collections::HashMap::new();
+    for (name, types) in XSF_TYPES {
+        let count = name_counts.entry(*name).or_insert(0);
+        let suffix = if *count == 0 { "" } else { &count.to_string() };
+        let func_decl = fmt_func(name, types, suffix);
+        push_line(&mut source, &format!("{func_decl};"));
+        *count += 1;
     }
 
     let file = format!("{dir_out}/{WRAPPER_NAME}.hpp");
@@ -297,11 +317,15 @@ fn build_wrapper(dir_out: &str, include: &str) {
         push_line(&mut source, &format!("#include \"xsf/{xsf_header}\""));
     }
 
-    for (func, call) in XSF_TYPES
-        .iter()
-        .map(|(n, s)| (fmt_func(n, s), fmt_call(n, s)))
-    {
-        push_line(&mut source, &format!("{func} {{ return {call}; }}"));
+    // Generate unique function implementations for overloads
+    let mut name_counts = std::collections::HashMap::new();
+    for (name, types) in XSF_TYPES {
+        let count = name_counts.entry(*name).or_insert(0);
+        let suffix = if *count == 0 { "" } else { &count.to_string() };
+        let func_decl = fmt_func(name, types, suffix);
+        let call = fmt_call(name, types);
+        push_line(&mut source, &format!("{func_decl} {{ return {call}; }}"));
+        *count += 1;
     }
 
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
@@ -318,17 +342,27 @@ fn build_wrapper(dir_out: &str, include: &str) {
 }
 
 fn generate_bindings(dir_out: &str, header: &str) {
-    let allowlist_pattern = XSF_TYPES
-        .iter()
-        .map(|(name, _)| {
-            XSF_RENAME
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, r)| *r)
-                .unwrap_or(name)
-        })
-        .collect::<Vec<_>>()
-        .join("|");
+    // Generate allowlist pattern including numbered overloads
+    let mut allowlist_functions = Vec::new();
+    let mut name_counts = std::collections::HashMap::new();
+
+    for (name, _) in XSF_TYPES {
+        let count = name_counts.entry(*name).or_insert(0);
+        let base_name = XSF_RENAME
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, r)| *r)
+            .unwrap_or(name);
+
+        if *count == 0 {
+            allowlist_functions.push(base_name.to_string());
+        } else {
+            allowlist_functions.push(format!("{}_{}", base_name, count));
+        }
+        *count += 1;
+    }
+
+    let allowlist_pattern = allowlist_functions.join("|");
 
     bindgen::Builder::default()
         .header(header)
