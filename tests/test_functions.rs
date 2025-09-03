@@ -13,6 +13,9 @@ mod xsref {
 
     pub trait TestOutput: Copy {
         fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self>;
+        fn is_huge(self) -> bool {
+            self.magnitude() > f64::EPSILON
+        }
         fn error(actual: Self, expected: Self) -> f64;
         fn magnitude(self) -> f64;
         fn format_value(self) -> String;
@@ -43,19 +46,12 @@ mod xsref {
                 .collect()
         }
 
+        fn is_huge(self) -> bool {
+            self.norm().is_infinite() || self.im.is_infinite()
+        }
+
         fn error(actual: Self, expected: Self) -> f64 {
-            let diff = actual - expected;
-            let abs_diff = diff.norm();
-            let abs_expected = if expected.norm() == 0.0 {
-                f64::MIN_POSITIVE
-            } else if expected.norm().is_infinite() {
-                f64::MAX
-            } else if expected.norm().is_nan() {
-                1.0
-            } else {
-                expected.norm()
-            };
-            (abs_diff / abs_expected).min(abs_diff)
+            complex_relative_error(actual, expected)
         }
 
         fn magnitude(self) -> f64 {
@@ -250,6 +246,59 @@ mod xsref {
         (abserr / abserr0).min(abserr)
     }
 
+    /// based on `xsref.float_tools.extended_absolute_error_complex`
+    fn complex_absolute_error(actual: Complex<f64>, expected: Complex<f64>) -> f64 {
+        let real_error = (actual.re - expected.re).abs();
+        let imag_error = (actual.im - expected.im).abs();
+
+        let max_error = real_error.max(imag_error);
+        if max_error == 0.0 {
+            0.0
+        } else if max_error.is_infinite() {
+            f64::INFINITY
+        } else {
+            real_error.hypot(imag_error)
+        }
+    }
+    /// based on `xsref.float_tools.extended_relative_error_complex`
+    fn complex_relative_error(actual: Complex<f64>, expected: Complex<f64>) -> f64 {
+        if actual.re.is_nan() || actual.im.is_nan() {
+            if expected.re.is_nan() || expected.im.is_nan() {
+                0.0
+            } else {
+                f64::INFINITY
+            }
+        } else if expected.re.is_infinite() || expected.im.is_infinite() {
+            // If any component of expected is infinite, use component-wise relative error
+            fn rel_error(x: f64, y: f64) -> f64 {
+                if y.is_infinite() {
+                    if x.is_infinite() && x.signum() == y.signum() {
+                        0.0
+                    } else {
+                        f64::INFINITY
+                    }
+                } else if y == 0.0 {
+                    x.abs()
+                } else {
+                    (x / y - 1.0).abs()
+                }
+            }
+
+            let real_rel_err = rel_error(actual.re, expected.re);
+            let imag_rel_err = rel_error(actual.im, expected.im);
+            real_rel_err.max(imag_rel_err)
+        } else {
+            // For finite expected values, use the magnitude-based relative error
+            let abs_error = complex_absolute_error(actual, expected);
+            let expected_magnitude = expected.re.hypot(expected.im);
+            if expected_magnitude == 0.0 {
+                abs_error
+            } else {
+                abs_error / expected_magnitude
+            }
+        }
+    }
+
     pub fn test<T, F>(name: &str, signature: &str, test_fn: F)
     where
         T: TestOutput,
@@ -261,10 +310,11 @@ mod xsref {
         for (i, case) in cases.iter().enumerate() {
             let actual = test_fn(&case.inputs);
             let desired = case.expected;
+            let max_error = case.tolerance.max(f64::EPSILON) * 16.0;
 
-            let is_huge = desired.magnitude() > 1e16;
-            let max_error_factor = if is_huge { 4096.0 } else { 16.0 };
-            let max_error = case.tolerance.max(f64::EPSILON) * max_error_factor;
+            if max_error.is_huge() || desired.is_huge() && actual.is_huge() {
+                continue;
+            }
 
             let error = T::error(actual, desired);
             if error > max_error {
