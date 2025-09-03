@@ -425,6 +425,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "D->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "D-D",
+                |x: &[f64]| xsf::$f(num_complex::Complex::new(x[0], x[1])),
+                Complex<f64>
+            );
+        }
+    };
     (@single $f:ident, "dD->D") => {
         paste::paste! {
             _test!(
@@ -479,7 +490,7 @@ xsref_test!(binom, "dd->d");
 xsref_test!(gdtrib, "ddd->d");
 
 // digamma.h
-xsref_test!(digamma, "d->d");
+xsref_test!(digamma, "d->d", "D->D");
 
 // erf.h
 xsref_test!(erf, "d->d");

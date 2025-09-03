@@ -92,6 +92,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("gdtrib", "ddd->d"),
     // digamma.h
     ("digamma", "d->d"),
+    ("digamma", "D->D"),
     // erf.h
     ("erf", "d->d"),
     ("erfc", "d->d"),

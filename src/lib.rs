@@ -31,7 +31,9 @@ xsf_impl!(binom, (n: f64, k: f64), "Binomial coefficient");
 xsf_impl!(gdtrib, (a: f64, p: f64, x: f64), "Inverse of `p = gdtr(a, b, x)` with respect to `b`");
 
 // digamma.h
-xsf_impl!(digamma, (x: f64), "Digamma function");
+#[macro_use]
+mod digamma;
+pub use digamma::digamma;
 
 // erf.h
 /// Error function
