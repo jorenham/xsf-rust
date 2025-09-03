@@ -62,14 +62,8 @@ mod iv_ratio;
 pub use iv_ratio::{iv_ratio, iv_ratio_c};
 
 // kelvin.h
-xsf_impl!(ber, (x: f64), "Kelvin function `ber`");
-xsf_impl!(bei, (x: f64), "Kelvin function `bei`");
-xsf_impl!(ker, (x: f64), "Kelvin function `ker`");
-xsf_impl!(kei, (x: f64), "Kelvin function `kei`");
-xsf_impl!(berp, (x: f64), "Derivative of the Kelvin function `ber`");
-xsf_impl!(beip, (x: f64), "Derivative of the Kelvin function `bei`");
-xsf_impl!(kerp, (x: f64), "Derivative of the Kelvin function `ker`");
-xsf_impl!(keip, (x: f64), "Derivative of the Kelvin function `kei`");
+mod kelvin;
+pub use kelvin::{bei, beip, ber, berp, kei, keip, ker, kerp};
 
 // legendre.h
 xsf_impl!(legendre_p, (n: c_int, x: f64), "Legendre polynomial of degree n");
