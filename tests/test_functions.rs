@@ -475,6 +475,9 @@ xsref_test!(betaln, "dd->d");
 // binom.h
 xsref_test!(binom, "dd->d");
 
+// cdflib.h
+xsref_test!(gdtrib, "ddd->d");
+
 // digamma.h
 xsref_test!(digamma, "d->d");
 

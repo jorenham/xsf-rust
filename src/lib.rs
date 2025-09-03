@@ -27,6 +27,9 @@ xsf_impl!(betaln, (a: f64, b: f64), "Natural log of `|beta|`");
 // binom.h
 xsf_impl!(binom, (n: f64, k: f64), "Binomial coefficient");
 
+// cdflib.h
+xsf_impl!(gdtrib, (a: f64, p: f64, x: f64), "Inverse of `p = gdtr(a, b, x)` with respect to `b`");
+
 // digamma.h
 xsf_impl!(digamma, (x: f64), "Digamma function");
 
