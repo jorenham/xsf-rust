@@ -493,12 +493,13 @@ xsref_test!(gdtrib, "ddd->d");
 xsref_test!(digamma, "d->d", "D->D");
 
 // erf.h
-xsref_test!(erf, "d->d");
-xsref_test!(erfc, "d->d");
-xsref_test!(erfcx, "d->d");
-xsref_test!(erfi, "d->d");
+xsref_test!(erf, "d->d", "D->D");
+xsref_test!(erfc, "d->d", "D->D");
+xsref_test!(erfcx, "d->d", "D->D");
+xsref_test!(erfi, "d->d", "D->D");
+xsref_test!(dawsn, "d->d", "D->D");
+xsref_test!(wofz, "D->D");
 xsref_test!(voigt_profile, "ddd->d");
-xsref_test!(dawsn, "d->d");
 
 // exp.h
 xsref_test!(expm1, "d->d");

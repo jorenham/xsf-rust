@@ -36,18 +36,9 @@ mod digamma;
 pub use digamma::digamma;
 
 // erf.h
-/// Error function
-pub fn erf(x: f64) -> f64 {
-    unsafe { bindings::erf_(x) }
-}
-/// Complementary error function `1 - erf(x)`
-pub fn erfc(x: f64) -> f64 {
-    unsafe { bindings::erfc_(x) }
-}
-xsf_impl!(erfcx, (x: f64), "Scaled complementary error function `exp(x^2) * erfc(x)`");
-xsf_impl!(erfi, (x: f64), "Imaginary error function `-i erf(ix)`");
-xsf_impl!(voigt_profile, (x: f64, sigma: f64, gamma: f64), "Voigt profile");
-xsf_impl!(dawsn, (x: f64), "Dawson function `sqrt(pi)/2 * exp(-x^2) * erfi(x)`");
+#[macro_use]
+mod erf;
+pub use erf::{dawsn, erf, erfc, erfcx, erfi, voigt_profile, wofz};
 
 // exp.h
 /// `exp(x) - 1`

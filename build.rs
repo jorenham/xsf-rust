@@ -95,11 +95,17 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("digamma", "D->D"),
     // erf.h
     ("erf", "d->d"),
+    ("erf", "D->D"),
     ("erfc", "d->d"),
+    ("erfc", "D->D"),
     ("erfcx", "d->d"),
+    ("erfcx", "D->D"),
     ("erfi", "d->d"),
+    ("erfi", "D->D"),
     ("voigt_profile", "ddd->d"),
+    ("wofz", "D->D"),
     ("dawsn", "d->d"),
+    ("dawsn", "D->D"),
     // evalpoly.h
     // TODO: `cevalpoly`
     // expint.h
