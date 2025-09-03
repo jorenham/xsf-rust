@@ -18,6 +18,7 @@ const XSF_HEADERS: &[&str] = &[
     // "evalpoly.h"
     "exp.h",
     "expint.h",
+    // "fp_error_metrics.h",
     // "fresnel.h",
     "gamma.h",
     "hyp2f1.h",
@@ -129,7 +130,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // fresnel.h
     // TODO: `fresnel`, `fcszo`
     // gamma.h
-    ("gamma", "d->d"), // TODO: complex
+    ("gamma", "d->d"),
+    ("gamma", "D->D"),
     ("gammaln", "d->d"),
     ("gammasgn", "d->d"),
     ("gammainc", "dd->d"),

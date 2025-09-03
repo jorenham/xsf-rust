@@ -519,7 +519,7 @@ xsref_test!(exp1, "d->d", "D->D");
 xsref_test!(scaled_exp1, "d->d");
 
 // gamma.h
-xsref_test!(gamma, "d->d");
+xsref_test!(gamma, "d->d", "D->D");
 xsref_test!(gammainc, "dd->d");
 xsref_test!(gammaincc, "dd->d");
 xsref_test!(gammaincinv, "dd->d");

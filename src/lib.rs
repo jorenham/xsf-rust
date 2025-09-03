@@ -10,7 +10,6 @@ pub fn cbrt(x: f64) -> f64 {
 }
 
 // bessel.h
-#[macro_use]
 mod bessel;
 pub use bessel::{
     besselpoly, cyl_bessel_i, cyl_bessel_i0, cyl_bessel_i0e, cyl_bessel_i1, cyl_bessel_i1e,
@@ -31,22 +30,18 @@ xsf_impl!(binom, (n: f64, k: f64), "Binomial coefficient");
 xsf_impl!(gdtrib, (a: f64, p: f64, x: f64), "Inverse of `p = gdtr(a, b, x)` with respect to `b`");
 
 // digamma.h
-#[macro_use]
 mod digamma;
 pub use digamma::digamma;
 
 // ellip.h
-#[macro_use]
 mod ellip;
 pub use ellip::{ellipe, ellipeinc, ellipk, ellipkinc, ellipkm1};
 
 // erf.h
-#[macro_use]
 mod erf;
 pub use erf::{dawsn, erf, erfc, erfcx, erfi, voigt_profile, wofz};
 
 // exp.h
-#[macro_use]
 mod exp;
 pub use exp::{exp2, exp10, expm1};
 
@@ -55,16 +50,8 @@ mod expint;
 pub use expint::{exp1, expi, scaled_exp1};
 
 // gamma.h
-/// Gamma function
-pub fn gamma(x: f64) -> f64 {
-    unsafe { bindings::gamma_(x) }
-}
-xsf_impl!(gammainc, (a: f64, x: f64), "Incomplete Gamma integral");
-xsf_impl!(gammaincc, (a: f64, x: f64), "Complemented incomplete Gamma integral");
-xsf_impl!(gammaincinv, (a: f64, p: f64), "Inverse of `gammainc`");
-xsf_impl!(gammainccinv, (a: f64, p: f64), "Inverse of `gammaincc`");
-xsf_impl!(gammaln, (x: f64), "Natural logarithm of Gamma function");
-xsf_impl!(gammasgn, (x: f64), "Sign of the Gamma function");
+mod gamma;
+pub use gamma::{gamma, gammainc, gammaincc, gammainccinv, gammaincinv, gammaln, gammasgn};
 
 // hyp2f1.h
 xsf_impl!(hyp2f1, (a: f64, b: f64, c: f64, x: f64), "Gauss hypergeometric function `2F1`");
