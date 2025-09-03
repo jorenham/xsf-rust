@@ -46,18 +46,9 @@ mod erf;
 pub use erf::{dawsn, erf, erfc, erfcx, erfi, voigt_profile, wofz};
 
 // exp.h
-/// `exp(x) - 1`
-pub fn expm1(x: f64) -> f64 {
-    unsafe { bindings::expm1_(x) }
-}
-/// `2^x`
-pub fn exp2(x: f64) -> f64 {
-    unsafe { bindings::exp2_(x) }
-}
-/// `10^x`
-pub fn exp10(x: f64) -> f64 {
-    unsafe { bindings::exp10_(x) }
-}
+#[macro_use]
+mod exp;
+pub use exp::{exp2, exp10, expm1};
 
 // expint.h
 xsf_impl!(exp1, (x: f64), "Exponential integral `E_1(x)`");

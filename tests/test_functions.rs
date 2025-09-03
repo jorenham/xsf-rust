@@ -509,7 +509,7 @@ xsref_test!(wofz, "D->D");
 xsref_test!(voigt_profile, "ddd->d");
 
 // exp.h
-xsref_test!(expm1, "d->d");
+xsref_test!(expm1, "d->d", "D->D");
 xsref_test!(exp2, "d->d");
 xsref_test!(exp10, "d->d");
 

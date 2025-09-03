@@ -115,12 +115,14 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("dawsn", "D->D"),
     // evalpoly.h
     // TODO: `cevalpoly`
-    // expint.h
+    // exp.h
     ("expm1", "d->d"),
+    ("expm1", "D->D"),
     ("exp2", "d->d"),
     ("exp10", "d->d"),
-    ("exp1", "d->d"),
-    ("expi", "d->d"),
+    // expint.h
+    ("exp1", "d->d"), // TODO: complex
+    ("expi", "d->d"), // TODO: complex
     ("scaled_exp1", "d->d"),
     // fresnel.h
     // TODO: `fresnel`, `fcszo`
