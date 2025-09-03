@@ -54,7 +54,8 @@ mod gamma;
 pub use gamma::{gamma, gammainc, gammaincc, gammainccinv, gammaincinv, gammaln, gammasgn};
 
 // hyp2f1.h
-xsf_impl!(hyp2f1, (a: f64, b: f64, c: f64, x: f64), "Gauss hypergeometric function `2F1`");
+mod hyp2f1;
+pub use hyp2f1::hyp2f1;
 
 // iv_ratio.h
 xsf_impl!(

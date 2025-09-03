@@ -139,7 +139,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("gammaincc", "dd->d"),
     ("gammainccinv", "dd->d"),
     // hyp2f1.h
-    ("hyp2f1", "dddd->d"), // TODO: complex
+    ("hyp2f1", "dddd->d"),
+    ("hyp2f1", "dddD->D"),
     // iv_ratio.h
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),

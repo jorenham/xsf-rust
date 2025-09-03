@@ -447,6 +447,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "dddD->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "d_d_d_D-D",
+                |x: &[f64]| xsf::$f(x[0], x[1], x[2], num_complex::Complex::new(x[3], x[4])),
+                Complex<f64>
+            );
+        }
+    };
 }
 
 // alg.h
@@ -528,7 +539,7 @@ xsref_test!(gammaln, "d->d");
 xsref_test!(gammasgn, "d->d");
 
 // hyp2f1.h
-xsref_test!(hyp2f1, "dddd->d");
+xsref_test!(hyp2f1, "dddd->d", "dddD->D");
 
 // iv_ratio.h
 xsref_test!(iv_ratio, "dd->d");
