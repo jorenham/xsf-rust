@@ -133,7 +133,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
-    //  TODO: `fresnel`, `modified_fresnel_plus`, `modified_fresnel_minus`, `fcszo`
+    //  TODO
     // gamma.h
     ("gamma", "d->d"),
     ("gamma", "D->D"),

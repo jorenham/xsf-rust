@@ -137,7 +137,7 @@ pub fn airye<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
 ///
 /// A tuple `(Apt, Bpt, Ant, Bnt)` where:
 /// - `Apt` - Integral of Ai(t) from 0 to x
-/// - `Bpt` - Integral of Bi(t) from 0 to xx
+/// - `Bpt` - Integral of Bi(t) from 0 to x
 /// - `Ant` - Integral of Ai(-t) from 0 to x
 /// - `Bnt` - Integral of Bi(-t) from 0 to x
 pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
