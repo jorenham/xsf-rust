@@ -1,5 +1,9 @@
 mod bindings;
 
+// airy.h
+mod airy;
+pub use airy::{airy, airyb, airye, airyzo, itairy};
+
 // alg.h
 mod alg;
 pub use alg::cbrt;
