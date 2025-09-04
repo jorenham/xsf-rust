@@ -391,6 +391,16 @@ macro_rules! xsref_test {
             _test!([<test_ $f _ d>], $f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]), f64);
         }
     };
+    (@single $f:ident, "qdd->d") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f, "d_d_d-d",
+                |x: &[f64]| xsf::$f(x[0] as i64, x[1], x[2]),
+                f64
+            );
+        }
+    };
     (@single $f:ident, "did->d") => {
         paste::paste! {
             _test!(
@@ -456,6 +466,17 @@ macro_rules! xsref_test {
                     num_complex::Complex::new(x[0], x[1]),
                     num_complex::Complex::new(x[2], x[3]),
                 ),
+                Complex<f64>
+            );
+        }
+    };
+    (@single $f:ident, "ddD->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "d_d_cd-cd",
+                |x: &[f64]| xsf::$f(x[0], x[1], num_complex::Complex::new(x[2], x[3])),
                 Complex<f64>
             );
         }
@@ -616,9 +637,9 @@ xsref_test!(cem_cva, "dd->d");
 xsref_test!(sem_cva, "dd->d");
 
 // specfun.h
-// xsref_test!(hypu, "ddd->d");  // no xsref table
-// xsref_test!(hyp1f1, "ddd->d");  // xsref table only exists for complex
-xsref_test!(pmv, "ddd->d");
+xsref_test!(hyperu, "ddd->d"); // alias of `hypu`
+xsref_test!(hyp1f1, "ddD->D"); // no table for ddd->d
+xsref_test!(pmv, "qdd->d");
 
 // sphd_wave.h
 xsref_test!(prolate_segv, "ddd->d");

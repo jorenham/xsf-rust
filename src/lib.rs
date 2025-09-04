@@ -90,9 +90,8 @@ mod mathieu;
 pub use mathieu::{cem_cva, sem_cva};
 
 // specfun.h
-xsf_impl!(hypu, (a: f64, b: f64, x: f64), "Confluent hypergeometric function `U`");
-xsf_impl!(hyp1f1, (a: f64, b: f64, x: f64), "Confluent hypergeometric function `1F1`");
-xsf_impl!(pmv, (m: f64, v: f64, x: f64), "Associated Legendre function");
+mod specfun;
+pub use specfun::{hyp1f1, hyperu, hypu, pmv};
 
 // sphd_wave.h
 xsf_impl!(

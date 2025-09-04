@@ -48,7 +48,7 @@ macro_rules! define_erf_functions {
 }
 
 define_erf_functions! {
-    (erf, erf_, "Error function"),
+    (erf, erf_, "Error function `erf(z)`"),
     (erfc, erfc_, "Complementary error function `1 - erf(z)`"),
     (erfcx, erfcx, "Scaled complementary error function `exp(z^2) * erfc(z)`"),
     (erfi, erfi, "Imaginary error function `-i erf(i z)`"),

@@ -31,7 +31,6 @@ const XSF_HEADERS: &[&str] = &[
     "loggamma.h",
     "mathieu.h",
     // "par_cyl.h",
-    // "recur.h",
     // "sici.h",
     "specfun.h",
     // "sph_bessel.h",
@@ -46,11 +45,11 @@ const XSF_HEADERS: &[&str] = &[
 // e.g. `("spam", "if->d")` becomes `double xsf_spam(int x0, float x1)`
 const XSF_TYPES: &[(&str, &str)] = &[
     // airy.h
-    // TODO: `airyb`, `airyzo`, `airy`, `airye`, `itairy`
+    //  TODO: `airyb`, `airyzo`, `airy`, `airye`, `itairy`
     ("cbrt", "d->d"),
     // bessel.h
-    // TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
-    // TODO: `rctj`, `rcty`,
+    //  TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
+    //  TODO: `rctj`, `rcty`,
     ("cyl_bessel_j", "dd->d"),
     ("cyl_bessel_j", "dD->D"),
     ("cyl_bessel_je", "dd->d"),
@@ -95,7 +94,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("digamma", "d->d"),
     ("digamma", "D->D"),
     // ellip.h
-    // TODO: ellipj
+    //  TODO: ellipj
     ("ellipk", "d->d"),
     ("ellipkm1", "d->d"),
     ("ellipkinc", "dd->d"),
@@ -115,7 +114,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("dawsn", "d->d"),
     ("dawsn", "D->D"),
     // evalpoly.h
-    // TODO: `cevalpoly`
+    //  TODO: `cevalpoly`
     // exp.h
     ("expm1", "d->d"),
     ("expm1", "D->D"),
@@ -128,7 +127,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
-    // TODO: `fresnel`, `fcszo`
+    //  TODO: `fresnel`, `fcszo`
     // gamma.h
     ("gamma", "d->d"),
     ("gamma", "D->D"),
@@ -145,7 +144,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),
     // kelvin.h
-    // TODO: `kelvin`, `klvnzo`
+    //  TODO: `kelvin`, `klvnzo`
     ("ber", "d->d"),
     ("bei", "d->d"),
     ("ker", "d->d"),
@@ -159,8 +158,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // legendre.h
     ("legendre_p", "id->d"),
     ("legendre_p", "iD->D"),
-    // ("assoc_legendre_p", "_iidi->d"),
-    // ("assoc_legendre_p", "_iiDi->D"),  // TODO
     ("sph_legendre_p", "iid->d"),
     ("sph_legendre_p", "iiD->D"),
     // log_exp.h
@@ -183,13 +180,17 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("rgamma", "d->d"),
     ("rgamma", "D->D"),
     // mathieu.h
-    // TODO: `cen`, `sem`, `mcm1`, `msm1`, `mcm2`, `msm2`
+    //  TODO: `cen`, `sem`, `mcm1`, `msm1`, `mcm2`, `msm2`
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
+    // par_cyl.h
+    //  TODO: `pbwa`, `pbdv`, `pbvv`
+    // sici.h
+    //  TODO: `sici`, `shichi`,
     // specfun.h
-    // TODO: `chyp2f1`, `cerf`
-    ("hypu", "ddd->d"),
     ("hyp1f1", "ddd->d"),
+    ("hyp1f1", "ddD->D"),
+    ("hypu", "ddd->d"),
     ("pmv", "ddd->d"),
     // sphd_wave.h
     ("prolate_segv", "ddd->d"),
