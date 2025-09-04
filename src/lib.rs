@@ -105,16 +105,8 @@ mod sph_harm;
 pub use sph_harm::sph_harm_y;
 
 // sphd_wave.h
-xsf_impl!(
-    prolate_segv,
-    (m: f64, n: f64, c: f64),
-    "Characteristic value of prolate spheroidal function"
-);
-xsf_impl!(
-    oblate_segv,
-    (m: f64, n: f64, c: f64),
-    "Characteristic value of oblate spheroidal function"
-);
+mod sphd_wave;
+pub use sphd_wave::{oblate_segv, prolate_segv};
 
 // stats.h
 xsf_impl!(bdtr, (k: f64, n: c_int, p: f64), "Binomial distribution function");

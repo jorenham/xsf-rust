@@ -391,6 +391,16 @@ macro_rules! xsref_test {
             _test!([<test_ $f _ d>], $f, "d_d_d-d", |x: &[f64]| xsf::$f(x[0], x[1], x[2]), f64);
         }
     };
+    (@single $f:ident, "QQd->d") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f, "d_d_d-d",
+                |x: &[f64]| xsf::$f(x[0] as u64, x[1] as u64, x[2]),
+                f64
+            );
+        }
+    };
     (@single $f:ident, "qdd->d") => {
         paste::paste! {
             _test!(
@@ -656,8 +666,8 @@ xsref_test!(pmv, "qdd->d");
 // xsref_test!(sph_harm_y, "iidd->D");  // no xsref table?
 
 // sphd_wave.h
-xsref_test!(prolate_segv, "ddd->d");
-// xsref_test!(oblate_segv, "ddd->d");  // missing xsref table?
+xsref_test!(prolate_segv, "QQd->d");
+// xsref_test!(oblate_segv, "QQd->d");  // missing xsref table?
 
 // stats.h
 xsref_test!(bdtr, "did->d");
