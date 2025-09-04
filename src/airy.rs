@@ -77,18 +77,62 @@ impl AiryArg for Complex<f64> {
     }
 }
 
-/// Airy functions and their derivatives `Ai(z)`, `Ai'(z)`, `Bi(z)`, `Bi'(z)`
+/// Airy functions and their derivatives.
+///
+/// # Arguments
+///
+/// - `z` - Real (`f64`) or complex (`num_complex::Complex<f64>`) argument
+///
+/// # Returns
+///
+/// A tuple `(Ai, Aip, Bi, Bip)` where:
+/// - `Ai` - Ai(z)
+/// - `Aip` - Ai'(z)
+/// - `Bi` - Bi(z)
+/// - `Bip` - Bi'(z)
 pub fn airy<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
     z.airy()
 }
 
-/// Exponentially scaled Airy functions and their derivatives `eAi(z)`, `eAi'(z)`, `eBi(z)`,
-/// `eBi'(z)`
+/// Exponentially scaled Airy functions and their derivatives.
+///
+/// Scaling:
+///
+///     eAi(z)  = Ai(z)  * exp(2/3 * z * sqrt(z))
+///     eAi'(z) = Ai'(z) * exp(2/3 * z * sqrt(z))
+///     eBi(z)  = Bi(z)  * exp(-|2/3 * (z * sqrt(z)).real|)
+///     eBi'(z) = Bi'(z) * exp(-|2/3 * (z * sqrt(z)).real|)
+///
+/// # Arguments
+///
+/// - `z` - Real (`f64`) or complex (`num_complex::Complex<f64>`) argument
+///
+/// # Returns
+///
+/// A tuple `(eAi, eAip, eBi, eBip)` where:
+/// - `eAi` - eAi(z)
+/// - `eAip` - eAi'(z)
+/// - `eBi` - eBi(z)
+/// - `eBip` - eBi'(z)
 pub fn airye<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
     z.airye()
 }
 
-/// Compute the integrals of Airy functions with respect to t from 0 and x (x ≥ 0)
+/// Integrals of Airy functions
+///
+/// Calculates the integrals of Airy functions from 0 to `x`.
+///
+/// # Arguments
+///
+/// - `x` - Upper limit of the integral (x ≥ 0)
+///
+/// # Returns
+///
+/// A tuple `(Apt, Bpt, Ant, Bnt)` where:
+/// - `Apt` - Integral of Ai(t) from 0 to x
+/// - `Bpt` - Integral of Bi(t) from 0 to xx
+/// - `Ant` - Integral of Ai(-t) from 0 to x
+/// - `Bnt` - Integral of Bi(-t) from 0 to x
 pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
     let mut apt = f64::NAN;
     let mut bpt = f64::NAN;
@@ -101,23 +145,61 @@ pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
     (apt, bpt, ant, bnt)
 }
 
-/// Compute Airy functions and their derivatives
+/// Airy functions and their derivatives.
+///
+/// # Arguments
+///
+/// - `x` - Real argument
+///
+/// # Returns
+///
+/// A tuple `(Ai, Bi, Aip, Bip)` where:
+/// - `Ai` - Ai(x)
+/// - `Bi` - Bi(x)
+/// - `Aip` - Ai'(x)
+/// - `Bip` - Bi'(x)
 pub fn airyb(x: f64) -> (f64, f64, f64, f64) {
     let mut ai = f64::NAN;
     let mut bi = f64::NAN;
-    let mut ad = f64::NAN;
-    let mut bd = f64::NAN;
+    let mut aip = f64::NAN;
+    let mut bip = f64::NAN;
 
     unsafe {
-        bindings::airyb(x, &mut ai, &mut bi, &mut ad, &mut bd);
+        bindings::airyb(x, &mut ai, &mut bi, &mut aip, &mut bip);
     }
-    (ai, bi, ad, bd)
+    (ai, bi, aip, bip)
 }
 
-/// Compute the first NT zeros of Airy functions Ai(x) and Ai'(x), a and a', and the associated
-/// values of Ai(a') and Ai'(a); and the first NT zeros of Airy functions Bi(x) and Bi'(x), b and
-/// b', and the associated values of Bi(b') and Bi'(b)
-pub fn airyzo(nt: i32, kf: i32) -> (f64, f64, f64, f64) {
+pub enum AiryKind {
+    Ai = 1,
+    Bi = 2,
+}
+
+/// Zeros of Airy functions and their associated values.
+///
+/// This function computes the first `nt` zeros of Airy functions Ai(x) and Ai'(x), a and a',
+/// and the associated values of Ai(a') and Ai'(a); and the first `nt` zeros of Airy functions
+/// Bi(x) and Bi'(x), b and b', and the associated values of Bi(b') and Bi'(b).
+///
+/// # Arguments
+///
+/// - `nt` - Total number of zeros to compute
+/// - `kf` - Function code:
+///   - `1` for Ai(x) and Ai'(x)
+///   - `2` for Bi(x) and Bi'(x)
+///
+/// # Returns
+///
+/// A tuple `(xa, xb, xc, xd)` where:
+/// - `xa` - The m-th zero *a* of Ai(x) or the m-th zero *b* of Bi(x)
+/// - `xb` - The m-th zero *a'* of Ai'(x) or the m-th zero *b'* of Bi'(x)
+/// - `xc` - Ai(*a'*) or Bi(*b'*)
+/// - `xd` - Ai'(*a*) or Bi'(*b*)
+///
+/// where m is the serial number of zeros.
+pub fn airyzo(nt: u32, kf: AiryKind) -> (f64, f64, f64, f64) {
+    assert!(nt > 0);
+
     let mut xa = f64::NAN;
     let mut xb = f64::NAN;
     let mut xc = f64::NAN;
