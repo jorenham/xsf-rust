@@ -467,15 +467,23 @@ fn build_wrapper(dir_out: &str, include: &str) {
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
     std::fs::write(&file_cpp, source).unwrap();
 
-    cc::Build::new()
+    let mut build = cc::Build::new();
+    build
         .cpp(true)
-        .std("c++23")
         .prefer_clang_cl_over_msvc(true)
         .flag_if_supported("-Wno-unused-parameter")
         .flag_if_supported("-Wno-logical-op-parentheses")
         .file(file_cpp)
-        .include(include)
-        .compile(WRAPPER_NAME);
+        .include(include);
+
+    if build.get_compiler().is_like_msvc() {
+        // windows
+        build.flag("/std:c++17");
+    } else {
+        build.std("c++17");
+    }
+
+    build.compile(WRAPPER_NAME);
 }
 
 fn generate_bindings(dir_out: &str, header: &str) {
@@ -507,7 +515,6 @@ fn generate_bindings(dir_out: &str, header: &str) {
 
     bindgen::Builder::default()
         .header(header)
-        .clang_arg("-std=c++23")
         .size_t_is_usize(true)
         .sort_semantically(true)
         .opaque_type("std::*")
