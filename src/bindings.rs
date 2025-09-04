@@ -1,4 +1,7 @@
 #![allow(non_snake_case)]
+// needed for std::complex_value_type
+#![allow(non_camel_case_types)]
+#![allow(dead_code)]
 
 use num_complex::Complex;
 

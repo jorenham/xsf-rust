@@ -510,7 +510,6 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .sort_semantically(true)
         .opaque_type("std::*")
         .allowlist_function(&allowlist_pattern)
-        .blocklist_type("std::complex_value_type")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .unwrap()
