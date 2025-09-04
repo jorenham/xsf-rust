@@ -56,7 +56,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("cbrt", "d->d"),
     // bessel.h
     //  TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
-    //  TODO: `rctj`, `rcty`,
     ("cyl_bessel_j", "dd->d"),
     ("cyl_bessel_j", "dD->D"),
     ("cyl_bessel_je", "dd->d"),
@@ -134,7 +133,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
-    //  TODO: `fresnel`, `fcszo`
+    //  TODO: `fresnel`, `modified_fresnel_plus`, `modified_fresnel_minus`, `fcszo`
     // gamma.h
     ("gamma", "d->d"),
     ("gamma", "D->D"),
@@ -151,7 +150,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),
     // kelvin.h
-    //  TODO: `kelvin`, `klvnzo`
+    //  TODO: `kelvin`: d->DDDD
+    //  TODO: `klvnzo`: ii->[d]
     ("ber", "d->d"),
     ("bei", "d->d"),
     ("ker", "d->d"),
@@ -163,6 +163,8 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // lambertw.h
     ("lambertw", "Dld->D"),
     // legendre.h
+    //  TODO: `lqn`:  d->[d],[d]
+    //  TODO: `lqmn`: d->[[d]],[[d]]
     ("legendre_p", "id->d"),
     ("legendre_p", "iD->D"),
     ("sph_legendre_p", "iid->d"),
@@ -217,9 +219,10 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("sph_bessel_k_jac", "ld->d"),
     ("sph_bessel_k_jac", "lD->D"),
     // sph_harm.h
+    //  TODO: `sph_harm_y_all`: dd->[[d]]
     ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
-    //  TODO: aswfa and radial
+    //  TODO: `*_aswfa*` and `*_radial*`
     ("prolate_segv", "ddd->d"),
     ("oblate_segv", "ddd->d"),
     // stats.h
