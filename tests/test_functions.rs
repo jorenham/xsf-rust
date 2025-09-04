@@ -607,7 +607,9 @@ xsref_test!(xlog1py, "DD->D");
 
 // loggamma.h
 xsref_test!(loggamma, "d->d");
+xsref_test!(loggamma, "D->D");
 xsref_test!(rgamma, "d->d");
+xsref_test!(rgamma, "D->D");
 
 // mathieu.h
 xsref_test!(cem_cva, "dd->d");

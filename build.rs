@@ -179,7 +179,9 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("xlog1py", "DD->D"),
     // loggamma.h
     ("loggamma", "d->d"),
+    ("loggamma", "D->D"),
     ("rgamma", "d->d"),
+    ("rgamma", "D->D"),
     // mathieu.h
     // TODO: `cen`, `sem`, `mcm1`, `msm1`, `mcm2`, `msm2`
     ("cem_cva", "dd->d"),

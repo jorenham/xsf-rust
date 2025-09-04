@@ -82,8 +82,8 @@ mod log;
 pub use log::{log1p, log1pmx, xlog1py, xlogy};
 
 // loggamma.h
-xsf_impl!(loggamma, (x: f64), "Principal branch of the logarithm of `gamma(x)`");
-xsf_impl!(rgamma, (x: f64), "Reciprocal Gamma function");
+mod loggamma;
+pub use loggamma::{loggamma, rgamma};
 
 // mathieu.h
 xsf_impl!(cem_cva, (m: f64, q: f64), "Characteristic value of even Mathieu functions");
