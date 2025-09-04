@@ -366,7 +366,7 @@ fn generate_header(dir_out: &str) -> String {
     );
     push_line(
         &mut source,
-        "void complex__values(std::complex<double> z, double *re, double *im);",
+        "void complex__values(std::complex<double> z, double &re, double &im);",
     );
     push_line(&mut source, "");
 
@@ -426,11 +426,9 @@ fn build_wrapper(dir_out: &str, include: &str) {
     );
     push_line(
         &mut source,
-        "void complex__values(std::complex<double> z, double *re, double *im) {
-            assert(re);
-            assert(im);
-            *re = std::real(z);
-            *im = std::imag(z);
+        "void complex__values(std::complex<double> z, double &re, double &im) {
+            re = std::real(z);
+            im = std::imag(z);
         }",
     );
     push_line(&mut source, "");
