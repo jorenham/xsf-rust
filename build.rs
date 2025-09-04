@@ -470,6 +470,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
     cc::Build::new()
         .cpp(true)
         .std("c++23")
+        .prefer_clang_cl_over_msvc(true)
         .flag_if_supported("-Wno-unused-parameter")
         .flag_if_supported("-Wno-logical-op-parentheses")
         .file(file_cpp)
