@@ -639,19 +639,14 @@ xsref_test!(log_expit, "d->d");
 // xsref_test!(log1mexp, "d->d");  // no xsref table
 
 // log.h
-xsref_test!(log1p, "d->d");
-xsref_test!(log1p, "D->D");
+xsref_test!(log1p, "d->d", "D->D");
 xsref_test!(log1pmx, "d->d");
-xsref_test!(xlogy, "dd->d");
-xsref_test!(xlogy, "DD->D");
-xsref_test!(xlog1py, "dd->d");
-xsref_test!(xlog1py, "DD->D");
+xsref_test!(xlogy, "dd->d", "DD->D");
+xsref_test!(xlog1py, "dd->d", "DD->D");
 
 // loggamma.h
-xsref_test!(loggamma, "d->d");
-xsref_test!(loggamma, "D->D");
-xsref_test!(rgamma, "d->d");
-xsref_test!(rgamma, "D->D");
+xsref_test!(loggamma, "d->d", "D->D");
+xsref_test!(rgamma, "d->d", "D->D");
 
 // mathieu.h
 xsref_test!(cem_cva, "dd->d");
