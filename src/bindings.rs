@@ -13,23 +13,30 @@ impl root::std::complex<f64> {
     pub(crate) fn new(re: f64, im: f64) -> Self {
         unsafe { complex__new(re, im) }
     }
-    pub(crate) fn real(self) -> f64 {
-        unsafe { complex__re(self) }
+    pub(crate) fn real(&self) -> f64 {
+        unsafe { complex__re(*self) }
     }
-    pub(crate) fn imag(self) -> f64 {
-        unsafe { complex__im(self) }
+    pub(crate) fn imag(&self) -> f64 {
+        unsafe { complex__im(*self) }
     }
 }
 
-impl From<root::std::complex<f64>> for Complex<f64> {
-    fn from(z: root::std::complex<f64>) -> Self {
-        Complex::new(z.real(), z.imag())
+impl Copy for root::std::complex<f64> {}
+impl Clone for root::std::complex<f64> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
 impl From<Complex<f64>> for root::std::complex<f64> {
     fn from(z: Complex<f64>) -> Self {
         Self::new(z.re, z.im)
+    }
+}
+
+impl From<root::std::complex<f64>> for Complex<f64> {
+    fn from(z: root::std::complex<f64>) -> Self {
+        Complex::new(z.real(), z.imag())
     }
 }
 

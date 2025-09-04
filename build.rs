@@ -529,6 +529,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .header(header)
         .size_t_is_usize(true)
         .sort_semantically(true)
+        .derive_copy(false)  // for consistency across platforms
         .opaque_type("std::*")
         .allowlist_function(&allowlist_pattern)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
