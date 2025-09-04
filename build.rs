@@ -364,8 +364,10 @@ fn generate_header(dir_out: &str) -> String {
         &mut source,
         "std::complex<double> complex__new(double re, double im);",
     );
-    push_line(&mut source, "double complex__re(std::complex<double> z);");
-    push_line(&mut source, "double complex__im(std::complex<double> z);");
+    push_line(
+        &mut source,
+        "void complex__values(std::complex<double> z, double *re, double *im);",
+    );
     push_line(&mut source, "");
 
     // Generate unique function names for overloads
@@ -424,14 +426,11 @@ fn build_wrapper(dir_out: &str, include: &str) {
     );
     push_line(
         &mut source,
-        "double complex__re(std::complex<double> z) {
-            return std::real(z);
-        }",
-    );
-    push_line(
-        &mut source,
-        "double complex__im(std::complex<double> z) {
-            return std::imag(z);
+        "void complex__values(std::complex<double> z, double *re, double *im) {
+            assert(re);
+            assert(im);
+            *re = std::real(z);
+            *im = std::imag(z);
         }",
     );
     push_line(&mut source, "");
@@ -501,9 +500,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
 fn generate_bindings(dir_out: &str, header: &str) {
     // Generate allowlist pattern including numbered overloads
     let mut allowlist_functions = Vec::new();
-    allowlist_functions.push("xsf_wrapper::complex__new".to_string());
-    allowlist_functions.push("xsf_wrapper::complex__re".to_string());
-    allowlist_functions.push("xsf_wrapper::complex__im".to_string());
+    allowlist_functions.push("xsf_wrapper::complex__.+".to_string());
 
     let mut name_counts = std::collections::HashMap::new();
     for (name, _) in XSF_TYPES {

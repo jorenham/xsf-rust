@@ -13,19 +13,6 @@ impl root::std::complex<f64> {
     pub(crate) fn new(re: f64, im: f64) -> Self {
         unsafe { complex__new(re, im) }
     }
-    pub(crate) fn real(&self) -> f64 {
-        unsafe { complex__re(*self) }
-    }
-    pub(crate) fn imag(&self) -> f64 {
-        unsafe { complex__im(*self) }
-    }
-}
-
-impl Copy for root::std::complex<f64> {}
-impl Clone for root::std::complex<f64> {
-    fn clone(&self) -> Self {
-        *self
-    }
 }
 
 impl From<Complex<f64>> for root::std::complex<f64> {
@@ -36,7 +23,12 @@ impl From<Complex<f64>> for root::std::complex<f64> {
 
 impl From<root::std::complex<f64>> for Complex<f64> {
     fn from(z: root::std::complex<f64>) -> Self {
-        Complex::new(z.real(), z.imag())
+        let mut re: f64 = 0.0;
+        let mut im: f64 = 0.0;
+        unsafe {
+            complex__values(z, &mut re, &mut im);
+        }
+        Self::new(re, im)
     }
 }
 
