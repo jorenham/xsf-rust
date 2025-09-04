@@ -46,10 +46,6 @@ mod xsref {
                 .collect()
         }
 
-        fn is_huge(self) -> bool {
-            self.norm().is_infinite() || self.im.is_infinite()
-        }
-
         fn error(actual: Self, expected: Self) -> f64 {
             complex_relative_error(actual, expected)
         }
