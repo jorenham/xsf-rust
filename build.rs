@@ -258,13 +258,15 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("struve_l", "dd->d"),
     // trig.h
     ("sinpi", "d->d"),
+    ("sinpi", "D->D"),
     ("cospi", "d->d"),
+    ("cospi", "D->D"),
     ("sindg", "d->d"),
     ("cosdg", "d->d"),
     ("tandg", "d->d"),
     ("cotdg", "d->d"),
-    ("radian", "ddd->d"),
     ("cosm1", "d->d"),
+    ("radian", "ddd->d"),
     // wright_bessel.h
     ("wright_bessel", "ddd->d"),
     ("log_wright_bessel", "ddd->d"),

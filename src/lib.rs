@@ -119,14 +119,8 @@ mod struve;
 pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 
 // trig.h
-xsf_impl!(sinpi, (x: f64), "Compute `sin(pi * x)`");
-xsf_impl!(cospi, (x: f64), "Compute `cos(pi * x)`");
-xsf_impl!(sindg, (x: f64), "Circular sine of angle in degrees");
-xsf_impl!(cosdg, (x: f64), "Circular cosine of angle in degrees");
-xsf_impl!(tandg, (x: f64), "Circular tangent of argument in degrees");
-xsf_impl!(cotdg, (x: f64), "Circular cotangent of argument in degrees");
-xsf_impl!(radian, (d: f64, m: f64, s: f64), "Degrees, minutes, seconds to radians");
-xsf_impl!(cosm1, (x: f64), "Compute `cos(x) - 1`");
+mod trig;
+pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};
 
 // wright_bessel.h
 xsf_impl!(wright_bessel, (a: f64, b: f64, x: f64), "Wright's generalized Bessel function");

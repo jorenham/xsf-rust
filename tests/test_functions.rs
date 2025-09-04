@@ -712,13 +712,15 @@ xsref_test!(struve_l, "dd->d");
 
 // trig.h
 xsref_test!(sinpi, "d->d");
+xsref_test!(sinpi, "D->D");
 xsref_test!(cospi, "d->d");
+xsref_test!(cospi, "D->D");
 xsref_test!(sindg, "d->d");
 xsref_test!(cosdg, "d->d");
 xsref_test!(tandg, "d->d");
 xsref_test!(cotdg, "d->d");
-xsref_test!(radian, "ddd->d");
 xsref_test!(cosm1, "d->d");
+xsref_test!(radian, "ddd->d");
 
 // wright_bessel.h
 xsref_test!(wright_bessel, "ddd->d");
