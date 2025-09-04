@@ -17,6 +17,7 @@ pub trait AiryArg: sealed::Sealed {
     fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output);
 }
 
+#[inline(always)]
 fn c_c64_nan() -> bindings::root::std::complex<f64> {
     Complex::new(f64::NAN, f64::NAN).into()
 }
@@ -24,6 +25,7 @@ fn c_c64_nan() -> bindings::root::std::complex<f64> {
 impl AiryArg for f64 {
     type Output = f64;
 
+    #[inline(always)]
     fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
         let mut ai = f64::NAN;
         let mut aip = f64::NAN;
@@ -36,6 +38,7 @@ impl AiryArg for f64 {
         (ai, aip, bi, bip)
     }
 
+    #[inline(always)]
     fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
         let mut ai = f64::NAN;
         let mut aip = f64::NAN;
@@ -52,6 +55,7 @@ impl AiryArg for f64 {
 impl AiryArg for Complex<f64> {
     type Output = Complex<f64>;
 
+    #[inline(always)]
     fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
         let mut ai = c_c64_nan();
         let mut bi = c_c64_nan();
@@ -64,6 +68,7 @@ impl AiryArg for Complex<f64> {
         (ai.into(), bi.into(), ad.into(), bd.into())
     }
 
+    #[inline(always)]
     fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
         let mut ai = c_c64_nan();
         let mut bi = c_c64_nan();
@@ -81,7 +86,7 @@ impl AiryArg for Complex<f64> {
 ///
 /// # Arguments
 ///
-/// - `z` - Real (`f64`) or complex (`num_complex::Complex<f64>`) argument
+/// - `z` - real (`f64`) or complex (`num_complex::Complex<f64>`) argument
 ///
 /// # Returns
 ///
@@ -98,14 +103,16 @@ pub fn airy<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
 ///
 /// Scaling:
 ///
-///     eAi(z)  = Ai(z)  * exp(2/3 * z * sqrt(z))
-///     eAi'(z) = Ai'(z) * exp(2/3 * z * sqrt(z))
-///     eBi(z)  = Bi(z)  * exp(-|2/3 * (z * sqrt(z)).real|)
-///     eBi'(z) = Bi'(z) * exp(-|2/3 * (z * sqrt(z)).real|)
+/// ```plain
+/// eAi(z)  = Ai(z)  * exp(2/3 * z * sqrt(z))
+/// eAi'(z) = Ai'(z) * exp(2/3 * z * sqrt(z))
+/// eBi(z)  = Bi(z)  * exp(-abs(2/3 * (z * sqrt(z)).real))
+/// eBi'(z) = Bi'(z) * exp(-abs(2/3 * (z * sqrt(z)).real))
+/// ```
 ///
 /// # Arguments
 ///
-/// - `z` - Real (`f64`) or complex (`num_complex::Complex<f64>`) argument
+/// - `z` - real (`f64`) or complex (`num_complex::Complex<f64>`) argument
 ///
 /// # Returns
 ///
@@ -170,6 +177,7 @@ pub fn airyb(x: f64) -> (f64, f64, f64, f64) {
     (ai, bi, aip, bip)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiryKind {
     Ai = 1,
     Bi = 2,
