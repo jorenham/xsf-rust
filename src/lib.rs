@@ -123,8 +123,8 @@ mod trig;
 pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};
 
 // wright_bessel.h
-xsf_impl!(wright_bessel, (a: f64, b: f64, x: f64), "Wright's generalized Bessel function");
-xsf_impl!(log_wright_bessel, (a: f64, b: f64, x: f64), "Logarithm of `wright_bessel`");
+mod wright_bessel;
+pub use wright_bessel::{log_wright_bessel, wright_bessel};
 
 // zeta.h
 xsf_impl!(riemann_zeta, (x: f64), "Riemann zeta function");
