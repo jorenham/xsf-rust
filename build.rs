@@ -506,6 +506,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
 
     bindgen::Builder::default()
         .header(header)
+        .clang_arg("-std=c++23")
         .size_t_is_usize(true)
         .sort_semantically(true)
         .opaque_type("std::*")
