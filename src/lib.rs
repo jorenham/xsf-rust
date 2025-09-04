@@ -115,11 +115,8 @@ pub use stats::{
 };
 
 // struve.h
-xsf_impl!(itstruve0, (x: f64), "Integral of the Struve function of order 0");
-xsf_impl!(it2struve0, (x: f64), "Integral related to the Struve function of order 0");
-xsf_impl!(itmodstruve0, (x: f64), "Integral of the modified Struve function of order 0");
-xsf_impl!(struve_h, (v: f64, x: f64), "Struve `H` function");
-xsf_impl!(struve_l, (v: f64, x: f64), "Struve `L` function");
+mod struve;
+pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 
 // trig.h
 xsf_impl!(sinpi, (x: f64), "Compute `sin(pi * x)`");
