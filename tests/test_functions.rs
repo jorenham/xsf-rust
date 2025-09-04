@@ -573,8 +573,7 @@ xsref_test!(keip, "d->d");
 xsref_test!(lambertw, "Dld->D");
 
 // legendre.h
-// xsref_test!(legendre_p, "id->d");  // no xsref table
-// xsref_test!(sph_legendre_p, "iid->d");  // no xsref table
+// no xsref tables?
 
 // log_exp.h
 xsref_test!(expit, "d->d");

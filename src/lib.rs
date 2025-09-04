@@ -70,12 +70,8 @@ mod lambertw;
 pub use lambertw::lambertw;
 
 // legendre.h
-xsf_impl!(legendre_p, (n: c_int, x: f64), "Legendre polynomial of degree n");
-xsf_impl!(
-    sph_legendre_p,
-    (n: c_int, m: c_int, theta: f64),
-    "Spherical Legendre polynomial of degree n and order m"
-);
+mod legendre;
+pub use legendre::{assoc_legendre_p, assoc_legendre_p_norm, legendre_p, sph_legendre_p};
 
 // log_exp.h
 xsf_impl!(expit, (x: f64), "Expit function, `1/(1 + exp(-x))`");

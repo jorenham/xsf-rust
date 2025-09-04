@@ -157,9 +157,12 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // lambertw.h
     ("lambertw", "Dld->D"),
     // legendre.h
-    // TODO: `assoc_legendre_p`, `lqn`, `lqmn`
     ("legendre_p", "id->d"),
+    ("legendre_p", "iD->D"),
+    // ("assoc_legendre_p", "_iidi->d"),
+    // ("assoc_legendre_p", "_iiDi->D"),  // TODO
     ("sph_legendre_p", "iid->d"),
+    ("sph_legendre_p", "iiD->D"),
     // log_exp.h
     ("expit", "d->d"),
     ("exprel", "d->d"),
@@ -327,6 +330,24 @@ fn generate_header(dir_out: &str) -> String {
         *count += 1;
     }
 
+    // `assoc_legendre_p` requires special-casing
+    push_line(
+        &mut source,
+        "double assoc_legendre_p_0(int n, int m, double z, int bc);",
+    );
+    push_line(
+        &mut source,
+        "std::complex<double> assoc_legendre_p_0_1(int n, int m, std::complex<double> z, int bc);",
+    );
+    push_line(
+        &mut source,
+        "double assoc_legendre_p_1(int n, int m, double z, int bc);",
+    );
+    push_line(
+        &mut source,
+        "std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, int bc);",
+    );
+
     let file = format!("{dir_out}/{WRAPPER_NAME}.hpp");
     std::fs::write(&file, source).unwrap();
     file
@@ -350,6 +371,32 @@ fn build_wrapper(dir_out: &str, include: &str) {
         push_line(&mut source, &format!("{func_decl} {{ return {call}; }}"));
         *count += 1;
     }
+
+    // `assoc_legendre_p` requires special-casing
+    push_line(
+        &mut source,
+        "double assoc_legendre_p_0(int n, int m, double z, int bc) {
+            return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
+        }",
+    );
+    push_line(
+        &mut source,
+        "std::complex<double> assoc_legendre_p_0_1(int n, int m, std::complex<double> z, int bc) {
+            return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
+        }",
+    );
+    push_line(
+        &mut source,
+        "double assoc_legendre_p_1(int n, int m, double z, int bc) {
+            return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
+        }",
+    );
+    push_line(
+        &mut source,
+        "std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, int bc) {
+            return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
+        }",
+    );
 
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
     std::fs::write(&file_cpp, source).unwrap();
@@ -384,6 +431,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         }
         *count += 1;
     }
+    allowlist_functions.push("assoc_legendre_p_.+".to_string());
 
     let allowlist_pattern = allowlist_functions.join("|");
 
