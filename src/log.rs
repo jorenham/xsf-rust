@@ -64,5 +64,5 @@ where
     X: Into<Y::Output>,
     Y: LogArg,
 {
-    y.xsf_xlogy(x)
+    y.xsf_xlog1py(x)
 }
