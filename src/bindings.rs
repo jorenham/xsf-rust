@@ -4,6 +4,30 @@ use num_complex::Complex;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+impl std_complex<f64> {
+    pub(crate) fn new(re: f64, im: f64) -> Self {
+        unsafe { complex__new(re, im) }
+    }
+    pub(crate) fn real(self) -> f64 {
+        unsafe { complex__re(self) }
+    }
+    pub(crate) fn imag(self) -> f64 {
+        unsafe { complex__im(self) }
+    }
+}
+
+impl From<std_complex<f64>> for Complex<f64> {
+    fn from(z: std_complex<f64>) -> Self {
+        Complex::new(z.real(), z.imag())
+    }
+}
+
+impl From<Complex<f64>> for std_complex<f64> {
+    fn from(z: Complex<f64>) -> Self {
+        Self::new(z.re, z.im)
+    }
+}
+
 macro_rules! xsf_impl {
     ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
         #[doc = $docs]
@@ -14,25 +38,3 @@ macro_rules! xsf_impl {
 }
 
 pub(crate) use xsf_impl;
-
-impl<T> std_complex<T> {
-    pub(crate) fn new(re: T, im: T) -> Self {
-        Self {
-            _phantom_0: std::marker::PhantomData,
-            _M_real: re,
-            _M_imag: im,
-        }
-    }
-}
-
-impl<T> From<std_complex<T>> for Complex<T> {
-    fn from(val: std_complex<T>) -> Self {
-        Complex::new(val._M_real, val._M_imag)
-    }
-}
-
-impl<T> From<Complex<T>> for std_complex<T> {
-    fn from(c: Complex<T>) -> Self {
-        Self::new(c.re, c.im)
-    }
-}

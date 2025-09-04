@@ -356,6 +356,15 @@ fn generate_header(dir_out: &str) -> String {
     push_line(&mut source, "#pragma once");
     push_line(&mut source, "#include <complex>");
 
+    push_line(&mut source, "");
+    push_line(
+        &mut source,
+        "std::complex<double> complex__new(double re, double im);",
+    );
+    push_line(&mut source, "double complex__re(std::complex<double> z);");
+    push_line(&mut source, "double complex__im(std::complex<double> z);");
+    push_line(&mut source, "");
+
     // Generate unique function names for overloads
     let mut name_counts = std::collections::HashMap::new();
     for (name, types) in XSF_TYPES {
@@ -396,6 +405,27 @@ fn build_wrapper(dir_out: &str, include: &str) {
     for xsf_header in XSF_HEADERS {
         push_line(&mut source, &format!("#include \"xsf/{xsf_header}\""));
     }
+
+    push_line(&mut source, "");
+    push_line(
+        &mut source,
+        "std::complex<double> complex__new(double re, double im) {
+            return std::complex<double>(re, im);
+        }",
+    );
+    push_line(
+        &mut source,
+        "double complex__re(std::complex<double> z) {
+            return std::real(z);
+        }",
+    );
+    push_line(
+        &mut source,
+        "double complex__im(std::complex<double> z) {
+            return std::imag(z);
+        }",
+    );
+    push_line(&mut source, "");
 
     // Generate unique function implementations for overloads
     let mut name_counts = std::collections::HashMap::new();
@@ -450,8 +480,11 @@ fn build_wrapper(dir_out: &str, include: &str) {
 fn generate_bindings(dir_out: &str, header: &str) {
     // Generate allowlist pattern including numbered overloads
     let mut allowlist_functions = Vec::new();
-    let mut name_counts = std::collections::HashMap::new();
+    allowlist_functions.push("complex__new".to_string());
+    allowlist_functions.push("complex__re".to_string());
+    allowlist_functions.push("complex__im".to_string());
 
+    let mut name_counts = std::collections::HashMap::new();
     for (name, _) in XSF_TYPES {
         let count = name_counts.entry(*name).or_insert(0);
         let base_name = XSF_RENAME
