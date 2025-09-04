@@ -86,8 +86,8 @@ mod loggamma;
 pub use loggamma::{loggamma, rgamma};
 
 // mathieu.h
-xsf_impl!(cem_cva, (m: f64, q: f64), "Characteristic value of even Mathieu functions");
-xsf_impl!(sem_cva, (m: f64, q: f64), "Characteristic value of odd Mathieu functions");
+mod mathieu;
+pub use mathieu::{cem_cva, sem_cva};
 
 // specfun.h
 xsf_impl!(hypu, (a: f64, b: f64, x: f64), "Confluent hypergeometric function `U`");
