@@ -74,16 +74,12 @@ mod legendre;
 pub use legendre::{assoc_legendre_p, assoc_legendre_p_norm, legendre_p, sph_legendre_p};
 
 // log_exp.h
-xsf_impl!(expit, (x: f64), "Expit function, `1/(1 + exp(-x))`");
-xsf_impl!(exprel, (x: f64), "Relative error exponential, `(exp(x) - 1)/x`");
-xsf_impl!(logit, (x: f64), "Logit function, `log(x / (1 - x))`");
-xsf_impl!(log_expit, (x: f64), "Log of the expit function, `log(expit(x))`");
-xsf_impl!(log1mexp, (x: f64), "Compute `log(1 - exp(x))`");
+mod log_exp;
+pub use log_exp::{expit, exprel, log_expit, log1mexp, logit};
 
 // log.h
-xsf_impl!(log1pmx, (x: f64), "Compute `log(1 + x) - x`");
-xsf_impl!(xlogy, (x: f64, y: f64), "Compute `x * log(y)`");
-xsf_impl!(xlog1py, (x: f64, y: f64), "Compute `x * log(1 + y)`");
+mod log;
+pub use log::{log1p, log1pmx, xlog1py, xlogy};
 
 // loggamma.h
 xsf_impl!(loggamma, (x: f64), "Principal branch of the logarithm of `gamma(x)`");

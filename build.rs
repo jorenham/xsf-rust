@@ -170,9 +170,13 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("log_expit", "d->d"),
     ("log1mexp", "d->d"),
     // log.h
+    ("log1p", "d->d"),
+    ("log1p", "D->D"),
     ("log1pmx", "d->d"),
     ("xlogy", "dd->d"),
+    ("xlogy", "DD->D"),
     ("xlog1py", "dd->d"),
+    ("xlog1py", "DD->D"),
     // loggamma.h
     ("loggamma", "d->d"),
     ("rgamma", "d->d"),
@@ -251,6 +255,7 @@ const XSF_RENAME: &[(&str, &str)] = &[
     ("expm1", "expm1_"),
     ("exp2", "exp2_"),
     ("exp10", "exp10_"),
+    ("log1p", "log1p_"),
 ];
 
 fn get_ctype(code: char) -> &'static str {

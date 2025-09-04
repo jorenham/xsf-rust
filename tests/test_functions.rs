@@ -446,6 +446,20 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "DD->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "cd_cd-cd",
+                |x: &[f64]| xsf::$f(
+                    num_complex::Complex::new(x[0], x[1]),
+                    num_complex::Complex::new(x[2], x[3]),
+                ),
+                Complex<f64>
+            );
+        }
+    };
     (@single $f:ident, "dddD->D") => {
         paste::paste! {
             _test!(
@@ -583,9 +597,13 @@ xsref_test!(log_expit, "d->d");
 // xsref_test!(log1mexp, "d->d");  // no xsref table
 
 // log.h
+xsref_test!(log1p, "d->d");
+xsref_test!(log1p, "D->D");
 xsref_test!(log1pmx, "d->d");
 xsref_test!(xlogy, "dd->d");
+xsref_test!(xlogy, "DD->D");
 xsref_test!(xlog1py, "dd->d");
+xsref_test!(xlog1py, "DD->D");
 
 // loggamma.h
 xsref_test!(loggamma, "d->d");
