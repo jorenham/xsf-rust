@@ -356,6 +356,9 @@ fn generate_header(dir_out: &str) -> String {
     push_line(&mut source, "#pragma once");
     push_line(&mut source, "#include <complex>");
 
+    // Put wrapper functions in their own namespace
+    push_line(&mut source, "");
+    push_line(&mut source, "namespace xsf_wrapper {");
     push_line(&mut source, "");
     push_line(
         &mut source,
@@ -393,6 +396,9 @@ fn generate_header(dir_out: &str) -> String {
         "std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, int bc);",
     );
 
+    push_line(&mut source, "");
+    push_line(&mut source, "} // namespace xsf_wrapper");
+
     let file = format!("{dir_out}/{WRAPPER_NAME}.hpp");
     std::fs::write(&file, source).unwrap();
     file
@@ -406,6 +412,9 @@ fn build_wrapper(dir_out: &str, include: &str) {
         push_line(&mut source, &format!("#include \"xsf/{xsf_header}\""));
     }
 
+    // Put wrapper implementations in the same namespace
+    push_line(&mut source, "");
+    push_line(&mut source, "namespace xsf_wrapper {");
     push_line(&mut source, "");
     push_line(
         &mut source,
@@ -464,6 +473,9 @@ fn build_wrapper(dir_out: &str, include: &str) {
         }",
     );
 
+    push_line(&mut source, "");
+    push_line(&mut source, "} // namespace xsf_wrapper");
+
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
     std::fs::write(&file_cpp, source).unwrap();
 
@@ -489,9 +501,9 @@ fn build_wrapper(dir_out: &str, include: &str) {
 fn generate_bindings(dir_out: &str, header: &str) {
     // Generate allowlist pattern including numbered overloads
     let mut allowlist_functions = Vec::new();
-    allowlist_functions.push("complex__new".to_string());
-    allowlist_functions.push("complex__re".to_string());
-    allowlist_functions.push("complex__im".to_string());
+    allowlist_functions.push("xsf_wrapper::complex__new".to_string());
+    allowlist_functions.push("xsf_wrapper::complex__re".to_string());
+    allowlist_functions.push("xsf_wrapper::complex__im".to_string());
 
     let mut name_counts = std::collections::HashMap::new();
     for (name, _) in XSF_TYPES {
@@ -503,13 +515,13 @@ fn generate_bindings(dir_out: &str, header: &str) {
             .unwrap_or(name);
 
         if *count == 0 {
-            allowlist_functions.push(base_name.to_string());
+            allowlist_functions.push(format!("xsf_wrapper::{}", base_name));
         } else {
-            allowlist_functions.push(format!("{}_{}", base_name, count));
+            allowlist_functions.push(format!("xsf_wrapper::{}_{}", base_name, count));
         }
         *count += 1;
     }
-    allowlist_functions.push("assoc_legendre_p_.+".to_string());
+    allowlist_functions.push("xsf_wrapper::assoc_legendre_p_.+".to_string());
 
     let allowlist_pattern = allowlist_functions.join("|");
 
@@ -520,6 +532,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .opaque_type("std::*")
         .allowlist_function(&allowlist_pattern)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .enable_cxx_namespaces()
         .generate()
         .unwrap()
         .write_to_file(PathBuf::from(dir_out).join("bindings.rs"))

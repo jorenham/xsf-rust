@@ -7,7 +7,9 @@ use num_complex::Complex;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-impl std_complex<f64> {
+pub(crate) use root::xsf_wrapper::*;
+
+impl root::std::complex<f64> {
     pub(crate) fn new(re: f64, im: f64) -> Self {
         unsafe { complex__new(re, im) }
     }
@@ -19,13 +21,13 @@ impl std_complex<f64> {
     }
 }
 
-impl From<std_complex<f64>> for Complex<f64> {
-    fn from(z: std_complex<f64>) -> Self {
+impl From<root::std::complex<f64>> for Complex<f64> {
+    fn from(z: root::std::complex<f64>) -> Self {
         Complex::new(z.real(), z.imag())
     }
 }
 
-impl From<Complex<f64>> for std_complex<f64> {
+impl From<Complex<f64>> for root::std::complex<f64> {
     fn from(z: Complex<f64>) -> Self {
         Self::new(z.re, z.im)
     }
