@@ -1,5 +1,3 @@
-use std::os::raw::c_int;
-
 pub(crate) mod bindings;
 use bindings::xsf_impl;
 
@@ -109,36 +107,12 @@ mod sphd_wave;
 pub use sphd_wave::{oblate_segv, prolate_segv};
 
 // stats.h
-xsf_impl!(bdtr, (k: f64, n: c_int, p: f64), "Binomial distribution function");
-xsf_impl!(bdtrc, (k: f64, n: c_int, p: f64), "Binomial survival function");
-xsf_impl!(bdtri, (k: f64, n: c_int, y: f64), "Binomial quantile function");
-xsf_impl!(chdtr, (df: f64, x: f64), "Chi-squared distribution function");
-xsf_impl!(chdtrc, (df: f64, x: f64), "Chi-squared survival function");
-xsf_impl!(chdtri, (df: f64, y: f64), "Chi-squared quantile function");
-xsf_impl!(fdtr, (a: f64, b: f64, x: f64), "F distribution function");
-xsf_impl!(fdtrc, (a: f64, b: f64, x: f64), "F survival function");
-xsf_impl!(fdtri, (a: f64, b: f64, y: f64), "F quantile function");
-xsf_impl!(gdtr, (a: f64, b: f64, x: f64), "Gamma distribution function");
-xsf_impl!(gdtrc, (a: f64, b: f64, x: f64), "Gamma survival function");
-xsf_impl!(kolmogorov, (x: f64), "Kolmogorov survival function");
-xsf_impl!(kolmogc, (x: f64), "Kolmogorov distribution function");
-xsf_impl!(kolmogi, (x: f64), "Inverse of `kolmogorov`");
-xsf_impl!(kolmogp, (x: f64), "Derivative of `kolmogorov`");
-xsf_impl!(ndtr, (x: f64), "Normal distribution function");
-xsf_impl!(ndtri, (x: f64), "Normal quantile function");
-xsf_impl!(log_ndtr, (x: f64), "Log of the normal distribution function");
-xsf_impl!(nbdtr, (k: c_int, n: c_int, p: f64), "Negative binomial distribution function");
-xsf_impl!(nbdtrc, (k: c_int, n: c_int, p: f64), "Negative binomial survival function");
-xsf_impl!(nbdtri, (k: c_int, n: c_int, p: f64), "Negative binomial quantile function");
-xsf_impl!(owens_t, (h: f64, a: f64), "Owen's T function");
-xsf_impl!(pdtr, (k: f64, m: f64), "Poisson distribution function");
-xsf_impl!(pdtrc, (k: f64, m: f64), "Poisson survival function");
-xsf_impl!(pdtri, (k: c_int, y: f64), "Poisson quantile function");
-xsf_impl!(smirnov, (n: c_int, x: f64), "Kolmogorov-Smirnov survival function");
-xsf_impl!(smirnovc, (n: c_int, x: f64), "Kolmogorov-Smirnov distribution function");
-xsf_impl!(smirnovi, (n: c_int, x: f64), "Inverse of `smirnov`");
-xsf_impl!(smirnovp, (n: c_int, x: f64), "Derivative of `smirnov`");
-xsf_impl!(tukeylambdacdf, (x: f64, lmbda: f64), "Tukey-Lambda distribution function");
+mod stats;
+pub use stats::{
+    bdtr, bdtrc, bdtri, chdtr, chdtrc, chdtri, fdtr, fdtrc, fdtri, gdtr, gdtrc, kolmogc, kolmogci,
+    kolmogi, kolmogorov, kolmogp, log_ndtr, nbdtr, nbdtrc, nbdtri, ndtr, ndtri, owens_t, pdtr,
+    pdtrc, pdtri, smirnov, smirnovc, smirnovci, smirnovi, smirnovp, tukeylambdacdf,
+};
 
 // struve.h
 xsf_impl!(itstruve0, (x: f64), "Integral of the Struve function of order 0");

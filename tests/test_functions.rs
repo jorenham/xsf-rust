@@ -670,9 +670,21 @@ xsref_test!(prolate_segv, "QQd->d");
 // xsref_test!(oblate_segv, "QQd->d");  // missing xsref table?
 
 // stats.h
-xsref_test!(bdtr, "did->d");
-xsref_test!(bdtrc, "did->d");
-xsref_test!(bdtri, "did->d");
+xsref_test!(ndtr, "d->d");
+xsref_test!(ndtri, "d->d");
+// xsref_test!(log_ndtr, "d->d");  // no xsref table
+xsref_test!(kolmogorov, "d->d");
+xsref_test!(kolmogc, "d->d");
+xsref_test!(kolmogi, "d->d");
+xsref_test!(kolmogci, "d->d");
+xsref_test!(kolmogp, "d->d");
+xsref_test!(smirnov, "id->d");
+xsref_test!(smirnovc, "id->d");
+xsref_test!(smirnovi, "id->d");
+xsref_test!(smirnovci, "id->d");
+xsref_test!(smirnovp, "id->d");
+// xsref_test!(tukeylambdacdf, "dd->d");  // no xsref table
+xsref_test!(owens_t, "dd->d");
 xsref_test!(chdtr, "dd->d");
 xsref_test!(chdtrc, "dd->d");
 xsref_test!(chdtri, "dd->d");
@@ -681,25 +693,15 @@ xsref_test!(fdtrc, "ddd->d");
 xsref_test!(fdtri, "ddd->d");
 xsref_test!(gdtr, "ddd->d");
 xsref_test!(gdtrc, "ddd->d");
-xsref_test!(kolmogorov, "d->d");
-xsref_test!(kolmogc, "d->d");
-xsref_test!(kolmogi, "d->d");
-xsref_test!(kolmogp, "d->d");
-xsref_test!(ndtr, "d->d");
-xsref_test!(ndtri, "d->d");
-// xsref_test!(log_ndtr, "d->d");  // no xsref table
-xsref_test!(nbdtr, "iid->d");
-xsref_test!(nbdtrc, "iid->d");
-// xsref_test!(nbdtri, "iid->d");  // no xsref table
-xsref_test!(owens_t, "dd->d");
 xsref_test!(pdtr, "dd->d");
 xsref_test!(pdtrc, "dd->d");
 xsref_test!(pdtri, "id->d");
-xsref_test!(smirnov, "id->d");
-xsref_test!(smirnovc, "id->d");
-xsref_test!(smirnovi, "id->d");
-xsref_test!(smirnovp, "id->d");
-// xsref_test!(tukeylambdacdf, "dd->d");  // no xsref table
+xsref_test!(bdtr, "did->d");
+xsref_test!(bdtrc, "did->d");
+xsref_test!(bdtri, "did->d");
+xsref_test!(nbdtr, "iid->d");
+xsref_test!(nbdtrc, "iid->d");
+// xsref_test!(nbdtri, "iid->d");  // no xsref table
 
 // struve.h
 xsref_test!(itstruve0, "d->d");
