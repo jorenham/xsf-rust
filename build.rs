@@ -439,7 +439,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
 
     cc::Build::new()
         .cpp(true)
-        .std("c++17")
+        .std("c++23")
         .flag_if_supported("-Wno-unused-parameter")
         .flag_if_supported("-Wno-logical-op-parentheses")
         .file(file_cpp)
