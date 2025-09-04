@@ -34,7 +34,7 @@ const XSF_HEADERS: &[&str] = &[
     // "sici.h",
     "specfun.h",
     "sph_bessel.h",
-    // "sph_harm.h",
+    "sph_harm.h",
     "sphd_wave.h",
     "stats.h",
     "struve.h",
@@ -210,7 +210,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("sph_bessel_k_jac", "ld->d"),
     ("sph_bessel_k_jac", "lD->D"),
     // sph_harm.h
-    //  TODO: ("sph_harm_y", "iidd->D")
+    ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
     //  TODO: aswfa and radial
     ("prolate_segv", "ddd->d"),

@@ -652,6 +652,9 @@ xsref_test!(pmv, "qdd->d");
 // xsref_test!(sph_bessel_i_jac, "dd->d", "dD->D");
 // xsref_test!(sph_bessel_k_jac, "dd->d", "dD->D");
 
+// sph_harm.h
+// xsref_test!(sph_harm_y, "iidd->D");  // no xsref table?
+
 // sphd_wave.h
 xsref_test!(prolate_segv, "ddd->d");
 // xsref_test!(oblate_segv, "ddd->d");  // missing xsref table?

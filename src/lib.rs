@@ -100,6 +100,10 @@ pub use sph_bessel::{
     sph_bessel_y, sph_bessel_y_jac,
 };
 
+// sph_harm.h
+mod sph_harm;
+pub use sph_harm::sph_harm_y;
+
 // sphd_wave.h
 xsf_impl!(
     prolate_segv,
