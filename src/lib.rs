@@ -1,5 +1,4 @@
-pub(crate) mod bindings;
-use bindings::xsf_impl;
+mod bindings;
 
 // alg.h
 mod alg;
@@ -127,6 +126,5 @@ mod wright_bessel;
 pub use wright_bessel::{log_wright_bessel, wright_bessel};
 
 // zeta.h
-xsf_impl!(riemann_zeta, (x: f64), "Riemann zeta function");
-xsf_impl!(zeta, (x: f64, q: f64), "Riemann zeta function of two arguments");
-xsf_impl!(zetac, (x: f64), "Riemann zeta function, minus one");
+mod zeta;
+pub use zeta::{riemann_zeta, zeta, zetac};

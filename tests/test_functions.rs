@@ -466,6 +466,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "Dd->D") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "cd_d-cd",
+                |x: &[f64]| xsf::$f(num_complex::Complex::new(x[0], x[1]), x[2]),
+                Complex<f64>
+            );
+        }
+    };
     (@single $f:ident, "DD->D") => {
         paste::paste! {
             _test!(
@@ -670,9 +681,9 @@ xsref_test!(prolate_segv, "QQd->d");
 // xsref_test!(oblate_segv, "QQd->d");  // missing xsref table?
 
 // stats.h
-xsref_test!(ndtr, "d->d");
+xsref_test!(ndtr, "d->d", "D->D");
 xsref_test!(ndtri, "d->d");
-// xsref_test!(log_ndtr, "d->d");  // no xsref table
+// xsref_test!(log_ndtr, "d->d", "D->D");  // no xsref table
 xsref_test!(kolmogorov, "d->d");
 xsref_test!(kolmogc, "d->d");
 xsref_test!(kolmogi, "d->d");
@@ -711,10 +722,8 @@ xsref_test!(struve_h, "dd->d");
 xsref_test!(struve_l, "dd->d");
 
 // trig.h
-xsref_test!(sinpi, "d->d");
-xsref_test!(sinpi, "D->D");
-xsref_test!(cospi, "d->d");
-xsref_test!(cospi, "D->D");
+xsref_test!(sinpi, "d->d", "D->D");
+xsref_test!(cospi, "d->d", "D->D");
 xsref_test!(sindg, "d->d");
 xsref_test!(cosdg, "d->d");
 xsref_test!(tandg, "d->d");
@@ -727,6 +736,6 @@ xsref_test!(wright_bessel, "ddd->d");
 xsref_test!(log_wright_bessel, "ddd->d");
 
 // zeta.h
-xsref_test!(riemann_zeta, "d->d");
-xsref_test!(zeta, "dd->d");
+xsref_test!(riemann_zeta, "d->d", "D->D");
+xsref_test!(zeta, "dd->d"); // no complex xsref table
 xsref_test!(zetac, "d->d");

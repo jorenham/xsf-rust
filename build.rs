@@ -272,8 +272,10 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("log_wright_bessel", "ddd->d"),
     // zeta.h
     ("riemann_zeta", "d->d"),
-    ("zeta", "dd->d"),
+    ("riemann_zeta", "D->D"),
     ("zetac", "d->d"),
+    ("zeta", "dd->d"),
+    ("zeta", "Dd->D"),
 ];
 // Functions that need renaming because they clash with standard library names
 const XSF_RENAME: &[(&str, &str)] = &[
