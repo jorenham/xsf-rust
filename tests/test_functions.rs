@@ -641,9 +641,20 @@ xsref_test!(hyperu, "ddd->d"); // alias of `hypu`
 xsref_test!(hyp1f1, "ddD->D"); // no table for ddd->d
 xsref_test!(pmv, "qdd->d");
 
+// sph_bessel.h
+// no xsref tables?
+// xsref_test!(sph_bessel_j, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_y, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_i, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_k, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_j_jac, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_y_jac, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_i_jac, "dd->d", "dD->D");
+// xsref_test!(sph_bessel_k_jac, "dd->d", "dD->D");
+
 // sphd_wave.h
 xsref_test!(prolate_segv, "ddd->d");
-// xsref_test!(oblate_segv, "ddd->d");  // no xsref table??
+// xsref_test!(oblate_segv, "ddd->d");  // missing xsref table?
 
 // stats.h
 xsref_test!(bdtr, "did->d");

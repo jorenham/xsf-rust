@@ -33,7 +33,7 @@ const XSF_HEADERS: &[&str] = &[
     // "par_cyl.h",
     // "sici.h",
     "specfun.h",
-    // "sph_bessel.h",
+    "sph_bessel.h",
     // "sph_harm.h",
     "sphd_wave.h",
     "stats.h",
@@ -192,7 +192,27 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("hyp1f1", "ddD->D"),
     ("hypu", "ddd->d"),
     ("pmv", "ddd->d"),
+    // sph_bessel.h
+    ("sph_bessel_j", "ld->d"),
+    ("sph_bessel_j", "lD->D"),
+    ("sph_bessel_j_jac", "ld->d"),
+    ("sph_bessel_j_jac", "lD->D"),
+    ("sph_bessel_y", "ld->d"),
+    ("sph_bessel_y", "lD->D"),
+    ("sph_bessel_y_jac", "ld->d"),
+    ("sph_bessel_y_jac", "lD->D"),
+    ("sph_bessel_i", "ld->d"),
+    ("sph_bessel_i", "lD->D"),
+    ("sph_bessel_i_jac", "ld->d"),
+    ("sph_bessel_i_jac", "lD->D"),
+    ("sph_bessel_k", "ld->d"),
+    ("sph_bessel_k", "lD->D"),
+    ("sph_bessel_k_jac", "ld->d"),
+    ("sph_bessel_k_jac", "lD->D"),
+    // sph_harm.h
+    //  TODO: ("sph_harm_y", "iidd->D")
     // sphd_wave.h
+    //  TODO: aswfa and radial
     ("prolate_segv", "ddd->d"),
     ("oblate_segv", "ddd->d"),
     // stats.h

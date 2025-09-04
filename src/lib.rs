@@ -93,6 +93,13 @@ pub use mathieu::{cem_cva, sem_cva};
 mod specfun;
 pub use specfun::{hyp1f1, hyperu, hypu, pmv};
 
+// sph_bessel.h
+mod sph_bessel;
+pub use sph_bessel::{
+    sph_bessel_i, sph_bessel_i_jac, sph_bessel_j, sph_bessel_j_jac, sph_bessel_k, sph_bessel_k_jac,
+    sph_bessel_y, sph_bessel_y_jac,
+};
+
 // sphd_wave.h
 xsf_impl!(
     prolate_segv,
