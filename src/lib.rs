@@ -98,6 +98,10 @@ pub use mathieu::{cem_cva, sem_cva};
 mod par_cyl;
 pub use par_cyl::{pbdv, pbvv, pbwa};
 
+// sici.h
+mod sici;
+pub use sici::{shichi, sici};
+
 // specfun.h
 mod specfun;
 pub use specfun::{hyp1f1, hyperu, hypu, pmv};
