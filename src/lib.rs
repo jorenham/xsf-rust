@@ -37,7 +37,7 @@ pub use digamma::digamma;
 
 // ellip.h
 mod ellip;
-pub use ellip::{ellipe, ellipeinc, ellipk, ellipkinc, ellipkm1};
+pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
 
 // erf.h
 mod erf;
