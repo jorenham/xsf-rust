@@ -637,6 +637,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "ddd->dd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d_d_d-d_d",
+                |x: &[f64]| xsf::$f(x[0], x[1], x[2]),
+                (f64, f64)
+            );
+        }
+    };
     (@single $f:ident, "D->DD") => {
         paste::paste! {
             _test!(
@@ -907,6 +918,12 @@ xsref_test!(rgamma, "d->d", "D->D");
 // mathieu.h
 xsref_test!(cem_cva, "dd->d");
 xsref_test!(sem_cva, "dd->d");
+xsref_test!(cem, "ddd->dd");
+xsref_test!(sem, "ddd->dd");
+xsref_test!(mcm1, "ddd->dd");
+xsref_test!(msm1, "ddd->dd");
+xsref_test!(mcm2, "ddd->dd");
+xsref_test!(msm2, "ddd->dd");
 
 // par_cyl.h
 xsref_test!(pbwa, "dd->dd");
