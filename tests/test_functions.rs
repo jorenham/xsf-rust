@@ -59,6 +59,28 @@ mod xsref {
         }
     }
 
+    impl TestOutput for (f64, f64) {
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
+            rows.into_iter().map(|row| (row[0], row[1])).collect()
+        }
+
+        fn error(actual: Self, expected: Self) -> f64 {
+            let errors = [
+                relative_error(actual.0, expected.0),
+                relative_error(actual.1, expected.1),
+            ];
+            errors.iter().fold(0.0, |acc, &x| acc.max(x))
+        }
+
+        fn magnitude(self) -> f64 {
+            (self.0.abs() + self.1.abs()) / 2.0
+        }
+
+        fn format_value(self) -> String {
+            format!("({:.6e}, {:.6e})", self.0, self.1)
+        }
+    }
+
     impl TestOutput for (f64, f64, f64, f64) {
         fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
             rows.into_iter()
@@ -84,6 +106,33 @@ mod xsref {
             format!(
                 "({:.6e}, {:.6e}, {:.6e}, {:.6e})",
                 self.0, self.1, self.2, self.3
+            )
+        }
+    }
+
+    impl TestOutput for (Complex<f64>, Complex<f64>) {
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
+            rows.into_iter()
+                .map(|row| (Complex::new(row[0], row[1]), Complex::new(row[2], row[3])))
+                .collect()
+        }
+
+        fn error(actual: Self, expected: Self) -> f64 {
+            let errors = [
+                complex_relative_error(actual.0, expected.0),
+                complex_relative_error(actual.1, expected.1),
+            ];
+            errors.iter().fold(0.0, |acc, &x| acc.max(x))
+        }
+
+        fn magnitude(self) -> f64 {
+            (self.0.norm() + self.1.norm()) / 2.0
+        }
+
+        fn format_value(self) -> String {
+            format!(
+                "({:.6e}+{:.6e}i, {:.6e}+{:.6e}i)",
+                self.0.re, self.0.im, self.1.re, self.1.im,
             )
         }
     }
@@ -422,6 +471,22 @@ macro_rules! _test {
             }
         }
     };
+    ($test_name:ident, $f:ident, $sig:literal, $test_fn:expr, (f64, f64)) => {
+        paste::paste! {
+            #[test]
+            fn $test_name() {
+                xsref::test::<(f64, f64), _>(stringify!($f), $sig, $test_fn);
+            }
+        }
+    };
+    ($test_name:ident, $f:ident, $sig:literal, $test_fn:expr, (Complex<f64>, Complex<f64>)) => {
+        paste::paste! {
+            #[test]
+            fn $test_name() {
+                xsref::test::<(num_complex::Complex<f64>, num_complex::Complex<f64>), _>(stringify!($f), $sig, $test_fn);
+            }
+        }
+    };
     ($test_name:ident, $f:ident, $sig:literal, $test_fn:expr, (f64, f64, f64, f64)) => {
         paste::paste! {
             #[test]
@@ -525,6 +590,39 @@ macro_rules! xsref_test {
                 "d_d_d_d-d",
                 |x: &[f64]| xsf::$f(x[0], x[1], x[2], x[3]),
                 f64
+            );
+        }
+    };
+    (@single $f:ident, "d->dd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d-d_d",
+                |x: &[f64]| xsf::$f(x[0]),
+                (f64, f64)
+            );
+        }
+    };
+    (@single $f:ident, "D->DD") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "cd-cd_cd",
+                |x: &[f64]| xsf::$f(num_complex::Complex::new(x[0], x[1])),
+                (Complex<f64>, Complex<f64>)
+            );
+        }
+    };
+    (@single $f:ident, "d->DD") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "d-cd_cd",
+                |x: &[f64]| xsf::$f(x[0]),
+                (Complex<f64>, Complex<f64>)
             );
         }
     };
@@ -712,6 +810,11 @@ xsref_test!(exp10, "d->d");
 xsref_test!(expi, "d->d", "D->D");
 xsref_test!(exp1, "d->d", "D->D");
 xsref_test!(scaled_exp1, "d->d");
+
+// fresnel.h
+xsref_test!(fresnel, "d->dd", "D->DD");
+xsref_test!(modified_fresnel_plus, "d->DD");
+xsref_test!(modified_fresnel_minus, "d->DD");
 
 // gamma.h
 xsref_test!(gamma, "d->d", "D->D");
