@@ -94,6 +94,10 @@ pub use loggamma::{loggamma, rgamma};
 mod mathieu;
 pub use mathieu::{cem_cva, sem_cva};
 
+// par_cyl.h
+mod par_cyl;
+pub use par_cyl::{pbdv, pbvv, pbwa};
+
 // specfun.h
 mod specfun;
 pub use specfun::{hyp1f1, hyperu, hypu, pmv};

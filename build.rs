@@ -30,7 +30,7 @@ const XSF_HEADERS: &[&str] = &[
     "log.h",
     "loggamma.h",
     "mathieu.h",
-    // "par_cyl.h",
+    "par_cyl.h",
     // "sici.h",
     "specfun.h",
     "sph_bessel.h",
@@ -197,7 +197,9 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
     // par_cyl.h
-    //  TODO: `pbwa`, `pbdv`, `pbvv`
+    ("pbwa", "dd->dd"),
+    ("pbdv", "dd->dd"),
+    ("pbvv", "dd->dd"),
     // sici.h
     //  TODO: `sici`, `shichi`,
     // specfun.h
