@@ -615,6 +615,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "dd->dddd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d_d-d_d_d_d",
+                |x: &[f64]| xsf::$f(x[0], x[1]),
+                (f64, f64, f64, f64)
+            );
+        }
+    };
     (@single $f:ident, "dd->dd") => {
         paste::paste! {
             _test!(
@@ -817,6 +828,7 @@ xsref_test!(ellipkm1, "d->d");
 xsref_test!(ellipkinc, "dd->d");
 xsref_test!(ellipe, "d->d");
 xsref_test!(ellipeinc, "dd->d");
+xsref_test!(ellipj, "dd->dddd");
 
 // erf.h
 xsref_test!(erf, "d->d", "D->D");

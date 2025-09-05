@@ -104,7 +104,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("digamma", "d->d"),
     ("digamma", "D->D"),
     // ellip.h
-    //  TODO: ellipj
+    ("ellipj", "dd->dddd"),
     ("ellipk", "d->d"),
     ("ellipkm1", "d->d"),
     ("ellipkinc", "dd->d"),
