@@ -550,6 +550,26 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "QQdd->dd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f, "d_d_d_d-d_d",
+                |x: &[f64]| xsf::$f(x[0] as u64, x[1] as u64, x[2], x[3]),
+                (f64, f64)
+            );
+        }
+    };
+    (@single $f:ident, "QQddd->dd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f, "d_d_d_d_d-d_d",
+                |x: &[f64]| xsf::$f(x[0] as u64, x[1] as u64, x[2], x[3], x[4]),
+                (f64, f64)
+            );
+        }
+    };
     (@single $f:ident, "qdd->d") => {
         paste::paste! {
             _test!(
@@ -956,6 +976,18 @@ xsref_test!(pmv, "qdd->d");
 // sphd_wave.h
 xsref_test!(prolate_segv, "QQd->d");
 // xsref_test!(oblate_segv, "QQd->d");  // missing xsref table?
+xsref_test!(prolate_aswfa_nocv, "QQdd->dd");
+xsref_test!(oblate_aswfa_nocv, "QQdd->dd");
+xsref_test!(prolate_radial1_nocv, "QQdd->dd");
+xsref_test!(oblate_radial1_nocv, "QQdd->dd");
+xsref_test!(prolate_radial2_nocv, "QQdd->dd");
+xsref_test!(oblate_radial2_nocv, "QQdd->dd");
+xsref_test!(prolate_aswfa, "QQddd->dd");
+xsref_test!(oblate_aswfa, "QQddd->dd");
+xsref_test!(prolate_radial1, "QQddd->dd");
+xsref_test!(oblate_radial1, "QQddd->dd");
+xsref_test!(prolate_radial2, "QQddd->dd");
+xsref_test!(oblate_radial2, "QQddd->dd");
 
 // stats.h
 xsref_test!(ndtr, "d->d", "D->D");
