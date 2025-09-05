@@ -31,7 +31,7 @@ const XSF_HEADERS: &[&str] = &[
     "loggamma.h",
     "mathieu.h",
     "par_cyl.h",
-    // "sici.h",
+    "sici.h",
     "specfun.h",
     "sph_bessel.h",
     "sph_harm.h",
@@ -201,7 +201,10 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("pbdv", "dd->dd"),
     ("pbvv", "dd->dd"),
     // sici.h
-    //  TODO: `sici`, `shichi`,
+    ("sici", "d->dd"),
+    ("sici", "D->DD"),
+    ("shichi", "d->dd"),
+    ("shichi", "D->DD"),
     // specfun.h
     ("hyp1f1", "ddd->d"),
     ("hyp1f1", "ddD->D"),

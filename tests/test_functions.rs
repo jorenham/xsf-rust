@@ -885,6 +885,10 @@ xsref_test!(pbwa, "dd->dd");
 xsref_test!(pbdv, "dd->dd");
 xsref_test!(pbvv, "dd->dd");
 
+// sici.h
+xsref_test!(sici, "d->dd", "D->DD");
+xsref_test!(shichi, "d->dd", "D->DD");
+
 // specfun.h
 xsref_test!(hyperu, "ddd->d"); // alias of `hypu`
 xsref_test!(hyp1f1, "ddD->D"); // no table for ddd->d
