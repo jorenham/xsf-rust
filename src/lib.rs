@@ -93,7 +93,7 @@ pub use loggamma::{loggamma, rgamma};
 
 // mathieu.h
 mod mathieu;
-pub use mathieu::{cem_cva, sem_cva};
+pub use mathieu::{cem, cem_cva, mcm1, mcm2, msm1, msm2, sem, sem_cva};
 
 // par_cyl.h
 mod par_cyl;
