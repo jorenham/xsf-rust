@@ -94,7 +94,7 @@ pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Even modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the even modified Mathieu function of the second kind, `Mc1m(x, q)`, and its
+/// Evaluates the even modified Mathieu function of the second kind, `Mc2m(x, q)`, and its
 /// derivative at `x` for order `m` and parameter `q`.
 ///
 /// # Arguments
@@ -109,14 +109,14 @@ pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::mcm1(m, q, x, &mut y, &mut yp);
+        bindings::mcm2(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
 
 /// Odd modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the odd modified Mathieu function of the second kind, `Ms1m(x, q)`, and its
+/// Evaluates the odd modified Mathieu function of the second kind, `Ms2m(x, q)`, and its
 /// derivative at `x` for order `m` and parameter `q`.
 ///
 /// # Arguments
@@ -131,7 +131,7 @@ pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::msm1(m, q, x, &mut y, &mut yp);
+        bindings::msm2(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
