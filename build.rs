@@ -197,7 +197,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("rgamma", "d->d"),
     ("rgamma", "D->D"),
     // mathieu.h
-    //  TODO: `mcm1`, `msm1`, `mcm2`, `msm2`
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
     ("cem", "ddd->dd"),
