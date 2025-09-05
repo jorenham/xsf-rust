@@ -120,7 +120,11 @@ pub use sph_harm::sph_harm_y;
 
 // sphd_wave.h
 mod sphd_wave;
-pub use sphd_wave::{oblate_segv, prolate_segv};
+pub use sphd_wave::{
+    oblate_aswfa, oblate_aswfa_nocv, oblate_radial1, oblate_radial1_nocv, oblate_radial2,
+    oblate_radial2_nocv, oblate_segv, prolate_aswfa, prolate_aswfa_nocv, prolate_radial1,
+    prolate_radial1_nocv, prolate_radial2, prolate_radial2_nocv, prolate_segv,
+};
 
 // stats.h
 mod stats;

@@ -240,9 +240,20 @@ const XSF_TYPES: &[(&str, &str)] = &[
     //  TODO: `sph_harm_y_all`: dd->[[d]]
     ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
-    //  TODO: `*_aswfa*` and `*_radial*`
     ("prolate_segv", "ddd->d"),
+    ("prolate_aswfa_nocv", "dddd->dd"),
+    ("prolate_radial1_nocv", "dddd->dd"),
+    ("prolate_radial2_nocv", "dddd->dd"),
+    ("prolate_aswfa", "ddddd->dd"),
+    ("prolate_radial1", "ddddd->dd"),
+    ("prolate_radial2", "ddddd->dd"),
     ("oblate_segv", "ddd->d"),
+    ("oblate_aswfa_nocv", "dddd->dd"),
+    ("oblate_radial1_nocv", "dddd->dd"),
+    ("oblate_radial2_nocv", "dddd->dd"),
+    ("oblate_radial1", "ddddd->dd"),
+    ("oblate_radial2", "ddddd->dd"),
+    ("oblate_aswfa", "ddddd->dd"),
     // stats.h
     ("bdtr", "did->d"),
     ("bdtrc", "did->d"),
