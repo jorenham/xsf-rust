@@ -55,7 +55,11 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // alg.h
     ("cbrt", "d->d"),
     // bessel.h
-    //  TODO: `it1j0y0`, `it2j0y0`, `it1i0k0`, `it2i0k0`
+    //  TODO: `rct{j,y}`: d->[d],[d]
+    ("it1j0y0", "d->dd"),
+    ("it2j0y0", "d->dd"),
+    ("it1i0k0", "d->dd"),
+    ("it2i0k0", "d->dd"),
     ("cyl_bessel_j", "dd->d"),
     ("cyl_bessel_j", "dD->D"),
     ("cyl_bessel_je", "dd->d"),
