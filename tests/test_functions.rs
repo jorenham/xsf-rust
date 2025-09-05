@@ -648,6 +648,17 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "d->DDDD") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ cd>],
+                $f,
+                "d-cd_cd_cd_cd",
+                |x: &[f64]| xsf::$f(x[0]),
+                (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>)
+            );
+        }
+    };
     (@single $f:ident, "D->DDDD") => {
         paste::paste! {
             _test!(
@@ -852,6 +863,7 @@ xsref_test!(berp, "d->d");
 xsref_test!(beip, "d->d");
 xsref_test!(kerp, "d->d");
 xsref_test!(keip, "d->d");
+xsref_test!(kelvin, "d->DDDD");
 
 // lambertw.h
 xsref_test!(lambertw, "Dld->D");

@@ -1,10 +1,6 @@
 use crate::bindings;
+use crate::utils::c_complex64_nan;
 use num_complex::Complex;
-
-#[inline(always)]
-fn c_c64_nan() -> bindings::root::std::complex<f64> {
-    Complex::new(f64::NAN, f64::NAN).into()
-}
 
 mod sealed {
     use num_complex::Complex;
@@ -52,8 +48,8 @@ impl SiciArg for Complex<f64> {
 
     #[inline(always)]
     fn sici(self) -> (Self::Output, Self::Output) {
-        let mut si = c_c64_nan();
-        let mut ci = c_c64_nan();
+        let mut si = c_complex64_nan();
+        let mut ci = c_complex64_nan();
 
         unsafe {
             bindings::sici_1(self.into(), &mut si, &mut ci);
@@ -63,8 +59,8 @@ impl SiciArg for Complex<f64> {
 
     #[inline(always)]
     fn shichi(self) -> (Self::Output, Self::Output) {
-        let mut shi = c_c64_nan();
-        let mut chi = c_c64_nan();
+        let mut shi = c_complex64_nan();
+        let mut chi = c_complex64_nan();
 
         unsafe {
             bindings::shichi_1(self.into(), &mut shi, &mut chi);

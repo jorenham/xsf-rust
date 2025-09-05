@@ -1,4 +1,5 @@
 mod bindings;
+mod utils;
 
 // airy.h
 mod airy;
@@ -68,7 +69,7 @@ pub use iv_ratio::{iv_ratio, iv_ratio_c};
 
 // kelvin.h
 mod kelvin;
-pub use kelvin::{bei, beip, ber, berp, kei, keip, ker, kerp};
+pub use kelvin::{bei, beip, ber, berp, kei, keip, kelvin, ker, kerp};
 
 // lambertw.h
 mod lambertw;
