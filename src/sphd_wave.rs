@@ -206,7 +206,7 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter (*n >= m*)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument (*x > 1*)
 ///
 /// # Returns
 /// - `s`: Value of the function
@@ -230,7 +230,7 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter (*n >= m*)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument (*x > 1*)
 ///
 /// # Returns
 /// - `s`: Value of the function
@@ -254,7 +254,7 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter (*n >= m*)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument (*x > 1*)
 ///
 /// # Returns
 /// - `s`: Value of the function
@@ -278,7 +278,7 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// - `n`: Mode parameter (*n >= m*)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument (*x > 1*)
 ///
 /// # Returns
 /// - `s`: Value of the function
