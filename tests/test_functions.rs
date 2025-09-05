@@ -604,6 +604,28 @@ macro_rules! xsref_test {
             );
         }
     };
+    (@single $f:ident, "d->dddd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d-d_d_d_d",
+                |x: &[f64]| xsf::$f(x[0]),
+                (f64, f64, f64, f64)
+            );
+        }
+    };
+    (@single $f:ident, "dd->dd") => {
+        paste::paste! {
+            _test!(
+                [<test_ $f _ d>],
+                $f,
+                "d_d-d_d",
+                |x: &[f64]| xsf::$f(x[0], x[1]),
+                (f64, f64)
+            );
+        }
+    };
     (@single $f:ident, "D->DD") => {
         paste::paste! {
             _test!(
@@ -623,17 +645,6 @@ macro_rules! xsref_test {
                 "d-cd_cd",
                 |x: &[f64]| xsf::$f(x[0]),
                 (Complex<f64>, Complex<f64>)
-            );
-        }
-    };
-    (@single $f:ident, "d->dddd") => {
-        paste::paste! {
-            _test!(
-                [<test_ $f _ d>],
-                $f,
-                "d-d_d_d_d",
-                |x: &[f64]| xsf::$f(x[0]),
-                (f64, f64, f64, f64)
             );
         }
     };
@@ -868,6 +879,11 @@ xsref_test!(rgamma, "d->d", "D->D");
 // mathieu.h
 xsref_test!(cem_cva, "dd->d");
 xsref_test!(sem_cva, "dd->d");
+
+// par_cyl.h
+xsref_test!(pbwa, "dd->dd");
+xsref_test!(pbdv, "dd->dd");
+xsref_test!(pbvv, "dd->dd");
 
 // specfun.h
 xsref_test!(hyperu, "ddd->d"); // alias of `hypu`
