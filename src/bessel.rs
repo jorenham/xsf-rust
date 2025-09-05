@@ -142,3 +142,91 @@ xsf_impl!(
     (a: f64, lambda: f64, nu: f64),
     "Weighted integral of the Bessel function of the first kind"
 );
+
+/// Integrals of Bessel functions of order 0
+///
+/// Computes the integrals:
+///
+/// - ∫₀ˣ J₀(t) dt
+/// - ∫₀ˣ Y₀(t) dt
+///
+/// # Arguments
+/// - `x` - The input value
+///
+/// # Returns
+/// - `j0int`: Integral for J₀
+/// - `y0int`: Integral for Y₀
+pub fn it1j0y0(x: f64) -> (f64, f64) {
+    let mut j0int = f64::NAN;
+    let mut y0int = f64::NAN;
+    unsafe {
+        bindings::it1j0y0(x, &mut j0int, &mut y0int);
+    }
+    (j0int, y0int)
+}
+
+/// Integrals related to Bessel functions of the first kind of order 0
+///
+/// Computes the integrals:
+///
+/// - ∫₀ˣ (1 - J₀(t))/t dt
+/// - ∫ₓ∞ Y₀(t)/t dt
+///
+/// # Arguments
+/// - `x` - The input value
+///
+/// # Returns
+/// - `j0int`: Integral for J₀
+/// - `y0int`: Integral for Y₀
+pub fn it2j0y0(x: f64) -> (f64, f64) {
+    let mut j0int = f64::NAN;
+    let mut y0int = f64::NAN;
+    unsafe {
+        bindings::it2j0y0(x, &mut j0int, &mut y0int);
+    }
+    (j0int, y0int)
+}
+
+/// Integrals of modified Bessel functions of order 0
+///
+/// Computes the integrals:
+///
+/// - ∫₀ˣ I₀(t) dt
+/// - ∫₀ˣ K₀(t) dt
+///
+/// # Arguments
+/// - `x` - The input value
+///
+/// # Returns
+/// - `i0int`: The integral for I₀
+/// - `k0int`: The integral for K₀
+pub fn it1i0k0(x: f64) -> (f64, f64) {
+    let mut i0int = f64::NAN;
+    let mut k0int = f64::NAN;
+    unsafe {
+        bindings::it1i0k0(x, &mut i0int, &mut k0int);
+    }
+    (i0int, k0int)
+}
+
+/// Integrals related to modified Bessel functions of order 0
+///
+/// Computes the integrals:
+///
+/// - ∫₀ˣ (I₀(t) - 1)/t dt
+/// - ∫ₓ∞ K₀(t)/t dt
+///
+/// # Arguments
+/// - `x` - The input value
+///
+/// # Returns
+/// - `i0int`: The integral for I₀
+/// - `k0int`: The integral for K₀
+pub fn it2i0k0(x: f64) -> (f64, f64) {
+    let mut i0int = f64::NAN;
+    let mut k0int = f64::NAN;
+    unsafe {
+        bindings::it2i0k0(x, &mut i0int, &mut k0int);
+    }
+    (i0int, k0int)
+}

@@ -793,6 +793,10 @@ xsref_test!(cyl_hankel_1e, "dD->D");
 xsref_test!(cyl_hankel_2, "dD->D");
 xsref_test!(cyl_hankel_2e, "dD->D");
 xsref_test!(besselpoly, "ddd->d");
+xsref_test!(it1j0y0, "d->dd");
+xsref_test!(it2j0y0, "d->dd");
+xsref_test!(it1i0k0, "d->dd");
+xsref_test!(it2i0k0, "d->dd");
 
 // beta.h
 xsref_test!(beta, "dd->d");
