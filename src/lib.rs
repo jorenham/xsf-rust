@@ -50,6 +50,10 @@ pub use exp::{exp2, exp10, expm1};
 mod expint;
 pub use expint::{exp1, expi, scaled_exp1};
 
+// fresnel.h
+mod fresnel;
+pub use fresnel::{fresnel, modified_fresnel_minus, modified_fresnel_plus};
+
 // gamma.h
 mod gamma;
 pub use gamma::{gamma, gammainc, gammaincc, gammainccinv, gammaincinv, gammaln, gammasgn};

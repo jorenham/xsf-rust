@@ -19,7 +19,7 @@ const XSF_HEADERS: &[&str] = &[
     "exp.h",
     "expint.h",
     // "fp_error_metrics.h",
-    // "fresnel.h",
+    "fresnel.h",
     "gamma.h",
     "hyp2f1.h",
     "iv_ratio.h",
@@ -133,7 +133,11 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
-    //  TODO
+    //  TODO: `fcszo`: ii->[D]
+    ("fresnel", "d->dd"),
+    ("fresnel", "D->DD"),
+    ("modified_fresnel_plus", "d->DD"),
+    ("modified_fresnel_minus", "d->DD"),
     // gamma.h
     ("gamma", "d->d"),
     ("gamma", "D->D"),
