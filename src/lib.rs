@@ -43,6 +43,10 @@ pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
 mod erf;
 pub use erf::{dawsn, erf, erfc, erfcx, erfi, voigt_profile, wofz};
 
+// evalpoly.h
+mod evalpoly;
+pub use evalpoly::cevalpoly;
+
 // exp.h
 mod exp;
 pub use exp::{exp2, exp10, expm1};
