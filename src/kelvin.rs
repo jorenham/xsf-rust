@@ -13,6 +13,16 @@ xsf_impl!(beip, (x: f64), "Derivative of the Kelvin function `bei`");
 xsf_impl!(kerp, (x: f64), "Derivative of the Kelvin function `ker`");
 xsf_impl!(keip, (x: f64), "Derivative of the Kelvin function `kei`");
 
+/// Kelvin functions as complex numbers
+///
+/// # Arguments
+/// - `x` - Real argument
+///
+/// # Returns
+/// - *Be*: Value of the Kelvin function [`ber`] + *i* [`bei`]
+/// - *Ke*: Value of the Kelvin function [`ker`] + *i* [`kei`]
+/// - *Be*': Derivative of the Kelvin function [`berp`] + *i* [`beip`]
+/// - *Ke*': Derivative of the Kelvin function [`kerp`] + *i* [`keip`]
 pub fn kelvin(x: f64) -> (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
     let mut be = c_complex64_nan();
     let mut ke = c_complex64_nan();
