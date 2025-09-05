@@ -15,7 +15,7 @@ const XSF_HEADERS: &[&str] = &[
     "digamma.h",
     "ellip.h",
     "erf.h",
-    // "evalpoly.h"
+    "evalpoly.h",
     "exp.h",
     "expint.h",
     // "fp_error_metrics.h",
@@ -42,7 +42,6 @@ const XSF_HEADERS: &[&str] = &[
     "wright_bessel.h",
     "zeta.h",
 ];
-// e.g. `("spam", "if->d")` becomes `double xsf_spam(int x0, float x1)`
 const XSF_TYPES: &[(&str, &str)] = &[
     // airy.h
     ("airy", "d->dddd"),
@@ -123,8 +122,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("wofz", "D->D"),
     ("dawsn", "d->d"),
     ("dawsn", "D->D"),
-    // evalpoly.h
-    //  TODO: `cevalpoly`
     // exp.h
     ("expm1", "d->d"),
     ("expm1", "D->D"),
@@ -455,6 +452,12 @@ fn generate_header(dir_out: &str) -> String {
         *count += 1;
     }
 
+    // `cevalpoly` requires special-casing
+    push_line(
+        &mut source,
+        "std::complex<double> cevalpoly(const double *coeffs, int degree, std::complex<double> z);",
+    );
+
     // `assoc_legendre_p` requires special-casing
     push_line(
         &mut source,
@@ -523,6 +526,14 @@ fn build_wrapper(dir_out: &str, include: &str) {
         }
         *count += 1;
     }
+
+    // `cevalpoly` requires special-casing
+    push_line(
+        &mut source,
+        "std::complex<double> cevalpoly(const double *coeffs, int degree, std::complex<double> z) {
+            return xsf::cevalpoly(coeffs, degree, z);
+        }",
+    );
 
     // `assoc_legendre_p` requires special-casing
     push_line(
@@ -597,6 +608,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         }
         *count += 1;
     }
+    allowlist_functions.push("xsf_wrapper::cevalpoly".to_string());
     allowlist_functions.push("xsf_wrapper::assoc_legendre_p_.+".to_string());
 
     let allowlist_pattern = allowlist_functions.join("|");
