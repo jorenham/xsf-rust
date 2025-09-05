@@ -154,7 +154,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),
     // kelvin.h
-    //  TODO: `kelvin`: d->DDDD
     //  TODO: `klvnzo`: ii->[d]
     ("ber", "d->d"),
     ("bei", "d->d"),
@@ -164,6 +163,7 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("beip", "d->d"),
     ("kerp", "d->d"),
     ("keip", "d->d"),
+    ("kelvin", "d->DDDD"),
     // lambertw.h
     ("lambertw", "Dld->D"),
     // legendre.h
