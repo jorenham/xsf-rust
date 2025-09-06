@@ -1,6 +1,11 @@
 mod bindings;
 mod utils;
 
+#[cfg(test)]
+mod test_utils;
+#[cfg(test)]
+use test_utils::xsref;
+
 // airy.h
 mod airy;
 pub use airy::{airy, airyb, airye, airyzo, itairy};
@@ -109,7 +114,7 @@ pub use sici::{shichi, sici};
 
 // specfun.h
 mod specfun;
-pub use specfun::{hyp1f1, hyperu, hypu, pmv};
+pub use specfun::{hyp1f1, hypu, pmv};
 
 // sph_bessel.h
 mod sph_bessel;

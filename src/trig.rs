@@ -54,3 +54,60 @@ xsf_impl!(cotdg, (x: f64), "Circular cotangent of argument in degrees");
 xsf_impl!(cosm1, (x: f64), "Compute `cos(x) - 1`");
 
 xsf_impl!(radian, (d: f64, m: f64, s: f64), "Degrees, minutes, seconds to radians");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    #[test]
+    fn test_sinpi_f64() {
+        xsref::test::<f64, _>("sinpi", "d-d", |x: &[f64]| sinpi(x[0]));
+    }
+
+    #[test]
+    fn test_sinpi_c64() {
+        xsref::test::<Complex<f64>, _>("sinpi", "cd-cd", |x: &[f64]| sinpi(c64(x[0], x[1])));
+    }
+
+    #[test]
+    fn test_cospi_f64() {
+        xsref::test::<f64, _>("cospi", "d-d", |x: &[f64]| cospi(x[0]));
+    }
+
+    #[test]
+    fn test_cospi_c64() {
+        xsref::test::<Complex<f64>, _>("cospi", "cd-cd", |x: &[f64]| cospi(c64(x[0], x[1])));
+    }
+
+    #[test]
+    fn test_sindg() {
+        xsref::test::<f64, _>("sindg", "d-d", |x: &[f64]| sindg(x[0]));
+    }
+
+    #[test]
+    fn test_cosdg() {
+        xsref::test::<f64, _>("cosdg", "d-d", |x: &[f64]| cosdg(x[0]));
+    }
+
+    #[test]
+    fn test_tandg() {
+        xsref::test::<f64, _>("tandg", "d-d", |x: &[f64]| tandg(x[0]));
+    }
+
+    #[test]
+    fn test_cotdg() {
+        xsref::test::<f64, _>("cotdg", "d-d", |x: &[f64]| cotdg(x[0]));
+    }
+
+    #[test]
+    fn test_cosm1() {
+        xsref::test::<f64, _>("cosm1", "d-d", |x: &[f64]| cosm1(x[0]));
+    }
+
+    #[test]
+    fn test_radian() {
+        xsref::test::<f64, _>("radian", "d_d_d-d", |x: &[f64]| radian(x[0], x[1], x[2]));
+    }
+}

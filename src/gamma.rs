@@ -40,3 +40,52 @@ xsf_impl!(gammaincinv, (a: f64, p: f64), "Inverse of `gammainc`");
 xsf_impl!(gammainccinv, (a: f64, p: f64), "Inverse of `gammaincc`");
 xsf_impl!(gammaln, (x: f64), "Natural logarithm of Gamma function");
 xsf_impl!(gammasgn, (x: f64), "Sign of the Gamma function");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    #[test]
+    fn test_gamma_f64() {
+        xsref::test::<f64, _>("gamma", "d-d", |x: &[f64]| gamma(x[0]));
+    }
+
+    #[test]
+    fn test_gamma_c64() {
+        xsref::test::<Complex<f64>, _>("gamma", "cd-cd", |x: &[f64]| gamma(c64(x[0], x[1])));
+    }
+
+    #[test]
+    fn test_gammainc() {
+        xsref::test::<f64, _>("gammainc", "d_d-d", |x: &[f64]| gammainc(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_gammaincc() {
+        xsref::test::<f64, _>("gammaincc", "d_d-d", |x: &[f64]| gammaincc(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_gammaincinv() {
+        xsref::test::<f64, _>("gammaincinv", "d_d-d", |x: &[f64]| gammaincinv(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_gammainccinv() {
+        xsref::test::<f64, _>("gammainccinv", "d_d-d", |x: &[f64]| {
+            gammainccinv(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_gammaln() {
+        xsref::test::<f64, _>("gammaln", "d-d", |x: &[f64]| gammaln(x[0]));
+    }
+
+    #[test]
+    fn test_gammasgn() {
+        xsref::test::<f64, _>("gammasgn", "d-d", |x: &[f64]| gammasgn(x[0]));
+    }
+}

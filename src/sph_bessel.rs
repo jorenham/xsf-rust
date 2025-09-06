@@ -116,3 +116,8 @@ pub fn sph_bessel_i_jac<T: SphBesselArg>(n: i64, z: T) -> T::Output {
 pub fn sph_bessel_k_jac<T: SphBesselArg>(n: i64, z: T) -> T::Output {
     z.sph_bessel_k_jac(n as c_long)
 }
+
+#[cfg(test)]
+mod tests {
+    // TODO: no xsref tables -> need manual smoketests
+}

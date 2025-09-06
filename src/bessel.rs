@@ -230,3 +230,251 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
     }
     (i0int, k0int)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    // bessel j
+
+    #[test]
+    fn test_cyl_bessel_j0() {
+        xsref::test::<f64, _>("cyl_bessel_j0", "d-d", |x: &[f64]| cyl_bessel_j0(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_j1() {
+        xsref::test::<f64, _>("cyl_bessel_j1", "d-d", |x: &[f64]| cyl_bessel_j1(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_j_f64() {
+        xsref::test::<f64, _>("cyl_bessel_j", "d_d-d", |x: &[f64]| {
+            cyl_bessel_j(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_j_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_j", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_j(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_je_f64() {
+        xsref::test::<f64, _>("cyl_bessel_je", "d_d-d", |x: &[f64]| {
+            cyl_bessel_je(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_je_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_je", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_je(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // bessel y
+
+    #[test]
+    fn test_cyl_bessel_y0() {
+        xsref::test::<f64, _>("cyl_bessel_y0", "d-d", |x: &[f64]| cyl_bessel_y0(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_y1() {
+        xsref::test::<f64, _>("cyl_bessel_y1", "d-d", |x: &[f64]| cyl_bessel_y1(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_y_f64() {
+        xsref::test::<f64, _>("cyl_bessel_y", "d_d-d", |x: &[f64]| {
+            cyl_bessel_y(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_y_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_y", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_y(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ye_f64() {
+        xsref::test::<f64, _>("cyl_bessel_ye", "d_d-d", |x: &[f64]| {
+            cyl_bessel_ye(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ye_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_ye", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_ye(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // bessel i
+
+    #[test]
+    fn test_cyl_bessel_i0() {
+        xsref::test::<f64, _>("cyl_bessel_i0", "d-d", |x: &[f64]| cyl_bessel_i0(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_i0e() {
+        xsref::test::<f64, _>("cyl_bessel_i0e", "d-d", |x: &[f64]| cyl_bessel_i0e(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_i1() {
+        xsref::test::<f64, _>("cyl_bessel_i1", "d-d", |x: &[f64]| cyl_bessel_i1(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_i1e() {
+        xsref::test::<f64, _>("cyl_bessel_i1e", "d-d", |x: &[f64]| cyl_bessel_i1e(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_i_f64() {
+        xsref::test::<f64, _>("cyl_bessel_i", "d_d-d", |x: &[f64]| {
+            cyl_bessel_i(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_i_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_i", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_i(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ie_f64() {
+        xsref::test::<f64, _>("cyl_bessel_ie", "d_d-d", |x: &[f64]| {
+            cyl_bessel_ie(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ie_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_ie", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_ie(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // bessel k
+
+    #[test]
+    fn test_cyl_bessel_k0() {
+        xsref::test::<f64, _>("cyl_bessel_k0", "d-d", |x: &[f64]| cyl_bessel_k0(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_k0e() {
+        xsref::test::<f64, _>("cyl_bessel_k0e", "d-d", |x: &[f64]| cyl_bessel_k0e(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_k1() {
+        xsref::test::<f64, _>("cyl_bessel_k1", "d-d", |x: &[f64]| cyl_bessel_k1(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_k1e() {
+        xsref::test::<f64, _>("cyl_bessel_k1e", "d-d", |x: &[f64]| cyl_bessel_k1e(x[0]));
+    }
+
+    #[test]
+    fn test_cyl_bessel_k_f64() {
+        xsref::test::<f64, _>("cyl_bessel_k", "d_d-d", |x: &[f64]| {
+            cyl_bessel_k(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_k_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_k", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_k(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ke_f64() {
+        xsref::test::<f64, _>("cyl_bessel_ke", "d_d-d", |x: &[f64]| {
+            cyl_bessel_ke(x[0], x[1])
+        });
+    }
+
+    #[test]
+    fn test_cyl_bessel_ke_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_bessel_ke", "d_cd-cd", |x: &[f64]| {
+            cyl_bessel_ke(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // hankel
+
+    #[test]
+    fn test_cyl_hankel_1_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_hankel_1", "d_cd-cd", |x: &[f64]| {
+            cyl_hankel_1(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_hankel_1e_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_hankel_1e", "d_cd-cd", |x: &[f64]| {
+            cyl_hankel_1e(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_hankel_2_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_hankel_2", "d_cd-cd", |x: &[f64]| {
+            cyl_hankel_2(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    #[test]
+    fn test_cyl_hankel_2e_c64() {
+        xsref::test::<Complex<f64>, _>("cyl_hankel_2e", "d_cd-cd", |x: &[f64]| {
+            cyl_hankel_2e(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // besselpoly
+
+    #[test]
+    fn test_besselpoly_f64() {
+        xsref::test::<f64, _>("besselpoly", "d_d_d-d", |x: &[f64]| {
+            besselpoly(x[0], x[1], x[2])
+        });
+    }
+
+    // bessel integrals
+
+    #[test]
+    fn test_it1j0y0_f64() {
+        xsref::test::<(f64, f64), _>("it1j0y0", "d-d_d", |x: &[f64]| it1j0y0(x[0]));
+    }
+
+    #[test]
+    fn test_it2j0y0_f64() {
+        xsref::test::<(f64, f64), _>("it2j0y0", "d-d_d", |x: &[f64]| it2j0y0(x[0]));
+    }
+
+    #[test]
+    fn test_it1i0k0_f64() {
+        xsref::test::<(f64, f64), _>("it1i0k0", "d-d_d", |x: &[f64]| it1i0k0(x[0]));
+    }
+
+    #[test]
+    fn test_it2i0k0_f64() {
+        xsref::test::<(f64, f64), _>("it2i0k0", "d-d_d", |x: &[f64]| it2i0k0(x[0]));
+    }
+}

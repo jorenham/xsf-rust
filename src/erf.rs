@@ -64,3 +64,86 @@ pub fn wofz(z: Complex<f64>) -> Complex<f64> {
 pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
     unsafe { bindings::voigt_profile(x, sigma, gamma) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    // erf
+
+    #[test]
+    fn test_erf_f64() {
+        xsref::test::<f64, _>("erf", "d-d", |x: &[f64]| erf(x[0]));
+    }
+
+    #[test]
+    fn test_erf_c64() {
+        xsref::test::<Complex<f64>, _>("erf", "cd-cd", |x: &[f64]| erf(c64(x[0], x[1])));
+    }
+
+    // erfc
+
+    #[test]
+    fn test_erfc_f64() {
+        xsref::test::<f64, _>("erfc", "d-d", |x: &[f64]| erfc(x[0]));
+    }
+
+    #[test]
+    fn test_erfc_c64() {
+        xsref::test::<Complex<f64>, _>("erfc", "cd-cd", |x: &[f64]| erfc(c64(x[0], x[1])));
+    }
+
+    // erfcx
+
+    #[test]
+    fn test_erfcx_f64() {
+        xsref::test::<f64, _>("erfcx", "d-d", |x: &[f64]| erfcx(x[0]));
+    }
+
+    #[test]
+    fn test_erfcx_c64() {
+        xsref::test::<Complex<f64>, _>("erfcx", "cd-cd", |x: &[f64]| erfcx(c64(x[0], x[1])));
+    }
+
+    // erfi
+
+    #[test]
+    fn test_erfi_f64() {
+        xsref::test::<f64, _>("erfi", "d-d", |x: &[f64]| erfi(x[0]));
+    }
+
+    #[test]
+    fn test_erfi_c64() {
+        xsref::test::<Complex<f64>, _>("erfi", "cd-cd", |x: &[f64]| erfi(c64(x[0], x[1])));
+    }
+
+    // dawsn
+
+    #[test]
+    fn test_dawsn_f64() {
+        xsref::test::<f64, _>("dawsn", "d-d", |x: &[f64]| dawsn(x[0]));
+    }
+
+    #[test]
+    fn test_dawsn_c64() {
+        xsref::test::<Complex<f64>, _>("dawsn", "cd-cd", |x: &[f64]| dawsn(c64(x[0], x[1])));
+    }
+
+    // wofz
+
+    #[test]
+    fn test_wofz() {
+        xsref::test::<Complex<f64>, _>("wofz", "cd-cd", |x: &[f64]| wofz(c64(x[0], x[1])));
+    }
+
+    // voigt_profile
+
+    #[test]
+    fn test_voigt_profile() {
+        xsref::test::<f64, _>("voigt_profile", "d_d_d-d", |x: &[f64]| {
+            voigt_profile(x[0], x[1], x[2])
+        });
+    }
+}

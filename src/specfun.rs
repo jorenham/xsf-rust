@@ -39,12 +39,32 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     unsafe { bindings::hypu(a, b, x) }
 }
 
-/// Alias for `hypu(a,b,x)`
-pub fn hyperu(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { bindings::hypu(a, b, x) }
-}
-
 /// Associated Legendre function for `|x| ≤ 1`
 pub fn pmv(m: i64, v: f64, x: f64) -> f64 {
     unsafe { bindings::pmv(m as f64, v, x) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    #[test]
+    fn test_hypu() {
+        // the table is called "hyperu" instead of "hypu"
+        xsref::test::<f64, _>("hyperu", "d_d_d-d", |x: &[f64]| hypu(x[0], x[1], x[2]));
+    }
+
+    #[test]
+    fn test_hyp1f1() {
+        xsref::test::<Complex<f64>, _>("hyp1f1", "d_d_cd-cd", |x: &[f64]| {
+            hyp1f1(x[0], x[1], c64(x[2], x[3]))
+        });
+    }
+
+    #[test]
+    fn test_pmv() {
+        xsref::test::<f64, _>("pmv", "d_d_d-d", |x: &[f64]| pmv(x[0] as i64, x[1], x[2]));
+    }
 }
