@@ -2,178 +2,165 @@ use num_complex::{Complex, c64};
 
 mod xsref {
     use super::*;
-    use arrow::array::{
-        Array, Float32Array as ArrayF32, Float64Array as ArrayF64, Int32Array as ArrayI32,
-        Int64Array as ArrayI64,
-    };
+    use arrow::array::{Array, Float64Array, Int32Array, Int64Array};
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use std::env;
     use std::fs::File;
     use std::path::PathBuf;
 
-    pub trait TestOutput: Copy {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self>;
-        fn is_huge(self) -> bool {
-            self.magnitude() > f64::EPSILON
-        }
-        fn error(actual: Self, expected: Self) -> f64;
+    pub trait TestOutputValue: Copy {
+        fn error(self, expected: Self) -> f64;
         fn magnitude(self) -> f64;
-        fn format_value(self) -> String;
+        fn format(self) -> String;
     }
 
-    impl TestOutput for f64 {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter().map(|row| row[0]).collect()
-        }
-
-        fn error(actual: Self, expected: Self) -> f64 {
-            relative_error(actual, expected)
+    impl TestOutputValue for f64 {
+        fn error(self, expected: Self) -> f64 {
+            relative_error(self, expected)
         }
 
         fn magnitude(self) -> f64 {
             self.abs()
         }
 
-        fn format_value(self) -> String {
+        fn format(self) -> String {
             format!("{:.6e}", self)
         }
     }
 
-    impl TestOutput for Complex<f64> {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter().map(|row| c64(row[0], row[1])).collect()
-        }
-
-        fn error(actual: Self, expected: Self) -> f64 {
-            complex_relative_error(actual, expected)
+    impl TestOutputValue for Complex<f64> {
+        fn error(self, expected: Self) -> f64 {
+            complex_relative_error(self, expected)
         }
 
         fn magnitude(self) -> f64 {
             self.norm()
         }
 
-        fn format_value(self) -> String {
+        fn format(self) -> String {
             format!("{:.6e}+{:.6e}i", self.re, self.im)
         }
     }
 
-    impl TestOutput for (f64, f64) {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter().map(|row| (row[0], row[1])).collect()
-        }
+    pub trait TestOutput: Copy {
+        type Value: TestOutputValue;
 
-        fn error(actual: Self, expected: Self) -> f64 {
-            let errors = [
-                relative_error(actual.0, expected.0),
-                relative_error(actual.1, expected.1),
-            ];
-            errors.iter().fold(0.0, |acc, &x| acc.max(x))
+        fn values(&self) -> Vec<Self::Value>;
+
+        fn from_parquet_row(row: Vec<f64>) -> Self;
+
+        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
+            rows.into_iter().map(Self::from_parquet_row).collect()
         }
 
         fn magnitude(self) -> f64 {
-            (self.0.abs() + self.1.abs()) / 2.0
+            let values = self.values();
+            values.iter().map(|x| x.magnitude()).sum::<f64>() / values.len() as f64
         }
 
-        fn format_value(self) -> String {
-            format!("({:.6e}, {:.6e})", self.0, self.1)
+        fn is_huge(self) -> bool {
+            self.magnitude() > f64::EPSILON
+        }
+
+        fn error(self, expected: Self) -> f64 {
+            // max adjusted relative error
+            self.values()
+                .iter()
+                .zip(expected.values().iter())
+                .map(|(&a, &e)| a.error(e))
+                .fold(0.0, |acc, x| acc.max(x))
+        }
+
+        fn format(self) -> String {
+            let values = self.values();
+            if values.len() == 1 {
+                values[0].format()
+            } else {
+                format!(
+                    "({})",
+                    values
+                        .iter()
+                        .map(|x| x.format())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
         }
     }
 
-    impl TestOutput for (f64, f64, f64, f64) {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter()
-                .map(|row| (row[0], row[1], row[2], row[3]))
-                .collect()
+    impl TestOutput for f64 {
+        type Value = f64;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![*self]
         }
 
-        fn error(actual: Self, expected: Self) -> f64 {
-            let errors = [
-                relative_error(actual.0, expected.0),
-                relative_error(actual.1, expected.1),
-                relative_error(actual.2, expected.2),
-                relative_error(actual.3, expected.3),
-            ];
-            errors.iter().fold(0.0, |acc, &x| acc.max(x))
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            row[0]
+        }
+    }
+
+    impl TestOutput for Complex<f64> {
+        type Value = Complex<f64>;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![*self]
         }
 
-        fn magnitude(self) -> f64 {
-            (self.0.abs() + self.1.abs() + self.2.abs() + self.3.abs()) / 4.0
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            c64(row[0], row[1])
+        }
+    }
+
+    impl TestOutput for (f64, f64) {
+        type Value = f64;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![self.0, self.1]
         }
 
-        fn format_value(self) -> String {
-            format!(
-                "({:.6e}, {:.6e}, {:.6e}, {:.6e})",
-                self.0, self.1, self.2, self.3
-            )
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            (row[0], row[1])
         }
     }
 
     impl TestOutput for (Complex<f64>, Complex<f64>) {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter()
-                .map(|row| (c64(row[0], row[1]), c64(row[2], row[3])))
-                .collect()
+        type Value = Complex<f64>;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![self.0, self.1]
         }
 
-        fn error(actual: Self, expected: Self) -> f64 {
-            let errors = [
-                complex_relative_error(actual.0, expected.0),
-                complex_relative_error(actual.1, expected.1),
-            ];
-            errors.iter().fold(0.0, |acc, &x| acc.max(x))
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            (c64(row[0], row[1]), c64(row[2], row[3]))
+        }
+    }
+
+    impl TestOutput for (f64, f64, f64, f64) {
+        type Value = f64;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![self.0, self.1, self.2, self.3]
         }
 
-        fn magnitude(self) -> f64 {
-            (self.0.norm() + self.1.norm()) / 2.0
-        }
-
-        fn format_value(self) -> String {
-            format!(
-                "({:.6e}+{:.6e}i, {:.6e}+{:.6e}i)",
-                self.0.re, self.0.im, self.1.re, self.1.im,
-            )
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            (row[0], row[1], row[2], row[3])
         }
     }
 
     impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
-        fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-            rows.into_iter()
-                .map(|row| {
-                    (
-                        c64(row[0], row[1]),
-                        c64(row[2], row[3]),
-                        c64(row[4], row[5]),
-                        c64(row[6], row[7]),
-                    )
-                })
-                .collect()
+        type Value = Complex<f64>;
+
+        fn values(&self) -> Vec<Self::Value> {
+            vec![self.0, self.1, self.2, self.3]
         }
 
-        fn error(actual: Self, expected: Self) -> f64 {
-            let errors = [
-                complex_relative_error(actual.0, expected.0),
-                complex_relative_error(actual.1, expected.1),
-                complex_relative_error(actual.2, expected.2),
-                complex_relative_error(actual.3, expected.3),
-            ];
-            errors.iter().fold(0.0, |acc, &x| acc.max(x))
-        }
-
-        fn magnitude(self) -> f64 {
-            (self.0.norm() + self.1.norm() + self.2.norm() + self.3.norm()) / 4.0
-        }
-
-        fn format_value(self) -> String {
-            format!(
-                "({:.6e}+{:.6e}i, {:.6e}+{:.6e}i, {:.6e}+{:.6e}i, {:.6e}+{:.6e}i)",
-                self.0.re,
-                self.0.im,
-                self.1.re,
-                self.1.im,
-                self.2.re,
-                self.2.im,
-                self.3.re,
-                self.3.im
+        fn from_parquet_row(row: Vec<f64>) -> Self {
+            (
+                c64(row[0], row[1]),
+                c64(row[2], row[3]),
+                c64(row[4], row[5]),
+                c64(row[6], row[7]),
             )
         }
     }
@@ -221,13 +208,11 @@ mod xsref {
                 let mut row = Vec::new();
                 for col_idx in 0..batch.num_columns() {
                     let column = batch.column(col_idx).as_any();
-                    if let Some(f64_array) = column.downcast_ref::<ArrayF64>() {
+                    if let Some(f64_array) = column.downcast_ref::<Float64Array>() {
                         row.push(f64_array.value(row_idx));
-                    } else if let Some(f32_array) = column.downcast_ref::<ArrayF32>() {
-                        row.push(f32_array.value(row_idx) as f64);
-                    } else if let Some(i32_array) = column.downcast_ref::<ArrayI32>() {
+                    } else if let Some(i32_array) = column.downcast_ref::<Int32Array>() {
                         row.push(i32_array.value(row_idx) as f64);
-                    } else if let Some(i64_array) = column.downcast_ref::<ArrayI64>() {
+                    } else if let Some(i64_array) = column.downcast_ref::<Int64Array>() {
                         row.push(i64_array.value(row_idx) as f64);
                     }
                 }
@@ -242,18 +227,14 @@ mod xsref {
         let reader = builder.build().unwrap();
 
         let mut values = Vec::new();
-        for batch_result in reader {
-            let batch = batch_result.unwrap();
-            let col0 = batch.column(0).as_any();
-
-            if let Some(column) = col0.downcast_ref::<ArrayF64>() {
-                for i in 0..column.len() {
-                    values.push(column.value(i));
-                }
-            } else if let Some(column) = col0.downcast_ref::<ArrayF32>() {
-                for i in 0..column.len() {
-                    values.push(column.value(i) as f64);
-                }
+        for batch in reader {
+            if let Some(column) = batch
+                .unwrap()
+                .column(0)
+                .as_any()
+                .downcast_ref::<Float64Array>()
+            {
+                values.extend(column.iter().map(|v| v.unwrap()));
             }
         }
         values
@@ -269,11 +250,12 @@ mod xsref {
             for row_idx in 0..batch.num_rows() {
                 let mut row = Vec::new();
                 for col_idx in 0..batch.num_columns() {
-                    let column = batch.column(col_idx).as_any();
-                    if let Some(f64_array) = column.downcast_ref::<ArrayF64>() {
+                    if let Some(f64_array) = batch
+                        .column(col_idx)
+                        .as_any()
+                        .downcast_ref::<Float64Array>()
+                    {
                         row.push(f64_array.value(row_idx));
-                    } else if let Some(f32_array) = column.downcast_ref::<ArrayF32>() {
-                        row.push(f32_array.value(row_idx) as f64);
                     }
                 }
                 rows.push(row);
@@ -374,6 +356,7 @@ mod xsref {
             real_error.hypot(imag_error)
         }
     }
+
     /// based on `xsref.float_tools.extended_relative_error_complex`
     fn complex_relative_error(actual: Complex<f64>, expected: Complex<f64>) -> f64 {
         if actual.re.is_nan() || actual.im.is_nan() {
@@ -437,17 +420,21 @@ mod xsref {
                     "{}: test {}, expected {}, got {}, error {:.2e}, max {:.2e}",
                     name,
                     i,
-                    desired.format_value(),
-                    actual.format_value(),
+                    desired.format(),
+                    actual.format(),
                     error,
                     max_error
                 );
             }
         }
 
-        let tested = cases.len();
-        assert!(failed == 0, "{}: {}/{} tests failed", name, failed, tested);
-        println!("{}: {}/{} tests passed", name, tested - failed, tested);
+        assert!(
+            failed == 0,
+            "{}: {}/{} tests failed",
+            name,
+            failed,
+            cases.len()
+        );
     }
 }
 
