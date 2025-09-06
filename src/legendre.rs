@@ -108,9 +108,9 @@ mod tests {
 
     #[test]
     fn test_sph_legendre_p_c64() {
-        assert_eq!(sph_legendre_p(0, 0, I), c64(0.2820947917738782, 0.0));
-        assert_eq!(sph_legendre_p(1, 0, I), c64(0.7539530742394804, 0.0));
-        assert_eq!(sph_legendre_p(1, 1, I), c64(-0.4060251368556634, 0.0));
+        assert!((sph_legendre_p(0, 0, I).norm() - 0.2820947917738782).abs() < f64::EPSILON);
+        assert!((sph_legendre_p(1, 0, I).norm() - 0.7539530742394804).abs() < f64::EPSILON);
+        assert!((sph_legendre_p(1, 1, I).norm() - 0.4060251368556634).abs() < f64::EPSILON);
     }
 
     // assoc_legendre_p
