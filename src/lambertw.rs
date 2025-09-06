@@ -1,5 +1,3 @@
-use std::os::raw::c_long;
-
 use crate::bindings;
 use num_complex::Complex;
 
@@ -11,6 +9,20 @@ use num_complex::Complex;
 /// The Lambert W function is a multivalued function with infinitely many branches. Each branch
 /// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
 /// integer `k`.
-pub fn lambertw(z: Complex<f64>, k: c_long, tol: f64) -> Complex<f64> {
-    unsafe { bindings::lambertw(z.into(), k, tol) }.into()
+pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
+    unsafe { bindings::lambertw(z.into(), k as std::os::raw::c_long, tol) }.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    #[test]
+    fn test_lambertw_c64() {
+        xsref::test::<Complex<f64>, _>("lambertw", "cd_p_d-cd", |x: &[f64]| {
+            lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
+        });
+    }
 }
