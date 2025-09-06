@@ -269,9 +269,7 @@ pub mod xsref {
     ) -> Result<Vec<TestCase<T>>, TestError> {
         let tables_dir = env::var("XSREF_TABLES_PATH")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/xsref/tables")
-            })
+            .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("xsref/tables"))
             .join("scipy_special_tests")
             .join(name);
 
