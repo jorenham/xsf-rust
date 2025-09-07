@@ -48,26 +48,26 @@ pub fn exp10(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_expm1_f64() {
-        xsref::test::<f64, _>("expm1", "d-d", |x: &[f64]| expm1(x[0]));
+        testing::test::<f64, _>("expm1", "d-d", |x: &[f64]| expm1(x[0]));
     }
 
     #[test]
     fn test_expm1_c64() {
-        xsref::test::<Complex<f64>, _>("expm1", "cd-cd", |x: &[f64]| expm1(c64(x[0], x[1])));
+        testing::test::<Complex<f64>, _>("expm1", "cd-cd", |x: &[f64]| expm1(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_exp2_f64() {
-        xsref::test::<f64, _>("exp2", "d-d", |x: &[f64]| exp2(x[0]));
+        testing::test::<f64, _>("exp2", "d-d", |x: &[f64]| exp2(x[0]));
     }
 
     #[test]
     fn test_exp10_f64() {
-        xsref::test::<f64, _>("exp10", "d-d", |x: &[f64]| exp10(x[0]));
+        testing::test::<f64, _>("exp10", "d-d", |x: &[f64]| exp10(x[0]));
     }
 }

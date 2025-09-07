@@ -8,10 +8,10 @@ pub fn cbrt(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     #[test]
     fn test_cbrt() {
-        xsref::test::<f64, _>("cbrt", "d-d", |x: &[f64]| cbrt(x[0]));
+        testing::test::<f64, _>("cbrt", "d-d", |x: &[f64]| cbrt(x[0]));
     }
 }

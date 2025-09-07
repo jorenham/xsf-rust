@@ -6,15 +6,15 @@ xsf_impl!(betaln, (a: f64, b: f64), "Natural log of `|beta|`");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     #[test]
     fn test_beta() {
-        xsref::test::<f64, _>("beta", "d_d-d", |x: &[f64]| beta(x[0], x[1]));
+        testing::test::<f64, _>("beta", "d_d-d", |x: &[f64]| beta(x[0], x[1]));
     }
 
     #[test]
     fn test_betaln() {
-        xsref::test::<f64, _>("betaln", "d_d-d", |x: &[f64]| betaln(x[0], x[1]));
+        testing::test::<f64, _>("betaln", "d_d-d", |x: &[f64]| betaln(x[0], x[1]));
     }
 }

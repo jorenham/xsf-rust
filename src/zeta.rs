@@ -52,28 +52,28 @@ xsf_impl!(zetac, (x: f64), "Riemann zeta function, minus one");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_riemann_zeta_f64() {
-        xsref::test::<f64, _>("riemann_zeta", "d-d", |x: &[f64]| riemann_zeta(x[0]));
+        testing::test::<f64, _>("riemann_zeta", "d-d", |x: &[f64]| riemann_zeta(x[0]));
     }
 
     #[test]
     fn test_riemann_zeta_c64() {
-        xsref::test::<Complex<f64>, _>("riemann_zeta", "cd-cd", |x: &[f64]| {
+        testing::test::<Complex<f64>, _>("riemann_zeta", "cd-cd", |x: &[f64]| {
             riemann_zeta(c64(x[0], x[1]))
         });
     }
 
     #[test]
     fn test_zeta_f64() {
-        xsref::test::<f64, _>("zeta", "d_d-d", |x: &[f64]| zeta(x[0], x[1]));
+        testing::test::<f64, _>("zeta", "d_d-d", |x: &[f64]| zeta(x[0], x[1]));
     }
 
     #[test]
     fn test_zetac_f64() {
-        xsref::test::<f64, _>("zetac", "d-d", |x: &[f64]| zetac(x[0]));
+        testing::test::<f64, _>("zetac", "d-d", |x: &[f64]| zetac(x[0]));
     }
 }

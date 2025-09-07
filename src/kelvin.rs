@@ -36,52 +36,52 @@ pub fn kelvin(x: f64) -> (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::Complex;
 
     #[test]
     fn test_ber_f64() {
-        xsref::test::<f64, _>("ber", "d-d", |x: &[f64]| ber(x[0]));
+        testing::test::<f64, _>("ber", "d-d", |x: &[f64]| ber(x[0]));
     }
 
     #[test]
     fn test_bei_f64() {
-        xsref::test::<f64, _>("bei", "d-d", |x: &[f64]| bei(x[0]));
+        testing::test::<f64, _>("bei", "d-d", |x: &[f64]| bei(x[0]));
     }
 
     #[test]
     fn test_ker_f64() {
-        xsref::test::<f64, _>("ker", "d-d", |x: &[f64]| ker(x[0]));
+        testing::test::<f64, _>("ker", "d-d", |x: &[f64]| ker(x[0]));
     }
 
     #[test]
     fn test_kei_f64() {
-        xsref::test::<f64, _>("kei", "d-d", |x: &[f64]| kei(x[0]));
+        testing::test::<f64, _>("kei", "d-d", |x: &[f64]| kei(x[0]));
     }
 
     #[test]
     fn test_berp_f64() {
-        xsref::test::<f64, _>("berp", "d-d", |x: &[f64]| berp(x[0]));
+        testing::test::<f64, _>("berp", "d-d", |x: &[f64]| berp(x[0]));
     }
 
     #[test]
     fn test_beip_f64() {
-        xsref::test::<f64, _>("beip", "d-d", |x: &[f64]| beip(x[0]));
+        testing::test::<f64, _>("beip", "d-d", |x: &[f64]| beip(x[0]));
     }
 
     #[test]
     fn test_kerp_f64() {
-        xsref::test::<f64, _>("kerp", "d-d", |x: &[f64]| kerp(x[0]));
+        testing::test::<f64, _>("kerp", "d-d", |x: &[f64]| kerp(x[0]));
     }
 
     #[test]
     fn test_keip_f64() {
-        xsref::test::<f64, _>("keip", "d-d", |x: &[f64]| keip(x[0]));
+        testing::test::<f64, _>("keip", "d-d", |x: &[f64]| keip(x[0]));
     }
 
     #[test]
     fn test_kelvin_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        testing::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "kelvin",
             "d-cd_cd_cd_cd",
             |x: &[f64]| kelvin(x[0]),

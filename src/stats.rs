@@ -91,167 +91,167 @@ xsf_impl!(nbdtri, (k: c_int, n: c_int, p: f64), "Negative binomial quantile func
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_ndtr_f64() {
-        xsref::test::<f64, _>("ndtr", "d-d", |x: &[f64]| ndtr(x[0]));
+        testing::test::<f64, _>("ndtr", "d-d", |x: &[f64]| ndtr(x[0]));
     }
 
     // TODO: no log_ndtr xsref tables => needs manual smoketests
 
     #[test]
     fn test_ndtr_c64() {
-        xsref::test::<Complex<f64>, _>("ndtr", "cd-cd", |x: &[f64]| ndtr(c64(x[0], x[1])));
+        testing::test::<Complex<f64>, _>("ndtr", "cd-cd", |x: &[f64]| ndtr(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_ndtri() {
-        xsref::test::<f64, _>("ndtri", "d-d", |x: &[f64]| ndtri(x[0]));
+        testing::test::<f64, _>("ndtri", "d-d", |x: &[f64]| ndtri(x[0]));
     }
 
     #[test]
     fn test_kolmogorov() {
-        xsref::test::<f64, _>("kolmogorov", "d-d", |x: &[f64]| kolmogorov(x[0]));
+        testing::test::<f64, _>("kolmogorov", "d-d", |x: &[f64]| kolmogorov(x[0]));
     }
 
     #[test]
     fn test_kolmogc() {
-        xsref::test::<f64, _>("kolmogc", "d-d", |x: &[f64]| kolmogc(x[0]));
+        testing::test::<f64, _>("kolmogc", "d-d", |x: &[f64]| kolmogc(x[0]));
     }
 
     #[test]
     fn test_kolmogi() {
-        xsref::test::<f64, _>("kolmogi", "d-d", |x: &[f64]| kolmogi(x[0]));
+        testing::test::<f64, _>("kolmogi", "d-d", |x: &[f64]| kolmogi(x[0]));
     }
 
     #[test]
     fn test_kolmogci() {
-        xsref::test::<f64, _>("kolmogci", "d-d", |x: &[f64]| kolmogci(x[0]));
+        testing::test::<f64, _>("kolmogci", "d-d", |x: &[f64]| kolmogci(x[0]));
     }
 
     #[test]
     fn test_kolmogp() {
-        xsref::test::<f64, _>("kolmogp", "d-d", |x: &[f64]| kolmogp(x[0]));
+        testing::test::<f64, _>("kolmogp", "d-d", |x: &[f64]| kolmogp(x[0]));
     }
 
     #[test]
     fn test_smirnov() {
-        xsref::test::<f64, _>("smirnov", "p_d-d", |x: &[f64]| smirnov(x[0] as i32, x[1]));
+        testing::test::<f64, _>("smirnov", "p_d-d", |x: &[f64]| smirnov(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovc() {
-        xsref::test::<f64, _>("smirnovc", "p_d-d", |x: &[f64]| smirnovc(x[0] as i32, x[1]));
+        testing::test::<f64, _>("smirnovc", "p_d-d", |x: &[f64]| smirnovc(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovi() {
-        xsref::test::<f64, _>("smirnovi", "p_d-d", |x: &[f64]| smirnovi(x[0] as i32, x[1]));
+        testing::test::<f64, _>("smirnovi", "p_d-d", |x: &[f64]| smirnovi(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovci() {
-        xsref::test::<f64, _>("smirnovci", "p_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("smirnovci", "p_d-d", |x: &[f64]| {
             smirnovci(x[0] as i32, x[1])
         });
     }
 
     #[test]
     fn test_smirnovp() {
-        xsref::test::<f64, _>("smirnovp", "p_d-d", |x: &[f64]| smirnovp(x[0] as i32, x[1]));
+        testing::test::<f64, _>("smirnovp", "p_d-d", |x: &[f64]| smirnovp(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_owens_t() {
-        xsref::test::<f64, _>("owens_t", "d_d-d", |x: &[f64]| owens_t(x[0], x[1]));
+        testing::test::<f64, _>("owens_t", "d_d-d", |x: &[f64]| owens_t(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtr() {
-        xsref::test::<f64, _>("chdtr", "d_d-d", |x: &[f64]| chdtr(x[0], x[1]));
+        testing::test::<f64, _>("chdtr", "d_d-d", |x: &[f64]| chdtr(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtrc() {
-        xsref::test::<f64, _>("chdtrc", "d_d-d", |x: &[f64]| chdtrc(x[0], x[1]));
+        testing::test::<f64, _>("chdtrc", "d_d-d", |x: &[f64]| chdtrc(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtri() {
-        xsref::test::<f64, _>("chdtri", "d_d-d", |x: &[f64]| chdtri(x[0], x[1]));
+        testing::test::<f64, _>("chdtri", "d_d-d", |x: &[f64]| chdtri(x[0], x[1]));
     }
 
     #[test]
     fn test_fdtr() {
-        xsref::test::<f64, _>("fdtr", "d_d_d-d", |x: &[f64]| fdtr(x[0], x[1], x[2]));
+        testing::test::<f64, _>("fdtr", "d_d_d-d", |x: &[f64]| fdtr(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_fdtrc() {
-        xsref::test::<f64, _>("fdtrc", "d_d_d-d", |x: &[f64]| fdtrc(x[0], x[1], x[2]));
+        testing::test::<f64, _>("fdtrc", "d_d_d-d", |x: &[f64]| fdtrc(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_fdtri() {
-        xsref::test::<f64, _>("fdtri", "d_d_d-d", |x: &[f64]| fdtri(x[0], x[1], x[2]));
+        testing::test::<f64, _>("fdtri", "d_d_d-d", |x: &[f64]| fdtri(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_gdtr() {
-        xsref::test::<f64, _>("gdtr", "d_d_d-d", |x: &[f64]| gdtr(x[0], x[1], x[2]));
+        testing::test::<f64, _>("gdtr", "d_d_d-d", |x: &[f64]| gdtr(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_gdtrc() {
-        xsref::test::<f64, _>("gdtrc", "d_d_d-d", |x: &[f64]| gdtrc(x[0], x[1], x[2]));
+        testing::test::<f64, _>("gdtrc", "d_d_d-d", |x: &[f64]| gdtrc(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_pdtr() {
-        xsref::test::<f64, _>("pdtr", "d_d-d", |x: &[f64]| pdtr(x[0], x[1]));
+        testing::test::<f64, _>("pdtr", "d_d-d", |x: &[f64]| pdtr(x[0], x[1]));
     }
 
     #[test]
     fn test_pdtrc() {
-        xsref::test::<f64, _>("pdtrc", "d_d-d", |x: &[f64]| pdtrc(x[0], x[1]));
+        testing::test::<f64, _>("pdtrc", "d_d-d", |x: &[f64]| pdtrc(x[0], x[1]));
     }
 
     #[test]
     fn test_pdtri() {
-        xsref::test::<f64, _>("pdtri", "p_d-d", |x: &[f64]| pdtri(x[0] as i32, x[1]));
+        testing::test::<f64, _>("pdtri", "p_d-d", |x: &[f64]| pdtri(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_bdtr() {
-        xsref::test::<f64, _>("bdtr", "d_p_d-d", |x: &[f64]| bdtr(x[0], x[1] as i32, x[2]));
+        testing::test::<f64, _>("bdtr", "d_p_d-d", |x: &[f64]| bdtr(x[0], x[1] as i32, x[2]));
     }
 
     #[test]
     fn test_bdtrc() {
-        xsref::test::<f64, _>("bdtrc", "d_p_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("bdtrc", "d_p_d-d", |x: &[f64]| {
             bdtrc(x[0], x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_bdtri() {
-        xsref::test::<f64, _>("bdtri", "d_p_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("bdtri", "d_p_d-d", |x: &[f64]| {
             bdtri(x[0], x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_nbdtr() {
-        xsref::test::<f64, _>("nbdtr", "p_p_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("nbdtr", "p_p_d-d", |x: &[f64]| {
             nbdtr(x[0] as i32, x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_nbdtrc() {
-        xsref::test::<f64, _>("nbdtrc", "p_p_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("nbdtrc", "p_p_d-d", |x: &[f64]| {
             nbdtrc(x[0] as i32, x[1] as i32, x[2])
         });
     }

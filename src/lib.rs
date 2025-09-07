@@ -1,9 +1,7 @@
 mod bindings;
 
 #[cfg(test)]
-mod test_utils;
-#[cfg(test)]
-use test_utils::xsref;
+mod testing;
 
 // airy.h
 mod airy;

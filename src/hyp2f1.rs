@@ -36,19 +36,19 @@ pub fn hyp2f1<T: Hyp2F1Arg>(a: f64, b: f64, c: f64, z: T) -> T::Output {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_hyp2f1_f64() {
-        xsref::test::<f64, _>("hyp2f1", "d_d_d_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("hyp2f1", "d_d_d_d-d", |x: &[f64]| {
             hyp2f1(x[0], x[1], x[2], x[3])
         });
     }
 
     #[test]
     fn test_hyp2f1_c64() {
-        xsref::test::<Complex<f64>, _>("hyp2f1", "d_d_d_cd-cd", |x: &[f64]| {
+        testing::test::<Complex<f64>, _>("hyp2f1", "d_d_d_cd-cd", |x: &[f64]| {
             hyp2f1(x[0], x[1], x[2], c64(x[3], x[4]))
         });
     }
