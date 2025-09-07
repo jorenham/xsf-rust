@@ -1,5 +1,4 @@
 use crate::bindings;
-use crate::utils::c_complex64_nan;
 use num_complex::Complex;
 
 mod sealed {
@@ -34,8 +33,8 @@ impl FresnelArg for Complex<f64> {
 
     #[inline(always)]
     fn fresnel(self) -> (Self::Output, Self::Output) {
-        let mut fs = c_complex64_nan();
-        let mut fc = c_complex64_nan();
+        let mut fs = bindings::complex_nan();
+        let mut fc = bindings::complex_nan();
 
         unsafe {
             bindings::fresnel_1(self.into(), &mut fs, &mut fc);
@@ -91,8 +90,8 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T::Output, T::Output) {
 /// - [`fresnel`] - Standard Fresnel integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let mut fp = c_complex64_nan();
-    let mut kp = c_complex64_nan();
+    let mut fp = bindings::complex_nan();
+    let mut kp = bindings::complex_nan();
     unsafe {
         bindings::modified_fresnel_plus(x, &mut fp, &mut kp);
     }
@@ -120,8 +119,8 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - [`fresnel`] - Standard Fresnel integrals
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let mut fm = c_complex64_nan();
-    let mut km = c_complex64_nan();
+    let mut fm = bindings::complex_nan();
+    let mut km = bindings::complex_nan();
     unsafe {
         bindings::modified_fresnel_minus(x, &mut fm, &mut km);
     }

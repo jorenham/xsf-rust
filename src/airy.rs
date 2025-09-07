@@ -1,5 +1,4 @@
 use crate::bindings;
-use crate::utils::c_complex64_nan;
 use num_complex::Complex;
 use std::os::raw::c_int;
 
@@ -53,10 +52,10 @@ impl AiryArg for Complex<f64> {
 
     #[inline(always)]
     fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
-        let mut ai = c_complex64_nan();
-        let mut bi = c_complex64_nan();
-        let mut ad = c_complex64_nan();
-        let mut bd = c_complex64_nan();
+        let mut ai = bindings::complex_nan();
+        let mut bi = bindings::complex_nan();
+        let mut ad = bindings::complex_nan();
+        let mut bd = bindings::complex_nan();
 
         unsafe {
             bindings::airy_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
@@ -66,10 +65,10 @@ impl AiryArg for Complex<f64> {
 
     #[inline(always)]
     fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
-        let mut ai = c_complex64_nan();
-        let mut bi = c_complex64_nan();
-        let mut ad = c_complex64_nan();
-        let mut bd = c_complex64_nan();
+        let mut ai = bindings::complex_nan();
+        let mut bi = bindings::complex_nan();
+        let mut ad = bindings::complex_nan();
+        let mut bd = bindings::complex_nan();
 
         unsafe {
             bindings::airye_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
