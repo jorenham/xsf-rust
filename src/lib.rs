@@ -1,5 +1,4 @@
 mod bindings;
-mod utils;
 
 #[cfg(test)]
 mod test_utils;

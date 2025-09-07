@@ -1,6 +1,5 @@
 use crate::bindings;
 use crate::bindings::xsf_impl;
-use crate::utils::c_complex64_nan;
 use num_complex::Complex;
 
 xsf_impl!(ber, (x: f64), "Kelvin function `ber`");
@@ -24,10 +23,10 @@ xsf_impl!(keip, (x: f64), "Derivative of the Kelvin function `kei`");
 /// - *Be*': Derivative of the Kelvin function [`berp`] + *i* [`beip`]
 /// - *Ke*': Derivative of the Kelvin function [`kerp`] + *i* [`keip`]
 pub fn kelvin(x: f64) -> (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
-    let mut be = c_complex64_nan();
-    let mut ke = c_complex64_nan();
-    let mut bep = c_complex64_nan();
-    let mut kep = c_complex64_nan();
+    let mut be = bindings::complex_nan();
+    let mut ke = bindings::complex_nan();
+    let mut bep = bindings::complex_nan();
+    let mut kep = bindings::complex_nan();
     unsafe {
         bindings::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
     }
