@@ -70,44 +70,44 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_log1p_f64() {
-        xsref::test::<f64, _>("log1p", "d-d", |x: &[f64]| log1p(x[0]));
+        testing::test::<f64, _>("log1p", "d-d", |x: &[f64]| log1p(x[0]));
     }
 
     #[test]
     fn test_log1p_c64() {
-        xsref::test::<Complex<f64>, _>("log1p", "cd-cd", |x: &[f64]| log1p(c64(x[0], x[1])));
+        testing::test::<Complex<f64>, _>("log1p", "cd-cd", |x: &[f64]| log1p(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_log1pmx_f64() {
-        xsref::test::<f64, _>("log1pmx", "d-d", |x: &[f64]| log1pmx(x[0]));
+        testing::test::<f64, _>("log1pmx", "d-d", |x: &[f64]| log1pmx(x[0]));
     }
 
     #[test]
     fn test_xlogy_f64() {
-        xsref::test::<f64, _>("xlogy", "d_d-d", |x: &[f64]| xlogy(x[0], x[1]));
+        testing::test::<f64, _>("xlogy", "d_d-d", |x: &[f64]| xlogy(x[0], x[1]));
     }
 
     #[test]
     fn test_xlogy_c64() {
-        xsref::test::<Complex<f64>, _>("xlogy", "cd_cd-cd", |x: &[f64]| {
+        testing::test::<Complex<f64>, _>("xlogy", "cd_cd-cd", |x: &[f64]| {
             xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }
 
     #[test]
     fn test_xlog1py_f64() {
-        xsref::test::<f64, _>("xlog1py", "d_d-d", |x: &[f64]| xlog1py(x[0], x[1]));
+        testing::test::<f64, _>("xlog1py", "d_d-d", |x: &[f64]| xlog1py(x[0], x[1]));
     }
 
     #[test]
     fn test_xlog1py_c64() {
-        xsref::test::<Complex<f64>, _>("xlog1py", "cd_cd-cd", |x: &[f64]| {
+        testing::test::<Complex<f64>, _>("xlog1py", "cd_cd-cd", |x: &[f64]| {
             xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }

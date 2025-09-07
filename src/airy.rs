@@ -217,17 +217,17 @@ pub fn airyzo(nt: u32, kf: AiryKind) -> (f64, f64, f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_airy_f64() {
-        xsref::test::<(f64, f64, f64, f64), _>("airy", "d-d_d_d_d", |x: &[f64]| airy(x[0]));
+        testing::test::<(f64, f64, f64, f64), _>("airy", "d-d_d_d_d", |x: &[f64]| airy(x[0]));
     }
 
     #[test]
     fn test_airy_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        testing::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "airy",
             "cd-cd_cd_cd_cd",
             |x: &[f64]| airy(c64(x[0], x[1])),
@@ -236,12 +236,12 @@ mod tests {
 
     #[test]
     fn test_airye_f64() {
-        xsref::test::<(f64, f64, f64, f64), _>("airye", "d-d_d_d_d", |x: &[f64]| airye(x[0]));
+        testing::test::<(f64, f64, f64, f64), _>("airye", "d-d_d_d_d", |x: &[f64]| airye(x[0]));
     }
 
     #[test]
     fn test_airye_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        testing::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "airye",
             "cd-cd_cd_cd_cd",
             |x: &[f64]| airye(c64(x[0], x[1])),
@@ -250,6 +250,6 @@ mod tests {
 
     #[test]
     fn test_itairy() {
-        xsref::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
+        testing::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
     }
 }

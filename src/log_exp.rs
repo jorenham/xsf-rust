@@ -10,25 +10,25 @@ xsf_impl!(log1mexp, (x: f64), "Compute `log(1 - exp(x))`");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     #[test]
     fn test_expit() {
-        xsref::test::<f64, _>("expit", "d-d", |x: &[f64]| expit(x[0]));
+        testing::test::<f64, _>("expit", "d-d", |x: &[f64]| expit(x[0]));
     }
 
     #[test]
     fn test_exprel() {
-        xsref::test::<f64, _>("exprel", "d-d", |x: &[f64]| exprel(x[0]));
+        testing::test::<f64, _>("exprel", "d-d", |x: &[f64]| exprel(x[0]));
     }
 
     #[test]
     fn test_logit() {
-        xsref::test::<f64, _>("logit", "d-d", |x: &[f64]| logit(x[0]));
+        testing::test::<f64, _>("logit", "d-d", |x: &[f64]| logit(x[0]));
     }
 
     #[test]
     fn test_log_expit() {
-        xsref::test::<f64, _>("log_expit", "d-d", |x: &[f64]| log_expit(x[0]));
+        testing::test::<f64, _>("log_expit", "d-d", |x: &[f64]| log_expit(x[0]));
     }
 }

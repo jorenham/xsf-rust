@@ -37,42 +37,42 @@ pub fn ellipj(u: f64, m: f64) -> (f64, f64, f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     // ellipk*
 
     #[test]
     fn test_ellipk() {
-        xsref::test::<f64, _>("ellipk", "d-d", |x: &[f64]| ellipk(x[0]));
+        testing::test::<f64, _>("ellipk", "d-d", |x: &[f64]| ellipk(x[0]));
     }
 
     #[test]
     fn test_ellipkm1() {
-        xsref::test::<f64, _>("ellipkm1", "d-d", |x: &[f64]| ellipkm1(x[0]));
+        testing::test::<f64, _>("ellipkm1", "d-d", |x: &[f64]| ellipkm1(x[0]));
     }
 
     #[test]
     fn test_ellipkinc() {
-        xsref::test::<f64, _>("ellipkinc", "d_d-d", |x: &[f64]| ellipkinc(x[0], x[1]));
+        testing::test::<f64, _>("ellipkinc", "d_d-d", |x: &[f64]| ellipkinc(x[0], x[1]));
     }
 
     // ellipe*
 
     #[test]
     fn test_ellipe() {
-        xsref::test::<f64, _>("ellipe", "d-d", |x: &[f64]| ellipe(x[0]));
+        testing::test::<f64, _>("ellipe", "d-d", |x: &[f64]| ellipe(x[0]));
     }
 
     #[test]
     fn test_ellipeinc() {
-        xsref::test::<f64, _>("ellipeinc", "d_d-d", |x: &[f64]| ellipeinc(x[0], x[1]));
+        testing::test::<f64, _>("ellipeinc", "d_d-d", |x: &[f64]| ellipeinc(x[0], x[1]));
     }
 
     // ellipj
 
     #[test]
     fn test_ellipj() {
-        xsref::test::<(f64, f64, f64, f64), _>("ellipj", "d_d-d_d_d_d", |x: &[f64]| {
+        testing::test::<(f64, f64, f64, f64), _>("ellipj", "d_d-d_d_d_d", |x: &[f64]| {
             ellipj(x[0], x[1])
         });
     }

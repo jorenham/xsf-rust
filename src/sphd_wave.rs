@@ -295,95 +295,103 @@ pub fn oblate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     #[test]
     fn test_prolate_segv() {
-        xsref::test::<f64, _>("prolate_segv", "d_d_d-d", |x: &[f64]| {
+        testing::test::<f64, _>("prolate_segv", "d_d_d-d", |x: &[f64]| {
             prolate_segv(x[0] as u64, x[1] as u64, x[2])
         });
     }
 
+    // https://github.com/scipy/xsref/issues/9
+    // #[test]
+    // fn test_oblate_segv() {
+    //     testing::test::<f64, _>("oblate_segv", "d_d_d-d", |x: &[f64]| {
+    //         oblate_segv(x[0] as u64, x[1] as u64, x[2])
+    //     });
+    // }
+
     #[test]
     fn test_prolate_aswfa_nocv() {
-        xsref::test::<(f64, f64), _>("prolate_aswfa_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_aswfa_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             prolate_aswfa_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_oblate_aswfa_nocv() {
-        xsref::test::<(f64, f64), _>("oblate_aswfa_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_aswfa_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             oblate_aswfa_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_prolate_radial1_nocv() {
-        xsref::test::<(f64, f64), _>("prolate_radial1_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_radial1_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             prolate_radial1_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_oblate_radial1_nocv() {
-        xsref::test::<(f64, f64), _>("oblate_radial1_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_radial1_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             oblate_radial1_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_prolate_radial2_nocv() {
-        xsref::test::<(f64, f64), _>("prolate_radial2_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_radial2_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             prolate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_oblate_radial2_nocv() {
-        xsref::test::<(f64, f64), _>("oblate_radial2_nocv", "d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_radial2_nocv", "d_d_d_d-d_d", |x: &[f64]| {
             oblate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
         });
     }
 
     #[test]
     fn test_prolate_aswfa() {
-        xsref::test::<(f64, f64), _>("prolate_aswfa", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_aswfa", "d_d_d_d_d-d_d", |x: &[f64]| {
             prolate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }
 
     #[test]
     fn test_oblate_aswfa() {
-        xsref::test::<(f64, f64), _>("oblate_aswfa", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_aswfa", "d_d_d_d_d-d_d", |x: &[f64]| {
             oblate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }
 
     #[test]
     fn test_prolate_radial1() {
-        xsref::test::<(f64, f64), _>("prolate_radial1", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_radial1", "d_d_d_d_d-d_d", |x: &[f64]| {
             prolate_radial1(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }
 
     #[test]
     fn test_oblate_radial1() {
-        xsref::test::<(f64, f64), _>("oblate_radial1", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_radial1", "d_d_d_d_d-d_d", |x: &[f64]| {
             oblate_radial1(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }
 
     #[test]
     fn test_prolate_radial2() {
-        xsref::test::<(f64, f64), _>("prolate_radial2", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("prolate_radial2", "d_d_d_d_d-d_d", |x: &[f64]| {
             prolate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }
 
     #[test]
     fn test_oblate_radial2() {
-        xsref::test::<(f64, f64), _>("oblate_radial2", "d_d_d_d_d-d_d", |x: &[f64]| {
+        testing::test::<(f64, f64), _>("oblate_radial2", "d_d_d_d_d-d_d", |x: &[f64]| {
             oblate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
     }

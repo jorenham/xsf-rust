@@ -38,16 +38,16 @@ pub fn digamma<T: DigammaArg>(x: T) -> T::Output {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::testing;
 
     #[test]
     fn test_digamma_f64() {
-        xsref::test::<f64, _>("digamma", "d-d", |x: &[f64]| digamma(x[0]));
+        testing::test::<f64, _>("digamma", "d-d", |x: &[f64]| digamma(x[0]));
     }
 
     #[test]
     fn test_digamma_c64() {
-        xsref::test::<num_complex::Complex<f64>, _>("digamma", "cd-cd", |x: &[f64]| {
+        testing::test::<num_complex::Complex<f64>, _>("digamma", "cd-cd", |x: &[f64]| {
             digamma(num_complex::c64(x[0], x[1]))
         });
     }
