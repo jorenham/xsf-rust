@@ -5,3 +5,16 @@
 [![docs.rs](https://img.shields.io/docsrs/xsf?style=flat-square&color=333333)](https://docs.rs/xsf/)
 
 Rust bindings for [scipy/xsf](https://github.com/scipy/xsf/).
+
+## Development
+
+To set up a local development environment:
+
+```bash
+# Clone the repository with submodules
+git clone --recurse-submodules https://github.com/jorenham/xsf-rust.git
+cd xsf-rust
+
+# Run the tests
+cargo test
+```
