@@ -10,7 +10,7 @@ mod sealed {
 }
 
 macro_rules! define_erf_functions {
-    ($(($method:ident, $binding:ident, $doc:expr)),*) => {
+    ($(($method:ident, $doc:expr)),*) => {
         pub trait ErfArg: sealed::Sealed {
             type Output;
             $(
@@ -22,7 +22,7 @@ macro_rules! define_erf_functions {
             type Output = f64;
             $(
                 fn $method(self) -> Self::Output {
-                    unsafe { bindings::$binding(self) }
+                    unsafe { bindings::$method(self) }
                 }
             )*
         }
@@ -32,7 +32,7 @@ macro_rules! define_erf_functions {
             $(
                 fn $method(self) -> Self::Output {
                     paste::paste! {
-                        unsafe { bindings::[<$binding _1>](self.into()) }.into()
+                        unsafe { bindings::[<$method _1>](self.into()) }.into()
                     }
                 }
             )*
@@ -48,11 +48,11 @@ macro_rules! define_erf_functions {
 }
 
 define_erf_functions! {
-    (erf, erf_, "Error function `erf(z)`"),
-    (erfc, erfc_, "Complementary error function `1 - erf(z)`"),
-    (erfcx, erfcx, "Scaled complementary error function `exp(z^2) * erfc(z)`"),
-    (erfi, erfi, "Imaginary error function `-i erf(i z)`"),
-    (dawsn, dawsn, "Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)`")
+    (erf, "Error function `erf(z)`"),
+    (erfc, "Complementary error function `1 - erf(z)`"),
+    (erfcx, "Scaled complementary error function `exp(z^2) * erfc(z)`"),
+    (erfi, "Imaginary error function `-i erf(i z)`"),
+    (dawsn, "Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)`")
 }
 
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`

@@ -316,17 +316,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("zeta", "dd->d"),
     ("zeta", "Dd->D"),
 ];
-// Functions that need renaming because they clash with standard library names
-const XSF_RENAME: &[(&str, &str)] = &[
-    ("cbrt", "cbrt_"),
-    ("gamma", "gamma_"),
-    ("erf", "erf_"),
-    ("erfc", "erfc_"),
-    ("expm1", "expm1_"),
-    ("exp2", "exp2_"),
-    ("exp10", "exp10_"),
-    ("log1p", "log1p_"),
-];
 
 // complex helper functions
 const DECL_COMPLEX_HELPERS: &str = r#"
@@ -380,7 +369,7 @@ std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, 
 
 const ALLOWLIST_EXTRA: &[&str] = &[
     "cevalpoly",
-    "assoc_legendre_p_[01](_1)?",
+    "assoc_legendre_p_(0|1)",
     "complex__(new|values)",
 ];
 
@@ -447,20 +436,16 @@ fn fmt_params(spec: &str, types: bool, do_deref: bool) -> String {
 }
 
 fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
-    let ret = fmt_return(spec);
-    let do_deref = name.ends_with('*');
-    let params = fmt_params(spec, true, do_deref);
-    let base_name = XSF_RENAME
-        .iter()
-        .find(|(n, _)| *n == name.trim_end_matches('*'))
-        .map(|(_, r)| *r)
-        .unwrap_or(name.trim_end_matches('*'));
-    let func_name = if suffix.is_empty() {
-        base_name.to_string()
+    let rtype = fmt_return(spec);
+    let params = fmt_params(spec, true, name.ends_with('*'));
+    let name = name.trim_end_matches('*');
+
+    let fname = if suffix.is_empty() {
+        name.to_string()
     } else {
-        format!("{base_name}_{suffix}")
+        format!("{name}_{suffix}")
     };
-    format!("{ret} {func_name}({params})")
+    format!("{rtype} {fname}({params})")
 }
 
 fn fmt_call(name: &str, spec: &str) -> String {
@@ -589,16 +574,7 @@ fn get_allowlist() -> String {
 
     let mut entries = XSF_TYPES
         .iter()
-        .map(|(name, _)| {
-            let name_orig = name.trim_end_matches('*');
-            let name_safe = XSF_RENAME
-                .iter()
-                .find(|(n, _)| n == &name_orig)
-                .map(|(_, r)| *r)
-                .unwrap_or(name_orig);
-
-            format_entry(name_safe)
-        })
+        .map(|(name, _)| format_entry(name.trim_end_matches('*')))
         .chain(ALLOWLIST_EXTRA.iter().map(|s| format_entry(s)))
         .collect::<Vec<_>>();
 

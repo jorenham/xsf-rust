@@ -18,14 +18,14 @@ pub trait GammaArg: sealed::Sealed {
 impl GammaArg for f64 {
     type Output = f64;
     fn xsf_gamma(self) -> f64 {
-        unsafe { bindings::gamma_(self) }
+        unsafe { bindings::gamma(self) }
     }
 }
 
 impl GammaArg for Complex<f64> {
     type Output = Complex<f64>;
     fn xsf_gamma(self) -> Complex<f64> {
-        unsafe { bindings::gamma__1(self.into()) }.into()
+        unsafe { bindings::gamma_1(self.into()) }.into()
     }
 }
 
