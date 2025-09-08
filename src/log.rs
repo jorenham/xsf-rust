@@ -20,7 +20,7 @@ pub trait LogArg: sealed::Sealed {
 impl LogArg for f64 {
     type Output = f64;
     fn xsf_log1p(self) -> f64 {
-        unsafe { bindings::log1p_(self) }
+        unsafe { bindings::log1p(self) }
     }
     fn xsf_xlogy<T: Into<f64>>(self, x: T) -> f64 {
         unsafe { bindings::xlogy(x.into(), self) }
@@ -33,7 +33,7 @@ impl LogArg for f64 {
 impl LogArg for Complex<f64> {
     type Output = Complex<f64>;
     fn xsf_log1p(self) -> Complex<f64> {
-        unsafe { bindings::log1p__1(self.into()) }.into()
+        unsafe { bindings::log1p_1(self.into()) }.into()
     }
     fn xsf_xlogy<T: Into<Complex<f64>>>(self, x: T) -> Complex<f64> {
         unsafe { bindings::xlogy_1(x.into().into(), self.into()) }.into()
