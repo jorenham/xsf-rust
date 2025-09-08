@@ -3,25 +3,19 @@ use num_complex::Complex;
 use std::os::raw::c_int;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait AiryArg: sealed::Sealed {
-    type Output;
-
-    fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output);
-    fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output);
+pub trait AiryArg: sealed::Sealed + Sized {
+    fn airy(self) -> (Self, Self, Self, Self);
+    fn airye(self) -> (Self, Self, Self, Self);
 }
 
 impl AiryArg for f64 {
-    type Output = f64;
-
     #[inline(always)]
-    fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
+    fn airy(self) -> (Self, Self, Self, Self) {
         let mut ai = f64::NAN;
         let mut aip = f64::NAN;
         let mut bi = f64::NAN;
@@ -34,7 +28,7 @@ impl AiryArg for f64 {
     }
 
     #[inline(always)]
-    fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
+    fn airye(self) -> (Self, Self, Self, Self) {
         let mut ai = f64::NAN;
         let mut aip = f64::NAN;
         let mut bi = f64::NAN;
@@ -48,10 +42,8 @@ impl AiryArg for f64 {
 }
 
 impl AiryArg for Complex<f64> {
-    type Output = Complex<f64>;
-
     #[inline(always)]
-    fn airy(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
+    fn airy(self) -> (Self, Self, Self, Self) {
         let mut ai = bindings::complex_nan();
         let mut bi = bindings::complex_nan();
         let mut ad = bindings::complex_nan();
@@ -64,7 +56,7 @@ impl AiryArg for Complex<f64> {
     }
 
     #[inline(always)]
-    fn airye(self) -> (Self::Output, Self::Output, Self::Output, Self::Output) {
+    fn airye(self) -> (Self, Self, Self, Self) {
         let mut ai = bindings::complex_nan();
         let mut bi = bindings::complex_nan();
         let mut ad = bindings::complex_nan();
@@ -90,7 +82,7 @@ impl AiryArg for Complex<f64> {
 /// - `Aip` - Ai'(z)
 /// - `Bi` - Bi(z)
 /// - `Bip` - Bi'(z)
-pub fn airy<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
+pub fn airy<T: AiryArg>(z: T) -> (T, T, T, T) {
     z.airy()
 }
 
@@ -116,7 +108,7 @@ pub fn airy<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
 /// - `eAip` - eAi'(z)
 /// - `eBi` - eBi(z)
 /// - `eBip` - eBi'(z)
-pub fn airye<T: AiryArg>(z: T) -> (T::Output, T::Output, T::Output, T::Output) {
+pub fn airye<T: AiryArg>(z: T) -> (T, T, T, T) {
     z.airye()
 }
 

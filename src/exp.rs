@@ -2,37 +2,32 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait ExpArg: sealed::Sealed {
-    type Output;
-    fn expm1(self) -> Self::Output;
+    fn expm1(self) -> Self;
 }
 
 impl ExpArg for f64 {
-    type Output = f64;
-
-    fn expm1(self) -> f64 {
+    #[inline(always)]
+    fn expm1(self) -> Self {
         unsafe { bindings::expm1(self) }
     }
 }
 
 impl ExpArg for Complex<f64> {
-    type Output = Complex<f64>;
-
-    fn expm1(self) -> Complex<f64> {
+    #[inline(always)]
+    fn expm1(self) -> Self {
         unsafe { bindings::expm1_1(self.into()) }.into()
     }
 }
 
-/// `exp(x) - 1`
-pub fn expm1<T: ExpArg>(x: T) -> T::Output {
-    x.expm1()
+/// `exp(x) - 1` for real or complex input
+pub fn expm1<T: ExpArg>(z: T) -> T {
+    z.expm1()
 }
 
 /// `2^x`

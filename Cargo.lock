@@ -1100,7 +1100,6 @@ dependencies = [
  "cc",
  "num-complex",
  "parquet",
- "paste",
 ]
 
 [[package]]

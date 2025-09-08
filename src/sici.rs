@@ -2,25 +2,19 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait SiciArg: sealed::Sealed {
-    type Output;
-
-    fn sici(self) -> (Self::Output, Self::Output);
-    fn shichi(self) -> (Self::Output, Self::Output);
+pub trait SiciArg: sealed::Sealed + Sized {
+    fn sici(self) -> (Self, Self);
+    fn shichi(self) -> (Self, Self);
 }
 
 impl SiciArg for f64 {
-    type Output = f64;
-
     #[inline(always)]
-    fn sici(self) -> (Self::Output, Self::Output) {
+    fn sici(self) -> (Self, Self) {
         let mut si = f64::NAN;
         let mut ci = f64::NAN;
 
@@ -31,7 +25,7 @@ impl SiciArg for f64 {
     }
 
     #[inline(always)]
-    fn shichi(self) -> (Self::Output, Self::Output) {
+    fn shichi(self) -> (Self, Self) {
         let mut shi = f64::NAN;
         let mut chi = f64::NAN;
 
@@ -43,10 +37,8 @@ impl SiciArg for f64 {
 }
 
 impl SiciArg for Complex<f64> {
-    type Output = Complex<f64>;
-
     #[inline(always)]
-    fn sici(self) -> (Self::Output, Self::Output) {
+    fn sici(self) -> (Self, Self) {
         let mut si = bindings::complex_nan();
         let mut ci = bindings::complex_nan();
 
@@ -57,7 +49,7 @@ impl SiciArg for Complex<f64> {
     }
 
     #[inline(always)]
-    fn shichi(self) -> (Self::Output, Self::Output) {
+    fn shichi(self) -> (Self, Self) {
         let mut shi = bindings::complex_nan();
         let mut chi = bindings::complex_nan();
 
@@ -88,7 +80,7 @@ impl SiciArg for Complex<f64> {
 ///
 /// - `Si(z)` - Sine integral
 /// - `Ci(z)` - Cosine integral
-pub fn sici<T: SiciArg>(z: T) -> (T::Output, T::Output) {
+pub fn sici<T: SiciArg>(z: T) -> (T, T) {
     z.sici()
 }
 
@@ -112,7 +104,7 @@ pub fn sici<T: SiciArg>(z: T) -> (T::Output, T::Output) {
 ///
 /// - `Shi(z)` - Hyperbolic sine integral
 /// - `Chi(z)` - Hyperbolic cosine integral
-pub fn shichi<T: SiciArg>(z: T) -> (T::Output, T::Output) {
+pub fn shichi<T: SiciArg>(z: T) -> (T, T) {
     z.shichi()
 }
 

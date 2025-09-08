@@ -2,34 +2,31 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait Hyp1F1Arg: sealed::Sealed {
-    type Output;
-    fn hyp1f1(self, a: f64, b: f64) -> Self::Output;
+    fn hyp1f1(self, a: f64, b: f64) -> Self;
 }
 
 impl Hyp1F1Arg for f64 {
-    type Output = f64;
-    fn hyp1f1(self, a: f64, b: f64) -> f64 {
+    #[inline(always)]
+    fn hyp1f1(self, a: f64, b: f64) -> Self {
         unsafe { bindings::hyp1f1(a, b, self) }
     }
 }
 
 impl Hyp1F1Arg for Complex<f64> {
-    type Output = Complex<f64>;
-    fn hyp1f1(self, a: f64, b: f64) -> Self::Output {
+    #[inline(always)]
+    fn hyp1f1(self, a: f64, b: f64) -> Self {
         unsafe { bindings::hyp1f1_1(a, b, self.into()) }.into()
     }
 }
 
 /// Confluent hypergeometric function `1F1(a; b; z)` for real or complex `z`
-pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T::Output {
+pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 

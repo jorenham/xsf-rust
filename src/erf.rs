@@ -2,57 +2,88 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
-macro_rules! define_erf_functions {
-    ($(($method:ident, $doc:expr)),*) => {
-        pub trait ErfArg: sealed::Sealed {
-            type Output;
-            $(
-                fn $method(self) -> Self::Output;
-            )*
-        }
-
-        impl ErfArg for f64 {
-            type Output = f64;
-            $(
-                fn $method(self) -> Self::Output {
-                    unsafe { bindings::$method(self) }
-                }
-            )*
-        }
-
-        impl ErfArg for Complex<f64> {
-            type Output = Complex<f64>;
-            $(
-                fn $method(self) -> Self::Output {
-                    paste::paste! {
-                        unsafe { bindings::[<$method _1>](self.into()) }.into()
-                    }
-                }
-            )*
-        }
-
-        $(
-            #[doc = $doc]
-            pub fn $method<T: ErfArg>(z: T) -> T::Output {
-                z.$method()
-            }
-        )*
-    };
+pub trait ErfArg: sealed::Sealed {
+    fn erf(self) -> Self;
+    fn erfc(self) -> Self;
+    fn erfcx(self) -> Self;
+    fn erfi(self) -> Self;
+    fn dawsn(self) -> Self;
 }
 
-define_erf_functions! {
-    (erf, "Error function `erf(z)`"),
-    (erfc, "Complementary error function `1 - erf(z)`"),
-    (erfcx, "Scaled complementary error function `exp(z^2) * erfc(z)`"),
-    (erfi, "Imaginary error function `-i erf(i z)`"),
-    (dawsn, "Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)`")
+impl ErfArg for f64 {
+    #[inline(always)]
+    fn erf(self) -> f64 {
+        unsafe { bindings::erf(self) }
+    }
+    #[inline(always)]
+    fn erfc(self) -> f64 {
+        unsafe { bindings::erfc(self) }
+    }
+    #[inline(always)]
+    fn erfcx(self) -> f64 {
+        unsafe { bindings::erfcx(self) }
+    }
+    #[inline(always)]
+    fn erfi(self) -> f64 {
+        unsafe { bindings::erfi(self) }
+    }
+    #[inline(always)]
+    fn dawsn(self) -> f64 {
+        unsafe { bindings::dawsn(self) }
+    }
+}
+
+impl ErfArg for Complex<f64> {
+    #[inline(always)]
+    fn erf(self) -> Complex<f64> {
+        unsafe { bindings::erf_1(self.into()) }.into()
+    }
+    #[inline(always)]
+    fn erfc(self) -> Complex<f64> {
+        unsafe { bindings::erfc_1(self.into()) }.into()
+    }
+    #[inline(always)]
+    fn erfcx(self) -> Complex<f64> {
+        unsafe { bindings::erfcx_1(self.into()) }.into()
+    }
+    #[inline(always)]
+    fn erfi(self) -> Complex<f64> {
+        unsafe { bindings::erfi_1(self.into()) }.into()
+    }
+    #[inline(always)]
+    fn dawsn(self) -> Complex<f64> {
+        unsafe { bindings::dawsn_1(self.into()) }.into()
+    }
+}
+
+/// Error function `erf(z)` for real or complex input
+pub fn erf<T: ErfArg>(z: T) -> T {
+    z.erf()
+}
+
+/// Complementary error function `1 - erf(z)` for real or complex input
+pub fn erfc<T: ErfArg>(z: T) -> T {
+    z.erfc()
+}
+
+/// Scaled complementary error function `exp(z^2) * erfc(z)` for real or complex input
+pub fn erfcx<T: ErfArg>(z: T) -> T {
+    z.erfcx()
+}
+
+/// Imaginary error function `-i erf(i z)` for real or complex input
+pub fn erfi<T: ErfArg>(z: T) -> T {
+    z.erfi()
+}
+
+/// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
+pub fn dawsn<T: ErfArg>(z: T) -> T {
+    z.dawsn()
 }
 
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`
