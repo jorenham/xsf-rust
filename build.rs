@@ -491,7 +491,7 @@ fn generate_header(dir_out: &str) -> String {
 
     // namespace
     push_line(&mut source, "");
-    push_line(&mut source, format!("namespace {WRAPPER_NAME} {{").as_str());
+    push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
     //
     let mut name_counts = std::collections::HashMap::new();
@@ -529,7 +529,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
 
     // namespace
     push_line(&mut source, "");
-    push_line(&mut source, format!("namespace {WRAPPER_NAME} {{").as_str());
+    push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
     // Generate unique function implementations for overloads
     let mut name_counts = std::collections::HashMap::new();
