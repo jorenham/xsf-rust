@@ -6,47 +6,48 @@ use crate::bindings;
 use crate::bindings::xsf_impl;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait StatsArg: sealed::Sealed {
-    type Output;
-    fn ndtr(self) -> Self::Output;
-    fn log_ndtr(self) -> Self::Output;
+    fn ndtr(self) -> Self;
+    fn log_ndtr(self) -> Self;
 }
 
 impl StatsArg for f64 {
-    type Output = f64;
+    #[inline(always)]
     fn ndtr(self) -> f64 {
         unsafe { bindings::ndtr(self) }
     }
-    fn log_ndtr(self) -> Self::Output {
+    #[inline(always)]
+    fn log_ndtr(self) -> Self {
         unsafe { bindings::log_ndtr(self) }
     }
 }
 
 impl StatsArg for Complex<f64> {
-    type Output = Complex<f64>;
+    #[inline(always)]
     fn ndtr(self) -> Complex<f64> {
         unsafe { bindings::ndtr_1(self.into()) }.into()
     }
-    fn log_ndtr(self) -> Self::Output {
+    #[inline(always)]
+    fn log_ndtr(self) -> Self {
         unsafe { bindings::log_ndtr_1(self.into()) }.into()
     }
 }
 
 /// Normal distribution function `F(z)` for real or complex `z`
-pub fn ndtr<T: StatsArg>(z: T) -> T::Output {
+pub fn ndtr<T: StatsArg>(z: T) -> T {
     z.ndtr()
 }
-/// Log of `ndtr(z)`
-pub fn log_ndtr<T: StatsArg>(z: T) -> T::Output {
+
+/// Log of `ndtr(z)` for real or complex `z`
+pub fn log_ndtr<T: StatsArg>(z: T) -> T {
     z.log_ndtr()
 }
+
 xsf_impl!(ndtri, (x: f64), "Inverse of `ndtr`");
 
 xsf_impl!(kolmogorov, (x: f64), "Kolmogorov survival function");

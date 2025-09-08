@@ -3,90 +3,135 @@ use crate::bindings::xsf_impl;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
-macro_rules! impl_methods {
-    (bessel for f64: { $($fn_name:ident),* }) => {
-        $(
-            fn $fn_name(self, v: f64) -> f64 {
-                unsafe { bindings::$fn_name(v, self) }
-            }
-        )*
-    };
-
-    (bessel for Complex<f64>: { $($fn_name:ident),* }) => {
-        $(
-            fn $fn_name(self, v: f64) -> Complex<f64> {
-                paste::paste! {
-                    unsafe { bindings::[<$fn_name _1>](v, self.into()) }.into()
-                }
-            }
-        )*
-    };
-
-    (hankel for f64: { $($fn_name:ident),* }) => {
-        $(
-            fn $fn_name(self, v: f64) -> Complex<f64> {
-                unsafe { bindings::$fn_name(v, Complex::new(self, 0.0).into()) }.into()
-            }
-        )*
-    };
-
-    (hankel for Complex<f64>: { $($fn_name:ident),* }) => {
-        $(
-            fn $fn_name(self, v: f64) -> Complex<f64> {
-                unsafe { bindings::$fn_name(v, self.into()) }.into()
-            }
-        )*
-    };
+pub trait BesselArg: sealed::Sealed {
+    fn cyl_bessel_j(self, v: f64) -> Self;
+    fn cyl_bessel_je(self, v: f64) -> Self;
+    fn cyl_bessel_y(self, v: f64) -> Self;
+    fn cyl_bessel_ye(self, v: f64) -> Self;
+    fn cyl_bessel_i(self, v: f64) -> Self;
+    fn cyl_bessel_ie(self, v: f64) -> Self;
+    fn cyl_bessel_k(self, v: f64) -> Self;
+    fn cyl_bessel_ke(self, v: f64) -> Self;
 }
 
-// Macro to define BesselArg trait, implement it for both types, and generate public functions
-macro_rules! impl_bessel_args {
-    (
-        bessel: [$(($bessel_fn:ident, $bessel_doc:expr)),* $(,)?],
-        hankel: [$(($hankel_fn:ident, $hankel_doc:expr)),* $(,)?] $(,)?
-    ) => {
-        /// Trait for types that can be used with Bessel functions
-        pub trait BesselArg: sealed::Sealed {
-            type Output;
-            $(fn $bessel_fn(self, v: f64) -> Self::Output;)*
-            $(fn $hankel_fn(self, v: f64) -> Complex<f64>;)*
-        }
+impl BesselArg for f64 {
+    #[inline(always)]
+    fn cyl_bessel_j(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_j(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_je(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_je(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_y(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_y(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_ye(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_ye(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_i(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_i(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_ie(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_ie(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_k(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_k(v, self) }
+    }
+    #[inline(always)]
+    fn cyl_bessel_ke(self, v: f64) -> f64 {
+        unsafe { bindings::cyl_bessel_ke(v, self) }
+    }
+}
 
-        impl BesselArg for f64 {
-            type Output = f64;
-            impl_methods!(bessel for f64: { $($bessel_fn),* });
-            impl_methods!(hankel for f64: { $($hankel_fn),* });
-        }
+impl BesselArg for Complex<f64> {
+    #[inline(always)]
+    fn cyl_bessel_j(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_j_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_je(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_je_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_y(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_y_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_ye(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_ye_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_i(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_i_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_ie(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_ie_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_k(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_k_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_bessel_ke(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_bessel_ke_1(v, self.into()) }.into()
+    }
+}
 
-        impl BesselArg for Complex<f64> {
-            type Output = Complex<f64>;
-            impl_methods!(bessel for Complex<f64>: { $($bessel_fn),* });
-            impl_methods!(hankel for Complex<f64>: { $($hankel_fn),* });
-        }
+pub trait HankelArg: sealed::Sealed {
+    fn cyl_hankel_1(self, v: f64) -> Complex<f64>;
+    fn cyl_hankel_1e(self, v: f64) -> Complex<f64>;
+    fn cyl_hankel_2(self, v: f64) -> Complex<f64>;
+    fn cyl_hankel_2e(self, v: f64) -> Complex<f64>;
+}
 
-        // Generate public Bessel functions
-        $(
-            #[doc = $bessel_doc]
-            pub fn $bessel_fn<T: BesselArg>(v: f64, x: T) -> T::Output {
-                x.$bessel_fn(v)
-            }
-        )*
+impl HankelArg for f64 {
+    #[inline(always)]
+    fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_1(v, Complex::new(self, 0.0).into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_1e(v, Complex::new(self, 0.0).into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_2(v, Complex::new(self, 0.0).into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_2e(v, Complex::new(self, 0.0).into()) }.into()
+    }
+}
 
-        // Generate public Hankel functions
-        $(
-            #[doc = $hankel_doc]
-            pub fn $hankel_fn<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-                z.$hankel_fn(v)
-            }
-        )*
-    };
+impl HankelArg for Complex<f64> {
+    #[inline(always)]
+    fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_1(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_1e(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_2(v, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
+        unsafe { bindings::cyl_hankel_2e(v, self.into()) }.into()
+    }
 }
 
 xsf_impl!(cyl_bessel_j0, (x: f64), "Bessel function, 1st kind, order 0");
@@ -118,23 +163,64 @@ xsf_impl!(
     "Exponentially scaled modified Bessel function, 2nd kind, order 1"
 );
 
-impl_bessel_args! {
-    bessel: [
-        (cyl_bessel_j, "Bessel function, 1st kind"),
-        (cyl_bessel_je, "Exponentially scaled Bessel function, 1st kind"),
-        (cyl_bessel_y, "Bessel function, 2nd kind"),
-        (cyl_bessel_ye, "Exponentially scaled Bessel function, 2nd kind"),
-        (cyl_bessel_i, "Modified Bessel function, 1st kind"),
-        (cyl_bessel_ie, "Exponentially scaled modified Bessel function, 1st kind"),
-        (cyl_bessel_k, "Modified Bessel function, 2nd kind"),
-        (cyl_bessel_ke, "Exponentially scaled modified Bessel function, 2nd kind"),
-    ],
-    hankel: [
-        (cyl_hankel_1, "Hankel function, 1st kind"),
-        (cyl_hankel_1e, "Exponentially scaled Hankel function, 1st kind"),
-        (cyl_hankel_2, "Hankel function, 2nd kind"),
-        (cyl_hankel_2e, "Exponentially scaled Hankel function, 2nd kind"),
-    ],
+/// Bessel function, 1st kind
+pub fn cyl_bessel_j<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_j(v)
+}
+
+/// Exponentially scaled Bessel function, 1st kind
+pub fn cyl_bessel_je<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_je(v)
+}
+
+/// Bessel function, 2nd kind
+pub fn cyl_bessel_y<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_y(v)
+}
+
+/// Exponentially scaled Bessel function, 2nd kind
+pub fn cyl_bessel_ye<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_ye(v)
+}
+
+/// Modified Bessel function, 1st kind
+pub fn cyl_bessel_i<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_i(v)
+}
+
+/// Exponentially scaled modified Bessel function, 1st kind
+pub fn cyl_bessel_ie<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_ie(v)
+}
+
+/// Modified Bessel function, 2nd kind
+pub fn cyl_bessel_k<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_k(v)
+}
+
+/// Exponentially scaled modified Bessel function, 2nd kind
+pub fn cyl_bessel_ke<T: BesselArg>(v: f64, x: T) -> T {
+    x.cyl_bessel_ke(v)
+}
+
+/// Hankel function, 1st kind
+pub fn cyl_hankel_1<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.cyl_hankel_1(v)
+}
+
+/// Exponentially scaled Hankel function, 1st kind
+pub fn cyl_hankel_1e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.cyl_hankel_1e(v)
+}
+
+/// Hankel function, 2nd kind
+pub fn cyl_hankel_2<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.cyl_hankel_2(v)
+}
+
+/// Exponentially scaled Hankel function, 2nd kind
+pub fn cyl_hankel_2e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.cyl_hankel_2e(v)
 }
 
 xsf_impl!(

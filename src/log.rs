@@ -3,67 +3,60 @@ use crate::bindings::xsf_impl;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait LogArg: sealed::Sealed {
-    type Output;
-    fn xsf_log1p(self) -> Self::Output;
-    fn xsf_xlogy<T: Into<Self::Output>>(self, x: T) -> Self::Output;
-    fn xsf_xlog1py<T: Into<Self::Output>>(self, x: T) -> Self::Output;
+    fn xsf_log1p(self) -> Self;
+    fn xsf_xlogy(self, x: Self) -> Self;
+    fn xsf_xlog1py(self, x: Self) -> Self;
 }
 
 impl LogArg for f64 {
-    type Output = f64;
+    #[inline(always)]
     fn xsf_log1p(self) -> f64 {
         unsafe { bindings::log1p(self) }
     }
-    fn xsf_xlogy<T: Into<f64>>(self, x: T) -> f64 {
-        unsafe { bindings::xlogy(x.into(), self) }
+    #[inline(always)]
+    fn xsf_xlogy(self, x: Self) -> Self {
+        unsafe { bindings::xlogy(x, self) }
     }
-    fn xsf_xlog1py<T: Into<f64>>(self, x: T) -> f64 {
-        unsafe { bindings::xlog1py(x.into(), self) }
+    #[inline(always)]
+    fn xsf_xlog1py(self, x: Self) -> Self {
+        unsafe { bindings::xlog1py(x, self) }
     }
 }
 
 impl LogArg for Complex<f64> {
-    type Output = Complex<f64>;
+    #[inline(always)]
     fn xsf_log1p(self) -> Complex<f64> {
         unsafe { bindings::log1p_1(self.into()) }.into()
     }
-    fn xsf_xlogy<T: Into<Complex<f64>>>(self, x: T) -> Complex<f64> {
-        unsafe { bindings::xlogy_1(x.into().into(), self.into()) }.into()
+    #[inline(always)]
+    fn xsf_xlogy(self, x: Self) -> Self {
+        unsafe { bindings::xlogy_1(x.into(), self.into()) }.into()
     }
-    fn xsf_xlog1py<T: Into<Complex<f64>>>(self, x: T) -> Complex<f64> {
-        unsafe { bindings::xlog1py_1(x.into().into(), self.into()) }.into()
+    #[inline(always)]
+    fn xsf_xlog1py(self, x: Self) -> Self {
+        unsafe { bindings::xlog1py_1(x.into(), self.into()) }.into()
     }
 }
 
 /// `log(z + 1)` for real or complex input
-pub fn log1p<T: LogArg>(z: T) -> T::Output {
+pub fn log1p<T: LogArg>(z: T) -> T {
     z.xsf_log1p()
 }
 
 xsf_impl!(log1pmx, (x: f64), "Compute `log(1 + x) - x` for real input");
 
 /// Compute `x * log(y)` for real or complex input
-pub fn xlogy<X, Y>(x: X, y: Y) -> Y::Output
-where
-    X: Into<Y::Output>,
-    Y: LogArg,
-{
+pub fn xlogy<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlogy(x)
 }
 /// Compute `x * log(1 + y)` for real or complex input
-pub fn xlog1py<X, Y>(x: X, y: Y) -> Y::Output
-where
-    X: Into<Y::Output>,
-    Y: LogArg,
-{
+pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlog1py(x)
 }
 

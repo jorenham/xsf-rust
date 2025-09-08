@@ -2,11 +2,9 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait ExtendedErrorArg: sealed::Sealed {
@@ -15,18 +13,22 @@ pub trait ExtendedErrorArg: sealed::Sealed {
 }
 
 impl ExtendedErrorArg for f64 {
+    #[inline(always)]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         unsafe { bindings::extended_absolute_error(self, other) }
     }
+    #[inline(always)]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { bindings::extended_relative_error(self, other) }
     }
 }
 
 impl ExtendedErrorArg for Complex<f64> {
+    #[inline(always)]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         unsafe { bindings::extended_absolute_error_1(self.into(), other.into()) }
     }
+    #[inline(always)]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { bindings::extended_relative_error_1(self.into(), other.into()) }
     }

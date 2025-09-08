@@ -2,36 +2,31 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait DigammaArg: sealed::Sealed {
-    type Output;
-    fn digamma(self) -> Self::Output;
+    fn digamma(self) -> Self;
 }
 
 impl DigammaArg for f64 {
-    type Output = f64;
-
+    #[inline(always)]
     fn digamma(self) -> f64 {
         unsafe { bindings::digamma(self) }
     }
 }
 
 impl DigammaArg for Complex<f64> {
-    type Output = Complex<f64>;
-
+    #[inline(always)]
     fn digamma(self) -> Complex<f64> {
         unsafe { bindings::digamma_1(self.into()) }.into()
     }
 }
 
-/// Digamma function
-pub fn digamma<T: DigammaArg>(x: T) -> T::Output {
+/// Digamma function for real or complex input
+pub fn digamma<T: DigammaArg>(x: T) -> T {
     x.digamma()
 }
 

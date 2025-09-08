@@ -4,70 +4,73 @@ use std::os::raw::c_int;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait LegendreArg: sealed::Sealed {
-    type Output;
-    fn legendre_p(self, n: c_int) -> Self::Output;
-    fn sph_legendre_p(self, n: c_int, m: c_int) -> Self::Output;
-    fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self::Output;
-    fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self::Output;
+    fn legendre_p(self, n: c_int) -> Self;
+    fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
+    fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
+    fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
 }
 
 impl LegendreArg for f64 {
-    type Output = f64;
+    #[inline(always)]
     fn legendre_p(self, n: c_int) -> f64 {
         unsafe { bindings::legendre_p(n, self) }
     }
+    #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> f64 {
         unsafe { bindings::sph_legendre_p(n, m, self) }
     }
+    #[inline(always)]
     fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> f64 {
         unsafe { bindings::assoc_legendre_p_0(n, m, self, branch_cut) }
     }
+    #[inline(always)]
     fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> f64 {
         unsafe { bindings::assoc_legendre_p_1(n, m, self, branch_cut) }
     }
 }
 
 impl LegendreArg for Complex<f64> {
-    type Output = Complex<f64>;
+    #[inline(always)]
     fn legendre_p(self, n: c_int) -> Complex<f64> {
         unsafe { bindings::legendre_p_1(n, self.into()) }.into()
     }
+    #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Complex<f64> {
         unsafe { bindings::sph_legendre_p_1(n, m, self.into()) }.into()
     }
+    #[inline(always)]
     fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Complex<f64> {
         unsafe { bindings::assoc_legendre_p_0_1(n, m, self.into(), branch_cut) }.into()
     }
+    #[inline(always)]
     fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Complex<f64> {
         unsafe { bindings::assoc_legendre_p_1_1(n, m, self.into(), branch_cut) }.into()
     }
 }
 
 /// Legendre polynomial of degree n
-pub fn legendre_p<T: LegendreArg>(n: i32, z: T) -> T::Output {
+pub fn legendre_p<T: LegendreArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
 
 /// Spherical Legendre polynomial of degree n and order m
-pub fn sph_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T::Output {
+pub fn sph_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
     z.sph_legendre_p(n as c_int, m as c_int)
 }
 
 /// Associated Legendre polynomial of the first kind
-pub fn assoc_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T::Output {
+pub fn assoc_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2)
 }
 
 /// Normalized associated Legendre polynomial of the first kind
-pub fn assoc_legendre_p_norm<T: LegendreArg>(n: i32, m: i32, z: T) -> T::Output {
+pub fn assoc_legendre_p_norm<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p_norm(n as c_int, m as c_int, 2)
 }
 

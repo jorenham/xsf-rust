@@ -3,34 +3,31 @@ use crate::bindings::xsf_impl;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait GammaArg: sealed::Sealed {
-    type Output;
-    fn xsf_gamma(self) -> Self::Output;
+    fn xsf_gamma(self) -> Self;
 }
 
 impl GammaArg for f64 {
-    type Output = f64;
+    #[inline(always)]
     fn xsf_gamma(self) -> f64 {
         unsafe { bindings::gamma(self) }
     }
 }
 
 impl GammaArg for Complex<f64> {
-    type Output = Complex<f64>;
+    #[inline(always)]
     fn xsf_gamma(self) -> Complex<f64> {
         unsafe { bindings::gamma_1(self.into()) }.into()
     }
 }
 
-/// Gamma function
-pub fn gamma<T: GammaArg>(z: T) -> T::Output {
+/// Gamma function for real or complex input
+pub fn gamma<T: GammaArg>(z: T) -> T {
     z.xsf_gamma()
 }
 

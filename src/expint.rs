@@ -2,50 +2,45 @@ use crate::bindings;
 use num_complex::Complex;
 
 mod sealed {
-    use num_complex::Complex;
-
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for Complex<f64> {}
+    impl Sealed for num_complex::Complex<f64> {}
 }
 
 pub trait ExpIntArg: sealed::Sealed {
-    type Output;
-    fn expi(self) -> Self::Output;
-    fn exp1(self) -> Self::Output;
+    fn expi(self) -> Self;
+    fn exp1(self) -> Self;
 }
 
 impl ExpIntArg for f64 {
-    type Output = f64;
-
+    #[inline(always)]
     fn expi(self) -> f64 {
         unsafe { bindings::expi(self) }
     }
-
+    #[inline(always)]
     fn exp1(self) -> f64 {
         unsafe { bindings::exp1(self) }
     }
 }
 
 impl ExpIntArg for Complex<f64> {
-    type Output = Complex<f64>;
-
+    #[inline(always)]
     fn expi(self) -> Complex<f64> {
         unsafe { bindings::expi_1(self.into()) }.into()
     }
-
+    #[inline(always)]
     fn exp1(self) -> Complex<f64> {
         unsafe { bindings::exp1_1(self.into()) }.into()
     }
 }
 
-/// Exponential integral `E_i(x)`
-pub fn expi<T: ExpIntArg>(x: T) -> T::Output {
+/// Exponential integral `E_i(x)` for real or complex input
+pub fn expi<T: ExpIntArg>(x: T) -> T {
     x.expi()
 }
 
-/// Exponential integral `E_i(x)`
-pub fn exp1<T: ExpIntArg>(x: T) -> T::Output {
+/// Exponential integral `E_i(x)` for real or complex input
+pub fn exp1<T: ExpIntArg>(x: T) -> T {
     x.exp1()
 }
 
