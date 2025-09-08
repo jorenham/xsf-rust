@@ -21,7 +21,7 @@ const XSF_HEADERS: &[&str] = &[
     "evalpoly.h",
     "exp.h",
     "expint.h",
-    // "fp_error_metrics.h",
+    "fp_error_metrics.h",
     "fresnel.h",
     "gamma.h",
     "hyp2f1.h",
@@ -136,6 +136,11 @@ const XSF_TYPES: &[(&str, &str)] = &[
     ("expi", "d->d"),
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
+    // fp_error_metrics.h
+    ("extended_absolute_error", "dd->d"),
+    ("extended_absolute_error", "DD->d"),
+    ("extended_relative_error", "dd->d"),
+    ("extended_relative_error", "DD->d"),
     // fresnel.h
     //  TODO: `fcszo`: ii->[D]
     ("fresnel", "d->dd"),
@@ -585,7 +590,9 @@ fn get_allowlist() -> String {
 fn generate_bindings(dir_out: &str, header: &str) {
     bindgen::Builder::default()
         .header(header)
+        .clang_args(["-x", "c++"])
         .enable_cxx_namespaces()
+        .dynamic_link_require_all(true)
         .size_t_is_usize(true)
         .sort_semantically(true)
         .derive_copy(false)

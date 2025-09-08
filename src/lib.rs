@@ -57,6 +57,10 @@ pub use exp::{exp2, exp10, expm1};
 mod expint;
 pub use expint::{exp1, expi, scaled_exp1};
 
+// fp_error_metrics.h
+mod fp_error_metrics;
+pub use fp_error_metrics::{extended_absolute_error, extended_relative_error};
+
 // fresnel.h
 mod fresnel;
 pub use fresnel::{fresnel, modified_fresnel_minus, modified_fresnel_plus};
