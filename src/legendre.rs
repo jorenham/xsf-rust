@@ -234,9 +234,6 @@ mod tests {
     fn test_legendre_qn_all_f64() {
         let (qn, qd) = legendre_qn_all::<_, 5>(0.5);
 
-        println!("qn = {:?}", qn);
-        println!("qd = {:?}", qd);
-
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
 
@@ -250,9 +247,6 @@ mod tests {
     #[test]
     fn test_legendre_qn_all_c64() {
         let (qn, qd) = legendre_qn_all::<_, 5>(c64(0.0, 1.0));
-
-        println!("qn = {:?}", qn);
-        println!("qd = {:?}", qd);
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);

@@ -650,7 +650,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .clang_args(["-x", "c++"])
         .enable_cxx_namespaces()
         .opaque_type("std::*")
-        // .dynamic_link_require_all(true)
+        .dynamic_link_require_all(true)
         .size_t_is_usize(true)
         .sort_semantically(true)
         .derive_copy(false)
