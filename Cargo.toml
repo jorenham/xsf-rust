@@ -9,7 +9,7 @@ keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause AND MIT AND BSD-3-Clause-LBNL AND Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 repository = "https://github.com/jorenham/xsf-rust"
-rust-version = "1.88"
+rust-version = "1.85.1"
 description = "Rust bindings for scipy's xsf special functions library"
 
 [build-dependencies]
