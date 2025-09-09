@@ -55,13 +55,13 @@ impl LegendrePArg for Complex<f64> {
     }
 }
 
-pub trait QnArg: sealed::Sealed + Sized {
-    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]);
+pub trait LegendreQArg: sealed::Sealed + Sized {
+    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]);
 }
 
-impl QnArg for f64 {
+impl LegendreQArg for f64 {
     #[inline(always)]
-    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
+    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
         let mut qn = [0.0; N];
         let mut qd = [0.0; N];
 
@@ -73,9 +73,9 @@ impl QnArg for f64 {
     }
 }
 
-impl QnArg for Complex<f64> {
+impl LegendreQArg for Complex<f64> {
     #[inline(always)]
-    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
+    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
         let mut cqn = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
         let mut cqd = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
 
@@ -123,23 +123,23 @@ pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
 /// # Example
 ///
 /// ```
-/// use xsf::legendre_qn_all;
+/// use xsf::legendre_q_all;
 ///
 /// // Compute Q_n(z) and Q'_n(z) for degrees 0, 1, 2, 3, 4 (N=5)
-/// let (qn, qn_deriv) = legendre_qn_all::<_, 5>(0.5);
+/// let (qn, qn_deriv) = legendre_q_all::<_, 5>(0.5);
 /// ```
 ///
 /// For complex input
 ///
 /// ```
 /// use num_complex::c64;
-/// use xsf::legendre_qn_all;
+/// use xsf::legendre_q_all;
 ///
-/// let (qn, qn_deriv) = legendre_qn_all::<_, 3>(c64(0.5, 0.3));
+/// let (qn, qn_deriv) = legendre_q_all::<_, 3>(c64(0.5, 0.3));
 /// ```
 #[doc(alias = "lqn")]
-pub fn legendre_qn_all<T: QnArg, const N: usize>(z: T) -> ([T; N], [T; N]) {
-    z.legendre_qn_all()
+pub fn legendre_q_all<T: LegendreQArg, const N: usize>(z: T) -> ([T; N], [T; N]) {
+    z.legendre_q_all()
 }
 
 #[cfg(test)]
@@ -231,8 +231,8 @@ mod tests {
     }
 
     #[test]
-    fn test_legendre_qn_all_f64() {
-        let (qn, qd) = legendre_qn_all::<_, 5>(0.5);
+    fn test_legendre_q_all_f64() {
+        let (qn, qd) = legendre_q_all::<_, 5>(0.5);
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -245,8 +245,8 @@ mod tests {
     }
 
     #[test]
-    fn test_legendre_qn_all_c64() {
-        let (qn, qd) = legendre_qn_all::<_, 5>(c64(0.0, 1.0));
+    fn test_legendre_q_all_c64() {
+        let (qn, qd) = legendre_q_all::<_, 5>(c64(0.0, 1.0));
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);

@@ -88,7 +88,7 @@ pub use lambertw::lambertw;
 // legendre.h
 mod legendre;
 pub use legendre::{
-    assoc_legendre_p, assoc_legendre_p_norm, legendre_p, legendre_qn_all, legendre_qn_all as lqn,
+    assoc_legendre_p, assoc_legendre_p_norm, legendre_p, legendre_q_all, legendre_q_all as lqn,
     sph_legendre_p,
 };
 
