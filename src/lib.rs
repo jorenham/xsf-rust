@@ -93,7 +93,7 @@ pub use lambertw::lambertw;
 mod legendre;
 pub use legendre::{
     assoc_legendre_p, assoc_legendre_p_norm, legendre_p, legendre_p_all, legendre_q_all,
-    legendre_q_all as lqn, sph_legendre_p,
+    legendre_q_all as lqn, sph_legendre_p, sph_legendre_p_all,
 };
 
 // log_exp.h

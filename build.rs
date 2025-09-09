@@ -358,11 +358,11 @@ void legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
 }"#;
 
 const _CPP_SPH_LEGENDRE_P_ALL: &str = r#"
-void sph_legendre_p_all(size_t n, double x, double *pn) {
-    xsf::sph_legendre_p_all(x, std::mdspan(pn, n + 1));
+void sph_legendre_p_all(size_t n, size_t m, double x, double *pn) {
+    xsf::sph_legendre_p_all(x, std::mdspan(pn, n + 1, 2 * m + 1));
 }
-void sph_legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
-    xsf::sph_legendre_p_all(z, std::mdspan(pn, n + 1));
+void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pn) {
+    xsf::sph_legendre_p_all(z, std::mdspan(pn, n + 1, 2 * m + 1));
 }"#;
 
 const _CPP_LQN: &str = r#"
@@ -411,6 +411,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"legendre_p_all",
         cpp: _CPP_LEGENDRE_P_ALL,
+    },
+    WrapperSpecCustom {
+        pattern: r"sph_legendre_p_all",
+        cpp: _CPP_SPH_LEGENDRE_P_ALL,
     },
     WrapperSpecCustom {
         pattern: r"lqn",
