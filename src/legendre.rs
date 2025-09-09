@@ -1,5 +1,6 @@
 use crate::bindings;
-use std::os::raw::c_int;
+use core::array;
+use core::ffi::c_int;
 
 use num_complex::Complex;
 
@@ -9,14 +10,14 @@ mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait LegendreArg: sealed::Sealed {
+pub trait LegendrePArg: sealed::Sealed {
     fn legendre_p(self, n: c_int) -> Self;
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
     fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
     fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
 }
 
-impl LegendreArg for f64 {
+impl LegendrePArg for f64 {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> f64 {
         unsafe { bindings::legendre_p(n, self) }
@@ -35,7 +36,7 @@ impl LegendreArg for f64 {
     }
 }
 
-impl LegendreArg for Complex<f64> {
+impl LegendrePArg for Complex<f64> {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> Complex<f64> {
         unsafe { bindings::legendre_p_1(n, self.into()) }.into()
@@ -54,24 +55,91 @@ impl LegendreArg for Complex<f64> {
     }
 }
 
+pub trait QnArg: sealed::Sealed + Sized {
+    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]);
+}
+
+impl QnArg for f64 {
+    #[inline(always)]
+    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
+        let mut qn = [0.0; N];
+        let mut qd = [0.0; N];
+
+        unsafe {
+            bindings::lqn((N - 1) as c_int, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+        }
+
+        (qn, qd)
+    }
+}
+
+impl QnArg for Complex<f64> {
+    #[inline(always)]
+    fn legendre_qn_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
+        let mut cqn = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
+        let mut cqd = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
+
+        unsafe {
+            bindings::lqn_1(
+                (N - 1) as c_int,
+                self.into(),
+                cqn.as_mut_ptr(),
+                cqd.as_mut_ptr(),
+            );
+        }
+
+        (cqn.map(|c| c.into()), cqd.map(|c| c.into()))
+    }
+}
+
 /// Legendre polynomial of degree n
-pub fn legendre_p<T: LegendreArg>(n: i32, z: T) -> T {
+pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
 
 /// Spherical Legendre polynomial of degree n and order m
-pub fn sph_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
+pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.sph_legendre_p(n as c_int, m as c_int)
 }
 
 /// Associated Legendre polynomial of the first kind
-pub fn assoc_legendre_p<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
+pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2)
 }
 
 /// Normalized associated Legendre polynomial of the first kind
-pub fn assoc_legendre_p_norm<T: LegendreArg>(n: i32, m: i32, z: T) -> T {
+pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p_norm(n as c_int, m as c_int, 2)
+}
+
+/// Sequence of Legendre functions of the 2nd kind
+///
+/// Compute sequence of Legendre functions of the second kind, *Qn(z)* and derivatives for all
+/// degrees from *0* to *n* (inclusive).
+///
+/// The array size `N` must be specified as a const generic parameter and determines the maximum
+/// degree computed (*n* = `N` - 1).
+///
+/// # Example
+///
+/// ```
+/// use xsf::legendre_qn_all;
+///
+/// // Compute Q_n(z) and Q'_n(z) for degrees 0, 1, 2, 3, 4 (N=5)
+/// let (qn, qn_deriv) = legendre_qn_all::<_, 5>(0.5);
+/// ```
+///
+/// For complex input
+///
+/// ```
+/// use num_complex::c64;
+/// use xsf::legendre_qn_all;
+///
+/// let (qn, qn_deriv) = legendre_qn_all::<_, 3>(c64(0.5, 0.3));
+/// ```
+#[doc(alias = "lqn")]
+pub fn legendre_qn_all<T: QnArg, const N: usize>(z: T) -> ([T; N], [T; N]) {
+    z.legendre_qn_all()
 }
 
 #[cfg(test)]
@@ -83,6 +151,7 @@ mod tests {
     use std::f64::consts;
 
     const I: Complex<f64> = Complex::new(0.0, 1.0);
+    const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 
     // legendre_p
 
@@ -159,5 +228,36 @@ mod tests {
             assoc_legendre_p_norm(1, 1, I),
             c64(-1.2247448713915892, 0.0) // -sqrt(3 / 2)
         );
+    }
+
+    #[test]
+    fn test_legendre_qn_all_f64() {
+        let (qn, qd) = legendre_qn_all::<_, 5>(0.5);
+
+        println!("qn = {:?}", qn);
+        println!("qd = {:?}", qd);
+
+        assert_eq!(qn.len(), 5);
+        assert_eq!(qd.len(), 5);
+
+        assert_eq!(qn[0], LN_3 * 0.5);
+        assert_eq!(qn[1], LN_3 * 0.25 - 1.0);
+
+        assert_eq!(qd[0], 4.0 / 3.0);
+        assert_eq!(qd[1], 2.0 / 3.0 + 0.5 * LN_3);
+    }
+
+    #[test]
+    fn test_legendre_qn_all_c64() {
+        let (qn, qd) = legendre_qn_all::<_, 5>(c64(0.0, 1.0));
+
+        println!("qn = {:?}", qn);
+        println!("qd = {:?}", qd);
+
+        assert_eq!(qn.len(), 5);
+        assert_eq!(qd.len(), 5);
+
+        assert_eq!(qn[0], c64(0.0, consts::FRAC_PI_4));
+        assert_eq!(qn[1], c64(-1.0 - consts::FRAC_PI_4, 0.0));
     }
 }
