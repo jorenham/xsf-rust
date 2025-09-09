@@ -1,6 +1,6 @@
 use crate::bindings;
+use alloc::vec::Vec;
 use core::ffi::c_int;
-
 use num_complex::Complex;
 
 mod sealed {
@@ -11,7 +11,7 @@ mod sealed {
 
 pub trait LegendrePArg: sealed::Sealed + Sized {
     fn legendre_p(self, n: c_int) -> Self;
-    fn legendre_p_all<const N: usize>(self) -> [Self; N];
+    fn legendre_p_all(self, n: usize) -> Vec<Self>;
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
     fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
     fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
@@ -23,10 +23,10 @@ impl LegendrePArg for f64 {
         unsafe { bindings::legendre_p(n, self) }
     }
     #[inline(always)]
-    fn legendre_p_all<const N: usize>(self) -> [Self; N] {
-        let mut pn = [0.0; N];
+    fn legendre_p_all(self, n: usize) -> Vec<Self> {
+        let mut pn = alloc::vec![0.0; n + 1];
         unsafe {
-            bindings::legendre_p_all(N - 1, self, pn.as_mut_ptr());
+            bindings::legendre_p_all(n, self, pn.as_mut_ptr());
         }
         pn
     }
@@ -50,12 +50,12 @@ impl LegendrePArg for Complex<f64> {
         unsafe { bindings::legendre_p_1(n, self.into()) }.into()
     }
     #[inline(always)]
-    fn legendre_p_all<const N: usize>(self) -> [Self; N] {
-        let mut pn = bindings::complex_zeros::<N>();
+    fn legendre_p_all(self, n: usize) -> Vec<Self> {
+        let mut pn = bindings::complex_zeros(n + 1);
         unsafe {
-            bindings::legendre_p_all_1(N - 1, self.into(), pn.as_mut_ptr());
+            bindings::legendre_p_all_1(n, self.into(), pn.as_mut_ptr());
         }
-        pn.map(|c| c.into())
+        pn.into_iter().map(|c| c.into()).collect()
     }
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Complex<f64> {
@@ -72,17 +72,17 @@ impl LegendrePArg for Complex<f64> {
 }
 
 pub trait LegendreQArg: sealed::Sealed + Sized {
-    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]);
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>);
 }
 
 impl LegendreQArg for f64 {
     #[inline(always)]
-    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
-        let mut qn = [0.0; N];
-        let mut qd = [0.0; N];
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
+        let mut qn = alloc::vec![0.0; n + 1];
+        let mut qd = alloc::vec![0.0; n + 1];
 
         unsafe {
-            bindings::lqn(N - 1, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+            bindings::lqn(n, self, qn.as_mut_ptr(), qd.as_mut_ptr());
         }
 
         (qn, qd)
@@ -91,15 +91,15 @@ impl LegendreQArg for f64 {
 
 impl LegendreQArg for Complex<f64> {
     #[inline(always)]
-    fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
-        let mut cqn = bindings::complex_zeros::<N>();
-        let mut cqd = bindings::complex_zeros::<N>();
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
+        let mut cqn: Vec<_> = bindings::complex_zeros(n + 1);
+        let mut cqd: Vec<_> = bindings::complex_zeros(n + 1);
 
         unsafe {
-            bindings::lqn_1(N - 1, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
+            bindings::lqn_1(n, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
-        (cqn.map(|c| c.into()), cqd.map(|c| c.into()))
+        (bindings::cvec_into(cqn), bindings::cvec_into(cqd))
     }
 }
 
@@ -108,18 +108,11 @@ pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
 
-/// Sequence of Legendre functions of the 1st kind
+/// All Legendre polynomials of the 1st kind up to the specified degree `n`
 ///
-/// # Example
-///
-/// ```
-/// use xsf::legendre_p_all;
-///
-/// // Compute P_n(z) for degrees 0, 1, 2, 3 (N=4)
-/// let pn: [f64; 4] = legendre_p_all::<_, 4>(0.5);
-/// ```
-pub fn legendre_p_all<T: LegendrePArg, const N: usize>(z: T) -> [T; N] {
-    z.legendre_p_all()
+/// Output length is `n + 1`. The entry at `j` corresponds to degree `j` for all `0 <= j <= n`.
+pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
+    z.legendre_p_all(n)
 }
 
 /// Spherical Legendre polynomial of degree n and order m
@@ -137,34 +130,12 @@ pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p_norm(n as c_int, m as c_int, 2)
 }
 
-/// Sequence of Legendre functions of the 2nd kind
+/// All Legendre polynomials of the 2nd kind up to the specified degree `n`
 ///
-/// Compute sequence of Legendre functions of the second kind, *Qn(z)* and derivatives for all
-/// degrees from *0* to *n* (inclusive).
-///
-/// The array size `N` must be specified as a const generic parameter and determines the maximum
-/// degree computed (*n* = `N` - 1).
-///
-/// # Example
-///
-/// ```
-/// use xsf::legendre_q_all;
-///
-/// // Compute Q_n(z) and Q'_n(z) for degrees 0, 1, 2, 3, 4 (N=5)
-/// let (qn, qn_deriv) = legendre_q_all::<_, 5>(0.5);
-/// ```
-///
-/// For complex input
-///
-/// ```
-/// use num_complex::c64;
-/// use xsf::legendre_q_all;
-///
-/// let (qn, qn_deriv) = legendre_q_all::<_, 3>(c64(0.5, 0.3));
-/// ```
+/// Output length is `n + 1`. The entry at `j` corresponds to degree `j` for all `0 <= j <= n`.
 #[doc(alias = "lqn")]
-pub fn legendre_q_all<T: LegendreQArg, const N: usize>(z: T) -> ([T; N], [T; N]) {
-    z.legendre_q_all()
+pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
+    z.legendre_q_all(n)
 }
 
 #[cfg(test)]
@@ -198,15 +169,12 @@ mod tests {
 
     #[test]
     fn test_legendre_p_all_f64() {
-        assert_eq!(legendre_p_all::<_, 3>(0.0), [1.0, 0.0, -0.5]);
+        assert_eq!(legendre_p_all(2, 0.0), vec![1.0, 0.0, -0.5]);
     }
 
     #[test]
     fn test_legendre_p_all_c64() {
-        assert_eq!(
-            legendre_p_all::<_, 3>(I),
-            [c64(1.0, 0.0), I, c64(-2.0, 0.0)]
-        );
+        assert_eq!(legendre_p_all(2, I), vec![c64(1.0, 0.0), I, c64(-2.0, 0.0)]);
     }
 
     // sph_legendre_p
@@ -272,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_legendre_q_all_f64() {
-        let (qn, qd) = legendre_q_all::<_, 5>(0.5);
+        let (qn, qd) = legendre_q_all(4, 0.5);
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -286,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_legendre_q_all_c64() {
-        let (qn, qd) = legendre_q_all::<_, 5>(c64(0.0, 1.0));
+        let (qn, qd) = legendre_q_all(4, c64(0.0, 1.0));
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);

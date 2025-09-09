@@ -357,6 +357,14 @@ void legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
     xsf::legendre_p_all(z, std::mdspan(pn, n + 1));
 }"#;
 
+const _CPP_SPH_LEGENDRE_P_ALL: &str = r#"
+void sph_legendre_p_all(size_t n, double x, double *pn) {
+    xsf::sph_legendre_p_all(x, std::mdspan(pn, n + 1));
+}
+void sph_legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
+    xsf::sph_legendre_p_all(z, std::mdspan(pn, n + 1));
+}"#;
+
 const _CPP_LQN: &str = r#"
 void lqn(size_t n, double x, double *qn, double *qd) {
     xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));

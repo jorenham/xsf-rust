@@ -2,6 +2,9 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 
+use alloc::vec::Vec;
+use num_complex::Complex;
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 pub(crate) use root::std::complex;
@@ -9,19 +12,21 @@ pub(crate) use root::xsf_wrapper::*;
 
 pub(crate) type cdouble = complex<f64>;
 
+// C++ std::complex type wrapper
+
 impl cdouble {
     pub(crate) fn new(re: f64, im: f64) -> Self {
         unsafe { complex__new(re, im) }
     }
 }
 
-impl From<num_complex::Complex<f64>> for cdouble {
-    fn from(z: num_complex::Complex<f64>) -> Self {
+impl From<Complex<f64>> for cdouble {
+    fn from(z: Complex<f64>) -> Self {
         Self::new(z.re, z.im)
     }
 }
 
-impl From<cdouble> for num_complex::Complex<f64> {
+impl From<cdouble> for Complex<f64> {
     fn from(z: cdouble) -> Self {
         let mut re: f64 = 0.0;
         let mut im: f64 = 0.0;
@@ -32,15 +37,27 @@ impl From<cdouble> for num_complex::Complex<f64> {
     }
 }
 
+// complex helper functions
+
 #[inline(always)]
 pub(crate) fn complex_nan() -> cdouble {
     complex::new(f64::NAN, f64::NAN)
 }
 
 #[inline(always)]
-pub(crate) fn complex_zeros<const N: usize>() -> [cdouble; N] {
-    core::array::from_fn::<_, N, _>(|_| complex::new(0.0, 0.0))
+pub(crate) fn complex_zeros(n: usize) -> Vec<cdouble> {
+    (0..n).map(|_| complex::new(0.0, 0.0)).collect()
 }
+
+#[inline(always)]
+pub(crate) fn cvec_into<T>(xs: Vec<complex<T>>) -> Vec<Complex<T>>
+where
+    Complex<T>: From<complex<T>>,
+{
+    xs.into_iter().map(|c| c.into()).collect()
+}
+
+// macros
 
 macro_rules! xsf_impl {
     ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
