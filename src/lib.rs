@@ -1,5 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
+extern crate alloc;
+
 mod bindings;
 
 #[cfg(test)]
@@ -90,8 +92,8 @@ pub use lambertw::lambertw;
 // legendre.h
 mod legendre;
 pub use legendre::{
-    assoc_legendre_p, assoc_legendre_p_norm, legendre_p, legendre_q_all, legendre_q_all as lqn,
-    sph_legendre_p,
+    assoc_legendre_p, assoc_legendre_p_all, assoc_legendre_p_norm, assoc_legendre_p_norm_all,
+    legendre_p, legendre_p_all, lqmn, lqn, sph_legendre_p, sph_legendre_p_all,
 };
 
 // log_exp.h
