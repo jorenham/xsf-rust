@@ -322,16 +322,16 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
 ];
 
 const _CPP_COMPLEX_HELPERS: &str = r#"
-std::complex<double> complex__new(double re, double im) {
-    return std::complex<double>(re, im);
+cdouble complex__new(double re, double im) {
+    return cdouble(re, im);
 }
-void complex__values(std::complex<double> z, double &re, double &im) {
+void complex__values(cdouble z, double &re, double &im) {
     re = std::real(z);
     im = std::imag(z);
 }"#;
 
 const _CPP_CEVALPOLY: &str = r#"
-std::complex<double> cevalpoly(const double *coeffs, int degree, std::complex<double> z) {
+cdouble cevalpoly(const double *coeffs, int degree, cdouble z) {
     return xsf::cevalpoly(coeffs, degree, z);
 }"#;
 
@@ -342,59 +342,24 @@ double assoc_legendre_p_0(int n, int m, double z, int bc) {
 double assoc_legendre_p_1(int n, int m, double z, int bc) {
     return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
 }
-std::complex<double> assoc_legendre_p_0_1(int n, int m, std::complex<double> z, int bc) {
+cdouble assoc_legendre_p_0_1(int n, int m, cdouble z, int bc) {
     return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
 }
-std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, int bc) {
+cdouble assoc_legendre_p_1_1(int n, int m, cdouble z, int bc) {
     return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
 }"#;
 
 const _CPP_LQN: &str = r#"
 void lqn(int n, double x, double *qn, double *qd) {
-    std::vector<double> qn_vec(n + 1);
-    IndexableVector<double> qn_wrapper(qn_vec);
-
-    std::vector<double> qd_vec(n + 1);
-    IndexableVector<double> qd_wrapper(qd_vec);
-
+    auto qn_wrapper = std::mdspan(qn, n + 1);
+    auto qd_wrapper = std::mdspan(qd, n + 1);
     xsf::lqn(x, qn_wrapper, qd_wrapper);
-
-    for (int i = 0; i <= n; ++i) {
-        qn[i] = qn_wrapper[i];
-        qd[i] = qd_wrapper[i];
-    }
 }
-void lqn_1(int n, std::complex<double> z, std::complex<double> *cqn, std::complex<double> *cqd) {
-    std::vector<std::complex<double>> cqn_vec(n + 1);
-    IndexableVector<std::complex<double>> cqn_wrapper(cqn_vec);
-
-    std::vector<std::complex<double>> cqd_vec(n + 1);
-    IndexableVector<std::complex<double>> cqd_wrapper(cqd_vec);
-
+void lqn_1(int n, cdouble z, cdouble *cqn, cdouble *cqd) {
+    auto cqn_wrapper = std::mdspan(cqn, n + 1);
+    auto cqd_wrapper = std::mdspan(cqd, n + 1);
     xsf::lqn(z, cqn_wrapper, cqd_wrapper);
-
-    for (int i = 0; i <= n; ++i) {
-        cqn[i] = cqn_wrapper[i];
-        cqd[i] = cqd_wrapper[i];
-    }
 }"#;
-
-const _CPP_INDEXABLE_VECTOR: &str = r#"
-template<typename T>
-class IndexableVector {
-private:
-    std::vector<T>& vec;
-public:
-    IndexableVector(std::vector<T>& v) : vec(v) {}
-
-    T& operator()(size_t i) { return vec[i]; }
-    const T& operator()(size_t i) const { return vec[i]; }
-
-    T& operator[](size_t i) { return vec[i]; }
-    const T& operator[](size_t i) const { return vec[i]; }
-
-    size_t size() const { return vec.size(); }
-};"#;
 
 struct WrapperSpecCustom {
     pattern: &'static str,
@@ -443,8 +408,8 @@ fn get_ctype(code: char) -> &'static str {
         'l' => "long",
         'f' => "float",
         'd' => "double",
-        'F' => "std::complex<float>",
-        'D' => "std::complex<double>",
+        'F' => "cfloat",  // std::complex<float>
+        'D' => "cdouble", // std::complex<double>
         'V' => "void",
         _ => panic!("Unknown parameter type"),
     }
@@ -548,6 +513,10 @@ fn generate_hpp(dir_out: &str) -> String {
     // namespace
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
+    // complex aliases (compatible with xsf/numpy.h)
+    push_line(&mut source, "using cfloat = std::complex<float>;");
+    push_line(&mut source, "using cdouble = std::complex<double>;");
+
     // simple wrappers
     let mut name_counts = HashMap::new();
     for (name, types) in WRAPPER_SPECS {
@@ -573,6 +542,14 @@ fn generate_hpp(dir_out: &str) -> String {
 fn generate_cpp(dir_out: &str) -> String {
     let mut source = String::from(WRAPPER_PREAMBLE);
 
+    // C++23 `std::mdspan` backport
+    push_line(&mut source, "#define MDSPAN_USE_PAREN_OPERATOR 1");
+    push_line(
+        &mut source,
+        r#"#include "xsf/third_party/kokkos/mdspan.hpp""#,
+    );
+    push_line(&mut source, "");
+
     // includes
     push_line(&mut source, &format!(r#"#include "{WRAPPER_NAME}.hpp""#));
     for xsf_header in WRAPPER_INCLUDES {
@@ -582,6 +559,7 @@ fn generate_cpp(dir_out: &str) -> String {
 
     // namespace
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
+    push_line(&mut source, "");
 
     // simple wrappers
     let mut name_counts = HashMap::new();
@@ -601,15 +579,13 @@ fn generate_cpp(dir_out: &str) -> String {
         push_line(&mut source, &format!("{decl} {{ {stmt}; }}"));
     }
 
-    // internal helper vector class
-    push_line(&mut source, _CPP_INDEXABLE_VECTOR);
-
     // additional wrappers
     for wrapper_extra in WRAPPER_SPECS_CUSTOM {
         push_line(&mut source, wrapper_extra.cpp);
     }
 
     // close namespace
+    push_line(&mut source, "");
     push_line(&mut source, "}");
 
     // write to file
