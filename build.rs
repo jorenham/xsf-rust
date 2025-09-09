@@ -358,11 +358,11 @@ void legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
 }"#;
 
 const _CPP_SPH_LEGENDRE_P_ALL: &str = r#"
-void sph_legendre_p_all(size_t n, size_t m, double x, double *pn) {
-    xsf::sph_legendre_p_all(x, std::mdspan(pn, n + 1, 2 * m + 1));
+void sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
+    xsf::sph_legendre_p_all(x, std::mdspan(pnm, n + 1, 2 * m + 1));
 }
-void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pn) {
-    xsf::sph_legendre_p_all(z, std::mdspan(pn, n + 1, 2 * m + 1));
+void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pnm) {
+    xsf::sph_legendre_p_all(z, std::mdspan(pnm, n + 1, 2 * m + 1));
 }"#;
 
 const _CPP_LQN: &str = r#"
@@ -371,6 +371,24 @@ void lqn(size_t n, double x, double *qn, double *qd) {
 }
 void lqn_1(size_t n, cdouble z, cdouble *cqn, cdouble *cqd) {
     xsf::lqn(z, std::mdspan(cqn, n + 1), std::mdspan(cqd, n + 1));
+}"#;
+
+const _CPP_ASSOC_LEGENDRE_P_ALL: &str = r#"
+void assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
+    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
+}
+void assoc_legendre_p_all_0_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
+    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
+}
+void assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
+    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
+}
+void assoc_legendre_p_all_1_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
+    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }"#;
 
 struct WrapperSpecCustom {
@@ -415,6 +433,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"sph_legendre_p_all",
         cpp: _CPP_SPH_LEGENDRE_P_ALL,
+    },
+    WrapperSpecCustom {
+        pattern: r"assoc_legendre_p_all_(0|1)",
+        cpp: _CPP_ASSOC_LEGENDRE_P_ALL,
     },
     WrapperSpecCustom {
         pattern: r"lqn",

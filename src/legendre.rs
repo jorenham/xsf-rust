@@ -14,8 +14,8 @@ pub trait LegendrePArg: sealed::Sealed + Sized {
     fn legendre_p_all(self, n: usize) -> Vec<Self>;
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>>;
-    fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
-    fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
+    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self;
+    fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>>;
 }
 
 impl LegendrePArg for f64 {
@@ -41,21 +41,40 @@ impl LegendrePArg for f64 {
     #[inline(always)]
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
-        let mut pn = alloc::vec![0.0; ni * nj];
+        let mut pnm = alloc::vec![0.0; ni * nj];
         unsafe {
-            bindings::sph_legendre_p_all(n, m, self, pn.as_mut_ptr());
+            bindings::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
         }
-        (0..ni).map(|i| pn[i * nj..(i + 1) * nj].to_vec()).collect()
+        (0..ni)
+            .map(|i| pnm[i * nj..(i + 1) * nj].to_vec())
+            .collect()
     }
 
     #[inline(always)]
-    fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> f64 {
-        unsafe { bindings::assoc_legendre_p_0(n, m, self, branch_cut) }
+    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> f64 {
+        unsafe {
+            if norm {
+                bindings::assoc_legendre_p_1(n, m, self, bc)
+            } else {
+                bindings::assoc_legendre_p_0(n, m, self, bc)
+            }
+        }
     }
 
     #[inline(always)]
-    fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> f64 {
-        unsafe { bindings::assoc_legendre_p_1(n, m, self, branch_cut) }
+    fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
+        let (ni, nj) = (n + 1, 2 * m + 1);
+        let mut pnm = alloc::vec![0.0; ni * nj];
+        unsafe {
+            if norm {
+                bindings::assoc_legendre_p_all_1(n, m, self, bc, pnm.as_mut_ptr());
+            } else {
+                bindings::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
+            }
+        }
+        (0..ni)
+            .map(|i| pnm[i * nj..(i + 1) * nj].to_vec())
+            .collect()
     }
 }
 
@@ -93,13 +112,32 @@ impl LegendrePArg for Complex<f64> {
     }
 
     #[inline(always)]
-    fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Complex<f64> {
-        unsafe { bindings::assoc_legendre_p_0_1(n, m, self.into(), branch_cut) }.into()
+    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Complex<f64> {
+        unsafe {
+            if norm {
+                bindings::assoc_legendre_p_1_1(n, m, self.into(), bc)
+            } else {
+                bindings::assoc_legendre_p_0_1(n, m, self.into(), bc)
+            }
+        }
+        .into()
     }
 
     #[inline(always)]
-    fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Complex<f64> {
-        unsafe { bindings::assoc_legendre_p_1_1(n, m, self.into(), branch_cut) }.into()
+    fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
+        let (ni, nj) = (n + 1, 2 * m + 1);
+        let mut pnm = bindings::complex_zeros(ni * nj);
+        unsafe {
+            if norm {
+                bindings::assoc_legendre_p_all_1_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+            } else {
+                bindings::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+            }
+        }
+        let pnm = bindings::cvec_into(pnm);
+        (0..ni)
+            .map(|i| pnm[i * nj..(i + 1) * nj].to_vec())
+            .collect()
     }
 }
 
@@ -140,19 +178,19 @@ pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
 
-/// All Legendre polynomials of the 1st kind up to the specified degree `n`
+/// All Legendre polynomials of the 1st kind up to degree `n`
 ///
 /// Output length is `n + 1`. The entry at `j` corresponds to degree `j` for all `0 <= j <= n`.
 pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
     z.legendre_p_all(n)
 }
 
-/// Spherical Legendre polynomial of degree n and order m
+/// Spherical Legendre polynomial of degree `n` and order `m`
 pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.sph_legendre_p(n as c_int, m as c_int)
 }
 
-/// All spherical Legendre polynomials of the first kind up to the specified degree `n` and order `m`
+/// All spherical Legendre polynomials of the 1st kind up to degree `n` and order `m`
 ///
 /// Output shape is `(n + 1, 2 * m + 1)`. The entry at `(j, i)` corresponds to degree `j` and
 /// order `i` for all  `0 <= j <= n` and `-m <= i <= m`.
@@ -160,17 +198,27 @@ pub fn sph_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<
     z.sph_legendre_p_all(n, m)
 }
 
-/// Associated Legendre polynomial of the first kind
+/// Associated Legendre polynomial of the 1st kind
 pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
-    z.assoc_legendre_p(n as c_int, m as c_int, 2)
+    z.assoc_legendre_p(n as c_int, m as c_int, 2, false)
 }
 
-/// Normalized associated Legendre polynomial of the first kind
+/// All associated Legendre polynomials of the 1st kind up to degree `n` and order `m`
+pub fn assoc_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
+    z.assoc_legendre_p_all(n, m, 2, false)
+}
+
+/// Normalized associated Legendre polynomial of the 1st kind
 pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
-    z.assoc_legendre_p_norm(n as c_int, m as c_int, 2)
+    z.assoc_legendre_p(n as c_int, m as c_int, 2, true)
 }
 
-/// All Legendre polynomials of the 2nd kind up to the specified degree `n`
+/// All normalized associated Legendre polynomials of the 1st kind up to degree `n` and order `m`
+pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
+    z.assoc_legendre_p_all(n, m, 2, true)
+}
+
+/// All Legendre polynomials of the 2nd kind up to degree `n`
 ///
 /// Output length is `n + 1`. The entry at `j` corresponds to degree `j` for all `0 <= j <= n`.
 #[doc(alias = "lqn")]
@@ -275,6 +323,39 @@ mod tests {
         assert_eq!(assoc_legendre_p(1, 0, I), I);
         assert_eq!(assoc_legendre_p(0, 1, I), c64(0.0, 0.0));
         assert_eq!(assoc_legendre_p(1, 1, I), c64(-consts::SQRT_2, 0.0));
+    }
+
+    // assoc_legendre_p_all
+
+    #[test]
+    fn test_assoc_legendre_p_all_f64() {
+        let pnm = assoc_legendre_p_all(1, 1, 0.0);
+
+        assert_eq!(pnm.len(), 2);
+        assert_eq!(pnm[0].len(), 3);
+        assert_eq!(pnm[1].len(), 3);
+
+        assert_eq!(pnm[0], vec![1.0, 0.0, 0.0]);
+        assert_eq!(pnm[1], vec![0.0, -1.0, 0.5]);
+    }
+
+    #[test]
+    fn test_assoc_legendre_p_all_c64() {
+        let pnm = assoc_legendre_p_all(1, 1, I);
+
+        assert_eq!(pnm.len(), 2);
+        assert_eq!(pnm[0].len(), 3);
+        assert_eq!(pnm[1].len(), 3);
+
+        assert_eq!(pnm[0], vec![c64(1.0, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)]);
+        assert_eq!(
+            pnm[1],
+            vec![
+                c64(0.0, 1.0),
+                c64(-consts::SQRT_2, 0.0),
+                c64(consts::FRAC_1_SQRT_2, 0.0)
+            ]
+        );
     }
 
     // assoc_legendre_p_norm
