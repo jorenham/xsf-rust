@@ -349,16 +349,20 @@ cdouble assoc_legendre_p_1_1(int n, int m, cdouble z, int bc) {
     return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
 }"#;
 
-const _CPP_LQN: &str = r#"
-void lqn(int n, double x, double *qn, double *qd) {
-    auto qn_wrapper = std::mdspan(qn, n + 1);
-    auto qd_wrapper = std::mdspan(qd, n + 1);
-    xsf::lqn(x, qn_wrapper, qd_wrapper);
+const _CPP_LEGENDRE_P_ALL: &str = r#"
+void legendre_p_all(size_t n, double x, double *pn) {
+    xsf::legendre_p_all(x, std::mdspan(pn, n + 1));
 }
-void lqn_1(int n, cdouble z, cdouble *cqn, cdouble *cqd) {
-    auto cqn_wrapper = std::mdspan(cqn, n + 1);
-    auto cqd_wrapper = std::mdspan(cqd, n + 1);
-    xsf::lqn(z, cqn_wrapper, cqd_wrapper);
+void legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
+    xsf::legendre_p_all(z, std::mdspan(pn, n + 1));
+}"#;
+
+const _CPP_LQN: &str = r#"
+void lqn(size_t n, double x, double *qn, double *qd) {
+    xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
+}
+void lqn_1(size_t n, cdouble z, cdouble *cqn, cdouble *cqd) {
+    xsf::lqn(z, std::mdspan(cqn, n + 1), std::mdspan(cqd, n + 1));
 }"#;
 
 struct WrapperSpecCustom {
@@ -385,6 +389,10 @@ impl WrapperSpecCustom {
 
 const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
+        pattern: r"complex__(new|values)",
+        cpp: _CPP_COMPLEX_HELPERS,
+    },
+    WrapperSpecCustom {
         pattern: r"cevalpoly",
         cpp: _CPP_CEVALPOLY,
     },
@@ -393,12 +401,12 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
         cpp: _CPP_ASSOC_LEGENDRE_P,
     },
     WrapperSpecCustom {
-        pattern: r"lqn",
-        cpp: _CPP_LQN,
+        pattern: r"legendre_p_all",
+        cpp: _CPP_LEGENDRE_P_ALL,
     },
     WrapperSpecCustom {
-        pattern: r"complex__(new|values)",
-        cpp: _CPP_COMPLEX_HELPERS,
+        pattern: r"lqn",
+        cpp: _CPP_LQN,
     },
 ];
 

@@ -1,5 +1,4 @@
 use crate::bindings;
-use core::array;
 use core::ffi::c_int;
 
 use num_complex::Complex;
@@ -10,8 +9,9 @@ mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait LegendrePArg: sealed::Sealed {
+pub trait LegendrePArg: sealed::Sealed + Sized {
     fn legendre_p(self, n: c_int) -> Self;
+    fn legendre_p_all<const N: usize>(self) -> [Self; N];
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
     fn assoc_legendre_p(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
     fn assoc_legendre_p_norm(self, n: c_int, m: c_int, branch_cut: c_int) -> Self;
@@ -21,6 +21,14 @@ impl LegendrePArg for f64 {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> f64 {
         unsafe { bindings::legendre_p(n, self) }
+    }
+    #[inline(always)]
+    fn legendre_p_all<const N: usize>(self) -> [Self; N] {
+        let mut pn = [0.0; N];
+        unsafe {
+            bindings::legendre_p_all(N - 1, self, pn.as_mut_ptr());
+        }
+        pn
     }
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> f64 {
@@ -40,6 +48,14 @@ impl LegendrePArg for Complex<f64> {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> Complex<f64> {
         unsafe { bindings::legendre_p_1(n, self.into()) }.into()
+    }
+    #[inline(always)]
+    fn legendre_p_all<const N: usize>(self) -> [Self; N] {
+        let mut pn = bindings::complex_zeros::<N>();
+        unsafe {
+            bindings::legendre_p_all_1(N - 1, self.into(), pn.as_mut_ptr());
+        }
+        pn.map(|c| c.into())
     }
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Complex<f64> {
@@ -66,7 +82,7 @@ impl LegendreQArg for f64 {
         let mut qd = [0.0; N];
 
         unsafe {
-            bindings::lqn((N - 1) as c_int, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+            bindings::lqn(N - 1, self, qn.as_mut_ptr(), qd.as_mut_ptr());
         }
 
         (qn, qd)
@@ -76,16 +92,11 @@ impl LegendreQArg for f64 {
 impl LegendreQArg for Complex<f64> {
     #[inline(always)]
     fn legendre_q_all<const N: usize>(self) -> ([Self; N], [Self; N]) {
-        let mut cqn = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
-        let mut cqd = array::from_fn::<_, N, _>(|_| bindings::complex::new(0.0, 0.0));
+        let mut cqn = bindings::complex_zeros::<N>();
+        let mut cqd = bindings::complex_zeros::<N>();
 
         unsafe {
-            bindings::lqn_1(
-                (N - 1) as c_int,
-                self.into(),
-                cqn.as_mut_ptr(),
-                cqd.as_mut_ptr(),
-            );
+            bindings::lqn_1(N - 1, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
         (cqn.map(|c| c.into()), cqd.map(|c| c.into()))
@@ -95,6 +106,20 @@ impl LegendreQArg for Complex<f64> {
 /// Legendre polynomial of degree n
 pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
+}
+
+/// Sequence of Legendre functions of the 1st kind
+///
+/// # Example
+///
+/// ```
+/// use xsf::legendre_p_all;
+///
+/// // Compute P_n(z) for degrees 0, 1, 2, 3 (N=4)
+/// let pn: [f64; 4] = legendre_p_all::<_, 4>(0.5);
+/// ```
+pub fn legendre_p_all<T: LegendrePArg, const N: usize>(z: T) -> [T; N] {
+    z.legendre_p_all()
 }
 
 /// Spherical Legendre polynomial of degree n and order m
@@ -167,6 +192,21 @@ mod tests {
         assert_eq!(legendre_p(0, I), c64(1.0, 0.0));
         assert_eq!(legendre_p(1, I), I);
         assert_eq!(legendre_p(2, I), c64(-2.0, 0.0));
+    }
+
+    // legendre_p_all
+
+    #[test]
+    fn test_legendre_p_all_f64() {
+        assert_eq!(legendre_p_all::<_, 3>(0.0), [1.0, 0.0, -0.5]);
+    }
+
+    #[test]
+    fn test_legendre_p_all_c64() {
+        assert_eq!(
+            legendre_p_all::<_, 3>(I),
+            [c64(1.0, 0.0), I, c64(-2.0, 0.0)]
+        );
     }
 
     // sph_legendre_p

@@ -37,6 +37,11 @@ pub(crate) fn complex_nan() -> cdouble {
     complex::new(f64::NAN, f64::NAN)
 }
 
+#[inline(always)]
+pub(crate) fn complex_zeros<const N: usize>() -> [cdouble; N] {
+    core::array::from_fn::<_, N, _>(|_| complex::new(0.0, 0.0))
+}
+
 macro_rules! xsf_impl {
     ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
         #[doc = $docs]
