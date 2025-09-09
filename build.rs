@@ -176,7 +176,6 @@ const XSF_TYPES: &[(&str, &str)] = &[
     // lambertw.h
     ("lambertw", "Dld->D"),
     // legendre.h
-    //  TODO: `lqn`:  d->[d],[d]
     //  TODO: `lqmn`: d->[[d]],[[d]]
     ("legendre_p", "id->d"),
     ("legendre_p", "iD->D"),
@@ -372,9 +371,64 @@ std::complex<double> assoc_legendre_p_1_1(int n, int m, std::complex<double> z, 
 }
 "#;
 
+// lqn
+const DECL_LQN: &str = r#"
+void lqn(int n, double x, double *qn, double *qd);
+void lqn_1(int n, std::complex<double> z, std::complex<double> *cqn, std::complex<double> *cqd);
+"#;
+
+const IMPL_LQN: &str = r#"
+template<typename T>
+class IndexableVector {
+private:
+    std::vector<T>& vec;
+public:
+    IndexableVector(std::vector<T>& v) : vec(v) {}
+
+    T& operator()(size_t i) { return vec[i]; }
+    const T& operator()(size_t i) const { return vec[i]; }
+
+    T& operator[](size_t i) { return vec[i]; }
+    const T& operator[](size_t i) const { return vec[i]; }
+
+    size_t size() const { return vec.size(); }
+};
+
+void lqn(int n, double x, double *qn, double *qd) {
+    std::vector<double> qn_vec(n + 1);
+    IndexableVector<double> qn_wrapper(qn_vec);
+
+    std::vector<double> qd_vec(n + 1);
+    IndexableVector<double> qd_wrapper(qd_vec);
+
+    xsf::lqn(x, qn_wrapper, qd_wrapper);
+
+    for (int i = 0; i <= n; ++i) {
+        qn[i] = qn_wrapper[i];
+        qd[i] = qd_wrapper[i];
+    }
+}
+
+void lqn_1(int n, std::complex<double> z, std::complex<double> *cqn, std::complex<double> *cqd) {
+    std::vector<std::complex<double>> cqn_vec(n + 1);
+    IndexableVector<std::complex<double>> cqn_wrapper(cqn_vec);
+
+    std::vector<std::complex<double>> cqd_vec(n + 1);
+    IndexableVector<std::complex<double>> cqd_wrapper(cqd_vec);
+
+    xsf::lqn(z, cqn_wrapper, cqd_wrapper);
+
+    for (int i = 0; i <= n; ++i) {
+        cqn[i] = cqn_wrapper[i];
+        cqd[i] = cqd_wrapper[i];
+    }
+}
+"#;
+
 const ALLOWLIST_EXTRA: &[&str] = &[
     "cevalpoly",
     "assoc_legendre_p_(0|1)",
+    "lqn",
     "complex__(new|values)",
 ];
 
@@ -478,6 +532,7 @@ fn generate_header(dir_out: &str) -> String {
 
     // includes
     push_line(&mut source, "#include <complex>");
+    push_line(&mut source, "#include <vector>");
 
     // namespace
     push_line(&mut source, "");
@@ -496,6 +551,7 @@ fn generate_header(dir_out: &str) -> String {
     // special-casing
     push_line(&mut source, DECL_CEVALPOLY);
     push_line(&mut source, DECL_ASSOC_LEGENDRE_P);
+    push_line(&mut source, DECL_LQN);
 
     // helper functions
     push_line(&mut source, DECL_COMPLEX_HELPERS);
@@ -542,6 +598,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
     // special-casing
     push_line(&mut source, IMPL_CEVALPOLY);
     push_line(&mut source, IMPL_ASSOC_LEGENDRE_P);
+    push_line(&mut source, IMPL_LQN);
 
     // helper functions
     push_line(&mut source, IMPL_COMPLEX_HELPERS);
@@ -592,6 +649,7 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .header(header)
         .clang_args(["-x", "c++"])
         .enable_cxx_namespaces()
+        .opaque_type("std::*")
         .dynamic_link_require_all(true)
         .size_t_is_usize(true)
         .sort_semantically(true)
@@ -608,7 +666,7 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let header = generate_header(&out_dir);
 
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let include = format!("{manifest_dir}/{XSF_DIR}/include");
     println!("cargo:rerun-if-changed={include}");
 

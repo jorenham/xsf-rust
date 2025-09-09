@@ -28,6 +28,9 @@ impl From<root::std::complex<f64>> for num_complex::Complex<f64> {
     }
 }
 
+pub(crate) use root::std::complex;
+pub(crate) type cdouble = complex<f64>;
+
 #[inline(always)]
 pub(crate) fn complex_nan() -> root::std::complex<f64> {
     root::std::complex::new(f64::NAN, f64::NAN)
