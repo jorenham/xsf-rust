@@ -1,5 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
+extern crate alloc;
+
 mod bindings;
 
 #[cfg(test)]
@@ -20,7 +22,7 @@ pub use bessel::{
     cyl_bessel_ie, cyl_bessel_j, cyl_bessel_j0, cyl_bessel_j1, cyl_bessel_je, cyl_bessel_k,
     cyl_bessel_k0, cyl_bessel_k0e, cyl_bessel_k1, cyl_bessel_k1e, cyl_bessel_ke, cyl_bessel_y,
     cyl_bessel_y0, cyl_bessel_y1, cyl_bessel_ye, cyl_hankel_1, cyl_hankel_1e, cyl_hankel_2,
-    cyl_hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0,
+    cyl_hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, rctj, rcty,
 };
 
 // beta.h
@@ -90,8 +92,8 @@ pub use lambertw::lambertw;
 // legendre.h
 mod legendre;
 pub use legendre::{
-    assoc_legendre_p, assoc_legendre_p_norm, legendre_p, legendre_q_all, legendre_q_all as lqn,
-    sph_legendre_p,
+    assoc_legendre_p, assoc_legendre_p_all, assoc_legendre_p_norm, assoc_legendre_p_norm_all,
+    legendre_p, legendre_p_all, lqmn, lqn, sph_legendre_p, sph_legendre_p_all,
 };
 
 // log_exp.h

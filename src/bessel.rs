@@ -1,5 +1,6 @@
 use crate::bindings;
 use crate::bindings::xsf_impl;
+use alloc::vec::Vec;
 use num_complex::Complex;
 
 mod sealed {
@@ -295,7 +296,7 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
     (i0int, k0int)
 }
 
-/// Integrals related to modified Bessel functions of order 0
+/// Integrals related to modified Bessel functions of order 0 up to `n`
 ///
 /// Computes the integrals:
 ///
@@ -315,6 +316,53 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
         bindings::it2i0k0(x, &mut i0int, &mut k0int);
     }
     (i0int, k0int)
+}
+
+/// Compute Ricatti-Bessel function of the 1st kind and their derivatives for up to `n`
+///
+/// The Ricatti-Bessel function of the first kind is defined as `x j_n(x)`, where `j_n` is the
+/// spherical Bessel function of the first kind of order `n`.
+///
+/// This function computes the value and first derivative of the
+/// Ricatti-Bessel function for all orders up to and including `n`.
+///
+/// # Arguments
+/// - `n` - Maximum order of function to compute
+/// - `x` - Argument at which to evaluate
+///
+/// # Returns
+/// - `jn`: Value of *j0(x), ..., jn(x)*
+/// - `jnp`:  First derivative *j0'(x), ..., jn'(x)*
+/// - `nmax`: Highest order computed
+pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
+    let mut rj = alloc::vec![0.0; n + 1];
+    let mut dj = alloc::vec![0.0; n + 1];
+    let nm = unsafe { bindings::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as i32;
+    (rj, dj, nm as i32)
+}
+
+/// Compute Ricatti-Bessel function of the 2nd kind and their derivatives for up to `n`
+///
+/// The Ricatti-Bessel function of the second kind is defined here as `+x y_n(x)`, where `y_n` is
+/// the spherical Bessel function of the second kind of order `n`. *Note that this is in contrast
+/// to a common convention that includes a minus sign in the definition.*
+//.
+/// This function computes the value and first derivative of the function for all orders up to and
+/// including `n`.
+///
+/// # Arguments
+/// - `n` - Maximum order of function to compute
+/// - `x` - Argument at which to evaluate
+///
+/// # Returns
+/// - `yn`: Value of y0(x), ..., yn(x)
+/// - `ynp`:  First derivative y0'(x), ..., yn'(x)
+/// - `nmax`: Highest order computed
+pub fn rcty(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
+    let mut ry = alloc::vec![0.0; n + 1];
+    let mut dy = alloc::vec![0.0; n + 1];
+    let nm = unsafe { bindings::rctj(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
+    (ry, dy, nm as i32)
 }
 
 #[cfg(test)]
