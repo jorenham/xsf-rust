@@ -1,9 +1,13 @@
+use core::fmt::Display;
+use std::fs::File;
+use std::io::Error as IOError;
+use std::path::PathBuf;
+
 use arrow::array::{Array, Float64Array, Int32Array, Int64Array};
+use arrow::error::ArrowError;
 use num_complex::{Complex, c64};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use std::fs::File;
-use std::path::PathBuf;
-use std::{env, fmt::Display};
+use parquet::errors::ParquetError;
 
 use crate::fp_error_metrics::{ExtendedErrorArg, extended_relative_error};
 
@@ -156,24 +160,24 @@ struct TestCase<T: TestOutput> {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum TestError {
-    Io(std::io::Error),
+    Io(IOError),
     DataFormat,
 }
 
-impl From<std::io::Error> for TestError {
-    fn from(err: std::io::Error) -> Self {
+impl From<IOError> for TestError {
+    fn from(err: IOError) -> Self {
         TestError::Io(err)
     }
 }
 
-impl From<arrow::error::ArrowError> for TestError {
+impl From<ArrowError> for TestError {
     fn from(_: arrow::error::ArrowError) -> Self {
         TestError::DataFormat
     }
 }
 
-impl From<parquet::errors::ParquetError> for TestError {
-    fn from(_: parquet::errors::ParquetError) -> Self {
+impl From<ParquetError> for TestError {
+    fn from(_: ParquetError) -> Self {
         TestError::DataFormat
     }
 }
@@ -249,10 +253,8 @@ fn load_testcases<T: TestOutput>(
     name: &str,
     signature: &str,
 ) -> Result<Vec<TestCase<T>>, TestError> {
-    let tables_dir = env::var("XSREF_TABLES_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("xsref/tables"))
-        .join("scipy_special_tests")
+    let tables_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("xsref/tables/scipy_special_tests")
         .join(name);
 
     let get_table = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));

@@ -1,6 +1,5 @@
-use std::os::raw::c_int;
-
 use crate::bindings;
+use core::ffi::c_int;
 use num_complex::Complex;
 
 /// Spherical harmonics

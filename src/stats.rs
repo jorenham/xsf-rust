@@ -1,9 +1,7 @@
-use std::os::raw::c_int;
-
-use num_complex::Complex;
-
 use crate::bindings;
 use crate::bindings::xsf_impl;
+use core::ffi::c_int;
+use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}

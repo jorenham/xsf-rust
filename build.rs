@@ -1,6 +1,6 @@
-use core::panic;
-use std::env;
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::{env, fs};
 
 const CXX_STANDARD: &str = "c++17";
 
@@ -539,7 +539,7 @@ fn generate_header(dir_out: &str) -> String {
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
     //
-    let mut name_counts = std::collections::HashMap::new();
+    let mut name_counts = HashMap::new();
     for (name, types) in XSF_TYPES {
         let count = name_counts.entry(*name).or_insert(0);
         let suffix = if *count == 0 { "" } else { &count.to_string() };
@@ -560,7 +560,7 @@ fn generate_header(dir_out: &str) -> String {
     push_line(&mut source, "}");
 
     let file = format!("{dir_out}/{WRAPPER_NAME}.hpp");
-    std::fs::write(&file, source).unwrap();
+    fs::write(&file, source).unwrap();
     file
 }
 
@@ -578,7 +578,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
     // Generate unique function implementations for overloads
-    let mut name_counts = std::collections::HashMap::new();
+    let mut name_counts = HashMap::new();
     for (name, types) in XSF_TYPES {
         let count = name_counts.entry(*name).or_insert(0);
         let suffix = if *count == 0 { "" } else { &count.to_string() };
@@ -607,7 +607,7 @@ fn build_wrapper(dir_out: &str, include: &str) {
     push_line(&mut source, "}");
 
     let file_cpp = format!("{dir_out}/{WRAPPER_NAME}.cpp");
-    std::fs::write(&file_cpp, source).unwrap();
+    fs::write(&file_cpp, source).unwrap();
 
     let mut build = cc::Build::new();
     build
@@ -647,14 +647,14 @@ fn get_allowlist() -> String {
 fn generate_bindings(dir_out: &str, header: &str) {
     bindgen::Builder::default()
         .header(header)
+        .allowlist_function(get_allowlist())
         .clang_args(["-x", "c++"])
         .enable_cxx_namespaces()
-        .opaque_type("std::*")
         .dynamic_link_require_all(true)
         .size_t_is_usize(true)
         .sort_semantically(true)
         .derive_copy(false)
-        .allowlist_function(get_allowlist())
+        .use_core()
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .unwrap()
