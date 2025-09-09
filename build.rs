@@ -176,7 +176,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // lambertw.h
     ("lambertw", "Dld->D"),
     // legendre.h
-    //  TODO: `lqmn`: d->[[d]],[[d]]
     ("legendre_p", "id->d"),
     ("legendre_p", "iD->D"),
     ("sph_legendre_p", "iid->d"),
@@ -365,14 +364,6 @@ void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pnm) {
     xsf::sph_legendre_p_all(z, std::mdspan(pnm, n + 1, 2 * m + 1));
 }"#;
 
-const _CPP_LQN: &str = r#"
-void lqn(size_t n, double x, double *qn, double *qd) {
-    xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
-}
-void lqn_1(size_t n, cdouble z, cdouble *cqn, cdouble *cqd) {
-    xsf::lqn(z, std::mdspan(cqn, n + 1), std::mdspan(cqd, n + 1));
-}"#;
-
 const _CPP_ASSOC_LEGENDRE_P_ALL: &str = r#"
 void assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
@@ -389,6 +380,22 @@ void assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
 void assoc_legendre_p_all_1_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
     return xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
+}"#;
+
+const _CPP_LQN: &str = r#"
+void lqn(size_t n, double x, double *qn, double *qd) {
+    xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
+}
+void lqn_1(size_t n, cdouble z, cdouble *cqn, cdouble *cqd) {
+    xsf::lqn(z, std::mdspan(cqn, n + 1), std::mdspan(cqd, n + 1));
+}"#;
+
+const _CPP_LQMN: &str = r#"
+void lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
+    xsf::lqmn(x, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
+}
+void lqmn_1(size_t m, size_t n, cdouble z, cdouble *qm, cdouble *qd) {
+    xsf::lqmn(z, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
 }"#;
 
 struct WrapperSpecCustom {
@@ -441,6 +448,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"lqn",
         cpp: _CPP_LQN,
+    },
+    WrapperSpecCustom {
+        pattern: r"lqmn",
+        cpp: _CPP_LQMN,
     },
 ];
 
