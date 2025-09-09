@@ -1,6 +1,6 @@
 use crate::bindings;
+use core::ffi::c_int;
 use num_complex::Complex;
-use std::os::raw::c_int;
 
 mod sealed {
     pub trait Sealed {}

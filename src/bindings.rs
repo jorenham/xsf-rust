@@ -1,24 +1,28 @@
 #![allow(non_snake_case)]
-// needed for std::complex_value_type
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-impl root::std::complex<f64> {
+pub(crate) use root::std::complex;
+pub(crate) use root::xsf_wrapper::*;
+
+pub(crate) type cdouble = complex<f64>;
+
+impl cdouble {
     pub(crate) fn new(re: f64, im: f64) -> Self {
         unsafe { complex__new(re, im) }
     }
 }
 
-impl From<num_complex::Complex<f64>> for root::std::complex<f64> {
+impl From<num_complex::Complex<f64>> for cdouble {
     fn from(z: num_complex::Complex<f64>) -> Self {
         Self::new(z.re, z.im)
     }
 }
 
-impl From<root::std::complex<f64>> for num_complex::Complex<f64> {
-    fn from(z: root::std::complex<f64>) -> Self {
+impl From<cdouble> for num_complex::Complex<f64> {
+    fn from(z: cdouble) -> Self {
         let mut re: f64 = 0.0;
         let mut im: f64 = 0.0;
         unsafe {
@@ -28,12 +32,9 @@ impl From<root::std::complex<f64>> for num_complex::Complex<f64> {
     }
 }
 
-pub(crate) use root::std::complex;
-pub(crate) type cdouble = complex<f64>;
-
 #[inline(always)]
-pub(crate) fn complex_nan() -> root::std::complex<f64> {
-    root::std::complex::new(f64::NAN, f64::NAN)
+pub(crate) fn complex_nan() -> cdouble {
+    complex::new(f64::NAN, f64::NAN)
 }
 
 macro_rules! xsf_impl {
@@ -45,5 +46,4 @@ macro_rules! xsf_impl {
     };
 }
 
-pub(crate) use root::xsf_wrapper::*;
 pub(crate) use xsf_impl;

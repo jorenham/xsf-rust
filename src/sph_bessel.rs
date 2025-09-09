@@ -1,6 +1,5 @@
-use std::os::raw::c_long;
-
 use crate::bindings;
+use core::ffi::c_long;
 use num_complex::Complex;
 
 mod sealed {
