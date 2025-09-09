@@ -57,7 +57,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // alg.h
     ("cbrt", "d->d"),
     // bessel.h
-    //  TODO: `rct{j,y}`: d->[d],[d]
     ("it1j0y0", "d->dd"),
     ("it2j0y0", "d->dd"),
     ("it1i0k0", "d->dd"),
@@ -320,6 +319,30 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("zeta", "Dd->D"),
 ];
 
+struct WrapperSpecCustom {
+    pattern: &'static str,
+    cpp: &'static str,
+}
+
+impl WrapperSpecCustom {
+    fn to_hpp(&self) -> String {
+        self.cpp
+            .lines()
+            .map(|line| line.trim_end())
+            .filter_map(|line| {
+                if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
+                    Some(format!("{};", &line[..line.len() - 2].trim_end()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+// internal helpers
+
 const _CPP_COMPLEX_HELPERS: &str = r#"
 cdouble complex__new(double re, double im) {
     return cdouble(re, im);
@@ -329,10 +352,28 @@ void complex__values(cdouble z, double &re, double &im) {
     im = std::imag(z);
 }"#;
 
+// bessel.h
+
+const _CPP_RCT: &str = r#"
+int rctj(size_t n, double x, double *rj, double *dj) {
+    int nm;
+    xsf::rctj(x, &nm, std::mdspan(rj, n + 1), std::mdspan(dj, n + 1));
+    return nm;
+}
+int rcty(size_t n, double x, double *ry, double *dy) {
+    int nm;
+    xsf::rcty(x, &nm, std::mdspan(ry, n + 1), std::mdspan(dy, n + 1));
+    return nm;
+}"#;
+
+// evalpoly.h
+
 const _CPP_CEVALPOLY: &str = r#"
 cdouble cevalpoly(const double *coeffs, int degree, cdouble z) {
     return xsf::cevalpoly(coeffs, degree, z);
 }"#;
+
+// legendre.h
 
 const _CPP_ASSOC_LEGENDRE_P: &str = r#"
 double assoc_legendre_p_0(int n, int m, double z, int bc) {
@@ -398,32 +439,14 @@ void lqmn_1(size_t m, size_t n, cdouble z, cdouble *qm, cdouble *qd) {
     xsf::lqmn(z, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
 }"#;
 
-struct WrapperSpecCustom {
-    pattern: &'static str,
-    cpp: &'static str,
-}
-
-impl WrapperSpecCustom {
-    fn to_hpp(&self) -> String {
-        self.cpp
-            .lines()
-            .map(|line| line.trim_end())
-            .filter_map(|line| {
-                if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
-                    Some(format!("{};", &line[..line.len() - 2].trim_end()))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-}
-
 const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"complex__(new|values)",
         cpp: _CPP_COMPLEX_HELPERS,
+    },
+    WrapperSpecCustom {
+        pattern: r"rct(j|y)",
+        cpp: _CPP_RCT,
     },
     WrapperSpecCustom {
         pattern: r"cevalpoly",
