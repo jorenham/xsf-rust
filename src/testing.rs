@@ -177,7 +177,7 @@ impl From<ArrowError> for TestError {
 }
 
 impl From<ParquetError> for TestError {
-    fn from(_: parquet::errors::ParquetError) -> Self {
+    fn from(_: ParquetError) -> Self {
         TestError::DataFormat
     }
 }
