@@ -338,7 +338,7 @@ pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut rj = alloc::vec![0.0; n + 1];
     let mut dj = alloc::vec![0.0; n + 1];
     let nm = unsafe { bindings::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as i32;
-    (rj, dj, nm as i32)
+    (rj, dj, nm)
 }
 
 /// Compute Ricatti-Bessel function of the 2nd kind and their derivatives for up to `n`
@@ -346,7 +346,7 @@ pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
 /// The Ricatti-Bessel function of the second kind is defined here as `+x y_n(x)`, where `y_n` is
 /// the spherical Bessel function of the second kind of order `n`. *Note that this is in contrast
 /// to a common convention that includes a minus sign in the definition.*
-//.
+///
 /// This function computes the value and first derivative of the function for all orders up to and
 /// including `n`.
 ///
@@ -361,7 +361,7 @@ pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
 pub fn rcty(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut ry = alloc::vec![0.0; n + 1];
     let mut dy = alloc::vec![0.0; n + 1];
-    let nm = unsafe { bindings::rctj(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
+    let nm = unsafe { bindings::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
     (ry, dy, nm as i32)
 }
 
