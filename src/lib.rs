@@ -83,7 +83,10 @@ pub use iv_ratio::{iv_ratio, iv_ratio_c};
 
 // kelvin.h
 mod kelvin;
-pub use kelvin::{bei, beip, ber, berp, kei, keip, kelvin, ker, kerp};
+pub use kelvin::{
+    bei, bei_zeros, beip, beip_zeros, ber, ber_zeros, berp, berp_zeros, kei, kei_zeros, keip,
+    keip_zeros, kelvin, kelvin_zeros, ker, ker_zeros, kerp, kerp_zeros,
+};
 
 // lambertw.h
 mod lambertw;
