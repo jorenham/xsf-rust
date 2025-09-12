@@ -1,22 +1,7 @@
-use crate::bindings;
+use crate::{bindings, utils};
 use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
-
-#[inline(always)]
-fn vec_to_vecvec<T: Clone>(vec: Vec<T>, rows: usize, cols: usize, transpose: bool) -> Vec<Vec<T>> {
-    if transpose {
-        // Transpose: convert from (rows, cols) to (cols, rows)
-        (0..cols)
-            .map(|j| (0..rows).map(|i| vec[i * cols + j].clone()).collect())
-            .collect()
-    } else {
-        // Normal: convert from flat vec to (rows, cols)
-        (0..rows)
-            .map(|i| vec[i * cols..(i + 1) * cols].to_vec())
-            .collect()
-    }
-}
 
 mod sealed {
     pub trait Sealed {}
@@ -60,7 +45,7 @@ impl LegendrePArg for f64 {
         unsafe {
             bindings::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
         }
-        vec_to_vecvec(pnm, ni, nj, false)
+        utils::vec_to_vecvec(pnm, ni, nj, false)
     }
 
     #[inline(always)]
@@ -85,7 +70,7 @@ impl LegendrePArg for f64 {
                 bindings::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
             }
         }
-        vec_to_vecvec(pnm, ni, nj, false)
+        utils::vec_to_vecvec(pnm, ni, nj, false)
     }
 }
 
@@ -116,7 +101,7 @@ impl LegendrePArg for Complex<f64> {
         unsafe {
             bindings::sph_legendre_p_all_1(n, m, self.into(), pnm.as_mut_ptr());
         }
-        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
+        utils::vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
     }
 
     #[inline(always)]
@@ -142,7 +127,7 @@ impl LegendrePArg for Complex<f64> {
                 bindings::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
             }
         }
-        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
+        utils::vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
     }
 }
 
@@ -175,8 +160,8 @@ impl LegendreQArg for f64 {
 
         // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)
         (
-            vec_to_vecvec(qm, ni, nj, true),
-            vec_to_vecvec(qd, ni, nj, true),
+            utils::vec_to_vecvec(qm, ni, nj, true),
+            utils::vec_to_vecvec(qd, ni, nj, true),
         )
     }
 }
@@ -205,8 +190,8 @@ impl LegendreQArg for Complex<f64> {
 
         // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)
         (
-            vec_to_vecvec(bindings::cvec_into(cqm), ni, nj, true),
-            vec_to_vecvec(bindings::cvec_into(cqd), ni, nj, true),
+            utils::vec_to_vecvec(bindings::cvec_into(cqm), ni, nj, true),
+            utils::vec_to_vecvec(bindings::cvec_into(cqd), ni, nj, true),
         )
     }
 }

@@ -161,7 +161,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("iv_ratio", "dd->d"),
     ("iv_ratio_c", "dd->d"),
     // kelvin.h
-    //  TODO: `klvnzo`: ii->[d]
     ("ber", "d->d"),
     ("bei", "d->d"),
     ("ker", "d->d"),
@@ -238,7 +237,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("sph_bessel_k_jac", "ld->d"),
     ("sph_bessel_k_jac", "lD->D"),
     // sph_harm.h
-    //  TODO: `sph_harm_y_all`: dd->[[d]]
     ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
     ("prolate_segv", "ddd->d"),
@@ -452,6 +450,12 @@ void lqmn_1(size_t m, size_t n, cdouble z, cdouble *qm, cdouble *qd) {
     xsf::lqmn(z, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
 }"#;
 
+// sph_harm.h
+const _CPP_SPH_HARM_Y_ALL: &str = r#"
+void sph_harm_y_all(size_t n, size_t m, double theta, double phi, cdouble *res) {
+    xsf::sph_harm_y_all(theta, phi, std::mdspan(res, n + 1, 2 * m + 1));
+}"#;
+
 const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"complex__(new|values)",
@@ -496,6 +500,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"lqmn",
         cpp: _CPP_LQMN,
+    },
+    WrapperSpecCustom {
+        pattern: r"sph_harm_y_all",
+        cpp: _CPP_SPH_HARM_Y_ALL,
     },
 ];
 

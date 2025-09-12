@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod bindings;
+mod utils;
 
 #[cfg(test)]
 mod testing;
@@ -137,7 +138,7 @@ pub use sph_bessel::{
 
 // sph_harm.h
 mod sph_harm;
-pub use sph_harm::sph_harm_y;
+pub use sph_harm::{sph_harm_y, sph_harm_y_all};
 
 // sphd_wave.h
 mod sphd_wave;
