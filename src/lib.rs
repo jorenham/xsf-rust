@@ -67,7 +67,7 @@ pub use fp_error_metrics::{extended_absolute_error, extended_relative_error};
 
 // fresnel.h
 mod fresnel;
-pub use fresnel::{fresnel, modified_fresnel_minus, modified_fresnel_plus};
+pub use fresnel::{fresnel, fresnel_zeros, modified_fresnel_minus, modified_fresnel_plus};
 
 // gamma.h
 mod gamma;

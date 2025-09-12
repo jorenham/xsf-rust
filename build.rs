@@ -141,7 +141,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("extended_relative_error", "dd->d"),
     ("extended_relative_error", "DD->d"),
     // fresnel.h
-    //  TODO: `fcszo`: ii->[D]
     ("fresnel", "d->dd"),
     ("fresnel", "D->DD"),
     ("modified_fresnel_plus", "d->DD"),
@@ -373,6 +372,13 @@ cdouble cevalpoly(const double *coeffs, int degree, cdouble z) {
     return xsf::cevalpoly(coeffs, degree, z);
 }"#;
 
+// fresnel.h
+
+const _CPP_FCSZO: &str = r#"
+void fcszo(int kf, int nt, cdouble *zo) {
+    xsf::fcszo(kf, nt, zo);
+}"#;
+
 // legendre.h
 
 const _CPP_ASSOC_LEGENDRE_P: &str = r#"
@@ -408,19 +414,19 @@ void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pnm) {
 const _CPP_ASSOC_LEGENDRE_P_ALL: &str = r#"
 void assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
 }
 void assoc_legendre_p_all_0_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
 }
 void assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }
 void assoc_legendre_p_all_1_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    return xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }"#;
 
 const _CPP_LQN: &str = r#"
@@ -451,6 +457,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"cevalpoly",
         cpp: _CPP_CEVALPOLY,
+    },
+    WrapperSpecCustom {
+        pattern: r"fcszo",
+        cpp: _CPP_FCSZO,
     },
     WrapperSpecCustom {
         pattern: r"assoc_legendre_p_(0|1)",
