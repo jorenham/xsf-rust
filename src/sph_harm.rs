@@ -6,7 +6,7 @@ use num_complex::Complex;
 /// Spherical harmonics
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
     assert!(n <= c_int::MAX as usize);
-    assert!(m <= c_int::MAX as isize);
+    assert!(m.abs() <= c_int::MAX as isize);
     unsafe { bindings::sph_harm_y(n as c_int, m as c_int, theta, phi) }.into()
 }
 
