@@ -379,6 +379,13 @@ void fcszo(int kf, int nt, cdouble *zo) {
     xsf::fcszo(kf, nt, zo);
 }"#;
 
+// kelvin.h
+
+const _CPP_KLVNZO: &str = r#"
+void klvnzo(int nt, int kd, double *zo) {
+    xsf::klvnzo(nt, kd, zo);
+}"#;
+
 // legendre.h
 
 const _CPP_ASSOC_LEGENDRE_P: &str = r#"
@@ -461,6 +468,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"fcszo",
         cpp: _CPP_FCSZO,
+    },
+    WrapperSpecCustom {
+        pattern: r"klvnzo",
+        cpp: _CPP_KLVNZO,
     },
     WrapperSpecCustom {
         pattern: r"assoc_legendre_p_(0|1)",
