@@ -4,10 +4,18 @@ use core::ffi::c_int;
 use num_complex::Complex;
 
 #[inline(always)]
-fn vec_to_vecvec<T: Clone>(vec: Vec<T>, rows: usize, cols: usize) -> Vec<Vec<T>> {
-    (0..rows)
-        .map(|i| vec[i * cols..(i + 1) * cols].to_vec())
-        .collect()
+fn vec_to_vecvec<T: Clone>(vec: Vec<T>, rows: usize, cols: usize, transpose: bool) -> Vec<Vec<T>> {
+    if transpose {
+        // Transpose: convert from (rows, cols) to (cols, rows)
+        (0..cols)
+            .map(|j| (0..rows).map(|i| vec[i * cols + j].clone()).collect())
+            .collect()
+    } else {
+        // Normal: convert from flat vec to (rows, cols)
+        (0..rows)
+            .map(|i| vec[i * cols..(i + 1) * cols].to_vec())
+            .collect()
+    }
 }
 
 mod sealed {
@@ -52,7 +60,7 @@ impl LegendrePArg for f64 {
         unsafe {
             bindings::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
         }
-        vec_to_vecvec(pnm, ni, nj)
+        vec_to_vecvec(pnm, ni, nj, false)
     }
 
     #[inline(always)]
@@ -77,7 +85,7 @@ impl LegendrePArg for f64 {
                 bindings::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
             }
         }
-        vec_to_vecvec(pnm, ni, nj)
+        vec_to_vecvec(pnm, ni, nj, false)
     }
 }
 
@@ -108,7 +116,7 @@ impl LegendrePArg for Complex<f64> {
         unsafe {
             bindings::sph_legendre_p_all_1(n, m, self.into(), pnm.as_mut_ptr());
         }
-        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj)
+        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
     }
 
     #[inline(always)]
@@ -134,30 +142,29 @@ impl LegendrePArg for Complex<f64> {
                 bindings::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
             }
         }
-        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj)
+        vec_to_vecvec(bindings::cvec_into(pnm), ni, nj, false)
     }
 }
 
 pub trait LegendreQArg: sealed::Sealed + Sized {
-    fn lqn(self, n: usize) -> (Vec<Self>, Vec<Self>);
-    fn lqmn(self, m: usize, n: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>);
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>);
+    fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>);
 }
 
 impl LegendreQArg for f64 {
     #[inline(always)]
-    fn lqn(self, n: usize) -> (Vec<Self>, Vec<Self>) {
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
         let mut qn = alloc::vec![0.0; n + 1];
         let mut qd = alloc::vec![0.0; n + 1];
 
         unsafe {
             bindings::lqn(n, self, qn.as_mut_ptr(), qd.as_mut_ptr());
         }
-
         (qn, qd)
     }
 
     #[inline(always)]
-    fn lqmn(self, m: usize, n: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
+    fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
         let mut qm = alloc::vec![0.0; ni * nj];
         let mut qd = alloc::vec![0.0; ni * nj];
@@ -166,25 +173,28 @@ impl LegendreQArg for f64 {
             bindings::lqmn(m, n, self, qm.as_mut_ptr(), qd.as_mut_ptr());
         }
 
-        (vec_to_vecvec(qm, ni, nj), vec_to_vecvec(qd, ni, nj))
+        // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)
+        (
+            vec_to_vecvec(qm, ni, nj, true),
+            vec_to_vecvec(qd, ni, nj, true),
+        )
     }
 }
 
 impl LegendreQArg for Complex<f64> {
     #[inline(always)]
-    fn lqn(self, n: usize) -> (Vec<Self>, Vec<Self>) {
+    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
         let mut cqn: Vec<_> = bindings::complex_zeros(n + 1);
         let mut cqd: Vec<_> = bindings::complex_zeros(n + 1);
 
         unsafe {
             bindings::lqn_1(n, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
-
         (bindings::cvec_into(cqn), bindings::cvec_into(cqd))
     }
 
     #[inline(always)]
-    fn lqmn(self, m: usize, n: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
+    fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
         let mut cqm = bindings::complex_zeros(ni * nj);
         let mut cqd = bindings::complex_zeros(ni * nj);
@@ -193,9 +203,10 @@ impl LegendreQArg for Complex<f64> {
             bindings::lqmn_1(m, n, self.into(), cqm.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
+        // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)
         (
-            vec_to_vecvec(bindings::cvec_into(cqm), ni, nj),
-            vec_to_vecvec(bindings::cvec_into(cqd), ni, nj),
+            vec_to_vecvec(bindings::cvec_into(cqm), ni, nj, true),
+            vec_to_vecvec(bindings::cvec_into(cqd), ni, nj, true),
         )
     }
 }
@@ -248,17 +259,21 @@ pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> V
 /// All Legendre polynomials of the 2nd kind and their derivatives
 ///
 /// Output lengths are `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
-pub fn lqn<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
-    z.lqn(n)
+pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
+    z.legendre_q_all(n)
 }
 
 /// All associated Legendre polynomials of the 2nd kind and their derivatives
 ///
 /// Computes the associated Legendre function of the second kind of order `m` and degree `n`, `Qmn(z)`,
-/// and its derivative, `Qmn'(z)`. Returns two arrays of size `(m+1, n+1)` containing `Qmn(z)` and
-/// `Qmn'(z)` for all orders from `0..=m` and degrees from `0..=n`.
-pub fn lqmn<T: LegendreQArg>(m: usize, n: usize, z: T) -> (Vec<Vec<T>>, Vec<Vec<T>>) {
-    z.lqmn(m, n)
+/// and its derivative, `Qmn'(z)`. Returns two arrays of size `(n+1, m+1)` containing `Qmn(z)` and
+/// `Qmn'(z)` for all degrees from `0..=n` and orders from `0..=m`.
+pub fn assoc_legendre_q_all<T: LegendreQArg>(
+    n: usize,
+    m: usize,
+    z: T,
+) -> (Vec<Vec<T>>, Vec<Vec<T>>) {
+    z.assoc_legendre_q_all(n, m)
 }
 
 #[cfg(test)]
@@ -420,11 +435,11 @@ mod tests {
         );
     }
 
-    // lqn
+    // legendre_q_all
 
     #[test]
-    fn test_lqn_f64() {
-        let (qn, qd) = lqn(4, 0.5);
+    fn test_legendre_q_all_f64() {
+        let (qn, qd) = legendre_q_all(4, 0.5);
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -437,8 +452,8 @@ mod tests {
     }
 
     #[test]
-    fn test_lqn_c64() {
-        let (qn, qd) = lqn(4, c64(0.0, 1.0));
+    fn test_legendre_q_all_c64() {
+        let (qn, qd) = legendre_q_all(4, c64(0.0, 1.0));
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -447,24 +462,29 @@ mod tests {
         assert_eq!(qn[1], c64(-1.0 - consts::FRAC_PI_4, 0.0));
     }
 
-    // lqmn
+    // assoc_legendre_q_all
 
     #[test]
-    fn test_lqmn_f64() {
-        let (qm, qd) = lqmn(1, 2, 0.0);
+    fn assoc_test_legendre_q_all_f64() {
+        let (qm, qd) = assoc_legendre_q_all(1, 2, 0.0);
 
+        // Shape should be (n+1, m+1) = (2, 3)
         assert_eq!(qm.len(), 2);
-        assert_eq!(qm[0], vec![0.0, -1.0, 0.0]);
-        assert_eq!(qm[1], vec![-1.0, 0.0, 2.0]);
+        assert_eq!(qm[0].len(), 3);
+        assert_eq!(qm[1].len(), 3);
+
+        // Transposed values: qm[degree][order]
+        assert_eq!(qm[0], vec![0.0, -1.0, 0.0]); // degree 0, orders 0,1,2
+        assert_eq!(qm[1], vec![-1.0, 0.0, 2.0]); // degree 1, orders 0,1,2
 
         assert_eq!(qd.len(), 2);
-        assert_eq!(qd[0], vec![1.0, 0.0, -2.0]);
-        assert_eq!(qd[1], vec![0.0, -2.0, 0.0]);
+        assert_eq!(qd[0], vec![1.0, 0.0, 2.0]); // degree 0, orders 0,1,2
+        assert_eq!(qd[1], vec![0.0, -2.0, 0.0]); // degree 1, orders 0,1,2
     }
 
     #[test]
-    fn test_lqmn_c64() {
-        let (qm, qd) = lqmn(1, 2, c64(0.0, 0.0));
+    fn assoc_test_legendre_q_all_c64() {
+        let (qm, qd) = assoc_legendre_q_all(1, 2, c64(0.0, 0.0));
 
         assert_eq!(qm.len(), 2);
         assert_eq!(qm[0], vec![c64(0.0, 0.0), c64(-1.0, 0.0), c64(0.0, 0.0)]);
@@ -473,7 +493,7 @@ mod tests {
         assert_eq!(qd.len(), 2);
         // https://github.com/scipy/scipy/issues/23589
         // https://github.com/scipy/xsf/pull/62
-        // assert_eq!(qd[0], vec![c64(1.0, 0.0), c64(0.0, 0.0), c64(-2.0, 0.0)]);
+        // assert_eq!(qd[0], vec![c64(1.0, 0.0), c64(0.0, 0.0), c64(2.0, 0.0)]);
         // assert_eq!(qd[1], vec![c64(0.0, 0.0), c64(-2.0, 0.0), c64(0.0, 0.0)]);
     }
 }
