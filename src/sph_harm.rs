@@ -1,4 +1,5 @@
 use crate::{bindings, utils};
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
@@ -21,9 +22,9 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
 /// - Index `m+1` to `2*m`: orders `-m, -(m-1), ..., -1`
 pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex<f64>>> {
     let (nr, nc) = (n + 1, 2 * m + 1);
-    let mut res = bindings::complex_zeros(nr * nc);
+    let mut res = vec![bindings::cdouble::default(); nr * nc];
     unsafe { bindings::sph_harm_y_all(n, m, theta, phi, res.as_mut_ptr()) };
-    utils::vec_to_vecvec(bindings::cvec_into(res), nr, nc, false)
+    utils::vec_to_vecvec(utils::vec_into(res), nr, nc, false)
 }
 
 #[cfg(test)]

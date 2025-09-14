@@ -341,13 +341,15 @@ impl WrapperSpecCustom {
 // internal helpers
 
 const _CPP_COMPLEX_HELPERS: &str = r#"
-cdouble complex__new(double re, double im) {
-    return cdouble(re, im);
-}
-void complex__values(cdouble z, double &re, double &im) {
-    re = std::real(z);
-    im = std::imag(z);
-}"#;
+class cdouble {
+public:
+    double re, im;
+    cdouble() : re(0.0), im(0.0) {};
+    cdouble(double a) : re(a), im(0.0) {};
+    cdouble(double a, double b) : re(a), im(b) {};
+    cdouble(std::complex<double> z) : re(z.real()), im(z.imag()) {};
+    std::complex<double> to_std() const { return std::complex<double>(re, im); }
+};"#;
 
 // bessel.h
 
@@ -367,14 +369,18 @@ int rcty(size_t n, double x, double *ry, double *dy) {
 
 const _CPP_CEVALPOLY: &str = r#"
 cdouble cevalpoly(const double *coeffs, int degree, cdouble z) {
-    return xsf::cevalpoly(coeffs, degree, z);
+    return cdouble(xsf::cevalpoly(coeffs, degree, z.to_std()));
 }"#;
 
 // fresnel.h
 
 const _CPP_FCSZO: &str = r#"
 void fcszo(int kf, int nt, cdouble *zo) {
-    xsf::fcszo(kf, nt, zo);
+    std::vector<std::complex<double>> czo(nt);
+    xsf::fcszo(kf, nt, czo.data());
+    for (int i = 0; i < nt; i++) {
+        zo[i] = cdouble(czo[i]);
+    }
 }"#;
 
 // kelvin.h
@@ -394,10 +400,10 @@ double assoc_legendre_p_1(int n, int m, double z, int bc) {
     return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
 }
 cdouble assoc_legendre_p_0_1(int n, int m, cdouble z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
+    return cdouble(xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z.to_std(), bc));
 }
 cdouble assoc_legendre_p_1_1(int n, int m, cdouble z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
+    return cdouble(xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z.to_std(), bc));
 }"#;
 
 const _CPP_LEGENDRE_P_ALL: &str = r#"
@@ -405,7 +411,11 @@ void legendre_p_all(size_t n, double x, double *pn) {
     xsf::legendre_p_all(x, std::mdspan(pn, n + 1));
 }
 void legendre_p_all_1(size_t n, cdouble z, cdouble *pn) {
-    xsf::legendre_p_all(z, std::mdspan(pn, n + 1));
+    std::vector<std::complex<double>> cpn(n + 1);
+    xsf::legendre_p_all(z.to_std(), std::mdspan(cpn.data(), n + 1));
+    for (size_t i = 0; i <= n; i++) {
+        pn[i] = cdouble(cpn[i]);
+    }
 }"#;
 
 const _CPP_SPH_LEGENDRE_P_ALL: &str = r#"
@@ -413,7 +423,11 @@ void sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
     xsf::sph_legendre_p_all(x, std::mdspan(pnm, n + 1, 2 * m + 1));
 }
 void sph_legendre_p_all_1(size_t n, size_t m, cdouble z, cdouble *pnm) {
-    xsf::sph_legendre_p_all(z, std::mdspan(pnm, n + 1, 2 * m + 1));
+    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
+    xsf::sph_legendre_p_all(z.to_std(), std::mdspan(cpnm.data(), n + 1, 2 * m + 1));
+    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
+        pnm[i] = cdouble(cpnm[i]);
+    }
 }"#;
 
 const _CPP_ASSOC_LEGENDRE_P_ALL: &str = r#"
@@ -422,24 +436,38 @@ void assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
 }
 void assoc_legendre_p_all_0_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
-    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
+    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
+    auto res = std::mdspan(cpnm.data(), n + 1, 2 * m + 1);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z.to_std(), bc, res);
+    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
+        pnm[i] = cdouble(cpnm[i]);
+    }
 }
 void assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }
 void assoc_legendre_p_all_1_1(size_t n, size_t m, cdouble z, int bc, cdouble *pnm) {
-    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
+    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
+    auto res = std::mdspan(cpnm.data(), n + 1, 2 * m + 1);
+    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z.to_std(), bc, res);
+    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
+        pnm[i] = cdouble(cpnm[i]);
+    }
 }"#;
 
 const _CPP_LQN: &str = r#"
 void lqn(size_t n, double x, double *qn, double *qd) {
     xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
 }
-void lqn_1(size_t n, cdouble z, cdouble *cqn, cdouble *cqd) {
-    xsf::lqn(z, std::mdspan(cqn, n + 1), std::mdspan(cqd, n + 1));
+void lqn_1(size_t n, cdouble z, cdouble *qn, cdouble *qd) {
+    std::vector<std::complex<double>> cqn(n + 1);
+    std::vector<std::complex<double>> cqd(n + 1);
+    xsf::lqn(z.to_std(), std::mdspan(cqn.data(), n + 1), std::mdspan(cqd.data(), n + 1));
+    for (size_t i = 0; i <= n; i++) {
+        qn[i] = cdouble(cqn[i]);
+        qd[i] = cdouble(cqd[i]);
+    }
 }"#;
 
 const _CPP_LQMN: &str = r#"
@@ -447,20 +475,26 @@ void lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
     xsf::lqmn(x, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
 }
 void lqmn_1(size_t m, size_t n, cdouble z, cdouble *qm, cdouble *qd) {
-    xsf::lqmn(z, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
+    std::vector<std::complex<double>> cqm((m + 1) * (n + 1));
+    std::vector<std::complex<double>> cqd((m + 1) * (n + 1));
+    xsf::lqmn(z.to_std(), std::mdspan(cqm.data(), m + 1, n + 1), std::mdspan(cqd.data(), m + 1, n + 1));
+    for (size_t i = 0; i < (m + 1) * (n + 1); i++) {
+        qm[i] = cdouble(cqm[i]);
+        qd[i] = cdouble(cqd[i]);
+    }
 }"#;
 
 // sph_harm.h
 const _CPP_SPH_HARM_Y_ALL: &str = r#"
 void sph_harm_y_all(size_t n, size_t m, double theta, double phi, cdouble *res) {
-    xsf::sph_harm_y_all(theta, phi, std::mdspan(res, n + 1, 2 * m + 1));
+    std::vector<std::complex<double>> cres((n + 1) * (2 * m + 1));
+    xsf::sph_harm_y_all(theta, phi, std::mdspan(cres.data(), n + 1, 2 * m + 1));
+    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
+        res[i] = cdouble(cres[i]);
+    }
 }"#;
 
 const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
-    WrapperSpecCustom {
-        pattern: r"complex__(new|values)",
-        cpp: _CPP_COMPLEX_HELPERS,
-    },
     WrapperSpecCustom {
         pattern: r"rct(j|y)",
         cpp: _CPP_RCT,
@@ -511,10 +545,8 @@ fn get_ctype(code: char) -> &'static str {
     match code {
         'i' => "int",
         'l' => "long",
-        'f' => "float",
         'd' => "double",
-        'F' => "cfloat",  // std::complex<float>
-        'D' => "cdouble", // std::complex<double>
+        'D' => "cdouble",
         'V' => "void",
         _ => panic!("Unknown parameter type"),
     }
@@ -582,23 +614,79 @@ fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
     format!("{rtype} {fname}({params})")
 }
 
-fn fmt_call(name: &str, spec: &str) -> String {
+fn fmt_call(name: &str, spec: &str) -> Vec<String> {
     let (inputs, outputs) = split_typespec(spec);
     let clean_name = name.trim_end_matches('*');
 
-    let mut args = (0..inputs.len())
-        .map(|i| format!("x{i}"))
+    let mut args = inputs
+        .chars()
+        .enumerate()
+        .map(|(i, c)| {
+            if c == 'D' {
+                format!("x{i}.to_std()")
+            } else {
+                format!("x{i}")
+            }
+        })
         .collect::<Vec<String>>();
 
+    let (whence, whither) = if name.ends_with('*') {
+        ("&", "*")
+    } else {
+        ("", "")
+    };
+
     if outputs.len() > 1 {
-        args.extend((0..outputs.len()).map(|i| format!("y{i}")));
+        args.extend(outputs.chars().enumerate().map(|(i, c)| {
+            if c == 'D' {
+                format!("{whence}cy{i}")
+            } else {
+                format!("y{i}")
+            }
+        }));
     }
 
-    format!("xsf::{}({})", clean_name, args.join(", "))
+    let call_args = args.join(", ");
+    let call_stmt = format!("xsf::{clean_name}({call_args})");
+
+    if outputs.len() == 1 {
+        if outputs == "D" {
+            vec![format!("return cdouble({})", call_stmt)]
+        } else {
+            vec![format!("return {}", call_stmt)]
+        }
+    } else {
+        let mut stmts = vec![];
+
+        let cys = outputs
+            .chars()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                if c == 'D' {
+                    Some(format!("cy{i}"))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        if !cys.is_empty() {
+            stmts.push(format!("std::complex<double> {cys}"));
+        }
+
+        stmts.push(call_stmt);
+
+        for (i, c) in outputs.chars().enumerate() {
+            if c == 'D' {
+                stmts.push(format!("{whither}y{i} = cdouble(cy{i})"));
+            }
+        }
+        stmts
+    }
 }
 
 fn push_line(source: &mut String, line: &str) {
-    source.push_str(line.trim());
+    source.push_str(line.trim_end());
     source.push('\n');
 }
 
@@ -618,9 +706,8 @@ fn generate_hpp(dir_out: &str) -> String {
     // namespace
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
-    // complex aliases (compatible with xsf/numpy.h)
-    push_line(&mut source, "using cfloat = std::complex<float>;");
-    push_line(&mut source, "using cdouble = std::complex<double>;");
+    // complex helpers
+    push_line(&mut source, _CPP_COMPLEX_HELPERS);
 
     // simple wrappers
     let mut name_counts = HashMap::new();
@@ -674,14 +761,14 @@ fn generate_cpp(dir_out: &str) -> String {
         *count += 1;
 
         let decl = fmt_func(name, types, suffix);
-        let call = fmt_call(name, types);
+        let call_stmts = fmt_call(name, types);
+        assert!(!call_stmts.is_empty());
 
-        let stmt = if fmt_return(types) == "void" {
-            call.to_string()
-        } else {
-            format!("return {call}")
-        };
-        push_line(&mut source, &format!("{decl} {{ {stmt}; }}"));
+        push_line(&mut source, &format!("{decl} {{"));
+        for stmt in call_stmts {
+            push_line(&mut source, &format!("    {stmt};"));
+        }
+        push_line(&mut source, "}");
     }
 
     // additional wrappers
@@ -742,12 +829,12 @@ fn generate_bindings(dir_out: &str, header: &str) {
     bindgen::Builder::default()
         .header(header)
         .allowlist_function(get_allowlist())
+        .allowlist_type("cdouble")
         .clang_args(["-x", "c++"])
         .enable_cxx_namespaces()
         .dynamic_link_require_all(true)
         .size_t_is_usize(true)
         .sort_semantically(true)
-        .derive_copy(false)
         .use_core()
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()

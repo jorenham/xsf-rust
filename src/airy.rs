@@ -44,10 +44,10 @@ impl AiryArg for f64 {
 impl AiryArg for Complex<f64> {
     #[inline(always)]
     fn airy(self) -> (Self, Self, Self, Self) {
-        let mut ai = bindings::complex_nan();
-        let mut bi = bindings::complex_nan();
-        let mut ad = bindings::complex_nan();
-        let mut bd = bindings::complex_nan();
+        let mut ai = f64::NAN.into();
+        let mut bi = f64::NAN.into();
+        let mut ad = f64::NAN.into();
+        let mut bd = f64::NAN.into();
 
         unsafe {
             bindings::airy_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
@@ -57,10 +57,10 @@ impl AiryArg for Complex<f64> {
 
     #[inline(always)]
     fn airye(self) -> (Self, Self, Self, Self) {
-        let mut ai = bindings::complex_nan();
-        let mut bi = bindings::complex_nan();
-        let mut ad = bindings::complex_nan();
-        let mut bd = bindings::complex_nan();
+        let mut ai = f64::NAN.into();
+        let mut bi = f64::NAN.into();
+        let mut ad = f64::NAN.into();
+        let mut bd = f64::NAN.into();
 
         unsafe {
             bindings::airye_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);

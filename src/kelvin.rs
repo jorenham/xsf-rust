@@ -22,10 +22,10 @@ xsf_impl!(keip, (x: f64), "Derivative of the Kelvin function `kei`");
 /// - *Be*': Derivative of [`berp`] + *i* [`beip`]
 /// - *Ke*': Derivative of [`kerp`] + *i* [`keip`]
 pub fn kelvin(x: f64) -> [Complex<f64>; 4] {
-    let mut be = bindings::complex_nan();
-    let mut ke = bindings::complex_nan();
-    let mut bep = bindings::complex_nan();
-    let mut kep = bindings::complex_nan();
+    let mut be = f64::NAN.into();
+    let mut ke = f64::NAN.into();
+    let mut bep = f64::NAN.into();
+    let mut kep = f64::NAN.into();
     unsafe {
         bindings::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
     }
