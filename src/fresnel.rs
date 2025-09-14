@@ -1,4 +1,5 @@
-use crate::bindings;
+use crate::{bindings, utils};
+use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
@@ -33,8 +34,8 @@ impl FresnelArg for Complex<f64> {
 
     #[inline(always)]
     fn fresnel(self) -> (Self::Output, Self::Output) {
-        let mut fs = bindings::complex_nan();
-        let mut fc = bindings::complex_nan();
+        let mut fs = f64::NAN.into();
+        let mut fc = f64::NAN.into();
         unsafe {
             bindings::fresnel_1(self.into(), &mut fs, &mut fc);
         }
@@ -68,8 +69,8 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T::Output, T::Output) {
 /// - [`fresnel`] - Standard Fresnel integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let mut fp = bindings::complex_nan();
-    let mut kp = bindings::complex_nan();
+    let mut fp = f64::NAN.into();
+    let mut kp = f64::NAN.into();
     unsafe {
         bindings::modified_fresnel_plus(x, &mut fp, &mut kp);
     }
@@ -86,8 +87,8 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - [`fresnel`] - Standard Fresnel integrals S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let mut fm = bindings::complex_nan();
-    let mut km = bindings::complex_nan();
+    let mut fm = f64::NAN.into();
+    let mut km = f64::NAN.into();
     unsafe {
         bindings::modified_fresnel_minus(x, &mut fm, &mut km);
     }
@@ -105,13 +106,13 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut szo = bindings::complex_zeros(nt);
-    let mut czo = bindings::complex_zeros(nt);
+    let mut szo = vec![bindings::cdouble::default(); nt];
+    let mut czo = vec![bindings::cdouble::default(); nt];
     unsafe {
         bindings::fcszo(2, nt as c_int, szo.as_mut_ptr());
         bindings::fcszo(1, nt as c_int, czo.as_mut_ptr());
     }
-    (bindings::cvec_into(szo), bindings::cvec_into(czo))
+    (utils::vec_into(szo), utils::vec_into(czo))
 }
 
 #[cfg(test)]

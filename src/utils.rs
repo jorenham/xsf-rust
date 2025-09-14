@@ -19,3 +19,11 @@ pub(crate) fn vec_to_vecvec<T: Clone>(
             .collect()
     }
 }
+
+#[inline(always)]
+pub(crate) fn vec_into<S, T>(xs: Vec<S>) -> Vec<T>
+where
+    S: Into<T>,
+{
+    xs.into_iter().map(S::into).collect()
+}

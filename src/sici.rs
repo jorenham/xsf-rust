@@ -39,8 +39,8 @@ impl SiciArg for f64 {
 impl SiciArg for Complex<f64> {
     #[inline(always)]
     fn sici(self) -> (Self, Self) {
-        let mut si = bindings::complex_nan();
-        let mut ci = bindings::complex_nan();
+        let mut si = f64::NAN.into();
+        let mut ci = f64::NAN.into();
 
         unsafe {
             bindings::sici_1(self.into(), &mut si, &mut ci);
@@ -50,8 +50,8 @@ impl SiciArg for Complex<f64> {
 
     #[inline(always)]
     fn shichi(self) -> (Self, Self) {
-        let mut shi = bindings::complex_nan();
-        let mut chi = bindings::complex_nan();
+        let mut shi = f64::NAN.into();
+        let mut chi = f64::NAN.into();
 
         unsafe {
             bindings::shichi_1(self.into(), &mut shi, &mut chi);
