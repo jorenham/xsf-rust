@@ -1,6 +1,7 @@
 // ported from `scipy/special/_boxcox.pxd`
 
-use crate::{exp::expm1, log::log1p};
+use crate::exp::{exp, expm1};
+use crate::log::{log, log1p};
 
 const MIN_ABS_LAMBDA: f64 = 1e-19;
 const MAX_ABS_LAMBDA: f64 = 1e+273;
@@ -12,13 +13,8 @@ const SQRT_F64_MIN_POSITIVE: f64 = 1.49e-154;
 ///
 /// The Box-Cox transformation is:
 ///
-/// ```
-/// if lambda == 0.0 {
-///     log(x)
-/// } else {
-///    (x.powf(lambda) - 1.0) / lambda
-/// }
-/// ```
+/// - `log(x)` if `lambda == 0.0`
+/// - `(x.powf(lambda) - 1.0) / lambda` if `lambda != 0.0`
 ///
 /// Returns [`f64::NAN`] if `x < 0.0`.
 /// Returns [`f64::NEG_INFINITY`] if `x == 0.0 && lambda < 0.0`.
@@ -36,14 +32,14 @@ pub fn boxcox(x: f64, lambda: f64) -> f64 {
     // which is ~2.98e-19.
     let abs_lambda = lambda.abs();
     if abs_lambda < MIN_ABS_LAMBDA {
-        return x.ln();
+        return log(x);
     }
 
-    let lambda_log_x = lambda * x.ln();
+    let lambda_log_x = lambda * log(x);
     if lambda_log_x < LOG_F64_MAX {
         expm1(lambda_log_x) / lambda
     } else {
-        1.0_f64.copysign(lambda) * (lambda_log_x - abs_lambda.ln()).exp() - 1.0 / lambda
+        1.0_f64.copysign(lambda) * exp(lambda_log_x - log(abs_lambda)) - 1.0 / lambda
     }
 }
 
@@ -70,10 +66,10 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
     }
 
     let lambda_log_x = lambda * log_x;
-    if lambda_log_x < f64::MAX.ln() {
+    if lambda_log_x < LOG_F64_MAX {
         expm1(lambda_log_x) / lambda
     } else {
-        1.0_f64.copysign(lambda) * (lambda_log_x - abs_lambda.ln()).exp() - 1.0 / lambda
+        1.0_f64.copysign(lambda) * exp(lambda_log_x - log(abs_lambda)) - 1.0 / lambda
     }
 }
 
@@ -87,16 +83,16 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 #[inline]
 pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
-        return y.exp();
+        return exp(y);
     }
 
     let lambda_y = lambda * y;
     let log_term = if lambda_y < f64::MAX {
         log1p(lambda_y)
     } else {
-        (1.0_f64.copysign(lambda) * (y + 1.0 / lambda)).ln() + lambda.abs().ln()
+        log(1.0_f64.copysign(lambda) * (y + 1.0 / lambda)) + log(lambda.abs())
     };
-    (log_term / lambda).exp()
+    exp(log_term / lambda)
 }
 
 /// Inverse of the Box-Cox transformation of 1 + `x`
@@ -120,7 +116,7 @@ pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
     let log_term = if lambda_y < f64::MAX {
         log1p(lambda_y)
     } else {
-        (1.0_f64.copysign(lambda) * (y + 1.0 / lambda)).ln() + lambda.abs().ln()
+        log(1.0_f64.copysign(lambda) * (y + 1.0 / lambda)) + log(lambda.abs())
     };
     expm1(log_term / lambda)
 }

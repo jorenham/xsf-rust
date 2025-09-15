@@ -25,6 +25,11 @@ impl ExpArg for Complex<f64> {
     }
 }
 
+/// libc `exp` function
+pub(crate) fn exp(x: f64) -> f64 {
+    unsafe { bindings::exp(x) }
+}
+
 /// `exp(x) - 1` for real or complex input
 pub fn expm1<T: ExpArg>(z: T) -> T {
     z.expm1()
