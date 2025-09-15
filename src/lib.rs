@@ -11,6 +11,7 @@ mod testing;
 mod cephes;
 pub use cephes::lanczos::lanczos_sum_expg_scaled;
 pub use cephes::poch::{pow_falling, pow_rising};
+pub use cephes::round::round;
 pub use cephes::spence::spence;
 
 mod scipy_special;
