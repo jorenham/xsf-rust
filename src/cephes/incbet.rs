@@ -10,6 +10,8 @@ fn incbet(a: f64, b: f64, x: f64) -> f64 {
 /// Note: This is a custom wrapper around `cephes::incbet`, analogous to how `scipy.special.betainc`
 /// wraps `boost::math::ibeta` in `scipy/special/boost_special_functions.h`. The Cephes
 /// implementation tends to be less accurate than Boost's, especially for small `x`.
+///
+/// See also: [`betaincinv`]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -65,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn test_betainc_and_inverses() {
+    fn test_betainc_nontrivial() {
         for &(a, b, x, p) in &[
             (2.0, 4.0, 0.3138101704556974, 0.5),
             (0.0342, 171.0, 1e-10, 0.5526991690180709),
