@@ -8,6 +8,9 @@ mod utils;
 #[cfg(test)]
 mod testing;
 
+mod cephes;
+pub use cephes::spence::spence;
+
 mod scipy_special;
 pub use scipy_special::boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
 
