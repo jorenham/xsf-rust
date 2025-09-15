@@ -27,7 +27,7 @@ jobs:
       - name: dprint
         uses: dprint/check@v2.3
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.14.1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.15.0
         with:
           components: clippy, rustfmt
 
