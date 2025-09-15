@@ -261,13 +261,13 @@ mod tests {
         let y = map2(boxcox, &x, &lmb);
         assert!(y.iter().all(|&v| v.is_finite()));
         let x_inv = map2(inv_boxcox, &y, &lmb);
-        np_assert_allclose(&x, &x_inv, 1e-7, 0.0);
+        np_assert_allclose(&x, &x_inv, 1e-7, f64::EPSILON);
 
         // test boxcox1p & inv_boxcox1p
         let x1m = x.map(|v| v - 1.0);
         let y1p = map2(boxcox1p, &x1m, &lmb);
         assert!(y1p.iter().all(|&v| v.is_finite()));
         let x1p_inv = map2(inv_boxcox1p, &y1p, &lmb);
-        np_assert_allclose(&x1m, &x1p_inv, 1e-7, 0.0);
+        np_assert_allclose(&x1m, &x1p_inv, 1e-7, f64::EPSILON);
     }
 }
