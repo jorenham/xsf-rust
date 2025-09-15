@@ -9,7 +9,7 @@ use num_complex::{Complex, c64};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::errors::ParquetError;
 
-use crate::fp_error_metrics::{ExtendedErrorArg, extended_relative_error};
+use crate::fp_error_metrics::{ExtendedErrorArg, extended_absolute_error, extended_relative_error};
 
 pub(crate) trait TestOutputValue: Copy + ExtendedErrorArg + Display {
     fn magnitude(self) -> f64;
@@ -327,4 +327,28 @@ where
         failed,
         cases.len()
     );
+}
+
+pub(crate) fn np_assert_allclose(actual: &[f64], expected: &[f64], rtol: f64, atol: f64) {
+    assert_eq!(actual.len(), expected.len());
+    for (&a, &e) in actual.iter().zip(expected.iter()) {
+        if e.is_nan() {
+            assert!(a.is_nan(), "expected NaN but got {}", a);
+        } else {
+            let error = extended_absolute_error(a, e);
+            let tol = atol + rtol * e.abs();
+            assert!(error <= tol, "actual: {a}, expected: {e}, diff: {error}");
+        }
+    }
+}
+
+pub(crate) fn np_assert_equal(actual: &[f64], expected: &[f64]) {
+    assert_eq!(actual.len(), expected.len());
+    for (&a, &e) in actual.iter().zip(expected.iter()) {
+        if e.is_nan() {
+            assert!(a.is_nan(), "expected NaN but got {a}");
+        } else {
+            assert_eq!(a, e, "expected {e} but got {a}");
+        }
+    }
 }

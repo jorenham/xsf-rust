@@ -44,6 +44,11 @@ impl LogArg for Complex<f64> {
     }
 }
 
+/// libc `std::log`
+pub(crate) fn log(x: f64) -> f64 {
+    unsafe { bindings::log(x) }
+}
+
 /// `log(z + 1)` for real or complex input
 pub fn log1p<T: LogArg>(z: T) -> T {
     z.xsf_log1p()

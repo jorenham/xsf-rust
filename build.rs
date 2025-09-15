@@ -351,6 +351,14 @@ public:
     std::complex<double> to_std() const { return std::complex<double>(re, im); }
 };"#;
 
+const _CPP_STD_HELPERS: &str = r#"
+double exp(double x) {
+    return std::exp(x);
+}
+double log(double x) {
+    return std::log(x);
+}"#;
+
 // bessel.h
 
 const _CPP_RCT: &str = r#"
@@ -495,6 +503,10 @@ void sph_harm_y_all(size_t n, size_t m, double theta, double phi, cdouble *res) 
 }"#;
 
 const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
+    WrapperSpecCustom {
+        pattern: r"(exp|log)",
+        cpp: _CPP_STD_HELPERS,
+    },
     WrapperSpecCustom {
         pattern: r"rct(j|y)",
         cpp: _CPP_RCT,
