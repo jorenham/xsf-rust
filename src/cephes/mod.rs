@@ -1,3 +1,4 @@
+pub mod incbet;
 pub mod lanczos;
 pub mod poch;
 pub mod round;
