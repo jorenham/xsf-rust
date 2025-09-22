@@ -1,6 +1,6 @@
 [package]
 name = "xsf"
-version = "0.1.0+0.1.2"
+version = "0.2.0+0.1.2"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 categories = ["api-bindings", "mathematics", "science"]
 edition = "2024"
