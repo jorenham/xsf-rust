@@ -1,5 +1,5 @@
 use crate::bindings;
-use core::ffi::c_int;
+use alloc::{vec, vec::Vec};
 use num_complex::Complex;
 
 mod sealed {
@@ -164,44 +164,72 @@ pub fn airyb(x: f64) -> (f64, f64, f64, f64) {
     (ai, bi, aip, bip)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AiryKind {
-    Ai = 1,
-    Bi = 2,
-}
-
-/// Zeros of Airy functions and their associated values.
+/// Compute `nt` zeros and values of the Airy function Ai and its derivative
 ///
-/// This function computes the first `nt` zeros of Airy functions Ai(x) and Ai'(x), a and a',
-/// and the associated values of Ai(a') and Ai'(a); and the first `nt` zeros of Airy functions
-/// Bi(x) and Bi'(x), b and b', and the associated values of Bi(b') and Bi'(b).
+/// Computes the first `nt` zeros, `a`, of the Airy function Ai(x);
+/// first `nt` zeros, `ap`, of the derivative of the Airy function Ai'(x);
+/// the corresponding values Ai(a'); and the corresponding values Ai'(a).
 ///
 /// # Arguments
-///
-/// - `nt` - Total number of zeros to compute
-/// - `kf` - Function code:
-///   - `1` for Ai(x) and Ai'(x)
-///   - `2` for Bi(x) and Bi'(x)
+/// - `nt` - Number of zeros to compute
 ///
 /// # Returns
-///
-/// A tuple `(xa, xb, xc, xd)` where:
-/// - `xa` - The m-th zero *a* of Ai(x) or the m-th zero *b* of Bi(x)
-/// - `xb` - The m-th zero *a'* of Ai'(x) or the m-th zero *b'* of Bi'(x)
-/// - `xc` - Ai(*a'*) or Bi(*b'*)
-/// - `xd` - Ai'(*a*) or Bi'(*b*)
-///
-/// where m is the serial number of zeros.
-pub fn airyzo(nt: u32, kf: AiryKind) -> (f64, f64, f64, f64) {
+/// - `a`: First `nt` zeros of Ai(x)
+/// - `ap`: First `nt` zeros of Ai'(x)
+/// - `ai`: Values of Ai(x) evaluated at first `nt` zeros of Ai'(x)
+/// - `aip`: Values of Ai'(x) evaluated at first `nt` zeros of Ai(x)
+pub fn ai_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     assert!(nt > 0);
 
-    let mut xa = f64::NAN;
-    let mut xb = f64::NAN;
-    let mut xc = f64::NAN;
-    let mut xd = f64::NAN;
+    let mut a = vec![f64::NAN; nt];
+    let mut ap = vec![f64::NAN; nt];
+    let mut ai = vec![f64::NAN; nt];
+    let mut aip = vec![f64::NAN; nt];
 
     unsafe {
-        bindings::airyzo(nt as c_int, kf as c_int, &mut xa, &mut xb, &mut xc, &mut xd);
+        bindings::airyzo(
+            nt,
+            1,
+            a.as_mut_ptr(),
+            ap.as_mut_ptr(),
+            ai.as_mut_ptr(),
+            aip.as_mut_ptr(),
+        );
+    }
+    (a, ap, ai, aip)
+}
+
+/// Compute `nt` zeros and values of the Airy function Bi and its derivative
+///
+/// Computes the first `nt` zeros, b, of the Airy function Bi(x);
+/// first `nt` zeros, b', of the derivative of the Airy function Bi'(x);
+/// the corresponding values Bi(b'); and the corresponding values Bi'(b).
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - `b`: First `nt` zeros of Bi(x)
+/// - `bp`: First `nt` zeros of Bi'(x)
+/// - `bi`: Values of Bi(x) evaluated at first `nt` zeros of Bi'(x)
+/// - `bip`: Values of Bi'(x) evaluated at first `nt` zeros of Bi(x)
+pub fn bi_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+    assert!(nt > 0);
+
+    let mut xa = vec![f64::NAN; nt];
+    let mut xb = vec![f64::NAN; nt];
+    let mut xc = vec![f64::NAN; nt];
+    let mut xd = vec![f64::NAN; nt];
+
+    unsafe {
+        bindings::airyzo(
+            nt,
+            2,
+            xa.as_mut_ptr(),
+            xb.as_mut_ptr(),
+            xc.as_mut_ptr(),
+            xd.as_mut_ptr(),
+        );
     }
     (xa, xb, xc, xd)
 }
@@ -211,6 +239,8 @@ mod tests {
     use super::*;
     use crate::testing;
     use num_complex::{Complex, c64};
+
+    // TODO: smoke tests for airyb, ai_zeros, and bi_zeros
 
     #[test]
     fn test_airy_f64() {

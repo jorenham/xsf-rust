@@ -59,7 +59,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("airye", "D->DDDD"),
     ("itairy", "d->dddd"),
     ("airyb*", "d->dddd"),
-    ("airyzo*", "ii->dddd"),
     // alg.h
     ("cbrt", "d->d"),
     // bessel.h
@@ -406,6 +405,20 @@ double spence(double x) {
     return xsf::cephes::spence(x);
 }"#;
 
+// airy.h
+
+const _CPP_AIRYZO: &str = r#"
+void airyzo(size_t nt, int kf, double *xa, double *xb, double *xc, double *xd) {
+    std::vector<double> ya(nt), yb(nt), yc(nt), yd(nt);
+    xsf::airyzo(static_cast<int>(nt), kf, ya.data(), yb.data(), yc.data(), yd.data());
+    for (size_t i = 0; i < nt; i++) {
+        xa[i] = ya[i];
+        xb[i] = yb[i];
+        xc[i] = yc[i];
+        xd[i] = yd[i];
+    }
+}"#;
+
 // bessel.h
 
 const _CPP_RCT: &str = r#"
@@ -577,6 +590,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"spence",
         cpp: _CPP_CEPHES_SPENCE,
+    },
+    WrapperSpecCustom {
+        pattern: r"airyzo",
+        cpp: _CPP_AIRYZO,
     },
     WrapperSpecCustom {
         pattern: r"rct(j|y)",
