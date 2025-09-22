@@ -1,3 +1,4 @@
+pub mod erfinv;
 pub mod incbet;
 pub mod incbi;
 pub mod lanczos;
