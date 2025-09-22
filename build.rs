@@ -666,7 +666,7 @@ fn fmt_return(spec: &str) -> &str {
     }
 }
 
-fn fmt_params(spec: &str, types: bool, do_deref: bool) -> String {
+fn fmt_params(spec: &str, types: bool) -> String {
     let (inputs, outputs) = split_typespec(spec);
 
     let mut params = inputs
@@ -683,14 +683,13 @@ fn fmt_params(spec: &str, types: bool, do_deref: bool) -> String {
         .collect::<Vec<_>>();
 
     if outputs.len() > 1 {
-        let whence = if do_deref { '*' } else { '&' };
         if types {
             params.extend(
                 outputs
                     .chars()
                     .map(get_ctype)
                     .enumerate()
-                    .map(|(i, ct)| format!("{ct} {whence}y{i}")),
+                    .map(|(i, ct)| format!("{ct} &y{i}")),
             );
         } else {
             params.extend((0..outputs.len()).map(|i| format!("y{i}")));
@@ -702,8 +701,7 @@ fn fmt_params(spec: &str, types: bool, do_deref: bool) -> String {
 
 fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
     let rtype = fmt_return(spec);
-    let params = fmt_params(spec, true, name.ends_with('*'));
-    let name = name.trim_end_matches('*');
+    let params = fmt_params(spec, true);
 
     let fname = if suffix.is_empty() {
         name.to_string()
@@ -715,7 +713,6 @@ fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
 
 fn fmt_call(name: &str, spec: &str) -> Vec<String> {
     let (inputs, outputs) = split_typespec(spec);
-    let clean_name = name.trim_end_matches('*');
 
     let mut args = inputs
         .chars()
@@ -729,16 +726,10 @@ fn fmt_call(name: &str, spec: &str) -> Vec<String> {
         })
         .collect::<Vec<String>>();
 
-    let (whence, whither) = if name.ends_with('*') {
-        ("&", "*")
-    } else {
-        ("", "")
-    };
-
     if outputs.len() > 1 {
         args.extend(outputs.chars().enumerate().map(|(i, c)| {
             if c == 'D' {
-                format!("{whence}cy{i}")
+                format!("cy{i}")
             } else {
                 format!("y{i}")
             }
@@ -746,7 +737,7 @@ fn fmt_call(name: &str, spec: &str) -> Vec<String> {
     }
 
     let call_args = args.join(", ");
-    let call_stmt = format!("xsf::{clean_name}({call_args})");
+    let call_stmt = format!("xsf::{name}({call_args})");
 
     if outputs.len() == 1 {
         if outputs == "D" {
@@ -777,7 +768,7 @@ fn fmt_call(name: &str, spec: &str) -> Vec<String> {
 
         for (i, c) in outputs.chars().enumerate() {
             if c == 'D' {
-                stmts.push(format!("{whither}y{i} = cdouble(cy{i})"));
+                stmts.push(format!("y{i} = cdouble(cy{i})"));
             }
         }
         stmts
@@ -913,7 +904,7 @@ fn get_allowlist() -> String {
 
     let mut entries = WRAPPER_SPECS
         .iter()
-        .map(|(name, _)| format_entry(name.trim_end_matches('*')))
+        .map(|(name, _)| format_entry(name))
         .chain(
             WRAPPER_SPECS_CUSTOM
                 .iter()
