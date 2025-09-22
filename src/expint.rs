@@ -34,17 +34,57 @@ impl ExpIntArg for Complex<f64> {
     }
 }
 
-/// Exponential integral `E_i(x)` for real or complex input
-pub fn expi<T: ExpIntArg>(x: T) -> T {
-    x.expi()
+/// Exponential integral E₁ for real or complex input
+///
+/// For complex z ≠ 0 the exponential integral can be defined as
+///
+/// E₁(z) = ∫[z,∞) e⁻ᵗ / t dt,
+///
+/// where the path of the integral does not cross the negative real axis or pass through the origin.
+///
+/// ## See also:
+/// - [`expi`]: exponential integral Ei
+/// - [`expn`](fn.expn.html): generalization of E₁
+pub fn exp1<T: ExpIntArg>(z: T) -> T {
+    z.exp1()
 }
 
-/// Exponential integral `E_i(x)` for real or complex input
-pub fn exp1<T: ExpIntArg>(x: T) -> T {
-    x.exp1()
+/// Exponential integral Ei for real or complex input
+///
+/// For real x, the exponential integral is defined as
+///
+/// Ei(x) = ∫(−∞,x] eᵗ / t dt.
+///
+/// For x > 0 the integral is understood as a Cauchy principal value.
+///
+/// It is extended to the complex plane by analytic continuation of the function on the interval
+/// (0, ∞). The complex variant has a branch cut on the negative real axis.
+///
+/// ## See also:
+/// - [`exp1`]: exponential integral E₁
+/// - [`expn`](fn.expn.html): generalization of E₁
+pub fn expi<T: ExpIntArg>(z: T) -> T {
+    z.expi()
 }
 
-/// Scaled version of the exponential integral `E_1(x)`
+/// Scaled version of the exponential integral E₁ for real input
+///
+/// This function computes F(x), where F is the factor remaining in E₁(x)
+/// when e⁻ˣ/x is factored out. That is:
+///
+/// E₁(x) = x⁻¹ e⁻ˣ F(x)
+///
+/// or
+///
+/// F(x) = x eˣ E₁(x)
+///
+/// The function is defined for real x ≥ 0. For x < 0, NaN is returned.
+///
+/// F has the properties:
+///
+/// - F(0) = 0
+/// - F(x) is increasing on [0, ∞).
+/// - F(x) = 1 in the limit as x → ∞.
 pub fn scaled_exp1(x: f64) -> f64 {
     unsafe { bindings::scaled_exp1(x) }
 }
@@ -54,18 +94,6 @@ mod tests {
     use super::*;
     use crate::testing;
     use num_complex::{Complex, c64};
-
-    // expi
-
-    #[test]
-    fn test_expi_f64() {
-        testing::test::<f64, _>("expi", "d-d", |x: &[f64]| expi(x[0]));
-    }
-
-    #[test]
-    fn test_expi_c64() {
-        testing::test::<Complex<f64>, _>("expi", "cd-cd", |x: &[f64]| expi(c64(x[0], x[1])));
-    }
 
     // exp1
 
@@ -77,6 +105,18 @@ mod tests {
     #[test]
     fn test_exp1_c64() {
         testing::test::<Complex<f64>, _>("exp1", "cd-cd", |x: &[f64]| exp1(c64(x[0], x[1])));
+    }
+
+    // expi
+
+    #[test]
+    fn test_expi_f64() {
+        testing::test::<f64, _>("expi", "d-d", |x: &[f64]| expi(x[0]));
+    }
+
+    #[test]
+    fn test_expi_c64() {
+        testing::test::<Complex<f64>, _>("expi", "cd-cd", |x: &[f64]| expi(c64(x[0], x[1])));
     }
 
     // scaled_exp1

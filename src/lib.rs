@@ -10,6 +10,7 @@ mod testing;
 
 mod cephes;
 pub use cephes::erfinv::{erfcinv, erfinv};
+pub use cephes::expn::expn;
 pub use cephes::incbet::betainc;
 pub use cephes::incbi::betaincinv;
 pub use cephes::lanczos::lanczos_sum_expg_scaled;
