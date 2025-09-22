@@ -11,7 +11,7 @@ fn incbi(a: f64, b: f64, y: f64) -> f64 {
 /// Note: The Cephes backend is less accurate than the `scipy.special` Boost backend, especially
 /// for small `y` and large `a - b` differences.
 ///
-/// See also: [`betainc`]
+/// See also: [`betainc`](fn.betainc.html)
 pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
     if a.is_nan() || b.is_nan() || y.is_nan() {
         return f64::NAN;
