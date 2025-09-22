@@ -58,7 +58,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("airye", "d->dddd"),
     ("airye", "D->DDDD"),
     ("itairy", "d->dddd"),
-    ("airyb*", "d->dddd"),
     // alg.h
     ("cbrt", "d->d"),
     // bessel.h

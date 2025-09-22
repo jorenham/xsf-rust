@@ -21,7 +21,7 @@ pub use scipy_special::boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
 
 // airy.h
 mod airy;
-pub use airy::{ai_zeros, airy, airyb, airye, bi_zeros, itairy};
+pub use airy::{ai_zeros, airy, airye, bi_zeros, itairy};
 
 // alg.h
 mod alg;

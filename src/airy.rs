@@ -72,16 +72,13 @@ impl AiryArg for Complex<f64> {
 /// Airy functions and their derivatives.
 ///
 /// # Arguments
-///
 /// - `z` - real (`f64`) or complex (`num_complex::Complex<f64>`) argument
 ///
 /// # Returns
-///
-/// A tuple `(Ai, Aip, Bi, Bip)` where:
-/// - `Ai` - Ai(z)
-/// - `Aip` - Ai'(z)
-/// - `Bi` - Bi(z)
-/// - `Bip` - Bi'(z)
+/// - `Ai`: Ai(z)
+/// - `Aip`: Ai'(z)
+/// - `Bi`: Bi(z)
+/// - `Bip`: Bi'(z)
 pub fn airy<T: AiryArg>(z: T) -> (T, T, T, T) {
     z.airy()
 }
@@ -98,16 +95,13 @@ pub fn airy<T: AiryArg>(z: T) -> (T, T, T, T) {
 /// ```
 ///
 /// # Arguments
-///
 /// - `z` - real (`f64`) or complex (`num_complex::Complex<f64>`) argument
 ///
 /// # Returns
-///
-/// A tuple `(eAi, eAip, eBi, eBip)` where:
-/// - `eAi` - eAi(z)
-/// - `eAip` - eAi'(z)
-/// - `eBi` - eBi(z)
-/// - `eBip` - eBi'(z)
+/// - `eAi`: eAi(z)
+/// - `eAip`: eAi'(z)
+/// - `eBi`: eBi(z)
+/// - `eBip`: eBi'(z)
 pub fn airye<T: AiryArg>(z: T) -> (T, T, T, T) {
     z.airye()
 }
@@ -117,16 +111,13 @@ pub fn airye<T: AiryArg>(z: T) -> (T, T, T, T) {
 /// Calculates the integrals of Airy functions from 0 to `x`.
 ///
 /// # Arguments
-///
 /// - `x` - Upper limit of the integral (x ≥ 0)
 ///
 /// # Returns
-///
-/// A tuple `(Apt, Bpt, Ant, Bnt)` where:
-/// - `Apt` - Integral of Ai(t) from 0 to x
-/// - `Bpt` - Integral of Bi(t) from 0 to x
-/// - `Ant` - Integral of Ai(-t) from 0 to x
-/// - `Bnt` - Integral of Bi(-t) from 0 to x
+/// - `Apt`: Integral of Ai(t) from 0 to x
+/// - `Bpt`: Integral of Bi(t) from 0 to x
+/// - `Ant`: Integral of Ai(-t) from 0 to x
+/// - `Bnt`: Integral of Bi(-t) from 0 to x
 pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
     let mut apt = f64::NAN;
     let mut bpt = f64::NAN;
@@ -137,31 +128,6 @@ pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
         bindings::itairy(x, &mut apt, &mut bpt, &mut ant, &mut bnt);
     }
     (apt, bpt, ant, bnt)
-}
-
-/// Airy functions and their derivatives.
-///
-/// # Arguments
-///
-/// - `x` - Real argument
-///
-/// # Returns
-///
-/// A tuple `(Ai, Bi, Aip, Bip)` where:
-/// - `Ai` - Ai(x)
-/// - `Bi` - Bi(x)
-/// - `Aip` - Ai'(x)
-/// - `Bip` - Bi'(x)
-pub fn airyb(x: f64) -> (f64, f64, f64, f64) {
-    let mut ai = f64::NAN;
-    let mut bi = f64::NAN;
-    let mut aip = f64::NAN;
-    let mut bip = f64::NAN;
-
-    unsafe {
-        bindings::airyb(x, &mut ai, &mut bi, &mut aip, &mut bip);
-    }
-    (ai, bi, aip, bip)
 }
 
 /// Compute `nt` zeros and values of the Airy function Ai and its derivative
@@ -236,11 +202,11 @@ pub fn bi_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
 
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use super::*;
     use crate::testing;
     use num_complex::{Complex, c64};
-
-    // TODO: smoke tests for airyb, ai_zeros, and bi_zeros
 
     #[test]
     fn test_airy_f64() {
@@ -273,5 +239,45 @@ mod tests {
     #[test]
     fn test_itairy() {
         testing::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
+    }
+
+    #[test]
+    fn test_ai_zeros() {
+        // >>> from scipy import special
+        // >>> a, ap, ai, aip = special.ai_zeros(3)
+        // >>> a
+        // array([-2.33810741, -4.08794944, -5.52055983])
+        // >>> ap
+        // array([-1.01879297, -3.24819758, -4.82009921])
+        // >>> ai
+        // array([ 0.53565666, -0.41901548,  0.38040647])
+        // >>> aip
+        // array([ 0.70121082, -0.80311137,  0.86520403])
+
+        let (a, ap, ai, aip) = ai_zeros(3);
+        testing::np_assert_allclose(&a, &[-2.33810741, -4.08794944, -5.52055983], 0.0, 1e-8);
+        testing::np_assert_allclose(&ap, &[-1.01879297, -3.24819758, -4.82009921], 0.0, 1e-8);
+        testing::np_assert_allclose(&ai, &[0.53565666, -0.41901548, 0.38040647], 0.0, 1e-8);
+        testing::np_assert_allclose(&aip, &[0.70121082, -0.80311137, 0.86520403], 0.0, 1e-8);
+    }
+
+    #[test]
+    fn test_bi_zeros() {
+        // >>> from scipy import special
+        // >>> b, bp, bi, bip = special.bi_zeros(3)
+        // >>> b
+        // array([-1.17371322, -3.2710933 , -4.83073784])
+        // >>> bp
+        // array([-2.29443968, -4.07315509, -5.51239573])
+        // >>> bi
+        // array([-0.45494438,  0.39652284, -0.36796916])
+        // >>> bip
+        // array([ 0.60195789, -0.76031014,  0.83699101])
+
+        let (b, bp, bi, bip) = bi_zeros(3);
+        testing::np_assert_allclose(&b, &[-1.17371322, -3.2710933, -4.83073784], 0.0, 1e-8);
+        testing::np_assert_allclose(&bp, &[-2.29443968, -4.07315509, -5.51239573], 0.0, 1e-8);
+        testing::np_assert_allclose(&bi, &[-0.45494438, 0.39652284, -0.36796916], 0.0, 1e-8);
+        testing::np_assert_allclose(&bip, &[0.60195789, -0.76031014, 0.83699101], 0.0, 1e-8);
     }
 }
