@@ -17,6 +17,7 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/poch.h",
     "cephes/round.h",
     "cephes/spence.h",
+    "cephes/unity.h",
     "airy.h",
     "alg.h",
     "bessel.h",
@@ -423,6 +424,12 @@ double spence(double x) {
     return xsf::cephes::spence(x);
 }"#;
 
+// cephes/unity.h
+const _CPP_CEPHES_UNITY: &str = r#"
+double lgam1p(double x) {
+    return xsf::cephes::lgam1p(x);
+}"#;
+
 // airy.h
 
 const _CPP_AIRYZO: &str = r#"
@@ -616,6 +623,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"spence",
         cpp: _CPP_CEPHES_SPENCE,
+    },
+    WrapperSpecCustom {
+        pattern: r"lgam1p",
+        cpp: _CPP_CEPHES_UNITY,
     },
     WrapperSpecCustom {
         pattern: r"airyzo",
