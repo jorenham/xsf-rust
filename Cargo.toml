@@ -14,11 +14,11 @@ description = "Rust bindings for scipy's xsf special functions library"
 
 [build-dependencies]
 bindgen = "0.72.1"
-cc = "1.2.38"
+cc = "1.2.39"
 
 [dependencies]
 num-complex = { version = "0.4.6", default-features = false }
 
 [dev-dependencies]
-arrow = { version = "56.1.0", default-features = false }
-parquet = { version = "56.1.0", default-features = false, features = ["arrow", "zstd"] }
+arrow = { version = "56.2.0", default-features = false }
+parquet = { version = "56.2.0", default-features = false, features = ["arrow", "zstd"] }
