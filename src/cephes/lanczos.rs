@@ -1,8 +1,8 @@
-use crate::bindings;
+use crate::ffi;
 
 #[doc(hidden)]
 pub fn lanczos_sum_expg_scaled(x: f64) -> f64 {
-    unsafe { bindings::lanczos_sum_expg_scaled(x) }
+    unsafe { ffi::lanczos_sum_expg_scaled(x) }
 }
 
 #[cfg(test)]

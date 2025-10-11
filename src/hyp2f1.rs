@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -14,14 +14,14 @@ pub trait Hyp2F1Arg: sealed::Sealed {
 impl Hyp2F1Arg for f64 {
     #[inline(always)]
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> f64 {
-        unsafe { bindings::hyp2f1(self, a, b, c) }
+        unsafe { ffi::hyp2f1(self, a, b, c) }
     }
 }
 
 impl Hyp2F1Arg for Complex<f64> {
     #[inline(always)]
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Complex<f64> {
-        unsafe { bindings::hyp2f1_1(a, b, c, self.into()) }.into()
+        unsafe { ffi::hyp2f1_1(a, b, c, self.into()) }.into()
     }
 }
 

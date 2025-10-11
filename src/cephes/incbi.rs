@@ -1,8 +1,8 @@
-use crate::bindings;
+use crate::ffi;
 
 #[inline(always)]
 fn incbi(a: f64, b: f64, y: f64) -> f64 {
-    unsafe { bindings::incbi(a, b, y) }
+    unsafe { ffi::incbi(a, b, y) }
 }
 
 /// Inverse of the regularized incomplete beta function

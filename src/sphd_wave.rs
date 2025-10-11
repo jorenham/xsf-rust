@@ -1,13 +1,13 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Characteristic value of prolate spheroidal function
 pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
-    unsafe { bindings::prolate_segv(m as f64, n as f64, c) }
+    unsafe { ffi::prolate_segv(m as f64, n as f64, c) }
 }
 
 /// Characteristic value of oblate spheroidal function
 pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
-    unsafe { bindings::oblate_segv(m as f64, n as f64, c) }
+    unsafe { ffi::oblate_segv(m as f64, n as f64, c) }
 }
 
 /// Prolate spheroidal angular function of the 1st kind and its derivative
@@ -28,7 +28,7 @@ pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_aswfa_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::prolate_aswfa_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -51,7 +51,7 @@ pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_aswfa_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::oblate_aswfa_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -74,7 +74,7 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_radial1_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::prolate_radial1_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -97,7 +97,7 @@ pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_radial1_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::oblate_radial1_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -120,7 +120,7 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_radial2_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::prolate_radial2_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -143,7 +143,7 @@ pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_radial2_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
+        ffi::oblate_radial2_nocv(m as f64, n as f64, c, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -167,7 +167,7 @@ pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_aswfa(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::prolate_aswfa(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -191,7 +191,7 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_aswfa(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::oblate_aswfa(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -215,7 +215,7 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_radial1(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::prolate_radial1(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -239,7 +239,7 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_radial1(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::oblate_radial1(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -263,7 +263,7 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::prolate_radial2(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::prolate_radial2(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }
@@ -287,7 +287,7 @@ pub fn oblate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let mut s = f64::NAN;
     let mut sp = f64::NAN;
     unsafe {
-        bindings::oblate_radial2(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
+        ffi::oblate_radial2(m as f64, n as f64, c, cv, x, &mut s, &mut sp);
     }
     (s, sp)
 }

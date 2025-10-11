@@ -1,4 +1,4 @@
-use crate::{bindings, utils};
+use crate::{ffi, utils};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
@@ -23,7 +23,7 @@ impl FresnelArg for f64 {
         let mut fs = f64::NAN;
         let mut fc = f64::NAN;
         unsafe {
-            bindings::fresnel(self, &mut fs, &mut fc);
+            ffi::fresnel(self, &mut fs, &mut fc);
         }
         (fs, fc)
     }
@@ -37,7 +37,7 @@ impl FresnelArg for Complex<f64> {
         let mut fs = f64::NAN.into();
         let mut fc = f64::NAN.into();
         unsafe {
-            bindings::fresnel_1(self.into(), &mut fs, &mut fc);
+            ffi::fresnel_1(self.into(), &mut fs, &mut fc);
         }
         (fs.into(), fc.into())
     }
@@ -72,7 +72,7 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
     let mut fp = f64::NAN.into();
     let mut kp = f64::NAN.into();
     unsafe {
-        bindings::modified_fresnel_plus(x, &mut fp, &mut kp);
+        ffi::modified_fresnel_plus(x, &mut fp, &mut kp);
     }
     (fp.into(), kp.into())
 }
@@ -90,7 +90,7 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
     let mut fm = f64::NAN.into();
     let mut km = f64::NAN.into();
     unsafe {
-        bindings::modified_fresnel_minus(x, &mut fm, &mut km);
+        ffi::modified_fresnel_minus(x, &mut fm, &mut km);
     }
     (fm.into(), km.into())
 }
@@ -106,11 +106,11 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut szo = vec![bindings::cdouble::default(); nt];
-    let mut czo = vec![bindings::cdouble::default(); nt];
+    let mut szo = vec![ffi::cdouble::default(); nt];
+    let mut czo = vec![ffi::cdouble::default(); nt];
     unsafe {
-        bindings::fcszo(2, nt as c_int, szo.as_mut_ptr());
-        bindings::fcszo(1, nt as c_int, czo.as_mut_ptr());
+        ffi::fcszo(2, nt as c_int, szo.as_mut_ptr());
+        ffi::fcszo(1, nt as c_int, czo.as_mut_ptr());
     }
     (utils::vec_into(szo), utils::vec_into(czo))
 }

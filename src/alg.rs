@@ -1,8 +1,8 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Cube root
 pub fn cbrt(x: f64) -> f64 {
-    unsafe { bindings::cbrt(x) }
+    unsafe { ffi::cbrt(x) }
 }
 
 #[cfg(test)]

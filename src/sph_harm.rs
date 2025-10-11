@@ -1,4 +1,4 @@
-use crate::{bindings, utils};
+use crate::{ffi, utils};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
@@ -8,7 +8,7 @@ use num_complex::Complex;
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
     assert!(n <= c_int::MAX as usize);
     assert!(m.abs() <= c_int::MAX as isize);
-    unsafe { bindings::sph_harm_y(n as c_int, m as c_int, theta, phi) }.into()
+    unsafe { ffi::sph_harm_y(n as c_int, m as c_int, theta, phi) }.into()
 }
 
 /// All spherical harmonics up to the specified degree `n` and order `m`
@@ -22,8 +22,8 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
 /// - Index `m+1` to `2*m`: orders `-m, -(m-1), ..., -1`
 pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex<f64>>> {
     let (nr, nc) = (n + 1, 2 * m + 1);
-    let mut res = vec![bindings::cdouble::default(); nr * nc];
-    unsafe { bindings::sph_harm_y_all(n, m, theta, phi, res.as_mut_ptr()) };
+    let mut res = vec![ffi::cdouble::default(); nr * nc];
+    unsafe { ffi::sph_harm_y_all(n, m, theta, phi, res.as_mut_ptr()) };
     utils::vec_to_vecvec(utils::vec_into(res), nr, nc, false)
 }
 

@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -15,22 +15,22 @@ pub trait LogGammaArg: sealed::Sealed {
 impl LogGammaArg for f64 {
     #[inline(always)]
     fn xsf_loggamma(self) -> f64 {
-        unsafe { bindings::loggamma(self) }
+        unsafe { ffi::loggamma(self) }
     }
     #[inline(always)]
     fn xsf_rgamma(self) -> f64 {
-        unsafe { bindings::rgamma(self) }
+        unsafe { ffi::rgamma(self) }
     }
 }
 
 impl LogGammaArg for Complex<f64> {
     #[inline(always)]
     fn xsf_loggamma(self) -> Complex<f64> {
-        unsafe { bindings::loggamma_1(self.into()) }.into()
+        unsafe { ffi::loggamma_1(self.into()) }.into()
     }
     #[inline(always)]
     fn xsf_rgamma(self) -> Complex<f64> {
-        unsafe { bindings::rgamma_1(self.into()) }.into()
+        unsafe { ffi::rgamma_1(self.into()) }.into()
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Inverse of the error function [erf(x)](fn.erf.html)
 ///
@@ -11,7 +11,7 @@ use crate::bindings;
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
 pub fn erfinv(y: f64) -> f64 {
-    unsafe { bindings::erfinv(y) }
+    unsafe { ffi::erfinv(y) }
 }
 
 /// Inverse of the complementary error function [erfc(x)](fn.erfc.html)
@@ -26,7 +26,7 @@ pub fn erfinv(y: f64) -> f64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
 pub fn erfcinv(y: f64) -> f64 {
-    unsafe { bindings::erfcinv(y) }
+    unsafe { ffi::erfcinv(y) }
 }
 
 #[cfg(test)]

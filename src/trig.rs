@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 
 mod sealed {
     pub trait Sealed {}
@@ -17,22 +17,22 @@ pub trait TrigArg: sealed::Sealed {
 impl TrigArg for f64 {
     #[inline(always)]
     fn sinpi(self) -> f64 {
-        unsafe { bindings::sinpi(self) }
+        unsafe { ffi::sinpi(self) }
     }
     #[inline(always)]
     fn cospi(self) -> Self {
-        unsafe { bindings::cospi(self) }
+        unsafe { ffi::cospi(self) }
     }
 }
 
 impl TrigArg for Complex<f64> {
     #[inline(always)]
     fn sinpi(self) -> Complex<f64> {
-        unsafe { bindings::sinpi_1(self.into()) }.into()
+        unsafe { ffi::sinpi_1(self.into()) }.into()
     }
     #[inline(always)]
     fn cospi(self) -> Self {
-        unsafe { bindings::cospi_1(self.into()) }.into()
+        unsafe { ffi::cospi_1(self.into()) }.into()
     }
 }
 

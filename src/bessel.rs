@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 use alloc::vec::Vec;
 use num_complex::Complex;
 
@@ -23,70 +23,70 @@ pub trait BesselArg: sealed::Sealed {
 impl BesselArg for f64 {
     #[inline(always)]
     fn cyl_bessel_j(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_j(v, self) }
+        unsafe { ffi::cyl_bessel_j(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_je(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_je(v, self) }
+        unsafe { ffi::cyl_bessel_je(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_y(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_y(v, self) }
+        unsafe { ffi::cyl_bessel_y(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_ye(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_ye(v, self) }
+        unsafe { ffi::cyl_bessel_ye(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_i(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_i(v, self) }
+        unsafe { ffi::cyl_bessel_i(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_ie(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_ie(v, self) }
+        unsafe { ffi::cyl_bessel_ie(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_k(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_k(v, self) }
+        unsafe { ffi::cyl_bessel_k(v, self) }
     }
     #[inline(always)]
     fn cyl_bessel_ke(self, v: f64) -> f64 {
-        unsafe { bindings::cyl_bessel_ke(v, self) }
+        unsafe { ffi::cyl_bessel_ke(v, self) }
     }
 }
 
 impl BesselArg for Complex<f64> {
     #[inline(always)]
     fn cyl_bessel_j(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_j_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_j_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_je(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_je_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_je_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_y(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_y_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_y_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_ye(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_ye_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_ye_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_i(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_i_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_i_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_ie(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_ie_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_ie_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_k(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_k_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_k_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_bessel_ke(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_bessel_ke_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_bessel_ke_1(v, self.into()) }.into()
     }
 }
 
@@ -100,38 +100,38 @@ pub trait HankelArg: sealed::Sealed {
 impl HankelArg for f64 {
     #[inline(always)]
     fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_1(v, Complex::new(self, 0.0).into()) }.into()
+        unsafe { ffi::cyl_hankel_1(v, Complex::new(self, 0.0).into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_1e(v, Complex::new(self, 0.0).into()) }.into()
+        unsafe { ffi::cyl_hankel_1e(v, Complex::new(self, 0.0).into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_2(v, Complex::new(self, 0.0).into()) }.into()
+        unsafe { ffi::cyl_hankel_2(v, Complex::new(self, 0.0).into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_2e(v, Complex::new(self, 0.0).into()) }.into()
+        unsafe { ffi::cyl_hankel_2e(v, Complex::new(self, 0.0).into()) }.into()
     }
 }
 
 impl HankelArg for Complex<f64> {
     #[inline(always)]
     fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_1(v, self.into()) }.into()
+        unsafe { ffi::cyl_hankel_1(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_1e(v, self.into()) }.into()
+        unsafe { ffi::cyl_hankel_1e(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_2(v, self.into()) }.into()
+        unsafe { ffi::cyl_hankel_2(v, self.into()) }.into()
     }
     #[inline(always)]
     fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { bindings::cyl_hankel_2e(v, self.into()) }.into()
+        unsafe { ffi::cyl_hankel_2e(v, self.into()) }.into()
     }
 }
 
@@ -247,7 +247,7 @@ pub fn it1j0y0(x: f64) -> (f64, f64) {
     let mut j0int = f64::NAN;
     let mut y0int = f64::NAN;
     unsafe {
-        bindings::it1j0y0(x, &mut j0int, &mut y0int);
+        ffi::it1j0y0(x, &mut j0int, &mut y0int);
     }
     (j0int, y0int)
 }
@@ -269,7 +269,7 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
     let mut j0int = f64::NAN;
     let mut y0int = f64::NAN;
     unsafe {
-        bindings::it2j0y0(x, &mut j0int, &mut y0int);
+        ffi::it2j0y0(x, &mut j0int, &mut y0int);
     }
     (j0int, y0int)
 }
@@ -291,7 +291,7 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
     let mut i0int = f64::NAN;
     let mut k0int = f64::NAN;
     unsafe {
-        bindings::it1i0k0(x, &mut i0int, &mut k0int);
+        ffi::it1i0k0(x, &mut i0int, &mut k0int);
     }
     (i0int, k0int)
 }
@@ -313,7 +313,7 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
     let mut i0int = f64::NAN;
     let mut k0int = f64::NAN;
     unsafe {
-        bindings::it2i0k0(x, &mut i0int, &mut k0int);
+        ffi::it2i0k0(x, &mut i0int, &mut k0int);
     }
     (i0int, k0int)
 }
@@ -337,7 +337,7 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut rj = alloc::vec![0.0; n + 1];
     let mut dj = alloc::vec![0.0; n + 1];
-    let nm = unsafe { bindings::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as i32;
+    let nm = unsafe { ffi::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as i32;
     (rj, dj, nm)
 }
 
@@ -361,7 +361,7 @@ pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
 pub fn rcty(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut ry = alloc::vec![0.0; n + 1];
     let mut dy = alloc::vec![0.0; n + 1];
-    let nm = unsafe { bindings::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
+    let nm = unsafe { ffi::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
     (ry, dy, nm as i32)
 }
 

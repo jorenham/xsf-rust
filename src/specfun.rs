@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -14,14 +14,14 @@ pub trait Hyp1F1Arg: sealed::Sealed {
 impl Hyp1F1Arg for f64 {
     #[inline(always)]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { bindings::hyp1f1(a, b, self) }
+        unsafe { ffi::hyp1f1(a, b, self) }
     }
 }
 
 impl Hyp1F1Arg for Complex<f64> {
     #[inline(always)]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { bindings::hyp1f1_1(a, b, self.into()) }.into()
+        unsafe { ffi::hyp1f1_1(a, b, self.into()) }.into()
     }
 }
 
@@ -33,12 +33,12 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
 #[doc(alias = "huperu")]
 /// Confluent hypergeometric function `U(a,b,x)` for `x > 0`
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { bindings::hypu(a, b, x) }
+    unsafe { ffi::hypu(a, b, x) }
 }
 
 /// Associated Legendre function for `|x| ≤ 1`
 pub fn pmv(m: i64, v: f64, x: f64) -> f64 {
-    unsafe { bindings::pmv(m as f64, v, x) }
+    unsafe { ffi::pmv(m as f64, v, x) }
 }
 
 #[cfg(test)]

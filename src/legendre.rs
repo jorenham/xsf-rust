@@ -1,4 +1,4 @@
-use crate::{bindings, utils};
+use crate::{ffi, utils};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ffi::c_int;
@@ -22,21 +22,21 @@ pub trait LegendrePArg: sealed::Sealed + Sized {
 impl LegendrePArg for f64 {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> f64 {
-        unsafe { bindings::legendre_p(n, self) }
+        unsafe { ffi::legendre_p(n, self) }
     }
 
     #[inline(always)]
     fn legendre_p_all(self, n: usize) -> Vec<Self> {
         let mut pn = vec![0.0; n + 1];
         unsafe {
-            bindings::legendre_p_all(n, self, pn.as_mut_ptr());
+            ffi::legendre_p_all(n, self, pn.as_mut_ptr());
         }
         pn
     }
 
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> f64 {
-        unsafe { bindings::sph_legendre_p(n, m, self) }
+        unsafe { ffi::sph_legendre_p(n, m, self) }
     }
 
     #[inline(always)]
@@ -44,7 +44,7 @@ impl LegendrePArg for f64 {
         let (ni, nj) = (n + 1, 2 * m + 1);
         let mut pnm = vec![0.0; ni * nj];
         unsafe {
-            bindings::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
+            ffi::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
         }
         utils::vec_to_vecvec(pnm, ni, nj, false)
     }
@@ -53,9 +53,9 @@ impl LegendrePArg for f64 {
     fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> f64 {
         unsafe {
             if norm {
-                bindings::assoc_legendre_p_1(n, m, self, bc)
+                ffi::assoc_legendre_p_1(n, m, self, bc)
             } else {
-                bindings::assoc_legendre_p_0(n, m, self, bc)
+                ffi::assoc_legendre_p_0(n, m, self, bc)
             }
         }
     }
@@ -66,9 +66,9 @@ impl LegendrePArg for f64 {
         let mut pnm = vec![0.0; ni * nj];
         unsafe {
             if norm {
-                bindings::assoc_legendre_p_all_1(n, m, self, bc, pnm.as_mut_ptr());
+                ffi::assoc_legendre_p_all_1(n, m, self, bc, pnm.as_mut_ptr());
             } else {
-                bindings::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
+                ffi::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
             }
         }
         utils::vec_to_vecvec(pnm, ni, nj, false)
@@ -78,29 +78,29 @@ impl LegendrePArg for f64 {
 impl LegendrePArg for Complex<f64> {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> Complex<f64> {
-        unsafe { bindings::legendre_p_1(n, self.into()) }.into()
+        unsafe { ffi::legendre_p_1(n, self.into()) }.into()
     }
 
     #[inline(always)]
     fn legendre_p_all(self, n: usize) -> Vec<Self> {
-        let mut pn = vec![bindings::cdouble::default(); n + 1];
+        let mut pn = vec![ffi::cdouble::default(); n + 1];
         unsafe {
-            bindings::legendre_p_all_1(n, self.into(), pn.as_mut_ptr());
+            ffi::legendre_p_all_1(n, self.into(), pn.as_mut_ptr());
         }
         utils::vec_into(pn)
     }
 
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Complex<f64> {
-        unsafe { bindings::sph_legendre_p_1(n, m, self.into()) }.into()
+        unsafe { ffi::sph_legendre_p_1(n, m, self.into()) }.into()
     }
 
     #[inline(always)]
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
-        let mut pnm = vec![bindings::cdouble::default(); ni * nj];
+        let mut pnm = vec![ffi::cdouble::default(); ni * nj];
         unsafe {
-            bindings::sph_legendre_p_all_1(n, m, self.into(), pnm.as_mut_ptr());
+            ffi::sph_legendre_p_all_1(n, m, self.into(), pnm.as_mut_ptr());
         }
         utils::vec_to_vecvec(utils::vec_into(pnm), ni, nj, false)
     }
@@ -109,9 +109,9 @@ impl LegendrePArg for Complex<f64> {
     fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Complex<f64> {
         unsafe {
             if norm {
-                bindings::assoc_legendre_p_1_1(n, m, self.into(), bc)
+                ffi::assoc_legendre_p_1_1(n, m, self.into(), bc)
             } else {
-                bindings::assoc_legendre_p_0_1(n, m, self.into(), bc)
+                ffi::assoc_legendre_p_0_1(n, m, self.into(), bc)
             }
         }
         .into()
@@ -120,12 +120,12 @@ impl LegendrePArg for Complex<f64> {
     #[inline(always)]
     fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
-        let mut pnm = vec![bindings::cdouble::default(); ni * nj];
+        let mut pnm = vec![ffi::cdouble::default(); ni * nj];
         unsafe {
             if norm {
-                bindings::assoc_legendre_p_all_1_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+                ffi::assoc_legendre_p_all_1_1(n, m, self.into(), bc, pnm.as_mut_ptr());
             } else {
-                bindings::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+                ffi::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
             }
         }
         utils::vec_to_vecvec(utils::vec_into(pnm), ni, nj, false)
@@ -144,7 +144,7 @@ impl LegendreQArg for f64 {
         let mut qd = vec![0.0; n + 1];
 
         unsafe {
-            bindings::lqn(n, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+            ffi::lqn(n, self, qn.as_mut_ptr(), qd.as_mut_ptr());
         }
         (qn, qd)
     }
@@ -156,7 +156,7 @@ impl LegendreQArg for f64 {
         let mut qd = vec![0.0; ni * nj];
 
         unsafe {
-            bindings::lqmn(m, n, self, qm.as_mut_ptr(), qd.as_mut_ptr());
+            ffi::lqmn(m, n, self, qm.as_mut_ptr(), qd.as_mut_ptr());
         }
 
         // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)
@@ -170,11 +170,11 @@ impl LegendreQArg for f64 {
 impl LegendreQArg for Complex<f64> {
     #[inline(always)]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        let mut cqn: Vec<_> = vec![bindings::cdouble::default(); n + 1];
-        let mut cqd: Vec<_> = vec![bindings::cdouble::default(); n + 1];
+        let mut cqn: Vec<_> = vec![ffi::cdouble::default(); n + 1];
+        let mut cqd: Vec<_> = vec![ffi::cdouble::default(); n + 1];
 
         unsafe {
-            bindings::lqn_1(n, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
+            ffi::lqn_1(n, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
         (utils::vec_into(cqn), utils::vec_into(cqd))
     }
@@ -182,11 +182,11 @@ impl LegendreQArg for Complex<f64> {
     #[inline(always)]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
-        let mut cqm = vec![bindings::cdouble::default(); ni * nj];
-        let mut cqd = vec![bindings::cdouble::default(); ni * nj];
+        let mut cqm = vec![ffi::cdouble::default(); ni * nj];
+        let mut cqd = vec![ffi::cdouble::default(); ni * nj];
 
         unsafe {
-            bindings::lqmn_1(m, n, self.into(), cqm.as_mut_ptr(), cqd.as_mut_ptr());
+            ffi::lqmn_1(m, n, self.into(), cqm.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
         // Convert from flat vec to matrix (m+1, n+1) and transpose to (n+1, m+1)

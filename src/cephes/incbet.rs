@@ -1,8 +1,8 @@
-use crate::bindings;
+use crate::ffi;
 
 #[inline(always)]
 fn incbet(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { bindings::incbet(a, b, x) }
+    unsafe { ffi::incbet(a, b, x) }
 }
 
 /// Regularized incomplete beta function

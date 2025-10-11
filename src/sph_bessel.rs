@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use core::ffi::c_long;
 use num_complex::Complex;
 
@@ -22,70 +22,70 @@ pub trait SphBesselArg: sealed::Sealed {
 impl SphBesselArg for f64 {
     #[inline(always)]
     fn sph_bessel_j(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_j(n, self) }
+        unsafe { ffi::sph_bessel_j(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_y(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_y(n, self) }
+        unsafe { ffi::sph_bessel_y(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_i(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_i(n, self) }
+        unsafe { ffi::sph_bessel_i(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_k(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_k(n, self) }
+        unsafe { ffi::sph_bessel_k(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_j_jac(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_j_jac(n, self) }
+        unsafe { ffi::sph_bessel_j_jac(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_y_jac(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_y_jac(n, self) }
+        unsafe { ffi::sph_bessel_y_jac(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_i_jac(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_i_jac(n, self) }
+        unsafe { ffi::sph_bessel_i_jac(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_k_jac(self, n: c_long) -> f64 {
-        unsafe { bindings::sph_bessel_k_jac(n, self) }
+        unsafe { ffi::sph_bessel_k_jac(n, self) }
     }
 }
 
 impl SphBesselArg for Complex<f64> {
     #[inline(always)]
     fn sph_bessel_j(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_j_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_j_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_y(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_y_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_y_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_i(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_i_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_i_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_k(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_k_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_k_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_j_jac(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_j_jac_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_j_jac_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_y_jac(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_y_jac_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_y_jac_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_i_jac(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_i_jac_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_i_jac_1(n, self.into()) }.into()
     }
     #[inline(always)]
     fn sph_bessel_k_jac(self, n: c_long) -> Self {
-        unsafe { bindings::sph_bessel_k_jac_1(n, self.into()) }.into()
+        unsafe { ffi::sph_bessel_k_jac_1(n, self.into()) }.into()
     }
 }
 

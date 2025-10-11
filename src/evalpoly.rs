@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Evaluate polynomials
 ///
@@ -18,11 +18,11 @@ use crate::bindings;
 pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::Complex<f64> {
     let degree = (coeffs.len() as i32) - 1;
     if degree == -1 {
-        unsafe { bindings::cevalpoly([0.0, 0.0].as_ptr(), 1, z.into()) }
+        unsafe { ffi::cevalpoly([0.0, 0.0].as_ptr(), 1, z.into()) }
     } else if degree == 0 {
-        unsafe { bindings::cevalpoly([0.0, coeffs[0]].as_ptr(), 1, z.into()) }
+        unsafe { ffi::cevalpoly([0.0, coeffs[0]].as_ptr(), 1, z.into()) }
     } else {
-        unsafe { bindings::cevalpoly(coeffs.as_ptr(), degree, z.into()) }
+        unsafe { ffi::cevalpoly(coeffs.as_ptr(), degree, z.into()) }
     }
     .into()
 }

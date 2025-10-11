@@ -2,7 +2,7 @@
 //! For complex argument, `scipy.special.spence` uses the Cython implementation at
 //! `scipy/special/_spence.pxd`.
 
-use crate::bindings;
+use crate::ffi;
 
 /// Spence's function, also known as the dilogarithm.
 ///
@@ -12,7 +12,7 @@ use crate::bindings;
 ///
 /// It currently only supports real arguments.
 pub fn spence(x: f64) -> f64 {
-    unsafe { bindings::spence(x) }
+    unsafe { ffi::spence(x) }
 }
 
 #[cfg(test)]

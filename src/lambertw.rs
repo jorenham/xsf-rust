@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 /// Lambert W function.
@@ -10,7 +10,7 @@ use num_complex::Complex;
 /// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
 /// integer `k`.
 pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
-    unsafe { bindings::lambertw(z.into(), k as core::ffi::c_long, tol) }.into()
+    unsafe { ffi::lambertw(z.into(), k as core::ffi::c_long, tol) }.into()
 }
 
 #[cfg(test)]

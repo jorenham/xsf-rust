@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Parabolic cylinder function *W*
 ///
@@ -19,7 +19,7 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
     let mut w = f64::NAN;
     let mut wd = f64::NAN;
     unsafe {
-        bindings::pbwa(a, x, &mut w, &mut wd);
+        ffi::pbwa(a, x, &mut w, &mut wd);
     }
     (w, wd)
 }
@@ -42,7 +42,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     let mut d = f64::NAN;
     let mut dp = f64::NAN;
     unsafe {
-        bindings::pbdv(v, x, &mut d, &mut dp);
+        ffi::pbdv(v, x, &mut d, &mut dp);
     }
     (d, dp)
 }
@@ -65,7 +65,7 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     let mut vv = f64::NAN;
     let mut vp = f64::NAN;
     unsafe {
-        bindings::pbvv(v, x, &mut vv, &mut vp);
+        ffi::pbvv(v, x, &mut vv, &mut vp);
     }
     (vv, vp)
 }

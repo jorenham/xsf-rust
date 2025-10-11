@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 
 mod sealed {
     pub trait Sealed {}
@@ -17,22 +17,22 @@ pub trait ZetaArg: sealed::Sealed {
 impl ZetaArg for f64 {
     #[inline(always)]
     fn riemann_zeta(self) -> f64 {
-        unsafe { bindings::riemann_zeta(self) }
+        unsafe { ffi::riemann_zeta(self) }
     }
     #[inline(always)]
     fn zeta(self, q: f64) -> f64 {
-        unsafe { bindings::zeta(self, q) }
+        unsafe { ffi::zeta(self, q) }
     }
 }
 
 impl ZetaArg for Complex<f64> {
     #[inline(always)]
     fn riemann_zeta(self) -> Complex<f64> {
-        unsafe { bindings::riemann_zeta_1(self.into()) }.into()
+        unsafe { ffi::riemann_zeta_1(self.into()) }.into()
     }
     #[inline(always)]
     fn zeta(self, q: f64) -> Complex<f64> {
-        unsafe { bindings::zeta_1(self.into(), q) }.into()
+        unsafe { ffi::zeta_1(self.into(), q) }.into()
     }
 }
 

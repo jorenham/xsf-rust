@@ -1,4 +1,4 @@
-use crate::bindings::xsf_impl;
+use crate::ffi::xsf_impl;
 
 xsf_impl!(
     iv_ratio,

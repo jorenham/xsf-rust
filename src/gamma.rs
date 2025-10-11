@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 use num_complex::Complex;
 
 mod sealed {
@@ -15,14 +15,14 @@ pub trait GammaArg: sealed::Sealed {
 impl GammaArg for f64 {
     #[inline(always)]
     fn xsf_gamma(self) -> f64 {
-        unsafe { bindings::gamma(self) }
+        unsafe { ffi::gamma(self) }
     }
 }
 
 impl GammaArg for Complex<f64> {
     #[inline(always)]
     fn xsf_gamma(self) -> Complex<f64> {
-        unsafe { bindings::gamma_1(self.into()) }.into()
+        unsafe { ffi::gamma_1(self.into()) }.into()
     }
 }
 

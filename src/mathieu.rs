@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 
 xsf_impl!(cem_cva, (m: f64, q: f64), "Characteristic value of even Mathieu functions");
 xsf_impl!(sem_cva, (m: f64, q: f64), "Characteristic value of odd Mathieu functions");
@@ -21,7 +21,7 @@ pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::cem(m, q, x, &mut y, &mut yp);
+        ffi::cem(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
@@ -43,7 +43,7 @@ pub fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::sem(m, q, x, &mut y, &mut yp);
+        ffi::sem(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
@@ -65,7 +65,7 @@ pub fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::mcm1(m, q, x, &mut y, &mut yp);
+        ffi::mcm1(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
@@ -87,7 +87,7 @@ pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::msm1(m, q, x, &mut y, &mut yp);
+        ffi::msm1(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
@@ -109,7 +109,7 @@ pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::mcm2(m, q, x, &mut y, &mut yp);
+        ffi::mcm2(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }
@@ -131,7 +131,7 @@ pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let mut y = f64::NAN;
     let mut yp = f64::NAN;
     unsafe {
-        bindings::msm2(m, q, x, &mut y, &mut yp);
+        ffi::msm2(m, q, x, &mut y, &mut yp);
     }
     (y, yp)
 }

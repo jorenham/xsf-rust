@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -14,14 +14,14 @@ pub trait DigammaArg: sealed::Sealed {
 impl DigammaArg for f64 {
     #[inline(always)]
     fn digamma(self) -> f64 {
-        unsafe { bindings::digamma(self) }
+        unsafe { ffi::digamma(self) }
     }
 }
 
 impl DigammaArg for Complex<f64> {
     #[inline(always)]
     fn digamma(self) -> Complex<f64> {
-        unsafe { bindings::digamma_1(self.into()) }.into()
+        unsafe { ffi::digamma_1(self.into()) }.into()
     }
 }
 

@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 
 xsf_impl!(ellipk, (m: f64), "Complete elliptic integral of the first kind");
 xsf_impl!(ellipkm1, (p: f64), "Complete elliptic integral of the first kind around `m = 1`");
@@ -29,7 +29,7 @@ pub fn ellipj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     let mut dn = f64::NAN;
     let mut phi = f64::NAN;
     unsafe {
-        bindings::ellipj(u, m, &mut sn, &mut cn, &mut dn, &mut phi);
+        ffi::ellipj(u, m, &mut sn, &mut cn, &mut dn, &mut phi);
     }
     (sn, cn, dn, phi)
 }

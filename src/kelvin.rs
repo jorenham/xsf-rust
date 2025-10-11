@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
@@ -27,7 +27,7 @@ pub fn kelvin(x: f64) -> [Complex<f64>; 4] {
     let mut bep = f64::NAN.into();
     let mut kep = f64::NAN.into();
     unsafe {
-        bindings::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
+        ffi::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
     }
     [be.into(), ke.into(), bep.into(), kep.into()]
 }
@@ -49,7 +49,7 @@ fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
 
     let mut zs = alloc::vec![0.0; nt];
     unsafe {
-        bindings::klvnzo(nt as c_int, kd as c_int, zs.as_mut_ptr());
+        ffi::klvnzo(nt as c_int, kd as c_int, zs.as_mut_ptr());
     }
     zs
 }

@@ -49,7 +49,7 @@ macro_rules! xsf_impl {
     ($name:ident, ($($param:ident: $type:ty),*), $docs:expr) => {
         #[doc = $docs]
         pub fn $name($($param: $type),*) -> f64 {
-            unsafe { crate::bindings::$name($($param),*) }
+            unsafe { crate::ffi::$name($($param),*) }
         }
     };
 }

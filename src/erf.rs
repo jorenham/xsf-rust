@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -18,46 +18,46 @@ pub trait ErfArg: sealed::Sealed {
 impl ErfArg for f64 {
     #[inline(always)]
     fn erf(self) -> f64 {
-        unsafe { bindings::erf(self) }
+        unsafe { ffi::erf(self) }
     }
     #[inline(always)]
     fn erfc(self) -> f64 {
-        unsafe { bindings::erfc(self) }
+        unsafe { ffi::erfc(self) }
     }
     #[inline(always)]
     fn erfcx(self) -> f64 {
-        unsafe { bindings::erfcx(self) }
+        unsafe { ffi::erfcx(self) }
     }
     #[inline(always)]
     fn erfi(self) -> f64 {
-        unsafe { bindings::erfi(self) }
+        unsafe { ffi::erfi(self) }
     }
     #[inline(always)]
     fn dawsn(self) -> f64 {
-        unsafe { bindings::dawsn(self) }
+        unsafe { ffi::dawsn(self) }
     }
 }
 
 impl ErfArg for Complex<f64> {
     #[inline(always)]
     fn erf(self) -> Complex<f64> {
-        unsafe { bindings::erf_1(self.into()) }.into()
+        unsafe { ffi::erf_1(self.into()) }.into()
     }
     #[inline(always)]
     fn erfc(self) -> Complex<f64> {
-        unsafe { bindings::erfc_1(self.into()) }.into()
+        unsafe { ffi::erfc_1(self.into()) }.into()
     }
     #[inline(always)]
     fn erfcx(self) -> Complex<f64> {
-        unsafe { bindings::erfcx_1(self.into()) }.into()
+        unsafe { ffi::erfcx_1(self.into()) }.into()
     }
     #[inline(always)]
     fn erfi(self) -> Complex<f64> {
-        unsafe { bindings::erfi_1(self.into()) }.into()
+        unsafe { ffi::erfi_1(self.into()) }.into()
     }
     #[inline(always)]
     fn dawsn(self) -> Complex<f64> {
-        unsafe { bindings::dawsn_1(self.into()) }.into()
+        unsafe { ffi::dawsn_1(self.into()) }.into()
     }
 }
 
@@ -88,12 +88,12 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`
 pub fn wofz(z: Complex<f64>) -> Complex<f64> {
-    unsafe { bindings::wofz(z.into()) }.into()
+    unsafe { ffi::wofz(z.into()) }.into()
 }
 
 /// Voigt profile
 pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
-    unsafe { bindings::voigt_profile(x, sigma, gamma) }
+    unsafe { ffi::voigt_profile(x, sigma, gamma) }
 }
 
 #[cfg(test)]

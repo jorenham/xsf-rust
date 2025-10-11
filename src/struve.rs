@@ -1,4 +1,4 @@
-use crate::bindings::xsf_impl;
+use crate::ffi::xsf_impl;
 
 xsf_impl!(itstruve0, (x: f64), "Integral of the Struve function of order 0");
 xsf_impl!(it2struve0, (x: f64), "Integral related to the Struve function of order 0");

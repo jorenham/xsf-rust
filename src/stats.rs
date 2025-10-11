@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 use core::ffi::c_int;
 use num_complex::Complex;
 
@@ -17,22 +17,22 @@ pub trait StatsArg: sealed::Sealed {
 impl StatsArg for f64 {
     #[inline(always)]
     fn ndtr(self) -> f64 {
-        unsafe { bindings::ndtr(self) }
+        unsafe { ffi::ndtr(self) }
     }
     #[inline(always)]
     fn log_ndtr(self) -> Self {
-        unsafe { bindings::log_ndtr(self) }
+        unsafe { ffi::log_ndtr(self) }
     }
 }
 
 impl StatsArg for Complex<f64> {
     #[inline(always)]
     fn ndtr(self) -> Complex<f64> {
-        unsafe { bindings::ndtr_1(self.into()) }.into()
+        unsafe { ffi::ndtr_1(self.into()) }.into()
     }
     #[inline(always)]
     fn log_ndtr(self) -> Self {
-        unsafe { bindings::log_ndtr_1(self.into()) }.into()
+        unsafe { ffi::log_ndtr_1(self.into()) }.into()
     }
 }
 

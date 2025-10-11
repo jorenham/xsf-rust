@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -15,22 +15,22 @@ pub trait ExpIntArg: sealed::Sealed {
 impl ExpIntArg for f64 {
     #[inline(always)]
     fn expi(self) -> f64 {
-        unsafe { bindings::expi(self) }
+        unsafe { ffi::expi(self) }
     }
     #[inline(always)]
     fn exp1(self) -> f64 {
-        unsafe { bindings::exp1(self) }
+        unsafe { ffi::exp1(self) }
     }
 }
 
 impl ExpIntArg for Complex<f64> {
     #[inline(always)]
     fn expi(self) -> Complex<f64> {
-        unsafe { bindings::expi_1(self.into()) }.into()
+        unsafe { ffi::expi_1(self.into()) }.into()
     }
     #[inline(always)]
     fn exp1(self) -> Complex<f64> {
-        unsafe { bindings::exp1_1(self.into()) }.into()
+        unsafe { ffi::exp1_1(self.into()) }.into()
     }
 }
 
@@ -86,7 +86,7 @@ pub fn expi<T: ExpIntArg>(z: T) -> T {
 /// - F(x) is increasing on [0, ∞).
 /// - F(x) = 1 in the limit as x → ∞.
 pub fn scaled_exp1(x: f64) -> f64 {
-    unsafe { bindings::scaled_exp1(x) }
+    unsafe { ffi::scaled_exp1(x) }
 }
 
 #[cfg(test)]

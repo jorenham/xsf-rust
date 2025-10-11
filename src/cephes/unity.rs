@@ -1,10 +1,10 @@
-use crate::bindings;
+use crate::ffi;
 
 /// see `scipy.special._ufuncs._lgam1p`
 #[doc(hidden)]
 #[inline(always)]
 pub fn lgam1p(x: f64) -> f64 {
-    unsafe { bindings::lgam1p(x) }
+    unsafe { ffi::lgam1p(x) }
 }
 
 #[cfg(test)]

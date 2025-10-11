@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use alloc::{vec, vec::Vec};
 use num_complex::Complex;
 
@@ -22,7 +22,7 @@ impl AiryArg for f64 {
         let mut bip = f64::NAN;
 
         unsafe {
-            bindings::airy(self, &mut ai, &mut aip, &mut bi, &mut bip);
+            ffi::airy(self, &mut ai, &mut aip, &mut bi, &mut bip);
         }
         (ai, aip, bi, bip)
     }
@@ -35,7 +35,7 @@ impl AiryArg for f64 {
         let mut bip = f64::NAN;
 
         unsafe {
-            bindings::airye(self, &mut ai, &mut aip, &mut bi, &mut bip);
+            ffi::airye(self, &mut ai, &mut aip, &mut bi, &mut bip);
         }
         (ai, aip, bi, bip)
     }
@@ -50,7 +50,7 @@ impl AiryArg for Complex<f64> {
         let mut bd = f64::NAN.into();
 
         unsafe {
-            bindings::airy_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
+            ffi::airy_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
         }
         (ai.into(), bi.into(), ad.into(), bd.into())
     }
@@ -63,7 +63,7 @@ impl AiryArg for Complex<f64> {
         let mut bd = f64::NAN.into();
 
         unsafe {
-            bindings::airye_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
+            ffi::airye_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
         }
         (ai.into(), bi.into(), ad.into(), bd.into())
     }
@@ -125,7 +125,7 @@ pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
     let mut bnt = f64::NAN;
 
     unsafe {
-        bindings::itairy(x, &mut apt, &mut bpt, &mut ant, &mut bnt);
+        ffi::itairy(x, &mut apt, &mut bpt, &mut ant, &mut bnt);
     }
     (apt, bpt, ant, bnt)
 }
@@ -153,7 +153,7 @@ pub fn ai_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut aip = vec![f64::NAN; nt];
 
     unsafe {
-        bindings::airyzo(
+        ffi::airyzo(
             nt,
             1,
             a.as_mut_ptr(),
@@ -188,7 +188,7 @@ pub fn bi_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut xd = vec![f64::NAN; nt];
 
     unsafe {
-        bindings::airyzo(
+        ffi::airyzo(
             nt,
             2,
             xa.as_mut_ptr(),

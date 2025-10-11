@@ -1,5 +1,5 @@
-use crate::bindings;
-use crate::bindings::xsf_impl;
+use crate::ffi;
+use crate::ffi::xsf_impl;
 use num_complex::Complex;
 
 mod sealed {
@@ -17,36 +17,36 @@ pub trait LogArg: sealed::Sealed {
 impl LogArg for f64 {
     #[inline(always)]
     fn xsf_log1p(self) -> f64 {
-        unsafe { bindings::log1p(self) }
+        unsafe { ffi::log1p(self) }
     }
     #[inline(always)]
     fn xsf_xlogy(self, x: Self) -> Self {
-        unsafe { bindings::xlogy(x, self) }
+        unsafe { ffi::xlogy(x, self) }
     }
     #[inline(always)]
     fn xsf_xlog1py(self, x: Self) -> Self {
-        unsafe { bindings::xlog1py(x, self) }
+        unsafe { ffi::xlog1py(x, self) }
     }
 }
 
 impl LogArg for Complex<f64> {
     #[inline(always)]
     fn xsf_log1p(self) -> Complex<f64> {
-        unsafe { bindings::log1p_1(self.into()) }.into()
+        unsafe { ffi::log1p_1(self.into()) }.into()
     }
     #[inline(always)]
     fn xsf_xlogy(self, x: Self) -> Self {
-        unsafe { bindings::xlogy_1(x.into(), self.into()) }.into()
+        unsafe { ffi::xlogy_1(x.into(), self.into()) }.into()
     }
     #[inline(always)]
     fn xsf_xlog1py(self, x: Self) -> Self {
-        unsafe { bindings::xlog1py_1(x.into(), self.into()) }.into()
+        unsafe { ffi::xlog1py_1(x.into(), self.into()) }.into()
     }
 }
 
 /// libc `std::log`
 pub(crate) fn log(x: f64) -> f64 {
-    unsafe { bindings::log(x) }
+    unsafe { ffi::log(x) }
 }
 
 /// `log(z + 1)` for real or complex input

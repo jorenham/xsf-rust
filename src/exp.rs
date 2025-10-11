@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 use num_complex::Complex;
 
 mod sealed {
@@ -14,20 +14,20 @@ pub trait ExpArg: sealed::Sealed {
 impl ExpArg for f64 {
     #[inline(always)]
     fn expm1(self) -> Self {
-        unsafe { bindings::expm1(self) }
+        unsafe { ffi::expm1(self) }
     }
 }
 
 impl ExpArg for Complex<f64> {
     #[inline(always)]
     fn expm1(self) -> Self {
-        unsafe { bindings::expm1_1(self.into()) }.into()
+        unsafe { ffi::expm1_1(self.into()) }.into()
     }
 }
 
 /// libc `exp` function
 pub(crate) fn exp(x: f64) -> f64 {
-    unsafe { bindings::exp(x) }
+    unsafe { ffi::exp(x) }
 }
 
 /// `exp(x) - 1` for real or complex input
@@ -37,12 +37,12 @@ pub fn expm1<T: ExpArg>(z: T) -> T {
 
 /// `2^x`
 pub fn exp2(x: f64) -> f64 {
-    unsafe { bindings::exp2(x) }
+    unsafe { ffi::exp2(x) }
 }
 
 /// `10^x`
 pub fn exp10(x: f64) -> f64 {
-    unsafe { bindings::exp10(x) }
+    unsafe { ffi::exp10(x) }
 }
 
 #[cfg(test)]

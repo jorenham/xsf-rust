@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-mod bindings;
+mod ffi;
 mod utils;
 
 #[cfg(test)]

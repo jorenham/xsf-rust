@@ -1,4 +1,4 @@
-use crate::bindings;
+use crate::ffi;
 
 /// Generalized exponential integral Eₙ(x)
 ///
@@ -11,7 +11,7 @@ use crate::bindings;
 /// - [`exp1`](fn.exp1.html): Special case of Eₙ for n = 1
 /// - [`expi`](fn.expi.html): Related to Eₙ when n = 1
 pub fn expn(n: u32, x: f64) -> f64 {
-    unsafe { bindings::expn(n as core::ffi::c_int, x) }
+    unsafe { ffi::expn(n as core::ffi::c_int, x) }
 }
 
 #[cfg(test)]
