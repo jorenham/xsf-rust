@@ -1,6 +1,8 @@
 [submodule "xsf"]
 	path = xsf
 	url = https://github.com/scipy/xsf.git
+	tag = v0.1.3
 [submodule "xsref"]
 	path = xsref
 	url = https://github.com/scipy/xsref.git
+	tag = v0.0.0

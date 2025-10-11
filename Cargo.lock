@@ -1093,7 +1093,7 @@ checksum = "052283831dbae3d879dc7f51f3d92703a316ca49f91540417d38591826127814"
 
 [[package]]
 name = "xsf"
-version = "0.2.0+0.1.2"
+version = "0.2.0+0.1.3"
 dependencies = [
  "arrow",
  "bindgen",
