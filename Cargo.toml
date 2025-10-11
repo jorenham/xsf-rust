@@ -13,7 +13,7 @@ rust-version = "1.85.1"
 description = "Bindings for SciPy special functions"
 
 [build-dependencies]
-bindgen = "0.72.1"
+bindgen = { version = "0.72.1", default-features = false }
 cc = "1.2.41"
 
 [dependencies]
