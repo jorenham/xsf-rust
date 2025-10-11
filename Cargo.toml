@@ -2,9 +2,9 @@
 name = "xsf"
 version = "0.2.0+0.1.3"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
-categories = ["api-bindings", "mathematics", "science"]
+categories = ["api-bindings", "mathematics", "science", "no-std"]
 edition = "2024"
-include = ["*.rs", "xsf/include/*"]
+include = ["*.rs", "xsf/include"]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause"
 readme = "README.md"
