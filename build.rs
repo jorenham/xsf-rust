@@ -965,6 +965,8 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .size_t_is_usize(true)
         .sort_semantically(true)
         .use_core()
+        .merge_extern_blocks(true)
+        .size_t_is_usize(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .unwrap()

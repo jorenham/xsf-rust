@@ -1,0 +1,27 @@
+use num_complex::Complex;
+
+/// Lambert W function.
+///
+/// The Lambert W function `W(z)` is defined as the inverse function of `w * exp(w)`. In other
+/// words, the value of `W(z)` is such that `z = W(z) * exp(W(z))` for any complex number `z`.
+///
+/// The Lambert W function is a multivalued function with infinitely many branches. Each branch
+/// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
+/// integer `k`.
+pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
+    unsafe { crate::ffi::xsf::lambertw(z.into(), k as core::ffi::c_long, tol) }.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xsref;
+    use num_complex::{Complex, c64};
+
+    #[test]
+    fn test_lambertw_c64() {
+        xsref::test::<Complex<f64>, _>("lambertw", "cd_p_d-cd", |x: &[f64]| {
+            lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
+        });
+    }
+}
