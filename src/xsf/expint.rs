@@ -91,37 +91,37 @@ pub fn scaled_exp1(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
     use num_complex::{Complex, c64};
 
     // exp1
 
     #[test]
     fn test_exp1_f64() {
-        testing::test::<f64, _>("exp1", "d-d", |x: &[f64]| exp1(x[0]));
+        xsref::test::<f64, _>("exp1", "d-d", |x: &[f64]| exp1(x[0]));
     }
 
     #[test]
     fn test_exp1_c64() {
-        testing::test::<Complex<f64>, _>("exp1", "cd-cd", |x: &[f64]| exp1(c64(x[0], x[1])));
+        xsref::test::<Complex<f64>, _>("exp1", "cd-cd", |x: &[f64]| exp1(c64(x[0], x[1])));
     }
 
     // expi
 
     #[test]
     fn test_expi_f64() {
-        testing::test::<f64, _>("expi", "d-d", |x: &[f64]| expi(x[0]));
+        xsref::test::<f64, _>("expi", "d-d", |x: &[f64]| expi(x[0]));
     }
 
     #[test]
     fn test_expi_c64() {
-        testing::test::<Complex<f64>, _>("expi", "cd-cd", |x: &[f64]| expi(c64(x[0], x[1])));
+        xsref::test::<Complex<f64>, _>("expi", "cd-cd", |x: &[f64]| expi(c64(x[0], x[1])));
     }
 
     // scaled_exp1
 
     #[test]
     fn test_scaled_exp1_f64() {
-        testing::test::<f64, _>("scaled_exp1", "d-d", |x: &[f64]| scaled_exp1(x[0]));
+        xsref::test::<f64, _>("scaled_exp1", "d-d", |x: &[f64]| scaled_exp1(x[0]));
     }
 }

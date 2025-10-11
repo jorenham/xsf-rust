@@ -11,15 +11,15 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_iv_ratio() {
-        testing::test::<f64, _>("iv_ratio", "d_d-d", |x: &[f64]| iv_ratio(x[0], x[1]));
+        xsref::test::<f64, _>("iv_ratio", "d_d-d", |x: &[f64]| iv_ratio(x[0], x[1]));
     }
 
     #[test]
     fn test_iv_ratio_c() {
-        testing::test::<f64, _>("iv_ratio_c", "d_d-d", |x: &[f64]| iv_ratio_c(x[0], x[1]));
+        xsref::test::<f64, _>("iv_ratio_c", "d_d-d", |x: &[f64]| iv_ratio_c(x[0], x[1]));
     }
 }

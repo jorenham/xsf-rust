@@ -78,56 +78,56 @@ pub fn radian(d: f64, m: f64, s: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_sinpi_f64() {
-        testing::test::<f64, _>("sinpi", "d-d", |x: &[f64]| sinpi(x[0]));
+        xsref::test::<f64, _>("sinpi", "d-d", |x: &[f64]| sinpi(x[0]));
     }
 
     #[test]
     fn test_sinpi_c64() {
-        testing::test::<Complex<f64>, _>("sinpi", "cd-cd", |x: &[f64]| sinpi(c64(x[0], x[1])));
+        xsref::test::<Complex<f64>, _>("sinpi", "cd-cd", |x: &[f64]| sinpi(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_cospi_f64() {
-        testing::test::<f64, _>("cospi", "d-d", |x: &[f64]| cospi(x[0]));
+        xsref::test::<f64, _>("cospi", "d-d", |x: &[f64]| cospi(x[0]));
     }
 
     #[test]
     fn test_cospi_c64() {
-        testing::test::<Complex<f64>, _>("cospi", "cd-cd", |x: &[f64]| cospi(c64(x[0], x[1])));
+        xsref::test::<Complex<f64>, _>("cospi", "cd-cd", |x: &[f64]| cospi(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_sindg() {
-        testing::test::<f64, _>("sindg", "d-d", |x: &[f64]| sindg(x[0]));
+        xsref::test::<f64, _>("sindg", "d-d", |x: &[f64]| sindg(x[0]));
     }
 
     #[test]
     fn test_cosdg() {
-        testing::test::<f64, _>("cosdg", "d-d", |x: &[f64]| cosdg(x[0]));
+        xsref::test::<f64, _>("cosdg", "d-d", |x: &[f64]| cosdg(x[0]));
     }
 
     #[test]
     fn test_tandg() {
-        testing::test::<f64, _>("tandg", "d-d", |x: &[f64]| tandg(x[0]));
+        xsref::test::<f64, _>("tandg", "d-d", |x: &[f64]| tandg(x[0]));
     }
 
     #[test]
     fn test_cotdg() {
-        testing::test::<f64, _>("cotdg", "d-d", |x: &[f64]| cotdg(x[0]));
+        xsref::test::<f64, _>("cotdg", "d-d", |x: &[f64]| cotdg(x[0]));
     }
 
     #[test]
     fn test_cosm1() {
-        testing::test::<f64, _>("cosm1", "d-d", |x: &[f64]| cosm1(x[0]));
+        xsref::test::<f64, _>("cosm1", "d-d", |x: &[f64]| cosm1(x[0]));
     }
 
     #[test]
     fn test_radian() {
-        testing::test::<f64, _>("radian", "d_d_d-d", |x: &[f64]| radian(x[0], x[1], x[2]));
+        xsref::test::<f64, _>("radian", "d_d_d-d", |x: &[f64]| radian(x[0], x[1], x[2]));
     }
 }

@@ -11,6 +11,6 @@ pub fn lgam1p(x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_lgam1p() {
-        crate::testing::test("lgam1p", "d-d", |x| crate::lgam1p(x[0]));
+        crate::xsref::test("lgam1p", "d-d", |x| crate::lgam1p(x[0]));
     }
 }

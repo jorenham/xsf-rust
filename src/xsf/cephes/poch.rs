@@ -24,10 +24,10 @@ pub fn pow_falling(x: f64, m: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_pow_rising() {
-        testing::test::<f64, _>("poch", "d_d-d", |x: &[f64]| pow_rising(x[0], x[1]));
+        xsref::test::<f64, _>("poch", "d_d-d", |x: &[f64]| pow_rising(x[0], x[1]));
     }
 }

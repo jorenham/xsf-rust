@@ -18,10 +18,10 @@ pub fn spence(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_spence() {
-        testing::test::<f64, _>("spence", "d-d", |x: &[f64]| spence(x[0]));
+        xsref::test::<f64, _>("spence", "d-d", |x: &[f64]| spence(x[0]));
     }
 }

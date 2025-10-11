@@ -10,6 +10,8 @@ extern crate alloc;
 
 #[cfg(test)]
 mod testing;
+#[cfg(test)]
+mod xsref;
 
 mod ffi;
 mod utils;

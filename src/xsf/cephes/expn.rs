@@ -17,16 +17,16 @@ pub fn expn(n: u32, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_expn_u32() {
-        testing::test::<f64, _>("expn", "p_d-d", |x: &[f64]| expn(x[0] as u32, x[1]));
+        xsref::test::<f64, _>("expn", "p_d-d", |x: &[f64]| expn(x[0] as u32, x[1]));
     }
 
     #[test]
     fn test_expn_f64() {
         // not sure why this table exists; but we might as well use it 🤷🏻
-        testing::test::<f64, _>("expn", "d_d-d", |x: &[f64]| expn(x[0] as u32, x[1]));
+        xsref::test::<f64, _>("expn", "d_d-d", |x: &[f64]| expn(x[0] as u32, x[1]));
     }
 }

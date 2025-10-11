@@ -137,45 +137,45 @@ pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_cem_cva() {
-        testing::test::<f64, _>("cem_cva", "d_d-d", |x: &[f64]| cem_cva(x[0], x[1]));
+        xsref::test::<f64, _>("cem_cva", "d_d-d", |x: &[f64]| cem_cva(x[0], x[1]));
     }
 
     #[test]
     fn test_sem_cva() {
-        testing::test::<f64, _>("sem_cva", "d_d-d", |x: &[f64]| sem_cva(x[0], x[1]));
+        xsref::test::<f64, _>("sem_cva", "d_d-d", |x: &[f64]| sem_cva(x[0], x[1]));
     }
 
     #[test]
     fn test_cem() {
-        testing::test::<(f64, f64), _>("cem", "d_d_d-d_d", |x: &[f64]| cem(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("cem", "d_d_d-d_d", |x: &[f64]| cem(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_sem() {
-        testing::test::<(f64, f64), _>("sem", "d_d_d-d_d", |x: &[f64]| sem(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("sem", "d_d_d-d_d", |x: &[f64]| sem(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_mcm1() {
-        testing::test::<(f64, f64), _>("mcm1", "d_d_d-d_d", |x: &[f64]| mcm1(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("mcm1", "d_d_d-d_d", |x: &[f64]| mcm1(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_msm1() {
-        testing::test::<(f64, f64), _>("msm1", "d_d_d-d_d", |x: &[f64]| msm1(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("msm1", "d_d_d-d_d", |x: &[f64]| msm1(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_mcm2() {
-        testing::test::<(f64, f64), _>("mcm2", "d_d_d-d_d", |x: &[f64]| mcm2(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("mcm2", "d_d_d-d_d", |x: &[f64]| mcm2(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_msm2() {
-        testing::test::<(f64, f64), _>("msm2", "d_d_d-d_d", |x: &[f64]| msm2(x[0], x[1], x[2]));
+        xsref::test::<(f64, f64), _>("msm2", "d_d_d-d_d", |x: &[f64]| msm2(x[0], x[1], x[2]));
     }
 }

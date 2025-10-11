@@ -112,19 +112,19 @@ pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
     use num_complex::{Complex, c64};
 
     // fresnel
 
     #[test]
     fn test_fresnel_f64() {
-        testing::test::<(f64, f64), _>("fresnel", "d-d_d", |x: &[f64]| fresnel(x[0]));
+        xsref::test::<(f64, f64), _>("fresnel", "d-d_d", |x: &[f64]| fresnel(x[0]));
     }
 
     #[test]
     fn test_fresnel_c64() {
-        testing::test::<(Complex<f64>, Complex<f64>), _>("fresnel", "cd-cd_cd", |x: &[f64]| {
+        xsref::test::<(Complex<f64>, Complex<f64>), _>("fresnel", "cd-cd_cd", |x: &[f64]| {
             fresnel(c64(x[0], x[1]))
         });
     }
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_modified_fresnel_plus_c64() {
-        testing::test::<(Complex<f64>, Complex<f64>), _>(
+        xsref::test::<(Complex<f64>, Complex<f64>), _>(
             "modified_fresnel_plus",
             "d-cd_cd",
             |x: &[f64]| modified_fresnel_plus(x[0]),
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_modified_fresnel_minus_c64() {
-        testing::test::<(Complex<f64>, Complex<f64>), _>(
+        xsref::test::<(Complex<f64>, Complex<f64>), _>(
             "modified_fresnel_minus",
             "d-cd_cd",
             |x: &[f64]| modified_fresnel_minus(x[0]),

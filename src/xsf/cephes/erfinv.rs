@@ -32,7 +32,8 @@ pub fn erfcinv(y: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::testing::np_assert_allclose;
+    use crate::xsref;
 
     // based on `scipy.special.tests.test_TestInverseErrorFunction.test_literal_values`
     #[test]
@@ -51,11 +52,11 @@ mod tests {
             0.9061938024368233,
             1.1630871536766743,
         ];
-        testing::np_assert_allclose(&actual, &expected, 0.0, 1e-15);
+        np_assert_allclose(&actual, &expected, 0.0, 1e-15);
     }
 
     #[test]
     fn test_erfcinv() {
-        testing::test::<f64, _>("erfcinv", "d-d", |x: &[f64]| erfcinv(x[0]));
+        xsref::test::<f64, _>("erfcinv", "d-d", |x: &[f64]| erfcinv(x[0]));
     }
 }

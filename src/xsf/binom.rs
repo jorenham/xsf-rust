@@ -6,10 +6,10 @@ pub fn binom(n: f64, k: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing;
+    use crate::xsref;
 
     #[test]
     fn test_binom() {
-        testing::test::<f64, _>("binom", "d_d-d", |x: &[f64]| binom(x[0], x[1]));
+        xsref::test::<f64, _>("binom", "d_d-d", |x: &[f64]| binom(x[0], x[1]));
     }
 }

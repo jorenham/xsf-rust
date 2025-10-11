@@ -204,17 +204,17 @@ mod tests {
     use core::f64;
 
     use super::*;
-    use crate::testing;
+    use crate::{testing, xsref};
     use num_complex::{Complex, c64};
 
     #[test]
     fn test_airy_f64() {
-        testing::test::<(f64, f64, f64, f64), _>("airy", "d-d_d_d_d", |x: &[f64]| airy(x[0]));
+        xsref::test::<(f64, f64, f64, f64), _>("airy", "d-d_d_d_d", |x: &[f64]| airy(x[0]));
     }
 
     #[test]
     fn test_airy_c64() {
-        testing::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "airy",
             "cd-cd_cd_cd_cd",
             |x: &[f64]| airy(c64(x[0], x[1])),
@@ -223,12 +223,12 @@ mod tests {
 
     #[test]
     fn test_airye_f64() {
-        testing::test::<(f64, f64, f64, f64), _>("airye", "d-d_d_d_d", |x: &[f64]| airye(x[0]));
+        xsref::test::<(f64, f64, f64, f64), _>("airye", "d-d_d_d_d", |x: &[f64]| airye(x[0]));
     }
 
     #[test]
     fn test_airye_c64() {
-        testing::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "airye",
             "cd-cd_cd_cd_cd",
             |x: &[f64]| airye(c64(x[0], x[1])),
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_itairy() {
-        testing::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
+        xsref::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
     }
 
     #[test]
