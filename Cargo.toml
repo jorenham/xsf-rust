@@ -14,7 +14,7 @@ description = "Bindings for SciPy special functions"
 
 [build-dependencies]
 bindgen = "0.72.1"
-cc = "1.2.40"
+cc = "1.2.41"
 
 [dependencies]
 num-complex = { version = "0.4.6", default-features = false }
