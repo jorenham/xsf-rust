@@ -267,8 +267,8 @@ mod tests {
     // there are no xsref tables, so we use smoke tests instead
 
     use super::*;
+    use core::f64::consts;
     use num_complex::c64;
-    use std::f64::consts;
 
     const I: Complex<f64> = Complex::new(0.0, 1.0);
     const LN_3: f64 = 1.098_612_288_668_109_8_f64;
