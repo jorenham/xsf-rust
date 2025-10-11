@@ -1,6 +1,11 @@
 use alloc::vec::Vec;
 
 #[inline(always)]
+pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
+    xs.into_iter().map(S::into).collect()
+}
+
+#[inline(always)]
 pub(crate) fn vec_to_vecvec<T: Clone>(
     vec: Vec<T>,
     rows: usize,
@@ -21,9 +26,11 @@ pub(crate) fn vec_to_vecvec<T: Clone>(
 }
 
 #[inline(always)]
-pub(crate) fn vec_into<S, T>(xs: Vec<S>) -> Vec<T>
-where
-    S: Into<T>,
-{
-    xs.into_iter().map(S::into).collect()
+pub(crate) fn vec_into_vecvec<S: Into<T>, T: Clone>(
+    vec: Vec<S>,
+    rows: usize,
+    cols: usize,
+    transpose: bool,
+) -> Vec<Vec<T>> {
+    vec_to_vecvec(vec_into(vec), rows, cols, transpose)
 }

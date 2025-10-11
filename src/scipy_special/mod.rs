@@ -1,1 +1,2 @@
-pub(crate) mod boxcox;
+mod boxcox;
+pub use boxcox::*;

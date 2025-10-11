@@ -1,7 +1,7 @@
 // ported from `scipy/special/_boxcox.pxd`
 
-use crate::exp::{exp, expm1};
-use crate::log::{log, log1p};
+use crate::xsf::exp::{exp, expm1};
+use crate::xsf::log::{log, log1p};
 
 const MIN_ABS_LAMBDA: f64 = 1e-19;
 const MAX_ABS_LAMBDA: f64 = 1e+273;

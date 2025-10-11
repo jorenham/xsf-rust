@@ -9,7 +9,9 @@ use num_complex::{Complex, c64};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::errors::ParquetError;
 
-use crate::fp_error_metrics::{ExtendedErrorArg, extended_absolute_error, extended_relative_error};
+use crate::xsf::fp_error_metrics::{
+    ExtendedErrorArg, extended_absolute_error, extended_relative_error,
+};
 
 pub(crate) trait TestOutputValue: Copy + ExtendedErrorArg + Display {
     fn magnitude(self) -> f64;
@@ -27,7 +29,7 @@ impl TestOutputValue for Complex<f64> {
     }
 }
 
-pub trait TestOutput: Copy {
+pub(crate) trait TestOutput: Copy {
     type Value: TestOutputValue;
 
     fn values(&self) -> Vec<Self::Value>;
@@ -159,7 +161,7 @@ struct TestCase<T: TestOutput> {
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub enum TestError {
+pub(crate) enum TestError {
     Io(IOError),
     DataFormat,
 }
@@ -288,7 +290,7 @@ fn load_testcases<T: TestOutput>(
     Ok(test_cases)
 }
 
-pub fn test<T, F>(name: &str, signature: &str, test_fn: F)
+pub(crate) fn test<T, F>(name: &str, signature: &str, test_fn: F)
 where
     T: TestOutput,
     F: Fn(&[f64]) -> T,
