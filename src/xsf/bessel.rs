@@ -267,7 +267,7 @@ pub fn cyl_hankel_1e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
 }
 
 /// Hankel function of the 2nd kind
-#[doc(alias = "hankele")]
+#[doc(alias = "hankel2")]
 pub fn cyl_hankel_2<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
     z.cyl_hankel_2(v)
 }

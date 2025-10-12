@@ -139,7 +139,7 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
-#[doc(alias = "obl_rad1")]
+#[doc(alias = "obl_rad2")]
 pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
