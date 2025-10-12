@@ -43,7 +43,7 @@ pub use bessel::{
     bessel_i, bessel_i0, bessel_i0e, bessel_i1, bessel_i1e, bessel_ie, bessel_j, bessel_j0,
     bessel_j1, bessel_je, bessel_k, bessel_k0, bessel_k0e, bessel_k1, bessel_k1e, bessel_ke,
     bessel_y, bessel_y0, bessel_y1, bessel_ye, besselpoly, hankel_1, hankel_1e, hankel_2,
-    hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, riccati_jn, riccati_yn,
+    hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, riccati_j, riccati_y,
 };
 pub use beta::{beta, betaln};
 pub use binom::binom;

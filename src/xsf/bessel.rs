@@ -434,7 +434,8 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 /// - `jn`: Value of *j0(x), ..., jn(x)*
 /// - `jnp`:  First derivative *j0'(x), ..., jn'(x)*
 #[doc(alias = "rctj")]
-pub fn riccati_jn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
+#[doc(alias = "riccati_jn")]
+pub fn riccati_j(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
     let mut rj = alloc::vec![f64::NAN; n + 1];
     let mut dj = alloc::vec![f64::NAN; n + 1];
     let nmax = unsafe { crate::ffi::xsf::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as usize;
@@ -459,7 +460,8 @@ pub fn riccati_jn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
 /// - `yn`: Value of y0(x), ..., yn(x)
 /// - `ynp`:  First derivative y0'(x), ..., yn'(x)
 #[doc(alias = "rcty")]
-pub fn riccati_yn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
+#[doc(alias = "riccati_yn")]
+pub fn riccati_y(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
     let mut ry = alloc::vec![f64::NAN; n + 1];
     let mut dy = alloc::vec![f64::NAN; n + 1];
     let nmax = unsafe { crate::ffi::xsf::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as usize;
@@ -702,7 +704,7 @@ mod tests {
 
     /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_jn`
     #[test]
-    fn test_riccati_jn() {
+    fn test_riccati_j() {
         // N, x = 2, 0.2
         const N: usize = 2;
         let x: f64 = 0.2;
@@ -721,14 +723,14 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (jn, jnp) = riccati_jn(N - 1, x);
+        let (jn, jnp) = riccati_j(N - 1, x);
         crate::testing::np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
         crate::testing::np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
     }
 
     /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_yn`
     #[test]
-    fn test_riccati_yn() {
+    fn test_riccati_y() {
         // N, x = 2, 0.2
         const N: usize = 2;
         let x: f64 = 0.2;
@@ -747,7 +749,7 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (yn, ynp) = riccati_yn(N - 1, x);
+        let (yn, ynp) = riccati_y(N - 1, x);
         crate::testing::np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
         crate::testing::np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
     }
