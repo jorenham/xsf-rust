@@ -672,27 +672,27 @@ mod tests {
     // Bessel integrals
 
     #[test]
-    fn test_it1j0y0_f64() {
+    fn test_it1j0y0() {
         xsref::test("it1j0y0", "d-d_d", |x: &[f64]| it1j0y0(x[0]));
     }
 
     #[test]
-    fn test_it2j0y0_f64() {
+    fn test_it2j0y0() {
         xsref::test("it2j0y0", "d-d_d", |x: &[f64]| it2j0y0(x[0]));
     }
 
     #[test]
-    fn test_it1i0k0_f64() {
+    fn test_it1i0k0() {
         xsref::test("it1i0k0", "d-d_d", |x: &[f64]| it1i0k0(x[0]));
     }
 
     #[test]
-    fn test_it2i0k0_f64() {
+    fn test_it2i0k0() {
         xsref::test("it2i0k0", "d-d_d", |x: &[f64]| it2i0k0(x[0]));
     }
 
     #[test]
-    fn test_besselpoly_f64() {
+    fn test_besselpoly() {
         xsref::test("besselpoly", "d_d_d-d", |x: &[f64]| {
             besselpoly(x[0], x[1], x[2])
         });
