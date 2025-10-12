@@ -8,275 +8,316 @@ mod sealed {
 }
 
 pub trait BesselArg: sealed::Sealed {
-    fn cyl_bessel_j(self, v: f64) -> Self;
-    fn cyl_bessel_je(self, v: f64) -> Self;
-    fn cyl_bessel_y(self, v: f64) -> Self;
-    fn cyl_bessel_ye(self, v: f64) -> Self;
-    fn cyl_bessel_i(self, v: f64) -> Self;
-    fn cyl_bessel_ie(self, v: f64) -> Self;
-    fn cyl_bessel_k(self, v: f64) -> Self;
-    fn cyl_bessel_ke(self, v: f64) -> Self;
+    fn bessel_j(self, v: f64) -> Self;
+    fn bessel_je(self, v: f64) -> Self;
+    fn bessel_y(self, v: f64) -> Self;
+    fn bessel_ye(self, v: f64) -> Self;
+    fn bessel_i(self, v: f64) -> Self;
+    fn bessel_ie(self, v: f64) -> Self;
+    fn bessel_k(self, v: f64) -> Self;
+    fn bessel_ke(self, v: f64) -> Self;
 }
 
 impl BesselArg for f64 {
     #[inline(always)]
-    fn cyl_bessel_j(self, v: f64) -> f64 {
+    fn bessel_j(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_j(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_je(self, v: f64) -> f64 {
+    fn bessel_je(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_je(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_y(self, v: f64) -> f64 {
+    fn bessel_y(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_y(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_ye(self, v: f64) -> f64 {
+    fn bessel_ye(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ye(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_i(self, v: f64) -> f64 {
+    fn bessel_i(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_i(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_ie(self, v: f64) -> f64 {
+    fn bessel_ie(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ie(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_k(self, v: f64) -> f64 {
+    fn bessel_k(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_k(v, self) }
     }
     #[inline(always)]
-    fn cyl_bessel_ke(self, v: f64) -> f64 {
+    fn bessel_ke(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ke(v, self) }
     }
 }
 
 impl BesselArg for Complex<f64> {
     #[inline(always)]
-    fn cyl_bessel_j(self, v: f64) -> Complex<f64> {
+    fn bessel_j(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_j_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_je(self, v: f64) -> Complex<f64> {
+    fn bessel_je(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_je_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_y(self, v: f64) -> Complex<f64> {
+    fn bessel_y(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_y_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_ye(self, v: f64) -> Complex<f64> {
+    fn bessel_ye(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ye_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_i(self, v: f64) -> Complex<f64> {
+    fn bessel_i(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_i_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_ie(self, v: f64) -> Complex<f64> {
+    fn bessel_ie(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ie_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_k(self, v: f64) -> Complex<f64> {
+    fn bessel_k(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_k_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_bessel_ke(self, v: f64) -> Complex<f64> {
+    fn bessel_ke(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ke_1(v, self.into()) }.into()
     }
 }
 
 pub trait HankelArg: sealed::Sealed {
-    fn cyl_hankel_1(self, v: f64) -> Complex<f64>;
-    fn cyl_hankel_1e(self, v: f64) -> Complex<f64>;
-    fn cyl_hankel_2(self, v: f64) -> Complex<f64>;
-    fn cyl_hankel_2e(self, v: f64) -> Complex<f64>;
+    fn hankel_1(self, v: f64) -> Complex<f64>;
+    fn hankel_1e(self, v: f64) -> Complex<f64>;
+    fn hankel_2(self, v: f64) -> Complex<f64>;
+    fn hankel_2e(self, v: f64) -> Complex<f64>;
 }
 
 impl HankelArg for f64 {
     #[inline(always)]
-    fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1(v, Complex::new(self, 0.0).into()) }.into()
+    fn hankel_1(self, v: f64) -> Complex<f64> {
+        unsafe { crate::ffi::xsf::cyl_hankel_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, Complex::new(self, 0.0).into()) }.into()
+    fn hankel_1e(self, v: f64) -> Complex<f64> {
+        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2(v, Complex::new(self, 0.0).into()) }.into()
+    fn hankel_2(self, v: f64) -> Complex<f64> {
+        unsafe { crate::ffi::xsf::cyl_hankel_2(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, Complex::new(self, 0.0).into()) }.into()
+    fn hankel_2e(self, v: f64) -> Complex<f64> {
+        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self.into()) }.into()
     }
 }
 
 impl HankelArg for Complex<f64> {
     #[inline(always)]
-    fn cyl_hankel_1(self, v: f64) -> Complex<f64> {
+    fn hankel_1(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_1(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_1e(self, v: f64) -> Complex<f64> {
+    fn hankel_1e(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_2(self, v: f64) -> Complex<f64> {
+    fn hankel_2(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_2(v, self.into()) }.into()
     }
     #[inline(always)]
-    fn cyl_hankel_2e(self, v: f64) -> Complex<f64> {
+    fn hankel_2e(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self.into()) }.into()
     }
 }
 
-/// Bessel function, 1st kind, order 0
+// Bessel J
+
+/// Bessel function of the first kind of order 0
 #[doc(alias = "j0")]
-pub fn cyl_bessel_j0(x: f64) -> f64 {
+#[doc(alias = "cyL_bessel_j0")]
+pub fn bessel_j0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j0(x) }
 }
 
-/// Bessel function, 1st kind, order 1
+/// Bessel function of the first kind of order 1
 #[doc(alias = "j1")]
-pub fn cyl_bessel_j1(x: f64) -> f64 {
+#[doc(alias = "cyL_bessel_j1")]
+pub fn bessel_j1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j1(x) }
-}
-
-/// Bessel function, 2nd kind, order 0
-#[doc(alias = "y0")]
-pub fn cyl_bessel_y0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
-}
-
-/// Bessel function, 2nd kind, order 1
-#[doc(alias = "y1")]
-pub fn cyl_bessel_y1(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
-}
-
-/// Modified Bessel function, 1st kind, order 0
-#[doc(alias = "i0")]
-pub fn cyl_bessel_i0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_i0(x) }
-}
-
-/// Exponentially scaled modified Bessel function, 1st kind, order 0
-#[doc(alias = "i0e")]
-pub fn cyl_bessel_i0e(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_i0e(x) }
-}
-
-/// Modified Bessel function, 1st kind, order 1
-#[doc(alias = "i1")]
-pub fn cyl_bessel_i1(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_i1(x) }
-}
-
-/// Exponentially scaled modified Bessel function, 1st kind, order 1
-#[doc(alias = "i1e")]
-pub fn cyl_bessel_i1e(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_i1e(x) }
-}
-
-/// Modified Bessel function, 2nd kind, order 0
-#[doc(alias = "k0")]
-pub fn cyl_bessel_k0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
-}
-
-/// Exponentially scaled modified Bessel function, 2nd kind, order 0
-#[doc(alias = "k0e")]
-pub fn cyl_bessel_k0e(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
-}
-
-/// Modified Bessel function, 2nd kind, order 1
-#[doc(alias = "k1")]
-pub fn cyl_bessel_k1(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k1(x) }
-}
-
-/// Exponentially scaled modified Bessel function, 2nd kind, order 1
-#[doc(alias = "k1e")]
-pub fn cyl_bessel_k1e(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k1e(x) }
 }
 
 /// Bessel function of the first kind
 #[doc(alias = "jv")]
-pub fn cyl_bessel_j<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_j(v)
+#[doc(alias = "cyL_bessel_j")]
+pub fn bessel_j<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_j(v)
 }
 
 /// Exponentially scaled Bessel function of the first kind
 #[doc(alias = "jve")]
-pub fn cyl_bessel_je<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_je(v)
+#[doc(alias = "cyL_bessel_je")]
+pub fn bessel_je<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_je(v)
+}
+
+// Bessel Y (Neumann)
+
+/// Bessel function, second kind of order 0
+#[doc(alias = "y0")]
+#[doc(alias = "cyl_neumann_0")]
+#[doc(alias = "cyL_bessel_y0")]
+pub fn bessel_y0(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
+}
+
+/// Bessel function, second kind of order 1
+#[doc(alias = "y1")]
+#[doc(alias = "cyl_neumann_1")]
+#[doc(alias = "cyL_bessel_y1")]
+pub fn bessel_y1(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
 }
 
 /// Bessel function of the second kind
 #[doc(alias = "yv")]
 #[doc(alias = "cyl_neumann")]
-pub fn cyl_bessel_y<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_y(v)
+#[doc(alias = "cyl_bessel_y")]
+pub fn bessel_y<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_y(v)
 }
 
 /// Exponentially scaled Bessel function of the second kind
 #[doc(alias = "yve")]
-pub fn cyl_bessel_ye<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_ye(v)
+#[doc(alias = "cyl_neumann_e")]
+#[doc(alias = "cyl_bessel_ye")]
+pub fn bessel_ye<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_ye(v)
+}
+
+// Bessel I
+
+/// Modified Bessel function of the first kind of order 0
+#[doc(alias = "i0")]
+#[doc(alias = "cyL_bessel_i0")]
+pub fn bessel_i0(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_i0(x) }
+}
+
+/// Exponentially scaled modified Bessel function of the first kind of order 0
+#[doc(alias = "i0e")]
+#[doc(alias = "cyL_bessel_i0e")]
+pub fn bessel_i0e(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_i0e(x) }
+}
+
+/// Modified Bessel function of the first kind of order 1
+#[doc(alias = "i1")]
+#[doc(alias = "cyL_bessel_i1")]
+pub fn bessel_i1(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_i1(x) }
+}
+
+/// Exponentially scaled modified Bessel function of the first kind of order 1
+#[doc(alias = "i1e")]
+#[doc(alias = "cyL_bessel_i1e")]
+pub fn bessel_i1e(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_i1e(x) }
 }
 
 /// Modified Bessel function of the first kind
 #[doc(alias = "iv")]
-pub fn cyl_bessel_i<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_i(v)
+#[doc(alias = "cyl_bessel_i")]
+pub fn bessel_i<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_i(v)
 }
 
 /// Exponentially scaled modified Bessel function of the first kind
 #[doc(alias = "ive")]
-pub fn cyl_bessel_ie<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_ie(v)
+#[doc(alias = "cyl_bessel_ie")]
+pub fn bessel_ie<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_ie(v)
+}
+
+// Bessel K
+
+/// Modified Bessel function, second kind of order 0
+#[doc(alias = "k0")]
+#[doc(alias = "cyL_bessel_k0")]
+pub fn bessel_k0(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
+}
+
+/// Exponentially scaled modified Bessel function, second kind of order 0
+#[doc(alias = "k0e")]
+#[doc(alias = "cyL_bessel_k0e")]
+pub fn bessel_k0e(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
+}
+
+/// Modified Bessel function, second kind of order 1
+#[doc(alias = "k1")]
+#[doc(alias = "cyL_bessel_k1")]
+pub fn bessel_k1(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_k1(x) }
+}
+
+/// Exponentially scaled modified Bessel function, second kind of order 1
+#[doc(alias = "k1e")]
+#[doc(alias = "cyL_bessel_k1e")]
+pub fn bessel_k1e(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cyl_bessel_k1e(x) }
 }
 
 /// Modified Bessel function of the second kind
 #[doc(alias = "kv")]
-pub fn cyl_bessel_k<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_k(v)
+#[doc(alias = "cyl_bessel_k")]
+pub fn bessel_k<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_k(v)
 }
 
 /// Exponentially scaled modified Bessel function of the second kind
 #[doc(alias = "kve")]
-pub fn cyl_bessel_ke<T: BesselArg>(v: f64, x: T) -> T {
-    x.cyl_bessel_ke(v)
+#[doc(alias = "cyl_bessel_ke")]
+pub fn bessel_ke<T: BesselArg>(v: f64, x: T) -> T {
+    x.bessel_ke(v)
 }
 
-/// Hankel function of the 1st kind
+// Hankel 1
+
+/// Hankel function of the first kind
 #[doc(alias = "hankel1")]
-pub fn cyl_hankel_1<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
-    z.cyl_hankel_1(v)
+#[doc(alias = "cyl_hankel_1")]
+pub fn hankel_1<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.hankel_1(v)
 }
 
-/// Exponentially scaled Hankel function of the 1st kind
+/// Exponentially scaled Hankel function of the first kind
 #[doc(alias = "hankel1e")]
-pub fn cyl_hankel_1e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
-    z.cyl_hankel_1e(v)
+#[doc(alias = "cyl_hankel_1e")]
+pub fn hankel_1e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.hankel_1e(v)
 }
 
-/// Hankel function of the 2nd kind
+// Hankel 2
+
+/// Hankel function of the second kind
 #[doc(alias = "hankel2")]
-pub fn cyl_hankel_2<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
-    z.cyl_hankel_2(v)
+#[doc(alias = "cyl_hankel_2")]
+pub fn hankel_2<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.hankel_2(v)
 }
 
-/// Exponentially scaled Hankel function of the 2nd kind
+/// Exponentially scaled Hankel function of the second kind
 #[doc(alias = "hankel2e")]
-pub fn cyl_hankel_2e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
-    z.cyl_hankel_2e(v)
+#[doc(alias = "cyl_hankel_2e")]
+pub fn hankel_2e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
+    z.hankel_2e(v)
 }
+
+// Integrals
 
 /// Weighted integral of the Bessel function of the first kind
 ///
@@ -375,7 +416,9 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
     (i0int, k0int)
 }
 
-/// Compute Riccati-Bessel function of the 1st kind and their derivatives for up to `n`
+// Riccati-Bessel
+
+/// Compute Riccati-Bessel function of the first kind and their derivatives for up to `n`
 ///
 /// The Riccati-Bessel function of the first kind is defined as `x j_n(x)`, where `j_n` is the
 /// spherical Bessel function of the first kind of order `n`.
@@ -394,11 +437,12 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 pub fn riccati_jn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
     let mut rj = alloc::vec![f64::NAN; n + 1];
     let mut dj = alloc::vec![f64::NAN; n + 1];
-    let _ = unsafe { crate::ffi::xsf::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as i32;
+    let nmax = unsafe { crate::ffi::xsf::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as usize;
+    assert!(nmax == n);
     (rj, dj)
 }
 
-/// Compute Riccati-Bessel function of the 2nd kind and their derivatives for up to `n`
+/// Compute Riccati-Bessel function of the second kind and their derivatives for up to `n`
 ///
 /// The Riccati-Bessel function of the second kind is defined here as `+x y_n(x)`, where `y_n` is
 /// the spherical Bessel function of the second kind of order `n`. *Note that this is in contrast
@@ -418,254 +462,239 @@ pub fn riccati_jn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
 pub fn riccati_yn(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
     let mut ry = alloc::vec![f64::NAN; n + 1];
     let mut dy = alloc::vec![f64::NAN; n + 1];
-    let _ = unsafe { crate::ffi::xsf::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as i32;
+    let nmax = unsafe { crate::ffi::xsf::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as usize;
+    assert!(nmax == n);
     (ry, dy)
 }
+
+// Tests
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
-    // bessel j
+    // Bessel J
 
     #[test]
-    fn test_cyl_bessel_j0() {
-        xsref::test::<f64, _>("cyl_bessel_j0", "d-d", |x: &[f64]| cyl_bessel_j0(x[0]));
+    fn test_bessel_j0() {
+        xsref::test("cyl_bessel_j0", "d-d", |x: &[f64]| bessel_j0(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_j1() {
-        xsref::test::<f64, _>("cyl_bessel_j1", "d-d", |x: &[f64]| cyl_bessel_j1(x[0]));
+    fn test_bessel_j1() {
+        xsref::test("cyl_bessel_j1", "d-d", |x: &[f64]| bessel_j1(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_j_f64() {
-        xsref::test::<f64, _>("cyl_bessel_j", "d_d-d", |x: &[f64]| {
-            cyl_bessel_j(x[0], x[1])
+    fn test_bessel_j_f64() {
+        xsref::test("cyl_bessel_j", "d_d-d", |x: &[f64]| bessel_j(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_j_c64() {
+        xsref::test("cyl_bessel_j", "d_cd-cd", |x: &[f64]| {
+            bessel_j(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_j_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_j", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_j(x[0], c64(x[1], x[2]))
+    fn test_bessel_je_f64() {
+        xsref::test("cyl_bessel_je", "d_d-d", |x: &[f64]| bessel_je(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_je_c64() {
+        xsref::test("cyl_bessel_je", "d_cd-cd", |x: &[f64]| {
+            bessel_je(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // Bessel Y
+
+    #[test]
+    fn test_bessel_y0() {
+        xsref::test("cyl_bessel_y0", "d-d", |x: &[f64]| bessel_y0(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_y1() {
+        xsref::test("cyl_bessel_y1", "d-d", |x: &[f64]| bessel_y1(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_y_f64() {
+        xsref::test("cyl_bessel_y", "d_d-d", |x: &[f64]| bessel_y(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_y_c64() {
+        xsref::test("cyl_bessel_y", "d_cd-cd", |x: &[f64]| {
+            bessel_y(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_je_f64() {
-        xsref::test::<f64, _>("cyl_bessel_je", "d_d-d", |x: &[f64]| {
-            cyl_bessel_je(x[0], x[1])
+    fn test_bessel_ye_f64() {
+        xsref::test("cyl_bessel_ye", "d_d-d", |x: &[f64]| bessel_ye(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_ye_c64() {
+        xsref::test("cyl_bessel_ye", "d_cd-cd", |x: &[f64]| {
+            bessel_ye(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // Bessel I
+
+    #[test]
+    fn test_bessel_i0() {
+        xsref::test("cyl_bessel_i0", "d-d", |x: &[f64]| bessel_i0(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_i0e() {
+        xsref::test("cyl_bessel_i0e", "d-d", |x: &[f64]| bessel_i0e(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_i1() {
+        xsref::test("cyl_bessel_i1", "d-d", |x: &[f64]| bessel_i1(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_i1e() {
+        xsref::test("cyl_bessel_i1e", "d-d", |x: &[f64]| bessel_i1e(x[0]));
+    }
+
+    #[test]
+    fn test_bessel_i_f64() {
+        xsref::test("cyl_bessel_i", "d_d-d", |x: &[f64]| bessel_i(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_i_c64() {
+        xsref::test("cyl_bessel_i", "d_cd-cd", |x: &[f64]| {
+            bessel_i(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_je_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_je", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_je(x[0], c64(x[1], x[2]))
+    fn test_bessel_ie_f64() {
+        xsref::test("cyl_bessel_ie", "d_d-d", |x: &[f64]| bessel_ie(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_ie_c64() {
+        xsref::test("cyl_bessel_ie", "d_cd-cd", |x: &[f64]| {
+            bessel_ie(x[0], c64(x[1], x[2]))
         });
     }
 
-    // bessel y
+    // Bessel K
 
     #[test]
-    fn test_cyl_bessel_y0() {
-        xsref::test::<f64, _>("cyl_bessel_y0", "d-d", |x: &[f64]| cyl_bessel_y0(x[0]));
+    fn test_bessel_k0() {
+        xsref::test("cyl_bessel_k0", "d-d", |x: &[f64]| bessel_k0(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_y1() {
-        xsref::test::<f64, _>("cyl_bessel_y1", "d-d", |x: &[f64]| cyl_bessel_y1(x[0]));
+    fn test_bessel_k0e() {
+        xsref::test("cyl_bessel_k0e", "d-d", |x: &[f64]| bessel_k0e(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_y_f64() {
-        xsref::test::<f64, _>("cyl_bessel_y", "d_d-d", |x: &[f64]| {
-            cyl_bessel_y(x[0], x[1])
-        });
+    fn test_bessel_k1() {
+        xsref::test("cyl_bessel_k1", "d-d", |x: &[f64]| bessel_k1(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_y_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_y", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_y(x[0], c64(x[1], x[2]))
-        });
+    fn test_bessel_k1e() {
+        xsref::test("cyl_bessel_k1e", "d-d", |x: &[f64]| bessel_k1e(x[0]));
     }
 
     #[test]
-    fn test_cyl_bessel_ye_f64() {
-        xsref::test::<f64, _>("cyl_bessel_ye", "d_d-d", |x: &[f64]| {
-            cyl_bessel_ye(x[0], x[1])
-        });
+    fn test_bessel_k_f64() {
+        xsref::test("cyl_bessel_k", "d_d-d", |x: &[f64]| bessel_k(x[0], x[1]));
     }
 
     #[test]
-    fn test_cyl_bessel_ye_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_ye", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_ye(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    // bessel i
-
-    #[test]
-    fn test_cyl_bessel_i0() {
-        xsref::test::<f64, _>("cyl_bessel_i0", "d-d", |x: &[f64]| cyl_bessel_i0(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_i0e() {
-        xsref::test::<f64, _>("cyl_bessel_i0e", "d-d", |x: &[f64]| cyl_bessel_i0e(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_i1() {
-        xsref::test::<f64, _>("cyl_bessel_i1", "d-d", |x: &[f64]| cyl_bessel_i1(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_i1e() {
-        xsref::test::<f64, _>("cyl_bessel_i1e", "d-d", |x: &[f64]| cyl_bessel_i1e(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_i_f64() {
-        xsref::test::<f64, _>("cyl_bessel_i", "d_d-d", |x: &[f64]| {
-            cyl_bessel_i(x[0], x[1])
+    fn test_bessel_k_c64() {
+        xsref::test("cyl_bessel_k", "d_cd-cd", |x: &[f64]| {
+            bessel_k(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_i_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_i", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_i(x[0], c64(x[1], x[2]))
+    fn test_bessel_ke_f64() {
+        xsref::test("cyl_bessel_ke", "d_d-d", |x: &[f64]| bessel_ke(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_bessel_ke_c64() {
+        xsref::test("cyl_bessel_ke", "d_cd-cd", |x: &[f64]| {
+            bessel_ke(x[0], c64(x[1], x[2]))
+        });
+    }
+
+    // Hankel
+
+    #[test]
+    fn test_hankel_1_c64() {
+        xsref::test("cyl_hankel_1", "d_cd-cd", |x: &[f64]| {
+            hankel_1(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_ie_f64() {
-        xsref::test::<f64, _>("cyl_bessel_ie", "d_d-d", |x: &[f64]| {
-            cyl_bessel_ie(x[0], x[1])
+    fn test_hankel_1e_c64() {
+        xsref::test("cyl_hankel_1e", "d_cd-cd", |x: &[f64]| {
+            hankel_1e(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_ie_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_ie", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_ie(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    // bessel k
-
-    #[test]
-    fn test_cyl_bessel_k0() {
-        xsref::test::<f64, _>("cyl_bessel_k0", "d-d", |x: &[f64]| cyl_bessel_k0(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_k0e() {
-        xsref::test::<f64, _>("cyl_bessel_k0e", "d-d", |x: &[f64]| cyl_bessel_k0e(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_k1() {
-        xsref::test::<f64, _>("cyl_bessel_k1", "d-d", |x: &[f64]| cyl_bessel_k1(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_k1e() {
-        xsref::test::<f64, _>("cyl_bessel_k1e", "d-d", |x: &[f64]| cyl_bessel_k1e(x[0]));
-    }
-
-    #[test]
-    fn test_cyl_bessel_k_f64() {
-        xsref::test::<f64, _>("cyl_bessel_k", "d_d-d", |x: &[f64]| {
-            cyl_bessel_k(x[0], x[1])
+    fn test_hankel_2_c64() {
+        xsref::test("cyl_hankel_2", "d_cd-cd", |x: &[f64]| {
+            hankel_2(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
-    fn test_cyl_bessel_k_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_k", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_k(x[0], c64(x[1], x[2]))
+    fn test_hankel_2e_c64() {
+        xsref::test("cyl_hankel_2e", "d_cd-cd", |x: &[f64]| {
+            hankel_2e(x[0], c64(x[1], x[2]))
         });
     }
 
-    #[test]
-    fn test_cyl_bessel_ke_f64() {
-        xsref::test::<f64, _>("cyl_bessel_ke", "d_d-d", |x: &[f64]| {
-            cyl_bessel_ke(x[0], x[1])
-        });
-    }
-
-    #[test]
-    fn test_cyl_bessel_ke_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_bessel_ke", "d_cd-cd", |x: &[f64]| {
-            cyl_bessel_ke(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    // hankel
-
-    #[test]
-    fn test_cyl_hankel_1_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_hankel_1", "d_cd-cd", |x: &[f64]| {
-            cyl_hankel_1(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    #[test]
-    fn test_cyl_hankel_1e_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_hankel_1e", "d_cd-cd", |x: &[f64]| {
-            cyl_hankel_1e(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    #[test]
-    fn test_cyl_hankel_2_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_hankel_2", "d_cd-cd", |x: &[f64]| {
-            cyl_hankel_2(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    #[test]
-    fn test_cyl_hankel_2e_c64() {
-        xsref::test::<Complex<f64>, _>("cyl_hankel_2e", "d_cd-cd", |x: &[f64]| {
-            cyl_hankel_2e(x[0], c64(x[1], x[2]))
-        });
-    }
-
-    // besselpoly
-
-    #[test]
-    fn test_besselpoly_f64() {
-        xsref::test::<f64, _>("besselpoly", "d_d_d-d", |x: &[f64]| {
-            besselpoly(x[0], x[1], x[2])
-        });
-    }
-
-    // bessel integrals
+    // Bessel integrals
 
     #[test]
     fn test_it1j0y0_f64() {
-        xsref::test::<(f64, f64), _>("it1j0y0", "d-d_d", |x: &[f64]| it1j0y0(x[0]));
+        xsref::test("it1j0y0", "d-d_d", |x: &[f64]| it1j0y0(x[0]));
     }
 
     #[test]
     fn test_it2j0y0_f64() {
-        xsref::test::<(f64, f64), _>("it2j0y0", "d-d_d", |x: &[f64]| it2j0y0(x[0]));
+        xsref::test("it2j0y0", "d-d_d", |x: &[f64]| it2j0y0(x[0]));
     }
 
     #[test]
     fn test_it1i0k0_f64() {
-        xsref::test::<(f64, f64), _>("it1i0k0", "d-d_d", |x: &[f64]| it1i0k0(x[0]));
+        xsref::test("it1i0k0", "d-d_d", |x: &[f64]| it1i0k0(x[0]));
     }
 
     #[test]
     fn test_it2i0k0_f64() {
-        xsref::test::<(f64, f64), _>("it2i0k0", "d-d_d", |x: &[f64]| it2i0k0(x[0]));
+        xsref::test("it2i0k0", "d-d_d", |x: &[f64]| it2i0k0(x[0]));
+    }
+
+    #[test]
+    fn test_besselpoly_f64() {
+        xsref::test("besselpoly", "d_d_d-d", |x: &[f64]| {
+            besselpoly(x[0], x[1], x[2])
+        });
     }
 }
