@@ -67,7 +67,8 @@ pub fn bessel_i_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
 /// [scipy-kvp]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kvp.html
 #[doc(alias = "kvp")]
 pub fn bessel_k_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
-    _bessel_diff_formula(v, n, |v| z.bessel_k(v), 1.0) * (-1.0f64).powi(n as i32).into()
+    let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+    _bessel_diff_formula(v, n, |v| z.bessel_k(v), 1.0) * sign.into()
 }
 
 /// Compute the *n*<sup>th</sup> derivative of [`hankel_1(v, z)`](crate::hankel_1) w.r.t. `z`
