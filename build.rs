@@ -433,13 +433,16 @@ double lgam1p(double x) {
 
 // specfun/specfun.h
 
-const _CPP_SPECFUN_CERZO: &str = r#"
+const _CPP_SPECFUN_SPECFUN: &str = r#"
 void cerzo(int nt, cdouble *zo) {
     std::vector<std::complex<double>> czo(nt);
     xsf::specfun::cerzo(nt, czo.data());
     for (int i = 0; i < nt; i++) {
         zo[i] = cdouble(czo[i]);
     }
+}
+void jyzo(int n, int nt, double *rj0, double *rj1, double *ry0, double *ry1) {
+    xsf::specfun::jyzo(n, nt, rj0, rj1, ry0, ry1);
 }"#;
 
 // airy.h
@@ -641,8 +644,8 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
         cpp: _CPP_CEPHES_UNITY,
     },
     WrapperSpecCustom {
-        pattern: r"cerzo",
-        cpp: _CPP_SPECFUN_CERZO,
+        pattern: r"(cerzo|jyzo)",
+        cpp: _CPP_SPECFUN_SPECFUN,
     },
     WrapperSpecCustom {
         pattern: r"airyzo",

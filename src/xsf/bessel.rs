@@ -1,3 +1,5 @@
+use core::ffi::c_int;
+
 use alloc::vec::Vec;
 use num_complex::Complex;
 
@@ -279,6 +281,35 @@ pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_ke(v)
 }
 
+// Zeros
+
+/// Compute `NT` zeros of Bessel functions *J<sub>n</sub>(x)*, *J'<sub>n</sub>(x)*,
+/// *Y<sub>n</sub>(x)*, and *Y'<sub>n</sub>(x)*
+///
+/// Corresponds to [`scipy.special.jnyn_zeros`][jnyn_zeros].
+///
+/// [jnyn_zeros]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnyn_zeros.html
+#[doc(alias = "jnyn_zeros")]
+pub fn bessel_zeros<const NT: usize>(n: u32) -> ([f64; NT], [f64; NT], [f64; NT], [f64; NT]) {
+    assert!(NT <= 1200, "NT must be at most 1200");
+
+    let mut jn = [f64::NAN; NT];
+    let mut jnp = [f64::NAN; NT];
+    let mut yn = [f64::NAN; NT];
+    let mut ynp = [f64::NAN; NT];
+    unsafe {
+        crate::ffi::xsf::jyzo(
+            n as c_int,
+            NT as c_int,
+            jn.as_mut_ptr(),
+            jnp.as_mut_ptr(),
+            yn.as_mut_ptr(),
+            ynp.as_mut_ptr(),
+        );
+    }
+    (jn, jnp, yn, ynp)
+}
+
 // Hankel 1
 
 /// Hankel function of the first kind
@@ -472,7 +503,7 @@ pub fn riccati_y(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::xsref;
+    use crate::{testing::np_assert_allclose, xsref};
     use num_complex::c64;
 
     // Bessel J
@@ -667,6 +698,60 @@ mod tests {
         xsref::test("cyl_hankel_2e", "d_cd-cd", |x: &[f64]| {
             hankel_2e(x[0], c64(x[1], x[2]))
         });
+    }
+
+    // Bessel zeros
+
+    /// Based on `scipy.special.tests.test_basic.TestBessel.test_jnyn_zeros`
+    #[test]
+    fn test_bessel_zeros() {
+        // jnz = special.jnyn_zeros(1, 5)
+        let jnz = crate::bessel_zeros::<5>(1);
+        // assert_allclose(jnz, (array([3.83171,
+        //                              7.01559,
+        //                              10.17347,
+        //                              13.32369,
+        //                              16.47063]),
+        //                       array([1.84118,
+        //                              5.33144,
+        //                              8.53632,
+        //                              11.70600,
+        //                              14.86359]),
+        //                       array([2.19714,
+        //                              5.42968,
+        //                              8.59601,
+        //                              11.74915,
+        //                              14.89744]),
+        //                       array([3.68302,
+        //                              6.94150,
+        //                              10.12340,
+        //                              13.28576,
+        //                              16.44006])),
+        //                 atol=1.5e-5, rtol=0)
+        np_assert_allclose(
+            jnz.0.as_ref(),
+            &[3.83171, 7.01559, 10.17347, 13.32369, 16.47063],
+            0.0,
+            1.5e-5,
+        );
+        np_assert_allclose(
+            jnz.1.as_ref(),
+            &[1.84118, 5.33144, 8.53632, 11.70600, 14.86359],
+            0.0,
+            1.5e-5,
+        );
+        np_assert_allclose(
+            jnz.2.as_ref(),
+            &[2.19714, 5.42968, 8.59601, 11.74915, 14.89744],
+            0.0,
+            1.5e-5,
+        );
+        np_assert_allclose(
+            jnz.3.as_ref(),
+            &[3.68302, 6.94150, 10.12340, 13.28576, 16.44006],
+            0.0,
+            1.5e-5,
+        );
     }
 
     // Bessel integrals

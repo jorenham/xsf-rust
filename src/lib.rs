@@ -45,7 +45,9 @@
 //!
 //! ## Zeros of Bessel functions
 //!
-//! Planned; see [jorenham/xsf-rust#87](https://github.com/jorenham/xsf-rust/issues/87)
+//! | Function         | Description                                                             |
+//! | ---------------- | ----------------------------------------------------------------------- |
+//! | [`bessel_zeros`] | Compute `NT` zeros of Bessel functions Jn(x), Jn'(x), Yn(x), and Yn'(x) |
 //!
 //! ## Faster versions of common Bessel functions
 //!
