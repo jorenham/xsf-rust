@@ -248,6 +248,7 @@
 //! | [`erfi`]                   | Imaginary error function *-i erf(i z)*       |
 //! | [`erfinv`]                 | Inverse of [`erf`]                           |
 //! | [`erfcinv`]                | Inverse of [`erfc`]                          |
+//! | [`erf_zeros`]              | Zeros of [`erf`]                             |
 //! | [`wofz`]                   | Faddeeva function                            |
 //! | [`dawsn`]                  | Dawson's integral                            |
 //! | [`fresnel`]                | Fresnel integrals *S(z)* and *C(z)*          |
