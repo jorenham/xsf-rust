@@ -195,6 +195,7 @@ impl LegendreQArg for Complex<f64> {
 }
 
 /// Legendre polynomial of degree `n`
+#[doc(alias = "eval_legendre")]
 pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
@@ -202,6 +203,8 @@ pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
 /// All Legendre polynomials of the 1st kind
 ///
 /// Output length is `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
+#[doc(alias = "lpn")]
+#[doc(alias = "clpn")]
 pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
     z.legendre_p_all(n)
 }
@@ -220,11 +223,13 @@ pub fn sph_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<
 }
 
 /// Associated Legendre polynomial of the 1st kind
+#[doc(alias = "lpmv")]
 pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2, false)
 }
 
 /// All associated Legendre polynomials of the 1st kind
+#[doc(alias = "lpmn")]
 pub fn assoc_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
     z.assoc_legendre_p_all(n, m, 2, false)
 }
@@ -242,6 +247,7 @@ pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> V
 /// All Legendre polynomials of the 2nd kind and their derivatives
 ///
 /// Output lengths are `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
+#[doc(alias = "lqn")]
 pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
     z.legendre_q_all(n)
 }
@@ -251,6 +257,7 @@ pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
 /// Computes the associated Legendre function of the second kind of order `m` and degree `n`, `Qmn(z)`,
 /// and its derivative, `Qmn'(z)`. Returns two arrays of size `(n+1, m+1)` containing `Qmn(z)` and
 /// `Qmn'(z)` for all degrees from `0..=n` and orders from `0..=m`.
+#[doc(alias = "lqmn")]
 pub fn assoc_legendre_q_all<T: LegendreQArg>(
     n: usize,
     m: usize,

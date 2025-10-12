@@ -11,6 +11,7 @@ use crate::ffi;
 /// ∫₁ˣ log(t)/(1 - t) dt
 ///
 /// It currently only supports real arguments.
+#[doc(alias = "dilogarithm")]
 pub fn spence(x: f64) -> f64 {
     unsafe { ffi::xsf::spence(x) }
 }

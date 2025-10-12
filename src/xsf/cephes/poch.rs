@@ -7,6 +7,7 @@ use crate::ffi;
 /// Note that in the Cephes library and `scipy.special` this function is called `poch`.
 ///
 /// See [`pow_falling`] for the falling factorial.
+#[doc(alias = "poch")]
 pub fn pow_rising(x: f64, m: f64) -> f64 {
     unsafe { ffi::xsf::poch(x, m) }
 }

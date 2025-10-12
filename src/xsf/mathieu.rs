@@ -1,9 +1,11 @@
 /// Characteristic value of even Mathieu functions
+#[doc(alias = "mathieu_a")]
 pub fn cem_cva(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::cem_cva(m, q) }
 }
 
 /// Characteristic value of odd Mathieu functions
+#[doc(alias = "mathieu_b")]
 pub fn sem_cva(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::sem_cva(m, q) }
 }
@@ -21,6 +23,7 @@ pub fn sem_cva(m: f64, q: f64) -> f64 {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "mathieu_cem")]
 pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -42,6 +45,7 @@ pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "mathieu_sem")]
 pub fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -63,6 +67,8 @@ pub fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "modcem1")]
+#[doc(alias = "mathieu_modcem1")]
 pub fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -84,6 +90,8 @@ pub fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "modsem1")]
+#[doc(alias = "mathieu_modsem1")]
 pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -105,6 +113,8 @@ pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "modcem2")]
+#[doc(alias = "mathieu_modcem2")]
 pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -126,6 +136,8 @@ pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
+#[doc(alias = "modsem2")]
+#[doc(alias = "mathieu_modsem2")]
 pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {

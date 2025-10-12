@@ -81,11 +81,13 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 }
 
 /// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
+#[doc(alias = "dawson")]
 pub fn dawsn<T: ErfArg>(z: T) -> T {
     z.dawsn()
 }
 
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`
+#[doc(alias = "faddeeva")]
 pub fn wofz(z: Complex<f64>) -> Complex<f64> {
     unsafe { crate::ffi::xsf::wofz(z.into()) }.into()
 }

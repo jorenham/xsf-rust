@@ -29,7 +29,7 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
-#[doc(alias = "huperu")]
+#[doc(alias = "hyperu")]
 /// Confluent hypergeometric function `U(a,b,x)` for `x > 0`
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::hypu(a, b, x) }

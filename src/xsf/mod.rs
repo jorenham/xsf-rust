@@ -1,4 +1,4 @@
-pub mod cephes;
+pub(crate) mod cephes;
 
 pub(crate) mod exp;
 pub(crate) mod fp_error_metrics;

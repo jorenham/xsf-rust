@@ -1,4 +1,5 @@
 /// Complete elliptic integral of the first kind
+#[doc(alias = "ellip_k")]
 pub fn ellipk(m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipk(m) }
 }
@@ -9,21 +10,24 @@ pub fn ellipkm1(p: f64) -> f64 {
 }
 
 /// Incomplete elliptic integral of the first kind
+#[doc(alias = "ellip_k_inc")]
 pub fn ellipkinc(phi: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipkinc(phi, m) }
 }
 
 /// Complete elliptic integral of the second kind
+#[doc(alias = "ellip_e")]
 pub fn ellipe(m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipe(m) }
 }
 
 /// Incomplete elliptic integral of the second kind
+#[doc(alias = "ellip_e_inc")]
 pub fn ellipeinc(phi: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipeinc(phi, m) }
 }
 
-/// Jacobian elliptic functions
+/// Jacobi elliptic functions
 ///
 /// # Arguments
 /// - `u` - Real argument

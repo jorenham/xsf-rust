@@ -30,6 +30,7 @@ pub(crate) fn exp(x: f64) -> f64 {
 }
 
 /// `exp(x) - 1` for real or complex input
+#[doc(alias = "exp_m1")]
 pub fn expm1<T: ExpArg>(z: T) -> T {
     z.expm1()
 }

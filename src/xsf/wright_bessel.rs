@@ -1,9 +1,11 @@
 /// Wright's generalized Bessel function
+///
+/// See [`log_wright_bessel`] for the natural logarithm of this function.
 pub fn wright_bessel(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::wright_bessel(a, b, x) }
 }
 
-/// Logarithm of [`wright_bessel`]
+/// Natural logarithm of Wright's generalized Bessel function, see [`wright_bessel`]
 pub fn log_wright_bessel(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log_wright_bessel(a, b, x) }
 }

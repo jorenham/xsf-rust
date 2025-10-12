@@ -4,6 +4,7 @@ use crate::ffi;
 ///
 /// Returns the nearest integer to x as a f64 precision floating point result.
 /// If x ends in 0.5 exactly, the nearest even integer is chosen.
+#[doc(alias = "round_even")]
 pub fn round(x: f64) -> f64 {
     unsafe { ffi::xsf::round(x) }
 }

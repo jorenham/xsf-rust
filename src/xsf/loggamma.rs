@@ -34,6 +34,9 @@ impl LogGammaArg for Complex<f64> {
 }
 
 /// Principal branch of the logarithm of `gamma(z)`
+#[doc(alias = "lgamma")]
+#[doc(alias = "ln_gamma")]
+#[doc(alias = "log_gamma")]
 pub fn loggamma<T: LogGammaArg>(z: T) -> T {
     z.xsf_loggamma()
 }
