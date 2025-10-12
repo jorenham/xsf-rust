@@ -1,9 +1,11 @@
 /// Characteristic value of prolate spheroidal function
+#[doc(alias = "pro_cv")]
 pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
     unsafe { crate::ffi::xsf::prolate_segv(m as f64, n as f64, c) }
 }
 
 /// Characteristic value of oblate spheroidal function
+#[doc(alias = "obl_cv")]
 pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
     unsafe { crate::ffi::xsf::oblate_segv(m as f64, n as f64, c) }
 }
@@ -22,6 +24,7 @@ pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_ang1")]
 pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -44,6 +47,7 @@ pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_ang1")]
 pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -66,6 +70,7 @@ pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_rad1")]
 pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -88,6 +93,7 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_rad1")]
 pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -110,6 +116,7 @@ pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_rad2")]
 pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -132,6 +139,7 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_rad1")]
 pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -155,6 +163,7 @@ pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_ang1_cv")]
 pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -178,6 +187,7 @@ pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_ang1_cv")]
 pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -201,6 +211,7 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_rad1_cv")]
 pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -224,6 +235,7 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_rad1_cv")]
 pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -247,6 +259,7 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "pro_rad2_cv")]
 pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -270,6 +283,7 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `s`: Value of the function
 /// - `sp` : Value of the derivative w.r.t. `x`
+#[doc(alias = "obl_rad2_cv")]
 pub fn oblate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
     let (mut s, mut sp) = (f64::NAN, f64::NAN);
     unsafe {

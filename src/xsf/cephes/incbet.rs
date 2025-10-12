@@ -11,7 +11,9 @@ fn incbet(a: f64, b: f64, x: f64) -> f64 {
 /// wraps `boost::math::ibeta` in `scipy/special/boost_special_functions.h`. The Cephes
 /// implementation tends to be less accurate than Boost's, especially for small `x`.
 ///
-/// See also: [`betaincinv`](fn.betaincinv.html)
+/// See also: [`betaincinv`](crate::betaincinv)
+#[doc(alias = "inc_beta")]
+#[doc(alias = "beta_inc")]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         return f64::NAN;

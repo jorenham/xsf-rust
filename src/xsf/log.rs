@@ -47,11 +47,14 @@ impl LogArg for Complex<f64> {
 }
 
 /// libc `std::log`
+#[doc(alias = "ln")]
 pub(crate) fn log(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log(x) }
 }
 
 /// `log(z + 1)` for real or complex input
+#[doc(alias = "ln_1p")]
+#[doc(alias = "log_1p")]
 pub fn log1p<T: LogArg>(z: T) -> T {
     z.xsf_log1p()
 }
@@ -62,11 +65,15 @@ pub fn log1pmx(x: f64) -> f64 {
 }
 
 /// Compute `x * log(y)` for real or complex input
+#[doc(alias = "x_ln_y")]
+#[doc(alias = "x_log_y")]
 pub fn xlogy<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlogy(x)
 }
 
 /// Compute `x * log(1 + y)` for real or complex input
+#[doc(alias = "x_ln_1py")]
+#[doc(alias = "x_log_1py")]
 pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlog1py(x)
 }

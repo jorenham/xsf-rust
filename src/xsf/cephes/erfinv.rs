@@ -1,6 +1,6 @@
 use crate::ffi;
 
-/// Inverse of the error function [erf(x)](fn.erf.html)
+/// Inverse of the error function [*erf(x)*](crate::erf)
 ///
 /// In the complex domain, there is no unique complex number w satisfying erf(w)=z.
 /// This indicates a true inverse function would be multivalued. When the domain restricts to the
@@ -10,11 +10,12 @@ use crate::ffi;
 /// this function uses the Cephes implementation, which can be less accurate in certain regions.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
+#[doc(alias = "erf_inv")]
 pub fn erfinv(y: f64) -> f64 {
     unsafe { ffi::xsf::erfinv(y) }
 }
 
-/// Inverse of the complementary error function [erfc(x)](fn.erfc.html)
+/// Inverse of the complementary error function [*erfc(x)*](crate::erfc)
 ///
 /// In the complex domain, there is no unique complex number w satisfying erfc(w)=z.
 /// This indicates a true inverse function would be multivalued. When the domain restricts to the
@@ -25,6 +26,7 @@ pub fn erfinv(y: f64) -> f64 {
 /// Note that [`scipy.special.erfcinv`][scipy] also uses the Cephes implementation.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
+#[doc(alias = "erfc_inv")]
 pub fn erfcinv(y: f64) -> f64 {
     unsafe { ffi::xsf::erfcinv(y) }
 }

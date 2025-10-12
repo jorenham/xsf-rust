@@ -134,126 +134,157 @@ impl HankelArg for Complex<f64> {
 }
 
 /// Bessel function, 1st kind, order 0
+#[doc(alias = "j0")]
 pub fn cyl_bessel_j0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j0(x) }
 }
 
 /// Bessel function, 1st kind, order 1
+#[doc(alias = "j1")]
 pub fn cyl_bessel_j1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j1(x) }
 }
 
 /// Bessel function, 2nd kind, order 0
+#[doc(alias = "y0")]
 pub fn cyl_bessel_y0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
 }
 
 /// Bessel function, 2nd kind, order 1
+#[doc(alias = "y1")]
 pub fn cyl_bessel_y1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
 }
 
 /// Modified Bessel function, 1st kind, order 0
+#[doc(alias = "i0")]
 pub fn cyl_bessel_i0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0(x) }
 }
 
 /// Exponentially scaled modified Bessel function, 1st kind, order 0
+#[doc(alias = "i0e")]
 pub fn cyl_bessel_i0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0e(x) }
 }
 
 /// Modified Bessel function, 1st kind, order 1
+#[doc(alias = "i1")]
 pub fn cyl_bessel_i1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1(x) }
 }
 
 /// Exponentially scaled modified Bessel function, 1st kind, order 1
+#[doc(alias = "i1e")]
 pub fn cyl_bessel_i1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1e(x) }
 }
 
 /// Modified Bessel function, 2nd kind, order 0
+#[doc(alias = "k0")]
 pub fn cyl_bessel_k0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
 }
 
 /// Exponentially scaled modified Bessel function, 2nd kind, order 0
+#[doc(alias = "k0e")]
 pub fn cyl_bessel_k0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
 }
 
 /// Modified Bessel function, 2nd kind, order 1
+#[doc(alias = "k1")]
 pub fn cyl_bessel_k1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1(x) }
 }
 
 /// Exponentially scaled modified Bessel function, 2nd kind, order 1
+#[doc(alias = "k1e")]
 pub fn cyl_bessel_k1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1e(x) }
 }
 
-/// Bessel function, 1st kind
+/// Bessel function of the first kind
+#[doc(alias = "jv")]
 pub fn cyl_bessel_j<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_j(v)
 }
 
-/// Exponentially scaled Bessel function, 1st kind
+/// Exponentially scaled Bessel function of the first kind
+#[doc(alias = "jve")]
 pub fn cyl_bessel_je<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_je(v)
 }
 
-/// Bessel function, 2nd kind
+/// Bessel function of the second kind
+#[doc(alias = "yv")]
+#[doc(alias = "cyl_neumann")]
 pub fn cyl_bessel_y<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_y(v)
 }
 
-/// Exponentially scaled Bessel function, 2nd kind
+/// Exponentially scaled Bessel function of the second kind
+#[doc(alias = "yve")]
 pub fn cyl_bessel_ye<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_ye(v)
 }
 
-/// Modified Bessel function, 1st kind
+/// Modified Bessel function of the first kind
+#[doc(alias = "iv")]
 pub fn cyl_bessel_i<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_i(v)
 }
 
-/// Exponentially scaled modified Bessel function, 1st kind
+/// Exponentially scaled modified Bessel function of the first kind
+#[doc(alias = "ive")]
 pub fn cyl_bessel_ie<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_ie(v)
 }
 
-/// Modified Bessel function, 2nd kind
+/// Modified Bessel function of the second kind
+#[doc(alias = "kv")]
 pub fn cyl_bessel_k<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_k(v)
 }
 
-/// Exponentially scaled modified Bessel function, 2nd kind
+/// Exponentially scaled modified Bessel function of the second kind
+#[doc(alias = "kve")]
 pub fn cyl_bessel_ke<T: BesselArg>(v: f64, x: T) -> T {
     x.cyl_bessel_ke(v)
 }
 
-/// Hankel function, 1st kind
+/// Hankel function of the 1st kind
+#[doc(alias = "hankel1")]
 pub fn cyl_hankel_1<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
     z.cyl_hankel_1(v)
 }
 
-/// Exponentially scaled Hankel function, 1st kind
+/// Exponentially scaled Hankel function of the 1st kind
+#[doc(alias = "hankel1e")]
 pub fn cyl_hankel_1e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
     z.cyl_hankel_1e(v)
 }
 
-/// Hankel function, 2nd kind
+/// Hankel function of the 2nd kind
+#[doc(alias = "hankele")]
 pub fn cyl_hankel_2<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
     z.cyl_hankel_2(v)
 }
 
-/// Exponentially scaled Hankel function, 2nd kind
+/// Exponentially scaled Hankel function of the 2nd kind
+#[doc(alias = "hankel2e")]
 pub fn cyl_hankel_2e<T: HankelArg>(v: f64, z: T) -> Complex<f64> {
     z.cyl_hankel_2e(v)
 }
 
 /// Weighted integral of the Bessel function of the first kind
+///
+/// Computes
+///
+/// *∫<sub>0</sub><sup>1</sup> x<sup>λ</sup>J<sub>ν</sub>(2ax) dx*
+///
+/// where *J<sub>ν</sub>* is a Bessel function and *λ*=`lambda`, *ν*=`nu`.
 pub fn besselpoly(a: f64, lambda: f64, nu: f64) -> f64 {
     unsafe { crate::ffi::xsf::besselpoly(a, lambda, nu) }
 }
@@ -271,6 +302,7 @@ pub fn besselpoly(a: f64, lambda: f64, nu: f64) -> f64 {
 /// # Returns
 /// - `j0int`: Integral for J₀
 /// - `y0int`: Integral for Y₀
+#[doc(alias = "itj0y0")]
 pub fn it1j0y0(x: f64) -> (f64, f64) {
     let (mut j0int, mut y0int) = (f64::NAN, f64::NAN);
     unsafe {
@@ -313,6 +345,7 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
 /// # Returns
 /// - `i0int`: The integral for I₀
 /// - `k0int`: The integral for K₀
+#[doc(alias = "iti0k0")]
 pub fn it1i0k0(x: f64) -> (f64, f64) {
     let (mut i0int, mut k0int) = (f64::NAN, f64::NAN);
     unsafe {
@@ -358,6 +391,7 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 /// - `jn`: Value of *j0(x), ..., jn(x)*
 /// - `jnp`:  First derivative *j0'(x), ..., jn'(x)*
 /// - `nmax`: Highest order computed
+#[doc(alias = "riccati_jn")]
 pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut rj = alloc::vec![f64::NAN; n + 1];
     let mut dj = alloc::vec![f64::NAN; n + 1];
@@ -382,6 +416,7 @@ pub fn rctj(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
 /// - `yn`: Value of y0(x), ..., yn(x)
 /// - `ynp`:  First derivative y0'(x), ..., yn'(x)
 /// - `nmax`: Highest order computed
+#[doc(alias = "riccati_yn")]
 pub fn rcty(n: usize, x: f64) -> (Vec<f64>, Vec<f64>, i32) {
     let mut ry = alloc::vec![f64::NAN; n + 1];
     let mut dy = alloc::vec![f64::NAN; n + 1];

@@ -135,6 +135,8 @@ pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
 /// first `nt` zeros, `ap`, of the derivative of the Airy function Ai'(x);
 /// the corresponding values Ai(a'); and the corresponding values Ai'(a).
 ///
+/// Corresponds to `scipy.special.ai_zeros` in SciPy, and `xsf::airyzo` in the XSF C++ library.
+///
 /// # Arguments
 /// - `nt` - Number of zeros to compute
 ///
@@ -143,6 +145,7 @@ pub fn itairy(x: f64) -> (f64, f64, f64, f64) {
 /// - `ap`: First `nt` zeros of Ai'(x)
 /// - `ai`: Values of Ai(x) evaluated at first `nt` zeros of Ai'(x)
 /// - `aip`: Values of Ai'(x) evaluated at first `nt` zeros of Ai(x)
+#[doc(alias = "airyzo")]
 pub fn ai_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     assert!(nt > 0);
 

@@ -115,6 +115,7 @@ pub fn smirnovp(n: c_int, x: f64) -> f64 {
 // Tukey-Lambda
 
 /// Tukey-Lambda distribution function
+#[doc(alias = "tklmbda")]
 pub fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
     unsafe { crate::ffi::xsf::tukeylambdacdf(x, lmbda) }
 }

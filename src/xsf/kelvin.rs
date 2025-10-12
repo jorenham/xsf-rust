@@ -2,42 +2,46 @@ use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
 
-/// Kelvin function `ber`
+/// Kelvin function *ber*
 pub fn ber(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ber(x) }
 }
 
-/// Kelvin function `bei`
+/// Kelvin function *bei*
 pub fn bei(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::bei(x) }
 }
 
-/// Kelvin function `ker`
+/// Kelvin function *ker*
 pub fn ker(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ker(x) }
 }
 
-/// Kelvin function `kei`
+/// Kelvin function *kei*
 pub fn kei(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kei(x) }
 }
 
-/// Derivative of the Kelvin function `ber`
+/// Derivative of the Kelvin function [`ber`]
+#[doc(alias = "ber_prime")]
 pub fn berp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::berp(x) }
 }
 
-/// Derivative of the Kelvin function `bei`
+/// Derivative of the Kelvin function [`bei`]
+#[doc(alias = "bei_prime")]
 pub fn beip(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::beip(x) }
 }
 
-/// Derivative of the Kelvin function `ker`
+/// Derivative of the Kelvin function [`ker`]
+#[doc(alias = "ker_prime")]
 pub fn kerp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kerp(x) }
 }
 
-/// Derivative of the Kelvin function `kei`
+/// Derivative of the Kelvin function [`kei`]
+#[doc(alias = "kei_prime")]
 pub fn keip(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::keip(x) }
 }

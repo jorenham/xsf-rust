@@ -13,6 +13,8 @@
 ///
 /// # Returns
 /// - `p(z)`: Value of the polynomial evaluated at `z`
+#[doc(alias = "evalpoly")]
+#[doc(alias = "polynomial")]
 pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::Complex<f64> {
     let degree = (coeffs.len() as i32) - 1;
     if degree == -1 {

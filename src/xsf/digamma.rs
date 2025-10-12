@@ -25,6 +25,7 @@ impl DigammaArg for Complex<f64> {
 }
 
 /// Digamma function for real or complex input
+#[doc(alias = "psi")]
 pub fn digamma<T: DigammaArg>(x: T) -> T {
     x.digamma()
 }

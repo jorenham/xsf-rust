@@ -89,21 +89,25 @@ impl SphBesselArg for Complex<f64> {
 }
 
 /// Spherical Bessel function of the first kind
+#[doc(alias = "spherical_jn")]
 pub fn sph_bessel_j<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_j(n as c_long)
 }
 
 /// Spherical Bessel function of the second kind
+#[doc(alias = "spherical_yn")]
 pub fn sph_bessel_y<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_y(n as c_long)
 }
 
 /// Modified spherical Bessel function of the first kind
+#[doc(alias = "spherical_in")]
 pub fn sph_bessel_i<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_i(n as c_long)
 }
 
 /// Modified spherical Bessel function of the second kind
+#[doc(alias = "spherical_kn")]
 pub fn sph_bessel_k<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_k(n as c_long)
 }

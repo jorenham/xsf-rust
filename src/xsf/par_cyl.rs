@@ -35,6 +35,7 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
 ///
 /// - *d*: Value of the function
 /// - *dp*: Value of the derivative in `x`
+#[doc(alias = "pbdv_seq")]
 pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     let (mut d, mut dp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -57,6 +58,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 ///
 /// - *v*: Value of the function
 /// - *vp*: Value of the derivative in `x`
+#[doc(alias = "pbvv_seq")]
 pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     let (mut vv, mut vp) = (f64::NAN, f64::NAN);
     unsafe {

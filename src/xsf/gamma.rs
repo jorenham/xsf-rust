@@ -29,27 +29,30 @@ pub fn gamma<T: GammaArg>(z: T) -> T {
     z.xsf_gamma()
 }
 
-/// Incomplete Gamma integral
+/// Regularized lower incomplete gamma function
+#[doc(alias = "inc_gamma")]
+#[doc(alias = "gamma_lr")]
 pub fn gammainc(a: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammainc(a, x) }
 }
 
-/// Complemented incomplete Gamma integral
+/// Regularized upper incomplete gamma function
+#[doc(alias = "gamma_ur")]
 pub fn gammaincc(a: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaincc(a, x) }
 }
 
-/// Inverse of `gammainc`
+/// Inverse of [`gammainc`]
 pub fn gammaincinv(a: f64, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaincinv(a, p) }
 }
 
-/// Inverse of `gammaincc`
+/// Inverse of [`gammaincc`]
 pub fn gammainccinv(a: f64, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammainccinv(a, p) }
 }
 
-/// Natural logarithm of Gamma function
+/// Logarithm of the absolute value of the gamma function
 pub fn gammaln(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaln(x) }
 }

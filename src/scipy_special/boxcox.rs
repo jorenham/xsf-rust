@@ -53,6 +53,7 @@ pub fn boxcox(x: f64, lambda: f64) -> f64 {
 /// ## See also:
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of 1 + `x`
 /// - [`boxcox`]: Box-Cox transformation of `x`
+#[doc(alias = "boxcox_1p")]
 #[inline]
 pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
     // The argument given above in boxcox applies here with the modification
@@ -80,6 +81,7 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 /// ## See also:
 /// - [`boxcox`]: Box-Cox transformation of `x`
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of `1 + x`
+#[doc(alias = "boxcox_inv")]
 #[inline]
 pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
@@ -102,6 +104,8 @@ pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
 /// ## See also:
 /// - [`boxcox1p`]: Box-Cox transformation of `1 + x`
 /// - [`inv_boxcox`]: Inverse of the Box-Cox transformation of `x`
+#[doc(alias = "boxcox_1p_inv")]
+#[doc(alias = "inv_boxcox_1p")]
 #[inline]
 pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
