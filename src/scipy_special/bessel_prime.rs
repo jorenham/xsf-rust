@@ -1,7 +1,6 @@
 //! Derivatives of Bessel functions
-use num_complex::Complex;
-
 use crate::xsf::bessel::BesselArg;
+use num_complex::Complex;
 
 /// Translated from https://github.com/scipy/scipy/blob/9531cc5/scipy/special/_basic.py#L803-L814
 #[inline(always)]
@@ -27,7 +26,8 @@ where
         s = s + bessel_fn(v - (n - i * 2.0)) * p.into();
     }
     // return s / (2.**n)
-    s * (0.5f64).powi(n as i32).into()
+    // (we can't use f64::powi or f64::powf because of no_std)
+    s * (1.0 / (1 << n) as f64).into()
 }
 
 /// Compute the *n*<sup>th</sup> derivative of [`bessel_j(v, z)`](crate::bessel_j) w.r.t. `z`
