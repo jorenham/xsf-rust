@@ -18,6 +18,7 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/round.h",
     "cephes/spence.h",
     "cephes/unity.h",
+    "specfun/specfun.h",
     "airy.h",
     "alg.h",
     "bessel.h",
@@ -430,6 +431,17 @@ double lgam1p(double x) {
     return xsf::cephes::lgam1p(x);
 }"#;
 
+// specfun/specfun.h
+
+const _CPP_SPECFUN_CERZO: &str = r#"
+void cerzo(int nt, cdouble *zo) {
+    std::vector<std::complex<double>> czo(nt);
+    xsf::specfun::cerzo(nt, czo.data());
+    for (int i = 0; i < nt; i++) {
+        zo[i] = cdouble(czo[i]);
+    }
+}"#;
+
 // airy.h
 
 const _CPP_AIRYZO: &str = r#"
@@ -627,6 +639,10 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
     WrapperSpecCustom {
         pattern: r"lgam1p",
         cpp: _CPP_CEPHES_UNITY,
+    },
+    WrapperSpecCustom {
+        pattern: r"cerzo",
+        cpp: _CPP_SPECFUN_CERZO,
     },
     WrapperSpecCustom {
         pattern: r"airyzo",

@@ -50,7 +50,7 @@ pub use binom::binom;
 pub use cdflib::gdtrib;
 pub use digamma::digamma;
 pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
-pub use erf::{dawsn, erf, erfc, erfcx, erfi, voigt_profile, wofz};
+pub use erf::{dawsn, erf, erf_zeros, erfc, erfcx, erfi, voigt_profile, wofz};
 pub use evalpoly::cevalpoly;
 pub use exp::{exp2, exp10, expm1};
 pub use expint::{exp1, expi, scaled_exp1};
