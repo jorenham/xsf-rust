@@ -76,7 +76,14 @@
 //!
 //! ## Derivatives of Bessel functions
 //!
-//! Planned; see [jorenham/xsf-rust#88](https://github.com/jorenham/xsf-rust/issues/88)
+//! | Function           | Description                                 |
+//! | ------------------ | ------------------------------------------- |
+//! | [`bessel_j_prime`] | *n*<sup>th</sup> derivative of [`bessel_j`] |
+//! | [`bessel_y_prime`] | *n*<sup>th</sup> derivative of [`bessel_y`] |
+//! | [`bessel_i_prime`] | *n*<sup>th</sup> derivative of [`bessel_i`] |
+//! | [`bessel_k_prime`] | *n*<sup>th</sup> derivative of [`bessel_k`] |
+//! | [`hankel_1_prime`] | *n*<sup>th</sup> derivative of [`hankel_1`] |
+//! | [`hankel_2_prime`] | *n*<sup>th</sup> derivative of [`hankel_2`] |
 //!
 //! ## Spherical Bessel functions
 //!
