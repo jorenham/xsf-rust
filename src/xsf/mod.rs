@@ -77,8 +77,8 @@ pub use par_cyl::{pbdv, pbvv, pbwa};
 pub use sici::{shichi, sici};
 pub use specfun::{hyp1f1, hypu, pmv};
 pub use sph_bessel::{
-    sph_bessel_i, sph_bessel_i_jac, sph_bessel_j, sph_bessel_j_jac, sph_bessel_k, sph_bessel_k_jac,
-    sph_bessel_y, sph_bessel_y_jac,
+    sph_bessel_i, sph_bessel_i_prime, sph_bessel_j, sph_bessel_j_prime, sph_bessel_k,
+    sph_bessel_k_prime, sph_bessel_y, sph_bessel_y_prime,
 };
 pub use sph_harm::{sph_harm_y, sph_harm_y_all};
 pub use sphd_wave::{

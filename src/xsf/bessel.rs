@@ -713,7 +713,7 @@ mod tests {
             // j = special.spherical_jn(n, x)
             let j = crate::sph_bessel_j(n as i64, x);
             // jp = special.spherical_jn(n, x, derivative=True)
-            let jp = crate::sph_bessel_j_jac(n as i64, x);
+            let jp = crate::sph_bessel_j_prime(n as i64, x);
             // S[0,n] = x*j
             s[0][n] = x * j;
             // S[1,n] = x*jp + j
@@ -739,7 +739,7 @@ mod tests {
             // j = special.spherical_jn(n, x)
             let j = crate::sph_bessel_y(n as i64, x);
             // jp = special.spherical_jn(n, x, derivative=True)
-            let jp = crate::sph_bessel_y_jac(n as i64, x);
+            let jp = crate::sph_bessel_y_prime(n as i64, x);
             // S[0,n] = x*j
             c[0][n] = x * j;
             // S[1,n] = x*jp + j

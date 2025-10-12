@@ -80,16 +80,16 @@
 //!
 //! ## Spherical Bessel functions
 //!
-//! | Function             | Description                                           |
-//! | -------------------- | ----------------------------------------------------- |
-//! | [`sph_bessel_j`]     | Spherical Bessel function of the first kind           |
-//! | [`sph_bessel_j_jac`] | Derivative of [`sph_bessel_j`]                        |
-//! | [`sph_bessel_y`]     | Spherical Bessel function of the second kind          |
-//! | [`sph_bessel_y_jac`] | Derivative of [`sph_bessel_y`]                        |
-//! | [`sph_bessel_i`]     | Modified Spherical Bessel function of the first kind  |
-//! | [`sph_bessel_i_jac`] | Derivative of [`sph_bessel_i`]                        |
-//! | [`sph_bessel_k`]     | Modified Spherical Bessel function of the second kind |
-//! | [`sph_bessel_k_jac`] | Derivative of [`sph_bessel_k`]                        |
+//! | Function               | Description                                           |
+//! | ---------------------- | ----------------------------------------------------- |
+//! | [`sph_bessel_j`]       | Spherical Bessel function of the first kind           |
+//! | [`sph_bessel_j_prime`] | Derivative of [`sph_bessel_j`]                        |
+//! | [`sph_bessel_y`]       | Spherical Bessel function of the second kind          |
+//! | [`sph_bessel_y_prime`] | Derivative of [`sph_bessel_y`]                        |
+//! | [`sph_bessel_i`]       | Modified Spherical Bessel function of the first kind  |
+//! | [`sph_bessel_i_prime`] | Derivative of [`sph_bessel_i`]                        |
+//! | [`sph_bessel_k`]       | Modified Spherical Bessel function of the second kind |
+//! | [`sph_bessel_k_prime`] | Derivative of [`sph_bessel_k`]                        |
 //!
 //! ## Riccati-Bessel functions
 //!
