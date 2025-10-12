@@ -4,6 +4,7 @@ use num_complex::Complex;
 mod sealed {
     use core::ops::{Add, Mul};
 
+    // the additional bounds are needed for the arithmetic in `_bessel_diff_formula`
     pub trait Sealed: Copy + From<f64> + Add<Output = Self> + Mul<Output = Self> {}
     impl Sealed for f64 {}
     impl Sealed for num_complex::Complex<f64> {}
