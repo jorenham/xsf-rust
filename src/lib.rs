@@ -93,10 +93,10 @@
 //!
 //! ## Riccati-Bessel functions
 //!
-//! | Function | Description                                                   |
-//! | -------- | ------------------------------------------------------------- |
-//! | [`rctj`] | Ricatti-Bessel function of the first kind and its derivative  |
-//! | [`rcty`] | Ricatti-Bessel function of the second kind and its derivative |
+//! | Function       | Description                                                   |
+//! | -------------- | ------------------------------------------------------------- |
+//! | [`riccati_jn`] | Ricatti-Bessel function of the first kind and its derivative  |
+//! | [`riccati_yn`] | Ricatti-Bessel function of the second kind and its derivative |
 //!
 //! # Struve functions
 //!

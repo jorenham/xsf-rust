@@ -44,7 +44,7 @@ pub use bessel::{
     cyl_bessel_ie, cyl_bessel_j, cyl_bessel_j0, cyl_bessel_j1, cyl_bessel_je, cyl_bessel_k,
     cyl_bessel_k0, cyl_bessel_k0e, cyl_bessel_k1, cyl_bessel_k1e, cyl_bessel_ke, cyl_bessel_y,
     cyl_bessel_y0, cyl_bessel_y1, cyl_bessel_ye, cyl_hankel_1, cyl_hankel_1e, cyl_hankel_2,
-    cyl_hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, rctj, rcty,
+    cyl_hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, riccati_jn, riccati_yn,
 };
 pub use beta::{beta, betaln};
 pub use binom::binom;
