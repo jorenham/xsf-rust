@@ -697,4 +697,58 @@ mod tests {
             besselpoly(x[0], x[1], x[2])
         });
     }
+
+    // Riccati-Bessel (no xsref tables available)
+
+    /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_jn`
+    #[test]
+    fn test_riccati_jn() {
+        // N, x = 2, 0.2
+        const N: usize = 2;
+        let x: f64 = 0.2;
+        // S = np.empty((N, N))
+        let mut s = [[0.0; N], [0.0; N]];
+        // for n in range(N):
+        for n in 0..N {
+            // j = special.spherical_jn(n, x)
+            let j = crate::sph_bessel_j(n as i64, x);
+            // jp = special.spherical_jn(n, x, derivative=True)
+            let jp = crate::sph_bessel_j_jac(n as i64, x);
+            // S[0,n] = x*j
+            s[0][n] = x * j;
+            // S[1,n] = x*jp + j
+            s[1][n] = x * jp + j;
+        }
+
+        // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
+        let (jn, jnp) = riccati_jn(N - 1, x);
+        crate::testing::np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
+        crate::testing::np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
+    }
+
+    /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_yn`
+    #[test]
+    fn test_riccati_yn() {
+        // N, x = 2, 0.2
+        const N: usize = 2;
+        let x: f64 = 0.2;
+        // S = np.empty((N, N))
+        let mut c = [[0.0; N], [0.0; N]];
+        // for n in range(N):
+        for n in 0..N {
+            // j = special.spherical_jn(n, x)
+            let j = crate::sph_bessel_y(n as i64, x);
+            // jp = special.spherical_jn(n, x, derivative=True)
+            let jp = crate::sph_bessel_y_jac(n as i64, x);
+            // S[0,n] = x*j
+            c[0][n] = x * j;
+            // S[1,n] = x*jp + j
+            c[1][n] = x * jp + j;
+        }
+
+        // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
+        let (yn, ynp) = riccati_yn(N - 1, x);
+        crate::testing::np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
+        crate::testing::np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
+    }
 }
