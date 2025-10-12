@@ -28,18 +28,18 @@
 //!
 //! | Function              | Description                                                      |
 //! | --------------------- | ---------------------------------------------------------------- |
-//! | [`cyl_bessel_j`]      | Bessel function of the first kind                                |
-//! | [`cyl_bessel_je`]     | Exponentially scaled Bessel function of the first kind           |
-//! | [`cyl_bessel_y`]      | Bessel function of the second kind                               |
-//! | [`cyl_bessel_ye`]     | Exponentially scaled Bessel function of the second kind          |
-//! | [`cyl_bessel_i`]      | Modified Bessel function of the first kind                       |
-//! | [`cyl_bessel_ie`]     | Exponentially scaled modified Bessel function of the first kind  |
-//! | [`cyl_bessel_k`]      | Modified Bessel function of the second kind                      |
-//! | [`cyl_bessel_ke`]     | Exponentially scaled modified Bessel function of the second kind |
-//! | [`cyl_hankel_1`]      | Hankel function of the first kind                                |
-//! | [`cyl_hankel_1e`]     | Exponentially scaled Hankel function of the first kind           |
-//! | [`cyl_hankel_2`]      | Hankel function of the second kind                               |
-//! | [`cyl_hankel_2e`]     | Exponentially scaled Hankel function of the second kind          |
+//! | [`bessel_j`]          | Bessel function of the first kind                                |
+//! | [`bessel_je`]         | Exponentially scaled Bessel function of the first kind           |
+//! | [`bessel_y`]          | Bessel function of the second kind                               |
+//! | [`bessel_ye`]         | Exponentially scaled Bessel function of the second kind          |
+//! | [`bessel_i`]          | Modified Bessel function of the first kind                       |
+//! | [`bessel_ie`]         | Exponentially scaled modified Bessel function of the first kind  |
+//! | [`bessel_k`]          | Modified Bessel function of the second kind                      |
+//! | [`bessel_ke`]         | Exponentially scaled modified Bessel function of the second kind |
+//! | [`hankel_1`]          | Hankel function of the first kind                                |
+//! | [`hankel_1e`]         | Exponentially scaled Hankel function of the first kind           |
+//! | [`hankel_2`]          | Hankel function of the second kind                               |
+//! | [`hankel_2e`]         | Exponentially scaled Hankel function of the second kind          |
 //! | [`wright_bessel`]     | Wright's generalized Bessel function                             |
 //! | [`log_wright_bessel`] | Natural logarithm of Wright's generalized Bessel function        |
 //!
@@ -49,30 +49,30 @@
 //!
 //! ## Faster versions of common Bessel functions
 //!
-//! | Function           | Description                                                   |
-//! | ------------------ | ------------------------------------------------------------- |
-//! | [`cyl_bessel_j0`]  | Bessel function of the first kind of order 0                  |
-//! | [`cyl_bessel_j1`]  | Bessel function of the first kind of order 1                  |
-//! | [`cyl_bessel_y0`]  | Bessel function of the second kind of order 0                 |
-//! | [`cyl_bessel_y1`]  | Bessel function of the second kind of order 1                 |
-//! | [`cyl_bessel_i0`]  | Modified Bessel function *I<sub>0</sub>*                      |
-//! | [`cyl_bessel_i0e`] | Exponentially scaled modified Bessel function *I<sub>0</sub>* |
-//! | [`cyl_bessel_i1`]  | Modified Bessel function *I<sub>1</sub>*                      |
-//! | [`cyl_bessel_i1e`] | Exponentially scaled modified Bessel function *I<sub>1</sub>* |
-//! | [`cyl_bessel_k0`]  | Modified Bessel function *K<sub>0</sub>*                      |
-//! | [`cyl_bessel_k0e`] | Exponentially scaled modified Bessel function *K<sub>0</sub>* |
-//! | [`cyl_bessel_k1`]  | Modified Bessel function *K<sub>1</sub>*                      |
-//! | [`cyl_bessel_k1e`] | Exponentially scaled modified Bessel function *K<sub>1</sub>* |
+//! | Function       | Description                                                                 |
+//! | -------------- | --------------------------------------------------------------------------- |
+//! | [`bessel_j0`]  | Bessel function of the first kind of order 0                                |
+//! | [`bessel_j1`]  | Bessel function of the first kind of order 1                                |
+//! | [`bessel_y0`]  | Bessel function of the second kind of order 0                               |
+//! | [`bessel_y1`]  | Bessel function of the second kind of order 1                               |
+//! | [`bessel_i0`]  | Modified Bessel function of the first kind of order 0                       |
+//! | [`bessel_i0e`] | Exponentially scaled modified Bessel function of the first kind of order 0  |
+//! | [`bessel_i1`]  | Modified Bessel function of the first kind of order 1                       |
+//! | [`bessel_i1e`] | Exponentially scaled modified Bessel function of the first kind of order 1  |
+//! | [`bessel_k0`]  | Modified Bessel function of the second kind of order 0                      |
+//! | [`bessel_k0e`] | Exponentially scaled modified Bessel function of the second kind of order 0 |
+//! | [`bessel_k1`]  | Modified Bessel function of the second kind of order 1                      |
+//! | [`bessel_k1e`] | Exponentially scaled modified Bessel function of the second kind of order 1 |
 //!
 //! ## Integrals of Bessel functions
 //!
-//! | Function       | Description                                                        |
-//! | -------------- | ------------------------------------------------------------------ |
-//! | [`it1j0y0`]    | Integrals of Bessel functions of the first kind of order 0         |
-//! | [`it2j0y0`]    | Integrals related to Bessel functions of the first kind of order 0 |
-//! | [`it1i0k0`]    | Integrals of modified Bessel functions of order 0                  |
-//! | [`it2i0k0`]    | Integrals related to modified Bessel functions of order 0          |
-//! | [`besselpoly`] | Weighted integral of the Bessel function of the first kind         |
+//! | Function       | Description                                                                 |
+//! | -------------- | --------------------------------------------------------------------------- |
+//! | [`it1j0y0`]    | Integral of Bessel functions of the first kind of order 0                   |
+//! | [`it2j0y0`]    | Integral related to Bessel functions of the first kind of order 0           |
+//! | [`it1i0k0`]    | Integral of modified Bessel functions of the second kind of order 0         |
+//! | [`it2i0k0`]    | Integral related to modified Bessel functions of the second kind of order 0 |
+//! | [`besselpoly`] | Weighted integral of the Bessel function of the first kind                  |
 //!
 //! ## Derivatives of Bessel functions
 //!
@@ -80,23 +80,23 @@
 //!
 //! ## Spherical Bessel functions
 //!
-//! | Function             | Description                                           |
-//! | -------------------- | ----------------------------------------------------- |
-//! | [`sph_bessel_j`]     | Spherical Bessel function of the first kind           |
-//! | [`sph_bessel_j_jac`] | Derivative of [`sph_bessel_j`]                        |
-//! | [`sph_bessel_y`]     | Spherical Bessel function of the second kind          |
-//! | [`sph_bessel_y_jac`] | Derivative of [`sph_bessel_y`]                        |
-//! | [`sph_bessel_i`]     | Modified Spherical Bessel function of the first kind  |
-//! | [`sph_bessel_i_jac`] | Derivative of [`sph_bessel_i`]                        |
-//! | [`sph_bessel_k`]     | Modified Spherical Bessel function of the second kind |
-//! | [`sph_bessel_k_jac`] | Derivative of [`sph_bessel_k`]                        |
+//! | Function               | Description                                           |
+//! | ---------------------- | ----------------------------------------------------- |
+//! | [`sph_bessel_j`]       | Spherical Bessel function of the first kind           |
+//! | [`sph_bessel_j_prime`] | Derivative of [`sph_bessel_j`]                        |
+//! | [`sph_bessel_y`]       | Spherical Bessel function of the second kind          |
+//! | [`sph_bessel_y_prime`] | Derivative of [`sph_bessel_y`]                        |
+//! | [`sph_bessel_i`]       | Modified Spherical Bessel function of the first kind  |
+//! | [`sph_bessel_i_prime`] | Derivative of [`sph_bessel_i`]                        |
+//! | [`sph_bessel_k`]       | Modified Spherical Bessel function of the second kind |
+//! | [`sph_bessel_k_prime`] | Derivative of [`sph_bessel_k`]                        |
 //!
 //! ## Riccati-Bessel functions
 //!
-//! | Function       | Description                                                   |
-//! | -------------- | ------------------------------------------------------------- |
-//! | [`riccati_jn`] | Riccati-Bessel function of the first kind and its derivative  |
-//! | [`riccati_yn`] | Riccati-Bessel function of the second kind and its derivative |
+//! | Function      | Description                                                   |
+//! | ------------- | ------------------------------------------------------------- |
+//! | [`riccati_j`] | Riccati-Bessel function of the first kind and its derivative  |
+//! | [`riccati_y`] | Riccati-Bessel function of the second kind and its derivative |
 //!
 //! # Struve functions
 //!

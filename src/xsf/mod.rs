@@ -40,11 +40,10 @@ mod zeta;
 pub use airy::{ai_zeros, airy, airye, bi_zeros, itairy};
 pub use alg::cbrt;
 pub use bessel::{
-    besselpoly, cyl_bessel_i, cyl_bessel_i0, cyl_bessel_i0e, cyl_bessel_i1, cyl_bessel_i1e,
-    cyl_bessel_ie, cyl_bessel_j, cyl_bessel_j0, cyl_bessel_j1, cyl_bessel_je, cyl_bessel_k,
-    cyl_bessel_k0, cyl_bessel_k0e, cyl_bessel_k1, cyl_bessel_k1e, cyl_bessel_ke, cyl_bessel_y,
-    cyl_bessel_y0, cyl_bessel_y1, cyl_bessel_ye, cyl_hankel_1, cyl_hankel_1e, cyl_hankel_2,
-    cyl_hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, riccati_jn, riccati_yn,
+    bessel_i, bessel_i0, bessel_i0e, bessel_i1, bessel_i1e, bessel_ie, bessel_j, bessel_j0,
+    bessel_j1, bessel_je, bessel_k, bessel_k0, bessel_k0e, bessel_k1, bessel_k1e, bessel_ke,
+    bessel_y, bessel_y0, bessel_y1, bessel_ye, besselpoly, hankel_1, hankel_1e, hankel_2,
+    hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, riccati_j, riccati_y,
 };
 pub use beta::{beta, betaln};
 pub use binom::binom;
@@ -78,8 +77,8 @@ pub use par_cyl::{pbdv, pbvv, pbwa};
 pub use sici::{shichi, sici};
 pub use specfun::{hyp1f1, hypu, pmv};
 pub use sph_bessel::{
-    sph_bessel_i, sph_bessel_i_jac, sph_bessel_j, sph_bessel_j_jac, sph_bessel_k, sph_bessel_k_jac,
-    sph_bessel_y, sph_bessel_y_jac,
+    sph_bessel_i, sph_bessel_i_prime, sph_bessel_j, sph_bessel_j_prime, sph_bessel_k,
+    sph_bessel_k_prime, sph_bessel_y, sph_bessel_y_prime,
 };
 pub use sph_harm::{sph_harm_y, sph_harm_y_all};
 pub use sphd_wave::{
