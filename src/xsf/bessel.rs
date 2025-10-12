@@ -137,28 +137,28 @@ impl HankelArg for Complex<f64> {
 
 /// Bessel function of the first kind of order 0
 #[doc(alias = "j0")]
-#[doc(alias = "cyL_bessel_j0")]
+#[doc(alias = "cyl_bessel_j0")]
 pub fn bessel_j0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j0(x) }
 }
 
 /// Bessel function of the first kind of order 1
 #[doc(alias = "j1")]
-#[doc(alias = "cyL_bessel_j1")]
+#[doc(alias = "cyl_bessel_j1")]
 pub fn bessel_j1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j1(x) }
 }
 
 /// Bessel function of the first kind
 #[doc(alias = "jv")]
-#[doc(alias = "cyL_bessel_j")]
+#[doc(alias = "cyl_bessel_j")]
 pub fn bessel_j<T: BesselArg>(v: f64, x: T) -> T {
     x.bessel_j(v)
 }
 
 /// Exponentially scaled Bessel function of the first kind
 #[doc(alias = "jve")]
-#[doc(alias = "cyL_bessel_je")]
+#[doc(alias = "cyl_bessel_je")]
 pub fn bessel_je<T: BesselArg>(v: f64, x: T) -> T {
     x.bessel_je(v)
 }
@@ -168,7 +168,7 @@ pub fn bessel_je<T: BesselArg>(v: f64, x: T) -> T {
 /// Bessel function, second kind of order 0
 #[doc(alias = "y0")]
 #[doc(alias = "cyl_neumann_0")]
-#[doc(alias = "cyL_bessel_y0")]
+#[doc(alias = "cyl_bessel_y0")]
 pub fn bessel_y0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
 }
@@ -176,7 +176,7 @@ pub fn bessel_y0(x: f64) -> f64 {
 /// Bessel function, second kind of order 1
 #[doc(alias = "y1")]
 #[doc(alias = "cyl_neumann_1")]
-#[doc(alias = "cyL_bessel_y1")]
+#[doc(alias = "cyl_bessel_y1")]
 pub fn bessel_y1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
 }
@@ -201,28 +201,28 @@ pub fn bessel_ye<T: BesselArg>(v: f64, x: T) -> T {
 
 /// Modified Bessel function of the first kind of order 0
 #[doc(alias = "i0")]
-#[doc(alias = "cyL_bessel_i0")]
+#[doc(alias = "cyl_bessel_i0")]
 pub fn bessel_i0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0(x) }
 }
 
 /// Exponentially scaled modified Bessel function of the first kind of order 0
 #[doc(alias = "i0e")]
-#[doc(alias = "cyL_bessel_i0e")]
+#[doc(alias = "cyl_bessel_i0e")]
 pub fn bessel_i0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0e(x) }
 }
 
 /// Modified Bessel function of the first kind of order 1
 #[doc(alias = "i1")]
-#[doc(alias = "cyL_bessel_i1")]
+#[doc(alias = "cyl_bessel_i1")]
 pub fn bessel_i1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1(x) }
 }
 
 /// Exponentially scaled modified Bessel function of the first kind of order 1
 #[doc(alias = "i1e")]
-#[doc(alias = "cyL_bessel_i1e")]
+#[doc(alias = "cyl_bessel_i1e")]
 pub fn bessel_i1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1e(x) }
 }
@@ -245,28 +245,28 @@ pub fn bessel_ie<T: BesselArg>(v: f64, x: T) -> T {
 
 /// Modified Bessel function, second kind of order 0
 #[doc(alias = "k0")]
-#[doc(alias = "cyL_bessel_k0")]
+#[doc(alias = "cyl_bessel_k0")]
 pub fn bessel_k0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
 }
 
 /// Exponentially scaled modified Bessel function, second kind of order 0
 #[doc(alias = "k0e")]
-#[doc(alias = "cyL_bessel_k0e")]
+#[doc(alias = "cyl_bessel_k0e")]
 pub fn bessel_k0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
 }
 
 /// Modified Bessel function, second kind of order 1
 #[doc(alias = "k1")]
-#[doc(alias = "cyL_bessel_k1")]
+#[doc(alias = "cyl_bessel_k1")]
 pub fn bessel_k1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1(x) }
 }
 
 /// Exponentially scaled modified Bessel function, second kind of order 1
 #[doc(alias = "k1e")]
-#[doc(alias = "cyL_bessel_k1e")]
+#[doc(alias = "cyl_bessel_k1e")]
 pub fn bessel_k1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1e(x) }
 }
