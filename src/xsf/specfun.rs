@@ -39,20 +39,56 @@ impl Hyp1F1Arg for Complex<f64> {
 /// assert_eq!(bernoulli::<1000>()[999], 0.0);
 /// ```
 ///
+/// # See also
+/// - [`euler`]: Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
+///
 /// [scipy-bern]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
 pub fn bernoulli<const N: usize>() -> [f64; N] {
-    let mut out = [0.0; N];
+    let mut bn = [0.0; N];
     if N < 3 {
+        // `bernob` requires `N >= 3` (i.e. `n >= 2`), so handle small `N` manually
         if N >= 1 {
-            out[0] = 1.0;
+            bn[0] = 1.0;
             if N >= 2 {
-                out[1] = -0.5;
+                bn[1] = -0.5;
             }
         }
     } else {
-        unsafe { crate::ffi::xsf::bernob((N - 1) as i32, out.as_mut_ptr()) };
+        unsafe { crate::ffi::xsf::bernob((N - 1) as i32, bn.as_mut_ptr()) };
     };
-    out
+    bn
+}
+
+/// Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
+///
+/// Corresponds to [`scipy.special.euler`][scipy-euler] in SciPy, and calls the FFI function
+/// `xsf::specfun::eulerb`.
+///
+/// # Examples
+/// ```
+/// use xsf::euler;
+/// assert_eq!(euler::<0>(), []);
+/// assert_eq!(euler::<1>(), [1.0]);
+/// assert_eq!(euler::<2>(), [1.0, 0.0]);
+/// assert_eq!(euler::<4>(), [1.0, 0.0, -1.0, 0.0]);
+/// assert_eq!(euler::<1000>()[999], 0.0);
+/// ```
+///
+/// # See also
+/// - [`bernoulli`]: Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
+///
+/// [scipy-euler]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.euler.html
+pub fn euler<const N: usize>() -> [f64; N] {
+    let mut en = [0.0; N];
+    if N < 3 {
+        // `eulerb` requires `N >= 3` (i.e. `n >= 2`), so handle small `N` manually
+        if N >= 1 {
+            en[0] = 1.0;
+        }
+    } else {
+        unsafe { crate::ffi::xsf::eulerb((N - 1) as i32, en.as_mut_ptr()) };
+    };
+    en
 }
 
 /// Confluent hypergeometric function `1F1(a; b; z)` for real or complex `z`
