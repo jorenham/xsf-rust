@@ -76,7 +76,7 @@ pub use loggamma::{loggamma, rgamma};
 pub use mathieu::{cem, cem_cva, mcm1, mcm2, msm1, msm2, sem, sem_cva};
 pub use par_cyl::{pbdv, pbvv, pbwa};
 pub use sici::{shichi, sici};
-pub use specfun::{hyp1f1, hypu, pmv};
+pub use specfun::{bernoulli, euler, hyp1f1, hypu, pmv};
 pub use sph_bessel::{
     sph_bessel_i, sph_bessel_i_prime, sph_bessel_j, sph_bessel_j_prime, sph_bessel_k,
     sph_bessel_k_prime, sph_bessel_y, sph_bessel_y_prime,
