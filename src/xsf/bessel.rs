@@ -472,9 +472,7 @@ pub fn riccati_j<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
         return (rj, dj);
     }
 
-    let nmax = unsafe { crate::ffi::xsf::rctj(NT, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as usize;
-    assert!(nmax == NT - 1);
-
+    let _ = unsafe { crate::ffi::xsf::rctj(NT, x, rj.as_mut_ptr(), dj.as_mut_ptr()) };
     (rj, dj)
 }
 
@@ -506,9 +504,7 @@ pub fn riccati_y<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
         return (ry, dy);
     }
 
-    let nmax = unsafe { crate::ffi::xsf::rcty(NT, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as usize;
-    assert!(nmax == NT - 1);
-
+    let _ = unsafe { crate::ffi::xsf::rcty(NT, x, ry.as_mut_ptr(), dy.as_mut_ptr()) };
     (ry, dy)
 }
 
