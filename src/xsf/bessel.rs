@@ -537,6 +537,7 @@ pub fn riccati_y<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
 /// - [`bessel_j`]
 /// - [`gamma`](crate::gamma)
 /// - [`sph_bessel_j`](crate::sph_bessel_j)
+#[doc(alias = "lmbda")]
 pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L2008-L2055
     let v: f64 = v.into();
