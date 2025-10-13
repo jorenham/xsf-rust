@@ -512,7 +512,6 @@ pub fn riccati_y<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
     use num_complex::c64;
 
     // Bessel J
@@ -737,29 +736,25 @@ mod tests {
         //                              13.28576,
         //                              16.44006])),
         //                 atol=1.5e-5, rtol=0)
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             jnz[0].as_ref(),
             &[3.83171, 7.01559, 10.17347, 13.32369, 16.47063],
-            0.0,
-            1.5e-5,
+            atol = 1.5e-5
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             jnz[1].as_ref(),
             &[1.84118, 5.33144, 8.53632, 11.70600, 14.86359],
-            0.0,
-            1.5e-5,
+            atol = 1.5e-5
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             jnz[2].as_ref(),
             &[2.19714, 5.42968, 8.59601, 11.74915, 14.89744],
-            0.0,
-            1.5e-5,
+            atol = 1.5e-5
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             jnz[3].as_ref(),
             &[3.68302, 6.94150, 10.12340, 13.28576, 16.44006],
-            0.0,
-            1.5e-5,
+            atol = 1.5e-5
         );
     }
 
@@ -816,8 +811,8 @@ mod tests {
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
         let (jn, jnp) = crate::riccati_j::<N>(x);
-        np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
-        np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
+        crate::np_assert_allclose!(&s[0], &jn, atol = 1.5e-8);
+        crate::np_assert_allclose!(&s[1], &jnp, atol = 1.5e-8);
     }
 
     /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_yn`
@@ -842,7 +837,7 @@ mod tests {
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
         let (yn, ynp) = crate::riccati_y::<N>(x);
-        np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
-        np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
+        crate::np_assert_allclose!(&c[0], &yn, atol = 1.5e-8);
+        crate::np_assert_allclose!(&c[1], &ynp, atol = 1.5e-8);
     }
 }

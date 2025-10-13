@@ -152,7 +152,6 @@ pub fn kelvin_zeros(nt: usize) -> [Vec<f64>; 8] {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
 
     #[test]
     fn test_ber_f64() {
@@ -208,11 +207,10 @@ mod tests {
     #[test]
     fn test_ber_zeros() {
         let ber = crate::ber_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &ber,
             &[2.84892, 7.23883, 11.67396, 16.11356, 20.55463],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -221,11 +219,10 @@ mod tests {
     fn test_bei_zeros() {
         // Abramowitz & Stegun, Table 9.12
         let bi = crate::bei_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &bi,
             &[5.02622, 9.45541, 13.89349, 18.33398, 22.77544],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -233,11 +230,10 @@ mod tests {
     #[test]
     fn test_ker_zeros() {
         let ker = crate::ker_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &ker,
             &[1.71854, 6.12728, 10.56294, 15.00269, 19.44381],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -245,11 +241,10 @@ mod tests {
     #[test]
     fn test_kei_zeros() {
         let kei = crate::kei_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &kei,
             &[3.91467, 8.34422, 12.78256, 17.22314, 21.66464],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -257,11 +252,10 @@ mod tests {
     #[test]
     fn test_berp_zeros() {
         let brp = crate::berp_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &brp,
             &[6.03871, 10.51364, 14.96844, 19.41758, 23.86430],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -269,7 +263,7 @@ mod tests {
     #[test]
     fn test_beip_zeros() {
         let bip = crate::beip_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &bip,
             &[
                 3.772_673_304_934_953,
@@ -278,8 +272,7 @@ mod tests {
                 17.193_431_752_512_54,
                 21.641_143_941_167_325,
             ],
-            0.0,
-            1.5e-8,
+            atol = 1.5e-8
         );
     }
 
@@ -287,11 +280,10 @@ mod tests {
     #[test]
     fn test_kerp_zeros() {
         let kerp = crate::kerp_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &kerp,
             &[2.66584, 7.17212, 11.63218, 16.08312, 20.53068],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -299,11 +291,10 @@ mod tests {
     #[test]
     fn test_keip_zeros() {
         let keip = crate::keip_zeros(5);
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &keip,
             &[4.93181, 9.40405, 13.85827, 18.30717, 22.75379],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 
@@ -314,54 +305,46 @@ mod tests {
         let tmp = crate::kelvin_zeros(5);
         let [berz, beiz, kerz, keiz, berpz, beipz, kerpz, keipz] = tmp;
 
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &berz,
             &[2.84892, 7.23883, 11.67396, 16.11356, 20.55463],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &beiz,
             &[5.02622, 9.45541, 13.89349, 18.33398, 22.77544],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &kerz,
             &[1.71854, 6.12728, 10.56294, 15.00269, 19.44382],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &keiz,
             &[3.91467, 8.34422, 12.78256, 17.22314, 21.66464],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &berpz,
             &[6.03871, 10.51364, 14.96844, 19.41758, 23.86430],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &beipz,
             // table from 1927 had 3.77320 but this is more accurate
             &[3.77267, 8.28099, 12.74215, 17.19343, 21.64114],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &kerpz,
             &[2.66584, 7.17212, 11.63218, 16.08312, 20.53068],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &keipz,
             &[4.93181, 9.40405, 13.85827, 18.30717, 22.75379],
-            0.0,
-            1.5e-4,
+            atol = 1.5e-4
         );
     }
 }

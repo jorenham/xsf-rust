@@ -401,14 +401,15 @@
 
 extern crate alloc;
 
-mod ffi;
-mod scipy_special;
 #[cfg(test)]
-mod testing;
-mod utils;
-mod xsf;
+mod macros;
 #[cfg(test)]
 mod xsref;
+
+mod ffi;
+mod scipy_special;
+mod utils;
+mod xsf;
 
 pub use scipy_special::*;
 pub use xsf::cephes::*;

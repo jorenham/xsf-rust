@@ -137,8 +137,7 @@ pub fn sph_bessel_k_prime<T: SphBesselArg>(n: i64, z: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
-    use core::f64::consts::FRAC_PI_2;
+    use std::f64::consts::FRAC_PI_2;
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalJn.test_spherical_jn_exact`
     #[test]
@@ -149,7 +148,7 @@ mod tests {
         //                 (-1/x + 3/x**3)*sin(x) - 3/x**2*cos(x))
         let actual = x.map(|x| crate::sph_bessel_j(2, x));
         let expected = x.map(|x| ((-1.0 + 3.0 / (x * x)) * x.sin() - 3.0 / x * x.cos()) / x);
-        np_assert_allclose(&actual, &expected, 1e-7, 0.0);
+        crate::np_assert_allclose!(&actual, &expected);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalYn.test_spherical_yn_exact`
@@ -161,7 +160,7 @@ mod tests {
         //                 (1/x - 3/x**3)*cos(x) - 3/x**2*sin(x))
         let actual = x.map(|x| crate::sph_bessel_y(2, x));
         let expected = x.map(|x| ((1.0 - 3.0 / (x * x)) * x.cos() - 3.0 / x * x.sin()) / x);
-        np_assert_allclose(&actual, &expected, 1e-7, 0.0);
+        crate::np_assert_allclose!(&actual, &expected);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalIn.test_spherical_in_exact`
@@ -173,7 +172,7 @@ mod tests {
         //                 (1/x + 3/x**3)*sinh(x) - 3/x**2*cosh(x))
         let actual = x.map(|x| crate::sph_bessel_i(2, x));
         let expected = x.map(|x| ((1.0 + 3.0 / (x * x)) * x.sinh() - 3.0 / x * x.cosh()) / x);
-        np_assert_allclose(&actual, &expected, 1e-7, 0.0);
+        crate::np_assert_allclose!(&actual, &expected);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalKn.test_spherical_kn_exact`
@@ -185,7 +184,7 @@ mod tests {
         //                 pi/2*exp(-x)*(1/x + 3/x**2 + 3/x**3))
         let actual = x.map(|x| crate::sph_bessel_k(2, x));
         let expected = x.map(|x| FRAC_PI_2 * (-x).exp() * (1.0 + 3.0 / x + 3.0 / (x * x)) / x);
-        np_assert_allclose(&actual, &expected, 1e-7, 0.0);
+        crate::np_assert_allclose!(&actual, &expected);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalOld.test_sph_jn`
@@ -219,19 +218,17 @@ mod tests {
         //                         0.066400380670322230863,
         //                         0.0026590560795273856680],
         //                 atol=1.5e-12, rtol=0)
-        #[allow(clippy::excessive_precision)]
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &s1[0],
             &[
-                0.99334665397530607731,
-                0.066400380670322230863,
-                0.0026590560795273856680,
+                0.9933466539753061,
+                0.06640038067032224,
+                0.0026590560795273855,
             ],
-            0.0,
-            1.5e-12,
+            atol = 1.5e-12
         );
         // assert_allclose(s1[1], [s10, s11, s12], atol=1.5e-12, rtol=0)
-        np_assert_allclose(&s1[1], &[s10, s11, s12], 0.0, 1.5e-12);
+        crate::np_assert_allclose!(&s1[1], &[s10, s11, s12], atol = 1.5e-12);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalOld.test_sph_yn`
@@ -244,9 +241,9 @@ mod tests {
 
         // # previous values in the system
         // assert_allclose(sy1, -377.52483, atol=1.5e-5, rtol=0)
-        np_assert_allclose(&[sy1], &[-377.52483], 0.0, 1.5e-5);
+        crate::np_assert_allclose!(&[sy1], &[-377.52483], atol = 1.5e-5);
         // assert_allclose(sy2, -4.9003329, atol=1.5e-5, rtol=0)
-        np_assert_allclose(&[sy2], &[-4.9003329], 0.0, 1.5e-5);
+        crate::np_assert_allclose!(&[sy2], &[-4.9003329], atol = 1.5e-5);
 
         // sphpy = (spherical_yn(0, 0.2) - 2*spherical_yn(2, 0.2))/3
         let sphpy = (sy2 - 2.0 * sy1) / 3.0;
@@ -255,7 +252,7 @@ mod tests {
 
         // # compare correct derivative val. (correct =-system val).
         // assert_allclose(sy3, sphpy, atol=1.5e-4, rtol=0)
-        np_assert_allclose(&[sy3], &[sphpy], 0.0, 1.5e-4);
+        crate::np_assert_allclose!(&[sy3], &[sphpy], atol = 1.5e-4);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalOld.test_sph_in`
@@ -282,15 +279,13 @@ mod tests {
         // assert_allclose(i1n[0], np.array([1.0066800127054699381,
         //                                   0.066933714568029540839]),
         //                 atol=1.5e-12, rtol=0.0)
-        #[allow(clippy::excessive_precision)]
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &i1n[0],
-            &[1.0066800127054699381, 0.066933714568029540839],
-            0.0,
-            1.5e-12,
+            &[1.00668001270547, 0.06693371456802954],
+            atol = 1.5e-12
         );
         // assert_allclose(i1n[1], [inp0, inp1], atol=1.5e-12, rtol=0)
-        np_assert_allclose(&i1n[1], &[inp0, inp1], 0.0, 1.5e-12);
+        crate::np_assert_allclose!(&i1n[1], &[inp0, inp1], atol = 1.5e-12);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalOld.test_sph_kn`
@@ -324,18 +319,12 @@ mod tests {
         //                         38.581777787067402086,
         //                         585.15696310385559829],
         //                 atol=1.5e-12, rtol=0)
-        #[allow(clippy::excessive_precision)]
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &kn[0],
-            &[
-                6.4302962978445670140,
-                38.581777787067402086,
-                585.15696310385559829,
-            ],
-            0.0,
-            1.5e-12,
+            &[6.430296297844567, 38.5817777870674, 585.1569631038556],
+            atol = 1.5e-12
         );
         // assert_allclose(kn[1], [kn0, kn1, kn2], atol=1.5e-9, rtol=0)
-        np_assert_allclose(&kn[1], &[kn0, kn1, kn2], 0.0, 1.5e-9);
+        crate::np_assert_allclose!(&kn[1], &[kn0, kn1, kn2], atol = 1.5e-9);
     }
 }

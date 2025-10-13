@@ -48,7 +48,7 @@ mod tests {
             0.9061938024368233,
             1.1630871536766743,
         ];
-        crate::testing::np_assert_allclose(&actual, &expected, 0.0, 1e-15);
+        crate::np_assert_allclose!(&actual, &expected, atol = 1e-15);
     }
 
     #[test]
