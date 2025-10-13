@@ -139,20 +139,9 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestFresnel.test_fresnel_zeros`
     #[test]
     fn test_fresnel_zeros() {
-        fn assert_allclose(
-            actual: &[num_complex::Complex<f64>],
-            expected: &[num_complex::Complex<f64>],
-            atol: f64,
-        ) {
-            assert_eq!(actual.len(), expected.len());
-            for (&a, &e) in actual.iter().zip(expected.iter()) {
-                assert!((a - e).norm() <= atol);
-            }
-        }
-
         // szo, czo = special.fresnel_zeros(5)
         let (szo, czo) = crate::fresnel_zeros(5);
-        assert_allclose(
+        crate::np_assert_allclose!(
             &szo,
             &[
                 c64(2.0093, 0.2885),
@@ -161,9 +150,9 @@ mod tests {
                 c64(4.0026, 0.2009),
                 c64(4.4742, 0.1877),
             ],
-            1.5e-3,
+            atol = 1.5e-3
         );
-        assert_allclose(
+        crate::np_assert_allclose!(
             &czo,
             &[
                 c64(1.7437, 0.3057),
@@ -172,7 +161,7 @@ mod tests {
                 c64(3.8757, 0.2047),
                 c64(4.3611, 0.1907),
             ],
-            1.5e-3,
+            atol = 1.5e-3
         );
 
         // vals1 = special.fresnel(szo)[0]
