@@ -54,7 +54,7 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::{np_assert_allclose, np_assert_equal};
+    use crate::testing::np_assert_allclose;
 
     // based on scipy.special.tests.test_basic.TestBetaInc
 
@@ -117,7 +117,7 @@ mod tests {
             ((f64::INFINITY, 1.0, 1.0), 1.0),
         ] {
             let observed = crate::betainc(a, b, x);
-            np_assert_equal(&[observed], &[expected]);
+            crate::np_assert_equal!(&[observed], &[expected]);
         }
     }
 

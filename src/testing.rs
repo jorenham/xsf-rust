@@ -24,14 +24,18 @@ pub(crate) fn np_assert_allclose(actual: &[f64], expected: &[f64], rtol: f64, at
 }
 
 /// Similar to `numpy.testing.assert_equal`
-#[inline(always)]
-pub(crate) fn np_assert_equal(actual: &[f64], expected: &[f64]) {
-    assert_eq!(actual.len(), expected.len());
-    for (&a, &e) in actual.iter().zip(expected.iter()) {
-        if e.is_nan() {
-            assert!(a.is_nan(), "expected NaN but got {a}");
-        } else {
-            assert_eq!(a, e, "desired {e} but got {a}");
+#[macro_export]
+macro_rules! np_assert_equal {
+    ($actual:expr, $expected:expr) => {{
+        let actual = $actual;
+        let expected = $expected;
+        assert_eq!(actual.len(), expected.len());
+        for (&a, &e) in actual.iter().zip(expected.iter()) {
+            if e.is_nan() {
+                assert!(a.is_nan(), "expected NaN but got {}", a);
+            } else {
+                assert_eq!(a, e, "desired {} but got {}", e, a);
+            }
         }
-    }
+    }};
 }

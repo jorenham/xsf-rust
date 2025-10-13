@@ -127,7 +127,7 @@ pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::{np_assert_allclose, np_assert_equal};
+    use crate::testing::np_assert_allclose;
 
     fn map2<X1, X2, Y, const N: usize>(f: fn(X1, X2) -> Y, x1: &[X1; N], x2: &[X2; N]) -> [Y; N]
     where
@@ -178,12 +178,12 @@ mod tests {
         // x < 0  =>  y = nan
         let x = [-1.0, -1.0, -0.5];
         let y = map2(crate::boxcox, &x, &[0.5, 2.0, -1.5]);
-        np_assert_equal(&y, &[f64::NAN; 3]);
+        crate::np_assert_equal!(&y, &[f64::NAN; 3]);
 
         // x = 0 and lambda <= 0  =>  y = -inf
         let x = 0.0;
         let y = map2(crate::boxcox, &[x; 2], &[-2.5, 0.0]);
-        np_assert_equal(&y, &[f64::NEG_INFINITY; 2]);
+        crate::np_assert_equal!(&y, &[f64::NEG_INFINITY; 2]);
     }
 
     #[test]
@@ -224,12 +224,12 @@ mod tests {
         // x < -1  =>  y = nan
         let x = [-2.0, -2.0, -1.5];
         let y = map2(crate::boxcox1p, &x, &[0.5, 2.0, -1.5]);
-        np_assert_equal(&y, &[f64::NAN; 3]);
+        crate::np_assert_equal!(&y, &[f64::NAN; 3]);
 
         // x = -1 and lambda <= 0  =>  y = -inf
         let x = -1.0;
         let y = map2(crate::boxcox1p, &[x; 2], &[-2.5, 0.0]);
-        np_assert_equal(&y, &[f64::NEG_INFINITY; 2]);
+        crate::np_assert_equal!(&y, &[f64::NEG_INFINITY; 2]);
     }
 
     #[test]
