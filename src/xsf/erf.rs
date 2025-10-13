@@ -115,7 +115,6 @@ pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
     use num_complex::c64;
 
     // erf
@@ -185,8 +184,8 @@ mod tests {
             c64(3.76900557, 4.06069723),
         ];
         // assert_allclose(erz, erzr, atol=1.5e-4, rtol=0)
-        np_assert_allclose(&erz.map(|z| z.re), &erzr.map(|z| z.re), 0.0, 1.5e-4);
-        np_assert_allclose(&erz.map(|z| z.im), &erzr.map(|z| z.im), 0.0, 1.5e-4);
+        crate::np_assert_allclose!(&erz.map(|z| z.re), &erzr.map(|z| z.re), atol = 1.5e-4);
+        crate::np_assert_allclose!(&erz.map(|z| z.im), &erzr.map(|z| z.im), atol = 1.5e-4);
     }
 
     // dawsn

@@ -92,8 +92,6 @@ pub fn hankel_2_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Comple
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
-
     const ATOL: f64 = 1.5e-10;
 
     /// Translated from `scipy.special.tests.test_basic.TestBessel.test_jvp`
@@ -104,7 +102,7 @@ mod tests {
         // jv0 = (special.jv(1,2)-special.jv(3,2))/2
         let jv0 = (crate::bessel_j(1.0, 2.0) - crate::bessel_j(3.0, 2.0)) * 0.5;
         // assert_allclose(jvprim, jv0, atol=1.5e-10, rtol=0)
-        np_assert_allclose(&[jvprim], &[jv0], 0.0, ATOL);
+        crate::np_assert_allclose!(&[jvprim], &[jv0], atol = ATOL);
     }
 
     /// Translated from `scipy.special.tests.test_basic.TestBessel.test_yvp`
@@ -115,18 +113,17 @@ mod tests {
         // yvp1 = special.yvp(2,.2)
         let yvp1 = crate::bessel_y_prime(2.0, 0.2, 1);
         // assert_allclose(yvp1, yvpr, atol=1.5e-10, rtol=0)
-        np_assert_allclose(&[yvp1], &[yvpr], 0.0, ATOL);
+        crate::np_assert_allclose!(&[yvp1], &[yvpr], atol = ATOL);
     }
 
     /// Translated from `scipy.special.tests.test_basic.TestBessel.test_ivp0`
     #[test]
     fn test_bessel_i_prime_0() {
         // assert_allclose(special.iv(1, 2), special.ivp(0, 2), atol=1.5e-10, rtol=0)
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &[crate::bessel_i(1.0, 2.0)],
             &[crate::bessel_i_prime(0.0, 2.0, 1)],
-            0.0,
-            ATOL,
+            atol = ATOL
         );
     }
 
@@ -138,7 +135,7 @@ mod tests {
         // x = special.ivp(1,2)
         let x = crate::bessel_i_prime(1.0, 2.0, 1);
         // assert_allclose(x, y, atol=1.5e-10, rtol=0)
-        np_assert_allclose(&[x], &[y], 0.0, ATOL);
+        crate::np_assert_allclose!(&[x], &[y], atol = ATOL);
     }
 
     /// Translated from `scipy.special.tests.test_basic.TestBessel.test_kvp_v0n1`
@@ -147,11 +144,10 @@ mod tests {
         // z = 2.2
         const Z: f64 = 2.2;
         // assert_allclose(-special.kv(1, z), special.kvp(0, z, n=1), atol=1.5e-10, rtol=0)
-        np_assert_allclose(
+        crate::np_assert_allclose!(
             &[-crate::bessel_k(1.0, Z)],
             &[crate::bessel_k_prime(0.0, Z, 1)],
-            0.0,
-            ATOL,
+            atol = ATOL
         );
     }
 
@@ -167,7 +163,7 @@ mod tests {
         // x = special.kvp(v,z, n=1)
         let x = crate::bessel_k_prime(V, Z, 1);
         // assert_allclose(xc, x, atol=1.5e-10, rtol=0)
-        np_assert_allclose(&[x], &[xc], 0.0, ATOL);
+        crate::np_assert_allclose!(&[x], &[xc], atol = ATOL);
     }
 
     /// Translated from `scipy.special.tests.test_basic.TestBessel.test_kvp_n2`
@@ -183,6 +179,6 @@ mod tests {
         // x = special.kvp(v, z, n=2)
         let x = crate::bessel_k_prime(V, Z, 2);
         // assert_allclose(xc, x, atol=1.5e-10, rtol=0)
-        np_assert_allclose(&[x], &[xc], 0.0, ATOL);
+        crate::np_assert_allclose!(&[x], &[xc], atol = ATOL);
     }
 }

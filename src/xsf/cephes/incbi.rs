@@ -26,7 +26,6 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
 
     // based on scipy.special.tests.test_basic.TestBetaInc
 
@@ -55,7 +54,7 @@ mod tests {
             // (4.0, 99997.0, 0.0001947841578892121, 0.999995),
         ] {
             let x1 = crate::betaincinv(a, b, p);
-            np_assert_allclose(&[x1], &[x], 5e-13, 0.0);
+            crate::np_assert_allclose!(&[x1], &[x], rtol = 5e-13);
         }
     }
 
@@ -90,7 +89,7 @@ mod tests {
             // (4.0, 99997.0, 5e-88, 3.309800566862242e-27),
         ] {
             let x = crate::betaincinv(a, b, y);
-            np_assert_allclose(&[x], &[ref_], 1e-14, 0.0);
+            crate::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
         }
     }
 
@@ -100,6 +99,6 @@ mod tests {
         let a = 5.0;
         let x = 0.5;
         let result = crate::betaincinv(a, a, x);
-        np_assert_allclose(&[result], &[0.5], 10.0 * f64::EPSILON, 0.0);
+        crate::np_assert_allclose!(&[result], &[0.5], rtol = 10.0 * f64::EPSILON);
     }
 }

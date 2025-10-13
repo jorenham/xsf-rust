@@ -54,7 +54,6 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::np_assert_allclose;
 
     // based on scipy.special.tests.test_basic.TestBetaInc
 
@@ -84,7 +83,7 @@ mod tests {
         ] {
             let p1 = crate::betainc(a, b, x);
             // NOTE: The original `rtol = 1e-15` is too strict for Cephes
-            np_assert_allclose(&[p1], &[p], 1e-14, 0.0);
+            crate::np_assert_allclose!(&[p1], &[p], rtol = 1e-14);
         }
     }
 
@@ -131,7 +130,7 @@ mod tests {
             (1e-15, 1e-16, 0.5, 0.09090909090909091),
         ] {
             let res = crate::betainc(a, b, x);
-            np_assert_allclose(&[res], &[reference], rtol, 0.0);
+            crate::np_assert_allclose!(&[res], &[reference], rtol = rtol);
         }
     }
 }
