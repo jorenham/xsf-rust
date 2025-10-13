@@ -82,13 +82,10 @@ mod tests {
 
         // Check each entry matches the corresponding individual call
         for (n, y_row) in y_all.iter().enumerate().take(n_max + 1) {
-            for (col_idx, &y_from_all) in y_row.iter().enumerate() {
-                let m = col_to_order(col_idx, m_max);
-                let expected = crate::sph_harm_y(n, m, theta, phi);
-                let error = (expected - y_from_all).norm();
-                let tolerance = ATOL + RTOL * expected.norm().max(y_from_all.norm());
-                assert!(error <= tolerance);
-            }
+            let expected_row: Vec<_> = (0..=2 * m_max)
+                .map(|col_idx| crate::sph_harm_y(n, col_to_order(col_idx, m_max), theta, phi))
+                .collect();
+            crate::np_assert_allclose!(y_row, &expected_row, rtol = RTOL, atol = ATOL);
         }
     }
 
@@ -123,34 +120,28 @@ mod tests {
 
         // Expected scipy output with reasonable tolerance for floating-point differences
         let expected = [
-            vec![(0.28209479, 0.0), (0.0, 0.0), (0.0, 0.0)],
+            vec![c64(0.28209479, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
             vec![
-                (0.34549415, 0.0),
-                (-0.21157109, -0.12215063),
-                (0.21157109, -0.12215063),
+                c64(0.34549415, 0.0),
+                c64(-0.21157109, -0.12215063),
+                c64(0.21157109, -0.12215063),
             ],
             vec![
-                (0.15769578, 0.0),
-                (-0.33452327, -0.1931371),
-                (0.33452327, -0.1931371),
+                c64(0.15769578, 0.0),
+                c64(-0.33452327, -0.1931371),
+                c64(0.33452327, -0.1931371),
             ],
             vec![
-                (-0.13193776, 0.0),
-                (-0.29685995, -0.17139217),
-                (0.29685995, -0.17139217),
+                c64(-0.13193776, 0.0),
+                c64(-0.29685995, -0.17139217),
+                c64(0.29685995, -0.17139217),
             ],
         ];
 
         assert_eq!(y_all.len(), expected.len());
 
-        for (rust_row, expected_row) in y_all.iter().zip(expected.iter()) {
-            assert_eq!(rust_row.len(), expected_row.len());
-
-            for (rust_val, &(exp_re, exp_im)) in rust_row.iter().zip(expected_row.iter()) {
-                let expected_val = c64(exp_re, exp_im);
-                let diff = (rust_val - expected_val).norm();
-                assert!(diff < ATOL);
-            }
+        for (row_actual, row_expected) in y_all.iter().zip(expected.iter()) {
+            crate::np_assert_allclose!(&row_actual, &row_expected, atol = ATOL);
         }
     }
 }

@@ -9,6 +9,8 @@ mod sealed {
 pub trait ExtendedErrorArg: sealed::Sealed {
     fn xsf_extended_absolute_error(self, other: Self) -> f64;
     fn xsf_extended_relative_error(self, other: Self) -> f64;
+    fn xsf_magnitude(self) -> f64;
+    fn xsf_is_nan(self) -> bool;
 }
 
 impl ExtendedErrorArg for f64 {
@@ -21,6 +23,16 @@ impl ExtendedErrorArg for f64 {
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_relative_error(self, other) }
     }
+
+    #[inline(always)]
+    fn xsf_magnitude(self) -> f64 {
+        self.abs()
+    }
+
+    #[inline(always)]
+    fn xsf_is_nan(self) -> bool {
+        self.is_nan()
+    }
 }
 
 impl ExtendedErrorArg for Complex<f64> {
@@ -32,6 +44,17 @@ impl ExtendedErrorArg for Complex<f64> {
     #[inline(always)]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_relative_error_1(self.into(), other.into()) }
+    }
+
+    #[inline(always)]
+    fn xsf_magnitude(self) -> f64 {
+        // L2 norm requires `sqrt`, which isn't available in `no_std` mode, so use L1 norm instead
+        self.l1_norm()
+    }
+
+    #[inline(always)]
+    fn xsf_is_nan(self) -> bool {
+        self.is_nan()
     }
 }
 

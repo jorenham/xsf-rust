@@ -184,8 +184,7 @@ mod tests {
             c64(3.76900557, 4.06069723),
         ];
         // assert_allclose(erz, erzr, atol=1.5e-4, rtol=0)
-        crate::np_assert_allclose!(&erz.map(|z| z.re), &erzr.map(|z| z.re), atol = 1.5e-4);
-        crate::np_assert_allclose!(&erz.map(|z| z.im), &erzr.map(|z| z.im), atol = 1.5e-4);
+        crate::np_assert_allclose!(&erz, &erzr, atol = 1.5e-4);
     }
 
     // dawsn
