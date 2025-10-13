@@ -203,17 +203,17 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 
 /// Negative binomial distribution function
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtr(k as c_int, n, p) }
+    unsafe { crate::ffi::xsf::nbdtr(k as c_int, n as c_int, p) }
 }
 
 /// Negative binomial survival function
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtrc(k as c_int, n, p) }
+    unsafe { crate::ffi::xsf::nbdtrc(k as c_int, n as c_int, p) }
 }
 
 /// Negative binomial quantile function
 pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtri(k as c_int, n, p) }
+    unsafe { crate::ffi::xsf::nbdtri(k as c_int, n as c_int, p) }
 }
 
 #[cfg(test)]
