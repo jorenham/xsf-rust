@@ -230,7 +230,7 @@ mod tests {
         crate::xsref::test("ndtr", "cd-cd", |x| crate::ndtr(c64(x[0], x[1])));
     }
 
-    // Based onn `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
+    // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
     #[test]
     fn test_log_ndtr() {
         // x = np.array([-0.75, -0.25, 0, 0.5, 1.5, 2.5, 3, 4, 5, 7, 8])
