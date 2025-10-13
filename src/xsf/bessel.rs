@@ -289,7 +289,7 @@ pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
 ///
 /// [jnyn_zeros]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnyn_zeros.html
 #[doc(alias = "jnyn_zeros")]
-pub fn bessel_zeros<const NT: usize>(n: u32) -> ([f64; NT], [f64; NT], [f64; NT], [f64; NT]) {
+pub fn bessel_zeros<const NT: usize>(n: u32) -> [[f64; NT]; 4] {
     assert!(NT <= 1200, "NT must be at most 1200");
 
     let mut jn = [f64::NAN; NT];
@@ -306,7 +306,7 @@ pub fn bessel_zeros<const NT: usize>(n: u32) -> ([f64; NT], [f64; NT], [f64; NT]
             ynp.as_mut_ptr(),
         );
     }
-    (jn, jnp, yn, ynp)
+    [jn, jnp, yn, ynp]
 }
 
 // Hankel 1
@@ -727,25 +727,25 @@ mod tests {
         //                              16.44006])),
         //                 atol=1.5e-5, rtol=0)
         np_assert_allclose(
-            jnz.0.as_ref(),
+            jnz[0].as_ref(),
             &[3.83171, 7.01559, 10.17347, 13.32369, 16.47063],
             0.0,
             1.5e-5,
         );
         np_assert_allclose(
-            jnz.1.as_ref(),
+            jnz[1].as_ref(),
             &[1.84118, 5.33144, 8.53632, 11.70600, 14.86359],
             0.0,
             1.5e-5,
         );
         np_assert_allclose(
-            jnz.2.as_ref(),
+            jnz[2].as_ref(),
             &[2.19714, 5.42968, 8.59601, 11.74915, 14.89744],
             0.0,
             1.5e-5,
         );
         np_assert_allclose(
-            jnz.3.as_ref(),
+            jnz[3].as_ref(),
             &[3.68302, 6.94150, 10.12340, 13.28576, 16.44006],
             0.0,
             1.5e-5,
