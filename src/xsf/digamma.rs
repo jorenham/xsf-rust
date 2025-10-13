@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -12,14 +10,14 @@ pub trait DigammaArg: sealed::Sealed {
 
 impl DigammaArg for f64 {
     #[inline(always)]
-    fn digamma(self) -> f64 {
+    fn digamma(self) -> Self {
         unsafe { crate::ffi::xsf::digamma(self) }
     }
 }
 
-impl DigammaArg for Complex<f64> {
+impl DigammaArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn digamma(self) -> Complex<f64> {
+    fn digamma(self) -> Self {
         unsafe { crate::ffi::xsf::digamma_1(self.into()) }.into()
     }
 }
@@ -32,18 +30,15 @@ pub fn digamma<T: DigammaArg>(x: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
+    use num_complex::c64;
 
     #[test]
     fn test_digamma_f64() {
-        xsref::test::<f64, _>("digamma", "d-d", |x: &[f64]| digamma(x[0]));
+        crate::xsref::test("digamma", "d-d", |x| crate::digamma(x[0]));
     }
 
     #[test]
     fn test_digamma_c64() {
-        xsref::test::<num_complex::Complex<f64>, _>("digamma", "cd-cd", |x: &[f64]| {
-            digamma(num_complex::c64(x[0], x[1]))
-        });
+        crate::xsref::test("digamma", "cd-cd", |x| crate::digamma(c64(x[0], x[1])));
     }
 }

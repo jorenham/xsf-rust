@@ -1,6 +1,5 @@
 use alloc::vec::Vec;
 use core::ffi::c_int;
-use num_complex::Complex;
 
 /// Kelvin function *ber*
 pub fn ber(x: f64) -> f64 {
@@ -53,7 +52,7 @@ pub fn keip(x: f64) -> f64 {
 /// - *Ke*: Value of [`ker`] + *i* [`kei`]
 /// - *Be*': Derivative of [`berp`] + *i* [`beip`]
 /// - *Ke*': Derivative of [`kerp`] + *i* [`keip`]
-pub fn kelvin(x: f64) -> [Complex<f64>; 4] {
+pub fn kelvin(x: f64) -> [num_complex::Complex<f64>; 4] {
     let mut be = f64::NAN.into();
     let mut ke = f64::NAN.into();
     let mut bep = f64::NAN.into();
@@ -153,81 +152,68 @@ pub fn kelvin_zeros(nt: usize) -> [Vec<f64>; 8] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
+    use crate::testing::np_assert_allclose;
     use num_complex::Complex;
 
     #[test]
     fn test_ber_f64() {
-        xsref::test::<f64, _>("ber", "d-d", |x: &[f64]| ber(x[0]));
+        crate::xsref::test("ber", "d-d", |x| crate::ber(x[0]));
     }
 
     #[test]
     fn test_bei_f64() {
-        xsref::test::<f64, _>("bei", "d-d", |x: &[f64]| bei(x[0]));
+        crate::xsref::test("bei", "d-d", |x| crate::bei(x[0]));
     }
 
     #[test]
     fn test_ker_f64() {
-        xsref::test::<f64, _>("ker", "d-d", |x: &[f64]| ker(x[0]));
+        crate::xsref::test("ker", "d-d", |x| crate::ker(x[0]));
     }
 
     #[test]
     fn test_kei_f64() {
-        xsref::test::<f64, _>("kei", "d-d", |x: &[f64]| kei(x[0]));
+        crate::xsref::test("kei", "d-d", |x| crate::kei(x[0]));
     }
 
     #[test]
     fn test_berp_f64() {
-        xsref::test::<f64, _>("berp", "d-d", |x: &[f64]| berp(x[0]));
+        crate::xsref::test("berp", "d-d", |x| crate::berp(x[0]));
     }
 
     #[test]
     fn test_beip_f64() {
-        xsref::test::<f64, _>("beip", "d-d", |x: &[f64]| beip(x[0]));
+        crate::xsref::test("beip", "d-d", |x| crate::beip(x[0]));
     }
 
     #[test]
     fn test_kerp_f64() {
-        xsref::test::<f64, _>("kerp", "d-d", |x: &[f64]| kerp(x[0]));
+        crate::xsref::test("kerp", "d-d", |x| crate::kerp(x[0]));
     }
 
     #[test]
     fn test_keip_f64() {
-        xsref::test::<f64, _>("keip", "d-d", |x: &[f64]| keip(x[0]));
+        crate::xsref::test("keip", "d-d", |x| crate::keip(x[0]));
     }
 
     #[test]
     fn test_kelvin_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
+        crate::xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
             "kelvin",
             "d-cd_cd_cd_cd",
-            |x: &[f64]| kelvin(x[0]).into(),
+            |x| crate::kelvin(x[0]).into(),
         );
     }
 
     // Kelvin function zeros tests
 
-    fn assert_allclose(actual: &[f64], expected: &[f64], atol: f64) {
-        assert_eq!(actual.len(), expected.len());
-        for (&a, &e) in actual.iter().zip(expected.iter()) {
-            assert!(
-                (a - e).abs() <= atol,
-                "actual: {}, expected: {}, diff: {}",
-                a,
-                e,
-                (a - e).abs()
-            );
-        }
-    }
-
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_ber_zeros`
     #[test]
     fn test_ber_zeros() {
-        let ber = ber_zeros(5);
-        assert_allclose(
+        let ber = crate::ber_zeros(5);
+        np_assert_allclose(
             &ber,
             &[2.84892, 7.23883, 11.67396, 16.11356, 20.55463],
+            0.0,
             1.5e-4,
         );
     }
@@ -236,10 +222,11 @@ mod tests {
     #[test]
     fn test_bei_zeros() {
         // Abramowitz & Stegun, Table 9.12
-        let bi = bei_zeros(5);
-        assert_allclose(
+        let bi = crate::bei_zeros(5);
+        np_assert_allclose(
             &bi,
             &[5.02622, 9.45541, 13.89349, 18.33398, 22.77544],
+            0.0,
             1.5e-4,
         );
     }
@@ -247,10 +234,11 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_ker_zeros`
     #[test]
     fn test_ker_zeros() {
-        let ker = ker_zeros(5);
-        assert_allclose(
+        let ker = crate::ker_zeros(5);
+        np_assert_allclose(
             &ker,
             &[1.71854, 6.12728, 10.56294, 15.00269, 19.44381],
+            0.0,
             1.5e-4,
         );
     }
@@ -258,10 +246,11 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_kei_zeros`
     #[test]
     fn test_kei_zeros() {
-        let kei = kei_zeros(5);
-        assert_allclose(
+        let kei = crate::kei_zeros(5);
+        np_assert_allclose(
             &kei,
             &[3.91467, 8.34422, 12.78256, 17.22314, 21.66464],
+            0.0,
             1.5e-4,
         );
     }
@@ -269,10 +258,11 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_berp_zeros`
     #[test]
     fn test_berp_zeros() {
-        let brp = berp_zeros(5);
-        assert_allclose(
+        let brp = crate::berp_zeros(5);
+        np_assert_allclose(
             &brp,
             &[6.03871, 10.51364, 14.96844, 19.41758, 23.86430],
+            0.0,
             1.5e-4,
         );
     }
@@ -280,8 +270,8 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_beip_zeros`
     #[test]
     fn test_beip_zeros() {
-        let bip = beip_zeros(5);
-        assert_allclose(
+        let bip = crate::beip_zeros(5);
+        np_assert_allclose(
             &bip,
             &[
                 3.772_673_304_934_953,
@@ -290,6 +280,7 @@ mod tests {
                 17.193_431_752_512_54,
                 21.641_143_941_167_325,
             ],
+            0.0,
             1.5e-8,
         );
     }
@@ -297,10 +288,11 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_kerp_zeros`
     #[test]
     fn test_kerp_zeros() {
-        let kerp = kerp_zeros(5);
-        assert_allclose(
+        let kerp = crate::kerp_zeros(5);
+        np_assert_allclose(
             &kerp,
             &[2.66584, 7.17212, 11.63218, 16.08312, 20.53068],
+            0.0,
             1.5e-4,
         );
     }
@@ -308,10 +300,11 @@ mod tests {
     /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_keip_zeros`
     #[test]
     fn test_keip_zeros() {
-        let keip = keip_zeros(5);
-        assert_allclose(
+        let keip = crate::keip_zeros(5);
+        np_assert_allclose(
             &keip,
             &[4.93181, 9.40405, 13.85827, 18.30717, 22.75379],
+            0.0,
             1.5e-4,
         );
     }
@@ -320,48 +313,56 @@ mod tests {
     #[test]
     fn test_kelvin_zeros() {
         // numbers come from 9.9 of A&S pg. 381
-        let tmp = kelvin_zeros(5);
+        let tmp = crate::kelvin_zeros(5);
         let [berz, beiz, kerz, keiz, berpz, beipz, kerpz, keipz] = tmp;
 
-        assert_allclose(
+        np_assert_allclose(
             &berz,
             &[2.84892, 7.23883, 11.67396, 16.11356, 20.55463],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &beiz,
             &[5.02622, 9.45541, 13.89349, 18.33398, 22.77544],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &kerz,
             &[1.71854, 6.12728, 10.56294, 15.00269, 19.44382],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &keiz,
             &[3.91467, 8.34422, 12.78256, 17.22314, 21.66464],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &berpz,
             &[6.03871, 10.51364, 14.96844, 19.41758, 23.86430],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &beipz,
             // table from 1927 had 3.77320 but this is more accurate
             &[3.77267, 8.28099, 12.74215, 17.19343, 21.64114],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &kerpz,
             &[2.66584, 7.17212, 11.63218, 16.08312, 20.53068],
+            0.0,
             1.5e-4,
         );
-        assert_allclose(
+        np_assert_allclose(
             &keipz,
             &[4.93181, 9.40405, 13.85827, 18.30717, 22.75379],
+            0.0,
             1.5e-4,
         );
     }

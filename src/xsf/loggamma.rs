@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -22,13 +20,13 @@ impl LogGammaArg for f64 {
     }
 }
 
-impl LogGammaArg for Complex<f64> {
+impl LogGammaArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn xsf_loggamma(self) -> Complex<f64> {
+    fn xsf_loggamma(self) -> Self {
         unsafe { crate::ffi::xsf::loggamma_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn xsf_rgamma(self) -> Complex<f64> {
+    fn xsf_rgamma(self) -> Self {
         unsafe { crate::ffi::xsf::rgamma_1(self.into()) }.into()
     }
 }
@@ -48,31 +46,25 @@ pub fn rgamma<T: LogGammaArg>(z: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
-
-    // loggamma
+    use num_complex::c64;
 
     #[test]
     fn test_loggamma_f64() {
-        xsref::test::<f64, _>("loggamma", "d-d", |x: &[f64]| loggamma(x[0]));
+        crate::xsref::test("loggamma", "d-d", |x| crate::loggamma(x[0]));
     }
 
     #[test]
     fn test_loggamma_c64() {
-        xsref::test::<Complex<f64>, _>("loggamma", "cd-cd", |x: &[f64]| loggamma(c64(x[0], x[1])));
+        crate::xsref::test("loggamma", "cd-cd", |x| crate::loggamma(c64(x[0], x[1])));
     }
-
-    // rgamma
 
     #[test]
     fn test_rgamma_f64() {
-        xsref::test::<f64, _>("rgamma", "d-d", |x: &[f64]| rgamma(x[0]));
+        crate::xsref::test("rgamma", "d-d", |x| crate::rgamma(x[0]));
     }
 
     #[test]
     fn test_rgamma_c64() {
-        xsref::test::<Complex<f64>, _>("rgamma", "cd-cd", |x: &[f64]| rgamma(c64(x[0], x[1])));
+        crate::xsref::test("rgamma", "cd-cd", |x| crate::rgamma(c64(x[0], x[1])));
     }
 }

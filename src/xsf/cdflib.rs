@@ -5,11 +5,8 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-
     #[test]
     fn test_gdtrib() {
-        xsref::test::<f64, _>("gdtrib", "d_d_d-d", |x: &[f64]| gdtrib(x[0], x[1], x[2]));
+        crate::xsref::test("gdtrib", "d_d_d-d", |x| crate::gdtrib(x[0], x[1], x[2]));
     }
 }

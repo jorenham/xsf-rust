@@ -1,7 +1,6 @@
 use crate::utils;
 use alloc::{vec, vec::Vec};
 use core::ffi::c_int;
-use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}
@@ -20,7 +19,7 @@ pub trait LegendrePArg: sealed::Sealed + Sized {
 
 impl LegendrePArg for f64 {
     #[inline(always)]
-    fn legendre_p(self, n: c_int) -> f64 {
+    fn legendre_p(self, n: c_int) -> Self {
         unsafe { crate::ffi::xsf::legendre_p(n, self) }
     }
 
@@ -34,7 +33,7 @@ impl LegendrePArg for f64 {
     }
 
     #[inline(always)]
-    fn sph_legendre_p(self, n: c_int, m: c_int) -> f64 {
+    fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
         unsafe { crate::ffi::xsf::sph_legendre_p(n, m, self) }
     }
 
@@ -49,7 +48,7 @@ impl LegendrePArg for f64 {
     }
 
     #[inline(always)]
-    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> f64 {
+    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
         unsafe {
             if norm {
                 crate::ffi::xsf::assoc_legendre_p_1(n, m, self, bc)
@@ -74,9 +73,9 @@ impl LegendrePArg for f64 {
     }
 }
 
-impl LegendrePArg for Complex<f64> {
+impl LegendrePArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn legendre_p(self, n: c_int) -> Complex<f64> {
+    fn legendre_p(self, n: c_int) -> Self {
         unsafe { crate::ffi::xsf::legendre_p_1(n, self.into()) }.into()
     }
 
@@ -90,7 +89,7 @@ impl LegendrePArg for Complex<f64> {
     }
 
     #[inline(always)]
-    fn sph_legendre_p(self, n: c_int, m: c_int) -> Complex<f64> {
+    fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
         unsafe { crate::ffi::xsf::sph_legendre_p_1(n, m, self.into()) }.into()
     }
 
@@ -105,7 +104,7 @@ impl LegendrePArg for Complex<f64> {
     }
 
     #[inline(always)]
-    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Complex<f64> {
+    fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
         unsafe {
             if norm {
                 crate::ffi::xsf::assoc_legendre_p_1_1(n, m, self.into(), bc)
@@ -165,7 +164,7 @@ impl LegendreQArg for f64 {
     }
 }
 
-impl LegendreQArg for Complex<f64> {
+impl LegendreQArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
         let mut cqn = vec![f64::NAN.into(); n + 1];
@@ -270,62 +269,64 @@ pub fn assoc_legendre_q_all<T: LegendreQArg>(
 mod tests {
     // there are no xsref tables, so we use smoke tests instead
 
-    use super::*;
     use core::f64::consts;
     use num_complex::c64;
 
-    const I: Complex<f64> = Complex::new(0.0, 1.0);
+    const I: num_complex::Complex<f64> = num_complex::Complex::new(0.0, 1.0);
     const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 
     // legendre_p
 
     #[test]
     fn test_legendre_p_f64() {
-        assert_eq!(legendre_p(0, 0.0), 1.0);
-        assert_eq!(legendre_p(1, 0.0), 0.0);
-        assert_eq!(legendre_p(2, 0.0), -0.5);
+        assert_eq!(crate::legendre_p(0, 0.0), 1.0);
+        assert_eq!(crate::legendre_p(1, 0.0), 0.0);
+        assert_eq!(crate::legendre_p(2, 0.0), -0.5);
     }
 
     #[test]
     fn test_legendre_p_c64() {
-        assert_eq!(legendre_p(0, I), c64(1.0, 0.0));
-        assert_eq!(legendre_p(1, I), I);
-        assert_eq!(legendre_p(2, I), c64(-2.0, 0.0));
+        assert_eq!(crate::legendre_p(0, I), c64(1.0, 0.0));
+        assert_eq!(crate::legendre_p(1, I), I);
+        assert_eq!(crate::legendre_p(2, I), c64(-2.0, 0.0));
     }
 
     // legendre_p_all
 
     #[test]
     fn test_legendre_p_all_f64() {
-        assert_eq!(legendre_p_all(2, 0.0), vec![1.0, 0.0, -0.5]);
+        assert_eq!(crate::legendre_p_all(2, 0.0), vec![1.0, 0.0, -0.5]);
     }
 
     #[test]
     fn test_legendre_p_all_c64() {
-        assert_eq!(legendre_p_all(2, I), vec![c64(1.0, 0.0), I, c64(-2.0, 0.0)]);
+        assert_eq!(
+            crate::legendre_p_all(2, I),
+            vec![c64(1.0, 0.0), I, c64(-2.0, 0.0)]
+        );
     }
 
     // sph_legendre_p
 
     #[test]
     fn test_sph_legendre_p_f64() {
-        assert_eq!(sph_legendre_p(0, 0, 0.0), 0.28209479177387814);
-        assert_eq!(sph_legendre_p(1, 0, 0.0), 0.48860251190291987);
-        assert_eq!(sph_legendre_p(1, 1, 0.0), 0.0);
+        assert_eq!(crate::sph_legendre_p(0, 0, 0.0), 0.28209479177387814);
+        assert_eq!(crate::sph_legendre_p(1, 0, 0.0), 0.48860251190291987);
+        assert_eq!(crate::sph_legendre_p(1, 1, 0.0), 0.0);
     }
 
     #[test]
     fn test_sph_legendre_p_c64() {
-        assert!((sph_legendre_p(0, 0, I).norm() - 0.2820947917738782).abs() < f64::EPSILON);
-        assert!((sph_legendre_p(1, 0, I).norm() - 0.7539530742394804).abs() < f64::EPSILON);
-        assert!((sph_legendre_p(1, 1, I).norm() - 0.4060251368556634).abs() < f64::EPSILON);
+        assert!((crate::sph_legendre_p(0, 0, I).norm() - 0.2820947917738782).abs() < f64::EPSILON);
+        assert!((crate::sph_legendre_p(1, 0, I).norm() - 0.7539530742394804).abs() < f64::EPSILON);
+        assert!((crate::sph_legendre_p(1, 1, I).norm() - 0.4060251368556634).abs() < f64::EPSILON);
     }
 
     // sph_legendre_p_all
 
     #[test]
     fn test_sph_legendre_p_all_f64() {
-        let pnm = sph_legendre_p_all(1, 1, 0.0);
+        let pnm = crate::sph_legendre_p_all(1, 1, 0.0);
 
         assert_eq!(pnm.len(), 2);
         assert_eq!(pnm[0].len(), 3);
@@ -337,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_sph_legendre_p_all_c64() {
-        let pnm = sph_legendre_p_all(1, 1, I);
+        let pnm = crate::sph_legendre_p_all(1, 1, I);
         assert_eq!(pnm.len(), 2);
         assert_eq!(pnm[0].len(), 3);
         assert_eq!(pnm[1].len(), 3);
@@ -351,25 +352,25 @@ mod tests {
 
     #[test]
     fn test_assoc_legendre_p_f64() {
-        assert_eq!(assoc_legendre_p(0, 0, 0.0), 1.0);
-        assert_eq!(assoc_legendre_p(1, 0, 0.0), 0.0);
-        assert_eq!(assoc_legendre_p(0, 1, 0.0), 0.0);
-        assert_eq!(assoc_legendre_p(1, 1, 0.0), -1.0);
+        assert_eq!(crate::assoc_legendre_p(0, 0, 0.0), 1.0);
+        assert_eq!(crate::assoc_legendre_p(1, 0, 0.0), 0.0);
+        assert_eq!(crate::assoc_legendre_p(0, 1, 0.0), 0.0);
+        assert_eq!(crate::assoc_legendre_p(1, 1, 0.0), -1.0);
     }
 
     #[test]
     fn test_assoc_legendre_p_c64() {
-        assert_eq!(assoc_legendre_p(0, 0, I), c64(1.0, 0.0));
-        assert_eq!(assoc_legendre_p(1, 0, I), I);
-        assert_eq!(assoc_legendre_p(0, 1, I), c64(0.0, 0.0));
-        assert_eq!(assoc_legendre_p(1, 1, I), c64(-consts::SQRT_2, 0.0));
+        assert_eq!(crate::assoc_legendre_p(0, 0, I), c64(1.0, 0.0));
+        assert_eq!(crate::assoc_legendre_p(1, 0, I), I);
+        assert_eq!(crate::assoc_legendre_p(0, 1, I), c64(0.0, 0.0));
+        assert_eq!(crate::assoc_legendre_p(1, 1, I), c64(-consts::SQRT_2, 0.0));
     }
 
     // assoc_legendre_p_all
 
     #[test]
     fn test_assoc_legendre_p_all_f64() {
-        let pnm = assoc_legendre_p_all(1, 1, 0.0);
+        let pnm = crate::assoc_legendre_p_all(1, 1, 0.0);
 
         assert_eq!(pnm.len(), 2);
         assert_eq!(pnm[0].len(), 3);
@@ -381,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_assoc_legendre_p_all_c64() {
-        let pnm = assoc_legendre_p_all(1, 1, I);
+        let pnm = crate::assoc_legendre_p_all(1, 1, I);
 
         assert_eq!(pnm.len(), 2);
         assert_eq!(pnm[0].len(), 3);
@@ -402,25 +403,29 @@ mod tests {
 
     #[test]
     fn test_assoc_legendre_p_norm_f64() {
-        assert!((assoc_legendre_p_norm(0, 0, 0.0) - consts::FRAC_1_SQRT_2).abs() < f64::EPSILON);
-        assert_eq!(assoc_legendre_p_norm(1, 0, 0.0), 0.0);
-        assert_eq!(assoc_legendre_p_norm(0, 1, 0.0), 0.0);
+        assert!(
+            (crate::assoc_legendre_p_norm(0, 0, 0.0) - consts::FRAC_1_SQRT_2).abs() < f64::EPSILON
+        );
+        assert_eq!(crate::assoc_legendre_p_norm(1, 0, 0.0), 0.0);
+        assert_eq!(crate::assoc_legendre_p_norm(0, 1, 0.0), 0.0);
         assert_eq!(
-            assoc_legendre_p_norm(1, 1, 0.0),
+            crate::assoc_legendre_p_norm(1, 1, 0.0),
             -0.8660254037844386 // -sqrt(3 / 4)
         );
     }
 
     #[test]
     fn test_assoc_legendre_p_norm_c64() {
-        assert!((assoc_legendre_p_norm(0, 0, I).re - consts::FRAC_1_SQRT_2).abs() < f64::EPSILON);
+        assert!(
+            (crate::assoc_legendre_p_norm(0, 0, I).re - consts::FRAC_1_SQRT_2).abs() < f64::EPSILON
+        );
         assert_eq!(
-            assoc_legendre_p_norm(1, 0, I),
+            crate::assoc_legendre_p_norm(1, 0, I),
             c64(0.0, 1.224744871391589) // sqrt(3 / 2) i
         );
-        assert_eq!(assoc_legendre_p_norm(0, 1, I), c64(0.0, 0.0));
+        assert_eq!(crate::assoc_legendre_p_norm(0, 1, I), c64(0.0, 0.0));
         assert_eq!(
-            assoc_legendre_p_norm(1, 1, I),
+            crate::assoc_legendre_p_norm(1, 1, I),
             c64(-1.2247448713915892, 0.0) // -sqrt(3 / 2)
         );
     }
@@ -429,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_legendre_q_all_f64() {
-        let (qn, qd) = legendre_q_all(4, 0.5);
+        let (qn, qd) = crate::legendre_q_all(4, 0.5);
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -443,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_legendre_q_all_c64() {
-        let (qn, qd) = legendre_q_all(4, c64(0.0, 1.0));
+        let (qn, qd) = crate::legendre_q_all(4, c64(0.0, 1.0));
 
         assert_eq!(qn.len(), 5);
         assert_eq!(qd.len(), 5);
@@ -456,7 +461,7 @@ mod tests {
 
     #[test]
     fn assoc_test_legendre_q_all_f64() {
-        let (qm, qd) = assoc_legendre_q_all(1, 2, 0.0);
+        let (qm, qd) = crate::assoc_legendre_q_all(1, 2, 0.0);
 
         // Shape should be (n+1, m+1) = (2, 3)
         assert_eq!(qm.len(), 2);
@@ -474,7 +479,7 @@ mod tests {
 
     #[test]
     fn assoc_test_legendre_q_all_c64() {
-        let (qm, qd) = assoc_legendre_q_all(1, 2, c64(0.0, 0.0));
+        let (qm, qd) = crate::assoc_legendre_q_all(1, 2, c64(0.0, 0.0));
 
         assert_eq!(qm.len(), 2);
         assert_eq!(qm[0], vec![c64(0.0, 0.0), c64(-1.0, 0.0), c64(0.0, 0.0)]);

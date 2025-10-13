@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -12,14 +10,14 @@ pub trait GammaArg: sealed::Sealed {
 
 impl GammaArg for f64 {
     #[inline(always)]
-    fn xsf_gamma(self) -> f64 {
+    fn xsf_gamma(self) -> Self {
         unsafe { crate::ffi::xsf::gamma(self) }
     }
 }
 
-impl GammaArg for Complex<f64> {
+impl GammaArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn xsf_gamma(self) -> Complex<f64> {
+    fn xsf_gamma(self) -> Self {
         unsafe { crate::ffi::xsf::gamma_1(self.into()) }.into()
     }
 }
@@ -64,49 +62,45 @@ pub fn gammasgn(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
     #[test]
     fn test_gamma_f64() {
-        xsref::test::<f64, _>("gamma", "d-d", |x: &[f64]| gamma(x[0]));
+        crate::xsref::test("gamma", "d-d", |x| crate::gamma(x[0]));
     }
 
     #[test]
     fn test_gamma_c64() {
-        xsref::test::<Complex<f64>, _>("gamma", "cd-cd", |x: &[f64]| gamma(c64(x[0], x[1])));
+        crate::xsref::test("gamma", "cd-cd", |x| crate::gamma(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_gammainc() {
-        xsref::test::<f64, _>("gammainc", "d_d-d", |x: &[f64]| gammainc(x[0], x[1]));
+        crate::xsref::test("gammainc", "d_d-d", |x| crate::gammainc(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaincc() {
-        xsref::test::<f64, _>("gammaincc", "d_d-d", |x: &[f64]| gammaincc(x[0], x[1]));
+        crate::xsref::test("gammaincc", "d_d-d", |x| crate::gammaincc(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaincinv() {
-        xsref::test::<f64, _>("gammaincinv", "d_d-d", |x: &[f64]| gammaincinv(x[0], x[1]));
+        crate::xsref::test("gammaincinv", "d_d-d", |x| crate::gammaincinv(x[0], x[1]));
     }
 
     #[test]
     fn test_gammainccinv() {
-        xsref::test::<f64, _>("gammainccinv", "d_d-d", |x: &[f64]| {
-            gammainccinv(x[0], x[1])
-        });
+        crate::xsref::test("gammainccinv", "d_d-d", |x| crate::gammainccinv(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaln() {
-        xsref::test::<f64, _>("gammaln", "d-d", |x: &[f64]| gammaln(x[0]));
+        crate::xsref::test("gammaln", "d-d", |x| crate::gammaln(x[0]));
     }
 
     #[test]
     fn test_gammasgn() {
-        xsref::test::<f64, _>("gammasgn", "d-d", |x: &[f64]| gammasgn(x[0]));
+        crate::xsref::test("gammasgn", "d-d", |x| crate::gammasgn(x[0]));
     }
 }

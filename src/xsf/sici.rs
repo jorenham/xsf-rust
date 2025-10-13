@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -31,7 +29,7 @@ impl SiciArg for f64 {
     }
 }
 
-impl SiciArg for Complex<f64> {
+impl SiciArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn sici(self) -> (Self, Self) {
         let (mut si, mut ci) = (f64::NAN.into(), f64::NAN.into());
@@ -101,35 +99,25 @@ pub fn shichi<T: SiciArg>(z: T) -> (T, T) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
-
-    // sici
+    use num_complex::c64;
 
     #[test]
     fn test_sici_f64() {
-        xsref::test::<(f64, f64), _>("sici", "d-d_d", |x: &[f64]| sici(x[0]));
+        crate::xsref::test("sici", "d-d_d", |x| crate::sici(x[0]));
     }
 
     #[test]
     fn test_sici_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>), _>("sici", "cd-cd_cd", |x: &[f64]| {
-            sici(c64(x[0], x[1]))
-        });
+        crate::xsref::test("sici", "cd-cd_cd", |x| crate::sici(c64(x[0], x[1])));
     }
-
-    // shichi
 
     #[test]
     fn test_shichi_f64() {
-        xsref::test::<(f64, f64), _>("shichi", "d-d_d", |x: &[f64]| shichi(x[0]));
+        crate::xsref::test("shichi", "d-d_d", |x| crate::shichi(x[0]));
     }
 
     #[test]
     fn test_shichi_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>), _>("shichi", "cd-cd_cd", |x: &[f64]| {
-            shichi(c64(x[0], x[1]))
-        });
+        crate::xsref::test("shichi", "cd-cd_cd", |x| crate::shichi(c64(x[0], x[1])));
     }
 }

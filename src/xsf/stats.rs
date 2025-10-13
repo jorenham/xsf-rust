@@ -1,5 +1,4 @@
 use core::ffi::c_int;
-use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}
@@ -14,7 +13,7 @@ pub trait StatsArg: sealed::Sealed {
 
 impl StatsArg for f64 {
     #[inline(always)]
-    fn ndtr(self) -> f64 {
+    fn ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::ndtr(self) }
     }
 
@@ -24,9 +23,9 @@ impl StatsArg for f64 {
     }
 }
 
-impl StatsArg for Complex<f64> {
+impl StatsArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn ndtr(self) -> Complex<f64> {
+    fn ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::ndtr_1(self.into()) }.into()
     }
 
@@ -88,28 +87,28 @@ pub fn kolmogp(x: f64) -> f64 {
 // Kolmogorov-Smirnov
 
 /// Kolmogorov-Smirnov survival function
-pub fn smirnov(n: c_int, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnov(n, x) }
+pub fn smirnov(n: i32, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnov(n as c_int, x) }
 }
 
 /// Kolmogorov-Smirnov distribution function
-pub fn smirnovc(n: c_int, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovc(n, x) }
+pub fn smirnovc(n: i32, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovc(n as c_int, x) }
 }
 
 /// Inverse of [`smirnov`]
-pub fn smirnovi(n: c_int, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovi(n, x) }
+pub fn smirnovi(n: i32, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovi(n as c_int, x) }
 }
 
 /// Inverse of [`smirnovc`]
-pub fn smirnovci(n: c_int, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovci(n, x) }
+pub fn smirnovci(n: i32, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovci(n as c_int, x) }
 }
 
 /// Derivative of [`smirnov`]
-pub fn smirnovp(n: c_int, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovp(n, x) }
+pub fn smirnovp(n: i32, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovp(n as c_int, x) }
 }
 
 // Tukey-Lambda
@@ -174,8 +173,8 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
 }
 
 /// Poisson quantile function
-pub fn pdtri(k: c_int, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtri(k, y) }
+pub fn pdtri(k: i32, y: f64) -> f64 {
+    unsafe { crate::ffi::xsf::pdtri(k as c_int, y) }
 }
 
 /// Poisson survival function
@@ -186,202 +185,200 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 // Binomial
 
 /// Binomial distribution function
-pub fn bdtr(k: f64, n: c_int, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtr(k, n, p) }
+pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::bdtr(k, n as c_int, p) }
 }
 
 /// Binomial survival function
-pub fn bdtrc(k: f64, n: c_int, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtrc(k, n, p) }
+pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::bdtrc(k, n as c_int, p) }
 }
 
 /// Binomial quantile function
-pub fn bdtri(k: f64, n: c_int, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtri(k, n, y) }
+pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
+    unsafe { crate::ffi::xsf::bdtri(k, n as c_int, y) }
 }
 
 // Negative Binomial
 
 /// Negative binomial distribution function
-pub fn nbdtr(k: c_int, n: c_int, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtr(k, n, p) }
+pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::nbdtr(k as c_int, n, p) }
 }
 
 /// Negative binomial survival function
-pub fn nbdtrc(k: c_int, n: c_int, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtrc(k, n, p) }
+pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::nbdtrc(k as c_int, n, p) }
 }
 
 /// Negative binomial quantile function
-pub fn nbdtri(k: c_int, n: c_int, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtri(k, n, p) }
+pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::nbdtri(k as c_int, n, p) }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
     #[test]
     fn test_ndtr_f64() {
-        xsref::test::<f64, _>("ndtr", "d-d", |x: &[f64]| ndtr(x[0]));
+        crate::xsref::test("ndtr", "d-d", |x| crate::ndtr(x[0]));
     }
 
-    // TODO: no log_ndtr xsref tables => needs manual smoketests
+    // TODO(@jorenham): manual `log_ndtr` tests (jorenham/xsf-rust#97)
 
     #[test]
     fn test_ndtr_c64() {
-        xsref::test::<Complex<f64>, _>("ndtr", "cd-cd", |x: &[f64]| ndtr(c64(x[0], x[1])));
+        crate::xsref::test("ndtr", "cd-cd", |x| crate::ndtr(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_ndtri() {
-        xsref::test::<f64, _>("ndtri", "d-d", |x: &[f64]| ndtri(x[0]));
+        crate::xsref::test("ndtri", "d-d", |x| crate::ndtri(x[0]));
     }
 
     #[test]
     fn test_kolmogorov() {
-        xsref::test::<f64, _>("kolmogorov", "d-d", |x: &[f64]| kolmogorov(x[0]));
+        crate::xsref::test("kolmogorov", "d-d", |x| crate::kolmogorov(x[0]));
     }
 
     #[test]
     fn test_kolmogc() {
-        xsref::test::<f64, _>("kolmogc", "d-d", |x: &[f64]| kolmogc(x[0]));
+        crate::xsref::test("kolmogc", "d-d", |x| crate::kolmogc(x[0]));
     }
 
     #[test]
     fn test_kolmogi() {
-        xsref::test::<f64, _>("kolmogi", "d-d", |x: &[f64]| kolmogi(x[0]));
+        crate::xsref::test("kolmogi", "d-d", |x| crate::kolmogi(x[0]));
     }
 
     #[test]
     fn test_kolmogci() {
-        xsref::test::<f64, _>("kolmogci", "d-d", |x: &[f64]| kolmogci(x[0]));
+        crate::xsref::test("kolmogci", "d-d", |x| crate::kolmogci(x[0]));
     }
 
     #[test]
     fn test_kolmogp() {
-        xsref::test::<f64, _>("kolmogp", "d-d", |x: &[f64]| kolmogp(x[0]));
+        crate::xsref::test("kolmogp", "d-d", |x| crate::kolmogp(x[0]));
     }
 
     #[test]
     fn test_smirnov() {
-        xsref::test::<f64, _>("smirnov", "p_d-d", |x: &[f64]| smirnov(x[0] as i32, x[1]));
+        crate::xsref::test("smirnov", "p_d-d", |x| crate::smirnov(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovc() {
-        xsref::test::<f64, _>("smirnovc", "p_d-d", |x: &[f64]| smirnovc(x[0] as i32, x[1]));
+        crate::xsref::test("smirnovc", "p_d-d", |x| crate::smirnovc(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovi() {
-        xsref::test::<f64, _>("smirnovi", "p_d-d", |x: &[f64]| smirnovi(x[0] as i32, x[1]));
+        crate::xsref::test("smirnovi", "p_d-d", |x| crate::smirnovi(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_smirnovci() {
-        xsref::test::<f64, _>("smirnovci", "p_d-d", |x: &[f64]| {
-            smirnovci(x[0] as i32, x[1])
+        crate::xsref::test("smirnovci", "p_d-d", |x| {
+            crate::smirnovci(x[0] as i32, x[1])
         });
     }
 
     #[test]
     fn test_smirnovp() {
-        xsref::test::<f64, _>("smirnovp", "p_d-d", |x: &[f64]| smirnovp(x[0] as i32, x[1]));
+        crate::xsref::test("smirnovp", "p_d-d", |x| crate::smirnovp(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_owens_t() {
-        xsref::test::<f64, _>("owens_t", "d_d-d", |x: &[f64]| owens_t(x[0], x[1]));
+        crate::xsref::test("owens_t", "d_d-d", |x| crate::owens_t(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtr() {
-        xsref::test::<f64, _>("chdtr", "d_d-d", |x: &[f64]| chdtr(x[0], x[1]));
+        crate::xsref::test("chdtr", "d_d-d", |x| crate::chdtr(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtrc() {
-        xsref::test::<f64, _>("chdtrc", "d_d-d", |x: &[f64]| chdtrc(x[0], x[1]));
+        crate::xsref::test("chdtrc", "d_d-d", |x| crate::chdtrc(x[0], x[1]));
     }
 
     #[test]
     fn test_chdtri() {
-        xsref::test::<f64, _>("chdtri", "d_d-d", |x: &[f64]| chdtri(x[0], x[1]));
+        crate::xsref::test("chdtri", "d_d-d", |x| crate::chdtri(x[0], x[1]));
     }
 
     #[test]
     fn test_fdtr() {
-        xsref::test::<f64, _>("fdtr", "d_d_d-d", |x: &[f64]| fdtr(x[0], x[1], x[2]));
+        crate::xsref::test("fdtr", "d_d_d-d", |x| crate::fdtr(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_fdtrc() {
-        xsref::test::<f64, _>("fdtrc", "d_d_d-d", |x: &[f64]| fdtrc(x[0], x[1], x[2]));
+        crate::xsref::test("fdtrc", "d_d_d-d", |x| crate::fdtrc(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_fdtri() {
-        xsref::test::<f64, _>("fdtri", "d_d_d-d", |x: &[f64]| fdtri(x[0], x[1], x[2]));
+        crate::xsref::test("fdtri", "d_d_d-d", |x| crate::fdtri(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_gdtr() {
-        xsref::test::<f64, _>("gdtr", "d_d_d-d", |x: &[f64]| gdtr(x[0], x[1], x[2]));
+        crate::xsref::test("gdtr", "d_d_d-d", |x| crate::gdtr(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_gdtrc() {
-        xsref::test::<f64, _>("gdtrc", "d_d_d-d", |x: &[f64]| gdtrc(x[0], x[1], x[2]));
+        crate::xsref::test("gdtrc", "d_d_d-d", |x| crate::gdtrc(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_pdtr() {
-        xsref::test::<f64, _>("pdtr", "d_d-d", |x: &[f64]| pdtr(x[0], x[1]));
+        crate::xsref::test("pdtr", "d_d-d", |x| crate::pdtr(x[0], x[1]));
     }
 
     #[test]
     fn test_pdtrc() {
-        xsref::test::<f64, _>("pdtrc", "d_d-d", |x: &[f64]| pdtrc(x[0], x[1]));
+        crate::xsref::test("pdtrc", "d_d-d", |x| crate::pdtrc(x[0], x[1]));
     }
 
     #[test]
     fn test_pdtri() {
-        xsref::test::<f64, _>("pdtri", "p_d-d", |x: &[f64]| pdtri(x[0] as i32, x[1]));
+        crate::xsref::test("pdtri", "p_d-d", |x| crate::pdtri(x[0] as i32, x[1]));
     }
 
     #[test]
     fn test_bdtr() {
-        xsref::test::<f64, _>("bdtr", "d_p_d-d", |x: &[f64]| bdtr(x[0], x[1] as i32, x[2]));
+        crate::xsref::test("bdtr", "d_p_d-d", |x| crate::bdtr(x[0], x[1] as i32, x[2]));
     }
 
     #[test]
     fn test_bdtrc() {
-        xsref::test::<f64, _>("bdtrc", "d_p_d-d", |x: &[f64]| {
-            bdtrc(x[0], x[1] as i32, x[2])
+        crate::xsref::test("bdtrc", "d_p_d-d", |x| {
+            crate::bdtrc(x[0], x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_bdtri() {
-        xsref::test::<f64, _>("bdtri", "d_p_d-d", |x: &[f64]| {
-            bdtri(x[0], x[1] as i32, x[2])
+        crate::xsref::test("bdtri", "d_p_d-d", |x| {
+            crate::bdtri(x[0], x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_nbdtr() {
-        xsref::test::<f64, _>("nbdtr", "p_p_d-d", |x: &[f64]| {
-            nbdtr(x[0] as i32, x[1] as i32, x[2])
+        crate::xsref::test("nbdtr", "p_p_d-d", |x| {
+            crate::nbdtr(x[0] as i32, x[1] as i32, x[2])
         });
     }
 
     #[test]
     fn test_nbdtrc() {
-        xsref::test::<f64, _>("nbdtrc", "p_p_d-d", |x: &[f64]| {
-            nbdtrc(x[0] as i32, x[1] as i32, x[2])
+        crate::xsref::test("nbdtrc", "p_p_d-d", |x| {
+            crate::nbdtrc(x[0] as i32, x[1] as i32, x[2])
         });
     }
 }

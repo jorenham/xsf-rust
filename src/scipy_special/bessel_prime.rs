@@ -1,6 +1,5 @@
 //! Derivatives of Bessel functions
 use crate::xsf::bessel::BesselArg;
-use num_complex::Complex;
 
 /// Translated from https://github.com/scipy/scipy/blob/9531cc5/scipy/special/_basic.py#L803-L814
 #[inline(always)]
@@ -77,8 +76,8 @@ pub fn bessel_k_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
 ///
 /// [scipy-h1vp]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.h1vp.html
 #[doc(alias = "h1vp")]
-pub fn hankel_1_prime<T: BesselArg>(v: f64, z: T, n: u32) -> Complex<f64> {
-    _bessel_diff_formula::<Complex<f64>, _>(v, n, |v| z.hankel_1(v), -1.0)
+pub fn hankel_1_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Complex<f64> {
+    _bessel_diff_formula(v, n, |v| z.hankel_1(v), -1.0)
 }
 
 /// Compute the *n*<sup>th</sup> derivative of [`hankel_2(v, z)`](crate::hankel_2) w.r.t. `z`
@@ -87,13 +86,12 @@ pub fn hankel_1_prime<T: BesselArg>(v: f64, z: T, n: u32) -> Complex<f64> {
 ///
 /// [scipy-h2vp]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.h2vp.html
 #[doc(alias = "h2vp")]
-pub fn hankel_2_prime<T: BesselArg>(v: f64, z: T, n: u32) -> Complex<f64> {
-    _bessel_diff_formula::<Complex<f64>, _>(v, n, |v| z.hankel_2(v), -1.0)
+pub fn hankel_2_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Complex<f64> {
+    _bessel_diff_formula(v, n, |v| z.hankel_2(v), -1.0)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::testing::np_assert_allclose;
 
     const ATOL: f64 = 1.5e-10;
@@ -102,7 +100,7 @@ mod tests {
     #[test]
     fn test_bessel_j_prime() {
         // jvprim = special.jvp(2,2)
-        let jvprim = bessel_j_prime(2.0, 2.0, 1);
+        let jvprim = crate::bessel_j_prime(2.0, 2.0, 1);
         // jv0 = (special.jv(1,2)-special.jv(3,2))/2
         let jv0 = (crate::bessel_j(1.0, 2.0) - crate::bessel_j(3.0, 2.0)) * 0.5;
         // assert_allclose(jvprim, jv0, atol=1.5e-10, rtol=0)
@@ -115,7 +113,7 @@ mod tests {
         // yvpr = (special.yv(1,.2) - special.yv(3,.2))/2.0
         let yvpr = (crate::bessel_y(1.0, 0.2) - crate::bessel_y(3.0, 0.2)) * 0.5;
         // yvp1 = special.yvp(2,.2)
-        let yvp1 = bessel_y_prime(2.0, 0.2, 1);
+        let yvp1 = crate::bessel_y_prime(2.0, 0.2, 1);
         // assert_allclose(yvp1, yvpr, atol=1.5e-10, rtol=0)
         np_assert_allclose(&[yvp1], &[yvpr], 0.0, ATOL);
     }
@@ -126,7 +124,7 @@ mod tests {
         // assert_allclose(special.iv(1, 2), special.ivp(0, 2), atol=1.5e-10, rtol=0)
         np_assert_allclose(
             &[crate::bessel_i(1.0, 2.0)],
-            &[bessel_i_prime(0.0, 2.0, 1)],
+            &[crate::bessel_i_prime(0.0, 2.0, 1)],
             0.0,
             ATOL,
         );
@@ -138,7 +136,7 @@ mod tests {
         // y = (special.iv(0,2) + special.iv(2,2))/2
         let y = (crate::bessel_i(0.0, 2.0) + crate::bessel_i(2.0, 2.0)) * 0.5;
         // x = special.ivp(1,2)
-        let x = bessel_i_prime(1.0, 2.0, 1);
+        let x = crate::bessel_i_prime(1.0, 2.0, 1);
         // assert_allclose(x, y, atol=1.5e-10, rtol=0)
         np_assert_allclose(&[x], &[y], 0.0, ATOL);
     }
@@ -151,7 +149,7 @@ mod tests {
         // assert_allclose(-special.kv(1, z), special.kvp(0, z, n=1), atol=1.5e-10, rtol=0)
         np_assert_allclose(
             &[-crate::bessel_k(1.0, Z)],
-            &[bessel_k_prime(0.0, Z, 1)],
+            &[crate::bessel_k_prime(0.0, Z, 1)],
             0.0,
             ATOL,
         );
@@ -167,7 +165,7 @@ mod tests {
         // xc = -special.kv(v+1,z) + v/z*special.kv(v,z)
         let xc = -crate::bessel_k(V + 1.0, Z) + V / Z * crate::bessel_k(V, Z);
         // x = special.kvp(v,z, n=1)
-        let x = bessel_k_prime(V, Z, 1);
+        let x = crate::bessel_k_prime(V, Z, 1);
         // assert_allclose(xc, x, atol=1.5e-10, rtol=0)
         np_assert_allclose(&[x], &[xc], 0.0, ATOL);
     }
@@ -183,7 +181,7 @@ mod tests {
         const Z2: f64 = Z * Z;
         let xc = (Z2 + V * V - V) / Z2 * crate::bessel_k(V, Z) + crate::bessel_k(V + 1.0, Z) / Z;
         // x = special.kvp(v, z, n=2)
-        let x = bessel_k_prime(V, Z, 2);
+        let x = crate::bessel_k_prime(V, Z, 2);
         // assert_allclose(xc, x, atol=1.5e-10, rtol=0)
         np_assert_allclose(&[x], &[xc], 0.0, ATOL);
     }

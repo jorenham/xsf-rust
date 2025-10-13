@@ -15,14 +15,12 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
     #[test]
     fn test_lambertw_c64() {
-        xsref::test::<Complex<f64>, _>("lambertw", "cd_p_d-cd", |x: &[f64]| {
-            lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
+        crate::xsref::test("lambertw", "cd_p_d-cd", |x| {
+            crate::lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
         });
     }
 }

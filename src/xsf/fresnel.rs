@@ -8,16 +8,13 @@ mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait FresnelArg: sealed::Sealed {
-    type Output;
-    fn fresnel(self) -> (Self::Output, Self::Output);
+pub trait FresnelArg: sealed::Sealed + Sized {
+    fn fresnel(self) -> (Self, Self);
 }
 
 impl FresnelArg for f64 {
-    type Output = f64;
-
     #[inline(always)]
-    fn fresnel(self) -> (Self::Output, Self::Output) {
+    fn fresnel(self) -> (Self, Self) {
         let (mut fs, mut fc) = (f64::NAN, f64::NAN);
         unsafe {
             crate::ffi::xsf::fresnel(self, &mut fs, &mut fc);
@@ -27,10 +24,8 @@ impl FresnelArg for f64 {
 }
 
 impl FresnelArg for Complex<f64> {
-    type Output = Complex<f64>;
-
     #[inline(always)]
-    fn fresnel(self) -> (Self::Output, Self::Output) {
+    fn fresnel(self) -> (Self, Self) {
         let (mut fs, mut fc) = (f64::NAN.into(), f64::NAN.into());
         unsafe {
             crate::ffi::xsf::fresnel_1(self.into(), &mut fs, &mut fc);
@@ -51,7 +46,7 @@ impl FresnelArg for Complex<f64> {
 /// - [`fresnel_zeros`] - Zeros of S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
-pub fn fresnel<T: FresnelArg>(z: T) -> (T::Output, T::Output) {
+pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
     z.fresnel()
 }
 
@@ -115,60 +110,48 @@ pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
-
-    // fresnel
+    use num_complex::c64;
 
     #[test]
     fn test_fresnel_f64() {
-        xsref::test::<(f64, f64), _>("fresnel", "d-d_d", |x: &[f64]| fresnel(x[0]));
+        crate::xsref::test("fresnel", "d-d_d", |x| crate::fresnel(x[0]));
     }
 
     #[test]
     fn test_fresnel_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>), _>("fresnel", "cd-cd_cd", |x: &[f64]| {
-            fresnel(c64(x[0], x[1]))
-        });
+        crate::xsref::test("fresnel", "cd-cd_cd", |x| crate::fresnel(c64(x[0], x[1])));
     }
-
-    // modified_fresnel_plus
 
     #[test]
     fn test_modified_fresnel_plus_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>), _>(
-            "modified_fresnel_plus",
-            "d-cd_cd",
-            |x: &[f64]| modified_fresnel_plus(x[0]),
-        );
+        crate::xsref::test("modified_fresnel_plus", "d-cd_cd", |x| {
+            crate::modified_fresnel_plus(x[0])
+        });
     }
-
-    // modified_fresnel_minus
 
     #[test]
     fn test_modified_fresnel_minus_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>), _>(
-            "modified_fresnel_minus",
-            "d-cd_cd",
-            |x: &[f64]| modified_fresnel_minus(x[0]),
-        );
-    }
-
-    // fresnel_zeros
-
-    fn assert_allclose(actual: &[Complex<f64>], expected: &[Complex<f64>], atol: f64) {
-        assert_eq!(actual.len(), expected.len());
-        for (&a, &e) in actual.iter().zip(expected.iter()) {
-            assert!((a - e).norm() <= atol);
-        }
+        crate::xsref::test("modified_fresnel_minus", "d-cd_cd", |x| {
+            crate::modified_fresnel_minus(x[0])
+        });
     }
 
     /// Ported from `scipy.special.tests.test_basic.TestFresnel.test_fresnel_zeros`
     #[test]
     fn test_fresnel_zeros() {
+        fn assert_allclose(
+            actual: &[num_complex::Complex<f64>],
+            expected: &[num_complex::Complex<f64>],
+            atol: f64,
+        ) {
+            assert_eq!(actual.len(), expected.len());
+            for (&a, &e) in actual.iter().zip(expected.iter()) {
+                assert!((a - e).norm() <= atol);
+            }
+        }
+
         // szo, czo = special.fresnel_zeros(5)
-        let (szo, czo) = fresnel_zeros(5);
+        let (szo, czo) = crate::fresnel_zeros(5);
         assert_allclose(
             &szo,
             &[
@@ -193,9 +176,9 @@ mod tests {
         );
 
         // vals1 = special.fresnel(szo)[0]
-        let vals1 = szo.iter().map(|&z| fresnel(z).0);
+        let vals1 = szo.iter().map(|&z| crate::fresnel(z).0);
         // vals2 = special.fresnel(czo)[1]
-        let vals2 = czo.iter().map(|&z| fresnel(z).1);
+        let vals2 = czo.iter().map(|&z| crate::fresnel(z).1);
         // assert_allclose(vals1, 0, atol=1.5e-14, rtol=0)
         for val1 in vals1 {
             assert!(val1.norm() < 1.5e-14);

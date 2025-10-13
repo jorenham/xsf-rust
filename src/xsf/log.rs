@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -14,7 +12,7 @@ pub trait LogArg: sealed::Sealed {
 
 impl LogArg for f64 {
     #[inline(always)]
-    fn xsf_log1p(self) -> f64 {
+    fn xsf_log1p(self) -> Self {
         unsafe { crate::ffi::xsf::log1p(self) }
     }
 
@@ -29,9 +27,9 @@ impl LogArg for f64 {
     }
 }
 
-impl LogArg for Complex<f64> {
+impl LogArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn xsf_log1p(self) -> Complex<f64> {
+    fn xsf_log1p(self) -> Self {
         unsafe { crate::ffi::xsf::log1p_1(self.into()) }.into()
     }
 
@@ -80,46 +78,44 @@ pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
     #[test]
     fn test_log1p_f64() {
-        xsref::test::<f64, _>("log1p", "d-d", |x: &[f64]| log1p(x[0]));
+        crate::xsref::test("log1p", "d-d", |x| crate::log1p(x[0]));
     }
 
     #[test]
     fn test_log1p_c64() {
-        xsref::test::<Complex<f64>, _>("log1p", "cd-cd", |x: &[f64]| log1p(c64(x[0], x[1])));
+        crate::xsref::test("log1p", "cd-cd", |x| crate::log1p(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_log1pmx_f64() {
-        xsref::test::<f64, _>("log1pmx", "d-d", |x: &[f64]| log1pmx(x[0]));
+        crate::xsref::test("log1pmx", "d-d", |x| crate::log1pmx(x[0]));
     }
 
     #[test]
     fn test_xlogy_f64() {
-        xsref::test::<f64, _>("xlogy", "d_d-d", |x: &[f64]| xlogy(x[0], x[1]));
+        crate::xsref::test("xlogy", "d_d-d", |x| crate::xlogy(x[0], x[1]));
     }
 
     #[test]
     fn test_xlogy_c64() {
-        xsref::test::<Complex<f64>, _>("xlogy", "cd_cd-cd", |x: &[f64]| {
-            xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
+        crate::xsref::test("xlogy", "cd_cd-cd", |x| {
+            crate::xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }
 
     #[test]
     fn test_xlog1py_f64() {
-        xsref::test::<f64, _>("xlog1py", "d_d-d", |x: &[f64]| xlog1py(x[0], x[1]));
+        crate::xsref::test("xlog1py", "d_d-d", |x| crate::xlog1py(x[0], x[1]));
     }
 
     #[test]
     fn test_xlog1py_c64() {
-        xsref::test::<Complex<f64>, _>("xlog1py", "cd_cd-cd", |x: &[f64]| {
-            xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
+        crate::xsref::test("xlog1py", "cd_cd-cd", |x| {
+            crate::xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }
 }

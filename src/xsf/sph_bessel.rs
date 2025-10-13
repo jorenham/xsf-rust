@@ -1,5 +1,4 @@
 use core::ffi::c_long;
-use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}
@@ -53,7 +52,7 @@ impl SphBesselArg for f64 {
     }
 }
 
-impl SphBesselArg for Complex<f64> {
+impl SphBesselArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn sph_bessel_j(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_j_1(n, self.into()) }.into()
