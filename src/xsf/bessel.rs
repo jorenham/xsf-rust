@@ -547,9 +547,8 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     let n1 = if n < 1 { 1 } else { n };
     let v1 = v0 + n1 as f64;
 
-    let size = n + 1;
-    let mut vl = vec![f64::NAN; size];
-    let mut dl = vec![f64::NAN; size];
+    let size = v1 as usize + 1;
+    let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
     unsafe {
         if v != v.floor() {
             crate::ffi::xsf::lamv(v1, x, vl.as_mut_ptr(), dl.as_mut_ptr());
@@ -558,7 +557,9 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
         }
     };
 
-    (vl[..=n].to_vec(), dl[..=n].to_vec())
+    vl.resize(n + 1, f64::NAN);
+    dl.resize(n + 1, f64::NAN);
+    (vl, dl)
 }
 
 // Tests
