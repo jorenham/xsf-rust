@@ -17,46 +17,46 @@ pub trait ErfArg: sealed::Sealed {
 
 impl ErfArg for f64 {
     #[inline(always)]
-    fn erf(self) -> f64 {
+    fn erf(self) -> Self {
         unsafe { crate::ffi::xsf::erf(self) }
     }
     #[inline(always)]
-    fn erfc(self) -> f64 {
+    fn erfc(self) -> Self {
         unsafe { crate::ffi::xsf::erfc(self) }
     }
     #[inline(always)]
-    fn erfcx(self) -> f64 {
+    fn erfcx(self) -> Self {
         unsafe { crate::ffi::xsf::erfcx(self) }
     }
     #[inline(always)]
-    fn erfi(self) -> f64 {
+    fn erfi(self) -> Self {
         unsafe { crate::ffi::xsf::erfi(self) }
     }
     #[inline(always)]
-    fn dawsn(self) -> f64 {
+    fn dawsn(self) -> Self {
         unsafe { crate::ffi::xsf::dawsn(self) }
     }
 }
 
 impl ErfArg for Complex<f64> {
     #[inline(always)]
-    fn erf(self) -> Complex<f64> {
+    fn erf(self) -> Self {
         unsafe { crate::ffi::xsf::erf_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn erfc(self) -> Complex<f64> {
+    fn erfc(self) -> Self {
         unsafe { crate::ffi::xsf::erfc_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn erfcx(self) -> Complex<f64> {
+    fn erfcx(self) -> Self {
         unsafe { crate::ffi::xsf::erfcx_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn erfi(self) -> Complex<f64> {
+    fn erfi(self) -> Self {
         unsafe { crate::ffi::xsf::erfi_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn dawsn(self) -> Complex<f64> {
+    fn dawsn(self) -> Self {
         unsafe { crate::ffi::xsf::dawsn_1(self.into()) }.into()
     }
 }
@@ -116,55 +116,54 @@ pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use crate::testing::np_assert_allclose;
-    use crate::xsref;
     use num_complex::c64;
 
     // erf
 
     #[test]
     fn test_erf_f64() {
-        xsref::test("erf", "d-d", |x: &[f64]| crate::erf(x[0]));
+        crate::xsref::test("erf", "d-d", |x| crate::erf(x[0]));
     }
 
     #[test]
     fn test_erf_c64() {
-        xsref::test("erf", "cd-cd", |x: &[f64]| crate::erf(c64(x[0], x[1])));
+        crate::xsref::test("erf", "cd-cd", |x| crate::erf(c64(x[0], x[1])));
     }
 
     // erfc
 
     #[test]
     fn test_erfc_f64() {
-        xsref::test("erfc", "d-d", |x: &[f64]| crate::erfc(x[0]));
+        crate::xsref::test("erfc", "d-d", |x| crate::erfc(x[0]));
     }
 
     #[test]
     fn test_erfc_c64() {
-        xsref::test("erfc", "cd-cd", |x: &[f64]| crate::erfc(c64(x[0], x[1])));
+        crate::xsref::test("erfc", "cd-cd", |x| crate::erfc(c64(x[0], x[1])));
     }
 
     // erfcx
 
     #[test]
     fn test_erfcx_f64() {
-        xsref::test("erfcx", "d-d", |x: &[f64]| crate::erfcx(x[0]));
+        crate::xsref::test("erfcx", "d-d", |x| crate::erfcx(x[0]));
     }
 
     #[test]
     fn test_erfcx_c64() {
-        xsref::test("erfcx", "cd-cd", |x: &[f64]| crate::erfcx(c64(x[0], x[1])));
+        crate::xsref::test("erfcx", "cd-cd", |x| crate::erfcx(c64(x[0], x[1])));
     }
 
     // erfi
 
     #[test]
     fn test_erfi_f64() {
-        xsref::test("erfi", "d-d", |x: &[f64]| crate::erfi(x[0]));
+        crate::xsref::test("erfi", "d-d", |x| crate::erfi(x[0]));
     }
 
     #[test]
     fn test_erfi_c64() {
-        xsref::test("erfi", "cd-cd", |x: &[f64]| crate::erfi(c64(x[0], x[1])));
+        crate::xsref::test("erfi", "cd-cd", |x| crate::erfi(c64(x[0], x[1])));
     }
 
     // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
@@ -194,26 +193,26 @@ mod tests {
 
     #[test]
     fn test_dawsn_f64() {
-        xsref::test("dawsn", "d-d", |x: &[f64]| crate::dawsn(x[0]));
+        crate::xsref::test("dawsn", "d-d", |x| crate::dawsn(x[0]));
     }
 
     #[test]
     fn test_dawsn_c64() {
-        xsref::test("dawsn", "cd-cd", |x: &[f64]| crate::dawsn(c64(x[0], x[1])));
+        crate::xsref::test("dawsn", "cd-cd", |x| crate::dawsn(c64(x[0], x[1])));
     }
 
     // wofz
 
     #[test]
     fn test_wofz() {
-        xsref::test("wofz", "cd-cd", |x: &[f64]| crate::wofz(c64(x[0], x[1])));
+        crate::xsref::test("wofz", "cd-cd", |x| crate::wofz(c64(x[0], x[1])));
     }
 
     // voigt_profile
 
     #[test]
     fn test_voigt_profile() {
-        xsref::test("voigt_profile", "d_d_d-d", |x: &[f64]| {
+        crate::xsref::test("voigt_profile", "d_d_d-d", |x| {
             crate::voigt_profile(x[0], x[1], x[2])
         });
     }

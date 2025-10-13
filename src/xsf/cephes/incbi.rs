@@ -1,8 +1,6 @@
-use crate::ffi;
-
 #[inline(always)]
 fn incbi(a: f64, b: f64, y: f64) -> f64 {
-    unsafe { ffi::xsf::incbi(a, b, y) }
+    unsafe { crate::ffi::xsf::incbi(a, b, y) }
 }
 
 /// Inverse of the regularized incomplete beta function
@@ -28,7 +26,6 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::testing::np_assert_allclose;
 
     // based on scipy.special.tests.test_basic.TestBetaInc
@@ -37,7 +34,7 @@ mod tests {
     fn test_betaincinv_a1_b1() {
         // betaincinv(1, 1, x) is x.
         let x = [0.0, 0.25, 1.0];
-        assert_eq!(x.map(|xv| betaincinv(1.0, 1.0, xv)), x);
+        assert_eq!(x.map(|xv| crate::betaincinv(1.0, 1.0, xv)), x);
     }
 
     #[test]
@@ -57,7 +54,7 @@ mod tests {
             // scipy/scipy#12796 (NOTE: this results in a relative error of 1.787e2)
             // (4.0, 99997.0, 0.0001947841578892121, 0.999995),
         ] {
-            let x1 = betaincinv(a, b, p);
+            let x1 = crate::betaincinv(a, b, p);
             np_assert_allclose(&[x1], &[x], 5e-13, 0.0);
         }
     }
@@ -92,7 +89,7 @@ mod tests {
             // NOTE: This results in a relative error of 3.806e-11
             // (4.0, 99997.0, 5e-88, 3.309800566862242e-27),
         ] {
-            let x = betaincinv(a, b, y);
+            let x = crate::betaincinv(a, b, y);
             np_assert_allclose(&[x], &[ref_], 1e-14, 0.0);
         }
     }
@@ -102,7 +99,7 @@ mod tests {
         // Test for scipy/scipy#21426: betaincinv must not return NaN
         let a = 5.0;
         let x = 0.5;
-        let result = betaincinv(a, a, x);
+        let result = crate::betaincinv(a, a, x);
         np_assert_allclose(&[result], &[0.5], 10.0 * f64::EPSILON, 0.0);
     }
 }

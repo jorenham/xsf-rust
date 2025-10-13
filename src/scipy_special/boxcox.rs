@@ -127,7 +127,6 @@ pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::testing::{np_assert_allclose, np_assert_equal};
 
     fn map2<X1, X2, Y, const N: usize>(f: fn(X1, X2) -> Y, x1: &[X1; N], x2: &[X2; N]) -> [Y; N]
@@ -145,23 +144,23 @@ mod tests {
         let x = [0.5, 1.0, 2.0, 4.0];
 
         // lambda = 0  =>  y = log(x)
-        let y = map2(boxcox, &x, &[0.0; 4]);
+        let y = map2(crate::boxcox, &x, &[0.0; 4]);
         let expected = x.map(|xi| xi.ln());
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
 
         // lambda = 1  =>  y = x - 1
-        let y = map2(boxcox, &x, &[1.0; 4]);
+        let y = map2(crate::boxcox, &x, &[1.0; 4]);
         let expected = x.map(|xi| xi - 1.0);
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
 
         // lambda = 2  =>  y = 0.5*(x**2 - 1)
-        let y = map2(boxcox, &x, &[2.0; 4]);
+        let y = map2(crate::boxcox, &x, &[2.0; 4]);
         let expected = x.map(|xi| 0.5 * (xi * xi - 1.0));
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
 
         // x = 0 and lambda > 0  =>  y = -1 / lambda
         let lam = [0.5, 1.0, 2.0];
-        let y = map2(boxcox, &[0.0; 3], &lam);
+        let y = map2(crate::boxcox, &[0.0; 3], &lam);
         let expected = lam.map(|l| -1.0 / l);
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
     }
@@ -170,7 +169,7 @@ mod tests {
     fn test_boxcox_underflow() {
         let x = 1.0 + 1e-15;
         let lmbda = 1e-306;
-        let y = boxcox(x, lmbda);
+        let y = crate::boxcox(x, lmbda);
         np_assert_allclose(&[y], &[x.ln()], 1e-14, 0.0);
     }
 
@@ -178,12 +177,12 @@ mod tests {
     fn test_boxcox_nonfinite() {
         // x < 0  =>  y = nan
         let x = [-1.0, -1.0, -0.5];
-        let y = map2(boxcox, &x, &[0.5, 2.0, -1.5]);
+        let y = map2(crate::boxcox, &x, &[0.5, 2.0, -1.5]);
         np_assert_equal(&y, &[f64::NAN; 3]);
 
         // x = 0 and lambda <= 0  =>  y = -inf
         let x = 0.0;
-        let y = map2(boxcox, &[x; 2], &[-2.5, 0.0]);
+        let y = map2(crate::boxcox, &[x; 2], &[-2.5, 0.0]);
         np_assert_equal(&y, &[f64::NEG_INFINITY; 2]);
     }
 
@@ -192,22 +191,22 @@ mod tests {
         let x = [-0.25, -1e-20, 0.0, 1e-20, 0.25, 1.0, 3.0];
 
         // lambda = 0  =>  y = log(1+x)
-        let y = map2(boxcox1p, &x, &[0.0; 7]);
+        let y = map2(crate::boxcox1p, &x, &[0.0; 7]);
         let expected = x.map(|xi| (1.0 + xi).ln());
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
 
         // lambda = 1  =>  y = x
-        let y = map2(boxcox1p, &x, &[1.0; 7]);
+        let y = map2(crate::boxcox1p, &x, &[1.0; 7]);
         np_assert_allclose(&y, &x, 0.0, 1.5e-7);
 
         // lambda = 2  =>  y = 0.5*((1+x)**2 - 1) = 0.5*x*(2 + x)
-        let y = map2(boxcox1p, &x, &[2.0; 7]);
+        let y = map2(crate::boxcox1p, &x, &[2.0; 7]);
         let expected = x.map(|xi| 0.5 * (xi * xi + 2.0 * xi));
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
 
         // x = -1 and lambda > 0  =>  y = -1 / lambda
         let lam = [0.5, 1.0, 2.0];
-        let y = map2(boxcox1p, &[-1.0; 3], &lam);
+        let y = map2(crate::boxcox1p, &[-1.0; 3], &lam);
         let expected = lam.map(|l| -1.0 / l);
         np_assert_allclose(&y, &expected, 0.0, 1.5e-7);
     }
@@ -216,7 +215,7 @@ mod tests {
     fn test_boxcox1p_underflow() {
         let x = [1e-15, 1e-306];
         let lmbda = [1e-306, 1e-18];
-        let y = map2(boxcox1p, &x, &lmbda);
+        let y = map2(crate::boxcox1p, &x, &lmbda);
         np_assert_allclose(&y, &x, 1e-14, 0.0);
     }
 
@@ -224,12 +223,12 @@ mod tests {
     fn test_boxcox1p_nonfinite() {
         // x < -1  =>  y = nan
         let x = [-2.0, -2.0, -1.5];
-        let y = map2(boxcox1p, &x, &[0.5, 2.0, -1.5]);
+        let y = map2(crate::boxcox1p, &x, &[0.5, 2.0, -1.5]);
         np_assert_equal(&y, &[f64::NAN; 3]);
 
         // x = -1 and lambda <= 0  =>  y = -inf
         let x = -1.0;
-        let y = map2(boxcox1p, &[x; 2], &[-2.5, 0.0]);
+        let y = map2(crate::boxcox1p, &[x; 2], &[-2.5, 0.0]);
         np_assert_equal(&y, &[f64::NEG_INFINITY; 2]);
     }
 
@@ -237,14 +236,14 @@ mod tests {
     fn test_inv_boxcox() {
         let x = [0.0, 1.0, 2.0];
         let lam = [0.0, 1.0, 2.0];
-        let y = map2(boxcox, &x, &lam);
-        let x2 = map2(inv_boxcox, &y, &lam);
+        let y = map2(crate::boxcox, &x, &lam);
+        let x2 = map2(crate::inv_boxcox, &y, &lam);
         np_assert_allclose(&x, &x2, 0.0, 1.5e-7);
 
         let x = [0.0, 1.0, 2.0];
         let lam = [0.0, 1.0, 2.0];
-        let y = map2(boxcox1p, &x, &lam);
-        let x2 = map2(inv_boxcox1p, &y, &lam);
+        let y = map2(crate::boxcox1p, &x, &lam);
+        let x2 = map2(crate::inv_boxcox1p, &y, &lam);
         np_assert_allclose(&x, &x2, 0.0, 1.5e-7);
     }
 
@@ -252,7 +251,7 @@ mod tests {
     fn test_inv_boxcox1p_underflow() {
         let x = 1e-15;
         let lam = 1e-306;
-        let y = inv_boxcox1p(x, lam);
+        let y = crate::inv_boxcox1p(x, lam);
         np_assert_allclose(&[y], &[x], 1e-14, 0.0);
     }
 
@@ -262,16 +261,16 @@ mod tests {
         let lmb = [0.01, -155.0];
 
         // test boxcox & inv_boxcox
-        let y = map2(boxcox, &x, &lmb);
+        let y = map2(crate::boxcox, &x, &lmb);
         assert!(y.iter().all(|&v| v.is_finite()));
-        let x_inv = map2(inv_boxcox, &y, &lmb);
+        let x_inv = map2(crate::inv_boxcox, &y, &lmb);
         np_assert_allclose(&x, &x_inv, 1e-7, f64::EPSILON);
 
         // test boxcox1p & inv_boxcox1p
         let x1m = x.map(|v| v - 1.0);
-        let y1p = map2(boxcox1p, &x1m, &lmb);
+        let y1p = map2(crate::boxcox1p, &x1m, &lmb);
         assert!(y1p.iter().all(|&v| v.is_finite()));
-        let x1p_inv = map2(inv_boxcox1p, &y1p, &lmb);
+        let x1p_inv = map2(crate::inv_boxcox1p, &y1p, &lmb);
         np_assert_allclose(&x1m, &x1p_inv, 1e-7, f64::EPSILON);
     }
 }

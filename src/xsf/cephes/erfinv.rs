@@ -1,5 +1,3 @@
-use crate::ffi;
-
 /// Inverse of the error function [*erf(x)*](crate::erf)
 ///
 /// In the complex domain, there is no unique complex number w satisfying erf(w)=z.
@@ -12,7 +10,7 @@ use crate::ffi;
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
 #[doc(alias = "erf_inv")]
 pub fn erfinv(y: f64) -> f64 {
-    unsafe { ffi::xsf::erfinv(y) }
+    unsafe { crate::ffi::xsf::erfinv(y) }
 }
 
 /// Inverse of the complementary error function [*erfc(x)*](crate::erfc)
@@ -28,20 +26,16 @@ pub fn erfinv(y: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
 #[doc(alias = "erfc_inv")]
 pub fn erfcinv(y: f64) -> f64 {
-    unsafe { ffi::xsf::erfcinv(y) }
+    unsafe { crate::ffi::xsf::erfcinv(y) }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::testing::np_assert_allclose;
-    use crate::xsref;
-
-    // based on `scipy.special.tests.test_TestInverseErrorFunction.test_literal_values`
+    /// Based on `scipy.special.tests.test_TestInverseErrorFunction.test_literal_values`
     #[test]
     fn test_erfinv_literal_values() {
         let y = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-        let actual = y.map(erfinv);
+        let actual = y.map(crate::erfinv);
         let expected = [
             0.0,
             0.08885599049425769,
@@ -54,11 +48,11 @@ mod tests {
             0.9061938024368233,
             1.1630871536766743,
         ];
-        np_assert_allclose(&actual, &expected, 0.0, 1e-15);
+        crate::testing::np_assert_allclose(&actual, &expected, 0.0, 1e-15);
     }
 
     #[test]
     fn test_erfcinv() {
-        xsref::test::<f64, _>("erfcinv", "d-d", |x: &[f64]| erfcinv(x[0]));
+        crate::xsref::test("erfcinv", "d-d", |x| crate::erfcinv(x[0]));
     }
 }

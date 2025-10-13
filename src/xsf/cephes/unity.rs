@@ -1,10 +1,8 @@
-use crate::ffi;
-
 /// see `scipy.special._ufuncs._lgam1p`
 #[doc(hidden)]
 #[inline(always)]
 pub fn lgam1p(x: f64) -> f64 {
-    unsafe { ffi::xsf::lgam1p(x) }
+    unsafe { crate::ffi::xsf::lgam1p(x) }
 }
 
 #[cfg(test)]

@@ -1,8 +1,6 @@
-use crate::ffi;
-
 #[inline(always)]
 fn incbet(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { ffi::xsf::incbet(a, b, x) }
+    unsafe { crate::ffi::xsf::incbet(a, b, x) }
 }
 
 /// Regularized incomplete beta function
@@ -56,7 +54,6 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::testing::{np_assert_allclose, np_assert_equal};
 
     // based on scipy.special.tests.test_basic.TestBetaInc
@@ -65,7 +62,7 @@ mod tests {
     fn test_betainc_a1_b1() {
         // betainc(1, 1, x) is x.
         let x = [0.0, 0.25, 1.0];
-        assert_eq!(x.map(|xv| betainc(1.0, 1.0, xv)), x);
+        assert_eq!(x.map(|xv| crate::betainc(1.0, 1.0, xv)), x);
     }
 
     #[test]
@@ -85,7 +82,7 @@ mod tests {
             // scipy/scipy#12796:
             (4.0, 99997.0, 0.0001947841578892121, 0.999995),
         ] {
-            let p1 = betainc(a, b, x);
+            let p1 = crate::betainc(a, b, x);
             // NOTE: The original `rtol = 1e-15` is too strict for Cephes
             np_assert_allclose(&[p1], &[p], 1e-14, 0.0);
         }
@@ -119,7 +116,7 @@ mod tests {
             ((f64::INFINITY, 1.0, 0.5), 0.0),
             ((f64::INFINITY, 1.0, 1.0), 1.0),
         ] {
-            let observed = betainc(a, b, x);
+            let observed = crate::betainc(a, b, x);
             np_assert_equal(&[observed], &[expected]);
         }
     }
@@ -133,7 +130,7 @@ mod tests {
             (1e-20, 1e-21, 0.5, 0.0909090909090909),
             (1e-15, 1e-16, 0.5, 0.09090909090909091),
         ] {
-            let res = betainc(a, b, x);
+            let res = crate::betainc(a, b, x);
             np_assert_allclose(&[res], &[reference], rtol, 0.0);
         }
     }

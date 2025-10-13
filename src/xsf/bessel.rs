@@ -1,6 +1,5 @@
-use core::ffi::c_int;
-
 use alloc::vec::Vec;
+use core::ffi::c_int;
 use num_complex::Complex;
 
 mod sealed {
@@ -502,43 +501,42 @@ pub fn riccati_y(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{testing::np_assert_allclose, xsref};
+    use crate::testing::np_assert_allclose;
     use num_complex::c64;
 
     // Bessel J
 
     #[test]
     fn test_bessel_j0() {
-        xsref::test("cyl_bessel_j0", "d-d", |x: &[f64]| bessel_j0(x[0]));
+        crate::xsref::test("cyl_bessel_j0", "d-d", |x| crate::bessel_j0(x[0]));
     }
 
     #[test]
     fn test_bessel_j1() {
-        xsref::test("cyl_bessel_j1", "d-d", |x: &[f64]| bessel_j1(x[0]));
+        crate::xsref::test("cyl_bessel_j1", "d-d", |x| crate::bessel_j1(x[0]));
     }
 
     #[test]
     fn test_bessel_j_f64() {
-        xsref::test("cyl_bessel_j", "d_d-d", |x: &[f64]| bessel_j(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_j", "d_d-d", |x| crate::bessel_j(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_j_c64() {
-        xsref::test("cyl_bessel_j", "d_cd-cd", |x: &[f64]| {
-            bessel_j(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_j", "d_cd-cd", |x| {
+            crate::bessel_j(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_bessel_je_f64() {
-        xsref::test("cyl_bessel_je", "d_d-d", |x: &[f64]| bessel_je(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_je", "d_d-d", |x| crate::bessel_je(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_je_c64() {
-        xsref::test("cyl_bessel_je", "d_cd-cd", |x: &[f64]| {
-            bessel_je(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_je", "d_cd-cd", |x| {
+            crate::bessel_je(x[0], c64(x[1], x[2]))
         });
     }
 
@@ -546,35 +544,35 @@ mod tests {
 
     #[test]
     fn test_bessel_y0() {
-        xsref::test("cyl_bessel_y0", "d-d", |x: &[f64]| bessel_y0(x[0]));
+        crate::xsref::test("cyl_bessel_y0", "d-d", |x| crate::bessel_y0(x[0]));
     }
 
     #[test]
     fn test_bessel_y1() {
-        xsref::test("cyl_bessel_y1", "d-d", |x: &[f64]| bessel_y1(x[0]));
+        crate::xsref::test("cyl_bessel_y1", "d-d", |x| crate::bessel_y1(x[0]));
     }
 
     #[test]
     fn test_bessel_y_f64() {
-        xsref::test("cyl_bessel_y", "d_d-d", |x: &[f64]| bessel_y(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_y", "d_d-d", |x| crate::bessel_y(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_y_c64() {
-        xsref::test("cyl_bessel_y", "d_cd-cd", |x: &[f64]| {
-            bessel_y(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_y", "d_cd-cd", |x| {
+            crate::bessel_y(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_bessel_ye_f64() {
-        xsref::test("cyl_bessel_ye", "d_d-d", |x: &[f64]| bessel_ye(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_ye", "d_d-d", |x| crate::bessel_ye(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_ye_c64() {
-        xsref::test("cyl_bessel_ye", "d_cd-cd", |x: &[f64]| {
-            bessel_ye(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_ye", "d_cd-cd", |x| {
+            crate::bessel_ye(x[0], c64(x[1], x[2]))
         });
     }
 
@@ -582,45 +580,45 @@ mod tests {
 
     #[test]
     fn test_bessel_i0() {
-        xsref::test("cyl_bessel_i0", "d-d", |x: &[f64]| bessel_i0(x[0]));
+        crate::xsref::test("cyl_bessel_i0", "d-d", |x| crate::bessel_i0(x[0]));
     }
 
     #[test]
     fn test_bessel_i0e() {
-        xsref::test("cyl_bessel_i0e", "d-d", |x: &[f64]| bessel_i0e(x[0]));
+        crate::xsref::test("cyl_bessel_i0e", "d-d", |x| crate::bessel_i0e(x[0]));
     }
 
     #[test]
     fn test_bessel_i1() {
-        xsref::test("cyl_bessel_i1", "d-d", |x: &[f64]| bessel_i1(x[0]));
+        crate::xsref::test("cyl_bessel_i1", "d-d", |x| crate::bessel_i1(x[0]));
     }
 
     #[test]
     fn test_bessel_i1e() {
-        xsref::test("cyl_bessel_i1e", "d-d", |x: &[f64]| bessel_i1e(x[0]));
+        crate::xsref::test("cyl_bessel_i1e", "d-d", |x| crate::bessel_i1e(x[0]));
     }
 
     #[test]
     fn test_bessel_i_f64() {
-        xsref::test("cyl_bessel_i", "d_d-d", |x: &[f64]| bessel_i(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_i", "d_d-d", |x| crate::bessel_i(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_i_c64() {
-        xsref::test("cyl_bessel_i", "d_cd-cd", |x: &[f64]| {
-            bessel_i(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_i", "d_cd-cd", |x| {
+            crate::bessel_i(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_bessel_ie_f64() {
-        xsref::test("cyl_bessel_ie", "d_d-d", |x: &[f64]| bessel_ie(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_ie", "d_d-d", |x| crate::bessel_ie(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_ie_c64() {
-        xsref::test("cyl_bessel_ie", "d_cd-cd", |x: &[f64]| {
-            bessel_ie(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_ie", "d_cd-cd", |x| {
+            crate::bessel_ie(x[0], c64(x[1], x[2]))
         });
     }
 
@@ -628,45 +626,45 @@ mod tests {
 
     #[test]
     fn test_bessel_k0() {
-        xsref::test("cyl_bessel_k0", "d-d", |x: &[f64]| bessel_k0(x[0]));
+        crate::xsref::test("cyl_bessel_k0", "d-d", |x| crate::bessel_k0(x[0]));
     }
 
     #[test]
     fn test_bessel_k0e() {
-        xsref::test("cyl_bessel_k0e", "d-d", |x: &[f64]| bessel_k0e(x[0]));
+        crate::xsref::test("cyl_bessel_k0e", "d-d", |x| crate::bessel_k0e(x[0]));
     }
 
     #[test]
     fn test_bessel_k1() {
-        xsref::test("cyl_bessel_k1", "d-d", |x: &[f64]| bessel_k1(x[0]));
+        crate::xsref::test("cyl_bessel_k1", "d-d", |x| crate::bessel_k1(x[0]));
     }
 
     #[test]
     fn test_bessel_k1e() {
-        xsref::test("cyl_bessel_k1e", "d-d", |x: &[f64]| bessel_k1e(x[0]));
+        crate::xsref::test("cyl_bessel_k1e", "d-d", |x| crate::bessel_k1e(x[0]));
     }
 
     #[test]
     fn test_bessel_k_f64() {
-        xsref::test("cyl_bessel_k", "d_d-d", |x: &[f64]| bessel_k(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_k", "d_d-d", |x| crate::bessel_k(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_k_c64() {
-        xsref::test("cyl_bessel_k", "d_cd-cd", |x: &[f64]| {
-            bessel_k(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_k", "d_cd-cd", |x| {
+            crate::bessel_k(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_bessel_ke_f64() {
-        xsref::test("cyl_bessel_ke", "d_d-d", |x: &[f64]| bessel_ke(x[0], x[1]));
+        crate::xsref::test("cyl_bessel_ke", "d_d-d", |x| crate::bessel_ke(x[0], x[1]));
     }
 
     #[test]
     fn test_bessel_ke_c64() {
-        xsref::test("cyl_bessel_ke", "d_cd-cd", |x: &[f64]| {
-            bessel_ke(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_bessel_ke", "d_cd-cd", |x| {
+            crate::bessel_ke(x[0], c64(x[1], x[2]))
         });
     }
 
@@ -674,29 +672,29 @@ mod tests {
 
     #[test]
     fn test_hankel_1_c64() {
-        xsref::test("cyl_hankel_1", "d_cd-cd", |x: &[f64]| {
-            hankel_1(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_hankel_1", "d_cd-cd", |x| {
+            crate::hankel_1(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_hankel_1e_c64() {
-        xsref::test("cyl_hankel_1e", "d_cd-cd", |x: &[f64]| {
-            hankel_1e(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_hankel_1e", "d_cd-cd", |x| {
+            crate::hankel_1e(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_hankel_2_c64() {
-        xsref::test("cyl_hankel_2", "d_cd-cd", |x: &[f64]| {
-            hankel_2(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_hankel_2", "d_cd-cd", |x| {
+            crate::hankel_2(x[0], c64(x[1], x[2]))
         });
     }
 
     #[test]
     fn test_hankel_2e_c64() {
-        xsref::test("cyl_hankel_2e", "d_cd-cd", |x: &[f64]| {
-            hankel_2e(x[0], c64(x[1], x[2]))
+        crate::xsref::test("cyl_hankel_2e", "d_cd-cd", |x| {
+            crate::hankel_2e(x[0], c64(x[1], x[2]))
         });
     }
 
@@ -758,28 +756,28 @@ mod tests {
 
     #[test]
     fn test_it1j0y0() {
-        xsref::test("it1j0y0", "d-d_d", |x: &[f64]| it1j0y0(x[0]));
+        crate::xsref::test("it1j0y0", "d-d_d", |x| crate::it1j0y0(x[0]));
     }
 
     #[test]
     fn test_it2j0y0() {
-        xsref::test("it2j0y0", "d-d_d", |x: &[f64]| it2j0y0(x[0]));
+        crate::xsref::test("it2j0y0", "d-d_d", |x| crate::it2j0y0(x[0]));
     }
 
     #[test]
     fn test_it1i0k0() {
-        xsref::test("it1i0k0", "d-d_d", |x: &[f64]| it1i0k0(x[0]));
+        crate::xsref::test("it1i0k0", "d-d_d", |x| crate::it1i0k0(x[0]));
     }
 
     #[test]
     fn test_it2i0k0() {
-        xsref::test("it2i0k0", "d-d_d", |x: &[f64]| it2i0k0(x[0]));
+        crate::xsref::test("it2i0k0", "d-d_d", |x| crate::it2i0k0(x[0]));
     }
 
     #[test]
     fn test_besselpoly() {
-        xsref::test("besselpoly", "d_d_d-d", |x: &[f64]| {
-            besselpoly(x[0], x[1], x[2])
+        crate::xsref::test("besselpoly", "d_d_d-d", |x| {
+            crate::besselpoly(x[0], x[1], x[2])
         });
     }
 
@@ -806,9 +804,9 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (jn, jnp) = riccati_j(N - 1, x);
-        crate::testing::np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
-        crate::testing::np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
+        let (jn, jnp) = crate::riccati_j(N - 1, x);
+        np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
+        np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
     }
 
     /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_yn`
@@ -832,8 +830,8 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (yn, ynp) = riccati_y(N - 1, x);
-        crate::testing::np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
-        crate::testing::np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
+        let (yn, ynp) = crate::riccati_y(N - 1, x);
+        np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
+        np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
     }
 }

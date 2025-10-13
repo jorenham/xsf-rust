@@ -29,13 +29,12 @@ pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::C
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use num_complex::c64;
 
     #[test]
     fn test_cevalpoly_0() {
         // p(z) = 0
-        let y = cevalpoly(&[], c64(2.0, 3.0));
+        let y = crate::cevalpoly(&[], c64(2.0, 3.0));
         assert_eq!(y.re, 0.0);
         assert_eq!(y.im, 0.0);
     }
@@ -43,7 +42,7 @@ mod tests {
     #[test]
     fn test_cevalpoly_1() {
         // p(z) = 5
-        let y = cevalpoly(&[5.0], c64(2.0, 3.0));
+        let y = crate::cevalpoly(&[5.0], c64(2.0, 3.0));
         // p(2+3i) = 5
         assert_eq!(y.re, 5.0);
         assert_eq!(y.im, 0.0);
@@ -52,7 +51,7 @@ mod tests {
     #[test]
     fn test_cevalpoly_2() {
         // p(z) = 2z + 3
-        let y = cevalpoly(&[2.0, 3.0], c64(1.0, 1.0));
+        let y = crate::cevalpoly(&[2.0, 3.0], c64(1.0, 1.0));
         // p(1+i) = 5 + 2i
         assert_eq!(y.re, 5.0);
         assert_eq!(y.im, 2.0);

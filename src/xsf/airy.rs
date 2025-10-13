@@ -1,5 +1,4 @@
 use alloc::{vec, vec::Vec};
-use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}
@@ -40,7 +39,7 @@ impl AiryArg for f64 {
     }
 }
 
-impl AiryArg for Complex<f64> {
+impl AiryArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn airy(self) -> (Self, Self, Self, Self) {
         let mut ai = f64::NAN.into();
@@ -204,82 +203,69 @@ pub fn bi_zeros(nt: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
 
 #[cfg(test)]
 mod tests {
-    use core::f64;
-
-    use super::*;
-    use crate::{testing, xsref};
-    use num_complex::{Complex, c64};
+    use crate::testing::np_assert_allclose;
+    use num_complex::c64;
 
     #[test]
     fn test_airy_f64() {
-        xsref::test::<(f64, f64, f64, f64), _>("airy", "d-d_d_d_d", |x: &[f64]| airy(x[0]));
+        crate::xsref::test("airy", "d-d_d_d_d", |x| crate::airy(x[0]));
     }
 
     #[test]
     fn test_airy_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
-            "airy",
-            "cd-cd_cd_cd_cd",
-            |x: &[f64]| airy(c64(x[0], x[1])),
-        );
+        crate::xsref::test("airy", "cd-cd_cd_cd_cd", |x| crate::airy(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_airye_f64() {
-        xsref::test::<(f64, f64, f64, f64), _>("airye", "d-d_d_d_d", |x: &[f64]| airye(x[0]));
+        crate::xsref::test("airye", "d-d_d_d_d", |x| crate::airye(x[0]));
     }
 
     #[test]
     fn test_airye_c64() {
-        xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
-            "airye",
-            "cd-cd_cd_cd_cd",
-            |x: &[f64]| airye(c64(x[0], x[1])),
-        );
+        crate::xsref::test("airye", "cd-cd_cd_cd_cd", |x| crate::airye(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_itairy() {
-        xsref::test::<(f64, f64, f64, f64), _>("itairy", "d-d_d_d_d", |x: &[f64]| itairy(x[0]));
+        crate::xsref::test("itairy", "d-d_d_d_d", |x| crate::itairy(x[0]));
     }
 
     #[test]
     fn test_ai_zeros() {
         // >>> from scipy import special
         // >>> a, ap, ai, aip = special.ai_zeros(3)
+        let (a, ap, ai, aip) = crate::ai_zeros(3);
         // >>> a
         // array([-2.33810741, -4.08794944, -5.52055983])
+        np_assert_allclose(&a, &[-2.33810741, -4.08794944, -5.52055983], 0.0, 1e-8);
         // >>> ap
         // array([-1.01879297, -3.24819758, -4.82009921])
+        np_assert_allclose(&ap, &[-1.01879297, -3.24819758, -4.82009921], 0.0, 1e-8);
         // >>> ai
         // array([ 0.53565666, -0.41901548,  0.38040647])
+        np_assert_allclose(&ai, &[0.53565666, -0.41901548, 0.38040647], 0.0, 1e-8);
         // >>> aip
         // array([ 0.70121082, -0.80311137,  0.86520403])
-
-        let (a, ap, ai, aip) = ai_zeros(3);
-        testing::np_assert_allclose(&a, &[-2.33810741, -4.08794944, -5.52055983], 0.0, 1e-8);
-        testing::np_assert_allclose(&ap, &[-1.01879297, -3.24819758, -4.82009921], 0.0, 1e-8);
-        testing::np_assert_allclose(&ai, &[0.53565666, -0.41901548, 0.38040647], 0.0, 1e-8);
-        testing::np_assert_allclose(&aip, &[0.70121082, -0.80311137, 0.86520403], 0.0, 1e-8);
+        np_assert_allclose(&aip, &[0.70121082, -0.80311137, 0.86520403], 0.0, 1e-8);
     }
 
     #[test]
     fn test_bi_zeros() {
         // >>> from scipy import special
         // >>> b, bp, bi, bip = special.bi_zeros(3)
+        let (b, bp, bi, bip) = crate::bi_zeros(3);
         // >>> b
         // array([-1.17371322, -3.2710933 , -4.83073784])
+        np_assert_allclose(&b, &[-1.17371322, -3.2710933, -4.83073784], 0.0, 1e-8);
         // >>> bp
         // array([-2.29443968, -4.07315509, -5.51239573])
+        np_assert_allclose(&bp, &[-2.29443968, -4.07315509, -5.51239573], 0.0, 1e-8);
         // >>> bi
         // array([-0.45494438,  0.39652284, -0.36796916])
+        np_assert_allclose(&bi, &[-0.45494438, 0.39652284, -0.36796916], 0.0, 1e-8);
         // >>> bip
         // array([ 0.60195789, -0.76031014,  0.83699101])
-
-        let (b, bp, bi, bip) = bi_zeros(3);
-        testing::np_assert_allclose(&b, &[-1.17371322, -3.2710933, -4.83073784], 0.0, 1e-8);
-        testing::np_assert_allclose(&bp, &[-2.29443968, -4.07315509, -5.51239573], 0.0, 1e-8);
-        testing::np_assert_allclose(&bi, &[-0.45494438, 0.39652284, -0.36796916], 0.0, 1e-8);
-        testing::np_assert_allclose(&bip, &[0.60195789, -0.76031014, 0.83699101], 0.0, 1e-8);
+        np_assert_allclose(&bip, &[0.60195789, -0.76031014, 0.83699101], 0.0, 1e-8);
     }
 }

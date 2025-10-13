@@ -27,7 +27,6 @@ pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Compl
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::f64::consts::PI;
     use num_complex::c64;
 
@@ -67,7 +66,7 @@ mod tests {
         const RTOL: f64 = 1e-5;
         const ATOL: f64 = 1e-8;
 
-        let y_all = sph_harm_y_all(n_max, m_max, theta, phi);
+        let y_all = crate::sph_harm_y_all(n_max, m_max, theta, phi);
 
         // Check shape
         assert_eq!(y_all.len(), n_max + 1);
@@ -85,7 +84,7 @@ mod tests {
         for (n, y_row) in y_all.iter().enumerate().take(n_max + 1) {
             for (col_idx, &y_from_all) in y_row.iter().enumerate() {
                 let m = col_to_order(col_idx, m_max);
-                let expected = sph_harm_y(n, m, theta, phi);
+                let expected = crate::sph_harm_y(n, m, theta, phi);
                 let error = (expected - y_from_all).norm();
                 let tolerance = ATOL + RTOL * expected.norm().max(y_from_all.norm());
                 assert!(error <= tolerance);
@@ -97,14 +96,14 @@ mod tests {
     #[test]
     fn test_sph_harm_y_basic() {
         // Test Y_0^0 at theta=0, phi=0 should be sqrt(1/(4*pi))
-        let y00 = sph_harm_y(0, 0, 0.0, 0.0);
+        let y00 = crate::sph_harm_y(0, 0, 0.0, 0.0);
         let expected = c64((4.0 * PI).sqrt().recip(), 0.0);
         assert!((y00 - expected).norm() < 1e-14);
     }
 
     #[test]
     fn test_sph_harm_y_all_basic() {
-        let y_all = sph_harm_y_all(1, 1, PI / 2.0, 0.0);
+        let y_all = crate::sph_harm_y_all(1, 1, PI / 2.0, 0.0);
 
         // Check shape: (n+1, 2*m+1) = (2, 3)
         assert_eq!(y_all.len(), 2);
@@ -120,7 +119,7 @@ mod tests {
         const ATOL: f64 = 1.5e-8;
 
         // Verify that our implementation matches scipy.special.sph_harm_y_all
-        let y_all = sph_harm_y_all(3, 1, PI / 4.0, PI / 6.0);
+        let y_all = crate::sph_harm_y_all(3, 1, PI / 4.0, PI / 6.0);
 
         // Expected scipy output with reasonable tolerance for floating-point differences
         let expected = [
@@ -148,7 +147,7 @@ mod tests {
             assert_eq!(rust_row.len(), expected_row.len());
 
             for (rust_val, &(exp_re, exp_im)) in rust_row.iter().zip(expected_row.iter()) {
-                let expected_val = Complex::new(exp_re, exp_im);
+                let expected_val = c64(exp_re, exp_im);
                 let diff = (rust_val - expected_val).norm();
                 assert!(diff < ATOL);
             }

@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -17,7 +15,7 @@ impl ExpArg for f64 {
     }
 }
 
-impl ExpArg for Complex<f64> {
+impl ExpArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn expm1(self) -> Self {
         unsafe { crate::ffi::xsf::expm1_1(self.into()) }.into()
@@ -47,27 +45,25 @@ pub fn exp10(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
+    use num_complex::c64;
 
     #[test]
     fn test_expm1_f64() {
-        xsref::test::<f64, _>("expm1", "d-d", |x: &[f64]| expm1(x[0]));
+        crate::xsref::test("expm1", "d-d", |x| crate::expm1(x[0]));
     }
 
     #[test]
     fn test_expm1_c64() {
-        xsref::test::<Complex<f64>, _>("expm1", "cd-cd", |x: &[f64]| expm1(c64(x[0], x[1])));
+        crate::xsref::test("expm1", "cd-cd", |x| crate::expm1(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_exp2_f64() {
-        xsref::test::<f64, _>("exp2", "d-d", |x: &[f64]| exp2(x[0]));
+        crate::xsref::test("exp2", "d-d", |x| crate::exp2(x[0]));
     }
 
     #[test]
     fn test_exp10_f64() {
-        xsref::test::<f64, _>("exp10", "d-d", |x: &[f64]| exp10(x[0]));
+        crate::xsref::test("exp10", "d-d", |x| crate::exp10(x[0]));
     }
 }

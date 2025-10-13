@@ -1,5 +1,3 @@
-use num_complex::Complex;
-
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -13,22 +11,22 @@ pub trait ExpIntArg: sealed::Sealed {
 
 impl ExpIntArg for f64 {
     #[inline(always)]
-    fn expi(self) -> f64 {
+    fn expi(self) -> Self {
         unsafe { crate::ffi::xsf::expi(self) }
     }
     #[inline(always)]
-    fn exp1(self) -> f64 {
+    fn exp1(self) -> Self {
         unsafe { crate::ffi::xsf::exp1(self) }
     }
 }
 
-impl ExpIntArg for Complex<f64> {
+impl ExpIntArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn expi(self) -> Complex<f64> {
+    fn expi(self) -> Self {
         unsafe { crate::ffi::xsf::expi_1(self.into()) }.into()
     }
     #[inline(always)]
-    fn exp1(self) -> Complex<f64> {
+    fn exp1(self) -> Self {
         unsafe { crate::ffi::xsf::exp1_1(self.into()) }.into()
     }
 }
@@ -90,38 +88,30 @@ pub fn scaled_exp1(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::xsref;
-    use num_complex::{Complex, c64};
-
-    // exp1
+    use num_complex::c64;
 
     #[test]
     fn test_exp1_f64() {
-        xsref::test::<f64, _>("exp1", "d-d", |x: &[f64]| exp1(x[0]));
+        crate::xsref::test("exp1", "d-d", |x| crate::exp1(x[0]));
     }
 
     #[test]
     fn test_exp1_c64() {
-        xsref::test::<Complex<f64>, _>("exp1", "cd-cd", |x: &[f64]| exp1(c64(x[0], x[1])));
+        crate::xsref::test("exp1", "cd-cd", |x| crate::exp1(c64(x[0], x[1])));
     }
-
-    // expi
 
     #[test]
     fn test_expi_f64() {
-        xsref::test::<f64, _>("expi", "d-d", |x: &[f64]| expi(x[0]));
+        crate::xsref::test("expi", "d-d", |x| crate::expi(x[0]));
     }
 
     #[test]
     fn test_expi_c64() {
-        xsref::test::<Complex<f64>, _>("expi", "cd-cd", |x: &[f64]| expi(c64(x[0], x[1])));
+        crate::xsref::test("expi", "cd-cd", |x| crate::expi(c64(x[0], x[1])));
     }
-
-    // scaled_exp1
 
     #[test]
     fn test_scaled_exp1_f64() {
-        xsref::test::<f64, _>("scaled_exp1", "d-d", |x: &[f64]| scaled_exp1(x[0]));
+        crate::xsref::test("scaled_exp1", "d-d", |x| crate::scaled_exp1(x[0]));
     }
 }
