@@ -443,6 +443,16 @@ void cerzo(int nt, cdouble *zo) {
 }
 void jyzo(int n, int nt, double *rj0, double *rj1, double *ry0, double *ry1) {
     xsf::specfun::jyzo(n, nt, rj0, rj1, ry0, ry1);
+}
+int lamn(int n, double x, double *bl, double *dl) {
+    int nm = -1;
+    xsf::specfun::lamn(n, x, &nm, bl, dl);
+    return nm;
+}
+double lamv(double v, double x, double *vl, double *dl) {
+    double vm = -1.0;
+    xsf::specfun::lamv(v, x, &vm, vl, dl);
+    return vm;
 }"#;
 
 // airy.h
@@ -644,7 +654,7 @@ const WRAPPER_SPECS_CUSTOM: &[WrapperSpecCustom] = &[
         cpp: _CPP_CEPHES_UNITY,
     },
     WrapperSpecCustom {
-        pattern: r"(cerzo|jyzo)",
+        pattern: r"(cerzo|jyzo|lamn|lamv)",
         cpp: _CPP_SPECFUN_SPECFUN,
     },
     WrapperSpecCustom {
