@@ -462,14 +462,14 @@ void airyzo(size_t nt, int kf, double *xa, double *xb, double *xc, double *xd) {
 // bessel.h
 
 const _CPP_RCT: &str = r#"
-int rctj(size_t n, double x, double *rj, double *dj) {
+int rctj(size_t nt, double x, double *rj, double *dj) {
     int nm;
-    xsf::rctj(x, &nm, std::mdspan(rj, n + 1), std::mdspan(dj, n + 1));
+    xsf::rctj(x, &nm, std::mdspan(rj, nt), std::mdspan(dj, nt));
     return nm;
 }
-int rcty(size_t n, double x, double *ry, double *dy) {
+int rcty(size_t nt, double x, double *ry, double *dy) {
     int nm;
-    xsf::rcty(x, &nm, std::mdspan(ry, n + 1), std::mdspan(dy, n + 1));
+    xsf::rcty(x, &nm, std::mdspan(ry, nt), std::mdspan(dy, nt));
     return nm;
 }"#;
 

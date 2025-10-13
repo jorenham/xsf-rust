@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use core::ffi::c_int;
 use num_complex::Complex;
 
@@ -446,54 +445,66 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 
 // Riccati-Bessel
 
-/// Compute Riccati-Bessel function of the first kind and their derivatives for up to `n`
+/// Compute Riccati-Bessel function of the first kind and derivatives for the first `NT` orders
 ///
 /// The Riccati-Bessel function of the first kind is defined as `x j_n(x)`, where `j_n` is the
 /// spherical Bessel function of the first kind of order `n`.
 ///
-/// This function computes the value and first derivative of the
-/// Riccati-Bessel function for all orders up to and including `n`.
+/// This function computes the value and first derivative of the function for all orders up to `NT`.
 ///
-/// # Arguments
-/// - `n` - Maximum order of function to compute
-/// - `x` - Argument at which to evaluate
+/// Corresponds to [`scipy.special.riccati_jn`][scipy-rctj].
 ///
 /// # Returns
-/// - `jn`: Value of *j0(x), ..., jn(x)*
-/// - `jnp`:  First derivative *j0'(x), ..., jn'(x)*
+/// - [ *j<sub>0</sub>(x), ..., j<sub>N-1</sub>(x)* ]
+/// - [ *j'<sub>0</sub>(x), ..., j'<sub>N-1</sub>(x)* ]
+///
+/// # See also
+/// - [`riccati_y`]
+/// - [`bessel_j`]
+/// - [`sph_bessel_j`](crate::sph_bessel_j)
+///
+/// [scipy-rctj]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_jn.html
 #[doc(alias = "rctj")]
 #[doc(alias = "riccati_jn")]
-pub fn riccati_j(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let mut rj = alloc::vec![f64::NAN; n + 1];
-    let mut dj = alloc::vec![f64::NAN; n + 1];
-    let nmax = unsafe { crate::ffi::xsf::rctj(n, x, rj.as_mut_ptr(), dj.as_mut_ptr()) } as usize;
-    assert!(nmax == n);
+pub fn riccati_j<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
+    let (mut rj, mut dj) = ([f64::NAN; NT], [f64::NAN; NT]);
+    if NT == 0 {
+        return (rj, dj);
+    }
+
+    let _ = unsafe { crate::ffi::xsf::rctj(NT, x, rj.as_mut_ptr(), dj.as_mut_ptr()) };
     (rj, dj)
 }
 
-/// Compute Riccati-Bessel function of the second kind and their derivatives for up to `n`
+/// Compute Riccati-Bessel function of the second kind and derivatives for the first `NT` orders
 ///
-/// The Riccati-Bessel function of the second kind is defined here as `+x y_n(x)`, where `y_n` is
+/// The Riccati-Bessel function of the second kind is defined here as `x y_n(x)`, where `y_n` is
 /// the spherical Bessel function of the second kind of order `n`. *Note that this is in contrast
 /// to a common convention that includes a minus sign in the definition.*
 ///
-/// This function computes the value and first derivative of the function for all orders up to and
-/// including `n`.
+/// This function computes the value and first derivative of the function for all orders up to `NT`.
 ///
-/// # Arguments
-/// - `n` - Maximum order of function to compute
-/// - `x` - Argument at which to evaluate
+/// Corresponds to [`scipy.special.riccati_yn`][scipy-rcty].
 ///
 /// # Returns
-/// - `yn`: Value of y0(x), ..., yn(x)
-/// - `ynp`:  First derivative y0'(x), ..., yn'(x)
+/// - [ *y<sub>0</sub>(x), ..., y<sub>N-1</sub>(x)* ]
+/// - [ *y'<sub>0</sub>(x), ..., y'<sub>N-1</sub>(x)* ]
+///
+/// # See also
+/// - [`riccati_j`]
+/// - [`bessel_y`](crate::bessel_y)
+/// - [`sph_bessel_y`](crate::sph_bessel_y)
+///
+/// [scipy-rcty]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_yn.html
 #[doc(alias = "rcty")]
 #[doc(alias = "riccati_yn")]
-pub fn riccati_y(n: usize, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let mut ry = alloc::vec![f64::NAN; n + 1];
-    let mut dy = alloc::vec![f64::NAN; n + 1];
-    let nmax = unsafe { crate::ffi::xsf::rcty(n, x, ry.as_mut_ptr(), dy.as_mut_ptr()) } as usize;
-    assert!(nmax == n);
+pub fn riccati_y<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
+    let (mut ry, mut dy) = ([f64::NAN; NT], [f64::NAN; NT]);
+    if NT == 0 {
+        return (ry, dy);
+    }
+
+    let _ = unsafe { crate::ffi::xsf::rcty(NT, x, ry.as_mut_ptr(), dy.as_mut_ptr()) };
     (ry, dy)
 }
 
@@ -781,7 +792,7 @@ mod tests {
         });
     }
 
-    // Riccati-Bessel (no xsref tables available)
+    // Riccati-Bessel
 
     /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_jn`
     #[test]
@@ -804,7 +815,7 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (jn, jnp) = crate::riccati_j(N - 1, x);
+        let (jn, jnp) = crate::riccati_j::<N>(x);
         np_assert_allclose(&s[0], &jn, 0.0, 1.5e-8);
         np_assert_allclose(&s[1], &jnp, 0.0, 1.5e-8);
     }
@@ -830,7 +841,7 @@ mod tests {
         }
 
         // assert_allclose(S, special.riccati_jn(n, x), atol=1.5e-8, rtol=0)
-        let (yn, ynp) = crate::riccati_y(N - 1, x);
+        let (yn, ynp) = crate::riccati_y::<N>(x);
         np_assert_allclose(&c[0], &yn, 0.0, 1.5e-8);
         np_assert_allclose(&c[1], &ynp, 0.0, 1.5e-8);
     }
