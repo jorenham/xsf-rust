@@ -271,8 +271,6 @@ mod tests {
 
     use core::f64::consts;
     use num_complex::c64;
-    use std::vec;
-
     const I: num_complex::Complex<f64> = num_complex::Complex::new(0.0, 1.0);
     const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 
