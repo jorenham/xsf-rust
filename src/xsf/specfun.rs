@@ -24,13 +24,44 @@ impl Hyp1F1Arg for Complex<f64> {
     }
 }
 
+/// Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
+///
+/// Corresponds to [`scipy.special.bernoulli`][scipy-bern] in SciPy, and calls the FFI function
+/// `xsf::specfun::bernob`.
+///
+/// # Examples
+/// ```
+/// use xsf::bernoulli;
+/// assert_eq!(bernoulli::<0>(), []);
+/// assert_eq!(bernoulli::<1>(), [1.0]);
+/// assert_eq!(bernoulli::<2>(), [1.0, -0.5]);
+/// assert_eq!(bernoulli::<4>(), [1.0, -0.5, 1.0 / 6.0, 0.0]);
+/// assert_eq!(bernoulli::<1000>()[999], 0.0);
+/// ```
+///
+/// [scipy-bern]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
+pub fn bernoulli<const N: usize>() -> [f64; N] {
+    let mut out = [0.0; N];
+    if N < 3 {
+        if N >= 1 {
+            out[0] = 1.0;
+            if N >= 2 {
+                out[1] = -0.5;
+            }
+        }
+    } else {
+        unsafe { crate::ffi::xsf::bernob((N - 1) as i32, out.as_mut_ptr()) };
+    };
+    out
+}
+
 /// Confluent hypergeometric function `1F1(a; b; z)` for real or complex `z`
 pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
-#[doc(alias = "hyperu")]
 /// Confluent hypergeometric function `U(a,b,x)` for `x > 0`
+#[doc(alias = "hyperu")]
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::hypu(a, b, x) }
 }
