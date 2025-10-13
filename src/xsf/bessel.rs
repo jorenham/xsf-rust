@@ -1,3 +1,4 @@
+use alloc::{vec, vec::Vec};
 use core::ffi::c_int;
 use num_complex::Complex;
 
@@ -508,6 +509,59 @@ pub fn riccati_y<const NT: usize>(x: f64) -> ([f64; NT], [f64; NT]) {
     (ry, dy)
 }
 
+/// Evaluate the Jahnke-Emden Lambda function Λ<sub>v</sub>(x) and its derivatives
+///
+/// The Jahnke-Emden Lambda function is defined as
+///
+/// Λ<sub>v</sub>(x) = Γ(v+1) (2/x)<sup>v</sup> J<sub>v</sub>(x)
+///
+/// where Γ is the [Gamma function](crate::gamma) and J<sub>v</sub> is the
+/// [Bessel function of the first kind](crate::bessel_j).
+///
+/// Corresponds to [`scipy.special.lmbda`][scipy-lmbda] in SciPy, and calls the FFI functions
+/// `xsf::specfun::lamn` and `xsf::specfun::lamv`.
+///
+/// [scipy-lmbda]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html
+///
+/// # Arguments
+/// - `v`: Order of the Lambda function as a non-negative real number
+/// - `x`: Value at which to evaluate the function and derivatives
+///
+/// # Returns
+/// - `vl`: Values of Λ<sub>v<sub>i</sub></sub>(x) for v<sub>i</sub> = v-⌊v⌋, v-⌊v⌋+1, ..., v
+/// - `dl`: Derivatives Λ'<sub>v<sub>i</sub></sub>(x) for v<sub>i</sub> = v-⌊v⌋, v-⌊v⌋+1, ..., v
+///
+/// Both vectors have length ⌊v⌋+1, i.e. `(v as usize) + 1`.
+///
+/// # See also
+/// - [`bessel_j`]
+/// - [`gamma`](crate::gamma)
+/// - [`sph_bessel_j`](crate::sph_bessel_j)
+pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
+    // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L2008-L2055
+    let v: f64 = v.into();
+    assert!(v >= 0.0, "v must be non-negative");
+
+    let n = v as usize;
+    let v0 = v - n as f64;
+    let n1 = if n < 1 { 1 } else { n };
+    let v1 = v0 + n1 as f64;
+
+    let size = v1 as usize + 1;
+    let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
+    unsafe {
+        if v != n as f64 {
+            crate::ffi::xsf::lamv(v1, x, vl.as_mut_ptr(), dl.as_mut_ptr());
+        } else {
+            crate::ffi::xsf::lamn(v1 as c_int, x, vl.as_mut_ptr(), dl.as_mut_ptr());
+        }
+    };
+
+    vl.resize(n + 1, f64::NAN);
+    dl.resize(n + 1, f64::NAN);
+    (vl, dl)
+}
+
 // Tests
 
 #[cfg(test)]
@@ -839,5 +893,26 @@ mod tests {
         let (yn, ynp) = crate::riccati_y::<N>(x);
         crate::np_assert_allclose!(&c[0], &yn, atol = 1.5e-8);
         crate::np_assert_allclose!(&c[1], &ynp, atol = 1.5e-8);
+    }
+
+    // Based on `scipy.special.tests.test_basic.TestLambda.test_lmbda`
+    #[test]
+    fn test_jahnke_emden_lambda() {
+        // lam = special.lmbda(1,.1)
+        let lam = crate::jahnke_emden_lambda(1, 0.1);
+        // lamr = (
+        //     array([special.jn(0,.1), 2*special.jn(1,.1)/.1]),
+        //     array([special.jvp(0,.1), -2*special.jv(1,.1)/.01 + 2*special.jvp(1,.1)/.1])
+        // )
+        let lamr = (
+            [crate::bessel_j(0.0, 0.1), 2e1 * crate::bessel_j(1.0, 0.1)],
+            [
+                crate::bessel_j_prime(0.0, 0.1, 1),
+                -2e2 * crate::bessel_j(1.0, 0.1) + 2e1 * crate::bessel_j_prime(1.0, 0.1, 1),
+            ],
+        );
+        // assert_allclose(lam, lamr, atol=1.5e-8, rtol=0)
+        crate::np_assert_allclose!(&lam.0, &lamr.0, atol = 1.5e-8);
+        crate::np_assert_allclose!(&lam.1, &lamr.1, atol = 1.5e-8);
     }
 }

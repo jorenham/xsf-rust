@@ -26,22 +26,23 @@
 //!
 //! # Bessel functions
 //!
-//! | Function              | Description                                                      |
-//! | --------------------- | ---------------------------------------------------------------- |
-//! | [`bessel_j`]          | Bessel function of the first kind                                |
-//! | [`bessel_je`]         | Exponentially scaled Bessel function of the first kind           |
-//! | [`bessel_y`]          | Bessel function of the second kind                               |
-//! | [`bessel_ye`]         | Exponentially scaled Bessel function of the second kind          |
-//! | [`bessel_i`]          | Modified Bessel function of the first kind                       |
-//! | [`bessel_ie`]         | Exponentially scaled modified Bessel function of the first kind  |
-//! | [`bessel_k`]          | Modified Bessel function of the second kind                      |
-//! | [`bessel_ke`]         | Exponentially scaled modified Bessel function of the second kind |
-//! | [`hankel_1`]          | Hankel function of the first kind                                |
-//! | [`hankel_1e`]         | Exponentially scaled Hankel function of the first kind           |
-//! | [`hankel_2`]          | Hankel function of the second kind                               |
-//! | [`hankel_2e`]         | Exponentially scaled Hankel function of the second kind          |
-//! | [`wright_bessel`]     | Wright's generalized Bessel function                             |
-//! | [`log_wright_bessel`] | Natural logarithm of Wright's generalized Bessel function        |
+//! | Function                | Description                                                       |
+//! | ----------------------- | ----------------------------------------------------------------- |
+//! | [`bessel_j`]            | Bessel function of the first kind                                 |
+//! | [`bessel_je`]           | Exponentially scaled Bessel function of the first kind            |
+//! | [`bessel_y`]            | Bessel function of the second kind                                |
+//! | [`bessel_ye`]           | Exponentially scaled Bessel function of the second kind           |
+//! | [`bessel_i`]            | Modified Bessel function of the first kind                        |
+//! | [`bessel_ie`]           | Exponentially scaled modified Bessel function of the first kind   |
+//! | [`bessel_k`]            | Modified Bessel function of the second kind                       |
+//! | [`bessel_ke`]           | Exponentially scaled modified Bessel function of the second kind  |
+//! | [`hankel_1`]            | Hankel function of the first kind                                 |
+//! | [`hankel_1e`]           | Exponentially scaled Hankel function of the first kind            |
+//! | [`hankel_2`]            | Hankel function of the second kind                                |
+//! | [`hankel_2e`]           | Exponentially scaled Hankel function of the second kind           |
+//! | [`wright_bessel`]       | Wright's generalized Bessel function                              |
+//! | [`log_wright_bessel`]   | Natural logarithm of Wright's generalized Bessel function         |
+//! | [`jahnke_emden_lambda`] | Jahnke-Emden Lambda function Λ<sub>v</sub>(x) and its derivatives |
 //!
 //! ## Zeros of Bessel functions
 //!
