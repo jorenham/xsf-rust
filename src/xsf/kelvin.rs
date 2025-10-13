@@ -153,7 +153,6 @@ pub fn kelvin_zeros(nt: usize) -> [Vec<f64>; 8] {
 #[cfg(test)]
 mod tests {
     use crate::testing::np_assert_allclose;
-    use num_complex::Complex;
 
     #[test]
     fn test_ber_f64() {
@@ -197,11 +196,10 @@ mod tests {
 
     #[test]
     fn test_kelvin_c64() {
-        crate::xsref::test::<(Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>), _>(
-            "kelvin",
-            "d-cd_cd_cd_cd",
-            |x| crate::kelvin(x[0]).into(),
-        );
+        crate::xsref::test("kelvin", "d-cd_cd_cd_cd", |x| {
+            let [a, b, c, d] = crate::kelvin(x[0]);
+            (a, b, c, d)
+        });
     }
 
     // Kelvin function zeros tests
