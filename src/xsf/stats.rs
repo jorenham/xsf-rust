@@ -225,11 +225,45 @@ mod tests {
         crate::xsref::test("ndtr", "d-d", |x| crate::ndtr(x[0]));
     }
 
-    // TODO(@jorenham): manual `log_ndtr` tests (jorenham/xsf-rust#97)
-
     #[test]
     fn test_ndtr_c64() {
         crate::xsref::test("ndtr", "cd-cd", |x| crate::ndtr(c64(x[0], x[1])));
+    }
+
+    // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
+    #[test]
+    fn test_log_ndtr() {
+        // x = np.array([-0.75, -0.25, 0, 0.5, 1.5, 2.5, 3, 4, 5, 7, 8])
+        let x = [-0.75, -0.25, 0.0, 0.5, 1.5, 2.5, 3.0, 4.0, 5.0, 7.0, 8.0];
+        // expected = np.array([-1.4844482299196562,
+        //                      -0.9130617648111351,
+        //                      -0.6931471805599453,
+        //                      -0.3689464152886564,
+        //                      -0.06914345561223398,
+        //                      -0.006229025485860002,
+        //                      -0.0013508099647481938,
+        //                      -3.167174337748927e-05,
+        //                      -2.866516129637636e-07,
+        //                      -1.279812543886654e-12,
+        //                      -6.220960574271786e-16])
+        let expected = [
+            -1.4844482299196562,
+            -0.9130617648111351,
+            #[allow(clippy::approx_constant)]
+            -0.6931471805599453,
+            -0.3689464152886564,
+            -0.06914345561223398,
+            -0.006229025485860002,
+            -0.0013508099647481938,
+            -3.167174337748927e-05,
+            -2.866516129637636e-07,
+            -1.279812543886654e-12,
+            -6.220960574271786e-16,
+        ];
+        // y = sc.log_ndtr(x)
+        let y = x.map(crate::log_ndtr);
+        // assert_allclose(y, expected, rtol=1e-14)
+        crate::np_assert_allclose!(&y, &expected, rtol = 1e-14);
     }
 
     #[test]
