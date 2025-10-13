@@ -35,8 +35,7 @@ mod tests {
     fn test_cevalpoly_0() {
         // p(z) = 0
         let y = crate::cevalpoly(&[], c64(2.0, 3.0));
-        assert_eq!(y.re, 0.0);
-        assert_eq!(y.im, 0.0);
+        assert_eq!(y, c64(0.0, 0.0));
     }
 
     #[test]
@@ -44,8 +43,7 @@ mod tests {
         // p(z) = 5
         let y = crate::cevalpoly(&[5.0], c64(2.0, 3.0));
         // p(2+3i) = 5
-        assert_eq!(y.re, 5.0);
-        assert_eq!(y.im, 0.0);
+        assert_eq!(y, c64(5.0, 0.0));
     }
 
     #[test]
@@ -53,7 +51,6 @@ mod tests {
         // p(z) = 2z + 3
         let y = crate::cevalpoly(&[2.0, 3.0], c64(1.0, 1.0));
         // p(1+i) = 5 + 2i
-        assert_eq!(y.re, 5.0);
-        assert_eq!(y.im, 2.0);
+        assert_eq!(y, c64(5.0, 2.0));
     }
 }
