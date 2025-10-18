@@ -9,31 +9,6 @@ pub(crate) mod xsf {
     pub use root::xsf_wrapper::*;
 }
 
-// C++ std::complex type wrapper
-
-pub(crate) use xsf::cdouble;
-
-impl From<f64> for cdouble {
-    #[inline(always)]
-    fn from(x: f64) -> Self {
-        if x.is_nan() {
-            Self { re: x, im: x }
-        } else {
-            Self { re: x, im: 0.0 }
-        }
-    }
-}
-
-impl From<num_complex::Complex<f64>> for cdouble {
-    #[inline(always)]
-    fn from(z: num_complex::Complex<f64>) -> Self {
-        Self { re: z.re, im: z.im }
-    }
-}
-
-impl From<cdouble> for num_complex::Complex<f64> {
-    #[inline(always)]
-    fn from(z: cdouble) -> Self {
-        Self::new(z.re, z.im)
-    }
-}
+// c_complex is type-aliased to num_complex::Complex<f64> in the generated bindings
+// Both have the same memory layout (two consecutive f64 fields: re, im)
+// This allows us to use Complex<f64> directly in FFI without any conversions!
