@@ -339,25 +339,12 @@ struct c_complex;
 
 // Helper functions to convert between C-compatible and C++ complex types
 #ifndef BINDGEN
-inline c_complex to_c_complex(std::complex<double> z) {
-    return c_complex{z.real(), z.imag()};
-}
-
-inline std::complex<double> to_cpp_complex(c_complex z) {
-    return std::complex<double>(z.re, z.im);
-}
+inline c_complex to_c_complex(std::complex<double> z) { return c_complex{z.real(), z.imag()}; }
+inline std::complex<double> to_cpp_complex(c_complex z) { return std::complex<double>(z.re, z.im); }
 #endif
 "#;
 
 const _CPP_WRAPPERS: &str = r#"
-// log.h
-double exp(double x) {
-    return std::exp(x);
-}
-double log(double x) {
-    return std::log(x);
-}
-
 // cephes/erfinv.h
 double erfinv(double y) {
     return xsf::cephes::erfinv(y);
