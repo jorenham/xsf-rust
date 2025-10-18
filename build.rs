@@ -324,34 +324,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("zeta", "Dd->D"),
 ];
 
-fn cpp_function_names(cpp: &str) -> impl Iterator<Item = &str> {
-    cpp.lines().filter_map(|line| {
-        let trimmed = line.trim_start();
-        if trimmed.contains('(') && line.ends_with(r") {") {
-            trimmed
-                .split('(')
-                .next()
-                .and_then(|part| part.split_whitespace().last())
-        } else {
-            None
-        }
-    })
-}
-
-fn cpp_to_hpp(cpp: &str) -> String {
-    cpp.lines()
-        .map(|line| line.trim_end())
-        .filter_map(|line| {
-            if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
-                Some(format!("{};", &line[..line.len() - 2].trim_end()))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 const _CPP_COMPLEX_HELPERS: &str = r#"
 // C-ABI compatible complex type (same layout as std::complex<double>)
 // Hide the struct definition from bindgen - we'll provide our own type alias in Rust
@@ -598,6 +570,34 @@ void sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res
     }
 }
 "#;
+
+fn cpp_function_names(cpp: &str) -> impl Iterator<Item = &str> {
+    cpp.lines().filter_map(|line| {
+        let trimmed = line.trim_start();
+        if trimmed.contains('(') && line.ends_with(r") {") {
+            trimmed
+                .split('(')
+                .next()
+                .and_then(|part| part.split_whitespace().last())
+        } else {
+            None
+        }
+    })
+}
+
+fn cpp_to_hpp(cpp: &str) -> String {
+    cpp.lines()
+        .map(|line| line.trim_end())
+        .filter_map(|line| {
+            if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
+                Some(format!("{};", &line[..line.len() - 2].trim_end()))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 fn get_ctype(code: char) -> &'static str {
     match code {
@@ -869,12 +869,9 @@ fn generate_bindings(dir_out: &str, header: &str) {
         .blocklist_type("xsf_wrapper::c_complex")
         .clang_args(["-x", "c++", "-DBINDGEN"])
         .enable_cxx_namespaces()
-        .dynamic_link_require_all(true)
-        .size_t_is_usize(true)
         .sort_semantically(true)
-        .use_core()
         .merge_extern_blocks(true)
-        .size_t_is_usize(true)
+        .use_core()
         .module_raw_line(
             "root::xsf_wrapper",
             "pub type c_complex = num_complex::Complex<f64>;",
