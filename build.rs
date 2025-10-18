@@ -836,18 +836,16 @@ fn build_wrapper(dir_out: &str) {
 }
 
 fn get_allowlist() -> String {
-    fn format_entry(name: &str) -> String {
-        format!(r"{WRAPPER_NAME}::{name}(_\d)?")
-    }
-
-    let mut entries = WRAPPER_SPECS
-        .iter()
-        .map(|(name, _)| format_entry(name))
-        .chain(cpp_function_names(_CPP_WRAPPERS).map(format_entry))
-        .collect::<Vec<_>>();
-
-    entries.dedup();
-    entries.join("|")
+    format!(
+        "{}::({})",
+        WRAPPER_NAME,
+        WRAPPER_SPECS
+            .iter()
+            .map(|(name, _)| format!(r"{name}(_\d)?"))
+            .chain(cpp_function_names(_CPP_WRAPPERS).map(String::from))
+            .collect::<Vec<_>>()
+            .join("|")
+    )
 }
 
 fn generate_bindings(dir_out: &str, header: &str) {
