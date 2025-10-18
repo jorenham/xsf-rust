@@ -327,7 +327,7 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
 fn cpp_function_names(cpp: &str) -> impl Iterator<Item = &str> {
     cpp.lines().filter_map(|line| {
         let trimmed = line.trim_start();
-        if !trimmed.starts_with(' ') && trimmed.contains('(') && line.ends_with(r") {") {
+        if trimmed.contains('(') && line.ends_with(r") {") {
             trimmed
                 .split('(')
                 .next()
@@ -356,9 +356,6 @@ const _CPP_COMPLEX_HELPERS: &str = r#"
 class cdouble {
 public:
     double re, im;
-    cdouble() : re(0.0), im(0.0) {};
-    cdouble(double a) : re(a), im(0.0) {};
-    cdouble(double a, double b) : re(a), im(b) {};
     cdouble(std::complex<double> z) : re(z.real()), im(z.imag()) {};
     std::complex<double> to_std() const { return std::complex<double>(re, im); }
 };"#;
