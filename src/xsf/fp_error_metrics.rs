@@ -38,12 +38,12 @@ impl ExtendedErrorArg for f64 {
 impl ExtendedErrorArg for Complex<f64> {
     #[inline(always)]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
-        unsafe { crate::ffi::xsf::extended_absolute_error_1(self.into(), other.into()) }
+        unsafe { crate::ffi::xsf::extended_absolute_error_1(self, other) }
     }
 
     #[inline(always)]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
-        unsafe { crate::ffi::xsf::extended_relative_error_1(self.into(), other.into()) }
+        unsafe { crate::ffi::xsf::extended_relative_error_1(self, other) }
     }
 
     #[inline(always)]

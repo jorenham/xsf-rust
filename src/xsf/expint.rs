@@ -23,11 +23,11 @@ impl ExpIntArg for f64 {
 impl ExpIntArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn expi(self) -> Self {
-        unsafe { crate::ffi::xsf::expi_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::expi_1(self) }
     }
     #[inline(always)]
     fn exp1(self) -> Self {
-        unsafe { crate::ffi::xsf::exp1_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::exp1_1(self) }
     }
 }
 

@@ -30,17 +30,17 @@ impl LogArg for f64 {
 impl LogArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn xsf_log1p(self) -> Self {
-        unsafe { crate::ffi::xsf::log1p_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::log1p_1(self) }
     }
 
     #[inline(always)]
     fn xsf_xlogy(self, x: Self) -> Self {
-        unsafe { crate::ffi::xsf::xlogy_1(x.into(), self.into()) }.into()
+        unsafe { crate::ffi::xsf::xlogy_1(x, self) }
     }
 
     #[inline(always)]
     fn xsf_xlog1py(self, x: Self) -> Self {
-        unsafe { crate::ffi::xsf::xlog1py_1(x.into(), self.into()) }.into()
+        unsafe { crate::ffi::xsf::xlog1py_1(x, self) }
     }
 }
 

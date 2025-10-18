@@ -41,23 +41,23 @@ impl ErfArg for f64 {
 impl ErfArg for Complex<f64> {
     #[inline(always)]
     fn erf(self) -> Self {
-        unsafe { crate::ffi::xsf::erf_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::erf_1(self) }
     }
     #[inline(always)]
     fn erfc(self) -> Self {
-        unsafe { crate::ffi::xsf::erfc_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::erfc_1(self) }
     }
     #[inline(always)]
     fn erfcx(self) -> Self {
-        unsafe { crate::ffi::xsf::erfcx_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::erfcx_1(self) }
     }
     #[inline(always)]
     fn erfi(self) -> Self {
-        unsafe { crate::ffi::xsf::erfi_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::erfi_1(self) }
     }
     #[inline(always)]
     fn dawsn(self) -> Self {
-        unsafe { crate::ffi::xsf::dawsn_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::dawsn_1(self) }
     }
 }
 
@@ -89,11 +89,11 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 /// See [`erf`](crate::erf) for the error function itself.
 #[doc(alias = "cerzo")]
 pub fn erf_zeros<const NT: usize>() -> [Complex<f64>; NT] {
-    let mut zo = [f64::NAN.into(); NT];
+    let mut zo = [Complex::new(f64::NAN, 0.0); NT];
     unsafe {
         crate::ffi::xsf::cerzo(NT as c_int, zo.as_mut_ptr());
     }
-    zo.map(Into::into)
+    zo
 }
 
 /// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
@@ -105,7 +105,7 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`
 #[doc(alias = "faddeeva")]
 pub fn wofz(z: Complex<f64>) -> Complex<f64> {
-    unsafe { crate::ffi::xsf::wofz(z.into()) }.into()
+    unsafe { crate::ffi::xsf::wofz(z) }
 }
 
 /// Voigt profile

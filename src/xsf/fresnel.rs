@@ -26,11 +26,11 @@ impl FresnelArg for f64 {
 impl FresnelArg for Complex<f64> {
     #[inline(always)]
     fn fresnel(self) -> (Self, Self) {
-        let (mut fs, mut fc) = (f64::NAN.into(), f64::NAN.into());
+        let (mut fs, mut fc) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::fresnel_1(self.into(), &mut fs, &mut fc);
+            crate::ffi::xsf::fresnel_1(self, &mut fs, &mut fc);
         }
-        (fs.into(), fc.into())
+        (fs, fc)
     }
 }
 
@@ -61,11 +61,11 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
 #[doc(alias = "modfresnelp")]
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let (mut fp, mut kp) = (f64::NAN.into(), f64::NAN.into());
+    let (mut fp, mut kp) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
     unsafe {
         crate::ffi::xsf::modified_fresnel_plus(x, &mut fp, &mut kp);
     }
-    (fp.into(), kp.into())
+    (fp, kp)
 }
 
 /// Modified Fresnel negative integrals
@@ -79,11 +79,11 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 #[doc(alias = "modfresnelm")]
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let (mut fm, mut km) = (f64::NAN.into(), f64::NAN.into());
+    let (mut fm, mut km) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
     unsafe {
         crate::ffi::xsf::modified_fresnel_minus(x, &mut fm, &mut km);
     }
-    (fm.into(), km.into())
+    (fm, km)
 }
 
 /// Zeros of Fresnel integrals S(z) and C(z)
@@ -99,13 +99,13 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut szo = vec![f64::NAN.into(); nt];
-    let mut czo = vec![f64::NAN.into(); nt];
+    let mut szo = vec![Complex::new(f64::NAN, 0.0); nt];
+    let mut czo = vec![Complex::new(f64::NAN, 0.0); nt];
     unsafe {
         crate::ffi::xsf::fcszo(2, nt as c_int, szo.as_mut_ptr());
         crate::ffi::xsf::fcszo(1, nt as c_int, czo.as_mut_ptr());
     }
-    (crate::utils::vec_into(szo), crate::utils::vec_into(czo))
+    (szo, czo)
 }
 
 #[cfg(test)]

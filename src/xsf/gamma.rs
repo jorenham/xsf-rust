@@ -18,7 +18,7 @@ impl GammaArg for f64 {
 impl GammaArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn xsf_gamma(self) -> Self {
-        unsafe { crate::ffi::xsf::gamma_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::gamma_1(self) }
     }
 }
 

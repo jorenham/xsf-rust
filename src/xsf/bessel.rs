@@ -61,70 +61,70 @@ impl BesselArg for f64 {
     }
     #[inline(always)]
     fn hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_1(v, Complex::from(self)) }
     }
     #[inline(always)]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, Complex::from(self)) }
     }
     #[inline(always)]
     fn hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_2(v, Complex::from(self)) }
     }
     #[inline(always)]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, Complex::from(self)) }
     }
 }
 
 impl BesselArg for Complex<f64> {
     #[inline(always)]
     fn bessel_j(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_j_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_j_1(v, self) }
     }
     #[inline(always)]
     fn bessel_je(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_je_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_je_1(v, self) }
     }
     #[inline(always)]
     fn bessel_y(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_y_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_y_1(v, self) }
     }
     #[inline(always)]
     fn bessel_ye(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ye_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_ye_1(v, self) }
     }
     #[inline(always)]
     fn bessel_i(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_i_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_i_1(v, self) }
     }
     #[inline(always)]
     fn bessel_ie(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ie_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_ie_1(v, self) }
     }
     #[inline(always)]
     fn bessel_k(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_k_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_k_1(v, self) }
     }
     #[inline(always)]
     fn bessel_ke(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ke_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_bessel_ke_1(v, self) }
     }
     #[inline(always)]
     fn hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_1(v, self) }
     }
     #[inline(always)]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self) }
     }
     #[inline(always)]
     fn hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_2(v, self) }
     }
     #[inline(always)]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self.into()) }.into()
+        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self) }
     }
 }
 

@@ -1,4 +1,5 @@
 use alloc::{vec, vec::Vec};
+use num_complex::Complex;
 
 mod sealed {
     pub trait Sealed {}
@@ -42,28 +43,28 @@ impl AiryArg for f64 {
 impl AiryArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn airy(self) -> (Self, Self, Self, Self) {
-        let mut ai = f64::NAN.into();
-        let mut bi = f64::NAN.into();
-        let mut ad = f64::NAN.into();
-        let mut bd = f64::NAN.into();
+        let mut ai = Complex::new(f64::NAN, 0.0);
+        let mut bi = Complex::new(f64::NAN, 0.0);
+        let mut ad = Complex::new(f64::NAN, 0.0);
+        let mut bd = Complex::new(f64::NAN, 0.0);
 
         unsafe {
-            crate::ffi::xsf::airy_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
+            crate::ffi::xsf::airy_1(self, &mut ai, &mut bi, &mut ad, &mut bd);
         }
-        (ai.into(), bi.into(), ad.into(), bd.into())
+        (ai, bi, ad, bd)
     }
 
     #[inline(always)]
     fn airye(self) -> (Self, Self, Self, Self) {
-        let mut ai = f64::NAN.into();
-        let mut bi = f64::NAN.into();
-        let mut ad = f64::NAN.into();
-        let mut bd = f64::NAN.into();
+        let mut ai = Complex::new(f64::NAN, 0.0);
+        let mut bi = Complex::new(f64::NAN, 0.0);
+        let mut ad = Complex::new(f64::NAN, 0.0);
+        let mut bd = Complex::new(f64::NAN, 0.0);
 
         unsafe {
-            crate::ffi::xsf::airye_1(self.into(), &mut ai, &mut bi, &mut ad, &mut bd);
+            crate::ffi::xsf::airye_1(self, &mut ai, &mut bi, &mut ad, &mut bd);
         }
-        (ai.into(), bi.into(), ad.into(), bd.into())
+        (ai, bi, ad, bd)
     }
 }
 

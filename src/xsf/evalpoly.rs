@@ -18,13 +18,12 @@
 pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::Complex<f64> {
     let degree = (coeffs.len() as i32) - 1;
     if degree == -1 {
-        unsafe { crate::ffi::xsf::cevalpoly([0.0, 0.0].as_ptr(), 1, z.into()) }
+        unsafe { crate::ffi::xsf::cevalpoly([0.0, 0.0].as_ptr(), 1, z) }
     } else if degree == 0 {
-        unsafe { crate::ffi::xsf::cevalpoly([0.0, coeffs[0]].as_ptr(), 1, z.into()) }
+        unsafe { crate::ffi::xsf::cevalpoly([0.0, coeffs[0]].as_ptr(), 1, z) }
     } else {
-        unsafe { crate::ffi::xsf::cevalpoly(coeffs.as_ptr(), degree, z.into()) }
+        unsafe { crate::ffi::xsf::cevalpoly(coeffs.as_ptr(), degree, z) }
     }
-    .into()
 }
 
 #[cfg(test)]
