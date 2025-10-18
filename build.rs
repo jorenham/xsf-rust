@@ -821,8 +821,6 @@ fn build_wrapper(dir_out: &str) {
     let mut build = cc::Build::new();
     build
         .cpp(true)
-        // .prefer_clang_cl_over_msvc(true)
-        // .flag_if_supported("-fexceptions")
         .flag_if_supported("-Wno-unused-parameter")
         .flag_if_supported("-Wno-logical-op-parentheses")
         .include(XSF_INCLUDE)
