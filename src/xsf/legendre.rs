@@ -76,29 +76,29 @@ impl LegendrePArg for f64 {
 impl LegendrePArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn legendre_p(self, n: c_int) -> Self {
-        unsafe { crate::ffi::xsf::legendre_p_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::legendre_p_1(n, self) }
     }
 
     #[inline(always)]
     fn legendre_p_all(self, n: usize) -> Vec<Self> {
-        let mut pn = vec![f64::NAN.into(); n + 1];
+        let mut pn = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
         unsafe {
-            crate::ffi::xsf::legendre_p_all_1(n, self.into(), pn.as_mut_ptr());
+            crate::ffi::xsf::legendre_p_all_1(n, self, pn.as_mut_ptr());
         }
-        utils::vec_into(pn)
+        pn
     }
 
     #[inline(always)]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
-        unsafe { crate::ffi::xsf::sph_legendre_p_1(n, m, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_legendre_p_1(n, m, self) }
     }
 
     #[inline(always)]
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
-        let mut pnm = vec![f64::NAN.into(); ni * nj];
+        let mut pnm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
         unsafe {
-            crate::ffi::xsf::sph_legendre_p_all_1(n, m, self.into(), pnm.as_mut_ptr());
+            crate::ffi::xsf::sph_legendre_p_all_1(n, m, self, pnm.as_mut_ptr());
         }
         utils::vec_into_vecvec(pnm, ni, nj, false)
     }
@@ -107,23 +107,22 @@ impl LegendrePArg for num_complex::Complex<f64> {
     fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
         unsafe {
             if norm {
-                crate::ffi::xsf::assoc_legendre_p_1_1(n, m, self.into(), bc)
+                crate::ffi::xsf::assoc_legendre_p_1_1(n, m, self, bc)
             } else {
-                crate::ffi::xsf::assoc_legendre_p_0_1(n, m, self.into(), bc)
+                crate::ffi::xsf::assoc_legendre_p_0_1(n, m, self, bc)
             }
         }
-        .into()
     }
 
     #[inline(always)]
     fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
-        let mut pnm = vec![f64::NAN.into(); ni * nj];
+        let mut pnm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
         unsafe {
             if norm {
-                crate::ffi::xsf::assoc_legendre_p_all_1_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+                crate::ffi::xsf::assoc_legendre_p_all_1_1(n, m, self, bc, pnm.as_mut_ptr());
             } else {
-                crate::ffi::xsf::assoc_legendre_p_all_0_1(n, m, self.into(), bc, pnm.as_mut_ptr());
+                crate::ffi::xsf::assoc_legendre_p_all_0_1(n, m, self, bc, pnm.as_mut_ptr());
             }
         }
         utils::vec_into_vecvec(pnm, ni, nj, false)
@@ -167,23 +166,23 @@ impl LegendreQArg for f64 {
 impl LegendreQArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        let mut cqn = vec![f64::NAN.into(); n + 1];
-        let mut cqd = vec![f64::NAN.into(); n + 1];
+        let mut cqn = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
+        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
 
         unsafe {
-            crate::ffi::xsf::lqn_1(n, self.into(), cqn.as_mut_ptr(), cqd.as_mut_ptr());
+            crate::ffi::xsf::lqn_1(n, self, cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
-        (utils::vec_into(cqn), utils::vec_into(cqd))
+        (cqn, cqd)
     }
 
     #[inline(always)]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
-        let mut cqm = vec![f64::NAN.into(); ni * nj];
-        let mut cqd = vec![f64::NAN.into(); ni * nj];
+        let mut cqm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
+        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
 
         unsafe {
-            crate::ffi::xsf::lqmn_1(m, n, self.into(), cqm.as_mut_ptr(), cqd.as_mut_ptr());
+            crate::ffi::xsf::lqmn_1(m, n, self, cqm.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
         (

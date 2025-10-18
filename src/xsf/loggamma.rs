@@ -23,11 +23,11 @@ impl LogGammaArg for f64 {
 impl LogGammaArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn xsf_loggamma(self) -> Self {
-        unsafe { crate::ffi::xsf::loggamma_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::loggamma_1(self) }
     }
     #[inline(always)]
     fn xsf_rgamma(self) -> Self {
-        unsafe { crate::ffi::xsf::rgamma_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::rgamma_1(self) }
     }
 }
 

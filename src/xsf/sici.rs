@@ -1,3 +1,5 @@
+use num_complex::Complex;
+
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -32,20 +34,20 @@ impl SiciArg for f64 {
 impl SiciArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn sici(self) -> (Self, Self) {
-        let (mut si, mut ci) = (f64::NAN.into(), f64::NAN.into());
+        let (mut si, mut ci) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::sici_1(self.into(), &mut si, &mut ci);
+            crate::ffi::xsf::sici_1(self, &mut si, &mut ci);
         }
-        (si.into(), ci.into())
+        (si, ci)
     }
 
     #[inline(always)]
     fn shichi(self) -> (Self, Self) {
-        let (mut shi, mut chi) = (f64::NAN.into(), f64::NAN.into());
+        let (mut shi, mut chi) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::shichi_1(self.into(), &mut shi, &mut chi);
+            crate::ffi::xsf::shichi_1(self, &mut shi, &mut chi);
         }
-        (shi.into(), chi.into())
+        (shi, chi)
     }
 }
 

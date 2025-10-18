@@ -24,12 +24,12 @@ impl ZetaArg for f64 {
 impl ZetaArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn riemann_zeta(self) -> Self {
-        unsafe { crate::ffi::xsf::riemann_zeta_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::riemann_zeta_1(self) }
     }
 
     #[inline(always)]
     fn zeta(self, q: f64) -> Self {
-        unsafe { crate::ffi::xsf::zeta_1(self.into(), q) }.into()
+        unsafe { crate::ffi::xsf::zeta_1(self, q) }
     }
 }
 

@@ -20,7 +20,7 @@ impl Hyp1F1Arg for f64 {
 impl Hyp1F1Arg for Complex<f64> {
     #[inline(always)]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, self.into()) }.into()
+        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, self) }
     }
 }
 

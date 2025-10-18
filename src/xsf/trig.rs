@@ -24,12 +24,12 @@ impl TrigArg for f64 {
 impl TrigArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn sinpi(self) -> Self {
-        unsafe { crate::ffi::xsf::sinpi_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::sinpi_1(self) }
     }
 
     #[inline(always)]
     fn cospi(self) -> Self {
-        unsafe { crate::ffi::xsf::cospi_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::cospi_1(self) }
     }
 }
 

@@ -18,7 +18,7 @@ impl ExpArg for f64 {
 impl ExpArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn expm1(self) -> Self {
-        unsafe { crate::ffi::xsf::expm1_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::expm1_1(self) }
     }
 }
 

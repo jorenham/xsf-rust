@@ -6,7 +6,7 @@ use num_complex::Complex;
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
     assert!(n <= c_int::MAX as usize);
     assert!(m.abs() <= c_int::MAX as isize);
-    unsafe { crate::ffi::xsf::sph_harm_y(n as c_int, m as c_int, theta, phi) }.into()
+    unsafe { crate::ffi::xsf::sph_harm_y(n as c_int, m as c_int, theta, phi) }
 }
 
 /// All spherical harmonics up to the specified degree `n` and order `m`
@@ -20,7 +20,7 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
 /// - Index `m+1` to `2*m`: orders `-m, -(m-1), ..., -1`
 pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex<f64>>> {
     let (nr, nc) = (n + 1, 2 * m + 1);
-    let mut out = vec![f64::NAN.into(); nr * nc];
+    let mut out = vec![Complex::new(f64::NAN, 0.0); nr * nc];
     unsafe { crate::ffi::xsf::sph_harm_y_all(n, m, theta, phi, out.as_mut_ptr()) };
     crate::utils::vec_into_vecvec(out, nr, nc, false)
 }

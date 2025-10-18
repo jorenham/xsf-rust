@@ -55,35 +55,35 @@ impl SphBesselArg for f64 {
 impl SphBesselArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn sph_bessel_j(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_j_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_j_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_y(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_y_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_y_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_i(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_i_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_i_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_k(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_k_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_k_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_j_prime(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_j_jac_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_j_jac_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_y_prime(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_y_jac_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_y_jac_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_i_prime(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_i_jac_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_i_jac_1(n, self) }
     }
     #[inline(always)]
     fn sph_bessel_k_prime(self, n: c_long) -> Self {
-        unsafe { crate::ffi::xsf::sph_bessel_k_jac_1(n, self.into()) }.into()
+        unsafe { crate::ffi::xsf::sph_bessel_k_jac_1(n, self) }
     }
 }
 

@@ -10,7 +10,7 @@ use num_complex::Complex;
 /// integer `k`.
 #[doc(alias = "lambert_w")]
 pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
-    unsafe { crate::ffi::xsf::lambertw(z.into(), k as core::ffi::c_long, tol) }.into()
+    unsafe { crate::ffi::xsf::lambertw(z, k as core::ffi::c_long, tol) }
 }
 
 #[cfg(test)]

@@ -26,12 +26,12 @@ impl StatsArg for f64 {
 impl StatsArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::ndtr_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::ndtr_1(self) }
     }
 
     #[inline(always)]
     fn log_ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::log_ndtr_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::log_ndtr_1(self) }
     }
 }
 

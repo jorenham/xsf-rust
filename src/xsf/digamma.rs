@@ -18,7 +18,7 @@ impl DigammaArg for f64 {
 impl DigammaArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn digamma(self) -> Self {
-        unsafe { crate::ffi::xsf::digamma_1(self.into()) }.into()
+        unsafe { crate::ffi::xsf::digamma_1(self) }
     }
 }
 

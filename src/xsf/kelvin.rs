@@ -53,14 +53,14 @@ pub fn keip(x: f64) -> f64 {
 /// - *Be*': Derivative of [`berp`] + *i* [`beip`]
 /// - *Ke*': Derivative of [`kerp`] + *i* [`keip`]
 pub fn kelvin(x: f64) -> [num_complex::Complex<f64>; 4] {
-    let mut be = f64::NAN.into();
-    let mut ke = f64::NAN.into();
-    let mut bep = f64::NAN.into();
-    let mut kep = f64::NAN.into();
+    let mut be = num_complex::Complex::new(f64::NAN, 0.0);
+    let mut ke = num_complex::Complex::new(f64::NAN, 0.0);
+    let mut bep = num_complex::Complex::new(f64::NAN, 0.0);
+    let mut kep = num_complex::Complex::new(f64::NAN, 0.0);
     unsafe {
         crate::ffi::xsf::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
     }
-    [be.into(), ke.into(), bep.into(), kep.into()]
+    [be, ke, bep, kep]
 }
 
 #[repr(C)]
