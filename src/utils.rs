@@ -1,5 +1,3 @@
-use alloc::vec::Vec;
-
 #[inline(always)]
 pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
     xs.into_iter().map(S::into).collect()

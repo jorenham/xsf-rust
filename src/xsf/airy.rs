@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use num_complex::Complex;
 
 mod sealed {

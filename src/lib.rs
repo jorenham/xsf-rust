@@ -401,8 +401,6 @@
     unreachable_pub
 )]
 
-extern crate alloc;
-
 #[cfg(test)]
 mod macros;
 #[cfg(test)]
