@@ -55,7 +55,7 @@ impl AiryArg for num_complex::Complex<f64> {
 
 /// Airy functions and derivatives
 ///
-/// The Airy functions Ai(*z*) and Bi(*z*) are linearly indpendent solutions to the differential
+/// The Airy functions Ai(*z*) and Bi(*z*) are linearly independent solutions to the differential
 /// equation *y(z)'' - z y(z) = 0*,  Airy equation or Stokes equation.
 ///
 /// This corresponds to [`scipy.special.airy`][airy] in SciPy.
@@ -109,8 +109,8 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
 ///
 /// Calculates the integrals of Ai(*t*), Bi(*t*), Ai(-*t*), and Bi(-*t*) for *t from 0 to *x*.
 ///
-/// Note that -*x* will result in the integrals of -Ai(-*t*), -Bi(-*t*), -Ai(*t*), and -Bi(*t*)
-/// for *t from 0 to *x*
+/// If `x` is negative, the integrals are evaluated from 0 to `x` (i.e., from 0 down to `x`), following the same definitions for the Airy functions. The sign and order of the results reflect the direction of integration.
+///
 ///
 /// This corresponds to [`scipy.special.itairy`][itairy] in SciPy.
 ///
