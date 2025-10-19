@@ -236,7 +236,8 @@
 //! | [`betaln`]       | Logarithm of the absolute value of the beta function       |
 //! | [`betainc`]      | Regularized incomplete beta function                       |
 //! | [`betaincinv`]   | Inverse to the regularized incomplete beta function        |
-//! | [`digamma`]      | The digamma function                                       |
+//! | [`digamma`]      | The digamma function ψ(z)                                  |
+//! | [`polygamma`]    | The polygamma function ψ<sup>(n)</sup>(x)                  |
 //! | [`rgamma`]       | Reciprocal of the gamma function                           |
 //! | [`pow_rising`]   | Rising factorial  (Pochhammer symbol)                      |
 //! | [`pow_falling`]  | Falling factorial                                          |

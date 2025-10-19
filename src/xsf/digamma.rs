@@ -23,6 +23,12 @@ impl DigammaArg for num_complex::Complex<f64> {
 }
 
 /// Digamma function for real or complex input
+///
+/// Corresponds to [`scipy.special.digamma`][digamma] in scipy
+///
+/// See also [`polygamma`](crate::polygamma).
+///
+/// [digamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html
 #[doc(alias = "psi")]
 pub fn digamma<T: DigammaArg>(x: T) -> T {
     x.digamma()
