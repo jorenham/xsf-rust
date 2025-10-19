@@ -377,23 +377,25 @@
 //!
 //! # Convenience functions
 //!
-//! | Function    | Description                                         |
-//! | ----------- | --------------------------------------------------- |
-//! | [`cbrt`]    | *∛x*                                                |
-//! | [`exp10`]   | *10<sup>x</sup>*                                    |
-//! | [`exp2`]    | *2<sup>x</sup>*                                     |
-//! | [`radian`]  | Convert from degrees to radians                     |
-//! | [`cosdg`]   | Cosine of an angle in degrees                       |
-//! | [`sindg`]   | Sine of an angle in degrees                         |
-//! | [`tandg`]   | Tangent of an angle in degrees                      |
-//! | [`cotdg`]   | Cotangent of an angle in degrees                    |
-//! | [`log1p`]   | *log(1+x)*                                          |
-//! | [`expm1`]   | *e<sup>x</sup> - 1*                                 |
-//! | [`cosm1`]   | *cos(x) - 1*                                        |
-//! | [`round`]   | Round to nearest or even integer-valued float       |
-//! | [`xlogy`]   | *x log(y)* or *0* if *x = 0*                        |
-//! | [`xlog1py`] | *x log(1+y)* or *0* if *x = 0*                      |
-//! | [`exprel`]  | Relative error exponential, *(e<sup>x</sup> - 1)/x* |
+//! | Function       | Description                                         |
+//! | -----------    | --------------------------------------------------- |
+//! | [`cbrt`]       | *∛x*                                                |
+//! | [`exp10`]      | *10<sup>x</sup>*                                    |
+//! | [`exp2`]       | *2<sup>x</sup>*                                     |
+//! | [`radian`]     | Convert from degrees to radians                     |
+//! | [`cosdg`]      | Cosine of an angle in degrees                       |
+//! | [`sindg`]      | Sine of an angle in degrees                         |
+//! | [`tandg`]      | Tangent of an angle in degrees                      |
+//! | [`cotdg`]      | Cotangent of an angle in degrees                    |
+//! | [`log1p`]      | *log(1+x)*                                          |
+//! | [`expm1`]      | *e<sup>x</sup> - 1*                                 |
+//! | [`cosm1`]      | *cos(x) - 1*                                        |
+//! | [`round`]      | Round to nearest or even integer-valued float       |
+//! | [`xlogy`]      | *x log(y)* or *0* if *x = 0*                        |
+//! | [`xlog1py`]    | *x log(1+y)* or *0* if *x = 0*                      |
+//! | [`exprel`]     | Relative error exponential, *(e<sup>x</sup> - 1)/x* |
+//! | [`logaddexp`]  | ln(e<sup>x</sup> + e<sup>y</sup>)                   |
+//! | [`logaddexp2`] | log<sub>2</sub>(2<sup>x</sup> + 2<sup>y</sup>)      |
 //!
 
 #![warn(
@@ -409,10 +411,12 @@ mod macros;
 mod xsref;
 
 mod ffi;
+mod numpy;
 mod scipy_special;
 mod utils;
 mod xsf;
 
+pub use numpy::*;
 pub use scipy_special::*;
 pub use xsf::cephes::*;
 pub use xsf::*;
