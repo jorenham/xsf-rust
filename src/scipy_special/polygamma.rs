@@ -1,6 +1,6 @@
 //! Translated from <https://github.com/scipy/scipy/blob/38ecfef/scipy/special/_basic.py#L1539-L1579>
 
-/// Polygamma function ψ<<sup>(n)</sup>(x)
+/// Polygamma function ψ<sup>(n)</sup>(x)
 ///
 /// The n-th derivative of the [`digamma`](crate::digamma) function.
 ///
@@ -12,8 +12,7 @@ pub fn polygamma(n: u32, x: f64) -> f64 {
         crate::digamma(x)
     } else {
         let n1p = n as f64 + 1.0;
-        // let sign = if n % 2 == 0 { -1.0 } else { 1.0 };
-        let sign = (-1.0f64).powi(n as i32 + 1);
+        let sign = if n % 2 == 0 { -1.0 } else { 1.0 };
         sign * crate::gamma(n1p) * crate::zeta(n1p, x)
     }
 }
