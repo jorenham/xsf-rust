@@ -30,7 +30,7 @@ impl DigammaArg for num_complex::Complex<f64> {
 ///
 /// [digamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html
 #[doc(alias = "psi")]
-#[inline(always)]
+#[inline]
 pub fn digamma<T: DigammaArg>(x: T) -> T {
     x.digamma()
 }
