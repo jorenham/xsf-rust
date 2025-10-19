@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use core::ffi::c_int;
 
 /// Kelvin function *ber*
@@ -79,7 +78,7 @@ enum KelvinFunction {
 fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut zs = alloc::vec![f64::NAN; nt];
+    let mut zs = vec![f64::NAN; nt];
     unsafe {
         crate::ffi::xsf::klvnzo(nt as c_int, kd as c_int, zs.as_mut_ptr());
     }

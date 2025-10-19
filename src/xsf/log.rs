@@ -44,12 +44,6 @@ impl LogArg for num_complex::Complex<f64> {
     }
 }
 
-/// libc `std::log`
-#[doc(alias = "ln")]
-pub(crate) fn log(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::log(x) }
-}
-
 /// `log(z + 1)` for real or complex input
 #[doc(alias = "ln_1p")]
 #[doc(alias = "log_1p")]

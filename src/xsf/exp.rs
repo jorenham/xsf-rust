@@ -22,11 +22,6 @@ impl ExpArg for num_complex::Complex<f64> {
     }
 }
 
-/// libc `exp` function
-pub(crate) fn exp(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::exp(x) }
-}
-
 /// `exp(x) - 1` for real or complex input
 #[doc(alias = "exp_m1")]
 pub fn expm1<T: ExpArg>(z: T) -> T {

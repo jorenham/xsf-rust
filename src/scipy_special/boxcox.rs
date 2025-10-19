@@ -1,8 +1,5 @@
 // ported from `scipy/special/_boxcox.pxd`
 
-use crate::xsf::exp::{exp, expm1};
-use crate::xsf::log::{log, log1p};
-
 const MIN_ABS_LAMBDA: f64 = 1e-19;
 const MAX_ABS_LAMBDA: f64 = 1e+273;
 const MIN_ABS_LOG_X: f64 = 1e-289;
@@ -13,7 +10,7 @@ const SQRT_F64_MIN_POSITIVE: f64 = 1.49e-154;
 ///
 /// The Box-Cox transformation is:
 ///
-/// - `log(x)` if `lambda == 0.0`
+/// - `x.ln()` if `lambda == 0.0`
 /// - `(x.powf(lambda) - 1.0) / lambda` if `lambda != 0.0`
 ///
 /// Returns [`f64::NAN`] if `x < 0.0`.
@@ -24,22 +21,22 @@ const SQRT_F64_MIN_POSITIVE: f64 = 1.49e-154;
 /// - [`boxcox1p`]: Box-Cox transformation of 1 + `x`
 #[inline]
 pub fn boxcox(x: f64, lambda: f64) -> f64 {
-    // if lmbda << 1 and log(x) < 1.0, the lmbda*log(x) product can lose
+    // if lmbda << 1 and x.ln() < 1.0, the lmbda*x.ln() product can lose
     // precision, furthermore, expm1(x) == x for x < eps.
     // For f64, the range of log is -744.44 to +709.78, with eps being
     // the smallest value produced. This range means that we will have
-    // abs(lmbda)*log(x) < eps whenever abs(lmbda) <= eps/-log(min double)
+    // abs(lmbda)*x.ln() < eps whenever abs(lmbda) <= eps/-log(min double)
     // which is ~2.98e-19.
     let abs_lambda = lambda.abs();
     if abs_lambda < MIN_ABS_LAMBDA {
-        return log(x);
+        return x.ln();
     }
 
-    let lambda_log_x = lambda * log(x);
+    let lambda_log_x = lambda * x.ln();
     if lambda_log_x < LOG_F64_MAX {
-        expm1(lambda_log_x) / lambda
+        lambda_log_x.exp_m1() / lambda
     } else {
-        1.0_f64.copysign(lambda) * exp(lambda_log_x - log(abs_lambda)) - 1.0 / lambda
+        1.0_f64.copysign(lambda) * (lambda_log_x - abs_lambda.ln()).exp() - 1.0 / lambda
     }
 }
 
@@ -60,7 +57,7 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
     // that the smallest value produced by log1p is the minimum representable
     // value, rather than eps.  The second condition here prevents underflow
     // when log1p(x) is < eps.
-    let log_x = log1p(x);
+    let log_x = x.ln_1p();
     let abs_lambda = lambda.abs();
     if abs_lambda < MIN_ABS_LAMBDA || (abs_lambda < MAX_ABS_LAMBDA && log_x.abs() < MIN_ABS_LOG_X) {
         return log_x;
@@ -68,9 +65,9 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 
     let lambda_log_x = lambda * log_x;
     if lambda_log_x < LOG_F64_MAX {
-        expm1(lambda_log_x) / lambda
+        lambda_log_x.exp_m1() / lambda
     } else {
-        1.0_f64.copysign(lambda) * exp(lambda_log_x - log(abs_lambda)) - 1.0 / lambda
+        1.0_f64.copysign(lambda) * (lambda_log_x - abs_lambda.ln()).exp() - 1.0 / lambda
     }
 }
 
@@ -85,16 +82,16 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 #[inline]
 pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
-        return exp(y);
+        return y.exp();
     }
 
     let lambda_y = lambda * y;
     let log_term = if lambda_y < f64::MAX {
-        log1p(lambda_y)
+        lambda_y.ln_1p()
     } else {
-        log(1.0_f64.copysign(lambda) * (y + 1.0 / lambda)) + log(lambda.abs())
+        (1.0_f64.copysign(lambda) * (y + 1.0 / lambda)).ln() + lambda.abs().ln()
     };
-    exp(log_term / lambda)
+    (log_term / lambda).exp()
 }
 
 /// Inverse of the Box-Cox transformation of 1 + `x`
@@ -109,7 +106,7 @@ pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
 #[inline]
 pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
-        return expm1(y);
+        return y.exp_m1();
     }
 
     let lambda_y = lambda * y;
@@ -118,11 +115,11 @@ pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
     }
 
     let log_term = if lambda_y < f64::MAX {
-        log1p(lambda_y)
+        lambda_y.ln_1p()
     } else {
-        log(1.0_f64.copysign(lambda) * (y + 1.0 / lambda)) + log(lambda.abs())
+        (1.0_f64.copysign(lambda) * (y + 1.0 / lambda)).ln() + lambda.abs().ln()
     };
-    expm1(log_term / lambda)
+    (log_term / lambda).exp_m1()
 }
 
 #[cfg(test)]
@@ -142,7 +139,7 @@ mod tests {
     fn test_boxcox_basic() {
         let x = [0.5, 1.0, 2.0, 4.0];
 
-        // lambda = 0  =>  y = log(x)
+        // lambda = 0  =>  y = x.ln()
         let y = map2(crate::boxcox, &x, &[0.0; 4]);
         let expected = x.map(|xi| xi.ln());
         crate::np_assert_allclose!(&y, &expected, atol = 1.5e-7);

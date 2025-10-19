@@ -394,15 +394,12 @@
 //! | [`exprel`]  | Relative error exponential, *(e<sup>x</sup> - 1)/x* |
 //!
 
-#![cfg_attr(not(test), no_std)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
     rust_2018_idioms,
     unreachable_pub
 )]
-
-extern crate alloc;
 
 #[cfg(test)]
 mod macros;
