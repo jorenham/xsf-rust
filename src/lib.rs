@@ -1,17 +1,17 @@
-//! Bindings to the scipy XSF C++ library of `scipy.special` functions.
-//!
+//! Bindings to the [scipy/xsf](https://github.com/scipy/xsf) C++ library that powers
+//! `scipy.special`.
 //! See the [`scipy.special` documentation](https://docs.scipy.org/doc/scipy/reference/special.html)
 //! for additional information.
 //!
 //! # Airy functions
 //!
-//! | Function      | Description                                                 |
-//! | ------------- | ----------------------------------------------------------- |
-//! | [`airy`]      | Airy functions and their derivatives                        |
-//! | [`airye`]     | Exponentially scaled Airy functions and their derivatives   |
-//! | [`ai_zeros`]  | Zeros and values of the Airy function Ai and its derivative |
-//! | [`bi_zeros`]  | Zeros and values of the Airy function Bi and its derivative |
-//! | [`itairy`]    | Integrals of Airy functions                                 |
+//! | Function           | Description                                                      |
+//! | ------------------ | ---------------------------------------------------------------- |
+//! | [`airy`]           | Airy functions and derivatives                                   |
+//! | [`airy_scaled`]    | Exponentially scaled Airy functions and derivatives              |
+//! | [`airy_ai_zeros`]  | Zeros and values of the Airy function Ai and its derivative      |
+//! | [`airy_bi_zeros`]  | Zeros and values of the Airy function Bi and its derivative      |
+//! | [`airy_integrals`] | Integrals of Airy functions                                      |
 //!
 //! # Elliptic functions and integrals
 //!
@@ -367,7 +367,7 @@
 //! | ------------- | ---------------------------------------------------------- |
 //! | [`bernoulli`] | Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>      |
 //! | [`binom`]     | Binomial coefficient                                       |
-//! | [`euler`]     | Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>      |
+//! | [`euler`]     | Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>          |
 //! | [`lambertw`]  | Lambert W function                                         |
 //! | [`sici`]      | Sine and cosine integrals *Si(z)* and *Ci(z)*              |
 //! | [`shichi`]    | Hyperbolic sine and cosine integrals *Shi(z)* and *Chi(z)* |

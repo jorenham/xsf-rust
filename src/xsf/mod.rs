@@ -37,7 +37,7 @@ mod trig;
 mod wright_bessel;
 mod zeta;
 
-pub use airy::{ai_zeros, airy, airye, bi_zeros, itairy};
+pub use airy::{airy, airy_ai_zeros, airy_bi_zeros, airy_integrals, airy_scaled};
 pub use alg::cbrt;
 pub use bessel::{
     bessel_i, bessel_i0, bessel_i0e, bessel_i1, bessel_i1e, bessel_ie, bessel_j, bessel_j0,
