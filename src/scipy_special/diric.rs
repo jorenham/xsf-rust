@@ -13,6 +13,8 @@ use core::f64::consts::TAU;
 /// Corresponds to [`scipy.special.diric`][diric] in SciPy.
 /// [diric]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.diric.html
 ///
+/// **Note:** The argument order in this crate is `(n, x)`, whereas SciPy uses `(x, n)`.
+///
 /// # Panics
 ///
 /// Panics if `n` is zero.
