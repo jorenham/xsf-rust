@@ -367,6 +367,7 @@
 //! | ------------- | ---------------------------------------------------------- |
 //! | [`bernoulli`] | Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>      |
 //! | [`binom`]     | Binomial coefficient                                       |
+//! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel   |
 //! | [`euler`]     | Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>          |
 //! | [`lambertw`]  | Lambert W function                                         |
 //! | [`sici`]      | Sine and cosine integrals *Si(z)* and *Ci(z)*              |
