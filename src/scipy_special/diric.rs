@@ -1,4 +1,4 @@
-//! Translated from https://github.com/scipy/scipy/blob/38ecfef/scipy/special/_basic.py#L93-L192
+//! Translated from <https://github.com/scipy/scipy/blob/38ecfef/scipy/special/_basic.py#L93-L192>
 
 use core::f64::consts::TAU;
 
@@ -11,6 +11,7 @@ use core::f64::consts::TAU;
 /// for *n > 0*.
 ///
 /// Corresponds to [`scipy.special.diric`][diric] in SciPy.
+///
 /// [diric]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.diric.html
 ///
 /// **Note:** The argument order in this crate is `(n, x)`, whereas SciPy uses `(x, n)`.
