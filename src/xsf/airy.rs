@@ -38,7 +38,7 @@ impl AiryArg for num_complex::Complex<f64> {
     fn airy(self) -> [Self; 4] {
         let [mut ai, mut aip, mut bi, mut bip] = [CNAN; 4];
         unsafe {
-            crate::ffi::xsf::airy_1(self, &mut ai, &mut bi, &mut aip, &mut bip);
+            crate::ffi::xsf::airy_1(self, &mut ai, &mut aip, &mut bi, &mut bip);
         }
         [ai, aip, bi, bip]
     }
