@@ -114,9 +114,9 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
 /// # See also
-/// - [`mathieu_sem`]: Even Mathieu function
-/// - [`mathieu_modsem2`]: Even modified Mathieu function of the second kind
-/// - [`mathieu_modcem1`]: Odd modified Mathieu function of the first kind
+/// - [`mathieu_sem`]: Odd Mathieu function
+/// - [`mathieu_modsem2`]: Odd modified Mathieu function of the second kind
+/// - [`mathieu_modcem1`]: Even modified Mathieu function of the first kind
 #[doc(alias = "msm1")]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
