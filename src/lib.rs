@@ -296,16 +296,16 @@
 //!
 //! # Mathieu and related functions
 //!
-//! | Function    | Description                                                          |
-//! | ----------- | -------------------------------------------------------------------- |
-//! | [`cem_cva`] | Even Mathieu function characteristic value                           |
-//! | [`sem_cva`] | Odd Mathieu function characteristic value                            |
-//! | [`cem`]     | Even Mathieu function and its derivative                             |
-//! | [`sem`]     | Odd Mathieu function and its derivative                              |
-//! | [`mcm1`]    | Even modified Mathieu function of the first kind and its derivative  |
-//! | [`msm1`]    | Odd modified Mathieu function of the first kind and its derivative   |
-//! | [`mcm2`]    | Even modified Mathieu function of the second kind and its derivative |
-//! | [`msm2`]    | Odd modified Mathieu function of the second kind and its derivative  |
+//! | Function            | Description                                                          |
+//! | ------------------- | -------------------------------------------------------------------- |
+//! | [`mathieu_a`]       | Even Mathieu function characteristic value                           |
+//! | [`mathieu_b`]       | Odd Mathieu function characteristic value                            |
+//! | [`mathieu_cem`]     | Even Mathieu function and its derivative                             |
+//! | [`mathieu_sem`]     | Odd Mathieu function and its derivative                              |
+//! | [`mathieu_modcem1`] | Even modified Mathieu function of the first kind and its derivative  |
+//! | [`mathieu_modsem1`] | Odd modified Mathieu function of the first kind and its derivative   |
+//! | [`mathieu_modcem2`] | Even modified Mathieu function of the second kind and its derivative |
+//! | [`mathieu_modsem2`] | Odd modified Mathieu function of the second kind and its derivative  |
 //!
 //! # Spherical wave functions
 //!

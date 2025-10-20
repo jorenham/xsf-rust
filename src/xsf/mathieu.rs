@@ -1,19 +1,20 @@
 /// Characteristic value of even Mathieu functions
-#[doc(alias = "mathieu_a")]
-pub fn cem_cva(m: f64, q: f64) -> f64 {
+#[doc(alias = "cem_cva")]
+pub fn mathieu_a(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::cem_cva(m, q) }
 }
 
 /// Characteristic value of odd Mathieu functions
-#[doc(alias = "mathieu_b")]
-pub fn sem_cva(m: f64, q: f64) -> f64 {
+#[doc(alias = "sem_cva")]
+pub fn mathieu_b(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::sem_cva(m, q) }
 }
 
 /// Even Mathieu function and its derivative
 ///
-/// Returns the even Mathieu function, *ce_m(x, q)*, of order `m` and parameter `q` evaluated at `x`
-/// (given in degrees). Also returns the derivative with respect to `x` of *ce_m(x, q)*.
+/// Returns the even Mathieu function, *ce<sub>m</sub>(x, q)*, of order *m* and parameter *q*
+/// evaluated at *x* (given in degrees).
+/// Also returns the derivative with respect to *x* of *ce<sub>m</sub>(x, q)*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -23,8 +24,7 @@ pub fn sem_cva(m: f64, q: f64) -> f64 {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "mathieu_cem")]
-pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
+pub fn mathieu_cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::cem(m, q, x, &mut y, &mut yp);
@@ -34,8 +34,9 @@ pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Odd Mathieu function and its derivative
 ///
-/// Returns the odd Mathieu function, *se_m(x, q)*, of order `m` and parameter `q` evaluated at `x`
-/// (given in degrees). Also returns the derivative with respect to `x` of *se_m(x, q)*.
+/// Returns the odd Mathieu function, *se<sub>m</sub>(x, q)*, of order *m* and parameter *q*
+/// evaluated at *x* (given in degrees).
+/// Also returns the derivative with respect to *x* of *se<sub>m</sub>(x, q)*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -45,8 +46,7 @@ pub fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "mathieu_sem")]
-pub fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
+pub fn mathieu_sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::sem(m, q, x, &mut y, &mut yp);
@@ -67,9 +67,8 @@ pub fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "modcem1")]
-#[doc(alias = "mathieu_modcem1")]
-pub fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
+#[doc(alias = "mcm1")]
+pub fn mathieu_modcem1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::mcm1(m, q, x, &mut y, &mut yp);
@@ -90,9 +89,8 @@ pub fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "modsem1")]
-#[doc(alias = "mathieu_modsem1")]
-pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
+#[doc(alias = "msm1")]
+pub fn mathieu_modsem1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::msm1(m, q, x, &mut y, &mut yp);
@@ -113,9 +111,8 @@ pub fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "modcem2")]
-#[doc(alias = "mathieu_modcem2")]
-pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
+#[doc(alias = "mcm2")]
+pub fn mathieu_modcem2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::mcm2(m, q, x, &mut y, &mut yp);
@@ -136,9 +133,8 @@ pub fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. `x`
-#[doc(alias = "modsem2")]
-#[doc(alias = "mathieu_modsem2")]
-pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
+#[doc(alias = "msm2")]
+pub fn mathieu_modsem2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
         crate::ffi::xsf::msm2(m, q, x, &mut y, &mut yp);
@@ -149,42 +145,50 @@ pub fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_cem_cva() {
-        crate::xsref::test("cem_cva", "d_d-d", |x| crate::cem_cva(x[0], x[1]));
+    fn test_mathieu_a() {
+        crate::xsref::test("cem_cva", "d_d-d", |x| crate::mathieu_a(x[0], x[1]));
     }
 
     #[test]
-    fn test_sem_cva() {
-        crate::xsref::test("sem_cva", "d_d-d", |x| crate::sem_cva(x[0], x[1]));
+    fn test_mathieu_b() {
+        crate::xsref::test("sem_cva", "d_d-d", |x| crate::mathieu_b(x[0], x[1]));
     }
 
     #[test]
-    fn test_cem() {
-        crate::xsref::test("cem", "d_d_d-d_d", |x| crate::cem(x[0], x[1], x[2]));
+    fn test_mathieu_cem() {
+        crate::xsref::test("cem", "d_d_d-d_d", |x| crate::mathieu_cem(x[0], x[1], x[2]));
     }
 
     #[test]
-    fn test_sem() {
-        crate::xsref::test("sem", "d_d_d-d_d", |x| crate::sem(x[0], x[1], x[2]));
+    fn test_mathieu_sem() {
+        crate::xsref::test("sem", "d_d_d-d_d", |x| crate::mathieu_sem(x[0], x[1], x[2]));
     }
 
     #[test]
-    fn test_mcm1() {
-        crate::xsref::test("mcm1", "d_d_d-d_d", |x| crate::mcm1(x[0], x[1], x[2]));
+    fn test_mathieu_modcem1() {
+        crate::xsref::test("mcm1", "d_d_d-d_d", |x| {
+            crate::mathieu_modcem1(x[0], x[1], x[2])
+        });
     }
 
     #[test]
-    fn test_msm1() {
-        crate::xsref::test("msm1", "d_d_d-d_d", |x| crate::msm1(x[0], x[1], x[2]));
+    fn test_mathieu_modsem1() {
+        crate::xsref::test("msm1", "d_d_d-d_d", |x| {
+            crate::mathieu_modsem1(x[0], x[1], x[2])
+        });
     }
 
     #[test]
-    fn test_mcm2() {
-        crate::xsref::test("mcm2", "d_d_d-d_d", |x| crate::mcm2(x[0], x[1], x[2]));
+    fn test_mathieu_modcem2() {
+        crate::xsref::test("mcm2", "d_d_d-d_d", |x| {
+            crate::mathieu_modcem2(x[0], x[1], x[2])
+        });
     }
 
     #[test]
-    fn test_msm2() {
-        crate::xsref::test("msm2", "d_d_d-d_d", |x| crate::msm2(x[0], x[1], x[2]));
+    fn test_mathieu_modsem2() {
+        crate::xsref::test("msm2", "d_d_d-d_d", |x| {
+            crate::mathieu_modsem2(x[0], x[1], x[2])
+        });
     }
 }
