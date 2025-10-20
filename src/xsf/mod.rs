@@ -74,8 +74,8 @@ pub use log::{log1p, log1pmx, xlog1py, xlogy};
 pub use log_exp::{expit, exprel, log_expit, log1mexp, logit};
 pub use loggamma::{loggamma, rgamma};
 pub use mathieu::{
-    mathieu_a, mathieu_b, mathieu_cem, mathieu_modcem1, mathieu_modcem2, mathieu_modsem1,
-    mathieu_modsem2, mathieu_sem,
+    mathieu_a, mathieu_b, mathieu_cem, mathieu_even_coef, mathieu_modcem1, mathieu_modcem2,
+    mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem,
 };
 pub use par_cyl::{pbdv, pbvv, pbwa};
 pub use sici::{shichi, sici};
