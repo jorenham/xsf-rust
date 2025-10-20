@@ -282,9 +282,9 @@
 //!
 //! | Function   | Description                                                   |
 //! | ---------- | ------------------------------------------------------------- |
-//! | [`hyp2f1`] | Gauss hypergeometric function *<sub>2</sub>F<sub>1</sub>*     |
-//! | [`hyp1f1`] | Confluent hypergeometric function *<sub>2</sub>F<sub>1</sub>* |
 //! | [`hypu`]   | Confluent hypergeometric function *U*                         |
+//! | [`hyp1f1`] | Confluent hypergeometric function *<sub>1</sub>F<sub>1</sub>* |
+//! | [`hyp2f1`] | Gauss hypergeometric function *<sub>2</sub>F<sub>1</sub>*     |
 //!
 //! # Parabolic cylinder functions
 //!
@@ -296,16 +296,12 @@
 //!
 //! # Mathieu and related functions
 //!
-//! | Function    | Description                                                          |
-//! | ----------- | -------------------------------------------------------------------- |
-//! | [`cem_cva`] | Even Mathieu function characteristic value                           |
-//! | [`sem_cva`] | Odd Mathieu function characteristic value                            |
-//! | [`cem`]     | Even Mathieu function and its derivative                             |
-//! | [`sem`]     | Odd Mathieu function and its derivative                              |
-//! | [`mcm1`]    | Even modified Mathieu function of the first kind and its derivative  |
-//! | [`msm1`]    | Odd modified Mathieu function of the first kind and its derivative   |
-//! | [`mcm2`]    | Even modified Mathieu function of the second kind and its derivative |
-//! | [`msm2`]    | Odd modified Mathieu function of the second kind and its derivative  |
+//! | Even                | Odd                 | Description                                   |
+//! | ------------------- | --------------------|---------------------------------------------- |
+//! | [`mathieu_a`]       | [`mathieu_b`]       | Characteristic value of the Mathieu functions |
+//! | [`mathieu_cem`]     | [`mathieu_sem`]     | Mathieu functions                             |
+//! | [`mathieu_modcem1`] | [`mathieu_modsem1`] | Modified Mathieu functions of the first kind  |
+//! | [`mathieu_modcem2`] | [`mathieu_modsem2`] | Modified Mathieu functions of the second kind |
 //!
 //! # Spherical wave functions
 //!
