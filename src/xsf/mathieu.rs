@@ -1,3 +1,5 @@
+use core::ffi::c_int;
+
 /// Characteristic value of even Mathieu functions
 ///
 /// # See also
@@ -180,6 +182,101 @@ pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     (y, yp)
 }
 
+#[inline]
+fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String> {
+    // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
+
+    // if (q < 0):
+    if q < 0.0 {
+        // raise ValueError("q >=0")
+        return Err("q >=0".to_string());
+    }
+
+    let q_sqrt = q.sqrt();
+    let qm = if q <= 1.0 {
+        7.5 + 56.1 * q_sqrt - 134.7 * q + 90.7 * q_sqrt * q
+    } else {
+        17.0 + 3.1 * q_sqrt - 0.126 * q + 0.0037 * q_sqrt * q
+    };
+    // km = int(qm + 0.5*m)
+    let km = (qm + 0.5 * (m as f64)) as usize;
+    // if km > 251:
+    if km > 251 {
+        // warnings.warn("Too many predicted coefficients.", RuntimeWarning, stacklevel=2)
+        return Err(format!("Too many predicted coefficients ({km})"));
+    }
+
+    let cv = if KD == 1 || KD == 2 {
+        mathieu_a(m, q)
+    } else if KD == 3 || KD == 4 {
+        mathieu_b(m, q)
+    } else {
+        unreachable!()
+    };
+
+    // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
+    let mut fc = [f64::NAN; 251];
+    unsafe {
+        crate::ffi::xsf::fcoef(KD, m as c_int, q, cv, fc.as_mut_ptr());
+    }
+    if fc[0].is_nan() {
+        assert!(fc.iter().all(|c| c.is_nan()), "expected all NaN");
+        Err("Computation of Fourier coefficients failed".to_string())
+    } else {
+        Ok((fc, km))
+    }
+}
+
+/// Fourier coefficients for even Mathieu and modified Mathieu functions
+///
+/// See the SciPy documentation for `scipy.special.mathieu_even_coef` for details:
+/// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_even_coef.html>
+///
+/// # See also
+/// - [`mathieu_odd_coef`]: Fourier coefficients for odd Mathieu and modified Mathieu functions
+pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
+    // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
+
+    // kd = 1
+    // m = int(floor(m))
+    // if m % 2:
+    //     kd = 2
+    // fc = _specfun.fcoef(kd, m, q, a)
+    let (fc, km) = if m % 2 == 0 {
+        fcoef::<1>(m, q)?
+    } else {
+        fcoef::<2>(m, q)?
+    };
+
+    // return fc[:km]
+    Ok(fc[..km].to_vec())
+}
+
+/// Fourier coefficients for odd Mathieu and modified Mathieu functions
+///
+/// See the SciPy documentation for `scipy.special.mathieu_odd_coef` for details:
+/// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_odd_coef.html>
+///
+/// # See also
+/// - [`mathieu_even_coef`]: Fourier coefficients for even Mathieu and modified Mathieu functions
+pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
+    // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1642-L1698
+
+    // kd = 4
+    // m = int(floor(m))
+    // if m % 2:
+    //     kd = 3
+    // fc = _specfun.fcoef(kd, m, q, b)
+    let (fc, km) = if m % 2 == 0 {
+        fcoef::<4>(m, q)?
+    } else {
+        fcoef::<3>(m, q)?
+    };
+
+    // return fc[:km]
+    Ok(fc[..km].to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -232,5 +329,41 @@ mod tests {
         crate::xsref::test("msm2", "d_d_d-d_d", |x| {
             crate::mathieu_modsem2(x[0] as u32, x[1], x[2])
         });
+    }
+
+    #[test]
+    fn test_mathieu_even_coef() {
+        // Smoke test: verify function returns Ok and non-empty coefficients
+        let result = crate::mathieu_even_coef(2, 1.0);
+        assert!(result.is_ok());
+        let coefs = result.unwrap();
+        assert!(!coefs.is_empty());
+        assert!(coefs.iter().all(|&c| c.is_finite()));
+
+        // Test with q = 0
+        let result = crate::mathieu_even_coef(0, 0.0);
+        assert!(result.is_ok());
+
+        // Test error case: negative q
+        let result = crate::mathieu_even_coef(1, -1.0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mathieu_odd_coef() {
+        // Smoke test: verify function returns Ok and non-empty coefficients
+        let result = crate::mathieu_odd_coef(1, 1.0);
+        assert!(result.is_ok());
+        let coefs = result.unwrap();
+        assert!(!coefs.is_empty());
+        assert!(coefs.iter().all(|&c| c.is_finite()));
+
+        // Test with q = 0
+        let result = crate::mathieu_odd_coef(1, 0.0);
+        assert!(result.is_ok());
+
+        // Test error case: negative q
+        let result = crate::mathieu_odd_coef(1, -1.0);
+        assert!(result.is_err());
     }
 }

@@ -407,6 +407,9 @@ void cerzo(int nt, c_complex *zo) {
 void eulerb(int n, double *en) {
     xsf::specfun::eulerb(n, en);
 }
+void fcoef(int kd, int m, double q, double a, double *fc) {
+    xsf::specfun::fcoef(kd, m, q, a, fc);
+}
 void jyzo(int n, int nt, double *rj0, double *rj1, double *ry0, double *ry1) {
     xsf::specfun::jyzo(n, nt, rj0, rj1, ry0, ry1);
 }
