@@ -9,11 +9,14 @@ mod sealed {
 }
 
 pub trait LogAddExpArg: sealed::Sealed {
+    const ZERO: Self;
     fn npy_logaddexp(self, other: Self) -> Self;
     fn npy_logaddexp2(self, other: Self) -> Self;
 }
 
 impl LogAddExpArg for f32 {
+    const ZERO: Self = 0.0;
+
     #[inline(always)]
     fn npy_logaddexp(self, other: Self) -> Self {
         (self as f64).npy_logaddexp(other as f64) as f32
@@ -26,6 +29,8 @@ impl LogAddExpArg for f32 {
 }
 
 impl LogAddExpArg for f64 {
+    const ZERO: Self = 0.0;
+
     #[inline(always)]
     fn npy_logaddexp(self, other: Self) -> Self {
         if self == other {
