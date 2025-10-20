@@ -1,10 +1,18 @@
 /// Characteristic value of even Mathieu functions
+///
+/// # See also
+/// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
+/// - [`mathieu_cem`]: Even Mathieu function
 #[doc(alias = "cem_cva")]
 pub fn mathieu_a(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::cem_cva(m, q) }
 }
 
 /// Characteristic value of odd Mathieu functions
+///
+/// # See also
+/// - [`mathieu_a`]: Characteristic value of even Mathieu functions
+/// - [`mathieu_sem`]: Odd Mathieu function
 #[doc(alias = "sem_cva")]
 pub fn mathieu_b(m: f64, q: f64) -> f64 {
     unsafe { crate::ffi::xsf::sem_cva(m, q) }
@@ -23,7 +31,11 @@ pub fn mathieu_b(m: f64, q: f64) -> f64 {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_sem`]: Odd Mathieu function
+/// - [`mathieu_a`]: Characteristic value of even Mathieu functions
 pub fn mathieu_cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -45,7 +57,11 @@ pub fn mathieu_cem(m: f64, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_cem`]: Even Mathieu function
+/// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
 pub fn mathieu_sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
@@ -56,8 +72,8 @@ pub fn mathieu_sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Even modified Mathieu function of the first kind and its derivative
 ///
-/// Evaluates the even modified Mathieu function of the first kind, `Mc1m(x, q)`, and its
-/// derivative at `x` for order `m` and parameter `q`.
+/// Evaluates the even modified Mathieu function of the first kind, *Mc1<sub>m</sub>(x, q)*,
+/// and its derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -66,7 +82,12 @@ pub fn mathieu_sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_cem`]: Even Mathieu function
+/// - [`mathieu_modcem2`]: Even modified Mathieu function of the second kind
+/// - [`mathieu_modsem1`]: Odd modified Mathieu function of the first kind
 #[doc(alias = "mcm1")]
 pub fn mathieu_modcem1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
@@ -78,8 +99,8 @@ pub fn mathieu_modcem1(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Odd modified Mathieu function of the first kind and its derivative
 ///
-/// Evaluates the odd modified Mathieu function of the first kind, `Ms1m(x, q)`, and its
-/// derivative at `x` for order `m` and parameter `q`.
+/// Evaluates the odd modified Mathieu function of the first kind, *Ms1<sub>m</sub>(x, q)*, and its
+/// derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -88,7 +109,12 @@ pub fn mathieu_modcem1(m: f64, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_sem`]: Even Mathieu function
+/// - [`mathieu_modsem2`]: Even modified Mathieu function of the second kind
+/// - [`mathieu_modcem1`]: Odd modified Mathieu function of the first kind
 #[doc(alias = "msm1")]
 pub fn mathieu_modsem1(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
@@ -100,8 +126,8 @@ pub fn mathieu_modsem1(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Even modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the even modified Mathieu function of the second kind, `Mc2m(x, q)`, and its
-/// derivative at `x` for order `m` and parameter `q`.
+/// Evaluates the even modified Mathieu function of the second kind, *Mc2<sub>m</sub>(x, q)*, and its
+/// derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -110,7 +136,12 @@ pub fn mathieu_modsem1(m: f64, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_cem`]: Even Mathieu function
+/// - [`mathieu_modcem1`]: Even modified Mathieu function of the first kind
+/// - [`mathieu_modsem2`]: Odd modified Mathieu function of the second kind
 #[doc(alias = "mcm2")]
 pub fn mathieu_modcem2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
@@ -122,8 +153,8 @@ pub fn mathieu_modcem2(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Odd modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the odd modified Mathieu function of the second kind, `Ms2m(x, q)`, and its
-/// derivative at `x` for order `m` and parameter `q`.
+/// Evaluates the odd modified Mathieu function of the second kind, *Ms2<sub>m</sub>(x, q)*, and its
+/// derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -132,7 +163,12 @@ pub fn mathieu_modcem2(m: f64, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. `x`
+/// - `yp`: Value of the derivative w.r.t. *x*
+///
+/// # See also
+/// - [`mathieu_sem`]: Odd Mathieu function
+/// - [`mathieu_modsem1`]: Odd modified Mathieu function of the first kind
+/// - [`mathieu_modcem2`]: Even modified Mathieu function of the second kind
 #[doc(alias = "msm2")]
 pub fn mathieu_modsem2(m: f64, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
