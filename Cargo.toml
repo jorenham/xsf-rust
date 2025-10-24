@@ -1,6 +1,6 @@
 [package]
 name = "xsf"
-version = "0.3.0+0.1.3"
+version = "0.3.1+0.1.3"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 categories = ["api-bindings", "mathematics", "science"]
 edition = "2024"
@@ -13,12 +13,12 @@ rust-version = "1.85.1"
 description = "Bindings for SciPy special functions"
 
 [build-dependencies]
-cc = "1.2.41"
+cc = "1.2.43"
 bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
 
 [dependencies]
 num-complex = "0.4.6"
 
 [dev-dependencies]
-arrow = { version = "56.2.0", default-features = false }
-parquet = { version = "56.2.0", default-features = false, features = ["arrow", "zstd"] }
+arrow = { version = "57.0.0", default-features = false }
+parquet = { version = "57.0.0", default-features = false, features = ["arrow", "zstd"] }
