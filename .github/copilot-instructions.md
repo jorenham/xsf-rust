@@ -23,7 +23,7 @@
 - the rustdoc comments should be consistent with the scipy.special documentation, adapted
   to Rust conventions where necessary, and include a link to the relevant scipy.special
   documentation page
-- the `xsf` crate-level documentation mimicks the structure of the scipy.special
+- the `xsf` crate-level documentation mimics the structure of the scipy.special
   documentation, with sections for each group of related functions (e.g., Bessel functions,
   elliptic integrals, etc.), and a brief overview of each function, i.e.
   <https://docs.scipy.org/doc/scipy/reference/special.html>
