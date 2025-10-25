@@ -9,8 +9,8 @@
 - in some cases, xsf-rust deviates from the `scipy.special` API for a better fit with Rust
   conventions (e.g., `const` generic type parameters for return array sizes, or `Result`
   return types for functions that can fail)
-- most function names are the same as in `scipy.special`, but some have been renamed to
-  for the sake of consistency (e.g., `bessel_jn` instead of `jn`, and `assoc_legendre_q_all`
+- most function names are the same as in `scipy.special`, but some have been renamed for the sake of consistency
+  (e.g., `bessel_jn` instead of `jn`, and `assoc_legendre_q_all`
   instead of `lqmn`)
 - functions that support both real and complex arguments in `scipy.special` are implemented using
   sealed traits in xsf-rust, emulating function overloading for e.g. `f64` and
