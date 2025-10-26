@@ -1,4 +1,3 @@
-use core::panic;
 
 use num_traits::{PrimInt, Unsigned};
 
