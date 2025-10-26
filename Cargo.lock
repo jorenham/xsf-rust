@@ -973,6 +973,7 @@ dependencies = [
  "bindgen",
  "cc",
  "num-complex",
+ "num-traits",
  "parquet",
 ]
 
