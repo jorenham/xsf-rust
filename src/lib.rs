@@ -344,10 +344,19 @@
 //!
 //! # Combinatorics
 //!
-//! | Function     | Description                                                                   |
-//! | ------------ | ----------------------------------------------------------------------------- |
-//! | [`comb`]     | The number of combinations of *n* things taken *k* at a time                  |
-//! | [`comb_rep`] | The number of combinations of *n* things taken *k* at a time with replacement |
+//! | Function       | Description                                                               |
+//! | -------------- | ------------------------------------------------------------------------- |
+//! | [`comb`]       | Number of combinations of *n* things taken *k* at a time                  |
+//! | [`comb_rep`]   | Number of combinations of *n* things taken *k* at a time with replacement |
+//! | *`perm`*       | *planned*                                                                 |
+//! | *`stirling2`*  | *planned*                                                                 |
+//!
+//! # Factorials
+//!
+//! | Function               | Description                               |
+//! | ---------------------- | ----------------------------------------- |
+//! | [`factorial`]          | Compute *n*!                              |
+//! | [`factorial_checked`]  | [`factorial`] with overflow checking      |
 //!
 //! # Exponential integrals
 //!
