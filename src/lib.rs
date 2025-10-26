@@ -353,10 +353,12 @@
 //!
 //! # Factorials
 //!
-//! | Function               | Description                               |
-//! | ---------------------- | ----------------------------------------- |
-//! | [`factorial`]          | Compute *n*!                              |
-//! | [`factorial_checked`]  | [`factorial`] with overflow checking      |
+//! | Function                   | Description                               |
+//! | -------------------------- | ----------------------------------------- |
+//! | [`factorial`]              | Factorial *n*!                            |
+//! | [`factorial_checked`]      | [`factorial`] with overflow checking      |
+//! | [`multifactorial`]         | Multifactorial *n*!<sub>(*k*)</sub>       |
+//! | [`multifactorial_checked`] | [`multifactorial`] with overflow checking |
 //!
 //! # Exponential integrals
 //!
