@@ -1,4 +1,3 @@
-
 use num_traits::{PrimInt, Unsigned};
 
 /// Factorial *n*!
