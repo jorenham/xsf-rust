@@ -342,6 +342,13 @@
 //! | [`kerp`]   | [`kerp_zeros`]   | Derivative of the Kelvin function [`ker`] |
 //! | [`keip`]   | [`keip_zeros`]   | Derivative of the Kelvin function [`kei`] |
 //!
+//! # Combinatorics
+//!
+//! | Function     | Description                                                                   |
+//! | ------------ | ----------------------------------------------------------------------------- |
+//! | [`comb`]     | The number of combinations of *n* things taken *k* at a time                  |
+//! | [`comb_rep`] | The number of combinations of *n* things taken *k* at a time with replacement |
+//!
 //! # Exponential integrals
 //!
 //! | Function        | Description                                                    |

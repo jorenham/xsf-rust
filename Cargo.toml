@@ -12,12 +12,13 @@ repository = "https://github.com/jorenham/xsf-rust"
 rust-version = "1.85.1"
 description = "Bindings for SciPy special functions"
 
+[dependencies]
+num-complex = "0.4.6"
+num-traits = "0.2.19"
+
 [build-dependencies]
 cc = "1.2.43"
 bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
-
-[dependencies]
-num-complex = "0.4.6"
 
 [dev-dependencies]
 arrow = { version = "57.0.0", default-features = false }
