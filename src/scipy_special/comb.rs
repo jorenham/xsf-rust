@@ -47,7 +47,7 @@ pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 ///
 /// # See also
 /// - [`comb`](comb): choosing without replacement
-/// - [`binom`](crate::binom): the binomial coefficientas a floating point function
+/// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]
 #[doc(alias = "multiset")]
 #[doc(alias = "multichoose")]
