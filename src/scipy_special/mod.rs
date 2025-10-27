@@ -6,6 +6,7 @@ mod factorial;
 mod perm;
 mod polygamma;
 mod softplus;
+mod stirling;
 
 pub use bessel_prime::*;
 pub use boxcox::*;
@@ -15,3 +16,4 @@ pub use factorial::*;
 pub use perm::*;
 pub use polygamma::*;
 pub use softplus::*;
+pub use stirling::*;
