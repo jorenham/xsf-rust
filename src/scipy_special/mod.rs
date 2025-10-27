@@ -3,6 +3,7 @@ mod boxcox;
 mod comb;
 mod diric;
 mod factorial;
+mod perm;
 mod polygamma;
 mod softplus;
 
@@ -11,5 +12,6 @@ pub use boxcox::*;
 pub use comb::*;
 pub use diric::*;
 pub use factorial::*;
+pub use perm::*;
 pub use polygamma::*;
 pub use softplus::*;

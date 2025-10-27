@@ -1,6 +1,6 @@
 use num_traits::{PrimInt, Unsigned};
 
-/// The number of combinations of *n* things taken *k* at a time
+/// *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub>
 ///
 /// This is often expressed as "*n* choose *k*".
 ///
@@ -13,6 +13,7 @@ use num_traits::{PrimInt, Unsigned};
 ///
 /// # See also
 /// - [`comb_rep`](crate::comb_rep): choosing with replacement
+/// - [`perm`](crate::perm): *k*-permutations of *n*, <sub>*n*</sub>P<sub>*k*</sub>
 /// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]
 pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
@@ -31,7 +32,7 @@ pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     }
 }
 
-/// The number of combinations of *n* things taken *k* at a time with replacement
+/// *k*-combinations of *n* things with replacement
 ///
 /// Because this (also) counts the number of multisets of size *k* drawn from an *n*-element set, it
 /// is also known as the *multiset coefficient*, and sometimes expressed as "*n* multichoose *k*".
@@ -46,7 +47,8 @@ pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 /// - `N`: Any unsigned integer
 ///
 /// # See also
-/// - [`comb`](comb): choosing without replacement
+/// - [`comb`](comb): *k*-combinations of *n* without replacement
+/// - [`perm`](crate::perm): *k*-permutations of *n*, <sub>*n*</sub>P<sub>*k*</sub>
 /// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]
 #[doc(alias = "multiset")]

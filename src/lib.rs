@@ -344,12 +344,12 @@
 //!
 //! # Combinatorics
 //!
-//! | Function       | Description                                                               |
-//! | -------------- | ------------------------------------------------------------------------- |
-//! | [`comb`]       | Number of combinations of *n* things taken *k* at a time                  |
-//! | [`comb_rep`]   | Number of combinations of *n* things taken *k* at a time with replacement |
-//! | *`perm`*       | *planned*                                                                 |
-//! | *`stirling2`*  | *planned*                                                                 |
+//! | Function       | Description                                             |
+//! | -------------- | ------------------------------------------------------- |
+//! | [`comb`]       | *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub>  |
+//! | [`comb_rep`]   | *k*-combinations of *n* things with replacement                |
+//! | [`perm`]       | *k*-permutations of *n* things, <sub>*n*</sub>P<sub>*k*</sub>  |
+//! | *`stirling2`*  | *planned*                                               |
 //!
 //! # Factorials
 //!
