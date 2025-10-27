@@ -5,13 +5,7 @@ use num_traits::Unsigned;
 /// Stirling numbers of the second kind count the number of ways to partition a set with *n*
 /// elements into *k* non-empty subsets.
 ///
-/// The values this function returns are calculated using a dynamic program which avoids redundant
-/// computation across the subproblems in the solution.
-///
-/// The numbers are sometimes denoted {*n* ⊇ *k*}, and are often expressed verbally as "*n* subset
-/// *k*".
-///
-/// Pure rust translation of [`scipy.special.stirling2(n, k, exact=True)`][stirling2].
+/// This is a pure rust translation of [`scipy.special.stirling2(n, k, exact=True)`][stirling2].
 ///
 /// [stirling2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stirling2.html
 ///
@@ -35,14 +29,14 @@ pub fn stirling2<T: num_traits::PrimInt + Unsigned>(n: u32, k: u32) -> T {
         return T::from(n as u128 * (n as u128 - 1) / 2).unwrap();
     }
 
-    let mut n_row = vec![T::one(); n as usize + 1];
-    n_row[0] = T::zero();
+    let k = k as usize;
+    let mut n_row = vec![T::one(); k];
     for i in 2..n as usize {
-        for j in (2..=i).rev() {
-            n_row[j] = n_row[j] * T::from(j).unwrap() + n_row[j - 1];
+        for j in (1..i.min(k)).rev() {
+            n_row[j] = T::from(j + 1).unwrap() * n_row[j] + n_row[j - 1];
         }
     }
-    n_row[k as usize]
+    n_row[k - 1]
 }
 
 #[cfg(test)]
