@@ -9,8 +9,21 @@ use num_traits::Unsigned;
 ///
 /// [stirling2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stirling2.html
 ///
+/// # Examples
+///
+/// ```
+/// use xsf::stirling2;
+///
+/// assert_eq!(stirling2::<u64>(10, 3), 9_330);
+/// assert_eq!(stirling2::<u64>(10, 0), 0);
+/// assert_eq!(stirling2::<u64>(9, 3), 3_025);
+///
+/// // won't fit in u64
+/// assert_eq!(stirling2::<u128>(42, 4), 805_932_309_912_663_709_372_025);
+/// ```
+///
 /// # Types
-/// - `T` (required): unsigned integer
+/// - `T` (required): unsigned return type
 ///
 /// # See also
 /// - [`comb`](crate::comb): *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub>
