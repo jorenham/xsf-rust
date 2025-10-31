@@ -852,6 +852,7 @@ mod tests {
         // S = np.empty((N, N))
         let mut s = [[0.0; N], [0.0; N]];
         // for n in range(N):
+        #[allow(clippy::needless_range_loop)]
         for n in 0..N {
             // j = special.spherical_jn(n, x)
             let j = crate::sph_bessel_j(n as i64, x);
@@ -878,6 +879,7 @@ mod tests {
         // S = np.empty((N, N))
         let mut c = [[0.0; N], [0.0; N]];
         // for n in range(N):
+        #[allow(clippy::needless_range_loop)]
         for n in 0..N {
             // j = special.spherical_jn(n, x)
             let j = crate::sph_bessel_y(n as i64, x);
