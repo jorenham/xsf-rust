@@ -4,13 +4,16 @@ version = "0.3.3+0.1.3"
 authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
 categories = ["api-bindings", "mathematics", "science"]
 edition = "2024"
-include = ["*.rs", "xsf/include"]
+include = ["*.rs", "xsf/include", "katex.html"]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause"
 readme = "README.md"
 repository = "https://github.com/jorenham/xsf-rust"
 rust-version = "1.85.1"
 description = "Bindings for SciPy special functions"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "katex.html"]
 
 [dependencies]
 num-complex = "0.4.6"

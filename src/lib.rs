@@ -19,7 +19,7 @@
 //! | ---------------- | ----------------------------------------------------------- |
 //! | [`ellipj`]       | Jacobian elliptic functions                                 |
 //! | [`ellipk`]       | Complete elliptic integral of the first kind                |
-//! | [`ellipkm1`]     | Complete elliptic integral of the first kind around `m = 1` |
+//! | [`ellipkm1`]     | Complete elliptic integral of the first kind around $m = 1$ |
 //! | [`ellipkinc`]    | Incomplete elliptic integral of the first kind              |
 //! | [`ellipe`]       | Complete elliptic integral of the second kind               |
 //! | [`ellipeinc`]    | Incomplete elliptic integral of the second kind             |
@@ -42,13 +42,13 @@
 //! | [`hankel_2e`]           | Exponentially scaled Hankel function of the second kind           |
 //! | [`wright_bessel`]       | Wright's generalized Bessel function                              |
 //! | [`log_wright_bessel`]   | Natural logarithm of Wright's generalized Bessel function         |
-//! | [`jahnke_emden_lambda`] | Jahnke-Emden Lambda function Λ<sub>v</sub>(x) and its derivatives |
+//! | [`jahnke_emden_lambda`] | Jahnke-Emden Lambda function $\Lambda_{\nu}(x)$ and derivatives   |
 //!
 //! ## Zeros of Bessel functions
 //!
-//! | Function         | Description                                                             |
-//! | ---------------- | ----------------------------------------------------------------------- |
-//! | [`bessel_zeros`] | Compute `NT` zeros of Bessel functions Jn(x), Jn'(x), Yn(x), and Yn'(x) |
+//! | Function         | Description                                                              |
+//! | ---------------- | ------------------------------------------------------------------------ |
+//! | [`bessel_zeros`] | Zeros of Bessel functions $J_n(x)$, $J_n\'(x)$, $Y_n(x)$, and $Y_n\'(x)$ |
 //!
 //! ## Faster versions of common Bessel functions
 //!
@@ -79,14 +79,14 @@
 //!
 //! ## Derivatives of Bessel functions
 //!
-//! | Function           | Description                                 |
-//! | ------------------ | ------------------------------------------- |
-//! | [`bessel_j_prime`] | *n*<sup>th</sup> derivative of [`bessel_j`] |
-//! | [`bessel_y_prime`] | *n*<sup>th</sup> derivative of [`bessel_y`] |
-//! | [`bessel_i_prime`] | *n*<sup>th</sup> derivative of [`bessel_i`] |
-//! | [`bessel_k_prime`] | *n*<sup>th</sup> derivative of [`bessel_k`] |
-//! | [`hankel_1_prime`] | *n*<sup>th</sup> derivative of [`hankel_1`] |
-//! | [`hankel_2_prime`] | *n*<sup>th</sup> derivative of [`hankel_2`] |
+//! | Function           | Description                       |
+//! | ------------------ | --------------------------------- |
+//! | [`bessel_j_prime`] | $n$-th derivative of [`bessel_j`] |
+//! | [`bessel_y_prime`] | $n$-th derivative of [`bessel_y`] |
+//! | [`bessel_i_prime`] | $n$-th derivative of [`bessel_i`] |
+//! | [`bessel_k_prime`] | $n$-th derivative of [`bessel_k`] |
+//! | [`hankel_1_prime`] | $n$-th derivative of [`hankel_1`] |
+//! | [`hankel_2_prime`] | $n$-th derivative of [`hankel_2`] |
 //!
 //! ## Spherical Bessel functions
 //!
@@ -110,13 +110,13 @@
 //!
 //! # Struve functions
 //!
-//! | Function         | Description                                                             |
-//! | ---------------- | ----------------------------------------------------------------------- |
-//! | [`struve_h`]     | Struve function *H<sub>v</sub>(x)*                                      |
-//! | [`struve_l`]     | Modified Struve function *L<sub>v</sub>(x)*                             |
-//! | [`itstruve0`]    | Integral of the Struve function of order 0, *H<sub>0</sub>(x)*          |
-//! | [`it2struve0`]   | Integral related to the Struve function of order 0                      |
-//! | [`itmodstruve0`] | Integral of the modified Struve function of order 0, *L<sub>0</sub>(x)* |
+//! | Function         | Description                                                   |
+//! | ---------------- | ------------------------------------------------------------- |
+//! | [`struve_h`]     | Struve function $H_{\nu}(x)$                                  |
+//! | [`struve_l`]     | Modified Struve function $L_{\nu}(x)$                         |
+//! | [`itstruve0`]    | Integral of the Struve function of order 0, $H_0(x)$          |
+//! | [`it2struve0`]   | Integral related to the Struve function of order 0            |
+//! | [`itmodstruve0`] | Integral of the modified Struve function of order 0, $L_0(x)$ |
 //!
 //! # Raw statistical functions
 //!
@@ -125,23 +125,23 @@
 //! | Function  | Description                      |
 //! | --------- | -------------------------------- |
 //! | [`bdtr`]  | Cumulative distribution function |
-//! | [`bdtrc`] | Survival function                |
-//! | [`bdtri`] | Quantile function                |
+//! | [`bdtrc`] | Complement of [`bdtr`]           |
+//! | [`bdtri`] | Inverse of [`bdtr`]              |
 //!
 //! ## F distribution
 //!
 //! | Function  | Description                      |
 //! | --------- | -------------------------------- |
 //! | [`fdtr`]  | Cumulative distribution function |
-//! | [`fdtrc`] | Survival function                |
-//! | [`fdtri`] | Quantile function                |
+//! | [`fdtrc`] | Complement of [`fdtr`]           |
+//! | [`fdtri`] | Inverse of [`fdtr`]              |
 //!
 //! ## Gamma distribution
 //!
 //! | Function   | Description                                            |
 //! | ---------- | ------------------------------------------------------ |
 //! | [`gdtr`]   | Cumulative distribution function                       |
-//! | [`gdtrc`]  | Survival function                                      |
+//! | [`gdtrc`]  | Complement of [`gdtr`]                                 |
 //! | [`gdtrib`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `b` |
 //!
 //! ## Negative binomial distribution
@@ -149,8 +149,8 @@
 //! | Function   | Description                      |
 //! | ---------- | -------------------------------- |
 //! | [`nbdtr`]  | Cumulative distribution function |
-//! | [`nbdtrc`] | Survival function                |
-//! | [`nbdtri`] | Quantile function                |
+//! | [`nbdtrc`] | Complement of [`nbdtr`]          |
+//! | [`nbdtri`] | Inverse of [`nbdtr`]             |
 //!
 //! ## Normal distribution
 //!
@@ -158,23 +158,23 @@
 //! | ------------ | -------------------------------- |
 //! | [`ndtr`]     | Cumulative distribution function |
 //! | [`log_ndtr`] | Logarithm of [`ndtr`]            |
-//! | [`ndtri`]    | Quantile function                |
+//! | [`ndtri`]    | Inverse of [`ndtr`]              |
 //!
 //! ## Poisson distribution
 //!
 //! | Function  | Description                      |
 //! | --------- | -------------------------------- |
 //! | [`pdtr`]  | Cumulative distribution function |
-//! | [`pdtrc`] | Survival function                |
-//! | [`pdtri`] | Quantile function                |
+//! | [`pdtrc`] | Complement of [`pdtr`]           |
+//! | [`pdtri`] | Inverse of [`pdtr`]              |
 //!
 //! ## Chi square distribution
 //!
 //! | Function   | Description                      |
 //! | ---------- | -------------------------------- |
 //! | [`chdtr`]  | Cumulative distribution function |
-//! | [`chdtrc`] | Survival function                |
-//! | [`chdtri`] | Quantile function                |
+//! | [`chdtrc`] | Complement of [`chdtr`]          |
+//! | [`chdtri`] | Inverse of [`chdtr`]             |
 //!
 //! ## Kolmogorov distribution
 //!
@@ -183,7 +183,7 @@
 //! | [`kolmogorov`] | Survival function                |
 //! | [`kolmogp`]    | Derivative of [`kolmogorov`]     |
 //! | [`kolmogi`]    | Inverse of [`kolmogorov`]        |
-//! | [`kolmogc`]    | Cumulative distribution function |
+//! | [`kolmogc`]    | Complement of [`kolmogorov`]     |
 //! | [`kolmogci`]   | Inverse of [`kolmogc`]           |
 //!
 //! ## Kolmogorov-Smirnov distribution
@@ -193,15 +193,15 @@
 //! | [`smirnov`]   | Survival function                |
 //! | [`smirnovp`]  | Derivative of [`smirnov`]        |
 //! | [`smirnovi`]  | Inverse of [`smirnov`]           |
-//! | [`smirnovc`]  | Cumulative distribution function |
+//! | [`smirnovc`]  | Complement of [`smirnov`]        |
 //! | [`smirnovci`] | Inverse of [`smirnovc`]          |
 //!
 //! ## Box-Cox transformation
 //!
 //! | Function         | Description                       |
 //! | ---------------- | --------------------------------- |
-//! | [`boxcox`]       | Box-Cox transformation of *x*     |
-//! | [`boxcox1p`]     | Box-Cox transformation of *1 + x* |
+//! | [`boxcox`]       | Box-Cox transformation of $x$     |
+//! | [`boxcox1p`]     | Box-Cox transformation of $1 + x$ |
 //! | [`inv_boxcox`]   | Inverse of [`boxcox`]             |
 //! | [`inv_boxcox1p`] | Inverse of [`boxcox1p`]           |
 //!
@@ -209,8 +209,8 @@
 //!
 //! | Function       | Description                              |
 //! | -------------- | ---------------------------------------- |
-//! | [`logit`]      | Logit function, *log(x / (1 - x))*       |
-//! | [`expit`]      | Expit function, *1/(1 + e<sup>-x</sup>)* |
+//! | [`logit`]      | Logit function, $\ln \( \frac{x}{1-x} \) $ |
+//! | [`expit`]      | Expit function, $\frac{1}{1 + \exp(-x)}$   |
 //! | [`log_expit`]  | Logarithm of [`expit`]                   |
 //!
 //! ## Miscellaneous
@@ -222,77 +222,77 @@
 //!
 //! # Gamma and related functions
 //!
-//! | Function         | Description                                                |
-//! | ---------------- | ---------------------------------------------------------- |
-//! | [`gamma`]        | Gamma function                                             |
-//! | [`gammaln`]      | Logarithm of the absolute value of the gamma function      |
-//! | [`loggamma`]     | Principal branch of the logarithm of the gamma function    |
-//! | [`gammasgn`]     | Sign of the gamma function                                 |
-//! | [`gammainc`]     | Regularized lower incomplete gamma function                |
-//! | [`gammaincinv`]  | Inverse to the regularized lower incomplete gamma function |
-//! | [`gammaincc`]    | Regularized upper incomplete gamma function                |
-//! | [`gammainccinv`] | Inverse to the regularized upper incomplete gamma function |
-//! | [`beta`]         | Beta function                                              |
-//! | [`betaln`]       | Logarithm of the absolute value of the beta function       |
-//! | [`betainc`]      | Regularized incomplete beta function                       |
-//! | [`betaincinv`]   | Inverse to the regularized incomplete beta function        |
-//! | [`digamma`]      | The digamma function ψ(z)                                  |
-//! | [`polygamma`]    | The polygamma function ψ<sup>(n)</sup>(x)                  |
-//! | [`rgamma`]       | Reciprocal of the gamma function                           |
-//! | [`pow_rising`]   | Rising factorial  (Pochhammer symbol)                      |
-//! | [`pow_falling`]  | Falling factorial                                          |
+//! | Function         | Description                                                         |
+//! | ---------------- | ------------------------------------------------------------------- |
+//! | [`gamma`]        | Gamma function, $\Gamma(z)$                                         |
+//! | [`gammaln`]      | Log-gamma function, $\ln \| \Gamma(z) \|$                           |
+//! | [`loggamma`]     | Principal branch of $\ln \Gamma(z)$                                 |
+//! | [`gammasgn`]     | Sign of [`gamma`], $\sgn(\Gamma(z))$                                |
+//! | [`gammainc`]     | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$   |
+//! | [`gammaincinv`]  | Inverse of [`gammainc`], $P^{-1}(a,y)$                              |
+//! | [`gammaincc`]    | Regularized upper incomplete gamma function $Q(a,x) = 1 - P(a,x) $  |
+//! | [`gammainccinv`] | Inverse of [`gammaincc`], $Q^{-1}(a,y)$                             |
+//! | [`beta`]         | Beta function, $\B(a,b) = \frac{\Gamma(a)\Gamma(b)}{\Gamma(a+b)}$   |
+//! | [`betaln`]       | Log-Beta function, $\ln \| \B(a,b) \|$                              |
+//! | [`betainc`]      | Regularized incomplete beta function, $I_x(a,b)$                    |
+//! | [`betaincinv`]   | Inverse of [`betainc`], $I_y^{-1}(a,b)$                             |
+//! | [`digamma`]      | The digamma function, $\psi(z)$                                     |
+//! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                             |
+//! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$             |
+//! | [`pow_rising`]   | Rising factorial $\fpow{x}{m} = \frac{\Gamma(x+m)}{\Gamma(x)}$      |
+//! | [`pow_falling`]  | Falling factorial $\rpow{x}{m} = \frac{\Gamma(x+1)}{\Gamma(x+1-m)}$ |
 //!
 //! # Error function and Fresnel integrals
 //!
-//! | Function                   | Description                                  |
-//! | -------------------------- | -------------------------------------------- |
-//! | [`erf`]                    | Error function                               |
-//! | [`erfc`]                   | Complementary error function, *1 - erf(z)*   |
-//! | [`erfcx`]                  | Scaled complementary error function          |
-//! | [`erfi`]                   | Imaginary error function *-i erf(i z)*       |
-//! | [`erfinv`]                 | Inverse of [`erf`]                           |
-//! | [`erfcinv`]                | Inverse of [`erfc`]                          |
-//! | [`erf_zeros`]              | Zeros of [`erf`]                             |
-//! | [`wofz`]                   | Faddeeva function                            |
-//! | [`dawsn`]                  | Dawson's integral                            |
-//! | [`fresnel`]                | Fresnel integrals *S(z)* and *C(z)*          |
-//! | [`fresnel_zeros`]          | Zeros of Fresnel integrals *S(z)* and *C(z)* |
-//! | [`modified_fresnel_plus`]  | Modified Fresnel positive integrals          |
-//! | [`modified_fresnel_minus`] | Modified Fresnel negative integrals          |
-//! | [`voigt_profile`]          | Voigt profile                                |
+//! | Function                   | Description                                                     |
+//! | -------------------------- | --------------------------------------------------------------- |
+//! | [`erf`]                    | Error function, $\erf(z)$                                       |
+//! | [`erfc`]                   | Complementary error function, $\erfc(z) = 1 - \erf(z)$          |
+//! | [`erfcx`]                  | Scaled complementary error function, $e^{z^2} \erfc(z)$         |
+//! | [`erfi`]                   | Imaginary error function $\erfi(z) = -i \erf(i z)$              |
+//! | [`erfinv`]                 | Inverse of [`erf`], $\erf^{-1}(z)$                              |
+//! | [`erfcinv`]                | Inverse of [`erfc`], $\erfc^{-1}(z) = \erf^{-1}(1 - z)$         |
+//! | [`erf_zeros`]              | Zeros (roots) of [`erf`]                                        |
+//! | [`wofz`]                   | Faddeeva function, $w(z) = e^{-z^2} \erfc(-iz)$                 |
+//! | [`dawsn`]                  | Dawson function $D(z) = \frac{\sqrt{\pi}}{2} e^{-z^2} \erfi(z)$ |
+//! | [`fresnel`]                | Fresnel integrals $S(z)$ and $C(z)$                             |
+//! | [`fresnel_zeros`]          | Zeros (roots) of Fresnel integrals $S(z)$ and $C(z)$            |
+//! | [`modified_fresnel_plus`]  | Modified Fresnel positive integrals                             |
+//! | [`modified_fresnel_minus`] | Modified Fresnel negative integrals                             |
+//! | [`voigt_profile`]          | Voigt profile                                                   |
 //!
 //! # Legendre functions
 //!
 //! | Function                      | Description                                                  |
 //! | ----------------------------- | ------------------------------------------------------------ |
-//! | [`legendre_p`]                | Legendre polynomial of the first kind                        |
+//! | [`legendre_p`]                | Legendre polynomial of the first kind, $P_n(z)$              |
 //! | [`legendre_p_all`]            | All Legendre polynomials of the first kind                   |
-//! | [`assoc_legendre_p`]          | Associated Legendre polynomial of the 1st kind               |
+//! | [`assoc_legendre_p`]          | Associated Legendre polynomial of the 1st kind, $P_n^m(z)$   |
 //! | [`assoc_legendre_p_all`]      | All associated Legendre polynomials of the 1st kind          |
 //! | [`assoc_legendre_p_norm`]     | Normalized associated Legendre polynomial                    |
 //! | [`assoc_legendre_p_norm_all`] | All normalized associated Legendre polynomials               |
 //! | [`sph_legendre_p`]            | Spherical Legendre polynomial of the first kind              |
 //! | [`sph_legendre_p_all`]        | All spherical Legendre polynomials of the first kind         |
-//! | [`sph_harm_y`]                | Spherical harmonics                                          |
+//! | [`sph_harm_y`]                | Spherical harmonics, $Y_n^m(\theta,\phi)$                    |
 //! | [`sph_harm_y_all`]            | All spherical harmonics                                      |
 //! | [`legendre_q_all`]       | All Legendre functions of the 2nd kind and derivatives            |
 //! | [`assoc_legendre_q_all`] | All associated Legendre functions of the 2nd kind and derivatives |
 //!
 //! # Hypergeometric functions
 //!
-//! | Function   | Description                                                   |
-//! | ---------- | ------------------------------------------------------------- |
-//! | [`hypu`]   | Confluent hypergeometric function *U*                         |
-//! | [`hyp1f1`] | Confluent hypergeometric function *<sub>1</sub>F<sub>1</sub>* |
-//! | [`hyp2f1`] | Gauss hypergeometric function *<sub>2</sub>F<sub>1</sub>*     |
+//! | Function   | Description                                                 |
+//! | ---------- | ----------------------------------------------------------- |
+//! | [`hypu`]   | Confluent hypergeometric function $U(a,b,x)$ for $x>0$      |
+//! | [`hyp1f1`] | Confluent hypergeometric function $ {}_1F_1(a;\\, b;\\, z)$ |
+//! | [`hyp2f1`] | Gauss' hypergeometric function ${}_2F_1(a,b;\\, c;\\, z)$   |
 //!
 //! # Parabolic cylinder functions
 //!
 //! | Function | Description                                    |
 //! | -------- | ---------------------------------------------- |
-//! | [`pbdv`] | Parabolic cylinder function *D* and derivative |
-//! | [`pbvv`] | Parabolic cylinder function *V* and derivative |
-//! | [`pbwa`] | Parabolic cylinder function *W* and derivative |
+//! | [`pbdv`] | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
+//! | [`pbvv`] | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
+//! | [`pbwa`] | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
 //!
 //! # Mathieu and related functions
 //!
@@ -330,89 +330,89 @@
 //!
 //! # Kelvin functions
 //!
-//! | Function   | Zeros            | Description                               |
-//! | ---------- | ---------------- | ----------------------------------------- |
-//! | [`kelvin`] | [`kelvin_zeros`] | Kelvin functions as complex numbers       |
-//! | [`ber`]    | [`ber_zeros`]    | Kelvin function *ber*                     |
-//! | [`bei`]    | [`bei_zeros`]    | Kelvin function *bei*                     |
-//! | [`berp`]   | [`berp_zeros`]   | Derivative of the Kelvin function [`ber`] |
-//! | [`beip`]   | [`beip_zeros`]   | Derivative of the Kelvin function [`bei`] |
-//! | [`ker`]    | [`ker_zeros`]    | Kelvin function *ker*                     |
-//! | [`kei`]    | [`kei_zeros`]    | Kelvin function *kei*                     |
-//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of the Kelvin function [`ker`] |
-//! | [`keip`]   | [`keip_zeros`]   | Derivative of the Kelvin function [`kei`] |
+//! | Function   | Zeros            | Description                         |
+//! | ---------- | ---------------- | ----------------------------------- |
+//! | [`kelvin`] | [`kelvin_zeros`] | Kelvin functions as complex numbers |
+//! | [`ber`]    | [`ber_zeros`]    | Kelvin function $\ber(x)$           |
+//! | [`berp`]   | [`berp_zeros`]   | Derivative of [`ber`], $\berp(x)$   |
+//! | [`bei`]    | [`bei_zeros`]    | Kelvin function $\bei(x)$           |
+//! | [`beip`]   | [`beip_zeros`]   | Derivative of [`bei`], $\beip(x)$   |
+//! | [`ker`]    | [`ker_zeros`]    | Kelvin function $\ker(x)$           |
+//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of [`ker`], $\kerp(x)$   |
+//! | [`kei`]    | [`kei_zeros`]    | Kelvin function $\kei(x)$           |
+//! | [`keip`]   | [`keip_zeros`]   | Derivative of [`kei`], $\keip(x)$   |
 //!
 //! # Combinatorics
 //!
-//! | Function       | Description                                                   |
-//! | -------------- | ------------------------------------------------------------- |
-//! | [`comb`]       | *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub> |
-//! | [`comb_rep`]   | *k*-combinations of *n* things with replacement               |
-//! | [`perm`]       | *k*-permutations of *n* things, <sub>*n*</sub>P<sub>*k*</sub> |
-//! | [`stirling2`]  | Stirling number of the second kind *S(n, k)*                  |
+//! | Function       | Description                                                             |
+//! | -------------- | ----------------------------------------------------------------------- |
+//! | [`comb`]       | $k$-combinations of $n$ things, ${}_n C_k = \binom{n}{k}$               |
+//! | [`comb_rep`]   | $k$-combinations with replacement, $\big(\\!\\!\binom{n}{k}\\!\\!\big)$ |
+//! | [`perm`]       | $k$-permutations of $n$ things, ${}_n P_k = \frac{n!}{(n-k)!}$          |
+//! | [`stirling2`]  | Stirling number of the second kind $S(n,k)$                             |
 //!
 //! # Factorials
 //!
 //! | Function                   | Description                               |
 //! | -------------------------- | ----------------------------------------- |
-//! | [`factorial`]              | Factorial *n*!                            |
+//! | [`factorial`]              | Factorial $n!$                            |
 //! | [`factorial_checked`]      | [`factorial`] with overflow checking      |
-//! | [`multifactorial`]         | Multifactorial *n*!<sub>(*k*)</sub>       |
+//! | [`multifactorial`]         | Multifactorial $n!_{(k)}$                 |
 //! | [`multifactorial_checked`] | [`multifactorial`] with overflow checking |
 //!
 //! # Exponential integrals
 //!
-//! | Function        | Description                                                    |
-//! | --------------- | -------------------------------------------------------------- |
-//! | [`expn`]        | Generalized exponential integral *E<sub>n</sub>(x)*            |
-//! | [`expi`]        | Exponential integral *Ei(x)*                                   |
-//! | [`exp1`]        | Exponential integral *E<sub>1</sub>(x)*                        |
-//! | [`scaled_exp1`] | Scaled exponential integral *x e<sup>x</sup> E<sub>1</sub>(x)* |
+//! | Function        | Description                                |
+//! | --------------- | ------------------------------------------ |
+//! | [`expn`]        | Generalized exponential integral $E_n(x)$  |
+//! | [`expi`]        | Exponential integral $Ei(x)$               |
+//! | [`exp1`]        | Exponential integral $E_1(x)$              |
+//! | [`scaled_exp1`] | Scaled exponential integral $x e^x E_1(x)$ |
 //!
 //! # Zeta functions
 //!
-//! | Function         | Description                                                    |
-//! | ---------------- | -------------------------------------------------------------- |
-//! | [`zeta`]         | Hurwitz zeta function of two arguments for real or complex `z` |
-//! | [`riemann_zeta`] | Riemann zeta function for real or complex input                |
-//! | [`zetac`]        | Riemann zeta function minus 1                                  |
+//! | Function         | Description                                                |
+//! | ---------------- | ---------------------------------------------------------- |
+//! | [`zeta`]         | Hurwitz zeta function $\zeta(z,q)$ for real or complex $z$ |
+//! | [`riemann_zeta`] | Riemann zeta function $\zeta(z)$ for real or complex $z$   |
+//! | [`zetac`]        | $\zeta(x) - 1$ for real $x$                                |
 //!
 //! # Other special functions
 //!
-//! | Function      | Description                                                |
-//! | ------------- | ---------------------------------------------------------- |
-//! | [`bernoulli`] | Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>      |
-//! | [`binom`]     | Binomial coefficient                                       |
-//! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel   |
-//! | [`euler`]     | Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>          |
-//! | [`lambertw`]  | Lambert W function                                         |
-//! | [`sici`]      | Sine and cosine integrals *Si(z)* and *Ci(z)*              |
-//! | [`shichi`]    | Hyperbolic sine and cosine integrals *Shi(z)* and *Chi(z)* |
-//! | [`spence`]    | Spence's function, also known as the dilogarithm           |
-//! | [`softplus`]  | ln(1 + e<sup>*x*</sup>)                                    |
+//! | Function      | Description                                                  |
+//! | ------------- | ------------------------------------------------------------ |
+//! | [`bernoulli`] | Bernoulli numbers $B_0, \ldots, B_{N-1}$                     |
+//! | [`binom`]     | Binomial coefficient $\binom{n}{k}$ for real input           |
+//! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel     |
+//! | [`euler`]     | Euler numbers $E_0, \ldots, E_{N-1}$                         |
+//! | [`lambertw`]  | Lambert W function, $W(z)$                                   |
+//! | [`sici`]      | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
+//! | [`shichi`]    | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
+//! | [`spence`]    | Spence's function, also known as the dilogarithm             |
+//! | [`softplus`]  | $\ln(1 + e^x)$                                               |
 //!
 //! # Convenience functions
 //!
-//! | Function       | Description                                         |
-//! | -----------    | --------------------------------------------------- |
-//! | [`cbrt`]       | ∛*x*                                                |
-//! | [`exp10`]      | 10<sup>*x*</sup>                                    |
-//! | [`exp2`]       | 2<sup>*x*</sup>                                     |
-//! | [`radian`]     | Convert from degrees to radians                     |
-//! | [`cosdg`]      | Cosine of an angle in degrees                       |
-//! | [`sindg`]      | Sine of an angle in degrees                         |
-//! | [`tandg`]      | Tangent of an angle in degrees                      |
-//! | [`cotdg`]      | Cotangent of an angle in degrees                    |
-//! | [`log1p`]      | log(1 + *x*)                                        |
-//! | [`expm1`]      | e<sup>*x*</sup> - 1                                 |
-//! | [`cosm1`]      | cos(*x*) - 1                                        |
-//! | [`round`]      | Round to nearest or even integer-valued float       |
-//! | [`xlogy`]      | x log(*y*) or 0 if *x* = 0                          |
-//! | [`xlog1py`]    | x log(1+*y*) or 0 if *x* = 0                        |
-//! | [`logaddexp`]  | ln(e<sup>*x*</sup> + e<sup>*y*</sup>)               |
-//! | [`logaddexp2`] | log<sub>2</sub>(2<sup>*x*</sup> + 2<sup>*y*</sup>)  |
-//! | [`exprel`]     | Relative error exponential, (e<sup>*x*</sup>-1)/*x* |
-//! | [`sinc`]       | Normalized sinc function, sin(π*x*)/(π*x*)          |
+//! | Function       | Description                                           |
+//! | -------------- | ----------------------------------------------------- |
+//! | [`cbrt`]       | $\sqrt\[3\]{x}$                                       |
+//! | [`exp10`]      | $10^x$                                                |
+//! | [`exp2`]       | $2^x$                                                 |
+//! | [`radian`]     | Convert from degrees to radians                       |
+//! | [`cosdg`]      | Cosine of an angle in degrees                         |
+//! | [`sindg`]      | Sine of an angle in degrees                           |
+//! | [`tandg`]      | Tangent of an angle in degrees                        |
+//! | [`cotdg`]      | Cotangent of an angle in degrees                      |
+//! | [`log1p`]      | $\ln(1+x)$                                            |
+//! | [`expm1`]      | $e^x - 1$                                             |
+//! | [`cosm1`]      | $\cos(x) - 1$                                         |
+//! | [`round`]      | Round to nearest or even integer-valued float         |
+//! | [`xlogy`]      | $x \ln(y)$ or $0$ if $x = 0$                          |
+//! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                        |
+//! | [`logaddexp`]  | $\ln(e^x + e^y)$                                      |
+//! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                   |
+//! | [`exprel`]     | Relative error exponential, $\frac{e^x - 1}{x}$       |
+//! | [`sinc`]       | Normalized sinc function, $\frac{\sin(\pi x)}{\pi x}$ |
 //!
 
 #![warn(
