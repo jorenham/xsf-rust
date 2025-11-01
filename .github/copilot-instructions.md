@@ -29,12 +29,14 @@
   <https://docs.scipy.org/doc/scipy/reference/special.html>
 - include relevant "See also" links to related functions in the rustdoc comments, as
   appropriate, following the scipy.special documentation style
-- rustdoc does not support Latex math rendering, so use simple html tags (e.g. `<sub>` and
-  `<sup>`), Unicode characters (like π, ∫, and ∛), and italic/bold formatting to represent
-  mathematical expressions as closely as possible
+- mathematical expressions should be written using LaTeX notation with KaTeX delimiters
+  (`$` for inline math, `$$` for display math), as configured in `katex.html`
+- see `katex.html` for available custom macros (e.g., `\B` for Beta function, `\erf` for
+  error function, `\Si` for sine integral, etc.)
 - in case of multiple return values, document each one individually in the `# Returns` section
   using bullet points in a single line, including the mathematical expression for each return value
   where applicable
+- the documentation can be built locally with `make doc`
 
 ## Testing
 
