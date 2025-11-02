@@ -124,24 +124,24 @@ mod sealed {
 }
 
 pub trait Hyp0F1Arg: sealed::Sealed {
-    fn hyp0f1(self, a: f64) -> Self;
+    fn hyp0f1(self, b: f64) -> Self;
 }
 
 impl Hyp0F1Arg for f64 {
     #[inline(always)]
-    fn hyp0f1(self, a: f64) -> Self {
-        _hyp0f1_real(a, self)
+    fn hyp0f1(self, b: f64) -> Self {
+        _hyp0f1_real(b, self)
     }
 }
 
 impl Hyp0F1Arg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn hyp0f1(self, a: f64) -> Self {
-        _hyp0f1_cmplx(a, self)
+    fn hyp0f1(self, b: f64) -> Self {
+        _hyp0f1_cmplx(b, self)
     }
 }
 
-/// Confluent hypergeometric limit function $_0F_1(; a; z)$ for real or complex $z$
+/// Confluent hypergeometric limit function $_0F_1\[b\\,\rvert\\,z\]$ for real or complex $z$
 ///
 /// This is a translation of the [`scipy.special.hyp0f1`][hyp0f1] Cython implementation into Rust,
 /// using the same Cephes-based [scipy/xsf][xsf] FFI functions as SciPy.
@@ -151,28 +151,30 @@ impl Hyp0F1Arg for num_complex::Complex<f64> {
 ///
 /// # Notes
 ///
-/// This function is defined as:
+/// This function is defined as
 ///
 /// $$
-/// _0F_1(; a; z) = \sum\_{k=0}^{\infty} \frac{z^k}{\rpow{a}{k} k!}
+/// _0F_1\[b\\,\rvert\\,z\] = \sum\_{n=0}^\infty \frac{1}{\rpow{b}{n}} \frac{z^k}{n!}.
 /// $$
 ///
-/// where $\rpow{a}{k}$ denotes the rising factorial (see [`pow_rising(a, k)`](crate::pow_rising)).
+/// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
 ///
-/// It's also the limit as $q \to \infty$ of $_1F_1(q; a; z/q)$, and satisfies the differential
-/// equation $f\'\'(z) + a f\'(z) = f(z)$. See [^1] for more information.
+/// It's also the limit as $a \to \infty$ of $\hyp{1}{1}{a}{b}{\big\|\\,z}$, and satisfies the differential
+/// equation $f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
 ///
 /// # See also
-/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function $_1F_1(a; b; z)$
-/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function $_2F_1(a,b; c; z)$
-/// - [`bessel_j`](crate::bessel_j): Bessel function of the first kind $J_v(x)$
-/// - [`bessel_i`](crate::bessel_i): Modified Bessel function of the first kind $I_v(x)$
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,
+///   $\hyp{1}{1}{a}{b}{\big\|\\,z}$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
+///   $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$
+/// - [`bessel_j`](crate::bessel_j): Bessel function of the first kind, $J_v(x)$
+/// - [`bessel_i`](crate::bessel_i): Modified Bessel function of the first kind, $I_v(x)$
 ///
 /// [^1]: Weisstein, Eric W. "Confluent Hypergeometric Limit Function." From MathWorld -- A Wolfram
 /// Resource. <https://mathworld.wolfram.com/ConfluentHypergeometricLimitFunction.html>
 ///
-pub fn hyp0f1<T: Hyp0F1Arg>(a: f64, z: T) -> T {
-    z.hyp0f1(a)
+pub fn hyp0f1<T: Hyp0F1Arg>(b: f64, z: T) -> T {
+    z.hyp0f1(b)
 }
 
 #[cfg(test)]
