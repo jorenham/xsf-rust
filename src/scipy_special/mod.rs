@@ -3,17 +3,21 @@ mod boxcox;
 mod comb;
 mod diric;
 mod factorial;
+mod hyp0f1;
 mod perm;
 mod polygamma;
 mod softplus;
 mod stirling;
 
-pub use bessel_prime::*;
-pub use boxcox::*;
-pub use comb::*;
-pub use diric::*;
-pub use factorial::*;
-pub use perm::*;
-pub use polygamma::*;
-pub use softplus::*;
-pub use stirling::*;
+pub use bessel_prime::{
+    bessel_i_prime, bessel_j_prime, bessel_k_prime, bessel_y_prime, hankel_1_prime, hankel_2_prime,
+};
+pub use boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
+pub use comb::{comb, comb_rep};
+pub use diric::diric;
+pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
+pub use hyp0f1::hyp0f1;
+pub use perm::perm;
+pub use polygamma::polygamma;
+pub use softplus::softplus;
+pub use stirling::stirling2;

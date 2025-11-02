@@ -13,6 +13,7 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/expn.h",
     "cephes/incbet.h",
     "cephes/incbi.h",
+    "cephes/jv.h",
     "cephes/lanczos.h",
     "cephes/poch.h",
     "cephes/round.h",
@@ -366,6 +367,11 @@ double incbet(double a, double b, double x) {
 // cephes/incbi.h
 double incbi(double a, double b, double y) {
     return xsf::cephes::incbi(a, b, y);
+}
+
+// cephes/jv.h
+double cephes_jv(double v, double x) {
+    return xsf::cephes::jv(v, x);
 }
 
 // cephes/lanczos.h
