@@ -154,13 +154,13 @@ impl Hyp0F1Arg for num_complex::Complex<f64> {
 /// This function is defined as
 ///
 /// $$
-/// _0F_1\[b\\,\rvert\\,z\] = \sum\_{n=0}^\infty \frac{1}{\rpow{b}{n}} \frac{z^k}{n!}.
+/// _0F_1\[b\\,\rvert\\,z\] = \sum\_{n=0}^\infty \frac{1}{\rpow{b}{n}} \frac{z^n}{n!}.
 /// $$
 ///
 /// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
 ///
-/// It's also the limit as $a \to \infty$ of $\hyp{1}{1}{a}{b}{\big\|\\,z}$, and satisfies the differential
-/// equation $f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
+/// It's also the limit as $a \to \infty$ of $\hyp{1}{1}{a}{b}{\big\|\\,z}$, and satisfies the
+/// differential equation $f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
 ///
 /// # See also
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,

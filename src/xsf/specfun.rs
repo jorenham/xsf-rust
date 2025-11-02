@@ -91,7 +91,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
     en
 }
 
-/// Kummer's Confluent hypergeometric function $M(a,b,x) = {}_1F_1\[a;\\,b\\,\rvert\\,z\]$
+/// Kummer's Confluent hypergeometric function $M(a,b,z) = {}_1F_1\[a;\\,b\\,\rvert\\,z\]$
 ///
 /// Corresponds to [`scipy.special.hyp1f1`][hyp1f1] in SciPy, and accepts both `f64` and
 /// `num_complex::Complex<f64>` inputs for `z`.
@@ -103,7 +103,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
 /// The confluent hypergeometric function is defined by the series
 ///
 /// $$
-/// M(a,b,x) = \hyp{1}{1}{a}{b}{\Big\|\\,z} = \sum\_{n=0}^\infty
+/// M(a,b,z) = \hyp{1}{1}{a}{b}{\Big\|\\,z} = \sum\_{n=0}^\infty
 ///     \frac{\rpow{a}{n}}{\rpow{b}{n}}
 ///     \frac{z^n}{n!}
 /// $$
@@ -141,7 +141,7 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
 /// See [^DLMF] for more details.
 ///
 /// # See also
-/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function $M(a,b,x)$
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function $M(a,b,z)$
 ///
 /// [^DLMF]: NIST Digital Library of Mathematics Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]
