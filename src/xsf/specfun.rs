@@ -91,12 +91,59 @@ pub fn euler<const N: usize>() -> [f64; N] {
     en
 }
 
-/// Confluent hypergeometric function `1F1(a; b; z)` for real or complex `z`
+/// Kummer's Confluent hypergeometric function $M(a,b,z) = {}_1F_1\[a;\\,b\\,\rvert\\,z\]$
+///
+/// Corresponds to [`scipy.special.hyp1f1`][hyp1f1] in SciPy, and accepts both `f64` and
+/// `num_complex::Complex<f64>` inputs for `z`.
+///
+/// [hyp1f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html
+///
+/// # Notes
+///
+/// The confluent hypergeometric function is defined by the series
+///
+/// $$
+/// M(a,b,z) = \hyp{1}{1}{a}{b}{\Big\|\\,z} = \sum\_{n=0}^\infty
+///     \frac{\rpow{a}{n}}{\rpow{b}{n}}
+///     \frac{z^n}{n!}
+/// $$
+///
+/// See [^DLMF] for more details.
+/// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
+///
+/// # See also
+/// - [`hypu`](crate::hypu): Tricomi's confluent hypergeometric function $U(a,b,x)$
+/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1\[b\\,\rvert\\,z\]$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
+///   $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$
+///
 pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
-/// Confluent hypergeometric function `U(a,b,x)` for `x > 0`
+/// Tricomi's confluent hypergeometric function $U(a,b,x)$
+///
+/// Corresponds to [`scipy.special.hyperu`][hyperu] in SciPy.
+///
+/// [hyperu]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyperu.html
+///
+/// # Notes
+///
+/// It is defined as the solution to the equation
+///
+/// $$
+/// x \frac{\dd^2 w}{\dd x^2} + (b - x) \frac{\dd w}{\dd x} - aw = 0
+/// $$
+///
+/// which satisfies the property $U(a,b,x) \sim x^{-a}$ as $x \to \infty$.
+/// See [^DLMF] for more details.
+///
+/// # See also
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function $M(a,b,z)$
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::hypu(a, b, x) }

@@ -59,11 +59,14 @@ document.addEventListener("DOMContentLoaded", () => {
       "\\Chi": "\\mathop{\\mathrm{Chi}}",
 
       // falling and rising factorials
-      "\\fpow": "#1^{\\overline{#2}}",
-      "\\rpow": "#1^{\\underline{#2}}",
+      "\\fpow": "#1^{\\underline{#2}}",
+      "\\rpow": "#1^{\\overline{#2}}",
+
+      // hypergeometric functions
+      "\\hyp": "{}_#1F_#2\\left[{#3 \\atop #4} \\ #5 \\right]",
 
       // some missing "physics" tex package commands
-      "\\dd": "\\,\\mathrm{d}{#1}",
+      "\\dd": "\\,\\mathrm{d}",
     },
   })
 })
