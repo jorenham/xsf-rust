@@ -278,6 +278,15 @@
 //! | [`legendre_q_all`]       | All Legendre functions of the 2nd kind and derivatives            |
 //! | [`assoc_legendre_q_all`] | All associated Legendre functions of the 2nd kind and derivatives |
 //!
+//! # Orthogonal polynomials
+//!
+//! The following functions evaluate values of orthogonal polynomials:
+//!
+//! | Function          | Name     | Notation                   |
+//! | ----------------- | -------- | -------------------------- |
+//! | [`eval_legendre`] | Legendre | $P_n(z)$                   |
+//! | [`eval_jacobi`]   | Jacobi   | $P_n^{(\alpha, \beta)}(z)$ |
+//!
 //! # Hypergeometric functions
 //!
 //! | Function   | Description                                                                 |
