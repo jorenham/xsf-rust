@@ -12,7 +12,7 @@ mod sealed {
 }
 
 pub trait OrthoPolyArg<N>: sealed::Sealed {
-    // TODO: add the other classical orthogonaal polynomials (but skip the confusing shifted ones)
+    // TODO: add the other classical orthogonal polynomials (but skip the confusing shifted ones)
     fn eval_jacobi(self, n: N, alpha: f64, beta: f64) -> Self;
     fn eval_legendre(self, n: N) -> Self;
 }
@@ -50,7 +50,7 @@ impl OrthoPolyArg<f64> for Complex64 {
 }
 
 impl OrthoPolyArg<i32> for f64 {
-    /// Corresponds to from `eval_jacobi_l` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `eval_jacobi_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_jacobi(self, n: i32, a: f64, b: f64) -> Self {
         if n < 0 {
