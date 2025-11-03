@@ -239,8 +239,8 @@
 //! | [`digamma`]      | The digamma function, $\psi(z)$                                     |
 //! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                             |
 //! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$             |
-//! | [`pow_rising`]   | Rising factorial $\fpow{x}{m} = \frac{\Gamma(x+m)}{\Gamma(x)}$      |
-//! | [`pow_falling`]  | Falling factorial $\rpow{x}{m} = \frac{\Gamma(x+1)}{\Gamma(x+1-m)}$ |
+//! | [`pow_rising`]   | Rising factorial $\rpow{x}{m} = \frac{\Gamma(x+m)}{\Gamma(x)}$      |
+//! | [`pow_falling`]  | Falling factorial $\fpow{x}{m} = \frac{\Gamma(x+1)}{\Gamma(x+1-m)}$ |
 //!
 //! # Error function and Fresnel integrals
 //!
