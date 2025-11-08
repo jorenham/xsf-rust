@@ -1,3 +1,5 @@
+use core::f64;
+use core::f64::consts::{FRAC_1_PI, PI};
 use core::ffi::c_int;
 
 mod sealed {
@@ -32,6 +34,78 @@ impl StatsArg for num_complex::Complex<f64> {
     #[inline(always)]
     fn log_ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::log_ndtr_1(self) }
+    }
+}
+
+// Student's t
+
+/// Student's t distribution cumulative distribution function
+///
+/// Rust implementation of [`scipy.special.stdtr`][stdtr].
+///
+/// # Notes
+///
+/// The CDF is given by
+///
+/// $$
+/// \begin{align*}
+/// F_\nu(x)
+/// \&= \frac{1}{\nu \B \left( \frac{1}{2}, \frac{\nu}{2} \right)}
+///     \int_{-\infty}^x g(u)^{\frac{\nu+1}{2}} \dd u \\\\
+/// \&= 1 - \frac{1}{2} I_{g(x)}\left( \frac{1}{2}, \frac{\nu}{2} \right) ,
+/// \end{align*}
+/// $$
+///
+/// with $g(\square) = \frac{\nu}{\square^2 + \nu}$ a helper function, $\B(\cdot, \cdot)$ the Beta
+/// function, and $I_\square(\cdot,\cdot)$ the regularized incomplete Beta function.
+///
+/// # See also
+/// - [`stdtri`](stdtri): Inverse of the CDF
+/// - [`beta`](crate::beta): Beta function
+/// - [`betainc`](crate::betainc): Regularized incomplete Beta function
+///
+/// [stdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtr.html
+pub fn stdtr(nu: f64, x: f64) -> f64 {
+    if nu <= 0.0 {
+        f64::NAN
+    } else if x == 0.0 {
+        0.5
+    } else if nu.is_infinite() {
+        ndtr(x)
+    } else if nu == 1.0 {
+        0.5 + FRAC_1_PI * x.atan()
+    } else if nu == 2.0 {
+        0.5 * (1.0 + x / (2.0 + x * x).sqrt())
+    } else {
+        let p = 0.5 * crate::betainc(0.5 * nu, 0.5, nu / (nu + x * x));
+        if x >= 0.0 { 1.0 - p } else { p }
+    }
+}
+
+/// Inverse of [`stdtr`]
+///
+/// Rust implementation of [`scipy.special.stdtrit`][stdtrit] with comparable or better accuracy.
+///
+/// [stdtrit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtrit.html
+pub fn stdtri(nu: f64, p: f64) -> f64 {
+    if nu <= 0.0 || !(0.0..=1.0).contains(&p) {
+        f64::NAN
+    } else if p == 0.0 {
+        f64::NEG_INFINITY
+    } else if p == 1.0 {
+        f64::INFINITY
+    } else if p == 0.5 {
+        0.0
+    } else if nu.is_infinite() {
+        ndtri(p)
+    } else if nu == 1.0 {
+        (PI * (p - 0.5)).tan()
+    } else if nu == 2.0 {
+        (p - 0.5) * (2.0 / (p * (1.0 - p))).sqrt()
+    } else {
+        let x = crate::betaincinv(0.5 * nu, 0.5, 2.0 * p.min(1.0 - p));
+        let x = (nu * (1.0 - x) / x).sqrt();
+        if p < 0.5 { -x } else { x }
     }
 }
 
@@ -221,6 +295,152 @@ mod tests {
     use num_complex::c64;
 
     #[test]
+    fn test_stdtr() {
+        const NU: [f64; 6] = [0.5, 1.0, 2.0, 3.0, 4.0, 10.0];
+        const X: [f64; 9] = [-8.0, -4.0, -2.0, -1.0, 0.0, 1.0, 2.0, 4.0, 8.0];
+        // values from scipy.special.stdtr
+        const P_REF: [[f64; 9]; 6] = [
+            [
+                0.113252546403789,
+                0.159610041494336,
+                0.222757445091566,
+                0.301121610841322,
+                0.5,
+                0.698878389158678,
+                0.777242554908434,
+                0.840389958505664,
+                0.886747453596211,
+            ],
+            [
+                0.039583424160566,
+                0.077979130377369,
+                0.147583617650433,
+                0.25,
+                0.5,
+                0.75,
+                0.852416382349567,
+                0.922020869622631,
+                0.960416575839434,
+            ],
+            [
+                0.007634036082669,
+                0.028595479208968,
+                0.091751709536137,
+                0.211324865405187,
+                0.5,
+                0.788675134594813,
+                0.908248290463863,
+                0.971404520791032,
+                0.992365963917331,
+            ],
+            [
+                0.002038288793893,
+                0.014004228005073,
+                0.069662984279422,
+                0.195501109477885,
+                0.5,
+                0.804498890522115,
+                0.930337015720578,
+                0.985995771994927,
+                0.997961711206107,
+            ],
+            [
+                0.000661948454609,
+                0.008065044950046,
+                0.058058261758408,
+                0.18695048315003,
+                0.5,
+                0.81304951684997,
+                0.941941738241592,
+                0.991934955049954,
+                0.999338051545391,
+            ],
+            [
+                0.000005887471395,
+                0.001259166312368,
+                0.03669401738537,
+                0.17044656615103,
+                0.5,
+                0.82955343384897,
+                0.96330598261463,
+                0.998740833687632,
+                0.999994112528605,
+            ],
+        ];
+        for (i, &nu) in NU.iter().enumerate() {
+            let p = X.map(|x| crate::stdtr(nu, x));
+            crate::np_assert_allclose!(p, P_REF[i], atol = 1e-15);
+        }
+    }
+
+    #[test]
+    fn test_stdtri() {
+        const NU: [f64; 6] = [0.5, 1.0, 2.0, 3.0, 4.0, 10.0];
+        const P: [f64; 7] = [0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999];
+        // values from Wolfram Alpha
+        const X_REF: [[f64; 7]; 6] = [
+            [
+                -102849.11563017555,
+                -1028.4910104716219,
+                -10.270324410234506,
+                0.0,
+                10.270324410234506,
+                1028.4910104716219,
+                102849.11563017555,
+            ],
+            [
+                -318.30883898555045,
+                -31.82051595377396,
+                -3.0776835371752534,
+                0.0,
+                3.0776835371752534,
+                31.82051595377396,
+                318.30883898555045,
+            ],
+            [
+                -22.327124770119875,
+                -6.964556734283274,
+                -1.8856180831641267,
+                0.0,
+                1.8856180831641267,
+                6.964556734283274,
+                22.327124770119875,
+            ],
+            [
+                -10.214531852407387,
+                -4.5407028585681336,
+                -1.6377443536962101,
+                0.0,
+                1.6377443536962101,
+                4.5407028585681336,
+                10.214531852407387,
+            ],
+            [
+                -7.1731822197823085,
+                -3.746947387979197,
+                -1.5332062740589439,
+                0.0,
+                1.5332062740589439,
+                3.746947387979197,
+                7.1731822197823085,
+            ],
+            [
+                -4.14370049404659,
+                -2.763769458112696,
+                -1.3721836411103356,
+                0.0,
+                1.3721836411103356,
+                2.763769458112696,
+                4.14370049404659,
+            ],
+        ];
+        for (i, &nu) in NU.iter().enumerate() {
+            let x = P.map(|p| crate::stdtri(nu, p));
+            crate::np_assert_allclose!(x, X_REF[i], rtol = 1e-13);
+        }
+    }
+
+    #[test]
     fn test_ndtr_f64() {
         crate::xsref::test("ndtr", "d-d", |x| crate::ndtr(x[0]));
     }
@@ -233,19 +453,7 @@ mod tests {
     // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
     #[test]
     fn test_log_ndtr() {
-        // x = np.array([-0.75, -0.25, 0, 0.5, 1.5, 2.5, 3, 4, 5, 7, 8])
         let x = [-0.75, -0.25, 0.0, 0.5, 1.5, 2.5, 3.0, 4.0, 5.0, 7.0, 8.0];
-        // expected = np.array([-1.4844482299196562,
-        //                      -0.9130617648111351,
-        //                      -0.6931471805599453,
-        //                      -0.3689464152886564,
-        //                      -0.06914345561223398,
-        //                      -0.006229025485860002,
-        //                      -0.0013508099647481938,
-        //                      -3.167174337748927e-05,
-        //                      -2.866516129637636e-07,
-        //                      -1.279812543886654e-12,
-        //                      -6.220960574271786e-16])
         let expected = [
             -1.4844482299196562,
             -0.9130617648111351,
@@ -260,9 +468,7 @@ mod tests {
             -1.279812543886654e-12,
             -6.220960574271786e-16,
         ];
-        // y = sc.log_ndtr(x)
         let y = x.map(crate::log_ndtr);
-        // assert_allclose(y, expected, rtol=1e-14)
         crate::np_assert_allclose!(&y, &expected, rtol = 1e-14);
     }
 

@@ -168,6 +168,13 @@
 //! | [`pdtrc`] | Complement of [`pdtr`]           |
 //! | [`pdtri`] | Inverse of [`pdtr`]              |
 //!
+//! ## Student's t distribution
+//!
+//! | Function   | Description                      |
+//! | ---------- | -------------------------------- |
+//! | [`stdtr`]  | Cumulative distribution function |
+//! | [`stdtri`] | Inverse of [`stdtr`]             |
+//!
 //! ## Chi square distribution
 //!
 //! | Function   | Description                      |
