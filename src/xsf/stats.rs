@@ -292,7 +292,6 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use core::f64;
     use num_complex::c64;
 
     #[test]
