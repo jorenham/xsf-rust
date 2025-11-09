@@ -123,22 +123,107 @@ mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
-pub trait Hyp0F1Arg: sealed::Sealed {
+pub trait HypergeometricArg: sealed::Sealed {
+    fn hyp0f0(self) -> Self;
+    fn hyp1f0(self, a: f64) -> Self;
     fn hyp0f1(self, b: f64) -> Self;
 }
 
-impl Hyp0F1Arg for f64 {
+impl HypergeometricArg for f64 {
+    #[inline(always)]
+    fn hyp0f0(self) -> Self {
+        self.exp()
+    }
+
+    #[inline(always)]
+    fn hyp1f0(self, a: f64) -> Self {
+        if a > 0.0 && self == 1.0 {
+            f64::NAN
+        } else {
+            (1.0 - self).powf(-a)
+        }
+    }
+
     #[inline(always)]
     fn hyp0f1(self, b: f64) -> Self {
         _hyp0f1_real(b, self)
     }
 }
 
-impl Hyp0F1Arg for num_complex::Complex<f64> {
+impl HypergeometricArg for num_complex::Complex<f64> {
+    #[inline(always)]
+    fn hyp0f0(self) -> Self {
+        self.exp()
+    }
+
+    #[inline(always)]
+    fn hyp1f0(self, a: f64) -> Self {
+        if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
+            f64::NAN.into()
+        } else {
+            (1.0 - self).powf(-a)
+        }
+    }
+
     #[inline(always)]
     fn hyp0f1(self, b: f64) -> Self {
         _hyp0f1_cmplx(b, self)
     }
+}
+
+/// Hypergeometric function $_0F_0\[\rvert\\,z\]$ for real or complex $z$
+///
+/// This function is currently not implemented in SciPy, but is straightforward to evaluate.
+/// Both [`f64`] and [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
+///
+/// # Notes
+///
+/// This function is defined as
+///
+/// $$
+/// _0F_0\[\rvert\\,z\] = \sum\_{n=0}^\infty \frac{z^n}{n!} ,
+/// $$
+///
+/// which is just the exponential function, $e^z$.
+///
+/// # See also
+/// - [`hyp1f0`]: Hypergeometric function $_1F_0\[a\\,\rvert\\,z\]$
+/// - [`hyp0f1`]: Confluent hypergeometric limit function, $_0F_1\[b\\,\rvert\\,z\]$
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,
+///   $\hyp{1}{1}{a}{b}{\big\|\\,z}$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
+///   $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$
+///
+pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
+    z.hyp0f0()
+}
+
+/// Hypergeometric function $_1F_0\[a\\,\rvert\\,z\]$ for real or complex $z$
+///
+/// This function is currently not implemented in SciPy, but is straightforward to evaluate.
+/// Both [`f64`] and [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
+///
+/// # Notes
+///
+/// This function is defined as
+///
+/// $$
+/// _1F_0\[a\\,\rvert\\,z\] = \sum\_{n=0}^\infty \rpow{a}{n} \frac{z^n}{n!}
+/// $$
+///
+/// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
+/// It's also equal to $(1 - z)^{-a}$.
+///
+/// # See also
+/// - [`hyp0f0`]: Hypergeometric function $_0F_0\[\rvert\\,z\]$
+/// - [`hyp0f1`]: Confluent hypergeometric limit function, $_0F_1\[b\\,\rvert\\,z\]$
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,
+///   $\hyp{1}{1}{a}{b}{\big\|\\,z}$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
+///   $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$
+///
+pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
+    z.hyp1f0(a)
 }
 
 /// Confluent hypergeometric limit function $_0F_1\[b\\,\rvert\\,z\]$ for real or complex $z$
@@ -163,6 +248,7 @@ impl Hyp0F1Arg for num_complex::Complex<f64> {
 /// differential equation $f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
 ///
 /// # See also
+/// - [`hyp1f0`]: Hypergeometric function, $_1F_0\[a\\,\rvert\\,z\]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,
 ///   $\hyp{1}{1}{a}{b}{\big\|\\,z}$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
@@ -173,14 +259,99 @@ impl Hyp0F1Arg for num_complex::Complex<f64> {
 /// [^1]: Weisstein, Eric W. "Confluent Hypergeometric Limit Function." From MathWorld -- A Wolfram
 /// Resource. <https://mathworld.wolfram.com/ConfluentHypergeometricLimitFunction.html>
 ///
-pub fn hyp0f1<T: Hyp0F1Arg>(b: f64, z: T) -> T {
+pub fn hyp0f1<T: HypergeometricArg>(b: f64, z: T) -> T {
     z.hyp0f1(b)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{hyp0f1, np_assert_allclose};
+    use core::f64::consts::{E, PI};
     use num_complex::c64;
+
+    #[test]
+    fn test_hyp0f0_f64() {
+        np_assert_allclose!([crate::hyp0f0(0.0)], [1.0], atol = 1e-15);
+        np_assert_allclose!([crate::hyp0f0(1.0)], [E], atol = 1e-15);
+        np_assert_allclose!([crate::hyp0f0(-1.0)], [1.0 / E], atol = 1e-15);
+    }
+
+    #[test]
+    fn test_hyp0f0_c64() {
+        np_assert_allclose!(
+            [crate::hyp0f0(c64(0.0, 0.0))],
+            [c64(1.0, 0.0)],
+            atol = 1e-15
+        );
+        np_assert_allclose!([crate::hyp0f0(c64(1.0, 0.0))], [c64(E, 0.0)], atol = 1e-15);
+        np_assert_allclose!(
+            [crate::hyp0f0(c64(0.0, PI))],
+            [c64(-1.0, 0.0)],
+            atol = 1e-15
+        );
+    }
+
+    #[test]
+    fn test_hyp1f0_f64() {
+        assert_eq!(crate::hyp1f0(-1.0, -1.0), 2.0);
+        assert_eq!(crate::hyp1f0(0.0, -1.0), 1.0);
+        assert_eq!(crate::hyp1f0(1.0, -1.0), 0.5);
+        assert_eq!(crate::hyp1f0(2.0, -1.0), 0.25);
+
+        assert_eq!(crate::hyp1f0(-1.0, 0.0), 1.0);
+        assert_eq!(crate::hyp1f0(0.0, 0.0), 1.0);
+        assert_eq!(crate::hyp1f0(1.0, 0.0), 1.0);
+        assert_eq!(crate::hyp1f0(2.0, 0.0), 1.0);
+
+        assert_eq!(crate::hyp1f0(-1.0, 1.0), 0.0);
+        assert_eq!(crate::hyp1f0(0.0, 1.0), 1.0);
+        assert!(crate::hyp1f0(1.0, 1.0).is_nan());
+        assert!(crate::hyp1f0(2.0, 1.0).is_nan());
+
+        assert_eq!(crate::hyp1f0(-1.0, 2.0), -1.0);
+        assert_eq!(crate::hyp1f0(0.0, 2.0), 1.0);
+        assert_eq!(crate::hyp1f0(1.0, 2.0), -1.0);
+        assert_eq!(crate::hyp1f0(2.0, 2.0), 1.0);
+    }
+
+    #[test]
+    fn test_hyp1f0_c64() {
+        assert_eq!(crate::hyp1f0(-1.0, c64(-1.0, 0.0)), c64(2.0, 0.0));
+        assert_eq!(crate::hyp1f0(0.0, c64(-1.0, 0.0)), c64(1.0, 0.0));
+        assert_eq!(crate::hyp1f0(1.0, c64(-1.0, 0.0)), c64(0.5, 0.0));
+        assert_eq!(crate::hyp1f0(2.0, c64(-1.0, 0.0)), c64(0.25, 0.0));
+
+        assert_eq!(crate::hyp1f0(-1.0, c64(0.0, 0.0)), c64(1.0, 0.0));
+        assert_eq!(crate::hyp1f0(0.0, c64(0.0, 0.0)), c64(1.0, 0.0));
+        assert_eq!(crate::hyp1f0(1.0, c64(0.0, 0.0)), c64(1.0, 0.0));
+        assert_eq!(crate::hyp1f0(2.0, c64(0.0, 0.0)), c64(1.0, 0.0));
+
+        assert_eq!(crate::hyp1f0(-1.0, c64(1.0, 0.0)), c64(0.0, 0.0));
+        assert_eq!(crate::hyp1f0(0.0, c64(1.0, 0.0)), c64(1.0, 0.0));
+        assert!(crate::hyp1f0(1.0, c64(1.0, 0.0)).is_nan());
+        assert!(crate::hyp1f0(2.0, c64(1.0, 0.0)).is_nan());
+
+        np_assert_allclose!(
+            [crate::hyp1f0(-1.0, c64(2.0, 0.0))],
+            [c64(-1.0, 0.0)],
+            atol = 1e-15
+        );
+        np_assert_allclose!(
+            [crate::hyp1f0(0.0, c64(2.0, 0.0))],
+            [c64(1.0, 0.0)],
+            atol = 1e-15
+        );
+        np_assert_allclose!(
+            [crate::hyp1f0(1.0, c64(2.0, 0.0))],
+            [c64(-1.0, 0.0)],
+            atol = 1e-15
+        );
+        np_assert_allclose!(
+            [crate::hyp1f0(2.0, c64(2.0, 0.0))],
+            [c64(1.0, 0.0)],
+            atol = 1e-15
+        );
+    }
 
     /// Corresponds to `scipy.special.tests.test_basic.TestHyper.test_hyp0f1`
     /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/tests/test_basic.py#L3144-L3168>

@@ -306,12 +306,14 @@
 //!
 //! # Hypergeometric functions
 //!
-//! | Function   | Description                                                                 |
-//! | ---------- | --------------------------------------------------------------------------- |
-//! | [`hyp0f1`] | Confluent hypergeometric limit function $_0F_1\[b\\, \rvert\\, z\]$         |
-//! | [`hyp1f1`] | Kummer's confluent hypergeometric function $\hyp{1}{1}{a}{b}{\big\|\\,z}$   |
-//! | [`hypu`]   | Tricomi's confluent hypergeometric function $U(a,b,x)$                      |
-//! | [`hyp2f1`] | Gauss' hypergeometric function, $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$     |
+//! | Function   | Description                             | Notation                             |
+//! | ---------- | --------------------------------------- | ------------------------------------ |
+//! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\[\rvert\\, z\]$               |
+//! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\[a\\, \rvert\\, z\]$          |
+//! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\[b\\, \rvert\\, z\]$          |
+//! | [`hypu`]   | Confluent hypergeometric function       | $U(a,b,x)$                           |
+//! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp{1}{1}{a}{b}{\big\|\\,z}$       |
+//! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp{2}{1}{a_1,a_2}{b}{\big\|\\,z}$ |
 //!
 //! # Parabolic cylinder functions
 //!
