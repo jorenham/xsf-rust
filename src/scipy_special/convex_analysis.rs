@@ -23,7 +23,7 @@
 /// *information theory* is
 ///
 /// $$
-/// H\[ \\{ p_i \\} \] = S\sum\_{i} \mathrm{entr}(p_i).
+/// H\[ \\{ p_i \\} \] = \sum\_{i} \mathrm{entr}(p_i).
 /// $$
 ///
 /// [^1]: S. Boyd and L. Vandenberghe. *Convex optimization*. Cambridge University Press, 2004.
@@ -193,7 +193,7 @@ pub fn huber(delta: f64, r: f64) -> f64 {
     }
 }
 
-/// Psuedo-Huber Loss function
+/// Pseudo-Huber Loss function
 ///
 /// $$
 /// \widetilde{L}_\delta(r) =
@@ -244,14 +244,12 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use core::f64;
-
     use crate::np_assert_allclose;
 
     fn get_test_xy() -> [(f64, f64); 25] {
         let z1 = [-1.0, -0.5, 0.0, 0.5, 1.0];
         let z2 = z1.map(|x| z1.map(|y| (x, y)));
-        unsafe { std::mem::transmute::<[[(f64, f64); 5]; 5], [(f64, f64); 25]>(z2) }
+        unsafe { core::mem::transmute::<[[(f64, f64); 5]; 5], [(f64, f64); 25]>(z2) }
     }
 
     fn map2<const N: usize>(func: impl Fn(f64, f64) -> f64, xy: [(f64, f64); N]) -> [f64; N] {
@@ -296,7 +294,7 @@ mod tests {
         np_assert_allclose!(map2(crate::kl_div, z), w, rtol = 1e-13, atol = 1e-13)
     }
 
-    /// translated from `scipy.special.tests.teet_basic.test_rel_entr`
+    /// translated from `scipy.special.tests.test_basic.test_rel_entr`
     #[test]
     fn test_rel_entr() {
         fn xfunc(x: f64, y: f64) -> f64 {
@@ -314,7 +312,7 @@ mod tests {
         np_assert_allclose!(map2(crate::rel_entr, z), w, rtol = 1e-13, atol = 1e-13)
     }
 
-    /// translated from `scipy.special.tests.teet_basic.test_rel_entr_gh_20710_near_zero`
+    /// translated from `scipy.special.tests.test_basic.test_rel_entr_gh_20710_near_zero`
     #[test]
     fn test_rel_entr_gh_20710_near_zero() {
         // Check accuracy of inputs which are very close
@@ -333,7 +331,7 @@ mod tests {
         np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13)
     }
 
-    /// translated from `scipy.special.tests.teet_basic.test_rel_entr_gh_20710_overflow`
+    /// translated from `scipy.special.tests.test_basic.test_rel_entr_gh_20710_overflow`
     #[test]
     fn test_rel_entr_gh_20710_overflow() {
         let inputs = [
@@ -354,7 +352,7 @@ mod tests {
         np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13)
     }
 
-    /// translated from `scipy.special.tests.teet_basic.test_huber`
+    /// translated from `scipy.special.tests.test_basic.test_huber`
     #[test]
     fn test_huber() {
         assert_eq!(crate::huber(-1.0, 1.5), f64::INFINITY);
