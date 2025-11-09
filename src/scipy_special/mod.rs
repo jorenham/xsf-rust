@@ -1,6 +1,7 @@
 mod bessel_prime;
 mod boxcox;
 mod comb;
+mod convex_analysis;
 mod diric;
 mod factorial;
 mod hyp0f1;
@@ -15,6 +16,7 @@ pub use bessel_prime::{
 };
 pub use boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
 pub use comb::{comb, comb_rep};
+pub use convex_analysis::{entr, huber, kl_div, pseudo_huber, rel_entr};
 pub use diric::diric;
 pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
 pub use hyp0f1::hyp0f1;
