@@ -227,6 +227,16 @@
 //! | [`tukeylambdacdf`] | Tukey-Lambda cumulative distribution function |
 //! | [`owens_t`]        | Owen's T function                             |
 //!
+//! # Information Theory functions
+//!
+//! | Function         | Description                                                            |
+//! | ---------------- | ---------------------------------------------------------------------- |
+//! | [`entr`]         | Elementwise function for computing entropy, $H\[X\]$                   |
+//! | [`rel_entr`]     | Elementwise function for computing relative entropy, $H\[X \rvert Y\]$ |
+//! | [`kl_div`]       | Elementwise function for computing Kullback-Leibler divergence         |
+//! | [`huber`]        | Huber loss function, $L_\delta(r)$                                     |
+//! | [`pseudo_huber`] | Pseudo-Huber loss function, $\widetilde{L}_\delta(r)$                  |
+//!
 //! # Gamma and related functions
 //!
 //! | Function         | Description                                                         |
