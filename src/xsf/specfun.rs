@@ -91,7 +91,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
     en
 }
 
-/// Kummer's Confluent hypergeometric function $M(a,b,z) = {}_1F_1\[a;\\,b\\,\rvert\\,z\]$
+/// Kummer's Confluent hypergeometric function $_1F_1$
 ///
 /// Corresponds to [`scipy.special.hyp1f1`][hyp1f1] in SciPy, and accepts both `f64` and
 /// `num_complex::Complex<f64>` inputs for `z`.
@@ -103,9 +103,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
 /// The confluent hypergeometric function is defined by the series
 ///
 /// $$
-/// M(a,b,z) = \hyp{1}{1}{a}{b}{\Big\|\\,z} = \sum\_{n=0}^\infty
-///     \frac{\rpow{a}{n}}{\rpow{b}{n}}
-///     \frac{z^n}{n!}
+/// M(a,b,z) = \hyp 1 1 a b z = \sum\_{n=0}^\infty  {\rpow a n \over \rpow b n} {z^n \over n!}
 /// $$
 ///
 /// See [^DLMF] for more details.
@@ -115,9 +113,9 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// # See also
 /// - [`hypu`](crate::hypu): Tricomi's confluent hypergeometric function $U(a,b,x)$
-/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1\[b\\,\rvert\\,z\]$
-/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function,
-///   $\hyp{2}{1}{a_1,\\ a_2}{b}{\big\|\\,z}$
+/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,
+///   $_0F_1\left[b\middle\| z\right]$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
 ///
 pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
