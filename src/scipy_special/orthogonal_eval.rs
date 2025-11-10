@@ -279,7 +279,7 @@ where
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E12>
 ///
 /// # See also
-/// - [`eval_laguerre`]: Evaluate generalized Laguerre polynomials, $L_n = L_n^{(0)}$
+/// - [`eval_laguerre`]: Evaluate Laguerre polynomials, $L_n = L_n^{(0)}$
 /// - [`hyp1f1`](crate::hyp1f1): Confluent hypergeometric function, $_1F_1$
 #[inline]
 pub fn eval_genlaguerre<N, T>(n: N, alpha: f64, z: T) -> T
