@@ -19,7 +19,7 @@
 /// This function is concave.
 ///
 /// The origin of this function is in convex programming [^1]. Given a discrete probability
-/// distribution $p_1,\\, \ldots,\\, p_n$, the definition of entropy in the context of
+/// distribution $p_1,\dotsc,p_n$, the definition of entropy in the context of
 /// *information theory* is
 ///
 /// $$
@@ -64,8 +64,8 @@ pub fn entr(x_i: f64) -> f64 {
 /// This function is jointly convex in $x$ and $y$.
 ///
 /// The origin of this function is in convex programming [^1]. Given two discrete probability
-/// distributions $p_1,\\, \ldots,\\, p_n$ and $q_1,\\, \ldots,\\, q_n$, the definition of relative
-/// entropy in the context of *information theory* is [^2]
+/// distributions $p_1,\dotsc,p_n$ and $q_1,\dotsc,q_n$, the definition of relative entropy in the
+/// context of *information theory* is [^2]
 ///
 /// $$
 /// H\left[ \\{ p_i \\} \\, \rvert \\, \\{ q_i \\} \right]

@@ -22,7 +22,7 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
     }
 }
 
-/// Gauss' hypergeometric function $_2F_1\[a_1,a_2;\\,b\\,\rvert\\,z\]$ for real or complex $z$
+/// Gauss' hypergeometric function $_2F_1$
 ///
 /// Corresponds to [`scipy.special.hyp2f1`][hyp2f1] in SciPy, and accepts both `f64` and
 /// `num_complex::Complex<f64>` inputs for `z`.
@@ -31,25 +31,26 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// # Notes
 ///
-/// This function is defined for $\|z\| < 1$ as
+/// This function is defined for $\abs z < 1$ as
 ///
 /// $$
-/// \hyp{2}{1}{a_1,\\, a_2}{b}{\Big\|\\, z} = \sum\_{n=0}^\infty
-///     \frac{\rpow{a_1}{n} \ \rpow{a_2}{n} }{\rpow{b}{n} }
-///     \frac{z^n}{n!}
+/// \hyp 2 1 {a_1\enspace a_2} b z
+/// = \sum\_{n=0}^\infty
+///     {\rpow{a_1}{n} \ \rpow{a_2}{n} \over \rpow b n}
+///     {z^n \over n!}
 /// ,
 /// $$
 ///
 /// and defined on the rest of the complex $z$-plane by analytic continuation [^1].
-/// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
+/// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
 /// When $n$ is a non-negative integer the result is a polynomial of degree $n$.
 ///
 /// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
 /// defined by
 ///
 /// $$
-/// 0.9 \le \| z \| < 1.1 , \\
-/// \|1 - z \| \ge 0.9 , \\
+/// 0.9 \le \abs z < 1.1 , \\
+/// \abs{1 - z} \ge 0.9 , \\
 /// \mathrm{Re}(z) \ge 0
 /// $$
 ///
@@ -62,9 +63,9 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 /// Adv Comput Math 39, 349-365 (2013). <https://doi.org/10.1007/s10444-012-9283-y>
 ///
 /// # See also
-/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1\[b\\,\rvert\\,z\]$
-/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function,
-///   $\hyp{1}{1}{a}{b}{\big\|\\,z}$
+/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,
+///   $_0F_1\left[b\middle\| z\right]$
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 ///
 pub fn hyp2f1<T: Hyp2F1Arg>(a: f64, b: f64, c: f64, z: T) -> T {
     z.hyp2f1(a, b, c)

@@ -239,25 +239,25 @@
 //!
 //! # Gamma and related functions
 //!
-//! | Function         | Description                                                         |
-//! | ---------------- | ------------------------------------------------------------------- |
-//! | [`gamma`]        | Gamma function, $\Gamma(z)$                                         |
-//! | [`gammaln`]      | Log-gamma function, $\ln \| \Gamma(z) \|$                           |
-//! | [`loggamma`]     | Principal branch of $\ln \Gamma(z)$                                 |
-//! | [`gammasgn`]     | Sign of [`gamma`], $\sgn(\Gamma(z))$                                |
-//! | [`gammainc`]     | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$   |
-//! | [`gammaincinv`]  | Inverse of [`gammainc`], $P^{-1}(a,y)$                              |
-//! | [`gammaincc`]    | Regularized upper incomplete gamma function $Q(a,x) = 1 - P(a,x) $  |
-//! | [`gammainccinv`] | Inverse of [`gammaincc`], $Q^{-1}(a,y)$                             |
-//! | [`beta`]         | Beta function, $\B(a,b) = \frac{\Gamma(a)\Gamma(b)}{\Gamma(a+b)}$   |
-//! | [`betaln`]       | Log-Beta function, $\ln \| \B(a,b) \|$                              |
-//! | [`betainc`]      | Regularized incomplete beta function, $I_x(a,b)$                    |
-//! | [`betaincinv`]   | Inverse of [`betainc`], $I_y^{-1}(a,b)$                             |
-//! | [`digamma`]      | The digamma function, $\psi(z)$                                     |
-//! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                             |
-//! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$             |
-//! | [`pow_rising`]   | Rising factorial $\rpow{x}{m} = \frac{\Gamma(x+m)}{\Gamma(x)}$      |
-//! | [`pow_falling`]  | Falling factorial $\fpow{x}{m} = \frac{\Gamma(x+1)}{\Gamma(x+1-m)}$ |
+//! | Function         | Description                                                       |
+//! | ---------------- | ----------------------------------------------------------------- |
+//! | [`gamma`]        | Gamma function, $\Gamma(z)$                                       |
+//! | [`gammaln`]      | Log-gamma function, $\ln\abs{\Gamma(z)}$                          |
+//! | [`loggamma`]     | Principal branch of $\ln \Gamma(z)$                               |
+//! | [`gammasgn`]     | Sign of [`gamma`], $\sgn(\Gamma(z))$                              |
+//! | [`gammainc`]     | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$ |
+//! | [`gammaincinv`]  | Inverse of [`gammainc`], $P^{-1}(a,y)$                            |
+//! | [`gammaincc`]    | Regularized upper incomplete gamma function $Q(a,x) = 1 - P(a,x)$ |
+//! | [`gammainccinv`] | Inverse of [`gammaincc`], $Q^{-1}(a,y)$                           |
+//! | [`beta`]         | Beta function, $\B(a,b) = {\Gamma(a)\Gamma(b) \over \Gamma(a+b)}$ |
+//! | [`betaln`]       | Log-Beta function, $\ln\abs{\B(a,b)}$                             |
+//! | [`betainc`]      | Regularized incomplete beta function, $\I_x(a,b)$                 |
+//! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
+//! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
+//! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                           |
+//! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |
+//! | [`pow_rising`]   | Rising factorial $\rpow x m = {\Gamma(x+m) \over \Gamma(x)}$      |
+//! | [`pow_falling`]  | Falling factorial $\fpow x m = {\Gamma(x+1) \over \Gamma(x+1-m)}$ |
 //!
 //! # Error function and Fresnel integrals
 //!
@@ -306,14 +306,14 @@
 //!
 //! # Hypergeometric functions
 //!
-//! | Function   | Description                             | Notation                             |
-//! | ---------- | --------------------------------------- | ------------------------------------ |
-//! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\[\rvert\\, z\]$               |
-//! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\[a\\, \rvert\\, z\]$          |
-//! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\[b\\, \rvert\\, z\]$          |
-//! | [`hypu`]   | Confluent hypergeometric function       | $U(a,b,x)$                           |
-//! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp{1}{1}{a}{b}{\big\|\\,z}$       |
-//! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp{2}{1}{a_1,a_2}{b}{\big\|\\,z}$ |
+//! | Function   | Description                             | Notation                         |
+//! | ---------- | --------------------------------------- | -------------------------------- |
+//! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\left[ \middle\| z\right]$ |
+//! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\left[a\middle\| z\right]$ |
+//! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\left[b\middle\| z\right]$ |
+//! | [`hypu`]   | Confluent hypergeometric function       | $U(a,b,x)$                       |
+//! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp 1 1 a b z$                 |
+//! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$ |
 //!
 //! # Parabolic cylinder functions
 //!
@@ -363,22 +363,22 @@
 //! | ---------- | ---------------- | ----------------------------------- |
 //! | [`kelvin`] | [`kelvin_zeros`] | Kelvin functions as complex numbers |
 //! | [`ber`]    | [`ber_zeros`]    | Kelvin function $\ber(x)$           |
-//! | [`berp`]   | [`berp_zeros`]   | Derivative of [`ber`], $\berp(x)$   |
+//! | [`berp`]   | [`berp_zeros`]   | Derivative of [`ber`], $\ber\'(x)$   |
 //! | [`bei`]    | [`bei_zeros`]    | Kelvin function $\bei(x)$           |
-//! | [`beip`]   | [`beip_zeros`]   | Derivative of [`bei`], $\beip(x)$   |
+//! | [`beip`]   | [`beip_zeros`]   | Derivative of [`bei`], $\bei\'(x)$   |
 //! | [`ker`]    | [`ker_zeros`]    | Kelvin function $\ker(x)$           |
-//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of [`ker`], $\kerp(x)$   |
+//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of [`ker`], $\ker\'(x)$   |
 //! | [`kei`]    | [`kei_zeros`]    | Kelvin function $\kei(x)$           |
-//! | [`keip`]   | [`keip_zeros`]   | Derivative of [`kei`], $\keip(x)$   |
+//! | [`keip`]   | [`keip_zeros`]   | Derivative of [`kei`], $\kei\'(x)$   |
 //!
 //! # Combinatorics
 //!
-//! | Function       | Description                                                             |
-//! | -------------- | ----------------------------------------------------------------------- |
-//! | [`comb`]       | $k$-combinations of $n$ things, ${}_n C_k = \binom{n}{k}$               |
-//! | [`comb_rep`]   | $k$-combinations with replacement, $\big(\\!\\!\binom{n}{k}\\!\\!\big)$ |
-//! | [`perm`]       | $k$-permutations of $n$ things, ${}_n P_k = \frac{n!}{(n-k)!}$          |
-//! | [`stirling2`]  | Stirling number of the second kind $S(n,k)$                             |
+//! | Function       | Description                                                              |
+//! | -------------- | ------------------------------------------------------------------------ |
+//! | [`comb`]       | $k$-combinations of $n$ things, $_nC_k = {n \choose k}$                  |
+//! | [`comb_rep`]   | $k$-combinations with replacement, $\big(\\!\\!{n \choose k}\\!\\!\big)$ |
+//! | [`perm`]       | $k$-permutations of $n$ things, $_nP_k = {n! \over (n-k)!}$              |
+//! | [`stirling2`]  | Stirling number of the second kind $S(n,k)$                              |
 //!
 //! # Factorials
 //!
@@ -410,10 +410,10 @@
 //!
 //! | Function      | Description                                                  |
 //! | ------------- | ------------------------------------------------------------ |
-//! | [`bernoulli`] | Bernoulli numbers $B_0, \ldots, B_{N-1}$                     |
+//! | [`bernoulli`] | Bernoulli numbers $B_0,\dotsc,B_{N-1}$                       |
 //! | [`binom`]     | Binomial coefficient $\binom{n}{k}$ for real input           |
 //! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel     |
-//! | [`euler`]     | Euler numbers $E_0, \ldots, E_{N-1}$                         |
+//! | [`euler`]     | Euler numbers $E_0,\dotsc,E_{N-1}$                           |
 //! | [`lambertw`]  | Lambert W function, $W(z)$                                   |
 //! | [`sici`]      | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
 //! | [`shichi`]    | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
@@ -440,8 +440,8 @@
 //! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                        |
 //! | [`logaddexp`]  | $\ln(e^x + e^y)$                                      |
 //! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                   |
-//! | [`exprel`]     | Relative error exponential, $\frac{e^x - 1}{x}$       |
-//! | [`sinc`]       | Normalized sinc function, $\frac{\sin(\pi x)}{\pi x}$ |
+//! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$         |
+//! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$   |
 //!
 
 #![warn(
