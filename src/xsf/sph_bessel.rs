@@ -87,49 +87,113 @@ impl SphBesselArg for num_complex::Complex<f64> {
     }
 }
 
-/// Spherical Bessel function of the first kind
+/// Spherical Bessel function of the first kind, $j_n(z)$
+///
+/// Corresponds to [`scipy.special.spherical_jn(n, z)`][jn].
+///
+/// [jn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_jn.html
+///
+/// # See also
+/// - [`sph_bessel_j_prime`]: derivative $j_n\'(z)$
+/// - [`bessel_j`](crate::bessel_j): Bessel function $J_v(z)$
 #[doc(alias = "spherical_jn")]
 pub fn sph_bessel_j<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_j(n as c_long)
 }
 
-/// Spherical Bessel function of the second kind
-#[doc(alias = "spherical_yn")]
-pub fn sph_bessel_y<T: SphBesselArg>(n: i64, z: T) -> T {
-    z.sph_bessel_y(n as c_long)
-}
-
-/// Modified spherical Bessel function of the first kind
-#[doc(alias = "spherical_in")]
-pub fn sph_bessel_i<T: SphBesselArg>(n: i64, z: T) -> T {
-    z.sph_bessel_i(n as c_long)
-}
-
-/// Modified spherical Bessel function of the second kind
-#[doc(alias = "spherical_kn")]
-pub fn sph_bessel_k<T: SphBesselArg>(n: i64, z: T) -> T {
-    z.sph_bessel_k(n as c_long)
-}
-
-/// Derivative of [`sph_bessel_j`]
+/// Derivative of [`sph_bessel_j`], $j_n\'(z)$
+///
+/// Corresponds to [`scipy.special.spherical_jn(n, z, derivative=True)`][jn].
+///
+/// [jn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_jn.html
+///
+/// # See also
+/// - [`sph_bessel_j`]: spherical Bessel function $j_n(z)$
+/// - [`bessel_j_prime`](crate::bessel_j_prime): derivative of Bessel function $J_v\'(z)$
 #[doc(alias = "spherical_jnp")]
 pub fn sph_bessel_j_prime<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_j_prime(n as c_long)
 }
 
-/// Derivative of [`sph_bessel_y`]
+/// Spherical Bessel function of the second kind, $y_n(z)$
+///
+/// Corresponds to [`scipy.special.spherical_yn(n, z)`][yn].
+///
+/// [yn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_yn.html
+///
+/// # See also
+/// - [`sph_bessel_y_prime`]: derivative $y_n\'(z)$
+/// - [`bessel_y`](crate::bessel_y): Bessel function $Y_v(z)$
+#[doc(alias = "spherical_yn")]
+pub fn sph_bessel_y<T: SphBesselArg>(n: i64, z: T) -> T {
+    z.sph_bessel_y(n as c_long)
+}
+
+/// Derivative of [`sph_bessel_y`], $y_n\'(z)$
+///
+/// Corresponds to [`scipy.special.spherical_yn(n, z, derivative=True)`][yn].
+///
+/// [yn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_yn.html
+///
+/// # See also
+/// - [`sph_bessel_y`]: spherical Bessel function $y_n(z)$
+/// - [`bessel_y_prime`](crate::bessel_y_prime): derivative of Bessel function $Y_v\'(z)$
 #[doc(alias = "spherical_ynp")]
 pub fn sph_bessel_y_prime<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_y_prime(n as c_long)
 }
 
-/// Derivative of [`sph_bessel_i`]
+/// Modified spherical Bessel function of the first kind, $i_n(z)$
+///
+/// Corresponds to [`scipy.special.spherical_in(n, z)`][in_].
+///
+/// [in_]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_in.html
+///
+/// # See also
+/// - [`sph_bessel_i_prime`]: derivative $i_n\'(z)$
+/// - [`bessel_i`](crate::bessel_i): modified Bessel function $I_v(z)$
+#[doc(alias = "spherical_in")]
+pub fn sph_bessel_i<T: SphBesselArg>(n: i64, z: T) -> T {
+    z.sph_bessel_i(n as c_long)
+}
+
+/// Derivative of [`sph_bessel_i`], $i_n\'(z)$
+///
+/// Corresponds to [`scipy.special.spherical_in(n, z, derivative=True)`][in_].
+///
+/// [in_]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_in.html
+///
+/// # See also
+/// - [`sph_bessel_i`]: spherical modified Bessel function $i_n(z)$
+/// - [`bessel_i_prime`](crate::bessel_i_prime): derivative of modified Bessel function $I_v\'(z)$
 #[doc(alias = "spherical_inp")]
 pub fn sph_bessel_i_prime<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_i_prime(n as c_long)
 }
 
-/// Derivative of [`sph_bessel_k`]
+/// Modified spherical Bessel function of the second kind, $k_n(z)$
+///
+/// Corresponds to [`scipy.special.spherical_kn(n, z)`][kn].
+///
+/// [kn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_kn.html
+///
+/// # See also
+/// - [`sph_bessel_k_prime`]: derivative $k_n\'(z)$
+/// - [`bessel_k`](crate::bessel_k): modified Bessel function $K_v(z)$
+#[doc(alias = "spherical_kn")]
+pub fn sph_bessel_k<T: SphBesselArg>(n: i64, z: T) -> T {
+    z.sph_bessel_k(n as c_long)
+}
+
+/// Derivative of [`sph_bessel_k`], $k_n\'(z)$
+///
+/// Corresponds to [`scipy.special.spherical_kn(n, z, derivative=True)`][kn].
+///
+/// [kn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spherical_kn.html
+///
+/// # See also
+/// - [`sph_bessel_k`]: spherical modified Bessel function $k_n(z)$
+/// - [`bessel_k_prime`](crate::bessel_k_prime): derivative of modified Bessel function $K_v\'(z)$
 #[doc(alias = "spherical_knp")]
 pub fn sph_bessel_k_prime<T: SphBesselArg>(n: i64, z: T) -> T {
     z.sph_bessel_k_prime(n as c_long)
