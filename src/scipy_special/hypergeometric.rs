@@ -171,7 +171,7 @@ impl HypergeometricArg for num_complex::Complex<f64> {
     }
 }
 
-/// Hypergeometric function $_0F_0\left[ \middle\| z\right]$ for real or complex $z$
+/// Hypergeometric function $_0F_0\left[\middle\| z\right]$ for real or complex $z$
 ///
 /// This function is currently not implemented in SciPy, but is straightforward to evaluate.
 /// Both [`f64`] and [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
@@ -213,7 +213,7 @@ pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
 /// It's also equal to $(1 - z)^{-a}$.
 ///
 /// # See also
-/// - [`hyp0f0`]: Hypergeometric function $_0F_0\left[ \middle\| z\right]$
+/// - [`hyp0f0`]: Hypergeometric function $_0F_0\left[\middle\| z\right]$
 /// - [`hyp0f1`]: Confluent hypergeometric limit function, $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
