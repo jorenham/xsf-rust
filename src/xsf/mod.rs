@@ -99,3 +99,6 @@ pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};
 pub use wright_bessel::{log_wright_bessel, wright_bessel};
 pub use zeta::{riemann_zeta, zeta, zetac};
+
+pub(crate) use hyp2f1::Hyp2F1Arg;
+pub(crate) use specfun::Hyp1F1Arg;
