@@ -33,6 +33,9 @@
   (`$` for inline math, `$$` for display math), as configured in `katex.html`
 - see `katex.html` for available custom macros (e.g., `\B` for Beta function, `\erf` for
   error function, `\Si` for sine integral, etc.)
+- Rust uses commonmark for markdown rendering, which can interfere with LaTeX syntax. This can be
+  avoided by using backslashes to escape special characters where necessary, e.g. `\\\\` instead
+  of `\\` for newlines, `\\,` or `\\;` etc. for spacing, and `\[x\]` instead of `[x]` for brackets.
 - in case of multiple return values, document each one individually in the `# Returns` section
   using bullet points in a single line, including the mathematical expression for each return value
   where applicable
@@ -71,13 +74,21 @@
 
 ## Code style
 
+### Rust
+
 - Aim for idiomatic Rust code, following the Rust API Guidelines
   (https://rust-lang.github.io/api-guidelines/)
 - Prefer rust code over C++ code where possible
 - Direct translations of C++ or Python code should include the original code as inline comments
   for reference, and a permalink to the relevant source file
-- Everywhere else comments should be avoided, and self-explanatory code should be preferred
+- everywhere else comments should be avoided, and self-explanatory code should be preferred
   wherever possible
 - prefer `core` over `std` where possible
 - use `num-complex` crate for complex number support
 - prefer arrays and `const` generics over `Vec`s for fixed-size collections where possible
+
+### LaTeX / KaTeX in rustdoc comments
+
+- for single-line expressions, use `\over` instead of `\frac`, `\choose` instead of `\binom`
+- when not ambiguous, use implicit multiplication (e.g., `ab` instead of `a \cdot b`)
+- omit any unnecessary braces `{}` for single-character arguments
