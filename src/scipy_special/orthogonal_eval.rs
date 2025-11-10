@@ -162,27 +162,14 @@ impl LaguerreArg<i32> for f64 {
     fn eval_genlaguerre(&self, n: i32, a: f64) -> Self {
         if n < 0 {
             0.0
-        } else if n == 0 {
-            1.0
         } else {
-            let a1 = a + 1.0;
-            if n == 1 {
-                a1 - self
-            } else {
-                let mut d = -self / a1;
-                let mut p = d + 1.0;
-                for k in 1..n {
-                    let k = k as f64;
-                    d = (d * k - p * self) / (k + a1);
-                    p += d;
-                }
-                if a == 0.0 {
-                    p
-                } else {
-                    let n = n as f64;
-                    p * unsafe { ffi::binom(n + a, n) }
-                }
+            let (mut d, mut p) = (0.0, 1.0);
+            for k in 0..n {
+                let k = k as f64;
+                d = (d * k - p * self) / (k + a + 1.0);
+                p += d;
             }
+            p * unsafe { ffi::binom(n as f64 + a, n as f64) }
         }
     }
 
