@@ -33,8 +33,8 @@
   (`$` for inline math, `$$` for display math), as configured in `katex.html`
 - see `katex.html` for available custom macros (e.g., `\B` for Beta function, `\erf` for
   error function, `\Si` for sine integral, etc.)
-- Rust uses commonmark for markdown rendering, which can interfere with LaTeX syntax, which can
-  be avoided by using backslashes to escape special characters where necessary, e.g. `\\\\` instead
+- Rust uses commonmark for markdown rendering, which can interfere with LaTeX syntax. This can be
+  avoided by using backslashes to escape special characters where necessary, e.g. `\\\\` instead
   of `\\` for newlines, `\\,` or `\\;` etc. for spacing, and `\[x\]` instead of `[x]` for brackets.
 - in case of multiple return values, document each one individually in the `# Returns` section
   using bullet points in a single line, including the mathematical expression for each return value
