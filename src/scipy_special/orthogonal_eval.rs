@@ -2,16 +2,23 @@
 //!
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
+use core::f64::consts::{PI, SQRT_2};
 use core::ops::Mul;
 
 use crate::ffi::xsf as ffi;
 use num_complex::Complex64;
+use num_traits::Zero;
 
 mod sealed {
     pub trait Sealed: crate::xsf::Hyp2F1Arg + crate::xsf::Hyp1F1Arg {}
     impl Sealed for f64 {}
     impl Sealed for num_complex::Complex<f64> {}
 }
+
+///////////////////////////////
+// Jacobi
+// Legendre
+//
 
 pub trait JacobiArg<N>: sealed::Sealed {
     // TODO: add the other classical orthogonal polynomials (but skip the confusing shifted ones)
@@ -135,6 +142,79 @@ impl JacobiArg<i32> for f64 {
     }
 }
 
+/// Evaluate Jacobi polynomial $P_n^{(\alpha, \beta)}$ at a point.
+///
+/// This is a translation of the [`scipy.special.eval_jacobi`][jaceval] Cython implementation
+/// into Rust.
+///
+/// [jaceval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_jacobi.html
+///
+/// # Definition
+///
+/// The Jacobi polynomials can be defined via the Gauss hypergeometric function $_2F_1$ as
+///
+/// $$
+/// P_n^{(\alpha, \beta)}(z) =
+///   {n + \alpha \choose n} \\,
+///   \hyp{2}{1}{-n,\enspace n+1+\alpha+\beta}{1+\alpha}{-{z-1 \over 2}}
+/// $$
+///
+/// When $n$ is an integer the result is a polynomial of degree $n$.
+/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
+///
+/// # See also
+/// - [`eval_legendre`]: Evaluate Legendre polynomials, $P_n$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
+#[inline]
+pub fn eval_jacobi<N, Z>(n: N, alpha: f64, beta: f64, z: Z) -> Z
+where
+    Z: JacobiArg<N>,
+{
+    z.eval_jacobi(n, alpha, beta)
+}
+
+/// Evaluate Legendre polynomial $P_n$ at a point.
+///
+/// This is a translation of the [`scipy.special.eval_legendre`][legeval] Cython implementation
+/// into Rust.
+///
+/// [legeval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_legendre.html
+///
+/// # Definition
+///
+/// The Legendre polynomials can be defined via the Gauss hypergeometric function $_2F_1$ as
+///
+/// $$
+/// P_n(z) = \hyp{2}{1}{-n,\enspace n+1}{1}{-{z-1 \over 2}}
+/// $$
+///
+/// When $n$ is an integer the result is a polynomial of degree $n$.
+/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
+///
+/// # See also
+/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
+#[inline]
+pub fn eval_legendre<N, Z>(n: N, z: Z) -> Z
+where
+    Z: JacobiArg<N>,
+{
+    z.eval_legendre(n)
+}
+
+///////////////////////////////
+// Generalized Laguerre
+// Laguerre
+//
+
 pub trait LaguerreArg<N>: sealed::Sealed {
     fn eval_genlaguerre(&self, n: N, a: f64) -> Self;
     fn eval_laguerre(&self, n: N) -> Self;
@@ -189,74 +269,6 @@ impl LaguerreArg<i32> for f64 {
     }
 }
 
-/// Evaluate Jacobi polynomial $P_n^{(\alpha, \beta)}$ at a point.
-///
-/// This is a translation of the [`scipy.special.eval_jacobi`][jaceval] Cython implementation
-/// into Rust.
-///
-/// [jaceval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_jacobi.html
-///
-/// # Notes
-///
-/// The Jacobi polynomials can be defined via the Gauss hypergeometric function $_2F_1$ as
-///
-/// $$
-/// P_n^{(\alpha, \beta)}(z) =
-///   {n + \alpha \choose n} \\,
-///   \hyp{2}{1}{-n,\enspace n+1+\alpha+\beta}{1+\alpha}{-{z-1 \over 2}}
-/// $$
-///
-/// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
-///
-/// # See also
-/// - [`eval_legendre`]: Evaluate Legendre polynomials, $P_n$
-/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
-#[inline]
-pub fn eval_jacobi<N, T>(n: N, alpha: f64, beta: f64, z: T) -> T
-where
-    T: JacobiArg<N>,
-{
-    z.eval_jacobi(n, alpha, beta)
-}
-
-/// Evaluate Legendre polynomial $P_n$ at a point.
-///
-/// This is a translation of the [`scipy.special.eval_legendre`][legeval] Cython implementation
-/// into Rust.
-///
-/// [legeval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_legendre.html
-///
-/// # Notes
-///
-/// The Legendre polynomials can be defined via the Gauss hypergeometric function $_2F_1$ as
-///
-/// $$
-/// P_n(z) = \hyp{2}{1}{-n,\enspace n+1}{1}{-{z-1 \over 2}}
-/// $$
-///
-/// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
-///
-/// # See also
-/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
-/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
-#[inline]
-pub fn eval_legendre<N, T>(n: N, z: T) -> T
-where
-    T: JacobiArg<N>,
-{
-    z.eval_legendre(n)
-}
-
 /// Evaluate generalized Laguerre polynomial $L_n^{(\alpha)}$ at a point.
 ///
 /// This is a translation of the [`scipy.special.eval_genlaguerre`][glag] Cython implementation
@@ -264,7 +276,7 @@ where
 ///
 /// [glag]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_genlaguerre.html
 ///
-/// # Notes
+/// # Definition
 ///
 /// The generalized Laguerre polynomials can be defined via the confluent hypergeometric function
 /// $_1F_1$ as
@@ -282,21 +294,21 @@ where
 /// - [`eval_laguerre`]: Evaluate Laguerre polynomials, $L_n = L_n^{(0)}$
 /// - [`hyp1f1`](crate::hyp1f1): Confluent hypergeometric function, $_1F_1$
 #[inline]
-pub fn eval_genlaguerre<N, T>(n: N, alpha: f64, z: T) -> T
+pub fn eval_genlaguerre<N, Z>(n: N, alpha: f64, z: Z) -> Z
 where
-    T: LaguerreArg<N>,
+    Z: LaguerreArg<N>,
 {
     z.eval_genlaguerre(n, alpha)
 }
 
-/// Evaluate Laguerre polynomial $L_n$ at a point.
+/// Evaluate Laguerre polynomial $L_n$ at a point
 ///
 /// This is a translation of the [`scipy.special.eval_laguerre`][lag] Cython implementation
 /// into Rust.
 ///
 /// [lag]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_laguerre.html
 ///
-/// # Notes
+/// # Definition
 ///
 /// The Laguerre polynomials can be defined via the confluent hypergeometric function $_1F_1$ as
 ///
@@ -314,16 +326,178 @@ where
 /// - [`eval_genlaguerre`]: Evaluate generalized Laguerre polynomials, $L_n^{(\alpha)}$
 /// - [`hyp1f1`](crate::hyp1f1): Confluent hypergeometric function, $_1F_1$
 #[inline]
-pub fn eval_laguerre<N, T>(n: N, z: T) -> T
+pub fn eval_laguerre<N, Z>(n: N, z: Z) -> Z
 where
-    T: LaguerreArg<N>,
+    Z: LaguerreArg<N>,
 {
     z.eval_laguerre(n)
 }
 
+///////////////////////////////
+// Hermite H  (physicists')
+// Hermite He (probabilists')
+//
+
+pub trait HermiteArg<N>: sealed::Sealed {
+    fn eval_hermite_he(&self, n: N) -> Self;
+    fn eval_hermite_h(&self, n: N) -> Self;
+}
+
+impl HermiteArg<f64> for f64 {
+    #[inline(always)]
+    fn eval_hermite_he(&self, n: f64) -> f64 {
+        if self.is_nan() || n.is_nan() {
+            f64::NAN
+        } else if n == 0.0 {
+            1.0
+        } else if self.is_zero() {
+            if n < 0.0 || n % 2.0 == 0.0 {
+                (PI * n.exp2()).sqrt() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
+            } else {
+                0.0
+            }
+        } else {
+            let half_n = 0.5 * n;
+            let y = 0.5 * self * self;
+            let c = if self.is_sign_positive() {
+                half_n.exp2()
+            } else {
+                (self / y.sqrt()).powf(n)
+            };
+            c * crate::hypu(-half_n, 0.5, y)
+        }
+    }
+
+    #[inline(always)]
+    fn eval_hermite_h(&self, n: f64) -> f64 {
+        if self.is_nan() || n.is_nan() {
+            f64::NAN
+        } else if n == 0.0 {
+            1.0
+        } else if self.is_zero() {
+            if n < 0.0 || n % 2.0 == 0.0 {
+                PI.sqrt() * n.exp2() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
+            } else {
+                0.0
+            }
+        } else {
+            let y = self * self;
+            let c = if self.is_sign_positive() {
+                n.exp2()
+            } else {
+                (2.0 * self / y.sqrt()).powf(n)
+            };
+            c * crate::hypu(-0.5 * n, 0.5, y)
+        }
+    }
+}
+
+impl HermiteArg<u32> for f64 {
+    /// Corresponds to `eval_hermitenorm` in `scipy/special/orthogonal_eval.pxd`
+    #[inline(always)]
+    fn eval_hermite_he(&self, n: u32) -> f64 {
+        if self.is_nan() {
+            f64::NAN
+        } else {
+            let (mut y1, mut y2) = (1.0, 0.0);
+            for k in (1..=n).rev() {
+                (y1, y2) = (self * y1 - (k as f64) * y2, y1);
+            }
+            y1
+        }
+    }
+
+    /// Corresponds to `eval_hermite` in `scipy/special/orthogonal_eval.pxd`
+    #[inline(always)]
+    fn eval_hermite_h(&self, n: u32) -> f64 {
+        (n as f64 / 2.0).exp2() * (SQRT_2 * self).eval_hermite_he(n)
+    }
+}
+
+/// Evaluate probabilists' (normalized) Hermite polynomial $He_n(x)$ at a point
+///
+/// This is a translation of the [`scipy.special.eval_hermitenorm`][docs] Cython implementation
+/// into Rust, with additional support for non-integer $n$.
+///
+/// `n` can be either `u32` or `f64`.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_hermitenorm.html
+///
+/// # Definition
+///
+/// $$
+/// He_n(x) =
+///     2^{n \over 2} x^n \\
+///     {}_2F_0\left[-{n \over 2}, -{n-1 \over 2} \middle| -{2 \over x^2} \right]
+/// $$
+///
+/// See 22.11.8 in [^AS] for details.
+///
+/// When `n: u32` the result is a polynomial of degree $n$ [^DLMF].
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E13>
+///
+/// # See also
+/// - [`eval_hermite_h`]: Evaluate physicists' Hermite polynomials, $H_n$
+///
+#[doc(alias = "eval_hermitenorm")]
+#[inline]
+pub fn eval_hermite_he<N>(n: N, x: f64) -> f64
+where
+    f64: HermiteArg<N>,
+{
+    x.eval_hermite_he(n)
+}
+
+/// Evaluate physicists' Hermite polynomial $H_n(x)$ at a point
+///
+/// This is a translation of the [`scipy.special.eval_hermite`][docs] Cython implementation
+/// into Rust, with additional support for non-integer $n$.
+///
+/// `n` can be either `u32` or `f64`.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_hermite.html
+///
+/// # Definition
+///
+/// $$
+/// H_n(x) =
+///     (2x)^n \\
+///     {}_2F_0\left[-{n \over 2}, -{n-1 \over 2} \middle| -{1 \over x^2} \right]
+/// $$
+///
+/// See 22.11.8 in [^AS] for details.
+///
+/// When `n: u32` the result is a polynomial of degree $n$ [^DLMF].
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E13>
+///
+/// # See also
+/// - [`eval_hermite_he`]: Evaluate probabilists' (normalized) Hermite polynomials, $He_n$
+///
+#[doc(alias = "eval_hermite")]
+#[inline]
+pub fn eval_hermite_h<N>(n: N, x: f64) -> f64
+where
+    f64: HermiteArg<N>,
+{
+    x.eval_hermite_h(n)
+}
+
+///////////////////////////////
+// Tests
+//
+
 #[cfg(test)]
 mod tests {
-    use crate::{eval_genlaguerre, eval_jacobi, eval_laguerre, eval_legendre, np_assert_allclose};
+    use crate::{
+        eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_laguerre,
+        eval_legendre, np_assert_allclose,
+    };
     use num_complex::c64;
 
     #[test]
@@ -581,5 +755,63 @@ mod tests {
             let p_f64 = xs.map(|x| eval_laguerre(n as f64, x));
             np_assert_allclose!(p_f64, expect[i], rtol = 2e-14, atol = f64::EPSILON);
         }
+    }
+
+    #[test]
+    fn test_eval_hermite_he() {
+        let xs = [-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0];
+
+        let y0_expect = xs.map(|_| 1.0);
+        let y0_actual_u32 = xs.map(|x| eval_hermite_he(0, x));
+        let y0_actual_f64 = xs.map(|x| eval_hermite_he(0.0, x));
+        np_assert_allclose!(y0_actual_u32, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y0_actual_f64, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y1_expect = xs.map(|x| x);
+        let y1_actual_u32 = xs.map(|x| eval_hermite_he(1, x));
+        let y1_actual_f64 = xs.map(|x| eval_hermite_he(1.0, x));
+        np_assert_allclose!(y1_actual_u32, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y1_actual_f64, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y2_expect = xs.map(|x| x * x - 1.0);
+        let y2_actual_u32 = xs.map(|x| eval_hermite_he(2, x));
+        let y2_actual_f64 = xs.map(|x| eval_hermite_he(2.0, x));
+        np_assert_allclose!(y2_actual_u32, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y2_actual_f64, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y3_expect = xs.map(|x| x * x * x - 3.0 * x);
+        let y3_actual_u32 = xs.map(|x| eval_hermite_he(3, x));
+        let y3_actual_f64 = xs.map(|x| eval_hermite_he(3.0, x));
+        np_assert_allclose!(y3_actual_u32, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y3_actual_f64, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
+    }
+
+    #[test]
+    fn test_eval_hermite_h() {
+        let xs = [-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0];
+
+        let y0_expect = xs.map(|_| 1.0);
+        let y0_actual_u32 = xs.map(|x| eval_hermite_h(0, x));
+        let y0_actual_f64 = xs.map(|x| eval_hermite_h(0.0, x));
+        np_assert_allclose!(y0_actual_u32, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y0_actual_f64, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y1_expect = xs.map(|x| 2.0 * x);
+        let y1_actual_u32 = xs.map(|x| eval_hermite_h(1, x));
+        let y1_actual_f64 = xs.map(|x| eval_hermite_h(1.0, x));
+        np_assert_allclose!(y1_actual_u32, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y1_actual_f64, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y2_expect = xs.map(|x| 4.0 * x * x - 2.0);
+        let y2_actual_u32 = xs.map(|x| eval_hermite_h(2, x));
+        let y2_actual_f64 = xs.map(|x| eval_hermite_h(2.0, x));
+        np_assert_allclose!(y2_actual_u32, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y2_actual_f64, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
+
+        let y3_expect = xs.map(|x| 8.0 * x * x * x - 12.0 * x);
+        let y3_actual_u32 = xs.map(|x| eval_hermite_h(3, x));
+        let y3_actual_f64 = xs.map(|x| eval_hermite_h(3.0, x));
+        np_assert_allclose!(y3_actual_u32, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
+        np_assert_allclose!(y3_actual_f64, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
     }
 }
