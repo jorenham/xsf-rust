@@ -299,12 +299,14 @@
 //!
 //! The following functions evaluate values of orthogonal polynomials:
 //!
-//! | Function             | Name                 | Notation                  |
-//! | -------------------- | -------------------- | ------------------------- |
-//! | [`eval_legendre`]    | Legendre             | $P_n(z)$                  |
-//! | [`eval_jacobi`]      | Jacobi               | $P_n^{(\alpha,\beta)}(z)$ |
-//! | [`eval_laguerre`]    | Laguerre             | $L_n(z)$                  |
-//! | [`eval_genlaguerre`] | Generalized Laguerre | $L_n^{(\alpha)}(z)$       |
+//! | Function             | Name                    | Notation                  |
+//! | -------------------- | ----------------------- | ------------------------- |
+//! | [`eval_legendre`]    | Legendre                | $P_n(z)$                  |
+//! | [`eval_jacobi`]      | Jacobi                  | $P_n^{(\alpha,\beta)}(z)$ |
+//! | [`eval_laguerre`]    | Laguerre                | $L_n(z)$                  |
+//! | [`eval_genlaguerre`] | Generalized Laguerre    | $L_n^{(\alpha)}(z)$       |
+//! | [`eval_hermite_h`]   | Hermite (physicist's)   | $H_n(x)$                  |
+//! | [`eval_hermite_he`]  | Hermite (probabilist's) | $He_n(x)$                 |
 //!
 //! # Hypergeometric functions
 //!
@@ -313,9 +315,9 @@
 //! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\left[ \middle\| z\right]$ |
 //! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\left[a\middle\| z\right]$ |
 //! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\left[b\middle\| z\right]$ |
-//! | [`hypu`]   | Confluent hypergeometric function       | $U(a,b,x)$                       |
 //! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp 1 1 a b z$                 |
 //! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$ |
+//! | [`hypu`]   | Confluent hypergeometric function       | $U(a_1,a_2,x)$                   |
 //!
 //! # Parabolic cylinder functions
 //!
