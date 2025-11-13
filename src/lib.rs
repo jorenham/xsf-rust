@@ -299,14 +299,15 @@
 //!
 //! The following functions evaluate values of orthogonal polynomials:
 //!
-//! | Function             | Name                    | Notation                  |
-//! | -------------------- | ----------------------- | ------------------------- |
-//! | [`eval_legendre`]    | Legendre                | $P_n(z)$                  |
-//! | [`eval_jacobi`]      | Jacobi                  | $P_n^{(\alpha,\beta)}(z)$ |
-//! | [`eval_laguerre`]    | Laguerre                | $L_n(z)$                  |
-//! | [`eval_genlaguerre`] | Generalized Laguerre    | $L_n^{(\alpha)}(z)$       |
-//! | [`eval_hermite_h`]   | Hermite (physicist's)   | $H_n(x)$                  |
-//! | [`eval_hermite_he`]  | Hermite (probabilist's) | $He_n(x)$                 |
+//! | Function             | Name                        | Notation                  |
+//! | -------------------- | --------------------------- | ------------------------- |
+//! | [`eval_legendre`]    | Legendre                    | $P_n(z)$                  |
+//! | [`eval_jacobi`]      | Jacobi                      | $P_n^{(\alpha,\beta)}(z)$ |
+//! | [`eval_gegenbauer`]  | Gegenbauer / Ultraspherical | $C_n^{(\alpha)}(z)$       |
+//! | [`eval_laguerre`]    | Laguerre                    | $L_n(z)$                  |
+//! | [`eval_genlaguerre`] | Generalized Laguerre        | $L_n^{(\alpha)}(z)$       |
+//! | [`eval_hermite_h`]   | Hermite (physicist's)       | $H_n(x)$                  |
+//! | [`eval_hermite_he`]  | Hermite (probabilist's)     | $He_n(x)$                 |
 //!
 //! # Hypergeometric functions
 //!
