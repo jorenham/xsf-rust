@@ -3,7 +3,7 @@
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
 use core::f64::consts::{PI, SQRT_2};
-use core::ops::Mul;
+use core::ops::{Add, Mul};
 
 use crate::ffi::xsf as ffi;
 use num_complex::Complex64;
@@ -351,6 +351,118 @@ where
 }
 
 ///////////////////////////////
+// Chebyshev T (first kind)
+// Chebyshev U (second kind)
+//
+
+pub trait ChebyshevArg<N>: sealed::Sealed {
+    fn eval_chebyshev_t(&self, n: N) -> Self;
+    fn eval_chebyshev_u(&self, n: N) -> Self;
+}
+
+impl<Z> ChebyshevArg<f64> for Z
+where
+    Z: sealed::Sealed + Mul<f64, Output = Z> + Add<f64, Output = Z> + Clone,
+{
+    #[inline(always)]
+    fn eval_chebyshev_t(&self, n: f64) -> Self {
+        crate::hyp2f1(-n, n, 0.5, self.clone() * -0.5 + 0.5)
+    }
+
+    #[inline(always)]
+    fn eval_chebyshev_u(&self, n: f64) -> Self {
+        crate::hyp2f1(-n, n + 2.0, 1.5, self.clone() * -0.5 + 0.5) * (n + 1.0)
+    }
+}
+
+#[inline(always)]
+fn chebyshev_recurrence(x: f64, mut p1: f64, mut p2: f64, range: core::ops::Range<i32>) -> f64 {
+    let x2 = x * 2.0;
+    for _ in range {
+        (p1, p2) = (x2 * p1 - p2, p1);
+    }
+    p1
+}
+
+impl ChebyshevArg<i32> for f64 {
+    #[inline(always)]
+    fn eval_chebyshev_t(&self, n: i32) -> Self {
+        chebyshev_recurrence(*self, 1.0, *self, 0..n.abs())
+    }
+
+    #[inline(always)]
+    fn eval_chebyshev_u(&self, n: i32) -> Self {
+        if n < -1 {
+            -chebyshev_recurrence(*self, 0.0, -1.0, -1..(-n - 2))
+        } else {
+            chebyshev_recurrence(*self, 0.0, -1.0, -1..n)
+        }
+    }
+}
+
+/// Evaluate Chebyshev polynomial of the first kind $T_n$ at a point.
+///
+/// This is a pure rust implementation equivalent to [`scipy.special.eval_chebyt`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebyt.html
+///
+/// # Definition
+///
+/// The Chebyshev polynomials of the first kind can be defined via Gauss' hypergeometric function,
+/// $_2F_1$, as
+///
+/// $$ T_n(z) = \hyp{2}{1}{-n,\enspace n}{1 \over 2}{-{z-1 \over 2}} $$
+///
+/// When $n$ is an integer the result is an orthogonal polynomial of degree $\abs n$.
+/// See Abramowitz & Stegun (1972) eq. 22.5.47 [^AS] for details.
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+///
+/// # See also
+/// - [`eval_chebyshev_u`]: Evaluate Chebyshev polynomials of the second kind, $U_n$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
+#[doc(alias = "eval_chebyt")]
+#[inline]
+pub fn eval_chebyshev_t<N, Z>(n: N, z: Z) -> Z
+where
+    Z: ChebyshevArg<N>,
+{
+    z.eval_chebyshev_t(n)
+}
+
+/// Evaluate Chebyshev polynomial of the second kind $U_n$ at a point.
+///
+/// This is a pure rust implementation equivalent to [`scipy.special.eval_chebyu`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebyu.html
+///
+/// # Definition
+///
+/// The Chebyshev polynomials of the second kind can be defined via Gauss' hypergeometric function,
+/// $_2F_1$, as
+///
+/// $$ U_n(z) = (n+1)\\ \hyp{2}{1}{-n,\enspace 2+n}{3 \over 2}{-{z-1 \over 2}} $$
+///
+/// When $n$ is an integer the result is an orthogonal polynomial of degree $\abs n$.
+/// See Abramowitz & Stegun (1972) eq. 22.5.48 [^AS] for details.
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+///
+/// # See also
+/// - [`eval_chebyshev_t`]: Evaluate Chebyshev polynomials of the first kind, $T_n$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
+#[doc(alias = "eval_chebyu")]
+#[inline]
+pub fn eval_chebyshev_u<N, Z>(n: N, z: Z) -> Z
+where
+    Z: ChebyshevArg<N>,
+{
+    z.eval_chebyshev_u(n)
+}
+
+///////////////////////////////
 // Generalized Laguerre
 // Laguerre
 //
@@ -635,8 +747,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi,
-        eval_laguerre, eval_legendre, np_assert_allclose,
+        eval_chebyshev_t, eval_chebyshev_u, eval_gegenbauer, eval_genlaguerre, eval_hermite_h,
+        eval_hermite_he, eval_jacobi, eval_laguerre, eval_legendre, np_assert_allclose,
     };
     use num_complex::c64;
 
@@ -927,61 +1039,62 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_eval_hermite_he() {
+    fn test_orthogonal_poly<N, F, G>(eval_int: F, eval_f64: G, expected: &[&dyn Fn(f64) -> f64])
+    where
+        N: num_traits::FromPrimitive,
+        F: Fn(N, f64) -> f64,
+        G: Fn(f64, f64) -> f64,
+    {
         let xs = [-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0];
 
-        let y0_expect = xs.map(|_| 1.0);
-        let y0_actual_u32 = xs.map(|x| eval_hermite_he(0, x));
-        let y0_actual_f64 = xs.map(|x| eval_hermite_he(0.0, x));
-        np_assert_allclose!(y0_actual_u32, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y0_actual_f64, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+        for (n, &expect_fn) in expected.iter().enumerate() {
+            let y_expect = xs.map(expect_fn);
+            let y_actual_int = xs.map(|x| eval_int(N::from_usize(n).unwrap(), x));
+            let y_actual_f64 = xs.map(|x| eval_f64(n as f64, x));
+            np_assert_allclose!(y_actual_int, y_expect, rtol = 1e-15, atol = f64::EPSILON);
+            np_assert_allclose!(y_actual_f64, y_expect, rtol = 1e-15, atol = f64::EPSILON);
+        }
+    }
 
-        let y1_expect = xs.map(|x| x);
-        let y1_actual_u32 = xs.map(|x| eval_hermite_he(1, x));
-        let y1_actual_f64 = xs.map(|x| eval_hermite_he(1.0, x));
-        np_assert_allclose!(y1_actual_u32, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y1_actual_f64, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
-
-        let y2_expect = xs.map(|x| x * x - 1.0);
-        let y2_actual_u32 = xs.map(|x| eval_hermite_he(2, x));
-        let y2_actual_f64 = xs.map(|x| eval_hermite_he(2.0, x));
-        np_assert_allclose!(y2_actual_u32, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y2_actual_f64, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
-
-        let y3_expect = xs.map(|x| x * x * x - 3.0 * x);
-        let y3_actual_u32 = xs.map(|x| eval_hermite_he(3, x));
-        let y3_actual_f64 = xs.map(|x| eval_hermite_he(3.0, x));
-        np_assert_allclose!(y3_actual_u32, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y3_actual_f64, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
+    #[test]
+    fn test_eval_hermite_he() {
+        test_orthogonal_poly::<u32, _, _>(
+            eval_hermite_he,
+            eval_hermite_he,
+            &[&|_| 1.0, &|x| x, &|x| x * x - 1.0, &|x| x * x * x - 3.0 * x],
+        );
     }
 
     #[test]
     fn test_eval_hermite_h() {
-        let xs = [-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0];
+        test_orthogonal_poly::<u32, _, _>(
+            eval_hermite_h,
+            eval_hermite_h,
+            &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 2.0, &|x| {
+                8.0 * x * x * x - 12.0 * x
+            }],
+        );
+    }
 
-        let y0_expect = xs.map(|_| 1.0);
-        let y0_actual_u32 = xs.map(|x| eval_hermite_h(0, x));
-        let y0_actual_f64 = xs.map(|x| eval_hermite_h(0.0, x));
-        np_assert_allclose!(y0_actual_u32, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y0_actual_f64, y0_expect, rtol = 1e-15, atol = f64::EPSILON);
+    #[test]
+    fn test_eval_chebyshev_t() {
+        test_orthogonal_poly::<i32, _, _>(
+            eval_chebyshev_t,
+            eval_chebyshev_t,
+            &[&|_| 1.0, &|x| x, &|x| 2.0 * x * x - 1.0, &|x| {
+                4.0 * x * x * x - 3.0 * x
+            }],
+        );
+    }
 
-        let y1_expect = xs.map(|x| 2.0 * x);
-        let y1_actual_u32 = xs.map(|x| eval_hermite_h(1, x));
-        let y1_actual_f64 = xs.map(|x| eval_hermite_h(1.0, x));
-        np_assert_allclose!(y1_actual_u32, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y1_actual_f64, y1_expect, rtol = 1e-15, atol = f64::EPSILON);
-
-        let y2_expect = xs.map(|x| 4.0 * x * x - 2.0);
-        let y2_actual_u32 = xs.map(|x| eval_hermite_h(2, x));
-        let y2_actual_f64 = xs.map(|x| eval_hermite_h(2.0, x));
-        np_assert_allclose!(y2_actual_u32, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y2_actual_f64, y2_expect, rtol = 1e-15, atol = f64::EPSILON);
-
-        let y3_expect = xs.map(|x| 8.0 * x * x * x - 12.0 * x);
-        let y3_actual_u32 = xs.map(|x| eval_hermite_h(3, x));
-        let y3_actual_f64 = xs.map(|x| eval_hermite_h(3.0, x));
-        np_assert_allclose!(y3_actual_u32, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
-        np_assert_allclose!(y3_actual_f64, y3_expect, rtol = 1e-15, atol = f64::EPSILON);
+    #[test]
+    fn test_eval_chebyshev_u() {
+        test_orthogonal_poly::<i32, _, _>(
+            eval_chebyshev_u,
+            eval_chebyshev_u,
+            &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 1.0, &|x| {
+                8.0 * x * x * x - 4.0 * x
+            }],
+        );
     }
 }
