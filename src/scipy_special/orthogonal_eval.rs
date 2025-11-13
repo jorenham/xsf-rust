@@ -21,7 +21,6 @@ mod sealed {
 //
 
 pub trait JacobiArg<N>: sealed::Sealed {
-    // TODO: add the other classical orthogonal polynomials (but skip the confusing shifted ones)
     fn eval_jacobi(&self, n: N, alpha: f64, beta: f64) -> Self;
     fn eval_legendre(&self, n: N) -> Self;
 }
@@ -208,6 +207,147 @@ where
     Z: JacobiArg<N>,
 {
     z.eval_legendre(n)
+}
+
+///////////////////////////////
+// Gegenbauer (Ultraspherical)
+//
+
+pub trait GegenbauerArg<N>: sealed::Sealed {
+    fn eval_gegenbauer(&self, n: N, alpha: f64) -> Self;
+}
+
+impl GegenbauerArg<f64> for f64 {
+    /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
+    #[inline(always)]
+    fn eval_gegenbauer(&self, n: f64, a: f64) -> Self {
+        if a == 0.0 {
+            if (n + self).is_nan() { f64::NAN } else { 0.0 }
+        } else if !self.is_finite() {
+            self * a
+        } else {
+            let na2 = n + 2.0 * a;
+            unsafe { ffi::binom(na2 - 1.0, n) * ffi::hyp2f1(-n, na2, 0.5 + a, 0.5 - 0.5 * self) }
+        }
+    }
+}
+
+impl GegenbauerArg<f64> for Complex64 {
+    /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
+    #[inline(always)]
+    fn eval_gegenbauer(&self, n: f64, a: f64) -> Self {
+        if a == 0.0 {
+            if n.is_nan() {
+                f64::NAN.into()
+            } else if self.is_nan() {
+                *self
+            } else {
+                Self::ZERO
+            }
+        } else if !self.is_finite() {
+            self * a
+        } else {
+            let na2 = n + 2.0 * a;
+            unsafe { ffi::binom(na2 - 1.0, n) * ffi::hyp2f1_1(-n, na2, 0.5 + a, 0.5 - 0.5 * self) }
+        }
+    }
+}
+
+impl GegenbauerArg<i32> for f64 {
+    /// Corresponds to `eval_gegenbauer_l` in `scipy/special/orthogonal_eval.pxd`
+    #[inline(always)]
+    fn eval_gegenbauer(&self, n: i32, alpha: f64) -> Self {
+        if alpha.is_nan() || self.is_nan() {
+            f64::NAN
+        } else if n < 0 || alpha == 0.0 {
+            // https://functions.wolfram.com/Polynomials/GegenbauerC3/03/01/02/0001/
+            // https://functions.wolfram.com/Polynomials/GegenbauerC3/03/01/03/0012/
+            0.0
+        } else if n == 0 {
+            1.0
+        } else if self.abs() < 1e-5 {
+            // Power series rather than recurrence due to loss of precision.
+            // We use backwards iteration to avoid large powers of z in the initial term.
+            // https://functions.wolfram.com/Polynomials/GegenbauerC3/02/0001/
+
+            let m = n / 2;
+            let ma = m as f64 + alpha;
+
+            let mut term = (-1.0_f64).powi(m) * unsafe { ffi::binom(ma - 1.0, m as f64) };
+            if n == 2 * m + 1 {
+                term *= 2.0 * ma * self;
+            }
+
+            let c = -4.0 * self * self;
+            let mut sum = term;
+            for k in (1..=m).rev() {
+                let k = k as f64;
+                let nk = n as f64 - k;
+                let nkk = nk - k;
+                term *= c * k * (nk + alpha) / ((nkk + 1.0) * (nkk + 2.0));
+                sum += term;
+            }
+            sum
+        } else {
+            // Recurrence relation
+            // https://functions.wolfram.com/Polynomials/GegenbauerC3/17/01/01/01/0002/
+
+            let a2 = alpha * 2.0;
+            let d0 = self - 1.0;
+            let mut d = d0;
+            let mut p = *self;
+            for k in 1..n {
+                let k = k as f64;
+                let k_a2 = k + a2;
+                d = (k * d + (k + k_a2) * d0 * p) / k_a2;
+                p += d
+            }
+
+            let n = n as f64;
+            if (alpha / n) < 1e-8 {
+                // avoid loss of precision
+                2.0 * alpha / n * p
+            } else {
+                p * unsafe { ffi::binom(n + 2.0 * alpha - 1.0, n) }
+            }
+        }
+    }
+}
+
+/// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
+///
+/// This is a translation of the [`scipy.special.eval_gegenbauer`][docs] Cython implementation
+/// into Rust.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_gegenbauer.html
+///
+/// # Definition
+///
+/// The Gegenbauer polynomials can be defined via the Gauss hypergeometric function $_2F_1$ as
+///
+/// $$
+/// C_n^{(\alpha)}(z) =
+///     {n+2\alpha-1 \choose n}\\,
+///     \hyp{2}{1}{-n,\enspace n+2\alpha}{{1 \over 2}+\alpha}{-{z-1 \over 2}}
+/// $$
+///
+/// When $n$ is an integer the result is a polynomial of degree $n$.
+/// See Abramowitz & Stegun 22.5.46 [^AS] or DLMF 18.5.7 [^DLMF] for details.
+///
+/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
+///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E9>
+///
+/// # See also
+/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
+#[doc(alias = "eval_ultraspherical")]
+#[inline]
+pub fn eval_gegenbauer<N, Z>(n: N, alpha: f64, z: Z) -> Z
+where
+    Z: GegenbauerArg<N>,
+{
+    z.eval_gegenbauer(n, alpha)
 }
 
 ///////////////////////////////
@@ -495,8 +635,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_laguerre,
-        eval_legendre, np_assert_allclose,
+        eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi,
+        eval_laguerre, eval_legendre, np_assert_allclose,
     };
     use num_complex::c64;
 
@@ -599,6 +739,36 @@ mod tests {
 
             let pf = xs.map(|x| eval_legendre(n as f64, x));
             np_assert_allclose!(pf, p0, rtol = 1e-12, atol = f64::EPSILON);
+        }
+    }
+
+    #[test]
+    fn test_eval_gegenbauer_eq_self() {
+        // manual test cases
+        let xs = [
+            0.0,
+            1.0,
+            -1.0,
+            1e-6,
+            -1e-6,
+            2.0,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ];
+        let zs = [c64(0.5, 0.0), c64(-0.5, 0.0), c64(1.0, 0.0), c64(-1.0, 0.0)];
+        let ns = [0, 1, 2, 3, 4, 11];
+        let alphas = [0.0, 0.5, 1.0, 2.0];
+        for &n in &ns {
+            for &alpha in &alphas {
+                let c_i32 = xs.map(|x| eval_gegenbauer(n, alpha, x));
+                let c_f64 = xs.map(|x| eval_gegenbauer(n as f64, alpha, x));
+                np_assert_allclose!(c_i32, c_f64, rtol = 1.5e-14, atol = 1.5e-14);
+
+                let c_f64 = zs.map(|z| eval_gegenbauer(n as f64, alpha, z.re));
+                let c_c64 = zs.map(|z| eval_gegenbauer(n as f64, alpha, z).re);
+                np_assert_allclose!(c_c64, c_f64, rtol = 1e-8, atol = 1e-12);
+            }
         }
     }
 
