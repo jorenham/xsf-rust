@@ -21,8 +21,8 @@ pub use diric::diric;
 pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
 pub use hypergeometric::{hyp0f0, hyp0f1, hyp1f0};
 pub use orthogonal_eval::{
-    eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_laguerre,
-    eval_legendre,
+    eval_chebyshev_t, eval_chebyshev_u, eval_gegenbauer, eval_genlaguerre, eval_hermite_h,
+    eval_hermite_he, eval_jacobi, eval_laguerre, eval_legendre,
 };
 pub use perm::perm;
 pub use polygamma::polygamma;
