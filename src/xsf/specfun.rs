@@ -7,20 +7,20 @@ mod sealed {
 }
 
 pub trait Hyp1F1Arg: sealed::Sealed {
-    fn hyp1f1(self, a: f64, b: f64) -> Self;
+    fn hyp1f1(&self, a: f64, b: f64) -> Self;
 }
 
 impl Hyp1F1Arg for f64 {
     #[inline(always)]
-    fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1(a, b, self) }
+    fn hyp1f1(&self, a: f64, b: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp1f1(a, b, *self) }
     }
 }
 
 impl Hyp1F1Arg for Complex<f64> {
     #[inline(always)]
-    fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, self) }
+    fn hyp1f1(&self, a: f64, b: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, *self) }
     }
 }
 
