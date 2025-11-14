@@ -2,17 +2,53 @@
 //!
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
-use core::f64::consts::{PI, SQRT_2};
-use core::ops::{Add, Mul};
-
 use crate::ffi::xsf as ffi;
-use num_complex::Complex64;
+use core::f64::consts::{PI, SQRT_2};
+use core::ops::Range;
 use num_traits::Zero;
 
 mod sealed {
-    pub trait Sealed: crate::xsf::Hyp2F1Arg + crate::xsf::Hyp1F1Arg {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
+    pub trait OrthoPolyArg:
+        crate::xsf::Hyp2F1Arg + crate::xsf::Hyp1F1Arg + num_traits::NumOps<f64> + Clone
+    {
+        const ZERO: Self;
+
+        fn is_finite(&self) -> bool;
+        fn is_nan(&self) -> bool;
+
+        fn hyp2f1_sh(&self, a1: f64, a2: f64, b: f64) -> Self {
+            (self.clone() * -0.5 + 0.5).hyp2f1(a1, a2, b)
+        }
+    }
+
+    impl OrthoPolyArg for f64 {
+        const ZERO: Self = 0.0;
+
+        fn is_finite(&self) -> bool {
+            (*self).is_finite()
+        }
+        fn is_nan(&self) -> bool {
+            (*self).is_nan()
+        }
+    }
+
+    impl OrthoPolyArg for num_complex::Complex<f64> {
+        const ZERO: Self = Self::ZERO;
+
+        fn is_finite(&self) -> bool {
+            (*self).is_finite()
+        }
+        fn is_nan(&self) -> bool {
+            (*self).is_nan()
+        }
+    }
+}
+
+/// Helper function for the generalized multiset coefficient
+///
+/// https://mathworld.wolfram.com/Multichoose.html
+fn multiset(n: f64, k: f64) -> f64 {
+    unsafe { ffi::binom(n + k - 1.0, k) }
 }
 
 ///////////////////////////////
@@ -20,40 +56,23 @@ mod sealed {
 // Legendre
 //
 
-pub trait JacobiArg<N>: sealed::Sealed {
+pub trait JacobiArg<N>: sealed::OrthoPolyArg {
     fn eval_jacobi(&self, n: N, alpha: f64, beta: f64) -> Self;
     fn eval_legendre(&self, n: N) -> Self;
 }
 
-impl JacobiArg<f64> for f64 {
+impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `eval_jacobi` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_jacobi(&self, n: f64, a: f64, b: f64) -> Self {
-        unsafe {
-            ffi::binom(n + a, n) * ffi::hyp2f1(-n, 1.0 + n + a + b, 1.0 + a, 0.5 - 0.5 * self)
-        }
+        let a1 = a + 1.0;
+        self.hyp2f1_sh(-n, n + a1 + b, a1) * multiset(a1, n)
     }
 
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_legendre(&self, n: f64) -> Self {
-        unsafe { ffi::hyp2f1(-n, n + 1.0, 1.0, 0.5 - 0.5 * self) }
-    }
-}
-
-impl JacobiArg<f64> for Complex64 {
-    /// Corresponds to `eval_jacobi` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_jacobi(&self, n: f64, a: f64, b: f64) -> Self {
-        unsafe {
-            ffi::binom(n + a, n) * ffi::hyp2f1_1(-n, 1.0 + n + a + b, 1.0 + a, 0.5 - 0.5 * self)
-        }
-    }
-
-    /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_legendre(&self, n: f64) -> Self {
-        unsafe { ffi::hyp2f1_1(-n, n + 1.0, 1.0, 0.5 - 0.5 * self) }
+        self.hyp2f1_sh(-n, n + 1.0, 1.0)
     }
 }
 
@@ -66,22 +85,24 @@ impl JacobiArg<i32> for f64 {
         } else if n == 0 {
             1.0
         } else {
+            let a1 = a + 1.0;
             // setting u = (x - 1) / 2 simplifies the recurrence
             let u = 0.5 * self - 0.5;
+            let d0 = (a + b + 2.0) * u;
 
             if n == 1 {
-                (a + 1.0) + (a + b + 2.0) * u
+                a1 + d0
             } else {
-                let mut d = (a + b + 2.0) * u / (a + 1.0);
+                let mut d = d0 / a1;
                 let mut p = d + 1.0;
                 for k in 1..n {
                     let k = k as f64;
                     let t = 2.0 * k + a + b;
                     d = (t + 2.0) * ((t + 1.0) * t * u * p + k * (k + b) * d)
-                        / ((k + a + 1.0) * (k + a + b + 1.0) * t);
+                        / ((k + a1) * (k + a1 + b) * t);
                     p += d;
                 }
-                p * unsafe { ffi::binom(n as f64 + a, n as f64) }
+                p * multiset(a1, n as f64)
             }
         }
     }
@@ -89,14 +110,13 @@ impl JacobiArg<i32> for f64 {
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_legendre(&self, n: i32) -> Self {
-        // symmetry
-        let n = if n < 0 { -n - 1 } else { n };
-        let x = self;
+        let n = if n < 0 { -n - 1 } else { n }; // symmetry
+        let x = *self;
 
         if n == 0 {
             1.0
         } else if n == 1 {
-            *self
+            x
         } else if x.abs() < 1e-5 {
             // Power series rather than recurrence due to loss of precision
             // http://functions.wolfram.com/Polynomials/LegendreP/02/
@@ -104,11 +124,10 @@ impl JacobiArg<i32> for f64 {
             let a = aa as f64;
             let n_f64 = n as f64;
 
-            let mut d = if aa % 2 == 0 { 1.0 } else { -1.0 };
-            if n == 2 * aa {
-                d *= -2.0 / unsafe { ffi::beta(a + 1.0, -0.5) };
-            } else {
-                d *= 2.0 * x / unsafe { ffi::beta(a + 1.0, 0.5) };
+            let mut d = (-1.0_f64).powi(aa) * multiset(a + 1.0, -0.5);
+            if n & 1 == 1 {
+                // odd n
+                d *= n_f64 * x;
             }
 
             let x2 = x * x;
@@ -121,15 +140,10 @@ impl JacobiArg<i32> for f64 {
                 let u = 2.0 * (kk - a);
                 let v = 1.0 + u + n_f64;
                 d *= u * (v + n_f64) * x2 / (v * (1.0 + v));
-                if d.abs() < 1e-20 * p.abs() {
-                    // converged
-                    break;
-                }
             }
             p
         } else {
-            let mut d = x - 1.0;
-            let mut p = *x;
+            let (mut p, mut d) = (x, x - 1.0);
             for k in 1..n {
                 let k = k as f64;
                 // ((2*k+1)/(k+1))*(x-1)*p + (k/(k+1)) * d
@@ -169,10 +183,7 @@ impl JacobiArg<i32> for f64 {
 /// - [`eval_legendre`]: Evaluate Legendre polynomials, $P_n$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
 #[inline]
-pub fn eval_jacobi<N, Z>(n: N, alpha: f64, beta: f64, z: Z) -> Z
-where
-    Z: JacobiArg<N>,
-{
+pub fn eval_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> Z {
     z.eval_jacobi(n, alpha, beta)
 }
 
@@ -202,10 +213,7 @@ where
 /// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
 #[inline]
-pub fn eval_legendre<N, Z>(n: N, z: Z) -> Z
-where
-    Z: JacobiArg<N>,
-{
+pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
     z.eval_legendre(n)
 }
 
@@ -213,42 +221,25 @@ where
 // Gegenbauer (Ultraspherical)
 //
 
-pub trait GegenbauerArg<N>: sealed::Sealed {
+pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
     fn eval_gegenbauer(&self, n: N, alpha: f64) -> Self;
 }
 
-impl GegenbauerArg<f64> for f64 {
+impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
     /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_gegenbauer(&self, n: f64, a: f64) -> Self {
         if a == 0.0 {
-            if (n + self).is_nan() { f64::NAN } else { 0.0 }
-        } else if !self.is_finite() {
-            self * a
-        } else {
-            let na2 = n + 2.0 * a;
-            unsafe { ffi::binom(na2 - 1.0, n) * ffi::hyp2f1(-n, na2, 0.5 + a, 0.5 - 0.5 * self) }
-        }
-    }
-}
-
-impl GegenbauerArg<f64> for Complex64 {
-    /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_gegenbauer(&self, n: f64, a: f64) -> Self {
-        if a == 0.0 {
-            if n.is_nan() {
-                f64::NAN.into()
-            } else if self.is_nan() {
-                *self
+            if n.is_nan() || self.is_nan() {
+                self.clone() * n
             } else {
                 Self::ZERO
             }
         } else if !self.is_finite() {
-            self * a
+            self.clone() * a
         } else {
-            let na2 = n + 2.0 * a;
-            unsafe { ffi::binom(na2 - 1.0, n) * ffi::hyp2f1_1(-n, na2, 0.5 + a, 0.5 - 0.5 * self) }
+            let aa = 2.0 * a;
+            self.hyp2f1_sh(-n, n + aa, 0.5 + a) * multiset(aa, n)
         }
     }
 }
@@ -271,11 +262,10 @@ impl GegenbauerArg<i32> for f64 {
             // https://functions.wolfram.com/Polynomials/GegenbauerC3/02/0001/
 
             let m = n / 2;
-            let ma = m as f64 + alpha;
 
-            let mut term = (-1.0_f64).powi(m) * unsafe { ffi::binom(ma - 1.0, m as f64) };
+            let mut term = (-1.0_f64).powi(m) * multiset(alpha, m as f64);
             if n == 2 * m + 1 {
-                term *= 2.0 * ma * self;
+                term *= 2.0 * (alpha + m as f64) * self;
             }
 
             let c = -4.0 * self * self;
@@ -292,23 +282,21 @@ impl GegenbauerArg<i32> for f64 {
             // Recurrence relation
             // https://functions.wolfram.com/Polynomials/GegenbauerC3/17/01/01/01/0002/
 
-            let a2 = alpha * 2.0;
+            let aa = alpha * 2.0;
             let d0 = self - 1.0;
-            let mut d = d0;
-            let mut p = *self;
+            let (mut p, mut d) = (*self, d0);
             for k in 1..n {
                 let k = k as f64;
-                let k_a2 = k + a2;
-                d = (k * d + (k + k_a2) * d0 * p) / k_a2;
+                d = (k * d + (k + k + aa) * d0 * p) / (k + aa);
                 p += d
             }
 
             let n = n as f64;
             if (alpha / n) < 1e-8 {
                 // avoid loss of precision
-                2.0 * alpha / n * p
+                aa / n * p
             } else {
-                p * unsafe { ffi::binom(n + 2.0 * alpha - 1.0, n) }
+                multiset(aa, n) * p
             }
         }
     }
@@ -343,10 +331,7 @@ impl GegenbauerArg<i32> for f64 {
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
 #[doc(alias = "eval_ultraspherical")]
 #[inline]
-pub fn eval_gegenbauer<N, Z>(n: N, alpha: f64, z: Z) -> Z
-where
-    Z: GegenbauerArg<N>,
-{
+pub fn eval_gegenbauer<N, Z: GegenbauerArg<N>>(n: N, alpha: f64, z: Z) -> Z {
     z.eval_gegenbauer(n, alpha)
 }
 
@@ -355,33 +340,21 @@ where
 // Chebyshev U (second kind)
 //
 
-pub trait ChebyshevArg<N>: sealed::Sealed {
+pub trait ChebyshevArg<N>: sealed::OrthoPolyArg {
     fn eval_chebyshev_t(&self, n: N) -> Self;
     fn eval_chebyshev_u(&self, n: N) -> Self;
 }
 
-impl<Z> ChebyshevArg<f64> for Z
-where
-    Z: sealed::Sealed + Mul<f64, Output = Z> + Add<f64, Output = Z> + Clone,
-{
+impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
     #[inline(always)]
     fn eval_chebyshev_t(&self, n: f64) -> Self {
-        crate::hyp2f1(-n, n, 0.5, self.clone() * -0.5 + 0.5)
+        self.hyp2f1_sh(-n, n, 0.5)
     }
 
     #[inline(always)]
     fn eval_chebyshev_u(&self, n: f64) -> Self {
-        crate::hyp2f1(-n, n + 2.0, 1.5, self.clone() * -0.5 + 0.5) * (n + 1.0)
+        self.hyp2f1_sh(-n, n + 2.0, 1.5) * (n + 1.0)
     }
-}
-
-#[inline(always)]
-fn chebyshev_recurrence(x: f64, mut p1: f64, mut p2: f64, range: core::ops::Range<i32>) -> f64 {
-    let x2 = x * 2.0;
-    for _ in range {
-        (p1, p2) = (x2 * p1 - p2, p1);
-    }
-    p1
 }
 
 impl ChebyshevArg<i32> for f64 {
@@ -398,6 +371,12 @@ impl ChebyshevArg<i32> for f64 {
             chebyshev_recurrence(*self, 0.0, -1.0, -1..n)
         }
     }
+}
+
+#[inline(always)]
+fn chebyshev_recurrence(x: f64, p1: f64, p2: f64, range: Range<i32>) -> f64 {
+    let x2 = x * 2.0;
+    range.fold((p1, p2), |(p1, p2), _| (x2 * p1 - p2, p1)).0
 }
 
 /// Evaluate Chebyshev polynomial of the first kind $T_n$ at a point.
@@ -424,10 +403,7 @@ impl ChebyshevArg<i32> for f64 {
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
 #[doc(alias = "eval_chebyt")]
 #[inline]
-pub fn eval_chebyshev_t<N, Z>(n: N, z: Z) -> Z
-where
-    Z: ChebyshevArg<N>,
-{
+pub fn eval_chebyshev_t<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
     z.eval_chebyshev_t(n)
 }
 
@@ -455,10 +431,7 @@ where
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $_2F_1$
 #[doc(alias = "eval_chebyu")]
 #[inline]
-pub fn eval_chebyshev_u<N, Z>(n: N, z: Z) -> Z
-where
-    Z: ChebyshevArg<N>,
-{
+pub fn eval_chebyshev_u<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
     z.eval_chebyshev_u(n)
 }
 
@@ -467,24 +440,16 @@ where
 // Laguerre
 //
 
-pub trait LaguerreArg<N>: sealed::Sealed {
+pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
     fn eval_genlaguerre(&self, n: N, a: f64) -> Self;
-    fn eval_laguerre(&self, n: N) -> Self;
 }
 
-impl<Z> LaguerreArg<f64> for Z
-where
-    Z: sealed::Sealed + Mul<f64, Output = Z> + Clone,
-{
+impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
     /// Corresponds to `eval_genlaguerre` in `scipy/special/orthogonal_eval.pxd`
     #[inline(always)]
     fn eval_genlaguerre(&self, n: f64, a: f64) -> Z {
-        crate::hyp1f1(-n, 1.0 + a, self.clone()) * unsafe { ffi::binom(n + a, n) }
-    }
-
-    #[inline(always)]
-    fn eval_laguerre(&self, n: f64) -> Z {
-        crate::hyp1f1(-n, 1.0, self.clone())
+        let a1 = a + 1.0;
+        self.hyp1f1(-n, a1) * multiset(a1, n)
     }
 }
 
@@ -495,28 +460,14 @@ impl LaguerreArg<i32> for f64 {
         if n < 0 {
             0.0
         } else {
+            let a1 = a + 1.0;
             let (mut d, mut p) = (0.0, 1.0);
             for k in 0..n {
                 let k = k as f64;
-                d = (d * k - p * self) / (k + a + 1.0);
+                d = (d * k - p * self) / (k + a1);
                 p += d;
             }
-            p * unsafe { ffi::binom(n as f64 + a, n as f64) }
-        }
-    }
-
-    #[inline(always)]
-    fn eval_laguerre(&self, n: i32) -> Self {
-        if n < 0 {
-            0.0
-        } else {
-            let (mut d, mut p) = (0.0, 1.0);
-            for k in 0..n {
-                let k = k as f64;
-                d = (d * k - p * self) / (k + 1.0);
-                p += d;
-            }
-            p
+            p * multiset(a1, n as f64)
         }
     }
 }
@@ -546,10 +497,7 @@ impl LaguerreArg<i32> for f64 {
 /// - [`eval_laguerre`]: Evaluate Laguerre polynomials, $L_n = L_n^{(0)}$
 /// - [`hyp1f1`](crate::hyp1f1): Confluent hypergeometric function, $_1F_1$
 #[inline]
-pub fn eval_genlaguerre<N, Z>(n: N, alpha: f64, z: Z) -> Z
-where
-    Z: LaguerreArg<N>,
-{
+pub fn eval_genlaguerre<N, Z: LaguerreArg<N>>(n: N, alpha: f64, z: Z) -> Z {
     z.eval_genlaguerre(n, alpha)
 }
 
@@ -578,11 +526,8 @@ where
 /// - [`eval_genlaguerre`]: Evaluate generalized Laguerre polynomials, $L_n^{(\alpha)}$
 /// - [`hyp1f1`](crate::hyp1f1): Confluent hypergeometric function, $_1F_1$
 #[inline]
-pub fn eval_laguerre<N, Z>(n: N, z: Z) -> Z
-where
-    Z: LaguerreArg<N>,
-{
-    z.eval_laguerre(n)
+pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
+    z.eval_genlaguerre(n, 0.0)
 }
 
 ///////////////////////////////
@@ -590,7 +535,29 @@ where
 // Hermite He (probabilists')
 //
 
-pub trait HermiteArg<N>: sealed::Sealed {
+#[inline(always)]
+fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
+    if x.is_nan() || n.is_nan() {
+        f64::NAN
+    } else if n == 0.0 {
+        1.0
+    } else if x.is_zero() {
+        if n < 0.0 || n % 2.0 == 0.0 {
+            PI.sqrt() * (scale * n).exp2() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
+        } else {
+            0.0
+        }
+    } else {
+        let c = if x.is_sign_positive() {
+            (scale * n).exp2()
+        } else {
+            (-2.0 * scale.sqrt()).powf(n)
+        };
+        c * crate::hypu(-0.5 * n, 0.5, scale * x * x)
+    }
+}
+
+pub trait HermiteArg<N>: sealed::OrthoPolyArg {
     fn eval_hermite_he(&self, n: N) -> Self;
     fn eval_hermite_h(&self, n: N) -> Self;
 }
@@ -598,49 +565,12 @@ pub trait HermiteArg<N>: sealed::Sealed {
 impl HermiteArg<f64> for f64 {
     #[inline(always)]
     fn eval_hermite_he(&self, n: f64) -> f64 {
-        if self.is_nan() || n.is_nan() {
-            f64::NAN
-        } else if n == 0.0 {
-            1.0
-        } else if self.is_zero() {
-            if n < 0.0 || n % 2.0 == 0.0 {
-                (PI * n.exp2()).sqrt() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
-            } else {
-                0.0
-            }
-        } else {
-            let half_n = 0.5 * n;
-            let y = 0.5 * self * self;
-            let c = if self.is_sign_positive() {
-                half_n.exp2()
-            } else {
-                (self / y.sqrt()).powf(n)
-            };
-            c * crate::hypu(-half_n, 0.5, y)
-        }
+        eval_hermite_impl(*self, n, 0.5)
     }
 
     #[inline(always)]
     fn eval_hermite_h(&self, n: f64) -> f64 {
-        if self.is_nan() || n.is_nan() {
-            f64::NAN
-        } else if n == 0.0 {
-            1.0
-        } else if self.is_zero() {
-            if n < 0.0 || n % 2.0 == 0.0 {
-                PI.sqrt() * n.exp2() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
-            } else {
-                0.0
-            }
-        } else {
-            let y = self * self;
-            let c = if self.is_sign_positive() {
-                n.exp2()
-            } else {
-                (2.0 * self / y.sqrt()).powf(n)
-            };
-            c * crate::hypu(-0.5 * n, 0.5, y)
-        }
+        eval_hermite_impl(*self, n, 1.0)
     }
 }
 

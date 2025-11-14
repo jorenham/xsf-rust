@@ -124,20 +124,20 @@ mod sealed {
 }
 
 pub trait HypergeometricArg: sealed::Sealed {
-    fn hyp0f0(self) -> Self;
-    fn hyp1f0(self, a: f64) -> Self;
-    fn hyp0f1(self, b: f64) -> Self;
+    fn hyp0f0(&self) -> Self;
+    fn hyp1f0(&self, a: f64) -> Self;
+    fn hyp0f1(&self, b: f64) -> Self;
 }
 
 impl HypergeometricArg for f64 {
     #[inline(always)]
-    fn hyp0f0(self) -> Self {
+    fn hyp0f0(&self) -> Self {
         self.exp()
     }
 
     #[inline(always)]
-    fn hyp1f0(self, a: f64) -> Self {
-        if a > 0.0 && self == 1.0 {
+    fn hyp1f0(&self, a: f64) -> Self {
+        if a > 0.0 && *self == 1.0 {
             f64::NAN
         } else {
             (1.0 - self).powf(-a)
@@ -145,19 +145,19 @@ impl HypergeometricArg for f64 {
     }
 
     #[inline(always)]
-    fn hyp0f1(self, b: f64) -> Self {
-        _hyp0f1_real(b, self)
+    fn hyp0f1(&self, b: f64) -> Self {
+        _hyp0f1_real(b, *self)
     }
 }
 
 impl HypergeometricArg for num_complex::Complex<f64> {
     #[inline(always)]
-    fn hyp0f0(self) -> Self {
+    fn hyp0f0(&self) -> Self {
         self.exp()
     }
 
     #[inline(always)]
-    fn hyp1f0(self, a: f64) -> Self {
+    fn hyp1f0(&self, a: f64) -> Self {
         if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
             f64::NAN.into()
         } else {
@@ -166,8 +166,8 @@ impl HypergeometricArg for num_complex::Complex<f64> {
     }
 
     #[inline(always)]
-    fn hyp0f1(self, b: f64) -> Self {
-        _hyp0f1_cmplx(b, self)
+    fn hyp0f1(&self, b: f64) -> Self {
+        _hyp0f1_cmplx(b, *self)
     }
 }
 
