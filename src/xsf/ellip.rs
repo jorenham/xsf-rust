@@ -82,6 +82,11 @@ mod tests {
 
     #[test]
     fn test_ellipj() {
-        crate::xsref::test("ellipj", "d_d-d_d_d_d", |x| crate::ellipj(x[0], x[1]));
+        // the `.sin().asin()` is a workaround for https://github.com/scipy/xsref/issues/11
+        crate::xsref::test("ellipj", "d_d-d_d_d_d", |x| {
+            let (sn, cn, dn, _) = crate::ellipj(x[0], x[1]);
+            // (sn, cn, dn, am.sin().asin())
+            (sn, cn, dn, sn.asin())
+        });
     }
 }
