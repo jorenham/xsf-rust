@@ -774,9 +774,8 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
 
 #[cfg(test)]
 mod tests {
-    use num_complex::c64;
-
     use crate::np_assert_allclose;
+    use num_complex::c64;
 
     // Bessel J
 
@@ -1009,8 +1008,10 @@ mod tests {
 
     #[test]
     fn test_it2j0y0() {
-        // xsref table contains incorrect values for it2j0y0: https://github.com/scipy/xsref/issues/10
-        // Using manually verified values from Wolfram Language instead.
+        // This xsref table contains incorrect values for the 4th integral,
+        // see https://github.com/scipy/xsref/issues/10.
+        // So we instead use values that were verified using a Wolfram notebook.
+
         // crate::xsref::test("it2j0y0", "d-d_d", |x| crate::it2j0y0(x[0]));
 
         let xs = [-1.0, 10.0, -10.0, 1.0, 0.2];
