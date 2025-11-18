@@ -9,8 +9,9 @@ use num_complex::{Complex, c64};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::errors::ParquetError;
 
-use crate::extended_absolute_error;
-use crate::xsf::fp_error_metrics::{ExtendedErrorArg, extended_relative_error};
+use crate::xsf::fp_error_metrics::{
+    ExtendedErrorArg, extended_absolute_error, extended_relative_error,
+};
 
 pub(crate) trait TestOutputValue: ExtendedErrorArg + Copy + Display {
     fn magnitude(&self) -> f64;
@@ -74,9 +75,7 @@ pub(crate) trait TestOutput: Copy + PartialEq {
         self.values()
             .iter()
             .zip(expected.values().iter())
-            .map(|(&a, &e)| {
-                extended_relative_error(a, e).min(extended_absolute_error(a, e))
-            })
+            .map(|(&a, &e)| extended_relative_error(a, e).min(extended_absolute_error(a, e)))
             .fold(0.0, |acc, x| acc.max(x))
     }
 
@@ -342,17 +341,14 @@ where
     let mut worst_desired = String::new();
 
     for case in cases.iter() {
-        // skip big and tiny inputs
-        if case
-            .inputs
-            .iter()
-            .any(|&x| x.abs() >= 100.0 || (x.abs() <= 1e-15 && x != 0.0))
-        {
+        // skip big inputs, as these tend to have inaccurate xsref values
+        if case.inputs.iter().any(|&x| x.abs() >= 1e3) {
             continue;
         }
 
         if name == "ellipj" && case.inputs[1] < 0.0 {
-            // ellipj is only defined for 0 <= m <= 1
+            // ellipj is only defined for 0 <= m <= 1, see
+            // https://github.com/scipy/xsref/issues/11#issuecomment-3545242126
             continue;
         }
 
@@ -376,11 +372,17 @@ where
                 failed += 1;
             }
         } else {
-            let max_error = if name == "ellipj" || name == "itairy" {
+            let max_error = if name == "itairy" {
                 // https://github.com/scipy/xsref/issues/12
-                5e-8
+                5.0e-8
+            } else if name == "ellipj" {
+                // inaccurate xsref table for `ellipj`
+                1.5e-9
+            } else if name == "airy" {
+                // inaccurate xsref table for `airy`
+                1.5e-11
             } else {
-                case.tolerance.max(f64::EPSILON) * 3000.0
+                (case.tolerance * 16.0).max(1.5e-12)
             };
             let error = actual.error(desired);
 
