@@ -37,7 +37,11 @@ impl TestOutputValue for Complex<f64> {
 
     #[inline(always)]
     fn format(&self) -> String {
-        format!("{:.3e}+{:.3e}i", self.re, self.im)
+        if self.im >= 0.0 {
+            format!("{:.3e}+{:.3e}i", self.re, self.im)
+        } else {
+            format!("{:.3e}{:.3e}i", self.re, self.im)
+        }
     }
 }
 
@@ -71,10 +75,7 @@ pub(crate) trait TestOutput: Copy + PartialEq {
             .iter()
             .zip(expected.values().iter())
             .map(|(&a, &e)| {
-                extended_relative_error(a, e)
-                    .min(extended_absolute_error(e, a))
-                    .min(extended_absolute_error(a, e))
-                    .min(extended_absolute_error(e, a))
+                extended_relative_error(a, e).min(extended_absolute_error(a, e))
             })
             .fold(0.0, |acc, x| acc.max(x))
     }

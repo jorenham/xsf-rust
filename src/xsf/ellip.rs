@@ -82,11 +82,12 @@ mod tests {
 
     #[test]
     fn test_ellipj() {
-        // the `.sin().asin()` is a workaround for https://github.com/scipy/xsref/issues/11
+        // Workaround for https://github.com/scipy/xsref/issues/11:
+        // The xsref table contains incorrect values for the phase φ (am),
+        // so we reconstruct it from sn using sn.asin()
         crate::xsref::test("ellipj", "d_d-d_d_d_d", |x| {
             let (sn, cn, dn, _) = crate::ellipj(x[0], x[1]);
-            // (sn, cn, dn, am.sin().asin())
-            (sn, cn, dn, sn.asin())
+            (sn, cn, dn, am.sin().asin())
         });
     }
 }

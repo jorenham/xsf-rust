@@ -1009,11 +1009,11 @@ mod tests {
 
     #[test]
     fn test_it2j0y0() {
-        // xsref table is wrong: https://github.com/scipy/xsref/issues/10
+        // xsref table contains incorrect values for it2j0y0: https://github.com/scipy/xsref/issues/10
+        // Using manually verified values from Wolfram Language instead.
         // crate::xsref::test("it2j0y0", "d-d_d", |x| crate::it2j0y0(x[0]));
 
         let xs = [-1.0, 10.0, -10.0, 1.0, 0.2];
-        // values calculated using the wolfram language
         let expect_0 = [
             0.12116524699506871,
             2.177866420093336,
