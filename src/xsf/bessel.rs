@@ -774,6 +774,7 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
 
 #[cfg(test)]
 mod tests {
+    use crate::np_assert_allclose;
     use num_complex::c64;
 
     // Bessel J
@@ -975,29 +976,7 @@ mod tests {
     /// Based on `scipy.special.tests.test_basic.TestBessel.test_jnyn_zeros`
     #[test]
     fn test_bessel_zeros() {
-        // jnz = special.jnyn_zeros(1, 5)
         let jnz = crate::bessel_zeros::<5>(1);
-        // assert_allclose(jnz, (array([3.83171,
-        //                              7.01559,
-        //                              10.17347,
-        //                              13.32369,
-        //                              16.47063]),
-        //                       array([1.84118,
-        //                              5.33144,
-        //                              8.53632,
-        //                              11.70600,
-        //                              14.86359]),
-        //                       array([2.19714,
-        //                              5.42968,
-        //                              8.59601,
-        //                              11.74915,
-        //                              14.89744]),
-        //                       array([3.68302,
-        //                              6.94150,
-        //                              10.12340,
-        //                              13.28576,
-        //                              16.44006])),
-        //                 atol=1.5e-5, rtol=0)
         crate::np_assert_allclose!(
             jnz[0].as_ref(),
             &[3.83171, 7.01559, 10.17347, 13.32369, 16.47063],
@@ -1029,7 +1008,29 @@ mod tests {
 
     #[test]
     fn test_it2j0y0() {
-        crate::xsref::test("it2j0y0", "d-d_d", |x| crate::it2j0y0(x[0]));
+        // This xsref table contains incorrect values for the 4th integral,
+        // see https://github.com/scipy/xsref/issues/10.
+        // So we instead use values that were verified using a Wolfram notebook.
+
+        // crate::xsref::test("it2j0y0", "d-d_d", |x| crate::it2j0y0(x[0]));
+
+        let xs = [-1.0, 10.0, -10.0, 1.0, 0.2];
+        let expect_0 = [
+            0.12116524699506871,
+            2.177866420093336,
+            2.177866420093336,
+            0.12116524699506871,
+            0.004993754627460185,
+        ];
+        let expect_1 = [
+            f64::NAN,
+            -0.02298793356465965,
+            f64::NAN,
+            0.3952729016992932,
+            -0.43423067011231634,
+        ];
+        np_assert_allclose!(xs.map(|x| crate::it2j0y0(x).0), expect_0);
+        np_assert_allclose!(xs.map(|x| crate::it2j0y0(x).1), expect_1);
     }
 
     #[test]
