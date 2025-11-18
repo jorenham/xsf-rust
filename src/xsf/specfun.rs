@@ -121,6 +121,11 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
+#[inline(always)]
+fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::hypu(a, b, x) }
+}
+
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
 ///
 /// Corresponds to [`scipy.special.hyperu`][hyperu] in SciPy.
@@ -144,7 +149,26 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::hypu(a, b, x) }
+    if a.is_nan() || b.is_nan() || x.is_nan() {
+        f64::NAN
+    } else if x < 0.0 {
+        // Domain error
+        f64::NAN
+    } else if x == 0.0 {
+        if b > 1.0 {
+            // Singular. DMLF 13.2.16-18
+            f64::INFINITY
+        } else {
+            // DLMF 13.2.14-15 and 13.2.19-21
+            unsafe { crate::ffi::xsf::poch(1.0 - b + a, -a) }
+        }
+    } else if x < 1.0 && b == 1.0 && a > -0.25 && a < 0.3 {
+        // DLMF 13.3.7. Fixes scipy/scipy#15650
+        let a1 = a + 1.0;
+        (x + a + a1) * xsf_hypu(a1, 1.0, x) - a1 * a1 * xsf_hypu(a + 2.0, 1.0, x)
+    } else {
+        xsf_hypu(a, b, x)
+    }
 }
 
 /// Associated Legendre function for `|x| ≤ 1`
