@@ -1,14 +1,13 @@
-use core::any::Any;
 use core::fmt::Display;
 use std::fs::File;
 use std::io::Error as IOError;
 use std::path::PathBuf;
 
-use arrow::array::{Array, Float64Array, Int32Array, Int64Array};
-use arrow::error::ArrowError;
 use num_complex::{Complex, c64};
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::errors::ParquetError;
+use polars::error::PolarsError;
+use polars::io::SerReader;
+use polars::io::parquet::read::ParquetReader;
+use polars::prelude::{AnyValue, DataFrame};
 
 use crate::xsf::fp_error_metrics::{
     ExtendedErrorArg, extended_absolute_error, extended_relative_error,
@@ -198,84 +197,55 @@ impl From<IOError> for TestError {
     }
 }
 
-impl From<ArrowError> for TestError {
+impl From<PolarsError> for TestError {
     #[inline(always)]
-    fn from(_: arrow::error::ArrowError) -> Self {
+    fn from(_: PolarsError) -> Self {
         TestError::DataFormat
     }
 }
+fn read_parquet_df(file: File) -> Result<DataFrame, TestError> {
+    Ok(ParquetReader::new(file).finish()?)
+}
 
-impl From<ParquetError> for TestError {
-    #[inline(always)]
-    fn from(_: ParquetError) -> Self {
-        TestError::DataFormat
+fn any_value_to_f64(value: AnyValue<'_>) -> Result<f64, TestError> {
+    if matches!(value, AnyValue::Null) {
+        return Ok(f64::NAN);
     }
+
+    value.try_extract::<f64>().map_err(TestError::from)
 }
 
-fn map_parquet_batches<T, U, F>(file: File, f: F) -> Vec<T>
-where
-    U: IntoIterator<Item = T>,
-    F: FnMut(arrow::array::RecordBatch) -> U,
-{
-    ParquetRecordBatchReaderBuilder::try_new(file)
-        .unwrap()
-        .build()
-        .unwrap()
-        .map(|batch| batch.unwrap())
-        .flat_map(f)
-        .collect()
-}
+fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
+    let df = read_parquet_df(file)?;
+    let height = df.height();
+    let width = df.width();
+    let mut rows = Vec::with_capacity(height);
 
-fn map_parquet_columns<T, F>(file: File, mut f: F) -> Vec<Vec<T>>
-where
-    F: FnMut(usize, &dyn Any) -> Option<T>,
-{
-    map_parquet_batches(file, move |batch| {
-        let mut rows = Vec::with_capacity(batch.num_rows());
-        for row_idx in 0..batch.num_rows() {
-            let mut row = Vec::new();
-            for col in batch.columns().iter() {
-                if let Some(value) = f(row_idx, col.as_any()) {
-                    row.push(value);
-                }
-            }
-            rows.push(row);
+    for row_idx in 0..height {
+        let mut row = Vec::with_capacity(width);
+        for series in df.get_columns() {
+            row.push(any_value_to_f64(series.get(row_idx)?)?);
         }
-        rows
-    })
+        rows.push(row);
+    }
+
+    Ok(rows)
 }
 
-fn read_parquet_rows(file: File) -> Vec<Vec<f64>> {
-    map_parquet_columns(file, |row_idx, col| {
-        col.downcast_ref::<Float64Array>()
-            .map(|arr| arr.value(row_idx))
-            .or_else(|| {
-                col.downcast_ref::<Int32Array>()
-                    .map(|arr| arr.value(row_idx) as f64)
-            })
-            .or_else(|| {
-                col.downcast_ref::<Int64Array>()
-                    .map(|arr| arr.value(row_idx) as f64)
-            })
-    })
+fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
+    let df = read_parquet_df(file)?;
+    let column = df.get_columns().first().ok_or(TestError::DataFormat)?;
+    let mut values = Vec::with_capacity(column.len());
+
+    for idx in 0..column.len() {
+        values.push(any_value_to_f64(column.get(idx)?)?);
+    }
+
+    Ok(values)
 }
 
-fn read_parquet_column(file: File) -> Vec<f64> {
-    map_parquet_batches(file, |batch| {
-        batch
-            .column(0)
-            .as_any()
-            .downcast_ref::<Float64Array>()
-            .map(|arr| arr.values().to_vec())
-            .unwrap_or_else(Vec::new)
-    })
-}
-
-fn read_parquet_output<T: TestOutput>(file: File) -> Vec<T> {
-    T::from_parquet_rows(map_parquet_columns(file, |row_idx, col| {
-        col.downcast_ref::<Float64Array>()
-            .map(|arr| arr.value(row_idx))
-    }))
+fn read_parquet_output<T: TestOutput>(file: File) -> Result<Vec<T>, TestError> {
+    Ok(T::from_parquet_rows(read_parquet_rows(file)?))
 }
 
 fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T>>, TestError> {
@@ -285,9 +255,9 @@ fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T
 
     let open = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
 
-    let table_in = read_parquet_rows(open(&format!("In_{sig}"))?);
-    let table_out = read_parquet_output::<T>(open(&format!("Out_{sig}"))?);
-    let table_err = read_parquet_column(open(&format!("Err_{sig}_other"))?);
+    let table_in = read_parquet_rows(open(&format!("In_{sig}"))?)?;
+    let table_out = read_parquet_output::<T>(open(&format!("Out_{sig}"))?)?;
+    let table_err = read_parquet_column(open(&format!("Err_{sig}_other"))?)?;
 
     let test_cases = (0..table_in.len())
         .map(|i| TestCase {

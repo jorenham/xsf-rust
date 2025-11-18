@@ -24,5 +24,4 @@ cc = "1.2.45"
 bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
 
 [dev-dependencies]
-arrow = { version = "57.0.0", default-features = false }
-parquet = { version = "57.0.0", default-features = false, features = ["arrow", "zstd"] }
+polars = { version = "0.52.0", default-features = false, features = ["polars-io", "parquet"] }
