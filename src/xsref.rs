@@ -300,13 +300,14 @@ fn load_testcases<T: TestOutput>(
     let table_in = read_parquet_rows(get_table(&format!("In_{signature}"))?);
     let table_out = read_parquet_output::<T>(get_table(&format!("Out_{signature}"))?);
 
-    let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
-        "gcc-linux-x86_64"
-    } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
-        "clang-darwin-aarch64"
-    } else {
-        "other"
-    };
+    let platform = "other";
+    // let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
+    //     "gcc-linux-x86_64"
+    // } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
+    //     "clang-darwin-aarch64"
+    // } else {
+    //     "other"
+    // };
 
     let table_err_file = get_table(&format!("Err_{signature}_{platform}"))
         .or_else(|_| get_table(&format!("Err_{signature}_other")))?;
