@@ -7,7 +7,7 @@ use num_complex::{Complex, c64};
 use polars::error::PolarsError;
 use polars::io::SerReader;
 use polars::io::parquet::read::ParquetReader;
-use polars::prelude::{AnyValue, DataFrame};
+use polars::prelude::{AnyValue, Column, DataFrame};
 
 use crate::xsf::fp_error_metrics::{
     ExtendedErrorArg, extended_absolute_error, extended_relative_error,
@@ -203,18 +203,49 @@ impl From<PolarsError> for TestError {
         TestError::DataFormat
     }
 }
+
+#[inline]
 fn read_parquet_df(file: File) -> Result<DataFrame, TestError> {
     Ok(ParquetReader::new(file).finish()?)
 }
 
-fn any_value_to_f64(value: AnyValue<'_>) -> Result<f64, TestError> {
-    if matches!(value, AnyValue::Null) {
-        return Ok(f64::NAN);
+#[inline]
+fn for_each_column_value<F>(column: &Column, mut f: F) -> Result<(), TestError>
+where
+    F: FnMut(f64) -> Result<(), TestError>,
+{
+    let series = column.as_materialized_series();
+
+    macro_rules! consume_chunked {
+        ($method:ident, $cast:expr) => {
+            if let Ok(ca) = series.$method() {
+                for value in ca {
+                    let value = value.map($cast).unwrap_or(f64::NAN);
+                    f(value)?;
+                }
+                return Ok(());
+            }
+        };
     }
 
-    value.try_extract::<f64>().map_err(TestError::from)
+    consume_chunked!(f64, |v: f64| v);
+    consume_chunked!(i64, |v: i64| v as f64);
+    consume_chunked!(i32, |v: i32| v as f64);
+
+    for value in series.iter() {
+        let _ = f(match value {
+            AnyValue::Null => f64::NAN,
+            AnyValue::Float64(v) => v,
+            AnyValue::Int64(v) => v as f64,
+            AnyValue::Int32(v) => v as f64,
+            _ => value.try_extract::<f64>().map_err(TestError::from)?,
+        });
+    }
+
+    Ok(())
 }
 
+#[inline]
 fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
     let df = read_parquet_df(file)?;
     let height = df.height();
@@ -222,27 +253,40 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
     let mut rows = vec![Vec::with_capacity(width); height];
 
     for column in df.get_columns() {
-        let series = column.as_materialized_series();
-        for (row_idx, value) in series.iter().enumerate() {
-            rows[row_idx].push(any_value_to_f64(value)?);
+        let mut row_idx = 0;
+        for_each_column_value(column, |value| {
+            if row_idx >= rows.len() {
+                Err(TestError::DataFormat)
+            } else {
+                rows[row_idx].push(value);
+                row_idx += 1;
+                Ok(())
+            }
+        })?;
+
+        if row_idx != height {
+            return Err(TestError::DataFormat);
         }
     }
 
     Ok(rows)
 }
 
+#[inline]
 fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
     let df = read_parquet_df(file)?;
     let column = df.get_columns().first().ok_or(TestError::DataFormat)?;
-    let series = column.as_materialized_series();
+    let mut values = Vec::with_capacity(df.height());
 
-    series.iter().map(any_value_to_f64).collect()
+    for_each_column_value(column, |value| {
+        values.push(value);
+        Ok(())
+    })?;
+
+    Ok(values)
 }
 
-fn read_parquet_output<T: TestOutput>(file: File) -> Result<Vec<T>, TestError> {
-    Ok(T::from_parquet_rows(read_parquet_rows(file)?))
-}
-
+#[inline]
 fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T>>, TestError> {
     let tables_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("xsref/tables/scipy_special_tests")
@@ -251,7 +295,7 @@ fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T
     let open = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
 
     let table_in = read_parquet_rows(open(&format!("In_{sig}"))?)?;
-    let table_out = read_parquet_output::<T>(open(&format!("Out_{sig}"))?)?;
+    let table_out = T::from_parquet_rows(read_parquet_rows(open(&format!("Out_{sig}"))?)?);
     let table_err = read_parquet_column(open(&format!("Err_{sig}_other"))?)?;
 
     let test_cases = (0..table_in.len())
@@ -265,7 +309,7 @@ fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T
     Ok(test_cases)
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn test<T, F>(name: &str, signature: &str, test_fn: F)
 where
     T: TestOutput + std::fmt::Debug,
@@ -273,10 +317,10 @@ where
 {
     let mut failed = 0;
     let mut total = 0;
-    let mut worst_error = -1.0;
-    let mut worst_input = Vec::new();
+    let mut worst_err = -1.0;
+    let mut worst_in = Vec::new();
     let mut worst_actual = String::new();
-    let mut worst_desired = String::new();
+    let mut worst_expect = String::new();
 
     let cases = load_testcases::<T>(name, signature).unwrap();
     for case in cases.iter() {
@@ -316,11 +360,11 @@ where
 
         if error > max_error {
             failed += 1;
-            if error > worst_error {
-                worst_error = error;
-                worst_input = case.r#in.clone();
+            if error > worst_err {
+                worst_err = error;
+                worst_in = case.r#in.clone();
                 worst_actual = actual.format();
-                worst_desired = desired.format();
+                worst_expect = desired.format();
             }
         }
         total += 1;
@@ -334,7 +378,7 @@ where
 
     assert!(
         failed == 0,
-        "{name}: {failed}/{total} tests failed, worst case for {worst_input:?} \
-        (actual={worst_actual}; desired={worst_desired}; error={worst_error:.2e})",
+        "{name}: {failed}/{total} tests failed, worst case for {worst_in:?} \
+        (actual={worst_actual}; desired={worst_expect}; error={worst_err:.2e})",
     );
 }
