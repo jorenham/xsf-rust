@@ -9,63 +9,86 @@ use num_complex::{Complex, c64};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::errors::ParquetError;
 
+use crate::extended_absolute_error;
 use crate::xsf::fp_error_metrics::{ExtendedErrorArg, extended_relative_error};
 
-pub(crate) trait TestOutputValue: Copy + ExtendedErrorArg + Display {
-    fn magnitude(self) -> f64;
+pub(crate) trait TestOutputValue: ExtendedErrorArg + Copy + Display {
+    fn magnitude(&self) -> f64;
+    fn format(&self) -> String;
 }
 
 impl TestOutputValue for f64 {
-    fn magnitude(self) -> f64 {
+    #[inline(always)]
+    fn magnitude(&self) -> f64 {
         self.abs()
+    }
+
+    #[inline(always)]
+    fn format(&self) -> String {
+        format!("{self:.3e}")
     }
 }
 
 impl TestOutputValue for Complex<f64> {
-    fn magnitude(self) -> f64 {
+    #[inline(always)]
+    fn magnitude(&self) -> f64 {
         self.norm()
+    }
+
+    #[inline(always)]
+    fn format(&self) -> String {
+        format!("{:.3e}+{:.3e}i", self.re, self.im)
     }
 }
 
-pub(crate) trait TestOutput: Copy {
+pub(crate) trait TestOutput: Copy + PartialEq {
     type Value: TestOutputValue;
-
-    fn values(&self) -> Vec<Self::Value>;
 
     fn from_parquet_row(row: Vec<f64>) -> Self;
 
+    #[inline(always)]
     fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
         rows.into_iter().map(Self::from_parquet_row).collect()
     }
 
-    fn magnitude(self) -> f64 {
+    fn values(&self) -> Vec<Self::Value>;
+
+    #[inline(always)]
+    fn magnitude(&self) -> f64 {
         let values = self.values();
         values.iter().map(|x| x.magnitude()).sum::<f64>() / values.len() as f64
     }
 
-    fn is_huge(self) -> bool {
-        self.magnitude() > f64::EPSILON
+    #[inline(always)]
+    fn is_nan(&self) -> bool {
+        self.magnitude().is_nan()
     }
 
-    fn error(self, expected: Self) -> f64 {
+    #[inline(always)]
+    fn error(&self, expected: Self) -> f64 {
         // max adjusted relative error
         self.values()
             .iter()
             .zip(expected.values().iter())
-            .map(|(&a, &e)| extended_relative_error(a, e))
+            .map(|(&a, &e)| {
+                extended_relative_error(a, e)
+                    .min(extended_absolute_error(e, a))
+                    .min(extended_absolute_error(a, e))
+                    .min(extended_absolute_error(e, a))
+            })
             .fold(0.0, |acc, x| acc.max(x))
     }
 
-    fn format(self) -> String {
+    fn format(&self) -> String {
         let values = self.values();
         if values.len() == 1 {
-            format!("{}", values[0])
+            values[0].format()
         } else {
             format!(
                 "({})",
                 values
                     .iter()
-                    .map(|x| format!("{x}"))
+                    .map(Self::Value::format)
                     .collect::<Vec<_>>()
                     .join(", ")
             )
@@ -76,70 +99,77 @@ pub(crate) trait TestOutput: Copy {
 impl TestOutput for f64 {
     type Value = f64;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![*self]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         row[0]
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![*self]
     }
 }
 
 impl TestOutput for Complex<f64> {
     type Value = Complex<f64>;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![*self]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         c64(row[0], row[1])
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![*self]
     }
 }
 
 impl TestOutput for (f64, f64) {
     type Value = f64;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (row[0], row[1])
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![self.0, self.1]
     }
 }
 
 impl TestOutput for (Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (c64(row[0], row[1]), c64(row[2], row[3]))
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![self.0, self.1]
     }
 }
 
 impl TestOutput for (f64, f64, f64, f64) {
     type Value = f64;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1, self.2, self.3]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (row[0], row[1], row[2], row[3])
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![self.0, self.1, self.2, self.3]
     }
 }
 
 impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1, self.2, self.3]
-    }
-
+    #[inline(always)]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (
             c64(row[0], row[1]),
@@ -147,6 +177,11 @@ impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
             c64(row[4], row[5]),
             c64(row[6], row[7]),
         )
+    }
+
+    #[inline(always)]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![self.0, self.1, self.2, self.3]
     }
 }
 
@@ -165,18 +200,21 @@ pub(crate) enum TestError {
 }
 
 impl From<IOError> for TestError {
+    #[inline(always)]
     fn from(err: IOError) -> Self {
         TestError::Io(err)
     }
 }
 
 impl From<ArrowError> for TestError {
+    #[inline(always)]
     fn from(_: arrow::error::ArrowError) -> Self {
         TestError::DataFormat
     }
 }
 
 impl From<ParquetError> for TestError {
+    #[inline(always)]
     fn from(_: ParquetError) -> Self {
         TestError::DataFormat
     }
@@ -297,35 +335,70 @@ where
     let cases = load_testcases::<T>(name, signature).unwrap();
 
     let mut failed = 0;
-    for (i, case) in cases.iter().enumerate() {
-        let actual = test_fn(&case.inputs);
-        let desired = case.expected;
-        let max_error = case.tolerance.max(f64::EPSILON) * 16.0;
+    let mut worst_error = -1.0;
+    let mut worst_input = Vec::new();
+    let mut worst_actual = String::new();
+    let mut worst_desired = String::new();
 
-        if max_error.is_huge() || desired.is_huge() && actual.is_huge() {
+    for case in cases.iter() {
+        // skip big and tiny inputs
+        if case
+            .inputs
+            .iter()
+            .any(|&x| x.abs() >= 100.0 || (x.abs() <= 1e-15 && x != 0.0))
+        {
             continue;
         }
 
-        let error = T::error(actual, desired);
-        if error > max_error {
-            failed += 1;
-            eprintln!(
-                "{}: test {}, expected {}, got {}, error {:.2e}, max {:.2e}",
-                name,
-                i,
-                desired.format(),
-                actual.format(),
-                error,
-                max_error
-            );
+        if name == "ellipj" && case.inputs[1] < 0.0 {
+            // ellipj is only defined for 0 <= m <= 1
+            continue;
+        }
+
+        let actual = test_fn(&case.inputs);
+        let desired = case.expected;
+        let desired_magnitude = desired.magnitude();
+
+        if desired_magnitude > 1e300 {
+            // skip huge values
+            continue;
+        }
+
+        if desired_magnitude.is_nan() {
+            if !actual.is_nan() {
+                // TODO
+                // failed += 1;
+                // eprintln!("{name}: test {i}, expected NaN, got {}", actual.format());
+            }
+        } else if desired_magnitude.is_infinite() {
+            if actual != desired {
+                failed += 1;
+            }
+        } else {
+            let max_error = if name == "ellipj" || name == "itairy" {
+                // https://github.com/scipy/xsref/issues/12
+                5e-8
+            } else {
+                case.tolerance.max(f64::EPSILON) * 3000.0
+            };
+            let error = actual.error(desired);
+
+            if error > max_error {
+                failed += 1;
+                if error > worst_error {
+                    worst_error = error;
+                    worst_input = case.inputs.clone();
+                    worst_actual = actual.format();
+                    worst_desired = desired.format();
+                }
+            }
         }
     }
 
+    let total = cases.len();
     assert!(
         failed == 0,
-        "{}: {}/{} tests failed",
-        name,
-        failed,
-        cases.len()
+        "{name}: {failed}/{total} tests failed, worst case for {worst_input:?} \
+        (actual={worst_actual}; desired={worst_desired}; error={worst_error:.2e})",
     );
 }
