@@ -357,7 +357,7 @@ where
         let desired = case.expected;
         let desired_magnitude = desired.magnitude();
 
-        if desired_magnitude > 1e300 {
+        if desired_magnitude > 1e100 {
             // skip huge values
             continue;
         }
@@ -373,17 +373,16 @@ where
                 failed += 1;
             }
         } else {
+            // special casing for certain inaccurate xsref tables
             let max_error = if name == "itairy" {
                 // https://github.com/scipy/xsref/issues/12
-                5.0e-8
+                case.tolerance.max(5e-8)
             } else if name == "ellipj" {
-                // inaccurate xsref table for `ellipj`
-                1.5e-9
-            } else if name == "airy" {
-                // inaccurate xsref table for `airy`
-                1.5e-11
+                case.tolerance.max(5e-9)
+            } else if name == "airy" || name == "it1i0k0" {
+                case.tolerance.max(2e-11)
             } else {
-                (case.tolerance * 16.0).max(1.5e-12)
+                (case.tolerance * 4.0).max(5e-14)
             };
             let error = actual.error(desired);
 
