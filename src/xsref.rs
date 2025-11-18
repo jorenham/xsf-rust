@@ -1,3 +1,4 @@
+use core::any::Any;
 use core::fmt::Display;
 use std::fs::File;
 use std::io::Error as IOError;
@@ -26,7 +27,7 @@ impl TestOutputValue for f64 {
 
     #[inline(always)]
     fn format(&self) -> String {
-        format!("{self:.3e}")
+        format!("{self:.5e}")
     }
 }
 
@@ -38,11 +39,7 @@ impl TestOutputValue for Complex<f64> {
 
     #[inline(always)]
     fn format(&self) -> String {
-        if self.im >= 0.0 {
-            format!("{:.3e}+{:.3e}i", self.re, self.im)
-        } else {
-            format!("{:.3e}{:.3e}i", self.re, self.im)
-        }
+        format!("{:.5e}{:+.5e}i", self.re, self.im)
     }
 }
 
@@ -62,11 +59,6 @@ pub(crate) trait TestOutput: Copy + PartialEq {
     fn magnitude(&self) -> f64 {
         let values = self.values();
         values.iter().map(|x| x.magnitude()).sum::<f64>() / values.len() as f64
-    }
-
-    #[inline(always)]
-    fn is_nan(&self) -> bool {
-        self.magnitude().is_nan()
     }
 
     #[inline(always)]
@@ -187,9 +179,9 @@ impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
 
 #[derive(Debug)]
 struct TestCase<T: TestOutput> {
-    pub inputs: Vec<f64>,
-    pub expected: T,
-    pub tolerance: f64,
+    pub r#in: Vec<f64>,
+    pub out: T,
+    pub err: f64,
 }
 
 #[derive(Debug)]
@@ -220,109 +212,90 @@ impl From<ParquetError> for TestError {
     }
 }
 
-fn read_parquet_rows(file: File) -> Vec<Vec<f64>> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let reader = builder.build().unwrap();
+fn map_parquet_batches<T, U, F>(file: File, f: F) -> Vec<T>
+where
+    U: IntoIterator<Item = T>,
+    F: FnMut(arrow::array::RecordBatch) -> U,
+{
+    ParquetRecordBatchReaderBuilder::try_new(file)
+        .unwrap()
+        .build()
+        .unwrap()
+        .map(|batch| batch.unwrap())
+        .flat_map(f)
+        .collect()
+}
 
-    let mut rows = Vec::new();
-    for batch_result in reader {
-        let batch = batch_result.unwrap();
+fn map_parquet_columns<T, F>(file: File, mut f: F) -> Vec<Vec<T>>
+where
+    F: FnMut(usize, &dyn Any) -> Option<T>,
+{
+    map_parquet_batches(file, move |batch| {
+        let mut rows = Vec::with_capacity(batch.num_rows());
         for row_idx in 0..batch.num_rows() {
             let mut row = Vec::new();
-            for col_idx in 0..batch.num_columns() {
-                let column = batch.column(col_idx).as_any();
-                if let Some(f64_array) = column.downcast_ref::<Float64Array>() {
-                    row.push(f64_array.value(row_idx));
-                } else if let Some(i32_array) = column.downcast_ref::<Int32Array>() {
-                    row.push(i32_array.value(row_idx) as f64);
-                } else if let Some(i64_array) = column.downcast_ref::<Int64Array>() {
-                    row.push(i64_array.value(row_idx) as f64);
+            for col in batch.columns().iter() {
+                if let Some(value) = f(row_idx, col.as_any()) {
+                    row.push(value);
                 }
             }
             rows.push(row);
         }
-    }
-    rows
+        rows
+    })
+}
+
+fn read_parquet_rows(file: File) -> Vec<Vec<f64>> {
+    map_parquet_columns(file, |row_idx, col| {
+        col.downcast_ref::<Float64Array>()
+            .map(|arr| arr.value(row_idx))
+            .or_else(|| {
+                col.downcast_ref::<Int32Array>()
+                    .map(|arr| arr.value(row_idx) as f64)
+            })
+            .or_else(|| {
+                col.downcast_ref::<Int64Array>()
+                    .map(|arr| arr.value(row_idx) as f64)
+            })
+    })
 }
 
 fn read_parquet_column(file: File) -> Vec<f64> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let reader = builder.build().unwrap();
-
-    let mut values = Vec::new();
-    for batch in reader {
-        if let Some(column) = batch
-            .unwrap()
+    map_parquet_batches(file, |batch| {
+        batch
             .column(0)
             .as_any()
             .downcast_ref::<Float64Array>()
-        {
-            values.extend(column.iter().map(|v| v.unwrap()));
-        }
-    }
-    values
+            .map(|arr| arr.values().to_vec())
+            .unwrap_or_else(Vec::new)
+    })
 }
 
 fn read_parquet_output<T: TestOutput>(file: File) -> Vec<T> {
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-    let reader = builder.build().unwrap();
-
-    let mut rows = Vec::new();
-    for batch_result in reader {
-        let batch = batch_result.unwrap();
-        for row_idx in 0..batch.num_rows() {
-            let mut row = Vec::new();
-            for col_idx in 0..batch.num_columns() {
-                if let Some(f64_array) = batch
-                    .column(col_idx)
-                    .as_any()
-                    .downcast_ref::<Float64Array>()
-                {
-                    row.push(f64_array.value(row_idx));
-                }
-            }
-            rows.push(row);
-        }
-    }
-    T::from_parquet_rows(rows)
+    T::from_parquet_rows(map_parquet_columns(file, |row_idx, col| {
+        col.downcast_ref::<Float64Array>()
+            .map(|arr| arr.value(row_idx))
+    }))
 }
 
-fn load_testcases<T: TestOutput>(
-    name: &str,
-    signature: &str,
-) -> Result<Vec<TestCase<T>>, TestError> {
+fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T>>, TestError> {
     let tables_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("xsref/tables/scipy_special_tests")
         .join(name);
 
-    let get_table = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
+    let open = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
 
-    let table_in = read_parquet_rows(get_table(&format!("In_{signature}"))?);
-    let table_out = read_parquet_output::<T>(get_table(&format!("Out_{signature}"))?);
+    let table_in = read_parquet_rows(open(&format!("In_{sig}"))?);
+    let table_out = read_parquet_output::<T>(open(&format!("Out_{sig}"))?);
+    let table_err = read_parquet_column(open(&format!("Err_{sig}_other"))?);
 
-    let platform = "other";
-    // let platform = if cfg!(all(target_arch = "x86_64", target_os = "linux")) {
-    //     "gcc-linux-x86_64"
-    // } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
-    //     "clang-darwin-aarch64"
-    // } else {
-    //     "other"
-    // };
-
-    let table_err_file = get_table(&format!("Err_{signature}_{platform}"))
-        .or_else(|_| get_table(&format!("Err_{signature}_other")))?;
-    let table_err = read_parquet_column(table_err_file);
-
-    let test_cases = table_in
-        .into_iter()
-        .zip(table_out)
-        .zip(table_err)
-        .map(|((inputs, expected), tolerance)| TestCase {
-            inputs,
-            expected,
-            tolerance,
+    let test_cases = (0..table_in.len())
+        .map(|i| TestCase {
+            r#in: table_in[i].clone(),
+            out: table_out[i],
+            err: table_err[i],
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     Ok(test_cases)
 }
@@ -333,67 +306,55 @@ where
     T: TestOutput,
     F: Fn(&[f64]) -> T,
 {
-    let cases = load_testcases::<T>(name, signature).unwrap();
-
     let mut failed = 0;
     let mut worst_error = -1.0;
     let mut worst_input = Vec::new();
     let mut worst_actual = String::new();
     let mut worst_desired = String::new();
 
+    let cases = load_testcases::<T>(name, signature).unwrap();
     for case in cases.iter() {
         // skip big inputs, as these tend to have inaccurate xsref values
-        if case.inputs.iter().any(|&x| x.abs() >= 1e3) {
+        if case.r#in.iter().any(|&x| x.abs() >= 1e3) {
             continue;
         }
 
-        if name == "ellipj" && case.inputs[1] < 0.0 {
+        if name == "ellipj" && case.r#in[1] < 0.0 {
             // ellipj is only defined for 0 <= m <= 1, see
             // https://github.com/scipy/xsref/issues/11#issuecomment-3545242126
             continue;
         }
 
-        let actual = test_fn(&case.inputs);
-        let desired = case.expected;
+        let desired = case.out;
         let desired_magnitude = desired.magnitude();
 
-        if desired_magnitude > 1e100 {
-            // skip huge values
+        if desired_magnitude > 1e100 || desired_magnitude.is_nan() {
+            // skip NaN's and huge values
             continue;
         }
 
-        if desired_magnitude.is_nan() {
-            if !actual.is_nan() {
-                // TODO
-                // failed += 1;
-                // eprintln!("{name}: test {i}, expected NaN, got {}", actual.format());
-            }
-        } else if desired_magnitude.is_infinite() {
-            if actual != desired {
-                failed += 1;
-            }
-        } else {
-            // special casing for certain inaccurate xsref tables
-            let max_error = if name == "itairy" {
-                // https://github.com/scipy/xsref/issues/12
-                case.tolerance.max(5e-8)
-            } else if name == "ellipj" {
-                case.tolerance.max(5e-9)
-            } else if name == "airy" || name == "it1i0k0" {
-                case.tolerance.max(2e-11)
-            } else {
-                (case.tolerance * 4.0).max(5e-14)
-            };
-            let error = actual.error(desired);
+        let actual = test_fn(&case.r#in);
 
-            if error > max_error {
-                failed += 1;
-                if error > worst_error {
-                    worst_error = error;
-                    worst_input = case.inputs.clone();
-                    worst_actual = actual.format();
-                    worst_desired = desired.format();
-                }
+        // special casing for certain inaccurate xsref tables
+        let max_error = if name == "itairy" {
+            // https://github.com/scipy/xsref/issues/12
+            case.err.max(5e-8)
+        } else if name == "ellipj" {
+            case.err.max(5e-9)
+        } else if name == "airy" || name == "it1i0k0" {
+            case.err.max(2e-11)
+        } else {
+            (case.err * 4.0).max(5e-14)
+        };
+        let error = actual.error(desired);
+
+        if error > max_error {
+            failed += 1;
+            if error > worst_error {
+                worst_error = error;
+                worst_input = case.r#in.clone();
+                worst_actual = actual.format();
+                worst_desired = desired.format();
             }
         }
     }
