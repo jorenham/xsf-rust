@@ -156,7 +156,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         f64::NAN
     } else if x == 0.0 {
         if b > 1.0 {
-            // Singular. DMLF 13.2.16-18
+            // Singular. DLMF 13.2.16-18
             f64::INFINITY
         } else {
             // DLMF 13.2.14-15 and 13.2.19-21
