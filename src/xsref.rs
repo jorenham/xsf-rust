@@ -219,14 +219,13 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
     let df = read_parquet_df(file)?;
     let height = df.height();
     let width = df.width();
-    let mut rows = Vec::with_capacity(height);
+    let mut rows = vec![Vec::with_capacity(width); height];
 
-    for row_idx in 0..height {
-        let mut row = Vec::with_capacity(width);
-        for series in df.get_columns() {
-            row.push(any_value_to_f64(series.get(row_idx)?)?);
+    for column in df.get_columns() {
+        let series = column.as_materialized_series();
+        for (row_idx, value) in series.iter().enumerate() {
+            rows[row_idx].push(any_value_to_f64(value)?);
         }
-        rows.push(row);
     }
 
     Ok(rows)
@@ -235,13 +234,9 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
 fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
     let df = read_parquet_df(file)?;
     let column = df.get_columns().first().ok_or(TestError::DataFormat)?;
-    let mut values = Vec::with_capacity(column.len());
+    let series = column.as_materialized_series();
 
-    for idx in 0..column.len() {
-        values.push(any_value_to_f64(column.get(idx)?)?);
-    }
-
-    Ok(values)
+    series.iter().map(any_value_to_f64).collect()
 }
 
 fn read_parquet_output<T: TestOutput>(file: File) -> Result<Vec<T>, TestError> {
