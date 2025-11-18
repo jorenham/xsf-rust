@@ -303,10 +303,11 @@ fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T
 #[inline(always)]
 pub(crate) fn test<T, F>(name: &str, signature: &str, test_fn: F)
 where
-    T: TestOutput,
+    T: TestOutput + std::fmt::Debug,
     F: Fn(&[f64]) -> T,
 {
     let mut failed = 0;
+    let mut total = 0;
     let mut worst_error = -1.0;
     let mut worst_input = Vec::new();
     let mut worst_actual = String::new();
@@ -328,7 +329,7 @@ where
         let desired = case.out;
         let desired_magnitude = desired.magnitude();
 
-        if desired_magnitude > 1e100 || desired_magnitude.is_nan() {
+        if desired_magnitude > 1e100 || (desired_magnitude.is_nan() && cases.len() > 1) {
             // skip NaN's and huge values
             continue;
         }
@@ -357,9 +358,15 @@ where
                 worst_desired = desired.format();
             }
         }
+        total += 1;
     }
 
-    let total = cases.len();
+    assert!(
+        total > 0,
+        "{name}: no test cases run (skipped {})\n{cases:?}",
+        cases.len()
+    );
+
     assert!(
         failed == 0,
         "{name}: {failed}/{total} tests failed, worst case for {worst_input:?} \
