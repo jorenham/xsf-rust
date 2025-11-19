@@ -1,0 +1,12 @@
+[package]
+name = "xsref"
+version = "0.1.0"
+authors = ["Joren Hammudoglu <jhammudoglu@gmail.com>"]
+edition = "2024"
+license = "BSD-3-Clause"
+repository = "https://github.com/jorenham/xsf-rust"
+description = "Test helpers for the xsf crate"
+
+[dependencies]
+num-complex = "0.4.6"
+polars = { version = "0.52.0", default-features = false, features = ["polars-io", "parquet"] }

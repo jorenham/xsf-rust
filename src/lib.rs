@@ -459,9 +459,7 @@
 )]
 
 #[cfg(test)]
-mod macros;
-#[cfg(test)]
-mod xsref;
+use xsref::{np_assert_allclose, np_assert_equal};
 
 mod ffi;
 mod numpy;
