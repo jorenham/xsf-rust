@@ -71,16 +71,16 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
 mod tests {
     #[test]
     fn test_pbwa() {
-        crate::xsref::test("pbwa", "d_d-d_d", |x| crate::pbwa(x[0], x[1]));
+        xsref::test("pbwa", "d_d-d_d", |x| crate::pbwa(x[0], x[1]));
     }
 
     #[test]
     fn test_pbdv() {
-        crate::xsref::test("pbdv", "d_d-d_d", |x| crate::pbdv(x[0], x[1]));
+        xsref::test("pbdv", "d_d-d_d", |x| crate::pbdv(x[0], x[1]));
     }
 
     #[test]
     fn test_pbvv() {
-        crate::xsref::test("pbvv", "d_d-d_d", |x| crate::pbvv(x[0], x[1]));
+        xsref::test("pbvv", "d_d-d_d", |x| crate::pbvv(x[0], x[1]));
     }
 }

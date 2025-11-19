@@ -121,48 +121,48 @@ mod tests {
 
     #[test]
     fn test_erf_f64() {
-        crate::xsref::test("erf", "d-d", |x| crate::erf(x[0]));
+        xsref::test("erf", "d-d", |x| crate::erf(x[0]));
     }
 
     #[test]
     fn test_erf_c64() {
-        crate::xsref::test("erf", "cd-cd", |x| crate::erf(c64(x[0], x[1])));
+        xsref::test("erf", "cd-cd", |x| crate::erf(c64(x[0], x[1])));
     }
 
     // erfc
 
     #[test]
     fn test_erfc_f64() {
-        crate::xsref::test("erfc", "d-d", |x| crate::erfc(x[0]));
+        xsref::test("erfc", "d-d", |x| crate::erfc(x[0]));
     }
 
     #[test]
     fn test_erfc_c64() {
-        crate::xsref::test("erfc", "cd-cd", |x| crate::erfc(c64(x[0], x[1])));
+        xsref::test("erfc", "cd-cd", |x| crate::erfc(c64(x[0], x[1])));
     }
 
     // erfcx
 
     #[test]
     fn test_erfcx_f64() {
-        crate::xsref::test("erfcx", "d-d", |x| crate::erfcx(x[0]));
+        xsref::test("erfcx", "d-d", |x| crate::erfcx(x[0]));
     }
 
     #[test]
     fn test_erfcx_c64() {
-        crate::xsref::test("erfcx", "cd-cd", |x| crate::erfcx(c64(x[0], x[1])));
+        xsref::test("erfcx", "cd-cd", |x| crate::erfcx(c64(x[0], x[1])));
     }
 
     // erfi
 
     #[test]
     fn test_erfi_f64() {
-        crate::xsref::test("erfi", "d-d", |x| crate::erfi(x[0]));
+        xsref::test("erfi", "d-d", |x| crate::erfi(x[0]));
     }
 
     #[test]
     fn test_erfi_c64() {
-        crate::xsref::test("erfi", "cd-cd", |x| crate::erfi(c64(x[0], x[1])));
+        xsref::test("erfi", "cd-cd", |x| crate::erfi(c64(x[0], x[1])));
     }
 
     // erf_zeros (from `scipy.speceial.tests.test_basic.TestErf.test_erf_zeros`)
@@ -191,26 +191,26 @@ mod tests {
 
     #[test]
     fn test_dawsn_f64() {
-        crate::xsref::test("dawsn", "d-d", |x| crate::dawsn(x[0]));
+        xsref::test("dawsn", "d-d", |x| crate::dawsn(x[0]));
     }
 
     #[test]
     fn test_dawsn_c64() {
-        crate::xsref::test("dawsn", "cd-cd", |x| crate::dawsn(c64(x[0], x[1])));
+        xsref::test("dawsn", "cd-cd", |x| crate::dawsn(c64(x[0], x[1])));
     }
 
     // wofz
 
     #[test]
     fn test_wofz() {
-        crate::xsref::test("wofz", "cd-cd", |x| crate::wofz(c64(x[0], x[1])));
+        xsref::test("wofz", "cd-cd", |x| crate::wofz(c64(x[0], x[1])));
     }
 
     // voigt_profile
 
     #[test]
     fn test_voigt_profile() {
-        crate::xsref::test("voigt_profile", "d_d_d-d", |x| {
+        xsref::test("voigt_profile", "d_d_d-d", |x| {
             crate::voigt_profile(x[0], x[1], x[2])
         });
     }

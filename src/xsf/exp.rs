@@ -44,21 +44,21 @@ mod tests {
 
     #[test]
     fn test_expm1_f64() {
-        crate::xsref::test("expm1", "d-d", |x| crate::expm1(x[0]));
+        xsref::test("expm1", "d-d", |x| crate::expm1(x[0]));
     }
 
     #[test]
     fn test_expm1_c64() {
-        crate::xsref::test("expm1", "cd-cd", |x| crate::expm1(c64(x[0], x[1])));
+        xsref::test("expm1", "cd-cd", |x| crate::expm1(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_exp2_f64() {
-        crate::xsref::test("exp2", "d-d", |x| crate::exp2(x[0]));
+        xsref::test("exp2", "d-d", |x| crate::exp2(x[0]));
     }
 
     #[test]
     fn test_exp10_f64() {
-        crate::xsref::test("exp10", "d-d", |x| crate::exp10(x[0]));
+        xsref::test("exp10", "d-d", |x| crate::exp10(x[0]));
     }
 }

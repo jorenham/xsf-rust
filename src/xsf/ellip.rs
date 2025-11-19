@@ -57,27 +57,27 @@ pub fn ellipj(u: f64, m: f64) -> (f64, f64, f64, f64) {
 mod tests {
     #[test]
     fn test_ellipk() {
-        crate::xsref::test("ellipk", "d-d", |x| crate::ellipk(x[0]));
+        xsref::test("ellipk", "d-d", |x| crate::ellipk(x[0]));
     }
 
     #[test]
     fn test_ellipkm1() {
-        crate::xsref::test("ellipkm1", "d-d", |x| crate::ellipkm1(x[0]));
+        xsref::test("ellipkm1", "d-d", |x| crate::ellipkm1(x[0]));
     }
 
     #[test]
     fn test_ellipkinc() {
-        crate::xsref::test("ellipkinc", "d_d-d", |x| crate::ellipkinc(x[0], x[1]));
+        xsref::test("ellipkinc", "d_d-d", |x| crate::ellipkinc(x[0], x[1]));
     }
 
     #[test]
     fn test_ellipe() {
-        crate::xsref::test("ellipe", "d-d", |x| crate::ellipe(x[0]));
+        xsref::test("ellipe", "d-d", |x| crate::ellipe(x[0]));
     }
 
     #[test]
     fn test_ellipeinc() {
-        crate::xsref::test("ellipeinc", "d_d-d", |x| crate::ellipeinc(x[0], x[1]));
+        xsref::test("ellipeinc", "d_d-d", |x| crate::ellipeinc(x[0], x[1]));
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
         // Workaround for https://github.com/scipy/xsref/issues/11:
         // The xsref table contains incorrect values for the phase φ (am),
         // so we reconstruct it from sn using sn.asin()
-        crate::xsref::test("ellipj", "d_d-d_d_d_d", |x| {
+        xsref::test("ellipj", "d_d-d_d_d_d", |x| {
             let (sn, cn, dn, am) = crate::ellipj(x[0], x[1]);
             (sn, cn, dn, am.sin().asin())
         });

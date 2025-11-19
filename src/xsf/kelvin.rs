@@ -154,47 +154,47 @@ mod tests {
 
     #[test]
     fn test_ber_f64() {
-        crate::xsref::test("ber", "d-d", |x| crate::ber(x[0]));
+        xsref::test("ber", "d-d", |x| crate::ber(x[0]));
     }
 
     #[test]
     fn test_bei_f64() {
-        crate::xsref::test("bei", "d-d", |x| crate::bei(x[0]));
+        xsref::test("bei", "d-d", |x| crate::bei(x[0]));
     }
 
     #[test]
     fn test_ker_f64() {
-        crate::xsref::test("ker", "d-d", |x| crate::ker(x[0]));
+        xsref::test("ker", "d-d", |x| crate::ker(x[0]));
     }
 
     #[test]
     fn test_kei_f64() {
-        crate::xsref::test("kei", "d-d", |x| crate::kei(x[0]));
+        xsref::test("kei", "d-d", |x| crate::kei(x[0]));
     }
 
     #[test]
     fn test_berp_f64() {
-        crate::xsref::test("berp", "d-d", |x| crate::berp(x[0]));
+        xsref::test("berp", "d-d", |x| crate::berp(x[0]));
     }
 
     #[test]
     fn test_beip_f64() {
-        crate::xsref::test("beip", "d-d", |x| crate::beip(x[0]));
+        xsref::test("beip", "d-d", |x| crate::beip(x[0]));
     }
 
     #[test]
     fn test_kerp_f64() {
-        crate::xsref::test("kerp", "d-d", |x| crate::kerp(x[0]));
+        xsref::test("kerp", "d-d", |x| crate::kerp(x[0]));
     }
 
     #[test]
     fn test_keip_f64() {
-        crate::xsref::test("keip", "d-d", |x| crate::keip(x[0]));
+        xsref::test("keip", "d-d", |x| crate::keip(x[0]));
     }
 
     #[test]
     fn test_kelvin_c64() {
-        crate::xsref::test("kelvin", "d-cd_cd_cd_cd", |x| {
+        xsref::test("kelvin", "d-cd_cd_cd_cd", |x| {
             let [a, b, c, d] = crate::kelvin(x[0]);
             (a, b, c, d)
         });

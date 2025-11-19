@@ -105,21 +105,21 @@ mod tests {
 
     #[test]
     fn test_sici_f64() {
-        crate::xsref::test("sici", "d-d_d", |x| crate::sici(x[0]));
+        xsref::test("sici", "d-d_d", |x| crate::sici(x[0]));
     }
 
     #[test]
     fn test_sici_c64() {
-        crate::xsref::test("sici", "cd-cd_cd", |x| crate::sici(c64(x[0], x[1])));
+        xsref::test("sici", "cd-cd_cd", |x| crate::sici(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_shichi_f64() {
-        crate::xsref::test("shichi", "d-d_d", |x| crate::shichi(x[0]));
+        xsref::test("shichi", "d-d_d", |x| crate::shichi(x[0]));
     }
 
     #[test]
     fn test_shichi_c64() {
-        crate::xsref::test("shichi", "cd-cd_cd", |x| crate::shichi(c64(x[0], x[1])));
+        xsref::test("shichi", "cd-cd_cd", |x| crate::shichi(c64(x[0], x[1])));
     }
 }

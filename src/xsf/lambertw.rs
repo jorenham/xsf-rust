@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn test_lambertw_c64() {
-        crate::xsref::test("lambertw", "cd_p_d-cd", |x| {
+        xsref::test("lambertw", "cd_p_d-cd", |x| {
             crate::lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
         });
     }

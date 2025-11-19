@@ -183,18 +183,18 @@ mod tests {
     #[test]
     fn test_hypu() {
         // the table is called "hyperu" instead of "hypu"
-        crate::xsref::test("hyperu", "d_d_d-d", |x| crate::hypu(x[0], x[1], x[2]));
+        xsref::test("hyperu", "d_d_d-d", |x| crate::hypu(x[0], x[1], x[2]));
     }
 
     #[test]
     fn test_hyp1f1() {
-        crate::xsref::test("hyp1f1", "d_d_cd-cd", |x| {
+        xsref::test("hyp1f1", "d_d_cd-cd", |x| {
             crate::hyp1f1(x[0], x[1], c64(x[2], x[3]))
         });
     }
 
     #[test]
     fn test_pmv() {
-        crate::xsref::test("pmv", "d_d_d-d", |x| crate::pmv(x[0] as i64, x[1], x[2]));
+        xsref::test("pmv", "d_d_d-d", |x| crate::pmv(x[0] as i64, x[1], x[2]));
     }
 }

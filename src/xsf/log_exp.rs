@@ -27,21 +27,21 @@ pub fn log1mexp(x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_expit() {
-        crate::xsref::test("expit", "d-d", |x| crate::expit(x[0]));
+        xsref::test("expit", "d-d", |x| crate::expit(x[0]));
     }
 
     #[test]
     fn test_exprel() {
-        crate::xsref::test("exprel", "d-d", |x| crate::exprel(x[0]));
+        xsref::test("exprel", "d-d", |x| crate::exprel(x[0]));
     }
 
     #[test]
     fn test_logit() {
-        crate::xsref::test("logit", "d-d", |x| crate::logit(x[0]));
+        xsref::test("logit", "d-d", |x| crate::logit(x[0]));
     }
 
     #[test]
     fn test_log_expit() {
-        crate::xsref::test("log_expit", "d-d", |x| crate::log_expit(x[0]));
+        xsref::test("log_expit", "d-d", |x| crate::log_expit(x[0]));
     }
 }

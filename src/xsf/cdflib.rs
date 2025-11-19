@@ -7,6 +7,6 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_gdtrib() {
-        crate::xsref::test("gdtrib", "d_d_d-d", |x| crate::gdtrib(x[0], x[1], x[2]));
+        xsref::test("gdtrib", "d_d_d-d", |x| crate::gdtrib(x[0], x[1], x[2]));
     }
 }

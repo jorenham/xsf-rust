@@ -11,6 +11,6 @@ pub fn round(x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_round() {
-        crate::xsref::test("round", "d-d", |x| crate::round(x[0]));
+        xsref::test("round", "d-d", |x| crate::round(x[0]));
     }
 }

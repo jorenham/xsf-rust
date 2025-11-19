@@ -77,14 +77,14 @@ mod tests {
 
     #[test]
     fn test_hyp2f1_f64() {
-        crate::xsref::test("hyp2f1", "d_d_d_d-d", |x| {
+        xsref::test("hyp2f1", "d_d_d_d-d", |x| {
             crate::hyp2f1(x[0], x[1], x[2], x[3])
         });
     }
 
     #[test]
     fn test_hyp2f1_c64() {
-        crate::xsref::test("hyp2f1", "d_d_d_cd-cd", |x| {
+        xsref::test("hyp2f1", "d_d_d_cd-cd", |x| {
             crate::hyp2f1(x[0], x[1], x[2], c64(x[3], x[4]))
         });
     }

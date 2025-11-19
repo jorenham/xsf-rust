@@ -281,52 +281,52 @@ pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 mod tests {
     #[test]
     fn test_mathieu_a() {
-        crate::xsref::test("cem_cva", "d_d-d", |x| crate::mathieu_a(x[0] as u32, x[1]));
+        xsref::test("cem_cva", "d_d-d", |x| crate::mathieu_a(x[0] as u32, x[1]));
     }
 
     #[test]
     fn test_mathieu_b() {
-        crate::xsref::test("sem_cva", "d_d-d", |x| crate::mathieu_b(x[0] as u32, x[1]));
+        xsref::test("sem_cva", "d_d-d", |x| crate::mathieu_b(x[0] as u32, x[1]));
     }
 
     #[test]
     fn test_mathieu_cem() {
-        crate::xsref::test("cem", "d_d_d-d_d", |x| {
+        xsref::test("cem", "d_d_d-d_d", |x| {
             crate::mathieu_cem(x[0] as u32, x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_sem() {
-        crate::xsref::test("sem", "d_d_d-d_d", |x| {
+        xsref::test("sem", "d_d_d-d_d", |x| {
             crate::mathieu_sem(x[0] as u32, x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modcem1() {
-        crate::xsref::test("mcm1", "d_d_d-d_d", |x| {
+        xsref::test("mcm1", "d_d_d-d_d", |x| {
             crate::mathieu_modcem1(x[0] as u32, x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modsem1() {
-        crate::xsref::test("msm1", "d_d_d-d_d", |x| {
+        xsref::test("msm1", "d_d_d-d_d", |x| {
             crate::mathieu_modsem1(x[0] as u32, x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modcem2() {
-        crate::xsref::test("mcm2", "d_d_d-d_d", |x| {
+        xsref::test("mcm2", "d_d_d-d_d", |x| {
             crate::mathieu_modcem2(x[0] as u32, x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modsem2() {
-        crate::xsref::test("msm2", "d_d_d-d_d", |x| {
+        xsref::test("msm2", "d_d_d-d_d", |x| {
             crate::mathieu_modsem2(x[0] as u32, x[1], x[2])
         });
     }
