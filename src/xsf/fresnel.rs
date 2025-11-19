@@ -113,24 +113,24 @@ mod tests {
 
     #[test]
     fn test_fresnel_f64() {
-        crate::xsref::test("fresnel", "d-d_d", |x| crate::fresnel(x[0]));
+        xsref::test("fresnel", "d-d_d", |x| crate::fresnel(x[0]));
     }
 
     #[test]
     fn test_fresnel_c64() {
-        crate::xsref::test("fresnel", "cd-cd_cd", |x| crate::fresnel(c64(x[0], x[1])));
+        xsref::test("fresnel", "cd-cd_cd", |x| crate::fresnel(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_modified_fresnel_plus_c64() {
-        crate::xsref::test("modified_fresnel_plus", "d-cd_cd", |x| {
+        xsref::test("modified_fresnel_plus", "d-cd_cd", |x| {
             crate::modified_fresnel_plus(x[0])
         });
     }
 
     #[test]
     fn test_modified_fresnel_minus_c64() {
-        crate::xsref::test("modified_fresnel_minus", "d-cd_cd", |x| {
+        xsref::test("modified_fresnel_minus", "d-cd_cd", |x| {
             crate::modified_fresnel_minus(x[0])
         });
     }

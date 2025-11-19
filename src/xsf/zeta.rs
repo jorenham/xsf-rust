@@ -54,23 +54,23 @@ mod tests {
 
     #[test]
     fn test_riemann_zeta_f64() {
-        crate::xsref::test("riemann_zeta", "d-d", |x| crate::riemann_zeta(x[0]));
+        xsref::test("riemann_zeta", "d-d", |x| crate::riemann_zeta(x[0]));
     }
 
     #[test]
     fn test_riemann_zeta_c64() {
-        crate::xsref::test("riemann_zeta", "cd-cd", |x| {
+        xsref::test("riemann_zeta", "cd-cd", |x| {
             crate::riemann_zeta(c64(x[0], x[1]))
         });
     }
 
     #[test]
     fn test_zeta_f64() {
-        crate::xsref::test("zeta", "d_d-d", |x| crate::zeta(x[0], x[1]));
+        xsref::test("zeta", "d_d-d", |x| crate::zeta(x[0], x[1]));
     }
 
     #[test]
     fn test_zetac_f64() {
-        crate::xsref::test("zetac", "d-d", |x| crate::zetac(x[0]));
+        xsref::test("zetac", "d-d", |x| crate::zetac(x[0]));
     }
 }

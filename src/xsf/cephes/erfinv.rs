@@ -53,6 +53,6 @@ mod tests {
 
     #[test]
     fn test_erfcinv() {
-        crate::xsref::test("erfcinv", "d-d", |x| crate::erfcinv(x[0]));
+        xsref::test("erfcinv", "d-d", |x| crate::erfcinv(x[0]));
     }
 }

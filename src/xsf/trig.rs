@@ -79,51 +79,51 @@ mod tests {
 
     #[test]
     fn test_sinpi_f64() {
-        crate::xsref::test("sinpi", "d-d", |x| crate::sinpi(x[0]));
+        xsref::test("sinpi", "d-d", |x| crate::sinpi(x[0]));
     }
 
     #[test]
     fn test_sinpi_c64() {
-        crate::xsref::test("sinpi", "cd-cd", |x| crate::sinpi(c64(x[0], x[1])));
+        xsref::test("sinpi", "cd-cd", |x| crate::sinpi(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_cospi_f64() {
-        crate::xsref::test("cospi", "d-d", |x| crate::cospi(x[0]));
+        xsref::test("cospi", "d-d", |x| crate::cospi(x[0]));
     }
 
     #[test]
     fn test_cospi_c64() {
-        crate::xsref::test("cospi", "cd-cd", |x| crate::cospi(c64(x[0], x[1])));
+        xsref::test("cospi", "cd-cd", |x| crate::cospi(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_sindg() {
-        crate::xsref::test("sindg", "d-d", |x| crate::sindg(x[0]));
+        xsref::test("sindg", "d-d", |x| crate::sindg(x[0]));
     }
 
     #[test]
     fn test_cosdg() {
-        crate::xsref::test("cosdg", "d-d", |x| crate::cosdg(x[0]));
+        xsref::test("cosdg", "d-d", |x| crate::cosdg(x[0]));
     }
 
     #[test]
     fn test_tandg() {
-        crate::xsref::test("tandg", "d-d", |x| crate::tandg(x[0]));
+        xsref::test("tandg", "d-d", |x| crate::tandg(x[0]));
     }
 
     #[test]
     fn test_cotdg() {
-        crate::xsref::test("cotdg", "d-d", |x| crate::cotdg(x[0]));
+        xsref::test("cotdg", "d-d", |x| crate::cotdg(x[0]));
     }
 
     #[test]
     fn test_cosm1() {
-        crate::xsref::test("cosm1", "d-d", |x| crate::cosm1(x[0]));
+        xsref::test("cosm1", "d-d", |x| crate::cosm1(x[0]));
     }
 
     #[test]
     fn test_radian() {
-        crate::xsref::test("radian", "d_d_d-d", |x| crate::radian(x[0], x[1], x[2]));
+        xsref::test("radian", "d_d_d-d", |x| crate::radian(x[0], x[1], x[2]));
     }
 }

@@ -76,39 +76,39 @@ mod tests {
 
     #[test]
     fn test_log1p_f64() {
-        crate::xsref::test("log1p", "d-d", |x| crate::log1p(x[0]));
+        xsref::test("log1p", "d-d", |x| crate::log1p(x[0]));
     }
 
     #[test]
     fn test_log1p_c64() {
-        crate::xsref::test("log1p", "cd-cd", |x| crate::log1p(c64(x[0], x[1])));
+        xsref::test("log1p", "cd-cd", |x| crate::log1p(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_log1pmx_f64() {
-        crate::xsref::test("log1pmx", "d-d", |x| crate::log1pmx(x[0]));
+        xsref::test("log1pmx", "d-d", |x| crate::log1pmx(x[0]));
     }
 
     #[test]
     fn test_xlogy_f64() {
-        crate::xsref::test("xlogy", "d_d-d", |x| crate::xlogy(x[0], x[1]));
+        xsref::test("xlogy", "d_d-d", |x| crate::xlogy(x[0], x[1]));
     }
 
     #[test]
     fn test_xlogy_c64() {
-        crate::xsref::test("xlogy", "cd_cd-cd", |x| {
+        xsref::test("xlogy", "cd_cd-cd", |x| {
             crate::xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }
 
     #[test]
     fn test_xlog1py_f64() {
-        crate::xsref::test("xlog1py", "d_d-d", |x| crate::xlog1py(x[0], x[1]));
+        xsref::test("xlog1py", "d_d-d", |x| crate::xlog1py(x[0], x[1]));
     }
 
     #[test]
     fn test_xlog1py_c64() {
-        crate::xsref::test("xlog1py", "cd_cd-cd", |x| {
+        xsref::test("xlog1py", "cd_cd-cd", |x| {
             crate::xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
         });
     }

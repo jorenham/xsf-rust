@@ -3305,6 +3305,14 @@ dependencies = [
  "cc",
  "num-complex",
  "num-traits",
+ "xsref",
+]
+
+[[package]]
+name = "xsref"
+version = "0.1.0"
+dependencies = [
+ "num-complex",
  "polars",
 ]
 

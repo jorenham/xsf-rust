@@ -18,6 +18,6 @@ pub fn spence(x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_spence() {
-        crate::xsref::test("spence", "d-d", |x| crate::spence(x[0]));
+        xsref::test("spence", "d-d", |x| crate::spence(x[0]));
     }
 }

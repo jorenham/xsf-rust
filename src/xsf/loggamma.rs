@@ -50,21 +50,21 @@ mod tests {
 
     #[test]
     fn test_loggamma_f64() {
-        crate::xsref::test("loggamma", "d-d", |x| crate::loggamma(x[0]));
+        xsref::test("loggamma", "d-d", |x| crate::loggamma(x[0]));
     }
 
     #[test]
     fn test_loggamma_c64() {
-        crate::xsref::test("loggamma", "cd-cd", |x| crate::loggamma(c64(x[0], x[1])));
+        xsref::test("loggamma", "cd-cd", |x| crate::loggamma(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_rgamma_f64() {
-        crate::xsref::test("rgamma", "d-d", |x| crate::rgamma(x[0]));
+        xsref::test("rgamma", "d-d", |x| crate::rgamma(x[0]));
     }
 
     #[test]
     fn test_rgamma_c64() {
-        crate::xsref::test("rgamma", "cd-cd", |x| crate::rgamma(c64(x[0], x[1])));
+        xsref::test("rgamma", "cd-cd", |x| crate::rgamma(c64(x[0], x[1])));
     }
 }

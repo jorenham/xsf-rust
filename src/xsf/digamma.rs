@@ -41,11 +41,11 @@ mod tests {
 
     #[test]
     fn test_digamma_f64() {
-        crate::xsref::test("digamma", "d-d", |x| crate::digamma(x[0]));
+        xsref::test("digamma", "d-d", |x| crate::digamma(x[0]));
     }
 
     #[test]
     fn test_digamma_c64() {
-        crate::xsref::test("digamma", "cd-cd", |x| crate::digamma(c64(x[0], x[1])));
+        xsref::test("digamma", "cd-cd", |x| crate::digamma(c64(x[0], x[1])));
     }
 }

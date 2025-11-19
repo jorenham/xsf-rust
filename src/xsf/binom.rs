@@ -22,6 +22,6 @@ pub fn binom(n: f64, k: f64) -> f64 {
 mod tests {
     #[test]
     fn test_binom_f64() {
-        crate::xsref::test("binom", "d_d-d", |x| crate::binom(x[0], x[1]));
+        xsref::test("binom", "d_d-d", |x| crate::binom(x[0], x[1]));
     }
 }

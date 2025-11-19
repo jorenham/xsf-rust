@@ -209,31 +209,31 @@ mod tests {
 
     #[test]
     fn test_airy_f64() {
-        crate::xsref::test("airy", "d-d_d_d_d", |x| as_tuple(crate::airy(x[0])));
+        xsref::test("airy", "d-d_d_d_d", |x| as_tuple(crate::airy(x[0])));
     }
 
     #[test]
     fn test_airy_c64() {
-        crate::xsref::test("airy", "cd-cd_cd_cd_cd", |x| {
+        xsref::test("airy", "cd-cd_cd_cd_cd", |x| {
             as_tuple(crate::airy(c64(x[0], x[1])))
         });
     }
 
     #[test]
     fn test_airye_f64() {
-        crate::xsref::test("airye", "d-d_d_d_d", |x| as_tuple(crate::airy_scaled(x[0])));
+        xsref::test("airye", "d-d_d_d_d", |x| as_tuple(crate::airy_scaled(x[0])));
     }
 
     #[test]
     fn test_airye_c64() {
-        crate::xsref::test("airye", "cd-cd_cd_cd_cd", |x| {
+        xsref::test("airye", "cd-cd_cd_cd_cd", |x| {
             as_tuple(crate::airy_scaled(c64(x[0], x[1])))
         });
     }
 
     #[test]
     fn test_itairy() {
-        crate::xsref::test("itairy", "d-d_d_d_d", |x| {
+        xsref::test("itairy", "d-d_d_d_d", |x| {
             as_tuple(crate::airy_integrals(x[0]))
         });
     }

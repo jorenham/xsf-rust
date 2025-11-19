@@ -7,6 +7,6 @@ pub fn cbrt(x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_cbrt() {
-        crate::xsref::test("cbrt", "d-d", |x| crate::cbrt(x[0]));
+        xsref::test("cbrt", "d-d", |x| crate::cbrt(x[0]));
     }
 }

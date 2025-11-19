@@ -66,41 +66,41 @@ mod tests {
 
     #[test]
     fn test_gamma_f64() {
-        crate::xsref::test("gamma", "d-d", |x| crate::gamma(x[0]));
+        xsref::test("gamma", "d-d", |x| crate::gamma(x[0]));
     }
 
     #[test]
     fn test_gamma_c64() {
-        crate::xsref::test("gamma", "cd-cd", |x| crate::gamma(c64(x[0], x[1])));
+        xsref::test("gamma", "cd-cd", |x| crate::gamma(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_gammainc() {
-        crate::xsref::test("gammainc", "d_d-d", |x| crate::gammainc(x[0], x[1]));
+        xsref::test("gammainc", "d_d-d", |x| crate::gammainc(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaincc() {
-        crate::xsref::test("gammaincc", "d_d-d", |x| crate::gammaincc(x[0], x[1]));
+        xsref::test("gammaincc", "d_d-d", |x| crate::gammaincc(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaincinv() {
-        crate::xsref::test("gammaincinv", "d_d-d", |x| crate::gammaincinv(x[0], x[1]));
+        xsref::test("gammaincinv", "d_d-d", |x| crate::gammaincinv(x[0], x[1]));
     }
 
     #[test]
     fn test_gammainccinv() {
-        crate::xsref::test("gammainccinv", "d_d-d", |x| crate::gammainccinv(x[0], x[1]));
+        xsref::test("gammainccinv", "d_d-d", |x| crate::gammainccinv(x[0], x[1]));
     }
 
     #[test]
     fn test_gammaln() {
-        crate::xsref::test("gammaln", "d-d", |x| crate::gammaln(x[0]));
+        xsref::test("gammaln", "d-d", |x| crate::gammaln(x[0]));
     }
 
     #[test]
     fn test_gammasgn() {
-        crate::xsref::test("gammasgn", "d-d", |x| crate::gammasgn(x[0]));
+        xsref::test("gammasgn", "d-d", |x| crate::gammasgn(x[0]));
     }
 }

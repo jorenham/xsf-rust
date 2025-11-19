@@ -15,11 +15,11 @@ pub fn betaln(a: f64, b: f64) -> f64 {
 mod tests {
     #[test]
     fn test_beta() {
-        crate::xsref::test("beta", "d_d-d", |x| crate::beta(x[0], x[1]));
+        xsref::test("beta", "d_d-d", |x| crate::beta(x[0], x[1]));
     }
 
     #[test]
     fn test_betaln() {
-        crate::xsref::test("betaln", "d_d-d", |x| crate::betaln(x[0], x[1]));
+        xsref::test("betaln", "d_d-d", |x| crate::betaln(x[0], x[1]));
     }
 }

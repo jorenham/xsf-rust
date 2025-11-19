@@ -33,26 +33,26 @@ pub fn struve_l(v: f64, x: f64) -> f64 {
 mod tests {
     #[test]
     fn test_itstruve0_f64() {
-        crate::xsref::test("itstruve0", "d-d", |x| crate::itstruve0(x[0]));
+        xsref::test("itstruve0", "d-d", |x| crate::itstruve0(x[0]));
     }
 
     #[test]
     fn test_it2struve0_f64() {
-        crate::xsref::test("it2struve0", "d-d", |x| crate::it2struve0(x[0]));
+        xsref::test("it2struve0", "d-d", |x| crate::it2struve0(x[0]));
     }
 
     #[test]
     fn test_itmodstruve0_f64() {
-        crate::xsref::test("itmodstruve0", "d-d", |x| crate::itmodstruve0(x[0]));
+        xsref::test("itmodstruve0", "d-d", |x| crate::itmodstruve0(x[0]));
     }
 
     #[test]
     fn test_struve_h_f64() {
-        crate::xsref::test("struve_h", "d_d-d", |x| crate::struve_h(x[0], x[1]));
+        xsref::test("struve_h", "d_d-d", |x| crate::struve_h(x[0], x[1]));
     }
 
     #[test]
     fn test_struve_l_f64() {
-        crate::xsref::test("struve_l", "d_d-d", |x| crate::struve_l(x[0], x[1]));
+        xsref::test("struve_l", "d_d-d", |x| crate::struve_l(x[0], x[1]));
     }
 }

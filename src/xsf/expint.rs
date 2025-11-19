@@ -92,26 +92,26 @@ mod tests {
 
     #[test]
     fn test_exp1_f64() {
-        crate::xsref::test("exp1", "d-d", |x| crate::exp1(x[0]));
+        xsref::test("exp1", "d-d", |x| crate::exp1(x[0]));
     }
 
     #[test]
     fn test_exp1_c64() {
-        crate::xsref::test("exp1", "cd-cd", |x| crate::exp1(c64(x[0], x[1])));
+        xsref::test("exp1", "cd-cd", |x| crate::exp1(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_expi_f64() {
-        crate::xsref::test("expi", "d-d", |x| crate::expi(x[0]));
+        xsref::test("expi", "d-d", |x| crate::expi(x[0]));
     }
 
     #[test]
     fn test_expi_c64() {
-        crate::xsref::test("expi", "cd-cd", |x| crate::expi(c64(x[0], x[1])));
+        xsref::test("expi", "cd-cd", |x| crate::expi(c64(x[0], x[1])));
     }
 
     #[test]
     fn test_scaled_exp1_f64() {
-        crate::xsref::test("scaled_exp1", "d-d", |x| crate::scaled_exp1(x[0]));
+        xsref::test("scaled_exp1", "d-d", |x| crate::scaled_exp1(x[0]));
     }
 }
