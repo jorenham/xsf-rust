@@ -59,9 +59,9 @@ pub fn logit(x: f64) -> f64 {
 
 /// Natural logarithm of [`expit`]
 ///
-/// Corresponds to [`scipy.special.expit`][expit]. Translated into pure Rust from Cephes.
+/// Corresponds to [`scipy.special.log_expit`][log_expit]. Translated into pure Rust from Cephes.
 ///
-/// [expit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expit.html
+/// [log_expit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_expit.html
 #[must_use]
 #[inline]
 pub fn log_expit(x: f64) -> f64 {
