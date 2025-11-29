@@ -10,6 +10,8 @@
 ///
 /// It currently only supports real arguments.
 #[doc(alias = "dilogarithm")]
+#[must_use]
+#[inline]
 pub fn spence(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::spence(x) }
 }

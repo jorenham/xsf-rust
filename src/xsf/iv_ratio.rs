@@ -1,9 +1,13 @@
 /// Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+#[must_use]
+#[inline]
 pub fn iv_ratio(v: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::iv_ratio(v, x) }
 }
 
 /// Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+#[must_use]
+#[inline]
 pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::iv_ratio_c(v, x) }
 }

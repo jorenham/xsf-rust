@@ -5,18 +5,18 @@
 /// y″ + (x²/4 - a)y = 0
 ///
 /// # Arguments
-///
 /// - `a` - Real parameter
 /// - `x` - Real argument
 ///
 /// # Returns
-///
 /// - *w*: Value of the function
 /// - *wp*: Value of the derivative in `x`
+#[must_use]
+#[inline]
 pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
     let (mut w, mut wd) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::pbwa(a, x, &mut w, &mut wd);
+        crate::ffi::xsf::pbwa(a, x, &raw mut w, &raw mut wd);
     }
     (w, wd)
 }
@@ -27,19 +27,19 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
 /// *Dv'(x)* in *dp*.
 ///
 /// # Arguments
-///
 /// - `v` - Real parameter
 /// - `x` - Real argument
 ///
 /// # Returns
-///
 /// - *d*: Value of the function
 /// - *dp*: Value of the derivative in `x`
 #[doc(alias = "pbdv_seq")]
+#[must_use]
+#[inline]
 pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     let (mut d, mut dp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::pbdv(v, x, &mut d, &mut dp);
+        crate::ffi::xsf::pbdv(v, x, &raw mut d, &raw mut dp);
     }
     (d, dp)
 }
@@ -50,19 +50,19 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 /// *Vv'(x)* in *vp*.
 ///
 /// # Arguments
-///
 /// - `v` - Real parameter
 /// - `x` - Real argument
 ///
 /// # Returns
-///
 /// - *v*: Value of the function
 /// - *vp*: Value of the derivative in `x`
 #[doc(alias = "pbvv_seq")]
+#[must_use]
+#[inline]
 pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     let (mut vv, mut vp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::pbvv(v, x, &mut vv, &mut vp);
+        crate::ffi::xsf::pbvv(v, x, &raw mut vv, &raw mut vp);
     }
     (vv, vp)
 }

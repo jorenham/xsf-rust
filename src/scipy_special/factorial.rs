@@ -62,8 +62,7 @@ pub fn factorial_checked<N: PrimInt + Unsigned>(n: N) -> Option<N> {
 /// # See also
 /// - [`multifactorial_checked`]: multifactorial with overflow checking
 /// - [`factorial`]: factorial *n*!, the special case *k* = 1
-#[doc(alias = "factorialk")]
-#[doc(alias = "factorial2")]
+#[doc(alias = "factorialk", alias = "factorial2")]
 #[inline]
 pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     if k.is_zero() {
@@ -95,8 +94,7 @@ pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 /// # See also
 /// - [`multifactorial`]: unchecked multifactorial
 /// - [`factorial_checked`]: factorial *n*! with overflow checking
-#[doc(alias = "factorialk_checked")]
-#[doc(alias = "factorial2_checked")]
+#[doc(alias = "factorialk_checked", alias = "factorial2_checked")]
 #[inline]
 pub fn multifactorial_checked<N: PrimInt + Unsigned>(n: N, k: N) -> Option<N> {
     if k.is_zero() {
@@ -114,6 +112,7 @@ pub fn multifactorial_checked<N: PrimInt + Unsigned>(n: N, k: N) -> Option<N> {
 }
 
 #[cfg(test)]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 mod tests {
     const FACT1_5: u8 = 120;
     const FACT1_8: u16 = 40_320;

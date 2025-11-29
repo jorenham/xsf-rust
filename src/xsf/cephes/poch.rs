@@ -6,6 +6,8 @@
 ///
 /// See [`pow_falling`] for the falling factorial.
 #[doc(alias = "poch")]
+#[must_use]
+#[inline]
 pub fn pow_rising(x: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::poch(x, m) }
 }
@@ -16,6 +18,8 @@ pub fn pow_rising(x: f64, m: f64) -> f64 {
 ///
 /// Note that there is no `scipy.special` analogue for this function, but it can be expressed in
 /// terms of the rising factorial as `pow_rising(x - m + 1, m)`. See [`pow_rising`] for the details.
+#[must_use]
+#[inline]
 pub fn pow_falling(x: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::poch(x - m + 1.0, m) }
 }

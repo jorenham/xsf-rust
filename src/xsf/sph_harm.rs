@@ -1,11 +1,17 @@
 use core::ffi::c_int;
-use num_complex::Complex;
+use num_complex::Complex64;
 
 /// Spherical harmonics
-pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
+///
+/// # Panics
+/// - if `n` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
+/// - if `m` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
+#[must_use]
+#[inline]
+pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
     assert!(n <= c_int::MAX as usize);
     assert!(m.abs() <= c_int::MAX as isize);
-    unsafe { crate::ffi::xsf::sph_harm_y(n as c_int, m as c_int, theta, phi) }
+    unsafe { crate::ffi::xsf::sph_harm_y(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi) }
 }
 
 /// All spherical harmonics up to the specified degree `n` and order `m`
@@ -17,9 +23,11 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex<f64> {
 /// to spherical harmonic order is:
 /// - Index `0` to `m`: orders `0, 1, 2, ..., m`
 /// - Index `m+1` to `2*m`: orders `-m, -(m-1), ..., -1`
-pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex<f64>>> {
+#[must_use]
+#[inline]
+pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex64>> {
     let (nr, nc) = (n + 1, 2 * m + 1);
-    let mut out = vec![Complex::new(f64::NAN, 0.0); nr * nc];
+    let mut out = vec![f64::NAN.into(); nr * nc];
     unsafe { crate::ffi::xsf::sph_harm_y_all(n, m, theta, phi, out.as_mut_ptr()) };
     crate::utils::vec_into_vecvec(out, nr, nc, false)
 }
@@ -28,6 +36,7 @@ pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Compl
 mod tests {
     use core::f64::consts::PI;
     use num_complex::c64;
+    use num_traits::ToPrimitive;
 
     /// Ported from `scipy.special.tests.test_basic.TestSphericalHarmonics.test_all`
     #[test]
@@ -65,19 +74,19 @@ mod tests {
         const RTOL: f64 = 1e-5;
         const ATOL: f64 = 1e-8;
 
+        fn col_to_order(col: usize, m_max: usize) -> isize {
+            if col <= m_max {
+                col.to_isize().unwrap()
+            } else {
+                -(2 * m_max + 1 - col).to_isize().unwrap()
+            }
+        }
+
         let y_all = crate::sph_harm_y_all(n_max, m_max, theta, phi);
 
         // Check shape
         assert_eq!(y_all.len(), n_max + 1);
         assert_eq!(y_all[0].len(), 2 * m_max + 1);
-
-        fn col_to_order(col: usize, m_max: usize) -> isize {
-            if col <= m_max {
-                col as isize
-            } else {
-                -((2 * m_max + 1 - col) as isize)
-            }
-        }
 
         // Check each entry matches the corresponding individual call
         for (n, y_row) in y_all.iter().enumerate().take(n_max + 1) {
@@ -119,21 +128,21 @@ mod tests {
 
         // Expected scipy output with reasonable tolerance for floating-point differences
         let expected = [
-            vec![c64(0.28209479, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
+            vec![c64(0.282_094_79, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
             vec![
-                c64(0.34549415, 0.0),
-                c64(-0.21157109, -0.12215063),
-                c64(0.21157109, -0.12215063),
+                c64(0.345_494_15, 0.0),
+                c64(-0.211_571_09, -0.122_150_63),
+                c64(0.211_571_09, -0.122_150_63),
             ],
             vec![
-                c64(0.15769578, 0.0),
-                c64(-0.33452327, -0.1931371),
-                c64(0.33452327, -0.1931371),
+                c64(0.157_695_78, 0.0),
+                c64(-0.334_523_27, -0.193_137_1),
+                c64(0.334_523_27, -0.193_137_1),
             ],
             vec![
-                c64(-0.13193776, 0.0),
-                c64(-0.29685995, -0.17139217),
-                c64(0.29685995, -0.17139217),
+                c64(-0.131_937_76, 0.0),
+                c64(-0.296_859_95, -0.171_392_17),
+                c64(0.296_859_95, -0.171_392_17),
             ],
         ];
 

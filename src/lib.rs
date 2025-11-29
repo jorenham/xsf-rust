@@ -457,6 +457,12 @@
     rust_2018_idioms,
     unreachable_pub
 )]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 
 #[cfg(test)]
 use xsref::{np_assert_allclose, np_assert_equal};

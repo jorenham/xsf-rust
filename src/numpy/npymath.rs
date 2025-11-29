@@ -17,22 +17,25 @@ pub trait LogAddExpArg: sealed::Sealed {
 impl LogAddExpArg for f32 {
     const ZERO: Self = 0.0;
 
-    #[inline(always)]
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn npy_logaddexp(self, other: Self) -> Self {
-        (self as f64).npy_logaddexp(other as f64) as f32
+        f64::from(self).npy_logaddexp(f64::from(other)) as f32
     }
 
-    #[inline(always)]
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn npy_logaddexp2(self, other: Self) -> Self {
-        (self as f64).npy_logaddexp2(other as f64) as f32
+        f64::from(self).npy_logaddexp2(f64::from(other)) as f32
     }
 }
 
 impl LogAddExpArg for f64 {
     const ZERO: Self = 0.0;
 
-    #[inline(always)]
+    #[inline]
     fn npy_logaddexp(self, other: Self) -> Self {
+        #[allow(clippy::float_cmp)]
         if self == other {
             // Handles infinities of the same sign without warnings
             self + LN_2
@@ -49,8 +52,9 @@ impl LogAddExpArg for f64 {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn npy_logaddexp2(self, other: Self) -> Self {
+        #[allow(clippy::float_cmp)]
         if self == other {
             // Handles infinities of the same sign without warnings
             self + 1.0
@@ -114,8 +118,9 @@ mod tests {
         let yf = y.map(f64::log2);
         let zf = z.map(f64::log2);
 
+        #[allow(clippy::cast_possible_truncation)]
         let zr: [f32; 5] = std::array::from_fn(|i| crate::logaddexp2(xf[i] as f32, yf[i] as f32));
-        np_assert_allclose!(zr.map(|z| z as f64), zf, atol = 1.5e-7);
+        np_assert_allclose!(zr.map(f64::from), zf, atol = 1.5e-7);
     }
 
     #[test]

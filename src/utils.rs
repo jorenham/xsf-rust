@@ -1,11 +1,11 @@
-#[inline(always)]
+#[inline]
 pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
     xs.into_iter().map(S::into).collect()
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn vec_to_vecvec<T: Clone>(
-    vec: Vec<T>,
+    vec: &[T],
     rows: usize,
     cols: usize,
     transpose: bool,
@@ -23,12 +23,12 @@ pub(crate) fn vec_to_vecvec<T: Clone>(
     }
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn vec_into_vecvec<S: Into<T>, T: Clone>(
     vec: Vec<S>,
     rows: usize,
     cols: usize,
     transpose: bool,
 ) -> Vec<Vec<T>> {
-    vec_to_vecvec(vec_into(vec), rows, cols, transpose)
+    vec_to_vecvec(&vec_into(vec), rows, cols, transpose)
 }

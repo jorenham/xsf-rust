@@ -18,70 +18,70 @@ pub trait SphBesselArg: sealed::Sealed {
 }
 
 impl SphBesselArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_j(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_j(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_y(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_y(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_i(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_i(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_k(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_k(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_j_prime(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_j_jac(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_y_prime(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_y_jac(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_i_prime(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_i_jac(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_k_prime(self, n: c_long) -> f64 {
         unsafe { crate::ffi::xsf::sph_bessel_k_jac(n, self) }
     }
 }
 
 impl SphBesselArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_j(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_j_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_y(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_y_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_i(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_i_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_k(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_k_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_j_prime(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_j_jac_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_y_prime(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_y_jac_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_i_prime(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_i_jac_1(n, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn sph_bessel_k_prime(self, n: c_long) -> Self {
         unsafe { crate::ffi::xsf::sph_bessel_k_jac_1(n, self) }
     }
@@ -285,9 +285,9 @@ mod tests {
         crate::np_assert_allclose!(
             &s1[0],
             &[
-                0.9933466539753061,
-                0.06640038067032224,
-                0.0026590560795273855,
+                0.993_346_653_975_306_1,
+                0.066_400_380_670_322_24,
+                0.002_659_056_079_527_385_5,
             ],
             atol = 1.5e-12
         );
@@ -307,7 +307,7 @@ mod tests {
         // assert_allclose(sy1, -377.52483, atol=1.5e-5, rtol=0)
         crate::np_assert_allclose!(&[sy1], &[-377.52483], atol = 1.5e-5);
         // assert_allclose(sy2, -4.9003329, atol=1.5e-5, rtol=0)
-        crate::np_assert_allclose!(&[sy2], &[-4.9003329], atol = 1.5e-5);
+        crate::np_assert_allclose!(&[sy2], &[-4.900_332_9], atol = 1.5e-5);
 
         // sphpy = (spherical_yn(0, 0.2) - 2*spherical_yn(2, 0.2))/3
         let sphpy = (sy2 - 2.0 * sy1) / 3.0;
@@ -345,7 +345,7 @@ mod tests {
         //                 atol=1.5e-12, rtol=0.0)
         crate::np_assert_allclose!(
             &i1n[0],
-            &[1.00668001270547, 0.06693371456802954],
+            &[1.006_680_012_705_47, 0.066_933_714_568_029_54],
             atol = 1.5e-12
         );
         // assert_allclose(i1n[1], [inp0, inp1], atol=1.5e-12, rtol=0)
@@ -385,7 +385,11 @@ mod tests {
         //                 atol=1.5e-12, rtol=0)
         crate::np_assert_allclose!(
             &kn[0],
-            &[6.430296297844567, 38.5817777870674, 585.1569631038556],
+            &[
+                6.430_296_297_844_567,
+                38.581_777_787_067_4,
+                585.156_963_103_855_6
+            ],
             atol = 1.5e-12
         );
         // assert_allclose(kn[1], [kn0, kn1, kn2], atol=1.5e-9, rtol=0)

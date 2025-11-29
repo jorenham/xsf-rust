@@ -11,61 +11,66 @@ pub trait LogArg: sealed::Sealed {
 }
 
 impl LogArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn xsf_log1p(self) -> Self {
         unsafe { crate::ffi::xsf::log1p(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_xlogy(self, x: Self) -> Self {
         unsafe { crate::ffi::xsf::xlogy(x, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_xlog1py(self, x: Self) -> Self {
         unsafe { crate::ffi::xsf::xlog1py(x, self) }
     }
 }
 
 impl LogArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn xsf_log1p(self) -> Self {
         unsafe { crate::ffi::xsf::log1p_1(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_xlogy(self, x: Self) -> Self {
         unsafe { crate::ffi::xsf::xlogy_1(x, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_xlog1py(self, x: Self) -> Self {
         unsafe { crate::ffi::xsf::xlog1py_1(x, self) }
     }
 }
 
 /// `log(z + 1)` for real or complex input
-#[doc(alias = "ln_1p")]
-#[doc(alias = "log_1p")]
+#[doc(alias = "ln_1p", alias = "log_1p")]
+#[must_use]
+#[inline]
 pub fn log1p<T: LogArg>(z: T) -> T {
     z.xsf_log1p()
 }
 
 /// Compute `log(1 + x) - x` for real input
+#[must_use]
+#[inline]
 pub fn log1pmx(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log1pmx(x) }
 }
 
 /// Compute `x * log(y)` for real or complex input
-#[doc(alias = "x_ln_y")]
-#[doc(alias = "x_log_y")]
+#[doc(alias = "x_ln_y", alias = "x_log_y")]
+#[must_use]
+#[inline]
 pub fn xlogy<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlogy(x)
 }
 
 /// Compute `x * log(1 + y)` for real or complex input
-#[doc(alias = "x_ln_1py")]
-#[doc(alias = "x_log_1py")]
+#[doc(alias = "x_ln_1py", alias = "x_log_1py")]
+#[must_use]
+#[inline]
 pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlog1py(x)
 }

@@ -5,20 +5,20 @@ mod sealed {
 }
 
 pub trait Hyp2F1Arg: sealed::Sealed {
-    fn hyp2f1(&self, a: f64, b: f64, c: f64) -> Self;
+    fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self;
 }
 
 impl Hyp2F1Arg for f64 {
-    #[inline(always)]
-    fn hyp2f1(&self, a: f64, b: f64, c: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp2f1(a, b, c, *self) }
+    #[inline]
+    fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp2f1(a, b, c, self) }
     }
 }
 
 impl Hyp2F1Arg for num_complex::Complex<f64> {
-    #[inline(always)]
-    fn hyp2f1(&self, a: f64, b: f64, c: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp2f1_1(a, b, c, *self) }
+    #[inline]
+    fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp2f1_1(a, b, c, self) }
     }
 }
 
@@ -67,6 +67,8 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///   $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 ///
+#[must_use]
+#[inline]
 pub fn hyp2f1<T: Hyp2F1Arg>(a: f64, b: f64, c: f64, z: T) -> T {
     z.hyp2f1(a, b, c)
 }

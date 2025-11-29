@@ -1,13 +1,17 @@
 use core::ffi::c_int;
 
+use num_traits::ToPrimitive;
+
 /// Characteristic value of even Mathieu functions
 ///
 /// # See also
 /// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
 /// - [`mathieu_cem`]: Even Mathieu function
 #[doc(alias = "cem_cva")]
+#[must_use]
+#[inline]
 pub fn mathieu_a(m: u32, q: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cem_cva(m as f64, q) }
+    unsafe { crate::ffi::xsf::cem_cva(m.into(), q) }
 }
 
 /// Characteristic value of odd Mathieu functions
@@ -16,8 +20,10 @@ pub fn mathieu_a(m: u32, q: f64) -> f64 {
 /// - [`mathieu_a`]: Characteristic value of even Mathieu functions
 /// - [`mathieu_sem`]: Odd Mathieu function
 #[doc(alias = "sem_cva")]
+#[must_use]
+#[inline]
 pub fn mathieu_b(m: u32, q: f64) -> f64 {
-    unsafe { crate::ffi::xsf::sem_cva(m as f64, q) }
+    unsafe { crate::ffi::xsf::sem_cva(m.into(), q) }
 }
 
 /// Even Mathieu function and its derivative
@@ -39,10 +45,12 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 /// - [`mathieu_sem`]: Odd Mathieu function
 /// - [`mathieu_a`]: Characteristic value of even Mathieu functions
 #[doc(alias = "cem")]
+#[must_use]
+#[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::cem(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::cem(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -66,10 +74,12 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - [`mathieu_cem`]: Even Mathieu function
 /// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
 #[doc(alias = "sem")]
+#[must_use]
+#[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::sem(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::sem(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -93,10 +103,12 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - [`mathieu_modcem2`]: Even modified Mathieu function of the second kind
 /// - [`mathieu_modsem1`]: Odd modified Mathieu function of the first kind
 #[doc(alias = "mcm1")]
+#[must_use]
+#[inline]
 pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::mcm1(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::mcm1(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -120,10 +132,12 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - [`mathieu_modsem2`]: Odd modified Mathieu function of the second kind
 /// - [`mathieu_modcem1`]: Even modified Mathieu function of the first kind
 #[doc(alias = "msm1")]
+#[must_use]
+#[inline]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::msm1(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::msm1(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -147,10 +161,12 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - [`mathieu_modcem1`]: Even modified Mathieu function of the first kind
 /// - [`mathieu_modsem2`]: Odd modified Mathieu function of the second kind
 #[doc(alias = "mcm2")]
+#[must_use]
+#[inline]
 pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::mcm2(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::mcm2(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -174,10 +190,12 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - [`mathieu_modsem1`]: Odd modified Mathieu function of the first kind
 /// - [`mathieu_modcem2`]: Even modified Mathieu function of the second kind
 #[doc(alias = "msm2")]
+#[must_use]
+#[inline]
 pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     let (mut y, mut yp) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::msm2(m as f64, q, x, &mut y, &mut yp);
+        crate::ffi::xsf::msm2(m.into(), q, x, &raw mut y, &raw mut yp);
     }
     (y, yp)
 }
@@ -199,7 +217,7 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String>
         17.0 + 3.1 * q_sqrt - 0.126 * q + 0.0037 * q_sqrt * q
     };
     // km = int(qm + 0.5*m)
-    let km = (qm + 0.5 * (m as f64)) as usize;
+    let km = (qm + 0.5 * f64::from(m)).floor().to_usize().unwrap();
     // if km > 251:
     if km > 251 {
         // warnings.warn("Too many predicted coefficients.", RuntimeWarning, stacklevel=2)
@@ -217,7 +235,7 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String>
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
     let mut fc = [f64::NAN; 251];
     unsafe {
-        crate::ffi::xsf::fcoef(KD, m as c_int, q, cv, fc.as_mut_ptr());
+        crate::ffi::xsf::fcoef(KD, m.try_into().unwrap(), q, cv, fc.as_mut_ptr());
     }
     if fc[0].is_nan() {
         assert!(fc.iter().all(|c| c.is_nan()), "expected all NaN");
@@ -232,8 +250,13 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String>
 /// See the SciPy documentation for `scipy.special.mathieu_even_coef` for details:
 /// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_even_coef.html>
 ///
+/// # Errors
+/// - `q < 0`
+/// - too many predicted coefficients
+///
 /// # See also
 /// - [`mathieu_odd_coef`]: Fourier coefficients for odd Mathieu and modified Mathieu functions
+#[inline]
 pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
 
@@ -257,8 +280,13 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 /// See the SciPy documentation for `scipy.special.mathieu_odd_coef` for details:
 /// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_odd_coef.html>
 ///
+/// # Errors
+/// - `q < 0`
+/// - too many predicted coefficients
+///
 /// # See also
 /// - [`mathieu_even_coef`]: Fourier coefficients for even Mathieu and modified Mathieu functions
+#[inline]
 pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1642-L1698
 
@@ -279,55 +307,61 @@ pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 
 #[cfg(test)]
 mod tests {
+    use num_traits::ToPrimitive;
+
     #[test]
     fn test_mathieu_a() {
-        xsref::test("cem_cva", "d_d-d", |x| crate::mathieu_a(x[0] as u32, x[1]));
+        xsref::test("cem_cva", "d_d-d", |x| {
+            crate::mathieu_a(x[0].to_u32().unwrap(), x[1])
+        });
     }
 
     #[test]
     fn test_mathieu_b() {
-        xsref::test("sem_cva", "d_d-d", |x| crate::mathieu_b(x[0] as u32, x[1]));
+        xsref::test("sem_cva", "d_d-d", |x| {
+            crate::mathieu_b(x[0].to_u32().unwrap(), x[1])
+        });
     }
 
     #[test]
     fn test_mathieu_cem() {
         xsref::test("cem", "d_d_d-d_d", |x| {
-            crate::mathieu_cem(x[0] as u32, x[1], x[2])
+            crate::mathieu_cem(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_sem() {
         xsref::test("sem", "d_d_d-d_d", |x| {
-            crate::mathieu_sem(x[0] as u32, x[1], x[2])
+            crate::mathieu_sem(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modcem1() {
         xsref::test("mcm1", "d_d_d-d_d", |x| {
-            crate::mathieu_modcem1(x[0] as u32, x[1], x[2])
+            crate::mathieu_modcem1(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modsem1() {
         xsref::test("msm1", "d_d_d-d_d", |x| {
-            crate::mathieu_modsem1(x[0] as u32, x[1], x[2])
+            crate::mathieu_modsem1(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modcem2() {
         xsref::test("mcm2", "d_d_d-d_d", |x| {
-            crate::mathieu_modcem2(x[0] as u32, x[1], x[2])
+            crate::mathieu_modcem2(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 
     #[test]
     fn test_mathieu_modsem2() {
         xsref::test("msm2", "d_d_d-d_d", |x| {
-            crate::mathieu_modsem2(x[0] as u32, x[1], x[2])
+            crate::mathieu_modsem2(x[0].to_u32().unwrap(), x[1], x[2])
         });
     }
 

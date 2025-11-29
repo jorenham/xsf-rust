@@ -13,6 +13,7 @@
 ///
 /// # See also
 /// - [`comb`](crate::comb) for the integer version
+#[must_use]
 #[inline]
 pub fn binom(n: f64, k: f64) -> f64 {
     unsafe { crate::ffi::xsf::binom(n, k) }

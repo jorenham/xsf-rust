@@ -1,24 +1,34 @@
 /// Expit function, `1/(1 + exp(-x))`
+#[must_use]
+#[inline]
 pub fn expit(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::expit(x) }
 }
 
 /// Relative error exponential, `(exp(x) - 1)/x`
+#[must_use]
+#[inline]
 pub fn exprel(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::exprel(x) }
 }
 
 /// Logit function, `log(x / (1 - x))`
+#[must_use]
+#[inline]
 pub fn logit(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::logit(x) }
 }
 
 /// Log of the expit function, `log(expit(x))`
+#[must_use]
+#[inline]
 pub fn log_expit(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log_expit(x) }
 }
 
 /// Compute `log(1 - exp(x))`
+#[must_use]
+#[inline]
 pub fn log1mexp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log1mexp(x) }
 }

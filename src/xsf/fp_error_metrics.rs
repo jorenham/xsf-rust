@@ -14,61 +14,64 @@ pub trait ExtendedErrorArg: sealed::Sealed {
 }
 
 impl ExtendedErrorArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_absolute_error(self, other) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_relative_error(self, other) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_magnitude(self) -> f64 {
         self.abs()
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_is_nan(self) -> bool {
         self.is_nan()
     }
 }
 
 impl ExtendedErrorArg for Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_absolute_error_1(self, other) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         unsafe { crate::ffi::xsf::extended_relative_error_1(self, other) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_magnitude(self) -> f64 {
         // L2 norm requires `sqrt`, which isn't available in `no_std` mode, so use L1 norm instead
         self.l1_norm()
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_is_nan(self) -> bool {
         self.is_nan()
     }
 }
 
 /// Extended absolute error metric between two `f64` or `Complex<f64>` values
+#[inline]
 pub fn extended_absolute_error<T: ExtendedErrorArg>(actual: T, expected: T) -> f64 {
     actual.xsf_extended_absolute_error(expected)
 }
 
 /// Extended relative error metric between two `f64` or `Complex<f64>` values
+#[inline]
 pub fn extended_relative_error<T: ExtendedErrorArg>(actual: T, expected: T) -> f64 {
     actual.xsf_extended_relative_error(expected)
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use num_complex::c64;
 

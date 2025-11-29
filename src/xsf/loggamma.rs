@@ -10,36 +10,38 @@ pub trait LogGammaArg: sealed::Sealed {
 }
 
 impl LogGammaArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn xsf_loggamma(self) -> f64 {
         unsafe { crate::ffi::xsf::loggamma(self) }
     }
-    #[inline(always)]
+
+    #[inline]
     fn xsf_rgamma(self) -> f64 {
         unsafe { crate::ffi::xsf::rgamma(self) }
     }
 }
 
 impl LogGammaArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn xsf_loggamma(self) -> Self {
         unsafe { crate::ffi::xsf::loggamma_1(self) }
     }
-    #[inline(always)]
+
+    #[inline]
     fn xsf_rgamma(self) -> Self {
         unsafe { crate::ffi::xsf::rgamma_1(self) }
     }
 }
 
 /// Principal branch of the logarithm of `gamma(z)`
-#[doc(alias = "lgamma")]
-#[doc(alias = "ln_gamma")]
-#[doc(alias = "log_gamma")]
+#[doc(alias = "lgamma", alias = "ln_gamma", alias = "log_gamma")]
+#[inline]
 pub fn loggamma<T: LogGammaArg>(z: T) -> T {
     z.xsf_loggamma()
 }
 
 /// Reciprocal Gamma function `1 / gamma(z)`
+#[inline]
 pub fn rgamma<T: LogGammaArg>(z: T) -> T {
     z.xsf_rgamma()
 }

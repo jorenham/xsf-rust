@@ -10,22 +10,24 @@ pub trait ExpIntArg: sealed::Sealed {
 }
 
 impl ExpIntArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn expi(self) -> Self {
         unsafe { crate::ffi::xsf::expi(self) }
     }
-    #[inline(always)]
+
+    #[inline]
     fn exp1(self) -> Self {
         unsafe { crate::ffi::xsf::exp1(self) }
     }
 }
 
 impl ExpIntArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn expi(self) -> Self {
         unsafe { crate::ffi::xsf::expi_1(self) }
     }
-    #[inline(always)]
+
+    #[inline]
     fn exp1(self) -> Self {
         unsafe { crate::ffi::xsf::exp1_1(self) }
     }
@@ -42,6 +44,8 @@ impl ExpIntArg for num_complex::Complex<f64> {
 /// ## See also:
 /// - [`expi`]: exponential integral Ei
 /// - [`expn`](fn.expn.html): generalization of E₁
+#[must_use]
+#[inline]
 pub fn exp1<T: ExpIntArg>(z: T) -> T {
     z.exp1()
 }
@@ -60,6 +64,8 @@ pub fn exp1<T: ExpIntArg>(z: T) -> T {
 /// ## See also:
 /// - [`exp1`]: exponential integral E₁
 /// - [`expn`](fn.expn.html): generalization of E₁
+#[must_use]
+#[inline]
 pub fn expi<T: ExpIntArg>(z: T) -> T {
     z.expi()
 }
@@ -82,6 +88,8 @@ pub fn expi<T: ExpIntArg>(z: T) -> T {
 /// - F(0) = 0
 /// - F(x) is increasing on [0, ∞).
 /// - F(x) = 1 in the limit as x → ∞.
+#[must_use]
+#[inline]
 pub fn scaled_exp1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::scaled_exp1(x) }
 }

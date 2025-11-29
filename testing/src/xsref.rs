@@ -17,24 +17,24 @@ pub trait TestOutputValue: ExtendedErrorArg + Copy + Display {
 }
 
 impl TestOutputValue for f64 {
-    #[inline(always)]
+    #[inline]
     fn magnitude(&self) -> f64 {
         self.abs()
     }
 
-    #[inline(always)]
+    #[inline]
     fn format(&self) -> String {
         format!("{self:.5e}")
     }
 }
 
 impl TestOutputValue for Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn magnitude(&self) -> f64 {
         self.norm()
     }
 
-    #[inline(always)]
+    #[inline]
     fn format(&self) -> String {
         format!("{:.5e}{:+.5e}i", self.re, self.im)
     }
@@ -45,20 +45,20 @@ pub trait TestOutput: Copy + PartialEq {
 
     fn from_parquet_row(row: Vec<f64>) -> Self;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
         rows.into_iter().map(Self::from_parquet_row).collect()
     }
 
     fn values(&self) -> Vec<Self::Value>;
 
-    #[inline(always)]
+    #[inline]
     fn magnitude(&self) -> f64 {
         let values = self.values();
         values.iter().map(|x| x.magnitude()).sum::<f64>() / values.len() as f64
     }
 
-    #[inline(always)]
+    #[inline]
     fn error(&self, expected: Self) -> f64 {
         self.values()
             .iter()
@@ -87,12 +87,12 @@ pub trait TestOutput: Copy + PartialEq {
 impl TestOutput for f64 {
     type Value = f64;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         row[0]
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![*self]
     }
@@ -101,12 +101,12 @@ impl TestOutput for f64 {
 impl TestOutput for Complex<f64> {
     type Value = Complex<f64>;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         c64(row[0], row[1])
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![*self]
     }
@@ -115,12 +115,12 @@ impl TestOutput for Complex<f64> {
 impl TestOutput for (f64, f64) {
     type Value = f64;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (row[0], row[1])
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![self.0, self.1]
     }
@@ -129,12 +129,12 @@ impl TestOutput for (f64, f64) {
 impl TestOutput for (Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (c64(row[0], row[1]), c64(row[2], row[3]))
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![self.0, self.1]
     }
@@ -143,12 +143,12 @@ impl TestOutput for (Complex<f64>, Complex<f64>) {
 impl TestOutput for (f64, f64, f64, f64) {
     type Value = f64;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (row[0], row[1], row[2], row[3])
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![self.0, self.1, self.2, self.3]
     }
@@ -157,7 +157,7 @@ impl TestOutput for (f64, f64, f64, f64) {
 impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
-    #[inline(always)]
+    #[inline]
     fn from_parquet_row(row: Vec<f64>) -> Self {
         (
             c64(row[0], row[1]),
@@ -167,7 +167,7 @@ impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
         )
     }
 
-    #[inline(always)]
+    #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![self.0, self.1, self.2, self.3]
     }
@@ -188,14 +188,14 @@ pub enum TestError {
 }
 
 impl From<IOError> for TestError {
-    #[inline(always)]
+    #[inline]
     fn from(err: IOError) -> Self {
         TestError::Io(err)
     }
 }
 
 impl From<PolarsError> for TestError {
-    #[inline(always)]
+    #[inline]
     fn from(_: PolarsError) -> Self {
         TestError::DataFormat
     }

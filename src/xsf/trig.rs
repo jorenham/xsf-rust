@@ -10,65 +10,81 @@ pub trait TrigArg: sealed::Sealed {
 }
 
 impl TrigArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn sinpi(self) -> Self {
         unsafe { crate::ffi::xsf::sinpi(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn cospi(self) -> Self {
         unsafe { crate::ffi::xsf::cospi(self) }
     }
 }
 
 impl TrigArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn sinpi(self) -> Self {
         unsafe { crate::ffi::xsf::sinpi_1(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn cospi(self) -> Self {
         unsafe { crate::ffi::xsf::cospi_1(self) }
     }
 }
 
 /// Compute `sin(pi*z)` for real or complex `z`
+#[must_use]
+#[inline]
 pub fn sinpi<T: TrigArg>(z: T) -> T {
     z.sinpi()
 }
 
 /// Compute `cos(pi*z)` for real or complex `z`
+#[must_use]
+#[inline]
 pub fn cospi<T: TrigArg>(z: T) -> T {
     z.cospi()
 }
 
 /// Circular sine of angle in degrees
+#[must_use]
+#[inline]
 pub fn sindg(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::sindg(x) }
 }
 
 /// Circular cosine of angle in degrees
+#[must_use]
+#[inline]
 pub fn cosdg(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cosdg(x) }
 }
 
 /// Circular tangent of argument in degrees
+#[must_use]
+#[inline]
 pub fn tandg(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::tandg(x) }
 }
 
 /// Circular cotangent of argument in degrees
+#[must_use]
+#[inline]
 pub fn cotdg(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cotdg(x) }
 }
 
 /// Compute `cos(x) - 1`
+#[must_use]
+#[inline]
 pub fn cosm1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cosm1(x) }
 }
 
 /// Degrees, minutes, seconds to radians
+#[must_use]
+#[inline]
 pub fn radian(d: f64, m: f64, s: f64) -> f64 {
     unsafe { crate::ffi::xsf::radian(d, m, s) }
 }

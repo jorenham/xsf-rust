@@ -56,10 +56,11 @@ macro_rules! np_assert_equal {
         let expected = $expected;
         assert_eq!(actual.len(), expected.len());
         for (&a, &e) in actual.iter().zip(expected.iter()) {
+            #[allow(clippy::float_cmp)]
             if e.is_nan() {
-                assert!(a.is_nan(), "expected NaN but got {}", a);
+                assert!(a.is_nan(), "expected NaN but got {a}");
             } else {
-                assert_eq!(a, e, "desired {} but got {}", e, a);
+                assert_eq!(a, e, "desired {e} but got {a}");
             }
         }
     }};

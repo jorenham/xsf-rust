@@ -3,6 +3,7 @@
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
 use crate::ffi::xsf as ffi;
+use core::cmp::Ordering;
 use core::f64::consts::{PI, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
@@ -16,7 +17,8 @@ mod sealed {
         fn is_finite(&self) -> bool;
         fn is_nan(&self) -> bool;
 
-        fn hyp2f1_sh(&self, a1: f64, a2: f64, b: f64) -> Self {
+        #[inline]
+        fn hyp2f1_sh(self, a1: f64, a2: f64, b: f64) -> Self {
             (self.clone() * -0.5 + 0.5).hyp2f1(a1, a2, b)
         }
     }
@@ -24,9 +26,12 @@ mod sealed {
     impl OrthoPolyArg for f64 {
         const ZERO: Self = 0.0;
 
+        #[inline]
         fn is_finite(&self) -> bool {
             (*self).is_finite()
         }
+
+        #[inline]
         fn is_nan(&self) -> bool {
             (*self).is_nan()
         }
@@ -35,9 +40,12 @@ mod sealed {
     impl OrthoPolyArg for num_complex::Complex<f64> {
         const ZERO: Self = Self::ZERO;
 
+        #[inline]
         fn is_finite(&self) -> bool {
             (*self).is_finite()
         }
+
+        #[inline]
         fn is_nan(&self) -> bool {
             (*self).is_nan()
         }
@@ -47,6 +55,7 @@ mod sealed {
 /// Helper function for the generalized multiset coefficient
 ///
 /// https://mathworld.wolfram.com/Multichoose.html
+#[inline]
 fn multiset(n: f64, k: f64) -> f64 {
     unsafe { ffi::binom(n + k - 1.0, k) }
 }
@@ -57,61 +66,61 @@ fn multiset(n: f64, k: f64) -> f64 {
 //
 
 pub trait JacobiArg<N>: sealed::OrthoPolyArg {
-    fn eval_jacobi(&self, n: N, alpha: f64, beta: f64) -> Self;
-    fn eval_legendre(&self, n: N) -> Self;
+    fn eval_jacobi(self, n: N, alpha: f64, beta: f64) -> Self;
+    fn eval_legendre(self, n: N) -> Self;
 }
 
 impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `eval_jacobi` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_jacobi(&self, n: f64, a: f64, b: f64) -> Self {
+    #[inline]
+    fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
         let a1 = a + 1.0;
         self.hyp2f1_sh(-n, n + a1 + b, a1) * multiset(a1, n)
     }
 
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_legendre(&self, n: f64) -> Self {
+    #[inline]
+    fn eval_legendre(self, n: f64) -> Self {
         self.hyp2f1_sh(-n, n + 1.0, 1.0)
     }
 }
 
 impl JacobiArg<i32> for f64 {
     /// Corresponds to `eval_jacobi_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_jacobi(&self, n: i32, a: f64, b: f64) -> Self {
-        if n < 0 {
-            self.eval_jacobi(n as f64, a, b)
-        } else if n == 0 {
-            1.0
-        } else {
-            let a1 = a + 1.0;
-            // setting u = (x - 1) / 2 simplifies the recurrence
-            let u = 0.5 * self - 0.5;
-            let d0 = (a + b + 2.0) * u;
+    #[inline]
+    fn eval_jacobi(self, n: i32, a: f64, b: f64) -> Self {
+        match n.cmp(&0) {
+            Ordering::Less => self.eval_jacobi(f64::from(n), a, b),
+            Ordering::Equal => 1.0,
+            Ordering::Greater => {
+                let a1 = a + 1.0;
+                // setting u = (x - 1) / 2 simplifies the recurrence
+                let u = 0.5 * self - 0.5;
+                let d0 = (a + b + 2.0) * u;
 
-            if n == 1 {
-                a1 + d0
-            } else {
-                let mut d = d0 / a1;
-                let mut p = d + 1.0;
-                for k in 1..n {
-                    let k = k as f64;
-                    let t = 2.0 * k + a + b;
-                    d = (t + 2.0) * ((t + 1.0) * t * u * p + k * (k + b) * d)
-                        / ((k + a1) * (k + a1 + b) * t);
-                    p += d;
+                if n == 1 {
+                    a1 + d0
+                } else {
+                    let mut d = d0 / a1;
+                    let mut p = d + 1.0;
+                    for k in 1..n {
+                        let k = f64::from(k);
+                        let t = 2.0 * k + a + b;
+                        d = (t + 2.0) * ((t + 1.0) * t * u * p + k * (k + b) * d)
+                            / ((k + a1) * (k + a1 + b) * t);
+                        p += d;
+                    }
+                    p * multiset(a1, f64::from(n))
                 }
-                p * multiset(a1, n as f64)
-            }
+            },
         }
     }
 
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_legendre(&self, n: i32) -> Self {
+    #[inline]
+    fn eval_legendre(self, n: i32) -> Self {
         let n = if n < 0 { -n - 1 } else { n }; // symmetry
-        let x = *self;
+        let x = self;
 
         if n == 0 {
             1.0
@@ -121,8 +130,8 @@ impl JacobiArg<i32> for f64 {
             // Power series rather than recurrence due to loss of precision
             // http://functions.wolfram.com/Polynomials/LegendreP/02/
             let aa = n / 2;
-            let a = aa as f64;
-            let n_f64 = n as f64;
+            let a = f64::from(aa);
+            let n_f64 = f64::from(n);
 
             let mut d = (-1.0_f64).powi(aa) * multiset(a + 1.0, -0.5);
             if n & 1 == 1 {
@@ -133,7 +142,7 @@ impl JacobiArg<i32> for f64 {
             let x2 = x * x;
             let mut p = 0.0;
             for kk in 0..=aa {
-                let kk = kk as f64;
+                let kk = f64::from(kk);
                 p += d;
                 // d *= -2 * x**2 * (a - kk) * (2*n + 1 - 2*a + 2*kk) / (
                 //     (n + 1 - 2*a + 2*kk) * (n + 2 - 2*a + 2*kk))
@@ -145,7 +154,7 @@ impl JacobiArg<i32> for f64 {
         } else {
             let (mut p, mut d) = (x, x - 1.0);
             for k in 1..n {
-                let k = k as f64;
+                let k = f64::from(k);
                 // ((2*k+1)/(k+1))*(x-1)*p + (k/(k+1)) * d
                 d = ((2.0 * k + 1.0) * (x - 1.0) * p + k * d) / (k + 1.0);
                 p += d;
@@ -222,21 +231,21 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
 //
 
 pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
-    fn eval_gegenbauer(&self, n: N, alpha: f64) -> Self;
+    fn eval_gegenbauer(self, n: N, alpha: f64) -> Self;
 }
 
 impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
     /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_gegenbauer(&self, n: f64, a: f64) -> Self {
+    #[inline]
+    fn eval_gegenbauer(self, n: f64, a: f64) -> Self {
         if a == 0.0 {
-            if n.is_nan() || self.is_nan() {
-                self.clone() * n
+            if n.is_nan() || self.clone().is_nan() {
+                self * n
             } else {
                 Self::ZERO
             }
-        } else if !self.is_finite() {
-            self.clone() * a
+        } else if !self.clone().is_finite() {
+            self * a
         } else {
             let aa = 2.0 * a;
             self.hyp2f1_sh(-n, n + aa, 0.5 + a) * multiset(aa, n)
@@ -246,8 +255,8 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
 
 impl GegenbauerArg<i32> for f64 {
     /// Corresponds to `eval_gegenbauer_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_gegenbauer(&self, n: i32, alpha: f64) -> Self {
+    #[inline]
+    fn eval_gegenbauer(self, n: i32, alpha: f64) -> Self {
         if alpha.is_nan() || self.is_nan() {
             f64::NAN
         } else if n < 0 || alpha == 0.0 {
@@ -263,16 +272,16 @@ impl GegenbauerArg<i32> for f64 {
 
             let m = n / 2;
 
-            let mut term = (-1.0_f64).powi(m) * multiset(alpha, m as f64);
+            let mut term = (-1.0_f64).powi(m) * multiset(alpha, f64::from(m));
             if n == 2 * m + 1 {
-                term *= 2.0 * (alpha + m as f64) * self;
+                term *= 2.0 * (alpha + f64::from(m)) * self;
             }
 
             let c = -4.0 * self * self;
             let mut sum = term;
             for k in (1..=m).rev() {
-                let k = k as f64;
-                let nk = n as f64 - k;
+                let k = f64::from(k);
+                let nk = f64::from(n) - k;
                 let nkk = nk - k;
                 term *= c * k * (nk + alpha) / ((nkk + 1.0) * (nkk + 2.0));
                 sum += term;
@@ -284,14 +293,14 @@ impl GegenbauerArg<i32> for f64 {
 
             let aa = alpha * 2.0;
             let d0 = self - 1.0;
-            let (mut p, mut d) = (*self, d0);
+            let (mut p, mut d) = (self, d0);
             for k in 1..n {
-                let k = k as f64;
+                let k = f64::from(k);
                 d = (k * d + (k + k + aa) * d0 * p) / (k + aa);
-                p += d
+                p += d;
             }
 
-            let n = n as f64;
+            let n = f64::from(n);
             if (alpha / n) < 1e-8 {
                 // avoid loss of precision
                 aa / n * p
@@ -341,39 +350,39 @@ pub fn eval_gegenbauer<N, Z: GegenbauerArg<N>>(n: N, alpha: f64, z: Z) -> Z {
 //
 
 pub trait ChebyshevArg<N>: sealed::OrthoPolyArg {
-    fn eval_chebyshev_t(&self, n: N) -> Self;
-    fn eval_chebyshev_u(&self, n: N) -> Self;
+    fn eval_chebyshev_t(self, n: N) -> Self;
+    fn eval_chebyshev_u(self, n: N) -> Self;
 }
 
 impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
-    #[inline(always)]
-    fn eval_chebyshev_t(&self, n: f64) -> Self {
+    #[inline]
+    fn eval_chebyshev_t(self, n: f64) -> Self {
         self.hyp2f1_sh(-n, n, 0.5)
     }
 
-    #[inline(always)]
-    fn eval_chebyshev_u(&self, n: f64) -> Self {
+    #[inline]
+    fn eval_chebyshev_u(self, n: f64) -> Self {
         self.hyp2f1_sh(-n, n + 2.0, 1.5) * (n + 1.0)
     }
 }
 
 impl ChebyshevArg<i32> for f64 {
-    #[inline(always)]
-    fn eval_chebyshev_t(&self, n: i32) -> Self {
-        chebyshev_recurrence(*self, 1.0, *self, 0..n.abs())
+    #[inline]
+    fn eval_chebyshev_t(self, n: i32) -> Self {
+        chebyshev_recurrence(self, 1.0, self, 0..n.abs())
     }
 
-    #[inline(always)]
-    fn eval_chebyshev_u(&self, n: i32) -> Self {
+    #[inline]
+    fn eval_chebyshev_u(self, n: i32) -> Self {
         if n < -1 {
-            -chebyshev_recurrence(*self, 0.0, -1.0, -1..(-n - 2))
+            -chebyshev_recurrence(self, 0.0, -1.0, -1..(-n - 2))
         } else {
-            chebyshev_recurrence(*self, 0.0, -1.0, -1..n)
+            chebyshev_recurrence(self, 0.0, -1.0, -1..n)
         }
     }
 }
 
-#[inline(always)]
+#[inline]
 fn chebyshev_recurrence(x: f64, p1: f64, p2: f64, range: Range<i32>) -> f64 {
     let x2 = x * 2.0;
     range.fold((p1, p2), |(p1, p2), _| (x2 * p1 - p2, p1)).0
@@ -441,13 +450,13 @@ pub fn eval_chebyshev_u<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 //
 
 pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
-    fn eval_genlaguerre(&self, n: N, a: f64) -> Self;
+    fn eval_genlaguerre(self, n: N, a: f64) -> Self;
 }
 
 impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
     /// Corresponds to `eval_genlaguerre` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_genlaguerre(&self, n: f64, a: f64) -> Z {
+    #[inline]
+    fn eval_genlaguerre(self, n: f64, a: f64) -> Z {
         let a1 = a + 1.0;
         self.hyp1f1(-n, a1) * multiset(a1, n)
     }
@@ -455,19 +464,19 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
 
 impl LaguerreArg<i32> for f64 {
     /// Corresponds to `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_genlaguerre(&self, n: i32, a: f64) -> Self {
+    #[inline]
+    fn eval_genlaguerre(self, n: i32, a: f64) -> Self {
         if n < 0 {
             0.0
         } else {
             let a1 = a + 1.0;
             let (mut d, mut p) = (0.0, 1.0);
             for k in 0..n {
-                let k = k as f64;
+                let k = f64::from(k);
                 d = (d * k - p * self) / (k + a1);
                 p += d;
             }
-            p * multiset(a1, n as f64)
+            p * multiset(a1, f64::from(n))
         }
     }
 }
@@ -535,7 +544,7 @@ pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
 // Hermite He (probabilists')
 //
 
-#[inline(always)]
+#[inline]
 fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     if x.is_nan() || n.is_nan() {
         f64::NAN
@@ -558,41 +567,41 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
 }
 
 pub trait HermiteArg<N>: sealed::OrthoPolyArg {
-    fn eval_hermite_he(&self, n: N) -> Self;
-    fn eval_hermite_h(&self, n: N) -> Self;
+    fn eval_hermite_he(self, n: N) -> Self;
+    fn eval_hermite_h(self, n: N) -> Self;
 }
 
 impl HermiteArg<f64> for f64 {
-    #[inline(always)]
-    fn eval_hermite_he(&self, n: f64) -> f64 {
-        eval_hermite_impl(*self, n, 0.5)
+    #[inline]
+    fn eval_hermite_he(self, n: f64) -> f64 {
+        eval_hermite_impl(self, n, 0.5)
     }
 
-    #[inline(always)]
-    fn eval_hermite_h(&self, n: f64) -> f64 {
-        eval_hermite_impl(*self, n, 1.0)
+    #[inline]
+    fn eval_hermite_h(self, n: f64) -> f64 {
+        eval_hermite_impl(self, n, 1.0)
     }
 }
 
 impl HermiteArg<u32> for f64 {
     /// Corresponds to `eval_hermitenorm` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_hermite_he(&self, n: u32) -> f64 {
+    #[inline]
+    fn eval_hermite_he(self, n: u32) -> f64 {
         if self.is_nan() {
             f64::NAN
         } else {
             let (mut y1, mut y2) = (1.0, 0.0);
             for k in (1..=n).rev() {
-                (y1, y2) = (self * y1 - (k as f64) * y2, y1);
+                (y1, y2) = (self * y1 - f64::from(k) * y2, y1);
             }
             y1
         }
     }
 
     /// Corresponds to `eval_hermite` in `scipy/special/orthogonal_eval.pxd`
-    #[inline(always)]
-    fn eval_hermite_h(&self, n: u32) -> f64 {
-        (n as f64 / 2.0).exp2() * (SQRT_2 * self).eval_hermite_he(n)
+    #[inline]
+    fn eval_hermite_h(self, n: u32) -> f64 {
+        (f64::from(n) / 2.0).exp2() * (SQRT_2 * self).eval_hermite_he(n)
     }
 }
 
@@ -681,6 +690,7 @@ mod tests {
         eval_hermite_he, eval_jacobi, eval_laguerre, eval_legendre, np_assert_allclose,
     };
     use num_complex::c64;
+    use num_traits::ToPrimitive;
 
     #[test]
     fn test_eval_jacobi_eq_legendre() {
@@ -693,10 +703,10 @@ mod tests {
             let pi = xs.map(|x| eval_jacobi(n, 0.0, 0.0, x));
             np_assert_allclose!(pi, p0, rtol = 1e-13);
 
-            let pf = xs.map(|x| eval_jacobi(n as f64, 0.0, 0.0, x));
+            let pf = xs.map(|x| eval_jacobi(f64::from(n), 0.0, 0.0, x));
             np_assert_allclose!(pf, p0, rtol = 1e-12, atol = f64::EPSILON);
 
-            let pc = xs.map(|x| eval_jacobi(n as f64, 0.0, 0.0, c64(x, 0.0)).re);
+            let pc = xs.map(|x| eval_jacobi(f64::from(n), 0.0, 0.0, c64(x, 0.0)).re);
             // the xsf hyp2f1 implementation for complex numbers isn't very accurate
             np_assert_allclose!(pc, p0, rtol = 1e-7, atol = 1e-8);
         }
@@ -712,13 +722,13 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             [-7.0, -1.0, 0.35, 0.5, 0.65, 2.0, 8.0],
             [57.0, 1.0, -0.575, -0.5, -0.375, 3.0, 67.0],
-            [-491.0, -1.0, -0.173125, -0.375, -0.539375, 4.0, 584.0],
+            [-491.0, -1.0, -0.173_125, -0.375, -0.539_375, 4.0, 584.0],
         ];
         let expect_0_1 = [
             [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             [-8.0, -2.0, -0.65, -0.5, -0.35, 1.0, 7.0],
             [67.0, 3.0, -0.375, -0.5, -0.575, 1.0, 57.0],
-            [-584.0, -4.0, 0.539375, 0.375, 0.173125, 1.0, 491.0],
+            [-584.0, -4.0, 0.539_375, 0.375, 0.173_125, 1.0, 491.0],
         ];
         let expect_1_1 = [
             [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -731,7 +741,7 @@ mod tests {
             [-7.5, -1.5, -0.15, 0.0, 0.15, 1.5, 7.5],
             [61.875, 1.875, -0.6, -0.625, -0.6, 1.875, 61.875],
             [
-                -535.9375, -2.1875, 0.214375, 0.0, -0.214375, 2.1875, 535.9375,
+                -535.9375, -2.1875, 0.214_375, 0.0, -0.214_375, 2.1875, 535.9375,
             ],
         ];
         let expect_h_nh = [
@@ -762,7 +772,7 @@ mod tests {
                 let p_i32 = xs.map(|x| eval_jacobi(n, alpha, beta, x));
                 np_assert_allclose!(p_i32, expected[i], rtol = 1e-14, atol = f64::EPSILON);
 
-                let p_f64 = xs.map(|x| eval_jacobi(n as f64, alpha, beta, x));
+                let p_f64 = xs.map(|x| eval_jacobi(f64::from(n), alpha, beta, x));
                 np_assert_allclose!(p_f64, expected[i], rtol = 1e-14, atol = f64::EPSILON);
             }
         }
@@ -779,7 +789,7 @@ mod tests {
             let pi = xs.map(|x| eval_legendre(n, x));
             np_assert_allclose!(pi, p0, rtol = 1e-13);
 
-            let pf = xs.map(|x| eval_legendre(n as f64, x));
+            let pf = xs.map(|x| eval_legendre(f64::from(n), x));
             np_assert_allclose!(pf, p0, rtol = 1e-12, atol = f64::EPSILON);
         }
     }
@@ -804,11 +814,11 @@ mod tests {
         for &n in &ns {
             for &alpha in &alphas {
                 let c_i32 = xs.map(|x| eval_gegenbauer(n, alpha, x));
-                let c_f64 = xs.map(|x| eval_gegenbauer(n as f64, alpha, x));
+                let c_f64 = xs.map(|x| eval_gegenbauer(f64::from(n), alpha, x));
                 np_assert_allclose!(c_i32, c_f64, rtol = 1.5e-14, atol = 1.5e-14);
 
-                let c_f64 = zs.map(|z| eval_gegenbauer(n as f64, alpha, z.re));
-                let c_c64 = zs.map(|z| eval_gegenbauer(n as f64, alpha, z).re);
+                let c_f64 = zs.map(|z| eval_gegenbauer(f64::from(n), alpha, z.re));
+                let c_c64 = zs.map(|z| eval_gegenbauer(f64::from(n), alpha, z).re);
                 np_assert_allclose!(c_c64, c_f64, rtol = 1e-8, atol = 1e-12);
             }
         }
@@ -825,13 +835,13 @@ mod tests {
             [6.0, 2.0, 1.1, 1.0, 0.9, 0.0, -4.0],
             [23.5, 3.5, 1.205, 1.0, 0.805, -0.5, 3.5],
             [
-                74.33333333333333,
-                5.666666666666667,
-                1.3151666666666667,
+                74.333_333_333_333_33,
+                5.666_666_666_666_667,
+                1.315_166_666_666_666_7,
                 1.0,
-                0.7148333333333333,
-                -0.6666666666666667,
-                2.6666666666666667,
+                0.714_833_333_333_333_3,
+                -0.666_666_666_666_666_7,
+                2.666_666_666_666_666_7,
             ],
         ];
         let expect_1 = [
@@ -839,13 +849,13 @@ mod tests {
             [7.0, 3.0, 2.1, 2.0, 1.9, 1.0, -3.0],
             [30.5, 6.5, 3.305, 3.0, 2.705, 0.5, 0.5],
             [
-                104.83333333333333,
-                12.166666666666667,
-                4.620166666666667,
+                104.833_333_333_333_33,
+                12.166_666_666_666_667,
+                4.620_166_666_666_667,
                 4.0,
-                3.4198333333333333,
-                -0.1666666666666667,
-                3.1666666666666667,
+                3.419_833_333_333_333_3,
+                -0.166_666_666_666_666_7,
+                3.166_666_666_666_666_7,
             ],
         ];
         let expect_h = [
@@ -853,13 +863,13 @@ mod tests {
             [6.5, 2.5, 1.6, 1.5, 1.4, 0.5, -3.5],
             [26.875, 4.875, 2.13, 1.875, 1.63, -0.125, 1.875],
             [
-                88.64583333333333,
-                8.479166666666667,
-                2.6426666666666667,
+                88.645_833_333_333_33,
+                8.479_166_666_666_667,
+                2.642_666_666_666_666_7,
                 2.1875,
-                1.7673333333333333,
-                -0.6041666666666667,
-                3.2291666666666667,
+                1.767_333_333_333_333_3,
+                -0.604_166_666_666_666_7,
+                3.229_166_666_666_666_7,
             ],
         ];
         let expect_nh = [
@@ -867,13 +877,13 @@ mod tests {
             [5.5, 1.5, 0.6, 0.5, 0.4, -0.5, -4.5],
             [20.375, 2.375, 0.53, 0.375, 0.23, -0.625, 5.375],
             [
-                61.770833333333333,
-                3.6041666666666667,
-                0.5126666666666667,
+                61.770_833_333_333_333,
+                3.604_166_666_666_666_7,
+                0.512_666_666_666_666_7,
                 0.3125,
-                0.13733333333333333,
-                -0.4791666666666667,
-                1.3541666666666667,
+                0.137_333_333_333_333_33,
+                -0.479_166_666_666_666_7,
+                1.354_166_666_666_666_7,
             ],
         ];
         let expect = [
@@ -888,7 +898,7 @@ mod tests {
                 let p_i32 = xs.map(|x| eval_genlaguerre(n, alpha, x));
                 np_assert_allclose!(p_i32, expected[i], rtol = 1e-15, atol = f64::EPSILON);
 
-                let p_f64 = xs.map(|x| eval_genlaguerre(n as f64, alpha, x));
+                let p_f64 = xs.map(|x| eval_genlaguerre(f64::from(n), alpha, x));
                 np_assert_allclose!(p_f64, expected[i], rtol = 1e-14, atol = f64::EPSILON);
             }
         }
@@ -905,58 +915,58 @@ mod tests {
             [6.0, 2.0, 1.1, 1.0, 0.9, 0.0, -4.0],
             [23.5, 3.5, 1.205, 1.0, 0.805, -0.5, 3.5],
             [
-                74.33333333333333,
-                5.666666666666667,
-                1.3151666666666667,
+                74.333_333_333_333_33,
+                5.666_666_666_666_667,
+                1.315_166_666_666_666_7,
                 1.0,
-                0.7148333333333333,
-                -0.666666666666667,
-                2.6666666666666667,
+                0.714_833_333_333_333_3,
+                -0.666_666_666_666_666_7,
+                2.666_666_666_666_666_7,
             ],
             [
                 205.375,
-                8.708333333333333,
-                1.4306708333333333,
+                8.708_333_333_333_333,
+                1.430_670_833_333_333_3,
                 1.0,
-                0.6293375,
+                0.629_337_5,
                 -0.625,
-                -1.2916666666666667,
+                -1.291_666_666_666_666_7,
             ],
             [
-                515.5833333333333,
-                12.883333333333333,
-                1.5516875833333333,
+                515.583_333_333_333_3,
+                12.883_333_333_333_333,
+                1.551_687_583_333_333_3,
                 1.0,
-                0.5483540833333333,
-                -0.4666666666666667,
-                -3.1666666666666667,
+                0.548_354_083_333_333_3,
+                -0.466_666_666_666_666_7,
+                -3.166_666_666_666_666_7,
             ],
             [
-                1203.7430555555556,
-                18.509722222222222,
-                1.6783963347222222,
+                1_203.743_055_555_555_6,
+                18.509_722_222_222_222,
+                1.678_396_334_722_222_2,
                 1.0,
-                0.4717286680555556,
-                -0.2569444444444444,
-                -2.0902777777777778,
+                0.471_728_668_055_555_6,
+                -0.256_944_444_444_444_4,
+                -2.090_277_777_777_777_8,
             ],
             [
-                2653.4107142857147,
-                25.9765873015873,
-                1.8109809264087307,
+                2_653.410_714_285_714_7,
+                25.976_587_301_587_3,
+                1.810_980_926_408_730_7,
                 1.0,
-                0.39931075970238106,
-                -0.04047619047619044,
-                0.3253968253968256,
+                0.399_310_759_702_381_06,
+                -0.040_476_190_476_190_44,
+                0.325_396_825_396_825_6,
             ],
             [
-                5580.251612103175,
-                35.757167658730154,
-                1.9496297057145342,
+                5_580.251_612_103_175,
+                35.757_167_658_730_154,
+                1.949_629_705_714_534_2,
                 1.0,
-                0.33095370539707347,
-                0.15399305555555556,
-                2.235739087301587,
+                0.330_953_705_397_073_47,
+                0.153_993_055_555_555_56,
+                2.235_739_087_301_587,
             ],
         ];
 
@@ -964,7 +974,7 @@ mod tests {
             let p_i32 = xs.map(|x| eval_laguerre(n, x));
             np_assert_allclose!(p_i32, expect[i], rtol = 1e-15, atol = f64::EPSILON);
 
-            let p_f64 = xs.map(|x| eval_laguerre(n as f64, x));
+            let p_f64 = xs.map(|x| eval_laguerre(f64::from(n), x));
             np_assert_allclose!(p_f64, expect[i], rtol = 2e-14, atol = f64::EPSILON);
         }
     }
@@ -976,11 +986,11 @@ mod tests {
         G: Fn(f64, f64) -> f64,
     {
         let xs = [-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0];
-
         for (n, &expect_fn) in expected.iter().enumerate() {
             let y_expect = xs.map(expect_fn);
             let y_actual_int = xs.map(|x| eval_int(N::from_usize(n).unwrap(), x));
-            let y_actual_f64 = xs.map(|x| eval_f64(n as f64, x));
+            let n_f64 = n.to_f64().unwrap();
+            let y_actual_f64 = xs.map(|x| eval_f64(n_f64, x));
             np_assert_allclose!(y_actual_int, y_expect, rtol = 1e-15, atol = f64::EPSILON);
             np_assert_allclose!(y_actual_f64, y_expect, rtol = 1e-15, atol = f64::EPSILON);
         }
