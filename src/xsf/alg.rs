@@ -1,4 +1,6 @@
 /// Cube root
+#[must_use]
+#[inline]
 pub fn cbrt(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cbrt(x) }
 }

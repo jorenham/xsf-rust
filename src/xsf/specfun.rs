@@ -7,20 +7,20 @@ mod sealed {
 }
 
 pub trait Hyp1F1Arg: sealed::Sealed {
-    fn hyp1f1(&self, a: f64, b: f64) -> Self;
+    fn hyp1f1(self, a: f64, b: f64) -> Self;
 }
 
 impl Hyp1F1Arg for f64 {
-    #[inline(always)]
-    fn hyp1f1(&self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1(a, b, *self) }
+    #[inline]
+    fn hyp1f1(self, a: f64, b: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp1f1(a, b, self) }
     }
 }
 
 impl Hyp1F1Arg for Complex<f64> {
-    #[inline(always)]
-    fn hyp1f1(&self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, *self) }
+    #[inline]
+    fn hyp1f1(self, a: f64, b: f64) -> Self {
+        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, self) }
     }
 }
 
@@ -39,10 +39,15 @@ impl Hyp1F1Arg for Complex<f64> {
 /// assert_eq!(bernoulli::<1000>()[999], 0.0);
 /// ```
 ///
+/// # Panics
+/// - If `N` is so large that `N - 1` overflows `i32`.
+///
 /// # See also
 /// - [`euler`]: Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
 ///
 /// [scipy-bern]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
+#[must_use]
+#[inline]
 pub fn bernoulli<const N: usize>() -> [f64; N] {
     let mut bn = [0.0; N];
     if N < 3 {
@@ -54,8 +59,8 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
             }
         }
     } else {
-        unsafe { crate::ffi::xsf::bernob((N - 1) as i32, bn.as_mut_ptr()) };
-    };
+        unsafe { crate::ffi::xsf::bernob((N - 1).try_into().unwrap(), bn.as_mut_ptr()) };
+    }
     bn
 }
 
@@ -74,10 +79,15 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
 /// assert_eq!(euler::<1000>()[999], 0.0);
 /// ```
 ///
+/// # Panics
+/// - If `N` is so large that `N - 1` overflows `i32`.
+///
 /// # See also
 /// - [`bernoulli`]: Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
 ///
 /// [scipy-euler]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.euler.html
+#[must_use]
+#[inline]
 pub fn euler<const N: usize>() -> [f64; N] {
     let mut en = [0.0; N];
     if N < 3 {
@@ -86,8 +96,8 @@ pub fn euler<const N: usize>() -> [f64; N] {
             en[0] = 1.0;
         }
     } else {
-        unsafe { crate::ffi::xsf::eulerb((N - 1) as i32, en.as_mut_ptr()) };
-    };
+        unsafe { crate::ffi::xsf::eulerb((N - 1).try_into().unwrap(), en.as_mut_ptr()) };
+    }
     en
 }
 
@@ -116,12 +126,12 @@ pub fn euler<const N: usize>() -> [f64; N] {
 /// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,
 ///   $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
-///
+#[inline]
 pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
-#[inline(always)]
+#[inline]
 fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::hypu(a, b, x) }
 }
@@ -148,6 +158,8 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]
+#[must_use]
+#[allow(clippy::float_cmp)]
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         f64::NAN
@@ -162,7 +174,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
             // DLMF 13.2.14-15 and 13.2.19-21
             unsafe { crate::ffi::xsf::poch(1.0 - b + a, -a) }
         }
-    } else if x < 1.0 && b == 1.0 && a > -0.25 && a < 0.3 {
+    } else if x < 1.0 && a > -0.25 && a < 0.3 && b == 1.0 {
         // DLMF 13.3.7. Fixes scipy/scipy#15650
         let a1 = a + 1.0;
         (x + a + a1) * xsf_hypu(a1, 1.0, x) - a1 * a1 * xsf_hypu(a + 2.0, 1.0, x)
@@ -172,13 +184,16 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// Associated Legendre function for `|x| ≤ 1`
-pub fn pmv(m: i64, v: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pmv(m as f64, v, x) }
+#[must_use]
+#[inline]
+pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::pmv(m.into(), v, x) }
 }
 
 #[cfg(test)]
 mod tests {
     use num_complex::c64;
+    use num_traits::ToPrimitive;
 
     #[test]
     fn test_hypu() {
@@ -195,6 +210,8 @@ mod tests {
 
     #[test]
     fn test_pmv() {
-        xsref::test("pmv", "d_d_d-d", |x| crate::pmv(x[0] as i64, x[1], x[2]));
+        xsref::test("pmv", "d_d_d-d", |x| {
+            crate::pmv(x[0].to_i32().unwrap(), x[1], x[2])
+        });
     }
 }

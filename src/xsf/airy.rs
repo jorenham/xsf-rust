@@ -1,5 +1,7 @@
 use num_complex::Complex;
 
+const CNAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
+
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
@@ -11,43 +13,41 @@ pub trait AiryArg: sealed::Sealed + Sized {
     fn airye(self) -> [Self; 4];
 }
 
-const CNAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
-
 impl AiryArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn airy(self) -> [Self; 4] {
         let [mut ai, mut aip, mut bi, mut bip] = [f64::NAN; 4];
         unsafe {
-            crate::ffi::xsf::airy(self, &mut ai, &mut aip, &mut bi, &mut bip);
+            crate::ffi::xsf::airy(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
         }
         [ai, aip, bi, bip]
     }
 
-    #[inline(always)]
+    #[inline]
     fn airye(self) -> [Self; 4] {
         let [mut ai, mut aip, mut bi, mut bip] = [f64::NAN; 4];
         unsafe {
-            crate::ffi::xsf::airye(self, &mut ai, &mut aip, &mut bi, &mut bip);
+            crate::ffi::xsf::airye(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
         }
         [ai, aip, bi, bip]
     }
 }
 
 impl AiryArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn airy(self) -> [Self; 4] {
         let [mut ai, mut aip, mut bi, mut bip] = [CNAN; 4];
         unsafe {
-            crate::ffi::xsf::airy_1(self, &mut ai, &mut aip, &mut bi, &mut bip);
+            crate::ffi::xsf::airy_1(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
         }
         [ai, aip, bi, bip]
     }
 
-    #[inline(always)]
+    #[inline]
     fn airye(self) -> [Self; 4] {
         let [mut ai, mut bi, mut ad, mut bd] = [CNAN; 4];
         unsafe {
-            crate::ffi::xsf::airye_1(self, &mut ai, &mut bi, &mut ad, &mut bd);
+            crate::ffi::xsf::airye_1(self, &raw mut ai, &raw mut bi, &raw mut ad, &raw mut bd);
         }
         [ai, bi, ad, bd]
     }
@@ -76,6 +76,7 @@ impl AiryArg for num_complex::Complex<f64> {
 ///
 /// # See also
 /// - [`airy_scaled`]: Exponentially scaled Airy functions and derivatives
+#[inline]
 pub fn airy<T: AiryArg>(z: T) -> [T; 4] {
     z.airy()
 }
@@ -101,6 +102,7 @@ pub fn airy<T: AiryArg>(z: T) -> [T; 4] {
 /// # See also
 /// - [`airy`]
 #[doc(alias = "airye")]
+#[inline]
 pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
     z.airye()
 }
@@ -125,15 +127,23 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
 /// - ∫<sub>[0, x]</sub> Ai(*-t*) *dt*
 /// - ∫<sub>[0, x]</sub> Bi(*-t*) *dt*
 #[doc(alias = "itairy")]
+#[must_use]
+#[inline]
 pub fn airy_integrals(x: f64) -> [f64; 4] {
     let [mut itaip, mut itbip, mut itain, mut itbin] = [f64::NAN; 4];
     unsafe {
-        crate::ffi::xsf::itairy(x, &mut itaip, &mut itbip, &mut itain, &mut itbin);
+        crate::ffi::xsf::itairy(
+            x,
+            &raw mut itaip,
+            &raw mut itbip,
+            &raw mut itain,
+            &raw mut itbin,
+        );
     }
     [itaip, itbip, itain, itbin]
 }
 
-#[inline(always)]
+#[inline]
 fn airyzo<const NT: usize, const KF: core::ffi::c_int>() -> [[f64; NT]; 4] {
     let [mut x, mut xp, mut ai_xp, mut aip_x] = [
         [f64::NAN; NT],
@@ -171,8 +181,9 @@ fn airyzo<const NT: usize, const KF: core::ffi::c_int>() -> [[f64; NT]; 4] {
 ///
 /// # See also
 /// - [`airy_bi_zeros`]: Zeros of Bi and Bi'
-#[doc(alias = "airyzo")]
-#[doc(alias = "ai_zeros")]
+#[doc(alias = "airyzo", alias = "ai_zeros")]
+#[must_use]
+#[inline]
 pub fn airy_ai_zeros<const NT: usize>() -> [[f64; NT]; 4] {
     airyzo::<NT, 1>()
 }
@@ -192,8 +203,9 @@ pub fn airy_ai_zeros<const NT: usize>() -> [[f64; NT]; 4] {
 ///
 /// # See also
 /// - [`airy_ai_zeros`]: Zeros of Ai and Ai'
-#[doc(alias = "airyzo")]
-#[doc(alias = "bi_zeros")]
+#[doc(alias = "airyzo", alias = "bi_zeros")]
+#[must_use]
+#[inline]
 pub fn airy_bi_zeros<const NT: usize>() -> [[f64; NT]; 4] {
     airyzo::<NT, 2>()
 }
@@ -202,39 +214,40 @@ pub fn airy_bi_zeros<const NT: usize>() -> [[f64; NT]; 4] {
 mod tests {
     use num_complex::c64;
 
-    #[inline(always)]
-    fn as_tuple<T: Clone>(x: [T; 4]) -> (T, T, T, T) {
+    fn as_tuple<T: Clone>(x: &[T; 4]) -> (T, T, T, T) {
         (x[0].clone(), x[1].clone(), x[2].clone(), x[3].clone())
     }
 
     #[test]
     fn test_airy_f64() {
-        xsref::test("airy", "d-d_d_d_d", |x| as_tuple(crate::airy(x[0])));
+        xsref::test("airy", "d-d_d_d_d", |x| as_tuple(&crate::airy(x[0])));
     }
 
     #[test]
     fn test_airy_c64() {
         xsref::test("airy", "cd-cd_cd_cd_cd", |x| {
-            as_tuple(crate::airy(c64(x[0], x[1])))
+            as_tuple(&crate::airy(c64(x[0], x[1])))
         });
     }
 
     #[test]
     fn test_airye_f64() {
-        xsref::test("airye", "d-d_d_d_d", |x| as_tuple(crate::airy_scaled(x[0])));
+        xsref::test("airye", "d-d_d_d_d", |x| {
+            as_tuple(&crate::airy_scaled(x[0]))
+        });
     }
 
     #[test]
     fn test_airye_c64() {
         xsref::test("airye", "cd-cd_cd_cd_cd", |x| {
-            as_tuple(crate::airy_scaled(c64(x[0], x[1])))
+            as_tuple(&crate::airy_scaled(c64(x[0], x[1])))
         });
     }
 
     #[test]
     fn test_itairy() {
         xsref::test("itairy", "d-d_d_d_d", |x| {
-            as_tuple(crate::airy_integrals(x[0]))
+            as_tuple(&crate::airy_integrals(x[0]))
         });
     }
 
@@ -250,16 +263,16 @@ mod tests {
         let [a, ap, ai, aip] = crate::airy_ai_zeros::<3>();
         // >>> a
         // array([-2.33810741, -4.08794944, -5.52055983])
-        crate::np_assert_allclose!(&a, &[-2.33810741, -4.08794944, -5.52055983]);
+        crate::np_assert_allclose!(&a, &[-2.338_107_41, -4.087_949_44, -5.520_559_83]);
         // >>> ap
         // array([-1.01879297, -3.24819758, -4.82009921])
-        crate::np_assert_allclose!(&ap, &[-1.01879297, -3.24819758, -4.82009921]);
+        crate::np_assert_allclose!(&ap, &[-1.018_792_97, -3.248_197_58, -4.820_099_21]);
         // >>> ai
         // array([ 0.53565666, -0.41901548,  0.38040647])
-        crate::np_assert_allclose!(&ai, &[0.53565666, -0.41901548, 0.38040647]);
+        crate::np_assert_allclose!(&ai, &[0.535_656_66, -0.419_015_48, 0.380_406_47]);
         // >>> aip
         // array([ 0.70121082, -0.80311137,  0.86520403])
-        crate::np_assert_allclose!(&aip, &[0.70121082, -0.80311137, 0.86520403]);
+        crate::np_assert_allclose!(&aip, &[0.701_210_82, -0.803_111_37, 0.865_204_03]);
     }
 
     #[test]
@@ -274,15 +287,15 @@ mod tests {
         let [b, bp, bi, bip] = crate::airy_bi_zeros::<3>();
         // >>> b
         // array([-1.17371322, -3.2710933 , -4.83073784])
-        crate::np_assert_allclose!(&b, &[-1.17371322, -3.2710933, -4.83073784]);
+        crate::np_assert_allclose!(&b, &[-1.173_713_22, -3.271_093_3, -4.830_737_84]);
         // >>> bp
         // array([-2.29443968, -4.07315509, -5.51239573])
-        crate::np_assert_allclose!(&bp, &[-2.29443968, -4.07315509, -5.51239573]);
+        crate::np_assert_allclose!(&bp, &[-2.294_439_68, -4.073_155_09, -5.512_395_73]);
         // >>> bi
         // array([-0.45494438,  0.39652284, -0.36796916])
-        crate::np_assert_allclose!(&bi, &[-0.45494438, 0.39652284, -0.36796916]);
+        crate::np_assert_allclose!(&bi, &[-0.454_944_38, 0.396_522_84, -0.367_969_16]);
         // >>> bip
         // array([ 0.60195789, -0.76031014,  0.83699101])
-        crate::np_assert_allclose!(&bip, &[0.60195789, -0.76031014, 0.83699101]);
+        crate::np_assert_allclose!(&bip, &[0.601_957_89, -0.760_310_14, 0.836_991_01]);
     }
 }

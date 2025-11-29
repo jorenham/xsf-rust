@@ -14,24 +14,24 @@ pub trait StatsArg: sealed::Sealed {
 }
 
 impl StatsArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::ndtr(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn log_ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::log_ndtr(self) }
     }
 }
 
 impl StatsArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::ndtr_1(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn log_ndtr(self) -> Self {
         unsafe { crate::ffi::xsf::log_ndtr_1(self) }
     }
@@ -65,6 +65,9 @@ impl StatsArg for num_complex::Complex<f64> {
 /// - [`betainc`](crate::betainc): Regularized incomplete Beta function
 ///
 /// [stdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtr.html
+#[must_use]
+#[inline]
+#[allow(clippy::float_cmp)]
 pub fn stdtr(nu: f64, x: f64) -> f64 {
     if nu <= 0.0 {
         f64::NAN
@@ -87,6 +90,9 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
 /// Rust implementation of [`scipy.special.stdtrit`][stdtrit] with comparable or better accuracy.
 ///
 /// [stdtrit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtrit.html
+#[must_use]
+#[inline]
+#[allow(clippy::float_cmp)]
 pub fn stdtri(nu: f64, p: f64) -> f64 {
     if nu <= 0.0 || !(0.0..=1.0).contains(&p) {
         f64::NAN
@@ -112,21 +118,29 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
 // Normal
 
 /// Normal distribution function `F(z)` for real or complex `z`
+#[must_use]
+#[inline]
 pub fn ndtr<T: StatsArg>(z: T) -> T {
     z.ndtr()
 }
 
 /// Log of [`ndtr`] for real or complex argument
+#[must_use]
+#[inline]
 pub fn log_ndtr<T: StatsArg>(z: T) -> T {
     z.log_ndtr()
 }
 
 /// Inverse of [`ndtr`]
+#[must_use]
+#[inline]
 pub fn ndtri(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ndtri(x) }
 }
 
 /// Owen's T function
+#[must_use]
+#[inline]
 pub fn owens_t(h: f64, a: f64) -> f64 {
     unsafe { crate::ffi::xsf::owens_t(h, a) }
 }
@@ -134,26 +148,36 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 // Kolmogorov
 
 /// Kolmogorov survival function
+#[must_use]
+#[inline]
 pub fn kolmogorov(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogorov(x) }
 }
 
 /// Inverse of [`kolmogorov`]
+#[must_use]
+#[inline]
 pub fn kolmogi(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogi(x) }
 }
 
 /// Kolmogorov distribution function
+#[must_use]
+#[inline]
 pub fn kolmogc(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogc(x) }
 }
 
 /// Inverse of [`kolmogc`]
+#[must_use]
+#[inline]
 pub fn kolmogci(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogci(x) }
 }
 
 /// Derivative of [`kolmogorov`]
+#[must_use]
+#[inline]
 pub fn kolmogp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogp(x) }
 }
@@ -161,26 +185,36 @@ pub fn kolmogp(x: f64) -> f64 {
 // Kolmogorov-Smirnov
 
 /// Kolmogorov-Smirnov survival function
+#[must_use]
+#[inline]
 pub fn smirnov(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnov(n as c_int, x) }
 }
 
 /// Kolmogorov-Smirnov distribution function
+#[must_use]
+#[inline]
 pub fn smirnovc(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovc(n as c_int, x) }
 }
 
 /// Inverse of [`smirnov`]
+#[must_use]
+#[inline]
 pub fn smirnovi(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovi(n as c_int, x) }
 }
 
 /// Inverse of [`smirnovc`]
+#[must_use]
+#[inline]
 pub fn smirnovci(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovci(n as c_int, x) }
 }
 
 /// Derivative of [`smirnov`]
+#[must_use]
+#[inline]
 pub fn smirnovp(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovp(n as c_int, x) }
 }
@@ -189,6 +223,8 @@ pub fn smirnovp(n: i32, x: f64) -> f64 {
 
 /// Tukey-Lambda distribution function
 #[doc(alias = "tklmbda")]
+#[must_use]
+#[inline]
 pub fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
     unsafe { crate::ffi::xsf::tukeylambdacdf(x, lmbda) }
 }
@@ -196,16 +232,22 @@ pub fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
 // Chi-squared
 
 /// Chi-squared distribution function
+#[must_use]
+#[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtr(df, x) }
 }
 
 /// Chi-squared survival function
+#[must_use]
+#[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtrc(df, x) }
 }
 
 /// Chi-squared quantile function
+#[must_use]
+#[inline]
 pub fn chdtri(df: f64, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtri(df, y) }
 }
@@ -213,16 +255,22 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 // F
 
 /// F distribution function
+#[must_use]
+#[inline]
 pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtr(a, b, x) }
 }
 
 /// F survival function
+#[must_use]
+#[inline]
 pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtrc(a, b, x) }
 }
 
 /// F quantile function
+#[must_use]
+#[inline]
 pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtri(a, b, y) }
 }
@@ -230,11 +278,15 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 // Gamma
 
 /// Gamma distribution function
+#[must_use]
+#[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gdtr(a, b, x) }
 }
 
 /// Gamma survival function
+#[must_use]
+#[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gdtrc(a, b, x) }
 }
@@ -242,16 +294,22 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 // Poisson
 
 /// Poisson distribution function
+#[must_use]
+#[inline]
 pub fn pdtr(k: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::pdtr(k, m) }
 }
 
 /// Poisson quantile function
+#[must_use]
+#[inline]
 pub fn pdtri(k: i32, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::pdtri(k as c_int, y) }
 }
 
 /// Poisson survival function
+#[must_use]
+#[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::pdtrc(k, m) }
 }
@@ -259,16 +317,22 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 // Binomial
 
 /// Binomial distribution function
+#[must_use]
+#[inline]
 pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::bdtr(k, n as c_int, p) }
 }
 
 /// Binomial survival function
+#[must_use]
+#[inline]
 pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::bdtrc(k, n as c_int, p) }
 }
 
 /// Binomial quantile function
+#[must_use]
+#[inline]
 pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::bdtri(k, n as c_int, y) }
 }
@@ -276,22 +340,30 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 // Negative Binomial
 
 /// Negative binomial distribution function
+#[must_use]
+#[inline]
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::nbdtr(k as c_int, n as c_int, p) }
 }
 
 /// Negative binomial survival function
+#[must_use]
+#[inline]
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::nbdtrc(k as c_int, n as c_int, p) }
 }
 
 /// Negative binomial quantile function
+#[must_use]
+#[inline]
 pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::nbdtri(k as c_int, n as c_int, p) }
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+
     use num_complex::c64;
 
     #[test]
@@ -301,70 +373,70 @@ mod tests {
         // values from scipy.special.stdtr
         const P_REF: [[f64; 9]; 6] = [
             [
-                0.113252546403789,
-                0.159610041494336,
-                0.222757445091566,
-                0.301121610841322,
-                0.5,
-                0.698878389158678,
-                0.777242554908434,
-                0.840389958505664,
-                0.886747453596211,
+                0.113_252_546_403_789,
+                0.159_610_041_494_336,
+                0.222_757_445_091_566,
+                0.301_121_610_841_322,
+                0.500_000_000_000_000,
+                0.698_878_389_158_678,
+                0.777_242_554_908_434,
+                0.840_389_958_505_664,
+                0.886_747_453_596_211,
             ],
             [
-                0.039583424160566,
-                0.077979130377369,
-                0.147583617650433,
-                0.25,
-                0.5,
-                0.75,
-                0.852416382349567,
-                0.922020869622631,
-                0.960416575839434,
+                0.039_583_424_160_566,
+                0.077_979_130_377_369,
+                0.147_583_617_650_433,
+                0.250_000_000_000_000,
+                0.500_000_000_000_000,
+                0.750_000_000_000_000,
+                0.852_416_382_349_567,
+                0.922_020_869_622_631,
+                0.960_416_575_839_434,
             ],
             [
-                0.007634036082669,
-                0.028595479208968,
-                0.091751709536137,
-                0.211324865405187,
-                0.5,
-                0.788675134594813,
-                0.908248290463863,
-                0.971404520791032,
-                0.992365963917331,
+                0.007_634_036_082_669,
+                0.028_595_479_208_968,
+                0.091_751_709_536_137,
+                0.211_324_865_405_187,
+                0.500_000_000_000_000,
+                0.788_675_134_594_813,
+                0.908_248_290_463_863,
+                0.971_404_520_791_032,
+                0.992_365_963_917_331,
             ],
             [
-                0.002038288793893,
-                0.014004228005073,
-                0.069662984279422,
-                0.195501109477885,
-                0.5,
-                0.804498890522115,
-                0.930337015720578,
-                0.985995771994927,
-                0.997961711206107,
+                0.002_038_288_793_893,
+                0.014_004_228_005_073,
+                0.069_662_984_279_422,
+                0.195_501_109_477_885,
+                0.500_000_000_000_000,
+                0.804_498_890_522_115,
+                0.930_337_015_720_578,
+                0.985_995_771_994_927,
+                0.997_961_711_206_107,
             ],
             [
-                0.000661948454609,
-                0.008065044950046,
-                0.058058261758408,
-                0.18695048315003,
-                0.5,
-                0.81304951684997,
-                0.941941738241592,
-                0.991934955049954,
-                0.999338051545391,
+                0.000_661_948_454_609,
+                0.008_065_044_950_046,
+                0.058_058_261_758_408,
+                0.186_950_483_150_030,
+                0.500_000_000_000_000,
+                0.813_049_516_849_970,
+                0.941_941_738_241_592,
+                0.991_934_955_049_954,
+                0.999_338_051_545_391,
             ],
             [
-                0.000005887471395,
-                0.001259166312368,
-                0.03669401738537,
-                0.17044656615103,
-                0.5,
-                0.82955343384897,
-                0.96330598261463,
-                0.998740833687632,
-                0.999994112528605,
+                0.000_005_887_471_395,
+                0.001_259_166_312_368,
+                0.036_694_017_385_370,
+                0.170_446_566_151_030,
+                0.500_000_000_000_000,
+                0.829_553_433_848_970,
+                0.963_305_982_614_630,
+                0.998_740_833_687_632,
+                0.999_994_112_528_605,
             ],
         ];
         for (i, &nu) in NU.iter().enumerate() {
@@ -380,58 +452,58 @@ mod tests {
         // values from Wolfram Alpha
         const X_REF: [[f64; 7]; 6] = [
             [
-                -102849.11563017555,
-                -1028.4910104716219,
-                -10.270324410234506,
+                -102_849.115_630_175_55,
+                -1_028.491_010_471_621_9,
+                -10.270_324_410_234_506,
                 0.0,
-                10.270324410234506,
-                1028.4910104716219,
-                102849.11563017555,
+                10.270_324_410_234_506,
+                1_028.491_010_471_621_9,
+                102_849.115_630_175_55,
             ],
             [
-                -318.30883898555045,
-                -31.82051595377396,
-                -3.0776835371752534,
+                -318.308_838_985_550_45,
+                -31.820_515_953_773_96,
+                -3.077_683_537_175_253_4,
                 0.0,
-                3.0776835371752534,
-                31.82051595377396,
-                318.30883898555045,
+                3.077_683_537_175_253_4,
+                31.820_515_953_773_96,
+                318.308_838_985_550_45,
             ],
             [
-                -22.327124770119875,
-                -6.964556734283274,
-                -1.8856180831641267,
+                -22.327_124_770_119_875,
+                -6.964_556_734_283_274,
+                -1.885_618_083_164_126_7,
                 0.0,
-                1.8856180831641267,
-                6.964556734283274,
-                22.327124770119875,
+                1.885_618_083_164_126_7,
+                6.964_556_734_283_274,
+                22.327_124_770_119_875,
             ],
             [
-                -10.214531852407387,
-                -4.5407028585681336,
-                -1.6377443536962101,
+                -10.214_531_852_407_387,
+                -4.540_702_858_568_133_6,
+                -1.637_744_353_696_210_1,
                 0.0,
-                1.6377443536962101,
-                4.5407028585681336,
-                10.214531852407387,
+                1.637_744_353_696_210_1,
+                4.540_702_858_568_133_6,
+                10.214_531_852_407_387,
             ],
             [
-                -7.1731822197823085,
-                -3.746947387979197,
-                -1.5332062740589439,
+                -7.173_182_219_782_308_5,
+                -3.746_947_387_979_197,
+                -1.533_206_274_058_943_9,
                 0.0,
-                1.5332062740589439,
-                3.746947387979197,
-                7.1731822197823085,
+                1.533_206_274_058_943_9,
+                3.746_947_387_979_197,
+                7.173_182_219_782_308_5,
             ],
             [
-                -4.14370049404659,
-                -2.763769458112696,
-                -1.3721836411103356,
+                -4.143_700_494_046_59,
+                -2.763_769_458_112_696,
+                -1.372_183_641_110_335_6,
                 0.0,
-                1.3721836411103356,
-                2.763769458112696,
-                4.14370049404659,
+                1.372_183_641_110_335_6,
+                2.763_769_458_112_696,
+                4.143_700_494_046_59,
             ],
         ];
         for (i, &nu) in NU.iter().enumerate() {
@@ -452,21 +524,21 @@ mod tests {
 
     // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_log_ndtr() {
         let x = [-0.75, -0.25, 0.0, 0.5, 1.5, 2.5, 3.0, 4.0, 5.0, 7.0, 8.0];
         let expected = [
-            -1.4844482299196562,
-            -0.9130617648111351,
-            #[allow(clippy::approx_constant)]
-            -0.6931471805599453,
-            -0.3689464152886564,
-            -0.06914345561223398,
-            -0.006229025485860002,
-            -0.0013508099647481938,
-            -3.167174337748927e-05,
-            -2.866516129637636e-07,
-            -1.279812543886654e-12,
-            -6.220960574271786e-16,
+            -1.484_448_229_919_656_2,
+            -0.913_061_764_811_135_1,
+            -0.693_147_180_559_945_3,
+            -0.368_946_415_288_656_4,
+            -0.069_143_455_612_233_98,
+            -0.006_229_025_485_860_002,
+            -0.001_350_809_964_748_193_8,
+            -3.167_174_337_748_927e-05,
+            -2.866_516_129_637_636e-07,
+            -1.279_812_543_886_654e-12,
+            -6.220_960_574_271_786e-16,
         ];
         let y = x.map(crate::log_ndtr);
         crate::np_assert_allclose!(&y, &expected, rtol = 1e-14);

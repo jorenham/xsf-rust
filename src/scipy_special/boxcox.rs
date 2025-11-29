@@ -19,6 +19,7 @@ const SQRT_F64_MIN_POSITIVE: f64 = 1.49e-154;
 /// ## See also:
 /// - [`inv_boxcox`]: Inverse of the Box-Cox transformation
 /// - [`boxcox1p`]: Box-Cox transformation of 1 + `x`
+#[must_use]
 #[inline]
 pub fn boxcox(x: f64, lambda: f64) -> f64 {
     // if lmbda << 1 and x.ln() < 1.0, the lmbda*x.ln() product can lose
@@ -51,6 +52,7 @@ pub fn boxcox(x: f64, lambda: f64) -> f64 {
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of 1 + `x`
 /// - [`boxcox`]: Box-Cox transformation of `x`
 #[doc(alias = "boxcox_1p")]
+#[must_use]
 #[inline]
 pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
     // The argument given above in boxcox applies here with the modification
@@ -79,6 +81,7 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 /// - [`boxcox`]: Box-Cox transformation of `x`
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of `1 + x`
 #[doc(alias = "boxcox_inv")]
+#[must_use]
 #[inline]
 pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
@@ -101,8 +104,8 @@ pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
 /// ## See also:
 /// - [`boxcox1p`]: Box-Cox transformation of `1 + x`
 /// - [`inv_boxcox`]: Inverse of the Box-Cox transformation of `x`
-#[doc(alias = "boxcox_1p_inv")]
-#[doc(alias = "inv_boxcox_1p")]
+#[doc(alias = "boxcox_1p_inv", alias = "inv_boxcox_1p")]
+#[must_use]
 #[inline]
 pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
     if lambda == 0.0 {
@@ -141,7 +144,7 @@ mod tests {
 
         // lambda = 0  =>  y = x.ln()
         let y = map2(crate::boxcox, &x, &[0.0; 4]);
-        let expected = x.map(|xi| xi.ln());
+        let expected = x.map(f64::ln);
         crate::np_assert_allclose!(&y, &expected, atol = 1.5e-7);
 
         // lambda = 1  =>  y = x - 1

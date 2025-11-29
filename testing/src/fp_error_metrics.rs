@@ -17,50 +17,50 @@ pub trait ExtendedErrorArg: Copy + sealed::Sealed {
 }
 
 impl ExtendedErrorArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         extended_absolute_error_scalar(self, other)
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         extended_relative_error_scalar(self, other)
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_magnitude(self) -> f64 {
         self.abs()
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_is_nan(self) -> bool {
         self.is_nan()
     }
 }
 
 impl ExtendedErrorArg for Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_absolute_error(self, other: Self) -> f64 {
         extended_absolute_error_complex(self, other)
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_extended_relative_error(self, other: Self) -> f64 {
         extended_relative_error_complex(self, other)
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_magnitude(self) -> f64 {
         self.l1_norm()
     }
 
-    #[inline(always)]
+    #[inline]
     fn xsf_is_nan(self) -> bool {
         self.is_nan()
     }
 }
 
-#[inline(always)]
+#[inline]
 fn extended_absolute_error_scalar(actual: f64, desired: f64) -> f64 {
     if actual == desired || (actual.is_nan() && desired.is_nan()) {
         return 0.0;
@@ -85,7 +85,7 @@ fn extended_absolute_error_scalar(actual: f64, desired: f64) -> f64 {
     (actual - desired).abs()
 }
 
-#[inline(always)]
+#[inline]
 fn extended_relative_error_scalar(actual: f64, desired: f64) -> f64 {
     let abs_error = extended_absolute_error_scalar(actual, desired);
     let mut abs_desired = desired.abs();
@@ -101,14 +101,14 @@ fn extended_relative_error_scalar(actual: f64, desired: f64) -> f64 {
     abs_error / abs_desired
 }
 
-#[inline(always)]
+#[inline]
 fn extended_absolute_error_complex(actual: Complex<f64>, desired: Complex<f64>) -> f64 {
     let real_err = extended_absolute_error_scalar(actual.re, desired.re);
     let imag_err = extended_absolute_error_scalar(actual.im, desired.im);
     real_err.hypot(imag_err)
 }
 
-#[inline(always)]
+#[inline]
 fn adjust_component(mut value: f64) -> f64 {
     if value == 0.0 {
         value = f64::copysign(DENORM_MIN, value);
@@ -121,7 +121,7 @@ fn adjust_component(mut value: f64) -> f64 {
     value
 }
 
-#[inline(always)]
+#[inline]
 fn extended_relative_error_complex(actual: Complex<f64>, desired: Complex<f64>) -> f64 {
     let abs_error = extended_absolute_error_complex(actual, desired);
     let mut desired = desired;

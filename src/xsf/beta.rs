@@ -1,12 +1,14 @@
 /// Beta function
+#[must_use]
+#[inline]
 pub fn beta(a: f64, b: f64) -> f64 {
     unsafe { crate::ffi::xsf::beta(a, b) }
 }
 
 /// Logarithm of the absolute value of [`beta`]
-#[doc(alias = "lbeta")]
-#[doc(alias = "logbeta")]
-#[doc(alias = "beta_ln")]
+#[doc(alias = "lbeta", alias = "logbeta", alias = "beta_ln")]
+#[must_use]
+#[inline]
 pub fn betaln(a: f64, b: f64) -> f64 {
     unsafe { crate::ffi::xsf::betaln(a, b) }
 }

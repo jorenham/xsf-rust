@@ -7,11 +7,13 @@
 /// Corresponds to [`scipy.special.polygamma`][polygamma] in scipy
 ///
 /// [polygamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.polygamma.html
+#[must_use]
+#[inline]
 pub fn polygamma(n: u32, x: f64) -> f64 {
     if n == 0 {
         crate::digamma(x)
     } else {
-        let n1p = n as f64 + 1.0;
+        let n1p = f64::from(n) + 1.0;
         let sign = if n % 2 == 0 { -1.0 } else { 1.0 };
         sign * crate::gamma(n1p) * crate::zeta(n1p, x)
     }
@@ -31,9 +33,9 @@ mod tests {
         // poly3 = special.polygamma(3, 1)
         let poly3 = crate::polygamma(3, 1.0);
         // assert_allclose(poly2, -2.4041138063, atol=1.5e-10, rtol=0)
-        np_assert_allclose!([poly2], [-2.4041138063], atol = 1.5e-10, rtol = 0.0);
+        np_assert_allclose!([poly2], [-2.404_113_806_3], atol = 1.5e-10, rtol = 0.0);
         // assert_allclose(poly3, 6.4939394023, atol=1.5e-10, rtol=0)
-        np_assert_allclose!([poly3], [6.4939394023], atol = 1.5e-10, rtol = 0.0);
+        np_assert_allclose!([poly3], [6.493_939_402_3], atol = 1.5e-10, rtol = 0.0);
 
         // # Test polygamma(0, x) == psi(x)
         // x = [2, 3, 1.1e14]
@@ -54,7 +56,11 @@ mod tests {
         let x = [0.5, 1.5, 2.5];
         // expected = [-1.9635100260214238, 0.93480220054467933,
         //             -0.23620405164172739]
-        let expected = [-1.9635100260214238, 0.9348022005446793, -0.2362040516417274];
+        let expected = [
+            -1.963_510_026_021_423_8,
+            0.934_802_200_544_679_3,
+            -0.236_204_051_641_727_4,
+        ];
         // assert_allclose(special.polygamma(n, x), expected, atol=1.5e-7, rtol=0)
         np_assert_allclose!(
             n.iter()

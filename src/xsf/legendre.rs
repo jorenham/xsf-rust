@@ -17,12 +17,12 @@ pub trait LegendrePArg: sealed::Sealed + Sized {
 }
 
 impl LegendrePArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn legendre_p(self, n: c_int) -> Self {
         unsafe { crate::ffi::xsf::legendre_p(n, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn legendre_p_all(self, n: usize) -> Vec<Self> {
         let mut pn = vec![f64::NAN; n + 1];
         unsafe {
@@ -31,22 +31,22 @@ impl LegendrePArg for f64 {
         pn
     }
 
-    #[inline(always)]
+    #[inline]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
         unsafe { crate::ffi::xsf::sph_legendre_p(n, m, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
         let mut pnm = vec![f64::NAN; ni * nj];
         unsafe {
             crate::ffi::xsf::sph_legendre_p_all(n, m, self, pnm.as_mut_ptr());
         }
-        utils::vec_to_vecvec(pnm, ni, nj, false)
+        utils::vec_to_vecvec(&pnm, ni, nj, false)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
         unsafe {
             if norm {
@@ -57,7 +57,7 @@ impl LegendrePArg for f64 {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
         let mut pnm = vec![f64::NAN; ni * nj];
@@ -68,17 +68,17 @@ impl LegendrePArg for f64 {
                 crate::ffi::xsf::assoc_legendre_p_all_0(n, m, self, bc, pnm.as_mut_ptr());
             }
         }
-        utils::vec_to_vecvec(pnm, ni, nj, false)
+        utils::vec_to_vecvec(&pnm, ni, nj, false)
     }
 }
 
 impl LegendrePArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn legendre_p(self, n: c_int) -> Self {
         unsafe { crate::ffi::xsf::legendre_p_1(n, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn legendre_p_all(self, n: usize) -> Vec<Self> {
         let mut pn = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
         unsafe {
@@ -87,12 +87,12 @@ impl LegendrePArg for num_complex::Complex<f64> {
         pn
     }
 
-    #[inline(always)]
+    #[inline]
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
         unsafe { crate::ffi::xsf::sph_legendre_p_1(n, m, self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
         let mut pnm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
@@ -102,7 +102,7 @@ impl LegendrePArg for num_complex::Complex<f64> {
         utils::vec_into_vecvec(pnm, ni, nj, false)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
         unsafe {
             if norm {
@@ -113,7 +113,7 @@ impl LegendrePArg for num_complex::Complex<f64> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>> {
         let (ni, nj) = (n + 1, 2 * m + 1);
         let mut pnm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
@@ -134,7 +134,7 @@ pub trait LegendreQArg: sealed::Sealed + Sized {
 }
 
 impl LegendreQArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
         let mut qn = vec![f64::NAN; n + 1];
         let mut qd = vec![f64::NAN; n + 1];
@@ -145,7 +145,7 @@ impl LegendreQArg for f64 {
         (qn, qd)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
         let mut qm = vec![f64::NAN; ni * nj];
@@ -156,14 +156,14 @@ impl LegendreQArg for f64 {
         }
 
         (
-            utils::vec_to_vecvec(qm, ni, nj, true),
-            utils::vec_to_vecvec(qd, ni, nj, true),
+            utils::vec_to_vecvec(&qm, ni, nj, true),
+            utils::vec_to_vecvec(&qd, ni, nj, true),
         )
     }
 }
 
 impl LegendreQArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
         let mut cqn = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
         let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
@@ -174,7 +174,7 @@ impl LegendreQArg for num_complex::Complex<f64> {
         (cqn, cqd)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
         let (ni, nj) = (m + 1, n + 1);
         let mut cqm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
@@ -193,6 +193,7 @@ impl LegendreQArg for num_complex::Complex<f64> {
 
 /// Legendre polynomial of degree `n`
 #[doc(alias = "eval_legendre")]
+#[inline]
 pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
     z.legendre_p(n as c_int)
 }
@@ -200,13 +201,14 @@ pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
 /// All Legendre polynomials of the 1st kind
 ///
 /// Output length is `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
-#[doc(alias = "lpn")]
-#[doc(alias = "clpn")]
+#[doc(alias = "lpn", alias = "clpn")]
+#[inline]
 pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
     z.legendre_p_all(n)
 }
 
 /// Spherical Legendre polynomial of degree `n` and order `m`
+#[inline]
 pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.sph_legendre_p(n as c_int, m as c_int)
 }
@@ -215,28 +217,33 @@ pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
 ///
 /// Output shape is `(n+1, 2m+1)`. The entry at `(j, i)` corresponds to degree `j` in `0..=n` and
 /// order `i` in `-m..=m`.
+#[inline]
 pub fn sph_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
     z.sph_legendre_p_all(n, m)
 }
 
 /// Associated Legendre polynomial of the 1st kind
 #[doc(alias = "lpmv")]
+#[inline]
 pub fn assoc_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2, false)
 }
 
 /// All associated Legendre polynomials of the 1st kind
 #[doc(alias = "lpmn")]
+#[inline]
 pub fn assoc_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
     z.assoc_legendre_p_all(n, m, 2, false)
 }
 
 /// Normalized associated Legendre polynomial of the 1st kind
+#[inline]
 pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.assoc_legendre_p(n as c_int, m as c_int, 2, true)
 }
 
 /// All normalized associated Legendre polynomials of the 1st kind
+#[inline]
 pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Vec<T>> {
     z.assoc_legendre_p_all(n, m, 2, true)
 }
@@ -245,6 +252,7 @@ pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> V
 ///
 /// Output lengths are `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
 #[doc(alias = "lqn")]
+#[inline]
 pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
     z.legendre_q_all(n)
 }
@@ -255,6 +263,7 @@ pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
 /// and its derivative, `Qmn'(z)`. Returns two arrays of size `(n+1, m+1)` containing `Qmn(z)` and
 /// `Qmn'(z)` for all degrees from `0..=n` and orders from `0..=m`.
 #[doc(alias = "lqmn")]
+#[inline]
 pub fn assoc_legendre_q_all<T: LegendreQArg>(
     n: usize,
     m: usize,
@@ -264,6 +273,7 @@ pub fn assoc_legendre_q_all<T: LegendreQArg>(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     // there are no xsref tables, so we use smoke tests instead
 
@@ -323,7 +333,7 @@ mod tests {
                 crate::sph_legendre_p(1, 0, 0.0),
                 crate::sph_legendre_p(1, 1, 0.0),
             ],
-            [0.28209479177387814, 0.48860251190291987, 0.0],
+            [0.282_094_791_773_878_14, 0.488_602_511_902_919_87, 0.0],
         );
     }
 
@@ -336,9 +346,9 @@ mod tests {
                 crate::sph_legendre_p(1, 1, I),
             ],
             &[
-                c64(0.2820947917738782, 0.0),
-                c64(0.7539530742394804, 0.0),
-                c64(-0.4060251368556634, 0.0),
+                c64(0.282_094_791_773_878_2, 0.0),
+                c64(0.753_953_074_239_480_4, 0.0),
+                c64(-0.406_025_136_855_663_4, 0.0),
             ],
             atol = f64::EPSILON
         );
@@ -351,8 +361,8 @@ mod tests {
         assert_eq!(
             crate::sph_legendre_p_all(1, 1, 0.0),
             vec![
-                vec![0.28209479177387814, 0.0, 0.0],
-                vec![0.48860251190291987, 0.0, 0.0],
+                vec![0.282_094_791_773_878_14, 0.0, 0.0],
+                vec![0.488_602_511_902_919_87, 0.0, 0.0],
             ]
         );
     }
@@ -364,15 +374,19 @@ mod tests {
 
         crate::np_assert_allclose!(
             &pnm[0],
-            &[c64(0.2820947917738782, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
+            &[
+                c64(0.282_094_791_773_878_2, 0.0),
+                c64(0.0, 0.0),
+                c64(0.0, 0.0)
+            ],
             atol = f64::EPSILON
         );
         crate::np_assert_allclose!(
             &pnm[1],
             &[
-                c64(0.7539530742394804, 0.0),
-                c64(-0.4060251368556634, 0.0),
-                c64(0.4060251368556634, 0.0),
+                c64(0.753_953_074_239_480_4, 0.0),
+                c64(-0.406_025_136_855_663_4, 0.0),
+                c64(0.406_025_136_855_663_4, 0.0),
             ],
             atol = f64::EPSILON
         );
@@ -446,7 +460,7 @@ mod tests {
                 consts::FRAC_1_SQRT_2,
                 0.0,
                 0.0,
-                -0.8660254037844386_f64, // -sqrt(3) / 2
+                -0.866_025_403_784_438_6_f64, // -sqrt(3) / 2
             ],
             atol = f64::EPSILON
         );
@@ -463,9 +477,9 @@ mod tests {
             ],
             &[
                 c64(consts::FRAC_1_SQRT_2, 0.0),
-                c64(0.0, 1.224744871391589),
+                c64(0.0, 1.224_744_871_391_589),
                 c64(0.0, 0.0),
-                c64(-1.2247448713915892, 0.0),
+                c64(-1.224_744_871_391_589_2, 0.0),
             ],
             atol = f64::EPSILON
         );

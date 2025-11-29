@@ -1,28 +1,39 @@
 /// Complete elliptic integral of the first kind
 #[doc(alias = "ellip_k")]
+#[must_use]
+#[inline]
 pub fn ellipk(m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipk(m) }
 }
 
 /// Complete elliptic integral of the first kind around `m = 1`
+#[doc(alias = "ellip_k_m1")]
+#[must_use]
+#[inline]
 pub fn ellipkm1(p: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipkm1(p) }
 }
 
 /// Incomplete elliptic integral of the first kind
 #[doc(alias = "ellip_k_inc")]
+#[must_use]
+#[inline]
 pub fn ellipkinc(phi: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipkinc(phi, m) }
 }
 
 /// Complete elliptic integral of the second kind
 #[doc(alias = "ellip_e")]
+#[must_use]
+#[inline]
 pub fn ellipe(m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipe(m) }
 }
 
 /// Incomplete elliptic integral of the second kind
 #[doc(alias = "ellip_e_inc")]
+#[must_use]
+#[inline]
 pub fn ellipeinc(phi: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipeinc(phi, m) }
 }
@@ -42,15 +53,15 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 /// # See Also
 /// - [`ellipk`] - Complete elliptic integral of the first kind
 /// - [`ellipkinc`] - Incomplete elliptic integral of the first kind
+#[doc(alias = "ellip_j")]
+#[must_use]
+#[inline]
 pub fn ellipj(u: f64, m: f64) -> (f64, f64, f64, f64) {
-    let mut sn = f64::NAN;
-    let mut cn = f64::NAN;
-    let mut dn = f64::NAN;
-    let mut phi = f64::NAN;
+    let (mut sn, mut cn, mut dn, mut am) = (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::ellipj(u, m, &mut sn, &mut cn, &mut dn, &mut phi);
+        crate::ffi::xsf::ellipj(u, m, &raw mut sn, &raw mut cn, &raw mut dn, &raw mut am);
     }
-    (sn, cn, dn, phi)
+    (sn, cn, dn, am)
 }
 
 #[cfg(test)]

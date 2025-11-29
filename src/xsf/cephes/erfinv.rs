@@ -9,6 +9,8 @@
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
 #[doc(alias = "erf_inv")]
+#[must_use]
+#[inline]
 pub fn erfinv(y: f64) -> f64 {
     unsafe { crate::ffi::xsf::erfinv(y) }
 }
@@ -25,6 +27,8 @@ pub fn erfinv(y: f64) -> f64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
 #[doc(alias = "erfc_inv")]
+#[must_use]
+#[inline]
 pub fn erfcinv(y: f64) -> f64 {
     unsafe { crate::ffi::xsf::erfcinv(y) }
 }
@@ -38,15 +42,15 @@ mod tests {
         let actual = y.map(crate::erfinv);
         let expected = [
             0.0,
-            0.08885599049425769,
-            0.1791434546212917,
-            0.2724627147267543,
-            0.37080715859355795,
-            0.4769362762044699,
-            0.5951160814499948,
-            0.7328690779592167,
-            0.9061938024368233,
-            1.1630871536766743,
+            0.088_855_990_494_257_69,
+            0.179_143_454_621_291_7,
+            0.272_462_714_726_754_3,
+            0.370_807_158_593_557_95,
+            0.476_936_276_204_469_9,
+            0.595_116_081_449_994_8,
+            0.732_869_077_959_216_7,
+            0.906_193_802_436_823_3,
+            1.163_087_153_676_674_3,
         ];
         crate::np_assert_allclose!(&actual, &expected, atol = 1e-15);
     }

@@ -28,6 +28,10 @@ use num_traits::Unsigned;
 /// # See also
 /// - [`comb`](crate::comb): *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub>
 /// - [`perm`](crate::perm): *k*-permutations of *n* things, <sub>*n*</sub>P<sub>*k*</sub>
+///
+/// # Panics
+/// - This function will panic if the result does not fit in type `T`.
+#[must_use]
 #[inline]
 pub fn stirling2<T: num_traits::PrimInt + Unsigned>(n: u32, k: u32) -> T {
     if n == k || (n > 0 && k == 1) {
@@ -39,7 +43,7 @@ pub fn stirling2<T: num_traits::PrimInt + Unsigned>(n: u32, k: u32) -> T {
         return T::from((1 << (n - 1)) - 1).unwrap();
     } else if n == k + 1 {
         // S(n, n-1) = C(n, 2) = n(n-1)/2
-        return T::from(n as u128 * (n as u128 - 1) / 2).unwrap();
+        return T::from(u128::from(n) * (u128::from(n) - 1) / 2).unwrap();
     }
 
     let k = k as usize;
@@ -70,10 +74,12 @@ mod tests {
 
     #[test]
     fn test_stirling2() {
-        for (n, row) in STIRLING2_TABLE.iter().enumerate() {
-            for (k, &s0) in row.iter().enumerate() {
-                let s: u64 = crate::stirling2(n as u32, k as u32);
-                assert_eq!(s, s0, "S({}, {})", n, k);
+        for (n_idx, row) in STIRLING2_TABLE.iter().enumerate() {
+            let n = n_idx.try_into().unwrap();
+            for (k_idx, &s0) in row.iter().enumerate() {
+                let k = k_idx.try_into().unwrap();
+                let s: u64 = crate::stirling2(n, k);
+                assert_eq!(s, s0, "S({n_idx}, {k_idx})");
             }
         }
     }

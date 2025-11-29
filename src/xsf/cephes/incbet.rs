@@ -1,4 +1,4 @@
-#[inline(always)]
+#[inline]
 fn incbet(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::incbet(a, b, x) }
 }
@@ -10,8 +10,8 @@ fn incbet(a: f64, b: f64, x: f64) -> f64 {
 /// implementation tends to be less accurate than Boost's, especially for small `x`.
 ///
 /// See also: [`betaincinv`](crate::betaincinv)
-#[doc(alias = "inc_beta")]
-#[doc(alias = "beta_inc")]
+#[doc(alias = "inc_beta", alias = "beta_inc")]
+#[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -58,6 +58,7 @@ mod tests {
     // based on scipy.special.tests.test_basic.TestBetaInc
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_betainc_a1_b1() {
         // betainc(1, 1, x) is x.
         let x = [0.0, 0.25, 1.0];
@@ -67,10 +68,10 @@ mod tests {
     #[test]
     fn test_betainc_nontrivial() {
         for &(a, b, x, p) in &[
-            (2.0, 4.0, 0.3138101704556974, 0.5),
-            (0.0342, 171.0, 1e-10, 0.5526991690180709),
+            (2.0, 4.0, 0.313_810_170_455_697_4, 0.5),
+            (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
             // scipy/scipy#3761:
-            (0.0342, 171.0, 8.42313169354797e-21, 0.25),
+            (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
             // scipy/scipy#4244 (NOTE: this results in a relative error of 5.134e-10)
             // (
             //     0.0002742794749792665,
@@ -79,7 +80,7 @@ mod tests {
             //     0.9688708782196045,
             // ),
             // scipy/scipy#12796:
-            (4.0, 99997.0, 0.0001947841578892121, 0.999995),
+            (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
         ] {
             let p1 = crate::betainc(a, b, x);
             // NOTE: The original `rtol = 1e-15` is too strict for Cephes
@@ -126,8 +127,8 @@ mod tests {
         // single precision inputs. test that this is resolved
         let rtol = 1e-15;
         for &(a, b, x, reference) in &[
-            (1e-20, 1e-21, 0.5, 0.0909090909090909),
-            (1e-15, 1e-16, 0.5, 0.09090909090909091),
+            (1e-20, 1e-21, 0.5, 0.090_909_090_909_090_9),
+            (1e-15, 1e-16, 0.5, 0.090_909_090_909_090_91),
         ] {
             let res = crate::betainc(a, b, x);
             crate::np_assert_allclose!(&[res], &[reference], rtol = rtol);

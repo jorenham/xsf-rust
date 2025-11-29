@@ -1,4 +1,4 @@
-#[inline(always)]
+#[inline]
 fn incbi(a: f64, b: f64, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::incbi(a, b, y) }
 }
@@ -10,8 +10,9 @@ fn incbi(a: f64, b: f64, y: f64) -> f64 {
 /// for small `y` and large `a - b` differences.
 ///
 /// See also: [`betainc`](crate::betainc)
-#[doc(alias = "inc_beta_inv")]
-#[doc(alias = "beta_inc_inv")]
+#[doc(alias = "inc_beta_inv", alias = "beta_inc_inv")]
+#[must_use]
+#[inline]
 pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
     if a.is_nan() || b.is_nan() || y.is_nan() {
         return f64::NAN;
@@ -30,6 +31,7 @@ mod tests {
     // based on scipy.special.tests.test_basic.TestBetaInc
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_betaincinv_a1_b1() {
         // betaincinv(1, 1, x) is x.
         let x = [0.0, 0.25, 1.0];
@@ -39,10 +41,10 @@ mod tests {
     #[test]
     fn test_betaincinv_nontrivial() {
         for &(a, b, x, p) in &[
-            (2.0, 4.0, 0.3138101704556974, 0.5),
-            (0.0342, 171.0, 1e-10, 0.5526991690180709),
+            (2.0, 4.0, 0.313_810_170_455_697_4, 0.5),
+            (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
             // scipy/scipy#3761:
-            (0.0342, 171.0, 8.42313169354797e-21, 0.25),
+            (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
             // scipy/scipy#4244 (NOTE: this results in a relative error of 1.872e-6)
             // (
             //     0.0002742794749792665,
@@ -77,14 +79,14 @@ mod tests {
 
         for &(a, b, y, ref_) in &[
             (
-                14.208308325339239,
-                14.208308325339239,
-                7.703145458496392e-307,
-                8.566004561846704e-23,
+                14.208_308_325_339_239,
+                14.208_308_325_339_239,
+                7.703_145_458_496_392e-307,
+                8.566_004_561_846_704e-023,
             ),
-            (14.0, 14.5, 1e-280, 2.9343915006642424e-21),
-            (3.5, 15.0, 4e-95, 1.3290751429289227e-28),
-            (10.0, 1.25, 2e-234, 3.982659092143654e-24),
+            (14.0, 14.5, 1e-280, 2.934_391_500_664_242_4e-21),
+            (3.5, 15.0, 4e-95, 1.329_075_142_928_922_7e-28),
+            (10.0, 1.25, 2e-234, 3.982_659_092_143_654e-24),
             // NOTE: This results in a relative error of 3.806e-11
             // (4.0, 99997.0, 5e-88, 3.309800566862242e-27),
         ] {

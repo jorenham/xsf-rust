@@ -9,6 +9,8 @@ use num_complex::Complex;
 /// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
 /// integer `k`.
 #[doc(alias = "lambert_w")]
+#[must_use]
+#[inline]
 pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
     unsafe { crate::ffi::xsf::lambertw(z, k as core::ffi::c_long, tol) }
 }
@@ -16,11 +18,12 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
 #[cfg(test)]
 mod tests {
     use num_complex::c64;
+    use num_traits::ToPrimitive;
 
     #[test]
     fn test_lambertw_c64() {
         xsref::test("lambertw", "cd_p_d-cd", |x| {
-            crate::lambertw(c64(x[0], x[1]), x[2] as isize, x[3])
+            crate::lambertw(c64(x[0], x[1]), x[2].to_isize().unwrap(), x[3])
         });
     }
 }

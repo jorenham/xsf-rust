@@ -10,40 +10,46 @@ pub trait ZetaArg: sealed::Sealed {
 }
 
 impl ZetaArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn riemann_zeta(self) -> Self {
         unsafe { crate::ffi::xsf::riemann_zeta(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn zeta(self, q: f64) -> Self {
         unsafe { crate::ffi::xsf::zeta(self, q) }
     }
 }
 
 impl ZetaArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn riemann_zeta(self) -> Self {
         unsafe { crate::ffi::xsf::riemann_zeta_1(self) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn zeta(self, q: f64) -> Self {
         unsafe { crate::ffi::xsf::zeta_1(self, q) }
     }
 }
 
 /// Riemann zeta function for real or complex input
+#[must_use]
+#[inline]
 pub fn riemann_zeta<T: ZetaArg>(z: T) -> T {
     z.riemann_zeta()
 }
 
 /// Riemann zeta function of two arguments for real or complex `z`
+#[must_use]
+#[inline]
 pub fn zeta<T: ZetaArg>(z: T, q: f64) -> T {
     z.zeta(q)
 }
 
 /// Riemann zeta function, minus one
+#[must_use]
+#[inline]
 pub fn zetac(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::zetac(x) }
 }

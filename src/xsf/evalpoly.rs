@@ -1,3 +1,5 @@
+use num_traits::ToPrimitive;
+
 /// Evaluate polynomials
 ///
 /// All of the coefficients are stored in reverse order, i.e. if the polynomial is:
@@ -13,10 +15,14 @@
 ///
 /// # Returns
 /// - `p(z)`: Value of the polynomial evaluated at `z`
-#[doc(alias = "evalpoly")]
-#[doc(alias = "polynomial")]
+///
+/// # Panics
+/// - If the length of `coeffs` exceeds [`i32::MAX`](core::i32::MAX)
+#[doc(alias = "evalpoly", alias = "polynomial")]
+#[must_use]
+#[inline]
 pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::Complex<f64> {
-    let degree = (coeffs.len() as i32) - 1;
+    let degree = coeffs.len().to_i32().unwrap() - 1;
     if degree == -1 {
         unsafe { crate::ffi::xsf::cevalpoly([0.0, 0.0].as_ptr(), 1, z) }
     } else if degree == 0 {

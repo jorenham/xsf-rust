@@ -9,6 +9,8 @@ use core::f64::consts::PI;
 ///
 /// See [NumPy's documentation](https://numpy.org/doc/stable/reference/generated/numpy.sinc.html)
 /// for more details.
+#[must_use]
+#[inline]
 pub fn sinc(x: f64) -> f64 {
     if x == 0.0 {
         1.0
@@ -26,7 +28,7 @@ mod tests {
     fn test_sinc() {
         // based on `numpy.lib.tests.test_function_base.TestSinc.test_simple`
         let w = (-1..=1)
-            .map(|i| i as f64 * 0.01)
+            .map(|i| f64::from(i) * 0.01)
             .map(crate::sinc)
             .collect::<Vec<f64>>();
         np_assert_allclose!(

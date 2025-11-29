@@ -3,7 +3,7 @@ use num_complex::Complex;
 mod sealed {
     pub trait Sealed {}
     impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
+    impl Sealed for num_complex::Complex64 {}
 }
 
 pub trait SiciArg: sealed::Sealed + Sized {
@@ -12,40 +12,40 @@ pub trait SiciArg: sealed::Sealed + Sized {
 }
 
 impl SiciArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn sici(self) -> (Self, Self) {
         let (mut si, mut ci) = (f64::NAN, f64::NAN);
         unsafe {
-            crate::ffi::xsf::sici(self, &mut si, &mut ci);
+            crate::ffi::xsf::sici(self, &raw mut si, &raw mut ci);
         }
         (si, ci)
     }
 
-    #[inline(always)]
+    #[inline]
     fn shichi(self) -> (Self, Self) {
         let (mut shi, mut chi) = (f64::NAN, f64::NAN);
         unsafe {
-            crate::ffi::xsf::shichi(self, &mut shi, &mut chi);
+            crate::ffi::xsf::shichi(self, &raw mut shi, &raw mut chi);
         }
         (shi, chi)
     }
 }
 
-impl SiciArg for num_complex::Complex<f64> {
-    #[inline(always)]
+impl SiciArg for num_complex::Complex64 {
+    #[inline]
     fn sici(self) -> (Self, Self) {
         let (mut si, mut ci) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::sici_1(self, &mut si, &mut ci);
+            crate::ffi::xsf::sici_1(self, &raw mut si, &raw mut ci);
         }
         (si, ci)
     }
 
-    #[inline(always)]
+    #[inline]
     fn shichi(self) -> (Self, Self) {
         let (mut shi, mut chi) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::shichi_1(self, &mut shi, &mut chi);
+            crate::ffi::xsf::shichi_1(self, &raw mut shi, &raw mut chi);
         }
         (shi, chi)
     }
@@ -64,13 +64,12 @@ impl SiciArg for num_complex::Complex<f64> {
 /// where γ is Euler's constant and ln is the principal branch of the logarithm.
 ///
 /// # Arguments
-///
 /// - `z` - real- or complex-valued argument
 ///
 /// # Returns
-///
 /// - `Si(z)` - Sine integral
 /// - `Ci(z)` - Cosine integral
+#[inline]
 pub fn sici<T: SiciArg>(z: T) -> (T, T) {
     z.sici()
 }
@@ -88,13 +87,12 @@ pub fn sici<T: SiciArg>(z: T) -> (T, T) {
 /// where γ is Euler's constant and ln is the principal branch of the logarithm.
 ///
 /// # Arguments
-///
 /// - `z` - real- or complex-valued argument
 ///
 /// # Returns
-///
 /// - `Shi(z)` - Hyperbolic sine integral
 /// - `Chi(z)` - Hyperbolic cosine integral
+#[inline]
 pub fn shichi<T: SiciArg>(z: T) -> (T, T) {
     z.shichi()
 }

@@ -1,44 +1,60 @@
 use core::ffi::c_int;
 
 /// Kelvin function *ber*
+#[must_use]
+#[inline]
 pub fn ber(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ber(x) }
 }
 
 /// Kelvin function *bei*
+#[must_use]
+#[inline]
 pub fn bei(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::bei(x) }
 }
 
 /// Kelvin function *ker*
+#[must_use]
+#[inline]
 pub fn ker(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ker(x) }
 }
 
 /// Kelvin function *kei*
+#[must_use]
+#[inline]
 pub fn kei(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kei(x) }
 }
 
 /// Derivative of the Kelvin function [`ber`]
+#[must_use]
+#[inline]
 #[doc(alias = "ber_prime")]
 pub fn berp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::berp(x) }
 }
 
 /// Derivative of the Kelvin function [`bei`]
+#[must_use]
+#[inline]
 #[doc(alias = "bei_prime")]
 pub fn beip(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::beip(x) }
 }
 
 /// Derivative of the Kelvin function [`ker`]
+#[must_use]
+#[inline]
 #[doc(alias = "ker_prime")]
 pub fn kerp(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kerp(x) }
 }
 
 /// Derivative of the Kelvin function [`kei`]
+#[must_use]
+#[inline]
 #[doc(alias = "kei_prime")]
 pub fn keip(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::keip(x) }
@@ -51,13 +67,15 @@ pub fn keip(x: f64) -> f64 {
 /// - *Ke*: Value of [`ker`] + *i* [`kei`]
 /// - *Be*': Derivative of [`berp`] + *i* [`beip`]
 /// - *Ke*': Derivative of [`kerp`] + *i* [`keip`]
+#[must_use]
+#[inline]
 pub fn kelvin(x: f64) -> [num_complex::Complex<f64>; 4] {
     let mut be = num_complex::Complex::new(f64::NAN, 0.0);
     let mut ke = num_complex::Complex::new(f64::NAN, 0.0);
     let mut bep = num_complex::Complex::new(f64::NAN, 0.0);
     let mut kep = num_complex::Complex::new(f64::NAN, 0.0);
     unsafe {
-        crate::ffi::xsf::kelvin(x, &mut be, &mut ke, &mut bep, &mut kep);
+        crate::ffi::xsf::kelvin(x, &raw mut be, &raw mut ke, &raw mut bep, &raw mut kep);
     }
     [be, ke, bep, kep]
 }
@@ -74,53 +92,69 @@ enum KelvinFunction {
     Keip = 8,
 }
 
-#[inline(always)]
+#[inline]
 fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
     assert!(nt <= c_int::MAX as usize);
 
     let mut zs = vec![f64::NAN; nt];
     unsafe {
-        crate::ffi::xsf::klvnzo(nt as c_int, kd as c_int, zs.as_mut_ptr());
+        crate::ffi::xsf::klvnzo(nt.try_into().unwrap(), kd as c_int, zs.as_mut_ptr());
     }
     zs
 }
 
 /// First `nt` zeros of Kelvin function [`ber`]
+#[must_use]
+#[inline]
 pub fn ber_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Ber)
 }
 
 /// First `nt` zeros of Kelvin function [`bei`]
+#[must_use]
+#[inline]
 pub fn bei_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Bei)
 }
 
 /// First `nt` zeros of Kelvin function [`ker`]
+#[must_use]
+#[inline]
 pub fn ker_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Ker)
 }
 
 /// First `nt` zeros of Kelvin function [`kei`]
+#[must_use]
+#[inline]
 pub fn kei_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Kei)
 }
 
 /// First `nt` zeros of Kelvin function derivative [`berp`]
+#[must_use]
+#[inline]
 pub fn berp_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Berp)
 }
 
 /// First `nt` zeros of Kelvin function derivative [`beip`]
+#[must_use]
+#[inline]
 pub fn beip_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Beip)
 }
 
 /// First `nt` zeros of Kelvin function derivative [`kerp`]
+#[must_use]
+#[inline]
 pub fn kerp_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Kerp)
 }
 
 /// First `nt` zeros of Kelvin function derivative [`keip`]
+#[must_use]
+#[inline]
 pub fn keip_zeros(nt: usize) -> Vec<f64> {
     klvnzo(nt, KelvinFunction::Keip)
 }
@@ -136,6 +170,8 @@ pub fn keip_zeros(nt: usize) -> Vec<f64> {
 /// - [`beip`]
 /// - [`kerp`]
 /// - [`keip`]
+#[must_use]
+#[inline]
 pub fn kelvin_zeros(nt: usize) -> [Vec<f64>; 8] {
     [
         klvnzo(nt, KelvinFunction::Ber),

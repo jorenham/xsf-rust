@@ -1,5 +1,5 @@
-use core::ffi::c_int;
 use num_complex::Complex;
+use num_traits::ToPrimitive;
 
 mod sealed {
     use core::ops::{Add, Mul};
@@ -26,102 +26,102 @@ pub trait BesselArg: sealed::Sealed {
 }
 
 impl BesselArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn bessel_j(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_j(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_je(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_je(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_y(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_y(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ye(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ye(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_i(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_i(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ie(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ie(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_k(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_k(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ke(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ke(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1(v, Complex::from(self)) }
+        unsafe { crate::ffi::xsf::cyl_hankel_1(v, self.into()) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, Complex::from(self)) }
+        unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self.into()) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_2(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2(v, Complex::from(self)) }
+        unsafe { crate::ffi::xsf::cyl_hankel_2(v, self.into()) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
-        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, Complex::from(self)) }
+        unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self.into()) }
     }
 }
 
 impl BesselArg for Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn bessel_j(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_j_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_je(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_je_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_y(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_y_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ye(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ye_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_i(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_i_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ie(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ie_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_k(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_k_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn bessel_ke(self, v: f64) -> Self {
         unsafe { crate::ffi::xsf::cyl_bessel_ke_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_1(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_1e(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_2(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_2(v, self) }
     }
-    #[inline(always)]
+    #[inline]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self) }
     }
@@ -141,8 +141,9 @@ impl BesselArg for Complex<f64> {
 /// - [`bessel_je`]: $J_v$ without the leading exponential factor
 /// - [`bessel_j_prime`](crate::bessel_j_prime): derivative $J_v\'(z)$
 /// - [`sph_bessel_j`](crate::sph_bessel_j): spherical Bessel function $j_n(x)$
-#[doc(alias = "jv")]
-#[doc(alias = "cyl_bessel_j")]
+#[doc(alias = "jv", alias = "cyl_bessel_j")]
+#[must_use]
+#[inline]
 pub fn bessel_j<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_j(v)
 }
@@ -156,8 +157,9 @@ pub fn bessel_j<T: BesselArg>(v: f64, z: T) -> T {
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$ of real order and complex argument
 /// - [`sph_bessel_j`](crate::sph_bessel_j): spherical Bessel function $j_n(x)$
-#[doc(alias = "j0")]
-#[doc(alias = "cyl_bessel_j0")]
+#[doc(alias = "j0", alias = "cyl_bessel_j0")]
+#[must_use]
+#[inline]
 pub fn bessel_j0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j0(x) }
 }
@@ -171,8 +173,9 @@ pub fn bessel_j0(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$ of real order and complex argument
 /// - [`sph_bessel_j`](crate::sph_bessel_j): spherical Bessel function $j_n(x)$
-#[doc(alias = "j1")]
-#[doc(alias = "cyl_bessel_j1")]
+#[doc(alias = "j1", alias = "cyl_bessel_j1")]
+#[must_use]
+#[inline]
 pub fn bessel_j1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_j1(x) }
 }
@@ -185,8 +188,9 @@ pub fn bessel_j1(x: f64) -> f64 {
 ///
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$
-#[doc(alias = "jve")]
-#[doc(alias = "cyl_bessel_je")]
+#[doc(alias = "jve", alias = "cyl_bessel_je")]
+#[must_use]
+#[inline]
 pub fn bessel_je<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_je(v)
 }
@@ -202,9 +206,9 @@ pub fn bessel_je<T: BesselArg>(v: f64, z: T) -> T {
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$ of real order and complex argument
 /// - [`sph_bessel_y`](crate::sph_bessel_y): spherical Bessel function $y_n(x)$
-#[doc(alias = "y0")]
-#[doc(alias = "cyl_neumann_0")]
-#[doc(alias = "cyl_bessel_y0")]
+#[doc(alias = "y0", alias = "cyl_bessel_y0", alias = "cyl_neumann_0")]
+#[must_use]
+#[inline]
 pub fn bessel_y0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
 }
@@ -218,9 +222,9 @@ pub fn bessel_y0(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$ of real order and complex argument
 /// - [`sph_bessel_y`](crate::sph_bessel_y): spherical Bessel function $y_n(x)$
-#[doc(alias = "y1")]
-#[doc(alias = "cyl_neumann_1")]
-#[doc(alias = "cyl_bessel_y1")]
+#[doc(alias = "y1", alias = "cyl_bessel_y1", alias = "cyl_neumann_1")]
+#[must_use]
+#[inline]
 pub fn bessel_y1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
 }
@@ -237,9 +241,9 @@ pub fn bessel_y1(x: f64) -> f64 {
 /// - [`bessel_ye`]: $Y_v$ without the leading exponential factor
 /// - [`bessel_y_prime`](crate::bessel_y_prime): derivative $Y_v\'(z)$
 /// - [`sph_bessel_y`](crate::sph_bessel_y): spherical Bessel function $y_n(x)$
-#[doc(alias = "yv")]
-#[doc(alias = "cyl_neumann")]
-#[doc(alias = "cyl_bessel_y")]
+#[doc(alias = "yv", alias = "cyl_neumann", alias = "cyl_bessel_y")]
+#[must_use]
+#[inline]
 pub fn bessel_y<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_y(v)
 }
@@ -252,9 +256,9 @@ pub fn bessel_y<T: BesselArg>(v: f64, z: T) -> T {
 ///
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$
-#[doc(alias = "yve")]
-#[doc(alias = "cyl_neumann_e")]
-#[doc(alias = "cyl_bessel_ye")]
+#[doc(alias = "yve", alias = "cyl_neumann_e", alias = "cyl_bessel_ye")]
+#[must_use]
+#[inline]
 pub fn bessel_ye<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_ye(v)
 }
@@ -271,8 +275,9 @@ pub fn bessel_ye<T: BesselArg>(v: f64, z: T) -> T {
 /// - [`bessel_i`]: modified Bessel function $I_v(z)$ of real order and complex argument
 /// - [`bessel_i0e`]: exponentially scaled $I_0$
 /// - [`sph_bessel_i`](crate::sph_bessel_i): spherical modified Bessel function $i_n(x)$
-#[doc(alias = "i0")]
-#[doc(alias = "cyl_bessel_i0")]
+#[doc(alias = "i0", alias = "cyl_bessel_i0")]
+#[must_use]
+#[inline]
 pub fn bessel_i0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0(x) }
 }
@@ -286,8 +291,9 @@ pub fn bessel_i0(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_i0`]: modified Bessel function $I_0(x)$
 /// - [`bessel_ie`]: exponentially scaled $I_v(z)$
-#[doc(alias = "i0e")]
-#[doc(alias = "cyl_bessel_i0e")]
+#[doc(alias = "i0e", alias = "cyl_bessel_i0e")]
+#[must_use]
+#[inline]
 pub fn bessel_i0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i0e(x) }
 }
@@ -302,8 +308,9 @@ pub fn bessel_i0e(x: f64) -> f64 {
 /// - [`bessel_i`]: modified Bessel function $I_v(z)$ of real order and complex argument
 /// - [`bessel_i1e`]: exponentially scaled $I_1$
 /// - [`sph_bessel_i`](crate::sph_bessel_i): spherical modified Bessel function $i_n(x)$
-#[doc(alias = "i1")]
-#[doc(alias = "cyl_bessel_i1")]
+#[doc(alias = "i1", alias = "cyl_bessel_i1")]
+#[must_use]
+#[inline]
 pub fn bessel_i1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1(x) }
 }
@@ -317,8 +324,9 @@ pub fn bessel_i1(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_i1`]: modified Bessel function $I_1(x)$
 /// - [`bessel_ie`]: exponentially scaled $I_v(z)$
-#[doc(alias = "i1e")]
-#[doc(alias = "cyl_bessel_i1e")]
+#[doc(alias = "i1e", alias = "cyl_bessel_i1e")]
+#[must_use]
+#[inline]
 pub fn bessel_i1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_i1e(x) }
 }
@@ -335,8 +343,9 @@ pub fn bessel_i1e(x: f64) -> f64 {
 /// - [`bessel_ie`]: $I_v$ without the leading exponential factor
 /// - [`bessel_i_prime`](crate::bessel_i_prime): derivative $I_v\'(z)$
 /// - [`sph_bessel_i`](crate::sph_bessel_i): spherical modified Bessel function $i_n(x)$
-#[doc(alias = "iv")]
-#[doc(alias = "cyl_bessel_i")]
+#[doc(alias = "iv", alias = "cyl_bessel_i")]
+#[must_use]
+#[inline]
 pub fn bessel_i<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_i(v)
 }
@@ -349,8 +358,9 @@ pub fn bessel_i<T: BesselArg>(v: f64, z: T) -> T {
 ///
 /// # See also
 /// - [`bessel_i`]: modified Bessel function $I_v(z)$
-#[doc(alias = "ive")]
-#[doc(alias = "cyl_bessel_ie")]
+#[doc(alias = "ive", alias = "cyl_bessel_ie")]
+#[must_use]
+#[inline]
 pub fn bessel_ie<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_ie(v)
 }
@@ -367,8 +377,9 @@ pub fn bessel_ie<T: BesselArg>(v: f64, z: T) -> T {
 /// - [`bessel_k`]: modified Bessel function $K_v(z)$ of real order and complex argument
 /// - [`bessel_k0e`]: exponentially scaled $K_0$
 /// - [`sph_bessel_k`](crate::sph_bessel_k): spherical modified Bessel function $k_n(x)$
-#[doc(alias = "k0")]
-#[doc(alias = "cyl_bessel_k0")]
+#[doc(alias = "k0", alias = "cyl_bessel_k0")]
+#[must_use]
+#[inline]
 pub fn bessel_k0(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
 }
@@ -382,8 +393,9 @@ pub fn bessel_k0(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_k0`]: modified Bessel function $K_0(x)$
 /// - [`bessel_ke`]: exponentially scaled $K_v(z)$
-#[doc(alias = "k0e")]
-#[doc(alias = "cyl_bessel_k0e")]
+#[doc(alias = "k0e", alias = "cyl_bessel_k0e")]
+#[must_use]
+#[inline]
 pub fn bessel_k0e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
 }
@@ -398,8 +410,9 @@ pub fn bessel_k0e(x: f64) -> f64 {
 /// - [`bessel_k`]: modified Bessel function $K_v(z)$ of real order and complex argument
 /// - [`bessel_k1e`]: exponentially scaled $K_1$
 /// - [`sph_bessel_k`](crate::sph_bessel_k): spherical modified Bessel function $k_n(x)$
-#[doc(alias = "k1")]
-#[doc(alias = "cyl_bessel_k1")]
+#[doc(alias = "k1", alias = "cyl_bessel_k1")]
+#[must_use]
+#[inline]
 pub fn bessel_k1(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1(x) }
 }
@@ -413,8 +426,9 @@ pub fn bessel_k1(x: f64) -> f64 {
 /// # See also
 /// - [`bessel_k1`]: modified Bessel function $K_1(x)$
 /// - [`bessel_ke`]: exponentially scaled $K_v(z)$
-#[doc(alias = "k1e")]
-#[doc(alias = "cyl_bessel_k1e")]
+#[doc(alias = "k1e", alias = "cyl_bessel_k1e")]
+#[must_use]
+#[inline]
 pub fn bessel_k1e(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::cyl_bessel_k1e(x) }
 }
@@ -431,8 +445,9 @@ pub fn bessel_k1e(x: f64) -> f64 {
 /// - [`bessel_ke`]: $K_v$ without the leading exponential factor
 /// - [`bessel_k_prime`](crate::bessel_k_prime): derivative $K_v\'(z)$
 /// - [`sph_bessel_k`](crate::sph_bessel_k): spherical modified Bessel function $k_n(x)$
-#[doc(alias = "kv")]
-#[doc(alias = "cyl_bessel_k")]
+#[doc(alias = "kv", alias = "cyl_bessel_k")]
+#[must_use]
+#[inline]
 pub fn bessel_k<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_k(v)
 }
@@ -445,8 +460,9 @@ pub fn bessel_k<T: BesselArg>(v: f64, z: T) -> T {
 ///
 /// # See also
 /// - [`bessel_k`]: modified Bessel function $K_v(z)$
-#[doc(alias = "kve")]
-#[doc(alias = "cyl_bessel_ke")]
+#[doc(alias = "kve", alias = "cyl_bessel_ke")]
+#[must_use]
+#[inline]
 pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_ke(v)
 }
@@ -458,7 +474,12 @@ pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
 /// Corresponds to [`scipy.special.jnyn_zeros`][jnyn_zeros].
 ///
 /// [jnyn_zeros]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnyn_zeros.html
+///
+/// # Panics
+/// - Panics if `N` is greater than 1200
 #[doc(alias = "jnyn_zeros")]
+#[must_use]
+#[inline]
 pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
     assert!(N <= 1200, "N must be at most 1200");
 
@@ -466,8 +487,8 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
     let (mut y, mut yp) = ([f64::NAN; N], [f64::NAN; N]);
     unsafe {
         crate::ffi::xsf::jyzo(
-            v as c_int,
-            N as c_int,
+            v.try_into().unwrap(),
+            N.try_into().unwrap(),
             j.as_mut_ptr(),
             jp.as_mut_ptr(),
             y.as_mut_ptr(),
@@ -489,9 +510,9 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 /// - [`hankel_1e`]: $H_v^{(1)}$ without the leading exponential factor
 /// - [`hankel_1_prime`](crate::hankel_1_prime): $n$th derivative, ${d^n\over dz^n}H_v^{(1)}(z)$
 /// - [`hankel_2`]: Hankel function of the second kind $H_v^{(2)}(z)$
-#[doc(alias = "h1v")]
-#[doc(alias = "hankel1")]
-#[doc(alias = "cyl_hankel_1")]
+#[doc(alias = "h1v", alias = "hankel1", alias = "cyl_hankel_1")]
+#[must_use]
+#[inline]
 pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_1(v)
 }
@@ -504,9 +525,9 @@ pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 ///
 /// # See also
 /// - [`hankel_1`]: Hankel function $H_v^{(1)}(z)$
-#[doc(alias = "h1ve")]
-#[doc(alias = "hankel1e")]
-#[doc(alias = "cyl_hankel_1e")]
+#[doc(alias = "h1ve", alias = "hankel1e", alias = "cyl_hankel_1e")]
+#[must_use]
+#[inline]
 pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_1e(v)
 }
@@ -523,9 +544,9 @@ pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 /// - [`hankel_2e`]: $H_v^{(2)}$ without the leading exponential factor
 /// - [`hankel_2_prime`](crate::hankel_2_prime): $n$th derivative, ${d^n\over dz^n}H_v^{(2)}(z)$
 /// - [`hankel_1`]: Hankel function of the first kind $H_v^{(1)}(z)$
-#[doc(alias = "h2v")]
-#[doc(alias = "hankel2")]
-#[doc(alias = "cyl_hankel_2")]
+#[doc(alias = "h2v", alias = "hankel2", alias = "cyl_hankel_2")]
+#[must_use]
+#[inline]
 pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_2(v)
 }
@@ -538,9 +559,9 @@ pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 ///
 /// # See also
 /// - [`hankel_2`]: Hankel function $H_v^{(2)}(z)$
-#[doc(alias = "h2ve")]
-#[doc(alias = "hankel2e")]
-#[doc(alias = "cyl_hankel_2e")]
+#[doc(alias = "h2ve", alias = "hankel2e", alias = "cyl_hankel_2e")]
+#[must_use]
+#[inline]
 pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_2e(v)
 }
@@ -553,6 +574,8 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 /// Corresponds to [`scipy.special.besselpoly`][besselpoly].
 ///
 /// [besselpoly]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.besselpoly.html
+#[must_use]
+#[inline]
 pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
     unsafe { crate::ffi::xsf::besselpoly(a, lambda, v) }
 }
@@ -572,10 +595,12 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
 /// - [`bessel_j0`]
 /// - [`bessel_y0`]
 #[doc(alias = "itj0y0")]
+#[must_use]
+#[inline]
 pub fn it1j0y0(x: f64) -> (f64, f64) {
     let (mut j0int, mut y0int) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::it1j0y0(x, &mut j0int, &mut y0int);
+        crate::ffi::xsf::it1j0y0(x, &raw mut j0int, &raw mut y0int);
     }
     (j0int, y0int)
 }
@@ -594,10 +619,12 @@ pub fn it1j0y0(x: f64) -> (f64, f64) {
 /// - [`it1j0y0`]
 /// - [`bessel_j0`]
 /// - [`bessel_y0`]
+#[must_use]
+#[inline]
 pub fn it2j0y0(x: f64) -> (f64, f64) {
     let (mut j0int, mut y0int) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::it2j0y0(x, &mut j0int, &mut y0int);
+        crate::ffi::xsf::it2j0y0(x, &raw mut j0int, &raw mut y0int);
     }
     (j0int, y0int)
 }
@@ -617,10 +644,12 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
 /// - [`bessel_i0`]
 /// - [`bessel_k0`]
 #[doc(alias = "iti0k0")]
+#[must_use]
+#[inline]
 pub fn it1i0k0(x: f64) -> (f64, f64) {
     let (mut i0int, mut k0int) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::it1i0k0(x, &mut i0int, &mut k0int);
+        crate::ffi::xsf::it1i0k0(x, &raw mut i0int, &raw mut k0int);
     }
     (i0int, k0int)
 }
@@ -639,10 +668,12 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
 /// - [`it1i0k0`]
 /// - [`bessel_i0`]
 /// - [`bessel_k0`]
+#[must_use]
+#[inline]
 pub fn it2i0k0(x: f64) -> (f64, f64) {
     let (mut i0int, mut k0int) = (f64::NAN, f64::NAN);
     unsafe {
-        crate::ffi::xsf::it2i0k0(x, &mut i0int, &mut k0int);
+        crate::ffi::xsf::it2i0k0(x, &raw mut i0int, &raw mut k0int);
     }
     (i0int, k0int)
 }
@@ -669,8 +700,9 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 /// - [`bessel_j`]
 /// - [`sph_bessel_j`](crate::sph_bessel_j)
 ///
-#[doc(alias = "rctj")]
-#[doc(alias = "riccati_jn")]
+#[doc(alias = "rctj", alias = "riccati_jn")]
+#[must_use]
+#[inline]
 pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     let (mut rj, mut dj) = ([f64::NAN; N], [f64::NAN; N]);
     if N == 0 {
@@ -702,8 +734,9 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// - [`sph_bessel_y`](crate::sph_bessel_y)
 ///
 /// [scipy-rcty]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_yn.html
-#[doc(alias = "rcty")]
-#[doc(alias = "riccati_yn")]
+#[doc(alias = "rcty", alias = "riccati_yn")]
+#[must_use]
+#[inline]
 pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     let (mut ry, mut dy) = ([f64::NAN; N], [f64::NAN; N]);
     if N == 0 {
@@ -744,24 +777,35 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// - [`bessel_j`]
 /// - [`gamma`](crate::gamma)
 /// - [`sph_bessel_j`](crate::sph_bessel_j)
+///
+/// # Panics
+/// - Panics if `v` is negative
+/// - Panics if `v` is too large to convert to `c_int`
 #[doc(alias = "lmbda")]
+#[must_use]
 pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L2008-L2055
     let v: f64 = v.into();
     assert!(v >= 0.0, "v must be non-negative");
 
-    let n = v as usize;
-    let v0 = v - n as f64;
+    let n = v.to_usize().unwrap();
+    let v0 = v - n.to_f64().unwrap();
     let n1 = if n < 1 { 1 } else { n };
-    let v1 = v0 + n1 as f64;
+    let v1 = v0 + n1.to_f64().unwrap();
 
-    let size = v1 as usize + 1;
+    let size = v1.to_usize().unwrap() + 1;
     let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
     unsafe {
-        if v != n as f64 {
-            crate::ffi::xsf::lamv(v1, x, vl.as_mut_ptr(), dl.as_mut_ptr());
+        #[allow(clippy::float_cmp)]
+        if v == n.to_f64().unwrap() {
+            crate::ffi::xsf::lamn(
+                v1.to_usize().unwrap().try_into().unwrap(),
+                x,
+                vl.as_mut_ptr(),
+                dl.as_mut_ptr(),
+            );
         } else {
-            crate::ffi::xsf::lamn(v1 as c_int, x, vl.as_mut_ptr(), dl.as_mut_ptr());
+            crate::ffi::xsf::lamv(v1, x, vl.as_mut_ptr(), dl.as_mut_ptr());
         }
     };
 
@@ -1016,18 +1060,18 @@ mod tests {
 
         let xs = [-1.0, 10.0, -10.0, 1.0, 0.2];
         let expect_0 = [
-            0.12116524699506871,
-            2.177866420093336,
-            2.177866420093336,
-            0.12116524699506871,
-            0.004993754627460185,
+            0.121_165_246_995_068_71,
+            2.177_866_420_093_336,
+            2.177_866_420_093_336,
+            0.121_165_246_995_068_71,
+            0.004_993_754_627_460_185,
         ];
         let expect_1 = [
             f64::NAN,
-            -0.02298793356465965,
+            -0.022_987_933_564_659_65,
             f64::NAN,
-            0.3952729016992932,
-            -0.43423067011231634,
+            0.395_272_901_699_293_2,
+            -0.434_230_670_112_316_34,
         ];
         np_assert_allclose!(xs.map(|x| crate::it2j0y0(x).0), expect_0);
         np_assert_allclose!(xs.map(|x| crate::it2j0y0(x).1), expect_1);
@@ -1064,9 +1108,9 @@ mod tests {
         #[allow(clippy::needless_range_loop)]
         for n in 0..N {
             // j = special.spherical_jn(n, x)
-            let j = crate::sph_bessel_j(n as i64, x);
+            let j = crate::sph_bessel_j(n.try_into().unwrap(), x);
             // jp = special.spherical_jn(n, x, derivative=True)
-            let jp = crate::sph_bessel_j_prime(n as i64, x);
+            let jp = crate::sph_bessel_j_prime(n.try_into().unwrap(), x);
             // S[0,n] = x*j
             s[0][n] = x * j;
             // S[1,n] = x*jp + j
@@ -1091,9 +1135,9 @@ mod tests {
         #[allow(clippy::needless_range_loop)]
         for n in 0..N {
             // j = special.spherical_jn(n, x)
-            let j = crate::sph_bessel_y(n as i64, x);
+            let j = crate::sph_bessel_y(n.try_into().unwrap(), x);
             // jp = special.spherical_jn(n, x, derivative=True)
-            let jp = crate::sph_bessel_y_prime(n as i64, x);
+            let jp = crate::sph_bessel_y_prime(n.try_into().unwrap(), x);
             // S[0,n] = x*j
             c[0][n] = x * j;
             // S[1,n] = x*jp + j

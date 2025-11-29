@@ -1,4 +1,6 @@
 /// Inverse of `p = gdtr(a, b, x)` with respect to `b`
+#[must_use]
+#[inline]
 pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gdtrib(a, p, x) }
 }

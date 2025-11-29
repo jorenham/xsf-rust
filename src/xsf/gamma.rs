@@ -9,53 +9,67 @@ pub trait GammaArg: sealed::Sealed {
 }
 
 impl GammaArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn xsf_gamma(self) -> Self {
         unsafe { crate::ffi::xsf::gamma(self) }
     }
 }
 
 impl GammaArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn xsf_gamma(self) -> Self {
         unsafe { crate::ffi::xsf::gamma_1(self) }
     }
 }
 
 /// Gamma function for real or complex input
+#[must_use]
+#[inline]
 pub fn gamma<T: GammaArg>(z: T) -> T {
     z.xsf_gamma()
 }
 
 /// Regularized lower incomplete gamma function
-#[doc(alias = "inc_gamma")]
-#[doc(alias = "gamma_lr")]
+#[doc(alias = "inc_gamma", alias = "gamma_lr")]
+#[must_use]
+#[inline]
 pub fn gammainc(a: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammainc(a, x) }
 }
 
 /// Regularized upper incomplete gamma function
 #[doc(alias = "gamma_ur")]
+#[must_use]
+#[inline]
 pub fn gammaincc(a: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaincc(a, x) }
 }
 
 /// Inverse of [`gammainc`]
+#[must_use]
+#[inline]
 pub fn gammaincinv(a: f64, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaincinv(a, p) }
 }
 
 /// Inverse of [`gammaincc`]
+#[must_use]
+#[inline]
 pub fn gammainccinv(a: f64, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammainccinv(a, p) }
 }
 
 /// Logarithm of the absolute value of the gamma function
+#[doc(alias = "lgamma")]
+#[must_use]
+#[inline]
 pub fn gammaln(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammaln(x) }
 }
 
 /// Sign of the Gamma function
+#[must_use]
+#[inline]
 pub fn gammasgn(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gammasgn(x) }
 }

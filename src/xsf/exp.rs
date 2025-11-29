@@ -9,14 +9,14 @@ pub trait ExpArg: sealed::Sealed {
 }
 
 impl ExpArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn expm1(self) -> Self {
         unsafe { crate::ffi::xsf::expm1(self) }
     }
 }
 
 impl ExpArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn expm1(self) -> Self {
         unsafe { crate::ffi::xsf::expm1_1(self) }
     }
@@ -24,16 +24,22 @@ impl ExpArg for num_complex::Complex<f64> {
 
 /// `exp(x) - 1` for real or complex input
 #[doc(alias = "exp_m1")]
+#[must_use]
+#[inline]
 pub fn expm1<T: ExpArg>(z: T) -> T {
     z.expm1()
 }
 
 /// `2^x`
+#[must_use]
+#[inline]
 pub fn exp2(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::exp2(x) }
 }
 
 /// `10^x`
+#[must_use]
+#[inline]
 pub fn exp10(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::exp10(x) }
 }

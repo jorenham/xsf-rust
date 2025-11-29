@@ -8,8 +8,8 @@ const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 ///
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_asy`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L59-L100>
-#[inline(always)]
-fn _hyp0f1_asy(v: f64, z: f64) -> f64 {
+#[inline]
+fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let arg = z.sqrt();
     let v1 = (v - 1.0).abs();
     let x = 2.0 * arg / v1;
@@ -19,9 +19,9 @@ fn _hyp0f1_asy(v: f64, z: f64) -> f64 {
     let arg_exp_i = unsafe { crate::ffi::xsf::gammaln(v) } - 0.5 * (TAU * p1 * v1).ln();
     let gs = unsafe { crate::ffi::xsf::gammasgn(v) };
 
-    let _v1_eta = v1 * eta;
-    let arg_exp_i = arg_exp_i + _v1_eta;
-    let arg_exp_k = arg_exp_i - _v1_eta;
+    let v1_eta = v1 * eta;
+    let arg_exp_i = arg_exp_i + v1_eta;
+    let arg_exp_k = arg_exp_i - v1_eta;
 
     // large-v asymptotic correction, DLMF 10.41.10
     let qv = 1.0 / (24.0 * v1 * p1);
@@ -32,8 +32,8 @@ fn _hyp0f1_asy(v: f64, z: f64) -> f64 {
     let uv3 = (3037.5 - (36960.3 + (76576.5 - 42542.5 * q2) * q2) * q2) * qv.powi(3) / 3.0;
     let u_corr_i = 1.0 + uv1 + uv2 + uv3;
 
-    let _v1_log_arg = unsafe { crate::ffi::xsf::xlogy(v1, arg) };
-    let out = gs * (arg_exp_i - _v1_log_arg).exp() * u_corr_i;
+    let v1_log_arg = unsafe { crate::ffi::xsf::xlogy(v1, arg) };
+    let out = gs * (arg_exp_i - v1_log_arg).exp() * u_corr_i;
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
@@ -41,7 +41,7 @@ fn _hyp0f1_asy(v: f64, z: f64) -> f64 {
         out + 2.0
             * gs
             * unsafe { crate::ffi::xsf::sinpi(v1) }
-            * (arg_exp_k + _v1_log_arg).exp()
+            * (arg_exp_k + v1_log_arg).exp()
             * u_corr_k
     } else {
         out
@@ -52,8 +52,8 @@ fn _hyp0f1_asy(v: f64, z: f64) -> f64 {
 ///
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_real`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L31-L56>
-#[inline(always)]
-fn _hyp0f1_real(v: f64, z: f64) -> f64 {
+#[inline]
+fn hyp0f1_real(v: f64, z: f64) -> f64 {
     if v <= 0.0 && v.fract() == 0.0 {
         // poles
         f64::NAN
@@ -70,7 +70,7 @@ fn _hyp0f1_real(v: f64, z: f64) -> f64 {
 
         if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
             // overflow or underflow
-            _hyp0f1_asy(v, z)
+            hyp0f1_asy(v, z)
         } else {
             arg_exp.exp() * bess_val * unsafe { crate::ffi::xsf::gammasgn(v) }
         }
@@ -86,8 +86,8 @@ fn _hyp0f1_real(v: f64, z: f64) -> f64 {
 ///
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_cmplx`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L106-L136>
-#[inline(always)]
-fn _hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
+#[inline]
+fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     if v <= 0.0 && v.fract() == 0.0 {
         // poles
         f64::NAN.into()
@@ -124,40 +124,42 @@ mod sealed {
 }
 
 pub trait HypergeometricArg: sealed::Sealed {
-    fn hyp0f0(&self) -> Self;
-    fn hyp1f0(&self, a: f64) -> Self;
-    fn hyp0f1(&self, b: f64) -> Self;
+    fn hyp0f0(self) -> Self;
+    fn hyp1f0(self, a: f64) -> Self;
+    fn hyp0f1(self, b: f64) -> Self;
 }
 
 impl HypergeometricArg for f64 {
-    #[inline(always)]
-    fn hyp0f0(&self) -> Self {
+    #[inline]
+    fn hyp0f0(self) -> Self {
         self.exp()
     }
 
-    #[inline(always)]
-    fn hyp1f0(&self, a: f64) -> Self {
-        if a > 0.0 && *self == 1.0 {
+    #[inline]
+    #[allow(clippy::float_cmp)]
+    fn hyp1f0(self, a: f64) -> Self {
+        if a > 0.0 && self == 1.0 {
             f64::NAN
         } else {
             (1.0 - self).powf(-a)
         }
     }
 
-    #[inline(always)]
-    fn hyp0f1(&self, b: f64) -> Self {
-        _hyp0f1_real(b, *self)
+    #[inline]
+    fn hyp0f1(self, b: f64) -> Self {
+        hyp0f1_real(b, self)
     }
 }
 
 impl HypergeometricArg for num_complex::Complex<f64> {
-    #[inline(always)]
-    fn hyp0f0(&self) -> Self {
+    #[inline]
+    fn hyp0f0(self) -> Self {
         self.exp()
     }
 
-    #[inline(always)]
-    fn hyp1f0(&self, a: f64) -> Self {
+    #[inline]
+    #[allow(clippy::float_cmp)]
+    fn hyp1f0(self, a: f64) -> Self {
         if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
             f64::NAN.into()
         } else {
@@ -165,9 +167,9 @@ impl HypergeometricArg for num_complex::Complex<f64> {
         }
     }
 
-    #[inline(always)]
-    fn hyp0f1(&self, b: f64) -> Self {
-        _hyp0f1_cmplx(b, *self)
+    #[inline]
+    fn hyp0f1(self, b: f64) -> Self {
+        hyp0f1_cmplx(b, self)
     }
 }
 
@@ -192,6 +194,7 @@ impl HypergeometricArg for num_complex::Complex<f64> {
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
 ///
+#[inline]
 pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
     z.hyp0f0()
 }
@@ -218,6 +221,7 @@ pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
 ///
+#[inline]
 pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
     z.hyp1f0(a)
 }
@@ -251,6 +255,7 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 /// [^1]: Weisstein, Eric W. "Confluent Hypergeometric Limit Function." From MathWorld -- A Wolfram
 /// Resource. <https://mathworld.wolfram.com/ConfluentHypergeometricLimitFunction.html>
 ///
+#[inline]
 pub fn hyp0f1<T: HypergeometricArg>(b: f64, z: T) -> T {
     z.hyp0f1(b)
 }
@@ -284,6 +289,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_hyp1f0_f64() {
         assert_eq!(crate::hyp1f0(-1.0, -1.0), 2.0);
         assert_eq!(crate::hyp1f0(0.0, -1.0), 1.0);
@@ -350,17 +356,17 @@ mod tests {
     #[test]
     fn test_hyp0f1() {
         // scalar input
-        np_assert_allclose!([hyp0f1(2.5, 0.5)], [1.21482702689997], rtol = 1e-12);
+        np_assert_allclose!([hyp0f1(2.5, 0.5)], [1.214_827_026_899_997], rtol = 1e-12);
         np_assert_allclose!([hyp0f1(2.5, 0.0)], [1.0], rtol = 1e-15);
 
         // float input, expected values match mpmath
         let x = [-1.5, -1.0, 0.0, 1.0, 1.5].map(|z| hyp0f1(3.0, z));
         let expected = [
-            0.58493659229143,
-            0.70566805723127,
+            0.584_936_592_291_43,
+            0.705_668_057_231_27,
             1.0,
-            1.37789689539747,
-            1.60373685288480,
+            1.377_896_895_397_47,
+            1.603_736_852_884_80,
         ];
         np_assert_allclose!(x, expected, rtol = 1e-12);
 
@@ -379,7 +385,7 @@ mod tests {
         // The expected value was generated using mpmath
         np_assert_allclose!(
             [res],
-            [c64(1.6139719776441115, 0.8089305406179067)],
+            [c64(1.613_971_977_644_111_5, 0.808_930_540_617_906_7)],
             atol = 1.5e-7
         );
     }

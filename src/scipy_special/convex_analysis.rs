@@ -32,6 +32,7 @@
 /// # See also
 /// - [`rel_entr`]
 /// - [`kl_div`]
+#[must_use]
 #[inline]
 pub fn entr(x_i: f64) -> f64 {
     if x_i.is_nan() {
@@ -79,6 +80,7 @@ pub fn entr(x_i: f64) -> f64 {
 /// # See also
 /// - [`entr`]
 /// - [`kl_div`]
+#[must_use]
 #[inline]
 pub fn rel_entr(x_i: f64, y_i: f64) -> f64 {
     if x_i.is_nan() || y_i.is_nan() {
@@ -133,6 +135,7 @@ pub fn rel_entr(x_i: f64, y_i: f64) -> f64 {
 /// # See also
 /// - [`entr`]
 /// - [`rel_entr`]
+#[must_use]
 #[inline]
 pub fn kl_div(x: f64, y: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
@@ -179,6 +182,7 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
 ///
 /// # See also
 /// - [`pseudo_huber`]
+#[must_use]
 #[inline]
 pub fn huber(delta: f64, r: f64) -> f64 {
     if delta < 0.0 {
@@ -225,6 +229,7 @@ pub fn huber(delta: f64, r: f64) -> f64 {
 ///
 /// # See also
 /// - [`huber`]
+#[must_use]
 #[inline]
 pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
     if delta < 0.0 {
@@ -269,7 +274,7 @@ mod tests {
 
         let z = [f64::NEG_INFINITY, -1.0, -0.5, 0.0, 0.5, 1.0, f64::INFINITY];
         let w = z.map(xfunc);
-        np_assert_allclose!(z.map(crate::entr), w, rtol = 1e-13, atol = 1e-13)
+        np_assert_allclose!(z.map(crate::entr), w, rtol = 1e-13, atol = 1e-13);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_kl_div`
@@ -291,7 +296,7 @@ mod tests {
 
         let z = get_test_xy();
         let w = map2(xfunc, z);
-        np_assert_allclose!(map2(crate::kl_div, z), w, rtol = 1e-13, atol = 1e-13)
+        np_assert_allclose!(map2(crate::kl_div, z), w, rtol = 1e-13, atol = 1e-13);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_rel_entr`
@@ -309,7 +314,7 @@ mod tests {
 
         let z = get_test_xy();
         let w = map2(xfunc, z);
-        np_assert_allclose!(map2(crate::rel_entr, z), w, rtol = 1e-13, atol = 1e-13)
+        np_assert_allclose!(map2(crate::rel_entr, z), w, rtol = 1e-13, atol = 1e-13);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_rel_entr_gh_20710_near_zero`
@@ -318,17 +323,17 @@ mod tests {
         // Check accuracy of inputs which are very close
         let inputs = [
             // x, y
-            (0.9456657713430001, 0.9456657713430094),
-            (0.48066098564791515, 0.48066098564794774),
-            (0.786048657854401, 0.7860486578542367),
+            (0.945_665_771_343_000_1, 0.945_665_771_343_009_4),
+            (0.480_660_985_647_915_15, 0.480_660_985_647_947_74),
+            (0.786_048_657_854_401, 0.786_048_657_854_236_7),
         ];
         // Known values produced using `x * mpmath.log(x / y)` with dps=30
         let expected = [
-            -9.325873406851269e-15,
-            -3.258504577274724e-14,
-            1.6431300764454033e-13,
+            -9.325_873_406_851_269e-15,
+            -3.258_504_577_274_724e-14,
+            1.643_130_076_445_403_3e-13,
         ];
-        np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13)
+        np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_rel_entr_gh_20710_overflow`
@@ -345,15 +350,16 @@ mod tests {
         ];
         // Known values produced using `x * mpmath.log(x / y)` with dps=30
         let expected = [
-            2839.139983229607,
-            -9.210340371976183e-198,
-            -1.6493212008074475e-305,
+            2_839.139_983_229_607,
+            -9.210_340_371_976_183e-198,
+            -1.649_321_200_807_447_5e-305,
         ];
-        np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13)
+        np_assert_allclose!(map2(crate::rel_entr, inputs), expected, rtol = 1e-13);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_huber`
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_huber() {
         assert_eq!(crate::huber(-1.0, 1.5), f64::INFINITY);
         np_assert_allclose!([crate::huber(2.0, 1.5)], [0.5 * 1.5_f64.powi(2)]);
@@ -361,6 +367,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_pseudo_huber() {
         assert_eq!(crate::pseudo_huber(-1.0, 1.5), f64::INFINITY);
         np_assert_allclose!([crate::pseudo_huber(2.0, 1.5)], [1.0]);

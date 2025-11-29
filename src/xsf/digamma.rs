@@ -9,14 +9,14 @@ pub trait DigammaArg: sealed::Sealed {
 }
 
 impl DigammaArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn digamma(self) -> Self {
         unsafe { crate::ffi::xsf::digamma(self) }
     }
 }
 
 impl DigammaArg for num_complex::Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn digamma(self) -> Self {
         unsafe { crate::ffi::xsf::digamma_1(self) }
     }
@@ -30,6 +30,7 @@ impl DigammaArg for num_complex::Complex<f64> {
 ///
 /// [digamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html
 #[doc(alias = "psi")]
+#[must_use]
 #[inline]
 pub fn digamma<T: DigammaArg>(x: T) -> T {
     x.digamma()
@@ -37,8 +38,6 @@ pub fn digamma<T: DigammaArg>(x: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use num_complex::c64;
-
     #[test]
     fn test_digamma_f64() {
         xsref::test("digamma", "d-d", |x| crate::digamma(x[0]));
@@ -46,6 +45,8 @@ mod tests {
 
     #[test]
     fn test_digamma_c64() {
+        use num_complex::c64;
+
         xsref::test("digamma", "cd-cd", |x| crate::digamma(c64(x[0], x[1])));
     }
 }

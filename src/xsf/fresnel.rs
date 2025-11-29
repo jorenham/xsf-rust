@@ -12,22 +12,22 @@ pub trait FresnelArg: sealed::Sealed + Sized {
 }
 
 impl FresnelArg for f64 {
-    #[inline(always)]
+    #[inline]
     fn fresnel(self) -> (Self, Self) {
         let (mut fs, mut fc) = (f64::NAN, f64::NAN);
         unsafe {
-            crate::ffi::xsf::fresnel(self, &mut fs, &mut fc);
+            crate::ffi::xsf::fresnel(self, &raw mut fs, &raw mut fc);
         }
         (fs, fc)
     }
 }
 
 impl FresnelArg for Complex<f64> {
-    #[inline(always)]
+    #[inline]
     fn fresnel(self) -> (Self, Self) {
         let (mut fs, mut fc) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
         unsafe {
-            crate::ffi::xsf::fresnel_1(self, &mut fs, &mut fc);
+            crate::ffi::xsf::fresnel_1(self, &raw mut fs, &raw mut fc);
         }
         (fs, fc)
     }
@@ -45,6 +45,8 @@ impl FresnelArg for Complex<f64> {
 /// - [`fresnel_zeros`] - Zeros of S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
+#[must_use]
+#[inline]
 pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
     z.fresnel()
 }
@@ -59,10 +61,12 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 /// - [`fresnel`] - Standard Fresnel integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
 #[doc(alias = "modfresnelp")]
+#[must_use]
+#[inline]
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
     let (mut fp, mut kp) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
     unsafe {
-        crate::ffi::xsf::modified_fresnel_plus(x, &mut fp, &mut kp);
+        crate::ffi::xsf::modified_fresnel_plus(x, &raw mut fp, &raw mut kp);
     }
     (fp, kp)
 }
@@ -77,10 +81,12 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - [`fresnel`] - Standard Fresnel integrals S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 #[doc(alias = "modfresnelm")]
+#[must_use]
+#[inline]
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
     let (mut fm, mut km) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
     unsafe {
-        crate::ffi::xsf::modified_fresnel_minus(x, &mut fm, &mut km);
+        crate::ffi::xsf::modified_fresnel_minus(x, &raw mut fm, &raw mut km);
     }
     (fm, km)
 }
@@ -89,20 +95,24 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 ///
 /// Compute `nt` complex zeros of the Fresnel integrals S(z) and C(z).
 ///
+/// # Panics
+/// - if `nt` is greater than `[c_int::MAX`](core::ffi::c_int::MAX)
+///
 /// # See also
 /// - [`fresnel`] - Fresnel integrals S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals F₊(x) and K₊(x)
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals F₋(x) and K₋(x)
-#[doc(alias = "fresnelc_zeros")]
-#[doc(alias = "fresnels_zeros")]
+#[doc(alias = "fresnelc_zeros", alias = "fresnels_zeros")]
+#[must_use]
+#[inline]
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
     let mut szo = vec![Complex::new(f64::NAN, 0.0); nt];
     let mut czo = vec![Complex::new(f64::NAN, 0.0); nt];
     unsafe {
-        crate::ffi::xsf::fcszo(2, nt as c_int, szo.as_mut_ptr());
-        crate::ffi::xsf::fcszo(1, nt as c_int, czo.as_mut_ptr());
+        crate::ffi::xsf::fcszo(2, nt.try_into().unwrap(), szo.as_mut_ptr());
+        crate::ffi::xsf::fcszo(1, nt.try_into().unwrap(), czo.as_mut_ptr());
     }
     (szo, czo)
 }

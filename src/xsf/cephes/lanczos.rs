@@ -1,4 +1,6 @@
 #[doc(hidden)]
+#[must_use]
+#[inline]
 pub fn lanczos_sum_expg_scaled(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::lanczos_sum_expg_scaled(x) }
 }
