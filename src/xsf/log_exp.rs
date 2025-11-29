@@ -1,6 +1,6 @@
 /// Expit (a.k.a. logistic sigmoid) function, $1 / (1 + e^{-x})$
 ///
-/// Corresponds to [`scipy.special.expit`][expit]. Translated into pure Rust from Cephes.
+/// Corresponds to [`scipy.special.expit`][expit]. Translated into pure Rust from xsf.
 ///
 /// [expit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expit.html
 ///
@@ -14,7 +14,7 @@ pub fn expit(x: f64) -> f64 {
 
 /// Relative error exponential, $(e^x - 1) / x$
 ///
-/// Corresponds to [`scipy.special.exprel`][exprel]. Translated into pure Rust from Cephes.
+/// Corresponds to [`scipy.special.exprel`][exprel]. Translated into pure Rust from xsf.
 ///
 /// [exprel]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exprel.html
 ///
@@ -35,7 +35,7 @@ pub fn exprel(x: f64) -> f64 {
 
 /// Logit function, $\ln(x / (1 - x))$
 ///
-/// Corresponds to [`scipy.special.logit`][logit]. Translated into pure Rust from Cephes.
+/// Corresponds to [`scipy.special.logit`][logit]. Translated into pure Rust from xsf.
 ///
 /// [logit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.logit.html
 ///
@@ -59,7 +59,7 @@ pub fn logit(x: f64) -> f64 {
 
 /// Natural logarithm of [`expit`]
 ///
-/// Corresponds to [`scipy.special.log_expit`][log_expit]. Translated into pure Rust from Cephes.
+/// Corresponds to [`scipy.special.log_expit`][log_expit]. Translated into pure Rust from xsf.
 ///
 /// [log_expit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_expit.html
 #[must_use]
@@ -74,7 +74,7 @@ pub fn log_expit(x: f64) -> f64 {
 
 /// Compute $\ln(1 - e^x)$
 ///
-/// Translated into pure Rust from Cephes.
+/// Translated into pure Rust from xsf.
 /// This function has no analogue in `scipy.special`.
 ///
 /// # See also
@@ -85,7 +85,7 @@ pub fn log1mexp(x: f64) -> f64 {
     if x > 0.0 {
         f64::NAN
     } else if x == 0.0 {
-        f64::INFINITY
+        f64::NEG_INFINITY
     } else if x < -1.0 {
         (-x.exp()).ln_1p()
     } else {
@@ -95,6 +95,8 @@ pub fn log1mexp(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::np_assert_allclose;
+
     #[test]
     fn test_expit() {
         xsref::test("expit", "d-d", |x| crate::expit(x[0]));
@@ -113,5 +115,16 @@ mod tests {
     #[test]
     fn test_log_expit() {
         xsref::test("log_expit", "d-d", |x| crate::log_expit(x[0]));
+    }
+
+    #[test]
+    fn test_log1mexp() {
+        let xs: [f64; 5] = [-20.0, -5.0, -1.5, -1.0, -0.75];
+        let expected = xs.map(|x| (-x.exp_m1()).ln());
+        np_assert_allclose!(xs.map(crate::log1mexp), expected, atol = 1e-15);
+
+        assert!(crate::log1mexp(0.5).is_nan());
+        let zero_limit = crate::log1mexp(0.0);
+        assert!(zero_limit.is_infinite() && zero_limit.is_sign_negative());
     }
 }
