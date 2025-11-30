@@ -40,7 +40,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "kelvin.h",
     "lambertw.h",
     "legendre.h",
-    "log_exp.h",
     "log.h",
     "loggamma.h",
     "mathieu.h",
@@ -186,12 +185,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("legendre_p", "iD->D"),
     ("sph_legendre_p", "iid->d"),
     ("sph_legendre_p", "iiD->D"),
-    // log_exp.h
-    ("expit", "d->d"),
-    ("exprel", "d->d"),
-    ("logit", "d->d"),
-    ("log_expit", "d->d"),
-    ("log1mexp", "d->d"),
     // log.h
     ("log1p", "d->d"),
     ("log1p", "D->D"),

@@ -1,4 +1,4 @@
-use core::fmt::Display;
+use core::fmt::LowerExp;
 use std::fs::File;
 use std::io::Error as IOError;
 use std::path::PathBuf;
@@ -11,9 +11,19 @@ use polars::prelude::{AnyValue, Column, DataFrame};
 
 use crate::{ExtendedErrorArg, extended_absolute_error, extended_relative_error};
 
-pub trait TestOutputValue: ExtendedErrorArg + Copy + Display {
+pub trait TestOutputValue: ExtendedErrorArg + Copy + LowerExp {
     fn magnitude(&self) -> f64;
-    fn format(&self) -> String;
+
+    fn format(&self) -> String {
+        format!("{self:.5e}")
+    }
+}
+
+impl TestOutputValue for f32 {
+    #[inline]
+    fn magnitude(&self) -> f64 {
+        self.abs() as f64
+    }
 }
 
 impl TestOutputValue for f64 {
@@ -21,22 +31,12 @@ impl TestOutputValue for f64 {
     fn magnitude(&self) -> f64 {
         self.abs()
     }
-
-    #[inline]
-    fn format(&self) -> String {
-        format!("{self:.5e}")
-    }
 }
 
 impl TestOutputValue for Complex<f64> {
     #[inline]
     fn magnitude(&self) -> f64 {
         self.norm()
-    }
-
-    #[inline]
-    fn format(&self) -> String {
-        format!("{:.5e}{:+.5e}i", self.re, self.im)
     }
 }
 
@@ -84,6 +84,20 @@ pub trait TestOutput: Copy + PartialEq {
     }
 }
 
+impl TestOutput for f32 {
+    type Value = f32;
+
+    #[inline]
+    fn from_parquet_row(row: Vec<f64>) -> Self {
+        row[0] as f32
+    }
+
+    #[inline]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![*self]
+    }
+}
+
 impl TestOutput for f64 {
     type Value = f64;
 
@@ -109,6 +123,20 @@ impl TestOutput for Complex<f64> {
     #[inline]
     fn values(&self) -> Vec<Self::Value> {
         vec![*self]
+    }
+}
+
+impl TestOutput for (f32, f32) {
+    type Value = f32;
+
+    #[inline]
+    fn from_parquet_row(row: Vec<f64>) -> Self {
+        (row[0] as f32, row[1] as f32)
+    }
+
+    #[inline]
+    fn values(&self) -> Vec<Self::Value> {
+        vec![self.0, self.1]
     }
 }
 

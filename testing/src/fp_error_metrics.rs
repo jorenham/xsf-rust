@@ -5,6 +5,7 @@ const ULP_AT_MAX: f64 = (f64::EPSILON * f64::MAX) / 2.0;
 
 mod sealed {
     pub trait Sealed {}
+    impl Sealed for f32 {}
     impl Sealed for f64 {}
     impl Sealed for num_complex::Complex<f64> {}
 }
@@ -14,6 +15,28 @@ pub trait ExtendedErrorArg: Copy + sealed::Sealed {
     fn xsf_extended_relative_error(self, other: Self) -> f64;
     fn xsf_magnitude(self) -> f64;
     fn xsf_is_nan(self) -> bool;
+}
+
+impl ExtendedErrorArg for f32 {
+    #[inline]
+    fn xsf_extended_absolute_error(self, other: Self) -> f64 {
+        extended_absolute_error_scalar(self as f64, other as f64)
+    }
+
+    #[inline]
+    fn xsf_extended_relative_error(self, other: Self) -> f64 {
+        extended_relative_error_scalar(self as f64, other as f64)
+    }
+
+    #[inline]
+    fn xsf_magnitude(self) -> f64 {
+        self.abs() as f64
+    }
+
+    #[inline]
+    fn xsf_is_nan(self) -> bool {
+        self.is_nan()
+    }
 }
 
 impl ExtendedErrorArg for f64 {

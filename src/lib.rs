@@ -214,11 +214,11 @@
 //!
 //! ## Sigmoidal functions
 //!
-//! | Function       | Description                              |
-//! | -------------- | ---------------------------------------- |
-//! | [`logit`]      | Logit function, $\ln \( \frac{x}{1-x} \) $ |
-//! | [`expit`]      | Expit function, $\frac{1}{1 + \exp(-x)}$   |
-//! | [`log_expit`]  | Logarithm of [`expit`]                   |
+//! | Function      | Description                               |
+//! | ------------- | ----------------------------------------- |
+//! | [`logit`]     | Logit function, $\ln \( \frac{x}{1-x} \)$ |
+//! | [`expit`]     | Expit function, $\frac{1}{1 + \exp(-x)}$  |
+//! | [`log_expit`] | Logarithm of [`expit`]                    |
 //!
 //! ## Miscellaneous
 //!
@@ -324,8 +324,8 @@
 //!
 //! # Parabolic cylinder functions
 //!
-//! | Function | Description                                    |
-//! | -------- | ---------------------------------------------- |
+//! | Function | Description                                                        |
+//! | -------- | ------------------------------------------------------------------ |
 //! | [`pbdv`] | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
 //! | [`pbvv`] | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
 //! | [`pbwa`] | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
@@ -370,13 +370,13 @@
 //! | ---------- | ---------------- | ----------------------------------- |
 //! | [`kelvin`] | [`kelvin_zeros`] | Kelvin functions as complex numbers |
 //! | [`ber`]    | [`ber_zeros`]    | Kelvin function $\ber(x)$           |
-//! | [`berp`]   | [`berp_zeros`]   | Derivative of [`ber`], $\ber\'(x)$   |
+//! | [`berp`]   | [`berp_zeros`]   | Derivative of [`ber`], $\ber\'(x)$  |
 //! | [`bei`]    | [`bei_zeros`]    | Kelvin function $\bei(x)$           |
-//! | [`beip`]   | [`beip_zeros`]   | Derivative of [`bei`], $\bei\'(x)$   |
+//! | [`beip`]   | [`beip_zeros`]   | Derivative of [`bei`], $\bei\'(x)$  |
 //! | [`ker`]    | [`ker_zeros`]    | Kelvin function $\ker(x)$           |
-//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of [`ker`], $\ker\'(x)$   |
+//! | [`kerp`]   | [`kerp_zeros`]   | Derivative of [`ker`], $\ker\'(x)$  |
 //! | [`kei`]    | [`kei_zeros`]    | Kelvin function $\kei(x)$           |
-//! | [`keip`]   | [`keip_zeros`]   | Derivative of [`kei`], $\kei\'(x)$   |
+//! | [`keip`]   | [`keip_zeros`]   | Derivative of [`kei`], $\kei\'(x)$  |
 //!
 //! # Combinatorics
 //!
@@ -426,29 +426,29 @@
 //! | [`shichi`]    | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
 //! | [`spence`]    | Spence's function, also known as the dilogarithm             |
 //! | [`softplus`]  | $\ln(1 + e^x)$                                               |
+//! | [`log1mexp`]  | $\ln(1 - e^x)$                                               |
 //!
 //! # Convenience functions
 //!
-//! | Function       | Description                                           |
-//! | -------------- | ----------------------------------------------------- |
-//! | [`cbrt`]       | $\sqrt\[3\]{x}$                                       |
-//! | [`exp10`]      | $10^x$                                                |
-//! | [`exp2`]       | $2^x$                                                 |
-//! | [`radian`]     | Convert from degrees to radians                       |
-//! | [`cosdg`]      | Cosine of an angle in degrees                         |
-//! | [`sindg`]      | Sine of an angle in degrees                           |
-//! | [`tandg`]      | Tangent of an angle in degrees                        |
-//! | [`cotdg`]      | Cotangent of an angle in degrees                      |
-//! | [`log1p`]      | $\ln(1+x)$                                            |
-//! | [`expm1`]      | $e^x - 1$                                             |
-//! | [`cosm1`]      | $\cos(x) - 1$                                         |
-//! | [`round`]      | Round to nearest or even integer-valued float         |
-//! | [`xlogy`]      | $x \ln(y)$ or $0$ if $x = 0$                          |
-//! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                        |
-//! | [`logaddexp`]  | $\ln(e^x + e^y)$                                      |
-//! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                   |
-//! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$         |
-//! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$   |
+//! | Function       | Description                                         |
+//! | -------------- | --------------------------------------------------- |
+//! | [`cbrt`]       | $\sqrt\[3\]{x}$                                     |
+//! | [`exp10`]      | $10^x$                                              |
+//! | [`exp2`]       | $2^x$                                               |
+//! | [`radian`]     | Convert from degrees to radians                     |
+//! | [`cosdg`]      | Cosine of an angle in degrees                       |
+//! | [`sindg`]      | Sine of an angle in degrees                         |
+//! | [`tandg`]      | Tangent of an angle in degrees                      |
+//! | [`cotdg`]      | Cotangent of an angle in degrees                    |
+//! | [`expm1`]      | $e^x - 1$                                           |
+//! | [`cosm1`]      | $\cos(x) - 1$                                       |
+//! | [`round`]      | Round to nearest or even integer-valued float       |
+//! | [`xlogy`]      | $x \ln(y)$ or $0$ if $x = 0$                        |
+//! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                      |
+//! | [`logaddexp`]  | $\ln(e^x + e^y)$                                    |
+//! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                 |
+//! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$       |
+//! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
 //!
 
 #![warn(
