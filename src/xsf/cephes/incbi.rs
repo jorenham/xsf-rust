@@ -11,14 +11,14 @@
 /// This function is the quantile function (inverse CDF) of the Beta distribution.
 ///
 /// # Notes
-/// This functions wraps the `incbi` Cephes routine [^CEPHES], making it less accurate than
+/// This function wraps the `incbi` Cephes routine [^CEPHES], making it less accurate than
 /// [`scipy.special.betaincinv`][scipy], which wraps the Boost `ibeta_inv` routine [^BOOST].
 /// Especially for small `y` and large `a - b` the accuracy may be poor.
 ///
 /// # See also
 /// - [`betainc`](crate::betainc): Regularized incomplete Beta function $\I_x(a, b)$
 /// - [`beta`](crate::beta): Beta function $\B(a, b)$
-/// - [`gamma`](crate::gamma): Gamma function $\Gamma(a, b)$
+/// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
 /// - [`scipy.special.betaincinv`][scipy]: Corresponding function in SciPy
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincinv.html

@@ -12,7 +12,7 @@
 /// incomplete Beta function.
 ///
 /// # Notes
-/// This functions wraps the `incbet` Cephes routine [^CEPHES], making it less accurate than
+/// This function wraps the `incbet` Cephes routine [^CEPHES], making it less accurate than
 /// [`scipy.special.betainc`][scipy], which wraps the Boost `ibeta` routine [^BOOST].
 /// Especially for small `x` the accuracy may be poor.
 ///

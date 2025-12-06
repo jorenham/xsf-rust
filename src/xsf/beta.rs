@@ -25,7 +25,7 @@ pub fn beta(a: f64, b: f64) -> f64 {
     unsafe { crate::ffi::xsf::beta(a, b) }
 }
 
-/// Natural Logarithm of the absolute value of [`beta`], $\ln{\abs{\B(a,b)}}$
+/// Natural logarithm of the absolute value of [`beta`], $\ln{\abs{\B(a,b)}}$
 ///
 /// # See also
 /// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
