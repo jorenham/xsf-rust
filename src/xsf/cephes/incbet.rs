@@ -20,7 +20,7 @@
 /// - [`betaincinv`](crate::betaincinv): Inverse of the regularized incomplete Beta function
 /// - [`beta`](crate::beta): Beta function $\B(a, b)$
 /// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
-/// - [`scipy.special.betainc`][scipy]
+/// - [`scipy.special.betainc`][scipy]: Corresponding function in SciPy
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
 ///
