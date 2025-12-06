@@ -1,60 +1,57 @@
-#[inline]
-fn incbet(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::incbet(a, b, x) }
-}
-
-/// Regularized incomplete beta function
+/// Regularized incomplete Beta function $\I_x(a,b)$
 ///
-/// Note: This is a custom wrapper around `cephes::incbet`, analogous to how `scipy.special.betainc`
-/// wraps `boost::math::ibeta` in `scipy/special/boost_special_functions.h`. The Cephes
-/// implementation tends to be less accurate than Boost's, especially for small `x`.
+/// Computes the regularized incomplete Beta function, defined as [^DLMF]:
 ///
-/// See also: [`betaincinv`](crate::betaincinv)
-#[doc(alias = "inc_beta", alias = "beta_inc")]
+/// $$
+/// \I_x(a,b)
+/// = {\Gamma(a+b) \over \Gamma(a)\Gamma(b)} \int_0^x t^{a-1} (1-t)^{b-1} \dd t
+/// = {\B_x(a,b) \over \B(a,b)} ,
+/// $$
+///
+/// for $0 \le x \le 1$, with $\B$ the Beta function, and $\B_x$ the (non-regularized)
+/// incomplete Beta function.
+///
+/// # Notes
+/// This function wraps the `incbet` Cephes routine [^CEPHES], making it less accurate than
+/// [`scipy.special.betainc`][scipy], which wraps the Boost `ibeta` routine [^BOOST].
+/// Especially for small `x` the accuracy may be poor.
+///
+/// # See also
+/// - [`betaincinv`](crate::betaincinv): Inverse of the regularized incomplete Beta function
+/// - [`beta`](crate::beta): Beta function $\B(a, b)$
+/// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
+/// - [`scipy.special.betainc`][scipy]: Corresponding function in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
+/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
+#[doc(
+    alias = "inc_beta",
+    alias = "beta_inc",
+    alias = "ibeta",
+    alias = "incbet"
+)]
 #[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
-    if a.is_nan() || b.is_nan() || x.is_nan() {
-        return f64::NAN;
+    if (a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&x))
+        || (a.is_nan() || b.is_nan() || x.is_nan())
+        || (a == 0.0 && b == 0.0)
+        || (a.is_infinite() && b.is_infinite())
+    {
+        f64::NAN
+    } else if a == 0.0 || b.is_infinite() {
+        if x > 0.0 { 1.0 } else { 0.0 }
+    } else if a.is_infinite() || b == 0.0 {
+        if x < 1.0 { 0.0 } else { 1.0 }
+    } else {
+        unsafe { crate::ffi::xsf::incbet(a, b, x) }
     }
-
-    if a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&x) {
-        return f64::NAN;
-    }
-
-    // In limiting cases, SciPy treats `betainc` as a two parameter family
-    // of functions of a single variable `x`, rather than as a function of
-    // three variables `a`, `b`, `x`. The limit `(a, b) -> (a0, b0)` of
-    // `betainc(a, b, x)` is treated as the pointwise limit in `x`.
-
-    if (a == 0.0 && b == 0.0) || (a.is_infinite() && b.is_infinite()) {
-        // In the limit (a, b) -> (0+, 0+), the Beta distribution converges
-        // to a Bernoulli(p) distribution, where p depends on the path in
-        // which (a, b) approaches (0+, 0+).
-        // e.g. if a = t*b then the limiting distribution will be
-        // Bernoulli(t / (t + 1)). The a = 0, b = 0 case is thus indeterminate.
-        // A similar statement can be made for the limit (a, b) -> (inf, inf).
-        return f64::NAN;
-    }
-
-    if a == 0.0 || b.is_infinite() {
-        // Distribution in the limit a -> 0+, b > 0 is a point distribution
-        // at x = 0. The same is true in the limit b -> inf for fixed a.
-        return if x > 0.0 { 1.0 } else { 0.0 };
-    }
-
-    if a.is_infinite() || b == 0.0 {
-        // Distribution in the limit b -> 0+, a > 0 is a point distribution
-        // at x = 1. The same is true in the limit a -> inf for fixed b.
-        return if x < 1.0 { 0.0 } else { 1.0 };
-    }
-
-    // Cephes does not require exception handling like Boost does.
-    incbet(a, b, x)
 }
 
 #[cfg(test)]
 mod tests {
-
     // based on scipy.special.tests.test_basic.TestBetaInc
 
     #[test]

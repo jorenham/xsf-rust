@@ -1,10 +1,14 @@
-/// Rising factorial
+/// Rising factorial $\rpow x m$
 ///
-/// It is defined as `gamma(x + m) / gamma(x)`.
+/// $$\rpow x m = {\Gamma(x+m) \over \Gamma(x)}$$
 ///
-/// Note that in the Cephes library and `scipy.special` this function is called `poch`.
+/// Corresponds to [`scipy.special.poch`][poch] in SciPy.
 ///
-/// See [`pow_falling`] for the falling factorial.
+/// [poch]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.poch.html
+///
+/// # See also
+/// - [`pow_falling`]: falling factorial $\fpow x m$
+/// - [`gamma`](crate::gamma): gamma function $\Gamma(x)$
 #[doc(alias = "poch")]
 #[must_use]
 #[inline]
@@ -12,12 +16,16 @@ pub fn pow_rising(x: f64, m: f64) -> f64 {
     unsafe { crate::ffi::xsf::poch(x, m) }
 }
 
-/// Falling factorial
+/// Falling factorial $\fpow x m$
 ///
-/// It is defined as `gamma(x + 1) / gamma(x - m + 1)`.
+/// $$\fpow x m = {\Gamma(x+1) \over \Gamma(x-m+1)}$$
 ///
 /// Note that there is no `scipy.special` analogue for this function, but it can be expressed in
-/// terms of the rising factorial as `pow_rising(x - m + 1, m)`. See [`pow_rising`] for the details.
+/// terms of the rising factorial as `pow_rising(x - m + 1, m)`.
+///
+/// # See also
+/// - [`pow_rising`]: rising factorial $\rpow x m$
+/// - [`gamma`](crate::gamma): gamma function $\Gamma(x)$
 #[must_use]
 #[inline]
 pub fn pow_falling(x: f64, m: f64) -> f64 {

@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [{
+    "label": "docs: make doc",
+    "type": "shell",
+    "command": "make",
+    "args": ["doc"],
+    "group": {
+      "kind": "build",
+      "isDefault": false
+    },
+    "problemMatcher": []
+  }]
+}
