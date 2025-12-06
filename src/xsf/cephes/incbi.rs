@@ -1,34 +1,50 @@
-#[inline]
-fn incbi(a: f64, b: f64, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::incbi(a, b, y) }
-}
-
-/// Inverse of the regularized incomplete beta function
+/// Inverse of the regularized incomplete Beta function, $y = \I_x(a, b)$
 ///
+/// Computes $x \in \[0, 1\]$ such that [^DLMF]:
 ///
-/// Note: The Cephes backend is less accurate than the `scipy.special` Boost backend, especially
-/// for small `y` and large `a - b` differences.
+/// $$
+/// y = \I_x(a, b) = {1 \over \B(a, b)} \int_0^x t^{a-1} (1-t)^{b-1} \dd t ,
+/// $$
 ///
-/// See also: [`betainc`](crate::betainc)
-#[doc(alias = "inc_beta_inv", alias = "beta_inc_inv")]
+/// for $0 \le y \le 1$ and $a,b \ge 0$, with $\B(a, b)$ the Beta function.
+///
+/// This function is the quantile function (inverse CDF) of the Beta distribution.
+///
+/// # Notes
+/// This functions wraps the `incbi` Cephes routine [^CEPHES], making it less accurate than
+/// [`scipy.special.betaincinv`][scipy], which wraps the Boost `ibeta_inv` routine [^BOOST].
+/// Especially for small `y` and large `a - b` the accuracy may be poor.
+///
+/// # See also
+/// - [`betainc`](crate::betainc): Regularized incomplete Beta function $\I_x(a, b)$
+/// - [`beta`](crate::beta): Beta function $\B(a, b)$
+/// - [`gamma`](crate::gamma): Gamma function $\Gamma(a, b)$
+/// - [`scipy.special.betaincinv`][scipy]: Corresponding function in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincinv.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
+/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
+#[doc(
+    alias = "inc_beta_inv",
+    alias = "beta_inc_inv",
+    alias = "ibeta_inv",
+    alias = "incbi"
+)]
 #[must_use]
 #[inline]
 pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
-    if a.is_nan() || b.is_nan() || y.is_nan() {
-        return f64::NAN;
+    if a.is_nan() || b.is_nan() || y.is_nan() || a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&y) {
+        f64::NAN
+    } else {
+        unsafe { crate::ffi::xsf::incbi(a, b, y) }
     }
-    if a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&y) {
-        return f64::NAN;
-    }
-
-    // Cephes does not require exception handling like Boost does.
-    incbi(a, b, y)
 }
 
 #[cfg(test)]
 mod tests {
-
-    // based on scipy.special.tests.test_basic.TestBetaInc
+    //! based on scipy.special.tests.test_basic.TestBetaInc
 
     #[test]
     #[allow(clippy::float_cmp)]
