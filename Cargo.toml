@@ -20,7 +20,7 @@ num-complex = "0.4.6"
 num-traits = "0.2.19"
 
 [build-dependencies]
-cc = "1.2.49"
+cc = "1.2.50"
 bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
 
 [dev-dependencies]
