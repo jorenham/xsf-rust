@@ -426,21 +426,45 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 
 // F
 
-/// F distribution function
+/// CDF of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtr`][fdtr].
+///
+/// [fdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtr.html
+///
+/// # See also
+/// - [`fdtrc`]: Survival function
+/// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtr(a, b, x) }
 }
 
-/// F survival function
+/// Survival function of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtrc`][fdtrc].
+///
+/// [fdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtrc.html
+///
+/// # See also
+/// - [`fdtr`]: Distribution function
+/// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtrc(a, b, x) }
 }
 
-/// F quantile function
+/// Quantile function of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtri`][fdtri].
+///
+/// [fdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtri.html
+///
+/// # See also
+/// - [`fdtr`]: Distribution function
+/// - [`fdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
