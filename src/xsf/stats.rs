@@ -365,12 +365,16 @@ pub fn smirnovp(n: i32, x: f64) -> f64 {
 
 // Tukey-Lambda
 
-/// Tukey-Lambda distribution function
+/// CDF of the Tukey-Lambda distribution
+///
+/// Corresponds to [`scipy.special.tklmbda`][tklmbda].
+///
+/// [tklmbda]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.tklmbda.html
 #[doc(alias = "tklmbda")]
 #[must_use]
 #[inline]
-pub fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
-    unsafe { crate::ffi::xsf::tukeylambdacdf(x, lmbda) }
+pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
+    unsafe { crate::ffi::xsf::tukeylambdacdf(x, lambda) }
 }
 
 // Chi-squared
