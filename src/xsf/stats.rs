@@ -188,7 +188,21 @@ pub fn ndtri(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ndtri(x) }
 }
 
-/// Owen's T function
+/// Owen's T function, $T(h, a)$
+///
+/// The function $T(h, a)$ gives the probability of the event $(X > h \wedge 0 < Y < a X)$ where
+/// $X$ and $Y$ are independent standard normal random variables.
+///
+/// Corresponds to [`scipy.special.owens_t`][owens_t].
+///
+/// [owens_t]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.owens_t.html
+///
+/// # Definition
+///
+/// $$ T(h, a) = {1 \over 2\pi} \int_0^a {e^{-h^2 (1+x^2) / 2} \over 1+x^2} \dd x $$
+///
+/// # See also
+/// - [`ndtr`]: CDF of the standard normal distribution, $\Phi(z)$
 #[must_use]
 #[inline]
 pub fn owens_t(h: f64, a: f64) -> f64 {
