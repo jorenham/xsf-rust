@@ -211,7 +211,17 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 
 // Kolmogorov
 
-/// Kolmogorov survival function
+/// Survival function of the Kolmogorov distribution
+///
+/// Corresponds to [`scipy.special.kolmogorov`][kolmogorov].
+///
+/// [kolmogorov]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogorov.html
+///
+/// # See also
+/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogc`]: CDF of the Kolmogorov distribution
+/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
+/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
 #[must_use]
 #[inline]
 pub fn kolmogorov(x: f64) -> f64 {
@@ -219,20 +229,46 @@ pub fn kolmogorov(x: f64) -> f64 {
 }
 
 /// Inverse of [`kolmogorov`]
+///
+/// Corresponds to [`scipy.special.kolmogi`][kolmogi].
+///
+/// [kolmogi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogi.html
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
+/// - [`kolmogc`]: CDF of the Kolmogorov distribution
+/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
+/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
 #[must_use]
 #[inline]
 pub fn kolmogi(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogi(x) }
 }
 
-/// Kolmogorov distribution function
+/// CDF of the Kolmogorov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
+/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
+/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
 #[must_use]
 #[inline]
 pub fn kolmogc(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogc(x) }
 }
 
-/// Inverse of [`kolmogc`]
+/// Inverse of [`kolmogc`], the quantile function of the Kolmogorov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
+/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogc`]: CDF of the Kolmogorov distribution
+/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
 #[must_use]
 #[inline]
 pub fn kolmogci(x: f64) -> f64 {
@@ -240,6 +276,14 @@ pub fn kolmogci(x: f64) -> f64 {
 }
 
 /// Derivative of [`kolmogorov`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
+/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogc`]: CDF of the Kolmogorov distribution
+/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
 #[must_use]
 #[inline]
 pub fn kolmogp(x: f64) -> f64 {
