@@ -218,10 +218,10 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 /// [kolmogorov]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogorov.html
 ///
 /// # See also
-/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
-/// - [`kolmogc`]: CDF of the Kolmogorov distribution
-/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
-/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogorov(x: f64) -> f64 {
@@ -235,10 +235,10 @@ pub fn kolmogorov(x: f64) -> f64 {
 /// [kolmogi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogi.html
 ///
 /// # See also
-/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
-/// - [`kolmogc`]: CDF of the Kolmogorov distribution
-/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
-/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogi(x: f64) -> f64 {
@@ -250,10 +250,10 @@ pub fn kolmogi(x: f64) -> f64 {
 /// Does not have a direct counterpart in SciPy.
 ///
 /// # See also
-/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
-/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
-/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
-/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogc(x: f64) -> f64 {
@@ -265,10 +265,10 @@ pub fn kolmogc(x: f64) -> f64 {
 /// Does not have a direct counterpart in SciPy.
 ///
 /// # See also
-/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
-/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
-/// - [`kolmogc`]: CDF of the Kolmogorov distribution
-/// - [`kolmogp`]: Derivative of the Kolmogorov distribution function
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogci(x: f64) -> f64 {
@@ -292,35 +292,71 @@ pub fn kolmogp(x: f64) -> f64 {
 
 // Kolmogorov-Smirnov
 
-/// Kolmogorov-Smirnov survival function
+/// Survival function of the Kolmogorov-Smirnov distribution
+///
+/// Corresponds to [`scipy.special.smirnov`][smirnov].
+///
+/// [smirnov]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.smirnov.html
+///
+/// # See also
+/// - [`smirnovi`]: Inverse survival function
+/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovp`]: Derivative of the survival function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
 pub fn smirnov(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnov(n as c_int, x) }
 }
 
-/// Kolmogorov-Smirnov distribution function
+/// Inverse of [`smirnov`]
+///
+/// Corresponds to [`scipy.special.smirnovi`][smirnovi].
+///
+/// [smirnovi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.smirnovi.html
+///
+/// # See also
+/// - [`smirnov`]: Survival function
+/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovci`]: Quantile function
+#[must_use]
+#[inline]
+pub fn smirnovi(n: i32, q: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovi(n as c_int, q) }
+}
+
+/// CDF of the Kolmogorov-Smirnov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnov`]: Survival function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
 pub fn smirnovc(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovc(n as c_int, x) }
 }
 
-/// Inverse of [`smirnov`]
-#[must_use]
-#[inline]
-pub fn smirnovi(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovi(n as c_int, x) }
-}
-
 /// Inverse of [`smirnovc`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
-pub fn smirnovci(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovci(n as c_int, x) }
+pub fn smirnovci(n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovci(n as c_int, p) }
 }
 
 /// Derivative of [`smirnov`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnov`]: Survival function
 #[must_use]
 #[inline]
 pub fn smirnovp(n: i32, x: f64) -> f64 {
