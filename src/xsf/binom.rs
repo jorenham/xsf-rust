@@ -2,17 +2,23 @@
 ///
 /// For real arguments, the binomial coefficient is defined as
 ///
-/// <sub>*n*</sub>C<sub>*k*</sub> = Γ(*n* + 1) / (Γ(*k* + 1) Γ(*n* - *k* + 1))
-/// = 1 / ( (*n* + 1) Β(*n* - *k* + 1, *k* + 1) )
+/// $$
+/// \begin{align*}
+/// \binom{n}{k}
+/// &= {\Gamma(n+1) \over \Gamma(k+1) \\ \Gamma(n-k+1) } \\\\
+/// &= {1 \over (n+1) \\ \Beta(k+1,\\, n-k+1)}
+/// \end{align*}
+/// $$
 ///
-/// Where Γ is the Gamma function ([`gamma`](crate::gamma)) and Β is the Beta function ([`beta`](crate::beta)).
+/// Where $\Gamma$ is the Gamma function ([`gamma`](crate::gamma)) and $\Beta$ the Beta function
+/// ([`beta`](crate::beta)).
 ///
 /// Corresponds to [`scipy.special.binom`][binom].
 ///
 /// [binom]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.binom.html
 ///
 /// # See also
-/// - [`comb`](crate::comb) for the integer version
+/// - [`comb`](crate::comb) integer version "n choose k"
 #[must_use]
 #[inline]
 pub fn binom(n: f64, k: f64) -> f64 {
