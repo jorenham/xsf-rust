@@ -117,23 +117,73 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
 
 // Normal
 
-/// Normal distribution function `F(z)` for real or complex `z`
+/// CDF of the standard normal distribution, $\Phi(z)$
+///
+/// Corresponds to [`scipy.special.ndtr`][ndtr].
+///
+/// [ndtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ndtr.html
+///
+/// # Notes
+///
+/// The CDF is given by
+///
+/// $$
+/// \begin{align*}
+/// \Phi(z)
+/// &= {1 \over \sqrt{2\pi}} \int_{-\infty}^z e^{-t^2 / 2} \dd t \\\\
+/// &= {1 \over 2} + {1 \over 2} \erf \left( {z \over \sqrt{2}} \right) ,
+/// \end{align*}
+/// $$
+///
+/// with $\erf(z)$ the [error function](crate::erf).
+///
+/// # See also
+/// - [`log_ndtr`]: $\ln \Phi(z)$
+/// - [`ndtri`]: Normal quantile function $\Phi^{-1}(z)$, a.k.a. the probit function
+/// - [`erf`](crate::erf): Error function $\erf(z)$
 #[must_use]
 #[inline]
 pub fn ndtr<T: StatsArg>(z: T) -> T {
     z.ndtr()
 }
 
-/// Log of [`ndtr`] for real or complex argument
+/// Logarithm of [`ndtr`], $\ln \Phi(z)$
+///
+/// Corresponds to [`scipy.special.log_ndtr`][log_ndtr].
+///
+/// [log_ndtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_ndtr.html
+///
+/// # See also
+/// - [`ndtr`]: Normal distribution function $\Phi(z)$
+/// - [`crate::erf`]: Error function $\erf(z)$
 #[must_use]
 #[inline]
 pub fn log_ndtr<T: StatsArg>(z: T) -> T {
     z.log_ndtr()
 }
 
-/// Inverse of [`ndtr`]
+/// Inverse of [`ndtr`], the probit function $\Phi^{-1}(p)$
+///
+/// Corresponds to [`scipy.special.ndtri`][ndtri].
+///
+/// [ndtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ndtri.html
+///
+/// # Notes
+///
+/// The normal quantile function (probit function) is given by
+///
+/// $$
+/// \Phi^{-1}(p) = \sqrt{2}\\,\erf^{-1}(2p-1) ,
+/// $$
+///
+/// with $\erf^{-1}(z)$ the [inverse error function](crate::erfinv) and $p \in (0,1)$.
+///
+/// # See also
+/// - [`ndtr`]: CDF of the standard normal distribution, $\Phi(z)$
+/// - [`crate::erfinv`]: Inverse error function $\erf^{-1}(z)$
 #[must_use]
 #[inline]
+#[doc(alias = "probit")]
 pub fn ndtri(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ndtri(x) }
 }
