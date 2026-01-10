@@ -181,9 +181,9 @@ pub fn log_ndtr<T: StatsArg>(z: T) -> T {
 /// # See also
 /// - [`ndtr`]: CDF of the standard normal distribution, $\Phi(z)$
 /// - [`crate::erfinv`]: Inverse error function $\erf^{-1}(z)$
+#[doc(alias = "probit")]
 #[must_use]
 #[inline]
-#[doc(alias = "probit")]
 pub fn ndtri(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ndtri(x) }
 }
@@ -219,7 +219,7 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 ///
 /// # See also
 /// - [`kolmogi`]: Inverse survival function
-/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogc`]: Distribution function
 /// - [`kolmogci`]: Quantile function
 /// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
@@ -236,7 +236,7 @@ pub fn kolmogorov(x: f64) -> f64 {
 ///
 /// # See also
 /// - [`kolmogorov`]: Survival function
-/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogc`]: Distribution function
 /// - [`kolmogci`]: Quantile function
 /// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
@@ -267,7 +267,7 @@ pub fn kolmogc(x: f64) -> f64 {
 /// # See also
 /// - [`kolmogorov`]: Survival function
 /// - [`kolmogi`]: Inverse survival function
-/// - [`kolmogc`]: Cumulative distribution function
+/// - [`kolmogc`]: Distribution function
 /// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
@@ -300,7 +300,7 @@ pub fn kolmogp(x: f64) -> f64 {
 ///
 /// # See also
 /// - [`smirnovi`]: Inverse survival function
-/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovc`]: Distribution function
 /// - [`smirnovp`]: Derivative of the survival function
 /// - [`smirnovci`]: Quantile function
 #[must_use]
@@ -317,7 +317,7 @@ pub fn smirnov(n: i32, x: f64) -> f64 {
 ///
 /// # See also
 /// - [`smirnov`]: Survival function
-/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovc`]: Distribution function
 /// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
@@ -343,7 +343,7 @@ pub fn smirnovc(n: i32, x: f64) -> f64 {
 /// Does not have a direct counterpart in SciPy.
 ///
 /// # See also
-/// - [`smirnovc`]: Cumulative distribution function
+/// - [`smirnovc`]: Distribution function
 /// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
@@ -379,21 +379,45 @@ pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
 
 // Chi-squared
 
-/// Chi-squared distribution function
+/// CDF of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtr`][chdtr].
+///
+/// [chdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtr.html
+///
+/// # See also
+/// - [`chdtrc`]: Survival function
+/// - [`chdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtr(df, x) }
 }
 
-/// Chi-squared survival function
+/// Survival function of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtrc`][chdtrc].
+///
+/// [chdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtrc.html
+///
+/// # See also
+/// - [`chdtr`]: Distribution function
+/// - [`chdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtrc(df, x) }
 }
 
-/// Chi-squared quantile function
+/// Quantile function of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtri`][chdtri].
+///
+/// [chdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtri.html
+///
+/// # See also
+/// - [`chdtr`]: Distribution function
+/// - [`chdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn chdtri(df: f64, y: f64) -> f64 {
