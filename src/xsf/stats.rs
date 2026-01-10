@@ -473,14 +473,30 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 
 // Gamma
 
-/// Gamma distribution function
+/// CDF of the Gamma distribution
+///
+/// Corresponds to [`scipy.special.gdtr`][gdtr].
+///
+/// [gdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtr.html
+///
+/// # See also
+/// - [`gdtrc`]: Survival function
+/// - [`gdtrib`](xsf::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gdtr(a, b, x) }
 }
 
-/// Gamma survival function
+/// Survival function of the Gamma distribution
+///
+/// Corresponds to [`scipy.special.gdtrc`][gdtrc].
+///
+/// [gdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtrc.html
+///
+/// # See also
+/// - [`gdtr`]: Cumulative distribution function
+/// - [`gdtrib`](xsf::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
