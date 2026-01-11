@@ -18,13 +18,13 @@ use num_complex::Complex64;
 ///
 /// where $P_n^m$ are the (unnormalized) associated Legendre polynomials.
 ///
-/// With SciPy's convention, the first several sperical harmonics are
+/// With SciPy's convention, the first several spherical harmonics are
 ///
 /// $$
 /// \begin{align*}
 /// Y_0^0(\theta, \phi)    &=  \sqrt{1 \over 4\pi} \\\\
 /// Y_1^{-1}(\theta, \phi) &=  \sqrt{3 \over 8\pi} \\ \sin \theta \\ e^{-i \phi} \\\\
-/// Y_1^0(\theta, \phi)    &=  \sqrt{3 \over 4q\pi} \\ \cos \theta \\\\
+/// Y_1^0(\theta, \phi)    &=  \sqrt{3 \over 4\pi} \\ \cos \theta \\\\
 /// Y_1^1(\theta, \phi)    &= -\sqrt{3 \over 8\pi} \\ \sin \theta \\ e^{ i \phi}
 /// \end{align*}
 /// $$

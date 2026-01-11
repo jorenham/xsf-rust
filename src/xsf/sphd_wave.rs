@@ -34,7 +34,7 @@ pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
 /// - [`oblate_radial1`]: Oblate spheroidal radial function of the 1st kind for precomputed
 ///   characteristic value
 /// - [`oblate_radial2`]: Oblate spheroidal radial function of the 2nd kind for precomputed
-///   characteristic valueq
+///   characteristic value
 #[doc(alias = "obl_cv")]
 #[must_use]
 #[inline]

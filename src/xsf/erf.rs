@@ -133,7 +133,7 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 /// - if `N` is too large to fit into a [`c_int`](core::ffi::c_int)
 ///
 /// # See also
-/// - [`erf`]: Error functionq
+/// - [`erf`]: Error function
 /// - [`erfinv`](crate::erfinv): Inverse error function
 #[doc(alias = "cerzo")]
 #[must_use]

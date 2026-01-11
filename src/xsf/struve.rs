@@ -55,14 +55,14 @@ pub fn itmodstruve0(x: f64) -> f64 {
 ///
 /// Corresponds to [`scipy.special.struve`][scipy].
 ///
-/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.strueve.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.struve.html
 ///
 /// # Definition
 ///
 /// $$
 /// H_v(x) =
 /// (z/2)^{v+1}
-/// \sum_{n=0}^\infty {(-1)^n (-z/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\ ,
+/// \sum_{n=0}^\infty {(-1)^n (z/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\ ,
 /// $$
 ///
 /// where $\Gamma$ is the Gamma function.
@@ -78,7 +78,7 @@ pub fn struve_h(v: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::struve_h(v, x) }
 }
 
-/// Mofified Struve $L_v$ function
+/// Modified Struve $L_v$ function
 ///
 /// Corresponds to [`scipy.special.modstruve`][scipy].
 ///
