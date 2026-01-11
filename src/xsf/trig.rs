@@ -33,7 +33,7 @@ impl TrigArg for num_complex::Complex<f64> {
     }
 }
 
-/// $sin(\pi z)$ for real or complex $z$
+/// $\sin(\pi z)$ for real or complex $z$
 ///
 /// Has no corresponding function in `scipy.special`.
 ///
@@ -45,7 +45,7 @@ pub fn sinpi<T: TrigArg>(z: T) -> T {
     z.sinpi()
 }
 
-/// $cos(\pi z)$ for real or complex $z$
+/// $\cos(\pi z)$ for real or complex $z$
 ///
 /// Has no corresponding function in `scipy.special`.
 ///
