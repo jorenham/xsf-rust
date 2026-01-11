@@ -4,9 +4,11 @@ use num_traits::ToPrimitive;
 ///
 /// All of the coefficients are stored in reverse order, i.e. if the polynomial is:
 ///
-/// uₙxⁿ + uₙ₋₁xⁿ⁻¹ + … + u₀
+/// $$
+/// u_n x^n + u_{n-1} x^{n-1} + \ldots + u_0
+/// $$
 ///
-/// then `coeffs[0]` = uₙ, `coeffs[1]` = uₙ₋₁, …, `coeffs[n]` = u₀
+/// then `coeffs[0]` = $u_n$, `coeffs[1]` = $u_{n-1}$, …, `coeffs[n]` = $u_0$
 ///
 /// # Arguments
 ///
