@@ -506,6 +506,14 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 // Poisson
 
 /// Poisson distribution function
+///
+/// Corresponds to [`scipy.special.pdtr`][pdtr].
+///
+/// [pdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtr.html
+///
+/// # See also
+/// - [`pdtri`]: Quantile function
+/// - [`pdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn pdtr(k: f64, m: f64) -> f64 {
@@ -513,6 +521,14 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
 }
 
 /// Poisson quantile function
+///
+/// Corresponds to [`scipy.special.pdtri`][pdtri].
+///
+/// [pdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtri.html
+///
+/// # See also
+/// - [`pdtr`]: Cumulative distribution function
+/// - [`pdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn pdtri(k: i32, y: f64) -> f64 {
@@ -520,6 +536,14 @@ pub fn pdtri(k: i32, y: f64) -> f64 {
 }
 
 /// Poisson survival function
+///
+/// Corresponds to [`scipy.special.pdtrc`][pdtrc].
+///
+/// [pdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtrc.html
+///
+/// # See also
+/// - [`pdtr`]: Cumulative distribution function
+/// - [`pdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
