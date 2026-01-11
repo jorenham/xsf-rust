@@ -8,6 +8,10 @@ use num_complex::Complex;
 /// The Lambert W function is a multivalued function with infinitely many branches. Each branch
 /// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
 /// integer `k`.
+///
+/// Corresponds to [`scipy.special.lambertw`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lambertw.html
 #[doc(alias = "lambert_w")]
 #[must_use]
 #[inline]
