@@ -553,6 +553,14 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 // Binomial
 
 /// Binomial distribution function
+///
+/// Corresponds to [`scipy.special.bdtr`][bdtr].
+///
+/// [bdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtr.html
+///
+/// # See also
+/// - [`bdtrc`]: Survival function
+/// - [`bdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
@@ -560,6 +568,14 @@ pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 }
 
 /// Binomial survival function
+///
+/// Corresponds to [`scipy.special.bdtrc`][bdtrc].
+///
+/// [bdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrc.html
+///
+/// # See also
+/// - [`bdtr`]: Distribution function
+/// - [`bdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
@@ -567,6 +583,14 @@ pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 }
 
 /// Binomial quantile function
+///
+/// Corresponds to [`scipy.special.bdtri`][bdtri].
+///
+/// [bdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtri.html
+///
+/// # See also
+/// - [`bdtr`]: Distribution function
+/// - [`bdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
