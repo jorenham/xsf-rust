@@ -41,6 +41,10 @@ impl FresnelArg for Complex<f64> {
 ///
 /// where the integrals are taken from 0 to z.
 ///
+/// Corresponds to [`scipy.special.fresnel`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fresnel.html
+///
 /// # See also
 /// - [`fresnel_zeros`] - Zeros of S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
@@ -56,6 +60,10 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 /// Computes the modified Fresnel integrals:
 /// - F₊(x) = ∫ₓ∞ exp(i t²) dt
 /// - K₊(x) = F₊(x) × exp(-i (x² + π/4)) / √π
+///
+/// Corresponds to [`scipy.special.modfresnelp`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.modfresnelp.html
 ///
 /// # See also
 /// - [`fresnel`] - Standard Fresnel integrals
@@ -77,6 +85,10 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - F₋(x) = ∫ₓ∞ exp(-i t²) dt
 /// - K₋(x) = F₋(x) × exp(i (x² + π/4)) / √π
 ///
+/// Corresponds to [`scipy.special.modfresnelm`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.modfresnelm.html
+///
 /// # See also
 /// - [`fresnel`] - Standard Fresnel integrals S(z) and C(z)
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
@@ -94,6 +106,10 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// Zeros of Fresnel integrals S(z) and C(z)
 ///
 /// Compute `nt` complex zeros of the Fresnel integrals S(z) and C(z).
+///
+/// Corresponds to [`scipy.special.fresnel_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fresnel_zeros.html
 ///
 /// # Panics
 /// - if `nt` is greater than `[c_int::MAX`](core::ffi::c_int::MAX)
