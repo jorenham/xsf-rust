@@ -2,6 +2,10 @@
 ///
 /// Returns the nearest integer to x as a f64 precision floating point result.
 /// If x ends in 0.5 exactly, the nearest even integer is chosen.
+///
+/// Corresponds to [`scipy.special.round`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.round.html
 #[doc(alias = "round_even")]
 #[must_use]
 #[inline]
