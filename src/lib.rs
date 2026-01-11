@@ -154,11 +154,12 @@
 //!
 //! ## Normal distribution
 //!
-//! | Function     | Description                      |
-//! | ------------ | -------------------------------- |
-//! | [`ndtr`]     | Cumulative distribution function |
-//! | [`log_ndtr`] | Logarithm of [`ndtr`]            |
-//! | [`ndtri`]    | Inverse of [`ndtr`]              |
+//! | Function      | Description                      |
+//! | ------------- | -------------------------------- |
+//! | [`ndtr`]      | Cumulative distribution function |
+//! | [`ndtri`]     | Inverse of [`ndtr`]              |
+//! | [`log_ndtr`]  | Logarithm of [`ndtr`]            |
+//! | [`ndtri_exp`] | Inverse of [`log_ndtr`]          |
 //!
 //! ## Poisson distribution
 //!
