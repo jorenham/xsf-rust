@@ -1,8 +1,14 @@
-/// Parabolic cylinder function *W*
+/// Parabolic cylinder function $W$
 ///
 /// The function is a particular solution to the differential equation:
 ///
-/// y″ + (x²/4 - a)y = 0
+/// $$
+/// y\'\' + \left( {1 \over 4} x^2 - a \right) y = 0
+/// $$
+///
+/// Corresponds to [`scipy.special.pbwa`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbwa.html
 ///
 /// # Arguments
 /// - `a` - Real parameter
@@ -11,6 +17,10 @@
 /// # Returns
 /// - *w*: Value of the function
 /// - *wp*: Value of the derivative in `x`
+///
+/// # See also
+/// - [`pbdv`]
+/// - [`pbvv`]
 #[must_use]
 #[inline]
 pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
@@ -21,10 +31,14 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
     (w, wd)
 }
 
-/// Parabolic cylinder function *D*
+/// Parabolic cylinder function $D$
 ///
-/// Returns *(d, dp)* the parabolic cylinder function *Dv(x)* in *d* and the derivative,
-/// *Dv'(x)* in *dp*.
+/// Returns `(d, dp)` the parabolic cylinder function $Dv(x)$ in `d` and the derivative,
+/// $Dv\'(x)$ in `dp`.
+///
+/// Corresponds to [`scipy.special.pbdv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbdv.html
 ///
 /// # Arguments
 /// - `v` - Real parameter
@@ -33,6 +47,10 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - *d*: Value of the function
 /// - *dp*: Value of the derivative in `x`
+///
+/// # See also
+/// - [`pbwa`]
+/// - [`pbvv`]
 #[doc(alias = "pbdv_seq")]
 #[must_use]
 #[inline]
@@ -44,10 +62,14 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     (d, dp)
 }
 
-/// Parabolic cylinder function *V*
+/// Parabolic cylinder function $V$
 ///
-/// Returns *(v, vp)* the parabolic cylinder function *Vv(x)* in *v* and the derivative,
-/// *Vv'(x)* in *vp*.
+/// Returns `(v, vp)` the parabolic cylinder function $Vv(x)$ in `v` and the derivative,
+/// $Vv\'(x)$ in `vp`.
+///
+/// Corresponds to [`scipy.special.pbvv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbvv.html
 ///
 /// # Arguments
 /// - `v` - Real parameter
@@ -56,6 +78,10 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 /// # Returns
 /// - *v*: Value of the function
 /// - *vp*: Value of the derivative in `x`
+///
+/// # See also
+/// - [`pbwa`]
+/// - [`pbdv`]
 #[doc(alias = "pbvv_seq")]
 #[must_use]
 #[inline]
