@@ -53,22 +53,32 @@ impl SiciArg for num_complex::Complex64 {
 
 /// Sine and cosine integrals.
 ///
-/// The sine integral is:
+/// Corresponds to [`scipy.special.sici`][scipy].
 ///
-/// Si(z) = ∫₀ᶻ (sin t)/t dt
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sici.html
 ///
-/// The cosine integral is:
+/// # Definitions
 ///
-/// Ci(z) = γ + ln(z) + ∫₀ᶻ (cos t - 1)/t dt
+/// $$
+/// \begin{align*}
+/// \Si(z) &= \int_0^z {\sin t \over t} \dd t \\\\
+/// \Ci(z) &= \gamma + \ln(z) + \int_0^z {\cos t - 1 \over t} \dd t
+/// \end{align*}
+/// $$
 ///
-/// where γ is Euler's constant and ln is the principal branch of the logarithm.
+/// where $\gamma$ is Euler's constant and $\ln$ is the principal branch of the logarithm.
 ///
 /// # Arguments
-/// - `z` - real- or complex-valued argument
+/// - $z$ - real- or complex-valued argument
 ///
 /// # Returns
-/// - `Si(z)` - Sine integral
-/// - `Ci(z)` - Cosine integral
+/// - $\Si(z)$ - Sine integral
+/// - $\Ci(z)$ - Cosine integral
+///
+/// # See also
+/// - [`shichi`]: $\Shi(z)$ and $\Chi(z)$
+/// - [`exp1`](crate::exp1): Exponential integral $E_1$
+/// - [`expi`](crate::expi): Exponential integral $Ei$
 #[inline]
 pub fn sici<T: SiciArg>(z: T) -> (T, T) {
     z.sici()
@@ -76,22 +86,32 @@ pub fn sici<T: SiciArg>(z: T) -> (T, T) {
 
 /// Hyperbolic sine and cosine integrals.
 ///
-/// The hyperbolic sine integral is:
+/// Corresponds to [`scipy.special.shichi`][scipy].
 ///
-/// Shi(z) = ∫₀ᶻ (sinh t)/t dt
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.shichi.html
 ///
-/// The hyperbolic cosine integral is:
+/// # Definitions
 ///
-/// Chi(z) = γ + ln(z) + ∫₀ᶻ (cosh t - 1)/t dt
+/// $$
+/// \begin{align*}
+/// \Shi(z) &= \int_0^z {\sinh t \over t} \dd t \\\\
+/// \Chi(z) &= \gamma + \ln(z) + \int_0^z {\cosh t - 1 \over t} \dd t
+/// \end{align*}
+/// $$
 ///
-/// where γ is Euler's constant and ln is the principal branch of the logarithm.
+/// where $\gamma$ is Euler's constant and $\ln$ is the principal branch of the logarithm.
 ///
 /// # Arguments
-/// - `z` - real- or complex-valued argument
+/// - $z$ - real- or complex-valued argument
 ///
 /// # Returns
-/// - `Shi(z)` - Hyperbolic sine integral
-/// - `Chi(z)` - Hyperbolic cosine integral
+/// - $\Shi(z)$ - Hyperbolic sine integral
+/// - $\Chi(z)$ - Hyperbolic cosine integral
+///
+/// # See also
+/// - [`sici`]: $\Si(z)$ and $\Ci(z)$
+/// - [`exp1`](crate::exp1): Exponential integral $E_1$
+/// - [`expi`](crate::expi): Exponential integral $Ei$
 #[inline]
 pub fn shichi<T: SiciArg>(z: T) -> (T, T) {
     z.shichi()
