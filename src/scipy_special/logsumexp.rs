@@ -3,6 +3,7 @@
 const NINF: f64 = f64::NEG_INFINITY;
 
 /// Return the maximum value in a slice of f64, propagating NaNs
+#[inline]
 fn fmax(xs: &[f64]) -> f64 {
     xs.iter().fold(NINF, |a, &b| if a >= b { a } else { b })
 }
@@ -76,6 +77,7 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
 /// The implementation uses shifting to improve numerical stability.
 ///
 /// # See also
+/// - [`log_softmax`]
 /// - [`logsumexp`](crate::logsumexp)
 #[must_use]
 pub fn softmax(xs: &[f64]) -> Vec<f64> {
@@ -83,6 +85,32 @@ pub fn softmax(xs: &[f64]) -> Vec<f64> {
     let exs0 = xs.iter().map(|&x| (x - x_max).exp()).collect::<Vec<f64>>();
     let s = exs0.iter().sum::<f64>().recip();
     exs0.iter().map(|ex| ex * s).collect()
+}
+
+/// Compute the logarithm of the [`softmax`] function
+///
+/// Pure Rust translation of [`scipy.special.log_softmax`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_softmax.html
+///
+/// # Notes
+///
+/// `log_softwmax` is more accurate than taking the log of [`softmax`] with inputs that make
+/// [`softmax`] saturate.
+///
+/// # See also
+/// - [`softmax`]
+/// - [`logsumexp`](crate::logsumexp)
+#[must_use]
+pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
+    let x_max = fmax(xs);
+    let x_max = if x_max.is_finite() { x_max } else { 0.0 };
+
+    let xs0 = xs.iter().map(|&x| x - x_max).collect::<Vec<f64>>();
+    let exs0 = xs0.iter().map(|&x| x.exp()).collect::<Vec<f64>>();
+
+    let s = exs0.iter().sum::<f64>().ln();
+    xs0.iter().map(|&x| x - s).collect()
 }
 
 #[cfg(test)]
@@ -138,7 +166,7 @@ mod tests {
 
     /// Corresponds to `TestSoftmax.test_softmax_fixtures`.
     #[test]
-    fn test_softmax_fixtures() {
+    fn test_softmax() {
         np_assert_allclose!(
             crate::softmax(&[1000.0, 0.0, 0.0, 0.0]),
             [1.0, 0.0, 0.0, 0.0],
@@ -167,6 +195,39 @@ mod tests {
         np_assert_allclose!(
             crate::softmax(&x.map(|x| x + 100.0)),
             expected,
+            rtol = 1e-13
+        );
+    }
+
+    /// Corresponds to `TestLogSoftmax.*`
+    #[test]
+    fn test_log_softmax() {
+        // test_log_softmax_basic
+        np_assert_allclose!(
+            crate::log_softmax(&[1000.0, 1.0]),
+            [0., -999.],
+            rtol = 1e-13
+        );
+
+        // test_log_softmax_scalar
+        np_assert_allclose!(crate::log_softmax(&[1.0]), [0.], rtol = 1e-13);
+
+        // test_log_softmax_translation
+        let x = [0.0, 1.0, 2.0, 3.0];
+        // Expected value computed using mpmath (with mpmath.mp.dps = 200)
+        let expect = [
+            -3.440_189_698_561_195_3,
+            -2.440_189_698_561_195_3,
+            -1.440_189_698_561_195_3,
+            -0.440_189_698_561_195_33,
+        ];
+        np_assert_allclose!(crate::log_softmax(&x), expect, rtol = 1e-13);
+
+        // Translation property.  If all the values are changed by the same amount,
+        // the softmax result does not change.
+        np_assert_allclose!(
+            crate::log_softmax(&x.map(|x| x + 100.0)),
+            expect,
             rtol = 1e-13
         );
     }
