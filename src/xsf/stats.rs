@@ -481,7 +481,7 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 ///
 /// # See also
 /// - [`gdtrc`]: Survival function
-/// - [`gdtrib`](xsf::gdtrib): Inverse of the CDF w.r.t. `b`
+/// - [`gdtrib`](crate::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
@@ -496,7 +496,7 @@ pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
 ///
 /// # See also
 /// - [`gdtr`]: Cumulative distribution function
-/// - [`gdtrib`](xsf::gdtrib): Inverse of the CDF w.r.t. `b`
+/// - [`gdtrib`](crate::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {

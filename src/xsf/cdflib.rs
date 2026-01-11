@@ -1,12 +1,12 @@
-/// Inverse of [`gdtr`](xsf::gdtr) with respect to `b`
+/// Inverse of [`gdtr`](crate::gdtr) with respect to `b`
 ///
 /// Corresponds to [`scipy.special.gdtrib`][gdtrib].
 ///
 /// [gdtrib]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtrib.html
 ///
 /// # See also
-/// - [`gdtr`]: Gamma CDF
-/// - [`gdtrc`]: Gamma survival function
+/// - [`gdtr`](crate::gdtr): Gamma CDF
+/// - [`gdtrc`](crate::gdtrc): Gamma survival function
 #[must_use]
 #[inline]
 pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
