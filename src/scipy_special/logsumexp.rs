@@ -95,7 +95,7 @@ pub fn softmax(xs: &[f64]) -> Vec<f64> {
 ///
 /// # Notes
 ///
-/// `log_softwmax` is more accurate than taking the log of [`softmax`] with inputs that make
+/// `log_softmax` is more accurate than taking the log of [`softmax`] with inputs that make
 /// [`softmax`] saturate.
 ///
 /// # See also
