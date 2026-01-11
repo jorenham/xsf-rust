@@ -68,7 +68,7 @@ pub fn itmodstruve0(x: f64) -> f64 {
 /// where $\Gamma$ is the Gamma function.
 ///
 /// # See also
-/// - [`struve_l`]: Struve $L$ function
+/// - [`struve_l`]: Struve $L_v$ function
 /// - [`itstruve0`]: Integral of $H_0$
 /// - [`it2struve0`]: Integral related to $H_0$
 #[doc(alias = "struve")]
@@ -97,7 +97,7 @@ pub fn struve_h(v: f64, x: f64) -> f64 {
 /// where $\Gamma$ is the Gamma function, and $H_v$ the Struve function of order $v$ ([`struve_h`]).
 ///
 /// # See also
-/// - [`struve_h`]: Struve $H$ function
+/// - [`struve_h`]: Struve $H_v$ function
 /// - [`itmodstruve0`]: Integral of $L_0$
 #[doc(alias = "modstruve")]
 #[must_use]
