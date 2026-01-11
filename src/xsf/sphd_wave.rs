@@ -1,6 +1,19 @@
 #![allow(clippy::cast_precision_loss)]
 
 /// Characteristic value of prolate spheroidal function
+///
+/// Corresponds to [`scipy.special.pro_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_cv.html
+///
+/// # See also
+/// - [`oblate_segv`]: Characteristic value of oblate spheroidal function
+/// - [`prolate_aswfa`]: Prolate spheroidal angular function of the 1st kind for precomputed
+///   characteristic value
+/// - [`prolate_radial1`]: Prolate spheroidal radial function of the 1st kind for precomputed
+///   characteristic value
+/// - [`prolate_radial2`]: Prolate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic value
 #[doc(alias = "pro_cv")]
 #[must_use]
 #[inline]
@@ -9,6 +22,19 @@ pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
 }
 
 /// Characteristic value of oblate spheroidal function
+///
+/// Corresponds to [`scipy.special.obl_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_cv.html
+///
+/// # See also
+/// - [`prolate_segv`]: Characteristic value of prolate spheroidal function
+/// - [`oblate_aswfa`]: Oblate spheroidal angular function of the 1st kind for precomputed
+///   characteristic value
+/// - [`oblate_radial1`]: Oblate spheroidal radial function of the 1st kind for precomputed
+///   characteristic value
+/// - [`oblate_radial2`]: Oblate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic valueq
 #[doc(alias = "obl_cv")]
 #[must_use]
 #[inline]
@@ -18,18 +44,26 @@ pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
 
 /// Prolate spheroidal angular function of the 1st kind and its derivative
 ///
-/// Computes the prolate spheroidal angular function of the first kind and its derivative (with
-/// respect to `x`).
+/// Computes the prolate spheroidal angular function of the 1st kind and its derivative (w.r.t.
+/// $x$).
+///
+/// Corresponds to [`scipy.special.pro_ang1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_ang1.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument ($|x| < 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_aswfa`]: Prolate spheroidal angular function for precomputed characteristic value
+/// - [`oblate_aswfa_nocv`]: Oblate spheroidal angular function of the 1st kind
 #[doc(alias = "pro_ang1")]
 #[must_use]
 #[inline]
@@ -43,18 +77,26 @@ pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 
 /// Oblate spheroidal angular function of the 1st kind and its derivative
 ///
-/// Computes the oblate spheroidal angular function of the first kind and its derivative (with
-/// respect to `x`).
+/// Computes the oblate spheroidal angular function of the 1st kind and its derivative (w.r.t. $x$).
+///
+/// Corresponds to [`scipy.special.obl_ang1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_ang1.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument ($|x| < 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_aswfa`]: Oblate spheroidal angular function for precomputed characteristic value
+/// - [`oblate_radial1_nocv`]: Oblate spheroidal radial function of the 1st kind
+/// - [`oblate_radial2_nocv`]: Oblate spheroidal radial function of the 2nd kind
 #[doc(alias = "obl_ang1")]
 #[must_use]
 #[inline]
@@ -68,18 +110,26 @@ pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 
 /// Prolate spheroidal radial function of the 1st kind and its derivative
 ///
-/// Computes the prolate spheroidal radial function of the first kind and its derivative (with
-/// respect to `x`).
+/// Computes the prolate spheroidal radial function of the 1st kind and its derivative (w.r.t. $x$).
+///
+/// Corresponds to [`scipy.special.pro_rad1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_rad1.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_aswfa_nocv`]: Prolate spheroidal angular function of the 1st kind
+/// - [`prolate_radial1`]: Prolate spheroidal radial function for precomputed characteristic value
+/// - [`prolate_radial2_nocv`]: Prolate spheroidal radial function of the 2nd kind
 #[doc(alias = "pro_rad1")]
 #[must_use]
 #[inline]
@@ -93,18 +143,27 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 
 /// Oblate spheroidal radial function of the 1st kind and its derivative
 ///
-/// Computes the oblate spheroidal radial function of the first kind and its derivative (with
-/// respect to `x`).
+/// Computes the oblate spheroidal radial function of the 1st kind and its derivative (w.r.t. $x$).
+///
+/// Corresponds to [`scipy.special.obl_rad1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_rad1.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_aswfa_nocv`]: Oblate spheroidal angular function of the 1st kind
+/// - [`oblate_radial1`]: Oblate spheroidal radial function of the 1st kind for precomputed
+///   characteristic value
+/// - [`oblate_radial2_nocv`]: Oblate spheroidal radial function of the 2nd kind
 #[doc(alias = "obl_rad1")]
 #[must_use]
 #[inline]
@@ -118,18 +177,27 @@ pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 
 /// Prolate spheroidal radial function of the 2nd kind and its derivative
 ///
-/// Computes the prolate spheroidal radial function of the second kind and its derivative (with
-/// respect to `x`).
+/// Computes the prolate spheroidal radial function of the 2nd kind and its derivative (w.r.t. $x$).
+///
+/// Corresponds to [`scipy.special.pro_rad2`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_rad2.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_aswfa_nocv`]: Prolate spheroidal angular function of the 1st kind
+/// - [`prolate_radial1_nocv`]: Prolate spheroidal radial function of the 1st kind
+/// - [`prolate_radial2`]: Prolate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic value
 #[doc(alias = "pro_rad2")]
 #[must_use]
 #[inline]
@@ -141,20 +209,29 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
     (s, sp)
 }
 
-/// Oblate spheroidal radial function of the second kind and its derivative
+/// Oblate spheroidal radial function of the 2nd kind and its derivative
 ///
-/// Computes the oblate spheroidal radial function of the second kind and its derivative (with
-/// respect to `x`).
+/// Computes the oblate spheroidal radial function of the 2nd kind and its derivative (w.r.t. $x$).
+///
+/// Corresponds to [`scipy.special.obl_rad2`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_rad2.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_aswfa_nocv`]: Oblate spheroidal angular function of the 1st kind
+/// - [`oblate_radial1_nocv`]: Oblate spheroidal radial function of the 1st kind
+/// - [`oblate_radial2`]: Oblate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic value
 #[doc(alias = "obl_rad2")]
 #[must_use]
 #[inline]
@@ -168,19 +245,26 @@ pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 
 /// Prolate spheroidal angular function for precomputed characteristic value
 ///
-/// Computes the prolate spheroidal angular function of the first kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the prolate spheroidal angular function of the 1st kind and its derivative (w.r.t.
+/// $x$). Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.pro_ang1_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_ang1_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument ($|x| < 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_aswfa_nocv`]: Prolate spheroidal angular function of the 1st kind
 #[doc(alias = "pro_ang1_cv")]
 #[must_use]
 #[inline]
@@ -194,19 +278,26 @@ pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 
 /// Oblate spheroidal angular function for precomputed characteristic value
 ///
-/// Computes the oblate spheroidal angular function of the first kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the oblate spheroidal angular function of the 1st kind and its derivative (w.r.t. $x$).
+/// Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.obl_ang1_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_ang1_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*|x| < 1*)
+/// - `x`: Real argument ($|x| < 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_aswfa_nocv`]: Oblate spheroidal angular function of the 1st kind
 #[doc(alias = "obl_ang1_cv")]
 #[must_use]
 #[inline]
@@ -220,19 +311,28 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 
 /// Prolate spheroidal radial function of the 1st kind for precomputed characteristic value
 ///
-/// Computes the prolate spheroidal radial function of the first kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the prolate spheroidal radial function of the 1st kind and its derivative (w.r.t. $x$).
+/// Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.pro_rad1_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_rad1_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_radial1_nocv`]: Prolate spheroidal radial function of the 1st kind
+/// - [`prolate_radial2`]: Prolate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic value
 #[doc(alias = "pro_rad1_cv")]
 #[must_use]
 #[inline]
@@ -246,19 +346,28 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 
 /// Oblate spheroidal radial function of the 1st kind for precomputed characteristic value
 ///
-/// Computes the oblate spheroidal radial function of the first kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the oblate spheroidal radial function of the 1st kind and its derivative (w.r.t. $x$).
+/// Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.obl_rad1_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_rad1_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_radial1_nocv`]: Oblate spheroidal radial function of the 1st kind
+/// - [`oblate_radial2`]: Oblate spheroidal radial function of the 2nd kind for precomputed
+///   characteristic value
 #[doc(alias = "obl_rad1_cv")]
 #[must_use]
 #[inline]
@@ -272,19 +381,28 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 
 /// Prolate spheroidal radial function of the 2nd kind for precomputed characteristic value
 ///
-/// Computes the prolate spheroidal radial function of the second kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the prolate spheroidal radial function of the 2nd kind and its derivative (w.r.t. $x$).
+/// Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.pro_rad2_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_rad2_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`prolate_radial1`]: Prolate spheroidal radial function of the 1st kind for precomputed
+///   characteristic value
+/// - [`prolate_radial2_nocv`]: Prolate spheroidal radial function of the 2nd kind
 #[doc(alias = "pro_rad2_cv")]
 #[must_use]
 #[inline]
@@ -298,19 +416,28 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 
 /// Oblate spheroidal radial function of the 2nd kind for precomputed characteristic value
 ///
-/// Computes the oblate spheroidal radial function of the second kind and its derivative (with
-/// respect to `x`). Requires pre-computed characteristic value.
+/// Computes the oblate spheroidal radial function of the 2nd kind and its derivative (w.r.t. $x$).
+/// Requires pre-computed characteristic value.
+///
+/// Corresponds to [`scipy.special.obl_rad2_cv`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_rad2_cv.html
 ///
 /// # Arguments
-/// - `m`: Mode parameter (*m >= 0*)
-/// - `n`: Mode parameter (*n >= m*)
+/// - `m`: Mode parameter ($m \ge 0$)
+/// - `n`: Mode parameter ($n \ge m$)
 /// - `c`: Spheroidal parameter
 /// - `cv`: Characteristic value
-/// - `x`: Real argument (*x > 1*)
+/// - `x`: Real argument ($x > 1$)
 ///
 /// # Returns
-/// - `s`: Value of the function
-/// - `sp` : Value of the derivative w.r.t. `x`
+/// - $s$: Value of the function
+/// - $s\'$: Value of the derivative w.r.t. $x$
+///
+/// # See also
+/// - [`oblate_radial1`]: Oblate spheroidal radial function of the 1st kind for precomputed
+///   characteristic value
+/// - [`oblate_radial2_nocv`]: Oblate spheroidal radial function of the 2nd kind
 #[doc(alias = "obl_rad2_cv")]
 #[must_use]
 #[inline]
