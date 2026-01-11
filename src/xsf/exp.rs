@@ -22,7 +22,15 @@ impl ExpArg for num_complex::Complex<f64> {
     }
 }
 
-/// `exp(x) - 1` for real or complex input
+/// $e^x - 1$ for real or complex input
+///
+/// Corresponds to [`scipy.special.expm1`][expm1]
+///
+/// [expm1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expm1.html
+///
+/// # See also
+/// - [`exp2`] for $2^x$
+/// - [`exp10`] for $10^x$
 #[doc(alias = "exp_m1")]
 #[must_use]
 #[inline]
@@ -30,14 +38,30 @@ pub fn expm1<T: ExpArg>(z: T) -> T {
     z.expm1()
 }
 
-/// `2^x`
+/// $2^x$
+///
+/// Corresponds to [`scipy.special.exp2`][exp2]
+///
+/// [exp2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exp2.html
+///
+/// # See also
+/// - [`expm1`] for $e^x - 1$
+/// - [`exp10`] for $10^x$
 #[must_use]
 #[inline]
 pub fn exp2(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::exp2(x) }
 }
 
-/// `10^x`
+/// $10^x$
+///
+/// Corresponds to [`scipy.special.exp10`][exp10]
+///
+/// [exp10]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exp10.html
+///
+/// # See also
+/// - [`expm1`] for $e^x - 1$
+/// - [`exp2`] for $2^x$
 #[must_use]
 #[inline]
 pub fn exp10(x: f64) -> f64 {

@@ -44,7 +44,16 @@ impl LogArg for num_complex::Complex<f64> {
     }
 }
 
-/// `log(z + 1)` for real or complex input
+/// $ \log(1+z)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.log1p`][log1p].
+///
+/// [log1p]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log1p.html
+///
+/// # See also
+/// - [`expm1`](crate::expm1)
+/// - [`cosm1`](crate::cosm1)
+/// - [`log1pmx`]
 #[doc(alias = "ln_1p", alias = "log_1p")]
 #[must_use]
 #[inline]
@@ -52,14 +61,26 @@ pub fn log1p<T: LogArg>(z: T) -> T {
     z.xsf_log1p()
 }
 
-/// Compute `log(1 + x) - x` for real input
+/// Compute $\log(1+x)-x$ for real input
+///
+/// Has no analogue in `scipy.special`.
+///
+/// # See also
+/// - [`log1p`](crate::log1p)
 #[must_use]
 #[inline]
 pub fn log1pmx(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::log1pmx(x) }
 }
 
-/// Compute `x * log(y)` for real or complex input
+/// Compute $x \log(y)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.xlogy`][xlogy].
+///
+/// [xlogy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.xlogy.html
+///
+/// # See also
+/// - [`xlog1py`](crate::xlog1py)
 #[doc(alias = "x_ln_y", alias = "x_log_y")]
 #[must_use]
 #[inline]
@@ -67,7 +88,14 @@ pub fn xlogy<T: LogArg>(x: T, y: T) -> T {
     y.xsf_xlogy(x)
 }
 
-/// Compute `x * log(1 + y)` for real or complex input
+/// Compute $x \log(1+y)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.xlog1py`][xlog1py].
+///
+/// [xlog1py]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.xlog1py.html
+///
+/// # See also
+/// - [`xlogy`](crate::xlogy)
 #[doc(alias = "x_ln_1py", alias = "x_log_1py")]
 #[must_use]
 #[inline]

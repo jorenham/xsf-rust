@@ -7,6 +7,9 @@
 /// Corresponds to [`scipy.special.polygamma`][polygamma] in scipy
 ///
 /// [polygamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.polygamma.html
+///
+/// # See also
+/// - [`digamma`](crate::digamma): Digamma function (0th derivative)
 #[must_use]
 #[inline]
 pub fn polygamma(n: u32, x: f64) -> f64 {

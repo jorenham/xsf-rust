@@ -131,9 +131,9 @@ impl BesselArg for Complex<f64> {
 
 /// Bessel function of the first kind, $J_v(z)$
 ///
-/// Corresponds to [`scipy.special.jv`][jv].
+/// Corresponds to [`scipy.special.jv`][scipy].
 ///
-/// [jv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jv.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jv.html
 ///
 /// # See also
 /// - [`bessel_j0`]: faster version of $J_0$ for real argument
@@ -150,9 +150,9 @@ pub fn bessel_j<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Bessel function of the first kind of order 0, $J_0(x)$
 ///
-/// Corresponds to [`scipy.special.j0`][j0].
+/// Corresponds to [`scipy.special.j0`][scipy].
 ///
-/// [j0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.j0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.j0.html
 ///
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$ of real order and complex argument
@@ -166,9 +166,9 @@ pub fn bessel_j0(x: f64) -> f64 {
 
 /// Bessel function of the first kind of order 1, $J_1(x)$
 ///
-/// Corresponds to [`scipy.special.j1`][j1].
+/// Corresponds to [`scipy.special.j1`][scipy].
 ///
-/// [j1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.j1.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.j1.html
 ///
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$ of real order and complex argument
@@ -182,9 +182,9 @@ pub fn bessel_j1(x: f64) -> f64 {
 
 /// Exponentially scaled Bessel function of the first kind
 ///
-/// Corresponds to [`scipy.special.jve`][jve].
+/// Corresponds to [`scipy.special.jve`][scipy].
 ///
-/// [jve]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jve.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jve.html
 ///
 /// # See also
 /// - [`bessel_j`]: Bessel function $J_v(z)$
@@ -199,9 +199,9 @@ pub fn bessel_je<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Bessel function of the second kind of order 0, $Y_0(x)$
 ///
-/// Corresponds to [`scipy.special.y0`][y0].
+/// Corresponds to [`scipy.special.y0`][scipy].
 ///
-/// [y0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y0.html
 ///
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$ of real order and complex argument
@@ -215,9 +215,9 @@ pub fn bessel_y0(x: f64) -> f64 {
 
 /// Bessel function of the second kind of order 1, $Y_1(x)$
 ///
-/// Corresponds to [`scipy.special.y1`][y1].
+/// Corresponds to [`scipy.special.y1`][scipy].
 ///
-/// [y1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y1.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y1.html
 ///
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$ of real order and complex argument
@@ -231,9 +231,9 @@ pub fn bessel_y1(x: f64) -> f64 {
 
 /// Bessel function of the second kind, $Y_v(z)$
 ///
-/// Corresponds to [`scipy.special.yv`][yv].
+/// Corresponds to [`scipy.special.yv`][scipy].
 ///
-/// [yv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.yv.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.yv.html
 ///
 /// # See also
 /// - [`bessel_y0`]: faster version of $Y_0$ for real argument
@@ -250,9 +250,9 @@ pub fn bessel_y<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Exponentially scaled Bessel function of the second kind
 ///
-/// Corresponds to [`scipy.special.yve`][yve].
+/// Corresponds to [`scipy.special.yve`][scipy].
 ///
-/// [yve]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.yve.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.yve.html
 ///
 /// # See also
 /// - [`bessel_y`]: Bessel function $Y_v(z)$
@@ -267,9 +267,9 @@ pub fn bessel_ye<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Modified Bessel function of the first kind of order 0, $I_0(x)$
 ///
-/// Corresponds to [`scipy.special.i0`][i0].
+/// Corresponds to [`scipy.special.i0`][scipy].
 ///
-/// [i0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0.html
 ///
 /// # See also
 /// - [`bessel_i`]: modified Bessel function $I_v(z)$ of real order and complex argument
@@ -284,9 +284,9 @@ pub fn bessel_i0(x: f64) -> f64 {
 
 /// Exponentially scaled modified Bessel function of the first kind of order 0, $e^{-|x|} I_0(x)$
 ///
-/// Corresponds to [`scipy.special.i0e`][i0e].
+/// Corresponds to [`scipy.special.i0e`][scipy].
 ///
-/// [i0e]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0e.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0e.html
 ///
 /// # See also
 /// - [`bessel_i0`]: modified Bessel function $I_0(x)$
@@ -317,9 +317,9 @@ pub fn bessel_i1(x: f64) -> f64 {
 
 /// Exponentially scaled modified Bessel function of the first kind of order 1, $e^{-|x|} I_1(x)$
 ///
-/// Corresponds to [`scipy.special.i1e`][i1e].
+/// Corresponds to [`scipy.special.i1e`][scipy].
 ///
-/// [i1e]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i1e.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i1e.html
 ///
 /// # See also
 /// - [`bessel_i1`]: modified Bessel function $I_1(x)$
@@ -333,9 +333,9 @@ pub fn bessel_i1e(x: f64) -> f64 {
 
 /// Modified Bessel function of the first kind, $I_v(z)$
 ///
-/// Corresponds to [`scipy.special.iv`][iv].
+/// Corresponds to [`scipy.special.iv`][scipy].
 ///
-/// [iv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.iv.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.iv.html
 ///
 /// # See also
 /// - [`bessel_i0`]: faster version of $I_0$ for real argument
@@ -352,9 +352,9 @@ pub fn bessel_i<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Exponentially scaled modified Bessel function of the first kind
 ///
-/// Corresponds to [`scipy.special.ive`][ive].
+/// Corresponds to [`scipy.special.ive`][scipy].
 ///
-/// [ive]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ive.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ive.html
 ///
 /// # See also
 /// - [`bessel_i`]: modified Bessel function $I_v(z)$
@@ -369,9 +369,9 @@ pub fn bessel_ie<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Modified Bessel function of the second kind of order 0, $K_0(x)$
 ///
-/// Corresponds to [`scipy.special.k0`][k0].
+/// Corresponds to [`scipy.special.k0`][scipy].
 ///
-/// [k0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k0.html
 ///
 /// # See also
 /// - [`bessel_k`]: modified Bessel function $K_v(z)$ of real order and complex argument
@@ -386,9 +386,9 @@ pub fn bessel_k0(x: f64) -> f64 {
 
 /// Exponentially scaled modified Bessel function of the second kind of order 0, $e^x K_0(x)$
 ///
-/// Corresponds to [`scipy.special.k0e`][k0e].
+/// Corresponds to [`scipy.special.k0e`][scipy].
 ///
-/// [k0e]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k0e.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k0e.html
 ///
 /// # See also
 /// - [`bessel_k0`]: modified Bessel function $K_0(x)$
@@ -402,9 +402,9 @@ pub fn bessel_k0e(x: f64) -> f64 {
 
 /// Modified Bessel function of the second kind of order 1, $K_1(x)$
 ///
-/// Corresponds to [`scipy.special.k1`][k1].
+/// Corresponds to [`scipy.special.k1`][scipy].
 ///
-/// [k1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k1.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k1.html
 ///
 /// # See also
 /// - [`bessel_k`]: modified Bessel function $K_v(z)$ of real order and complex argument
@@ -419,9 +419,9 @@ pub fn bessel_k1(x: f64) -> f64 {
 
 /// Exponentially scaled modified Bessel function of the second kind of order 1, $e^x K_1(x)$
 ///
-/// Corresponds to [`scipy.special.k1e`][k1e].
+/// Corresponds to [`scipy.special.k1e`][scipy].
 ///
-/// [k1e]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k1e.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.k1e.html
 ///
 /// # See also
 /// - [`bessel_k1`]: modified Bessel function $K_1(x)$
@@ -435,9 +435,9 @@ pub fn bessel_k1e(x: f64) -> f64 {
 
 /// Modified Bessel function of the second kind, $K_v(z)$
 ///
-/// Corresponds to [`scipy.special.kv`][kv].
+/// Corresponds to [`scipy.special.kv`][scipy].
 ///
-/// [kv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kv.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kv.html
 ///
 /// # See also
 /// - [`bessel_k0`]: faster version of $K_0$ for real argument
@@ -471,9 +471,9 @@ pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
 
 /// Compute $N$ zeros of Bessel functions $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$
 ///
-/// Corresponds to [`scipy.special.jnyn_zeros`][jnyn_zeros].
+/// Corresponds to [`scipy.special.jnyn_zeros`][scipy].
 ///
-/// [jnyn_zeros]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnyn_zeros.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnyn_zeros.html
 ///
 /// # Panics
 /// - Panics if `N` is greater than 1200
@@ -502,9 +502,9 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 
 /// Hankel function of the first kind, $H_v^{(1)}(z)$
 ///
-/// Corresponds to [`scipy.special.hankel1`][h1v].
+/// Corresponds to [`scipy.special.hankel1`][scipy].
 ///
-/// [h1v]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel1.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel1.html
 ///
 /// # See also
 /// - [`hankel_1e`]: $H_v^{(1)}$ without the leading exponential factor
@@ -536,9 +536,9 @@ pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 
 /// Hankel function of the second kind, $H_v^{(2)}(z)$
 ///
-/// Corresponds to [`scipy.special.hankel2`][h2v].
+/// Corresponds to [`scipy.special.hankel2`][scipy].
 ///
-/// [h2v]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel2.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel2.html
 ///
 /// # See also
 /// - [`hankel_2e`]: $H_v^{(2)}$ without the leading exponential factor
@@ -571,9 +571,9 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 /// Weighted integral of the Bessel function of the first kind,
 /// $\int_0^1 x^\lambda \mathop{J}_v(2ax) \dd x$
 ///
-/// Corresponds to [`scipy.special.besselpoly`][besselpoly].
+/// Corresponds to [`scipy.special.besselpoly`][scipy].
 ///
-/// [besselpoly]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.besselpoly.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.besselpoly.html
 #[must_use]
 #[inline]
 pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
@@ -582,9 +582,9 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
 
 /// Integrals of Bessel functions of order 0
 ///
-/// Corresponds to [`scipy.special.itj0y0`][itj0y0].
+/// Corresponds to [`scipy.special.itj0y0`][scipy].
 ///
-/// [itj0y0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.itj0y0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.itj0y0.html
 ///
 /// # Returns
 /// - $\int_0^x J_0(t) \dd t$
@@ -607,9 +607,9 @@ pub fn it1j0y0(x: f64) -> (f64, f64) {
 
 /// Integrals related to Bessel functions of the first kind of order 0
 ///
-/// Corresponds to [`scipy.special.it2j0y0`][it2j0y0].
+/// Corresponds to [`scipy.special.it2j0y0`][scipy].
 ///
-/// [it2j0y0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.it2j0y0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.it2j0y0.html
 ///
 /// # Returns
 /// - $\int_0^x {1 - J_0(t) \over t} \dd t$
@@ -631,9 +631,9 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
 
 /// Integrals of modified Bessel functions of order 0
 ///
-/// Corresponds to [`scipy.special.iti0k0`][iti0k0].
+/// Corresponds to [`scipy.special.iti0k0`][scipy].
 ///
-/// [iti0k0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.iti0k0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.iti0k0.html
 ///
 /// # Returns
 /// - $\int_0^x I_0(t) \dd t$
@@ -656,9 +656,9 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
 
 /// Integrals related to modified Bessel functions of order 0.
 ///
-/// Corresponds to [`scipy.special.it2i0k0`][it2i0k0].
+/// Corresponds to [`scipy.special.it2i0k0`][scipy].
 ///
-/// [it2i0k0]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.it2i0k0.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.it2i0k0.html
 ///
 /// # Returns
 /// - $\int_0^x {I_0(t) - 1 \over t} \dd t$
@@ -687,9 +687,9 @@ pub fn it2i0k0(x: f64) -> (f64, f64) {
 ///
 /// This function computes the value and first derivative of the function for all orders up to $N$.
 ///
-/// Corresponds to [`scipy.special.riccati_jn`][scipy-rctj].
+/// Corresponds to [`scipy.special.riccati_jn`][scipy].
 ///
-/// [scipy-rctj]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_jn.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_jn.html
 ///
 /// # Returns
 /// - $\[j_0(x), \ldots, j_{N-1}(x)\]$
@@ -722,7 +722,7 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 ///
 /// This function computes the value and first derivative of the function for all orders up to $N$.
 ///
-/// Corresponds to [`scipy.special.riccati_yn`][scipy-rcty].
+/// Corresponds to [`scipy.special.riccati_yn`][scipy].
 ///
 /// # Returns
 /// - $\[y_0(x), \ldots, y_{N-1}(x)\]$
@@ -733,7 +733,7 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// - [`bessel_y`](crate::bessel_y)
 /// - [`sph_bessel_y`](crate::sph_bessel_y)
 ///
-/// [scipy-rcty]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_yn.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_yn.html
 #[doc(alias = "rcty", alias = "riccati_yn")]
 #[must_use]
 #[inline]
@@ -756,10 +756,10 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// where $\Gamma$ is the [Gamma function](crate::gamma) and $J_v$ is the
 /// [Bessel function of the first kind](crate::bessel_j).
 ///
-/// Corresponds to [`scipy.special.lmbda`][scipy-lmbda] in SciPy, and calls the FFI functions
+/// Corresponds to [`scipy.special.lmbda`][scipy] in SciPy, and calls the FFI functions
 /// `xsf::specfun::lamn` and `xsf::specfun::lamv`.
 ///
-/// [scipy-lmbda]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html
 ///
 /// # Arguments
 /// - `v`: Order of the Lambda function as a non-negative real number

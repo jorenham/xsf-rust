@@ -60,25 +60,59 @@ impl ErfArg for Complex64 {
     }
 }
 
-/// Error function `erf(z)` for real or complex input
+/// Error function $\erf(z)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.erf`][erf].
+///
+/// [erf]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erf.html
+///
+/// # See also
+/// - [`erfc`]: Complementary error function
+/// - [`erfi`]: Imaginary error function
+/// - [`erfinv`](crate::erfinv): Inverse error function
+/// - [`erf_zeros`]: Zeros of the error function
 #[inline]
 pub fn erf<T: ErfArg>(z: T) -> T {
     z.erf()
 }
 
-/// Complementary error function `1 - erf(z)` for real or complex input
+/// Complementary error function $1 - \erf(z)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.erfc`][erfc].
+///
+/// [erfc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfc.html
+///
+/// # See also
+/// - [`erf`]: Error function
+/// - [`erfcinv`](crate::erfcinv): Inverse of the complementary error function
+/// - [`erfcx`]: Scaled complementary error function
 #[inline]
 pub fn erfc<T: ErfArg>(z: T) -> T {
     z.erfc()
 }
 
-/// Scaled complementary error function `exp(z^2) * erfc(z)` for real or complex input
+/// Scaled complementary error function $e^{z^2} \erfc(z)$ for real or complex input
+///
+/// Corresponds to [`scipy.special.erfcx`][erfcx].
+///
+/// [erfcx]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcx.html
+///
+/// # See also
+/// - [`erfc`]: Complementary error function
+/// - [`erf`]: Error function
 #[inline]
 pub fn erfcx<T: ErfArg>(z: T) -> T {
     z.erfcx()
 }
 
 /// Imaginary error function `-i erf(i z)` for real or complex input
+///
+/// Corresponds to [`scipy.special.erfi`][erfi].
+///
+/// [erfi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfi.html
+///
+/// # See also
+/// - [`erf`]: Error function
 #[inline]
 pub fn erfi<T: ErfArg>(z: T) -> T {
     z.erfi()
@@ -91,8 +125,16 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 ///
 /// See [`erf`](crate::erf) for the error function itself.
 ///
+/// Corresponds to [`scipy.special.erf_zeros`][erf_zeros].
+///
+/// [erf_zeros]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erf_zeros.html
+///
 /// # Panics
 /// - if `N` is too large to fit into a [`c_int`](core::ffi::c_int)
+///
+/// # See also
+/// - [`erf`]: Error function
+/// - [`erfinv`](crate::erfinv): Inverse error function
 #[doc(alias = "cerzo")]
 #[must_use]
 #[inline]

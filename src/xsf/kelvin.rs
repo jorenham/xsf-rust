@@ -1,6 +1,15 @@
 use core::ffi::c_int;
 
 /// Kelvin function *ber*
+///
+/// Corresponds to [`scipy.special.ber`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ber.html
+///
+/// # See also
+/// - [`bei`] - Kelvin function *bei*
+/// - [`ker`] - Kelvin function *ker*
+/// - [`kei`] - Kelvin function *kei*
 #[must_use]
 #[inline]
 pub fn ber(x: f64) -> f64 {
@@ -8,6 +17,15 @@ pub fn ber(x: f64) -> f64 {
 }
 
 /// Kelvin function *bei*
+///
+/// Corresponds to [`scipy.special.bei`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bei.html
+///
+/// # See also
+/// - [`ber`] - Kelvin function *ber*
+/// - [`ker`] - Kelvin function *ker*
+/// - [`kei`] - Kelvin function *kei*
 #[must_use]
 #[inline]
 pub fn bei(x: f64) -> f64 {
@@ -15,6 +33,15 @@ pub fn bei(x: f64) -> f64 {
 }
 
 /// Kelvin function *ker*
+///
+/// Corresponds to [`scipy.special.ker`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ker.html
+///
+/// # See also
+/// - [`ber`]
+/// - [`bei`]
+/// - [`kei`]
 #[must_use]
 #[inline]
 pub fn ker(x: f64) -> f64 {
@@ -22,6 +49,15 @@ pub fn ker(x: f64) -> f64 {
 }
 
 /// Kelvin function *kei*
+///
+/// Corresponds to [`scipy.special.kei`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kei.html
+///
+/// # See also
+/// - [`ber`]
+/// - [`bei`]
+/// - [`ker`]
 #[must_use]
 #[inline]
 pub fn kei(x: f64) -> f64 {
@@ -29,6 +65,15 @@ pub fn kei(x: f64) -> f64 {
 }
 
 /// Derivative of the Kelvin function [`ber`]
+///
+/// Corresponds to [`scipy.special.berp`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.berp.html
+///
+/// # See also
+/// - [`ber`]
+/// - [`beip`]
+/// - [`kelvin`]
 #[must_use]
 #[inline]
 #[doc(alias = "ber_prime")]
@@ -37,6 +82,15 @@ pub fn berp(x: f64) -> f64 {
 }
 
 /// Derivative of the Kelvin function [`bei`]
+///
+/// Corresponds to [`scipy.special.beip`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.beip.html
+///
+/// # See also
+/// - [`bei`]
+/// - [`berp`]
+/// - [`kelvin`]
 #[must_use]
 #[inline]
 #[doc(alias = "bei_prime")]
@@ -45,6 +99,15 @@ pub fn beip(x: f64) -> f64 {
 }
 
 /// Derivative of the Kelvin function [`ker`]
+///
+/// Corresponds to [`scipy.special.kerp`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kerp.html
+///
+/// # See also
+/// - [`ker`]
+/// - [`keip`]
+/// - [`kelvin`]
 #[must_use]
 #[inline]
 #[doc(alias = "ker_prime")]
@@ -53,6 +116,15 @@ pub fn kerp(x: f64) -> f64 {
 }
 
 /// Derivative of the Kelvin function [`kei`]
+///
+/// Corresponds to [`scipy.special.keip`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.keip.html
+///
+/// # See also
+/// - [`kei`]
+/// - [`kerp`]
+/// - [`kelvin`]
 #[must_use]
 #[inline]
 #[doc(alias = "kei_prime")]
@@ -61,6 +133,23 @@ pub fn keip(x: f64) -> f64 {
 }
 
 /// Kelvin functions as complex numbers
+///
+/// Corresponds to [`scipy.special.kelvin`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kelvin.html
+///
+/// # Returns
+/// - *Be*: [`ber`] + *i* [`bei`]
+/// - *Ke*: [`ker`] + *i* [`kei`]
+/// - *Be*': [`berp`] + *i* [`beip`]
+/// - *Ke*': [`kerp`] + *i* [`keip`]
+///
+/// # See also
+/// - [`ber`]
+/// - [`bei`]
+/// - [`ker`]
+/// - [`kei`]
+/// - [`kelvin_zeros`]
 ///
 /// Returned in a length-4 array of complex numbers:
 /// - *Be*: Value of [`ber`] + *i* [`bei`]
@@ -104,6 +193,20 @@ fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function [`ber`]
+///
+/// Corresponds to [`scipy.special.ber_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ber_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`ber`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`bei_zeros`]
 #[must_use]
 #[inline]
 pub fn ber_zeros(nt: usize) -> Vec<f64> {
@@ -111,6 +214,20 @@ pub fn ber_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function [`bei`]
+///
+/// Corresponds to [`scipy.special.bei_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bei_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`bei`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`ber_zeros`]
 #[must_use]
 #[inline]
 pub fn bei_zeros(nt: usize) -> Vec<f64> {
@@ -118,6 +235,20 @@ pub fn bei_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function [`ker`]
+///
+/// Corresponds to [`scipy.special.ker_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ker_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`ker`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`kei_zeros`]
 #[must_use]
 #[inline]
 pub fn ker_zeros(nt: usize) -> Vec<f64> {
@@ -125,6 +256,20 @@ pub fn ker_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function [`kei`]
+///
+/// Corresponds to [`scipy.special.kei_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kei_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`kei`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`ker_zeros`]
 #[must_use]
 #[inline]
 pub fn kei_zeros(nt: usize) -> Vec<f64> {
@@ -132,6 +277,20 @@ pub fn kei_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function derivative [`berp`]
+///
+/// Corresponds to [`scipy.special.berp_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.berp_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`berp`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`beip_zeros`]
 #[must_use]
 #[inline]
 pub fn berp_zeros(nt: usize) -> Vec<f64> {
@@ -139,6 +298,20 @@ pub fn berp_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function derivative [`beip`]
+///
+/// Corresponds to [`scipy.special.beip_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.beip_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`beip`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`berp_zeros`]
 #[must_use]
 #[inline]
 pub fn beip_zeros(nt: usize) -> Vec<f64> {
@@ -146,6 +319,20 @@ pub fn beip_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function derivative [`kerp`]
+///
+/// Corresponds to [`scipy.special.kerp_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kerp_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`kerp`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`keip_zeros`]
 #[must_use]
 #[inline]
 pub fn kerp_zeros(nt: usize) -> Vec<f64> {
@@ -153,6 +340,20 @@ pub fn kerp_zeros(nt: usize) -> Vec<f64> {
 }
 
 /// First `nt` zeros of Kelvin function derivative [`keip`]
+///
+/// Corresponds to [`scipy.special.keip_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.keip_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute
+///
+/// # Returns
+/// - Vector of length `nt` containing the smallest zeros of [`keip`]
+///
+/// # See also
+/// - [`kelvin_zeros`]
+/// - [`kerp_zeros`]
 #[must_use]
 #[inline]
 pub fn keip_zeros(nt: usize) -> Vec<f64> {
@@ -161,15 +362,16 @@ pub fn keip_zeros(nt: usize) -> Vec<f64> {
 
 /// First `nt` zeros of all Kelvin functions and their derivatives
 ///
-/// Returned in a length-8 array of vectors of length nt. The array contains the vectors of zeros of
-/// - [`ber`]
-/// - [`bei`]
-/// - [`ker`]
-/// - [`kei`]
-/// - [`berp`]
-/// - [`beip`]
-/// - [`kerp`]
-/// - [`keip`]
+/// Corresponds to [`scipy.special.kelvin_zeros`][scipy]
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kelvin_zeros.html
+///
+/// # Arguments
+/// - `nt` - Number of zeros to compute for each function
+///
+/// # Returns
+/// - Length-8 array containing vectors of the zeros of [`ber`], [`bei`], [`ker`], [`kei`],
+///   [`berp`], [`beip`], [`kerp`], and [`keip`], respectively
 #[must_use]
 #[inline]
 pub fn kelvin_zeros(nt: usize) -> [Vec<f64>; 8] {

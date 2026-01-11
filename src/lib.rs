@@ -340,7 +340,7 @@
 //! | [`mathieu_modcem2`]   | [`mathieu_modsem2`]  | Modified Mathieu functions of the second kind |
 //! | [`mathieu_even_coef`] | [`mathieu_odd_coef`] | Fourier coefficients for Mathieu functions    |
 //!
-//! # Spherical wave functions
+//! # Spheroidal wave functions
 //!
 //! | Function                 | Description                                           |
 //! | ------------------------ | ----------------------------------------------------- |

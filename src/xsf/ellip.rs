@@ -1,4 +1,14 @@
 /// Complete elliptic integral of the first kind
+///
+/// Corresponds to [`scipy.special.ellipk`][ellipk] in SciPy
+///
+/// [ellipk]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipk.html
+///
+/// # See also
+/// - [`ellipe`](crate::ellipe): Complete elliptic integral of the second kind
+/// - [`ellipkinc`](crate::ellipkinc): Incomplete elliptic integral of the first kind
+/// - [`ellipkm1`](crate::ellipkm1): Complete elliptic integral of the first kind around $m = 1$
+/// - [`ellipj`](crate::ellipj): Jacobi elliptic functions
 #[doc(alias = "ellip_k")]
 #[must_use]
 #[inline]
@@ -6,7 +16,16 @@ pub fn ellipk(m: f64) -> f64 {
     unsafe { crate::ffi::xsf::ellipk(m) }
 }
 
-/// Complete elliptic integral of the first kind around `m = 1`
+/// Complete elliptic integral of the first kind around $m = 1$
+///
+/// Corresponds to [`scipy.special.ellipkm1`][scipy] in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipkm1.html
+///
+/// # See also
+/// - [`ellipk`](crate::ellipk): Complete elliptic integral of the first kind
+/// - [`ellipkinc`](crate::ellipkinc): Incomplete elliptic integral of the first kind
+/// - [`ellipj`](crate::ellipj): Jacobi elliptic functions
 #[doc(alias = "ellip_k_m1")]
 #[must_use]
 #[inline]
@@ -15,6 +34,15 @@ pub fn ellipkm1(p: f64) -> f64 {
 }
 
 /// Incomplete elliptic integral of the first kind
+///
+/// Corresponds to [`scipy.special.ellipkinc`][scipy] in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipkinc.html
+///
+/// # See also
+/// - [`ellipk`](crate::ellipk): Complete elliptic integral of the first kind
+/// - [`ellipkm1`](crate::ellipkm1): Complete elliptic integral of the first kind around $m = 1$
+/// - [`ellipj`](crate::ellipj): Jacobi elliptic functions
 #[doc(alias = "ellip_k_inc")]
 #[must_use]
 #[inline]
@@ -23,6 +51,15 @@ pub fn ellipkinc(phi: f64, m: f64) -> f64 {
 }
 
 /// Complete elliptic integral of the second kind
+///
+/// Corresponds to [`scipy.special.ellipe`][scipy] in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipe.html
+///
+/// # See also
+/// - [`ellipk`](crate::ellipk): Complete elliptic integral of the first kind
+/// - [`ellipeinc`](crate::ellipeinc): Incomplete elliptic integral of the second kind
+/// - [`ellipj`](crate::ellipj): Jacobi elliptic functions
 #[doc(alias = "ellip_e")]
 #[must_use]
 #[inline]
@@ -31,6 +68,15 @@ pub fn ellipe(m: f64) -> f64 {
 }
 
 /// Incomplete elliptic integral of the second kind
+///
+/// Corresponds to [`scipy.special.ellipeinc`][scipy] in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipeinc.html
+///
+/// # See also
+/// - [`ellipe`](crate::ellipe): Complete elliptic integral of the second kind
+/// - [`ellipk`](crate::ellipk): Complete elliptic integral of the first kind
+/// - [`ellipj`](crate::ellipj): Jacobi elliptic functions
 #[doc(alias = "ellip_e_inc")]
 #[must_use]
 #[inline]
@@ -39,6 +85,10 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 }
 
 /// Jacobi elliptic functions
+///
+/// Corresponds to [`scipy.special.ellipj`][scipy] in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellipj.html
 ///
 /// # Arguments
 /// - `u` - Real argument
@@ -50,9 +100,11 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 /// - *dn(u | m)* - delta amplitude
 /// - phase *φ* s.t. *sn(u | m) = sin(φ)* and *cn(u | m) = cos(φ)*
 ///
-/// # See Also
+/// # See also
 /// - [`ellipk`] - Complete elliptic integral of the first kind
+/// - [`ellipe`] - Complete elliptic integral of the second kind
 /// - [`ellipkinc`] - Incomplete elliptic integral of the first kind
+/// - [`ellipeinc`] - Incomplete elliptic integral of the second kind
 #[doc(alias = "ellip_j")]
 #[must_use]
 #[inline]

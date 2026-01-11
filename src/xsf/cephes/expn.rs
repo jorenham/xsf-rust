@@ -1,16 +1,21 @@
-/// Generalized exponential integral Eₙ(x)
+/// Generalized exponential integral $E_n(x)$
 ///
-/// For integer n ≥ 0 and real x ≥ 0 the
+/// Corresponds to [`scipy.special.expn`][expn]
+///
+/// [expn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expn.html
+///
+/// # Definition
+/// For integer $n \geq 0$ and real $x \geq 0$ the
 /// generalized exponential integral is defined as:
 ///
-/// Eₙ(x) = xⁿ⁻¹ ∫[x,∞) e⁻ᵗ / tⁿ dt
+/// $$ E_n(x) = x^{n-1} \int_x^\infty \frac{e^{-t}}{t^n} \dd t $$
 ///
 /// # Panics
 /// - If n cannot be converted to a [`c_int`](core::ffi::c_int)
 ///
-/// # See also:
-/// - [`exp1`](fn.exp1.html): Special case of Eₙ for n = 1
-/// - [`expi`](fn.expi.html): Related to Eₙ when n = 1
+/// # See also
+/// - [`exp1`](fn.exp1.html): Special case of $E_n$ for $n = 1$
+/// - [`expi`](fn.expi.html): Related to $E_n$ when $n = 1$
 #[must_use]
 #[inline]
 pub fn expn(n: u32, x: f64) -> f64 {

@@ -117,28 +117,92 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
 
 // Normal
 
-/// Normal distribution function `F(z)` for real or complex `z`
+/// CDF of the standard normal distribution, $\Phi(z)$
+///
+/// Corresponds to [`scipy.special.ndtr`][ndtr].
+///
+/// [ndtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ndtr.html
+///
+/// # Notes
+///
+/// The CDF is given by
+///
+/// $$
+/// \begin{align*}
+/// \Phi(z)
+/// &= {1 \over \sqrt{2\pi}} \int_{-\infty}^z e^{-t^2 / 2} \dd t \\\\
+/// &= {1 \over 2} + {1 \over 2} \erf \left( {z \over \sqrt{2}} \right) ,
+/// \end{align*}
+/// $$
+///
+/// with $\erf(z)$ the [error function](crate::erf).
+///
+/// # See also
+/// - [`log_ndtr`]: $\ln \Phi(z)$
+/// - [`ndtri`]: Normal quantile function $\Phi^{-1}(z)$, a.k.a. the probit function
+/// - [`erf`](crate::erf): Error function $\erf(z)$
 #[must_use]
 #[inline]
 pub fn ndtr<T: StatsArg>(z: T) -> T {
     z.ndtr()
 }
 
-/// Log of [`ndtr`] for real or complex argument
+/// Logarithm of [`ndtr`], $\ln \Phi(z)$
+///
+/// Corresponds to [`scipy.special.log_ndtr`][log_ndtr].
+///
+/// [log_ndtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_ndtr.html
+///
+/// # See also
+/// - [`ndtr`]: Normal distribution function $\Phi(z)$
+/// - [`crate::erf`]: Error function $\erf(z)$
 #[must_use]
 #[inline]
 pub fn log_ndtr<T: StatsArg>(z: T) -> T {
     z.log_ndtr()
 }
 
-/// Inverse of [`ndtr`]
+/// Inverse of [`ndtr`], the probit function $\Phi^{-1}(p)$
+///
+/// Corresponds to [`scipy.special.ndtri`][ndtri].
+///
+/// [ndtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ndtri.html
+///
+/// # Notes
+///
+/// The normal quantile function (probit function) is given by
+///
+/// $$
+/// \Phi^{-1}(p) = \sqrt{2}\\,\erf^{-1}(2p-1) ,
+/// $$
+///
+/// with $\erf^{-1}(z)$ the [inverse error function](crate::erfinv) and $p \in (0,1)$.
+///
+/// # See also
+/// - [`ndtr`]: CDF of the standard normal distribution, $\Phi(z)$
+/// - [`crate::erfinv`]: Inverse error function $\erf^{-1}(z)$
+#[doc(alias = "probit")]
 #[must_use]
 #[inline]
 pub fn ndtri(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::ndtri(x) }
 }
 
-/// Owen's T function
+/// Owen's T function, $T(h, a)$
+///
+/// The function $T(h, a)$ gives the probability of the event $(X > h \wedge 0 < Y < a X)$ where
+/// $X$ and $Y$ are independent standard normal random variables.
+///
+/// Corresponds to [`scipy.special.owens_t`][owens_t].
+///
+/// [owens_t]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.owens_t.html
+///
+/// # Definition
+///
+/// $$ T(h, a) = {1 \over 2\pi} \int_0^a {e^{-h^2 (1+x^2) / 2} \over 1+x^2} \dd x $$
+///
+/// # See also
+/// - [`ndtr`]: CDF of the standard normal distribution, $\Phi(z)$
 #[must_use]
 #[inline]
 pub fn owens_t(h: f64, a: f64) -> f64 {
@@ -147,7 +211,17 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 
 // Kolmogorov
 
-/// Kolmogorov survival function
+/// Survival function of the Kolmogorov distribution
+///
+/// Corresponds to [`scipy.special.kolmogorov`][kolmogorov].
+///
+/// [kolmogorov]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogorov.html
+///
+/// # See also
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogc`]: Distribution function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogorov(x: f64) -> f64 {
@@ -155,20 +229,46 @@ pub fn kolmogorov(x: f64) -> f64 {
 }
 
 /// Inverse of [`kolmogorov`]
+///
+/// Corresponds to [`scipy.special.kolmogi`][kolmogi].
+///
+/// [kolmogi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kolmogi.html
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogc`]: Distribution function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogi(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogi(x) }
 }
 
-/// Kolmogorov distribution function
+/// CDF of the Kolmogorov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogci`]: Quantile function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogc(x: f64) -> f64 {
     unsafe { crate::ffi::xsf::kolmogc(x) }
 }
 
-/// Inverse of [`kolmogc`]
+/// Inverse of [`kolmogc`], the quantile function of the Kolmogorov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function
+/// - [`kolmogi`]: Inverse survival function
+/// - [`kolmogc`]: Distribution function
+/// - [`kolmogp`]: Derivative of the survival function
 #[must_use]
 #[inline]
 pub fn kolmogci(x: f64) -> f64 {
@@ -176,6 +276,14 @@ pub fn kolmogci(x: f64) -> f64 {
 }
 
 /// Derivative of [`kolmogorov`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
+/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogc`]: CDF of the Kolmogorov distribution
+/// - [`kolmogci`]: Inverse of the Kolmogorov CDF
 #[must_use]
 #[inline]
 pub fn kolmogp(x: f64) -> f64 {
@@ -184,35 +292,71 @@ pub fn kolmogp(x: f64) -> f64 {
 
 // Kolmogorov-Smirnov
 
-/// Kolmogorov-Smirnov survival function
+/// Survival function of the Kolmogorov-Smirnov distribution
+///
+/// Corresponds to [`scipy.special.smirnov`][smirnov].
+///
+/// [smirnov]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.smirnov.html
+///
+/// # See also
+/// - [`smirnovi`]: Inverse survival function
+/// - [`smirnovc`]: Distribution function
+/// - [`smirnovp`]: Derivative of the survival function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
 pub fn smirnov(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnov(n as c_int, x) }
 }
 
-/// Kolmogorov-Smirnov distribution function
+/// Inverse of [`smirnov`]
+///
+/// Corresponds to [`scipy.special.smirnovi`][smirnovi].
+///
+/// [smirnovi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.smirnovi.html
+///
+/// # See also
+/// - [`smirnov`]: Survival function
+/// - [`smirnovc`]: Distribution function
+/// - [`smirnovci`]: Quantile function
+#[must_use]
+#[inline]
+pub fn smirnovi(n: i32, q: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovi(n as c_int, q) }
+}
+
+/// CDF of the Kolmogorov-Smirnov distribution
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnov`]: Survival function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
 pub fn smirnovc(n: i32, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::smirnovc(n as c_int, x) }
 }
 
-/// Inverse of [`smirnov`]
-#[must_use]
-#[inline]
-pub fn smirnovi(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovi(n as c_int, x) }
-}
-
 /// Inverse of [`smirnovc`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnovc`]: Distribution function
+/// - [`smirnovci`]: Quantile function
 #[must_use]
 #[inline]
-pub fn smirnovci(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovci(n as c_int, x) }
+pub fn smirnovci(n: i32, p: f64) -> f64 {
+    unsafe { crate::ffi::xsf::smirnovci(n as c_int, p) }
 }
 
 /// Derivative of [`smirnov`]
+///
+/// Does not have a direct counterpart in SciPy.
+///
+/// # See also
+/// - [`smirnov`]: Survival function
 #[must_use]
 #[inline]
 pub fn smirnovp(n: i32, x: f64) -> f64 {
@@ -221,31 +365,59 @@ pub fn smirnovp(n: i32, x: f64) -> f64 {
 
 // Tukey-Lambda
 
-/// Tukey-Lambda distribution function
+/// CDF of the Tukey-Lambda distribution
+///
+/// Corresponds to [`scipy.special.tklmbda`][tklmbda].
+///
+/// [tklmbda]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.tklmbda.html
 #[doc(alias = "tklmbda")]
 #[must_use]
 #[inline]
-pub fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
-    unsafe { crate::ffi::xsf::tukeylambdacdf(x, lmbda) }
+pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
+    unsafe { crate::ffi::xsf::tukeylambdacdf(x, lambda) }
 }
 
 // Chi-squared
 
-/// Chi-squared distribution function
+/// CDF of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtr`][chdtr].
+///
+/// [chdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtr.html
+///
+/// # See also
+/// - [`chdtrc`]: Survival function
+/// - [`chdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtr(df, x) }
 }
 
-/// Chi-squared survival function
+/// Survival function of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtrc`][chdtrc].
+///
+/// [chdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtrc.html
+///
+/// # See also
+/// - [`chdtr`]: Distribution function
+/// - [`chdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::chdtrc(df, x) }
 }
 
-/// Chi-squared quantile function
+/// Quantile function of the Chi-squared distribution
+///
+/// Corresponds to [`scipy.special.chdtri`][chdtri].
+///
+/// [chdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtri.html
+///
+/// # See also
+/// - [`chdtr`]: Distribution function
+/// - [`chdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn chdtri(df: f64, y: f64) -> f64 {
@@ -254,21 +426,45 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 
 // F
 
-/// F distribution function
+/// CDF of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtr`][fdtr].
+///
+/// [fdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtr.html
+///
+/// # See also
+/// - [`fdtrc`]: Survival function
+/// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtr(a, b, x) }
 }
 
-/// F survival function
+/// Survival function of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtrc`][fdtrc].
+///
+/// [fdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtrc.html
+///
+/// # See also
+/// - [`fdtr`]: Distribution function
+/// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::fdtrc(a, b, x) }
 }
 
-/// F quantile function
+/// Quantile function of the F distribution
+///
+/// Corresponds to [`scipy.special.fdtri`][fdtri].
+///
+/// [fdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtri.html
+///
+/// # See also
+/// - [`fdtr`]: Distribution function
+/// - [`fdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
@@ -277,14 +473,30 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 
 // Gamma
 
-/// Gamma distribution function
+/// CDF of the Gamma distribution
+///
+/// Corresponds to [`scipy.special.gdtr`][gdtr].
+///
+/// [gdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtr.html
+///
+/// # See also
+/// - [`gdtrc`]: Survival function
+/// - [`gdtrib`](crate::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::gdtr(a, b, x) }
 }
 
-/// Gamma survival function
+/// Survival function of the Gamma distribution
+///
+/// Corresponds to [`scipy.special.gdtrc`][gdtrc].
+///
+/// [gdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtrc.html
+///
+/// # See also
+/// - [`gdtr`]: Cumulative distribution function
+/// - [`gdtrib`](crate::gdtrib): Inverse of the CDF w.r.t. `b`
 #[must_use]
 #[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
@@ -294,6 +506,14 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 // Poisson
 
 /// Poisson distribution function
+///
+/// Corresponds to [`scipy.special.pdtr`][pdtr].
+///
+/// [pdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtr.html
+///
+/// # See also
+/// - [`pdtri`]: Quantile function
+/// - [`pdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn pdtr(k: f64, m: f64) -> f64 {
@@ -301,6 +521,14 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
 }
 
 /// Poisson quantile function
+///
+/// Corresponds to [`scipy.special.pdtri`][pdtri].
+///
+/// [pdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtri.html
+///
+/// # See also
+/// - [`pdtr`]: Cumulative distribution function
+/// - [`pdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn pdtri(k: i32, y: f64) -> f64 {
@@ -308,6 +536,14 @@ pub fn pdtri(k: i32, y: f64) -> f64 {
 }
 
 /// Poisson survival function
+///
+/// Corresponds to [`scipy.special.pdtrc`][pdtrc].
+///
+/// [pdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtrc.html
+///
+/// # See also
+/// - [`pdtr`]: Cumulative distribution function
+/// - [`pdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
@@ -317,6 +553,14 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 // Binomial
 
 /// Binomial distribution function
+///
+/// Corresponds to [`scipy.special.bdtr`][bdtr].
+///
+/// [bdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtr.html
+///
+/// # See also
+/// - [`bdtrc`]: Survival function
+/// - [`bdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
@@ -324,6 +568,14 @@ pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 }
 
 /// Binomial survival function
+///
+/// Corresponds to [`scipy.special.bdtrc`][bdtrc].
+///
+/// [bdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrc.html
+///
+/// # See also
+/// - [`bdtr`]: Distribution function
+/// - [`bdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
@@ -331,6 +583,14 @@ pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 }
 
 /// Binomial quantile function
+///
+/// Corresponds to [`scipy.special.bdtri`][bdtri].
+///
+/// [bdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtri.html
+///
+/// # See also
+/// - [`bdtr`]: Distribution function
+/// - [`bdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
@@ -340,6 +600,14 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 // Negative Binomial
 
 /// Negative binomial distribution function
+///
+/// Corresponds to [`scipy.special.nbdtr`][nbdtr].
+///
+/// [nbdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtr.html
+///
+/// # See also
+/// - [`nbdtrc`]: Survival function
+/// - [`nbdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
@@ -347,6 +615,14 @@ pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
 }
 
 /// Negative binomial survival function
+///
+/// Corresponds to [`scipy.special.nbdtrc`][nbdtrc].
+///
+/// [nbdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrc.html
+///
+/// # See also
+/// - [`nbdtr`]: Distribution function
+/// - [`nbdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
@@ -354,6 +630,14 @@ pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 }
 
 /// Negative binomial quantile function
+///
+/// Corresponds to [`scipy.special.nbdtri`][nbdtri].
+///
+/// [nbdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtri.html
+///
+/// # See also
+/// - [`nbdtr`]: Distribution function
+/// - [`nbdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {

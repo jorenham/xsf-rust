@@ -33,21 +33,59 @@ impl ZetaArg for num_complex::Complex<f64> {
     }
 }
 
-/// Riemann zeta function for real or complex input
+/// Riemann zeta function $\zeta(z)$ for real or complex $z$
+///
+/// Corresponds to [`scipy.special.zeta(z)`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.zeta.html
+///
+/// # Definition
+///
+/// $$ \zeta(z) = \sum_{k=1}^\infty k^{-z} $$
+///
+/// # See also
+/// - [`zeta`]: Hurwitz zeta function $\zeta(z, q)$
+/// - [`zetac`]: Riemann zeta function minus one, $\zeta(x) - 1$
 #[must_use]
 #[inline]
 pub fn riemann_zeta<T: ZetaArg>(z: T) -> T {
     z.riemann_zeta()
 }
 
-/// Riemann zeta function of two arguments for real or complex `z`
+/// Hurwitz zeta function $\zeta(z, q)$ for real or complex $z$
+///
+/// Corresponds to [`scipy.special.zeta(z, q)`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.zeta.html
+///
+/// # Definition
+///
+/// $$ \zeta(z, q) = \sum_{k=0}^\infty (k + q)^{-z} $$
+///
+/// # See also
+/// - [`riemann_zeta`]: Riemann zeta function $\zeta(z)$
+/// - [`zetac`]: Riemann zeta function minus one, $\zeta(x) - 1$
+#[doc(alias = "hurwitz_zeta")]
 #[must_use]
 #[inline]
 pub fn zeta<T: ZetaArg>(z: T, q: f64) -> T {
     z.zeta(q)
 }
 
-/// Riemann zeta function, minus one
+/// Riemann zeta function minus one, $\zeta(x) - 1$
+///
+/// Corresponds to [`scipy.special.zetac`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.zetac.html
+///
+/// # Definition
+///
+/// $$ \zeta(x) - 1 = \sum_{k=2}^\infty k^{-x} $$
+///
+/// # See also
+/// - [`riemann_zeta`]: Riemann zeta function $\zeta(z)$
+/// - [`zeta`]: Hurwitz zeta function $\zeta(z, q)$
+#[doc(alias = "riemann_zetac")]
 #[must_use]
 #[inline]
 pub fn zetac(x: f64) -> f64 {

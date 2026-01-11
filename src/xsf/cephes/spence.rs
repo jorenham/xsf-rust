@@ -4,11 +4,11 @@
 
 /// Spence's function, also known as the dilogarithm.
 ///
-/// It is defined to be
+/// $$ \int_1^x {\log(t) \over 1 - t} \dd t $$
 ///
-/// ∫₁ˣ log(t)/(1 - t) dt
+/// Corresponds to [`scipy.special.spence`][scipy].
 ///
-/// It currently only supports real arguments.
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.spence.html
 #[doc(alias = "dilogarithm")]
 #[must_use]
 #[inline]

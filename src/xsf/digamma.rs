@@ -29,6 +29,9 @@ impl DigammaArg for num_complex::Complex<f64> {
 /// See also [`polygamma`](crate::polygamma).
 ///
 /// [digamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html
+///
+/// # See also
+/// - [`polygamma`](crate::polygamma): Polygamma function (n-th derivative)
 #[doc(alias = "psi")]
 #[must_use]
 #[inline]

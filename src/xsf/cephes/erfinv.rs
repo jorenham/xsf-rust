@@ -8,6 +8,11 @@
 /// this function uses the Cephes implementation, which can be less accurate in certain regions.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
+///
+/// # See also
+/// - [`erfcinv`]: Inverse of the complementary error function
+/// - [`erf`](crate::erf): Error function
+/// - [`erfc`](crate::erfc): Error function
 #[doc(alias = "erf_inv")]
 #[must_use]
 #[inline]
@@ -26,6 +31,11 @@ pub fn erfinv(y: f64) -> f64 {
 /// Note that [`scipy.special.erfcinv`][scipy] also uses the Cephes implementation.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
+///
+/// # See also
+/// - [`erfinv`]: Inverse of the error function
+/// - [`erf`](crate::erf): Error function
+/// - [`erfc`](crate::erfc): Error function
 #[doc(alias = "erfc_inv")]
 #[must_use]
 #[inline]
