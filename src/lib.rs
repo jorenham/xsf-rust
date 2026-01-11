@@ -417,19 +417,21 @@
 //!
 //! # Other special functions
 //!
-//! | Function      | Description                                                  |
-//! | ------------- | ------------------------------------------------------------ |
-//! | [`agm`]       | Arithmetic-geometric mean of two scalars                     |
-//! | [`bernoulli`] | Bernoulli numbers $B_0,\dotsc,B_{N-1}$                       |
-//! | [`binom`]     | Binomial coefficient $\binom{n}{k}$ for real input           |
-//! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel     |
-//! | [`euler`]     | Euler numbers $E_0,\dotsc,E_{N-1}$                           |
-//! | [`lambertw`]  | Lambert W function, $W(z)$                                   |
-//! | [`sici`]      | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
-//! | [`shichi`]    | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
-//! | [`spence`]    | Spence's function, also known as the dilogarithm             |
-//! | [`softplus`]  | $\ln(1 + e^x)$                                               |
-//! | [`log1mexp`]  | $\ln(1 - e^x)$                                               |
+//! | Function        | Description                                                  |
+//! | --------------- | ------------------------------------------------------------ |
+//! | [`agm`]         | Arithmetic-geometric mean of two scalars                     |
+//! | [`bernoulli`]   | Bernoulli numbers $B_0,\dotsc,B_{N-1}$                       |
+//! | [`binom`]       | Binomial coefficient $\binom{n}{k}$ for real input           |
+//! | [`diric`]       | Periodic sinc function, also called the Dirichlet kernel     |
+//! | [`euler`]       | Euler numbers $E_0,\dotsc,E_{N-1}$                           |
+//! | [`lambertw`]    | Lambert W function, $W(z)$                                   |
+//! | [`sici`]        | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
+//! | [`shichi`]      | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
+//! | [`softmax`]     | Softmax function                                             |
+//! | [`log_softmax`] | Logarithm of the softmax function                            |
+//! | [`spence`]      | Spence's function, also known as the dilogarithm             |
+//! | [`softplus`]    | $\ln(1 + e^x)$                                               |
+//! | [`log1mexp`]    | $\ln(1 - e^x)$                                               |
 //!
 //! # Convenience functions
 //!
@@ -450,6 +452,7 @@
 //! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                      |
 //! | [`logaddexp`]  | $\ln(e^x + e^y)$                                    |
 //! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                 |
+//! | [`logsumexp`]  | $\ln \sum e^{x_i}$                                  |
 //! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$       |
 //! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
 //!
