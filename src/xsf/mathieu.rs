@@ -4,6 +4,10 @@ use num_traits::ToPrimitive;
 
 /// Characteristic value of even Mathieu functions
 ///
+/// Corresponds to [`scipy.special.mathieu_a`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_a.html
+///
 /// # See also
 /// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
 /// - [`mathieu_cem`]: Even Mathieu function
@@ -15,6 +19,10 @@ pub fn mathieu_a(m: u32, q: f64) -> f64 {
 }
 
 /// Characteristic value of odd Mathieu functions
+///
+/// Corresponds to [`scipy.special.mathieu_b`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_b.html
 ///
 /// # See also
 /// - [`mathieu_a`]: Characteristic value of even Mathieu functions
@@ -31,6 +39,10 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 /// Returns the even Mathieu function, *ce<sub>m</sub>(x, q)*, of order *m* and parameter *q*
 /// evaluated at *x* (given in degrees).
 /// Also returns the derivative with respect to *x* of *ce<sub>m</sub>(x, q)*.
+///
+/// Corresponds to [`scipy.special.mathieu_cem`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_cem.html
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -61,6 +73,10 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// evaluated at *x* (given in degrees).
 /// Also returns the derivative with respect to *x* of *se<sub>m</sub>(x, q)*.
 ///
+/// Corresponds to [`scipy.special.mathieu_sem`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_sem.html
+///
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
@@ -88,6 +104,10 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// Evaluates the even modified Mathieu function of the first kind, *Mc1<sub>m</sub>(x, q)*,
 /// and its derivative at *x* (given in degrees) for order *m* and parameter *q*.
+///
+/// Corresponds to [`scipy.special.mathieu_modcem1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modcem1.html
 ///
 /// # Arguments
 /// - `m`: The order of the function
@@ -118,6 +138,10 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Evaluates the odd modified Mathieu function of the first kind, *Ms1<sub>m</sub>(x, q)*, and its
 /// derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
+/// Corresponds to [`scipy.special.mathieu_modsem1`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modsem1.html
+///
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
@@ -147,6 +171,10 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Evaluates the even modified Mathieu function of the second kind, *Mc2<sub>m</sub>(x, q)*, and
 /// its derivative at *x* (given in degrees) for order *m* and parameter *q*.
 ///
+/// Corresponds to [`scipy.special.mathieu_modcem2`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modcem2.html
+///
 /// # Arguments
 /// - `m`: The order of the function
 /// - `q`: The parameter of the function.
@@ -175,6 +203,10 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// Evaluates the odd modified Mathieu function of the second kind, *Ms2<sub>m</sub>(x, q)*, and
 /// its derivative at *x* (given in degrees) for order *m* and parameter *q*.
+///
+/// Corresponds to [`scipy.special.mathieu_modsem2`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modsem2.html
 ///
 /// # Arguments
 /// - `m`: The order of the function
