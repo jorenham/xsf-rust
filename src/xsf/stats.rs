@@ -156,6 +156,7 @@ pub fn ndtr<T: StatsArg>(z: T) -> T {
 /// # See also
 /// - [`ndtr`]: Normal distribution function $\Phi(z)$
 /// - [`crate::erf`]: Error function $\erf(z)$
+/// - [`ndtri_exp`]: Inverse of `log_ndtr`
 #[must_use]
 #[inline]
 pub fn log_ndtr<T: StatsArg>(z: T) -> T {
