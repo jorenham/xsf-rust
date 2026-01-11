@@ -256,6 +256,7 @@
 //! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
 //! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
 //! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                           |
+//! | [`multigammaln`] | Log of multivariate gamma, sometimes called the generalized gamma |
 //! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |
 //! | [`pow_rising`]   | Rising factorial $\rpow x m = {\Gamma(x+m) \over \Gamma(x)}$      |
 //! | [`pow_falling`]  | Falling factorial $\fpow x m = {\Gamma(x+1) \over \Gamma(x+1-m)}$ |
