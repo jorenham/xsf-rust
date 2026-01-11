@@ -600,6 +600,14 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 // Negative Binomial
 
 /// Negative binomial distribution function
+///
+/// Corresponds to [`scipy.special.nbdtr`][nbdtr].
+///
+/// [nbdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtr.html
+///
+/// # See also
+/// - [`nbdtrc`]: Survival function
+/// - [`nbdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
@@ -607,6 +615,14 @@ pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
 }
 
 /// Negative binomial survival function
+///
+/// Corresponds to [`scipy.special.nbdtrc`][nbdtrc].
+///
+/// [nbdtrc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrc.html
+///
+/// # See also
+/// - [`nbdtr`]: Distribution function
+/// - [`nbdtri`]: Quantile function
 #[must_use]
 #[inline]
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
@@ -614,6 +630,14 @@ pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 }
 
 /// Negative binomial quantile function
+///
+/// Corresponds to [`scipy.special.nbdtri`][nbdtri].
+///
+/// [nbdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtri.html
+///
+/// # See also
+/// - [`nbdtr`]: Distribution function
+/// - [`nbdtrc`]: Survival function
 #[must_use]
 #[inline]
 pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
