@@ -23,7 +23,7 @@ fn agm_iter(a: f64, b: f64) -> f64 {
     amean
 }
 
-/// Arithemtic-geometric mean
+/// Arithmetic-geometric mean
 ///
 /// Corresponds to [`scipy.special.agm`][scipy].
 ///
