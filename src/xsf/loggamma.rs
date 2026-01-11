@@ -34,6 +34,13 @@ impl LogGammaArg for num_complex::Complex<f64> {
 }
 
 /// Principal branch of the logarithm of `gamma(z)`
+///
+/// Corresponds to [`scipy.special.loggamma`][loggamma] in scipy
+///
+/// [loggamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.loggamma.html
+///
+/// # See also
+/// - [`gamma`](crate::gamma): Gamma function
 #[doc(alias = "lgamma", alias = "ln_gamma", alias = "log_gamma")]
 #[inline]
 pub fn loggamma<T: LogGammaArg>(z: T) -> T {
@@ -41,6 +48,13 @@ pub fn loggamma<T: LogGammaArg>(z: T) -> T {
 }
 
 /// Reciprocal Gamma function `1 / gamma(z)`
+///
+/// Corresponds to [`scipy.special.rgamma`][rgamma] in scipy
+///
+/// [rgamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.rgamma.html
+///
+/// # See also
+/// - [`gamma`](crate::gamma): Gamma function
 #[inline]
 pub fn rgamma<T: LogGammaArg>(z: T) -> T {
     z.xsf_rgamma()
