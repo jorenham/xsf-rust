@@ -427,6 +427,7 @@
 //! | [`lambertw`]  | Lambert W function, $W(z)$                                   |
 //! | [`sici`]      | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
 //! | [`shichi`]    | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
+//! | [`softmax`]   | Softmax function                                             |
 //! | [`spence`]    | Spence's function, also known as the dilogarithm             |
 //! | [`softplus`]  | $\ln(1 + e^x)$                                               |
 //! | [`log1mexp`]  | $\ln(1 - e^x)$                                               |

@@ -1,5 +1,12 @@
 //! Translated from `scipy/special/_logsumexp.py`
 
+const NINF: f64 = f64::NEG_INFINITY;
+
+/// Return the maximum value in a slice of f64, propagating NaNs
+fn fmax(xs: &[f64]) -> f64 {
+    xs.iter().fold(NINF, |a, &b| if a >= b { a } else { b })
+}
+
 /// Compute the log of the sum of exponentials of input elements
 ///
 /// Pure Rust translation of [`scipy.special.logsumexp`][scipy].
@@ -22,15 +29,11 @@
 ///
 /// # See also
 /// - [`logaddexp`](crate::logaddexp)
-/// - [`logaddexp2`](crate::logaddexp2)
+/// - [`softmax`]
 #[must_use]
 #[allow(clippy::float_cmp, clippy::missing_panics_doc)]
 pub fn logsumexp(xs: &[f64]) -> f64 {
-    // Find element with maximum real part, since this is what affects the magnitude
-    // of the exponential. Possible enhancement: include log of `b` magnitude in `a`.
-    let x_max = xs
-        .iter()
-        .fold(f64::NEG_INFINITY, |a, &b| if a >= b { a } else { b }); // >= will propagate NaNs
+    let x_max = fmax(xs);
 
     // fast-path for -/+inf and NaN
     if !x_max.is_finite() {
@@ -41,9 +44,7 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
     let m: f64 = xs
         .iter()
         .fold(0.0, |acc, &x| if x == x_max { acc + 1.0 } else { acc });
-    let xs = xs
-        .iter()
-        .map(|&x| if x == x_max { f64::NEG_INFINITY } else { x });
+    let xs = xs.iter().map(|&x| if x == x_max { NINF } else { x });
 
     // Shift, exponentiate, and sum
     let s = xs.map(|x| (x - x_max).exp()).sum::<f64>();
@@ -55,14 +56,44 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
     s.ln_1p() + m.ln() + x_max
 }
 
+/// Compute the softmax function
+///
+/// Pure Rust translation of [`scipy.special.softmax`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.softmax.html
+///
+/// # Definition
+///
+/// The formula for the softmax function $\sigma(\bm{x})$ for a vector
+/// $\bm{x} = \begin{bmatrix} x_0 & x_1 & \cdots & x_{n-1} \end{bmatrix}$ is
+///
+/// $$
+/// \sigma(\bm{x})_j = {e^{x_j} \over \sum_k e^{x_k}}
+/// $$
+///
+/// The `softmax` function is the gradient of [`logsumexp`].
+///
+/// The implementation uses shifting to improve numerical stability.
+///
+/// # See also
+/// - [`logsumexp`](crate::logsumexp)
+#[must_use]
+pub fn softmax(xs: &[f64]) -> Vec<f64> {
+    let x_max = fmax(xs);
+    let exs0 = xs.iter().map(|&x| (x - x_max).exp()).collect::<Vec<f64>>();
+    let s = exs0.iter().sum::<f64>().recip();
+    exs0.iter().map(|ex| ex * s).collect()
+}
+
 #[cfg(test)]
 mod tests {
-    //! Translated from `scipy.special.tests.test_logsumexp.TestLogSumExp` at
+    //! Translated from `scipy.special.tests.test_logsumexp` at
     //! <https://github.com/scipy/scipy/blob/5a7df53/scipy/special/tests/test_logsumexp.py>
 
     use crate::np_assert_allclose;
-    use core::f64::consts::LN_2;
+    use core::f64::consts::{E, LN_2};
 
+    /// Corresponds to `TestLogSumExp.test_logsumexp`.
     #[test]
     #[allow(clippy::float_cmp, clippy::cast_precision_loss)]
     fn test_logsumexp() {
@@ -102,6 +133,41 @@ mod tests {
         assert_eq!(
             crate::logsumexp(&[f64::NEG_INFINITY, f64::NEG_INFINITY]),
             f64::NEG_INFINITY
+        );
+    }
+
+    /// Corresponds to `TestSoftmax.test_softmax_fixtures`.
+    #[test]
+    fn test_softmax_fixtures() {
+        np_assert_allclose!(
+            crate::softmax(&[1000.0, 0.0, 0.0, 0.0]),
+            [1.0, 0.0, 0.0, 0.0],
+            rtol = 1e-13
+        );
+        np_assert_allclose!(crate::softmax(&[1.0, 1.0]), [0.5, 0.5], rtol = 1e-13);
+        np_assert_allclose!(
+            crate::softmax(&[0.0, 1.0]),
+            [1.0 / (1.0 + E), E / (1.0 + E)],
+            rtol = 1e-13
+        );
+
+        // Expected value computed using mpmath (with mpmath.mp.dps = 200) and then
+        // converted to float.
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let expected = [
+            0.032_058_603_280_084_99,
+            0.087_144_318_742_032_56,
+            0.236_882_818_089_910_13,
+            0.643_914_259_887_972_2,
+        ];
+        np_assert_allclose!(crate::softmax(&x), expected, rtol = 1e-13);
+
+        // Translation property.  If all the values are changed by the same amount,
+        // the softmax result does not change.
+        np_assert_allclose!(
+            crate::softmax(&x.map(|x| x + 100.0)),
+            expected,
+            rtol = 1e-13
         );
     }
 }
