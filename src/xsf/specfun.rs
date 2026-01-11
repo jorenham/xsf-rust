@@ -24,7 +24,7 @@ impl Hyp1F1Arg for Complex<f64> {
     }
 }
 
-/// Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
+/// Bernoulli numbers $B_0, \ldots, B_{N-1}$
 ///
 /// Corresponds to [`scipy.special.bernoulli`][scipy-bern] in SciPy, and calls the FFI function
 /// `xsf::specfun::bernob`.
@@ -64,7 +64,7 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
     bn
 }
 
-/// Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
+/// Euler numbers $E_0, \ldots, E_{N-1}$
 ///
 /// Corresponds to [`scipy.special.euler`][scipy-euler] in SciPy, and calls the FFI function
 /// `xsf::specfun::eulerb`.
@@ -183,7 +183,14 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     }
 }
 
-/// Associated Legendre function for `|x| ≤ 1`
+/// Associated Legendre function for $|x| \leq 1$
+///
+/// Corresponds to [`scipy.special.lpmv`][scipy] in SciPy.
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lpmv.html
+///
+/// # See also
+/// - [`assoc_legendre_p_all`](crate::assoc_legendre_p_all)
 #[must_use]
 #[inline]
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
