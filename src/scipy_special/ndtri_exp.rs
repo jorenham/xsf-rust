@@ -119,8 +119,8 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
 ///
 /// # See also
 /// - [`log_ndtr`](crate::log_ndtr): log of the standard normal cumulative distribution function
-/// - [`ndtr`]: standard normal cumulative distribution function
-/// - [`ndtri`]: standard normal percentile function
+/// - [`ndtr`](crate::ndtr): standard normal cumulative distribution function
+/// - [`ndtri`](crate::ndtri): standard normal percentile function
 #[must_use]
 #[inline]
 pub fn ndtri_exp(y: f64) -> f64 {
