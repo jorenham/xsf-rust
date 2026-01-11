@@ -10,7 +10,7 @@ use core::f64::consts::PI;
 ///
 /// # Definition
 ///
-/// The multibariate gamma function of dimension $d$ for real $a$ is
+/// The multivariate gamma function of dimension $d$ for real $a$ is
 ///
 /// $$
 /// \Gamma_d(a) = \pi^{d (d-1) \over 4} \prod_{j=0}^{d-1} \Gamma\left(a - {j \over 2}\right)
