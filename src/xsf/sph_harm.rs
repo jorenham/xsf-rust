@@ -3,9 +3,39 @@ use num_complex::Complex64;
 
 /// Spherical harmonics
 ///
+/// Corresponds to [`scipy.special.sph_harm_y`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sph_harm_y.html
+///
+/// # Definition
+///
+/// $$
+/// Y_n^m(\theta, \phi) =
+/// \sqrt{ {2n + 1 \over 4\pi} {(n - m)! \over (n + m)!} } \\
+/// P_n^m(\cos \theta) \\
+/// e^{i m \phi}
+/// $$
+///
+/// where $P_n^m$ are the (unnormalized) associated Legendre polynomials.
+///
+/// With SciPy's convention, the first several sperical harmonics are
+///
+/// $$
+/// \begin{align*}
+/// Y_0^0(\theta, \phi)    &=  \sqrt{1 \over 4\pi} \\\\
+/// Y_1^{-1}(\theta, \phi) &=  \sqrt{3 \over 8\pi} \\ \sin \theta \\ e^{-i \phi} \\\\
+/// Y_1^0(\theta, \phi)    &=  \sqrt{3 \over 4q\pi} \\ \cos \theta \\\\
+/// Y_1^1(\theta, \phi)    &= -\sqrt{3 \over 8\pi} \\ \sin \theta \\ e^{ i \phi}
+/// \end{align*}
+/// $$
+///
 /// # Panics
 /// - if `n` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
 /// - if `m` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
+///
+/// # See also
+/// - [`sph_harm_y_all`]
+/// - [`assoc_legendre_p`](crate::assoc_legendre_p)
 #[must_use]
 #[inline]
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
@@ -14,15 +44,24 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
     unsafe { crate::ffi::xsf::sph_harm_y(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi) }
 }
 
-/// All spherical harmonics up to the specified degree `n` and order `m`
+/// All spherical harmonics up to the specified degree $n$ and order $m$
 ///
-/// Output shape is `(n + 1, 2 * m + 1)`. The entry at `(j, i)` corresponds to degree `j` and
-/// order `i` for all `0 <= j <= n` and `-m <= i <= m`.
+/// Corresponds to [`scipy.special.sph_harm_y_all`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sph_harm_y_all.html
+///
+/// # Notes
+///
+/// Output shape is `(n + 1, 2 * m + 1)`. The entry at `(j, i)` corresponds to degree $j$ and
+/// order $i$ for all $0 \leq j \leq n$ and $-m \leq i \leq m$.
 ///
 /// Note: Unlike Python, Rust uses only positive array indices. The mapping from array index
 /// to spherical harmonic order is:
-/// - Index `0` to `m`: orders `0, 1, 2, ..., m`
-/// - Index `m+1` to `2*m`: orders `-m, -(m-1), ..., -1`
+/// - Index $0$ to $m$: orders $0, 1, 2, \ldots, m$
+/// - Index $m+1$ to $2*m$: orders $-m, -(m-1), \ldots, -1$
+///
+/// # See also
+/// - [`sph_harm_y`]
 #[must_use]
 #[inline]
 pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex64>> {
