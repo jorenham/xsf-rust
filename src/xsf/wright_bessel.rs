@@ -1,13 +1,22 @@
 /// Wright's generalized Bessel function
 ///
-/// See [`log_wright_bessel`] for the natural logarithm of this function.
+/// Corresponds to [`scipy.special.wright_bessel`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.wright_bessel.html
+///
+/// # See also
+/// - [`log_wright_bessel`]: natural logarithm of this function
 #[must_use]
 #[inline]
 pub fn wright_bessel(a: f64, b: f64, x: f64) -> f64 {
     unsafe { crate::ffi::xsf::wright_bessel(a, b, x) }
 }
 
-/// Natural logarithm of Wright's generalized Bessel function, see [`wright_bessel`]
+/// Natural logarithm of [`wright_bessel`]
+///
+/// Corresponds to [`scipy.special.log_wright_bessel`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_wright_bessel.html
 #[must_use]
 #[inline]
 pub fn log_wright_bessel(a: f64, b: f64, x: f64) -> f64 {
