@@ -26,8 +26,10 @@ impl Hyp1F1Arg for Complex<f64> {
 
 /// Bernoulli numbers $B_0, \ldots, B_{N-1}$
 ///
-/// Corresponds to [`scipy.special.bernoulli`][scipy-bern] in SciPy, and calls the FFI function
+/// Corresponds to [`scipy.special.bernoulli`][scipy] in SciPy, and calls the FFI function
 /// `xsf::specfun::bernob`.
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
 ///
 /// # Examples
 /// ```
@@ -44,8 +46,6 @@ impl Hyp1F1Arg for Complex<f64> {
 ///
 /// # See also
 /// - [`euler`]: Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
-///
-/// [scipy-bern]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
 #[must_use]
 #[inline]
 pub fn bernoulli<const N: usize>() -> [f64; N] {
@@ -66,8 +66,10 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
 
 /// Euler numbers $E_0, \ldots, E_{N-1}$
 ///
-/// Corresponds to [`scipy.special.euler`][scipy-euler] in SciPy, and calls the FFI function
+/// Corresponds to [`scipy.special.euler`][scipy] in SciPy, and calls the FFI function
 /// `xsf::specfun::eulerb`.
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.euler.html
 ///
 /// # Examples
 /// ```
@@ -84,8 +86,6 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
 ///
 /// # See also
 /// - [`bernoulli`]: Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
-///
-/// [scipy-euler]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.euler.html
 #[must_use]
 #[inline]
 pub fn euler<const N: usize>() -> [f64; N] {
@@ -103,10 +103,10 @@ pub fn euler<const N: usize>() -> [f64; N] {
 
 /// Kummer's Confluent hypergeometric function $_1F_1$
 ///
-/// Corresponds to [`scipy.special.hyp1f1`][hyp1f1] in SciPy, and accepts both `f64` and
+/// Corresponds to [`scipy.special.hyp1f1`][scipy] in SciPy, and accepts both `f64` and
 /// `num_complex::Complex<f64>` inputs for `z`.
 ///
-/// [hyp1f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html
 ///
 /// # Notes
 ///
@@ -138,9 +138,9 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
 ///
-/// Corresponds to [`scipy.special.hyperu`][hyperu] in SciPy.
+/// Corresponds to [`scipy.special.hyperu`][scipy] in SciPy.
 ///
-/// [hyperu]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyperu.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyperu.html
 ///
 /// # Notes
 ///

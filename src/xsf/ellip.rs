@@ -100,7 +100,7 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 /// - *dn(u | m)* - delta amplitude
 /// - phase *φ* s.t. *sn(u | m) = sin(φ)* and *cn(u | m) = cos(φ)*
 ///
-/// # See Also
+/// # See also
 /// - [`ellipk`] - Complete elliptic integral of the first kind
 /// - [`ellipe`] - Complete elliptic integral of the second kind
 /// - [`ellipkinc`] - Incomplete elliptic integral of the first kind

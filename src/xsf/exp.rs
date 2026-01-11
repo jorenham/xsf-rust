@@ -28,7 +28,7 @@ impl ExpArg for num_complex::Complex<f64> {
 ///
 /// [expm1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expm1.html
 ///
-/// # See Also
+/// # See also
 /// - [`exp2`] for $2^x$
 /// - [`exp10`] for $10^x$
 #[doc(alias = "exp_m1")]
@@ -44,7 +44,7 @@ pub fn expm1<T: ExpArg>(z: T) -> T {
 ///
 /// [exp2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exp2.html
 ///
-/// # See Also
+/// # See also
 /// - [`expm1`] for $e^x - 1$
 /// - [`exp10`] for $10^x$
 #[must_use]
@@ -59,7 +59,7 @@ pub fn exp2(x: f64) -> f64 {
 ///
 /// [exp10]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.exp10.html
 ///
-/// # See Also
+/// # See also
 /// - [`expm1`] for $e^x - 1$
 /// - [`exp2`] for $2^x$
 #[must_use]
