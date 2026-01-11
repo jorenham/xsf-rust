@@ -20,7 +20,7 @@ const SQRT_F64_MIN_POSITIVE: f64 = 1.49e-154;
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.boxcox.html
 ///
-/// ## See also:
+/// ## See also
 /// - [`inv_boxcox`]: Inverse of the Box-Cox transformation
 /// - [`boxcox1p`]: Box-Cox transformation of 1 + `x`
 #[must_use]
@@ -56,7 +56,7 @@ pub fn boxcox(x: f64, lambda: f64) -> f64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.boxcox1p.html
 ///
-/// ## See also:
+/// ## See also
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of 1 + `x`
 /// - [`boxcox`]: Box-Cox transformation of `x`
 #[doc(alias = "boxcox_1p")]
@@ -89,7 +89,7 @@ pub fn boxcox1p(x: f64, lambda: f64) -> f64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.inv_boxcox.html
 ///
-/// ## See also:
+/// ## See also
 /// - [`boxcox`]: Box-Cox transformation of `x`
 /// - [`inv_boxcox1p`]: Inverse of the Box-Cox transformation of `1 + x`
 #[doc(alias = "boxcox_inv")]
@@ -117,7 +117,7 @@ pub fn inv_boxcox(y: f64, lambda: f64) -> f64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.inv_boxcox1p.html
 ///
-/// ## See also:
+/// ## See also
 /// - [`boxcox1p`]: Box-Cox transformation of `1 + x`
 /// - [`inv_boxcox`]: Inverse of the Box-Cox transformation of `x`
 #[doc(alias = "boxcox_1p_inv", alias = "inv_boxcox_1p")]
