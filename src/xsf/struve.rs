@@ -61,8 +61,8 @@ pub fn itmodstruve0(x: f64) -> f64 {
 ///
 /// $$
 /// H_v(x) =
-/// (z/2)^{v+1}
-/// \sum_{n=0}^\infty {(-1)^n (z/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\ ,
+/// (x/2)^{v+1}
+/// \sum_{n=0}^\infty {(-1)^n (x/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\ ,
 /// $$
 ///
 /// where $\Gamma$ is the Gamma function.
