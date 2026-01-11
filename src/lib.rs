@@ -450,6 +450,7 @@
 //! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                      |
 //! | [`logaddexp`]  | $\ln(e^x + e^y)$                                    |
 //! | [`logaddexp2`] | $\log_2(2^x + 2^y)$                                 |
+//! | [`logsumexp`]  | $\ln \sum e^{x_i}$                                  |
 //! | [`exprel`]     | Relative error exponential, $e^x - 1 \over x$       |
 //! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
 //!

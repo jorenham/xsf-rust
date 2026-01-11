@@ -6,6 +6,7 @@ mod convex_analysis;
 mod diric;
 mod factorial;
 mod hypergeometric;
+mod logsumexp;
 mod ndtri_exp;
 mod orthogonal_eval;
 mod perm;
@@ -24,6 +25,7 @@ pub use convex_analysis::{entr, huber, kl_div, pseudo_huber, rel_entr};
 pub use diric::diric;
 pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
 pub use hypergeometric::{hyp0f0, hyp0f1, hyp1f0};
+pub use logsumexp::logsumexp;
 pub use ndtri_exp::ndtri_exp;
 pub use orthogonal_eval::{
     eval_chebyshev_t, eval_chebyshev_u, eval_gegenbauer, eval_genlaguerre, eval_hermite_h,
