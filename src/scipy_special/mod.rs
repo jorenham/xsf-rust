@@ -1,3 +1,4 @@
+mod agm;
 mod bessel_prime;
 mod boxcox;
 mod comb;
@@ -12,6 +13,7 @@ mod polygamma;
 mod softplus;
 mod stirling;
 
+pub use agm::agm;
 pub use bessel_prime::{
     bessel_i_prime, bessel_j_prime, bessel_k_prime, bessel_y_prime, hankel_1_prime, hankel_2_prime,
 };

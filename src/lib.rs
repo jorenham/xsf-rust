@@ -418,6 +418,7 @@
 //!
 //! | Function      | Description                                                  |
 //! | ------------- | ------------------------------------------------------------ |
+//! | [`agm`]       | Arithmetic-geometric mean of two scalars                     |
 //! | [`bernoulli`] | Bernoulli numbers $B_0,\dotsc,B_{N-1}$                       |
 //! | [`binom`]     | Binomial coefficient $\binom{n}{k}$ for real input           |
 //! | [`diric`]     | Periodic sinc function, also called the Dirichlet kernel     |
