@@ -12,6 +12,7 @@ mod orthogonal_eval;
 mod perm;
 mod polygamma;
 mod softplus;
+mod spence;
 mod spfun_stats;
 mod stirling;
 
@@ -34,5 +35,6 @@ pub use orthogonal_eval::{
 pub use perm::perm;
 pub use polygamma::polygamma;
 pub use softplus::softplus;
+pub use spence::spence;
 pub use spfun_stats::multigammaln;
 pub use stirling::stirling2;
