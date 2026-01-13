@@ -415,6 +415,13 @@
 //! | [`riemann_zeta`] | Riemann zeta function $\zeta(z)$ for real or complex $z$   |
 //! | [`zetac`]        | $\zeta(x) - 1$ for real $x$                                |
 //!
+//! # Lambert W and related functions
+//!
+//! | Function        | Description           |
+//! | --------------- | --------------------- |
+//! | [`lambertw`]    | Lambert W function    |
+//! | [`wrightomega`] | Wright Omega function |
+//!
 //! # Other special functions
 //!
 //! | Function        | Description                                                  |
@@ -424,7 +431,6 @@
 //! | [`binom`]       | Binomial coefficient $\binom{n}{k}$ for real input           |
 //! | [`diric`]       | Periodic sinc function, also called the Dirichlet kernel     |
 //! | [`euler`]       | Euler numbers $E_0,\dotsc,E_{N-1}$                           |
-//! | [`lambertw`]    | Lambert W function, $W(z)$                                   |
 //! | [`sici`]        | Sine and cosine integrals $\Si(z)$ and $\Ci(z)$              |
 //! | [`shichi`]      | Hyperbolic sine and cosine integrals $\Shi(z)$ and $\Chi(z)$ |
 //! | [`softmax`]     | Softmax function                                             |
