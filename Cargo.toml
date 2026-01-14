@@ -10,7 +10,7 @@ license = "BSD-3-Clause"
 readme = "README.md"
 repository = "https://github.com/jorenham/xsf-rust"
 rust-version = "1.85.1"
-description = "Bindings for SciPy special functions"
+description = "Rust implementations and bindings for scipy.special functions."
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "katex.html"]

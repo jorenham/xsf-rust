@@ -1,6 +1,8 @@
-//! Bindings to the [scipy/xsf](https://github.com/scipy/xsf) C++ library that powers
-//! `scipy.special`.
-//! See the [`scipy.special` documentation](https://docs.scipy.org/doc/scipy/reference/special.html)
+//! This crate provides equivalent Rust implementations of `scipy.special` functions, and bindings
+//! to the bundled [xsf](https://github.com/scipy/xsf/) C++ library that powers `scipy.special`.
+//!
+//! Most of the `scipy.special` functions are available. See the
+//! [`scipy.special` documentation](https://docs.scipy.org/doc/scipy/reference/special.html)
 //! for additional information.
 //!
 //! # Airy functions
