@@ -311,7 +311,7 @@ fn wrightomega_real(x: f64) -> f64 {
         return x;
     }
 
-    // Split int three distinct intervals (-inf,-2), [-2,1), [1,inf)
+    // Split into three distinct intervals (-inf,-2), [-2,1), [1,inf)
     // if (x < -2.0) {
     //     w = exp(x);
     // } else if (x < 1) {
