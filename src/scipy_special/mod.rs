@@ -15,6 +15,7 @@ mod softplus;
 mod spence;
 mod spfun_stats;
 mod stirling;
+mod wright;
 
 pub use agm::agm;
 pub use bessel_prime::{
@@ -38,3 +39,4 @@ pub use softplus::softplus;
 pub use spence::spence;
 pub use spfun_stats::multigammaln;
 pub use stirling::stirling2;
+pub use wright::wrightomega;
