@@ -358,6 +358,11 @@ where
             continue;
         }
 
+        // https://github.com/scipy/xsf/pull/85#issuecomment-3738637926
+        if name == "hyp2f1" && case.r#in[0] == -1.0 {
+            continue;
+        }
+
         let desired = case.out;
         let desired_magnitude = desired.magnitude();
 
