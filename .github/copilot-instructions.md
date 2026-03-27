@@ -39,7 +39,7 @@
 - in case of multiple return values, document each one individually in the `# Returns` section
   using bullet points in a single line, including the mathematical expression for each return value
   where applicable
-- the documentation can be built locally with `make doc`
+- the documentation can be built locally with `just doc`
 
 ## Testing
 
