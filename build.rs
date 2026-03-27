@@ -259,6 +259,8 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("bdtr", "did->d"),
     ("bdtrc", "did->d"),
     ("bdtri", "did->d"),
+    ("cdf_cvm", "di->d"),
+    ("cdf_cvm_inf", "d->d"),
     ("chdtr", "dd->d"),
     ("chdtrc", "dd->d"),
     ("chdtri", "dd->d"),

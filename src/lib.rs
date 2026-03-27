@@ -223,6 +223,13 @@
 //! | [`expit`]     | Expit function, $\frac{1}{1 + \exp(-x)}$  |
 //! | [`log_expit`] | Logarithm of [`expit`]                    |
 //!
+//! ## Cramér-von Mises
+//!
+//! | Function        | Description                                                         |
+//! | --------------- | ------------------------------------------------------------------- |
+//! | [`cdf_cvm_inf`] | CDF of the Cramér-von Mises test statistic (infinite sample limit)  |
+//! | [`cdf_cvm`]     | CDF of the Cramér-von Mises test statistic for a finite sample size |
+//!
 //! ## Miscellaneous
 //!
 //! | Function           | Description                                   |

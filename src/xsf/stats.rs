@@ -645,6 +645,42 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::nbdtri(k as c_int, n as c_int, p) }
 }
 
+/// CDF of the Cramér-von Mises test statistic (infinite sample limit)
+///
+/// Corresponds to `scipy.stats._hypotests._cdf_cvm_inf`, which is used in
+/// [`scipy.stats.cramervonmises`][f1] and [`scipy.stats.cramervonmises_2samp`][f2]
+///
+/// [f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises.html
+/// [f2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises_2samp.html
+///
+/// Accurate for practical hypothesis testing but not expected to be accurate for large values of
+/// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
+#[must_use]
+#[inline]
+pub fn cdf_cvm_inf(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cdf_cvm_inf(x) }
+}
+
+/// CDF of the Cramér-von Mises statistic for a finite sample size `n`
+///
+/// Corresponds to `scipy.stats._hypotests._cdf_cvm`, which is used in
+/// [`scipy.stats.cramervonmises`][f1] and [`scipy.stats.cramervonmises_2samp`][f2]
+///
+/// [f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises.html
+/// [f2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises_2samp.html
+///
+/// See equation 1.8 in Csörgő, S. and Faraway, J. (1996) for finite samples, 1.2 for the asymptotic
+/// CDF.
+///
+/// For finite `n`, the approximation is less accurate near the support boundaries `[1/(12*n), n/3]`
+/// and for larger `x` values where the CDF is close to `1`.
+/// The returned value is clipped to `[0, 1]`.
+#[must_use]
+#[inline]
+pub fn cdf_cvm(x: f64, n: i32) -> f64 {
+    unsafe { crate::ffi::xsf::cdf_cvm(x, n as c_int) }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -977,5 +1013,29 @@ mod tests {
         xsref::test("nbdtrc", "p_p_d-d", |x| {
             crate::nbdtrc(x[0] as i32, x[1] as i32, x[2])
         });
+    }
+
+    #[test]
+    fn test_cdf_cvm_inf_smoke() {
+        assert!(crate::cdf_cvm_inf(f64::NAN).is_nan());
+        assert!(crate::cdf_cvm_inf(-1.0).abs() <= f64::EPSILON);
+
+        let result = crate::cdf_cvm_inf(0.5);
+        assert!(result.is_finite());
+        assert!(result > 0.0 && result < 1.0);
+    }
+
+    #[test]
+    fn test_cdf_cvm_smoke() {
+        const N: i32 = 10;
+        let lower = 1.0 / (12.0 * f64::from(N));
+        let upper = f64::from(N) / 3.0;
+
+        assert!(crate::cdf_cvm(lower, N).abs() <= f64::EPSILON);
+        assert!((crate::cdf_cvm(upper, N) - 1.0).abs() <= f64::EPSILON);
+
+        let result = crate::cdf_cvm(0.5, N);
+        assert!(result.is_finite());
+        assert!((0.0..=1.0).contains(&result));
     }
 }
