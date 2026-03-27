@@ -1018,7 +1018,7 @@ mod tests {
     #[test]
     fn test_cdf_cvm_inf_smoke() {
         assert!(crate::cdf_cvm_inf(f64::NAN).is_nan());
-        assert_eq!(crate::cdf_cvm_inf(-1.0), 0.0);
+        assert!(crate::cdf_cvm_inf(-1.0).abs() <= f64::EPSILON);
 
         let result = crate::cdf_cvm_inf(0.5);
         assert!(result.is_finite());
@@ -1028,11 +1028,11 @@ mod tests {
     #[test]
     fn test_cdf_cvm_smoke() {
         const N: i32 = 10;
-        let lower = 1.0 / (12.0 * N as f64);
-        let upper = N as f64 / 3.0;
+        let lower = 1.0 / (12.0 * f64::from(N));
+        let upper = f64::from(N) / 3.0;
 
-        assert_eq!(crate::cdf_cvm(lower, N), 0.0);
-        assert_eq!(crate::cdf_cvm(upper, N), 1.0);
+        assert!(crate::cdf_cvm(lower, N).abs() <= f64::EPSILON);
+        assert!((crate::cdf_cvm(upper, N) - 1.0).abs() <= f64::EPSILON);
 
         let result = crate::cdf_cvm(0.5, N);
         assert!(result.is_finite());
