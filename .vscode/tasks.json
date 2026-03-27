@@ -1,9 +1,9 @@
 {
   "version": "2.0.0",
   "tasks": [{
-    "label": "docs: make doc",
+    "label": "docs: just doc",
     "type": "shell",
-    "command": "make",
+    "command": "just",
     "args": ["doc"],
     "group": {
       "kind": "build",
