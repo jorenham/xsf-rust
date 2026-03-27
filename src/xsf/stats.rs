@@ -645,6 +645,22 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
     unsafe { crate::ffi::xsf::nbdtri(k as c_int, n as c_int, p) }
 }
 
+/// CDF of the Cramer-von Mises test statistic (infinite sample limit).
+///
+/// Corresponds to `scipy.stats._hypotests._cdf_cvm_inf`, which is used in
+/// [`scipy.stats.cramervonmises`][f1] and [`scipy.stats.cramervonmises_2samp`][f2]
+///
+/// [f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises.html
+/// [f2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises_2samp.html
+///
+/// Accurate for practical hypothesis testing but not expected to be accurate for large values of
+/// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
+#[must_use]
+#[inline]
+pub fn cdf_cvm_inf(x: f64) -> f64 {
+    unsafe { crate::ffi::xsf::cdf_cvm_inf(x) }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -977,5 +993,71 @@ mod tests {
         xsref::test("nbdtrc", "p_p_d-d", |x| {
             crate::nbdtrc(x[0] as i32, x[1] as i32, x[2])
         });
+    }
+
+    #[test]
+    fn test_cdf_cvm_inf() {
+        const N_POINTS: usize = 51;
+        const START: f64 = 2e-3;
+        const END: f64 = 1.0 - 2e-3;
+        const EXPECTED: [f64; N_POINTS] = [
+            1.143_621_32e-27,
+            5.176_041_45e-3,
+            7.656_224_44e-2,
+            1.971_034_80e-1,
+            3.178_037_69e-1,
+            4.229_139_72e-1,
+            5.107_025_67e-1,
+            5.832_534_90e-1,
+            6.432_558_91e-1,
+            6.931_269_21e-1,
+            7.348_420_94e-1,
+            7.699_659_69e-1,
+            7.997_271_06e-1,
+            8.250_913_57e-1,
+            8.468_222_92e-1,
+            8.655_281_52e-1,
+            8.816_975_15e-1,
+            8.957_262_01e-1,
+            9.079_375_77e-1,
+            9.185_979_31e-1,
+            9.279_281_97e-1,
+            9.361_129_62e-1,
+            9.433_074_28e-1,
+            9.496_428_60e-1,
+            9.552_308_63e-1,
+            9.601_667_82e-1,
+            9.645_324_25e-1,
+            9.683_982_56e-1,
+            9.718_251_80e-1,
+            9.748_660_08e-1,
+            9.775_666_57e-1,
+            9.799_671_57e-1,
+            9.821_024_82e-1,
+            9.840_032_53e-1,
+            9.856_963_30e-1,
+            9.872_053_16e-1,
+            9.885_509_80e-1,
+            9.897_516_28e-1,
+            9.908_234_11e-1,
+            9.917_806_01e-1,
+            9.926_358_18e-1,
+            9.934_002_38e-1,
+            9.940_837_61e-1,
+            9.946_951_72e-1,
+            9.952_422_66e-1,
+            9.957_319_68e-1,
+            9.961_704_34e-1,
+            9.965_631_42e-1,
+            9.969_149_64e-1,
+            9.972_302_41e-1,
+            9.975_128_43e-1,
+        ];
+
+        let step = (END - START) / (N_POINTS - 1) as f64;
+        let actual: [f64; N_POINTS] =
+            core::array::from_fn(|i| crate::cdf_cvm_inf(START + step * i as f64));
+
+        crate::np_assert_allclose!(&actual, &EXPECTED, rtol = 1e-8);
     }
 }
