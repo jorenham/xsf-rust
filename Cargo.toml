@@ -21,7 +21,7 @@ num-traits = "0.2.19"
 
 [build-dependencies]
 cc = "1.2.58"
-bindgen = {version = "0.72.1", default-features = false, features = ["runtime"]}
+bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
 
 [dev-dependencies]
-xsref = {path = "testing"}
+xsref = { path = "testing" }
