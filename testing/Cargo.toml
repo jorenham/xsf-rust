@@ -9,4 +9,4 @@ description = "Test helpers for the xsf crate"
 
 [dependencies]
 num-complex = "0.4.6"
-polars = { version = "0.52.0", default-features = false, features = ["polars-io", "parquet"] }
+polars = { version = "0.55.2", default-features = false, features = ["polars-io", "parquet"] }

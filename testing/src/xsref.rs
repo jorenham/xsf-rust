@@ -244,7 +244,7 @@ where
     macro_rules! consume_chunked {
         ($method:ident, $cast:expr) => {
             if let Ok(ca) = series.$method() {
-                for value in ca {
+                for value in ca.iter() {
                     let value = value.map($cast).unwrap_or(f64::NAN);
                     f(value)?;
                 }
@@ -277,7 +277,7 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
     let width = df.width();
     let mut rows = vec![Vec::with_capacity(width); height];
 
-    for column in df.get_columns() {
+    for column in df.columns() {
         let mut row_idx = 0;
         for_each_column_value(column, |value| {
             if row_idx >= rows.len() {
@@ -300,7 +300,7 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
 #[inline]
 fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
     let df = read_parquet_df(file)?;
-    let column = df.get_columns().first().ok_or(TestError::DataFormat)?;
+    let column = df.columns().first().ok_or(TestError::DataFormat)?;
     let mut values = Vec::with_capacity(df.height());
 
     for_each_column_value(column, |value| {
