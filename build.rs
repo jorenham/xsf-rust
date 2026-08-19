@@ -583,7 +583,7 @@ fn cpp_to_hpp(cpp: &str) -> String {
         .map(|line| line.trim_end())
         .filter_map(|line| {
             if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
-                Some(format!("{};", &line[..line.len() - 2].trim_end()))
+                Some(format!("{};", line[..line.len() - 2].trim_end()))
             } else {
                 None
             }
