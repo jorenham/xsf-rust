@@ -58,7 +58,6 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.2>
 /// [^2]: S. Zhang and J.M. Jin, "Computation of Special Functions", Wiley 1996
-/// [^3]: Cephes Mathematical Functions Library, <http://www.netlib.org/cephes/>
 /// [^4]: J.L. Lopez and N.M. Temme, "New series expansions of the Gauss hypergeometric function",
 /// Adv Comput Math 39, 349-365 (2013). <https://doi.org/10.1007/s10444-012-9283-y>
 ///
