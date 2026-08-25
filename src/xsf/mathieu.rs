@@ -1,5 +1,5 @@
+use crate::utils::out2;
 use core::ffi::c_int;
-
 use num_traits::ToPrimitive;
 
 /// Characteristic value of even Mathieu functions
@@ -60,11 +60,7 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::cem(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::cem(m.into(), q, x, y, yp) })
 }
 
 /// Odd Mathieu function and its derivative
@@ -93,11 +89,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::sem(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::sem(m.into(), q, x, y, yp) })
 }
 
 /// Even modified Mathieu function of the first kind and its derivative
@@ -126,11 +118,7 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::mcm1(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::mcm1(m.into(), q, x, y, yp) })
 }
 
 /// Odd modified Mathieu function of the first kind and its derivative
@@ -159,11 +147,7 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::msm1(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::msm1(m.into(), q, x, y, yp) })
 }
 
 /// Even modified Mathieu function of the second kind and its derivative
@@ -192,11 +176,7 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::mcm2(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::mcm2(m.into(), q, x, y, yp) })
 }
 
 /// Odd modified Mathieu function of the second kind and its derivative
@@ -225,11 +205,7 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
-    let (mut y, mut yp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::msm2(m.into(), q, x, &raw mut y, &raw mut yp);
-    }
-    (y, yp)
+    out2(|y, yp| unsafe { crate::ffi::xsf::msm2(m.into(), q, x, y, yp) })
 }
 
 #[inline]

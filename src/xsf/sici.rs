@@ -1,12 +1,4 @@
-use num_complex::Complex;
-
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex64 {}
-}
-
-pub trait SiciArg: sealed::Sealed + Sized {
+pub trait SiciArg: crate::sealed::Sealed + Sized {
     fn sici(self) -> (Self, Self);
     fn shichi(self) -> (Self, Self);
 }
@@ -14,40 +6,24 @@ pub trait SiciArg: sealed::Sealed + Sized {
 impl SiciArg for f64 {
     #[inline]
     fn sici(self) -> (Self, Self) {
-        let (mut si, mut ci) = (f64::NAN, f64::NAN);
-        unsafe {
-            crate::ffi::xsf::sici(self, &raw mut si, &raw mut ci);
-        }
-        (si, ci)
+        crate::utils::out2(|si, ci| unsafe { crate::ffi::xsf::sici(self, si, ci) })
     }
 
     #[inline]
     fn shichi(self) -> (Self, Self) {
-        let (mut shi, mut chi) = (f64::NAN, f64::NAN);
-        unsafe {
-            crate::ffi::xsf::shichi(self, &raw mut shi, &raw mut chi);
-        }
-        (shi, chi)
+        crate::utils::out2(|shi, chi| unsafe { crate::ffi::xsf::shichi(self, shi, chi) })
     }
 }
 
 impl SiciArg for num_complex::Complex64 {
     #[inline]
     fn sici(self) -> (Self, Self) {
-        let (mut si, mut ci) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
-        unsafe {
-            crate::ffi::xsf::sici_1(self, &raw mut si, &raw mut ci);
-        }
-        (si, ci)
+        crate::utils::out2(|si, ci| unsafe { crate::ffi::xsf::sici_1(self, si, ci) })
     }
 
     #[inline]
     fn shichi(self) -> (Self, Self) {
-        let (mut shi, mut chi) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
-        unsafe {
-            crate::ffi::xsf::shichi_1(self, &raw mut shi, &raw mut chi);
-        }
-        (shi, chi)
+        crate::utils::out2(|shi, chi| unsafe { crate::ffi::xsf::shichi_1(self, shi, chi) })
     }
 }
 

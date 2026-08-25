@@ -1,14 +1,4 @@
-use num_complex::Complex;
-
-const CNAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
-
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait AiryArg: sealed::Sealed + Sized {
+pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
     fn airye(self) -> [Self; 4];
 }
@@ -16,40 +6,36 @@ pub trait AiryArg: sealed::Sealed + Sized {
 impl AiryArg for f64 {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        let [mut ai, mut aip, mut bi, mut bip] = [f64::NAN; 4];
-        unsafe {
-            crate::ffi::xsf::airy(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
-        }
-        [ai, aip, bi, bip]
+        crate::utils::out4(|ai, aip, bi, bip| unsafe {
+            crate::ffi::xsf::airy(self, ai, aip, bi, bip);
+        })
+        .into()
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        let [mut ai, mut aip, mut bi, mut bip] = [f64::NAN; 4];
-        unsafe {
-            crate::ffi::xsf::airye(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
-        }
-        [ai, aip, bi, bip]
+        crate::utils::out4(|ai, aip, bi, bip| unsafe {
+            crate::ffi::xsf::airye(self, ai, aip, bi, bip);
+        })
+        .into()
     }
 }
 
 impl AiryArg for num_complex::Complex<f64> {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        let [mut ai, mut aip, mut bi, mut bip] = [CNAN; 4];
-        unsafe {
-            crate::ffi::xsf::airy_1(self, &raw mut ai, &raw mut aip, &raw mut bi, &raw mut bip);
-        }
-        [ai, aip, bi, bip]
+        crate::utils::out4(|ai, aip, bi, bip| unsafe {
+            crate::ffi::xsf::airy_1(self, ai, aip, bi, bip);
+        })
+        .into()
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        let [mut ai, mut bi, mut ad, mut bd] = [CNAN; 4];
-        unsafe {
-            crate::ffi::xsf::airye_1(self, &raw mut ai, &raw mut bi, &raw mut ad, &raw mut bd);
-        }
-        [ai, bi, ad, bd]
+        crate::utils::out4(|ai, bi, ad, bd| unsafe {
+            crate::ffi::xsf::airye_1(self, ai, bi, ad, bd);
+        })
+        .into()
     }
 }
 
@@ -130,17 +116,10 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
 #[must_use]
 #[inline]
 pub fn airy_integrals(x: f64) -> [f64; 4] {
-    let [mut itaip, mut itbip, mut itain, mut itbin] = [f64::NAN; 4];
-    unsafe {
-        crate::ffi::xsf::itairy(
-            x,
-            &raw mut itaip,
-            &raw mut itbip,
-            &raw mut itain,
-            &raw mut itbin,
-        );
-    }
-    [itaip, itbip, itain, itbin]
+    crate::utils::out4(|itaip, itbip, itain, itbin| unsafe {
+        crate::ffi::xsf::itairy(x, itaip, itbip, itain, itbin);
+    })
+    .into()
 }
 
 #[inline]

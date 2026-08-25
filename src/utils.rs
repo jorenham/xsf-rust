@@ -1,4 +1,21 @@
 #[inline]
+pub(crate) fn out2<T: Copy + From<f64>>(f: impl FnOnce(*mut T, *mut T)) -> (T, T) {
+    let (mut a, mut b) = (T::from(f64::NAN), T::from(f64::NAN));
+    f(&raw mut a, &raw mut b);
+    (a, b)
+}
+
+#[inline]
+pub(crate) fn out4<T: Copy + From<f64>>(
+    f: impl FnOnce(*mut T, *mut T, *mut T, *mut T),
+) -> (T, T, T, T) {
+    let nan = T::from(f64::NAN);
+    let (mut a, mut b, mut c, mut d) = (nan, nan, nan, nan);
+    f(&raw mut a, &raw mut b, &raw mut c, &raw mut d);
+    (a, b, c, d)
+}
+
+#[inline]
 pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
     xs.into_iter().map(S::into).collect()
 }
