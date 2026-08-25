@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -322,7 +322,7 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("zeta", "Dd->D"),
 ];
 
-const _CPP_COMPLEX_HELPERS: &str = r#"
+const CPP_COMPLEX_HELPERS: &str = r#"
 // C-ABI compatible complex type (same layout as std::complex<double>)
 // Hide the struct definition from bindgen - we'll provide our own type alias in Rust
 #ifndef BINDGEN
@@ -340,10 +340,11 @@ struct c_complex;
 inline c_complex to_c_complex(std::complex<double> z) { return c_complex{z.real(), z.imag()}; }
 inline std::complex<double> to_cpp_complex(c_complex z) { return std::complex<double>(z.re, z.im); }
 inline std::complex<double> *as_cpp_complex(c_complex *p) { return reinterpret_cast<std::complex<double> *>(p); }
+inline std::complex<double> &as_cpp_complex(c_complex &z) { return reinterpret_cast<std::complex<double> &>(z); }
 #endif
 "#;
 
-const _CPP_WRAPPERS: &str = r#"
+const CPP_WRAPPERS: &str = r#"
 // cephes/erfinv.h
 double erfinv(double y) {
     return xsf::cephes::erfinv(y);
@@ -559,34 +560,24 @@ fn fmt_return(spec: &str) -> &str {
     }
 }
 
-fn fmt_params(spec: &str, types: bool) -> String {
+fn fmt_params(spec: &str) -> String {
     let (inputs, outputs) = split_typespec(spec);
 
     let mut params = inputs
         .chars()
         .map(get_ctype)
         .enumerate()
-        .map(|(i, ct)| {
-            if types {
-                format!("{ct} x{i}")
-            } else {
-                format!("x{i}")
-            }
-        })
+        .map(|(i, ct)| format!("{ct} x{i}"))
         .collect::<Vec<_>>();
 
     if outputs.len() > 1 {
-        if types {
-            params.extend(
-                outputs
-                    .chars()
-                    .map(get_ctype)
-                    .enumerate()
-                    .map(|(i, ct)| format!("{ct} &y{i}")),
-            );
-        } else {
-            params.extend((0..outputs.len()).map(|i| format!("y{i}")));
-        }
+        params.extend(
+            outputs
+                .chars()
+                .map(get_ctype)
+                .enumerate()
+                .map(|(i, ct)| format!("{ct} &y{i}")),
+        );
     }
 
     params.join(", ")
@@ -594,7 +585,7 @@ fn fmt_params(spec: &str, types: bool) -> String {
 
 fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
     let rtype = fmt_return(spec);
-    let params = fmt_params(spec, true);
+    let params = fmt_params(spec);
 
     let fname = if suffix.is_empty() {
         name.to_string()
@@ -618,7 +609,7 @@ fn wrapper_decls() -> impl Iterator<Item = (&'static str, &'static str, String)>
     })
 }
 
-fn fmt_call(name: &str, spec: &str) -> Vec<String> {
+fn fmt_call(name: &str, spec: &str) -> String {
     let (inputs, outputs) = split_typespec(spec);
 
     let mut args = inputs
@@ -636,49 +627,18 @@ fn fmt_call(name: &str, spec: &str) -> Vec<String> {
     if outputs.len() > 1 {
         args.extend(outputs.chars().enumerate().map(|(i, c)| {
             if c == 'D' {
-                format!("cy{i}")
+                format!("as_cpp_complex(y{i})")
             } else {
                 format!("y{i}")
             }
         }));
     }
 
-    let call_args = args.join(", ");
-    let call_stmt = format!("xsf::{name}({call_args})");
-
-    if outputs.len() == 1 {
-        if outputs == "D" {
-            vec![format!("return to_c_complex({call_stmt})")]
-        } else {
-            vec![format!("return {call_stmt}")]
-        }
-    } else {
-        let mut stmts = vec![];
-
-        let cys = outputs
-            .chars()
-            .enumerate()
-            .filter_map(|(i, c)| {
-                if c == 'D' {
-                    Some(format!("cy{i}"))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        if !cys.is_empty() {
-            stmts.push(format!("std::complex<double> {cys}"));
-        }
-
-        stmts.push(call_stmt);
-
-        for (i, c) in outputs.chars().enumerate() {
-            if c == 'D' {
-                stmts.push(format!("y{i} = to_c_complex(cy{i})"));
-            }
-        }
-        stmts
+    let call = format!("xsf::{name}({})", args.join(", "));
+    match outputs {
+        "D" => format!("return to_c_complex({call})"),
+        _ if outputs.len() == 1 => format!("return {call}"),
+        _ => call,
     }
 }
 
@@ -703,7 +663,7 @@ fn generate_hpp(dir_out: &str) -> String {
     push_line(&mut source, &format!("namespace {WRAPPER_NAME} {{"));
 
     // complex helpers
-    push_line(&mut source, _CPP_COMPLEX_HELPERS);
+    push_line(&mut source, CPP_COMPLEX_HELPERS);
 
     // simple wrappers
     for (_, _, decl) in wrapper_decls() {
@@ -711,7 +671,7 @@ fn generate_hpp(dir_out: &str) -> String {
     }
 
     // additional wrappers
-    for sig in cpp_signatures(_CPP_WRAPPERS) {
+    for sig in cpp_signatures(CPP_WRAPPERS) {
         push_line(&mut source, &format!("{sig};"));
     }
 
@@ -747,14 +707,12 @@ fn generate_cpp(dir_out: &str) -> String {
     // simple wrappers
     for (name, spec, decl) in wrapper_decls() {
         push_line(&mut source, &format!("{decl} {{"));
-        for stmt in fmt_call(name, spec) {
-            push_line(&mut source, &format!("    {stmt};"));
-        }
+        push_line(&mut source, &format!("    {};", fmt_call(name, spec)));
         push_line(&mut source, "}");
     }
 
     // additional wrappers
-    push_line(&mut source, _CPP_WRAPPERS);
+    push_line(&mut source, CPP_WRAPPERS);
 
     // close namespace
     push_line(&mut source, "");
@@ -784,13 +742,15 @@ fn get_allowlist() -> String {
         WRAPPER_SPECS
             .iter()
             .map(|(name, _)| format!(r"{name}(_\d)?"))
-            .chain(cpp_signatures(_CPP_WRAPPERS).filter_map(|sig| {
+            .chain(cpp_signatures(CPP_WRAPPERS).filter_map(|sig| {
                 sig.split('(')
                     .next()?
                     .split_whitespace()
                     .last()
                     .map(String::from)
             }))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
             .collect::<Vec<_>>()
             .join("|")
     )
