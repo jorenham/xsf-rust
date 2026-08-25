@@ -126,20 +126,6 @@ impl TestOutput for Complex<f64> {
     }
 }
 
-impl TestOutput for (f32, f32) {
-    type Value = f32;
-
-    #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
-        (row[0] as f32, row[1] as f32)
-    }
-
-    #[inline]
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1]
-    }
-}
-
 impl TestOutput for (f64, f64) {
     type Value = f64;
 
