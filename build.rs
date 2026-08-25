@@ -572,32 +572,14 @@ void poisson_binom_cdf_all(size_t n, const double *p, double *res) {
 }
 "#;
 
-fn cpp_function_names(cpp: &str) -> impl Iterator<Item = &str> {
-    cpp.lines().filter_map(|line| {
-        let trimmed = line.trim_start();
-        if trimmed.contains('(') && line.ends_with(r") {") {
-            trimmed
-                .split('(')
-                .next()
-                .and_then(|part| part.split_whitespace().last())
+fn cpp_signatures(cpp: &str) -> impl Iterator<Item = &str> {
+    cpp.lines().map(|line| line.trim_end()).filter_map(|line| {
+        if !line.starts_with(' ') && line.contains('(') && line.ends_with(r") {") {
+            Some(line[..line.len() - 2].trim_end())
         } else {
             None
         }
     })
-}
-
-fn cpp_to_hpp(cpp: &str) -> String {
-    cpp.lines()
-        .map(|line| line.trim_end())
-        .filter_map(|line| {
-            if !line.starts_with(' ') && line.ends_with(r") {") && line.contains('(') {
-                Some(format!("{};", line[..line.len() - 2].trim_end()))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 fn get_ctype(code: char) -> &'static str {
@@ -606,15 +588,12 @@ fn get_ctype(code: char) -> &'static str {
         'l' => "long",
         'd' => "double",
         'D' => "c_complex",
-        'V' => "void",
         _ => panic!("Unknown parameter type"),
     }
 }
 
 fn split_typespec(spec: &str) -> (&str, &str) {
-    let parts: Vec<&str> = spec.split("->").collect();
-    assert!(parts.len() == 2);
-    (parts[0], parts[1])
+    spec.split_once("->").unwrap()
 }
 
 fn fmt_return(spec: &str) -> &str {
@@ -669,6 +648,20 @@ fn fmt_func(name: &str, spec: &str, suffix: &str) -> String {
         format!("{name}_{suffix}")
     };
     format!("{rtype} {fname}({params})")
+}
+
+fn wrapper_decls() -> impl Iterator<Item = (&'static str, &'static str, String)> {
+    let mut name_counts = HashMap::new();
+    WRAPPER_SPECS.iter().map(move |&(name, spec)| {
+        let count = name_counts.entry(name).or_insert(0);
+        let suffix = if *count == 0 {
+            String::new()
+        } else {
+            count.to_string()
+        };
+        *count += 1;
+        (name, spec, fmt_func(name, spec, &suffix))
+    })
 }
 
 fn fmt_call(name: &str, spec: &str) -> Vec<String> {
@@ -760,17 +753,14 @@ fn generate_hpp(dir_out: &str) -> String {
     push_line(&mut source, _CPP_COMPLEX_HELPERS);
 
     // simple wrappers
-    let mut name_counts = HashMap::new();
-    for (name, types) in WRAPPER_SPECS {
-        let count = name_counts.entry(*name).or_insert(0);
-        let suffix = if *count == 0 { "" } else { &count.to_string() };
-        let func_decl = fmt_func(name, types, suffix);
-        push_line(&mut source, &format!("{func_decl};"));
-        *count += 1;
+    for (_, _, decl) in wrapper_decls() {
+        push_line(&mut source, &format!("{decl};"));
     }
 
     // additional wrappers
-    push_line(&mut source, &cpp_to_hpp(_CPP_WRAPPERS));
+    for sig in cpp_signatures(_CPP_WRAPPERS) {
+        push_line(&mut source, &format!("{sig};"));
+    }
 
     // close namespace
     push_line(&mut source, "}");
@@ -802,18 +792,9 @@ fn generate_cpp(dir_out: &str) -> String {
     push_line(&mut source, "");
 
     // simple wrappers
-    let mut name_counts = HashMap::new();
-    for (name, types) in WRAPPER_SPECS {
-        let count = name_counts.entry(*name).or_insert(0);
-        let suffix = if *count == 0 { "" } else { &count.to_string() };
-        *count += 1;
-
-        let decl = fmt_func(name, types, suffix);
-        let call_stmts = fmt_call(name, types);
-        assert!(!call_stmts.is_empty());
-
+    for (name, spec, decl) in wrapper_decls() {
         push_line(&mut source, &format!("{decl} {{"));
-        for stmt in call_stmts {
+        for stmt in fmt_call(name, spec) {
             push_line(&mut source, &format!("    {stmt};"));
         }
         push_line(&mut source, "}");
@@ -833,21 +814,14 @@ fn generate_cpp(dir_out: &str) -> String {
 fn build_wrapper(dir_out: &str) {
     let file_cpp = generate_cpp(dir_out);
 
-    let mut build = cc::Build::new();
-    build
+    cc::Build::new()
         .cpp(true)
+        .std(CXX_STANDARD)
         .flag_if_supported("-Wno-unused-parameter")
         .flag_if_supported("-Wno-logical-op-parentheses")
         .include(xsf_include())
-        .file(file_cpp);
-
-    if build.get_compiler().is_like_msvc() {
-        build.flag(format!("/std:{CXX_STANDARD}"));
-    } else {
-        build.std(CXX_STANDARD);
-    }
-
-    build.compile(WRAPPER_NAME)
+        .file(file_cpp)
+        .compile(WRAPPER_NAME)
 }
 
 fn get_allowlist() -> String {
@@ -857,7 +831,13 @@ fn get_allowlist() -> String {
         WRAPPER_SPECS
             .iter()
             .map(|(name, _)| format!(r"{name}(_\d)?"))
-            .chain(cpp_function_names(_CPP_WRAPPERS).map(String::from))
+            .chain(cpp_signatures(_CPP_WRAPPERS).filter_map(|sig| {
+                sig.split('(')
+                    .next()?
+                    .split_whitespace()
+                    .last()
+                    .map(String::from)
+            }))
             .collect::<Vec<_>>()
             .join("|")
     )
