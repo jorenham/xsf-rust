@@ -339,6 +339,7 @@ struct c_complex;
 #ifndef BINDGEN
 inline c_complex to_c_complex(std::complex<double> z) { return c_complex{z.real(), z.imag()}; }
 inline std::complex<double> to_cpp_complex(c_complex z) { return std::complex<double>(z.re, z.im); }
+inline std::complex<double> *as_cpp_complex(c_complex *p) { return reinterpret_cast<std::complex<double> *>(p); }
 #endif
 "#;
 
@@ -401,11 +402,7 @@ void bernob(int n, double *bn) {
     xsf::specfun::bernob(n, bn);
 }
 void cerzo(int nt, c_complex *zo) {
-    std::vector<std::complex<double>> czo(nt);
-    xsf::specfun::cerzo(nt, czo.data());
-    for (int i = 0; i < nt; i++) {
-        zo[i] = to_c_complex(czo[i]);
-    }
+    xsf::specfun::cerzo(nt, as_cpp_complex(zo));
 }
 void eulerb(int n, double *en) {
     xsf::specfun::eulerb(n, en);
@@ -429,14 +426,7 @@ double lamv(double v, double x, double *vl, double *dl) {
 
 // airy.h
 void airyzo(size_t nt, int kf, double *xa, double *xb, double *xc, double *xd) {
-    std::vector<double> ya(nt), yb(nt), yc(nt), yd(nt);
-    xsf::airyzo(static_cast<int>(nt), kf, ya.data(), yb.data(), yc.data(), yd.data());
-    for (size_t i = 0; i < nt; i++) {
-        xa[i] = ya[i];
-        xb[i] = yb[i];
-        xc[i] = yc[i];
-        xd[i] = yd[i];
-    }
+    xsf::airyzo(static_cast<int>(nt), kf, xa, xb, xc, xd);
 }
 
 // bessel.h
@@ -458,11 +448,7 @@ c_complex cevalpoly(const double *coeffs, int degree, c_complex z) {
 
 // fresnel.h
 void fcszo(int kf, int nt, c_complex *zo) {
-    std::vector<std::complex<double>> czo(nt);
-    xsf::fcszo(kf, nt, czo.data());
-    for (int i = 0; i < nt; i++) {
-        zo[i] = to_c_complex(czo[i]);
-    }
+    xsf::fcszo(kf, nt, as_cpp_complex(zo));
 }
 
 // kelvin.h
@@ -487,45 +473,29 @@ void legendre_p_all(size_t n, double x, double *pn) {
     xsf::legendre_p_all(x, std::mdspan(pn, n + 1));
 }
 void legendre_p_all_1(size_t n, c_complex z, c_complex *pn) {
-    std::vector<std::complex<double>> cpn(n + 1);
-    xsf::legendre_p_all(to_cpp_complex(z), std::mdspan(cpn.data(), n + 1));
-    for (size_t i = 0; i <= n; i++) {
-        pn[i] = to_c_complex(cpn[i]);
-    }
+    xsf::legendre_p_all(to_cpp_complex(z), std::mdspan(as_cpp_complex(pn), n + 1));
 }
 void sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
     xsf::sph_legendre_p_all(x, std::mdspan(pnm, n + 1, 2 * m + 1));
 }
 void sph_legendre_p_all_1(size_t n, size_t m, c_complex z, c_complex *pnm) {
-    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
-    xsf::sph_legendre_p_all(to_cpp_complex(z), std::mdspan(cpnm.data(), n + 1, 2 * m + 1));
-    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
-        pnm[i] = to_c_complex(cpnm[i]);
-    }
+    xsf::sph_legendre_p_all(to_cpp_complex(z), std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1));
 }
 void assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
 }
 void assoc_legendre_p_all_0_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
-    auto res = std::mdspan(cpnm.data(), n + 1, 2 * m + 1);
+    auto res = std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, to_cpp_complex(z), bc, res);
-    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
-        pnm[i] = to_c_complex(cpnm[i]);
-    }
 }
 void assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
     auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }
 void assoc_legendre_p_all_1_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    std::vector<std::complex<double>> cpnm((n + 1) * (2 * m + 1));
-    auto res = std::mdspan(cpnm.data(), n + 1, 2 * m + 1);
+    auto res = std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, to_cpp_complex(z), bc, res);
-    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
-        pnm[i] = to_c_complex(cpnm[i]);
-    }
 }
 
 // legendre.h
@@ -533,34 +503,18 @@ void lqn(size_t n, double x, double *qn, double *qd) {
     xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
 }
 void lqn_1(size_t n, c_complex z, c_complex *qn, c_complex *qd) {
-    std::vector<std::complex<double>> cqn(n + 1);
-    std::vector<std::complex<double>> cqd(n + 1);
-    xsf::lqn(to_cpp_complex(z), std::mdspan(cqn.data(), n + 1), std::mdspan(cqd.data(), n + 1));
-    for (size_t i = 0; i <= n; i++) {
-        qn[i] = to_c_complex(cqn[i]);
-        qd[i] = to_c_complex(cqd[i]);
-    }
+    xsf::lqn(to_cpp_complex(z), std::mdspan(as_cpp_complex(qn), n + 1), std::mdspan(as_cpp_complex(qd), n + 1));
 }
 void lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
     xsf::lqmn(x, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
 }
 void lqmn_1(size_t m, size_t n, c_complex z, c_complex *qm, c_complex *qd) {
-    std::vector<std::complex<double>> cqm((m + 1) * (n + 1));
-    std::vector<std::complex<double>> cqd((m + 1) * (n + 1));
-    xsf::lqmn(to_cpp_complex(z), std::mdspan(cqm.data(), m + 1, n + 1), std::mdspan(cqd.data(), m + 1, n + 1));
-    for (size_t i = 0; i < (m + 1) * (n + 1); i++) {
-        qm[i] = to_c_complex(cqm[i]);
-        qd[i] = to_c_complex(cqd[i]);
-    }
+    xsf::lqmn(to_cpp_complex(z), std::mdspan(as_cpp_complex(qm), m + 1, n + 1), std::mdspan(as_cpp_complex(qd), m + 1, n + 1));
 }
 
 // sph_harm.h
 void sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
-    std::vector<std::complex<double>> cres((n + 1) * (2 * m + 1));
-    xsf::sph_harm_y_all(theta, phi, std::mdspan(cres.data(), n + 1, 2 * m + 1));
-    for (size_t i = 0; i < (n + 1) * (2 * m + 1); i++) {
-        res[i] = to_c_complex(cres[i]);
-    }
+    xsf::sph_harm_y_all(theta, phi, std::mdspan(as_cpp_complex(res), n + 1, 2 * m + 1));
 }
 
 // stats.h
@@ -743,7 +697,6 @@ fn generate_hpp(dir_out: &str) -> String {
 
     // includes
     push_line(&mut source, "#include <complex>");
-    push_line(&mut source, "#include <vector>");
     push_line(&mut source, "");
 
     // namespace
