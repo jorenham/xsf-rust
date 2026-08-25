@@ -93,8 +93,8 @@ pub use sphd_wave::{
 pub use stats::{
     bdtr, bdtrc, bdtri, cdf_cvm, cdf_cvm_inf, chdtr, chdtrc, chdtri, fdtr, fdtrc, fdtri, gdtr,
     gdtrc, kolmogc, kolmogci, kolmogi, kolmogorov, kolmogp, log_ndtr, nbdtr, nbdtrc, nbdtri, ndtr,
-    ndtri, owens_t, pdtr, pdtrc, pdtri, smirnov, smirnovc, smirnovci, smirnovi, smirnovp, stdtr,
-    stdtri, tukeylambdacdf,
+    ndtri, owens_t, pdtr, pdtrc, pdtri, poisson_binom_cdf_all, poisson_binom_pmf_all, smirnov,
+    smirnovc, smirnovci, smirnovi, smirnovp, stdtr, stdtri, tukeylambdacdf,
 };
 pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};

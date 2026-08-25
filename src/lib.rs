@@ -171,6 +171,13 @@
 //! | [`pdtrc`] | Complement of [`pdtr`]           |
 //! | [`pdtri`] | Inverse of [`pdtr`]              |
 //!
+//! ## Poisson binomial distribution
+//!
+//! | Function                  | Description                           |
+//! | ------------------------- | ------------------------------------- |
+//! | [`poisson_binom_pmf_all`] | Full probability mass function        |
+//! | [`poisson_binom_cdf_all`] | Full cumulative distribution function |
+//!
 //! ## Student's t distribution
 //!
 //! | Function   | Description                      |

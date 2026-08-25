@@ -598,6 +598,54 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
     unsafe { crate::ffi::xsf::bdtri(k, n as c_int, y) }
 }
 
+// Poisson binomial
+
+#[inline]
+fn poisson_binom_all(p: &[f64], f: unsafe extern "C" fn(usize, *const f64, *mut f64)) -> Vec<f64> {
+    let n = p.len();
+    let mut out = Vec::with_capacity(n + 1);
+    // SAFETY: the C++ function writes all `n + 1` elements
+    unsafe {
+        f(n, p.as_ptr(), out.as_mut_ptr());
+        out.set_len(n + 1);
+    }
+    out
+}
+
+/// Full PMF of a Poisson-Binomial distribution
+///
+/// Used internally by [`scipy.stats.poisson_binom`][poisson_binom].
+///
+/// [poisson_binom]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.poisson_binom.html
+///
+/// `p` contains the success probabilities for the $n$ Bernoulli trials. The result at index `k`
+/// contains the probability of observing $k$ successes for $k$ from $0$ to $n$.
+///
+/// # See also
+/// - [`poisson_binom_cdf_all`]: Full CDF of a Poisson-Binomial distribution
+#[must_use]
+#[inline]
+pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
+    poisson_binom_all(p, crate::ffi::xsf::poisson_binom_pmf_all)
+}
+
+/// Full CDF of a Poisson-Binomial distribution
+///
+/// Used internally by [`scipy.stats.poisson_binom`][poisson_binom].
+///
+/// [poisson_binom]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.poisson_binom.html
+///
+/// `p` contains the success probabilities for the $n$ Bernoulli trials. The result at index `k`
+/// contains the probability of observing at most $k$ successes for $k$ from $0$ to $n$.
+///
+/// # See also
+/// - [`poisson_binom_pmf_all`]: Full PMF of a Poisson-Binomial distribution
+#[must_use]
+#[inline]
+pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
+    poisson_binom_all(p, crate::ffi::xsf::poisson_binom_cdf_all)
+}
+
 // Negative Binomial
 
 /// Negative binomial distribution function
@@ -999,6 +1047,34 @@ mod tests {
         xsref::test("bdtri", "d_p_d-d", |x| {
             crate::bdtri(x[0], x[1] as i32, x[2])
         });
+    }
+
+    #[test]
+    fn test_poisson_binom_smoke() {
+        // Subset of xsf's `test_poisson_binom.cpp`
+        const K: [usize; 8] = [0, 7, 14, 21, 25, 26, 44, 51];
+        const PMF_REF: [f64; 8] = [
+            3.428_603_61e-26,
+            2.575_893_01e-11,
+            4.150_992_19e-5,
+            4.122_831_29e-2,
+            1.357_810_59e-1,
+            1.357_810_59e-1,
+            2.575_893_01e-11,
+            3.428_603_61e-26,
+        ];
+
+        // np.linspace(1e-5, 1 - 1e-5, 51)
+        let p: Vec<f64> = (0..51)
+            .map(|i| 1e-5 + f64::from(i) * (1.0 - 2e-5) / 50.0)
+            .collect();
+
+        let pmf = crate::poisson_binom_pmf_all(&p);
+        let cdf = crate::poisson_binom_cdf_all(&p);
+
+        crate::np_assert_allclose!(K.map(|k| pmf[k]), PMF_REF, rtol = 1e-8);
+
+        crate::np_assert_allclose!([cdf[25], cdf[51]], [0.5, 1.0], atol = 1e-15);
     }
 
     #[test]

@@ -562,6 +562,14 @@ void sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res
         res[i] = to_c_complex(cres[i]);
     }
 }
+
+// stats.h
+void poisson_binom_pmf_all(size_t n, const double *p, double *res) {
+    xsf::poisson_binom_pmf_all(std::mdspan(p, n), std::mdspan(res, n + 1));
+}
+void poisson_binom_cdf_all(size_t n, const double *p, double *res) {
+    xsf::poisson_binom_cdf_all(std::mdspan(p, n), std::mdspan(res, n + 1));
+}
 "#;
 
 fn cpp_function_names(cpp: &str) -> impl Iterator<Item = &str> {
