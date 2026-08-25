@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn test_bessel_i_prime() {
         // y = (special.iv(0,2) + special.iv(2,2))/2
-        let y = (crate::bessel_i(0.0, 2.0) + crate::bessel_i(2.0, 2.0)) * 0.5;
+        let y = f64::midpoint(crate::bessel_i(0.0, 2.0), crate::bessel_i(2.0, 2.0));
         // x = special.ivp(1,2)
         let x = crate::bessel_i_prime(1.0, 2.0, 1);
         // assert_allclose(x, y, atol=1.5e-10, rtol=0)
