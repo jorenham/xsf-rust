@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait ExpIntArg: sealed::Sealed {
+pub trait ExpIntArg: crate::sealed::Sealed {
     fn expi(self) -> Self;
     fn exp1(self) -> Self;
 }

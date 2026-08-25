@@ -1,12 +1,6 @@
 use num_complex::Complex;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait Hyp1F1Arg: sealed::Sealed {
+pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
 }
 

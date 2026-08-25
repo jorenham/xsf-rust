@@ -7,7 +7,7 @@ use num_complex::{Complex, c64};
 use polars::error::PolarsError;
 use polars::io::SerReader;
 use polars::io::parquet::read::ParquetReader;
-use polars::prelude::{AnyValue, Column, DataFrame};
+use polars::prelude::{Column, DataFrame, DataType};
 
 use crate::{ExtendedErrorArg, extended_absolute_error, extended_relative_error};
 
@@ -126,20 +126,6 @@ impl TestOutput for Complex<f64> {
     }
 }
 
-impl TestOutput for (f32, f32) {
-    type Value = f32;
-
-    #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
-        (row[0] as f32, row[1] as f32)
-    }
-
-    #[inline]
-    fn values(&self) -> Vec<Self::Value> {
-        vec![self.0, self.1]
-    }
-}
-
 impl TestOutput for (f64, f64) {
     type Value = f64;
 
@@ -239,34 +225,10 @@ fn for_each_column_value<F>(column: &Column, mut f: F) -> Result<(), TestError>
 where
     F: FnMut(f64) -> Result<(), TestError>,
 {
-    let series = column.as_materialized_series();
-
-    macro_rules! consume_chunked {
-        ($method:ident, $cast:expr) => {
-            if let Ok(ca) = series.$method() {
-                for value in ca.iter() {
-                    let value = value.map($cast).unwrap_or(f64::NAN);
-                    f(value)?;
-                }
-                return Ok(());
-            }
-        };
+    let series = column.as_materialized_series().cast(&DataType::Float64)?;
+    for value in series.f64()?.iter() {
+        f(value.unwrap_or(f64::NAN))?;
     }
-
-    consume_chunked!(f64, |v: f64| v);
-    consume_chunked!(i64, |v: i64| v as f64);
-    consume_chunked!(i32, |v: i32| v as f64);
-
-    for value in series.iter() {
-        let _ = f(match value {
-            AnyValue::Null => f64::NAN,
-            AnyValue::Float64(v) => v,
-            AnyValue::Int64(v) => v as f64,
-            AnyValue::Int32(v) => v as f64,
-            _ => value.try_extract::<f64>().map_err(TestError::from)?,
-        });
-    }
-
     Ok(())
 }
 

@@ -1,35 +1,21 @@
 use core::ffi::c_int;
 use num_complex::Complex;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait FresnelArg: sealed::Sealed + Sized {
+pub trait FresnelArg: crate::sealed::Sealed + Sized {
     fn fresnel(self) -> (Self, Self);
 }
 
 impl FresnelArg for f64 {
     #[inline]
     fn fresnel(self) -> (Self, Self) {
-        let (mut fs, mut fc) = (f64::NAN, f64::NAN);
-        unsafe {
-            crate::ffi::xsf::fresnel(self, &raw mut fs, &raw mut fc);
-        }
-        (fs, fc)
+        crate::utils::out2(|fs, fc| unsafe { crate::ffi::xsf::fresnel(self, fs, fc) })
     }
 }
 
 impl FresnelArg for Complex<f64> {
     #[inline]
     fn fresnel(self) -> (Self, Self) {
-        let (mut fs, mut fc) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
-        unsafe {
-            crate::ffi::xsf::fresnel_1(self, &raw mut fs, &raw mut fc);
-        }
-        (fs, fc)
+        crate::utils::out2(|fs, fc| unsafe { crate::ffi::xsf::fresnel_1(self, fs, fc) })
     }
 }
 
@@ -72,11 +58,7 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 #[must_use]
 #[inline]
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let (mut fp, mut kp) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
-    unsafe {
-        crate::ffi::xsf::modified_fresnel_plus(x, &raw mut fp, &raw mut kp);
-    }
-    (fp, kp)
+    crate::utils::out2(|fp, kp| unsafe { crate::ffi::xsf::modified_fresnel_plus(x, fp, kp) })
 }
 
 /// Modified Fresnel negative integrals
@@ -96,11 +78,7 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 #[must_use]
 #[inline]
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    let (mut fm, mut km) = (Complex::new(f64::NAN, 0.0), Complex::new(f64::NAN, 0.0));
-    unsafe {
-        crate::ffi::xsf::modified_fresnel_minus(x, &raw mut fm, &raw mut km);
-    }
-    (fm, km)
+    crate::utils::out2(|fm, km| unsafe { crate::ffi::xsf::modified_fresnel_minus(x, fm, km) })
 }
 
 /// Zeros of Fresnel integrals S(z) and C(z)

@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait ZetaArg: sealed::Sealed {
+pub trait ZetaArg: crate::sealed::Sealed {
     fn riemann_zeta(self) -> Self;
     fn zeta(self, q: f64) -> Self;
 }

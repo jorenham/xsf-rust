@@ -159,14 +159,10 @@ pub fn keip(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kelvin(x: f64) -> [num_complex::Complex<f64>; 4] {
-    let mut be = num_complex::Complex::new(f64::NAN, 0.0);
-    let mut ke = num_complex::Complex::new(f64::NAN, 0.0);
-    let mut bep = num_complex::Complex::new(f64::NAN, 0.0);
-    let mut kep = num_complex::Complex::new(f64::NAN, 0.0);
-    unsafe {
-        crate::ffi::xsf::kelvin(x, &raw mut be, &raw mut ke, &raw mut bep, &raw mut kep);
-    }
-    [be, ke, bep, kep]
+    crate::utils::out4(|be, ke, bep, kep| unsafe {
+        crate::ffi::xsf::kelvin(x, be, ke, bep, kep);
+    })
+    .into()
 }
 
 #[repr(C)]

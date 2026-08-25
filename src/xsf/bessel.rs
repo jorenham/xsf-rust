@@ -1,16 +1,12 @@
+use core::ops::{Add, Mul};
+
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-mod sealed {
-    use core::ops::{Add, Mul};
-
-    // the additional bounds are needed for the arithmetic in `_bessel_diff_formula`
-    pub trait Sealed: Copy + From<f64> + Add<Output = Self> + Mul<Output = Self> {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait BesselArg: sealed::Sealed {
+// the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
+pub trait BesselArg:
+    crate::sealed::Sealed + Copy + From<f64> + Add<Output = Self> + Mul<Output = Self>
+{
     fn bessel_j(self, v: f64) -> Self;
     fn bessel_je(self, v: f64) -> Self;
     fn bessel_y(self, v: f64) -> Self;
@@ -598,11 +594,7 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn it1j0y0(x: f64) -> (f64, f64) {
-    let (mut j0int, mut y0int) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::it1j0y0(x, &raw mut j0int, &raw mut y0int);
-    }
-    (j0int, y0int)
+    crate::utils::out2(|j0int, y0int| unsafe { crate::ffi::xsf::it1j0y0(x, j0int, y0int) })
 }
 
 /// Integrals related to Bessel functions of the first kind of order 0
@@ -622,11 +614,7 @@ pub fn it1j0y0(x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn it2j0y0(x: f64) -> (f64, f64) {
-    let (mut j0int, mut y0int) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::it2j0y0(x, &raw mut j0int, &raw mut y0int);
-    }
-    (j0int, y0int)
+    crate::utils::out2(|j0int, y0int| unsafe { crate::ffi::xsf::it2j0y0(x, j0int, y0int) })
 }
 
 /// Integrals of modified Bessel functions of order 0
@@ -647,11 +635,7 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn it1i0k0(x: f64) -> (f64, f64) {
-    let (mut i0int, mut k0int) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::it1i0k0(x, &raw mut i0int, &raw mut k0int);
-    }
-    (i0int, k0int)
+    crate::utils::out2(|i0int, k0int| unsafe { crate::ffi::xsf::it1i0k0(x, i0int, k0int) })
 }
 
 /// Integrals related to modified Bessel functions of order 0.
@@ -671,11 +655,7 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn it2i0k0(x: f64) -> (f64, f64) {
-    let (mut i0int, mut k0int) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::it2i0k0(x, &raw mut i0int, &raw mut k0int);
-    }
-    (i0int, k0int)
+    crate::utils::out2(|i0int, k0int| unsafe { crate::ffi::xsf::it2i0k0(x, i0int, k0int) })
 }
 
 // Riccati-Bessel

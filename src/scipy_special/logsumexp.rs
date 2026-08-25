@@ -50,9 +50,6 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
     // Shift, exponentiate, and sum
     let s = xs.map(|x| (x - x_max).exp()).sum::<f64>();
 
-    // The log functions need positive arguments
-    let s = if s < -1.0 { -s - 2.0 } else { s };
-
     // Take log and undo shift
     s.ln_1p() + m.ln() + x_max
 }
@@ -107,9 +104,7 @@ pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
     let x_max = if x_max.is_finite() { x_max } else { 0.0 };
 
     let xs0 = xs.iter().map(|&x| x - x_max).collect::<Vec<f64>>();
-    let exs0 = xs0.iter().map(|&x| x.exp()).collect::<Vec<f64>>();
-
-    let s = exs0.iter().sum::<f64>().ln();
+    let s = xs0.iter().map(|&x| x.exp()).sum::<f64>().ln();
     xs0.iter().map(|&x| x - s).collect()
 }
 

@@ -2,13 +2,7 @@ use core::f64;
 use core::f64::consts::{FRAC_1_PI, PI};
 use core::ffi::c_int;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait StatsArg: sealed::Sealed {
+pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
     fn log_ndtr(self) -> Self;
 }

@@ -136,13 +136,7 @@ fn cspence_series1(z: Complex64) -> Complex64 {
     res
 }
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait SpenceArg: sealed::Sealed {
+pub trait SpenceArg: crate::sealed::Sealed {
     fn spence(self) -> Self;
 }
 

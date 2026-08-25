@@ -2,13 +2,7 @@
 
 use core::f64::consts::{LN_2, LOG2_E};
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f32 {}
-    impl Sealed for f64 {}
-}
-
-pub trait LogAddExpArg: sealed::Sealed {
+pub trait LogAddExpArg: crate::sealed::Sealed {
     const ZERO: Self;
     fn npy_logaddexp(self, other: Self) -> Self;
     fn npy_logaddexp2(self, other: Self) -> Self;

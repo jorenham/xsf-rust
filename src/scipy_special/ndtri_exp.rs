@@ -47,42 +47,14 @@ const Q2: [f64; 8] = [
 
 /// Translated from cephes/polevl.h
 #[inline]
-fn polevl(x: f64, coef: &[f64], n: usize) -> f64 {
-    // double ans;
-    // int i;
-    // const double *p;
-    // p = coef;
-    // ans = *p++;
-    // i = N;
-    // do {
-    //     ans = ans * x + *p++;
-    // } while (--i);
-    // return (ans);
-
-    coef.iter()
-        .take(n + 1)
-        .copied()
-        .reduce(|acc, c| acc * x + c)
-        .unwrap_or(0.0)
+fn polevl(x: f64, coef: &[f64]) -> f64 {
+    coef.iter().copied().reduce(|acc, c| acc * x + c).unwrap()
 }
 
-/// Translated from cephes/polevl.h
+/// Translated from cephes/polevl.h; the leading coefficient is an implicit 1
 #[inline]
-fn p1evl(x: f64, coef: &[f64], n: usize) -> f64 {
-    // double ans;
-    // const double *p;
-    // int i;
-    // p = coef;
-    // ans = x + *p++;
-    // i = N - 1;
-    // do
-    //     ans = ans * x + *p++;
-    // while (--i);
-    // return (ans);
-    core::iter::once(x + coef[0])
-        .chain(coef.iter().take(n + 1).skip(1).copied())
-        .reduce(|acc, c| acc * x + c)
-        .unwrap_or(x)
+fn p1evl(x: f64, coef: &[f64]) -> f64 {
+    coef.iter().fold(1.0, |acc, &c| acc * x + c)
 }
 
 /// Return inverse of log CDF of normal distribution for very small y
@@ -101,9 +73,9 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     let x0 = x - x.ln() / x;
     let z = x.recip();
     let x1 = z * if x < 8.0 {
-        polevl(z, &P1, 8) / p1evl(z, &Q1, 8)
+        polevl(z, &P1) / p1evl(z, &Q1)
     } else {
-        polevl(z, &P2, 8) / p1evl(z, &Q2, 8)
+        polevl(z, &P2) / p1evl(z, &Q2)
     };
     x1 - x0
 }

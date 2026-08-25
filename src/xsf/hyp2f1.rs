@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait Hyp2F1Arg: sealed::Sealed {
+pub trait Hyp2F1Arg: crate::sealed::Sealed {
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self;
 }
 

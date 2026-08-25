@@ -68,11 +68,9 @@ pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_aswfa_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_aswfa_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal angular function of the 1st kind and its derivative
@@ -101,11 +99,9 @@ pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_aswfa_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_aswfa_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Prolate spheroidal radial function of the 1st kind and its derivative
@@ -134,11 +130,9 @@ pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_radial1_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_radial1_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal radial function of the 1st kind and its derivative
@@ -168,11 +162,9 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_radial1_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_radial1_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Prolate spheroidal radial function of the 2nd kind and its derivative
@@ -202,11 +194,9 @@ pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_radial2_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_radial2_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal radial function of the 2nd kind and its derivative
@@ -236,11 +226,9 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_radial2_nocv(m as f64, n as f64, c, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_radial2_nocv(m as f64, n as f64, c, x, s, sp);
+    })
 }
 
 /// Prolate spheroidal angular function for precomputed characteristic value
@@ -269,11 +257,9 @@ pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_aswfa(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_aswfa(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal angular function for precomputed characteristic value
@@ -302,11 +288,9 @@ pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_aswfa(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_aswfa(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 /// Prolate spheroidal radial function of the 1st kind for precomputed characteristic value
@@ -337,11 +321,9 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_radial1(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_radial1(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal radial function of the 1st kind for precomputed characteristic value
@@ -372,11 +354,9 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_radial1(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_radial1(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 /// Prolate spheroidal radial function of the 2nd kind for precomputed characteristic value
@@ -407,11 +387,9 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::prolate_radial2(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::prolate_radial2(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 /// Oblate spheroidal radial function of the 2nd kind for precomputed characteristic value
@@ -442,11 +420,9 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    let (mut s, mut sp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::oblate_radial2(m as f64, n as f64, c, cv, x, &raw mut s, &raw mut sp);
-    }
-    (s, sp)
+    crate::utils::out2(|s, sp| unsafe {
+        crate::ffi::xsf::oblate_radial2(m as f64, n as f64, c, cv, x, s, sp);
+    })
 }
 
 #[cfg(test)]

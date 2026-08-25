@@ -24,11 +24,7 @@
 #[must_use]
 #[inline]
 pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
-    let (mut w, mut wd) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::pbwa(a, x, &raw mut w, &raw mut wd);
-    }
-    (w, wd)
+    crate::utils::out2(|w, wd| unsafe { crate::ffi::xsf::pbwa(a, x, w, wd) })
 }
 
 /// Parabolic cylinder function $D$
@@ -55,11 +51,7 @@ pub fn pbwa(a: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
-    let (mut d, mut dp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::pbdv(v, x, &raw mut d, &raw mut dp);
-    }
-    (d, dp)
+    crate::utils::out2(|d, dp| unsafe { crate::ffi::xsf::pbdv(v, x, d, dp) })
 }
 
 /// Parabolic cylinder function $V$
@@ -86,11 +78,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
-    let (mut vv, mut vp) = (f64::NAN, f64::NAN);
-    unsafe {
-        crate::ffi::xsf::pbvv(v, x, &raw mut vv, &raw mut vp);
-    }
-    (vv, vp)
+    crate::utils::out2(|vv, vp| unsafe { crate::ffi::xsf::pbvv(v, x, vv, vp) })
 }
 
 #[cfg(test)]
