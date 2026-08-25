@@ -78,7 +78,7 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if nu == 1.0 {
         0.5 + FRAC_1_PI * x.atan()
     } else if nu == 2.0 {
-        0.5 * (1.0 + x / (2.0 + x * x).sqrt())
+        f64::midpoint(1.0, x / (2.0 + x * x).sqrt())
     } else {
         let p = 0.5 * crate::betainc(0.5 * nu, 0.5, nu / (nu + x * x));
         if x >= 0.0 { 1.0 - p } else { p }

@@ -216,7 +216,7 @@ mod tests {
 
         // lambda = 2  =>  y = 0.5*((1+x)**2 - 1) = 0.5*x*(2 + x)
         let y = map2(crate::boxcox1p, &x, &[2.0; 7]);
-        let expected = x.map(|xi| 0.5 * (xi * xi + 2.0 * xi));
+        let expected = x.map(|xi| f64::midpoint(xi * xi, 2.0 * xi));
         crate::np_assert_allclose!(&y, &expected, atol = 1.5e-7);
 
         // x = -1 and lambda > 0  =>  y = -1 / lambda
