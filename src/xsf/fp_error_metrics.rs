@@ -1,12 +1,6 @@
 use num_complex::Complex;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait ExtendedErrorArg: sealed::Sealed {
+pub trait ExtendedErrorArg: crate::sealed::Sealed {
     fn xsf_extended_absolute_error(self, other: Self) -> f64;
     fn xsf_extended_relative_error(self, other: Self) -> f64;
     fn xsf_magnitude(self) -> f64;

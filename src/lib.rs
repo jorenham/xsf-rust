@@ -501,6 +501,13 @@ mod scipy_special;
 mod utils;
 mod xsf;
 
+pub(crate) mod sealed {
+    pub trait Sealed {}
+    impl Sealed for f32 {}
+    impl Sealed for f64 {}
+    impl Sealed for num_complex::Complex<f64> {}
+}
+
 pub use numpy::*;
 pub use scipy_special::*;
 pub use xsf::cephes::*;

@@ -117,13 +117,7 @@ fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     }
 }
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait HypergeometricArg: sealed::Sealed {
+pub trait HypergeometricArg: crate::sealed::Sealed {
     fn hyp0f0(self) -> Self;
     fn hyp1f0(self, a: f64) -> Self;
     fn hyp0f1(self, b: f64) -> Self;

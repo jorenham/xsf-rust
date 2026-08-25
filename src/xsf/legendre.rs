@@ -1,13 +1,7 @@
 use crate::utils;
 use core::ffi::c_int;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait LegendrePArg: sealed::Sealed + Sized {
+pub trait LegendrePArg: crate::sealed::Sealed + Sized {
     fn legendre_p(self, n: c_int) -> Self;
     fn legendre_p_all(self, n: usize) -> Vec<Self>;
     fn sph_legendre_p(self, n: c_int, m: c_int) -> Self;
@@ -128,7 +122,7 @@ impl LegendrePArg for num_complex::Complex<f64> {
     }
 }
 
-pub trait LegendreQArg: sealed::Sealed + Sized {
+pub trait LegendreQArg: crate::sealed::Sealed + Sized {
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>);
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>);
 }

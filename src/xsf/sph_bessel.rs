@@ -1,12 +1,6 @@
 use core::ffi::c_long;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait SphBesselArg: sealed::Sealed {
+pub trait SphBesselArg: crate::sealed::Sealed {
     fn sph_bessel_j(self, n: c_long) -> Self;
     fn sph_bessel_y(self, n: c_long) -> Self;
     fn sph_bessel_i(self, n: c_long) -> Self;

@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait TrigArg: sealed::Sealed {
+pub trait TrigArg: crate::sealed::Sealed {
     fn sinpi(self) -> Self;
     fn cospi(self) -> Self;
 }

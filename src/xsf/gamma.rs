@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait GammaArg: sealed::Sealed {
+pub trait GammaArg: crate::sealed::Sealed {
     fn xsf_gamma(self) -> Self;
 }
 

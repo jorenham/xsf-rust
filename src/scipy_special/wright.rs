@@ -327,13 +327,7 @@ fn wrightomega_real(x: f64) -> f64 {
     }
 }
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait WrightOmegaArg: sealed::Sealed {
+pub trait WrightOmegaArg: crate::sealed::Sealed {
     fn wrightomega(self) -> Self;
 }
 

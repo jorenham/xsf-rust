@@ -1,10 +1,4 @@
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex<f64> {}
-}
-
-pub trait DigammaArg: sealed::Sealed {
+pub trait DigammaArg: crate::sealed::Sealed {
     fn digamma(self) -> Self;
 }
 

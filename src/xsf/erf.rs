@@ -1,12 +1,6 @@
 use num_complex::Complex64;
 
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for f64 {}
-    impl Sealed for num_complex::Complex64 {}
-}
-
-pub trait ErfArg: sealed::Sealed {
+pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
     fn erfc(self) -> Self;
     fn erfcx(self) -> Self;
