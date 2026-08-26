@@ -37,6 +37,29 @@ jobs:
       - name: rustfmt Check
         uses: actions-rust-lang/rustfmt@v1.1.2
 
+  msrv:
+    runs-on: ubuntu-latest
+    name: MSRV
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+
+      - name: read rust-version from Cargo.toml
+        id: msrv
+        run: >-
+          echo "msrv=$(cargo metadata --no-deps --format-version=1
+          | jq -r '.packages[] | select(.name == "xsf") | .rust_version')"
+          >> "$GITHUB_OUTPUT"
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          toolchain: ${{ steps.msrv.outputs.msrv }}
+
+      - name: cargo check
+        run: cargo check
+
   test:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
