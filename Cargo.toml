@@ -9,7 +9,7 @@ keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause"
 readme = "README.md"
 repository = "https://github.com/jorenham/xsf-rust"
-rust-version = "1.85.1"
+rust-version = "1.85"
 description = "Rust implementations and bindings for scipy.special functions."
 
 [package.metadata.docs.rs]
