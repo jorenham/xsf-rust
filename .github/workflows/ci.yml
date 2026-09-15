@@ -28,9 +28,9 @@ jobs:
           persist-credentials: false
 
       - name: dprint
-        uses: dprint/check@9cb3a2b17a8e606d37aae341e49df3654933fc23 # v2.3
+        uses: dprint/check@7dc032d8874778fc024f6f9b4a7e6d896782c330 # v2.5
 
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           components: clippy, rustfmt
 
@@ -59,7 +59,7 @@ jobs:
           | jq -r '.packages[] | select(.name == "xsf") | .rust_version')"
           >> "$GITHUB_OUTPUT"
 
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: ${{ steps.msrv.outputs.msrv }}
 
