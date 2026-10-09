@@ -113,8 +113,6 @@ mod tests {
     //! Translated from `scipy.special.tests.TestNdtriExp` at
     //! <https://github.com/scipy/scipy/blob/5a7df53/scipy/special/tests/test_ndtri_exp.py>
 
-    use core::f64;
-
     use crate::np_assert_allclose;
 
     const UNIFORM_RANDOM_POINTS: [f64; 20] = [

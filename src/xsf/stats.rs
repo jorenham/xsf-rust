@@ -1,4 +1,3 @@
-use core::f64;
 use core::f64::consts::{FRAC_1_PI, PI};
 use core::ffi::c_int;
 

@@ -374,7 +374,7 @@ pub fn wrightomega<T: WrightOmegaArg>(z: T) -> T {
 mod tests {
     //! based on <https://github.com/scipy/scipy/blob/main/scipy/special/tests/test_wrightomega.py>
 
-    use core::f64::{self, consts::PI};
+    use core::f64::consts::PI;
     use num_complex::c64;
     use xsref::np_assert_allclose;
 
