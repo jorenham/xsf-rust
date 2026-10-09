@@ -379,7 +379,7 @@ mod tests {
         let result = crate::mathieu_even_coef(2, 1.0);
         assert!(result.is_ok());
         let coefs = result.unwrap();
-        assert!(!coefs.is_empty());
+        assert_ne!(coefs, [] as [f64; 0]);
         assert!(coefs.iter().all(|&c| c.is_finite()));
 
         // Test with q = 0
@@ -397,7 +397,7 @@ mod tests {
         let result = crate::mathieu_odd_coef(1, 1.0);
         assert!(result.is_ok());
         let coefs = result.unwrap();
-        assert!(!coefs.is_empty());
+        assert_ne!(coefs, [] as [f64; 0]);
         assert!(coefs.iter().all(|&c| c.is_finite()));
 
         // Test with q = 0
