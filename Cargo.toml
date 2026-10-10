@@ -20,8 +20,7 @@ num-complex = "0.4.6"
 num-traits = "0.2.19"
 
 [build-dependencies]
-cc = "1.6.0"
-bindgen = { version = "0.73.2", default-features = false, features = ["runtime"] }
+cc = "1.7.0"
 
 [dev-dependencies]
 xsref = { path = "testing" }
