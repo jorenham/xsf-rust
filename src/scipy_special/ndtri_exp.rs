@@ -2,6 +2,8 @@
 
 use core::f64::consts::SQRT_2;
 
+use crate::xsf::cephes::polevl::{p1evl, polevl};
+
 const P1: [f64; 9] = [
     4.055_448_923_059_624_5,
     3.152_510_945_998_938_8e1,
@@ -44,18 +46,6 @@ const Q2: [f64; 8] = [
     2.892_478_647_453_806_8e-6,
     6.790_194_080_099_813e-9,
 ];
-
-/// Translated from cephes/polevl.h
-#[inline]
-fn polevl(x: f64, coef: &[f64]) -> f64 {
-    coef.iter().copied().reduce(|acc, c| acc * x + c).unwrap()
-}
-
-/// Translated from cephes/polevl.h; the leading coefficient is an implicit 1
-#[inline]
-fn p1evl(x: f64, coef: &[f64]) -> f64 {
-    coef.iter().fold(1.0, |acc, &c| acc * x + c)
-}
 
 /// Return inverse of log CDF of normal distribution for very small y
 ///

@@ -49,7 +49,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "sphd_wave.h",
     "stats.h",
     "struve.h",
-    "trig.h",
     "wright_bessel.h",
     "zeta.h",
 ];
@@ -296,17 +295,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("itmodstruve0", "d->d"),
     ("struve_h", "dd->d"),
     ("struve_l", "dd->d"),
-    // trig.h
-    ("sinpi", "d->d"),
-    ("sinpi", "D->D"),
-    ("cospi", "d->d"),
-    ("cospi", "D->D"),
-    ("sindg", "d->d"),
-    ("cosdg", "d->d"),
-    ("tandg", "d->d"),
-    ("cotdg", "d->d"),
-    ("cosm1", "d->d"),
-    ("radian", "ddd->d"),
     // wright_bessel.h
     ("wright_bessel", "ddd->d"),
     ("log_wright_bessel", "ddd->d"),
