@@ -37,6 +37,13 @@ jobs:
       - name: clippy
         run: cargo clippy --all-targets --all-features
 
+      - name: rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo doc --no-deps --all-features
+          cargo doc --no-deps --all-features --document-private-items
+
       - name: rustfmt Check
         uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1.1.2
 
