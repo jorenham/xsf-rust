@@ -134,6 +134,10 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
      *
      * so we can compute exp(y/2), scale by the right factor of sin/cos
      * and then multiply by exp(y/2) to avoid overflow. */
+    // NOTE(xsf-rust): unlike xsf v0.2.2, this accounts for sgn(y), propagates NaN, and avoids
+    // premature rounding of tiny sin/cos factors. It still overflows prematurely if
+    // exp(|pi y|/2) overflows while the result wouldn't (only for |x| < ~1e-308).
+    let cospix = 1.0_f64.copysign(piy) * cospix;
     let exphpiy = (abspiy / 2.0).exp();
     let coshfac;
     let sinhfac;
@@ -142,19 +146,19 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
             // Preserve the sign of zero.
             coshfac = 0.0_f64.copysign(sinpix);
         } else {
-            coshfac = f64::INFINITY.copysign(sinpix);
+            coshfac = sinpix * f64::INFINITY;
         }
         if cospix == 0.0 {
             // Preserve the sign of zero.
             sinhfac = 0.0_f64.copysign(cospix);
         } else {
-            sinhfac = f64::INFINITY.copysign(cospix);
+            sinhfac = cospix * f64::INFINITY;
         }
         return Complex::new(coshfac, sinhfac);
     }
 
-    coshfac = 0.5 * sinpix * exphpiy;
-    sinhfac = 0.5 * cospix * exphpiy;
+    coshfac = sinpix * exphpiy * 0.5;
+    sinhfac = cospix * exphpiy * 0.5;
     Complex::new(coshfac * exphpiy, sinhfac * exphpiy)
 }
 
@@ -172,30 +176,31 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     }
 
     // See csinpi(z) for an idea of what's going on here.
-    // NOTE(xsf-rust): translated as-is, but in xsf v0.2.2 the rest of this function is incorrect:
-    // the imaginary part has the wrong sign, the sign of y is ignored, and the two zero checks
-    // below are swapped.
+    // NOTE(xsf-rust): unlike xsf v0.2.2, this uses the correct sign of the imaginary part,
+    // accounts for sgn(y), checks the right factor for zero, propagates NaN, and avoids premature
+    // rounding of tiny sin/cos factors (see csinpi(z) for the remaining limitation).
+    let sinpix = -1.0_f64.copysign(piy) * sinpix;
     let exphpiy = (abspiy / 2.0).exp();
     let coshfac;
     let sinhfac;
     if exphpiy == f64::INFINITY {
-        if sinpix == 0.0 {
+        if cospix == 0.0 {
             // Preserve the sign of zero.
             coshfac = 0.0_f64.copysign(cospix);
         } else {
-            coshfac = f64::INFINITY.copysign(cospix);
+            coshfac = cospix * f64::INFINITY;
         }
-        if cospix == 0.0 {
+        if sinpix == 0.0 {
             // Preserve the sign of zero.
             sinhfac = 0.0_f64.copysign(sinpix);
         } else {
-            sinhfac = f64::INFINITY.copysign(sinpix);
+            sinhfac = sinpix * f64::INFINITY;
         }
         return Complex::new(coshfac, sinhfac);
     }
 
-    coshfac = 0.5 * cospix * exphpiy;
-    sinhfac = 0.5 * sinpix * exphpiy;
+    coshfac = cospix * exphpiy * 0.5;
+    sinhfac = sinpix * exphpiy * 0.5;
     Complex::new(coshfac * exphpiy, sinhfac * exphpiy)
 }
 
@@ -555,8 +560,7 @@ mod tests {
     }
 
     // Edge cases that the xsref tables don't cover (they skip large inputs and outputs, and most
-    // NaNs, and don't distinguish signed zeros). The known-wrong results of the large-|Im(z)|
-    // branch of the complex functions are deliberately not asserted.
+    // NaNs, and don't distinguish signed zeros).
 
     fn assert_close(actual: f64, expected: f64) {
         let ok = if expected.is_finite() {
@@ -709,7 +713,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sinpi_cospi_complex_branches() {
+    fn test_sinpi_cospi_complex_small_imag() {
         // |pi y| < 700, both signs of x and y, just below the threshold
         for (x, y) in [
             (0.25, 222.8),
@@ -726,28 +730,114 @@ mod tests {
             assert_close(c.re, cx * chy);
             assert_close(c.im, -sx * shy);
         }
+    }
 
-        // 700 <= |pi y|, exp(|pi y| / 2) finite: sinpi for y > 0, and the real part of cospi
-        for (x, y) in [(0.25, 222.9), (-0.25, 225.0), (1.75, 225.0)] {
-            let (s, c) = (crate::sinpi(c64(x, y)), crate::cospi(c64(x, y)));
-            let (sx, cx) = ((PI * x).sin(), (PI * x).cos());
-            let chy = (PI * y).cosh();
-            assert_close(s.re, sx * chy);
-            assert_close(s.im, cx * chy);
-            assert_close(c.re, cx * chy);
+    /// `a * cosh(t)` (`sgn = 1`) or `a * sinh(t)` (`sgn = sgn(t)`) for `|t| >= 700`, in the log
+    /// domain, so that it's independent of the `exp(|t|/2)` scaling in `csinpi` and `ccospi`
+    fn mul_cosh_sinh_large(a: f64, t: f64, sgn: f64) -> f64 {
+        if a == 0.0 {
+            0.0_f64.copysign(a * sgn)
+        } else {
+            a.signum() * sgn * (a.abs().ln() + t.abs() - core::f64::consts::LN_2).exp()
+        }
+    }
+
+    fn assert_same_or_close(actual: f64, expected: f64, what: &str) {
+        let ok = if expected.is_finite() && expected != 0.0 {
+            (actual - expected).abs() <= 1e-12 * expected.abs()
+        } else {
+            actual.to_bits() == expected.to_bits() || (actual.is_nan() && expected.is_nan())
+        };
+        assert!(ok, "{what}: actual: {actual:e}, expected: {expected:e}");
+    }
+
+    #[test]
+    fn test_sinpi_cospi_complex_large_imag() {
+        // 700 <= |pi y|: below and beyond the overflow of exp(|pi y| / 2) at |y| ~ 451.9
+        let xs = [
+            0.0, -0.0, 0.25, -0.25, 0.5, -0.5, 0.75, 1.0, -1.0, 1.75, 2.5, 1e-10, -3e-200,
+        ];
+        let ys = [
+            222.9,
+            225.0,
+            300.0,
+            451.0,
+            452.0,
+            1000.0,
+            1e300,
+            f64::INFINITY,
+        ];
+        for x in xs {
+            for y in ys.into_iter().flat_map(|y| [y, -y]) {
+                let z = c64(x, y);
+                let (sx, cx) = (crate::sinpi(x), crate::cospi(x));
+                let (t, sgn) = (PI * y, y.signum());
+                let (s, c) = (crate::sinpi(z), crate::cospi(z));
+                assert_same_or_close(
+                    s.re,
+                    mul_cosh_sinh_large(sx, t, 1.0),
+                    &format!("sinpi({z}).re"),
+                );
+                assert_same_or_close(
+                    s.im,
+                    mul_cosh_sinh_large(cx, t, sgn),
+                    &format!("sinpi({z}).im"),
+                );
+                assert_same_or_close(
+                    c.re,
+                    mul_cosh_sinh_large(cx, t, 1.0),
+                    &format!("cospi({z}).re"),
+                );
+                assert_same_or_close(
+                    c.im,
+                    mul_cosh_sinh_large(-sx, t, sgn),
+                    &format!("cospi({z}).im"),
+                );
+            }
         }
 
-        // overflow: exp(|pi y| / 2) == inf beyond |y| ~ 451.9
-        for y in [300.0, 451.0, 452.0, 1000.0] {
-            let s = crate::sinpi(c64(0.0, y));
-            assert_eq!(s.re, 0.0);
-            assert_eq!(s.im, f64::INFINITY);
+        // the cases that xsf v0.2.2 got wrong
+        let z = crate::cospi(c64(0.0, 1000.0));
+        assert_eq!(
+            (z.re, z.im.to_bits()),
+            (f64::INFINITY, (-0.0_f64).to_bits())
+        );
+        let z = crate::sinpi(c64(0.0, -300.0));
+        assert_eq!((z.re, z.im), (0.0, f64::NEG_INFINITY));
+        let z = crate::cospi(c64(0.5, 1000.0));
+        assert_eq!(
+            (z.re.to_bits(), z.im),
+            (0.0_f64.to_bits(), f64::NEG_INFINITY)
+        );
+        let z = crate::cospi(c64(0.25, 225.0));
+        assert!(z.re > 0.0 && z.im < 0.0);
+
+        // subnormal sin(pi x)
+        let x = f64::from_bits(1);
+        let (sx, z) = (crate::sinpi(x), c64(x, 222.9));
+        let expected = mul_cosh_sinh_large(sx, PI * z.im, 1.0);
+        assert_same_or_close(crate::sinpi(z).re, expected, "sinpi(5e-324+222.9i).re");
+        assert_same_or_close(
+            crate::cospi(z.conj()).im,
+            expected,
+            "cospi(5e-324-222.9i).im",
+        );
+
+        // NaN or infinite real part, or NaN imaginary part
+        for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for y in [300.0, -1000.0, f64::INFINITY] {
+                let (s, c) = (crate::sinpi(c64(x, y)), crate::cospi(c64(x, y)));
+                assert!(s.re.is_nan() && s.im.is_nan(), "sinpi({x}+{y}i) = {s}");
+                assert!(c.re.is_nan() && c.im.is_nan(), "cospi({x}+{y}i) = {c}");
+            }
         }
-        let s = crate::sinpi(c64(0.25, 1000.0));
-        assert_eq!((s.re, s.im), (f64::INFINITY, f64::INFINITY));
-        let s = crate::sinpi(c64(-0.25, 1000.0));
-        assert_eq!((s.re, s.im), (f64::NEG_INFINITY, f64::INFINITY));
-        assert_eq!(crate::cospi(c64(0.25, 1000.0)).re, f64::INFINITY);
-        assert_eq!(crate::cospi(c64(0.75, 1000.0)).re, f64::NEG_INFINITY);
+        for x in [0.0, -0.5, 0.25, f64::NAN] {
+            let (s, c) = (
+                crate::sinpi(c64(x, f64::NAN)),
+                crate::cospi(c64(x, f64::NAN)),
+            );
+            assert!(s.re.is_nan() && s.im.is_nan(), "sinpi({x}+NaNi) = {s}");
+            assert!(c.re.is_nan() && c.im.is_nan(), "cospi({x}+NaNi) = {c}");
+        }
     }
 }
