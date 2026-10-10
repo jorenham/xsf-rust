@@ -1,3 +1,12 @@
+//! Translated into pure Rust from `xsf/cephes/erfinv.h` (xsf v0.2.2), which was translated into
+//! C++ by SciPy developers in 2024.
+//!
+//! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
+
+use crate::xsf::cephes::ndtri;
+
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_SQRT_PI};
+
 /// Inverse of the error function [*erf(x)*](crate::erf)
 ///
 /// In the complex domain, there is no unique complex number w satisfying erf(w)=z.
@@ -17,7 +26,38 @@
 #[must_use]
 #[inline]
 pub fn erfinv(y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::erfinv(y) }
+    /*
+     * Inverse of the error function.
+     *
+     * Computes the inverse of the error function on the restricted domain
+     * -1 < y < 1. This restriction ensures the existence of a unique result
+     * such that erf(erfinv(y)) = y.
+     */
+    const DOMAIN_LB: f64 = -1.0;
+    const DOMAIN_UB: f64 = 1.0;
+
+    const THRESH: f64 = 1e-7;
+
+    /*
+     * For small arguments, use the Taylor expansion
+     * erf(y) = 2/\sqrt{\pi} (y - y^3 / 3 + O(y^5)),    y\to 0
+     * where we only retain the linear term.
+     * Otherwise, y + 1 loses precision for |y| << 1.
+     */
+    if (-THRESH < y) && (y < THRESH) {
+        return y / FRAC_2_SQRT_PI;
+    }
+    if (DOMAIN_LB < y) && (y < DOMAIN_UB) {
+        ndtri(f64::midpoint(y, 1.0)) * FRAC_1_SQRT_2
+    } else if y == DOMAIN_LB {
+        f64::NEG_INFINITY
+    } else if y == DOMAIN_UB {
+        f64::INFINITY
+    } else if y.is_nan() {
+        y
+    } else {
+        f64::NAN
+    }
 }
 
 /// Inverse of the complementary error function [*erfc(x)*](crate::erfc)
@@ -40,7 +80,27 @@ pub fn erfinv(y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn erfcinv(y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::erfcinv(y) }
+    /*
+     * Inverse of the complementary error function.
+     *
+     * Computes the inverse of the complimentary error function on the restricted
+     * domain 0 < y < 2. This restriction ensures the existence of a unique result
+     * such that erfc(erfcinv(y)) = y.
+     */
+    const DOMAIN_LB: f64 = 0.0;
+    const DOMAIN_UB: f64 = 2.0;
+
+    if (DOMAIN_LB < y) && (y < DOMAIN_UB) {
+        -ndtri(0.5 * y) * FRAC_1_SQRT_2
+    } else if y == DOMAIN_LB {
+        f64::INFINITY
+    } else if y == DOMAIN_UB {
+        f64::NEG_INFINITY
+    } else if y.is_nan() {
+        y
+    } else {
+        f64::NAN
+    }
 }
 
 #[cfg(test)]
