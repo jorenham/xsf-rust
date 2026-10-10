@@ -53,7 +53,7 @@ impl StatsArg for num_complex::Complex<f64> {
 /// function, and $I_\square(\cdot,\cdot)$ the regularized incomplete Beta function.
 ///
 /// # See also
-/// - [`stdtri`](stdtri): Inverse of the CDF
+/// - [`stdtri`]: Inverse of the CDF
 /// - [`beta`](crate::beta): Beta function
 /// - [`betainc`](crate::betainc): Regularized incomplete Beta function
 ///

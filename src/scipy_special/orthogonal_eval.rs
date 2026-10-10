@@ -54,7 +54,7 @@ mod sealed {
 
 /// Helper function for the generalized multiset coefficient
 ///
-/// https://mathworld.wolfram.com/Multichoose.html
+/// <https://mathworld.wolfram.com/Multichoose.html>
 #[inline]
 fn multiset(n: f64, k: f64) -> f64 {
     unsafe { ffi::binom(n + k - 1.0, k) }

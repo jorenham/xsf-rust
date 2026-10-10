@@ -710,7 +710,7 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 ///
 /// # See also
 /// - [`riccati_j`]
-/// - [`bessel_y`](crate::bessel_y)
+/// - [`bessel_y`]
 /// - [`sph_bessel_y`](crate::sph_bessel_y)
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_yn.html

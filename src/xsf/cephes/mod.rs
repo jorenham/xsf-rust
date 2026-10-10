@@ -7,7 +7,7 @@ mod lanczos;
 mod poch;
 pub(crate) mod polevl;
 mod round;
-pub(crate) mod spence;
+mod spence;
 mod unity;
 
 pub use erfinv::*;
@@ -17,4 +17,5 @@ pub use incbi::*;
 pub use lanczos::*;
 pub use poch::*;
 pub use round::*;
+pub(crate) use spence::spence as spence_f64;
 pub use unity::*;

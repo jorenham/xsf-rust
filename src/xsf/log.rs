@@ -186,7 +186,7 @@ pub fn log1p<T: LogArg>(z: T) -> T {
 /// Has no analogue in `scipy.special`.
 ///
 /// # See also
-/// - [`log1p`](crate::log1p)
+/// - [`log1p`]
 #[must_use]
 #[inline]
 #[allow(clippy::cast_precision_loss)]
@@ -216,7 +216,7 @@ pub fn log1pmx(x: f64) -> f64 {
 /// [xlogy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.xlogy.html
 ///
 /// # See also
-/// - [`xlog1py`](crate::xlog1py)
+/// - [`xlog1py`]
 #[doc(alias = "x_ln_y", alias = "x_log_y")]
 #[must_use]
 #[inline]
@@ -231,7 +231,7 @@ pub fn xlogy<T: LogArg>(x: T, y: T) -> T {
 /// [xlog1py]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.xlog1py.html
 ///
 /// # See also
-/// - [`xlogy`](crate::xlogy)
+/// - [`xlogy`]
 #[doc(alias = "x_ln_1py", alias = "x_log_1py")]
 #[must_use]
 #[inline]

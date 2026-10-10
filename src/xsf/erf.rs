@@ -117,7 +117,7 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 /// Zeros in the other quadrants can be obtained by using the symmetries *erf(-z) = erf(z)* and
 /// *erf(conj(z)) = conj(erf(z))*.
 ///
-/// See [`erf`](crate::erf) for the error function itself.
+/// See [`erf`] for the error function itself.
 ///
 /// Corresponds to [`scipy.special.erf_zeros`][erf_zeros].
 ///
