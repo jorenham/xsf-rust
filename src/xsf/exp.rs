@@ -6,6 +6,46 @@ use num_complex::Complex;
 
 use crate::xsf::trig::cosm1;
 
+/// Exponential of complex `z`
+///
+/// This replaces `std::exp(std::complex<double>)` from C++. For finite `z`, it is computed like
+/// glibc's `cexp`, which, unlike `num_complex::Complex::exp`, doesn't overflow prematurely when
+/// only `exp(z.re)` overflows (instead of NaN, the imaginary part of `exp(x + 0i)` is `0`).
+pub(crate) fn cexp(z: Complex<f64>) -> Complex<f64> {
+    // (int) ((DBL_MAX_EXP - 1) * ln(2))
+    const T: f64 = 709.0;
+
+    if !z.re.is_finite() || !z.im.is_finite() {
+        // See the note in cexpm1(z) below.
+        return z.exp();
+    }
+
+    let (mut sinix, mut cosix) = if z.im.abs() > f64::MIN_POSITIVE {
+        z.im.sin_cos()
+    } else {
+        (z.im, 1.0)
+    };
+    let mut x = z.re;
+    if x > T {
+        let exp_t = T.exp();
+        x -= T;
+        sinix *= exp_t;
+        cosix *= exp_t;
+        if x > T {
+            x -= T;
+            sinix *= exp_t;
+            cosix *= exp_t;
+        }
+    }
+    if x > T {
+        // overflow (the original z.re > 3 T)
+        Complex::new(f64::MAX * cosix, f64::MAX * sinix)
+    } else {
+        let exp_val = x.exp();
+        Complex::new(exp_val * cosix, exp_val * sinix)
+    }
+}
+
 // cexpm1(z) = cexp(z) - 1
 //
 // The imaginary part of this is easily computed via exp(z.real)*sin(z.imag)
@@ -150,5 +190,25 @@ mod tests {
             assert_close(w.im, re.exp() * 2.0_f64.sin(), 1e-14);
         }
         assert_eq!(crate::expm1(c64(-40.0, 1.0)).re, -1.0);
+    }
+
+    #[test]
+    fn test_cexp_overflow() {
+        use crate::xsf::exp::cexp;
+
+        // exp(z.re) overflows, but not all of exp(z) does (reference values from mpmath)
+        let w = cexp(c64(709.9, 1.5));
+        assert_close(w.re, 1.429_883_248_952_389_1e307, 1e-15);
+        assert_eq!(w.im, f64::INFINITY);
+        let w = cexp(c64(1450.0, 5e-324));
+        assert_eq!(w.re, f64::INFINITY);
+        assert_close(w.im, 2.635_016_970_633_634_3e306, 1e-15);
+
+        // real z: inf + 0i instead of inf + NaN i (once or twice scaled, and z.re > 3 * 709)
+        for re in [800.0, 1500.0, 3000.0] {
+            let w = cexp(c64(re, -0.0));
+            assert_eq!(w.re, f64::INFINITY);
+            assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
+        }
     }
 }

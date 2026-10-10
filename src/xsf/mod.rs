@@ -10,6 +10,7 @@ pub(crate) mod bessel;
 mod beta;
 mod binom;
 mod cdflib;
+pub(crate) mod complex;
 mod digamma;
 mod ellip;
 mod erf;
