@@ -14,7 +14,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let v1 = (v - 1.0).abs();
     let x = 2.0 * arg / v1;
     let p1 = (1.0 + x * x).sqrt();
-    let eta = p1 + x.ln() - unsafe { crate::ffi::xsf::log1p(p1) };
+    let eta = p1 + x.ln() - crate::log1p(p1);
 
     let arg_exp_i = unsafe { crate::ffi::xsf::gammaln(v) } - 0.5 * (TAU * p1 * v1).ln();
     let gs = unsafe { crate::ffi::xsf::gammasgn(v) };
@@ -32,7 +32,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let uv3 = (3037.5 - (36960.3 + (76576.5 - 42542.5 * q2) * q2) * q2) * qv.powi(3) / 3.0;
     let u_corr_i = 1.0 + uv1 + uv2 + uv3;
 
-    let v1_log_arg = unsafe { crate::ffi::xsf::xlogy(v1, arg) };
+    let v1_log_arg = crate::xlogy(v1, arg);
     let out = gs * (arg_exp_i - v1_log_arg).exp() * u_corr_i;
 
     if v - 1.0 < 0.0 {
@@ -61,7 +61,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
     } else if z > 0.0 {
         let arg = z.sqrt();
-        let arg_exp = unsafe { crate::ffi::xsf::xlogy(1.0 - v, arg) + crate::ffi::xsf::gammaln(v) };
+        let arg_exp = crate::xlogy(1.0 - v, arg) + unsafe { crate::ffi::xsf::gammaln(v) };
         let bess_val = unsafe { crate::ffi::xsf::cyl_bessel_i(v - 1.0, 2.0 * arg) };
 
         if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
