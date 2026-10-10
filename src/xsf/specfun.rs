@@ -166,7 +166,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
             f64::INFINITY
         } else {
             // DLMF 13.2.14-15 and 13.2.19-21
-            unsafe { crate::ffi::xsf::poch(1.0 - b + a, -a) }
+            crate::pow_rising(1.0 - b + a, -a)
         }
     } else if x < 1.0 && a > -0.25 && a < 0.3 && b == 1.0 {
         // DLMF 13.3.7. Fixes scipy/scipy#15650
