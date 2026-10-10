@@ -19,7 +19,7 @@ const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 /// precision there) or for extreme magnitudes (the input is scaled by a power of two), like
 /// glibc's `clog`. For non-finite or zero `z`, the return values are as in C99 Annex G.
 #[allow(clippy::many_single_char_names)]
-fn clog(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn clog(z: Complex<f64>) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
     let m = x.abs().max(y.abs());
 
