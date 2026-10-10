@@ -28,7 +28,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "ellip.h",
     "erf.h",
     "evalpoly.h",
-    "exp.h",
     "expint.h",
     "fp_error_metrics.h",
     "fresnel.h",
@@ -129,11 +128,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("wofz", "D->D"),
     ("dawsn", "d->d"),
     ("dawsn", "D->D"),
-    // exp.h
-    ("expm1", "d->d"),
-    ("expm1", "D->D"),
-    ("exp2", "d->d"),
-    ("exp10", "d->d"),
     // expint.h
     ("exp1", "d->d"),
     ("exp1", "D->D"),
