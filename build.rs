@@ -14,7 +14,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/jv.h",
     "cephes/lanczos.h",
     "cephes/poch.h",
-    "cephes/round.h",
     "cephes/spence.h",
     "cephes/unity.h",
     "specfun/specfun.h",
@@ -26,9 +25,7 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "digamma.h",
     "ellip.h",
     "erf.h",
-    "evalpoly.h",
     "expint.h",
-    "fp_error_metrics.h",
     "fresnel.h",
     "gamma.h",
     "hyp2f1.h",
@@ -130,11 +127,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("expi", "d->d"),
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
-    // fp_error_metrics.h
-    ("extended_absolute_error", "dd->d"),
-    ("extended_absolute_error", "DD->d"),
-    ("extended_relative_error", "dd->d"),
-    ("extended_relative_error", "DD->d"),
     // fresnel.h
     ("fresnel", "d->dd"),
     ("fresnel", "D->DD"),
@@ -343,11 +335,6 @@ double xsfr_poch(double a, double m) {
     return xsf::cephes::poch(a, m);
 }
 
-// cephes/round.h
-double xsfr_round(double x) {
-    return xsf::cephes::round(x);
-}
-
 // cephes/spence.h
 double xsfr_spence(double x) {
     return xsf::cephes::spence(x);
@@ -400,11 +387,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
     int nm;
     xsf::rcty(x, &nm, std::mdspan(ry, nt), std::mdspan(dy, nt));
     return nm;
-}
-
-// evalpoly.h
-c_complex xsfr_cevalpoly(const double *coeffs, int degree, c_complex z) {
-    return to_c_complex(xsf::cevalpoly(coeffs, degree, to_cpp_complex(z)));
 }
 
 // fresnel.h

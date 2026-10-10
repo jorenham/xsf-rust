@@ -1,4 +1,32 @@
-use num_traits::ToPrimitive;
+//! Translated into pure Rust from `xsf/evalpoly.h` (xsf v0.2.2): translated from Cython into C++
+//! by SciPy developers in 2024, original author: Josh Wilson, 2016.
+//!
+//! References
+//! ----------
+//! [1] Knuth, "The Art of Computer Programming, Volume II"
+
+use num_complex::Complex;
+
+/// `xsf::cevalpoly`, with `degree = coeffs.len() - 1`
+fn xsf_cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
+    /* Evaluate a polynomial with real coefficients at a complex point.
+     *
+     * Uses equation (3) in section 4.6.4 of [1]. Note that it is more
+     * efficient than Horner's method.
+     */
+    let mut a = coeffs[0];
+    let mut b = coeffs[1];
+    let r = 2.0 * z.re;
+    let s = z.norm_sqr();
+
+    for &c in &coeffs[2..] {
+        let tmp = b;
+        b = (-s).mul_add(a, c);
+        a = r.mul_add(a, tmp);
+    }
+
+    z * a + b
+}
 
 /// Evaluate polynomials
 ///
@@ -17,20 +45,14 @@ use num_traits::ToPrimitive;
 ///
 /// # Returns
 /// - `p(z)`: Value of the polynomial evaluated at `z`
-///
-/// # Panics
-/// - If the length of `coeffs` exceeds [`i32::MAX`](core::i32::MAX)
 #[doc(alias = "evalpoly", alias = "polynomial")]
 #[must_use]
 #[inline]
-pub fn cevalpoly(coeffs: &[f64], z: num_complex::Complex<f64>) -> num_complex::Complex<f64> {
-    let degree = coeffs.len().to_i32().unwrap() - 1;
-    if degree == -1 {
-        unsafe { crate::ffi::xsf::cevalpoly([0.0, 0.0].as_ptr(), 1, z) }
-    } else if degree == 0 {
-        unsafe { crate::ffi::xsf::cevalpoly([0.0, coeffs[0]].as_ptr(), 1, z) }
-    } else {
-        unsafe { crate::ffi::xsf::cevalpoly(coeffs.as_ptr(), degree, z) }
+pub fn cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
+    match coeffs {
+        [] => xsf_cevalpoly(&[0.0, 0.0], z),
+        &[c] => xsf_cevalpoly(&[0.0, c], z),
+        _ => xsf_cevalpoly(coeffs, z),
     }
 }
 
@@ -59,5 +81,13 @@ mod tests {
         let y = crate::cevalpoly(&[2.0, 3.0], c64(1.0, 1.0));
         // p(1+i) = 5 + 2i
         assert_eq!(y, c64(5.0, 2.0));
+    }
+
+    #[test]
+    fn test_cevalpoly_4() {
+        // p(z) = z^3 + 2z^2 + 3z + 4
+        let y = crate::cevalpoly(&[1.0, 2.0, 3.0, 4.0], c64(1.0, 1.0));
+        // p(1+i) = 5 + 9i
+        assert_eq!(y, c64(5.0, 9.0));
     }
 }
