@@ -25,6 +25,7 @@
 //! uses Smith's algorithm (see [`cdiv`]), which, like GCC's `__divdc3`, avoids the spurious
 //! underflow of the naive formula for tiny `z` with `k != 0`.
 
+use crate::xsf::complex::cdiv;
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::log::clog;
 
@@ -33,31 +34,6 @@ use num_complex::Complex;
 
 const EXPN1: f64 = 0.367_879_441_171_442_33; // exp(-1)
 const OMEGA: f64 = 0.567_143_290_409_783_8; // W(1, 0)
-
-/// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
-/// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
-/// the intermediate results don't lose precision by becoming subnormal.
-///
-/// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
-#[inline]
-fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
-    const TWO_M400: f64 = f64::from_bits((1023 - 400) << 52); // 2^-400
-    const TWO_600: f64 = f64::from_bits((1023 + 600) << 52); // 2^600
-
-    if b.re.abs().max(b.im.abs()) < TWO_M400 {
-        a *= TWO_600;
-        b *= TWO_600;
-    }
-    if b.re.abs() >= b.im.abs() {
-        let r = b.im / b.re;
-        let den = b.re + b.im * r;
-        Complex::new((a.re + a.im * r) / den, (a.im - a.re * r) / den)
-    } else {
-        let r = b.re / b.im;
-        let den = b.re * r + b.im;
-        Complex::new((a.re * r + a.im) / den, (a.im * r - a.re) / den)
-    }
-}
 
 fn lambertw_branchpt(z: Complex<f64>) -> Complex<f64> {
     // Series for W(z, 0) around the branch point; see 4.22 in [1].

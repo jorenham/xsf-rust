@@ -1,3 +1,7 @@
+use num_complex::Complex;
+
+use crate::xsf::exp::cexp;
+
 pub trait GammaArg: crate::sealed::Sealed {
     fn xsf_gamma(self) -> Self;
 }
@@ -9,11 +13,22 @@ impl GammaArg for f64 {
     }
 }
 
-impl GammaArg for num_complex::Complex<f64> {
+impl GammaArg for Complex<f64> {
     #[inline]
     fn xsf_gamma(self) -> Self {
-        unsafe { crate::ffi::xsf::gamma(self) }
+        cgamma(self)
     }
+}
+
+/// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (xsf v0.2.2)
+#[allow(clippy::float_cmp)]
+fn cgamma(z: Complex<f64>) -> Complex<f64> {
+    // Compute Gamma(z) using loggamma.
+    if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
+        // Poles
+        return Complex::new(f64::NAN, f64::NAN);
+    }
+    cexp(crate::loggamma(z))
 }
 
 /// Gamma function $\Gamma(z)$ for real or complex argument.
@@ -202,6 +217,16 @@ mod tests {
     #[test]
     fn test_gamma_c64() {
         xsref::test("gamma", "cd-cd", |x| crate::gamma(c64(x[0], x[1])));
+    }
+
+    #[test]
+    fn test_gamma_c64_real_axis() {
+        let w = crate::gamma(c64(-2.0, 0.0));
+        assert!(w.re.is_nan() && w.im.is_nan());
+        // overflow: inf + 0i instead of inf + NaN i
+        let w = crate::gamma(c64(200.0, 0.0));
+        assert_eq!(w.re, f64::INFINITY);
+        assert_eq!(w.im.to_bits(), 0.0_f64.to_bits());
     }
 
     #[test]

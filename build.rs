@@ -28,7 +28,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "iv_ratio.h",
     "kelvin.h",
     "legendre.h",
-    "loggamma.h",
     "mathieu.h",
     "par_cyl.h",
     "sici.h",
@@ -128,7 +127,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("modified_fresnel_plus", "d->DD"),
     ("modified_fresnel_minus", "d->DD"),
     // gamma.h
-    ("gamma", "D->D"),
     ("gammainc", "dd->d"),
     ("gammaincinv", "dd->d"),
     ("gammaincc", "dd->d"),
@@ -154,10 +152,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("legendre_p", "iD->D"),
     ("sph_legendre_p", "iid->d"),
     ("sph_legendre_p", "iiD->D"),
-    // loggamma.h
-    ("loggamma", "d->d"),
-    ("loggamma", "D->D"),
-    ("rgamma", "D->D"),
     // mathieu.h
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
