@@ -38,11 +38,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
         let u_corr_k = 1.0 - uv1 + uv2 - uv3;
-        out + 2.0
-            * gs
-            * unsafe { crate::ffi::xsf::sinpi(v1) }
-            * (arg_exp_k + v1_log_arg).exp()
-            * u_corr_k
+        out + 2.0 * gs * crate::sinpi(v1) * (arg_exp_k + v1_log_arg).exp() * u_corr_k
     } else {
         out
     }

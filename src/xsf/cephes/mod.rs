@@ -4,6 +4,7 @@ mod incbet;
 mod incbi;
 mod lanczos;
 mod poch;
+pub(crate) mod polevl;
 mod round;
 mod unity;
 
