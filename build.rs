@@ -15,7 +15,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "specfun/specfun.h",
     "airy.h",
     "bessel.h",
-    "beta.h",
     "binom.h",
     "cdflib.h",
     "digamma.h",
@@ -85,9 +84,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("cyl_hankel_2", "dD->D"),
     ("cyl_hankel_2e", "dD->D"),
     ("besselpoly", "ddd->d"),
-    // beta.h
-    ("beta", "dd->d"),
-    ("betaln", "dd->d"),
     // binom.h
     ("binom", "dd->d"),
     // cdflib.h
