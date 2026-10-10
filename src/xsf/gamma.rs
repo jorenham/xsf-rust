@@ -5,14 +5,14 @@ pub trait GammaArg: crate::sealed::Sealed {
 impl GammaArg for f64 {
     #[inline]
     fn xsf_gamma(self) -> Self {
-        unsafe { crate::ffi::xsf::gamma(self) }
+        crate::xsf::cephes::gamma(self)
     }
 }
 
 impl GammaArg for num_complex::Complex<f64> {
     #[inline]
     fn xsf_gamma(self) -> Self {
-        unsafe { crate::ffi::xsf::gamma_1(self) }
+        unsafe { crate::ffi::xsf::gamma(self) }
     }
 }
 
@@ -171,7 +171,7 @@ pub fn gammainccinv(a: f64, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gammaln(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammaln(x) }
+    crate::xsf::cephes::lgam(x)
 }
 
 /// Sign of the Gamma function, $\sgn \Gamma(x)$
@@ -187,7 +187,7 @@ pub fn gammaln(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gammasgn(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammasgn(x) }
+    crate::xsf::cephes::gammasgn(x)
 }
 
 #[cfg(test)]

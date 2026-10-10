@@ -70,7 +70,7 @@ const UNITY_COSCOF: [f64; 7] = [
  */
 
 /// `cephes::sinpi`: compute sin(pi * x).
-fn cephes_sinpi(mut x: f64) -> f64 {
+pub(crate) fn cephes_sinpi(mut x: f64) -> f64 {
     let mut s = 1.0;
 
     if x < 0.0 {

@@ -36,7 +36,7 @@ pub fn multigammaln(a: f64, d: u32) -> f64 {
     // return res
     d_f64 * (d_f64 - 1.0) * 0.25 * PI.ln()
         + (0..d)
-            .map(|j| unsafe { crate::ffi::xsf::gammaln(a - f64::from(j) / 2.0) })
+            .map(|j| crate::gammaln(a - f64::from(j) / 2.0))
             .sum::<f64>()
 }
 
