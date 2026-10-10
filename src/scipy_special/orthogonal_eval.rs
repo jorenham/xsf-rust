@@ -552,7 +552,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         1.0
     } else if x.is_zero() {
         if n < 0.0 || n % 2.0 == 0.0 {
-            PI.sqrt() * (scale * n).exp2() / unsafe { ffi::gamma(0.5 - 0.5 * n) }
+            PI.sqrt() * (scale * n).exp2() / crate::gamma(0.5 - 0.5 * n)
         } else {
             0.0
         }

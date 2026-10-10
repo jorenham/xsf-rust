@@ -16,8 +16,8 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let p1 = (1.0 + x * x).sqrt();
     let eta = p1 + x.ln() - crate::log1p(p1);
 
-    let arg_exp_i = unsafe { crate::ffi::xsf::gammaln(v) } - 0.5 * (TAU * p1 * v1).ln();
-    let gs = unsafe { crate::ffi::xsf::gammasgn(v) };
+    let arg_exp_i = crate::gammaln(v) - 0.5 * (TAU * p1 * v1).ln();
+    let gs = crate::gammasgn(v);
 
     let v1_eta = v1 * eta;
     let arg_exp_i = arg_exp_i + v1_eta;
@@ -61,20 +61,20 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
     } else if z > 0.0 {
         let arg = z.sqrt();
-        let arg_exp = crate::xlogy(1.0 - v, arg) + unsafe { crate::ffi::xsf::gammaln(v) };
+        let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
         let bess_val = unsafe { crate::ffi::xsf::cyl_bessel_i(v - 1.0, 2.0 * arg) };
 
         if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
             // overflow or underflow
             hyp0f1_asy(v, z)
         } else {
-            arg_exp.exp() * bess_val * unsafe { crate::ffi::xsf::gammasgn(v) }
+            arg_exp.exp() * bess_val * crate::gammasgn(v)
         }
     } else {
         let arg = (-z).sqrt();
         let bess_val = unsafe { crate::ffi::xsf::cephes_jv(v - 1.0, 2.0 * arg) };
 
-        arg.powf(1.0 - v) * unsafe { crate::ffi::xsf::gamma(v) } * bess_val
+        arg.powf(1.0 - v) * crate::gamma(v) * bess_val
     }
 }
 
@@ -109,7 +109,7 @@ fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
             (arg, bess_val)
         };
 
-        r * unsafe { crate::ffi::xsf::gamma(v) } * arg.powf(1.0 - v)
+        r * crate::gamma(v) * arg.powf(1.0 - v)
     }
 }
 

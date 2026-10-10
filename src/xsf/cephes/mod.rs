@@ -1,6 +1,7 @@
 pub(crate) mod dd_real;
 mod erfinv;
 mod expn;
+mod gamma;
 mod incbet;
 mod incbi;
 mod lanczos;
@@ -13,6 +14,7 @@ mod unity;
 
 pub use erfinv::*;
 pub use expn::*;
+pub(crate) use gamma::{gamma, gammasgn, lgam};
 pub use incbet::*;
 pub use incbi::*;
 pub use lanczos::*;
