@@ -1,3 +1,4 @@
+mod beta;
 pub(crate) mod chbevl;
 pub(crate) mod dd_real;
 mod erfinv;
@@ -14,9 +15,10 @@ mod round;
 mod spence;
 mod unity;
 
+pub(crate) use beta::{beta, lbeta};
 pub use erfinv::*;
 pub use expn::*;
-pub(crate) use gamma::{gamma, gammasgn, lgam};
+pub(crate) use gamma::{gamma, gammasgn, lgam, lgam_sgn};
 pub use incbet::*;
 pub use incbi::*;
 pub use lanczos::*;

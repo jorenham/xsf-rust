@@ -22,7 +22,7 @@
 #[must_use]
 #[inline]
 pub fn beta(a: f64, b: f64) -> f64 {
-    unsafe { crate::ffi::xsf::beta(a, b) }
+    crate::xsf::cephes::beta(a, b)
 }
 
 /// Natural logarithm of the absolute value of [`beta`], $\ln{\abs{\B(a,b)}}$
@@ -38,7 +38,7 @@ pub fn beta(a: f64, b: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn betaln(a: f64, b: f64) -> f64 {
-    unsafe { crate::ffi::xsf::betaln(a, b) }
+    crate::xsf::cephes::lbeta(a, b)
 }
 
 #[cfg(test)]
@@ -51,5 +51,15 @@ mod tests {
     #[test]
     fn test_betaln() {
         xsref::test("betaln", "d_d-d", |x| crate::betaln(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_beta_negint_int_overflow() {
+        // unlike in xsf, 1 - a doesn't overflow the C++ `int` for a = -2^31 and -2^31 + 1
+        for a in [-2_147_483_648.0, -2_147_483_647.0] {
+            let expected = 1.0 / a; // (-1)^1 B(1 - a - 1, 1)
+            assert!((crate::beta(a, 1.0) / expected - 1.0).abs() < 1e-14);
+            assert!((crate::betaln(a, 1.0) / expected.abs().ln() - 1.0).abs() < 1e-14);
+        }
     }
 }
