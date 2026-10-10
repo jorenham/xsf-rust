@@ -49,6 +49,10 @@ pub use bessel::{
 pub use beta::{beta, betaln};
 pub use binom::binom;
 pub use cdflib::gdtrib;
+pub use cephes::{
+    betainc, betaincinv, erfcinv, erfinv, expn, lanczos_sum_expg_scaled, lgam1p, pow_falling,
+    pow_rising, round,
+};
 pub use digamma::digamma;
 pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
 pub use erf::{dawsn, erf, erf_zeros, erfc, erfcx, erfi, voigt_profile, wofz};

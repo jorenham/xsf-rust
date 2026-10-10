@@ -179,7 +179,7 @@ pub fn log_ndtr<T: StatsArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn ndtri(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ndtri(x) }
+    crate::xsf::cephes::ndtri(x)
 }
 
 /// Owen's T function, $T(h, a)$
