@@ -11,7 +11,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/incbet.h",
     "cephes/incbi.h",
     "cephes/jv.h",
-    "cephes/poch.h",
     "cephes/unity.h",
     "specfun/specfun.h",
     "airy.h",
@@ -307,11 +306,6 @@ double xsfr_cephes_jv(double v, double x) {
     return xsf::cephes::jv(v, x);
 }
 
-// cephes/poch.h
-double xsfr_poch(double a, double m) {
-    return xsf::cephes::poch(a, m);
-}
-
 // cephes/unity.h
 double xsfr_lgam1p(double x) {
     return xsf::cephes::lgam1p(x);
@@ -441,7 +435,7 @@ void xsfr_poisson_binom_cdf_all(size_t n, const double *p, double *res) {
 }
 "#;
 
-/// Top-level signatures of the hand-written `CPP_WRAPPERS`, e.g. `double xsfr_poch(double a, double m)`
+/// Top-level signatures of the hand-written `CPP_WRAPPERS`, e.g. `double xsfr_expn(int n, double x)`
 fn cpp_signatures(cpp: &str) -> impl Iterator<Item = &str> {
     cpp.lines().map(str::trim_end).filter_map(|line| {
         if line.is_empty() || line.starts_with([' ', '}']) || line.starts_with("//") {
@@ -654,7 +648,7 @@ fn unsupported<T>(sig: &str) -> T {
     panic!("unsupported C signature: {sig:?}")
 }
 
-/// Rust `extern "C"` declaration of a C signature, e.g. `double xsfr_poch(double a, double m)`
+/// Rust `extern "C"` declaration of a C signature, e.g. `double xsfr_expn(int n, double x)`
 fn fmt_extern(sig: &str) -> (String, String) {
     let (head, params) = sig
         .strip_suffix(')')
