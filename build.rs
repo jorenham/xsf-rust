@@ -19,7 +19,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/unity.h",
     "specfun/specfun.h",
     "airy.h",
-    "alg.h",
     "bessel.h",
     "beta.h",
     "binom.h",
@@ -58,8 +57,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("airye", "d->dddd"),
     ("airye", "D->DDDD"),
     ("itairy", "d->dddd"),
-    // alg.h
-    ("cbrt", "d->d"),
     // bessel.h
     ("it1j0y0", "d->dd"),
     ("it2j0y0", "d->dd"),
