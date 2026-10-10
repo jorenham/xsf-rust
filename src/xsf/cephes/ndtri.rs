@@ -83,6 +83,16 @@ const NDTRI_Q2: [f64; 8] = [
     6.790_194_080_099_813e-9,
 ];
 
+/// `ndtri(0.5 + y)` for `|y| <= 0.5 - exp(-2)`, i.e. the central branch of [`ndtri`]
+///
+/// Unlike in xsf, this is a separate function, so that `erfinv` can avoid the rounding error in
+/// `0.5 * (y + 1)` for small `|y|`.
+pub(super) fn ndtri_central(y: f64) -> f64 {
+    let y2 = y * y;
+    let x = y + y * (y2 * polevl(y2, &NDTRI_P0) / p1evl(y2, &NDTRI_Q0));
+    x * SQRT2PI
+}
+
 /// Inverse of Normal distribution function
 ///
 /// Returns the argument, x, for which the area under the
@@ -132,11 +142,7 @@ pub(crate) fn ndtri(y0: f64) -> f64 {
     }
 
     if y > 0.135_335_283_236_612_7 {
-        y -= 0.5;
-        let y2 = y * y;
-        let mut x = y + y * (y2 * polevl(y2, &NDTRI_P0) / p1evl(y2, &NDTRI_Q0));
-        x *= SQRT2PI;
-        return x;
+        return ndtri_central(y - 0.5);
     }
 
     let mut x = (-2.0 * y.ln()).sqrt();
