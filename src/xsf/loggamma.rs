@@ -11,7 +11,7 @@ impl LogGammaArg for f64 {
 
     #[inline]
     fn xsf_rgamma(self) -> f64 {
-        unsafe { crate::ffi::xsf::rgamma(self) }
+        crate::xsf::cephes::rgamma(self)
     }
 }
 
@@ -23,7 +23,7 @@ impl LogGammaArg for num_complex::Complex<f64> {
 
     #[inline]
     fn xsf_rgamma(self) -> Self {
-        unsafe { crate::ffi::xsf::rgamma_1(self) }
+        unsafe { crate::ffi::xsf::rgamma(self) }
     }
 }
 

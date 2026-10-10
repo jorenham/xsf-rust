@@ -157,7 +157,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // loggamma.h
     ("loggamma", "d->d"),
     ("loggamma", "D->D"),
-    ("rgamma", "d->d"),
     ("rgamma", "D->D"),
     // mathieu.h
     ("cem_cva", "dd->d"),
