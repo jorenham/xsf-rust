@@ -12,7 +12,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cephes/incbet.h",
     "cephes/incbi.h",
     "cephes/jv.h",
-    "cephes/lanczos.h",
     "cephes/poch.h",
     "cephes/unity.h",
     "specfun/specfun.h",
@@ -322,11 +321,6 @@ double xsfr_incbi(double a, double b, double y) {
 // cephes/jv.h
 double xsfr_cephes_jv(double v, double x) {
     return xsf::cephes::jv(v, x);
-}
-
-// cephes/lanczos.h
-double xsfr_lanczos_sum_expg_scaled(double x) {
-    return xsf::cephes::lanczos_sum_expg_scaled(x);
 }
 
 // cephes/poch.h
