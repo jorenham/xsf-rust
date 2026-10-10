@@ -143,7 +143,7 @@ pub trait SpenceArg: crate::sealed::Sealed {
 impl SpenceArg for f64 {
     #[inline]
     fn spence(self) -> Self {
-        unsafe { crate::ffi::xsf::spence(self) }
+        crate::xsf::cephes::spence::spence(self)
     }
 }
 

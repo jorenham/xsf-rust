@@ -7,6 +7,7 @@ mod lanczos;
 mod poch;
 pub(crate) mod polevl;
 mod round;
+pub(crate) mod spence;
 mod unity;
 
 pub use erfinv::*;
