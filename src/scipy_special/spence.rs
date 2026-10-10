@@ -18,7 +18,7 @@ const PISQ_6: f64 = 1.644_934_066_848_226_436_5;
 ///
 /// spence(z) = -spence(z/(z - 1)) - pi**2/6 - ln(z - 1)**2/2
 ///
-/// to move close to 1. See [1].
+/// to move close to 1. See \[1\].
 /// - If z is close to 1, use a series centered at 1.
 #[inline]
 fn cspence(z: Complex64) -> Complex64 {
@@ -143,7 +143,7 @@ pub trait SpenceArg: crate::sealed::Sealed {
 impl SpenceArg for f64 {
     #[inline]
     fn spence(self) -> Self {
-        crate::xsf::cephes::spence::spence(self)
+        crate::xsf::cephes::spence_f64(self)
     }
 }
 

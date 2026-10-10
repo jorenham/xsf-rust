@@ -1,7 +1,7 @@
 //! Derivatives of Bessel functions
 use crate::xsf::bessel::BesselArg;
 
-/// Translated from https://github.com/scipy/scipy/blob/9531cc5/scipy/special/_basic.py#L803-L814
+/// Translated from <https://github.com/scipy/scipy/blob/9531cc5/scipy/special/_basic.py#L803-L814>
 #[inline]
 fn bessel_diff_formula<T, L>(v: f64, n: u32, bessel_fn: L, phase: f64) -> T
 where

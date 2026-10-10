@@ -3,7 +3,7 @@
 //!
 //! References
 //! ----------
-//! [1] Knuth, "The Art of Computer Programming, Volume II"
+//! \[1\] Knuth, "The Art of Computer Programming, Volume II"
 
 use num_complex::Complex;
 

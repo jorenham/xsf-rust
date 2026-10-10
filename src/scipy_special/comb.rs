@@ -12,7 +12,7 @@ use num_traits::{PrimInt, Unsigned};
 /// - `N`: Any unsigned integer
 ///
 /// # See also
-/// - [`comb_rep`](crate::comb_rep): choosing with replacement
+/// - [`comb_rep`]: choosing with replacement
 /// - [`perm`](crate::perm): *k*-permutations of *n*, <sub>*n*</sub>P<sub>*k*</sub>
 /// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]
@@ -47,7 +47,7 @@ pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 /// - `N`: Any unsigned integer
 ///
 /// # See also
-/// - [`comb`](comb): *k*-combinations of *n* without replacement
+/// - [`comb`]: *k*-combinations of *n* without replacement
 /// - [`perm`](crate::perm): *k*-permutations of *n*, <sub>*n*</sub>P<sub>*k*</sub>
 /// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]

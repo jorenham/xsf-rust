@@ -116,7 +116,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
 /// # See also
-/// - [`hypu`](crate::hypu): Tricomi's confluent hypergeometric function $U(a,b,x)$
+/// - [`hypu`]: Tricomi's confluent hypergeometric function $U(a,b,x)$
 /// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,
 ///   $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
@@ -148,7 +148,7 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 /// See [^DLMF] for more details.
 ///
 /// # See also
-/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function $M(a,b,z)$
+/// - [`hyp1f1`]: Kummer's confluent hypergeometric function $M(a,b,z)$
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]

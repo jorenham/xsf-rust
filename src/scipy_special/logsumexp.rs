@@ -75,7 +75,7 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
 ///
 /// # See also
 /// - [`log_softmax`]
-/// - [`logsumexp`](crate::logsumexp)
+/// - [`logsumexp`]
 #[must_use]
 pub fn softmax(xs: &[f64]) -> Vec<f64> {
     let x_max = fmax(xs);
@@ -97,7 +97,7 @@ pub fn softmax(xs: &[f64]) -> Vec<f64> {
 ///
 /// # See also
 /// - [`softmax`]
-/// - [`logsumexp`](crate::logsumexp)
+/// - [`logsumexp`]
 #[must_use]
 pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
     let x_max = fmax(xs);
