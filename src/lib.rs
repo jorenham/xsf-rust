@@ -510,5 +510,4 @@ pub(crate) mod sealed {
 
 pub use numpy::*;
 pub use scipy_special::*;
-pub use xsf::cephes::*;
 pub use xsf::*;

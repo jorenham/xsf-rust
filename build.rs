@@ -242,7 +242,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("kolmogp", "d->d"),
     ("ndtr", "d->d"),
     ("ndtr", "D->D"),
-    ("ndtri", "d->d"),
     ("log_ndtr", "d->d"),
     ("log_ndtr", "D->D"),
     ("nbdtr", "iid->d"),

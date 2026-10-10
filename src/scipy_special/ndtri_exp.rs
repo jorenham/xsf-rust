@@ -92,9 +92,9 @@ pub fn ndtri_exp(y: f64) -> f64 {
         ndtri_exp_small_y(y)
     } else if y > -0.145_413_457_868_859_06 {
         // y > log1p(-exp(-2))
-        unsafe { -crate::ffi::xsf::ndtri(-y.exp_m1()) }
+        -crate::ndtri(-y.exp_m1())
     } else {
-        unsafe { crate::ffi::xsf::ndtri(y.exp()) }
+        crate::ndtri(y.exp())
     }
 }
 
