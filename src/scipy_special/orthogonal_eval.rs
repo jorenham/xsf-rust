@@ -2,7 +2,6 @@
 //!
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
-use crate::ffi::xsf as ffi;
 use core::cmp::Ordering;
 use core::f64::consts::{PI, SQRT_2};
 use core::ops::Range;
@@ -57,7 +56,7 @@ mod sealed {
 /// <https://mathworld.wolfram.com/Multichoose.html>
 #[inline]
 fn multiset(n: f64, k: f64) -> f64 {
-    unsafe { ffi::binom(n + k - 1.0, k) }
+    crate::binom(n + k - 1.0, k)
 }
 
 ///////////////////////////////
