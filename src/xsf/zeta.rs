@@ -14,7 +14,7 @@ use std::f64::consts::{LN_2, PI, TAU};
 
 use num_complex::Complex;
 
-use crate::xsf::complex::cdiv;
+use crate::xsf::complex::{cdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 
@@ -22,11 +22,6 @@ use crate::xsf::log::clog;
 const LOGPI: f64 = 1.144_729_885_849_400_2; // log(pi)
 
 const NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
-
-/// `x - z` for real `x` as in C++, where the imaginary part is `-z.im` instead of `0.0 - z.im`
-fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
-    Complex::new(x - z.re, -z.im)
-}
 
 /// `std::pow(x, z)` for real `x > 0` and complex `z`, as in libstdc++
 fn rpow(x: f64, z: Complex<f64>) -> Complex<f64> {
