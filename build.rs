@@ -256,6 +256,45 @@ inline std::complex<double> &as_cpp_complex(c_complex &z) { return reinterpret_c
 }
 "#;
 
+const CPP_MDSPAN_SHIM: &str = r#"
+#include <cstddef>
+#include <type_traits>
+
+namespace {
+
+template <typename T>
+struct span1 {
+    T *data;
+    std::size_t len;
+    using value_type = std::remove_const_t<T>;
+    T &operator[](std::size_t i) const { return data[i]; }
+    T &operator()(std::size_t i) const { return data[i]; }
+    std::size_t extent(std::size_t) const { return len; }
+    std::size_t size() const { return len; }
+};
+
+template <typename T>
+struct span2 {
+    T *data;
+    std::size_t nrow, ncol;
+    using value_type = std::remove_const_t<T>;
+    T &operator()(std::size_t i, std::size_t j) const { return data[i * ncol + j]; }
+    std::size_t extent(std::size_t k) const { return k == 0 ? nrow : ncol; }
+    std::size_t size() const { return nrow * ncol; }
+};
+
+template <typename T>
+span1<T> mds(T *data, std::size_t len) {
+    return {data, len};
+}
+template <typename T>
+span2<T> mds(T *data, std::size_t nrow, std::size_t ncol) {
+    return {data, nrow, ncol};
+}
+
+} // namespace
+"#;
+
 const CPP_WRAPPERS: &str = r#"
 // cephes/jv.h
 double xsfr_cephes_jv(double v, double x) {
@@ -297,12 +336,12 @@ void xsfr_airyzo(size_t nt, int kf, double *xa, double *xb, double *xc, double *
 // bessel.h
 int xsfr_rctj(size_t nt, double x, double *rj, double *dj) {
     int nm;
-    xsf::rctj(x, &nm, std::mdspan(rj, nt), std::mdspan(dj, nt));
+    xsf::rctj(x, &nm, mds(rj, nt), mds(dj, nt));
     return nm;
 }
 int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
     int nm;
-    xsf::rcty(x, &nm, std::mdspan(ry, nt), std::mdspan(dy, nt));
+    xsf::rcty(x, &nm, mds(ry, nt), mds(dy, nt));
     return nm;
 }
 
@@ -330,59 +369,59 @@ c_complex xsfr_assoc_legendre_p_1_1(int n, int m, c_complex z, int bc) {
     return to_c_complex(xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, to_cpp_complex(z), bc));
 }
 void xsfr_legendre_p_all(size_t n, double x, double *pn) {
-    xsf::legendre_p_all(x, std::mdspan(pn, n + 1));
+    xsf::legendre_p_all(x, mds(pn, n + 1));
 }
 void xsfr_legendre_p_all_1(size_t n, c_complex z, c_complex *pn) {
-    xsf::legendre_p_all(to_cpp_complex(z), std::mdspan(as_cpp_complex(pn), n + 1));
+    xsf::legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pn), n + 1));
 }
 void xsfr_sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
-    xsf::sph_legendre_p_all(x, std::mdspan(pnm, n + 1, 2 * m + 1));
+    xsf::sph_legendre_p_all(x, mds(pnm, n + 1, 2 * m + 1));
 }
 void xsfr_sph_legendre_p_all_1(size_t n, size_t m, c_complex z, c_complex *pnm) {
-    xsf::sph_legendre_p_all(to_cpp_complex(z), std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1));
+    xsf::sph_legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pnm), n + 1, 2 * m + 1));
 }
 void xsfr_assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    auto res = mds(pnm, n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
 }
 void xsfr_assoc_legendre_p_all_0_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1);
+    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, to_cpp_complex(z), bc, res);
 }
 void xsfr_assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = std::mdspan(pnm, n + 1, 2 * m + 1);
+    auto res = mds(pnm, n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
 }
 void xsfr_assoc_legendre_p_all_1_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = std::mdspan(as_cpp_complex(pnm), n + 1, 2 * m + 1);
+    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
     xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, to_cpp_complex(z), bc, res);
 }
 
 // legendre.h
 void xsfr_lqn(size_t n, double x, double *qn, double *qd) {
-    xsf::lqn(x, std::mdspan(qn, n + 1), std::mdspan(qd, n + 1));
+    xsf::lqn(x, mds(qn, n + 1), mds(qd, n + 1));
 }
 void xsfr_lqn_1(size_t n, c_complex z, c_complex *qn, c_complex *qd) {
-    xsf::lqn(to_cpp_complex(z), std::mdspan(as_cpp_complex(qn), n + 1), std::mdspan(as_cpp_complex(qd), n + 1));
+    xsf::lqn(to_cpp_complex(z), mds(as_cpp_complex(qn), n + 1), mds(as_cpp_complex(qd), n + 1));
 }
 void xsfr_lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
-    xsf::lqmn(x, std::mdspan(qm, m + 1, n + 1), std::mdspan(qd, m + 1, n + 1));
+    xsf::lqmn(x, mds(qm, m + 1, n + 1), mds(qd, m + 1, n + 1));
 }
 void xsfr_lqmn_1(size_t m, size_t n, c_complex z, c_complex *qm, c_complex *qd) {
-    xsf::lqmn(to_cpp_complex(z), std::mdspan(as_cpp_complex(qm), m + 1, n + 1), std::mdspan(as_cpp_complex(qd), m + 1, n + 1));
+    xsf::lqmn(to_cpp_complex(z), mds(as_cpp_complex(qm), m + 1, n + 1), mds(as_cpp_complex(qd), m + 1, n + 1));
 }
 
 // sph_harm.h
 void xsfr_sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
-    xsf::sph_harm_y_all(theta, phi, std::mdspan(as_cpp_complex(res), n + 1, 2 * m + 1));
+    xsf::sph_harm_y_all(theta, phi, mds(as_cpp_complex(res), n + 1, 2 * m + 1));
 }
 
 // stats.h
 void xsfr_poisson_binom_pmf_all(size_t n, const double *p, double *res) {
-    xsf::poisson_binom_pmf_all(std::mdspan(p, n), std::mdspan(res, n + 1));
+    xsf::poisson_binom_pmf_all(mds(p, n), mds(res, n + 1));
 }
 void xsfr_poisson_binom_cdf_all(size_t n, const double *p, double *res) {
-    xsf::poisson_binom_cdf_all(std::mdspan(p, n), std::mdspan(res, n + 1));
+    xsf::poisson_binom_cdf_all(mds(p, n), mds(res, n + 1));
 }
 "#;
 
@@ -519,12 +558,8 @@ fn write_file(path: String, content: String) -> String {
 fn generate_cpp(dir_out: &str) -> String {
     let mut source = String::from(WRAPPER_PREAMBLE);
 
-    // C++23 `std::mdspan` backport
-    push_line(&mut source, "#define MDSPAN_USE_PAREN_OPERATOR 1");
-    push_line(
-        &mut source,
-        r#"#include "xsf/third_party/kokkos/mdspan.hpp""#,
-    );
+    // minimal `std::mdspan` stand-in
+    push_line(&mut source, CPP_MDSPAN_SHIM);
     push_line(&mut source, "");
 
     // includes
