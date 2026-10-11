@@ -207,7 +207,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("ndtr", "D->D"),
     ("log_ndtr", "d->d"),
     ("log_ndtr", "D->D"),
-    ("owens_t", "dd->d"),
     ("pdtr", "dd->d"),
     ("pdtrc", "dd->d"),
     ("pdtri", "id->d"),
