@@ -11,7 +11,7 @@ impl ZetaArg for f64 {
 
     #[inline]
     fn zeta(self, q: f64) -> Self {
-        unsafe { crate::ffi::xsf::zeta(self, q) }
+        crate::xsf::cephes::zeta(self, q)
     }
 }
 
@@ -23,7 +23,12 @@ impl ZetaArg for num_complex::Complex<f64> {
 
     #[inline]
     fn zeta(self, q: f64) -> Self {
-        unsafe { crate::ffi::xsf::zeta_1(self, q) }
+        if self.im == 0.0 {
+            num_complex::Complex::new(self.re.zeta(q), 0.0)
+        } else {
+            // Complex input for Hurwitz Zeta is not currently supported.
+            num_complex::Complex::new(f64::NAN, f64::NAN)
+        }
     }
 }
 
@@ -105,6 +110,18 @@ mod tests {
     #[test]
     fn test_zeta_f64() {
         xsref::test("zeta", "d_d-d", |x| crate::zeta(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_zeta_large_q() {
+        // asymptotic expansion for q > 1e8 (reference value from mpmath)
+        let (x, q) = (36.0, 1.1e8);
+        let expected = 1.016_688_811_413_570_4e-283;
+        let rel = (crate::zeta(x, q) - expected).abs() / expected;
+        assert!(rel < 1e-15, "rel = {rel:e}");
+
+        assert_eq!(crate::zeta(f64::INFINITY, q), 0.0);
+        assert_eq!(crate::zeta(f64::INFINITY, f64::INFINITY), 0.0);
     }
 
     #[test]

@@ -248,8 +248,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("riemann_zeta", "d->d"),
     ("riemann_zeta", "D->D"),
     ("zetac", "d->d"),
-    ("zeta", "dd->d"),
-    ("zeta", "Dd->D"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"
