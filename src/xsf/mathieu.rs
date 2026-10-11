@@ -62,8 +62,8 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mtu0_km_is_251(m, q) {
-        // (unlike in scipy) NaN, as for km > 251
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     out2(|y, yp| unsafe { crate::ffi::xsf::cem(m.into(), q, x, y, yp) })
@@ -97,8 +97,8 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if m > 0 && mtu0_km_is_251(m, q) {
-        // (unlike in scipy) NaN, as for km > 251
+    if m > 0 && mathieu_km_too_large(m, q) {
+        // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     out2(|y, yp| unsafe { crate::ffi::xsf::sem(m.into(), q, x, y, yp) })
@@ -122,6 +122,8 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_cem`]: Even Mathieu function
 /// - [`mathieu_modcem2`]: Even modified Mathieu function of the second kind
@@ -130,6 +132,10 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::mcm1(m.into(), q, x, y, yp) })
 }
 
@@ -151,6 +157,8 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_sem`]: Odd Mathieu function
 /// - [`mathieu_modsem2`]: Odd modified Mathieu function of the second kind
@@ -159,6 +167,10 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::msm1(m.into(), q, x, y, yp) })
 }
 
@@ -180,6 +192,8 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_cem`]: Even Mathieu function
 /// - [`mathieu_modcem1`]: Even modified Mathieu function of the first kind
@@ -188,6 +202,10 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::mcm2(m.into(), q, x, y, yp) })
 }
 
@@ -209,6 +227,8 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_sem`]: Odd Mathieu function
 /// - [`mathieu_modsem1`]: Odd modified Mathieu function of the first kind
@@ -217,6 +237,10 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::msm2(m.into(), q, x, y, yp) })
 }
 
@@ -231,12 +255,13 @@ fn mathieu_qm(q: f64) -> f64 {
     }
 }
 
-/// Whether `mtu0` (used by `cem` and `sem`) would read out of bounds, i.e. if `km == 251`, since it
-/// only returns NaN if `km > 251`
-#[allow(clippy::float_cmp)]
-fn mtu0_km_is_251(m: u32, q: f64) -> bool {
+/// Whether `km >= 251`, in which case `mtu0` (used by `cem` and `sem`) and `mtu12` (used by the
+/// modified Mathieu functions) would index out of bounds: `mtu0` only returns NaN if `km > 251`,
+/// and both cast `km` to `int`, which overflows for huge or NaN `q`
+fn mathieu_km_too_large(m: u32, q: f64) -> bool {
     // `q < 0` is reflected to `-q`, with the same `m`
-    (mathieu_qm(q.abs()) + 0.5 * f64::from(m)).floor() == 251.0
+    let km = mathieu_qm(q.abs()) + 0.5 * f64::from(m);
+    km.is_nan() || km >= 251.0
 }
 
 #[inline]
@@ -460,5 +485,22 @@ mod tests {
             assert!(y.is_nan() && yp.is_nan());
         }
         assert_eq!(crate::mathieu_sem(0, 2103.0, 10.0), (0.0, 0.0));
+    }
+
+    #[test]
+    fn test_mathieu_huge_q() {
+        // `km` would overflow `int`
+        for q in [1e10, f64::INFINITY, f64::NAN] {
+            for (y, yp) in [
+                crate::mathieu_cem(0, q, 10.0),
+                crate::mathieu_sem(1, q, 10.0),
+                crate::mathieu_modcem1(0, q, 1.0),
+                crate::mathieu_modsem1(1, q, 1.0),
+                crate::mathieu_modcem2(0, q, 1.0),
+                crate::mathieu_modsem2(1, q, 1.0),
+            ] {
+                assert!(y.is_nan() && yp.is_nan(), "q = {q}");
+            }
+        }
     }
 }
