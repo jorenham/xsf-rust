@@ -699,6 +699,10 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn cdf_cvm_inf(x: f64) -> f64 {
+    if x == f64::INFINITY {
+        // (unlike in scipy) instead of an infinite loop
+        return 1.0;
+    }
     unsafe { crate::ffi::xsf::cdf_cvm_inf(x) }
 }
 
@@ -719,6 +723,13 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn cdf_cvm(x: f64, n: i32) -> f64 {
+    if x.is_nan() {
+        // (unlike in scipy) instead of an infinite loop
+        return x;
+    }
+    if n == -1 {
+        return cdf_cvm_inf(x);
+    }
     unsafe { crate::ffi::xsf::cdf_cvm(x, n as c_int) }
 }
 
@@ -1106,5 +1117,15 @@ mod tests {
         let result = crate::cdf_cvm(0.5, N);
         assert!(result.is_finite());
         assert!((0.0..=1.0).contains(&result));
+    }
+
+    #[test]
+    fn test_cdf_cvm_nonfinite() {
+        assert_eq!(crate::cdf_cvm_inf(f64::INFINITY), 1.0);
+        assert!(crate::cdf_cvm_inf(f64::NAN).is_nan());
+        for n in [-1, 5] {
+            assert_eq!(crate::cdf_cvm(f64::INFINITY, n), 1.0);
+            assert!(crate::cdf_cvm(f64::NAN, n).is_nan());
+        }
     }
 }
