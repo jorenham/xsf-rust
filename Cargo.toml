@@ -26,6 +26,7 @@ include = [
   "!xsf/include/xsf/log.h",
   "!xsf/include/xsf/log_exp.h",
   "!xsf/include/xsf/numpy.h",
+  "!xsf/include/xsf/third_party/kokkos/mdspan.hpp",
   "!xsf/include/xsf/zeta.h",
 ]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
