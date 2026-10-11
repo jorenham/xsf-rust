@@ -82,7 +82,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // cdflib.h
     ("gdtrib", "ddd->d"),
     // digamma.h
-    ("digamma", "d->d"),
     ("digamma", "D->D"),
     // ellip.h
     ("ellipj", "dd->dddd"),
