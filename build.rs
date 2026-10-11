@@ -194,9 +194,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("oblate_radial2", "ddddd->dd"),
     ("oblate_aswfa", "ddddd->dd"),
     // stats.h
-    ("bdtr", "did->d"),
-    ("bdtrc", "did->d"),
-    ("bdtri", "did->d"),
     ("cdf_cvm", "di->d"),
     ("cdf_cvm_inf", "d->d"),
     ("chdtr", "dd->d"),

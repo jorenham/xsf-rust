@@ -558,7 +558,7 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtr(k, n as c_int, p) }
+    crate::xsf::cephes::bdtr(k, n, p)
 }
 
 /// Binomial survival function
@@ -573,7 +573,7 @@ pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtrc(k, n as c_int, p) }
+    crate::xsf::cephes::bdtrc(k, n, p)
 }
 
 /// Binomial quantile function
@@ -588,7 +588,7 @@ pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::bdtri(k, n as c_int, y) }
+    crate::xsf::cephes::bdtri(k, n, y)
 }
 
 // Poisson binomial
@@ -1037,6 +1037,13 @@ mod tests {
     #[test]
     fn test_bdtr() {
         xsref::test("bdtr", "d_p_d-d", |x| crate::bdtr(x[0], x[1] as i32, x[2]));
+    }
+
+    #[test]
+    fn test_bdtri_small_y() {
+        // mpmath: the p for which bdtr(96, 191, p) == 2.1012712563041036e-22
+        let p = crate::bdtri(96.0, 191, 2.101_271_256_304_103_6e-22);
+        assert!((p / 0.814_405_035_443_584 - 1.0).abs() < 1e-14, "p = {p}");
     }
 
     #[test]
