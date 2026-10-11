@@ -73,6 +73,24 @@ jobs:
       - name: cargo check
         run: cargo check
 
+  package:
+    runs-on: ubuntu-latest
+    name: Package
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: check packaged headers
+        run: python3 scripts/check_headers.py
+
+      - name: cargo package
+        run: cargo package
+
   test:
     runs-on: ${{ matrix.os }}
     name: test (${{ matrix.os }})
