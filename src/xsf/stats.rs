@@ -9,7 +9,7 @@ pub trait StatsArg: crate::sealed::Sealed {
 impl StatsArg for f64 {
     #[inline]
     fn ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::ndtr(self) }
+        crate::xsf::cephes::ndtr(self)
     }
 
     #[inline]
@@ -21,7 +21,7 @@ impl StatsArg for f64 {
 impl StatsArg for num_complex::Complex<f64> {
     #[inline]
     fn ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::ndtr_1(self) }
+        unsafe { crate::ffi::xsf::ndtr(self) }
     }
 
     #[inline]

@@ -11,11 +11,11 @@ pub trait ErfArg: crate::sealed::Sealed {
 impl ErfArg for f64 {
     #[inline]
     fn erf(self) -> Self {
-        unsafe { crate::ffi::xsf::erf(self) }
+        crate::xsf::cephes::erf(self)
     }
     #[inline]
     fn erfc(self) -> Self {
-        unsafe { crate::ffi::xsf::erfc(self) }
+        crate::xsf::cephes::erfc(self)
     }
     #[inline]
     fn erfcx(self) -> Self {
@@ -34,11 +34,11 @@ impl ErfArg for f64 {
 impl ErfArg for Complex64 {
     #[inline]
     fn erf(self) -> Self {
-        unsafe { crate::ffi::xsf::erf_1(self) }
+        unsafe { crate::ffi::xsf::erf(self) }
     }
     #[inline]
     fn erfc(self) -> Self {
-        unsafe { crate::ffi::xsf::erfc_1(self) }
+        unsafe { crate::ffi::xsf::erfc(self) }
     }
     #[inline]
     fn erfcx(self) -> Self {
