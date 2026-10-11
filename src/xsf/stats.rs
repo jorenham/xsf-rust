@@ -368,7 +368,7 @@ pub fn smirnovp(n: i32, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
-    unsafe { crate::ffi::xsf::tukeylambdacdf(x, lambda) }
+    crate::xsf::cephes::tukeylambdacdf(x, lambda)
 }
 
 // Chi-squared
