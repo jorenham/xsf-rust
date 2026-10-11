@@ -245,9 +245,7 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("wright_bessel", "ddd->d"),
     ("log_wright_bessel", "ddd->d"),
     // zeta.h
-    ("riemann_zeta", "d->d"),
     ("riemann_zeta", "D->D"),
-    ("zetac", "d->d"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"
