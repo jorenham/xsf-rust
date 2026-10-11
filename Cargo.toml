@@ -19,12 +19,14 @@ include = [
   "!xsf/include/xsf/cephes/kn.h",
   "!xsf/include/xsf/cephes/round.h",
   "!xsf/include/xsf/cephes/spence.h",
+  "!xsf/include/xsf/cephes/zetac.h",
   "!xsf/include/xsf/exp.h",
   "!xsf/include/xsf/fp_error_metrics.h",
   "!xsf/include/xsf/lambertw.h",
   "!xsf/include/xsf/log.h",
   "!xsf/include/xsf/log_exp.h",
   "!xsf/include/xsf/numpy.h",
+  "!xsf/include/xsf/zeta.h",
 ]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]
 license = "BSD-3-Clause"
