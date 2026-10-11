@@ -14,6 +14,7 @@ mod rgamma;
 mod round;
 mod spence;
 mod unity;
+mod zeta;
 
 pub(crate) use beta::{beta, lbeta};
 pub use erfinv::*;
@@ -28,3 +29,4 @@ pub(crate) use rgamma::rgamma;
 pub use round::*;
 pub(crate) use spence::spence;
 pub use unity::*;
+pub(crate) use zeta::zeta;
