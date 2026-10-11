@@ -86,13 +86,13 @@ pub fn gamma<T: GammaArg>(z: T) -> T {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.0. Translated into C++ by SciPy developers in 2024.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_lr", alias = "gamma_p")]
 #[must_use]
 #[inline]
 pub fn gammainc(a: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammainc(a, x) }
+    crate::xsf::cephes::igam(a, x)
 }
 
 /// Regularized upper incomplete gamma function $Q(a,x)$
@@ -121,13 +121,13 @@ pub fn gammainc(a: f64, x: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammaincc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.0. Translated into C++ by SciPy developers in 2024.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_ur", alias = "gamma_q")]
 #[must_use]
 #[inline]
 pub fn gammaincc(a: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammaincc(a, x) }
+    crate::xsf::cephes::igamc(a, x)
 }
 
 /// Inverse of [`gammainc`]
