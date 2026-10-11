@@ -1,3 +1,4 @@
+mod bdtr;
 mod beta;
 pub(crate) mod chbevl;
 pub(crate) mod dd_real;
@@ -18,6 +19,7 @@ mod unity;
 mod zeta;
 mod zetac;
 
+pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use beta::{beta, lbeta};
 pub use erfinv::*;
 pub use expn::*;

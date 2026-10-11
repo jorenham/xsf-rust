@@ -54,7 +54,7 @@ enum Label {
 /// Outputs smaller than the IEEE gradual underflow threshold
 /// were excluded from these statistics.
 #[allow(clippy::float_cmp, clippy::too_many_lines)]
-fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
+pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     let mut a;
     let mut b;
     let mut y0;
