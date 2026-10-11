@@ -1,3 +1,362 @@
+//! Translated into pure Rust from `xsf/cephes/incbet.h` (xsf v0.2.2), which was translated into
+//! C++ by SciPy developers in 2024.
+//!
+//! Cephes Math Library, Release 2.3:  March, 1995
+//! Copyright 1984, 1995 by Stephen L. Moshier
+//!
+//! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
+
+use crate::xsf::cephes::{beta, lbeta};
+
+// cephes/const.h
+const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
+const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
+const MINLOG: f64 = -745.133_219_101_941_2; // log(2**(-1075))
+const MAXGAM: f64 = 171.624_376_956_302_7; // Largest x such that Gamma(x) is finite
+
+const INCBET_BIG: f64 = 4.503_599_627_370_496e15;
+const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;
+
+/// Power series for incomplete beta integral.
+/// Use when b*x is small and x not too close to 1.
+fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
+    let ai = 1.0 / a;
+    let mut u = (1.0 - b) * x;
+    let mut v = u / (a + 1.0);
+    let t1 = v;
+    let mut t = u;
+    let mut n = 2.0;
+    let mut s = 0.0;
+    let z = MACHEP * ai;
+    while v.abs() > z {
+        u = (n - b) * x / n;
+        t *= u;
+        v = t / (a + n);
+        s += v;
+        n += 1.0;
+    }
+    s += t1;
+    s += ai;
+
+    u = a * x.ln();
+    if (a + b) < MAXGAM && u.abs() < MAXLOG {
+        t = 1.0 / beta(a, b);
+        // `triple_product(s, t, pow(x, a))` in xsf, which only disables optimizations for gcc on
+        // 32-bit x86, to prevent aggressive optimizations from degrading accuracy
+        s = (s * t) * x.powf(a);
+    } else {
+        t = -lbeta(a, b) + u + s.ln();
+        if t < MINLOG {
+            s = 0.0;
+        } else {
+            s = t.exp();
+        }
+    }
+    s
+}
+
+/// Continued fraction expansion #1 for incomplete beta integral
+#[allow(clippy::if_not_else)]
+fn incbcf(a: f64, b: f64, x: f64) -> f64 {
+    let mut xk;
+    let mut pk;
+    let mut qk;
+    let mut t;
+
+    let mut k1 = a;
+    let mut k2 = a + b;
+    let mut k3 = a;
+    let mut k4 = a + 1.0;
+    let mut k5 = 1.0;
+    let mut k6 = b - 1.0;
+    let mut k7 = k4;
+    let mut k8 = a + 2.0;
+
+    let mut pkm2 = 0.0;
+    let mut qkm2 = 1.0;
+    let mut pkm1 = 1.0;
+    let mut qkm1 = 1.0;
+    let mut ans = 1.0;
+    let mut r = 1.0;
+    let mut n = 0;
+    let thresh = 3.0 * MACHEP;
+    loop {
+        xk = -(x * k1 * k2) / (k3 * k4);
+        pk = pkm1 + pkm2 * xk;
+        qk = qkm1 + qkm2 * xk;
+        pkm2 = pkm1;
+        pkm1 = pk;
+        qkm2 = qkm1;
+        qkm1 = qk;
+
+        xk = (x * k5 * k6) / (k7 * k8);
+        pk = pkm1 + pkm2 * xk;
+        qk = qkm1 + qkm2 * xk;
+        pkm2 = pkm1;
+        pkm1 = pk;
+        qkm2 = qkm1;
+        qkm1 = qk;
+
+        if qk != 0.0 {
+            r = pk / qk;
+        }
+        if r != 0.0 {
+            t = ((ans - r) / r).abs();
+            ans = r;
+        } else {
+            t = 1.0;
+        }
+        if t < thresh {
+            break;
+        }
+
+        k1 += 1.0;
+        k2 += 1.0;
+        k3 += 2.0;
+        k4 += 2.0;
+        k5 += 1.0;
+        k6 -= 1.0;
+        k7 += 2.0;
+        k8 += 2.0;
+
+        if (qk.abs() + pk.abs()) > INCBET_BIG {
+            pkm2 *= INCBET_BIGINV;
+            pkm1 *= INCBET_BIGINV;
+            qkm2 *= INCBET_BIGINV;
+            qkm1 *= INCBET_BIGINV;
+        }
+        if (qk.abs() < INCBET_BIGINV) || (pk.abs() < INCBET_BIGINV) {
+            pkm2 *= INCBET_BIG;
+            pkm1 *= INCBET_BIG;
+            qkm2 *= INCBET_BIG;
+            qkm1 *= INCBET_BIG;
+        }
+
+        n += 1;
+        if n >= 300 {
+            break;
+        }
+    }
+
+    ans
+}
+
+/// Continued fraction expansion #2 for incomplete beta integral
+#[allow(clippy::if_not_else)]
+fn incbd(a: f64, b: f64, x: f64) -> f64 {
+    let mut xk;
+    let mut pk;
+    let mut qk;
+    let mut t;
+
+    let mut k1 = a;
+    let mut k2 = b - 1.0;
+    let mut k3 = a;
+    let mut k4 = a + 1.0;
+    let mut k5 = 1.0;
+    let mut k6 = a + b;
+    let mut k7 = a + 1.0;
+    let mut k8 = a + 2.0;
+
+    let mut pkm2 = 0.0;
+    let mut qkm2 = 1.0;
+    let mut pkm1 = 1.0;
+    let mut qkm1 = 1.0;
+    let z = x / (1.0 - x);
+    let mut ans = 1.0;
+    let mut r = 1.0;
+    let mut n = 0;
+    let thresh = 3.0 * MACHEP;
+    loop {
+        xk = -(z * k1 * k2) / (k3 * k4);
+        pk = pkm1 + pkm2 * xk;
+        qk = qkm1 + qkm2 * xk;
+        pkm2 = pkm1;
+        pkm1 = pk;
+        qkm2 = qkm1;
+        qkm1 = qk;
+
+        xk = (z * k5 * k6) / (k7 * k8);
+        pk = pkm1 + pkm2 * xk;
+        qk = qkm1 + qkm2 * xk;
+        pkm2 = pkm1;
+        pkm1 = pk;
+        qkm2 = qkm1;
+        qkm1 = qk;
+
+        if qk != 0.0 {
+            r = pk / qk;
+        }
+        if r != 0.0 {
+            t = ((ans - r) / r).abs();
+            ans = r;
+        } else {
+            t = 1.0;
+        }
+        if t < thresh {
+            break;
+        }
+
+        k1 += 1.0;
+        k2 -= 1.0;
+        k3 += 2.0;
+        k4 += 2.0;
+        k5 += 1.0;
+        k6 += 1.0;
+        k7 += 2.0;
+        k8 += 2.0;
+
+        if (qk.abs() + pk.abs()) > INCBET_BIG {
+            pkm2 *= INCBET_BIGINV;
+            pkm1 *= INCBET_BIGINV;
+            qkm2 *= INCBET_BIGINV;
+            qkm1 *= INCBET_BIGINV;
+        }
+        if (qk.abs() < INCBET_BIGINV) || (pk.abs() < INCBET_BIGINV) {
+            pkm2 *= INCBET_BIG;
+            pkm1 *= INCBET_BIG;
+            qkm2 *= INCBET_BIG;
+            qkm1 *= INCBET_BIG;
+        }
+
+        n += 1;
+        if n >= 300 {
+            break;
+        }
+    }
+
+    ans
+}
+
+/// Incomplete beta integral
+///
+/// Returns incomplete beta integral of the arguments, evaluated
+/// from zero to x.  The function is defined as
+///
+/// ```text
+///                  x
+///     -            -
+///    | (a+b)      | |  a-1     b-1
+///  -----------    |   t   (1-t)   dt.
+///   -     -     | |
+///  | (a) | (b)   -
+///                 0
+/// ```
+///
+/// The domain of definition is 0 <= x <= 1.  In this
+/// implementation a and b are restricted to positive values.
+/// The integral from x to 1 may be obtained by the symmetry
+/// relation
+///
+/// ```text
+///    1 - incbet( a, b, x )  =  incbet( b, a, 1-x ).
+/// ```
+///
+/// The integral is evaluated by a continued fraction expansion
+/// or, when b*x is small, by a power series.
+///
+/// ACCURACY:
+///
+/// Tested at uniformly distributed random points (a,b,x) with a and b
+/// in "domain" and x between 0 and 1.
+///
+/// ```text
+///                                        Relative error
+/// arithmetic   domain     # trials      peak         rms
+///    IEEE      0,5         10000       3.6e-15     4.9e-16
+///    IEEE      0,85       250000       1.5e-13     1.7e-14
+///    IEEE      0,1000      30000       4.5e-12     6.1e-13
+///    IEEE      0,10000    250000       8.4e-11     6.9e-12
+///    IEEE      0,100000    10000       5.8e-10     4.4e-11
+/// ```
+///
+/// Outputs smaller than the IEEE gradual underflow threshold
+/// were excluded from these statistics.
+///
+/// ERROR MESSAGES:
+///
+/// ```text
+///   message         condition      value returned
+/// incbet domain      x<0, x>1          NaN
+/// incbet underflow                     0.0
+/// ```
+///
+/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+#[allow(clippy::float_cmp)]
+fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
+    let mut flag = false;
+
+    if aa <= 0.0 || bb <= 0.0 {
+        // domerr
+        return f64::NAN;
+    }
+
+    if (xx <= 0.0) || (xx >= 1.0) {
+        if xx == 0.0 {
+            return 0.0;
+        }
+        if xx == 1.0 {
+            return 1.0;
+        }
+        // domerr
+        return f64::NAN;
+    }
+
+    let t = 'done: {
+        if (bb * xx) <= 1.0 && xx <= 0.95 {
+            break 'done incbet_pseries(aa, bb, xx);
+        }
+
+        let mut w = 1.0 - xx;
+
+        /* Reverse a and b if x is greater than the mean. */
+        let (a, b, xc, x) = if xx > (aa / (aa + bb)) {
+            flag = true;
+            (bb, aa, xx, w)
+        } else {
+            (aa, bb, w, xx)
+        };
+
+        if flag && (b * x) <= 1.0 && x <= 0.95 {
+            break 'done incbet_pseries(a, b, x);
+        }
+
+        /* Choose expansion for better convergence. */
+        let mut y = x * (a + b - 2.0) - (a - 1.0);
+        if y < 0.0 {
+            w = incbcf(a, b, x);
+        } else {
+            w = incbd(a, b, x) / xc;
+        }
+
+        /* Multiply w by the factor
+         * a      b   _             _     _
+         * x  (1-x)   | (a+b) / ( a | (a) | (b) ) .   */
+
+        y = a * x.ln();
+        let mut t = b * xc.ln();
+        if (a + b) < MAXGAM && y.abs() < MAXLOG && t.abs() < MAXLOG {
+            t = xc.powf(b);
+            t *= x.powf(a);
+            t /= a;
+            t *= w;
+            t *= 1.0 / beta(a, b);
+            break 'done t;
+        }
+        /* Resort to logarithms.  */
+        y += t - lbeta(a, b);
+        y += (w / a).ln();
+        if y < MINLOG { 0.0 } else { y.exp() }
+    };
+
+    // done:
+    if flag {
+        if t <= MACHEP { 1.0 - MACHEP } else { 1.0 - t }
+    } else {
+        t
+    }
+}
+
 /// Regularized incomplete Beta function $\I_x(a,b)$
 ///
 /// Computes the regularized incomplete Beta function, defined as [^DLMF]:
@@ -12,7 +371,7 @@
 /// incomplete Beta function.
 ///
 /// # Notes
-/// This function wraps the `incbet` Cephes routine [^CEPHES], making it less accurate than
+/// This function uses the `incbet` Cephes routine [^CEPHES], making it less accurate than
 /// [`scipy.special.betainc`][scipy], which wraps the Boost `ibeta` routine [^BOOST].
 /// Especially for small `x` the accuracy may be poor.
 ///
@@ -25,7 +384,7 @@
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.3. Translated into C++ by SciPy developers in 2024.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(
     alias = "inc_beta",
@@ -46,7 +405,7 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     } else if a.is_infinite() || b == 0.0 {
         if x < 1.0 { 0.0 } else { 1.0 }
     } else {
-        unsafe { crate::ffi::xsf::incbet(a, b, x) }
+        incbet(a, b, x)
     }
 }
 
