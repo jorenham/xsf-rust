@@ -55,3 +55,8 @@ pub(crate) fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
 fn box_inf(x: f64) -> f64 {
     (if x.is_infinite() { 1.0_f64 } else { 0.0 }).copysign(x)
 }
+
+/// `x - z` for real `x` as in C++, where the imaginary part is `-z.im` instead of `0.0 - z.im`
+pub(crate) fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
+    Complex::new(x - z.re, -z.im)
+}
