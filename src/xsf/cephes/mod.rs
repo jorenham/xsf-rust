@@ -15,6 +15,7 @@ mod round;
 mod spence;
 mod unity;
 mod zeta;
+mod zetac;
 
 pub(crate) use beta::{beta, lbeta};
 pub use erfinv::*;
@@ -30,3 +31,4 @@ pub use round::*;
 pub(crate) use spence::spence;
 pub use unity::*;
 pub(crate) use zeta::zeta;
+pub(crate) use zetac::{riemann_zeta, zetac};

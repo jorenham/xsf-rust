@@ -6,7 +6,7 @@ pub trait ZetaArg: crate::sealed::Sealed {
 impl ZetaArg for f64 {
     #[inline]
     fn riemann_zeta(self) -> Self {
-        unsafe { crate::ffi::xsf::riemann_zeta(self) }
+        crate::xsf::cephes::riemann_zeta(self)
     }
 
     #[inline]
@@ -18,7 +18,7 @@ impl ZetaArg for f64 {
 impl ZetaArg for num_complex::Complex<f64> {
     #[inline]
     fn riemann_zeta(self) -> Self {
-        unsafe { crate::ffi::xsf::riemann_zeta_1(self) }
+        unsafe { crate::ffi::xsf::riemann_zeta(self) }
     }
 
     #[inline]
@@ -88,7 +88,7 @@ pub fn zeta<T: ZetaArg>(z: T, q: f64) -> T {
 #[must_use]
 #[inline]
 pub fn zetac(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::zetac(x) }
+    crate::xsf::cephes::zetac(x)
 }
 
 #[cfg(test)]
@@ -127,5 +127,14 @@ mod tests {
     #[test]
     fn test_zetac_f64() {
         xsref::test("zetac", "d-d", |x| crate::zetac(x[0]));
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_zetac_large_x() {
+        // zetac(x) = 2^-x to double precision, which doesn't underflow before x = 1075
+        for x in [127.0, 130.0, 1000.0, 1074.0] {
+            assert_eq!(crate::zetac(x), (-x).exp2());
+        }
     }
 }

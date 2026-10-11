@@ -61,6 +61,8 @@ const LANCZOS_SUM_EXPG_SCALED_DENOM: [f64; 13] = [
     0.0,
 ];
 
+pub(crate) const LANCZOS_G: f64 = 6.024_680_040_776_73; // 6.024680040776729583740234375
+
 #[doc(hidden)]
 #[must_use]
 #[inline]
