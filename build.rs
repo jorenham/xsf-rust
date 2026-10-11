@@ -33,7 +33,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "stats.h",
     "struve.h",
     "wright_bessel.h",
-    "zeta.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
     // airy.h
@@ -244,8 +243,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // wright_bessel.h
     ("wright_bessel", "ddd->d"),
     ("log_wright_bessel", "ddd->d"),
-    // zeta.h
-    ("riemann_zeta", "D->D"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"
