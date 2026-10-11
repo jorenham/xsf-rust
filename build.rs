@@ -87,9 +87,7 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("ellipe", "d->d"),
     ("ellipeinc", "dd->d"),
     // erf.h
-    ("erf", "d->d"),
     ("erf", "D->D"),
-    ("erfc", "d->d"),
     ("erfc", "D->D"),
     ("erfcx", "d->d"),
     ("erfcx", "D->D"),
@@ -206,7 +204,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("kolmogi", "d->d"),
     ("kolmogci", "d->d"),
     ("kolmogp", "d->d"),
-    ("ndtr", "d->d"),
     ("ndtr", "D->D"),
     ("log_ndtr", "d->d"),
     ("log_ndtr", "D->D"),
