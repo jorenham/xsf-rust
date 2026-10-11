@@ -200,7 +200,7 @@ pub fn ndtri(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn owens_t(h: f64, a: f64) -> f64 {
-    unsafe { crate::ffi::xsf::owens_t(h, a) }
+    crate::xsf::cephes::owens_t(h, a)
 }
 
 // Kolmogorov
