@@ -50,6 +50,8 @@ pub use bessel::{
 pub use beta::{beta, betaln};
 pub use binom::binom;
 pub use cdflib::gdtrib;
+// `cephes` is `pub(crate)`, so newer rustdoc versions list these as re-exports otherwise
+#[doc(inline)]
 pub use cephes::{
     betainc, betaincinv, erfcinv, erfinv, expn, lanczos_sum_expg_scaled, lgam1p, pow_falling,
     pow_rising, round,
