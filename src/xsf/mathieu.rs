@@ -53,6 +53,8 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_sem`]: Odd Mathieu function
 /// - [`mathieu_a`]: Characteristic value of even Mathieu functions
@@ -60,6 +62,10 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mtu0_km_is_251(m, q) {
+        // (unlike in scipy) NaN, as for km > 251
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::cem(m.into(), q, x, y, yp) })
 }
 
@@ -82,6 +88,8 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
+/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+///
 /// # See also
 /// - [`mathieu_cem`]: Even Mathieu function
 /// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
@@ -89,6 +97,10 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
+    if m > 0 && mtu0_km_is_251(m, q) {
+        // (unlike in scipy) NaN, as for km > 251
+        return (f64::NAN, f64::NAN);
+    }
     out2(|y, yp| unsafe { crate::ffi::xsf::sem(m.into(), q, x, y, yp) })
 }
 
@@ -208,6 +220,25 @@ pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     out2(|y, yp| unsafe { crate::ffi::xsf::msm2(m.into(), q, x, y, yp) })
 }
 
+/// `qm` in `mathieu_{even,odd}_coef`, and in `fcoef` and `mtu0` of `specfun.h`, where the number
+/// of predicted Fourier coefficients is `km = int(qm + 0.5*m)`
+fn mathieu_qm(q: f64) -> f64 {
+    let q_sqrt = q.sqrt();
+    if q <= 1.0 {
+        7.5 + 56.1 * q_sqrt - 134.7 * q + 90.7 * q_sqrt * q
+    } else {
+        17.0 + 3.1 * q_sqrt - 0.126 * q + 0.0037 * q_sqrt * q
+    }
+}
+
+/// Whether `mtu0` (used by `cem` and `sem`) would read out of bounds, i.e. if `km == 251`, since it
+/// only returns NaN if `km > 251`
+#[allow(clippy::float_cmp)]
+fn mtu0_km_is_251(m: u32, q: f64) -> bool {
+    // `q < 0` is reflected to `-q`, with the same `m`
+    (mathieu_qm(q.abs()) + 0.5 * f64::from(m)).floor() == 251.0
+}
+
 #[inline]
 fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
@@ -218,12 +249,7 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 252], usize), String>
         return Err("q >=0".to_string());
     }
 
-    let q_sqrt = q.sqrt();
-    let qm = if q <= 1.0 {
-        7.5 + 56.1 * q_sqrt - 134.7 * q + 90.7 * q_sqrt * q
-    } else {
-        17.0 + 3.1 * q_sqrt - 0.126 * q + 0.0037 * q_sqrt * q
-    };
+    let qm = mathieu_qm(q);
     // km = int(qm + 0.5*m)
     let km = (qm + 0.5 * f64::from(m)).floor().to_usize().unwrap();
     // if km > 251:
@@ -420,5 +446,19 @@ mod tests {
     #[test]
     fn test_mathieu_odd_coef_m0() {
         assert!(crate::mathieu_odd_coef(0, 0.0).is_err());
+    }
+
+    #[test]
+    fn test_mathieu_cem_sem_km251() {
+        // `mtu0` would read out of bounds
+        for (y, yp) in [
+            crate::mathieu_cem(0, 2103.0, 10.0),
+            crate::mathieu_cem(0, -2103.0, 10.0),
+            crate::mathieu_sem(1, 2100.0, 10.0),
+            crate::mathieu_sem(1, -2100.0, 10.0),
+        ] {
+            assert!(y.is_nan() && yp.is_nan());
+        }
+        assert_eq!(crate::mathieu_sem(0, 2103.0, 10.0), (0.0, 0.0));
     }
 }
