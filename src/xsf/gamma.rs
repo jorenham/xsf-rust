@@ -149,7 +149,7 @@ pub fn gammaincc(a: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gammaincinv(a: f64, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammaincinv(a, p) }
+    crate::xsf::cephes::igami(a, p)
 }
 
 /// Inverse of [`gammaincc`]
@@ -171,7 +171,7 @@ pub fn gammaincinv(a: f64, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gammainccinv(a: f64, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gammainccinv(a, p) }
+    crate::xsf::cephes::igamci(a, p)
 }
 
 /// Logarithm of the absolute value of [`gamma`], $\ln{\abs{\Gamma(x)}}$
