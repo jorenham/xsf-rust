@@ -653,7 +653,7 @@ pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
 #[must_use]
 #[inline]
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtr(k as c_int, n as c_int, p) }
+    crate::xsf::cephes::nbdtr(k, n, p)
 }
 
 /// Negative binomial survival function
@@ -668,7 +668,7 @@ pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtrc(k as c_int, n as c_int, p) }
+    crate::xsf::cephes::nbdtrc(k, n, p)
 }
 
 /// Negative binomial quantile function
@@ -683,7 +683,7 @@ pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::nbdtri(k as c_int, n as c_int, p) }
+    crate::xsf::cephes::nbdtri(k, n, p)
 }
 
 /// CDF of the Cramér-von Mises test statistic (infinite sample limit)
