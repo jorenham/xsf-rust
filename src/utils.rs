@@ -40,6 +40,16 @@ pub(crate) fn vec_to_vecvec<T: Clone>(
     }
 }
 
+/// Keep the first `rows` rows and `cols` columns
+#[inline]
+pub(crate) fn vecvec_truncate<T>(mut vv: Vec<Vec<T>>, rows: usize, cols: usize) -> Vec<Vec<T>> {
+    vv.truncate(rows);
+    for v in &mut vv {
+        v.truncate(cols);
+    }
+    vv
+}
+
 #[inline]
 pub(crate) fn vec_into_vecvec<S: Into<T>, T: Clone>(
     vec: Vec<S>,
