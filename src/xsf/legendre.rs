@@ -130,28 +130,36 @@ pub trait LegendreQArg: crate::sealed::Sealed + Sized {
 impl LegendreQArg for f64 {
     #[inline]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        let mut qn = vec![f64::NAN; n + 1];
-        let mut qd = vec![f64::NAN; n + 1];
+        // like in scipy, since `lqn` writes at least 2 terms
+        let n1 = n.max(1);
+
+        let mut qn = vec![f64::NAN; n1 + 1];
+        let mut qd = vec![f64::NAN; n1 + 1];
 
         unsafe {
-            crate::ffi::xsf::lqn(n, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+            crate::ffi::xsf::lqn(n1, self, qn.as_mut_ptr(), qd.as_mut_ptr());
         }
+        qn.truncate(n + 1);
+        qd.truncate(n + 1);
         (qn, qd)
     }
 
     #[inline]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
-        let (ni, nj) = (m + 1, n + 1);
+        // like in scipy, since `lqmn` writes at least 2 x 2 terms
+        let (mm, nn) = (m.max(1), n.max(1));
+
+        let (ni, nj) = (mm + 1, nn + 1);
         let mut qm = vec![f64::NAN; ni * nj];
         let mut qd = vec![f64::NAN; ni * nj];
 
         unsafe {
-            crate::ffi::xsf::lqmn(m, n, self, qm.as_mut_ptr(), qd.as_mut_ptr());
+            crate::ffi::xsf::lqmn(mm, nn, self, qm.as_mut_ptr(), qd.as_mut_ptr());
         }
 
         (
-            utils::vec_to_vecvec(&qm, ni, nj, true),
-            utils::vec_to_vecvec(&qd, ni, nj, true),
+            utils::vecvec_truncate(utils::vec_to_vecvec(&qm, ni, nj, true), n + 1, m + 1),
+            utils::vecvec_truncate(utils::vec_to_vecvec(&qd, ni, nj, true), n + 1, m + 1),
         )
     }
 }
@@ -159,28 +167,36 @@ impl LegendreQArg for f64 {
 impl LegendreQArg for num_complex::Complex<f64> {
     #[inline]
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        let mut cqn = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
-        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); n + 1];
+        // like in scipy, since `lqn` writes at least 2 terms
+        let n1 = n.max(1);
+
+        let mut cqn = vec![num_complex::Complex::new(f64::NAN, 0.0); n1 + 1];
+        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); n1 + 1];
 
         unsafe {
-            crate::ffi::xsf::lqn_1(n, self, cqn.as_mut_ptr(), cqd.as_mut_ptr());
+            crate::ffi::xsf::lqn_1(n1, self, cqn.as_mut_ptr(), cqd.as_mut_ptr());
         }
+        cqn.truncate(n + 1);
+        cqd.truncate(n + 1);
         (cqn, cqd)
     }
 
     #[inline]
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
-        let (ni, nj) = (m + 1, n + 1);
+        // like in scipy, since `lqmn` writes at least 2 x 2 terms
+        let (mm, nn) = (m.max(1), n.max(1));
+
+        let (ni, nj) = (mm + 1, nn + 1);
         let mut cqm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
         let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
 
         unsafe {
-            crate::ffi::xsf::lqmn_1(m, n, self, cqm.as_mut_ptr(), cqd.as_mut_ptr());
+            crate::ffi::xsf::lqmn_1(mm, nn, self, cqm.as_mut_ptr(), cqd.as_mut_ptr());
         }
 
         (
-            utils::vec_into_vecvec(cqm, ni, nj, true),
-            utils::vec_into_vecvec(cqd, ni, nj, true),
+            utils::vecvec_truncate(utils::vec_into_vecvec(cqm, ni, nj, true), n + 1, m + 1),
+            utils::vecvec_truncate(utils::vec_into_vecvec(cqd, ni, nj, true), n + 1, m + 1),
         )
     }
 }
@@ -579,6 +595,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_legendre_q_all_n0() {
+        // computed with n = 1, since `lqn` writes at least 2 terms
+        let (qn, qd) = crate::legendre_q_all(1, 1.5);
+        assert_eq!(
+            crate::legendre_q_all(0, 1.5),
+            (qn[..1].to_vec(), qd[..1].to_vec())
+        );
+
+        let z = c64(1.5, 0.0);
+        let (qn, qd) = crate::legendre_q_all(1, z);
+        assert_eq!(
+            crate::legendre_q_all(0, z),
+            (qn[..1].to_vec(), qd[..1].to_vec())
+        );
+    }
+
     // assoc_legendre_q_all
 
     #[test]
@@ -613,5 +646,23 @@ mod tests {
                 ],
             ),
         );
+    }
+
+    #[test]
+    fn test_assoc_legendre_q_all_n0_m0() {
+        // computed with n = 1 and m = 1, since `lqmn` writes at least 2 x 2 terms
+        macro_rules! check {
+            ($z:expr) => {
+                let (qm, qd) = crate::assoc_legendre_q_all(1, 1, $z);
+                for (n, m) in [(0, 0), (0, 1), (1, 0)] {
+                    let sub = |q: &[Vec<_>]| q[..=n].iter().map(|r| r[..=m].to_vec()).collect();
+                    assert_eq!(crate::assoc_legendre_q_all(n, m, $z), (sub(&qm), sub(&qd)));
+                }
+            };
+        }
+        check!(1.5);
+        check!(0.5);
+        check!(c64(1.5, 0.0));
+        check!(c64(0.3, 0.4));
     }
 }

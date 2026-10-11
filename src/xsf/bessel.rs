@@ -481,6 +481,10 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 
     let (mut j, mut jp) = ([f64::NAN; N], [f64::NAN; N]);
     let (mut y, mut yp) = ([f64::NAN; N], [f64::NAN; N]);
+    if N == 0 {
+        // like in scipy (where `nt` must be positive), since `jyzo` writes at least 1 zero
+        return [j, jp, y, yp];
+    }
     unsafe {
         crate::ffi::xsf::jyzo(
             v.try_into().unwrap(),
@@ -688,6 +692,13 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     if N == 0 {
         return (rj, dj);
     }
+    if N == 1 {
+        // like in scipy, since `rctj` writes at least 2 terms
+        let (rj2, dj2) = riccati_j::<2>(x);
+        rj.copy_from_slice(&rj2[..N]);
+        dj.copy_from_slice(&dj2[..N]);
+        return (rj, dj);
+    }
 
     let _ = unsafe { crate::ffi::xsf::rctj(N, x, rj.as_mut_ptr(), dj.as_mut_ptr()) };
     (rj, dj)
@@ -722,6 +733,13 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     if N == 0 {
         return (ry, dy);
     }
+    if N == 1 {
+        // like in scipy, since `rcty` writes at least 2 terms
+        let (ry2, dy2) = riccati_y::<2>(x);
+        ry.copy_from_slice(&ry2[..N]);
+        dy.copy_from_slice(&dy2[..N]);
+        return (ry, dy);
+    }
 
     let _ = unsafe { crate::ffi::xsf::rcty(N, x, ry.as_mut_ptr(), dy.as_mut_ptr()) };
     (ry, dy)
@@ -752,6 +770,7 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 ///   $v_i = v-\lfloor v\rfloor, v-\lfloor v\rfloor+1, \ldots, v$
 ///
 /// Both vectors have length $\lfloor v\rfloor+1$, i.e. `(v as usize) + 1`.
+/// They are all NaN if `x` is NaN or if $|x| > 10^9$.
 ///
 /// # See also
 /// - [`bessel_j`]
@@ -769,6 +788,13 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     assert!(v >= 0.0, "v must be non-negative");
 
     let n = v.to_usize().unwrap();
+    // checked before allocating, since `lamv` casts `v` to `int` as well
+    assert!(core::ffi::c_int::try_from(n).is_ok(), "v is too large");
+    if x.is_nan() || x.abs() > 1e9 {
+        // (unlike in scipy) avoids out-of-bounds indexing in `lamn` and `lamv`, where `int` casts
+        // of `|x|` (e.g. in `msta1` and `msta2`) are undefined for NaN and `|x| >= 2**31 / 1.1`
+        return (vec![f64::NAN; n + 1], vec![f64::NAN; n + 1]);
+    }
     let v0 = v - n.to_f64().unwrap();
     let n1 = if n < 1 { 1 } else { n };
     let v1 = v0 + n1.to_f64().unwrap();
@@ -1130,6 +1156,15 @@ mod tests {
         crate::np_assert_allclose!(&c[1], &ynp, atol = 1.5e-8);
     }
 
+    #[test]
+    fn test_riccati_n1() {
+        // computed with N = 2, since `rctj` and `rcty` write at least 2 terms
+        let (j, jp) = crate::riccati_j::<2>(0.2);
+        assert_eq!(crate::riccati_j::<1>(0.2), ([j[0]], [jp[0]]));
+        let (y, yp) = crate::riccati_y::<2>(0.2);
+        assert_eq!(crate::riccati_y::<1>(0.2), ([y[0]], [yp[0]]));
+    }
+
     // Based on `scipy.special.tests.test_basic.TestLambda.test_lmbda`
     #[test]
     fn test_jahnke_emden_lambda() {
@@ -1149,5 +1184,28 @@ mod tests {
         // assert_allclose(lam, lamr, atol=1.5e-8, rtol=0)
         crate::np_assert_allclose!(&lam.0, &lamr.0, atol = 1.5e-8);
         crate::np_assert_allclose!(&lam.1, &lamr.1, atol = 1.5e-8);
+    }
+
+    #[test]
+    fn test_bessel_zeros_n0() {
+        assert_eq!(crate::bessel_zeros::<0>(0), [[]; 4]);
+    }
+
+    #[test]
+    #[should_panic(expected = "v is too large")]
+    fn test_jahnke_emden_lambda_huge_v() {
+        let _ = crate::jahnke_emden_lambda(2_147_483_648.5, 1.0);
+    }
+
+    #[test]
+    fn test_jahnke_emden_lambda_nan() {
+        // instead of out-of-bounds indexing in `lamn` and `lamv`
+        for v in [2.0, 2.25] {
+            for x in [f64::NAN, f64::INFINITY, -1e10] {
+                let (vl, dl) = crate::jahnke_emden_lambda(v, x);
+                assert_eq!((vl.len(), dl.len()), (3, 3));
+                assert!(vl.iter().chain(&dl).all(|y| y.is_nan()), "v = {v}, x = {x}");
+            }
+        }
     }
 }

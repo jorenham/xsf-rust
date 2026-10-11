@@ -209,7 +209,7 @@ pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 }
 
 #[inline]
-fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String> {
+fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
 
     // if (q < 0):
@@ -241,7 +241,8 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 251], usize), String>
     };
 
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
-    let mut fc = [f64::NAN; 251];
+    // (unlike in scipy) 252 instead of 251, since `fcoef` reads `fc[km]`, and `km` can be 251
+    let mut fc = [f64::NAN; 252];
     unsafe {
         crate::ffi::xsf::fcoef(KD, m.try_into().unwrap(), q, cv, fc.as_mut_ptr());
     }
@@ -289,6 +290,7 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 /// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_odd_coef.html>
 ///
 /// # Errors
+/// - `m == 0`
 /// - `q < 0`
 /// - too many predicted coefficients
 ///
@@ -297,6 +299,12 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 #[inline]
 pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1642-L1698
+
+    // if (m != floor(m)) or (m <= 0):
+    if m == 0 {
+        // raise ValueError("m must be an integer > 0")
+        return Err("m must be an integer > 0".to_string());
+    }
 
     // kd = 4
     // m = int(floor(m))
@@ -407,5 +415,10 @@ mod tests {
         // Test error case: negative q
         let result = crate::mathieu_odd_coef(1, -1.0);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mathieu_odd_coef_m0() {
+        assert!(crate::mathieu_odd_coef(0, 0.0).is_err());
     }
 }
