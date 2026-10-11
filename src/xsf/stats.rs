@@ -432,7 +432,7 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::fdtr(a, b, x) }
+    crate::xsf::cephes::fdtr(a, b, x)
 }
 
 /// Survival function of the F distribution
@@ -447,7 +447,7 @@ pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::fdtrc(a, b, x) }
+    crate::xsf::cephes::fdtrc(a, b, x)
 }
 
 /// Quantile function of the F distribution
@@ -462,7 +462,7 @@ pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::fdtri(a, b, y) }
+    crate::xsf::cephes::fdtri(a, b, y)
 }
 
 // Gamma
