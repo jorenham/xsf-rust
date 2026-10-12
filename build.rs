@@ -109,8 +109,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("modified_fresnel_plus", "d->DD"),
     ("modified_fresnel_minus", "d->DD"),
     // gamma.h
-    ("gammaincinv", "dd->d"),
-    ("gammainccinv", "dd->d"),
     // hyp2f1.h
     ("hyp2f1", "dddd->d"),
     ("hyp2f1", "dddD->D"),

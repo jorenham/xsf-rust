@@ -87,7 +87,7 @@ const IGAM_ASYMP_COEFF_D: [[f64; IGAM_ASYMP_COEFF_N]; IGAM_ASYMP_COEFF_K] = [
 ///
 /// corrected from (15) and (16) in \[2\] by replacing exp(x - a) with
 /// exp(a - x).
-fn igam_fac(a: f64, x: f64) -> f64 {
+pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
     if (a - x).abs() > 0.4 * a.abs() {
         let ax = a * x.ln() - x - lgam(a);
         if ax < -MAXLOG {
