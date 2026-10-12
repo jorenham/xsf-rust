@@ -34,6 +34,7 @@ mod sph_harm;
 mod sphd_wave;
 mod stats;
 mod struve;
+mod tools;
 mod trig;
 mod wright_bessel;
 mod zeta;

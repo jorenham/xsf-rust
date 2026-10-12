@@ -33,6 +33,7 @@ include = [
   "!xsf/include/xsf/expint.h",
   "!xsf/include/xsf/fp_error_metrics.h",
   "!xsf/include/xsf/fresnel.h",
+  "!xsf/include/xsf/iv_ratio.h",
   "!xsf/include/xsf/lambertw.h",
   "!xsf/include/xsf/log.h",
   "!xsf/include/xsf/log_exp.h",
