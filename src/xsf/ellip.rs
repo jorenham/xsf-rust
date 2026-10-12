@@ -13,7 +13,7 @@
 #[must_use]
 #[inline]
 pub fn ellipk(m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ellipk(m) }
+    crate::xsf::cephes::ellpk(1.0 - m)
 }
 
 /// Complete elliptic integral of the first kind around $m = 1$
@@ -30,7 +30,7 @@ pub fn ellipk(m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ellipkm1(p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ellipkm1(p) }
+    crate::xsf::cephes::ellpk(p)
 }
 
 /// Incomplete elliptic integral of the first kind
