@@ -60,13 +60,10 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // erf.h
     ("erf", "D->D"),
     ("erfc", "D->D"),
-    ("erfcx", "d->d"),
     ("erfcx", "D->D"),
-    ("erfi", "d->d"),
     ("erfi", "D->D"),
     ("voigt_profile", "ddd->d"),
     ("wofz", "D->D"),
-    ("dawsn", "d->d"),
     ("dawsn", "D->D"),
     // gamma.h
     // hyp2f1.h
