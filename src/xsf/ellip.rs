@@ -47,7 +47,7 @@ pub fn ellipkm1(p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ellipkinc(phi: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ellipkinc(phi, m) }
+    crate::xsf::cephes::ellik(phi, m)
 }
 
 /// Complete elliptic integral of the second kind

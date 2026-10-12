@@ -80,7 +80,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("gdtrib", "ddd->d"),
     // ellip.h
     ("ellipj", "dd->dddd"),
-    ("ellipkinc", "dd->d"),
     ("ellipeinc", "dd->d"),
     // erf.h
     ("erf", "D->D"),
