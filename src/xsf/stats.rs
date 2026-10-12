@@ -219,7 +219,7 @@ pub fn owens_t(h: f64, a: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kolmogorov(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::kolmogorov(x) }
+    crate::xsf::cephes::kolmogorov(x)
 }
 
 /// Inverse of [`kolmogorov`]
@@ -236,7 +236,7 @@ pub fn kolmogorov(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kolmogi(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::kolmogi(x) }
+    crate::xsf::cephes::kolmogi(x)
 }
 
 /// CDF of the Kolmogorov distribution
@@ -251,7 +251,7 @@ pub fn kolmogi(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kolmogc(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::kolmogc(x) }
+    crate::xsf::cephes::kolmogc(x)
 }
 
 /// Inverse of [`kolmogc`], the quantile function of the Kolmogorov distribution
@@ -266,7 +266,7 @@ pub fn kolmogc(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kolmogci(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::kolmogci(x) }
+    crate::xsf::cephes::kolmogci(x)
 }
 
 /// Derivative of [`kolmogorov`]
@@ -281,7 +281,7 @@ pub fn kolmogci(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kolmogp(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::kolmogp(x) }
+    crate::xsf::cephes::kolmogp(x)
 }
 
 // Kolmogorov-Smirnov
