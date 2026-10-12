@@ -1,5 +1,5 @@
-//! The subset of `xsf/cephes/dd_real.h` (xsf v0.2.2) that is needed by the complex `log1p` and
-//! by `smirnov`.
+//! The subset of `xsf/cephes/dd_real.h` (xsf v0.2.2) that is needed by the complex `log1p`,
+//! `smirnov`, and `iv_ratio_c`.
 //!
 //! Translated into C++ by SciPy developers in 2024. The parts of the qd double-double floating
 //! point package used in SciPy have been reworked in a more modern C++ style using operator
@@ -66,7 +66,7 @@ fn two_sqr(a: f64) -> (f64, f64) {
 
 /// `std::ldexp`, i.e. `x * 2^n` without intermediate overflow or double rounding (as in musl).
 #[allow(clippy::cast_sign_loss)]
-fn ldexp_f64(x: f64, mut n: i32) -> f64 {
+pub(crate) fn ldexp_f64(x: f64, mut n: i32) -> f64 {
     const P1023: f64 = f64::from_bits(0x7fe0_0000_0000_0000); // 2^1023
     const M969: f64 = f64::from_bits(0x0360_0000_0000_0000); // 2^-1022 * 2^53
 
@@ -94,7 +94,7 @@ fn ldexp_f64(x: f64, mut n: i32) -> f64 {
 
 /// `std::frexp`, i.e. `(m, e)` such that `x = m * 2^e` with `0.5 <= |m| < 1` (as in glibc).
 #[allow(clippy::cast_possible_truncation)]
-fn frexp_f64(x: f64) -> (f64, i32) {
+pub(crate) fn frexp_f64(x: f64) -> (f64, i32) {
     let bits = x.to_bits();
     let ee = ((bits >> 52) & 0x7ff) as i32;
     if ee == 0 {
@@ -282,6 +282,13 @@ impl Div<DoubleDouble> for f64 {
     }
 }
 
+impl PartialEq for DoubleDouble {
+    #[inline]
+    fn eq(&self, rhs: &Self) -> bool {
+        self.hi == rhs.hi && self.lo == rhs.lo
+    }
+}
+
 impl PartialEq<f64> for DoubleDouble {
     #[inline]
     fn eq(&self, rhs: &f64) -> bool {
@@ -289,12 +296,31 @@ impl PartialEq<f64> for DoubleDouble {
     }
 }
 
+// Like the C++ `operator<` and `operator<=`, the low words are compared if the high words are
+// neither `<` nor `>`, i.e. also if one of them is NaN.
+
+impl PartialOrd for DoubleDouble {
+    #[inline]
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        if self.hi < rhs.hi {
+            Some(Ordering::Less)
+        } else if self.hi > rhs.hi {
+            Some(Ordering::Greater)
+        } else {
+            self.lo.partial_cmp(&rhs.lo)
+        }
+    }
+}
+
 impl PartialOrd<f64> for DoubleDouble {
     #[inline]
     fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
-        match self.hi.partial_cmp(rhs) {
-            Some(Ordering::Equal) => self.lo.partial_cmp(&0.0),
-            ord => ord,
+        if self.hi < *rhs {
+            Some(Ordering::Less)
+        } else if self.hi > *rhs {
+            Some(Ordering::Greater)
+        } else {
+            self.lo.partial_cmp(&0.0)
         }
     }
 }
@@ -328,6 +354,17 @@ impl DoubleDouble {
         }
 
         Self { hi, lo }
+    }
+
+    #[inline]
+    pub(crate) fn abs(self) -> Self {
+        if self.hi < 0.0 { -self } else { self }
+    }
+
+    #[inline]
+    pub(crate) fn fma(self, b: Self, c: Self) -> Self {
+        // TODO: make an accurate fma
+        self * b + c
     }
 
     #[inline]
@@ -512,5 +549,22 @@ impl DoubleDouble {
             ll -= (elam1 - self.hi) / (elam1 + 1.0);
         }
         Self::new(la) + ll
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DoubleDouble;
+
+    #[test]
+    fn test_cmp_nan_hi() {
+        // like in C++, the low words are compared if the high words are unordered
+        let nan = DoubleDouble {
+            hi: f64::NAN,
+            lo: 0.0,
+        };
+        let zero = DoubleDouble::new(0.0);
+        assert!(nan <= zero);
+        assert!(nan <= 0.0);
     }
 }

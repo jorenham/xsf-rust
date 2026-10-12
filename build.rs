@@ -15,7 +15,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "erf.h",
     "gamma.h",
     "hyp2f1.h",
-    "iv_ratio.h",
     "kelvin.h",
     "legendre.h",
     "mathieu.h",
@@ -76,9 +75,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // gamma.h
     // hyp2f1.h
     ("hyp2f1", "dddD->D"),
-    // iv_ratio.h
-    ("iv_ratio", "dd->d"),
-    ("iv_ratio_c", "dd->d"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
