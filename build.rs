@@ -13,7 +13,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "bessel.h",
     "cdflib.h",
     "erf.h",
-    "expint.h",
     "gamma.h",
     "hyp2f1.h",
     "iv_ratio.h",
@@ -75,12 +74,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("wofz", "D->D"),
     ("dawsn", "d->d"),
     ("dawsn", "D->D"),
-    // expint.h
-    ("exp1", "d->d"),
-    ("exp1", "D->D"),
-    ("expi", "d->d"),
-    ("expi", "D->D"),
-    ("scaled_exp1", "d->d"),
     // gamma.h
     // hyp2f1.h
     ("hyp2f1", "dddd->d"),
