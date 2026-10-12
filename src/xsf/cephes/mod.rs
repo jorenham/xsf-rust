@@ -70,7 +70,10 @@ pub(crate) use j0::{j0, y0};
 pub(crate) use j1::{j1, y1};
 pub(crate) use k0::{k0, k0e};
 pub(crate) use k1::{k1, k1e};
-pub(crate) use kolmogorov::{kolmogc, kolmogci, kolmogi, kolmogorov, kolmogp};
+pub(crate) use kolmogorov::{
+    kolmogc, kolmogci, kolmogi, kolmogorov, kolmogp, smirnov, smirnovc, smirnovci, smirnovi,
+    smirnovp,
+};
 pub use lanczos::*;
 pub(crate) use nbdtr::{nbdtr, nbdtrc, nbdtri};
 pub(crate) use ndtr::{erf, erfc, ndtr};
