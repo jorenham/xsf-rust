@@ -90,7 +90,7 @@ pub(crate) fn cephes_sinpi(mut x: f64) -> f64 {
 
 /// `cephes::cospi`: compute cos(pi * x)
 #[allow(clippy::float_cmp)]
-fn cephes_cospi(mut x: f64) -> f64 {
+pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
     if x < 0.0 {
         x = -x;
     }

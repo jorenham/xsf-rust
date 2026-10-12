@@ -8,14 +8,14 @@ pub trait FresnelArg: crate::sealed::Sealed + Sized {
 impl FresnelArg for f64 {
     #[inline]
     fn fresnel(self) -> (Self, Self) {
-        crate::utils::out2(|fs, fc| unsafe { crate::ffi::xsf::fresnel(self, fs, fc) })
+        crate::xsf::cephes::fresnl(self)
     }
 }
 
 impl FresnelArg for Complex<f64> {
     #[inline]
     fn fresnel(self) -> (Self, Self) {
-        crate::utils::out2(|fs, fc| unsafe { crate::ffi::xsf::fresnel_1(self, fs, fc) })
+        crate::utils::out2(|fs, fc| unsafe { crate::ffi::xsf::fresnel(self, fs, fc) })
     }
 }
 
