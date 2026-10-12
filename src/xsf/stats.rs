@@ -385,7 +385,7 @@ pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtr(df, x) }
+    crate::xsf::cephes::chdtr(df, x)
 }
 
 /// Survival function of the Chi-squared distribution
@@ -400,7 +400,7 @@ pub fn chdtr(df: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtrc(df, x) }
+    crate::xsf::cephes::chdtrc(df, x)
 }
 
 /// Quantile function of the Chi-squared distribution
@@ -415,7 +415,7 @@ pub fn chdtrc(df: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtri(df: f64, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtri(df, y) }
+    crate::xsf::cephes::chdtri(df, y)
 }
 
 // F
@@ -479,7 +479,7 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gdtr(a, b, x) }
+    crate::xsf::cephes::gdtr(a, b, x)
 }
 
 /// Survival function of the Gamma distribution
@@ -494,7 +494,7 @@ pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gdtrc(a, b, x) }
+    crate::xsf::cephes::gdtrc(a, b, x)
 }
 
 // Poisson
@@ -511,7 +511,7 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtr(k: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtr(k, m) }
+    crate::xsf::cephes::pdtr(k, m)
 }
 
 /// Poisson quantile function
@@ -526,7 +526,7 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtri(k: i32, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtri(k as c_int, y) }
+    crate::xsf::cephes::pdtri(k, y)
 }
 
 /// Poisson survival function
@@ -541,7 +541,7 @@ pub fn pdtri(k: i32, y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtrc(k, m) }
+    crate::xsf::cephes::pdtrc(k, m)
 }
 
 // Binomial
