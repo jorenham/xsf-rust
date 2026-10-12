@@ -107,6 +107,100 @@ pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
     }
 }
 
+/// Sine of complex `z`
+///
+/// This replaces `std::sin(std::complex<double>)` from C++. For finite `z`, it is computed like
+/// glibc's `csin`, which, unlike `num_complex::Complex::sin`, doesn't overflow prematurely (to
+/// infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
+pub(crate) fn csin(z: Complex<f64>) -> Complex<f64> {
+    // (int) ((DBL_MAX_EXP - 1) * ln(2))
+    const T: f64 = 709.0;
+
+    if !z.re.is_finite() || !z.im.is_finite() {
+        return z.sin();
+    }
+
+    let rx = z.re.abs();
+    let (mut sinix, mut cosix) = if rx > f64::MIN_POSITIVE {
+        rx.sin_cos()
+    } else {
+        (rx, 1.0)
+    };
+    if z.re.is_sign_negative() {
+        sinix = -sinix;
+    }
+    if z.im.abs() > T {
+        let exp_t = T.exp();
+        let mut ix = z.im.abs();
+        if z.im.is_sign_negative() {
+            cosix = -cosix;
+        }
+        ix -= T;
+        sinix *= exp_t / 2.0;
+        cosix *= exp_t / 2.0;
+        if ix > T {
+            ix -= T;
+            sinix *= exp_t;
+            cosix *= exp_t;
+        }
+        if ix > T {
+            // overflow (the original |z.im| > 3 T)
+            Complex::new(f64::MAX * sinix, f64::MAX * cosix)
+        } else {
+            let ev = ix.exp();
+            Complex::new(ev * sinix, ev * cosix)
+        }
+    } else {
+        Complex::new(z.im.cosh() * sinix, z.im.sinh() * cosix)
+    }
+}
+
+/// Cosine of complex `z`
+///
+/// This replaces `std::cos(std::complex<double>)` from C++. For finite `z`, it is computed like
+/// glibc's `ccos`, i.e. as `ccosh(i z)`, which, unlike `num_complex::Complex::cos`, doesn't
+/// overflow prematurely (to infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
+pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
+    // (int) ((DBL_MAX_EXP - 1) * ln(2))
+    const T: f64 = 709.0;
+
+    if !z.re.is_finite() || !z.im.is_finite() {
+        return z.cos();
+    }
+
+    // ccosh(x + i y) with x = -z.im and y = z.re
+    let (x, y) = (-z.im, z.re);
+    let (mut sinix, mut cosix) = if y.abs() > f64::MIN_POSITIVE {
+        y.sin_cos()
+    } else {
+        (y, 1.0)
+    };
+    if x.abs() > T {
+        let exp_t = T.exp();
+        let mut rx = x.abs();
+        if x.is_sign_negative() {
+            sinix = -sinix;
+        }
+        rx -= T;
+        sinix *= exp_t / 2.0;
+        cosix *= exp_t / 2.0;
+        if rx > T {
+            rx -= T;
+            sinix *= exp_t;
+            cosix *= exp_t;
+        }
+        if rx > T {
+            // overflow (the original |z.im| > 3 T)
+            Complex::new(f64::MAX * cosix, f64::MAX * sinix)
+        } else {
+            let ev = rx.exp();
+            Complex::new(ev * cosix, ev * sinix)
+        }
+    } else {
+        Complex::new(x.cosh() * cosix, x.sinh() * sinix)
+    }
+}
+
 /* Implement sin(pi*z) and cos(pi*z) for complex z. Since the periods
  * of these functions are integral (and thus better representable in
  * floating point), it's possible to compute them with greater accuracy

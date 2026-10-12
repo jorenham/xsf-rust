@@ -14,7 +14,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "cdflib.h",
     "erf.h",
     "expint.h",
-    "fresnel.h",
     "gamma.h",
     "hyp2f1.h",
     "iv_ratio.h",
@@ -82,10 +81,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("expi", "d->d"),
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
-    // fresnel.h
-    ("fresnel", "D->DD"),
-    ("modified_fresnel_plus", "d->DD"),
-    ("modified_fresnel_minus", "d->DD"),
     // gamma.h
     // hyp2f1.h
     ("hyp2f1", "dddd->d"),
@@ -295,11 +290,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
     int nm;
     xsf::rcty(x, &nm, mds(ry, nt), mds(dy, nt));
     return nm;
-}
-
-// fresnel.h
-void xsfr_fcszo(int kf, int nt, c_complex *zo) {
-    xsf::fcszo(kf, nt, as_cpp_complex(zo));
 }
 
 // kelvin.h

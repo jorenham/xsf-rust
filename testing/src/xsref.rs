@@ -325,6 +325,11 @@ where
             continue;
         }
 
+        // xsf computes the wrong imaginary part of F±(x) for x < 0, which is fixed in xsf-rust
+        if name.starts_with("modified_fresnel_") && case.r#in[0] < 0.0 {
+            continue;
+        }
+
         let desired = case.out;
         let desired_magnitude = desired.magnitude();
 
