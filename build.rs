@@ -117,9 +117,7 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("pbdv", "dd->dd"),
     ("pbvv", "dd->dd"),
     // sici.h
-    ("sici", "d->dd"),
     ("sici", "D->DD"),
-    ("shichi", "d->dd"),
     ("shichi", "D->DD"),
     // specfun.h
     ("hyp1f1", "ddd->d"),
