@@ -1,4 +1,5 @@
 mod bdtr;
+mod besselpoly;
 mod beta;
 pub(crate) mod chbevl;
 mod chdtr;
@@ -30,6 +31,7 @@ mod zeta;
 mod zetac;
 
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
+pub(crate) use besselpoly::besselpoly;
 pub(crate) use beta::{beta, lbeta};
 pub(crate) use chdtr::{chdtr, chdtrc, chdtri};
 pub use erfinv::*;

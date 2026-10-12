@@ -76,7 +76,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("cyl_hankel_1e", "dD->D"),
     ("cyl_hankel_2", "dD->D"),
     ("cyl_hankel_2e", "dD->D"),
-    ("besselpoly", "ddd->d"),
     // cdflib.h
     ("gdtrib", "ddd->d"),
     // ellip.h
