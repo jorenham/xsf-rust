@@ -157,7 +157,7 @@ pub fn bessel_j<T: BesselArg>(v: f64, z: T) -> T {
 #[must_use]
 #[inline]
 pub fn bessel_j0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_j0(x) }
+    crate::xsf::cephes::j0(x)
 }
 
 /// Bessel function of the first kind of order 1, $J_1(x)$
@@ -206,7 +206,7 @@ pub fn bessel_je<T: BesselArg>(v: f64, z: T) -> T {
 #[must_use]
 #[inline]
 pub fn bessel_y0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_y0(x) }
+    crate::xsf::cephes::y0(x)
 }
 
 /// Bessel function of the second kind of order 1, $Y_1(x)$
