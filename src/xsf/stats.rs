@@ -300,7 +300,7 @@ pub fn kolmogp(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn smirnov(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnov(n as c_int, x) }
+    crate::xsf::cephes::smirnov(n, x)
 }
 
 /// Inverse of [`smirnov`]
@@ -316,7 +316,7 @@ pub fn smirnov(n: i32, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn smirnovi(n: i32, q: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovi(n as c_int, q) }
+    crate::xsf::cephes::smirnovi(n, q)
 }
 
 /// CDF of the Kolmogorov-Smirnov distribution
@@ -329,7 +329,7 @@ pub fn smirnovi(n: i32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn smirnovc(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovc(n as c_int, x) }
+    crate::xsf::cephes::smirnovc(n, x)
 }
 
 /// Inverse of [`smirnovc`]
@@ -342,7 +342,7 @@ pub fn smirnovc(n: i32, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn smirnovci(n: i32, p: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovci(n as c_int, p) }
+    crate::xsf::cephes::smirnovci(n, p)
 }
 
 /// Derivative of [`smirnov`]
@@ -354,7 +354,7 @@ pub fn smirnovci(n: i32, p: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn smirnovp(n: i32, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::smirnovp(n as c_int, x) }
+    crate::xsf::cephes::smirnovp(n, x)
 }
 
 // Tukey-Lambda
@@ -967,6 +967,18 @@ mod tests {
         xsref::test("smirnovci", "p_d-d", |x| {
             crate::smirnovci(x[0] as i32, x[1])
         });
+    }
+
+    #[test]
+    fn test_smirnovp_large_n() {
+        // in xsf this is -0.0, due to `int` overflow
+        let (n, x, h) = (50_000, 2e-3, 1e-8);
+        let expected = (crate::smirnov(n, x + h) - crate::smirnov(n, x - h)) / (2.0 * h);
+        let actual = crate::smirnovp(n, x);
+        assert!(
+            ((actual - expected) / expected).abs() < 1e-6,
+            "{actual} != {expected}"
+        );
     }
 
     #[test]

@@ -153,11 +153,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("ndtr", "D->D"),
     ("log_ndtr", "d->d"),
     ("log_ndtr", "D->D"),
-    ("smirnov", "id->d"),
-    ("smirnovc", "id->d"),
-    ("smirnovci", "id->d"),
-    ("smirnovi", "id->d"),
-    ("smirnovp", "id->d"),
     // struve.h
     ("itstruve0", "d->d"),
     ("it2struve0", "d->d"),
