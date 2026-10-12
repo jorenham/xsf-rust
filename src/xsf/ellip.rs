@@ -81,7 +81,7 @@ pub fn ellipe(m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ellipeinc(phi: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ellipeinc(phi, m) }
+    crate::xsf::cephes::ellie(phi, m)
 }
 
 /// Jacobi elliptic functions
