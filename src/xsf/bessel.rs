@@ -173,7 +173,7 @@ pub fn bessel_j0(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bessel_j1(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_j1(x) }
+    crate::xsf::cephes::j1(x)
 }
 
 /// Exponentially scaled Bessel function of the first kind
@@ -222,7 +222,7 @@ pub fn bessel_y0(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bessel_y1(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_y1(x) }
+    crate::xsf::cephes::y1(x)
 }
 
 /// Bessel function of the second kind, $Y_v(z)$
