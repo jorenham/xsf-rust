@@ -129,9 +129,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // stats.h
     ("cdf_cvm", "di->d"),
     ("cdf_cvm_inf", "d->d"),
-    ("ndtr", "D->D"),
-    ("log_ndtr", "d->d"),
-    ("log_ndtr", "D->D"),
     // struve.h
     ("itstruve0", "d->d"),
     ("it2struve0", "d->d"),
@@ -309,14 +306,6 @@ void xsfr_lqmn_1(size_t m, size_t n, c_complex z, c_complex *qm, c_complex *qd) 
 // sph_harm.h
 void xsfr_sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
     xsf::sph_harm_y_all(theta, phi, mds(as_cpp_complex(res), n + 1, 2 * m + 1));
-}
-
-// stats.h
-void xsfr_poisson_binom_pmf_all(size_t n, const double *p, double *res) {
-    xsf::poisson_binom_pmf_all(mds(p, n), mds(res, n + 1));
-}
-void xsfr_poisson_binom_cdf_all(size_t n, const double *p, double *res) {
-    xsf::poisson_binom_cdf_all(mds(p, n), mds(res, n + 1));
 }
 "#;
 

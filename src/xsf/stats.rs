@@ -1,5 +1,14 @@
-use core::f64::consts::{FRAC_1_PI, PI};
+//! The complex `ndtr`, `log_ndtr`, and `poisson_binom_{pmf,cdf}_all` are translated into pure Rust
+//! from `xsf/stats.h` (xsf v0.2.2).
+//!
+//! Unlike in xsf, the complex logarithm in `log_ndtr` is computed as `ln|z| + i arg(z)` instead of
+//! with glibc's `clog`, which rounds differently when `|z|` is close to 1. Measured against mpmath,
+//! neither is more accurate than the other.
+
+use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 use core::ffi::c_int;
+
+use num_complex::{Complex64, c64};
 
 pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
@@ -14,20 +23,107 @@ impl StatsArg for f64 {
 
     #[inline]
     fn log_ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::log_ndtr(self) }
+        log_ndtr_f64(self)
     }
 }
 
-impl StatsArg for num_complex::Complex<f64> {
+impl StatsArg for Complex64 {
     #[inline]
     fn ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::ndtr(self) }
+        ndtr_c64(self)
     }
 
     #[inline]
     fn log_ndtr(self) -> Self {
-        unsafe { crate::ffi::xsf::log_ndtr_1(self) }
+        log_ndtr_c64(self)
     }
+}
+
+fn ndtr_c64(z: Complex64) -> Complex64 {
+    crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2, 0.0) * 0.5
+}
+
+/*
+ * Log of the CDF of the normal distribution for double x.
+ *
+ * Let F(x) be the CDF of the standard normal distribution.
+ * This implementation of log(F(x)) is based on the identities
+ *
+ *   F(x) = erfc(-x/√2)/2
+ *        = 1 - erfc(x/√2)/2
+ *
+ * We use the first formula for x < -1, with erfc(z) replaced
+ * by erfcx(z)*exp(-z**2) to ensure high precision for large
+ * negative values when we take the logarithm:
+ *
+ *   log F(x) = log(erfc(-x/√2)/2)
+ *            = log(erfcx(-x/√2)/2)*exp(-x**2/2))
+ *            = log(erfcx(-x/√2)/2) - x**2/2
+ *
+ * For x >= -1, we use the second formula for F(x):
+ *
+ *   log F(x) = log(1 - erfc(x/√2)/2)
+ *            = log1p(-erfc(x/√2)/2)
+ */
+fn log_ndtr_f64(x: f64) -> f64 {
+    let t = x * FRAC_1_SQRT_2;
+    if x < -1.0 {
+        (crate::xsf::faddeeva::erfcx(-t) / 2.0).ln() - t * t
+    } else {
+        (-crate::xsf::cephes::erfc(t) / 2.0).ln_1p()
+    }
+}
+
+/*
+ * Log of the normal CDF for complex arguments.
+ *
+ * This is equivalent to log(ndtr(z)), but is more robust to overflow at $z\to\infty$.
+ * This implementation uses $\erfc(z) = \exp(-z^2) w(iz)$ taking special care to select
+ * the principal branch of the log function log( exp(-z^2) w(i z) )
+ */
+#[allow(non_snake_case)]
+fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
+    if z.re > 6.0 {
+        // Underflow. Close to the real axis, expand the log in log(1 - ndtr(-z)).
+        let w = crate::xsf::faddeeva::erfc_c64(z * FRAC_1_SQRT_2, 0.0) * -0.5;
+        if w.norm() < 1e-8 {
+            return w;
+        }
+    }
+
+    z *= -FRAC_1_SQRT_2;
+    let x = z.re;
+    let y = z.im;
+
+    /* Compute the principal branch of $log(exp(-z^2))$, using the fact that
+     * $log(e^t) = log|e^t| + i Arg(e^t)$, and that if $t = r + is$, then
+     * $e^t = e^r (\cos(s) + i \sin(s))$.
+     */
+    let mRe_z2 = (y - x) * (x + y); // Re(-z^2), being careful of overflow
+    let mIm_z2 = -2.0 * x * y; // Im(-z^2)
+
+    let mut im = mIm_z2 % TAU;
+    if im > PI {
+        im -= TAU;
+    }
+
+    let val1 = c64(mRe_z2, im);
+
+    let val2 = crate::xsf::faddeeva::w(c64(-y, x), 0.0).ln();
+    let result = val1 + val2 - LN_2;
+
+    /* Again, select the principal branch: log(z) = log|z| + i arg(z), thus
+     * the imaginary part of the result should belong to [-pi, pi].
+     */
+    im = result.im;
+    if im >= PI {
+        im -= TAU;
+    }
+    if im < -PI {
+        im += TAU;
+    }
+
+    c64(result.re, im)
 }
 
 // Student's t
@@ -593,16 +689,32 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 
 // Poisson binomial
 
-#[inline]
-fn poisson_binom_all(p: &[f64], f: unsafe extern "C" fn(usize, *const f64, *mut f64)) -> Vec<f64> {
+#[allow(clippy::needless_range_loop)]
+fn poisson_binom_pmf_all_impl(p: &[f64], res: &mut [f64]) {
     let n = p.len();
-    let mut out = Vec::with_capacity(n + 1);
-    // SAFETY: the C++ function writes all `n + 1` elements
-    unsafe {
-        f(n, p.as_ptr(), out.as_mut_ptr());
-        out.set_len(n + 1);
+
+    // Initialize output array with zeros.
+    for i in 0..=n {
+        res[i] = 0.0;
     }
-    out
+
+    if n == 0 {
+        res[0] = 1.0;
+        return;
+    }
+
+    res[0] = 1.0 - p[0];
+    res[1] = p[0];
+
+    for i in 1..n {
+        let p_i = p[i];
+        let q_i = 1.0 - p_i;
+        for j in (1..=i + 1).rev() {
+            let tmp = res[j - 1] * p_i;
+            res[j - 1] *= q_i;
+            res[j] += tmp;
+        }
+    }
 }
 
 /// Full PMF of a Poisson-Binomial distribution
@@ -619,7 +731,9 @@ fn poisson_binom_all(p: &[f64], f: unsafe extern "C" fn(usize, *const f64, *mut 
 #[must_use]
 #[inline]
 pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
-    poisson_binom_all(p, crate::ffi::xsf::poisson_binom_pmf_all)
+    let mut res = vec![0.0; p.len() + 1];
+    poisson_binom_pmf_all_impl(p, &mut res);
+    res
 }
 
 /// Full CDF of a Poisson-Binomial distribution
@@ -636,7 +750,17 @@ pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
 #[must_use]
 #[inline]
 pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
-    poisson_binom_all(p, crate::ffi::xsf::poisson_binom_cdf_all)
+    let n = p.len();
+    let mut res = vec![0.0; n + 1];
+
+    poisson_binom_pmf_all_impl(p, &mut res);
+    for i in 1..n {
+        // `std::min(res(i) + res(i - 1), T(1.0))`, which propagates NaN
+        let r = res[i] + res[i - 1];
+        res[i] = if 1.0 < r { 1.0 } else { r };
+    }
+    res[n] = 1.0;
+    res
 }
 
 // Negative Binomial
