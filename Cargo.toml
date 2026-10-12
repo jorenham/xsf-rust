@@ -41,6 +41,7 @@ include = [
   "!xsf/include/xsf/numpy.h",
   "!xsf/include/xsf/sici.h",
   "!xsf/include/xsf/third_party/kokkos/mdspan.hpp",
+  "!xsf/include/xsf/wright_bessel.h",
   "!xsf/include/xsf/zeta.h",
 ]
 keywords = ["ffi", "bindings", "math", "xsf", "scipy"]

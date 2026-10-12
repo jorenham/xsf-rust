@@ -24,7 +24,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "sphd_wave.h",
     "stats.h",
     "struve.h",
-    "wright_bessel.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
     // airy.h
@@ -151,9 +150,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("itmodstruve0", "d->d"),
     ("struve_h", "dd->d"),
     ("struve_l", "dd->d"),
-    // wright_bessel.h
-    ("wright_bessel", "ddd->d"),
-    ("log_wright_bessel", "ddd->d"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"
