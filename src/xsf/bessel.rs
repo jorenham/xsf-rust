@@ -377,7 +377,7 @@ pub fn bessel_ie<T: BesselArg>(v: f64, z: T) -> T {
 #[must_use]
 #[inline]
 pub fn bessel_k0(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k0(x) }
+    crate::xsf::cephes::k0(x)
 }
 
 /// Exponentially scaled modified Bessel function of the second kind of order 0, $e^x K_0(x)$
@@ -393,7 +393,7 @@ pub fn bessel_k0(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn bessel_k0e(x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cyl_bessel_k0e(x) }
+    crate::xsf::cephes::k0e(x)
 }
 
 /// Modified Bessel function of the second kind of order 1, $K_1(x)$
