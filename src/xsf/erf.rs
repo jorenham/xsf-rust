@@ -1,4 +1,9 @@
-use num_complex::Complex64;
+//! The `voigt_profile` is translated into pure Rust from `xsf/erf.h` (xsf v0.2.2), and the other
+//! functions use `xsf/faddeeva.rs`.
+
+use core::f64::consts::{FRAC_1_SQRT_2, PI};
+
+use num_complex::{Complex64, c64};
 
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
@@ -34,23 +39,23 @@ impl ErfArg for f64 {
 impl ErfArg for Complex64 {
     #[inline]
     fn erf(self) -> Self {
-        unsafe { crate::ffi::xsf::erf(self) }
+        crate::xsf::faddeeva::erf_c64(self, 0.0)
     }
     #[inline]
     fn erfc(self) -> Self {
-        unsafe { crate::ffi::xsf::erfc(self) }
+        crate::xsf::faddeeva::erfc_c64(self, 0.0)
     }
     #[inline]
     fn erfcx(self) -> Self {
-        unsafe { crate::ffi::xsf::erfcx(self) }
+        crate::xsf::faddeeva::erfcx_c64(self, 0.0)
     }
     #[inline]
     fn erfi(self) -> Self {
-        unsafe { crate::ffi::xsf::erfi(self) }
+        crate::xsf::faddeeva::erfi_c64(self, 0.0)
     }
     #[inline]
     fn dawsn(self) -> Self {
-        unsafe { crate::ffi::xsf::dawsn(self) }
+        crate::xsf::faddeeva::dawson_c64(self, 0.0)
     }
 }
 
@@ -153,14 +158,38 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn wofz(z: Complex64) -> Complex64 {
-    unsafe { crate::ffi::xsf::wofz(z) }
+    crate::xsf::faddeeva::w(z, 0.0)
 }
 
 /// Voigt profile
 #[must_use]
 #[inline]
+#[allow(clippy::float_cmp)]
 pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
-    unsafe { crate::ffi::xsf::voigt_profile(x, sigma, gamma) }
+    const INV_SQRT_2: f64 = FRAC_1_SQRT_2;
+    const SQRT_2PI: f64 = 2.506_628_274_631_000_2;
+
+    if sigma == 0.0 {
+        if gamma == 0.0 {
+            if x.is_nan() {
+                return x;
+            }
+            if x == 0.0 {
+                return f64::INFINITY;
+            }
+            return 0.0;
+        }
+        return gamma / PI / (x * x + gamma * gamma);
+    }
+    if gamma == 0.0 {
+        return 1.0 / SQRT_2PI / sigma * (-(x / sigma) * (x / sigma) / 2.0).exp();
+    }
+
+    let zreal = x / sigma * INV_SQRT_2;
+    let zimag = gamma / sigma * INV_SQRT_2;
+    let z = c64(zreal, zimag);
+    let w = crate::xsf::faddeeva::w(z, 0.0);
+    w.re / sigma / SQRT_2PI
 }
 
 #[cfg(test)]
