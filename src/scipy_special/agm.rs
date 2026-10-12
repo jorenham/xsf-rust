@@ -53,7 +53,7 @@ pub fn agm(a: f64, b: f64) -> f64 {
         if INV_SQRT_HALF_MAX < a && a < SQRT_HALF_MAX && INV_SQRT_HALF_MAX < b && b < SQRT_HALF_MAX
         {
             let e = 4.0 * a * b / (a + b).powi(2);
-            sgn * FRAC_PI_4 * (a + b) / unsafe { crate::ffi::xsf::ellipkm1(e) }
+            sgn * FRAC_PI_4 * (a + b) / crate::ellipkm1(e)
         } else {
             // At least one value is "extreme" (very big or very small).
             // Use the iteration to avoid overflow or underflow.
