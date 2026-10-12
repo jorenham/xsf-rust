@@ -577,7 +577,7 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
-    unsafe { crate::ffi::xsf::besselpoly(a, lambda, v) }
+    crate::xsf::cephes::besselpoly(a, lambda, v)
 }
 
 /// Integrals of Bessel functions of order 0
