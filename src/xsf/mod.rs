@@ -16,6 +16,7 @@ mod ellip;
 mod erf;
 mod evalpoly;
 mod expint;
+mod faddeeva;
 mod fresnel;
 mod gamma;
 mod hyp2f1;

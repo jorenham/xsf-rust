@@ -19,15 +19,15 @@ impl ErfArg for f64 {
     }
     #[inline]
     fn erfcx(self) -> Self {
-        unsafe { crate::ffi::xsf::erfcx(self) }
+        crate::xsf::faddeeva::erfcx(self)
     }
     #[inline]
     fn erfi(self) -> Self {
-        unsafe { crate::ffi::xsf::erfi(self) }
+        crate::xsf::faddeeva::erfi(self)
     }
     #[inline]
     fn dawsn(self) -> Self {
-        unsafe { crate::ffi::xsf::dawsn(self) }
+        crate::xsf::faddeeva::dawson(self)
     }
 }
 
@@ -42,15 +42,15 @@ impl ErfArg for Complex64 {
     }
     #[inline]
     fn erfcx(self) -> Self {
-        unsafe { crate::ffi::xsf::erfcx_1(self) }
+        unsafe { crate::ffi::xsf::erfcx(self) }
     }
     #[inline]
     fn erfi(self) -> Self {
-        unsafe { crate::ffi::xsf::erfi_1(self) }
+        unsafe { crate::ffi::xsf::erfi(self) }
     }
     #[inline]
     fn dawsn(self) -> Self {
-        unsafe { crate::ffi::xsf::dawsn_1(self) }
+        unsafe { crate::ffi::xsf::dawsn(self) }
     }
 }
 
