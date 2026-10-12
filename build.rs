@@ -75,7 +75,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("dawsn", "D->D"),
     // gamma.h
     // hyp2f1.h
-    ("hyp2f1", "dddd->d"),
     ("hyp2f1", "dddD->D"),
     // iv_ratio.h
     ("iv_ratio", "dd->d"),
