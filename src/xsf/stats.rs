@@ -479,7 +479,7 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gdtr(a, b, x) }
+    crate::xsf::cephes::gdtr(a, b, x)
 }
 
 /// Survival function of the Gamma distribution
@@ -494,7 +494,7 @@ pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::gdtrc(a, b, x) }
+    crate::xsf::cephes::gdtrc(a, b, x)
 }
 
 // Poisson
