@@ -6,7 +6,7 @@ pub trait SiciArg: crate::sealed::Sealed + Sized {
 impl SiciArg for f64 {
     #[inline]
     fn sici(self) -> (Self, Self) {
-        crate::utils::out2(|si, ci| unsafe { crate::ffi::xsf::sici(self, si, ci) })
+        crate::xsf::cephes::sici(self)
     }
 
     #[inline]
@@ -18,7 +18,7 @@ impl SiciArg for f64 {
 impl SiciArg for num_complex::Complex64 {
     #[inline]
     fn sici(self) -> (Self, Self) {
-        crate::utils::out2(|si, ci| unsafe { crate::ffi::xsf::sici_1(self, si, ci) })
+        crate::utils::out2(|si, ci| unsafe { crate::ffi::xsf::sici(self, si, ci) })
     }
 
     #[inline]
