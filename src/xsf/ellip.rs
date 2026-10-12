@@ -64,7 +64,7 @@ pub fn ellipkinc(phi: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ellipe(m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::ellipe(m) }
+    crate::xsf::cephes::ellpe(m)
 }
 
 /// Incomplete elliptic integral of the second kind
