@@ -59,8 +59,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("cyl_bessel_i", "dD->D"),
     ("cyl_bessel_ie", "dd->d"),
     ("cyl_bessel_ie", "dD->D"),
-    ("cyl_bessel_i0", "d->d"),
-    ("cyl_bessel_i0e", "d->d"),
     ("cyl_bessel_i1", "d->d"),
     ("cyl_bessel_i1e", "d->d"),
     ("cyl_bessel_k", "dd->d"),
