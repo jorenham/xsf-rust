@@ -83,7 +83,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("expi", "D->D"),
     ("scaled_exp1", "d->d"),
     // fresnel.h
-    ("fresnel", "d->dd"),
     ("fresnel", "D->DD"),
     ("modified_fresnel_plus", "d->DD"),
     ("modified_fresnel_minus", "d->DD"),
