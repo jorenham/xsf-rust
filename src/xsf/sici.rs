@@ -11,7 +11,7 @@ impl SiciArg for f64 {
 
     #[inline]
     fn shichi(self) -> (Self, Self) {
-        crate::utils::out2(|shi, chi| unsafe { crate::ffi::xsf::shichi(self, shi, chi) })
+        crate::xsf::cephes::shichi(self)
     }
 }
 
@@ -23,7 +23,7 @@ impl SiciArg for num_complex::Complex64 {
 
     #[inline]
     fn shichi(self) -> (Self, Self) {
-        crate::utils::out2(|shi, chi| unsafe { crate::ffi::xsf::shichi_1(self, shi, chi) })
+        crate::utils::out2(|shi, chi| unsafe { crate::ffi::xsf::shichi(self, shi, chi) })
     }
 }
 
