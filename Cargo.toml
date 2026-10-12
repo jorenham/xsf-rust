@@ -11,6 +11,7 @@ include = [
   # headers that are no longer (transitively) included by build.rs
   "!xsf/include/xsf/alg.h",
   "!xsf/include/xsf/beta.h",
+  "!xsf/include/xsf/cdflib.h",
   "!xsf/include/xsf/cephes/ellie.h",
   "!xsf/include/xsf/cephes/ellik.h",
   "!xsf/include/xsf/cephes/ellpe.h",
