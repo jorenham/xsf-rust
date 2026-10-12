@@ -109,9 +109,7 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ellipj(u: f64, m: f64) -> (f64, f64, f64, f64) {
-    crate::utils::out4(|sn, cn, dn, am| unsafe {
-        crate::ffi::xsf::ellipj(u, m, sn, cn, dn, am);
-    })
+    crate::xsf::cephes::ellpj(u, m)
 }
 
 #[cfg(test)]
