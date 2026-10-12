@@ -385,7 +385,7 @@ pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtr(df, x) }
+    crate::xsf::cephes::chdtr(df, x)
 }
 
 /// Survival function of the Chi-squared distribution
@@ -400,7 +400,7 @@ pub fn chdtr(df: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtrc(df, x) }
+    crate::xsf::cephes::chdtrc(df, x)
 }
 
 /// Quantile function of the Chi-squared distribution
@@ -415,7 +415,7 @@ pub fn chdtrc(df: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn chdtri(df: f64, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::chdtri(df, y) }
+    crate::xsf::cephes::chdtri(df, y)
 }
 
 // F

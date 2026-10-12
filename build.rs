@@ -190,9 +190,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // stats.h
     ("cdf_cvm", "di->d"),
     ("cdf_cvm_inf", "d->d"),
-    ("chdtr", "dd->d"),
-    ("chdtrc", "dd->d"),
-    ("chdtri", "dd->d"),
     ("gdtr", "ddd->d"),
     ("gdtrc", "ddd->d"),
     ("kolmogorov", "d->d"),
