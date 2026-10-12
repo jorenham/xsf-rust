@@ -511,7 +511,7 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtr(k: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtr(k, m) }
+    crate::xsf::cephes::pdtr(k, m)
 }
 
 /// Poisson quantile function
@@ -526,7 +526,7 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtri(k: i32, y: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtri(k as c_int, y) }
+    crate::xsf::cephes::pdtri(k, y)
 }
 
 /// Poisson survival function
@@ -541,7 +541,7 @@ pub fn pdtri(k: i32, y: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pdtrc(k, m) }
+    crate::xsf::cephes::pdtrc(k, m)
 }
 
 // Binomial
