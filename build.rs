@@ -11,7 +11,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "specfun/specfun.h",
     "airy.h",
     "bessel.h",
-    "cdflib.h",
     "erf.h",
     "gamma.h",
     "hyp2f1.h",
@@ -59,8 +58,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("cyl_hankel_1e", "dD->D"),
     ("cyl_hankel_2", "dD->D"),
     ("cyl_hankel_2e", "dD->D"),
-    // cdflib.h
-    ("gdtrib", "ddd->d"),
     // erf.h
     ("erf", "D->D"),
     ("erfc", "D->D"),

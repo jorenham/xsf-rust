@@ -1,4 +1,4 @@
-//! The subset of `xsf/tools.h` (xsf v0.2.2) that is needed by `iv_ratio`.
+//! The subset of `xsf/tools.h` (xsf v0.2.2) that is needed by `iv_ratio` and `gdtrib`.
 //!
 //! Building blocks for implementing special functions
 //!
@@ -245,4 +245,172 @@ pub(crate) fn continued_fraction_series<G: FnMut() -> (T, T), T: Real>(
     cf: G,
 ) -> ContinuedFractionSeriesGenerator<G, T> {
     ContinuedFractionSeriesGenerator::new(cf)
+}
+
+/// Find initial bracket for a bracketing scalar root finder. A valid bracket is a pair of points a < b for
+/// which the signs of f(a) and f(b) differ. If f(x0) = 0, where x0 is the initial guess, this bracket finder
+/// will return the bracket (x0, x0). It is expected that the rootfinder will check if the bracket
+/// endpoints are roots.
+///
+/// This is a private function intended specifically for the situation where
+/// the goal is to invert a CDF function F for a parametrized family of distributions with respect to one
+/// parameter, when the other parameters are known, and where F is monotonic with respect to the unknown parameter.
+#[allow(clippy::too_many_arguments, clippy::float_cmp)]
+pub(crate) fn bracket_root_for_cdf_inversion(
+    func: impl Fn(f64) -> f64,
+    x0: f64,
+    xmin: f64,
+    xmax: f64,
+    step0_left: f64,
+    step0_right: f64,
+    factor_left: f64,
+    factor_right: f64,
+    increasing: bool,
+    maxiter: u64,
+) -> (f64, f64, f64, f64, i32) {
+    let y0 = func(x0);
+
+    if y0 == 0.0 {
+        // Initial guess is correct.
+        return (x0, x0, y0, y0, 0);
+    }
+
+    let y0_sgn = y0.is_sign_negative();
+
+    let search_left;
+    /* The frontier is the new leading endpoint of the expanding bracket. The
+     * interior endpoint trails behind the frontier. In each step, the old frontier
+     * endpoint becomes the new interior endpoint. */
+    let (mut interior, mut frontier, mut y_interior, mut y_frontier);
+    let (mut y_interior_sgn, mut y_frontier_sgn);
+    let (boundary, factor);
+    if (increasing && y0 < 0.0) || (!increasing && y0 > 0.0) {
+        /* If func is increasing  and func(x_right) < 0 or if func is decreasing and
+         *  f(y_right) > 0, we should expand the bracket to the right. */
+        (interior, y_interior) = (x0, y0);
+        frontier = x0 + step0_right;
+        y_interior_sgn = y0_sgn;
+        search_left = false;
+        boundary = xmax;
+        factor = factor_right;
+    } else {
+        /* Otherwise we move and expand the bracket to the left. */
+        (interior, y_interior) = (x0, y0);
+        frontier = x0 + step0_left;
+        y_interior_sgn = y0_sgn;
+        search_left = true;
+        boundary = xmin;
+        factor = factor_left;
+    }
+
+    let mut reached_boundary = false;
+    for _ in 0..maxiter {
+        y_frontier = func(frontier);
+        y_frontier_sgn = y_frontier.is_sign_negative();
+        if y_frontier_sgn != y_interior_sgn || (y_frontier == 0.0) {
+            /* Stopping condition, func evaluated at endpoints of bracket has opposing signs,
+             * meeting requirement for bracketing root finder. (Or endpoint has reached a
+             * zero.) */
+            if search_left {
+                /* Ensure we return an interval (a, b) with a < b. */
+                core::mem::swap(&mut interior, &mut frontier);
+                core::mem::swap(&mut y_interior, &mut y_frontier);
+            }
+            return (interior, frontier, y_interior, y_frontier, 0);
+        }
+        if reached_boundary {
+            /* We've reached a boundary point without finding a root . */
+            return (
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                f64::NAN,
+                if search_left { 1 } else { 2 },
+            );
+        }
+        let step = (frontier - interior) * factor;
+        interior = frontier;
+        y_interior = y_frontier;
+        y_interior_sgn = y_frontier_sgn;
+        frontier += step;
+        if (search_left && frontier <= boundary) || (!search_left && frontier >= boundary) {
+            /* If the frontier has reached the boundary, set a flag so the algorithm will know
+             * not to search beyond this point. */
+            frontier = boundary;
+            reached_boundary = true;
+        }
+    }
+    /* Failed to converge within maxiter iterations. If maxiter is sufficiently high and
+     * factor_left and factor_right are set appropriately, this should only happen due to
+     * a bug in this function. Limiting the number of iterations is a defensive programming measure. */
+    (f64::NAN, f64::NAN, f64::NAN, f64::NAN, 3)
+}
+
+/// Find root of a scalar function using Chandrupatla's algorithm
+#[allow(
+    clippy::too_many_arguments,
+    clippy::float_cmp,
+    clippy::many_single_char_names
+)]
+pub(crate) fn find_root_chandrupatla(
+    func: impl Fn(f64) -> f64,
+    mut x1: f64,
+    mut x2: f64,
+    mut f1: f64,
+    mut f2: f64,
+    rtol: f64,
+    atol: f64,
+    maxiter: u64,
+) -> (f64, i32) {
+    if f1 == 0.0 {
+        return (x1, 0);
+    }
+    if f2 == 0.0 {
+        return (x2, 0);
+    }
+    let mut t = 0.5;
+    let (mut x3, mut f3);
+    for _ in 0..maxiter {
+        let x = x1 + t * (x2 - x1);
+        let f = func(x);
+        if f.is_sign_negative() == f1.is_sign_negative() {
+            x3 = x1;
+            x1 = x;
+            f3 = f1;
+            f1 = f;
+        } else {
+            x3 = x2;
+            x2 = x1;
+            x1 = x;
+            f3 = f2;
+            f2 = f1;
+            f1 = f;
+        }
+        let (xm, fm);
+        if f2.abs() < f1.abs() {
+            xm = x2;
+            fm = f2;
+        } else {
+            xm = x1;
+            fm = f1;
+        }
+        let tol = 2.0 * rtol * xm.abs() + 0.5 * atol;
+        let tl = tol / (x2 - x1).abs();
+        if tl > 0.5 || fm == 0.0 {
+            return (xm, 0);
+        }
+        let xi = (x1 - x2) / (x3 - x2);
+        let phi = (f1 - f2) / (f3 - f2);
+        let fl = 1.0 - (1.0 - xi).sqrt();
+        let fh = xi.sqrt();
+
+        if (fl < phi) && (phi < fh) {
+            t = (f1 / (f2 - f1)) * (f3 / (f2 - f3))
+                + (f1 / (f3 - f1)) * (f2 / (f3 - f2)) * ((x3 - x1) / (x2 - x1));
+        } else {
+            t = 0.5;
+        }
+        t = t.max(tl).min(1.0 - tl);
+    }
+    (f64::NAN, 1)
 }
