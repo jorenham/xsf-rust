@@ -8,16 +8,12 @@
 //!  Wiley, 1996,
 //!  ISBN: 0-471-11963-6,
 //!  LC: QA351.C45.
-//!
-//! Unlike in xsf, the complex `exp1` (and therefore `expi`) can return NaN instead of an infinity
-//! for huge `|z|` (e.g. `|z| ~ 1e300`), because the complex multiplication `exp(-z) * zc` doesn't
-//! recover infinities from NaN results like GCC's `__muldc3` does (C99 Annex G).
 
 use core::f64::consts::PI;
 
 use num_complex::{Complex, c64};
 
-use crate::xsf::complex::{cdiv, rsub};
+use crate::xsf::complex::{cdiv, cmul, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 
@@ -83,7 +79,7 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         ce1 = c64(1.0, 0.0);
         let mut cr = c64(1.0, 0.0);
         for k in 1..501 {
-            cr = -cr * z * (f64::from(k) / f64::from(k + 1).powi(2));
+            cr = cmul(-cr, z) * (f64::from(k) / f64::from(k + 1).powi(2));
             ce1 += cr;
             if cr.norm() < ce1.norm() * 1e-15 {
                 break;
@@ -92,9 +88,9 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         if (x <= 0.0) && (z.im == 0.0) {
             // Careful on the branch cut -- use the sign of the imaginary part
             //  to get the right sign on the factor if pi.
-            ce1 = rsub(-EL, clog(-z)) + z * ce1 - PI.copysign(z.im) * c64(0.0, 1.0);
+            ce1 = rsub(-EL, clog(-z)) + cmul(z, ce1) - PI.copysign(z.im) * c64(0.0, 1.0);
         } else {
-            ce1 = rsub(-EL, clog(z)) + z * ce1;
+            ce1 = rsub(-EL, clog(z)) + cmul(z, ce1);
         }
     } else {
         // Continued fraction https://dlmf.nist.gov/6.9
@@ -108,17 +104,17 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         for k in 1..501 {
             let fk = f64::from(k);
             zd = cdiv(c64(1.0, 0.0), zd * fk + 1.0);
-            zdc *= zd - 1.0;
+            zdc = cmul(zdc, zd - 1.0);
             zc += zdc;
 
             zd = cdiv(c64(1.0, 0.0), zd * fk + z);
-            zdc *= z * zd - 1.0;
+            zdc = cmul(zdc, cmul(z, zd) - 1.0);
             zc += zdc;
             if (zdc.norm() <= zc.norm() * 1e-15) && (k > 20) {
                 break;
             }
         }
-        ce1 = cexp(-z) * zc;
+        ce1 = cmul(cexp(-z), zc);
         if (x <= 0.0) && (z.im == 0.0) {
             ce1 -= PI * c64(0.0, 1.0);
         }

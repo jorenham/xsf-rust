@@ -20,7 +20,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "legendre.h",
     "mathieu.h",
     "par_cyl.h",
-    "sici.h",
     "specfun.h",
     "sph_bessel.h",
     "sph_harm.h",
@@ -109,9 +108,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("pbwa", "dd->dd"),
     ("pbdv", "dd->dd"),
     ("pbvv", "dd->dd"),
-    // sici.h
-    ("sici", "D->DD"),
-    ("shichi", "D->DD"),
     // specfun.h
     ("hyp1f1", "ddd->d"),
     ("hyp1f1", "ddD->D"),

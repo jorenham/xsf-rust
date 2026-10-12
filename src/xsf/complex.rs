@@ -51,6 +51,69 @@ pub(crate) fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
     w
 }
 
+/// Complex multiplication `a * b`, like GCC's `__muldc3` (C99 Annex G)
+///
+/// This replaces the complex multiplication in C++. For finite results it is the same as the naive
+/// formula (i.e. `num_complex`'s `*`), but it recovers the infinities that would otherwise be
+/// computed as NaN + NaN i, e.g. `(inf + inf i) * (1 + 0i)`.
+#[inline]
+pub(crate) fn cmul(a: Complex<f64>, b: Complex<f64>) -> Complex<f64> {
+    let (
+        Complex {
+            re: mut a,
+            im: mut b,
+        },
+        Complex {
+            re: mut c,
+            im: mut d,
+        },
+    ) = (a, b);
+    let (ac, bd, ad, bc) = (a * c, b * d, a * d, b * c);
+    let (mut x, mut y) = (ac - bd, ad + bc);
+
+    if x.is_nan() && y.is_nan() {
+        // Recover infinities that computed as NaN+iNaN.
+        let mut recalc = false;
+        if a.is_infinite() || b.is_infinite() {
+            // z is infinite.  "Box" the infinity and change NaNs in
+            // the other factor to 0.
+            a = box_inf(a);
+            b = box_inf(b);
+            c = nan_to_zero(c);
+            d = nan_to_zero(d);
+            recalc = true;
+        }
+        if c.is_infinite() || d.is_infinite() {
+            // w is infinite.  "Box" the infinity and change NaNs in
+            // the other factor to 0.
+            c = box_inf(c);
+            d = box_inf(d);
+            a = nan_to_zero(a);
+            b = nan_to_zero(b);
+            recalc = true;
+        }
+        if !recalc && (ac.is_infinite() || bd.is_infinite() || ad.is_infinite() || bc.is_infinite())
+        {
+            // Recover infinities from overflow by changing NaNs to 0.
+            a = nan_to_zero(a);
+            b = nan_to_zero(b);
+            c = nan_to_zero(c);
+            d = nan_to_zero(d);
+            recalc = true;
+        }
+        if recalc {
+            x = f64::INFINITY * (a * c - b * d);
+            y = f64::INFINITY * (a * d + b * c);
+        }
+    }
+    Complex::new(x, y)
+}
+
+/// `isnan(x) ? copysign(0, x) : x`, used by [`cmul`]
+fn nan_to_zero(x: f64) -> f64 {
+    if x.is_nan() { 0.0_f64.copysign(x) } else { x }
+}
+
 /// `copysign(isinf(x) ? 1 : 0, x)`, used to "box" infinities in C99 Annex G
 fn box_inf(x: f64) -> f64 {
     (if x.is_infinite() { 1.0_f64 } else { 0.0 }).copysign(x)
