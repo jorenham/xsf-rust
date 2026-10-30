@@ -2,7 +2,9 @@
 //! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
 //!
 //! Unlike in xsf, `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16` (incl. `inf`), and
-//! `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever.
+//! `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
+//! `scipy.stats._hypotests`, the series also stop at a NaN term, so that e.g.
+//! `cdf_cvm(1e4, 1_000_000)` returns `NaN` instead of looping forever.
 
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 
@@ -823,6 +825,7 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
 /// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
 #[must_use]
 #[inline]
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn cdf_cvm_inf(x: f64) -> f64 {
     // CDF of the Cramer-von Mises test statistic (infinite sample limit).
     // Accurate for practical hypothesis testing but not expected to be accurate
@@ -850,7 +853,8 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         let z = u * y.sqrt() * (-q).exp() * b;
 
         total += z;
-        if z.abs() < 1e-7 {
+        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        if !(z.abs() >= 1e-7) {
             break;
         }
         k += 1;
@@ -897,6 +901,7 @@ fn psi1_term(k: i32, x: f64) -> f64 {
     e1 + e2 + e3 + e4 + e5
 }
 
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn psi1_mod(x: f64) -> f64 {
     // psi1 is defined in equation 1.10 in Csörgő, S. and Faraway, J. (1996).
     // This implements a modified version by excluding the term V(x) / 12
@@ -912,7 +917,8 @@ fn psi1_mod(x: f64) -> f64 {
         let gamma_kp1 = gamma(f64::from(k) + 1.0);
         let z = -psi1_term(k, x) / (PI * gamma_kp1);
         tot += z;
-        if z.abs() < 1e-7 {
+        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        if !(z.abs() >= 1e-7) {
             break;
         }
         k += 1;
@@ -1373,5 +1379,6 @@ mod tests {
             assert_eq!(crate::cdf_cvm(f64::INFINITY, n), 1.0);
             assert!(crate::cdf_cvm(f64::NAN, n).is_nan());
         }
+        assert!(crate::cdf_cvm(1e4, 1_000_000).is_nan());
     }
 }
