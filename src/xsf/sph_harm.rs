@@ -1,5 +1,67 @@
+//! Translated into pure Rust from `xsf/sph_harm.h` (xsf v0.2.2).
+
 use core::ffi::c_int;
-use num_complex::Complex64;
+use num_complex::{Complex64, c64};
+
+use crate::xsf::exp::cexp;
+use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n, sph_legendre_p_for_each_n_m};
+
+fn sph_harm_y_next(m: i32, phi: f64, p: f64, res: &mut Complex64) {
+    *res = cexp(c64(0.0, 1.0) * f64::from(m) * phi) * p;
+}
+
+fn sph_harm_y_for_each_n(
+    n: i32,
+    m: i32,
+    theta: f64,
+    phi: f64,
+    res: &mut Complex64,
+    mut f: impl FnMut(i32, i32, &Complex64),
+) {
+    let mut p = [0.0; 2];
+    sph_legendre_p_for_each_n(n, m, theta, &mut p, |n, p| {
+        sph_harm_y_next(m, phi, p[1], res);
+
+        f(n, m, res);
+    });
+}
+
+fn sph_harm_y_for_each_n_m(
+    n: i32,
+    m: i32,
+    theta: f64,
+    phi: f64,
+    res: &mut Complex64,
+    mut f: impl FnMut(i32, i32, &Complex64),
+) {
+    let mut p = [0.0; 2];
+    sph_legendre_p_for_each_n_m(n, m, theta, &mut p, |n, m, p| {
+        sph_harm_y_next(m, phi, p[1], res);
+
+        f(n, m, res);
+    });
+}
+
+fn sph_harm_y_t(n: i32, m: i32, theta: f64, phi: f64) -> Complex64 {
+    let mut res_n = c64(0.0, 0.0);
+    sph_harm_y_for_each_n(n, m, theta, phi, &mut res_n, |_, _, _| {});
+
+    res_n
+}
+
+fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, Complex64, 2>) {
+    let n_max = int(res.extent(0)) - 1;
+    let m_max = (int(res.extent(1)) - 1) / 2;
+
+    let mut res_n_m = c64(0.0, 0.0);
+    sph_harm_y_for_each_n_m(n_max, m_max, theta, phi, &mut res_n_m, |n, m, res_n_m| {
+        if m >= 0 {
+            res[(n, m)] = *res_n_m;
+        } else {
+            res[(n, m + 2 * m_max + 1)] = *res_n_m;
+        }
+    });
+}
 
 /// Spherical harmonics
 ///
@@ -41,7 +103,7 @@ use num_complex::Complex64;
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
     assert!(n <= c_int::MAX as usize);
     assert!(m.abs() <= c_int::MAX as isize);
-    unsafe { crate::ffi::xsf::sph_harm_y(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi) }
+    sph_harm_y_t(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi)
 }
 
 /// All spherical harmonics up to the specified degree $n$ and order $m$
@@ -67,7 +129,7 @@ pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
 pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Complex64>> {
     let (nr, nc) = (n + 1, 2 * m + 1);
     let mut out = vec![f64::NAN.into(); nr * nc];
-    unsafe { crate::ffi::xsf::sph_harm_y_all(n, m, theta, phi, out.as_mut_ptr()) };
+    sph_harm_y_all_t(theta, phi, Mdspan::new(&mut out, [nr, nc]));
     crate::utils::vec_into_vecvec(out, nr, nc, false)
 }
 

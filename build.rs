@@ -14,12 +14,10 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "gamma.h",
     "hyp2f1.h",
     "kelvin.h",
-    "legendre.h",
     "mathieu.h",
     "par_cyl.h",
     "specfun.h",
     "sph_bessel.h",
-    "sph_harm.h",
     "sphd_wave.h",
     "stats.h",
     "struve.h",
@@ -104,8 +102,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("sph_bessel_k", "lD->D"),
     ("sph_bessel_k_jac", "ld->d"),
     ("sph_bessel_k_jac", "lD->D"),
-    // sph_harm.h
-    ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
     ("prolate_segv", "ddd->d"),
     ("prolate_aswfa_nocv", "dddd->dd"),
@@ -166,22 +162,8 @@ struct span1 {
 };
 
 template <typename T>
-struct span2 {
-    T *data;
-    std::size_t nrow, ncol;
-    using value_type = std::remove_const_t<T>;
-    T &operator()(std::size_t i, std::size_t j) const { return data[i * ncol + j]; }
-    std::size_t extent(std::size_t k) const { return k == 0 ? nrow : ncol; }
-    std::size_t size() const { return nrow * ncol; }
-};
-
-template <typename T>
 span1<T> mds(T *data, std::size_t len) {
     return {data, len};
-}
-template <typename T>
-span2<T> mds(T *data, std::size_t nrow, std::size_t ncol) {
-    return {data, nrow, ncol};
 }
 
 } // namespace
@@ -240,11 +222,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
 // kelvin.h
 void xsfr_klvnzo(int nt, int kd, double *zo) {
     xsf::klvnzo(nt, kd, zo);
-}
-
-// sph_harm.h
-void xsfr_sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
-    xsf::sph_harm_y_all(theta, phi, mds(as_cpp_complex(res), n + 1, 2 * m + 1));
 }
 "#;
 
