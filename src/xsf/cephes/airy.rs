@@ -230,12 +230,12 @@ const APGD: [f64; 10] = [
 ///
 /// ```text
 /// Arithmetic  domain   function  # trials      peak         rms
-/// IEEE        -10, 0     Ai        10000       1.6e-15     2.7e-16
-/// IEEE          0, 10    Ai        10000       2.3e-14*    1.8e-15*
-/// IEEE        -10, 0     Ai'       10000       4.6e-15     7.6e-16
-/// IEEE          0, 10    Ai'       10000       1.8e-14*    1.5e-15*
-/// IEEE        -10, 10    Bi        30000       4.2e-15     5.3e-16
-/// IEEE        -10, 10    Bi'       30000       4.9e-15     7.3e-16
+/// IEEE        -10, 0     Ai        10000       2.0e-15     2.9e-16
+/// IEEE          0, 10    Ai        10000       2.5e-14*    1.7e-15*
+/// IEEE        -10, 0     Ai'       10000       6.3e-15     8.0e-16
+/// IEEE          0, 10    Ai'       10000       1.8e-14*    1.4e-15*
+/// IEEE        -10, 10    Bi        30000       5.7e-15     6.5e-16
+/// IEEE        -10, 10    Bi'       30000       6.2e-15     8.4e-16
 /// ```
 ///
 /// Returns `(status, ai, aip, bi, bip)`, where `status` is `-1` if `x > 103.892` (in which case
