@@ -589,13 +589,6 @@ mod tests {
     }
 
     #[test]
-    fn test_oblate_radial2_nocv() {
-        xsref::test("oblate_radial2_nocv", "d_d_d_d-d_d", |x| {
-            crate::oblate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-        });
-    }
-
-    #[test]
     fn test_prolate_aswfa() {
         xsref::test("prolate_aswfa", "d_d_d_d_d-d_d", |x| {
             crate::prolate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
@@ -631,24 +624,35 @@ mod tests {
     }
 
     #[test]
-    fn test_oblate_radial2() {
-        xsref::test("oblate_radial2", "d_d_d_d_d-d_d", |x| {
-            crate::oblate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-        });
-    }
-
-    #[test]
     fn test_prolate_radial1_nocv_out_of_bounds() {
         // the 252-element buffers of `rmn1` would overflow
         let (r1f, r1d) = crate::prolate_radial1_nocv(15, 174, 30.2, 1.077);
         assert!(r1f.is_nan() && r1d.is_nan());
     }
 
+    // The xsref `oblate_radial2` cases are computed with scipy, which has the `qstar` and `gmn`
+    // bugs that are fixed in xsf-rust.
     #[test]
-    fn test_oblate_radial2_nocv_m0() {
-        // `qstar` would read `ap[-1]`
-        let (r2f, r2d) = crate::oblate_radial2_nocv(0, 1, 1.0, 0.0);
-        assert!(r2f.is_nan() && r2d.is_nan());
+    fn test_oblate_radial2_wronskian() {
+        // `R1 R2' - R1' R2 = 1 / (c (x^2 + 1))`
+        for (m, n, c, x) in [
+            (0, 0, 1.0, 0.0),
+            (1, 1, 1.0, 0.0),
+            (0, 1, 1.0, 0.5),
+            (1, 1, 1.0, 0.5),
+            (1, 2, 1.0, 0.5),
+            (2, 3, 2.0, 0.2),
+            (3, 6, 0.7, 0.05),
+            (5, 8, 3.0, 0.4),
+        ] {
+            let (r1f, r1d) = crate::oblate_radial1_nocv(m, n, c, x);
+            let (r2f, r2d) = crate::oblate_radial2_nocv(m, n, c, x);
+            let w = (r1f * r2d - r1d * r2f) * c * (x * x + 1.0);
+            assert!((w - 1.0).abs() < 1e-13, "{m} {n} {c} {x}: {w}");
+
+            let cv = crate::oblate_segv(m, n, c);
+            assert_eq!(crate::oblate_radial2(m, n, c, cv, x), (r2f, r2d));
+        }
     }
 
     #[test]
