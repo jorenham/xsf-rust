@@ -45,7 +45,7 @@ impl BesselArg for f64 {
     }
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_i(v, self) }
+        crate::xsf::cephes::iv(v, self)
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {

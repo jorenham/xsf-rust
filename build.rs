@@ -27,7 +27,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("it2j0y0", "d->dd"),
     ("it1i0k0", "d->dd"),
     ("it2i0k0", "d->dd"),
-    ("cyl_bessel_i", "dd->d"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
