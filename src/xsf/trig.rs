@@ -207,6 +207,21 @@ pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
  * than sin(z), cos(z).
  */
 
+/// Hyperbolic sine of complex `z`
+///
+/// This replaces `std::sinh(std::complex<double>)` from C++, as `sinh(z) = -i sin(i z)`.
+pub(crate) fn csinh(z: Complex<f64>) -> Complex<f64> {
+    let w = csin(Complex::new(-z.im, z.re));
+    Complex::new(w.im, -w.re)
+}
+
+/// Hyperbolic cosine of complex `z`
+///
+/// This replaces `std::cosh(std::complex<double>)` from C++, as `cosh(z) = cos(-i z)`.
+pub(crate) fn ccosh(z: Complex<f64>) -> Complex<f64> {
+    ccos(Complex::new(z.im, -z.re))
+}
+
 /// `xsf::sinpi` for complex `z`
 #[allow(clippy::float_cmp)]
 fn csinpi(z: Complex<f64>) -> Complex<f64> {

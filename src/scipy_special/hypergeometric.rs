@@ -101,7 +101,7 @@ fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     } else {
         let (arg, r) = if z.re > 0.0 {
             let arg = z.sqrt();
-            let bess_val = unsafe { crate::ffi::xsf::cyl_bessel_i_1(v - 1.0, 2.0 * arg) };
+            let bess_val = crate::bessel_i(v - 1.0, 2.0 * arg);
             (arg, bess_val)
         } else {
             let arg = (-z).sqrt();

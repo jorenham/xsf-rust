@@ -1,7 +1,12 @@
 use core::ops::{Add, Mul};
 
-use num_complex::Complex;
+use core::f64::consts::PI;
+
+use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
+
+use crate::xsf::amos;
+use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
 pub trait BesselArg:
@@ -44,15 +49,15 @@ impl BesselArg for f64 {
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ie(v, self) }
+        cyl_bessel_ie_f64(v, self)
     }
     #[inline]
     fn bessel_k(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_k(v, self) }
+        cyl_bessel_k_f64(v, self)
     }
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ke(v, self) }
+        cyl_bessel_ke_f64(v, self)
     }
     #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
@@ -91,19 +96,19 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_i_1(v, self) }
+        cyl_bessel_i_c64(v, self)
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ie_1(v, self) }
+        cyl_bessel_ie_c64(v, self)
     }
     #[inline]
     fn bessel_k(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_k_1(v, self) }
+        cyl_bessel_k_c64(v, self)
     }
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
-        unsafe { crate::ffi::xsf::cyl_bessel_ke_1(v, self) }
+        cyl_bessel_ke_c64(v, self)
     }
     #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
@@ -121,6 +126,249 @@ impl BesselArg for Complex<f64> {
     fn hankel_2e(self, v: f64) -> Complex<f64> {
         unsafe { crate::ffi::xsf::cyl_hankel_2e(v, self) }
     }
+}
+
+// Translated from `xsf/bessel.h`, `xsf/amos.h` and `xsf/error.h` (xsf v0.2.2)
+
+// amos.h
+
+/// `sf_error_t` values that `ierr_to_sferr` can return (`set_error` itself is a no-op here)
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SfError {
+    Ok,
+    Underflow,
+    Domain,
+    Overflow,
+    Loss,
+    NoResult,
+    Memory,
+}
+
+//
+// Return sf_error equivalents for AMOS ierr values.
+// 'ierr' refers to the last parameter of the AMOS functions
+// airy(), besh(), besi(), besj(), besk(), besy(), and biry().
+//
+#[allow(clippy::match_same_arms)]
+fn ierr_to_sferr(nz: i32, ierr: i32) -> SfError {
+    if nz != 0 {
+        return SfError::Underflow;
+    }
+
+    match ierr {
+        1 => SfError::Domain,
+        2 => SfError::Overflow,
+        3 => SfError::Loss,
+        4 => SfError::NoResult,
+        5 => SfError::NoResult, /* Algorithm termination condition not met */
+        6 => SfError::Memory,   /* Memory allocation failed */
+        _ => SfError::Ok,
+    }
+}
+
+// error.h
+
+fn set_error_and_nan(code: SfError, value: &mut Complex64) {
+    if code != SfError::Ok
+        && (code == SfError::Domain || code == SfError::Overflow || code == SfError::NoResult)
+    {
+        value.re = f64::NAN;
+        value.im = f64::NAN;
+    }
+}
+
+// bessel.h
+
+fn rotate(z: Complex64, v: f64) -> Complex64 {
+    let c = cephes_cospi(v);
+    let s = cephes_sinpi(v);
+
+    c64(c * z.re - s * z.im, s * z.re + c * z.im)
+}
+
+#[allow(clippy::float_cmp)]
+fn reflect_i(_ik: &mut Complex64, v: f64) -> bool {
+    if v != v.floor() {
+        return false;
+    }
+
+    true /* I is symmetric for integer v */
+}
+
+fn rotate_i(i: Complex64, k: Complex64, v: f64) -> Complex64 {
+    let s = (v * PI).sin() * (2.0 / PI);
+
+    i + s * k
+}
+
+fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
+    let n = 1;
+    let kode = 2;
+    let mut sign = 1;
+    let mut nz;
+    let mut ierr = 0;
+    let mut cy = c64(f64::NAN, f64::NAN);
+    let mut cy_k = c64(f64::NAN, f64::NAN);
+
+    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        return cy;
+    }
+    if v < 0.0 {
+        v = -v;
+        sign = -1;
+    }
+    nz = amos::besi(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+
+    if sign == -1 && !reflect_i(&mut cy, v) {
+        nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy_k), &mut ierr);
+        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_k);
+        /* adjust scaling to match zbesi */
+        cy_k = rotate(cy_k, -z.im / PI);
+        if z.re > 0.0 {
+            cy_k.re *= (-2.0 * z.re).exp();
+            cy_k.im *= (-2.0 * z.re).exp();
+        }
+        /* v -> -v */
+        cy = rotate_i(cy, cy_k, v);
+    }
+
+    cy
+}
+
+#[allow(clippy::float_cmp)]
+fn cyl_bessel_ie_f64(v: f64, x: f64) -> f64 {
+    if v != v.floor() && x < 0.0 {
+        return f64::NAN;
+    }
+
+    cyl_bessel_ie_c64(v, c64(x, 0.0)).re
+}
+
+fn cyl_bessel_ke_c64(mut v: f64, z: Complex64) -> Complex64 {
+    let mut cy = c64(f64::NAN, f64::NAN);
+    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        return cy;
+    }
+
+    if v < 0.0 {
+        /* K_v == K_{-v} even for non-integer v */
+        v = -v;
+    }
+
+    let n = 1;
+    let kode = 2;
+    let mut ierr = 0;
+    let nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        /* overflow */
+        cy = c64(f64::INFINITY, 0.0);
+    }
+
+    cy
+}
+
+#[allow(clippy::float_cmp)]
+fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
+    if x < 0.0 {
+        return f64::NAN;
+    }
+
+    if x == 0.0 {
+        return f64::INFINITY;
+    }
+
+    cyl_bessel_ke_c64(v, c64(x, 0.0)).re
+}
+
+#[allow(clippy::float_cmp)]
+fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
+    let n = 1;
+    let kode = 1;
+    let mut sign = 1.0;
+    let mut nz;
+    let mut ierr = 0;
+    let mut cy = c64(f64::NAN, f64::NAN);
+    let mut cy_k = c64(f64::NAN, f64::NAN);
+
+    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        return cy;
+    }
+    if v < 0.0 {
+        v = -v;
+        sign = -1.0;
+    }
+    nz = amos::besi(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    if ierr == 2 {
+        /* overflow */
+        if z.im == 0.0 && (z.re >= 0.0 || v == v.floor()) {
+            if z.re < 0.0 && v / 2.0 != (v / 2.0).floor() {
+                cy.re = f64::NEG_INFINITY;
+            } else {
+                cy.re = f64::INFINITY;
+            }
+            cy.im = 0.0;
+        } else {
+            cy = cyl_bessel_ie_c64(v * sign, z);
+            cy.re *= f64::INFINITY;
+            cy.im *= f64::INFINITY;
+        }
+    }
+
+    if sign == -1.0 && !reflect_i(&mut cy, v) {
+        nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy_k), &mut ierr);
+        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_k);
+        cy = rotate_i(cy, cy_k, v);
+    }
+
+    cy
+}
+
+fn cyl_bessel_k_c64(mut v: f64, z: Complex64) -> Complex64 {
+    let mut cy = c64(f64::NAN, f64::NAN);
+    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        return cy;
+    }
+
+    if v < 0.0 {
+        /* K_v == K_{-v} even for non-integer v */
+        v = -v;
+    }
+
+    let n = 1;
+    let kode = 1;
+    let mut ierr = 0;
+    let nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        /* overflow */
+        cy = c64(f64::INFINITY, 0.0);
+    }
+
+    cy
+}
+
+#[allow(clippy::float_cmp)]
+fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
+    if z < 0.0 {
+        return f64::NAN;
+    }
+
+    if z == 0.0 {
+        return f64::INFINITY;
+    }
+
+    if z > 710.0 * (1.0 + v.abs()) {
+        /* Underflow. See uniform expansion https://dlmf.nist.gov/10.41
+         * This condition is not a strict bound (it can underflow earlier),
+         * rather, we are here working around a restriction in AMOS.
+         */
+        return 0.0;
+    }
+
+    cyl_bessel_k_c64(v, c64(z, 0.0)).re
 }
 
 // Bessel J
