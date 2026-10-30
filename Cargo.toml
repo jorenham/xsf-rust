@@ -64,6 +64,7 @@ include = [
   "!xsf/include/xsf/legendre.h",
   "!xsf/include/xsf/log.h",
   "!xsf/include/xsf/log_exp.h",
+  "!xsf/include/xsf/mathieu.h",
   "!xsf/include/xsf/numbers.h",
   "!xsf/include/xsf/numpy.h",
   "!xsf/include/xsf/par_cyl.h",

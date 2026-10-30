@@ -1,6 +1,179 @@
-use crate::utils::out2;
-use core::ffi::c_int;
+//! The Mathieu functions are translated into pure Rust from `xsf/mathieu.h` (xsf v0.2.2).
+//!
+//! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
+//!
+//! Unlike in xsf, the `double` → `int` conversions saturate instead of being undefined behavior.
+//! This way, the modified Mathieu functions don't return 0 or NaN if `√q·exp(|x|) > 2.39e9`, and
+//! the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
+
 use num_traits::ToPrimitive;
+
+use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
+
+/* Mathieu functions */
+/* Characteristic values */
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn cem_cva(m: f64, q: f64) -> f64 {
+    let mut kd = 1;
+
+    if (m < 0.0) || (m != m.floor()) {
+        return f64::NAN;
+    }
+    let int_m = m as i32;
+    if q < 0.0 {
+        /* https://dlmf.nist.gov/28.2#E26 */
+        if int_m % 2 == 0 {
+            return cem_cva(m, -q);
+        }
+        return sem_cva(m, -q);
+    }
+
+    if int_m % 2 != 0 {
+        kd = 2;
+    }
+    cva2(kd, int_m, q)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn sem_cva(m: f64, q: f64) -> f64 {
+    let mut kd = 4;
+
+    if (m <= 0.0) || (m != m.floor()) {
+        return f64::NAN;
+    }
+    let int_m = m as i32;
+    if q < 0.0 {
+        /* https://dlmf.nist.gov/28.2#E26 */
+        if int_m % 2 == 0 {
+            return sem_cva(m, -q);
+        }
+        return cem_cva(m, -q);
+    }
+    if int_m % 2 != 0 {
+        kd = 3;
+    }
+    cva2(kd, int_m, q)
+}
+
+/* Mathieu functions */
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let kf = 1;
+    let (mut csf, mut csd) = (0.0, 0.0);
+    if (m < 0.0) || (m != m.floor()) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    if q < 0.0 {
+        /* https://dlmf.nist.gov/28.2#E34 */
+        let sgn = f64::from(if (int_m / 2) % 2 == 0 { 1 } else { -1 });
+        let (f, d) = if int_m % 2 == 0 {
+            cem(m, -q, 90.0 - x)
+        } else {
+            sem(m, -q, 90.0 - x)
+        };
+        return (sgn * f, -sgn * d);
+    }
+    let status = mtu0(kf, int_m, q, x, &mut csf, &mut csd);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (csf, csd)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let kf = 2;
+    let (mut csf, mut csd) = (0.0, 0.0);
+    if (m < 0.0) || (m != m.floor()) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    if int_m == 0 {
+        return (0.0, 0.0);
+    }
+    if q < 0.0 {
+        /* https://dlmf.nist.gov/28.2#E34 */
+        let (sgn, (f, d)) = if int_m % 2 == 0 {
+            let sgn = if (int_m / 2) % 2 == 0 { -1 } else { 1 };
+            (sgn, sem(m, -q, 90.0 - x))
+        } else {
+            let sgn = if (int_m / 2) % 2 == 0 { 1 } else { -1 };
+            (sgn, cem(m, -q, 90.0 - x))
+        };
+        let sgn = f64::from(sgn);
+        return (sgn * f, -sgn * d);
+    }
+    let status = mtu0(kf, int_m, q, x, &mut csf, &mut csd);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (csf, csd)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let (kf, kc) = (1, 1);
+    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
+
+    if (m < 0.0) || (m != m.floor()) || (q < 0.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (f1r, d1r)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let (kf, kc) = (2, 1);
+    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
+
+    if (m < 1.0) || (m != m.floor()) || (q < 0.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (f1r, d1r)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let (kf, kc) = (1, 2);
+    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
+
+    if (m < 0.0) || (m != m.floor()) || (q < 0.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (f2r, d2r)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
+    let (kf, kc) = (2, 2);
+    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
+
+    if (m < 1.0) || (m != m.floor()) || (q < 0.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let int_m = m as i32;
+    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
+    if status != Status::Ok {
+        return (f64::NAN, f64::NAN);
+    }
+    (f2r, d2r)
+}
 
 /// Characteristic value of even Mathieu functions
 ///
@@ -15,7 +188,7 @@ use num_traits::ToPrimitive;
 #[must_use]
 #[inline]
 pub fn mathieu_a(m: u32, q: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cem_cva(m.into(), q) }
+    cem_cva(f64::from(m), q)
 }
 
 /// Characteristic value of odd Mathieu functions
@@ -31,7 +204,7 @@ pub fn mathieu_a(m: u32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn mathieu_b(m: u32, q: f64) -> f64 {
-    unsafe { crate::ffi::xsf::sem_cva(m.into(), q) }
+    sem_cva(f64::from(m), q)
 }
 
 /// Even Mathieu function and its derivative
@@ -66,7 +239,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::cem(m.into(), q, x, y, yp) })
+    cem(f64::from(m), q, x)
 }
 
 /// Odd Mathieu function and its derivative
@@ -101,7 +274,7 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::sem(m.into(), q, x, y, yp) })
+    sem(f64::from(m), q, x)
 }
 
 /// Even modified Mathieu function of the first kind and its derivative
@@ -136,7 +309,7 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::mcm1(m.into(), q, x, y, yp) })
+    mcm1(f64::from(m), q, x)
 }
 
 /// Odd modified Mathieu function of the first kind and its derivative
@@ -171,7 +344,7 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::msm1(m.into(), q, x, y, yp) })
+    msm1(f64::from(m), q, x)
 }
 
 /// Even modified Mathieu function of the second kind and its derivative
@@ -206,7 +379,7 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::mcm2(m.into(), q, x, y, yp) })
+    mcm2(f64::from(m), q, x)
 }
 
 /// Odd modified Mathieu function of the second kind and its derivative
@@ -241,7 +414,7 @@ pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
         // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
         return (f64::NAN, f64::NAN);
     }
-    out2(|y, yp| unsafe { crate::ffi::xsf::msm2(m.into(), q, x, y, yp) })
+    msm2(f64::from(m), q, x)
 }
 
 /// `qm` in `mathieu_{even,odd}_coef`, and in `fcoef` and `mtu0` of `specfun.h`, where the number
@@ -265,7 +438,7 @@ fn mathieu_km_too_large(m: u32, q: f64) -> bool {
 }
 
 #[inline]
-fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
+fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
 
     // if (q < 0):
@@ -294,9 +467,7 @@ fn fcoef<const KD: c_int>(m: u32, q: f64) -> Result<([f64; 252], usize), String>
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
     // (unlike in scipy) 252 instead of 251, since `fcoef` reads `fc[km]`, and `km` can be 251
     let mut fc = [f64::NAN; 252];
-    unsafe {
-        crate::ffi::xsf::fcoef(KD, m.try_into().unwrap(), q, cv, fc.as_mut_ptr());
-    }
+    specfun_fcoef(KD, m.try_into().unwrap(), q, cv, &mut fc);
     if fc[0].is_nan() {
         assert!(fc.iter().all(|c| c.is_nan()), "expected all NaN");
         Err("Computation of Fourier coefficients failed".to_string())
@@ -430,6 +601,24 @@ mod tests {
         xsref::test("msm2", "d_d_d-d_d", |x| {
             crate::mathieu_modsem2(x[0].to_u32().unwrap(), x[1], x[2])
         });
+    }
+
+    #[test]
+    fn test_mathieu_a_nan() {
+        assert!(crate::mathieu_a(13, f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn test_mathieu_modcem1_large_x() {
+        // `(f² + (f'/u)²)·u → 2/π` with `u = √q·exp(x)`, i.e. `|Mc1| ~ √(2 / (π u))`
+        let x = 22.0;
+        let u = f64::exp(x);
+        let (f, d) = crate::mathieu_modcem1(0, 1.0, x);
+        let env = (f * f + (d / u) * (d / u)) * u;
+        assert!(
+            (env * core::f64::consts::FRAC_PI_2 - 1.0).abs() < 1e-6,
+            "{env}"
+        );
     }
 
     #[test]
