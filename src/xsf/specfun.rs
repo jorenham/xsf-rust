@@ -5,7 +5,7 @@ mod legendre;
 mod mathieu;
 mod sphd;
 
-pub(crate) use bessel::{jynb, sphj, sphy};
+pub(crate) use bessel::{jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2};
 pub(crate) use legendre::{lpmns, lqmns};
