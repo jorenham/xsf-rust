@@ -1,3 +1,7 @@
+mod gamma;
+
+pub(crate) use gamma::{cgama, gamma2};
+
 use num_complex::Complex;
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
