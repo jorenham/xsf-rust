@@ -555,7 +555,7 @@ pub(crate) fn cyl_bessel_y_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy_y
 }
 
-fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
+pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
     }

@@ -17,7 +17,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "par_cyl.h",
     "specfun.h",
     "sphd_wave.h",
-    "struve.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
     // airy.h
@@ -70,12 +69,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("oblate_radial1", "ddddd->dd"),
     ("oblate_radial2", "ddddd->dd"),
     ("oblate_aswfa", "ddddd->dd"),
-    // struve.h
-    ("itstruve0", "d->d"),
-    ("it2struve0", "d->d"),
-    ("itmodstruve0", "d->d"),
-    ("struve_h", "dd->d"),
-    ("struve_l", "dd->d"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"
