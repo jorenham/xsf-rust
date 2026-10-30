@@ -12,25 +12,12 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "airy.h",
     "bessel.h",
     "gamma.h",
-    "kelvin.h",
     "mathieu.h",
     "par_cyl.h",
     "specfun.h",
     "sphd_wave.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
-    // airy.h
-    ("itairy", "d->dddd"),
-    // kelvin.h
-    ("ber", "d->d"),
-    ("bei", "d->d"),
-    ("ker", "d->d"),
-    ("kei", "d->d"),
-    ("berp", "d->d"),
-    ("beip", "d->d"),
-    ("kerp", "d->d"),
-    ("keip", "d->d"),
-    ("kelvin", "d->DDDD"),
     // mathieu.h
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
@@ -157,10 +144,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
     return nm;
 }
 
-// kelvin.h
-void xsfr_klvnzo(int nt, int kd, double *zo) {
-    xsf::klvnzo(nt, kd, zo);
-}
 "#;
 
 /// Top-level signatures of the hand-written `CPP_WRAPPERS`

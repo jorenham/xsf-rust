@@ -59,6 +59,7 @@ include = [
   "!xsf/include/xsf/fresnel.h",
   "!xsf/include/xsf/hyp2f1.h",
   "!xsf/include/xsf/iv_ratio.h",
+  "!xsf/include/xsf/kelvin.h",
   "!xsf/include/xsf/lambertw.h",
   "!xsf/include/xsf/legendre.h",
   "!xsf/include/xsf/log.h",

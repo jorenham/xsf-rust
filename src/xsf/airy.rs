@@ -1,3 +1,5 @@
+use core::f64::consts::{PI, SQRT_2};
+
 use num_complex::{Complex64, c64};
 
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
@@ -186,9 +188,133 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
     z.airye()
 }
 
+#[allow(
+    clippy::excessive_precision,
+    clippy::float_cmp,
+    clippy::too_many_lines,
+    clippy::unreadable_literal
+)]
+fn itairy_impl(mut x: f64) -> [f64; 4] {
+    // ======================================================
+    // Purpose: Compute the integrals of Airy fnctions with
+    //          respect to t from 0 and x ( x ≥ 0 )
+    // Input  : x   --- Upper limit of the integral
+    // Output : APT --- Integration of Ai(t) from 0 and x
+    //          BPT --- Integration of Bi(t) from 0 and x
+    //          ANT --- Integration of Ai(-t) from 0 and x
+    //          BNT --- Integration of Bi(-t) from 0 and x
+    // ======================================================
+
+    const A: [f64; 16] = [
+        0.569444444444444,
+        0.891300154320988,
+        0.226624344493027e+01,
+        0.798950124766861e+01,
+        0.360688546785343e+02,
+        0.198670292131169e+03,
+        0.129223456582211e+04,
+        0.969483869669600e+04,
+        0.824184704952483e+05,
+        0.783031092490225e+06,
+        0.822210493622814e+07,
+        0.945557399360556e+08,
+        0.118195595640730e+10,
+        0.159564653040121e+11,
+        0.231369166433050e+12,
+        0.358622522796969e+13,
+    ];
+    let c1 = 0.355028053887817;
+    let c2 = 0.258819403792807;
+    let sr3 = 1.732050807568877;
+    let q0 = 1.0 / 3.0;
+    let q1 = 2.0 / 3.0;
+    let q2 = SQRT_2;
+    let eps = 1e-5;
+
+    let mut apt = 0.0;
+    let mut bpt = 0.0;
+    let mut ant = 0.0;
+    let mut bnt = 0.0;
+
+    if x == 0.0 {
+        return [apt, bpt, ant, bnt];
+    }
+    if x.abs() <= 9.25 {
+        for l in 0..2 {
+            x *= (-1.0_f64).powf(f64::from(l));
+            let mut fx = x;
+            let mut r = x;
+            for k in 1..41 {
+                let k = f64::from(k);
+                r = r * (3.0 * k - 2.0) / (3.0 * k + 1.0) * x / (3.0 * k) * x / (3.0 * k - 1.0) * x;
+                fx += r;
+                if r.abs() < fx.abs() * eps {
+                    break;
+                }
+            }
+            let mut gx = 0.5 * x * x;
+            r = gx;
+            for k in 1..41 {
+                let k = f64::from(k);
+                r = r * (3.0 * k - 1.0) / (3.0 * k + 2.0) * x / (3.0 * k) * x / (3.0 * k + 1.0) * x;
+                gx += r;
+                if r.abs() < gx.abs() * eps {
+                    break;
+                }
+            }
+            ant = c1 * fx - c2 * gx;
+            bnt = sr3 * (c1 * fx + c2 * gx);
+            if l == 0 {
+                apt = ant;
+                bpt = bnt;
+            } else {
+                ant = -ant;
+                bnt = -bnt;
+                x = -x;
+            }
+        }
+    } else {
+        let xe = x * x.sqrt() / 1.5;
+        let xp6 = 1.0 / (6.0 * PI * xe).sqrt();
+        let mut su1 = 1.0;
+        let mut r = 1.0;
+        let xr1 = 1.0 / xe;
+        for k in 1..17 {
+            r = -r * xr1;
+            su1 += A[k - 1] * r;
+        }
+        let mut su2 = 1.0;
+        r = 1.0;
+        for k in 1..17 {
+            r *= xr1;
+            su2 += A[k - 1] * r;
+        }
+        apt = q0 - (-xe).exp() * xp6 * su1;
+        bpt = 2.0 * xe.exp() * xp6 * su2;
+        let mut su3 = 1.0;
+        r = 1.0;
+        let xr2 = 1.0 / (xe * xe);
+        for k in 1..9 {
+            r = -r * xr2;
+            su3 += A[2 * k - 1] * r;
+        }
+        let mut su4 = A[0] * xr1;
+        r = xr1;
+        for k in 1..8 {
+            r = -r * xr2;
+            su4 += A[2 * k] * r;
+        }
+        let su5 = su3 + su4;
+        let su6 = su3 - su4;
+        ant = q1 - q2 * xp6 * (su5 * xe.cos() - su6 * xe.sin());
+        bnt = q2 * xp6 * (su5 * xe.sin() + su6 * xe.cos());
+    }
+    [apt, bpt, ant, bnt]
+}
+
 /// Integrals of Airy functions
 ///
-/// Calculates the integrals of Ai(*t*), Bi(*t*), Ai(-*t*), and Bi(-*t*) for *t from 0 to *x*.
+/// Calculates the integrals of Ai(*t*), Bi(*t*), Ai(-*t*), and Bi(-*t*) for *t* from 0 to *x*.
 ///
 /// If `x` is negative, the integrals are evaluated from 0 to `x` (i.e., from 0 down to `x`), following the same definitions for the Airy functions. The sign and order of the results reflect the direction of integration.
 ///
@@ -208,11 +334,24 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
 #[doc(alias = "itairy")]
 #[must_use]
 #[inline]
-pub fn airy_integrals(x: f64) -> [f64; 4] {
-    crate::utils::out4(|itaip, itbip, itain, itbin| unsafe {
-        crate::ffi::xsf::itairy(x, itaip, itbip, itain, itbin);
-    })
-    .into()
+pub fn airy_integrals(mut x: f64) -> [f64; 4] {
+    let x_signbit = x.is_sign_negative();
+    if x_signbit {
+        x = -x;
+    }
+
+    let [mut apt, mut bpt, mut ant, mut bnt] = itairy_impl(x);
+    if x_signbit {
+        /* negative limit -- switch signs and roles */
+        let mut tmp = apt;
+        apt = -ant;
+        ant = -tmp;
+
+        tmp = bpt;
+        bpt = -bnt;
+        bnt = -tmp;
+    }
+    [apt, bpt, ant, bnt]
 }
 
 #[inline]
