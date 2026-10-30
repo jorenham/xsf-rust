@@ -55,6 +55,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
+//! `std::pow(6.0 * n * x + 1, 2)` is written as `t * t`, which is what GCC compiles it to, and
+//! what LLVM only does when optimizing.
+//!
 //! Unlike in xsf, the `int` products that can overflow are computed in `f64`. In xsf,
 //! `n * (v - 1)` and `(n - v) * n` in `_smirnov` overflow for `n` larger than about 46341, so that
 //! `smirnovp` returns `-0.0` or a wrong value for such `n`, e.g. `smirnovp(50000, 0.002)` is
@@ -718,7 +721,8 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     /* Special case:  n is so big, take too long to compute */
     if n > SMIRNOV_MAX_COMPUTE_N {
         /* p ~ e^(-(6nx+1)^2 / 18n) */
-        let logp = -(6.0 * f64::from(n) * x + 1.0).powf(2.0) / 18.0 / f64::from(n);
+        let t = 6.0 * f64::from(n) * x + 1.0;
+        let logp = -(t * t) / 18.0 / f64::from(n);
         /* Maximise precision for small p-value. */
         if logp < -LN_2 {
             sf = logp.exp();
