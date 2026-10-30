@@ -1,3 +1,7 @@
+use num_complex::{Complex64, c64};
+
+use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
     fn airye(self) -> [Self; 4];
@@ -6,36 +10,125 @@ pub trait AiryArg: crate::sealed::Sealed + Sized {
 impl AiryArg for f64 {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        crate::utils::out4(|ai, aip, bi, bip| unsafe {
-            crate::ffi::xsf::airy(self, ai, aip, bi, bip);
-        })
-        .into()
+        airy_f64(self)
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        crate::utils::out4(|ai, aip, bi, bip| unsafe {
-            crate::ffi::xsf::airye(self, ai, aip, bi, bip);
-        })
-        .into()
+        airye_f64(self)
     }
 }
 
-impl AiryArg for num_complex::Complex<f64> {
+impl AiryArg for Complex64 {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        crate::utils::out4(|ai, aip, bi, bip| unsafe {
-            crate::ffi::xsf::airy_1(self, ai, aip, bi, bip);
-        })
-        .into()
+        airy_c64(self)
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        crate::utils::out4(|ai, bi, ad, bd| unsafe {
-            crate::ffi::xsf::airye_1(self, ai, bi, ad, bd);
-        })
-        .into()
+        airye_c64(self)
+    }
+}
+
+// Translated from `xsf/airy.h` (xsf v0.2.2); returns `[ai, aip, bi, bip]`
+
+fn airy_c64(z: Complex64) -> [Complex64; 4] {
+    let mut id = 0;
+    let mut ierr = 0;
+    let kode = 1;
+    let mut nz = 0;
+
+    let mut ai = amos::airy(z, id, kode, &mut nz, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut ai);
+
+    nz = 0;
+    let mut bi = amos::biry(z, id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bi);
+
+    id = 1;
+    let mut aip = amos::airy(z, id, kode, &mut nz, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut aip);
+
+    nz = 0;
+    let mut bip = amos::biry(z, id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bip);
+
+    [ai, aip, bi, bip]
+}
+
+fn airye_c64(z: Complex64) -> [Complex64; 4] {
+    let mut id = 0;
+    let kode = 2; /* Exponential scaling */
+    let mut nz = 0;
+    let mut ierr = 0;
+
+    let mut ai = amos::airy(z, id, kode, &mut nz, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut ai);
+
+    nz = 0;
+    let mut bi = amos::biry(z, id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bi);
+
+    id = 1;
+    let mut aip = amos::airy(z, id, kode, &mut nz, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut aip);
+
+    nz = 0;
+    let mut bip = amos::biry(z, id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bip);
+
+    [ai, aip, bi, bip]
+}
+
+fn airye_f64(z: f64) -> [f64; 4] {
+    let mut id = 0;
+    let kode = 2; /* Exponential scaling */
+    let mut nz = 0;
+    let mut ierr = 0;
+    let (ai, aip, bi, bip);
+
+    if z < 0.0 {
+        ai = f64::NAN;
+    } else {
+        let mut cai = amos::airy(c64(z, 0.0), id, kode, &mut nz, &mut ierr);
+        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cai);
+        ai = cai.re;
+    }
+
+    nz = 0;
+    let mut cbi = amos::biry(c64(z, 0.0), id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cbi);
+    bi = cbi.re;
+
+    id = 1;
+    if z < 0.0 {
+        aip = f64::NAN;
+    } else {
+        let mut caip = amos::airy(c64(z, 0.0), id, kode, &mut nz, &mut ierr);
+        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut caip);
+        aip = caip.re;
+    }
+
+    nz = 0;
+    let mut cbip = amos::biry(c64(z, 0.0), id, kode, &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cbip);
+    bip = cbip.re;
+
+    [ai, aip, bi, bip]
+}
+
+#[allow(clippy::manual_range_contains)]
+fn airy_f64(x: f64) -> [f64; 4] {
+    /* For small arguments, use Cephes as it's slightly faster.
+     * For large arguments, use AMOS as it's more accurate.
+     */
+    if x < -10.0 || x > 10.0 {
+        let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0));
+        [zai.re, zaip.re, zbi.re, zbip.re]
+    } else {
+        let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
+        [ai, aip, bi, bip]
     }
 }
 

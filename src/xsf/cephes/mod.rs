@@ -1,3 +1,4 @@
+mod airy;
 mod bdtr;
 mod besselpoly;
 mod beta;
@@ -43,9 +44,12 @@ mod sici;
 mod spence;
 mod tukey;
 mod unity;
+mod yn;
+mod yv;
 mod zeta;
 mod zetac;
 
+pub(crate) use airy::airy;
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use besselpoly::besselpoly;
 pub(crate) use beta::{beta, lbeta};
@@ -91,5 +95,7 @@ pub(crate) use sici::sici;
 pub(crate) use spence::spence;
 pub(crate) use tukey::tukeylambdacdf;
 pub use unity::*;
+pub(crate) use yn::yn;
+pub(crate) use yv::yv;
 pub(crate) use zeta::zeta;
 pub(crate) use zetac::{riemann_zeta, zetac};

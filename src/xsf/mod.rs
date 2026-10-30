@@ -6,6 +6,7 @@ pub(crate) mod log;
 
 mod airy;
 mod alg;
+mod amos;
 pub(crate) mod bessel;
 mod beta;
 mod binom;
