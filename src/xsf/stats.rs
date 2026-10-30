@@ -1,9 +1,5 @@
 //! The complex `ndtr`, `log_ndtr`, and `poisson_binom_{pmf,cdf}_all` are translated into pure Rust
 //! from `xsf/stats.h` (xsf v0.2.2).
-//!
-//! Unlike in xsf, the complex logarithm in `log_ndtr` is computed as `ln|z| + i arg(z)` instead of
-//! with glibc's `clog`, which rounds differently when `|z|` is close to 1. Measured against mpmath,
-//! neither is more accurate than the other.
 
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 use core::ffi::c_int;
@@ -109,7 +105,7 @@ fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
 
     let val1 = c64(mRe_z2, im);
 
-    let val2 = crate::xsf::faddeeva::w(c64(-y, x), 0.0).ln();
+    let val2 = crate::xsf::log::clog(crate::xsf::faddeeva::w(c64(-y, x), 0.0));
     let result = val1 + val2 - LN_2;
 
     /* Again, select the principal branch: log(z) = log|z| + i arg(z), thus
