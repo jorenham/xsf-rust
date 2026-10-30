@@ -14,12 +14,10 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "gamma.h",
     "hyp2f1.h",
     "kelvin.h",
-    "legendre.h",
     "mathieu.h",
     "par_cyl.h",
     "specfun.h",
     "sph_bessel.h",
-    "sph_harm.h",
     "sphd_wave.h",
     "stats.h",
     "struve.h",
@@ -69,11 +67,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("kerp", "d->d"),
     ("keip", "d->d"),
     ("kelvin", "d->DDDD"),
-    // legendre.h
-    ("legendre_p", "id->d"),
-    ("legendre_p", "iD->D"),
-    ("sph_legendre_p", "iid->d"),
-    ("sph_legendre_p", "iiD->D"),
     // mathieu.h
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
@@ -109,8 +102,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("sph_bessel_k", "lD->D"),
     ("sph_bessel_k_jac", "ld->d"),
     ("sph_bessel_k_jac", "lD->D"),
-    // sph_harm.h
-    ("sph_harm_y", "iidd->D"),
     // sphd_wave.h
     ("prolate_segv", "ddd->d"),
     ("prolate_aswfa_nocv", "dddd->dd"),
@@ -171,22 +162,8 @@ struct span1 {
 };
 
 template <typename T>
-struct span2 {
-    T *data;
-    std::size_t nrow, ncol;
-    using value_type = std::remove_const_t<T>;
-    T &operator()(std::size_t i, std::size_t j) const { return data[i * ncol + j]; }
-    std::size_t extent(std::size_t k) const { return k == 0 ? nrow : ncol; }
-    std::size_t size() const { return nrow * ncol; }
-};
-
-template <typename T>
 span1<T> mds(T *data, std::size_t len) {
     return {data, len};
-}
-template <typename T>
-span2<T> mds(T *data, std::size_t nrow, std::size_t ncol) {
-    return {data, nrow, ncol};
 }
 
 } // namespace
@@ -245,67 +222,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
 // kelvin.h
 void xsfr_klvnzo(int nt, int kd, double *zo) {
     xsf::klvnzo(nt, kd, zo);
-}
-
-// legendre.h
-double xsfr_assoc_legendre_p_0(int n, int m, double z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
-}
-double xsfr_assoc_legendre_p_1(int n, int m, double z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
-}
-c_complex xsfr_assoc_legendre_p_0_1(int n, int m, c_complex z, int bc) {
-    return to_c_complex(xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, to_cpp_complex(z), bc));
-}
-c_complex xsfr_assoc_legendre_p_1_1(int n, int m, c_complex z, int bc) {
-    return to_c_complex(xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, to_cpp_complex(z), bc));
-}
-void xsfr_legendre_p_all(size_t n, double x, double *pn) {
-    xsf::legendre_p_all(x, mds(pn, n + 1));
-}
-void xsfr_legendre_p_all_1(size_t n, c_complex z, c_complex *pn) {
-    xsf::legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pn), n + 1));
-}
-void xsfr_sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
-    xsf::sph_legendre_p_all(x, mds(pnm, n + 1, 2 * m + 1));
-}
-void xsfr_sph_legendre_p_all_1(size_t n, size_t m, c_complex z, c_complex *pnm) {
-    xsf::sph_legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pnm), n + 1, 2 * m + 1));
-}
-void xsfr_assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = mds(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
-}
-void xsfr_assoc_legendre_p_all_0_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, to_cpp_complex(z), bc, res);
-}
-void xsfr_assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = mds(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
-}
-void xsfr_assoc_legendre_p_all_1_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, to_cpp_complex(z), bc, res);
-}
-
-// legendre.h
-void xsfr_lqn(size_t n, double x, double *qn, double *qd) {
-    xsf::lqn(x, mds(qn, n + 1), mds(qd, n + 1));
-}
-void xsfr_lqn_1(size_t n, c_complex z, c_complex *qn, c_complex *qd) {
-    xsf::lqn(to_cpp_complex(z), mds(as_cpp_complex(qn), n + 1), mds(as_cpp_complex(qd), n + 1));
-}
-void xsfr_lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
-    xsf::lqmn(x, mds(qm, m + 1, n + 1), mds(qd, m + 1, n + 1));
-}
-void xsfr_lqmn_1(size_t m, size_t n, c_complex z, c_complex *qm, c_complex *qd) {
-    xsf::lqmn(to_cpp_complex(z), mds(as_cpp_complex(qm), m + 1, n + 1), mds(as_cpp_complex(qd), m + 1, n + 1));
-}
-
-// sph_harm.h
-void xsfr_sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
-    xsf::sph_harm_y_all(theta, phi, mds(as_cpp_complex(res), n + 1, 2 * m + 1));
 }
 "#;
 

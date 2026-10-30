@@ -123,3 +123,136 @@ fn box_inf(x: f64) -> f64 {
 pub(crate) fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
     Complex::new(x - z.re, -z.im)
 }
+
+/// Square root of complex `z`
+///
+/// This replaces `std::sqrt(std::complex<double>)` in C++. Unlike `num_complex::Complex::sqrt`,
+/// which uses the polar form, it avoids the cancellation in `|z| ± Re z`, and it scales `z` to
+/// avoid premature overflow and underflow.
+///
+/// Translated from FreeBSD's `lib/msun/src/s_csqrt.c`:
+///
+/// > Copyright (c) 2007 David Schultz <das@FreeBSD.ORG>
+/// > All rights reserved.
+/// >
+/// > Redistribution and use in source and binary forms, with or without
+/// > modification, are permitted provided that the following conditions
+/// > are met:
+/// > 1. Redistributions of source code must retain the above copyright
+/// >    notice, this list of conditions and the following disclaimer.
+/// > 2. Redistributions in binary form must reproduce the above copyright
+/// >    notice, this list of conditions and the following disclaimer in the
+/// >    documentation and/or other materials provided with the distribution.
+/// >
+/// > THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+/// > ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+/// > IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+/// > ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+/// > FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+/// > DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+/// > OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+/// > HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+/// > LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+/// > OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+/// > SUCH DAMAGE.
+#[allow(clippy::eq_op, clippy::manual_midpoint)] // `b - b` is NaN for infinite `b`
+pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
+    /* For avoiding overflow for components >= DBL_MAX / (1 + sqrt(2)). */
+    const THRESH: f64 = 7.446_288_774_449_766e307; // 0x1.a827999fcef32p+1022
+    const TWO_M1020: f64 = f64::from_bits((1023 - 1020) << 52); // 0x1p-1020
+    const TWO_54: f64 = f64::from_bits((1023 + 54) << 52); // 0x1p54
+    const TWO_M27: f64 = f64::from_bits((1023 - 27) << 52); // 0x1p-27
+
+    let mut a = z.re;
+    let mut b = z.im;
+
+    /* Handle special cases. */
+    if a == 0.0 && b == 0.0 {
+        return Complex::new(0.0, b);
+    }
+    if b.is_infinite() {
+        return Complex::new(f64::INFINITY, b);
+    }
+    if a.is_nan() {
+        let t = (b - b) / (b - b); /* raise invalid if b is not a NaN */
+        return Complex::new(a + 0.0 + t, a + 0.0 + t); /* NaN + NaN i */
+    }
+    if a.is_infinite() {
+        /*
+         * csqrt(inf + NaN i)  = inf +  NaN i
+         * csqrt(inf + y i)    = inf +  0 i
+         * csqrt(-inf + NaN i) = NaN +- inf i
+         * csqrt(-inf + y i)   = 0   +  inf i
+         */
+        if a.is_sign_negative() {
+            return Complex::new((b - b).abs(), a.copysign(b));
+        }
+        return Complex::new(a, (b - b).copysign(b));
+    }
+    if b.is_nan() {
+        let t = (a - a) / (a - a); /* raise invalid */
+        return Complex::new(b + 0.0 + t, b + 0.0 + t); /* NaN + NaN i */
+    }
+
+    /* Scale to avoid overflow. */
+    let mut scale = if a.abs() >= THRESH || b.abs() >= THRESH {
+        /*
+         * Don't scale a or b if this might give (spurious)
+         * underflow.  Then the unscaled value is an equivalent
+         * infinitesmal (or 0).
+         */
+        if a.abs() >= TWO_M1020 {
+            a *= 0.25;
+        }
+        if b.abs() >= TWO_M1020 {
+            b *= 0.25;
+        }
+        2.0
+    } else {
+        1.0
+    };
+
+    /* Scale to reduce inaccuracies when both components are denormal. */
+    if a.abs() < f64::MIN_POSITIVE && b.abs() < f64::MIN_POSITIVE {
+        a *= TWO_54;
+        b *= TWO_54;
+        scale = TWO_M27;
+    }
+
+    /* Algorithm 312, CACM vol 10, Oct 1967. */
+    let (rx, ry);
+    if a >= 0.0 {
+        let t = ((a + a.hypot(b)) * 0.5).sqrt();
+        rx = scale * t;
+        // (unlike in FreeBSD) if `a == 0`, then `b / (2 t) = t sign(b)` in exact arithmetic, and
+        // the latter is correctly rounded (unless `0.5 |b|` is subnormal and inexact, i.e. for some
+        // `MIN_POSITIVE <= |b| < 2 MIN_POSITIVE`), whereas the former can be 1 ulp off
+        ry = if a == 0.0 {
+            (scale * t).copysign(b)
+        } else {
+            scale * b / (2.0 * t)
+        };
+    } else {
+        let t = ((-a + a.hypot(b)) * 0.5).sqrt();
+        rx = scale * b.abs() / (2.0 * t);
+        ry = (scale * t).copysign(b);
+    }
+
+    Complex::new(rx, ry)
+}
+
+#[cfg(test)]
+mod tests {
+    use core::f64::consts::FRAC_1_SQRT_2;
+    use num_complex::c64;
+
+    #[test]
+    fn test_csqrt_imaginary() {
+        // correctly rounded, unlike in FreeBSD
+        let r = super::csqrt(c64(0.0, -1.0));
+        assert_eq!(
+            [r.re.to_bits(), r.im.to_bits()],
+            [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
+        );
+    }
+}
