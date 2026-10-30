@@ -45,7 +45,7 @@ use crate::xsf::cephes::{y0, y1};
  *                      Absolute error, except relative
  *                      when y > 1:
  * arithmetic   domain     # trials      peak         rms
- *    IEEE      0, 30       30000       3.4e-15     4.3e-16
+ *    IEEE      0, 30       30000       4.1e-15     6.1e-16
  *
  *
  * ERROR MESSAGES:
