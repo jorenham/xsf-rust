@@ -11,8 +11,6 @@
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)` to
 //!   determine the number of backward recurrence steps. For `-1.1 <= x < -1.0001`, the latter is
 //!   NaN, so that xsf returns garbage.
-//! - The complex logarithm in `lqn` and `lqmn` is computed as `ln|z| + i arg(z)` instead of with
-//!   glibc's `clog`, which rounds differently when `|z|` is close to 1.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::f64::consts::PI;
@@ -23,6 +21,7 @@ use num_complex::{Complex64, c64};
 
 use crate::utils;
 use crate::xsf::complex::{cdiv, cmul, csqrt, rsub};
+use crate::xsf::log::clog;
 
 /// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
 pub(crate) trait Num:
@@ -918,7 +917,7 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
     }
     let ls = if z.norm() > 1.0 { -1.0 } else { 1.0 };
 
-    cq0 = cdiv((1.0 + z) * ls, rsub(1.0, z)).ln() / 2.0;
+    cq0 = clog(cdiv((1.0 + z) * ls, rsub(1.0, z))) / 2.0;
     cq1 = cmul(z, cq0) - 1.0;
 
     cqn[0] = cq0;
@@ -1135,7 +1134,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
     let zs = rsub(1.0, cmul(z, z)) * f64::from(ls);
     let zq = csqrt(zs);
 
-    cq0 = cdiv((1.0 + z) * f64::from(ls), rsub(1.0, z)).ln() / 2.0;
+    cq0 = clog(cdiv((1.0 + z) * f64::from(ls), rsub(1.0, z))) / 2.0;
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = cdiv(c64(-1.0, 0.0), zq);
