@@ -12,7 +12,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "airy.h",
     "bessel.h",
     "gamma.h",
-    "hyp2f1.h",
     "kelvin.h",
     "mathieu.h",
     "par_cyl.h",
@@ -54,9 +53,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("cyl_hankel_1e", "dD->D"),
     ("cyl_hankel_2", "dD->D"),
     ("cyl_hankel_2e", "dD->D"),
-    // gamma.h
-    // hyp2f1.h
-    ("hyp2f1", "dddD->D"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
