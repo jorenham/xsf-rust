@@ -69,11 +69,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("kerp", "d->d"),
     ("keip", "d->d"),
     ("kelvin", "d->DDDD"),
-    // legendre.h
-    ("legendre_p", "id->d"),
-    ("legendre_p", "iD->D"),
-    ("sph_legendre_p", "iid->d"),
-    ("sph_legendre_p", "iiD->D"),
     // mathieu.h
     ("cem_cva", "dd->d"),
     ("sem_cva", "dd->d"),
@@ -245,48 +240,6 @@ int xsfr_rcty(size_t nt, double x, double *ry, double *dy) {
 // kelvin.h
 void xsfr_klvnzo(int nt, int kd, double *zo) {
     xsf::klvnzo(nt, kd, zo);
-}
-
-// legendre.h
-double xsfr_assoc_legendre_p_0(int n, int m, double z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, z, bc);
-}
-double xsfr_assoc_legendre_p_1(int n, int m, double z, int bc) {
-    return xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, z, bc);
-}
-c_complex xsfr_assoc_legendre_p_0_1(int n, int m, c_complex z, int bc) {
-    return to_c_complex(xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, n, m, to_cpp_complex(z), bc));
-}
-c_complex xsfr_assoc_legendre_p_1_1(int n, int m, c_complex z, int bc) {
-    return to_c_complex(xsf::assoc_legendre_p(xsf::assoc_legendre_norm, n, m, to_cpp_complex(z), bc));
-}
-void xsfr_legendre_p_all(size_t n, double x, double *pn) {
-    xsf::legendre_p_all(x, mds(pn, n + 1));
-}
-void xsfr_legendre_p_all_1(size_t n, c_complex z, c_complex *pn) {
-    xsf::legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pn), n + 1));
-}
-void xsfr_sph_legendre_p_all(size_t n, size_t m, double x, double *pnm) {
-    xsf::sph_legendre_p_all(x, mds(pnm, n + 1, 2 * m + 1));
-}
-void xsfr_sph_legendre_p_all_1(size_t n, size_t m, c_complex z, c_complex *pnm) {
-    xsf::sph_legendre_p_all(to_cpp_complex(z), mds(as_cpp_complex(pnm), n + 1, 2 * m + 1));
-}
-void xsfr_assoc_legendre_p_all_0(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = mds(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, bc, res);
-}
-void xsfr_assoc_legendre_p_all_0_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, to_cpp_complex(z), bc, res);
-}
-void xsfr_assoc_legendre_p_all_1(size_t n, size_t m, double z, int bc, double *pnm) {
-    auto res = mds(pnm, n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, bc, res);
-}
-void xsfr_assoc_legendre_p_all_1_1(size_t n, size_t m, c_complex z, int bc, c_complex *pnm) {
-    auto res = mds(as_cpp_complex(pnm), n + 1, 2 * m + 1);
-    xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, to_cpp_complex(z), bc, res);
 }
 
 // legendre.h
