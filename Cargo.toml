@@ -50,6 +50,7 @@ include = [
   "!xsf/include/xsf/numpy.h",
   "!xsf/include/xsf/recur.h",
   "!xsf/include/xsf/sici.h",
+  "!xsf/include/xsf/sph_bessel.h",
   "!xsf/include/xsf/sph_harm.h",
   "!xsf/include/xsf/third_party/kokkos/mdspan.hpp",
   "!xsf/include/xsf/tools.h",

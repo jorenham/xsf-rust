@@ -257,7 +257,7 @@ fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
 }
 
 #[allow(clippy::float_cmp)]
-fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
+pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
     let n = 1;
     let kode = 1;
     let mut sign = 1.0;
@@ -300,7 +300,7 @@ fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy
 }
 
-fn cyl_bessel_k_c64(mut v: f64, z: Complex64) -> Complex64 {
+pub(crate) fn cyl_bessel_k_c64(mut v: f64, z: Complex64) -> Complex64 {
     let mut cy = c64(f64::NAN, f64::NAN);
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         return cy;
@@ -325,7 +325,7 @@ fn cyl_bessel_k_c64(mut v: f64, z: Complex64) -> Complex64 {
 }
 
 #[allow(clippy::float_cmp)]
-fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
+pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
     if z < 0.0 {
         return f64::NAN;
     }
@@ -467,7 +467,7 @@ fn cyl_hankel_2e_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy
 }
 
-fn cyl_bessel_j_c64(mut v: f64, z: Complex64) -> Complex64 {
+pub(crate) fn cyl_bessel_j_c64(mut v: f64, z: Complex64) -> Complex64 {
     let n = 1;
     let kode = 1;
     let mut nz;
@@ -501,7 +501,7 @@ fn cyl_bessel_j_c64(mut v: f64, z: Complex64) -> Complex64 {
 }
 
 #[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
-fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
+pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     if f64::from(v as i32) != v && x < 0.0 {
         return f64::NAN;
     }
@@ -516,7 +516,7 @@ fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
 }
 
 #[allow(clippy::float_cmp)]
-fn cyl_bessel_y_c64(mut v: f64, z: Complex64) -> Complex64 {
+pub(crate) fn cyl_bessel_y_c64(mut v: f64, z: Complex64) -> Complex64 {
     let n = 1;
     let kode = 1;
     let mut nz;
