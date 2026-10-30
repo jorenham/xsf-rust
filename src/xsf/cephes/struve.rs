@@ -5,7 +5,7 @@
 //!
 //! # Notes
 //!
-//! We use three expansions for the Struve function discussed in [1]:
+//! We use three expansions for the Struve function discussed in \[1\]:
 //!
 //! - power series
 //! - expansion in Bessel functions
@@ -45,7 +45,7 @@
 //!
 //! # References
 //!
-//! [1] NIST Digital Library of Mathematical Functions
+//! \[1\] NIST Digital Library of Mathematical Functions
 //!     <https://dlmf.nist.gov/11>
 //!
 //! ```text
