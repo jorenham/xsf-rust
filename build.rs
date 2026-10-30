@@ -21,11 +21,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
 const WRAPPER_SPECS: &[(&str, &str)] = &[
     // airy.h
     ("itairy", "d->dddd"),
-    // bessel.h
-    ("it1j0y0", "d->dd"),
-    ("it2j0y0", "d->dd"),
-    ("it1i0k0", "d->dd"),
-    ("it2i0k0", "d->dd"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
