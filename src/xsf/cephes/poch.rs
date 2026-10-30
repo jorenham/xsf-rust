@@ -10,7 +10,7 @@ fn is_nonpos_int(x: f64) -> bool {
 }
 
 #[allow(clippy::float_cmp)]
-fn poch(a: f64, mut m: f64) -> f64 {
+pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     let mut r = 1.0;
 
     /*

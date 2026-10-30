@@ -1,4 +1,5 @@
-//! The subset of `xsf/tools.h` (xsf v0.2.2) that is needed by `iv_ratio` and `gdtrib`.
+//! The subset of `xsf/tools.h` (xsf v0.2.2) that is needed by `iv_ratio`, `gdtrib`, and the
+//! complex `hyp2f1`.
 //!
 //! Building blocks for implementing special functions
 //!
@@ -7,6 +8,8 @@
 //! [`Real`], which is implemented for `f64` and `DoubleDouble`.
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
+
+use num_complex::Complex;
 
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
@@ -72,6 +75,56 @@ impl Real for DoubleDouble {
     fn fma(self, y: Self, z: Self) -> Self {
         DoubleDouble::fma(self, y, z)
     }
+}
+
+// Series evaluators.
+//
+// Since these are only used by the complex `hyp2f1`, they are only implemented for complex `T`.
+// The `func_name` parameter is omitted, since it is only passed to `set_error`, which is a no-op
+// in our build of xsf.
+
+/// Sum an infinite series to a given precision.
+///
+/// - `g`: a generator of terms for the series.
+/// - `init_val`: A starting value that terms are added to. This argument determines the type of
+///   the result.
+/// - `tol`: relative tolerance for stopping criterion.
+/// - `max_terms`: The maximum number of terms to add before giving up and declaring
+///   non-convergence.
+pub(crate) fn series_eval(
+    mut g: impl FnMut() -> Complex<f64>,
+    init_val: Complex<f64>,
+    tol: f64,
+    max_terms: u64,
+) -> Complex<f64> {
+    let mut result = init_val;
+    for _ in 0..max_terms {
+        let term = g();
+        result += term;
+        if term.norm() < result.norm() * tol {
+            return result;
+        }
+    }
+    // Exceeded max terms without converging. Return NaN.
+    Complex::new(f64::NAN, f64::NAN)
+}
+
+/// Sum a fixed number of terms from a series.
+///
+/// - `g`: a generator of terms for the series.
+/// - `init_val`: A starting value that terms are added to. This argument determines the type of
+///   the result.
+/// - `num_terms`: The number of terms from the series to sum.
+pub(crate) fn series_eval_fixed_length(
+    mut g: impl FnMut() -> Complex<f64>,
+    init_val: Complex<f64>,
+    num_terms: u64,
+) -> Complex<f64> {
+    let mut result = init_val;
+    for _ in 0..num_terms {
+        result += g();
+    }
+    result
 }
 
 /* Performs one step of Kahan summation. */
