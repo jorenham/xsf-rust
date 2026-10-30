@@ -95,11 +95,6 @@ span1<T> mds(T *data, std::size_t len) {
 "#;
 
 const CPP_WRAPPERS: &str = r#"
-// cephes/jv.h
-double xsfr_cephes_jv(double v, double x) {
-    return xsf::cephes::jv(v, x);
-}
-
 // specfun/specfun.h
 void xsfr_bernob(int n, double *bn) {
     xsf::specfun::bernob(n, bn);

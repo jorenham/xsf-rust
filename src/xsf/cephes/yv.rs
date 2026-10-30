@@ -10,11 +10,7 @@
 
 use core::f64::consts::PI;
 
-use crate::xsf::cephes::yn;
-
-fn jv(v: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::cephes_jv(v, x) }
-}
+use crate::xsf::cephes::{jv, yn};
 
 /*
  * Bessel function of noninteger order
