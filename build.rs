@@ -19,8 +19,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "sphd_wave.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
-    // airy.h
-    ("itairy", "d->dddd"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
