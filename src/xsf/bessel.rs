@@ -6,6 +6,7 @@ use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
 
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+use crate::xsf::specfun;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
@@ -978,20 +979,20 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 
     let (mut j, mut jp) = ([f64::NAN; N], [f64::NAN; N]);
     let (mut y, mut yp) = ([f64::NAN; N], [f64::NAN; N]);
-    if N == 0 {
-        // like in scipy (where `nt` must be positive), since `jyzo` writes at least 1 zero
+    if N == 0 || v > 100_000_000 {
+        // like in scipy (where `nt` must be positive), since `jyzo` writes at least 1 zero, and
+        // (unlike in scipy) avoids the `int` overflows in `msta1` and `msta2` for huge `v`, where
+        // the zeros are NaN anyway (as for `v >~ 5000`)
         return [j, jp, y, yp];
     }
-    unsafe {
-        crate::ffi::xsf::jyzo(
-            v.try_into().unwrap(),
-            N.try_into().unwrap(),
-            j.as_mut_ptr(),
-            jp.as_mut_ptr(),
-            y.as_mut_ptr(),
-            yp.as_mut_ptr(),
-        );
-    }
+    specfun::jyzo(
+        v.try_into().unwrap(),
+        N.try_into().unwrap(),
+        &mut j,
+        &mut jp,
+        &mut y,
+        &mut yp,
+    );
     [j, jp, y, yp]
 }
 
@@ -1570,6 +1571,142 @@ pub fn it2i0k0(mut x: f64) -> (f64, f64) {
 
 // Riccati-Bessel
 
+#[allow(
+    clippy::assign_op_pattern,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::similar_names
+)]
+fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
+    // ========================================================
+    // Purpose: Compute Riccati-Bessel functions of the first
+    //          kind and their derivatives
+    // Input:   x --- Argument of Riccati-Bessel function
+    //          n --- Order of jn(x)  ( n = 0,1,2,... )
+    // Output:  RJ(n) --- x·jn(x)
+    //          DJ(n) --- [x·jn(x)]'
+    //          NM --- Highest order computed
+    // Routines called:
+    //          MSTA1 and MSTA2 for computing the starting
+    //          point for backward recurrence
+    // ========================================================
+
+    // NOTE: rj[0] and rj[1] are always written (for |x| >= 1e-100), so this is out of bounds for
+    // buffers of length 1 (n == 0); the caller (riccati_j) uses length 2 for N == 1. Apart from
+    // that, only rj[0..=*nm] / dj[0..=*nm] are written, with *nm <= n.
+    // NOTE: for x NaN, +-inf, or |x| >= 2^31 / 1.1, msta1/msta2 hit their `(int)` UB (see there;
+    // riccati_j doesn't guard against these), so `*nm` (and which elements of rj / dj are written)
+    // may differ from C++. Also, Rust's saturating casts make the `+ 1` / `+ 5` in msta1 overflow
+    // (panic in debug builds) for x +-inf and |x| >= ~2^31.
+    let n = rj.len() as i32 - 1;
+
+    *nm = n;
+    if x.abs() < 1.0e-100 {
+        for k in 0..=n {
+            rj[k as usize] = 0.0;
+            dj[k as usize] = 0.0;
+        }
+        dj[0] = 1.0;
+        return;
+    }
+    rj[0] = x.sin();
+    rj[1] = rj[0] / x - x.cos();
+    let rj0 = rj[0];
+    let rj1 = rj[1];
+    let mut f = 0.0;
+
+    if n >= 2 {
+        let mut m = specfun::msta1(x, 200);
+        if m < n {
+            *nm = m;
+        } else {
+            m = specfun::msta2(x, n, 15);
+        }
+
+        let mut f0 = 0.0;
+        let mut f1 = 1.0e-100;
+
+        for k in (0..=m).rev() {
+            f = (2.0 * f64::from(k) + 3.0) * f1 / x - f0;
+            if k <= *nm {
+                rj[k as usize] = f;
+            }
+            f0 = f1;
+            f1 = f;
+        }
+        let cs = if rj0.abs() > rj1.abs() {
+            rj0 / f
+        } else {
+            rj1 / f0
+        };
+        for k in 0..=*nm {
+            rj[k as usize] = cs * rj[k as usize];
+        }
+    }
+    dj[0] = x.cos();
+    for k in 1..=*nm {
+        dj[k as usize] = f64::from(-k) * rj[k as usize] / x + rj[(k - 1) as usize];
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
+fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
+    // ========================================================
+    // Purpose: Compute Riccati-Bessel functions of the second
+    //          kind and their derivatives
+    // Input:   x --- Argument of Riccati-Bessel function
+    //          n --- Order of yn(x)
+    // Output:  RY(n) --- x·yn(x)
+    //          DY(n) --- [x·yn(x)]'
+    //          NM --- Highest order computed
+    // ========================================================
+
+    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written (for x >= 1e-60, *nm >= 1 since the
+    // loop starts at k = 2), so this is out of bounds for buffers of length 1 (n == 0); the caller
+    // (riccati_y) uses length 2 for N == 1.
+    let n = ry.len() as i32 - 1;
+
+    let mut k;
+    *nm = n;
+    if x < 1.0e-60 {
+        for k in 0..=n {
+            ry[k as usize] = -1.0e+300;
+            dy[k as usize] = 1.0e+300;
+        }
+        ry[0] = -1.0;
+        dy[0] = 0.0;
+        return;
+    }
+
+    ry[0] = -x.cos();
+    ry[1] = ry[0] / x - x.sin();
+    let mut rf0 = ry[0];
+    let mut rf1 = ry[1];
+
+    k = 2;
+    while k <= n {
+        let rf2 = (2.0 * f64::from(k) - 1.0) * rf1 / x - rf0;
+        if rf2.abs() > 1.0e+300 {
+            break;
+        }
+        ry[k as usize] = rf2;
+        rf0 = rf1;
+        rf1 = rf2;
+        k += 1;
+    }
+
+    *nm = k - 1;
+    dy[0] = x.sin();
+    for k in 1..=*nm {
+        dy[k as usize] = f64::from(-k) * ry[k as usize] / x + ry[(k - 1) as usize];
+    }
+}
+
 /// Compute Riccati-Bessel function of the first kind and derivatives for the first $N$ orders
 ///
 /// The Riccati-Bessel function of the first kind is defined as $x \mathop{j}_n(x)$, where $j_n$ is
@@ -1606,7 +1743,14 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
         return (rj, dj);
     }
 
-    let _ = unsafe { crate::ffi::xsf::rctj(N, x, rj.as_mut_ptr(), dj.as_mut_ptr()) };
+    if N > 2 && (x.is_nan() || x.abs() > 1e9) {
+        // (unlike in scipy) avoids the `int` casts of `|x|` in `msta1` and `msta2`, which are
+        // undefined for NaN and `|x| >= 2**31 / 1.1`
+        return (rj, dj);
+    }
+
+    let mut nm = 0;
+    rctj(x, &mut nm, &mut rj, &mut dj);
     (rj, dj)
 }
 
@@ -1647,7 +1791,8 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
         return (ry, dy);
     }
 
-    let _ = unsafe { crate::ffi::xsf::rcty(N, x, ry.as_mut_ptr(), dy.as_mut_ptr()) };
+    let mut nm = 0;
+    rcty(x, &mut nm, &mut ry, &mut dy);
     (ry, dy)
 }
 
@@ -1707,19 +1852,15 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
 
     let size = v1.to_usize().unwrap() + 1;
     let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
-    unsafe {
-        #[allow(clippy::float_cmp)]
-        if v == n.to_f64().unwrap() {
-            crate::ffi::xsf::lamn(
-                v1.to_usize().unwrap().try_into().unwrap(),
-                x,
-                vl.as_mut_ptr(),
-                dl.as_mut_ptr(),
-            );
-        } else {
-            crate::ffi::xsf::lamv(v1, x, vl.as_mut_ptr(), dl.as_mut_ptr());
-        }
-    };
+    #[allow(clippy::float_cmp)]
+    if v == n.to_f64().unwrap() {
+        let mut nm = 0;
+        let n = v1.to_usize().unwrap().try_into().unwrap();
+        specfun::lamn(n, x, &mut nm, &mut vl, &mut dl);
+    } else {
+        let mut vm = 0.0;
+        specfun::lamv(v1, x, &mut vm, &mut vl, &mut dl);
+    }
 
     vl.resize(n + 1, f64::NAN);
     dl.resize(n + 1, f64::NAN);
@@ -2095,6 +2236,13 @@ mod tests {
     #[test]
     fn test_bessel_zeros_n0() {
         assert_eq!(crate::bessel_zeros::<0>(0), [[]; 4]);
+    }
+
+    #[test]
+    fn test_bessel_zeros_large_v() {
+        // no `int` overflow of `k * k` in `jynbh`, or in `msta1` and `msta2`
+        let _ = crate::bessel_zeros::<1>(40_000);
+        assert!(crate::bessel_zeros::<1>(u32::MAX)[0][0].is_nan());
     }
 
     #[test]

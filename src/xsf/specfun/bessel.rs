@@ -5,6 +5,51 @@
 
 use core::f64::consts::PI;
 
+#[allow(
+    clippy::approx_constant,
+    clippy::excessive_precision,
+    clippy::unreadable_literal
+)]
+pub(crate) fn gam0(x: f64) -> f64 {
+    // ================================================
+    // Purpose: Compute gamma function Г(x)
+    // Input :  x  --- Argument of Г(x)  ( |x| ≤ 1 )
+    // Output:  GA --- Г(x)
+    // ================================================
+    const G: [f64; 25] = [
+        1.0e0,
+        0.5772156649015329e0,
+        -0.6558780715202538e0,
+        -0.420026350340952e-1,
+        0.1665386113822915e0,
+        -0.421977345555443e-1,
+        -0.96219715278770e-2,
+        0.72189432466630e-2,
+        -0.11651675918591e-2,
+        -0.2152416741149e-3,
+        0.1280502823882e-3,
+        -0.201348547807e-4,
+        -0.12504934821e-5,
+        0.11330272320e-5,
+        -0.2056338417e-6,
+        0.61160950e-8,
+        0.50020075e-8,
+        -0.11812746e-8,
+        0.1043427e-9,
+        0.77823e-11,
+        -0.36968e-11,
+        0.51e-12,
+        -0.206e-13,
+        -0.54e-14,
+        0.14e-14,
+    ];
+    let mut gr = G[24];
+    for k in (0..=23).rev() {
+        gr = gr * x + G[k];
+    }
+    1.0 / (gr * x)
+}
+
 #[allow(clippy::cast_sign_loss)]
 pub(crate) fn jynb(
     n: i32,
@@ -150,10 +195,11 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
                 bs += 2.0 * f;
                 su += (-1.0_f64).powf(f64::from(k / 2)) * f / f64::from(k);
             } else if k > 1 {
-                // NOTE: `k * k` is `int` arithmetic, as in C++; it overflows i32 for k > 46340 (C++ UB, Rust
-                // panics in debug), i.e. only if msta1/msta2 return such an m (x > 300 with n > 0.9 * x >~ 4e4).
-                sv +=
-                    (-1.0_f64).powf(f64::from(k / 2)) * f64::from(k) / (f64::from(k * k) - 1.0) * f;
+                // Unlike in xsf, `k * k` is computed in `double` instead of `int`, which overflows for
+                // k > 46340 (e.g. for jyzo with n >~ 4e4); this is exact for k < 2^26
+                sv += (-1.0_f64).powf(f64::from(k / 2)) * f64::from(k)
+                    / (f64::from(k) * f64::from(k) - 1.0)
+                    * f;
             }
             f2 = f1;
             f1 = f;
@@ -235,6 +281,573 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         by0 = by1;
         by1 = byk;
     }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_arguments)]
+pub(crate) fn jyndd(
+    n: i32,
+    x: f64,
+    bjn: &mut f64,
+    djn: &mut f64,
+    fjn: &mut f64,
+    byn: &mut f64,
+    dyn_: &mut f64,
+    fyn: &mut f64,
+) {
+    // ===========================================================
+    // purpose: compute bessel functions jn(x) and yn(x), and
+    //          their first and second derivatives
+    // input:   x   ---  argument of jn(x) and yn(x) ( x > 0 )
+    //          n   ---  order of jn(x) and yn(x)
+    // output:  bjn ---  jn(x)
+    //          djn ---  jn'(x)
+    //          fjn ---  jn"(x)
+    //          byn ---  yn(x)
+    //          dyn ---  yn'(x)
+    //          fyn ---  yn"(x)
+    // routines called:
+    //          jynbh to compute jn and yn
+    // ===========================================================
+
+    // NOTE: in C++ `bj` and `by` are uninitialized. jynbh(n + 1, n, ...) writes bj[0..=*nm - n] and
+    // by[0..=*nm - n] with *nm = min(n + 1, msta1(x, 200)) in its backward recurrence branch, so
+    // bj[1] / by[1] (or both elements, if msta1(x, 200) < n) are read uninitialized in C++ when
+    // msta1(x, 200) <= n, i.e. only for x much smaller than n. jyzo only calls this near the zeros
+    // of Jn, Jn', Yn, Yn' (x > n for n > 0), where this doesn't happen.
+    let mut nm = 0;
+    let mut bj = [0.0; 2];
+    let mut by = [0.0; 2];
+
+    jynbh(n + 1, n, x, &mut nm, &mut bj, &mut by);
+    // compute derivatives by differentiation formulas
+    *bjn = bj[0];
+    *byn = by[0];
+    *djn = -bj[1] + f64::from(n) * bj[0] / x;
+    *dyn_ = -by[1] + f64::from(n) * by[0] / x;
+    // Unlike in xsf, `n * n` is computed in `double` instead of `int`, which overflows for n > 46340
+    // (e.g. for jyzo); this is exact for n < 2^26
+    *fjn = (f64::from(n) * f64::from(n) / (x * x) - 1.0) * (*bjn) - (*djn) / x;
+    *fyn = (f64::from(n) * f64::from(n) / (x * x) - 1.0) * (*byn) - (*dyn_) / x;
+}
+
+#[allow(
+    non_snake_case,
+    clippy::cast_sign_loss,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::unreadable_literal
+)]
+pub(crate) fn jyzo(
+    n: i32,
+    nt: i32,
+    rj0: &mut [f64],
+    rj1: &mut [f64],
+    ry0: &mut [f64],
+    ry1: &mut [f64],
+) {
+    // ======================================================
+    // Purpose: Compute the zeros of Bessel functions Jn(x),
+    //          Yn(x), and their derivatives
+    // Input :  n  --- Order of Bessel functions  (n >= 0)
+    //          NT --- Number of zeros (roots)
+    // Output:  RJ0(L) --- L-th zero of Jn(x),  L=1,2,...,NT
+    //          RJ1(L) --- L-th zero of Jn'(x), L=1,2,...,NT
+    //          RY0(L) --- L-th zero of Yn(x),  L=1,2,...,NT
+    //          RY1(L) --- L-th zero of Yn'(x), L=1,2,...,NT
+    // Routine called: JYNDD for computing Jn(x), Yn(x), and
+    //                 their first and second derivatives
+    // ======================================================
+
+    /*
+     * SciPy Note:
+     * See GH-18859 for additional changes done by SciPy for
+     * better initial condition selection in Newton iteration
+     */
+
+    // NOTE: each of rj0, rj1, ry0, ry1 gets max(nt, 1) elements written (index 0 is written even
+    // if nt < 1), and only rj0[0..nt] / ry0[0..nt] are read, so buffers of length max(nt, 1) are
+    // in bounds. The caller (bessel_zeros) returns early for N == 0.
+    // NOTE: like in C++, the Newton iterations loop forever if they don't converge.
+    let mut L: i32;
+    let mut x: f64;
+    let mut bjn = 0.0;
+    let mut djn = 0.0;
+    let mut fjn = 0.0;
+    let mut byn = 0.0;
+    let mut dyn_ = 0.0;
+    let mut fyn = 0.0;
+    // -- Newton method for j_{N,L}
+    // initial guess for j_{N,1}
+    if n == 0 {
+        x = 2.4;
+    } else {
+        // https://dlmf.nist.gov/10.21#E40
+        x = f64::from(n)
+            + 1.85576 * f64::from(n).powf(0.33333)
+            + 1.03315 / f64::from(n).powf(0.33333);
+    }
+    // iterate
+    L = 0;
+    'l10: loop {
+        let x0 = x;
+        jyndd(
+            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+        );
+        x -= bjn / djn;
+        if (x - x0).abs() > 1e-11 {
+            continue 'l10;
+        }
+
+        L += 1;
+        rj0[(L - 1) as usize] = x;
+        // initial guess for j_{N,L+1}
+        if L == 1 {
+            if n == 0 {
+                x = 5.52;
+            } else {
+                // Expansion from https://dlmf.nist.gov/10.21#E32 and
+                // coefficients from Olver 1951
+                x = f64::from(n)
+                    + 3.24460 * f64::from(n).powf(0.33333)
+                    + 3.15824 / f64::from(n).powf(0.33333);
+            }
+        } else {
+            // growth of roots is approximately linear (https://dlmf.nist.gov/10.21#E19)
+            x = rj0[(L - 1) as usize] + (rj0[(L - 1) as usize] - rj0[(L - 2) as usize]);
+        }
+        // NOTE: `n + 10` overflows i32 for n > i32::MAX - 10 (C++ UB; Rust panics in debug builds).
+        if L <= (n + 10) {
+            jyndd(
+                n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+            );
+            let h = djn.abs().atan2((fjn * bjn).abs().sqrt());
+            // NOTE: `atan(h)` here, but `tan(h)` in the corresponding step for y_{N,L} below;
+            // reproduced as is.
+            let b = -djn / (bjn * h.atan());
+            x -= (h - PI / 2.0) / b;
+        }
+
+        if L < nt {
+            continue 'l10;
+        }
+        break;
+    }
+
+    // -- Newton method for j_{N,L+1}'
+    if n == 0 {
+        x = 3.8317;
+    } else {
+        // https://dlmf.nist.gov/10.21#E40
+        x = f64::from(n)
+            + 0.80861 * f64::from(n).powf(0.33333)
+            + 0.07249 / f64::from(n).powf(0.33333);
+    }
+    // iterate
+    L = 0;
+    'l15: loop {
+        let x0 = x;
+        jyndd(
+            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+        );
+        x -= djn / fjn;
+        if (x - x0).abs() > 1e-11 {
+            continue 'l15;
+        }
+        L += 1;
+        rj1[(L - 1) as usize] = x;
+        if L < nt {
+            // https://dlmf.nist.gov/10.21#E20
+            x = rj1[(L - 1) as usize] + (rj0[L as usize] - rj0[(L - 1) as usize]);
+            continue 'l15;
+        }
+        break;
+    }
+
+    // -- Newton method for y_{N,L}
+    // initial guess for y_{N,1}
+    if n == 0 {
+        x = 0.89357697;
+    } else {
+        // https://dlmf.nist.gov/10.21#E40
+        x = f64::from(n)
+            + 0.93158 * f64::from(n).powf(0.33333)
+            + 0.26035 / f64::from(n).powf(0.33333);
+    }
+    // iterate
+    L = 0;
+    'l20: loop {
+        let x0 = x;
+        jyndd(
+            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+        );
+        x -= byn / dyn_;
+        if (x - x0).abs() > 1.0e-11 {
+            continue 'l20;
+        }
+        L += 1;
+        ry0[(L - 1) as usize] = x;
+        // initial guess for y_{N,L+1}
+        if L == 1 {
+            if n == 0 {
+                x = 3.957678419314858;
+            } else {
+                // Expansion from https://dlmf.nist.gov/10.21#E33 and
+                // coefficients from Olver 1951
+                x = f64::from(n)
+                    + 2.59626 * f64::from(n).powf(0.33333)
+                    + 2.022183 / f64::from(n).powf(0.33333);
+            }
+        } else {
+            // growth of roots is approximately linear (https://dlmf.nist.gov/10.21#E19)
+            x = ry0[(L - 1) as usize] + (ry0[(L - 1) as usize] - ry0[(L - 2) as usize]);
+        }
+        if L <= n + 10 {
+            jyndd(
+                n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+            );
+            let h = dyn_.abs().atan2((fyn * byn).abs().sqrt());
+            let b = -dyn_ / (byn * h.tan());
+            x -= (h - PI / 2.0) / b;
+        }
+
+        if L < nt {
+            continue 'l20;
+        }
+        break;
+    }
+
+    // -- Newton method for y_{N,L+1}'
+    if n == 0 {
+        x = 2.67257;
+    } else {
+        // https://dlmf.nist.gov/10.21#E40
+        x = f64::from(n)
+            + 1.8211 * f64::from(n).powf(0.33333)
+            + 0.94001 / f64::from(n).powf(0.33333);
+    }
+    // iterate
+    L = 0;
+    'l25: loop {
+        let x0 = x;
+        jyndd(
+            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
+        );
+        x -= dyn_ / fyn;
+        if (x - x0).abs() > 1.0e-11 {
+            continue 'l25;
+        }
+        L += 1;
+        ry1[(L - 1) as usize] = x;
+        if L < nt {
+            // https://dlmf.nist.gov/10.21#E20
+            x = ry1[(L - 1) as usize] + (ry0[L as usize] - ry0[(L - 1) as usize]);
+            continue 'l25;
+        }
+        break;
+    }
+}
+
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
+pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64]) {
+    // =========================================================
+    // Purpose: Compute lambda functions and their derivatives
+    // Input:   x --- Argument of lambda function
+    //          n --- Order of lambda function
+    // Output:  BL(n) --- Lambda function of order n
+    //          DL(n) --- Derivative of lambda function
+    //          NM --- Highest order computed
+    // Routines called:
+    //          MSTA1 and MSTA2 for computing the start
+    //          point for backward recurrence
+    // =========================================================
+
+    // NOTE: bl[0..=n] and dl[0..=n] are written, and also dl[1] / bl[1] (for |x| < 1e-100, and for
+    // x > 12, where *nm is set to 1 if n == 0), which is out of bounds for n == 0 with buffers of
+    // length n + 1. The caller (jahnke_emden_lambda) passes n >= 1 with length n + 1, so it's in
+    // bounds there. For x > 12 only bl[0..=*nm] / dl[0..=*nm] are written, with
+    // *nm = min(n, msta1(x, 200)); the rest is left untouched.
+    *nm = n;
+    if x.abs() < 1e-100 {
+        for k in 0..=n {
+            bl[k as usize] = 0.0;
+            dl[k as usize] = 0.0;
+        }
+        bl[0] = 1.0;
+        dl[1] = 0.5;
+        return;
+    }
+    if x <= 12.0 {
+        let x2 = x * x;
+        for k in 0..=n {
+            let mut bk = 1.0;
+            let mut r = 1.0;
+            for i in 1..=50 {
+                // Unlike in xsf, `i * (i + k)` is computed in `double` instead of `int`, which
+                // overflows for k >~ 4e7; this is exact, since `i <= 50`
+                r = -0.25 * r * x2 / (f64::from(i) * f64::from(i + k));
+                bk += r;
+
+                if r.abs() < bk.abs() * 1.0e-15 {
+                    break;
+                }
+            }
+            bl[k as usize] = bk;
+            if k >= 1 {
+                dl[(k - 1) as usize] = -0.5 * x / f64::from(k) * bk;
+            }
+        }
+        let mut uk = 1.0;
+        let mut r = 1.0;
+        for i in 1..=50 {
+            r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i + n) + 1.0));
+            uk += r;
+
+            if r.abs() < uk.abs() * 1.0e-15 {
+                break;
+            }
+        }
+        dl[n as usize] = -0.5 * x / (f64::from(n) + 1.0) * uk;
+        return;
+    }
+    if n == 0 {
+        *nm = 1;
+    }
+    let mut m = msta1(x, 200);
+    if m < *nm {
+        *nm = m;
+    } else {
+        m = msta2(x, *nm, 15);
+    }
+    let mut bs = 0.0;
+    let mut f = 0.0;
+    let mut f0 = 0.0;
+    let mut f1 = 1e-100;
+    for k in (0..=m).rev() {
+        f = 2.0 * (f64::from(k) + 1.0) * f1 / x - f0;
+        if k <= *nm {
+            bl[k as usize] = f;
+        }
+        if k % 2 == 0 {
+            bs += 2.0 * f;
+        }
+        f0 = f1;
+        f1 = f;
+    }
+    let bg = bs - f;
+    for k in 0..=*nm {
+        bl[k as usize] /= bg;
+    }
+    let mut r0 = 1.0;
+    for k in 1..=*nm {
+        r0 = 2.0 * r0 * f64::from(k) / x;
+        bl[k as usize] *= r0;
+    }
+    dl[0] = -0.5 * x * bl[1];
+    for k in 1..=*nm {
+        dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
+    }
+}
+
+#[allow(
+    clippy::approx_constant,
+    clippy::assign_op_pattern,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    clippy::manual_midpoint,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::unreadable_literal
+)]
+pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {
+    // =========================================================
+    // Purpose: Compute lambda function with arbitrary order v,
+    //          and their derivative
+    // Input :  x --- Argument of lambda function
+    //          v --- Order of lambda function
+    // Output:  VL(n) --- Lambda function of order n+v0
+    //          DL(n) --- Derivative of lambda function
+    //          VM --- Highest order computed
+    // Routines called:
+    //      (1) MSTA1 and MSTA2 for computing the starting
+    //          point for backward recurrence
+    //      (2) GAM0 for computing gamma function (|x| ≤ 1)
+    // =========================================================
+
+    // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > 12 also vl[1] / dl[1]
+    // (out of bounds for v < 1 with buffers of length n + 1). The caller (jahnke_emden_lambda)
+    // passes v >= 1 with length (int)v + 1, so it's in bounds there. `(int)v` is UB in C++ for v
+    // out of range or NaN (Rust saturates); the caller only passes v < 2^31.
+    let rp2 = 0.63661977236758;
+
+    let x = x.abs();
+    let x2 = x * x;
+    let mut n = v as i32;
+    let v0 = v - f64::from(n);
+    *vm = v;
+
+    if x <= 12.0 {
+        for k in 0..=n {
+            let vk = v0 + f64::from(k);
+            let mut bk = 1.0;
+            let mut r = 1.0;
+
+            for i in 1..=50 {
+                r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk));
+                bk = bk + r;
+
+                if r.abs() < bk.abs() * 1.0e-15 {
+                    break;
+                }
+            }
+            vl[k as usize] = bk;
+
+            let mut uk = 1.0;
+            r = 1.0;
+
+            for i in 1..=50 {
+                r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk + 1.0));
+                uk = uk + r;
+
+                if r.abs() < uk.abs() * 1.0e-15 {
+                    break;
+                }
+            }
+            dl[k as usize] = -0.5 * x / (vk + 1.0) * uk;
+        }
+        return;
+    }
+
+    let k0 = if x >= 50.0 {
+        8
+    } else if x >= 35.0 {
+        10
+    } else {
+        11
+    };
+    let mut bjv0 = 0.0;
+    let mut bjv1 = 0.0;
+
+    for j in 0..=1 {
+        let vv = 4.0 * (f64::from(j) + v0) * (f64::from(j) + v0);
+        let mut px = 1.0;
+        let mut rp = 1.0;
+        for k in 1..=k0 {
+            // NOTE: `pow(y, 2.0)` is written as `y * y`, which is what GCC compiles it to.
+            rp = -0.78125e-2
+                * rp
+                * (vv - (4.0 * f64::from(k) - 3.0) * (4.0 * f64::from(k) - 3.0))
+                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
+                / (f64::from(k) * (2.0 * f64::from(k) - 1.0) * x2);
+            px += rp;
+        }
+
+        let mut qx = 1.0;
+        rp = 1.0;
+        for k in 1..=k0 {
+            rp = -0.78125e-2
+                * rp
+                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
+                * (vv - (4.0 * f64::from(k) + 1.0) * (4.0 * f64::from(k) + 1.0))
+                / (f64::from(k) * (2.0 * f64::from(k) + 1.0) * x2);
+            qx += rp;
+        }
+
+        qx = 0.125 * (vv - 1.0) * qx / x;
+        let xk = x - (0.5 * (f64::from(j) + v0) + 0.25) * PI;
+        let a0 = (rp2 / x).sqrt();
+        let ck = xk.cos();
+        let sk = xk.sin();
+
+        if j == 0 {
+            bjv0 = a0 * (px * ck - qx * sk);
+        }
+        if j == 1 {
+            bjv1 = a0 * (px * ck - qx * sk);
+        }
+    }
+
+    let mut ga;
+    if v0 == 0.0 {
+        ga = 1.0;
+    } else {
+        ga = gam0(v0);
+        ga *= v0;
+    }
+
+    let fac = (2.0 / x).powf(v0) * ga;
+    vl[0] = bjv0;
+    dl[0] = -bjv1 + v0 / x * bjv0;
+    vl[1] = bjv1;
+    dl[1] = bjv0 - (1.0 + v0) / x * bjv1;
+    let mut r0 = 2.0 * (1.0 + v0) / x;
+
+    if n <= 1 {
+        vl[0] *= fac;
+        dl[0] = fac * dl[0] - v0 / x * vl[0];
+        vl[1] *= fac * r0;
+        dl[1] = fac * r0 * dl[1] - (1.0 + v0) / x * vl[1];
+        return;
+    }
+
+    // NOTE: `(int)(0.9 * x)` is UB in C++ for x >= 2^31 / 0.9 (Rust saturates); the caller only
+    // passes |x| <= 1e9.
+    if n >= 2 && n <= (0.9 * x) as i32 {
+        let mut f0 = bjv0;
+        let mut f1 = bjv1;
+
+        for k in 2..=n {
+            let f = 2.0 * (f64::from(k) + v0 - 1.0) / x * f1 - f0;
+            f0 = f1;
+            f1 = f;
+            vl[k as usize] = f;
+        }
+    } else if n >= 2 {
+        let mut m = msta1(x, 200);
+        if m < n {
+            n = m;
+        } else {
+            m = msta2(x, n, 15);
+        }
+
+        let mut f = 0.0;
+        let mut f2 = 0.0;
+        let mut f1 = 1.0e-100;
+
+        for k in (0..=m).rev() {
+            f = 2.0 * (v0 + f64::from(k) + 1.0) / x * f1 - f2;
+            if k <= n {
+                vl[k as usize] = f;
+            }
+            f2 = f1;
+            f1 = f;
+        }
+
+        let cs = if bjv0.abs() > bjv1.abs() {
+            bjv0 / f
+        } else {
+            bjv1 / f2
+        };
+
+        for k in 0..=n {
+            vl[k as usize] *= cs;
+        }
+    }
+
+    vl[0] *= fac;
+    for j in 1..=n {
+        vl[j as usize] *= fac * r0;
+        dl[(j - 1) as usize] = -0.5 * x / (f64::from(j) + v0) * vl[j as usize];
+        r0 = 2.0 * (f64::from(j) + v0 + 1.0) / x * r0;
+    }
+
+    dl[n as usize] = 2.0 * (v0 + f64::from(n)) * (vl[(n - 1) as usize] - vl[n as usize]) / x;
+    *vm = f64::from(n) + v0;
 }
 
 #[allow(clippy::approx_constant, clippy::cast_possible_truncation)]
