@@ -25,6 +25,7 @@ mod incbet;
 mod incbi;
 mod j0;
 mod j1;
+mod jv;
 mod k0;
 mod k1;
 mod kolmogorov;
@@ -76,6 +77,7 @@ pub use incbet::*;
 pub use incbi::*;
 pub(crate) use j0::{j0, y0};
 pub(crate) use j1::{j1, y1};
+pub(crate) use jv::jv;
 pub(crate) use k0::{k0, k0e};
 pub(crate) use k1::{k1, k1e};
 pub(crate) use kolmogorov::{

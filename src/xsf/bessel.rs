@@ -509,7 +509,7 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
     if res.re.is_nan() {
         /* AMOS returned NaN, possibly due to overflow */
-        return unsafe { crate::ffi::xsf::cephes_jv(v, x) };
+        return crate::xsf::cephes::jv(v, x);
     }
 
     res.re

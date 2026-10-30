@@ -72,7 +72,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         }
     } else {
         let arg = (-z).sqrt();
-        let bess_val = unsafe { crate::ffi::xsf::cephes_jv(v - 1.0, 2.0 * arg) };
+        let bess_val = crate::xsf::cephes::jv(v - 1.0, 2.0 * arg);
 
         arg.powf(1.0 - v) * crate::gamma(v) * bess_val
     }
