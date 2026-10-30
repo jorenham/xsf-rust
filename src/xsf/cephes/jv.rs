@@ -10,6 +10,9 @@
 //! the Cephes one (see [`crate::cbrt`]), and the `double` → `int` conversions saturate instead of
 //! being undefined behavior (for NaN and out-of-range values, which take the same branches as
 //! with the x86 conversion in C++).
+//!
+//! Also unlike in xsf, the power series returns `-inf` instead of `inf` when it overflows for a
+//! negative result, e.g. `jv(-123.57388919180612, 0.028605192190944706)` (`-4.24e431`).
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
@@ -226,7 +229,8 @@ fn jv_jvs(n: f64, x: f64) -> f64 {
             return 0.0;
         }
         if t > MAXLOG {
-            return f64::INFINITY;
+            // (unlike in xsf) keep the sign
+            return f64::from(sgngam) * f64::INFINITY;
         }
         y = f64::from(sgngam) * t.exp();
     }
@@ -757,4 +761,23 @@ pub(crate) fn jv(mut n: f64, mut x: f64) -> f64 {
 
     // done:
     f64::from(sign) * y
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_jv_overflow_sign() {
+        assert_eq!(
+            super::jv(-123.57388919180612, 0.028605192190944706),
+            f64::NEG_INFINITY
+        );
+        assert_eq!(
+            super::jv(-124.68311766689978, 0.032989216721374115),
+            f64::INFINITY
+        );
+        assert_eq!(
+            crate::bessel_j(-111.29415504271454, 0.06094218693261655),
+            f64::NEG_INFINITY
+        );
+    }
 }
