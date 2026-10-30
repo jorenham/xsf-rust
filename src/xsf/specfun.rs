@@ -1,10 +1,12 @@
 mod bessel;
+mod erf;
 mod gamma;
 mod legendre;
 mod mathieu;
 mod sphd;
 
 pub(crate) use bessel::{jynb, sphj, sphy};
+pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2};
 pub(crate) use legendre::{lpmns, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};

@@ -9,6 +9,7 @@ include = [
   "katex.html",
   "xsf/include",
   # headers that are no longer (transitively) included by build.rs
+  "!xsf/include/xsf/airy.h",
   "!xsf/include/xsf/alg.h",
   "!xsf/include/xsf/beta.h",
   "!xsf/include/xsf/binom.h",

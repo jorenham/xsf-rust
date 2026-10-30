@@ -139,9 +139,7 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 #[inline]
 pub fn erf_zeros<const N: usize>() -> [Complex64; N] {
     let mut zo = [f64::NAN.into(); N];
-    unsafe {
-        crate::ffi::xsf::cerzo(N.try_into().unwrap(), zo.as_mut_ptr());
-    }
+    crate::xsf::specfun::cerzo(N.try_into().unwrap(), &mut zo);
     zo
 }
 
