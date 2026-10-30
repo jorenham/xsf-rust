@@ -13,7 +13,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "bessel.h",
     "gamma.h",
     "mathieu.h",
-    "par_cyl.h",
     "specfun.h",
     "sphd_wave.h",
 ];
@@ -27,10 +26,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("msm1", "ddd->dd"),
     ("mcm2", "ddd->dd"),
     ("msm2", "ddd->dd"),
-    // par_cyl.h
-    ("pbwa", "dd->dd"),
-    ("pbdv", "dd->dd"),
-    ("pbvv", "dd->dd"),
     // specfun.h
     ("hyp1f1", "ddd->d"),
     ("hyp1f1", "ddD->D"),

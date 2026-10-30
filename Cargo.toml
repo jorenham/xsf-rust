@@ -66,6 +66,7 @@ include = [
   "!xsf/include/xsf/log_exp.h",
   "!xsf/include/xsf/numbers.h",
   "!xsf/include/xsf/numpy.h",
+  "!xsf/include/xsf/par_cyl.h",
   "!xsf/include/xsf/recur.h",
   "!xsf/include/xsf/sici.h",
   "!xsf/include/xsf/sph_bessel.h",
