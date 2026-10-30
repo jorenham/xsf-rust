@@ -4,7 +4,7 @@
 //! evaluated with `polevl`, instead of the unrolled `if` branches in the C++ code, which evaluates
 //! them in the same order.
 //!
-//! Unlike in xsf, the `double` → `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use super::{Status, jynb, try_zeroed};
 use crate::xsf::cephes::polevl::polevl;
@@ -28,7 +28,7 @@ const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
     (6.0, 4.0, 35.0, &[-4.57146e-4, 2.16609e-2, -2.349616e-2, 35.99251]),
     (7.0, 2.0, 50.0, &[-1.411114e-5, 9.730514e-4, -3.097887e-3, 3.533597e-2, 49.0547]),
     (7.0, 3.0, 40.0, &[-3.043872e-4, 2.05511e-2, -9.16292e-2, 49.19035]),
-    // for m ≥ 8, q_max is m*m
+    // for m >= 8, q_max is m*m
     (8.0, 1.0, 64.0, &[8.634308e-6, -2.100289e-3, 0.169072, -4.64336, 109.4211]),
     (8.0, 4.0, 64.0, &[-6.7842e-5, 2.2057e-3, 0.48296, 56.59]),
     (9.0, 2.0, 81.0, &[2.906435e-6, -1.019893e-3, 0.1101965, -3.821851, 127.6098]),
@@ -723,8 +723,8 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
         17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
     };
 
-    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q ≳ 7e7, or
-    // q NaN). Rust's `as i32` saturates (NaN → 0), so a huge qm gives km = i32::MAX > 251 (returns
+    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7, or
+    // q NaN). Rust's `as i32` saturates (NaN -> 0), so a huge qm gives km = i32::MAX > 251 (returns
     // Status::Other with NaNs), whereas g++ on x86-64 gives km = INT_MIN (no terms summed, so
     // csf = csd = 0 with Status::OK).
     let km = (qm + 0.5 * f64::from(m)) as i32;
@@ -864,8 +864,8 @@ pub(crate) fn mtu12(
         17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
     };
 
-    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q ≳ 7e7, or
-    // q NaN). Rust's `as i32` saturates (NaN → 0), so a huge qm gives km = i32::MAX ≥ 251 (returns
+    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7, or
+    // q NaN). Rust's `as i32` saturates (NaN -> 0), so a huge qm gives km = i32::MAX >= 251 (returns
     // Status::Other with NaNs), whereas g++ on x86-64 gives km = INT_MIN (then jynb(INT_MIN + 1, ...)).
     let km = (qm + 0.5 * f64::from(m)) as i32;
     if km >= 251 {

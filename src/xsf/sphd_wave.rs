@@ -1,4 +1,14 @@
-#![allow(clippy::cast_precision_loss)]
+//! The spheroidal wave functions are translated into pure Rust from `xsf/sphd_wave.h` (xsf v0.2.2).
+//!
+//! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
+
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
+
+use crate::xsf::specfun::{self, Status, try_zeroed};
 
 /// Characteristic value of prolate spheroidal function
 ///
@@ -18,7 +28,11 @@
 #[must_use]
 #[inline]
 pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
-    unsafe { crate::ffi::xsf::prolate_segv(m as f64, n as f64, c) }
+    let (m, n) = (m as f64, n as f64);
+    if (n < m) || ((n - m) > 198.0) {
+        return f64::NAN;
+    }
+    segv(m, n, c, 1).unwrap_or(f64::NAN)
 }
 
 /// Characteristic value of oblate spheroidal function
@@ -39,7 +53,11 @@ pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
-    unsafe { crate::ffi::xsf::oblate_segv(m as f64, n as f64, c) }
+    let (m, n) = (m as f64, n as f64);
+    if (n < m) || ((n - m) > 198.0) {
+        return f64::NAN;
+    }
+    segv(m, n, c, -1).unwrap_or(f64::NAN)
 }
 
 /// Prolate spheroidal angular function of the 1st kind and its derivative
@@ -68,9 +86,7 @@ pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_aswfa_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    aswfa_nocv(m as f64, n as f64, c, x, 1)
 }
 
 /// Oblate spheroidal angular function of the 1st kind and its derivative
@@ -99,9 +115,7 @@ pub fn prolate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_aswfa_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    aswfa_nocv(m as f64, n as f64, c, x, -1)
 }
 
 /// Prolate spheroidal radial function of the 1st kind and its derivative
@@ -130,9 +144,7 @@ pub fn oblate_aswfa_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_radial1_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    radial_nocv(m as f64, n as f64, c, x, 1, 1)
 }
 
 /// Oblate spheroidal radial function of the 1st kind and its derivative
@@ -162,9 +174,7 @@ pub fn prolate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_radial1_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    radial_nocv(m as f64, n as f64, c, x, -1, 1)
 }
 
 /// Prolate spheroidal radial function of the 2nd kind and its derivative
@@ -194,9 +204,7 @@ pub fn oblate_radial1_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_radial2_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    radial_nocv(m as f64, n as f64, c, x, 1, 2)
 }
 
 /// Oblate spheroidal radial function of the 2nd kind and its derivative
@@ -226,9 +234,7 @@ pub fn prolate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_radial2_nocv(m as f64, n as f64, c, x, s, sp);
-    })
+    radial_nocv(m as f64, n as f64, c, x, -1, 2)
 }
 
 /// Prolate spheroidal angular function for precomputed characteristic value
@@ -257,9 +263,7 @@ pub fn oblate_radial2_nocv(m: u64, n: u64, c: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_aswfa(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    aswfa_cv(m as f64, n as f64, c, cv, x, 1)
 }
 
 /// Oblate spheroidal angular function for precomputed characteristic value
@@ -288,9 +292,7 @@ pub fn prolate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_aswfa(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    aswfa_cv(m as f64, n as f64, c, cv, x, -1)
 }
 
 /// Prolate spheroidal radial function of the 1st kind for precomputed characteristic value
@@ -321,9 +323,7 @@ pub fn oblate_aswfa(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_radial1(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    radial_cv(m as f64, n as f64, c, cv, x, 1, 1)
 }
 
 /// Oblate spheroidal radial function of the 1st kind for precomputed characteristic value
@@ -354,9 +354,7 @@ pub fn prolate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_radial1(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    radial_cv(m as f64, n as f64, c, cv, x, -1, 1)
 }
 
 /// Prolate spheroidal radial function of the 2nd kind for precomputed characteristic value
@@ -387,9 +385,7 @@ pub fn oblate_radial1(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::prolate_radial2(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    radial_cv(m as f64, n as f64, c, cv, x, 1, 2)
 }
 
 /// Oblate spheroidal radial function of the 2nd kind for precomputed characteristic value
@@ -420,9 +416,122 @@ pub fn prolate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn oblate_radial2(m: u64, n: u64, c: f64, cv: f64, x: f64) -> (f64, f64) {
-    crate::utils::out2(|s, sp| unsafe {
-        crate::ffi::xsf::oblate_radial2(m as f64, n as f64, c, cv, x, s, sp);
-    })
+    radial_cv(m as f64, n as f64, c, cv, x, -1, 2)
+}
+
+/// Unlike in xsf, the functions return NaN instead of indexing out of bounds of the fixed-size
+/// buffers in `specfun` (or of overflowing `int`), which happens if `0.5 (n - m) + c` is not
+/// within `(lo, hi)`, or for the radial functions, if `m + n + 2 c` is roughly larger than 200 or
+/// `|c x| >= 2^31 / 1.1`.
+fn out_of_bounds(m: f64, n: f64, c: f64, lo: f64, hi: f64) -> bool {
+    // `sckb` uses `max(c, 1e-10)`
+    let h = 0.5 * (n - m);
+    !(lo < h + c && h + c.max(0.0) < hi) || m >= 1e8
+}
+
+/// `specfun::segv`, or `None` if an allocation fails
+fn segv(m: f64, n: f64, c: f64, kd: i32) -> Option<f64> {
+    // `nm = 10 + (int)(0.5 (n - m) + c)` indexes buffers of size 300
+    if out_of_bounds(m, n, c, -1e9, 291.0) {
+        return Some(f64::NAN);
+    }
+    let int_m = m as i32;
+    let int_n = n as i32;
+    let mut eg = try_zeroed((n - m + 2.0) as usize)?;
+    let mut cv = 0.0;
+    let status = specfun::segv(int_m, int_n, c, kd, &mut cv, &mut eg);
+    (status != Status::NoMemory).then_some(cv)
+}
+
+/// `specfun::aswfa`, i.e. `prolate_aswfa` (`kd = 1`) or `oblate_aswfa` (`kd = -1`)
+fn aswfa(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32) -> (f64, f64) {
+    // `nm = 25 + (int)(0.5 (n - m) + c)` indexes buffers of size 200 in `sdmn` and `sckb`
+    if out_of_bounds(m, n, c, -1e9, 175.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let (mut s1f, mut s1d) = (f64::NAN, f64::NAN);
+    if specfun::aswfa(x, m as i32, n as i32, c, kd, cv, &mut s1f, &mut s1d) == Status::NoMemory {
+        return (f64::NAN, f64::NAN);
+    }
+    (s1f, s1d)
+}
+
+fn aswfa_cv(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32) -> (f64, f64) {
+    if (x >= 1.0) || (x <= -1.0) || (n < m) {
+        return (f64::NAN, f64::NAN);
+    }
+    aswfa(m, n, c, cv, x, kd)
+}
+
+fn aswfa_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32) -> (f64, f64) {
+    if (x >= 1.0) || (x <= -1.0) || (n < m) || ((n - m) > 198.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let Some(cv) = segv(m, n, c, kd) else {
+        return (f64::NAN, f64::NAN);
+    };
+    aswfa(m, n, c, cv, x, kd)
+}
+
+/// `specfun::rswfp` (`kd = 1`) or `specfun::rswfo` (`kd = -1`), returning `(r1f, r1d)` if `kf = 1`,
+/// or `(r2f, r2d)` if `kf = 2`
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
+    // as in `aswfa`, and `kmn` requires `nn = 25 + (int)(0.5 (n - m) + c) + m >= m + 2`
+    if out_of_bounds(m, n, c, -24.0, 175.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    // `sphj` (`rmn1`) and `sphy` (`rmn2l`) write up to index `2 nm + m` in buffers of size 252,
+    // with `nm = 25 + (n - m) / 2 + (int)c`, and `msta1(c x, ..)` (`rmn1`) converts `1.1 |c x|` to
+    // `int`
+    let nm = 25.0 + ((n - m) / 2.0).floor() + c.trunc();
+    if 2.0 * nm + m > 251.0 || !((c * x).abs() < 1e9) {
+        return (f64::NAN, f64::NAN);
+    }
+    // `kmn` (`rmn2so`, `rmn2sp`) writes up to index `25 + (int)(0.5 (n - m) + c) + m` in buffers
+    // of size 200 or 201, and `lpmns` and `lqmns` (`rmn2sp`) up to `(int)(2 (nm + c) + m) + 1`
+    // in buffers of size 252
+    if kf == 2
+        && (25.0 + (0.5 * (n - m) + c).trunc() + m > 199.0
+            || (2.0 * (nm - c.trunc() + c) + m).trunc() > 250.0)
+    {
+        return (f64::NAN, f64::NAN);
+    }
+    let rswf = if kd == 1 {
+        specfun::rswfp
+    } else {
+        specfun::rswfo
+    };
+    let (mut r1f, mut r1d, mut r2f, mut r2d) = (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+    if rswf(
+        m as i32, n as i32, c, x, cv, kf, &mut r1f, &mut r1d, &mut r2f, &mut r2d,
+    ) == Status::NoMemory
+    {
+        return (f64::NAN, f64::NAN);
+    }
+    if kf == 1 { (r1f, r1d) } else { (r2f, r2d) }
+}
+
+/// The domain of `x`: `x > 1` for the prolate (`kd = 1`), and `x >= 0` for the oblate functions
+fn radial_x_invalid(x: f64, kd: i32) -> bool {
+    if kd == 1 { x <= 1.0 } else { x < 0.0 }
+}
+
+fn radial_cv(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
+    if radial_x_invalid(x, kd) || (n < m) {
+        return (f64::NAN, f64::NAN);
+    }
+    radial(m, n, c, cv, x, kd, kf)
+}
+
+fn radial_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
+    if radial_x_invalid(x, kd) || (n < m) || ((n - m) > 198.0) {
+        return (f64::NAN, f64::NAN);
+    }
+    let Some(cv) = segv(m, n, c, kd) else {
+        return (f64::NAN, f64::NAN);
+    };
+    radial(m, n, c, cv, x, kd, kf)
 }
 
 #[cfg(test)]
@@ -526,5 +635,25 @@ mod tests {
         xsref::test("oblate_radial2", "d_d_d_d_d-d_d", |x| {
             crate::oblate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
         });
+    }
+
+    #[test]
+    fn test_prolate_radial1_nocv_out_of_bounds() {
+        // the 252-element buffers of `rmn1` would overflow
+        let (r1f, r1d) = crate::prolate_radial1_nocv(15, 174, 30.2, 1.077);
+        assert!(r1f.is_nan() && r1d.is_nan());
+    }
+
+    #[test]
+    fn test_oblate_radial2_nocv_m0() {
+        // `qstar` would read `ap[-1]`
+        let (r2f, r2d) = crate::oblate_radial2_nocv(0, 1, 1.0, 0.0);
+        assert!(r2f.is_nan() && r2d.is_nan());
+    }
+
+    #[test]
+    fn test_prolate_segv_c0_large_n() {
+        // `n (n + 1)`, without `int` overflow
+        assert_eq!(crate::prolate_segv(46341, 46341, 0.0), 46341.0 * 46342.0);
     }
 }

@@ -72,6 +72,7 @@ include = [
   "!xsf/include/xsf/sici.h",
   "!xsf/include/xsf/sph_bessel.h",
   "!xsf/include/xsf/sph_harm.h",
+  "!xsf/include/xsf/sphd_wave.h",
   "!xsf/include/xsf/stats.h",
   "!xsf/include/xsf/struve.h",
   "!xsf/include/xsf/third_party/kokkos/mdspan.hpp",

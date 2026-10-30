@@ -2,8 +2,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the `double` → `int` conversions saturate instead of being undefined behavior.
-//! This way, the modified Mathieu functions don't return 0 or NaN if `√q·exp(|x|) > 2.39e9`, and
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
+//! This way, the modified Mathieu functions don't return 0 or NaN if `sqrt(q) * exp(|x|) > 2.39e9`, and
 //! the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
 
 use num_traits::ToPrimitive;
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_mathieu_modcem1_large_x() {
-        // `(f² + (f'/u)²)·u → 2/π` with `u = √q·exp(x)`, i.e. `|Mc1| ~ √(2 / (π u))`
+        // `(f^2 + (f'/u)^2) * u -> 2/pi` with `u = sqrt(q) * exp(x)`, i.e. `|Mc1| ~ sqrt(2 / (pi u))`
         let x = 22.0;
         let u = f64::exp(x);
         let (f, d) = crate::mathieu_modcem1(0, 1.0, x);
