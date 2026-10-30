@@ -1077,6 +1077,369 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
     crate::xsf::cephes::besselpoly(a, lambda, v)
 }
 
+/* Integrals of bessel functions */
+
+#[allow(
+    clippy::assign_op_pattern,
+    clippy::float_cmp,
+    clippy::unreadable_literal
+)]
+fn itika(x: f64) -> (f64, f64) {
+    // =======================================================
+    // Purpose: Integrate modified Bessel functions I0(t) and
+    //          K0(t) with respect to t from 0 to x
+    // Input :  x  --- Upper limit of the integral  ( x ≥ 0 )
+    // Output:  TI --- Integration of I0(t) from 0 to x
+    //          TK --- Integration of K0(t) from 0 to x
+    // =======================================================
+
+    const A: [f64; 10] = [
+        0.625,
+        1.0078125,
+        2.5927734375,
+        9.1868591308594,
+        4.1567974090576e+1,
+        2.2919635891914e+2,
+        1.491504060477e+3,
+        1.1192354495579e+4,
+        9.515939374212e+4,
+        9.0412425769041e+5,
+    ];
+    let el = 0.5772156649015329;
+
+    let mut ti;
+    let mut tk = 0.0;
+    let mut r;
+    let x2;
+
+    if x == 0.0 {
+        return (0.0, 0.0);
+    } else if x < 20.0 {
+        x2 = x * x;
+        ti = 1.0;
+        r = 1.0;
+        for k in 1..=50 {
+            r = 0.25 * r * (f64::from(2 * k) - 1.0) / (f64::from(2 * k) + 1.0) / f64::from(k * k)
+                * x2;
+            ti += r;
+            if (r / ti).abs() < 1.0e-12 {
+                break;
+            }
+        }
+        ti *= x;
+    } else {
+        x2 = 0.0;
+        ti = 1.0;
+        r = 1.0;
+        for k in 1..=10 {
+            r /= x;
+            ti += A[k - 1] * r;
+        }
+        let rc1 = 1.0 / (2.0 * PI * x).sqrt();
+        ti = rc1 * x.exp() * ti;
+    }
+
+    if x < 12.0 {
+        let e0 = el + (x / 2.0).ln();
+        let mut b1 = 1.0 - e0;
+        let mut b2 = 0.0;
+        let mut rs = 0.0;
+        r = 1.0;
+        let mut tw = 0.0;
+        for k in 1..=50 {
+            r = 0.25 * r * (f64::from(2 * k) - 1.0) / (f64::from(2 * k) + 1.0) / f64::from(k * k)
+                * x2;
+            b1 += r * (1.0 / f64::from(2 * k + 1) - e0);
+            rs += 1.0 / f64::from(k);
+            b2 += r * rs;
+            tk = b1 + b2;
+            if ((tk - tw) / tk).abs() < 1.0e-12 {
+                break;
+            }
+            tw = tk;
+        }
+        tk *= x;
+    } else {
+        tk = 1.0;
+        r = 1.0;
+        for k in 1..=10 {
+            r = -r / x;
+            tk += A[k - 1] * r;
+        }
+        let rc2 = (PI / (2.0 * x)).sqrt();
+        tk = PI / 2.0 - rc2 * tk * (-x).exp();
+    }
+    (ti, tk)
+}
+
+#[allow(clippy::float_cmp, clippy::manual_midpoint, clippy::unreadable_literal)]
+fn itjya(x: f64) -> (f64, f64) {
+    let mut a = [0.0; 18];
+    let el = 0.5772156649015329;
+    let eps = 1.0e-12;
+
+    let tj;
+    let ty;
+    if x == 0.0 {
+        tj = 0.0;
+        ty = 0.0;
+    } else if x <= 20.0 {
+        let x2 = x * x;
+        let mut tj_ = x;
+        let mut r = x;
+        for ki in 1..61 {
+            let k = f64::from(ki);
+            r = -0.25 * r * (2.0 * k - 1.0) / (2.0 * k + 1.0) / f64::from(ki * ki) * x2;
+            tj_ += r;
+            if r.abs() < tj_.abs() * eps {
+                break;
+            }
+        }
+        tj = tj_;
+        let ty1 = (el + (x / 2.0).ln()) * tj;
+        let mut rs = 0.0;
+        let mut ty2 = 1.0;
+        r = 1.0;
+        for ki in 1..61 {
+            let k = f64::from(ki);
+            r = -0.25 * r * (2.0 * k - 1.0) / (2.0 * k + 1.0) / f64::from(ki * ki) * x2;
+            rs += 1.0 / k;
+            let r2 = r * (rs + 1.0 / (2.0 * k + 1.0));
+            ty2 += r2;
+            if r2.abs() < ty2.abs() * eps {
+                break;
+            }
+        }
+        ty = (ty1 - x * ty2) * 2.0 / PI;
+    } else {
+        let mut a0 = 1.0;
+        let mut a1 = 5.0 / 8.0;
+        a[0] = a1;
+
+        for k in 1_u32..=16 {
+            let kf = f64::from(k);
+            let af = (1.5 * (kf + 0.5) * (kf + 5.0 / 6.0) * a1
+                - 0.5 * (kf + 0.5) * (kf + 0.5) * (kf - 0.5) * a0)
+                / (kf + 1.0);
+            a[k as usize] = af;
+            a0 = a1;
+            a1 = af;
+        }
+        let mut bf = 1.0;
+        let mut r = 1.0;
+        for k in 1..=8 {
+            r = -r / (x * x);
+            bf += a[2 * k - 1] * r;
+        }
+        let mut bg = a[0] / x;
+        r = 1.0 / x;
+        for k in 1..=8 {
+            r = -r / (x * x);
+            bg += a[2 * k] * r;
+        }
+        let xp = x + 0.25 * PI;
+        let rc = (2.0 / (PI * x)).sqrt();
+        tj = 1.0 - rc * (bf * xp.cos() + bg * xp.sin());
+        ty = rc * (bg * xp.cos() - bf * xp.sin());
+    }
+    (tj, ty)
+}
+
+#[allow(
+    clippy::float_cmp,
+    clippy::needless_late_init,
+    clippy::unreadable_literal
+)]
+fn ittika(x: f64) -> (f64, f64) {
+    // =========================================================
+    // Purpose: Integrate [I0(t)-1]/t with respect to t from 0
+    //          to x, and K0(t)/t with respect to t from x to ∞
+    // Input :  x   --- Variable in the limits  ( x ≥ 0 )
+    // Output:  TTI --- Integration of [I0(t)-1]/t from 0 to x
+    //          TTK --- Integration of K0(t)/t from x to ∞
+    // =========================================================
+
+    const C: [f64; 8] = [
+        1.625,
+        4.1328125,
+        1.45380859375,
+        6.553353881835,
+        3.6066157150269,
+        2.3448727161884,
+        1.7588273098916,
+        1.4950639538279,
+    ];
+
+    let el = 0.5772156649015329;
+    let mut tti;
+    let ttk;
+    let mut r;
+
+    if x == 0.0 {
+        return (0.0, 1.0e+300);
+    }
+    if x < 40.0 {
+        tti = 1.0;
+        r = 1.0;
+        for k in 2..=50 {
+            r = 0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
+            tti += r;
+            if (r / tti).abs() < 1.0e-12 {
+                break;
+            }
+        }
+        tti *= 0.125 * x * x;
+    } else {
+        tti = 1.0;
+        r = 1.0;
+        for k in 1..=8 {
+            r /= x;
+            tti += C[k - 1] * r;
+        }
+        let rc = x * (2.0 * PI * x).sqrt();
+        tti = tti * x.exp() / rc;
+    }
+    if x <= 12.0 {
+        let e0 = (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln() + PI * PI / 24.0 + 0.5 * el * el;
+        let mut b1 = 1.5 - (el + (x / 2.0).ln());
+        let mut rs = 1.0;
+        r = 1.0;
+        for k in 2..=50 {
+            r = 0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
+            rs += 1.0 / f64::from(k);
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            b1 += r2;
+            if (r2 / b1).abs() < 1.0e-12 {
+                break;
+            }
+        }
+        ttk = e0 - 0.125 * x * x * b1;
+    } else {
+        let mut ttk_ = 1.0;
+        r = 1.0;
+        for k in 1..=8 {
+            r = -r / x;
+            ttk_ += C[k - 1] * r;
+        }
+        let rc = x * (2.0 / (PI * x)).sqrt();
+        ttk = ttk_ * (-x).exp() / rc;
+    }
+    (tti, ttk)
+}
+
+#[allow(
+    clippy::assign_op_pattern,
+    clippy::float_cmp,
+    clippy::unreadable_literal
+)]
+fn ittjya(x: f64) -> (f64, f64) {
+    // =========================================================
+    // Purpose: Integrate [1-J0(t)]/t with respect to t from 0
+    //          to x, and Y0(t)/t with respect to t from x to ∞
+    // Input :  x   --- Variable in the limits  ( x ≥ 0 )
+    // Output:  TTJ --- Integration of [1-J0(t)]/t from 0 to x
+    //          TTY --- Integration of Y0(t)/t from x to ∞
+    // =========================================================
+
+    let el = 0.5772156649015329;
+
+    let mut ttj;
+    let tty;
+    let mut r;
+
+    if x == 0.0 {
+        ttj = 0.0;
+        tty = -1.0e+300;
+    } else if x <= 20.0 {
+        ttj = 1.0;
+        r = 1.0;
+        for k in 2..=100 {
+            r = -0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
+            ttj += r;
+            if r.abs() < ttj.abs() * 1.0e-12 {
+                break;
+            }
+        }
+        ttj *= 0.125 * x * x;
+        let e0 = 0.5 * (PI * PI / 6.0 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
+        let mut b1 = el + (x / 2.0).ln() - 1.5;
+        let mut rs = 1.0;
+        r = -1.0;
+        for k in 2..=100 {
+            r = -0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
+            rs += 1.0 / f64::from(k);
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            b1 += r2;
+            if r2.abs() < b1.abs() * 1.0e-12 {
+                break;
+            }
+        }
+        tty = 2.0 / PI * (e0 + 0.125 * x * x * b1);
+    } else {
+        let a0 = (2.0 / (PI * x)).sqrt();
+        let mut bj0 = 0.0;
+        let mut by0 = 0.0;
+        let mut bj1 = 0.0;
+        let mut by1 = 0.0;
+        for l in 0..=1 {
+            let l = f64::from(l);
+            let vt = 4.0 * l * l;
+            let mut px = 1.0;
+            r = 1.0;
+            // `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM
+            // only does when optimizing
+            for k in 1..=14 {
+                let k = f64::from(k);
+                let (p0, p1) = (4.0 * k - 3.0, 4.0 * k - 1.0);
+                r = -0.0078125 * r * (vt - p0 * p0) / (x * k) * (vt - p1 * p1)
+                    / ((2.0 * k - 1.0) * x);
+                px += r;
+                if r.abs() < px.abs() * 1.0e-12 {
+                    break;
+                }
+            }
+            let mut qx = 1.0;
+            r = 1.0;
+            for k in 1..=14 {
+                let k = f64::from(k);
+                let (q0, q1) = (4.0 * k - 1.0, 4.0 * k + 1.0);
+                r = -0.0078125 * r * (vt - q0 * q0) / (x * k) * (vt - q1 * q1)
+                    / ((2.0 * k + 1.0) * x);
+                qx += r;
+                if r.abs() < qx.abs() * 1.0e-12 {
+                    break;
+                }
+            }
+            qx = 0.125 * (vt - 1.0) / x * qx;
+            let xk = x - (0.25 + 0.5 * l) * PI;
+            bj1 = a0 * (px * xk.cos() - qx * xk.sin());
+            by1 = a0 * (px * xk.sin() + qx * xk.cos());
+            if l == 0.0 {
+                bj0 = bj1;
+                by0 = by1;
+            }
+        }
+        let t = 2.0 / x;
+        let mut g0 = 1.0;
+        let mut r0 = 1.0;
+        for k in 1..=10 {
+            let k = f64::from(k);
+            r0 = -r0 * k * k * t * t;
+            g0 += r0;
+        }
+        let mut g1 = 1.0;
+        let mut r1 = 1.0;
+        for k in 1..=10 {
+            let k = f64::from(k);
+            r1 = -r1 * k * (k + 1.0) * t * t;
+            g1 += r1;
+        }
+        ttj = 2.0 * g1 * bj0 / (x * x) - g0 * bj1 / x + el + (x / 2.0).ln();
+        tty = 2.0 * g1 * by0 / (x * x) - g0 * by1 / x;
+    }
+    (ttj, tty)
+}
+
 /// Integrals of Bessel functions of order 0
 ///
 /// Corresponds to [`scipy.special.itj0y0`][scipy].
@@ -1094,8 +1457,21 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
 #[doc(alias = "itj0y0")]
 #[must_use]
 #[inline]
-pub fn it1j0y0(x: f64) -> (f64, f64) {
-    crate::utils::out2(|j0int, y0int| unsafe { crate::ffi::xsf::it1j0y0(x, j0int, y0int) })
+pub fn it1j0y0(mut x: f64) -> (f64, f64) {
+    /* int(j0(t),t=0..x) */
+    /* int(y0(t),t=0..x) */
+    let mut flag = false;
+
+    if x < 0.0 {
+        x = -x;
+        flag = true;
+    }
+    let (mut j0int, mut y0int) = itjya(x);
+    if flag {
+        j0int = -j0int;
+        y0int = f64::NAN; /* domain error */
+    }
+    (j0int, y0int)
 }
 
 /// Integrals related to Bessel functions of the first kind of order 0
@@ -1114,8 +1490,20 @@ pub fn it1j0y0(x: f64) -> (f64, f64) {
 /// - [`bessel_y0`]
 #[must_use]
 #[inline]
-pub fn it2j0y0(x: f64) -> (f64, f64) {
-    crate::utils::out2(|j0int, y0int| unsafe { crate::ffi::xsf::it2j0y0(x, j0int, y0int) })
+pub fn it2j0y0(mut x: f64) -> (f64, f64) {
+    /* int((1-j0(t))/t,t=0..x) */
+    /* int(y0(t)/t,t=x..inf) */
+    let mut flag = false;
+
+    if x < 0.0 {
+        x = -x;
+        flag = true;
+    }
+    let (j0int, mut y0int) = ittjya(x);
+    if flag {
+        y0int = f64::NAN; /* domain error */
+    }
+    (j0int, y0int)
 }
 
 /// Integrals of modified Bessel functions of order 0
@@ -1135,8 +1523,19 @@ pub fn it2j0y0(x: f64) -> (f64, f64) {
 #[doc(alias = "iti0k0")]
 #[must_use]
 #[inline]
-pub fn it1i0k0(x: f64) -> (f64, f64) {
-    crate::utils::out2(|i0int, k0int| unsafe { crate::ffi::xsf::it1i0k0(x, i0int, k0int) })
+pub fn it1i0k0(mut x: f64) -> (f64, f64) {
+    let mut flag = false;
+
+    if x < 0.0 {
+        x = -x;
+        flag = true;
+    }
+    let (mut i0int, mut k0int) = itika(x);
+    if flag {
+        i0int = -i0int;
+        k0int = f64::NAN; /* domain error */
+    }
+    (i0int, k0int)
 }
 
 /// Integrals related to modified Bessel functions of order 0.
@@ -1155,8 +1554,18 @@ pub fn it1i0k0(x: f64) -> (f64, f64) {
 /// - [`bessel_k0`]
 #[must_use]
 #[inline]
-pub fn it2i0k0(x: f64) -> (f64, f64) {
-    crate::utils::out2(|i0int, k0int| unsafe { crate::ffi::xsf::it2i0k0(x, i0int, k0int) })
+pub fn it2i0k0(mut x: f64) -> (f64, f64) {
+    let mut flag = false;
+
+    if x < 0.0 {
+        x = -x;
+        flag = true;
+    }
+    let (i0int, mut k0int) = ittika(x);
+    if flag {
+        k0int = f64::NAN; /* domain error */
+    }
+    (i0int, k0int)
 }
 
 // Riccati-Bessel
