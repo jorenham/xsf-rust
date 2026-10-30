@@ -1,6 +1,27 @@
+mod bessel;
 mod gamma;
+mod mathieu;
 
+pub(crate) use bessel::jynb;
 pub(crate) use gamma::{cgama, gamma2};
+pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
+
+/// `specfun::Status`
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Status {
+    Ok,
+    NoMemory,
+    #[allow(dead_code)]
+    Other,
+}
+
+/// `new (std::nothrow) T[n]()`, i.e. `None` if the allocation fails
+pub(crate) fn try_zeroed(n: usize) -> Option<Vec<f64>> {
+    let mut v = Vec::new();
+    v.try_reserve_exact(n).ok()?;
+    v.resize(n, 0.0);
+    Some(v)
+}
 
 use num_complex::Complex;
 

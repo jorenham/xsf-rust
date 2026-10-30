@@ -12,20 +12,10 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "airy.h",
     "bessel.h",
     "gamma.h",
-    "mathieu.h",
     "specfun.h",
     "sphd_wave.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
-    // mathieu.h
-    ("cem_cva", "dd->d"),
-    ("sem_cva", "dd->d"),
-    ("cem", "ddd->dd"),
-    ("sem", "ddd->dd"),
-    ("mcm1", "ddd->dd"),
-    ("msm1", "ddd->dd"),
-    ("mcm2", "ddd->dd"),
-    ("msm2", "ddd->dd"),
     // specfun.h
     ("hyp1f1", "ddd->d"),
     ("hyp1f1", "ddD->D"),
@@ -99,9 +89,6 @@ void xsfr_cerzo(int nt, c_complex *zo) {
 }
 void xsfr_eulerb(int n, double *en) {
     xsf::specfun::eulerb(n, en);
-}
-void xsfr_fcoef(int kd, int m, double q, double a, double *fc) {
-    xsf::specfun::fcoef(kd, m, q, a, fc);
 }
 void xsfr_jyzo(int n, int nt, double *rj0, double *rj1, double *ry0, double *ry1) {
     xsf::specfun::jyzo(n, nt, rj0, rj1, ry0, ry1);
