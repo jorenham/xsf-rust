@@ -61,8 +61,6 @@ const HYP2F1_EPS: f64 = 1e-15;
  * and may adjust it again based on further analysis. */
 const HYP2F1_MAXITER: u64 = 3000;
 
-const ZERO: Complex64 = Complex64::new(0.0, 0.0);
-
 /// `std::pow(z, y)` for complex `z` and real `y`, as in libstdc++
 fn cpow(z: Complex64, y: f64) -> Complex64 {
     if z.im == 0.0 && z.re > 0.0 {
@@ -487,11 +485,11 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64) -> Complex64 {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
-    let mut result = ZERO;
+    let mut result = Complex64::ZERO;
     if m >= 0.0 {
         if m != 0.0 {
             let series_generator = hypergeometric_series_generator(a, b, 1.0 - m, rsub(1.0, z));
-            result += series_eval_fixed_length(series_generator, ZERO, m as u64)
+            result += series_eval_fixed_length(series_generator, Complex64::ZERO, m as u64)
                 * four_gammas(m, c, a + m, b + m);
         }
         let prefactor =
@@ -499,7 +497,12 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
         let series_generator = hyp2f1_transform1_limit_series_generator(a + m, b + m, m, z);
         result += cmul(
             prefactor,
-            series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+            series_eval(
+                series_generator,
+                Complex64::ZERO,
+                HYP2F1_EPS,
+                HYP2F1_MAXITER,
+            ),
         );
         result
     } else {
@@ -508,11 +511,16 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
             hypergeometric_series_generator(a + m, b + m, 1.0 + m, rsub(1.0, z));
         result = cmul(
             result,
-            series_eval_fixed_length(series_generator1, ZERO, (-m) as u64),
+            series_eval_fixed_length(series_generator1, Complex64::ZERO, (-m) as u64),
         );
         let prefactor = (-1.0_f64).powf(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
-        result += series_eval(series_generator2, ZERO, HYP2F1_EPS, HYP2F1_MAXITER) * prefactor;
+        result += series_eval(
+            series_generator2,
+            Complex64::ZERO,
+            HYP2F1_EPS,
+            HYP2F1_MAXITER,
+        ) * prefactor;
         result
     }
 }
@@ -525,7 +533,7 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
     let mut result = cpow(-z, -b) * (gamma(c) * rgamma(a));
     result = cmul(
         result,
-        series_eval_fixed_length(series_generator1, ZERO, m as u64),
+        series_eval_fixed_length(series_generator1, Complex64::ZERO, m as u64),
     );
     let prefactor = cpow(-z, -a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
     let n = c - a;
@@ -534,14 +542,24 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
         result += cmul(
             prefactor,
-            series_eval(series_generator2, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+            series_eval(
+                series_generator2,
+                Complex64::ZERO,
+                HYP2F1_EPS,
+                HYP2F1_MAXITER,
+            ),
         );
         return result;
     }
     let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
     result += cmul(
         prefactor,
-        series_eval(series_generator2, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+        series_eval(
+            series_generator2,
+            Complex64::ZERO,
+            HYP2F1_EPS,
+            HYP2F1_MAXITER,
+        ),
     );
     result
 }
@@ -601,7 +619,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         }
         if max_degree <= u64::MAX as f64 {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
-            return series_eval_fixed_length(series_generator, ZERO, (max_degree + 1.0) as u64);
+            return series_eval_fixed_length(
+                series_generator,
+                Complex64::ZERO,
+                (max_degree + 1.0) as u64,
+            );
         }
         return c64(f64::NAN, f64::NAN);
     }
@@ -629,7 +651,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             result = cmul(
                 result,
-                series_eval_fixed_length(series_generator, ZERO, (max_degree + 2.0) as u64),
+                series_eval_fixed_length(
+                    series_generator,
+                    Complex64::ZERO,
+                    (max_degree + 2.0) as u64,
+                ),
             );
             return result;
         }
@@ -658,12 +684,22 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             result = cmul(
                 result,
-                series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+                series_eval(
+                    series_generator,
+                    Complex64::ZERO,
+                    HYP2F1_EPS,
+                    HYP2F1_MAXITER,
+                ),
             );
             return result;
         }
         let series_generator = hypergeometric_series_generator(a, b, c, z);
-        return series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
+        return series_eval(
+            series_generator,
+            Complex64::ZERO,
+            HYP2F1_EPS,
+            HYP2F1_MAXITER,
+        );
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
      * transformations. Use series of López and Temme [5]. These regions
@@ -679,12 +715,22 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             result = cpow(rsub(1.0, z * 0.5), a - c); // Lopez-Temme prefactor
             result = cmul(
                 result,
-                series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+                series_eval(
+                    series_generator,
+                    Complex64::ZERO,
+                    HYP2F1_EPS,
+                    HYP2F1_MAXITER,
+                ),
             );
             return cmul(cpow(rsub(1.0, z), c - a - b), result); // Euler transform prefactor.
         }
         let series_generator = lopez_temme_series_generator(a, b, c, z);
-        result = series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
+        result = series_eval(
+            series_generator,
+            Complex64::ZERO,
+            HYP2F1_EPS,
+            HYP2F1_MAXITER,
+        );
         return cmul(cpow(rsub(1.0, z * 0.5), -a), result); // Lopez-Temme prefactor.
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
@@ -697,7 +743,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         let series_generator = hypergeometric_series_generator(a, c - b, c, cdiv(z, z - 1.0));
         return cmul(
             cpow(rsub(1.0, z), -a),
-            series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER),
+            series_eval(
+                series_generator,
+                Complex64::ZERO,
+                HYP2F1_EPS,
+                HYP2F1_MAXITER,
+            ),
         );
     }
     /* 1 - z transformation (DLMF 15.8.4). */
@@ -708,7 +759,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             return hyp2f1_transform1_limiting_case(a, b, c, m, z);
         }
         let series_generator = hyp2f1_transform1_generator(a, b, c, z);
-        return series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
+        return series_eval(
+            series_generator,
+            Complex64::ZERO,
+            HYP2F1_EPS,
+            HYP2F1_MAXITER,
+        );
     }
     /* 1/z transformation (DLMF 15.8.2). */
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
@@ -719,7 +775,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         return hyp2f1_transform2_limiting_case(a, b, c, m, z);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    series_eval(series_generator, ZERO, HYP2F1_EPS, HYP2F1_MAXITER)
+    series_eval(
+        series_generator,
+        Complex64::ZERO,
+        HYP2F1_EPS,
+        HYP2F1_MAXITER,
+    )
 }
 
 pub trait Hyp2F1Arg: crate::sealed::Sealed {
