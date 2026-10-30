@@ -91,13 +91,14 @@
 //! THE POSSIBILITY OF SUCH DAMAGE.
 //! ```
 //!
-//! Like xsf v0.2.2, this includes several errors in the translation from the Fortran (see the
-//! `NOTE:` comments), most of which have since been fixed in xsf (scipy/xsf#92, scipy/xsf#93,
-//! scipy/xsf#138, scipy/xsf#145, and scipy/xsf#158).
+//! Unlike in xsf v0.2.2, this includes the fixes of several errors in the translation from the
+//! Fortran that were later made in xsf (scipy/xsf#92, scipy/xsf#93, scipy/xsf#138, scipy/xsf#145,
+//! scipy/xsf#158, and scipy/xsf#263, and the `bry` thresholds in `buni`, `unk1`, and `unk2` from
+//! scipy/xsf#132). The remaining differences with the Fortran are marked with `NOTE:` comments.
 //!
-//! Unlike in xsf:
-//! - The out-of-bounds writes (undefined behavior in C++) in `asyi`, `buni`, and `unk1` are
-//!   skipped, and the out-of-bounds read of `csr[-1]` in `unk1` and `unk2` uses `1` instead.
+//! Also unlike in xsf:
+//! - The out-of-bounds read of `csr[-1]` in `unk1` and `unk2` (undefined behavior in C++) uses `1`
+//!   instead.
 //! - In `besh` and `besj`, `(int) fnu` saturates for `fnu >= 2^31` (undefined behavior in C++,
 //!   where x86-64 gives `INT_MIN`), which can change the sign of the result for such huge orders.
 //! - The complex `sqrt`, `exp`, and `log` are computed with the crate's `csqrt` (from FreeBSD),
@@ -115,7 +116,7 @@ use num_complex::{Complex64, c64};
 use crate::xsf::complex::{cdiv, cmul, csqrt, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-use crate::xsf::trig::{ccosh, csin, csinh};
+use crate::xsf::trig::{ccosh, csinh};
 
 #[rustfmt::skip]
 const D1MACH: [f64; 5] = [
@@ -699,7 +700,13 @@ pub(crate) fn acon(
     clippy::manual_range_contains,
     clippy::redundant_else
 )]
-pub(crate) fn airy(z: Complex64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i32) -> Complex64 {
+pub(crate) fn airy(
+    mut z: Complex64,
+    id: i32,
+    kode: i32,
+    nz: &mut i32,
+    ierr: &mut i32,
+) -> Complex64 {
     //***BEGIN PROLOGUE  ZAIRY
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -853,6 +860,9 @@ pub(crate) fn airy(z: Complex64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i3
     }
     if *ierr != 0 {
         return c64(0.0, 0.0);
+    }
+    if z.im == 0.0 {
+        z = c64(z.re, 0.0);
     }
     let az = z.norm();
     let tol = D1MACH[3];
@@ -1213,12 +1223,8 @@ pub(crate) fn asyi(
             return nz;
         }
         let ck = cexp(cz);
-        // NOTE: The C++ loops over `i = 0, ..., nn` (the Fortran loops over `I = 1, ..., NN`), so it also
-        // scales `y[nn]`, one past the `n` elements of the output. Here `y[nn]` is scaled only if it exists.
-        for i in 0..=nn {
-            if let Some(yi) = y.get_mut(i as usize) {
-                *yi = cmul(*yi, ck);
-            }
+        for i in 0..nn {
+            y[i as usize] = cmul(y[i as usize], ck);
         }
         /* 90 */
         return nz;
@@ -1887,7 +1893,7 @@ pub(crate) fn besi(
         *ierr = 2;
         return 0;
     }
-    if xx > 0.0 {
+    if xx >= 0.0 {
         return nz;
     }
     //
@@ -1909,7 +1915,7 @@ pub(crate) fn besi(
         cy[(i - 1) as usize] = atol * cmul(zn, csgn);
         csgn = -csgn;
     }
-    // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if `xx > 0.0`,
+    // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if `xx >= 0.0`,
     // or if the entire sequence underflows (the Fortran ZBESI doesn't reset it).
     *ierr = 0;
     nz
@@ -2870,7 +2876,7 @@ pub(crate) fn binu(
     dfnu = fnu + f64::from(n) - 1.0;
     if (az <= 2.) || (az * az * 0.25 <= (dfnu + 1.0)) {
         /* GOTO 10 */
-        nw = seri(z, fnu, kode, n, cy, tol, elim, alim);
+        nw = seri(z, fnu, kode, nn, cy, tol, elim, alim);
         inw = nw.abs();
         nz += inw;
         nn -= inw;
@@ -2893,7 +2899,7 @@ pub(crate) fn binu(
             //
             // MILLER ALGORITHM NORMALIZED BY THE SERIES
             //
-            nw = mlri(z, fnu, kode, n, cy, tol);
+            nw = mlri(z, fnu, kode, nn, cy, tol);
             if nw < 0 {
                 nz = -1;
                 if nw == -2 {
@@ -2910,7 +2916,7 @@ pub(crate) fn binu(
             //
             // ASYMPTOTIC EXPANSION FOR LARGE Z
             //
-            nw = asyi(z, fnu, kode, n, cy, rl, tol, elim, alim);
+            nw = asyi(z, fnu, kode, nn, cy, rl, tol, elim, alim);
             if nw < 0 {
                 nz = -1;
                 if nw == -2 {
@@ -2964,7 +2970,7 @@ pub(crate) fn binu(
     /* 60 */
     if az <= rl {
         /* 70 */
-        nw = mlri(z, fnu, kode, n, cy, tol);
+        nw = mlri(z, fnu, kode, nn, cy, tol);
         if nw < 0 {
             nz = -1;
             if nw == -2 {
@@ -3021,7 +3027,7 @@ pub(crate) fn binu(
     clippy::needless_return,
     clippy::manual_range_contains
 )]
-pub(crate) fn biry(z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex64 {
+pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex64 {
     //***BEGIN PROLOGUE  ZBIRY
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -3171,6 +3177,9 @@ pub(crate) fn biry(z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex6
     }
     if *ierr != 0 {
         return c64(0.0, 0.0);
+    }
+    if z.im == 0.0 {
+        z = c64(z.re, 0.0);
     }
     let az = z.norm();
     let tol = D1MACH[3].max(1e-18);
@@ -4050,7 +4059,7 @@ pub(crate) fn buni(
     nz = 0;
     xx = z.re;
     yy = z.im;
-    ax = xx.abs() + 3.0_f64.sqrt();
+    ax = xx.abs() * 3.0_f64.sqrt();
     ay = yy.abs();
     iform = 1;
     if ay > ax {
@@ -4098,7 +4107,7 @@ pub(crate) fn buni(
         // SCALE BACKWARD RECURRENCE, BRY(3) IS DEFINED BUT NEVER USED
         //
         bry[0] = 1e3 * D1MACH[0] / tol;
-        bry[1] = tol / 1e3 * D1MACH[0];
+        bry[1] = tol / (1e3 * D1MACH[0]);
         bry[2] = bry[1];
         iflag = 2;
         ascle = bry[1];
@@ -4151,17 +4160,12 @@ pub(crate) fn buni(
         nl = n - 1;
         fnui = f64::from(nl);
         k = nl;
-        // NOTE: this C++ loop runs NL+1 times (the Fortran `DO 50 I=1,NL` runs NL times), so on its
-        // last iteration (K=0) the C++ writes out of bounds to `y[-1]`. That write is skipped here;
-        // everything else (incl. the unobservable updates of the locals) is as in C++.
-        for _ in 0..=nl {
+        for _ in 0..nl {
             st = s2;
             s2 = cmul((fnu + fnui) * rz, s2) + s1;
             s1 = st;
             st = cmul(s2, cscr);
-            if k >= 1 {
-                y[(k - 1) as usize] = st;
-            }
+            y[(k - 1) as usize] = st;
             fnui -= 1.0;
             k -= 1;
             if iflag < 3 {
@@ -4828,7 +4832,7 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     }
 
     if p1.re == 0. && p1.im == 0. {
-        p1 = c64(0.0, 0.0);
+        p1 = c64(tol, tol);
     }
 
     cy[(n - 1) as usize] = cdiv(p2, p1);
@@ -4841,7 +4845,7 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     cdfnu = fnu * rz;
 
     for _i in 2..(n + 1) {
-        pt = cdfnu + cmul(cmul(t1, rz), cy[k as usize]);
+        pt = cdfnu + cmul(t1, rz) + cy[k as usize];
         if pt.re == 0.0 && pt.im == 0.0 {
             pt = c64(tol, tol);
         }
@@ -4919,7 +4923,7 @@ pub(crate) fn seri(
     let mut iflag: i32;
     let mut il: i32;
     let mut k: i32;
-    let l: i32;
+    let mut l: i32;
     let mut m: i32;
     let mut nn: i32;
 
@@ -5044,11 +5048,9 @@ pub(crate) fn seri(
                     //
                     s1 = w[0];
                     s2 = w[1];
-                    l = 3;
-                    // NOTE: like in C++, this loop variable shadows the outer `l`, so at L100 below the outer
-                    // `l` is always 3 (i.e. `ib = 4`), unlike the Fortran (`IB = L + 1` with the loop's `L`).
                     'l100: {
-                        for _l in 3..(nn + 1) {
+                        for l_ in 3..(nn + 1) {
+                            l = l_;
                             ck = s2;
                             s2 = s1 + cmul((ak + fnu) * rz, s2);
                             s1 = ck;
@@ -5070,9 +5072,6 @@ pub(crate) fn seri(
                     // goto L60;
                 }
                 // L60:
-                // NOTE: if the L80 loop above exited at its 2nd or later iteration (only possible for nn >= 4),
-                // then `k` reaches values <= 0 here (because `ib` is always 4, see above), so that `y[k - 1]` is
-                // out of bounds: UB in C++ (it writes `y[-1]`, ...), and an index-out-of-bounds panic here.
                 for _i in ib..(nn + 1) {
                     y[(k - 1) as usize] =
                         cmul((ak + fnu) * rz, y[k as usize]) + y[(k + 1) as usize];
@@ -5781,8 +5780,7 @@ pub(crate) fn uni1(
             }
             /* 80 */
             if nd > 2 {
-                // NOTE: like in C++, this is `1 / z`, whereas the Fortran uses `RZ = 2 / Z`
-                rz = cdiv(c64(1.0, 0.0), z);
+                rz = cdiv(c64(2.0, 0.0), z);
                 s1 = cy[0];
                 s2 = cy[1];
                 c1r = csr[(iflag - 1) as usize];
@@ -6387,9 +6385,7 @@ pub(crate) fn unk1(
     let mut zeta1 = [Complex64::ZERO; 2];
     let mut zeta2 = [Complex64::ZERO; 2];
     let mut cy = [Complex64::ZERO; 2];
-    // NOTE: `bry[1]` is `tol / 1e3 * d1mach[0]` in the C++ (the Fortran has `1/bry[0]`); kept as in
-    // the C++
-    let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / 1e3 * D1MACH[0], D1MACH[1]];
+    let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / (1e3 * D1MACH[0]), D1MACH[1]];
     let mut init = [0_i32; 2];
     let pi: f64 = 3.14159265358979324;
 
@@ -6559,12 +6555,8 @@ pub(crate) fn unk1(
                 return -1;
             }
             nz = n;
-            // NOTE: the C++ loop bound is `i < (n + 1)`, i.e. it also writes `y[n]`, which is out
-            // of bounds (UB) if `y` has length `n`. Here `y[n]` is only written if it exists.
-            for i in 0..(n + 1) {
-                if let Some(yi) = y.get_mut(i as usize) {
-                    *yi = c64(0.0, 0.0);
-                }
+            for i in 0..n {
+                y[i as usize] = c64(0.0, 0.0);
             }
             return nz;
         }
@@ -6936,13 +6928,7 @@ pub(crate) fn unk2(
     let mut asum = [Complex64::ZERO; 2];
     let mut bsum = [Complex64::ZERO; 2];
     let mut cy = [Complex64::ZERO; 2];
-    // NOTE: `bry[0]` is `1.0 + 1e3 * d1mach[0] / tol` and `bry[1]` its reciprocal in the C++ (the
-    // Fortran has `bry[0] = 1e3 * d1mach[0] / tol`); kept as in the C++
-    let bry: [f64; 3] = [
-        (1.0 + 1e3 * D1MACH[0] / tol),
-        1.0 / (1.0 + 1e3 * D1MACH[0] / tol),
-        D1MACH[1],
-    ];
+    let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / (1e3 * D1MACH[0]), D1MACH[1]];
 
     kdflg = 1;
     kflag = 1;
@@ -7164,8 +7150,7 @@ pub(crate) fn unk2(
                 // REFINE ESTIMATE AND TEST
                 //
                 aphi = phid.norm();
-                aarg = argd.norm();
-                rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
+                rs1 += aphi.ln();
                 if rs1.abs() < elim {
                     break 'l120; // goto L120;
                 }
@@ -7555,7 +7540,7 @@ pub(crate) fn uoik(
     } else {
         zn = cmul(-zr, c64(0.0, 1.0));
         if yy <= 0. {
-            zn = zn.conj();
+            zn.re = -zn.re;
         }
         unhj(
             zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
@@ -7665,15 +7650,13 @@ pub(crate) fn uoik(
             }
             if rcz > -elim {
                 ascle = 1e3 * D1MACH[0] / tol;
-                cz = clog(phi);
+                cz += clog(phi);
                 if iform != 1 {
                     cz -= 0.25 * clog(arg) + aic;
                 }
                 ax = rcz.exp() / tol;
                 ay = cz.im;
-                // NOTE: this is `cos(ay) + sin(i*ay)` = `cos(ay) + i*sinh(ay)` in the C++ (the
-                // Fortran has `CZ = AX*EXP(i*AY)`); kept as in the C++
-                cz = ax * (ay.cos() + csin(ay * c64(0.0, 1.0)));
+                cz = ax * (ay.cos() + ay.sin() * c64(0.0, 1.0));
                 if uchk(cz, ascle, tol) == 0 {
                     return nuf;
                 }
