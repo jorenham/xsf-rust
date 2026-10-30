@@ -288,7 +288,8 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
                 * bk[(k - 1) as usize]
                 * x.powf(2.0 * f64::from(k) - 2.0);
         } else {
-            gd0 += 2.0 * f64::from(k) * bk[(k - 1) as usize] * x.powf(2.0 * f64::from(k) - 1.0);
+            // Unlike in xsf, `bk[k]` (as `BK(K+1)` in the Fortran original), instead of `bk[k - 1]`
+            gd0 += 2.0 * f64::from(k) * bk[k as usize] * x.powf(2.0 * f64::from(k) - 1.0);
         }
         if (((gd0 - gw) / gd0).abs() < eps) && (k >= 10) {
             break;
@@ -524,16 +525,11 @@ pub(crate) fn qstar(
         }
         ap[i as usize] = -r * s;
     }
-    // NOTE: off by one w.r.t. the Fortran original (`QS0=AP(M+1)` and `DO 30 L=1,M`, i.e.
-    // `qs0 = ap[m]` and `l <= m`).
-    // Unlike in xsf, `qs0` is NaN for `m == 0`, instead of reading out of bounds (`ap[-1]`).
-    let mut qs0 = if m == 0 {
-        f64::NAN
-    } else {
-        ap[(m - 1) as usize]
-    };
+    // Unlike in xsf, `ap[m]` and `l <= m` (as `QS0=AP(M+1)` and `DO 30 L=1,M` in the Fortran
+    // original), instead of `ap[m - 1]` and `l < m`, which reads out of bounds for `m == 0`
+    let mut qs0 = ap[m as usize];
 
-    for l in 1..m {
+    for l in 1..=m {
         r = 1.0;
         for k in 1..=l {
             r = r
