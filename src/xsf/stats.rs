@@ -1,10 +1,17 @@
-//! The complex `ndtr`, `log_ndtr`, and `poisson_binom_{pmf,cdf}_all` are translated into pure Rust
-//! from `xsf/stats.h` (xsf v0.2.2).
+//! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
+//! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
+//!
+//! Unlike in xsf, `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16` (incl. `inf`), and
+//! `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
+//! `scipy.stats._hypotests`, the series also stop at a NaN term, so that e.g.
+//! `cdf_cvm(1e4, 1_000_000)` returns `NaN` instead of looping forever.
 
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
-use core::ffi::c_int;
 
 use num_complex::{Complex64, c64};
+
+use crate::xsf::bessel::cyl_bessel_k_f64;
+use crate::xsf::cephes::{gamma, lgam};
 
 pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
@@ -818,12 +825,105 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
 /// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
 #[must_use]
 #[inline]
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn cdf_cvm_inf(x: f64) -> f64 {
-    if x == f64::INFINITY {
-        // (unlike in scipy) instead of an infinite loop
+    // CDF of the Cramer-von Mises test statistic (infinite sample limit).
+    // Accurate for practical hypothesis testing but not expected to be accurate
+    // for large values of x, e.g. x > 4, when the cdf is very close to 1.
+    if x.is_nan() {
+        return x;
+    }
+    if 16.0 * x == f64::INFINITY {
+        // (unlike in scipy) instead of an infinite loop, as `q` below would be `0`
         return 1.0;
     }
-    unsafe { crate::ffi::xsf::cdf_cvm_inf(x) }
+    if x <= 0.0 {
+        return 0.0;
+    }
+
+    let mut total = 0.0;
+    let mut k = 0;
+
+    loop {
+        let k_f = f64::from(k);
+        let u = (lgam(k_f + 0.5) - lgam(k_f + 1.0)).exp() / (PI.powf(1.5) * x.sqrt());
+        let y = 4.0 * k_f + 1.0;
+        let q = (y * y) / (16.0 * x);
+        let b = cyl_bessel_k_f64(0.25, q);
+        let z = u * y.sqrt() * (-q).exp() * b;
+
+        total += z;
+        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        if !(z.abs() >= 1e-7) {
+            break;
+        }
+        k += 1;
+    }
+
+    total
+}
+
+// Helpers for psi1 computations
+#[allow(non_snake_case)]
+fn psi1_G(y: f64) -> f64 {
+    // Helper implementing the G-type Bessel combination appearing in equation 1.10
+    // in Csörgő, S. and Faraway, J. (1996).
+    let z = y * y / 4.0;
+    let b = cyl_bessel_k_f64(0.25, z) + cyl_bessel_k_f64(0.75, z);
+    (-z).exp() * (y / 2.0).powf(1.5) * b / PI.sqrt()
+}
+
+#[allow(non_snake_case)]
+fn psi1_H(y: f64) -> f64 {
+    // Helper implementing the H-type Bessel combination appearing in equation 1.10
+    // in Csörgő, S. and Faraway, J. (1996).
+    let z = y * y / 4.0;
+    let b = 2.0 * cyl_bessel_k_f64(0.25, z) + 3.0 * cyl_bessel_k_f64(0.75, z)
+        - cyl_bessel_k_f64(1.25, z);
+    (-z).exp() * (y / 2.0).powf(2.5) * b / PI.sqrt()
+}
+
+fn psi1_term(k: i32, x: f64) -> f64 {
+    // Compute the k-th term of the psi1 series expansion in equation 1.10
+    // of Csörgő, S. and Faraway, J. (1996).
+    let k_f = f64::from(k);
+    let m = 2.0 * k_f + 1.0;
+    let sx = 2.0 * x.sqrt();
+    let y1 = x.powf(0.75);
+    let y2 = x.powf(1.25);
+    let gamma_kp1_2 = gamma(k_f + 0.5);
+    let gamma_kp3_2 = gamma(k_f + 1.5);
+    let e1 = m * gamma_kp1_2 * psi1_G((4.0 * k_f + 3.0) / sx) / (9.0 * y1);
+    let e2 = gamma_kp1_2 * psi1_H((4.0 * k_f + 1.0) / sx) / (72.0 * y2);
+    let e3 = 2.0 * (m + 2.0) * gamma_kp3_2 * psi1_H((4.0 * k_f + 5.0) / sx) / (12.0 * y2);
+    let e4 = 7.0 * m * gamma_kp1_2 * psi1_G((4.0 * k_f + 1.0) / sx) / (144.0 * y1);
+    let e5 = 7.0 * m * gamma_kp1_2 * psi1_G((4.0 * k_f + 5.0) / sx) / (144.0 * y1);
+    e1 + e2 + e3 + e4 + e5
+}
+
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn psi1_mod(x: f64) -> f64 {
+    // psi1 is defined in equation 1.10 in Csörgő, S. and Faraway, J. (1996).
+    // This implements a modified version by excluding the term V(x) / 12
+    // (here: cdf_cvm_inf(x) / 12) to avoid evaluating cdf_cvm_inf(x) twice in cdf_cvm.
+    //
+    // Implementation based on MAPLE code of Julian Faraway and R code of the
+    // function pCvM in the package goftest (v1.1.1), permission granted
+    // by Adrian Baddeley. Main difference in the implementation: the code
+    // here keeps adding terms of the series until the terms are small enough.
+    let mut k = 0;
+    let mut tot = 0.0;
+    loop {
+        let gamma_kp1 = gamma(f64::from(k) + 1.0);
+        let z = -psi1_term(k, x) / (PI * gamma_kp1);
+        tot += z;
+        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        if !(z.abs() >= 1e-7) {
+            break;
+        }
+        k += 1;
+    }
+    tot
 }
 
 /// CDF of the Cramér-von Mises statistic for a finite sample size `n`
@@ -847,10 +947,22 @@ pub fn cdf_cvm(x: f64, n: i32) -> f64 {
         // (unlike in scipy) instead of an infinite loop
         return x;
     }
+    // Calculate the CDF of the Cramér-von Mises statistic for a finite sample
+    // size n. If n=-1, use the asymptotic CDF (n=inf).
     if n == -1 {
         return cdf_cvm_inf(x);
     }
-    unsafe { crate::ffi::xsf::cdf_cvm(x, n as c_int) }
+    let lower = 1.0 / (12.0 * f64::from(n));
+    let upper = f64::from(n) / 3.0;
+    if x <= lower {
+        return 0.0;
+    }
+    if x >= upper {
+        return 1.0;
+    }
+    let cdf = cdf_cvm_inf(x) * (1.0 + lower) + psi1_mod(x) / f64::from(n);
+    // `clamp` propagates NaN like `std::min(std::max(cdf, 0.0), 1.0)`
+    cdf.clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -1261,10 +1373,12 @@ mod tests {
     #[test]
     fn test_cdf_cvm_nonfinite() {
         assert_eq!(crate::cdf_cvm_inf(f64::INFINITY), 1.0);
+        assert_eq!(crate::cdf_cvm_inf(f64::MAX), 1.0);
         assert!(crate::cdf_cvm_inf(f64::NAN).is_nan());
         for n in [-1, 5] {
             assert_eq!(crate::cdf_cvm(f64::INFINITY, n), 1.0);
             assert!(crate::cdf_cvm(f64::NAN, n).is_nan());
         }
+        assert!(crate::cdf_cvm(1e4, 1_000_000).is_nan());
     }
 }

@@ -17,8 +17,6 @@ const WRAPPER_INCLUDES: &[&str] = &[
     "par_cyl.h",
     "specfun.h",
     "sphd_wave.h",
-    "stats.h",
-    "struve.h",
 ];
 const WRAPPER_SPECS: &[(&str, &str)] = &[
     // airy.h
@@ -28,7 +26,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("it2j0y0", "d->dd"),
     ("it1i0k0", "d->dd"),
     ("it2i0k0", "d->dd"),
-    ("cyl_bessel_i", "dd->d"),
     // kelvin.h
     ("ber", "d->d"),
     ("bei", "d->d"),
@@ -72,15 +69,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     ("oblate_radial1", "ddddd->dd"),
     ("oblate_radial2", "ddddd->dd"),
     ("oblate_aswfa", "ddddd->dd"),
-    // stats.h
-    ("cdf_cvm", "di->d"),
-    ("cdf_cvm_inf", "d->d"),
-    // struve.h
-    ("itstruve0", "d->d"),
-    ("it2struve0", "d->d"),
-    ("itmodstruve0", "d->d"),
-    ("struve_h", "dd->d"),
-    ("struve_l", "dd->d"),
 ];
 
 const CPP_COMPLEX_HELPERS: &str = r#"

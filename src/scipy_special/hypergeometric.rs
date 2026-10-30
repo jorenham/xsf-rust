@@ -62,7 +62,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     } else if z > 0.0 {
         let arg = z.sqrt();
         let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
-        let bess_val = unsafe { crate::ffi::xsf::cyl_bessel_i(v - 1.0, 2.0 * arg) };
+        let bess_val = crate::xsf::cephes::iv(v - 1.0, 2.0 * arg);
 
         if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
             // overflow or underflow
