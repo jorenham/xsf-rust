@@ -3007,6 +3007,372 @@ pub(crate) fn binu(
 
 #[allow(
     unused_assignments,
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    clippy::excessive_precision
+)]
+#[allow(
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
+#[allow(
+    clippy::collapsible_if,
+    clippy::needless_return,
+    clippy::manual_range_contains
+)]
+pub(crate) fn biry(z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex64 {
+    //***BEGIN PROLOGUE  ZBIRY
+    //***DATE WRITTEN   830501   (YYMMDD)
+    //***REVISION DATE  890801   (YYMMDD)
+    //***CATEGORY NO.  B5K
+    //***KEYWORDS  AIRY FUNCTION,BESSEL FUNCTIONS OF ORDER ONE THIRD
+    //***AUTHOR  AMOS, DONALD E., SANDIA NATIONAL LABORATORIES
+    //***PURPOSE  TO COMPUTE AIRY FUNCTIONS BI(Z) AND DBI(Z) FOR COMPLEX Z
+    //***DESCRIPTION
+    //
+    //                      ***A DOUBLE PRECISION ROUTINE***
+    //         ON KODE=1, CBIRY COMPUTES THE COMPLEX AIRY FUNCTION BI(Z) OR
+    //         ITS DERIVATIVE DBI(Z)/DZ ON ID=0 OR ID=1 RESPECTIVELY. ON
+    //         KODE=2, A SCALING OPTION CEXP(-AXZTA)*BI(Z) OR CEXP(-AXZTA)*
+    //         DBI(Z)/DZ IS PROVIDED TO REMOVE THE EXPONENTIAL BEHAVIOR IN
+    //         BOTH THE LEFT AND RIGHT HALF PLANES WHERE
+    //         ZTA=(2/3)*Z*CSQRT(Z)=std::complex<double>(XZTA,YZTA) AND AXZTA=ABS(XZTA).
+    //         DEFINITIONS AND NOTATION ARE FOUND IN THE NBS HANDBOOK OF
+    //         MATHEMATICAL FUNCTIONS (REF. 1).
+    //
+    //         INPUT      ZR,ZI ARE DOUBLE PRECISION
+    //           ZR,ZI  - Z=std::complex<double>(ZR,ZI)
+    //           ID     - ORDER OF DERIVATIVE, ID=0 OR ID=1
+    //           KODE   - A PARAMETER TO INDICATE THE SCALING OPTION
+    //                    KODE= 1  RETURNS
+    //                             BI=BI(Z)                 ON ID=0 OR
+    //                             BI=DBI(Z)/DZ             ON ID=1
+    //                        = 2  RETURNS
+    //                             BI=CEXP(-AXZTA)*BI(Z)     ON ID=0 OR
+    //                             BI=CEXP(-AXZTA)*DBI(Z)/DZ ON ID=1 WHERE
+    //                             ZTA=(2/3)*Z*CSQRT(Z)=std::complex<double>(XZTA,YZTA)
+    //                             AND AXZTA=ABS(XZTA)
+    //
+    //         OUTPUT     BIR,BII ARE DOUBLE PRECISION
+    //           BIR,BII- COMPLEX ANSWER DEPENDING ON THE CHOICES FOR ID AND
+    //                    KODE
+    //           IERR   - ERROR FLAG
+    //                    IERR=0, NORMAL RETURN - COMPUTATION COMPLETED
+    //                    IERR=1, INPUT ERROR   - NO COMPUTATION
+    //                    IERR=2, OVERFLOW      - NO COMPUTATION, REAL(Z)
+    //                            TOO LARGE ON KODE=1
+    //                    IERR=3, CABS(Z) LARGE      - COMPUTATION COMPLETED
+    //                            LOSSES OF SIGNIFCANCE BY ARGUMENT REDUCTION
+    //                            PRODUCE LESS THAN HALF OF MACHINE ACCURACY
+    //                    IERR=4, CABS(Z) TOO LARGE  - NO COMPUTATION
+    //                            COMPLETE LOSS OF ACCURACY BY ARGUMENT
+    //                            REDUCTION
+    //                    IERR=5, ERROR              - NO COMPUTATION,
+    //                            ALGORITHM TERMINATION CONDITION NOT MET
+    //
+    //***LONG DESCRIPTION
+    //
+    //         BI AND DBI ARE COMPUTED FOR CABS(Z).GT.1.0 FROM THE I BESSEL
+    //         FUNCTIONS BY
+    //
+    //                BI(Z)=C*SQRT(Z)*( I(-1/3,ZTA) + I(1/3,ZTA) )
+    //               DBI(Z)=C *  Z  * ( I(-2/3,ZTA) + I(2/3,ZTA) )
+    //                               C=1.0/SQRT(3.0)
+    //                             ZTA=(2/3)*Z**(3/2)
+    //
+    //         WITH THE POWER SERIES FOR CABS(Z).LE.1.0.
+    //
+    //         IN MOST COMPLEX VARIABLE COMPUTATION, ONE MUST EVALUATE ELE-
+    //         MENTARY FUNCTIONS. WHEN THE MAGNITUDE OF Z IS LARGE, LOSSES
+    //         OF SIGNIFICANCE BY ARGUMENT REDUCTION OCCUR. CONSEQUENTLY, IF
+    //         THE MAGNITUDE OF ZETA=(2/3)*Z**1.5 EXCEEDS U1=SQRT(0.5/UR),
+    //         THEN LOSSES EXCEEDING HALF PRECISION ARE LIKELY AND AN ERROR
+    //         FLAG IERR=3 IS TRIGGERED WHERE UR=DMAX1(D1MACH(4),1.0D-18) IS
+    //         DOUBLE PRECISION UNIT ROUNDOFF LIMITED TO 18 DIGITS PRECISION.
+    //         ALSO, IF THE MAGNITUDE OF ZETA IS LARGER THAN U2=0.5/UR, THEN
+    //         ALL SIGNIFICANCE IS LOST AND IERR=4. IN ORDER TO USE THE INT
+    //         FUNCTION, ZETA MUST BE FURTHER RESTRICTED NOT TO EXCEED THE
+    //         LARGEST INTEGER, U3=I1MACH(9). THUS, THE MAGNITUDE OF ZETA
+    //         MUST BE RESTRICTED BY MIN(U2,U3). ON 32 BIT MACHINES, U1,U2,
+    //         AND U3 ARE APPROXIMATELY 2.0E+3, 4.2E+6, 2.1E+9 IN SINGLE
+    //         PRECISION ARITHMETIC AND 1.3E+8, 1.8E+16, 2.1E+9 IN DOUBLE
+    //         PRECISION ARITHMETIC RESPECTIVELY. THIS MAKES U2 AND U3 LIMIT-
+    //         ING IN THEIR RESPECTIVE ARITHMETICS. THIS MEANS THAT THE MAG-
+    //         NITUDE OF Z CANNOT EXCEED 3.1E+4 IN SINGLE AND 2.1E+6 IN
+    //         DOUBLE PRECISION ARITHMETIC. THIS ALSO MEANS THAT ONE CAN
+    //         EXPECT TO RETAIN, IN THE WORST CASES ON 32 BIT MACHINES,
+    //         NO DIGITS IN SINGLE PRECISION AND ONLY 7 DIGITS IN DOUBLE
+    //         PRECISION ARITHMETIC. SIMILAR CONSIDERATIONS HOLD FOR OTHER
+    //         MACHINES.
+    //
+    //         THE APPROXIMATE RELATIVE ERROR IN THE MAGNITUDE OF A COMPLEX
+    //         BESSEL FUNCTION CAN BE EXPRESSED BY P*10**S WHERE P=MAX(UNIT
+    //         ROUNDOFF,1.0E-18) IS THE NOMINAL PRECISION AND 10**S REPRE-
+    //         SENTS THE INCREASE IN ERROR DUE TO ARGUMENT REDUCTION IN THE
+    //         ELEMENTARY FUNCTIONS. HERE, S=MAX(1,ABS(LOG10(CABS(Z))),
+    //         ABS(LOG10(FNU))) APPROXIMATELY (I.E. S=MAX(1,ABS(EXPONENT OF
+    //         CABS(Z),ABS(EXPONENT OF FNU)) ). HOWEVER, THE PHASE ANGLE MAY
+    //         HAVE ONLY ABSOLUTE ACCURACY. THIS IS MOST LIKELY TO OCCUR WHEN
+    //         ONE COMPONENT (IN ABSOLUTE VALUE) IS LARGER THAN THE OTHER BY
+    //         SEVERAL ORDERS OF MAGNITUDE. IF ONE COMPONENT IS 10**K LARGER
+    //         THAN THE OTHER, THEN ONE CAN EXPECT ONLY MAX(ABS(LOG10(P))-K,
+    //         0) SIGNIFICANT DIGITS; OR, STATED ANOTHER WAY, WHEN K EXCEEDS
+    //         THE EXPONENT OF P, NO SIGNIFICANT DIGITS REMAIN IN THE SMALLER
+    //         COMPONENT. HOWEVER, THE PHASE ANGLE RETAINS ABSOLUTE ACCURACY
+    //         BECAUSE, IN COMPLEX ARITHMETIC WITH PRECISION P, THE SMALLER
+    //         COMPONENT WILL NOT (AS A RULE) DECREASE BELOW P TIMES THE
+    //         MAGNITUDE OF THE LARGER COMPONENT. IN THESE EXTREME CASES,
+    //         THE PRINCIPAL PHASE ANGLE IS ON THE ORDER OF +P, -P, PI/2-P,
+    //         OR -PI/2+P.
+    //
+    //***REFERENCES  HANDBOOK OF MATHEMATICAL FUNCTIONS BY M. ABRAMOWITZ
+    //                 AND I. A. STEGUN, NBS AMS SERIES 55, U.S. DEPT. OF
+    //                 COMMERCE, 1955.
+    //
+    //               COMPUTATION OF BESSEL FUNCTIONS OF COMPLEX ARGUMENT
+    //                 AND LARGE ORDER BY D. E. AMOS, SAND83-0643, MAY, 1983
+    //
+    //               A SUBROUTINE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, SAND85-
+    //                 1018, MAY, 1985
+    //
+    //               A PORTABLE PACKAGE FOR BESSEL FUNCTIONS OF A COMPLEX
+    //                 ARGUMENT AND NONNEGATIVE ORDER BY D. E. AMOS, TRANS.
+    //                 MATH. SOFTWARE, 1986
+    //
+    //***ROUTINES CALLED  ZBINU,AZABS,ZDIV,AZSQRT,D1MACH,I1MACH
+    //***END PROLOGUE  ZBIRY
+
+    let mut bi: Complex64;
+    let mut s1: Complex64;
+    let mut s2: Complex64;
+    let mut zta: Complex64;
+    let mut aa: f64;
+    let mut ak: f64;
+    let mut bk: f64;
+    let ck: f64;
+    let mut bb: f64;
+    let mut nz: i32;
+    let mut cy = [Complex64::ZERO; 2];
+    let tth: f64 = 2. / 3.;
+    let c1: f64 = 0.614926627446000735150922369; /* 1/( 3**(1/6) Gamma(2/3)) */
+    let c2: f64 = 0.448288357353826357914823710; /* 3**(1/6) / Gamma(1/3)    */
+    let coef: f64 = 0.577350269189625764509148780; /* sqrt( 1 / 3)             */
+    let pi: f64 = 3.141592653589793238462643383;
+
+    *ierr = 0;
+    nz = 0;
+    if (id < 0) || (id > 1) {
+        *ierr = 1;
+    }
+    if (kode < 1) || (kode > 2) {
+        *ierr = 1;
+    }
+    if *ierr != 0 {
+        return c64(0.0, 0.0);
+    }
+    let az = z.norm();
+    let tol = D1MACH[3].max(1e-18);
+    let fid = f64::from(id);
+    if az <= 1.0 {
+        //
+        // POWER SERIES FOR ABS(Z) <= 1.
+        //
+        s1 = c64(1.0, 0.0);
+        s2 = c64(1.0, 0.0);
+        if az < tol {
+            aa = c1 * (1.0 - fid) + fid * c2;
+            return c64(aa, 0.0);
+        }
+        aa = az * az;
+        if aa >= tol / az {
+            let mut trm1 = c64(1.0, 0.0);
+            let mut trm2 = c64(1.0, 0.0);
+            let mut atrm: f64 = 1.0;
+            let z3 = cmul(cmul(z, z), z);
+            let az3 = az * aa;
+            ak = 2.0 + fid;
+            bk = 3.0 - fid - fid;
+            ck = 4.0 - fid;
+            let dk = 3.0 + fid + fid;
+            let mut d1 = ak * dk;
+            let mut d2 = bk * ck;
+            let mut ad = d1.min(d2);
+            ak = 24.0 + 9.0 * fid;
+            bk = 30.0 - 9.0 * fid;
+            for _k in 1..26 {
+                trm1 = cmul(trm1, z3 / d1);
+                s1 += trm1;
+                trm2 = cmul(trm2, z3 / d2);
+                s2 += trm2;
+                atrm *= az3 / ad;
+                d1 += ak;
+                d2 += bk;
+                ad = d1.min(d2);
+                if atrm < tol * ad {
+                    break;
+                }
+                ak += 18.0;
+                bk += 18.0;
+            }
+            /* 30 */
+        }
+        /* 40 */
+        if id != 1 {
+            bi = s1 * c1 + cmul(z, s2) * c2;
+            if kode == 1 {
+                return bi;
+            }
+            zta = cmul(z, csqrt(z)) * tth;
+            aa = -zta.re.abs();
+            bi *= aa.exp();
+            return bi;
+        }
+        /* 50 */
+        bi = s2 * c2;
+        if az > tol {
+            bi += cmul(cmul(z, z), s1) * c1 / (1.0 + fid);
+        }
+        if kode == 1 {
+            return bi;
+        }
+        zta = cmul(z, csqrt(z)) * tth;
+        aa = -zta.re.abs();
+        bi *= aa.exp();
+        return bi;
+    }
+    /* 70 */
+    //
+    // CASE FOR ABS(Z) > 1.0
+    //
+    let mut fnu = (1.0 + fid) / 3.0;
+    //
+    // SET PARAMETERS RELATED TO MACHINE CONSTANTS.
+    // TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
+    // ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
+    // EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
+    // EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
+    // UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
+    // RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
+    // DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
+    // FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
+    //
+    let mut k1 = I1MACH[14] as i32;
+    let k2 = I1MACH[15] as i32;
+    let r1m5 = D1MACH[4];
+    let k = if k1.abs() > k2.abs() {
+        k2.abs()
+    } else {
+        k1.abs()
+    };
+    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
+    k1 = (I1MACH[13] - 1.0) as i32;
+    aa = r1m5 * f64::from(k1);
+    let dig = aa.min(18.0);
+    aa *= 2.303;
+    let alim = elim + (-aa).max(-41.45);
+    let rl = 1.2 * dig + 3.0;
+    let fnul = 10.0 + 6.0 * (dig - 3.0);
+    //
+    // TEST FOR RANGE
+    //
+    aa = 0.5 / tol;
+    bb = I1MACH[8] * 0.5;
+    aa = aa.min(bb);
+    aa = aa.powf(tth);
+    if az > aa {
+        *ierr = 4;
+        return c64(0.0, 0.0);
+    }
+    aa = aa.sqrt();
+    if az > aa {
+        *ierr = 3;
+    }
+    let csq = csqrt(z);
+    zta = cmul(z, csq) * tth;
+    //
+    // RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
+    //
+    let mut sfac = 1.0;
+    let zi = z.im;
+    let zr = z.re;
+    ak = zta.im;
+    if zr < 0.0 {
+        bk = zta.re;
+        ck = -bk.abs();
+        zta = c64(ck, ak);
+    }
+    /* 80 */
+    if (zi == 0.0) && (zr <= 0.0) {
+        zta = c64(0.0, ak);
+    }
+    /* 90 */
+    aa = zta.re;
+    if kode != 2 {
+        //
+        // OVERFLOW TEST
+        //
+        bb = aa.abs();
+        if bb >= alim {
+            bb += 0.25 * az.ln();
+            sfac = tol;
+            if bb > elim {
+                *ierr = 2;
+                return c64(0.0, 0.0);
+            }
+        }
+    }
+    /* 100 */
+    let mut fmr = 0.0;
+    if (aa < 0.0) || (zr <= 0.0) {
+        fmr = pi;
+        if zi < 0.0 {
+            fmr = -pi;
+        }
+        zta = -zta;
+    }
+    /* 110 */
+    //
+    // AA=FACTOR FOR ANALYTIC CONTINUATION OF I(FNU,ZTA)
+    // KODE=2 RETURNS EXP(-ABS(XZTA))*I(FNU,ZTA) FROM CBINU
+    //
+    nz = binu(zta, fnu, kode, 1, &mut cy, rl, fnul, tol, elim, alim);
+    if nz < 0 {
+        if nz == -1 {
+            *ierr = 2;
+        } else {
+            *ierr = 5;
+        }
+        return c64(0.0, 0.0);
+    }
+    aa = fmr * fnu;
+    let z3 = c64(sfac, 0.0);
+    s1 = cmul(cmul(cy[0], c64(aa.cos(), aa.sin())), z3);
+    fnu = (2.0 - fid) / 3.0;
+    // NOTE: as in C++, the returned nz of this second binu call is never checked
+    nz = binu(zta, fnu, kode, 2, &mut cy, rl, fnul, tol, elim, alim);
+    cy[0] = cmul(cy[0], z3);
+    cy[1] = cmul(cy[1], z3);
+    //
+    // BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3
+    //
+    s2 = cdiv(cy[0] * (fnu + fnu), zta) + cy[1];
+    aa = fmr * (fnu - 1.0);
+    s1 = (s1 + cmul(s2, c64(aa.cos(), aa.sin()))) * coef;
+    if id != 1 {
+        s1 = cmul(s1, csq);
+        bi = s1 / sfac;
+        return bi;
+    }
+    /* 120 */
+    s1 = cmul(s1, z);
+    bi = s1 / sfac;
+    return bi;
+}
+
+#[allow(
+    unused_assignments,
     clippy::approx_constant,
     clippy::assign_op_pattern,
     clippy::excessive_precision,
@@ -7433,4 +7799,53 @@ pub(crate) fn wrsk(
         y[(i - 1) as usize] = cmul(cinu, cscl);
     }
     nz
+}
+
+// Translated from `xsf/amos.h` and `xsf/error.h` (xsf v0.2.2)
+
+// amos.h
+
+/// `sf_error_t` values that `ierr_to_sferr` can return (`set_error` itself is a no-op here)
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SfError {
+    Ok,
+    Underflow,
+    Domain,
+    Overflow,
+    Loss,
+    NoResult,
+    Memory,
+}
+
+//
+// Return sf_error equivalents for AMOS ierr values.
+// 'ierr' refers to the last parameter of the AMOS functions
+// airy(), besh(), besi(), besj(), besk(), besy(), and biry().
+//
+#[allow(clippy::match_same_arms)]
+pub(crate) fn ierr_to_sferr(nz: i32, ierr: i32) -> SfError {
+    if nz != 0 {
+        return SfError::Underflow;
+    }
+
+    match ierr {
+        1 => SfError::Domain,
+        2 => SfError::Overflow,
+        3 => SfError::Loss,
+        4 => SfError::NoResult,
+        5 => SfError::NoResult, /* Algorithm termination condition not met */
+        6 => SfError::Memory,   /* Memory allocation failed */
+        _ => SfError::Ok,
+    }
+}
+
+// error.h
+
+pub(crate) fn set_error_and_nan(code: SfError, value: &mut Complex64) {
+    if code != SfError::Ok
+        && (code == SfError::Domain || code == SfError::Overflow || code == SfError::NoResult)
+    {
+        value.re = f64::NAN;
+        value.im = f64::NAN;
+    }
 }

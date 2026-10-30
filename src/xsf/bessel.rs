@@ -5,7 +5,7 @@ use core::f64::consts::PI;
 use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
 
-use crate::xsf::amos;
+use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
@@ -128,56 +128,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/bessel.h`, `xsf/amos.h` and `xsf/error.h` (xsf v0.2.2)
-
-// amos.h
-
-/// `sf_error_t` values that `ierr_to_sferr` can return (`set_error` itself is a no-op here)
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SfError {
-    Ok,
-    Underflow,
-    Domain,
-    Overflow,
-    Loss,
-    NoResult,
-    Memory,
-}
-
-//
-// Return sf_error equivalents for AMOS ierr values.
-// 'ierr' refers to the last parameter of the AMOS functions
-// airy(), besh(), besi(), besj(), besk(), besy(), and biry().
-//
-#[allow(clippy::match_same_arms)]
-fn ierr_to_sferr(nz: i32, ierr: i32) -> SfError {
-    if nz != 0 {
-        return SfError::Underflow;
-    }
-
-    match ierr {
-        1 => SfError::Domain,
-        2 => SfError::Overflow,
-        3 => SfError::Loss,
-        4 => SfError::NoResult,
-        5 => SfError::NoResult, /* Algorithm termination condition not met */
-        6 => SfError::Memory,   /* Memory allocation failed */
-        _ => SfError::Ok,
-    }
-}
-
-// error.h
-
-fn set_error_and_nan(code: SfError, value: &mut Complex64) {
-    if code != SfError::Ok
-        && (code == SfError::Domain || code == SfError::Overflow || code == SfError::NoResult)
-    {
-        value.re = f64::NAN;
-        value.im = f64::NAN;
-    }
-}
-
-// bessel.h
+// Translated from `xsf/bessel.h` (xsf v0.2.2)
 
 fn rotate(z: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);

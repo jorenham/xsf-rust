@@ -1,3 +1,4 @@
+mod airy;
 mod bdtr;
 mod besselpoly;
 mod beta;
@@ -48,6 +49,7 @@ mod yv;
 mod zeta;
 mod zetac;
 
+pub(crate) use airy::airy;
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use besselpoly::besselpoly;
 pub(crate) use beta::{beta, lbeta};
