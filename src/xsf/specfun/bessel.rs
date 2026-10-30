@@ -1,7 +1,7 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (xsf v0.2.2).
 //!
-//! Unlike in xsf, the `double` → `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use core::f64::consts::PI;
 
@@ -120,7 +120,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         return;
     }
 
-    // Unlike in xsf, the Hankel expansion is used for x ≥ 2^31 / 0.9 (≈ 2.39e9), because `as i32`
+    // Unlike in xsf, the Hankel expansion is used for x >= 2^31 / 0.9 (~2.39e9), because `as i32`
     // saturates. In C++ `(int)(0.9 * x)` is UB there, which on x86-64 yields INT_MIN, so that the
     // backward recurrence is taken, resulting in 0 or NaN.
     if (x <= 300.0) || (n > (0.9 * x) as i32) {
@@ -151,7 +151,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
                 su += (-1.0_f64).powf(f64::from(k / 2)) * f / f64::from(k);
             } else if k > 1 {
                 // NOTE: `k * k` is `int` arithmetic, as in C++; it overflows i32 for k > 46340 (C++ UB, Rust
-                // panics in debug), i.e. only if msta1/msta2 return such an m (x > 300 with n > 0.9 * x ≳ 4e4).
+                // panics in debug), i.e. only if msta1/msta2 return such an m (x > 300 with n > 0.9 * x >~ 4e4).
                 sv +=
                     (-1.0_f64).powf(f64::from(k / 2)) * f64::from(k) / (f64::from(k * k) - 1.0) * f;
             }
@@ -249,11 +249,11 @@ pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     // ===================================================
 
     // NOTE: the `(int)` casts below are UB in C++ when the double is out of range or NaN: for
-    // |x| ≥ 2^31 / 1.1 (≈ 1.95e9) or NaN in `(int)(1.1 * a0)`, and in the `nn = ...` assignment
-    // whenever the secant step is NaN/±inf (e.g. x == 0, where f0 = f1 = +inf) or huge. Rust's
-    // `as i32` saturates (NaN → 0), whereas g++ on x86-64 yields INT_MIN. Moreover, with
+    // |x| >= 2^31 / 1.1 (~1.95e9) or NaN in `(int)(1.1 * a0)`, and in the `nn = ...` assignment
+    // whenever the secant step is NaN/+-inf (e.g. x == 0, where f0 = f1 = +inf) or huge. Rust's
+    // `as i32` saturates (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. Moreover, with
     // saturation, the `+ 1` / `+ 5` and `nn - n1` below can overflow i32 (panics in debug builds)
-    // for such inputs. jynbh only calls this for x ≥ 1e-100 with n > (int)(0.9 * x) or x ≤ 300.
+    // for such inputs. jynbh only calls this for x >= 1e-100 with n > (int)(0.9 * x) or x <= 300.
     let a0 = x.abs();
     let mut n0 = (1.1 * a0) as i32 + 1;
     let mut f0 = 0.5 * (6.28 * f64::from(n0)).log10()
@@ -293,8 +293,8 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     // ===================================================
 
     // NOTE: as in msta1, the `(int)` casts below are UB in C++ when the double is out of range or
-    // NaN (|x| ≥ 2^31 / 1.1, x NaN, or a NaN/±inf/huge secant step); Rust's `as i32` saturates
-    // (NaN → 0), whereas g++ on x86-64 yields INT_MIN, and the subsequent `+ 1` / `+ 5` /
+    // NaN (|x| >= 2^31 / 1.1, x NaN, or a NaN/+-inf/huge secant step); Rust's `as i32` saturates
+    // (NaN -> 0), whereas g++ on x86-64 yields INT_MIN, and the subsequent `+ 1` / `+ 5` /
     // `nn - n1` / `nn + 10` can then overflow i32 (panics in debug builds).
     let mut n0: i32;
     let obj: f64;
@@ -332,4 +332,135 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
         f1 = f;
     }
     nn + 10
+}
+
+#[allow(clippy::cast_sign_loss)]
+pub(crate) fn sphj(x: f64, n: i32, nm: &mut i32, sj: &mut [f64], dj: &mut [f64]) {
+    //  MODIFIED to ALLOW N=0 CASE (ALSO IN SPHY)
+    //
+    //  =======================================================
+    //  Purpose: Compute spherical Bessel functions jn(x) and
+    //           their derivatives
+    //  Input :  x --- Argument of jn(x)
+    //           n --- Order of jn(x)  ( n = 0,1,… )
+    //  Output:  SJ(n) --- jn(x)
+    //           DJ(n) --- jn'(x)
+    //           NM --- Highest order computed
+    //  Routines called:
+    //           MSTA1 and MSTA2 for computing the starting
+    //           point for backward recurrence
+    //  =======================================================
+
+    // NOTE: `sj[0..=n]` / `dj[0..=n]` are written (and `sj[1]` for n >= 1, `dj[1]` for n > 0).
+    // The only caller, rmn1, passes n = 2 * (25 + (n - m) / 2 + (int)c) + m into 252-element
+    // buffers. Since only sj[0..=*nm] / dj[0..=*nm] are written for |x| >= 1e-100 (with
+    // *nm = min(n, msta1(x, 200))), this overflows when that n exceeds 251, i.e.
+    // n_caller - (n_caller - m) % 2 + 2 * (int)c >= 202, and also msta1(c * x, 200) >= 252, i.e.
+    // c * x >~ 30 (e.g. prolate_radial1_nocv(2, 200, 1, 300), confirmed with ASan), which the
+    // public API allows.
+    // NOTE: for x NaN, msta1/msta2 hit their `(int)NaN` UB (see there), so `*nm` (and therefore
+    // which elements of `sj` / `dj` are written) may differ from C++; the values are all NaN.
+    *nm = n;
+    if x.abs() < 1e-100 {
+        for k in 0..=n {
+            sj[k as usize] = 0.0;
+            dj[k as usize] = 0.0;
+        }
+        sj[0] = 1.0;
+        if n > 0 {
+            dj[1] = 1.0 / 3.0;
+        }
+        return;
+    }
+    sj[0] = x.sin() / x;
+    dj[0] = (x.cos() - x.sin() / x) / x;
+    if n < 1 {
+        return;
+    }
+    sj[1] = (sj[0] - x.cos()) / x;
+    if n >= 2 {
+        let sa = sj[0];
+        let sb = sj[1];
+        let mut m = msta1(x, 200);
+        if m < n {
+            *nm = m;
+        } else {
+            m = msta2(x, n, 15);
+        }
+        let mut f = 0.0;
+        let mut f0 = 0.0;
+        let mut f1 = 1e-100;
+        for k in (0..=m).rev() {
+            f = (2.0 * f64::from(k) + 3.0) * f1 / x - f0;
+            if k <= *nm {
+                sj[k as usize] = f;
+            }
+            f0 = f1;
+            f1 = f;
+        }
+        let cs = if sa.abs() > sb.abs() { sa / f } else { sb / f0 };
+        for k in 0..=*nm {
+            sj[k as usize] *= cs;
+        }
+    }
+    for k in 1..=*nm {
+        dj[k as usize] = sj[(k - 1) as usize] - (f64::from(k) + 1.0) * sj[k as usize] / x;
+    }
+}
+
+#[allow(clippy::cast_sign_loss)]
+pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64]) {
+    // ======================================================
+    // Purpose: Compute spherical Bessel functions yn(x) and
+    //          their derivatives
+    // Input :  x --- Argument of yn(x) ( x ≥ 0 )
+    //          n --- Order of yn(x) ( n = 0,1,… )
+    // Output:  SY(n) --- yn(x)
+    //          DY(n) --- yn'(x)
+    //          NM --- Highest order computed
+    // ======================================================
+
+    // NOTE: `sy[0..=n]` / `dy[0..=n]` are written. The only caller, rmn2l, passes
+    // n = 2 * (25 + (n - m) / 2 + (int)c) + m into 252-element buffers. Since the loop stops after
+    // writing the first |sy[k]| >= 1e300, this overflows when that n exceeds 251 (same condition as
+    // for sphj) and sy[251] is still finite, i.e. c * x >~ 11.75 (e.g.
+    // prolate_radial2_nocv(2, 200, 1, 300), confirmed with ASan).
+    // NOTE: unlike the Fortran original (where NM = K - 1 is N after a completed loop, and DY is
+    // computed up to NM in both cases), the C++ returns early without computing any dy[k], k >= 1,
+    // when |f| >= 1e300, and otherwise sets *nm = n - 1, so dy[n] is never computed (for n == 1,
+    // dy[1] isn't either). Reproduced as is.
+    if x < 1.0e-60 {
+        for k in 0..=n {
+            sy[k as usize] = -1.0e300;
+            dy[k as usize] = 1.0e300;
+        }
+        *nm = n;
+        return;
+    }
+    sy[0] = -x.cos() / x;
+    let mut f0 = sy[0];
+    dy[0] = (x.sin() + x.cos() / x) / x;
+
+    if n < 1 {
+        *nm = n;
+        return;
+    }
+
+    sy[1] = (sy[0] - x.sin()) / x;
+    let mut f1 = sy[1];
+
+    for k in 2..=n {
+        let f = ((2.0 * f64::from(k) - 1.0) * f1 / x) - f0;
+        sy[k as usize] = f;
+        if f.abs() >= 1.0e300 {
+            *nm = k - 1;
+            return;
+        }
+        f0 = f1;
+        f1 = f;
+    }
+    *nm = n - 1;
+    for k in 1..=*nm {
+        dy[k as usize] = sy[(k - 1) as usize] - (f64::from(k) + 1.0) * sy[k as usize] / x;
+    }
 }

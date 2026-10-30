@@ -3,7 +3,7 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 //!
-//! Unlike in xsf, the `double` → `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 

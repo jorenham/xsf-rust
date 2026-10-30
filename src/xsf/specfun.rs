@@ -1,10 +1,14 @@
 mod bessel;
 mod gamma;
+mod legendre;
 mod mathieu;
+mod sphd;
 
-pub(crate) use bessel::jynb;
+pub(crate) use bessel::{jynb, sphj, sphy};
 pub(crate) use gamma::{cgama, gamma2};
+pub(crate) use legendre::{lpmns, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
+pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 
 /// `specfun::Status`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
