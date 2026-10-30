@@ -242,20 +242,6 @@ void xsfr_klvnzo(int nt, int kd, double *zo) {
     xsf::klvnzo(nt, kd, zo);
 }
 
-// legendre.h
-void xsfr_lqn(size_t n, double x, double *qn, double *qd) {
-    xsf::lqn(x, mds(qn, n + 1), mds(qd, n + 1));
-}
-void xsfr_lqn_1(size_t n, c_complex z, c_complex *qn, c_complex *qd) {
-    xsf::lqn(to_cpp_complex(z), mds(as_cpp_complex(qn), n + 1), mds(as_cpp_complex(qd), n + 1));
-}
-void xsfr_lqmn(size_t m, size_t n, double x, double *qm, double *qd) {
-    xsf::lqmn(x, mds(qm, m + 1, n + 1), mds(qd, m + 1, n + 1));
-}
-void xsfr_lqmn_1(size_t m, size_t n, c_complex z, c_complex *qm, c_complex *qd) {
-    xsf::lqmn(to_cpp_complex(z), mds(as_cpp_complex(qm), m + 1, n + 1), mds(as_cpp_complex(qd), m + 1, n + 1));
-}
-
 // sph_harm.h
 void xsfr_sph_harm_y_all(size_t n, size_t m, double theta, double phi, c_complex *res) {
     xsf::sph_harm_y_all(theta, phi, mds(as_cpp_complex(res), n + 1, 2 * m + 1));

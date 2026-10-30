@@ -1,6 +1,6 @@
-//! Translated into pure Rust from `xsf/legendre.h` (except for `lqn` and `lqmn`) and `xsf/recur.h`
-//! (xsf v0.2.2), for `T` either `double` or `std::complex<double>`. The dual numbers of
-//! `xsf/dual.h`, which xsf uses for derivatives, are not translated.
+//! Translated into pure Rust from `xsf/legendre.h` and `xsf/recur.h` (xsf v0.2.2), for `T` either
+//! `double` or `std::complex<double>`. The dual numbers of `xsf/dual.h`, which xsf uses for
+//! derivatives, are not translated.
 //!
 //! Unlike in xsf:
 //! - The integer products in the (normalized) recurrence coefficients, e.g. `(2n+1)(4(n-1)^2-1)`,
@@ -8,16 +8,21 @@
 //!   xsf, they overflow for `n >= 646`, so that e.g. `sph_legendre_p(700, 0, 0.5)` is NaN.
 //! - Other `int` arithmetic that can overflow wraps (like C++ does in practice), instead of
 //!   panicking in debug builds.
+//! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)` to
+//!   determine the number of backward recurrence steps. For `-1.1 <= x < -1.0001`, the latter is
+//!   NaN, so that xsf returns garbage.
+//! - The complex logarithm in `lqn` and `lqmn` is computed as `ln|z| + i arg(z)` instead of with
+//!   glibc's `clog`, which rounds differently when `|z|` is close to 1.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::f64::consts::PI;
 use core::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
 use core::ffi::c_int;
-use num_complex::Complex64;
+use num_complex::{Complex64, c64};
 
 use crate::utils;
-use crate::xsf::complex::{cdiv, cmul, csqrt};
+use crate::xsf::complex::{cdiv, cmul, csqrt, rsub};
 
 /// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
 pub(crate) trait Num:
@@ -165,6 +170,15 @@ impl<T> IndexMut<(i32, i32)> for Mdspan<'_, T, 2> {
 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 pub(crate) const fn int(x: usize) -> i32 {
     x as i32
+}
+
+/// The `int` product `static_cast<T>(a * b * ...)`, computed in `i64` (instead of `int`) to avoid
+/// overflow, so that, unlike a product of `f64`, a zero product is `+0.0`
+#[allow(clippy::cast_precision_loss)]
+fn int_product(factors: &[i32]) -> f64 {
+    factors
+        .iter()
+        .fold(1_i64, |p, &x| p.wrapping_mul(i64::from(x))) as f64
 }
 
 // recur.h
@@ -783,6 +797,444 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
     });
 }
 
+// ====================================================
+// Purpose: Compute Legendre functions Qn(x) & Qn'(x)
+// Input :  x  --- Argument of Qn(x)
+//          n  --- Degree of Qn(x)  ( n = 0,1,2,…)
+// Output:  QN(n) --- Qn(x)
+//          QD(n) --- Qn'(x)
+// ====================================================
+
+#[allow(clippy::float_cmp, clippy::items_after_statements)]
+fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
+    let n = int(qn.size()) - 1;
+
+    let (mut q0, mut q1, mut qf, mut qr, mut qf0, mut qf1, mut qf2);
+    const EPS: f64 = 1.0e-14;
+
+    if x.abs() == 1.0 {
+        for k in 0..=n {
+            qn[k] = 1.0e300;
+            qd[k] = 1.0e300;
+        }
+        return;
+    }
+
+    if x <= 1.021 {
+        let x2 = ((1.0 + x) / (1.0 - x)).abs();
+        q0 = 0.5 * x2.ln();
+        q1 = x * q0 - 1.0;
+        qn[0] = q0;
+        qn[1] = q1;
+        qd[0] = 1.0 / (1.0 - x * x);
+        qd[1] = qn[0] + x * qd[0];
+
+        for k in 2..=n {
+            let k_ = f64::from(k);
+            qf = ((2.0 * k_ - 1.0) * x * q1 - (k_ - 1.0) * q0) / k_;
+            qn[k] = qf;
+            qd[k] = (qn[k - 1] - x * qf) * k_ / (1.0 - x * x);
+            q0 = q1;
+            q1 = qf;
+        }
+    } else {
+        let mut qc1 = if n == 0 { 0.0 } else { 1.0 / x };
+        let mut qc2 = 1.0 / x;
+
+        for j in 1..=n {
+            let j_ = f64::from(j);
+            qc2 *= j_ / ((2.0 * j_ + 1.0) * x);
+            if j == n - 1 {
+                qc1 = qc2;
+            }
+        }
+
+        for l in 0..=1 {
+            let nl = f64::from(n + l);
+            qf = 1.0;
+            qr = 1.0;
+
+            for k in 1..=500 {
+                let k = f64::from(k);
+                qr = qr * (0.5 * nl + k - 1.0) * (0.5 * (nl - 1.0) + k)
+                    / ((nl + k - 0.5) * k * x * x);
+                qf += qr;
+                if (qr / qf).abs() < EPS {
+                    break;
+                }
+            }
+
+            if l == 0 {
+                qn[n - 1] = qf * qc1;
+            } else {
+                qn[n] = qf * qc2;
+            }
+        }
+
+        qf2 = qn[n];
+        qf1 = qn[n - 1];
+
+        for k in (2..=n).rev() {
+            let k_ = f64::from(k);
+            qf0 = ((2.0 * k_ - 1.0) * x * qf1 - k_ * qf2) / (k_ - 1.0);
+            qn[k - 2] = qf0;
+            qf2 = qf1;
+            qf1 = qf0;
+        }
+
+        qd[0] = 1.0 / (1.0 - x * x);
+
+        for k in 1..=n {
+            qd[k] = f64::from(k) * (qn[k - 1] - x * qn[k]) / (1.0 - x * x);
+        }
+    }
+}
+
+// ==================================================
+// Purpose: Compute the Legendre functions Qn(z) and
+//          their derivatives Qn'(z) for a complex
+//          argument
+// Input :  x --- Real part of z
+//          y --- Imaginary part of z
+//          n --- Degree of Qn(z), n = 0,1,2,...
+// Output:  CQN(n) --- Qn(z)
+//          CQD(n) --- Qn'(z)
+// ==================================================
+
+#[allow(clippy::float_cmp)]
+fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, Complex64, 1>) {
+    let n = int(cqn.size()) - 1;
+
+    let (cq0, cq1);
+    let mut cqf0 = c64(0.0, 0.0);
+    let (mut cqf1, mut cqf2);
+
+    if z.re == 1.0 {
+        for k in 0..=n {
+            cqn[k] = c64(1e300, 0.0);
+            cqd[k] = c64(1e300, 0.0);
+        }
+        return;
+    }
+    let ls = if z.norm() > 1.0 { -1.0 } else { 1.0 };
+
+    cq0 = cdiv((1.0 + z) * ls, rsub(1.0, z)).ln() / 2.0;
+    cq1 = cmul(z, cq0) - 1.0;
+
+    cqn[0] = cq0;
+    cqn[1] = cq1;
+
+    if z.norm() < 1.0001 {
+        cqf0 = cq0;
+        cqf1 = cq1;
+        for k in 2..=n {
+            let k_ = f64::from(k);
+            cqf2 = (cmul(z * (2.0 * k_ - 1.0), cqf1) - cqf0 * (k_ - 1.0)) / k_;
+            cqn[k] = cqf2;
+            cqf0 = cqf1;
+            cqf1 = cqf2;
+        }
+    } else {
+        #[allow(clippy::cast_possible_truncation)]
+        let km = if z.norm() > 1.1 {
+            40_i32.wrapping_add(n)
+        } else {
+            (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z - 1.0).norm().ln()).floor())
+                as i32
+        };
+
+        cqf2 = c64(0.0, 0.0);
+        cqf1 = c64(1.0, 0.0);
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
+            if k <= n {
+                cqn[k] = cqf0;
+            }
+            cqf2 = cqf1;
+            cqf1 = cqf0;
+        }
+        for k in 0..=n {
+            cqn[k] = cmul(cqn[k], cdiv(cq0, cqf0));
+        }
+    }
+    cqd[0] = cdiv(cqn[1] - cmul(z, cqn[0]), cmul(z, z) - 1.0);
+
+    for k in 1..=n {
+        let k_ = f64::from(k);
+        cqd[k] = cdiv(cmul(z * k_, cqn[k]) - cqn[k - 1] * k_, cmul(z, z) - 1.0);
+    }
+}
+
+// ==========================================================
+// Purpose: Compute the associated Legendre functions of the
+//          second kind, Qmn(x) and Qmn'(x)
+// Input :  x  --- Argument of Qmn(x)
+//          m  --- Order of Qmn(x)  ( m = 0,1,2,… )
+//          n  --- Degree of Qmn(x) ( n = 0,1,2,… )
+//          mm --- Physical dimension of QM and QD
+// Output:  QM(m,n) --- Qmn(x)
+//          QD(m,n) --- Qmn'(x)
+// ==========================================================
+
+#[allow(clippy::float_cmp, clippy::too_many_lines)]
+fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
+    let m = int(qm.extent(0)) - 1;
+    let n = int(qm.extent(1)) - 1;
+
+    let (mut q0, mut q1, mut qf, mut qf0, mut qf1, mut qf2);
+
+    if x.abs() == 1.0 {
+        for i in 0..=m {
+            for j in 0..=n {
+                qm[(i, j)] = 1e300;
+                qd[(i, j)] = 1e300;
+            }
+        }
+        return;
+    }
+    let mut ls = 1.0;
+    if x.abs() > 1.0 {
+        ls = -1.0;
+    }
+    let xs = ls * (1.0 - x * x);
+    let xq = xs.sqrt();
+    q0 = 0.5 * ((x + 1.0) / (x - 1.0)).abs().ln();
+    if x.abs() < 1.0001 {
+        qm[(0, 0)] = q0;
+        qm[(0, 1)] = x * q0 - 1.0;
+        qm[(1, 0)] = -1.0 / xq;
+        qm[(1, 1)] = -ls * xq * (q0 + x / (1. - x * x));
+        for i in 0..=1 {
+            for j in 2..=n {
+                let (i_, j_) = (f64::from(i), f64::from(j));
+                qm[(i, j)] = ((2.0 * j_ - 1.) * x * qm[(i, j - 1)]
+                    - (j_ + i_ - 1.0) * qm[(i, j - 2)])
+                    / (j_ - i_);
+            }
+        }
+        /* 15 */
+        for i in 2..=m {
+            for j in 0..=n {
+                let (i_, j_) = (f64::from(i), f64::from(j));
+                qm[(i, j)] = -2.0 * (i_ - 1.0) * x / xq * qm[(i - 1, j)]
+                    - ls * (j_ + i_ - 1.0) * (j_ - i_ + 2.0) * qm[(i - 2, j)];
+            }
+        }
+    } else {
+        // (unlike in xsf) `log(x - 1)` is NaN for `x < -1`
+        #[allow(clippy::cast_possible_truncation)]
+        let km = if x.abs() > 1.1 {
+            40_i32.wrapping_add(m).wrapping_add(n)
+        } else {
+            40_i32
+                .wrapping_add(m)
+                .wrapping_add(n)
+                .wrapping_mul((-1. - 1.8 * (x.abs() - 1.).ln()) as i32)
+        };
+        qf2 = 0.0;
+        qf1 = 1.0;
+        qf0 = 0.0;
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            qf0 = ((2.0 * k_ + 3.0) * x * qf1 - (k_ + 2.0) * qf2) / (k_ + 1.0);
+            if k <= n {
+                qm[(0, k)] = qf0;
+            }
+            qf2 = qf1;
+            qf1 = qf0;
+        }
+
+        for k in 0..=n {
+            qm[(0, k)] *= q0 / qf0;
+        }
+
+        qf2 = 0.0;
+        qf1 = 1.0;
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            qf0 = ((2.0 * k_ + 3.0) * x * qf1 - (k_ + 1.0) * qf2) / (k_ + 2.0);
+            if k <= n {
+                qm[(1, k)] = qf0;
+            }
+            qf2 = qf1;
+            qf1 = qf0;
+        }
+
+        let q10 = -1.0 / xq;
+        for k in 0..=n {
+            qm[(1, k)] *= q10 / qf0;
+        }
+
+        for j in 0..=n {
+            q0 = qm[(0, j)];
+            q1 = qm[(1, j)];
+            for i in 0..=(m - 2) {
+                let (i_, j_) = (f64::from(i), f64::from(j));
+                qf = -2. * (i_ + 1.) * x / xq * q1 + (j_ - i_) * (j_ + i_ + 1.) * q0;
+                qm[(i + 2, j)] = qf;
+                q0 = q1;
+                q1 = qf;
+            }
+        }
+    }
+
+    qd[(0, 0)] = ls / xs;
+    for j in 1..=n {
+        qd[(0, j)] = ls * f64::from(j) * (qm[(0, j - 1)] - x * qm[(0, j)]) / xs;
+    }
+
+    for i in 1..=m {
+        for j in 0..=n {
+            let (i_, j_) = (f64::from(i), f64::from(j));
+            qd[(i, j)] =
+                ls * i_ * x / xs * qm[(i, j)] + (i_ + j_) * (j_ - i_ + 1.) / xq * qm[(i - 1, j)];
+        }
+    }
+}
+
+// =======================================================
+// Purpose: Compute the associated Legendre functions of
+//          the second kind, Qmn(z) and Qmn'(z), for a
+//          complex argument
+// Input :  x  --- Real part of z
+//          y  --- Imaginary part of z
+//          m  --- Order of Qmn(z)  ( m = 0,1,2,… )
+//          n  --- Degree of Qmn(z) ( n = 0,1,2,… )
+//          mm --- Physical dimension of CQM and CQD
+// Output:  CQM(m,n) --- Qmn(z)
+//          CQD(m,n) --- Qmn'(z)
+// =======================================================
+
+#[allow(clippy::float_cmp, clippy::too_many_lines)]
+fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_, Complex64, 2>) {
+    let m = int(cqm.extent(0)) - 1;
+    let n = int(cqm.extent(1)) - 1;
+
+    let (mut cq0, mut cq1, mut cqf, mut cqf0, mut cqf1, mut cqf2);
+
+    if z.re.abs() == 1.0 && z.im == 0.0 {
+        for i in 0..=m {
+            for j in 0..=n {
+                cqm[(i, j)] = c64(1e300, 0.0);
+                cqd[(i, j)] = c64(1e300, 0.0);
+            }
+        }
+
+        return;
+    }
+
+    let xc = z.norm();
+    let mut ls = 0;
+    if z.im == 0.0 || xc < 1.0 {
+        ls = 1;
+    }
+    if xc > 1.0 {
+        ls = -1;
+    }
+    let zs = rsub(1.0, cmul(z, z)) * f64::from(ls);
+    let zq = csqrt(zs);
+
+    cq0 = cdiv((1.0 + z) * f64::from(ls), rsub(1.0, z)).ln() / 2.0;
+    if xc < 1.0001 {
+        cqm[(0, 0)] = cq0;
+        cqm[(1, 0)] = cdiv(c64(-1.0, 0.0), zq);
+        cqm[(0, 1)] = cmul(z, cq0) - 1.0;
+        cqm[(1, 1)] = cmul(-zq, cq0 + cdiv(z, rsub(1.0, cmul(z, z))));
+
+        for i in 0..=1 {
+            for j in 2..=n {
+                let (i_, j_) = (f64::from(i), f64::from(j));
+                cqm[(i, j)] = (cmul(z * (2.0 * j_ - 1.0), cqm[(i, j - 1)])
+                    - cqm[(i, j - 2)] * (j_ + i_ - 1.0))
+                    / (j_ - i_);
+            }
+        }
+
+        for i in 2..=m {
+            for j in 0..=n {
+                let i_ = f64::from(i);
+                cqm[(i, j)] = cmul(cdiv(z * (-2.0 * (i_ - 1.0)), zq), cqm[(i - 1, j)])
+                    - cqm[(i - 2, j)] * int_product(&[ls, j + i - 1, j - i + 2]);
+            }
+        }
+    } else {
+        #[allow(clippy::cast_possible_truncation)]
+        let km = if xc > 1.1 {
+            40_i32.wrapping_add(m).wrapping_add(n)
+        } else {
+            40_i32
+                .wrapping_add(m)
+                .wrapping_add(n)
+                .wrapping_mul((-1.0 - 1.8 * (xc - 1.).ln()) as i32)
+        };
+        cqf2 = c64(0.0, 0.0);
+        cqf1 = c64(1.0, 0.0);
+        cqf0 = c64(0.0, 0.0);
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
+            if k <= n {
+                cqm[(0, k)] = cqf0;
+            }
+            cqf2 = cqf1;
+            cqf1 = cqf0;
+        }
+
+        for k in 0..=n {
+            cqm[(0, k)] = cmul(cqm[(0, k)], cdiv(cq0, cqf0));
+        }
+
+        cqf2 = c64(0.0, 0.0);
+        cqf1 = c64(1.0, 0.0);
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 1.0)) / (k_ + 2.0);
+            if k <= n {
+                cqm[(1, k)] = cqf0;
+            }
+            cqf2 = cqf1;
+            cqf1 = cqf0;
+        }
+
+        let cq10 = cdiv(c64(-1.0, 0.0), zq);
+        for k in 0..=n {
+            cqm[(1, k)] = cmul(cqm[(1, k)], cdiv(cq10, cqf0));
+        }
+
+        for j in 0..=n {
+            cq0 = cqm[(0, j)];
+            cq1 = cqm[(1, j)];
+            for i in 0..=(m - 2) {
+                let i_ = f64::from(i);
+                cqf = cmul(cdiv(z * -(2.0 * (i_ + 1.0)), zq), cq1)
+                    + cq0 * int_product(&[j - i, j + i + 1]);
+                cqm[(i + 2, j)] = cqf;
+                cq0 = cq1;
+                cq1 = cqf;
+            }
+        }
+    }
+
+    cqd[(0, 0)] = cdiv(c64(f64::from(ls), 0.0), zs);
+    for j in 1..=n {
+        cqd[(0, j)] = cdiv(
+            (cqm[(0, j - 1)] - cmul(z, cqm[(0, j)])) * (f64::from(ls) * f64::from(j)),
+            zs,
+        );
+    }
+
+    for i in 1..=m {
+        for j in 0..=n {
+            cqd[(i, j)] = cmul(cdiv(z * f64::from(ls * i), zs), cqm[(i, j)])
+                + cmul(
+                    cdiv(c64(int_product(&[i + j, j - i + 1]), 0.0), zq),
+                    cqm[(i - 1, j)],
+                );
+        }
+    }
+}
+
 // Rust API
 
 pub trait LegendrePArg: crate::sealed::Sealed + Sized {
@@ -883,79 +1335,54 @@ pub trait LegendreQArg: crate::sealed::Sealed + Sized {
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>);
 }
 
-impl LegendreQArg for f64 {
-    #[inline]
-    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        // like in scipy, since `lqn` writes at least 2 terms
-        let n1 = n.max(1);
+macro_rules! impl_legendre_q_arg {
+    ($T:ty, $lqn:ident, $lqmn:ident) => {
+        impl LegendreQArg for $T {
+            #[inline]
+            fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
+                // like in scipy, since `lqn` writes at least 2 terms
+                let n1 = n.max(1);
 
-        let mut qn = vec![f64::NAN; n1 + 1];
-        let mut qd = vec![f64::NAN; n1 + 1];
+                let mut qn = vec![<$T>::from(f64::NAN); n1 + 1];
+                let mut qd = vec![<$T>::from(f64::NAN); n1 + 1];
 
-        unsafe {
-            crate::ffi::xsf::lqn(n1, self, qn.as_mut_ptr(), qd.as_mut_ptr());
+                $lqn(
+                    self,
+                    Mdspan::new(&mut qn, [n1 + 1]),
+                    Mdspan::new(&mut qd, [n1 + 1]),
+                );
+                qn.truncate(n + 1);
+                qd.truncate(n + 1);
+                (qn, qd)
+            }
+
+            #[inline]
+            fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
+                // like in scipy, since `lqmn` writes at least 2 x 2 terms
+                let (mm, nn) = (m.max(1), n.max(1));
+
+                let extents = [mm + 1, nn + 1];
+                let mut qm = vec![<$T>::from(f64::NAN); extents[0] * extents[1]];
+                let mut qd = vec![<$T>::from(f64::NAN); extents[0] * extents[1]];
+
+                $lqmn(
+                    self,
+                    Mdspan::new(&mut qm, extents),
+                    Mdspan::new(&mut qd, extents),
+                );
+
+                let [ni, nj] = extents;
+                (
+                    utils::vecvec_truncate(utils::vec_into_vecvec(qm, ni, nj, true), n + 1, m + 1),
+                    utils::vecvec_truncate(utils::vec_into_vecvec(qd, ni, nj, true), n + 1, m + 1),
+                )
+            }
         }
-        qn.truncate(n + 1);
-        qd.truncate(n + 1);
-        (qn, qd)
-    }
-
-    #[inline]
-    fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
-        // like in scipy, since `lqmn` writes at least 2 x 2 terms
-        let (mm, nn) = (m.max(1), n.max(1));
-
-        let (ni, nj) = (mm + 1, nn + 1);
-        let mut qm = vec![f64::NAN; ni * nj];
-        let mut qd = vec![f64::NAN; ni * nj];
-
-        unsafe {
-            crate::ffi::xsf::lqmn(mm, nn, self, qm.as_mut_ptr(), qd.as_mut_ptr());
-        }
-
-        (
-            utils::vecvec_truncate(utils::vec_to_vecvec(&qm, ni, nj, true), n + 1, m + 1),
-            utils::vecvec_truncate(utils::vec_to_vecvec(&qd, ni, nj, true), n + 1, m + 1),
-        )
-    }
+    };
 }
 
-impl LegendreQArg for num_complex::Complex<f64> {
-    #[inline]
-    fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
-        // like in scipy, since `lqn` writes at least 2 terms
-        let n1 = n.max(1);
-
-        let mut cqn = vec![num_complex::Complex::new(f64::NAN, 0.0); n1 + 1];
-        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); n1 + 1];
-
-        unsafe {
-            crate::ffi::xsf::lqn_1(n1, self, cqn.as_mut_ptr(), cqd.as_mut_ptr());
-        }
-        cqn.truncate(n + 1);
-        cqd.truncate(n + 1);
-        (cqn, cqd)
-    }
-
-    #[inline]
-    fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>) {
-        // like in scipy, since `lqmn` writes at least 2 x 2 terms
-        let (mm, nn) = (m.max(1), n.max(1));
-
-        let (ni, nj) = (mm + 1, nn + 1);
-        let mut cqm = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
-        let mut cqd = vec![num_complex::Complex::new(f64::NAN, 0.0); ni * nj];
-
-        unsafe {
-            crate::ffi::xsf::lqmn_1(mm, nn, self, cqm.as_mut_ptr(), cqd.as_mut_ptr());
-        }
-
-        (
-            utils::vecvec_truncate(utils::vec_into_vecvec(cqm, ni, nj, true), n + 1, m + 1),
-            utils::vecvec_truncate(utils::vec_into_vecvec(cqd, ni, nj, true), n + 1, m + 1),
-        )
-    }
-}
+impl_legendre_q_arg!(f64, lqn, lqmn);
+impl_legendre_q_arg!(Complex64, lqn_c64, lqmn_c64);
 
 /// Legendre polynomial of degree `n`
 ///
@@ -1422,6 +1849,13 @@ mod tests {
         check!(c64(0.3, 0.4));
     }
 
+    #[test]
+    fn test_assoc_legendre_q_all_int_zero() {
+        // `static_cast<T>(ls * (j + i - 1) * (j - i + 2))` with `ls = -1, i = 2, j = 0` is `+0.0`
+        let q = crate::assoc_legendre_q_all(2, 2, c64(1.00005, 0.0)).0[0][2];
+        assert_eq!(q.im.to_bits(), 0.0_f64.to_bits());
+    }
+
     // deviations from xsf
 
     #[test]
@@ -1434,5 +1868,25 @@ mod tests {
         let p = crate::assoc_legendre_p_norm(700, 0, 0.3);
         let expected = 0.802_058_211_710_411_2; // mpmath
         assert!(((p - expected) / expected).abs() < 1e-13, "{p}");
+    }
+
+    #[test]
+    fn test_assoc_legendre_q_all_near_minus_one() {
+        // garbage in xsf, since `(int)log(x - 1)` is used for `-1.1 <= x < -1`
+        for x in [-1.0001, -1.05, -1.1] {
+            let (qm, qd) = crate::assoc_legendre_q_all(3, 2, x);
+            let (cqm, cqd) = crate::assoc_legendre_q_all(3, 2, c64(x, 0.0));
+            for (q, cq) in qm
+                .iter()
+                .flatten()
+                .chain(qd.iter().flatten())
+                .zip(cqm.iter().flatten().chain(cqd.iter().flatten()))
+            {
+                assert_eq!(*q, cq.re);
+            }
+        }
+        // mpmath: legenq(2, 1, -1.05, type=3) = 2.211389887900321167... (with the opposite sign)
+        let q = crate::assoc_legendre_q_all(2, 1, -1.05).0[2][1];
+        assert!((q + 2.211_389_887_900_321_2).abs() < 1e-15, "{q}");
     }
 }
