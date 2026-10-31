@@ -21,7 +21,6 @@ pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 pub(crate) enum Status {
     Ok,
     NoMemory,
-    #[allow(dead_code)]
     Other,
 }
 
