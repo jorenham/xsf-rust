@@ -27,9 +27,18 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
     let (mut r, sgn) = lgam_sgn(b);
     r -= b * a.ln();
 
-    r += b * (1.0 - b) / (2.0 * a);
-    r += b * (1.0 - b) * (1.0 - 2.0 * b) / (12.0 * a * a);
-    r += -b * b * (1.0 - b) * (1.0 - b) / (12.0 * a * a * a);
+    /*
+     * Evaluate the correction terms through the small ratios b/a and (1-b)/a
+     * instead of the products b*(1-b), b*b*(1-b)*(1-b) and a*a*a, which overflow
+     * for |b| > ~1e77 or a > ~5.6e102 and turned the result into NaN (inf/inf)
+     * for e.g. lbeta(1e100, 1e107) although log|B| is an ordinary finite number.
+     */
+    let t = b / a;
+    let u = (1.0 - b) / a;
+
+    r += t * (1.0 - b) / 2.0;
+    r += t * u * (1.0 - 2.0 * b) / 12.0;
+    r += -t * t * u * (1.0 - b) / 12.0;
 
     (r, sgn)
 }

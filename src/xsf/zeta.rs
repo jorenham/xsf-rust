@@ -410,7 +410,11 @@ impl ZetaArg for f64 {
     }
 
     #[inline]
+    #[allow(clippy::float_cmp)]
     fn zeta(self, q: f64) -> Self {
+        if q == 1.0 {
+            return self.riemann_zeta();
+        }
         crate::xsf::cephes::zeta(self, q)
     }
 }
@@ -422,7 +426,11 @@ impl ZetaArg for num_complex::Complex<f64> {
     }
 
     #[inline]
+    #[allow(clippy::float_cmp)]
     fn zeta(self, q: f64) -> Self {
+        if q == 1.0 {
+            return self.riemann_zeta();
+        }
         if self.im == 0.0 {
             num_complex::Complex::new(self.re.zeta(q), 0.0)
         } else {
