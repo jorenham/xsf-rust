@@ -547,6 +547,18 @@ mod tests {
     }
 
     #[test]
+    fn test_zeta_near_1_tiny_q() {
+        // the tail sum ~ 1 / (x - 1) isn't negligible (reference values from mpmath)
+        for (x, q, expected) in [
+            (1.0 + f64::EPSILON, 1e-15, 5.503_599_627_370_504e15),
+            (1.000_000_000_001, 1e-17, 1.000_009_999_150_220_6e17),
+        ] {
+            let rel = (crate::zeta(x, q) - expected).abs() / expected;
+            assert!(rel < 1e-15, "zeta({x}, {q}): rel = {rel:e}");
+        }
+    }
+
+    #[test]
     fn test_zetac_f64() {
         xsref::test("zetac", "d-d", |x| crate::zetac(x[0]));
     }

@@ -121,7 +121,10 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         a += 1.0;
         b = a.powf(-x);
         s += b;
-        if (b / s).abs() < MACHEP {
+        // Unlike in xsf, this also requires the tail sum `~ b * a / (x - 1)` to be negligible,
+        // which it isn't for `x` near 1 and tiny `q`, e.g. `zeta(1 + 2^-52, 1e-15)` was 1.0e15
+        // instead of 5.5e15.
+        if (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }
     }
