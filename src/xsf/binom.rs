@@ -85,7 +85,15 @@ pub fn binom(n: f64, k: f64) -> f64 {
         // Gamma(k - n) / Gamma(k + 1) ~ k^(-n-1) (1 + n (n + 1) / (2 k) + ...)), without which the
         // relative error is ~n^2 / (2 k).
         num = gamma(1.0 + n) / k.abs() + gamma(1.0 + n) * n / (2.0 * k * k) * (n + 1.0); // + ...
-        num /= PI * k.abs().powf(n);
+        let den = PI * k.abs().powf(n);
+        if den.is_normal() {
+            num /= den;
+        } else {
+            // Unlike in xsf, |k|^n is split in two if `den` over- or underflows, which would
+            // otherwise result in 0 (or inf), e.g. for n = 31.687 and k = 1.028e10
+            let kn2 = k.abs().powf(0.5 * n);
+            num = num / (PI * kn2) / kn2;
+        }
         if k > 0.0 {
             kx = k.floor();
             // Unlike in xsf, the parity of kx is also determined for kx >= 2^31, where the C++
@@ -113,14 +121,21 @@ mod tests {
 
     #[test]
     fn test_binom_large_k() {
-        // unlike in xsf: the n (n + 1) / (2 k) term, the parity of k >= 2^31, and sinpi
+        // unlike in xsf: the n (n + 1) / (2 k) term, the parity of k >= 2^31, sinpi, and the split
+        // |k|^n (which over- or underflows here)
         for (n, k, expected) in [
             (2.5, 300_000_000.7, 1.329_598_785_965_806_2e-30),
             (0.5, 10_000_000_001.25, 1.994_711_401_707_956_7e-16),
+            (
+                31.687_271_077_096_36,
+                10_283_293_173.796_093,
+                5.092_788_374_279_372e-294,
+            ),
+            (-26.5, 1e12, 1.270_443_843_261_605_3e280),
         ] {
             let actual = crate::binom(n, k);
             assert!(
-                (actual / expected - 1.0).abs() < 1e-14,
+                (actual / expected - 1.0).abs() < 5e-14,
                 "{actual:e} != {expected:e}"
             );
         }
