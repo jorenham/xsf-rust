@@ -10,7 +10,7 @@ mod sphd;
 pub(crate) use bessel::{jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu};
+pub(crate) use hyperg::{cchg, chgm, chgm_poly, chgu};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
@@ -329,5 +329,27 @@ mod tests {
         ];
         let actual = abx.map(|(a, b, x)| crate::hyp1f1(a, b, x));
         xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+    }
+
+    #[test]
+    fn test_hyp1f1_neg_int_a() {
+        // mpmath; in xsf these are 5.4e29, -1.5e24, -1.3387308e-8, and 4.0e63
+        let abx = [
+            (-1000.0, 0.5, 3.0),
+            (-100.0, 0.5, 30.0),
+            (-7.0, 950.0, 850.0),
+            (-200.0, 0.001, 50.0),
+            // `p * x` overflows in the recurrence, but the series is fine
+            (-3.0, 5e307, 1.7e308),
+        ];
+        let expected = [
+            -4.108_819_740_932_209,
+            288_862.419_837_060_44,
+            -1.338_730_683_179_536_7e-8,
+            -297_046_447_677_026.5,
+            -13.824,
+        ];
+        let actual = abx.map(|(a, b, x)| crate::hyp1f1(a, b, x));
+        xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
     }
 }

@@ -652,13 +652,7 @@ impl LaguerreArg<i32> for f64 {
             -self + a + 1.0
         } else {
             let a1 = a + 1.0;
-            let (mut d, mut p) = (0.0, 1.0);
-            for k in 0..n {
-                let k = f64::from(k);
-                d = (d * k - p * self) / (k + a1);
-                p += d;
-            }
-            p * multiset(a1, f64::from(n))
+            crate::xsf::chgm_poly(n, a1, self) * multiset(a1, f64::from(n))
         }
     }
 }
