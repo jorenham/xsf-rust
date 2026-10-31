@@ -1,3 +1,5 @@
+use core::f64::consts::{FRAC_PI_2, LN_2};
+
 use num_complex::{Complex, c64};
 
 use crate::xsf::log::clog;
@@ -255,6 +257,231 @@ pub(crate) fn cpow(z: Complex<f64>, y: f64) -> Complex<f64> {
     c64(rho * theta.cos(), rho * theta.sin())
 }
 
+/// Inverse hyperbolic tangent of real `x`
+///
+/// This replaces `std::atanh(double)` in C++. Unlike `f64::atanh`, which computes
+/// `0.5 * log1p(2x / (1 - x))` for all `x`, it is as accurate as glibc's `atanh`.
+///
+/// Translated from FreeBSD's `lib/msun/src/e_atanh.c`:
+///
+/// > Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+/// >
+/// > Developed at SunSoft, a Sun Microsystems, Inc. business.
+/// > Permission to use, copy, modify, and distribute this
+/// > software is freely granted, provided that this notice
+/// > is preserved.
+#[allow(clippy::eq_op, clippy::float_cmp)] // `x - x` is NaN for infinite `x`
+pub(crate) fn atanh(x: f64) -> f64 {
+    /* atanh(x)
+     * Method :
+     *    1.Reduced x to positive by atanh(-x) = -atanh(x)
+     *    2.For x>=0.5
+     *                  1              2x                          x
+     *      atanh(x) = --- * log(1 + -------) = 0.5 * log1p(2 * --------)
+     *                  2             1 - x                      1 - x
+     *
+     *      For x<0.5
+     *      atanh(x) = 0.5*log1p(2x+2x*x/(1-x))
+     *
+     * Special cases:
+     *      atanh(x) is NaN if |x| > 1 with signal;
+     *      atanh(NaN) is that NaN with no signal;
+     *      atanh(+-1) is +-INF with signal.
+     */
+    const TWO_M28: f64 = f64::from_bits((1023 - 28) << 52); // 2^-28
+
+    let xa = x.abs();
+    if xa > 1.0 || xa.is_nan() {
+        /* |x|>1 */
+        return (x - x) / (x - x);
+    }
+    if xa == 1.0 {
+        return x / 0.0;
+    }
+    if xa < TWO_M28 {
+        return x; /* x<2**-28 */
+    }
+    let t = if xa < 0.5 {
+        /* x < 0.5 */
+        let t = xa + xa;
+        0.5 * (t + t * xa / (1.0 - xa)).ln_1p()
+    } else {
+        0.5 * ((xa + xa) / (1.0 - xa)).ln_1p()
+    };
+    if x.is_sign_negative() { -t } else { t }
+}
+
+/// Arc tangent of complex `z`
+///
+/// This replaces `std::atan(std::complex<double>)` in C++. Unlike `num_complex::Complex::atan`,
+/// which computes the difference of two logarithms, it doesn't lose precision near zero or near the
+/// branch points `z = +-i`.
+///
+/// Translated from FreeBSD's `lib/msun/src/catrig.c`:
+///
+/// > Copyright (c) 2012 Stephen Montgomery-Smith <stephen@FreeBSD.ORG>
+/// > All rights reserved.
+/// >
+/// > Redistribution and use in source and binary forms, with or without
+/// > modification, are permitted provided that the following conditions
+/// > are met:
+/// > 1. Redistributions of source code must retain the above copyright
+/// >    notice, this list of conditions and the following disclaimer.
+/// > 2. Redistributions in binary form must reproduce the above copyright
+/// >    notice, this list of conditions and the following disclaimer in the
+/// >    documentation and/or other materials provided with the distribution.
+/// >
+/// > THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+/// > ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+/// > IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+/// > ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+/// > FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+/// > DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+/// > OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+/// > HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+/// > LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+/// > OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+/// > SUCH DAMAGE.
+pub(crate) fn catan(z: Complex<f64>) -> Complex<f64> {
+    /*
+     * catan(z) = reverse(catanh(reverse(z)))
+     * where reverse(x + I*y) = y + I*x = I*conj(z).
+     */
+    let w = catanh(Complex::new(z.im, z.re));
+    Complex::new(w.im, w.re)
+}
+
+/*
+ * catanh(z) = log((1+z)/(1-z)) / 2
+ *           = log1p(4*x / |z-1|^2) / 4
+ *             + I * atan2(2*y, (1-x)*(1+x)-y*y) / 2
+ *
+ * catanh(z) = z + O(z^3)   as z -> 0
+ *
+ * catanh(z) = 1/z + sign(y)*I*PI/2 + O(1/z^3)   as z -> infinity
+ * The above formula works for the real part as well, because
+ * Re(catanh(z)) = x/|z|^2 + O(x/z^4)
+ *    as z -> infinity, uniformly in x
+ */
+#[allow(clippy::float_cmp)]
+fn catanh(z: Complex<f64>) -> Complex<f64> {
+    const RECIP_EPSILON: f64 = 1.0 / f64::EPSILON;
+    const SQRT_3_EPSILON: f64 = 2.580_956_827_951_785e-8; /*  0x1bb67ae8584caa.0p-78 */
+
+    let x = z.re;
+    let y = z.im;
+    let ax = x.abs();
+    let ay = y.abs();
+
+    /* This helps handle many cases. */
+    if y == 0.0 && ax <= 1.0 {
+        return Complex::new(atanh(x), y);
+    }
+
+    /* To ensure the same accuracy as atan(), and to filter out z = 0. */
+    if x == 0.0 {
+        return Complex::new(x, y.atan());
+    }
+
+    if x.is_nan() || y.is_nan() {
+        /* catanh(+-Inf + I*NaN) = +-0 + I*NaN */
+        if x.is_infinite() {
+            return Complex::new(0.0_f64.copysign(x), y + y);
+        }
+        /* catanh(NaN + I*+-Inf) = sign(NaN)0 + I*+-PI/2 */
+        if y.is_infinite() {
+            return Complex::new(0.0_f64.copysign(x), FRAC_PI_2.copysign(y));
+        }
+        /*
+         * All other cases involving NaN return NaN + I*NaN.
+         * C99 leaves it optional whether to raise invalid if one of
+         * the arguments is not NaN, so we opt not to raise it.
+         */
+        return Complex::new(x + y, x + y);
+    }
+
+    if ax > RECIP_EPSILON || ay > RECIP_EPSILON {
+        return Complex::new(real_part_reciprocal(x, y), FRAC_PI_2.copysign(y));
+    }
+
+    if ax < SQRT_3_EPSILON / 2.0 && ay < SQRT_3_EPSILON / 2.0 {
+        /*
+         * z = 0 was filtered out above.  All other cases must raise
+         * inexact, but this is the only case that needs to do it
+         * explicitly.
+         */
+        return z;
+    }
+
+    let rx = if ax == 1.0 && ay < f64::EPSILON {
+        (LN_2 - ay.ln()) / 2.0
+    } else {
+        (4.0 * ax / sum_squares(ax - 1.0, ay)).ln_1p() / 4.0
+    };
+
+    let ry = if ax == 1.0 {
+        2.0_f64.atan2(-ay) / 2.0
+    } else if ay < f64::EPSILON {
+        (2.0 * ay).atan2((1.0 - ax) * (1.0 + ax)) / 2.0
+    } else {
+        (2.0 * ay).atan2((1.0 - ax) * (1.0 + ax) - ay * ay) / 2.0
+    };
+
+    Complex::new(rx.copysign(x), ry.copysign(y))
+}
+
+/*
+ * sum_squares(x,y) = x*x + y*y (or just x*x if y*y would underflow).
+ * Assumes x*x and y*y will not overflow.
+ * Assumes x and y are finite.
+ * Assumes y is non-negative.
+ * Assumes fabs(x) >= DBL_EPSILON.
+ */
+#[inline]
+fn sum_squares(x: f64, y: f64) -> f64 {
+    const SQRT_MIN: f64 = f64::from_bits((1023 - 511) << 52); /* 0x1p-511 >= sqrt(DBL_MIN) */
+
+    /* Avoid underflow when y is small. */
+    if y < SQRT_MIN {
+        return x * x;
+    }
+
+    x * x + y * y
+}
+
+/*
+ * real_part_reciprocal(x, y) = Re(1/(x+I*y)) = x/(x*x + y*y).
+ * Assumes x and y are not NaN, and one of x and y is larger than
+ * RECIP_EPSILON.  We avoid unwarranted underflow.  It is important to not use
+ * the code creal(1/z), because the imaginary part may produce an unwanted
+ * underflow.
+ */
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+fn real_part_reciprocal(mut x: f64, mut y: f64) -> f64 {
+    const BIAS: i32 = 1023; /* DBL_MAX_EXP - 1 */
+    const CUTOFF: i32 = 53 / 2 + 1; /* DBL_MANT_DIG / 2 + 1, just half or 1 guard digit */
+
+    /*
+     * This code is inspired by the C99 document n1124.pdf, Section G.5.1,
+     * example 2.
+     */
+    let ix = ((x.to_bits() >> 32) as u32 & 0x7ff0_0000) as i32;
+    let iy = ((y.to_bits() >> 32) as u32 & 0x7ff0_0000) as i32;
+    if ix - iy >= CUTOFF << 20 || x.is_infinite() {
+        return 1.0 / x; /* +-Inf -> +-0 is special */
+    }
+    if iy - ix >= CUTOFF << 20 {
+        return x / y / y; /* should avoid double div, but hard */
+    }
+    if ix <= (BIAS + 1024 / 2 - CUTOFF) << 20 {
+        return x / (x * x + y * y);
+    }
+    let scale = f64::from_bits(u64::from((0x7ff0_0000 - ix) as u32) << 32); /* 2**(1-ilogb(x)) */
+    x *= scale;
+    y *= scale;
+    x / (x * x + y * y) * scale
+}
+
 #[cfg(test)]
 mod tests {
     use core::f64::consts::FRAC_1_SQRT_2;
@@ -268,5 +495,42 @@ mod tests {
             [r.re.to_bits(), r.im.to_bits()],
             [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
         );
+    }
+
+    #[test]
+    fn test_atanh() {
+        // mpmath
+        let actual = [0.5, 1e-10, -0.9].map(super::atanh);
+        let expected = [0.549_306_144_334_054_9, 1e-10, -1.472_219_489_583_220_4];
+        crate::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
+
+        assert_eq!(super::atanh(-0.0).to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(super::atanh(-1.0), f64::NEG_INFINITY);
+        assert!(super::atanh(1.5).is_nan());
+    }
+
+    #[test]
+    fn test_catan() {
+        // mpmath
+        let actual = [
+            c64(0.5, 0.5),
+            c64(1e-5, 1.0),
+            c64(2.0, -3.0),
+            c64(1e300, 1.0),
+        ]
+        .map(super::catan);
+        let expected = [
+            c64(0.553_574_358_897_045_2, 0.402_359_478_108_525_07),
+            c64(0.785_400_663_397_448_3, 6.103_036_322_771_337),
+            c64(1.409_921_049_596_575_5, -0.229_072_682_968_538_78),
+            c64(core::f64::consts::FRAC_PI_2, 0.0),
+        ];
+        crate::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
+
+        // signed zeros and the branch points
+        let r = super::catan(c64(-0.0, 0.0));
+        assert_eq!([r.re.to_bits(), r.im.to_bits()], [(-0.0_f64).to_bits(), 0]);
+        assert_eq!(super::catan(c64(0.0, 1.0)), c64(0.0, f64::INFINITY));
+        assert_eq!(super::catan(c64(0.0, -1.0)), c64(0.0, f64::NEG_INFINITY));
     }
 }
