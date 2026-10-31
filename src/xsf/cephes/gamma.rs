@@ -324,8 +324,14 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
     }
 
     let q = (x - 0.5) * x.ln() - x + LS2PI;
+    (q + lgam_stirling_corr(x), sign)
+}
+
+/// The correction `lgam(x) - ((x - 1/2) ln(x) - x + ln(2 pi) / 2)` to Stirling's formula, for
+/// `x >= 13`
+pub(crate) fn lgam_stirling_corr(x: f64) -> f64 {
     let p = 1.0 / (x * x);
-    (q + polevl(p, &GAMMA_A) / x, sign)
+    polevl(p, &GAMMA_A) / x
 }
 
 /// Natural logarithm of Gamma function
