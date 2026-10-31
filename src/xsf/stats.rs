@@ -1444,6 +1444,9 @@ mod tests {
             // x^2 << nu
             (7.8e5, 5.9e-8, 0.500_000_023_537_587),
             (7.8e5, -5.9e-8, 0.499_999_976_462_413),
+            // large nu and 1 < x^2 <= 2
+            (1e9, 1.1, 0.864_333_938_921_217_7),
+            (1e8, -1.3, 0.096_800_486_083_800_24),
             // huge |x|
             (0.5, -1e200, 3.207_009_754_142_229e-101),
             (0.0016, -3.8e274, 0.180_685_979_862_586_23),
@@ -1785,6 +1788,32 @@ mod tests {
             0.000_932_827_314_784_597_3,
         );
         assert!((0.0..1e-9).contains(&q));
+    }
+
+    #[test]
+    fn test_fdtr_fdtrc_tiny_df() {
+        // reference values from mpmath; one df is tiny and the other large, so that `w` is near 1
+        // but below the mean
+        for &(a, b, x, p) in &[
+            (1e7, 0.001, 0.5, 0.003_160_968_634_795_953_3),
+            (1e7, 0.002, 1.0, 0.006_312_353_390_409_258),
+        ] {
+            crate::np_assert_allclose!(&[crate::fdtr(a, b, x)], &[p], rtol = 1e-12);
+        }
+        // inaccurate either way, but the complement would be far worse
+        let p = crate::fdtr(1e16, 1e-13, 6e-14);
+        crate::np_assert_allclose!(&[p], &[1.462_771_840_746_950_6e-14], rtol = 0.02);
+        for &(a, b, x, q) in &[
+            (0.002, 1e7, 1.0, 0.006_312_353_390_409_258),
+            (
+                0.001_153_561_542_308_523_6,
+                731_611.160_931_477_6,
+                3.267_656_625_181_253,
+                0.003_281_744_887_778_894_7,
+            ),
+        ] {
+            crate::np_assert_allclose!(&[crate::fdtrc(a, b, x)], &[q], rtol = 1e-12);
+        }
     }
 
     #[test]

@@ -388,8 +388,14 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 /// Unlike in xsf, where only `x` is passed: if `x` is close to 1 and above the mean, where
 /// `incbet` swaps to `1 - x`, the rounding error of `x` is amplified (or `1 - x` even rounds to 0),
 /// so `1 - betainc(b, a, y)` is used instead.
+///
+/// Below the mean, the continued fractions of `incbet` need O(1/sqrt(y)) iterations, over which
+/// their relative rounding error grows to ~0.1 eps / y, e.g. `fdtr(1e7, 0.001, 0.5)` had a
+/// relative error of 4e-8. So the complement is used there as well if `a y <= 1`, where
+/// `betainc(b, a, y)` is a power series with an absolute error of ~(1 - ln(b)) eps, and the result
+/// is at least ~b/5 (both measured), if its relative error ~5 (1 - ln(b)) eps / b is smaller.
 pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
-    if x > 0.95 && x > a / (a + b) {
+    if x > 0.95 && (x > a / (a + b) || (a * y <= 1.0 && 50.0 * (1.0 - b.ln()) * y < b)) {
         let q = betainc(b, a, y);
         // `incbet` can be NaN for huge `a` and `b`, and slightly exceed 1
         if !q.is_nan() {
