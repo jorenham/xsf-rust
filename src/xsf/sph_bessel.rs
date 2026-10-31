@@ -116,6 +116,22 @@ fn pow_m1(n: i64) -> f64 {
     (-1.0_f64).powf(n as f64)
 }
 
+/// The leading term `x^n / (2n + 1)!!` of the power series of both `j_n(x)` and `i_n(x)`, if the
+/// first omitted correction `x^2 / (4n + 6)` is below roughly `eps / 4`.
+#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+fn sph_bessel_tiny_x(n: i64, x: f64) -> Option<f64> {
+    if x * x >= (n as f64 + 1.5) * f64::EPSILON {
+        return None;
+    }
+    let mut res = 1.0;
+    let mut k: i64 = 1;
+    while k <= n && res != 0.0 {
+        res *= x / (2.0 * k as f64 + 1.0);
+        k += 1;
+    }
+    Some(res)
+}
+
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
 fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
     csqrt(cdiv(c64(FRAC_PI_2, 0.0), z))
@@ -150,6 +166,12 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
         }
 
         return 0.0;
+    }
+
+    // Unlike in xsf, the leading power series term is also used for j_n (see sph_bessel_i_f64),
+    // since J_{n + 1/2}(x) underflows for tiny x, e.g. j_1(1.166e-222) was 0 instead of 3.89e-223.
+    if let Some(res) = sph_bessel_tiny_x(n, x) {
+        return res;
     }
 
     if n > 0 && n as f64 >= x {
@@ -360,7 +382,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
     sph_bessel_y_c64(n - 1, x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
 }
 
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+#[allow(clippy::float_cmp)]
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -396,13 +418,7 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     // by the spherical normalization.  In the tiny-x region, use the leading
     // term of the power series i_n(x) = x^n / (2n + 1)!! * (1 + O(x^2)).
     // The cutoff bounds the omitted first correction by roughly eps / 4.
-    if x * x < (n as f64 + 1.5) * f64::EPSILON {
-        let mut res = 1.0;
-        let mut k: i64 = 1;
-        while k <= n && res != 0.0 {
-            res *= x / (2.0 * k as f64 + 1.0);
-            k += 1;
-        }
+    if let Some(res) = sph_bessel_tiny_x(n, x) {
         return res;
     }
 
@@ -690,6 +706,19 @@ mod tests {
         let actual = x.map(|x| crate::sph_bessel_j(2, x));
         let expected = x.map(|x| ((-1.0 + 3.0 / (x * x)) * x.sin() - 3.0 / x * x.cos()) / x);
         crate::np_assert_allclose!(&actual, &expected);
+    }
+
+    #[test]
+    fn test_sph_bessel_j_tiny_x() {
+        // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x)
+        let actual =
+            [(1, 1.166e-222), (2, 1e-150), (5, 1e-60)].map(|(n, x)| crate::sph_bessel_j(n, x));
+        let expected = [
+            3.886_666_666_666_666e-223,
+            6.666_666_666_666_667e-302,
+            9.620_009_620_009_619e-305,
+        ];
+        crate::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
     }
 
     /// From `scipy.special.tests.test_spherical_bessel.TestSphericalYn.test_spherical_yn_exact`
