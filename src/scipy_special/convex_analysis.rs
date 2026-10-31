@@ -238,7 +238,8 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
         0.0
     } else {
         let u2 = delta * delta;
-        let v2 = r * r / u2;
+        let v = r / delta;
+        let v2 = v * v;
         // The formula is u^2 * (sqrt(v^2 + 1) - 1), but to maintain precision with small v, we use
         // sqrt(1 + v^2) - 1
         //   =  exp(log(v^2 + 1) / 2) - 1
@@ -372,5 +373,7 @@ mod tests {
         assert_eq!(crate::pseudo_huber(-1.0, 1.5), f64::INFINITY);
         np_assert_allclose!([crate::pseudo_huber(2.0, 1.5)], [1.0]);
         np_assert_allclose!([crate::pseudo_huber(2.0, 2.5)], [41.0_f64.sqrt() - 4.0]);
+        // delta^2 underflows to 0, but r / delta doesn't
+        assert_eq!(crate::pseudo_huber(1e-170, 1e-160), 0.0);
     }
 }

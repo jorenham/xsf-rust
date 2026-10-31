@@ -130,7 +130,7 @@ pub fn inv_boxcox1p(y: f64, lambda: f64) -> f64 {
 
     let lambda_y = lambda * y;
     if lambda_y.abs() < SQRT_F64_MIN_POSITIVE {
-        return y;
+        return y.exp_m1();
     }
 
     let log_term = if lambda_y < f64::MAX {
@@ -268,6 +268,10 @@ mod tests {
         let lam = 1e-306;
         let y = crate::inv_boxcox1p(x, lam);
         crate::np_assert_allclose!(&[y], &[x], rtol = 1e-14);
+
+        // the limit for lambda * x -> 0 is expm1(x), not x (scipy/xsf#332)
+        let y = crate::inv_boxcox1p(1.0, 1e-160);
+        crate::np_assert_allclose!(&[y], &[1.0_f64.exp_m1()], rtol = 1e-15);
     }
 
     #[test]

@@ -118,7 +118,7 @@ fn loggamma_taylor(mut z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::detail::zlog1` from `xsf/zlog1.h` (original author: Josh Wilson, 2016)
-fn zlog1(mut z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn zlog1(mut z: Complex<f64>) -> Complex<f64> {
     /* Compute log, paying special attention to accuracy around 1. We
      * implement this ourselves because some systems (most notably the
      * Travis CI machines) are weak in this regime. */
