@@ -199,6 +199,11 @@ pub(crate) fn ellie(phi: f64, m: f64) -> f64 {
         npio2 += 1.0;
     }
     lphi -= npio2 * FRAC_PI_2;
+    // Unlike in xsf, the residual is reduced again if |phi| >~ 1e16 left it outside [-pi, pi],
+    // e.g. `ellipeinc(-1.79e19, -1.24e35)` was NaN instead of -4.02e36.
+    if lphi.abs() > PI {
+        return ellie(lphi, m) + npio2 * ellpe(m);
+    }
     let sign = if lphi < 0.0 {
         lphi = -lphi;
         -1
