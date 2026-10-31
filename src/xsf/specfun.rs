@@ -65,7 +65,7 @@ impl Hyp1F1Arg for Complex<f64> {
 
 /// Bernoulli numbers $B_0, \ldots, B_{N-1}$
 ///
-/// Corresponds to [`scipy.special.bernoulli`][scipy] in SciPy, and calls the FFI function
+/// Corresponds to [`scipy.special.bernoulli`][scipy] in SciPy, and uses a translation of
 /// `xsf::specfun::bernob`.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bernoulli.html
@@ -105,7 +105,7 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
 
 /// Euler numbers $E_0, \ldots, E_{N-1}$
 ///
-/// Corresponds to [`scipy.special.euler`][scipy] in SciPy, and calls the FFI function
+/// Corresponds to [`scipy.special.euler`][scipy] in SciPy, and uses a translation of
 /// `xsf::specfun::eulerb`.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.euler.html
