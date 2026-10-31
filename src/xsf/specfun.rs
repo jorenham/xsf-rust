@@ -309,4 +309,25 @@ mod tests {
         let _ = crate::hyp1f1(3e9, 1.0, 1.0);
         let _ = crate::hyp1f1(3e9, 1.0, c64(1.0, 0.0));
     }
+
+    #[test]
+    fn test_hyp1f1_large_a() {
+        // mpmath; in xsf these are 1.2e87, 3.3e251, 7.9e303, inf, and NaN
+        let abx = [
+            (300.0, 400.0, 1e-10),
+            (952.25, 952.24, 5.94),
+            (57.05, 1.1e7, 1.86),
+            (5.0, 2000.0, -650.0),
+            (2.5, 3000.0, -600.0),
+        ];
+        let expected = [
+            1.000_000_000_075,
+            379.958_556_784_186_2,
+            1.000_009_646_683_708_2,
+            0.244_751_044_949_691_12,
+            0.633_912_466_368_326_7,
+        ];
+        let actual = abx.map(|(a, b, x)| crate::hyp1f1(a, b, x));
+        xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+    }
 }

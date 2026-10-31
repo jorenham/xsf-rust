@@ -12,7 +12,7 @@ use num_complex::{Complex64, c64};
 use super::{cgama, gamma2, psi_spec};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
-use crate::xsf::tools::int_x86;
+use crate::xsf::tools::{int_x86, series_eval_kahan};
 
 #[allow(
     clippy::cast_possible_truncation,
@@ -170,6 +170,21 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
+/// Unlike in xsf: `scale * M(a, b, x)` from the series DLMF 13.2.2, for `a >= 0`, `b > 0` and
+/// `x >= 0`, or `None` if it doesn't converge within 100000 terms. All terms are positive, so
+/// there is no cancellation, and the partial sums don't overflow unless the result does.
+fn chgm_series_pos(a: f64, b: f64, x: f64, scale: f64) -> Option<f64> {
+    let mut n = 0.0;
+    let mut t = scale;
+    let terms = || {
+        t *= (a + n) / (n + 1.0) * (x / (b + n));
+        n += 1.0;
+        t
+    };
+    let (hg, k) = series_eval_kahan(terms, f64::EPSILON, 100_000, scale);
+    (k > 0).then_some(hg)
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,
@@ -198,6 +213,14 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         a = b - a;
         a0 = a;
         x = x.abs();
+    }
+    // Unlike in xsf, for a >= 2 and b > 0 the series DLMF 13.2.2 is summed directly, instead of
+    // using the forward recurrence in a (DLMF 13.3.1) below, which is unstable for b > 2a + x
+    // (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of 1.000000000075.
+    if a >= 2.0 && b > 0.0 && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
+        if let Some(hg) = chgm_series_pos(a, b, x, x0.min(0.0).exp()) {
+            return hg;
+        }
     }
     let mut nl = 0;
     let mut la = 0;
