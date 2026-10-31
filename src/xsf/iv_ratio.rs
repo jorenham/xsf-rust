@@ -7,6 +7,7 @@
 use core::ops::Mul;
 
 use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64};
+use crate::xsf::complex::atanh;
 use crate::xsf::tools::{
     Real, bracket_root_for_cdf_inversion, continued_fraction_series, find_root_chandrupatla,
     series_eval_kahan,
@@ -198,7 +199,7 @@ pub fn iv_ratioinv(v: f64, r: f64) -> f64 {
         return f64::INFINITY;
     }
     if v == 0.5 {
-        return r.atanh();
+        return atanh(r);
     }
     // Algorithm description: use Chandrupatla's method to find the root of
     // f(x) = iv_ratio(v, x) - r (or f(x) = 1 - iv_ratio_c(v, x) - r if r > 0.5).
