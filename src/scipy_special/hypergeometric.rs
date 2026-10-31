@@ -49,8 +49,11 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_real`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L31-L56>
 #[inline]
+#[allow(clippy::float_cmp)]
 fn hyp0f1_real(v: f64, z: f64) -> f64 {
-    if v <= 0.0 && v.fract() == 0.0 {
+    if v.is_nan() || z.is_nan() {
+        f64::NAN
+    } else if v <= 0.0 && v == v.floor() {
         // poles
         f64::NAN
     } else if z == 0.0 && v != 0.0 {
@@ -83,8 +86,11 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_cmplx`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L106-L136>
 #[inline]
+#[allow(clippy::float_cmp)]
 fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
-    if v <= 0.0 && v.fract() == 0.0 {
+    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        Complex64::new(f64::NAN, f64::NAN)
+    } else if v <= 0.0 && v == v.floor() {
         // poles
         f64::NAN.into()
     } else if z.re == 0.0 && z.im == 0.0 && v != 0.0 {
@@ -378,5 +384,14 @@ mod tests {
             [c64(1.613_971_977_644_111_5, 0.808_930_540_617_906_7)],
             atol = 1.5e-7
         );
+    }
+
+    #[test]
+    fn test_hyp0f1_nan() {
+        assert!(hyp0f1(f64::NAN, 0.0).is_nan());
+        assert!(hyp0f1(1.0, c64(f64::NAN, 0.0)).is_nan());
+        // pole at v = -inf
+        assert!(hyp0f1(f64::NEG_INFINITY, 0.0).is_nan());
+        assert!(hyp0f1(f64::NEG_INFINITY, c64(0.0, 0.0)).is_nan());
     }
 }

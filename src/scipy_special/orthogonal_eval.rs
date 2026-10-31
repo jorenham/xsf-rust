@@ -9,7 +9,11 @@ use num_traits::Zero;
 
 mod sealed {
     pub trait OrthoPolyArg:
-        crate::xsf::Hyp2F1Arg + crate::xsf::Hyp1F1Arg + num_traits::NumOps<f64> + Clone
+        crate::xsf::Hyp2F1Arg
+        + crate::xsf::Hyp1F1Arg
+        + num_traits::NumOps<f64>
+        + num_traits::NumOps
+        + Clone
     {
         const ZERO: Self;
 
@@ -72,7 +76,19 @@ pub trait JacobiArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `eval_jacobi` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
+    #[allow(clippy::float_cmp, clippy::manual_midpoint)]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
+        if a == -1.0 && b.abs() == 1.0 {
+            // like in xsf main, avoid the hyp2f1 pole at c = 1 + alpha = 0
+            if n == 0.0 {
+                return Self::ZERO + 1.0;
+            } else if n == 1.0 {
+                return (self - 1.0) * (0.5 * (1.0 + b));
+            } else if n > 1.0 {
+                let p = self.clone().eval_jacobi(n - 1.0, 1.0, b);
+                return (self - 1.0) * ((n + b) / (2.0 * n)) * p;
+            }
+        }
         let a1 = a + 1.0;
         self.hyp2f1_sh(-n, n + a1 + b, a1) * multiset(a1, n)
     }
@@ -80,6 +96,9 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
     fn eval_legendre(self, n: f64) -> Self {
+        if self.is_nan() {
+            return self;
+        }
         self.hyp2f1_sh(-n, n + 1.0, 1.0)
     }
 }
@@ -87,6 +106,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
 impl JacobiArg<i32> for f64 {
     /// Corresponds to `eval_jacobi_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
+    #[allow(clippy::float_cmp)]
     fn eval_jacobi(self, n: i32, a: f64, b: f64) -> Self {
         match n.cmp(&0) {
             Ordering::Less => self.eval_jacobi(f64::from(n), a, b),
@@ -99,6 +119,10 @@ impl JacobiArg<i32> for f64 {
 
                 if n == 1 {
                     a1 + d0
+                } else if a == -1.0 && b.abs() == 1.0 {
+                    // like in xsf main, avoid the division by alpha + 1 = 0
+                    let n = f64::from(n);
+                    ((n + b) / (2.0 * n)) * (self - 1.0) * self.eval_jacobi(n - 1.0, 1.0, b)
                 } else {
                     let mut d = d0 / a1;
                     let mut p = d + 1.0;
@@ -118,7 +142,10 @@ impl JacobiArg<i32> for f64 {
     /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
     fn eval_legendre(self, n: i32) -> Self {
-        let n = if n < 0 { -n - 1 } else { n }; // symmetry
+        if self.is_nan() {
+            return self;
+        }
+        let n = if n < 0 { -(n + 1) } else { n }; // symmetry
         let x = self;
 
         if n == 0 {
@@ -264,6 +291,8 @@ impl GegenbauerArg<i32> for f64 {
             0.0
         } else if n == 0 {
             1.0
+        } else if n == 1 {
+            2.0 * alpha * self
         } else if self.abs() < 1e-5 {
             // Power series rather than recurrence due to loss of precision.
             // We use backwards iteration to avoid large powers of z in the initial term.
@@ -290,9 +319,13 @@ impl GegenbauerArg<i32> for f64 {
             // Recurrence relation
             // https://functions.wolfram.com/Polynomials/GegenbauerC3/17/01/01/01/0002/
 
+            // Symmetry property: C_n^alpha(-x) = (-1)^n C_n^alpha(x) for integer n (like in xsf main)
+            let sign = if self < 0.0 && n % 2 == 1 { -1.0 } else { 1.0 };
+            let x = self.abs();
+
             let aa = alpha * 2.0;
-            let d0 = self - 1.0;
-            let (mut p, mut d) = (self, d0);
+            let d0 = x - 1.0;
+            let (mut p, mut d) = (x, d0);
             for k in 1..n {
                 let k = f64::from(k);
                 d = (k * d + (k + k + aa) * d0 * p) / (k + aa);
@@ -302,9 +335,9 @@ impl GegenbauerArg<i32> for f64 {
             let n = f64::from(n);
             if (alpha / n).abs() < 1e-8 {
                 // avoid loss of precision
-                aa / n * p
+                sign * aa / n * p
             } else {
-                multiset(aa, n) * p
+                sign * multiset(aa, n) * p
             }
         }
     }
@@ -368,12 +401,17 @@ impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
 impl ChebyshevArg<i32> for f64 {
     #[inline]
     fn eval_chebyshev_t(self, n: i32) -> Self {
+        if self.is_nan() {
+            return self;
+        }
         chebyshev_recurrence(self, 1.0, self, 0..n.abs())
     }
 
     #[inline]
     fn eval_chebyshev_u(self, n: i32) -> Self {
-        if n < -1 {
+        if self.is_nan() {
+            self
+        } else if n < -1 {
             -chebyshev_recurrence(self, 0.0, -1.0, -1..(-n - 2))
         } else {
             chebyshev_recurrence(self, 0.0, -1.0, -1..n)
@@ -456,6 +494,10 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
     /// Corresponds to `eval_genlaguerre` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
     fn eval_genlaguerre(self, n: f64, a: f64) -> Z {
+        if a <= -1.0 {
+            // polynomial defined only for alpha > -1
+            return Self::ZERO + f64::NAN;
+        }
         let a1 = a + 1.0;
         self.hyp1f1(-n, a1) * multiset(a1, n)
     }
@@ -465,8 +507,13 @@ impl LaguerreArg<i32> for f64 {
     /// Corresponds to `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
     fn eval_genlaguerre(self, n: i32, a: f64) -> Self {
-        if n < 0 {
+        if a <= -1.0 || a.is_nan() || self.is_nan() {
+            // polynomial defined only for alpha > -1
+            f64::NAN
+        } else if n < 0 {
             0.0
+        } else if n == 1 {
+            -self + a + 1.0
         } else {
             let a1 = a + 1.0;
             let (mut d, mut p) = (0.0, 1.0);
@@ -1044,5 +1091,30 @@ mod tests {
         np_assert_allclose!([c], [0.1505], rtol = 1e-14);
         let c = crate::eval_gegenbauer(4_i32, -0.25, 2.0);
         np_assert_allclose!([c], [-7.093_75], rtol = 1e-14);
+        // C_1^alpha(x) = 2 alpha x, also where binom(2 alpha, 1) = 0
+        assert_eq!(crate::eval_gegenbauer(1_i32, -0.5, -0.3), 0.3);
+    }
+
+    #[test]
+    fn test_eval_jacobi_alpha_m1() {
+        // mpmath: jacobi(n, -1 + 1e-35, beta, x)
+        np_assert_allclose!([eval_jacobi(3_i32, -1.0, 1.0, 0.3)], [0.1925], rtol = 1e-14);
+        np_assert_allclose!([eval_jacobi(3.0, -1.0, 1.0, 0.3)], [0.1925], rtol = 1e-14);
+        let p = eval_jacobi(2.5, -1.0, -1.0, 0.3);
+        np_assert_allclose!([p], [-0.218_362_414_580_039_7], rtol = 1e-14);
+    }
+
+    #[test]
+    fn test_nan_and_domain() {
+        let nan = f64::NAN;
+        assert!(eval_legendre(0_i32, nan).is_nan());
+        assert!(eval_legendre(0.0, nan).is_nan());
+        assert!(crate::eval_chebyshev_t(0_i32, nan).is_nan());
+        assert!(crate::eval_chebyshev_u(-1_i32, nan).is_nan());
+        assert!(eval_laguerre(0_i32, nan).is_nan());
+        assert!(crate::eval_genlaguerre(2_i32, nan, 1.0).is_nan());
+        // alpha <= -1
+        assert!(crate::eval_genlaguerre(2_i32, -1.5, 0.3).is_nan());
+        assert!(crate::eval_genlaguerre(2.0, -1.5, 0.3).is_nan());
     }
 }

@@ -112,6 +112,10 @@ pub fn iv_ratio(v: f64, x: f64) -> f64 {
     if x.is_infinite() {
         return 1.0;
     }
+    if v == 0.5 {
+        // Closed-form solution for v = 0.5: iv_ratio(0.5, x) = tanh(x)
+        return x.tanh();
+    }
 
     let (ret, terms) = iv_ratio_cf::<f64>(v, x, false);
     if terms == 0 {
@@ -176,6 +180,7 @@ mod tests {
     #[test]
     fn test_iv_ratio() {
         xsref::test("iv_ratio", "d_d-d", |x| crate::iv_ratio(x[0], x[1]));
+        assert_eq!(crate::iv_ratio(0.5, 3.0), 3.0_f64.tanh());
     }
 
     #[test]
