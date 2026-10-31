@@ -337,6 +337,14 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     x -= 180.0 * k;
     if cotflg {
         if x <= 90.0 {
+            // Unlike in xsf, cot(x) = 1 / tan(x) is used for 0 < x < 45, since 90 - x rounds,
+            // which is amplified near the pole at x = 0.
+            //
+            // E.g. cotdg(1e-10) was 572956949790.9288 instead of 572957795130.8232, and
+            // cotdg(1e-15) was inf.
+            if x != 0.0 && x < 45.0 {
+                return f64::from(sign) / (x * PI180).tan();
+            }
             x = 90.0 - x;
         } else {
             x -= 90.0;
@@ -360,6 +368,13 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
         return f64::from(sign) * f64::INFINITY;
     }
     /* x is now transformed into [0, 90) */
+    // Unlike in xsf, tan(x) = 1 / tan(90 - x) is used for x > 45, since x * PI180 rounds,
+    // which is amplified near the pole at x = 90 (whereas 90 - x is exact).
+    //
+    // E.g. tandg(89.9999999999) was 572956949790.9288 instead of 572947570131.5804.
+    if x > 45.0 {
+        return f64::from(sign) / ((90.0 - x) * PI180).tan();
+    }
     f64::from(sign) * (x * PI180).tan()
 }
 
@@ -779,6 +794,23 @@ mod tests {
         }
         assert_close(crate::tandg(30.0), (PI / 6.0).tan());
         assert_close(crate::cotdg(60.0), 1.0 / (PI / 3.0).tan());
+    }
+
+    #[test]
+    fn test_tandg_cotdg_near_poles() {
+        // mpmath reference values
+        let x = [89.999_999_999_9, 270.000_000_001];
+        let t = [572_947_570_131.580_4, -57_296_385_445.315_09];
+        xsref::np_assert_allclose!(&x.map(crate::tandg), &t, rtol = 1e-15);
+
+        let x = [1e-10, 1e-15, -1e-300, 179.999_999_999_9];
+        let c = [
+            572_957_795_130.823_2,
+            5.729_577_951_308_232e16,
+            -5.729_577_951_308_232e301,
+            -573_029_000_997.147_8,
+        ];
+        xsref::np_assert_allclose!(&x.map(crate::cotdg), &c, rtol = 1e-15);
     }
 
     #[test]
