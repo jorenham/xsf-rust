@@ -1,5 +1,7 @@
 //! Translated from <https://github.com/scipy/scipy/blob/38ecfef/scipy/special/_basic.py#L1539-L1579>
 
+use crate::xsf::cephes::zeta_euler_maclaurin;
+
 /// Polygamma function ψ<sup>(n)</sup>(x)
 ///
 /// The n-th derivative of the [`digamma`](crate::digamma) function.
@@ -18,7 +20,16 @@ pub fn polygamma(n: u32, x: f64) -> f64 {
     } else {
         let n1p = f64::from(n) + 1.0;
         let sign = if n % 2 == 0 { -1.0 } else { 1.0 };
-        sign * crate::gamma(n1p) * crate::zeta(n1p, x)
+        let (g, z) = (crate::gamma(n1p), crate::zeta(n1p, x));
+        // Unlike in SciPy, if `n!` overflows or `zeta(n + 1, x)` underflows, this uses
+        // `n! zeta(n + 1, x) = (n - 1)! x^-n sum_k n / (x + k) (x / (x + k))^n` in log space,
+        // e.g. `polygamma(30, 1e11)` was -0 instead of -8.84e-300.
+        if x > 0.0 && x.is_finite() && (g.is_infinite() || z < f64::MIN_POSITIVE) {
+            let nf = f64::from(n);
+            let s = zeta_euler_maclaurin(n1p, x, |a| nf / a * (x / a).powf(nf));
+            return sign * (crate::gammaln(nf) - nf * x.ln() + s.ln()).exp();
+        }
+        sign * g * z
     }
 }
 
@@ -74,5 +85,22 @@ mod tests {
             atol = 1.5e-7,
             rtol = 0.0
         );
+    }
+
+    #[test]
+    fn test_polygamma_large_n() {
+        // n! overflows or zeta(n + 1, x) underflows (reference values from mpmath)
+        for (n, x, expected) in [
+            (30, 1e11, -8.841_761_995_065_966e-300),
+            (142, 227.031_298_928_706_3, -6.966_070_108_353_208e-92),
+            (171, 1.02, 4.116_693_769_939_060_4e307),
+            (175, 1000.0, 7.004_133_681_486_838e-210),
+        ] {
+            let rel = (crate::polygamma(n, x) - expected).abs() / expected.abs();
+            assert!(rel < 5e-13, "polygamma({n}, {x}): rel = {rel:e}");
+        }
+        // subnormal results
+        assert_eq!(crate::polygamma(170, 4_960.382_505_394_897), -5e-324);
+        assert_eq!(crate::polygamma(1000, 773.186_605_102_581_9), -5e-324);
     }
 }

@@ -106,20 +106,27 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
     }
 
     /* Euler-Maclaurin summation formula */
+    zeta_euler_maclaurin(x, q, |a| a.powf(-x))
+}
 
+/// The Euler-Maclaurin summation of `zeta`, but of `term(q + k)` instead of `(q + k)^-x`, where
+/// `term(a)` is proportional to `a^-x`.
+///
+/// Unlike in xsf, this is a separate function, so that `polygamma` can scale the terms.
+pub(crate) fn zeta_euler_maclaurin(x: f64, q: f64, term: impl Fn(f64) -> f64) -> f64 {
     /* Permit negative q but continue sum until n+q > +9 .
      * This case should be handled by a reflection formula.
      * If q<0 and x is an integer, there is a relation to
      * the polyGamma function.
      */
-    let mut s = q.powf(-x);
+    let mut s = term(q);
     let mut a = q;
     let mut i = 0;
     let mut b = 0.0;
     while (i < 9) || (a <= 9.0) {
         i += 1;
         a += 1.0;
-        b = a.powf(-x);
+        b = term(a);
         s += b;
         if (b / s).abs() < MACHEP {
             return s;
