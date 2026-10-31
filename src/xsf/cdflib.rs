@@ -9,7 +9,58 @@
 //! `f64::exp_m1` is used instead of the Cephes `expm1`), so the roots found by `gdtrib` can as well.
 
 use crate::xsf::cephes::{igam, igamc};
+use crate::xsf::gamma::gammaincinv;
 use crate::xsf::tools::{bracket_root_for_cdf_inversion, find_root_chandrupatla};
+
+/// Inverse of [`gdtr`](crate::gdtr) with respect to `a`
+///
+/// Corresponds to [`scipy.special.gdtria`][gdtria], and `xsf::gdtria` in xsf main.
+///
+/// [gdtria]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtria.html
+///
+/// # See also
+/// - [`gdtr`](crate::gdtr): Gamma CDF
+/// - [`gdtrib`]: Inverse of [`gdtr`](crate::gdtr) with respect to `b`
+/// - [`gdtrix`]: Inverse of [`gdtr`](crate::gdtr) with respect to `x`
+#[must_use]
+#[inline]
+#[allow(clippy::float_cmp)]
+pub fn gdtria(p: f64, b: f64, x: f64) -> f64 {
+    if x == 0.0 {
+        return f64::NAN;
+    }
+    if b == 0.0 && p == 0.0 {
+        if x.is_infinite() && x > 0.0 {
+            return f64::NAN;
+        }
+        return 0.0;
+    }
+    gammaincinv(b, p) / x
+}
+
+/// Inverse of [`gdtr`](crate::gdtr) with respect to `x`
+///
+/// Corresponds to [`scipy.special.gdtrix`][gdtrix], and `xsf::gdtrix` in xsf main.
+///
+/// [gdtrix]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtrix.html
+///
+/// # See also
+/// - [`gdtr`](crate::gdtr): Gamma CDF
+/// - [`gdtria`]: Inverse of [`gdtr`](crate::gdtr) with respect to `a`
+/// - [`gdtrib`]: Inverse of [`gdtr`](crate::gdtr) with respect to `b`
+#[must_use]
+#[inline]
+#[allow(clippy::float_cmp)]
+pub fn gdtrix(a: f64, b: f64, p: f64) -> f64 {
+    if a == 0.0 && b == 0.0 {
+        return f64::NAN;
+    }
+    // if a or b is positive infinite, return NaN
+    if (a.is_infinite() || b.is_infinite()) && (a >= 0.0 && b >= 0.0) {
+        return f64::NAN;
+    }
+    gammaincinv(b, p) / a
+}
 
 /// Inverse of [`gdtr`](crate::gdtr) with respect to `b`
 ///
@@ -119,5 +170,17 @@ mod tests {
     #[test]
     fn test_gdtrib() {
         xsref::test("gdtrib", "d_d_d-d", |x| crate::gdtrib(x[0], x[1], x[2]));
+    }
+
+    #[test]
+    fn test_gdtria_gdtrix() {
+        // reference values from scipy.special
+        xsref::np_assert_allclose!([crate::gdtria(0.5, 2.0, 3.0)], [0.559_448_996_672_220_4]);
+        xsref::np_assert_allclose!([crate::gdtrix(1.5, 2.5, 0.25)], [0.891_534_269_810_721_3]);
+        assert_eq!(crate::gdtria(0.0, 0.0, 1.0), 0.0);
+        assert!(crate::gdtria(0.0, 0.0, f64::INFINITY).is_nan());
+        assert!(crate::gdtria(0.5, 1.0, 0.0).is_nan());
+        assert!(crate::gdtrix(0.0, 0.0, 0.5).is_nan());
+        assert!(crate::gdtrix(f64::INFINITY, 1.0, 0.5).is_nan());
     }
 }
