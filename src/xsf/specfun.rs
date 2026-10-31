@@ -352,4 +352,23 @@ mod tests {
         let actual = abx.map(|(a, b, x)| crate::hyp1f1(a, b, x));
         xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
     }
+
+    #[test]
+    fn test_hyp1f1_complex_large_a() {
+        // mpmath; in xsf these have a relative error of 3.5e3, 1.3e-6, 9.7e72, and 8.6e248
+        let abz = [
+            (30.0, 70.0, c64(0.0, 20.0)),
+            (10.0, 50.0, c64(5.0, 30.0)),
+            (0.5, 400.0, c64(-30.0, -1.0)),
+            (952.25, 952.24, c64(5.94, 0.0)),
+        ];
+        let expected = [
+            c64(-0.320_661_290_060_071_9, 0.381_802_776_457_525_86),
+            c64(0.602_663_421_239_993_6, -0.092_796_424_643_608_8),
+            c64(0.964_479_298_872_970_2, -0.001_121_758_543_499_657_6),
+            c64(379.958_556_784_186_2, 0.0),
+        ];
+        let actual = abz.map(|(a, b, z)| crate::hyp1f1(a, b, z));
+        xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
+    }
 }
