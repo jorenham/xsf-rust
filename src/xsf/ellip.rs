@@ -140,6 +140,10 @@ mod tests {
             let rel = (got - expected).abs() / expected.abs();
             assert!(rel < 1e-15, "rel = {rel:e}");
         }
+        // overflows (was NaN, since the residual's term overflowed with the opposite sign)
+        let (phi, m) = (-7.497_579_196_689_92e261, -2.657_819_711_198_385_3e169);
+        assert_eq!(crate::ellipeinc(phi, m), f64::NEG_INFINITY);
+        assert_eq!(crate::ellipeinc(-phi, m), f64::INFINITY);
     }
 
     #[test]
