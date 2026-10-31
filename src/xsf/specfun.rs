@@ -1,6 +1,7 @@
 mod bessel;
 mod erf;
 mod gamma;
+mod hyp1f1_recurrence;
 mod hyperg;
 mod legendre;
 mod mathieu;
@@ -369,6 +370,29 @@ mod tests {
             c64(379.958_556_784_186_2, 0.0),
         ];
         let actual = abz.map(|(a, b, z)| crate::hyp1f1(a, b, z));
+        xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
+    }
+
+    #[test]
+    fn test_hyp1f1_neg_a() {
+        // mpmath; in xsf these are 5.5e8, -9.7e28, -2.6, -0.037, -1.5e15, and NaN
+        let abx = [
+            (-1000.5, 1.0, 1.0),
+            (-1000.5, 0.5, 3.0),
+            (-1000.5, 0.5, 0.4),
+            (1100.5, 100.0, -5.0),
+            (-100.7, 10_000.0, 11_000.0),
+            (-20_000.25, 3.0, 50.0),
+        ];
+        let expected = [
+            0.155_652_734_227_881_56,
+            -4.156_338_175_187_512,
+            -0.827_579_317_701_538,
+            1.667_059_039_325_649_8e-31,
+            4.939_183_825_283_591e-113,
+            -1_296.785_197_037_247_8,
+        ];
+        let actual = abx.map(|(a, b, x)| crate::hyp1f1(a, b, x));
         xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
     }
 }

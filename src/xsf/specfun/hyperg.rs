@@ -9,6 +9,7 @@ use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
 
+use super::hyp1f1_recurrence::hyp1f1_neg_a;
 use super::{cgama, gamma2, psi_spec};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
@@ -296,15 +297,32 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
             hg = 1.0;
             let mut rg = 1.0;
+            // Unlike in xsf: the sum of |rg|, to measure the cancellation
+            let mut rs = 1.0;
+            let mut accurate = false;
             for j in 1..501 {
                 rg = rg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
                 hg += rg;
+                rs += rg.abs();
                 if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
+                    accurate = rs * f64::EPSILON.sqrt() <= hg.abs();
                     // DLMF 13.2.39 (cf. above)
                     if x0 < 0.0 {
                         hg *= x0.exp();
                     }
                     break;
+                }
+            }
+            // Unlike in xsf, for non-integer a < -1 and b > 0, the backward recurrences from
+            // Boost.Math (`hyp1f1_recurrence`) are used if the series doesn't converge or loses
+            // more than half of its digits (as in Boost's checked series).
+            //
+            // E.g. `hyp1f1(-1000.5, 1, 1)` was 5.5e8 instead of 0.15565.
+            if !accurate && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
+                // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
+                let m = |a, b| hyp1f1_series(a, b, c64(x, 0.0), Complex64::ONE).map(|(s, _)| s.re);
+                if let Some(hg) = hyp1f1_neg_a(a, b, x, x0.min(0.0), m) {
+                    return hg;
                 }
             }
         } else {
