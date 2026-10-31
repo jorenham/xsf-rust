@@ -14,8 +14,6 @@ pub(crate) fn p1evl(x: f64, coef: &[f64]) -> f64 {
 
 /// Evaluate a rational function. See \[1\].
 ///
-/// The function ratevl is only used once in cephes/lanczos.h.
-///
 /// Unlike the C++ implementation, this uses fused multiply-adds, which reduces the max error of
 /// `lanczos_sum_expg_scaled` on `(0, 172)` from 6.7 to 5.1 ulp.
 ///
