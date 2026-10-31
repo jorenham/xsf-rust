@@ -192,8 +192,10 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// Continued fraction expansion #2 for incomplete beta integral
+///
+/// Unlike in xsf, `xc = 1 - x` is passed, since `x` can be rounded (see `incbet`).
 #[allow(clippy::if_not_else)]
-fn incbd(a: f64, b: f64, x: f64) -> f64 {
+fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let mut xk;
     let mut pk;
     let mut qk;
@@ -212,7 +214,7 @@ fn incbd(a: f64, b: f64, x: f64) -> f64 {
     let mut qkm2 = 1.0;
     let mut pkm1 = 1.0;
     let mut qkm1 = 1.0;
-    let z = x / (1.0 - x);
+    let z = x / xc;
     let mut ans = 1.0;
     let mut r = 1.0;
     let mut n = 0;
@@ -335,8 +337,16 @@ fn incbd(a: f64, b: f64, x: f64) -> f64 {
 /// ```
 ///
 /// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
-#[allow(clippy::float_cmp)]
 pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
+    incbet_xy(aa, bb, xx, 1.0 - xx)
+}
+
+/// `incbet(aa, bb, xx)`, given `yy = 1 - xx`
+///
+/// Unlike in xsf, where only `xx` is passed, so that `1 - xx` is exact also if `xx` is rounded (see
+/// `betainc_xy`).
+#[allow(clippy::float_cmp)]
+fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     let mut flag = false;
 
     if aa <= 0.0 || bb <= 0.0 {
@@ -344,11 +354,11 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
         return f64::NAN;
     }
 
-    if (xx <= 0.0) || (xx >= 1.0) {
+    if (xx <= 0.0) || (yy <= 0.0) {
         if xx == 0.0 {
             return 0.0;
         }
-        if xx == 1.0 {
+        if yy == 0.0 {
             return 1.0;
         }
         // domerr
@@ -360,7 +370,7 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
             break 'done incbet_pseries(aa, bb, xx);
         }
 
-        let mut w = 1.0 - xx;
+        let mut w = yy;
 
         /* Reverse a and b if x is greater than the mean. */
         let (a, b, xc, x) = if xx > (aa / (aa + bb)) {
@@ -376,10 +386,18 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 
         /* Choose expansion for better convergence. */
         let mut y = x * (a + b - 2.0) - (a - 1.0);
-        if y < 0.0 {
+        if x > 0.95 {
+            // Unlike in xsf, `incbd` is used with `xc` instead of `1 - x` if `x` is close to 1
+            // (as for the power series above), where `incbcf`, which only uses `x`, amplifies
+            // its rounding error by about `a / |a xc - b|`.
+            //
+            // E.g. `incbet(15, 5e19, 6e-19)` was NaN instead of 0.99908, since `x = 1 - 6e-19`
+            // rounds to 1.
+            w = incbd(a, b, x, xc) / xc;
+        } else if y < 0.0 {
             w = incbcf(a, b, x);
         } else {
-            w = incbd(a, b, x) / xc;
+            w = incbd(a, b, x, 1.0 - x) / xc;
         }
 
         /* Multiply w by the factor
@@ -401,20 +419,17 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
         // formula)
         if a.min(b) >= 13.0 {
             y = incbet_lnpow(a, b, x, xc);
+        } else if x < xc {
+            // Unlike in xsf, the log of the larger of `x` and `xc` is computed as `ln_1p` of
+            // minus the smaller one, since the larger one can be rounded.
+            //
+            // E.g. `incbet(5, 5e19, 5e-20)` was 1 instead of 0.10882.
+            y += b * (-x).ln_1p() - lbeta(a, b);
         } else {
-            y += t - lbeta(a, b);
+            y = a * (-xc).ln_1p() + t - lbeta(a, b);
         }
         y += (w / a).ln();
-        // Unlike in xsf, the result is clamped to 1, since for huge `a + b` it can exceed 1, e.g.
-        // `incbet(2, 1e17, 2e-17)` is e^2 times too large (4.39 instead of 0.594) without it,
-        // because `1 - x` rounds to 1.
-        if y < MINLOG {
-            0.0
-        } else if y > 0.0 {
-            1.0
-        } else {
-            y.exp()
-        }
+        if y < MINLOG { 0.0 } else { y.exp() }
     };
 
     // done:
@@ -436,12 +451,22 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 /// relative error of 4e-8. So the complement is used there as well if `a y <= 1`, where
 /// `betainc(b, a, y)` is a power series with an absolute error of ~(1 - ln(b)) eps, and the result
 /// is at least ~b/5 (both measured), if its relative error ~5 (1 - ln(b)) eps / b is smaller.
+///
+/// Otherwise `y` is passed to `incbet` as well, e.g. `stdtr(1e20, -3)` was 0.5 instead of 0.0013499.
+///
+/// The mean is compared with `y`, since `x` and `a / (a + b)` can both round to 1, e.g.
+/// `fdtrc(100, 1e20, 0.5)` was 1 instead of 0.99999.
 pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
-    if x > 0.95 && (x > a / (a + b) || (a * y <= 1.0 && 50.0 * (1.0 - b.ln()) * y < b)) {
-        let q = betainc(b, a, y);
-        // `incbet` can be NaN for huge `a` and `b`, and slightly exceed 1
-        if !q.is_nan() {
-            return (1.0 - q).max(0.0);
+    if x > 0.95 && a.is_finite() && b.is_finite() {
+        let p = if y < b / (a + b) || (a * y <= 1.0 && 50.0 * (1.0 - b.ln()) * y < b) {
+            1.0 - betainc(b, a, y)
+        } else {
+            incbet_xy(a, b, x, y)
+        };
+        // `incbet` can be NaN for huge `a` and `b` (or for `a` or `b` zero), and slightly
+        // exceed 1
+        if !p.is_nan() {
+            return p.max(0.0);
         }
     }
     betainc(a, b, x)
@@ -569,6 +594,19 @@ mod tests {
             (13.0, 1e15, 1e-14, 0.208_443_523_605_136_1),
         ] {
             crate::np_assert_allclose!(&[crate::betainc(a, b, x)], &[p], rtol = 5e-12);
+        }
+    }
+
+    #[test]
+    fn test_betainc_huge_b() {
+        // reference values from mpmath
+        for &(a, b, x, p) in &[
+            (2.0, 1e17, 2e-17, 0.593_994_150_290_162),
+            (5.0, 5e19, 5e-20, 0.108_821_981_085_848_76),
+            (15.0, 5e19, 6e-19, 0.999_079_317_603_851_4),
+            (20.0, 1e12, 3e-11, 0.978_126_531_565_180_6),
+        ] {
+            crate::np_assert_allclose!(&[crate::betainc(a, b, x)], &[p], rtol = 1e-13);
         }
     }
 
