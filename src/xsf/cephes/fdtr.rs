@@ -84,15 +84,14 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 /// ```text
 ///                x     a,b                     Relative error:
 /// arithmetic  domain  domain     # trials      peak         rms
-///    IEEE      0,1    0,100        20000      3.5e-08     2.5e-10
-///    IEEE      1,5    0,100        20000      3.6e-13     3.8e-15
-///    IEEE      0,1    1,10000      20000      4.4e-11     6.6e-12
-///    IEEE      1,5    1,10000      20000      1.5e-11     3.5e-13
+///    IEEE      0,1    0,100        20000      8.9e-14     1.3e-14
+///    IEEE      1,5    0,100        20000      6.0e-13     5.7e-15
+///    IEEE      0,1    1,10000      20000      4.0e-11     6.7e-12
+///    IEEE      1,5    1,10000      20000      1.1e-11     2.9e-13
 /// ```
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
-/// were excluded from these statistics. The peak error for x in 0,1
-/// and a,b in 0,100 is from incbet for small b, e.g. b = 0.009.
+/// were excluded from these statistics.
 ///
 /// See also incbet.c.
 ///

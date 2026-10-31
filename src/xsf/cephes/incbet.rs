@@ -55,6 +55,16 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
     s
 }
 
+/// Unlike in xsf, the continued fractions are not limited to 300 iterations, which is too few near
+/// the mean for large `a + b`, and for `x` near 1 with small `b`, where they need O(sqrt(a + b))
+/// and O(1/sqrt(1 - x)) iterations, respectively. For example,
+/// `incbet(1e8, 1e8, 0.4999964644661029)` needs 2623 iterations and was 0.45307 instead of
+/// 0.46017, and `incbet(1e4, 0.002, 0.9999996)` needs 6942 iterations and was 0.0097217 instead
+/// of 0.0098510. The limit of 1e6 iterations bounds the run time.
+fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
+    (8.0 * ((a + b).sqrt() + 1.0 / (1.0 - x).sqrt())).clamp(300.0, 1e6)
+}
+
 /// Continued fraction expansion #1 for incomplete beta integral
 #[allow(clippy::if_not_else)]
 fn incbcf(a: f64, b: f64, x: f64) -> f64 {
@@ -79,6 +89,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
     let mut ans = 1.0;
     let mut r = 1.0;
     let mut n = 0;
+    let nmax = incbet_maxiter(a, b, x);
     let thresh = 3.0 * MACHEP;
     loop {
         xk = -(x * k1 * k2) / (k3 * k4);
@@ -106,7 +117,9 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        if t < thresh {
+        // Unlike in xsf, also stop once the result is NaN (which it then stays), because the
+        // larger iteration limit would otherwise make this very slow for huge `a + b`.
+        if t < thresh || r.is_nan() {
             break;
         }
 
@@ -133,7 +146,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
         }
 
         n += 1;
-        if n >= 300 {
+        if f64::from(n) >= nmax {
             break;
         }
     }
@@ -166,6 +179,7 @@ fn incbd(a: f64, b: f64, x: f64) -> f64 {
     let mut ans = 1.0;
     let mut r = 1.0;
     let mut n = 0;
+    let nmax = incbet_maxiter(a, b, x);
     let thresh = 3.0 * MACHEP;
     loop {
         xk = -(z * k1 * k2) / (k3 * k4);
@@ -193,7 +207,9 @@ fn incbd(a: f64, b: f64, x: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        if t < thresh {
+        // Unlike in xsf, also stop once the result is NaN (which it then stays), because the
+        // larger iteration limit would otherwise make this very slow for huge `a + b`.
+        if t < thresh || r.is_nan() {
             break;
         }
 
@@ -220,7 +236,7 @@ fn incbd(a: f64, b: f64, x: f64) -> f64 {
         }
 
         n += 1;
-        if n >= 300 {
+        if f64::from(n) >= nmax {
             break;
         }
     }
@@ -346,7 +362,17 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
         /* Resort to logarithms.  */
         y += t - lbeta(a, b);
         y += (w / a).ln();
-        if y < MINLOG { 0.0 } else { y.exp() }
+        // Unlike in xsf, the result is clamped to 1, since for huge `a + b` the error of `lbeta`
+        // (about (a + b) eps ln(a + b)) can push it above 1, e.g. to 122 for
+        // `incbet(1e15, 1e15, 0.5)` (in xsf it is 0.028 here, since the truncated continued
+        // fraction partially compensates).
+        if y < MINLOG {
+            0.0
+        } else if y > 0.0 {
+            1.0
+        } else {
+            y.exp()
+        }
     };
 
     // done:
@@ -442,6 +468,29 @@ mod tests {
             // NOTE: The original `rtol = 1e-15` is too strict for Cephes
             crate::np_assert_allclose!(&[p1], &[p], rtol = 1e-14);
         }
+    }
+
+    #[test]
+    fn test_betainc_slow_continued_fraction() {
+        // reference values from mpmath
+
+        // large a + b near the mean (limited by the accuracy of `lbeta`)
+        let p = crate::betainc(1e8, 1e8, 0.499_996_464_466_102_9);
+        crate::np_assert_allclose!(&[p], &[0.460_172_162_871_263_6], rtol = 1e-6);
+
+        // x near 1 with small b
+        for &(a, b, x, p) in &[
+            (1e4, 0.002, 0.999_999_6, 0.009_851_010_029_838_827),
+            (116.3, 0.0008, 0.999_98, 0.004_385_278_106_520_217),
+            (1000.0, 1e-6, 0.999_999, 6.332_019_221_868_309e-6),
+        ] {
+            crate::np_assert_allclose!(&[crate::betainc(a, b, x)], &[p], rtol = 1e-10);
+        }
+
+        // `lbeta` is inaccurate here, but the result should stay within [0, 1]
+        assert!((0.0..=1.0).contains(&crate::betainc(1e15, 1e15, 0.5)));
+        assert!((0.0..=1.0).contains(&crate::fdtr(2e15, 2e15, 1.0)));
+        assert!((0.0..=1.0).contains(&crate::fdtrc(2e15, 2e15, 1.0)));
     }
 
     #[test]
