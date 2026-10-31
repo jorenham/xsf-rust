@@ -345,6 +345,12 @@ where
             case.err.max(5e-9)
         } else if name == "airy" || name == "it1i0k0" {
             case.err.max(2e-11)
+        } else if (name == "sem" || name == "msm2")
+            && case.r#in[0] % 2.0 == 0.0
+            && case.r#in[1].abs() > 1e-7
+        {
+            // xsf's `fcoef` is inaccurate for even m, which is fixed in xsf-rust (scipy/xsf#343)
+            case.err.max(if name == "sem" { 5e-9 } else { 2e-13 })
         } else {
             (case.err * 4.0).max(5e-14)
         };

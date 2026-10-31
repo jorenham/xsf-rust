@@ -576,6 +576,25 @@ mod tests {
     }
 
     #[test]
+    fn test_mathieu_sem_even_m() {
+        // only accurate to ~2e-9 in xsf (scipy/xsf#343); the expected values are from mpmath
+        let (y, yp) = crate::mathieu_sem(50, -1e-5, 143.239_448_782_705_8);
+        crate::np_assert_allclose!(
+            [y, yp],
+            [-0.616_040_534_405_098_7, 39.385_722_677_066_29],
+            rtol = 1e-13
+        );
+
+        // zeros in xsf, because of an overflow in `fcoef`
+        let (y, yp) = crate::mathieu_sem(96, 0.01, 10.0);
+        crate::np_assert_allclose!(
+            [y, yp],
+            [-0.866_016_937_460_664, -48.001_456_348_112_84],
+            rtol = 1e-13
+        );
+    }
+
+    #[test]
     fn test_mathieu_modcem1() {
         xsref::test("mcm1", "d_d_d-d_d", |x| {
             crate::mathieu_modcem1(x[0].to_u32().unwrap(), x[1], x[2])
