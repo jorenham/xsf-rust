@@ -5,6 +5,10 @@
 //! `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
 //! `scipy.stats._hypotests`, the series also stop at a NaN term, so that e.g.
 //! `cdf_cvm(1e4, 1_000_000)` returns `NaN` instead of looping forever.
+//!
+//! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
+//! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)
+//! saturates, instead of being undefined behavior in the cast to `long long`.
 
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 
@@ -880,6 +884,160 @@ pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
     res
 }
 
+fn take_from_pmf(pmf: &[f64], k: i64) -> f64 {
+    let size = pmf.len();
+    match usize::try_from(k) {
+        Ok(k) if k < size => pmf[k],
+        _ => 0.0,
+    }
+}
+
+fn take_from_discrete_cdf(cdf: &[f64], k: i64) -> f64 {
+    // Unlike in xsf, this returns 1 instead of reading out of bounds if `cdf` is empty.
+    let size = cdf.len();
+    if k < 0 {
+        return 0.0;
+    }
+    match usize::try_from(k) {
+        Ok(k) if k < size.saturating_sub(1) => cdf[k],
+        _ => 1.0,
+    }
+}
+
+// Wilcoxon signed-rank
+
+/// Shared implementation used by PMF and CDF table generation.
+#[allow(clippy::manual_midpoint, clippy::needless_range_loop)]
+fn wilcoxon_pmf_all_impl(n: usize, res: &mut [f64]) {
+    let max_k = n * (n + 1) / 2;
+
+    for i in 0..=max_k {
+        res[i] = 0.0;
+    }
+    res[0] = 1.0;
+
+    for k in 1..=n {
+        let curr_max = k * (k + 1) / 2;
+        // Iterate backwards so res(i - k) still holds its previous-step value.
+        for i in (0..=curr_max).rev() {
+            res[i] = 0.5 * (res[i] + if i >= k { res[i - k] } else { 0.0 });
+        }
+    }
+}
+
+/// Full PMF of the Wilcoxon signed-rank statistic
+///
+/// Used internally by [`scipy.stats.wilcoxon`][wilcoxon].
+///
+/// [wilcoxon]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wilcoxon.html
+///
+/// The result has length $n (n + 1) / 2 + 1$, and contains the probability that the signed-rank
+/// statistic of a sample of size $n$ equals $k$ at index `k`.
+///
+/// Corresponds to `xsf::wilcoxon_pmf_all` in xsf main.
+///
+/// # See also
+/// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
+/// - [`wilcoxon_pmf`]: Look up the PMF in this table
+#[must_use]
+#[inline]
+pub fn wilcoxon_pmf_all(n: usize) -> Vec<f64> {
+    let mut res = vec![0.0; n * (n + 1) / 2 + 1];
+    wilcoxon_pmf_all_impl(n, &mut res);
+    res
+}
+
+/// Full CDF of the Wilcoxon signed-rank statistic
+///
+/// Used internally by [`scipy.stats.wilcoxon`][wilcoxon].
+///
+/// [wilcoxon]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wilcoxon.html
+///
+/// The result has length $n (n + 1) / 2 + 1$, and contains the probability that the signed-rank
+/// statistic of a sample of size $n$ is at most $k$ at index `k`.
+///
+/// Corresponds to `xsf::wilcoxon_cdf_all` in xsf main.
+///
+/// # See also
+/// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
+/// - [`wilcoxon_cdf`]: Look up the CDF in this table
+/// - [`wilcoxon_sf`]: Look up the survival function in this table
+#[must_use]
+#[inline]
+pub fn wilcoxon_cdf_all(n: usize) -> Vec<f64> {
+    let out_size = n * (n + 1) / 2 + 1;
+    let mut res = vec![0.0; out_size];
+
+    wilcoxon_pmf_all_impl(n, &mut res);
+    for i in 1..out_size - 1 {
+        // `cxx::min(res(i) + res(i - 1), T(1.0))`, with `min(a, b) = a < b ? a : b`
+        let r = res[i] + res[i - 1];
+        res[i] = if r < 1.0 { r } else { 1.0 };
+    }
+    res[out_size - 1] = 1.0;
+    res
+}
+
+/// PMF of the Wilcoxon signed-rank statistic, from a precomputed table
+///
+/// After truncating `k` towards zero, this returns `pmf[k]`, or `0` if `k` is out of bounds.
+/// `pmf` is the table returned by [`wilcoxon_pmf_all`].
+///
+/// Corresponds to `xsf::wilcoxon_pmf` in xsf main.
+///
+/// # See also
+/// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
+#[must_use]
+#[inline]
+#[allow(clippy::cast_possible_truncation)]
+pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
+    if k.is_nan() {
+        return f64::NAN;
+    }
+    take_from_pmf(pmf, k as i64)
+}
+
+/// CDF of the Wilcoxon signed-rank statistic, from a precomputed table
+///
+/// After truncating `k` towards zero, this returns `cdf[k]`, `0` if `k < 0`, or `1` if `k` is at
+/// least the last index. `cdf` is the table returned by [`wilcoxon_cdf_all`].
+///
+/// Corresponds to `xsf::wilcoxon_cdf` in xsf main.
+///
+/// # See also
+/// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
+/// - [`wilcoxon_sf`]: Survival function
+#[must_use]
+#[inline]
+#[allow(clippy::cast_possible_truncation)]
+pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
+    if k.is_nan() {
+        return f64::NAN;
+    }
+    take_from_discrete_cdf(cdf, k as i64)
+}
+
+/// Survival function of the Wilcoxon signed-rank statistic, from a precomputed table
+///
+/// After truncating `k` towards zero, this returns `1 - cdf[k - 1]`, `1` if `k <= 0`, or `0` if
+/// `k` exceeds the last index. `cdf` is the table returned by [`wilcoxon_cdf_all`].
+///
+/// Corresponds to `xsf::wilcoxon_sf` in xsf main.
+///
+/// # See also
+/// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
+/// - [`wilcoxon_cdf`]: Cumulative distribution function
+#[must_use]
+#[inline]
+#[allow(clippy::cast_possible_truncation)]
+pub fn wilcoxon_sf(k: f64, cdf: &[f64]) -> f64 {
+    if k.is_nan() {
+        return f64::NAN;
+    }
+    // Unlike in xsf, `k - 1` saturates instead of overflowing for `k = -inf`.
+    1.0 - take_from_discrete_cdf(cdf, (k as i64).saturating_sub(1))
+}
+
 // Negative Binomial
 
 /// Negative binomial distribution function
@@ -1653,6 +1811,44 @@ mod tests {
         crate::np_assert_allclose!(K.map(|k| pmf[k]), PMF_REF, rtol = 1e-8);
 
         crate::np_assert_allclose!([cdf[25], cdf[51]], [0.5, 1.0], atol = 1e-15);
+    }
+
+    #[test]
+    fn test_wilcoxon() {
+        // Subset of xsf's `test_wilcoxon.cpp`
+        assert_eq!(crate::wilcoxon_pmf_all(0), [1.0]);
+        assert_eq!(crate::wilcoxon_pmf_all(2), [0.25; 4]);
+        assert_eq!(
+            crate::wilcoxon_pmf_all(5),
+            [
+                0.03125, 0.03125, 0.03125, 0.0625, 0.0625, 0.09375, 0.09375, 0.09375, 0.09375,
+                0.09375, 0.09375, 0.0625, 0.0625, 0.03125, 0.03125, 0.03125,
+            ]
+        );
+        assert_eq!(
+            crate::wilcoxon_cdf_all(3),
+            [0.125, 0.25, 0.375, 0.625, 0.75, 0.875, 1.0]
+        );
+
+        let pmf = crate::wilcoxon_pmf_all(3);
+        assert_eq!(crate::wilcoxon_pmf(3.0, &pmf), 0.25);
+        assert_eq!(crate::wilcoxon_pmf(-1.0, &pmf), 0.0);
+        assert_eq!(crate::wilcoxon_pmf(7.0, &pmf), 0.0);
+        assert!(crate::wilcoxon_pmf(f64::NAN, &pmf).is_nan());
+
+        let cdf = crate::wilcoxon_cdf_all(5);
+        let k = [-1.0, -0.5, 5.0, 7.9, 9.0, 15.0, f64::INFINITY];
+        assert_eq!(
+            k.map(|k| crate::wilcoxon_cdf(k, &cdf)),
+            [0.0, 0.03125, 0.3125, 0.5, 0.6875, 1.0, 1.0]
+        );
+        assert_eq!(
+            k.map(|k| crate::wilcoxon_sf(k, &cdf)),
+            [1.0, 1.0, 0.78125, 0.59375, 0.40625, 0.03125, 0.0]
+        );
+        assert_eq!(crate::wilcoxon_sf(f64::NEG_INFINITY, &cdf), 1.0);
+        assert!(crate::wilcoxon_cdf(f64::NAN, &cdf).is_nan());
+        assert!(crate::wilcoxon_sf(f64::NAN, &cdf).is_nan());
     }
 
     #[test]
