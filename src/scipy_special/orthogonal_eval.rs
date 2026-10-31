@@ -3,9 +3,11 @@
 //! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
 
 use core::cmp::Ordering;
-use core::f64::consts::{PI, SQRT_2};
+use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
+
+use crate::utils::SQRT_PI;
 
 mod sealed {
     pub trait OrthoPolyArg:
@@ -728,7 +730,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         1.0
     } else if x.is_zero() {
         if n < 0.0 || n % 2.0 == 0.0 {
-            PI.sqrt() * (scale * n).exp2() / crate::gamma(0.5 - 0.5 * n)
+            SQRT_PI * (scale * n).exp2() / crate::gamma(0.5 - 0.5 * n)
         } else {
             0.0
         }
@@ -747,7 +749,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         let z = scale * x * x;
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
-        PI.sqrt() * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
+        SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
     } else {
         let c = if x.is_sign_positive() {
             (scale * n).exp2()

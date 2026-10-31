@@ -1,7 +1,9 @@
 use core::f64::consts::TAU;
 use num_complex::Complex64;
 
-const LN_MAX: f64 = 709.782_712_893_384; // f64::MAX.ln()
+use crate::utils::MAXLOG;
+
+const LN_MAX: f64 = MAXLOG; // f64::MAX.ln()
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
 /// Asymptotic expansion for $I_{v-1}(2\sqrt{z}) \Gamma(v)$ for real $z>0$ and $v \to +\infty$.

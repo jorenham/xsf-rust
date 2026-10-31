@@ -14,7 +14,7 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::LN_PI;
+use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT2OPI};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::cephes::{betainc_xy, gamma, lgam, lgam1p};
 
@@ -382,7 +382,6 @@ fn von_mises_cdf_series(k: f64, x: f64, p: u32) -> f64 {
 }
 
 fn von_mises_cdf_normalapprox(k: f64, x: f64) -> f64 {
-    const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
     let b = SQRT2OPI / crate::xsf::cephes::i0e(k);
     let z = b * (x / 2.0).sin();
     crate::xsf::cephes::ndtr(z)
@@ -1173,7 +1172,7 @@ fn psi1_G(y: f64) -> f64 {
     // in Csörgő, S. and Faraway, J. (1996).
     let z = y * y / 4.0;
     let b = cyl_bessel_k_f64(0.25, z) + cyl_bessel_k_f64(0.75, z);
-    (-z).exp() * (y / 2.0).powf(1.5) * b / PI.sqrt()
+    (-z).exp() * (y / 2.0).powf(1.5) * b / SQRT_PI
 }
 
 #[allow(non_snake_case)]
@@ -1183,7 +1182,7 @@ fn psi1_H(y: f64) -> f64 {
     let z = y * y / 4.0;
     let b = 2.0 * cyl_bessel_k_f64(0.25, z) + 3.0 * cyl_bessel_k_f64(0.75, z)
         - cyl_bessel_k_f64(1.25, z);
-    (-z).exp() * (y / 2.0).powf(2.5) * b / PI.sqrt()
+    (-z).exp() * (y / 2.0).powf(2.5) * b / SQRT_PI
 }
 
 fn psi1_term(k: i32, x: f64) -> f64 {
@@ -1316,7 +1315,7 @@ pub fn geninvgauss_pdf(x: f64, p: f64, b: f64) -> f64 {
 fn genhyperbolic_log_norming_constant(p: f64, a: f64, b: f64) -> f64 {
     let t1 = (a + b) * (a - b);
     let t2 = p * 0.5 * t1.ln();
-    let t3 = 0.5 * TAU.ln();
+    let t3 = 0.5 * LN_TAU;
     let t4 = (p - 0.5) * a.ln();
     let t5 = t1.sqrt();
     let t6 = cyl_bessel_ke_f64(p, t5).ln() - t5;

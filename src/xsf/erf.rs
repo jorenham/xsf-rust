@@ -5,6 +5,8 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI};
 
 use num_complex::{Complex64, c64};
 
+use crate::utils::SQRT_TAU;
+
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
     fn erfc(self) -> Self;
@@ -165,7 +167,6 @@ pub fn wofz(z: Complex64) -> Complex64 {
 #[allow(clippy::float_cmp)]
 pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
     const INV_SQRT_2: f64 = FRAC_1_SQRT_2;
-    const SQRT_2PI: f64 = 2.506_628_274_631_000_2;
 
     if sigma == 0.0 {
         if gamma == 0.0 {
@@ -180,14 +181,14 @@ pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
         return gamma / PI / (x * x + gamma * gamma);
     }
     if gamma == 0.0 {
-        return 1.0 / SQRT_2PI / sigma * (-(x / sigma) * (x / sigma) / 2.0).exp();
+        return 1.0 / SQRT_TAU / sigma * (-(x / sigma) * (x / sigma) / 2.0).exp();
     }
 
     let zreal = x / sigma * INV_SQRT_2;
     let zimag = gamma / sigma * INV_SQRT_2;
     let z = c64(zreal, zimag);
     let w = crate::xsf::faddeeva::w(z, 0.0);
-    w.re / sigma / SQRT_2PI
+    w.re / sigma / SQRT_TAU
 }
 
 #[cfg(test)]

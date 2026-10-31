@@ -5,9 +5,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::PISQ_6;
 use crate::xsf::cephes::polevl::polevl;
-
-use core::f64::consts::PI;
 
 const SPENCE_A: [f64; 8] = [
     4.651_285_860_739_900_3e-5,
@@ -69,7 +68,7 @@ pub(crate) fn spence(mut x: f64) -> f64 {
     }
 
     if x == 0.0 {
-        return PI * PI / 6.0;
+        return PISQ_6;
     }
 
     let mut flag = 0;
@@ -92,7 +91,7 @@ pub(crate) fn spence(mut x: f64) -> f64 {
     let mut y = -w * polevl(w, &SPENCE_A) / polevl(w, &SPENCE_B);
 
     if flag & 1 != 0 {
-        y = (PI * PI) / 6.0 - x.ln() * (1.0 - x).ln() - y;
+        y = PISQ_6 - x.ln() * (1.0 - x).ln() - y;
     }
 
     if flag & 2 != 0 {

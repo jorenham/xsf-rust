@@ -9,9 +9,8 @@
 //!
 //! Unlike in xsf, the domain error condition and return value are corrected in the comments.
 
+use crate::utils::MACHEP;
 use crate::xsf::cephes::polevl::polevl;
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 const ELLPK_P: [f64; 11] = [
     1.379_828_646_062_732_5e-4,

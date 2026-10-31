@@ -8,11 +8,10 @@
 //! Copyright 2014, Eric W. Moore
 
 use crate::cosm1;
+use crate::utils::MACHEP;
 use crate::xsf::cephes::ellpe::ellpe;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::{FRAC_PI_2, PI};
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 /// To calculate legendre's incomplete elliptical integral of the second kind for
 /// negative m, we use a power series in phi for small m*phi*phi, an asymptotic

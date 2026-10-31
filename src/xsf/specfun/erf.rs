@@ -1,9 +1,10 @@
 //! `cerf` and `cerzo`, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_SQRT_PI, PI};
 
 use num_complex::{Complex64, c64};
 
+use crate::utils::SQRT_PI;
 use crate::xsf::complex::{cdiv, cmul};
 
 #[allow(
@@ -48,7 +49,7 @@ pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
             w = er;
         }
 
-        c0 = 2.0 / PI.sqrt() * x * (-x2).exp();
+        c0 = FRAC_2_SQRT_PI * x * (-x2).exp();
         er0 = c0 * er;
         *cer = c64(er0, 0.0);
     } else {
@@ -60,7 +61,7 @@ pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
             er += r;
         }
 
-        c0 = (-x2).exp() / (x * PI.sqrt());
+        c0 = (-x2).exp() / (x * SQRT_PI);
         er0 = 1.0 - c0 * er;
         *cer = c64(er0, 0.0);
     }
@@ -105,7 +106,7 @@ pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
         }
         *cer = c64(err, ei1 + c0 * ei2);
     }
-    *cder = 2.0 / PI.sqrt() * cmul(-z, z).exp();
+    *cder = FRAC_2_SQRT_PI * cmul(-z, z).exp();
 }
 
 #[allow(

@@ -13,12 +13,10 @@ use core::f64::consts::PI;
 
 use num_complex::{Complex, c64};
 
+use crate::utils::SCIPY_EULER;
 use crate::xsf::complex::{cdiv, cmul, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-
-// cephes/const.h
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn exp1_f64(x: f64) -> f64 {

@@ -12,13 +12,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::{MACHEP, MAXLOG, SCIPY_EULER};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::rgamma;
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 const EXPN_NA: usize = 13;
 const EXPN_A0: [f64; 1] = [1.0];

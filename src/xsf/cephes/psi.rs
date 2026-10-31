@@ -20,10 +20,8 @@
 
 use core::f64::consts::PI;
 
+use crate::utils::SCIPY_EULER;
 use crate::xsf::cephes::polevl::polevl;
-
-// cephes/const.h
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 const PSI_A: [f64; 7] = [
     8.333_333_333_333_333e-2,

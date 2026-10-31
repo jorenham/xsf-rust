@@ -5,14 +5,11 @@
 use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
+use crate::utils::PISQ_6;
 use crate::xsf::zlog1;
 
 // Relative tolerance for the series
 const TOL: f64 = f64::EPSILON;
-
-// π^2 / 6
-#[allow(clippy::excessive_precision)]
-const PISQ_6: f64 = 1.644_934_066_848_226_436_5;
 
 /// Compute Spence's function for complex arguments. The strategy is:
 /// - If z is close to 0, use a series centered at 0.

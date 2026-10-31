@@ -45,9 +45,8 @@ mod tests {
     //! Translated from `scipy.special.tests.test_spfun_stats.TestMultiGammaLn` at
     //! <https://github.com/scipy/scipy/blob/5a7df53/scipy/special/tests/test_spfun_stats.py>
 
-    use core::f64::consts::PI;
-
     use crate::np_assert_allclose;
+    use crate::utils::SQRT_PI;
 
     /// TestMultiGammaLn.test1
     #[test]
@@ -74,7 +73,7 @@ mod tests {
         // result = multigammaln(a, 2)
         let result = a.map(|a| crate::multigammaln(a, 2));
         // expected = np.log(np.sqrt(np.pi)) + gammaln(a) + gammaln(a - 0.5)
-        let expected = a.map(|a| PI.sqrt().ln() + crate::gammaln(a) + crate::gammaln(a - 0.5));
+        let expected = a.map(|a| SQRT_PI.ln() + crate::gammaln(a) + crate::gammaln(a - 0.5));
         // assert_allclose(result, expected, atol=1.5e-7, rtol=0)
         np_assert_allclose!(result, expected, atol = 1.5e-7, rtol = 0.0);
     }

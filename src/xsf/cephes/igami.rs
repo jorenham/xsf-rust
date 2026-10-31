@@ -8,12 +8,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::SCIPY_EULER;
 use crate::xsf::cephes::igam::igam_fac;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{gamma, igam, igamc, lgam};
-
-// cephes/const.h
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 fn find_inverse_s(p: f64, q: f64) -> f64 {
     /*

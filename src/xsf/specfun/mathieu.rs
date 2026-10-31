@@ -6,6 +6,8 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
+use core::f64::consts::SQRT_2;
+
 use super::{Status, jynb, try_zeroed};
 use crate::xsf::cephes::polevl::polevl;
 
@@ -405,8 +407,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         // invalid (kd, m) combinations, e.g. kd == 4 with m == 3, or a negative m.
         if kd == 1 || kd == 2 {
             if m == 0 {
-                fc[0] = 1.0 / 2.0_f64.sqrt();
-                fc[1] = -q / (2.0 * 2.0_f64.sqrt());
+                fc[0] = 1.0 / SQRT_2;
+                fc[1] = -q / (2.0 * SQRT_2);
             } else if m == 1 {
                 fc[0] = 1.0;
                 fc[1] = -q / 8.0;

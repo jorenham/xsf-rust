@@ -10,12 +10,9 @@
 
 #![allow(clippy::unreadable_literal, clippy::excessive_precision)]
 
+use crate::utils::{MACHEP, SQRT1OPI, SQRT3};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::PI;
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const SQRT1OPI: f64 = 5.641895835477562869480794515607725858441E-1; // sqrt(1/pi)
-const SQRT3: f64 = 1.732050807568877293527446341505872366943; // sqrt(3)
 
 const C1: f64 = 0.35502805388781723926;
 const C2: f64 = 0.258819403792806798405;

@@ -3,11 +3,12 @@
 //! Unlike in xsf, for `x < 0`, the imaginary part of F±(x) in `ffk` is computed from its own value
 //! (as in the original Fortran `FI=(-1)**KS*PP2-FI`), instead of from the already updated real part.
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use core::ffi::c_int;
 use num_complex::{Complex, c64};
 
+use crate::utils::{SQRT_TAU, SQRT1OPI, SQRT2OPI};
 use crate::xsf::complex::cdiv;
 use crate::xsf::trig::{ccos, csin};
 
@@ -202,7 +203,6 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
 
     const EPS: f64 = 1.0e-15;
     const PP2: f64 = 1.253_314_137_315_5;
-    const P2P: f64 = 0.797_884_560_802_865_4;
 
     let mut f = c64(0.0, 0.0);
     let mut g = c64(0.0, 0.0);
@@ -218,7 +218,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
     } else {
         let (c1, s1);
         if xa <= 2.5 {
-            let mut xr = P2P * xa;
+            let mut xr = SQRT2OPI * xa;
             let mut c = xr;
 
             for k in 1..=50 {
@@ -230,7 +230,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
                 }
             }
 
-            let mut s = P2P * xa * xa * xa / 3.0;
+            let mut s = SQRT2OPI * xa * xa * xa / 3.0;
             xr = s;
 
             for k in 1..=50 {
@@ -267,7 +267,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
             }
 
             let xq = xsu.sqrt();
-            let xw = P2P * xa / xq;
+            let xw = SQRT2OPI * xa / xq;
             c1 = xc * xw;
             s1 = xs * xw;
         } else {
@@ -289,8 +289,8 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
                 xg += xr;
             }
 
-            c1 = 0.5 + (xf * x2.sin() - xg * x2.cos()) / TAU.sqrt() / xa;
-            s1 = 0.5 - (xf * x2.cos() + xg * x2.sin()) / TAU.sqrt() / xa;
+            c1 = 0.5 + (xf * x2.sin() - xg * x2.cos()) / SQRT_TAU / xa;
+            s1 = 0.5 - (xf * x2.cos() + xg * x2.sin()) / SQRT_TAU / xa;
         }
 
         f.re = PP2 * (0.5 - c1);
@@ -300,7 +300,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
         let xp = x2 + FRAC_PI_4;
         let cs = xp.cos();
         let ss = xp.sin();
-        let xq2 = 1.0 / PI.sqrt();
+        let xq2 = SQRT1OPI;
 
         g.re = xq2 * (f.re * cs + fi0 * ss);
         g.im = (-1.0_f64).powi(ks) * xq2 * (fi0 * cs - f.re * ss);

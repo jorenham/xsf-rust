@@ -11,8 +11,7 @@
 //! which reduces its relative error from `x (x - 1) / (12 q^2)` (up to ~1e-14) to below machine
 //! precision.
 
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
+use crate::utils::MACHEP;
 
 /// Expansion coefficients
 /// for Euler-Maclaurin summation formula

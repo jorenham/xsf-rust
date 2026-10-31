@@ -68,14 +68,13 @@
 //! `f64`. This only affects the initial bracket and estimate of the root, and occasionally the
 //! last bit of the result.
 
-use core::f64::consts::{E, LN_2, PI, SQRT_2, TAU};
+use core::f64::consts::{E, LN_2, PI, SQRT_2};
 
+use crate::utils::{LN_SQRT_2PI, MINLOG, SQRT_TAU};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h
-const MINLOG: f64 = -745.133_219_101_941_2; // log(2**(-1075))
 const SCIPY_EL: f64 = E; // (a `long double` in xsf)
-const LOGSQRT2PI: f64 = 0.918_938_533_204_672_8; // log(sqrt(2*pi))
 
 /* ************************************************************************ */
 /* Algorithm Configuration */
@@ -165,7 +164,7 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
          *  w = sqrt(2pi)/x
          *  P = w*u * (1 + u^8 + u^24 + u^48 + ...)
          */
-        let w = TAU.sqrt() / x;
+        let w = SQRT_TAU / x;
         let logu8 = -PI * PI / (x * x); /* log(u^8) */
         let u = (logu8 / 8.0).exp();
         if u == 0.0 {
@@ -258,10 +257,10 @@ fn kolmogi_(psf: f64, pcdf: f64) -> f64 {
         let logpcdf = pcdf.ln();
         /* Now that 1 >= x >= sqrt(p) */
         /* Iterate twice: x <- pi/(sqrt(8) sqrt(log(sqrt(2pi)) - log(x) - log(pdf))) */
-        a = PI / (2.0 * SQRT_2 * (-(logpcdf + logpcdf / 2.0 - LOGSQRT2PI)).sqrt());
-        b = PI / (2.0 * SQRT_2 * (-(logpcdf + 0.0 - LOGSQRT2PI)).sqrt());
-        a = PI / (2.0 * SQRT_2 * (-(logpcdf + a.ln() - LOGSQRT2PI)).sqrt());
-        b = PI / (2.0 * SQRT_2 * (-(logpcdf + b.ln() - LOGSQRT2PI)).sqrt());
+        a = PI / (2.0 * SQRT_2 * (-(logpcdf + logpcdf / 2.0 - LN_SQRT_2PI)).sqrt());
+        b = PI / (2.0 * SQRT_2 * (-(logpcdf + 0.0 - LN_SQRT_2PI)).sqrt());
+        a = PI / (2.0 * SQRT_2 * (-(logpcdf + a.ln() - LN_SQRT_2PI)).sqrt());
+        b = PI / (2.0 * SQRT_2 * (-(logpcdf + b.ln() - LN_SQRT_2PI)).sqrt());
         x = f64::midpoint(a, b);
     } else {
         /*

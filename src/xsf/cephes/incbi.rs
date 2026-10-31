@@ -7,12 +7,8 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use super::incbet::incbet;
+use crate::utils::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::{lgam, ndtri};
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
-const MINLOG: f64 = -745.133_219_101_941_2; // log(2**(-1075))
 
 /// The `goto` labels in `incbi`
 #[derive(Clone, Copy)]

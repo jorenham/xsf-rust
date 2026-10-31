@@ -130,13 +130,16 @@
 //! The products of two `std::complex<double>` are computed with `cmul`, and `double - complex`
 //! with `rsub`, to match the C++ in the overflow and signed zero cases.
 
-use core::f64::consts::{FRAC_2_SQRT_PI, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_2_SQRT_PI, PI};
 
 use num_complex::{Complex, c64};
 
+use crate::utils::SQRT1OPI;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::complex::{cmul, rsub};
 use crate::xsf::exp::cexp;
+
+const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
 
 // compute erfcx(z) = exp(z^2) erfz(z)
 pub(crate) fn erfcx_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
@@ -309,7 +312,6 @@ pub(crate) fn erfc_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
 // compute Dawson(z) = sqrt(pi)/2  *  exp(-z^2) * erfi(z)
 #[allow(non_snake_case, clippy::float_cmp, clippy::too_many_lines)]
 pub(crate) fn dawson_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
-    const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
     let (x, y) = (z.re, z.im);
 
     // handle axes separately for speed & proper handling of x or y = Inf or NaN
@@ -558,7 +560,7 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
             relerr = 0.1; // not sensible to compute < 1 digit
         }
         a = PI / (-(relerr * 0.5).ln()).sqrt();
-        c = (2.0 / PI) * a;
+        c = FRAC_2_PI * a;
         a2 = a * a;
     }
     let x = z.re.abs();
@@ -587,7 +589,6 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
         the sum of the squares of the errors in nu with the constraint
         that the estimated nu be >= minimum nu to attain machine precision.
         I also separate the regions where nu == 2 and nu == 1. */
-        const ISPI: f64 = 0.564_189_583_547_756_3; // 1 / sqrt(pi)
         let xs = if y < 0.0 { -z.re } else { z.re }; // compute for -z if y < 0
         if x + ya > 4000.0 {
             // nu <= 2
@@ -596,7 +597,7 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
                 // scale to avoid overflow
                 if x > ya {
                     let yax = ya / xs;
-                    let denom = ISPI / (xs + yax * ya);
+                    let denom = SQRT1OPI / (xs + yax * ya);
                     ret = c64(denom * yax, denom);
                 } else if ya.is_infinite() {
                     return if x.is_nan() || y < 0.0 {
@@ -606,13 +607,13 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
                     };
                 } else {
                     let xya = xs / ya;
-                    let denom = ISPI / (xya * xs + ya);
+                    let denom = SQRT1OPI / (xya * xs + ya);
                     ret = c64(denom, denom * xya);
                 }
             } else {
                 // nu == 2, w(z) = i/sqrt(pi) * z / (z*z - 0.5)
                 let (dr, di) = (xs * xs - ya * ya - 0.5, 2.0 * xs * ya);
-                let denom = ISPI / (dr * dr + di * di);
+                let denom = SQRT1OPI / (dr * dr + di * di);
                 ret = c64(denom * (xs * di - ya * dr), denom * (xs * dr + ya * di));
             }
         } else {
@@ -630,7 +631,7 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
             }
             {
                 // w(z) = i/sqrt(pi) / w:
-                let denom = ISPI / (wr * wr + wi * wi);
+                let denom = SQRT1OPI / (wr * wr + wi * wi);
                 ret = c64(denom * wi, denom * wr);
             }
         }
@@ -1008,14 +1009,14 @@ pub(crate) fn erfcx(x: f64) -> f64 {
     if x >= 0.0 {
         if x > 50.0 {
             // continued-fraction expansion is faster
-            const ISPI: f64 = 0.564_189_583_547_756_3; // 1 / sqrt(pi)
             if x > 5e7 {
                 // 1-term expansion, important to avoid overflow
-                return ISPI / x;
+                return SQRT1OPI / x;
             }
             /* 5-term expansion (rely on compiler for CSE), simplified from:
             ispi / (x+0.5/(x+1/(x+1.5/(x+2/x))))  */
-            return ISPI * ((x * x) * (x * x + 4.5) + 2.0) / (x * ((x * x) * (x * x + 5.0) + 3.75));
+            return SQRT1OPI * ((x * x) * (x * x + 4.5) + 2.0)
+                / (x * ((x * x) * (x * x + 5.0) + 3.75));
         }
         return erfcx_y100(400.0 / (4.0 + x));
     }
@@ -1175,28 +1176,27 @@ pub(crate) fn w_im(x: f64) -> f64 {
     if x >= 0.0 {
         if x > 45.0 {
             // continued-fraction expansion is faster
-            const ISPI: f64 = 0.564_189_583_547_756_3; // 1 / sqrt(pi)
             if x > 5e7 {
                 // 1-term expansion, important to avoid overflow
-                return ISPI / x;
+                return SQRT1OPI / x;
             }
             /* 5-term expansion (rely on compiler for CSE), simplified from:
             ispi / (x-0.5/(x-1/(x-1.5/(x-2/x))))  */
-            return ISPI * ((x * x) * (x * x - 4.5) + 2.0) / (x * ((x * x) * (x * x - 5.0) + 3.75));
+            return SQRT1OPI * ((x * x) * (x * x - 4.5) + 2.0)
+                / (x * ((x * x) * (x * x - 5.0) + 3.75));
         }
         return w_im_y100(100.0 / (1.0 + x), x);
     }
     // = -Faddeeva::w_im(-x)
     if x < -45.0 {
         // continued-fraction expansion is faster
-        const ISPI: f64 = 0.564_189_583_547_756_3; // 1 / sqrt(pi)
         if x < -5e7 {
             // 1-term expansion, important to avoid overflow
-            return ISPI / x;
+            return SQRT1OPI / x;
         }
         /* 5-term expansion (rely on compiler for CSE), simplified from:
         ispi / (x+0.5/(x+1/(x+1.5/(x+2/x))))  */
-        return ISPI * ((x * x) * (x * x - 4.5) + 2.0) / (x * ((x * x) * (x * x - 5.0) + 3.75));
+        return SQRT1OPI * ((x * x) * (x * x - 4.5) + 2.0) / (x * ((x * x) * (x * x - 5.0) + 3.75));
     }
     -w_im_y100(100.0 / (1.0 - x), -x)
 }
@@ -1216,6 +1216,5 @@ pub(crate) fn erfi(x: f64) -> f64 {
 
 // compute Dawson(x) = sqrt(pi)/2  *  exp(-x^2) * erfi(x)
 pub(crate) fn dawson(x: f64) -> f64 {
-    const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
     SPI2 * w_im(x)
 }

@@ -5,10 +5,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::SQRT2PI;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-
-/// sqrt(2*pi), from `cephes/const.h`
-const SQRT2PI: f64 = 2.506_628_274_631_000_7;
 
 /* approximation for 0 <= |y - 0.5| <= 3/8 */
 const NDTRI_P0: [f64; 5] = [

@@ -9,10 +9,8 @@
 
 use core::f64::consts::FRAC_1_SQRT_2;
 
+use crate::utils::MAXLOG;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-
-// cephes/const.h
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
 
 const NDTR_P: [f64; 9] = [
     2.461_969_814_735_305e-10,
