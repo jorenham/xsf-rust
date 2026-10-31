@@ -25,6 +25,11 @@
 //! | [`ellipkinc`]    | Incomplete elliptic integral of the first kind              |
 //! | [`ellipe`]       | Complete elliptic integral of the second kind               |
 //! | [`ellipeinc`]    | Incomplete elliptic integral of the second kind             |
+//! | [`elliprc`]      | Degenerate symmetric elliptic integral                      |
+//! | [`elliprd`]      | Symmetric elliptic integral of the second kind              |
+//! | [`elliprf`]      | Completely-symmetric elliptic integral of the first kind    |
+//! | [`elliprg`]      | Completely-symmetric elliptic integral of the second kind   |
+//! | [`elliprj`]      | Symmetric elliptic integral of the third kind               |
 //!
 //! # Bessel functions
 //!

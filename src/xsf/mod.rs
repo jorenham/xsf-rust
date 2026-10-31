@@ -15,6 +15,7 @@ pub(crate) mod complex;
 mod cosine;
 mod digamma;
 mod digammainv;
+mod ellint_carlson;
 mod ellip;
 mod erf;
 mod evalpoly;
@@ -64,6 +65,7 @@ pub use cephes::{
 pub use cosine::{cosine_cdf, cosine_invcdf};
 pub use digamma::digamma;
 pub use digammainv::digammainv;
+pub use ellint_carlson::{elliprc, elliprd, elliprf, elliprg, elliprj};
 pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
 pub use erf::{dawsn, erf, erf_zeros, erfc, erfcx, erfi, voigt_profile, wofz};
 pub use evalpoly::cevalpoly;
