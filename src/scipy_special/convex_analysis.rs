@@ -254,7 +254,7 @@ mod tests {
     fn get_test_xy() -> [(f64, f64); 25] {
         let z1 = [-1.0, -0.5, 0.0, 0.5, 1.0];
         let z2 = z1.map(|x| z1.map(|y| (x, y)));
-        unsafe { core::mem::transmute::<[[(f64, f64); 5]; 5], [(f64, f64); 25]>(z2) }
+        z2.as_flattened().try_into().unwrap()
     }
 
     fn map2<const N: usize>(func: impl Fn(f64, f64) -> f64, xy: [(f64, f64); N]) -> [f64; N] {
