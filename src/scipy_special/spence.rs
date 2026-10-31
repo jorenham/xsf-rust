@@ -32,7 +32,10 @@ fn cspence(z: Complex64) -> Complex64 {
     // else:
     //     return cspence_series1(z)
 
-    if z.norm() < 0.5 {
+    if z.re.is_nan() || z.im.is_nan() {
+        // like in xsf main, instead of iterating 500 times
+        c64(f64::NAN, f64::NAN)
+    } else if z.norm() < 0.5 {
         // This step isn't necessary, but this series converges faster.
         cspence_series0(z)
     } else if (1.0 - z).norm() > 1.0 {
