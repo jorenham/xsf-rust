@@ -11,7 +11,6 @@ const WRAPPER_SPECS: &[(&str, &str)] = &[
     // specfun.h
     ("hyp1f1", "ddd->d"),
     ("hyp1f1", "ddD->D"),
-    ("hypu", "ddd->d"),
     ("pmv", "ddd->d"),
 ];
 

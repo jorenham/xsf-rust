@@ -1,13 +1,15 @@
 mod bessel;
 mod erf;
 mod gamma;
+mod hyperg;
 mod legendre;
 mod mathieu;
 mod sphd;
 
 pub(crate) use bessel::{jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
-pub(crate) use gamma::{cgama, gamma2};
+pub(crate) use gamma::{cgama, gamma2, psi_spec};
+pub(crate) use hyperg::chgu;
 pub(crate) use legendre::{lpmns, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
@@ -156,9 +158,21 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
     z.hyp1f1(a, b)
 }
 
-#[inline]
+/// `xsf::hypu`
 fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::hypu(a, b, x) }
+    let mut out;
+    let mut md = 0; /* method code --- not returned */
+    let mut isfer = 0;
+
+    out = chgu(x, a, b, &mut md, &mut isfer);
+    #[allow(clippy::float_cmp)]
+    if out == 1e300 {
+        out = f64::INFINITY;
+    }
+    if isfer != 0 {
+        out = f64::NAN;
+    }
+    out
 }
 
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
@@ -231,6 +245,19 @@ mod tests {
     fn test_hypu() {
         // the table is called "hyperu" instead of "hypu"
         xsref::test("hyperu", "d_d_d-d", |x| crate::hypu(x[0], x[1], x[2]));
+    }
+
+    #[test]
+    fn test_hypu_tiny_a() {
+        // NaN in xsf, because of an undefined `int` conversion
+        assert_eq!(crate::hypu(1e-17, 0.5, 100.0), 1.0);
+    }
+
+    #[test]
+    fn test_hypu_huge_a() {
+        // NaN without ~2^31 iterations, like in xsf
+        assert!(crate::hypu(-2_147_483_649.0, 1.0, 1.0).is_nan());
+        assert!(crate::hypu(1.0, f64::INFINITY, 1.0).is_nan());
     }
 
     #[test]
