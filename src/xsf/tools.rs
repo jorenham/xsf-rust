@@ -131,7 +131,11 @@ pub(crate) fn series_eval_fixed_length(
 
 /* Performs one step of Kahan summation. */
 #[inline]
-fn kahan_step<T: Real>(sum: &mut T, comp: &mut T, x: T) {
+pub(crate) fn kahan_step<T: Copy + Add<Output = T> + Sub<Output = T>>(
+    sum: &mut T,
+    comp: &mut T,
+    x: T,
+) {
     let y = x - *comp;
     let t = *sum + y;
     *comp = (t - *sum) - y;

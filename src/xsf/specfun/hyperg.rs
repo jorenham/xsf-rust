@@ -12,7 +12,7 @@ use num_complex::{Complex64, c64};
 use super::{cgama, gamma2, psi_spec};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
-use crate::xsf::tools::{int_x86, series_eval_kahan};
+use crate::xsf::tools::{int_x86, kahan_step};
 
 #[allow(
     clippy::cast_possible_truncation,
@@ -160,6 +160,19 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 cy1 = chg;
                 a += 1.0;
             }
+            // Unlike in xsf, the series (DLMF 13.2.2) replaces the forward recurrence in a above
+            // (DLMF 13.3.1) if they differ by more than twice the series' error bound, i.e. only
+            // where the recurrence is less accurate. It's unstable e.g. for b > 2a + |z|.
+            //
+            // E.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j
+            // (scipy/scipy#5349).
+            if b > 0.0 {
+                if let Some((s, _)) = hyp1f1_series(a0, b, z, Complex64::ONE).filter(|&(s, err)| {
+                    err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                }) {
+                    chg = s;
+                }
+            }
         }
         if x0 < 0.0 {
             chg = cmul(chg, cexp(-z));
@@ -170,19 +183,37 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
-/// Unlike in xsf: `scale * M(a, b, x)` from the series DLMF 13.2.2, for `a >= 0`, `b > 0` and
-/// `x >= 0`, or `None` if it doesn't converge within 100000 terms. All terms are positive, so
-/// there is no cancellation, and the partial sums don't overflow unless the result does.
-fn chgm_series_pos(a: f64, b: f64, x: f64, scale: f64) -> Option<f64> {
-    let mut n = 0.0;
+/// Unlike in xsf: `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a >= 1` and `b > 0`, with
+/// an error bound, or `None` if it doesn't converge within 100000 terms.
+///
+/// The error bound is the sum of (to first order in `u = EPSILON / 2`):
+/// - the omitted tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term
+///   ratios `q_n = (a + n) |z| / ((n + 1) (b + n))` are non-increasing;
+/// - the rounding error: at most `8 u sum (n + 1) |t_n|`, from `8 n u` per term and `2 u |t_n|`
+///   per Kahan step.
+///
+/// For `z >= 0` there is no cancellation, and the partial sums only overflow if the result does.
+fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Complex64, f64)> {
     let mut t = scale;
-    let terms = || {
-        t *= (a + n) / (n + 1.0) * (x / (b + n));
-        n += 1.0;
-        t
-    };
-    let (hg, k) = series_eval_kahan(terms, f64::EPSILON, 100_000, scale);
-    (k > 0).then_some(hg)
+    let mut sum = scale;
+    let mut comp = Complex64::ZERO;
+    let mut err = t.norm();
+    for n in 0..100_000 {
+        let n = f64::from(n);
+        t *= (a + n) / (n + 1.0) * (z / (b + n));
+        kahan_step(&mut sum, &mut comp, t);
+        err += (n + 2.0) * t.norm();
+        if t.norm() <= f64::EPSILON * sum.norm() {
+            let q = (a + n + 1.0) / (n + 2.0) * (z.norm() / (b + n + 1.0));
+            let tail = if q < 1.0 {
+                t.norm() * q / (1.0 - q)
+            } else {
+                f64::INFINITY
+            };
+            return Some((sum, 4.0 * f64::EPSILON * err + tail));
+        }
+    }
+    None
 }
 
 /// Unlike in xsf: the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the recurrence
@@ -242,8 +273,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // using the forward recurrence in a (DLMF 13.3.1) below, which is unstable for b > 2a + x
     // (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of 1.000000000075.
     if a >= 2.0 && b > 0.0 && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
-        if let Some(hg) = chgm_series_pos(a, b, x, x0.min(0.0).exp()) {
-            return hg;
+        if let Some((hg, _)) = hyp1f1_series(a, b, c64(x, 0.0), c64(x0.min(0.0).exp(), 0.0)) {
+            return hg.re;
         }
     }
     let mut nl = 0;
