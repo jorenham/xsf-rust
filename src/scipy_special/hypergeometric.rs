@@ -16,29 +16,31 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let p1 = (1.0 + x * x).sqrt();
     let eta = p1 + x.ln() - crate::log1p(p1);
 
-    let arg_exp_i = crate::gammaln(v) - 0.5 * (TAU * p1 * v1).ln();
+    let mut arg_exp_i = -0.5 * p1.ln();
+    arg_exp_i -= 0.5 * (TAU * v1).ln();
+    arg_exp_i += crate::gammaln(v);
     let gs = crate::gammasgn(v);
 
-    let v1_eta = v1 * eta;
-    let arg_exp_i = arg_exp_i + v1_eta;
-    let arg_exp_k = arg_exp_i - v1_eta;
+    let mut arg_exp_k = arg_exp_i;
+    arg_exp_i += v1 * eta;
+    arg_exp_k -= v1 * eta;
 
     // large-v asymptotic correction, DLMF 10.41.10
-    let qv = 1.0 / (24.0 * v1 * p1);
-    let q2 = 1.0 / (1.0 + x * x); // p1^-2
+    let pp = 1.0 / p1;
+    let p2 = pp * pp;
+    let p4 = p2 * p2;
+    let p6 = p4 * p2;
+    let u1 = (3.0 - 5.0 * p2) * pp / 24.0;
+    let u2 = (81.0 - 462.0 * p2 + 385.0 * p4) * p2 / 1152.0;
+    let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
+    let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
 
-    let uv1 = (3.0 - 5.0 * q2) * qv;
-    let uv2 = (81.0 - (462.0 + 385.0 * q2) * q2) * qv.powi(2) / 2.0;
-    let uv3 = (3037.5 - (36960.3 + (76576.5 - 42542.5 * q2) * q2) * q2) * qv.powi(3) / 3.0;
-    let u_corr_i = 1.0 + uv1 + uv2 + uv3;
-
-    let v1_log_arg = crate::xlogy(v1, arg);
-    let out = gs * (arg_exp_i - v1_log_arg).exp() * u_corr_i;
+    let out = (arg_exp_i - crate::xlogy(v1, arg)).exp() * gs * u_corr_i;
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
-        let u_corr_k = 1.0 - uv1 + uv2 - uv3;
-        out + 2.0 * gs * crate::sinpi(v1) * (arg_exp_k + v1_log_arg).exp() * u_corr_k
+        let u_corr_k = 1.0 - u1 / v1 + u2 / (v1 * v1) - u3 / (v1 * v1 * v1);
+        out + (arg_exp_k + crate::xlogy(v1, arg)).exp() * gs * 2.0 * crate::sinpi(v1) * u_corr_k
     } else {
         out
     }
@@ -75,7 +77,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         }
     } else {
         let arg = (-z).sqrt();
-        let bess_val = crate::xsf::cephes::jv(v - 1.0, 2.0 * arg);
+        let bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
 
         arg.powf(1.0 - v) * crate::gamma(v) * bess_val
     }
@@ -225,7 +227,7 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 /// Confluent hypergeometric limit function $_0F_1\left[b\middle\| z\right]$ for real or complex $z$
 ///
 /// This is a translation of the [`scipy.special.hyp0f1`][hyp0f1] Cython implementation into Rust,
-/// using the same Cephes-based functions as SciPy, translated from [scipy/xsf][xsf].
+/// as in [scipy/xsf][xsf], which uses AMOS (instead of Cephes) for $J_v$.
 ///
 /// [hyp0f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html
 /// [xsf]: https://github.com/scipy/xsf
@@ -384,6 +386,24 @@ mod tests {
             [c64(1.613_971_977_644_111_5, 0.808_930_540_617_906_7)],
             atol = 1.5e-7
         );
+    }
+
+    #[test]
+    fn test_hyp0f1_large_b() {
+        let bz = [
+            // large-v asymptotic expansion
+            (300.0, 1.0),
+            (-661.112_997_069_224_4, 0.062_385_007_293_382_27),
+            // b near a non-positive integer
+            (-9.000_000_000_000_306, -0.019_499_612_460_819_94),
+        ];
+        // computed with mpmath
+        let expected = [
+            1.003_338_876_548_527_4,
+            0.999_905_640_851_462_9,
+            1.002_169_266_580_656_6,
+        ];
+        np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-12);
     }
 
     #[test]
