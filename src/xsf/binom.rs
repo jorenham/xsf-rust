@@ -3,7 +3,7 @@
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 
-use crate::xsf::cephes::{beta, gamma, lbeta};
+use crate::xsf::cephes::{beta, gamma, lbeta, poch};
 use crate::xsf::trig::cephes_sinpi;
 
 use core::f64::consts::PI;
@@ -109,6 +109,35 @@ pub fn binom(n: f64, k: f64) -> f64 {
         }
         return num * (k * PI).sin();
     }
+    if k.is_finite() && k.abs() > 2e4 && n.abs() < 170.0 {
+        // Unlike in xsf, the reflection formula
+        // binom(n, k) = Gamma(1 + n) sin(pi (n - k + 1)) / (pi poch(k - n, n + 1))
+        // is used for large |k|, because `beta` loses ~|k| eps of precision here, e.g. a relative
+        // error of ~1e-6 for k = 1e9. The cutoff ensures that the `poch` base exceeds 1e4.
+        let (a, s) = if k > 0.0 {
+            kx = k.round();
+            nx = n.round();
+            // sin(pi (n - k + 1)) = (-1)^(kx - nx) sin(pi ((k - kx) - (n - nx)))
+            let sgn = if (kx - nx) % 2.0 == 0.0 { 1.0 } else { -1.0 };
+            (k - n, cephes_sinpi((k - kx) - (n - nx)) * sgn)
+        } else {
+            // the reflection of Gamma(1 + k) instead of Gamma(1 + n - k)
+            (-k, cephes_sinpi(-k))
+        };
+        if s == 0.0 {
+            return 0.0;
+        }
+        // poch(a, n + 1) = poch(a, n) (a + n), because the rounding error of n + 1 would be
+        // amplified by ~ln(a)
+        let p = poch(a, n);
+        let q = p * (a + n);
+        if p.is_normal() && q.is_normal() {
+            return gamma(1.0 + n) / q * (s / PI);
+        }
+        // poch(a, n) is split in two if it over- or underflows
+        let m = 0.5 * n;
+        return gamma(1.0 + n) / poch(a, m) * (s / PI) / (poch(a + m, m) * (a + n));
+    }
     1.0 / (n + 1.0) / beta(1.0 + n - k, 1.0 + k)
 }
 
@@ -141,5 +170,34 @@ mod tests {
         }
         assert_eq!(crate::binom(1.0, 2_147_483_647.0), 0.0);
         assert_eq!(crate::binom(169.0, 20_000_000_000.0), 0.0);
+    }
+
+    #[test]
+    fn test_binom_reflection() {
+        // unlike in xsf: the reflection formula for |k| > 2e4 (the last case splits `poch`)
+        for (n, k, expected) in [
+            (31.69, 1_000_000_000.796, -5.746_138_060_441_207e-261),
+            (
+                -31.750_000_000_000_004,
+                20_000.25,
+                -8.409_833_121_198_072e84,
+            ),
+            (-0.000_21, 20_001.0, -1.052_260_894_432_576_9e-8),
+            (-0.000_21, 20_000.999_9, -5.511_843_042_336_944e-9),
+            (2.5, -1_000_000.3, 8.558_184_094_049_863e-22),
+            (-7.25, -1_000_000_000_000.5, -1.224_023_543_149_038e72),
+            (
+                -38.699_131_748_729_36,
+                2_169_303_697.740_144_3,
+                6.492_179_234_150_414e307,
+            ),
+        ] {
+            let actual = crate::binom(n, k);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-14,
+                "{actual:e} != {expected:e}"
+            );
+        }
+        assert_eq!(crate::binom(2.5, f64::NEG_INFINITY), 0.0);
     }
 }
