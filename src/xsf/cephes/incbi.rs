@@ -174,7 +174,14 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                             di = (y0 - y) / (yh - yl);
                         }
                         dir += 1;
-                        if x0 > 0.75 {
+                        // Unlike in xsf, the switch to 1 - x (but not back) is skipped if
+                        // y0 < 1e-3 and 1 - x0 >= y0, since rounding 1 - y0 loses the low digits of
+                        // a small y0, while x isn't close enough to 1 yet to need the switch (the
+                        // 1e-3 cutoff is empirical).
+                        //
+                        // For example, betaincinv(509, 0.041, 1.3e-48) was 1.1e-16 instead of
+                        // 0.8172, because 1 - y0 rounded to 1.
+                        if x0 > 0.75 && (rflg || y0 >= 1e-3 || 1.0 - x0 < y0) {
                             if rflg {
                                 rflg = false;
                                 a = aa;
@@ -317,10 +324,8 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
 /// # Notes
 /// This function uses the `incbi` Cephes routine [^CEPHES], making it less accurate than
 /// [`scipy.special.betaincinv`][scipy], which wraps the Boost `ibeta_inv` routine [^BOOST].
-/// Especially for small `y` and large `a - b` the accuracy may be poor. For example, with
-/// $10^3 < a < 10^5$ and $1/2 < b < 10$, the relative error is up to 6e-2 for
-/// $10^{-16} \le y < 10^{-5}$, and the result is meaningless for $y < 10^{-16}$, where $1 - y$
-/// (almost) rounds to $1$.
+/// For example, with $10^3 < a < 10^5$ and $1/2 < b < 10$, the relative error is up to 5e-14 for
+/// $10^{-300} \le y < 10^{-5}$, but for $a = 10^{10}$ it can be as large as 6e-5.
 ///
 /// # See also
 /// - [`betainc`](crate::betainc): Regularized incomplete Beta function $\I_x(a, b)$
@@ -412,6 +417,19 @@ mod tests {
             (10.0, 1.25, 2e-234, 3.982_659_092_143_654e-24),
             // NOTE: This results in a relative error of 3.806e-11
             // (4.0, 99997.0, 5e-88, 3.309800566862242e-27),
+        ] {
+            let x = crate::betaincinv(a, b, y);
+            crate::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
+        }
+    }
+
+    #[test]
+    fn test_betaincinv_small_y_near_1() {
+        // small y with a root in (0.75, 1 - y); reference values from mpmath
+        for &(a, b, y, ref_) in &[
+            (509.0, 0.041, 1.3e-48, 0.817_229_092_544_038_5),
+            (5_818.0, 0.006, 7.65e-17, 0.995_090_852_864_442_7),
+            (100.0, 0.5, 1e-12, 0.775_037_837_698_101_4),
         ] {
             let x = crate::betaincinv(a, b, y);
             crate::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
