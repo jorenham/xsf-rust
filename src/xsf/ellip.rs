@@ -130,6 +130,19 @@ mod tests {
     }
 
     #[test]
+    fn test_ellipkinc_ellipeinc_huge_phi() {
+        // phi - npio2 * pi/2 isn't in [-pi/2, pi/2] (reference values from mpmath)
+        let (phi, m) = (-1.788_575_894_471_164_1e19, -1.244_349_504_000_301_7e35);
+        for (got, expected) in [
+            (crate::ellipkinc(phi, m), -1_348.954_827_564_235_2),
+            (crate::ellipeinc(phi, m), -4.016_600_941_581_635_3e36),
+        ] {
+            let rel = (got - expected).abs() / expected.abs();
+            assert!(rel < 1e-15, "rel = {rel:e}");
+        }
+    }
+
+    #[test]
     fn test_ellipe() {
         xsref::test("ellipe", "d-d", |x| crate::ellipe(x[0]));
     }

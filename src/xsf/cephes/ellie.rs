@@ -212,7 +212,15 @@ pub(crate) fn ellie(phi: f64, m: f64) -> f64 {
             break 'done lphi.sin();
         }
         if a > 1.0 {
-            break 'done ellie_neg_m(lphi, m);
+            let temp = ellie_neg_m(lphi, m);
+            // Unlike in xsf, a NaN from a residual lphi > pi is retried with lphi reduced again.
+            // For |phi| >~ 1e16, the rounding error of `npio2 * FRAC_PI_2` exceeds pi/2, but
+            // `ellie_neg_m` assumes 0 <= phi <= pi/2, e.g. `ellipeinc(-1.79e19, -1.24e35)` was
+            // NaN (the log of a negative number) instead of -4.02e36.
+            if temp.is_nan() && lphi > PI {
+                break 'done ellie(lphi, m);
+            }
+            break 'done temp;
         }
 
         if lphi < 0.135 {

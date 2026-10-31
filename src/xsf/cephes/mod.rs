@@ -103,5 +103,5 @@ pub(crate) use tukey::tukeylambdacdf;
 pub use unity::*;
 pub(crate) use yn::yn;
 pub(crate) use yv::yv;
-pub(crate) use zeta::zeta;
+pub(crate) use zeta::{ZETA_A, zeta};
 pub(crate) use zetac::{riemann_zeta, zetac};

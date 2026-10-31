@@ -180,7 +180,15 @@ pub(crate) fn ellik(mut phi: f64, m: f64) -> f64 {
     };
     let mut temp = 'done: {
         if a > 1.0 {
-            break 'done ellik_neg_m(phi, m);
+            let temp = ellik_neg_m(phi, m);
+            // Unlike in xsf, a NaN from a residual phi > pi is retried with phi reduced again.
+            // For |phi| >~ 1e16, the rounding error of `npio2 * FRAC_PI_2` exceeds pi/2, but
+            // `ellik_neg_m` assumes 0 <= phi <= pi/2, e.g. `ellipkinc(-1.79e19, -1.24e35)` was
+            // NaN (the log of a negative number) instead of -1348.95.
+            if temp.is_nan() && phi > PI {
+                break 'done ellik(phi, m);
+            }
+            break 'done temp;
         }
         let mut b = a.sqrt();
         let mut t = phi.tan();

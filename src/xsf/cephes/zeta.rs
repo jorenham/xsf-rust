@@ -17,7 +17,7 @@ const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 /// for Euler-Maclaurin summation formula
 /// (2k)! / B2k
 /// where B2k are Bernoulli numbers
-const ZETA_A: [f64; 12] = [
+pub(crate) const ZETA_A: [f64; 12] = [
     12.0,
     -720.0,
     30_240.0,
@@ -121,7 +121,11 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         a += 1.0;
         b = a.powf(-x);
         s += b;
-        if (b / s).abs() < MACHEP {
+        // Unlike in xsf, this early exit also requires the tail sum, which is roughly
+        // `b * a / (x - 1)`, to be negligible. For `x` near 1 and tiny `q`, the term `q^-x`
+        // dominates the first few terms, but not the tail, e.g. `zeta(1 + 2^-52, 1e-15)` was
+        // 1.0e15 instead of 5.5e15.
+        if (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }
     }

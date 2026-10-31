@@ -140,18 +140,31 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
         }
     }
 
-    if is_h {
-        sum += cyl_bessel_y_f64(v, z);
-    } else {
-        sum += iv(v, z);
-    }
-
     /*
      * This error estimate is strictly speaking valid only for
      * n > v - 0.5, but numerical results indicate that it works
      * reasonably.
      */
     *err = term.abs() + maxterm.abs() * STRUVE_SUM_EPS;
+
+    if is_h {
+        sum += cyl_bessel_y_f64(v, z);
+    } else {
+        // Unlike in xsf, this adds I_{-v} instead of I_v if they differ by much more than the
+        // error estimate, and by more than the target accuracy. Their difference
+        // (2/pi) sin(v pi) K_v (DLMF 10.27.4) is exponentially small, so L_v - I_v and
+        // L_v - I_{-v} have the same asymptotic expansion. But it terminates, and is exact, only
+        // for L_v - I_{-v} if v is a half-integer (e.g. DLMF 11.4.7). So near half-integers the
+        // error estimate is small, but the K_v term isn't, e.g. `struve_l(-15.5000001, 15)` was
+        // 162.742860 instead of 162.742950.
+        let i_v = iv(v, z);
+        let i_mv = iv(-v, z);
+        sum += if (i_mv - i_v).abs() > (10.0 * *err).max(STRUVE_GOOD_EPS * i_v.abs()) {
+            i_mv
+        } else {
+            i_v
+        };
+    }
 
     sum
 }
