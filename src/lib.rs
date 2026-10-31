@@ -270,6 +270,13 @@
 //! | [`wilcoxon_cdf`]     | Cumulative distribution function, from [`wilcoxon_cdf_all`] |
 //! | [`wilcoxon_sf`]      | Survival function, from [`wilcoxon_cdf_all`]                |
 //!
+//! ## Multivariate normal distribution
+//!
+//! | Function                  | Description                                        |
+//! | ------------------------- | -------------------------------------------------- |
+//! | [`bivariate_normal_cdf`]  | CDF of the standard bivariate normal distribution  |
+//! | [`trivariate_normal_cdf`] | CDF of the standard trivariate normal distribution |
+//!
 //! ## Miscellaneous
 //!
 //! | Function           | Description                                    |
