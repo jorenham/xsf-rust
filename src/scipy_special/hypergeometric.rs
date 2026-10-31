@@ -8,12 +8,15 @@ const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 ///
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_asy`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L59-L100>
+///
+/// Unlike in xsf, this also handles $z<0$ with $4|z| < (v-1)^2$ through Debye's expansion of
+/// $J_{v-1}(2\sqrt{-z})$ (DLMF 10.19.3), i.e. with $\sqrt{1-x^2}$ instead of $\sqrt{1+x^2}$.
 #[inline]
 fn hyp0f1_asy(v: f64, z: f64) -> f64 {
-    let arg = z.sqrt();
+    let arg = z.abs().sqrt();
     let v1 = (v - 1.0).abs();
     let x = 2.0 * arg / v1;
-    let p1 = (1.0 + x * x).sqrt();
+    let p1 = (1.0 + z.signum() * x * x).sqrt();
     let eta = p1 + x.ln() - crate::log1p(p1);
 
     let mut arg_exp_i = -0.5 * p1.ln();
@@ -39,6 +42,9 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
+        // (or DLMF 10.2.3: J_{-v} = cos(pi*v) J_v - sin(pi*v) Y_v, where J_v is negligible if
+        // J_{-v} overflows)
+        let out = if z < 0.0 { 0.0 } else { out };
         let u_corr_k = 1.0 - u1 / v1 + u2 / (v1 * v1) - u3 / (v1 * v1 * v1);
         out + (arg_exp_k + crate::xlogy(v1, arg)).exp() * gs * 2.0 * crate::sinpi(v1) * u_corr_k
     } else {
@@ -71,16 +77,66 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 
         if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
             // overflow or underflow
-            hyp0f1_asy(v, z)
+            hyp0f1_large_v(v, z)
         } else {
             arg_exp.exp() * bess_val * crate::gammasgn(v)
         }
     } else {
         let arg = (-z).sqrt();
+        let arg_pow = arg.powf(1.0 - v);
+        let gamma_v = crate::gamma(v);
+        let prefactor = arg_pow * gamma_v;
         let bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
+        let out = prefactor * bess_val;
+        let prefactor_ok = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
 
-        arg.powf(1.0 - v) * crate::gamma(v) * bess_val
+        // Unlike in xsf, fall back if a factor over- or underflows (for |v| >~ 100), e.g.
+        // hyp0f1(200, -1) would be NaN instead of 0.995 (Gamma(200) = inf and J_199(2) = 0)
+        if prefactor_ok && out.is_normal() {
+            out
+        } else if -z > v.abs() && bess_val.is_normal() {
+            (crate::xlogy(1.0 - v, arg) + crate::gammaln(v)).exp() * bess_val * crate::gammasgn(v)
+        } else if -z <= v.abs()
+            || (4.0 * -z < (v - 1.0).powi(2) && (v > 1.0 || !bess_val.is_finite()))
+        {
+            // the series, or Debye's expansion if J_{v-1}(2 sqrt(-z)) under- (or for v < 1,
+            // over-) flowed in its non-oscillatory regime
+            hyp0f1_large_v(v, z)
+        } else {
+            out
+        }
     }
+}
+
+/// Fallback for large $|v|$, if the evaluation in terms of Bessel functions over- or underflows
+///
+/// Unlike in xsf, the Maclaurin series is summed if $|z| \le |v|$, since `hyp0f1_asy` loses roughly
+/// $\epsilon |v| \ln|v|$ in its exponent, e.g. `hyp0f1(1.3e14, 2.3e8)` would be $e$ instead of
+/// 1.0000018.
+fn hyp0f1_large_v(v: f64, z: f64) -> f64 {
+    if z.abs() <= v.abs() {
+        hyp0f1_series(v, z)
+    } else {
+        hyp0f1_asy(v, z)
+    }
+}
+
+/// Maclaurin series $\sum_n z^n / ((v)_n n!)$ (DLMF 16.2.1)
+///
+/// Only used for $|z| \le |v|$ with large $|v|$, where the terms decrease rapidly (up to the
+/// negligible ones with $n > -v$ if $v < 0$), and cancel by at most roughly $e^2$.
+fn hyp0f1_series(v: f64, z: f64) -> f64 {
+    let mut term = 1.0;
+    let mut sum = 1.0;
+    for n in 0..1000 {
+        let n = f64::from(n);
+        term *= z / (v + n) / (n + 1.0);
+        sum += term;
+        if term.abs() <= f64::EPSILON * sum.abs() {
+            break;
+        }
+    }
+    sum
 }
 
 /// Complex valued kernel
@@ -396,14 +452,31 @@ mod tests {
             (-661.112_997_069_224_4, 0.062_385_007_293_382_27),
             // b near a non-positive integer
             (-9.000_000_000_000_306, -0.019_499_612_460_819_94),
+            // over- or underflow of Gamma(b), |z|^((1-b)/2), or J_{b-1}(2 sqrt(-z))
+            (200.0, -1.0),
+            (233.063_303_394_596_46, -511.589_207_216_921_75),
+            (873.979_261_659_223_8, -1_963.183_700_462_148_6),
+            (-628.010_908_208_124_6, -2_515.795_365_646_08),
+            (130_356_679_484_338.69, 229_453_612.840_189_75),
+            (-127.999_999_999_999_96, -0.023),
         ];
         // computed with mpmath
         let expected = [
             1.003_338_876_548_527_4,
             0.999_905_640_851_462_9,
             1.002_169_266_580_656_6,
+            0.995_012_417_311_756_4,
+            0.110_196_664_254_785_33,
+            0.105_488_627_754_553_3,
+            55.638_844_554_215_72,
+            1.000_001_760_199_904_5,
+            1.000_179_703_771_905_4,
         ];
         np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-12);
+
+        // near zeros of J_{b-1}(2 sqrt(-z)), where it rounds to 0 (instead of 5.2e-17 and 6.1e-15)
+        assert!(hyp0f1(1.674_445_551_227_833_6, -2.866_969_344_179_029).abs() < 1e-14);
+        assert!(hyp0f1(-3.854_390_408_608_444_4, -5.550_754_014_064_338).abs() < 1e-14);
     }
 
     #[test]
