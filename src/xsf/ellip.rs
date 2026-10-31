@@ -92,7 +92,7 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 ///
 /// # Arguments
 /// - `u` - Real argument
-/// - `m` - Parameter between 0 and 1
+/// - `m` - Parameter, `m <= 1`
 ///
 /// # Returns
 /// - *sn(u | m)* - sine amplitude

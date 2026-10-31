@@ -316,10 +316,6 @@ where
             continue;
         }
 
-        if name == "ellipj" && case.r#in[1] < 0.0 {
-            continue;
-        }
-
         // https://github.com/scipy/xsf/pull/85#issuecomment-3738637926
         if name == "hyp2f1" && case.r#in[0] == -1.0 {
             continue;

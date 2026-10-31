@@ -73,7 +73,7 @@ const UNITY_COSCOF: [f64; 7] = [
 pub(crate) fn cephes_sinpi(mut x: f64) -> f64 {
     let mut s = 1.0;
 
-    if x < 0.0 {
+    if x.is_sign_negative() {
         x = -x;
         s = -1.0;
     }
@@ -314,13 +314,13 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `cephes::detail::tancot`
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn tancot(xx: f64, cotflg: bool) -> f64 {
     let mut x;
     let mut sign: i32;
 
     /* make argument positive but save the sign */
-    if xx < 0.0 {
+    if xx.is_sign_negative() {
         x = -xx;
         sign = -1;
     } else {
@@ -333,7 +333,8 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     }
 
     /* modulo 180 */
-    x -= 180.0 * (x / 180.0).floor();
+    let k = (x / 180.0).floor();
+    x -= 180.0 * k;
     if cotflg {
         if x <= 90.0 {
             x = 90.0 - x;
@@ -346,11 +347,17 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
         sign *= -1;
     }
     if x == 0.0 {
-        return 0.0;
+        if (k as i64) & 1 != 0 {
+            sign *= -1;
+        }
+        return f64::from(sign) * 0.0;
     } else if x == 45.0 {
         return f64::from(sign) * 1.0;
     } else if x == 90.0 {
-        return f64::INFINITY;
+        if (k as i64) & 1 != 0 {
+            sign *= -1;
+        }
+        return f64::from(sign) * f64::INFINITY;
     }
     /* x is now transformed into [0, 90) */
     f64::from(sign) * (x * PI180).tan()
@@ -430,7 +437,7 @@ pub fn sindg(mut x: f64) -> f64 {
 
     /* make argument positive but save the sign */
     sign = 1;
-    if x < 0.0 {
+    if x.is_sign_negative() {
         x = -x;
         sign = -1;
     }

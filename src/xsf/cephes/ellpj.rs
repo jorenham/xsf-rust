@@ -13,14 +13,14 @@
 //! Unlike in xsf, `(sn, cn, dn, phi)` is returned instead of written to output pointers, and the
 //! (unused) status code is dropped.
 
-use core::f64::consts::FRAC_PI_2;
+use core::f64::consts::{FRAC_PI_2, PI};
 
 const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 /// Jacobian Elliptic Functions
 ///
 /// Evaluates the Jacobian elliptic functions sn(u|m), cn(u|m),
-/// and dn(u|m) of parameter m between 0 and 1, and real
+/// and dn(u|m) of parameter m less than or equal to 1, and real
 /// argument u.
 ///
 /// These functions are periodic, with quarter-period on the
@@ -60,8 +60,24 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     let mut c = [0.0; 9];
 
     /* Check for special cases */
-    if m < 0.0 || m > 1.0 || m.is_nan() {
+    if m > 1.0 || m.is_nan() {
         return (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+    }
+    /* Handle negative m by transformation (DLMF 22.17) */
+    if m < 0.0 {
+        let m1 = -m / (1.0 - m);
+        let sqrt_1_minus_m = (1.0 - m).sqrt();
+        let u1 = sqrt_1_minus_m * u;
+
+        // Unlike in xsf, the outputs are NaN (instead of unset) if this fails, i.e. if m = -inf
+        let (sn_p, cn_p, dn_p, ph_p) = ellpj(u1, m1);
+
+        let sn = sn_p / (sqrt_1_minus_m * dn_p);
+        let cn = cn_p / dn_p;
+        let dn = 1.0 / dn_p;
+        let ph0 = sn_p.atan2(sqrt_1_minus_m * cn_p);
+        let ph = ph0 + PI * ((ph_p - ph0) / PI).round();
+        return (sn, cn, dn, ph);
     }
     if m < 1.0e-9 {
         let t = u.sin();

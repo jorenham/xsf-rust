@@ -10,7 +10,7 @@
 //! Author:  Travis Oliphant
 
 const TUKEY_SMALLVAL: f64 = 1e-4;
-const TUKEY_EPS: f64 = 1.0e-14;
+const TUKEY_EPS: f64 = 1.0e-18;
 const TUKEY_MAXCOUNT: i32 = 60;
 
 #[allow(clippy::float_cmp)]
