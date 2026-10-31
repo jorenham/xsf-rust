@@ -5,7 +5,7 @@
 //! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows), and the loop
 //! counters of the recurrences are also 64-bit (instead of `int`, which could overflow).
 
-use core::f64::consts::FRAC_PI_2;
+use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_complex::{Complex64, c64};
 
@@ -131,6 +131,15 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
         return f64::NAN;
     }
 
+    // For real negative x, the principal-branch product
+    // sqrt(M_PI_2/x) * J_{n+1/2}(x) introduces a spurious sign relative
+    // to the (entire) function j_n. Use the reflection identity
+    // j_n(-x) = (-1)^n * j_n(x) explicitly (DLMF 10.47.14).
+    if x < 0.0 {
+        let r = sph_bessel_j_f64(n, -x);
+        return if n % 2 == 0 { r } else { -r };
+    }
+
     if x.is_infinite() {
         return 0.0;
     }
@@ -200,6 +209,15 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(0.0, 0.0);
     }
 
+    // For purely real negative z, the principal-branch product
+    // sqrt(M_PI_2/z) * J_{n+1/2}(z) introduces a spurious sign relative
+    // to the (entire) function j_n. Use the reflection identity
+    // j_n(-z) = (-1)^n * j_n(z) explicitly (DLMF 10.47.14).
+    if z.im == 0.0 && z.re < 0.0 {
+        let r = sph_bessel_j_c64(n, c64(-z.re, 0.0));
+        return if n % 2 == 0 { r } else { -r };
+    }
+
     let out = cmul(sqrt_pi_2_div(z), cyl_bessel_j_c64(half(n), z));
     if z.im == 0.0 {
         return c64(out.re, 0.0); // Small imaginary part is spurious
@@ -255,7 +273,8 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
     }
 
     if x < 0.0 {
-        return pow_m1(n.wrapping_add(1)) * sph_bessel_y_f64(n, -x);
+        let r = sph_bessel_y_f64(n, -x);
+        return if n % 2 == 1 { r } else { -r };
     }
 
     if x.is_infinite() {
@@ -316,6 +335,12 @@ fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(1.0, 1.0) * f64::INFINITY;
     }
 
+    // y_n(-z) = (-1)^(n+1) * y_n(z); see sph_bessel_j note above.
+    if z.im == 0.0 && z.re < 0.0 {
+        let r = sph_bessel_y_c64(n, c64(-z.re, 0.0));
+        return if n % 2 == 0 { -r } else { r };
+    }
+
     cmul(sqrt_pi_2_div(z), cyl_bessel_y_c64(half(n), z))
 }
 
@@ -335,7 +360,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
     sph_bessel_y_c64(n - 1, x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
 }
 
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -343,6 +368,11 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
 
     if n < 0 {
         return f64::NAN;
+    }
+
+    if x < 0.0 {
+        let r = sph_bessel_i_f64(n, -x);
+        return if n % 2 == 0 { r } else { -r };
     }
 
     if x == 0.0 {
@@ -360,6 +390,20 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
         }
 
         return f64::INFINITY;
+    }
+
+    // Computing i_n through I_{n + 1/2} can underflow before multiplication
+    // by the spherical normalization.  In the tiny-x region, use the leading
+    // term of the power series i_n(x) = x^n / (2n + 1)!! * (1 + O(x^2)).
+    // The cutoff bounds the omitted first correction by roughly eps / 4.
+    if x * x < (n as f64 + 1.5) * f64::EPSILON {
+        let mut res = 1.0;
+        let mut k: i64 = 1;
+        while k <= n && res != 0.0 {
+            res *= x / (2.0 * k as f64 + 1.0);
+            k += 1;
+        }
+        return res;
     }
 
     (FRAC_PI_2 / x).sqrt() * crate::bessel_i(half(n), x)
@@ -395,6 +439,12 @@ fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
         }
 
         return c64(f64::NAN, 0.0);
+    }
+
+    // i_n(-z) = (-1)^n * i_n(z); see sph_bessel_j note above.
+    if z.im == 0.0 && z.re < 0.0 {
+        let r = sph_bessel_i_c64(n, c64(-z.re, 0.0));
+        return if n % 2 == 0 { r } else { -r };
     }
 
     cmul(sqrt_pi_2_div(z), cyl_bessel_i_c64(half(n), z))
@@ -444,6 +494,14 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
         return f64::INFINITY;
     }
 
+    if z < 0.0 {
+        // https://dlmf.nist.gov/10.47#E17
+        // and
+        // https://dlmf.nist.gov/10.47.E11
+        let sign = if n.abs() % 2 == 0 { 1.0 } else { -1.0 };
+        return -(PI * sph_bessel_i_f64(n, -z) + sign * sph_bessel_k_f64(n, -z));
+    }
+
     if z.is_infinite() {
         // https://dlmf.nist.gov/10.52.E6
         if z == f64::INFINITY {
@@ -481,6 +539,10 @@ fn sph_bessel_k_c64(n: i64, z: Complex64) -> Complex64 {
         }
 
         return c64(f64::NAN, 0.0);
+    }
+
+    if z.im == 0.0 {
+        return c64(sph_bessel_k_f64(n, z.re), 0.0);
     }
 
     cmul(sqrt_pi_2_div(z), cyl_bessel_k_c64(half(n), z))
