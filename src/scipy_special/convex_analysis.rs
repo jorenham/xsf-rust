@@ -141,7 +141,17 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
         f64::NAN
     } else if 0.0 < x && 0.0 < y {
-        x * (x / y).ln() - x + y
+        // Unlike in SciPy, `rel_entr` is reused, which takes the logarithm first if x / y under-
+        // or overflows, e.g. kl_div(1e-184, 1e258) was -inf instead of 1e258.
+        //
+        // For x / y in [0.5, 2), with x = y (1 + e), it's y ((1 + e) ln(1 + e) - e), written so
+        // that nothing cancels, e.g. kl_div(1 + 1e-12, 1) had a relative error of 28.
+        let e = (x - y) / y;
+        if (-0.5..1.0).contains(&e) {
+            y * (crate::log1pmx(e) + e * e.ln_1p())
+        } else {
+            rel_entr(x, y) - x + y
+        }
     } else if x == 0.0 && 0.0 <= y {
         y
     } else {
@@ -237,14 +247,23 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
     } else if delta == 0.0 || r == 0.0 {
         0.0
     } else {
-        let u2 = delta * delta;
-        let v = r / delta;
-        let v2 = v * v;
-        // The formula is u^2 * (sqrt(v^2 + 1) - 1), but to maintain precision with small v, we use
-        // sqrt(1 + v^2) - 1
-        //   =  exp(log(v^2 + 1) / 2) - 1
-        //   =  expm1(log1p(v^2) / 2)
-        u2 * (0.5 * v2.ln_1p()).exp_m1()
+        // Unlike in SciPy, u^2 (sqrt(1 + v^2) - 1) with u = delta and v = r / u is not computed
+        // as u^2 expm1(log1p(v^2) / 2), where u^2 or v^2 over- or underflows if u or |v| is huge
+        // or tiny, and the log-exp round trip loses precision if |v| is large. Instead, the
+        // equivalent r^2 / (sqrt(1 + v^2) + 1) is used, scaled like `hypot`:
+        //
+        // - |r| <= u: |r| (|r| / (sqrt(1 + v^2) + 1))
+        // - |r| > u: |r| (u / (sqrt(1 + w^2) + w)), with w = u / |r|
+        //
+        // E.g. pseudo_huber(1e-99, 1e211) was inf instead of 1e112.
+        let r = r.abs();
+        if r <= delta {
+            let v = r / delta;
+            r * (r / ((1.0 + v * v).sqrt() + 1.0))
+        } else {
+            let w = delta / r;
+            r * (delta / ((1.0 + w * w).sqrt() + w))
+        }
     }
 }
 
@@ -298,6 +317,18 @@ mod tests {
         let z = get_test_xy();
         let w = map2(xfunc, z);
         np_assert_allclose!(map2(crate::kl_div, z), w, rtol = 1e-13, atol = 1e-13);
+    }
+
+    #[test]
+    fn test_kl_div_ratio_overflow() {
+        // x / y underflows or overflows
+        let inputs = [
+            (1.126_513_958_653_338_2e-184, 1.521_698_452_194_790_4e258),
+            (1e300, 1e-10),
+        ];
+        // mpmath, x * (log(x) - log(y)) - x + y
+        let expected = [1.521_698_452_194_790_4e258, 7.128_013_788_281_542e302];
+        np_assert_allclose!(map2(crate::kl_div, inputs), expected, rtol = 1e-15);
     }
 
     /// translated from `scipy.special.tests.test_basic.test_rel_entr`
@@ -375,5 +406,30 @@ mod tests {
         np_assert_allclose!([crate::pseudo_huber(2.0, 2.5)], [41.0_f64.sqrt() - 4.0]);
         // delta^2 underflows to 0, but r / delta doesn't
         assert_eq!(crate::pseudo_huber(1e-170, 1e-160), 0.0);
+    }
+
+    #[test]
+    fn test_pseudo_huber_extreme() {
+        // delta^2 or (r / delta)^2 over- or underflows, or |r / delta| is large
+        let inputs = [
+            (5.632_860_139_466_413e-99, 1.158_620_610_502_460_7e211),
+            (1e200, 1.0),
+            (1e160, -1e150),
+            (1e-170, 1e-100),
+            (1.0, 1e100),
+            (f64::from_bits(1), 1e300),
+            (f64::INFINITY, 1.0),
+        ];
+        // mpmath, r^2 / (sqrt(1 + (r / delta)^2) + 1)
+        let expected = [
+            6.526_347_853_663_551e112,
+            0.5,
+            5e299,
+            1e-270,
+            1e100,
+            4.940_656_458_412_466e-24,
+            0.5,
+        ];
+        np_assert_allclose!(map2(crate::pseudo_huber, inputs), expected, rtol = 1e-15);
     }
 }
