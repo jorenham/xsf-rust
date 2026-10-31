@@ -9,7 +9,10 @@
 //! Unlike in xsf, `1 - a` in the negative integer helpers is computed in floating point instead of
 //! in `int`, where it overflows (UB) for `a = -2^31` and `a = -2^31 + 1`.
 
-use crate::xsf::cephes::{gamma, lgam_sgn, rgamma};
+use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
+use crate::xsf::trig::cephes_sinpi;
+
+use core::f64::consts::PI;
 
 // cephes/const.h
 
@@ -41,6 +44,40 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
     r += -t * t * u * (1.0 - b) / 12.0;
 
     (r, sgn)
+}
+
+/// `ln(|B(a, b)|)` and the sign of `B(a, b)` for `|b| < |a| / 8`, or `a > 0` and `b <= -a / 2`,
+/// or `None` otherwise
+///
+/// Unlike in xsf, `lgam_ratio` avoids the cancellation in `lgam(a) + lgam(b) - lgam(a + b)`, e.g.
+/// a relative error of 9e-11 for beta(999999, 0.5), 3e-10 for beta(-1000000.25, 0.5), and 4e-12
+/// for beta(5000.25, -4999.5). The negative one of the two largest arguments is reflected.
+fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
+    if a > 0.0 && b.abs() < 0.125 * a {
+        let (y, sign) = lgam_sgn(b);
+        Some((y - lgam_ratio(a, b), f64::from(sign)))
+    } else if a > 0.0 && b <= -0.5 * a {
+        // B(a, b) = pi / sin(pi b) Gamma(a) / Gamma(1 - b) / Gamma(a + b), with exact a + b
+        let y = (PI / cephes_sinpi(b).abs()).ln() - lgam_ratio(a, 1.0 - (a + b)) - lgam(a + b);
+        Some((y, gammasgn(b)))
+    } else if a < 0.0 && b.abs() < -0.125 * a {
+        // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
+        let (y, sign) = lgam_sgn(b);
+        let s = cephes_sinpi(a + b) / cephes_sinpi(a);
+        let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
+        Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
+    } else {
+        None
+    }
+}
+
+/// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
+/// `|a + b|` at most `MAXGAM`
+///
+/// Unlike in xsf, `lgam` is then used instead, e.g. beta(-171.1, 0.5) was -0 instead of -0.4167.
+fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
+    (a < 1.0 - MAXGAM || b < 1.0 - MAXGAM || y < 1.0 - MAXGAM)
+        && !(gamma(a).is_normal() && gamma(b).is_normal() && rgamma(y).is_normal())
 }
 
 /// Special case for a negative integer argument
@@ -131,7 +168,10 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM {
+    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
+        if let Some((y, sign)) = lbeta_ratio(a, b) {
+            return sign * y.exp();
+        }
         let mut sgngam;
         (y, sgngam) = lgam_sgn(y);
         sign *= sgngam; /* keep track of the sign */
@@ -204,7 +244,10 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM {
+    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
+        if let Some((y, _)) = lbeta_ratio(a, b) {
+            return y;
+        }
         (y, _) = lgam_sgn(y);
         y = lgam_sgn(b).0 - y;
         y += lgam_sgn(a).0;

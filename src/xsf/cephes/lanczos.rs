@@ -74,6 +74,18 @@ pub fn lanczos_sum_expg_scaled(x: f64) -> f64 {
     )
 }
 
+/// `ln(Gamma(x + m) / Gamma(x))` for `x > 0` and `x + m > 0`
+///
+/// Unlike `lgam(x + m) - lgam(x)` in xsf, this does not lose ~`x ln(x)` eps through cancellation,
+/// because in the Lanczos form `Gamma(z) = L(z) ((z + g - 1/2) / e)^(z - 1/2)` only terms of size
+/// ~`|m| ln(x)` remain.
+pub(crate) fn lgam_ratio(x: f64, m: f64) -> f64 {
+    let xgh = x + LANCZOS_G - 0.5;
+    (x - 0.5) * (m / xgh).ln_1p()
+        + m * ((xgh + m).ln() - 1.0)
+        + (lanczos_sum_expg_scaled(x + m) / lanczos_sum_expg_scaled(x)).ln()
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
