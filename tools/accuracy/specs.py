@@ -56,6 +56,21 @@ def nobreak(*parts):
     return s.replace(f"{PM}[", f"{PM}\u2060[").replace(f"{MINUS}[", f"{MINUS}\u2060[")
 
 
+def wrap(s):
+    """Put each argument's domain on its own line, i.e. break at the ", " between them (the ones
+    outside brackets; within an argument's domain, `nobreak` leaves only those in intervals)."""
+    parts, depth, start = [], 0, 0
+    for i, c in enumerate(s):
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "," and depth == 0 and s[i + 1 : i + 2] == " ":
+            parts.append(s[start:i])
+            start = i + 2
+    return "<br>".join([*parts, s[start:]])
+
+
 @dataclass(frozen=True)
 class U:
     """Uniform on [lo, hi]."""
@@ -193,17 +208,19 @@ class Domain:
     def pretty(self, argnames):
         """Unicode description for the table; consecutive equal distributions are merged."""
         if self.pretty_label:
-            return self.pretty_label
+            return wrap(self.pretty_label)
         groups = []
         for a, d in zip(argnames, self.dists):
             if groups and groups[-1][1] == d:
                 groups[-1][0].append(a)
             else:
                 groups.append(([a], d))
-        return ", ".join(
-            nobreak(", ".join(GREEK.get(a, a) for a in names), IN, d.pretty())
-            + (" (log)" if _is_log(d) else "")
-            for names, d in groups
+        return wrap(
+            ", ".join(
+                nobreak(", ".join(GREEK.get(a, a) for a in names), IN, d.pretty())
+                + (" (log)" if _is_log(d) else "")
+                for names, d in groups
+            )
         )
 
     def sample(self, rng):
@@ -2327,8 +2344,12 @@ add(
         sampler=tvn_sampler,
         label="h in [-3, 3], positive definite R",
         pretty=f"{nobreak('h\u2081, h\u2082, h\u2083', IN, U(-3, 3).pretty())}, "
-        + "r\u2081\u2082, r\u2081\u2083 \u2208 [\u22120.9, 0.9], r\u2082\u2083 \u2208 r\u2081\u2082r\u2081\u2083 "
-        + f"{PM} 0.9{SQRT}((1 {MINUS} r\u2081\u2082\u00b2)(1 {MINUS} r\u2081\u2083\u00b2))",
+        + f"{nobreak('r\u2081\u2082, r\u2081\u2083', IN, U(-0.9, 0.9).pretty())}, "
+        + nobreak(
+            "r\u2082\u2083",
+            IN,
+            f"r\u2081\u2082r\u2081\u2083 {PM} 0.9{SQRT}((1 {MINUS} r\u2081\u2082\u00b2)(1 {MINUS} r\u2081\u2083\u00b2))",
+        ),
         n=1000,
     ),
     timeout=120,
@@ -3031,88 +3052,59 @@ add(
 )
 
 NOTES = {
-    "zeros_c": "The relative error is ill-conditioned near the zeros of the function.",
-    "zeros": (
-        "The relative error is ill-conditioned near the zeros of the function, which is where "
-        "the largest errors come from."
-    ),
-    "osc": (
-        "In the oscillatory region x > |v|, the error is the absolute error divided by the "
-        f"local amplitude {SQRT}(J\u1d65(x)\u00b2 + Y\u1d65(x)\u00b2), if that is smaller than "
-        "the relative error."
-    ),
+    "zeros_c": "Ill-conditioned near the zeros.",
+    "zeros": "Ill-conditioned near the zeros, where the largest errors are.",
+    "osc": f"For x > |v|: A = {SQRT}(J\u1d65(x)\u00b2 + Y\u1d65(x)\u00b2).",
     "neg": (
-        f"For negative non-integer a, these are ill-conditioned for large |a|, and near the poles "
-        f"of {GAMMA}(a + b) (or {GAMMA}(a + m)): a relative change {EPSILON} of a changes "
-        f"{GAMMA}(a + b) / {GAMMA}(a) by a factor of about 1 + {EPSILON} a ({PSI}(a + b) "
-        f"{MINUS} {PSI}(a)). This is where the largest errors come from."
+        f"Ill-conditioned for negative non-integer a with large |a|, and near the poles of "
+        f"{GAMMA}(a + b) (or {GAMMA}(a + m)), where the largest errors are."
     ),
     "osc_hyp0f1": (
-        f"In the oscillatory region z < 0 with x = 2{SQRT}{MINUS}z > |b {MINUS} 1|, where the "
-        f"function is {GAMMA}(b) (x/2)^(1 {MINUS} b) J_(b{MINUS}1)(x), the error is the absolute "
-        f"error divided by the local amplitude |{GAMMA}(b)| (x/2)^(1 {MINUS} b) "
-        f"{SQRT}(J_(b{MINUS}1)(x)\u00b2 + Y_(b{MINUS}1)(x)\u00b2), if that is smaller than the "
-        "relative error."
+        f"For z < 0 with x = 2{SQRT}{MINUS}z > |b {MINUS} 1|: A = |{GAMMA}(b)| (x/2)^(1 {MINUS} b) "
+        f"{SQRT}(J_(b{MINUS}1)(x)\u00b2 + Y_(b{MINUS}1)(x)\u00b2)."
     ),
-    "beta_dist": (
-        f"{MU} = a / (a + b) and {SIGMA}\u00b2 = {MU}(1 {MINUS} {MU}) / (a + b + 1) are the mean "
-        "and variance of the beta distribution."
-    ),
+    "beta_dist": f"{MU} = a / (a + b), {SIGMA}\u00b2 = {MU}(1 {MINUS} {MU}) / (a + b + 1).",
 }
 
 NOTES |= {
     "inv": (
-        "The reference is the root, found with mpmath, of the reference of the function that this "
-        "inverts. The inverse is ill-conditioned where that function is flat, e.g. in its tails."
+        "Reference: the mpmath root of the forward reference. Ill-conditioned where the forward "
+        "function is flat, e.g. in its tails."
     ),
     "osc_sph": (
-        f"In the oscillatory region x > n + {HALF}, the error is the absolute error divided by the "
-        f"local amplitude {SQRT}(\u03c0/(2x)) {SQRT}(J_(n+{HALF})(x)\u00b2 + Y_(n+{HALF})(x)\u00b2), "
-        "if that is smaller than the relative error."
+        f"For x > n + {HALF}: A = {SQRT}(\u03c0/(2x)) {SQRT}(J_(n+{HALF})(x)\u00b2 + "
+        f"Y_(n+{HALF})(x)\u00b2)."
     ),
-    "osc_c": (
-        f"The error is the absolute error divided by {SQRT}(|J\u1d65(z)|\u00b2 + |Y\u1d65(z)|\u00b2), "
-        "if that is smaller than the relative error."
-    ),
-    "kelvin": (
-        "The error is the absolute error divided by the modulus of the complex function, e.g. "
-        "|ber x + i bei x| for `ber` and `bei`, if that is smaller than the relative error."
-    ),
+    "osc_c": f"A = {SQRT}(|J\u1d65(z)|\u00b2 + |Y\u1d65(z)|\u00b2).",
+    "kelvin": "A = the modulus of the complex function, e.g. |ber x + i bei x| for `ber` and `bei`.",
     "airy": (
-        "For x < 0, where these oscillate, the error is the absolute error divided by the local "
-        f"amplitude {SQRT}(Ai(x)\u00b2 + Bi(x)\u00b2) (or {SQRT}(Ai\u2032(x)\u00b2 + Bi\u2032(x)\u00b2) for "
-        "the derivatives), if that is smaller than the relative error."
+        f"For x < 0: A = {SQRT}(Ai(x)\u00b2 + Bi(x)\u00b2), or {SQRT}(Ai\u2032(x)\u00b2 + "
+        "Bi\u2032(x)\u00b2) for the derivatives."
     ),
-    "binom_dist": f"{SIGMA}\u00b2 = np(1 {MINUS} p) is the variance of the binomial distribution.",
-    "tvn": "With the error tolerance `epsi` = 10\u207b\u00b9\u2074, its lower bound.",
-    "abs": (
-        "These have an absolute error of about 10\u207b\u00b9\u2076 at best, so the relative "
-        "error is large where the probability is tiny."
-    ),
-    "approx_vm": "For k \u2265 50, this is a normal approximation.",
-    "approx_s2": (
-        "For n > 50, this is Temme's asymptotic approximation, with a relative error of up to "
-        "about 2\u00b710\u207b\u2075."
-    ),
+    "binom_dist": f"{SIGMA}\u00b2 = np(1 {MINUS} p).",
+    "tvn": "With `epsi` = 10\u207b\u00b9\u2074, its lower bound.",
+    "abs": "Absolute error ~10\u207b\u00b9\u2076 at best, so the relative error is large for tiny probabilities.",
+    "approx_vm": "Normal approximation for k \u2265 50.",
+    "approx_s2": "Temme's approximation for n > 50 (relative error up to ~2\u00b710\u207b\u2075).",
     "poly": (
-        f"The rows with n \u2208 {{{ELLIPSIS}}} pass an integer degree n (`i32`, or `u32` for the "
-        "Hermite polynomials), the others a real degree (`f64`)."
+        f"Rows with n \u2208 {{{ELLIPSIS}}} use an integer degree (`i32`, or `u32` for Hermite), "
+        "the others an `f64` degree."
     ),
 }
 
 NOT_COVERED = """\
 ## Not covered
 
-Not covered are the Mathieu (`mathieu_*`) and spheroidal wave functions (`prolate_*`,
-`oblate_*`), for which mpmath has no reference; zeros (`*_zeros`) and coefficients
-(`bernoulli`, `euler`, `mathieu_*_coef`); functions that return all orders or degrees (`*_all`,
-`riccati_j`, `riccati_y`, `jahnke_emden_lambda`), or that take an array (`logsumexp`,
-`softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`); exact integer functions
-(`comb`, `comb_rep`, `factorial`, `multifactorial`, and their `_checked` variants) and `round`;
-`cdf_cvm`, itself an approximation of the finite-sample distribution;
-`lanczos_sum_expg_scaled`, a part of the Lanczos approximation; the error metrics
-`extended_absolute_error` and `extended_relative_error`; `kelvin`, which returns the Kelvin
-functions above as complex numbers; and the complex variants of the functions that are not in
-the last table."""
+- No mpmath reference: Mathieu (`mathieu_*`) and spheroidal wave functions (`prolate_*`,
+  `oblate_*`)
+- Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
+- All orders or degrees: `*_all`, `riccati_j`, `riccati_y`, `jahnke_emden_lambda`
+- Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`
+- Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
+  `round`
+- Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
+  `extended_*_error` metrics, `kelvin` (its parts are above), and complex variants not in the
+  last table
+"""
 
 BY_NAME = {s.name: s for s in SPECS}

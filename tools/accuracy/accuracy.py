@@ -293,6 +293,31 @@ def fmt(x, ninf=0):
     return f"<samp>{s}</samp>"
 
 
+def _err_key(cell):
+    """Sort key of a formatted error, or None for "\u2014" and empty cells."""
+    if not cell.startswith("<samp>"):
+        return None
+    s = cell.removeprefix("<samp>").removesuffix("</samp>")
+    if s.startswith("inf"):
+        return (math.inf, int(s.partition("(")[2].rstrip(")") or 0))
+    return (float(s), 0)
+
+
+def mark_best(errs):
+    """Make the smallest peak and the smallest rms bold, if unique at the displayed precision;
+    `errs` alternates peak and rms per implementation."""
+    errs = list(errs)
+    for j in range(2):
+        keys = {c: _err_key(errs[c]) for c in range(j, len(errs), 2)}
+        keys = {c: k for c, k in keys.items() if k is not None}
+        if len(keys) > 1:
+            best = min(keys.values())
+            if list(keys.values()).count(best) == 1:
+                c = next(c for c, k in keys.items() if k == best)
+                errs[c] = f"<b>{errs[c]}</b>"
+    return errs
+
+
 def table(impls, rows):
     """HTML table with a two-level head; markdown tables cannot span columns."""
     head = [
@@ -307,7 +332,8 @@ def table(impls, rows):
     lines += ["</thead>", "<tbody>"]
     for name, domain, *nums in rows:
         cells = [f"<td><code>{name}</code></td>", f"<td>{domain}</td>"]
-        cells += [f'<td align="right" nowrap>{x}</td>' for x in nums]
+        n, *errs, same = nums
+        cells += [f'<td align="right" nowrap>{x}</td>' for x in [n, *mark_best(errs), same]]
         lines.append(f"<tr>{''.join(cells)}</tr>")
     lines += ["</tbody>", "</table>"]
     return "\n".join(lines)
@@ -334,34 +360,36 @@ def versions():
 HEADER = """\
 # Accuracy
 
-These tables compare the accuracy of the functions of xsf-rust {crate}, of the C++
-[xsf](https://github.com/scipy/xsf) library that it is a translation of, and, where
-available, of the Rust standard library. The xsf version is commit
-[`{short}`](https://github.com/scipy/xsf/tree/{commit});
-"\u2014" marks the functions that it does not have (mostly translations of SciPy's Cython or
-Python code).
+Relative error versus mpmath of xsf-rust {crate}, the C++ [xsf](https://github.com/scipy/xsf)
+it is translated from (commit [`{short}`](https://github.com/scipy/xsf/tree/{commit})), and
+the Rust standard library where it has the function.
 
-**Method.** For each function and domain, N pseudo-random f64 inputs are drawn (with a fixed
-seed) uniformly, or log-uniformly where marked with "(log)"; "\u00b1" means a random sign. Each
-output y is compared to a reference value f, computed with [mpmath](https://mpmath.org/)
-{mpmath} at 50 or more significant digits for the exact f64 input; where mpmath is known to
-be inaccurate, the reference uses an alternative formula instead (see
-`tools/accuracy/specs.py`). The error is the relative error |y \u2212 f| / |f| (of the complex
-values, for complex functions), except where noted below a table. A result counts as exact
-if f overflows and y is an infinity of the same sign, or if f underflows (|f| < 2.2e-308) and
-so does y. "peak" is the largest error, and "rms" the root mean square of the finite errors;
-"inf (k)" means that k results have an infinite error, e.g. NaN, or a spurious overflow.
-"bit-identical" is the fraction of the inputs for which xsf-rust and xsf return the same f64
-(rounded down, and counting any two NaNs as equal). For reference, the machine epsilon is
-2.2e-16.
+- **peak**: the largest error; **rms**: the root mean square of the finite errors
+- **inf (k)**: k infinite errors, e.g. NaN, or a spurious overflow
+- **bold**: the smallest peak or rms of a row (if unique at the displayed precision)
+- **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
+- **bit-identical**: the share of inputs where xsf-rust and xsf return the same f64
+- **(log)**: sampled log-uniformly; **\u00b1**: with a random sign
 
-Built on {platform} with:
+For reference, \u03b5 = 2.2e-16. See [Method](#method) for the details.
+"""
 
-- xsf-rust: `{rustc}`, release profile
-- xsf: `{gxx}`, `-O2 -std=c++17`
+METHOD = """\
+## Method
 
-To regenerate this file, run `just accuracy`. This needs `cargo`, `g++`, `uv`, and an
-internet connection to download xsf. The references are cached in `tools/accuracy/.cache/`.
+- Each domain has N seeded pseudo-random f64 inputs, uniform unless marked "(log)".
+- The reference f is computed with mpmath {mpmath} at 50 or more digits, for the exact f64
+  input, or with an alternative formula where mpmath is inaccurate (see
+  `tools/accuracy/specs.py`).
+- The error of y is |y \u2212 f| / |f| (of the complex values, for complex functions). Where
+  a function oscillates, it is the smaller of that and |y \u2212 f| / A, with the local
+  amplitude A given below the table. A result is exact if both overflow to the same infinity,
+  or both underflow (|f| < 2.2e-308).
+- bit-identical is rounded down, and counts any two NaNs as equal.
+- Built on {platform}: xsf-rust with `{rustc}` (release profile), xsf with `{gxx}`
+  (`-O2 -std=c++17`).
+- To regenerate, run `just accuracy` (needs `cargo`, `g++`, `uv`, and internet access to
+  download xsf). The references are cached in `tools/accuracy/.cache/`.
 """
 
 
@@ -398,6 +426,7 @@ def render(results, ver):
             names = ", ".join(f"`{n}`" for n in dict.fromkeys(names))
             out.append(f"{names}: {specs.NOTES[note]}")
     out.append(specs.NOT_COVERED)
+    out.append(METHOD.format(**ver).rstrip("\n"))
     return "\n\n".join(out) + "\n"
 
 
