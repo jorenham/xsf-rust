@@ -1817,6 +1817,15 @@ mod tests {
     }
 
     #[test]
+    fn test_fdtr_bdtr_large_df() {
+        // reference values from mpmath (see `incbet_lnpow`)
+        let p = crate::fdtr(100.0, 1e20, 0.5);
+        crate::np_assert_allclose!(&[p], &[6.953_305_247_616_099e-6], rtol = 1e-12);
+        let p = crate::bdtr(3e8, 1_000_000_000, 0.3);
+        crate::np_assert_allclose!(&[p], &[0.500_015_600_125_239_4], rtol = 1e-11);
+    }
+
+    #[test]
     fn test_fdtri() {
         xsref::test("fdtri", "d_d_d-d", |x| crate::fdtri(x[0], x[1], x[2]));
     }

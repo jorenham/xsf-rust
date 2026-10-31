@@ -6,7 +6,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::xsf::cephes::{beta, lbeta};
+use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr};
+use crate::xsf::log::log1pmx;
+
+use core::f64::consts::TAU;
 
 // cephes/const.h
 const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
@@ -63,6 +66,40 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
 /// of 0.0098510. The limit of 1e6 iterations bounds the run time.
 fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
     (8.0 * ((a + b).sqrt() + 1.0 / (1.0 - x).sqrt())).clamp(300.0, 1e6)
+}
+
+/// `ln(x^a y^b / B(a, b))` for `a, b >= 13` and `x <= a / (a + b)`, with `y = 1 - x`
+///
+/// Unlike in xsf, where `incbet` computes this as `a ln(x) + b ln(y) - lbeta(a, b)`, whose terms
+/// are ~`(a + b) ln(a + b)` and cancel, so that e.g. `incbet(1e8, 2e8, 0.3333)` had a relative
+/// error of 4e-7 (now 1e-12). Instead, Stirling's formula is used for the Gamma functions
+/// in `B(a, b)`, as in `brcomp` of TOMS 708 \[1\]. With `c = a + b` and `d = c x - a = b - c y`,
+/// this gives `a ln(c x / a) = a ln(1 + d / a)` and `b ln(c y / b) = b ln(1 - d / b)`, whose
+/// large linear parts `d` and `-d` cancel analytically, so that
+///
+/// ```text
+/// ln(x^a y^b / B(a, b)) = a log1pmx(d / a) + b log1pmx(-d / b) + ln(a b / (2 pi c)) / 2
+///                         + corr(c) - corr(a) - corr(b),
+/// ```
+///
+/// where `corr` is the correction to Stirling's formula (`lgam_stirling_corr`).
+///
+/// \[1\] A. R. DiDonato and A. H. Morris, "Algorithm 708: Significant digit computation of the
+/// incomplete beta function ratios", ACM Trans. Math. Softw. 18(3), 360-373 (1992).
+fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    let c = a + b;
+    // without the rounding error of c
+    let d = x * b - y * a;
+    // 1 + d / a = c x / a can be close to 0, so its log is then computed directly
+    let t = d / a;
+    let phi_a = if t > -0.5 {
+        log1pmx(t)
+    } else {
+        (c * x / a).ln() - t
+    };
+    a * phi_a + b * log1pmx(-d / b) + 0.5 * (a / c * (b / TAU)).ln() + lgam_stirling_corr(c)
+        - lgam_stirling_corr(a)
+        - lgam_stirling_corr(b)
 }
 
 /// Continued fraction expansion #1 for incomplete beta integral
@@ -360,12 +397,17 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
             break 'done t;
         }
         /* Resort to logarithms.  */
-        y += t - lbeta(a, b);
+        // Unlike in xsf, `incbet_lnpow` is used for `a, b >= 13` (where `lgam` uses Stirling's
+        // formula)
+        if a.min(b) >= 13.0 {
+            y = incbet_lnpow(a, b, x, xc);
+        } else {
+            y += t - lbeta(a, b);
+        }
         y += (w / a).ln();
-        // Unlike in xsf, the result is clamped to 1, since for huge `a + b` the error of `lbeta`
-        // (about (a + b) eps ln(a + b)) can push it above 1, e.g. to 122 for
-        // `incbet(1e15, 1e15, 0.5)` (in xsf it is 0.028 here, since the truncated continued
-        // fraction partially compensates).
+        // Unlike in xsf, the result is clamped to 1, since for huge `a + b` it can exceed 1, e.g.
+        // `incbet(2, 1e17, 2e-17)` is e^2 times too large (4.39 instead of 0.594) without it,
+        // because `1 - x` rounds to 1.
         if y < MINLOG {
             0.0
         } else if y > 0.0 {
@@ -496,9 +538,9 @@ mod tests {
     fn test_betainc_slow_continued_fraction() {
         // reference values from mpmath
 
-        // large a + b near the mean (limited by the accuracy of `lbeta`)
+        // large a + b near the mean
         let p = crate::betainc(1e8, 1e8, 0.499_996_464_466_102_9);
-        crate::np_assert_allclose!(&[p], &[0.460_172_162_871_263_6], rtol = 1e-6);
+        crate::np_assert_allclose!(&[p], &[0.460_172_162_871_263_6], rtol = 5e-12);
 
         // x near 1 with small b
         for &(a, b, x, p) in &[
@@ -509,10 +551,25 @@ mod tests {
             crate::np_assert_allclose!(&[crate::betainc(a, b, x)], &[p], rtol = 1e-10);
         }
 
-        // `lbeta` is inaccurate here, but the result should stay within [0, 1]
+        // the result should stay within [0, 1] for huge a + b
         assert!((0.0..=1.0).contains(&crate::betainc(1e15, 1e15, 0.5)));
+        assert!((0.0..=1.0).contains(&crate::betainc(2.0, 1e17, 2e-17)));
         assert!((0.0..=1.0).contains(&crate::fdtr(2e15, 2e15, 1.0)));
         assert!((0.0..=1.0).contains(&crate::fdtrc(2e15, 2e15, 1.0)));
+    }
+
+    #[test]
+    fn test_betainc_large_ab() {
+        // reference values from mpmath
+        for &(a, b, x, p) in &[
+            (1e8, 2e8, 0.3333, 0.110_334_398_548_217_36),
+            (5e7, 8e7, 0.3846, 0.359_220_529_919_169_7),
+            (3e8, 1e9, 0.2307, 1.562_168_507_020_367_6e-9),
+            // tiny x with huge b, where 1 - x is rounded
+            (13.0, 1e15, 1e-14, 0.208_443_523_605_136_1),
+        ] {
+            crate::np_assert_allclose!(&[crate::betainc(a, b, x)], &[p], rtol = 5e-12);
+        }
     }
 
     #[test]
