@@ -184,8 +184,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
-/// Unlike in xsf: `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a >= 1` and `b > 0`, with
-/// an error bound, or `None` if it doesn't converge within 100000 terms.
+/// Unlike in xsf: `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`, with an error
+/// bound for `a >= 1` and `b > 0`, or `None` if it doesn't converge within 100000 terms.
 ///
 /// The error bound is the sum of (to first order in `u = EPSILON / 2`):
 /// - the omitted tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term
@@ -193,7 +193,13 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
 /// - the rounding error: at most `8 u sum (n + 1) |t_n|`, from `8 n u` per term and `2 u |t_n|`
 ///   per Kahan step.
 ///
-/// For `z >= 0` there is no cancellation, and the partial sums only overflow if the result does.
+/// A negligible `t_N` is skipped if `q_N >= 1` or `b + N < |z|` (unless the sum overflowed), since
+/// then the terms can grow again, e.g. for tiny `a`. Otherwise they can't, because
+/// `(n + 1) (b + n) - (a + n) |z|` increases for `n >= N`. For `a >= 1` and `b > 0` this changes
+/// nothing, as the term ratios are non-increasing.
+///
+/// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
+/// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
 fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Complex64, f64)> {
     let mut t = scale;
     let mut sum = scale;
@@ -206,6 +212,9 @@ fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Comp
         err += (n + 2.0) * t.norm();
         if t.norm() <= f64::EPSILON * sum.norm() {
             let q = (a + n + 1.0) / (n + 2.0) * (z.norm() / (b + n + 1.0));
+            if (q >= 1.0 || b + n + 1.0 < z.norm()) && sum.norm().is_finite() {
+                continue;
+            }
             let tail = if q < 1.0 {
                 t.norm() * q / (1.0 - q)
             } else {
@@ -273,8 +282,19 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // Unlike in xsf, for a >= 2 and b > 0 the series DLMF 13.2.2 is summed directly, instead of
     // using the forward recurrence in a (DLMF 13.3.1) below, which is unstable for b > 2a + x
     // (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of 1.000000000075.
-    if a >= 2.0 && b > 0.0 && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
-        if let Some((hg, _)) = hyp1f1_series(a, b, c64(x, 0.0), c64(x0.min(0.0).exp(), 0.0)) {
+    //
+    // Unlike in xsf, this series is also used for a > -1 and x > 30 + |b|, instead of the 8-term
+    // asymptotic expansion below (inaccurate unless x >> |b|, and NaN if Gamma(b) e^x overflows),
+    // or for a < 0 the series below (which stops after 500 terms). For b < 0 the alternating
+    // terms (n < -b) can overflow first, so then an infinite sum isn't used.
+    //
+    // E.g. `hyp1f1(-0.5, 0.5, 700)` was -1.0e286 instead of -7.26e300, `hyp1f1(0.5, 100, 140)`
+    // was 1788 instead of 1839.8, and `hyp1f1(0.5, 200, 545)` was NaN instead of 1.68e63.
+    let series = (a >= 2.0 && b > 0.0) || (a > -1.0 && x > 30.0 + b.abs());
+    if series && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
+        if let Some((hg, _)) = hyp1f1_series(a, b, c64(x, 0.0), c64(x0.min(0.0).exp(), 0.0))
+            .filter(|(hg, _)| b > 0.0 || hg.re.is_finite())
+        {
             return hg.re;
         }
     }
