@@ -5,6 +5,9 @@
 //! [`scipy.special` documentation](https://docs.scipy.org/doc/scipy/reference/special.html)
 //! for additional information.
 //!
+//! The [`accuracy`] module compares the accuracy of many of these functions with that of xsf and,
+//! where available, the Rust standard library.
+//!
 //! # Airy functions
 //!
 //! | Function           | Description                                                      |
@@ -560,6 +563,9 @@ mod numpy;
 mod scipy_special;
 mod utils;
 mod xsf;
+
+#[doc = include_str!("../ACCURACY.md")]
+pub mod accuracy {}
 
 pub(crate) mod sealed {
     pub trait Sealed {}

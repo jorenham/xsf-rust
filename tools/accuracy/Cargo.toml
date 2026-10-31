@@ -1,0 +1,13 @@
+[package]
+name = "xsf-accuracy"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Evaluates xsf-rust and Rust std functions for the accuracy table"
+
+[dependencies]
+num-complex = "0.4.6"
+xsf = { path = "../.." }
+
+# not part of the xsf package or workspace
+[workspace]
