@@ -8,7 +8,7 @@
 //!
 //! Unlike in xsf, some formulas and domain conditions in the comments are corrected.
 
-use crate::xsf::cephes::incbet::incbet;
+use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
 
 /// Complemented F distribution
@@ -55,7 +55,9 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         return f64::NAN;
     }
     let w = b / (b + a * x);
-    incbet(0.5 * b, 0.5 * a, w)
+    // Unlike in xsf, `1 - w` is passed as well (see `betainc_xy`), e.g.
+    // fdtrc(0.00118, 1.46e11, 0.00286) was 1 instead of 0.0074741.
+    betainc_xy(0.5 * b, 0.5 * a, w, a * x / (b + a * x))
 }
 
 /// F distribution
@@ -85,7 +87,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 ///                x     a,b                     Relative error:
 /// arithmetic  domain  domain     # trials      peak         rms
 ///    IEEE      0,1    0,100        20000      8.9e-14     1.3e-14
-///    IEEE      1,5    0,100        20000      6.0e-13     5.7e-15
+///    IEEE      1,5    0,100        20000      9.6e-14     2.7e-15
 ///    IEEE      0,1    1,10000      20000      4.0e-11     6.7e-12
 ///    IEEE      1,5    1,10000      20000      1.1e-11     2.9e-13
 /// ```
@@ -109,7 +111,9 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     }
     let mut w = a * x;
     w = w / (b + w);
-    incbet(0.5 * a, 0.5 * b, w)
+    // Unlike in xsf, `1 - w` is passed as well (see `betainc_xy`), e.g.
+    // fdtr(1.38, 0.112, 5.77e62) was 1 instead of 0.99974.
+    betainc_xy(0.5 * a, 0.5 * b, w, b / (b + a * x))
 }
 
 /// Inverse of F distribution

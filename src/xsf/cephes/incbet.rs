@@ -383,6 +383,22 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
     }
 }
 
+/// `betainc(a, b, x)`, given `y = 1 - x` computed without cancellation by the caller
+///
+/// Unlike in xsf, where only `x` is passed: if `x` is close to 1 and above the mean, where
+/// `incbet` swaps to `1 - x`, the rounding error of `x` is amplified (or `1 - x` even rounds to 0),
+/// so `1 - betainc(b, a, y)` is used instead.
+pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    if x > 0.95 && x > a / (a + b) {
+        let q = betainc(b, a, y);
+        // `incbet` can be NaN for huge `a` and `b`, and slightly exceed 1
+        if !q.is_nan() {
+            return (1.0 - q).max(0.0);
+        }
+    }
+    betainc(a, b, x)
+}
+
 /// Regularized incomplete Beta function $\I_x(a,b)$
 ///
 /// Computes the regularized incomplete Beta function, defined as [^DLMF]:

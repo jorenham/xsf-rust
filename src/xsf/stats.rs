@@ -14,8 +14,9 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 
 use num_complex::{Complex64, c64};
 
+use crate::utils::LN_PI;
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
-use crate::xsf::cephes::{gamma, lgam};
+use crate::xsf::cephes::{betainc_xy, gamma, lgam, lgam1p};
 
 pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
@@ -176,7 +177,22 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if nu == 2.0 {
         f64::midpoint(1.0, x / (2.0 + x * x).sqrt())
     } else {
-        let p = 0.5 * crate::betainc(0.5 * nu, 0.5, nu / (nu + x * x));
+        let t2 = x * x;
+        let w = nu / (nu + t2);
+        let p = 0.5
+            * if w < f64::MIN_POSITIVE && nu < 2.0 && x.is_finite() {
+                // `w` underflows (and `t2` may overflow), so use the leading term of the power
+                // series I_w(a, 1/2) ~ w^a / (a B(a, 1/2)) in log space, with w ~ nu / t^2 and
+                // a B(a, 1/2) = Gamma(a + 1) sqrt(pi) / Gamma(a + 1/2), e.g. stdtr(0.0016, -3.8e274)
+                // was 0 instead of 0.1807. For nu >= 2 the tail probability is subnormal at most.
+                let a = 0.5 * nu;
+                let lnw = nu.ln() - 2.0 * x.abs().ln();
+                (a * lnw - lgam1p(a) + lgam(a + 0.5) - 0.5 * LN_PI).exp()
+            } else {
+                // `1 - w` is passed as well (see `betainc_xy`), e.g. stdtr(7.8e5, 5.9e-8) was 0.5
+                // instead of 0.5 + 2.4e-8
+                betainc_xy(0.5 * nu, 0.5, w, t2 / (nu + t2))
+            };
         if x >= 0.0 { 1.0 - p } else { p }
     }
 }
@@ -1422,6 +1438,26 @@ mod tests {
     }
 
     #[test]
+    fn test_stdtr_extreme() {
+        // reference values from mpmath
+        for &(nu, x, p) in &[
+            // x^2 << nu
+            (7.8e5, 5.9e-8, 0.500_000_023_537_587),
+            (7.8e5, -5.9e-8, 0.499_999_976_462_413),
+            // huge |x|
+            (0.5, -1e200, 3.207_009_754_142_229e-101),
+            (0.0016, -3.8e274, 0.180_685_979_862_586_23),
+            (0.0016, 3.8e274, 0.819_314_020_137_413_8),
+            (1e306, -1e200, 0.0),
+            (1e306, 1e200, 1.0),
+            (5e-324, f64::NEG_INFINITY, 0.0),
+            (5e-324, f64::INFINITY, 1.0),
+        ] {
+            crate::np_assert_allclose!(&[crate::stdtr(nu, x)], &[p], rtol = 1e-13);
+        }
+    }
+
+    #[test]
     fn test_stdtri() {
         const NU: [f64; 6] = [0.5, 1.0, 2.0, 3.0, 4.0, 10.0];
         const P: [f64; 7] = [0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999];
@@ -1727,6 +1763,28 @@ mod tests {
     #[test]
     fn test_fdtrc() {
         xsref::test("fdtrc", "d_d_d-d", |x| crate::fdtrc(x[0], x[1], x[2]));
+    }
+
+    #[test]
+    fn test_fdtr_fdtrc_w_near_1() {
+        // reference values from mpmath
+        let p = crate::fdtr(1.38, 0.112, 5.77e62);
+        crate::np_assert_allclose!(&[p], &[0.999_743_687_449_994_5], rtol = 1e-13);
+        let q = crate::fdtrc(0.00118, 1.46e11, 0.00286);
+        crate::np_assert_allclose!(&[q], &[0.007_474_128_501_559_321], rtol = 1e-12);
+        // `incbet` slightly exceeds 1 here (the true value is 4.6245e-10)
+        let p = crate::fdtr(
+            458_884.656_463_958_03,
+            2.951_258_965_120_171e-11,
+            1_072.009_775_175_712_8,
+        );
+        assert!((0.0..1e-9).contains(&p));
+        let q = crate::fdtrc(
+            2.951_258_965_120_171e-11,
+            458_884.656_463_958_03,
+            0.000_932_827_314_784_597_3,
+        );
+        assert!((0.0..1e-9).contains(&q));
     }
 
     #[test]
