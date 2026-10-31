@@ -3396,7 +3396,6 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 name = "xsf"
 version = "0.6.0+0.2.2"
 dependencies = [
- "cc",
  "num-complex",
  "num-traits",
  "xsref",

@@ -19,8 +19,5 @@ clippy *args:
 fmt *args:
     cargo fmt {{ args }}
 
-headers:
-    python3 scripts/check_headers.py
-
 doc *args:
     RUSTDOCFLAGS="--html-in-header katex.html" cargo +nightly doc --all-features --no-deps {{ args }}

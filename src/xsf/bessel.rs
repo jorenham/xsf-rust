@@ -1805,7 +1805,7 @@ pub fn riccati_y<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// where $\Gamma$ is the [Gamma function](crate::gamma) and $J_v$ is the
 /// [Bessel function of the first kind](crate::bessel_j).
 ///
-/// Corresponds to [`scipy.special.lmbda`][scipy] in SciPy, and calls the FFI functions
+/// Corresponds to [`scipy.special.lmbda`][scipy] in SciPy, and uses translations of
 /// `xsf::specfun::lamn` and `xsf::specfun::lamv`.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lmbda.html

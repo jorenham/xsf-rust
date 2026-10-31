@@ -219,7 +219,7 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 /// Confluent hypergeometric limit function $_0F_1\left[b\middle\| z\right]$ for real or complex $z$
 ///
 /// This is a translation of the [`scipy.special.hyp0f1`][hyp0f1] Cython implementation into Rust,
-/// using the same Cephes-based [scipy/xsf][xsf] FFI functions as SciPy.
+/// using the same Cephes-based functions as SciPy, translated from [scipy/xsf][xsf].
 ///
 /// [hyp0f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html
 /// [xsf]: https://github.com/scipy/xsf

@@ -8,8 +8,8 @@
 - crate: [crates.io/crates/xsf](https://crates.io/crates/xsf)
 - xsf (C++): [scipy/xsf](https://github.com/scipy/xsf/)
 
-This crate provides equivalent Rust implementations of `scipy.special` functions, and bindings to
-the bundled [xsf](https://github.com/scipy/xsf/) C++ library that powers `scipy.special`.
+This crate provides pure Rust implementations of `scipy.special` functions, translated from the
+[xsf](https://github.com/scipy/xsf/) C++ library that powers `scipy.special`.
 
 Most of the `scipy.special` functions are available. See <https://docs.rs/xsf/> and the
 [`scipy.special` docs](https://docs.scipy.org/doc/scipy/reference/special.html) for additional

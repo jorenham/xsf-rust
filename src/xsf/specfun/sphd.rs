@@ -5,17 +5,7 @@
 use core::f64::consts::PI;
 
 use super::{Status, lpmns, lqmns, sphj, sphy, try_zeroed};
-
-/// `(int)x` as compiled by g++ for x86-64 (`cvttsd2si`), i.e. INT_MIN if `x` is NaN or out of
-/// range, where it is undefined behavior in C++
-#[allow(clippy::cast_possible_truncation)]
-fn int_x86(x: f64) -> i32 {
-    if x > -2_147_483_649.0 && x < 2_147_483_648.0 {
-        x as i32
-    } else {
-        i32::MIN
-    }
-}
+use crate::xsf::tools::int_x86;
 
 #[allow(
     clippy::too_many_arguments,

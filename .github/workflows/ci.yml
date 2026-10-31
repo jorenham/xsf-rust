@@ -85,9 +85,6 @@ jobs:
           submodules: true
           persist-credentials: false
 
-      - name: check packaged headers
-        run: python3 scripts/check_headers.py
-
       - name: cargo package
         run: cargo package
 

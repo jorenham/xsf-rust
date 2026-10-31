@@ -1,4 +1,6 @@
-use num_complex::Complex;
+use num_complex::{Complex, c64};
+
+use crate::xsf::log::clog;
 
 /// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
 /// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
@@ -239,6 +241,18 @@ pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
     }
 
     Complex::new(rx, ry)
+}
+
+/// `std::pow(z, y)` for complex `z` and real `y`, as in libstdc++
+pub(crate) fn cpow(z: Complex<f64>, y: f64) -> Complex<f64> {
+    if z.im == 0.0 && z.re > 0.0 {
+        return c64(z.re.powf(y), 0.0);
+    }
+    let t = clog(z);
+    // std::polar(exp(y * t.real()), y * t.imag())
+    let rho = (y * t.re).exp();
+    let theta = y * t.im;
+    c64(rho * theta.cos(), rho * theta.sin())
 }
 
 #[cfg(test)]

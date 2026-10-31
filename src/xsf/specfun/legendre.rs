@@ -3,6 +3,11 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
+use core::f64::consts::PI;
+
+use super::{gamma2, psi_spec};
+use crate::xsf::tools::int_x86;
+
 #[allow(clippy::float_cmp, clippy::cast_sign_loss)]
 pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
     // ========================================================
@@ -81,6 +86,226 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
     for k in 1..=n {
         pm[k as usize] *= coef;
         pd[k as usize] *= coef;
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
+    // =======================================================
+    // Purpose: Compute the associated Legendre function
+    //          Pmv(x) with an integer order and an arbitrary
+    //          degree v, using recursion for large degrees
+    // Input :  x   --- Argument of Pm(x)  ( -1 ≤ x ≤ 1 )
+    //          m   --- Order of Pmv(x)
+    //          v   --- Degree of Pmv(x)
+    // Output:  PMV --- Pmv(x)
+    // Routine called:  LPMV0
+    // =======================================================
+
+    let mut pmv;
+    if (x == -1.0) && (v != f64::from(v as i32)) {
+        if m == 0 {
+            let vs = (v * PI).sin() / (v * PI);
+            pmv = if vs > 0.0 { -1e300 } else { 1e300 };
+        } else {
+            pmv = 1e300;
+        }
+        return pmv;
+    }
+    let mut vx = v;
+    let mut mx = m;
+    // DLMF 14.9.5
+    if v < 0.0 {
+        vx = -vx - 1.0;
+    }
+    let mut neg_m = 0;
+    if m < 0 {
+        if ((vx + f64::from(m) + 1.0) > 0.0) || (vx != f64::from(vx as i32)) {
+            neg_m = 1;
+            // Unlike in xsf, NaN for m = INT_MIN, where `-m` overflows
+            if m == i32::MIN {
+                return f64::NAN;
+            }
+            mx = -m;
+        } else {
+            // We don't handle cases where DLMF 14.9.3 doesn't help
+            return f64::NAN;
+        }
+    }
+    // NOTE: `(int)vx` is UB for vx >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN, so that
+    // lpmv0 is called directly (instead of up-recursion with ~2^31 steps).
+    let nv = int_x86(vx);
+    let v0 = vx - f64::from(nv);
+    if (nv > 2) && (nv > mx) {
+        // Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
+        let mut p0 = lpmv0(v0 + f64::from(mx), mx, x);
+        let mut p1 = lpmv0(v0 + f64::from(mx) + 1.0, mx, x);
+        pmv = p1;
+        // NOTE: `mx + 2` overflows for mx = INT_MAX - 1 (with nv = INT_MAX), where the loop is
+        // empty here. In C++, `j <= nv` with nv = INT_MAX can never be false (UB on `j++`), but
+        // g++ -O2 terminates the loop like the Rust range does.
+        for j in mx.saturating_add(2)..=nv {
+            pmv = ((2.0 * (v0 + f64::from(j)) - 1.0) * x * p1
+                - (v0 + f64::from(j) - 1.0 + f64::from(mx)) * p0)
+                / (v0 + f64::from(j) - f64::from(mx));
+            p0 = p1;
+            p1 = pmv;
+        }
+    } else {
+        pmv = lpmv0(vx, mx, x);
+    }
+    if (neg_m != 0) && (pmv.abs() < 1.0e300) {
+        // DLMF 14.9.3
+        let g1 = gamma2(vx - f64::from(mx) + 1.0);
+        let g2 = gamma2(vx + f64::from(mx) + 1.0);
+        pmv = pmv * g1 / g2 * (-1.0_f64).powf(f64::from(mx));
+    }
+    pmv
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::approx_constant,
+    clippy::assign_op_pattern,
+    clippy::manual_midpoint,
+    clippy::unreadable_literal
+)]
+pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
+    // =======================================================
+    // Purpose: Compute the associated Legendre function
+    //          Pmv(x) with an integer order and an arbitrary
+    //          nonnegative degree v
+    // Input :  x   --- Argument of Pm(x)  ( -1 ≤ x ≤ 1 )
+    //          m   --- Order of Pmv(x)
+    //          v   --- Degree of Pmv(x)
+    // Output:  PMV --- Pmv(x)
+    // Routine called:  PSI_SPEC for computing Psi function
+    // =======================================================
+
+    // Unlike in xsf, the `int` products and sums that would overflow for large orders `m` (e.g.
+    // `j * j` for m > 46340) are computed in `double`, which is exact where they don't overflow.
+    // NOTE: `(int)v` is UB for v >= 2^31 (x86: INT_MIN; Rust saturates), see lpmv.
+
+    let el = 0.5772156649015329;
+    let eps = 1e-14;
+
+    let nv = v as i32;
+    let v0 = v - f64::from(nv);
+
+    if x == -1.0 && v != f64::from(nv) {
+        if m == 0 {
+            return -1.0e+300;
+        }
+        if m != 0 {
+            return 1.0e+300;
+        }
+    }
+
+    let mut c0 = 1.0;
+    if m != 0 {
+        let mut rg = v * (v + f64::from(m));
+        for j in 1..m {
+            rg *= v * v - f64::from(j) * f64::from(j);
+        }
+        let xq = (1.0 - x * x).sqrt();
+        let mut r0 = 1.0;
+        for j in 1..=m {
+            r0 = 0.5 * r0 * xq / f64::from(j);
+        }
+        c0 = r0 * rg;
+    }
+
+    if v0 == 0.0 {
+        // DLMF 14.3.4, 14.7.17, 15.2.4
+        let mut pmv = 1.0;
+        let mut r = 1.0;
+        for k in 1..=(nv - m) {
+            r = 0.5
+                * r
+                * (-f64::from(nv) + f64::from(m) + f64::from(k) - 1.0)
+                * (f64::from(nv) + f64::from(m) + f64::from(k))
+                / (f64::from(k) * (f64::from(k) + f64::from(m)))
+                * (1.0 + x);
+            pmv += r;
+        }
+        (-1.0_f64).powf(f64::from(nv)) * c0 * pmv
+    } else if x >= -0.35 {
+        // DLMF 14.3.4, 15.2.1
+        let mut pmv = 1.0;
+        let mut r = 1.0;
+        for k in 1..=100 {
+            r = 0.5
+                * r
+                * (-v + f64::from(m) + f64::from(k) - 1.0)
+                * (v + f64::from(m) + f64::from(k))
+                / (f64::from(k) * (f64::from(m) + f64::from(k)))
+                * (1.0 - x);
+            pmv += r;
+            if k > 12 && (r / pmv).abs() < eps {
+                break;
+            }
+        }
+        (-1.0_f64).powf(f64::from(m)) * c0 * pmv
+    } else {
+        // DLMF 14.3.5, 15.8.10
+        let vs = (v * PI).sin() / PI;
+        let mut pv0 = 0.0;
+        if m != 0 {
+            let qr = ((1.0 - x) / (1.0 + x)).sqrt();
+            let mut r2 = 1.0;
+            for j in 1..=m {
+                r2 *= qr * f64::from(j);
+            }
+            let mut s0 = 1.0;
+            let mut r1 = 1.0;
+            for k in 1..m {
+                r1 = 0.5 * r1 * (-v + f64::from(k) - 1.0) * (v + f64::from(k))
+                    / (f64::from(k) * (f64::from(k) - f64::from(m)))
+                    * (1.0 + x);
+                s0 += r1;
+            }
+            pv0 = -vs * r2 / f64::from(m) * s0;
+        }
+
+        let pa = 2.0 * (psi_spec(v) + el) + PI / (PI * v).tan() + 1.0 / v;
+        let mut s1 = 0.0;
+        for j in 1..=m {
+            s1 += (f64::from(j) * f64::from(j) + v * v)
+                / (f64::from(j) * (f64::from(j) * f64::from(j) - v * v));
+        }
+        let mut pmv = pa + s1 - 1.0 / (f64::from(m) - v) + (0.5 * (1.0 + x)).ln();
+        let mut r = 1.0;
+        for k in 1..=100 {
+            r = 0.5
+                * r
+                * (-v + f64::from(m) + f64::from(k) - 1.0)
+                * (v + f64::from(m) + f64::from(k))
+                / (f64::from(k) * (f64::from(k) + f64::from(m)))
+                * (1.0 + x);
+            let mut s = 0.0;
+            for j in 1..=m {
+                let kj = f64::from(k) + f64::from(j);
+                s += (kj * kj + v * v) / (kj * (kj * kj - v * v));
+            }
+
+            let mut s2 = 0.0;
+            for j in 1..=k {
+                s2 = s2 + 1.0 / (f64::from(j) * (f64::from(j) * f64::from(j) - v * v));
+            }
+
+            let pss = pa + s + 2.0 * v * v * s2 - 1.0 / (f64::from(m) + f64::from(k) - v)
+                + (0.5 * (1.0 + x)).ln();
+            let r2 = pss * r;
+            pmv += r2;
+            if (r2 / pmv).abs() < eps {
+                break;
+            }
+        }
+        pv0 + pmv * vs * c0
     }
 }
 

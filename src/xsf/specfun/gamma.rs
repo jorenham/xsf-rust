@@ -1,15 +1,18 @@
-//! `gamma2` and `cgama`, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
+//! `gamma2`, `cgama`, and `psi_spec`, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
 //!
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior,
+//! except for the loop count in `gamma2`, which is INT_MIN like with g++ on x86-64.
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
+
+use crate::xsf::tools::int_x86;
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 pub(crate) fn gamma2(x: f64) -> f64 {
@@ -65,7 +68,9 @@ pub(crate) fn gamma2(x: f64) -> f64 {
         let mut z;
         if x.abs() > 1.0 {
             z = x.abs();
-            let m = z as i32;
+            // like g++ on x86-64, INT_MIN for |x| >= 2^31 (UB in C++), instead of saturating and
+            // running ~2^31 iterations
+            let m = int_x86(z);
             for k in 1..=m {
                 r *= z - f64::from(k);
             }
@@ -173,4 +178,70 @@ pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     } else {
         c64(gr, gi)
     }
+}
+
+#[allow(
+    clippy::approx_constant,
+    clippy::cast_possible_truncation,
+    clippy::excessive_precision,
+    clippy::float_cmp,
+    clippy::unreadable_literal
+)]
+pub(crate) fn psi_spec(x: f64) -> f64 {
+    // ======================================
+    // Purpose: Compute Psi function
+    // Input :  x  --- Argument of psi(x)
+    // Output:  PS --- psi(x)
+    // ======================================
+
+    const A: [f64; 8] = [
+        -0.8333333333333e-01,
+        0.83333333333333333e-02,
+        -0.39682539682539683e-02,
+        0.41666666666666667e-02,
+        -0.75757575757575758e-02,
+        0.21092796092796093e-01,
+        -0.83333333333333333e-01,
+        0.4432598039215686,
+    ];
+    let el = 0.5772156649015329;
+    let mut ps;
+    let mut s = 0.0;
+    let mut xa = x.abs();
+
+    if (x == f64::from(x as i32)) && (x <= 0.0) {
+        return 1e300;
+    } else if xa == f64::from(xa as i32) {
+        let n = xa as i32;
+        for k in 1..n {
+            s += 1.0 / f64::from(k);
+        }
+        ps = -el + s;
+    } else if (xa + 0.5) == f64::from((xa + 0.5) as i32) {
+        let n = (xa - 0.5) as i32;
+        for k in 1..=n {
+            s += 1.0 / (2.0 * f64::from(k) - 1.0);
+        }
+        ps = -el + 2.0 * s - 1.386294361119891; /* 2*log(2) */
+    } else {
+        if xa < 10.0 {
+            let n = (10.0 - f64::from(xa as i32)) as i32;
+            for k in 0..n {
+                s += 1.0 / (xa + f64::from(k));
+            }
+            xa += f64::from(n);
+        }
+        let x2 = 1.0 / (xa * xa);
+        ps = xa.ln() - 0.5 / xa;
+        ps += x2
+            * (((((((A[7] * x2 + A[6]) * x2 + A[5]) * x2 + A[4]) * x2 + A[3]) * x2 + A[2]) * x2
+                + A[1])
+                * x2
+                + A[0]);
+        ps -= s;
+    }
+    if x < 0.0 {
+        ps -= PI * (PI * x).cos() / (PI * x).sin() + 1.0 / x;
+    }
+    ps
 }
