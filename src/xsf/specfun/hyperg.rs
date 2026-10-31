@@ -185,6 +185,35 @@ fn chgm_series_pos(a: f64, b: f64, x: f64, scale: f64) -> Option<f64> {
     (k > 0).then_some(hg)
 }
 
+/// Unlike in xsf: `M(a, b, x)` for `a <= -1`, `b > 0` and `x > 0`, using the recurrence
+/// DLMF 13.3.1 downward in `a`, starting from `M(a0, b, x)` and `M(a0 + 1, b, x)` with
+/// `a0 = a - floor(a)` (exact, because `|a| >= 1`), together with an estimate of its relative
+/// error in units of eps: `steps^2 max(1, |M(a + 1, b, x) / M(a, b, x)|)` (as observed; the
+/// second factor accounts for a nearby zero of `M` in `a`). The steps from `a0` and
+/// `a0 - 1` divide by `b - a0` and `b - a0 + 1`, which can be tiny (the recurrence is singular at
+/// `a = b`), so `None` is returned if their local rounding error can exceed 1e4 eps times the
+/// previous value. It is also `None` if the result isn't finite, or (partly) underflows.
+fn chgm_recur_neg_a(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
+    let mut ak = a - a.floor();
+    let steps = ak - a;
+    let mut y1 = chgm_series_pos(ak, b, x, 1.0)?;
+    let mut y2 = chgm_series_pos(ak + 1.0, b, x, 1.0)?;
+    while ak > a {
+        // (b - a) M(a - 1) = a M(a + 1) - (2a - b + x) M(a)
+        let p = ak * y2;
+        let q = (2.0 * ak - b + x) * y1;
+        if ak > -1.0 && p.abs() + q.abs() > 1e4 * ((b - ak) * y1).abs() {
+            return None;
+        }
+        let y0 = (p - q) / (b - ak);
+        y2 = y1;
+        y1 = y0;
+        ak -= 1.0;
+    }
+    let err = steps * steps * (y2 / y1).abs().max(1.0);
+    y1.is_normal().then_some((y1, err))
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,
@@ -241,15 +270,40 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
             hg = 1.0;
             let mut rg = 1.0;
+            // Unlike in xsf, the cancellation in the series is measured (see below)
+            let mut ha = 1.0;
+            let mut hg_raw = hg;
+            let mut hg_tol = f64::INFINITY;
             for j in 1..501 {
                 rg = rg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
                 hg += rg;
+                ha += rg.abs();
                 if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
+                    hg_raw = hg;
+                    // bound on the rounding error: 8 roundings per term ratio, 1 per addition
+                    hg_tol = 8.0 * f64::from(j) * f64::EPSILON * ha;
                     // DLMF 13.2.39 (cf. above)
                     if x0 < 0.0 {
                         hg *= x0.exp();
                     }
                     break;
+                }
+            }
+            // Unlike in xsf, for a <= -1 and b > 0, if the series did not converge, or lost more
+            // than 4 digits, then the downward recurrence in a (DLMF 13.3.1) is used instead if
+            // its estimated error is smaller, and it agrees with the series to within the bound
+            // on its rounding error. The recurrence is unstable if x is much larger than b.
+            // E.g. `hyp1f1(-1000.5, 1, 1)` was 5.5e8 instead of 0.15565.
+            let canc = if hg_tol.is_finite() {
+                ha / hg_raw.abs()
+            } else {
+                f64::INFINITY
+            };
+            if a <= -1.0 && b > 0.0 && x > 0.0 && x <= b + 5.0 && -a < 1e5 && canc > 1e4 {
+                if let Some((h, _)) = chgm_recur_neg_a(a, b, x)
+                    .filter(|&(h, err)| err < canc && (h - hg_raw).abs() <= hg_tol)
+                {
+                    hg = if x0 < 0.0 { h * x0.exp() } else { h };
                 }
             }
         } else {
