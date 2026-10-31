@@ -31,6 +31,7 @@ mod legendre;
 mod log_exp;
 mod loggamma;
 mod mathieu;
+mod multivariate_normal;
 mod par_cyl;
 mod sici;
 mod specfun;
@@ -94,6 +95,7 @@ pub use mathieu::{
     mathieu_a, mathieu_b, mathieu_cem, mathieu_even_coef, mathieu_modcem1, mathieu_modcem2,
     mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem,
 };
+pub use multivariate_normal::{bivariate_normal_cdf, trivariate_normal_cdf};
 pub use par_cyl::{pbdv, pbvv, pbwa};
 pub use sici::{shichi, sici};
 pub use specfun::{bernoulli, euler, hyp1f1, hypu, pmv};
