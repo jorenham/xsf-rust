@@ -275,6 +275,7 @@
 //! | [`betainc`]      | Regularized incomplete beta function, $\I_x(a,b)$                 |
 //! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
 //! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
+//! | [`digammainv`]   | Inverse of [`digamma`], $\psi^{-1}(y)$                            |
 //! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                           |
 //! | [`multigammaln`] | Log of multivariate gamma, sometimes called the generalized gamma |
 //! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |

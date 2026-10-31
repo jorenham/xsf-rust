@@ -470,6 +470,66 @@ pub(crate) fn find_root_chandrupatla(
     (f64::NAN, 1)
 }
 
+/// `NewtonRootFinderStatus` (xsf main)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NewtonRootFinderStatus {
+    Success,
+    MaxIterationsExceeded,
+    DerivativeZero,
+    ObjectiveReturnedNan,
+    ObjectiveReturnedInf,
+    InitialGuessReturnedInf,
+}
+
+/// Find root of a scalar function using Newton-Raphson (xsf main).
+///
+/// Function `func` must return a pair `(f(x), f'(x))`.
+#[allow(clippy::float_cmp)]
+pub(crate) fn find_root_newton(
+    func: impl Fn(f64) -> (f64, f64),
+    mut x: f64,
+    rtol: f64,
+    atol: f64,
+    maxiter: u64,
+) -> (f64, NewtonRootFinderStatus) {
+    use NewtonRootFinderStatus::{
+        DerivativeZero, InitialGuessReturnedInf, MaxIterationsExceeded, ObjectiveReturnedInf,
+        ObjectiveReturnedNan, Success,
+    };
+
+    if maxiter == 0 {
+        return (x, MaxIterationsExceeded);
+    }
+    if x.is_infinite() {
+        return (x, InitialGuessReturnedInf);
+    }
+    for _ in 0..maxiter {
+        let (f, df) = func(x);
+        if f.is_nan() || df.is_nan() {
+            return (f64::NAN, ObjectiveReturnedNan);
+        }
+        if f == 0.0 {
+            return (x, Success);
+        }
+        if !f.is_finite() || !df.is_finite() {
+            return (f64::NAN, ObjectiveReturnedInf);
+        }
+        if df == 0.0 {
+            return (f64::NAN, DerivativeZero);
+        }
+        let step = f / df;
+        let x_next = x - step;
+        if !x_next.is_finite() {
+            return (f64::NAN, ObjectiveReturnedInf);
+        }
+        if x == x_next || step.abs() <= rtol * x.abs() + atol {
+            return (x_next, Success);
+        }
+        x = x_next;
+    }
+    (x, MaxIterationsExceeded)
+}
+
 /// `(int)x` as compiled by g++ for x86-64 (`cvttsd2si`), i.e. INT_MIN if `x` is NaN or out of
 /// range, where it is undefined behavior in C++
 #[allow(clippy::cast_possible_truncation)]
