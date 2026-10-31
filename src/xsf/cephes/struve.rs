@@ -143,7 +143,15 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     if is_h {
         sum += cyl_bessel_y_f64(v, z);
     } else {
-        sum += iv(v, z);
+        // Unlike in xsf, this uses I_{-v} if it differs from I_v by more than 1e-12. The expansion
+        // also holds for L_v - I_{-v} (DLMF 10.27.4), and only then is exact at half-integers
+        // (DLMF 11.4.7), e.g. `struve_l(-15.5000001, 15)` was 162.742860 instead of 162.742950.
+        let (i_v, i_mv) = (iv(v, z), iv(-v, z));
+        sum += if (i_mv - i_v).abs() > STRUVE_GOOD_EPS * i_v.abs() {
+            i_mv
+        } else {
+            i_v
+        };
     }
 
     /*
