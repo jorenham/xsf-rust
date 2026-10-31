@@ -336,6 +336,9 @@
 //! | [`eval_hermite_h`]      | Hermite (physicist's)                | $H_n(x)$                   |
 //! | [`eval_hermite_he`]     | Hermite (probabilist's)              | $He_n(x)$                  |
 //!
+//! Note that [`eval_sh_jacobi`] differs from `scipy.special.eval_sh_jacobi`, which is
+//! [`eval_gengegenbauer`] here (scipy/scipy#18988).
+//!
 //! # Hypergeometric functions
 //!
 //! | Function   | Description                             | Notation                         |
