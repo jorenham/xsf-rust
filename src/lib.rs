@@ -144,7 +144,9 @@
 //! | ---------- | ------------------------------------------------------ |
 //! | [`gdtr`]   | Cumulative distribution function                       |
 //! | [`gdtrc`]  | Complement of [`gdtr`]                                 |
+//! | [`gdtria`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `a` |
 //! | [`gdtrib`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `b` |
+//! | [`gdtrix`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `x` |
 //!
 //! ## Negative binomial distribution
 //!
@@ -162,6 +164,8 @@
 //! | [`ndtri`]     | Inverse of [`ndtr`]              |
 //! | [`log_ndtr`]  | Logarithm of [`ndtr`]            |
 //! | [`ndtri_exp`] | Inverse of [`log_ndtr`]          |
+//! | [`nrdtrimn`]  | Mean, given `p`, `std`, and `x`  |
+//! | [`nrdtrisd`]  | Std, given `mean`, `p`, and `x`  |
 //!
 //! ## Poisson distribution
 //!

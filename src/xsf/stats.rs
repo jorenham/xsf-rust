@@ -281,6 +281,53 @@ pub fn ndtri(x: f64) -> f64 {
     crate::xsf::cephes::ndtri(x)
 }
 
+/// Mean of the normal distribution, given the CDF value `p`, the standard deviation `std`, and the
+/// quantile `x`
+///
+/// Corresponds to [`scipy.special.nrdtrimn`][nrdtrimn], and `xsf::nrdtrimn` in xsf main.
+///
+/// [nrdtrimn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nrdtrimn.html
+///
+/// # See also
+/// - [`ndtri`]: Inverse of [`ndtr`]
+/// - [`nrdtrisd`]: Standard deviation of the normal distribution
+#[must_use]
+#[inline]
+pub fn nrdtrimn(p: f64, std: f64, x: f64) -> f64 {
+    if std.is_nan() || std <= 0.0 {
+        return f64::NAN;
+    }
+    if p.is_nan() || p <= 0.0 || p >= 1.0 {
+        return f64::NAN;
+    }
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    x - std * crate::xsf::cephes::ndtri(p)
+}
+
+/// Standard deviation of the normal distribution, given the mean `mean`, the CDF value `p`, and
+/// the quantile `x`
+///
+/// Corresponds to [`scipy.special.nrdtrisd`][nrdtrisd], and `xsf::nrdtrisd` in xsf main.
+///
+/// [nrdtrisd]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nrdtrisd.html
+///
+/// # See also
+/// - [`ndtri`]: Inverse of [`ndtr`]
+/// - [`nrdtrimn`]: Mean of the normal distribution
+#[must_use]
+#[inline]
+pub fn nrdtrisd(mean: f64, p: f64, x: f64) -> f64 {
+    if mean.is_nan() || p.is_nan() || x.is_nan() {
+        return f64::NAN;
+    }
+    if p <= 0.0 || p >= 1.0 {
+        return f64::NAN;
+    }
+    (x - mean) / crate::xsf::cephes::ndtri(p)
+}
+
 /// Owen's T function, $T(h, a)$
 ///
 /// The function $T(h, a)$ gives the probability of the event $(X > h \wedge 0 < Y < a X)$ where
@@ -1152,6 +1199,15 @@ mod tests {
     #[test]
     fn test_ndtri() {
         xsref::test("ndtri", "d-d", |x| crate::ndtri(x[0]));
+    }
+
+    #[test]
+    fn test_nrdtrimn_nrdtrisd() {
+        // reference values from scipy.special
+        xsref::np_assert_allclose!([crate::nrdtrimn(0.3, 2.0, 1.0)], [2.048_801_025_416_082]);
+        xsref::np_assert_allclose!([crate::nrdtrisd(1.0, 0.7, 3.0)], [3.813_878_803_572_981]);
+        assert!(crate::nrdtrimn(0.5, 0.0, 1.0).is_nan());
+        assert!(crate::nrdtrisd(0.0, 1.0, 1.0).is_nan());
     }
 
     #[test]

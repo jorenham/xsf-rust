@@ -52,7 +52,7 @@ pub use bessel::{
 };
 pub use beta::{beta, betaln};
 pub use binom::binom;
-pub use cdflib::gdtrib;
+pub use cdflib::{gdtria, gdtrib, gdtrix};
 // `cephes` is `pub(crate)`, so newer rustdoc versions list these as re-exports otherwise
 #[doc(inline)]
 pub use cephes::{
@@ -103,8 +103,9 @@ pub use sphd_wave::{
 pub use stats::{
     bdtr, bdtrc, bdtri, cdf_cvm, cdf_cvm_inf, chdtr, chdtrc, chdtri, fdtr, fdtrc, fdtri, gdtr,
     gdtrc, kolmogc, kolmogci, kolmogi, kolmogorov, kolmogp, log_ndtr, nbdtr, nbdtrc, nbdtri, ndtr,
-    ndtri, owens_t, pdtr, pdtrc, pdtri, poisson_binom_cdf_all, poisson_binom_pmf_all, smirnov,
-    smirnovc, smirnovci, smirnovi, smirnovp, stdtr, stdtri, tukeylambdacdf,
+    ndtri, nrdtrimn, nrdtrisd, owens_t, pdtr, pdtrc, pdtri, poisson_binom_cdf_all,
+    poisson_binom_pmf_all, smirnov, smirnovc, smirnovci, smirnovi, smirnovp, stdtr, stdtri,
+    tukeylambdacdf,
 };
 pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};
