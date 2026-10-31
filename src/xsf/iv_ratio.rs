@@ -1,15 +1,16 @@
-//! Translated into pure Rust from `xsf/iv_ratio.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/iv_ratio.h` (xsf v0.2.2, and `iv_ratioinv` from xsf main).
 //!
-//! Numerically stable computation of iv(v, x) / iv(v-1, x)
+//! Numerically stable computation of iv(v, x) / iv(v-1, x) and its inverse
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the first line of the header comment is corrected; it said `iv(v+1, x) / iv(v, x)`.
 
 use core::ops::Mul;
 
 use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64};
-use crate::xsf::tools::{Real, continued_fraction_series, series_eval_kahan};
+use crate::xsf::tools::{
+    Real, bracket_root_for_cdf_inversion, continued_fraction_series, find_root_chandrupatla,
+    series_eval_kahan,
+};
 
 /// Generates the "tail" of Perron's continued fraction for iv(v,x)/iv(v-1,x).
 ///
@@ -175,6 +176,109 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     }
 }
 
+/// Inverse of [`iv_ratio`] with respect to `x`
+///
+/// Compute x such that `iv(v,x)/iv(v-1,x) = r` for v >= 0.5 and 0 <= r <= 1.
+///
+/// Corresponds to `xsf::iv_ratioinv` in xsf main.
+#[must_use]
+#[allow(clippy::float_cmp)]
+pub fn iv_ratioinv(v: f64, r: f64) -> f64 {
+    if v.is_nan() || r.is_nan() {
+        return f64::NAN;
+    }
+    if !v.is_finite() || v < 0.5 || r < 0.0 || r > 1.0 {
+        // iv_ratioinv is only defined for v >= 0.5
+        return f64::NAN;
+    }
+    if r == 0.0 {
+        return 0.0;
+    }
+    if r == 1.0 {
+        return f64::INFINITY;
+    }
+    if v == 0.5 {
+        return r.atanh();
+    }
+    // Algorithm description: use Chandrupatla's method to find the root of
+    // f(x) = iv_ratio(v, x) - r (or f(x) = 1 - iv_ratio_c(v, x) - r if r > 0.5).
+    // Bounds from Amos (1974), "Computation of Modified Bessel Functions and Their Ratios".
+    // That paper defines the ratio as iv(v+1, x)/iv(v, x), but we define it as iv(v, x)/iv(v-1, x).
+    // Substituting v -> v-1 in eq. (9) and eq. (16) yields the following bounds for x:
+    //   x/(v-1/2 + sqrt(x^2 + (v+1/2)^2)) <= r <= x/(v-1 + sqrt(x^2 + (v+1)^2))
+    //
+    // Inverting (inequality direction flips):
+    //   lower x (from upper r-bound): r*[(v-1) + sqrt((v-1)^2 + 4v*(1-r^2))] / (1-r^2)
+    //   upper x (from lower r-bound): r*[(v-0.5) + sqrt((v-0.5)^2 + 2v*(1-r^2))] / (1-r^2)
+
+    let r_c = 1.0 - r;
+    let one_minus_r_sq = r_c * (1.0 + r); // 1 - r^2
+
+    let vm1 = v - 1.0;
+    let lower_bound = r * (vm1 + (vm1 * vm1 + 4.0 * v * one_minus_r_sq).sqrt()) / one_minus_r_sq;
+
+    let vm05 = v - 0.5;
+    let mut upper_bound =
+        r * (vm05 + (vm05 * vm05 + 2.0 * v * one_minus_r_sq).sqrt()) / one_minus_r_sq;
+
+    // For small r both bounds converge to 2v*r (== true x). Ensure bracket has width.
+    if upper_bound <= lower_bound {
+        upper_bound = 2.0 * lower_bound;
+    }
+
+    let func = |x: f64| {
+        if r <= 0.5 {
+            return iv_ratio(v, x) - r;
+        }
+        r_c - iv_ratio_c(v, x)
+    };
+
+    let mut xl = lower_bound;
+    let mut xr = upper_bound;
+    let mut f_xl = func(xl);
+    let mut f_xr = func(xr);
+
+    if f_xl * f_xr > 0.0 {
+        // The Amos bounds are theoretically correct but may yield an invalid bracket
+        // due to precision issues in iv_ratio or iv_ratio_c. This happens especially for very small or large r.
+        // Fallback: use bracket_root_for_cdf_inversion to find a valid bracket.
+        // Bracketing parameters taken from gdtrib, only difference: our function is increasing
+        let (b_xl, b_xr, b_f_xl, b_f_xr, bracket_status) = bracket_root_for_cdf_inversion(
+            func,
+            1.0,
+            f64::MIN_POSITIVE,
+            f64::MAX,
+            -0.875,
+            7.0,
+            0.125,
+            8.0,
+            true,
+            342,
+        );
+        if bracket_status == 1 {
+            return 0.0;
+        }
+        if bracket_status == 2 {
+            return f64::INFINITY;
+        }
+        if bracket_status >= 3 {
+            return f64::NAN;
+        }
+        xl = b_xl;
+        xr = b_xr;
+        f_xl = b_f_xl;
+        f_xr = b_f_xr;
+    }
+
+    let (result, root_status) =
+        find_root_chandrupatla(func, xl, xr, f_xl, f_xr, f64::EPSILON, 1e-308, 1000);
+    if root_status != 0 {
+        // Root finding failed. This should never happen.
+        return f64::NAN;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -186,5 +290,34 @@ mod tests {
     #[test]
     fn test_iv_ratio_c() {
         xsref::test("iv_ratio_c", "d_d-d", |x| crate::iv_ratio_c(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_iv_ratioinv() {
+        // mpmath: x such that besseli(v, x) / besseli(v - 1, x) == r
+        let vr = [
+            (0.5, 0.5),
+            (0.75, 1e-10),
+            (1.0, 0.5),
+            (2.5, 0.1),
+            (10.0, 0.9),
+            (100.0, 0.999),
+        ];
+        let xs = [
+            0.549_306_144_334_054_9,
+            1.5e-10,
+            1.159_319_920_750_138_3,
+            0.503_608_676_589_03,
+            90.499_984_217_183_92,
+            99_450.725_114_819_78,
+        ];
+        xsref::np_assert_allclose!(vr.map(|(v, r)| crate::iv_ratioinv(v, r)), xs, rtol = 1e-15);
+
+        assert_eq!(crate::iv_ratioinv(3.0, 0.0), 0.0);
+        assert_eq!(crate::iv_ratioinv(3.0, 1.0), f64::INFINITY);
+        assert!(crate::iv_ratioinv(0.25, 0.5).is_nan());
+        assert!(crate::iv_ratioinv(f64::INFINITY, 0.5).is_nan());
+        assert!(crate::iv_ratioinv(3.0, 1.5).is_nan());
+        assert!(crate::iv_ratioinv(3.0, f64::NAN).is_nan());
     }
 }
