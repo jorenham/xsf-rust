@@ -732,6 +732,22 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         } else {
             0.0
         }
+    } else if x.is_sign_negative() && n.is_finite() && n.fract() != 0.0 {
+        // For non-integer n and x < 0, the negative-base `powf` of the `hypu` formula below is
+        // NaN, so instead use the two Kummer M terms of U(-n/2, 1/2, x^2) (DLMF 13.2.42), with |x| -> x:
+        //
+        // H_n(x) = 2^n sqrt(pi) [M(-n/2, 1/2, x^2) / Gamma((1-n)/2)
+        //                        - 2x M((1-n)/2, 3/2, x^2) / Gamma(-n/2)]
+        //
+        // For x > 0 these terms cancel (H_n(x) ~ (2x)^n, while both terms grow like e^(x^2)),
+        // which is why `hypu` is used there.
+        //
+        // For example, `eval_hermite_h(2.5298681626028885, -5.382735923248713)` was NaN instead
+        // of -2.26e10.
+        let z = scale * x * x;
+        let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
+        let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
+        PI.sqrt() * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
     } else {
         let c = if x.is_sign_positive() {
             (scale * n).exp2()
@@ -1190,6 +1206,36 @@ mod tests {
                 8.0 * x * x * x - 12.0 * x
             }],
         );
+    }
+
+    #[test]
+    fn test_eval_hermite_real_degree_neg_x() {
+        // mpmath; these were NaN (the tolerance is limited by the accuracy of `hyp1f1`)
+        let h = [
+            eval_hermite_h(2.529_868_162_602_888_5, -5.382_735_923_248_713),
+            eval_hermite_h(3.3, -0.7),
+            eval_hermite_h(-15.3, -8.0),
+            eval_hermite_h(40.5, -3.0),
+        ];
+        let h_expected = [
+            -22_618_949_487.496_384,
+            5.292_284_105_801_645,
+            9.165_934_848_962_248e29,
+            -6.302_852_583_554_227e31,
+        ];
+        np_assert_allclose!(h, h_expected, rtol = 1e-10);
+
+        let he = [
+            eval_hermite_he(2.5, -1.5),
+            eval_hermite_he(17.25, -6.0),
+            eval_hermite_he(-0.5, -9.5),
+        ];
+        let he_expected = [
+            2.234_925_546_810_356,
+            110_811_784_506.491_07,
+            1.824_056_114_304_247_2e19,
+        ];
+        np_assert_allclose!(he, he_expected, rtol = 1e-10);
     }
 
     #[test]
