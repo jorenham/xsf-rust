@@ -328,6 +328,73 @@ pub fn nrdtrisd(mean: f64, p: f64, x: f64) -> f64 {
     (x - mean) / crate::xsf::cephes::ndtri(p)
 }
 
+fn von_mises_cdf_series(k: f64, x: f64, p: u32) -> f64 {
+    let s = x.sin();
+    let c = x.cos();
+    let mut sn = (f64::from(p) * x).sin();
+    let mut cn = (f64::from(p) * x).cos();
+    let mut r = 0.0;
+    let mut v = 0.0;
+    for n in (1..p).rev() {
+        let n = f64::from(n);
+        let sn_new = sn * c - cn * s;
+        let cn_new = cn * c + sn * s;
+        sn = sn_new;
+        cn = cn_new;
+        r = k / (2.0 * n + k * r);
+        v = r * (sn / n + v);
+    }
+    0.5 + x / (2.0 * PI) + v / PI
+}
+
+fn von_mises_cdf_normalapprox(k: f64, x: f64) -> f64 {
+    const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
+    let b = SQRT2OPI / crate::xsf::cephes::i0e(k);
+    let z = b * (x / 2.0).sin();
+    crate::xsf::cephes::ndtr(z)
+}
+
+/// CDF of the von Mises distribution with concentration `k`, extended periodically over `x`
+///
+/// For `k < 50`, this uses the backward-recursion series method of Hill \[1\], Algorithm 518,
+/// with constants chosen for about 12 decimal digits. For `k >= 50`, this switches to a
+/// large-concentration normal approximation.
+///
+/// Corresponds to `xsf::von_mises_cdf` in xsf main, which is used by
+/// [`scipy.stats.vonmises`][vonmises].
+///
+/// [vonmises]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.vonmises.html
+///
+/// \[1\] G. W. Hill, "Algorithm 518: Incomplete Bessel Function I0.
+///     The Von Mises Distribution \[S14\]", ACM Transactions on Mathematical
+///     Software, 3(3), 279-284, 1977.
+///     DOI: <https://doi.org/10.1145/355744.355753>
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn von_mises_cdf(k: f64, x: f64) -> f64 {
+    if k < 0.0 {
+        return f64::NAN;
+    }
+
+    let ix = (x / (2.0 * PI)).round();
+    let x = x - ix * 2.0 * PI;
+
+    // These values should give 12 decimal digits
+    let ck = 50.0;
+    let (a1, a2, a3, a4) = (28.0, 0.5, 100.0, 5.0);
+    let result = if k < ck {
+        let p = (1.0 + a1 + a2 * k - a3 / (k + a4)) as u32;
+        let result = von_mises_cdf_series(k, x, p);
+        // `cxx::min(cxx::max(result, 0.0), 1.0)`, with `max(a, b) = a < b ? b : a` and
+        // `min(a, b) = a < b ? a : b`, which maps NaN to 1 (e.g. for x = inf)
+        let result = if result < 0.0 { 0.0 } else { result };
+        if result < 1.0 { result } else { 1.0 }
+    } else {
+        von_mises_cdf_normalapprox(k, x)
+    };
+    result + ix
+}
+
 /// Owen's T function, $T(h, a)$
 ///
 /// The function $T(h, a)$ gives the probability of the event $(X > h \wedge 0 < Y < a X)$ where
@@ -1199,6 +1266,35 @@ mod tests {
     #[test]
     fn test_ndtri() {
         xsref::test("ndtri", "d-d", |x| crate::ndtri(x[0]));
+    }
+
+    #[test]
+    fn test_von_mises_cdf() {
+        // mpmath: the integral of the density from -pi to x, plus the period count
+        let ks = [1.0, 10.0, 0.1, 5.0, 49.0];
+        let xs = [0.5, -1.0, 3.0, 7.0, 0.1];
+        let expected = [
+            0.664_076_474_604_993_1,
+            0.001_410_801_706_404_327_5,
+            0.979_653_423_965_240_7,
+            1.935_915_236_709_023,
+            0.757_381_643_056_756,
+        ];
+        let actual: Vec<f64> = ks
+            .iter()
+            .zip(xs)
+            .map(|(&k, x)| crate::von_mises_cdf(k, x))
+            .collect();
+        xsref::np_assert_allclose!(&actual, &expected, atol = 5e-13);
+        // normal approximation for k >= 50
+        xsref::np_assert_allclose!(
+            [crate::von_mises_cdf(100.0, 0.2)],
+            [0.976_932_103_211_657],
+            atol = 1e-5
+        );
+
+        assert!(crate::von_mises_cdf(-1.0, 0.5).is_nan());
+        assert_eq!(crate::von_mises_cdf(1.0, f64::INFINITY), f64::INFINITY);
     }
 
     #[test]
