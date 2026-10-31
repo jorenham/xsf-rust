@@ -257,11 +257,13 @@
 //!
 //! ## Miscellaneous
 //!
-//! | Function           | Description                                   |
-//! | ------------------ | --------------------------------------------- |
-//! | [`tukeylambdacdf`] | Tukey-Lambda cumulative distribution function |
-//! | [`von_mises_cdf`]  | Von Mises cumulative distribution function    |
-//! | [`owens_t`]        | Owen's T function                             |
+//! | Function           | Description                                    |
+//! | ------------------ | ---------------------------------------------- |
+//! | [`tukeylambdacdf`] | Tukey-Lambda cumulative distribution function  |
+//! | [`von_mises_cdf`]  | Von Mises cumulative distribution function     |
+//! | [`cosine_cdf`]     | Raised cosine cumulative distribution function |
+//! | [`cosine_invcdf`]  | Inverse of [`cosine_cdf`]                      |
+//! | [`owens_t`]        | Owen's T function                              |
 //!
 //! # Information Theory functions
 //!

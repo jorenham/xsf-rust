@@ -12,6 +12,7 @@ mod beta;
 mod binom;
 mod cdflib;
 pub(crate) mod complex;
+mod cosine;
 mod digamma;
 mod digammainv;
 mod ellip;
@@ -60,6 +61,7 @@ pub use cephes::{
     betainc, betaincinv, erfcinv, erfinv, expn, lanczos_sum_expg_scaled, lgam1p, pow_falling,
     pow_rising, round,
 };
+pub use cosine::{cosine_cdf, cosine_invcdf};
 pub use digamma::digamma;
 pub use digammainv::digammainv;
 pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
