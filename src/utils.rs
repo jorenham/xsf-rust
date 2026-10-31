@@ -1,3 +1,6 @@
+/// ln(pi)
+pub(crate) const LN_PI: f64 = 1.144_729_885_849_400_2;
+
 #[inline]
 pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
     xs.into_iter().map(S::into).collect()

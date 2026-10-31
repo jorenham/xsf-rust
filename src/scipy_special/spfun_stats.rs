@@ -1,6 +1,6 @@
 //! Translated from `scipy/special/_spfun_stats.py`
 
-use core::f64::consts::PI;
+use crate::utils::LN_PI;
 
 /// Log of multivariate gamma, $\ln \Gamma_d(a)$, sometimes called the generalized gamma
 ///
@@ -34,7 +34,7 @@ pub fn multigammaln(a: f64, d: u32) -> f64 {
     // res = (d * (d-1) * 0.25) * np.log(np.pi)
     // res += np.sum(loggam([(a - (j - 1.)/2) for j in range(1, d+1)]), axis=0)
     // return res
-    d_f64 * (d_f64 - 1.0) * 0.25 * PI.ln()
+    d_f64 * (d_f64 - 1.0) * 0.25 * LN_PI
         + (0..d)
             .map(|j| crate::gammaln(a - f64::from(j) / 2.0))
             .sum::<f64>()
