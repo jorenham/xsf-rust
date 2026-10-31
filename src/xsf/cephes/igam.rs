@@ -181,6 +181,19 @@ fn igam_series(a: f64, x: f64) -> f64 {
             break;
         }
     }
+    if c > MACHEP * ans {
+        // Unlike in xsf, the asymptotic series is used if the power series did not converge
+        // within IGAM_MAXITER terms. Near the asymptotic window of `igam` and `igamc` it needs
+        // ~5 sqrt(a) terms, i.e. more than IGAM_MAXITER for a > 1.8e5, so it was truncated there,
+        // e.g. igam(1e10, 9999500000) was 2.8e-8 instead of 2.9e-7. This only happens for
+        // (a - x) / a < -ln(MACHEP) / IGAM_MAXITER (~0.018), where the asymptotic series is
+        // accurate (and fast) for such large a, unless the result is subnormal (`erfc` flushes
+        // to 0 there).
+        let res = asymptotic_series(a, x, IGAM);
+        if res >= f64::MIN_POSITIVE {
+            return res;
+        }
+    }
 
     ans * ax / a
 }
