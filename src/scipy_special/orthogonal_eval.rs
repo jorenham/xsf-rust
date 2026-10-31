@@ -252,9 +252,31 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
     z.eval_legendre(n)
 }
 
-/// Evaluate shifted Jacobi polynomial $G_n^{(p,q)}$ at a point.
+/// Evaluate shifted Jacobi polynomial $P_n^{*(\alpha,\beta)}$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_sh_jacobi`][docs], and `xsf::eval_sh_jacobi` in xsf main.
+/// Unlike [`scipy.special.eval_sh_jacobi`][docs], which evaluates the generalized Gegenbauer
+/// polynomial $G_n^{(p,q)}$ (see [`eval_gengegenbauer`] and scipy/scipy#18988), this is the
+/// shifted Jacobi polynomial in the same sense as [`eval_sh_legendre`].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
+///
+/// # Definition
+///
+/// $$ P_n^{*(\alpha,\beta)}(z) = P_n^{(\alpha,\beta)}(2z - 1) $$
+///
+/// # See also
+/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`eval_gengegenbauer`]: Evaluate generalized Gegenbauer polynomials, $G_n^{(p,q)}$
+#[inline]
+pub fn eval_sh_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> Z {
+    (z * 2.0 - 1.0).eval_jacobi(n, alpha, beta)
+}
+
+/// Evaluate generalized Gegenbauer polynomial $G_n^{(p,q)}$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_sh_jacobi`][docs] (and `xsf::eval_sh_jacobi` in xsf
+/// main), which, despite its name, isn't the shifted Jacobi polynomial [`eval_sh_jacobi`], see
+/// scipy/scipy#18988.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
 ///
@@ -264,12 +286,15 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
 /// G_n^{(p,q)}(z) = {2n + p - 1 \choose n}^{-1} P_n^{(p-q,\,q-1)}(2z - 1)
 /// $$
 ///
+/// See <https://mathworld.wolfram.com/JacobiPolynomial.html>, eq. 1.
+///
 /// # See also
 /// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`eval_sh_jacobi`]: Evaluate shifted Jacobi polynomials, $P_n^{*(\alpha,\beta)}$
 #[inline]
-pub fn eval_sh_jacobi<N: Copy + Into<f64>, Z: JacobiArg<N>>(n: N, p: f64, q: f64, z: Z) -> Z {
+pub fn eval_gengegenbauer<N: Copy + Into<f64>, Z: JacobiArg<N>>(n: N, p: f64, q: f64, z: Z) -> Z {
     let nf: f64 = n.into();
-    (z * 2.0 - 1.0).eval_jacobi(n, p - q, q - 1.0) / crate::binom(2.0 * nf + p - 1.0, nf)
+    eval_sh_jacobi(n, p - q, q - 1.0, z) / crate::binom(2.0 * nf + p - 1.0, nf)
 }
 
 /// Evaluate shifted Legendre polynomial $P_n^*$ at a point.
@@ -1218,8 +1243,8 @@ mod tests {
     fn test_shifted_and_scaled() {
         // reference values from scipy.special
         let r = [
-            crate::eval_sh_jacobi(3_i32, 2.5, 1.5, 0.3),
-            crate::eval_sh_jacobi(2.5, 2.5, 1.5, 0.3),
+            crate::eval_gengegenbauer(3_i32, 2.5, 1.5, 0.3),
+            crate::eval_gengegenbauer(2.5, 2.5, 1.5, 0.3),
             crate::eval_sh_legendre(4_i32, 0.3),
             crate::eval_sh_legendre(2.5, 0.7),
             crate::eval_chebyshev_c(5_i32, 1.3),
@@ -1254,6 +1279,16 @@ mod tests {
             c64(-1.550_356_818_307_985, 0.051_799_489_871_846_57),
         ];
         np_assert_allclose!(c, expected, rtol = 1e-13);
+    }
+
+    #[test]
+    fn test_eval_sh_jacobi() {
+        // P_n^(alpha, beta)(2x - 1), see scipy/scipy#18988
+        let xs = [0.25, 0.5, 0.75];
+        let p = xs.map(|x| crate::eval_sh_jacobi(4_i32, 1.0, 2.0, x));
+        np_assert_allclose!(p, [-1.210_937_5, 0.625, -0.585_937_5], rtol = 1e-14);
+        let p = crate::eval_sh_jacobi(2.5, 1.0, 2.0, 0.3);
+        np_assert_allclose!([p], [1.303_920_745_846_762_5], rtol = 1e-14);
     }
 
     #[test]
