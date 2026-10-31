@@ -128,9 +128,9 @@ fn itsh0(x: f64) -> f64 {
             r = -r / (x * x);
             bf += a[2 * k - 1] * r;
         }
-        let mut bg = a[0] * x;
+        let mut bg = a[0] / x;
         r = 1.0 / x;
-        for k in 1..10 {
+        for k in 1..=10 {
             r = -r / (x * x);
             bg += a[2 * k] * r;
         }
