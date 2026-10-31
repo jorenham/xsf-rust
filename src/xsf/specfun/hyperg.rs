@@ -7,8 +7,277 @@
 
 use core::f64::consts::PI;
 
-use super::{gamma2, psi_spec};
+use num_complex::{Complex64, c64};
+
+use super::{cgama, gamma2, psi_spec};
+use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
+use crate::xsf::exp::cexp;
 use crate::xsf::tools::int_x86;
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
+    // ===================================================
+    // Purpose: Compute confluent hypergeometric function
+    //          M(a,b,z) with real parameters a, b and a
+    //          complex argument z
+    // Input :  a --- Parameter
+    //          b --- Parameter
+    //          z --- Complex argument
+    // Output:  CHG --- M(a,b,z)
+    // Routine called: CGAMA for computing complex ln[Г(x)]
+    // ===================================================
+
+    let ci = c64(0.0, 1.0);
+    let mut a0 = a;
+    // NOTE: `a1 = a; z0 = z;` are omitted: they are only used for the dead stores
+    // `a = a1; z = z0;` at the end.
+    let mut cy0 = c64(0.0, 0.0);
+    let mut cy1 = c64(0.0, 0.0);
+    // NOTE: uninitialized in C++, but always written before it is read (the `n` loop below
+    // runs at least once).
+    let mut chg = c64(0.0, 0.0);
+    // NOTE: `(int)fabs(b)` is UB for |b| >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN,
+    // which negates to INT_MIN (so b = -2^31 returns 1e300).
+    if (b == 0.0) || (b == f64::from(int_x86(b.abs()).wrapping_neg())) {
+        return c64(1e300, 0.0);
+    }
+    if (a == 0.0) || (z == c64(0.0, 0.0)) {
+        return c64(1.0, 0.0);
+    }
+    if a == -1.0 {
+        return rsub(1.0, z / b);
+    }
+    if a == b {
+        return cexp(z);
+    }
+    if a - b == 1.0 {
+        return cmul(1.0 + z / b, cexp(z));
+    }
+    if (a == 1.0) && (b == 2.0) {
+        return cdiv(cexp(z) - 1.0, z);
+    }
+    if (a == f64::from(a as i32)) && (a < 0.0) {
+        // NOTE: for a = -2^31, `(int)(-a)` is UB; like g++ on x86-64, `int_x86` gives INT_MIN, so
+        // the loop doesn't run and the result is 1. The C++ `k < (m + 1)` is written as `1..=m`:
+        // for m = INT_MAX (a = -(2^31 - 1)) `m + 1` overflows (UB), and g++ -O2 then also runs
+        // ~2^31 iterations (i.e. treats it as `k <= m`), giving NaN.
+        let m = int_x86(-a);
+        let mut cr = c64(1.0, 0.0);
+        chg = c64(1.0, 0.0);
+        for k in 1..=m {
+            cr = cmul(
+                cr * (a + f64::from(k) - 1.0) / f64::from(k) / (b + f64::from(k) - 1.0),
+                z,
+            );
+            chg += cr;
+        }
+    } else {
+        let x0 = z.re;
+        if x0 < 0.0 {
+            a = b - a;
+            a0 = a;
+            z = -z;
+        }
+        let mut nl = 0;
+        let mut la = 0;
+        if a >= 2.0 {
+            nl = 1;
+            // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
+            // `la + 1` overflows (and wraps, as with g++) for a in [2^31 - 1, 2^31).
+            la = int_x86(a);
+            a -= f64::from(la.wrapping_add(1));
+        }
+        // ns = 0;  (dead store)
+        for n in 0..=nl {
+            if a0 >= 2.0 {
+                a += 1.0;
+            }
+            if (z.norm() < 20.0 + b.abs()) || (a < 0.0) {
+                chg = c64(1.0, 0.0);
+                let mut chw = c64(0.0, 0.0);
+                let mut crg = c64(1.0, 0.0);
+                for j in 1..501 {
+                    crg = cmul(
+                        crg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)),
+                        z,
+                    );
+                    chg += crg;
+                    if cdiv(chg - chw, chg).norm() < 1e-15 {
+                        break;
+                    }
+                    chw = chg;
+                }
+            } else {
+                // y = 0.0;  (dead store)
+                let cg1 = cgama(c64(a, 0.0), 0);
+                let cg2 = cgama(c64(b, 0.0), 0);
+                let cg3 = cgama(c64(b - a, 0.0), 0);
+                let mut cs1 = c64(1.0, 0.0);
+                let mut cs2 = c64(1.0, 0.0);
+                let mut cr1 = c64(1.0, 0.0);
+                let mut cr2 = c64(1.0, 0.0);
+                for i in 1..=8 {
+                    cr1 = cdiv(
+                        -cr1 * (a + f64::from(i) - 1.0) * (a - b + f64::from(i)),
+                        z * f64::from(i),
+                    );
+                    cr2 = cdiv(
+                        cr2 * (b - a + f64::from(i) - 1.0) * (f64::from(i) - a),
+                        z * f64::from(i),
+                    );
+                    cs1 += cr1;
+                    cs2 += cr2;
+                }
+                let x = z.re;
+                let y = z.im;
+                let phi = y.atan2(x);
+                let ns = if phi > -0.5 * PI { 1 } else { -1 };
+                let mut cfac = cexp(f64::from(ns) * ci * PI * a);
+                if y == 0.0 {
+                    cfac = c64((PI * a).cos(), 0.0);
+                }
+                let chg1 = cmul(cmul(cmul(cexp(cg2 - cg3), cpow(z, -a)), cfac), cs1);
+                let chg2 = cmul(cmul(cexp(cg2 - cg1 + z), cpow(z, a - b)), cs2);
+                chg = chg1 + chg2;
+            }
+            if n == 0 {
+                cy0 = chg;
+            }
+            if n == 1 {
+                cy1 = chg;
+            }
+        }
+        if a0 >= 2.0 {
+            for _i in 1..la {
+                chg = (cmul(2.0 * a - b + z, cy1) + (b - a) * cy0) / a;
+                cy0 = cy1;
+                cy1 = chg;
+                a += 1.0;
+            }
+        }
+        if x0 < 0.0 {
+            chg = cmul(chg, cexp(-z));
+        }
+    }
+    // a = a1;
+    // z = z0;
+    chg
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::needless_late_init,
+    clippy::similar_names
+)]
+pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
+    // ===================================================
+    // Purpose: Compute confluent hypergeometric function
+    //          M(a,b,x)
+    // Input  : a  --- Parameter
+    //          b  --- Parameter ( b <> 0,-1,-2,... )
+    //          x  --- Argument
+    // Output:  HG --- M(a,b,x)
+    // Routine called: CGAMA for computing complex ln[Г(x)]
+    // ===================================================
+
+    let mut a0 = a;
+    // NOTE: `a1 = a` is omitted: it is only used for the dead store `a = a1;` at the end.
+    let x0 = x;
+    let mut hg = 0.0;
+
+    //  DLMF 13.2.39
+    if x < 0.0 {
+        a = b - a;
+        a0 = a;
+        x = x.abs();
+    }
+    let mut nl = 0;
+    let mut la = 0;
+    if a >= 2.0 {
+        // preparing terms for DLMF 13.3.1
+        nl = 1;
+        // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
+        // `la + 1` overflows (and wraps, as with g++) for a in [2^31 - 1, 2^31).
+        la = int_x86(a);
+        a -= f64::from(la.wrapping_add(1));
+    }
+    let mut y0 = 0.0;
+    let mut y1 = 0.0;
+    for n in 0..=nl {
+        if a0 >= 2.0 {
+            a += 1.0;
+        }
+        if (x <= 30.0 + b.abs()) || (a < 0.0) {
+            hg = 1.0;
+            let mut rg = 1.0;
+            for j in 1..501 {
+                rg = rg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
+                hg += rg;
+                if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
+                    // DLMF 13.2.39 (cf. above)
+                    if x0 < 0.0 {
+                        hg *= x0.exp();
+                    }
+                    break;
+                }
+            }
+        } else {
+            // DLMF 13.7.2 & 13.2.4, SUM2 corresponds to first sum
+            let cta = cgama(c64(a, 0.0), 0);
+            let ctb = cgama(c64(b, 0.0), 0);
+            let xg = b - a;
+            let ctba = cgama(c64(xg, 0.0), 0);
+            let mut sum1 = 1.0;
+            let mut sum2 = 1.0;
+            let mut r1 = 1.0;
+            let mut r2 = 1.0;
+            for i in 1..9 {
+                r1 = -r1 * (a + f64::from(i) - 1.0) * (a - b + f64::from(i)) / (x * f64::from(i));
+                r2 = -r2 * (b - a + f64::from(i) - 1.0) * (a - f64::from(i)) / (x * f64::from(i));
+                sum1 += r1;
+                sum2 += r2;
+            }
+            let hg1;
+            let hg2;
+            if x0 >= 0.0 {
+                hg1 = cexp(ctb - ctba).re * x.powf(-a) * (PI * a).cos() * sum1;
+                hg2 = cexp(ctb - cta + x).re * x.powf(a - b) * sum2;
+            } else {
+                // DLMF 13.2.39 (cf. above)
+                hg1 = cexp(ctb - ctba + x0).re * x.powf(-a) * (PI * a).cos() * sum1;
+                hg2 = cexp(ctb - cta).re * x.powf(a - b) * sum2;
+            }
+            hg = hg1 + hg2;
+        }
+        /* 25 */
+        if n == 0 {
+            y0 = hg;
+        }
+        if n == 1 {
+            y1 = hg;
+        }
+    }
+    if a0 >= 2.0 {
+        // DLMF 13.3.1
+        for _i in 1..la {
+            hg = ((2.0 * a - b + x) * y1 + (b - a) * y0) / a;
+            y0 = y1;
+            y1 = hg;
+            a += 1.0;
+        }
+    }
+    // a = a1;
+    // x = x0;
+    hg
+}
 
 #[allow(
     clippy::float_cmp,

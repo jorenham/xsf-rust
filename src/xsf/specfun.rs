@@ -4,14 +4,16 @@ mod gamma;
 mod hyperg;
 mod legendre;
 mod mathieu;
+mod numbers;
 mod sphd;
 
 pub(crate) use bessel::{jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::chgu;
-pub(crate) use legendre::{lpmns, lqmns};
+pub(crate) use hyperg::{cchg, chgm, chgu};
+pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
+pub(crate) use numbers::{bernob, eulerb};
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 
 /// `specfun::Status`
@@ -40,14 +42,24 @@ pub trait Hyp1F1Arg: crate::sealed::Sealed {
 impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1(a, b, self) }
+        // `xsf::hyp1f1`
+        chgm(self, a, b)
     }
 }
 
 impl Hyp1F1Arg for Complex<f64> {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
-        unsafe { crate::ffi::xsf::hyp1f1_1(a, b, self) }
+        // `xsf::hyp1f1`
+        if a.is_nan() || b.is_nan() || self.re.is_nan() || self.im.is_nan() {
+            return Complex::new(f64::NAN, f64::NAN);
+        }
+        let mut outz = cchg(a, b, self);
+        #[allow(clippy::float_cmp)]
+        if outz.re == 1e300 {
+            outz.re = f64::INFINITY;
+        }
+        outz
     }
 }
 
@@ -86,7 +98,7 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
             }
         }
     } else {
-        unsafe { crate::ffi::xsf::bernob((N - 1).try_into().unwrap(), bn.as_mut_ptr()) };
+        bernob((N - 1).try_into().unwrap(), &mut bn);
     }
     bn
 }
@@ -123,7 +135,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
             en[0] = 1.0;
         }
     } else {
-        unsafe { crate::ffi::xsf::eulerb((N - 1).try_into().unwrap(), en.as_mut_ptr()) };
+        eulerb((N - 1).try_into().unwrap(), &mut en);
     }
     en
 }
@@ -233,7 +245,17 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
-    unsafe { crate::ffi::xsf::pmv(m.into(), v, x) }
+    // `xsf::pmv`
+    let mut out = lpmv(x, m, v);
+    #[allow(clippy::float_cmp)]
+    if out == 1e300 {
+        out = f64::INFINITY;
+    }
+    #[allow(clippy::float_cmp)]
+    if out == -1e300 {
+        out = f64::NEG_INFINITY;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -272,5 +294,20 @@ mod tests {
         xsref::test("pmv", "d_d_d-d", |x| {
             crate::pmv(x[0].to_i32().unwrap(), x[1], x[2])
         });
+    }
+
+    #[test]
+    fn test_pmv_large_m() {
+        // NaN in xsf, which overflows `-m`
+        assert!(crate::pmv(i32::MIN, 0.5, 0.5).is_nan());
+        // no `int` overflow of `j * j` in `lpmv0`
+        let _ = crate::pmv(50_000, 0.5, 0.5);
+    }
+
+    #[test]
+    fn test_hyp1f1_huge_a() {
+        // `(int)a` is INT_MIN like in xsf, instead of ~2^31 iterations
+        let _ = crate::hyp1f1(3e9, 1.0, 1.0);
+        let _ = crate::hyp1f1(3e9, 1.0, c64(1.0, 0.0));
     }
 }
