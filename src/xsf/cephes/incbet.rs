@@ -346,7 +346,7 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 /// Unlike in xsf, where only `xx` is passed, so that `1 - xx` is exact also if `xx` is rounded (see
 /// `betainc_xy`).
 #[allow(clippy::float_cmp)]
-fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
+pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     let mut flag = false;
 
     if aa <= 0.0 || bb <= 0.0 {
