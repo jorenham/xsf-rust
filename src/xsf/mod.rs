@@ -71,7 +71,7 @@ pub use fp_error_metrics::{extended_absolute_error, extended_relative_error};
 pub use fresnel::{fresnel, fresnel_zeros, modified_fresnel_minus, modified_fresnel_plus};
 pub use gamma::{gamma, gammainc, gammaincc, gammainccinv, gammaincinv, gammaln, gammasgn};
 pub use hyp2f1::hyp2f1;
-pub use iv_ratio::{iv_ratio, iv_ratio_c};
+pub use iv_ratio::{iv_ratio, iv_ratio_c, iv_ratioinv};
 pub use kelvin::{
     bei, bei_zeros, beip, beip_zeros, ber, ber_zeros, berp, berp_zeros, kei, kei_zeros, keip,
     keip_zeros, kelvin, kelvin_zeros, ker, ker_zeros, kerp, kerp_zeros,
