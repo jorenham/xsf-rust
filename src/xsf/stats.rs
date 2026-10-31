@@ -10,7 +10,7 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
 
 use num_complex::{Complex64, c64};
 
-use crate::xsf::bessel::cyl_bessel_k_f64;
+use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::cephes::{gamma, lgam};
 
 pub trait StatsArg: crate::sealed::Sealed {
@@ -1079,6 +1079,105 @@ pub fn cdf_cvm(x: f64, n: i32) -> f64 {
     cdf.clamp(0.0, 1.0)
 }
 
+/// Logarithm of the generalized inverse Gaussian probability density function
+///
+/// Corresponds to `xsf::geninvgauss_logpdf` in xsf main, and to the `logpdf` of
+/// [`scipy.stats.geninvgauss`][geninvgauss] with `loc=0` and `scale=1`.
+///
+/// [geninvgauss]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.geninvgauss.html
+///
+/// # Definition
+///
+/// $$ f(x; p, b) = {x^{p-1} \over 2 K_p(b)} \exp\left(-{b \over 2} \left(x + {1 \over x}\right)\right) $$
+///
+/// for $x > 0$, where $K_p$ is the modified Bessel function of the second kind.
+///
+/// # See also
+/// - [`geninvgauss_pdf`]: the density itself
+#[must_use]
+pub fn geninvgauss_logpdf(x: f64, p: f64, b: f64) -> f64 {
+    if x <= 0.0 {
+        return f64::NEG_INFINITY;
+    }
+
+    let z = cyl_bessel_ke_f64(p, b);
+    if z.is_infinite() {
+        return f64::NAN;
+    }
+
+    -LN_2 - z.ln() + b + (p - 1.0) * x.ln() - b * (x + 1.0 / x) / 2.0
+}
+
+/// Generalized inverse Gaussian probability density function
+///
+/// Corresponds to `xsf::geninvgauss_pdf` in xsf main, and to the `pdf` of
+/// [`scipy.stats.geninvgauss`][geninvgauss] with `loc=0` and `scale=1`.
+///
+/// [geninvgauss]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.geninvgauss.html
+///
+/// # See also
+/// - [`geninvgauss_logpdf`]: its logarithm, and the definition
+#[must_use]
+#[inline]
+pub fn geninvgauss_pdf(x: f64, p: f64, b: f64) -> f64 {
+    geninvgauss_logpdf(x, p, b).exp()
+}
+
+fn genhyperbolic_log_norming_constant(p: f64, a: f64, b: f64) -> f64 {
+    let t1 = (a + b) * (a - b);
+    let t2 = p * 0.5 * t1.ln();
+    let t3 = 0.5 * TAU.ln();
+    let t4 = (p - 0.5) * a.ln();
+    let t5 = t1.sqrt();
+    let t6 = cyl_bessel_ke_f64(p, t5).ln() - t5;
+
+    t2 - t3 - t4 - t6
+}
+
+/// Logarithm of the generalized hyperbolic probability density function
+///
+/// Corresponds to `xsf::genhyperbolic_logpdf` in xsf main, and to the `logpdf` of
+/// [`scipy.stats.genhyperbolic`][genhyperbolic] with `loc=0` and `scale=1`.
+///
+/// [genhyperbolic]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.genhyperbolic.html
+///
+/// # Definition
+///
+/// $$
+/// f(x; p, a, b) = {(a^2 - b^2)^{p/2} \over \sqrt{2\pi} a^{p-1/2} K_p\left(\sqrt{a^2 - b^2}\right)}
+/// e^{b x} {K_{p-1/2}\left(a \sqrt{1 + x^2}\right) \over \left(\sqrt{1 + x^2}\right)^{1/2-p}}
+/// $$
+///
+/// for $|b| < a$, where $K_p$ is the modified Bessel function of the second kind.
+///
+/// # See also
+/// - [`genhyperbolic_pdf`]: the density itself
+#[must_use]
+pub fn genhyperbolic_logpdf(x: f64, p: f64, a: f64, b: f64) -> f64 {
+    let t1 = genhyperbolic_log_norming_constant(p, a, b);
+    let t2 = 1.0_f64.hypot(x);
+    let t3 = (p - 0.5) * t2.ln();
+    let t4 = cyl_bessel_ke_f64(p - 0.5, a * t2).ln() - a * t2;
+    let t5 = b * x;
+
+    t1 + t3 + t4 + t5
+}
+
+/// Generalized hyperbolic probability density function
+///
+/// Corresponds to `xsf::genhyperbolic_pdf` in xsf main, and to the `pdf` of
+/// [`scipy.stats.genhyperbolic`][genhyperbolic] with `loc=0` and `scale=1`.
+///
+/// [genhyperbolic]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.genhyperbolic.html
+///
+/// # See also
+/// - [`genhyperbolic_logpdf`]: its logarithm, and the definition
+#[must_use]
+#[inline]
+pub fn genhyperbolic_pdf(x: f64, p: f64, a: f64, b: f64) -> f64 {
+    genhyperbolic_logpdf(x, p, a, b).exp()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -1295,6 +1394,78 @@ mod tests {
 
         assert!(crate::von_mises_cdf(-1.0, 0.5).is_nan());
         assert_eq!(crate::von_mises_cdf(1.0, f64::INFINITY), f64::INFINITY);
+    }
+
+    #[test]
+    fn test_geninvgauss() {
+        // (x, p, b), with the reference values from mpmath
+        let args = [
+            (0.01, 0.5, 1.0),
+            (1.0, 0.5, 1.0),
+            (5.0, 0.5, 1.0),
+            (0.3, -2.5, 10.0),
+            (7.0, 3.0, 0.25),
+        ];
+        let logpdf = [
+            -47.621_353_440_210_626,
+            -0.918_938_533_204_672_8,
+            -3.323_657_489_421_723,
+            -4.005_586_780_467_203,
+            -3.924_725_429_203_324,
+        ];
+        let pdf = [
+            2.081_176_820_202_832e-21,
+            0.398_942_280_401_432_7,
+            0.036_020_844_672_153_66,
+            0.018_213_598_738_512_592,
+            0.019_747_558_229_980_97,
+        ];
+        let actual = args.map(|(x, p, b)| crate::geninvgauss_logpdf(x, p, b));
+        xsref::np_assert_allclose!(&actual, &logpdf, rtol = 1e-14);
+        let actual = args.map(|(x, p, b)| crate::geninvgauss_pdf(x, p, b));
+        xsref::np_assert_allclose!(&actual, &pdf, rtol = 1e-14);
+
+        assert_eq!(crate::geninvgauss_logpdf(0.0, 0.5, 0.5), f64::NEG_INFINITY);
+        assert_eq!(crate::geninvgauss_pdf(0.0, 0.5, 0.5), 0.0);
+        assert_eq!(crate::geninvgauss_pdf(2e6, 50.0, 2.0), 0.0);
+        assert!(crate::geninvgauss_logpdf(1.0, 0.5, 0.0).is_nan());
+        assert!(crate::geninvgauss_logpdf(1.0, 0.5, -1.0).is_nan());
+    }
+
+    #[test]
+    fn test_genhyperbolic() {
+        // (x, p, a, b), with the reference values from mpmath
+        let args = [
+            (-3.0, 2.0, 3.0, 1.5),
+            (0.0, 2.0, 3.0, 1.5),
+            (1.2, 2.0, 3.0, 1.5),
+            (4.0, -0.7, 0.5, -0.2),
+            (-10.0, 1.0, 2.0, 0.0),
+        ];
+        let logpdf = [
+            -11.470_885_563_926_888,
+            -1.447_878_690_690_421_3,
+            -0.982_289_498_087_753,
+            -5.972_599_781_992_024,
+            -18.825_827_120_241_21,
+        ];
+        let pdf = [
+            1.042_936_092_158_763_5e-5,
+            0.235_068_412_380_730_5,
+            0.374_452_807_711_144_86,
+            0.002_547_609_572_561_395,
+            6.668_791_884_131_342e-9,
+        ];
+        let actual = args.map(|(x, p, a, b)| crate::genhyperbolic_logpdf(x, p, a, b));
+        xsref::np_assert_allclose!(&actual, &logpdf, rtol = 1e-14);
+        let actual = args.map(|(x, p, a, b)| crate::genhyperbolic_pdf(x, p, a, b));
+        xsref::np_assert_allclose!(&actual, &pdf, rtol = 1e-14);
+
+        // Cauchy limit: p = -1/2, a -> 0, b = 0
+        let x = [-30.0, -1.0, 0.0, 0.5, 20.0];
+        let actual = x.map(|x| crate::genhyperbolic_pdf(x, -0.5, f64::from(f32::EPSILON), 0.0));
+        let expected = x.map(|x| 1.0 / (core::f64::consts::PI * (1.0 + x * x)));
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-6);
     }
 
     #[test]
