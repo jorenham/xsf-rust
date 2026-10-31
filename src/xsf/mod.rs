@@ -23,6 +23,7 @@ mod expint;
 mod faddeeva;
 mod fresnel;
 mod gamma;
+mod gen_harmonic;
 mod hyp2f1;
 mod iv_ratio;
 mod kelvin;
@@ -75,6 +76,7 @@ pub use expint::{exp1, expi, scaled_exp1};
 pub use fp_error_metrics::{extended_absolute_error, extended_relative_error};
 pub use fresnel::{fresnel, fresnel_zeros, modified_fresnel_minus, modified_fresnel_plus};
 pub use gamma::{gamma, gammainc, gammaincc, gammainccinv, gammaincinv, gammaln, gammasgn};
+pub use gen_harmonic::{gen_harmonic, normalized_gen_harmonic};
 pub use hyp2f1::hyp2f1;
 pub use iv_ratio::{iv_ratio, iv_ratio_c, iv_ratioinv};
 pub use kelvin::{

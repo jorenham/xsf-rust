@@ -478,6 +478,13 @@
 //! | [`riemann_zeta`] | Riemann zeta function $\zeta(z)$ for real or complex $z$   |
 //! | [`zetac`]        | $\zeta(x) - 1$ for real $x$                                |
 //!
+//! ## Harmonic numbers
+//!
+//! | Function                    | Description                                                 |
+//! | --------------------------- | ----------------------------------------------------------- |
+//! | [`gen_harmonic`]            | Generalized harmonic number $H_{n,a} = \sum_{i=1}^n i^{-a}$ |
+//! | [`normalized_gen_harmonic`] | Normalized partial sum $\sum_{i=j}^k i^{-a} / H_{n,a}$      |
+//!
 //! # Lambert W and related functions
 //!
 //! | Function        | Description           |
