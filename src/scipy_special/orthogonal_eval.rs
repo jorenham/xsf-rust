@@ -252,6 +252,70 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
     z.eval_legendre(n)
 }
 
+/// Evaluate shifted Jacobi polynomial $P_n^{*(\alpha,\beta)}$ at a point.
+///
+/// # Definition
+///
+/// $$ P_n^{*(\alpha,\beta)}(z) = P_n^{(\alpha,\beta)}(2z - 1) $$
+///
+/// # Note
+///
+/// This differs from [`scipy.special.eval_sh_jacobi`][docs], which evaluates the generalized
+/// Gegenbauer polynomial $G_n^{(p,q)}$ instead, i.e. [`eval_gengegenbauer`] (scipy/scipy#18988).
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
+///
+/// # See also
+/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`eval_gengegenbauer`]: Evaluate generalized Gegenbauer polynomials, $G_n^{(p,q)}$
+#[inline]
+pub fn eval_sh_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> Z {
+    (z * 2.0 - 1.0).eval_jacobi(n, alpha, beta)
+}
+
+/// Evaluate generalized Gegenbauer polynomial $G_n^{(p,q)}$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_sh_jacobi`][docs] (and `xsf::eval_sh_jacobi` in xsf
+/// main), which, despite its name, isn't the shifted Jacobi polynomial [`eval_sh_jacobi`], see
+/// scipy/scipy#18988.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
+///
+/// # Definition
+///
+/// $$
+/// G_n^{(p,q)}(z) = {2n + p - 1 \choose n}^{-1} P_n^{(p-q,\,q-1)}(2z - 1)
+/// $$
+///
+/// See <https://mathworld.wolfram.com/JacobiPolynomial.html>, eq. 1.
+///
+/// # See also
+/// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
+/// - [`eval_sh_jacobi`]: Evaluate shifted Jacobi polynomials, $P_n^{*(\alpha,\beta)}$
+#[inline]
+pub fn eval_gengegenbauer<N: Copy + Into<f64>, Z: JacobiArg<N>>(n: N, p: f64, q: f64, z: Z) -> Z {
+    let nf: f64 = n.into();
+    eval_sh_jacobi(n, p - q, q - 1.0, z) / crate::binom(2.0 * nf + p - 1.0, nf)
+}
+
+/// Evaluate shifted Legendre polynomial $P_n^*$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_sh_legendre`][docs], and `xsf::eval_sh_legendre` in xsf
+/// main.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_legendre.html
+///
+/// # Definition
+///
+/// $$ P_n^*(z) = P_n(2z - 1) $$
+///
+/// # See also
+/// - [`eval_legendre`]: Evaluate Legendre polynomials, $P_n$
+#[inline]
+pub fn eval_sh_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
+    (z * 2.0 - 1.0).eval_legendre(n)
+}
+
 ///////////////////////////////
 // Gegenbauer (Ultraspherical)
 //
@@ -479,6 +543,78 @@ pub fn eval_chebyshev_t<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 #[inline]
 pub fn eval_chebyshev_u<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
     z.eval_chebyshev_u(n)
+}
+
+/// Evaluate Chebyshev polynomial of the first kind $C_n$ on $[-2, 2]$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_chebyc`][docs], and `xsf::eval_chebyc` in xsf main.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebyc.html
+///
+/// # Definition
+///
+/// $$ C_n(z) = 2 T_n(z / 2) $$
+///
+/// # See also
+/// - [`eval_chebyshev_t`]: Evaluate Chebyshev polynomials of the first kind, $T_n$
+#[doc(alias = "eval_chebyc")]
+#[inline]
+pub fn eval_chebyshev_c<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
+    (z * 0.5).eval_chebyshev_t(n) * 2.0
+}
+
+/// Evaluate Chebyshev polynomial of the second kind $S_n$ on $[-2, 2]$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_chebys`][docs], and `xsf::eval_chebys` in xsf main.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebys.html
+///
+/// # Definition
+///
+/// $$ S_n(z) = U_n(z / 2) $$
+///
+/// # See also
+/// - [`eval_chebyshev_u`]: Evaluate Chebyshev polynomials of the second kind, $U_n$
+#[doc(alias = "eval_chebys")]
+#[inline]
+pub fn eval_chebyshev_s<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
+    (z * 0.5).eval_chebyshev_u(n)
+}
+
+/// Evaluate shifted Chebyshev polynomial of the first kind $T_n^*$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_sh_chebyt`][docs], and `xsf::eval_sh_chebyt` in xsf main.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_chebyt.html
+///
+/// # Definition
+///
+/// $$ T_n^*(z) = T_n(2z - 1) $$
+///
+/// # See also
+/// - [`eval_chebyshev_t`]: Evaluate Chebyshev polynomials of the first kind, $T_n$
+#[doc(alias = "eval_sh_chebyt")]
+#[inline]
+pub fn eval_sh_chebyshev_t<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
+    (z * 2.0 - 1.0).eval_chebyshev_t(n)
+}
+
+/// Evaluate shifted Chebyshev polynomial of the second kind $U_n^*$ at a point.
+///
+/// Corresponds to [`scipy.special.eval_sh_chebyu`][docs], and `xsf::eval_sh_chebyu` in xsf main.
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_chebyu.html
+///
+/// # Definition
+///
+/// $$ U_n^*(z) = U_n(2z - 1) $$
+///
+/// # See also
+/// - [`eval_chebyshev_u`]: Evaluate Chebyshev polynomials of the second kind, $U_n$
+#[doc(alias = "eval_sh_chebyu")]
+#[inline]
+pub fn eval_sh_chebyshev_u<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
+    (z * 2.0 - 1.0).eval_chebyshev_u(n)
 }
 
 ///////////////////////////////
@@ -1102,6 +1238,58 @@ mod tests {
         np_assert_allclose!([eval_jacobi(3.0, -1.0, 1.0, 0.3)], [0.1925], rtol = 1e-14);
         let p = eval_jacobi(2.5, -1.0, -1.0, 0.3);
         np_assert_allclose!([p], [-0.218_362_414_580_039_7], rtol = 1e-14);
+    }
+
+    #[test]
+    fn test_shifted_and_scaled() {
+        // reference values from scipy.special
+        let r = [
+            crate::eval_gengegenbauer(3_i32, 2.5, 1.5, 0.3),
+            crate::eval_gengegenbauer(2.5, 2.5, 1.5, 0.3),
+            crate::eval_sh_legendre(4_i32, 0.3),
+            crate::eval_sh_legendre(2.5, 0.7),
+            crate::eval_chebyshev_c(5_i32, 1.3),
+            crate::eval_chebyshev_s(5_i32, 1.3),
+            crate::eval_chebyshev_c(2.5, 1.3),
+            crate::eval_chebyshev_s(2.5, 1.3),
+            crate::eval_sh_chebyshev_t(4_i32, 0.3),
+            crate::eval_sh_chebyshev_u(4_i32, 0.3),
+            crate::eval_sh_chebyshev_t(1.5, 0.3),
+        ];
+        let expected = [
+            0.013_587_412_587_412_59,
+            0.010_779_963_000_470_787,
+            -0.113,
+            -0.426_559_547_478_622_85,
+            -0.772_07,
+            -1.175_07,
+            -1.108_120_029_599_681_6,
+            0.157_988_300_295_633_32,
+            -0.0752,
+            -0.5104,
+            -0.985_900_603_509_299_1,
+        ];
+        np_assert_allclose!(r, expected, rtol = 1e-13);
+
+        let c = [
+            crate::eval_sh_legendre(3.0, c64(0.2, 0.1)),
+            crate::eval_sh_chebyshev_u(1.5, c64(0.3, 0.2)),
+        ];
+        let expected = [
+            c64(0.54, 0.22),
+            c64(-1.550_356_818_307_985, 0.051_799_489_871_846_57),
+        ];
+        np_assert_allclose!(c, expected, rtol = 1e-13);
+    }
+
+    #[test]
+    fn test_eval_sh_jacobi() {
+        // P_n^(alpha, beta)(2x - 1), see scipy/scipy#18988
+        let xs = [0.25, 0.5, 0.75];
+        let p = xs.map(|x| crate::eval_sh_jacobi(4_i32, 1.0, 2.0, x));
+        np_assert_allclose!(p, [-1.210_937_5, 0.625, -0.585_937_5], rtol = 1e-14);
+        let p = crate::eval_sh_jacobi(2.5, 1.0, 2.0, 0.3);
+        np_assert_allclose!([p], [1.303_920_745_846_762_5], rtol = 1e-14);
     }
 
     #[test]

@@ -30,8 +30,10 @@ pub use hypergeometric::{hyp0f0, hyp0f1, hyp1f0};
 pub use logsumexp::{log_softmax, logsumexp, softmax};
 pub use ndtri_exp::ndtri_exp;
 pub use orthogonal_eval::{
-    eval_chebyshev_t, eval_chebyshev_u, eval_gegenbauer, eval_genlaguerre, eval_hermite_h,
-    eval_hermite_he, eval_jacobi, eval_laguerre, eval_legendre,
+    eval_chebyshev_c, eval_chebyshev_s, eval_chebyshev_t, eval_chebyshev_u, eval_gegenbauer,
+    eval_gengegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi,
+    eval_laguerre, eval_legendre, eval_sh_chebyshev_t, eval_sh_chebyshev_u, eval_sh_jacobi,
+    eval_sh_legendre,
 };
 pub use perm::perm;
 pub use polygamma::polygamma;

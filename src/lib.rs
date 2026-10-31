@@ -323,17 +323,27 @@
 //!
 //! The following functions evaluate values of orthogonal polynomials:
 //!
-//! | Function             | Name                        | Notation                  |
-//! | -------------------- | --------------------------- | ------------------------- |
-//! | [`eval_jacobi`]      | Jacobi                      | $P_n^{(\alpha,\beta)}(z)$ |
-//! | [`eval_legendre`]    | Legendre                    | $P_n(z)$                  |
-//! | [`eval_chebyshev_t`] | Chebyshev (first kind)      | $T_n(z)$                  |
-//! | [`eval_chebyshev_u`] | Chebyshev (second kind)     | $U_n(z)$                  |
-//! | [`eval_gegenbauer`]  | Gegenbauer / Ultraspherical | $C_n^{(\alpha)}(z)$       |
-//! | [`eval_genlaguerre`] | Generalized Laguerre        | $L_n^{(\alpha)}(z)$       |
-//! | [`eval_laguerre`]    | Laguerre                    | $L_n(z)$                  |
-//! | [`eval_hermite_h`]   | Hermite (physicist's)       | $H_n(x)$                  |
-//! | [`eval_hermite_he`]  | Hermite (probabilist's)     | $He_n(x)$                 |
+//! | Function                | Name                                 | Notation                   |
+//! | ----------------------- | ------------------------------------ | -------------------------- |
+//! | [`eval_jacobi`]         | Jacobi                               | $P_n^{(\alpha,\beta)}(z)$  |
+//! | [`eval_sh_jacobi`]      | Shifted Jacobi                       | $P_n^{*(\alpha,\beta)}(z)$ |
+//! | [`eval_gengegenbauer`]  | Generalized Gegenbauer               | $G_n^{(p,q)}(z)$           |
+//! | [`eval_legendre`]       | Legendre                             | $P_n(z)$                   |
+//! | [`eval_sh_legendre`]    | Shifted Legendre                     | $P_n^*(z)$                 |
+//! | [`eval_chebyshev_t`]    | Chebyshev (first kind)               | $T_n(z)$                   |
+//! | [`eval_chebyshev_u`]    | Chebyshev (second kind)              | $U_n(z)$                   |
+//! | [`eval_chebyshev_c`]    | Chebyshev (first kind) on $[-2, 2]$  | $C_n(z)$                   |
+//! | [`eval_chebyshev_s`]    | Chebyshev (second kind) on $[-2, 2]$ | $S_n(z)$                   |
+//! | [`eval_sh_chebyshev_t`] | Shifted Chebyshev (first kind)       | $T_n^*(z)$                 |
+//! | [`eval_sh_chebyshev_u`] | Shifted Chebyshev (second kind)      | $U_n^*(z)$                 |
+//! | [`eval_gegenbauer`]     | Gegenbauer / Ultraspherical          | $C_n^{(\alpha)}(z)$        |
+//! | [`eval_genlaguerre`]    | Generalized Laguerre                 | $L_n^{(\alpha)}(z)$        |
+//! | [`eval_laguerre`]       | Laguerre                             | $L_n(z)$                   |
+//! | [`eval_hermite_h`]      | Hermite (physicist's)                | $H_n(x)$                   |
+//! | [`eval_hermite_he`]     | Hermite (probabilist's)              | $He_n(x)$                  |
+//!
+//! Note that [`eval_sh_jacobi`] differs from `scipy.special.eval_sh_jacobi`, which is
+//! [`eval_gengegenbauer`] here (scipy/scipy#18988).
 //!
 //! # Hypergeometric functions
 //!
