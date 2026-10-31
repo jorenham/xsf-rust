@@ -13,6 +13,7 @@ mod binom;
 mod cdflib;
 pub(crate) mod complex;
 mod digamma;
+mod digammainv;
 mod ellip;
 mod erf;
 mod evalpoly;
@@ -60,6 +61,7 @@ pub use cephes::{
     pow_rising, round,
 };
 pub use digamma::digamma;
+pub use digammainv::digammainv;
 pub use ellip::{ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1};
 pub use erf::{dawsn, erf, erf_zeros, erfc, erfcx, erfi, voigt_profile, wofz};
 pub use evalpoly::cevalpoly;
