@@ -254,15 +254,16 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
 
 /// Evaluate shifted Jacobi polynomial $P_n^{*(\alpha,\beta)}$ at a point.
 ///
-/// Unlike [`scipy.special.eval_sh_jacobi`][docs], which evaluates the generalized Gegenbauer
-/// polynomial $G_n^{(p,q)}$ (see [`eval_gengegenbauer`] and scipy/scipy#18988), this is the
-/// shifted Jacobi polynomial in the same sense as [`eval_sh_legendre`].
-///
-/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
-///
 /// # Definition
 ///
 /// $$ P_n^{*(\alpha,\beta)}(z) = P_n^{(\alpha,\beta)}(2z - 1) $$
+///
+/// # Note
+///
+/// This differs from [`scipy.special.eval_sh_jacobi`][docs], which evaluates the generalized
+/// Gegenbauer polynomial $G_n^{(p,q)}$ instead, i.e. [`eval_gengegenbauer`] (scipy/scipy#18988).
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
 ///
 /// # See also
 /// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
