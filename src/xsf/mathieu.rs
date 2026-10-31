@@ -595,6 +595,30 @@ mod tests {
     }
 
     #[test]
+    fn test_mathieu_cem_sem_large_m() {
+        // zeros in xsf, because of an overflow in `fcoef` (scipy/xsf#344); the expected values
+        // are from mpmath
+        let (y, yp) = crate::mathieu_cem(92, 0.01, 10.0);
+        crate::np_assert_allclose!(
+            [y, yp],
+            [-0.939_699_500_563_974_8, 31.464_228_932_692_56],
+            rtol = 1e-13
+        );
+        let (y, yp) = crate::mathieu_cem(93, 0.01, 10.0);
+        crate::np_assert_allclose!(
+            [y, yp],
+            [-0.866_035_069_310_786_4, 46.498_493_909_628_46],
+            rtol = 1e-13
+        );
+        let (y, yp) = crate::mathieu_sem(93, 0.01, 10.0);
+        crate::np_assert_allclose!(
+            [y, yp],
+            [-0.499_984_345_080_641_2, -80.541_173_731_920_72],
+            rtol = 1e-13
+        );
+    }
+
+    #[test]
     fn test_mathieu_modcem1() {
         xsref::test("mcm1", "d_d_d-d_d", |x| {
             crate::mathieu_modcem1(x[0].to_u32().unwrap(), x[1], x[2])
