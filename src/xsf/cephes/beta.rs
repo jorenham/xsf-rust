@@ -71,6 +71,15 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     }
 }
 
+/// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
+/// `|a + b|` at most `MAXGAM`
+///
+/// Unlike in xsf, `lgam` is then used instead, e.g. beta(-171.1, 0.5) was -0 instead of -0.4167.
+fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
+    (a < 1.0 - MAXGAM || b < 1.0 - MAXGAM || y < 1.0 - MAXGAM)
+        && !(gamma(a).is_normal() && gamma(b).is_normal() && rgamma(y).is_normal())
+}
+
 /// Special case for a negative integer argument
 #[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn beta_negint(a: i32, b: f64) -> f64 {
@@ -159,7 +168,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM {
+    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
         if let Some((y, sign)) = lbeta_ratio(a, b) {
             return sign * y.exp();
         }
@@ -235,7 +244,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM {
+    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
         if let Some((y, _)) = lbeta_ratio(a, b) {
             return y;
         }

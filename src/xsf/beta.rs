@@ -97,6 +97,32 @@ mod tests {
     }
 
     #[test]
+    fn test_beta_near_171() {
+        // unlike in xsf: no under- or overflow of the Gamma functions for arguments below -170.6
+        for (a, b, expected) in [
+            (-171.1, 0.5, -0.416_731_771_605_593_1),
+            (
+                -171.331_359_822_697_1,
+                0.004_863_556_345_095_009,
+                198.157_298_160_572_34,
+            ),
+            (171.5, -171.25, 0.025_871_582_394_479_65),
+        ] {
+            let actual = crate::beta(a, b);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-14,
+                "{actual:e} != {expected:e}"
+            );
+            let actual = crate::betaln(a, b);
+            let expected = expected.abs().ln();
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-14,
+                "{actual:e} != {expected:e}"
+            );
+        }
+    }
+
+    #[test]
     fn test_beta_negint_int_overflow() {
         // unlike in xsf, 1 - a doesn't overflow the C++ `int` for a = -2^31 and -2^31 + 1
         for a in [-2_147_483_648.0, -2_147_483_647.0] {
