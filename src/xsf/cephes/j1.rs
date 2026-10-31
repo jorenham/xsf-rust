@@ -10,9 +10,10 @@
 //! corrected in the comments.
 
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-use core::f64::consts::FRAC_2_PI;
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI};
 
 const THPIO4: f64 = 2.356_194_490_192_345; // 3*pi/4
+const SQRT1OPI: f64 = 0.564_189_583_547_756_3; // sqrt(1/pi)
 const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
 
 const J1_RP: [f64; 4] = [
@@ -100,6 +101,8 @@ const J1_YQ: [f64; 8] = [
 const J1_Z1: f64 = 14.681_970_642_123_893;
 const J1_Z2: f64 = 49.218_456_321_694_6;
 
+const SQRT_EPS: f64 = 1.490_116_119_384_765_6e-8; // sqrt(epsilon)
+
 /// Bessel function of order one
 ///
 /// Returns Bessel function of order one of the argument.
@@ -115,13 +118,15 @@ const J1_Z2: f64 = 49.218_456_321_694_6;
 /// ```text
 ///                      Absolute error:
 /// arithmetic   domain      # trials      peak         rms
-///    IEEE      0, 30       20000       2.7e-16     1.1e-16
+///    IEEE      0, 30       20000       3.0e-16     3.6e-17
 /// ```
 pub(crate) fn j1(x: f64) -> f64 {
     if x < 0.0 {
         return -j1(-x);
     }
-
+    if x < SQRT_EPS {
+        return 0.5 * x;
+    }
     if x <= 5.0 {
         let z = x * x;
         let w = polevl(z, &J1_RP) / p1evl(z, &J1_RQ);
@@ -132,9 +137,14 @@ pub(crate) fn j1(x: f64) -> f64 {
     let z = w * w;
     let p = polevl(z, &J1_PP) / polevl(z, &J1_PQ);
     let q = polevl(z, &J1_QP) / p1evl(z, &J1_QQ);
-    let xn = x - THPIO4;
-    let p = p * xn.cos() - w * q * xn.sin();
-    p * SQRT2OPI / x.sqrt()
+    if x < 10.0 {
+        let xn = x - THPIO4;
+        let p = p * xn.cos() - w * q * xn.sin();
+        return p * SQRT2OPI / x.sqrt();
+    }
+    let a = FRAC_1_SQRT_2 * (w * q - p);
+    let b = FRAC_1_SQRT_2 * (p + w * q);
+    (a * x.cos() + b * x.sin()) * SQRT2OPI / x.sqrt()
 }
 
 /// Bessel function of second kind of order one
@@ -153,7 +163,7 @@ pub(crate) fn j1(x: f64) -> f64 {
 /// ```text
 ///                      Absolute error:
 /// arithmetic   domain      # trials      peak         rms
-///    IEEE      0, 30       20000       8.8e-16     1.2e-16
+///    IEEE      0, 30       20000       1.0e-15     7.5e-17
 ///
 /// (error criterion relative when |y1| > 1).
 /// ```
@@ -175,7 +185,11 @@ pub(crate) fn y1(x: f64) -> f64 {
     let z = w * w;
     let p = polevl(z, &J1_PP) / polevl(z, &J1_PQ);
     let q = polevl(z, &J1_QP) / p1evl(z, &J1_QQ);
-    let xn = x - THPIO4;
-    let p = p * xn.sin() + w * q * xn.cos();
-    p * SQRT2OPI / x.sqrt()
+    if x < 10.0 {
+        let xn = x - THPIO4;
+        let p = p * xn.sin() + w * q * xn.cos();
+        return p * SQRT2OPI / x.sqrt();
+    }
+    let p = (w * q - p) * x.sin() - (p + w * q) * x.cos();
+    p * SQRT1OPI / x.sqrt()
 }

@@ -6,6 +6,8 @@
 
 use crate::xsf::cephes::chbevl::chbevl;
 
+const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
+
 /* Chebyshev coefficients for exp(-x) I1(x) / x
  * in the interval [0,8].
  *
@@ -99,6 +101,11 @@ pub(crate) fn i1(x: f64) -> f64 {
     if z <= 8.0 {
         let y = (z / 2.0) - 2.0;
         z = chbevl(y, &I1_A) * z * z.exp();
+    } else if z > MAXLOG {
+        /* exp(z) overflows here even though i1(z) is still finite up to z ~ 713.99,
+         * so evaluate the exponential in two halves. */
+        let e = (z / 2.0).exp();
+        z = e * chbevl(32.0 / z - 2.0, &I1_B) / z.sqrt() * e;
     } else {
         z = z.exp() * chbevl(32.0 / z - 2.0, &I1_B) / z.sqrt();
     }

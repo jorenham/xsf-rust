@@ -51,7 +51,7 @@
 
 use core::f64::consts::PI;
 
-use crate::xsf::cephes::gamma;
+use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
 const MAXITER: u64 = 500;
@@ -592,6 +592,9 @@ pub(crate) fn iv(mut v: f64, x: f64) -> f64 {
          * implementation of Temme's method.
          */
         ikv_asymptotic_uniform(v, ax, Some(&mut res), None);
+    } else if ax * ax < (v + 1.0).abs() * MACHEP {
+        /* Check for tiny x to avoid Wronskian overflow in ikv_temme */
+        res = (0.5 * ax).powf(v) * rgamma(v + 1.0);
     } else {
         /* Otherwise: Temme's method */
         ikv_temme(v, ax, Some(&mut res), None);

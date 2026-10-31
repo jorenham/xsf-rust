@@ -15,6 +15,7 @@
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_4};
 
+const SQRT1OPI: f64 = 0.564_189_583_547_756_3; // sqrt(1/pi)
 const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
 
 const J0_PP: [f64; 7] = [
@@ -132,7 +133,7 @@ const J0_RQ: [f64; 8] = [
 /// ```text
 ///                      Absolute error:
 /// arithmetic   domain     # trials      peak         rms
-///    IEEE      0, 30       20000       3.8e-16     1.1e-16
+///    IEEE      0, 30       20000       3.9e-16     5.2e-17
 /// ```
 pub(crate) fn j0(mut x: f64) -> f64 {
     if x < 0.0 {
@@ -153,9 +154,13 @@ pub(crate) fn j0(mut x: f64) -> f64 {
     let q = 25.0 / (x * x);
     let p = polevl(q, &J0_PP) / polevl(q, &J0_PQ);
     let q = polevl(q, &J0_QP) / p1evl(q, &J0_QQ);
-    let xn = x - FRAC_PI_4;
-    let p = p * xn.cos() - w * q * xn.sin();
-    p * SQRT2OPI / x.sqrt()
+    if x < 10.0 {
+        let xn = x - FRAC_PI_4;
+        let p = p * xn.cos() - w * q * xn.sin();
+        return p * SQRT2OPI / x.sqrt();
+    }
+    let p = (p + w * q) * x.cos() + (p - w * q) * x.sin();
+    p * SQRT1OPI / x.sqrt()
 }
 
 /* Bessel function of second kind, order zero  */
@@ -187,7 +192,7 @@ pub(crate) fn j0(mut x: f64) -> f64 {
 ///  Absolute error, when |y0(x)| < 1; else relative error:
 ///
 /// arithmetic   domain     # trials      peak         rms
-///    IEEE      0, 30       20000       1.4e-15     1.6e-16
+///    IEEE      0, 30       20000       1.3e-15     1.3e-16
 /// ```
 #[allow(clippy::float_cmp)]
 pub(crate) fn y0(x: f64) -> f64 {
@@ -207,7 +212,11 @@ pub(crate) fn y0(x: f64) -> f64 {
     let z = 25.0 / (x * x);
     let p = polevl(z, &J0_PP) / polevl(z, &J0_PQ);
     let q = polevl(z, &J0_QP) / p1evl(z, &J0_QQ);
-    let xn = x - FRAC_PI_4;
-    let p = p * xn.sin() + w * q * xn.cos();
-    p * SQRT2OPI / x.sqrt()
+    if x < 10.0 {
+        let xn = x - FRAC_PI_4;
+        let p = p * xn.sin() + w * q * xn.cos();
+        return p * SQRT2OPI / x.sqrt();
+    }
+    let p = (w * q - p) * x.cos() + (p + w * q) * x.sin();
+    p * SQRT1OPI / x.sqrt()
 }
