@@ -221,9 +221,23 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
     } else if nu == 2.0 {
         (p - 0.5) * (2.0 / (p * (1.0 - p))).sqrt()
     } else {
-        let x = crate::betaincinv(0.5 * nu, 0.5, 2.0 * p.min(1.0 - p));
-        let x = (nu * (1.0 - x) / x).sqrt();
-        if p < 0.5 { -x } else { x }
+        let a = 0.5 * nu;
+        let y = 2.0 * p.min(1.0 - p);
+        let w = crate::betaincinv(a, 0.5, y);
+        let mut t = (nu * (1.0 - w) / w).sqrt();
+        if t.is_infinite() {
+            // For small nu, `w` can underflow (or `nu / w` overflow), so invert the leading term
+            // of the power series I_w(a, 1/2) ~ w^a / (a B(a, 1/2)) (see `stdtr`) instead:
+            //
+            // - t = sqrt(nu / w) = (y c)^(-1/2a), with c = a B(a, 1/2) / nu^a
+            // - computed as a square, since y^(-1/4a) can't overflow if t doesn't
+            //
+            // e.g. stdtri(0.0017, 0.79) was inf instead of 8.6e219
+            let e = -0.25 / a;
+            let c = a * crate::beta(a, 0.5) / nu.powf(a);
+            t = (y.powf(e) * c.powf(e)).powi(2);
+        }
+        if p < 0.5 { -t } else { t }
     }
 }
 
@@ -1524,6 +1538,19 @@ mod tests {
         for (i, &nu) in NU.iter().enumerate() {
             let x = P.map(|p| crate::stdtri(nu, p));
             crate::np_assert_allclose!(x, X_REF[i], rtol = 1e-13);
+        }
+    }
+
+    #[test]
+    fn test_stdtri_huge_t() {
+        // reference values from mpmath
+        for &(nu, p, t) in &[
+            (0.0017, 0.79, 8.561_742_739_129_646e219),
+            (0.0017, 0.21, -8.561_742_739_128_98e219),
+            (1.08, 5.3e-315, -3.489_628_880_599_662e290),
+            (2.02, 1e-320, -1.860_555_975_007_462_2e158),
+        ] {
+            crate::np_assert_allclose!(&[crate::stdtri(nu, p)], &[t], rtol = 2e-13);
         }
     }
 
