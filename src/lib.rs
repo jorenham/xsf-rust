@@ -255,6 +255,16 @@
 //! | [`cdf_cvm_inf`] | CDF of the Cramér-von Mises test statistic (infinite sample limit)  |
 //! | [`cdf_cvm`]     | CDF of the Cramér-von Mises test statistic for a finite sample size |
 //!
+//! ## Wilcoxon signed-rank distribution
+//!
+//! | Function             | Description                                                 |
+//! | -------------------- | ----------------------------------------------------------- |
+//! | [`wilcoxon_pmf_all`] | Full probability mass function                              |
+//! | [`wilcoxon_cdf_all`] | Full cumulative distribution function                       |
+//! | [`wilcoxon_pmf`]     | Probability mass function, from [`wilcoxon_pmf_all`]        |
+//! | [`wilcoxon_cdf`]     | Cumulative distribution function, from [`wilcoxon_cdf_all`] |
+//! | [`wilcoxon_sf`]      | Survival function, from [`wilcoxon_cdf_all`]                |
+//!
 //! ## Miscellaneous
 //!
 //! | Function           | Description                                    |

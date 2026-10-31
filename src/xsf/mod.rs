@@ -110,6 +110,7 @@ pub use stats::{
     kolmogci, kolmogi, kolmogorov, kolmogp, log_ndtr, nbdtr, nbdtrc, nbdtri, ndtr, ndtri, nrdtrimn,
     nrdtrisd, owens_t, pdtr, pdtrc, pdtri, poisson_binom_cdf_all, poisson_binom_pmf_all, smirnov,
     smirnovc, smirnovci, smirnovi, smirnovp, stdtr, stdtri, tukeylambdacdf, von_mises_cdf,
+    wilcoxon_cdf, wilcoxon_cdf_all, wilcoxon_pmf, wilcoxon_pmf_all, wilcoxon_sf,
 };
 pub use struve::{it2struve0, itmodstruve0, itstruve0, struve_h, struve_l};
 pub use trig::{cosdg, cosm1, cospi, cotdg, radian, sindg, sinpi, tandg};
