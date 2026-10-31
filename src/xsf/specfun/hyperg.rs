@@ -185,6 +185,19 @@ fn chgm_series_pos(a: f64, b: f64, x: f64, scale: f64) -> Option<f64> {
     (k > 0).then_some(hg)
 }
 
+/// Unlike in xsf: the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the recurrence
+/// of `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`, since
+/// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
+pub(crate) fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
+    let (mut d, mut p) = (0.0, 1.0);
+    for k in 0..n {
+        let k = f64::from(k);
+        d = (d * k - p * x) / (k + b);
+        p += d;
+    }
+    p
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,
@@ -207,6 +220,17 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // NOTE: `a1 = a` is omitted: it is only used for the dead store `a = a1;` at the end.
     let x0 = x;
     let mut hg = 0.0;
+
+    // Unlike in xsf, for a = -n (n a positive integer), b > 0 and n x > b, the polynomial
+    // M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), since the alternating
+    // terms of the series below first grow (the first is -n x / b) and cancel, and it stops
+    // after 500 terms. E.g. `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
+    if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b {
+        let p = chgm_poly(-a as i32, b, x);
+        if p.is_finite() {
+            return p;
+        }
+    }
 
     //  DLMF 13.2.39
     if x < 0.0 {
