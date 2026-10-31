@@ -356,4 +356,18 @@ mod tests {
     fn test_struve_l_f64() {
         xsref::test("struve_l", "d_d-d", |x| crate::struve_l(x[0], x[1]));
     }
+
+    #[test]
+    fn test_struve_l_near_half_integer() {
+        // asymptotic expansion, which is exact at half-integers for L_v - I_{-v} (reference
+        // values from mpmath)
+        for (v, z, expected) in [
+            (0.5, 13.0, 48_951.351_990_355_41),
+            (-7.499_999_999_7, 15.0, 50_900.655_128_588_08),
+            (-15.500_000_1, 15.0, 162.742_950_300_856_3),
+        ] {
+            let rel = (crate::struve_l(v, z) - expected).abs() / expected;
+            assert!(rel < 2e-12, "struve_l({v}, {z}): rel = {rel:e}");
+        }
+    }
 }
