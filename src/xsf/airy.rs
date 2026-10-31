@@ -229,7 +229,7 @@ fn itairy_impl(mut x: f64) -> [f64; 4] {
     let q0 = 1.0 / 3.0;
     let q1 = 2.0 / 3.0;
     let q2 = SQRT_2;
-    let eps = 1e-5;
+    let eps = 1e-15;
 
     let mut apt = 0.0;
     let mut bpt = 0.0;
