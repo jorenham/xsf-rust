@@ -8,7 +8,7 @@
 //!
 //! Unlike in xsf, `k + 1` is computed in `f64`, so that it doesn't overflow for `k = i32::MAX`.
 
-use crate::xsf::cephes::incbet::incbet;
+use crate::xsf::cephes::incbet::{incbet, incbet_xy};
 use crate::xsf::cephes::incbi::incbi;
 
 /// Complemented negative binomial distribution
@@ -55,7 +55,11 @@ pub(crate) fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 
     let dk = f64::from(k) + 1.0;
     let dn = f64::from(n);
-    incbet(dk, dn, 1.0 - p)
+    // Unlike in xsf, `p` is passed as the exact `1 - (1 - p)` (see `incbet_xy`), since the rounding
+    // error of `1 - p` is amplified for large `k` or `n`.
+    //
+    // E.g. `nbdtrc(2e9, 1, 1e-13)` had a relative error of 6e-8.
+    incbet_xy(dk, dn, 1.0 - p, p)
 }
 
 /// Negative binomial distribution

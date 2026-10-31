@@ -1822,7 +1822,25 @@ mod tests {
         let p = crate::fdtr(100.0, 1e20, 0.5);
         crate::np_assert_allclose!(&[p], &[6.953_305_247_616_099e-6], rtol = 1e-12);
         let p = crate::bdtr(3e8, 1_000_000_000, 0.3);
-        crate::np_assert_allclose!(&[p], &[0.500_015_600_125_239_4], rtol = 1e-11);
+        crate::np_assert_allclose!(&[p], &[0.500_015_600_125_545], rtol = 1e-11);
+    }
+
+    #[test]
+    fn test_bdtr_nbdtrc_large_n() {
+        // reference values from mpmath
+        let p = [
+            crate::bdtr(0.0, 1_000_000_000, 1e-10),
+            crate::bdtr(2.0, 2_000_000_000, 1e-9),
+            crate::nbdtrc(2_000_000_000, 1, 1e-13),
+            crate::nbdtrc(2_000_000_000, 3, 1e-9),
+        ];
+        let p_ref = [
+            0.904_837_418_031_435_4,
+            0.676_676_416_183_063_4,
+            0.999_800_019_998_566_7,
+            0.676_676_415_371_051_7,
+        ];
+        crate::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
     }
 
     #[test]

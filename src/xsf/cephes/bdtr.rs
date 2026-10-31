@@ -14,7 +14,7 @@
 //! `incbet(n-k, k+1, 0.5) > 0.5`. Otherwise, `1 - y` rounds to 1 for small `y`, and e.g.
 //! `bdtri(96, 191, 2.1e-22)` returns 1 instead of 0.814.
 
-use crate::xsf::cephes::incbet::incbet;
+use crate::xsf::cephes::incbet::{incbet, incbet_xy};
 use crate::xsf::cephes::incbi::incbi;
 
 /// Complemented binomial distribution
@@ -157,10 +157,23 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
     }
 
     let dn = f64::from(n) - fk;
+    // Unlike in xsf, the rounding error of `1 - p` (exact if `p >= 0.5`) is accounted for, since it
+    // is amplified for large `n` (see `incbet_xy`). For `k = 0`, with `q = 1 - p` rounded:
+    //
+    // - `e = (1 - q) - p` is exact (Fast2Sum)
+    // - `(1 - p)^n = q^n (1 + e/q)^n ~ q^n exp(n e/q)`
+    //
+    // E.g. `bdtr(0, 1e9, 1e-10)` and `bdtr(2, 2e9, 1e-9)` had relative errors of 8e-9 and 2e-8.
     if fk == 0.0 {
-        (1.0 - p).powf(dn)
+        let q = 1.0 - p;
+        let qn = q.powf(dn);
+        if p < 0.5 {
+            qn * (dn * ((1.0 - q) - p) / q).exp()
+        } else {
+            qn
+        }
     } else {
-        incbet(dn, fk + 1.0, 1.0 - p)
+        incbet_xy(dn, fk + 1.0, 1.0 - p, p)
     }
 }
 
