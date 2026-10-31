@@ -19,5 +19,8 @@ clippy *args:
 fmt *args:
     cargo fmt {{ args }}
 
+accuracy *args:
+    uv run --no-project --with mpmath==1.4.1 --with gmpy2==2.3.2 python tools/accuracy/accuracy.py {{ args }}
+
 doc *args:
     RUSTDOCFLAGS="--html-in-header katex.html" cargo +nightly doc --all-features --no-deps {{ args }}
