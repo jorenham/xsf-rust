@@ -15,8 +15,13 @@ pub fn sinc(x: f64) -> f64 {
     if x == 0.0 {
         1.0
     } else {
-        let pi_x = PI * x;
-        pi_x.sin() / pi_x
+        // Unlike in NumPy, sin(pi x) is computed with `sinpi`, which reduces x modulo 2 first.
+        // NumPy computes sin(y) / y with y = pi x, whose rounding error is amplified for large x
+        // and near the zeros at the nonzero integers.
+        //
+        // E.g. sinc(-9781324477.118902) was -1.1875257554868476e-11 instead of
+        // -1.1875312717547689e-11.
+        crate::sinpi(x) / (PI * x)
     }
 }
 
@@ -36,5 +41,23 @@ mod tests {
             w.iter().copied().rev().collect::<Vec<_>>(),
             atol = 1e-15
         );
+    }
+
+    #[test]
+    fn test_sinc_large_or_near_int() {
+        // mpmath reference values
+        let x = [
+            -9_781_324_477.118_902,
+            1.000_000_000_1,
+            2.999_999_75,
+            1e15 + 0.5,
+        ];
+        let y = [
+            -1.187_531_271_754_768_9e-11,
+            -1.000_000_082_640_371e-10,
+            8.333_334_021_540_307e-8,
+            3.183_098_861_837_905e-16,
+        ];
+        np_assert_allclose!(x.map(crate::sinc), y, rtol = 1e-15);
     }
 }
