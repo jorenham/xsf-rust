@@ -54,6 +54,31 @@ mod tests {
     }
 
     #[test]
+    fn test_beta_lgam_ratio() {
+        // unlike in xsf: no cancellation in lgam(a + b) - lgam(a) for |b| << a
+        for (a, b, expected) in [
+            (999_999.0, 0.5, 0.001_772_454_958_690_183_8),
+            (300_000.0, -2.5, -46_598_342_334_957.34),
+        ] {
+            let actual = crate::beta(a, b);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
+        for (a, b, expected) in [
+            (1e100, 1e94, -1.481_551_105_796_410_7e95),
+            (10_000.0, 0.25, -1.014_553_193_217_846_2),
+        ] {
+            let actual = crate::betaln(a, b);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
+    }
+
+    #[test]
     fn test_beta_negint_int_overflow() {
         // unlike in xsf, 1 - a doesn't overflow the C++ `int` for a = -2^31 and -2^31 + 1
         for a in [-2_147_483_648.0, -2_147_483_647.0] {

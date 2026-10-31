@@ -2,7 +2,7 @@
 //!
 //! Pochhammer symbol (a)_m = gamma(a + m) / gamma(a)
 
-use crate::xsf::cephes::{gammasgn, lgam};
+use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 
 #[allow(clippy::float_cmp)]
 fn is_nonpos_int(x: f64) -> bool {
@@ -63,6 +63,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * (m - 1.0) / (2.0 * a)
                 + m * (m - 1.0) * (m - 2.0) * (3.0 * m - 1.0) / (24.0 * a * a)
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
+    } else if a > 10.0 && m.abs() <= 1.0 {
+        // Unlike in xsf, `lgam_ratio` avoids the cancellation in lgam(a + m) - lgam(a) (below),
+        // e.g. a relative error of 8e-12 for poch(5878.8618471964755, -0.029080395984806877)
+        return r * lgam_ratio(a, m).exp();
     }
 
     /* Check for infinity */
@@ -117,5 +121,25 @@ mod tests {
     #[test]
     fn test_pow_rising() {
         xsref::test("poch", "d_d-d", |x| crate::pow_rising(x[0], x[1]));
+    }
+
+    #[test]
+    fn test_pow_rising_lgam_ratio() {
+        // unlike in xsf: `lgam_ratio` for 10 < a <= 1e4
+        for (a, m, expected) in [
+            (
+                5_878.861_847_196_475_5,
+                -0.029_080_395_984_806_877,
+                0.776_941_938_775_515_5,
+            ),
+            (150.5, 0.75, 42.941_972_832_542_55),
+            (50.25, -0.5, 0.142_132_904_591_272_65),
+        ] {
+            let actual = crate::pow_rising(a, m);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
     }
 }
