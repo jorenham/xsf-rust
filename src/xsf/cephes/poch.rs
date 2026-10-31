@@ -3,6 +3,7 @@
 //! Pochhammer symbol (a)_m = gamma(a + m) / gamma(a)
 
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
+use crate::xsf::trig::cephes_sinpi;
 
 #[allow(clippy::float_cmp)]
 fn is_nonpos_int(x: f64) -> bool {
@@ -79,6 +80,14 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
         return 0.0;
     }
 
+    if a < -10.0 && m.abs() <= 1.0 {
+        // Unlike in xsf, the reflection formula avoids the cancellation in lgam(a + m) - lgam(a),
+        // e.g. a relative error of 3.6e-4 for poch(-96483701341.52873, -0.0010688260996181021).
+        // The sines use the exact fractional part of `a` instead of the rounded `a + m`.
+        let f = a - a.floor();
+        return r * (cephes_sinpi(f) / cephes_sinpi(f + m)) * poch(1.0 - a - m, m);
+    }
+
     r * (lgam(a + m) - lgam(a)).exp() * gammasgn(a + m) * gammasgn(a)
 }
 
@@ -112,8 +121,18 @@ pub fn pow_rising(x: f64, m: f64) -> f64 {
 /// - [`gamma`](crate::gamma): gamma function $\Gamma(x)$
 #[must_use]
 #[inline]
+#[allow(clippy::float_cmp)]
 pub fn pow_falling(x: f64, m: f64) -> f64 {
-    poch(x - m + 1.0, m)
+    let a = x - m + 1.0;
+    if a < -10.0 && x < 0.0 && m != m.floor() {
+        // `poch(a, m)` would reflect, which amplifies the rounding error of `a` near the poles of
+        // Gamma(x + 1), e.g. 3e-5 for pow_falling(-59.0000000001, -7.654166228426843)
+        let q = poch(x + 1.0, -m);
+        if q.is_normal() {
+            return 1.0 / q;
+        }
+    }
+    poch(a, m)
 }
 
 #[cfg(test)]
@@ -138,6 +157,45 @@ mod tests {
             let actual = crate::pow_rising(a, m);
             assert!(
                 (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_pow_rising_reflection() {
+        // unlike in xsf: the reflection formula for a < -10
+        for (a, m, expected) in [
+            (
+                -96_483_701_341.528_73,
+                -0.001_068_826_099_618_102_1,
+                0.973_630_092_687_070_2,
+            ),
+            (-10_000.25, 0.5, -100.002_499_984_374_61),
+            (-50.75, 2.5, 17_673.802_508_037_614),
+        ] {
+            let actual = crate::pow_rising(a, m);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_pow_falling_near_pole() {
+        for (x, m, expected) in [
+            (
+                -59.000_000_000_1,
+                -7.654_166_228_426_843,
+                0.000_141_662_338_550_097_54,
+            ),
+            (-0.999_999_999_9, 20.5, -3.527_763_913_031_247e28),
+            (-1_000.25, -104.5, -9.343_131_111_265e-312), // subnormal
+        ] {
+            let actual = crate::pow_falling(x, m);
+            assert!(
+                (actual / expected - 1.0).abs() < 1e-12,
                 "{actual:e} != {expected:e}"
             );
         }

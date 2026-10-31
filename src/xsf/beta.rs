@@ -79,6 +79,24 @@ mod tests {
     }
 
     #[test]
+    fn test_beta_reflected() {
+        // unlike in xsf: no cancellation in lgam(a) + lgam(b) - lgam(a + b) for |b| << -a or
+        // 0 <= a + b << a
+        for (a, b, expected) in [
+            (-1_000_000.25, 0.5, -0.001_772_453_407_792_191_7),
+            (5_000.25, -4_999.5, 0.304_878_142_880_374_1),
+        ] {
+            let actual = crate::beta(a, b);
+            assert!(
+                (actual / expected - 1.0).abs() < 5e-15,
+                "{actual:e} != {expected:e}"
+            );
+        }
+        let actual = crate::betaln(-1_000_000.25, 0.5);
+        assert!((actual / -6.335_390_586_057_390_5 - 1.0).abs() < 5e-15);
+    }
+
+    #[test]
     fn test_beta_negint_int_overflow() {
         // unlike in xsf, 1 - a doesn't overflow the C++ `int` for a = -2^31 and -2^31 + 1
         for a in [-2_147_483_648.0, -2_147_483_647.0] {
