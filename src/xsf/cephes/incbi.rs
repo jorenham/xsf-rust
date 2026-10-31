@@ -174,14 +174,16 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                             di = (y0 - y) / (yh - yl);
                         }
                         dir += 1;
-                        // Unlike in xsf, the switch to 1 - x (but not back) is skipped if
-                        // y0 < 1e-3 and 1 - x0 >= y0, since rounding 1 - y0 loses the low digits of
-                        // a small y0, while x isn't close enough to 1 yet to need the switch (the
-                        // 1e-3 cutoff is empirical).
+                        // Unlike in xsf, the switch to 1 - x (but not back) requires either:
+                        //
+                        // - y0 >= 1/512, so that rounding 1 - y0 (a relative error of up to
+                        //   MACHEP / 2y0) stays within the tolerance on y (dithresh = 256 MACHEP)
+                        // - 1 - x0 < y0 (heuristic), i.e. that rounding 1 - y0 loses less than
+                        //   staying near x = 1 does (MACHEP / (1 - x0))
                         //
                         // For example, betaincinv(509, 0.041, 1.3e-48) was 1.1e-16 instead of
                         // 0.8172, because 1 - y0 rounded to 1.
-                        if x0 > 0.75 && (rflg || y0 >= 1e-3 || 1.0 - x0 < y0) {
+                        if x0 > 0.75 && (rflg || y0 >= 1.0 / 512.0 || 1.0 - x0 < y0) {
                             if rflg {
                                 rflg = false;
                                 a = aa;
@@ -430,6 +432,7 @@ mod tests {
             (509.0, 0.041, 1.3e-48, 0.817_229_092_544_038_5),
             (5_818.0, 0.006, 7.65e-17, 0.995_090_852_864_442_7),
             (100.0, 0.5, 1e-12, 0.775_037_837_698_101_4),
+            (10.0, 0.0026, 0.001_05, 0.932_881_143_861_390_6),
         ] {
             let x = crate::betaincinv(a, b, y);
             crate::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
