@@ -1826,6 +1826,36 @@ mod tests {
     }
 
     #[test]
+    fn test_fdtr_stdtr_huge_df() {
+        // reference values from mpmath (see `betainc_xy`)
+        let abx = [
+            (100.0, 1e20, 0.5),
+            (30.0, 1e20, 2.0),
+            (1e20, 30.0, 2.0),
+            (3.0, 1e14, 2.0),
+        ];
+        let p = [
+            6.953_305_247_616_099e-6,
+            0.999_079_317_603_851_4,
+            0.989_739_572_087_657_4,
+            0.888_389_774_905_280_1,
+        ];
+        let q = [
+            0.999_993_046_694_752_4,
+            9.206_823_961_486_663e-4,
+            0.010_260_427_912_342_617,
+            0.111_610_225_094_719_86,
+        ];
+        let rtol = 1e-13;
+        crate::np_assert_allclose!(&abx.map(|(a, b, x)| crate::fdtr(a, b, x)), &p, rtol = rtol);
+        crate::np_assert_allclose!(&abx.map(|(a, b, x)| crate::fdtrc(a, b, x)), &q, rtol = rtol);
+
+        let p = [crate::stdtr(1e20, -3.0), crate::stdtr(1e20, 3.0)];
+        let q = 0.001_349_898_031_630_094_6;
+        crate::np_assert_allclose!(&p, &[q, 1.0 - q], rtol = 1e-14);
+    }
+
+    #[test]
     fn test_fdtri() {
         xsref::test("fdtri", "d_d_d-d", |x| crate::fdtri(x[0], x[1], x[2]));
     }
