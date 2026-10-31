@@ -508,6 +508,16 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_fresnel_f64_huge() {
+        // x * x overflows; S(x) and C(x) round to +-1/2 (mpmath)
+        for x in [1e155, -1e200, f64::MAX] {
+            let half = 0.5_f64.copysign(x);
+            assert_eq!(crate::fresnel(x), (half, half));
+        }
+    }
+
+    #[test]
     fn test_fresnel_c64() {
         xsref::test("fresnel", "cd-cd_cd", |x| crate::fresnel(c64(x[0], x[1])));
     }
