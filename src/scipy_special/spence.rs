@@ -5,6 +5,8 @@
 use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
+use crate::xsf::zlog1;
+
 // Relative tolerance for the series
 const TOL: f64 = f64::EPSILON;
 
@@ -35,7 +37,7 @@ fn cspence(z: Complex64) -> Complex64 {
         cspence_series0(z)
     } else if (1.0 - z).norm() > 1.0 {
         let zm1 = z - 1.0;
-        -cspence_series1(z / zm1) - PISQ_6 - 0.5 * zm1.ln().powi(2)
+        -cspence_series1(z / zm1) - PISQ_6 - 0.5 * zlog1(zm1).powi(2)
     } else {
         cspence_series1(z)
     }
@@ -80,7 +82,7 @@ fn cspence_series0(z: Complex64) -> Complex64 {
     }
 
     // return PISQ_6 - sum1 + zlog1(z)*sum2
-    PISQ_6 - sum1 + z.ln() * sum2
+    PISQ_6 - sum1 + zlog1(z) * sum2
 }
 
 /// A series centered at z = 1 which enjoys faster convergence than the Taylor series.
@@ -129,7 +131,7 @@ fn cspence_series1(z: Complex64) -> Complex64 {
     // res *= 4*zz
     res *= 4.0 * zz;
     // res += 4*z + 5.75*zz + 3*(1 - zz)*zlog1(1 - z)
-    res += 4.0 * z + 5.75 * zz + 3.0 * (1.0 - zz) * (1.0 - z).ln();
+    res += 4.0 * z + 5.75 * zz + 3.0 * (1.0 - zz) * zlog1(1.0 - z);
     // res /= 1 + 4*z + zz
     res /= 1.0 + 4.0 * z + zz;
     // return res
@@ -203,5 +205,13 @@ mod tests {
             c64(-0.205_616_758_356_028_3, -0.915_965_594_177_219),
         ];
         np_assert_allclose!(zs.map(crate::spence), expect, rtol = 1e-13);
+    }
+
+    #[test]
+    fn test_spence_near_1_c64() {
+        // mpmath: polylog(2, 1 - z)
+        let z = c64(1.0 + 1e-9, 1e-9);
+        let expect = c64(-1.000_000_082_740_371e-9, -9.999_999_995e-10);
+        np_assert_allclose!([crate::spence(z)], [expect], rtol = 1e-15);
     }
 }

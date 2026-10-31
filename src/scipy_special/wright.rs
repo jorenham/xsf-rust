@@ -1,6 +1,7 @@
 //! Rust translation of <https://github.com/scipy/scipy/blob/d3ac276/scipy/special/wright.cc>
 
 use crate::numpy::nextafter;
+use crate::xsf::log::clog;
 use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
@@ -139,49 +140,55 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         // Region 5: Top wing
         // Negative log series
         let t = z - I * pi;
-        let pz = (-t).ln();
+        let pz = clog(-t);
         w = t - pz;
+        if z.norm() > 1e50 {
+            // Series is accurate and the iterative scheme could overflow
+            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
+            // can overflow here)
+            return w;
+        }
         let mut fac = pz / t;
         w += fac;
         fac /= t;
         w += fac * (0.5 * pz - 1.0);
         fac /= t;
         w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
-        if z.norm() > 1e50 {
-            // Series is accurate and the iterative scheme could overflow
-            return w;
-        }
     } else if x <= -0.105e1 && 0.75e0 * (x + 0.1e1) < y + pi && y + pi <= 0.0e0 {
         // Region 6: Bottom wing
         // Negative log series
         let t = z + I * pi;
-        let pz = (-t).ln();
+        let pz = clog(-t);
         w = t - pz;
+        if z.norm() > 1e50 {
+            // Series is accurate and the iterative scheme could overflow
+            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
+            // can overflow here)
+            return w;
+        }
         let mut fac = pz / t;
         w += fac;
         fac /= t;
         w += fac * (0.5 * pz - 1.0);
         fac /= t;
         w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
-        if z.norm() > 1e50 {
-            // Series is accurate and the iterative scheme could overflow
-            return w;
-        }
     } else {
         // Region 7: Everywhere else
         // Series solution about infinity
-        let pz = z.ln();
+        let pz = clog(z);
         w = z - pz;
+        if z.norm() > 1e50 {
+            // Series is accurate and the iterative scheme could overflow
+            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
+            // can overflow here)
+            return w;
+        }
         let mut fac = pz / z;
         w += fac;
         fac /= z;
         w += fac * (0.5 * pz - 1.0);
         fac /= z;
         w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
-        if z.norm() > 1e50 {
-            // Series is accurate and the iterative scheme could overflow */
-            return z;
-        }
     }
 
     // Regularize if near branch cuts
@@ -427,6 +434,24 @@ mod tests {
         for p in pts {
             assert_eq!(crate::wrightomega(p), p);
         }
+    }
+
+    #[test]
+    fn test_wrightomega_huge() {
+        // reference values from scipy.special.wrightomega
+        for (im, re) in [
+            (1e51, -117.431_839_742_696_33),
+            (1e308, -709.196_208_642_166),
+        ] {
+            for im in [im, -im] {
+                let res = crate::wrightomega(c64(0.0, im));
+                np_assert_allclose!([res.re], [re], rtol = 1e-15);
+                assert_eq!(res.im, im);
+            }
+        }
+        // |z| overflows, but omega(z) rounds to z
+        let z = c64(1.3e308, 1.3e308);
+        assert_eq!(crate::wrightomega(z), z);
     }
 
     #[test]

@@ -300,7 +300,7 @@ impl GegenbauerArg<i32> for f64 {
             }
 
             let n = f64::from(n);
-            if (alpha / n) < 1e-8 {
+            if (alpha / n).abs() < 1e-8 {
                 // avoid loss of precision
                 aa / n * p
             } else {
@@ -1035,5 +1035,14 @@ mod tests {
                 8.0 * x * x * x - 4.0 * x
             }],
         );
+    }
+
+    #[test]
+    fn test_eval_gegenbauer_negative_alpha() {
+        // mpmath: gegenbauer(n, alpha, x)
+        let c = crate::eval_gegenbauer(3_i32, -0.3, 0.5);
+        np_assert_allclose!([c], [0.1505], rtol = 1e-14);
+        let c = crate::eval_gegenbauer(4_i32, -0.25, 2.0);
+        np_assert_allclose!([c], [-7.093_75], rtol = 1e-14);
     }
 }

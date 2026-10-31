@@ -40,7 +40,10 @@ pub fn stirling2<T: num_traits::PrimInt + Unsigned>(n: u32, k: u32) -> T {
         return T::zero();
     } else if k == 2 {
         // S(n, 2) = 2^(n-1) - 1
-        return T::from((1 << (n - 1)) - 1).unwrap();
+        return 129_u32
+            .checked_sub(n)
+            .and_then(|shift| T::from(u128::MAX >> shift))
+            .unwrap();
     } else if n == k + 1 {
         // S(n, n-1) = C(n, 2) = n(n-1)/2
         return T::from(u128::from(n) * (u128::from(n) - 1) / 2).unwrap();
@@ -82,5 +85,11 @@ mod tests {
                 assert_eq!(s, s0, "S({n_idx}, {k_idx})");
             }
         }
+    }
+
+    #[test]
+    fn test_stirling2_k2_large_n() {
+        assert_eq!(crate::stirling2::<u64>(33, 2), (1 << 32) - 1);
+        assert_eq!(crate::stirling2::<u128>(129, 2), u128::MAX);
     }
 }
