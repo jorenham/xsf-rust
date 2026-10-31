@@ -31,9 +31,14 @@ fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
         100,
     );
     match status {
-        NewtonRootFinderStatus::MaxIterationsExceeded
-        | NewtonRootFinderStatus::DerivativeZero
-        | NewtonRootFinderStatus::ObjectiveReturnedNan => f64::NAN,
+        // Unlike in xsf, `MaxIterationsExceeded` returns the last iterate instead of NaN. Near the
+        // root, a 1 ulp change of `psi(x) - y` moves `x` by up to ~`y` eps relative (because
+        // `x psi'(x) > 1`), so for `y > 4` Newton can end up cycling between two values that are
+        // both accurate, but too far apart for `rtol = 4 eps`, e.g. for
+        // `digammainv(9.220027678716601)`.
+        NewtonRootFinderStatus::DerivativeZero | NewtonRootFinderStatus::ObjectiveReturnedNan => {
+            f64::NAN
+        },
         _ => res,
     }
 }
@@ -87,5 +92,12 @@ mod tests {
         assert!(crate::digammainv(f64::NAN).is_nan());
         assert_eq!(crate::digammainv(f64::NEG_INFINITY), 0.0);
         assert_eq!(crate::digammainv(710.0), f64::INFINITY);
+    }
+
+    #[test]
+    fn test_digammainv_newton_cycle() {
+        // unlike in xsf: Newton cycles here, which used to return NaN
+        let x = crate::digammainv(9.220_027_678_716_601);
+        xsref::np_assert_allclose!([x], [10_097.843_801_671_605], rtol = 1e-14);
     }
 }
