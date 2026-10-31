@@ -595,12 +595,9 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 u = f;
                 f = (a - 4.0 * f64::from(k) * f64::from(k)) * u / q - v;
 
-                // NOTE: compares against `fc[k]`, whereas the Fortran original compares against
-                // FC(K), i.e. `fc[k - 1]`, like the KD=2,3 case does; kept as in the C++. This also
-                // reads `fc[251]` when km == 251 (the first iteration): out of bounds for the
-                // 251-element buffers that the C++ callers pass (C++ UB; panics here if
-                // `fc.len() == 251`).
-                if f.abs() >= fc[k as usize].abs() {
+                // Unlike in xsf, this compares against `fc[k - 1]` instead of `fc[k]`, like the
+                // Fortran original (FC(K)) and the KD=2,3 case do (scipy/xsf#343)
+                if f.abs() >= fc[(k - 1) as usize].abs() {
                     fc[(k - 2) as usize] = f;
                     s += f * f;
                 } else {
@@ -625,26 +622,37 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             return;
         }
         // L70:
-        fc[0] = 1.0e-100;
-        fc[1] = (a - 4.0) / q * fc[0];
-        sp = 0.0;
-        u = fc[0];
-        f1 = fc[1];
+        let mut fc0 = 1.0e-100;
+        loop {
+            fc[0] = fc0;
+            fc[1] = (a - 4.0) / q * fc[0];
+            sp = 0.0;
+            u = fc[0];
+            f1 = fc[1];
 
-        for i in 2..=kb - 1 {
-            v = u;
-            u = f1;
-            f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
+            for i in 2..=kb - 1 {
+                v = u;
+                u = f1;
+                f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
 
-            if i != kb - 1 {
-                fc[i as usize] = f1;
-                sp = sp + f1 * f1;
-            } else {
-                f2 = f1;
+                if i != kb - 1 {
+                    fc[i as usize] = f1;
+                    sp = sp + f1 * f1;
+                } else {
+                    f2 = f1;
+                }
             }
-        }
 
-        sp += fc[0] * fc[0] + fc[1] * fc[1];
+            sp += fc[0] * fc[0] + fc[1] * fc[1];
+
+            // Unlike in xsf, this retries with a (2^512 times) smaller fc[0] if `sp` overflows,
+            // instead of returning zeros, e.g. for m = 94 and q = 0.01
+            #[allow(clippy::float_cmp)]
+            if sp.is_finite() || fc0 != 1.0e-100 {
+                break;
+            }
+            fc0 = 1.0e-100 * 2.0_f64.powi(-512);
+        }
         ss = s + sp * (f3 / f2) * (f3 / f2);
         s0 = (1.0 / ss).sqrt();
 
