@@ -494,7 +494,13 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 }
 
                 sp += 2.0 * fc[0] * fc[0] + fc[1] * fc[1] + fc[2] * fc[2];
-                ss = s + sp * (f3 / f2) * (f3 / f2);
+                // (unlike in xsf) see `sum_sq_rel`
+                ss = if sp.is_finite() {
+                    s + sp * (f3 / f2) * (f3 / f2)
+                } else {
+                    let sp_rel = sum_sq_rel(&fc[..kb as usize], f2) + (fc[0] / f2) * (fc[0] / f2);
+                    s + sp_rel * f3 * f3
+                };
                 s0 = (1.0 / ss).sqrt();
 
                 for j in 1..=km {
@@ -576,7 +582,12 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
 
         sp += fc[0] * fc[0] + fc[1] * fc[1];
-        ss = s + sp * (f3 / f2) * (f3 / f2);
+        // (unlike in xsf) see `sum_sq_rel`
+        ss = if sp.is_finite() {
+            s + sp * (f3 / f2) * (f3 / f2)
+        } else {
+            s + sum_sq_rel(&fc[..(kb - 1) as usize], f2) * f3 * f3
+        };
         s0 = (1.0 / ss).sqrt();
 
         for j in 1..=km {
@@ -622,38 +633,32 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             return;
         }
         // L70:
-        let mut fc0 = 1.0e-100;
-        loop {
-            fc[0] = fc0;
-            fc[1] = (a - 4.0) / q * fc[0];
-            sp = 0.0;
-            u = fc[0];
-            f1 = fc[1];
+        fc[0] = 1.0e-100;
+        fc[1] = (a - 4.0) / q * fc[0];
+        sp = 0.0;
+        u = fc[0];
+        f1 = fc[1];
 
-            for i in 2..=kb - 1 {
-                v = u;
-                u = f1;
-                f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
+        for i in 2..=kb - 1 {
+            v = u;
+            u = f1;
+            f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
 
-                if i != kb - 1 {
-                    fc[i as usize] = f1;
-                    sp = sp + f1 * f1;
-                } else {
-                    f2 = f1;
-                }
+            if i != kb - 1 {
+                fc[i as usize] = f1;
+                sp = sp + f1 * f1;
+            } else {
+                f2 = f1;
             }
-
-            sp += fc[0] * fc[0] + fc[1] * fc[1];
-
-            // Unlike in xsf, this retries with a (2^512 times) smaller fc[0] if `sp` overflows,
-            // instead of returning zeros, e.g. for m = 94 and q = 0.01
-            #[allow(clippy::float_cmp)]
-            if sp.is_finite() || fc0 != 1.0e-100 {
-                break;
-            }
-            fc0 = 1.0e-100 * 2.0_f64.powi(-512);
         }
-        ss = s + sp * (f3 / f2) * (f3 / f2);
+
+        sp += fc[0] * fc[0] + fc[1] * fc[1];
+        // (unlike in xsf) see `sum_sq_rel`
+        ss = if sp.is_finite() {
+            s + sp * (f3 / f2) * (f3 / f2)
+        } else {
+            s + sum_sq_rel(&fc[..(kb - 1) as usize], f2) * f3 * f3
+        };
         s0 = (1.0 / ss).sqrt();
 
         for j in 1..=km {
@@ -669,6 +674,14 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             fc[j as usize] = -fc[j as usize];
         }
     }
+}
+
+/// `sum((fc / f2)^2)`, for computing `sp * (f3 / f2)^2` in `fcoef` without overflowing `sp`.
+///
+/// Unlike in xsf, `fcoef` uses this if the sum of squares `sp` of the forward recurrence overflows
+/// (e.g. for m >= 92 and q = 0.01), instead of returning zeros (scipy/xsf#344).
+fn sum_sq_rel(fc: &[f64], f2: f64) -> f64 {
+    fc.iter().map(|c| (c / f2) * (c / f2)).sum()
 }
 
 #[allow(
