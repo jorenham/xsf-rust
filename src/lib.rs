@@ -148,6 +148,20 @@
 //! | [`gdtrib`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `b` |
 //! | [`gdtrix`] | Inverse of [`gdtr(a, b, x)`](gdtr) with respect to `x` |
 //!
+//! ## Generalized hyperbolic distribution
+//!
+//! | Function                 | Description                        |
+//! | ------------------------ | ---------------------------------- |
+//! | [`genhyperbolic_pdf`]    | Probability density function       |
+//! | [`genhyperbolic_logpdf`] | Logarithm of [`genhyperbolic_pdf`] |
+//!
+//! ## Generalized inverse Gaussian distribution
+//!
+//! | Function               | Description                      |
+//! | ---------------------- | -------------------------------- |
+//! | [`geninvgauss_pdf`]    | Probability density function     |
+//! | [`geninvgauss_logpdf`] | Logarithm of [`geninvgauss_pdf`] |
+//!
 //! ## Negative binomial distribution
 //!
 //! | Function   | Description                      |

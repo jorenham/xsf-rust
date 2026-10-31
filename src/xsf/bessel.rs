@@ -245,7 +245,7 @@ fn cyl_bessel_ke_c64(mut v: f64, z: Complex64) -> Complex64 {
 }
 
 #[allow(clippy::float_cmp)]
-fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
+pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
     }
