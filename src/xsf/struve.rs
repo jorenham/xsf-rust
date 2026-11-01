@@ -198,7 +198,7 @@ fn itsl0(x: f64) -> f64 {
     let mut r = 1.0;
     // Unlike in xsf, sum the series up to eps and use it up to x = 40 (instead of 20), beyond
     // which 25 (instead of 10) asymptotic terms reach eps, e.g.
-    // `itmodstruve0(21.281112146816426)` was 155893841.987 instead of 155893845.553.
+    // `itmodstruve0(20.5)` was 7.2824508e7 instead of 7.2824509e7.
     if x <= 40.0 {
         s = 0.5;
         for k in 1..101 {

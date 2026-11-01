@@ -66,8 +66,7 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
     } else if a > 10.0 && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), `lgam_ratio` avoids the cancellation in
-        // lgam(a + m) - lgam(a) (below), e.g. a relative error of 8e-12 for
-        // poch(5878.8618471964755, -0.029080395984806877)
+        // lgam(a + m) - lgam(a) (below), e.g. a relative error of 1e-11 for poch(1e4, -0.03)
         return r * lgam_ratio(a, m).exp();
     }
 
@@ -127,7 +126,7 @@ pub fn pow_falling(x: f64, m: f64) -> f64 {
     let a = x - m + 1.0;
     if a < -10.0 && x < 0.0 && m != m.floor() {
         // `poch(a, m)` would reflect, which amplifies the rounding error of `a` near the poles of
-        // Gamma(x + 1), e.g. 3e-5 for pow_falling(-59.0000000001, -7.654166228426843)
+        // Gamma(x + 1), e.g. 3e-5 for pow_falling(-59.0000000001, -7.3)
         let q = poch(x + 1.0, -m);
         if q.is_normal() {
             return 1.0 / q;

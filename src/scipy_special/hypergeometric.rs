@@ -113,7 +113,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 /// Fallback for large $|v|$, if the evaluation in terms of Bessel functions over- or underflows
 ///
 /// Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed if $|z| \le |v|$, e.g.
-/// `hyp0f1(1.3e14, 2.3e8)` was $e$ instead of 1.0000018.
+/// `hyp0f1(1.3e14, 2.3e8)` was 1.6 instead of 1.0.
 fn hyp0f1_large_v(v: f64, z: f64) -> f64 {
     if z.abs() <= v.abs() {
         hyp0f1_series(v, z)

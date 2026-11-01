@@ -47,7 +47,7 @@ pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
     let mut count = 0;
 
     // Unlike in xsf, a relative tolerance (and more iterations for small p), since e.g.
-    // `tukeylambdacdf(-4.6870665239279194, 0.21296947909944208)` was 1.287382e-13, not 1.287389e-13.
+    // `tukeylambdacdf(-9.9, 0.1)` was 9e-19, not 1e-20.
     while (f64::from(count) < f64::from(TUKEY_MAXCOUNT) - pmid.log2())
         && ((pmid - plow).abs() > TUKEY_EPS * pmid)
     {

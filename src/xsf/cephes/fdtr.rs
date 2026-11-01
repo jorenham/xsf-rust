@@ -56,7 +56,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     }
     let w = b / (b + a * x);
     // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`), e.g.
-    // fdtrc(0.00118, 1.46e11, 0.00286) was 1 instead of 0.0074741.
+    // fdtrc(0.00118, 1.46e11, 0.00286) was 1 instead of 0.007.
     betainc_xy(0.5 * b, 0.5 * a, w, a * x / (b + a * x))
 }
 

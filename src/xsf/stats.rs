@@ -508,7 +508,7 @@ fn von_mises_cdf_left(k: f64, x: f64) -> f64 {
 ///
 /// Unlike in xsf, which uses Hill's series for `k < 50` and a normal approximation otherwise,
 /// this uses Gauss quadrature, which is also accurate in the tails, e.g.
-/// `von_mises_cdf(27.698387388014122, -3.0694688797790795)` was `7.4e-14` instead of `1.35e-25`.
+/// `von_mises_cdf(25.0, -3.0)` was `6e-14` instead of `6e-23`.
 ///
 /// Corresponds to `xsf::von_mises_cdf` in xsf main, which is used by
 /// [`scipy.stats.vonmises`][vonmises].

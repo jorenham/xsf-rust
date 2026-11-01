@@ -180,7 +180,7 @@ fn igam_series(a: f64, x: f64) -> f64 {
     }
     if c > MACHEP * ans {
         // Unlike in xsf (scipy/xsf#339), the asymptotic series is used if the power series did not
-        // converge within IGAM_MAXITER terms, e.g. igam(1e10, 9999500000) was 2.8e-8 instead of
+        // converge within IGAM_MAXITER terms, e.g. igam(1e10, 9.9995e9) was 2.8e-8 instead of
         // 2.9e-7.
         //
         // - Near the asymptotic window, the power series needs ~5 sqrt(a) terms, i.e. more than

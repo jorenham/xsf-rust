@@ -11,8 +11,7 @@
 //! being undefined behavior (taking the same branches as the x86 conversion in C++).
 //!
 //! Also unlike in xsf (scipy/xsf#341), the power series returns `-inf` instead of `inf` when it
-//! overflows for a negative result, e.g. `jv(-123.57388919180612, 0.028605192190944706)`
-//! (`-4.24e431`).
+//! overflows for a negative result, e.g. `jv(-123.5, 0.03)` (`-6e428`).
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
