@@ -420,6 +420,23 @@ fn test_hyp1f1_neg_b() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_cancellation() {
+    // mpmath; in xsf these are 4.6e169, -0.0, and NaN
+    let abx = [
+        (500.5, -200.25, 5.5),
+        (99.7, -0.3, -800.0),
+        (340.5, -90.25, 140.5),
+    ];
+    let expected = [
+        1.952_103_586_824_771_7e-6,
+        9.487_619_910_475_397e-140,
+        -6.941_454_309_937_287e307,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp1f1_large_b_or_neg_x() {
     // mpmath; in xsf these are 0, 0, 14.511, and -1.3e197
     let abx = [
