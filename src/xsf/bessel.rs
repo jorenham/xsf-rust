@@ -680,7 +680,7 @@ pub fn bessel_j1(x: f64) -> f64 {
     crate::xsf::cephes::j1(x)
 }
 
-/// Exponentially scaled Bessel function of the first kind
+/// Exponentially scaled Bessel function of the first kind, $e^{-\abs{\mathrm{Im}(z)}} J_v(z)$
 ///
 /// Corresponds to [`scipy.special.jve`][scipy].
 ///
@@ -748,7 +748,7 @@ pub fn bessel_y<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_y(v)
 }
 
-/// Exponentially scaled Bessel function of the second kind
+/// Exponentially scaled Bessel function of the second kind, $e^{-\abs{\mathrm{Im}(z)}} Y_v(z)$
 ///
 /// Corresponds to [`scipy.special.yve`][scipy].
 ///
@@ -850,7 +850,8 @@ pub fn bessel_i<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_i(v)
 }
 
-/// Exponentially scaled modified Bessel function of the first kind
+/// Exponentially scaled modified Bessel function of the first kind,
+/// $e^{-\abs{\mathrm{Re}(z)}} I_v(z)$
 ///
 /// Corresponds to [`scipy.special.ive`][scipy].
 ///
@@ -952,7 +953,7 @@ pub fn bessel_k<T: BesselArg>(v: f64, z: T) -> T {
     z.bessel_k(v)
 }
 
-/// Exponentially scaled modified Bessel function of the second kind
+/// Exponentially scaled modified Bessel function of the second kind, $e^z K_v(z)$
 ///
 /// Corresponds to [`scipy.special.kve`][kve].
 ///
@@ -977,6 +978,10 @@ pub fn bessel_ke<T: BesselArg>(v: f64, z: T) -> T {
 ///
 /// # Panics
 /// - Panics if `N` is greater than 1200
+///
+/// # See also
+/// - [`bessel_j`]: Bessel function $J_v(z)$
+/// - [`bessel_y`]: Bessel function $Y_v(z)$
 #[doc(alias = "jnyn_zeros")]
 #[must_use]
 #[inline]
@@ -1021,7 +1026,7 @@ pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_1(v)
 }
 
-/// Exponentially scaled Hankel function of the first kind
+/// Exponentially scaled Hankel function of the first kind, $e^{-iz} H_v^{(1)}(z)$
 ///
 /// Corresponds to [`scipy.special.hankel1e`][h1ve].
 ///
@@ -1055,7 +1060,7 @@ pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
     z.hankel_2(v)
 }
 
-/// Exponentially scaled Hankel function of the second kind
+/// Exponentially scaled Hankel function of the second kind, $e^{iz} H_v^{(2)}(z)$
 ///
 /// Corresponds to [`scipy.special.hankel2e`][h2ve].
 ///

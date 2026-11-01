@@ -272,12 +272,16 @@ pub fn exp1<T: ExpIntArg>(z: T) -> T {
 
 /// Exponential integral $Ei$ for real or complex input
 ///
+/// Corresponds to [`scipy.special.expi`][expi]
+///
+/// [expi]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.expi.html
+///
 /// # Definition
 /// For real $x$, the exponential integral is defined as
 ///
 /// $$ Ei(x) = \int_{-\infty}^x \frac{e^t}{t} \dd t $$
 ///
-/// For x > 0 the integral is understood as a Cauchy principal value.
+/// For $x > 0$ the integral is understood as a Cauchy principal value.
 ///
 /// It is extended to the complex plane by analytic continuation of the function on the interval
 /// $(0, \infty)$. The complex variant has a branch cut on the negative real axis.

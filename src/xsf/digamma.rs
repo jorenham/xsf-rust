@@ -224,11 +224,21 @@ impl DigammaArg for num_complex::Complex<f64> {
     }
 }
 
-/// Digamma function for real or complex input
+/// Digamma function $\psi(z)$ for real or complex input
+///
+/// This function is defined as [^DLMF]:
+///
+/// $$
+/// \psi(z) = {\Gamma\'(z) \over \Gamma(z)} ,
+/// $$
+///
+/// where $\Gamma$ is the [Gamma function](crate::gamma).
 ///
 /// Corresponds to [`scipy.special.digamma`][digamma] in scipy
 ///
 /// [digamma]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/5.2.E2>.
 ///
 /// # See also
 /// - [`polygamma`](crate::polygamma): Polygamma function (n-th derivative)

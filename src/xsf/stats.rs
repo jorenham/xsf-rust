@@ -205,6 +205,9 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
 /// Rust implementation of [`scipy.special.stdtrit`][stdtrit] with comparable or better accuracy.
 ///
 /// [stdtrit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtrit.html
+///
+/// # See also
+/// - [`stdtr`]: Student's t distribution CDF
 #[must_use]
 #[inline]
 #[allow(clippy::float_cmp)]
@@ -826,7 +829,9 @@ pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
 ///
 /// # See also
 /// - [`gdtrc`]: Survival function
+/// - [`gdtria`](crate::gdtria): Inverse of the CDF w.r.t. `a`
 /// - [`gdtrib`](crate::gdtrib): Inverse of the CDF w.r.t. `b`
+/// - [`gdtrix`](crate::gdtrix): Inverse of the CDF w.r.t. `x`
 #[must_use]
 #[inline]
 pub fn gdtr(a: f64, b: f64, x: f64) -> f64 {
@@ -1229,6 +1234,9 @@ pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
 ///
 /// Accurate for practical hypothesis testing but not expected to be accurate for large values of
 /// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
+///
+/// # See also
+/// - [`cdf_cvm`]: For a finite sample size
 #[must_use]
 #[inline]
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
@@ -1346,6 +1354,9 @@ fn psi1_mod(x: f64) -> f64 {
 /// For finite `n`, the approximation is less accurate near the support boundaries `[1/(12*n), n/3]`
 /// and for larger `x` values where the CDF is close to `1`.
 /// The returned value is clipped to `[0, 1]`.
+///
+/// # See also
+/// - [`cdf_cvm_inf`]: The infinite sample limit
 #[must_use]
 #[inline]
 pub fn cdf_cvm(x: f64, n: i32) -> f64 {
