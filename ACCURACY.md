@@ -805,13 +805,11 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>spence</code></td><td>x ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wrightomega</code></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.9e-15</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap><samp>1.9e-15</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wrightomega</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>4.5e-17</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>4.5e-17</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>stirling2</code></td><td>n ∈ {0, …, 150}<br>k ∈ {0, …, n}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.8e-05</samp></td><td align="right" nowrap><samp>3.6e-06</samp></td><td align="right" nowrap><samp>1.8e-05</samp></td><td align="right" nowrap><samp>3.6e-06</samp></td><td align="right" nowrap>92.0%</td></tr>
+<tr><td><code>stirling2</code></td><td>n ∈ {0, …, 150}<br>k ∈ {0, …, n}</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.6e-15</samp></b></td><td align="right" nowrap><b><samp>2.2e-16</samp></b></td><td align="right" nowrap><samp>1.8e-05</samp></td><td align="right" nowrap><samp>3.6e-06</samp></td><td align="right" nowrap>35.0%</td></tr>
 <tr><td><code>wright_bessel</code></td><td>a, b ∈ [0, 5]<br>x ∈ [0, 100]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>log_wright_bessel</code></td><td>a, b ∈ [0, 5]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
 </table>
-
-`stirling2`: Temme's approximation for n > 50 (relative error up to ~2·10⁻⁵).
 
 `log_wright_bessel`: Ill-conditioned near the zeros.
 

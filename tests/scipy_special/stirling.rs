@@ -50,6 +50,21 @@ fn test_stirling2_f64_small() {
 }
 
 #[test]
+fn test_stirling2_f64_dp_large_n() {
+    // `50 < n <= 219`, exact values
+    for (n, k, s0) in [
+        (51, 7, 2.491_134_287_812_361_2e39),
+        (52, 7, 1.744_467_199_136_095_8e40),
+        (150, 12, 1.573_398_590_522_490_7e153),
+        (219, 54, 4.190_119_213_575_601e307),
+        (219, 110, 2.071_041_889_974_642e260),
+    ] {
+        let s: f64 = xsf::stirling2(n, k);
+        assert!((s - s0).abs() <= 2e-15 * s0, "S({n}, {k}) = {s} != {s0}");
+    }
+}
+
+#[test]
 fn test_stirling2_f64_temme() {
     assert_eq!(xsf::stirling2::<f64>(60, 0), 0.0);
     assert_eq!(xsf::stirling2::<f64>(60, 61), 0.0);

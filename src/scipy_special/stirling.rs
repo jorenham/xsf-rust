@@ -33,9 +33,8 @@ impl Stirling2Output for f64 {
 /// [`scipy.special.stirling2(n, k, exact=True)`][stirling2].
 ///
 /// For `T = f64`, this corresponds to [`scipy.special.stirling2(n, k, exact=False)`][stirling2],
-/// which for *n <= 50* uses dynamic programming, and for *n > 50* the second-order asymptotic
-/// approximation of Temme \[1\]. The latter has a relative error of up to about `2e-5` (at
-/// *n = 51*).
+/// which uses dynamic programming for *n <= 219* (*n <= 50* in SciPy), and else the asymptotic
+/// approximation of Temme \[1\] (relative error ~1e-6, worse for *k* close to *n*).
 ///
 /// [stirling2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stirling2.html
 ///
