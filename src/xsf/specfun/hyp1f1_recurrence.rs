@@ -349,9 +349,15 @@ pub(super) fn hyp1f1_neg_a(
     // `e^s` is applied like `e^z` for `z < 0` in `hypergeometric_1F1_imp`:
     let scaling = s.trunc();
     result *= (s - scaling).exp();
-    let mut log_scaling = log_scaling.saturating_add(scaling as i64);
+    Some(apply_log_scaling(
+        result,
+        log_scaling.saturating_add(scaling as i64),
+    ))
+}
 
-    // The rest is from `hypergeometric_1F1_imp`:
+/// `result * e^log_scaling`, from `hypergeometric_1F1_imp`
+#[allow(clippy::cast_precision_loss)]
+fn apply_log_scaling(mut result: f64, mut log_scaling: i64) -> f64 {
     //
     // Actual result will be result * e^log_scaling.
     //
@@ -371,5 +377,55 @@ pub(super) fn hyp1f1_neg_a(
     if log_scaling != 0 {
         result *= (log_scaling as f64).exp();
     }
-    Some(result)
+    result
+}
+
+/// Unlike in xsf: `M(a, b, z)` for non-integer `b < 0` by DLMF 13.3.2 backward from `b + n > 0`,
+/// or `None` if the error (from a rerun with `m(b + n + 1)` perturbed) exceeds `max_err`. For
+/// `a z < 0` it first tries a start where the series of `m(b + n) = M(a, b + n, z)` hardly cancels.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub(super) fn hyp1f1_neg_b(
+    a: f64,
+    b: f64,
+    z: f64,
+    max_err: f64,
+    m: impl Fn(f64) -> f64,
+) -> Option<f64> {
+    const DELTA: f64 = 1.0 / 1_048_576.0;
+
+    let from = |n: f64, max_err: f64| {
+        let n = n as i32;
+        // `m` can be slow, so stop at the first non-finite initial value
+        let m0 = m(b + f64::from(n));
+        if !m0.is_finite() {
+            return None;
+        }
+        let m1 = m(b + f64::from(n + 1));
+        if !m1.is_finite() {
+            return None;
+        }
+        let run = |m1| {
+            let mut log_scaling = 0;
+            let coefs = recurrence_small_b_coefficients(a, b, z, n);
+            let (w, _) = apply_recurrence_relation_backward(coefs, n, m1, m0, &mut log_scaling);
+            (w, log_scaling)
+        };
+        let (w, log_scaling) = run(m1);
+        let (w2, log_scaling2) = run(m1 * (1.0 + DELTA));
+        let diff = w2 / w * ((log_scaling2 - log_scaling) as f64).exp() - 1.0;
+        let err = f64::EPSILON * (diff.abs() / DELTA + f64::from(n));
+        (err <= max_err).then(|| apply_log_scaling(w, log_scaling))
+    };
+    let n = -b.floor();
+    let b_far = if z > 0.0 { -a * z } else { a * -z / (1.0 - z) };
+    let n_far = (b_far - b).ceil();
+    if n > 1e5 {
+        return None;
+    }
+    if a * z < 0.0 && n_far > n && n_far <= n + 1e3 {
+        if let Some(hg) = from(n_far, 1e-12) {
+            return Some(hg);
+        }
+    }
+    from(n, max_err)
 }

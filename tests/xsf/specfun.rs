@@ -267,3 +267,45 @@ fn test_hyp1f1_large_x() {
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
+
+#[test]
+fn test_hyp1f1_neg_b() {
+    // mpmath; in xsf these are 1.03, -7844.06, -1.5e56, NaN, NaN, and NaN
+    let abx = [
+        (-0.0942, -85.783, 31.993),
+        (20.0, -17.75, -36.75),
+        (536.5, -66.75, -7.75),
+        (874.25, -334.75, -138.5),
+        (900.0, -830.5, 0.25),
+        (737.5, -61.75, 518.0),
+    ];
+    let expected = [
+        -830_724_968_298.684,
+        -7_845.064_845_794_902,
+        -1.334_256_059_470_499_8e26,
+        -1.922_004_000_563_705_4e133,
+        0.762_741_486_096_305,
+        f64::INFINITY,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp1f1_large_b_or_neg_x() {
+    // mpmath; in xsf these are 0, 0, 14.511, and -1.3e197
+    let abx = [
+        (1.0, 1000.0, -800.0),
+        (2.0, 3000.0, -3000.0),
+        (0.5, 20_000.0, 20_000.0),
+        (874.25, 0.25, -138.5),
+    ];
+    let expected = [
+        0.555_445_795_880_786,
+        0.249_937_491_318_142_4,
+        14.512_932_899_154_44,
+        6.546_132_637_255_607e-30,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+}

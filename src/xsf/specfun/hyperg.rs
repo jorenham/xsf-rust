@@ -9,7 +9,7 @@ use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
 
-use super::hyp1f1_recurrence::hyp1f1_neg_a;
+use super::hyp1f1_recurrence::{hyp1f1_neg_a, hyp1f1_neg_b};
 use super::{cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
@@ -166,9 +166,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
             // recurrence in a above if they differ by more than twice the series' error bound,
             // e.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j.
             if b > 0.0 {
-                if let Some((s, _)) = hyp1f1_series(a0, b, z, Complex64::ONE).filter(|&(s, err)| {
-                    err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                }) {
+                if let Some((s, _)) =
+                    hyp1f1_series(a0, b, z, Complex64::ONE, 0.0).filter(|&(s, err)| {
+                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                    })
+                {
                     chg = s;
                 }
             }
@@ -182,9 +184,9 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
-/// Unlike in xsf (scipy/xsf#365): `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`,
-/// with an error bound for `a >= 1` and `b > 0`, or `None` if it doesn't converge within 100000
-/// terms.
+/// Unlike in xsf (scipy/xsf#365): `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`
+/// or `b < 0`, with an error bound for `a >= 1` and `b > 0` (an estimate for `b < 0`), or `None`
+/// if it doesn't converge within 100000 terms.
 ///
 /// The error bound (to first order in `u = EPSILON / 2`) is the sum of:
 /// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
@@ -198,7 +200,16 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
 ///
 /// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
-fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Complex64, f64)> {
+///
+/// The extra factor `e^log_scale` (for `log_scale < 0`) is applied in steps once the terms are
+/// large, so that the result is finite even if `e^log_scale` underflows and `M` overflows.
+fn hyp1f1_series(
+    a: f64,
+    b: f64,
+    z: Complex64,
+    scale: Complex64,
+    mut log_scale: f64,
+) -> Option<(Complex64, f64)> {
     let mut t = scale;
     let mut sum = scale;
     let mut comp = Complex64::ZERO;
@@ -208,6 +219,12 @@ fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Comp
         t *= (a + n) / (n + 1.0) * (z / (b + n));
         kahan_step(&mut sum, &mut comp, t);
         err += (n + 2.0) * t.norm();
+        if log_scale < 0.0 && err > 1e250 {
+            let s = log_scale.max(-600.0);
+            log_scale -= s;
+            let s = s.exp();
+            (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
+        }
         if t.norm() <= f64::EPSILON * sum.norm() {
             let q = (a + n + 1.0) / (n + 2.0) * (z.norm() / (b + n + 1.0));
             if (q >= 1.0 || b + n + 1.0 < z.norm()) && sum.norm().is_finite() {
@@ -218,7 +235,16 @@ fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Comp
             } else {
                 f64::INFINITY
             };
-            return Some((sum, 4.0 * f64::EPSILON * err + tail));
+            let bound = 4.0 * f64::EPSILON * err + tail;
+            if log_scale == 0.0 {
+                return Some((sum, bound));
+            }
+            // in 3 steps, since `|sum| < e^710`
+            let s = (log_scale.max(-1500.0) / 3.0).exp();
+            return sum
+                .norm()
+                .is_finite()
+                .then(|| (sum * s * s * s, bound * s * s * s));
         }
     }
     None
@@ -237,12 +263,44 @@ fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
     p
 }
 
+/// Unlike in xsf: `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` with `x >= 0` (cf. DLMF 13.2.39),
+/// where `e^x0` is applied gradually for `x0 <= -700`, since it underflows
+fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
+    let s = if x0 > -700.0 { x0.min(0.0) } else { 0.0 };
+    hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
+        .map(|(hg, err)| (hg.re, err))
+}
+
+/// Unlike in xsf: `M(a, b, x)` for non-integer `b < 0` from the series (after DLMF 13.2.39 for
+/// `x < 0`), or else from the recurrence in `b` (`hyp1f1_neg_b`), if either loses at most half of
+/// its digits.
+fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
+    let (ak, xk) = if x < 0.0 { (b - a, -x) } else { (a, x) };
+    let mut series = chgm_series(ak, b, xk, x);
+    // if the partial sums overflow, `e^-1400 M` is summed instead
+    let mut scale = 1.0;
+    if series.is_some_and(|(hg, _)| !hg.is_finite()) {
+        series = chgm_series(ak, b, xk, x.min(0.0) - 1400.0);
+        scale = 700_f64.exp();
+    }
+    series
+        .filter(|&(hg, err)| hg.is_finite() && err <= SQRT_EPS * hg.abs())
+        .map(|(hg, _)| hg * scale * scale)
+        // not for huge |a|, where the initial values are too slow (e.g. a polynomial of degree -a)
+        .or_else(|| {
+            (a.abs() <= 1e5)
+                .then(|| hyp1f1_neg_b(a, b, x, SQRT_EPS, |b| chgm(x, a, b)))
+                .flatten()
+        })
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     clippy::float_cmp,
     clippy::many_single_char_names,
     clippy::needless_late_init,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::too_many_lines
 )]
 pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // ===================================================
@@ -260,13 +318,11 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let x0 = x;
     let mut hg = 0.0;
 
-    // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
-    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), e.g.
-    // `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
-    if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b {
-        let p = chgm_poly(-a as i32, b, x);
-        if p.is_finite() {
-            return p;
+    // Unlike in xsf, for non-integer b < 0 the series or a recurrence in b is used if accurate
+    // (see `chgm_neg_b`), e.g. `hyp1f1(-0.0942, -85.783, 31.993)` was 1.03 instead of -8.31e11.
+    if b < 0.0 && b != b.trunc() && a.is_finite() && x.is_finite() {
+        if let Some(hg) = chgm_neg_b(x, a, b) {
+            return hg;
         }
     }
 
@@ -276,18 +332,33 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         a0 = a;
         x = x.abs();
     }
+    // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
+    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), e.g.
+    // `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
+    //
+    // Unlike in xsf, this includes b - a = -n >= -1e5 for -700 < x < 0 (after DLMF 13.2.39),
+    // e.g. `hyp1f1(874.25, 0.25, -138.5)` was -1.3e197 instead of 6.5461e-30.
+    let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -1e5);
+    if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b && poly {
+        let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
+        if p.is_finite() {
+            return p;
+        }
+    }
     // Unlike in xsf (scipy/xsf#365), the series DLMF 13.2.2 is summed directly for a >= 2 and
     // b > 0, and for a > -1 and x > 30 + |b|, e.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead
     // of 1.000000000075.
     //
+    // Unlike in xsf, this includes x <= -700, where e^x underflows, e.g. `hyp1f1(1, 1000, -800)`
+    // was 0 instead of 0.55545.
+    //
     // For b < 0 an infinite sum isn't used, since the alternating terms (n < -b) can overflow
     // first.
     let series = (a >= 2.0 && b > 0.0) || (a > -1.0 && x > 30.0 + b.abs());
-    if series && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
-        if let Some((hg, _)) = hyp1f1_series(a, b, c64(x, 0.0), c64(x0.min(0.0).exp(), 0.0))
-            .filter(|(hg, _)| b > 0.0 || hg.re.is_finite())
+    if series && a.is_finite() && b.is_finite() && x.is_finite() {
+        if let Some((hg, _)) = chgm_series(a, b, x, x0).filter(|&(hg, _)| b > 0.0 || hg.is_finite())
         {
-            return hg.re;
+            return hg;
         }
     }
     let mut nl = 0;
@@ -312,17 +383,26 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // Unlike in xsf (scipy/xsf#365): the sum of |rg|, to measure the cancellation
             let mut rs = 1.0;
             let mut accurate = false;
+            let mut converged = false;
             for j in 1..501 {
                 rg = rg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
                 hg += rg;
                 rs += rg.abs();
                 if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
                     accurate = rs * SQRT_EPS <= hg.abs();
+                    converged = true;
                     // DLMF 13.2.39 (cf. above)
                     if x0 < 0.0 {
                         hg *= x0.exp();
                     }
                     break;
+                }
+            }
+            // Unlike in xsf, for -1 < a < 2 and b > 0 the series is summed in full if it doesn't
+            // converge within 500 terms, e.g. `hyp1f1(0.5, 20000, 20000)` was 14.511 (not 14.513).
+            if !converged && hg.is_finite() && a > -1.0 && a0 < 2.0 && b > 0.0 {
+                if let Some((hg, _)) = chgm_series(a, b, x, x0) {
+                    return hg;
                 }
             }
             // Unlike in xsf (scipy/xsf#365), for non-integer a < -1 and b > 0, the backward
@@ -332,7 +412,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // E.g. `hyp1f1(-1000.5, 1, 1)` was 5.5e8 instead of 0.15565.
             if !accurate && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
                 // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
-                let m = |a, b| hyp1f1_series(a, b, c64(x, 0.0), Complex64::ONE).map(|(s, _)| s.re);
+                let m =
+                    |a, b| hyp1f1_series(a, b, c64(x, 0.0), Complex64::ONE, 0.0).map(|(s, _)| s.re);
                 if let Some(hg) = hyp1f1_neg_a(a, b, x, x0.min(0.0), m) {
                     return hg;
                 }
