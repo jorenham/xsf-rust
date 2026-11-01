@@ -557,6 +557,24 @@ mod tests {
     }
 
     #[test]
+    fn test_zeta_negative_q() {
+        // reference values from mpmath, by summing the terms with q + k < 0 directly
+        for (x, q, expected) in [
+            (4.0, -431.636_697_197_915_6, 63.992_140_081_094_475),
+            (2.0, -1e10 - 0.5, 9.869_604_400_989_358),
+            (31.0, -7.5, 1.593_135_539_215_446_3e-29),
+            (31.0, -0.500_000_000_000_000_1, 3.304_063_430_367_368e-5),
+        ] {
+            let rel = (crate::zeta(x, q) - expected).abs() / expected;
+            assert!(rel < 1e-15, "zeta({x}, {q}): rel = {rel:e}");
+        }
+        // all terms underflow
+        assert_eq!(crate::zeta(1e300, 1.5), 0.0);
+        assert_eq!(crate::zeta(f64::INFINITY, 1.5), 0.0);
+        assert_eq!(crate::zeta(f64::INFINITY, -0.5), f64::INFINITY);
+    }
+
+    #[test]
     fn test_zetac_f64() {
         xsref::test("zetac", "d-d", |x| crate::zetac(x[0]));
     }
