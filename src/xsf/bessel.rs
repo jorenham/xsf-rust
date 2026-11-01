@@ -1057,7 +1057,8 @@ fn itika(x: f64) -> (f64, f64) {
         1.1192354495579e+4,
         9.515939374212e+4,
         9.0412425769041e+5,
-        // Unlike in xsf, also A(11:28): A(k) = a(k) + (k - 1/2) A(k-1), a(k) from DLMF 10.40.1
+        // Unlike in xsf (scipy/xsf#379), also A(11:28): A(k) = a(k) + (k - 1/2) A(k-1), with a(k)
+        // from DLMF 10.40.1
         9.493856041645449e6,
         1.0918238256943358e8,
         1.3647980398733943e9,
@@ -1087,8 +1088,8 @@ fn itika(x: f64) -> (f64, f64) {
     if x == 0.0 {
         return (0.0, 0.0);
     } else if x < 40.0 {
-        // Unlike in xsf, 40 (instead of 20), and 28 (instead of 10) asymptotic terms below, e.g.
-        // `it1i0k0(20.0).0` was 44758593.28 instead of 44758598.91.
+        // Unlike in xsf (scipy/xsf#379), 40 (instead of 20), and 28 (instead of 10) asymptotic
+        // terms below
         x2 = x * x;
         ti = 1.0;
         r = 1.0;
@@ -1242,7 +1243,8 @@ fn ittika(x: f64) -> (f64, f64) {
         2.3448727161884e3,
         1.7588273098916e4,
         1.4950639538279e5,
-        // Unlike in xsf, also C(9:28): C(k) = a(k) + (k + 1/2) C(k-1), a(k) from DLMF 10.40.1
+        // Unlike in xsf (scipy/xsf#379), also C(9:28): C(k) = a(k) + (k + 1/2) C(k-1), with a(k)
+        // from DLMF 10.40.1
         1.4203351366661638e6,
         1.491362895213499e7,
         1.715072842854485e8,
@@ -1285,7 +1287,7 @@ fn ittika(x: f64) -> (f64, f64) {
         }
         tti *= 0.125 * x * x;
     } else {
-        // Unlike in xsf, 28 (instead of 8) terms, e.g. `it2i0k0(40.0).0` had an error of 7e-9
+        // Unlike in xsf (scipy/xsf#379), 28 (instead of 8) terms
         tti = 1.0;
         r = 1.0;
         for k in 1..=28 {
@@ -1311,8 +1313,8 @@ fn ittika(x: f64) -> (f64, f64) {
         }
         ttk = e0 - 0.125 * x * x * b1;
     } else if x < 40.0 {
-        // Unlike in xsf, the trapezoidal rule on int_0^inf E1(x cosh(u)) du (DLMF 10.32.9), e.g.
-        // `it2i0k0(12.014948790755168).1` had a relative error of 1.7e-4
+        // Unlike in xsf (scipy/xsf#379), the trapezoidal rule on int_0^inf E1(x cosh(u)) du
+        // (DLMF 10.32.9)
         let h = PI * PI / (x + 45.0);
         let mut s = 0.5 * scaled_exp1(x) / x;
         for j in 1..=40 {
@@ -1328,7 +1330,7 @@ fn ittika(x: f64) -> (f64, f64) {
     } else {
         let mut ttk_ = 1.0;
         r = 1.0;
-        // Unlike in xsf, 28 (instead of 8) terms
+        // Unlike in xsf (scipy/xsf#379), 28 (instead of 8) terms
         for k in 1..=28 {
             r = -r / x;
             ttk_ += C[k - 1] * r;
