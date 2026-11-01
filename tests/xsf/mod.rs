@@ -16,6 +16,7 @@ mod fp_error_metrics;
 mod fresnel;
 mod gamma;
 mod gen_harmonic;
+mod hyp2f1;
 mod iv_ratio;
 mod kelvin;
 mod lambertw;
