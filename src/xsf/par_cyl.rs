@@ -1062,7 +1062,11 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
     // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
     // `pbdv(-2.5, 5.9).0` was 1.7541561989e-6 instead of 1.7541561955e-6.
-    if v.abs() < 20.0 && x < 12.0 && x > if v < 0.0 { 1.0 } else { 4.5 } {
+    //
+    // The same is done for 36.5 <= x < 60 (53 <= x for v >= 0), where xsf underflows prematurely,
+    // e.g. `pbdv(-5.5, 45.0).0` was 0 instead of 1.10136e-229.
+    let (lo, hi) = if v < 0.0 { (1.0, 36.5) } else { (4.5, 53.0) };
+    if v.abs() < 20.0 && x > lo && x < 60.0 && !(12.0..hi).contains(&x) {
         let n = (v + 20.0).ceil();
         let w = v - n;
         let ([d, dp], l) = pbdv_elementary(w, x);

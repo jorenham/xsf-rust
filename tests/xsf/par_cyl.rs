@@ -82,6 +82,35 @@ fn test_pbdv_moderate_x() {
 }
 
 #[test]
+fn test_pbdv_large_x() {
+    // 36.5 <= x < 60 (53 <= x for v >= 0), near the underflow (reference values from mpmath)
+    for (v, x, d, dp) in [
+        (
+            -19.5,
+            38.0,
+            2.262_826_187_826_714e-188,
+            -4.413_886_212_120_611_4e-187,
+        ),
+        (
+            -5.5,
+            45.0,
+            1.101_359_989_411_643_5e-229,
+            -2.491_478_130_368_397e-228,
+        ),
+        (
+            10.5,
+            54.5,
+            5.420_662_759_314_265e-305,
+            -1.466_653_517_047_072_7e-303,
+        ),
+    ] {
+        let (y, yp) = xsf::pbdv(v, x);
+        let rel = ((y - d) / d).abs().max(((yp - dp) / dp).abs());
+        assert!(rel < 5e-13, "v = {v}, x = {x}: rel = {rel:e}");
+    }
+}
+
+#[test]
 fn test_pbdv_large_v() {
     // reference values from mpmath
     for (v, x, d, dp) in [
