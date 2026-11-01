@@ -7,6 +7,7 @@ use num_traits::ToPrimitive;
 
 use crate::utils::PISQ_6;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
@@ -1117,7 +1118,7 @@ fn itika(x: f64) -> (f64, f64) {
     //          TK --- Integration of K0(t) from 0 to x
     // =======================================================
 
-    const A: [f64; 10] = [
+    const A: [f64; 28] = [
         0.625,
         1.0078125,
         2.5927734375,
@@ -1128,6 +1129,25 @@ fn itika(x: f64) -> (f64, f64) {
         1.1192354495579e+4,
         9.515939374212e+4,
         9.0412425769041e+5,
+        // Unlike in xsf, also A(11:28): A(k) = a(k) + (k - 1/2) A(k-1), a(k) from DLMF 10.40.1
+        9.493856041645449e6,
+        1.0918238256943358e8,
+        1.3647980398733943e9,
+        1.842489237671708e10,
+        2.6716177232170163e11,
+        4.1410137239378687e12,
+        6.832677651456437e13,
+        1.195719014944093e15,
+        2.21208056127209e16,
+        4.313557459164584e17,
+        8.842793156188478e18,
+        1.9012005669158696e20,
+        4.277701317750422e21,
+        1.0052598145253639e23,
+        2.462886551414386e24,
+        6.280360713393542e25,
+        1.6642955899969174e27,
+        4.576812873771245e28,
     ];
     let el = 0.5772156649015329;
 
@@ -1138,7 +1158,9 @@ fn itika(x: f64) -> (f64, f64) {
 
     if x == 0.0 {
         return (0.0, 0.0);
-    } else if x < 20.0 {
+    } else if x < 40.0 {
+        // Unlike in xsf, 40 (instead of 20), and 28 (instead of 10) asymptotic terms below, e.g.
+        // `it1i0k0(20.0).0` was 44758593.28 instead of 44758598.91.
         x2 = x * x;
         ti = 1.0;
         r = 1.0;
@@ -1155,7 +1177,7 @@ fn itika(x: f64) -> (f64, f64) {
         x2 = 0.0;
         ti = 1.0;
         r = 1.0;
-        for k in 1..=10 {
+        for k in 1..=28 {
             r /= x;
             ti += A[k - 1] * r;
         }
@@ -1283,7 +1305,7 @@ fn ittika(x: f64) -> (f64, f64) {
     //          TTK --- Integration of K0(t)/t from x to ∞
     // =========================================================
 
-    const C: [f64; 8] = [
+    const C: [f64; 28] = [
         1.625,
         4.1328125,
         1.45380859375e1,
@@ -1292,6 +1314,27 @@ fn ittika(x: f64) -> (f64, f64) {
         2.3448727161884e3,
         1.7588273098916e4,
         1.4950639538279e5,
+        // Unlike in xsf, also C(9:28): C(k) = a(k) + (k + 1/2) C(k-1), a(k) from DLMF 10.40.1
+        1.4203351366661638e6,
+        1.491362895213499e7,
+        1.715072842854485e8,
+        2.143844091658617e9,
+        2.8941913495146805e10,
+        4.1965786451805493e11,
+        6.504697732889155e12,
+        1.0732751884562256e14,
+        1.8782316298679842e15,
+        3.4747285578496924e16,
+        6.775720726169453e17,
+        1.3890227525115777e19,
+        2.986398921548903e20,
+        6.719397577318566e21,
+        1.5790584310917602e23,
+        3.868693156660214e24,
+        9.865167550066271e25,
+        2.6142694008404304e27,
+        7.189240852405946e28,
+        2.048933642948492e30,
     ];
 
     let el = 0.5772156649015329;
@@ -1314,16 +1357,17 @@ fn ittika(x: f64) -> (f64, f64) {
         }
         tti *= 0.125 * x * x;
     } else {
+        // Unlike in xsf, 28 (instead of 8) terms, e.g. `it2i0k0(40.0).0` had an error of 7e-9
         tti = 1.0;
         r = 1.0;
-        for k in 1..=8 {
+        for k in 1..=28 {
             r /= x;
             tti += C[k - 1] * r;
         }
         let rc = x * (2.0 * PI * x).sqrt();
         tti = tti * x.exp() / rc;
     }
-    if x <= 12.0 {
+    if x <= 1.0 {
         let e0 = (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln() + PI * PI / 24.0 + 0.5 * el * el;
         let mut b1 = 1.5 - (el + (x / 2.0).ln());
         let mut rs = 1.0;
@@ -1338,10 +1382,26 @@ fn ittika(x: f64) -> (f64, f64) {
             }
         }
         ttk = e0 - 0.125 * x * x * b1;
+    } else if x < 40.0 {
+        // Unlike in xsf, the trapezoidal rule on int_0^inf E1(x cosh(u)) du (DLMF 10.32.9), e.g.
+        // `it2i0k0(12.014948790755168).1` had a relative error of 1.7e-4
+        let h = PI * PI / (x + 45.0);
+        let mut s = 0.5 * scaled_exp1(x) / x;
+        for j in 1..=40 {
+            let v = (0.5 * h * f64::from(j)).sinh();
+            let w = 2.0 * x * v * v;
+            let t = (-w).exp() * scaled_exp1(x + w) / (x + w);
+            s += t;
+            if t < 1e-17 * s {
+                break;
+            }
+        }
+        ttk = h * s * (-x).exp();
     } else {
         let mut ttk_ = 1.0;
         r = 1.0;
-        for k in 1..=8 {
+        // Unlike in xsf, 28 (instead of 8) terms
+        for k in 1..=28 {
             r = -r / x;
             ttk_ += C[k - 1] * r;
         }

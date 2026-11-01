@@ -341,6 +341,9 @@ where
             case.err.max(5e-9)
         } else if name == "airy" || name == "it1i0k0" {
             case.err.max(2e-11)
+        } else if name == "it2i0k0" {
+            // the reference for x = 10 is xsf's inaccurate value
+            case.err.max(1e-13)
         } else if (name == "sem" || name == "msm2")
             && case.r#in[0] % 2.0 == 0.0
             && case.r#in[1].abs() > 1e-7

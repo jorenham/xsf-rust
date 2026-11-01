@@ -290,6 +290,37 @@ fn test_it2i0k0() {
 }
 
 #[test]
+fn test_iti0k0_large_x() {
+    // unlike in xsf: quadrature and more asymptotic terms (mpmath)
+    for (actual, expected, rtol) in [
+        (xsf::it1i0k0(20.0).0, 44_758_598.913_855_75, 1e-12),
+        (xsf::it1i0k0(30.0).0, 795_538_858_184.723_6, 1e-12),
+        (xsf::it1i0k0(40.0).0, 1.508_971_508_271_920_2e16, 1e-14),
+        (xsf::it2i0k0(40.0).0, 387_326_525_512_364.4, 1e-14),
+        (
+            xsf::it2i0k0(12.014_948_790_755_168).1,
+            1.616_101_465_331_337_3e-7,
+            1e-14,
+        ),
+        (
+            xsf::it2i0k0(13.525_431_954_096_453).1,
+            3.023_995_513_484_374e-8,
+            1e-14,
+        ),
+        (xsf::it2i0k0(1.0625).1, 0.184_084_183_639_630_33, 1e-14),
+        (xsf::it2i0k0(30.0).1, 6.780_268_362_546_424e-16, 1e-14),
+        (xsf::it2i0k0(39.5).1, 3.399_304_068_768_309e-20, 1e-14),
+        (xsf::it2i0k0(40.0).1, 2.024_204_614_539_913_3e-20, 1e-14),
+        (xsf::it2i0k0(100.0).1, 4.588_521_432_774_676e-47, 1e-14),
+    ] {
+        assert!(
+            (actual / expected - 1.0).abs() < rtol,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
 fn test_besselpoly() {
     xsref::test("besselpoly", "d_d_d-d", |x| {
         xsf::besselpoly(x[0], x[1], x[2])
