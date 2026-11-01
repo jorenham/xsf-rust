@@ -53,6 +53,12 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: tools
+    env:
+      # the versions are locked in tools/uv.lock, which dependabot updates
+      UV_LOCKED: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -62,15 +68,14 @@ jobs:
         with:
           enable-cache: false
 
-      # the versions are locked in tools/uv.lock, which dependabot updates
       - name: ruff check
-        run: uv run --project tools --locked --only-group lint ruff check tools
+        run: uv run ruff check
 
       - name: ruff format
-        run: uv run --project tools --locked --only-group lint ruff format --check tools
+        run: uv run ruff format --check
 
-      - name: basedpyright
-        run: uv run --project tools --locked --only-group lint basedpyright -p tools
+      - name: pyrefly
+        run: uv run pyrefly check
 
   msrv:
     runs-on: ubuntu-latest

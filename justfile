@@ -22,10 +22,11 @@ fmt *args:
 accuracy *args:
     uv run tools/accuracy/accuracy.py {{ args }}
 
+[working-directory("tools")]
 lint-py:
-    uv run --project tools --locked --only-group lint ruff check tools
-    uv run --project tools --locked --only-group lint ruff format --check tools
-    uv run --project tools --locked --only-group lint basedpyright -p tools
+    uv run ruff check
+    uv run ruff format --check
+    uv run pyrefly check
 
 doc *args:
     RUSTDOCFLAGS="--html-in-header katex.html" cargo +nightly doc --all-features --no-deps {{ args }}

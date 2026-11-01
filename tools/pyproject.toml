@@ -1,34 +1,22 @@
-# Not a package: only the pinned lint tools (updated by dependabot via uv.lock) and their config.
-# The scripts declare their own dependencies as inline script metadata.
+# Not a package: only the lint tools (locked in uv.lock, which dependabot updates) and their
+# config. The scripts declare their own dependencies as inline script metadata.
 [project]
 name = "xsf-rust-tools"
 version = "0"
-requires-python = ">=3.12"
+requires-python = ">=3.15"
 dependencies = []
 
 [dependency-groups]
-lint = ["basedpyright==1.40.2", "mpmath==1.4.1", "ruff==0.17.3"]
+dev = ["mpmath==1.4.1", "pyrefly==1.4.0", "ruff==0.17.3"]
 
 [tool.uv]
 package = false
 
-[tool.ruff]
-line-length = 100
-target-version = "py312"
+[tool.pyrefly]
+preset = "strict"
+search-path = ["accuracy"]
 
-[tool.ruff.lint]
-select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF", "ANN", "BLE", "FURB", "PERF", "PL"]
-ignore = ["PLR09", "PLR2004"]
-
-[tool.ruff.lint.per-file-ignores]
-# mostly in the references and the spec rows, whose sources key the reference cache
-"accuracy/specs.py" = ["ANN", "B007", "E501", "F821", "F841", "PLC3002", "SIM300"]
-
-[tool.ruff.format]
-exclude = ["accuracy/specs.py"]
-
-[tool.basedpyright]
-pythonVersion = "3.12"
-typeCheckingMode = "standard"
-# mpmath is untyped, and the types inferred from its code give false positives
-useLibraryCodeForTypes = false
+# the references are unannotated: they take and return untyped mpmath numbers
+[[tool.pyrefly.sub-config]]
+matches = "accuracy/specs.py"
+errors = { implicit-any-parameter = false, implicit-any-lambda = false }

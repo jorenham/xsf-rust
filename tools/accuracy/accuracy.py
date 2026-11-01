@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.12"
+# requires-python = ">=3.15"
 # dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2"]
 # ///
 """Generate ACCURACY.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
@@ -16,12 +16,14 @@ Steps:
    the xsf commit `XSF_COMMIT`, which is downloaded into `.cache/`.
 3. Compute the mpmath references in parallel (with `--jobs` worker processes, 8 by default);
    these are cached in `.cache/refs/`, keyed by the inputs, the source of the reference
-   function, and the mpmath version.
+   function (normalized, see `_source`), and the mpmath version.
 4. Write the table to `ACCURACY.md` (or to stdout with `--only`, `--section`, or `--n`), and the
    inputs with the largest errors to `.cache/worst.txt`.
 """
 
 import argparse
+import ast
+import functools
 import hashlib
 import inspect
 import io
@@ -46,7 +48,7 @@ from dataclasses import dataclass
 from operator import itemgetter
 from pathlib import Path
 from types import CodeType, FrameType
-from typing import Final, NamedTuple, NoReturn
+from typing import Final, NamedTuple, Never
 
 import mpmath as mp
 import specs
@@ -62,9 +64,8 @@ DBL_MIN: Final = 2.2250738585072014e-308
 DBL_MAX: Final = sys.float_info.max
 
 type Args = tuple[float, ...]
-type Value = float | complex
-type RefValue = str | list[str]  # real, or [real, imaginary]
-type Ref = list[RefValue | None]  # [value, scale or None]
+# [value, scale or None], where the value is [real, imaginary] for a complex function
+type Ref = list[str | list[str] | None]
 type Stats = tuple[float, float | None, int]
 
 
@@ -112,17 +113,18 @@ def build_cpp() -> list[str]:
 
 
 def build_rust() -> list[str]:
-    manifest = HERE / "Cargo.toml"
-    cmd = ["cargo", "build", "--release", "--quiet", "--manifest-path", str(manifest)]
-    subprocess.run(cmd, check=True)
-    return ["cargo", "run", "--release", "--quiet", "--manifest-path", str(manifest), "--"]
+    opts = ["--release", "--quiet", "--manifest-path", str(HERE / "Cargo.toml")]
+    subprocess.run(["cargo", "build", *opts], check=True)
+    return ["cargo", "run", *opts, "--"]
 
 
-def run(cmd: list[str], lines: list[tuple[str, Args]]) -> list[Value]:
+def run(cmd: list[str], lines: list[tuple[str, Args]]) -> list[complex]:
     """Feed `<name> <args>...` lines to a dump program; return the f64 (or complex) results."""
     inp = "".join(f"{name} {' '.join(map(repr, args))}\n" for name, args in lines)
-    out = subprocess.run(cmd, input=inp, capture_output=True, text=True, check=True).stdout
-    res: list[Value] = []
+    out = subprocess.run(
+        cmd, input=inp, capture_output=True, text=True, check=True
+    ).stdout
+    res: list[complex] = []
     for line in out.splitlines():
         re_im = [float(s) for s in line.split()]
         res.append(re_im[0] if len(re_im) == 1 else complex(*re_im))
@@ -137,7 +139,7 @@ class Timeout(Exception):
     pass
 
 
-def _alarm(signum: int, frame: FrameType | None) -> NoReturn:
+def _alarm(signum: int, frame: FrameType | None) -> Never:
     raise Timeout
 
 
@@ -176,12 +178,49 @@ def timed_ref_task(task: tuple[str, Args]) -> tuple[Ref | str, float]:
     return ref_task(task), time.perf_counter() - t
 
 
+@functools.cache
+def _defs(path: str) -> dict[int, list[ast.FunctionDef | ast.Lambda]]:
+    """The functions and lambdas defined in a file, by their first line."""
+    defs: defaultdict[int, list[ast.FunctionDef | ast.Lambda]] = defaultdict(list)
+    for node in ast.walk(ast.parse(Path(path).read_text())):
+        if isinstance(node, ast.Lambda):
+            defs[node.lineno].append(node)
+        elif isinstance(node, ast.FunctionDef):
+            # the code of a decorated function starts at its first decorator
+            defs[min(d.lineno for d in [node, *node.decorator_list])].append(node)
+    return defs
+
+
+def _source(code: CodeType) -> str:
+    """The source of a function or lambda, normalized by `ast.unparse`, so that it does not
+    depend on the formatting."""
+    defs = _defs(code.co_filename)[code.co_firstlineno]
+    nodes = [d for d in defs if getattr(d, "name", "<lambda>") == code.co_name]
+    if len(nodes) > 1:
+        # lambdas on the same line: the one whose body is where `code` returns from
+        pos = set(code.co_positions())
+        nodes = [
+            d
+            for d in nodes
+            if isinstance(d, ast.Lambda)
+            and (
+                d.body.lineno,
+                d.body.end_lineno,
+                d.body.col_offset,
+                d.body.end_col_offset,
+            )
+            in pos
+        ]
+    (node,) = nodes
+    return ast.unparse(node)
+
+
 def _sources(code: CodeType, seen: dict[str, str]) -> dict[str, str]:
-    """Sources of the `specs` functions that `code` uses, recursively."""
+    """Sources (see `_source`) of the `specs` functions that `code` uses, recursively."""
     for name in code.co_names:
         f = getattr(specs, name, None)
         if inspect.isfunction(f) and name not in seen:
-            seen[name] = inspect.getsource(f)
+            seen[name] = _source(f.__code__)
             _sources(f.__code__, seen)
     for c in code.co_consts:
         if inspect.iscode(c):
@@ -194,30 +233,37 @@ def ref_key(spec: specs.Spec, args: list[Args]) -> str:
     lambda or closure, which can share its source with other references, the key also has its
     default arguments and captured variables (by name, for functions)."""
     ref = spec.ref
-    src = _sources(ref.__code__, {"": inspect.getsource(ref)})
+    src = _sources(ref.__code__, {"": _source(ref.__code__)})
     key: list[object] = [args, sorted(src.items()), spec.dps, mp.__version__]
-    bound = [*(ref.__defaults__ or ()), *(c.cell_contents for c in ref.__closure__ or ())]
+    bound = [
+        *(ref.__defaults__ or ()),
+        *(c.cell_contents for c in ref.__closure__ or ()),
+    ]
     if bound:
         for f in bound:
             if inspect.isfunction(f) and getattr(specs, f.__name__, None) is f:
                 _sources(f.__code__, src)
-                src[f.__name__] = inspect.getsource(f)
+                src[f.__name__] = _source(f.__code__)
         key[1] = sorted(src.items())
         key.append([getattr(f, "__name__", repr(f)) for f in bound])
     return hashlib.sha256(json.dumps(key).encode()).hexdigest()
 
 
-def compute_refs(
-    jobs: list[Job], use_cache: bool, nproc: int, tag: str = ""
-) -> list[list[Ref | str]]:
+def compute_refs(jobs: list[Job], use_cache: bool, nproc: int) -> list[list[Ref | str]]:
     """The references of each job: cached, or computed with `nproc` worker processes."""
     (CACHE / "refs").mkdir(parents=True, exist_ok=True)
-    paths = [CACHE / "refs" / f"{job.spec.name}-{job.di}{tag}.json" for job in jobs]
     keys = [ref_key(job.spec, job.args) for job in jobs]
+    paths = [
+        CACHE / "refs" / f"{job.spec.name}-{job.di}-{key[:16]}.json"
+        for job, key in zip(jobs, keys, strict=True)
+    ]
     out: dict[int, list[Ref | str]] = {}
     if use_cache:
         for j, path in enumerate(paths):
-            if path.exists() and (data := json.loads(path.read_text()))["key"] == keys[j]:
+            if (
+                path.exists()
+                and (data := json.loads(path.read_text()))["key"] == keys[j]
+            ):
                 out[j] = data["refs"]
     todo = [j for j in range(len(jobs)) if j not in out]
     tasks = [(jobs[j].spec.name, a) for j in todo for a in jobs[j].args]
@@ -246,9 +292,10 @@ def compute_refs(
 # ---------------------------------------------------------------- errors
 
 
-def error(y: Value, ref: Ref) -> float:
+def error(y: complex, ref: Ref) -> float:
     """Relative error of `y` w.r.t. the reference (see the header of ACCURACY.md)."""
     value, scale = ref
+    assert not isinstance(scale, list)
     if isinstance(value, list):
         return error_complex(complex(y), mp.mpc(*value), scale)
     assert isinstance(y, float)
@@ -266,7 +313,7 @@ def error(y: Value, ref: Ref) -> float:
     return float(e)
 
 
-def error_complex(y: complex, r: mp.mpc, scale: RefValue | None = None) -> float:
+def error_complex(y: complex, r: mp.mpc, scale: str | None = None) -> float:
     """|y - r| / |r|, with the same overflow, underflow, and scale rules as `error`."""
     if math.isnan(y.real) or math.isnan(y.imag):
         return math.inf
@@ -289,12 +336,16 @@ def stats(errs: list[float]) -> Stats | None:
         return None
     fin = [e for e in errs if math.isfinite(e)]
     peak = max(fin, default=0.0)
-    rms = peak * math.sqrt(math.fsum((e / peak) ** 2 for e in fin) / len(fin)) if peak else 0.0
+    rms = (
+        peak * math.sqrt(math.fsum((e / peak) ** 2 for e in fin) / len(fin))
+        if peak
+        else 0.0
+    )
     nbad = len(errs) - len(fin)
     return (math.inf if nbad else peak), (rms if fin else None), nbad
 
 
-def bits(x: Value) -> tuple[bytes | str, ...]:
+def bits(x: complex) -> tuple[bytes | str, ...]:
     """The f64 bits (of both parts, if complex), except that all NaNs are equal (the dumps do
     not keep NaN payloads)."""
     parts = (x.real, x.imag) if isinstance(x, complex) else (x,)
@@ -338,7 +389,9 @@ def mark_best(errs: Iterable[str]) -> list[str]:
     `errs` alternates peak and rms per implementation."""
     errs = list(errs)
     for j in range(2):
-        keys = {c: k for c in range(j, len(errs), 2) if (k := _err_key(errs[c])) is not None}
+        keys = {
+            c: k for c in range(j, len(errs), 2) if (k := _err_key(errs[c])) is not None
+        }
         if len(keys) > 1:
             best = min(keys.values())
             if list(keys.values()).count(best) == 1:
@@ -361,7 +414,9 @@ def table(impls: list[str], rows: list[list[str]]) -> str:
     lines += ["</thead>", "<tbody>"]
     for name, domain, n, *errs, same in rows:
         cells = [f"<td><code>{name}</code></td>", f"<td>{domain}</td>"]
-        cells += [f'<td align="right" nowrap>{x}</td>' for x in [n, *mark_best(errs), same]]
+        cells += [
+            f'<td align="right" nowrap>{x}</td>' for x in [n, *mark_best(errs), same]
+        ]
         lines.append(f"<tr>{''.join(cells)}</tr>")
     lines += ["</tbody>", "</table>"]
     return "\n".join(lines)
@@ -434,7 +489,9 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
             if r.same is None:
                 row.append(NA)
             else:
-                row.append("100%" if r.same == 1 else f"{math.floor(1000 * r.same) / 10:.1f}%")
+                row.append(
+                    "100%" if r.same == 1 else f"{math.floor(1000 * r.same) / 10:.1f}%"
+                )
             rows.append(row)
         out += [f"## {title}", table(impls, rows)]
         notes: dict[str, list[str]] = {}
@@ -453,12 +510,18 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
+    ap = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0] if __doc__ else None
+    )
     ap.add_argument("--only", help="comma-separated function names; print to stdout")
-    ap.add_argument("--section", help="only the functions of this section; print to stdout")
+    ap.add_argument(
+        "--section", help="only the functions of this section; print to stdout"
+    )
     ap.add_argument("--no-cache", action="store_true", help="recompute all references")
     ap.add_argument("--jobs", type=int, default=8, help="reference worker processes")
-    ap.add_argument("--n", type=int, help="at most N inputs per domain, for quick checks")
+    ap.add_argument(
+        "--n", type=int, help="at most N inputs per domain, for quick checks"
+    )
     opts = ap.parse_args()
     t0 = time.time()
     mp.mp.dps = 30
@@ -478,7 +541,9 @@ def main() -> None:
             jobs.append(Job(spec, di, [dom.sample(rng) for _ in range(n)]))
 
     def has(job: Job, impl: str) -> bool:
-        return getattr(job.spec, impl) and (impl != "cpp" or job.spec.domains[job.di].cpp)
+        return getattr(job.spec, impl) and (
+            impl != "cpp" or job.spec.domains[job.di].cpp
+        )
 
     def lines(impl: str) -> list[tuple[str, Args]]:
         return [
@@ -492,30 +557,38 @@ def main() -> None:
         f"{sum(len(job.args) for job in jobs)} inputs, {len(jobs)} domains, {len(chosen)} functions"
     )
     rust = build_rust()
-    outs: dict[str, Iterator[Value]] = {
+    outs: dict[str, Iterator[complex]] = {
         "rust": iter(run([*rust, "xsf"], lines("rust"))),
         "cpp": iter(run(build_cpp(), lines("cpp"))),
         "std": iter(run([*rust, "std"], lines("std"))),
     }
 
-    refs = compute_refs(jobs, not opts.no_cache, opts.jobs, f"-n{opts.n}" if opts.n else "")
+    refs = compute_refs(jobs, not opts.no_cache, opts.jobs)
 
     results: list[Result] = []
     worst: list[str] = []
     for job, rr in zip(jobs, refs, strict=True):
         spec, args = job.spec, job.args
         dom = spec.domains[job.di]
-        ys = {impl: [next(it) for _ in args] for impl, it in outs.items() if has(job, impl)}
+        ys = {
+            impl: [next(it) for _ in args]
+            for impl, it in outs.items()
+            if has(job, impl)
+        }
         ok = {i: r for i, r in enumerate(rr) if isinstance(r, list)}
         bad = [r for r in rr if isinstance(r, str)]
         if bad:
-            log(f"{spec.name} [{dom.desc(spec.args)}]: {len(bad)} references failed, e.g. {bad[0]}")
+            log(
+                f"{spec.name} [{dom.desc(spec.args)}]: {len(bad)} references failed, e.g. {bad[0]}"
+            )
         st: dict[str, Stats | None] = {}
         for impl, y in ys.items():
             errs = [(error(y[i], r), i) for i, r in ok.items()]
             st[impl] = stats([e for e, _ in errs])
             for e, i in sorted(errs, reverse=True)[:3]:
-                worst.append(f"{spec.name}{args[i]} {impl}: {y[i]!r} ref={ok[i][0]} err={e:.2e}")
+                worst.append(
+                    f"{spec.name}{args[i]} {impl}: {y[i]!r} ref={ok[i][0]} err={e:.2e}"
+                )
         same = None
         if "cpp" in ys:
             pairs = zip(ys["rust"], ys["cpp"], strict=True)

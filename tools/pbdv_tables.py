@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.12"
+# requires-python = ">=3.15"
 # dependencies = ["mpmath==1.4.1"]
 # ///
 """Print the coefficient tables of the uniform asymptotic expansions of `pbdv` (src/xsf/par_cyl.rs).
@@ -72,7 +72,8 @@ def solve_u(s: int, r: Poly) -> Poly:
         c = [c0] + [Fr(0)] * (3 * s)
         c[1] = -r[0]
         for j in range(1, 3 * s):
-            c[j + 1] = ((j - 1 - 3 * s) * c[j - 1] - (r[j] if j < len(r) else 0)) / (j + 1)
+            rj = r[j] if j < len(r) else 0
+            c[j + 1] = ((j - 1 - 3 * s) * c[j - 1] - rj) / (j + 1)
         return c
 
     c = chain(Fr(0))
@@ -102,7 +103,9 @@ def uv_polys(smax: int) -> tuple[list[Poly], list[Poly]]:
     vs = [[Fr(1)]]
     for s in range(1, smax + 1):
         rm2 = rs[s - 2] if s >= 2 else [Fr(0)]
-        vs.append(trim(padd(us[s], pscale(pmul(T, us[s - 1]), Fr(1, 2)), pscale(rm2, -1))))
+        vs.append(
+            trim(padd(us[s], pscale(pmul(T, us[s - 1]), Fr(1, 2)), pscale(rm2, -1)))
+        )
     return [trim(p) for p in us], vs
 
 
@@ -111,7 +114,9 @@ def spow(f: Poly, p: Fr, n: int) -> Poly:
     assert f[0] == 1
     g = [Fr(1)] + [Fr(0)] * (n - 1)
     for k in range(1, n):
-        terms = ((p * j - (k - j)) * f[j] * g[k - j] for j in range(1, min(k + 1, len(f))))
+        terms = (
+            (p * j - (k - j)) * f[j] * g[k - j] for j in range(1, min(k + 1, len(f)))
+        )
         g[k] = sum(terms, Fr(0)) / k
     return g
 
@@ -152,7 +157,8 @@ def turning_point(us: list[Poly], vs: list[Poly]) -> dict[str, tuple[mp.mpf, Pol
     # zeta / (2^(1/3) eps), with (2/3) zeta^(3/2) = int_1^t sqrt(u^2 - 1) du (12.10.39)
     s1 = [Fr(3, 2) * comb_half(k) / 2**k / (k + Fr(3, 2)) for k in range(n)]
     w = spow(s1, Fr(2, 3), n)
-    r = pmul(w, spow([Fr(1), Fr(1, 2)], Fr(-1), n), n)  # zeta / (t^2 - 1), up to 2^(-2/3)
+    # zeta / (t^2 - 1), up to 2^(-2/3)
+    r = pmul(w, spow([Fr(1), Fr(1, 2)], Fr(-1), n), n)
     p6 = pscale(spow(r, Fr(3, 2), n), Fr(1, 2))  # phi^6 (12.10.40), up to 2^-1
     p6pow = [[Fr(1)] + [Fr(0)] * (n - 1)]
     for _ in range(2 * S + 2):
@@ -161,7 +167,10 @@ def turning_point(us: list[Poly], vs: list[Poly]) -> dict[str, tuple[mp.mpf, Pol
     v = [shift(p, n) for p in vs]
 
     two, third = mp.mpf(2), mp.mpf(1) / 3
-    out = {"zeta": (mp.mpf(1), w[:N]), "phi": (two ** (-third / 2), spow(r, Fr(1, 4), N))}
+    out = {
+        "zeta": (mp.mpf(1), w[:N]),
+        "phi": (two ** (-third / 2), spow(r, Fr(1, 4), N)),
+    }
 
     def coef(
         name: str,
@@ -221,7 +230,12 @@ def main() -> None:
     keys = [
         "zeta",
         "phi",
-        *(f"{c}{s}" for c in "ABCD" for s in range(S + 1) if not (c in "AD" and s == 0)),
+        *(
+            f"{c}{s}"
+            for c in "ABCD"
+            for s in range(S + 1)
+            if not (c in "AD" and s == 0)
+        ),
     ]
     rows = []
     for key in keys:
