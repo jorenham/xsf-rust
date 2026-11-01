@@ -1,4 +1,5 @@
 use num_complex::c64;
+use xsref::np_assert_allclose;
 
 #[test]
 fn test_hyp2f1_c64_transform2_euler() {
@@ -95,4 +96,23 @@ fn test_hyp2f1_c64_huge_num_terms() {
         tx.send(()).unwrap();
     });
     rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+}
+
+#[test]
+fn test_hyp2f1_f64_c_minus_a_minus_b_le_minus_1() {
+    // the Euler transformation cancels here (mpmath)
+    let actual = [
+        xsf::hyp2f1(-0.5, 125.0, 62.5, 0.4),
+        xsf::hyp2f1(-0.8, 19.7, 9.4, 0.9),
+    ];
+    let desired = [0.453_216_679_866_897_07, -487.198_231_355_781_05];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but the recurrence of the power series is inaccurate here (mpmath)
+    let actual = [
+        xsf::hyp2f1(-1.000_000_000_000_11, 2.000_002, 1e-6, 0.999_999_7),
+        xsf::hyp2f1(-49.5, 61.5, 6.5, 0.961_281_567_773_062_2),
+    ];
+    let desired = [-2_000_000.033_618_169_8, -6.640_002_805_058_352e-5];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 }

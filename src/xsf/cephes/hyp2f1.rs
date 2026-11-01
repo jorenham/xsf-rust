@@ -26,13 +26,20 @@ const HYP2F1_MAXITER: u64 = 10000;
 
 /// Defining power series expansion of Gauss hypergeometric function.
 /// The `loss` (the second return value) estimates loss of significance.
+fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+    let (y, loss, _) = hys2f1_err(a, b, c, x);
+    (y, loss)
+}
+
+/// `hys2f1`, also returning an estimate of the relative error that, unlike `loss`, includes the
+/// error of the recurrence in `a`
 #[allow(
     clippy::float_cmp,
     clippy::many_single_char_names,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss
 )]
-fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64) {
+fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut f;
     let mut intflag = false;
 
@@ -71,7 +78,7 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64) {
     let mut k = 0.0;
     loop {
         if h.abs() < HYP2F1_EPS {
-            return (f64::INFINITY, 1.0);
+            return (f64::INFINITY, 1.0, 1.0);
         }
         let m = k + 1.0;
         u *= (f + k) * (g + k) * x / ((h + k) * m);
@@ -84,7 +91,7 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64) {
         i += 1;
         if i > HYP2F1_MAXITER {
             /* should never happen */
-            return (s, 1.0);
+            return (s, 1.0, 1.0);
         }
         if !(s == 0.0 || (u / s).abs() > MACHEP) {
             break;
@@ -94,7 +101,7 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64) {
     /* return estimated relative error */
     let loss = (MACHEP * umax) / s.abs() + (MACHEP * i as f64);
 
-    (s, loss)
+    (s, loss, loss)
 }
 
 /// Apply transformations for |x| near 1 then call the power series
@@ -322,9 +329,19 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
 ///
 /// AMS55 #15.2.10
 #[allow(clippy::float_cmp, clippy::cast_precision_loss)]
-fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut f2, mut f1, mut f0);
-    let mut err;
+    let (mut err, mut e);
+    let mut start_err = 0.0;
+    let (start1, start0);
+    // the coefficients `(A, B)` of a step `f0 = A f1 + B f2`, and its rounding error in MACHEP
+    let mut steps = Vec::new();
+    let step = |t: f64, q: f64, den: f64, f1: f64, f2: f64| {
+        let p = 2.0 * t - c - t * x + b * x;
+        let p_abs = (2.0 * t).abs() + c.abs() + (t * x).abs() + (b * x).abs();
+        let e = (p_abs * f1.abs() + (q * f2).abs()) / den.abs();
+        (-p / den, -q / den, e)
+    };
 
     /* Don't cross c or zero */
     let da = if (c < 0.0 && a <= c) || (c >= 0.0 && a >= c) {
@@ -340,42 +357,62 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
     if da.abs() > HYP2F1_MAXITER as f64 {
         /* Too expensive to compute this value, so give up */
-        return (f64::NAN, 1.0);
+        return (f64::NAN, 1.0, 1.0);
     }
 
     if da < 0.0 {
         /* Recurse down */
-        (f1, err) = hys2f1(t, b, c, x);
+        (f1, err, e) = hys2f1_err(t, b, c, x);
         loss += err;
-        (f0, err) = hys2f1(t - 1.0, b, c, x);
+        start_err += e;
+        (f0, err, e) = hys2f1_err(t - 1.0, b, c, x);
         loss += err;
+        start_err += e;
+        (start1, start0) = (f1, f0);
         t -= 1.0;
         let mut n = 1.0;
         while n < -da {
             f2 = f1;
             f1 = f0;
             f0 = -(2.0 * t - c - t * x + b * x) / (c - t) * f1 - t * (x - 1.0) / (c - t) * f2;
+            steps.push(step(t, t * (x - 1.0), c - t, f1, f2));
             t -= 1.0;
             n += 1.0;
         }
     } else {
         /* Recurse up */
-        (f1, err) = hys2f1(t, b, c, x);
+        (f1, err, e) = hys2f1_err(t, b, c, x);
         loss += err;
-        (f0, err) = hys2f1(t + 1.0, b, c, x);
+        start_err += e;
+        (f0, err, e) = hys2f1_err(t + 1.0, b, c, x);
         loss += err;
+        start_err += e;
+        (start1, start0) = (f1, f0);
         t += 1.0;
         let mut n = 1.0;
         while n < da {
             f2 = f1;
             f1 = f0;
             f0 = -((2.0 * t - c - t * x + b * x) * f1 + (c - t) * f2) / (t * (x - 1.0));
+            steps.push(step(t, c - t, t * (x - 1.0), f1, f2));
             t += 1.0;
             n += 1.0;
         }
     }
 
-    (f0, loss)
+    // Unlike in xsf, also estimate the error of the result, which is large if the recurrence is
+    // unstable:
+    //
+    // - the errors of the starting values (`start_err`, incl. that of their own recurrence) and
+    //   of each step are weighted by their effect on `f0`
+    // - that is `(g, h) = (d f0 / d f1, d f0 / d f2)`, from the last step backwards
+    let (mut g, mut h, mut rounding) = (1.0_f64, 0.0, 0.0);
+    for &(a_k, b_k, e) in steps.iter().rev() {
+        rounding += e * g.abs();
+        (g, h) = (a_k * g + h, b_k * g);
+    }
+    let start = (g * start0).abs() + (h * start1).abs();
+    (f0, loss, (start_err * start + MACHEP * rounding) / f0.abs())
 }
 
 /// ```text
@@ -478,6 +515,16 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     }
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
+        // Unlike in xsf, if 0 < x < 1 and c > 0, and the series of this transformation is
+        // estimated to lose precision, first try the power series (incl. its recurrence error).
+        //
+        // E.g. `hyp2f1(-0.5, 125.0, 62.5, 0.4)` was 1.04e5 instead of 0.453.
+        if c > 0.0 && x > 0.0 && x < 1.0 && hys2f1(c - a, c - b, c, x).1 >= HYP2F1_ETHRESH {
+            let (y, _, err) = hys2f1_err(a, b, c, x);
+            if err < HYP2F1_ETHRESH {
+                return y;
+            }
+        }
         return s.powf(d) * hyp2f1(c - a, c - b, c, x);
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
