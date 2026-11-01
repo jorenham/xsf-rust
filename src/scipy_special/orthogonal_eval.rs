@@ -519,7 +519,7 @@ impl ChebyshevArg<i32> for f64 {
         if self.is_nan() {
             self
         } else if n < -1 {
-            -chebyshev_recurrence(self, 0.0, -1.0, -1..(-n - 2))
+            -chebyshev_recurrence(self, 0.0, -1.0, -1..-(n + 2))
         } else {
             chebyshev_recurrence(self, 0.0, -1.0, -1..n)
         }

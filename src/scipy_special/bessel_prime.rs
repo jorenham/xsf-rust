@@ -25,8 +25,7 @@ where
         s = s + bessel_fn(v - (n - i * 2.0)) * p.into();
     }
     // return s / (2.**n)
-    // (we can't use f64::powi or f64::powf because of no_std)
-    s * (1.0 / f64::from(1 << n)).into()
+    s * (1.0 / f64::from(n).exp2()).into()
 }
 
 /// Compute the $n$th derivative of [`bessel_j(v, z)`](crate::bessel_j) w.r.t. `z`

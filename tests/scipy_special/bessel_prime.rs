@@ -88,3 +88,21 @@ fn test_bessel_k_prime_n2() {
     // assert_allclose(xc, x, atol=1.5e-10, rtol=0)
     xsref::np_assert_allclose!(&[x], &[xc], atol = ATOL);
 }
+
+#[test]
+fn test_bessel_prime_large_n() {
+    // `1 << n` overflowed for n >= 31 (and panicked in debug builds for n >= 32)
+    xsref::np_assert_allclose!(
+        &[
+            xsf::bessel_i_prime(0.0, 50.0, 31),
+            xsf::bessel_i_prime(0.0, 50.0, 32),
+            xsf::bessel_j_prime(0.0, 10.0, 31),
+        ],
+        &[
+            2.297_645_414_977_523_4e20,
+            2.283_520_782_378_117_5e20,
+            -0.057_250_936_023_276_89,
+        ],
+        rtol = 1e-13
+    );
+}

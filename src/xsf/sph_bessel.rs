@@ -320,13 +320,13 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
     // precision, e.g. j_38'(1.6e-7) had a relative error of 3e-7.
     let jn = sph_bessel_j_f64(n, z);
     if jn.abs() < f64::MIN_POSITIVE {
-        let jm = n as f64 * sph_bessel_j_f64(n - 1, z);
+        let jm = n as f64 * sph_bessel_j_f64(n.wrapping_sub(1), z);
         let jp = np1(n) * sph_bessel_j_f64(n.saturating_add(1), z);
         return (jm - jp) / (2.0 * n as f64 + 1.0);
     }
 
     // DLMF 10.51.2
-    sph_bessel_j_f64(n - 1, z) - np1(n) * jn / z
+    sph_bessel_j_f64(n.wrapping_sub(1), z) - np1(n) * jn / z
 }
 
 fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
@@ -344,7 +344,7 @@ fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
     }
 
     // DLMF 10.51.2
-    sph_bessel_j_c64(n - 1, z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_j_c64(n, z)), z)
+    sph_bessel_j_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_j_c64(n, z)), z)
 }
 
 #[allow(clippy::float_cmp, clippy::cast_precision_loss)]
@@ -443,7 +443,7 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
         return if x < 0.0 { yn } else { -yn };
     }
 
-    sph_bessel_y_f64(n - 1, x) - np1(n) * yn / x
+    sph_bessel_y_f64(n.wrapping_sub(1), x) - np1(n) * yn / x
 }
 
 fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
@@ -451,7 +451,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
         return -sph_bessel_y_c64(1, x);
     }
 
-    sph_bessel_y_c64(n - 1, x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
+    sph_bessel_y_c64(n.wrapping_sub(1), x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
 }
 
 #[allow(clippy::float_cmp)]
@@ -560,12 +560,12 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
     // Unlike in xsf, use DLMF 10.51.4 if i_n(x) underflows (see sph_bessel_j_jac_f64).
     let i_n = sph_bessel_i_f64(n, z);
     if i_n.abs() < f64::MIN_POSITIVE {
-        let im = n as f64 * sph_bessel_i_f64(n - 1, z);
+        let im = n as f64 * sph_bessel_i_f64(n.wrapping_sub(1), z);
         let ip = np1(n) * sph_bessel_i_f64(n.saturating_add(1), z);
         return (im + ip) / (2.0 * n as f64 + 1.0);
     }
 
-    sph_bessel_i_f64(n - 1, z) - np1(n) * i_n / z
+    sph_bessel_i_f64(n.wrapping_sub(1), z) - np1(n) * i_n / z
 }
 
 fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
@@ -580,7 +580,7 @@ fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(0.0, 0.0);
     }
 
-    sph_bessel_i_c64(n - 1, z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_i_c64(n, z)), z)
+    sph_bessel_i_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_i_c64(n, z)), z)
 }
 
 #[allow(clippy::float_cmp)]
@@ -656,7 +656,7 @@ fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
         return -sph_bessel_k_f64(1, x);
     }
 
-    -sph_bessel_k_f64(n - 1, x) - np1(n) * sph_bessel_k_f64(n, x) / x
+    -sph_bessel_k_f64(n.wrapping_sub(1), x) - np1(n) * sph_bessel_k_f64(n, x) / x
 }
 
 fn sph_bessel_k_jac_c64(n: i64, x: Complex64) -> Complex64 {
@@ -664,7 +664,8 @@ fn sph_bessel_k_jac_c64(n: i64, x: Complex64) -> Complex64 {
         return -sph_bessel_k_c64(1, x);
     }
 
-    -sph_bessel_k_c64(n - 1, x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_k_c64(n, x)), x)
+    -sph_bessel_k_c64(n.wrapping_sub(1), x)
+        - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_k_c64(n, x)), x)
 }
 
 /// Spherical Bessel function of the first kind, $j_n(z)$
