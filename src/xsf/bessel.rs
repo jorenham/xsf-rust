@@ -234,6 +234,14 @@ fn cyl_bessel_ie_f64(v: f64, x: f64) -> f64 {
     if ie.is_infinite() && (-2.0 * x).exp() >= f64::MIN_POSITIVE {
         return cyl_bessel_overflow(cyl_bessel_ie_c64, 1.0, v, x, ie);
     }
+    // Unlike in xsf, use cephes for e^-|x| I_v(x) if AMOS underflowed and e^-|x| is normal, as
+    // the result can still be normal, e.g. `bessel_ie(46.408, 9.696e-6)` was 0, not 8.83e-306.
+    if amos_underflow(ie, v, x) {
+        let scale = (-x.abs()).exp();
+        if scale >= f64::MIN_POSITIVE {
+            return crate::xsf::cephes::iv(v, x) * scale;
+        }
+    }
     ie
 }
 
@@ -306,6 +314,15 @@ fn cyl_bessel_overflow(
         return if f1.is_finite() { f1 } else { inf };
     }
     inf
+}
+
+/// Whether a real AMOS J or I result underflowed to 0, which AMOS does early: from about 1e-290
+/// for integer v, else 1e-304.
+///
+/// For negative non-integer v, a 0 is a cancellation in the reflection formula instead.
+#[allow(clippy::float_cmp)]
+fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
+    res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
 #[allow(clippy::float_cmp)]
@@ -441,6 +458,11 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
     if je.is_infinite() {
         return cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je);
     }
+    // Unlike in xsf, use cephes (for real x, e^-|Im x| = 1) if AMOS underflowed, as J_v(x) can
+    // still be normal, e.g. `bessel_je(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
+    if amos_underflow(je, v, x) {
+        return crate::xsf::cephes::jv(v, x);
+    }
     je
 }
 
@@ -558,8 +580,10 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     }
 
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
-    if res.re.is_nan() {
+    if res.re.is_nan() || amos_underflow(res.re, v, x) {
         /* AMOS returned NaN, possibly due to overflow */
+        // Unlike in xsf, also if AMOS underflowed, as J_v(x) can still be normal, e.g.
+        // `bessel_j(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
         return crate::xsf::cephes::jv(v, x);
     }
 
