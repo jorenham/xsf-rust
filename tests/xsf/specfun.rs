@@ -21,6 +21,92 @@ fn test_hypu_huge_a() {
 }
 
 #[test]
+fn test_hypu_neg_a() {
+    // mpmath; NaN in xsf
+    let abx = [
+        (
+            -9.596_157_126_249_977,
+            8.220_449_743_267_231,
+            29.368_858_516_382_556,
+        ),
+        (-0.5, 0.0, 2.0),
+        (
+            -95.934_412_853_269_4,
+            0.250_167_345_651_739_6,
+            322.254_120_856_906_47,
+        ),
+        (-150.5, 0.3, 50.0),
+    ];
+    let expected = [
+        25_688_997_285.068_825,
+        1.568_794_902_417_112,
+        -6.715_069_973_718_165e217,
+        2.060_433_058_188_866_4e273,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
+}
+
+#[test]
+fn test_hypu_neg_a_large_b() {
+    // mpmath; NaN in xsf, and with the sign wrong if `chgul` ignores that its sum is small
+    let actual = [xsf::hypu(-8.5, 99.1, 81.0), xsf::hypu(-8.2, 94.2, 74.6)];
+    let expected = [-9_737_194_064.088_581, -4_550_121_582.442_501];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-7);
+
+    // still NaN (mpmath: -9.12e121, 1.0075, and -inf), instead of an unstable recurrence
+    // (-1.00e122), a wrong 0 if Gamma(a) overflows in `chguit`, or a wrong 1 from `chgul`
+    assert!(
+        xsf::hypu(
+            -70.143_758_091_504_14,
+            45.332_941_134_973_275,
+            11.429_524_306_986_952
+        )
+        .is_nan()
+    );
+    assert!(
+        xsf::hypu(
+            -0.001_455_282_650_156_073,
+            -170.624_101_975_403_85,
+            1.490_954_765_747_425_4
+        )
+        .is_nan()
+    );
+    assert!(xsf::hypu(-4.2e-66, 26.000_000_000_000_018, 1e-300).is_nan());
+}
+
+#[test]
+fn test_hypu_large_a() {
+    // mpmath; NaN in xsf
+    let actual = xsf::hypu(
+        79.190_551_504_429_4,
+        8.120_259_935_805_485,
+        3.282_468_195_642_108,
+    );
+    xsref::np_assert_allclose!([actual], [2.923_069_295_358_514e-124], rtol = 1e-13);
+}
+
+#[test]
+fn test_hypu_large_b() {
+    // mpmath; 2.86e-8 and -666.1 in xsf
+    let abx = [
+        (
+            3.688_232_632_414_102_6,
+            -87.588_828_219_563_88,
+            20.526_008_089_799_742,
+        ),
+        (
+            -1.280_941_997_975_485_2,
+            70.676_192_639_949_22,
+            126.757_411_617_707_94,
+        ),
+    ];
+    let expected = [2.870_107_296_557_804_4e-8, 172.021_142_044_546_17];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
+}
+
+#[test]
 fn test_hyp1f1() {
     xsref::test("hyp1f1", "d_d_cd-cd", |x| {
         xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]))
