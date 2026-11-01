@@ -199,9 +199,10 @@ pub(crate) fn ellie(phi: f64, m: f64) -> f64 {
         npio2 += 1.0;
     }
     lphi -= npio2 * FRAC_PI_2;
-    // Unlike in xsf, the residual is reduced again if |phi| >~ 1e16 left it outside [-pi, pi],
-    // e.g. `ellipeinc(-1.79e19, -1.24e35)` was NaN instead of -4.02e36. If `npio2 * E(m)`
-    // is infinite, it's returned as is, since adding the residual's term can give inf - inf.
+    // Unlike in xsf (scipy/xsf#359), the residual is reduced again if |phi| >~ 1e16 left it
+    // outside [-pi, pi], e.g. `ellipeinc(-1.79e19, -1.24e35)` was NaN instead of -4.02e36. If
+    // `npio2 * E(m)` is infinite, it's returned as is, since adding the residual's term can give
+    // inf - inf.
     if lphi.abs() > PI {
         let e = npio2 * ellpe(m);
         return if e.is_finite() { ellie(lphi, m) + e } else { e };

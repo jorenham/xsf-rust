@@ -37,7 +37,7 @@ pub fn erfinv(y: f64) -> f64 {
     const DOMAIN_LB: f64 = -1.0;
     const DOMAIN_UB: f64 = 1.0;
 
-    // Unlike in xsf (1e-7), so that the neglected cubic term stays below 1/4 ulp
+    // Unlike in xsf (1e-7, scipy/xsf#349), so that the neglected cubic term stays below 1/4 ulp
     const THRESH: f64 = 1e-8;
 
     /*
@@ -50,8 +50,8 @@ pub fn erfinv(y: f64) -> f64 {
         return y / FRAC_2_SQRT_PI;
     }
     /*
-     * Unlike in xsf, avoid the rounding error of y + 1, which loses precision for |y| << 1 and
-     * for y -> 1 (e.g. erfinv(1 - 2^-53) would be inf):
+     * Unlike in xsf (scipy/xsf#349), avoid the rounding error of y + 1, which loses precision for
+     * |y| << 1 and for y -> 1 (e.g. erfinv(1 - 2^-53) would be inf):
      *   ndtri(0.5 * (y + 1)) = -ndtri(0.5 * (1 - y)), and = ndtri_central(0.5 * y) for |y| < 0.5,
      * where 0.5 * y is exact, and y + 1 and 1 - y are exact for y <= -0.5 and y >= 0.5.
      */
@@ -104,8 +104,8 @@ pub fn erfcinv(y: f64) -> f64 {
     const DOMAIN_UB: f64 = 2.0;
 
     if (DOMAIN_LB < y) && (y < 2.0 * f64::MIN_POSITIVE) {
-        // Unlike in xsf, where 0.5 * y can lose precision (or underflow to 0) for these y:
-        // ndtri(0.5 * y) = ndtri_exp(ln(y) - ln(2)).
+        // Unlike in xsf (scipy/xsf#309), where 0.5 * y can lose precision (or underflow to 0) for
+        // these y: ndtri(0.5 * y) = ndtri_exp(ln(y) - ln(2)).
         return -crate::ndtri_exp(y.ln() - LN_2) * FRAC_1_SQRT_2;
     }
     if (DOMAIN_LB < y) && (y < DOMAIN_UB) {

@@ -13,9 +13,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the reflection for `x < 0` reduces `x` to the nearest integer before evaluating
-//! `tan(pi x)`, as in the original Cephes. Otherwise, the relative error is up to `~eps / (x - n)`
-//! for `x` just above a negative integer `n` (e.g. 5e-12 for `-30 < x < 0`, instead of 1.3e-15).
+//! Unlike in xsf (scipy/xsf#311), the reflection for `x < 0` reduces `x` to the nearest integer
+//! before evaluating `tan(pi x)`, as in the original Cephes. Otherwise, the relative error is up to
+//! `~eps / (x - n)` for `x` just above a negative integer `n` (e.g. 5e-12 for `-30 < x < 0`,
+//! instead of 1.3e-15).
 
 use core::f64::consts::PI;
 
@@ -165,7 +166,8 @@ pub(crate) fn psi(mut x: f64) -> f64 {
         if r == 0.0 {
             return f64::NAN;
         }
-        // (unlike in xsf) reduce r to [-1/2, 1/2), where tan(pi r) doesn't lose precision
+        // (unlike in xsf, scipy/xsf#311) reduce r to [-1/2, 1/2), where tan(pi r) doesn't lose
+        // precision
         if r < -0.5 {
             r += 1.0;
         }

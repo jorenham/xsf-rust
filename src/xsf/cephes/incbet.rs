@@ -58,9 +58,9 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
     s
 }
 
-/// Unlike in xsf, the continued fractions are not limited to 300 iterations, which is too few near
-/// the mean for large `a + b`, and for `x` near 1 with small `b`, where they need O(sqrt(a + b))
-/// and O(1/sqrt(1 - x)) iterations, respectively. For example,
+/// Unlike in xsf (scipy/xsf#358), the continued fractions are not limited to 300 iterations, which
+/// is too few near the mean for large `a + b`, and for `x` near 1 with small `b`, where they need
+/// O(sqrt(a + b)) and O(1/sqrt(1 - x)) iterations, respectively. For example,
 /// `incbet(1e8, 1e8, 0.4999964644661029)` needs 2623 iterations and was 0.45307 instead of
 /// 0.46017, and `incbet(1e4, 0.002, 0.9999996)` needs 6942 iterations and was 0.0097217 instead
 /// of 0.0098510. The limit of 1e6 iterations bounds the run time.
@@ -70,12 +70,13 @@ fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
 
 /// `ln(x^a y^b / B(a, b))` for `a, b >= 13` and `x <= a / (a + b)`, with `y = 1 - x`
 ///
-/// Unlike in xsf, where `incbet` computes this as `a ln(x) + b ln(y) - lbeta(a, b)`, whose terms
-/// are ~`(a + b) ln(a + b)` and cancel, so that e.g. `incbet(1e8, 2e8, 0.3333)` had a relative
-/// error of 4e-7 (now 1e-12). Instead, Stirling's formula is used for the Gamma functions
-/// in `B(a, b)`, as in `brcomp` of TOMS 708 \[1\]. With `c = a + b` and `d = c x - a = b - c y`,
-/// this gives `a ln(c x / a) = a ln(1 + d / a)` and `b ln(c y / b) = b ln(1 - d / b)`, whose
-/// large linear parts `d` and `-d` cancel analytically, so that
+/// Unlike in xsf (scipy/xsf#358), where `incbet` computes this as
+/// `a ln(x) + b ln(y) - lbeta(a, b)`, whose terms are ~`(a + b) ln(a + b)` and cancel, so that e.g.
+/// `incbet(1e8, 2e8, 0.3333)` had a relative error of 4e-7 (now 1e-12). Instead, Stirling's formula
+/// is used for the Gamma functions in `B(a, b)`, as in `brcomp` of TOMS 708 \[1\]. With
+/// `c = a + b` and `d = c x - a = b - c y`, this gives `a ln(c x / a) = a ln(1 + d / a)` and
+/// `b ln(c y / b) = b ln(1 - d / b)`, whose large linear parts `d` and `-d` cancel analytically,
+/// so that
 ///
 /// ```text
 /// ln(x^a y^b / B(a, b)) = a log1pmx(d / a) + b log1pmx(-d / b) + ln(a b / (2 pi c)) / 2
@@ -154,8 +155,8 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        // Unlike in xsf, also stop once the result is NaN (which it then stays), because the
-        // larger iteration limit would otherwise make this very slow for huge `a + b`.
+        // Unlike in xsf (scipy/xsf#358), also stop once the result is NaN (which it then stays),
+        // because the larger iteration limit would otherwise make this very slow for huge `a + b`.
         if t < thresh || r.is_nan() {
             break;
         }
@@ -193,7 +194,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
 
 /// Continued fraction expansion #2 for incomplete beta integral
 ///
-/// Unlike in xsf, `xc = 1 - x` is passed, since `x` can be rounded (see `incbet`).
+/// Unlike in xsf (scipy/xsf#358), `xc = 1 - x` is passed, since `x` can be rounded (see `incbet`).
 #[allow(clippy::if_not_else)]
 fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let mut xk;
@@ -246,8 +247,8 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        // Unlike in xsf, also stop once the result is NaN (which it then stays), because the
-        // larger iteration limit would otherwise make this very slow for huge `a + b`.
+        // Unlike in xsf (scipy/xsf#358), also stop once the result is NaN (which it then stays),
+        // because the larger iteration limit would otherwise make this very slow for huge `a + b`.
         if t < thresh || r.is_nan() {
             break;
         }
@@ -343,8 +344,8 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 
 /// `incbet(aa, bb, xx)`, given `yy = 1 - xx`
 ///
-/// Unlike in xsf, where only `xx` is passed, so that `1 - xx` is exact also if `xx` is rounded (see
-/// `betainc_xy`).
+/// Unlike in xsf (scipy/xsf#358), where only `xx` is passed, so that `1 - xx` is exact also if `xx`
+/// is rounded (see `betainc_xy`).
 #[allow(clippy::float_cmp)]
 pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     let mut flag = false;
@@ -387,9 +388,9 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         /* Choose expansion for better convergence. */
         let mut y = x * (a + b - 2.0) - (a - 1.0);
         if x > 0.95 {
-            // Unlike in xsf, `incbd` is used with `xc` instead of `1 - x` if `x` is close to 1
-            // (as for the power series above), where `incbcf`, which only uses `x`, amplifies
-            // its rounding error by about `a / |a xc - b|`.
+            // Unlike in xsf (scipy/xsf#358), `incbd` is used with `xc` instead of `1 - x` if `x` is
+            // close to 1 (as for the power series above), where `incbcf`, which only uses `x`,
+            // amplifies its rounding error by about `a / |a xc - b|`.
             //
             // E.g. `incbet(15, 5e19, 6e-19)` was NaN instead of 0.99908, since `x = 1 - 6e-19`
             // rounds to 1.
@@ -415,13 +416,13 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done t;
         }
         /* Resort to logarithms.  */
-        // Unlike in xsf, `incbet_lnpow` is used for `a, b >= 13` (where `lgam` uses Stirling's
-        // formula)
+        // Unlike in xsf (scipy/xsf#358), `incbet_lnpow` is used for `a, b >= 13` (where `lgam` uses
+        // Stirling's formula)
         if a.min(b) >= 13.0 {
             y = incbet_lnpow(a, b, x, xc);
         } else if x < xc {
-            // Unlike in xsf, the log of the larger of `x` and `xc` is computed as `ln_1p` of
-            // minus the smaller one, since the larger one can be rounded.
+            // Unlike in xsf (scipy/xsf#358), the log of the larger of `x` and `xc` is computed as
+            // `ln_1p` of minus the smaller one, since the larger one can be rounded.
             //
             // E.g. `incbet(5, 5e19, 5e-20)` was 1 instead of 0.10882.
             y += b * (-x).ln_1p() - lbeta(a, b);
@@ -442,9 +443,9 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 
 /// `betainc(a, b, x)`, given `y = 1 - x` computed without cancellation by the caller
 ///
-/// Unlike in xsf, where only `x` is passed: if `x` is close to 1 and above the mean, where
-/// `incbet` swaps to `1 - x`, the rounding error of `x` is amplified (or `1 - x` even rounds to 0),
-/// so `1 - betainc(b, a, y)` is used instead.
+/// Unlike in xsf (scipy/xsf#358), where only `x` is passed: if `x` is close to 1 and above the
+/// mean, where `incbet` swaps to `1 - x`, the rounding error of `x` is amplified (or `1 - x` even
+/// rounds to 0), so `1 - betainc(b, a, y)` is used instead.
 ///
 /// Below the mean, the continued fractions of `incbet` need O(1/sqrt(y)) iterations, over which
 /// their relative rounding error grows to ~0.1 eps / y, e.g. `fdtr(1e7, 0.001, 0.5)` had a

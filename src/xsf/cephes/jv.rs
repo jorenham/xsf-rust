@@ -11,8 +11,9 @@
 //! being undefined behavior (for NaN and out-of-range values, which take the same branches as
 //! with the x86 conversion in C++).
 //!
-//! Also unlike in xsf, the power series returns `-inf` instead of `inf` when it overflows for a
-//! negative result, e.g. `jv(-123.57388919180612, 0.028605192190944706)` (`-4.24e431`).
+//! Also unlike in xsf (scipy/xsf#341), the power series returns `-inf` instead of `inf` when it
+//! overflows for a negative result, e.g. `jv(-123.57388919180612, 0.028605192190944706)`
+//! (`-4.24e431`).
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
@@ -229,7 +230,7 @@ fn jv_jvs(n: f64, x: f64) -> f64 {
             return 0.0;
         }
         if t > MAXLOG {
-            // (unlike in xsf) keep the sign
+            // (unlike in xsf, scipy/xsf#341) keep the sign
             return f64::from(sgngam) * f64::INFINITY;
         }
         y = f64::from(sgngam) * t.exp();

@@ -55,8 +55,8 @@ pub(crate) fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 
     let dk = f64::from(k) + 1.0;
     let dn = f64::from(n);
-    // Unlike in xsf, `p` is passed as the exact `1 - (1 - p)` (see `incbet_xy`), since the rounding
-    // error of `1 - p` is amplified for large `k` or `n`.
+    // Unlike in xsf (scipy/xsf#358), `p` is passed as the exact `1 - (1 - p)` (see `incbet_xy`),
+    // since the rounding error of `1 - p` is amplified for large `k` or `n`.
     //
     // E.g. `nbdtrc(2e9, 1, 1e-13)` had a relative error of 6e-8.
     incbet_xy(dk, dn, 1.0 - p, p)

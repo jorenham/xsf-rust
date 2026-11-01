@@ -168,8 +168,8 @@ pub(crate) fn ellik(mut phi: f64, m: f64) -> f64 {
     }
     let mut k = if npio2 != 0.0 {
         phi -= npio2 * FRAC_PI_2;
-        // Unlike in xsf, the residual is reduced again if |phi| >~ 1e16 left it outside
-        // [-pi, pi], e.g. `ellipkinc(-1.79e19, -1.24e35)` was NaN instead of -1348.95.
+        // Unlike in xsf (scipy/xsf#359), the residual is reduced again if |phi| >~ 1e16 left it
+        // outside [-pi, pi], e.g. `ellipkinc(-1.79e19, -1.24e35)` was NaN instead of -1348.95.
         if phi.abs() > PI {
             return ellik(phi, m) + npio2 * ellpk(a);
         }

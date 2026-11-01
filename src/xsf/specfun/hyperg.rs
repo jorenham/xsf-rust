@@ -3,7 +3,7 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 //! For example, `chgul` then returns `U(a, b, x) ~ 1` for tiny `a` (e.g. `1e-17`), instead of
-//! NaN or a less accurate value.
+//! NaN or a less accurate value (scipy/xsf#350).
 
 use core::f64::consts::PI;
 
@@ -161,9 +161,10 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 cy1 = chg;
                 a += 1.0;
             }
-            // Unlike in xsf, the series (DLMF 13.2.2) replaces the forward recurrence in a above
-            // (DLMF 13.3.1) if they differ by more than twice the series' error bound, i.e. only
-            // where the recurrence is less accurate. It's unstable e.g. for b > 2a + |z|.
+            // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
+            // recurrence in a above (DLMF 13.3.1) if they differ by more than twice the series'
+            // error bound, i.e. only where the recurrence is less accurate. It's unstable e.g. for
+            // b > 2a + |z|.
             //
             // E.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j
             // (scipy/scipy#5349).
@@ -184,8 +185,9 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
-/// Unlike in xsf: `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`, with an error
-/// bound for `a >= 1` and `b > 0`, or `None` if it doesn't converge within 100000 terms.
+/// Unlike in xsf (scipy/xsf#365): `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`,
+/// with an error bound for `a >= 1` and `b > 0`, or `None` if it doesn't converge within 100000
+/// terms.
 ///
 /// The error bound is the sum of (to first order in `u = EPSILON / 2`):
 /// - the omitted tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term
@@ -226,8 +228,8 @@ fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Comp
     None
 }
 
-/// Unlike in xsf: the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the recurrence
-/// of `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`, since
+/// Unlike in xsf (scipy/xsf#365): the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the
+/// recurrence of `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`, since
 /// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
 pub(crate) fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
     let (mut d, mut p) = (0.0, 1.0);
@@ -262,10 +264,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let x0 = x;
     let mut hg = 0.0;
 
-    // Unlike in xsf, for a = -n (n a positive integer), b > 0 and n x > b, the polynomial
-    // M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), since the alternating
-    // terms of the series below first grow (the first is -n x / b) and cancel, and it stops
-    // after 500 terms. E.g. `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
+    // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
+    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), since the
+    // alternating terms of the series below first grow (the first is -n x / b) and cancel, and it
+    // stops after 500 terms. E.g. `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
     if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b {
         let p = chgm_poly(-a as i32, b, x);
         if p.is_finite() {
@@ -279,14 +281,15 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         a0 = a;
         x = x.abs();
     }
-    // Unlike in xsf, for a >= 2 and b > 0 the series DLMF 13.2.2 is summed directly, instead of
-    // using the forward recurrence in a (DLMF 13.3.1) below, which is unstable for b > 2a + x
-    // (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of 1.000000000075.
+    // Unlike in xsf (scipy/xsf#365), for a >= 2 and b > 0 the series DLMF 13.2.2 is summed
+    // directly, instead of using the forward recurrence in a (DLMF 13.3.1) below, which is unstable
+    // for b > 2a + x (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of
+    // 1.000000000075.
     //
-    // Unlike in xsf, this series is also used for a > -1 and x > 30 + |b|, instead of the 8-term
-    // asymptotic expansion below (inaccurate unless x >> |b|, and NaN if Gamma(b) e^x overflows),
-    // or for a < 0 the series below (which stops after 500 terms). For b < 0 the alternating
-    // terms (n < -b) can overflow first, so then an infinite sum isn't used.
+    // Unlike in xsf (scipy/xsf#365), this series is also used for a > -1 and x > 30 + |b|, instead
+    // of the 8-term asymptotic expansion below (inaccurate unless x >> |b|, and NaN if Gamma(b) e^x
+    // overflows), or for a < 0 the series below (which stops after 500 terms). For b < 0 the
+    // alternating terms (n < -b) can overflow first, so then an infinite sum isn't used.
     //
     // E.g. `hyp1f1(-0.5, 0.5, 700)` was -1.0e286 instead of -7.26e300, `hyp1f1(0.5, 100, 140)`
     // was 1788 instead of 1839.8, and `hyp1f1(0.5, 200, 545)` was NaN instead of 1.68e63.
@@ -317,7 +320,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
             hg = 1.0;
             let mut rg = 1.0;
-            // Unlike in xsf: the sum of |rg|, to measure the cancellation
+            // Unlike in xsf (scipy/xsf#365): the sum of |rg|, to measure the cancellation
             let mut rs = 1.0;
             let mut accurate = false;
             for j in 1..501 {
@@ -333,9 +336,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     break;
                 }
             }
-            // Unlike in xsf, for non-integer a < -1 and b > 0, the backward recurrences from
-            // Boost.Math (`hyp1f1_recurrence`) are used if the series doesn't converge or loses
-            // more than half of its digits (as in Boost's checked series).
+            // Unlike in xsf (scipy/xsf#365), for non-integer a < -1 and b > 0, the backward
+            // recurrences from Boost.Math (`hyp1f1_recurrence`) are used if the series doesn't
+            // converge or loses more than half of its digits (as in Boost's checked series).
             //
             // E.g. `hyp1f1(-1000.5, 1, 1)` was 5.5e8 instead of 0.15565.
             if !accurate && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {

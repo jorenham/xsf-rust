@@ -141,8 +141,8 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
         f64::NAN
     } else if 0.0 < x && 0.0 < y {
-        // Unlike in SciPy, `rel_entr` is reused, which takes the logarithm first if x / y under-
-        // or overflows, e.g. kl_div(1e-184, 1e258) was -inf instead of 1e258.
+        // Unlike in SciPy (scipy/xsf#362), `rel_entr` is reused, which takes the logarithm first if
+        // x / y under- or overflows, e.g. kl_div(1e-184, 1e258) was -inf instead of 1e258.
         //
         // For x / y in [0.5, 2), with x = y (1 + e), it's y ((1 + e) ln(1 + e) - e), written so
         // that nothing cancels, e.g. kl_div(1 + 1e-12, 1) had a relative error of 28.
@@ -247,10 +247,10 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
     } else if delta == 0.0 || r == 0.0 {
         0.0
     } else {
-        // Unlike in SciPy, u^2 (sqrt(1 + v^2) - 1) with u = delta and v = r / u is not computed
-        // as u^2 expm1(log1p(v^2) / 2), where u^2 or v^2 over- or underflows if u or |v| is huge
-        // or tiny, and the log-exp round trip loses precision if |v| is large. Instead, the
-        // equivalent r^2 / (sqrt(1 + v^2) + 1) is used, scaled like `hypot`:
+        // Unlike in SciPy (scipy/xsf#362), u^2 (sqrt(1 + v^2) - 1) with u = delta and v = r / u is
+        // not computed as u^2 expm1(log1p(v^2) / 2), where u^2 or v^2 over- or underflows if u or
+        // |v| is huge or tiny, and the log-exp round trip loses precision if |v| is large. Instead,
+        // the equivalent r^2 / (sqrt(1 + v^2) + 1) is used, scaled like `hypot`:
         //
         // - |r| <= u: |r| (|r| / (sqrt(1 + v^2) + 1))
         // - |r| > u: |r| (u / (sqrt(1 + w^2) + w)), with w = u / |r|

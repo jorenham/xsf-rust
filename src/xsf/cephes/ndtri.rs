@@ -85,8 +85,8 @@ const NDTRI_Q2: [f64; 8] = [
 
 /// `ndtri(0.5 + y)` for `|y| <= 0.5 - exp(-2)`, i.e. the central branch of [`ndtri`]
 ///
-/// Unlike in xsf, this is a separate function, so that `erfinv` can avoid the rounding error in
-/// `0.5 * (y + 1)` for small `|y|`.
+/// Unlike in xsf (scipy/xsf#349), this is a separate function, so that `erfinv` can avoid the
+/// rounding error in `0.5 * (y + 1)` for small `|y|`.
 pub(super) fn ndtri_central(y: f64) -> f64 {
     let y2 = y * y;
     let x = y + y * (y2 * polevl(y2, &NDTRI_P0) / p1evl(y2, &NDTRI_Q0));

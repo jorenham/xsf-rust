@@ -7,8 +7,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the asymptotic expansion for `q > 1e8` includes the `B_2` term, which reduces
-//! its relative error from `x (x - 1) / (12 q^2)` (up to ~1e-14) to below machine precision.
+//! Unlike in xsf (scipy/xsf#345), the asymptotic expansion for `q > 1e8` includes the `B_2` term,
+//! which reduces its relative error from `x (x - 1) / (12 q^2)` (up to ~1e-14) to below machine
+//! precision.
 
 // cephes/const.h
 const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
@@ -96,7 +97,8 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
      * https://dlmf.nist.gov/25.11#E43
      */
     if q > 1e8 {
-        // (unlike in xsf) the B_2 term, which is skipped for x = inf to avoid inf * 0
+        // (unlike in xsf, scipy/xsf#345) the B_2 term, which is skipped for x = inf to avoid
+        // inf * 0
         let b2 = if x.is_finite() {
             x / (12.0 * q * q)
         } else {
@@ -121,9 +123,9 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         a += 1.0;
         b = a.powf(-x);
         s += b;
-        // Unlike in xsf, this also requires the tail sum `~ b * a / (x - 1)` to be negligible,
-        // which it isn't for `x` near 1 and tiny `q`, e.g. `zeta(1 + 2^-52, 1e-15)` was 1.0e15
-        // instead of 5.5e15.
+        // Unlike in xsf (scipy/xsf#345), this also requires the tail sum `~ b * a / (x - 1)` to be
+        // negligible, which it isn't for `x` near 1 and tiny `q`, e.g. `zeta(1 + 2^-52, 1e-15)` was
+        // 1.0e15 instead of 5.5e15.
         if (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }

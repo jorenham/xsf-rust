@@ -1,8 +1,8 @@
 //! Translated into pure Rust from `xsf/digamma.h` (xsf v0.2.2).
 //!
-//! Unlike in xsf, the number of forward recurrence steps for complex `z` with `z.re < 0` is
-//! clamped to `n >= 0`. Otherwise, `digamma(z + 1)` is returned instead of `digamma(z)` if
-//! `|z| == 16` (e.g. for `z = -1e-300 + 16i`).
+//! Unlike in xsf (scipy/xsf#347), the number of forward recurrence steps for complex `z` with
+//! `z.re < 0` is clamped to `n >= 0`. Otherwise, `digamma(z + 1)` is returned instead of
+//! `digamma(z)` if `|z| == 16` (e.g. for `z = -1e-300 + 16i`).
 
 use core::f64::consts::PI;
 
@@ -199,7 +199,8 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
         res += digamma_backward_recurrence(z + n, init, n as i32);
     } else {
         // z.real() < 0, absz < smallabsz, and z.imag() > smallimag
-        // (unlike in xsf) clamped, since n = -1 for absz == smallabsz would compute digamma(z + 1)
+        // (unlike in xsf, scipy/xsf#347) clamped, since n = -1 for absz == smallabsz would compute
+        // digamma(z + 1)
         let n = ((smallabsz - absz).trunc() - 1.0).max(0.0);
         let init = digamma_asymptotic_series(z - n);
         res += digamma_forward_recurrence(z - n, init, n as i32);

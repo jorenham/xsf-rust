@@ -5,8 +5,8 @@
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
-//! Unlike in xsf, `zetac_positive` only returns 0 for `x >= 1075` (where `2**-x` rounds to 0),
-//! instead of for `x >= 127` (a leftover from single precision).
+//! Unlike in xsf (scipy/xsf#346), `zetac_positive` only returns 0 for `x >= 1075` (where `2**-x`
+//! rounds to 0), instead of for `x >= 127` (a leftover from single precision).
 
 use std::f64::consts::{E, PI};
 
@@ -270,7 +270,7 @@ fn zeta_reflection(x: f64) -> f64 {
 ///
 /// Extension of the function definition for x < 1 is implemented.
 /// Zero is returned for x > log2(INFINITY).
-/// (Unlike in xsf, where this is for x >= 127 instead of x >= 1075.)
+/// (Unlike in xsf, where this is for x >= 127 instead of x >= 1075, see scipy/xsf#346.)
 ///
 /// ACCURACY:
 ///

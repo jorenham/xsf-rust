@@ -1,8 +1,8 @@
 //! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
 //! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
 //!
-//! Unlike in xsf, `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16` (incl. `inf`), and
-//! `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
+//! Unlike in xsf (scipy/xsf#340), `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16` (incl.
+//! `inf`), and `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
 //! `scipy.stats._hypotests`, the series also stop at a NaN term, so that e.g.
 //! `cdf_cvm(1e4, 1_000_000)` returns `NaN` instead of looping forever.
 //!
@@ -1136,7 +1136,7 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         return x;
     }
     if 16.0 * x == f64::INFINITY {
-        // (unlike in scipy) instead of an infinite loop, as `q` below would be `0`
+        // (unlike in scipy, scipy/xsf#340) instead of an infinite loop, as `q` below would be `0`
         return 1.0;
     }
     if x <= 0.0 {
@@ -1155,7 +1155,8 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         let z = u * y.sqrt() * (-q).exp() * b;
 
         total += z;
-        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        // (unlike in xsf, scipy/xsf#340) like in scipy, so that a NaN term doesn't cause an
+        // infinite loop
         if !(z.abs() >= 1e-7) {
             break;
         }
@@ -1219,7 +1220,8 @@ fn psi1_mod(x: f64) -> f64 {
         let gamma_kp1 = gamma(f64::from(k) + 1.0);
         let z = -psi1_term(k, x) / (PI * gamma_kp1);
         tot += z;
-        // (unlike in xsf) like in scipy, so that a NaN term doesn't cause an infinite loop
+        // (unlike in xsf, scipy/xsf#340) like in scipy, so that a NaN term doesn't cause an
+        // infinite loop
         if !(z.abs() >= 1e-7) {
             break;
         }
@@ -1246,7 +1248,7 @@ fn psi1_mod(x: f64) -> f64 {
 #[inline]
 pub fn cdf_cvm(x: f64, n: i32) -> f64 {
     if x.is_nan() {
-        // (unlike in scipy) instead of an infinite loop
+        // (unlike in scipy, scipy/xsf#340) instead of an infinite loop
         return x;
     }
     // Calculate the CDF of the Cramér-von Mises statistic for a finite sample
