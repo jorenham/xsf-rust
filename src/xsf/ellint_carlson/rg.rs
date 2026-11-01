@@ -15,7 +15,7 @@
 use num_complex::Complex64;
 
 use super::arithmetic::{dot2, eft_prod, eft_sum};
-use super::common::{ExitStatus, abscmp, config, constants, is_horrible, sort_by};
+use super::common::{self, ExitStatus, abscmp, config, constants, is_horrible, sort_by};
 use super::rd::rd;
 use super::rf::agm_update;
 use super::typing::Num;
@@ -71,6 +71,12 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     let mut status = ExitStatus::Success;
     if super::argcheck::invalid_rerr(rerr, 1.0e-4) {
         return (ExitStatus::BadRerr, T::NAN);
+    }
+
+    // Unlike in xsf, huge or tiny arguments are rescaled (homogeneity), see `common::scale_factor`
+    if let Some(f) = common::scale_factor(&[x, y, z], f64::MIN_POSITIVE) {
+        let (status, res) = rg(x * f * f, y * f * f, z * f * f, rerr);
+        return (status, res / f);
     }
 
     let mut cct = [x, y, z];
