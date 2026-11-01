@@ -407,6 +407,13 @@ fn test_smirnovp_large_n() {
 }
 
 #[test]
+fn test_smirnovp_signed_zero() {
+    // the derivative underflows; `f64::max(0.0, -0.0)` gave +0 in debug builds
+    let p = xsf::smirnovp(248, 0.992_237_425_787_874_4);
+    assert_eq!(p.to_bits(), (-0.0_f64).to_bits(), "{p:?}");
+}
+
+#[test]
 fn test_smirnovp() {
     xsref::test("smirnovp", "p_d-d", |x| xsf::smirnovp(x[0] as i32, x[1]));
 }

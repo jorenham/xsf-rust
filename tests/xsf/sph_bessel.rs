@@ -254,3 +254,25 @@ fn test_sph_bessel_kn_prime() {
     // assert_allclose(kn[1], [kn0, kn1, kn2], atol=1.5e-9, rtol=0)
     xsref::np_assert_allclose!(&kn[1], &[kn0, kn1, kn2], atol = 1.5e-9);
 }
+
+#[test]
+fn test_sph_bessel_prime_n_min() {
+    // `n - 1` overflowed (and panicked in debug builds)
+    let (n, z) = (i64::MIN, num_complex::c64(1.0, 1.0));
+    for d in [
+        xsf::sph_bessel_j_prime(n, z),
+        xsf::sph_bessel_y_prime(n, z),
+        xsf::sph_bessel_i_prime(n, z),
+        xsf::sph_bessel_k_prime(n, z),
+    ] {
+        assert!(d.re.is_nan() && d.im.is_nan());
+    }
+    for d in [
+        xsf::sph_bessel_j_prime(n, 1.0),
+        xsf::sph_bessel_y_prime(n, 1.0),
+        xsf::sph_bessel_i_prime(n, 1.0),
+        xsf::sph_bessel_k_prime(n, 1.0),
+    ] {
+        assert!(d.is_nan());
+    }
+}

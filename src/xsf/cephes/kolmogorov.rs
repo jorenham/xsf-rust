@@ -225,7 +225,8 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
     ThreeProbs {
         sf: sf.clamp(0.0, 1.0),
         cdf: cdf.clamp(0.0, 1.0),
-        pdf: 0.0_f64.max(pdf),
+        // `fmax(0., pdf)`, but with +0 for `pdf = -0` (`f64::max` may return either zero)
+        pdf: if pdf > 0.0 { pdf } else { 0.0 },
     }
 }
 
@@ -834,7 +835,8 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     ThreeProbs {
         sf: sf.clamp(0.0, 1.0),
         cdf: cdf.clamp(0.0, 1.0),
-        pdf: 0.0_f64.max(pdf),
+        // `fmax(0., pdf)`, but with +0 for `pdf = -0` (`f64::max` may return either zero)
+        pdf: if pdf > 0.0 { pdf } else { 0.0 },
     }
 }
 
