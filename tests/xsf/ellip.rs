@@ -64,7 +64,7 @@ fn test_ellipj_near_1() {
                 2.298_366_119_731_372e-6,
                 -61.261_058_926_314_45,
             ],
-            1e-8,
+            1e-12,
         ),
         (
             30.0,
@@ -78,7 +78,7 @@ fn test_ellipj_near_1() {
             1e-14,
         ),
         (
-            // just above the cutoff of the expansion in 1 - m, which has a rel. error of 4.5e-8 here
+            // between K and 2K
             21.5988,
             0.999_999_999_999,
             [
@@ -87,7 +87,19 @@ fn test_ellipj_near_1() {
                 3.000_138_179_281_605_5e-4,
                 1.571_096_338_950_767_8,
             ],
-            1e-9,
+            1e-14,
+        ),
+        (
+            // near -21 K
+            -407.508_951_116_008_1,
+            0.999_999_999_999_999_8,
+            [
+                -1.0,
+                9.183_585_813_193_36e-10,
+                1.492_943_359_303_742e-8,
+                -32.986_722_861_774_47,
+            ],
+            1e-11,
         ),
         (
             -400.0,
@@ -124,4 +136,21 @@ fn test_ellipj_near_1() {
     // the smallest subnormal sech(u)
     let (_, cn, dn, _) = xsf::ellipj(-745.5, 1.0);
     assert_eq!((cn, dn), (f64::from_bits(1), f64::from_bits(1)));
+
+    // dn near the quarter period, where 1 - m sn^2 cancels (reference value from mpmath)
+    let (_, _, dn, _) = xsf::ellipj(12.706_487_231_104_472, 0.999_999_999_85);
+    let expected = 1.224_806_159_815_916_4e-5;
+    assert!(
+        (dn - expected).abs() < 1e-13 * expected,
+        "{dn} != {expected}"
+    );
+
+    // too large |u| to reduce by quarter periods
+    for u in [-1e18, 1e17, 1e18] {
+        let (sn, cn, dn, _) = xsf::ellipj(u, 0.999_999_999_9);
+        assert!(
+            sn.abs() <= 1.0 && cn.abs() <= 1.0 && dn.abs() <= 1.0,
+            "ellipj({u})"
+        );
+    }
 }

@@ -14,6 +14,7 @@
 //! (unused) status code is dropped.
 
 use crate::utils::MACHEP;
+use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::{FRAC_PI_2, PI};
 
 /// Jacobian Elliptic Functions
@@ -88,8 +89,11 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         let dn = 1.0 - 0.5 * m * t * t;
         return (sn, cn, dn, ph);
     }
-    // Unlike in xsf (scipy/xsf#375), m = 1 is exact, and the expansion in 1 - m below is only
-    // used if (1 - m) cosh(u) is small
+    // Unlike in xsf (scipy/xsf#375), m = 1 is exact, and u is shifted by a multiple of the quarter
+    // period K first, so that the expansion in 1 - m below is only used for |u| <= K/2 (the AGM is
+    // used for huge |u|, where u - qK is inaccurate).
+    //
+    // E.g. ellpj(-407.5089511160081, 0.9999999999999998) had 3e-6 and 2e-3 errors in cn and dn.
     #[allow(clippy::float_cmp)]
     if m == 1.0 {
         // sech(u), also for |u| > 710 where cosh(u) overflows
@@ -102,7 +106,11 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         };
         return (u.tanh(), phi, phi, 2.0 * u.exp().atan() - FRAC_PI_2);
     }
-    if m >= 0.999_999_999_9 && (1.0 - m) * u.cosh() < 1e-3 {
+    if m >= 0.999_999_999_9 && u.abs() < 1e10 {
+        let k = ellpk(1.0 - m);
+        let q = (u / k).round();
+        let u = u - q * k;
+
         let mut ai = 0.25 * (1.0 - m);
         let b = u.cosh();
         let t = u.tanh();
@@ -113,7 +121,21 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         ai *= t * phi;
         let cn = phi - ai * (twon - u);
         let dn = phi + ai * (twon + u);
-        return (sn, cn, dn, ph);
+
+        // Shift back with DLMF 22.4(iii), where k' = sqrt(1 - m):
+        //
+        // - sn(u + K) = cd(u), cn(u + K) = -k' sd(u), dn(u + K) = k' nd(u), and for
+        //   |u| <= K/2, am(u + K) = atan2(cn(u), -k' sn(u)) in (0, pi)
+        // - the half period 2K flips the signs of sn and cn, and adds pi to am
+        let (sn, cn, dn, ph) = if q % 2.0 == 0.0 {
+            (sn, cn, dn, ph)
+        } else {
+            let k1 = (1.0 - m).sqrt();
+            (cn / dn, -k1 * sn / dn, k1 / dn, cn.atan2(-k1 * sn))
+        };
+        let h = (0.5 * q).floor();
+        let s = if h % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        return (s * sn, s * cn, dn, ph + h * PI);
     }
 
     /* A. G. M. scale. See DLMF 22.20(ii) */
@@ -155,7 +177,9 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     let dnfac = (phi - b).cos();
     /* See discussion after DLMF 22.20.5 */
     let dn = if dnfac.abs() < 0.1 {
-        (1.0 - m * sn * sn).sqrt()
+        // Unlike in xsf, dn^2 = 1 - m + m cn^2 is used instead of 1 - m sn^2, which cancels if
+        // m sn^2 is close to 1, e.g. ellpj(12.706487231104472, 0.99999999985) had a 3e-7 error
+        ((1.0 - m) + m * t * t).sqrt()
     } else {
         t / dnfac
     };
