@@ -13,106 +13,14 @@
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::f64::consts::PI;
-use core::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
+use core::ops::{Index, IndexMut};
 
 use core::ffi::c_int;
 use num_complex::{Complex64, c64};
 
 use crate::utils;
-use crate::xsf::complex::{cdiv, cmul, csqrt, rsub};
+use crate::xsf::complex::{Num, cdiv, cmul, csqrt, rsub};
 use crate::xsf::log::clog;
-
-/// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
-pub(crate) trait Num:
-    Copy
-    + From<f64>
-    + Add<Output = Self>
-    + Sub<Output = Self>
-    + Neg<Output = Self>
-    + Mul<f64, Output = Self>
-    + Div<f64, Output = Self>
-{
-    /// `T * T`
-    fn prod(self, rhs: Self) -> Self;
-    /// `T / T`
-    fn quot(self, rhs: Self) -> Self;
-    fn sqrt(self) -> Self;
-    fn sin(self) -> Self;
-    fn cos(self) -> Self;
-    fn abs(self) -> f64;
-    fn real(self) -> f64;
-    fn imag(self) -> f64;
-}
-
-impl Num for f64 {
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        self * rhs
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        self / rhs
-    }
-    #[inline]
-    fn sqrt(self) -> Self {
-        f64::sqrt(self)
-    }
-    #[inline]
-    fn sin(self) -> Self {
-        f64::sin(self)
-    }
-    #[inline]
-    fn cos(self) -> Self {
-        f64::cos(self)
-    }
-    #[inline]
-    fn abs(self) -> f64 {
-        f64::abs(self)
-    }
-    #[inline]
-    fn real(self) -> f64 {
-        self
-    }
-    #[inline]
-    fn imag(self) -> f64 {
-        0.0
-    }
-}
-
-impl Num for Complex64 {
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        cmul(self, rhs)
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        cdiv(self, rhs)
-    }
-    #[inline]
-    fn sqrt(self) -> Self {
-        csqrt(self)
-    }
-    #[inline]
-    fn sin(self) -> Self {
-        crate::xsf::trig::csin(self)
-    }
-    #[inline]
-    fn cos(self) -> Self {
-        crate::xsf::trig::ccos(self)
-    }
-    #[inline]
-    fn abs(self) -> f64 {
-        self.norm()
-    }
-    #[inline]
-    fn real(self) -> f64 {
-        self.re
-    }
-    #[inline]
-    fn imag(self) -> f64 {
-        self.im
-    }
-}
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
 pub(crate) struct Mdspan<'a, T, const R: usize> {

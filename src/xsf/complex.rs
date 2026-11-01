@@ -1,8 +1,10 @@
 use core::f64::consts::{FRAC_PI_2, LN_2};
+use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use num_complex::{Complex, c64};
 
 use crate::xsf::log::clog;
+use crate::xsf::trig::{ccos, csin};
 
 /// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
 /// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
@@ -480,6 +482,104 @@ fn real_part_reciprocal(mut x: f64, mut y: f64) -> f64 {
     x *= scale;
     y *= scale;
     x / (x * x + y * y) * scale
+}
+
+/// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
+pub(crate) trait Num:
+    Copy
+    + From<f64>
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Neg<Output = Self>
+    + Mul<f64, Output = Self>
+    + Div<f64, Output = Self>
+{
+    /// `T * T`
+    fn prod(self, rhs: Self) -> Self;
+    /// `T / T`
+    fn quot(self, rhs: Self) -> Self;
+    /// `std::sqrt(x)`
+    fn sqrt(self) -> Self;
+    /// `std::sin(x)`
+    fn sin(self) -> Self;
+    /// `std::cos(x)`
+    fn cos(self) -> Self;
+    /// `std::abs(x)`
+    fn abs(self) -> f64;
+    /// `std::real(x)`
+    fn real(self) -> f64;
+    /// `std::imag(x)`
+    fn imag(self) -> f64;
+}
+
+impl Num for f64 {
+    #[inline]
+    fn prod(self, rhs: Self) -> Self {
+        self * rhs
+    }
+    #[inline]
+    fn quot(self, rhs: Self) -> Self {
+        self / rhs
+    }
+    #[inline]
+    fn sqrt(self) -> Self {
+        f64::sqrt(self)
+    }
+    #[inline]
+    fn sin(self) -> Self {
+        f64::sin(self)
+    }
+    #[inline]
+    fn cos(self) -> Self {
+        f64::cos(self)
+    }
+    #[inline]
+    fn abs(self) -> f64 {
+        f64::abs(self)
+    }
+    #[inline]
+    fn real(self) -> f64 {
+        self
+    }
+    #[inline]
+    fn imag(self) -> f64 {
+        0.0
+    }
+}
+
+impl Num for Complex<f64> {
+    #[inline]
+    fn prod(self, rhs: Self) -> Self {
+        cmul(self, rhs)
+    }
+    #[inline]
+    fn quot(self, rhs: Self) -> Self {
+        cdiv(self, rhs)
+    }
+    #[inline]
+    fn sqrt(self) -> Self {
+        csqrt(self)
+    }
+    #[inline]
+    fn sin(self) -> Self {
+        csin(self)
+    }
+    #[inline]
+    fn cos(self) -> Self {
+        ccos(self)
+    }
+    #[inline]
+    fn abs(self) -> f64 {
+        self.norm()
+    }
+    #[inline]
+    fn real(self) -> f64 {
+        self.re
+    }
+    #[inline]
+    fn imag(self) -> f64 {
+        self.im
+    }
 }
 
 #[cfg(test)]

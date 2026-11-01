@@ -6,45 +6,22 @@
 //! selected by template matching on real or complex `T` (`typing::real_only` and
 //! `typing::cplx_only`) are the methods of [`Num`].
 
-use core::ops::{Add, Div, Mul, Neg, Sub};
+use core::ops::Add;
 
 use num_complex::Complex64;
 
 use super::{argcheck, arithmetic, rg, rj};
-use crate::xsf::complex::{cdiv, cmul, csqrt};
+use crate::xsf::complex;
 
-/// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
+/// The arithmetic of `T` in C++ ([`complex::Num`]), extended with `ellint_carlson` specifics
 ///
 /// Note that `T + RT` and `T * RT` are component-wise in C++, which differs from `T + T(RT)` if
 /// the imaginary part is `-0.0`.
-pub(crate) trait Num:
-    Copy
-    + PartialEq
-    + From<f64>
-    + Add<Output = Self>
-    + Add<f64, Output = Self>
-    + Sub<Output = Self>
-    + Neg<Output = Self>
-    + Mul<f64, Output = Self>
-    + Div<f64, Output = Self>
-{
+pub(crate) trait Num: complex::Num + PartialEq + Add<f64, Output = Self> {
     /// `typing::nan<T>()`
     const NAN: Self;
     /// `typing::huge<T>()`
     const HUGE: Self;
-
-    /// `T * T`
-    fn prod(self, rhs: Self) -> Self;
-    /// `T / T`
-    fn quot(self, rhs: Self) -> Self;
-    /// `std::sqrt(x)`
-    fn sqrt(self) -> Self;
-    /// `std::abs(x)`
-    fn abs(self) -> f64;
-    /// `std::real(x)`
-    fn real(self) -> f64;
-    /// `std::imag(x)`
-    fn imag(self) -> f64;
 
     /// `argcheck::too_small(x)`
     fn too_small(self) -> bool;
@@ -68,31 +45,6 @@ pub(crate) trait Num:
 impl Num for f64 {
     const NAN: Self = f64::NAN;
     const HUGE: Self = f64::INFINITY;
-
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        self * rhs
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        self / rhs
-    }
-    #[inline]
-    fn sqrt(self) -> Self {
-        f64::sqrt(self)
-    }
-    #[inline]
-    fn abs(self) -> f64 {
-        f64::abs(self)
-    }
-    #[inline]
-    fn real(self) -> f64 {
-        self
-    }
-    #[inline]
-    fn imag(self) -> f64 {
-        0.0
-    }
 
     #[inline]
     fn too_small(self) -> bool {
@@ -136,31 +88,6 @@ impl Num for Complex64 {
      * return values. */
     const NAN: Self = Complex64::new(f64::NAN, f64::NAN);
     const HUGE: Self = Complex64::new(f64::INFINITY, 0.0);
-
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        cmul(self, rhs)
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        cdiv(self, rhs)
-    }
-    #[inline]
-    fn sqrt(self) -> Self {
-        csqrt(self)
-    }
-    #[inline]
-    fn abs(self) -> f64 {
-        self.norm()
-    }
-    #[inline]
-    fn real(self) -> f64 {
-        self.re
-    }
-    #[inline]
-    fn imag(self) -> f64 {
-        self.im
-    }
 
     #[inline]
     fn too_small(self) -> bool {

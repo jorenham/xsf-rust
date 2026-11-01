@@ -42,7 +42,7 @@ use super::rf::rf;
 use super::rg::rg;
 use super::typing::Num;
 use super::{argcheck, common};
-use crate::xsf::complex::{atanh, catan, csqrt};
+use crate::xsf::complex::{atanh, catan, cdiv, csqrt};
 
 mod rjimpl {
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
@@ -291,7 +291,7 @@ pub(super) fn safe_atan_sqrt_div_cplx(z: Complex64) -> Complex64 {
         return Complex64::from(1.0);
     }
     let s = csqrt(z);
-    catan(s).quot(s)
+    cdiv(catan(s), s)
 }
 
 #[inline]
