@@ -8,19 +8,11 @@
 //! Unlike in xsf, the parity of `floor(|x|)` is determined with an `i64` instead of an `int`, which
 //! overflows (UB) for `|x| > 2^31`.
 
+use crate::utils::{LN_PI, LN_SQRT_2PI, MAXGAM, SQRT2PI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::trig::cephes_sinpi;
 
 use core::f64::consts::PI;
-
-// cephes/const.h
-
-/// sqrt(2*pi)
-const SQRT2PI: f64 = 2.506_628_274_631_000_7;
-/// log(pi)
-const LOGPI: f64 = 1.144_729_885_849_400_2;
-/// Largest x such that Gamma(x) is finite
-const MAXGAM: f64 = 171.624_376_956_302_7;
 
 // cephes/gamma.h
 
@@ -223,16 +215,13 @@ const GAMMA_C: [f64; 6] = [
     -2_018_891.414_335_327_7,
 ];
 
-/* log( sqrt( 2*pi ) ) */
-const LS2PI: f64 = 0.918_938_533_204_672_8;
-
 const MAXLGM: f64 = 2.556_348e305;
 
 /* In xsf, optimizations for this function are disabled on 32 bit systems when compiling with GCC,
  * because they can result in degraded precision for this asymptotic approximation. Rust never
  * reassociates or contracts floating point operations, so that isn't needed here. */
 fn lgam_large_x(x: f64) -> f64 {
-    let q = (x - 0.5) * x.ln() - x + LS2PI;
+    let q = (x - 0.5) * x.ln() - x + LN_SQRT_2PI;
     if x > 1.0e8 {
         return q;
     }
@@ -278,7 +267,7 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
             return (f64::INFINITY, sign);
         }
         /*     z = log(M_PI) - log( z ) - w; */
-        z = LOGPI - z.ln() - w;
+        z = LN_PI - z.ln() - w;
         return (z, sign);
     }
 
@@ -323,7 +312,7 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
         return (lgam_large_x(x), sign);
     }
 
-    let q = (x - 0.5) * x.ln() - x + LS2PI;
+    let q = (x - 0.5) * x.ln() - x + LN_SQRT_2PI;
     (q + lgam_stirling_corr(x), sign)
 }
 

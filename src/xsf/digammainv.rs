@@ -2,11 +2,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::{MAXLOG, SCIPY_EULER};
 use crate::xsf::cephes::{psi, zeta};
 use crate::xsf::tools::{NewtonRootFinderStatus, find_root_newton};
-
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
 
 /// Initial guess for `digammainv` using Minka (2000):
 ///   x0 = exp(y) + 0.5      if y >= -2.22

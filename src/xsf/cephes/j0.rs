@@ -12,11 +12,9 @@
 //! Unlike in xsf, the sign of the value of `y0(x) - 2 log(x) j0(x) / pi` at `x = 0`, and the
 //! absolute error condition in the `y0` accuracy table, are corrected in the comments.
 
+use crate::utils::{SQRT1OPI, SQRT2OPI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_4};
-
-const SQRT1OPI: f64 = 0.564_189_583_547_756_3; // sqrt(1/pi)
-const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
 
 const J0_PP: [f64; 7] = [
     7.969_367_292_973_471e-4,

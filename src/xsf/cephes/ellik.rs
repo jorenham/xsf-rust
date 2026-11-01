@@ -9,10 +9,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::MACHEP;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::{FRAC_PI_2, PI};
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 /// To calculate legendre's incomplete elliptical integral of the first kind for
 /// negative m, we use a power series in phi for small m*phi*phi, an asymptotic

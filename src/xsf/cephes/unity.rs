@@ -16,12 +16,11 @@
 //! most `MAXITER` terms, as in `log1pmx`), instead of stopping after 41 terms. Otherwise, the
 //! relative error is up to 9e-14 near `|x| = 1/2` (instead of 6e-15).
 
+use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::{lgam, zeta};
 
 // cephes/const.h
 const MAXITER: u32 = 500;
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 /// Compute lgam(x + 1) around x = 0 using its Taylor series.
 #[allow(clippy::float_cmp)]

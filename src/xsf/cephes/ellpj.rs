@@ -13,9 +13,8 @@
 //! Unlike in xsf, `(sn, cn, dn, phi)` is returned instead of written to output pointers, and the
 //! (unused) status code is dropped.
 
+use crate::utils::MACHEP;
 use core::f64::consts::{FRAC_PI_2, PI};
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 /// Jacobian Elliptic Functions
 ///

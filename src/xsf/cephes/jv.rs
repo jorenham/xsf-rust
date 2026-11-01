@@ -19,13 +19,10 @@
 
 use core::f64::consts::PI;
 
+use crate::utils::{MACHEP, MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::frexp_f64;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{airy, j0, j1, lgam_sgn, rgamma};
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
-const MAXGAM: f64 = 171.624_376_956_302_7;
 
 const JV_BIG: f64 = 1.44115188075855872E+17;
 

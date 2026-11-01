@@ -1,10 +1,11 @@
 use core::ops::{Add, Mul};
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_PI, PI};
 
 use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
 
+use crate::utils::PISQ_6;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::specfun;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
@@ -171,7 +172,7 @@ fn reflect_i(_ik: &mut Complex64, v: f64) -> bool {
 }
 
 fn rotate_i(i: Complex64, k: Complex64, v: f64) -> Complex64 {
-    let s = (v * PI).sin() * (2.0 / PI);
+    let s = (v * PI).sin() * FRAC_2_PI;
 
     i + s * k
 }
@@ -1322,7 +1323,7 @@ fn ittika(x: f64) -> (f64, f64) {
             r = -r / x;
             ttk_ += C[k - 1] * r;
         }
-        let rc = x * (2.0 / PI * x).sqrt();
+        let rc = x * (FRAC_2_PI * x).sqrt();
         ttk = ttk_ * (-x).exp() / rc;
     }
     (tti, ttk)
@@ -1362,7 +1363,7 @@ fn ittjya(x: f64) -> (f64, f64) {
             }
         }
         ttj *= 0.125 * x * x;
-        let e0 = 0.5 * (PI * PI / 6.0 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
+        let e0 = 0.5 * (PISQ_6 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
         let mut b1 = el + (x / 2.0).ln() - 1.5;
         let mut rs = 1.0;
         r = -1.0;
@@ -1375,7 +1376,7 @@ fn ittjya(x: f64) -> (f64, f64) {
                 break;
             }
         }
-        tty = 2.0 / PI * (e0 + 0.125 * x * x * b1);
+        tty = FRAC_2_PI * (e0 + 0.125 * x * x * b1);
     } else {
         let a0 = (2.0 / (PI * x)).sqrt();
         let mut bj0 = 0.0;

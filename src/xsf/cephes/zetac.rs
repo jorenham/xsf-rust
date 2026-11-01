@@ -10,13 +10,10 @@
 
 use std::f64::consts::{E, PI};
 
+use crate::utils::{MACHEP, SQRT2OPI};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::cephes::zeta;
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
 
 /// Riemann zeta(x) - 1
 /// for integer arguments between 0 and 30.

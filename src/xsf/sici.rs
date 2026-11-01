@@ -16,11 +16,9 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_complex::{Complex, c64};
 
+use crate::utils::SCIPY_EULER;
 use crate::xsf::complex::cmul;
 use crate::xsf::log::clog;
-
-// cephes/const.h
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 fn sici_power_series(sgn: i32, z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     /* DLMF 6.6.5 and 6.6.6. If sgn = -1 computes si/ci, and if sgn = 1

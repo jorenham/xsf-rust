@@ -17,6 +17,7 @@
 
 use core::f64::consts::{SQRT_2, TAU};
 
+use crate::utils::SQRT_TAU;
 use crate::xsf::cephes::{erf, erfc, ndtr};
 
 const OWENS_T_SELECT_METHOD: [usize; 120] = [
@@ -170,7 +171,7 @@ fn owens_t2(h: f64, a: f64, ah: f64, m: f64) -> f64 {
     let as_ = -a * a;
     let y = 1.0 / hs;
     let mut val = 0.0;
-    let mut vi = a * (-0.5 * ah * ah).exp() / TAU.sqrt();
+    let mut vi = a * (-0.5 * ah * ah).exp() / SQRT_TAU;
     let mut z = (ndtr(ah) - 0.5) / h;
 
     loop {
@@ -182,7 +183,7 @@ fn owens_t2(h: f64, a: f64, ah: f64, m: f64) -> f64 {
         vi *= as_;
         i += 2;
     }
-    val *= (-0.5 * hs).exp() / TAU.sqrt();
+    val *= (-0.5 * hs).exp() / SQRT_TAU;
 
     val
 }
@@ -192,7 +193,7 @@ fn owens_t3(h: f64, a: f64, ah: f64) -> f64 {
     let hh = h * h;
     let y = 1.0 / hh;
 
-    let mut vi = a * (-ah * ah / 2.0).exp() / TAU.sqrt();
+    let mut vi = a * (-ah * ah / 2.0).exp() / SQRT_TAU;
     let mut zi = owens_t_norm1(ah) / h;
     let mut result = 0.0;
 
@@ -202,7 +203,7 @@ fn owens_t3(h: f64, a: f64, ah: f64) -> f64 {
         vi *= aa;
     }
 
-    result *= (-hh / 2.0).exp() / TAU.sqrt();
+    result *= (-hh / 2.0).exp() / SQRT_TAU;
 
     result
 }

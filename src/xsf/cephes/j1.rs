@@ -9,12 +9,11 @@
 //! Unlike in xsf, the descriptions of the approximations (intervals, kind, and degrees) are
 //! corrected in the comments.
 
+use crate::utils::{SQRT_EPS, SQRT1OPI, SQRT2OPI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI};
 
 const THPIO4: f64 = 2.356_194_490_192_345; // 3*pi/4
-const SQRT1OPI: f64 = 0.564_189_583_547_756_3; // sqrt(1/pi)
-const SQRT2OPI: f64 = 0.797_884_560_802_865_4; // sqrt(2/pi)
 
 const J1_RP: [f64; 4] = [
     -8.999_712_257_055_594e8,
@@ -100,8 +99,6 @@ const J1_YQ: [f64; 8] = [
 
 const J1_Z1: f64 = 14.681_970_642_123_893;
 const J1_Z2: f64 = 49.218_456_321_694_6;
-
-const SQRT_EPS: f64 = 1.490_116_119_384_765_6e-8; // sqrt(epsilon)
 
 /// Bessel function of order one
 ///

@@ -15,6 +15,7 @@ use core::f64::consts::{PI, SQRT_2};
 
 use num_complex::c64;
 
+use crate::utils::{SQRT_PI, SQRT2OPI};
 use crate::xsf::specfun::{cgama, gamma2};
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
@@ -41,7 +42,7 @@ fn dvsa(x: f64, va: f64) -> f64 {
             pd = 0.0;
         } else {
             let ga0 = gamma2(va0);
-            pd = PI.sqrt() / ((-0.5 * va).exp2() * ga0);
+            pd = SQRT_PI / ((-0.5 * va).exp2() * ga0);
         }
     } else {
         let g1 = gamma2(-va);
@@ -115,7 +116,7 @@ fn vvla(x: f64, va: f64) -> f64 {
     let eps = 1e-12;
 
     let qe = (0.25 * x * x).exp();
-    let a0 = x.abs().powf(-va - 1.0) * (2.0 / PI).sqrt() * qe;
+    let a0 = x.abs().powf(-va - 1.0) * SQRT2OPI * qe;
     let mut r = 1.0;
     let mut pv = 1.0;
     for k in 1..=18 {
@@ -364,7 +365,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let v0 = v - f64::from(nv);
     let na = nv.abs();
     let qe = (0.25 * x * x).exp();
-    let q2p = (2.0 / PI).sqrt();
+    let q2p = SQRT2OPI;
     let mut ja = 0;
     if na >= 1 {
         ja = 1;

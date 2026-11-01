@@ -12,6 +12,7 @@ use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
 
+use crate::utils::LN_TAU;
 use crate::xsf::tools::int_x86;
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
@@ -144,7 +145,7 @@ pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     }
     let mut az0 = c64(x0, yy).norm();
     let th = yy.atan2(x0);
-    let mut gr = (x0 - 0.5) * az0.ln() - th * yy - x0 + 0.5 * (2.0 * PI).ln();
+    let mut gr = (x0 - 0.5) * az0.ln() - th * yy - x0 + 0.5 * LN_TAU;
     let mut gi = th * (x0 - 0.5) + yy * az0.ln() - yy;
     for k in 1..11 {
         let t = az0.powf(f64::from(1 - 2 * k));

@@ -8,7 +8,7 @@
 
 #![allow(clippy::unreadable_literal)]
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_PI, PI};
 
 #[allow(clippy::float_cmp)]
 fn specfun_convinf(x: f64) -> f64 {
@@ -42,7 +42,7 @@ fn itth0(x: f64) -> f64 {
                 break;
             }
         }
-        tth = PI / 2.0 - 2.0 / PI * x * s;
+        tth = PI / 2.0 - FRAC_2_PI * x * s;
     } else {
         for k in 1..11 {
             let k = f64::from(k);
@@ -97,7 +97,7 @@ fn itsh0(x: f64) -> f64 {
                 break;
             }
         }
-        th0 = 2.0 / PI * x * x * s;
+        th0 = FRAC_2_PI * x * x * s;
     } else {
         s = 1.0;
         for k in 1..13 {
@@ -109,7 +109,7 @@ fn itsh0(x: f64) -> f64 {
                 break;
             }
         }
-        let s0 = s / (PI * x * x) + 2.0 / PI * ((2.0 * x).ln() + el);
+        let s0 = s / (PI * x * x) + FRAC_2_PI * ((2.0 * x).ln() + el);
         let mut a0 = 1.0;
         let mut a1 = 5.0 / 8.0;
         a[0] = a1;
@@ -167,7 +167,7 @@ fn itsl0(x: f64) -> f64 {
                 break;
             }
         }
-        tl0 = 2.0 / PI * x * x * s;
+        tl0 = FRAC_2_PI * x * x * s;
     } else {
         s = 1.0;
         for k in 1..11 {
@@ -179,7 +179,7 @@ fn itsl0(x: f64) -> f64 {
                 break;
             }
         }
-        let s0 = -s / (PI * x * x) + 2.0 / PI * ((2.0 * x).ln() + el);
+        let s0 = -s / (PI * x * x) + FRAC_2_PI * ((2.0 * x).ln() + el);
         let mut a0 = 1.0;
         let mut a1 = 5.0 / 8.0;
         a[0] = a1;

@@ -81,8 +81,9 @@
 //! Unlike in xsf, `(int) v` and `(int) (-v - 0.5)` saturate for `v` outside the `int` range
 //! (undefined behavior in C++).
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_SQRT_PI, PI};
 
+use crate::utils::SQRT_PI;
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gammasgn, iv, lgam, rgamma};
@@ -123,7 +124,7 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     }
 
     /* Evaluate sum */
-    let mut term = f64::from(-sgn) / PI.sqrt()
+    let mut term = f64::from(-sgn) / SQRT_PI
         * (-lgam(v + 0.5) + (v - 1.0) * (z / 2.0).ln()).exp()
         * gammasgn(v + 0.5);
     let mut sum = term;
@@ -190,7 +191,7 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
         scaleexp = 0.0;
     }
 
-    term = 2.0 / PI.sqrt() * tmp.exp() * gammasgn(v + 1.5);
+    term = FRAC_2_SQRT_PI * tmp.exp() * gammasgn(v + 1.5);
     sum = term;
     let mut maxterm: f64 = 0.0;
 
@@ -300,7 +301,7 @@ fn struve_hl(v: f64, z: f64, is_h: bool) -> f64 {
         if v < -1.0 {
             return gammasgn(v + 1.5) * f64::INFINITY;
         } else if v == -1.0 {
-            return 2.0 / PI.sqrt() * rgamma(0.5);
+            return FRAC_2_SQRT_PI * rgamma(0.5);
         }
         return 0.0;
     }

@@ -14,12 +14,10 @@ use std::f64::consts::{LN_2, PI, TAU};
 
 use num_complex::Complex;
 
+use crate::utils::{LN_PI, LN_TAU};
 use crate::xsf::complex::{cdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-
-// cephes/const.h
-const LOGPI: f64 = 1.144_729_885_849_400_2; // log(pi)
 
 const NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
 
@@ -117,7 +115,7 @@ fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
          * Uses https://dlmf.nist.gov/24.11#E1 to approximate B_{2n} and
          * Stirling's approximation for (2n)!.
          */
-        (LN_2 - 2.0 * n as f64 * TAU.ln()).into()
+        (LN_2 - 2.0 * n as f64 * LN_TAU).into()
     };
     if n % 2 == 0 {
         /* B_{2n}/(2n)! is negative for even n. This contributes a term
@@ -360,7 +358,7 @@ fn logsinpi(z: Complex<f64>) -> Complex<f64> {
 /// the lanczos approximation for the gamma function.
 fn zeta_reflection_factor_with_logs(z: Complex<f64>) -> Complex<f64> {
     let t1 = z * LN_2;
-    let t2 = (z - 1.0) * LOGPI;
+    let t2 = (z - 1.0) * LN_PI;
     let t3 = logsinpi(z / 2.0);
     let t4 = crate::loggamma(rsub(1.0, z));
     cexp(t1 + t2 + t3 + t4)

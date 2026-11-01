@@ -14,10 +14,8 @@
 //! results of the psi function expansion (for `x > 0.9` and integer `c - a - b`) can differ from
 //! those in xsf when `a`, `b`, `c - a` or `c - b` is close to a negative integer.
 
+use crate::utils::MACHEP;
 use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 const HYP2F1_EPS: f64 = 1.0e-13;
 

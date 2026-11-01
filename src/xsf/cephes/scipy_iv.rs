@@ -49,14 +49,13 @@
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_PI, PI};
 
+use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
 const MAXITER: u64 = 500;
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 /*
  * Compute Iv from (AMS5 9.7.1), asymptotic expansion for large |z|
@@ -231,7 +230,7 @@ fn ikv_asymptotic_uniform(
             *i_value = i_prefactor * i_sum;
         } else {
             /* (AMS 9.6.2) */
-            *i_value = i_prefactor * i_sum + (2.0 / PI) * sinpi(v) * k_prefactor * k_sum;
+            *i_value = i_prefactor * i_sum + FRAC_2_PI * sinpi(v) * k_prefactor * k_sum;
         }
     }
 }
@@ -528,7 +527,7 @@ fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>)
         let z = u + f64::from(n % 2);
 
         if let Some(Iv_p) = Iv_p {
-            *Iv_p = Iv + (2.0 / PI) * sinpi(z) * Kv; /* reflection formula */
+            *Iv_p = Iv + FRAC_2_PI * sinpi(z) * Kv; /* reflection formula */
         }
         if let Some(Kv_p) = Kv_p {
             *Kv_p = Kv;

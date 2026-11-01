@@ -21,6 +21,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::{LN_PI, LN_SQRT_2PI};
 use crate::xsf::complex::cdiv;
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
@@ -31,8 +32,6 @@ use num_complex::Complex;
 
 const LOGGAMMA_SMALLX: f64 = 7.0;
 const LOGGAMMA_SMALLY: f64 = 7.0;
-const LOGGAMMA_HLOG2PI: f64 = 0.918_938_533_204_672_8; // log(2*pi)/2
-const LOGGAMMA_LOGPI: f64 = 1.144_729_885_849_400_2; // log(pi)
 const LOGGAMMA_TAYLOR_RADIUS: f64 = 0.2;
 
 fn loggamma_stirling(z: Complex<f64>) -> Complex<f64> {
@@ -54,7 +53,7 @@ fn loggamma_stirling(z: Complex<f64>) -> Complex<f64> {
     let rz = cdiv(Complex::new(1.0, 0.0), z);
     let rzz = cdiv(rz, z);
 
-    (z - 0.5) * clog(z) - z + LOGGAMMA_HLOG2PI + rz * cevalpoly(&coeffs, rzz)
+    (z - 0.5) * clog(z) - z + LN_SQRT_2PI + rz * cevalpoly(&coeffs, rzz)
 }
 
 fn loggamma_recurrence(mut z: Complex<f64>) -> Complex<f64> {
@@ -166,7 +165,7 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
         let tmp = (2.0 * PI).copysign(z.im) * (0.5 * z.re + 0.25).floor();
         // `1.0 - z` as in C++, where the imaginary part is `-z.im` instead of `0.0 - z.im`
         let omz = Complex::new(1.0 - z.re, -z.im);
-        return Complex::new(LOGGAMMA_LOGPI, tmp) - clog(crate::sinpi(z)) - cloggamma(omz);
+        return Complex::new(LN_PI, tmp) - clog(crate::sinpi(z)) - cloggamma(omz);
     }
     if !z.im.is_sign_negative() {
         // z.imag() >= 0 but is not -0.0

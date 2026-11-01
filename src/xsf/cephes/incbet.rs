@@ -6,16 +6,11 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG};
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr};
 use crate::xsf::log::log1pmx;
 
 use core::f64::consts::TAU;
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
-const MINLOG: f64 = -745.133_219_101_941_2; // log(2**(-1075))
-const MAXGAM: f64 = 171.624_376_956_302_7; // Largest x such that Gamma(x) is finite
 
 const INCBET_BIG: f64 = 4.503_599_627_370_496e15;
 const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;

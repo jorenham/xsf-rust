@@ -1,7 +1,7 @@
 //! Bernoulli and Euler numbers, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (xsf v0.2.2).
 
-use core::f64::consts::PI;
+use core::f64::consts::FRAC_2_PI;
 
 #[allow(
     clippy::approx_constant,
@@ -57,7 +57,7 @@ pub(crate) fn eulerb(n: i32, en: &mut [f64]) {
     // buffer, the write to en[2] is out of bounds. The only caller, `euler::<N>`, passes
     // n = N - 1 with N >= 3 and a zeroed N-element buffer, so that's fine.
 
-    let hpi = 2.0 / PI;
+    let hpi = FRAC_2_PI;
     en[0] = 1.0;
     en[2] = -1.0;
     let mut r1 = -4.0 * hpi.powf(3.0);

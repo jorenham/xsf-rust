@@ -11,6 +11,7 @@ use num_complex::{Complex64, c64};
 
 use super::hyp1f1_recurrence::hyp1f1_neg_a;
 use super::{cgama, gamma2, psi_spec};
+use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
@@ -328,7 +329,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                 hg += rg;
                 rs += rg.abs();
                 if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
-                    accurate = rs * f64::EPSILON.sqrt() <= hg.abs();
+                    accurate = rs * SQRT_EPS <= hg.abs();
                     // DLMF 13.2.39 (cf. above)
                     if x0 < 0.0 {
                         hg *= x0.exp();
@@ -515,7 +516,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     //      (2) PSI_SPEC for computing psi function
     // ======================================================
 
-    const EL: f64 = 0.5772156649015329;
+    const EL: f64 = SCIPY_EULER;
 
     let (a0, a1, a2, ga1, ua, ub);
 

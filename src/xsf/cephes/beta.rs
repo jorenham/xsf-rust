@@ -9,17 +9,11 @@
 //! Unlike in xsf, `1 - a` in the negative integer helpers is computed in floating point instead of
 //! in `int`, where it overflows (UB) for `a = -2^31` and `a = -2^31 + 1`.
 
+use crate::utils::{MAXGAM, MAXLOG};
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::cephes_sinpi;
 
 use core::f64::consts::PI;
-
-// cephes/const.h
-
-/// log(DBL_MAX)
-const MAXLOG: f64 = 709.782_712_893_384;
-/// Largest x such that Gamma(x) is finite
-const MAXGAM: f64 = 171.624_376_956_302_7;
 
 const BETA_ASYMP_FACTOR: f64 = 1e6;
 

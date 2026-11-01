@@ -6,11 +6,11 @@ use core::f64::consts::LN_2;
 
 use num_complex::Complex;
 
+use crate::utils::MACHEP;
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h
 const MAXITER: u64 = 500;
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
 
 /// Natural logarithm of complex `z`
 ///

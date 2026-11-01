@@ -111,8 +111,11 @@
     clippy::unreadable_literal
 )]
 
+use core::f64::consts::{LN_2, LN_10};
+
 use num_complex::{Complex64, c64};
 
+use crate::utils::SQRT3;
 use crate::xsf::complex::{cdiv, cmul, csqrt, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -3697,7 +3700,7 @@ pub(crate) fn bknu(
         // 12 <= E <= 60. E IS COMPUTED FROM 2**(-E)=B**(1-DIGITS(0.0_dp))=
         // TOL WHERE B IS THE BASE OF THE ARITHMETIC.
         //
-        t1 = (I1MACH[13] - 1.0) * D1MACH[4] * (10.0_f64.ln() / 2.0_f64.ln());
+        t1 = (I1MACH[13] - 1.0) * D1MACH[4] * (LN_10 / LN_2);
         t1 = t1.max(12.0).min(60.0);
         t2 = tth * t1 - 6.0;
         t1 = yy.atan2(xx).abs();
@@ -4059,7 +4062,7 @@ pub(crate) fn buni(
     nz = 0;
     xx = z.re;
     yy = z.im;
-    ax = xx.abs() * 3.0_f64.sqrt();
+    ax = xx.abs() * SQRT3;
     ay = yy.abs();
     iform = 1;
     if ay > ax {
@@ -7517,7 +7520,7 @@ pub(crate) fn uoik(
     }
     zb = zr;
     yy = zr.im;
-    ax = x.abs() * 3.0_f64.sqrt();
+    ax = x.abs() * SQRT3;
     ay = yy.abs();
     iform = 1;
     if ay > ax {

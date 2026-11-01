@@ -9,10 +9,8 @@
 //! status code is dropped, and the range for which INFINITY is returned is corrected in the
 //! comments.
 
+use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::chbevl::chbevl;
-
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const SCIPY_EULER: f64 = 0.577_215_664_901_532_9;
 
 /* x exp(-x) shi(x), inverted interval 8 to 18 */
 const SHICHI_S1: [f64; 22] = [

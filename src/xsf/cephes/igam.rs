@@ -26,13 +26,10 @@
 
 use core::f64::consts::{E, TAU};
 
+use crate::utils::{MACHEP, MAXLOG};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::{erfc, lgam, lgam1p};
 use crate::xsf::log::log1pmx;
-
-// cephes/const.h
-const MACHEP: f64 = 1.110_223_024_625_156_5e-16; // 2**-53
-const MAXLOG: f64 = 709.782_712_893_384; // log(DBL_MAX)
 
 const IGAM_MAXITER: i32 = 2000;
 const IGAM: i32 = 1;
