@@ -29,7 +29,10 @@ pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
         }
     }
 
-    if (-TUKEY_SMALLVAL < lmbda) && (lmbda < TUKEY_SMALLVAL) {
+    // Unlike in xsf, the logistic CDF only for (subnormal) lambda = 0, instead of |lambda| < 1e-4,
+    // as its relative error is ~lambda x^2 / 2, e.g. `tukeylambdacdf(-20.0, 9e-5)` was 2.06e-9,
+    // not 2.02e-9.
+    if lmbda.abs() < f64::MIN_POSITIVE {
         if x >= 0.0 {
             return 1.0 / (1.0 + (-x).exp());
         }
@@ -43,8 +46,17 @@ pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
     let mut phigh = pmax;
     let mut count = 0;
 
-    while (count < TUKEY_MAXCOUNT) && ((pmid - plow).abs() > TUKEY_EPS) {
-        xeval = (pmid.powf(lmbda) - (1.0 - pmid).powf(lmbda)) / lmbda;
+    // Unlike in xsf, a relative tolerance (and more iterations for small p), since e.g.
+    // `tukeylambdacdf(-4.6870665239279194, 0.21296947909944208)` was 1.287382e-13, not 1.287389e-13.
+    while (f64::from(count) < f64::from(TUKEY_MAXCOUNT) - pmid.log2())
+        && ((pmid - plow).abs() > TUKEY_EPS * pmid)
+    {
+        xeval = if lmbda.abs() < TUKEY_SMALLVAL {
+            // Unlike in xsf, without the cancellation of p^lambda - (1-p)^lambda for small lambda
+            ((lmbda * pmid.ln()).exp_m1() - (lmbda * (-pmid).ln_1p()).exp_m1()) / lmbda
+        } else {
+            (pmid.powf(lmbda) - (1.0 - pmid).powf(lmbda)) / lmbda
+        };
         if xeval == x {
             return pmid;
         }
