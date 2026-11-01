@@ -353,8 +353,8 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         let mut d =
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
-            // Unlike in xsf, fall back to the equivalent binomial if a Gamma function overflows
-            // or the ratio is not finite.
+            // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
+            // function overflows or the ratio is not finite.
             //
             // E.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95, and
             // `eval_gegenbauer(171.5, 0.01, 1.0)` was 0 instead of 1.307e-4.
