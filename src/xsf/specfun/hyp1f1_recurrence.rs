@@ -395,7 +395,15 @@ pub(super) fn hyp1f1_neg_b(
 
     let from = |n: f64, max_err: f64| {
         let n = n as i32;
-        let (m0, m1) = (m(b + f64::from(n)), m(b + f64::from(n + 1)));
+        // `m` can be slow, so stop at the first non-finite initial value
+        let m0 = m(b + f64::from(n));
+        if !m0.is_finite() {
+            return None;
+        }
+        let m1 = m(b + f64::from(n + 1));
+        if !m1.is_finite() {
+            return None;
+        }
         let run = |m1| {
             let mut log_scaling = 0;
             let coefs = recurrence_small_b_coefficients(a, b, z, n);
