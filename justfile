@@ -23,9 +23,9 @@ accuracy *args:
     uv run tools/accuracy/accuracy.py {{ args }}
 
 lint-py:
-    uvx ruff@0.17.3 check tools
-    uvx ruff@0.17.3 format --check tools
-    uvx --with mpmath==1.4.1 basedpyright@1.40.2 -p tools
+    uv run --project tools --locked --only-group lint ruff check tools
+    uv run --project tools --locked --only-group lint ruff format --check tools
+    uv run --project tools --locked --only-group lint basedpyright -p tools
 
 doc *args:
     RUSTDOCFLAGS="--html-in-header katex.html" cargo +nightly doc --all-features --no-deps {{ args }}

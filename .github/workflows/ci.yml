@@ -62,14 +62,15 @@ jobs:
         with:
           enable-cache: false
 
+      # the versions are locked in tools/uv.lock, which dependabot updates
       - name: ruff check
-        run: uvx ruff@0.17.3 check tools
+        run: uv run --project tools --locked --only-group lint ruff check tools
 
       - name: ruff format
-        run: uvx ruff@0.17.3 format --check tools
+        run: uv run --project tools --locked --only-group lint ruff format --check tools
 
       - name: basedpyright
-        run: uvx --with mpmath==1.4.1 basedpyright@1.40.2 -p tools
+        run: uv run --project tools --locked --only-group lint basedpyright -p tools
 
   msrv:
     runs-on: ubuntu-latest
