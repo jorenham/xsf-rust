@@ -1,13 +1,14 @@
-//! Translated from `scipy/special/orthogonal_eval.pxd`
+//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` in xsf main, which in
+//! turn were translated from `scipy/special/orthogonal_eval.pxd`
 //!
-//! <https://github.com/scipy/scipy/blob/c16dc41/scipy/special/orthogonal_eval.pxd>
+//! - <https://github.com/scipy/xsf/blob/b6cb425/include/xsf/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/b6cb425/include/xsf/cpu/orthogonal_eval.h>
 
-use core::cmp::Ordering;
 use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::SQRT_PI;
+use crate::utils::{MAXGAM, SQRT_PI};
 
 mod sealed {
     pub trait OrthoPolyArg:
@@ -21,6 +22,9 @@ mod sealed {
 
         fn is_finite(&self) -> bool;
         fn is_nan(&self) -> bool;
+
+        /// `Some(x)` if `Self` is `f64`
+        fn as_f64(&self) -> Option<f64>;
 
         #[inline]
         fn hyp2f1_sh(self, a1: f64, a2: f64, b: f64) -> Self {
@@ -40,6 +44,11 @@ mod sealed {
         fn is_nan(&self) -> bool {
             (*self).is_nan()
         }
+
+        #[inline]
+        fn as_f64(&self) -> Option<f64> {
+            Some(*self)
+        }
     }
 
     impl OrthoPolyArg for num_complex::Complex<f64> {
@@ -54,15 +63,12 @@ mod sealed {
         fn is_nan(&self) -> bool {
             (*self).is_nan()
         }
-    }
-}
 
-/// Helper function for the generalized multiset coefficient
-///
-/// <https://mathworld.wolfram.com/Multichoose.html>
-#[inline]
-fn multiset(n: f64, k: f64) -> f64 {
-    crate::binom(n + k - 1.0, k)
+        #[inline]
+        fn as_f64(&self) -> Option<f64> {
+            None
+        }
+    }
 }
 
 ///////////////////////////////
@@ -76,12 +82,11 @@ pub trait JacobiArg<N>: sealed::OrthoPolyArg {
 }
 
 impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
-    /// Corresponds to `eval_jacobi` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_jacobi`
     #[inline]
     #[allow(clippy::float_cmp, clippy::manual_midpoint)]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
         if a == -1.0 && b.abs() == 1.0 {
-            // like in xsf main, avoid the hyp2f1 pole at c = 1 + alpha = 0
             if n == 0.0 {
                 return Self::ZERO + 1.0;
             } else if n == 1.0 {
@@ -91,11 +96,11 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
                 return (self - 1.0) * ((n + b) / (2.0 * n)) * p;
             }
         }
-        let a1 = a + 1.0;
-        self.hyp2f1_sh(-n, n + a1 + b, a1) * multiset(a1, n)
+        let d = crate::binom(n + a, n);
+        self.hyp2f1_sh(-n, n + a + b + 1.0, a + 1.0) * d
     }
 
-    /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_legendre`
     #[inline]
     fn eval_legendre(self, n: f64) -> Self {
         if self.is_nan() {
@@ -106,49 +111,50 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
 }
 
 impl JacobiArg<i32> for f64 {
-    /// Corresponds to `eval_jacobi_l` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_jacobi_l`
     #[inline]
-    #[allow(clippy::float_cmp)]
-    fn eval_jacobi(self, n: i32, a: f64, b: f64) -> Self {
-        match n.cmp(&0) {
-            Ordering::Less => self.eval_jacobi(f64::from(n), a, b),
-            Ordering::Equal => 1.0,
-            Ordering::Greater => {
-                let a1 = a + 1.0;
-                // setting u = (x - 1) / 2 simplifies the recurrence
-                let u = 0.5 * self - 0.5;
-                let d0 = (a + b + 2.0) * u;
-
-                if n == 1 {
-                    a1 + d0
-                } else if a == -1.0 && b.abs() == 1.0 {
-                    // like in xsf main, avoid the division by alpha + 1 = 0
-                    let n = f64::from(n);
-                    ((n + b) / (2.0 * n)) * (self - 1.0) * self.eval_jacobi(n - 1.0, 1.0, b)
-                } else {
-                    let mut d = d0 / a1;
-                    let mut p = d + 1.0;
-                    for k in 1..n {
-                        let k = f64::from(k);
-                        let t = 2.0 * k + a + b;
-                        d = (t + 2.0) * ((t + 1.0) * t * u * p + k * (k + b) * d)
-                            / ((k + a1) * (k + a1 + b) * t);
-                        p += d;
-                    }
-                    p * multiset(a1, f64::from(n))
-                }
-            },
+    #[allow(clippy::float_cmp, clippy::manual_midpoint)]
+    fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
+        let x = self;
+        if n < 0 {
+            x.eval_jacobi(f64::from(n), alpha, beta)
+        } else if n == 0 {
+            1.0
+        } else if n == 1 {
+            0.5 * (2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (x - 1.0))
+        } else if alpha == -1.0 && beta.abs() == 1.0 {
+            let n = f64::from(n);
+            ((n + beta) / (2.0 * n)) * (x - 1.0) * x.eval_jacobi(n - 1.0, 1.0, beta)
+        } else {
+            let mut d = (alpha + beta + 2.0) * (x - 1.0) / (2.0 * (alpha + 1.0));
+            let mut p = d + 1.0;
+            for kk in 0..n - 1 {
+                let k = f64::from(kk) + 1.0;
+                let t = 2.0 * k + alpha + beta;
+                d = ((t * (t + 1.0) * (t + 2.0)) * (x - 1.0) * p
+                    + 2.0 * k * (k + beta) * (t + 2.0) * d)
+                    / (2.0 * (k + alpha + 1.0) * (k + alpha + beta + 1.0) * t);
+                p += d;
+            }
+            let n = f64::from(n);
+            crate::binom(n + alpha, n) * p
         }
     }
 
-    /// Corresponds to `eval_legendre_l` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_legendre_l`
+    // Integer-degree P_n(x) by forward recurrence on the values p_k = P_k(x) and their
+    // differences d_k = p_k - p_{k-1}:
+    //   d_{k+1} = ((2k + 1) (x - 1) p_k + k d_k) / (k + 1),  p_{k+1} = p_k + d_{k+1},
+    // starting from p_1 = x, d_1 = x - 1. Near x = 0 an explicit power series is used instead.
     #[inline]
     fn eval_legendre(self, n: i32) -> Self {
-        if self.is_nan() {
-            return self;
-        }
-        let n = if n < 0 { -(n + 1) } else { n }; // symmetry
         let x = self;
+        if x.is_nan() {
+            return x;
+        }
+
+        // P_{-n-1}(x) = P_n(x); add before negating to avoid signed overflow.
+        let n = if n < 0 { -(n + 1) } else { n };
 
         if n == 0 {
             1.0
@@ -157,34 +163,32 @@ impl JacobiArg<i32> for f64 {
         } else if x.abs() < 1e-5 {
             // Power series rather than recurrence due to loss of precision
             // http://functions.wolfram.com/Polynomials/LegendreP/02/
-            let aa = n / 2;
-            let a = f64::from(aa);
-            let n_f64 = f64::from(n);
-
-            let mut d = (-1.0_f64).powi(aa) * multiset(a + 1.0, -0.5);
-            if n & 1 == 1 {
-                // odd n
-                d *= n_f64 * x;
+            let a = n / 2;
+            let mut d = if a % 2 == 0 { 1.0 } else { -1.0 };
+            if n % 2 == 0 {
+                d *= -2.0 / crate::beta(f64::from(a) + 1.0, -0.5);
+            } else {
+                d *= 2.0 * x / crate::beta(f64::from(a) + 1.0, 0.5);
             }
 
-            let x2 = x * x;
             let mut p = 0.0;
-            for kk in 0..=aa {
-                let kk = f64::from(kk);
+            for kk in 0..=a {
+                let (n, a, kk) = (f64::from(n), f64::from(a), f64::from(kk));
                 p += d;
-                // d *= -2 * x**2 * (a - kk) * (2*n + 1 - 2*a + 2*kk) / (
-                //     (n + 1 - 2*a + 2*kk) * (n + 2 - 2*a + 2*kk))
-                let u = 2.0 * (kk - a);
-                let v = 1.0 + u + n_f64;
-                d *= u * (v + n_f64) * x2 / (v * (1.0 + v));
+                d *= -2.0 * x * x * (a - kk) * (2.0 * n + 1.0 - 2.0 * a + 2.0 * kk)
+                    / ((n + 1.0 - 2.0 * a + 2.0 * kk) * (n + 2.0 - 2.0 * a + 2.0 * kk));
+                if d.abs() < 1e-20 * p.abs() {
+                    // converged
+                    break;
+                }
             }
             p
         } else {
-            let (mut p, mut d) = (x, x - 1.0);
-            for k in 1..n {
-                let k = f64::from(k);
-                // ((2*k+1)/(k+1))*(x-1)*p + (k/(k+1)) * d
-                d = ((2.0 * k + 1.0) * (x - 1.0) * p + k * d) / (k + 1.0);
+            let mut d = x - 1.0;
+            let mut p = x;
+            for kk in 0..n - 1 {
+                let k = f64::from(kk) + 1.0;
+                d = ((2.0 * k + 1.0) / (k + 1.0)) * (x - 1.0) * p + (k / (k + 1.0)) * d;
                 p += d;
             }
             p
@@ -327,86 +331,113 @@ pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
 }
 
 impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
-    /// Corresponds to `eval_gegenbauer` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_gegenbauer`
     #[inline]
-    fn eval_gegenbauer(self, n: f64, a: f64) -> Self {
-        if a == 0.0 {
-            if n.is_nan() || self.clone().is_nan() {
-                self * n
-            } else {
-                Self::ZERO
+    #[allow(clippy::cast_possible_truncation)]
+    fn eval_gegenbauer(self, n: f64, alpha: f64) -> Self {
+        // If n is an integer, use more stable `eval_gegenbauer_l`
+        if let Some(x) = self.as_f64() {
+            if (0.0..1e10).contains(&n) && n.fract() == 0.0 {
+                return Self::from(eval_gegenbauer_l(n as i64, alpha, x));
             }
-        } else if !self.clone().is_finite() {
-            self * a
-        } else {
-            let aa = 2.0 * a;
-            self.hyp2f1_sh(-n, n + aa, 0.5 + a) * multiset(aa, n)
         }
+
+        // Unlike in xsf, complex x with n = alpha = 0 gives 0, like `eval_gegenbauer_l`, instead
+        // of the NaN of the Gamma ratio below (inf / inf).
+        //
+        // E.g. `eval_gegenbauer(0.0, 0.0, c64(0.5, 0.0))` is NaN in xsf.
+        if n == 0.0 && alpha == 0.0 && !self.is_nan() {
+            return Self::ZERO;
+        }
+
+        let mut d =
+            crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
+        if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
+            // Unlike in xsf, fall back to the equivalent binomial if a Gamma function overflows
+            // or the ratio is not finite.
+            //
+            // E.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95, and
+            // `eval_gegenbauer(171.5, 0.01, 1.0)` was 0 instead of 1.307e-4.
+            d = crate::binom(n + 2.0 * alpha - 1.0, n);
+        }
+        self.hyp2f1_sh(-n, n + 2.0 * alpha, alpha + 0.5) * d
     }
 }
 
 impl GegenbauerArg<i32> for f64 {
-    /// Corresponds to `eval_gegenbauer_l` in `scipy/special/orthogonal_eval.pxd`
     #[inline]
     fn eval_gegenbauer(self, n: i32, alpha: f64) -> Self {
-        if alpha.is_nan() || self.is_nan() {
-            f64::NAN
-        } else if n < 0 || alpha == 0.0 {
-            // https://functions.wolfram.com/Polynomials/GegenbauerC3/03/01/02/0001/
-            // https://functions.wolfram.com/Polynomials/GegenbauerC3/03/01/03/0012/
-            0.0
-        } else if n == 0 {
-            1.0
-        } else if n == 1 {
-            2.0 * alpha * self
-        } else if self.abs() < 1e-5 {
-            // Power series rather than recurrence due to loss of precision.
-            // We use backwards iteration to avoid large powers of z in the initial term.
-            // https://functions.wolfram.com/Polynomials/GegenbauerC3/02/0001/
+        eval_gegenbauer_l(i64::from(n), alpha, self)
+    }
+}
 
-            let m = n / 2;
+/// Corresponds to `xsf::detail::eval_gegenbauer_l`
+// Integer-degree C_n^(alpha)(x). For |x| >= 1e-5, forward recurrence on the normalized values
+// p_k = C_k^(alpha)(x) / binom(k + 2 alpha - 1, k) and their differences d_k = p_k - p_{k-1}:
+//   d_{k+1} = 2 (k + alpha) / (k + 2 alpha) (x - 1) p_k + k / (k + 2 alpha) d_k,  p_{k+1} = p_k + d_{k+1},
+// starting from p_1 = x, d_1 = x - 1. For |x| < 1e-5, the explicit power series in x is used instead.
+#[allow(clippy::cast_precision_loss, clippy::float_cmp)]
+fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
+    if alpha.is_nan() || x.is_nan() {
+        return f64::NAN;
+    }
 
-            let mut term = (-1.0_f64).powi(m) * multiset(alpha, f64::from(m));
-            if n == 2 * m + 1 {
-                term *= 2.0 * (alpha + f64::from(m)) * self;
-            }
+    if alpha == 0.0 {
+        return 0.0;
+    }
+    if n < 0 {
+        return 0.0;
+    } else if n == 0 {
+        return 1.0;
+    } else if n == 1 {
+        return 2.0 * alpha * x;
+    }
 
-            let c = -4.0 * self * self;
-            let mut sum = term;
-            for k in (1..=m).rev() {
-                let k = f64::from(k);
-                let nk = f64::from(n) - k;
-                let nkk = nk - k;
-                term *= c * k * (nk + alpha) / ((nkk + 1.0) * (nkk + 2.0));
-                sum += term;
-            }
-            sum
+    // Symmetry property: C_n^alpha(-x) = (-1)^n C_n^alpha(x) for integer n
+    let sign = if x < 0.0 && n % 2 != 0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+
+    if x < 1e-5 {
+        // Power series rather than recurrence due to loss of precision
+        // http://functions.wolfram.com/Polynomials/GegenbauerC3/02/
+        let a = n / 2;
+
+        let mut d = if a % 2 == 0 { 1.0 } else { -1.0 };
+        d /= crate::beta(alpha, 1.0 + a as f64);
+        if n == 2 * a {
+            d /= a as f64 + alpha;
         } else {
-            // Recurrence relation
-            // https://functions.wolfram.com/Polynomials/GegenbauerC3/17/01/01/01/0002/
+            d *= 2.0 * x;
+        }
 
-            // Symmetry property: C_n^alpha(-x) = (-1)^n C_n^alpha(x) for integer n (like in xsf main)
-            let sign = if self < 0.0 && n % 2 == 1 { -1.0 } else { 1.0 };
-            let x = self.abs();
-
-            let aa = alpha * 2.0;
-            let d0 = x - 1.0;
-            let (mut p, mut d) = (x, d0);
-            for k in 1..n {
-                let k = f64::from(k);
-                d = (k * d + (k + k + aa) * d0 * p) / (k + aa);
-                p += d;
-            }
-
-            let n = f64::from(n);
-            if (alpha / n).abs() < 1e-8 {
-                // avoid loss of precision
-                sign * aa / n * p
-            } else {
-                sign * multiset(aa, n) * p
+        let mut p = 0.0;
+        for kk in 0..=a {
+            let (n, a, kk) = (n as f64, a as f64, kk as f64);
+            p += d;
+            d *= -4.0 * x * x * (a - kk) * (alpha - a + kk + n)
+                / ((n + 1.0 - 2.0 * a + 2.0 * kk) * (n + 2.0 - 2.0 * a + 2.0 * kk));
+            if d.abs() < 1e-20 * p.abs() {
+                // converged
+                break;
             }
         }
+        return sign * p;
     }
+
+    let mut d = x - 1.0;
+    let mut p = x;
+    for kk in 0..n - 1 {
+        let k = kk as f64 + 1.0;
+        d = (2.0 * (k + alpha) / (k + 2.0 * alpha)) * (x - 1.0) * p + (k / (k + 2.0 * alpha)) * d;
+        p += d;
+    }
+
+    let n = n as f64;
+    if (alpha / n).abs() < 1e-8 {
+        // avoid loss of precision
+        return sign * 2.0 * alpha / n * p;
+    }
+    sign * crate::binom(n + 2.0 * alpha - 1.0, n) * p
 }
 
 /// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
@@ -465,12 +496,27 @@ impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
 }
 
 impl ChebyshevArg<i32> for f64 {
+    /// Corresponds to `xsf::detail::eval_chebyt_l`
+    // Use the Chebyshev T recurrence directly, see Mason & Handscomb, Chebyshev Polynomials, CRC Press (2003).
     #[inline]
-    fn eval_chebyshev_t(self, n: i32) -> Self {
+    fn eval_chebyshev_t(self, k: i32) -> Self {
         if self.is_nan() {
             return self;
         }
-        chebyshev_recurrence(self, 1.0, self, 0..n.abs())
+
+        // symmetry: T_{-k}(x) = T_k(x)
+        let k = k.unsigned_abs();
+
+        let mut b2 = 0.0;
+        let mut b1 = -1.0;
+        let mut b0 = 0.0;
+        let x = 2.0 * self;
+        for _ in 0..=k {
+            b2 = b1;
+            b1 = b0;
+            b0 = x * b1 - b2;
+        }
+        (b0 - b2) / 2.0
     }
 
     #[inline]
@@ -629,33 +675,50 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
 }
 
 impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
-    /// Corresponds to `eval_genlaguerre` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_genlaguerre` in `xsf/cpu/orthogonal_eval.h`
     #[inline]
-    fn eval_genlaguerre(self, n: f64, a: f64) -> Z {
-        if a <= -1.0 {
+    fn eval_genlaguerre(self, n: f64, alpha: f64) -> Z {
+        if alpha <= -1.0 {
             // polynomial defined only for alpha > -1
             return Self::ZERO + f64::NAN;
         }
-        let a1 = a + 1.0;
-        self.hyp1f1(-n, a1) * multiset(a1, n)
+
+        let d = crate::binom(n + alpha, n);
+        self.hyp1f1(-n, alpha + 1.0) * d
     }
 }
 
 impl LaguerreArg<i32> for f64 {
-    /// Corresponds to `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_genlaguerre_l`
+    // Integer-degree L_n^(alpha)(x) by forward recurrence on the normalized values
+    // p_k = L_k^(alpha)(x) / binom(k + alpha, k) and their differences d_k = p_k - p_{k-1}:
+    //   d_{k+1} = (k d_k - x p_k) / (k + alpha + 1),  p_{k+1} = p_k + d_{k+1},
+    // starting from p_0 = 1, d_0 = 0.
     #[inline]
-    fn eval_genlaguerre(self, n: i32, a: f64) -> Self {
-        if a <= -1.0 || a.is_nan() || self.is_nan() {
+    fn eval_genlaguerre(self, n: i32, alpha: f64) -> Self {
+        let x = self;
+        if alpha <= -1.0 || alpha.is_nan() || x.is_nan() {
             // polynomial defined only for alpha > -1
-            f64::NAN
-        } else if n < 0 {
-            0.0
-        } else if n == 1 {
-            -self + a + 1.0
-        } else {
-            let a1 = a + 1.0;
-            crate::xsf::chgm_poly(n, a1, self) * multiset(a1, f64::from(n))
+            return f64::NAN;
         }
+
+        if n < 0 {
+            return 0.0;
+        } else if n == 0 {
+            return 1.0;
+        } else if n == 1 {
+            return -x + alpha + 1.0;
+        }
+
+        let mut d = -x / (alpha + 1.0);
+        let mut p = d + 1.0;
+        for kk in 0..n - 1 {
+            let k = f64::from(kk) + 1.0;
+            d = -x / (k + alpha + 1.0) * p + (k / (k + alpha + 1.0)) * d;
+            p += d;
+        }
+        let n = f64::from(n);
+        crate::binom(n + alpha, n) * p
     }
 }
 
@@ -1271,6 +1334,26 @@ mod tests {
         np_assert_allclose!([c], [-7.093_75], rtol = 1e-14);
         // C_1^alpha(x) = 2 alpha x, also where binom(2 alpha, 1) = 0
         assert_eq!(crate::eval_gegenbauer(1_i32, -0.5, -0.3), 0.3);
+    }
+
+    #[test]
+    fn test_eval_gegenbauer_large_alpha() {
+        // mpmath: gegenbauer(n, alpha, x)
+        let c = [
+            eval_gegenbauer(0.5, 100.0, 1.0),
+            eval_gegenbauer(2.5, 90.0, -0.7),
+            eval_gegenbauer(0.5, 100.0, c64(1.0, 0.0)).re,
+            eval_gegenbauer(171.5, 0.01, 1.0),
+            eval_gegenbauer(170.624_376_956_302_7, 0.01, 1.0),
+        ];
+        let expected = [
+            15.947_720_785_517_17,
+            -3.247_107_273_325_162e25,
+            15.947_720_785_517_17,
+            1.307_068_781_116_506e-4,
+            1.313_641_618_259_32e-4,
+        ];
+        np_assert_allclose!(c, expected, rtol = 1e-12);
     }
 
     #[test]

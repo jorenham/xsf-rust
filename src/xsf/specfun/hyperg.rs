@@ -232,7 +232,7 @@ fn hyp1f1_series(a: f64, b: f64, z: Complex64, scale: Complex64) -> Option<(Comp
 /// Unlike in xsf (scipy/xsf#365): the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the
 /// recurrence of `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`, since
 /// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
-pub(crate) fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
+fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
     let (mut d, mut p) = (0.0, 1.0);
     for k in 0..n {
         let k = f64::from(k);
