@@ -92,6 +92,11 @@ where
 }
 
 /// Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+///
+/// # See also
+/// - [`iv_ratio_c`]: Complement of this ratio
+/// - [`iv_ratioinv`]: Inverse of this ratio with respect to `x`
+/// - [`bessel_i`](crate::bessel_i): Modified Bessel function of the first kind $I_v(z)$
 #[must_use]
 #[allow(clippy::float_cmp)]
 pub fn iv_ratio(v: f64, x: f64) -> f64 {
@@ -128,6 +133,9 @@ pub fn iv_ratio(v: f64, x: f64) -> f64 {
 }
 
 /// Compute `1 - iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+///
+/// # See also
+/// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)` itself
 #[must_use]
 #[allow(clippy::float_cmp)]
 pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
@@ -182,6 +190,9 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
 /// Compute x such that `iv(v,x)/iv(v-1,x) = r` for v >= 0.5 and 0 <= r <= 1.
 ///
 /// Corresponds to `xsf::iv_ratioinv` in xsf main.
+///
+/// # See also
+/// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)`
 #[must_use]
 #[allow(clippy::float_cmp)]
 pub fn iv_ratioinv(v: f64, r: f64) -> f64 {

@@ -199,6 +199,10 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
 /// [`scipy.stats.multivariate_normal`][multivariate_normal].
 ///
 /// [multivariate_normal]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_normal.html
+///
+/// # See also
+/// - [`trivariate_normal_cdf`]: CDF of the standard trivariate normal distribution
+/// - [`ndtr`](crate::ndtr): CDF of the standard normal distribution
 #[must_use]
 #[allow(clippy::many_single_char_names)]
 pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
@@ -525,6 +529,9 @@ fn tvn_adaptive_integral(h1: f64, h2: f64, h3: f64, r23: f64, a12: f64, a13: f64
 /// [`scipy.stats.multivariate_normal`][multivariate_normal].
 ///
 /// [multivariate_normal]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_normal.html
+///
+/// # See also
+/// - [`bivariate_normal_cdf`]: CDF of the standard bivariate normal distribution
 #[must_use]
 #[allow(clippy::float_cmp, clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn trivariate_normal_cdf(

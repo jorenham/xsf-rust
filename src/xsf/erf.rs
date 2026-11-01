@@ -63,9 +63,17 @@ impl ErfArg for Complex64 {
 
 /// Error function $\erf(z)$ for real or complex input
 ///
+/// This function is defined as [^DLMF]:
+///
+/// $$
+/// \erf(z) = {2 \over \sqrt\pi} \int_0^z e^{-t^2} \dd t .
+/// $$
+///
 /// Corresponds to [`scipy.special.erf`][erf].
 ///
 /// [erf]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erf.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/7.2.E1>.
 ///
 /// # See also
 /// - [`erfc`]: Complementary error function
@@ -144,6 +152,13 @@ pub fn erf_zeros<const N: usize>() -> [Complex64; N] {
 }
 
 /// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
+///
+/// Corresponds to [`scipy.special.dawsn`][dawsn].
+///
+/// [dawsn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.dawsn.html
+///
+/// # See also
+/// - [`erfi`]: Imaginary error function
 #[doc(alias = "dawson")]
 #[must_use]
 #[inline]
@@ -152,6 +167,15 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 }
 
 /// Faddeeva function `exp(-z^2) * erfc(-i z)`
+///
+/// Corresponds to [`scipy.special.wofz`][wofz].
+///
+/// [wofz]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.wofz.html
+///
+/// # See also
+/// - [`erfc`]: Complementary error function
+/// - [`erfcx`]: Scaled complementary error function
+/// - [`voigt_profile`]: Voigt profile, which is computed from this function
 #[doc(alias = "faddeeva")]
 #[must_use]
 #[inline]
@@ -160,6 +184,16 @@ pub fn wofz(z: Complex64) -> Complex64 {
 }
 
 /// Voigt profile
+///
+/// The convolution of the densities of a normal distribution with standard deviation `sigma` and a
+/// Cauchy distribution with half-width at half-maximum `gamma`, evaluated at `x`.
+///
+/// Corresponds to [`scipy.special.voigt_profile`][voigt].
+///
+/// [voigt]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.voigt_profile.html
+///
+/// # See also
+/// - [`wofz`]: Faddeeva function
 #[must_use]
 #[inline]
 #[allow(clippy::float_cmp)]

@@ -457,9 +457,22 @@ pub fn keip(x: f64) -> f64 {
 
 /// Kelvin functions as complex numbers
 ///
+/// For $x \ge 0$, these are defined as [^DLMF]:
+///
+/// $$
+/// \ber x + i \bei x = J_0\left(x e^{3\pi i/4}\right) , \quad
+/// \ker x + i \kei x = K_0\left(x e^{\pi i/4}\right) ,
+/// $$
+///
+/// with $J_0$ the Bessel function of the first kind and $K_0$ the modified Bessel function of the
+/// second kind.
+///
 /// Corresponds to [`scipy.special.kelvin`][scipy]
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.kelvin.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/10.61.E1> and
+///   <https://dlmf.nist.gov/10.61.E2>.
 ///
 /// # Returns
 /// - *Be*: [`ber`] + *i* [`bei`]

@@ -808,6 +808,9 @@ fn lambertw_f64(z: f64, k: isize) -> f64 {
 /// Corresponds to [`scipy.special.lambertw`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lambertw.html
+///
+/// # See also
+/// - [`wrightomega`](crate::wrightomega): Wright Omega function
 #[doc(alias = "lambert_w")]
 #[must_use]
 #[allow(clippy::float_cmp, clippy::cast_precision_loss)]

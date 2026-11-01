@@ -318,6 +318,9 @@ fn itairy_impl(mut x: f64) -> [f64; 4] {
 /// - ∫<sub>[0, x]</sub> Bi(*t*) *dt*
 /// - ∫<sub>[0, x]</sub> Ai(*-t*) *dt*
 /// - ∫<sub>[0, x]</sub> Bi(*-t*) *dt*
+///
+/// # See also
+/// - [`airy`]: Airy functions and derivatives
 #[doc(alias = "itairy")]
 #[must_use]
 #[inline]

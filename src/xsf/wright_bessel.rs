@@ -1275,11 +1275,22 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     wright_bessel_integral::<LOG_WB>(a, b, x)
 }
 
-/// Wright's generalized Bessel function
+/// Wright's generalized Bessel function $\Phi(a, b; x)$
+///
+/// This function is defined as [^DLMF]:
+///
+/// $$
+/// \Phi(a, b; x) = \sum_{k=0}^\infty {x^k \over k! \ \Gamma(a k + b)} ,
+/// $$
+///
+/// where $\Gamma$ is the [Gamma function](crate::gamma). Only non-negative `a`, `b`, and `x` are
+/// supported.
 ///
 /// Corresponds to [`scipy.special.wright_bessel`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.wright_bessel.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/10.46.E1>.
 ///
 /// # See also
 /// - [`log_wright_bessel`]: natural logarithm of this function
@@ -1294,6 +1305,9 @@ pub fn wright_bessel(a: f64, b: f64, x: f64) -> f64 {
 /// Corresponds to [`scipy.special.log_wright_bessel`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_wright_bessel.html
+///
+/// # See also
+/// - [`wright_bessel`]: Wright's generalized Bessel function
 #[must_use]
 #[inline]
 pub fn log_wright_bessel(a: f64, b: f64, x: f64) -> f64 {

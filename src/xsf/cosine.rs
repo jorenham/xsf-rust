@@ -219,6 +219,9 @@ pub fn cosine_cdf(x: f64) -> f64 {
 /// [`scipy.stats.cosine`][cosine].
 ///
 /// [cosine]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cosine.html
+///
+/// # See also
+/// - [`cosine_cdf`]
 #[must_use]
 #[allow(clippy::float_cmp)]
 pub fn cosine_invcdf(mut p: f64) -> f64 {
