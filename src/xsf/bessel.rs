@@ -255,7 +255,25 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
         return f64::INFINITY;
     }
 
-    cyl_bessel_ke_c64(v, c64(x, 0.0)).re
+    let ke = cyl_bessel_ke_c64(v, c64(x, 0.0)).re;
+    if ke == f64::INFINITY {
+        return cyl_bessel_k_overflow(cyl_bessel_ke_c64, v, x);
+    }
+    ke
+}
+
+/// AMOS already "overflows" if K_v(x) >~ 1e304. Unlike in xsf, retry such an inf with the
+/// recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1) for |v| > 1, which
+/// also holds for e^x K_v(x). The lower orders are smaller by a factor of about x / (2v).
+///
+/// For example, `bessel_k(1.5, 1e-205)` was inf instead of 3.96e307.
+fn cyl_bessel_k_overflow(k: fn(f64, Complex64) -> Complex64, v: f64, x: f64) -> f64 {
+    let v = v.abs();
+    if v <= 1.0 {
+        return f64::INFINITY;
+    }
+    let z = c64(x, 0.0);
+    k(v - 2.0, z).re + 2.0 * (v - 1.0) / x * k(v - 1.0, z).re
 }
 
 #[allow(clippy::float_cmp)]
@@ -344,7 +362,11 @@ pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
         return 0.0;
     }
 
-    cyl_bessel_k_c64(v, c64(z, 0.0)).re
+    let k = cyl_bessel_k_c64(v, c64(z, 0.0)).re;
+    if k == f64::INFINITY {
+        return cyl_bessel_k_overflow(cyl_bessel_k_c64, v, z);
+    }
+    k
 }
 
 fn cyl_bessel_je_c64(mut v: f64, z: Complex64) -> Complex64 {
