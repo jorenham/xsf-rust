@@ -26,7 +26,7 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf, huge or tiny arguments are rescaled (homogeneity), see `common::scale_factor`
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled
     if let Some(f) = common::scale_factor(&[x, y, z], f64::MIN_POSITIVE) {
         let (status, res) = rd(x * f * f, y * f * f, z * f * f, rerr);
         return (status, res * f * f * f);

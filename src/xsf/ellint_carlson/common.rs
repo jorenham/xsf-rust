@@ -102,9 +102,8 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
     }
 }
 
-/// Unlike in xsf, `rd`, `rg` and `rj` rescale their arguments by `f^2` if the largest part is
-/// outside [2^-256, 2^256], since e.g. `elliprg(5.17e139, 2.97e11, 1.55e225)` overflowed (NaN,
-/// not 1.97e112). `f` is a power of 2, and doesn't downscale the smallest nonzero part below `min`.
+/// The power of 2 `f` by whose square huge or tiny arguments are rescaled (scipy/xsf#376), or
+/// `None` if the largest part is in [2^-256, 2^256]. The smallest nonzero part stays above `min`.
 #[allow(clippy::float_cmp)]
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
