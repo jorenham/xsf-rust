@@ -24,6 +24,33 @@ fn test_sph_bessel_j_tiny_x() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
+#[test]
+fn test_sph_bessel_prime_tiny_x() {
+    // mpmath: (n f_{n-1}(x) -/+ (n + 1) f_{n+1}(x)) / (2n + 1), DLMF 10.51.2 and 10.51.4
+    let actual = [
+        xsf::sph_bessel_j_prime(2, 7.5e-179),
+        xsf::sph_bessel_j_prime(3, -1e-100),
+        xsf::sph_bessel_i_prime(2, 7.5e-179),
+        xsf::sph_bessel_i_prime(5, 1e-60),
+    ];
+    let expected = [
+        1e-179,
+        2.857_142_857_142_857e-202,
+        1e-179,
+        4.810_004_810_004_809_4e-244,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // underflow to +0, since j_7' and i_7' are even
+    assert_eq!(xsf::sph_bessel_j_prime(7, -1e-80).to_bits(), 0);
+    assert_eq!(xsf::sph_bessel_i_prime(7, -1e-80).to_bits(), 0);
+
+    // y_n(x) and y_{n-1}(x) both overflow, y_n'(x) = y_{n-1}(x) - (n + 1) y_n(x) / x
+    assert_eq!(xsf::sph_bessel_y_prime(8, 7e-46), f64::INFINITY);
+    assert_eq!(xsf::sph_bessel_y_prime(7, -7e-46), f64::NEG_INFINITY);
+    assert_eq!(xsf::sph_bessel_y_prime(3, 0.0), f64::INFINITY);
+}
+
 /// From `scipy.special.tests.test_spherical_bessel.TestSphericalYn.test_spherical_yn_exact`
 #[test]
 fn test_sph_bessel_y_exact() {
