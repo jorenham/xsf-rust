@@ -103,12 +103,12 @@ pub fn erfcinv(y: f64) -> f64 {
     const DOMAIN_LB: f64 = 0.0;
     const DOMAIN_UB: f64 = 2.0;
 
-    if (DOMAIN_LB < y) && (y < 2.0 * f64::MIN_POSITIVE) {
-        // Unlike in xsf (scipy/xsf#309), where 0.5 * y can lose precision (or underflow to 0) for
-        // these y: ndtri(0.5 * y) = ndtri_exp(ln(y) - ln(2)).
-        return -crate::ndtri_exp(y.ln() - LN_2) * FRAC_1_SQRT_2;
-    }
     if (DOMAIN_LB < y) && (y < DOMAIN_UB) {
+        if y < 2.0 * f64::MIN_POSITIVE {
+            /* 0.5 * y can lose precision (or underflow to 0) for these y:
+             * ndtri(0.5 * y) = ndtri_exp(log(y) - log(2)). */
+            return -crate::ndtri_exp(y.ln() - LN_2) * FRAC_1_SQRT_2;
+        }
         -ndtri(0.5 * y) * FRAC_1_SQRT_2
     } else if y == DOMAIN_LB {
         f64::INFINITY
@@ -146,5 +146,26 @@ mod tests {
     #[test]
     fn test_erfcinv() {
         xsref::test("erfcinv", "d-d", |x| crate::erfcinv(x[0]));
+    }
+
+    /// Based on the "cephes::erfcinv subnormal arguments" test in xsf main
+    #[test]
+    fn test_erfcinv_subnormal() {
+        let y = [
+            5e-324,
+            1e-323,
+            1.5e-323,
+            f64::MIN_POSITIVE,
+            2.0 * f64::MIN_POSITIVE,
+        ];
+        let actual = y.map(crate::erfcinv);
+        let expected = [
+            27.213_293_210_812_95,
+            27.200_563_366_536_258,
+            27.193_114_126_203_97,
+            26.543_258_454_250_98,
+            26.530_207_562_276_377,
+        ];
+        crate::np_assert_allclose!(&actual, &expected, rtol = 2e-16);
     }
 }
