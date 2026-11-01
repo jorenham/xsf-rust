@@ -2934,7 +2934,16 @@ add(
     cpp=False,
     timeout=60,
 )
-add("stdtri", "nu p", r_stdtri, D(LU(1e-3, 1e3), U(0, 1), n=2000), cpp=False, timeout=120, note="inv")
+add(
+    "stdtri",
+    "nu p",
+    r_stdtri,
+    D(LU(1e-3, 1e3), U(0, 1), n=2000),
+    D(LU(1e3, 1e20), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
 add("tukeylambdacdf", "x lambda", r_tukeylambdacdf, D(U(-5, 5), U(-2, 2), n=2000), timeout=60)
 add(
     "von_mises_cdf",
