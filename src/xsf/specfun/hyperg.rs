@@ -931,7 +931,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut h0 = 0.0;
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1 (the r1 terms grow until about then), and the id of unconverged
-    // series is capped by the remaining terms, e.g. `hypu(0.2, -138.4, 40.4)` was 25.65.
+    // series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
