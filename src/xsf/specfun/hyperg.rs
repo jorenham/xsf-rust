@@ -1059,6 +1059,14 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let hu0 = PI / (PI * b).sin();
     let mut r1 = hu0 / (gab * gb);
     let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
+    // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300),
+    // e.g. U(-28, 97.6, 0.0055) = 1.766e57 instead of 3.069e67
+    if ga == 1e300 {
+        r2 = 0.0;
+    }
+    if gab == 1e300 {
+        r1 = 0.0;
+    }
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = 1e300;
