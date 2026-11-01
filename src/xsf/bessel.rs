@@ -63,19 +63,19 @@ impl BesselArg for f64 {
     }
     #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_1_c64(v, self.into())
+        cyl_hankel_c64(v, self.into(), 1, 1)
     }
     #[inline]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_1e_c64(v, self.into())
+        cyl_hankel_c64(v, self.into(), 2, 1)
     }
     #[inline]
     fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_2_c64(v, self.into())
+        cyl_hankel_c64(v, self.into(), 1, 2)
     }
     #[inline]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_2e_c64(v, self.into())
+        cyl_hankel_c64(v, self.into(), 2, 2)
     }
 }
 
@@ -114,19 +114,19 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_1_c64(v, self)
+        cyl_hankel_c64(v, self, 1, 1)
     }
     #[inline]
     fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_1e_c64(v, self)
+        cyl_hankel_c64(v, self, 2, 1)
     }
     #[inline]
     fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_2_c64(v, self)
+        cyl_hankel_c64(v, self, 1, 2)
     }
     #[inline]
     fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_2e_c64(v, self)
+        cyl_hankel_c64(v, self, 2, 2)
     }
 }
 
@@ -442,15 +442,21 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
     cyl_bessel_ye_c64(v, c64(x, 0.0)).re
 }
 
-fn cyl_hankel_1e_c64(mut v: f64, z: Complex64) -> Complex64 {
+/// Unlike in xsf, the four Hankel functions share this implementation (xsf duplicates it), with
+/// `kode = 2` for the exponentially scaled ones and `m` the kind.
+#[allow(clippy::float_cmp)]
+fn cyl_hankel_c64(mut v: f64, z: Complex64, kode: i32, m: i32) -> Complex64 {
     let n = 1;
-    let kode = 2;
-    let m = 1;
     let mut ierr = 0;
     let mut sign = 1;
     let mut cy = c64(f64::NAN, f64::NAN);
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+        return cy;
+    }
+    if kode == 1 && m == 2 && v == 0.0 && z.re == 0.0 && z.im == 0.0 {
+        cy.re = f64::NAN;
+        cy.im = f64::INFINITY;
         return cy;
     }
     if v < 0.0 {
@@ -460,31 +466,7 @@ fn cyl_hankel_1e_c64(mut v: f64, z: Complex64) -> Complex64 {
     let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
     if sign == -1 {
-        cy = rotate(cy, v);
-    }
-    cy
-}
-
-fn cyl_hankel_2e_c64(mut v: f64, z: Complex64) -> Complex64 {
-    let n = 1;
-    let kode = 2;
-    let m = 2;
-    let mut ierr = 0;
-    let mut sign = 1;
-
-    let mut cy = c64(f64::NAN, f64::NAN);
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
-    }
-
-    if v < 0.0 {
-        v = -v;
-        sign = -1;
-    }
-    let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
-    if sign == -1 {
-        cy = rotate(cy, -v);
+        cy = rotate(cy, if m == 1 { v } else { -v });
     }
     cy
 }
@@ -588,58 +570,6 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     }
 
     res.re
-}
-
-fn cyl_hankel_1_c64(mut v: f64, z: Complex64) -> Complex64 {
-    let n = 1;
-    let kode = 1;
-    let m = 1;
-    let mut ierr = 0;
-    let mut sign = 1;
-    let mut cy = c64(f64::NAN, f64::NAN);
-
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
-    }
-    if v < 0.0 {
-        v = -v;
-        sign = -1;
-    }
-    let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
-    if sign == -1 {
-        cy = rotate(cy, v);
-    }
-    cy
-}
-
-#[allow(clippy::float_cmp)]
-fn cyl_hankel_2_c64(mut v: f64, z: Complex64) -> Complex64 {
-    let n = 1;
-    let kode = 1;
-    let m = 2;
-    let mut ierr = 0;
-    let mut sign = 1;
-    let mut cy = c64(f64::NAN, f64::NAN);
-
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
-    }
-    if v == 0.0 && z.re == 0.0 && z.im == 0.0 {
-        cy.re = f64::NAN;
-        cy.im = f64::INFINITY;
-        return cy;
-    }
-    if v < 0.0 {
-        v = -v;
-        sign = -1;
-    }
-    let nz = amos::besh(z, v, kode, m, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
-    if sign == -1 {
-        cy = rotate(cy, -v);
-    }
-    cy
 }
 
 // Bessel J

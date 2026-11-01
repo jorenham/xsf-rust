@@ -24,46 +24,23 @@ impl AiryArg for f64 {
 impl AiryArg for Complex64 {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        airy_c64(self)
+        airy_c64(self, 1)
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        airye_c64(self)
+        airy_c64(self, 2)
     }
 }
 
 // Translated from `xsf/airy.h` (xsf v0.2.2); returns `[ai, aip, bi, bip]`
 
-fn airy_c64(z: Complex64) -> [Complex64; 4] {
+/// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
+/// `kode = 2` for exponential scaling.
+fn airy_c64(z: Complex64, kode: i32) -> [Complex64; 4] {
     let mut id = 0;
     let mut ierr = 0;
-    let kode = 1;
     let mut nz = 0;
-
-    let mut ai = amos::airy(z, id, kode, &mut nz, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut ai);
-
-    nz = 0;
-    let mut bi = amos::biry(z, id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bi);
-
-    id = 1;
-    let mut aip = amos::airy(z, id, kode, &mut nz, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut aip);
-
-    nz = 0;
-    let mut bip = amos::biry(z, id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bip);
-
-    [ai, aip, bi, bip]
-}
-
-fn airye_c64(z: Complex64) -> [Complex64; 4] {
-    let mut id = 0;
-    let kode = 2; /* Exponential scaling */
-    let mut nz = 0;
-    let mut ierr = 0;
 
     let mut ai = amos::airy(z, id, kode, &mut nz, &mut ierr);
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut ai);
@@ -126,7 +103,7 @@ fn airy_f64(x: f64) -> [f64; 4] {
      * For large arguments, use AMOS as it's more accurate.
      */
     if x < -10.0 || x > 10.0 {
-        let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0));
+        let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0), 1);
         // Unlike in xsf (scipy/xsf#310), fall back to Cephes if AMOS overflows (NaN Bi), e.g.
         // `airy(415.6)` was [0, 0, NaN, NaN] instead of [0, 0, inf, inf].
         if x < 0.0 || !zbi.re.is_nan() {
