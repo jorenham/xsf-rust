@@ -858,7 +858,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         // Unlike in SciPy, use `hermite_rec` for non-integer n > 0 and x > 0, where `hypu` below
         // has relative errors of up to 1e-6.
         //
-        // E.g. eval_hermite_h(46.801133288584765, 3.655511435592377): 4.759282e38, not 4.759279e38
+        // E.g. `eval_hermite_h(55.5, 3.5)` was 2.862819e47 instead of 2.862818e47.
         if (0.0..1e4).contains(&x) && (0.0..1e3).contains(&n) && n.fract() != 0.0 {
             let h = hermite_rec(x, n, scale);
             if h.is_finite() {
