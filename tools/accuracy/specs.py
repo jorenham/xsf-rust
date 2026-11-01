@@ -2973,7 +2973,6 @@ add(
     D(U(0, 10), U(-math.pi, math.pi), n=2000),
     D(LU(1e-3, 1e5), U(-math.pi, math.pi), n=2000),
     timeout=60,
-    note="approx_vm",
 )
 for f, r in [("geninvgauss_pdf", r_geninvgauss_pdf), ("geninvgauss_logpdf", r_geninvgauss_logpdf)]:
     add(f, "x p b", r, D(LU(1e-3, 1e3), U(-10, 10), LU(1e-3, 1e3)), note="zeros_c" if "log" in f else "")
@@ -3113,7 +3112,6 @@ NOTES |= {
     "binom_dist": f"{SIGMA}\u00b2 = np(1 {MINUS} p).",
     "tvn": "With `epsi` = 10\u207b\u00b9\u2074, its lower bound.",
     "abs": "Absolute error ~10\u207b\u00b9\u2076 at best, so the relative error is large for tiny probabilities.",
-    "approx_vm": "Normal approximation for k \u2265 50.",
     "poly": (
         f"Rows with n \u2208 {{{ELLIPSIS}}} use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
