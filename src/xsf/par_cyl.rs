@@ -1035,8 +1035,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
-    // Unlike in xsf, uniform asymptotic expansions are used for large |v| where the recurrences
-    // are unstable or overflow, e.g. `pbdv(150.3, -30.0).0` was 3.1e293 instead of -2.45e144.
+    // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
     }
