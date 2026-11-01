@@ -963,9 +963,9 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             rmax = rmax.max(r.abs());
         }
         *id = 10;
-        // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with c + x >= 0
-        // is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and otherwise
-        // the id reflects the cancellation, so that other methods are tried
+        // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with
+        // c + x >= 0 is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and
+        // otherwise the id reflects the cancellation, so that other methods are tried
         //
         // e.g. U(-60, 30, 10) = -6.398e95 instead of -6.902e95
         let cancels = rmax > 1e6 * hu.abs();
