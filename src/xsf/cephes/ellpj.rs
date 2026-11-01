@@ -89,9 +89,8 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         let dn = 1.0 - 0.5 * m * t * t;
         return (sn, cn, dn, ph);
     }
-    // Unlike in xsf (scipy/xsf#375), m = 1 is exact, and u is shifted by a multiple of the quarter
-    // period K first, so that the expansion in 1 - m below is only used for |u| <= K/2 (the AGM is
-    // used for huge |u|, where u - qK is inaccurate).
+    // Unlike in xsf (scipy/xsf#375), m = 1 is exact, and u is first reduced by q quarter periods K,
+    // so that the expansion in 1 - m below is only used for |u| <= K/2 (unless |u| is huge).
     //
     // E.g. ellpj(-407.5089511160081, 0.9999999999999998) had 3e-6 and 2e-3 errors in cn and dn.
     #[allow(clippy::float_cmp)]
