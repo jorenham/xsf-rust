@@ -810,7 +810,8 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// and defined on the rest of the complex $z$-plane by analytic continuation [^1].
 /// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
-/// When $n$ is a non-negative integer the result is a polynomial of degree $n$.
+/// When defined, a non-positive integer $a_1$ or $a_2$ equal to $-n$ makes the result a polynomial of
+/// degree at most $n$.
 ///
 /// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
 /// defined by

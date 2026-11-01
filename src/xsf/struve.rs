@@ -313,7 +313,7 @@ pub fn struve_h(v: f64, x: f64) -> f64 {
 /// $$
 /// \begin{align*}
 /// L_v(x)
-/// &= (z/2)^{v+1} \sum_{n=0}^\infty {(-z/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\\\
+/// &= (x/2)^{v+1} \sum_{n=0}^\infty {(x/2)^{2n} \over \Gamma(n+3/2) \\ \Gamma(n+v+3/2)} \\\\
 /// &= -i e^{-\pi iv/2} H_v(ix) \\ ,
 /// \end{align*}
 /// $$

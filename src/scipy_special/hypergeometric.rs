@@ -299,8 +299,8 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 ///
 /// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
 ///
-/// It's also the limit as $a \to \infty$ of $\hyp 1 1 a b z$, and satisfies the
-/// differential equation $f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
+/// It's also the limit as $a \to \infty$ of $\hyp 1 1 a b {z/a}$, and satisfies the
+/// differential equation $z f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
 ///
 /// # See also
 /// - [`hyp1f0`]: Hypergeometric function, $_1F_0\left[a\middle\| z\right]$

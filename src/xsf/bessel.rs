@@ -1542,7 +1542,7 @@ pub fn it1j0y0(mut x: f64) -> (f64, f64) {
     (j0int, y0int)
 }
 
-/// Integrals related to Bessel functions of the first kind of order 0
+/// Integrals related to Bessel functions of order 0
 ///
 /// Corresponds to [`scipy.special.it2j0y0`][scipy].
 ///
@@ -1778,15 +1778,15 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
 /// The Riccati-Bessel function of the first kind is defined as $x \mathop{j}_n(x)$, where $j_n$ is
 /// the spherical Bessel function of the first kind of order $n$.
 ///
-/// This function computes the value and first derivative of the function for all orders up to $N$.
+/// This function computes the value and first derivative of the function for the orders `0..N`.
 ///
 /// Corresponds to [`scipy.special.riccati_jn`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.riccati_jn.html
 ///
 /// # Returns
-/// - $\[j_0(x), \ldots, j_{N-1}(x)\]$
-/// - $\[j_0\'(x), \ldots, j_{N-1}\'(x)\]$
+/// - $\[x j_0(x), \ldots, x j_{N-1}(x)\]$
+/// - Their derivatives with respect to $x$
 ///
 /// # See also
 /// - [`riccati_y`]
@@ -1827,13 +1827,13 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
 /// *Note that this is in contrast to a common convention that includes a minus sign in the
 /// definition.*
 ///
-/// This function computes the value and first derivative of the function for all orders up to $N$.
+/// This function computes the value and first derivative of the function for the orders `0..N`.
 ///
 /// Corresponds to [`scipy.special.riccati_yn`][scipy].
 ///
 /// # Returns
-/// - $\[y_0(x), \ldots, y_{N-1}(x)\]$
-/// - $\[y_0\'(x), \ldots, y_{N-1}\'(x)\]$
+/// - $\[x y_0(x), \ldots, x y_{N-1}(x)\]$
+/// - Their derivatives with respect to $x$
 ///
 /// # See also
 /// - [`riccati_j`]

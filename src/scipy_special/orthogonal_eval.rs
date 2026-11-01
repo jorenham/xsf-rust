@@ -453,7 +453,7 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
 /// $$
 ///
 /// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.46 [^AS] or DLMF 18.5.7 [^DLMF] for details.
+/// See Abramowitz & Stegun 22.5.46 [^AS] or DLMF 18.5.9 [^DLMF] for details.
 ///
 /// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
 ///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
@@ -867,9 +867,11 @@ impl HermiteArg<u32> for f64 {
 ///
 /// # Definition
 ///
+/// For non-negative integer $n$,
+///
 /// $$
 /// He_n(x) =
-///     2^{n \over 2} x^n \\
+///     x^n \\
 ///     {}_2F_0\left[-{n \over 2}, -{n-1 \over 2} \middle| -{2 \over x^2} \right]
 /// $$
 ///
@@ -903,6 +905,8 @@ where
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_hermite.html
 ///
 /// # Definition
+///
+/// For non-negative integer $n$,
 ///
 /// $$
 /// H_n(x) =

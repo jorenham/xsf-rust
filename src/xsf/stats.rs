@@ -147,9 +147,9 @@ fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
 /// $$
 /// \begin{align*}
 /// F_\nu(x)
-/// \&= \frac{1}{\nu \B \left( \frac{1}{2}, \frac{\nu}{2} \right)}
+/// \&= \frac{1}{\sqrt{\nu} \B \left( \frac{1}{2}, \frac{\nu}{2} \right)}
 ///     \int_{-\infty}^x g(u)^{\frac{\nu+1}{2}} \dd u \\\\
-/// \&= 1 - \frac{1}{2} I_{g(x)}\left( \frac{1}{2}, \frac{\nu}{2} \right) ,
+/// \&= 1 - \frac{1}{2} I_{g(x)}\left( \frac{\nu}{2}, \frac{1}{2} \right) \quad (x \ge 0) ,
 /// \end{align*}
 /// $$
 ///
@@ -626,7 +626,7 @@ pub fn kolmogci(x: f64) -> f64 {
 ///
 /// # See also
 /// - [`kolmogorov`]: Survival function of the Kolmogorov distribution
-/// - [`kolmogi`]: Inverse of the Kolmogorov distribution function
+/// - [`kolmogi`]: Inverse of the Kolmogorov survival function
 /// - [`kolmogc`]: CDF of the Kolmogorov distribution
 /// - [`kolmogci`]: Inverse of the Kolmogorov CDF
 #[must_use]
@@ -689,7 +689,7 @@ pub fn smirnovc(n: i32, x: f64) -> f64 {
 ///
 /// # See also
 /// - [`smirnovc`]: Distribution function
-/// - [`smirnovci`]: Quantile function
+/// - [`smirnov`]: Survival function
 #[must_use]
 #[inline]
 pub fn smirnovci(n: i32, p: f64) -> f64 {
@@ -732,7 +732,7 @@ pub fn tukeylambdacdf(x: f64, lambda: f64) -> f64 {
 ///
 /// # See also
 /// - [`chdtrc`]: Survival function
-/// - [`chdtri`]: Quantile function
+/// - [`chdtri`]: Inverse of the survival function
 #[must_use]
 #[inline]
 pub fn chdtr(df: f64, x: f64) -> f64 {
@@ -747,14 +747,14 @@ pub fn chdtr(df: f64, x: f64) -> f64 {
 ///
 /// # See also
 /// - [`chdtr`]: Distribution function
-/// - [`chdtri`]: Quantile function
+/// - [`chdtri`]: Inverse of the survival function
 #[must_use]
 #[inline]
 pub fn chdtrc(df: f64, x: f64) -> f64 {
     crate::xsf::cephes::chdtrc(df, x)
 }
 
-/// Quantile function of the Chi-squared distribution
+/// Inverse of the Chi-squared survival function [`chdtrc`] with respect to `x`
 ///
 /// Corresponds to [`scipy.special.chdtri`][chdtri].
 ///
@@ -857,7 +857,7 @@ pub fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 /// [pdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtr.html
 ///
 /// # See also
-/// - [`pdtri`]: Quantile function
+/// - [`pdtri`]: Inverse of the CDF w.r.t. `m`
 /// - [`pdtrc`]: Survival function
 #[must_use]
 #[inline]
@@ -865,7 +865,7 @@ pub fn pdtr(k: f64, m: f64) -> f64 {
     crate::xsf::cephes::pdtr(k, m)
 }
 
-/// Poisson quantile function
+/// Inverse of the Poisson distribution function [`pdtr`] with respect to `m`
 ///
 /// Corresponds to [`scipy.special.pdtri`][pdtri].
 ///
@@ -888,7 +888,7 @@ pub fn pdtri(k: i32, y: f64) -> f64 {
 ///
 /// # See also
 /// - [`pdtr`]: Cumulative distribution function
-/// - [`pdtri`]: Quantile function
+/// - [`pdtri`]: Inverse of the CDF w.r.t. `m`
 #[must_use]
 #[inline]
 pub fn pdtrc(k: f64, m: f64) -> f64 {
@@ -905,7 +905,7 @@ pub fn pdtrc(k: f64, m: f64) -> f64 {
 ///
 /// # See also
 /// - [`bdtrc`]: Survival function
-/// - [`bdtri`]: Quantile function
+/// - [`bdtri`]: Inverse of the CDF w.r.t. `p`
 #[must_use]
 #[inline]
 pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
@@ -920,14 +920,14 @@ pub fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 ///
 /// # See also
 /// - [`bdtr`]: Distribution function
-/// - [`bdtri`]: Quantile function
+/// - [`bdtri`]: Inverse of the CDF w.r.t. `p`
 #[must_use]
 #[inline]
 pub fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
     crate::xsf::cephes::bdtrc(k, n, p)
 }
 
-/// Binomial quantile function
+/// Inverse of the binomial distribution function [`bdtr`] with respect to `p`
 ///
 /// Corresponds to [`scipy.special.bdtri`][bdtri].
 ///
@@ -1182,7 +1182,7 @@ pub fn wilcoxon_sf(k: f64, cdf: &[f64]) -> f64 {
 ///
 /// # See also
 /// - [`nbdtrc`]: Survival function
-/// - [`nbdtri`]: Quantile function
+/// - [`nbdtri`]: Inverse of the CDF w.r.t. `p`
 #[must_use]
 #[inline]
 pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
@@ -1197,14 +1197,14 @@ pub fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
 ///
 /// # See also
 /// - [`nbdtr`]: Distribution function
-/// - [`nbdtri`]: Quantile function
+/// - [`nbdtri`]: Inverse of the CDF w.r.t. `p`
 #[must_use]
 #[inline]
 pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
     crate::xsf::cephes::nbdtrc(k, n, p)
 }
 
-/// Negative binomial quantile function
+/// Inverse of the negative binomial distribution function [`nbdtr`] with respect to `p`
 ///
 /// Corresponds to [`scipy.special.nbdtri`][nbdtri].
 ///

@@ -1292,9 +1292,13 @@ impl_legendre_q_arg!(Complex64, lqn_c64, lqmn_c64);
 
 /// Legendre polynomial of degree `n`
 ///
-/// Corresponds to [`scipy.special.eval_legendre`][scipy].
+/// Corresponds to [`scipy.special.legendre_p`][scipy].
 ///
-/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_legendre.html
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.legendre_p.html
+///
+/// # See also
+/// - [`legendre_p_all`]: All Legendre polynomials up to degree `n`
+/// - [`eval_legendre`](crate::eval_legendre): $P_n(z)$, also for non-integer $n$
 #[doc(alias = "eval_legendre")]
 #[inline]
 pub fn legendre_p<T: LegendrePArg>(n: i32, z: T) -> T {
@@ -1322,6 +1326,10 @@ pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
 /// Corresponds to [`scipy.special.sph_legendre_p`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sph_legendre_p.html
+///
+/// # See also
+/// - [`sph_legendre_p_all`]: All spherical Legendre polynomials up to degree `n` and order `m`
+/// - [`sph_harm_y`](crate::sph_harm_y): Spherical harmonics
 #[inline]
 pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
     z.sph_legendre_p(n as c_int, m as c_int)
@@ -1375,7 +1383,7 @@ pub fn assoc_legendre_p_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> Vec<Ve
 
 /// Normalized associated Legendre polynomial of the 1st kind
 ///
-/// Corresponds to [`scipy.special.assoc_legendre_p`][scipy].
+/// Corresponds to [`scipy.special.assoc_legendre_p`][scipy] with `norm=True`.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.assoc_legendre_p.html
 ///
@@ -1389,7 +1397,7 @@ pub fn assoc_legendre_p_norm<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
 
 /// All normalized associated Legendre polynomials of the 1st kind
 ///
-/// Corresponds to [`scipy.special.assoc_legendre_p_all`][scipy].
+/// Corresponds to [`scipy.special.assoc_legendre_p_all`][scipy] with `norm=True`.
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.assoc_legendre_p_all.html
 ///
@@ -1401,7 +1409,7 @@ pub fn assoc_legendre_p_norm_all<T: LegendrePArg>(n: usize, m: usize, z: T) -> V
     z.assoc_legendre_p_all(n, m, 2, true)
 }
 
-/// All Legendre polynomials of the 2nd kind and their derivatives
+/// All Legendre functions of the 2nd kind and their derivatives
 ///
 /// Output lengths are `n + 1`. The entry at `j` corresponds to degree `j` in `0..=n`.
 ///
@@ -1418,7 +1426,7 @@ pub fn legendre_q_all<T: LegendreQArg>(n: usize, z: T) -> (Vec<T>, Vec<T>) {
     z.legendre_q_all(n)
 }
 
-/// All associated Legendre polynomials of the 2nd kind and their derivatives
+/// All associated Legendre functions of the 2nd kind and their derivatives
 ///
 /// Computes the associated Legendre function of the second kind of order `m` and degree `n`, `Qmn(z)`,
 /// and its derivative, `Qmn'(z)`. Returns two arrays of size `(n+1, m+1)` containing `Qmn(z)` and
