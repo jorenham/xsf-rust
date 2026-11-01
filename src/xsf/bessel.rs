@@ -173,7 +173,9 @@ fn reflect_i(_ik: &mut Complex64, v: f64) -> bool {
 }
 
 fn rotate_i(i: Complex64, k: Complex64, v: f64) -> Complex64 {
-    let s = (v * PI).sin() * FRAC_2_PI;
+    // Unlike in xsf, sinpi(v) instead of sin(pi v), which is inaccurate for v near an integer,
+    // e.g. `bessel_ie(-2.0000000000000004, 1e-150)` was 1.95e285 instead of 1.78e285.
+    let s = cephes_sinpi(v) * FRAC_2_PI;
 
     i + s * k
 }

@@ -120,6 +120,15 @@ fn test_bessel_ie_c64() {
 }
 
 #[test]
+fn test_bessel_i_near_negative_integer() {
+    // mpmath: besseli(-2.0000000000000004, 1e-150) = 1.7763568394005238e285
+    let (v, x) = (-2.000_000_000_000_000_4, 1e-150);
+    let actual = [xsf::bessel_ie(v, x), xsf::bessel_i(v, c64(x, 0.0)).re];
+    let expected = [1.776_356_839_400_523_8e285; 2];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_bessel_scaled_overflow() {
     // the signs of mpmath's besselj, bessely, and besseli, e.g. besselj(-11.25, 1e-100) = -3.6e1134
     let x = 1e-100;
