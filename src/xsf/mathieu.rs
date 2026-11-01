@@ -111,12 +111,21 @@ fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     (csf, csd)
 }
 
+/// Unlike in xsf, the modified Mathieu functions share this implementation (xsf duplicates it),
+/// with `kf = 1` for `mcm` and `kf = 2` for `msm`, and `kc` the kind.
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
-fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
-    let (kf, kc) = (1, 1);
+fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_km_too_large(m, q) {
+        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // `int`
+        return (f64::NAN, f64::NAN);
+    }
+
+    let m = f64::from(m);
     let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
 
-    if (m < 0.0) || (m != m.floor()) || (q < 0.0) {
+    let m_min = if kf == 1 { 0.0 } else { 1.0 };
+    if (m < m_min) || (m != m.floor()) || (q < 0.0) {
         return (f64::NAN, f64::NAN);
     }
     let int_m = m as i32;
@@ -124,55 +133,7 @@ fn mcm1(m: f64, q: f64, x: f64) -> (f64, f64) {
     if status != Status::Ok {
         return (f64::NAN, f64::NAN);
     }
-    (f1r, d1r)
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
-fn msm1(m: f64, q: f64, x: f64) -> (f64, f64) {
-    let (kf, kc) = (2, 1);
-    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
-
-    if (m < 1.0) || (m != m.floor()) || (q < 0.0) {
-        return (f64::NAN, f64::NAN);
-    }
-    let int_m = m as i32;
-    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
-    if status != Status::Ok {
-        return (f64::NAN, f64::NAN);
-    }
-    (f1r, d1r)
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
-fn mcm2(m: f64, q: f64, x: f64) -> (f64, f64) {
-    let (kf, kc) = (1, 2);
-    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
-
-    if (m < 0.0) || (m != m.floor()) || (q < 0.0) {
-        return (f64::NAN, f64::NAN);
-    }
-    let int_m = m as i32;
-    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
-    if status != Status::Ok {
-        return (f64::NAN, f64::NAN);
-    }
-    (f2r, d2r)
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
-fn msm2(m: f64, q: f64, x: f64) -> (f64, f64) {
-    let (kf, kc) = (2, 2);
-    let (mut f1r, mut d1r, mut f2r, mut d2r) = (0.0, 0.0, 0.0, 0.0);
-
-    if (m < 1.0) || (m != m.floor()) || (q < 0.0) {
-        return (f64::NAN, f64::NAN);
-    }
-    let int_m = m as i32;
-    let status = mtu12(kf, kc, int_m, q, x, &mut f1r, &mut d1r, &mut f2r, &mut d2r);
-    if status != Status::Ok {
-        return (f64::NAN, f64::NAN);
-    }
-    (f2r, d2r)
+    if kc == 1 { (f1r, d1r) } else { (f2r, d2r) }
 }
 
 /// Characteristic value of even Mathieu functions
@@ -305,12 +266,7 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
-        // `int`
-        return (f64::NAN, f64::NAN);
-    }
-    mcm1(f64::from(m), q, x)
+    mathieu_mod(1, 1, m, q, x)
 }
 
 /// Odd modified Mathieu function of the first kind and its derivative
@@ -341,12 +297,7 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
-        // `int`
-        return (f64::NAN, f64::NAN);
-    }
-    msm1(f64::from(m), q, x)
+    mathieu_mod(2, 1, m, q, x)
 }
 
 /// Even modified Mathieu function of the second kind and its derivative
@@ -377,12 +328,7 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
-        // `int`
-        return (f64::NAN, f64::NAN);
-    }
-    mcm2(f64::from(m), q, x)
+    mathieu_mod(1, 2, m, q, x)
 }
 
 /// Odd modified Mathieu function of the second kind and its derivative
@@ -413,12 +359,7 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
-        // `int`
-        return (f64::NAN, f64::NAN);
-    }
-    msm2(f64::from(m), q, x)
+    mathieu_mod(2, 2, m, q, x)
 }
 
 /// `qm` in `mathieu_{even,odd}_coef`, and in `fcoef` and `mtu0` of `specfun.h`, where the number
