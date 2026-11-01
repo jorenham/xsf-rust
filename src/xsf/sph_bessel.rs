@@ -123,13 +123,38 @@ fn sph_bessel_tiny_x(n: i64, x: f64) -> Option<f64> {
     if x * x >= (n as f64 + 1.5) * f64::EPSILON {
         return None;
     }
-    let mut res = 1.0;
+    Some(sph_bessel_lead(n, x))
+}
+
+/// `x^n / (2n + 1)!!`, or `inf` if the product overflows
+#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+fn sph_bessel_lead(n: i64, x: f64) -> f64 {
+    let mut res = 1.0_f64;
     let mut k: i64 = 1;
-    while k <= n && res != 0.0 {
+    while k <= n && res != 0.0 && res.is_finite() {
         res *= x / (2.0 * k as f64 + 1.0);
         k += 1;
     }
-    Some(res)
+    res
+}
+
+/// The power series of `j_n(x)` (DLMF 10.53.1) if `x^2 < 2n + 3`, so that each term is at most
+/// half the previous one, and if the product for the leading term doesn't overflow (else `j_n(x)`
+/// underflows).
+#[allow(clippy::cast_precision_loss)]
+fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
+    let nf = n as f64;
+    if x * x >= 2.0 * nf + 3.0 {
+        return None;
+    }
+    let (mut term, mut sum, mut k) = (1.0_f64, 1.0, 1.0);
+    while term.abs() > f64::EPSILON * sum {
+        term *= -x * x / (2.0 * k * (2.0 * (nf + k) + 1.0));
+        sum += term;
+        k += 1.0;
+    }
+    let lead = sph_bessel_lead(n, x);
+    lead.is_finite().then_some(lead * sum)
 }
 
 /// The leading term `n x^(n-1) / (2n + 1)!!` of the power series of both `j_n'(x)` and
@@ -189,7 +214,15 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     }
 
     if n > 0 && n as f64 >= x {
-        return (FRAC_PI_2 / x).sqrt() * cyl_bessel_j_f64(half(n), x);
+        let jv = cyl_bessel_j_f64(half(n), x);
+        // Unlike in xsf, use the power series if J_{n + 1/2}(x) is subnormal, which loses
+        // precision, e.g. j_256(12) was 0 instead of 9.02e-310.
+        if jv.abs() < f64::MIN_POSITIVE {
+            if let Some(res) = sph_bessel_j_series(n, x) {
+                return res;
+            }
+        }
+        return (FRAC_PI_2 / x).sqrt() * jv;
     }
 
     let mut s0 = x.sin() / x;
@@ -262,6 +295,7 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
     out
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
     if n == 0 {
         return -sph_bessel_j_f64(1, z);
@@ -282,8 +316,17 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
         return res;
     }
 
+    // Unlike in xsf, use DLMF 10.51.1 if j_n(x) underflows, since (n + 1) j_n(x) / x then loses
+    // precision, e.g. j_38'(1.6e-7) had a relative error of 3e-7.
+    let jn = sph_bessel_j_f64(n, z);
+    if jn.abs() < f64::MIN_POSITIVE {
+        let jm = n as f64 * sph_bessel_j_f64(n - 1, z);
+        let jp = np1(n) * sph_bessel_j_f64(n.saturating_add(1), z);
+        return (jm - jp) / (2.0 * n as f64 + 1.0);
+    }
+
     // DLMF 10.51.2
-    sph_bessel_j_f64(n - 1, z) - np1(n) * sph_bessel_j_f64(n, z) / z
+    sph_bessel_j_f64(n - 1, z) - np1(n) * jn / z
 }
 
 fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
@@ -495,6 +538,7 @@ fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
     cmul(sqrt_pi_2_div(z), cyl_bessel_i_c64(half(n), z))
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
     if n == 0 {
         return sph_bessel_i_f64(1, z);
@@ -513,7 +557,15 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
         return res;
     }
 
-    sph_bessel_i_f64(n - 1, z) - np1(n) * sph_bessel_i_f64(n, z) / z
+    // Unlike in xsf, use DLMF 10.51.4 if i_n(x) underflows (see sph_bessel_j_jac_f64).
+    let i_n = sph_bessel_i_f64(n, z);
+    if i_n.abs() < f64::MIN_POSITIVE {
+        let im = n as f64 * sph_bessel_i_f64(n - 1, z);
+        let ip = np1(n) * sph_bessel_i_f64(n.saturating_add(1), z);
+        return (im + ip) / (2.0 * n as f64 + 1.0);
+    }
+
+    sph_bessel_i_f64(n - 1, z) - np1(n) * i_n / z
 }
 
 fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {

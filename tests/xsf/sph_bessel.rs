@@ -51,6 +51,29 @@ fn test_sph_bessel_prime_tiny_x() {
     assert_eq!(xsf::sph_bessel_y_prime(3, 0.0), f64::INFINITY);
 }
 
+#[test]
+fn test_sph_bessel_small_x_underflow() {
+    // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x) etc.
+    let actual = [
+        xsf::sph_bessel_j(256, 12.0),
+        xsf::sph_bessel_j_prime(256, 12.0),
+        xsf::sph_bessel_i_prime(256, 12.0),
+        xsf::sph_bessel_j_prime(38, 1.6e-7),
+        xsf::sph_bessel_i_prime(38, 1.6e-7),
+    ];
+    let expected = [
+        9.023_631_246_020_03e-310,
+        1.922_937_600_412_866e-308,
+        2.548_870_172_169_520_4e-308,
+        1.342_663_609_784_847e-307,
+        1.342_663_609_784_847_7e-307,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+
+    // the product for x^n / (2n + 1)!! overflows, but the result underflows
+    assert_eq!(xsf::sph_bessel_j(1_200_000, 1500.0), 0.0);
+}
+
 /// From `scipy.special.tests.test_spherical_bessel.TestSphericalYn.test_spherical_yn_exact`
 #[test]
 fn test_sph_bessel_y_exact() {
