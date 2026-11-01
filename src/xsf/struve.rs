@@ -8,7 +8,9 @@
 
 #![allow(clippy::unreadable_literal)]
 
-use core::f64::consts::{FRAC_2_PI, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
+
+use crate::xsf::cephes;
 
 #[allow(clippy::float_cmp)]
 fn specfun_convinf(x: f64) -> f64 {
@@ -21,6 +23,35 @@ fn specfun_convinf(x: f64) -> f64 {
     x
 }
 
+/// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `x >= 0.5`, by integrating
+/// `H0 = 4/pi sum_k J_{2k+1} / (2k+1)` (DLMF 11.4.21) term by term:
+///
+/// - `int_0^x J_{2k+1}(t) dt = 2 sum_{j>k} J_{2j}(x)`
+/// - `int_0^x J_{2k+1}(t)/t dt = (2 sum_{j>=k} J_{2j+1}(x) - J_{2k+1}(x)) / (2k+1)`
+///
+/// with the `J_n(x)` from Miller's backward recurrence, normalized by `J_0 + 2 sum_j J_{2j} = 1`.
+fn itsh0_neumann(x: f64) -> (f64, f64) {
+    let mut n = 2.0 * (0.5 * x).floor() + 51.0;
+    // unnormalized J_{n+1}(x) and J_n(x)
+    let (mut jp, mut j) = (0.0, 1.0);
+    // sum_{2j > n} J_{2j}, sum_{2j+1 >= n} J_{2j+1}, and the two series
+    let (mut te, mut to, mut se, mut so) = (0.0, 0.0, 0.0, 0.0);
+    loop {
+        to += j;
+        so += (2.0 * to - j) / (n * n);
+        se += te / n;
+        (jp, j) = (j, 2.0 * n / x * j - jp);
+        if n < 2.0 {
+            break;
+        }
+        te += j;
+        (jp, j) = (j, 2.0 * (n - 1.0) / x * j - jp);
+        n -= 2.0;
+    }
+    let norm = j + 2.0 * te;
+    (4.0 * FRAC_2_PI * se / norm, 2.0 * FRAC_2_PI * so / norm)
+}
+
 #[allow(clippy::needless_late_init)]
 fn itth0(x: f64) -> f64 {
     // ===========================================================
@@ -29,6 +60,13 @@ fn itth0(x: f64) -> f64 {
     // Input :  x   --- Lower limit  ( x ≥ 0 )
     // Output:  TTH --- Integration of H0(t)/t from x to infinity
     // ===========================================================
+
+    // Unlike in xsf, the Neumann series for 0.5 <= x < 40, where the series cancels and the
+    // asymptotic expansion is inaccurate, e.g. `it2struve0(24.450718139337205)` was 0.0262689004
+    // instead of 0.0262688934.
+    if (0.5..40.0).contains(&x) {
+        return FRAC_PI_2 - itsh0_neumann(x).1;
+    }
 
     let tth;
     let mut s = 1.0;
@@ -44,28 +82,30 @@ fn itth0(x: f64) -> f64 {
         }
         tth = PI / 2.0 - FRAC_2_PI * x * s;
     } else {
-        for k in 1..11 {
+        // Unlike in xsf, sum up to eps (instead of 1e-12), and integrate `Y0(t)/t` by parts with
+        // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8.
+        for k in 1..31 {
             let k = f64::from(k);
             r = -r * (2.0 * k - 1.0).powf(3.0) / ((2.0 * k + 1.0) * x * x);
             s += r;
-            if r.abs() < s.abs() * 1.0e-12 {
+            if r.abs() < s.abs() * f64::EPSILON {
                 break;
             }
         }
-        let t = 8.0 / x;
-        let xt = x + 0.25 * PI;
-        let f0 =
-            (((((0.18118e-2 * t - 0.91909e-2) * t + 0.017033) * t - 0.9394e-3) * t - 0.051445) * t
-                - 0.11e-5)
-                * t
-                + 0.7978846;
-        let g0 = (((((-0.23731e-2 * t + 0.59842e-2) * t + 0.24437e-2) * t - 0.0233178) * t
-            + 0.595e-4)
-            * t
-            + 0.1620695)
-            * t;
-        let tty = (f0 * xt.sin() - g0 * xt.cos()) / (x.sqrt() * x);
-        tth = 2.0 / (PI * x) * s + tty;
+        let tts = 2.0 / (PI * x) * s;
+        // int_x^inf Y0(t)/t dt = p Y0(x) - q Y1(x), up to eps or the smallest term
+        let (mut p, mut q) = (0.0, 0.0);
+        let mut c = 1.0 / x;
+        for k in 1..31 {
+            let k2 = f64::from(2 * k);
+            p += c * k2 / x;
+            q += c;
+            if c.abs() < tts * f64::EPSILON || k2 >= x {
+                break;
+            }
+            c *= -(k2 * k2) / (x * x);
+        }
+        tth = tts + p * cephes::y0(x) - q * cephes::y1(x);
     }
     tth
 }
@@ -83,6 +123,12 @@ fn itsh0(x: f64) -> f64 {
     let mut s;
     let th0;
     let el = 0.57721566490153;
+
+    // Unlike in xsf, the Neumann series for 0.5 <= x < 40, where the series cancels, e.g.
+    // `itstruve0(29.746969855043805)` was 3.08382 instead of 3.08387.
+    if (0.5..40.0).contains(&x) {
+        return itsh0_neumann(x).0;
+    }
 
     let mut r = 1.0;
     if x <= 30.0 {
