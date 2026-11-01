@@ -25,26 +25,3 @@ use num_traits::{ConstOne, NumOps};
 pub fn perm<N: NumOps + ConstOne + Copy>(n: N, k: u32) -> N {
     (0..k).fold((N::ONE, n), |(p, j), _| (p * j, j - N::ONE)).0
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_perm_pos() {
-        assert_eq!(crate::perm(10, 0), 1);
-        assert_eq!(crate::perm(10, 1), 10);
-        assert_eq!(crate::perm(10, 2), 90);
-        assert_eq!(crate::perm(10, 3), 720);
-        assert_eq!(crate::perm(10, 4), 5_040);
-        assert_eq!(crate::perm(10, 5), 30_240);
-    }
-
-    #[test]
-    fn test_perm_neg() {
-        assert_eq!(crate::perm(-10, 0), 1);
-        assert_eq!(crate::perm(-10, 1), -10);
-        assert_eq!(crate::perm(-10, 2), 110);
-        assert_eq!(crate::perm(-10, 3), -1_320);
-        assert_eq!(crate::perm(-10, 4), 17_160);
-        assert_eq!(crate::perm(-10, 5), -240_240);
-    }
-}

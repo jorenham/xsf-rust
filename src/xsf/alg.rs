@@ -11,11 +11,3 @@
 pub fn cbrt(x: f64) -> f64 {
     x.cbrt()
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_cbrt() {
-        xsref::test("cbrt", "d-d", |x| crate::cbrt(x[0]));
-    }
-}

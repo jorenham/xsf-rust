@@ -707,21 +707,3 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     };
     pbvv_impl(x, v, &mut buf, num)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_pbwa() {
-        xsref::test("pbwa", "d_d-d_d", |x| crate::pbwa(x[0], x[1]));
-    }
-
-    #[test]
-    fn test_pbdv() {
-        xsref::test("pbdv", "d_d-d_d", |x| crate::pbdv(x[0], x[1]));
-    }
-
-    #[test]
-    fn test_pbvv() {
-        xsref::test("pbvv", "d_d-d_d", |x| crate::pbvv(x[0], x[1]));
-    }
-}

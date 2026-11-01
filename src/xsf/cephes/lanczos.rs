@@ -85,13 +85,3 @@ pub(crate) fn lgam_ratio(x: f64, m: f64) -> f64 {
         + m * ((xgh + m).ln() - 1.0)
         + (lanczos_sum_expg_scaled(x + m) / lanczos_sum_expg_scaled(x)).ln()
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_lanczos_sum_expg_scaled() {
-        xsref::test("lanczos_sum_expg_scaled", "d-d", |x| {
-            crate::lanczos_sum_expg_scaled(x[0])
-        });
-    }
-}

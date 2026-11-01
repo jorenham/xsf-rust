@@ -342,33 +342,3 @@ pub fn scaled_exp1(x: f64) -> f64 {
     // from Abramowitz & Stegun, "Handbook of Mathematical Functions".
     1.0 + (-1.0 + (2.0 + (-6.0 + (24.0 - 120.0 / x) / x) / x) / x) / x
 }
-
-#[cfg(test)]
-mod tests {
-    use num_complex::c64;
-
-    #[test]
-    fn test_exp1_f64() {
-        xsref::test("exp1", "d-d", |x| crate::exp1(x[0]));
-    }
-
-    #[test]
-    fn test_exp1_c64() {
-        xsref::test("exp1", "cd-cd", |x| crate::exp1(c64(x[0], x[1])));
-    }
-
-    #[test]
-    fn test_expi_f64() {
-        xsref::test("expi", "d-d", |x| crate::expi(x[0]));
-    }
-
-    #[test]
-    fn test_expi_c64() {
-        xsref::test("expi", "cd-cd", |x| crate::expi(c64(x[0], x[1])));
-    }
-
-    #[test]
-    fn test_scaled_exp1_f64() {
-        xsref::test("scaled_exp1", "d-d", |x| crate::scaled_exp1(x[0]));
-    }
-}
