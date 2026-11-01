@@ -150,6 +150,41 @@ const I1MACH: [f64; 16] = [
     1024.0,       // DBL_MAX_EXP;
 ];
 
+/// The machine constants `(tol, elim, alim, rl, fnul)` of the AMOS drivers (`airy`, `besh`,
+/// `besi`, `besj`, `besk`, `besy`, and `biry`).
+///
+/// Unlike in xsf, these are computed once here (xsf computes them in every driver).
+///
+/// TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
+/// ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
+/// EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
+/// EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
+/// UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
+/// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
+/// DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
+/// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
+#[allow(clippy::cast_possible_truncation)]
+const MACH: (f64, f64, f64, f64, f64) = {
+    let mut k1 = I1MACH[14] as i32;
+    let k2 = I1MACH[15] as i32;
+    let r1m5 = D1MACH[4];
+    let k = if k1.abs() > k2.abs() {
+        k2.abs()
+    } else {
+        k1.abs()
+    };
+    let elim = 2.303 * (k as f64 * r1m5 - 3.0);
+    k1 = (I1MACH[13] - 1.0) as i32;
+    let mut aa = r1m5 * k1 as f64;
+    let dig = aa.min(18.0);
+    aa *= 2.303;
+    let tol = D1MACH[3].max(1e-18);
+    let alim = elim + (-aa).max(-41.45);
+    let rl = 1.2 * dig + 3.0;
+    let fnul = 10.0 + 6.0 * (dig - 3.0);
+    (tol, elim, alim, rl, fnul)
+};
+
 #[rustfmt::skip]
 const ZUNHJ_AR: [f64; 14] = [
     1.00000000000000000e+00, 1.04166666666666667e-01, 8.35503472222222222e-02, 1.28226574556327160e-01, //  0
@@ -166,36 +201,8 @@ const ZUNHJ_BR: [f64; 14] = [
     -2.04526587315129788e+05, -1.83844491706820990e+06,                                                     // 12
 ];
 
-#[rustfmt::skip]
-const ZUNHJ_C: [f64; 105] = [
-    1.00000000000000000e+00,  -2.08333333333333333e-01, 1.25000000000000000e-01,  3.34201388888888889e-01,  //   0
-    -4.01041666666666667e-01, 7.03125000000000000e-02,  -1.02581259645061728e+00, 1.84646267361111111e+00,  //   4
-    -8.91210937500000000e-01, 7.32421875000000000e-02,  4.66958442342624743e+00,  -1.12070026162229938e+01, //   8
-    8.78912353515625000e+00,  -2.36408691406250000e+00, 1.12152099609375000e-01,  -2.82120725582002449e+01, //  12
-    8.46362176746007346e+01,  -9.18182415432400174e+01, 4.25349987453884549e+01,  -7.36879435947963170e+00, //  16
-    2.27108001708984375e-01,  2.12570130039217123e+02,  -7.65252468141181642e+02, 1.05999045252799988e+03,  //  20
-    -6.99579627376132541e+02, 2.18190511744211590e+02,  -2.64914304869515555e+01, 5.72501420974731445e-01,  //  24
-    -1.91945766231840700e+03, 8.06172218173730938e+03,  -1.35865500064341374e+04, 1.16553933368645332e+04,  //  28
-    -5.30564697861340311e+03, 1.20090291321635246e+03,  -1.08090919788394656e+02, 1.72772750258445740e+00,  //  32
-    2.02042913309661486e+04,  -9.69805983886375135e+04, 1.92547001232531532e+05,  -2.03400177280415534e+05, //  36
-    1.22200464983017460e+05,  -4.11926549688975513e+04, 7.10951430248936372e+03,  -4.93915304773088012e+02, //  40
-    6.07404200127348304e+00,  -2.42919187900551333e+05, 1.31176361466297720e+06,  -2.99801591853810675e+06, //  44
-    3.76327129765640400e+06,  -2.81356322658653411e+06, 1.26836527332162478e+06,  -3.31645172484563578e+05, //  48
-    4.52187689813627263e+04,  -2.49983048181120962e+03, 2.43805296995560639e+01,  3.28446985307203782e+06,  //  52
-    -1.97068191184322269e+07, 5.09526024926646422e+07,  -7.41051482115326577e+07, 6.63445122747290267e+07,  //  56
-    -3.75671766607633513e+07, 1.32887671664218183e+07,  -2.78561812808645469e+06, 3.08186404612662398e+05,  //  60
-    -1.38860897537170405e+04, 1.10017140269246738e+02,  -4.93292536645099620e+07, 3.25573074185765749e+08,  //  64
-    -9.39462359681578403e+08, 1.55359689957058006e+09,  -1.62108055210833708e+09, 1.10684281682301447e+09,  //  68
-    -4.95889784275030309e+08, 1.42062907797533095e+08,  -2.44740627257387285e+07, 2.24376817792244943e+06,  //  72
-    -8.40054336030240853e+04, 5.51335896122020586e+02,  8.14789096118312115e+08,  -5.86648149205184723e+09, //  76
-    1.86882075092958249e+10,  -3.46320433881587779e+10, 4.12801855797539740e+10,  -3.30265997498007231e+10, //  80
-    1.79542137311556001e+10,  -6.56329379261928433e+09, 1.55927986487925751e+09,  -2.25105661889415278e+08, //  84
-    1.73951075539781645e+07,  -5.49842327572288687e+05, 3.03809051092238427e+03,  -1.46792612476956167e+10, //  88
-    1.14498237732025810e+11,  -3.99096175224466498e+11, 8.19218669548577329e+11,  -1.09837515608122331e+12, //  92
-    1.00815810686538209e+12,  -6.45364869245376503e+11, 2.87900649906150589e+11,  -8.78670721780232657e+10, //  96
-    1.76347306068349694e+10,  -2.16716498322379509e+09, 1.43157876718888981e+08,  -3.87183344257261262e+06, // 100
-    1.82577554742931747e+04,                                                                                // 104
-];
+/// Unlike in xsf, this reuses the first 105 coefficients of [`ZUNIK_C`] instead of a copy.
+const ZUNHJ_C: &[f64] = ZUNIK_C.split_at(105).0;
 
 #[rustfmt::skip]
 const ZUNHJ_ALFA: [f64; 180] = [
@@ -950,31 +957,7 @@ pub(crate) fn airy(
     // CASE FOR ABS(Z) > 1.0
     //
     let fnu = (1.0 + fid) / 3.0;
-    //
-    // SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    // TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    // ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    // EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    // EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    // UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    // RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    // DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    //
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = if aa > 18.0 { 18.0 } else { aa };
-    aa *= 2.303;
-    let alim = elim + if -aa > -41.45 { -aa } else { -41.45 };
-    let rl = 1.2 * dig + 3.0;
+    let (_, elim, alim, rl, _) = MACH;
     let alaz = az.ln();
     //
     // TEST FOR RANGE
@@ -1437,34 +1420,7 @@ pub(crate) fn besh(
         return nz;
     }
     nn = n;
-    //
-    //  SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    //  TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    //  ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    //  EXP(-ELIM).LT.EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    //  EXP(ELIM).GT.EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    //  UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    //  RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    //  DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    //  FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
-    //
-    let tol = D1MACH[3].max(1e-18);
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = aa.min(18.0);
-    aa *= 2.303;
-    let alim = elim + (-aa).max(-41.45);
-    let fnul = 10.0 + 6.0 * (dig - 3.0);
-    let rl = 1.2 * dig + 3.0;
+    let (tol, elim, alim, rl, fnul) = MACH;
     let fn_ = fnu + f64::from(nn - 1); // `fn` in C++
     let mm = 3 - m - m;
     let fmm = f64::from(mm);
@@ -1819,34 +1775,7 @@ pub(crate) fn besi(
     }
     let xx = z.re;
     let yy = z.im;
-    //
-    //  SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    //  TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    //  ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    //  EXP(-ELIM).LT.EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    //  EXP(ELIM).GT.EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    //  UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    //  RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    //  DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    //  FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
-    //
-    let tol = D1MACH[3].max(1e-18);
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = aa.min(18.0);
-    aa *= 2.303;
-    let alim = elim + (-aa).max(-41.45);
-    let rl = 1.2 * dig + 3.0;
-    let fnul = 10.0 + 6.0 * (dig - 3.0);
+    let (tol, elim, alim, rl, fnul) = MACH;
     //
     // TEST FOR PROPER RANGE
     //
@@ -2100,34 +2029,7 @@ pub(crate) fn besj(
     if *ierr != 0 {
         return nz;
     }
-    //
-    // SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    // TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    // ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    // EXP(-ELIM).LT.EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    // EXP(ELIM).GT.EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    // UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    // RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    // DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    // FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-    //
-    let tol = D1MACH[3].max(1e-18);
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = aa.min(18.0);
-    aa *= 2.303;
-    let alim = elim + (-aa).max(-41.45);
-    let fnul = 10.0 + 6.0 * (dig - 3.0);
-    let rl = 1.2 * dig + 3.0;
+    let (tol, elim, alim, rl, fnul) = MACH;
     //
     // TEST FOR PROPER RANGE
     //
@@ -2403,34 +2305,7 @@ pub(crate) fn besk(
     }
 
     nn = n;
-    //
-    //  SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    //  TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    //  ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    //  EXP(-ELIM).LT.EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    //  EXP(ELIM).GT.EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    //  UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    //  RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    //  DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    //  FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU
-    //
-    let tol = D1MACH[3].max(1e-18);
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = aa.min(18.0);
-    aa *= 2.303;
-    let alim = elim + (-aa).max(-41.45);
-    let fnul = 10.0 + 6.0 * (dig - 3.0);
-    let rl = 1.2 * dig + 3.0;
+    let (tol, elim, alim, rl, fnul) = MACH;
     //
     // TEST FOR PROPER RANGE
     //
@@ -2769,19 +2644,7 @@ pub(crate) fn besy(
         return nz;
     }
 
-    let tol = D1MACH[3].max(1e-18);
-    let k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    //
-    // ELIM IS THE APPROXIMATE EXPONENTIAL UNDER- AND OVERFLOW LIMIT
-    //
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
+    let (tol, elim, ..) = MACH;
     let exr = xx.cos();
     let exi = xx.sin();
     let mut ey = 0.0;
@@ -3255,33 +3118,7 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     // CASE FOR ABS(Z) > 1.0
     //
     let mut fnu = (1.0 + fid) / 3.0;
-    //
-    // SET PARAMETERS RELATED TO MACHINE CONSTANTS.
-    // TOL IS THE APPROXIMATE UNIT ROUNDOFF LIMITED TO 1.0E-18.
-    // ELIM IS THE APPROXIMATE EXPONENTIAL OVER- AND UNDERFLOW LIMIT.
-    // EXP(-ELIM) < EXP(-ALIM)=EXP(-ELIM)/TOL    AND
-    // EXP(ELIM) > EXP(ALIM)=EXP(ELIM)*TOL       ARE INTERVALS NEAR
-    // UNDERFLOW AND OVERFLOW LIMITS WHERE SCALED ARITHMETIC IS DONE.
-    // RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
-    // DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
-    // FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-    //
-    let mut k1 = I1MACH[14] as i32;
-    let k2 = I1MACH[15] as i32;
-    let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
-    let elim = 2.303 * (f64::from(k) * r1m5 - 3.0);
-    k1 = (I1MACH[13] - 1.0) as i32;
-    aa = r1m5 * f64::from(k1);
-    let dig = aa.min(18.0);
-    aa *= 2.303;
-    let alim = elim + (-aa).max(-41.45);
-    let rl = 1.2 * dig + 3.0;
-    let fnul = 10.0 + 6.0 * (dig - 3.0);
+    let (_, elim, alim, rl, fnul) = MACH;
     //
     // TEST FOR RANGE
     //
