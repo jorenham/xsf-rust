@@ -1,25 +1,13 @@
 //! Rust translation of <https://github.com/scipy/scipy/blob/d3ac276/scipy/special/wright.cc>
 
 use crate::numpy::nextafter;
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::log::clog;
 use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
 const TWOITERTOL: f64 = f64::EPSILON;
 const I: Complex64 = Complex64 { re: 0.0, im: 1.0 };
-
-/// Computes fl(a+b) and err(a+b).
-///
-/// Translated from <https://github.com/scipy/scipy/blob/3dcd7b9/scipy/special/_round.h#L16-L25>
-#[inline]
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
-    let s = a + b;
-    let c = s - a;
-    let d = b - c;
-    let e = s - c;
-    let err = (a - e) + d;
-    (s, err)
-}
 
 /// Translated from <https://github.com/scipy/scipy/blob/3dcd7b9/scipy/special/_round.h#L28-L45>
 fn add_round_up(a: f64, b: f64) -> f64 {

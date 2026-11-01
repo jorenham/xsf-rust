@@ -87,7 +87,7 @@ pub(crate) use kolmogorov::{
 pub use lanczos::*;
 pub(crate) use nbdtr::{nbdtr, nbdtrc, nbdtri};
 pub(crate) use ndtr::{erf, erfc, ndtr};
-pub(crate) use ndtri::ndtri;
+pub(crate) use ndtri::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2, ndtri};
 pub(crate) use owens_t::owens_t;
 pub(crate) use pdtr::{pdtr, pdtrc, pdtri};
 pub use poch::*;

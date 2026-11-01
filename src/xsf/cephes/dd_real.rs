@@ -42,7 +42,7 @@ fn quick_two_sum(a: f64, b: f64) -> (f64, f64) {
 
 /// Computes fl(a+b) and err(a+b).
 #[inline]
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
+pub(crate) fn two_sum(a: f64, b: f64) -> (f64, f64) {
     let s = a + b;
     let c = s - a;
     let d = b - c;
