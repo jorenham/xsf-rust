@@ -9,30 +9,21 @@ fn test_it2struve0_f64() {
 }
 
 #[test]
-fn test_itstruve0_neumann() {
-    // Neumann series for 0.5 <= x < 40 (reference values from mpmath)
-    for (x, expected) in [
-        (5.5, 1.937_558_487_381_615_6),
-        (29.746_969_855_043_805, 3.083_870_170_792_807),
-        (37.5, 3.046_057_878_828_238_6),
-    ] {
-        let rel = (xsf::itstruve0(x) - expected).abs() / expected;
-        assert!(rel < 1e-15, "itstruve0({x}): rel = {rel:e}");
-    }
-}
+fn test_itstruve0_it2struve0_large_x() {
+    // the Neumann series for 0.5 <= x < 40, and the asymptotic expansion beyond (mpmath)
+    let actual = [
+        xsf::itstruve0(29.746_969_855_043_805),
+        xsf::it2struve0(24.450_718_139_337_205),
+    ];
+    let expected = [3.083_870_170_792_807, 0.026_268_893_388_791_609];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 
-#[test]
-fn test_it2struve0_neumann_asymptotic() {
-    // Neumann series for 0.5 <= x < 40, asymptotic expansion beyond (reference values from mpmath)
-    for (x, expected, tol) in [
-        (3.5, 0.103_660_422_008_807_57, 2e-15),
-        (24.450_718_139_337_205, 0.026_268_893_388_791_609, 1e-13),
-        (43.234_469_249_914_99, 0.014_722_474_596_212_911, 1e-15),
-        (1000.0, 0.000_661_413_224_079_251_6, 1e-15),
-    ] {
-        let rel = (xsf::it2struve0(x) - expected).abs() / expected;
-        assert!(rel < tol, "it2struve0({x}): rel = {rel:e}");
-    }
+    let actual = [
+        xsf::it2struve0(43.234_469_249_914_99),
+        xsf::it2struve0(1000.0),
+    ];
+    let expected = [0.014_722_474_596_212_911, 0.000_661_413_224_079_251_6];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]

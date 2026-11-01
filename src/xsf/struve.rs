@@ -23,13 +23,8 @@ fn specfun_convinf(x: f64) -> f64 {
     x
 }
 
-/// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `x >= 0.5`, by integrating
-/// `H0 = 4/pi sum_k J_{2k+1} / (2k+1)` (DLMF 11.4.21) term by term:
-///
-/// - `int_0^x J_{2k+1}(t) dt = 2 sum_{j>k} J_{2j}(x)`
-/// - `int_0^x J_{2k+1}(t)/t dt = (2 sum_{j>=k} J_{2j+1}(x) - J_{2k+1}(x)) / (2k+1)`
-///
-/// with the `J_n(x)` from Miller's backward recurrence, normalized by `J_0 + 2 sum_j J_{2j} = 1`.
+/// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `x >= 0.5`, by integrating DLMF 11.4.21,
+/// `H0 = 4/pi sum_k J_{2k+1} / (2k+1)`, term by term, with Miller's backward recurrence for `J_n`.
 fn itsh0_neumann(x: f64) -> (f64, f64) {
     let mut n = 2.0 * (0.5 * x).floor() + 51.0;
     // unnormalized J_{n+1}(x) and J_n(x)
@@ -61,9 +56,8 @@ fn itth0(x: f64) -> f64 {
     // Output:  TTH --- Integration of H0(t)/t from x to infinity
     // ===========================================================
 
-    // Unlike in xsf, the Neumann series for 0.5 <= x < 40, where the series cancels and the
-    // asymptotic expansion is inaccurate, e.g. `it2struve0(24.450718139337205)` was 0.0262689004
-    // instead of 0.0262688934.
+    // Unlike in xsf, use the Neumann series for 0.5 <= x < 40, where the power series cancels and
+    // the asymptotic one is inaccurate, e.g. `it2struve0(24.45)` had a relative error of 1.5e-7.
     if (0.5..40.0).contains(&x) {
         return FRAC_PI_2 - itsh0_neumann(x).1;
     }
@@ -83,8 +77,9 @@ fn itth0(x: f64) -> f64 {
         tth = PI / 2.0 - FRAC_2_PI * x * s;
     } else {
         // Unlike in xsf, sum up to eps (instead of 1e-12), and integrate `Y0(t)/t` by parts with
-        // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8.
-        for k in 1..31 {
+        // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8,
+        // e.g. `it2struve0(1000)` had a relative error of 1.6e-9.
+        for k in 1..11 {
             let k = f64::from(k);
             r = -r * (2.0 * k - 1.0).powf(3.0) / ((2.0 * k + 1.0) * x * x);
             s += r;
@@ -124,8 +119,8 @@ fn itsh0(x: f64) -> f64 {
     let th0;
     let el = 0.57721566490153;
 
-    // Unlike in xsf, the Neumann series for 0.5 <= x < 40, where the series cancels, e.g.
-    // `itstruve0(29.746969855043805)` was 3.08382 instead of 3.08387.
+    // Unlike in xsf, use the Neumann series for 0.5 <= x < 40, where the power series cancels,
+    // e.g. `itstruve0(29.75)` had a relative error of 6e-6.
     if (0.5..40.0).contains(&x) {
         return itsh0_neumann(x).0;
     }
