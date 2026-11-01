@@ -418,7 +418,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#365), the series DLMF 13.2.2 is summed directly for a >= 2 and
     // b > 0, and for a > -1 and x > 30 + |b|, e.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead
-    // of 1.000000000075.
+    // of 1.0.
     //
     // Unlike in xsf (scipy/xsf#365), this includes x <= -700, where e^x underflows.
     //
@@ -931,7 +931,7 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 3, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
     //
-    // e.g. U(1.1, 0.5, 15) = 0.045763173934103 instead of 0.045763206361933
+    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317.
     let cubic = a < 3.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
