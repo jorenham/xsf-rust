@@ -697,9 +697,6 @@ fn ln_gamma_ratio(z: f64) -> f64 {
 
 /// `m * e^e`, without spurious over- or underflow of `e^e`
 fn mul_exp(m: f64, e: f64) -> f64 {
-    if m == 0.0 {
-        return m;
-    }
     if e.abs() > 1400.0 {
         return m.signum() * (m.abs().ln() + e).exp();
     }
@@ -740,25 +737,17 @@ fn airy_coefs(t: f64) -> (f64, f64, [[f64; 5]; 4]) {
 
     // Fewer terms near the turning point, where 12.10.42 and 12.10.46 lose precision
     let n = if eps.abs() < 0.3 { 3 } else { 4 };
-    let mut u = [0.0; 10];
-    let mut v = [0.0; 10];
-    for k in 0..=2 * n + 1 {
-        u[k] = uv_poly(U_POLY[k], k, t, false);
-        v[k] = uv_poly(V_POLY[k], k, t, false);
-    }
-    // alpha_m and beta_m of 12.10.43
-    let mut alpha = [1.0; 10];
-    let mut beta = [1.0; 10];
+    let u: [f64; 10] = core::array::from_fn(|k| uv_poly(U_POLY[k], k, t, false));
+    let v: [f64; 10] = core::array::from_fn(|k| uv_poly(V_POLY[k], k, t, false));
+    // alpha_m and beta_m of 12.10.43, and phi^6m
+    let (mut alpha, mut beta, mut p6k) = ([1.0; 10], [1.0; 10], [1.0; 10]);
     let mut mf = 0.0;
-    for m in 1..=2 * n + 1 {
+    for m in 1..10 {
         mf += 1.0;
         alpha[m] = alpha[m - 1] * (6.0 * mf - 5.0) * (6.0 * mf - 3.0) * (6.0 * mf - 1.0)
             / ((2.0 * mf - 1.0) * mf * 144.0);
         beta[m] = -(6.0 * mf + 1.0) / (6.0 * mf - 1.0) * alpha[m];
-    }
-    let mut p6k = [1.0; 10];
-    for k in 1..10 {
-        p6k[k] = p6k[k - 1] * p6;
+        p6k[m] = p6k[m - 1] * p6;
     }
     // 12.10.42, 12.10.46
     let z3 = zeta.powi(-3);
@@ -785,7 +774,6 @@ fn airy_coefs(t: f64) -> (f64, f64, [[f64; 5]; 4]) {
 
 /// `D_v(y)`, `D_v'(y)`, `Gamma(v + 1) V(-v - 1/2, y)` and its derivative, for `v >= 20`, `y >= 0`,
 /// as mantissas (with exponents `ea` for `D_v`, and `eb`), by 12.10.35-38
-#[allow(clippy::similar_names)]
 fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     let m = v + 0.5; // -a = mu^2 / 2
     let mu2 = 2.0 * m;
@@ -794,10 +782,11 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     let t = 0.5 * y / rm;
     // ln h(mu) (12.10.15), and for t > 1 also ln h -+ mu^2 xi, with
     // mu^2 xi = (y / 2) s - m ln((y / 2 + s) / sqrt(m)) and s = sqrt(y^2 / 4 - m) (12.10.7)
-    let lh = 0.5 * m * (m.ln() - 1.0) - 0.25 * (2.0 * mu2).ln();
+    let l4 = 0.25 * (2.0 * mu2).ln();
+    let lh = 0.5 * m * (m.ln() - 1.0) - l4;
     let (ea, eb) = if t > 1.0 {
         let s = ((0.5 * y - rm) * (0.5 * y + rm)).sqrt();
-        let ea = -0.5 * y * s + m * (0.5 * y + s).ln() - 0.5 * m - 0.25 * (2.0 * mu2).ln();
+        let ea = -0.5 * y * s + m * (0.5 * y + s).ln() - 0.5 * m - l4;
         (ea, 2.0 * lh - ea)
     } else {
         (lh, lh)
@@ -811,18 +800,19 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     let m4 = 1.0 / (mu2 * mu2);
     let [sa, sb, sc, sd] = c.map(|cs| cs.iter().rev().fold(0.0, |acc, &c| acc * m4 + c));
     let mu23 = mu2.cbrt(); // mu^(2/3)
-    let z = mu23 * mu23 * zeta;
+    let mu43 = mu23 * mu23;
+    let z = mu43 * zeta;
     let [ai, aip, bi, bip] = if t > 1.0 { airy_scaled(z) } else { airy(z) };
     // g(mu) / h(mu) = (1 + r) / 2 (12.10.14, 12.10.16)
     let g = 1.0 + 0.5 * ln_gamma_ratio(m).exp_m1();
     let pre = 2.0 * SQRT_PI * mu23.sqrt() * g * phi;
     let pre_d = SQRT_2 * SQRT_PI * mu23 * g / phi;
-    let mu83 = mu23 * mu23 * mu23 * mu23;
+    let mu83 = mu43 * mu23 * mu23;
     let parts = [
         pre * (ai * sa + aip / mu83 * sb),
-        pre_d * (ai / (mu23 * mu23) * sc + aip * sd),
+        pre_d * (ai / mu43 * sc + aip * sd),
         pre * (bi * sa + bip / mu83 * sb),
-        pre_d * (bi / (mu23 * mu23) * sc + bip * sd),
+        pre_d * (bi / mu43 * sc + bip * sd),
     ];
     (parts, ea, eb)
 }
@@ -860,6 +850,45 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
     )
 }
 
+/// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by the Maclaurin series, with the
+/// values at `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact, and
+/// `w'' = (x^2 / 4 - v - 1/2) w` (12.2.2)
+fn pbdv_maclaurin(v: f64, x: f64) -> (f64, f64) {
+    let a = -v - 0.5;
+    let lg = lgam(0.5 * v + 1.0);
+    let e = 0.5 * v * LN_2 + lg; // with mantissas c0 and c1
+    let c0 = cospi(0.5 * v) / SQRT_PI * (lgam(0.5 * v + 0.5) - lg).exp();
+    let c1 = SQRT_2 * sinpi(0.5 * v) / SQRT_PI;
+    if x.abs() < 1e-150 {
+        // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
+        let (k, ex) = (2.0_f64.powi(600), e - 600.0 * LN_2);
+        return (
+            mul_exp(c0 * k + c1 * (x * k), ex),
+            mul_exp(c1 * k + a * c0 * (x * k), ex),
+        );
+    }
+    // w = sum c_n x^n with c_{n+2} = (a c_n + c_{n-2} / 4) / ((n + 1) (n + 2))
+    let mut c = [0.0, 0.0, c0, c1]; // c_{n-2}, c_{n-1}, c_n, c_{n+1}
+    let (mut d, mut dp, mut xn) = (c0 + c1 * x, c1, x); // xn = x^(n+1)
+    let mut prev = f64::INFINITY;
+    for n in 0..60 {
+        let nf = f64::from(n);
+        let cn2 = (a * c[2] + 0.25 * c[0]) / ((nf + 1.0) * (nf + 2.0));
+        c = [c[1], c[2], c[3], cn2];
+        let term = (nf + 2.0) * cn2 * xn; // of dp
+        dp += term;
+        xn *= x;
+        d += cn2 * xn;
+        // the odd or even terms vanish for integer v
+        let size = term.abs().max(prev);
+        if size <= 1e-17 * dp.abs().min(d.abs() / x.abs()) {
+            break;
+        }
+        prev = term.abs();
+    }
+    (mul_exp(d, e), mul_exp(dp, e))
+}
+
 /// `D_v(x)`, `D_v'(x)` by uniform asymptotic expansions, or `None` outside their regime
 #[allow(clippy::cast_possible_truncation)]
 fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
@@ -870,47 +899,13 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         return (x >= 0.0 || x < -50.0).then(|| pbdv_elementary(v, x));
     }
     if v >= 300.0 && x.abs() * (v + 0.5).sqrt() < 1.0 {
-        // Maclaurin series, with the values at x = 0 (12.2.6, 12.2.7, and 5.5.3), so that the
-        // zeros at x = 0 are exact, and w'' = (x^2 / 4 - v - 1/2) w (12.2.2)
-        let a = -v - 0.5;
-        let e = 0.5 * v * LN_2 + lgam(0.5 * v + 1.0); // with mantissas c0 and c1
-        let c0 = cospi(0.5 * v) / SQRT_PI * (lgam(0.5 * v + 0.5) - lgam(0.5 * v + 1.0)).exp();
-        let c1 = SQRT_2 * sinpi(0.5 * v) / SQRT_PI;
-        if x.abs() < 1e-150 {
-            // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
-            let (k, ex) = (2.0_f64.powi(600), e - 600.0 * LN_2);
-            return Some((
-                mul_exp(c0 * k + c1 * (x * k), ex),
-                mul_exp(c1 * k + a * c0 * (x * k), ex),
-            ));
-        }
-        // w = sum c_n x^n with c_{n+2} = (a c_n + c_{n-2} / 4) / ((n + 1) (n + 2))
-        let mut c = [0.0, 0.0, c0, c1]; // c_{n-2}, c_{n-1}, c_n, c_{n+1}
-        let (mut d, mut dp, mut xn) = (c0 + c1 * x, c1, x); // xn = x^(n+1)
-        let mut prev = f64::INFINITY;
-        for n in 0..60 {
-            let nf = f64::from(n);
-            let cn2 = (a * c[2] + 0.25 * c[0]) / ((nf + 1.0) * (nf + 2.0));
-            c = [c[1], c[2], c[3], cn2];
-            let term = (nf + 2.0) * cn2 * xn; // of dp
-            dp += term;
-            xn *= x;
-            d += cn2 * xn;
-            // the odd or even terms vanish for integer v
-            let size = term.abs().max(prev);
-            if size <= 1e-17 * dp.abs().min(d.abs() / x.abs()) {
-                break;
-            }
-            prev = term.abs();
-        }
-        return Some((mul_exp(d, e), mul_exp(dp, e)));
+        return Some(pbdv_maclaurin(v, x));
     }
     if x >= 0.0 {
-        if v >= 20.0 && (x >= 53.0 || v >= 300.0) {
+        return (v >= 20.0 && (x >= 53.0 || v >= 300.0)).then(|| {
             let ([d, dp, ..], ea, _) = pbdv_airy(v, x);
-            return Some((mul_exp(d, ea), mul_exp(dp, ea)));
-        }
-        return None;
+            (mul_exp(d, ea), mul_exp(dp, ea))
+        });
     }
     if v < 2.0 || (x >= -5.0 && v < 300.0) {
         return None;
@@ -938,7 +933,8 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     let ([.., mut u0, _], ea, eb) = pbdv_airy(v + n, y);
     if ea < -1000.0 {
         // Ubar_v(y) overflows
-        return Some((c * dy - mul_exp(s, eb), mul_exp(s, eb) - c * dpy));
+        let ub = mul_exp(s, eb);
+        return Some((c * dy - ub, ub - c * dpy));
     }
     // Ubar_{w-1}(y) = (y Ubar_w(y) - Ubar_{w+1}(y)) / w (12.8.5), stable for decreasing w
     let ([.., u1, _], _, eb1) = pbdv_airy(v + n + 1.0, y);
@@ -1032,8 +1028,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     // `gamma2` is inaccurate), e.g. `pbdv(7.8219197547668315, -6.126185993244382).0` was 152.38
     // instead of 142.56.
     if v > 0.0
-        && v < 20.0
-        && v < x * x / 3.0
+        && v < (x * x / 3.0).min(20.0)
         && (v - v.round()).abs() > 1e-5
         && (-10.0..-5.8).contains(&x)
     {
