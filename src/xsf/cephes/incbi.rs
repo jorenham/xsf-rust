@@ -171,15 +171,9 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                         }
                         dir += 1;
                         // Unlike in xsf (scipy/xsf#364), the switch to 1 - x (but not back)
-                        // requires either:
-                        //
-                        // - y0 >= 1/512, so that rounding 1 - y0 (a relative error of up to
-                        //   MACHEP / 2y0) stays within the tolerance on y (dithresh = 256 MACHEP)
-                        // - 1 - x0 < y0 (heuristic), i.e. that rounding 1 - y0 loses less than
-                        //   staying near x = 1 does (MACHEP / (1 - x0))
-                        //
-                        // For example, betaincinv(509, 0.041, 1.3e-48) was 1.1e-16 instead of
-                        // 0.8172, because 1 - y0 rounded to 1.
+                        // requires y0 >= 1/512, or 1 - x0 < y0 (heuristic: rounding 1 - y0 then
+                        // loses less than staying near x = 1, i.e. MACHEP / (1 - x0)), e.g.
+                        // betaincinv(509, 0.041, 1.3e-48) was 1.1e-16 instead of 0.8172.
                         if x0 > 0.75 && (rflg || y0 >= 1.0 / 512.0 || 1.0 - x0 < y0) {
                             if rflg {
                                 rflg = false;

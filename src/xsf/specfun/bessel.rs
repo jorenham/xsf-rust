@@ -166,8 +166,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
     }
 
     // Unlike in xsf (scipy/xsf#351), the Hankel expansion is used for x >= 2^31 / 0.9 (~2.39e9),
-    // because `as i32` saturates. In C++ `(int)(0.9 * x)` is UB there, which on x86-64 yields
-    // INT_MIN, so that the backward recurrence is taken, resulting in 0 or NaN.
+    // since `as i32` saturates.
     if (x <= 300.0) || (n > (0.9 * x) as i32) {
         // Backward recurrence for Jn
         if n == 0 {
@@ -309,11 +308,8 @@ pub(crate) fn jyndd(
     //          jynbh to compute jn and yn
     // ===========================================================
 
-    // NOTE: in C++ `bj` and `by` are uninitialized. jynbh(n + 1, n, ...) writes bj[0..=*nm - n] and
-    // by[0..=*nm - n] with *nm = min(n + 1, msta1(x, 200)) in its backward recurrence branch, so
-    // bj[1] / by[1] (or both elements, if msta1(x, 200) < n) are read uninitialized in C++ when
-    // msta1(x, 200) <= n, i.e. only for x much smaller than n. jyzo only calls this near the zeros
-    // of Jn, Jn', Yn, Yn' (x > n for n > 0), where this doesn't happen.
+    // NOTE: in C++ `bj` and `by` are uninitialized, and partly read uninitialized if
+    // msta1(x, 200) <= n (x << n). jyzo only calls this near the zeros (x > n), so that's fine.
     let mut nm = 0;
     let mut bj = [0.0; 2];
     let mut by = [0.0; 2];
@@ -565,11 +561,9 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] are written, and also dl[1] / bl[1] (for |x| < 1e-100, and for
-    // x > 12, where *nm is set to 1 if n == 0), which is out of bounds for n == 0 with buffers of
-    // length n + 1. The caller (jahnke_emden_lambda) passes n >= 1 with length n + 1, so it's in
-    // bounds there. For x > 12 only bl[0..=*nm] / dl[0..=*nm] are written, with
-    // *nm = min(n, msta1(x, 200)); the rest is left untouched.
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also dl[1] (for |x| < 1e-100) or bl[1] /
+    // dl[1] (for x > 12, where *nm is 1 if n == 0), which is out of bounds for n == 0 with buffers
+    // of length n + 1. The caller (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
     if x.abs() < 1e-100 {
         for k in 0..=n {
@@ -680,9 +674,9 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     // =========================================================
 
     // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > 12 also vl[1] / dl[1]
-    // (out of bounds for v < 1 with buffers of length n + 1). The caller (jahnke_emden_lambda)
-    // passes v >= 1 with length (int)v + 1, so it's in bounds there. `(int)v` is UB in C++ for v
-    // out of range or NaN (Rust saturates); the caller only passes v < 2^31.
+    // (out of bounds for v < 1 with buffers of length n + 1). The caller
+    // (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 1, so that's in bounds,
+    // and `(int)v` is not UB.
     let rp2 = 0.63661977236758;
 
     let x = x.abs();
@@ -861,12 +855,11 @@ pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     // Output:  MSTA1 --- Starting point
     // ===================================================
 
-    // NOTE: the `(int)` casts below are UB in C++ when the double is out of range or NaN: for
-    // |x| >= 2^31 / 1.1 (~1.95e9) or NaN in `(int)(1.1 * a0)`, and in the `nn = ...` assignment
-    // whenever the secant step is NaN/+-inf (e.g. x == 0, where f0 = f1 = +inf) or huge. Rust's
-    // `as i32` saturates (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. Moreover, with
-    // saturation, the `+ 1` / `+ 5` and `nn - n1` below can overflow i32 (panics in debug builds)
-    // for such inputs. jynbh only calls this for x >= 1e-100 with n > (int)(0.9 * x) or x <= 300.
+    // NOTE: the `(int)` casts below are UB in C++ for |x| >= 2^31 / 1.1 (~1.95e9) or NaN, and if
+    // the secant step is NaN, +-inf (e.g. for x == 0) or huge. Rust's `as i32` saturates
+    // (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. The `+ 1` / `+ 5` / `nn - n1` below can
+    // then overflow i32 (panics in debug builds). jynbh only calls this for x >= 1e-100 with
+    // n > (int)(0.9 * x) or x <= 300.
     let a0 = x.abs();
     let mut n0 = (1.1 * a0) as i32 + 1;
     let mut f0 = 0.5 * (6.28 * f64::from(n0)).log10()
@@ -905,10 +898,8 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     // Output:  MSTA2 --- Starting point
     // ===================================================
 
-    // NOTE: as in msta1, the `(int)` casts below are UB in C++ when the double is out of range or
-    // NaN (|x| >= 2^31 / 1.1, x NaN, or a NaN/+-inf/huge secant step); Rust's `as i32` saturates
-    // (NaN -> 0), whereas g++ on x86-64 yields INT_MIN, and the subsequent `+ 1` / `+ 5` /
-    // `nn - n1` / `nn + 10` can then overflow i32 (panics in debug builds).
+    // NOTE: the `(int)` casts below have the same UB as in msta1 (see there), and `nn + 10` can
+    // overflow as well.
     let mut n0: i32;
     let obj: f64;
 
@@ -964,13 +955,10 @@ pub(crate) fn sphj(x: f64, n: i32, nm: &mut i32, sj: &mut [f64], dj: &mut [f64])
     //           point for backward recurrence
     //  =======================================================
 
-    // NOTE: `sj[0..=n]` / `dj[0..=n]` are written (and `sj[1]` for n >= 1, `dj[1]` for n > 0).
-    // The only caller, rmn1, passes n = 2 * (25 + (n - m) / 2 + (int)c) + m into 252-element
-    // buffers. Since only sj[0..=*nm] / dj[0..=*nm] are written for |x| >= 1e-100 (with
-    // *nm = min(n, msta1(x, 200))), this overflows when that n exceeds 251, i.e.
-    // n_caller - (n_caller - m) % 2 + 2 * (int)c >= 202, and also msta1(c * x, 200) >= 252, i.e.
-    // c * x >~ 30 (e.g. prolate_radial1_nocv(2, 200, 1, 300), confirmed with ASan), which the
-    // public API allows.
+    // NOTE: `sj[0..=*nm]` / `dj[0..=*nm]` are written, with *nm = min(n, msta1(x, 200)) for
+    // |x| >= 1e-100. The only caller, rmn1, uses 252-element buffers, so this overflows if both n
+    // and msta1(x, 200) exceed 251 (c * x >~ 30), e.g. prolate_radial1_nocv(2, 200, 1, 300)
+    // (confirmed with ASan).
     // NOTE: for x NaN, msta1/msta2 hit their `(int)NaN` UB (see there), so `*nm` (and therefore
     // which elements of `sj` / `dj` are written) may differ from C++; the values are all NaN.
     *nm = n;
@@ -1033,15 +1021,13 @@ pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64])
     //          NM --- Highest order computed
     // ======================================================
 
-    // NOTE: `sy[0..=n]` / `dy[0..=n]` are written. The only caller, rmn2l, passes
-    // n = 2 * (25 + (n - m) / 2 + (int)c) + m into 252-element buffers. Since the loop stops after
-    // writing the first |sy[k]| >= 1e300, this overflows when that n exceeds 251 (same condition as
-    // for sphj) and sy[251] is still finite, i.e. c * x >~ 11.75 (e.g.
-    // prolate_radial2_nocv(2, 200, 1, 300), confirmed with ASan).
-    // NOTE: unlike the Fortran original (where NM = K - 1 is N after a completed loop, and DY is
-    // computed up to NM in both cases), the C++ returns early without computing any dy[k], k >= 1,
-    // when |f| >= 1e300, and otherwise sets *nm = n - 1, so dy[n] is never computed (for n == 1,
-    // dy[1] isn't either). Reproduced as is.
+    // NOTE: `sy[0..=n]` / `dy[0..=n]` are written, but the loop stops after the first
+    // |sy[k]| >= 1e300. The only caller, rmn2l, uses 252-element buffers, so this overflows if
+    // n > 251 and sy[251] is finite (c * x >~ 11.75), e.g. prolate_radial2_nocv(2, 200, 1, 300)
+    // (confirmed with ASan).
+    //
+    // NOTE: unlike the Fortran original, the C++ computes no dy[k], k >= 1, if |f| >= 1e300, and
+    // otherwise sets *nm = n - 1, so dy[n] is never computed. Reproduced as is.
     if x < 1.0e-60 {
         for k in 0..=n {
             sy[k as usize] = -1.0e300;

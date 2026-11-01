@@ -229,8 +229,8 @@ pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
         let t = ((a + a.hypot(b)) * 0.5).sqrt();
         rx = scale * t;
         // (unlike in FreeBSD) if `a == 0`, then `b / (2 t) = t sign(b)` in exact arithmetic, and
-        // the latter is correctly rounded (unless `0.5 |b|` is subnormal and inexact, i.e. for some
-        // `MIN_POSITIVE <= |b| < 2 MIN_POSITIVE`), whereas the former can be 1 ulp off
+        // the latter is correctly rounded (unless `0.5 |b|` is subnormal and inexact), whereas the
+        // former can be 1 ulp off
         ry = if a == 0.0 {
             (scale * t).copysign(b)
         } else {

@@ -6,7 +6,7 @@
 //!
 //! Unlike in xsf, `pbdv` and `pbvv` return NaN for `|v| >= 2^31`, where `(int) v` is undefined
 //! behavior in C++ (in practice the allocation fails there, which also returns NaN), and the
-//! other `double` → `int` conversions saturate. Like in xsf, they also return NaN if the
+//! other `double` -> `int` conversions saturate. Like in xsf, they also return NaN if the
 //! allocation of their work buffer fails.
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
@@ -182,10 +182,8 @@ fn vvsa(x: f64, va: f64) -> f64 {
             let r1 = gw * r * gm;
             pv += r1;
             // Unlike in xsf (scipy/xsf#374), the convergence test ignores the weight `gw`
-            // (instead of only skipping `gw == 0`): for `va` near an integer, every other `gw` is
-            // tiny, which stopped the loop too early.
-            //
-            // E.g. `pbvv(2.00000001, 7.0251687981058035).0` was 1.8e-4 instead of 601.28.
+            // (instead of only skipping `gw == 0`), e.g. `pbvv(2.00000001, 7.0251687981058035).0`
+            // was 1.8e-4 instead of 601.28.
             if (r * gm / pv).abs() < eps {
                 break;
             }
@@ -410,16 +408,9 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f1 = f;
         }
     } else if ((x >= 0.0) && (x <= 7.5)) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
-        // Unlike in xsf (scipy/xsf#374), this branch, which evaluates `vvsa` at the orders v and
-        // v - 1, is also used for 7.5 < |x| <= 10 and v <= x^2 / 2 (here v is the order + 1).
-        // There, the 250 terms of `vvsa` suffice and barely cancel, whereas xsf uses `vvla`:
-        //
-        // - for x > 7.5, with Miller's backward recurrence, which hasn't converged to V_v there;
-        // - for x < -7.5, with the upward recurrence, which is unstable, and `vvla` is wrong for
-        //   integer v (at the poles of `gamma2(-v)`).
-        //
-        // E.g. `pbvv(8.463751277865178, 7.641451046470024).0` was 0.022906 instead of 0.023227,
-        // and `pbvv(6.0, -8.0).0` was -1.5e263 instead of -5.6633.
+        // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
+        // v <= x^2 / 2 (here v is the order + 1), e.g. `pbvv(6.0, -8.0).0` was -1.5e263 instead
+        // of -5.6633.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -683,17 +674,9 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
-    // `dvsa` for -10 <= x < -5.8 and 0 < v < x^2 / 3. There, xsf uses `dvla` and the upward
-    // recurrence:
-    //
-    // - `dvla` is only accurate to ~1e-4 near x = -5.8;
-    // - the upward recurrence is unstable for x < 0, e.g. it amplifies errors by ~1e11 from
-    //   D_0.1(-10) to D_10.1(-10);
-    // - the terms of `dvsa` barely cancel there, and its 250 terms suffice for |x| <= 10;
-    // - within 1e-5 of an integer v, `dvsa` is not used, since `gamma2` is inaccurate near its
-    //   poles.
-    //
-    // E.g. `pbdv(7.8219197547668315, -6.126185993244382).0` was 152.38 instead of 142.56.
+    // `dvsa` for -10 <= x < -5.8 and 0 < v < x^2 / 3 (not near an integer v, where `gamma2` is
+    // inaccurate), e.g. `pbdv(7.8219197547668315, -6.126185993244382).0` was 152.38 instead of
+    // 142.56.
     if v > 0.0 && v < x * x / 3.0 && (v - v.round()).abs() > 1e-5 && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));

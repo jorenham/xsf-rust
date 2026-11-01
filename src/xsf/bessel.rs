@@ -262,11 +262,9 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     ke
 }
 
-/// AMOS already "overflows" if K_v(x) >~ 1e304. Unlike in xsf (scipy/xsf#372), retry such an inf
-/// with the recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1) for |v| > 1,
-/// which also holds for e^x K_v(x). The lower orders are smaller by a factor of about x / (2v).
-///
-/// For example, `bessel_k(1.5, 1e-205)` was inf instead of 3.96e307.
+/// Unlike in xsf (scipy/xsf#372), retry an AMOS overflow (K_v(x) >~ 1e304) for |v| > 1 with the
+/// recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1), which also holds for
+/// e^x K_v(x), e.g. `bessel_k(1.5, 1e-205)` was inf instead of 3.96e307.
 fn cyl_bessel_k_overflow(k: fn(f64, Complex64) -> Complex64, v: f64, x: f64) -> f64 {
     let v = v.abs();
     if v <= 1.0 {
@@ -1615,13 +1613,13 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     //          point for backward recurrence
     // ========================================================
 
-    // NOTE: rj[0] and rj[1] are always written (for |x| >= 1e-100), so this is out of bounds for
-    // buffers of length 1 (n == 0); the caller (riccati_j) uses length 2 for N == 1. Apart from
-    // that, only rj[0..=*nm] / dj[0..=*nm] are written, with *nm <= n.
-    // NOTE: for x NaN, +-inf, or |x| >= 2^31 / 1.1, msta1/msta2 hit their `(int)` UB (see there;
-    // riccati_j doesn't guard against these), so `*nm` (and which elements of rj / dj are written)
-    // may differ from C++. Also, Rust's saturating casts make the `+ 1` / `+ 5` in msta1 overflow
-    // (panic in debug builds) for x +-inf and |x| >= ~2^31.
+    // NOTE: rj[0] and rj[1] are always written (for |x| >= 1e-100), so buffers of length 1
+    // (n == 0) are out of bounds; riccati_j uses length 2 for N == 1. Otherwise, only
+    // rj[0..=*nm] / dj[0..=*nm] are written, with *nm <= n.
+    //
+    // NOTE: for x NaN, +-inf, or |x| >= 2^31 / 1.1, msta1/msta2 hit their `(int)` UB (see there),
+    // so `*nm` may differ from C++, and the `+ 1` / `+ 5` in msta1 overflow (panic in debug builds)
+    // for x +-inf and |x| >= ~2^31.
     let n = rj.len() as i32 - 1;
 
     *nm = n;
@@ -1689,9 +1687,8 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     //          NM --- Highest order computed
     // ========================================================
 
-    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written (for x >= 1e-60, *nm >= 1 since the
-    // loop starts at k = 2), so this is out of bounds for buffers of length 1 (n == 0); the caller
-    // (riccati_y) uses length 2 for N == 1.
+    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written (for x >= 1e-60), so buffers of
+    // length 1 (n == 0) are out of bounds; riccati_y uses length 2 for N == 1.
     let n = ry.len() as i32 - 1;
 
     let mut k;

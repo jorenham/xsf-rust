@@ -1599,11 +1599,9 @@ pub(crate) fn besh(
     // CALCULATE EXP(FNU*HPI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     // WHEN FNU IS LARGE
     //
-    // NOTE: The range test above allows `fnu` up to `0.5 / tol` (about 2.3e15), so `fnu` can
-    // exceed `i32::MAX`, in which case the C++ `(int)fnu` is UB (on x86-64 it gives `INT_MIN`, so
-    // `inuh = -2^30` and `ir = 0`). Here `as i32` saturates to `i32::MAX` instead (so `inuh` is
-    // odd and `ir = 1`), which results in a different `csgn` (and NaN gives 0, with the same NaN
-    // `csgn` as in C++).
+    // NOTE: The range test above allows `fnu > i32::MAX` (up to ~2.3e15), where the C++ `(int)fnu`
+    // is UB (x86-64: `INT_MIN`). Here `as i32` saturates to `i32::MAX`, which gives a different
+    // `csgn` (NaN gives 0, with the same NaN `csgn` as in C++).
     let inu = fnu as i32;
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
@@ -1918,8 +1916,8 @@ pub(crate) fn besi(
         cy[(i - 1) as usize] = atol * cmul(zn, csgn);
         csgn = -csgn;
     }
-    // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if `xx >= 0.0`,
-    // or if the entire sequence underflows (the Fortran ZBESI doesn't reset it).
+    // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if
+    // `xx >= 0.0`, or if the entire sequence underflows (the Fortran ZBESI doesn't reset it).
     *ierr = 0;
     nz
 }
@@ -2156,11 +2154,9 @@ pub(crate) fn besj(
     // WHEN FNU IS LARGE
     //
     ci.im = 1.0;
-    // NOTE: The range test above allows `fnu` up to `0.5 / tol` (about 2.3e15), so `fnu` can
-    // exceed `i32::MAX`, in which case the C++ `(int)fnu` is UB (on x86-64 it gives `INT_MIN`, so
-    // `inuh = -2^30` and `ir = 0`). Here `as i32` saturates to `i32::MAX` instead (so `inuh` is
-    // odd and `ir = 1`), which results in a different `csgn` (and NaN gives 0, with the same NaN
-    // `csgn` as in C++).
+    // NOTE: The range test above allows `fnu > i32::MAX` (up to ~2.3e15), where the C++ `(int)fnu`
+    // is UB (x86-64: `INT_MIN`). Here `as i32` saturates to `i32::MAX`, which gives a different
+    // `csgn` (NaN gives 0, with the same NaN `csgn` as in C++).
     let inu = fnu as i32;
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
@@ -3488,7 +3484,7 @@ pub(crate) fn bknu(
     let mut kflag: i32;
     let mut koded: i32;
     let mut ic: i32;
-    // uninitialized in C++; required by Rust because they're only assigned in some of the goto paths
+    // uninitialized in C++; required by Rust because they're only assigned in some goto paths
     let mut kk: i32 = 0;
     let mut j: i32 = 0;
     let mut inub: i32 = 0;
@@ -4910,7 +4906,8 @@ pub(crate) fn seri(
     let acz: f64;
     let mut ak: f64;
     let arm: f64;
-    // NOTE: `ascle` and `ss` are uninitialized in C++; they are only read if `iflag == 1`, after they were set
+    // NOTE: `ascle` and `ss` are uninitialized in C++; they are only read (if `iflag == 1`) after
+    // they were set
     let mut ascle: f64 = 0.0;
     let mut atol: f64;
     let az: f64;
@@ -5476,8 +5473,8 @@ pub(crate) fn unhj(
         if wi < 0. {
             wi = 0.;
         }
-        // NOTE: like in C++, the clamped `wr` and `wi` are never used; `w` itself is used below (the Fortran
-        // uses the clamped `WR`, `WI` for `ZA`, `ZTH`, and `ZETA2`)
+        // NOTE: like in C++, the clamped `wr` and `wi` are never used; `w` itself is used below
+        // (the Fortran uses the clamped `WR`, `WI` for `ZA`, `ZTH`, and `ZETA2`)
         za = cdiv(1. + w, zb);
         zc = clog(za);
         zcr = zc.re;
@@ -6226,7 +6223,8 @@ pub(crate) fn unik(
             *zeta1 = c64(ac, 0.0);
             *zeta2 = c64(fnu, 0.0);
             *phi = c64(1.0, 0.0);
-            // NOTE: like in C++, there's no `return` here (the Fortran returns), so these are overwritten below
+            // NOTE: like in C++, there's no `return` here (the Fortran returns), so these are
+            // overwritten below
         }
         t = cmul(zr, crfn);
         s = 1.0 + cmul(t, t);

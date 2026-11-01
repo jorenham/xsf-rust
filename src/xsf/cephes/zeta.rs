@@ -7,9 +7,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf (scipy/xsf#345), the asymptotic expansion for `q > 1e8` includes the `B_2` term,
-//! which reduces its relative error from `x (x - 1) / (12 q^2)` (up to ~1e-14) to below machine
-//! precision.
+//! Unlike in xsf (scipy/xsf#345), the asymptotic expansion for `q > 1e8` includes the `B_2` term.
 
 use crate::utils::MACHEP;
 
@@ -92,14 +90,12 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         }
 
         // Unlike in xsf (scipy/xsf#370), the terms (q + k)^-x for q + k < 0 are summed in closed
-        // form, instead of in the loop below, which takes ~|q| steps (and overflows `i` for
-        // |q| >= 2^31), e.g. `zeta(2, -1e10 - 0.5)` didn't terminate. With r = q - floor(q):
+        // form, instead of in the loop below, e.g. `zeta(2, -1e10 - 0.5)` didn't terminate. With
+        // r = q - floor(q):
         //
         //   zeta(x, q) = zeta(x, r) + (-1)^x (zeta(x, 1 - r) - zeta(x, 1 - q))
         //
-        // The leading powers r^-x and (1 - r)^-x are split off and summed first, so that for odd x
-        // and r near 1/2 they cancel before the tails are added, e.g. `zeta(31, -7.5)` was 1.4e-7
-        // instead of 1.6e-29.
+        // The leading powers r^-x and (1 - r)^-x are summed first, so that they can cancel.
         let sign = if x % 2.0 == 1.0 { -1.0 } else { 1.0 };
         let (r, s) = (q - q.floor(), q.ceil() - q);
         let lead = r.powf(-x) + sign * s.powf(-x);
@@ -138,11 +134,10 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         b = a.powf(-x);
         s += b;
         // Unlike in xsf (scipy/xsf#345), this also requires the tail sum `~ b * a / (x - 1)` to be
-        // negligible, which it isn't for `x` near 1 and tiny `q`, e.g. `zeta(1 + 2^-52, 1e-15)` was
-        // 1.0e15 instead of 5.5e15.
+        // negligible, e.g. `zeta(1 + 2^-52, 1e-15)` was 1.0e15 instead of 5.5e15.
         //
-        // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows, which avoids `0 / 0` if
-        // `s` does too, e.g. `zeta(1e300, 1.5)` was NaN instead of 0.
+        // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows, e.g. `zeta(1e300, 1.5)`
+        // was NaN instead of 0.
         if b == 0.0 || (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }

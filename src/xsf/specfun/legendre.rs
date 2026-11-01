@@ -23,11 +23,8 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
     // NOTE: only `pm[0..=n]` / `pd[0..=n]` belong to the output, but (for |x| != 1) `pm[m]` and
     // `pm[m + 1]` are always written and `pm[1]` is always read, so this indexes out of bounds
     // when m + 1 > n (with an `n + 1`-element buffer). The only caller, rmn2sp, passes
-    // n = (int)(2 * (25.0 + (n - m) / 2 + c) + m) >= m + 50 into 252-element buffers, which
-    // overflow when that n exceeds 251, i.e. when
-    // n_caller - (n_caller - m) % 2 + (int)(2 * c) >= 202, e.g. prolate_radial2_nocv(m, n, c, x)
-    // with (0, 198, 2, 1.0001) or (2, 200, 1, 1.5) (confirmed with ASan), which the public API
-    // allows.
+    // n >= m + 50 into 252-element buffers, which overflow if n > 251, e.g. for
+    // prolate_radial2_nocv(2, 200, 1, 1.5) (confirmed with ASan).
     for k in 0..=n {
         pm[k as usize] = 0.0;
         pd[k as usize] = 0.0;
@@ -446,10 +443,8 @@ pub(crate) fn lqmns(m: i32, n: i32, x: f64, qm: &mut [f64], qd: &mut [f64]) {
         }
     } else {
         // NOTE: for -1.1 <= x <= -1.0001 (or x NaN), `log(x - 1.0)` is NaN and `(int)NaN` is UB in
-        // C++ (g++ on x86-64 yields INT_MIN, after which `(40 + m + n) * INT_MIN` is signed
-        // overflow UB as well; in practice km is 0 or INT_MIN, so the loop below runs once or not
-        // at all). Rust's `as i32` gives 0, so the loop runs once (k = 0). Not reachable with a
-        // finite x from rmn2sp (x > 1), but a NaN x passes the public `x <= 1.0` check.
+        // C++ (g++ on x86-64: INT_MIN, so the loop below runs once or not at all); Rust gives 0, so
+        // it runs once. Only a NaN x reaches this from rmn2sp (x > 1).
         let km = if x.abs() > 1.1 {
             40 + m + n
         } else {

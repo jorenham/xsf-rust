@@ -127,11 +127,8 @@ fn airy_f64(x: f64) -> [f64; 4] {
      */
     if x < -10.0 || x > 10.0 {
         let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0));
-        // Unlike in xsf (scipy/xsf#310), fall back to Cephes if AMOS overflows (x > 103.28), since
-        // its Bi and Bi' are then NaN (and also Ai and Ai' if x > 1.05e6). Cephes returns
-        // (0, 0, inf, inf) if x > 103.892, and finite values below that.
-        //
-        // For example, `airy(415.6)` was [0, 0, NaN, NaN] instead of [0, 0, inf, inf].
+        // Unlike in xsf (scipy/xsf#310), fall back to Cephes if AMOS overflows (NaN Bi), e.g.
+        // `airy(415.6)` was [0, 0, NaN, NaN] instead of [0, 0, inf, inf].
         if x < 0.0 || !zbi.re.is_nan() {
             return [zai.re, zaip.re, zbi.re, zbip.re];
         }
@@ -323,8 +320,7 @@ fn itairy_impl(mut x: f64) -> [f64; 4] {
 ///
 /// Calculates the integrals of Ai(*t*), Bi(*t*), Ai(-*t*), and Bi(-*t*) for *t* from 0 to *x*.
 ///
-/// If `x` is negative, the integrals are evaluated from 0 to `x` (i.e., from 0 down to `x`), following the same definitions for the Airy functions. The sign and order of the results reflect the direction of integration.
-///
+/// For negative `x`, the integrals run from 0 down to `x`.
 ///
 /// This corresponds to [`scipy.special.itairy`][itairy] in SciPy.
 ///
@@ -456,10 +452,9 @@ fn airyb(x: f64, ai: &mut f64, bi: &mut f64, ad: &mut f64, bd: &mut f64) {
         *ad = C1 * df - C2 * dg;
         *bd = SR3 * (C1 * df + C2 * dg);
     } else {
-        // NOTE: `(int)(24.5 - xa)` is UB in C++ if `xa` is NaN or `xa > 24.5 + 2^31`. For huge
-        // `xa` the value is overwritten below (`xa > 15`); for NaN `x`, `km` stays the converted
-        // value (C++ on x86-64: INT_MIN, so `2 * km + 1` overflows (UB); Rust: 0), which only
-        // affects how many NaN terms are summed: all outputs are NaN either way.
+        // NOTE: `(int)(24.5 - xa)` is UB in C++ if `xa` is NaN or `xa > 24.5 + 2^31`:
+        // - huge `xa`: `km` is overwritten below (`xa > 15`)
+        // - NaN `x`: `km` is 0 here (INT_MIN in C++ on x86-64); all outputs are NaN either way
         km = (24.5 - xa) as i32;
         if xa < 6.0 {
             km = 14;

@@ -343,11 +343,8 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     x -= 180.0 * k;
     if cotflg {
         if x <= 90.0 {
-            // Unlike in xsf (scipy/xsf#363), cot(x) = 1 / tan(x) is used for 0 < x < 45, since
-            // 90 - x rounds, which is amplified near the pole at x = 0.
-            //
-            // E.g. cotdg(1e-10) was 572956949790.9288 instead of 572957795130.8232, and
-            // cotdg(1e-15) was inf.
+            // Unlike in xsf (scipy/xsf#363), cot(x) = 1 / tan(x) is used for 0 < x < 45,
+            // e.g. cotdg(1e-10) was 572956949790.9288 instead of 572957795130.8232.
             if x != 0.0 && x < 45.0 {
                 return f64::from(sign) / (x * PI180).tan();
             }
@@ -374,10 +371,8 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
         return f64::from(sign) * f64::INFINITY;
     }
     /* x is now transformed into [0, 90) */
-    // Unlike in xsf (scipy/xsf#363), tan(x) = 1 / tan(90 - x) is used for x > 45, since x * PI180
-    // rounds, which is amplified near the pole at x = 90 (whereas 90 - x is exact).
-    //
-    // E.g. tandg(89.9999999999) was 572956949790.9288 instead of 572947570131.5804.
+    // Unlike in xsf (scipy/xsf#363), tan(x) = 1 / tan(90 - x) is used for x > 45,
+    // e.g. tandg(89.9999999999) was 572956949790.9288 instead of 572947570131.5804.
     if x > 45.0 {
         return f64::from(sign) / ((90.0 - x) * PI180).tan();
     }

@@ -19,7 +19,6 @@ fn agm_iter(a: f64, b: f64) -> f64 {
         count -= 1;
     }
 
-    // return amean
     amean
 }
 

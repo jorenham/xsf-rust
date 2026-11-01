@@ -121,10 +121,8 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 
 /// Zeros of the error function `erf(z)` in the first quadrant of the complex plane
 ///
-/// Zeros in the other quadrants can be obtained by using the symmetries *erf(-z) = erf(z)* and
+/// Zeros in the other quadrants can be obtained by using the symmetries *erf(-z) = -erf(z)* and
 /// *erf(conj(z)) = conj(erf(z))*.
-///
-/// See [`erf`] for the error function itself.
 ///
 /// Corresponds to [`scipy.special.erf_zeros`][erf_zeros].
 ///

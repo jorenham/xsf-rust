@@ -327,13 +327,11 @@ pub(crate) fn kmn(
     // NOTE: out-of-bounds indexing (C++ UB; panics in Rust), where
     // nm = 25 + (int)(0.5 * (n - m) + c) and nn = nm + m:
     // - `dn[0..nn]` is written, but the callers allocate `dn` with 200 (rmn2so) or 201 (rmn2sp)
-    //   elements, so this overflows when nn > 200 (rmn2so) / nn > 201 (rmn2sp), e.g. m = n = 180,
-    //   c = 0.5 (nn = 205); this is reachable through the public API since only n - m <= 198 is
-    //   checked (e.g. prolate_radial2_nocv(180, 180, 0.5, x = 1.0001) and
-    //   oblate_radial2_nocv(180, 180, 0.5, x = 0.1), confirmed with ASan).
-    // - `df[k - 1]` is read for k up to nm (unless the sum converges earlier); the callers'
-    //   `df` has 200 elements, so this overflows when nm > 200, i.e. 0.5 * (n - m) + c >= 176
-    //   (e.g. n - m = 198 and c >= 77); sdmn has already overflowed `df` in that case.
+    //   elements, e.g. prolate_radial2_nocv(180, 180, 0.5, 1.0001) and
+    //   oblate_radial2_nocv(180, 180, 0.5, 0.1) (nn = 205, confirmed with ASan).
+    // - `df[k - 1]` is read for k up to nm (unless the sum converges earlier), which overflows the
+    //   callers' 200-element `df` if nm > 200; sdmn has already overflowed `df` in that case.
+    //
     // NOTE: `rk[nn - 1]` is never written (the second loop only writes rk[m + 1..=nn - 2]) but is
     // read in the `dn` loop, so `dn[nn - 1]` is computed from uninitialized memory in C++ (here it
     // is 0 * dn[nn - 2], i.e. +-0, or NaN if dn[nn - 2] is +-inf/NaN). kmn itself never reads
@@ -583,9 +581,9 @@ pub(crate) fn rmn1(
 
     let nm1 = (n - m) / 2;
     let ip = if n - m == 2 * nm1 { 0 } else { 1 };
-    // NOTE: `(int)c` is UB in C++ for NaN or |c| >= 2^31 (g++ on x86-64 gives INT_MIN, so nm < 0 and
-    // all sums below are empty); `as i32` saturates (NaN -> 0, +inf -> i32::MAX, after which the
-    // addition overflows).
+    // NOTE: `(int)c` is UB in C++ for NaN or |c| >= 2^31 (g++ on x86-64 gives INT_MIN, so nm < 0
+    // and all sums below are empty); `as i32` saturates (NaN -> 0, +inf -> i32::MAX, after which
+    // the addition overflows).
     let nm = 25 + nm1 + c as i32;
     let reg = if m + nm > 80 { 1.0e-200 } else { 1.0 };
     let mut r0 = reg;
@@ -616,8 +614,8 @@ pub(crate) fn rmn1(
 
         let mut sum = 0.0;
         let mut sw1 = 0.0;
-        // NOTE: `ck[j - 1]` is out of bounds if nm > 200 (sckb, which writes ck[0..nm'] with nm' >= nm
-        // for c >= 0, already does that first).
+        // NOTE: `ck[j - 1]` is out of bounds if nm > 200 (sckb, which writes ck[0..nm'] with
+        // nm' >= nm for c >= 0, already does that first).
         for j in 1..=nm {
             sum += ck[(j - 1) as usize];
             if (sum - sw1).abs() < sum.abs() * eps {
@@ -776,8 +774,8 @@ pub(crate) fn rmn2l(
     }
     let mut nm2 = 2 * nm + m;
     let cx = c * x;
-    // NOTE: sphy writes sy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k) and dy up to
-    // nm2 - 1, which is out of bounds of the 252-element buffers if
+    // NOTE: sphy writes sy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k) and dy up
+    // to nm2 - 1, which is out of bounds of the 252-element buffers if
     // nm2 = 2 * (25 + (n - m) / 2 + (int)c) + m >= 252.
     sphy(cx, nm2, &mut nm2, &mut sy, &mut dy);
     let mut r0 = reg;
@@ -833,9 +831,9 @@ pub(crate) fn rmn2l(
         sw = *r2f;
     }
 
-    // NOTE: `(int)` of NaN or +-inf is UB in C++, which is reachable here, e.g. when `*R2f` overflows,
-    // as for `c == 0`. Like g++ on x86-64, `int_x86` gives INT_MIN, so that rswfp/rswfo skip
-    // rmn2sp/rmn2so, which would otherwise return NaN or 1e300.
+    // NOTE: `(int)` of NaN or +-inf is UB in C++, which is reachable here, e.g. when `*R2f`
+    // overflows, as for `c == 0`. Like g++ on x86-64, `int_x86` gives INT_MIN, so that rswfp/rswfo
+    // skip rmn2sp/rmn2so, which would otherwise return NaN or 1e300.
     let id1 = int_x86((eps1 / r2f.abs() + eps).log10());
     *r2f *= a0;
 
@@ -1066,8 +1064,8 @@ pub(crate) fn rmn2sp(
     let nm2 = 2.0 * nm + f64::from(m);
     let ip = f64::from((n - m) % 2);
 
-    // NOTE: kmn writes dn[0..nn] with nn = 25 + (int)(0.5 * (n - m) + c) + m, which is out of bounds
-    // of the 201-element `dn` (C++ UB, panics here) if nn > 201.
+    // NOTE: kmn writes dn[0..nn] with nn = 25 + (int)(0.5 * (n - m) + c) + m, which is out of
+    // bounds of the 201-element `dn` (C++ UB, panics here) if nn > 201.
     if kmn(m, n, c, cv, kd, df, &mut dn, &mut ck1, &mut ck2) == Status::NoMemory {
         return Status::NoMemory;
     }
@@ -1246,8 +1244,9 @@ pub(crate) fn rswfp(
 
     // NOTE: `df` is uninitialized in the C++ (`new T[200]` without `()`). sdmn writes df[0..=nm]
     // (nm = 25 + (int)(0.5 * (n - m) + c); out of bounds if nm >= 200, e.g. n - m = 198 with
-    // c >= 76), but for c < 1e-10 only df[0..nm]; then df[nm] can be read uninitialized by sckb (only
-    // reached via rmn1 with x == 0, i.e. not from here) and, for negative c, by rmn1/rmn2l/rmn2sp.
+    // c >= 76), but for c < 1e-10 only df[0..nm]; then df[nm] can be read uninitialized by sckb
+    // (only reached via rmn1 with x == 0, i.e. not from here) and, for negative c, by
+    // rmn1/rmn2l/rmn2sp.
     let Some(mut df) = try_zeroed(200) else {
         return Status::NoMemory;
     };
@@ -1323,8 +1322,8 @@ pub(crate) fn rswfo(
     // NOTE: `df` is uninitialized in the C++ (`new T[200]` without `()`). sdmn writes df[0..=nm]
     // (nm = 25 + (int)(0.5 * (n - m) + c); out of bounds if nm >= 200, e.g. n - m = 198 with
     // c >= 76), but for c < 1e-10 only df[0..nm]. In that case sckb (called by rmn2so, and by rmn1
-    // when x == 0) reads df[nm] uninitialized whenever its inner sum doesn't converge, which happens
-    // for c == 0 (e.g. m = n, c = 0, kf >= 2: for k >= 1 all df[i] are 0); here it reads 0.
+    // when x == 0) reads df[nm] uninitialized if its inner sum doesn't converge, e.g. for m = n,
+    // c = 0, kf >= 2; here it reads 0.
     let Some(mut df) = try_zeroed(200) else {
         return Status::NoMemory;
     };
@@ -1631,8 +1630,8 @@ pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]
 
     if c < 1e-10 {
         for i in 1..=(n - m + 1) {
-            // Unlike in xsf, the product is computed in `double` instead of `int`, which overflows for
-            // `n > 46340`; this is exact, since both factors are less than 2^31
+            // Unlike in xsf, the product is computed in `double` instead of `int`, which overflows
+            // for `n > 46340`; this is exact, since both factors are less than 2^31
             eg[(i - 1) as usize] = f64::from(i + m) * f64::from(i + m - 1);
         }
         *cv = eg[(n - m) as usize];

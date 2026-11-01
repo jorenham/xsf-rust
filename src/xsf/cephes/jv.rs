@@ -7,9 +7,8 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, `cbrt` is the one from the Rust standard library, which is more accurate than
-//! the Cephes one (see [`crate::cbrt`]), and the `double` → `int` conversions saturate instead of
-//! being undefined behavior (for NaN and out-of-range values, which take the same branches as
-//! with the x86 conversion in C++).
+//! the Cephes one (see [`crate::cbrt`]), and the `double` -> `int` conversions saturate instead of
+//! being undefined behavior (taking the same branches as the x86 conversion in C++).
 //!
 //! Also unlike in xsf (scipy/xsf#341), the power series returns `-inf` instead of `inf` when it
 //! overflows for a negative result, e.g. `jv(-123.57388919180612, 0.028605192190944706)`

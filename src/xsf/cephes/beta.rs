@@ -44,9 +44,8 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
 /// or `None` otherwise
 ///
 /// Unlike in xsf (scipy/scipy#26423, scipy/xsf#357), `lgam_ratio` avoids the cancellation in
-/// `lgam(a) + lgam(b) - lgam(a + b)`, e.g. a relative error of 9e-11 for beta(999999, 0.5), 3e-10
-/// for beta(-1000000.25, 0.5), and 4e-12 for beta(5000.25, -4999.5). The negative one of the two
-/// largest arguments is reflected.
+/// `lgam(a) + lgam(b) - lgam(a + b)`, e.g. beta(999999, 0.5) had a relative error of 9e-11. The
+/// negative one of the two largest arguments is reflected.
 fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     if a > 0.0 && b.abs() < 0.125 * a {
         let (y, sign) = lgam_sgn(b);

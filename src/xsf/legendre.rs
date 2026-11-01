@@ -4,14 +4,12 @@
 //!
 //! Unlike in xsf:
 //! - The integer products in the (normalized) recurrence coefficients, e.g. `(2n+1)(4(n-1)^2-1)`,
-//!   are computed in `f64`, which is exact whenever the `int` product in xsf doesn't overflow. In
-//!   xsf, they overflow for `n >= 646`, so that e.g. `sph_legendre_p(700, 0, 0.5)` is NaN
-//!   (scipy/scipy#26574).
+//!   are computed in `f64` instead of `int` (scipy/scipy#26574), e.g.
+//!   `sph_legendre_p(700, 0, 0.5)` is NaN in xsf.
 //! - Other `int` arithmetic that can overflow wraps (like C++ does in practice), instead of
 //!   panicking in debug builds.
-//! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)` to
-//!   determine the number of backward recurrence steps. For `-1.1 <= x < -1.0001`, the latter is
-//!   NaN, so that xsf returns garbage (scipy/xsf#368).
+//! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
+//!   (scipy/xsf#368).
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::f64::consts::PI;

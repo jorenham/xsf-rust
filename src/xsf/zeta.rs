@@ -7,8 +7,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, `zeta_euler_maclaurin` returns NaN if the number of terms doesn't fit in a
-//! `size_t`, i.e. if `|z.imag()| / 4 >= 2^64`, for which its conversion is undefined behavior in
-//! C++.
+//! `size_t` (UB in C++).
 
 use std::f64::consts::{LN_2, PI, TAU};
 

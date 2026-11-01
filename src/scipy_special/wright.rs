@@ -144,8 +144,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         w = t - pz;
         if z.norm() > 1e50 {
             // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
-            // can overflow here)
+            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
             return w;
         }
         let mut fac = pz / t;
@@ -162,8 +161,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         w = t - pz;
         if z.norm() > 1e50 {
             // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
-            // can overflow here)
+            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
             return w;
         }
         let mut fac = pz / t;
@@ -179,8 +177,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         w = z - pz;
         if z.norm() > 1e50 {
             // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, without the negligible correction terms, as the complex divisions
-            // can overflow here)
+            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
             return w;
         }
         let mut fac = pz / z;
