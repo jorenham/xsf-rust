@@ -822,8 +822,9 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     (parts, ea, eb)
 }
 
-/// `D_v(x)`, `D_v'(x)` for `v <= -20`, by 12.10.25 and 12.10.29, with `a = -v - 1/2`
-fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
+/// `D_v(x)`, `D_v'(x)` for `v <= -20` as mantissas with exponent `l`, by 12.10.25 and 12.10.29,
+/// with `a = -v - 1/2`
+fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     let a = -v - 0.5;
     let mu2 = 2.0 * a;
     let x = x.clamp(-1e100, 1e100); // the result under/overflows far beyond
@@ -837,7 +838,7 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
     };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
     if l.abs() > 1000.0 {
-        return (mul_exp(1.0, l), mul_exp(-1.0, l));
+        return ([1.0, -1.0], l);
     }
 
     let t = 0.5 * x / a.sqrt();
@@ -849,21 +850,13 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
         sv = sv * w + uv_poly(V_POLY[k], k, t, true);
     }
     let g = 1.0 + 0.5 * (-ln_gamma_ratio(a)).exp_m1();
-    (
-        mul_exp(g * su / (2.0 * s).sqrt(), l),
-        mul_exp(-g * sv * (0.5 * s).sqrt(), l),
-    )
+    ([g * su / (2.0 * s).sqrt(), -g * sv * (0.5 * s).sqrt()], l)
 }
 
-/// `D_v(x)`, `D_v'(x)` for `|v| < 20` and `x > 0`, by `D_{w+1} = x D_w - w D_{w-1}` (12.8.1) from
-/// `pbdv_elementary` at `w = v - n` in `(-21, -20]`, which is stable for increasing `w`
+/// `D_{w+n}(x)`, `D_{w+n}'(x)` from `d0 = D_w(x)` and `d1 = D_{w+1}(x)`, by
+/// `D_{w+1} = x D_w - w D_{w-1}` (12.8.1) and 12.8.3
 #[allow(clippy::cast_possible_truncation)]
-fn pbdv_recur(v: f64, x: f64) -> (f64, f64) {
-    let n = (v + 20.0).ceil();
-    let w = v - n;
-    // D_{w+1} = x / 2 D_w - D_w' (12.8.3)
-    let (mut d0, dp) = pbdv_elementary(w, x);
-    let mut d1 = 0.5 * x * d0 - dp;
+fn pbdv_up(w: f64, x: f64, n: f64, mut d0: f64, mut d1: f64) -> (f64, f64) {
     for k in 1..=n as i32 {
         (d0, d1) = (d1, x * d1 - (w + f64::from(k)) * d0);
     }
@@ -916,7 +909,10 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         return None;
     }
     if v <= -20.0 {
-        return (x >= 0.0 || x < -50.0).then(|| pbdv_elementary(v, x));
+        return (x >= 0.0 || x < -50.0).then(|| {
+            let ([d, dp], l) = pbdv_elementary(v, x);
+            (mul_exp(d, l), mul_exp(dp, l))
+        });
     }
     if v >= 300.0 && x.abs() * (v + 0.5).sqrt() < 1.0 {
         return Some(pbdv_maclaurin(v, x));
@@ -1055,9 +1051,9 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
-    // Unlike in xsf, the same is done for -30 <= v < 0 (where the terms of `dvsa` are positive;
-    // not for tiny |v|, where it stops too early), since `dvla` loses up to 1e-7 there (more near
-    // v = 0), e.g. `pbdv(-0.01, -5.9).0` was 26.98963583 instead of 26.98963443.
+    // Unlike in xsf, the same is done for -30 <= v < 0 (not for tiny |v|, where `dvsa` stops too
+    // early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was 26.98963583
+    // instead of 26.98963443.
     if (-30.0..-1e-15).contains(&v) && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in `dvsa(x, v + 1)`
@@ -1067,7 +1063,12 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
     // `pbdv(-2.5, 5.9).0` was 1.7541561989e-6 instead of 1.7541561955e-6.
     if v.abs() < 20.0 && x < 12.0 && x > if v < 0.0 { 1.0 } else { 4.5 } {
-        return pbdv_recur(v, x);
+        let n = (v + 20.0).ceil();
+        let w = v - n;
+        let ([d, dp], l) = pbdv_elementary(w, x);
+        // D_{w+1} = x / 2 D_w - D_w' (12.8.3), and the recurrence is stable for increasing w
+        let (d, dp) = pbdv_up(w, x, n, d, 0.5 * x * d - dp);
+        return (mul_exp(d, l), mul_exp(dp, l));
     }
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
