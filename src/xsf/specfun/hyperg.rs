@@ -15,6 +15,7 @@ use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
+use crate::xsf::trig::cephes_sinpi;
 
 #[allow(
     clippy::cast_possible_truncation,
@@ -1067,6 +1068,15 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == 1e300 {
         r1 = 0.0;
     }
+    // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
+    // (and hu back by exp(lr2 / 2) twice), e.g. U(-14.2, 95.7, 0.0028) = -inf instead of NaN
+    let c = hu0 / (ga * gb2);
+    let mut lr2 = 0.0;
+    if r2.is_infinite() && r1.is_finite() && c.is_finite() {
+        lr2 = c.abs().ln() + (1.0 - b) * x.ln();
+        (r1, r2) = (r1 * (-lr2).exp(), r2.signum());
+    }
+    let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = 1e300;
@@ -1081,6 +1091,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         r1 = r1 * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
+        s1 += r1;
+        s2 += r2;
         let hua = hu.abs();
         if hua > hmax {
             hmax = hua;
@@ -1113,5 +1125,19 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
-    hu
+    // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
+    // of gamma2 and hu0 near their poles (z < -1), amplified if s1 and s2 cancel,
+    // e.g. U(-7.5, -6.999996, 15) = 9.0273143e8 instead of 9.0260273e8
+    let k = |z: f64| {
+        if z < -1.0 && z.fract() != 0.0 {
+            f64::EPSILON * (z / cephes_sinpi(z)).abs()
+        } else {
+            0.0
+        }
+    };
+    let e1 = 1e-15 + k(1.0 + a - b);
+    let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
+    *id = (*id).min((-((e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
+    let h = (0.5 * lr2).exp();
+    hu * h * h
 }

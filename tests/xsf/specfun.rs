@@ -142,6 +142,26 @@ fn test_hypu_chgus() {
     ];
     let expected = [1.766_091_302_349_042e57, 5.933_445_224_488_155e-197];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // mpmath; 502.06005 and 902602731 (near the poles of Gamma(b)) in xsf
+    let actual = [
+        xsf::hypu(
+            -2.169_910_971_917_65,
+            -1.997_705_917_101_09,
+            16.709_077_020_224_107,
+        ),
+        xsf::hypu(-7.5, -6.999_996, 15.0),
+    ];
+    let expected = [502.060_132_017_751_15, 902_731_434.181_382_9];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-10);
+
+    // mpmath: -4.41e397 and 3.70e388; NaN in xsf
+    assert_eq!(xsf::hypu(-14.2, 95.7, 0.0028), f64::NEG_INFINITY);
+    assert_eq!(xsf::hypu(0.41, 93.1, 0.002), f64::INFINITY);
+
+    // mpmath; inf in xsf
+    let actual = xsf::hypu(100.2, 95.7, 0.000_426_150_094_022_470_2);
+    xsref::np_assert_allclose!([actual], [1.797_665_191_584_464_4e308], rtol = 1e-13);
 }
 
 #[test]
