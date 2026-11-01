@@ -16,13 +16,19 @@ series for `gammainc` with large `a`, and a continued fraction for `betainc`. Th
 inverse functions find the root of the reference of the function itself (see `_invert`).
 """
 
+# `last` in `_wright_bessel` is only read once it is set
+# pyright: reportPossiblyUnboundVariable=false
 import math
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
+from random import Random
+from types import FunctionType
+from typing import Any, ClassVar, Final, Protocol
 
 import mpmath as mp
 
-DBL_MAX = 1.7976931348623157e308
+DBL_MAX: Final = 1.7976931348623157e308
 
 # ---------------------------------------------------------------- sampling
 
@@ -47,7 +53,7 @@ GREEK = {
 }
 
 
-def nobreak(*parts):
+def nobreak(*parts: str) -> str:
     """Join the parts of one argument's domain with no-break spaces, and keep a leading sign
     attached to its interval, so that table cells only wrap between the arguments, or after
     a comma within the interval (the last part)."""
@@ -56,7 +62,7 @@ def nobreak(*parts):
     return s.replace(f"{PM}[", f"{PM}\u2060[").replace(f"{MINUS}[", f"{MINUS}\u2060[")
 
 
-def wrap(s):
+def wrap(s: str) -> str:
     """Put each argument's domain on its own line, i.e. break at the ", " between them (the ones
     outside brackets; within an argument's domain, `nobreak` leaves only those in intervals)."""
     parts, depth, start = [], 0, 0
@@ -71,6 +77,14 @@ def wrap(s):
     return "<br>".join([*parts, s[start:]])
 
 
+class Dist(Protocol):
+    """The distribution of one argument."""
+
+    def sample(self, rng: Random) -> float: ...
+    def desc(self) -> str: ...
+    def pretty(self) -> str: ...
+
+
 @dataclass(frozen=True)
 class U:
     """Uniform on [lo, hi]."""
@@ -78,13 +92,13 @@ class U:
     lo: float
     hi: float
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return rng.uniform(self.lo, self.hi)
 
-    def desc(self):
+    def desc(self) -> str:
         return f"[{_g(self.lo)}, {_g(self.hi)}]"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"[{_u(self.lo)}, {_u(self.hi)}]"
 
 
@@ -96,16 +110,16 @@ class LU:
     hi: float
     sign: int = 1  # 1, -1, or 0 for a random sign
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         x = 10 ** rng.uniform(math.log10(self.lo), math.log10(self.hi))
         s = self.sign or rng.choice((-1, 1))
         return s * min(x, self.hi)
 
-    def desc(self):
+    def desc(self) -> str:
         pre = {1: "", -1: "-", 0: "+-"}[self.sign]
         return f"{pre}[{_g(self.lo)}, {_g(self.hi)}] (log)"
 
-    def pretty(self):
+    def pretty(self) -> str:
         pre = {1: "", -1: MINUS, 0: PM}[self.sign]
         return f"{pre}[{_u(self.lo)}, {_u(self.hi)}]"
 
@@ -117,13 +131,13 @@ class Int:
     lo: int
     hi: int
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return float(rng.randint(self.lo, self.hi))
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{{{self.lo}, ..., {self.hi}}}"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{{{self.lo}, {ELLIPSIS}, {self.hi}}}"
 
 
@@ -134,13 +148,13 @@ class ILU:
     lo: int
     hi: int
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return float(min(int(LU(self.lo, self.hi + 1).sample(rng)), self.hi))
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{{{_g(self.lo)}, ..., {_g(self.hi)}}} (log)"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{{{_u(self.lo)}, {ELLIPSIS}, {_u(self.hi)}}}"
 
 
@@ -149,20 +163,20 @@ class Offset:
     """c + sign * t (rounded to f64), where t is sampled from `dist`."""
 
     c: float
-    dist: object
+    dist: Dist
     sign: int = 1
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return self.c + self.sign * self.dist.sample(rng)
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{_g(self.c)} {'+' if self.sign > 0 else '-'} {self.dist.desc()}"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{_u(self.c)} {'+' if self.sign > 0 else MINUS} {self.dist.pretty()}"
 
 
-def _g(x):
+def _g(x: float) -> str:
     """Short repr of a domain bound."""
     if x == int(x) and abs(x) < 1e6:
         return str(int(x))
@@ -170,7 +184,7 @@ def _g(x):
     return s.replace("e+", "e").replace("e-0", "e-").replace("e0", "e")
 
 
-def _u(x):
+def _u(x: float) -> str:
     """Unicode repr of a domain bound, e.g. 10^-3 with a superscript exponent."""
     sign = MINUS if x < 0 else ""
     a = abs(x)
@@ -183,8 +197,8 @@ def _u(x):
     return sign + _g(a)
 
 
-def _is_log(d):
-    return isinstance(d, (LU, ILU)) or isinstance(d, Offset) and _is_log(d.dist)
+def _is_log(d: Dist) -> bool:
+    return isinstance(d, (LU, ILU)) or (isinstance(d, Offset) and _is_log(d.dist))
 
 
 class Domain:
@@ -194,23 +208,32 @@ class Domain:
     variant), and `cpp=False` marks a variant that xsf does not have.
     """
 
-    def __init__(self, *dists, n=10000, sampler=None, label="", pretty="", call="", cpp=True):
+    def __init__(
+        self,
+        *dists: Dist,
+        n: int = 10000,
+        sampler: Callable[[Random], Iterable[float]] | None = None,
+        label: str = "",
+        pretty: str = "",
+        call: str = "",
+        cpp: bool = True,
+    ) -> None:
         self.dists, self.n, self.sampler = dists, n, sampler
         self.label, self.pretty_label = label, pretty
         self.call, self.cpp = call, cpp
 
-    def desc(self, argnames):
+    def desc(self, argnames: Iterable[str]) -> str:
         """Plain description; also seeds the sampling."""
         if self.label:
             return self.label
-        return ", ".join(f"{a} in {d.desc()}" for a, d in zip(argnames, self.dists))
+        return ", ".join(f"{a} in {d.desc()}" for a, d in zip(argnames, self.dists, strict=True))
 
-    def pretty(self, argnames):
+    def pretty(self, argnames: Iterable[str]) -> str:
         """Unicode description for the table; consecutive equal distributions are merged."""
         if self.pretty_label:
             return wrap(self.pretty_label)
-        groups = []
-        for a, d in zip(argnames, self.dists):
+        groups: list[tuple[list[str], Dist]] = []
+        for a, d in zip(argnames, self.dists, strict=True):
             if groups and groups[-1][1] == d:
                 groups[-1][0].append(a)
             else:
@@ -223,7 +246,7 @@ class Domain:
             )
         )
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> tuple[float, ...]:
         if self.sampler is not None:
             return tuple(float(a) for a in self.sampler(rng))
         return tuple(d.sample(rng) for d in self.dists)
@@ -235,9 +258,9 @@ D = Domain
 @dataclass
 class Spec:
     name: str  # a suffix "#..." distinguishes specs of the same function, e.g. for complex input
-    args: tuple
-    ref: object
-    domains: list
+    args: tuple[str, ...]
+    ref: FunctionType  # its source is part of the cache key of the references
+    domains: list[Domain]
     section: str
     std: bool = False  # has a Rust std equivalent
     cpp: bool = True  # has an xsf (C++) equivalent
@@ -245,10 +268,10 @@ class Spec:
     dps: int = 50
     timeout: int = 30
     note: str = ""  # space-separated keys into NOTES
-    rust = True
+    rust: ClassVar[bool] = True
 
     @property
-    def func(self):
+    def func(self) -> str:
         """The function name, without the "#..." suffix."""
         return self.name.split("#")[0]
 
@@ -2186,20 +2209,18 @@ def c_sph_harm_y(n, m, theta, phi):
 
 # ---------------------------------------------------------------- specs
 
-SPECS = []
-SECTIONS = []  # section titles, in order of appearance
-_section = None
+SPECS: list[Spec] = []
+SECTIONS: list[str] = []  # section titles, in order of appearance
 
 
-def section(title):
-    global _section
-    _section = title
+def section(title: str) -> None:
     SECTIONS.append(title)
 
 
-def add(name, args, ref, *domains, **kw):
-    """Add a spec for the function `name` with the space-separated argument names `args`."""
-    SPECS.append(Spec(name, tuple(args.split()), ref, list(domains), _section, **kw))
+def add(name: str, args: str, ref: FunctionType, *domains: Domain, **kw: Any) -> None:
+    """Add a spec for the function `name` with the space-separated argument names `args` to the
+    last section."""
+    SPECS.append(Spec(name, tuple(args.split()), ref, list(domains), SECTIONS[-1], **kw))
 
 
 INV_E = float(-1 / mp.e)  # the smallest f64 > -1/e
@@ -2207,7 +2228,7 @@ if INV_E < -1 / mp.e:
     INV_E = math.nextafter(INV_E, 0)
 
 
-def a_pm_sqrt_a(r):
+def a_pm_sqrt_a(r: Random) -> tuple[float, float]:
     """(a, x) with a in [10, 1e8] (log), and x in a +- 6 sqrt(a): the transition region."""
     a = 10 ** r.uniform(1, 8)
     return a, max(0.0, a + r.uniform(-6, 6) * a**0.5)
@@ -2221,7 +2242,7 @@ A_PM_SQRT_A = D(
 )
 
 
-def ab_mu_pm_sigma(r):
+def ab_mu_pm_sigma(r: Random) -> tuple[float, float, float]:
     """(a, b, x) with a, b in [100, 1e8] (log), and x in mu +- 6 sigma: the transition region."""
     a, b = 10 ** r.uniform(2, 8), 10 ** r.uniform(2, 8)
     mu = a / (a + b)
@@ -2236,7 +2257,7 @@ AB_MU_PM_SIGMA = D(
 )
 
 
-def v_near_half_int(r):
+def v_near_half_int(r: Random) -> tuple[float, float]:
     """(v, x) with v in -k - 1/2 +- [1e-12, 1e-3] (log) for k in {0, ..., 20}, and x in [0, 100]."""
     t = 10 ** r.uniform(-12, -3)
     return -r.randint(0, 20) - 0.5 + r.choice((-1, 1)) * t, r.uniform(0, 100)
@@ -2366,7 +2387,7 @@ add(
 )
 
 
-def tvn_sampler(r):
+def tvn_sampler(r: Random) -> tuple[float, ...]:
     """(h1, h2, h3, r12, r13, r23) with h in [-3, 3], and a positive definite correlation matrix:
     r12, r13 in [-0.9, 0.9], and r23 in r12 r13 +- 0.9 sqrt((1 - r12^2) (1 - r13^2))."""
     r12, r13 = r.uniform(-0.9, 0.9), r.uniform(-0.9, 0.9)
@@ -2617,7 +2638,7 @@ add(
 )
 
 
-def ngh_sampler(r):
+def ngh_sampler(r: Random) -> tuple[int, int, int, float]:
     n = r.randint(1, 1000)
     j = r.randint(1, n)
     return j, r.randint(j, n), n, r.uniform(-5, 5)
@@ -2770,7 +2791,9 @@ add(
 section("Orthogonal polynomials")
 
 
-def poly(name, args, ref, dists, int_n=50, cpp=True):
+def poly(
+    name: str, args: str, ref: FunctionType, dists: list[Dist], int_n: int = 50, cpp: bool = True
+) -> None:
     """A spec with an integer-degree domain (via the `_l` variant), and a real-degree one."""
     add(
         name,
@@ -2810,7 +2833,7 @@ for f, r in [("eval_hermite_h", r_hermite_h), ("eval_hermite_he", r_hermite_he)]
 section("Legendre functions")
 
 
-def nm_sampler(r, hi=50):
+def nm_sampler(r: Random, hi: int = 50) -> tuple[int, int]:
     n = r.randint(0, hi)
     return n, r.randint(-n, n)
 
@@ -2845,12 +2868,12 @@ add("pmv", "m v x", r_pmv, D(Int(0, 10), U(-50, 50), U(-1, 1), n=5000), note="ze
 section("Discrete distributions")
 
 
-def kn_sampler(r, n_hi=1000):
+def kn_sampler(r: Random, n_hi: int = 1000) -> tuple[int, int]:
     n = int(10 ** r.uniform(0, math.log10(n_hi)))
     return r.randint(0, n), n
 
 
-def k_near_np(r):
+def k_near_np(r: Random) -> tuple[int, int, float]:
     """(k, n, p) with n in [1e3, 2e9] (log), p in [1e-6, 1] (log), and k in np +- 6 sigma."""
     n, p = int(10 ** r.uniform(3, math.log10(2e9))), 10 ** r.uniform(-6, 0)
     k = round(n * p + r.uniform(-6, 6) * (n * p * (1 - p)) ** 0.5)
@@ -2885,7 +2908,7 @@ add(
     "k n y",
     r_bdtri,
     D(
-        sampler=lambda r: (*(lambda k, n: (min(k, n - 1), n))(*kn_sampler(r)), r.uniform(0, 1)),
+        sampler=lambda r: (*(lambda k, n: (min(k, n - 1), n))(*kn_sampler(r)), r.uniform(0, 1)),  # pyright: ignore[reportArgumentType]
         label="n in {1, ..., 1000} (log), k in {0, ..., n - 1}, y in [0, 1]",
         pretty=f"{nobreak('n', IN, '{1, ' + ELLIPSIS + ', 1000}')} (log), "
         + f"{nobreak('k', IN, '{0, ' + ELLIPSIS + f', n {MINUS} 1}}')}, "
@@ -2924,7 +2947,7 @@ add("pdtri", "k y", r_pdtri, D(Int(0, 100), U(0, 1), n=2000), timeout=120, note=
 section("Continuous distributions")
 
 
-def gamma_trans(r):
+def gamma_trans(r: Random) -> tuple[float, float, float]:
     """(a, b, x) with a in [1e-5, 1e5], b in [10, 1e8] (log), and ax in b +- 6 sqrt(b)."""
     a, b = 10 ** r.uniform(-5, 5), 10 ** r.uniform(1, 8)
     return a, b, max(0.0, b + r.uniform(-6, 6) * b**0.5) / a
@@ -2996,7 +3019,7 @@ for f, r in [("geninvgauss_pdf", r_geninvgauss_pdf), ("geninvgauss_logpdf", r_ge
     add(f, "x p b", r, D(LU(1e-3, 1e3), U(-10, 10), LU(1e-3, 1e3)), note="zeros_c" if "log" in f else "")
 
 
-def gh_sampler(r):
+def gh_sampler(r: Random) -> tuple[float, float, float, float]:
     a = 10 ** r.uniform(-2, 2)
     return r.uniform(-10, 10), r.uniform(-5, 5), a, a * r.uniform(-0.99, 0.99)
 
@@ -3151,4 +3174,4 @@ NOT_COVERED = """\
   last table
 """
 
-BY_NAME = {s.name: s for s in SPECS}
+BY_NAME: Final = {s.name: s for s in SPECS}

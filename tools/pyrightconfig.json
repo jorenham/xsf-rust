@@ -1,0 +1,6 @@
+{
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  // mpmath is untyped, and the types inferred from its code give false positives
+  "useLibraryCodeForTypes": false
+}
