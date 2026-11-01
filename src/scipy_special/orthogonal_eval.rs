@@ -789,6 +789,8 @@ pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
     const H: f64 = 0.1;
+    // the terms for u < 0 only shrink by exp(-k H) < 0.75 per step, so their tail is < 4x the last
+    const TOL: f64 = f64::EPSILON / 16.0;
     let m = n.ceil() + 3.0;
     let k = m - n;
     let sx = scale * x;
@@ -803,7 +805,7 @@ fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
             let g = (k * u - a * (e * e - 1.0) - b * (e - 1.0)).exp();
             s0 += g;
             s1 += g / e;
-            if g < 1e-17 * s0 && g < 1e-17 * s1 * e {
+            if g < TOL * s0 && g < TOL * s1 * e {
                 break;
             }
             u += du;
