@@ -217,9 +217,8 @@ const GAMMA_C: [f64; 6] = [
 
 const MAXLGM: f64 = 2.556_348e305;
 
-/* In xsf, optimizations for this function are disabled on 32 bit systems when compiling with GCC,
- * because they can result in degraded precision for this asymptotic approximation. Rust never
- * reassociates or contracts floating point operations, so that isn't needed here. */
+/* In xsf, optimizations for this function are disabled for GCC on 32-bit systems, since they can
+ * degrade its precision. Rust never reassociates or contracts floating point operations. */
 fn lgam_large_x(x: f64) -> f64 {
     let q = (x - 0.5) * x.ln() - x + LN_SQRT_2PI;
     if x > 1.0e8 {

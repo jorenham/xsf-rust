@@ -1,4 +1,5 @@
-//! `gamma2`, `cgama`, and `psi_spec`, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
+//! `gamma2`, `cgama`, and `psi_spec`, translated into pure Rust from `xsf/specfun/specfun.h`
+//! (xsf v0.2.2).
 //!
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.

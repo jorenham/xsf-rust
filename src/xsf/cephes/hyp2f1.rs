@@ -4,15 +4,17 @@
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1992, 2000 by Stephen L. Moshier
 //!
-//! Unlike in xsf, the `loss` estimates are returned together with the results, instead of written
-//! to output references. And because `set_error` is a no-op in our build of xsf, its calls are
-//! omitted, so that `goto hypdon` and `goto hypdiv` become plain returns, and the assignments to
-//! `err` and `q` in `hyp2f1` that are never read are dropped. The threshold of the psi function
-//! expansion is corrected in the comments.
+//! Unlike in xsf:
 //!
-//! Note that our `psi` is more accurate than the one in xsf just above negative integers. So the
-//! results of the psi function expansion (for `x > 0.9` and integer `c - a - b`) can differ from
-//! those in xsf when `a`, `b`, `c - a` or `c - b` is close to a negative integer.
+//! - The `loss` estimates are returned with the results, instead of written to output references.
+//! - `set_error` is a no-op in our build of xsf, so its calls are omitted, `goto hypdon` and
+//!   `goto hypdiv` become plain returns, and the never-read assignments to `err` and `q` in
+//!   `hyp2f1` are dropped.
+//! - The threshold of the psi function expansion is corrected in the comments.
+//!
+//! Our `psi` is more accurate than xsf's just above negative integers, so the psi function
+//! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
+//! `c - b` is close to a negative integer.
 
 use crate::utils::MACHEP;
 use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};

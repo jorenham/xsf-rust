@@ -344,8 +344,6 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
 
         // Unlike in xsf, complex x with n = alpha = 0 gives 0, like `eval_gegenbauer_l`, instead
         // of the NaN of the Gamma ratio below (inf / inf).
-        //
-        // E.g. `eval_gegenbauer(0.0, 0.0, c64(0.5, 0.0))` is NaN in xsf.
         if n == 0.0 && alpha == 0.0 && !self.is_nan() {
             return Self::ZERO;
         }
@@ -354,10 +352,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
             // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
-            // function overflows or the ratio is not finite.
-            //
-            // E.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95, and
-            // `eval_gegenbauer(171.5, 0.01, 1.0)` was 0 instead of 1.307e-4.
+            // function overflows, e.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
         }
         self.hyp2f1_sh(-n, n + 2.0 * alpha, alpha + 0.5) * d
@@ -798,8 +793,8 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             0.0
         }
     } else if x.is_sign_negative() && n.is_finite() && n.fract() != 0.0 {
-        // For non-integer n and x < 0, the negative-base `powf` of the `hypu` formula below is
-        // NaN, so instead use the two Kummer M terms of U(-n/2, 1/2, x^2) (DLMF 13.2.42), with |x| -> x:
+        // For non-integer n and x < 0, the negative-base `powf` of the `hypu` formula below is NaN,
+        // so use the two Kummer M terms of U(-n/2, 1/2, x^2) (DLMF 13.2.42), with |x| -> x:
         //
         // H_n(x) = 2^n sqrt(pi) [M(-n/2, 1/2, x^2) / Gamma((1-n)/2)
         //                        - 2x M((1-n)/2, 3/2, x^2) / Gamma(-n/2)]
@@ -807,8 +802,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         // For x > 0 these terms cancel (H_n(x) ~ (2x)^n, while both terms grow like e^(x^2)),
         // which is why `hypu` is used there.
         //
-        // For example, `eval_hermite_h(2.5298681626028885, -5.382735923248713)` was NaN instead
-        // of -2.26e10.
+        // E.g. `eval_hermite_h(2.5298681626028885, -5.382735923248713)` was NaN, not -2.26e10.
         let z = scale * x * x;
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);

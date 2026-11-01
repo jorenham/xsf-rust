@@ -1,8 +1,7 @@
 //! Translated into pure Rust from `xsf/multivariate_normal.h` (xsf main).
 //!
 //! Unlike in xsf (scipy/xsf#360), `bivariate_normal_cdf` returns NaN if any argument is NaN, and
-//! treats `|h| > 40` and `|k| > 40` as infinite, which avoids NaN from overflow for large `|h|` or
-//! `|k|`.
+//! treats `|h| > 40` and `|k| > 40` as infinite.
 //!
 //! `bivariate_normal_cdf` is adapted from the original MATLAB survival function implementation
 //! by Dr. Alan Genz, and `trivariate_normal_cdf` is a port of `tvnl` in Alan Genz's MATLAB
@@ -142,14 +141,12 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     // see license information in LICENSES_bundled.txt.
     // In the comments, phid is the CDF of the standard normal distribution.
 
-    // Unlike in xsf (scipy/xsf#360), NaN input returns NaN, instead of e.g. 0.68 for `(1, -1, NaN)`
-    // or 0.84 for `(NaN, 1, 1)`, and also instead of 0 for `(NaN, -inf, r)` (consistent with the
-    // `|dk| > 40` mapping below and with `trivariate_normal_cdf`).
+    // Unlike in xsf (scipy/xsf#360), NaN input returns NaN, e.g. `(1, -1, NaN)` was 0.68
     if dh.is_nan() || dk.is_nan() || r.is_nan() {
         return f64::NAN;
     }
-    // Unlike in xsf (scipy/xsf#360), `|dh| > 40` is treated as infinite (where `ndtr` is exactly 0
-    // or 1), so that `hk` etc. cannot overflow, which returned NaN for e.g. `(1e70, 38, 0.97)`.
+    // Unlike in xsf (scipy/xsf#360), `|dh| > 40` is treated as infinite, so that `hk` etc. cannot
+    // overflow, e.g. `(1e70, 38, 0.97)` was NaN instead of 1.
     let dh = if dh.abs() > 40.0 {
         dh * f64::INFINITY
     } else {

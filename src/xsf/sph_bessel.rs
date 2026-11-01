@@ -277,8 +277,7 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
     }
 
     // Unlike in xsf (scipy/xsf#373), use the leading power series term n x^(n-1) / (2n + 1)!! for
-    // tiny x, since j_n(x) underflows before j_{n-1}(x), e.g. j_2'(7.5e-179) was 2.5e-179 instead
-    // of 1e-179.
+    // tiny x, e.g. j_2'(7.5e-179) was 2.5e-179 instead of 1e-179.
     if let Some(res) = sph_bessel_prime_tiny_x(n, z) {
         return res;
     }
@@ -392,12 +391,10 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
         return -sph_bessel_y_f64(1, x);
     }
 
-    // Unlike in xsf (scipy/xsf#373), if y_n(x) is infinite, return the infinite term
-    // -(n + 1) y_n(x) / x (as when y_{n-1}(x) is finite), instead of inf - inf = NaN if y_{n-1}(x)
-    // is infinite as well.
-    // Here x = -0 is treated as +0, as in y_n(x).
+    // Unlike in xsf (scipy/xsf#373), if y_n(x) is infinite, return -(n + 1) y_n(x) / x instead of
+    // inf - inf = NaN, e.g. y_8'(7e-46) was NaN instead of inf.
     //
-    // For example, y_8'(7e-46) was NaN instead of inf.
+    // Here x = -0 is treated as +0, as in y_n(x).
     let yn = sph_bessel_y_f64(n, x);
     if yn.is_infinite() {
         return if x < 0.0 { yn } else { -yn };

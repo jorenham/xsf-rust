@@ -1,10 +1,9 @@
 //! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
 //! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
 //!
-//! Unlike in xsf (scipy/xsf#340), `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16` (incl.
-//! `inf`), and `cdf_cvm(NaN, n)` returns `NaN`, instead of looping forever. Like in
-//! `scipy.stats._hypotests`, the series also stop at a NaN term, so that e.g.
-//! `cdf_cvm(1e4, 1_000_000)` returns `NaN` instead of looping forever.
+//! Unlike in xsf (scipy/xsf#340), the `cdf_cvm_inf` and `cdf_cvm` series stop at a NaN term,
+//! `cdf_cvm(NaN, n)` returns `NaN`, and `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16`,
+//! instead of looping forever.
 //!
 //! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
 //! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)
@@ -1183,7 +1182,7 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         return x;
     }
     if 16.0 * x == f64::INFINITY {
-        // (unlike in scipy, scipy/xsf#340) instead of an infinite loop, as `q` below would be `0`
+        // Unlike in xsf and scipy (scipy/xsf#340), instead of looping forever on `inf` terms
         return 1.0;
     }
     if x <= 0.0 {
@@ -1202,8 +1201,7 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         let z = u * y.sqrt() * (-q).exp() * b;
 
         total += z;
-        // (unlike in xsf, scipy/xsf#340) like in scipy, so that a NaN term doesn't cause an
-        // infinite loop
+        // Unlike in xsf (scipy/xsf#340), stop at a NaN term, like in scipy
         if !(z.abs() >= 1e-7) {
             break;
         }
@@ -1267,8 +1265,7 @@ fn psi1_mod(x: f64) -> f64 {
         let gamma_kp1 = gamma(f64::from(k) + 1.0);
         let z = -psi1_term(k, x) / (PI * gamma_kp1);
         tot += z;
-        // (unlike in xsf, scipy/xsf#340) like in scipy, so that a NaN term doesn't cause an
-        // infinite loop
+        // Unlike in xsf (scipy/xsf#340), stop at a NaN term, like in scipy
         if !(z.abs() >= 1e-7) {
             break;
         }
@@ -1295,7 +1292,7 @@ fn psi1_mod(x: f64) -> f64 {
 #[inline]
 pub fn cdf_cvm(x: f64, n: i32) -> f64 {
     if x.is_nan() {
-        // (unlike in scipy, scipy/xsf#340) instead of an infinite loop
+        // Unlike in xsf (scipy/xsf#340), instead of looping forever
         return x;
     }
     // Calculate the CDF of the Cramér-von Mises statistic for a finite sample

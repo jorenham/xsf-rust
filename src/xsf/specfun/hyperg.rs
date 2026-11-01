@@ -163,12 +163,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 a += 1.0;
             }
             // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
-            // recurrence in a above (DLMF 13.3.1) if they differ by more than twice the series'
-            // error bound, i.e. only where the recurrence is less accurate. It's unstable e.g. for
-            // b > 2a + |z|.
-            //
-            // E.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j
-            // (scipy/scipy#5349).
+            // recurrence in a above if they differ by more than twice the series' error bound,
+            // e.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j.
             if b > 0.0 {
                 if let Some((s, _)) = hyp1f1_series(a0, b, z, Complex64::ONE).filter(|&(s, err)| {
                     err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
@@ -190,16 +186,15 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
 /// with an error bound for `a >= 1` and `b > 0`, or `None` if it doesn't converge within 100000
 /// terms.
 ///
-/// The error bound is the sum of (to first order in `u = EPSILON / 2`):
-/// - the omitted tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term
-///   ratios `q_n = (a + n) |z| / ((n + 1) (b + n))` are non-increasing;
-/// - the rounding error: at most `8 u sum (n + 1) |t_n|`, from `8 n u` per term and `2 u |t_n|`
-///   per Kahan step.
+/// The error bound (to first order in `u = EPSILON / 2`) is the sum of:
+/// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
+///   `q_n = (a + n) |z| / ((n + 1) (b + n))` are non-increasing;
+/// - the rounding error: at most `8 u sum (n + 1) |t_n|` (`8 n u` per term, `2 u |t_n|` per Kahan
+///   step).
 ///
 /// A negligible `t_N` is skipped if `q_N >= 1` or `b + N < |z|` (unless the sum overflowed), since
 /// then the terms can grow again, e.g. for tiny `a`. Otherwise they can't, because
-/// `(n + 1) (b + n) - (a + n) |z|` increases for `n >= N`. For `a >= 1` and `b > 0` this changes
-/// nothing, as the term ratios are non-increasing.
+/// `(n + 1) (b + n) - (a + n) |z|` increases for `n >= N`.
 ///
 /// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
@@ -266,9 +261,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let mut hg = 0.0;
 
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
-    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), since the
-    // alternating terms of the series below first grow (the first is -n x / b) and cancel, and it
-    // stops after 500 terms. E.g. `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
+    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), e.g.
+    // `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
     if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b {
         let p = chgm_poly(-a as i32, b, x);
         if p.is_finite() {
@@ -282,18 +276,12 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         a0 = a;
         x = x.abs();
     }
-    // Unlike in xsf (scipy/xsf#365), for a >= 2 and b > 0 the series DLMF 13.2.2 is summed
-    // directly, instead of using the forward recurrence in a (DLMF 13.3.1) below, which is unstable
-    // for b > 2a + x (roughly). E.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead of
-    // 1.000000000075.
+    // Unlike in xsf (scipy/xsf#365), the series DLMF 13.2.2 is summed directly for a >= 2 and
+    // b > 0, and for a > -1 and x > 30 + |b|, e.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead
+    // of 1.000000000075.
     //
-    // Unlike in xsf (scipy/xsf#365), this series is also used for a > -1 and x > 30 + |b|, instead
-    // of the 8-term asymptotic expansion below (inaccurate unless x >> |b|, and NaN if Gamma(b) e^x
-    // overflows), or for a < 0 the series below (which stops after 500 terms). For b < 0 the
-    // alternating terms (n < -b) can overflow first, so then an infinite sum isn't used.
-    //
-    // E.g. `hyp1f1(-0.5, 0.5, 700)` was -1.0e286 instead of -7.26e300, `hyp1f1(0.5, 100, 140)`
-    // was 1788 instead of 1839.8, and `hyp1f1(0.5, 200, 545)` was NaN instead of 1.68e63.
+    // For b < 0 an infinite sum isn't used, since the alternating terms (n < -b) can overflow
+    // first.
     let series = (a >= 2.0 && b > 0.0) || (a > -1.0 && x > 30.0 + b.abs());
     if series && a.is_finite() && b.is_finite() && x.is_finite() && x0 > -700.0 {
         if let Some((hg, _)) = hyp1f1_series(a, b, c64(x, 0.0), c64(x0.min(0.0).exp(), 0.0))
@@ -427,9 +415,9 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
 
     let aa = a - b + 1.0;
     *isfer = 0;
-    // NOTE: `(int)a` (and `(int)aa`, `(int)b` below) is UB in C++ if out of `int` range (incl. inf/NaN;
-    // GCC/x86 gives INT_MIN); here it saturates. Either way an out-of-range value never compares equal,
-    // so the results of these comparisons are the same.
+    // NOTE: `(int)a` (and `(int)aa`, `(int)b` below) is UB in C++ if out of `int` range (incl.
+    // inf/NaN; GCC/x86 gives INT_MIN); here it saturates. Either way an out-of-range value never
+    // compares equal, so the results of these comparisons are the same.
     let il1 = i32::from((a == f64::from(a as i32)) && (a <= 0.0));
     let il2 = i32::from((aa == f64::from(aa as i32)) && (aa <= 0.0));
     let il3 = i32::from((a * (a - b + 1.0)).abs() / x <= 2.0);
@@ -482,9 +470,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
         }
-        // NOTE: if none of the branches is taken (a < 1, b > a, b not a nonzero integer, e.g. b = 0 and
-        // a < 0), `*md` is only set if chgus/chgul was called, and otherwise left untouched (`hypu` passes
-        // an uninitialized `md`, but never reads it).
+        // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
+        // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
     }
     if id < 6 {
         *isfer = 6;
@@ -556,8 +543,8 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmin: f64 = 1e300;
     let mut h0 = 0.0;
     for k in 1..=150 {
-        // NOTE: `(n + k) * k` overflows `int` (C++ UB) if n > about 1.43e7, i.e. |b| > about 1.43e7;
-        // `wrapping_mul` reproduces what GCC's code does (and avoids a panic in debug builds).
+        // NOTE: `(n + k) * k` overflows `int` (C++ UB) for |b| >~ 1.43e7; `wrapping_mul` does what
+        // GCC's code does (and avoids a panic in debug builds).
         r = r * (a0 + f64::from(k) - 1.0) * x / f64::from(n.wrapping_add(k).wrapping_mul(k));
         hm1 += r;
         let hu1 = hm1.abs();
@@ -581,9 +568,9 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         da2 = hmin.log10();
     }
 
-    // NOTE: if `hmax` is inf (or `hm1` is NaN, so that `hmax == 0` and `da1 = -inf`), `(int)inf` is UB
-    // in C++ (GCC/x86: INT_MIN, so `15 - INT_MIN` overflows to -2147483633); here it saturates to
-    // i32::MAX, giving -2147483632. Same for the `(int)fabs(db1 - db2)` below.
+    // NOTE: if `hmax` is inf (or `hm1` is NaN, so that `hmax == 0` and `da1 = -inf`), `(int)inf`
+    // is UB in C++ (GCC/x86: INT_MIN, so `15 - INT_MIN` overflows to -2147483633); here it
+    // saturates to i32::MAX, giving -2147483632. Same for the `(int)fabs(db1 - db2)` below.
     *id = 15 - (da1 - da2).abs() as i32;
     hm1 *= x.ln();
     let mut s0 = 0.0;
@@ -635,8 +622,8 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             hmin = hu2;
         }
 
-        // NOTE: `h0` is not reset: in the first iteration it still holds the last `hm1` of the first
-        // series (before `hm1 *= log(x)`).
+        // NOTE: `h0` is not reset: in the first iteration it still holds the last `hm1` of the
+        // first series (before `hm1 *= log(x)`).
         if ((hm2 - h0) / hm2).abs() < 1.0e-15 {
             break;
         }
@@ -659,8 +646,8 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     }
     r = 1.0;
     for k in 1..n {
-        // NOTE: `(k - n) * k` overflows `int` (C++ UB) if n > about 92681, i.e. |b| > about 92682;
-        // `wrapping_mul` reproduces what GCC's code does (and avoids a panic in debug builds).
+        // NOTE: `(k - n) * k` overflows `int` (C++ UB) for |b| >~ 92682; `wrapping_mul` does what
+        // GCC's code does (and avoids a panic in debug builds).
         r = r * (a2 + f64::from(k) - 1.0) / f64::from(k.wrapping_sub(n).wrapping_mul(k)) * x;
         hm3 += r;
     }
@@ -668,9 +655,9 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let sb = ub * hm3;
     let hu = sa + sb;
     let mut id2 = 0;
-    // NOTE: `(int)log10(fabs(sa))` (and of `hu`) is UB in C++ if `sa` (`hu`) is inf or NaN (GCC/x86:
-    // INT_MIN; here: i32::MAX for inf, 0 for NaN). The wrapping arithmetic below avoids panics in debug
-    // builds for those saturated values.
+    // NOTE: `(int)log10(fabs(sa))` (and of `hu`) is UB in C++ if `sa` (`hu`) is inf or NaN
+    // (GCC/x86: INT_MIN; here: i32::MAX for inf, 0 for NaN). The wrapping arithmetic below avoids
+    // panics in debug builds for those saturated values.
     if sa != 0.0 {
         id1 = sa.abs().log10() as i32;
     }
@@ -853,9 +840,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let il1 = i32::from((a == f64::from(a as i32)) && (a <= 0.0));
     let il2 = i32::from((aa == f64::from(aa as i32)) && (aa <= 0.0));
     let mut nm = 0;
-    // NOTE: for a (or aa) = -2147483648.0 exactly, `(int)fabs(a)` is UB in C++; like g++ on x86-64,
-    // `int_x86` gives INT_MIN, so that the loop below doesn't run. For very negative integer a (or aa)
-    // the loop runs |a| (|aa|) times.
+    // NOTE: for a (or aa) = -2^31, `(int)fabs(a)` is UB in C++; like g++ on x86-64, `int_x86`
+    // gives INT_MIN, so that the loop below doesn't run.
     if il1 != 0 {
         nm = int_x86(a.abs());
     }
@@ -886,10 +872,9 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             r0 = ra;
             hu += r;
         }
-        // NOTE: `(int)fabs(log10(ra))` is UB in C++ if `ra` is 0 or inf (log10 -> -inf/inf), or NaN
-        // (GCC/x86: INT_MIN); here it saturates to i32::MAX (0 for NaN), so `chgu` then returns this
-        // result (`id >= 9`) where the C++ continues. `ra == 0` happens e.g. if `a + k - 1.0` rounds to
-        // zero for a non-integer `a` close to `1 - k` (e.g. a = 1e-17).
+        // NOTE: `(int)fabs(log10(ra))` is UB in C++ if `ra` is 0, inf or NaN (GCC/x86: INT_MIN);
+        // here it saturates to i32::MAX (0 for NaN), so that `chgu` returns this result for e.g.
+        // `ra == 0` (scipy/xsf#350).
         *id = ra.log10().abs() as i32;
         hu *= x.powf(-a);
     }

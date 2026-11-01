@@ -13,8 +13,7 @@
 //! (`cosm1`), or replaced by `f64::ln_1p` and `f64::exp_m1` from the Rust standard library.
 //!
 //! Unlike in xsf (scipy/xsf#348), the Taylor series of `lgam1p` is summed until it converges (at
-//! most `MAXITER` terms, as in `log1pmx`), instead of stopping after 41 terms. Otherwise, the
-//! relative error is up to 9e-14 near `|x| = 1/2` (instead of 6e-15).
+//! most `MAXITER` terms, as in `log1pmx`), instead of stopping after 41 terms.
 
 use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::{lgam, zeta};

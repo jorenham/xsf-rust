@@ -64,8 +64,8 @@ pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     //           value for q ≥ m*m
     // ====================================================
 
-    // NOTE: `kd` and `m` are `double` here (the only caller, `cva2`, passes `int`s), so the calls to `cvql` and
-    // `cvqm` (which take `int`) implicitly convert them back with `(int)`; this is exact for those values.
+    // NOTE: `kd` and `m` are `double` here (the only caller, `cva2`, passes `int`s), so the calls
+    // to `cvql` and `cvqm` (which take `int`) implicitly convert them back with `(int)`, exactly.
     let q2 = q * q;
     let poly = CV0_POLY.iter().find(|&&(pm, pkd, ..)| pm == m && pkd == kd);
 
@@ -100,8 +100,8 @@ pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     } else if let Some(&(.., c)) = poly {
         polevl(q, c)
     } else {
-        // NOTE: for `m > 12` (unreachable from `cva2`), or a `kd` that doesn't match the parity of `m`,
-        // `a0` stays `0.0`
+        // NOTE: for `m > 12` (unreachable from `cva2`), or a `kd` that doesn't match the parity of
+        // `m`, `a0` stays `0.0`
         0.0
     }
 }
@@ -138,7 +138,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
 
     let mut a = 0.0;
 
-    // NOTE: the `int` product `m * m` overflows for `m > 46340`, which is UB in C++ (wrapping on x86-64)
+    // NOTE: the `int` product `m * m` overflows for `m > 46340` (UB in C++, wrapping on x86-64)
     if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > f64::from(m.wrapping_mul(m))) {
         a = cv0(f64::from(kd), f64::from(m), q);
         if (q != 0.0) && (m != 2) {
@@ -169,8 +169,8 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
                 a2 = a;
             }
         } else {
-            // Unlike in xsf, a NaN `q` (with `m > 12`) results in NaN instead of 0: In C++ `(int)NaN` is UB
-            // (INT_MIN on x86-64, so the loop is skipped), whereas `NaN as i32` is 0, so the loop runs once.
+            // Unlike in xsf, a NaN `q` (with `m > 12`) results in NaN instead of 0, since
+            // `NaN as i32` is 0 (so the loop runs once), whereas `(int)NaN` is UB in C++ (INT_MIN).
             let nn = ((f64::from(m.wrapping_mul(m)) - q) / delta) as i32 + 1;
             delta = (f64::from(m.wrapping_mul(m)) - q) / f64::from(nn);
             let mut q1 = f64::from(m) * (f64::from(m) - 1.0);
@@ -318,7 +318,7 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
     // Output:  A0 --- Initial characteristic value
     // =====================================================
 
-    // NOTE: `m * m` is an `int` product here, which overflows for `m > 46340` (UB in C++, wrapping on x86-64)
+    // NOTE: the `int` product `m * m` overflows for `m > 46340` (UB in C++, wrapping on x86-64)
     let hm1 = 0.5 * q / (f64::from(m.wrapping_mul(m)) - 1.0);
     let hm3 = 0.25 * hm1.powf(3.0) / (f64::from(m.wrapping_mul(m)) - 4.0);
     let hm5 = hm1 * hm3 * q
@@ -746,10 +746,9 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
         17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
     };
 
-    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7, or
-    // q NaN). Rust's `as i32` saturates (NaN -> 0), so a huge qm gives km = i32::MAX > 251 (returns
-    // Status::Other with NaNs), whereas g++ on x86-64 gives km = INT_MIN (no terms summed, so
-    // csf = csd = 0 with Status::OK).
+    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7).
+    // Rust's `as i32` saturates (NaN -> 0), so a huge qm returns NaNs (km > 251), whereas g++ on
+    // x86-64 gives km = INT_MIN, i.e. csf = csd = 0 with Status::OK.
     let km = (qm + 0.5 * f64::from(m)) as i32;
 
     if km > 251 {
@@ -887,9 +886,9 @@ pub(crate) fn mtu12(
         17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
     };
 
-    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7, or
-    // q NaN). Rust's `as i32` saturates (NaN -> 0), so a huge qm gives km = i32::MAX >= 251 (returns
-    // Status::Other with NaNs), whereas g++ on x86-64 gives km = INT_MIN (then jynb(INT_MIN + 1, ...)).
+    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7).
+    // Rust's `as i32` saturates (NaN -> 0), so a huge qm returns NaNs (km >= 251), whereas g++ on
+    // x86-64 gives km = INT_MIN (then jynb(INT_MIN + 1, ...)).
     let km = (qm + 0.5 * f64::from(m)) as i32;
     if km >= 251 {
         *f1r = f64::NAN;
@@ -1077,7 +1076,7 @@ pub(crate) fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
     let mut f0 = cvf(kd, m, q, x0, mj);
     let mut x1 = 1.002 * a;
     let mut f1 = cvf(kd, m, q, x1, mj);
-    // `x` is uninitialized in C++, but the loop body always runs, so it is always assigned before it's returned
+    // `x` is uninitialized in C++, but always assigned in the loop body before it's returned
     let mut x = 0.0;
     for _it in 1..=100 {
         mj = mj.wrapping_add(1);

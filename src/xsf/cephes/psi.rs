@@ -15,8 +15,7 @@
 //!
 //! Unlike in xsf (scipy/xsf#311), the reflection for `x < 0` reduces `x` to the nearest integer
 //! before evaluating `tan(pi x)`, as in the original Cephes. Otherwise, the relative error is up to
-//! `~eps / (x - n)` for `x` just above a negative integer `n` (e.g. 5e-12 for `-30 < x < 0`,
-//! instead of 1.3e-15).
+//! `~eps / (x - n)` for `x` just above a negative integer `n`.
 
 use core::f64::consts::PI;
 

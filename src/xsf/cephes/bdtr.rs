@@ -10,9 +10,8 @@
 //! library, like in `xsf/exp.rs`. In `bdtri`, `log1p(y - 1)` is replaced by `ln(y)`, which is
 //! more accurate, since `y - 1` is exact for `y > 0.8`.
 //!
-//! Unlike in xsf (scipy/xsf#353), `bdtri` only uses `1 - y` (instead of `y`) if `y >= 0.5`, instead
-//! of if `incbet(n-k, k+1, 0.5) > 0.5`. Otherwise, `1 - y` rounds to 1 for small `y`, and e.g.
-//! `bdtri(96, 191, 2.1e-22)` returns 1 instead of 0.814.
+//! Unlike in xsf (scipy/xsf#353), `bdtri` only uses `1 - y` if `y >= 0.5`, instead of if
+//! `incbet(n-k, k+1, 0.5) > 0.5`, e.g. `bdtri(96, 191, 2.1e-22)` was 1 instead of 0.814.
 
 use crate::xsf::cephes::incbet::{incbet, incbet_xy};
 use crate::xsf::cephes::incbi::incbi;
@@ -158,13 +157,10 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 
     let dn = f64::from(n) - fk;
     // Unlike in xsf (scipy/xsf#358), the rounding error of `1 - p` (exact if `p >= 0.5`) is
-    // accounted for, since it is amplified for large `n` (see `incbet_xy`). For `k = 0`, with
-    // `q = 1 - p` rounded:
+    // accounted for, e.g. `bdtr(0, 1e9, 1e-10)` had a relative error of 8e-9.
     //
-    // - `e = (1 - q) - p` is exact (Fast2Sum)
-    // - `(1 - p)^n = q^n (1 + e/q)^n ~ q^n exp(n e/q)`
-    //
-    // E.g. `bdtr(0, 1e9, 1e-10)` and `bdtr(2, 2e9, 1e-9)` had relative errors of 8e-9 and 2e-8.
+    // For `k = 0`, `(1 - p)^n = q^n (1 + e/q)^n ~ q^n exp(n e/q)`, with the rounded `q = 1 - p`
+    // and its exact rounding error `e = (1 - q) - p`.
     if fk == 0.0 {
         let q = 1.0 - p;
         let qn = q.powf(dn);
@@ -253,8 +249,7 @@ pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
         }
     } else {
         let dk = fk + 1.0;
-        // (unlike in xsf, scipy/xsf#353) branch on `y` instead of on `incbet(n-k, k+1, 0.5) > 0.5`,
-        // since `1 - y` loses the information in small `y`
+        // (unlike in xsf, scipy/xsf#353) branch on `y` instead of on `incbet(n-k, k+1, 0.5) > 0.5`
         if y >= 0.5 {
             incbi(dk, dn, 1.0 - y)
         } else {

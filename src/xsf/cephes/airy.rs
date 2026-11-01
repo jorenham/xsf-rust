@@ -236,12 +236,10 @@ const APGD: [f64; 10] = [
 /// ```
 ///
 /// Returns `(status, ai, aip, bi, bip)`, where `status` is `-1` if `x > 103.892` (in which case
-/// `(ai, aip, bi, bip) = (0, 0, inf, inf)`), and `0` otherwise. All four outputs are always
-/// written (also for NaN input, which yields NaN outputs through the power series).
+/// `(ai, aip, bi, bip) = (0, 0, inf, inf)`), and `0` otherwise. NaN input gives NaN outputs.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
-    // The C++ writes these through output pointers. Each one is written on every path before
-    // returning, so the initial NaN values are never observed.
+    // Written on every path before returning, so these initial NaNs are never observed
     let mut ai = f64::NAN;
     let mut aip = f64::NAN;
     let mut bi = f64::NAN;
