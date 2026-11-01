@@ -11,7 +11,7 @@ const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_asy`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L59-L100>
 ///
-/// Unlike in xsf, this also handles $z<0$ with $4|z| < (v-1)^2$ through Debye's expansion of
+/// Unlike in xsf (scipy/xsf#366), this also handles $z<0$ with $4|z| < (v-1)^2$ through Debye's expansion of
 /// $J_{v-1}(2\sqrt{-z})$ (DLMF 10.19.3), i.e. with $\sqrt{1-x^2}$ instead of $\sqrt{1+x^2}$.
 #[inline]
 fn hyp0f1_asy(v: f64, z: f64) -> f64 {
@@ -92,7 +92,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let out = prefactor * bess_val;
         let prefactor_ok = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
 
-        // Unlike in xsf, fall back if a factor over- or underflows (for |v| >~ 100), e.g.
+        // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows (for |v| >~ 100), e.g.
         // hyp0f1(200, -1) would be NaN instead of 0.995 (Gamma(200) = inf and J_199(2) = 0)
         if prefactor_ok && out.is_normal() {
             out
@@ -112,7 +112,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 
 /// Fallback for large $|v|$, if the evaluation in terms of Bessel functions over- or underflows
 ///
-/// Unlike in xsf, the Maclaurin series is summed if $|z| \le |v|$, since `hyp0f1_asy` loses roughly
+/// Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed if $|z| \le |v|$, since `hyp0f1_asy` loses roughly
 /// $\epsilon |v| \ln|v|$ in its exponent, e.g. `hyp0f1(1.3e14, 2.3e8)` would be $e$ instead of
 /// 1.0000018.
 fn hyp0f1_large_v(v: f64, z: f64) -> f64 {

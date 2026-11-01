@@ -5,12 +5,13 @@
 //! Unlike in xsf:
 //! - The integer products in the (normalized) recurrence coefficients, e.g. `(2n+1)(4(n-1)^2-1)`,
 //!   are computed in `f64`, which is exact whenever the `int` product in xsf doesn't overflow. In
-//!   xsf, they overflow for `n >= 646`, so that e.g. `sph_legendre_p(700, 0, 0.5)` is NaN.
+//!   xsf, they overflow for `n >= 646`, so that e.g. `sph_legendre_p(700, 0, 0.5)` is NaN
+//!   (scipy/scipy#26574).
 //! - Other `int` arithmetic that can overflow wraps (like C++ does in practice), instead of
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)` to
 //!   determine the number of backward recurrence steps. For `-1.1 <= x < -1.0001`, the latter is
-//!   NaN, so that xsf returns garbage.
+//!   NaN, so that xsf returns garbage (scipy/xsf#368).
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::f64::consts::PI;
@@ -1021,7 +1022,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        // (unlike in xsf) `log(x - 1)` is NaN for `x < -1`
+        // (unlike in xsf, scipy/xsf#368) `log(x - 1)` is NaN for `x < -1`
         #[allow(clippy::cast_possible_truncation)]
         let km = if x.abs() > 1.1 {
             40_i32.wrapping_add(m).wrapping_add(n)

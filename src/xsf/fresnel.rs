@@ -1,6 +1,6 @@
 //! Translated into pure Rust from `xsf/fresnel.h` (xsf v0.2.2).
 //!
-//! Unlike in xsf, for `x < 0`, the imaginary part of F±(x) in `ffk` is computed from its own value
+//! Unlike in xsf (scipy/xsf#367), for `x < 0`, the imaginary part of F±(x) in `ffk` is computed from its own value
 //! (as in the original Fortran `FI=(-1)**KS*PP2-FI`), instead of from the already updated real part.
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
