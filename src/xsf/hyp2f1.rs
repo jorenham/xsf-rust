@@ -307,6 +307,32 @@ fn hyp2f1_transform2_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl FnM
     move || cmul(factor1, generator1()) + cmul(factor2, generator2())
 }
 
+/// `hyp2f1_transform2_generator(c - a, c - b, c, z)`, but without `c - (c - a)` losing `a` if tiny
+fn hyp2f1_transform2_euler_generator(
+    a: f64,
+    b: f64,
+    c: f64,
+    z: Complex64,
+) -> impl FnMut() -> Complex64 {
+    let factor1 = cpow(-z, a - c) * four_gammas(c, a - b, c - b, a);
+    let factor2 = cpow(-z, b - c) * four_gammas(c, b - a, c - a, b);
+    let mut generator1 = hypergeometric_series_generator(c - a, 1.0 - a, b - a + 1.0, rdiv(1.0, z));
+    let mut generator2 = hypergeometric_series_generator(c - b, 1.0 - b, a - b + 1.0, rdiv(1.0, z));
+    move || cmul(factor1, generator1()) + cmul(factor2, generator2())
+}
+
+/// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
+fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64) {
+    let mut abs_sum = 0.0;
+    let g = || {
+        let term = g();
+        abs_sum += term.norm();
+        term
+    };
+    let result = series_eval(g, Complex64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
+    (result, abs_sum / result.norm())
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn hyp2f1_transform2_limit_series_generator(
     a: f64,
@@ -755,20 +781,44 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         );
     }
     /* 1/z transformation (DLMF 15.8.2). */
+    // Unlike in xsf, also try it on the Euler transform (DLMF 15.8.1) if that reduces a and b, as
+    // for |z| < 0.9: the terms of the 1/z series grow like k^(a + b - c - 1) |z|^-k, and cancel.
+    //
+    // E.g. hyp2f1(8.5, 6.5, -4.25, -1+0.5i) was -3.8e9+6.0e9i instead of -14.9+2.51i.
+    let euler = c - a < a && c - b < b;
+    // times (1 - z)^(c - a - b), if both are normal
+    let euler_scaled = move |result: Complex64| {
+        let prefactor = cpow(rsub(1.0, z), c - a - b);
+        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| cmul(prefactor, result))
+    };
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
         if b > a {
             core::mem::swap(&mut a, &mut b);
         }
         let m = (a - b).round();
+        // (only if c - (c - a) and c - (c - b) are exact, and b is an integer or not near one)
+        let b_near_int = b != b.round() && (b - b.round()).abs() < HYP2F1_EPS;
+        if euler && c - (c - a) == a && c - (c - b) == b && !b_near_int {
+            let result = hyp2f1_transform2_limiting_case(c - b, c - a, c, m, z);
+            if let Some(result) = euler_scaled(result) {
+                return result;
+            }
+        }
         return hyp2f1_transform2_limiting_case(a, b, c, m, z);
     }
     let series_generator = hyp2f1_transform2_generator(a, b, c, z);
-    series_eval(
-        series_generator,
-        Complex64::ZERO,
-        HYP2F1_EPS,
-        HYP2F1_MAXITER,
-    )
+    let (result, cancellation) = series_eval_cancellation(series_generator);
+    if euler {
+        // use the one that cancels less
+        let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
+        let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
+        if euler_cancellation < cancellation || cancellation.is_nan() {
+            if let Some(euler_result) = euler_scaled(euler_result) {
+                return euler_result;
+            }
+        }
+    }
+    result
 }
 
 pub trait Hyp2F1Arg: crate::sealed::Sealed {
