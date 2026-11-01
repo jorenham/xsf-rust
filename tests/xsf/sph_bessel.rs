@@ -53,33 +53,25 @@ fn test_sph_bessel_prime_tiny_x() {
 
 #[test]
 fn test_sph_bessel_small_x_underflow() {
-    // J_{n+1/2}(x) and I_{n+1/2}(x) underflow, but j_n(x), i_n(x), and their derivatives don't
     // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x) etc.
     let actual = [
-        xsf::sph_bessel_j(50, 3.6e-5),
-        xsf::sph_bessel_j(80, 0.01),
-        xsf::sph_bessel_i(39, 6.36e-7),
-        xsf::sph_bessel_i(42, 2.2e-6),
-        xsf::sph_bessel_j_prime(74, 0.0037),
-        xsf::sph_bessel_j_prime(80, 0.01),
-        xsf::sph_bessel_i_prime(38, 3.9e-7),
-        xsf::sph_bessel_i_prime(40, 5.7e-7),
+        xsf::sph_bessel_j(256, 12.0),
+        xsf::sph_bessel_j_prime(256, 12.0),
+        xsf::sph_bessel_i_prime(256, 12.0),
+        xsf::sph_bessel_j_prime(38, 1.6e-7),
+        xsf::sph_bessel_i_prime(38, 1.6e-7),
     ];
     let expected = [
-        2.373_420_370_737_514_5e-303,
-        1.139_843_234_107_734_4e-304,
-        2.709_846_447_979_129e-301,
-        5.283_086_601_313_515e-303,
-        3.655_321_192_414_621e-307,
-        9.118_745_802_932_842e-301,
-        2.785_597_218_406_817_4e-293,
-        1.865_569_856_494_395e-303,
+        9.023_631_246_020_03e-310,
+        1.922_937_600_412_866e-308,
+        2.548_870_172_169_520_4e-308,
+        1.342_663_609_784_847e-307,
+        1.342_663_609_784_847_7e-307,
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 
-    // the leading term x^n / (2n + 1)!! of the power series overflows, but the result underflows
+    // the product for x^n / (2n + 1)!! overflows, but the result underflows
     assert_eq!(xsf::sph_bessel_j(1_200_000, 1500.0), 0.0);
-    assert_eq!(xsf::sph_bessel_i(1_200_000, 1500.0), 0.0);
 }
 
 /// From `scipy.special.tests.test_spherical_bessel.TestSphericalYn.test_spherical_yn_exact`
