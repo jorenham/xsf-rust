@@ -905,6 +905,12 @@ fn pbdv_maclaurin(v: f64, x: f64) -> (f64, f64) {
     (mul_exp(d, e), mul_exp(dp, e))
 }
 
+/// Whether `v` is within `1e-3` of an integer `n >= 0`, where `dvsa` and `dvla` lose more than
+/// 1e-13 (empirically `1e-16 / |v - n|`) to the poles of `gamma2`, and `v + 1` rounds off `v - n`
+fn near_int(v: f64) -> bool {
+    v.round() >= 0.0 && (v - v.round()).abs() <= 1e-3
+}
+
 /// `D_v(x)`, `D_v'(x)` by uniform asymptotic expansions, or `None` outside their regime
 #[allow(clippy::cast_possible_truncation)]
 fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
@@ -912,7 +918,10 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         return None;
     }
     if v <= -20.0 {
-        return (x >= 0.0 || x < -50.0).then(|| {
+        // Unlike in xsf, also for -10 <= x < -5.8 (with v < -30, see `pbdv`), where `dvla` is
+        // inaccurate, e.g. `pbdv(-100.5, -6.0).0` was 3.15142601097e-53 instead of
+        // 3.15142601089e-53.
+        return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x)).then(|| {
             let ([d, dp], l) = pbdv_elementary(v, x);
             (mul_exp(d, l), mul_exp(dp, l))
         });
@@ -926,7 +935,10 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
             (mul_exp(d, ea), mul_exp(dp, ea))
         });
     }
-    if v < 2.0 || (x >= -5.0 && v < 300.0) {
+    // Unlike in xsf, this is also used near an integer v (see `near_int`), e.g.
+    // `pbdv(1e-16, -10.0).0` was 1.39e-11 instead of -1.82e-6, and for -5 <= x < -4, where
+    // `pbdv_impl` loses up to 1e-12.
+    if !(v >= 2.0 || near_int(v)) || (x >= -4.0 && v < 300.0) {
         return None;
     }
 
@@ -947,14 +959,14 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         ));
     }
 
-    let (dy, dpy) = pbdv(v, y);
     let n = (20.0 - v).ceil();
     let ([.., mut u0, _], ea, eb) = pbdv_airy(v + n, y);
     if ea < -1000.0 {
-        // Ubar_v(y) overflows
+        // sin(pi v) Ubar_v(y) overflows (unless v is tiny), and D_v(y) underflows
         let ub = mul_exp(s, eb);
-        return Some((c * dy - ub, ub - c * dpy));
+        return ub.is_infinite().then_some((-ub, ub));
     }
+    let (dy, dpy) = pbdv(v, y);
     // Ubar_{w-1}(y) = (y Ubar_w(y) - Ubar_{w+1}(y)) / w (12.8.5), stable for decreasing w
     let ([.., u1, _], _, eb1) = pbdv_airy(v + n + 1.0, y);
     let mut u1 = mul_exp(u1, eb1 - eb);
@@ -1043,14 +1055,9 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
-    // `dvsa` for -10 <= x < -5.8 and 0 < v < min(x^2 / 3, 20) (not near an integer v, where
-    // `gamma2` is inaccurate), e.g. `pbdv(7.8219197547668315, -6.126185993244382).0` was 152.38
-    // instead of 142.56.
-    if v > 0.0
-        && v < (x * x / 3.0).min(20.0)
-        && (v - v.round()).abs() > 1e-5
-        && (-10.0..-5.8).contains(&x)
-    {
+    // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`), e.g. `pbdv(1.3, -6.0).0`
+    // was 111.61999702 instead of 111.61957801.
+    if v > 0.0 && v < 2.0 && !near_int(v) && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
@@ -1080,6 +1087,17 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
+    }
+    // Unlike in xsf, near an integer n (see `near_int`), D_v(x) is computed by recurrence from
+    // D_w(x) and D_{w-1}(x) with w = v - n, e.g. `pbdv(3.000000001, 2.0).0` was 0.7357587536
+    // instead of 0.7357588811.
+    let (n, w) = (v.round(), v - v.round());
+    if near_int(v) && w != 0.0 && v < 300.0 && x.abs() <= 5.8 {
+        // D_w = D_0 to double precision for |w| <= eps^2, where `dvsa` can overflow
+        let tiny = w.abs() <= f64::EPSILON * f64::EPSILON;
+        let d0 = dvsa(x, if tiny { 0.0 } else { w });
+        // D_{w+1} = x D_w - w D_{w-1} (12.8.1)
+        return pbdv_up(w, x, n, d0, x * d0 - w * dvsa(x, w - 1.0));
     }
     /* NB. Indexing of DV/DP in specfun.f:PBDV starts from 0, hence +2 */
     let Some((mut buf, num)) = alloc_buf(v) else {
