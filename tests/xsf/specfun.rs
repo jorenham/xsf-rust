@@ -54,16 +54,8 @@ fn test_hypu_neg_a_large_b() {
     let expected = [-9_737_194_064.088_581, -4_550_121_582.442_501];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-7);
 
-    // still NaN (mpmath: -9.12e121, 1.0075, and -inf), instead of an unstable recurrence
-    // (-1.00e122), a wrong 0 if Gamma(a) overflows in `chguit`, or a wrong 1 from `chgul`
-    assert!(
-        xsf::hypu(
-            -70.143_758_091_504_14,
-            45.332_941_134_973_275,
-            11.429_524_306_986_952
-        )
-        .is_nan()
-    );
+    // still NaN (mpmath: 1.0075 and -inf), instead of a wrong 0 if Gamma(a) overflows in
+    // `chguit`, or a wrong 1 from `chgul`
     assert!(
         xsf::hypu(
             -0.001_455_282_650_156_073,
@@ -73,6 +65,51 @@ fn test_hypu_neg_a_large_b() {
         .is_nan()
     );
     assert!(xsf::hypu(-4.2e-66, 26.000_000_000_000_018, 1e-300).is_nan());
+}
+
+#[test]
+fn test_hypu_large_neg_a_large_b() {
+    // mpmath; NaN in xsf
+    let abx = [
+        (
+            -70.143_758_091_504_14,
+            45.332_941_134_973_275,
+            11.429_524_306_986_952,
+        ),
+        (-60.2, 30.6, 10.0),
+        (-150.3, 60.1, 30.0),
+        (-2.4, 98.3, 29.8),
+    ];
+    let expected = [
+        -9.122_398_426_133_06e121,
+        -1.875_196_314_005_285_6e96,
+        4.672_086_732_836_285e291,
+        -3.999_673_741_113_012e20,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-8);
+}
+
+#[test]
+fn test_hypu_poly() {
+    // mpmath; -6.90e95, -4.94e187, and NaN in xsf
+    let abx = [
+        (-60.0, 30.0, 10.0),
+        (-100.0, -5.014_823_015_669_013, 46.614_071_395_839_73),
+        (-95.0, 15.0, 0.004_221_448_686_339_405_5),
+    ];
+    let expected = [
+        -6.398_262_182_829_726e95,
+        -8.403_084_016_177_146e165,
+        -1.612_479_198_337_786_4e165,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // mpmath; 3.27e96 and 5.35e190 in xsf
+    let actual = [xsf::hypu(-60.5, 30.5, 10.0), xsf::hypu(-100.5, 40.5, 20.0)];
+    let expected = [8.123_216_159_896_29e95, -4.104_645_857_033_403e177];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-8);
 }
 
 #[test]
