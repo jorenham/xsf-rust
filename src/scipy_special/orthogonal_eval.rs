@@ -782,11 +782,9 @@ pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
 
 /// `H_n(x)` (`scale = 1`) or `He_n(x)` (`scale = 1/2`) for `x > 0` and non-integer `n > 0`, by
 /// the forward recurrence `y_{v+1} = 2 scale (x y_v - v y_{v-1})` (DLMF 12.8.1) from
-/// `v = n - ceil(n) - 3` and `v + 1`, where (DLMF 12.5.1 for `v < 0`)
-///
-/// `y_v(x) = 1/Gamma(-v) int_0^inf t^(-v-1) exp(-scale t^2 - 2 scale x t) dt`
-///
-/// is computed with the trapezoidal rule in `u = ln(t / t0)`, with `t0` the peak of `t^-v exp(..)`.
+/// `v = n - ceil(n) - 3` and `v + 1`, with the integral of DLMF 12.5.1,
+/// `y_v(x) = 1/Gamma(-v) int_0^inf t^(-v-1) exp(-scale t^2 - 2 scale x t) dt`, by the trapezoidal
+/// rule in `u = ln(t / t0)`, with `t0` the peak of `t^-v exp(..)`.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
     const H: f64 = 0.1;
@@ -849,7 +847,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     } else {
         // For non-integer n > 0 and x > 0, `hypu` below has relative errors of up to 1e-6, e.g.
         // `eval_hermite_h(46.801133288584765, 3.655511435592377)` was 4.759282e38, not 4.759279e38.
-        if x > 0.0 && x < 1e4 && n > 0.0 && n < 1e3 && n.fract() != 0.0 {
+        if (0.0..1e4).contains(&x) && (0.0..1e3).contains(&n) && n.fract() != 0.0 {
             let h = hermite_rec(x, n, scale);
             if h.is_finite() {
                 return h;
