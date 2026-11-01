@@ -31,6 +31,24 @@ fn test_rgamma_f64() {
 }
 
 #[test]
+fn test_rgamma_f64_near_overflow() {
+    // unlike in xsf: no spurious overflow for `-178 < x < -170` (mpmath)
+    for (x, expected) in [
+        (-170.917_162_917_922_44, -6.637_711_907_120_738e307),
+        (-173.999_999_999_999_97, 1.826_215_811_702_844e302),
+        (-176.000_000_000_000_03, -5.624_744_700_046_412e306),
+    ] {
+        let actual = xsf::rgamma(x);
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-15,
+            "{actual:e} != {expected:e}"
+        );
+    }
+    assert_eq!(xsf::rgamma(-172.5), f64::NEG_INFINITY);
+    assert_eq!(xsf::rgamma(-173.5), f64::INFINITY);
+}
+
+#[test]
 fn test_rgamma_c64() {
     xsref::test("rgamma", "cd-cd", |x| xsf::rgamma(c64(x[0], x[1])));
 }

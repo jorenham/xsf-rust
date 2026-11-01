@@ -66,6 +66,14 @@ pub(crate) fn rgamma(x: f64) -> f64 {
         return 0.0;
     }
 
+    // Unlike in xsf, `1 / Gamma(x) = x / Gamma(x + 1)` is used for `-178 < x < -170`, where
+    // `Gamma(x)` can underflow (or overflow in its reflection) even when `1 / Gamma(x)` is finite.
+    //
+    // For example, `rgamma(-170.91716291792244)` was `-inf` instead of `-6.6377e307`.
+    if -178.0 < x && x < -170.0 {
+        return x * rgamma(x + 1.0);
+    }
+
     if x.abs() > 4.0 {
         return 1.0 / gamma(x);
     }
