@@ -81,26 +81,28 @@ pub fn binom(n: f64, k: f64) -> f64 {
     }
     if k > 1e8 * n.abs() {
         // avoid loss of precision
-        // Unlike in xsf, the second term includes the factor n + 1 (from the expansion
-        // Gamma(k - n) / Gamma(k + 1) ~ k^(-n-1) (1 + n (n + 1) / (2 k) + ...)), without which the
-        // relative error is ~n^2 / (2 k).
+        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1 (from the
+        // expansion Gamma(k - n) / Gamma(k + 1) ~ k^(-n-1) (1 + n (n + 1) / (2 k) + ...)), without
+        // which the relative error is ~n^2 / (2 k).
         num = gamma(1.0 + n) / k.abs() + gamma(1.0 + n) * n / (2.0 * k * k) * (n + 1.0); // + ...
         let den = PI * k.abs().powf(n);
         if den.is_normal() {
             num /= den;
         } else {
-            // Unlike in xsf, |k|^n is split in two if `den` over- or underflows, which would
-            // otherwise result in 0 (or inf), e.g. for n = 31.687 and k = 1.028e10
+            // Unlike in xsf (scipy/xsf#352), |k|^n is split in two if `den` over- or underflows,
+            // which would otherwise result in 0 (or inf), e.g. for n = 31.687 and k = 1.028e10
             let kn2 = k.abs().powf(0.5 * n);
             num = num / (PI * kn2) / kn2;
         }
         if k > 0.0 {
             kx = k.floor();
-            // Unlike in xsf, the parity of kx is also determined for kx >= 2^31, where the C++
-            // `static_cast<int>(kx)` is UB (with GCC on x86-64, sin((k - n) * pi) is then used).
+            // Unlike in xsf (scipy/xsf#352), the parity of kx is also determined for kx >= 2^31,
+            // where the C++ `static_cast<int>(kx)` is UB (with GCC on x86-64, sin((k - n) * pi) is
+            // then used).
             let dk = k - kx;
             let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
-            // Unlike in xsf, sinpi avoids the rounding error of (dk - n) * pi near its zeros
+            // Unlike in xsf (scipy/xsf#352), sinpi avoids the rounding error of (dk - n) * pi near
+            // its zeros
             return num * cephes_sinpi(dk - n) * sgn;
         }
         kx = k.floor();
@@ -110,7 +112,7 @@ pub fn binom(n: f64, k: f64) -> f64 {
         return num * (k * PI).sin();
     }
     if k.is_finite() && k.abs() > 2e4 && n.abs() < 170.0 {
-        // Unlike in xsf, the reflection formula
+        // Unlike in xsf (scipy/xsf#352), the reflection formula
         // binom(n, k) = Gamma(1 + n) sin(pi (n - k + 1)) / (pi poch(k - n, n + 1))
         // is used for large |k|, because `beta` loses ~|k| eps of precision here, e.g. a relative
         // error of ~1e-6 for k = 1e9. The cutoff ensures that the `poch` base exceeds 1e4.
@@ -150,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_binom_large_k() {
-        // unlike in xsf: the n (n + 1) / (2 k) term, the parity of k >= 2^31, sinpi, and the split
-        // |k|^n (which over- or underflows here)
+        // unlike in xsf (scipy/xsf#352): the n (n + 1) / (2 k) term, the parity of k >= 2^31,
+        // sinpi, and the split |k|^n (which over- or underflows here)
         for (n, k, expected) in [
             (2.5, 300_000_000.7, 1.329_598_785_965_806_2e-30),
             (0.5, 10_000_000_001.25, 1.994_711_401_707_956_7e-16),
@@ -174,7 +176,8 @@ mod tests {
 
     #[test]
     fn test_binom_reflection() {
-        // unlike in xsf: the reflection formula for |k| > 2e4 (the last case splits `poch`)
+        // unlike in xsf (scipy/xsf#352): the reflection formula for |k| > 2e4 (the last case splits
+        // `poch`)
         for (n, k, expected) in [
             (31.69, 1_000_000_000.796, -5.746_138_060_441_207e-261),
             (

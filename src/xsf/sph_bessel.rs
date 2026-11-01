@@ -168,8 +168,9 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
         return 0.0;
     }
 
-    // Unlike in xsf, the leading power series term is also used for j_n (see sph_bessel_i_f64),
-    // since J_{n + 1/2}(x) underflows for tiny x, e.g. j_1(1.166e-222) was 0 instead of 3.89e-223.
+    // Unlike in xsf (scipy/xsf#359), the leading power series term is also used for j_n (see
+    // sph_bessel_i_f64), since J_{n + 1/2}(x) underflows for tiny x, e.g. j_1(1.166e-222) was 0
+    // instead of 3.89e-223.
     if let Some(res) = sph_bessel_tiny_x(n, x) {
         return res;
     }

@@ -165,9 +165,9 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         return;
     }
 
-    // Unlike in xsf, the Hankel expansion is used for x >= 2^31 / 0.9 (~2.39e9), because `as i32`
-    // saturates. In C++ `(int)(0.9 * x)` is UB there, which on x86-64 yields INT_MIN, so that the
-    // backward recurrence is taken, resulting in 0 or NaN.
+    // Unlike in xsf (scipy/xsf#351), the Hankel expansion is used for x >= 2^31 / 0.9 (~2.39e9),
+    // because `as i32` saturates. In C++ `(int)(0.9 * x)` is UB there, which on x86-64 yields
+    // INT_MIN, so that the backward recurrence is taken, resulting in 0 or NaN.
     if (x <= 300.0) || (n > (0.9 * x) as i32) {
         // Backward recurrence for Jn
         if n == 0 {

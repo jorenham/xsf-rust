@@ -12,9 +12,9 @@
 //! The other functions in `unity.h` are translated in `xsf/log.rs` (`log1pmx`) and `xsf/trig.rs`
 //! (`cosm1`), or replaced by `f64::ln_1p` and `f64::exp_m1` from the Rust standard library.
 //!
-//! Unlike in xsf, the Taylor series of `lgam1p` is summed until it converges (at most `MAXITER`
-//! terms, as in `log1pmx`), instead of stopping after 41 terms. Otherwise, the relative error is
-//! up to 9e-14 near `|x| = 1/2` (instead of 6e-15).
+//! Unlike in xsf (scipy/xsf#348), the Taylor series of `lgam1p` is summed until it converges (at
+//! most `MAXITER` terms, as in `log1pmx`), instead of stopping after 41 terms. Otherwise, the
+//! relative error is up to 9e-14 near `|x| = 1/2` (instead of 6e-15).
 
 use crate::xsf::cephes::{lgam, zeta};
 
@@ -31,7 +31,8 @@ fn lgam1p_taylor(x: f64) -> f64 {
     }
     let mut res = -SCIPY_EULER * x;
     let mut xfac = -x;
-    // (unlike in xsf) MAXITER instead of 42, since 41 terms don't converge for |x| near 1/2
+    // (unlike in xsf, scipy/xsf#348) MAXITER instead of 42, since 41 terms don't converge for |x|
+    // near 1/2
     for n in 2..MAXITER {
         xfac *= -x;
         let coeff = zeta(f64::from(n), 1.0) * xfac / f64::from(n);

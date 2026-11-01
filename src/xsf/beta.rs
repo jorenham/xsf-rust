@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_beta_lgam_ratio() {
-        // unlike in xsf: no cancellation in lgam(a + b) - lgam(a) for |b| << a
+        // unlike in xsf (scipy/scipy#26423): no cancellation in lgam(a + b) - lgam(a) for |b| << a
         for (a, b, expected) in [
             (999_999.0, 0.5, 0.001_772_454_958_690_183_8),
             (300_000.0, -2.5, -46_598_342_334_957.34),
@@ -80,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_beta_reflected() {
-        // unlike in xsf: no cancellation in lgam(a) + lgam(b) - lgam(a + b) for |b| << -a or
-        // 0 <= a + b << a
+        // unlike in xsf (scipy/xsf#357): no cancellation in lgam(a) + lgam(b) - lgam(a + b) for
+        // |b| << -a or 0 <= a + b << a
         for (a, b, expected) in [
             (-1_000_000.25, 0.5, -0.001_772_453_407_792_191_7),
             (5_000.25, -4_999.5, 0.304_878_142_880_374_1),
@@ -98,7 +98,8 @@ mod tests {
 
     #[test]
     fn test_beta_near_171() {
-        // unlike in xsf: no under- or overflow of the Gamma functions for arguments below -170.6
+        // unlike in xsf (scipy/xsf#357): no under- or overflow of the Gamma functions for arguments
+        // below -170.6
         for (a, b, expected) in [
             (-171.1, 0.5, -0.416_731_771_605_593_1),
             (

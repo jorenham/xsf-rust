@@ -174,7 +174,8 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                             di = (y0 - y) / (yh - yl);
                         }
                         dir += 1;
-                        // Unlike in xsf, the switch to 1 - x (but not back) requires either:
+                        // Unlike in xsf (scipy/xsf#364), the switch to 1 - x (but not back)
+                        // requires either:
                         //
                         // - y0 >= 1/512, so that rounding 1 - y0 (a relative error of up to
                         //   MACHEP / 2y0) stays within the tolerance on y (dithresh = 256 MACHEP)

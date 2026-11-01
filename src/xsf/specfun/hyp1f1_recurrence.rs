@@ -1,5 +1,5 @@
-//! Unlike in xsf: the backward recurrences of Boost.Math for `M(a, b, z)` with non-integer
-//! `a < -1` and `b > 0`, translated into pure Rust from
+//! Unlike in xsf (scipy/xsf#365): the backward recurrences of Boost.Math for `M(a, b, z)` with
+//! non-integer `a < -1` and `b > 0`, translated into pure Rust from
 //! `boost/math/special_functions/detail/hypergeometric_1F1_recurrence.hpp` and
 //! `boost/math/tools/recurrence.hpp` (Boost.Math develop @ cf949b2).
 //!

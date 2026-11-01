@@ -243,8 +243,8 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
      *
      * so we can compute exp(y/2), scale by the right factor of sin/cos
      * and then multiply by exp(y/2) to avoid overflow. */
-    // NOTE(xsf-rust): unlike xsf v0.2.2, this accounts for sgn(y), propagates NaN, and avoids
-    // premature rounding of tiny sin/cos factors. It still overflows prematurely if
+    // NOTE(xsf-rust): unlike xsf v0.2.2 (scipy/xsf#308), this accounts for sgn(y), propagates NaN,
+    // and avoids premature rounding of tiny sin/cos factors. It still overflows prematurely if
     // exp(|pi y|/2) overflows while the result wouldn't (only for |x| < ~1e-308).
     let cospix = 1.0_f64.copysign(piy) * cospix;
     let exphpiy = (abspiy / 2.0).exp();
@@ -285,9 +285,10 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     }
 
     // See csinpi(z) for an idea of what's going on here.
-    // NOTE(xsf-rust): unlike xsf v0.2.2, this uses the correct sign of the imaginary part,
-    // accounts for sgn(y), checks the right factor for zero, propagates NaN, and avoids premature
-    // rounding of tiny sin/cos factors (see csinpi(z) for the remaining limitation).
+    // NOTE(xsf-rust): unlike xsf v0.2.2 (scipy/xsf#308), this uses the correct sign of the
+    // imaginary part, accounts for sgn(y), checks the right factor for zero, propagates NaN, and
+    // avoids premature rounding of tiny sin/cos factors (see csinpi(z) for the remaining
+    // limitation).
     let sinpix = -1.0_f64.copysign(piy) * sinpix;
     let exphpiy = (abspiy / 2.0).exp();
     let coshfac;
@@ -337,8 +338,8 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     x -= 180.0 * k;
     if cotflg {
         if x <= 90.0 {
-            // Unlike in xsf, cot(x) = 1 / tan(x) is used for 0 < x < 45, since 90 - x rounds,
-            // which is amplified near the pole at x = 0.
+            // Unlike in xsf (scipy/xsf#363), cot(x) = 1 / tan(x) is used for 0 < x < 45, since
+            // 90 - x rounds, which is amplified near the pole at x = 0.
             //
             // E.g. cotdg(1e-10) was 572956949790.9288 instead of 572957795130.8232, and
             // cotdg(1e-15) was inf.
@@ -368,8 +369,8 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
         return f64::from(sign) * f64::INFINITY;
     }
     /* x is now transformed into [0, 90) */
-    // Unlike in xsf, tan(x) = 1 / tan(90 - x) is used for x > 45, since x * PI180 rounds,
-    // which is amplified near the pole at x = 90 (whereas 90 - x is exact).
+    // Unlike in xsf (scipy/xsf#363), tan(x) = 1 / tan(90 - x) is used for x > 45, since x * PI180
+    // rounds, which is amplified near the pole at x = 90 (whereas 90 - x is exact).
     //
     // E.g. tandg(89.9999999999) was 572956949790.9288 instead of 572947570131.5804.
     if x > 45.0 {

@@ -494,7 +494,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 }
 
                 sp += 2.0 * fc[0] * fc[0] + fc[1] * fc[1] + fc[2] * fc[2];
-                // (unlike in xsf) see `sum_sq_rel`
+                // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
                 ss = if sp.is_finite() {
                     s + sp * (f3 / f2) * (f3 / f2)
                 } else {
@@ -582,7 +582,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
 
         sp += fc[0] * fc[0] + fc[1] * fc[1];
-        // (unlike in xsf) see `sum_sq_rel`
+        // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
         ss = if sp.is_finite() {
             s + sp * (f3 / f2) * (f3 / f2)
         } else {
@@ -653,7 +653,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
 
         sp += fc[0] * fc[0] + fc[1] * fc[1];
-        // (unlike in xsf) see `sum_sq_rel`
+        // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
         ss = if sp.is_finite() {
             s + sp * (f3 / f2) * (f3 / f2)
         } else {
@@ -756,7 +756,7 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
         return Status::Other;
     }
 
-    // (unlike in xsf) 252, since fcoef reads fc[km] and km can be 251
+    // (unlike in xsf, scipy/xsf#312) 252, since fcoef reads fc[km] and km can be 251
     let Some(mut fg) = try_zeroed(252) else {
         *csf = f64::NAN;
         *csd = f64::NAN;

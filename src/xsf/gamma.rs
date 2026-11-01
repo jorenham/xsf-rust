@@ -241,7 +241,8 @@ mod tests {
 
     #[test]
     fn test_gammainc_large_a() {
-        // unlike in xsf: the power series is no longer truncated for large `a` (mpmath)
+        // unlike in xsf (scipy/xsf#339): the power series is no longer truncated for large `a`
+        // (mpmath)
         for (a, x, expected) in [
             (300_000.0, 297_500.0, 2.364_252_205_564_727e-6),
             (1e6, 995_000.0, 2.749_580_359_270_071e-7),

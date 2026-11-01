@@ -65,8 +65,9 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * (m - 1.0) * (m - 2.0) * (3.0 * m - 1.0) / (24.0 * a * a)
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
     } else if a > 10.0 && m.abs() <= 1.0 {
-        // Unlike in xsf, `lgam_ratio` avoids the cancellation in lgam(a + m) - lgam(a) (below),
-        // e.g. a relative error of 8e-12 for poch(5878.8618471964755, -0.029080395984806877)
+        // Unlike in xsf (scipy/xsf#357), `lgam_ratio` avoids the cancellation in
+        // lgam(a + m) - lgam(a) (below), e.g. a relative error of 8e-12 for
+        // poch(5878.8618471964755, -0.029080395984806877)
         return r * lgam_ratio(a, m).exp();
     }
 
@@ -81,9 +82,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     }
 
     if a < -10.0 && m.abs() <= 1.0 {
-        // Unlike in xsf, the reflection formula avoids the cancellation in lgam(a + m) - lgam(a),
-        // e.g. a relative error of 3.6e-4 for poch(-96483701341.52873, -0.0010688260996181021).
-        // The sines use the exact fractional part of `a` instead of the rounded `a + m`.
+        // Unlike in xsf (scipy/xsf#357), the reflection formula avoids the cancellation in
+        // lgam(a + m) - lgam(a), e.g. a relative error of 3.6e-4 for poch(-96483701341.52873,
+        // -0.0010688260996181021). The sines use the exact fractional part of `a` instead of the
+        // rounded `a + m`.
         let f = a - a.floor();
         return r * (cephes_sinpi(f) / cephes_sinpi(f + m)) * poch(1.0 - a - m, m);
     }
@@ -144,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_pow_rising_lgam_ratio() {
-        // unlike in xsf: `lgam_ratio` for 10 < a <= 1e4
+        // unlike in xsf (scipy/xsf#357): `lgam_ratio` for 10 < a <= 1e4
         for (a, m, expected) in [
             (
                 5_878.861_847_196_475_5,
@@ -164,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_pow_rising_reflection() {
-        // unlike in xsf: the reflection formula for a < -10
+        // unlike in xsf (scipy/xsf#357): the reflection formula for a < -10
         for (a, m, expected) in [
             (
                 -96_483_701_341.528_73,

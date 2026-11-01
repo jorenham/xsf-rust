@@ -3,8 +3,8 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
-//! This way, the modified Mathieu functions don't return 0 or NaN if `sqrt(q) * exp(|x|) > 2.39e9`, and
-//! the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
+//! This way, the modified Mathieu functions don't return 0 or NaN if `sqrt(q) * exp(|x|) > 2.39e9`
+//! (scipy/xsf#351), and the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
 
 use num_traits::ToPrimitive;
 
@@ -236,7 +236,7 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
+        // (unlike in scipy, scipy/xsf#312) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     cem(f64::from(m), q, x)
@@ -271,7 +271,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
     if m > 0 && mathieu_km_too_large(m, q) {
-        // (unlike in scipy) NaN, as for km > 251, instead of indexing out of bounds
+        // (unlike in scipy, scipy/xsf#312) NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     sem(f64::from(m), q, x)
@@ -306,7 +306,8 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // `int`
         return (f64::NAN, f64::NAN);
     }
     mcm1(f64::from(m), q, x)
@@ -341,7 +342,8 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // `int`
         return (f64::NAN, f64::NAN);
     }
     msm1(f64::from(m), q, x)
@@ -376,7 +378,8 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // `int`
         return (f64::NAN, f64::NAN);
     }
     mcm2(f64::from(m), q, x)
@@ -411,7 +414,8 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_modsem2(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy) instead of indexing out of bounds if `km` overflows `int`
+        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // `int`
         return (f64::NAN, f64::NAN);
     }
     msm2(f64::from(m), q, x)
@@ -465,7 +469,8 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     };
 
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
-    // (unlike in scipy) 252 instead of 251, since `fcoef` reads `fc[km]`, and `km` can be 251
+    // (unlike in scipy, scipy/xsf#312) 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
+    // can be 251
     let mut fc = [f64::NAN; 252];
     specfun_fcoef(KD, m.try_into().unwrap(), q, cv, &mut fc);
     if fc[0].is_nan() {

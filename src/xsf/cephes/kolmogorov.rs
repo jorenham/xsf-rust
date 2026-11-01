@@ -58,9 +58,9 @@
 //! `std::pow(6.0 * n * x + 1, 2)` is written as `t * t`, which is what GCC compiles it to, and
 //! what LLVM only does when optimizing.
 //!
-//! Unlike in xsf, the `int` products that can overflow are computed in `f64`. In xsf,
-//! `n * (v - 1)` and `(n - v) * n` in `_smirnov` overflow for `n` larger than about 46341, so that
-//! `smirnovp` returns `-0.0` or a wrong value for such `n`, e.g. `smirnovp(50000, 0.002)` is
+//! Unlike in xsf (scipy/xsf#315), the `int` products that can overflow are computed in `f64`. In
+//! xsf, `n * (v - 1)` and `(n - v) * n` in `_smirnov` overflow for `n` larger than about 46341, so
+//! that `smirnovp` returns `-0.0` or a wrong value for such `n`, e.g. `smirnovp(50000, 0.002)` is
 //! `-0.0` instead of `-268.21...`. The same goes for `-2 * n` in `_smirnov`, and `6 * n` in
 //! `_smirnovi`, but only for `n` larger than about `2^30` and `2^31 / 6`, respectively.
 //!
