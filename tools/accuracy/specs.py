@@ -2591,8 +2591,9 @@ for i in range(4):
 
 section("Parabolic cylinder functions")
 for f, r in [("pbdv", r_pbdv), ("pbvv", r_pbvv)]:
+    large = [D(LU(20, 300, 0), U(-60, 60), n=2000)] if f == "pbdv" else []
     for i in range(2):
-        add(f"{f}.{i}", "v x", lambda v, x, r=r, i=i: r(v, x)[i], D(U(-10, 10), U(-10, 10), n=2000), note="zeros_c")
+        add(f"{f}.{i}", "v x", lambda v, x, r=r, i=i: r(v, x)[i], D(U(-10, 10), U(-10, 10), n=2000), *large, note="zeros_c")
 for i in range(2):
     add(f"pbwa.{i}", "a x", lambda a, x, i=i: r_pbwa(a, x)[i], D(U(-5, 5), U(-5, 5), n=2000), note="zeros_c")
 
