@@ -230,7 +230,43 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         let a1 = a + 1.0;
         (x + a + a1) * xsf_hypu(a1, 1.0, x) - a1 * a1 * xsf_hypu(a + 2.0, 1.0, x)
     } else {
-        xsf_hypu(a, b, x)
+        let u = xsf_hypu(a, b, x);
+        // Unlike in xsf, the recurrence in `a` is used if `chgu` fails for a < 1 and b > a, where
+        // its series lose all precision for large |a|, e.g.
+        // `hypu(-95.9344128532694, 0.2501673456517396, 322.25412085690647)` was NaN.
+        if u.is_nan() && a < 1.0 && a > -1000.0 && b > a {
+            hypu_rec(a, b, x)
+        } else {
+            u
+        }
+    }
+}
+
+/// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
+/// `a + m` in `[1, 2)`; NaN if a (heuristic) check finds that the recurrence is ill-conditioned
+#[allow(clippy::cast_possible_truncation)]
+fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
+    if b < 1.0 {
+        // DLMF 13.2.40; the recurrence is better behaved for b >= 1
+        return x.powf(1.0 - b) * hypu_rec(a - b + 1.0, 2.0 - b, x);
+    }
+    let m = (1.0 - a).ceil();
+    // The two starting values are recurred separately, to detect their cancellation (the
+    // threshold 1e4 is empirical)
+    let (mut p0, mut p1) = (xsf_hypu(a + m, b, x), 0.0);
+    let (mut q0, mut q1) = (0.0, xsf_hypu(a + m + 1.0, b, x));
+    for k in (1..=m as i32).rev() {
+        // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
+        let c = a + f64::from(k);
+        let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
+        (p0, p1) = (s * p0 - t * p1, p0);
+        (q0, q1) = (s * q0 - t * q1, q0);
+    }
+    let u = p0 + q0;
+    if p0.abs() + q0.abs() < 1e4 * u.abs() {
+        u
+    } else {
+        f64::NAN
     }
 }
 

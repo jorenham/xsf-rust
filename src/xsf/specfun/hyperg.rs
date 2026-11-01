@@ -436,7 +436,11 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         }
         hu1 = hu;
     }
-    if il1 != 0 || il2 != 0 || il3 != 0 {
+    // Unlike in xsf, chgul is also tried if no method below applies, where `id` stayed -100,
+    // e.g. `hypu(-9.596157126249977, 8.220449743267231, 29.368858516382556)` was NaN. Not for
+    // |a| < 1.1e-16, where `a + 1 - 1` rounds to 0 in chgul.
+    let il4 = a < 1.0 && b > a && bn == 0 && a + 1.0 != 1.0;
+    if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= 9 {
@@ -787,6 +791,9 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // DLMF 13.4.4 with substitution t=C/(1-u)
     // integration u from 0 to 1, i.e. t from C=12/X to infinity
     let mut hu2 = 0.0;
+    // Unlike in xsf, a non-finite integrand (0 * inf for large t and a) is recomputed in log
+    // space, unless b is infinite or Gamma(a) overflows (a > 171)
+    let log_space = b1.is_finite() && a < 171.0;
     for m in (2..=10).step_by(2) {
         hu2 = 0.0;
         let g = 0.5 / f64::from(m);
@@ -798,8 +805,14 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 let t2 = d - g * T[k - 1];
                 let t3 = c / (1.0 - t1);
                 let t4 = c / (1.0 - t2);
-                let f1 = t3 * t3 / c * (-x * t3).exp() * t3.powf(a1) * (1.0 + t3).powf(b1);
-                let f2 = t4 * t4 / c * (-x * t4).exp() * t4.powf(a1) * (1.0 + t4).powf(b1);
+                let mut f1 = t3 * t3 / c * (-x * t3).exp() * t3.powf(a1) * (1.0 + t3).powf(b1);
+                let mut f2 = t4 * t4 / c * (-x * t4).exp() * t4.powf(a1) * (1.0 + t4).powf(b1);
+                if log_space && !f1.is_finite() {
+                    f1 = t3 * t3 / c * (a1 * t3.ln() + b1 * t3.ln_1p() - x * t3).exp();
+                }
+                if log_space && !f2.is_finite() {
+                    f2 = t4 * t4 / c * (a1 * t4.ln() + b1 * t4.ln_1p() - x * t4).exp();
+                }
                 s += W[k - 1] * (f1 + f2);
             }
             hu2 += s * g;
@@ -863,6 +876,7 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // DLMF 13.7.3
         hu = 1.0;
         r = 1.0;
+        let mut rmax: f64 = 1.0;
         for k in 1..=25 {
             r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
             ra = r.abs();
@@ -871,11 +885,16 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             }
             r0 = ra;
             hu += r;
+            rmax = rmax.max(ra);
         }
-        // NOTE: `(int)fabs(log10(ra))` is UB in C++ if `ra` is 0, inf or NaN (GCC/x86: INT_MIN);
-        // here it saturates to i32::MAX (0 for NaN), so that `chgu` returns this result for e.g.
-        // `ra == 0` (scipy/xsf#350).
-        *id = ra.log10().abs() as i32;
+        // Unlike in xsf, the error estimate is relative to min(|sum|, 1), and includes the rounding
+        // of the largest term, since `(int)fabs(log10(ra))` is wrong for a diverging series or a
+        // small sum, e.g. `hypu(-19.286898919510595, 0.5, 37.822730221617014)` had id = 16 but
+        // lost 11 digits.
+        //
+        // NOTE: the `int` conversion is UB in C++ if the estimate is not finite; here it
+        // saturates (0 for NaN).
+        *id = (-(ra.max(rmax * 1e-15) / hu.abs().min(1.0)).log10()) as i32;
         hu *= x.powf(-a);
     }
     hu
@@ -913,6 +932,12 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = 1e300;
     let mut h0 = 0.0;
+    // Unlike in xsf, the series are not considered converged before j > |b - 1| (if < 150), where
+    // the terms can grow again, and if they don't converge, the id is capped by the last terms,
+    // e.g. `hypu(-1.2809419979754852, 70.67619263994922, 126.75741161770794)` was -666.1
+    // (id = 9) instead of 172.0.
+    let mut converged = false;
+    let jmin = (b - 1.0).abs();
     for j in 1..151 {
         r1 = r1 * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
@@ -924,7 +949,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if hua < hmin {
             hmin = hua;
         }
-        if (hu - h0).abs() < hu.abs() * 1e-15 {
+        if (f64::from(j) > jmin || jmin >= 150.0) && (hu - h0).abs() < hu.abs() * 1e-15 {
+            converged = true;
             break;
         }
         h0 = hu;
@@ -937,5 +963,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // NOTE: `15 - (...)` is evaluated in double and then truncated to int. It is -inf (UB in C++,
     // GCC/x86: INT_MIN, same as the saturated i32::MIN here) if `hmax` is 0 or inf.
     *id = (15.0 - (if d1 - d2 < 0.0 { d2 - d1 } else { d1 - d2 })) as i32;
+    if !converged {
+        *id = (*id).min((-((r1 - r2) / hu).abs().log10()) as i32);
+    }
     hu
 }

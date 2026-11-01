@@ -1298,6 +1298,24 @@ mod tests {
     }
 
     #[test]
+    fn test_eval_hermite_real_degree_pos_x() {
+        // mpmath; these were NaN (the tolerance is limited by the accuracy of `hypu`)
+        let h = [
+            eval_hermite_h(41.745_832_381_668_095, 7.361_880_522_197_993),
+            eval_hermite_h(41.400_084_684_563_09, 5.996_470_470_350_591),
+            eval_hermite_he(38.573_797_839_021_19, 8.697_439_878_678_9),
+            eval_hermite_he(24.5, 3.0),
+        ];
+        let h_expected = [
+            1.160_090_641_113_992_2e43,
+            -1.200_809_248_211_903_5e38,
+            3.492_391_969_649_305_4e27,
+            1_012_043_943_914.947,
+        ];
+        np_assert_allclose!(h, h_expected, rtol = 1e-8);
+    }
+
+    #[test]
     fn test_eval_chebyshev_t() {
         test_orthogonal_poly::<i32, _, _>(
             eval_chebyshev_t,
