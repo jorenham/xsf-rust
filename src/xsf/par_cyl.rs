@@ -19,7 +19,7 @@ use crate::utils::{SQRT_PI, SQRT2OPI};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
-use crate::{airy, airy_scaled, cospi, log1pmx, sinpi};
+use crate::{airy, airy_scaled, cospi, log1pmx, rgamma, sinpi};
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn dvsa(x: f64, va: f64) -> f64 {
@@ -410,10 +410,13 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f0 = f1;
             f1 = f;
         }
-    } else if ((x >= 0.0) && (x <= 7.5)) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
+    } else if ((x >= 0.0) && (x <= 7.5)) || (xa <= 10.0 && v <= 0.5 * x * x) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
         // v <= x^2 / 2 (here v is the order + 1), e.g. `pbvv(6.0, -8.0).0` was -1.5e263 instead
         // of -5.6633.
+        //
+        // Unlike in xsf, the same is done for -7.5 <= x < 0, where the upward recurrence below is
+        // unstable, e.g. `pbvv(9.48, -7.46).0` was 2.47241684e-4 instead of 2.47241678e-4.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -1111,6 +1114,16 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
+    }
+    // Unlike in xsf, V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and D_v(-x) (DLMF
+    // 12.2.16), since the upward recurrence is unstable there, e.g. `pbvv(3.0, -20.0).0` was
+    // 2.4e227 instead of 1.3749e38.
+    if x < -10.0 && v > 0.0 {
+        let (c, s) = (cospi(v), sinpi(v) * rgamma(v + 1.0));
+        // V_v(-x) can overflow, so skip it if c = 0
+        let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
+        let (d, dp) = pbdv(v, -x);
+        return (-s * d - c * w, s * dp + c * wp);
     }
     /* NB. Indexing of DV/DP in specfun.f:PBVV starts from 0, hence +2 */
     let Some((mut buf, num)) = alloc_buf(v) else {
