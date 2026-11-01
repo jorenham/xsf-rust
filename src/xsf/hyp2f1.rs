@@ -771,8 +771,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
             // Removable singularity when c - a - b is an integer. Need to use limiting formula.
             let m = (c - a - b).round();
-            // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its terms
-            // vanish fast, since the limiting case then overflows, after summing m ~ c terms.
+            // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
+            // terms vanish fast, since the limiting case then overflows, after summing m ~ c terms.
             //
             // E.g. hyp2f1(4.39, 2.14, 1e17, 0.64+0.65i) was NaN after 1e17 terms, instead of 1.
             if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
