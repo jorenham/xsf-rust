@@ -145,8 +145,7 @@ fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
     let s = cephes_sinpi(v);
 
-    // Unlike in xsf, drop `c * j` if c = 0 (half-integer v) and j is an AMOS overflow inf, as
-    // 0 * inf = NaN, e.g. `bessel_ye(-2.5, 1e-200)` was NaN (`bessel_y` -inf) instead of 5.3e-502.
+    // Unlike in xsf (scipy/xsf#383), drop `c * j` (0 * inf = NaN) if c = 0 and j overflows.
     if c == 0.0 && j.is_infinite() {
         return -s * y;
     }
@@ -179,8 +178,7 @@ fn reflect_i(_ik: &mut Complex64, v: f64) -> bool {
 }
 
 fn rotate_i(i: Complex64, k: Complex64, v: f64) -> Complex64 {
-    // Unlike in xsf, sinpi(v) instead of sin(pi v), which is inaccurate for v near an integer,
-    // e.g. `bessel_ie(-2.0000000000000004, 1e-150)` was 1.95e285 instead of 1.78e285.
+    // Unlike in xsf (scipy/xsf#383), sinpi(v) instead of the inaccurate sin(pi v).
     let s = cephes_sinpi(v) * FRAC_2_PI;
 
     i + s * k
@@ -214,8 +212,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
             cy_k.re *= (-2.0 * z.re).exp();
             cy_k.im *= (-2.0 * z.re).exp();
         }
-        // Unlike in xsf, an AMOS overflow of K_v(x) is inf instead of NaN, so I_{-v}(x) is +-inf,
-        // e.g. `bessel_ie(-10.25, 1e-100)` was NaN instead of inf.
+        // Unlike in xsf (scipy/xsf#383), an AMOS overflow of K_v(x) is inf instead of NaN.
         if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
             cy_k = c64(f64::INFINITY, 0.0);
         }
@@ -425,8 +422,7 @@ fn cyl_bessel_je_c64(mut v: f64, z: Complex64) -> Complex64 {
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
         nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
         set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
-        // Unlike in xsf, an AMOS overflow of Y_v(x) is -inf instead of NaN, so J_{-v}(x) is +-inf,
-        // e.g. `bessel_je(-10.25, 1e-100)` was NaN instead of inf.
+        // Unlike in xsf (scipy/xsf#383), an AMOS overflow of Y_v(x) is -inf instead of NaN.
         if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
             cy_y = c64(f64::NEG_INFINITY, 0.0);
         }
@@ -468,8 +464,7 @@ fn cyl_bessel_ye_c64(mut v: f64, z: Complex64) -> Complex64 {
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
     if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
         /* overflow */
-        // Unlike in xsf, -inf (like `cyl_bessel_y_c64`) instead of inf, since Y_v(x) < 0 for
-        // small x, e.g. `bessel_ye(10.0, 1e-100)` was inf instead of -inf.
+        // Unlike in xsf (scipy/xsf#383), -inf (like `cyl_bessel_y_c64`) instead of inf.
         cy_y.re = f64::NEG_INFINITY;
         cy_y.im = 0.0;
     }
