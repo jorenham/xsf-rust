@@ -51,3 +51,48 @@ fn test_hyp2f1_c64_transform2_euler() {
         );
     }
 }
+
+#[test]
+fn test_hyp2f1_c64_huge_num_terms() {
+    // unlike in xsf: these summed up to 2^64 terms (mpmath references)
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for (a, b, c, z, expected) in [
+            (4.39, 2.14, 1e17, c64(0.64, 0.65), c64(1.0, 6.106_49e-17)),
+            (4.39, 2.14, 1e300, c64(0.64, 0.65), c64(1.0, 6.106_49e-300)),
+            (
+                0.5,
+                0.25,
+                1e6 + 0.75,
+                c64(0.64, 0.65),
+                c64(1.000_000_079_999_938_5, 8.125_003_656_241_712e-8),
+            ),
+            // the most terms that are still summed: 2^20
+            (
+                -1_048_575.0,
+                1.0,
+                2.0,
+                c64(1e-7, 0.0),
+                c64(0.949_356_716_098_484_6, 0.0),
+            ),
+        ] {
+            let actual = xsf::hyp2f1(a, b, c, z);
+            assert!(
+                (actual - expected).norm() < 1e-15 * expected.norm(),
+                "hyp2f1({a}, {b}, {c}, {z}) = {actual} != {expected}"
+            );
+        }
+        // these exceed the cap on the number of terms
+        for (a, b, c, z) in [
+            (-1_048_576.0, 1e-30, 1.0, c64(-1e-4, 0.0)),
+            (-1e15, 1.0, 2.0, c64(0.5, 0.0)),
+            (1e17, 2.0, 4.39, c64(3.0, 0.65)),
+            (1e9, 2.0, 4.39, c64(3.0, 0.65)),
+            (2_251_799_813_685_248.5, 0.25, 0.75, c64(0.95, 0.1)),
+        ] {
+            assert!(xsf::hyp2f1(a, b, c, z).re.is_nan());
+        }
+        tx.send(()).unwrap();
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+}

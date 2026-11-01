@@ -333,6 +333,20 @@ fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64
     (result, abs_sum / result.norm())
 }
 
+const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
+
+/// `series_eval_fixed_length`, or NaN if that would sum more than `HYP2F1_MAX_FIXED_TERMS` terms
+//
+// Unlike in xsf, cap num_terms, which can be huge (xsf only returns NaN for more than 2^64).
+//
+// E.g. hyp2f1(-1e15, 1.0, 2.0, 0.5) summed 1e15 terms to get NaN.
+fn series_eval_finite(g: impl FnMut() -> Complex64, num_terms: u64) -> Complex64 {
+    if num_terms > HYP2F1_MAX_FIXED_TERMS {
+        return c64(f64::NAN, f64::NAN);
+    }
+    series_eval_fixed_length(g, Complex64::ZERO, num_terms)
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn hyp2f1_transform2_limit_series_generator(
     a: f64,
@@ -503,8 +517,8 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
     if m >= 0.0 {
         if m != 0.0 {
             let series_generator = hypergeometric_series_generator(a, b, 1.0 - m, rsub(1.0, z));
-            result += series_eval_fixed_length(series_generator, Complex64::ZERO, m as u64)
-                * four_gammas(m, c, a + m, b + m);
+            result +=
+                series_eval_finite(series_generator, m as u64) * four_gammas(m, c, a + m, b + m);
         }
         let prefactor =
             cpow(rsub(1.0, z), m) * ((-1.0_f64).powf(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
@@ -523,10 +537,7 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
         result = cpow(rsub(1.0, z), m) * four_gammas(-m, c, a, b);
         let series_generator1 =
             hypergeometric_series_generator(a + m, b + m, 1.0 + m, rsub(1.0, z));
-        result = cmul(
-            result,
-            series_eval_fixed_length(series_generator1, Complex64::ZERO, (-m) as u64),
-        );
+        result = cmul(result, series_eval_finite(series_generator1, (-m) as u64));
         let prefactor = (-1.0_f64).powf(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         result += series_eval(
@@ -545,10 +556,7 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
      * can be handled by swapping a and b. */
     let series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
     let mut result = cpow(-z, -b) * (gamma(c) * rgamma(a));
-    result = cmul(
-        result,
-        series_eval_fixed_length(series_generator1, Complex64::ZERO, m as u64),
-    );
+    result = cmul(result, series_eval_finite(series_generator1, m as u64));
     let prefactor = cpow(-z, -a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
     let n = c - a;
     if (n - n.round()).abs() < HYP2F1_EPS {
@@ -633,11 +641,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         }
         if max_degree <= u64::MAX as f64 {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
-            return series_eval_fixed_length(
-                series_generator,
-                Complex64::ZERO,
-                (max_degree + 1.0) as u64,
-            );
+            return series_eval_finite(series_generator, (max_degree + 1.0) as u64);
         }
         return c64(f64::NAN, f64::NAN);
     }
@@ -665,11 +669,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
             result = cmul(
                 result,
-                series_eval_fixed_length(
-                    series_generator,
-                    Complex64::ZERO,
-                    (max_degree + 2.0) as u64,
-                ),
+                series_eval_finite(series_generator, (max_degree + 2.0) as u64),
             );
             return result;
         }
@@ -770,6 +770,19 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
             // Removable singularity when c - a - b is an integer. Need to use limiting formula.
             let m = (c - a - b).round();
+            // Unlike in xsf, use the Maclaurin series if c is so large that its terms vanish fast,
+            // since the limiting case then overflows, after summing m ~ c terms.
+            //
+            // E.g. hyp2f1(4.39, 2.14, 1e17, 0.64+0.65i) was NaN after 1e17 terms, instead of 1.
+            if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
+                let series_generator = hypergeometric_series_generator(a, b, c, z);
+                return series_eval(
+                    series_generator,
+                    Complex64::ZERO,
+                    HYP2F1_EPS,
+                    HYP2F1_MAXITER,
+                );
+            }
             return hyp2f1_transform1_limiting_case(a, b, c, m, z);
         }
         let series_generator = hyp2f1_transform1_generator(a, b, c, z);
