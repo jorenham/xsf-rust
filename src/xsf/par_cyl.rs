@@ -586,7 +586,7 @@ fn pbwa_impl(a: f64, x: f64) -> [f64; 4] {
     ]
 }
 
-/// The `dv`/`dp` (or `vv`/`vp`) buffer of length `2 * num` with `num = std::abs((int) v) + 2`,
+/// The `dv`/`dp` (or `vv`/`vp`) buffer of length `2 * num` with `num = std::abs((int) v) + 3`,
 /// or `None` where `(int) v` is undefined behavior in C++, or if the allocation fails (like the
 /// C++ `malloc`)
 #[allow(clippy::cast_possible_truncation)]
@@ -594,7 +594,12 @@ fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
     if v.abs() >= 2_147_483_648.0 {
         return None;
     }
-    let num = (v as i32).unsigned_abs() as usize + 2;
+    // Unlike in xsf, `+ 3` instead of `+ 2`, since `na = |(int) (v +- 1)|` in `pbdv_impl` and
+    // `pbvv_impl` can be `|(int) v| + 2` if `v +- 1` rounds to an integer, so that `dv[na]`
+    // overwrote `dp[0]`.
+    //
+    // E.g. `pbdv(-0.9999999999999999, -3.0).1` was 35.467 instead of -35.731.
+    let num = (v as i32).unsigned_abs() as usize + 3;
     let len = num.checked_mul(2)?;
     let mut buf = Vec::new();
     buf.try_reserve_exact(len).ok()?;

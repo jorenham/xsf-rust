@@ -142,6 +142,19 @@ fn test_pbvv() {
 }
 
 #[test]
+fn test_pbdv_pbvv_v_rounding() {
+    // v +- 1 rounding to an integer (reference values from mpmath)
+    let dp = xsf::pbdv(-0.999_999_999_999_999_9, -3.0).1;
+    let wp = xsf::pbvv(1.999_999_999_999_999_8, -1.0).1;
+    for (y, r) in [
+        (dp, -35.730_584_217_091_32),
+        (wp, -0.025_839_571_037_084_53),
+    ] {
+        assert!((y / r - 1.0).abs() < 1e-13, "{y:e} != {r:e}");
+    }
+}
+
+#[test]
 fn test_pbvv_extreme() {
     // v >= 0 and 7.5 < |x| <= 10, and v near an integer (reference values from mpmath)
     for (v, x, w, wp) in [
