@@ -1220,8 +1220,8 @@ pub fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 /// - [`nbdtrc`]: Survival function
 #[must_use]
 #[inline]
-pub fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
-    crate::xsf::cephes::nbdtri(k, n, p)
+pub fn nbdtri(k: i32, n: i32, y: f64) -> f64 {
+    crate::xsf::cephes::nbdtri(k, n, y)
 }
 
 /// CDF of the Cramér-von Mises test statistic (infinite sample limit)
