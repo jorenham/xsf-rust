@@ -956,12 +956,42 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if il1 != 0 || il2 != 0 {
         hu = 1.0;
         r = 1.0;
+        let mut rmax: f64 = 1.0;
         for k in 1..=nm {
             r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
             hu += r;
+            rmax = rmax.max(r.abs());
         }
-        hu *= x.powf(-a);
         *id = 10;
+        // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with c + x >= 0
+        // is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and otherwise
+        // the id reflects the cancellation, so that other methods are tried
+        //
+        // e.g. U(-60, 30, 10) = -6.398e95 instead of -6.902e95
+        let cancels = rmax > 1e6 * hu.abs();
+        // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
+        let kummer = il1 == 0 || (il2 != 0 && b < 1.0);
+        let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
+        let mut u = f64::NAN;
+        if (cancels || !hu.is_finite()) && c + x >= 0.0 {
+            // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
+            let mut u1 = 0.0;
+            u = 1.0;
+            for k in 0..int_x86(-n) {
+                // U(k - 1, c, x) = (2k - c + x) U(k, c, x) - k (k - c + 1) U(k + 1, c, x)
+                let k = -f64::from(k);
+                (u, u1) = ((2.0 * k - c + x) * u - k * (k - c + 1.0) * u1, u);
+            }
+        }
+        if u.is_finite() {
+            hu = if kummer { x.powf(1.0 - b) * u } else { u };
+        } else {
+            let sum = hu;
+            hu *= x.powf(-a);
+            if cancels && hu.is_finite() {
+                *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
+            }
+        }
     } else {
         // DLMF 13.7.3
         hu = 1.0;
