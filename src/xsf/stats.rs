@@ -223,6 +223,16 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
     } else {
         let a = 0.5 * nu;
         let y = 2.0 * p.min(1.0 - p);
+        if nu <= 1e3 && p > 0.25 && p < 0.75 {
+            // Solve I_x(1/2, a) = |1 - 2p| (exact) for x = t^2 / (nu + t^2) = 1 - w, which is more
+            // accurate than computing `1 - w` if x < 1/2, e.g. stdtri(10, 0.5 + 1e-10) was
+            // 3.3e-8 instead of 2.6e-10
+            let x = crate::betaincinv(0.5, a, (1.0 - 2.0 * p).abs());
+            if x < 0.5 {
+                let t = (nu * x / (1.0 - x)).sqrt();
+                return if p < 0.5 { -t } else { t };
+            }
+        }
         let w = crate::betaincinv(a, 0.5, y);
         let mut t = (nu * (1.0 - w) / w).sqrt();
         if t.is_infinite() {
@@ -237,8 +247,43 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
             let c = a * crate::beta(a, 0.5) / nu.powf(a);
             t = (y.powf(e) * c.powf(e)).powi(2);
         }
+        if (nu > 1e3 || w > 0.5) && y >= 2.0 * f64::MIN_POSITIVE {
+            // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a`, so start from
+            // the Cornish-Fisher expansion if nu > 1e3, and (unless that's already exact) solve
+            // stdtr(nu, -t) = y / 2 with Newton's method on ln(stdtr), e.g. stdtri(1e20, 0.01)
+            // was -105.4 instead of -2.326
+            let q = 0.5 * y;
+            let mut err = 1.0;
+            if nu > 1e3 {
+                (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
+                t = -t;
+            }
+            let c = nu.sqrt() * crate::beta(a, 0.5);
+            for _ in 0..20 {
+                if err <= 4.0 * f64::EPSILON * t {
+                    break;
+                }
+                let f = stdtr(nu, -t);
+                let pdf = (-(a + 0.5) * (t * t / nu).ln_1p()).exp() / c;
+                let dt = (f / q).ln() * f / pdf;
+                t += dt;
+                err = dt.abs();
+            }
+        }
         if p < 0.5 { -t } else { t }
     }
+}
+
+/// Cornish-Fisher expansion of the Student t quantile in terms of the normal quantile `z`, up to
+/// order 1 / nu^4 (A&S 26.7.5), and the magnitude of that last term
+fn stdtri_cornish_fisher(nu: f64, z: f64) -> (f64, f64) {
+    let z2 = z * z;
+    let g1 = (z2 + 1.0) / 4.0;
+    let g2 = ((5.0 * z2 + 16.0) * z2 + 3.0) / 96.0;
+    let g3 = (((3.0 * z2 + 19.0) * z2 + 17.0) * z2 - 15.0) / 384.0;
+    let g4 = ((((79.0 * z2 + 776.0) * z2 + 1482.0) * z2 - 1920.0) * z2 - 945.0) / 92160.0;
+    let t = z * (1.0 + (g1 + (g2 + (g3 + g4 / nu) / nu) / nu) / nu);
+    (t, (z * g4 / nu.powi(4)).abs())
 }
 
 // Normal
