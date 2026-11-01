@@ -886,7 +886,29 @@ def _bvn(h, k, r):
     return mp.ncdf(h) * mp.ncdf(k) + mp.quad(f, [0, mp.asin(r)]) / (2 * mp.pi)
 
 
+def _bvn_neg(h, k, r):
+    """P(X <= h, Y <= k) for -1 < r < 0 and h + k < 0, without cancellation: P = 0 at r = -1,
+    so by Plackett's identity P is the integral of the density phi2(h, k; s) over s in [-1, r].
+    With a = (h + k)^2 / 4, b = (h - k)^2 / 4, and 1 / (1 + s) = w0 + t / a, w0 = 1 / (1 + r),
+    this is int_0^inf exp(-t - a w0 - b w / (2 w - 1)) / (w sqrt(2 w - 1)) dt / (2 pi a).
+    The integrand varies on the scale t ~ a w0, so this needs a w0 not too small."""
+    a, b, w0 = (h + k) ** 2 / 4, (h - k) ** 2 / 4, 1 / (1 + r)
+    e0 = b * w0 / (2 * w0 - 1)
+
+    def f(t):
+        w = w0 + t / a
+        return mp.exp(e0 - t - b * w / (2 * w - 1)) / (w * mp.sqrt(2 * w - 1))
+
+    s = mp.quad(f, [0, 0.25, 1, 4, 16, 64, 256, mp.inf])
+    return s * mp.exp(-a * w0 - e0) / (2 * mp.pi * a)
+
+
 def r_bivariate_normal_cdf(h, k, r):
+    # in the tail, the quadrature of Sheppard's formula below misses the peak at t = asin(r),
+    # e.g. by 1e-7 for (-9.73, -4.44, -0.913)
+    if -1 < r < 0 and h + k < 0 and (h + k) ** 2 > 4 * (1 + r):
+        with wdps(10):
+            return _bvn_neg(h, k, r)
     # the terms of Sheppard's formula cancel where the probability is tiny, so add digits
     # until the result is well above the cancellation error
     for extra in (30, 100, 300, 1000):
@@ -2324,7 +2346,6 @@ add(
     r_bivariate_normal_cdf,
     D(U(-10, 10), U(-10, 10), U(-1, 1), n=2000),
     timeout=60,
-    note="abs",
 )
 
 
