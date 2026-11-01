@@ -146,6 +146,34 @@ fn test_bessel_scaled_overflow() {
     }
 }
 
+#[test]
+fn test_bessel_jyi_near_overflow() {
+    // mpmath: bessely(v, x), besselj(v, x), and besseli(v, x) * exp(-x)
+    let actual = [
+        xsf::bessel_y(79.762_372_861_572_26, 8.365_870_974_604_77e-3),
+        xsf::bessel_ye(-61.536_079_057_536_22, 4.604_376_665_618_018_6e-4),
+        xsf::bessel_je(-4.021_221_847_884_007, 5.996_317_823_411_197_6e-77),
+        xsf::bessel_ie(-3.819_271_259_116_135_3, 5.989_105_622_767_614e-81),
+        xsf::bessel_ie(-2.000_000_000_000_000_4, 4.214_684_851_089_752e-162),
+    ];
+    let expected = [
+        -5.240_453_974_629_458_6e305,
+        -1.960_111_897_579_981e305,
+        6.803_954_046_133_499e306,
+        -2.862_698_759_482_083_5e307,
+        1e308,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+    // mpmath: 1.9e308, 1.45e-21, and 1.99e-37 (exp(-2x) underflows, so no retry)
+    for (v, x) in [
+        (-2.000_000_000_000_000_4, 3.057_653_761_164_066_6e-162),
+        (-804.25, 373.0),
+        (-840.25, 400.0),
+    ] {
+        assert_eq!(xsf::bessel_ie(v, x), f64::INFINITY);
+    }
+}
+
 // Bessel K
 
 #[test]
@@ -189,6 +217,9 @@ fn test_bessel_k_near_overflow() {
         3.391_349_164_908_478_2e305,
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    let actual = [xsf::bessel_k(115.0, 0.178), xsf::bessel_ke(115.0, 0.178)];
+    let expected = [8.404_870_096_416_689e306, 1.004_235_161_288_784_1e307];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
     for (v, x) in [(1.5, 1e-210), (1.0, 1e-310), (-1.0, 1e-310), (0.5, 1e-306)] {
         assert_eq!(xsf::bessel_k(v, x), f64::INFINITY);
         assert_eq!(xsf::bessel_ke(v, x), f64::INFINITY);

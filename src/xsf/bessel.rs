@@ -226,7 +226,12 @@ fn cyl_bessel_ie_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    cyl_bessel_ie_c64(v, c64(x, 0.0)).re
+    let ie = cyl_bessel_ie_c64(v, c64(x, 0.0)).re;
+    // the e^-x K_{-v}(x) term of the lower orders is lost if exp(-2x) underflows
+    if ie.is_infinite() && (-2.0 * x).exp() >= f64::MIN_POSITIVE {
+        return cyl_bessel_overflow(cyl_bessel_ie_c64, 1.0, v, x, ie);
+    }
+    ie
 }
 
 fn cyl_bessel_ke_c64(mut v: f64, z: Complex64) -> Complex64 {
@@ -265,21 +270,39 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
 
     let ke = cyl_bessel_ke_c64(v, c64(x, 0.0)).re;
     if ke == f64::INFINITY {
-        return cyl_bessel_k_overflow(cyl_bessel_ke_c64, v, x);
+        return cyl_bessel_overflow(cyl_bessel_ke_c64, 1.0, v.abs(), x, ke);
     }
     ke
 }
 
-/// Unlike in xsf (scipy/xsf#372), retry an AMOS overflow (K_v(x) >~ 1e304) for |v| > 1 with the
-/// recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1), which also holds for
-/// e^x K_v(x), e.g. `bessel_k(1.5, 1e-205)` was inf instead of 3.96e307.
-fn cyl_bessel_k_overflow(k: fn(f64, Complex64) -> Complex64, v: f64, x: f64) -> f64 {
-    let v = v.abs();
-    if v <= 1.0 {
-        return f64::INFINITY;
+/// Unlike in xsf (scipy/xsf#372), retry an AMOS overflow `inf` (from about 1e300) with the
+/// recurrence f_{u+d} = 2u/x f_u + c f_{u-d} (DLMF 10.6.1, 10.29.1), d = sign(v), from the first
+/// order v - md (m = 1, 2, 4, 8, 16 < |v|) without overflow; c = -1 for J and Y, and 1 for I and K.
+///
+/// For example, `bessel_k(115.0, 0.178)` was inf instead of 8.4e306.
+fn cyl_bessel_overflow(
+    f: fn(f64, Complex64) -> Complex64,
+    c: f64,
+    v: f64,
+    x: f64,
+    inf: f64,
+) -> f64 {
+    let (d, z) = (v.signum(), c64(x, 0.0));
+    for m in [1, 2, 4, 8, 16_u8] {
+        if f64::from(m) >= v.abs() {
+            break;
+        }
+        let mut f1 = f(v - f64::from(m) * d, z).re;
+        if !f1.is_finite() {
+            continue;
+        }
+        let mut f0 = f(v - f64::from(m + 1) * d, z).re;
+        for k in (1..=m).rev() {
+            (f0, f1) = (f1, 2.0 * (v - f64::from(k) * d) / x * f1 + c * f0);
+        }
+        return if f1.is_finite() { f1 } else { inf };
     }
-    let z = c64(x, 0.0);
-    k(v - 2.0, z).re + 2.0 * (v - 1.0) / x * k(v - 1.0, z).re
+    inf
 }
 
 #[allow(clippy::float_cmp)]
@@ -370,7 +393,7 @@ pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
 
     let k = cyl_bessel_k_c64(v, c64(z, 0.0)).re;
     if k == f64::INFINITY {
-        return cyl_bessel_k_overflow(cyl_bessel_k_c64, v, z);
+        return cyl_bessel_overflow(cyl_bessel_k_c64, 1.0, v.abs(), z, k);
     }
     k
 }
@@ -412,7 +435,11 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    cyl_bessel_je_c64(v, c64(x, 0.0)).re
+    let je = cyl_bessel_je_c64(v, c64(x, 0.0)).re;
+    if je.is_infinite() {
+        return cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je);
+    }
+    je
 }
 
 fn cyl_bessel_ye_c64(mut v: f64, z: Complex64) -> Complex64 {
@@ -454,7 +481,11 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    cyl_bessel_ye_c64(v, c64(x, 0.0)).re
+    let ye = cyl_bessel_ye_c64(v, c64(x, 0.0)).re;
+    if ye.is_infinite() {
+        return cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye);
+    }
+    ye
 }
 
 /// Unlike in xsf, the four Hankel functions share this implementation (xsf duplicates it), with
@@ -582,6 +613,9 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     let res = cyl_bessel_y_c64(v, c64(x, 0.0));
     if res.re.is_nan() {
         return crate::xsf::cephes::yv(v, x);
+    }
+    if res.re.is_infinite() {
+        return cyl_bessel_overflow(cyl_bessel_y_c64, -1.0, v, x, res.re);
     }
 
     res.re
