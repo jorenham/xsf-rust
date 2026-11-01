@@ -542,6 +542,23 @@ fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>)
     }
 }
 
+/// Power series for small `x` (DLMF 10.25.2)
+#[allow(clippy::cast_precision_loss)]
+fn iv_power_series(v: f64, x: f64) -> f64 {
+    let y = 0.25 * x * x;
+    let mut term = 1.0;
+    let mut sum = 1.0;
+    for k in 1..MAXITER {
+        let k = k as f64;
+        term *= y / (k * (v + k));
+        sum += term;
+        if term.abs() <= MACHEP * sum.abs() {
+            break;
+        }
+    }
+    (0.5 * x).powf(v) * (rgamma(v + 1.0) * sum)
+}
+
 /// Modified Bessel function of noninteger order
 ///
 /// Returns modified Bessel function of order v of the
@@ -597,6 +614,12 @@ pub(crate) fn iv(mut v: f64, x: f64) -> f64 {
     } else {
         /* Otherwise: Temme's method */
         ikv_temme(v, ax, Some(&mut res), None);
+        // Unlike in xsf, the power series is used if Temme's method returned 0 or inf because K
+        // overflowed (only possible for small x), e.g. `iv(46.408, 9.696e-6)` was 0 instead of
+        // 8.83e-306.
+        if ((res == 0.0 && v >= 0.0) || res.is_infinite()) && ax < 1.0 {
+            res = iv_power_series(v, ax);
+        }
     }
     res *= sign;
     res
