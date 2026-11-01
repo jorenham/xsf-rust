@@ -109,6 +109,13 @@ fn airy_f64(x: f64) -> [f64; 4] {
         if x < 0.0 || !zbi.re.is_nan() {
             return [zai.re, zaip.re, zbi.re, zbip.re];
         }
+        // Unlike in xsf, unscale `airye` here, since Cephes returns inf for x > 103.892, e.g.
+        // `airy(104.0)[2]` was inf instead of 2.095e306. Bi(x) overflows at x = 104.44.
+        if x > 103.892 && x < 104.5 {
+            let [_, _, bi, bip] = airye_f64(x);
+            let g = (x * x.sqrt() / 3.0).exp(); // e^(zeta / 2), to avoid overflow
+            return [0.0, 0.0, bi * g * g, bip * g * g];
+        }
     }
 
     let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
