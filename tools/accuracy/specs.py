@@ -17,18 +17,30 @@ inverse functions find the root of the reference of the function itself (see `_i
 """
 
 import math
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
+from random import Random
+from types import FunctionType
+from typing import Any, ClassVar, Final, Protocol
 
 import mpmath as mp
+from mpmath.libmp import NoConvergence
 
-DBL_MAX = 1.7976931348623157e308
+DBL_MAX: Final = 1.7976931348623157e308
 
 # ---------------------------------------------------------------- sampling
 
 # Unicode math for the table, escaped to keep the source ASCII
 IN, MINUS, PM, ELLIPSIS, SQRT = "\u2208", "\u2212", "\u00b1", "\u2026", "\u221a"
-HALF, MU, SIGMA, GAMMA, EPSILON, PSI = "\u00bd", "\u03bc", "\u03c3", "\u0393", "\u03b5", "\u03c8"
+HALF, MU, SIGMA, GAMMA, EPSILON, PSI = (
+    "\u00bd",
+    "\u03bc",
+    "\u03c3",
+    "\u0393",
+    "\u03b5",
+    "\u03c8",
+)
 SUP = str.maketrans(
     "-0123456789", "\u207b\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"
 )
@@ -47,7 +59,7 @@ GREEK = {
 }
 
 
-def nobreak(*parts):
+def nobreak(*parts: str) -> str:
     """Join the parts of one argument's domain with no-break spaces, and keep a leading sign
     attached to its interval, so that table cells only wrap between the arguments, or after
     a comma within the interval (the last part)."""
@@ -56,10 +68,11 @@ def nobreak(*parts):
     return s.replace(f"{PM}[", f"{PM}\u2060[").replace(f"{MINUS}[", f"{MINUS}\u2060[")
 
 
-def wrap(s):
+def wrap(s: str) -> str:
     """Put each argument's domain on its own line, i.e. break at the ", " between them (the ones
     outside brackets; within an argument's domain, `nobreak` leaves only those in intervals)."""
-    parts, depth, start = [], 0, 0
+    parts: list[str] = []
+    depth = start = 0
     for i, c in enumerate(s):
         if c in "([{":
             depth += 1
@@ -71,6 +84,14 @@ def wrap(s):
     return "<br>".join([*parts, s[start:]])
 
 
+class Dist(Protocol):
+    """The distribution of one argument."""
+
+    def sample(self, rng: Random) -> float: ...
+    def desc(self) -> str: ...
+    def pretty(self) -> str: ...
+
+
 @dataclass(frozen=True)
 class U:
     """Uniform on [lo, hi]."""
@@ -78,13 +99,13 @@ class U:
     lo: float
     hi: float
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return rng.uniform(self.lo, self.hi)
 
-    def desc(self):
+    def desc(self) -> str:
         return f"[{_g(self.lo)}, {_g(self.hi)}]"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"[{_u(self.lo)}, {_u(self.hi)}]"
 
 
@@ -96,16 +117,16 @@ class LU:
     hi: float
     sign: int = 1  # 1, -1, or 0 for a random sign
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         x = 10 ** rng.uniform(math.log10(self.lo), math.log10(self.hi))
         s = self.sign or rng.choice((-1, 1))
         return s * min(x, self.hi)
 
-    def desc(self):
+    def desc(self) -> str:
         pre = {1: "", -1: "-", 0: "+-"}[self.sign]
         return f"{pre}[{_g(self.lo)}, {_g(self.hi)}] (log)"
 
-    def pretty(self):
+    def pretty(self) -> str:
         pre = {1: "", -1: MINUS, 0: PM}[self.sign]
         return f"{pre}[{_u(self.lo)}, {_u(self.hi)}]"
 
@@ -117,13 +138,13 @@ class Int:
     lo: int
     hi: int
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return float(rng.randint(self.lo, self.hi))
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{{{self.lo}, ..., {self.hi}}}"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{{{self.lo}, {ELLIPSIS}, {self.hi}}}"
 
 
@@ -134,13 +155,13 @@ class ILU:
     lo: int
     hi: int
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return float(min(int(LU(self.lo, self.hi + 1).sample(rng)), self.hi))
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{{{_g(self.lo)}, ..., {_g(self.hi)}}} (log)"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{{{_u(self.lo)}, {ELLIPSIS}, {_u(self.hi)}}}"
 
 
@@ -149,20 +170,20 @@ class Offset:
     """c + sign * t (rounded to f64), where t is sampled from `dist`."""
 
     c: float
-    dist: object
+    dist: Dist
     sign: int = 1
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> float:
         return self.c + self.sign * self.dist.sample(rng)
 
-    def desc(self):
+    def desc(self) -> str:
         return f"{_g(self.c)} {'+' if self.sign > 0 else '-'} {self.dist.desc()}"
 
-    def pretty(self):
+    def pretty(self) -> str:
         return f"{_u(self.c)} {'+' if self.sign > 0 else MINUS} {self.dist.pretty()}"
 
 
-def _g(x):
+def _g(x: float) -> str:
     """Short repr of a domain bound."""
     if x == int(x) and abs(x) < 1e6:
         return str(int(x))
@@ -170,7 +191,7 @@ def _g(x):
     return s.replace("e+", "e").replace("e-0", "e-").replace("e0", "e")
 
 
-def _u(x):
+def _u(x: float) -> str:
     """Unicode repr of a domain bound, e.g. 10^-3 with a superscript exponent."""
     sign = MINUS if x < 0 else ""
     a = abs(x)
@@ -183,8 +204,8 @@ def _u(x):
     return sign + _g(a)
 
 
-def _is_log(d):
-    return isinstance(d, (LU, ILU)) or isinstance(d, Offset) and _is_log(d.dist)
+def _is_log(d: Dist) -> bool:
+    return isinstance(d, (LU, ILU)) or (isinstance(d, Offset) and _is_log(d.dist))
 
 
 class Domain:
@@ -194,23 +215,34 @@ class Domain:
     variant), and `cpp=False` marks a variant that xsf does not have.
     """
 
-    def __init__(self, *dists, n=10000, sampler=None, label="", pretty="", call="", cpp=True):
+    def __init__(
+        self,
+        *dists: Dist,
+        n: int = 10000,
+        sampler: Callable[[Random], Iterable[float]] | None = None,
+        label: str = "",
+        pretty: str = "",
+        call: str = "",
+        cpp: bool = True,
+    ) -> None:
         self.dists, self.n, self.sampler = dists, n, sampler
         self.label, self.pretty_label = label, pretty
         self.call, self.cpp = call, cpp
 
-    def desc(self, argnames):
+    def desc(self, argnames: Iterable[str]) -> str:
         """Plain description; also seeds the sampling."""
         if self.label:
             return self.label
-        return ", ".join(f"{a} in {d.desc()}" for a, d in zip(argnames, self.dists))
+        return ", ".join(
+            f"{a} in {d.desc()}" for a, d in zip(argnames, self.dists, strict=True)
+        )
 
-    def pretty(self, argnames):
+    def pretty(self, argnames: Iterable[str]) -> str:
         """Unicode description for the table; consecutive equal distributions are merged."""
         if self.pretty_label:
             return wrap(self.pretty_label)
-        groups = []
-        for a, d in zip(argnames, self.dists):
+        groups: list[tuple[list[str], Dist]] = []
+        for a, d in zip(argnames, self.dists, strict=True):
             if groups and groups[-1][1] == d:
                 groups[-1][0].append(a)
             else:
@@ -223,7 +255,7 @@ class Domain:
             )
         )
 
-    def sample(self, rng):
+    def sample(self, rng: Random) -> tuple[float, ...]:
         if self.sampler is not None:
             return tuple(float(a) for a in self.sampler(rng))
         return tuple(d.sample(rng) for d in self.dists)
@@ -235,9 +267,9 @@ D = Domain
 @dataclass
 class Spec:
     name: str  # a suffix "#..." distinguishes specs of the same function, e.g. for complex input
-    args: tuple
-    ref: object
-    domains: list
+    args: tuple[str, ...]
+    ref: FunctionType  # its source is part of the cache key of the references
+    domains: list[Domain]
     section: str
     std: bool = False  # has a Rust std equivalent
     cpp: bool = True  # has an xsf (C++) equivalent
@@ -245,10 +277,10 @@ class Spec:
     dps: int = 50
     timeout: int = 30
     note: str = ""  # space-separated keys into NOTES
-    rust = True
+    rust: ClassVar[bool] = True
 
     @property
-    def func(self):
+    def func(self) -> str:
         """The function name, without the "#..." suffix."""
         return self.name.split("#")[0]
 
@@ -777,7 +809,9 @@ def r_polygamma(n, x):
 def r_multigammaln(a, d):
     d = int(d)
     with wdps(xd(a) + 10):
-        return d * (d - 1) / 4 * mp.log(mp.pi) + mp.fsum(mp.loggamma(a - mp.mpf(j) / 2) for j in range(d))
+        return d * (d - 1) / 4 * mp.log(mp.pi) + mp.fsum(
+            mp.loggamma(a - mp.mpf(j) / 2) for j in range(d)
+        )
 
 
 def r_ff(x, m):
@@ -928,7 +962,9 @@ def r_trivariate_normal_cdf(h1, h2, h3, r12, r13, r23):
     for extra in (20, 60, 150, 400):
         with wdps(extra):
             p = _tvn(h1, h2, h3, r12, r13, r23)
-        if prev is not None and abs(p - prev) <= abs(p) * mp.mpf(10) ** (-mp.mp.dps - 5):
+        if prev is not None and abs(p - prev) <= abs(p) * mp.mpf(10) ** (
+            -mp.mp.dps - 5
+        ):
             return p
         prev = p
     return p
@@ -1159,7 +1195,9 @@ def _bessel_diff(f, v, x, n, c):
     10.29.5, with c = -1 for J, Y, and K, and c = 1 for I."""
     n = int(n)
     with wdps(10):
-        s = mp.fsum(c**k * mp.binomial(n, k) * f(v - n + 2 * k, x) for k in range(n + 1))
+        s = mp.fsum(
+            c**k * mp.binomial(n, k) * f(v - n + 2 * k, x) for k in range(n + 1)
+        )
         return (s if f is not mp.besselk else (-1) ** n * s) / 2**n
 
 
@@ -1344,7 +1382,11 @@ def r_besselpoly(a, lmbda, v):
     #   = a^v / ((lambda + v + 1) Gamma(v + 1)) 1F2(c; v + 1, c + 1; -a^2), c = (lambda + v + 1)/2
     with wdps(xd(a) * 2 + 10):
         c = (lmbda + v + 1) / 2
-        return a**v / ((lmbda + v + 1) * mp.gamma(v + 1)) * mp.hyp1f2(c, v + 1, c + 1, -a * a)
+        return (
+            a**v
+            / ((lmbda + v + 1) * mp.gamma(v + 1))
+            * mp.hyp1f2(c, v + 1, c + 1, -a * a)
+        )
 
 
 def r_itstruve0(x):
@@ -1356,7 +1398,9 @@ def r_itstruve0(x):
 def r_it2struve0(x):
     # int_x^inf H_0(t) / t dt = pi/2 - 2x/pi 2F3(1/2, 1; 3/2, 3/2, 3/2; -x^2/4)
     with wdps(xd(x) + 10):
-        return mp.pi / 2 - 2 * x / mp.pi * mp.hyper([0.5, 1], [1.5, 1.5, 1.5], -x * x / 4)
+        return mp.pi / 2 - 2 * x / mp.pi * mp.hyper(
+            [0.5, 1], [1.5, 1.5, 1.5], -x * x / 4
+        )
 
 
 def r_itmodstruve0(x):
@@ -1395,7 +1439,12 @@ def _airy(x, scaled=False):
         bi, bip = mp.airybi(x), mp.airybi(x, derivative=1)
         if scaled and x > 0:
             z = 2 * x * mp.sqrt(x) / 3
-            ai, aip, bi, bip = ai * mp.exp(z), aip * mp.exp(z), bi * mp.exp(-z), bip * mp.exp(-z)
+            ai, aip, bi, bip = (
+                ai * mp.exp(z),
+                aip * mp.exp(z),
+                bi * mp.exp(-z),
+                bip * mp.exp(-z),
+            )
         if x >= 0:
             return [ai, aip, bi, bip]
         s, sp = mp.hypot(ai, bi), mp.hypot(aip, bip)
@@ -1416,13 +1465,17 @@ def _airy_int(x):
 
         def fg(t):
             z = t**3 / 9
-            return c1 * t * mp.hyp1f2(third, 2 * third, 4 * third, z), c2 * t * t / 2 * mp.hyp1f2(
-                2 * third, 4 * third, 5 * third, z
-            )
+            return c1 * t * mp.hyp1f2(
+                third, 2 * third, 4 * third, z
+            ), c2 * t * t / 2 * mp.hyp1f2(2 * third, 4 * third, 5 * third, z)
 
         f, g = fg(x)
         fn, gn = fg(-x)
-        ai = mp.airyai(x, derivative=-1) if x <= 100 else third - mp.airyai(x) / mp.sqrt(x)
+        ai = (
+            mp.airyai(x, derivative=-1)
+            if x <= 100
+            else third - mp.airyai(x) / mp.sqrt(x)
+        )
         return [ai, mp.sqrt(3) * (f + g), gn - fn, -mp.sqrt(3) * (fn + gn)]
 
 
@@ -1535,7 +1588,7 @@ def _gammainc_pq(a, x, upper):
     """P(a, x) or Q(a, x), also where mpmath does not converge."""
     try:
         return r_gammaincc(a, x) if upper else r_gammainc(a, x)
-    except (mp.libmp.NoConvergence, ValueError):
+    except NoConvergence, ValueError:
         with wdps(xd(a, x) * 2):
             q = _gammaincc_cf(a, x)
             return q if upper else 1 - q
@@ -1568,7 +1621,11 @@ def _converged(f, *a):
     for extra in (10, 40, 100, 300, 800):
         with wdps(extra):
             y = f(*a)
-        if prev is not None and mp.isfinite(y) and abs(y - prev) <= abs(y) * mp.mpf(10) ** (-mp.mp.dps - 5):
+        if (
+            prev is not None
+            and mp.isfinite(y)
+            and abs(y - prev) <= abs(y) * mp.mpf(10) ** (-mp.mp.dps - 5)
+        ):
             return y
         prev = y
     raise ArithmeticError("no convergence")
@@ -1773,7 +1830,9 @@ def r_bdtrc(k, n, p):
 
 def r_bdtri(k, n, y):
     # p such that bdtr(k, n, p) = y
-    return _invert_unit(lambda p, q: _betainc(n - k, k + 1, q, p), y, (k + 1) / (n + 1), True)
+    return _invert_unit(
+        lambda p, q: _betainc(n - k, k + 1, q, p), y, (k + 1) / (n + 1), True
+    )
 
 
 def r_nbdtr(k, n, p):
@@ -1799,7 +1858,9 @@ def r_pdtrc(k, m):
 
 def r_pdtri(k, y):
     # m such that pdtr(k, m) = y
-    return _invert_pos(lambda m: _gammainc_pq(k + 1, m, True), y, k + 1, decreasing=True)
+    return _invert_pos(
+        lambda m: _gammainc_pq(k + 1, m, True), y, k + 1, decreasing=True
+    )
 
 
 def r_gdtr(a, b, x):
@@ -1817,7 +1878,9 @@ def r_gdtria(p, b, x):
 
 def r_gdtrib(a, p, x):
     # b such that gdtr(a, b, x) = p
-    return _invert_pos(lambda b: _gammainc_pq(b, a * x, False), p, a * x, decreasing=True)
+    return _invert_pos(
+        lambda b: _gammainc_pq(b, a * x, False), p, a * x, decreasing=True
+    )
 
 
 def r_gdtrix(a, b, p):
@@ -1835,7 +1898,9 @@ def r_chdtrc(v, x):
 
 def r_chdtri(v, y):
     # x such that chdtrc(v, x) = y
-    return _invert_pos(lambda x: _gammainc_pq(v / 2, x / 2, True), y, v, decreasing=True)
+    return _invert_pos(
+        lambda x: _gammainc_pq(v / 2, x / 2, True), y, v, decreasing=True
+    )
 
 
 def r_fdtri(a, b, y):
@@ -1877,10 +1942,16 @@ def r_von_mises_cdf(k, x):
     # absolute tolerance of the quadrature
     with wdps(10):
         c = mp.cos(min(x, 0))
-        f = lambda t: mp.exp(k * (mp.cos(t) - c))  # noqa: E731
+        f = lambda t: mp.exp(k * (mp.cos(t) - c))
         w = 1 / mp.sqrt(k)
-        pts = [-mp.pi] + [t for t in (-10 * w, -w, 0, w, 10 * w) if -mp.pi < t < x] + [x]
-        return mp.quad(f, pts) * mp.exp(k * (c - 1)) / (2 * mp.pi * mp.besseli(0, k) * mp.exp(-k))
+        pts = (
+            [-mp.pi] + [t for t in (-10 * w, -w, 0, w, 10 * w) if -mp.pi < t < x] + [x]
+        )
+        return (
+            mp.quad(f, pts)
+            * mp.exp(k * (c - 1))
+            / (2 * mp.pi * mp.besseli(0, k) * mp.exp(-k))
+        )
 
 
 def _geninvgauss_logpdf(x, p, b):
@@ -1920,7 +1991,11 @@ def r_cdf_cvm_inf(x):
         s, k = mp.mpf(0), 0
         while True:
             y = (4 * k + 1) ** 2 / (16 * x)
-            t = mp.gamma(k + 0.5) / (mp.gamma(0.5) * mp.factorial(k)) * mp.sqrt(4 * k + 1)
+            t = (
+                mp.gamma(k + 0.5)
+                / (mp.gamma(0.5) * mp.factorial(k))
+                * mp.sqrt(4 * k + 1)
+            )
             t *= mp.exp(-y) * mp.besselk(0.25, y)
             s += t
             if t < mp.eps * s:
@@ -1935,7 +2010,9 @@ def _smirnov_terms(n, x, js):
     """The terms binom(n, j) (x + j/n)^(j - 1) (1 - x - j/n)^(n - j) of the Birnbaum-Tingey sum,
     for j in js."""
     return [
-        mp.binomial(n, j) * (x + mp.mpf(j) / n) ** (j - 1) * (mp.mpf(n - j) / n - x) ** (n - j)
+        mp.binomial(n, j)
+        * (x + mp.mpf(j) / n) ** (j - 1)
+        * (mp.mpf(n - j) / n - x) ** (n - j)
         for j in js
     ]
 
@@ -2000,7 +2077,10 @@ def _kolmogorov(x, deriv=False):
     if x >= 1:
         s = mp.nsum(lambda k: (-1) ** (k - 1) * mp.exp(-2 * k * k * x * x), [1, mp.inf])
         if deriv:
-            s = mp.nsum(lambda k: (-1) ** k * 4 * k * k * x * mp.exp(-2 * k * k * x * x), [1, mp.inf])
+            s = mp.nsum(
+                lambda k: (-1) ** k * 4 * k * k * x * mp.exp(-2 * k * k * x * x),
+                [1, mp.inf],
+            )
         return 2 * s, 1 - 2 * s if not deriv else -2 * s
     c = mp.sqrt(2 * mp.pi)
 
@@ -2009,7 +2089,13 @@ def _kolmogorov(x, deriv=False):
 
     s = c / x * mp.nsum(lambda k: mp.exp(-a(k) / x**2), [1, mp.inf])
     if deriv:
-        s = mp.nsum(lambda k: mp.exp(-a(k) / x**2) * (2 * a(k) / x**4 - 1 / x**2), [1, mp.inf]) * c
+        s = (
+            mp.nsum(
+                lambda k: mp.exp(-a(k) / x**2) * (2 * a(k) / x**4 - 1 / x**2),
+                [1, mp.inf],
+            )
+            * c
+        )
     return (1 - s, s) if not deriv else (-s, s)
 
 
@@ -2041,7 +2127,7 @@ def r_kolmogci(p):
 
 def _wright_bessel(a, b, x):
     """sum_k x^k / (k! Gamma(a k + b)); all terms are nonnegative for a, b, x >= 0."""
-    s, t, k, peaked = mp.mpf(0), mp.mpf(1), 0, False
+    s, t, k, peaked, last = mp.mpf(0), mp.mpf(1), 0, False, mp.mpf(0)
     while True:
         term = t * mp.rgamma(a * k + b)
         s += term
@@ -2154,7 +2240,10 @@ def c_hankel2e(v, re, im):
 def _hankel_prime(f, v, re, im, n):
     """The n-th derivative 2^-n sum_k (-1)^k binom(n, k) H_(v - n + 2k)(z), DLMF 10.6.7."""
     n = int(n)
-    terms = [(-1) ** k * mp.binomial(n, k) * f(v - n + 2 * k, mp.mpc(re, im)) for k in range(n + 1)]
+    terms = [
+        (-1) ** k * mp.binomial(n, k) * f(v - n + 2 * k, mp.mpc(re, im))
+        for k in range(n + 1)
+    ]
     return mp.fsum(terms) / 2**n
 
 
@@ -2186,20 +2275,20 @@ def c_sph_harm_y(n, m, theta, phi):
 
 # ---------------------------------------------------------------- specs
 
-SPECS = []
-SECTIONS = []  # section titles, in order of appearance
-_section = None
+SPECS: list[Spec] = []
+SECTIONS: list[str] = []  # section titles, in order of appearance
 
 
-def section(title):
-    global _section
-    _section = title
+def section(title: str) -> None:
     SECTIONS.append(title)
 
 
-def add(name, args, ref, *domains, **kw):
-    """Add a spec for the function `name` with the space-separated argument names `args`."""
-    SPECS.append(Spec(name, tuple(args.split()), ref, list(domains), _section, **kw))
+def add(name: str, args: str, ref: FunctionType, *domains: Domain, **kw: Any) -> None:
+    """Add a spec for the function `name` with the space-separated argument names `args` to the
+    last section."""
+    SPECS.append(
+        Spec(name, tuple(args.split()), ref, list(domains), SECTIONS[-1], **kw)
+    )
 
 
 INV_E = float(-1 / mp.e)  # the smallest f64 > -1/e
@@ -2207,7 +2296,7 @@ if INV_E < -1 / mp.e:
     INV_E = math.nextafter(INV_E, 0)
 
 
-def a_pm_sqrt_a(r):
+def a_pm_sqrt_a(r: Random) -> tuple[float, float]:
     """(a, x) with a in [10, 1e8] (log), and x in a +- 6 sqrt(a): the transition region."""
     a = 10 ** r.uniform(1, 8)
     return a, max(0.0, a + r.uniform(-6, 6) * a**0.5)
@@ -2221,7 +2310,7 @@ A_PM_SQRT_A = D(
 )
 
 
-def ab_mu_pm_sigma(r):
+def ab_mu_pm_sigma(r: Random) -> tuple[float, float, float]:
     """(a, b, x) with a, b in [100, 1e8] (log), and x in mu +- 6 sigma: the transition region."""
     a, b = 10 ** r.uniform(2, 8), 10 ** r.uniform(2, 8)
     mu = a / (a + b)
@@ -2236,7 +2325,7 @@ AB_MU_PM_SIGMA = D(
 )
 
 
-def v_near_half_int(r):
+def v_near_half_int(r: Random) -> tuple[float, float]:
     """(v, x) with v in -k - 1/2 +- [1e-12, 1e-3] (log) for k in {0, ..., 20}, and x in [0, 100]."""
     t = 10 ** r.uniform(-12, -3)
     return -r.randint(0, 20) - 0.5 + r.choice((-1, 1)) * t, r.uniform(0, 100)
@@ -2316,7 +2405,10 @@ add(
     "a d",
     r_multigammaln,
     D(
-        sampler=lambda r: ((d := r.randint(1, 20)) / 2 - 0.5 + 10 ** r.uniform(-3, 3), d),
+        sampler=lambda r: (
+            (d := r.randint(1, 20)) / 2 - 0.5 + 10 ** r.uniform(-3, 3),
+            d,
+        ),
         label="d in {1, ..., 20}, a in (d - 1)/2 + [1e-3, 1e3] (log)",
         pretty=f"{nobreak('d', IN, Int(1, 20).pretty())}, "
         + nobreak("a", IN, f"(d {MINUS} 1)/2 + {LU(1e-3, 1e3).pretty()}")
@@ -2356,7 +2448,13 @@ add(
     D(LU(1e-3, 1e3, 0), LU(1e-3, 1e3), LU(1e-3, 1e3)),
 )
 add("ndtri_exp", "y", r_ndtri_exp, D(U(-20, 0)), D(LU(1e-300, 1e300, -1)))
-add("owens_t", "h a", r_owens_t, D(U(-5, 5), U(-5, 5)), D(LU(1e-5, 40, 0), LU(1e-5, 1e3, 0)))
+add(
+    "owens_t",
+    "h a",
+    r_owens_t,
+    D(U(-5, 5), U(-5, 5)),
+    D(LU(1e-5, 40, 0), LU(1e-5, 1e3, 0)),
+)
 add(
     "bivariate_normal_cdf",
     "h k r",
@@ -2366,7 +2464,7 @@ add(
 )
 
 
-def tvn_sampler(r):
+def tvn_sampler(r: Random) -> tuple[float, ...]:
     """(h1, h2, h3, r12, r13, r23) with h in [-3, 3], and a positive definite correlation matrix:
     r12, r13 in [-0.9, 0.9], and r23 in r12 r13 +- 0.9 sqrt((1 - r12^2) (1 - r13^2))."""
     r12, r13 = r.uniform(-0.9, 0.9), r.uniform(-0.9, 0.9)
@@ -2404,7 +2502,15 @@ add("nrdtrisd", "mean p x", r_nrdtrisd, D(U(-10, 10), U(0, 1), U(-10, 10)))
 
 section("Elementary functions")
 add("expm1", "x", r_expm1, D(U(-2, 2)), D(LU(1e-300, 709, 0)), std=True)
-add("log1p", "x", r_log1p, D(U(-1, 1)), D(LU(1e-300, 1e300)), D(LU(1e-300, 1, -1)), std=True)
+add(
+    "log1p",
+    "x",
+    r_log1p,
+    D(U(-1, 1)),
+    D(LU(1e-300, 1e300)),
+    D(LU(1e-300, 1, -1)),
+    std=True,
+)
 add("cbrt", "x", r_cbrt, D(LU(1e-300, 1e300, 0)), std=True)
 add("exp2", "x", r_exp2, D(U(-1, 1)), D(U(-1022, 1023)), std=True)
 add("exp10", "x", r_exp10, D(U(-1, 1)), D(U(-307, 308)))
@@ -2413,11 +2519,31 @@ add("cospi", "x", r_cospi, D(U(-10, 10)), D(LU(1e-300, 1e15, 0)))
 add("cosine_cdf", "x", r_cosine_cdf, D(U(-math.pi, math.pi)))
 add("cosine_invcdf", "p", r_cosine_invcdf, D(U(0, 1)), D(LU(1e-300, 0.5)))
 
-add("cosm1", "x", r_cosm1, D(U(-math.pi, math.pi)), D(LU(1e-300, 1e3, 0)), note="zeros_c")
-for f, r in [("sindg", r_sindg), ("cosdg", r_cosdg), ("tandg", r_tandg), ("cotdg", r_cotdg)]:
+add(
+    "cosm1",
+    "x",
+    r_cosm1,
+    D(U(-math.pi, math.pi)),
+    D(LU(1e-300, 1e3, 0)),
+    note="zeros_c",
+)
+for f, r in [
+    ("sindg", r_sindg),
+    ("cosdg", r_cosdg),
+    ("tandg", r_tandg),
+    ("cotdg", r_cotdg),
+]:
     add(f, "x", r, D(U(-360, 360)), D(LU(1e-300, 1e14, 0)))
 add("radian", "d m s", r_radian, D(U(0, 360), U(0, 60), U(0, 60)))
-add("sinc", "x", r_sinc, D(U(-10, 10)), D(LU(1e-300, 1e15, 0)), cpp=False, note="zeros_c")
+add(
+    "sinc",
+    "x",
+    r_sinc,
+    D(U(-10, 10)),
+    D(LU(1e-300, 1e15, 0)),
+    cpp=False,
+    note="zeros_c",
+)
 add("diric", "n x", r_diric, D(Int(1, 20), U(-10, 10)), cpp=False, note="zeros_c")
 add("agm", "a b", r_agm, D(U(0, 10), U(0, 10)), D(LU(1e-300, 1e300), LU(1e-300, 1e300)))
 
@@ -2435,7 +2561,13 @@ add(
     D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300)),
     D(U(-10, 10), Offset(1, LU(1e-16, 1e-3, 0))),
 )
-add("xlog1py", "x y", r_xlog1py, D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300)), D(U(-10, 10), U(-1, 1)))
+add(
+    "xlog1py",
+    "x y",
+    r_xlog1py,
+    D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300)),
+    D(U(-10, 10), U(-1, 1)),
+)
 add("softplus", "x", r_softplus, D(U(-20, 20)), D(LU(1e-300, 1e300, 0)), cpp=False)
 for f, r in [("logaddexp", r_logaddexp), ("logaddexp2", r_logaddexp2)]:
     add(
@@ -2464,7 +2596,13 @@ add(
     D(LU(1e-300, 1e300), LU(1e-300, 1e3, 0)),
 )
 for f, r in [("inv_boxcox", r_inv_boxcox), ("inv_boxcox1p", r_inv_boxcox1p)]:
-    add(f, "y lambda", r, D(U(-1, 1), U(-1, 1)), D(LU(1e-300, 10, 0), LU(1e-300, 0.1, 0)))
+    add(
+        f,
+        "y lambda",
+        r,
+        D(U(-1, 1), U(-1, 1)),
+        D(LU(1e-300, 10, 0), LU(1e-300, 0.1, 0)),
+    )
 add("entr", "x", r_entr, D(U(0, 2)), D(LU(1e-300, 1e300)), note="zeros_c")
 add(
     "rel_entr",
@@ -2498,8 +2636,22 @@ for f, r in [("i0", r_i0), ("i1", r_i1)]:
     add(f"bessel_{f}", "x", r, D(U(-30, 30)), D(LU(1e-300, 700)))
 for f, r in [("k0", r_k0), ("k1", r_k1)]:
     add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 700)))
-add("bessel_j", "v x", r_jv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e4)), note="osc")
-add("bessel_y", "v x", r_yv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e4)), note="osc")
+add(
+    "bessel_j",
+    "v x",
+    r_jv,
+    D(U(0, 20), U(0, 50)),
+    D(U(-100, 100), LU(1e-300, 1e4)),
+    note="osc",
+)
+add(
+    "bessel_y",
+    "v x",
+    r_yv,
+    D(U(0, 20), U(0, 50)),
+    D(U(-100, 100), LU(1e-300, 1e4)),
+    note="osc",
+)
 add("bessel_i", "v x", r_iv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 700)))
 add("bessel_k", "v x", r_kv, D(U(0, 20), U(0, 50)), D(U(0, 100), LU(1e-300, 700)))
 add(
@@ -2518,8 +2670,22 @@ for f, r in [("i0e", r_i0e), ("i1e", r_i1e)]:
     add(f"bessel_{f}", "x", r, D(U(-30, 30)), D(LU(1e-300, 1e300, 0)))
 for f, r in [("k0e", r_k0e), ("k1e", r_k1e)]:
     add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 1e300)))
-add("bessel_je", "v x", r_jv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e8)), note="osc")
-add("bessel_ye", "v x", r_yv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e8)), note="osc")
+add(
+    "bessel_je",
+    "v x",
+    r_jv,
+    D(U(0, 20), U(0, 50)),
+    D(U(-100, 100), LU(1e-300, 1e8)),
+    note="osc",
+)
+add(
+    "bessel_ye",
+    "v x",
+    r_yv,
+    D(U(0, 20), U(0, 50)),
+    D(U(-100, 100), LU(1e-300, 1e8)),
+    note="osc",
+)
 add("bessel_ie", "v x", r_ie, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e8)))
 add("bessel_ke", "v x", r_ke, D(U(0, 20), U(0, 50)), D(U(0, 100), LU(1e-300, 1e8)))
 for f, r in [("j", r_jvp), ("y", r_yvp), ("i", r_ivp), ("k", r_kvp)]:
@@ -2531,14 +2697,33 @@ for f, r in [("j", r_jvp), ("y", r_yvp), ("i", r_ivp), ("k", r_kvp)]:
         cpp=False,
         note="osc" if f in "jy" else "",
     )
-add("iv_ratio", "v x", r_iv_ratio, D(U(0.5, 20), U(0, 50)), D(LU(0.5, 1e4), LU(1e-300, 1e4)))
-add("iv_ratio_c", "v x", r_iv_ratio_c, D(U(0.5, 20), U(0, 50)), D(LU(0.5, 1e4), LU(1e-300, 1e4)))
+add(
+    "iv_ratio",
+    "v x",
+    r_iv_ratio,
+    D(U(0.5, 20), U(0, 50)),
+    D(LU(0.5, 1e4), LU(1e-300, 1e4)),
+)
+add(
+    "iv_ratio_c",
+    "v x",
+    r_iv_ratio_c,
+    D(U(0.5, 20), U(0, 50)),
+    D(LU(0.5, 1e4), LU(1e-300, 1e4)),
+)
 add("iv_ratioinv", "v r", r_iv_ratioinv, D(U(0.5, 20), U(0, 1), n=2000), note="inv")
 
 section("Spherical Bessel functions")
 for f, r, rp in [("j", r_sph_j, r_sph_jp), ("y", r_sph_y, r_sph_yp)]:
     for g, ref in [(f"sph_bessel_{f}", r), (f"sph_bessel_{f}_prime", rp)]:
-        add(g, "n x", ref, D(Int(0, 50), U(0, 50)), D(Int(0, 100), LU(1e-300, 1e4)), note="osc_sph")
+        add(
+            g,
+            "n x",
+            ref,
+            D(Int(0, 50), U(0, 50)),
+            D(Int(0, 100), LU(1e-300, 1e4)),
+            note="osc_sph",
+        )
 for f, r, rp in [("i", r_sph_i, r_sph_ip), ("k", r_sph_k, r_sph_kp)]:
     for g, ref in [(f"sph_bessel_{f}", r), (f"sph_bessel_{f}_prime", rp)]:
         add(g, "n x", ref, D(Int(0, 50), U(0, 50)), D(Int(0, 100), LU(1e-300, 700)))
@@ -2554,8 +2739,21 @@ for f, r, hi in [
     ("it2i0k0.0", r_it2i0, 700),
     ("it2i0k0.1", r_it2k0, 700),
 ]:
-    add(f, "x", r, D(U(0, 30)), D(LU(1e-300, hi)), note="zeros_c" if f[-1] == "1" else "")
-add("besselpoly", "a lambda v", r_besselpoly, D(U(0, 10), U(0, 10), U(0, 10)), note="zeros_c")
+    add(
+        f,
+        "x",
+        r,
+        D(U(0, 30)),
+        D(LU(1e-300, hi)),
+        note="zeros_c" if f[-1] == "1" else "",
+    )
+add(
+    "besselpoly",
+    "a lambda v",
+    r_besselpoly,
+    D(U(0, 10), U(0, 10), U(0, 10)),
+    note="zeros_c",
+)
 add("itstruve0", "x", r_itstruve0, D(U(0, 30)), D(LU(1e-300, 1e4)))
 add("it2struve0", "x", r_it2struve0, D(U(0, 30)), D(LU(1e-300, 1e4)))
 add("itmodstruve0", "x", r_itmodstruve0, D(U(0, 30)), D(LU(1e-300, 700)))
@@ -2574,11 +2772,25 @@ for i, f in enumerate(["ber", "bei", "ker", "kei", "berp", "beip", "kerp", "keip
 
 section("Airy functions")
 for i, f in enumerate(["Ai", "Ai'", "Bi", "Bi'"]):
-    add(f"airy[{i}]", "x", lambda x, i=i: _airy(x)[i], D(U(-20, 20)), D(LU(1e-300, 1e6, 0)), note="airy")
+    add(
+        f"airy[{i}]",
+        "x",
+        lambda x, i=i: _airy(x)[i],
+        D(U(-20, 20)),
+        D(LU(1e-300, 1e6, 0)),
+        note="airy",
+    )
 for i in range(4):
     dom = D(U(0, 20)) if i < 2 else D(U(-20, 20))
     dom2 = D(LU(1e-300, 1e6)) if i < 2 else D(LU(1e-300, 1e6, 0))
-    add(f"airy_scaled[{i}]", "x", lambda x, i=i: _airy(x, True)[i], dom, dom2, note="airy")
+    add(
+        f"airy_scaled[{i}]",
+        "x",
+        lambda x, i=i: _airy(x, True)[i],
+        dom,
+        dom2,
+        note="airy",
+    )
 for i in range(4):
     add(
         f"airy_integrals[{i}]",
@@ -2593,9 +2805,22 @@ section("Parabolic cylinder functions")
 for f, r in [("pbdv", r_pbdv), ("pbvv", r_pbvv)]:
     large = [D(LU(20, 300, 0), U(-60, 60), n=2000)] if f == "pbdv" else []
     for i in range(2):
-        add(f"{f}.{i}", "v x", lambda v, x, r=r, i=i: r(v, x)[i], D(U(-10, 10), U(-10, 10), n=2000), *large, note="zeros_c")
+        add(
+            f"{f}.{i}",
+            "v x",
+            lambda v, x, r=r, i=i: r(v, x)[i],
+            D(U(-10, 10), U(-10, 10), n=2000),
+            *large,
+            note="zeros_c",
+        )
 for i in range(2):
-    add(f"pbwa.{i}", "a x", lambda a, x, i=i: r_pbwa(a, x)[i], D(U(-5, 5), U(-5, 5), n=2000), note="zeros_c")
+    add(
+        f"pbwa.{i}",
+        "a x",
+        lambda a, x, i=i: r_pbwa(a, x)[i],
+        D(U(-5, 5), U(-5, 5), n=2000),
+        note="zeros_c",
+    )
 
 section("Zeta functions")
 add(
@@ -2605,7 +2830,14 @@ add(
     D(U(1, 20), U(0, 10)),
     D(Offset(1, LU(1e-15, 1e3)), LU(1e-300, 1e300)),
 )
-add("riemann_zeta", "x", r_riemann_zeta, D(U(-20, 20)), D(LU(1e-300, 1e3, 0)), note="zeros")
+add(
+    "riemann_zeta",
+    "x",
+    r_riemann_zeta,
+    D(U(-20, 20)),
+    D(LU(1e-300, 1e3, 0)),
+    note="zeros",
+)
 add("zetac", "x", r_zetac, D(U(-20, 20)), D(LU(1e-300, 1e3, 0)), note="zeros")
 
 add(
@@ -2617,7 +2849,7 @@ add(
 )
 
 
-def ngh_sampler(r):
+def ngh_sampler(r: Random) -> tuple[int, int, int, float]:
     n = r.randint(1, 1000)
     j = r.randint(1, n)
     return j, r.randint(j, n), n, r.uniform(-5, 5)
@@ -2709,7 +2941,13 @@ for f, r in [("ellipkinc", r_ellipkinc), ("ellipeinc", r_ellipeinc)]:
     )
 
 add("ellipkm1", "p", r_ellipkm1, D(U(0, 1)), D(LU(1e-300, 1)))
-add("elliprc", "x y", r_elliprc, D(LU(1e-3, 1e3), LU(1e-3, 1e3)), D(LU(1e-300, 1e300), LU(1e-300, 1e300)))
+add(
+    "elliprc",
+    "x y",
+    r_elliprc,
+    D(LU(1e-3, 1e3), LU(1e-3, 1e3)),
+    D(LU(1e-300, 1e300), LU(1e-300, 1e300)),
+)
 for f, r in [("elliprd", r_elliprd), ("elliprf", r_elliprf), ("elliprg", r_elliprg)]:
     add(
         f,
@@ -2770,7 +3008,14 @@ add(
 section("Orthogonal polynomials")
 
 
-def poly(name, args, ref, dists, int_n=50, cpp=True):
+def poly(
+    name: str,
+    args: str,
+    ref: FunctionType,
+    dists: list[Dist],
+    int_n: int = 50,
+    cpp: bool = True,
+) -> None:
     """A spec with an integer-degree domain (via the `_l` variant), and a real-degree one."""
     add(
         name,
@@ -2784,7 +3029,13 @@ def poly(name, args, ref, dists, int_n=50, cpp=True):
 
 
 poly("eval_jacobi", "n alpha beta x", r_jacobi, [U(-1, 10), U(-1, 10), U(-1, 1)])
-poly("eval_sh_jacobi", "n alpha beta x", r_sh_jacobi, [U(-1, 10), U(-1, 10), U(0, 1)], cpp=False)
+poly(
+    "eval_sh_jacobi",
+    "n alpha beta x",
+    r_sh_jacobi,
+    [U(-1, 10), U(-1, 10), U(0, 1)],
+    cpp=False,
+)
 poly("eval_gengegenbauer", "n p q x", r_gengegenbauer, [U(1, 10), U(0.5, 1), U(0, 1)])
 poly("eval_gegenbauer", "n alpha x", r_gegenbauer, [U(-0.5, 10), U(-1, 1)])
 poly("eval_chebyshev_t", "n x", r_chebyt, [U(-1, 1)], 100)
@@ -2810,14 +3061,24 @@ for f, r in [("eval_hermite_h", r_hermite_h), ("eval_hermite_he", r_hermite_he)]
 section("Legendre functions")
 
 
-def nm_sampler(r, hi=50):
+def nm_sampler(r: Random, hi: int = 50) -> tuple[int, int]:
     n = r.randint(0, hi)
     return n, r.randint(-n, n)
 
 
 NM = f"{nobreak('n', IN, Int(0, 50).pretty())}, {nobreak('m', IN, f'{{{MINUS}n, {ELLIPSIS}, n}}')}"
-add("legendre_p", "n x", r_legendre, D(Int(0, 100), U(-1, 1)), D(Int(0, 30), LU(1, 1e3, 0)), note="zeros_c")
-for f, r in [("assoc_legendre_p", r_assoc_legendre_p), ("assoc_legendre_p_norm", r_assoc_legendre_p_norm)]:
+add(
+    "legendre_p",
+    "n x",
+    r_legendre,
+    D(Int(0, 100), U(-1, 1)),
+    D(Int(0, 30), LU(1, 1e3, 0)),
+    note="zeros_c",
+)
+for f, r in [
+    ("assoc_legendre_p", r_assoc_legendre_p),
+    ("assoc_legendre_p_norm", r_assoc_legendre_p_norm),
+]:
     add(
         f,
         "n m x",
@@ -2845,12 +3106,18 @@ add("pmv", "m v x", r_pmv, D(Int(0, 10), U(-50, 50), U(-1, 1), n=5000), note="ze
 section("Discrete distributions")
 
 
-def kn_sampler(r, n_hi=1000):
+def kn_sampler(r: Random, n_hi: int = 1000) -> tuple[int, int]:
     n = int(10 ** r.uniform(0, math.log10(n_hi)))
     return r.randint(0, n), n
 
 
-def k_near_np(r):
+def kn_below_n(r: Random) -> tuple[int, int]:
+    """`kn_sampler`, with k < n."""
+    k, n = kn_sampler(r)
+    return min(k, n - 1), n
+
+
+def k_near_np(r: Random) -> tuple[int, int, float]:
     """(k, n, p) with n in [1e3, 2e9] (log), p in [1e-6, 1] (log), and k in np +- 6 sigma."""
     n, p = int(10 ** r.uniform(3, math.log10(2e9))), 10 ** r.uniform(-6, 0)
     k = round(n * p + r.uniform(-6, 6) * (n * p * (1 - p)) ** 0.5)
@@ -2885,7 +3152,7 @@ add(
     "k n y",
     r_bdtri,
     D(
-        sampler=lambda r: (*(lambda k, n: (min(k, n - 1), n))(*kn_sampler(r)), r.uniform(0, 1)),
+        sampler=lambda r: (*kn_below_n(r), r.uniform(0, 1)),
         label="n in {1, ..., 1000} (log), k in {0, ..., n - 1}, y in [0, 1]",
         pretty=f"{nobreak('n', IN, '{1, ' + ELLIPSIS + ', 1000}')} (log), "
         + f"{nobreak('k', IN, '{0, ' + ELLIPSIS + f', n {MINUS} 1}}')}, "
@@ -2904,7 +3171,14 @@ for f, r in [("nbdtr", r_nbdtr), ("nbdtrc", r_nbdtrc)]:
         D(ILU(1, 2 * 10**9), ILU(1, 2 * 10**9), LU(1e-300, 1), n=2000),
         timeout=60,
     )
-add("nbdtri", "k n y", r_nbdtri, D(Int(0, 1000), Int(1, 1000), U(0, 1), n=2000), timeout=120, note="inv")
+add(
+    "nbdtri",
+    "k n y",
+    r_nbdtri,
+    D(Int(0, 1000), Int(1, 1000), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
 for f, r in [("pdtr", r_pdtr), ("pdtrc", r_pdtrc)]:
     add(
         f,
@@ -2912,7 +3186,10 @@ for f, r in [("pdtr", r_pdtr), ("pdtrc", r_pdtrc)]:
         r,
         D(Int(0, 100), U(0, 100), n=5000),
         D(
-            sampler=lambda r: (lambda m: (max(0, round(m + r.uniform(-6, 6) * m**0.5)), m))(10 ** r.uniform(1, 9)),
+            sampler=lambda r: (
+                max(0, round((m := 10 ** r.uniform(1, 9)) + r.uniform(-6, 6) * m**0.5)),
+                m,
+            ),
             label="m in [10, 1e9] (log), k in m +- 6 sqrt(m)",
             pretty=f"{nobreak('m', IN, LU(10, 1e9).pretty())} (log), {nobreak('k', IN, f'm {PM} 6{SQRT}m')}",
             n=2000,
@@ -2924,7 +3201,7 @@ add("pdtri", "k y", r_pdtri, D(Int(0, 100), U(0, 1), n=2000), timeout=120, note=
 section("Continuous distributions")
 
 
-def gamma_trans(r):
+def gamma_trans(r: Random) -> tuple[float, float, float]:
     """(a, b, x) with a in [1e-5, 1e5], b in [10, 1e8] (log), and ax in b +- 6 sqrt(b)."""
     a, b = 10 ** r.uniform(-5, 5), 10 ** r.uniform(1, 8)
     return a, b, max(0.0, b + r.uniform(-6, 6) * b**0.5) / a
@@ -2945,9 +3222,30 @@ for f, r in [("gdtr", r_gdtr), ("gdtrc", r_gdtrc)]:
         ),
         timeout=60,
     )
-add("gdtria", "p b x", r_gdtria, D(U(0, 1), LU(1e-2, 1e2), LU(1e-2, 1e2), n=2000), timeout=120, note="inv")
-add("gdtrib", "a p x", r_gdtrib, D(LU(1e-2, 1e2), U(0, 1), LU(1e-2, 1e2), n=2000), timeout=120, note="inv")
-add("gdtrix", "a b p", r_gdtrix, D(LU(1e-2, 1e2), LU(1e-2, 1e2), U(0, 1), n=2000), timeout=120, note="inv")
+add(
+    "gdtria",
+    "p b x",
+    r_gdtria,
+    D(U(0, 1), LU(1e-2, 1e2), LU(1e-2, 1e2), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "gdtrib",
+    "a p x",
+    r_gdtrib,
+    D(LU(1e-2, 1e2), U(0, 1), LU(1e-2, 1e2), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "gdtrix",
+    "a b p",
+    r_gdtrix,
+    D(LU(1e-2, 1e2), LU(1e-2, 1e2), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
 for f, r in [("chdtr", r_chdtr), ("chdtrc", r_chdtrc)]:
     add(
         f,
@@ -2955,15 +3253,32 @@ for f, r in [("chdtr", r_chdtr), ("chdtrc", r_chdtrc)]:
         r,
         D(LU(1e-3, 1e3), LU(1e-3, 1e3), n=5000),
         D(
-            sampler=lambda r: (lambda v: (v, max(0.0, v + r.uniform(-6, 6) * (2 * v) ** 0.5)))(10 ** r.uniform(1, 8)),
+            sampler=lambda r: (
+                v := 10 ** r.uniform(1, 8),
+                max(0.0, v + r.uniform(-6, 6) * (2 * v) ** 0.5),
+            ),
             label="v in [10, 1e8] (log), x in v +- 6 sqrt(2v)",
             pretty=f"{nobreak('v', IN, LU(10, 1e8).pretty())} (log), {nobreak('x', IN, f'v {PM} 6{SQRT}(2v)')}",
             n=2000,
         ),
         timeout=60,
     )
-add("chdtri", "v y", r_chdtri, D(LU(1e-3, 1e3), U(0, 1), n=2000), timeout=120, note="inv")
-add("fdtri", "a b y", r_fdtri, D(LU(1e-3, 1e3), LU(1e-3, 1e3), U(0, 1), n=2000), timeout=120, note="inv")
+add(
+    "chdtri",
+    "v y",
+    r_chdtri,
+    D(LU(1e-3, 1e3), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "fdtri",
+    "a b y",
+    r_fdtri,
+    D(LU(1e-3, 1e3), LU(1e-3, 1e3), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
 add(
     "stdtr",
     "nu t",
@@ -2983,7 +3298,13 @@ add(
     timeout=120,
     note="inv",
 )
-add("tukeylambdacdf", "x lambda", r_tukeylambdacdf, D(U(-5, 5), U(-2, 2), n=2000), timeout=60)
+add(
+    "tukeylambdacdf",
+    "x lambda",
+    r_tukeylambdacdf,
+    D(U(-5, 5), U(-2, 2), n=2000),
+    timeout=60,
+)
 add(
     "von_mises_cdf",
     "k x",
@@ -2992,16 +3313,28 @@ add(
     D(LU(1e-3, 1e5), U(-math.pi, math.pi), n=2000),
     timeout=60,
 )
-for f, r in [("geninvgauss_pdf", r_geninvgauss_pdf), ("geninvgauss_logpdf", r_geninvgauss_logpdf)]:
-    add(f, "x p b", r, D(LU(1e-3, 1e3), U(-10, 10), LU(1e-3, 1e3)), note="zeros_c" if "log" in f else "")
+for f, r in [
+    ("geninvgauss_pdf", r_geninvgauss_pdf),
+    ("geninvgauss_logpdf", r_geninvgauss_logpdf),
+]:
+    add(
+        f,
+        "x p b",
+        r,
+        D(LU(1e-3, 1e3), U(-10, 10), LU(1e-3, 1e3)),
+        note="zeros_c" if "log" in f else "",
+    )
 
 
-def gh_sampler(r):
+def gh_sampler(r: Random) -> tuple[float, float, float, float]:
     a = 10 ** r.uniform(-2, 2)
     return r.uniform(-10, 10), r.uniform(-5, 5), a, a * r.uniform(-0.99, 0.99)
 
 
-for f, r in [("genhyperbolic_pdf", r_genhyperbolic_pdf), ("genhyperbolic_logpdf", r_genhyperbolic_logpdf)]:
+for f, r in [
+    ("genhyperbolic_pdf", r_genhyperbolic_pdf),
+    ("genhyperbolic_logpdf", r_genhyperbolic_logpdf),
+]:
     add(
         f,
         "x p a b",
@@ -3017,14 +3350,43 @@ for f, r in [("genhyperbolic_pdf", r_genhyperbolic_pdf), ("genhyperbolic_logpdf"
 add("cdf_cvm_inf", "x", r_cdf_cvm_inf, D(U(0, 2)), D(LU(1e-3, 100)))
 
 section("Kolmogorov-Smirnov distributions")
-for f, r in [("smirnov", r_smirnov), ("smirnovc", r_smirnovc), ("smirnovp", r_smirnovp)]:
-    add(f, "n x", r, D(ILU(1, 1000), U(0, 1), n=5000), D(ILU(1, 1000), LU(1e-300, 1), n=2000), timeout=60)
+for f, r in [
+    ("smirnov", r_smirnov),
+    ("smirnovc", r_smirnovc),
+    ("smirnovp", r_smirnovp),
+]:
+    add(
+        f,
+        "n x",
+        r,
+        D(ILU(1, 1000), U(0, 1), n=5000),
+        D(ILU(1, 1000), LU(1e-300, 1), n=2000),
+        timeout=60,
+    )
 for f, r in [("smirnovi", r_smirnovi), ("smirnovci", r_smirnovci)]:
-    add(f, "n q" if f == "smirnovi" else "n p", r, D(ILU(1, 1000), U(0, 1), n=1000), timeout=120, note="inv")
-for f, r in [("kolmogorov", r_kolmogorov), ("kolmogc", r_kolmogc), ("kolmogp", r_kolmogp)]:
+    add(
+        f,
+        "n q" if f == "smirnovi" else "n p",
+        r,
+        D(ILU(1, 1000), U(0, 1), n=1000),
+        timeout=120,
+        note="inv",
+    )
+for f, r in [
+    ("kolmogorov", r_kolmogorov),
+    ("kolmogc", r_kolmogc),
+    ("kolmogp", r_kolmogp),
+]:
     add(f, "x", r, D(U(0, 3)), D(LU(1e-3, 30)))
 add("kolmogi", "q", r_kolmogi, D(U(0, 1), n=2000), D(LU(1e-300, 1), n=2000), note="inv")
-add("kolmogci", "p", r_kolmogci, D(U(0, 1), n=2000), D(LU(1e-300, 1), n=2000), note="inv")
+add(
+    "kolmogci",
+    "p",
+    r_kolmogci,
+    D(U(0, 1), n=2000),
+    D(LU(1e-300, 1), n=2000),
+    note="inv",
+)
 
 section("Other functions")
 add("lambertw", "x", r_lambertw, D(U(INV_E, 10)), D(LU(1e-300, 1e300)))
@@ -3040,7 +3402,13 @@ add(
         pretty=f"{nobreak('n', IN, Int(0, 150).pretty())}, {nobreak('k', IN, f'{{0, {ELLIPSIS}, n}}')}",
     ),
 )
-add("wright_bessel", "a b x", r_wright_bessel, D(U(0, 5), U(0, 5), U(0, 100), n=2000), timeout=60)
+add(
+    "wright_bessel",
+    "a b x",
+    r_wright_bessel,
+    D(U(0, 5), U(0, 5), U(0, 100), n=2000),
+    timeout=60,
+)
 add(
     "log_wright_bessel",
     "a b x",
@@ -3052,14 +3420,40 @@ add(
 
 section("Complex functions")
 CZ = D(U(-20, 20), U(-20, 20), n=5000)
-for f, r in [("gamma", mp.gamma), ("rgamma", mp.rgamma), ("loggamma", mp.loggamma), ("digamma", mp.digamma)]:
-    add(f"{f}#c", "re im", _c(r), CZ, complex=True, note="zeros_c" if f in ("loggamma", "digamma") else "")
+for f, r in [
+    ("gamma", mp.gamma),
+    ("rgamma", mp.rgamma),
+    ("loggamma", mp.loggamma),
+    ("digamma", mp.digamma),
+]:
+    add(
+        f"{f}#c",
+        "re im",
+        _c(r),
+        CZ,
+        complex=True,
+        note="zeros_c" if f in ("loggamma", "digamma") else "",
+    )
 for f, r in [("erf", mp.erf), ("erfc", mp.erfc), ("wofz", c_wofz)]:
     add(f"{f}#c", "re im", _c(r), D(U(-10, 10), U(-10, 10), n=5000), complex=True)
 for f, r in [("exp1", mp.e1), ("expi", mp.ei), ("lambertw", c_lambertw)]:
     add(f"{f}#c", "re im", _c(r), CZ, complex=True)
-add("hyp1f1#c", "a b re im", c_hyp1f1, D(U(-10, 10), U(-10, 10), U(-20, 20), U(-20, 20), n=2000), complex=True, timeout=60)
-add("hyp2f1#c", "a b c re im", c_hyp2f1, D(U(-5, 5), U(-5, 5), U(-5, 5), U(-2, 2), U(-2, 2), n=2000), complex=True, timeout=60)
+add(
+    "hyp1f1#c",
+    "a b re im",
+    c_hyp1f1,
+    D(U(-10, 10), U(-10, 10), U(-20, 20), U(-20, 20), n=2000),
+    complex=True,
+    timeout=60,
+)
+add(
+    "hyp2f1#c",
+    "a b c re im",
+    c_hyp2f1,
+    D(U(-5, 5), U(-5, 5), U(-5, 5), U(-2, 2), U(-2, 2), n=2000),
+    complex=True,
+    timeout=60,
+)
 for f, r in [
     ("bessel_j", c_besselj),
     ("bessel_y", c_bessely),
@@ -3068,11 +3462,25 @@ for f, r in [
     ("hankel_1", c_hankel1),
     ("hankel_2", c_hankel2),
 ]:
-    add(f"{f}#c", "v re im", r, D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000), complex=True, note="osc_c" if f in ("bessel_j", "bessel_y") else "")
+    add(
+        f"{f}#c",
+        "v re im",
+        r,
+        D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000),
+        complex=True,
+        note="osc_c" if f in ("bessel_j", "bessel_y") else "",
+    )
 for f, r in [("hankel_1e", c_hankel1e), ("hankel_2e", c_hankel2e)]:
     add(f, "v re im", r, D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000), complex=True)
 for f, r in [("hankel_1_prime", c_hankel1p), ("hankel_2_prime", c_hankel2p)]:
-    add(f, "v re im n", r, D(U(-20, 20), U(-50, 50), U(-50, 50), Int(1, 3), n=5000), complex=True, cpp=False)
+    add(
+        f,
+        "v re im n",
+        r,
+        D(U(-20, 20), U(-50, 50), U(-50, 50), Int(1, 3), n=5000),
+        complex=True,
+        cpp=False,
+    )
 for i, f in enumerate(["plus.0", "plus.1", "minus.0", "minus.1"]):
     add(
         f"modified_fresnel_{f}",
@@ -3087,7 +3495,11 @@ add(
     "n m theta phi",
     c_sph_harm_y,
     D(
-        sampler=lambda r: (*nm_sampler(r), r.uniform(0, math.pi), r.uniform(0, 2 * math.pi)),
+        sampler=lambda r: (
+            *nm_sampler(r),
+            r.uniform(0, math.pi),
+            r.uniform(0, 2 * math.pi),
+        ),
         label="n in {0, ..., 50}, m in {-n, ..., n}, theta in [0, pi], phi in [0, 2 pi]",
         pretty=f"{NM}, {nobreak(GREEK['theta'], IN, U(0, math.pi).pretty())}, "
         + nobreak(GREEK["phi"], IN, "[0, 2\u03c0]"),
@@ -3151,4 +3563,4 @@ NOT_COVERED = """\
   last table
 """
 
-BY_NAME = {s.name: s for s in SPECS}
+BY_NAME: Final = {s.name: s for s in SPECS}

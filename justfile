@@ -20,7 +20,13 @@ fmt *args:
     cargo fmt {{ args }}
 
 accuracy *args:
-    uv run --no-project --with mpmath==1.4.1 --with gmpy2==2.3.2 python tools/accuracy/accuracy.py {{ args }}
+    uv run tools/accuracy/accuracy.py {{ args }}
+
+[working-directory("tools")]
+lint-py:
+    uv run ruff check
+    uv run ruff format --check
+    uv run pyrefly check
 
 doc *args:
     RUSTDOCFLAGS="--html-in-header katex.html" cargo +nightly doc --all-features --no-deps {{ args }}

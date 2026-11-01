@@ -1,0 +1,22 @@
+# Not a package: only the lint tools (locked in uv.lock, which dependabot updates) and their
+# config. The scripts declare their own dependencies as inline script metadata.
+[project]
+name = "xsf-rust-tools"
+version = "0"
+requires-python = ">=3.15"
+dependencies = []
+
+[dependency-groups]
+dev = ["mpmath==1.4.1", "pyrefly==1.4.0", "ruff==0.17.3"]
+
+[tool.uv]
+package = false
+
+[tool.pyrefly]
+preset = "strict"
+search-path = ["accuracy"]
+
+# the references are unannotated: they take and return untyped mpmath numbers
+[[tool.pyrefly.sub-config]]
+matches = "accuracy/specs.py"
+errors = { implicit-any-parameter = false, implicit-any-lambda = false }

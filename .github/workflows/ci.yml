@@ -47,6 +47,36 @@ jobs:
       - name: rustfmt Check
         uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1.1.2
 
+  lint-python:
+    runs-on: ubuntu-latest
+    name: Lint (python)
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tools
+    env:
+      # the versions are locked in tools/uv.lock, which dependabot updates
+      UV_LOCKED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: ruff check
+        run: uv run ruff check
+
+      - name: ruff format
+        run: uv run ruff format --check
+
+      - name: pyrefly
+        run: uv run pyrefly check
+
   msrv:
     runs-on: ubuntu-latest
     name: MSRV
