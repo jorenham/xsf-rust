@@ -19,7 +19,7 @@ use crate::utils::{SQRT_PI, SQRT2OPI};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
-use crate::{airy, airy_scaled, cospi, log1pmx, sinpi};
+use crate::{airy, airy_scaled, cospi, log1pmx, rgamma, sinpi};
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn dvsa(x: f64, va: f64) -> f64 {
@@ -410,10 +410,13 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f0 = f1;
             f1 = f;
         }
-    } else if ((x >= 0.0) && (x <= 7.5)) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
+    } else if ((x >= 0.0) && (x <= 7.5)) || (xa <= 10.0 && v <= 0.5 * x * x) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
         // v <= x^2 / 2 (here v is the order + 1), e.g. `pbvv(6.0, -8.0).0` was -1.5e263 instead
         // of -5.6633.
+        //
+        // Unlike in xsf, the same is done for -7.5 <= x < 0, where the upward recurrence below is
+        // unstable, e.g. `pbvv(9.48, -7.46).0` was 2.47241684e-4 instead of 2.47241678e-4.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -822,8 +825,9 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     (parts, ea, eb)
 }
 
-/// `D_v(x)`, `D_v'(x)` for `v <= -20`, by 12.10.25 and 12.10.29, with `a = -v - 1/2`
-fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
+/// `D_v(x)`, `D_v'(x)` for `v <= -20` as mantissas with exponent `l`, by 12.10.25 and 12.10.29,
+/// with `a = -v - 1/2`
+fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     let a = -v - 0.5;
     let mu2 = 2.0 * a;
     let x = x.clamp(-1e100, 1e100); // the result under/overflows far beyond
@@ -837,7 +841,7 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
     };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
     if l.abs() > 1000.0 {
-        return (mul_exp(1.0, l), mul_exp(-1.0, l));
+        return ([1.0, -1.0], l);
     }
 
     let t = 0.5 * x / a.sqrt();
@@ -849,10 +853,17 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
         sv = sv * w + uv_poly(V_POLY[k], k, t, true);
     }
     let g = 1.0 + 0.5 * (-ln_gamma_ratio(a)).exp_m1();
-    (
-        mul_exp(g * su / (2.0 * s).sqrt(), l),
-        mul_exp(-g * sv * (0.5 * s).sqrt(), l),
-    )
+    ([g * su / (2.0 * s).sqrt(), -g * sv * (0.5 * s).sqrt()], l)
+}
+
+/// `D_{w+n}(x)`, `D_{w+n}'(x)` from `d0 = D_w(x)` and `d1 = D_{w+1}(x)`, by
+/// `D_{w+1} = x D_w - w D_{w-1}` (12.8.1) and 12.8.3
+#[allow(clippy::cast_possible_truncation)]
+fn pbdv_up(w: f64, x: f64, n: f64, mut d0: f64, mut d1: f64) -> (f64, f64) {
+    for k in 1..=n as i32 {
+        (d0, d1) = (d1, x * d1 - (w + f64::from(k)) * d0);
+    }
+    (d0, 0.5 * x * d0 - d1)
 }
 
 /// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by the Maclaurin series, with the
@@ -901,7 +912,10 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         return None;
     }
     if v <= -20.0 {
-        return (x >= 0.0 || x < -50.0).then(|| pbdv_elementary(v, x));
+        return (x >= 0.0 || x < -50.0).then(|| {
+            let ([d, dp], l) = pbdv_elementary(v, x);
+            (mul_exp(d, l), mul_exp(dp, l))
+        });
     }
     if v >= 300.0 && x.abs() * (v + 0.5).sqrt() < 1.0 {
         return Some(pbdv_maclaurin(v, x));
@@ -1040,6 +1054,29 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
+    // Unlike in xsf, the same is done for -30 <= v < 0 (not for tiny |v|, where `dvsa` stops too
+    // early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was 26.98963583
+    // instead of 26.98963443.
+    if (-30.0..-1e-15).contains(&v) && (-10.0..-5.8).contains(&x) {
+        let pdf = dvsa(x, v);
+        // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in `dvsa(x, v + 1)`
+        return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
+    }
+    // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
+    // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
+    // `pbdv(-2.5, 5.9).0` was 1.7541561989e-6 instead of 1.7541561955e-6.
+    //
+    // The same is done for 36.5 <= x < 60 (53 <= x for v >= 0), where xsf underflows prematurely,
+    // e.g. `pbdv(-5.5, 45.0).0` was 0 instead of 1.10136e-229.
+    let (lo, hi) = if v < 0.0 { (1.0, 36.5) } else { (4.5, 53.0) };
+    if v.abs() < 20.0 && x > lo && x < 60.0 && !(12.0..hi).contains(&x) {
+        let n = (v + 20.0).ceil();
+        let w = v - n;
+        let ([d, dp], l) = pbdv_elementary(w, x);
+        // D_{w+1} = x / 2 D_w - D_w' (12.8.3), and the recurrence is stable for increasing w
+        let (d, dp) = pbdv_up(w, x, n, d, 0.5 * x * d - dp);
+        return (mul_exp(d, l), mul_exp(dp, l));
+    }
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
@@ -1077,6 +1114,16 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
+    }
+    // Unlike in xsf, V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and D_v(-x) (DLMF
+    // 12.2.16), since the upward recurrence is unstable there, e.g. `pbvv(3.0, -20.0).0` was
+    // 2.4e227 instead of 1.3749e38.
+    if x < -10.0 && v > 0.0 {
+        let (c, s) = (cospi(v), sinpi(v) * rgamma(v + 1.0));
+        // V_v(-x) can overflow, so skip it if c = 0
+        let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
+        let (d, dp) = pbdv(v, -x);
+        return (-s * d - c * w, s * dp + c * wp);
     }
     /* NB. Indexing of DV/DP in specfun.f:PBVV starts from 0, hence +2 */
     let Some((mut buf, num)) = alloc_buf(v) else {

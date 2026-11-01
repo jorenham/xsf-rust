@@ -55,6 +55,62 @@ fn test_pbdv_negative_x() {
 }
 
 #[test]
+fn test_pbdv_moderate_x() {
+    // 1 < x < 12 (4.5 < x for v >= 0), and -30 <= v < 0 for -10 <= x < -5.8 (reference values
+    // from mpmath)
+    for (v, x, d, dp) in [
+        (
+            -2.5,
+            5.9,
+            1.754_156_195_473_642_3e-6,
+            -5.856_502_185_207_843e-6,
+        ),
+        (
+            -18.85,
+            1.9,
+            2.267_296_304_203_875_8e-12,
+            -9.977_778_237_404_963e-12,
+        ),
+        (10.5, 7.0, 981.861_674_474_586_7, -1_483.395_230_884_999_4),
+        (-0.01, -5.9, 26.989_634_433_251_59, -74.782_517_607_607_91),
+        (-25.5, -7.0, 5_967.673_485_180_04, -36_282.507_255_654_57),
+    ] {
+        let (y, yp) = xsf::pbdv(v, x);
+        let rel = ((y - d) / d).abs().max(((yp - dp) / dp).abs());
+        assert!(rel < 1e-13, "v = {v}, x = {x}: rel = {rel:e}");
+    }
+}
+
+#[test]
+fn test_pbdv_large_x() {
+    // 36.5 <= x < 60 (53 <= x for v >= 0), near the underflow (reference values from mpmath)
+    for (v, x, d, dp) in [
+        (
+            -19.5,
+            38.0,
+            2.262_826_187_826_714e-188,
+            -4.413_886_212_120_611_4e-187,
+        ),
+        (
+            -5.5,
+            45.0,
+            1.101_359_989_411_643_5e-229,
+            -2.491_478_130_368_397e-228,
+        ),
+        (
+            10.5,
+            54.5,
+            5.420_662_759_314_265e-305,
+            -1.466_653_517_047_072_7e-303,
+        ),
+    ] {
+        let (y, yp) = xsf::pbdv(v, x);
+        let rel = ((y - d) / d).abs().max(((yp - dp) / dp).abs());
+        assert!(rel < 5e-13, "v = {v}, x = {x}: rel = {rel:e}");
+    }
+}
+
+#[test]
 fn test_pbdv_large_v() {
     // reference values from mpmath
     for (v, x, d, dp) in [
@@ -183,4 +239,44 @@ fn test_pbvv_extreme() {
         let rel = ((y - w) / w).abs().max(((yp - wp) / wp).abs());
         assert!(rel < 1e-12, "v = {v}, x = {x}: rel = {rel:e}");
     }
+}
+
+#[test]
+fn test_pbvv_negative_x() {
+    // -7.5 <= x < 0 and v + 1 <= x^2 / 2, and x < -10 (reference values from mpmath)
+    for (v, x, w, wp) in [
+        (
+            9.48,
+            -7.46,
+            0.000_247_241_678_108_458_4,
+            -0.000_155_355_245_089_156_9,
+        ),
+        (
+            3.0,
+            -20.0,
+            1.374_924_131_582_966_8e38,
+            -1.347_072_098_819_639_2e39,
+        ),
+        (
+            9.25,
+            -33.0,
+            2.796_250_555_935_439e102,
+            -4.526_043_015_443_377e103,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 1e-12 && relp < 1e-12,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // half-integer v, where V_v(-x) overflows (subnormal results)
+    let (y, yp) = xsf::pbvv(2.5, -54.0);
+    let (rel, relp) = (
+        (y / -1.616_037_873_6e-313 - 1.0).abs(),
+        (yp / -4.355_816_750_767e-312 - 1.0).abs(),
+    );
+    assert!(rel < 1e-9 && relp < 1e-9, "{rel:e}, {relp:e}");
 }
