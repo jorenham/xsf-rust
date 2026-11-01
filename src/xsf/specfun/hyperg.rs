@@ -1068,6 +1068,14 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == 1e300 {
         r1 = 0.0;
     }
+    // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
+    // (and hu back by exp(lr2 / 2) twice), e.g. U(-14.2, 95.7, 0.0028) = -inf instead of NaN
+    let c = hu0 / (ga * gb2);
+    let mut lr2 = 0.0;
+    if r2.is_infinite() && r1.is_finite() && c.is_finite() {
+        lr2 = c.abs().ln() + (1.0 - b) * x.ln();
+        (r1, r2) = (r1 * (-lr2).exp(), r2.signum());
+    }
     let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
@@ -1130,5 +1138,6 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let e1 = 1e-15 + k(1.0 + a - b);
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
     *id = (*id).min((-((e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
-    hu
+    let h = (0.5 * lr2).exp();
+    hu * h * h
 }
