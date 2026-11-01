@@ -262,9 +262,9 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     ke
 }
 
-/// AMOS already "overflows" if K_v(x) >~ 1e304. Unlike in xsf, retry such an inf with the
-/// recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1) for |v| > 1, which
-/// also holds for e^x K_v(x). The lower orders are smaller by a factor of about x / (2v).
+/// AMOS already "overflows" if K_v(x) >~ 1e304. Unlike in xsf (scipy/xsf#372), retry such an inf
+/// with the recurrence K_v(x) = K_{v-2}(x) + 2 (v - 1) / x K_{v-1}(x) (DLMF 10.29.1) for |v| > 1,
+/// which also holds for e^x K_v(x). The lower orders are smaller by a factor of about x / (2v).
 ///
 /// For example, `bessel_k(1.5, 1e-205)` was inf instead of 3.96e307.
 fn cyl_bessel_k_overflow(k: fn(f64, Complex64) -> Complex64, v: f64, x: f64) -> f64 {
