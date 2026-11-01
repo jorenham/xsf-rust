@@ -102,6 +102,25 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
     }
 }
 
+/// Unlike in xsf, `rd`, `rg` and `rj` rescale their arguments by `f^2` if the largest part is
+/// outside [2^-256, 2^256], since e.g. `elliprg(5.17e139, 2.97e11, 1.55e225)` overflowed (NaN,
+/// not 1.97e112). `f` is a power of 2, and doesn't downscale the smallest nonzero part below `min`.
+#[allow(clippy::float_cmp)]
+pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
+    let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
+    let amax = parts.clone().fold(0.0, f64::max);
+    let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
+    let e = amax.log2();
+    if !(e.is_finite() && e.abs() > 256.0) {
+        return None;
+    }
+    let mut f = ((254.0 - e) / 2.0).floor().exp2();
+    while f < 1.0 && amin * f * f < min {
+        f *= 2.0;
+    }
+    (f != 1.0).then_some(f)
+}
+
 /// `std::max({a, ...})` (with `std::max(a, b)` = `a < b ? b : a`), i.e. the first of the largest
 /// values, ignoring NaN unless it is the first one
 pub(super) fn max(vals: &[f64]) -> f64 {

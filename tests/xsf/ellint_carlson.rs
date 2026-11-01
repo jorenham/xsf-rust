@@ -190,3 +190,29 @@ fn test_elliprj() {
     assert!(xsf::elliprj(-1.0, 1.0, 1.0, 1.0).is_nan());
     assert!(xsf::elliprj(1.0, 0.0, 0.0, 0.0).is_nan());
 }
+
+#[test]
+fn test_carlson_huge_and_tiny_args() {
+    let p = |k| 2.0_f64.powi(k);
+    // the tiny imaginary part must not be flushed to 0
+    let rd_c = xsf::elliprd(c64(p(400), 0.0), c64(p(400), 0.0), c64(-p(400), p(-1000)));
+    let actual = [
+        xsf::elliprg(5.17e139, 2.97e11, 1.55e225),
+        xsf::elliprj(1e-200, 2e-200, 3e-200, 4e-200),
+        // the smallest argument must not become subnormal
+        xsf::elliprd(p(300), p(300), 9.332_636_185_032_187e-302),
+        // `x * y` underflows
+        xsf::elliprj(p(-540), p(-540), p(250), p(-550)),
+        rd_c.re,
+        rd_c.im,
+    ];
+    let expected = [
+        1.968_501_968_502_952_7e112,
+        2.398_480_997_495_677_7e299,
+        4.820_814_132_776_971_4e60,
+        8.806_214_172_946_52e125,
+        -4.015_121_944_122_943e-181,
+        -1.361_995_467_683_141e-181,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}

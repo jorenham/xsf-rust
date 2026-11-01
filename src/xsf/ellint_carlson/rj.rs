@@ -238,6 +238,11 @@ mod rjimpl {
          * singularity as p -> +0 */
         if abs_close_zero(p) || ((x != 0.0) && asymp_zero(p / x)) {
             conf.f = (x * y * z).sqrt();
+            // Unlike in xsf, the square roots are multiplied if the computed `f` isn't normal,
+            // e.g. R_J(2^-540, 2^-540, 2^250, 2^-550) was 6.3e126 (not 8.8e125).
+            if !conf.f.is_normal() {
+                conf.f = x.sqrt() * y.sqrt() * z.sqrt();
+            }
             return AsymFlag::Tinyp;
         }
 
@@ -321,6 +326,13 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         return (ExitStatus::BadRerr, T::NAN);
     }
 
+    // Unlike in xsf, huge or tiny arguments are rescaled (homogeneity), see `common::scale_factor`,
+    // but not downscaled below 2^-254, so that products such as `beta` below don't underflow.
+    if let Some(f) = common::scale_factor(&[x, y, z, p], 2.0_f64.powi(-254)) {
+        let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
+        return (status, res * f * f * f);
+    }
+
     /* Put the symmetric arguments in the order of real parts. */
     cct1[0] = x;
     cct1[1] = y;
@@ -386,6 +398,11 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 alpha *= alpha;
                 let mut beta = pr + lamt;
                 beta = beta * beta * pr;
+                // Unlike in xsf, NaN is returned if alpha or beta overflow, instead of dropping
+                // the R_C term, so that e.g. R_J(2^-995, 2^692, 2^913, 2^-579) isn't 0.
+                if !(alpha.is_finite() && beta.is_finite()) {
+                    return (ExitStatus::Overflow, T::NAN);
+                }
                 let status_tmp;
                 (status_tmp, xct2[0]) = rc(alpha, beta, r);
                 (status, xct2[1]) = rj(xr + lamt, yr + lamt, zr + lamt, pr + lamt, r, false);
