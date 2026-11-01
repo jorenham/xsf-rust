@@ -146,4 +146,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: cargo test
-        run: cargo test --verbose --profile ${{ matrix.profile }} -- --nocapture
+        shell: bash
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: cargo test --verbose --profile "$PROFILE" -- --nocapture
