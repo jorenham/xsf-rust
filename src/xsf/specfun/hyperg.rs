@@ -436,9 +436,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         }
         hu1 = hu;
     }
-    // Unlike in xsf, chgul is also tried if no method below applies, where `id` stayed -100,
-    // e.g. `hypu(-9.596157126249977, 8.220449743267231, 29.368858516382556)` was NaN. Not for
-    // |a| < 1.1e-16, where `a + 1 - 1` rounds to 0 in chgul.
+    // Unlike in xsf (scipy/xsf#380), chgul is also tried if no method below applies (not for
+    // |a| < 1.1e-16, where `a + 1 - 1` rounds to 0 in chgul)
     let il4 = a < 1.0 && b > a && bn == 0 && a + 1.0 != 1.0;
     if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
         hu = chgul(x, a, b, &mut id);
@@ -791,8 +790,8 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // DLMF 13.4.4 with substitution t=C/(1-u)
     // integration u from 0 to 1, i.e. t from C=12/X to infinity
     let mut hu2 = 0.0;
-    // Unlike in xsf, a non-finite integrand (0 * inf for large t and a) is recomputed in log
-    // space, unless b is infinite or Gamma(a) overflows (a > 171)
+    // Unlike in xsf (scipy/xsf#380), a non-finite integrand (0 * inf) is recomputed in log space,
+    // unless b is infinite or Gamma(a) overflows (a > 171)
     let log_space = b1.is_finite() && a < 171.0;
     for m in (2..=10).step_by(2) {
         hu2 = 0.0;
@@ -887,10 +886,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             hu += r;
             rmax = rmax.max(ra);
         }
-        // Unlike in xsf, the error estimate is relative to min(|sum|, 1), and includes the rounding
-        // of the largest term, since `(int)fabs(log10(ra))` is wrong for a diverging series or a
-        // small sum, e.g. `hypu(-19.286898919510595, 0.5, 37.822730221617014)` had id = 16 but
-        // lost 11 digits.
+        // Unlike in xsf (scipy/xsf#380), the error estimate is relative to min(|sum|, 1), and
+        // includes the rounding of the largest term
         //
         // NOTE: the `int` conversion is UB in C++ if the estimate is not finite; here it
         // saturates (0 for NaN).
@@ -932,10 +929,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = 1e300;
     let mut h0 = 0.0;
-    // Unlike in xsf, the series are not considered converged before j > |b - 1| (if < 150), where
-    // the terms can grow again, and if they don't converge, the id is capped by the last terms,
-    // e.g. `hypu(-1.2809419979754852, 70.67619263994922, 126.75741161770794)` was -666.1
-    // (id = 9) instead of 172.0.
+    // Unlike in xsf (scipy/xsf#380), the series are not considered converged before
+    // j > |b - 1| (if < 150), and if they don't converge, the id is capped by the last terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     for j in 1..151 {
