@@ -88,7 +88,26 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         let dn = 1.0 - 0.5 * m * t * t;
         return (sn, cn, dn, ph);
     }
-    if m >= 0.999_999_999_9 {
+    // Unlike in xsf, m = 1 is handled separately, and the first-order expansion in 1 - m below is
+    // only used if x = (1 - m) cosh(u) is small. Otherwise the AGM is used.
+    //
+    // - Its error was observed to grow like x^2, e.g. 3e-8 at x = 1e-3, where the AGM's is ~1e-9.
+    // - For |u| > 355, `twon` overflows, so the results were NaN or inf, even for m = 1 (0 * inf).
+    //
+    // E.g. ellpj(-607.2815430467333, 0.9999999999994756) was (NaN, -inf, inf, -inf).
+    #[allow(clippy::float_cmp)]
+    if m == 1.0 {
+        // sech(u), also for |u| > 710 where cosh(u) overflows
+        let b = u.cosh();
+        let phi = if b.is_finite() {
+            1.0 / b
+        } else {
+            let t = (-0.5 * u.abs()).exp();
+            2.0 * t * t
+        };
+        return (u.tanh(), phi, phi, 2.0 * u.exp().atan() - FRAC_PI_2);
+    }
+    if m >= 0.999_999_999_9 && (1.0 - m) * u.cosh() < 1e-3 {
         let mut ai = 0.25 * (1.0 - m);
         let b = u.cosh();
         let t = u.tanh();

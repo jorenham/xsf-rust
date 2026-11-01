@@ -50,3 +50,78 @@ fn test_ellipj() {
         (sn, cn, dn, am.sin().asin())
     });
 }
+
+#[test]
+fn test_ellipj_near_1() {
+    // m close to 1 with large |u| (reference values from mpmath)
+    for (u, m, expected, rtol) in [
+        (
+            -607.281_543_046_733_3,
+            0.999_999_999_999_475_6,
+            [
+                0.999_999_999_997_620_9,
+                2.181_313_477_196_956_8e-6,
+                2.298_366_119_731_372e-6,
+                -61.261_058_926_314_45,
+            ],
+            1e-8,
+        ),
+        (
+            30.0,
+            0.999_999_999_999_9,
+            [
+                0.991_112_190_818_886_4,
+                -0.133_028_663_115_087_02,
+                0.133_028_663_115_456_34,
+                1.704_220_507_506_328_7,
+            ],
+            1e-14,
+        ),
+        (
+            // just above the cutoff of the expansion in 1 - m, which has a rel. error of 4.5e-8 here
+            21.5988,
+            0.999_999_999_999,
+            [
+                0.999_999_954_996_353_5,
+                -3.000_121_513_706_456e-4,
+                3.000_138_179_281_605_5e-4,
+                1.571_096_338_950_767_8,
+            ],
+            1e-9,
+        ),
+        (
+            -400.0,
+            1.0,
+            [
+                -1.0,
+                3.830_339_193_428_011_4e-174,
+                3.830_339_193_428_011_4e-174,
+                -core::f64::consts::FRAC_PI_2,
+            ],
+            1e-14,
+        ),
+        (
+            720.0,
+            1.0,
+            [
+                1.0,
+                4.064_461_604_84e-313,
+                4.064_461_604_84e-313,
+                core::f64::consts::FRAC_PI_2,
+            ],
+            1e-10,
+        ),
+    ] {
+        let (sn, cn, dn, ph) = xsf::ellipj(u, m);
+        for (got, expected) in [sn, cn, dn, ph].into_iter().zip(expected) {
+            let rel = (got - expected).abs() / expected.abs();
+            assert!(
+                rel < rtol,
+                "ellipj({u}, {m}): {got} != {expected} (rel = {rel:e})"
+            );
+        }
+    }
+    // the smallest subnormal sech(u)
+    let (_, cn, dn, _) = xsf::ellipj(-745.5, 1.0);
+    assert_eq!((cn, dn), (f64::from_bits(1), f64::from_bits(1)));
+}
