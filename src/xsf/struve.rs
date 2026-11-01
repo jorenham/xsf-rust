@@ -196,12 +196,15 @@ fn itsl0(x: f64) -> f64 {
     // Output:  TL0 --- Integration of L0(t) from 0 to x
     // ===========================================================
 
-    let mut a = [0.0; 18];
+    let mut a = [0.0; 25];
     let mut s;
     let tl0;
     let el = 0.57721566490153;
     let mut r = 1.0;
-    if x <= 20.0 {
+    // Unlike in xsf, sum the series up to eps and use it up to x = 40 (instead of 20), beyond
+    // which 25 (instead of 10) asymptotic terms reach eps, e.g.
+    // `itmodstruve0(21.281112146816426)` was 155893841.987 instead of 155893845.553.
+    if x <= 40.0 {
         s = 0.5;
         for k in 1..101 {
             let rd = if k == 1 { 0.5 } else { 1.0 };
@@ -209,7 +212,7 @@ fn itsl0(x: f64) -> f64 {
             let t = x / (2.0 * k + 1.0);
             r = r * rd * k / (k + 1.0) * (t * t);
             s += r;
-            if (r / s).abs() < 1.0e-12 {
+            if (r / s).abs() < f64::EPSILON {
                 break;
             }
         }
@@ -229,7 +232,7 @@ fn itsl0(x: f64) -> f64 {
         let mut a0 = 1.0;
         let mut a1 = 5.0 / 8.0;
         a[0] = a1;
-        for k in 1_u32..11 {
+        for k in 1_u32..25 {
             let kf = f64::from(k);
             let af = (1.5 * (kf + 0.50) * (kf + 5.0 / 6.0) * a1
                 - 0.5 * ((kf + 0.5) * (kf + 0.5)) * (kf - 0.5) * a0)
@@ -240,7 +243,7 @@ fn itsl0(x: f64) -> f64 {
         }
         let mut ti = 1.0;
         r = 1.0;
-        for k in 1..11 {
+        for k in 1..26 {
             r /= x;
             ti += a[k - 1] * r;
         }

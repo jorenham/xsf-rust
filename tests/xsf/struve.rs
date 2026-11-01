@@ -41,6 +41,21 @@ fn test_itmodstruve0_f64() {
 }
 
 #[test]
+fn test_itmodstruve0_series_asymptotic() {
+    // series for x <= 40, asymptotic expansion beyond (reference values from mpmath)
+    for (x, expected) in [
+        (12.5, 32_045.561_159_494_297),
+        (21.281_112_146_816_426, 155_893_845.553_037_7),
+        (37.5, 1.280_693_999_522_079e15),
+        (45.0, 2.107_522_588_189_009_7e18),
+        (110.0, 2.265_187_556_512_247_2e46),
+    ] {
+        let rel = (xsf::itmodstruve0(x) - expected).abs() / expected;
+        assert!(rel < 4e-15, "itmodstruve0({x}): rel = {rel:e}");
+    }
+}
+
+#[test]
 fn test_struve_h_f64() {
     xsref::test("struve_h", "d_d-d", |x| xsf::struve_h(x[0], x[1]));
 }
