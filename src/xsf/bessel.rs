@@ -206,6 +206,11 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
             cy_k.re *= (-2.0 * z.re).exp();
             cy_k.im *= (-2.0 * z.re).exp();
         }
+        // Unlike in xsf, an AMOS overflow of K_v(x) is inf instead of NaN, so I_{-v}(x) is +-inf,
+        // e.g. `bessel_ie(-10.25, 1e-100)` was NaN instead of inf.
+        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+            cy_k = c64(f64::INFINITY, 0.0);
+        }
         /* v -> -v */
         cy = rotate_i(cy, cy_k, v);
     }
@@ -389,6 +394,11 @@ fn cyl_bessel_je_c64(mut v: f64, z: Complex64) -> Complex64 {
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
         nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
         set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
+        // Unlike in xsf, an AMOS overflow of Y_v(x) is -inf instead of NaN, so J_{-v}(x) is +-inf,
+        // e.g. `bessel_je(-10.25, 1e-100)` was NaN instead of inf.
+        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+            cy_y = c64(f64::NEG_INFINITY, 0.0);
+        }
         cy_j = rotate_jy(cy_j, cy_y, v);
     }
     cy_j
@@ -423,7 +433,9 @@ fn cyl_bessel_ye_c64(mut v: f64, z: Complex64) -> Complex64 {
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
     if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
         /* overflow */
-        cy_y.re = f64::INFINITY;
+        // Unlike in xsf, -inf (like `cyl_bessel_y_c64`) instead of inf, since Y_v(x) < 0 for
+        // small x, e.g. `bessel_ye(10.0, 1e-100)` was inf instead of -inf.
+        cy_y.re = f64::NEG_INFINITY;
         cy_y.im = 0.0;
     }
 
