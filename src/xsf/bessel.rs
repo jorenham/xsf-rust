@@ -140,10 +140,16 @@ fn rotate(z: Complex64, v: f64) -> Complex64 {
     c64(c * z.re - s * z.im, s * z.re + c * z.im)
 }
 
+#[allow(clippy::float_cmp)]
 fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
     let s = cephes_sinpi(v);
 
+    // Unlike in xsf, drop `c * j` if c = 0 (half-integer v) and j is an AMOS overflow inf, as
+    // 0 * inf = NaN, e.g. `bessel_ye(-2.5, 1e-200)` was NaN (`bessel_y` -inf) instead of 5.3e-502.
+    if c == 0.0 && j.is_infinite() {
+        return -s * y;
+    }
     c * j - s * y
 }
 
