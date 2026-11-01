@@ -154,7 +154,7 @@ pub(crate) fn fresnl(xxa: f64) -> (f64, f64) {
     let (mut cc, mut ss) = 'done: {
         let x = xxa.abs();
         let x2 = x * x;
-        // Unlike in xsf (scipy/xsf#363), this also catches finite x >= 2^512, where x * x
+        // Unlike in xsf (scipy/xsf#386), this also catches finite x >= 2^512, where x * x
         // overflows, e.g. fresnel(1e155) was (NaN, NaN). The 1 / (pi x) terms are negligible there.
         if x2.is_infinite() {
             break 'done (0.5, 0.5);
