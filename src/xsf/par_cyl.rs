@@ -181,9 +181,9 @@ fn vvsa(x: f64, va: f64) -> f64 {
             let gw = fac * sv + 1.0;
             let r1 = gw * r * gm;
             pv += r1;
-            // Unlike in xsf, the convergence test ignores the weight `gw` (instead of only
-            // skipping `gw == 0`): for `va` near an integer, every other `gw` is tiny, which
-            // stopped the loop too early.
+            // Unlike in xsf (scipy/xsf#374), the convergence test ignores the weight `gw`
+            // (instead of only skipping `gw == 0`): for `va` near an integer, every other `gw` is
+            // tiny, which stopped the loop too early.
             //
             // E.g. `pbvv(2.00000001, 7.0251687981058035).0` was 1.8e-4 instead of 601.28.
             if (r * gm / pv).abs() < eps {
@@ -410,9 +410,9 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f1 = f;
         }
     } else if ((x >= 0.0) && (x <= 7.5)) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
-        // Unlike in xsf, this branch, which evaluates `vvsa` at the orders v and v - 1, is also
-        // used for 7.5 < |x| <= 10 and v <= x^2 / 2 (here v is the order + 1). There, the 250
-        // terms of `vvsa` suffice and barely cancel, whereas xsf uses `vvla`:
+        // Unlike in xsf (scipy/xsf#374), this branch, which evaluates `vvsa` at the orders v and
+        // v - 1, is also used for 7.5 < |x| <= 10 and v <= x^2 / 2 (here v is the order + 1).
+        // There, the 250 terms of `vvsa` suffice and barely cancel, whereas xsf uses `vvla`:
         //
         // - for x > 7.5, with Miller's backward recurrence, which hasn't converged to V_v there;
         // - for x < -7.5, with the upward recurrence, which is unstable, and `vvla` is wrong for
@@ -682,8 +682,9 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf, D_v(x) and D_{v+1}(x) are computed directly with the series `dvsa` for
-    // -10 <= x < -5.8 and 0 < v < x^2 / 3. There, xsf uses `dvla` and the upward recurrence:
+    // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
+    // `dvsa` for -10 <= x < -5.8 and 0 < v < x^2 / 3. There, xsf uses `dvla` and the upward
+    // recurrence:
     //
     // - `dvla` is only accurate to ~1e-4 near x = -5.8;
     // - the upward recurrence is unstable for x < 0, e.g. it amplifies errors by ~1e11 from
