@@ -929,10 +929,12 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = 1e300;
     let mut h0 = 0.0;
-    // Unlike in xsf (scipy/xsf#380), the series are not considered converged before
-    // j > |b - 1| (if < 150), and if they don't converge, the id is capped by the last terms
+    // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
+    // or j > 1 - b + x if b < 1 (the r1 terms grow until about then), and the id of unconverged
+    // series is capped by the remaining terms, e.g. `hypu(0.2, -138.4, 40.4)` was 25.65.
     let mut converged = false;
     let jmin = (b - 1.0).abs();
+    let jconv = if b < 1.0 { jmin + x } else { jmin };
     for j in 1..151 {
         r1 = r1 * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
@@ -944,7 +946,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if hua < hmin {
             hmin = hua;
         }
-        if (f64::from(j) > jmin || jmin >= 150.0) && (hu - h0).abs() < hu.abs() * 1e-15 {
+        if (f64::from(j) > jconv || jmin >= 150.0) && (hu - h0).abs() < hu.abs() * 1e-15 {
             converged = true;
             break;
         }
@@ -959,7 +961,15 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // GCC/x86: INT_MIN, same as the saturated i32::MIN here) if `hmax` is 0 or inf.
     *id = (15.0 - (if d1 - d2 < 0.0 { d2 - d1 } else { d1 - d2 })) as i32;
     if !converged {
-        *id = (*id).min((-((r1 - r2) / hu).abs().log10()) as i32);
+        // the last terms, and the r1 terms that still grow (up to j = 300)
+        let mut rmax = (r1 - r2).abs();
+        let mut j = 151.0;
+        while j <= jconv && j <= 300.0 {
+            r1 = r1 * (a + j - 1.0) / (j * (b + j - 1.0)) * x;
+            rmax = rmax.max(r1.abs());
+            j += 1.0;
+        }
+        *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
     hu
 }
