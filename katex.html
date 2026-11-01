@@ -1,23 +1,23 @@
 <link
   rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/katex@0.16.43/dist/katex.min.css"
-  integrity="sha384-GN/+TZ6J/TdzuQrKFjIgwzaM0nkbGRiCBnJ9i+CmaynUcJDRE3u6Frp/8oj/lBze"
+  href="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/katex.min.css"
+  integrity="sha384-WwGtaC6ywCHxA5cstpj/3+xIZvTez8dq2IcBQaXRkenHZ7FVVq1ZROtURwfbtTlG"
   crossorigin="anonymous"
 >
 <script
-  src="https://cdn.jsdelivr.net/npm/katex@0.16.43/dist/katex.min.js"
-  integrity="sha384-I/76u4uGYb2jZizpHGbumq1RzC/CknJIAamvKNrTumsehWnS4xX0FFQvlX0I2s/n"
+  src="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/katex.min.js"
+  integrity="sha384-a1WQdjRj162i159OYq041X6I4K8NenkrI09LlPmiHg0YOb7CR+wJOraXwK9abpnE"
   crossorigin="anonymous"
 >
 </script>
 <script
-  src="https://cdn.jsdelivr.net/npm/katex@0.16.43/dist/contrib/auto-render.min.js"
+  src="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/contrib/auto-render.min.js"
   integrity="sha384-bjyGPfbij8/NDKJhSGZNP/khQVgtHUE5exjm4Ydllo42FwIgYsdLO2lXGmRBf5Mz"
   crossorigin="anonymous"
 >
 </script>
 <script
-  src="https://cdn.jsdelivr.net/npm/katex@0.16.43/dist/contrib/copy-tex.min.js"
+  src="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/contrib/copy-tex.min.js"
   integrity="sha384-Pe2JWbaShhSRT0SESJ9XLPeAsi4yrNi7r/CiH0Coq7giBjK5a6Ae7XcybE8rNlQP"
   crossorigin="anonymous"
 >
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "\\rpow": String.raw`\left(#1\right)^{\smash{+}}_{#2}`,
 
       // hypergeometric functions
-      "\\hyp": String.raw`{}_#1F_#2\left[{#3 \atop #4} \middle| \, {#5} \right]`,
+      "\\hyp": String.raw`{}_#1F_#2\left[{{#3} \atop {#4}} \middle| \, {#5} \right]`,
 
       // some missing "physics" tex package commands
       "\\dd": String.raw`\,\mathrm{d}`,
