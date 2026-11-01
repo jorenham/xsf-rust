@@ -22,6 +22,26 @@ fn test_bivariate_normal_cdf() {
     let actual = hkr.map(|(h, k, r)| xsf::bivariate_normal_cdf(h, k, r));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 
+    // tails, with the same mpmath reference
+    let hkr = [
+        (-9.7, -5.1, -0.91),
+        (-7.1, -9.9, -0.85),
+        (-2.0, -3.0, -0.5),
+        (-9.7, -8.9, 0.29),
+        (-2.74e-7, -2.74e-7, -0.999_999_999_999_999_9),
+        (-9.96, -1.37, 0.277),
+    ];
+    let expected = [
+        2.024_467_204_119_687e-270,
+        2.122_919_138_611_580_3e-214,
+        2.070_170_677_124_85e-8,
+        1.891_416_212_000_242_4e-32,
+        3.650_845_087_604_527e-306,
+        1.060_108_852_508_866_8e-23,
+    ];
+    let actual = hkr.map(|(h, k, r)| xsf::bivariate_normal_cdf(h, k, r));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
     // orthant probability
     for r in [-1.0, -0.8, -0.5, 0.0, 0.5, 0.95, 1.0] {
         let p = xsf::bivariate_normal_cdf(0.0, 0.0, r);

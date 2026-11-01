@@ -117,6 +117,79 @@ const BVN_X20: [f64; 10] = [
     0.076_526_521_133_497_32,
 ];
 
+// Nodes and weights of the 20-point Gauss-Laguerre rule on [0, inf), with weight e^-t.
+const BVN_LAGUERRE_X20: [f64; 20] = [
+    0.070_539_889_691_988_75,
+    0.372_126_818_001_611_46,
+    0.916_582_102_483_273_5,
+    1.707_306_531_028_344,
+    2.749_199_255_309_432,
+    4.048_925_313_850_887,
+    5.615_174_970_861_616_5,
+    7.459_017_453_671_064,
+    9.594_392_869_581_096,
+    12.038_802_546_964_316,
+    14.814_293_442_630_74,
+    17.948_895_520_519_375,
+    21.478_788_240_285_01,
+    25.451_702_793_186_904,
+    29.932_554_631_700_61,
+    35.013_434_240_479,
+    40.833_057_056_728_57,
+    47.619_994_047_346_5,
+    55.810_795_750_063_896,
+    66.524_416_525_615_75,
+];
+const BVN_LAGUERRE_W20: [f64; 20] = [
+    0.168_746_801_851_113_88,
+    0.291_254_362_006_068_3,
+    0.266_686_102_867_001_3,
+    0.166_002_453_269_506_83,
+    0.074_826_064_668_792_37,
+    0.024_964_417_309_283_22,
+    0.006_202_550_844_572_237,
+    0.001_144_962_386_476_908_2,
+    0.000_155_741_773_027_811_97,
+    1.540_144_086_522_491_5e-5,
+    1.086_486_366_517_982_4e-6,
+    5.330_120_909_556_714_6e-8,
+    1.757_981_179_050_582e-9,
+    3.725_502_402_512_320_6e-11,
+    4.767_529_251_578_191e-13,
+    3.372_844_243_362_438_6e-15,
+    1.155_014_339_500_398_9e-17,
+    1.539_522_140_582_343_5e-20,
+    5.286_442_725_569_158e-24,
+    1.656_456_612_499_023_3e-28,
+];
+
+/// `P(X > h, Y > k)` by Gauss-Laguerre quadrature, if `-1 < r < 1`, `h > r k` and `k > r h`
+/// (i.e. the density on the region peaks at its corner `(h, k)`), and `d > 5` (see below).
+/// Returns `None` otherwise.
+///
+/// - Since `h + k > 0`, `P = 0` at `r = -1`, so Plackett's identity gives
+///   `P = int_-1^r phi2(h, k; s) ds`.
+/// - The exponent of `phi2` is `a / (1 + s) + b / (1 - s)`, with `a = (h + k)^2 / 4` and
+///   `b = (h - k)^2 / 4`.
+/// - Substituting `1 / (1 + s) = 1 / (1 + r) + t / a` gives `int_0^inf e^-t f(t) dt`, with no
+///   cancellation, and `f` smooth if `d = a (1 - r) / (2 (1 + r))` is large: its nearest
+///   singularity is at `t = -d`. For `d > 5`, the quadrature error is ~1e-14 (plus the
+///   rounding error of the exponent, ~1e-13 for tiny `P`).
+fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
+    if !(r > -1.0 && h > r * k && k > r * h && (h + k) * (h + k) * (1.0 - r) > 40.0 * (1.0 + r)) {
+        return None;
+    }
+    let a = (h + k) * (h + k) / 4.0;
+    let b = (h - k) * (h - k) / 4.0;
+    let w0 = 1.0 / (1.0 + r);
+    let mut sum = 0.0;
+    for (&t, &wt) in BVN_LAGUERRE_X20.iter().zip(&BVN_LAGUERRE_W20) {
+        let w = w0 + t / a;
+        sum += wt * (-a * w0 - b * w / (2.0 * w - 1.0)).exp() / (a * w * (2.0 * w - 1.0).sqrt());
+    }
+    Some(sum / (2.0 * PI))
+}
+
 /// Cumulative distribution function of the standard bivariate normal distribution
 ///
 /// Returns $P(X \le h, Y \le k)$, with $h$ = `dh` and $k$ = `dk`, for a standard bivariate
@@ -164,16 +237,27 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     if let Some(p) = bivariate_normal_sf_boundary(dh, dk, r) {
         return p;
     }
+    // Unlike in xsf, the tail where the density peaks at the corner (h, k) is computed with a
+    // dedicated rule. xsf loses accuracy there:
+    //
+    // - for r < 0, the terms cancel, e.g. `(-9.7, -5.1, -0.91)` gave 6.0e-40, not 2.0e-270;
+    // - for r > 0, its quadrature misses the peak, e.g. `(-9.7, -8.9, 0.29)` had error 2e-4.
+    if let Some(p) = bivariate_normal_sf_tail(dh, dk, r) {
+        return p;
+    }
     // else, tp = 2*pi; h = dh; k = dk; hk = h*k; bvn = 0;
     let tp = 2.0 * PI;
     let h = dh;
     let mut k = dk;
     let mut hk = h * k;
     let mut bvn = 0.0;
-    let (w, x): (&[f64], &[f64]) = if r.abs() < 0.3 {
+    // Unlike in xsf, the 20-point rule is also used if `|r| (h^2 + k^2) > 2`, where the
+    // integrand varies too much for fewer points, e.g. `(-9.96, -1.37, 0.277)` had error 2.4e-7.
+    let tail = r.abs() * (h * h + k * k) > 2.0;
+    let (w, x): (&[f64], &[f64]) = if r.abs() < 0.3 && !tail {
         // Gauss Legendre points and weights, n = 6
         (&BVN_W6, &BVN_X6)
-    } else if r.abs() < 0.75 {
+    } else if r.abs() < 0.75 && !tail {
         // Gauss Legendre points and weights, n = 12
         (&BVN_W12, &BVN_X12)
     } else {
