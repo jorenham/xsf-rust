@@ -780,6 +780,53 @@ pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
 // Hermite He (probabilists')
 //
 
+/// `H_n(x)` (`scale = 1`) or `He_n(x)` (`scale = 1/2`), for `x > 0` and non-integer `n > 0`:
+///
+/// - start at `v = n - ceil(n) - 3` and `v + 1`, with the integral of DLMF 12.5.1
+///   `y_v(x) = 1/Gamma(-v) int_0^inf t^(-v-1) exp(-scale t^2 - 2 scale x t) dt`
+/// - evaluate it by the trapezoidal rule in `u = ln(t / t0)`, with `t0` the peak of the integrand
+/// - recur forward to `n` with `y_{v+1} = 2 scale (x y_v - v y_{v-1})` (DLMF 12.8.1)
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
+    const H: f64 = 0.1;
+    // the terms for u < 0 only shrink by exp(-k H) < 0.75 per step, so their tail is < 4x the last
+    const TOL: f64 = f64::EPSILON / 16.0;
+
+    let m = n.ceil() + 3.0;
+    let k = m - n;
+    let sx = scale * x;
+    let t0 = k / (sx + (sx * sx + 2.0 * scale * k).sqrt());
+    let (a, b) = (scale * t0 * t0, 2.0 * sx * t0);
+
+    // the integrands for v and v + 1, relative to those at t0
+    let integrands = |u: f64| {
+        let e = u.exp();
+        let g = (k * u - a * (e * e - 1.0) - b * (e - 1.0)).exp();
+        (g, g / e)
+    };
+
+    // their sums over u = 0, H, 2H, ... and u = -H, -2H, ..., each until the terms are negligible
+    let mut s = (0.0, 0.0);
+    for (i0, du) in [(0, H), (1, -H)] {
+        for i in i0.. {
+            let (g0, g1) = integrands(f64::from(i) * du);
+            s = (s.0 + g0, s.1 + g1);
+            if g0 < TOL * s.0 && g1 < TOL * s.1 {
+                break;
+            }
+        }
+    }
+
+    // y_v and y_{v+1} for v = -k, and then the recurrence up to v = n
+    let c = H * t0.powf(k) * (-a - b).exp() / crate::gamma(k);
+    let y = (c * s.0, c * s.1 * (k - 1.0) / t0);
+    let (_, yn) = (1..m as u32).rev().fold(y, |(y0, y1), j| {
+        let v = n - f64::from(j);
+        (y1, 2.0 * scale * (x * y1 - v * y0))
+    });
+    yn
+}
+
 #[inline]
 fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     if x.is_nan() || n.is_nan() {
@@ -808,6 +855,16 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
         SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
     } else {
+        // Unlike in SciPy, use `hermite_rec` for non-integer n > 0 and x > 0, where `hypu` below
+        // has relative errors of up to 1e-6.
+        //
+        // E.g. `eval_hermite_h(55.5, 3.5)` was 2.862819e47 instead of 2.862818e47.
+        if (0.0..1e4).contains(&x) && (0.0..1e3).contains(&n) && n.fract() != 0.0 {
+            let h = hermite_rec(x, n, scale);
+            if h.is_finite() {
+                return h;
+            }
+        }
         let c = if x.is_sign_positive() {
             (scale * n).exp2()
         } else {
@@ -1303,20 +1360,24 @@ mod tests {
 
     #[test]
     fn test_eval_hermite_real_degree_pos_x() {
-        // mpmath; these were NaN (the tolerance is limited by the accuracy of `hypu`)
+        // mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
         let h = [
             eval_hermite_h(41.745_832_381_668_095, 7.361_880_522_197_993),
             eval_hermite_h(41.400_084_684_563_09, 5.996_470_470_350_591),
             eval_hermite_he(38.573_797_839_021_19, 8.697_439_878_678_9),
             eval_hermite_he(24.5, 3.0),
+            eval_hermite_h(46.801_133_288_584_765, 3.655_511_435_592_377),
+            eval_hermite_he(44.794_714_303_748_03, 5.925_757_848_223_792_5),
         ];
         let h_expected = [
-            1.160_090_641_113_992_2e43,
-            -1.200_809_248_211_903_5e38,
-            3.492_391_969_649_305_4e27,
+            1.160_090_641_113_988e43,
+            -1.200_809_248_211_909_1e38,
+            3.492_391_969_655_658_3e27,
             1_012_043_943_914.947,
+            4.759_278_617_763_297e38,
+            1.611_367_905_027_905_8e31,
         ];
-        np_assert_allclose!(h, h_expected, rtol = 1e-8);
+        np_assert_allclose!(h, h_expected, rtol = 1e-12);
     }
 
     #[test]
