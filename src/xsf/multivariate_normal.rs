@@ -237,11 +237,8 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     if let Some(p) = bivariate_normal_sf_boundary(dh, dk, r) {
         return p;
     }
-    // Unlike in xsf, the tail where the density peaks at the corner (h, k) is computed with a
-    // dedicated rule. xsf loses accuracy there:
-    //
-    // - for r < 0, the terms cancel, e.g. `(-9.7, -5.1, -0.91)` gave 6.0e-40, not 2.0e-270;
-    // - for r > 0, its quadrature misses the peak, e.g. `(-9.7, -8.9, 0.29)` had error 2e-4.
+    // Unlike in xsf (scipy/xsf#360), the tail where the density peaks at the corner (h, k) is
+    // computed without cancellation, see `bivariate_normal_sf_tail`
     if let Some(p) = bivariate_normal_sf_tail(dh, dk, r) {
         return p;
     }
@@ -251,8 +248,7 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     let mut k = dk;
     let mut hk = h * k;
     let mut bvn = 0.0;
-    // Unlike in xsf, the 20-point rule is also used if `|r| (h^2 + k^2) > 2`, where the
-    // integrand varies too much for fewer points, e.g. `(-9.96, -1.37, 0.277)` had error 2.4e-7.
+    // Unlike in xsf (scipy/xsf#360), the 20-point rule is also used in the tail
     let tail = r.abs() * (h * h + k * k) > 2.0;
     let (w, x): (&[f64], &[f64]) = if r.abs() < 0.3 && !tail {
         // Gauss Legendre points and weights, n = 6
