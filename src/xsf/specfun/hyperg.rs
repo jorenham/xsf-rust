@@ -765,6 +765,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 }
 
 #[allow(
+    clippy::float_cmp,
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines,
@@ -853,19 +854,30 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
     let c = 12.0 / x;
+    let f = |t: f64| (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
+    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 3, which smooths the endpoint
+    // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
+    //
+    // e.g. U(1.1, 0.5, 15) = 0.045763173934103 instead of 0.045763206361933
+    let cubic = a < 3.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
     for m in (10..=100).step_by(5) {
         hu1 = 0.0;
-        let g = 0.5 * c / f64::from(m);
+        let g = if cubic { 0.5 } else { 0.5 * c } / f64::from(m);
         let mut d = g;
         for _j in 1..=m {
             let mut s = 0.0;
             for k in 1..=30 {
                 let t1 = d + g * T[k - 1];
                 let t2 = d - g * T[k - 1];
-                let f1 = (-x * t1).exp() * t1.powf(a1) * (1.0 + t1).powf(b1);
-                let f2 = (-x * t2).exp() * t2.powf(a1) * (1.0 + t2).powf(b1);
+                let (f1, f2) = if cubic {
+                    // t1 and t2 are u here, and dt = 3 c u^2 du
+                    let (v1, v2) = (c * t1 * t1, c * t2 * t2);
+                    (3.0 * v1 * f(v1 * t1), 3.0 * v2 * f(v2 * t2))
+                } else {
+                    (f(t1), f(t2))
+                };
                 s += W[k - 1] * (f1 + f2);
             }
             hu1 += s * g;
