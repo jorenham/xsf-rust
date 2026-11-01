@@ -113,6 +113,27 @@ fn test_hypu_poly() {
 }
 
 #[test]
+fn test_hypu_small_a() {
+    // mpmath; 0.045763206, 0.067619064, and 7.5410439102e-4 in xsf
+    let abx = [
+        (1.1, 0.5, 15.0),
+        (
+            1.088_244_511_969_767_5,
+            -2.443_990_400_454_129_7,
+            7.704_068_190_231_311,
+        ),
+        (2.5, 0.5, 15.0),
+    ];
+    let expected = [
+        0.045_763_173_934_103_04,
+        0.067_618_993_534_387_55,
+        0.000_754_104_391_072_057_4,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hypu_large_a() {
     // mpmath; NaN in xsf
     let actual = xsf::hypu(
