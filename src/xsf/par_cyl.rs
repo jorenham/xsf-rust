@@ -855,6 +855,21 @@ fn pbdv_elementary(v: f64, x: f64) -> (f64, f64) {
     )
 }
 
+/// `D_v(x)`, `D_v'(x)` for `|v| < 20` and `x > 0`, by `D_{w+1} = x D_w - w D_{w-1}` (12.8.1) from
+/// `pbdv_elementary` at `w = v - n` in `(-21, -20]`, which is stable for increasing `w`
+#[allow(clippy::cast_possible_truncation)]
+fn pbdv_recur(v: f64, x: f64) -> (f64, f64) {
+    let n = (v + 20.0).ceil();
+    let w = v - n;
+    // D_{w+1} = x / 2 D_w - D_w' (12.8.3)
+    let (mut d0, dp) = pbdv_elementary(w, x);
+    let mut d1 = 0.5 * x * d0 - dp;
+    for k in 1..=n as i32 {
+        (d0, d1) = (d1, x * d1 - (w + f64::from(k)) * d0);
+    }
+    (d0, 0.5 * x * d0 - d1)
+}
+
 /// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by the Maclaurin series, with the
 /// values at `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact, and
 /// `w'' = (x^2 / 4 - v - 1/2) w` (12.2.2)
@@ -1039,6 +1054,20 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
+    }
+    // Unlike in xsf, the same is done for -30 <= v < 0 (where the terms of `dvsa` are positive;
+    // not for tiny |v|, where it stops too early), since `dvla` loses up to 1e-7 there (more near
+    // v = 0), e.g. `pbdv(-0.01, -5.9).0` was 26.98963583 instead of 26.98963443.
+    if (-30.0..-1e-15).contains(&v) && (-10.0..-5.8).contains(&x) {
+        let pdf = dvsa(x, v);
+        // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in `dvsa(x, v + 1)`
+        return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
+    }
+    // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
+    // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
+    // `pbdv(-2.5, 5.9).0` was 1.7541561989e-6 instead of 1.7541561955e-6.
+    if v.abs() < 20.0 && x < 12.0 && x > if v < 0.0 { 1.0 } else { 4.5 } {
+        return pbdv_recur(v, x);
     }
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
