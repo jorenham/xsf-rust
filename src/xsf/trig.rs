@@ -344,7 +344,7 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     if cotflg {
         if x <= 90.0 {
             // Unlike in xsf (scipy/xsf#363), cot(x) = 1 / tan(x) is used for 0 < x < 45,
-            // e.g. cotdg(1e-10) was 572956949790.9288 instead of 572957795130.8232.
+            // e.g. cotdg(1e-10) was 5.72957e11 instead of 5.72958e11.
             if x != 0.0 && x < 45.0 {
                 return f64::from(sign) / (x * PI180).tan();
             }
@@ -372,7 +372,7 @@ fn tancot(xx: f64, cotflg: bool) -> f64 {
     }
     /* x is now transformed into [0, 90) */
     // Unlike in xsf (scipy/xsf#363), tan(x) = 1 / tan(90 - x) is used for x > 45,
-    // e.g. tandg(89.9999999999) was 572956949790.9288 instead of 572947570131.5804.
+    // e.g. tandg(89.9999999999) was 5.7296e11 instead of 5.7295e11.
     if x > 45.0 {
         return f64::from(sign) / ((90.0 - x) * PI180).tan();
     }

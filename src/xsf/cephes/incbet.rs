@@ -54,7 +54,7 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// Unlike in xsf (scipy/xsf#358), the continued fractions are not limited to 300 iterations,
-/// e.g. `incbet(1e8, 1e8, 0.4999964644661029)` needs 2623 and was 0.45307 instead of 0.46017.
+/// e.g. `incbet(1e8, 1e8, 0.5)` needs 2672 and was 0.3 instead of 0.5.
 ///
 /// The limit of 1e6 iterations bounds the run time.
 fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {

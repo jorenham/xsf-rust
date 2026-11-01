@@ -185,8 +185,8 @@ fn vvsa(x: f64, va: f64) -> f64 {
             let r1 = gw * r * gm;
             pv += r1;
             // Unlike in xsf (scipy/xsf#374), the convergence test ignores the weight `gw`
-            // (instead of only skipping `gw == 0`), e.g. `pbvv(2.00000001, 7.0251687981058035).0`
-            // was 1.8e-4 instead of 601.28.
+            // (instead of only skipping `gw == 0`), e.g. `pbvv(1e-8, 7.0).0` was 3e-5
+            // instead of 2e4.
             if (r * gm / pv).abs() < eps {
                 break;
             }
@@ -416,7 +416,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
         // of -5.6633.
         //
         // Unlike in xsf, the same is done for -7.5 <= x < 0, where the upward recurrence below is
-        // unstable, e.g. `pbvv(9.48, -7.46).0` was 2.47241684e-4 instead of 2.47241678e-4.
+        // unstable, e.g. `pbvv(10.0, -7.5).0` was -1.3046973e-3 instead of -1.3046974e-3.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -919,8 +919,8 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     }
     if v <= -20.0 {
         // Unlike in xsf, also for -10 <= x < -5.8 (with v < -30, see `pbdv`), where `dvla` is
-        // inaccurate, e.g. `pbdv(-100.5, -6.0).0` was 3.15142601097e-53 instead of
-        // 3.15142601089e-53.
+        // inaccurate, e.g. `pbdv(-100.5, -6.0).0` was 3.1514260110e-53 instead of
+        // 3.1514260109e-53.
         return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x)).then(|| {
             let ([d, dp], l) = pbdv_elementary(v, x);
             (mul_exp(d, l), mul_exp(dp, l))
@@ -1056,14 +1056,14 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     }
     // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
     // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`), e.g. `pbdv(1.3, -6.0).0`
-    // was 111.61999702 instead of 111.61957801.
+    // was 111.6200 instead of 111.6196.
     if v > 0.0 && v < 2.0 && !near_int(v) && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
     // Unlike in xsf, the same is done for -30 <= v < 0 (not for tiny |v|, where `dvsa` stops too
-    // early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was 26.98963583
-    // instead of 26.98963443.
+    // early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was 26.98964
+    // instead of 26.98963.
     if (-30.0..-1e-15).contains(&v) && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in `dvsa(x, v + 1)`
@@ -1071,7 +1071,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     }
     // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
     // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
-    // `pbdv(-2.5, 5.9).0` was 1.7541561989e-6 instead of 1.7541561955e-6.
+    // `pbdv(-2.5, 5.9).0` was 1.754156199e-6 instead of 1.754156195e-6.
     //
     // The same is done for 36.5 <= x < 60 (53 <= x for v >= 0), where xsf underflows prematurely,
     // e.g. `pbdv(-5.5, 45.0).0` was 0 instead of 1.10136e-229.
@@ -1089,8 +1089,8 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         return r;
     }
     // Unlike in xsf, near an integer n (see `near_int`), D_v(x) is computed by recurrence from
-    // D_w(x) and D_{w-1}(x) with w = v - n, e.g. `pbdv(3.000000001, 2.0).0` was 0.7357587536
-    // instead of 0.7357588811.
+    // D_w(x) and D_{w-1}(x) with w = v - n, e.g. `pbdv(3.000000001, 2.0).0` was 0.7357588
+    // instead of 0.7357589.
     let (n, w) = (v.round(), v - v.round());
     if near_int(v) && w != 0.0 && v < 300.0 && x.abs() <= 5.8 {
         // D_w = D_0 to double precision for |w| <= eps^2, where `dvsa` can overflow
