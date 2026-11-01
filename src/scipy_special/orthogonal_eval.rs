@@ -791,33 +791,40 @@ fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
     const H: f64 = 0.1;
     // the terms for u < 0 only shrink by exp(-k H) < 0.75 per step, so their tail is < 4x the last
     const TOL: f64 = f64::EPSILON / 16.0;
+
     let m = n.ceil() + 3.0;
     let k = m - n;
     let sx = scale * x;
     let t0 = k / (sx + (sx * sx + 2.0 * scale * k).sqrt());
     let (a, b) = (scale * t0 * t0, 2.0 * sx * t0);
-    // the sums for v and v + 1, relative to the integrands at t0
-    let (mut s0, mut s1) = (0.0, 0.0);
-    for (u0, du) in [(0.0, H), (-H, -H)] {
-        let mut u: f64 = u0;
-        loop {
-            let e = u.exp();
-            let g = (k * u - a * (e * e - 1.0) - b * (e - 1.0)).exp();
-            s0 += g;
-            s1 += g / e;
-            if g < TOL * s0 && g < TOL * s1 * e {
+
+    // the integrands for v and v + 1, relative to those at t0
+    let integrands = |u: f64| {
+        let e = u.exp();
+        let g = (k * u - a * (e * e - 1.0) - b * (e - 1.0)).exp();
+        (g, g / e)
+    };
+
+    // their sums over u = 0, H, 2H, ... and u = -H, -2H, ..., each until the terms are negligible
+    let mut s = (0.0, 0.0);
+    for (i0, du) in [(0, H), (1, -H)] {
+        for i in i0.. {
+            let (g0, g1) = integrands(f64::from(i) * du);
+            s = (s.0 + g0, s.1 + g1);
+            if g0 < TOL * s.0 && g1 < TOL * s.1 {
                 break;
             }
-            u += du;
         }
     }
+
+    // y_v and y_{v+1} for v = -k, and then the recurrence up to v = n
     let c = H * t0.powf(k) * (-a - b).exp() / crate::gamma(k);
-    let (mut y0, mut y1) = (c * s0, c * s1 * (k - 1.0) / t0);
-    for j in (1..m as u32).rev() {
+    let y = (c * s.0, c * s.1 * (k - 1.0) / t0);
+    let (_, yn) = (1..m as u32).rev().fold(y, |(y0, y1), j| {
         let v = n - f64::from(j);
-        (y0, y1) = (y1, 2.0 * scale * (x * y1 - v * y0));
-    }
-    y1
+        (y1, 2.0 * scale * (x * y1 - v * y0))
+    });
+    yn
 }
 
 #[inline]
