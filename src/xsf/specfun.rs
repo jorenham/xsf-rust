@@ -140,7 +140,7 @@ pub fn euler<const N: usize>() -> [f64; N] {
     en
 }
 
-/// Kummer's Confluent hypergeometric function $_1F_1$
+/// Kummer's confluent hypergeometric function $_1F_1$
 ///
 /// Corresponds to [`scipy.special.hyp1f1`][scipy] in SciPy, and accepts both `f64` and
 /// `num_complex::Complex<f64>` inputs for `z`.

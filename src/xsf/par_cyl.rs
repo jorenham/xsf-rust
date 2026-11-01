@@ -998,8 +998,8 @@ pub fn pbwa(a: f64, mut x: f64) -> (f64, f64) {
 
 /// Parabolic cylinder function $D$
 ///
-/// Returns `(d, dp)` the parabolic cylinder function $Dv(x)$ in `d` and the derivative,
-/// $Dv\'(x)$ in `dp`.
+/// Returns `(d, dp)` the parabolic cylinder function $D_v(x)$ in `d` and the derivative,
+/// $D_v\'(x)$ in `dp`.
 ///
 /// Corresponds to [`scipy.special.pbdv`][scipy].
 ///
@@ -1048,8 +1048,8 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
 
 /// Parabolic cylinder function $V$
 ///
-/// Returns `(v, vp)` the parabolic cylinder function $Vv(x)$ in `v` and the derivative,
-/// $Vv\'(x)$ in `vp`.
+/// Returns `(v, vp)` the parabolic cylinder function $V_v(x)$ in `v` and the derivative,
+/// $V_v\'(x)$ in `vp`.
 ///
 /// Corresponds to [`scipy.special.pbvv`][scipy].
 ///

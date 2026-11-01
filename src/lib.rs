@@ -82,10 +82,10 @@
 //!
 //! | Function       | Description                                                                 |
 //! | -------------- | --------------------------------------------------------------------------- |
-//! | [`it1j0y0`]    | Integral of Bessel functions of the first kind of order 0                   |
-//! | [`it2j0y0`]    | Integral related to Bessel functions of the first kind of order 0           |
-//! | [`it1i0k0`]    | Integral of modified Bessel functions of the second kind of order 0         |
-//! | [`it2i0k0`]    | Integral related to modified Bessel functions of the second kind of order 0 |
+//! | [`it1j0y0`]    | Integrals of Bessel functions of order 0                                    |
+//! | [`it2j0y0`]    | Integrals related to Bessel functions of order 0                            |
+//! | [`it1i0k0`]    | Integrals of modified Bessel functions of order 0                           |
+//! | [`it2i0k0`]    | Integrals related to modified Bessel functions of order 0                   |
 //! | [`besselpoly`] | Weighted integral of the Bessel function of the first kind                  |
 //!
 //! ## Derivatives of Bessel functions
@@ -218,7 +218,7 @@
 //! | ---------- | -------------------------------- |
 //! | [`chdtr`]  | Cumulative distribution function |
 //! | [`chdtrc`] | Complement of [`chdtr`]          |
-//! | [`chdtri`] | Inverse of [`chdtr`]             |
+//! | [`chdtri`] | Inverse of [`chdtrc`]            |
 //!
 //! ## Kolmogorov distribution
 //!

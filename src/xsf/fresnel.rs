@@ -479,7 +479,7 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fresnel_zeros.html
 ///
 /// # Panics
-/// - if `nt` is greater than `[c_int::MAX`](core::ffi::c_int::MAX)
+/// - if `nt` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
 ///
 /// # See also
 /// - [`fresnel`] - Fresnel integrals S(z) and C(z)

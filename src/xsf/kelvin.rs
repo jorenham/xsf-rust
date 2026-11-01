@@ -473,12 +473,6 @@ pub fn keip(x: f64) -> f64 {
 /// - [`ker`]
 /// - [`kei`]
 /// - [`kelvin_zeros`]
-///
-/// Returned in a length-4 array of complex numbers:
-/// - *Be*: Value of [`ber`] + *i* [`bei`]
-/// - *Ke*: Value of [`ker`] + *i* [`kei`]
-/// - *Be*': Derivative of [`berp`] + *i* [`beip`]
-/// - *Ke*': Derivative of [`kerp`] + *i* [`keip`]
 #[must_use]
 #[inline]
 pub fn kelvin(mut x: f64) -> [Complex64; 4] {

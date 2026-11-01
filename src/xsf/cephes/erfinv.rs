@@ -22,7 +22,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_SQRT_PI, LN_2};
 /// # See also
 /// - [`erfcinv`]: Inverse of the complementary error function
 /// - [`erf`](crate::erf): Error function
-/// - [`erfc`](crate::erfc): Error function
+/// - [`erfc`](crate::erfc): Complementary error function
 #[doc(alias = "erf_inv")]
 #[must_use]
 #[inline]
@@ -88,7 +88,7 @@ pub fn erfinv(y: f64) -> f64 {
 /// # See also
 /// - [`erfinv`]: Inverse of the error function
 /// - [`erf`](crate::erf): Error function
-/// - [`erfc`](crate::erfc): Error function
+/// - [`erfc`](crate::erfc): Complementary error function
 #[doc(alias = "erfc_inv")]
 #[must_use]
 #[inline]

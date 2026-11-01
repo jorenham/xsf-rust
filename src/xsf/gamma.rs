@@ -132,7 +132,7 @@ pub fn gammaincc(a: f64, x: f64) -> f64 {
 
 /// Inverse of [`gammainc`]
 ///
-/// Given an input $y \in \[0, 1\]$, returns $x$ such that $y = P(a,x)$.
+/// Given an input $p \in \[0, 1\]$, returns $x$ such that $p = P(a,x)$.
 /// Here, $P$ is the regularized lower incomplete gamma function; see [`gammainc`].
 /// This is well-defined because the lower incomplete gamma function is monotonic [^DLMF].
 ///
