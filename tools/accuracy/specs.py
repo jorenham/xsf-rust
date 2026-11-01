@@ -1619,7 +1619,24 @@ def r_hyp1f0(a, z):
 
 
 def r_hyp1f1(a, b, x):
-    with wdps(20):
+    # For b < 0 the terms can dip far below the partial sum before growing again near n = -b,
+    # where mpmath stops early, e.g. hyp1f1(2.5097844340670834, -424.1216104543897,
+    # 127.87035219862966) is -1.635e24, but 0.516 at 80 digits. So add the depth of such a dip.
+    extra = 20
+    if b < 0 and b != int(b) and x != 0:
+        logs, top, n = [0.0], 0.0, 0
+        while n < 10**6:
+            r = abs((a + n) * x / ((n + 1) * (b + n)))
+            if r == 0 or (n > -b and r < 1 and b + n + 1 > abs(x)):
+                break
+            logs.append(logs[-1] + math.log10(r))
+            n += 1
+        peak = max(logs)
+        last = max(i for i, v in enumerate(logs) if v > peak - mp.mp.dps - 20)
+        for v in logs[: last + 1]:
+            top = max(top, v)
+            extra = max(extra, int(top - v) + 20)
+    with wdps(extra):
         return mp.hyp1f1(a, b, x, maxterms=10**6)
 
 
