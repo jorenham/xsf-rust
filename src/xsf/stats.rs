@@ -170,7 +170,10 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
         f64::NAN
     } else if x == 0.0 {
         0.5
-    } else if nu.is_infinite() {
+    } else if nu > 1e150 {
+        // The terms of the continued fractions in `incbet` (~nu^2) overflow, and the 1/nu
+        // correction phi(x) (x^3 + x) / (4 nu) is negligible, e.g. stdtr(1e200, -2.33) was 0.5
+        // instead of 0.0099
         ndtr(x)
     } else if nu == 1.0 {
         0.5 + FRAC_1_PI * x.atan()
