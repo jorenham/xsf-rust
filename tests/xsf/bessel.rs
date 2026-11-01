@@ -147,6 +147,28 @@ fn test_bessel_k_f64() {
 }
 
 #[test]
+fn test_bessel_k_near_overflow() {
+    // mpmath: besselk(v, x) and besselk(v, x) * exp(x)
+    let actual = [
+        xsf::bessel_k(1.5, 1e-205),
+        xsf::bessel_k(27.344_993_256_619_134, 1.443_805_244_850_114e-10),
+        xsf::bessel_ke(1.280_346_742_634_130_8, 2.382_283_514_915_581_2e-239),
+        xsf::bessel_ke(46.418_797_513_730_52, 8.621_169_724_258_798e-6),
+    ];
+    let expected = [
+        3.963_327_297_606_011e307,
+        1.307_413_220_213_715e304,
+        3.623_615_504_892_954e305,
+        3.391_349_164_908_478_2e305,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    for (v, x) in [(1.5, 1e-210), (1.0, 1e-310), (-1.0, 1e-310), (0.5, 1e-306)] {
+        assert_eq!(xsf::bessel_k(v, x), f64::INFINITY);
+        assert_eq!(xsf::bessel_ke(v, x), f64::INFINITY);
+    }
+}
+
+#[test]
 fn test_bessel_k_c64() {
     xsref::test("cyl_bessel_k", "d_cd-cd", |x| {
         xsf::bessel_k(x[0], c64(x[1], x[2]))
