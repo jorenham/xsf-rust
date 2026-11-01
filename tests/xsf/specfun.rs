@@ -134,6 +134,17 @@ fn test_hypu_small_a() {
 }
 
 #[test]
+fn test_hypu_chgus() {
+    // mpmath; 3.07e67 and 6.13e-197 (poles of Gamma(a) and Gamma(1 + a - b)) in xsf
+    let actual = [
+        xsf::hypu(-28.0, 97.6, 0.0055),
+        xsf::hypu(-74.2, -71.2, 0.0017),
+    ];
+    let expected = [1.766_091_302_349_042e57, 5.933_445_224_488_155e-197];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hypu_large_a() {
     // mpmath; NaN in xsf
     let actual = xsf::hypu(
