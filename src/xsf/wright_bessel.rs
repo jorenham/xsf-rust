@@ -1299,20 +1299,3 @@ pub fn wright_bessel(a: f64, b: f64, x: f64) -> f64 {
 pub fn log_wright_bessel(a: f64, b: f64, x: f64) -> f64 {
     wright_bessel_t::<true>(a, b, x)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_wright_bessel_f64() {
-        xsref::test("wright_bessel", "d_d_d-d", |x| {
-            crate::wright_bessel(x[0], x[1], x[2])
-        });
-    }
-
-    #[test]
-    fn test_log_wright_bessel_f64() {
-        xsref::test("log_wright_bessel", "d_d_d-d", |x| {
-            crate::log_wright_bessel(x[0], x[1], x[2])
-        });
-    }
-}

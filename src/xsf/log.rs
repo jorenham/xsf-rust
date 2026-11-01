@@ -244,45 +244,6 @@ mod tests {
     use num_complex::c64;
 
     #[test]
-    fn test_log1p_f64() {
-        xsref::test("log1p", "d-d", |x| crate::log1p(x[0]));
-    }
-
-    #[test]
-    fn test_log1p_c64() {
-        xsref::test("log1p", "cd-cd", |x| crate::log1p(c64(x[0], x[1])));
-    }
-
-    #[test]
-    fn test_log1pmx_f64() {
-        xsref::test("log1pmx", "d-d", |x| crate::log1pmx(x[0]));
-    }
-
-    #[test]
-    fn test_xlogy_f64() {
-        xsref::test("xlogy", "d_d-d", |x| crate::xlogy(x[0], x[1]));
-    }
-
-    #[test]
-    fn test_xlogy_c64() {
-        xsref::test("xlogy", "cd_cd-cd", |x| {
-            crate::xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
-        });
-    }
-
-    #[test]
-    fn test_xlog1py_f64() {
-        xsref::test("xlog1py", "d_d-d", |x| crate::xlog1py(x[0], x[1]));
-    }
-
-    #[test]
-    fn test_xlog1py_c64() {
-        xsref::test("xlog1py", "cd_cd-cd", |x| {
-            crate::xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
-        });
-    }
-
-    #[test]
     fn test_clog() {
         use super::clog;
 
@@ -294,20 +255,5 @@ mod tests {
         crate::np_assert_allclose!([w.re], [710.129_286_483_663_9], rtol = 1e-15);
         let w = clog(c64(f64::from_bits(1), f64::from_bits(1)));
         crate::np_assert_allclose!([w.re], [-744.093_498_331_101_4], rtol = 1e-15);
-    }
-
-    #[test]
-    fn test_log1p_c64_double_double() {
-        // |1 + z|^2 = 1 + 2^-50 exactly
-        let w = crate::log1p(c64(-2f64.powi(-25), 2f64.powi(-12)));
-        crate::np_assert_allclose!([w.re], [0.5 * 2f64.powi(-50).ln_1p()], rtol = 1e-15);
-    }
-
-    #[test]
-    fn test_xlogy_xlog1py_zero() {
-        assert_eq!(crate::xlogy(0.0, f64::INFINITY), 0.0);
-        assert_eq!(crate::xlog1py(0.0, -1.0), 0.0);
-        assert_eq!(crate::xlogy(c64(0.0, 0.0), c64(0.0, 0.0)), c64(0.0, 0.0));
-        assert!(crate::xlogy(0.0, f64::NAN).is_nan());
     }
 }

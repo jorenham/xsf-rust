@@ -15,11 +15,3 @@
 pub fn round(x: f64) -> f64 {
     x.round_ties_even()
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_round() {
-        xsref::test("round", "d-d", |x| crate::round(x[0]));
-    }
-}

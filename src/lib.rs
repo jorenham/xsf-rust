@@ -557,7 +557,7 @@
 )]
 
 #[cfg(test)]
-use xsref::{np_assert_allclose, np_assert_equal};
+use xsref::np_assert_allclose;
 
 mod numpy;
 mod scipy_special;
