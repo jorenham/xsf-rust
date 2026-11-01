@@ -140,6 +140,28 @@ fn test_bessel_i_near_negative_integer() {
 }
 
 #[test]
+fn test_bessel_i_small_x_k_overflow() {
+    // mpmath: besseli(46.408, 9.696e-6) = 8.8291863067264228e-306,
+    // besseli(-40.00000109418565, 4.4076818963921526e-7) = 4.1828779773220576e306, and
+    // besseli(-48.000001, 9.813429518583089e-6) = 1.7976931348622338e308
+    let actual = [
+        xsf::bessel_i(46.408, 9.696e-6),
+        xsf::bessel_i(-40.000_001_094_185_65, 4.407_681_896_392_152_6e-7),
+        xsf::bessel_i(-48.000_001, 9.813_429_518_583_089e-6),
+    ];
+    let expected = [
+        8.829_186_306_726_423e-306,
+        4.182_877_977_322_057_6e306,
+        1.797_693_134_862_233_8e308,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+
+    // mpmath: besseli(-3.000053769783958, 0.5818348207903663) = 1.8e-19 (cancellation, not overflow)
+    let i = xsf::bessel_i(-3.000_053_769_783_958, 0.581_834_820_790_366_3);
+    assert!(i.abs() < 3e-19, "{i}");
+}
+
+#[test]
 fn test_bessel_scaled_overflow() {
     // the signs of mpmath's besselj, bessely, and besseli, e.g. besselj(-11.25, 1e-100) = -3.6e1134
     let x = 1e-100;
