@@ -127,11 +127,18 @@ fn airy_f64(x: f64) -> [f64; 4] {
      */
     if x < -10.0 || x > 10.0 {
         let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0));
-        [zai.re, zaip.re, zbi.re, zbip.re]
-    } else {
-        let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
-        [ai, aip, bi, bip]
+        // Unlike in xsf, fall back to Cephes if AMOS overflows (x > 103.28), since its Bi and Bi'
+        // are then NaN (and also Ai and Ai' if x > 1.05e6). Cephes returns (0, 0, inf, inf) if
+        // x > 103.892, and finite values below that.
+        //
+        // For example, `airy(415.6)` was [0, 0, NaN, NaN] instead of [0, 0, inf, inf].
+        if x < 0.0 || !zbi.re.is_nan() {
+            return [zai.re, zaip.re, zbi.re, zbip.re];
+        }
     }
+
+    let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
+    [ai, aip, bi, bip]
 }
 
 /// Airy functions and derivatives

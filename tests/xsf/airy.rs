@@ -10,6 +10,24 @@ fn test_airy_f64() {
 }
 
 #[test]
+fn test_airy_f64_overflow() {
+    // mpmath: airyai(x), airyai(x, 1), airybi(x), airybi(x, 1)
+    xsref::np_assert_allclose!(
+        &xsf::airy(103.5),
+        &[
+            1.214_559_328_776_030_7e-306,
+            -1.235_924_520_706_669e-305,
+            1.288_045_734_902_866_3e304,
+            1.310_081_374_026_67e305,
+        ],
+        rtol = 1e-13
+    );
+    let inf = f64::INFINITY;
+    assert_eq!(xsf::airy(415.617_809_554_110_47), [0.0, 0.0, inf, inf]);
+    assert_eq!(xsf::airy(1e9), [0.0, 0.0, inf, inf]);
+}
+
+#[test]
 fn test_airy_c64() {
     xsref::test("airy", "cd-cd_cd_cd_cd", |x| {
         as_tuple(&xsf::airy(c64(x[0], x[1])))
