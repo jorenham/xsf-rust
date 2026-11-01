@@ -162,6 +162,36 @@ fn test_bessel_i_small_x_k_overflow() {
 }
 
 #[test]
+fn test_bessel_amos_underflow() {
+    // mpmath: besselj(7.3156, 1.19e-41) = 2.6872935555094642e-306,
+    // besselj(-43, 4.418464059606903e-6) = -1.0500997742421043e-296,
+    // besselj(5, -2.9158810273573306e-60) = -5.4893102343051316e-302,
+    // besseli(46.408, 9.696e-6) exp(-9.696e-6) = 8.829100699351018e-306, and
+    // besseli(155.31716506376495, 1.2644828833671058) exp(-1.2644828833671058) = 1.4129266246231237e-306
+    let actual = [
+        xsf::bessel_j(7.3156, 1.19e-41),
+        xsf::bessel_je(7.3156, 1.19e-41),
+        xsf::bessel_j(-43.0, 4.418_464_059_606_903e-6),
+        xsf::bessel_j(5.0, -2.915_881_027_357_330_6e-60),
+        xsf::bessel_ie(46.408, 9.696e-6),
+        xsf::bessel_ie(155.317_165_063_764_95, 1.264_482_883_367_105_8),
+    ];
+    let expected = [
+        2.687_293_555_509_464_2e-306,
+        2.687_293_555_509_464_2e-306,
+        -1.050_099_774_242_104_3e-296,
+        -5.489_310_234_305_132e-302,
+        8.829_100_699_351_018e-306,
+        1.412_926_624_623_123_7e-306,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+
+    // an AMOS 0 from cancellation (not underflow), where cephes is NaN
+    assert!(xsf::bessel_j(-782.299_556_217_053_6, 794.671_828_363_666_9).is_finite());
+    assert!(xsf::bessel_je(-1_744.559_130_346_428, 1_754.183_596_660_477_4).is_finite());
+}
+
+#[test]
 fn test_bessel_scaled_overflow() {
     // the signs of mpmath's besselj, bessely, and besseli, e.g. besselj(-11.25, 1e-100) = -3.6e1134
     let x = 1e-100;

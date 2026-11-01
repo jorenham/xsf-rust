@@ -264,9 +264,27 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
     let u = p0 + q0;
     if p0.abs() + q0.abs() < 1e4 * u.abs() {
         u
+    } else if (3.0..1000.0).contains(&b) {
+        // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
+        // large b and a << 0), e.g. U(-60.2, 30.6, 10) = -1.875e96 instead of NaN
+        hypu_rec_b(a, b, x)
     } else {
         f64::NAN
     }
+}
+
+/// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
+/// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`
+fn hypu_rec_b(a: f64, b: f64, x: f64) -> f64 {
+    let n = (b - 1.0).floor();
+    let (mut u0, mut u1) = (hypu_rec(a, b - n, x), hypu_rec(a, b - n + 1.0, x));
+    let mut c = b - n + 1.0;
+    while c < b {
+        // U(a, c + 1, x) = ((c + x - 1) U(a, c, x) - (c - a - 1) U(a, c - 1, x)) / x
+        (u0, u1) = (u1, ((c + x - 1.0) * u1 - (c - a - 1.0) * u0) / x);
+        c += 1.0;
+    }
+    if u1.is_finite() { u1 } else { f64::NAN }
 }
 
 /// Associated Legendre function for $|x| \leq 1$

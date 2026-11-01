@@ -136,10 +136,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                     cs1 += cr1;
                     cs2 += cr2;
                 }
-                let x = z.re;
                 let y = z.im;
-                let phi = y.atan2(x);
-                let ns = if phi > -0.5 * PI { 1 } else { -1 };
+                // Unlike in xsf, the sign is that of `Im z`, so that `M(a, b, conj(z))` is
+                // `conj(M(a, b, z))`; DLMF 13.7.2 allows both signs for `-pi/2 < ph z < 0`, but
+                // `+` is less accurate, e.g. `hyp1f1(0.5, 1.5, 5 - 25j)` was off by 13%.
+                let ns = if y > 0.0 { 1 } else { -1 };
                 let mut cfac = cexp(f64::from(ns) * ci * PI * a);
                 if y == 0.0 {
                     cfac = c64((PI * a).cos(), 0.0);
@@ -765,6 +766,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 }
 
 #[allow(
+    clippy::float_cmp,
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines,
@@ -853,19 +855,30 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
     let c = 12.0 / x;
+    let f = |t: f64| (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
+    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 3, which smooths the endpoint
+    // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
+    //
+    // e.g. U(1.1, 0.5, 15) = 0.045763173934103 instead of 0.045763206361933
+    let cubic = a < 3.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
     for m in (10..=100).step_by(5) {
         hu1 = 0.0;
-        let g = 0.5 * c / f64::from(m);
+        let g = if cubic { 0.5 } else { 0.5 * c } / f64::from(m);
         let mut d = g;
         for _j in 1..=m {
             let mut s = 0.0;
             for k in 1..=30 {
                 let t1 = d + g * T[k - 1];
                 let t2 = d - g * T[k - 1];
-                let f1 = (-x * t1).exp() * t1.powf(a1) * (1.0 + t1).powf(b1);
-                let f2 = (-x * t2).exp() * t2.powf(a1) * (1.0 + t2).powf(b1);
+                let (f1, f2) = if cubic {
+                    // t1 and t2 are u here, and dt = 3 c u^2 du
+                    let (v1, v2) = (c * t1 * t1, c * t2 * t2);
+                    (3.0 * v1 * f(v1 * t1), 3.0 * v2 * f(v2 * t2))
+                } else {
+                    (f(t1), f(t2))
+                };
                 s += W[k - 1] * (f1 + f2);
             }
             hu1 += s * g;
@@ -956,12 +969,42 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if il1 != 0 || il2 != 0 {
         hu = 1.0;
         r = 1.0;
+        let mut rmax: f64 = 1.0;
         for k in 1..=nm {
             r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
             hu += r;
+            rmax = rmax.max(r.abs());
         }
-        hu *= x.powf(-a);
         *id = 10;
+        // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with
+        // c + x >= 0 is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and
+        // otherwise the id reflects the cancellation, so that other methods are tried
+        //
+        // e.g. U(-60, 30, 10) = -6.398e95 instead of -6.902e95
+        let cancels = rmax > 1e6 * hu.abs();
+        // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
+        let kummer = il1 == 0 || (il2 != 0 && b < 1.0);
+        let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
+        let mut u = f64::NAN;
+        if (cancels || !hu.is_finite()) && c + x >= 0.0 {
+            // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
+            let mut u1 = 0.0;
+            u = 1.0;
+            for k in 0..int_x86(-n) {
+                // U(k - 1, c, x) = (2k - c + x) U(k, c, x) - k (k - c + 1) U(k + 1, c, x)
+                let k = -f64::from(k);
+                (u, u1) = ((2.0 * k - c + x) * u - k * (k - c + 1.0) * u1, u);
+            }
+        }
+        if u.is_finite() {
+            hu = if kummer { x.powf(1.0 - b) * u } else { u };
+        } else {
+            let sum = hu;
+            hu *= x.powf(-a);
+            if cancels && hu.is_finite() {
+                *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
+            }
+        }
     } else {
         // DLMF 13.7.3
         hu = 1.0;
