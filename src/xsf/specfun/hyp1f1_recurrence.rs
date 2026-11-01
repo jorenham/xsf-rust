@@ -94,11 +94,12 @@ fn apply_recurrence_relation_backward(
     for k in 0..number_of_steps {
         let (a, b, c) = get_coefs(-k);
 
+        // NOTE: `MIN_POSITIVE * 2048` comes first, as a subnormal `MIN_POSITIVE * (a / b)` is slow.
         if (second != 0.0)
             && (((f64::MAX * (a / b) / 2048.0).abs() < second.abs())
                 || ((f64::MAX * (a / c) / 2048.0).abs() < first.abs())
-                || ((f64::MIN_POSITIVE * (a / b) * 2048.0).abs() > second.abs())
-                || ((f64::MIN_POSITIVE * (a / c) * 2048.0).abs() > first.abs()))
+                || ((f64::MIN_POSITIVE * 2048.0 * (a / b)).abs() > second.abs())
+                || ((f64::MIN_POSITIVE * 2048.0 * (a / c)).abs() > first.abs()))
         {
             // Rescale everything:
             let log_scale = second.abs().ln() as i32;
@@ -380,10 +381,53 @@ fn apply_log_scaling(mut result: f64, mut log_scaling: i64) -> f64 {
     result
 }
 
-/// Unlike in xsf: `M(a, b, z)` for non-integer `b < 0` by DLMF 13.3.2 backward from `b + n > 0`,
-/// or `None` if the error (from a rerun with `m(b + n + 1)` perturbed) exceeds `max_err`. For
-/// `a z < 0` it first tries a start where the series of `m(b + n) = M(a, b + n, z)` hardly cancels.
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+/// Unlike in xsf (scipy/xsf#365): `M(a, b, z)` and its relative error, by DLMF 13.3.2 backward
+/// from `m(b + n)` and `m(b + n + 1)`, with `m(b') = M(a, b', z)`.
+///
+/// The error is estimated by a rerun with `m(b + n + 1)` perturbed, and also each step if
+/// `per_step`, since errors made midway can grow far more.
+#[allow(clippy::cast_precision_loss)]
+pub(super) fn hyp1f1_b_recurrence(
+    a: f64,
+    b: f64,
+    z: f64,
+    n: i32,
+    per_step: bool,
+    m: impl Fn(f64) -> f64,
+) -> Option<(f64, f64)> {
+    const DELTA: f64 = 1.0 / 1_048_576.0;
+
+    // `m` can be slow, so stop at the first non-finite initial value
+    let m0 = m(b + f64::from(n));
+    if !m0.is_finite() {
+        return None;
+    }
+    let m1 = m(b + f64::from(n + 1));
+    if !m1.is_finite() {
+        return None;
+    }
+    // `scale` multiplies `a(n)`, i.e. divides each step's result
+    let run = |m1, scale: f64| {
+        let mut log_scaling = 0;
+        let coefs = recurrence_small_b_coefficients(a, b, z, n);
+        let coefs = |i| {
+            let (an, bn, cn) = coefs(i);
+            (an * scale, bn, cn)
+        };
+        let (w, _) = apply_recurrence_relation_backward(coefs, n, m1, m0, &mut log_scaling);
+        (w, log_scaling)
+    };
+    let (w, log_scaling) = run(m1, 1.0);
+    let scale = if per_step { 1.0 + DELTA } else { 1.0 };
+    let (w2, log_scaling2) = run(m1 * (1.0 + DELTA), scale);
+    let diff = w2 / w * ((log_scaling2 - log_scaling) as f64).exp() - 1.0;
+    let err = f64::EPSILON * (diff.abs() / DELTA + f64::from(n));
+    Some((apply_log_scaling(w, log_scaling), err))
+}
+
+/// Unlike in xsf (scipy/xsf#365): `hyp1f1_b_recurrence` for non-integer `b < 0` from `b + n > 0`,
+/// first trying a start where the series of `M(a, b + n, z)` hardly cancels if `a z < 0`.
+#[allow(clippy::cast_possible_truncation)]
 pub(super) fn hyp1f1_neg_b(
     a: f64,
     b: f64,
@@ -391,30 +435,10 @@ pub(super) fn hyp1f1_neg_b(
     max_err: f64,
     m: impl Fn(f64) -> f64,
 ) -> Option<f64> {
-    const DELTA: f64 = 1.0 / 1_048_576.0;
-
-    let from = |n: f64, max_err: f64| {
-        let n = n as i32;
-        // `m` can be slow, so stop at the first non-finite initial value
-        let m0 = m(b + f64::from(n));
-        if !m0.is_finite() {
-            return None;
-        }
-        let m1 = m(b + f64::from(n + 1));
-        if !m1.is_finite() {
-            return None;
-        }
-        let run = |m1| {
-            let mut log_scaling = 0;
-            let coefs = recurrence_small_b_coefficients(a, b, z, n);
-            let (w, _) = apply_recurrence_relation_backward(coefs, n, m1, m0, &mut log_scaling);
-            (w, log_scaling)
-        };
-        let (w, log_scaling) = run(m1);
-        let (w2, log_scaling2) = run(m1 * (1.0 + DELTA));
-        let diff = w2 / w * ((log_scaling2 - log_scaling) as f64).exp() - 1.0;
-        let err = f64::EPSILON * (diff.abs() / DELTA + f64::from(n));
-        (err <= max_err).then(|| apply_log_scaling(w, log_scaling))
+    let from = |n: f64, max_err| {
+        hyp1f1_b_recurrence(a, b, z, n as i32, false, &m)
+            .filter(|&(_, err)| err <= max_err)
+            .map(|(hg, _)| hg)
     };
     let n = -b.floor();
     let b_far = if z > 0.0 { -a * z } else { a * -z / (1.0 - z) };
