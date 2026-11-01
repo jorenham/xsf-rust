@@ -119,6 +119,24 @@ fn test_bessel_ie_c64() {
     });
 }
 
+#[test]
+fn test_bessel_scaled_overflow() {
+    // the signs of mpmath's besselj, bessely, and besseli, e.g. besselj(-11.25, 1e-100) = -3.6e1134
+    let x = 1e-100;
+    let z = c64(x, 0.0);
+    let inf = f64::INFINITY;
+    assert_eq!(xsf::bessel_ye(10.0, x), -inf);
+    assert_eq!(xsf::bessel_ye(10.0, z), c64(-inf, 0.0));
+    for (v, s) in [(-10.25, 1.0), (-11.25, -1.0)] {
+        assert_eq!(xsf::bessel_je(v, x), s * inf);
+        assert_eq!(xsf::bessel_ye(v, x), -s * inf);
+        assert_eq!(xsf::bessel_ie(v, x), s * inf);
+        assert_eq!(xsf::bessel_je(v, z), c64(s * inf, 0.0));
+        assert_eq!(xsf::bessel_ye(v, z), c64(-s * inf, 0.0));
+        assert_eq!(xsf::bessel_ie(v, z), c64(s * inf, 0.0));
+    }
+}
+
 // Bessel K
 
 #[test]
