@@ -91,9 +91,9 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
             return f64::NAN; /* because q^-x not defined */
         }
 
-        // Unlike in xsf, the terms (q + k)^-x for q + k < 0 are summed in closed form, instead of
-        // in the loop below, which takes ~|q| steps (and overflows `i` for |q| >= 2^31), e.g.
-        // `zeta(2, -1e10 - 0.5)` didn't terminate. With r = q - floor(q):
+        // Unlike in xsf (scipy/xsf#370), the terms (q + k)^-x for q + k < 0 are summed in closed
+        // form, instead of in the loop below, which takes ~|q| steps (and overflows `i` for
+        // |q| >= 2^31), e.g. `zeta(2, -1e10 - 0.5)` didn't terminate. With r = q - floor(q):
         //
         //   zeta(x, q) = zeta(x, r) + (-1)^x (zeta(x, 1 - r) - zeta(x, 1 - q))
         //
@@ -141,8 +141,8 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         // negligible, which it isn't for `x` near 1 and tiny `q`, e.g. `zeta(1 + 2^-52, 1e-15)` was
         // 1.0e15 instead of 5.5e15.
         //
-        // Unlike in xsf, this also stops if `b` underflows, which avoids `0 / 0` if `s` does too,
-        // e.g. `zeta(1e300, 1.5)` was NaN instead of 0.
+        // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows, which avoids `0 / 0` if
+        // `s` does too, e.g. `zeta(1e300, 1.5)` was NaN instead of 0.
         if b == 0.0 || (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }
