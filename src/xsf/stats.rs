@@ -9,13 +9,14 @@
 //! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)
 //! saturates, instead of being undefined behavior in the cast to `long long`.
 
-use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, TAU};
+use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT2OPI};
+use crate::utils::{LN_PI, LN_TAU, SQRT_PI};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::cephes::{betainc_xy, gamma, lgam, lgam1p};
+use crate::xsf::multivariate_normal::{LAGUERRE_W20, LAGUERRE_X20};
 
 pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
@@ -409,68 +410,125 @@ pub fn nrdtrisd(mean: f64, p: f64, x: f64) -> f64 {
     (x - mean) / crate::xsf::cephes::ndtri(p)
 }
 
-fn von_mises_cdf_series(k: f64, x: f64, p: u32) -> f64 {
-    let s = x.sin();
-    let c = x.cos();
-    let mut sn = (f64::from(p) * x).sin();
-    let mut cn = (f64::from(p) * x).cos();
-    let mut r = 0.0;
-    let mut v = 0.0;
-    for n in (1..p).rev() {
-        let n = f64::from(n);
-        let sn_new = sn * c - cn * s;
-        let cn_new = cn * c + sn * s;
-        sn = sn_new;
-        cn = cn_new;
-        r = k / (2.0 * n + k * r);
-        v = r * (sn / n + v);
-    }
-    0.5 + x / (2.0 * PI) + v / PI
-}
+// Positive nodes and weights of the 24- and 40-point Gauss-Legendre rules on [-1, 1].
+const VM_GL24: [(f64, f64); 12] = [
+    (0.995_187_219_997_021_3, 0.012_341_229_799_987_2),
+    (0.974_728_555_971_309_5, 0.028_531_388_628_933_663),
+    (0.938_274_552_002_732_8, 0.044_277_438_817_419_81),
+    (0.886_415_527_004_401_1, 0.059_298_584_915_436_78),
+    (0.820_001_985_973_903, 0.073_346_481_411_080_3),
+    (0.740_124_191_578_554_4, 0.086_190_161_531_953_27),
+    (0.648_093_651_936_975_5, 0.097_618_652_104_113_88),
+    (0.545_421_471_388_839_6, 0.107_444_270_115_965_63),
+    (0.433_793_507_626_045_1, 0.115_505_668_053_725_6),
+    (0.315_042_679_696_163_4, 0.121_670_472_927_803_39),
+    (0.191_118_867_473_616_3, 0.125_837_456_346_828_3),
+    (0.064_056_892_862_605_63, 0.127_938_195_346_752_16),
+];
+const VM_GL40: [(f64, f64); 20] = [
+    (0.998_237_709_710_559_3, 0.004_521_277_098_533_191),
+    (0.990_726_238_699_457, 0.010_498_284_531_152_813),
+    (0.977_259_949_983_774_3, 0.016_421_058_381_907_89),
+    (0.957_916_819_213_791_7, 0.022_245_849_194_166_96),
+    (0.932_812_808_278_676_5, 0.027_937_006_980_023_4),
+    (0.902_098_806_968_874_3, 0.033_460_195_282_547_844),
+    (0.865_959_503_212_259_5, 0.038_782_167_974_472_016),
+    (0.824_612_230_833_311_7, 0.043_870_908_185_673_27),
+    (0.778_305_651_426_519_4, 0.048_695_807_635_072_23),
+    (0.727_318_255_189_927_1, 0.053_227_846_983_936_82),
+    (0.671_956_684_614_179_6, 0.057_439_769_099_391_55),
+    (0.612_553_889_667_980_2, 0.061_306_242_492_928_94),
+    (0.549_467_125_095_128_2, 0.064_804_013_456_601_04),
+    (0.483_075_801_686_178_7, 0.067_912_045_815_233_9),
+    (0.413_779_204_371_605, 0.070_611_647_391_286_78),
+    (0.341_994_090_825_758_5, 0.072_886_582_395_804_06),
+    (0.268_152_185_007_253_7, 0.074_723_169_057_968_26),
+    (0.192_697_580_701_371_1, 0.076_110_361_900_626_24),
+    (0.116_084_070_675_255_21, 0.077_039_818_164_247_97),
+    (0.038_772_417_506_050_82, 0.077_505_947_978_424_8),
+];
 
-fn von_mises_cdf_normalapprox(k: f64, x: f64) -> f64 {
-    let b = SQRT2OPI / crate::xsf::cephes::i0e(k);
-    let z = b * (x / 2.0).sin();
-    crate::xsf::cephes::ndtr(z)
+/// `von_mises_cdf(k, x)` for `-pi <= x <= 0`
+///
+/// With `u = sin(-theta/2)` or `w = cos(theta/2)`, the integral of the density over `[-pi, x]` is
+/// `int_s^1 exp(-2k u^2) / sqrt(1 - u^2) du = int_0^c exp(-2k (1 - w^2)) / sqrt(1 - w^2) dw`,
+/// divided by `pi i0e(k)`, where `s = sin(-x/2)` and `c = cos(x/2)`.
+fn von_mises_cdf_left(k: f64, x: f64) -> f64 {
+    let (s, c) = (-x / 2.0).sin_cos();
+    let (a, t) = (k * (2.0 * s * s), k * (2.0 * c * c));
+    let norm = PI * crate::xsf::cephes::i0e(k);
+
+    if a >= 10.0 && t >= 40.0 {
+        // Gauss-Laguerre in `tau = 2k (u^2 - s^2)`, from 0 to `t` (at u = 1), without the nodes
+        // near the singularity at `t`, and with `sqrt(t)` (which can overflow) factored out
+        let g: f64 = LAGUERRE_X20
+            .iter()
+            .zip(&LAGUERRE_W20)
+            .filter(|&(&z, _)| z < t - 1.0)
+            .map(|(&z, &w)| w / ((a + z).sqrt() * (1.0 - z / t).sqrt()))
+            .sum();
+        return (-a).exp() * (g / (2.0 * norm * k.sqrt() * (SQRT_2 * c)));
+    }
+
+    // `exp(-2k |v^2 - v0^2|) / sqrt(1 - v^2)`, with `dv = |v - v0|`
+    let f = |v: f64, dv: f64, v0: f64| {
+        (-k * (2.0 * dv * (v + v0))).exp() / ((1.0 - v) * (1.0 + v)).sqrt()
+    };
+    let mut sum = 0.0;
+    if s < FRAC_1_SQRT_2 {
+        // the `u` integral over `[s, 1/sqrt(2)]`, cut off where the integrand drops below e^-40
+        let r = (FRAC_1_SQRT_2.min((s * s + 20.0 / k).sqrt()) - s) / 2.0;
+        let mut g = 0.0;
+        for &(z, w) in &VM_GL24 {
+            let (d1, d2) = (r * (1.0 - z), r * (1.0 + z));
+            g += w * (f(s + d1, d1, s) + f(s + d2, d2, s));
+        }
+        sum += (-a).exp() * (r * g / norm);
+    }
+    // the `w` integral over `[0, min(c, 1/sqrt(2))]`, with an even integrand, unless negligible
+    let (h, e) = if c <= FRAC_1_SQRT_2 {
+        (c, a)
+    } else {
+        (FRAC_1_SQRT_2, k)
+    };
+    if e - a < 40.0 {
+        let g: f64 = VM_GL40
+            .iter()
+            .map(|&(z, w)| w * f(h * z, h * (1.0 - z), h))
+            .sum();
+        sum += (-e).exp() * (h * g / norm);
+    }
+    sum
 }
 
 /// CDF of the von Mises distribution with concentration `k`, extended periodically over `x`
 ///
-/// For `k < 50`, this uses the backward-recursion series method of Hill \[1\], Algorithm 518,
-/// with constants chosen for about 12 decimal digits. For `k >= 50`, this switches to a
-/// large-concentration normal approximation.
+/// Unlike in xsf, which uses Hill's series for `k < 50` and a normal approximation otherwise,
+/// this uses Gauss quadrature, which is also accurate in the tails, e.g.
+/// `von_mises_cdf(27.698387388014122, -3.0694688797790795)` was `7.4e-14` instead of `1.35e-25`.
 ///
 /// Corresponds to `xsf::von_mises_cdf` in xsf main, which is used by
 /// [`scipy.stats.vonmises`][vonmises].
 ///
 /// [vonmises]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.vonmises.html
-///
-/// \[1\] G. W. Hill, "Algorithm 518: Incomplete Bessel Function I0.
-///     The Von Mises Distribution \[S14\]", ACM Transactions on Mathematical
-///     Software, 3(3), 279-284, 1977.
-///     DOI: <https://doi.org/10.1145/355744.355753>
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn von_mises_cdf(k: f64, x: f64) -> f64 {
-    if k < 0.0 {
+    if k.is_nan() || k < 0.0 {
         return f64::NAN;
     }
+    if x.is_infinite() {
+        // the limit of the periodic extension
+        return x;
+    }
+    // `k = inf` (with `i0e(k) = 0`) as the largest finite `k`, for which this is a step at 0
+    let k = k.min(f64::MAX);
 
     let ix = (x / (2.0 * PI)).round();
     let x = x - ix * 2.0 * PI;
-
-    // These values should give 12 decimal digits
-    let ck = 50.0;
-    let (a1, a2, a3, a4) = (28.0, 0.5, 100.0, 5.0);
-    let result = if k < ck {
-        let p = (1.0 + a1 + a2 * k - a3 / (k + a4)) as u32;
-        let result = von_mises_cdf_series(k, x, p);
-        // `cxx::min(cxx::max(result, 0.0), 1.0)`, with `max(a, b) = a < b ? b : a` and
-        // `min(a, b) = a < b ? a : b`, which maps NaN to 1 (e.g. for x = inf)
-        let result = if result < 0.0 { 0.0 } else { result };
-        if result < 1.0 { result } else { 1.0 }
+    let result = if x > 0.0 {
+        1.0 - von_mises_cdf_left(k, -x)
     } else {
-        von_mises_cdf_normalapprox(k, x)
+        von_mises_cdf_left(k, x)
     };
     result + ix
 }

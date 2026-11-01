@@ -118,7 +118,7 @@ const BVN_X20: [f64; 10] = [
 ];
 
 // Nodes and weights of the 20-point Gauss-Laguerre rule on [0, inf), with weight e^-t.
-const BVN_LAGUERRE_X20: [f64; 20] = [
+pub(crate) const LAGUERRE_X20: [f64; 20] = [
     0.070_539_889_691_988_75,
     0.372_126_818_001_611_46,
     0.916_582_102_483_273_5,
@@ -140,7 +140,7 @@ const BVN_LAGUERRE_X20: [f64; 20] = [
     55.810_795_750_063_896,
     66.524_416_525_615_75,
 ];
-const BVN_LAGUERRE_W20: [f64; 20] = [
+pub(crate) const LAGUERRE_W20: [f64; 20] = [
     0.168_746_801_851_113_88,
     0.291_254_362_006_068_3,
     0.266_686_102_867_001_3,
@@ -183,7 +183,7 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
     let b = (h - k) * (h - k) / 4.0;
     let w0 = 1.0 / (1.0 + r);
     let mut sum = 0.0;
-    for (&t, &wt) in BVN_LAGUERRE_X20.iter().zip(&BVN_LAGUERRE_W20) {
+    for (&t, &wt) in LAGUERRE_X20.iter().zip(&LAGUERRE_W20) {
         let w = w0 + t / a;
         sum += wt * (-a * w0 - b * w / (2.0 * w - 1.0)).exp() / (a * w * (2.0 * w - 1.0).sqrt());
     }

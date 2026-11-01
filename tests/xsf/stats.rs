@@ -242,29 +242,29 @@ fn test_ndtri() {
 #[test]
 fn test_von_mises_cdf() {
     // mpmath: the integral of the density from -pi to x, plus the period count
-    let ks = [1.0, 10.0, 0.1, 5.0, 49.0];
-    let xs = [0.5, -1.0, 3.0, 7.0, 0.1];
-    let expected = [
-        0.664_076_474_604_993_1,
-        0.001_410_801_706_404_327_5,
-        0.979_653_423_965_240_7,
-        1.935_915_236_709_023,
-        0.757_381_643_056_756,
-    ];
-    let actual: Vec<f64> = ks
-        .iter()
-        .zip(xs)
-        .map(|(&k, x)| xsf::von_mises_cdf(k, x))
-        .collect();
-    xsref::np_assert_allclose!(&actual, &expected, atol = 5e-13);
-    // normal approximation for k >= 50
-    xsref::np_assert_allclose!(
-        [xsf::von_mises_cdf(100.0, 0.2)],
-        [0.976_932_103_211_657],
-        atol = 1e-5
-    );
+    for (k, x, expected) in [
+        (1.0, 0.5, 0.664_076_474_604_993_1),
+        (10.0, -1.0, 0.001_410_801_706_404_327_5),
+        (0.1, 3.0, 0.979_653_423_965_240_7),
+        (5.0, 7.0, 1.935_915_236_709_023),
+        (49.0, 0.1, 0.757_381_643_056_756),
+        (100.0, 0.2, 0.976_932_103_211_657),
+        // left tail
+        (20.0, -3.1, 3.150_549_424_635_017e-19),
+        (25.0, -3.0, 5.908_127_636_104_764e-23),
+        (100.0, -1.0, 5.101_678_232_611_33e-22),
+        // `2k cos(x/2)^2` just above a Gauss-Laguerre node, and huge `k`
+        (30.0, -1.201_347_072_474_133_7, 3.642_830_244_123_969e-10),
+        (1e308, -5e-154, 2.866_515_718_791_936e-7),
+        (f64::INFINITY, -1.0, 0.0),
+        (f64::INFINITY, 1.0, 1.0),
+    ] {
+        xsref::np_assert_allclose!([xsf::von_mises_cdf(k, x)], [expected], rtol = 1e-14);
+    }
 
     assert!(xsf::von_mises_cdf(-1.0, 0.5).is_nan());
+    assert!(xsf::von_mises_cdf(f64::NAN, -2.0).is_nan());
+    assert!(xsf::von_mises_cdf(f64::NAN, 2.0).is_nan());
     assert_eq!(xsf::von_mises_cdf(1.0, f64::INFINITY), f64::INFINITY);
 }
 
