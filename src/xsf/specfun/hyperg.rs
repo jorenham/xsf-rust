@@ -417,9 +417,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     return hg;
                 }
             }
-            // Unlike in xsf (scipy/xsf#365), if the series cancels by over 1e5, DLMF 13.3.2 recurred
-            // backward from b + n >= -a x / 2 (n <= 5000) is used if it differs by over twice its
-            // error, e.g. `hyp1f1(-14.5636, 15.2965, 12.1738)` had error 9.6e-10.
+            // Unlike in xsf (scipy/xsf#365), if the series cancels by over 1e5, DLMF 13.3.2 is used
+            // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error.
             let n = (-a * x / 2.0 - b).ceil();
             let cancels = cancellation > 1e5 && (1.0..=5e3).contains(&n);
             if accurate && cancels && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
