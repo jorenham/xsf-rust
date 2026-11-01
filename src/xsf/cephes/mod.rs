@@ -68,7 +68,7 @@ pub(crate) use fdtr::{fdtr, fdtrc, fdtri};
 pub(crate) use fresnl::fresnl;
 pub(crate) use gamma::{gamma, gammasgn, lgam, lgam_sgn, lgam_stirling_corr};
 pub(crate) use gdtr::{gdtr, gdtrc};
-pub(crate) use hyp2f1::hyp2f1;
+pub(crate) use hyp2f1::{HYP2F1_ETHRESH, hyp2f1};
 pub(crate) use i0::{i0, i0e};
 pub(crate) use i1::{i1, i1e};
 pub(crate) use igam::{igam, igamc};

@@ -8,7 +8,8 @@ use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{MAXGAM, SQRT_PI};
+use crate::utils::{MAXGAM, SQRT_EPS, SQRT_PI};
+use crate::xsf::cephes::HYP2F1_ETHRESH;
 
 mod sealed {
     pub trait OrthoPolyArg:
@@ -26,9 +27,10 @@ mod sealed {
         /// `Some(x)` if `Self` is `f64`
         fn as_f64(&self) -> Option<f64>;
 
+        /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded)
         #[inline]
-        fn hyp2f1_sh(self, a1: f64, a2: f64, b: f64) -> Self {
-            (self.clone() * -0.5 + 0.5).hyp2f1(a1, a2, b)
+        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
+            (self.clone() * -0.5 + 0.5).hyp2f1(-n, b, c)
         }
     }
 
@@ -48,6 +50,17 @@ mod sealed {
         #[inline]
         fn as_f64(&self) -> Option<f64> {
             Some(*self)
+        }
+
+        #[inline]
+        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
+            // hypergeometric series cancels catastrophically for large non-integer degrees.
+            //
+            // E.g. `eval_legendre(100.5, 0.3)` was 0.963 instead of 0.01165.
+            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+            let y = crate::hyp2f1(-n, b, c, self * -0.5 + 0.5);
+            super::jacobi_hyp2f1_recurrence(self, nu, lam, c, y).unwrap_or(y)
         }
     }
 
@@ -69,6 +82,49 @@ mod sealed {
             None
         }
     }
+}
+
+/// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
+/// `None` if that isn't more accurate than `series` (`G_n` itself).
+///
+/// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
+///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
+/// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
+///   `n < 1e5` (to bound its cost).
+/// - `series` is estimated to be less accurate if it differs by more than relative errors `tol`
+///   in the starting values explain: `HYP2F1_ETHRESH`, or even 1 if the recurrence is unstable
+///   (the errors grow by more than `1 / SQRT_EPS`, leaving less than half the digits).
+fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Option<f64> {
+    let (alpha, beta) = (c - 1.0, lam - c);
+    if !(x.abs() < 1.0 && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && beta > -1.0) {
+        return None;
+    }
+    let ab = lam - 1.0;
+    // `n - j` is exact for integer `0 <= j <= n`
+    let m = n.floor();
+    let recur = |mut g0: f64, mut g1: f64| {
+        let mut j = m - 2.0;
+        while j >= 0.0 {
+            let v = n - j;
+            let t = 2.0 * v + ab;
+            let g2 = ((t - 1.0) * (t * (t - 2.0) * x + (alpha - beta) * ab) * g1
+                - 2.0 * (v - 1.0) * (v + beta - 1.0) * t * g0)
+                / (2.0 * (v + ab) * (t - 2.0) * (v + alpha));
+            (g0, g1) = (g1, g2);
+            j -= 1.0;
+        }
+        g1
+    };
+
+    // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
+    let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
+    let (g0, g1) = (g(n - m), g(n - m + 1.0));
+    let y = recur(g0, g1);
+    // the solutions with starting values (1, 0) and (0, 1)
+    let growth = (recur(1.0, 0.0) * g0).abs() + (recur(0.0, 1.0) * g1).abs();
+    let stable = growth * SQRT_EPS <= y.abs();
+    let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
+    (!series.is_finite() || (y - series).abs() > tol * growth).then_some(y)
 }
 
 ///////////////////////////////
@@ -97,7 +153,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             }
         }
         let d = crate::binom(n + a, n);
-        self.hyp2f1_sh(-n, n + a + b + 1.0, a + 1.0) * d
+        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0) * d
     }
 
     /// Corresponds to `xsf::detail::eval_legendre`
@@ -106,7 +162,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         if self.is_nan() {
             return self;
         }
-        self.hyp2f1_sh(-n, n + 1.0, 1.0)
+        self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0)
     }
 }
 
@@ -355,7 +411,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             // function overflows, e.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
         }
-        self.hyp2f1_sh(-n, n + 2.0 * alpha, alpha + 0.5) * d
+        self.hyp2f1_sh(n, n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha) * d
     }
 }
 
@@ -481,12 +537,12 @@ pub trait ChebyshevArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
     #[inline]
     fn eval_chebyshev_t(self, n: f64) -> Self {
-        self.hyp2f1_sh(-n, n, 0.5)
+        self.hyp2f1_sh(n, n, 0.5, 0.0)
     }
 
     #[inline]
     fn eval_chebyshev_u(self, n: f64) -> Self {
-        self.hyp2f1_sh(-n, n + 2.0, 1.5) * (n + 1.0)
+        self.hyp2f1_sh(n, n + 2.0, 1.5, 2.0) * (n + 1.0)
     }
 }
 

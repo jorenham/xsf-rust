@@ -21,7 +21,7 @@ use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};
 
 const HYP2F1_EPS: f64 = 1.0e-13;
 
-const HYP2F1_ETHRESH: f64 = 1.0e-12;
+pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
 const HYP2F1_MAXITER: u64 = 10000;
 
 /// Defining power series expansion of Gauss hypergeometric function.

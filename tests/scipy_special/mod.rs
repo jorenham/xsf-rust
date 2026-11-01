@@ -8,6 +8,7 @@ mod factorial;
 mod hypergeometric;
 mod logsumexp;
 mod ndtri_exp;
+mod orthogonal_eval;
 mod perm;
 mod polygamma;
 mod softplus;
