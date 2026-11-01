@@ -251,6 +251,26 @@ fn test_hyp1f1_complex_large_a() {
 }
 
 #[test]
+fn test_hyp1f1_complex_asymptotic() {
+    // mpmath; in xsf these have a relative error of 0.13, 2.4e-5, and 4.9e-6 (and ~1e-8 here,
+    // because the asymptotic expansion is truncated)
+    let abz = [
+        (0.5, 1.5, c64(5.0, -25.0)),
+        (1.25, 2.5, c64(-11.0, 20.0)),
+        (0.25, 3.5, c64(-2.0, 30.0)),
+    ];
+    let expected = [
+        c64(0.242_995_298_734_033_47, 2.780_418_451_436_882),
+        c64(0.007_180_913_061_977_942_4, 0.028_317_020_033_024_477),
+        c64(0.520_732_899_622_106_7, 0.194_475_861_451_502_78),
+    ];
+    let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-8);
+    let actual_conj = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z.conj()).conj());
+    assert_eq!(actual_conj, actual);
+}
+
+#[test]
 fn test_hyp1f1_neg_a() {
     // mpmath; in xsf these are 5.5e8, -9.7e28, -2.6, -0.037, -1.5e15, and NaN
     let abx = [
