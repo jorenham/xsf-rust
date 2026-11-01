@@ -412,6 +412,25 @@ fn test_smirnovp() {
 }
 
 #[test]
+fn test_tukeylambdacdf_small_p_or_lambda() {
+    // mpmath; the first is ill-conditioned (condition number ~2600)
+    for (x, lambda, expected, tol) in [
+        (
+            -4.687_066_523_927_919_4,
+            0.212_969_479_099_442_08,
+            1.287_389_454_410_983_2e-13,
+            1e-12,
+        ),
+        (-20.0, 9e-5, 2.024_340_980_204_265e-9, 1e-14),
+        (-20.0, -9e-5, 2.098_545_034_667_178_4e-9, 1e-14),
+        (3.0, 5e-5, 0.952_584_620_711_382_7, 1e-15),
+    ] {
+        let rel = (xsf::tukeylambdacdf(x, lambda) - expected).abs() / expected;
+        assert!(rel < tol, "tukeylambdacdf({x}, {lambda}): rel = {rel:e}");
+    }
+}
+
+#[test]
 fn test_owens_t() {
     xsref::test("owens_t", "d_d-d", |x| xsf::owens_t(x[0], x[1]));
 }
