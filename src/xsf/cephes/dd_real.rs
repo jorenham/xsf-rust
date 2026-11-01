@@ -113,7 +113,7 @@ pub(crate) fn frexp_f64(x: f64) -> (f64, i32) {
     (m, ee - 0x3fe)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct DoubleDouble {
     pub(crate) hi: f64,
     pub(crate) lo: f64,

@@ -6,12 +6,14 @@
 //! NaN or a less accurate value (scipy/xsf#350).
 
 use core::f64::consts::PI;
+use core::ops::Mul;
 
 use num_complex::{Complex64, c64};
 
 use super::hyp1f1_recurrence::{hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b};
 use super::{cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
+use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
@@ -186,15 +188,62 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     chg
 }
 
-/// Unlike in xsf (scipy/xsf#365): `scale * M(a, b, z)` from the series DLMF 13.2.2 for `a > -1`
-/// or `b < 0`, with an error bound for `a >= 1` and `b > 0` (an estimate for `b < 0`), or `None`
-/// if it doesn't converge within 100000 terms.
+/// The terms of `hyp1f1_sum`: complex, or double-double for about twice the precision.
+trait Term: Copy + Default + Mul<f64, Output = Self> {
+    /// the relative precision `2 u` of the error bound
+    const EPS: f64;
+    fn norm(self) -> f64;
+    /// `sum += self`, with the Kahan compensation `comp` for `Complex64`
+    fn add_to(self, sum: &mut Self, comp: &mut Self);
+}
+
+impl Term for Complex64 {
+    const EPS: f64 = f64::EPSILON;
+    fn norm(self) -> f64 {
+        Complex64::norm(self)
+    }
+    fn add_to(self, sum: &mut Self, comp: &mut Self) {
+        kahan_step(sum, comp, self);
+    }
+}
+
+impl Term for DoubleDouble {
+    const EPS: f64 = f64::EPSILON * f64::EPSILON;
+    fn norm(self) -> f64 {
+        // `inf` on overflow, where the error terms of the products are NaN
+        if self.is_finite() {
+            self.hi.abs()
+        } else {
+            f64::INFINITY
+        }
+    }
+    fn add_to(self, sum: &mut Self, _: &mut Self) {
+        *sum = *sum + self;
+    }
+}
+
+/// Unlike in xsf (scipy/xsf#365): `hyp1f1_sum` in complex arithmetic.
+fn hyp1f1_series(
+    a: f64,
+    b: f64,
+    z: Complex64,
+    scale: Complex64,
+    log_scale: f64,
+) -> Option<(Complex64, f64)> {
+    let next_term = |t, n| t * ((a + n) / (n + 1.0) * (z / (b + n)));
+    hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale)
+}
+
+/// Unlike in xsf (scipy/xsf#365): `scale * M(a, b, z)` from the series DLMF 13.2.2, with the terms
+/// `t_n+1 = next_term(t_n, n)` and `abs_z = |z|`, for `a > -1` or `b < 0`, with an error bound for
+/// `a >= 1` and `b > 0` (an estimate for `b < 0`), or `None` if it doesn't converge within 100000
+/// terms (a cost bound).
 ///
-/// The error bound (to first order in `u = EPSILON / 2`) is the sum of:
+/// The error bound (to first order in `u = T::EPS / 2`) is the sum of:
 /// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
 ///   `q_n = (a + n) |z| / ((n + 1) (b + n))` are non-increasing;
 /// - the rounding error: at most `8 u sum (n + 1) |t_n|` (`8 n u` per term, `2 u |t_n|` per Kahan
-///   step).
+///   step of `Complex64`).
 ///
 /// A negligible `t_N` is skipped if `q_N >= 1` or `b + N < |z|` (unless the sum overflowed), since
 /// then the terms can grow again, e.g. for tiny `a`. Otherwise they can't, because
@@ -204,22 +253,28 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
 ///
 /// The extra factor `e^log_scale` (for `log_scale < 0`) is applied in steps once the terms are
-/// large, so that the result is finite even if `e^log_scale` underflows and `M` overflows.
-fn hyp1f1_series(
+/// large, so that the result is finite even if `e^log_scale` underflows and `M` overflows:
+/// - while `err > 1e250`, which leaves room for the next terms below `MAX ~ 1.8e308`;
+/// - in steps of at least `e^-600`, which is normal, with an integer exponent so that `log_scale`
+///   stays exact (if `|log_scale| < 2^53`);
+/// - the rest in 3 steps, so that (since `|sum| <= MAX`) a step only underflows if the result
+///   does.
+fn hyp1f1_sum<T: Term>(
     a: f64,
     b: f64,
-    z: Complex64,
-    scale: Complex64,
+    abs_z: f64,
+    next_term: impl Fn(T, f64) -> T,
+    scale: T,
     mut log_scale: f64,
-) -> Option<(Complex64, f64)> {
+) -> Option<(T, f64)> {
     let mut t = scale;
     let mut sum = scale;
-    let mut comp = Complex64::ZERO;
+    let mut comp = T::default();
     let mut err = t.norm();
     for n in 0..100_000 {
         let n = f64::from(n);
-        t *= (a + n) / (n + 1.0) * (z / (b + n));
-        kahan_step(&mut sum, &mut comp, t);
+        t = next_term(t, n);
+        t.add_to(&mut sum, &mut comp);
         err += (n + 2.0) * t.norm();
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
@@ -227,9 +282,9 @@ fn hyp1f1_series(
             let s = s.exp();
             (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
         }
-        if t.norm() <= f64::EPSILON * sum.norm() {
-            let q = (a + n + 1.0) / (n + 2.0) * (z.norm() / (b + n + 1.0));
-            if (q >= 1.0 || b + n + 1.0 < z.norm()) && sum.norm().is_finite() {
+        if t.norm() <= T::EPS * sum.norm() {
+            let q = (a + n + 1.0) / (n + 2.0) * (abs_z / (b + n + 1.0));
+            if (q >= 1.0 || b + n + 1.0 < abs_z) && sum.norm().is_finite() {
                 continue;
             }
             let tail = if q < 1.0 {
@@ -237,12 +292,11 @@ fn hyp1f1_series(
             } else {
                 f64::INFINITY
             };
-            let bound = 4.0 * f64::EPSILON * err + tail;
+            let bound = 4.0 * T::EPS * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
             }
-            // in 3 steps, since `|sum| < e^710`
-            let s = (log_scale.max(-1500.0) / 3.0).exp();
+            let s = (log_scale / 3.0).exp();
             return sum
                 .norm()
                 .is_finite()
@@ -273,26 +327,43 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
         .map(|(hg, err)| (hg.re, err))
 }
 
+/// Unlike in xsf (scipy/xsf#365): `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
+fn chgm_series_dd(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
+    let b_dd = DoubleDouble::new(b);
+    let next_term = |t, n| t * (a + n) * x / ((b_dd + n) * (n + 1.0));
+    hyp1f1_sum(a.hi, b, x, next_term, DoubleDouble::new(1.0), x0.min(0.0))
+        .map(|(hg, err)| (hg.hi, err))
+}
+
 /// Unlike in xsf (scipy/xsf#365): `M(a, b, x)` for non-integer `b < 0` from the series, or else
-/// from `hyp1f1_neg_b`, if either loses at most half of its digits.
+/// from `hyp1f1_neg_b`, or else from the series in double-double, if any loses at most half of
+/// its digits, e.g. `hyp1f1(500.5, -200.25, 5.5)` was 4.6e169 instead of 1.9521e-6.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
-    let (ak, xk) = if x < 0.0 { (b - a, -x) } else { (a, x) };
-    let mut series = chgm_series(ak, b, xk, x);
-    // if the partial sums overflow, `e^-1400 M` is summed instead
-    let mut scale = 1.0;
-    if series.is_some_and(|(hg, _)| !hg.is_finite()) {
-        series = chgm_series(ak, b, xk, x.min(0.0) - 1400.0);
-        scale = 700_f64.exp();
+    fn checked(x: f64, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
+        let mut hg = series(x);
+        // if the partial sums overflow, `e^-1400 M` is summed instead (`e^700 < MAX`)
+        let mut scale = 1.0;
+        if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
+            hg = series(x.min(0.0) - 1400.0);
+            scale = 700_f64.exp();
+        }
+        hg.filter(|&(hg, err)| hg.is_finite() && err <= SQRT_EPS * hg.abs())
+            .map(|(hg, _)| hg * scale * scale)
     }
-    series
-        .filter(|&(hg, err)| hg.is_finite() && err <= SQRT_EPS * hg.abs())
-        .map(|(hg, _)| hg * scale * scale)
+    // `b - a` also without rounding, e.g. to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
+    let (ak, xk) = if x < 0.0 {
+        (DoubleDouble::new(b) - a, -x)
+    } else {
+        (DoubleDouble::new(a), x)
+    };
+    checked(x, |x0| chgm_series(ak.hi, b, xk, x0))
         // not for huge |a|, where the initial values are too slow (e.g. a polynomial of degree -a)
         .or_else(|| {
             (a.abs() <= 1e5)
                 .then(|| hyp1f1_neg_b(a, b, x, SQRT_EPS, |b| chgm(x, a, b)))
                 .flatten()
         })
+        .or_else(|| checked(x, |x0| chgm_series_dd(ak, b, xk, x0)))
 }
 
 #[allow(
