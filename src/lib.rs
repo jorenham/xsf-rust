@@ -544,6 +544,7 @@
 //! | [`sinc`]       | Normalized sinc function, $\sin(\pi x) \over \pi x$ |
 //!
 
+#![forbid(unsafe_code)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
