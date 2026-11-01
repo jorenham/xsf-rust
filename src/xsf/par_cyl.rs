@@ -181,9 +181,9 @@ fn vvsa(x: f64, va: f64) -> f64 {
             let gw = fac * sv + 1.0;
             let r1 = gw * r * gm;
             pv += r1;
-            // Unlike in xsf, the convergence test ignores the weight `gw` (instead of only skipping
-            // `gw == 0`): for `va` near an integer, every other `gw` is tiny, which stopped the loop
-            // too early.
+            // Unlike in xsf, the convergence test ignores the weight `gw` (instead of only
+            // skipping `gw == 0`): for `va` near an integer, every other `gw` is tiny, which
+            // stopped the loop too early.
             //
             // E.g. `pbvv(2.00000001, 7.0251687981058035).0` was 1.8e-4 instead of 601.28.
             if (r * gm / pv).abs() < eps {
@@ -409,17 +409,17 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f0 = f1;
             f1 = f;
         }
-    // Unlike in xsf, this branch, which evaluates `vvsa` at the orders v and v - 1, is also used
-    // for 7.5 < |x| <= 10 and v <= x^2 / 2 (here v is the order + 1). There, the 250 terms of
-    // `vvsa` suffice and barely cancel, whereas xsf uses `vvla`:
-    //
-    // - for x > 7.5, with Miller's backward recurrence, which hasn't converged to V_v there;
-    // - for x < -7.5, with the upward recurrence, which is unstable, and `vvla` is wrong for
-    //   integer v (at the poles of `gamma2(-v)`).
-    //
-    // E.g. `pbvv(8.463751277865178, 7.641451046470024).0` was 0.022906 instead of 0.023227,
-    // and `pbvv(6.0, -8.0).0` was -1.5e263 instead of -5.6633.
-    } else if (0.0..=7.5).contains(&x) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
+    } else if ((x >= 0.0) && (x <= 7.5)) || (xa > 7.5 && xa <= 10.0 && v <= 0.5 * x * x) {
+        // Unlike in xsf, this branch, which evaluates `vvsa` at the orders v and v - 1, is also
+        // used for 7.5 < |x| <= 10 and v <= x^2 / 2 (here v is the order + 1). There, the 250
+        // terms of `vvsa` suffice and barely cancel, whereas xsf uses `vvla`:
+        //
+        // - for x > 7.5, with Miller's backward recurrence, which hasn't converged to V_v there;
+        // - for x < -7.5, with the upward recurrence, which is unstable, and `vvla` is wrong for
+        //   integer v (at the poles of `gamma2(-v)`).
+        //
+        // E.g. `pbvv(8.463751277865178, 7.641451046470024).0` was 0.022906 instead of 0.023227,
+        // and `pbvv(6.0, -8.0).0` was -1.5e263 instead of -5.6633.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -682,10 +682,6 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    /* NB. Indexing of DV/DP in specfun.f:PBDV starts from 0, hence +2 */
-    let Some((mut buf, num)) = alloc_buf(v) else {
-        return (f64::NAN, f64::NAN);
-    };
     // Unlike in xsf, D_v(x) and D_{v+1}(x) are computed directly with the series `dvsa` for
     // -10 <= x < -5.8 and 0 < v < x^2 / 3. There, xsf uses `dvla` and the upward recurrence:
     //
@@ -701,6 +697,10 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
     }
+    /* NB. Indexing of DV/DP in specfun.f:PBDV starts from 0, hence +2 */
+    let Some((mut buf, num)) = alloc_buf(v) else {
+        return (f64::NAN, f64::NAN);
+    };
     pbdv_impl(x, v, &mut buf, num)
 }
 
