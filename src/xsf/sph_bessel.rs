@@ -132,6 +132,19 @@ fn sph_bessel_tiny_x(n: i64, x: f64) -> Option<f64> {
     Some(res)
 }
 
+/// The leading term `n x^(n-1) / (2n + 1)!!` of the power series of both `j_n'(x)` and
+/// `i_n'(x)` for `n >= 1`, if `x` is tiny enough for `sph_bessel_tiny_x(n - 1, x)`.
+#[allow(clippy::cast_precision_loss)]
+fn sph_bessel_prime_tiny_x(n: i64, x: f64) -> Option<f64> {
+    if n < 1 || x.is_nan() {
+        return None;
+    }
+    let nf = n as f64;
+    // f_n'(-x) = (-1)^(n+1) f_n'(x), which also gives the right sign if the product underflows
+    let sign = if x < 0.0 && n % 2 == 0 { -1.0 } else { 1.0 };
+    sph_bessel_tiny_x(n - 1, x.abs()).map(|res| sign * nf * res / (2.0 * nf + 1.0))
+}
+
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
 fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
     csqrt(cdiv(c64(FRAC_PI_2, 0.0), z))
@@ -263,6 +276,12 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
         return 0.0;
     }
 
+    // Unlike in xsf, use the leading power series term n x^(n-1) / (2n + 1)!! for tiny x, since
+    // j_n(x) underflows before j_{n-1}(x), e.g. j_2'(7.5e-179) was 2.5e-179 instead of 1e-179.
+    if let Some(res) = sph_bessel_prime_tiny_x(n, z) {
+        return res;
+    }
+
     // DLMF 10.51.2
     sph_bessel_j_f64(n - 1, z) - np1(n) * sph_bessel_j_f64(n, z) / z
 }
@@ -372,7 +391,17 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
         return -sph_bessel_y_f64(1, x);
     }
 
-    sph_bessel_y_f64(n - 1, x) - np1(n) * sph_bessel_y_f64(n, x) / x
+    // Unlike in xsf, if y_n(x) is infinite, return the infinite term -(n + 1) y_n(x) / x (as when
+    // y_{n-1}(x) is finite), instead of inf - inf = NaN if y_{n-1}(x) is infinite as well.
+    // Here x = -0 is treated as +0, as in y_n(x).
+    //
+    // For example, y_8'(7e-46) was NaN instead of inf.
+    let yn = sph_bessel_y_f64(n, x);
+    if yn.is_infinite() {
+        return if x < 0.0 { yn } else { -yn };
+    }
+
+    sph_bessel_y_f64(n - 1, x) - np1(n) * yn / x
 }
 
 fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
@@ -477,6 +506,12 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
             return 1. / 3.;
         }
         return 0.0;
+    }
+
+    // Unlike in xsf, use the leading power series term for tiny x (see sph_bessel_j_jac_f64),
+    // e.g. i_2'(7.5e-179) was 2.5e-179 instead of 1e-179.
+    if let Some(res) = sph_bessel_prime_tiny_x(n, z) {
+        return res;
     }
 
     sph_bessel_i_f64(n - 1, z) - np1(n) * sph_bessel_i_f64(n, z) / z
