@@ -73,6 +73,17 @@ fn test_bessel_ye_c64() {
     });
 }
 
+#[test]
+fn test_bessel_y_negative_half_integer_tiny_x() {
+    // mpmath: bessely(-2.5, 1e-200) = 5.3e-502 and bessely(-50.5, 1e-10) = 2.9e-586
+    for (v, x) in [(-2.5, 1e-200), (-50.5, 1e-10)] {
+        assert_eq!(xsf::bessel_y(v, x), 0.0);
+        assert_eq!(xsf::bessel_ye(v, x), 0.0);
+        assert_eq!(xsf::bessel_y(v, c64(x, 0.0)), c64(0.0, 0.0));
+        assert_eq!(xsf::bessel_ye(v, c64(x, 0.0)), c64(0.0, 0.0));
+    }
+}
+
 // Bessel I
 
 #[test]
