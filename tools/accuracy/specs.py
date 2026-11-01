@@ -3001,7 +3001,6 @@ add(
         label="n in {0, ..., 150}, k in {0, ..., n}",
         pretty=f"{nobreak('n', IN, Int(0, 150).pretty())}, {nobreak('k', IN, f'{{0, {ELLIPSIS}, n}}')}",
     ),
-    note="approx_s2",
 )
 add("wright_bessel", "a b x", r_wright_bessel, D(U(0, 5), U(0, 5), U(0, 100), n=2000), timeout=60)
 add(
@@ -3094,7 +3093,6 @@ NOTES |= {
     "tvn": "With `epsi` = 10\u207b\u00b9\u2074, its lower bound.",
     "abs": "Absolute error ~10\u207b\u00b9\u2076 at best, so the relative error is large for tiny probabilities.",
     "approx_vm": "Normal approximation for k \u2265 50.",
-    "approx_s2": "Temme's approximation for n > 50 (relative error up to ~2\u00b710\u207b\u2075).",
     "poly": (
         f"Rows with n \u2208 {{{ELLIPSIS}}} use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."

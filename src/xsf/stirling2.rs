@@ -27,7 +27,7 @@ use crate::xsf::lambertw::lambertw;
 use num_complex::Complex;
 
 /// Dynamic programming method for small n.
-/// Only valid for n <= 50; the stack array is sized accordingly (max 25 elements).
+/// Only valid for n <= 219; the stack array is sized accordingly (max 110 elements).
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -36,8 +36,8 @@ use num_complex::Complex;
     clippy::cast_lossless
 )]
 fn stirling2_dp(n: f64, k: f64) -> f64 {
-    // Maximum arraySize for n <= 50 is 25. Guard against misuse.
-    const MAX_ARRAY_SIZE: usize = 26;
+    // Maximum arraySize for n <= 219 is 110. Guard against misuse.
+    const MAX_ARRAY_SIZE: usize = 111;
 
     if (n == 0.0 && k == 0.0) || (n == 1.0 && k == 1.0) {
         return 1.0;
@@ -117,10 +117,12 @@ fn stirling2_temme(n: f64, k: f64) -> f64 {
     A.exp() * k.powf(n - k) * binom(n, k) * (F - F1 / k)
 }
 
-/// Stirling numbers of the second kind, using dynamic programming for n <= 50, and the
-/// second-order Temme asymptotic approximation for n > 50.
+/// Stirling numbers of the second kind, using dynamic programming for n <= 219, and the
+/// second-order Temme asymptotic approximation for n > 219.
 pub(crate) fn stirling2(n: f64, k: f64) -> f64 {
-    if n <= 50.0 {
+    // Unlike in xsf, up to n = 219 (not 50), the largest n where no S(n, k) overflows, since
+    // Temme's error is ~0.05 / n^2, e.g. S(51, 7) had a relative error of 1.85e-5.
+    if n <= 219.0 {
         return stirling2_dp(n, k);
     }
     stirling2_temme(n, k)
