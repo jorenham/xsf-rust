@@ -600,9 +600,9 @@ fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
     if v.abs() >= 2_147_483_648.0 {
         return None;
     }
-    // Unlike in xsf, `+ 3` instead of `+ 2`, since `na = |(int) (v +- 1)|` in `pbdv_impl` and
-    // `pbvv_impl` can be `|(int) v| + 2` if `v +- 1` rounds to an integer, so that `dv[na]`
-    // overwrote `dp[0]`.
+    // Unlike in xsf (scipy/xsf#401), `+ 3` instead of `+ 2`, since `na = |(int) (v +- 1)|` in
+    // `pbdv_impl` and `pbvv_impl` can be `|(int) v| + 2` if `v +- 1` rounds to an integer, so that
+    // `dv[na]` overwrote `dp[0]`.
     //
     // E.g. `pbdv(-0.9999999999999999, -3.0).1` was 35.467 instead of -35.731.
     let num = (v as i32).unsigned_abs() as usize + 3;
