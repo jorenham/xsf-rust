@@ -140,9 +140,10 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                     cs2 += cr2;
                 }
                 let y = z.im;
-                // Unlike in xsf, the sign is that of `Im z`, so that `M(a, b, conj(z))` is
-                // `conj(M(a, b, z))`; DLMF 13.7.2 allows both signs for `-pi/2 < ph z < 0`, but
-                // `+` is less accurate, e.g. `hyp1f1(0.5, 1.5, 5 - 25j)` was off by 13%.
+                // Unlike in xsf (scipy/xsf#398), the sign is that of `Im z`, so that
+                // `M(a, b, conj(z))` is `conj(M(a, b, z))`; DLMF 13.7.2 allows both signs for
+                // `-pi/2 < ph z < 0`, but `+` is less accurate, e.g. `hyp1f1(0.5, 1.5, 5 - 25j)`
+                // was off by 13%.
                 let ns = if y > 0.0 { 1 } else { -1 };
                 let mut cfac = cexp(f64::from(ns) * ci * PI * a);
                 if y == 0.0 {
