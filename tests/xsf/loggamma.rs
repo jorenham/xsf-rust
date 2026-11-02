@@ -31,6 +31,14 @@ fn test_rgamma_f64() {
 }
 
 #[test]
+fn test_rgamma_f64_subnormal() {
+    // unlike in xsf: 1 / Gamma(x) = x for subnormal x, also for x < 0
+    for x in [5e-324, -5e-324, -1e-310, -2e-308] {
+        assert_eq!(xsf::rgamma(x), x);
+    }
+}
+
+#[test]
 fn test_rgamma_f64_near_overflow() {
     // unlike in xsf: no spurious overflow for `-178 < x < -170` (mpmath)
     for (x, expected) in [
