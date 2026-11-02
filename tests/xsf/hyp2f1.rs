@@ -54,6 +54,50 @@ fn test_hyp2f1_c64_transform2_euler() {
 }
 
 #[test]
+fn test_hyp2f1_c64_transform1_maclaurin() {
+    // unlike in xsf: the Maclaurin series if the 1 - z transformation cancels (mpmath references)
+    for (a, b, c, z, expected) in [
+        // c - a - b = 50 (the limiting case) and 50.5
+        (
+            4.5,
+            2.5,
+            57.0,
+            c64(0.64, 0.65),
+            c64(1.122_209_544_812_728_6, 0.158_257_844_232_734_11),
+        ),
+        (
+            4.5,
+            2.5,
+            57.5,
+            c64(0.64, 0.65),
+            c64(1.121_218_275_094_999_2, 0.156_607_234_073_543_14),
+        ),
+        // |z| > 1
+        (
+            3.5,
+            2.5,
+            40.0,
+            c64(0.9, 0.6),
+            c64(1.211_419_901_187_38, 0.188_557_093_819_745_4),
+        ),
+        // c - a - b just misses an integer, so the 1 - z transformation is NaN
+        (
+            0.1,
+            0.2,
+            50.3,
+            c64(0.64, 0.65),
+            c64(1.000_254_319_428_871_4, 2.627_839_705_956_765e-4),
+        ),
+    ] {
+        let actual = xsf::hyp2f1(a, b, c, z);
+        assert!(
+            (actual - expected).norm() < 1e-14 * expected.norm(),
+            "hyp2f1({a}, {b}, {c}, {z}) = {actual} != {expected}"
+        );
+    }
+}
+
+#[test]
 fn test_hyp2f1_c64_huge_num_terms() {
     // unlike in xsf: these summed up to 2^64 terms (mpmath references)
     let (tx, rx) = std::sync::mpsc::channel();
