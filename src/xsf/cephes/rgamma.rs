@@ -61,6 +61,12 @@ pub(crate) fn rgamma(x: f64) -> f64 {
         return x;
     }
 
+    // Unlike in xsf, 1 / Gamma(x) = x(1 + gamma x + ...) rounds to x for subnormal x, where
+    // `z /= w` below overflows if x < 0, e.g. `rgamma(-1e-310)` was -0.0.
+    if x.abs() < f64::MIN_POSITIVE {
+        return x;
+    }
+
     if x < 0.0 && x == x.floor() {
         // Gamma poles.
         return 0.0;
