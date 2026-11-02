@@ -905,7 +905,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         // For x > 0 these terms cancel (H_n(x) ~ (2x)^n, while both terms grow like e^(x^2)),
         // which is why `hypu` is used there.
         //
-        // E.g. `eval_hermite_h(2.5298681626028885, -5.382735923248713)` was NaN, not -2.26e10.
+        // E.g. `eval_hermite_h(2.5, -5.0)` was NaN, not -5.77e8.
         let z = scale * x * x;
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
