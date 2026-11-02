@@ -1,4 +1,5 @@
 use num_complex::c64;
+use xsref::np_assert_allclose;
 
 #[test]
 fn test_hyp2f1_c64_transform2_euler() {
@@ -95,4 +96,65 @@ fn test_hyp2f1_c64_huge_num_terms() {
         tx.send(()).unwrap();
     });
     rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+}
+
+#[test]
+fn test_hyp2f1_f64_c_minus_a_minus_b_le_minus_1() {
+    // the Euler transformation cancels here (mpmath)
+    let actual = [
+        xsf::hyp2f1(-0.5, 125.0, 62.5, 0.4),
+        xsf::hyp2f1(-0.8, 19.7, 9.4, 0.9),
+    ];
+    let desired = [0.453_216_679_866_897_07, -487.198_231_355_781_05];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but the recurrence of the power series is inaccurate here (mpmath)
+    let actual = [
+        xsf::hyp2f1(-1.000_000_000_000_11, 2.000_002, 1e-6, 0.999_999_7),
+        xsf::hyp2f1(-49.5, 61.5, 6.5, 0.961_281_567_773_062_2),
+    ];
+    let desired = [-2_000_000.033_618_169_8, -6.640_002_805_058_352e-5];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
+fn test_hyp2f1_f64_x_lt_minus_2() {
+    // the 1/x transformation is inaccurate here, but the Pfaff transformations are not (mpmath)
+    let actual = [
+        xsf::hyp2f1(12.0, 3.1, 99.3, -2.8),
+        xsf::hyp2f1(81.0, 6.2, -95.1, -8.4),
+        xsf::hyp2f1(-58.5, 0.07, 50.9, -4.3),
+    ];
+    let desired = [
+        0.416_874_471_029_815_73,
+        6.875_723_600_176_229e-5,
+        8_488_942_027_952.015,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // but here the starting values of their recurrence need a recurrence as well (mpmath)
+    let actual = xsf::hyp2f1(-20.000_000_000_2, -14.47, 2.93, -5.48);
+    np_assert_allclose!([actual], [64_520_380_601.436_584], rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_c_lt_0() {
+    // the terms of the power series are tiny before k = -c, and huge after it (mpmath)
+    let actual = [
+        xsf::hyp2f1(0.01, 0.3, -181.2, 0.6),
+        xsf::hyp2f1(0.1, 0.2, -1000.5, 0.55),
+        xsf::hyp2f1(0.1, 0.2, -12_000.5, 0.02),
+        xsf::hyp2f1(-7001.5, 12.2, -7000.5, 0.5),
+    ];
+    let desired = [
+        3.196_698_793_921_328_4e28,
+        -6.233_446_442_910_298e83,
+        0.999_999_966_668_092_2,
+        4_713.283_633_348_583,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but it fails (instead of returning 1 or -7.13e279) if the ratio of its terms underflows
+    assert!(xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8).is_nan());
+    assert!(xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8).is_nan());
 }
