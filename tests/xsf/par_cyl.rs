@@ -328,3 +328,12 @@ fn test_pbvv_negative_x() {
     );
     assert!(rel < 1e-9 && relp < 1e-9, "{rel:e}, {relp:e}");
 }
+
+#[test]
+fn test_pbdv_pbvv_negative_zero_v() {
+    // unlike in xsf, v = -0.0 is the same as v = +0.0
+    for x in [-5.0, 0.5, 5.0, 50.0] {
+        assert_eq!(xsf::pbdv(-0.0, x), xsf::pbdv(0.0, x), "pbdv(-0.0, {x})");
+        assert_eq!(xsf::pbvv(-0.0, x), xsf::pbvv(0.0, x), "pbvv(-0.0, {x})");
+    }
+}
