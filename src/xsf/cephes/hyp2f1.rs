@@ -23,6 +23,8 @@ const HYP2F1_EPS: f64 = 1.0e-13;
 
 pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
 const HYP2F1_MAXITER: u64 = 10000;
+/// 2^512 (about `sqrt(f64::MAX)`), to rescale tiny terms exactly, far from overflow and underflow
+const HYP2F1_SCALE: f64 = 1.340_780_792_994_259_7e154;
 
 /// Defining power series expansion of Gauss hypergeometric function.
 /// The `loss` (the second return value) estimates loss of significance.
@@ -76,30 +78,54 @@ fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut s = 1.0;
     let mut u = 1.0;
     let mut k = 0.0;
+    // Unlike in xsf, if x > 0 and c < 0 is not an integer, don't stop before the terms have
+    // passed k = -c and stopped growing, since they can be tiny before and huge after it:
+    //
+    // - so this may take up to twice `HYP2F1_MAXITER` terms (before and after k = -c)
+    // - terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and only
+    //   summed (and counted in `loss`) if `n_scaled == 0` (else they are negligible)
+    // - it fails if their ratio underflows, e.g. for tiny a and b
+    //
+    // E.g. `hyp2f1(0.1, 0.2, -1000.5, 0.55)` was inf instead of -6.23e83.
+    let pole_ahead = x > 0.0 && h < 0.0 && (h - h.round()).abs() > HYP2F1_EPS;
+    let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
+    let (mut n_scaled, mut i_scaled) = (0, 0);
     loop {
         if h.abs() < HYP2F1_EPS {
             return (f64::INFINITY, 1.0, 1.0);
         }
         let m = k + 1.0;
-        u *= (f + k) * (g + k) * x / ((h + k) * m);
-        s += u;
-        k = u.abs(); /* remember largest term summed */
+        let r = (f + k) * (g + k) * x / ((h + k) * m);
+        u *= r;
+        if pole_ahead && r.abs() < f64::MIN_POSITIVE && f + k != 0.0 && g + k != 0.0 {
+            return (s, 1.0, 1.0);
+        }
+        if pole_ahead && u != 0.0 && u.abs() < 1.0 / HYP2F1_SCALE {
+            (u, n_scaled) = (u * HYP2F1_SCALE, n_scaled + 1);
+        } else if n_scaled > 0 && u.abs() > 1.0 {
+            (u, n_scaled) = (u / HYP2F1_SCALE, n_scaled - 1);
+        }
+        let t = if n_scaled == 0 { u } else { 0.0 };
+        s += t;
+        k = t.abs(); /* remember largest term summed */
         if k > umax {
             umax = k;
         }
         k = m;
         i += 1;
-        if i > HYP2F1_MAXITER {
+        i_scaled += u64::from(n_scaled > 0);
+        if i > maxiter {
             /* should never happen */
             return (s, 1.0, 1.0);
         }
-        if !(s == 0.0 || (u / s).abs() > MACHEP) {
+        let growing = pole_ahead && u != 0.0 && (k < 1.0 - h || r.abs() > 1.0);
+        if !(s == 0.0 || (t / s).abs() > MACHEP || growing) {
             break;
         }
     }
 
     /* return estimated relative error */
-    let loss = (MACHEP * umax) / s.abs() + (MACHEP * i as f64);
+    let loss = (MACHEP * umax) / s.abs() + (MACHEP * (i - i_scaled) as f64);
 
     (s, loss, loss)
 }
@@ -515,11 +541,14 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     }
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
-        // Unlike in xsf, if 0 < x < 1 and c > 0, and the series of this transformation is
-        // estimated to lose precision, first try the power series (incl. its recurrence error).
+        // Unlike in xsf, if 0 < x < 1, first try the power series (incl. its recurrence error) if
+        // c > 0 and the series of this transformation is estimated to lose precision, or if c < 0
+        // is not an integer (where this transformation tends to overflow or cancel).
         //
         // E.g. `hyp2f1(-0.5, 125.0, 62.5, 0.4)` was 1.04e5 instead of 0.453.
-        if c > 0.0 && x > 0.0 && x < 1.0 && hys2f1(c - a, c - b, c, x).1 >= HYP2F1_ETHRESH {
+        let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
+        let lossy = || c > 0.0 && hys2f1(c - a, c - b, c, x).1 >= HYP2F1_ETHRESH;
+        if x > 0.0 && x < 1.0 && (c_pole || lossy()) {
             let (y, _, err) = hys2f1_err(a, b, c, x);
             if err < HYP2F1_ETHRESH {
                 return y;
@@ -573,6 +602,17 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 
             let mut t1 = (b - a).abs();
             if x < -2.0 && (t1 - t1.round()).abs() > HYP2F1_EPS {
+                // Unlike in xsf, first try the series of the Pfaff transformations as for x < -1,
+                // since the inner functions of the 1/x transformation can be inaccurate.
+                //
+                // E.g. `hyp2f1(12.0, 3.1, 99.3, -2.8)` was -1.19e12 instead of 0.417.
+                let w = x / (x - 1.0);
+                let (ya, _, ea) = hys2f1_err(a, c - b, c, w);
+                let (yb, _, eb) = hys2f1_err(b, c - a, c, w);
+                let (y1, e1, a1) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+                if e1 < HYP2F1_ETHRESH {
+                    return s.powf(-a1) * y1;
+                }
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
                  */
