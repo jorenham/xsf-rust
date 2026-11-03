@@ -238,8 +238,9 @@ mod rjimpl {
          * singularity as p -> +0 */
         if abs_close_zero(p) || ((x != 0.0) && asymp_zero(p / x)) {
             conf.f = (x * y * z).sqrt();
-            // Unlike in xsf (scipy/xsf#376), if `x * y * z` underflows
-            if !conf.f.is_normal() {
+            // Unlike in xsf (scipy/xsf#376), if `x * y` or `x * y * z` underflows, e.g.
+            // `elliprj(1e-200, 1e-120, 1e100, 1e-220)` was 7.11574e111 instead of 7.11570e111.
+            if !((x * y).is_normal() && (x * y * z).is_normal()) {
                 conf.f = x.sqrt() * y.sqrt() * z.sqrt();
             }
             return AsymFlag::Tinyp;
@@ -397,12 +398,26 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 alpha *= alpha;
                 let mut beta = pr + lamt;
                 beta = beta * beta * pr;
-                // Unlike in xsf (scipy/xsf#376), instead of dropping the R_C term
-                if !(alpha.is_finite() && beta.is_finite()) {
-                    return (ExitStatus::Overflow, T::NAN);
-                }
                 let status_tmp;
-                (status_tmp, xct2[0]) = rc(alpha, beta, r);
+                (status_tmp, xct2[0]) = if alpha.is_normal() && beta.is_normal() {
+                    rc(alpha, beta, r)
+                } else {
+                    // Unlike in xsf (scipy/xsf#376), `alpha` and `beta` are rescaled if they
+                    // underflow (giving NaN or a loss of precision) or overflow (dropping R_C).
+                    //
+                    // E.g. `elliprj(1e-276, 1e-48, 1e-276, 1e-276)` was NaN instead of 1.5e300.
+                    //
+                    // - R_C(a^2, p b^2) = (s / b) R_C((s a / b)^2, s^2 p), by homogeneity
+                    // - s = 2^64 keeps s^2 p normal for subnormal p
+                    // - a / b = p (S / b) + sqrt(x) sqrt(y) (sqrt(z) / b), with S the sum of the
+                    //   square roots, can't overflow, as p <= b and sqrt(y z) <= b
+                    let s = 2.0_f64.powi(64);
+                    let b = pr + lamt;
+                    let [sz, sx, sy] = xct1;
+                    let t = (pr * ((sx + sy + sz) / b) + sx * (sy * (sz / b))) * s;
+                    let (status_rc, res_rc) = rc(t * t, s * s * pr, r);
+                    (status_rc, res_rc * s / b)
+                };
                 (status, xct2[1]) = rj(xr + lamt, yr + lamt, zr + lamt, pr + lamt, r, false);
                 if status_tmp != ExitStatus::Success {
                     status = status_tmp;
