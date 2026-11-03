@@ -319,6 +319,7 @@
 //! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
 //! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
 //! | [`digammainv`]   | Inverse of [`digamma`], $\psi^{-1}(y)$                            |
+//! | [`trigamma`]     | The trigamma function, $\psi\'(z)$                                |
 //! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                           |
 //! | [`multigammaln`] | Log of multivariate gamma, sometimes called the generalized gamma |
 //! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |
