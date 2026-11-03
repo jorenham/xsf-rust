@@ -524,9 +524,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             let xyz = [xm, ym, zm];
             let xyzl = common::add_lambda(xyz, [cct1[0], cct1[1], cct1[2]], lam);
             let mut pl = pm + lam;
-            // Unlike in xsf (scipy/xsf#409), if `p + lam` cancels, it's computed as
-            // `(a + lam) + (p - a)` with `a` the closest of `x, y, z`, e.g. if `p = z` is close to
-            // the negative real axis.
+            // Unlike in xsf (scipy/xsf#409), `p + lam` as `(a + lam) + (p - a)` if it cancels, with
+            // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
                 let mut i = 0;
                 for j in 1..3 {
