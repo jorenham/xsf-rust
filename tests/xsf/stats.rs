@@ -396,7 +396,7 @@ fn test_smirnovci() {
 
 #[test]
 fn test_smirnovp_large_n() {
-    // in xsf this is -0.0, due to `int` overflow
+    // scipy/xsf#315: `int` overflow made this -0.0
     let (n, x, h) = (50_000, 2e-3, 1e-8);
     let expected = (xsf::smirnov(n, x + h) - xsf::smirnov(n, x - h)) / (2.0 * h);
     let actual = xsf::smirnovp(n, x);
