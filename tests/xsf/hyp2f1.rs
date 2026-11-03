@@ -241,4 +241,19 @@ fn test_hyp2f1_f64_large_parameters() {
         -53_404_320_641.112_48,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // x << -1: the 1/x transformation (references: its two series summed in high precision)
+    let actual = [
+        xsf::hyp2f1(1.35, 87.4, -32.1, -8478.0),
+        xsf::hyp2f1(-41.6, -16.3, 720.1, -204.7),
+        xsf::hyp2f1(387.2, -2.01, 1.7, -6264.9),
+        xsf::hyp2f1(849.1, -1.54, 55.0, -236.7),
+    ];
+    let desired = [
+        -4.397_527_737_978_469e-6,
+        -1.151_698_277_128_985_8e17,
+        1_471_625_105_699.610_7,
+        304_675.781_003_058_8,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
