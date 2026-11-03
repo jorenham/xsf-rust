@@ -159,6 +159,49 @@ fn test_pbdv_large_x() {
 }
 
 #[test]
+fn test_pbdv_large_negative_x() {
+    // |v| < 20 and x < -50, near the overflow, and tiny v (reference values from mpmath)
+    for (v, x, d, dp) in [
+        (
+            0.5,
+            -53.3,
+            -5.074_506_366_933_065e305,
+            1.350_926_589_914_484_2e307,
+        ),
+        (
+            -1.5,
+            -53.0,
+            1.981_360_551_120_421_4e306,
+            -5.252_475_001_491_138e307,
+        ),
+        (
+            -14.0,
+            -52.0,
+            3.224_019_494_050_716_4e306,
+            -8.462_696_489_016_851e307,
+        ),
+        (
+            1e-200,
+            -66.0,
+            -3.359_978_890_270_264_5e271,
+            1.108_283_712_068_871_9e273,
+        ),
+    ] {
+        let (y, yp) = xsf::pbdv(v, x);
+        let rel = [(y - d) / d, (yp - dp) / dp].map(f64::abs);
+        assert!(
+            rel[0] < 5e-13 && rel[1] < 5e-13,
+            "v = {v}, x = {x}: {rel:?}"
+        );
+    }
+
+    // only D_v'(x) overflows
+    let (y, yp) = xsf::pbdv(0.5, -53.4);
+    assert!((y / -7.288_735_415_399_118e306 - 1.0).abs() < 5e-13);
+    assert_eq!(yp, f64::INFINITY);
+}
+
+#[test]
 fn test_pbdv_large_v() {
     // reference values from mpmath
     for (v, x, d, dp) in [
