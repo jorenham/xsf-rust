@@ -1,12 +1,9 @@
-//! Translated into pure Rust from `xsf/cephes/zetac.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/zetac.h` (xsf v0.2.2, with scipy/xsf#394 from
+//! xsf main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.1:  January, 1989
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
-//!
-//! Unlike in xsf (scipy/xsf#346), `zetac_positive` only returns 0 for `x >= 1075` (where `2**-x`
-//! rounds to 0), instead of for `x >= 127` (a leftover from single precision).
 
 use std::f64::consts::{E, PI};
 
@@ -137,7 +134,7 @@ const ZETAC_TAYLOR0: [f64; 10] = [
     -1.5,
 ];
 
-const ZETAC_MAXL2: f64 = 1075.0;
+const ZETAC_MAXL2: f64 = 127.0;
 
 /// Compute zetac for positive arguments
 #[allow(
@@ -157,8 +154,8 @@ fn zetac_positive(x: f64) -> f64 {
     }
 
     if x >= ZETAC_MAXL2 {
-        /* because first term is 2**-x */
-        return 0.0;
+        /* the terms after 2**-x are negligible */
+        return (-x).exp2();
     }
 
     /* Tabulated values for integer argument */
@@ -266,8 +263,7 @@ fn zeta_reflection(x: f64) -> f64 {
 /// ```
 ///
 /// Extension of the function definition for x < 1 is implemented.
-/// Zero is returned for x > log2(INFINITY).
-/// (Unlike in xsf, where this is for x >= 127 instead of x >= 1075, see scipy/xsf#346.)
+/// For x >= 127, 2**-x is returned.
 ///
 /// ACCURACY:
 ///
