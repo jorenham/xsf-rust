@@ -34,6 +34,11 @@ fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     (y, loss)
 }
 
+/// Whether `t` is a non-positive integer, up to `HYP2F1_EPS` (as in cephes)
+fn near_neg_int(t: f64) -> bool {
+    t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS
+}
+
 /// Unlike in xsf (scipy/xsf#371), `hys2f1_err`, or the power series and `true` if the recurrence
 /// in `a` has a small `loss` but a large error, and the series is accurate and shows it to be less
 /// accurate. Not if `a` or `b` is near a non-positive integer, where the series can stop too early.
@@ -41,7 +46,6 @@ fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 /// E.g. `hyp2f1(29.0, -14.5, 0.1, 0.99)` was -7.25e21 instead of -5.13e21.
 fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> ((f64, f64, f64), bool) {
     let y = hys2f1_err(a, b, c, x);
-    let near_neg_int = |t: f64| t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS;
     if y.1 < HYP2F1_ETHRESH && y.2 >= HYP2F1_ETHRESH && !(near_neg_int(a) || near_neg_int(b)) {
         let series = hys2f1_series(a, b, c, x);
         if series.1 < HYP2F1_ETHRESH && less_accurate(y.0, series.0, series.1) {
@@ -619,11 +623,10 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // the outermost call are large, so that the other results are unchanged.
     //
     // E.g. hyp2f1(658.99, 0.0047, 51.38, -2.72) was NaN instead of 0.983.
-    let non_pos_int = |v: f64| v <= 0.0 && (v - v.round()).abs() < HYP2F1_EPS;
     if recur
         && x < 0.9
         && is_large(a, b, c)
-        && ![c, c - a, c - b].into_iter().any(non_pos_int)
+        && ![c, c - a, c - b].into_iter().any(near_neg_int)
         && !(neg_int_a || neg_int_b)
     {
         if let Some(y) = hyp2f1_recur(a, b, c, x) {

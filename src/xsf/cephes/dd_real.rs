@@ -437,7 +437,9 @@ const E: DoubleDouble = DoubleDouble {
     hi: E_HI,
     lo: 1.445_646_891_729_250_2e-16,
 };
-const LOG2: DoubleDouble = DoubleDouble {
+
+/// `ln(2)` in double-double precision
+pub(crate) const LOG2: DoubleDouble = DoubleDouble {
     hi: LN_2,
     lo: 2.319_046_813_846_299_6e-17,
 };

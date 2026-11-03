@@ -61,7 +61,7 @@ use core::f64::consts::LN_2;
 
 use crate::utils::MACHEP;
 use crate::xsf::cephes::HYP2F1_ETHRESH;
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, frexp_f64, ldexp_f64};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
@@ -200,6 +200,8 @@ fn recur_down(p: Dd, q: Dd, c: f64, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) -
         }
         // the rounding errors of the step, and of `coef_b` (incl. its cancellation)
         let err_b = cc * (cc1.abs() + (cc_p.abs() + cc1.abs() + q.hi.abs()) * z.abs());
+        // (meant to cover the roundings of t0 and t1 (6), inside `coef_b` (4), and of `coef_a` and
+        // the division (4); a strict count gives about 5 and 6 for the last two, not yet fixed)
         let t_m = MACHEP * (6.0 * (t0.abs() + t1.abs()) + 4.0 * (err_b * y0).abs())
             / (coef_a * ym).abs()
             + 4.0 * MACHEP;
@@ -225,7 +227,9 @@ fn recur_down(p: Dd, q: Dd, c: f64, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) -
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: f64, z: f64, w: Dd) -> Option<Scaled> {
-    // the series takes about (|p| w + 40) / (1 - w) terms, so give up early if that's too many
+    // The series takes about (|p| w + 40) / (1 - w) terms, so give up early if that's too many:
+    // the terms peak near k = |p| w / (1 - w), and then decay like w^k, which takes about
+    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms.
     if (p.hi.abs() * w.hi + 40.0) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
         return None;
     }
@@ -233,7 +237,7 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: f64, z: f64, w: Dd) -> Option<Scaled> {
     let mut budget = HYP2F1_RECUR_MAXITER;
     let r = -q + c;
     let direct = series_w(p, r, Dd::new(c), w, &mut budget);
-    if c > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_RECUR_TOL / 100.0) {
+    if c > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_ETHRESH) {
         return direct;
     }
     // the smallest n with c + n > max(0, q)
@@ -304,10 +308,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     // it's clamped, then `e + k` is clamped as well, since `|e|` is at most about 1e9 (2^1000 per
     // term), and the result overflows or underflows.
     let k = (l.hi / LN_2).round().clamp(-1e12, 1e12);
-    let r = l - Dd {
-        hi: LN_2,
-        lo: 2.319_046_813_846_299_6e-17,
-    } * k;
+    let r = l - LOG2 * k;
     #[allow(clippy::cast_possible_truncation)]
     let e = (f64::from(y.e) + k).clamp(-1e4, 1e4) as i32;
     Some(ldexp_f64(y.m * r.hi.exp() * (1.0 + r.lo), e))
