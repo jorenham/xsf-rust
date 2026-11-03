@@ -1,5 +1,5 @@
-//! The subset of `xsf/tools.h` (xsf v0.2.2) that is needed by `iv_ratio`, `gdtrib`, and the
-//! complex `hyp2f1`.
+//! The subset of `xsf/tools.h` (xsf v0.2.2, with scipy/xsf#384 from xsf main) that is needed by
+//! `iv_ratio`, `gdtrib`, and the complex `hyp2f1`.
 //!
 //! Building blocks for implementing special functions
 //!
@@ -507,7 +507,8 @@ pub(crate) fn find_root_newton(
     if x.is_infinite() {
         return (x, InitialGuessReturnedInf);
     }
-    for _ in 0..maxiter {
+    let mut x_previous = x;
+    for i in 0..maxiter {
         let (f, df) = func(x);
         if f.is_nan() || df.is_nan() {
             return (f64::NAN, ObjectiveReturnedNan);
@@ -529,6 +530,10 @@ pub(crate) fn find_root_newton(
         if x == x_next || step.abs() <= rtol * x.abs() + atol {
             return (x_next, Success);
         }
+        if i > 0 && x_next == x_previous {
+            return (x, Success);
+        }
+        x_previous = x;
         x = x_next;
     }
     (x, MaxIterationsExceeded)

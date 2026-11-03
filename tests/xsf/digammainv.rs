@@ -19,7 +19,7 @@ fn test_digammainv() {
 
 #[test]
 fn test_digammainv_newton_cycle() {
-    // unlike in xsf (scipy/xsf#361): Newton cycles here, which used to return NaN
+    // scipy/xsf#361: Newton cycles here, which used to return NaN
     let x = xsf::digammainv(9.220_027_678_716_601);
     xsref::np_assert_allclose!([x], [10_097.843_801_671_605], rtol = 1e-14);
 }
