@@ -120,6 +120,43 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
     (f != 1.0).then_some(f)
 }
 
+/// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
+///
+/// Unlike in xsf, it's computed as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels, i.e. if `a` and
+/// `b` are nearly conjugate and close to the negative real axis (halved if `a - b` overflows).
+pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
+    let s = sa + sb;
+    if s.abs() < sa.abs() {
+        let d = a - b;
+        if d.abs().is_finite() {
+            d.quot(sa - sb)
+        } else {
+            (a * 0.5 - b * 0.5).quot((sa - sb) * 0.5)
+        }
+    } else {
+        s
+    }
+}
+
+/// `[x + lam, y + lam, z + lam]` of the duplication step, where `lam` is the sum of the pairwise
+/// products of the square roots `sq` of `xyz`
+///
+/// Unlike in xsf, `x + lam` is computed as `(sqrt(x) + sqrt(y)) (sqrt(x) + sqrt(z))` if it cancels,
+/// which happens if `x` and `y` (or `z`) are nearly conjugate and close to the negative real axis.
+///
+/// E.g. `elliprf(-1e-4 + 1e-30i, 0.5, -1e-4 - 1e-30i)` was 99.6 instead of 92.6.
+pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T) -> [T; 3] {
+    core::array::from_fn(|i| {
+        let a = xyz[i] + lam;
+        if a.abs() < xyz[i].abs() {
+            let [j, k] = [(i + 1) % 3, (i + 2) % 3];
+            sqrt_sum(xyz[i], xyz[j], sq[i], sq[j]).prod(sqrt_sum(xyz[i], xyz[k], sq[i], sq[k]))
+        } else {
+            a
+        }
+    })
+}
+
 /// `std::max({a, ...})` (with `std::max(a, b)` = `a < b ? b : a`), i.e. the first of the largest
 /// values, ignoring NaN unless it is the first one
 pub(super) fn max(vals: &[f64]) -> f64 {
