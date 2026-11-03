@@ -100,6 +100,22 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
 
         m += 1;
     }
+
+    // Unlike in xsf (scipy/xsf#376), small arguments are scaled up by 2^128 if `3 * adt`
+    // overflows, which otherwise gives NaN in the compensated arithmetic (from `inf - inf`).
+    //
+    // E.g. `elliprd(1e-290, 1e-70, 1e-290)` was NaN instead of inf.
+    //
+    // - R_D is homogeneous of degree -3/2, so this scales it by 2^-192
+    // - for real arguments, R_D(x, y, z) < 3 / (z sqrt(max(x, y))) < 2^1152, as z >= 2^-1022 and
+    //   max(x, y, z) >= 2^-256 here, so the scaled result doesn't overflow
+    // - it can only overflow if max(x, y, z) < 1, so the scaled arguments stay below 2^128
+    if (adt * 3.0).isinf() && common::max(&[x.abs(), y.abs(), z.abs()]) < 1.0 {
+        let s = 2.0_f64.powi(128);
+        let (status, res) = rd(x * s, y * s, z * s, rerr);
+        return (status, res * 2.0_f64.powi(192));
+    }
+
     /* Burn some extra cycles re-balancing Am as the "true" centroid */
     cct1[0] = xm;
     cct1[1] = ym;

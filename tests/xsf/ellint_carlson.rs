@@ -216,3 +216,22 @@ fn test_carlson_huge_and_tiny_args() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 }
+
+#[test]
+fn test_elliprd_overflow() {
+    // just below the overflow threshold, where `3 * adt` overflows
+    let actual = xsf::elliprd(
+        0.0,
+        1.965_996_116_174_601_3e-8,
+        1.190_184_710_917_690_7e-304,
+    );
+    xsref::np_assert_allclose!(&[actual], &[1.797_693_134_862_315_2e308], rtol = 1e-15);
+
+    // the first term of the sum overflows, and the sum itself (2e308), respectively
+    assert_eq!(xsf::elliprd(1e-290, 1e-70, 1e-290), INF);
+    assert_eq!(xsf::elliprd(0.0, 1e-16, 1.5e-300), INF);
+
+    // mpmath: 1.5e325 - 3.75e314 i
+    let actual = xsf::elliprd(c64(1e-290, 1e-300), c64(1e-70, 0.0), c64(1e-290, 0.0));
+    assert_eq!(actual, c64(INF, -INF));
+}
