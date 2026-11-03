@@ -29,11 +29,9 @@ fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
         100,
     );
     match status {
-        // Unlike in xsf (scipy/xsf#361), `MaxIterationsExceeded` returns the last iterate instead
-        // of NaN, e.g. `digammainv(9.2)` was NaN instead of 9898.
-        NewtonRootFinderStatus::DerivativeZero | NewtonRootFinderStatus::ObjectiveReturnedNan => {
-            f64::NAN
-        },
+        NewtonRootFinderStatus::MaxIterationsExceeded
+        | NewtonRootFinderStatus::DerivativeZero
+        | NewtonRootFinderStatus::ObjectiveReturnedNan => f64::NAN,
         _ => res,
     }
 }
