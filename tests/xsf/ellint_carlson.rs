@@ -235,3 +235,26 @@ fn test_elliprd_overflow() {
     let actual = xsf::elliprd(c64(1e-290, 1e-300), c64(1e-70, 0.0), c64(1e-290, 0.0));
     assert_eq!(actual, c64(INF, -INF));
 }
+
+#[test]
+fn test_elliprj_tiny_p() {
+    let p = |k| 2.0_f64.powi(k);
+    let actual = [
+        xsf::elliprj(1e-276, 1e-48, 1e-276, 1e-276),
+        xsf::elliprj(1.0, 1.0, 1.0, 1e-310),
+        // `x * y` underflows
+        xsf::elliprj(1e-200, 1e-120, 1e100, 1e-220),
+        // `sqrt(x * y * z)` overflows
+        xsf::elliprj(p(683), p(683), p(683), p(-300)),
+        // `p / (p + lambda)` underflows
+        xsf::elliprj(0.0, p(-1020), p(1022), 5e-324),
+    ];
+    let expected = [
+        1.499_999_999_999_999_9e300,
+        1_069.781_509_783_911,
+        7.115_699_433_150_121e111,
+        4.016_505_204_038_232_4e-306,
+        1.060_031_584_427_373_4e162,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
