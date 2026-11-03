@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/sph_bessel.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/sph_bessel.h` (xsf v0.2.2), with scipy/xsf#406 from xsf main.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -116,19 +116,12 @@ fn pow_m1(n: i64) -> f64 {
     (-1.0_f64).powf(n as f64)
 }
 
-/// The leading term `x^n / (2n + 1)!!` of the power series of both `j_n(x)` and `i_n(x)`, if the
-/// first omitted correction `x^2 / (4n + 6)` is below roughly `eps / 4`.
+/// Leading term `x^n / (2n + 1)!!` of `j_n(x)` and `i_n(x)` as `x -> 0`,
+/// <https://dlmf.nist.gov/10.52.E1>
+///
+/// The extra stop if the product overflows (returning `inf`) is for `sph_bessel_j_series`.
 #[allow(clippy::float_cmp, clippy::cast_precision_loss)]
-fn sph_bessel_tiny_x(n: i64, x: f64) -> Option<f64> {
-    if x * x >= (n as f64 + 1.5) * f64::EPSILON {
-        return None;
-    }
-    Some(sph_bessel_lead(n, x))
-}
-
-/// `x^n / (2n + 1)!!`, or `inf` if the product overflows
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
-fn sph_bessel_lead(n: i64, x: f64) -> f64 {
+fn sph_bessel_tiny(n: i64, x: f64) -> f64 {
     let mut res = 1.0_f64;
     let mut k: i64 = 1;
     while k <= n && res != 0.0 && res.is_finite() {
@@ -153,21 +146,22 @@ fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
         sum += term;
         k += 1.0;
     }
-    let lead = sph_bessel_lead(n, x);
+    let lead = sph_bessel_tiny(n, x);
     lead.is_finite().then_some(lead * sum)
 }
 
 /// The leading term `n x^(n-1) / (2n + 1)!!` of the power series of both `j_n'(x)` and
-/// `i_n'(x)` for `n >= 1`, if `x` is tiny enough for `sph_bessel_tiny_x(n - 1, x)`.
+/// `i_n'(x)` for `n >= 1`, if `x` is below the tiny-`x` cutoff of `i_{n-1}(x)`.
 #[allow(clippy::cast_precision_loss)]
 fn sph_bessel_prime_tiny_x(n: i64, x: f64) -> Option<f64> {
-    if n < 1 || x.is_nan() {
+    let ax = x.abs();
+    if n < 1 || x.is_nan() || ax * ax >= ((n - 1) as f64 + 1.5) * f64::EPSILON {
         return None;
     }
     let nf = n as f64;
     // f_n'(-x) = (-1)^(n+1) f_n'(x), which also gives the right sign if the product underflows
     let sign = if x < 0.0 && n % 2 == 0 { -1.0 } else { 1.0 };
-    sph_bessel_tiny_x(n - 1, x.abs()).map(|res| sign * nf * res / (2.0 * nf + 1.0))
+    Some(sign * nf * sph_bessel_tiny(n - 1, ax) / (2.0 * nf + 1.0))
 }
 
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
@@ -206,11 +200,11 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
         return 0.0;
     }
 
-    // Unlike in xsf (scipy/xsf#359), the leading power series term is also used for j_n (see
-    // sph_bessel_i_f64), since J_{n + 1/2}(x) underflows for tiny x, e.g. j_1(1.166e-222) was 0
-    // instead of 3.89e-223.
-    if let Some(res) = sph_bessel_tiny_x(n, x) {
-        return res;
+    // Avoid underflow of J_{n + 1/2}(x) as in sph_bessel_i; the first correction term,
+    // -x^2 / (4n + 6) (https://dlmf.nist.gov/10.53.E1), is below eps / 4 here.
+    // x < 1 keeps the product from overflowing for huge n.
+    if x < 1.0 && x * x < (n as f64 + 1.5) * f64::EPSILON {
+        return sph_bessel_tiny(n, x);
     }
 
     if n > 0 && n as f64 >= x {
@@ -454,7 +448,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
     sph_bessel_y_c64(n.wrapping_sub(1), x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
 }
 
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -490,8 +484,8 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     // by the spherical normalization.  In the tiny-x region, use the leading
     // term of the power series i_n(x) = x^n / (2n + 1)!! * (1 + O(x^2)).
     // The cutoff bounds the omitted first correction by roughly eps / 4.
-    if let Some(res) = sph_bessel_tiny_x(n, x) {
-        return res;
+    if x * x < (n as f64 + 1.5) * f64::EPSILON {
+        return sph_bessel_tiny(n, x);
     }
 
     (FRAC_PI_2 / x).sqrt() * crate::bessel_i(half(n), x)
