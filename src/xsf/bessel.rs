@@ -234,8 +234,9 @@ fn cyl_bessel_ie_f64(v: f64, x: f64) -> f64 {
     if ie.is_infinite() && (-2.0 * x).exp() >= f64::MIN_POSITIVE {
         return cyl_bessel_overflow(cyl_bessel_ie_c64, 1.0, v, x, ie);
     }
-    // Unlike in xsf, use cephes for e^-|x| I_v(x) if AMOS underflowed and e^-|x| is normal, as
-    // the result can still be normal, e.g. `bessel_ie(46.408, 9.696e-6)` was 0, not 8.83e-306.
+    // Unlike in xsf (scipy/xsf#403), use cephes for e^-|x| I_v(x) if AMOS underflowed and e^-|x| is
+    // normal, as the result can still be normal, e.g. `bessel_ie(46.408, 9.696e-6)` was 0, not
+    // 8.83e-306.
     if amos_underflow(ie, v, x) {
         let scale = (-x.abs()).exp();
         if scale >= f64::MIN_POSITIVE {
@@ -458,8 +459,8 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
     if je.is_infinite() {
         return cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je);
     }
-    // Unlike in xsf, use cephes (for real x, e^-|Im x| = 1) if AMOS underflowed, as J_v(x) can
-    // still be normal, e.g. `bessel_je(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
+    // Unlike in xsf (scipy/xsf#402), use cephes (for real x, e^-|Im x| = 1) if AMOS underflowed, as
+    // J_v(x) can still be normal, e.g. `bessel_je(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
     if amos_underflow(je, v, x) {
         return crate::xsf::cephes::jv(v, x);
     }
@@ -582,8 +583,8 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
     if res.re.is_nan() || amos_underflow(res.re, v, x) {
         /* AMOS returned NaN, possibly due to overflow */
-        // Unlike in xsf, also if AMOS underflowed, as J_v(x) can still be normal, e.g.
-        // `bessel_j(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
+        // Unlike in xsf (scipy/xsf#402), also if AMOS underflowed, as J_v(x) can still be normal,
+        // e.g. `bessel_j(7.3156, 1.19e-41)` was 0 instead of 2.69e-306.
         return crate::xsf::cephes::jv(v, x);
     }
 

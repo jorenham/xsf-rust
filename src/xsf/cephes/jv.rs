@@ -649,7 +649,7 @@ pub(crate) fn jv(mut n: f64, mut x: f64) -> f64 {
         y = x.abs();
 
         if y * y < (n + 1.0).abs() * MACHEP {
-            // Unlike in xsf, keep the sign (of odd integer n < 0 or x < 0), e.g.
+            // Unlike in xsf (scipy/xsf#402), keep the sign (of odd integer n < 0 or x < 0), e.g.
             // `jv(-5.0, 1e-60)` was 2.6e-304 instead of -2.6e-304.
             return f64::from(sign) * (0.5 * x).powf(n) * rgamma(n + 1.0);
         }
