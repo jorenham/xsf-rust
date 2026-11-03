@@ -149,6 +149,18 @@ fn test_hyp0f1_large_b() {
     ];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-12);
 
+    // b < 0 and large z > 0, where I_{b-1}(2 sqrt(z)) or Gamma(b) z^((1-b)/2) over- or underflows
+    let bz = [(-8_691.5, 8.6e6), (-22_268.5, 6.1e7), (-30_123.5, 1.1e8)];
+    // computed with mpmath via DLMF 10.27.2, with K_{1-b} from its integral (DLMF 10.32.9)
+    let expected = [
+        1.830_168_255_735_138e-246,
+        -4.861_992_754_365_575e201,
+        2.616_354_312_299_041e60,
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-10);
+    assert_eq!(hyp0f1(-85.5, 5.5e5), f64::INFINITY);
+    assert_eq!(hyp0f1(-300.5, 2e5), f64::NEG_INFINITY);
+
     // near zeros of J_{b-1}(2 sqrt(-z)), where it rounds to 0 (instead of 5.2e-17 and 6.1e-15)
     assert!(hyp0f1(1.674_445_551_227_833_6, -2.866_969_344_179_029).abs() < 1e-14);
     assert!(hyp0f1(-3.854_390_408_608_444_4, -5.550_754_014_064_338).abs() < 1e-14);
