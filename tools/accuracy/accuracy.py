@@ -20,9 +20,8 @@ Steps:
    function (normalized, see `_source`), and the mpmath version.
 4. Write the table to `ACCURACY.md` (or to stdout with `--only`, `--section`, or `--n`), and the
    inputs with the largest errors to `.cache/worst.txt`.
-5. With `--arb-check`, compare the references with Arb balls, where the spec has an Arb version
-   of the function (see `arb_task`), and write the references that Arb refutes or cannot
-   confirm to `.cache/arb_check.txt`.
+5. With `--arb-check`, compare the references with Arb (see `specs.ARB`), and write those that
+   Arb refutes or cannot confirm to `.cache/arb_check.txt`.
 """
 
 import argparse
@@ -297,35 +296,31 @@ def compute_refs(jobs: list[Job], use_cache: bool, nproc: int) -> list[list[Ref 
     return [out[j] for j in range(len(jobs))]
 
 
-def arb_task(task: tuple[str, Args, Ref]) -> tuple[str, str]:
-    """Check a real reference against an Arb ball of the function at 2, 4, and 8 times its
-    precision; returns ("ok" | "refuted" | "unconfirmed", details)."""
+def arb_task(task: tuple[str, Args, Ref]) -> str:
+    """Compare a reference with the Arb ball at 2, 4, and 8 times its digits; returns "", or a
+    line that says whether Arb refutes it or cannot confirm it."""
     name, args, (value, scale) = task
-    spec = specs.BY_NAME[name]
-    assert spec.arb is not None and isinstance(value, str)
-    assert not isinstance(scale, list)
-    dps = spec.dps
-    while True:
-        dps *= 2
+    assert isinstance(value, str) and not isinstance(scale, list)
+    d = specs.BY_NAME[name].dps
+    for dps in (2 * d, 4 * d, 8 * d):
         flint.ctx.dps = dps
         ref = flint.arb(value)
         tol = abs(ref) if scale is None else abs(ref).max(flint.arb(scale))
-        y = spec.arb(*map(flint.arb, args))
-        d = abs(y - ref) - ARB_TOL * tol
-        if d <= 0:
-            return "ok", ""
-        if d > 0 or dps == 8 * spec.dps:
-            break
-    status = "refuted" if d > 0 else "unconfirmed"
-    return status, f"{status} {name}{args}: mpmath {value}, Arb {y.str(30)}"
+        y = specs.ARB[name](*map(flint.arb, args))
+        diff = abs(y - ref) - ARB_TOL * tol
+        if diff <= 0:
+            return ""
+        if diff > 0:
+            return f"refuted {name}{args}: mpmath {value}, Arb {y.str(30)}"
+    return f"unconfirmed {name}{args}: mpmath {value}, Arb {y.str(30)}"
 
 
 def arb_check(jobs: list[Job], refs: list[list[Ref | str]], nproc: int) -> None:
-    """Check the references of the specs with an Arb version (see `arb_task`)."""
+    """Check the references that have an Arb version (`specs.ARB`)."""
     lines: list[str] = []
     with multiprocessing.Pool(nproc) as pool:
         for job, rr in zip(jobs, refs, strict=True):
-            if job.spec.arb is None:
+            if job.spec.name not in specs.ARB:
                 continue
             tasks = [
                 (job.spec.name, a, r)
@@ -333,13 +328,13 @@ def arb_check(jobs: list[Job], refs: list[list[Ref | str]], nproc: int) -> None:
                 if isinstance(r, list)
             ]
             res = pool.map(arb_task, tasks, chunksize=4)
-            n = Counter(status for status, _ in res)
-            desc = job.spec.domains[job.di].desc(job.spec.args)
+            n = Counter(line.partition(" ")[0] for line in res)
             log(
-                f"{job.spec.name} [{desc}]: Arb refutes {n['refuted']} and cannot confirm"
-                f" {n['unconfirmed']} of {len(res)} references"
+                f"{job.spec.name} [{job.spec.domains[job.di].desc(job.spec.args)}]: Arb"
+                f" refutes {n['refuted']} and cannot confirm {n['unconfirmed']} of"
+                f" {len(res)} references"
             )
-            lines += [line for status, line in res if status != "ok"]
+            lines += filter(None, res)
     (CACHE / "arb_check.txt").write_text("".join(f"{line}\n" for line in lines))
 
 

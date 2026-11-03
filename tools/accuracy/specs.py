@@ -278,8 +278,6 @@ class Spec:
     dps: int = 50
     timeout: int = 30
     note: str = ""  # space-separated keys into NOTES
-    # the same function in Arb (python-flint), on balls, to check the reference (`--arb-check`)
-    arb: Callable[..., flint.arb | flint.acb] | None = None
     rust: ClassVar[bool] = True
 
     @property
@@ -2389,26 +2387,10 @@ V_NEAR_HALF_INT = D(
 )
 
 section("Gamma and related functions")
-add(
-    "gamma",
-    "x",
-    r_gamma,
-    D(U(-30, 30)),
-    D(U(-170, 171.6)),
-    D(LU(1e-300, 171)),
-    arb=lambda x: x.gamma(),
-)
+add("gamma", "x", r_gamma, D(U(-30, 30)), D(U(-170, 171.6)), D(LU(1e-300, 171)))
 add("gammaln", "x", r_gammaln, D(U(-30, 30)), D(LU(1e-300, 1e300)), note="zeros")
-add("rgamma", "x", r_rgamma, D(U(-30, 30)), D(U(-200, 200)), arb=lambda x: x.rgamma())
-add(
-    "digamma",
-    "x",
-    r_digamma,
-    D(U(-30, 30)),
-    D(LU(1e-300, 1e300)),
-    note="zeros",
-    arb=lambda x: x.digamma(),
-)
+add("rgamma", "x", r_rgamma, D(U(-30, 30)), D(U(-200, 200)))
+add("digamma", "x", r_digamma, D(U(-30, 30)), D(LU(1e-300, 1e300)), note="zeros")
 add("digammainv", "y", r_digammainv, D(U(-10, 10)), D(U(-1000, 700)))
 # not in xsf before XSF_COMMIT (accuracy.py) is bumped past scipy/xsf#239
 add("trigamma", "x", r_trigamma, D(U(-30, 30)), D(LU(1e-300, 1e300)), cpp=False)
@@ -2467,7 +2449,6 @@ add(
     D(Int(1, 50), LU(1e-3, 1e5)),
     cpp=False,
     note="zeros_c",
-    arb=lambda n, x: flint.acb(x).polygamma(n),
 )
 add(
     "multigammaln",
@@ -2501,15 +2482,8 @@ section("Error function and normal distribution")
 add("erf", "x", r_erf, D(U(-6, 6)), D(LU(1e-300, 10, 0)))
 add("erfc", "x", r_erfc, D(U(-6, 27)), D(LU(1e-300, 27, 0)))
 add("erfcx", "x", r_erfcx, D(U(-26, 26)), D(LU(1e-300, 1e300)))
-add(
-    "erfinv",
-    "y",
-    r_erfinv,
-    D(U(-1, 1)),
-    D(Offset(1, LU(1e-16, 1), -1)),
-    arb=lambda y: y.erfinv(),
-)
-add("erfcinv", "y", r_erfcinv, D(U(0, 2)), D(LU(1e-300, 1)), arb=lambda y: y.erfcinv())
+add("erfinv", "y", r_erfinv, D(U(-1, 1)), D(Offset(1, LU(1e-16, 1), -1)))
+add("erfcinv", "y", r_erfcinv, D(U(0, 2)), D(LU(1e-300, 1)))
 add("ndtr", "x", r_ndtr, D(U(-10, 10)), D(LU(1e-300, 38, 0)))
 add("ndtri", "p", r_ndtri, D(U(0, 1)), D(LU(1e-300, 0.5)))
 add("log_ndtr", "x", r_log_ndtr, D(U(-20, 6)), D(LU(1e-300, 1e10, 0)))
@@ -2706,23 +2680,12 @@ add(
 )
 
 section("Bessel and Struve functions")
-for f, r, a in [
-    ("j0", r_j0, lambda x: x.bessel_j(0)),
-    ("j1", r_j1, lambda x: x.bessel_j(1)),
-    ("y0", r_y0, lambda x: x.bessel_y(0)),
-    ("y1", r_y1, lambda x: x.bessel_y(1)),
-]:
-    add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 1e8)), note="osc", arb=a)
-for f, r, a in [
-    ("i0", r_i0, lambda x: x.bessel_i(0)),
-    ("i1", r_i1, lambda x: x.bessel_i(1)),
-]:
-    add(f"bessel_{f}", "x", r, D(U(-30, 30)), D(LU(1e-300, 700)), arb=a)
-for f, r, a in [
-    ("k0", r_k0, lambda x: x.bessel_k(0)),
-    ("k1", r_k1, lambda x: x.bessel_k(1)),
-]:
-    add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 700)), arb=a)
+for f, r in [("j0", r_j0), ("j1", r_j1), ("y0", r_y0), ("y1", r_y1)]:
+    add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 1e8)), note="osc")
+for f, r in [("i0", r_i0), ("i1", r_i1)]:
+    add(f"bessel_{f}", "x", r, D(U(-30, 30)), D(LU(1e-300, 700)))
+for f, r in [("k0", r_k0), ("k1", r_k1)]:
+    add(f"bessel_{f}", "x", r, D(U(0, 30)), D(LU(1e-300, 700)))
 add(
     "bessel_j",
     "v x",
@@ -2730,7 +2693,6 @@ add(
     D(U(0, 20), U(0, 50)),
     D(U(-100, 100), LU(1e-300, 1e4)),
     note="osc",
-    arb=lambda v, x: x.bessel_j(v),
 )
 add(
     "bessel_y",
@@ -2739,24 +2701,9 @@ add(
     D(U(0, 20), U(0, 50)),
     D(U(-100, 100), LU(1e-300, 1e4)),
     note="osc",
-    arb=lambda v, x: x.bessel_y(v),
 )
-add(
-    "bessel_i",
-    "v x",
-    r_iv,
-    D(U(0, 20), U(0, 50)),
-    D(U(-100, 100), LU(1e-300, 700)),
-    arb=lambda v, x: x.bessel_i(v),
-)
-add(
-    "bessel_k",
-    "v x",
-    r_kv,
-    D(U(0, 20), U(0, 50)),
-    D(U(0, 100), LU(1e-300, 700)),
-    arb=lambda v, x: x.bessel_k(v),
-)
+add("bessel_i", "v x", r_iv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 700)))
+add("bessel_k", "v x", r_kv, D(U(0, 20), U(0, 50)), D(U(0, 100), LU(1e-300, 700)))
 add(
     "struve_h",
     "v x",
@@ -2932,7 +2879,6 @@ add(
     r_hurwitz_zeta,
     D(U(1, 20), U(0, 10)),
     D(Offset(1, LU(1e-15, 1e3)), LU(1e-300, 1e300)),
-    arb=lambda x, q: x.zeta(q),
 )
 add(
     "riemann_zeta",
@@ -2941,7 +2887,6 @@ add(
     D(U(-20, 20)),
     D(LU(1e-300, 1e3, 0)),
     note="zeros",
-    arb=lambda x: x.zeta(),
 )
 add("zetac", "x", r_zetac, D(U(-20, 20)), D(LU(1e-300, 1e3, 0)), note="zeros")
 
@@ -3052,20 +2997,14 @@ add(
     r_elliprc,
     D(LU(1e-3, 1e3), LU(1e-3, 1e3)),
     D(LU(1e-300, 1e300), LU(1e-300, 1e300)),
-    arb=flint.acb.elliptic_rc,
 )
-for f, r, a in [
-    ("elliprd", r_elliprd, flint.acb.elliptic_rd),
-    ("elliprf", r_elliprf, flint.acb.elliptic_rf),
-    ("elliprg", r_elliprg, flint.acb.elliptic_rg),
-]:
+for f, r in [("elliprd", r_elliprd), ("elliprf", r_elliprf), ("elliprg", r_elliprg)]:
     add(
         f,
         "x y z",
         r,
         D(U(0, 10), U(0, 10), U(0, 10)),
         D(LU(1e-300, 1e300), LU(1e-300, 1e300), LU(1e-300, 1e300)),
-        arb=a,
     )
 add(
     "elliprj",
@@ -3073,7 +3012,6 @@ add(
     r_elliprj,
     D(U(0, 10), U(0, 10), U(0, 10), U(0, 10)),
     D(LU(1e-300, 1e300), LU(1e-300, 1e300), LU(1e-300, 1e300), LU(1e-300, 1e300)),
-    arb=flint.acb.elliptic_rj,
 )
 for i in range(4):
     add(
@@ -3088,14 +3026,7 @@ for i in range(4):
 section("Hypergeometric functions")
 add("hyp0f0", "z", r_hyp0f0, D(U(-700, 700)), cpp=False)
 add("hyp1f0", "a z", r_hyp1f0, D(U(-10, 10), U(-10, 1)), cpp=False)
-add(
-    "hyp0f1",
-    "b z",
-    r_hyp0f1,
-    D(LU(1e-3, 1e6, 0), LU(1e-3, 1e6, 0)),
-    note="osc_hyp0f1",
-    arb=lambda b, z: z.hypgeom_0f1(b),
-)
+add("hyp0f1", "b z", r_hyp0f1, D(LU(1e-3, 1e6, 0), LU(1e-3, 1e6, 0)), note="osc_hyp0f1")
 add(
     "hyp1f1",
     "a b x",
@@ -3104,7 +3035,6 @@ add(
     D(LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), n=2000),
     timeout=60,
     note="zeros_c",
-    arb=lambda a, b, x: x.hypgeom_1f1(a, b),
 )
 add(
     "hypu",
@@ -3114,7 +3044,6 @@ add(
     D(LU(1e-3, 100, 0), LU(1e-3, 100, 0), LU(1e-3, 1e3), n=2000),
     timeout=60,
     note="zeros_c",
-    arb=lambda a, b, x: x.hypgeom_u(a, b),
 )
 add(
     "hyp2f1",
@@ -3125,7 +3054,6 @@ add(
     D(LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), U(-10, 1), n=1000),
     timeout=60,
     note="zeros_c",
-    arb=lambda a, b, c, x: x.hypgeom_2f1(a, b, c),
 )
 
 section("Orthogonal polynomials")
@@ -3688,3 +3616,36 @@ NOT_COVERED = """\
 """
 
 BY_NAME: Final = {s.name: s for s in SPECS}
+
+# the same functions in Arb (python-flint), on balls, to check the references (`--arb-check`)
+ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
+    "gamma": lambda x: x.gamma(),
+    "rgamma": lambda x: x.rgamma(),
+    "digamma": lambda x: x.digamma(),
+    "polygamma": lambda n, x: flint.acb(x).polygamma(n),
+    "erfinv": lambda y: y.erfinv(),
+    "erfcinv": lambda y: y.erfcinv(),
+    "bessel_j0": lambda x: x.bessel_j(0),
+    "bessel_j1": lambda x: x.bessel_j(1),
+    "bessel_y0": lambda x: x.bessel_y(0),
+    "bessel_y1": lambda x: x.bessel_y(1),
+    "bessel_i0": lambda x: x.bessel_i(0),
+    "bessel_i1": lambda x: x.bessel_i(1),
+    "bessel_k0": lambda x: x.bessel_k(0),
+    "bessel_k1": lambda x: x.bessel_k(1),
+    "bessel_j": lambda v, x: x.bessel_j(v),
+    "bessel_y": lambda v, x: x.bessel_y(v),
+    "bessel_i": lambda v, x: x.bessel_i(v),
+    "bessel_k": lambda v, x: x.bessel_k(v),
+    "zeta": lambda x, q: x.zeta(q),
+    "riemann_zeta": lambda x: x.zeta(),
+    "elliprc": flint.acb.elliptic_rc,
+    "elliprd": flint.acb.elliptic_rd,
+    "elliprf": flint.acb.elliptic_rf,
+    "elliprg": flint.acb.elliptic_rg,
+    "elliprj": flint.acb.elliptic_rj,
+    "hyp0f1": lambda b, z: z.hypgeom_0f1(b),
+    "hyp1f1": lambda a, b, x: x.hypgeom_1f1(a, b),
+    "hypu": lambda a, b, x: x.hypgeom_u(a, b),
+    "hyp2f1": lambda a, b, c, x: x.hypgeom_2f1(a, b, c),
+}
