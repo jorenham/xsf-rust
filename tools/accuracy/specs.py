@@ -707,11 +707,10 @@ def _hyp0f1_series(b, z):
 
 
 def r_hyp0f1(b, z):
-    # mpmath's hyp0f1 can be far off for b < 0 < z, e.g. for hyp0f1(-1000.5, 115000) it returns
-    # 3.9e-48 instead of -8.1e-26 (the sum of its power series), also at 65 digits. So for
-    # -10^4 < b < 0 < z sum the series directly, with 20 more digits than it loses to
-    # cancellation, up to 300 digits. For b <= -10^4 (where mpmath agreed with the series on all
-    # samples) that takes too many terms.
+    # mpmath's hyp0f1 can be far off for b < 0 < z (mpmath/mpmath#1216), so for -10^4 < b < 0 < z
+    # sum the series directly, with 20 more digits than it loses to cancellation, up to 300
+    # digits. For b <= -10^4 (where mpmath agreed with the series on all samples) that takes too
+    # many terms.
     if -(10**4) < b < 0 < z:
         extra = 20
         while True:
@@ -1768,11 +1767,9 @@ def _hyp2f1_series(a, b, c, z):
 
 
 def r_hyp2f1(a, b, c, x):
-    # mpmath's hyp2f1 can be far off for large parameters, also at higher precision, e.g. for
-    # hyp2f1(5.9, -26.4, -570.5, 0.66) it returns 1.20 instead of 4.48e120 (the sum of its power
-    # series). So for x <= 0.95 sum the series directly (for x < 0 the series of the Pfaff
-    # transformation in x / (x - 1), DLMF 15.8.1), with 20 more digits than it loses to
-    # cancellation, up to 300 digits.
+    # mpmath's hyp2f1 can be far off for large parameters (mpmath/mpmath#1216), so for x <= 0.95
+    # sum the series directly (for x < 0 the series of the Pfaff transformation in x / (x - 1),
+    # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits.
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
