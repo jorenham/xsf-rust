@@ -21,31 +21,31 @@
 //!
 //!    For `k > -p`, the terms of this series have the same sign as long as `C + k` and `C - q + k`
 //!    have the same sign, e.g. for all `k` if `C > max(0, q)`. So there is little cancellation
-//!    if `p >= 0`, or if `p < 0` is small.
+//!    if `p >= 0`, or if `p < 0` is small. We sum it at `C = c`.
 //!
-//! 3. So for each combination, we sum this series at `C = c`. If `c <= max(0, q)`, and that loses
-//!    too much precision, we also sum it at `C = c + n` and `C = c + n + 1`, with the smallest `n`
-//!    for which `c + n > max(0, q)`, and recur down to `C = c` with the contiguous relation in `c`
-//!    (DLMF 15.5.18). For `Re z < 1/2`, `F(p, q; c + n; z)` is the minimal solution of this
-//!    recurrence as `n -> inf` (Gil, Segura and Temme 2007, sec. 3.2), so recurring towards
-//!    smaller `c` is the stable direction. But this is only asymptotic, for `c + n` much larger
-//!    than `|p|` and `|q|`, and the recurrence can be unstable in between (Deano and Segura 2007).
-//!    So instead of predicting this, we bound the error of the result to first order, see
-//!    `recur_down`.
+//! 3. If `c <= max(0, q)` and that loses too much precision, we also sum it at `C = c + n` and
+//!    `C = c + n + 1`, with the smallest `n` for which `c + n > max(0, q)`, and recur down to
+//!    `C = c` with the contiguous relation in `c` (DLMF 15.5.18). For `Re z < 1/2`,
+//!    `F(p, q; c + n; z)` is the minimal solution of this recurrence as `n -> inf` (Gil, Segura and
+//!    Temme 2007, sec. 3.2), so recurring towards smaller `c` is the stable direction. But this is
+//!    only asymptotic, for `c + n` much larger than `|p|` and `|q|`, and the recurrence can be
+//!    unstable in between (Deano and Segura 2007). So instead of predicting this, we bound the
+//!    error of the result to first order, see `recur_down`.
 //!
-//! 4. Return the result with the smallest error bound, or `None` if that exceeds
+//! 4. For `x < -1`, `w` is close to 1 if `|x|` is large, and the series take about `|p| |x|`
+//!    terms. So we first try the 1/x transformation (DLMF 15.8.2), whose two hypergeometric
+//!    functions of `1/x` are computed as above, with `w = 1 / (1 - x)`, and only continue with the
+//!    4 combinations if its error bound (incl. the cancellation of its two terms) exceeds
+//!    `HYP2F1_ETHRESH`.
+//!
+//! 5. Return the result with the smallest error bound, or `None` if that exceeds
 //!    `HYP2F1_RECUR_TOL`, for the caller to fall back to another method.
-//!
-//! 5. For `x < -1`, `w` is close to 1 if `|x|` is large, and the series take about `|p| |x|`
-//!    terms. So first try the 1/x transformation (DLMF 15.8.2), whose two hypergeometric
-//!    functions of `1/x` are computed as above, with `w = 1 / (1 - x)`. It's used if its error
-//!    bound (incl. the cancellation of its two terms) is below `HYP2F1_ETHRESH`, or the smallest.
 //!
 //! Some details:
 //!
 //! - The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and
 //!   `c` is tiny, and `(1 - x)^s` is computed in double-double, since `|s ln(1 - x)|` can be large.
-//!   For the same reason, the `ln Gamma` of step 5 are computed in double-double for large
+//!   For the same reason, the `ln Gamma` of step 4 are computed in double-double for large
 //!   arguments.
 //! - The series and the recurrence keep their values as `m * 2^e`, to avoid overflow and
 //!   underflow.
@@ -56,18 +56,18 @@
 //!
 //! - A. Gil, J. Segura and N.M. Temme, "Numerically satisfactory solutions of hypergeometric
 //!   recursions", Math. Comp. 76 (2007), 1449-1468. <https://doi.org/10.1090/S0025-5718-07-01918-7>
-//! - A. Gil, J. Segura and N.M. Temme, "The ABC of hyper recursions", J. Comput. Appl. Math. 190
-//!   (2006), 270-286. <https://doi.org/10.1016/j.cam.2005.01.041>
 //! - A. Deano and J. Segura, "Transitory minimal solutions of hypergeometric recursions and
 //!   pseudoconvergence of associated continued fractions", Math. Comp. 76 (2007), 879-901.
 //!   <https://doi.org/10.1090/S0025-5718-07-01934-5>
-//! - NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/15.5>,
-//!   <https://dlmf.nist.gov/15.8>
+//! - NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/5.5.E3>,
+//!   <https://dlmf.nist.gov/5.11.E1>, <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>
 
 use core::f64::consts::{LN_2, PI};
 
-use crate::utils::{LN_PI, LN_SQRT_2PI, MACHEP};
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, frexp_f64, ldexp_f64};
+use crate::utils::MACHEP;
+use crate::xsf::cephes::dd_real::{
+    DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
+};
 use crate::xsf::cephes::{HYP2F1_ETHRESH, lgam_sgn, lgam_stirling_corr, psi};
 use crate::xsf::trig::{cospi, sinpi};
 
@@ -96,8 +96,16 @@ fn rescale_exp(x: f64) -> Option<i32> {
 }
 
 /// `v + k`, rounded to `f64` (if `v` is a double, `v.hi + k` is the same, and faster)
-fn plus(v: Dd, k: f64) -> f64 {
+fn add_hi(v: Dd, k: f64) -> f64 {
     if v.lo == 0.0 { v.hi + k } else { (v + k).hi }
+}
+
+/// The one of `u` and `v` with the smaller error bound `err`, or `u` if they're equal
+fn min_err<T>(u: Option<T>, v: Option<T>, err: impl Fn(&T) -> f64) -> Option<T> {
+    match (u, v) {
+        (Some(u), Some(v)) => Some(if err(&u) <= err(&v) { u } else { v }),
+        (u, v) => u.or(v),
+    }
 }
 
 /// `F(p, r; c; w)` for `0 <= w < 1`, by summing its series, with an estimate of its rounding
@@ -152,8 +160,8 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
-        (pk, rk) = (plus(p, k), plus(r, k));
-        (f0, f1) = (pk / (k + 1.0), rk / plus(c, k));
+        (pk, rk) = (add_hi(p, k), add_hi(r, k));
+        (f0, f1) = (pk / (k + 1.0), rk / add_hi(c, k));
         // For j >= k > kmin, the next term ratios are w (p + j) / (j + 1) * (r + j) / (c + j),
         // where both factors are positive and tend monotonically to 1, so they are at most `rho`,
         // which bounds the rest of the series geometrically.
@@ -209,7 +217,7 @@ fn recur_down(p: Dd, q: Dd, c: Dd, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) ->
     let mut err = t_sum;
     for k in (1..=n).rev() {
         // (C - 1, C - p and C - q are computed from c, since they can be tiny)
-        let (cc, cc1) = (plus(c, f64::from(k)), plus(c, f64::from(k - 1)));
+        let (cc, cc1) = (add_hi(c, f64::from(k)), add_hi(c, f64::from(k - 1)));
         let cc_p = (-p + c.hi + f64::from(k) + c.lo).hi;
         let cc_q = (-q + c.hi + f64::from(k) + c.lo).hi;
         let coef_a = cc * cc1 * (z - 1.0);
@@ -274,14 +282,17 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
         // (the recurrence is symmetric in p and q)
         recur_down(p, q, c, z, n as u32, y_n, y_n1)
     });
-    match (direct, recur) {
-        (Some(d), Some(r)) => Some(if d.err <= r.err { d } else { r }),
-        (d, r) => d.or(r),
-    }
+    min_err(direct, recur, |y| y.err)
 }
 
-/// The one of `combinations` `(p, q, s)` (steps 1 and 2) with the smallest error bound (steps 3
-/// and 4), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
+/// The 4 combinations `(p, q, s)` of step 1 for `x = z < 0`
+fn neg_z_combinations(a: Dd, b: Dd, c: Dd) -> [(Dd, Dd, Dd); 4] {
+    let (ca, cb) = (c - a, c - b);
+    [(a, b, -a), (b, a, -b), (ca, cb, -b), (cb, ca, -a)]
+}
+
+/// The one of `combinations` `(p, q, s)` (step 1) with the smallest error bound (steps 2, 3 and
+/// 5), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
 fn best_combination(
     mut combinations: [(Dd, Dd, Dd); 4],
     c: Dd,
@@ -301,27 +312,13 @@ fn best_combination(
         let Some(y) = hyp2f1_recur_form(p, q, c, z, w) else {
             continue;
         };
-        if best.is_none_or(|(best, _)| y.err < best.err) {
-            best = Some((y, s * ln_1mx));
-        }
+        best = min_err(best, Some((y, s * ln_1mx)), |y| y.0.err);
         if y.err <= HYP2F1_ETHRESH {
             break;
         }
     }
     best
 }
-
-/// `ln(pi)` in double-double precision
-const LN_PI_DD: Dd = Dd {
-    hi: LN_PI,
-    lo: 1.026_595_116_270_782_6e-17,
-};
-
-/// `ln(2 pi) / 2` in double-double precision
-const LN_SQRT_2PI_DD: Dd = Dd {
-    hi: LN_SQRT_2PI,
-    lo: -3.878_294_158_067_241_4e-17,
-};
 
 /// `ln(v)` for `v > 0`, after scaling `v` to `[1, 2)` by a power of 2, since `DoubleDouble::log`
 /// fails for `v` beyond about `e^709` (as it computes `exp(-ln(v))`)
@@ -380,7 +377,7 @@ fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
     Some((Dd::new(v) + dpsi, f64::from(sign), err))
 }
 
-/// `F(a, b; c; x)` for `x < -1` by the 1/x transformation (step 5), as `(y, l)` with the value
+/// `F(a, b; c; x)` for `x < -1` by the 1/x transformation (step 4), as `(y, l)` with the value
 /// `y exp(l)`; see <https://dlmf.nist.gov/15.8.E2>:
 ///
 /// ```text
@@ -399,16 +396,9 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
     let ln_1mz = ln_dd(Dd::new(1.0) - x) - ln_mx;
     // (sign, y, l) of a term `sign y exp(l)`, and the error bound of its `ln Gamma`
     let term = |a: Dd, b: Dd| {
-        // F(p, q; cc; 1/x), with the 4 combinations for z < 0 as in `hyp2f1_recur`
+        // F(p, q; cc; 1/x)
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
-        let (cp, cq) = (cc - p, cc - q);
-        let (y, l) = best_combination(
-            [(p, q, -p), (q, p, -q), (cp, cq, -q), (cq, cp, -p)],
-            cc,
-            z,
-            w,
-            ln_1mz,
-        )?;
+        let (y, l) = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
         let (mut sign, mut ln_g, mut ln_g_err) = (1.0, Dd::new(0.0), 0.0);
         for (g, power) in [(c, 1.0), (b - a, 1.0), (b, -1.0), (c - a, -1.0)] {
             let (v, sg, err) = ln_gamma(g)?;
@@ -442,15 +432,15 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
         return None;
     }
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
-    let (ca, cb) = (c - a, c - b);
-    // the combinations `(p, q, s)` of steps 1 and 2, with `F(a, b; c; x)` equal to
+    // the combinations `(p, q, s)` of step 1, with `F(a, b; c; x)` equal to
     // `(1 - x)^s (1 - z)^p F(p, q; c; z)`
     let (z, w, combinations) = if x < 0.0 {
-        let combinations = [(a, b, -a), (b, a, -b), (ca, cb, -b), (cb, ca, -a)];
         // (if x is huge, w rounds to 1, and the series fails)
-        (x, Dd::new(x) / (Dd::new(x) - 1.0), combinations)
+        let w = Dd::new(x) / (Dd::new(x) - 1.0);
+        (x, w, neg_z_combinations(a, b, c))
     } else {
-        let (zero, cab) = (Dd::new(0.0), ca - b);
+        let (ca, cb, zero) = (c - a, c - b, Dd::new(0.0));
+        let cab = ca - b;
         let combinations = [(a, cb, zero), (cb, a, cab), (ca, b, cab), (b, ca, zero)];
         (x / (x - 1.0), Dd::new(x), combinations)
     };
@@ -465,11 +455,11 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     } else {
         // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `log` is accurate)
         let ln_1mx = (Dd::new(1.0) - x).log();
-        let best = best_combination(combinations, c, z, w, ln_1mx);
-        match (best, recip) {
-            (Some(u), Some(v)) => Some(if v.0.err < u.0.err { v } else { u }),
-            (u, v) => u.or(v),
-        }
+        min_err(
+            best_combination(combinations, c, z, w, ln_1mx),
+            recip,
+            |y| y.0.err,
+        )
     };
     let (y, l) = best?;
     if !(y.err <= HYP2F1_RECUR_TOL) {
