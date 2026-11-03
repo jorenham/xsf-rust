@@ -581,8 +581,8 @@ mod tests {
     #[test]
     #[allow(clippy::float_cmp)]
     fn test_zetac_large_x() {
-        // zetac(x) = 2^-x to double precision, which doesn't underflow before x = 1075
-        for x in [127.0, 130.0, 1000.0, 1074.0] {
+        // zetac(x) = 2^-x to double precision, which underflows to 0 for x >= 1075
+        for x in [127.0, 130.0, 1000.0, 1074.0, 1076.0, 1e300] {
             assert_eq!(crate::zetac(x), (-x).exp2());
         }
     }
