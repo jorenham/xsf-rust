@@ -1419,7 +1419,10 @@ def r_itmodstruve0(x):
 
 def _kelvin(kind, x):
     """ber, bei, ker, kei (kind 0 to 3), or their derivatives (kind 4 to 7), with the modulus of
-    the complex function (e.g. |ber + i bei|) as scale. ber and bei are even."""
+    the complex function (e.g. |ber + i bei|) as scale. ber and bei are even.
+
+    ker_v + i kei_v = (-i)^v K_v(x e^(i pi/4)) (DLMF 10.61.2), since mpmath's ker and kei are slow
+    for large x: they work at up to 2600 digits for x = 1000."""
     s2 = mp.sqrt(2)
     # the sums of the order-1 functions cancel for small x, by up to a factor x^2
     with wdps(xd(x) + 2 * max(0, int(-mp.log10(abs(x))))):
@@ -1427,12 +1430,14 @@ def _kelvin(kind, x):
         if kind < 2:
             f = mp.ber(0, a), mp.bei(0, a)
         elif kind < 4:
-            f = mp.ker(0, a), mp.kei(0, a)
+            k = mp.besselk(0, a * mp.expjpi(0.25))
+            f = k.real, k.imag
         elif kind < 6:  # ber'(x) = (ber_1(x) + bei_1(x)) / sqrt(2), DLMF 10.63.1
             b1, c1 = mp.ber(1, a), mp.bei(1, a)
             f = mp.sign(x) * (b1 + c1) / s2, mp.sign(x) * (c1 - b1) / s2
         else:
-            b1, c1 = mp.ker(1, a), mp.kei(1, a)
+            k = mp.besselk(1, a * mp.expjpi(0.25))
+            b1, c1 = k.imag, -k.real
             f = (b1 + c1) / s2, (c1 - b1) / s2
         return f[kind % 2], mp.hypot(*f)
 
