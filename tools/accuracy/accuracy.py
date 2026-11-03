@@ -1,12 +1,13 @@
 # /// script
 # requires-python = ">=3.15"
-# dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2"]
+# dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2", "python-flint==0.9.0"]
 # ///
 """Generate ACCURACY.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
 
 Usage (from the repository root; or `just accuracy`):
 
     uv run tools/accuracy/accuracy.py [--only NAME,... | --section TITLE] [--no-cache] [--jobs N]
+        [--arb-check]
 
 Steps:
 
@@ -19,6 +20,8 @@ Steps:
    function (normalized, see `_source`), and the mpmath version.
 4. Write the table to `ACCURACY.md` (or to stdout with `--only`, `--section`, or `--n`), and the
    inputs with the largest errors to `.cache/worst.txt`.
+5. With `--arb-check`, compare the references with Arb (see `specs.ARB`), and write those that
+   Arb refutes or cannot confirm to `.cache/arb_check.txt`.
 """
 
 import argparse
@@ -42,7 +45,7 @@ import time
 import tomllib
 import urllib.request
 import zlib
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from operator import itemgetter
@@ -50,6 +53,7 @@ from pathlib import Path
 from types import CodeType, FrameType
 from typing import Final, NamedTuple, Never
 
+import flint
 import mpmath as mp
 import specs
 
@@ -62,6 +66,9 @@ CACHE: Final = HERE / ".cache"
 
 DBL_MIN: Final = 2.2250738585072014e-308
 DBL_MAX: Final = sys.float_info.max
+# how far (relative to |f|, or to the scale) a reference may be from the Arb ball: well below
+# the f64 errors in the table, but above the rounding to the 30 digits that the cache keeps
+ARB_TOL: Final = 1e-20
 
 type Args = tuple[float, ...]
 # [value, scale or None], where the value is [real, imaginary] for a complex function
@@ -287,6 +294,48 @@ def compute_refs(jobs: list[Job], use_cache: bool, nproc: int) -> list[list[Ref 
             out[j] = list(itertools.islice(it, len(jobs[j].args)))
             paths[j].write_text(json.dumps({"key": keys[j], "refs": out[j]}))
     return [out[j] for j in range(len(jobs))]
+
+
+def arb_task(task: tuple[str, Args, Ref]) -> str:
+    """Compare a reference with the Arb ball at 2, 4, and 8 times its digits; returns "", or a
+    line that says whether Arb refutes it or cannot confirm it."""
+    name, args, (value, scale) = task
+    assert isinstance(value, str) and not isinstance(scale, list)
+    d = specs.BY_NAME[name].dps
+    for dps in (2 * d, 4 * d, 8 * d):
+        flint.ctx.dps = dps
+        ref = flint.arb(value)
+        tol = abs(ref) if scale is None else abs(ref).max(flint.arb(scale))
+        y = specs.ARB[name](*map(flint.arb, args))
+        diff = abs(y - ref) - ARB_TOL * tol
+        if diff <= 0:
+            return ""
+        if diff > 0:
+            return f"refuted {name}{args}: mpmath {value}, Arb {y.str(30)}"
+    return f"unconfirmed {name}{args}: mpmath {value}, Arb {y.str(30)}"
+
+
+def arb_check(jobs: list[Job], refs: list[list[Ref | str]], nproc: int) -> None:
+    """Check the references that have an Arb version (`specs.ARB`)."""
+    lines: list[str] = []
+    with multiprocessing.Pool(nproc) as pool:
+        for job, rr in zip(jobs, refs, strict=True):
+            if job.spec.name not in specs.ARB:
+                continue
+            tasks = [
+                (job.spec.name, a, r)
+                for a, r in zip(job.args, rr, strict=True)
+                if isinstance(r, list)
+            ]
+            res = pool.map(arb_task, tasks, chunksize=4)
+            n = Counter(line.partition(" ")[0] for line in res)
+            log(
+                f"{job.spec.name} [{job.spec.domains[job.di].desc(job.spec.args)}]: Arb"
+                f" refutes {n['refuted']} and cannot confirm {n['unconfirmed']} of"
+                f" {len(res)} references"
+            )
+            lines += filter(None, res)
+    (CACHE / "arb_check.txt").write_text("".join(f"{line}\n" for line in lines))
 
 
 # ---------------------------------------------------------------- errors
@@ -522,6 +571,9 @@ def main() -> None:
     ap.add_argument(
         "--n", type=int, help="at most N inputs per domain, for quick checks"
     )
+    ap.add_argument(
+        "--arb-check", action="store_true", help="check the references with Arb"
+    )
     opts = ap.parse_args()
     t0 = time.time()
     mp.mp.dps = 30
@@ -564,6 +616,8 @@ def main() -> None:
     }
 
     refs = compute_refs(jobs, not opts.no_cache, opts.jobs)
+    if opts.arb_check:
+        arb_check(jobs, refs, opts.jobs)
 
     results: list[Result] = []
     worst: list[str] = []

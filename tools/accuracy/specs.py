@@ -24,6 +24,7 @@ from random import Random
 from types import FunctionType
 from typing import Any, ClassVar, Final, Protocol
 
+import flint
 import mpmath as mp
 from mpmath.libmp import NoConvergence
 
@@ -3620,3 +3621,36 @@ NOT_COVERED = """\
 """
 
 BY_NAME: Final = {s.name: s for s in SPECS}
+
+# the same functions in Arb (python-flint), on balls, to check the references (`--arb-check`)
+ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
+    "gamma": lambda x: x.gamma(),
+    "rgamma": lambda x: x.rgamma(),
+    "digamma": lambda x: x.digamma(),
+    "polygamma": lambda n, x: flint.acb(x).polygamma(n),
+    "erfinv": lambda y: y.erfinv(),
+    "erfcinv": lambda y: y.erfcinv(),
+    "bessel_j0": lambda x: x.bessel_j(0),
+    "bessel_j1": lambda x: x.bessel_j(1),
+    "bessel_y0": lambda x: x.bessel_y(0),
+    "bessel_y1": lambda x: x.bessel_y(1),
+    "bessel_i0": lambda x: x.bessel_i(0),
+    "bessel_i1": lambda x: x.bessel_i(1),
+    "bessel_k0": lambda x: x.bessel_k(0),
+    "bessel_k1": lambda x: x.bessel_k(1),
+    "bessel_j": lambda v, x: x.bessel_j(v),
+    "bessel_y": lambda v, x: x.bessel_y(v),
+    "bessel_i": lambda v, x: x.bessel_i(v),
+    "bessel_k": lambda v, x: x.bessel_k(v),
+    "zeta": lambda x, q: x.zeta(q),
+    "riemann_zeta": lambda x: x.zeta(),
+    "elliprc": flint.acb.elliptic_rc,
+    "elliprd": flint.acb.elliptic_rd,
+    "elliprf": flint.acb.elliptic_rf,
+    "elliprg": flint.acb.elliptic_rg,
+    "elliprj": flint.acb.elliptic_rj,
+    "hyp0f1": lambda b, z: z.hypgeom_0f1(b),
+    "hyp1f1": lambda a, b, x: x.hypgeom_1f1(a, b),
+    "hypu": lambda a, b, x: x.hypgeom_u(a, b),
+    "hyp2f1": lambda a, b, c, x: x.hypgeom_2f1(a, b, c),
+}
