@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/jv.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/jv.h` (xsf v0.2.2, with scipy/xsf#391 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1989, 1992, 2000 by Stephen L. Moshier
@@ -9,9 +9,6 @@
 //! Unlike in xsf, `cbrt` is the one from the Rust standard library, which is more accurate than
 //! the Cephes one (see [`crate::cbrt`]), and the `double` -> `int` conversions saturate instead of
 //! being undefined behavior (taking the same branches as the x86 conversion in C++).
-//!
-//! Also unlike in xsf (scipy/xsf#341), the power series returns `-inf` instead of `inf` when it
-//! overflows for a negative result, e.g. `jv(-123.5, 0.03)` (`-6e428`).
 
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
@@ -225,7 +222,6 @@ fn jv_jvs(n: f64, x: f64) -> f64 {
             return 0.0;
         }
         if t > MAXLOG {
-            // (unlike in xsf, scipy/xsf#341) keep the sign
             return f64::from(sgngam) * f64::INFINITY;
         }
         y = f64::from(sgngam) * t.exp();
