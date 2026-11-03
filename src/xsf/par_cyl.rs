@@ -105,6 +105,11 @@ fn dvla(x: f64, va: f64) -> f64 {
 }
 
 fn vvla(x: f64, va: f64) -> f64 {
+    vvla_qe(x, va, (0.25 * x * x).exp())
+}
+
+/// `vvla` with `qe = e^(x^2 / 4)` given, e.g. 1 to apply it separately (if `x > 0`)
+fn vvla_qe(x: f64, va: f64, qe: f64) -> f64 {
     // ===================================================
     // Purpose: Compute parabolic cylinder function Vv(x)
     //          for large argument
@@ -118,7 +123,6 @@ fn vvla(x: f64, va: f64) -> f64 {
 
     let eps = 1e-12;
 
-    let qe = (0.25 * x * x).exp();
     let a0 = x.abs().powf(-va - 1.0) * SQRT2OPI * qe;
     let mut r = 1.0;
     let mut pv = 1.0;
@@ -1090,6 +1094,23 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
+    }
+    // Unlike in xsf, for |v| < 20 and x < -50 (if not done by `pbdv_uniform`), D_v(x) is computed
+    // as in `dvla`, but with e^(x^2 / 4) split in two, since `dvla` overflows prematurely, and
+    // `pbdv_impl` returned D_0(x) for tiny |v|, where v +- 1 rounds to an integer.
+    //
+    // E.g. `pbdv(0.5, -53.3).0` was -inf instead of -5.1e305, and `pbdv(1e-200, -66.0).0` was 0
+    // instead of -3.4e271.
+    if v.abs() < 20.0 && (f64::MIN..-50.0).contains(&x) {
+        let y = (-x).min(100.0); // D_v(-y) overflows for y > 77 anyway
+        let e = 0.125 * y * y;
+        // D_v(-y) = pi / Gamma(-v) V_v(y) (without the exponentially small D_v(y) of `dvla`), with
+        // half of e^(y^2 / 4) applied first, since 1 / Gamma(-v) ~ -v can be subnormal
+        let r = mul_exp(rgamma(-v), e) * PI;
+        let w = vvla_qe(y, v, 1.0);
+        // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), with v / Gamma(1 - v) = -1 / Gamma(-v)
+        let wp = 0.5 * y * w - vvla_qe(y, v - 1.0, 1.0);
+        return (mul_exp(r * w, e), mul_exp(r * wp, e));
     }
     // Unlike in xsf, near an integer n (see `near_int`), D_v(x) is computed by recurrence from
     // D_w(x) and D_{w-1}(x) with w = v - n, e.g. `pbdv(3.000000001, 2.0).0` was 0.7357588
