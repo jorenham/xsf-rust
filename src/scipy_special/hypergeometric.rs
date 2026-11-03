@@ -40,7 +40,12 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
     let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
 
-    let out = (arg_exp_i - crate::xlogy(v1, arg)).exp() * gs * u_corr_i;
+    // Unlike in xsf (scipy/xsf#366), this multiplies by arg^(1-v) instead of arg^(-|v-1|),
+    // which differ if v < 1.
+    //
+    // E.g. hyp0f1(-300.5, 2e5) was 5.5e-185 instead of -inf (-3.9e548), and
+    // hyp0f1(-8691.5, 8.6e6) was 0 instead of 1.8e-246.
+    let out = (arg_exp_i + crate::xlogy(1.0 - v, arg)).exp() * gs * u_corr_i;
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
