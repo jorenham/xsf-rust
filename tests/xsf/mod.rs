@@ -35,4 +35,5 @@ mod sphd_wave;
 mod stats;
 mod struve;
 mod trig;
+mod trigamma;
 mod wright_bessel;
