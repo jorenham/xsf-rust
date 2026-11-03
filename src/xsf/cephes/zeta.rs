@@ -1,13 +1,11 @@
-//! Translated into pure Rust from `xsf/cephes/zeta.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/zeta.h` (xsf v0.2.2, with scipy/xsf#395 and
+//! scipy/xsf#404 from xsf main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf (scipy/xsf#345), the asymptotic expansion for `q > 1e8` includes the `B_2` term.
 
 use crate::utils::MACHEP;
 
@@ -107,14 +105,9 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
      * https://dlmf.nist.gov/25.11#E43
      */
     if q > 1e8 {
-        // (unlike in xsf, scipy/xsf#345) the B_2 term, which is skipped for x = inf to avoid
-        // inf * 0
-        let b2 = if x.is_finite() {
-            x / (12.0 * q * q)
-        } else {
-            0.0
-        };
-        return (1.0 / (x - 1.0) + 1.0 / (2.0 * q) + b2) * q.powf(1.0 - x);
+        // 1 / (2 q) + x / (12 q^2), without overflowing q^2, or inf * 0 for x = inf
+        let xq = if x.is_infinite() { 0.0 } else { x / q };
+        return (1.0 / (x - 1.0) + (6.0 + xq) / q / 12.0) * q.powf(1.0 - x);
     }
 
     /* Euler-Maclaurin summation formula */
@@ -133,8 +126,7 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         a += 1.0;
         b = a.powf(-x);
         s += b;
-        // Unlike in xsf (scipy/xsf#345), this also requires the tail sum `~ b * a / (x - 1)` to be
-        // negligible, e.g. `zeta(1 + 2^-52, 1e-15)` was 1.0e15 instead of 5.5e15.
+        // stop only if the corrections below, b * a / (x - 1) and -b / 2, are negligible
         //
         // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows, e.g. `zeta(1e300, 1.5)`
         // was NaN instead of 0.
