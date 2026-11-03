@@ -200,11 +200,11 @@ fn recur_down(p: Dd, q: Dd, c: f64, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) -
         }
         // the rounding errors of the step, and of `coef_b` (incl. its cancellation)
         let err_b = cc * (cc1.abs() + (cc_p.abs() + cc1.abs() + q.hi.abs()) * z.abs());
-        // (meant to cover the roundings of t0 and t1 (6), inside `coef_b` (4), and of `coef_a` and
-        // the division (4); a strict count gives about 5 and 6 for the last two, not yet fixed)
-        let t_m = MACHEP * (6.0 * (t0.abs() + t1.abs()) + 4.0 * (err_b * y0).abs())
+        // (the roundings of t0 and t1 and their sum (6), of the parts of `coef_b` (5), and of
+        // `coef_a` (C, C - 1, z - 1, 2 products) and the division (6))
+        let t_m = MACHEP * (6.0 * (t0.abs() + t1.abs()) + 5.0 * (err_b * y0).abs())
             / (coef_a * ym).abs()
-            + 4.0 * MACHEP;
+            + 6.0 * MACHEP;
         d *= coef_c / coef_a * (y1 / ym);
         t_sum += t_m / d.abs();
         err += d.abs() * t_sum;
