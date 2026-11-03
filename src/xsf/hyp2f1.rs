@@ -321,6 +321,12 @@ fn hyp2f1_transform2_euler_generator(
     move || cmul(factor1, generator1()) + cmul(factor2, generator2())
 }
 
+/// The estimated cancellation `abs_sum / |sum|`, or infinity if NaN (e.g. if `sum` is NaN)
+fn cancellation(abs_sum: f64, sum: Complex64) -> f64 {
+    let ratio = abs_sum / sum.norm();
+    if ratio.is_nan() { f64::INFINITY } else { ratio }
+}
+
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
 fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64) {
     let mut abs_sum = 0.0;
@@ -330,7 +336,7 @@ fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64
         term
     };
     let result = series_eval(g, Complex64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
-    (result, abs_sum / result.norm())
+    (result, cancellation(abs_sum, result))
 }
 
 const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
@@ -511,11 +517,13 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
     }
 }
 
+/// The result, and its estimated cancellation as in `series_eval_cancellation`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64) -> Complex64 {
+fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: Complex64) -> (Complex64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
+    let m = (c - a - b).round();
     let mut result = Complex64::ZERO;
-    if m >= 0.0 {
+    let (prefactor, series_generator) = if m >= 0.0 {
         if m != 0.0 {
             let series_generator = hypergeometric_series_generator(a, b, 1.0 - m, rsub(1.0, z));
             result +=
@@ -524,16 +532,7 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
         let prefactor =
             cpow(rsub(1.0, z), m) * ((-1.0_f64).powf(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
         let series_generator = hyp2f1_transform1_limit_series_generator(a + m, b + m, m, z);
-        result += cmul(
-            prefactor,
-            series_eval(
-                series_generator,
-                Complex64::ZERO,
-                HYP2F1_EPS,
-                HYP2F1_MAXITER,
-            ),
-        );
-        result
+        (prefactor, series_generator)
     } else {
         result = cpow(rsub(1.0, z), m) * four_gammas(-m, c, a, b);
         let series_generator1 =
@@ -541,14 +540,12 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
         result = cmul(result, series_eval_finite(series_generator1, (-m) as u64));
         let prefactor = (-1.0_f64).powf(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
-        result += series_eval(
-            series_generator2,
-            Complex64::ZERO,
-            HYP2F1_EPS,
-            HYP2F1_MAXITER,
-        ) * prefactor;
-        result
-    }
+        (c64(prefactor, 0.0), series_generator2)
+    };
+    let (series, series_cancellation) = series_eval_cancellation(series_generator);
+    let abs_sum = result.norm() + prefactor.norm() * series.norm() * series_cancellation;
+    result += cmul(prefactor, series);
+    (result, cancellation(abs_sum, result))
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -768,9 +765,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
-        if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
+        let (result, cancellation) = if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
             // Removable singularity when c - a - b is an integer. Need to use limiting formula.
-            let m = (c - a - b).round();
             // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
             // terms vanish fast, since the limiting case then overflows, after summing m ~ c terms.
             //
@@ -784,15 +780,23 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
                     HYP2F1_MAXITER,
                 );
             }
-            return hyp2f1_transform1_limiting_case(a, b, c, m, z);
+            hyp2f1_transform1_limiting_case(a, b, c, z)
+        } else {
+            series_eval_cancellation(hyp2f1_transform1_generator(a, b, c, z))
+        };
+        // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
+        // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
+        // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2).
+        //
+        // E.g. hyp2f1(4.5, 2.5, 57, 0.64+0.65i) was 1.6e19+2.1e19i instead of 1.12+0.158i.
+        if c > 0.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
+            let series_generator = hypergeometric_series_generator(a, b, c, z);
+            let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);
+            if maclaurin_cancellation < cancellation {
+                return maclaurin;
+            }
         }
-        let series_generator = hyp2f1_transform1_generator(a, b, c, z);
-        return series_eval(
-            series_generator,
-            Complex64::ZERO,
-            HYP2F1_EPS,
-            HYP2F1_MAXITER,
-        );
+        return result;
     }
     /* 1/z transformation (DLMF 15.8.2). */
     // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
@@ -827,7 +831,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         // use the one that cancels less
         let series_generator = hyp2f1_transform2_euler_generator(a, b, c, z);
         let (euler_result, euler_cancellation) = series_eval_cancellation(series_generator);
-        if euler_cancellation < cancellation || cancellation.is_nan() {
+        if euler_cancellation < cancellation {
             if let Some(euler_result) = euler_scaled(euler_result) {
                 return euler_result;
             }
