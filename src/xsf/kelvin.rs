@@ -9,13 +9,15 @@ use core::f64::consts::{PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
+use crate::xsf::specfun::SPECFUN_INF;
+
 /// `SPECFUN_ZCONVINF` (only the real part is checked)
 #[allow(clippy::float_cmp)]
 fn specfun_zconvinf(z: &mut Complex64) {
-    if z.re == 1.0e300 {
+    if z.re == SPECFUN_INF {
         z.re = f64::INFINITY;
     }
-    if z.re == -1.0e300 {
+    if z.re == -SPECFUN_INF {
         z.re = f64::NEG_INFINITY;
     }
 }
@@ -65,11 +67,11 @@ fn klvna(x: f64) -> Klvna {
         return Klvna {
             ber: 1.0,
             bei: 0.0,
-            ger: 1.0e+300,
+            ger: SPECFUN_INF,
             gei: -0.25 * PI,
             der: 0.0,
             dei: 0.0,
-            her: -1.0e+300,
+            her: -SPECFUN_INF,
             hei: 0.0,
         };
     }

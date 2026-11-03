@@ -9,6 +9,7 @@ use crate::utils::PISQ_6;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
+use crate::xsf::specfun::SPECFUN_INF;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
@@ -1352,7 +1353,7 @@ fn ittika(x: f64) -> (f64, f64) {
     let mut r;
 
     if x == 0.0 {
-        return (0.0, 1.0e+300);
+        return (0.0, SPECFUN_INF);
     }
     if x < 40.0 {
         tti = 1.0;
@@ -1442,7 +1443,7 @@ fn ittjya(x: f64) -> (f64, f64) {
 
     if x == 0.0 {
         ttj = 0.0;
-        tty = -1.0e+300;
+        tty = -SPECFUN_INF;
     } else if x <= 20.0 {
         ttj = 1.0;
         r = 1.0;
@@ -1766,8 +1767,8 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     *nm = n;
     if x < 1.0e-60 {
         for k in 0..=n {
-            ry[k as usize] = -1.0e+300;
-            dy[k as usize] = 1.0e+300;
+            ry[k as usize] = -SPECFUN_INF;
+            dy[k as usize] = SPECFUN_INF;
         }
         ry[0] = -1.0;
         dy[0] = 0.0;
@@ -1782,7 +1783,7 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     k = 2;
     while k <= n {
         let rf2 = (2.0 * f64::from(k) - 1.0) * rf1 / x - rf0;
-        if rf2.abs() > 1.0e+300 {
+        if rf2.abs() > SPECFUN_INF {
             break;
         }
         ry[k as usize] = rf2;

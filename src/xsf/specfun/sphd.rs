@@ -4,7 +4,7 @@
 
 use core::f64::consts::PI;
 
-use super::{Status, lpmns, lqmns, sphj, sphy, try_zeroed};
+use super::{SPECFUN_INF, Status, lpmns, lqmns, sphj, sphy, try_zeroed};
 use crate::xsf::tools::int_x86;
 
 #[allow(
@@ -932,8 +932,8 @@ pub(crate) fn rmn2so(
     let eps = 1.0e-14;
 
     if df[0].abs() <= 1.0e-280 {
-        *r2f = 1.0e+300;
-        *r2d = 1.0e+300;
+        *r2f = SPECFUN_INF;
+        *r2d = SPECFUN_INF;
         return Status::Ok;
     }
 

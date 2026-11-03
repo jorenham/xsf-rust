@@ -11,13 +11,14 @@
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 
 use crate::xsf::cephes;
+use crate::xsf::specfun::SPECFUN_INF;
 
 #[allow(clippy::float_cmp)]
 fn specfun_convinf(x: f64) -> f64 {
-    if x == 1.0e300 {
+    if x == SPECFUN_INF {
         return f64::INFINITY;
     }
-    if x == -1.0e300 {
+    if x == -SPECFUN_INF {
         return f64::NEG_INFINITY;
     }
     x

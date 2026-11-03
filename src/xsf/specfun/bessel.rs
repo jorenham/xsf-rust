@@ -5,6 +5,8 @@
 
 use core::f64::consts::PI;
 
+use super::SPECFUN_INF;
+
 #[allow(
     clippy::approx_constant,
     clippy::excessive_precision,
@@ -79,7 +81,7 @@ pub(crate) fn jynb(
     if x < 1.0e-100 {
         for k in 0..=n {
             dj[k as usize] = 0.0;
-            dy[k as usize] = 1.0e+300;
+            dy[k as usize] = SPECFUN_INF;
         }
         dj[1] = 0.5;
     } else {
@@ -156,7 +158,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
     if x < 1.0e-100 {
         for k in nmin..=n {
             bj[(k - nmin) as usize] = 0.0;
-            by[(k - nmin) as usize] = -1.0e+300;
+            by[(k - nmin) as usize] = -SPECFUN_INF;
         }
 
         if nmin == 0 {
@@ -1030,8 +1032,8 @@ pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64])
     // otherwise sets *nm = n - 1, so dy[n] is never computed. Reproduced as is.
     if x < 1.0e-60 {
         for k in 0..=n {
-            sy[k as usize] = -1.0e300;
-            dy[k as usize] = 1.0e300;
+            sy[k as usize] = -SPECFUN_INF;
+            dy[k as usize] = SPECFUN_INF;
         }
         *nm = n;
         return;
@@ -1051,7 +1053,7 @@ pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64])
     for k in 2..=n {
         let f = ((2.0 * f64::from(k) - 1.0) * f1 / x) - f0;
         sy[k as usize] = f;
-        if f.abs() >= 1.0e300 {
+        if f.abs() >= SPECFUN_INF {
             *nm = k - 1;
             return;
         }
