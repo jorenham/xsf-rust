@@ -512,17 +512,31 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             cct1[2] = zm.sqrt();
             cct2[0] = cct1[2];
             lam = ndot2(&cct1, &cct2, 3);
-            dm = (prm + cct1[0]).prod(prm + cct1[1]).prod(prm + cct1[2]);
+            dm = common::sqrt_sum(pm, xm, prm, cct1[0])
+                .prod(common::sqrt_sum(pm, ym, prm, cct1[1]))
+                .prod(common::sqrt_sum(pm, zm, prm, cct1[2]));
         };
     }
 
     macro_rules! ellint_rj_updt {
         () => {
             am = (am + lam) * 0.25;
-            xm = (xm + lam) * 0.25;
-            ym = (ym + lam) * 0.25;
-            zm = (zm + lam) * 0.25;
-            pm = (pm + lam) * 0.25;
+            let xyz = [xm, ym, zm];
+            let xyzl = common::add_lambda(xyz, [cct1[0], cct1[1], cct1[2]], lam);
+            let mut pl = pm + lam;
+            // Unlike in xsf, if `p + lam` cancels, it's computed as `(a + lam) + (p - a)` with `a`
+            // the closest of `x, y, z`, e.g. if `p = z` is close to the negative real axis.
+            if pl.abs() < pm.abs() {
+                let mut i = 0;
+                for j in 1..3 {
+                    if (pm - xyz[j]).abs() < (pm - xyz[i]).abs() {
+                        i = j;
+                    }
+                }
+                pl = xyzl[i] + (pm - xyz[i]);
+            }
+            [xm, ym, zm] = xyzl.map(|a| a * 0.25);
+            pm = pl * 0.25;
             xxm = xxm * 0.25;
             yym = yym * 0.25;
             zzm = zzm * 0.25;

@@ -94,10 +94,11 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         cct1 = [xm.sqrt(), ym.sqrt(), zm.sqrt()];
         let cct2 = [cct1[1], cct1[2], cct1[0]];
         let lam = dot2(&cct1, &cct2);
+        let [xl, yl, zl] = common::add_lambda([xm, ym, zm], cct1, lam);
         am = (am + lam) * 0.25;
-        xm = (xm + lam) * 0.25;
-        ym = (ym + lam) * 0.25;
-        zm = (zm + lam) * 0.25;
+        xm = xl * 0.25;
+        ym = yl * 0.25;
+        zm = zl * 0.25;
         xxm = xxm * 0.25;
         yym = yym * 0.25;
         fterm *= 0.25;

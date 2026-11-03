@@ -258,3 +258,32 @@ fn test_elliprj_tiny_p() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_carlson_near_conjugate() {
+    // a conjugate pair close to the negative real axis
+    let x = c64(-1e-4, 1e-30);
+    let actual = [
+        xsf::elliprf(x, c64(0.5, 0.0), x.conj()),
+        xsf::elliprd(x, x.conj(), c64(0.5, 0.0)),
+        // the real part is a tiny remainder of the cancelling terms, so it's inaccurate
+        xsf::elliprd(x, c64(0.5, 0.0), x.conj()),
+        xsf::elliprj(x, c64(0.5, 0.0), x.conj(), c64(0.3, 0.0)),
+        // R_J(x, y, z, z) = R_D(x, y, z)
+        xsf::elliprj(x, c64(0.5, 0.0), x.conj(), x.conj()),
+        // nearly conjugate
+        xsf::elliprf(x, c64(0.5, 0.0), c64(-1.000_001e-4, -1e-30)),
+        // `x - conj(x)` overflows
+        xsf::elliprf(c64(-6e307, 1e308), c64(-6e307, -1e308), c64(1.0, 0.0)),
+    ];
+    let expected = [
+        c64(92.639_053_758_880_68, 0.0),
+        c64(547.241_289_722_859_8, 0.0),
+        c64(20_939.582_790_734_995, 4.242_216_486_679_578_4e30),
+        c64(909.422_264_352_536_2, 0.0),
+        c64(20_939.582_790_734_995, 4.242_216_486_679_578_4e30),
+        c64(28.498_784_620_315_163, 2.221_219_358_137_306),
+        c64(2.009_168_978_782_164_5e-154, 0.0),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}

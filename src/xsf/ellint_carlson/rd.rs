@@ -86,13 +86,14 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         /* The cumulative sum term in Ref. [2], Eq. (41), implemented by
          * accumulating the summation term into adt with compensation
          * term ade */
-        tmp = T::from(d4m).quot(cct1[2].prod(zm + lam));
+        let [xl, yl, zl] = common::add_lambda([xm, ym, zm], [cct1[0], cct1[1], cct1[2]], lam);
+        tmp = T::from(d4m).quot(cct1[2].prod(zl));
         sum2_acc(tmp, &mut adt, &mut ade);
 
         am = (am + lam) * 0.25;
-        xm = (xm + lam) * 0.25;
-        ym = (ym + lam) * 0.25;
-        zm = (zm + lam) * 0.25;
+        xm = xl * 0.25;
+        ym = yl * 0.25;
+        zm = zl * 0.25;
         xxm = xxm * 0.25;
         yym = yym * 0.25;
         fterm *= 0.25;
