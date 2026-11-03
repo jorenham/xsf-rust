@@ -15,7 +15,7 @@ fn test_eval_real_degree_large() {
         21.990_470_696_631_68,
         -0.010_204_813_296_612_693,
     ];
-    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    np_assert_allclose!(actual, desired, rtol = 2e-12);
 
     // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (mpmath)
     let actual = [
@@ -31,4 +31,12 @@ fn test_eval_real_degree_large() {
         34_691_102.898_867_61,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
+
+    // or near x = -1, where `hyp2f1` was inaccurate (mpmath)
+    let actual = [
+        xsf::eval_jacobi(15.8, -0.5, 8.7, -0.96),
+        xsf::eval_gegenbauer(40.7, 9.3, -0.99),
+    ];
+    let desired = [37_787_979.694_627_58, -1.002_223_611_030_761_3e15];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }

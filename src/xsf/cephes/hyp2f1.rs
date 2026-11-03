@@ -29,18 +29,50 @@ const HYP2F1_SCALE: f64 = 1.340_780_792_994_259_7e154;
 /// Defining power series expansion of Gauss hypergeometric function.
 /// The `loss` (the second return value) estimates loss of significance.
 fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
-    let (y, loss, _) = hys2f1_err(a, b, c, x);
+    let (y, loss, _) = hys2f1_checked(a, b, c, x);
     (y, loss)
+}
+
+/// `hys2f1_err`, or the power series if `hys2f1_series_instead`
+fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+    let y = hys2f1_err(a, b, c, x);
+    hys2f1_series_instead(a, b, c, x, y).unwrap_or(y)
+}
+
+/// Unlike in xsf, the power series if `y = hys2f1_err(a, b, c, x)` used the recurrence in `a` with a
+/// small `loss` but a large error, and the series is accurate and shows `y` to be less accurate.
+///
+/// Not if `a` or `b` is (close to) a non-positive integer, since the series can then stop before its
+/// terms grow again.
+///
+/// E.g. `hyp2f1(3.5, 20.0, -17.4, 0.09)` was -1.0 instead of 0.716.
+fn hys2f1_series_instead(
+    a: f64,
+    b: f64,
+    c: f64,
+    x: f64,
+    y: (f64, f64, f64),
+) -> Option<(f64, f64, f64)> {
+    let near_neg_int = |t: f64| t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS;
+    if y.1 < HYP2F1_ETHRESH && y.2 >= HYP2F1_ETHRESH && !(near_neg_int(a) || near_neg_int(b)) {
+        let series = hys2f1_series(a, b, c, x);
+        if series.1 < HYP2F1_ETHRESH && less_accurate(y.0, series.0, series.1) {
+            return Some(series);
+        }
+    }
+    None
+}
+
+/// Whether `y` is less accurate than `alt` with the estimated relative error `err`, by at least
+/// `HYP2F1_ETHRESH`: if they differ by more than `2 err`, then the error of `y` exceeds `err`.
+fn less_accurate(y: f64, alt: f64, err: f64) -> bool {
+    let diff = (y - alt).abs();
+    diff > 2.0 * err * alt.abs() && diff > HYP2F1_ETHRESH * alt.abs()
 }
 
 /// `hys2f1`, also returning an estimate of the relative error that, unlike `loss`, includes the
 /// error of the recurrence in `a`
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
-)]
+#[allow(clippy::many_single_char_names, clippy::cast_possible_truncation)]
 fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut f;
     let mut intflag = false;
@@ -69,10 +101,19 @@ fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
          */
         return hyp2f1ra(a, b, c, x);
     }
+    hys2f1_series(a, b, c, x)
+}
 
+/// The power series of `hys2f1_err`, without the recurrence in `a`
+#[allow(
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::cast_precision_loss
+)]
+fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut i: u64 = 0;
     let mut umax = 0.0;
-    f = a;
+    let f = a;
     let g = b;
     let h = c;
     let mut s = 1.0;
@@ -178,17 +219,23 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         if x > 0.9 && !(neg_int_a || neg_int_b) {
             if (d - id).abs() > MACHEP {
                 let (mut lg, mut sgngam);
-                let err1;
+                let (err1, full0, q_full, r_full);
                 let mut y;
 
                 /* test for integer c-a-b */
                 /* Try the power series first */
-                (y, err) = hys2f1(a, b, c, x);
-                if err < HYP2F1_ETHRESH {
+                // Unlike in xsf, if its `loss` is small but its error estimate incl. the
+                // recurrence in `a` isn't, only replace it by AMS55 #15.3.6 if that shows it to
+                // be less accurate.
+                //
+                // E.g. `hyp2f1(14.0, -14.5, 0.7, 0.98)` was 1238 instead of -0.0937.
+                (y, err, full0) = hys2f1_checked(a, b, c, x);
+                if err < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
                     break 'done y;
                 }
+                let (y0, loss0) = (y, err);
                 /* If power series fails, then apply AMS55 #15.3.6 */
-                (q, err) = hys2f1(a, b, 1.0 - d, s);
+                (q, err, q_full) = hys2f1_checked(a, b, 1.0 - d, s);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(d);
                 sign *= sgngam;
@@ -199,7 +246,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 w -= lg;
                 sign *= sgngam;
                 q *= f64::from(sign) * w.exp();
-                (r, err1) = hys2f1(c - a, c - b, d + 1.0, s);
+                (r, err1, r_full) = hys2f1_checked(c - a, c - b, d + 1.0, s);
                 r *= s.powf(d);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(-d);
@@ -213,6 +260,14 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 r *= f64::from(sign) * w.exp();
                 y = q + r;
 
+                // the error estimate of `y`, incl. the recurrences in `a`, and the rounding error
+                // of `d` in the Gamma functions with poles at its integers
+                let near_pole = 1.0 + (a.abs() + b.abs() + c.abs()) / (d - id).abs();
+                let full = (q.abs() * q_full
+                    + r.abs() * r_full
+                    + MACHEP * near_pole * q.abs().max(r.abs()))
+                    / y.abs();
+
                 q = q.abs(); /* estimate cancellation error */
                 r = r.abs();
                 if q > r {
@@ -221,6 +276,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 err += err1 + (MACHEP * r) / y;
 
                 y *= gamma(c);
+                if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
+                    err = loss0;
+                    break 'done y0;
+                }
                 break 'done y;
             }
             /* Psi function expansion, AMS55 #15.3.10, #15.3.11, #15.3.12
@@ -386,12 +445,23 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         return (f64::NAN, 1.0, 1.0);
     }
 
+    // Unlike in xsf, use the power series for the starting values if `hys2f1_series_instead`, but
+    // only for both, since their errors can be correlated.
+    let t0 = if da < 0.0 { t - 1.0 } else { t + 1.0 };
+    let (mut start_f1, mut start_f0) = (hys2f1_err(t, b, c, x), hys2f1_err(t0, b, c, x));
+    if let (Some(s1), Some(s0)) = (
+        hys2f1_series_instead(t, b, c, x, start_f1),
+        hys2f1_series_instead(t0, b, c, x, start_f0),
+    ) {
+        (start_f1, start_f0) = (s1, s0);
+    }
+
     if da < 0.0 {
         /* Recurse down */
-        (f1, err, e) = hys2f1_err(t, b, c, x);
+        (f1, err, e) = start_f1;
         loss += err;
         start_err += e;
-        (f0, err, e) = hys2f1_err(t - 1.0, b, c, x);
+        (f0, err, e) = start_f0;
         loss += err;
         start_err += e;
         (start1, start0) = (f1, f0);
@@ -407,10 +477,10 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         }
     } else {
         /* Recurse up */
-        (f1, err, e) = hys2f1_err(t, b, c, x);
+        (f1, err, e) = start_f1;
         loss += err;
         start_err += e;
-        (f0, err, e) = hys2f1_err(t + 1.0, b, c, x);
+        (f0, err, e) = start_f0;
         loss += err;
         start_err += e;
         (start1, start0) = (f1, f0);
