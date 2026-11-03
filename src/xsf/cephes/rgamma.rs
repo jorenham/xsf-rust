@@ -1,4 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/rgamma.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/cephes/rgamma.h` (xsf v0.2.2), with scipy/xsf#393 from
+//! xsf main.
 //!
 //! Cephes Math Library Release 2.0:  April, 1987,
 //! Copyright 1985, 1987 by Stephen L. Moshier.
@@ -72,9 +73,8 @@ pub(crate) fn rgamma(x: f64) -> f64 {
         return 0.0;
     }
 
-    // Unlike in xsf (scipy/xsf#377), `1 / Gamma(x) = x / Gamma(x + 1)`, since `Gamma(x)` can
-    // underflow here
     if -178.0 < x && x < -170.0 {
+        // Gamma(x) underflows here, so use 1/Gamma(x) = x/Gamma(x + 1).
         return x * rgamma(x + 1.0);
     }
 

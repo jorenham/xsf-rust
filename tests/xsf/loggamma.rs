@@ -40,7 +40,7 @@ fn test_rgamma_f64_subnormal() {
 
 #[test]
 fn test_rgamma_f64_near_overflow() {
-    // unlike in xsf: no spurious overflow for `-178 < x < -170` (mpmath)
+    // no spurious overflow for `-178 < x < -170` (mpmath)
     for (x, expected) in [
         (-170.917_162_917_922_44, -6.637_711_907_120_738e307),
         (-173.999_999_999_999_97, 1.826_215_811_702_844e302),
