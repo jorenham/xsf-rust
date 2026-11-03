@@ -1136,9 +1136,9 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf, V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and D_v(-x) (DLMF
-    // 12.2.16), since the upward recurrence is unstable there, e.g. `pbvv(3.0, -20.0).0` was
-    // 2.4e227 instead of 1.3749e38.
+    // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and
+    // D_v(-x) (DLMF 12.2.16), since the upward recurrence is unstable there, e.g.
+    // `pbvv(3.0, -20.0).0` was 2.4e227 instead of 1.3749e38.
     if x < -10.0 && v > 0.0 {
         let (c, s) = (cospi(v), sinpi(v) * rgamma(v + 1.0));
         // V_v(-x) can overflow, so skip it if c = 0
