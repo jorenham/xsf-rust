@@ -101,8 +101,8 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         m += 1;
     }
 
-    // Unlike in xsf, small arguments are scaled up by 2^128 if `3 * adt` overflows, which
-    // otherwise gives NaN in the compensated arithmetic (from `inf - inf`).
+    // Unlike in xsf (scipy/xsf#376), small arguments are scaled up by 2^128 if `3 * adt`
+    // overflows, which otherwise gives NaN in the compensated arithmetic (from `inf - inf`).
     //
     // E.g. `elliprd(1e-290, 1e-70, 1e-290)` was NaN instead of inf.
     //
