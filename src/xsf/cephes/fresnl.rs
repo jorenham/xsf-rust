@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/fresnl.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/fresnl.h` (xsf v0.2.2, with scipy/xsf#392 from
+//! xsf main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.1:  January, 1989
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
@@ -154,8 +154,7 @@ pub(crate) fn fresnl(xxa: f64) -> (f64, f64) {
     let (mut cc, mut ss) = 'done: {
         let x = xxa.abs();
         let x2 = x * x;
-        // Unlike in xsf (scipy/xsf#386), this also catches finite x >= 2^512, where x * x
-        // overflows, e.g. fresnel(1e155) was (NaN, NaN). The 1 / (pi x) terms are negligible there.
+        // also for finite x >= 2^512, where x * x overflows
         if x2.is_infinite() {
             break 'done (0.5, 0.5);
         }

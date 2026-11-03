@@ -9,7 +9,7 @@ fn test_fresnel_f64() {
 #[allow(clippy::float_cmp)]
 fn test_fresnel_f64_huge() {
     // x * x overflows; S(x) and C(x) round to +-1/2 (mpmath)
-    for x in [1e155, -1e200, f64::MAX] {
+    for x in [2.0_f64.powi(512), 1e155, -1e200, f64::MAX] {
         let half = 0.5_f64.copysign(x);
         assert_eq!(xsf::fresnel(x), (half, half));
     }
