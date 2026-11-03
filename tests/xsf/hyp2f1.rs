@@ -214,7 +214,31 @@ fn test_hyp2f1_f64_c_lt_0() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
-    // but it fails (instead of returning 1 or -7.13e279) if the ratio of its terms underflows
-    assert!(xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8).is_nan());
-    assert!(xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8).is_nan());
+    // the ratio of its terms underflows here, but not for the backward recurrence in c (the direct
+    // sum of the power series in high precision)
+    let actual = [
+        xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8),
+        xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8),
+    ];
+    let desired = [-5.767_096_442_064_845e199, -5.767_096_442_064_845e279];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_parameters() {
+    // unlike in xsf: the backward recurrence in c for large parameters (references: the direct sum
+    // of the power series of the Pfaff transformation in high precision)
+    let actual = [
+        xsf::hyp2f1(35.17, 102.3, 0.0054, -9.74),
+        xsf::hyp2f1(658.99, 0.0047, 51.38, -2.72),
+        xsf::hyp2f1(-0.5, 692.8, 83.35, -3.98),
+        xsf::hyp2f1(-21.2, -10.2, -1e-8, -0.46),
+    ];
+    let desired = [
+        1.955_342_940_723_380_9e-60,
+        0.983_273_621_397_356_7,
+        5.845_197_863_408_547,
+        -53_404_320_641.112_48,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
