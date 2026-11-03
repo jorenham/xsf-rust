@@ -46,6 +46,19 @@ fn test_kelvin_c64() {
     });
 }
 
+/// Ported from xsf's `test_kelvin.cpp`
+#[test]
+fn test_kelvin_wronskian() {
+    // x (Be Ke' - Be' Ke) = -1 checks all eight functions at once.
+    //
+    // The residual is largest (2.5e-10) just below the branch point at x = 10.
+    for x in [0.01, 1.0, 9.9, 10.1, 30.0] {
+        let [be, ke, bep, kep] = xsf::kelvin(x);
+        let residual = (x * (be * kep - bep * ke) + 1.0).norm();
+        assert!(residual <= 1e-9, "x = {x}: residual = {residual:e}");
+    }
+}
+
 // Kelvin function zeros tests
 
 /// Ported from `scipy.special.tests.test_basic.TestKelvin.test_ber_zeros`
