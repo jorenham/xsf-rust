@@ -106,15 +106,21 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     // before `k = -c`, and be huge after it.
     let (mut sum, mut sum_abs, mut k_sum, mut k_sum_abs) = (1.0, 1.0_f64, 0.0, 0.0_f64);
     let (mut t, mut te, mut e, mut k) = (1.0_f64, 0, 0, 0.0);
+    // `v + k` (rounded); if `v` is a double, `v.hi + k` is the same, and faster
+    let plus = |v: Dd, k: f64| if v.lo == 0.0 { v.hi + k } else { (v + k).hi };
+    // the two factors of the next term ratio, `(p + k) / (k + 1)` and `(r + k) / (c + k)`, and
+    // their numerators
+    let (mut pk, mut rk) = (p.hi, r.hi);
+    let (mut f0, mut f1) = (pk, rk / c.hi);
     loop {
-        let (pk, rk, ck) = ((p + k).hi, (r + k).hi, (c + k).hi);
-        // Multiply by the two factors separately, after scaling `|t|` to `[1, 2)`, so that e.g.
-        // tiny p and r don't underflow, and fail if a factor or product over- or underflows.
-        for (f, num) in [(pk / (k + 1.0), pk), (rk / ck * w, rk)] {
+        // Multiply by the two factors separately, with `|t|` in `[2^-500, 2^500]`, or in `[1, 2)`
+        // if a factor is outside that range, so that the product can't underflow (e.g. for tiny p
+        // and r), and fail if a factor underflows, or a factor or the product overflows.
+        for (f, num) in [(f0, pk), (f1 * w, rk)] {
             if !f.is_finite() || f.abs() < f64::MIN_POSITIVE && num != 0.0 {
                 return None;
             }
-            if t != 0.0 {
+            if t != 0.0 && rescale_exp(f).is_some() {
                 let (m, s) = frexp_f64(t);
                 (t, te) = (2.0 * m, te + s - 1);
             }
@@ -122,8 +128,11 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
             if !t.is_finite() {
                 return None;
             }
+            if let Some(s) = rescale_exp(t) {
+                (t, te) = (ldexp_f64(t, -s), te + s);
+            }
         }
-        let term = ldexp_f64(t, te);
+        let term = if te == 0 { t } else { ldexp_f64(t, te) };
         k += 1.0;
         sum += term;
         sum_abs += term.abs();
@@ -132,11 +141,13 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
+        (pk, rk) = (plus(p, k), plus(r, k));
+        (f0, f1) = (pk / (k + 1.0), rk / plus(c, k));
         // For j >= k > kmin, the next term ratios are w (p + j) / (j + 1) * (r + j) / (c + j),
         // where both factors are positive and tend monotonically to 1, so they are at most `rho`,
         // which bounds the rest of the series geometrically.
         if k > kmin {
-            let rho = w * ((p + k).hi / (k + 1.0)).max(1.0) * ((r + k).hi / (c + k).hi).max(1.0);
+            let rho = w * f0.max(1.0) * f1.max(1.0);
             if rho < 1.0 && term.abs() * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
                 break;
             }
