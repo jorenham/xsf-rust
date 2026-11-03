@@ -82,7 +82,13 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
         let bess_val = crate::xsf::cephes::iv(v - 1.0, 2.0 * arg);
 
-        if arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite() {
+        // Unlike in xsf (scipy/xsf#366), v = 1 doesn't fall back to `hyp0f1_asy`, which divides
+        // by |v - 1|. There `arg_exp` is 0, so only I_0 can overflow, and then inf is correct.
+        //
+        // E.g. hyp0f1(1, 2e5) was NaN instead of inf.
+        if v != 1.0
+            && (arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite())
+        {
             // overflow or underflow
             hyp0f1_large_v(v, z)
         } else {

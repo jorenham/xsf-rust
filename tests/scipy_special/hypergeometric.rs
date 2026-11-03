@@ -120,6 +120,18 @@ fn test_hyp0f1_gh5764() {
 }
 
 #[test]
+fn test_hyp0f1_b_one() {
+    // hyp0f1(1, z) = I_0(2 sqrt(z)), which overflows for z above about 1.2744e5
+    np_assert_allclose!(
+        [hyp0f1(1.0, 1.2e5)],
+        [1.171_443_671_889_55e299],
+        rtol = 1e-13
+    );
+    assert_eq!(hyp0f1(1.0, 2e5), f64::INFINITY);
+    assert_eq!(hyp0f1(1.0, 1e300), f64::INFINITY);
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion
