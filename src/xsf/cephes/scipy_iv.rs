@@ -615,8 +615,7 @@ pub(crate) fn iv(mut v: f64, x: f64) -> f64 {
         /* Otherwise: Temme's method */
         ikv_temme(v, ax, Some(&mut res), None);
         // Unlike in xsf (scipy/xsf#403), the power series is used if Temme's method returned 0 or
-        // inf because K overflowed (only possible for small x), e.g. `iv(46.408, 9.696e-6)` was 0
-        // instead of 8.83e-306.
+        // inf (only possible for small x).
         if ((res == 0.0 && v >= 0.0) || res.is_infinite()) && ax < 1.0 {
             res = iv_power_series(v, ax);
         }

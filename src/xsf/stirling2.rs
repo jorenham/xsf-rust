@@ -120,8 +120,7 @@ fn stirling2_temme(n: f64, k: f64) -> f64 {
 /// Stirling numbers of the second kind, using dynamic programming for n <= 219, and the
 /// second-order Temme asymptotic approximation for n > 219.
 pub(crate) fn stirling2(n: f64, k: f64) -> f64 {
-    // Unlike in xsf (scipy/xsf#378), up to n = 219 (not 50), the largest n where no S(n, k)
-    // overflows
+    // Unlike in xsf (scipy/xsf#378), up to n = 219 (not 50), where no S(n, k) overflows
     if n <= 219.0 {
         return stirling2_dp(n, k);
     }

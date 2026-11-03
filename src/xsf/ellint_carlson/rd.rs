@@ -103,9 +103,7 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     }
 
     // Unlike in xsf (scipy/xsf#376), small arguments are scaled up by 2^128 if `3 * adt`
-    // overflows, which otherwise gives NaN in the compensated arithmetic (from `inf - inf`).
-    //
-    // E.g. `elliprd(1e-290, 1e-70, 1e-290)` was NaN instead of inf.
+    // overflows.
     //
     // - R_D is homogeneous of degree -3/2, so this scales it by 2^-192
     // - for real arguments, R_D(x, y, z) < 3 / (z sqrt(max(x, y))) < 2^1152, as z >= 2^-1022 and

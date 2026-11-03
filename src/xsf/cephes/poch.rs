@@ -66,7 +66,7 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
     } else if a > 10.0 && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), `lgam_ratio` avoids the cancellation in
-        // lgam(a + m) - lgam(a) (below), e.g. a relative error of 1e-11 for poch(1e4, -0.03)
+        // lgam(a + m) - lgam(a) (below)
         return r * lgam_ratio(a, m).exp();
     }
 
@@ -82,8 +82,7 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
 
     if a < -10.0 && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), the reflection formula avoids the cancellation in
-        // lgam(a + m) - lgam(a). The sines use the exact fractional part of `a` instead of the
-        // rounded `a + m`.
+        // lgam(a + m) - lgam(a), with the sines of the exact fractional part of `a`.
         let f = a - a.floor();
         return r * (cephes_sinpi(f) / cephes_sinpi(f + m)) * poch(1.0 - a - m, m);
     }

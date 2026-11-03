@@ -1,9 +1,8 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (xsf v0.2.2).
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
-//! For example, `chgul` then returns `U(a, b, x) ~ 1` for tiny `a` (e.g. `1e-17`), instead of
-//! NaN or a less accurate value (scipy/xsf#350).
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
+//! (scipy/xsf#350).
 
 use core::f64::consts::PI;
 use core::ops::Mul;
@@ -140,10 +139,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                     cs2 += cr2;
                 }
                 let y = z.im;
-                // Unlike in xsf (scipy/xsf#398), the sign is that of `Im z`, so that
-                // `M(a, b, conj(z))` is `conj(M(a, b, z))`; DLMF 13.7.2 allows both signs for
-                // `-pi/2 < ph z < 0`, but `+` is less accurate, e.g. `hyp1f1(0.5, 1.5, 5 - 25j)`
-                // was off by 13%.
+                // Unlike in xsf (scipy/xsf#398), the sign is that of `Im z`.
                 let ns = if y > 0.0 { 1 } else { -1 };
                 let mut cfac = cexp(f64::from(ns) * ci * PI * a);
                 if y == 0.0 {
@@ -168,8 +164,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 a += 1.0;
             }
             // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
-            // recurrence in a above if they differ by more than twice the series' error bound,
-            // e.g. `hyp1f1(30, 70, 20j)` was -1748.2+51.4j instead of -0.32066+0.38180j.
+            // recurrence in a above if they differ by more than twice the series' error bound.
             if b > 0.0 {
                 if let Some((s, _)) =
                     hyp1f1_series(a0, b, z, Complex64::ONE, 0.0).filter(|&(s, err)| {
@@ -338,7 +333,7 @@ fn chgm_series_dd(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<(f64, f64)
 
 /// Unlike in xsf (scipy/xsf#365): `M(a, b, x)` for non-integer `b < 0` from the series, or else
 /// from `hyp1f1_neg_b`, or else from the series in double-double, if any loses at most half of
-/// its digits, e.g. `hyp1f1(500.5, -200.25, 5.5)` was 4.6e169 instead of 1.9521e-6.
+/// its digits.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     fn checked(x: f64, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
         let mut hg = series(x);
@@ -406,8 +401,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         x = x.abs();
     }
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
-    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows), e.g.
-    // `hyp1f1(-1000, 0.5, 3)` was 5.4e29 instead of -4.1088.
+    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows).
     //
     // Unlike in xsf (scipy/xsf#365), this includes b - a = -n >= -1e5 for -700 < x < 0.
     let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -1e5);
@@ -418,8 +412,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         }
     }
     // Unlike in xsf (scipy/xsf#365), the series DLMF 13.2.2 is summed directly for a >= 2 and
-    // b > 0, and for a > -1 and x > 30 + |b|, e.g. `hyp1f1(300, 400, 1e-10)` was 1.2e87 instead
-    // of 1.0.
+    // b > 0, and for a > -1 and x > 30 + |b|.
     //
     // Unlike in xsf (scipy/xsf#365), this includes x <= -700, where e^x underflows.
     //
@@ -481,8 +474,6 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // Unlike in xsf (scipy/xsf#365), for non-integer a < -1 and b > 0, the backward
             // recurrences from Boost.Math (`hyp1f1_recurrence`) are used if the series doesn't
             // converge or loses more than half of its digits (as in Boost's checked series).
-            //
-            // E.g. `hyp1f1(-1000.5, 1, 1)` was 5.5e8 instead of 0.15565.
             if !accurate && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
                 // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
                 let m =
@@ -1132,8 +1123,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let hu0 = PI / (PI * b).sin();
     let mut r1 = hu0 / (gab * gb);
     let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
-    // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300),
-    // e.g. U(-28, 97.6, 0.0055) = 1.766e57 instead of 3.069e67
+    // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
     if ga == SPECFUN_INF {
         r2 = 0.0;
     }
@@ -1154,8 +1144,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmin: f64 = SPECFUN_INF;
     let mut h0 = 0.0;
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
-    // or j > 1 - b + x if b < 1 (the r1 terms grow until about then), and the id of unconverged
-    // series is capped by the remaining terms
+    // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };

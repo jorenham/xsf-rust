@@ -29,8 +29,7 @@ fn lgam1p_taylor(x: f64) -> f64 {
     }
     let mut res = -SCIPY_EULER * x;
     let mut xfac = -x;
-    // (unlike in xsf, scipy/xsf#348) MAXITER instead of 42, since 41 terms don't converge for |x|
-    // near 1/2
+    // (unlike in xsf, scipy/xsf#348) MAXITER instead of 42
     for n in 2..MAXITER {
         xfac *= -x;
         let coeff = zeta(f64::from(n), 1.0) * xfac / f64::from(n);

@@ -11,7 +11,7 @@
 //! more accurate, since `y - 1` is exact for `y > 0.8`.
 //!
 //! Unlike in xsf (scipy/xsf#353), `bdtri` only uses `1 - y` if `y >= 0.5`, instead of if
-//! `incbet(n-k, k+1, 0.5) > 0.5`, e.g. `bdtri(96, 191, 2.1e-22)` was 1 instead of 0.814.
+//! `incbet(n-k, k+1, 0.5) > 0.5`.
 
 use crate::xsf::cephes::incbet::{incbet, incbet_xy};
 use crate::xsf::cephes::incbi::incbi;
@@ -157,7 +157,7 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 
     let dn = f64::from(n) - fk;
     // Unlike in xsf (scipy/xsf#358), the rounding error of `1 - p` (exact if `p >= 0.5`) is
-    // accounted for, e.g. `bdtr(0, 1e9, 1e-10)` had a relative error of 8e-9.
+    // accounted for.
     //
     // For `k = 0`, `(1 - p)^n = q^n (1 + e/q)^n ~ q^n exp(n e/q)`, with the rounded `q = 1 - p`
     // and its exact rounding error `e = (1 - q) - p`.

@@ -238,8 +238,7 @@ mod rjimpl {
          * singularity as p -> +0 */
         if abs_close_zero(p) || ((x != 0.0) && asymp_zero(p / x)) {
             conf.f = (x * y * z).sqrt();
-            // Unlike in xsf (scipy/xsf#376), if `x * y` or `x * y * z` underflows, e.g.
-            // `elliprj(1e-200, 1e-120, 1e100, 1e-220)` was 7.11574e111 instead of 7.11570e111.
+            // Unlike in xsf (scipy/xsf#376), also if `x * y` or `x * y * z` underflows.
             if !((x * y).is_normal() && (x * y * z).is_normal()) {
                 conf.f = x.sqrt() * y.sqrt() * z.sqrt();
             }
@@ -403,9 +402,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                     rc(alpha, beta, r)
                 } else {
                     // Unlike in xsf (scipy/xsf#376), `alpha` and `beta` are rescaled if they
-                    // underflow (giving NaN or a loss of precision) or overflow (dropping R_C).
-                    //
-                    // E.g. `elliprj(1e-276, 1e-48, 1e-276, 1e-276)` was NaN instead of 1.5e300.
+                    // under- or overflow.
                     //
                     // - R_C(a^2, p b^2) = (s / b) R_C((s a / b)^2, s^2 p), by homogeneity
                     // - s = 2^64 keeps s^2 p normal for subnormal p

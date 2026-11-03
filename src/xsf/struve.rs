@@ -57,9 +57,7 @@ fn itth0(x: f64) -> f64 {
     // Output:  TTH --- Integration of H0(t)/t from x to infinity
     // ===========================================================
 
-    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40, where the power
-    // series cancels and the asymptotic one is inaccurate, e.g. `it2struve0(24.45)` had a relative
-    // error of 1.5e-7.
+    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40.
     if (0.5..40.0).contains(&x) {
         return FRAC_PI_2 - itsh0_neumann(x).1;
     }
@@ -121,8 +119,7 @@ fn itsh0(x: f64) -> f64 {
     let th0;
     let el = 0.57721566490153;
 
-    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40, where the power
-    // series cancels, e.g. `itstruve0(29.75)` had a relative error of 6e-6.
+    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40.
     if (0.5..40.0).contains(&x) {
         return itsh0_neumann(x).0;
     }
@@ -199,8 +196,7 @@ fn itsl0(x: f64) -> f64 {
     let el = 0.57721566490153;
     let mut r = 1.0;
     // Unlike in xsf (scipy/xsf#400), sum the series up to eps and use it up to x = 40 (instead of
-    // 20), beyond which 25 (instead of 10) asymptotic terms reach eps, e.g. `itmodstruve0(20.5)`
-    // was 7.2824508e7 instead of 7.2824509e7.
+    // 20), beyond which 25 (instead of 10) asymptotic terms reach eps.
     if x <= 40.0 {
         s = 0.5;
         for k in 1..101 {

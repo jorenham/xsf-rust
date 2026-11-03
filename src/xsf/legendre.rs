@@ -3,9 +3,8 @@
 //! derivatives, are not translated.
 //!
 //! Unlike in xsf:
-//! - The integer products in the (normalized) recurrence coefficients, e.g. `(2n+1)(4(n-1)^2-1)`,
-//!   are computed in `f64` instead of `int` (scipy/scipy#26574), e.g.
-//!   `sph_legendre_p(700, 0, 0.5)` is NaN in xsf.
+//! - The integer products in the (normalized) recurrence coefficients are computed in `f64`
+//!   instead of `int` (scipy/scipy#26574).
 //! - Other `int` arithmetic that can overflow wraps (like C++ does in practice), instead of
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
@@ -929,7 +928,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        // (unlike in xsf, scipy/xsf#368) `log(x - 1)` is NaN for `x < -1`
+        // (unlike in xsf, scipy/xsf#368) `log(|x| - 1)` instead of `log(x - 1)`
         #[allow(clippy::cast_possible_truncation)]
         let km = if x.abs() > 1.1 {
             40_i32.wrapping_add(m).wrapping_add(n)

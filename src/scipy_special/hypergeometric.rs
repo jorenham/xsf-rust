@@ -40,11 +40,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
     let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
 
-    // Unlike in xsf (scipy/xsf#366), this multiplies by arg^(1-v) instead of arg^(-|v-1|),
-    // which differ if v < 1.
-    //
-    // E.g. hyp0f1(-300.5, 2e5) was 5.5e-185 instead of -inf (-3.9e548), and
-    // hyp0f1(-8691.5, 8.6e6) was 0 instead of 1.8e-246.
+    // Unlike in xsf (scipy/xsf#366), this multiplies by arg^(1-v) instead of arg^(-|v-1|).
     let out = (arg_exp_i + crate::xlogy(1.0 - v, arg)).exp() * gs * u_corr_i;
 
     if v - 1.0 < 0.0 {
@@ -82,10 +78,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
         let bess_val = crate::xsf::cephes::iv(v - 1.0, 2.0 * arg);
 
-        // Unlike in xsf (scipy/xsf#366), v = 1 doesn't fall back to `hyp0f1_asy`, which divides
-        // by |v - 1|. There `arg_exp` is 0, so only I_0 can overflow, and then inf is correct.
-        //
-        // E.g. hyp0f1(1, 2e5) was NaN instead of inf.
+        // Unlike in xsf (scipy/xsf#366), v = 1 doesn't fall back to `hyp0f1_asy`.
         if v != 1.0
             && (arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite())
         {
@@ -103,8 +96,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let out = prefactor * bess_val;
         let prefactor_ok = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
 
-        // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows, e.g.
-        // hyp0f1(200, -1) was NaN instead of 0.995
+        // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows
         if prefactor_ok && out.is_normal() {
             out
         } else if -z > v.abs() && bess_val.is_normal() {
@@ -123,8 +115,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 
 /// Fallback for large $|v|$, if the evaluation in terms of Bessel functions over- or underflows
 ///
-/// Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed if $|z| \le |v|$, e.g.
-/// `hyp0f1(1.3e14, 2.3e8)` was 1.6 instead of 1.0.
+/// Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed if $|z| \le |v|$.
 fn hyp0f1_large_v(v: f64, z: f64) -> f64 {
     if z.abs() <= v.abs() {
         hyp0f1_series(v, z)

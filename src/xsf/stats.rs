@@ -2,8 +2,7 @@
 //! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
 //!
 //! Unlike in xsf (scipy/xsf#340), the `cdf_cvm_inf` and `cdf_cvm` series stop at a NaN term,
-//! `cdf_cvm(NaN, n)` returns `NaN`, and `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16`,
-//! instead of looping forever.
+//! `cdf_cvm(NaN, n)` returns `NaN`, and `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16`.
 //!
 //! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
 //! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)

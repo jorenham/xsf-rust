@@ -218,12 +218,11 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     // see license information in LICENSES_bundled.txt.
     // In the comments, phid is the CDF of the standard normal distribution.
 
-    // Unlike in xsf (scipy/xsf#360), NaN input returns NaN, e.g. `(1, -1, NaN)` was 0.68
+    // Unlike in xsf (scipy/xsf#360), NaN input returns NaN
     if dh.is_nan() || dk.is_nan() || r.is_nan() {
         return f64::NAN;
     }
-    // Unlike in xsf (scipy/xsf#360), `|dh| > 40` is treated as infinite, so that `hk` etc. cannot
-    // overflow, e.g. `(1e70, 38, 0.97)` was NaN instead of 1.
+    // Unlike in xsf (scipy/xsf#360), `|dh| > 40` is treated as infinite.
     let dh = if dh.abs() > 40.0 {
         dh * f64::INFINITY
     } else {

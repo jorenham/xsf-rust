@@ -343,10 +343,7 @@ const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
 
 /// `series_eval_fixed_length`, or NaN if that would sum more than `HYP2F1_MAX_FIXED_TERMS` terms
 //
-// Unlike in xsf (scipy/xsf#388), cap num_terms, which can be huge (xsf only returns NaN for more
-// than 2^64).
-//
-// E.g. hyp2f1(-1e15, 1.0, 2.0, 0.5) summed 1e15 terms to get NaN.
+// Unlike in xsf (scipy/xsf#388), cap num_terms.
 fn series_eval_finite(g: impl FnMut() -> Complex64, num_terms: u64) -> Complex64 {
     if num_terms > HYP2F1_MAX_FIXED_TERMS {
         return c64(f64::NAN, f64::NAN);
@@ -768,9 +765,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         let (result, cancellation) = if (c - a - b - (c - a - b).round()).abs() < HYP2F1_EPS {
             // Removable singularity when c - a - b is an integer. Need to use limiting formula.
             // Unlike in xsf (scipy/xsf#388), use the Maclaurin series if c is so large that its
-            // terms vanish fast, since the limiting case then overflows, after summing m ~ c terms.
-            //
-            // E.g. hyp2f1(4.39, 2.14, 1e17, 0.64+0.65i) was NaN after 1e17 terms, instead of 1.
+            // terms vanish fast.
             if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
                 let series_generator = hypergeometric_series_generator(a, b, c, z);
                 return series_eval(
@@ -800,10 +795,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
     }
     /* 1/z transformation (DLMF 15.8.2). */
     // Unlike in xsf (scipy/xsf#387), also try it on the Euler transform (DLMF 15.8.1) if that
-    // reduces a and b, as for |z| < 0.9: the terms of the 1/z series grow like
-    // k^(a + b - c - 1) |z|^-k, and cancel.
-    //
-    // E.g. hyp2f1(8.5, 6.5, -4.25, -1+0.5i) was -3.8e9+6.0e9i instead of -14.9+2.51i.
+    // reduces a and b, as for |z| < 0.9.
     let euler = c - a < a && c - b < b;
     // times (1 - z)^(c - a - b), if both are normal
     let euler_scaled = move |result: Complex64| {
