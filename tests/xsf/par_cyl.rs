@@ -96,7 +96,31 @@ fn test_pbdv_near_integer_v() {
         assert!(rel < 1e-13, "v = {v}, x = {x}: rel = {rel:e}");
     }
 
-    // subnormal v, and overflow
+    // subnormal v, and overflow (reference values from mpmath)
+    for (v, x, d, dp) in [
+        (
+            5e-324,
+            -40.0,
+            -1.617_630_103_999_578e-151,
+            3.231_211_061_774_412e-150,
+        ),
+        (
+            -2e-323,
+            -51.7,
+            1.537_981_481_975_335_4e-34,
+            -3.972_705_081_697_123e-33,
+        ),
+        (
+            1e-321,
+            -65.7,
+            -1.728_654_932_861_127_7e146,
+            5.675_999_100_086_211e147,
+        ),
+    ] {
+        let (y, yp) = xsf::pbdv(v, x);
+        let rel = ((y - d) / d).abs().max(((yp - dp) / dp).abs());
+        assert!(rel < 5e-13, "v = {v}, x = {x}: rel = {rel:e}");
+    }
     let d0 = (-0.25_f64).exp();
     assert_eq!(xsf::pbdv(1e-320, 1.0), (d0, -0.5 * d0));
     assert_eq!(xsf::pbdv(-1e-6, -1e4), (f64::INFINITY, f64::NEG_INFINITY));

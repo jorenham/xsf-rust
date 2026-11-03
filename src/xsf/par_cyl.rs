@@ -980,6 +980,13 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     for k in (1..=n as i32).rev() {
         (u0, u1) = ((y * u0 - u1) / (v + f64::from(k)), u0);
     }
+    // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent, e.g.
+    // `pbdv(1e-323, -60.0).0` was -2.89e66 instead of -3.03e66.
+    let (s, eb) = if v.is_subnormal() {
+        (PI.copysign(v), eb + v.abs().ln())
+    } else {
+        (s, eb)
+    };
     // Ubar_v'(y) = y / 2 Ubar_v(y) - Ubar_{v+1}(y) (12.8.6)
     Some((
         c * dy - mul_exp(s * u0, eb),
