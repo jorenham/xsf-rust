@@ -165,12 +165,12 @@ fn test_hyp2f1_f64_c_minus_a_minus_b_le_minus_1() {
 fn test_hyp2f1_f64_recurrence_in_a() {
     // the recurrence in `a` can be unstable, while its error estimate `loss` is small (mpmath)
     let actual = [
-        xsf::hyp2f1(3.5, 20.0, -17.4, 0.09),
+        xsf::hyp2f1(29.0, -14.5, 0.1, 0.99),
         xsf::hyp2f1(14.0, -14.5, 0.7, 0.98),
         xsf::hyp2f1(-15.8, 25.0, 0.5, 0.98),
     ];
     let desired = [
-        0.716_462_291_353_625_4,
+        -5.131_087_011_432_369e21,
         -0.093_683_512_477_367_49,
         268_344_349.251_342_5,
     ];
