@@ -122,8 +122,8 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
 ///
-/// Unlike in xsf, it's computed as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels, i.e. if `a` and
-/// `b` are nearly conjugate and close to the negative real axis (halved if `a - b` overflows).
+/// Unlike in xsf (scipy/xsf#409), as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels (halved if
+/// `a - b` overflows).
 pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
     let s = sa + sb;
     if s.abs() < sa.abs() {
@@ -141,10 +141,8 @@ pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
 /// `[x + lam, y + lam, z + lam]` of the duplication step, where `lam` is the sum of the pairwise
 /// products of the square roots `sq` of `xyz`
 ///
-/// Unlike in xsf, `x + lam` is computed as `(sqrt(x) + sqrt(y)) (sqrt(x) + sqrt(z))` if it cancels,
-/// which happens if `x` and `y` (or `z`) are nearly conjugate and close to the negative real axis.
-///
-/// E.g. `elliprf(-1e-4 + 1e-30i, 0.5, -1e-4 - 1e-30i)` was 99.6 instead of 92.6.
+/// Unlike in xsf (scipy/xsf#409), `x + lam` as `(sqrt(x) + sqrt(y)) (sqrt(x) + sqrt(z))` if it
+/// cancels.
 pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T) -> [T; 3] {
     core::array::from_fn(|i| {
         let a = xyz[i] + lam;
