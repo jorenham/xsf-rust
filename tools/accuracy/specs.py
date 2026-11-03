@@ -1707,9 +1707,51 @@ def r_hypu(a, b, x):
         return mp.hyperu(a, b, x)
 
 
+def _hyp2f1_series(a, b, c, z):
+    """The power series of hyp2f1 for |z| < 1 (in the working precision), and its largest term.
+
+    For k > kmin, the term ratios z (a + k) / (k + 1) * (b + k) / (c + k) have factors of constant
+    sign that tend monotonically to 1, so they are at most rho (below), which bounds the rest
+    geometrically. Before that, e.g. for c < 0, the terms can be tiny before k = -c and huge after
+    it."""
+    s, t, top, k = mp.mpf(0), mp.mpf(1), mp.mpf(1), 0
+    kmin = max(0, -a, -b, -c)
+    while True:
+        s += t
+        top = max(top, abs(t))
+        t *= (a + k) * (b + k) / ((c + k) * (k + 1)) * z
+        k += 1
+        if k > kmin:
+            rho = abs(z) * max(1, (a + k) / (k + 1)) * max(1, (b + k) / (c + k))
+            if rho < 1 and abs(t) * rho / (1 - rho) <= mp.eps * abs(s):
+                return s + t, top
+        if k > 10**6:
+            raise NoConvergence
+
+
 def r_hyp2f1(a, b, c, x):
-    with wdps(20):
-        return mp.hyp2f1(a, b, c, x, maxterms=10**6)
+    # mpmath's hyp2f1 can be far off for large parameters, also at higher precision, e.g. for
+    # hyp2f1(5.9, -26.4, -570.5, 0.66) it returns 1.20 instead of 4.48e120 (the sum of its power
+    # series). So for x <= 0.95 sum the series directly (for x < 0 the series of the Pfaff
+    # transformation in x / (x - 1), DLMF 15.8.1), with 20 more digits than it loses to
+    # cancellation, up to 300 digits.
+    w = x / (x - 1) if x < 0 else x
+    if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
+        with wdps(20):
+            return mp.hyp2f1(a, b, c, x, maxterms=10**6)
+    extra = 20
+    while True:
+        with wdps(extra):
+            if x < 0:
+                # (c - b exactly, since e.g. c - b + 1 can be tiny)
+                s, top = _hyp2f1_series(a, mp.fsub(c, b, exact=True), c, x / (x - 1))
+            else:
+                s, top = _hyp2f1_series(a, b, c, x)
+            if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
+                return s * mp.exp(-a * mp.log1p(-x)) if x < 0 else s
+        extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
+        if mp.mp.dps + extra > 300:
+            raise NoConvergence
 
 
 # ---------------------------------------------------------------- orthogonal polynomials
@@ -3008,6 +3050,7 @@ add(
     r_hyp2f1,
     D(U(-10, 10), U(-10, 10), U(-10, 10), U(-1, 1), n=5000),
     D(LU(1e-3, 100, 0), LU(1e-3, 100, 0), LU(1e-3, 100, 0), U(-10, 1), n=2000),
+    D(LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), U(-10, 1), n=1000),
     timeout=60,
     note="zeros_c",
 )
