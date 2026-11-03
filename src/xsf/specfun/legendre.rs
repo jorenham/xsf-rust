@@ -5,7 +5,7 @@
 
 use core::f64::consts::PI;
 
-use super::{gamma2, psi_spec};
+use super::{SPECFUN_INF, gamma2, psi_spec};
 use crate::xsf::tools::int_x86;
 
 #[allow(clippy::float_cmp, clippy::cast_sign_loss)]
@@ -40,7 +40,7 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
                     pd[k as usize] *= f64::from(if ((k + 1) % 2) == 0 { 1 } else { -1 });
                 }
             } else if m == 1 {
-                pd[k as usize] = 1e300;
+                pd[k as usize] = SPECFUN_INF;
             } else if m == 2 {
                 pd[k as usize] = -0.25
                     * (f64::from(k) + 2.0)
@@ -103,9 +103,9 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     if (x == -1.0) && (v != f64::from(v as i32)) {
         if m == 0 {
             let vs = (v * PI).sin() / (v * PI);
-            pmv = if vs > 0.0 { -1e300 } else { 1e300 };
+            pmv = if vs > 0.0 { -SPECFUN_INF } else { SPECFUN_INF };
         } else {
-            pmv = 1e300;
+            pmv = SPECFUN_INF;
         }
         return pmv;
     }
@@ -151,7 +151,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     } else {
         pmv = lpmv0(vx, mx, x);
     }
-    if (neg_m != 0) && (pmv.abs() < 1.0e300) {
+    if (neg_m != 0) && (pmv.abs() < SPECFUN_INF) {
         // DLMF 14.9.3
         let g1 = gamma2(vx - f64::from(mx) + 1.0);
         let g2 = gamma2(vx + f64::from(mx) + 1.0);
@@ -195,10 +195,10 @@ pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
 
     if x == -1.0 && v != f64::from(nv) {
         if m == 0 {
-            return -1.0e+300;
+            return -SPECFUN_INF;
         }
         if m != 0 {
-            return 1.0e+300;
+            return SPECFUN_INF;
         }
     }
 
@@ -332,7 +332,7 @@ pub(crate) fn lqmns(m: i32, n: i32, x: f64, qm: &mut [f64], qd: &mut [f64]) {
     // only caller, rmn2sp, has the same 252-element overflow as for lpmns (n > 251).
     let mut val = 0.0;
     if x.abs() == 1.0 {
-        val = 1e300;
+        val = SPECFUN_INF;
     }
     for k in 0..=n {
         qm[k as usize] = val;

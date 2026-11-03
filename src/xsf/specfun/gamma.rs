@@ -13,6 +13,7 @@ use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
 
+use super::SPECFUN_INF;
 use crate::utils::LN_TAU;
 use crate::xsf::tools::int_x86;
 
@@ -63,7 +64,7 @@ pub(crate) fn gamma2(x: f64) -> f64 {
                 ga *= f64::from(k);
             }
         } else {
-            ga = 1e300;
+            ga = SPECFUN_INF;
         }
     } else {
         let mut r = 1.0;
@@ -129,7 +130,7 @@ pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     let mut yy = z.im;
     let z1;
     if (yy == 0.0) && (xx <= 0.0) && (xx == f64::from(xx as i32)) {
-        return c64(1e300, 0.0);
+        return c64(SPECFUN_INF, 0.0);
     } else if xx < 0.0 {
         z1 = z;
         z = -z;
@@ -212,7 +213,7 @@ pub(crate) fn psi_spec(x: f64) -> f64 {
     let mut xa = x.abs();
 
     if (x == f64::from(x as i32)) && (x <= 0.0) {
-        return 1e300;
+        return SPECFUN_INF;
     } else if xa == f64::from(xa as i32) {
         let n = xa as i32;
         for k in 1..n {

@@ -11,7 +11,7 @@ use core::ops::Mul;
 use num_complex::{Complex64, c64};
 
 use super::hyp1f1_recurrence::{hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b};
-use super::{cgama, gamma2, psi_spec};
+use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
@@ -50,7 +50,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     // NOTE: `(int)fabs(b)` is UB for |b| >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN,
     // which negates to INT_MIN (so b = -2^31 returns 1e300).
     if (b == 0.0) || (b == f64::from(int_x86(b.abs()).wrapping_neg())) {
-        return c64(1e300, 0.0);
+        return c64(SPECFUN_INF, 0.0);
     }
     if (a == 0.0) || (z == c64(0.0, 0.0)) {
         return c64(1.0, 0.0);
@@ -708,7 +708,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hm1 = 1.0;
     let mut r = 1.0;
     let mut hmax: f64 = 0.0;
-    let mut hmin: f64 = 1e300;
+    let mut hmin: f64 = SPECFUN_INF;
     let mut h0 = 0.0;
     for k in 1..=150 {
         // NOTE: `(n + k) * k` overflows `int` (C++ UB) for |b| >~ 1.43e7; `wrapping_mul` does what
@@ -755,7 +755,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hm2 = ps + 2.0 * EL + s0;
     r = 1.0;
     hmax = 0.0;
-    hmin = 1.0e+300;
+    hmin = SPECFUN_INF;
 
     for k in 1..=150_i32 {
         let mut s1 = 0.0;
@@ -1134,10 +1134,10 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300),
     // e.g. U(-28, 97.6, 0.0055) = 1.766e57 instead of 3.069e67
-    if ga == 1e300 {
+    if ga == SPECFUN_INF {
         r2 = 0.0;
     }
-    if gab == 1e300 {
+    if gab == SPECFUN_INF {
         r1 = 0.0;
     }
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
@@ -1151,7 +1151,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
-    let mut hmin: f64 = 1e300;
+    let mut hmin: f64 = SPECFUN_INF;
     let mut h0 = 0.0;
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1 (the r1 terms grow until about then), and the id of unconverged

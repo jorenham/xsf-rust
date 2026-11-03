@@ -17,6 +17,9 @@ pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 
+/// The `1e300` that specfun returns in place of infinity, e.g. `gamma2` at the poles
+pub(crate) const SPECFUN_INF: f64 = 1e300;
+
 /// `specfun::Status`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Status {
@@ -56,7 +59,7 @@ impl Hyp1F1Arg for Complex<f64> {
         }
         let mut outz = cchg(a, b, self);
         #[allow(clippy::float_cmp)]
-        if outz.re == 1e300 {
+        if outz.re == SPECFUN_INF {
             outz.re = f64::INFINITY;
         }
         outz
@@ -178,7 +181,7 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 
     out = chgu(x, a, b, &mut md, &mut isfer);
     #[allow(clippy::float_cmp)]
-    if out == 1e300 {
+    if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
     if isfer != 0 {
@@ -301,11 +304,11 @@ pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
     // `xsf::pmv`
     let mut out = lpmv(x, m, v);
     #[allow(clippy::float_cmp)]
-    if out == 1e300 {
+    if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
     #[allow(clippy::float_cmp)]
-    if out == -1e300 {
+    if out == -SPECFUN_INF {
         out = f64::NEG_INFINITY;
     }
     out

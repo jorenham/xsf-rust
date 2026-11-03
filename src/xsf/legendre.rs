@@ -21,6 +21,7 @@ use num_complex::{Complex64, c64};
 use crate::utils;
 use crate::xsf::complex::{Num, cdiv, cmul, csqrt, rsub};
 use crate::xsf::log::clog;
+use crate::xsf::specfun::SPECFUN_INF;
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
 pub(crate) struct Mdspan<'a, T, const R: usize> {
@@ -720,8 +721,8 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
 
     if x.abs() == 1.0 {
         for k in 0..=n {
-            qn[k] = 1.0e300;
-            qd[k] = 1.0e300;
+            qn[k] = SPECFUN_INF;
+            qd[k] = SPECFUN_INF;
         }
         return;
     }
@@ -817,8 +818,8 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
 
     if z.re == 1.0 {
         for k in 0..=n {
-            cqn[k] = c64(1e300, 0.0);
-            cqd[k] = c64(1e300, 0.0);
+            cqn[k] = c64(SPECFUN_INF, 0.0);
+            cqd[k] = c64(SPECFUN_INF, 0.0);
         }
         return;
     }
@@ -893,8 +894,8 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     if x.abs() == 1.0 {
         for i in 0..=m {
             for j in 0..=n {
-                qm[(i, j)] = 1e300;
-                qd[(i, j)] = 1e300;
+                qm[(i, j)] = SPECFUN_INF;
+                qd[(i, j)] = SPECFUN_INF;
             }
         }
         return;
@@ -1022,8 +1023,8 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
     if z.re.abs() == 1.0 && z.im == 0.0 {
         for i in 0..=m {
             for j in 0..=n {
-                cqm[(i, j)] = c64(1e300, 0.0);
-                cqd[(i, j)] = c64(1e300, 0.0);
+                cqm[(i, j)] = c64(SPECFUN_INF, 0.0);
+                cqd[(i, j)] = c64(SPECFUN_INF, 0.0);
             }
         }
 
