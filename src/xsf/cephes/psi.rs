@@ -14,8 +14,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf (scipy/xsf#311), the reflection for `x < 0` reduces `x` to the nearest integer
-//! before evaluating `tan(pi x)`, as in the original Cephes. Otherwise, the relative error is up to
-//! `~eps / (x - n)` for `x` just above a negative integer `n`.
+//! before evaluating `tan(pi x)`, as in the original Cephes.
 
 use core::f64::consts::PI;
 

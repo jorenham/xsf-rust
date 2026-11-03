@@ -50,10 +50,8 @@ pub fn erfinv(y: f64) -> f64 {
         return y / FRAC_2_SQRT_PI;
     }
     /*
-     * Unlike in xsf (scipy/xsf#349), avoid the rounding error of y + 1 (e.g. erfinv(1 - 2^-53)
-     * was inf):
-     *   ndtri(0.5 * (y + 1)) = -ndtri(0.5 * (1 - y)), and = ndtri_central(0.5 * y) for |y| < 0.5,
-     * where 0.5 * y is exact, and y + 1 and 1 - y are exact for y <= -0.5 and y >= 0.5.
+     * Unlike in xsf (scipy/xsf#349), avoid the rounding error of y + 1:
+     *   ndtri(0.5 * (y + 1)) = -ndtri(0.5 * (1 - y)), and = ndtri_central(0.5 * y) for |y| < 0.5.
      */
     if (-0.5 < y) && (y < 0.5) {
         return ndtri_central(0.5 * y) * FRAC_1_SQRT_2;

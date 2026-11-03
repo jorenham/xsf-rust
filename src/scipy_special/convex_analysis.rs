@@ -142,7 +142,7 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
         f64::NAN
     } else if 0.0 < x && 0.0 < y {
         // Unlike in SciPy (scipy/xsf#362), `rel_entr` is reused, and y ((1 + e) ln(1 + e) - e) is
-        // used near x = y, e.g. kl_div(1e-184, 1e258) was -inf instead of 1e258.
+        // used near x = y.
         let e = (x - y) / y;
         if (-0.5..1.0).contains(&e) {
             y * (crate::log1pmx(e) + e * e.ln_1p())
@@ -245,9 +245,7 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
         0.0
     } else {
         // Unlike in SciPy (scipy/xsf#362), this uses r^2 / (sqrt(1 + v^2) + 1) with v = r / delta,
-        // scaled like `hypot`, instead of delta^2 expm1(log1p(v^2) / 2), which over- or underflows,
-        // and loses precision for large |v|, e.g. pseudo_huber(1e-99, 1e211) was inf instead of
-        // 1e112.
+        // scaled like `hypot`, instead of delta^2 expm1(log1p(v^2) / 2).
         let r = r.abs();
         if r <= delta {
             let v = r / delta;

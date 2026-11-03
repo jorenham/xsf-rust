@@ -680,8 +680,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
 
 /// `sum((fc / f2)^2)`, for computing `sp * (f3 / f2)^2` in `fcoef` without overflowing `sp`.
 ///
-/// Unlike in xsf, `fcoef` uses this if the sum of squares `sp` of the forward recurrence overflows
-/// (e.g. for m >= 92 and q = 0.01), instead of returning zeros (scipy/xsf#344).
+/// Unlike in xsf (scipy/xsf#344), `fcoef` uses this if the sum of squares `sp` of the forward
+/// recurrence overflows.
 fn sum_sq_rel(fc: &[f64], f2: f64) -> f64 {
     fc.iter().map(|c| (c / f2) * (c / f2)).sum()
 }

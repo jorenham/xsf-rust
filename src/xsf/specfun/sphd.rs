@@ -515,8 +515,7 @@ pub(crate) fn qstar(
         ap[i as usize] = -r * s;
     }
     // Unlike in xsf (scipy/xsf#342), `ap[m]` and `l <= m` (as `QS0=AP(M+1)` and `DO 30 L=1,M` in
-    // the Fortran original), instead of `ap[m - 1]` and `l < m`, which reads out of bounds for
-    // `m == 0`
+    // the Fortran original), instead of `ap[m - 1]` and `l < m`
     let mut qs0 = ap[m as usize];
 
     for l in 1..=m {

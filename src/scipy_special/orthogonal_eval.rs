@@ -408,7 +408,7 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
             // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
-            // function overflows, e.g. `eval_gegenbauer(0.5, 100.0, 1.0)` was NaN instead of 15.95.
+            // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
         }
         self.hyp2f1_sh(n, n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha) * d

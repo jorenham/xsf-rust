@@ -88,8 +88,7 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         }
 
         // Unlike in xsf (scipy/xsf#370), the terms (q + k)^-x for q + k < 0 are summed in closed
-        // form, instead of in the loop below, e.g. `zeta(2, -1e10 - 0.5)` didn't terminate. With
-        // r = q - floor(q):
+        // form, instead of in the loop below. With r = q - floor(q):
         //
         //   zeta(x, q) = zeta(x, r) + (-1)^x (zeta(x, 1 - r) - zeta(x, 1 - q))
         //
@@ -128,8 +127,7 @@ pub(crate) fn zeta(x: f64, q: f64) -> f64 {
         s += b;
         // stop only if the corrections below, b * a / (x - 1) and -b / 2, are negligible
         //
-        // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows, e.g. `zeta(1e300, 1.5)`
-        // was NaN instead of 0.
+        // Unlike in xsf (scipy/xsf#370), this also stops if `b` underflows.
         if b == 0.0 || (b / s).abs() < MACHEP && (b * a / ((x - 1.0) * s)).abs() < MACHEP {
             return s;
         }

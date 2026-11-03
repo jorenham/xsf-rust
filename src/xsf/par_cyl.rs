@@ -188,9 +188,7 @@ fn vvsa(x: f64, va: f64) -> f64 {
             let gw = fac * sv + 1.0;
             let r1 = gw * r * gm;
             pv += r1;
-            // Unlike in xsf (scipy/xsf#374), the convergence test ignores the weight `gw`
-            // (instead of only skipping `gw == 0`), e.g. `pbvv(1e-8, 7.0).0` was 3e-5
-            // instead of 2e4.
+            // Unlike in xsf (scipy/xsf#374), the convergence test ignores the weight `gw`.
             if (r * gm / pv).abs() < eps {
                 break;
             }
@@ -419,8 +417,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
         }
     } else if ((x >= 0.0) && (x <= 7.5)) || (xa <= 10.0 && v <= 0.5 * x * x) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
-        // v <= x^2 / 2 (here v is the order + 1), e.g. `pbvv(6.0, -8.0).0` was -1.5e263 instead
-        // of -5.6633.
+        // v <= x^2 / 2 (here v is the order + 1).
         //
         // Unlike in xsf, the same is done for -7.5 <= x < 0, where the upward recurrence below is
         // unstable, e.g. `pbvv(10.0, -7.5).0` was -1.3046973e-3 instead of -1.3046974e-3.
@@ -605,10 +602,7 @@ fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
         return None;
     }
     // Unlike in xsf (scipy/xsf#401), `+ 3` instead of `+ 2`, since `na = |(int) (v +- 1)|` in
-    // `pbdv_impl` and `pbvv_impl` can be `|(int) v| + 2` if `v +- 1` rounds to an integer, so that
-    // `dv[na]` overwrote `dp[0]`.
-    //
-    // E.g. `pbdv(-0.9999999999999999, -3.0).1` was 35.467 instead of -35.731.
+    // `pbdv_impl` and `pbvv_impl` can be `|(int) v| + 2`.
     let num = (v as i32).unsigned_abs() as usize + 3;
     let len = num.checked_mul(2)?;
     let mut buf = Vec::new();
@@ -1069,8 +1063,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
-    // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`), e.g. `pbdv(1.3, -6.0).0`
-    // was 111.6200 instead of 111.6196.
+    // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`).
     if v > 0.0 && v < 2.0 && !near_int(v) && (-10.0..-5.8).contains(&x) {
         let pdf = dvsa(x, v);
         return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
@@ -1165,8 +1158,7 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         return (f64::NAN, f64::NAN);
     }
     // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and
-    // D_v(-x) (DLMF 12.2.16), since the upward recurrence is unstable there, e.g.
-    // `pbvv(3.0, -20.0).0` was 2.4e227 instead of 1.3749e38.
+    // D_v(-x) (DLMF 12.2.16).
     if x < -10.0 && v > 0.0 {
         let (c, s) = (cospi(v), sinpi(v) * rgamma(v + 1.0));
         // V_v(-x) can overflow, so skip it if c = 0
