@@ -1,5 +1,6 @@
-//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (xsf v0.2.2), which was translated
-//! into C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (xsf v0.2.2, with scipy/xsf#320 from
+//! xsf main), which was translated into C++ by SciPy developers in 2024. Original header comment
+//! appears below.
 //!
 //! File altered for inclusion in cephes module for Python:
 //! Main loop commented out....
@@ -57,9 +58,6 @@
 //!
 //! `std::pow(6.0 * n * x + 1, 2)` is written as `t * t`, which is what GCC compiles it to, and
 //! what LLVM only does when optimizing.
-//!
-//! Unlike in xsf (scipy/xsf#315), the `int` products that can overflow are computed in `f64`,
-//! e.g. `smirnovp(50000, 0.002)` was `-0.0` instead of `-268.21...`.
 //!
 //! The `long double` arithmetic in `_smirnovi` (with `SCIPY_El`, `xmax` and `xmax6`) is done in
 //! `f64`. This only affects the initial bracket and estimate of the root, and occasionally the
