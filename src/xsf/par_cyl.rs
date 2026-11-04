@@ -230,8 +230,7 @@ fn pbdv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let mut pd1 = 0.0;
 
     let xa = x.abs();
-    // Unlike in xsf, v = -0.0 is treated as +0.0, e.g. `pbdv(-0.0, 50.0).0` was 0 instead of
-    // 3.7e-272.
+    // Unlike in xsf (scipy/xsf#418), v = -0.0 is treated as +0.0.
     v += if v < 0.0 { -1.0 } else { 1.0 };
     let nv = v as i32;
     let v0 = v - f64::from(nv);
@@ -370,7 +369,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let mut f1 = 0.0;
 
     let xa = x.abs();
-    // Unlike in xsf, v = -0.0 is treated as +0.0 (see `pbdv_impl`)
+    // Unlike in xsf (scipy/xsf#418), v = -0.0 is treated as +0.0.
     v += if v < 0.0 { -1.0 } else { 1.0 };
     let nv = v as i32;
     let v0 = v - f64::from(nv);
