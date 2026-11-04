@@ -1,5 +1,6 @@
-//! Translated into pure Rust from `xsf/cephes/struve.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/struve.h` (xsf v0.2.2, with scipy/xsf#397 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024. Original header comment
+//! appears below.
 //!
 //! Compute the Struve function.
 //!
@@ -97,7 +98,7 @@ const STRUVE_ACCEPTABLE_ATOL: f64 = 1e-300;
 
 /*
  * Large-z expansion for Struve H and L
- * https://dlmf.nist.gov/11.6.1
+ * https://dlmf.nist.gov/11.6.1, https://dlmf.nist.gov/11.6.2
  */
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
@@ -142,17 +143,13 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     }
 
     if is_h {
+        // H_v = Struve K_v + Y_v, DLMF 11.2.5
         sum += cyl_bessel_y_f64(v, z);
     } else {
-        // Unlike in xsf (scipy/xsf#359), this uses I_{-v} if it differs from I_v by more than
-        // 1e-12, since the expansion also holds for L_v - I_{-v} (DLMF 10.27.4), and only then is
-        // exact at half-integers (DLMF 11.4.7).
-        let (i_v, i_mv) = (iv(v, z), iv(-v, z));
-        sum += if (i_mv - i_v).abs() > STRUVE_GOOD_EPS * i_v.abs() {
-            i_mv
-        } else {
-            i_v
-        };
+        // L_v = M_v + I_v (DLMF 11.2.6), but use I_{-v}: then the full series is exact at
+        // half-integer v (DLMF 11.4.2, 11.4.4). I_{-v} - I_v = (2/pi) sin(pi v) K_v(z)
+        // (DLMF 10.27.2) can matter at finite z.
+        sum += iv(-v, z);
     }
 
     /*
