@@ -15,16 +15,19 @@ fn test_ellipkinc() {
 
 #[test]
 fn test_ellipkinc_ellipeinc_huge_phi() {
-    // phi - npio2 * pi/2 isn't in [-pi/2, pi/2] (reference values from mpmath)
+    // the large-phi limit (reference values from mpmath)
     let (phi, m) = (-1.788_575_894_471_164_1e19, -1.244_349_504_000_301_7e35);
+    let (phi2, m2) = (3.560_108_682_609_496e16, -1.24e35);
     for (got, expected) in [
         (xsf::ellipkinc(phi, m), -1_348.954_827_564_235_2),
         (xsf::ellipeinc(phi, m), -4.016_600_941_581_635_3e36),
+        (xsf::ellipkinc(phi2, m2), 2.689_647_972_067_577),
+        (xsf::ellipeinc(phi2, m2), 7.980_943_234_086_402e33),
     ] {
         let rel = (got - expected).abs() / expected.abs();
         assert!(rel < 1e-15, "rel = {rel:e}");
     }
-    // overflows (was NaN, since the residual's term overflowed with the opposite sign)
+    // overflows (was NaN)
     let (phi, m) = (-7.497_579_196_689_92e261, -2.657_819_711_198_385_3e169);
     assert_eq!(xsf::ellipeinc(phi, m), f64::NEG_INFINITY);
     assert_eq!(xsf::ellipeinc(-phi, m), f64::INFINITY);
