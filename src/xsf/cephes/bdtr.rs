@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/bdtr.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/bdtr.h` (xsf v0.2.2, with scipy/xsf#413 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.3:  March, 1995
 //! Copyright 1984, 1987, 1995 by Stephen L. Moshier
@@ -9,9 +9,6 @@
 //! The Cephes `expm1` from `cephes/unity.h` is replaced by `f64::exp_m1` from the Rust standard
 //! library, like in `xsf/exp.rs`. In `bdtri`, `log1p(y - 1)` is replaced by `ln(y)`, which is
 //! more accurate, since `y - 1` is exact for `y > 0.8`.
-//!
-//! Unlike in xsf (scipy/xsf#353), `bdtri` only uses `1 - y` if `y >= 0.5`, instead of if
-//! `incbet(n-k, k+1, 0.5) > 0.5`.
 
 use crate::xsf::cephes::incbet::{incbet, incbet_xy};
 use crate::xsf::cephes::incbi::incbi;
@@ -249,7 +246,7 @@ pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
         }
     } else {
         let dk = fk + 1.0;
-        // (unlike in xsf, scipy/xsf#353) branch on `y` instead of on `incbet(n-k, k+1, 0.5) > 0.5`
+        // 1 - y is exact for y >= 0.5
         if y >= 0.5 {
             incbi(dk, dn, 1.0 - y)
         } else {
