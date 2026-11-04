@@ -1,8 +1,6 @@
 //! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
-//! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2).
-//!
-//! Unlike in xsf (scipy/xsf#340), the `cdf_cvm_inf` and `cdf_cvm` series stop at a NaN term,
-//! `cdf_cvm(NaN, n)` returns `NaN`, and `cdf_cvm_inf(x)` returns `1` for `x > f64::MAX / 16`.
+//! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2, with scipy/xsf#412 from xsf
+//! main).
 //!
 //! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
 //! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)
@@ -1238,7 +1236,6 @@ pub fn nbdtri(k: i32, n: i32, y: f64) -> f64 {
 /// - [`cdf_cvm`]: For a finite sample size
 #[must_use]
 #[inline]
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn cdf_cvm_inf(x: f64) -> f64 {
     // CDF of the Cramer-von Mises test statistic (infinite sample limit).
     // Accurate for practical hypothesis testing but not expected to be accurate
@@ -1246,12 +1243,12 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
     if x.is_nan() {
         return x;
     }
-    if 16.0 * x == f64::INFINITY {
-        // Unlike in xsf and scipy (scipy/xsf#340), instead of looping forever on `inf` terms
-        return 1.0;
-    }
     if x <= 0.0 {
         return 0.0;
+    }
+    if x >= 8.0 {
+        // 1 - cdf < 1e-18 here, and the series loses accuracy or never ends for huge x
+        return 1.0;
     }
 
     let mut total = 0.0;
@@ -1266,8 +1263,7 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         let z = u * y.sqrt() * (-q).exp() * b;
 
         total += z;
-        // Unlike in xsf (scipy/xsf#340), stop at a NaN term, like in scipy
-        if !(z.abs() >= 1e-7) {
+        if z.abs() < 1e-7 {
             break;
         }
         k += 1;
@@ -1330,7 +1326,7 @@ fn psi1_mod(x: f64) -> f64 {
         let gamma_kp1 = gamma(f64::from(k) + 1.0);
         let z = -psi1_term(k, x) / (PI * gamma_kp1);
         tot += z;
-        // Unlike in xsf (scipy/xsf#340), stop at a NaN term, like in scipy
+        // also stop on NaN
         if !(z.abs() >= 1e-7) {
             break;
         }
@@ -1359,10 +1355,6 @@ fn psi1_mod(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn cdf_cvm(x: f64, n: i32) -> f64 {
-    if x.is_nan() {
-        // Unlike in xsf (scipy/xsf#340), instead of looping forever
-        return x;
-    }
     // Calculate the CDF of the Cramér-von Mises statistic for a finite sample
     // size n. If n=-1, use the asymptotic CDF (n=inf).
     if n == -1 {
