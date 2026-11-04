@@ -33,9 +33,9 @@ fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     (y, loss)
 }
 
-/// Unlike in xsf, `hys2f1_err`, or the power series and `true` if the recurrence in `a` has a
-/// small `loss` but a large error, and the series is accurate and shows it to be less accurate.
-/// Not if `a` or `b` is near a non-positive integer, where the series can stop too early.
+/// Unlike in xsf (scipy/xsf#371), `hys2f1_err`, or the power series and `true` if the recurrence
+/// in `a` has a small `loss` but a large error, and the series is accurate and shows it to be less
+/// accurate. Not if `a` or `b` is near a non-positive integer, where the series can stop too early.
 ///
 /// E.g. `hyp2f1(29.0, -14.5, 0.1, 0.99)` was -7.25e21 instead of -5.13e21.
 fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> ((f64, f64, f64), bool) {
@@ -216,11 +216,9 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
                 /* test for integer c-a-b */
                 /* Try the power series first */
-                // Unlike in xsf, if its `loss` is small but its error estimate incl. the
-                // recurrence in `a` isn't, only replace it by AMS55 #15.3.6 if that shows it to
-                // be less accurate.
-                //
-                // E.g. `hyp2f1(14.0, -14.5, 0.7, 0.98)` was 1238 instead of -0.0937.
+                // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate
+                // incl. the recurrence in `a` isn't, only replace it by AMS55 #15.3.6 if that
+                // shows it to be less accurate.
                 ((y, err, full0), _) = hys2f1_checked(a, b, c, x);
                 if err < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
                     break 'done y;
@@ -438,7 +436,8 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         return (f64::NAN, 1.0, 1.0);
     }
 
-    // Unlike in xsf, check the starting values, but only replace both, as their errors correlate
+    // Unlike in xsf (scipy/xsf#371), check the starting values, but only replace both, as their
+    // errors correlate
     let t0 = if da < 0.0 { t - 1.0 } else { t + 1.0 };
     let ((mut start_f1, checked1), (mut start_f0, checked0)) =
         (hys2f1_checked(t, b, c, x), hys2f1_checked(t0, b, c, x));
