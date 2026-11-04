@@ -689,6 +689,18 @@ def r_ellipeinc(phi, m):
         return mp.ellipe(phi, m)
 
 
+def _arb(name, *args):
+    """`ARB[name]` with increasing precision, until it is accurate to the working precision."""
+    prec = mp.mp.prec
+    while prec <= 2**14:
+        with flint.ctx.workprec(prec):
+            y = ARB[name](*map(flint.arb, args))
+        if y.rel_accuracy_bits() >= mp.mp.prec:
+            return mp.mpf(y)
+        prec *= 2
+    raise NoConvergence
+
+
 def _hyp0f1_series(b, z):
     """The power series of hyp0f1 (in the working precision), and its largest term.
 
@@ -709,8 +721,8 @@ def _hyp0f1_series(b, z):
 def r_hyp0f1(b, z):
     # mpmath's hyp0f1 can be far off for b < 0 < z (mpmath/mpmath#1216), so for -10^4 < b < 0 < z
     # sum the series directly, with 20 more digits than it loses to cancellation, up to 300
-    # digits. For b <= -10^4 (where mpmath agreed with the series on all samples) that takes too
-    # many terms.
+    # digits (else use Arb). For b <= -10^4 (where mpmath agreed with the series on all samples)
+    # that takes too many terms.
     if -(10**4) < b < 0 < z:
         extra = 20
         while True:
@@ -720,7 +732,7 @@ def r_hyp0f1(b, z):
                     return s
             extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
             if mp.mp.dps + extra > 300:
-                raise NoConvergence
+                return _arb("hyp0f1", b, z)
     # for z < 0, 0F1(; b; z) = Gamma(b) (-z)^(-v/2) J_v(x), with v = b - 1 and x = 2 sqrt(-z)
     with wdps(xd(b, z)):
         f = mp.hyp0f1(b, z)
@@ -1769,7 +1781,8 @@ def _hyp2f1_series(a, b, c, z):
 def r_hyp2f1(a, b, c, x):
     # mpmath's hyp2f1 can be far off for large parameters (mpmath/mpmath#1216), so for x <= 0.95
     # sum the series directly (for x < 0 the series of the Pfaff transformation in x / (x - 1),
-    # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits.
+    # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits (else use
+    # Arb).
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
@@ -1786,7 +1799,7 @@ def r_hyp2f1(a, b, c, x):
                 return s * mp.exp(-a * mp.log1p(-x)) if x < 0 else s
         extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
         if mp.mp.dps + extra > 300:
-            raise NoConvergence
+            return _arb("hyp2f1", a, b, c, x)
 
 
 # ---------------------------------------------------------------- orthogonal polynomials
