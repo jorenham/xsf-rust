@@ -55,7 +55,7 @@ fn test_bivariate_normal_cdf() {
     assert!(xsf::bivariate_normal_cdf(f64::NAN, 0.0, 0.5).is_nan());
     assert!(xsf::bivariate_normal_cdf(1.0, -1.0, f64::NAN).is_nan());
     assert!(xsf::bivariate_normal_cdf(f64::NAN, -41.0, 0.5).is_nan());
-    // NaN in xsf
+    // huge |dh| and |dk| (were NaN)
     assert_eq!(xsf::bivariate_normal_cdf(1e70, 38.0, 0.97), 1.0);
     assert_eq!(xsf::bivariate_normal_cdf(-1e200, -1e200, 0.5), 0.0);
 }

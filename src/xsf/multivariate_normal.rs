@@ -1,8 +1,5 @@
 //! Translated into pure Rust from `xsf/multivariate_normal.h` (xsf main).
 //!
-//! Unlike in xsf (scipy/xsf#360), `bivariate_normal_cdf` returns NaN if any argument is NaN, and
-//! treats `|h| > 40` and `|k| > 40` as infinite.
-//!
 //! `bivariate_normal_cdf` is adapted from the original MATLAB survival function implementation
 //! by Dr. Alan Genz, and `trivariate_normal_cdf` is a port of `tvnl` in Alan Genz's MATLAB
 //! `tvn.m`. Original source:
@@ -218,18 +215,17 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     // see license information in LICENSES_bundled.txt.
     // In the comments, phid is the CDF of the standard normal distribution.
 
-    // Unlike in xsf (scipy/xsf#360), NaN input returns NaN
     if dh.is_nan() || dk.is_nan() || r.is_nan() {
         return f64::NAN;
     }
-    // Unlike in xsf (scipy/xsf#360), `|dh| > 40` is treated as infinite.
+    // phid(-40) underflows to 0, so |dh|, |dk| > 40 act as infinite (and can't overflow h*k below).
     let dh = if dh.abs() > 40.0 {
-        dh * f64::INFINITY
+        f64::INFINITY.copysign(dh)
     } else {
         dh
     };
     let dk = if dk.abs() > 40.0 {
-        dk * f64::INFINITY
+        f64::INFINITY.copysign(dk)
     } else {
         dk
     };
