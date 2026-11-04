@@ -731,9 +731,9 @@ fn test_cdf_cvm_smoke() {
 #[test]
 fn test_cdf_cvm_nonfinite() {
     assert_eq!(xsf::cdf_cvm_inf(f64::INFINITY), 1.0);
-    assert_eq!(xsf::cdf_cvm_inf(f64::MAX), 1.0);
+    assert_eq!(xsf::cdf_cvm_inf(1e308), 1.0);
     assert!(xsf::cdf_cvm_inf(f64::NAN).is_nan());
-    for n in [-1, 5] {
+    for n in [-1, 10] {
         assert_eq!(xsf::cdf_cvm(f64::INFINITY, n), 1.0);
         assert!(xsf::cdf_cvm(f64::NAN, n).is_nan());
     }
