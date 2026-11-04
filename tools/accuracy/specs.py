@@ -2426,8 +2426,7 @@ add("gammaln", "x", r_gammaln, D(U(-30, 30)), D(LU(1e-300, 1e300)), note="zeros"
 add("rgamma", "x", r_rgamma, D(U(-30, 30)), D(U(-200, 200)))
 add("digamma", "x", r_digamma, D(U(-30, 30)), D(LU(1e-300, 1e300)), note="zeros")
 add("digammainv", "y", r_digammainv, D(U(-10, 10)), D(U(-1000, 700)))
-# not in xsf before XSF_COMMIT (accuracy.py) is bumped past scipy/xsf#239
-add("trigamma", "x", r_trigamma, D(U(-30, 30)), D(LU(1e-300, 1e300)), cpp=False)
+add("trigamma", "x", r_trigamma, D(U(-30, 30)), D(LU(1e-300, 1e300)))
 add(
     "beta",
     "a b",
@@ -3519,7 +3518,7 @@ for f, r in [
         complex=True,
         note="zeros_c" if f in ("loggamma", "digamma") else "",
     )
-add("trigamma#c", "re im", _c(lambda z: mp.psi(1, z)), CZ, complex=True, cpp=False)
+add("trigamma#c", "re im", _c(lambda z: mp.psi(1, z)), CZ, complex=True)
 for f, r in [("erf", mp.erf), ("erfc", mp.erfc), ("wofz", c_wofz)]:
     add(f"{f}#c", "re im", _c(r), D(U(-10, 10), U(-10, 10), n=5000), complex=True)
 for f, r in [("exp1", mp.e1), ("expi", mp.ei), ("lambertw", c_lambertw)]:

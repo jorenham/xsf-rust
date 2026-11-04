@@ -66,6 +66,7 @@
 #include "xsf/stats.h"
 #include "xsf/stirling2.h"
 #include "xsf/trig.h"
+#include "xsf/trigamma.h"
 #include "xsf/wright.h"
 #include "xsf/wright_bessel.h"
 #include "xsf/zeta.h"
@@ -127,6 +128,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F1("rgamma", xsf::rgamma(x))
     F1("digamma", xsf::digamma(x))
     F1("digammainv", xsf::digammainv(x))
+    F1("trigamma", xsf::trigamma(x))
     F2("beta", xsf::beta(x, y))
     F2("betaln", xsf::betaln(x, y))
     F2("binom", xsf::binom(x, y))
@@ -408,6 +410,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("loggamma", 2, xsf::loggamma(cd(a[0], a[1])))
     C("rgamma", 2, xsf::rgamma(cd(a[0], a[1])))
     C("digamma", 2, xsf::digamma(cd(a[0], a[1])))
+    C("trigamma", 2, xsf::trigamma(cd(a[0], a[1])))
     C("erf", 2, xsf::erf(cd(a[0], a[1])))
     C("erfc", 2, xsf::erfc(cd(a[0], a[1])))
     C("wofz", 2, xsf::wofz(cd(a[0], a[1])))
