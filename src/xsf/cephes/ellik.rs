@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/ellik.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/ellik.h` (xsf v0.2.2, with scipy/xsf#405 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier
@@ -161,16 +161,17 @@ pub(crate) fn ellik(mut phi: f64, m: f64) -> f64 {
         /* DLMF 19.6.8, and 4.23.42 */
         return phi.tan().asinh();
     }
+    /* From about 2^53 on, the reduction below loses the residual.
+     * F(phi, m) = 2 phi K(m) / pi + O(K(m)), DLMF 19.2.10 */
+    if phi.abs() > 9e15 {
+        return phi / FRAC_PI_2 * ellpk(a);
+    }
     let mut npio2 = (phi / FRAC_PI_2).floor();
     if npio2.abs() % 2.0 == 1.0 {
         npio2 += 1.0;
     }
     let mut k = if npio2 != 0.0 {
         phi -= npio2 * FRAC_PI_2;
-        // Unlike in xsf (scipy/xsf#359), the residual is reduced again if it's outside [-pi, pi].
-        if phi.abs() > PI {
-            return ellik(phi, m) + npio2 * ellpk(a);
-        }
         ellpk(a)
     } else {
         0.0

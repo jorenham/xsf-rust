@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/ellie.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/ellie.h` (xsf v0.2.2, with scipy/xsf#405 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987, 1993 by Stephen L. Moshier
@@ -192,18 +192,17 @@ pub(crate) fn ellie(phi: f64, m: f64) -> f64 {
     if m == 0.0 {
         return phi;
     }
+    /* From about 2^53 on, the reduction below loses the residual.
+     * E(phi, m) = 2 phi E(m) / pi + O(E(m)), DLMF 19.2.10 */
+    if phi.abs() > 9e15 {
+        return phi / FRAC_PI_2 * ellpe(m);
+    }
     let mut lphi = phi;
     let mut npio2 = (lphi / FRAC_PI_2).floor();
     if npio2.abs() % 2.0 == 1.0 {
         npio2 += 1.0;
     }
     lphi -= npio2 * FRAC_PI_2;
-    // Unlike in xsf (scipy/xsf#359), the residual is reduced again if it's outside [-pi, pi],
-    // and an infinite `npio2 * E(m)` is returned as is.
-    if lphi.abs() > PI {
-        let e = npio2 * ellpe(m);
-        return if e.is_finite() { ellie(lphi, m) + e } else { e };
-    }
     let sign = if lphi < 0.0 {
         lphi = -lphi;
         -1
