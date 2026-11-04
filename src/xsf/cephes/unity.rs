@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/unity.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/unity.h` (xsf v0.2.2, with scipy/xsf#396 from xsf
+//! main), which was translated into C++ by SciPy developers in 2024.
 //!
 //! Relative error approximations for function arguments near
 //! unity.
@@ -11,9 +11,6 @@
 //!
 //! The other functions in `unity.h` are translated in `xsf/log.rs` (`log1pmx`) and `xsf/trig.rs`
 //! (`cosm1`), or replaced by `f64::ln_1p` and `f64::exp_m1` from the Rust standard library.
-//!
-//! Unlike in xsf (scipy/xsf#348), the Taylor series of `lgam1p` is summed until it converges (at
-//! most `MAXITER` terms, as in `log1pmx`), instead of stopping after 41 terms.
 
 use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::{lgam, zeta};
@@ -29,12 +26,11 @@ fn lgam1p_taylor(x: f64) -> f64 {
     }
     let mut res = -SCIPY_EULER * x;
     let mut xfac = -x;
-    // (unlike in xsf, scipy/xsf#348) MAXITER instead of 42
     for n in 2..MAXITER {
         xfac *= -x;
         let coeff = zeta(f64::from(n), 1.0) * xfac / f64::from(n);
         res += coeff;
-        if coeff.abs() < MACHEP * res.abs() {
+        if coeff.abs() <= MACHEP * res.abs() {
             break;
         }
     }
