@@ -314,7 +314,7 @@ fn test_pbvv() {
 
 #[test]
 fn test_pbdv_pbvv_v_rounding() {
-    // v +- 1 rounding to an integer (reference values from mpmath)
+    // v +- 1 rounding to an integer, scipy/xsf#401 (reference values from mpmath)
     let dp = xsf::pbdv(-0.999_999_999_999_999_9, -3.0).1;
     let wp = xsf::pbvv(1.999_999_999_999_999_8, -1.0).1;
     for (y, r) in [
