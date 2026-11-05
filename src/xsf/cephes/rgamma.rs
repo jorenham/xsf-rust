@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/rgamma.h` (scipy/xsf@b4cb781).
+//! Translated into pure Rust from `xsf/cephes/rgamma.h` (scipy/xsf@d37e4ee).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987,
 //! Copyright 1985, 1987 by Stephen L. Moshier.
@@ -56,13 +56,8 @@ const RGAMMA_R: [f64; 16] = [
 /// (IEEE, -170,-34.034, 10000 trials), excepting overflow or underflow.
 #[allow(clippy::float_cmp)]
 pub(crate) fn rgamma(x: f64) -> f64 {
-    if x == 0.0 {
-        // This case is separate from below to get correct sign for zero.
-        return x;
-    }
-
-    // Unlike in xsf (scipy/xsf#417), subnormal x returns x.
     if x.abs() < f64::MIN_POSITIVE {
+        // 1/Gamma(x) = x + gamma x^2 + ... rounds to x (DLMF 5.7.1), with the sign of zero.
         return x;
     }
 
