@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/par_cyl.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/par_cyl.h` (xsf v0.2.2, with scipy/xsf#416 from xsf main).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -600,8 +600,7 @@ fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
     if v.abs() >= 2_147_483_648.0 {
         return None;
     }
-    // Unlike in xsf (scipy/xsf#401), `+ 3` instead of `+ 2`, since `na = |(int) (v +- 1)|` in
-    // `pbdv_impl` and `pbvv_impl` can be `|(int) v| + 2`.
+    // NB. Indexing of DV/DP in specfun.f:PBDV starts from 0 and |v| + 1 can round up, hence +3
     let num = (v as i32).unsigned_abs() as usize + 3;
     let len = num.checked_mul(2)?;
     let mut buf = Vec::new();

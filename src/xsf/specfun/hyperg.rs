@@ -1,5 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (xsf v0.2.2).
+//! (xsf v0.2.2, with scipy/xsf#415 from xsf main).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
 //! (scipy/xsf#350).
@@ -139,7 +139,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                     cs2 += cr2;
                 }
                 let y = z.im;
-                // Unlike in xsf (scipy/xsf#398), the sign is that of `Im z`.
+                // DLMF 13.7.2, with the sign of ph z (Re z >= 0 here)
                 let ns = if y > 0.0 { 1 } else { -1 };
                 let mut cfac = cexp(f64::from(ns) * ci * PI * a);
                 if y == 0.0 {
