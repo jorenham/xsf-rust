@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/chbevl.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/cephes/chbevl.h` (scipy/xsf@f2a68ec).
 
 /// Evaluate a Chebyshev series, with the coefficients in reverse order (`n = array.len()`)
 pub(crate) fn chbevl(x: f64, array: &[f64]) -> f64 {

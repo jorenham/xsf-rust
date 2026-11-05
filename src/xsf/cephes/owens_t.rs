@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/owens_t.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/owens_t.h` (scipy/xsf@527cef1), which was translated
+//! into C++ by SciPy developers in 2024. Original header comment appears below.
 //!
 //! Copyright Benjamin Sobotta 2012
 //!

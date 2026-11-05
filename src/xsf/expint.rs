@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/expint.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/expint.h` (scipy/xsf@527cef1).
 //!
 //! The functions exp1, expi below are based on translations of the Fortran code
 //! by Shanjie Zhang and Jianming Jin from the book

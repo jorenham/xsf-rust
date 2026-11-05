@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/gen_harmonic.h` (xsf main).
+//! Translated into pure Rust from `xsf/gen_harmonic.h` (scipy/xsf@527cef1).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -90,7 +90,7 @@ fn normalized_sum_powers(j: u64, k: u64, n: u64, a: f64) -> f64 {
 ///
 /// Returns NaN if $n = 0$.
 ///
-/// Corresponds to `xsf::gen_harmonic` in xsf main, which is used by
+/// Corresponds to `xsf::gen_harmonic`, which is used by
 /// [`scipy.stats.zipfian`][zipfian].
 ///
 /// [zipfian]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.zipfian.html
@@ -148,7 +148,7 @@ pub fn gen_harmonic(n: u64, a: f64) -> f64 {
 ///
 /// Requires $1 \le j \le k \le n$; returns NaN if that is not true.
 ///
-/// Corresponds to `xsf::normalized_gen_harmonic` in xsf main, which is used by
+/// Corresponds to `xsf::normalized_gen_harmonic`, which is used by
 /// [`scipy.stats.zipfian`][zipfian].
 ///
 /// [zipfian]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.zipfian.html

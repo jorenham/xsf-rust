@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/ellint_arith_aux.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/ellint_arith_aux.hh` (scipy/xsf@d5182c3).
 //!
 //! ```text
 //! Auxiliary floating-point manipulation utilities.

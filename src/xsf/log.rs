@@ -1,6 +1,6 @@
-//! Translated into pure Rust from `xsf/log.h` and `xsf/cephes/unity.h` (xsf v0.2.2). The real
-//! `log1p` uses `f64::ln_1p` from the Rust standard library instead, which (at least on Linux) is
-//! more accurate than the Cephes one in xsf.
+//! Translated into pure Rust from `xsf/log.h` and `xsf/cephes/unity.h` (scipy/xsf@e58388a). The
+//! real `log1p` uses `f64::ln_1p` from the Rust standard library instead, which (at least on Linux)
+//! is more accurate than the Cephes one in xsf.
 
 use core::f64::consts::LN_2;
 

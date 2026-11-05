@@ -1,4 +1,4 @@
-//! The complex `hyp2f1` is translated into pure Rust from `xsf/hyp2f1.h` (xsf v0.2.2).
+//! The complex `hyp2f1` is translated into pure Rust from `xsf/hyp2f1.h` (scipy/xsf@f2a68ec).
 //!
 //! ```text
 //! Implementation of Gauss's hypergeometric function for complex values.

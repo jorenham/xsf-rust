@@ -1,4 +1,5 @@
-//! The Mathieu functions are translated into pure Rust from `xsf/mathieu.h` (xsf v0.2.2).
+//! The Mathieu functions are translated into pure Rust from `xsf/cpu/mathieu_legacy.h`
+//! (scipy/xsf@b1eb270).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!

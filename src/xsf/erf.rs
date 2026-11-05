@@ -1,5 +1,5 @@
-//! The `voigt_profile` is translated into pure Rust from `xsf/erf.h` (xsf v0.2.2), and the other
-//! functions use `xsf/faddeeva.rs`.
+//! The `voigt_profile` is translated into pure Rust from `xsf/erf.h` (scipy/xsf@09c93c7), and the
+//! other functions use `xsf/faddeeva.rs`.
 
 use core::f64::consts::{FRAC_1_SQRT_2, PI};
 

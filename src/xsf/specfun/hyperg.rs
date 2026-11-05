@@ -1,5 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (xsf v0.2.2, with scipy/xsf#415 from xsf main).
+//! (scipy/xsf@65d313a).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
 //! (scipy/xsf#350).

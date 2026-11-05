@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/binom.h` (xsf v0.2.2), which was translated from Cython
-//! into C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/binom.h` (scipy/xsf@09c93c7), which was translated from
+//! Cython into C++ by SciPy developers in 2024.
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 

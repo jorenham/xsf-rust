@@ -1,10 +1,9 @@
 //! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
-//! translated into pure Rust from `xsf/stats.h` (xsf v0.2.2, with scipy/xsf#412 from xsf
-//! main).
+//! translated into pure Rust from `xsf/stats.h` (scipy/xsf@7e2417a).
 //!
 //! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
-//! `xsf/stats.h` in xsf main. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`)
-//! saturates, instead of being undefined behavior in the cast to `long long`.
+//! `xsf/stats.h`. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`) saturates,
+//! instead of being undefined behavior in the cast to `long long`.
 
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
@@ -366,7 +365,7 @@ pub fn ndtri(x: f64) -> f64 {
 /// Mean of the normal distribution, given the CDF value `p`, the standard deviation `std`, and the
 /// quantile `x`
 ///
-/// Corresponds to [`scipy.special.nrdtrimn`][nrdtrimn], and `xsf::nrdtrimn` in xsf main.
+/// Corresponds to [`scipy.special.nrdtrimn`][nrdtrimn], and `xsf::nrdtrimn`.
 ///
 /// [nrdtrimn]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nrdtrimn.html
 ///
@@ -391,7 +390,7 @@ pub fn nrdtrimn(p: f64, std: f64, x: f64) -> f64 {
 /// Standard deviation of the normal distribution, given the mean `mean`, the CDF value `p`, and
 /// the quantile `x`
 ///
-/// Corresponds to [`scipy.special.nrdtrisd`][nrdtrisd], and `xsf::nrdtrisd` in xsf main.
+/// Corresponds to [`scipy.special.nrdtrisd`][nrdtrisd], and `xsf::nrdtrisd`.
 ///
 /// [nrdtrisd]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nrdtrisd.html
 ///
@@ -507,7 +506,7 @@ fn von_mises_cdf_left(k: f64, x: f64) -> f64 {
 /// this uses Gauss quadrature, which is also accurate in the tails, e.g.
 /// `von_mises_cdf(25.0, -3.0)` was `6e-14` instead of `6e-23`.
 ///
-/// Corresponds to `xsf::von_mises_cdf` in xsf main, which is used by
+/// Corresponds to `xsf::von_mises_cdf`, which is used by
 /// [`scipy.stats.vonmises`][vonmises].
 ///
 /// [vonmises]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.vonmises.html
@@ -1070,7 +1069,7 @@ fn wilcoxon_pmf_all_impl(n: usize, res: &mut [f64]) {
 /// The result has length $n (n + 1) / 2 + 1$, and contains the probability that the signed-rank
 /// statistic of a sample of size $n$ equals $k$ at index `k`.
 ///
-/// Corresponds to `xsf::wilcoxon_pmf_all` in xsf main.
+/// Corresponds to `xsf::wilcoxon_pmf_all`.
 ///
 /// # See also
 /// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
@@ -1092,7 +1091,7 @@ pub fn wilcoxon_pmf_all(n: usize) -> Vec<f64> {
 /// The result has length $n (n + 1) / 2 + 1$, and contains the probability that the signed-rank
 /// statistic of a sample of size $n$ is at most $k$ at index `k`.
 ///
-/// Corresponds to `xsf::wilcoxon_cdf_all` in xsf main.
+/// Corresponds to `xsf::wilcoxon_cdf_all`.
 ///
 /// # See also
 /// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
@@ -1119,7 +1118,7 @@ pub fn wilcoxon_cdf_all(n: usize) -> Vec<f64> {
 /// After truncating `k` towards zero, this returns `pmf[k]`, or `0` if `k` is out of bounds.
 /// `pmf` is the table returned by [`wilcoxon_pmf_all`].
 ///
-/// Corresponds to `xsf::wilcoxon_pmf` in xsf main.
+/// Corresponds to `xsf::wilcoxon_pmf`.
 ///
 /// # See also
 /// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
@@ -1138,7 +1137,7 @@ pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
 /// After truncating `k` towards zero, this returns `cdf[k]`, `0` if `k < 0`, or `1` if `k` is at
 /// least the last index. `cdf` is the table returned by [`wilcoxon_cdf_all`].
 ///
-/// Corresponds to `xsf::wilcoxon_cdf` in xsf main.
+/// Corresponds to `xsf::wilcoxon_cdf`.
 ///
 /// # See also
 /// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
@@ -1158,7 +1157,7 @@ pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
 /// After truncating `k` towards zero, this returns `1 - cdf[k - 1]`, `1` if `k <= 0`, or `0` if
 /// `k` exceeds the last index. `cdf` is the table returned by [`wilcoxon_cdf_all`].
 ///
-/// Corresponds to `xsf::wilcoxon_sf` in xsf main.
+/// Corresponds to `xsf::wilcoxon_sf`.
 ///
 /// # See also
 /// - [`wilcoxon_cdf_all`]: Full CDF of the Wilcoxon signed-rank statistic
@@ -1375,7 +1374,7 @@ pub fn cdf_cvm(x: f64, n: i32) -> f64 {
 
 /// Logarithm of the generalized inverse Gaussian probability density function
 ///
-/// Corresponds to `xsf::geninvgauss_logpdf` in xsf main, and to the `logpdf` of
+/// Corresponds to `xsf::geninvgauss_logpdf`, and to the `logpdf` of
 /// [`scipy.stats.geninvgauss`][geninvgauss] with `loc=0` and `scale=1`.
 ///
 /// [geninvgauss]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.geninvgauss.html
@@ -1404,7 +1403,7 @@ pub fn geninvgauss_logpdf(x: f64, p: f64, b: f64) -> f64 {
 
 /// Generalized inverse Gaussian probability density function
 ///
-/// Corresponds to `xsf::geninvgauss_pdf` in xsf main, and to the `pdf` of
+/// Corresponds to `xsf::geninvgauss_pdf`, and to the `pdf` of
 /// [`scipy.stats.geninvgauss`][geninvgauss] with `loc=0` and `scale=1`.
 ///
 /// [geninvgauss]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.geninvgauss.html
@@ -1430,7 +1429,7 @@ fn genhyperbolic_log_norming_constant(p: f64, a: f64, b: f64) -> f64 {
 
 /// Logarithm of the generalized hyperbolic probability density function
 ///
-/// Corresponds to `xsf::genhyperbolic_logpdf` in xsf main, and to the `logpdf` of
+/// Corresponds to `xsf::genhyperbolic_logpdf`, and to the `logpdf` of
 /// [`scipy.stats.genhyperbolic`][genhyperbolic] with `loc=0` and `scale=1`.
 ///
 /// [genhyperbolic]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.genhyperbolic.html
@@ -1459,7 +1458,7 @@ pub fn genhyperbolic_logpdf(x: f64, p: f64, a: f64, b: f64) -> f64 {
 
 /// Generalized hyperbolic probability density function
 ///
-/// Corresponds to `xsf::genhyperbolic_pdf` in xsf main, and to the `pdf` of
+/// Corresponds to `xsf::genhyperbolic_pdf`, and to the `pdf` of
 /// [`scipy.stats.genhyperbolic`][genhyperbolic] with `loc=0` and `scale=1`.
 ///
 /// [genhyperbolic]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.genhyperbolic.html

@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (scipy/xsf@09c93c7), which was translated
+//! into C++ by SciPy developers in 2024.
 //!
 //! ```text
 //! Parts of the code are copyright:

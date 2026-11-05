@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/lambertw.h` (xsf v0.2.2, and the real version from xsf
-//! main).
+//! Translated into pure Rust from `xsf/lambertw.h` (scipy/xsf@09c93c7).
 //!
 //! Complex version translated from Cython into C++ by SciPy developers in 2023.
 //! Original header with Copyright information appears below.

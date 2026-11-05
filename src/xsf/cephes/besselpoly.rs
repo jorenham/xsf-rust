@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/besselpoly.h` (xsf v0.2.2), which was translated
-//! into C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/besselpoly.h` (scipy/xsf@09c93c7), which was
+//! translated into C++ by SciPy developers in 2024.
 //!
 //! This was not part of the original cephes library.
 //!

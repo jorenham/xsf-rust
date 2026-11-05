@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/fp_error_metrics.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/fp_error_metrics.h` (scipy/xsf@527cef1).
 
 use num_complex::Complex;
 

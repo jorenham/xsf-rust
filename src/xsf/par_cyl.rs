@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/par_cyl.h` (xsf v0.2.2, with scipy/xsf#416 and
-//! scipy/xsf#421 from xsf main).
+//! Translated into pure Rust from `xsf/par_cyl.h` (scipy/xsf@d184ccb).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!

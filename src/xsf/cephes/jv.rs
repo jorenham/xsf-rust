@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/jv.h` (xsf v0.2.2, with scipy/xsf#391 from xsf
-//! main), which was translated into C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/jv.h` (scipy/xsf@8ab2668), which was translated into
+//! C++ by SciPy developers in 2024.
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1989, 1992, 2000 by Stephen L. Moshier

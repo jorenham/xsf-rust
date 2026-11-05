@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/sph_bessel.h` (xsf v0.2.2), with scipy/xsf#406 from xsf main.
+//! Translated into pure Rust from `xsf/sph_bessel.h` (scipy/xsf@ecd15fd).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!

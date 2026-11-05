@@ -1,8 +1,8 @@
-//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` in xsf main, which in
-//! turn were translated from `scipy/special/orthogonal_eval.pxd`
+//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@bb0e909),
+//! which in turn were translated from `scipy/special/orthogonal_eval.pxd`
 //!
-//! - <https://github.com/scipy/xsf/blob/b6cb425/include/xsf/orthogonal_eval.h>
-//! - <https://github.com/scipy/xsf/blob/b6cb425/include/xsf/cpu/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/cpu/orthogonal_eval.h>
 
 use core::f64::consts::SQRT_2;
 use core::ops::Range;
@@ -646,7 +646,7 @@ pub fn eval_chebyshev_u<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 
 /// Evaluate Chebyshev polynomial of the first kind $C_n$ on $[-2, 2]$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_chebyc`][docs], and `xsf::eval_chebyc` in xsf main.
+/// Corresponds to [`scipy.special.eval_chebyc`][docs], and `xsf::eval_chebyc`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebyc.html
 ///
@@ -664,7 +664,7 @@ pub fn eval_chebyshev_c<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 
 /// Evaluate Chebyshev polynomial of the second kind $S_n$ on $[-2, 2]$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_chebys`][docs], and `xsf::eval_chebys` in xsf main.
+/// Corresponds to [`scipy.special.eval_chebys`][docs], and `xsf::eval_chebys`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebys.html
 ///
@@ -682,7 +682,7 @@ pub fn eval_chebyshev_s<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 
 /// Evaluate shifted Chebyshev polynomial of the first kind $T_n^*$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_sh_chebyt`][docs], and `xsf::eval_sh_chebyt` in xsf main.
+/// Corresponds to [`scipy.special.eval_sh_chebyt`][docs], and `xsf::eval_sh_chebyt`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_chebyt.html
 ///
@@ -700,7 +700,7 @@ pub fn eval_sh_chebyshev_t<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 
 /// Evaluate shifted Chebyshev polynomial of the second kind $U_n^*$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_sh_chebyu`][docs], and `xsf::eval_sh_chebyu` in xsf main.
+/// Corresponds to [`scipy.special.eval_sh_chebyu`][docs], and `xsf::eval_sh_chebyu`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_chebyu.html
 ///

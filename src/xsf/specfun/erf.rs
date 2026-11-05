@@ -1,4 +1,4 @@
-//! `cerf` and `cerzo`, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
+//! `cerf` and `cerzo`, translated into pure Rust from `xsf/specfun/specfun.h` (scipy/xsf@65d313a).
 
 use core::f64::consts::{FRAC_2_SQRT_PI, PI};
 

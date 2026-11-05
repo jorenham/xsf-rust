@@ -1,5 +1,5 @@
-//! The subset of `xsf/tools.h` (xsf v0.2.2, with scipy/xsf#384 from xsf main) that is needed by
-//! `iv_ratio`, `gdtrib`, and the complex `hyp2f1`.
+//! The subset of `xsf/tools.h` (scipy/xsf@c6b62c1) that is needed by `iv_ratio`, `gdtrib`, and the
+//! complex `hyp2f1`.
 //!
 //! Building blocks for implementing special functions
 //!
@@ -474,7 +474,7 @@ pub(crate) fn find_root_chandrupatla(
     (f64::NAN, 1)
 }
 
-/// `NewtonRootFinderStatus` (xsf main)
+/// `NewtonRootFinderStatus`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NewtonRootFinderStatus {
     Success,
@@ -485,7 +485,7 @@ pub(crate) enum NewtonRootFinderStatus {
     InitialGuessReturnedInf,
 }
 
-/// Find root of a scalar function using Newton-Raphson (xsf main).
+/// Find root of a scalar function using Newton-Raphson.
 ///
 /// Function `func` must return a pair `(f(x), f'(x))`.
 #[allow(clippy::float_cmp)]

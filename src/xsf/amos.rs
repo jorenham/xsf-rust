@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/amos/amos.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@b1eb270).
 //!
 //! ```text
 //!
@@ -91,12 +91,9 @@
 //! THE POSSIBILITY OF SUCH DAMAGE.
 //! ```
 //!
-//! Unlike in xsf v0.2.2, this includes the fixes of several errors in the translation from the
-//! Fortran that were later made in xsf (scipy/xsf#92, scipy/xsf#93, scipy/xsf#138, scipy/xsf#145,
-//! scipy/xsf#158, and scipy/xsf#263, and the `bry` thresholds in `buni`, `unk1`, and `unk2` from
-//! scipy/xsf#132). The remaining differences with the Fortran are marked with `NOTE:` comments.
+//! The remaining differences with the Fortran are marked with `NOTE:` comments.
 //!
-//! Also unlike in xsf:
+//! Unlike in xsf:
 //! - The out-of-bounds read of `csr[-1]` in `unk1` and `unk2` (undefined behavior in C++) uses `1`
 //!   instead.
 //! - In `besh` and `besj`, `(int) fnu` saturates for `fnu >= 2^31` (undefined behavior in C++,
@@ -7622,7 +7619,7 @@ pub(crate) fn wrsk(
     nz
 }
 
-// Translated from `xsf/amos.h` and `xsf/error.h` (xsf v0.2.2)
+// Translated from `xsf/amos.h` and `xsf/error.h` (scipy/xsf@b1eb270)
 
 // amos.h
 

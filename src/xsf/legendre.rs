@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/legendre.h` and `xsf/recur.h` (xsf v0.2.2), for `T` either
-//! `double` or `std::complex<double>`. The dual numbers of `xsf/dual.h`, which xsf uses for
+//! Translated into pure Rust from `xsf/legendre.h` and `xsf/recur.h` (scipy/xsf@2e1e697), for `T`
+//! either `double` or `std::complex<double>`. The dual numbers of `xsf/dual.h`, which xsf uses for
 //! derivatives, are not translated.
 //!
 //! Unlike in xsf:

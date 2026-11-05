@@ -132,7 +132,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/bessel.h` (xsf v0.2.2)
+// Translated from `xsf/bessel.h` (scipy/xsf@473a8f8)
 
 fn rotate(z: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);

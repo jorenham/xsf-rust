@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/faddeeva.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/faddeeva.h` (scipy/xsf@f2a68ec).
 //!
 //! > Copyright (c) 2012 Massachusetts Institute of Technology
 //! >

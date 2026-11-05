@@ -1,6 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (xsf v0.2.2, with scipy/xsf#320 from
-//! xsf main), which was translated into C++ by SciPy developers in 2024. Original header comment
-//! appears below.
+//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (scipy/xsf@8a3ca8d), which was
+//! translated into C++ by SciPy developers in 2024. Original header comment appears below.
 //!
 //! File altered for inclusion in cephes module for Python:
 //! Main loop commented out....

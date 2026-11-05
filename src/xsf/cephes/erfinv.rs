@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/erfinv.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/erfinv.h` (scipy/xsf@b6cb425), which was translated
+//! into C++ by SciPy developers in 2024.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 

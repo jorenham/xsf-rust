@@ -1,4 +1,4 @@
-//! The subset of `xsf/cephes/dd_real.h` (xsf v0.2.2) that is needed by the complex `log1p`,
+//! The subset of `xsf/cephes/dd_real.h` (scipy/xsf@09c93c7) that is needed by the complex `log1p`,
 //! `smirnov`, and `iv_ratio_c`.
 //!
 //! Translated into C++ by SciPy developers in 2024. The parts of the qd double-double floating

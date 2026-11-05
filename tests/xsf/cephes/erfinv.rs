@@ -23,7 +23,7 @@ fn test_erfcinv() {
     xsref::test("erfcinv", "d-d", |x| xsf::erfcinv(x[0]));
 }
 
-/// Based on the "cephes::erfcinv subnormal arguments" test in xsf main
+/// Based on the "cephes::erfcinv subnormal arguments" test in xsf
 #[test]
 fn test_erfcinv_subnormal() {
     let y = [

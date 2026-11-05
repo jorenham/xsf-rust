@@ -1,4 +1,5 @@
-//! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
+//! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h`
+//! (scipy/xsf@65d313a).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 

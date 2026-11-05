@@ -1,4 +1,4 @@
-//! The complex `riemann_zeta` is translated into pure Rust from `xsf/zeta.h` (xsf v0.2.2).
+//! The complex `riemann_zeta` is translated into pure Rust from `xsf/zeta.h` (scipy/xsf@09c93c7).
 //!
 //! Complex riemann-zeta function implementation based on Python implementation
 //! written by Matt Haberland (@mdhaber) in:

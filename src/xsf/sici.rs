@@ -1,5 +1,5 @@
-//! The complex `sici` and `shichi` are translated into pure Rust from `xsf/sici.h` (xsf v0.2.2),
-//! which was translated from Cython into C++ by SciPy developers in 2024.
+//! The complex `sici` and `shichi` are translated into pure Rust from `xsf/sici.h`
+//! (scipy/xsf@a2b87c0), which was translated from Cython into C++ by SciPy developers in 2024.
 //!
 //! Implementation of sin/cos/sinh/cosh integrals for complex arguments
 //!

@@ -1,5 +1,5 @@
 //! Bernoulli and Euler numbers, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (xsf v0.2.2).
+//! (scipy/xsf@65d313a).
 
 use core::f64::consts::FRAC_2_PI;
 

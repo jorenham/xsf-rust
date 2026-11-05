@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/ellint_arithmetic.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/ellint_arithmetic.hh` (scipy/xsf@d5182c3).
 //!
 //! ```text
 //! Algorithms for accurate floating-point summation, dot-product, and

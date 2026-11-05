@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/digamma.h` (xsf v0.2.2), with scipy/xsf#385 from xsf main.
+//! Translated into pure Rust from `xsf/digamma.h` (scipy/xsf@9ee9933).
 
 use core::f64::consts::PI;
 
