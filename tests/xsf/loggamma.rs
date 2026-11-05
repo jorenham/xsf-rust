@@ -32,8 +32,8 @@ fn test_rgamma_f64() {
 
 #[test]
 fn test_rgamma_f64_subnormal() {
-    // unlike in xsf: 1 / Gamma(x) = x for subnormal x, also for x < 0
-    for x in [5e-324, -5e-324, -1e-310, -2e-308] {
+    // 1 / Gamma(x) = x for subnormal x, also for x < 0 (scipy/xsf#417)
+    for x in [5e-324, -5e-324, 1e-310, -1e-310, -2e-308] {
         assert_eq!(xsf::rgamma(x), x);
     }
 }
