@@ -1,5 +1,4 @@
-//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@bb0e909),
-//! which in turn were translated from `scipy/special/orthogonal_eval.pxd`
+//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@bb0e909).
 //!
 //! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/orthogonal_eval.h>
 //! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/cpu/orthogonal_eval.h>
@@ -254,8 +253,7 @@ impl JacobiArg<i32> for f64 {
 
 /// Evaluate Jacobi polynomial $P_n^{(\alpha, \beta)}$ at a point.
 ///
-/// This is a translation of the [`scipy.special.eval_jacobi`][jaceval] Cython implementation
-/// into Rust.
+/// Corresponds to [`scipy.special.eval_jacobi`][jaceval], and `xsf::eval_jacobi`.
 ///
 /// [jaceval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_jacobi.html
 ///
@@ -286,8 +284,7 @@ pub fn eval_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> Z {
 
 /// Evaluate Legendre polynomial $P_n$ at a point.
 ///
-/// This is a translation of the [`scipy.special.eval_legendre`][legeval] Cython implementation
-/// into Rust.
+/// Corresponds to [`scipy.special.eval_legendre`][legeval], and `xsf::eval_legendre`.
 ///
 /// [legeval]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_legendre.html
 ///
@@ -337,9 +334,8 @@ pub fn eval_sh_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> 
 
 /// Evaluate generalized Gegenbauer polynomial $G_n^{(p,q)}$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_sh_jacobi`][docs] (and `xsf::eval_sh_jacobi` in xsf
-/// main), which, despite its name, isn't the shifted Jacobi polynomial [`eval_sh_jacobi`], see
-/// scipy/scipy#18988.
+/// Corresponds to [`scipy.special.eval_sh_jacobi`][docs] (and `xsf::eval_sh_jacobi`), which,
+/// despite its name, isn't the shifted Jacobi polynomial [`eval_sh_jacobi`], see scipy/scipy#18988.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_jacobi.html
 ///
@@ -362,8 +358,7 @@ pub fn eval_gengegenbauer<N: Copy + Into<f64>, Z: JacobiArg<N>>(n: N, p: f64, q:
 
 /// Evaluate shifted Legendre polynomial $P_n^*$ at a point.
 ///
-/// Corresponds to [`scipy.special.eval_sh_legendre`][docs], and `xsf::eval_sh_legendre` in xsf
-/// main.
+/// Corresponds to [`scipy.special.eval_sh_legendre`][docs], and `xsf::eval_sh_legendre`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_sh_legendre.html
 ///
@@ -493,8 +488,7 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
 
 /// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
 ///
-/// This is a translation of the [`scipy.special.eval_gegenbauer`][docs] Cython implementation
-/// into Rust.
+/// Corresponds to [`scipy.special.eval_gegenbauer`][docs], and `xsf::eval_gegenbauer`.
 ///
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_gegenbauer.html
 ///
@@ -775,8 +769,7 @@ impl LaguerreArg<i32> for f64 {
 
 /// Evaluate generalized Laguerre polynomial $L_n^{(\alpha)}$ at a point.
 ///
-/// This is a translation of the [`scipy.special.eval_genlaguerre`][glag] Cython implementation
-/// into Rust.
+/// Corresponds to [`scipy.special.eval_genlaguerre`][glag], and `xsf::eval_genlaguerre`.
 ///
 /// [glag]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_genlaguerre.html
 ///
@@ -804,8 +797,7 @@ pub fn eval_genlaguerre<N, Z: LaguerreArg<N>>(n: N, alpha: f64, z: Z) -> Z {
 
 /// Evaluate Laguerre polynomial $L_n$ at a point
 ///
-/// This is a translation of the [`scipy.special.eval_laguerre`][lag] Cython implementation
-/// into Rust.
+/// Corresponds to [`scipy.special.eval_laguerre`][lag], and `xsf::eval_laguerre`.
 ///
 /// [lag]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_laguerre.html
 ///
@@ -948,7 +940,7 @@ impl HermiteArg<f64> for f64 {
 }
 
 impl HermiteArg<u32> for f64 {
-    /// Corresponds to `eval_hermitenorm` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_hermitenorm`
     #[inline]
     fn eval_hermite_he(self, n: u32) -> f64 {
         if self.is_nan() {
@@ -962,7 +954,7 @@ impl HermiteArg<u32> for f64 {
         }
     }
 
-    /// Corresponds to `eval_hermite` in `scipy/special/orthogonal_eval.pxd`
+    /// Corresponds to `xsf::detail::eval_hermite`
     #[inline]
     fn eval_hermite_h(self, n: u32) -> f64 {
         (f64::from(n) / 2.0).exp2() * (SQRT_2 * self).eval_hermite_he(n)
@@ -971,8 +963,8 @@ impl HermiteArg<u32> for f64 {
 
 /// Evaluate probabilists' (normalized) Hermite polynomial $He_n(x)$ at a point
 ///
-/// This is a translation of the [`scipy.special.eval_hermitenorm`][docs] Cython implementation
-/// into Rust, with additional support for non-integer $n$.
+/// Corresponds to [`scipy.special.eval_hermitenorm`][docs], and `xsf::eval_hermitenorm`, but
+/// also supports non-integer $n$.
 ///
 /// `n` can be either `u32` or `f64`.
 ///
@@ -1010,8 +1002,8 @@ where
 
 /// Evaluate physicists' Hermite polynomial $H_n(x)$ at a point
 ///
-/// This is a translation of the [`scipy.special.eval_hermite`][docs] Cython implementation
-/// into Rust, with additional support for non-integer $n$.
+/// Corresponds to [`scipy.special.eval_hermite`][docs], and `xsf::eval_hermite`, but also supports
+/// non-integer $n$.
 ///
 /// `n` can be either `u32` or `f64`.
 ///
