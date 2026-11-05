@@ -130,6 +130,11 @@ fn rescale_exp(x: f64) -> Option<i32> {
     (x != 0.0 && x.is_finite() && !(1.0 / big..=big).contains(&x)).then(|| x.log2().round() as i32)
 }
 
+/// Whether `2^-250 <= |f| <= 2^250`
+fn tame(f: f64) -> bool {
+    (2.0_f64.powi(-250)..=2.0_f64.powi(250)).contains(&f.abs())
+}
+
 /// `v + k`, rounded to `f64` (if `v` is a double, `v.hi + k` is the same, and faster)
 fn add_hi(v: Dd, k: f64) -> f64 {
     if v.lo == 0.0 { v.hi + k } else { (v + k).hi }
@@ -167,24 +172,37 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     let (mut pk, mut rk) = (p.hi, r.hi);
     let (mut f0, mut f1) = (pk, rk / c.hi);
     loop {
-        // Multiply by the two factors separately, with `|t|` in `[2^-500, 2^500]`, or in `[1, 2)`
-        // if a factor is outside that range, so that the product can't underflow (e.g. for tiny p
-        // and r), and fail if a factor underflows, or a factor or the product overflows.
-        for (f, num) in [(f0, pk), (f1 * w, rk)] {
-            if !f.is_finite() || f.abs() < f64::MIN_POSITIVE && num != 0.0 {
-                return None;
+        let fw = f1 * w;
+        if tame(f0) && tame(fw) {
+            // The usual case: `|t|` is 0 or within `[2^-500, 2^500]`, so `|t f0|` and `|t f0 fw|`
+            // are 0 or within `[2^-1000, 2^1000]`, and `t` need only be rescaled once, which gives
+            // the same `t 2^te` (as long as the values are normal, scaling by powers of 2 doesn't
+            // change the rounding).
+            t = t * f0 * fw;
+        } else {
+            // Multiply by the two factors separately, with `|t|` in `[2^-500, 2^500]`, or in
+            // `[1, 2)` if a factor is outside that range, so that the product can't underflow (e.g.
+            // for tiny p and r), and fail if a factor underflows, or a factor or the product
+            // overflows.
+            for (f, num) in [(f0, pk), (fw, rk)] {
+                if !f.is_finite() || f.abs() < f64::MIN_POSITIVE && num != 0.0 {
+                    return None;
+                }
+                if t != 0.0 && rescale_exp(f).is_some() {
+                    let (m, s) = frexp_f64(t);
+                    (t, te) = (2.0 * m, te + s - 1);
+                }
+                t *= f;
+                if !t.is_finite() {
+                    return None;
+                }
+                if let Some(s) = rescale_exp(t) {
+                    (t, te) = (ldexp_f64(t, -s), te + s);
+                }
             }
-            if t != 0.0 && rescale_exp(f).is_some() {
-                let (m, s) = frexp_f64(t);
-                (t, te) = (2.0 * m, te + s - 1);
-            }
-            t *= f;
-            if !t.is_finite() {
-                return None;
-            }
-            if let Some(s) = rescale_exp(t) {
-                (t, te) = (ldexp_f64(t, -s), te + s);
-            }
+        }
+        if let Some(s) = rescale_exp(t) {
+            (t, te) = (ldexp_f64(t, -s), te + s);
         }
         let term = if te == 0 { t } else { ldexp_f64(t, te) };
         k += 1.0;
