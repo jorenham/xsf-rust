@@ -19,7 +19,7 @@ fn test_hypu_tiny_a() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 5e-16);
 
-    // Arb; 144726 in xsf for a = 1e-15
+    // Arb (scipy/xsf#436)
     let abx = [
         (1e-20, 0.5, 50.0),
         (1e-15, 0.5, 50.0),
