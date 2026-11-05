@@ -11,8 +11,8 @@ either the exact function value, or a `(value, scale)` tuple. With a scale, the 
 relative error is meaningless near the zeros (see `NOTES`).
 
 Where mpmath is known to be inaccurate or slow, the references use alternative formulas, e.g.
-a direct Euler-Maclaurin sum for the Hurwitz zeta function, quadrature for `expn`, the power
-series for `gammainc` with large `a`, and a continued fraction for `betainc`. The references of
+a direct Euler-Maclaurin sum for the Hurwitz zeta function, quadrature for `expn`, Arb for
+`gammainc` and `gammaincc`, and a continued fraction for `betainc`. The references of
 inverse functions find the root of the reference of the function itself (see `_invert`).
 """
 
@@ -591,7 +591,7 @@ def r_expn(n, x):
 
 
 def _gammainc_series(a, x):
-    """P(a, x) via the power series (DLMF 8.11.4); mpmath does not converge for a > 1e5."""
+    """P(a, x) via the power series (DLMF 8.11.4)."""
     with wdps(xd(a, x) * 2):
         t = s = mp.mpf(1)
         k = 0
@@ -602,18 +602,26 @@ def _gammainc_series(a, x):
         return mp.exp(a * mp.log(x) - x - mp.loggamma(a + 1)) * s
 
 
+def _gammainc_pq(a, x, upper):
+    """P(a, x) or Q(a, x), to the mpmath precision: Q with Arb, and P as 1 - Q, or where P is
+    too small for that, with the series (Arb's P is wrong for large a and x < a)."""
+    # 1 - Q for P down to 2^(-15 mp.prec), i.e. about 1e-760 at 50 digits
+    for k in (2, 4, 8, 16):
+        with flint.ctx.workprec(k * mp.mp.prec):
+            q = flint.arb(x).gamma_upper(flint.arb(a), regularized=1)
+            y = q if upper else 1 - q
+            if y.rel_accuracy_bits() >= mp.mp.prec:
+                return mp.mpf(y.mid())
+    assert not upper, (a, x)
+    return _gammainc_series(a, x)
+
+
 def r_gammainc(a, x):
-    if a > 1e5:
-        return _gammainc_series(a, x)
-    with wdps(xd(a, x) * 2):
-        return mp.gammainc(a, 0, x, regularized=True)
+    return _gammainc_pq(a, x, False)
 
 
 def r_gammaincc(a, x):
-    with wdps(xd(a, x) * 2):
-        if a > 1e5:
-            return 1 - _gammainc_series(a, x)
-        return mp.gammainc(a, x, mp.inf, regularized=True)
+    return _gammainc_pq(a, x, True)
 
 
 def _cf_betainc(a, b, x, y):
@@ -1605,35 +1613,6 @@ def r_fresnel_c(x):
 
 
 # ---------------------------------------------------------------- inverse incomplete gamma, beta
-
-
-def _gammaincc_cf(a, x):
-    """Q(a, x) for x > a, via the modified Lentz continued fraction for Gamma(a, x)."""
-    tiny = mp.mpf(10) ** (-2 * mp.mp.dps)
-    b = x + 1 - a
-    c, d = 1 / tiny, 1 / b
-    h, i = d, 0
-    while True:
-        i += 1
-        an, b = -i * (i - a), b + 2
-        d = an * d + b
-        d = tiny if abs(d) < tiny else d
-        c = b + an / c
-        c = tiny if abs(c) < tiny else c
-        d = 1 / d
-        h *= d * c
-        if abs(d * c - 1) < mp.eps:
-            return mp.exp(-x + a * mp.log(x) - mp.loggamma(a)) * h
-
-
-def _gammainc_pq(a, x, upper):
-    """P(a, x) or Q(a, x), also where mpmath does not converge."""
-    try:
-        return r_gammaincc(a, x) if upper else r_gammainc(a, x)
-    except NoConvergence, ValueError:
-        with wdps(xd(a, x) * 2):
-            q = _gammaincc_cf(a, x)
-            return q if upper else 1 - q
 
 
 def r_gammaincinv(a, p):
