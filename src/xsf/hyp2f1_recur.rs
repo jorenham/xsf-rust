@@ -205,16 +205,17 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
 ///   direction of the recurrence, and large if it is the minimal one.
 /// - The Casoratian `W_k = y_k g_(k+1) - y_(k+1) g_k` satisfies `C_k W_k = A_k W_(k-1)`, so
 ///   `d_(k-1) / d_k = C_k / A_k * y_(k+1) / y_(k-1)`.
-/// - The sum over `m` of `|t_m| |d_0 + ... + d_m| / |d_m|` is at most the sum over `j` of
-///   `|d_j| T_j`, with `T_j` the sum over `m >= j` of `|t_m| / |d_m|`, which we accumulate on the
-///   way down. The errors of `y_n` and `y_(n+1)` act like `t_n`.
+/// - So `u_m = (d_0 + ... + d_m) / d_m` satisfies `u_0 = 1` and `u_m = 1 + u_(m-1) d_(m-1) / d_m`,
+///   which we evaluate on the way back up. The bound is the sum of `|t_m u_m|`, plus the errors
+///   of `y_n` and `y_(n+1)` times `|u_n|` and `|1 - u_n|`.
+/// - Where `y` oscillates in `k`, the `d_k` change sign, and `|u_m|` can stay small, while
+///   `(|d_0| + ... + |d_m|) / |d_m|` (which could be accumulated on the way down) grows like `m`.
 #[allow(clippy::many_single_char_names)]
 fn recur_down(p: Dd, q: Dd, c: Dd, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) -> Option<Scaled> {
     // y_(k+1) and y_k, scaled by 2^-e
     let (mut y1, mut y0, mut e) = (ldexp_f64(y_n1.m, y_n1.e - y_n.e), y_n.m, y_n.e);
-    // d_k (scaled), T_k (scaled inversely), and the error estimate
-    let (mut d, mut t_sum) = (1.0_f64, y_n.err + y_n1.err);
-    let mut err = t_sum;
+    // `t_(k-1)` and `d_(k-1) / d_k`, for the error bound
+    let mut steps = Vec::with_capacity(n as usize);
     for k in (1..=n).rev() {
         // (C - 1, C - p and C - q are computed from c, since they can be tiny)
         let (cc, cc1) = (add_hi(c, f64::from(k)), add_hi(c, f64::from(k - 1)));
@@ -235,23 +236,25 @@ fn recur_down(p: Dd, q: Dd, c: Dd, z: f64, n: u32, y_n: Scaled, y_n1: Scaled) ->
         let t_m = MACHEP * (6.0 * (t0.abs() + t1.abs()) + 5.0 * (err_b * y0).abs())
             / (coef_a * ym).abs()
             + 6.0 * MACHEP;
-        d *= coef_c / coef_a * (y1 / ym);
-        t_sum += t_m / d.abs();
-        err += d.abs() * t_sum;
+        // d_(k-1) / d_k, which is 0 if C_k = 0, where the Casoratian vanishes
+        let rho = coef_c / coef_a * (y1 / ym);
+        if rho == 0.0 || !rho.is_finite() {
+            return None;
+        }
+        steps.push((t_m, rho));
         (y1, y0) = (y0, ym);
         if let Some(s) = rescale_exp(y0) {
             (y0, y1) = (ldexp_f64(y0, -s), ldexp_f64(y1, -s));
             e += s;
         }
-        if let Some(s) = rescale_exp(d) {
-            // (this leaves |d| T, and so `err`, unchanged)
-            (d, t_sum) = (ldexp_f64(d, -s), ldexp_f64(t_sum, s));
-        }
-        if !err.is_finite() {
-            return None;
-        }
     }
-    Some(Scaled { m: y0, e, err })
+    let (mut u, mut err) = (1.0_f64, 0.0);
+    for (t_m, rho) in steps.into_iter().rev() {
+        err += t_m * u.abs();
+        u = 1.0 + u * rho;
+    }
+    err += y_n.err * u.abs() + y_n1.err * (1.0 - u).abs();
+    err.is_finite().then_some(Scaled { m: y0, e, err })
 }
 
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
@@ -477,7 +480,16 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::hyp2f1_recur;
+    use super::{Dd, Scaled, hyp2f1_recur, recur_down};
+
+    #[test]
+    fn test_recur_down_start_errors() {
+        // y_0 = y_2 / 8 (as B_1 = 0), so the error of y_2 carries over, although u_1 = 0
+        let y = |m, err| Scaled { m, e: 0, err };
+        let (p, q, c) = (Dd::new(3.5), Dd::new(1.5), Dd::new(1.0));
+        let y_0 = recur_down(p, q, c, -0.5, 1, y(0.5, 0.0), y(0.8, 1e-6)).unwrap();
+        assert!((y_0.m - 0.1).abs() < 1e-15 && y_0.err >= 1e-6, "{y_0:?}");
+    }
 
     #[test]
     fn test_hyp2f1_recur_overflow() {

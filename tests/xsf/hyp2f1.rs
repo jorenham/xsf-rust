@@ -256,4 +256,13 @@ fn test_hyp2f1_f64_large_parameters() {
         304_675.781_003_058_8,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // long recurrences, whose solutions oscillate in c (references: Arb), e.g. 1.6e617 overflows
+    let actual = [
+        xsf::hyp2f1(-522.3, -123.4, 533.9, -0.9),
+        xsf::hyp2f1(-552.3, -953.1, -55.5, -4.13),
+        xsf::hyp2f1(-679.9, -678.6, -28.7, -4.79),
+    ];
+    let desired = [5.957_219_702_847_165e-52, f64::INFINITY, f64::NEG_INFINITY];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
