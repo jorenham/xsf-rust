@@ -266,3 +266,16 @@ fn test_hyp2f1_f64_large_parameters() {
     let desired = [5.957_219_702_847_165e-52, f64::INFINITY, f64::NEG_INFINITY];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
+
+#[test]
+fn test_hyp2f1_f64_large_opposite_signs() {
+    // unlike in xsf: the 1 - x transformation if 0 < x < 1, and the 1/(1 - x) transformation if
+    // x < 0 (with a and b of the same sign then), where the Pfaff and Euler forms cancel
+    // (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-975.2, 241.4, 0.00135, 0.39),
+        xsf::hyp2f1(-880.55, -75.65, 0.091, -0.472),
+    ];
+    let desired = [-1.469_500_580_590_125_3e-75, 8.556_925_324_233_141e83];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}

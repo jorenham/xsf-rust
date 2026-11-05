@@ -38,14 +38,21 @@
 //!    4 combinations if its error bound (incl. the cancellation of its two terms) exceeds
 //!    `HYP2F1_ETHRESH`.
 //!
-//! 5. Return the result with the smallest error bound, or `None` if that exceeds
+//! 5. If `x >= -1` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
+//!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
+//!    `(1 - x)^-b F(c - a, b; c; x / (x - 1))` if `0 < x < 1` (i.e. the 1 - x transformation,
+//!    DLMF 15.8.4). Its series are in `w = 1 / (1 - x)` or `w = 1 - x`. The 4 combinations can
+//!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
+//!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
+//!
+//! 6. Return the result with the smallest error bound, or `None` if that exceeds
 //!    `HYP2F1_RECUR_TOL`, for the caller to fall back to another method.
 //!
 //! Some details:
 //!
 //! - The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and
 //!   `c` is tiny, and `(1 - x)^s` is computed in double-double, since `|s ln(1 - x)|` can be large.
-//!   For the same reason, the `ln Gamma` of step 4 are computed in double-double for large
+//!   For the same reason, the `ln Gamma` of steps 4 and 5 are computed in double-double for large
 //!   arguments.
 //! - The series and the recurrence keep their values as `m * 2^e`, to avoid overflow and
 //!   underflow.
@@ -295,7 +302,7 @@ fn neg_z_combinations(a: Dd, b: Dd, c: Dd) -> [(Dd, Dd, Dd); 4] {
 }
 
 /// The one of `combinations` `(p, q, s)` (step 1) with the smallest error bound (steps 2, 3 and
-/// 5), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
+/// 6), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
 fn best_combination(
     mut combinations: [(Dd, Dd, Dd); 4],
     c: Dd,
@@ -380,11 +387,12 @@ fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
     Some((Dd::new(v) + dpsi, f64::from(sign), err))
 }
 
-/// `F(a, b; c; x)` for `x < -1` by the 1/x transformation (step 4), as `(y, l)` with the value
-/// `y exp(l)`; see <https://dlmf.nist.gov/15.8.E2>:
+/// `F(a, b; c; t)` for `t < 0` by the 1/t transformation (steps 4 and 5), as `(y, l)` with the
+/// value `y exp(l)`, where `t = x` if `x < 0`, and `t = x / (x - 1)` if `0 < x < 1`; see
+/// <https://dlmf.nist.gov/15.8.E2>:
 ///
 /// ```text
-/// F(a, b; c; x) = G(a, b) (-x)^-a F(a, a - c + 1; a - b + 1; 1/x) + G(b, a) (-x)^-b F(b, ...)
+/// F(a, b; c; t) = G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t) + G(b, a) (-t)^-b F(b, ...)
 /// G(a, b) = Gamma(c) Gamma(b - a) / (Gamma(b) Gamma(c - a))
 /// ```
 ///
@@ -392,14 +400,18 @@ fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
 /// arguments), and the cancellation of the two terms. It fails if `b - a` is an integer (a pole
 /// of `G`), and its bound is large if `b - a` is close to one.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
-    // 1/x, and w = (1/x) / (1/x - 1) = 1 / (1 - x)
-    let (z, w) = (1.0 / x, Dd::new(1.0) / (Dd::new(1.0) - x));
-    let ln_mx = ln_dd(Dd::new(-x));
-    // ln(1 - 1/x) = ln(1 - x) - ln(-x)
-    let ln_1mz = ln_dd(Dd::new(1.0) - x) - ln_mx;
+    let one = Dd::new(1.0);
+    let (ln_x, ln_1mx) = (ln_dd(Dd::new(x.abs())), ln_dd(one - x));
+    // 1/t, w = (1/t) / (1/t - 1) = 1 / (1 - t), ln(-t), and ln(1 - 1/t), computed from x, since
+    // e.g. w = 1 - x if 0 < x < 1
+    let (z, w, ln_mt, ln_1mz) = if x < 0.0 {
+        (1.0 / x, one / (one - x), ln_x, ln_1mx - ln_x)
+    } else {
+        ((x - 1.0) / x, one - x, ln_x - ln_1mx, -ln_x)
+    };
     // (sign, y, l) of a term `sign y exp(l)`, and the error bound of its `ln Gamma`
     let term = |a: Dd, b: Dd| {
-        // F(p, q; cc; 1/x)
+        // F(p, q; cc; 1/t)
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
         let (y, l) = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
         let (mut sign, mut ln_g, mut ln_g_err) = (1.0, Dd::new(0.0), 0.0);
@@ -407,7 +419,7 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
             let (v, sg, err) = ln_gamma(g)?;
             (ln_g, sign, ln_g_err) = (ln_g + v * power, sign * sg, ln_g_err + err);
         }
-        Some((sign, y, l - a * ln_mx + ln_g, ln_g_err))
+        Some((sign, y, l - a * ln_mt + ln_g, ln_g_err))
     };
     let ((s1, y1, l1, g1), (s2, y2, l2, g2)) = (term(a, b)?, term(b, a)?);
     // the two terms, scaled by `exp(-lmax)`, with `lmax` the larger exponent
@@ -453,16 +465,28 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     } else {
         None
     };
+    // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `log` is accurate)
+    let ln_1mx = (Dd::new(1.0) - x).log();
     let best = if recip.is_some_and(|(y, _)| y.err <= HYP2F1_ETHRESH) {
         recip
     } else {
-        // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `log` is accurate)
-        let ln_1mx = (Dd::new(1.0) - x).log();
         min_err(
             best_combination(combinations, c, z, w, ln_1mx),
             recip,
             |y| y.0.err,
         )
+    };
+    // If that fails for x >= -1, also try the 1/t transformation (step 5).
+    let best = if x >= -1.0 && !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
+        let recip = if x < 0.0 {
+            hyp2f1_recip(a, b, c, x)
+        } else {
+            // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
+            hyp2f1_recip(c - a, b, c, x).map(|(y, l)| (y, l - b * ln_1mx))
+        };
+        min_err(best, recip, |y| y.0.err)
+    } else {
+        best
     };
     let (y, l) = best?;
     if !(y.err <= HYP2F1_RECUR_TOL) {
