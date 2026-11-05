@@ -326,6 +326,13 @@ fn test_pbdv_pbvv_v_rounding() {
 }
 
 #[test]
+fn test_pbdv_pbvv_neg_zero_v() {
+    // scipy/xsf#418
+    assert_eq!(xsf::pbdv(-0.0, 52.0), xsf::pbdv(0.0, 52.0));
+    assert_eq!(xsf::pbvv(-0.0, 5.0), xsf::pbvv(0.0, 5.0));
+}
+
+#[test]
 fn test_pbvv_extreme() {
     // v >= 0 and 7.5 < |x| <= 10, and v near an integer (reference values from mpmath)
     for (v, x, w, wp) in [
