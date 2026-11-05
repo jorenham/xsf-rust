@@ -1,8 +1,7 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@65d313a).
+//! (scipy/xsf@86be599).
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
-//! (scipy/xsf#350).
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use core::f64::consts::PI;
 use core::ops::Mul;
@@ -1087,6 +1086,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // Unlike in xsf (scipy/xsf#380), the error estimate is relative to min(|sum|, 1), and
         // includes the rounding of the largest term
         //
+        // Unlike in xsf (scipy/xsf#430), a last term of 0 needs no special case
+        //
         // NOTE: the `int` conversion is UB in C++ if the estimate is not finite; here it
         // saturates (0 for NaN).
         *id = (-(ra.max(rmax * 1e-15) / hu.abs().min(1.0)).log10()) as i32;
@@ -1148,8 +1149,10 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
+    // Unlike in xsf, the r1 terms use a + (j - 1) instead of a + j - 1, which loses the digits of a
+    // for j = 1 (e.g. it is 0 for a = 1e-20)
     for j in 1..151 {
-        r1 = r1 * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
+        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
         s1 += r1;
@@ -1180,7 +1183,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         let mut rmax = (r1 - r2).abs();
         let mut j = 151.0;
         while j <= jconv && j <= 300.0 {
-            r1 = r1 * (a + j - 1.0) / (j * (b + j - 1.0)) * x;
+            r1 = r1 * (a + (j - 1.0)) / (j * (b + j - 1.0)) * x;
             rmax = rmax.max(r1.abs());
             j += 1.0;
         }

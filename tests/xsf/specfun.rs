@@ -9,8 +9,26 @@ fn test_hypu() {
 
 #[test]
 fn test_hypu_tiny_a() {
-    // NaN in xsf, because of an undefined `int` conversion
-    assert_eq!(xsf::hypu(1e-17, 0.5, 100.0), 1.0);
+    // mpmath (scipy/xsf#350)
+    let abx = [
+        (1e-17, 0.5, 100.0),
+        (-1e-17, 0.5, 100.0),
+        (-1.0 + f64::EPSILON / 2.0, 0.5, 200.0),
+    ];
+    let expected = [1.0, 1.0, 199.499_999_999_999_9];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-16);
+
+    // Arb; 144726 in xsf for a = 1e-15
+    let abx = [
+        (1e-20, 0.5, 50.0),
+        (1e-15, 0.5, 50.0),
+        (1e-20, 0.5, 40.0),
+        (-1e-20, -0.5, 30.0),
+    ];
+    let expected = [1.0, 0.999_999_999_999_996_1, 1.0, 1.0];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 }
 
 #[test]
