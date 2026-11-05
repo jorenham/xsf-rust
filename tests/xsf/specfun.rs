@@ -304,8 +304,7 @@ fn test_hyp1f1_complex_large_a() {
 
 #[test]
 fn test_hyp1f1_complex_asymptotic() {
-    // mpmath; in xsf these have a relative error of 0.13, 2.4e-5, and 4.9e-6 (and ~1e-8 here,
-    // because the asymptotic expansion is truncated)
+    // mpmath; scipy/xsf#398 (~1e-8 because the asymptotic expansion is truncated)
     let abz = [
         (0.5, 1.5, c64(5.0, -25.0)),
         (1.25, 2.5, c64(-11.0, 20.0)),

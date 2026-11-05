@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`bd9efcc`](https://github.com/scipy/xsf/tree/bd9efccce7f9a6e558e0f3b1f16fce4784e77002)), and
+it is translated from (commit [`65d313a`](https://github.com/scipy/xsf/tree/65d313a31a340c23a6d4f28e0df0743a436b5ac0)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -835,7 +835,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>exp1</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>7.9e-13</samp></td><td align="right" nowrap><samp>2.2e-14</samp></td><td align="right" nowrap><samp>7.9e-13</samp></td><td align="right" nowrap><samp>2.2e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>expi</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
 <tr><td><code>lambertw</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap><samp>5.9e-17</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap><samp>5.9e-17</samp></td><td align="right" nowrap>99.9%</td></tr>
-<tr><td><code>hyp1f1</code></td><td>a, b ∈ [−10, 10]<br>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>7.6e-09</samp></b></td><td align="right" nowrap><b><samp>3.0e-10</samp></b></td><td align="right" nowrap><samp>1.9e-05</samp></td><td align="right" nowrap><samp>4.2e-07</samp></td><td align="right" nowrap>98.7%</td></tr>
+<tr><td><code>hyp1f1</code></td><td>a, b ∈ [−10, 10]<br>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>7.6e-09</samp></b></td><td align="right" nowrap><b><samp>3.0e-10</samp></b></td><td align="right" nowrap><samp>8.3e-08</samp></td><td align="right" nowrap><samp>2.3e-09</samp></td><td align="right" nowrap>99.2%</td></tr>
 <tr><td><code>hyp2f1</code></td><td>a, b, c ∈ [−5, 5]<br>Re z, Im z ∈ [−2, 2]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>9.3e-13</samp></b></td><td align="right" nowrap><b><samp>2.4e-14</samp></b></td><td align="right" nowrap><samp>3.1e-03</samp></td><td align="right" nowrap><samp>8.3e-05</samp></td><td align="right" nowrap>74.1%</td></tr>
 <tr><td><code>bessel_j</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>5.0e-14</samp></td><td align="right" nowrap><samp>5.6e-15</samp></td><td align="right" nowrap><samp>5.0e-14</samp></td><td align="right" nowrap><samp>5.6e-15</samp></td><td align="right" nowrap>99.9%</td></tr>
 <tr><td><code>bessel_y</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>5.8e-14</samp></td><td align="right" nowrap><samp>5.8e-15</samp></td><td align="right" nowrap><samp>5.8e-14</samp></td><td align="right" nowrap><samp>5.8e-15</samp></td><td align="right" nowrap>99.9%</td></tr>
