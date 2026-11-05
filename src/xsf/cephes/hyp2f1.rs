@@ -17,6 +17,7 @@
 //! `c - b` is close to a negative integer.
 
 use crate::utils::MACHEP;
+use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};
 use crate::xsf::hyp2f1_recur;
 
@@ -618,16 +619,19 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
 
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
-    // excludes the polynomial cases (incl. c - a or c - b a non-positive integer), and c a
-    // non-positive integer. The transformations below also use it, but only if the parameters of
-    // the outermost call are large, so that the other results are unchanged.
+    // excludes c a non-positive integer, and a, b, c - a and c - b close to but not exactly one
+    // (which the code below treats as one). The transformations below also use it, but only if the
+    // parameters of the outermost call are large, so that the other results are unchanged.
     //
     // E.g. hyp2f1(658.99, 0.0047, 51.38, -2.72) was NaN instead of 0.983.
+    let inexact_neg_int = |t: Dd| near_neg_int(t.hi) && (t.lo != 0.0 || t.hi.fract() != 0.0);
     if recur
         && x < 0.9
         && is_large(a, b, c)
-        && ![c, c - a, c - b].into_iter().any(near_neg_int)
-        && !(neg_int_a || neg_int_b)
+        && !near_neg_int(c)
+        && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
+            .into_iter()
+            .any(inexact_neg_int)
     {
         if let Some(y) = hyp2f1_recur(a, b, c, x) {
             return y;
