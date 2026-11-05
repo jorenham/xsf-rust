@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cosine.h` (scipy/xsf@09c93c7): translated into C++ by the
-//! xsf developers in 2026, original author: Warren Weckesser, 2021.
+//! Translated into pure Rust from `xsf/cosine.h` (scipy/xsf@09c93c7). Original author: Warren
+//! Weckesser, 2021.
 
 use crate::xsf::cephes::polevl::polevl;
 

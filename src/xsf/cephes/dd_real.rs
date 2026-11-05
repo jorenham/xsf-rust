@@ -1,9 +1,8 @@
 //! The subset of `xsf/cephes/dd_real.h` (scipy/xsf@09c93c7) that is needed by the complex `log1p`,
 //! `smirnov`, and `iv_ratio_c`.
 //!
-//! Translated into C++ by SciPy developers in 2024. The parts of the qd double-double floating
-//! point package used in SciPy have been reworked in a more modern C++ style using operator
-//! overloading. Original header:
+//! The parts of the qd double-double floating point package used in SciPy have been reworked in a
+//! more modern C++ style using operator overloading. Original header:
 //!
 //! > This work was supported by the Director, Office of Science, Division of Mathematical,
 //! > Information, and Computational Sciences of the U.S. Department of Energy under contract

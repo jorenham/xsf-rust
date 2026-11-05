@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/evalpoly.h` (scipy/xsf@09c93c7): translated from Cython into
-//! C++ by SciPy developers in 2024, original author: Josh Wilson, 2016.
+//! Translated into pure Rust from `xsf/evalpoly.h` (scipy/xsf@09c93c7). Original author: Josh
+//! Wilson, 2016.
 //!
 //! References
 //! ----------

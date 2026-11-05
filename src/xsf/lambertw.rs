@@ -1,6 +1,5 @@
 //! Translated into pure Rust from `xsf/lambertw.h` (scipy/xsf@09c93c7).
 //!
-//! Complex version translated from Cython into C++ by SciPy developers in 2023.
 //! Original header with Copyright information appears below.
 //!
 //! Implementation of the Lambert W function \[1\]. Based on MPMath

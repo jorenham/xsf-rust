@@ -1,12 +1,9 @@
 //! Translated into pure Rust from xsf (scipy/xsf@e58388a):
 //!
-//! - `xsf/trig.h`: translated from Cython into C++ by SciPy developers in 2023, original author:
-//!   Josh Wilson, 2016.
-//! - `xsf/cephes/trig.h`: translated into C++ by SciPy developers in 2024, original author: Josh
-//!   Wilson, 2020.
-//! - `xsf/cephes/sindg.h`, `xsf/cephes/tandg.h`, and `xsf/cephes/unity.h`: translated into C++ by
-//!   SciPy developers in 2024 from the Cephes Math Library Release 2.0 (April, 1987),
-//!   Copyright 1984, 1987 by Stephen L. Moshier.
+//! - `xsf/trig.h`: original author: Josh Wilson, 2016.
+//! - `xsf/cephes/trig.h`: original author: Josh Wilson, 2020.
+//! - `xsf/cephes/sindg.h`, `xsf/cephes/tandg.h`, and `xsf/cephes/unity.h`: from the Cephes Math
+//!   Library Release 2.0 (April, 1987), Copyright 1984, 1987 by Stephen L. Moshier.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 

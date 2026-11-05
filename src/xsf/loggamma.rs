@@ -1,6 +1,5 @@
-//! Translated into pure Rust from `xsf/loggamma.h` and `xsf/zlog1.h` (scipy/xsf@f2a68ec), which
-//! were translated from Cython into C++ by SciPy developers in 2024 and 2023, respectively.
-//! Original header comment appears below.
+//! Translated into pure Rust from `xsf/loggamma.h` and `xsf/zlog1.h` (scipy/xsf@f2a68ec). Original
+//! header comment appears below.
 //!
 //! An implementation of the principal branch of the logarithm of
 //! Gamma. Also contains implementations of Gamma and 1/Gamma which are

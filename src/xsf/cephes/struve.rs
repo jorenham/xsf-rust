@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/struve.h` (scipy/xsf@8d3b0a3), which was translated
-//! into C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/struve.h` (scipy/xsf@8d3b0a3). Original header
+//! comment appears below.
 //!
 //! Compute the Struve function.
 //!
