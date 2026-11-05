@@ -180,6 +180,7 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     } else {
         // The previous branch (v > 0.5) also works for v == 0.5, but
         // the closed-form formula "1 - tanh(x)" is more efficient.
+        // Unlike in xsf (scipy/xsf#211), this doesn't use `2 * expit(-2 * x)`.
         let t = (-2.0 * x).exp();
         (2.0 * t) / (1.0 + t)
     }
