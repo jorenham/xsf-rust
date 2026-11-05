@@ -1149,8 +1149,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
-    // Unlike in xsf, the r1 terms use a + (j - 1) instead of a + j - 1, which loses the digits of a
-    // for j = 1 (e.g. it is 0 for a = 1e-20)
+    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1
     for j in 1..151 {
         r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
