@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cdflib.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/cdflib.h` (scipy/xsf@09c93c7).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -14,7 +14,7 @@ use crate::xsf::tools::{bracket_root_for_cdf_inversion, find_root_chandrupatla};
 
 /// Inverse of [`gdtr`](crate::gdtr) with respect to `a`
 ///
-/// Corresponds to [`scipy.special.gdtria`][gdtria], and `xsf::gdtria` in xsf main.
+/// Corresponds to [`scipy.special.gdtria`][gdtria], and `xsf::gdtria`.
 ///
 /// [gdtria]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtria.html
 ///
@@ -40,7 +40,7 @@ pub fn gdtria(p: f64, b: f64, x: f64) -> f64 {
 
 /// Inverse of [`gdtr`](crate::gdtr) with respect to `x`
 ///
-/// Corresponds to [`scipy.special.gdtrix`][gdtrix], and `xsf::gdtrix` in xsf main.
+/// Corresponds to [`scipy.special.gdtrix`][gdtrix], and `xsf::gdtrix`.
 ///
 /// [gdtrix]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gdtrix.html
 ///

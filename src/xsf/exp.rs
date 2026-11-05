@@ -1,6 +1,6 @@
 //! `expm1`, `exp2`, and `exp10`: these use the implementations from the Rust standard library,
 //! which (at least on Linux) are more accurate than the Cephes ones in xsf. Only the complex
-//! `expm1` is translated into pure Rust from `xsf/exp.h` (xsf v0.2.2).
+//! `expm1` is translated into pure Rust from `xsf/exp.h` (scipy/xsf@b1eb270).
 
 use num_complex::Complex;
 

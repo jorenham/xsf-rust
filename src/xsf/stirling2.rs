@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/stirling2.h` (xsf main).
+//! Translated into pure Rust from `xsf/stirling2.h` (scipy/xsf@09c93c7).
 //!
 //! Stirling numbers of the second kind
 //!

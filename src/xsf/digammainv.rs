@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/digammainv.h` (xsf main).
+//! Translated into pure Rust from `xsf/digammainv.h` (scipy/xsf@aed2682).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
@@ -41,7 +41,7 @@ fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
 /// Computes $x > 0$ such that $\psi(x) = y$, where $\psi$ is the [`digamma`](crate::digamma)
 /// function, using Newton-Raphson iteration with an initial guess from Minka (2000) \[1\].
 ///
-/// Corresponds to `xsf::digammainv` in xsf main.
+/// Corresponds to `xsf::digammainv`.
 ///
 /// \[1\] T. Minka, "Estimating a Dirichlet distribution", 2000. Appendix C
 ///     <https://tminka.github.io/papers/dirichlet/minka-dirichlet.pdf>

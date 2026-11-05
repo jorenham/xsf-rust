@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/ellint_argcheck.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/ellint_argcheck.hh` (scipy/xsf@d5182c3).
 
 use core::num::FpCategory;
 

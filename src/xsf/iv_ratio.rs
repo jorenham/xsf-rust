@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/iv_ratio.h` (xsf v0.2.2, and `iv_ratioinv` from xsf main).
+//! Translated into pure Rust from `xsf/iv_ratio.h` (scipy/xsf@527cef1).
 //!
 //! Numerically stable computation of iv(v, x) / iv(v-1, x) and its inverse
 //!
@@ -180,6 +180,7 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     } else {
         // The previous branch (v > 0.5) also works for v == 0.5, but
         // the closed-form formula "1 - tanh(x)" is more efficient.
+        // Unlike in xsf (scipy/xsf#211), this doesn't use `2 * expit(-2 * x)`.
         let t = (-2.0 * x).exp();
         (2.0 * t) / (1.0 + t)
     }
@@ -189,7 +190,7 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
 ///
 /// Compute x such that `iv(v,x)/iv(v-1,x) = r` for v >= 0.5 and 0 <= r <= 1.
 ///
-/// Corresponds to `xsf::iv_ratioinv` in xsf main.
+/// Corresponds to `xsf::iv_ratioinv`.
 ///
 /// # See also
 /// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)`

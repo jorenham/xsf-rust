@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/chdtr.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/chdtr.h` (scipy/xsf@f2a68ec).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1984, 1987 by Stephen L. Moshier

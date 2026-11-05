@@ -1,5 +1,5 @@
 //! Translated into pure Rust from `xsf/cephes/igam.h` and `xsf/cephes/igam_asymp_coeff.h`
-//! (xsf v0.2.2), which were translated into C++ by SciPy developers in 2024.
+//! (scipy/xsf@527cef1).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1985, 1987 by Stephen L. Moshier

@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/_rf.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/_rf.hh` (scipy/xsf@d5182c3).
 //!
 //! ```text
 //! References

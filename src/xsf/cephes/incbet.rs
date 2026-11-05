@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/incbet.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/incbet.h` (scipy/xsf@09c93c7).
 //!
 //! Cephes Math Library, Release 2.3:  March, 1995
 //! Copyright 1984, 1995 by Stephen L. Moshier
@@ -478,7 +477,7 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-/// [^CEPHES]: Cephes Math Library Release 2.3. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.3.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(
     alias = "inc_beta",

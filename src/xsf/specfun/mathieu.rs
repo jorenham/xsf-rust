@@ -1,4 +1,4 @@
-//! Mathieu functions, translated into pure Rust from `xsf/specfun/specfun.h` (xsf v0.2.2).
+//! Mathieu functions, translated into pure Rust from `xsf/specfun/specfun.h` (scipy/xsf@65d313a).
 //!
 //! The `cv0` polynomials in `q` are stored as a coefficient table (highest degree first) and
 //! evaluated with `polevl`, instead of the unrolled `if` branches in the C++ code, which evaluates

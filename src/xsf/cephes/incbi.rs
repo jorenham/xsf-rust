@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/incbi.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/incbi.h` (scipy/xsf@09c93c7).
 //!
 //! Cephes Math Library Release 2.4:  March,1996
 //! Copyright 1984, 1996 by Stephen L. Moshier
@@ -328,7 +327,7 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincinv.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-/// [^CEPHES]: Cephes Math Library Release 2.4. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.4.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(
     alias = "inc_beta_inv",

@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/rgamma.h` (xsf v0.2.2), with scipy/xsf#393 from
-//! xsf main.
+//! Translated into pure Rust from `xsf/cephes/rgamma.h` (scipy/xsf@b4cb781).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987,
 //! Copyright 1985, 1987 by Stephen L. Moshier.

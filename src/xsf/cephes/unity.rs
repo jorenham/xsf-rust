@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/unity.h` (xsf v0.2.2, with scipy/xsf#396 from xsf
-//! main), which was translated into C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/unity.h` (scipy/xsf@e58388a).
 //!
 //! Relative error approximations for function arguments near
 //! unity.

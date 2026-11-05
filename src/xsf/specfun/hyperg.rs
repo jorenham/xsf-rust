@@ -1,5 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (xsf v0.2.2, with scipy/xsf#415 from xsf main).
+//! (scipy/xsf@65d313a).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
 //! (scipy/xsf#350).
@@ -303,7 +303,7 @@ fn hyp1f1_sum<T: Term>(
 }
 
 /// Unlike in xsf (scipy/xsf#365): the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the
-/// recurrence of `eval_genlaguerre_l` in `scipy/special/orthogonal_eval.pxd`, since
+/// recurrence of `xsf::detail::eval_genlaguerre_l`, since
 /// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
 fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
     let (mut d, mut p) = (0.0, 1.0);

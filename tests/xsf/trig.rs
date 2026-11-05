@@ -306,7 +306,7 @@ fn test_sinpi_cospi_complex_large_imag() {
         }
     }
 
-    // the cases that xsf v0.2.2 got wrong
+    // the cases of scipy/xsf#308
     let z = xsf::cospi(c64(0.0, 1000.0));
     assert_eq!(
         (z.re, z.im.to_bits()),

@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/poch.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/cephes/poch.h` (scipy/xsf@09c93c7).
 //!
 //! Pochhammer symbol (a)_m = gamma(a + m) / gamma(a)
 

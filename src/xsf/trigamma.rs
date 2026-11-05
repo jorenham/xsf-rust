@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/trigamma.h` (xsf main), which is based on
+//! Translated into pure Rust from `xsf/trigamma.h` (scipy/xsf@01edf77), which is based on
 //! [SpecialFunctions.jl](https://github.com/JuliaMath/SpecialFunctions.jl):
 //!
 //! > The MIT License (MIT)

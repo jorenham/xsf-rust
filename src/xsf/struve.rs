@@ -1,5 +1,5 @@
 //! `itstruve0`, `it2struve0`, `itmodstruve0`, `struve_h`, and `struve_l` are translated into pure
-//! Rust from `xsf/struve.h` (xsf v0.2.2).
+//! Rust from `xsf/struve.h` (scipy/xsf@8dfd127).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!

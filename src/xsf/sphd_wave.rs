@@ -1,4 +1,5 @@
-//! The spheroidal wave functions are translated into pure Rust from `xsf/sphd_wave.h` (xsf v0.2.2).
+//! The spheroidal wave functions are translated into pure Rust from `xsf/sphd_wave.h`
+//! (scipy/xsf@b1eb270).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 

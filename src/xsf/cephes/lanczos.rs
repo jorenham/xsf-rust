@@ -1,5 +1,5 @@
-//! The subset of `xsf/cephes/lanczos.h` (xsf v0.2.2) that is used in Rust, translated into pure
-//! Rust.
+//! The subset of `xsf/cephes/lanczos.h` (scipy/xsf@f2a68ec) that is used in Rust, translated into
+//! pure Rust.
 //!
 //! (C) Copyright John Maddock 2006.
 //! Use, modification and distribution are subject to the

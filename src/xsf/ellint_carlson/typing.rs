@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/ellint_typing.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/ellint_typing.hh` (scipy/xsf@d5182c3).
 //!
 //! The C++ templates are generic over the real or complex floating-point type `T`, with
 //! `RT = typing::decplx_t<T>` the underlying real type. Here `T` is generic over [`Num`], which

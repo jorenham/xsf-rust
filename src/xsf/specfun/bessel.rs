@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (xsf v0.2.2).
+//! (scipy/xsf@65d313a).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 

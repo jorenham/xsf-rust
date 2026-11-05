@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cosine.h` (xsf main): translated into C++ by the xsf
-//! developers in 2026, original author: Warren Weckesser, 2021.
+//! Translated into pure Rust from `xsf/cosine.h` (scipy/xsf@09c93c7). Original author: Warren
+//! Weckesser, 2021.
 
 use crate::xsf::cephes::polevl::polevl;
 
@@ -149,7 +149,7 @@ fn cosine_invcdf_poly_approx(s: f64) -> f64 {
 ///
 /// The support is $\[-\pi, \pi\]$; this returns 0 for $x < -\pi$ and 1 for $x \ge \pi$.
 ///
-/// Corresponds to `xsf::cosine_cdf` in xsf main, which is used by
+/// Corresponds to `xsf::cosine_cdf`, which is used by
 /// [`scipy.stats.cosine`][cosine].
 ///
 /// [cosine]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cosine.html
@@ -215,7 +215,7 @@ pub fn cosine_cdf(x: f64) -> f64 {
 ///
 /// Returns NaN for `p` outside of $\[0, 1\]$.
 ///
-/// Corresponds to `xsf::cosine_invcdf` in xsf main, which is used by
+/// Corresponds to `xsf::cosine_invcdf`, which is used by
 /// [`scipy.stats.cosine`][cosine].
 ///
 /// [cosine]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cosine.html

@@ -1,12 +1,9 @@
-//! Translated into pure Rust from xsf v0.2.2:
+//! Translated into pure Rust from xsf (scipy/xsf@e58388a):
 //!
-//! - `xsf/trig.h`: translated from Cython into C++ by SciPy developers in 2023, original author:
-//!   Josh Wilson, 2016.
-//! - `xsf/cephes/trig.h`: translated into C++ by SciPy developers in 2024, original author: Josh
-//!   Wilson, 2020.
-//! - `xsf/cephes/sindg.h`, `xsf/cephes/tandg.h`, and `xsf/cephes/unity.h`: translated into C++ by
-//!   SciPy developers in 2024 from the Cephes Math Library Release 2.0 (April, 1987),
-//!   Copyright 1984, 1987 by Stephen L. Moshier.
+//! - `xsf/trig.h`: original author: Josh Wilson, 2016.
+//! - `xsf/cephes/trig.h`: original author: Josh Wilson, 2020.
+//! - `xsf/cephes/sindg.h`, `xsf/cephes/tandg.h`, and `xsf/cephes/unity.h`: from the Cephes Math
+//!   Library Release 2.0 (April, 1987), Copyright 1984, 1987 by Stephen L. Moshier.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
@@ -243,10 +240,8 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
      *
      * so we can compute exp(y/2), scale by the right factor of sin/cos
      * and then multiply by exp(y/2) to avoid overflow. */
-    // NOTE(xsf-rust): unlike xsf v0.2.2 (scipy/xsf#308), this accounts for sgn(y).
-    //
-    // Unlike xsf main, this also propagates NaN, and avoids premature rounding of tiny sin/cos
-    // factors (scipy/xsf#308 (comment)).
+    // NOTE(xsf-rust): unlike in xsf, this propagates NaN, and avoids premature rounding of tiny
+    // sin/cos factors (scipy/xsf#308 (comment)).
     //
     // It still overflows prematurely if exp(|pi y|/2) overflows while the result wouldn't (only
     // for |x| < ~1e-308).
@@ -289,11 +284,8 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     }
 
     // See csinpi(z) for an idea of what's going on here.
-    // NOTE(xsf-rust): unlike xsf v0.2.2 (scipy/xsf#308), this uses the correct sign of the
-    // imaginary part, accounts for sgn(y), and checks the right factor for zero.
-    //
-    // Unlike xsf main, this also propagates NaN, and avoids premature rounding of tiny sin/cos
-    // factors (scipy/xsf#308 (comment), and see csinpi(z) for the remaining limitation).
+    // NOTE(xsf-rust): unlike in xsf, this propagates NaN, and avoids premature rounding of tiny
+    // sin/cos factors (scipy/xsf#308 (comment), and see csinpi(z) for the remaining limitation).
     let sinpix = -1.0_f64.copysign(piy) * sinpix;
     let exphpiy = (abspiy / 2.0).exp();
     let coshfac;

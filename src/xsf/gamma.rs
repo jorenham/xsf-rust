@@ -20,7 +20,7 @@ impl GammaArg for Complex<f64> {
     }
 }
 
-/// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (xsf v0.2.2)
+/// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (scipy/xsf@56a9b96)
 #[allow(clippy::float_cmp)]
 fn cgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute Gamma(z) using loggamma.
@@ -86,7 +86,7 @@ pub fn gamma<T: GammaArg>(z: T) -> T {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.0. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.0.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_lr", alias = "gamma_p")]
 #[must_use]
@@ -121,7 +121,7 @@ pub fn gammainc(a: f64, x: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammaincc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.0. Translated into C++ by SciPy developers in 2024.
+/// [^CEPHES]: Cephes Math Library Release 2.0.
 /// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_ur", alias = "gamma_q")]
 #[must_use]

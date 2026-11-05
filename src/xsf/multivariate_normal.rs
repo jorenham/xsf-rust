@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/multivariate_normal.h` (xsf main).
+//! Translated into pure Rust from `xsf/multivariate_normal.h` (scipy/xsf@3d6fc8b).
 //!
 //! `bivariate_normal_cdf` is adapted from the original MATLAB survival function implementation
 //! by Dr. Alan Genz, and `trivariate_normal_cdf` is a port of `tvnl` in Alan Genz's MATLAB
@@ -192,7 +192,7 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
 /// Returns $P(X \le h, Y \le k)$, with $h$ = `dh` and $k$ = `dk`, for a standard bivariate
 /// normal vector $(X, Y)$ with correlation $-1 \le r \le 1$.
 ///
-/// Corresponds to `xsf::bivariate_normal_cdf` in xsf main, which is used by
+/// Corresponds to `xsf::bivariate_normal_cdf`, which is used by
 /// [`scipy.stats.multivariate_normal`][multivariate_normal].
 ///
 /// [multivariate_normal]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_normal.html
@@ -520,7 +520,7 @@ fn tvn_adaptive_integral(h1: f64, h2: f64, h3: f64, r23: f64, a12: f64, a13: f64
 /// which must be positive semidefinite. `epsi` is the requested absolute accuracy (`1e-7` by
 /// default in xsf), with a lower bound of `1e-14`.
 ///
-/// Corresponds to `xsf::trivariate_normal_cdf` in xsf main, which is used by
+/// Corresponds to `xsf::trivariate_normal_cdf`, which is used by
 /// [`scipy.stats.multivariate_normal`][multivariate_normal].
 ///
 /// [multivariate_normal]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_normal.html

@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/digamma.h` (xsf v0.2.2), with scipy/xsf#385 from xsf main.
+//! Translated into pure Rust from `xsf/digamma.h` (scipy/xsf@9ee9933).
 
 use core::f64::consts::PI;
 
@@ -149,6 +149,7 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
      * - If |z| is small, use a recurrence relation to make |z| large
      * enough to use the asymptotic series.
      */
+    // Unlike in xsf (scipy/xsf#157), non-finite `z` is not handled separately.
     let mut absz = z.norm();
     let mut res = Complex::ZERO;
     /* Use the asymptotic series for z away from the negative real axis

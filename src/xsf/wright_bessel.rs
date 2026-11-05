@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/wright_bessel.h` (xsf v0.2.2), which was translated from
-//! Cython into C++ by SciPy developers in 2023.
+//! Translated into pure Rust from `xsf/wright_bessel.h` (scipy/xsf@527cef1).
 //!
 //! Implementation of Wright's generalized Bessel function Phi, see
 //! <https://dlmf.nist.gov/10.46.E1>

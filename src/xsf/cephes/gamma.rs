@@ -1,7 +1,7 @@
-//! Translated into pure Rust from `xsf/cephes/gamma.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/cephes/gamma.h` (scipy/xsf@b3b55db).
 //!
-//! Translated into C++ by SciPy developers in 2024 from the Cephes Math Library Release 2.2
-//! (July, 1992), Copyright 1984, 1987, 1989, 1992 by Stephen L. Moshier.
+//! From the Cephes Math Library Release 2.2 (July, 1992), Copyright 1984, 1987, 1989, 1992 by
+//! Stephen L. Moshier.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!

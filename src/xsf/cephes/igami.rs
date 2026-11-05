@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/igami.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/igami.h` (scipy/xsf@f2a68ec). Original header comment
+//! appears below.
 //!
 //! (C) Copyright John Maddock 2006.
 //! Use, modification and distribution are subject to the

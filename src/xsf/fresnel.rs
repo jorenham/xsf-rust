@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/fresnel.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/fresnel.h` (scipy/xsf@b1eb270).
 //!
 //! Unlike in xsf (scipy/xsf#367), for `x < 0`, the imaginary part of F+-(x) in `ffk` is computed
 //! from its own value, instead of from the already updated real part.

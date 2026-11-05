@@ -33,7 +33,7 @@ impl AiryArg for Complex64 {
     }
 }
 
-// Translated from `xsf/airy.h` (xsf v0.2.2); returns `[ai, aip, bi, bip]`
+// Translated from `xsf/airy.h` (scipy/xsf@76d55c4); returns `[ai, aip, bi, bip]`
 
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.

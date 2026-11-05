@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/ellint_common.hh` (xsf main).
+//! Translated into pure Rust from `xsf/ellint_carlson/ellint_common.hh` (scipy/xsf@d5182c3).
 
 /* Number of correction terms in polynomial evaluation. */
 pub(super) const NPOLY: usize = 4;

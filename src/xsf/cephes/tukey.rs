@@ -1,5 +1,5 @@
-//! Translated into pure Rust from `xsf/cephes/tukey.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024. Original header comment appears below.
+//! Translated into pure Rust from `xsf/cephes/tukey.h` (scipy/xsf@665846c). Original header comment
+//! appears below.
 //!
 //! Compute the CDF of the Tukey-Lambda distribution
 //! using a bracketing search with special checks

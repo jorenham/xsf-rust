@@ -1,5 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/j0.h` (xsf v0.2.2), which was translated into
-//! C++ by SciPy developers in 2024.
+//! Translated into pure Rust from `xsf/cephes/j0.h` (scipy/xsf@09c93c7).
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1989, 2000 by Stephen L. Moshier
@@ -139,6 +138,7 @@ pub(crate) fn j0(mut x: f64) -> f64 {
     }
 
     if x <= 5.0 {
+        // Unlike in xsf (scipy/xsf#162), there's no separate `x < 3e-8` case that returns 1.
         let z = x * x;
         if x < 1.0e-5 {
             return 1.0 - z / 4.0;
@@ -200,6 +200,8 @@ pub(crate) fn y0(x: f64) -> f64 {
         } else if x < 0.0 {
             return f64::NAN;
         }
+        // Unlike in xsf (scipy/xsf#162), there's no separate `x < 3e-8` case that uses the limit
+        // for `z -> 0`.
         let z = x * x;
         let mut w = polevl(z, &J0_YP) / p1evl(z, &J0_YQ);
         w += FRAC_2_PI * x.ln() * j0(x);

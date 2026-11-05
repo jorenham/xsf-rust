@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/sph_harm.h` (xsf v0.2.2).
+//! Translated into pure Rust from `xsf/sph_harm.h` (scipy/xsf@b1eb270).
 
 use core::ffi::c_int;
 use num_complex::{Complex64, c64};

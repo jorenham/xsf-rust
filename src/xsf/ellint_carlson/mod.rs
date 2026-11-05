@@ -1,5 +1,5 @@
-//! Carlson symmetric elliptic integrals, translated into pure Rust from
-//! `xsf/cpu/ellint_carlson.h` and `xsf/ellint_carlson/*.hh` (xsf main).
+//! Carlson symmetric elliptic integrals, translated into pure Rust from `xsf/cpu/ellint_carlson.h`
+//! and `xsf/ellint_carlson/*.hh` (scipy/xsf@d5182c3).
 //!
 //! The C++ functions return an `ExitStatus` and write the result to an output argument; here they
 //! return both as a tuple. `set_error` is a no-op in our build of xsf, so the status is discarded.
