@@ -1,8 +1,7 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@65d313a).
+//! (scipy/xsf@86be599).
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior
-//! (scipy/xsf#350).
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use core::f64::consts::PI;
 use core::ops::Mul;
@@ -1086,6 +1085,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         // Unlike in xsf (scipy/xsf#380), the error estimate is relative to min(|sum|, 1), and
         // includes the rounding of the largest term
+        //
+        // Unlike in xsf (scipy/xsf#430), a last term of 0 needs no special case
         //
         // NOTE: the `int` conversion is UB in C++ if the estimate is not finite; here it
         // saturates (0 for NaN).
