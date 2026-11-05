@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`86be599`](https://github.com/scipy/xsf/tree/86be5999f8960cc06d23079c7451639f394ca32b)), and
+it is translated from (commit [`a10ea72`](https://github.com/scipy/xsf/tree/a10ea724576d5312f6301299baeb5dc007ba954d)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -808,7 +808,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>spence</code></td><td>x ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wrightomega</code></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.9e-15</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap><samp>1.9e-15</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wrightomega</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>4.5e-17</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>4.5e-17</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>stirling2</code></td><td>n ∈ {0, …, 150}<br>k ∈ {0, …, n}</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.6e-15</samp></b></td><td align="right" nowrap><b><samp>2.2e-16</samp></b></td><td align="right" nowrap><samp>1.8e-05</samp></td><td align="right" nowrap><samp>3.6e-06</samp></td><td align="right" nowrap>35.0%</td></tr>
+<tr><td><code>stirling2</code></td><td>n ∈ {0, …, 150}<br>k ∈ {0, …, n}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.6e-15</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.6e-15</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wright_bessel</code></td><td>a, b ∈ [0, 5]<br>x ∈ [0, 100]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>log_wright_bessel</code></td><td>a, b ∈ [0, 5]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
