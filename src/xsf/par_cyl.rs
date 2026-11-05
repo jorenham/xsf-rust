@@ -1,4 +1,5 @@
-//! Translated into pure Rust from `xsf/par_cyl.h` (xsf v0.2.2, with scipy/xsf#416 from xsf main).
+//! Translated into pure Rust from `xsf/par_cyl.h` (xsf v0.2.2, with scipy/xsf#416 and
+//! scipy/xsf#421 from xsf main).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -230,7 +231,6 @@ fn pbdv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let mut pd1 = 0.0;
 
     let xa = x.abs();
-    // Unlike in xsf (scipy/xsf#418), v = -0.0 is treated as +0.0.
     v += if v < 0.0 { -1.0 } else { 1.0 };
     let nv = v as i32;
     let v0 = v - f64::from(nv);
@@ -369,7 +369,6 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let mut f1 = 0.0;
 
     let xa = x.abs();
-    // Unlike in xsf (scipy/xsf#418), v = -0.0 is treated as +0.0.
     v += if v < 0.0 { -1.0 } else { 1.0 };
     let nv = v as i32;
     let v0 = v - f64::from(nv);
