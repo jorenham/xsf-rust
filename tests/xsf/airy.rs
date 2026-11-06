@@ -60,6 +60,19 @@ fn test_itairy() {
 }
 
 #[test]
+fn test_itairy_overflow() {
+    // Wolfram: Integrate[AiryBi[t], {t, 0, x}]
+    let bpt = [104.3, 104.5, 104.663].map(|x| xsf::airy_integrals(x)[1]);
+    let expected = [
+        4.382_426_630_792_426e306,
+        3.377_394_984_522_598_2e307,
+        1.786_520_403_853_323_6e308,
+    ];
+    xsref::np_assert_allclose!(bpt, expected, rtol = 1e-13);
+    assert_eq!(xsf::airy_integrals(104.67)[1], f64::INFINITY);
+}
+
+#[test]
 fn test_itairy_2_20() {
     // mpmath: `_airy_int` in tools/accuracy/specs.py
     let cases = [

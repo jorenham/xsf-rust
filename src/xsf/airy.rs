@@ -310,6 +310,12 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         }
         apt = q0 - (-xe).exp() * xp6 * su1;
         bpt = 2.0 * xe.exp() * xp6 * su2;
+        if bpt.is_infinite() {
+            // Unlike in xsf, retry with e^xe split as e^(xe/2) squared, since 2 e^xe overflows for
+            // x > 104.2 (approx.), while BPT only overflows for x > 104.66 (approx.)
+            let g = (0.5 * xe).exp();
+            bpt = 2.0 * g * xp6 * su2 * g;
+        }
         let mut su3 = 1.0;
         r = 1.0;
         let xr2 = 1.0 / (xe * xe);
