@@ -293,8 +293,8 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
             c1 = 0.5 + (xf * sin - xg * cos) / SQRT_TAU / xa;
             s1 = 0.5 - (xf * cos + xg * sin) / SQRT_TAU / xa;
 
-            // Unlike in xsf, K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x) directly, instead
-            // of F+-(x) e^(-+i (x^2 + pi/4)) / sqrt(pi), which loses digits to the rounding of x^2
+            // Unlike in xsf (scipy/xsf#453), K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x)
+            // directly, instead of F+-(x) e^(-+i (x^2 + pi/4)) / sqrt(pi)
             g.re = (xf + xg) / (2.0 * SQRT_TAU) / xa;
             g.im = (-1.0_f64).powi(ks) * (xf - xg) / (2.0 * SQRT_TAU) / xa;
         }
