@@ -10,6 +10,7 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 
+use crate::xsf::bessel::bessel_j_miller;
 use crate::xsf::cephes;
 use crate::xsf::specfun::SPECFUN_INF;
 
@@ -24,27 +25,21 @@ fn specfun_convinf(x: f64) -> f64 {
     x
 }
 
-/// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `x >= 0.5`, by integrating DLMF 11.4.21,
+/// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `0.5 <= x < 40`, by integrating DLMF 11.4.21,
 /// `H0 = 4/pi sum_k J_{2k+1} / (2k+1)`, term by term, with Miller's backward recurrence for `J_n`.
 fn itsh0_neumann(x: f64) -> (f64, f64) {
-    let mut n = 2.0 * (0.5 * x).floor() + 51.0;
-    // unnormalized J_{n+1}(x) and J_n(x)
-    let (mut jp, mut j) = (0.0, 1.0);
     // sum_{2j > n} J_{2j}, sum_{2j+1 >= n} J_{2j+1}, and the two series
     let (mut te, mut to, mut se, mut so) = (0.0, 0.0, 0.0, 0.0);
-    loop {
-        to += j;
-        so += (2.0 * to - j) / (n * n);
-        se += te / n;
-        (jp, j) = (j, 2.0 * n / x * j - jp);
-        if n < 2.0 {
-            break;
+    let norm = bessel_j_miller(x, |k, j| {
+        let n = f64::from(k);
+        if k % 2 == 1 {
+            to += j;
+            so += (2.0 * to - j) / (n * n);
+            se += te / n;
+        } else {
+            te += j;
         }
-        te += j;
-        (jp, j) = (j, 2.0 * (n - 1.0) / x * j - jp);
-        n -= 2.0;
-    }
-    let norm = j + 2.0 * te;
+    });
     (4.0 * FRAC_2_PI * se / norm, 2.0 * FRAC_2_PI * so / norm)
 }
 
