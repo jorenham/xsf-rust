@@ -39,4 +39,17 @@ fn test_eval_real_degree_large() {
     ];
     let desired = [37_787_979.694_627_58, -1.002_223_611_030_761_3e15];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // and where `hyp2f1` was inaccurate for c - a - b <= -1 (mpmath)
+    let actual = [
+        xsf::eval_jacobi(26.39, 1.9, 3.0, -0.99),
+        xsf::eval_jacobi(32.06, 3.2, 3.0, -0.88),
+        xsf::eval_jacobi(17.32, 0.1, 3.0, -0.99),
+    ];
+    let desired = [
+        64.703_859_369_457_89,
+        11.922_922_622_177_607,
+        1_132.803_574_409_967_7,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }

@@ -159,6 +159,34 @@ fn test_hyp2f1_f64_c_minus_a_minus_b_le_minus_1() {
     ];
     let desired = [-2_000_000.033_618_169_8, -6.640_002_805_058_352e-5];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // and here the power series without that recurrence is more accurate than both (mpmath)
+    let actual = [
+        xsf::hyp2f1(-3.1, 17.4, 12.3, 0.97),
+        xsf::hyp2f1(18.2, -0.9, 12.3, 0.98),
+        xsf::hyp2f1(-6.2, 7.7, -2.5, 0.99),
+        xsf::hyp2f1(-0.0076, 19.42, 9.7355, 0.8761),
+    ];
+    let desired = [
+        -0.010_434_102_923_645_322,
+        -141.307_919_251_094_5,
+        45_908_976.313_493_14,
+        -30.905_387_588_773_838,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // (but not past the special cases of the Euler transformation, where c - (c - a) rounds to
+    // -5 or -12) (mpmath)
+    let actual = [
+        xsf::hyp2f1(-5.000_000_000_000_101, 106.100_000_000_000_2, 100.1, 0.95),
+        xsf::hyp2f1(-11.999_999_999_999_899, 122.100_000_000_000_2, 100.1, 0.9),
+    ];
+    let desired = [2.580_226_780_133_956_7e-8, 3.231_061_401_736_383e-14];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // (nor if the series doesn't converge: this is -6.33e35, not its partial sum 0.856)
+    let actual = xsf::hyp2f1(-1e-13, 3.100_000_000_000_1, 0.1, 0.999_999_999_999_999_9);
+    np_assert_allclose!([actual], [-6.326_846_914_851_421e35], rtol = 1e-4);
 }
 
 #[test]
