@@ -483,6 +483,24 @@ fn test_besselpoly() {
     });
 }
 
+#[test]
+fn test_besselpoly_large_a() {
+    // mpmath: `r_besselpoly` in tools/accuracy/specs.py
+    for (a, lambda, v, expected) in [
+        (7.0, 0.0, 0.0, 0.080_048_416_665_887_81),
+        (9.5, 6.5, 1.5, -0.004_626_673_452_494_62),
+        (10.0, 2.0, -3.0, -0.008_181_711_690_050_824),
+        (30.0, 1.0, 0.5, 0.001_769_720_528_262_000_3),
+        (200.0, 0.5, 5.0, 0.000_376_502_079_621_611_3),
+    ] {
+        let actual = xsf::besselpoly(a, lambda, v);
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-14,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
 // Riccati-Bessel
 
 /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_jn`
