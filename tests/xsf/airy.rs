@@ -60,6 +60,56 @@ fn test_itairy() {
 }
 
 #[test]
+fn test_itairy_overflow() {
+    // Wolfram: Integrate[AiryBi[t], {t, 0, x}]
+    let bpt = [104.3, 104.5, 104.663].map(|x| xsf::airy_integrals(x)[1]);
+    let expected = [
+        4.382_426_630_792_426e306,
+        3.377_394_984_522_598_2e307,
+        1.786_520_403_853_323_6e308,
+    ];
+    xsref::np_assert_allclose!(bpt, expected, rtol = 1e-13);
+    assert_eq!(xsf::airy_integrals(104.67)[1], f64::INFINITY);
+}
+
+#[test]
+fn test_itairy_2_20() {
+    // mpmath: `_airy_int` in tools/accuracy/specs.py
+    let cases = [
+        (
+            3.0,
+            [
+                0.329_920_376_007_021_8,
+                10.062_003_031_306_201,
+                0.801_462_842_671_323_4,
+                -0.195_442_489_513_706_02,
+            ],
+        ),
+        (
+            9.0,
+            [
+                0.333_333_332_530_663_66,
+                7_377_921.170_522_002,
+                0.558_819_748_944_718_8,
+                -0.010_330_373_551_680_188,
+            ],
+        ),
+        (
+            15.0,
+            [
+                0.333_333_333_333_333_3,
+                4_967_308_973_718_509.0,
+                0.683_580_628_361_935_9,
+                0.072_026_214_312_908_51,
+            ],
+        ),
+    ];
+    for (x, expected) in cases {
+        xsref::np_assert_allclose!(xsf::airy_integrals(x), expected, rtol = 2e-15);
+    }
+}
+
+#[test]
 fn test_ai_zeros_0() {
     assert!(xsf::airy_ai_zeros::<0>().iter().all(|a| a.is_empty()));
 }
