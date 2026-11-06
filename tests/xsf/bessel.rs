@@ -459,6 +459,24 @@ fn test_iti0k0_large_x() {
 }
 
 #[test]
+fn test_itk0_mid_x() {
+    // unlike in xsf: pi/2 minus the trapezoidal rule on int_x^inf K0 (mpmath)
+    for (x, expected) in [
+        (1.0, 1.242_509_848_623_778_2),
+        (4.0, 1.560_649_570_605_174_2),
+        (11.4, 1.570_792_372_273_874_1),
+        (12.0, 1.570_794_206_646_576_8),
+        (13.0, 1.570_795_574_915_093_5),
+    ] {
+        let actual = xsf::it1i0k0(x).1;
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-15,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
 fn test_besselpoly() {
     xsref::test("besselpoly", "d_d_d-d", |x| {
         xsf::besselpoly(x[0], x[1], x[2])

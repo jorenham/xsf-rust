@@ -1189,7 +1189,7 @@ fn itika(x: f64) -> (f64, f64) {
         ti = rc1 * x.exp() * ti;
     }
 
-    if x < 12.0 {
+    if x < 0.5 {
         let e0 = el + (x / 2.0).ln();
         let mut b1 = 1.0 - e0;
         let mut b2 = 0.0;
@@ -1209,6 +1209,10 @@ fn itika(x: f64) -> (f64, f64) {
             tw = tk;
         }
         tk *= x;
+    } else if x < 40.0 {
+        // Unlike in xsf, pi/2 - int_x^inf K0 for 0.5 <= x < 40 (instead of the series for x < 12),
+        // with int_x^inf K0 = int_0^inf exp(-x cosh(u)) / cosh(u) du (DLMF 10.32.9)
+        tk = PI / 2.0 - trapezoid_cosh(x, |w| (-w).exp() / (x + w)) * x * (-x).exp();
     } else {
         tk = 1.0;
         r = 1.0;
@@ -1220,6 +1224,26 @@ fn itika(x: f64) -> (f64, f64) {
         tk = PI / 2.0 - rc2 * tk * (-x).exp();
     }
     (ti, tk)
+}
+
+/// `h (f(0) / 2 + f(w_1) + f(w_2) + ...)` with `w_j = x (cosh(j h) - 1)`, i.e. the trapezoidal
+/// rule for `int_0^inf f(x (cosh(u) - 1)) du`, for `f(w)` that decays like `exp(-w)` and has its
+/// nearest singularity at `u = i pi/2` (`w = -x`).
+///
+/// Toward it, `|f|` grows like `exp(x)`, so the step `h = pi^2 / (x + 45)` gives a relative
+/// discretization error of order `exp(x - pi^2 / h) = exp(-45)`.
+fn trapezoid_cosh(x: f64, f: impl Fn(f64) -> f64) -> f64 {
+    let h = PI * PI / (x + 45.0);
+    let mut s = 0.5 * f(0.0);
+    for j in 1..=40 {
+        let v = (0.5 * h * f64::from(j)).sinh();
+        let t = f(2.0 * x * v * v);
+        s += t;
+        if t < 1e-17 * s {
+            break;
+        }
+    }
+    h * s
 }
 
 /// Calls `f(n, J_n(x))` for `n = N, ..., 1` with the unnormalized `J_n` of Miller's backward
@@ -1449,18 +1473,7 @@ fn ittika(x: f64) -> (f64, f64) {
     } else if x < 40.0 {
         // Unlike in xsf (scipy/xsf#379), the trapezoidal rule on int_0^inf E1(x cosh(u)) du
         // (DLMF 10.32.9)
-        let h = PI * PI / (x + 45.0);
-        let mut s = 0.5 * scaled_exp1(x) / x;
-        for j in 1..=40 {
-            let v = (0.5 * h * f64::from(j)).sinh();
-            let w = 2.0 * x * v * v;
-            let t = (-w).exp() * scaled_exp1(x + w) / (x + w);
-            s += t;
-            if t < 1e-17 * s {
-                break;
-            }
-        }
-        ttk = h * s * (-x).exp();
+        ttk = trapezoid_cosh(x, |w| (-w).exp() * scaled_exp1(x + w) / (x + w)) * (-x).exp();
     } else {
         let mut ttk_ = 1.0;
         r = 1.0;
