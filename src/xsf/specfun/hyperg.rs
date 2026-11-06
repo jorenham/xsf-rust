@@ -26,6 +26,15 @@ fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: 
     t * (a + n) / (f64::from(j) * (b + n))
 }
 
+/// The ratio `q_n = (a + n) |z| / ((n + 1) (b + n))`, with `|q_n| = |t_n+1 / t_n|` for the terms
+/// of DLMF 13.2.2, or `None` if the terms can grow again after `t_n`: if `|q_n| >= 1` or
+/// `b + n < |z|`, e.g. for tiny `a`. Otherwise they can't, because `(n + 1) (b + n) +- (a + n) |z|`
+/// increase for `n >= N`.
+fn term_ratio(a: f64, b: f64, abs_z: f64, n: f64) -> Option<f64> {
+    let q = (a + n) / (n + 1.0) * (abs_z / (b + n));
+    (q.abs() < 1.0 && b + n >= abs_z).then_some(q)
+}
+
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
@@ -106,13 +115,30 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 chg = c64(1.0, 0.0);
                 let mut chw = c64(0.0, 0.0);
                 let mut crg = c64(1.0, 0.0);
+                // Unlike in xsf, a negligible term only ends the sum if the terms can't grow again
+                // (see `term_ratio`), e.g. not for tiny a. Otherwise the sum up to the first one is
+                // used if the sum doesn't end, or if the later terms are below its rounding error.
+                let mut early = None;
+                let mut ended = false;
+                // the sum of |crg|
+                let mut rs = 1.0;
                 for j in 1..501 {
                     crg = cmul(kummer_term(crg, a, b, j), z);
                     chg += crg;
+                    rs += crg.l1_norm();
                     if cdiv(chg - chw, chg).norm() < 1e-15 {
-                        break;
+                        if term_ratio(a, b, z.norm(), f64::from(j)).is_some() {
+                            ended = true;
+                            break;
+                        }
+                        early.get_or_insert(chg);
                     }
                     chw = chg;
+                }
+                if let Some(s) = early {
+                    if !ended || (chg - s).l1_norm() <= f64::EPSILON * rs {
+                        chg = s;
+                    }
                 }
             } else {
                 // y = 0.0;  (dead store)
@@ -238,9 +264,8 @@ fn hyp1f1_series(
 /// - the rounding error: at most `8 u sum (n + 1) |t_n|` (`8 n u` per term, `2 u |t_n|` per Kahan
 ///   step of `Complex64`).
 ///
-/// A negligible `t_N` is skipped if `q_N >= 1` or `b + N < |z|` (unless the sum overflowed), since
-/// then the terms can grow again, e.g. for tiny `a`. Otherwise they can't, because
-/// `(n + 1) (b + n) - (a + n) |z|` increases for `n >= N`.
+/// A negligible `t_N` is skipped if the terms can grow again (see `term_ratio`), unless the sum
+/// overflowed.
 ///
 /// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
@@ -276,15 +301,11 @@ fn hyp1f1_sum<T: Term>(
             (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
         }
         if t.norm() <= T::EPS * sum.norm() {
-            let q = (a + n + 1.0) / (n + 2.0) * (abs_z / (b + n + 1.0));
-            if (q >= 1.0 || b + n + 1.0 < abs_z) && sum.norm().is_finite() {
+            let q = term_ratio(a, b, abs_z, n + 1.0);
+            if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
-            let tail = if q < 1.0 {
-                t.norm() * q / (1.0 - q)
-            } else {
-                f64::INFINITY
-            };
+            let tail = q.map_or(f64::INFINITY, |q| t.norm() * q / (1.0 - q));
             let bound = 4.0 * T::EPS * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
@@ -443,7 +464,11 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                 rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
                 rs += rg.abs();
-                if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
+                // Unlike in xsf, not if the terms can grow again (see `term_ratio`), as for tiny a
+                if (hg != 0.0)
+                    && ((rg / hg).abs() < 1e-15)
+                    && (rg == 0.0 || term_ratio(a, b, x, f64::from(j)).is_some())
+                {
                     accurate = rs * SQRT_EPS <= hg.abs();
                     cancellation = rs / hg.abs();
                     converged = true;

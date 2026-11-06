@@ -550,3 +550,34 @@ fn test_hyp1f1_tiny_a_or_b() {
     let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_hyp1f1_tiny_a_early_stop() {
+    // Arb; in xsf the relative errors are 2.0e-9 and 2.3e-6
+    let abx = [(1e-17, 0.5, 20.0), (-1e-17, 1.0, 29.5)];
+    let expected = [1.000_000_001_975_100_3, 0.999_997_722_693_935_5];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    // Arb; in xsf the relative errors are 3.6e-11, 8.9e-9, and 2.2e-2; the last doesn't reach the
+    // stopping criterion within 500 terms
+    let abz = [
+        (1e-17, 1.0, c64(18.0, 7.0)),
+        (-1e-17, -2.5, c64(14.0, 6.0)),
+        (1e-16, -7.5, c64(19.5, 0.0)),
+        (1e-17, -300.25, c64(0.0, 110.0)),
+    ];
+    let expected = [
+        c64(1.000_000_000_033_934, 1.138_606_472_512_429_6e-11),
+        c64(1.000_000_006_236_292, 6.308_164_997_372_973_4e-9),
+        c64(1.022_280_862_276_224_3, 0.0),
+        c64(1.0, -3.409_453_691_196_780_6e-18),
+    ];
+    let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    // Arb; here the later terms (up to 1e9) cancel, and are below their rounding error
+    let actual = xsf::hyp1f1(1e-17, -171.5, c64(12.0, 63.0));
+    let expected = c64(1.000_000_000_000_773_4, -3.516_259_387_310_227e-13);
+    xsref::np_assert_allclose!([actual], [expected], rtol = 1e-12);
+}
