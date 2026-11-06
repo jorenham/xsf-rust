@@ -1,5 +1,5 @@
 //! `itstruve0`, `it2struve0`, `itmodstruve0`, `struve_h`, and `struve_l` are translated into pure
-//! Rust from `xsf/struve.h` (scipy/xsf@8dfd127).
+//! Rust from `xsf/cpu/struve.h` (scipy/xsf@e9eb557).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -190,13 +190,13 @@ fn itsl0(x: f64) -> f64 {
     // Output:  TL0 --- Integration of L0(t) from 0 to x
     // ===========================================================
 
-    let mut a = [0.0; 25];
+    // Number of terms of the asymptotic expansion for x > 40, where the last one is at most 2.2e-16
+    const NA: u32 = 25;
+    let mut a = [0.0; NA as usize];
     let mut s;
     let tl0;
     let el = 0.57721566490153;
     let mut r = 1.0;
-    // Unlike in xsf (scipy/xsf#400), sum the series up to eps and use it up to x = 40 (instead of
-    // 20), beyond which 25 (instead of 10) asymptotic terms reach eps.
     if x <= 40.0 {
         s = 0.5;
         for k in 1..101 {
@@ -225,7 +225,7 @@ fn itsl0(x: f64) -> f64 {
         let mut a0 = 1.0;
         let mut a1 = 5.0 / 8.0;
         a[0] = a1;
-        for k in 1_u32..25 {
+        for k in 1..NA {
             let kf = f64::from(k);
             let af = (1.5 * (kf + 0.50) * (kf + 5.0 / 6.0) * a1
                 - 0.5 * ((kf + 0.5) * (kf + 0.5)) * (kf - 0.5) * a0)
@@ -236,9 +236,9 @@ fn itsl0(x: f64) -> f64 {
         }
         let mut ti = 1.0;
         r = 1.0;
-        for k in 1..26 {
+        for ak in a {
             r /= x;
-            ti += a[k - 1] * r;
+            ti += ak * r;
         }
         tl0 = ti / (2.0 * PI * x).sqrt() * x.exp() + s0;
     }
