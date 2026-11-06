@@ -5,7 +5,7 @@ use core::f64::consts::{FRAC_2_PI, PI};
 use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
 
-use crate::utils::PISQ_6;
+use crate::utils::{PISQ_6, SCIPY_EULER};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
@@ -1222,11 +1222,70 @@ fn itika(x: f64) -> (f64, f64) {
     (ti, tk)
 }
 
+/// Calls `f(n, J_n(x))` for `n = N, ..., 1` with the unnormalized `J_n` of Miller's backward
+/// recurrence from `J_{N+1} = 0`, `J_N = 1`, and returns `J_0 + 2 (J_2 + J_4 + ...)`, i.e. 1 for
+/// the exact `J_n` (DLMF 10.12.4). For `0.5 <= x < 40`, the odd `N = 2 floor(x/2) + 51` has
+/// `|J_{N+1}(x) / Y_{N+1}(x)| < 1e-43`, so the error from `J_{N+1} = 0` is far below eps.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub(crate) fn bessel_j_miller(x: f64, mut f: impl FnMut(u32, f64)) -> f64 {
+    let (mut jp, mut j, mut je) = (0.0, 1.0, 0.0);
+    for k in (1..=2 * (0.5 * x) as u32 + 51).rev() {
+        f(k, j);
+        if k % 2 == 0 {
+            je += j;
+        }
+        (jp, j) = (j, 2.0 * f64::from(k) / x * j - jp);
+    }
+    j + 2.0 * je
+}
+
+/// `[int_0^x J0, int_0^x (1 - J0(t))/t dt, int_0^x Y0, int_x^inf Y0(t)/t dt]` for
+/// `0.5 <= x < 40`, by integrating DLMF 10.23.16, `Y0 = 2/pi (L J0 - 2 sum_k (-1)^k J_2k / k)`
+/// with `L = ln(x/2) + euler`, term by term:
+///
+/// - `int_0^x J_n = 2 (J_{n+1} + J_{n+3} + ...)` (DLMF 10.22.8)
+/// - `int_0^x f_n(t)/t dt = (2 (f_n + f_{n+2} + ...) - f_n) / n`, for `f_n = J_n` (`w_n`), and
+///   also for `f_n = w_n`
+/// - `int_0^x (1 - J0(t))/t dt = 2 sum_k w_2k`, since `1 - J0 = 2 (J_2 + J_4 + ...)`
+/// - `L J0` by parts, and for `int_x^inf` as `L/t - L (1 - J0(t))/t`, where `L/t` gives
+///   `-L^2/pi`, plus the integration constant `pi/6`
+fn itj0y0_neumann(x: f64) -> [f64; 4] {
+    // the sums of J_n and w_n over the odd n, of w_n and of int_0^x w_n(t)/t dt over the even
+    // n, and two alternating sums (`a = t_k - a` for k downwards gives `a = -sum_k (-1)^k t_k`)
+    let (mut jo, mut wo, mut je, mut we, mut ww) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mut ajo, mut awe) = (0.0, 0.0);
+    let norm = bessel_j_miller(x, |k, j| {
+        let n = f64::from(k);
+        if k % 2 == 1 {
+            jo += j;
+            wo += (2.0 * jo - j) / n;
+        } else {
+            je += j;
+            let w = (2.0 * je - j) / n;
+            we += w;
+            ww += (2.0 * we - w) / n;
+            ajo = jo / n - ajo;
+            awe = w / n - awe;
+        }
+    });
+    let l = (0.5 * x).ln() + SCIPY_EULER;
+    let (tj, ttj) = (2.0 * jo / norm, 2.0 * we / norm);
+    let ty = FRAC_2_PI * (l * tj - 2.0 * (wo - 4.0 * ajo) / norm);
+    let tty = PI / 6.0 + FRAC_2_PI * (l * (ttj - 0.5 * l) - 2.0 * (ww + 2.0 * awe) / norm);
+    [tj, ttj, ty, tty]
+}
+
 #[allow(clippy::float_cmp, clippy::manual_midpoint, clippy::unreadable_literal)]
 fn itjya(x: f64) -> (f64, f64) {
     let mut a = [0.0; 18];
     let el = 0.5772156649015329;
     let eps = 1.0e-12;
+
+    // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40.
+    if (0.5..40.0).contains(&x) {
+        let [tj, _, ty, _] = itj0y0_neumann(x);
+        return (tj, ty);
+    }
 
     let tj;
     let ty;
@@ -1431,6 +1490,13 @@ fn ittjya(x: f64) -> (f64, f64) {
     // =========================================================
 
     let el = 0.5772156649015329;
+
+    // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 34 (from about 34, the
+    // asymptotic expansion below is more accurate).
+    if (0.5..34.0).contains(&x) {
+        let [_, ttj, _, tty] = itj0y0_neumann(x);
+        return (ttj, tty);
+    }
 
     let mut ttj;
     let tty;

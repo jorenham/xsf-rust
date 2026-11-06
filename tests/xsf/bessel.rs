@@ -401,6 +401,23 @@ fn test_it2j0y0() {
 }
 
 #[test]
+fn test_itj0y0_mid_x() {
+    // the Neumann series for 0.5 <= x < 40, unlike in xsf (scipy/xsf#446) (mpmath)
+    for (actual, expected, rtol) in [
+        (xsf::it1j0y0(18.1).1, -0.000_306_924_251_694_864_96, 1e-11),
+        (xsf::it1j0y0(19.63).1, -0.179_595_167_019_751_2, 1e-14),
+        (xsf::it1j0y0(19.92).0, 1.044_817_073_262_731_5, 1e-15),
+        (xsf::it2j0y0(20.0).0, 2.877_310_607_840_809_7, 1e-15),
+        (xsf::it2j0y0(21.28).1, 9.723_256_856_027_431e-6, 1e-10),
+    ] {
+        assert!(
+            (actual / expected - 1.0).abs() < rtol,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
 fn test_it1i0k0() {
     xsref::test("it1i0k0", "d-d_d", |x| xsf::it1i0k0(x[0]));
 }
