@@ -36,7 +36,10 @@
 //!    terms. So we first try the 1/x transformation (DLMF 15.8.2), whose two hypergeometric
 //!    functions of `1/x` are computed as above, with `w = 1 / (1 - x)`, and only continue with the
 //!    4 combinations if its error bound (incl. the cancellation of its two terms) exceeds
-//!    `HYP2F1_ETHRESH`.
+//!    `HYP2F1_ETHRESH`. If `b - a` is an integer (a pole of its Gamma factors), we use its limit
+//!    instead (DLMF 15.8.9), whose series in `w` has `psi` weights, so it can't be transformed or
+//!    recurred like the others, and cancels if `b` or `c - a` (with `b >= a`) is large and
+//!    negative, e.g. for `F(-900.5, -800.5; 50; -40)`.
 //!
 //! 5. If `-1 <= x < 0.9` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
 //!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
@@ -164,20 +167,37 @@ fn min_err<T>(u: Option<T>, v: Option<T>, err: impl Fn(&T) -> f64) -> Option<T> 
 /// - Each term `t_k` has a relative rounding error of at most `8 eps` more than `t_(k-1)` (the 3
 ///   roundings of `p + k`, `r + k` and `c + k`, and 5 operations), so at most `8 k eps`, and the
 ///   sum of `k` terms adds at most `k eps` of the sum of `|t_j|`.
-#[allow(clippy::cast_precision_loss)]
-fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
+/// - With `weights = Some((beta_0, err))` (step 4), it sums `t_k beta_k` instead, with
+///   `beta_k = beta_0 + sum_(j<k) (1/(j + 1) + 1/(c + j) - 1/(p + j) - 1/(r + j))`, where `err`
+///   bounds the absolute error of `beta_0`. It stops after `t_kmax`.
+/// - It's inlined, since the weights make the unweighted series about 5% slower otherwise.
+#[allow(clippy::cast_precision_loss, clippy::inline_always)]
+#[inline(always)]
+fn series_w(
+    p: Dd,
+    r: Dd,
+    c: Dd,
+    w: Dd,
+    budget: &mut f64,
+    weights: Option<(f64, f64)>,
+    kmax: f64,
+) -> Option<Scaled> {
     let (w, w_lo) = (w.hi, w.lo);
     // from here on, the factors of the term ratios have constant signs
     let kmin = (-p.hi).max(-r.hi).max(-c.hi).max(0.0).ceil();
+    // `beta_k` and a bound of its absolute error, the sum of `|t_k|` times that bound, and the
+    // sum of `|parts|` of `beta_k - beta_(k-1)`
+    let (mut beta, mut beta_err) = weights.unwrap_or((1.0, 0.0));
+    let (mut sum_err, mut d_abs) = (beta_err, 0.0);
     // The terms are `t 2^te`, and the sums are scaled by `2^-e`, since the terms can underflow
     // before `k = -c`, and be huge after it.
-    let (mut sum, mut sum_abs, mut k_sum, mut k_sum_abs) = (1.0, 1.0_f64, 0.0, 0.0_f64);
+    let (mut sum, mut sum_abs, mut k_sum, mut k_sum_abs) = (beta, beta.abs(), 0.0, 0.0_f64);
     let (mut t, mut te, mut e, mut k) = (1.0_f64, 0, 0, 0.0);
     // the two factors of the next term ratio, `(p + k) / (k + 1)` and `(r + k) / (c + k)`, and
     // their numerators
     let (mut pk, mut rk) = (p.hi, r.hi);
     let (mut f0, mut f1) = (pk, rk / c.hi);
-    loop {
+    while k < kmax {
         let fw = f1 * w;
         if tame(f0) && tame(fw) {
             // The usual case: `|t|` is 0 or within `[2^-500, 2^500]`, so `|t f0|` and `|t f0 fw|`
@@ -212,10 +232,20 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         }
         let term = if te == 0 { t } else { ldexp_f64(t, te) };
         k += 1.0;
-        sum += term;
-        sum_abs += term.abs();
-        k_sum += k * term;
-        k_sum_abs += k * term.abs();
+        if weights.is_some() {
+            let parts = [1.0 / k, 1.0 / add_hi(c, k - 1.0), -1.0 / pk, -1.0 / rk];
+            d_abs = parts.iter().map(|d| d.abs()).sum();
+            beta += parts.iter().sum::<f64>();
+            // (2 roundings per part, and 4 additions)
+            beta_err += MACHEP * (5.0 * d_abs + beta.abs());
+            sum_err += term.abs() * beta_err;
+        }
+        // (the rounding of `term * beta` is within the `(k + 1) eps` of `sum_abs` below)
+        let term_beta = term * beta;
+        sum += term_beta;
+        sum_abs += term_beta.abs();
+        k_sum += k * term_beta;
+        k_sum_abs += k * term_beta.abs();
         if !k_sum_abs.is_finite() {
             return None;
         }
@@ -223,10 +253,12 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         (f0, f1) = (pk / (k + 1.0), rk / add_hi(c, k));
         // For j >= k > kmin, the next term ratios are w (p + j) / (j + 1) * (r + j) / (c + j),
         // where both factors are positive and tend monotonically to 1, so they are at most `rho`,
-        // which bounds the rest of the series geometrically.
+        // which bounds the rest of the series geometrically. With weights, the parts of
+        // `beta_j - beta_(j-1)` decrease as well, so `|beta_j| <= |beta_k| + (j - k) d_abs`.
         if k > kmin {
             let rho = w * f0.max(1.0) * f1.max(1.0);
-            if rho < 1.0 && term.abs() * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
+            let beta_max = beta.abs() + d_abs / (1.0 - rho);
+            if rho < 1.0 && term.abs() * beta_max * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
                 break;
             }
         }
@@ -237,6 +269,7 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         if let Some(s) = rescale_exp(sum_abs) {
             (sum, sum_abs) = (ldexp_f64(sum, -s), ldexp_f64(sum_abs, -s));
             (k_sum, k_sum_abs) = (ldexp_f64(k_sum, -s), ldexp_f64(k_sum_abs, -s));
+            sum_err = ldexp_f64(sum_err, -s);
             (e, te) = (e + s, te - s);
         }
     }
@@ -244,7 +277,7 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     if w != 0.0 {
         sum += k_sum * (w_lo / w);
     }
-    let err = MACHEP * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) / sum.abs();
+    let err = (MACHEP * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + sum_err) / sum.abs();
     (sum != 0.0 && err.is_finite()).then_some(Scaled { m: sum, e, err })
 }
 
@@ -408,20 +441,25 @@ fn recur_start(q: Dd, c: Dd) -> f64 {
     (q.hi.max(0.0) - c.hi).max(0.0).floor() + 1.0
 }
 
+/// Whether the series `F(p, r; c; w)` likely takes more than `HYP2F1_RECUR_MAXITER` terms
+fn series_too_long(p: Dd, r: Dd, c: Dd, w: Dd) -> bool {
+    // The series takes about (|p| w + 40) / (1 - w) terms: the terms peak near
+    // k = |p| w / (1 - w), and then decay like w^k, which takes about ln(2^53) / (1 - w) ~
+    // 37 / (1 - w) more terms. But if r > c, it takes at least (w r - c) / (1 - w) terms, since it
+    // only stops once w (r + k) / (c + k) < 1.
+    (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER
+}
+
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
-    // The series takes about (|p| w + 40) / (1 - w) terms, so give up early if that's too many:
-    // the terms peak near k = |p| w / (1 - w), and then decay like w^k, which takes about
-    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms. But if r > c, it takes at least
-    // (w r - c) / (1 - w) terms, since it only stops once w (r + k) / (c + k) < 1.
     let r = -q + c.hi + c.lo;
-    if (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
+    if series_too_long(p, r, c, w) {
         return None;
     }
     // the number of series terms plus recurrence steps left
     let mut budget = HYP2F1_RECUR_MAXITER;
-    let direct = series_w(p, r, c, w, &mut budget);
+    let direct = series_w(p, r, c, w, &mut budget, None, f64::INFINITY);
     if c.hi > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_ETHRESH) {
         return direct;
     }
@@ -435,8 +473,8 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
         return direct;
     }
     let (c_n, r_n) = (c + n, r + n);
-    let recur = series_w(p, r_n, c_n, w, &mut budget).and_then(|y_n| {
-        let y_n1 = series_w(p, r_n + 1.0, c_n + 1.0, w, &mut budget)?;
+    let recur = series_w(p, r_n, c_n, w, &mut budget, None, f64::INFINITY).and_then(|y_n| {
+        let y_n1 = series_w(p, r_n + 1.0, c_n + 1.0, w, &mut budget, None, f64::INFINITY)?;
         // (the recurrence is symmetric in p and q)
         recur_down(n as u32, y_n, y_n1, coefs_c(p, q, c, Dd::new(z)))
     });
@@ -525,25 +563,95 @@ fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
         return None;
     }
     let dpsi = psi(g.hi) * g.lo;
-    let f2 = if g.hi < 0.5 {
+    let err = 4.0 * MACHEP * (v.abs() + dpsi.abs() + 1.0) + trigamma_max(g, d) * g.lo * g.lo / 2.0;
+    Some((Dd::new(v) + dpsi, f64::from(sign), err))
+}
+
+/// The bound of `psi' = (ln Gamma)''` of `ln_gamma` between `g.hi` and `g.hi + g.lo`, with `d`
+/// the smallest distance to a pole there
+fn trigamma_max(g: Dd, d: f64) -> f64 {
+    if g.hi < 0.5 {
         d.powi(-2) + PI * PI
     } else {
         let g = g.hi - g.lo.abs();
         (1.0 + 1.0 / g) / g
-    };
-    let err = 4.0 * MACHEP * (v.abs() + dpsi.abs() + 1.0) + f2 * g.lo * g.lo / 2.0;
-    Some((Dd::new(v) + dpsi, f64::from(sign), err))
+    }
 }
 
-/// `ln|Gamma(n0) Gamma(n1) / (Gamma(d0) Gamma(d1))|`, its sign, and a bound of its absolute error
-/// (see `ln_gamma`)
-fn ln_gamma_ratio([n0, n1]: [Dd; 2], [d0, d1]: [Dd; 2]) -> Option<(Dd, f64, f64)> {
+/// `psi(v)` at `v.hi`, and a bound of its absolute error, or `None` at (or too close to) a pole.
+/// For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)`, with `|pi cot(pi v)| <= 1/d`
+/// (`d` as in `ln_gamma`), and its error is relative to both terms.
+fn psi_dd(v: Dd) -> Option<(f64, f64)> {
+    let d = (v.hi - v.hi.round()).abs() - v.lo.abs();
+    if v.hi < 0.5 && d <= 0.0 {
+        return None;
+    }
+    let y = psi(v.hi);
+    let cot = if v.hi < 0.0 { 1.0 / d } else { 0.0 };
+    let err = 8.0 * MACHEP * (y.abs() + 2.0 * cot + 1.0) + trigamma_max(v, d) * v.lo.abs();
+    Some((y, err))
+}
+
+/// `ln|Gamma(n_0) Gamma(n_1) ... / (Gamma(d_0) Gamma(d_1) ...)|`, its sign, and a bound of its
+/// absolute error (see `ln_gamma`)
+fn ln_gamma_ratio<const N: usize, const M: usize>(
+    num: [Dd; N],
+    den: [Dd; M],
+) -> Option<(Dd, f64, f64)> {
     let (mut ln_g, mut sign, mut ln_g_err) = (Dd::new(0.0), 1.0, 0.0);
-    for (g, power) in [(n0, 1.0), (n1, 1.0), (d0, -1.0), (d1, -1.0)] {
+    let factors = num
+        .map(|g| (g, 1.0))
+        .into_iter()
+        .chain(den.map(|g| (g, -1.0)));
+    for (g, power) in factors {
         let (v, sg, err) = ln_gamma(g)?;
         (ln_g, sign, ln_g_err) = (ln_g + v * power, sign * sg, ln_g_err + err);
     }
     Some((ln_g, sign, ln_g_err))
+}
+
+/// A term `sign y exp(l)` of `hyp2f1_recip`, with the error bound of the `ln Gamma` in `l`
+type RecipTerm = (f64, Scaled, Dd, f64);
+
+/// The two terms of `hyp2f1_recip` if `m = b - a` is a non-negative integer, by the limit
+/// `b - a -> m` of its transformation (<https://dlmf.nist.gov/15.8.E9>), with `w = 1 / (1 - t)`:
+///
+/// ```text
+/// F(a, b; c; t) / Gamma(c) = (1 - t)^-a Gamma(m) / (Gamma(b) Gamma(c - a)) S_1
+///     + (-1)^m (1 - t)^-b / (Gamma(a) Gamma(c - b) m!) S_2
+/// S_1 = sum_(k < m) (a)_k (c - b)_k / ((1 - m)_k k!) w^k
+/// S_2 = sum_k (b)_k (c - a)_k / ((m + 1)_k k!) w^k beta_k
+/// beta_k = ln(1 - t) + psi(k + 1) + psi(m + k + 1) - psi(b + k) - psi(c - a + k)
+/// ```
+///
+/// `S_2` is the series of step 2 of the second term of `hyp2f1_recip`, but with the weights
+/// `beta_k` of `series_w`.
+#[allow(clippy::float_cmp)]
+fn recip_log_terms(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<(RecipTerm, RecipTerm)> {
+    let (m, ca, cb) = ((b - a).hi, c - a, c - b);
+    let m1 = Dd::new(m + 1.0);
+    if series_too_long(b, ca, m1, w) || m > HYP2F1_RECUR_MAXITER {
+        return None;
+    }
+    let (ln_g2, sign2, g2) = ln_gamma_ratio([c], [a, cb, m1])?;
+    // beta_0 and a bound of its absolute error
+    let (mut beta, mut beta_err) = (ln_1mt, 0.0);
+    for (v, sign) in [(Dd::new(1.0), 1.0), (m1, 1.0), (b, -1.0), (ca, -1.0)] {
+        let (y, err) = psi_dd(v)?;
+        (beta, beta_err) = (beta + sign * y, beta_err + err);
+    }
+    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs()));
+    let mut budget = HYP2F1_RECUR_MAXITER;
+    let s2 = series_w(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
+    let sign2 = if m % 2.0 == 0.0 { sign2 } else { -sign2 };
+    let term2 = (sign2, s2, ln_g2 - b * ln_1mt, g2);
+    if m == 0.0 {
+        // (S_1 is an empty sum)
+        return Some(((1.0, Scaled { m: 0.0, ..s2 }, term2.2, 0.0), term2));
+    }
+    let s1 = series_w(a, cb, Dd::new(1.0 - m), w, &mut budget, None, m - 1.0)?;
+    let (ln_g1, sign1, g1) = ln_gamma_ratio([c, Dd::new(m)], [b, ca])?;
+    Some(((sign1, s1, ln_g1 - a * ln_1mt, g1), term2))
 }
 
 /// `F(a, b; c; t)` for `t < 0` by the 1/t transformation (steps 4 and 5), as `(y, l)` with the
@@ -556,8 +664,8 @@ fn ln_gamma_ratio([n0, n1]: [Dd; 2], [d0, d1]: [Dd; 2]) -> Option<(Dd, f64, f64)
 /// ```
 ///
 /// The error bound includes those of the two `F` and of the `ln Gamma` (of their double-double
-/// arguments), and the cancellation of the two terms. It fails if `b - a` is an integer (a pole
-/// of `G`), and its bound is large if `b - a` is close to one.
+/// arguments), and the cancellation of the two terms. If `b - a` is an integer (a pole of `G`),
+/// it uses `recip_log_terms` instead. Its bound is large if `b - a` is close to an integer.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
     let one = Dd::new(1.0);
     let (ln_x, ln_1mx) = (ln_dd(Dd::new(x.abs())), ln_dd(one - x));
@@ -576,7 +684,13 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
         let (ln_g, sign, ln_g_err) = ln_gamma_ratio([c, b - a], [b, c - a])?;
         Some((sign, y, l - a * ln_mt + ln_g, ln_g_err))
     };
-    let ((s1, y1, l1, g1), (s2, y2, l2, g2)) = (term(a, b)?, term(b, a)?);
+    let m = b - a;
+    let ((s1, y1, l1, g1), (s2, y2, l2, g2)) = if m.lo == 0.0 && m.hi.fract() == 0.0 {
+        let (a, b) = if m.hi < 0.0 { (b, a) } else { (a, b) };
+        recip_log_terms(a, b, c, w, ln_mt + ln_1mz)?
+    } else {
+        (term(a, b)?, term(b, a)?)
+    };
     // the two terms, scaled by `exp(-lmax)`, with `lmax` the larger exponent
     let (l1, l2) = (l1 + LOG2 * f64::from(y1.e), l2 + LOG2 * f64::from(y2.e));
     let lmax = if l1.hi >= l2.hi { l1 } else { l2 };
