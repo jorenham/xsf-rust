@@ -622,11 +622,15 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 /// Unlike in xsf, `hyp2f1_recur` is tried first if `max(|a|, |b|, |c|)` is at least this
 const HYP2F1_RECUR_MIN: f64 = 10.0;
 
+/// The `x` from which `hyp2f1_recur` tries the 1 - x transformation first, as `hyt2f1` does
+pub(crate) const HYP2F1_RECUR_NEAR1: f64 = 0.9;
+
 fn is_large(a: f64, b: f64, c: f64) -> bool {
     [a, b, c].into_iter().any(|v| v.abs() >= HYP2F1_RECUR_MIN)
 }
 
-/// `hyp2f1`, where `recur` is whether the parameters of the outermost call are large
+/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur`: if the parameters of the outermost
+/// call are large (and not in the Pfaff transformation below for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_a = false;
@@ -679,7 +683,6 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // the parameters of the outermost call are large, so that the other results are unchanged.
     let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer());
     if recur
-        && x < 0.9
         && is_large(a, b, c)
         && !near_neg_int(c)
         && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
@@ -820,10 +823,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             } else if x < -1.0 || lost && near(x, -1.0) {
                 // Unlike in xsf (scipy/xsf#470), also near x = -1 if `a` or `b` is lost (see
                 // above), as the power series diverges there if c - a - b <= -1.
+                //
+                // (not `hyp2f1_recur` at x / (x - 1) >= 0.9, i.e. x <= -9, since its 1 - x
+                // transformation and combinations there are those that it tried for x)
+                let w = x / (x - 1.0);
+                let recur = recur && w < HYP2F1_RECUR_NEAR1;
                 if a.abs() < b.abs() {
-                    return s.powf(-a) * hyp2f1_impl(a, c - b, c, x / (x - 1.0), recur);
+                    return s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur);
                 }
-                return s.powf(-b) * hyp2f1_impl(b, c - a, c, x / (x - 1.0), recur);
+                return s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur);
             }
 
             if ax > 1.0 {

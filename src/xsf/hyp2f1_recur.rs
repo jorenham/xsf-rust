@@ -37,12 +37,13 @@
 //!    above (with `w = 1 / (1 - x)`), and only continue with the 4 combinations if its error bound
 //!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`.
 //!
-//! 5. If `x >= -1` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
+//! 5. If `-1 <= x < 0.9` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
 //!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
 //!    `(1 - x)^-b F(c - a, b; c; x / (x - 1))` if `0 < x < 1` (i.e. the 1 - x transformation,
 //!    DLMF 15.8.4). Its series are in `w = 1 / (1 - x)` or `w = 1 - x`. The 4 combinations can
 //!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
 //!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
+//!    For `x >= 0.9`, where `w = x` is close to 1, we try it first instead, as in step 4.
 //!
 //! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
 //!    with other start values. Those of step 3 are sums of the same series, and can lose precision
@@ -84,7 +85,7 @@ use crate::utils::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
 };
-use crate::xsf::cephes::{HYP2F1_ETHRESH, lgam_sgn, lgam_stirling_corr, psi};
+use crate::xsf::cephes::{HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1, lgam_sgn, lgam_stirling_corr, psi};
 use crate::xsf::trig::{cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
@@ -555,23 +556,25 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     if err_of(poly) <= HYP2F1_RECUR_TOL {
         return poly;
     }
-    // For x < -1, first try the 1/x transformation, whose series are much shorter if w is near 1.
-    let recip = (x < -1.0)
-        .then(|| hyp2f1_recip(a, b, c, x, ln_1mx))
-        .flatten();
-    if err_of(recip) <= HYP2F1_ETHRESH {
-        return recip;
-    }
-    let best = min_err(best_combination(combinations, c, z, w, ln_1mx), recip);
-    // If that fails for x >= -1, also try the 1/t transformation (step 5).
-    if x >= -1.0 && !(err_of(best) <= HYP2F1_RECUR_TOL) {
-        let recip = if x < 0.0 {
+    // the 1/x transformation (step 4), or the 1/t transformation (step 5)
+    let try_recip = || {
+        if x < 0.0 {
             hyp2f1_recip(a, b, c, x, ln_1mx)
         } else {
             // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
             hyp2f1_recip(c - a, b, c, x, ln_1mx).map(|y| y.with_l(y.l - b * ln_1mx))
-        };
-        min_err(best, recip)
+        }
+    };
+    // For x < -1 or x >= 0.9, first try that, as its series are much shorter if w is near 1.
+    let recip_first = !(-1.0..HYP2F1_RECUR_NEAR1).contains(&x);
+    let recip = recip_first.then(try_recip).flatten();
+    if err_of(recip) <= HYP2F1_ETHRESH {
+        return recip;
+    }
+    let best = min_err(best_combination(combinations, c, z, w, ln_1mx), recip);
+    // Else, if that fails, try it last (step 5).
+    if !recip_first && !(err_of(best) <= HYP2F1_RECUR_TOL) {
+        min_err(best, try_recip())
     } else {
         best
     }
