@@ -733,6 +733,23 @@ fn test_hyp2f1_f64_large_opposite_signs() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_c_lt_0() {
+    // unlike in xsf: the backward recurrence in c from start values by other forms, if those of
+    // its own form lose precision (references: Arb)
+    let actual = [
+        xsf::hyp2f1(758.1, 7.7, -151.2, -0.3),
+        xsf::hyp2f1(16.1, 428.5, -230.7, -0.91),
+        xsf::hyp2f1(-559.7, 42.4, -136.1, 0.27),
+    ];
+    let desired = [
+        -8_553.508_491_012_49,
+        -1_050_587.466_964_691_6,
+        -2.046_272_877_671_090_4e24,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_polynomials() {
     // unlike in xsf: the recurrence in the degree, since the series cancel (references: Arb)
     let actual = [
