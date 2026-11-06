@@ -326,6 +326,11 @@ where
             continue;
         }
 
+        // the reference for x = 1 is xsf's inaccurate value, which is fixed in xsf-rust
+        if name == "kolmogp" && case.r#in[0] == 1.0 {
+            continue;
+        }
+
         let desired = case.out;
         let desired_magnitude = desired.magnitude();
 

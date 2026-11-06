@@ -375,6 +375,22 @@ fn test_kolmogp() {
 }
 
 #[test]
+fn test_kolmogp_near_cutover() {
+    // -8x sum_k (-1)^(k-1) k^2 exp(-2k^2 x^2), mpmath (dps = 40)
+    let x = [0.83, 0.85, 0.9, 1.0];
+    let expected = [
+        -1.567_071_014_748_016_2,
+        -1.519_197_893_798_649,
+        -1.380_727_054_237_732_8,
+        -1.071_948_558_356_941_7,
+    ];
+    xsref::np_assert_allclose!(&x.map(xsf::kolmogp), &expected, rtol = 1e-15);
+    // 2 sum_k (-1)^(k-1) exp(-2k^2 x^2), mpmath (dps = 40)
+    let sf = xsf::kolmogorov(0.83);
+    xsref::np_assert_allclose!(&[sf], &[0.496_190_995_350_505_8], rtol = 1e-15);
+}
+
+#[test]
 fn test_smirnov() {
     xsref::test("smirnov", "p_d-d", |x| xsf::smirnov(x[0] as i32, x[1]));
 }
