@@ -919,11 +919,12 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let b1 = b - a - 1.0;
     let c = 12.0 / x;
     let f = |t: f64| (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
-    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 3, which smooths the endpoint
+    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
     //
-    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317.
-    let cubic = a < 3.0 && a != a.trunc();
+    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317, and `U(3.5, 0, 0.002)` was
+    // 0.0831444376 instead of 0.0831444002.
+    let cubic = a < 4.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
     for m in (10..=100).step_by(5) {
@@ -1143,15 +1144,15 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = SPECFUN_INF;
-    let mut h0 = 0.0;
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
-    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1
+    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1, and
+    // likewise b + (j - 1), which matters for small b
     for j in 1..151 {
-        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
+        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j - 1))) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
         s1 += r1;
@@ -1163,11 +1164,12 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if hua < hmin {
             hmin = hua;
         }
-        if (f64::from(j) > jconv || jmin >= 150.0) && (hu - h0).abs() < hu.abs() * 1e-15 {
+        // Unlike in xsf, the terms must be small, not their difference (which is also small if they
+        // cancel, e.g. at j = 2 for U(10, 1e-17, 0.5))
+        if (f64::from(j) > jconv || jmin >= 150.0) && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
             converged = true;
             break;
         }
-        h0 = hu;
     }
     let d1 = hmax.log10();
     let mut d2 = 0.0;
@@ -1189,10 +1191,10 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
-    // of gamma2 and hu0 near their poles (z < -1), amplified if s1 and s2 cancel,
+    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel,
     // e.g. U(-7.5, -6.999996, 15) = 9.0273143e8 instead of 9.0260273e8
     let k = |z: f64| {
-        if z < -1.0 && z.fract() != 0.0 {
+        if z < 0.0 && z.fract() != 0.0 {
             f64::EPSILON * (z / cephes_sinpi(z)).abs()
         } else {
             0.0

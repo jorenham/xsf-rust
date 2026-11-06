@@ -149,6 +149,10 @@ fn test_hypu_small_a() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; 0.0831444376 in xsf
+    let actual = xsf::hypu(3.5, 0.0, 0.002);
+    xsref::np_assert_allclose!([actual], [0.083_144_400_245_006_18], rtol = 1e-13);
 }
 
 #[test]
@@ -172,6 +176,19 @@ fn test_hypu_chgus() {
     ];
     let expected = [502.060_132_017_751_15, 902_731_434.181_382_9];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-10);
+
+    // Arb; -8.59e8 and 1.1254 (near the poles of Gamma(b)) in xsf
+    let actual = [
+        xsf::hypu(3.0, 1e-12, 1.5),
+        xsf::hypu(-1.9, -0.999_999_999_6, 0.9),
+    ];
+    let expected = [0.012_613_223_506_698_312, 1.081_954_303_595_999_8];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; the terms of the two series in `chgus` cancel here, so that their sum barely changes
+    // long before it converges
+    let actual = xsf::hypu(10.0, 1e-17, 0.5);
+    xsref::np_assert_allclose!([actual], [1.141_388_465_789_265_9e-8], rtol = 1e-13);
 
     // mpmath: -4.41e397 and 3.70e388; NaN in xsf
     assert_eq!(xsf::hypu(-14.2, 95.7, 0.0028), f64::NEG_INFINITY);
