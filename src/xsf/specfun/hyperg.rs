@@ -565,6 +565,13 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
 
+    // Unlike in xsf, chgus and chgul need 12 digits (instead of 9) to be accepted. With 9 to 11
+    // digits, the result of the other method is only used if it agrees with theirs within 10 times
+    // their error estimate (it can be far off, e.g. for small x). Both thresholds are empirical.
+    //
+    // E.g. U(0.8, 0.95, 15) was 0.1098838166 instead of 0.1098838676.
+    const ID_MIN: i32 = 12;
+
     let mut id1: i32 = 0;
     let mut hu = 0.0;
 
@@ -586,7 +593,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if b != f64::from(b as i32) {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
-        if id1 >= 9 {
+        if id1 >= ID_MIN {
             return hu;
         }
         hu1 = hu;
@@ -597,7 +604,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
-        if id >= 9 {
+        if id >= ID_MIN {
             return hu;
         }
         if id1 > id {
@@ -606,6 +613,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = hu1;
         }
     }
+    let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
         if bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) {
             hu = chgubi(x, a, b, &mut id);
@@ -622,14 +630,34 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = chguit(x, a, b, &mut id);
             hu *= x.powf(1.0 - b00);
             *md = 4;
-        } else if bn != 0 && (!il1) != 0 {
-            // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so this
-            // condition is just `bn`. Reproduced as is.
-            hu = chgubi(x, a, b, &mut id);
-            *md = 3;
+        } else {
+            if bn != 0 && (!il1) != 0 {
+                // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
+                // this condition is just `bn`. Reproduced as is.
+                hu = chgubi(x, a, b, &mut id);
+                *md = 3;
+            }
+            // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
+            // or if chgubi fails and chgul has fewer than 9 digits
+            let failed = id < 6 || hu.is_nan();
+            if (bn == 0 || failed && id0 < 9) && a > -1000.0 {
+                let u = super::hypu_rec(a, b, x);
+                if !u.is_nan() {
+                    (hu, id) = (u, ID_MIN);
+                }
+            }
         }
         // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
         // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
+    }
+    // see `ID_MIN`
+    if id0 >= 9 && !hu0.is_nan() {
+        let tol = 10f64.powi(1 - id0) * hu0.abs();
+        let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
+        if !agrees {
+            return hu0;
+        }
+        id = id.max(id0);
     }
     if id < 6 {
         *isfer = 6;
@@ -919,11 +947,12 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let b1 = b - a - 1.0;
     let c = 12.0 / x;
     let f = |t: f64| (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
-    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 3, which smooths the endpoint
+    // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
     //
-    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317.
-    let cubic = a < 3.0 && a != a.trunc();
+    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317, and `U(3.5, 0, 0.002)` was
+    // 0.0831444376 instead of 0.0831444002.
+    let cubic = a < 4.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
     for m in (10..=100).step_by(5) {
@@ -1061,10 +1090,12 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         if u.is_finite() {
             hu = if kummer { x.powf(1.0 - b) * u } else { u };
+            // the recurrence is stable here, so this has (nearly) all digits
+            *id = 15;
         } else {
             let sum = hu;
             hu *= x.powf(-a);
-            if cancels && hu.is_finite() {
+            if hu.is_finite() {
                 *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
             }
         }
@@ -1143,15 +1174,15 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = SPECFUN_INF;
-    let mut h0 = 0.0;
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
-    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1
+    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1, and
+    // likewise b + (j - 1), which matters for small b
     for j in 1..151 {
-        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
+        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j - 1))) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
         s1 += r1;
@@ -1163,11 +1194,12 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if hua < hmin {
             hmin = hua;
         }
-        if (f64::from(j) > jconv || jmin >= 150.0) && (hu - h0).abs() < hu.abs() * 1e-15 {
+        // Unlike in xsf, the terms must be small, not their difference (which is also small if they
+        // cancel, e.g. at j = 2 for U(10, 1e-17, 0.5))
+        if (f64::from(j) > jconv || jmin >= 150.0) && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
             converged = true;
             break;
         }
-        h0 = hu;
     }
     let d1 = hmax.log10();
     let mut d2 = 0.0;
@@ -1189,10 +1221,10 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
-    // of gamma2 and hu0 near their poles (z < -1), amplified if s1 and s2 cancel,
+    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel,
     // e.g. U(-7.5, -6.999996, 15) = 9.0273143e8 instead of 9.0260273e8
     let k = |z: f64| {
-        if z < -1.0 && z.fract() != 0.0 {
+        if z < 0.0 && z.fract() != 0.0 {
             f64::EPSILON * (z / cephes_sinpi(z)).abs()
         } else {
             0.0

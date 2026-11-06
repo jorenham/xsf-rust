@@ -149,6 +149,36 @@ fn test_hypu_small_a() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; 0.0831444376 in xsf
+    let actual = xsf::hypu(3.5, 0.0, 0.002);
+    xsref::np_assert_allclose!([actual], [0.083_144_400_245_006_18], rtol = 1e-13);
+}
+
+#[test]
+fn test_hypu_digits() {
+    // Arb; 0.1098838166, 0.2518536383, and 0.9378950474 in xsf
+    let abx = [(0.8, 0.95, 15.0), (0.5, 0.7, 15.0), (0.03, -0.001, 7.5)];
+    let expected = [
+        0.109_883_867_556_135_05,
+        0.251_853_637_950_820_1,
+        0.937_895_047_309_956_8,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; -48.29100258 in xsf
+    let actual = xsf::hypu(-8.36, 0.9956, 7.86);
+    xsref::np_assert_allclose!([actual], [-48.291_009_037_510_32], rtol = 1e-10);
+
+    // Arb; still finite if `chgubi` fails (NaN with 15 digits)
+    let actual = xsf::hypu(0.3, 172.0, 100.0);
+    xsref::np_assert_allclose!([actual], [122_292_314.484_337_23], rtol = 1e-13);
+
+    // Arb; `chgul` has all digits here, but claimed only 10
+    let actual = [xsf::hypu(-36.0, -32.2, 16.2), xsf::hypu(-39.0, 23.5, 10.0)];
+    let expected = [-1.512_832_103_737_844e44, 1.358_838_881_564_021_4e54];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 }
 
 #[test]
@@ -172,6 +202,19 @@ fn test_hypu_chgus() {
     ];
     let expected = [502.060_132_017_751_15, 902_731_434.181_382_9];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-10);
+
+    // Arb; -8.59e8 and 1.1254 (near the poles of Gamma(b)) in xsf
+    let actual = [
+        xsf::hypu(3.0, 1e-12, 1.5),
+        xsf::hypu(-1.9, -0.999_999_999_6, 0.9),
+    ];
+    let expected = [0.012_613_223_506_698_312, 1.081_954_303_595_999_8];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; the terms of the two series in `chgus` cancel here, so that their sum barely changes
+    // long before it converges
+    let actual = xsf::hypu(10.0, 1e-17, 0.5);
+    xsref::np_assert_allclose!([actual], [1.141_388_465_789_265_9e-8], rtol = 1e-13);
 
     // mpmath: -4.41e397 and 3.70e388; NaN in xsf
     assert_eq!(xsf::hypu(-14.2, 95.7, 0.0028), f64::NEG_INFINITY);
