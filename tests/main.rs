@@ -4,7 +4,11 @@
 #![allow(
     clippy::doc_markdown,
     clippy::many_single_char_names,
-    clippy::similar_names
+    clippy::similar_names,
+    // casts between the test indices, the reference data, and the argument types
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
 )]
 
 mod numpy;

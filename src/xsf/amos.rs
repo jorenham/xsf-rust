@@ -101,11 +101,23 @@
 //! - The complex `sqrt`, `exp`, and `log` are computed with the crate's `csqrt` (from FreeBSD),
 //!   `cexp`, and `clog`, which can differ from glibc's in the last bit.
 
-// The C++ literals are kept verbatim
+// The C++ literals and the control flow of the line-by-line Fortran translation are kept verbatim.
+// E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
 #![allow(
     clippy::approx_constant,
-    clippy::excessive_precision,
-    clippy::unreadable_literal
+    clippy::assign_op_pattern,
+    clippy::bool_to_int_with_if,
+    clippy::collapsible_else_if,
+    clippy::collapsible_if,
+    clippy::manual_clamp,
+    clippy::manual_range_contains,
+    clippy::match_same_arms,
+    clippy::needless_late_init,
+    clippy::needless_return,
+    clippy::range_plus_one,
+    clippy::redundant_comparisons,
+    clippy::redundant_else,
+    unused_assignments
 )]
 
 use core::f64::consts::{LN_2, LN_10};
@@ -160,7 +172,6 @@ const I1MACH: [f64; 16] = [
 /// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
 /// DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
 /// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-#[allow(clippy::cast_possible_truncation)]
 const MACH: (f64, f64, f64, f64, f64) = {
     let mut k1 = I1MACH[14] as i32;
     let k2 = I1MACH[15] as i32;
@@ -392,12 +403,6 @@ const DGAMLN_CF: [f64; 22] = [
     4.88788064793079335e+14, -2.13203339609193739e+16,                                                    // 20
 ];
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::cast_possible_truncation,
-    clippy::approx_constant
-)]
-#[allow(clippy::excessive_precision)]
 pub(crate) fn acai(
     z: Complex64,
     fnu: f64,
@@ -508,21 +513,6 @@ pub(crate) fn acai(
     nz
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation
-)]
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::approx_constant,
-    clippy::excessive_precision
-)]
-#[allow(
-    clippy::collapsible_if,
-    clippy::collapsible_else_if,
-    unused_assignments
-)]
 pub(crate) fn acon(
     z: Complex64,
     fnu: f64,
@@ -691,22 +681,6 @@ pub(crate) fn acon(
     nz
 }
 
-#[allow(
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::excessive_precision
-)]
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
-#[allow(
-    clippy::collapsible_if,
-    clippy::needless_return,
-    clippy::manual_range_contains,
-    clippy::redundant_else
-)]
 pub(crate) fn airy(
     mut z: Complex64,
     id: i32,
@@ -1061,18 +1035,6 @@ pub(crate) fn airy(
     return s1 / sfac;
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation
-)]
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
-#[allow(clippy::approx_constant, clippy::excessive_precision)]
 pub(crate) fn asyi(
     z: Complex64,
     fnu: f64,
@@ -1216,12 +1178,6 @@ pub(crate) fn asyi(
     -1
 }
 
-#[allow(
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
-#[allow(clippy::manual_range_contains, clippy::redundant_comparisons)]
 pub(crate) fn besh(
     z: Complex64,
     fnu: f64,
@@ -1583,16 +1539,6 @@ pub(crate) fn besh(
     nz
 }
 
-#[allow(
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
-#[allow(
-    clippy::approx_constant,
-    clippy::excessive_precision,
-    clippy::manual_range_contains
-)]
 pub(crate) fn besi(
     z: Complex64,
     fnu: f64,
@@ -1848,11 +1794,6 @@ pub(crate) fn besi(
     nz
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::manual_range_contains
-)]
 pub(crate) fn besj(
     z: Complex64,
     fnu: f64,
@@ -2105,16 +2046,6 @@ pub(crate) fn besj(
     nz
 }
 
-#[allow(
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::float_cmp
-)]
-#[allow(
-    clippy::collapsible_if,
-    clippy::collapsible_else_if,
-    clippy::manual_range_contains
-)]
 pub(crate) fn besk(
     z: Complex64,
     fnu: f64,
@@ -2429,11 +2360,6 @@ pub(crate) fn besk(
     nz
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::manual_range_contains
-)]
 pub(crate) fn besy(
     z: Complex64,
     fnu: f64,
@@ -2691,14 +2617,6 @@ pub(crate) fn besy(
     nz
 }
 
-#[allow(
-    clippy::collapsible_else_if,
-    clippy::needless_late_init,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn binu(
     z: Complex64,
     fnu: f64,
@@ -2870,22 +2788,6 @@ pub(crate) fn binu(
     nz
 }
 
-#[allow(
-    unused_assignments,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::excessive_precision
-)]
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
-#[allow(
-    clippy::collapsible_if,
-    clippy::needless_return,
-    clippy::manual_range_contains
-)]
 pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex64 {
     //***BEGIN PROLOGUE  ZBIRY
     //***DATE WRITTEN   830501   (YYMMDD)
@@ -3213,22 +3115,6 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     return bi;
 }
 
-#[allow(
-    unused_assignments,
-    clippy::approx_constant,
-    clippy::assign_op_pattern,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::manual_clamp,
-    clippy::manual_midpoint,
-    clippy::needless_late_init,
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::unreadable_literal,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn bknu(
     z: Complex64,
     fnu: f64,
@@ -3831,13 +3717,6 @@ pub(crate) fn bknu(
     }
 }
 
-#[allow(
-    clippy::if_not_else,
-    clippy::needless_late_init,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn buni(
     z: Complex64,
     fnu: f64,
@@ -4029,11 +3908,6 @@ pub(crate) fn buni(
     nz
 }
 
-#[allow(
-    unused_assignments,
-    clippy::needless_late_init,
-    clippy::too_many_arguments
-)]
 pub(crate) fn bunk(
     z: Complex64,
     fnu: f64,
@@ -4078,16 +3952,6 @@ pub(crate) fn bunk(
     nz
 }
 
-#[allow(
-    clippy::collapsible_if,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::manual_clamp,
-    clippy::needless_late_init,
-    clippy::unreadable_literal,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn gamln(z: f64) -> f64 {
     //***BEGIN PROLOGUE  DGAMLN
     //***DATE WRITTEN   830501   (YYMMDD)
@@ -4201,12 +4065,6 @@ pub(crate) fn gamln(z: f64) -> f64 {
     f64::NAN
 }
 
-#[allow(
-    clippy::needless_late_init,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn mlri(
     z: Complex64,
     fnu: f64,
@@ -4410,12 +4268,6 @@ pub(crate) fn mlri(
     nz
 }
 
-#[allow(
-    unused_assignments,
-    clippy::needless_late_init,
-    clippy::too_many_arguments,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn kscl(
     zr: Complex64,
     fnu: f64,
@@ -4542,18 +4394,6 @@ pub(crate) fn kscl(
     nz
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else,
-    clippy::collapsible_if,
-    clippy::too_many_lines
-)]
 pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     //***BEGIN PROLOGUE  ZRATI
     //***REFER TO  ZBESI,ZBESK,ZBESH
@@ -4688,20 +4528,6 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::collapsible_if,
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else
-)]
 pub(crate) fn seri(
     z: Complex64,
     fnu: f64,
@@ -4948,12 +4774,6 @@ pub(crate) fn seri(
     nz
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::similar_names,
-    clippy::needless_late_init,
-    clippy::collapsible_if
-)]
 pub(crate) fn s1s2(
     zr: Complex64,
     s1: &mut Complex64,
@@ -5014,7 +4834,6 @@ pub(crate) fn s1s2(
     1
 }
 
-#[allow(clippy::if_not_else, clippy::bool_to_int_with_if)]
 pub(crate) fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
     //***BEGIN PROLOGUE  ZUCHK
     //***REFER TO ZSERI,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
@@ -5042,23 +4861,6 @@ pub(crate) fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::needless_return,
-    clippy::redundant_else,
-    unused_assignments,
-    unused_variables,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else,
-    clippy::collapsible_if
-)]
 pub(crate) fn unhj(
     z: Complex64,
     fnu: f64,
@@ -5444,19 +5246,6 @@ pub(crate) fn unhj(
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::collapsible_if,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else
-)]
 pub(crate) fn uni1(
     z: Complex64,
     fnu: f64,
@@ -5678,19 +5467,6 @@ pub(crate) fn uni1(
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    clippy::collapsible_if,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else
-)]
 pub(crate) fn uni2(
     z: Complex64,
     fnu: f64,
@@ -5979,20 +5755,6 @@ pub(crate) fn uni2(
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    unused_assignments,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::if_not_else,
-    clippy::collapsible_if,
-    clippy::too_many_lines
-)]
 pub(crate) fn unik(
     zr: Complex64,
     fnu: f64,
@@ -6120,23 +5882,6 @@ pub(crate) fn unik(
     }
 }
 
-#[allow(
-    clippy::approx_constant,
-    clippy::assign_op_pattern,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::collapsible_if,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 pub(crate) fn unk1(
     z: Complex64,
     fnu: f64,
@@ -6640,23 +6385,6 @@ pub(crate) fn unk1(
     nz
 }
 
-#[allow(
-    clippy::approx_constant,
-    clippy::assign_op_pattern,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::collapsible_if,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 pub(crate) fn unk2(
     z: Complex64,
     fnu: f64,
@@ -7263,20 +6991,6 @@ pub(crate) fn unk2(
     nz
 }
 
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::collapsible_else_if,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 pub(crate) fn uoik(
     z: Complex64,
     fnu: f64,
@@ -7508,15 +7222,6 @@ pub(crate) fn uoik(
     // return -1;  (unreachable)
 }
 
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::needless_late_init,
-    clippy::range_plus_one,
-    clippy::similar_names,
-    clippy::too_many_arguments
-)]
 pub(crate) fn wrsk(
     zr: Complex64,
     fnu: f64,
@@ -7640,7 +7345,6 @@ pub(crate) enum SfError {
 // 'ierr' refers to the last parameter of the AMOS functions
 // airy(), besh(), besi(), besj(), besk(), besy(), and biry().
 //
-#[allow(clippy::match_same_arms)]
 pub(crate) fn ierr_to_sferr(nz: i32, ierr: i32) -> SfError {
     if nz != 0 {
         return SfError::Underflow;

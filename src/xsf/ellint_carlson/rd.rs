@@ -16,7 +16,6 @@ use super::common::{ExitStatus, config, constants};
 use super::typing::Num;
 use super::{argcheck, common};
 
-#[allow(clippy::too_many_lines)]
 pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     let mut cct1 = [T::from(0.0); 6];
     let mut cct2 = [T::from(0.0); 6];

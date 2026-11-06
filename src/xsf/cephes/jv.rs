@@ -9,8 +9,6 @@
 //! the Cephes one (see [`crate::cbrt`]), and the `double` -> `int` conversions saturate instead of
 //! being undefined behavior (taking the same branches as the x86 conversion in C++).
 
-#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
-
 use core::f64::consts::PI;
 
 use crate::utils::{MACHEP, MAXGAM, MAXLOG};
@@ -24,12 +22,6 @@ const JV_BIG: f64 = 1.44115188075855872E+17;
  * AMS55 #9.1.27 and 9.1.73.
  */
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::neg_cmp_op_on_partial_ord
-)]
 fn jv_recur(n: &mut f64, x: f64, newn: &mut f64, cancel: bool) -> f64 {
     let mut pkm2;
     let mut pkm1;
@@ -188,7 +180,6 @@ fn jv_recur(n: &mut f64, x: f64, newn: &mut f64, cancel: bool) -> f64 {
  * AMS55 #9.1.10.
  */
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn jv_jvs(n: f64, x: f64) -> f64 {
     let z = -x * x / 4.0;
     let mut u = 1.0;
@@ -443,12 +434,7 @@ const JV_P7: [f64; 8] = [
     1.7277275025844573975E0,
 ];
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::similar_names
-)]
+#[allow(clippy::needless_late_init)]
 fn jv_jnx(n: f64, x: f64) -> f64 {
     let mut u = [0.0; 8];
 
@@ -593,12 +579,7 @@ fn jv_jnx(n: f64, x: f64) -> f64 {
 /// Integer v:
 ///    IEEE   -125,125   -125,125      20000      2.9e-15*   2.2e-16*
 /// ```
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::manual_range_contains,
-    clippy::too_many_lines
-)]
+#[allow(clippy::manual_range_contains)]
 pub(crate) fn jv(mut n: f64, mut x: f64) -> f64 {
     let mut k;
     let mut q;

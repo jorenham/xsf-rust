@@ -1,5 +1,3 @@
-#![allow(clippy::float_cmp)]
-
 use num_complex::c64;
 
 #[test]

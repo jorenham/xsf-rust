@@ -1,5 +1,3 @@
-#![allow(clippy::float_cmp)]
-
 // there are no xsref tables, so we use smoke tests instead
 
 use core::f64::consts;

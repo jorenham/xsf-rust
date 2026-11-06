@@ -139,7 +139,6 @@ pub trait JacobiArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_jacobi`
     #[inline]
-    #[allow(clippy::float_cmp, clippy::manual_midpoint)]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
         if a == -1.0 && b.abs() == 1.0 {
             if n == 0.0 {
@@ -168,7 +167,6 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
 impl JacobiArg<i32> for f64 {
     /// Corresponds to `xsf::detail::eval_jacobi_l`
     #[inline]
-    #[allow(clippy::float_cmp, clippy::manual_midpoint)]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
         let x = self;
         if n < 0 {
@@ -384,7 +382,6 @@ pub trait GegenbauerArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_gegenbauer`
     #[inline]
-    #[allow(clippy::cast_possible_truncation)]
     fn eval_gegenbauer(self, n: f64, alpha: f64) -> Self {
         // If n is an integer, use more stable `eval_gegenbauer_l`
         if let Some(x) = self.as_f64() {
@@ -422,7 +419,6 @@ impl GegenbauerArg<i32> for f64 {
 // p_k = C_k^(alpha)(x) / binom(k + 2 alpha - 1, k) and their differences d_k = p_k - p_{k-1}:
 //   d_{k+1} = 2 (k + alpha) / (k + 2 alpha) (x - 1) p_k + k / (k + 2 alpha) d_k,  p_{k+1} = p_k + d_{k+1},
 // starting from p_1 = x, d_1 = x - 1. For |x| < 1e-5, the explicit power series in x is used instead.
-#[allow(clippy::cast_precision_loss, clippy::float_cmp)]
 fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
     if alpha.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -834,7 +830,6 @@ pub fn eval_laguerre<N, Z: LaguerreArg<N>>(n: N, z: Z) -> Z {
 ///   `y_v(x) = 1/Gamma(-v) int_0^inf t^(-v-1) exp(-scale t^2 - 2 scale x t) dt`
 /// - evaluate it by the trapezoidal rule in `u = ln(t / t0)`, with `t0` the peak of the integrand
 /// - recur forward to `n` with `y_{v+1} = 2 scale (x y_v - v y_{v-1})` (DLMF 12.8.1)
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hermite_rec(x: f64, n: f64, scale: f64) -> f64 {
     const H: f64 = 0.1;
     // the terms for u < 0 only shrink by exp(-k H) < 0.75 per step, so their tail is < 4x the last

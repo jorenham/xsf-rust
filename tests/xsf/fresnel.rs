@@ -6,7 +6,6 @@ fn test_fresnel_f64() {
 }
 
 #[test]
-#[allow(clippy::float_cmp)]
 fn test_fresnel_f64_huge() {
     // x * x overflows; S(x) and C(x) round to +-1/2 (mpmath)
     for x in [2.0_f64.powi(512), 1e155, -1e200, f64::MAX] {

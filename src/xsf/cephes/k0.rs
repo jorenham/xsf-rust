@@ -89,7 +89,6 @@ const K0_B: [f64; 25] = [
 ///  K0 singular        x == 0          INFINITY
 ///  K0 domain          x < 0           NaN
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn k0(x: f64) -> f64 {
     if x == 0.0 {
         return f64::INFINITY;
@@ -120,7 +119,6 @@ pub(crate) fn k0(x: f64) -> f64 {
 /// ```
 ///
 /// See k0().
-#[allow(clippy::float_cmp)]
 pub(crate) fn k0e(x: f64) -> f64 {
     if x == 0.0 {
         return f64::INFINITY;

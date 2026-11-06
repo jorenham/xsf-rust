@@ -1,3 +1,5 @@
+#![allow(clippy::assign_op_pattern, clippy::cast_possible_wrap)]
+
 use core::ops::{Add, Mul};
 
 use core::f64::consts::{FRAC_2_PI, PI};
@@ -141,7 +143,6 @@ fn rotate(z: Complex64, v: f64) -> Complex64 {
     c64(c * z.re - s * z.im, s * z.re + c * z.im)
 }
 
-#[allow(clippy::float_cmp)]
 fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
     let s = cephes_sinpi(v);
@@ -153,7 +154,6 @@ fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     c * j - s * y
 }
 
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn reflect_jy(jy: &mut Complex64, v: f64) -> bool {
     /* NB: Y_v may be huge near negative integers -- so handle exact
      *     integers carefully
@@ -169,7 +169,6 @@ fn reflect_jy(jy: &mut Complex64, v: f64) -> bool {
     true
 }
 
-#[allow(clippy::float_cmp)]
 fn reflect_i(_ik: &mut Complex64, v: f64) -> bool {
     if v != v.floor() {
         return false;
@@ -224,7 +223,6 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy
 }
 
-#[allow(clippy::float_cmp)]
 fn cyl_bessel_ie_f64(v: f64, x: f64) -> f64 {
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
@@ -270,7 +268,6 @@ fn cyl_bessel_ke_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy
 }
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
@@ -319,12 +316,10 @@ fn cyl_bessel_overflow(
 /// for integer v, else 1e-304.
 ///
 /// For negative non-integer v, a 0 is a cancellation in the reflection formula instead.
-#[allow(clippy::float_cmp)]
 fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
     let n = 1;
     let kode = 1;
@@ -392,7 +387,6 @@ pub(crate) fn cyl_bessel_k_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy
 }
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
     if z < 0.0 {
         return f64::NAN;
@@ -447,7 +441,6 @@ fn cyl_bessel_je_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy_j
 }
 
-#[allow(clippy::float_cmp)]
 fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
@@ -511,7 +504,6 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
 
 /// Unlike in xsf, the four Hankel functions share this implementation (xsf duplicates it), with
 /// `kode = 2` for the exponentially scaled ones and `m` the kind.
-#[allow(clippy::float_cmp)]
 fn cyl_hankel_c64(mut v: f64, z: Complex64, kode: i32, m: i32) -> Complex64 {
     let n = 1;
     let mut ierr = 0;
@@ -571,7 +563,6 @@ pub(crate) fn cyl_bessel_j_c64(mut v: f64, z: Complex64) -> Complex64 {
     cy_j
 }
 
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     if f64::from(v as i32) != v && x < 0.0 {
         return f64::NAN;
@@ -587,7 +578,6 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     res.re
 }
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn cyl_bessel_y_c64(mut v: f64, z: Complex64) -> Complex64 {
     let n = 1;
     let kode = 1;
@@ -1107,11 +1097,6 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
 
 /* Integrals of bessel functions */
 
-#[allow(
-    clippy::assign_op_pattern,
-    clippy::float_cmp,
-    clippy::unreadable_literal
-)]
 fn itika(x: f64) -> (f64, f64) {
     // =======================================================
     // Purpose: Integrate modified Bessel functions I0(t) and
@@ -1251,7 +1236,6 @@ fn trapezoid_cosh(x: f64, f: impl Fn(f64) -> f64) -> f64 {
 /// recurrence from `J_{N+1} = 0`, `J_N = 1`, and returns `J_0 + 2 (J_2 + J_4 + ...)`, i.e. 1 for
 /// the exact `J_n` (DLMF 10.12.4). For `0.5 <= x < 40`, the odd `N = 2 floor(x/2) + 51` has
 /// `|J_{N+1}(x) / Y_{N+1}(x)| < 1e-43`, so the error from `J_{N+1} = 0` is far below eps.
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub(crate) fn bessel_j_miller(x: f64, mut f: impl FnMut(u32, f64)) -> f64 {
     let (mut jp, mut j, mut je) = (0.0, 1.0, 0.0);
     for k in (1..=2 * (0.5 * x) as u32 + 51).rev() {
@@ -1300,7 +1284,6 @@ fn itj0y0_neumann(x: f64) -> [f64; 4] {
     [tj, ttj, ty, tty]
 }
 
-#[allow(clippy::float_cmp, clippy::manual_midpoint, clippy::unreadable_literal)]
 fn itjya(x: f64) -> (f64, f64) {
     let mut a = [0.0; 18];
     let el = 0.5772156649015329;
@@ -1379,11 +1362,7 @@ fn itjya(x: f64) -> (f64, f64) {
     (tj, ty)
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::needless_late_init,
-    clippy::unreadable_literal
-)]
+#[allow(clippy::needless_late_init)]
 fn ittika(x: f64) -> (f64, f64) {
     // =========================================================
     // Purpose: Integrate [I0(t)-1]/t with respect to t from 0
@@ -1489,11 +1468,6 @@ fn ittika(x: f64) -> (f64, f64) {
     (tti, ttk)
 }
 
-#[allow(
-    clippy::assign_op_pattern,
-    clippy::float_cmp,
-    clippy::unreadable_literal
-)]
 fn ittjya(x: f64) -> (f64, f64) {
     // =========================================================
     // Purpose: Integrate [1-J0(t)]/t with respect to t from 0
@@ -1739,13 +1713,6 @@ pub fn it2i0k0(mut x: f64) -> (f64, f64) {
 
 // Riccati-Bessel
 
-#[allow(
-    clippy::assign_op_pattern,
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss,
-    clippy::similar_names
-)]
 fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     // ========================================================
     // Purpose: Compute Riccati-Bessel functions of the first
@@ -1818,11 +1785,6 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     }
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
-)]
 fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     // ========================================================
     // Purpose: Compute Riccati-Bessel functions of the second
@@ -2019,7 +1981,6 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
 
     let size = v1.to_usize().unwrap() + 1;
     let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
-    #[allow(clippy::float_cmp)]
     if v == n.to_f64().unwrap() {
         let mut nm = 0;
         let n = v1.to_usize().unwrap().try_into().unwrap();

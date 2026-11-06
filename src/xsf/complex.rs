@@ -161,7 +161,7 @@ pub(crate) fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
 /// > LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 /// > OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 /// > SUCH DAMAGE.
-#[allow(clippy::eq_op, clippy::manual_midpoint)] // `b - b` is NaN for infinite `b`
+#[allow(clippy::eq_op)] // `b - b` is NaN for infinite `b`
 pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
     /* For avoiding overflow for components >= DBL_MAX / (1 + sqrt(2)). */
     const THRESH: f64 = 7.446_288_774_449_766e307; // 0x1.a827999fcef32p+1022
@@ -272,7 +272,7 @@ pub(crate) fn cpow(z: Complex<f64>, y: f64) -> Complex<f64> {
 /// > Permission to use, copy, modify, and distribute this
 /// > software is freely granted, provided that this notice
 /// > is preserved.
-#[allow(clippy::eq_op, clippy::float_cmp)] // `x - x` is NaN for infinite `x`
+#[allow(clippy::eq_op)] // `x - x` is NaN for infinite `x`
 pub(crate) fn atanh(x: f64) -> f64 {
     /* atanh(x)
      * Method :
@@ -365,7 +365,6 @@ pub(crate) fn catan(z: Complex<f64>) -> Complex<f64> {
  * Re(catanh(z)) = x/|z|^2 + O(x/z^4)
  *    as z -> infinity, uniformly in x
  */
-#[allow(clippy::float_cmp)]
 fn catanh(z: Complex<f64>) -> Complex<f64> {
     const RECIP_EPSILON: f64 = 1.0 / f64::EPSILON;
     const SQRT_3_EPSILON: f64 = 2.580_956_827_951_785e-8; /*  0x1bb67ae8584caa.0p-78 */
@@ -458,7 +457,7 @@ fn sum_squares(x: f64, y: f64) -> f64 {
  * the code creal(1/z), because the imaginary part may produce an unwanted
  * underflow.
  */
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+#[allow(clippy::cast_possible_wrap)]
 fn real_part_reciprocal(mut x: f64, mut y: f64) -> f64 {
     const BIAS: i32 = 1023; /* DBL_MAX_EXP - 1 */
     const CUTOFF: i32 = 53 / 2 + 1; /* DBL_MANT_DIG / 2 + 1, just half or 1 guard digit */

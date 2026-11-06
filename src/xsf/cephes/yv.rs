@@ -14,7 +14,6 @@ use crate::xsf::cephes::{jv, yn};
 /*
  * Bessel function of noninteger order
  */
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 pub(crate) fn yv(v: f64, x: f64) -> f64 {
     let n = v as i32;
     if f64::from(n) == v {

@@ -33,11 +33,6 @@ use core::f64::consts::{FRAC_PI_2, PI};
 /// Most variable names reflect Carlson's usage.
 ///
 /// In this routine, we assume m < 0 and  0 > phi > pi/2.
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
 fn ellie_neg_m(phi: f64, m: f64) -> f64 {
     let (x, y, z, scalef, scaled);
     let mut n = 0;
@@ -170,11 +165,6 @@ fn ellie_neg_m(phi: f64, m: f64) -> f64 {
 /// arithmetic   domain     # trials      peak         rms
 ///    IEEE     -10,10       20000       1.0e-15     1.2e-16
 /// ```
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names
-)]
 pub(crate) fn ellie(phi: f64, m: f64) -> f64 {
     if phi.is_nan() || m.is_nan() {
         return f64::NAN;

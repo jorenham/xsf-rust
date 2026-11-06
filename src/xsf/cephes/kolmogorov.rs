@@ -62,6 +62,8 @@
 //! `f64`. This only affects the initial bracket and estimate of the root, and occasionally the
 //! last bit of the result.
 
+#![allow(clippy::manual_range_contains, non_snake_case)]
+
 use core::f64::consts::{E, LN_2, PI, SQRT_2};
 
 use crate::utils::{LN_SQRT_2PI, MINLOG, SQRT_TAU};
@@ -123,7 +125,6 @@ fn within_tol(x: f64, y: f64, atol: f64, rtol: f64) -> bool {
 /* Kolmogorov : Two-sided                      **************************** */
 /* ************************************************************************ */
 
-#[allow(clippy::float_cmp)]
 fn kolmogorov_(x: f64) -> ThreeProbs {
     let mut p = 1.0;
     let mut d = 0.0;
@@ -233,7 +234,6 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
 }
 
 /* Find x such kolmogorov(x)=psf, kolmogc(x)=pcdf */
-#[allow(clippy::float_cmp, clippy::manual_range_contains)]
 fn kolmogi_(psf: f64, pcdf: f64) -> f64 {
     let mut iterations = 0;
     let (mut a, mut b);
@@ -401,7 +401,6 @@ pub(crate) fn kolmogci(p: f64) -> f64 {
 /* ********** Smirnov : One-sided ***************************************** */
 /* ************************************************************************ */
 
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn next_power_of2(x: f64) -> f64 {
     let q = x * f64::EPSILON; // std::ldexp(x, 1 - std::numeric_limits<double>::digits)
     let mut l = (q + x).abs();
@@ -417,7 +416,6 @@ fn next_power_of2(x: f64) -> f64 {
 }
 
 /// Returns `(alpha, nxfloor, nx)`
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn mod_nx(n: i32, x: f64) -> (f64, i32, f64) {
     /*
      * Compute floor(n*x) and remainder *exactly*.
@@ -494,7 +492,6 @@ fn pow2(a: f64, b: f64, m: i32) -> f64 {
  */
 const SM_MAX_EXPONENT: i32 = 960;
 
-#[allow(clippy::cast_possible_truncation)]
 fn pow2_scaled_d(a: DoubleDouble, m: i32) -> (DoubleDouble, i32) {
     /* Compute a^m = significand*2^expt and return as (significand, expt) */
     let mut max_expt = SM_MAX_EXPONENT;
@@ -547,7 +544,6 @@ fn pow2_scaled_d(a: DoubleDouble, m: i32) -> (DoubleDouble, i32) {
     (ans, ans_e)
 }
 
-#[allow(non_snake_case)]
 fn pow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
     /* Compute ((a+b)/(c+d)) ^ m */
     if m <= 0 {
@@ -581,7 +577,6 @@ fn pow4(a: f64, b: f64, c: f64, d: f64, m: i32) -> f64 {
     f64::from(ret)
 }
 
-#[allow(non_snake_case)]
 fn logpow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
     /*
      * Compute log(((a+b)/(c+d)) ^ m)
@@ -635,12 +630,7 @@ fn compute_av(n: i32, x: f64, v: i32, cman: DoubleDouble, cexpt: i32) -> DoubleD
     ans.ldexp(ans_e)
 }
 
-#[allow(
-    clippy::bool_to_int_with_if,
-    clippy::float_cmp,
-    clippy::manual_range_contains,
-    clippy::too_many_lines
-)]
+#[allow(clippy::bool_to_int_with_if)]
 fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     let mut aj_sum = DoubleDouble::new(0.0);
     let mut daj_sum = DoubleDouble::new(0.0);
@@ -846,11 +836,6 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
  * Functional inverse of Smirnov distribution
  * finds x such that smirnov(n, x) = psf; smirnovc(n, x) = pcdf).
  */
-#[allow(
-    clippy::float_cmp,
-    clippy::manual_range_contains,
-    clippy::too_many_lines
-)]
 fn smirnovi_(n: i32, psf: f64, pcdf: f64) -> f64 {
     /*
      * Need to use a bracketing NR algorithm here and be very careful
@@ -1047,7 +1032,6 @@ pub(crate) fn smirnovc(n: i32, d: f64) -> f64 {
 
 /// Derivative of smirnov(n, d)
 ///  One interior point of discontinuity at d=1/n.
-#[allow(clippy::float_cmp, clippy::manual_range_contains)]
 pub(crate) fn smirnovp(n: i32, d: f64) -> f64 {
     if !(n > 0 && d >= 0.0 && d <= 1.0) {
         return f64::NAN;

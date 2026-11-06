@@ -83,12 +83,6 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
 /// `hys2f1`, also returning an estimate of the relative error that, unlike `loss`, includes the
 /// error of the recurrence in `a`
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
-)]
 fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut f;
     let mut intflag = false;
@@ -121,11 +115,6 @@ fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 }
 
 /// The power series of `hys2f1_err`, without the recurrence in `a`
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::cast_precision_loss
-)]
 fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut i: u64 = 0;
     let mut umax = 0.0;
@@ -188,13 +177,6 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 }
 
 /// Apply transformations for |x| near 1 then call the power series
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines
-)]
 fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     let (mut p, mut q, mut r, mut t, mut w, d);
     let (d1, d2, e, mut y1);
@@ -396,7 +378,6 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 /*
   15.4.2 Abramowitz & Stegun.
 */
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
     let mut collector = 1.0;
     let mut sum = 1.0;
@@ -428,7 +409,6 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
 /// to smaller values.
 ///
 /// AMS55 #15.2.10
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut f2, mut f1, mut f0);
     let (mut err, mut e);
@@ -577,12 +557,6 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// the internally estimated relative error exceeds 1^-12.
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::too_many_lines
-)]
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_a = false;

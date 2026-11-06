@@ -181,7 +181,6 @@ const SICI_GD8: [f64; 9] = [
 ///    IEEE        Si        20000       3.8e-16     7.3e-17
 ///    IEEE        Ci        20000       8.4e-16     4.6e-17
 /// ```
-#[allow(clippy::float_cmp, clippy::many_single_char_names)]
 pub(crate) fn sici(mut x: f64) -> (f64, f64) {
     let sign: i16 = if x < 0.0 {
         x = -x;

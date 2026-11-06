@@ -11,7 +11,6 @@ use crate::xsf::specfun::msta2;
 
 const BESSELPOLY_EPS: f64 = 1.0e-17;
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
     let mut factor = false;
     let mut sum = 0.0;
@@ -66,7 +65,6 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
 /// recurrence, fitted to `jv` at orders `nu + 1` and `nu + 2` by least squares.
 ///
 /// [DLMF 10.22.10]: https://dlmf.nist.gov/10.22.E10
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn besselpoly_neumann(a: f64, lambda: f64, nu: f64) -> f64 {
     let b = 2.0 * a;
     let c0 = (lambda + nu + 1.0) / 2.0;

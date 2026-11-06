@@ -10,7 +10,6 @@ fn test_logaddexp_f32() {
     let yf = y.map(f64::log2);
     let zf = z.map(f64::log2);
 
-    #[allow(clippy::cast_possible_truncation)]
     let zr: [f32; 5] = std::array::from_fn(|i| xsf::logaddexp2(xf[i] as f32, yf[i] as f32));
     np_assert_allclose!(zr.map(f64::from), zf, atol = 1.5e-7);
 }

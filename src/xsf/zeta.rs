@@ -105,7 +105,6 @@ const ZETA_EM_LOG_ABS_COEFF_LOOKUP: [f64; 51] = [
 ];
 
 /// Complex log of expansion coefficients for Euler-Maclaurin summation formula.
-#[allow(clippy::cast_precision_loss)]
 fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
     let mut result: Complex<f64> = if n < 50 {
         ZETA_EM_LOG_ABS_COEFF_LOOKUP[n].into()
@@ -127,11 +126,6 @@ fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
 /// Compute riemann_zeta for complex input z using the Euler-Maclaurin formula.
 /// Computation of individual terms in expansion are logarithmized to avoid
 /// overflow. TODO: only logarithmize when necessary.
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
 fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     if z == Complex::ONE {
         /* Return NaN at pole since value depends on how z approaches 1.0. */
@@ -273,7 +267,6 @@ const ZETA_BORWEIN_COEFF: [f64; 50] = [
 ];
 
 /// Compute riemann_zeta for complex input z using Algorithm 2 from Borwein 1995.
-#[allow(clippy::cast_sign_loss)]
 fn zeta_borwein(z: Complex<f64>) -> Complex<f64> {
     let mut result = Complex::ZERO;
     // Sum in reverse order because smaller terms come later.
@@ -407,7 +400,6 @@ impl ZetaArg for f64 {
     }
 
     #[inline]
-    #[allow(clippy::float_cmp)]
     fn zeta(self, q: f64) -> Self {
         if q == 1.0 {
             return self.riemann_zeta();
@@ -423,7 +415,6 @@ impl ZetaArg for num_complex::Complex<f64> {
     }
 
     #[inline]
-    #[allow(clippy::float_cmp)]
     fn zeta(self, q: f64) -> Self {
         if q == 1.0 {
             return self.riemann_zeta();
@@ -579,7 +570,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_zetac_large_x() {
         // zetac(x) = 2^-x to double precision, which underflows to 0 for x >= 1075
         for x in [127.0, 130.0, 1000.0, 1074.0, 1076.0, 1e300] {

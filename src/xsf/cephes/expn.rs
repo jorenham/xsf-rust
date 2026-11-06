@@ -85,7 +85,6 @@ const EXPN_A: [&[f64]; EXPN_NA] = [
 ];
 
 /* Asymptotic expansion for large n, DLMF 8.20(ii) */
-#[allow(clippy::float_cmp)]
 fn expn_large_n(n: u32, x: f64) -> f64 {
     let p = f64::from(n);
     let lambda = x / p;
@@ -145,11 +144,6 @@ fn expn_large_n(n: u32, x: f64) -> f64 {
 /// - [`exp1`](fn.exp1.html): Special case of $E_n$ for $n = 1$
 /// - [`expi`](fn.expi.html): Related to $E_n$ when $n = 1$
 #[must_use]
-#[allow(
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::neg_cmp_op_on_partial_ord
-)]
 pub fn expn(n: u32, x: f64) -> f64 {
     const BIG: f64 = 1.441_151_880_758_558_7e17;
 

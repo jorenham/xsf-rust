@@ -18,7 +18,6 @@ use crate::xsf::cephes::{lgam, zeta};
 const MAXITER: u32 = 500;
 
 /// Compute lgam(x + 1) around x = 0 using its Taylor series.
-#[allow(clippy::float_cmp)]
 fn lgam1p_taylor(x: f64) -> f64 {
     if x == 0.0 {
         return 0.0;

@@ -44,7 +44,6 @@ fn sici_power_series(sgn: i32, z: Complex<f64>) -> (Complex<f64>, Complex<f64>) 
     (s, c)
 }
 
-#[allow(clippy::float_cmp)]
 fn sici_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     /* Compute sin/cos integrals at complex arguments. The algorithm
      * largely follows that of [1].
@@ -96,7 +95,6 @@ fn sici_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     (si, ci)
 }
 
-#[allow(clippy::float_cmp)]
 fn shichi_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     /* Compute sinh/cosh integrals at complex arguments. The algorithm
      * largely follows that of [1].

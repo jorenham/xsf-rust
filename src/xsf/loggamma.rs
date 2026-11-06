@@ -139,7 +139,6 @@ pub(crate) fn zlog1(mut z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::loggamma` for complex `z`
-#[allow(clippy::float_cmp)]
 fn cloggamma(z: Complex<f64>) -> Complex<f64> {
     // Compute the principal branch of log-Gamma
 
@@ -174,7 +173,6 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::rgamma` for complex `z`
-#[allow(clippy::float_cmp)]
 fn crgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute 1/Gamma(z) using loggamma.
     if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {

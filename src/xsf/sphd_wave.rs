@@ -3,12 +3,6 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
-
 use crate::xsf::specfun::{self, Status, try_zeroed};
 
 /// Characteristic value of prolate spheroidal function
@@ -476,7 +470,6 @@ fn aswfa_nocv(m: f64, n: f64, c: f64, x: f64, kd: i32) -> (f64, f64) {
 
 /// `specfun::rswfp` (`kd = 1`) or `specfun::rswfo` (`kd = -1`), returning `(r1f, r1d)` if `kf = 1`,
 /// or `(r2f, r2d)` if `kf = 2`
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f64) {
     // as in `aswfa`, and `kmn` requires `nn = 25 + (int)(0.5 (n - m) + c) + m >= m + 2`
     if out_of_bounds(m, n, c, -24.0, 175.0) {

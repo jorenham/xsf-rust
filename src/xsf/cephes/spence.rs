@@ -55,7 +55,6 @@ const SPENCE_B: [f64; 8] = [
 /// arithmetic   domain     # trials      peak         rms
 ///    IEEE      0,4         30000       3.8e-15     5.5e-16
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn spence(mut x: f64) -> f64 {
     let w;
 

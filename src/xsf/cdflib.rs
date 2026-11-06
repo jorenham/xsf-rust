@@ -24,7 +24,6 @@ use crate::xsf::tools::{bracket_root_for_cdf_inversion, find_root_chandrupatla};
 /// - [`gdtrix`]: Inverse of [`gdtr`](crate::gdtr) with respect to `x`
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn gdtria(p: f64, b: f64, x: f64) -> f64 {
     if x == 0.0 {
         return f64::NAN;
@@ -50,7 +49,6 @@ pub fn gdtria(p: f64, b: f64, x: f64) -> f64 {
 /// - [`gdtrib`]: Inverse of [`gdtr`](crate::gdtr) with respect to `b`
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn gdtrix(a: f64, b: f64, p: f64) -> f64 {
     if a == 0.0 && b == 0.0 {
         return f64::NAN;
@@ -72,11 +70,7 @@ pub fn gdtrix(a: f64, b: f64, p: f64) -> f64 {
 /// - [`gdtr`](crate::gdtr): Gamma CDF
 /// - [`gdtrc`](crate::gdtrc): Gamma survival function
 #[must_use]
-#[allow(
-    clippy::float_cmp,
-    clippy::manual_range_contains,
-    clippy::neg_cmp_op_on_partial_ord
-)]
+#[allow(clippy::manual_range_contains)]
 pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
     if p.is_nan() || a.is_nan() || x.is_nan() {
         return f64::NAN;

@@ -73,7 +73,6 @@ fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
 }
 
 /// Special case for a negative integer argument
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn beta_negint(a: i32, b: f64) -> f64 {
     // Like the C++ `static_cast<int>(b)` wherever that is defined; the saturating cast makes the
     // comparison false otherwise.
@@ -85,7 +84,6 @@ fn beta_negint(a: i32, b: f64) -> f64 {
     }
 }
 
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn lbeta_negint(a: i32, b: f64) -> f64 {
     if b == f64::from(b as i32) && 1.0 - f64::from(a) - b > 0.0 {
         lbeta(1.0 - f64::from(a) - b, b)
@@ -126,7 +124,6 @@ fn lbeta_negint(a: i32, b: f64) -> f64 {
 /// (Unlike in xsf, where the value returned is documented as 0.0.) If `a <= 0` and `b` are
 /// integers that fit in an `int` (32 bits) and `1 - a - b > 0`, the limit
 /// `(-1)^b * beta(1 - a - b, b)` is returned instead (and likewise with `a` and `b` swapped).
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     let mut y;
     let mut sign = 1;
@@ -202,7 +199,6 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
 }
 
 /// Natural log of |beta|.
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     let mut y;
     let sign = 1;

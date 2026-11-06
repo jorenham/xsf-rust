@@ -163,7 +163,6 @@ pub(crate) fn j1(x: f64) -> f64 {
 ///
 /// (error criterion relative when |y1| > 1).
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn y1(x: f64) -> f64 {
     if x <= 5.0 {
         if x == 0.0 {

@@ -3,19 +3,13 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
+#![allow(clippy::bool_to_int_with_if)]
+
 use core::f64::consts::PI;
 
 use super::{SPECFUN_INF, Status, lpmns, lqmns, sphj, sphy, try_zeroed};
 use crate::xsf::tools::int_x86;
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::bool_to_int_with_if
-)]
 pub(crate) fn aswfa(
     x: f64,
     m: i32,
@@ -118,14 +112,6 @@ pub(crate) fn aswfa(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::bool_to_int_with_if
-)]
 pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut [f64]) -> Status {
     // ==========================================================
     // Return value:
@@ -237,12 +223,6 @@ pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::bool_to_int_with_if
-)]
 pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: &mut f64) {
     // ===========================================================
     // Purpose: Compute gmn(-ic,ix) and its derivative for oblate
@@ -291,17 +271,7 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
     *gd = gd1 + xm * gd0;
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::assign_op_pattern,
-    clippy::bool_to_int_with_if,
-    clippy::range_minus_one
-)]
+#[allow(clippy::assign_op_pattern, clippy::range_minus_one)]
 pub(crate) fn kmn(
     m: i32,
     n: i32,
@@ -469,13 +439,6 @@ pub(crate) fn kmn(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::bool_to_int_with_if,
-    clippy::assign_op_pattern
-)]
 pub(crate) fn qstar(
     m: i32,
     n: i32,
@@ -534,17 +497,7 @@ pub(crate) fn qstar(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::bool_to_int_with_if,
-    clippy::assign_op_pattern
-)]
+#[allow(clippy::assign_op_pattern)]
 pub(crate) fn rmn1(
     m: i32,
     n: i32,
@@ -716,14 +669,6 @@ pub(crate) fn rmn1(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn rmn2l(
     m: i32,
     n: i32,
@@ -881,14 +826,6 @@ pub(crate) fn rmn2l(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp
-)]
 pub(crate) fn rmn2so(
     m: i32,
     n: i32,
@@ -998,15 +935,6 @@ pub(crate) fn rmn2so(
     Status::Ok
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::manual_midpoint
-)]
 pub(crate) fn rmn2sp(
     m: i32,
     n: i32,
@@ -1195,7 +1123,6 @@ pub(crate) fn rmn2sp(
     Status::Ok
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn rswfp(
     m: i32,
     n: i32,
@@ -1272,7 +1199,6 @@ pub(crate) fn rswfp(
     Status::Ok
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn rswfo(
     m: i32,
     n: i32,
@@ -1349,12 +1275,6 @@ pub(crate) fn rswfo(
     Status::Ok
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
 pub(crate) fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
     // ======================================================
     // Purpose: Compute the expansion coefficients of the
@@ -1415,13 +1335,6 @@ pub(crate) fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
     }
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
 pub(crate) fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> Status {
     // =====================================================
     // Purpose: Compute the expansion coefficients of the
@@ -1596,17 +1509,7 @@ pub(crate) fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> 
     Status::Ok
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::float_cmp,
-    clippy::collapsible_if,
-    clippy::int_plus_one,
-    clippy::manual_midpoint
-)]
+#[allow(clippy::collapsible_if, clippy::int_plus_one)]
 pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]) -> Status {
     // =========================================================
     // Purpose: Compute the characteristic values of spheroidal

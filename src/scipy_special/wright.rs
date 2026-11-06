@@ -39,7 +39,6 @@ fn add_round_down(a: f64, b: f64) -> f64 {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn wrightomega_ext(z: Complex64) -> Complex64 {
     let pi = core::f64::consts::PI;
     let mut s = 1.0;
@@ -58,7 +57,6 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         return c64(f64::NAN, f64::NAN);
     } else if x.is_infinite() && x.is_sign_negative() && (-pi < y) && (y <= pi) {
         // Signed zeros between branches
-        #[allow(clippy::collapsible_else_if)]
         return if y.abs() <= pi / 2.0 {
             if y >= 0.0 {
                 c64(0.0, 0.0)
@@ -78,7 +76,6 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     }
 
     // Test if exactly on the singular points
-    #[allow(clippy::float_cmp)]
     if x == -1.0 && y.abs() == pi {
         return c64(-1.0, 0.0);
     }

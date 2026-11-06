@@ -163,7 +163,6 @@ fn owens_t1(h: f64, a: f64, m: f64) -> f64 {
     val
 }
 
-#[allow(clippy::cast_possible_truncation)]
 fn owens_t2(h: f64, a: f64, ah: f64, m: f64) -> f64 {
     let mut i = 1;
     let maxi = (2.0 * m + 1.0) as i32;
@@ -248,7 +247,6 @@ fn owens_t5(h: f64, a: f64) -> f64 {
     result
 }
 
-#[allow(clippy::float_cmp)]
 fn owens_t6(h: f64, a: f64) -> f64 {
     let normh = owens_t_norm2(h);
     let y = 1.0 - a;
@@ -262,7 +260,6 @@ fn owens_t6(h: f64, a: f64) -> f64 {
     result
 }
 
-#[allow(clippy::float_cmp)]
 fn owens_t_dispatch(h: f64, a: f64, ah: f64) -> f64 {
     if h == 0.0 {
         return a.atan() / TAU;

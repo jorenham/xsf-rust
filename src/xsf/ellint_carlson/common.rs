@@ -104,7 +104,6 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 
 /// The power of 2 `f` by whose square huge or tiny arguments are rescaled (scipy/xsf#376), or
 /// `None` if the largest part is in [2^-256, 2^256]. The smallest nonzero part stays above `min`.
-#[allow(clippy::float_cmp)]
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);

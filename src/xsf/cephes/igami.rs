@@ -99,7 +99,6 @@ fn didonato_eq25(a: f64, y: f64) -> f64 {
     y + c1 + (c2 / y) + (c3 / y_2) + (c4 / y_3) + (c5 / y_4)
 }
 
-#[allow(clippy::float_cmp)]
 fn find_inverse_gamma(a: f64, p: f64, q: f64) -> f64 {
     /*
      * In order to understand what's going on here, you will
@@ -215,7 +214,6 @@ fn find_inverse_gamma(a: f64, p: f64, q: f64) -> f64 {
 }
 
 /// Inverse of the regularized lower incomplete gamma function
-#[allow(clippy::float_cmp)]
 pub(crate) fn igami(a: f64, p: f64) -> f64 {
     if a.is_nan() || p.is_nan() {
         return f64::NAN;
@@ -251,7 +249,6 @@ pub(crate) fn igami(a: f64, p: f64) -> f64 {
 }
 
 /// Inverse of the regularized upper incomplete gamma function
-#[allow(clippy::float_cmp)]
 pub(crate) fn igamci(a: f64, q: f64) -> f64 {
     if a.is_nan() || q.is_nan() {
         return f64::NAN;

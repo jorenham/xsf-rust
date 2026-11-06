@@ -50,7 +50,6 @@ mod tests {
 
     /// TestMultiGammaLn.test1
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_multigammaln_1() {
         // A test of the identity:
         //     Gamma_1(a) = Gamma(a)

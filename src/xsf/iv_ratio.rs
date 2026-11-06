@@ -59,7 +59,6 @@ where
     }
 
     /// `operator()`
-    #[allow(clippy::cast_precision_loss)]
     fn call(&mut self) -> (T, T) {
         self.k += 1;
         (
@@ -98,7 +97,6 @@ where
 /// - [`iv_ratioinv`]: Inverse of this ratio with respect to `x`
 /// - [`bessel_i`](crate::bessel_i): Modified Bessel function of the first kind $I_v(z)$
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn iv_ratio(v: f64, x: f64) -> f64 {
     if v.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -137,7 +135,6 @@ pub fn iv_ratio(v: f64, x: f64) -> f64 {
 /// # See also
 /// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)` itself
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     if v.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -195,7 +192,6 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
 /// # See also
 /// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)`
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn iv_ratioinv(v: f64, r: f64) -> f64 {
     if v.is_nan() || r.is_nan() {
         return f64::NAN;

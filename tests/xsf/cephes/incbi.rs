@@ -1,7 +1,6 @@
 //! based on scipy.special.tests.test_basic.TestBetaInc
 
 #[test]
-#[allow(clippy::float_cmp)]
 fn test_betaincinv_a1_b1() {
     // betaincinv(1, 1, x) is x.
     let x = [0.0, 0.25, 1.0];

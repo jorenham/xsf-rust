@@ -12,7 +12,6 @@ fn agm_iter(a: f64, b: f64) -> f64 {
     let (mut a, mut b) = (a, b);
     let mut count = 20;
     let mut amean = 0.5 * a + 0.5 * b;
-    #[allow(clippy::float_cmp)]
     while count > 0 && amean != a && amean != b {
         (a, b) = (amean, a.sqrt() * b.sqrt());
         amean = 0.5 * a + 0.5 * b;
@@ -30,7 +29,6 @@ fn agm_iter(a: f64, b: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn agm(a: f64, b: f64) -> f64 {
-    #[allow(clippy::float_cmp)]
     if a.is_nan() || b.is_nan() {
         f64::NAN
     } else if (a < 0.0 && b > 0.0) || (a > 0.0 && b < 0.0) {

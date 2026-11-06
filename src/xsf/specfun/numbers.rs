@@ -3,12 +3,7 @@
 
 use core::f64::consts::FRAC_2_PI;
 
-#[allow(
-    clippy::approx_constant,
-    clippy::cast_sign_loss,
-    clippy::excessive_precision,
-    clippy::unreadable_literal
-)]
+#[allow(clippy::approx_constant)]
 pub(crate) fn bernob(n: i32, bn: &mut [f64]) {
     // ======================================
     // Purpose: Compute Bernoulli number Bn
@@ -42,7 +37,6 @@ pub(crate) fn bernob(n: i32, bn: &mut [f64]) {
     }
 }
 
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn eulerb(n: i32, en: &mut [f64]) {
     // ======================================
     // Purpose: Compute Euler number En

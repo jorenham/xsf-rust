@@ -196,7 +196,6 @@ pub fn wofz(z: Complex64) -> Complex64 {
 /// - [`wofz`]: Faddeeva function
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
     const INV_SQRT_2: f64 = FRAC_1_SQRT_2;
 

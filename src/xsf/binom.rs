@@ -30,7 +30,6 @@ use core::f64::consts::PI;
 /// - [`comb`](crate::comb) integer version "n choose k"
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub fn binom(n: f64, k: f64) -> f64 {
     let mut kx;
     let mut nx;

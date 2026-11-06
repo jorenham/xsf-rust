@@ -12,13 +12,11 @@ impl LogAddExpArg for f32 {
     const ZERO: Self = 0.0;
 
     #[inline]
-    #[allow(clippy::cast_possible_truncation)]
     fn npy_logaddexp(self, other: Self) -> Self {
         f64::from(self).npy_logaddexp(f64::from(other)) as f32
     }
 
     #[inline]
-    #[allow(clippy::cast_possible_truncation)]
     fn npy_logaddexp2(self, other: Self) -> Self {
         f64::from(self).npy_logaddexp2(f64::from(other)) as f32
     }
@@ -29,7 +27,6 @@ impl LogAddExpArg for f64 {
 
     #[inline]
     fn npy_logaddexp(self, other: Self) -> Self {
-        #[allow(clippy::float_cmp)]
         if self == other {
             // Handles infinities of the same sign without warnings
             self + LN_2
@@ -48,7 +45,6 @@ impl LogAddExpArg for f64 {
 
     #[inline]
     fn npy_logaddexp2(self, other: Self) -> Self {
-        #[allow(clippy::float_cmp)]
         if self == other {
             // Handles infinities of the same sign without warnings
             self + 1.0

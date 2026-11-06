@@ -7,12 +7,6 @@ use num_complex::{Complex64, c64};
 use crate::utils::SQRT_PI;
 use crate::xsf::complex::{cdiv, cmul};
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
 pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
     // ==========================================================
     // Purpose: Compute complex Error function erf(z) & erf'(z)
@@ -109,12 +103,6 @@ pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
     *cder = FRAC_2_SQRT_PI * cmul(-z, z).exp();
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::cast_sign_loss
-)]
 pub(crate) fn cerzo(nt: i32, zo: &mut [Complex64]) {
     // ===============================================================
     // Purpose : Evaluate the complex zeros of error function erf(z)

@@ -553,10 +553,28 @@
     unreachable_pub
 )]
 #![warn(clippy::pedantic)]
+// Allow the common porting idioms, to keep the Rust close to the C++
 #![allow(
     clippy::doc_markdown,
     clippy::many_single_char_names,
-    clippy::similar_names
+    clippy::similar_names,
+    // exact comparisons such as `x == 0.0` and `x == x.floor()` are intended
+    clippy::float_cmp,
+    // `as` casts follow the C++ conversions (see the local notes for edge cases)
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    // coefficients are copied verbatim, so that they can be diffed against the C++
+    clippy::excessive_precision,
+    clippy::unreadable_literal,
+    // functions keep the size, signature, and branch order of the C++
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::if_not_else,
+    // `!(a > b)` also catches NaN, like in the C++
+    clippy::neg_cmp_op_on_partial_ord,
+    // `f64::midpoint` can change results, and it also flags factors like `0.5 * (k + 0.5)`
+    clippy::manual_midpoint
 )]
 
 #[cfg(test)]

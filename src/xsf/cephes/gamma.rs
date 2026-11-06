@@ -91,7 +91,6 @@ fn stirf(x: f64) -> f64 {
 ///
 /// Error for arguments outside the test range will be larger
 /// owing to error amplification by the exponential function.
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn gamma(mut x: f64) -> f64 {
     let mut sgngam = 1;
 
@@ -175,7 +174,6 @@ pub(crate) fn gamma(mut x: f64) -> f64 {
 }
 
 /// The `small:` label of `Gamma`
-#[allow(clippy::float_cmp)]
 fn gamma_small(x: f64, z: f64) -> f64 {
     if x == 0.0 {
         /* For this to have happened, x must have started as a negative integer. */
@@ -232,7 +230,6 @@ fn lgam_large_x(x: f64) -> f64 {
 
 /// [`lgam`] and the sign of the Gamma function, returned as `(lgam(x), sign)` instead of through
 /// the `int *sign` out-parameter
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
     let mut sign = 1;
 
@@ -362,7 +359,6 @@ pub(crate) fn lgam(x: f64) -> f64 {
 }
 
 /// Sign of the Gamma function
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn gammasgn(x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -392,7 +388,6 @@ pub(crate) fn gammasgn(x: f64) -> f64 {
 mod tests {
     /// Unlike in xsf, the sign is also correct for `x < -2^31`
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_sign_large_negative() {
         // floor(x) = -2^31 - 1 is odd, so Gamma(x) < 0
         assert_eq!(super::gammasgn(-2_147_483_648.5), -1.0);

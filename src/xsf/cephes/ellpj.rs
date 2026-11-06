@@ -53,7 +53,6 @@ use core::f64::consts::{FRAC_PI_2, PI};
 /// theorem for sn(u+v) was 4e-16 (absolute).  Also tested by
 /// the above relation to the incomplete elliptic integral.
 /// Accuracy deteriorates when u is large.
-#[allow(clippy::many_single_char_names, clippy::manual_midpoint)] // `phi` can overflow
 pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     let mut a = [0.0; 9];
     let mut c = [0.0; 9];
@@ -92,7 +91,6 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     // so that the expansion in 1 - m below is only used for |u| <= K/2 (unless |u| is huge).
     //
     // E.g. ellpj(-407.5, 0.9999999999999998) had 3e-6 and 2e-3 errors in cn and dn.
-    #[allow(clippy::float_cmp)]
     if m == 1.0 {
         // sech(u), also for |u| > 710 where cosh(u) overflows
         let b = u.cosh();
@@ -162,6 +160,7 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     loop {
         let t = c[i] * phi.sin() / a[i];
         b = phi;
+        // not `f64::midpoint`, since `phi` can overflow
         phi = (t.asin() + phi) / 2.0;
         i -= 1;
         if i == 0 {

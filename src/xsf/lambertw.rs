@@ -63,7 +63,6 @@ fn lambertw_pade0(z: Complex<f64>) -> Complex<f64> {
     cdiv(z * cevalpoly(&num, z), cevalpoly(&denom, z))
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn lambertw_asy(z: Complex<f64>, k: isize) -> Complex<f64> {
     /* Compute the W function using the first two terms of the
      * asymptotic series. See 4.20 in [1].
@@ -811,7 +810,6 @@ fn lambertw_f64(z: f64, k: isize) -> f64 {
 /// - [`wrightomega`](crate::wrightomega): Wright Omega function
 #[doc(alias = "lambert_w")]
 #[must_use]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
     if z.im == 0.0
         && ((k == 0 && z.re > lambertw_real::Z0)

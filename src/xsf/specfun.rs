@@ -58,7 +58,6 @@ impl Hyp1F1Arg for Complex<f64> {
             return Complex::new(f64::NAN, f64::NAN);
         }
         let mut outz = cchg(a, b, self);
-        #[allow(clippy::float_cmp)]
         if outz.re == SPECFUN_INF {
             outz.re = f64::INFINITY;
         }
@@ -180,7 +179,6 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
     let mut isfer = 0;
 
     out = chgu(x, a, b, &mut md, &mut isfer);
-    #[allow(clippy::float_cmp)]
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
@@ -213,7 +211,6 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E6>
 #[doc(alias = "hyperu")]
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
     if a.is_nan() || b.is_nan() || x.is_nan() {
         f64::NAN
@@ -239,7 +236,6 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
 /// `a + m` in `[1, 2)`; NaN if a (heuristic) check finds that the recurrence is ill-conditioned
-#[allow(clippy::cast_possible_truncation)]
 fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
@@ -296,11 +292,9 @@ fn hypu_rec_b(a: f64, b: f64, x: f64) -> f64 {
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
     // `xsf::pmv`
     let mut out = lpmv(x, m, v);
-    #[allow(clippy::float_cmp)]
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
-    #[allow(clippy::float_cmp)]
     if out == -SPECFUN_INF {
         out = f64::NEG_INFINITY;
     }

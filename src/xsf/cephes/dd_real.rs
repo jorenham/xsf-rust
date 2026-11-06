@@ -64,7 +64,6 @@ fn two_sqr(a: f64) -> (f64, f64) {
 }
 
 /// `std::ldexp`, i.e. `x * 2^n` without intermediate overflow or double rounding (as in musl).
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn ldexp_f64(x: f64, mut n: i32) -> f64 {
     const P1023: f64 = f64::from_bits(0x7fe0_0000_0000_0000); // 2^1023
     const M969: f64 = f64::from_bits(0x0360_0000_0000_0000); // 2^-1022 * 2^53
@@ -92,7 +91,6 @@ pub(crate) fn ldexp_f64(x: f64, mut n: i32) -> f64 {
 }
 
 /// `std::frexp`, i.e. `(m, e)` such that `x = m * 2^e` with `0.5 <= |m| < 1` (as in glibc).
-#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn frexp_f64(x: f64) -> (f64, i32) {
     let bits = x.to_bits();
     let ee = ((bits >> 52) & 0x7ff) as i32;
@@ -341,7 +339,6 @@ impl DoubleDouble {
         self.hi.is_finite()
     }
 
-    #[allow(clippy::float_cmp)]
     pub(crate) fn floor(self) -> Self {
         let mut hi = self.hi.floor();
         let mut lo = 0.0;
@@ -384,7 +381,6 @@ impl DoubleDouble {
         }
     }
 
-    #[allow(clippy::float_cmp)]
     pub(crate) fn frexp(self) -> (Self, i32) {
         //    r"""return b and l s.t. 0.5<=|b|<1 and 2^l == a
         //    0.5<=|b[0]|<1.0 or |b[0]| == 1.0 and b[0]*b[1]<0
@@ -444,7 +440,6 @@ const EPS: f64 = 4.930_380_657_631_32e-32; // 2^-104
 
 impl DoubleDouble {
     /// Exponential.  Computes exp(x) in double-double precision.
-    #[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
     pub(crate) fn exp(self) -> Self {
         /* Strategy:  We first reduce the size of x by noting that
 
@@ -504,7 +499,6 @@ impl DoubleDouble {
 
     /// Logarithm.  Computes log(x) in double-double precision.
     /// This is a natural logarithm (i.e., base e).
-    #[allow(clippy::float_cmp)]
     pub(crate) fn log(self) -> Self {
         /* Strategy.  The Taylor series for log converges much more
         slowly than that of exp, due to the lack of the factorial

@@ -1,7 +1,5 @@
 //! based on <https://github.com/scipy/scipy/blob/main/scipy/special/tests/test_wrightomega.py>
 
-#![allow(clippy::float_cmp)]
-
 use core::f64::consts::PI;
 use num_complex::c64;
 use xsref::np_assert_allclose;

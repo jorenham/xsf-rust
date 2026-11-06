@@ -5,6 +5,8 @@
 //! `xsf/stats.h`. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`) saturates,
 //! instead of being undefined behavior in the cast to `long long`.
 
+#![allow(clippy::needless_range_loop, non_snake_case)]
+
 use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::{Complex64, c64};
@@ -85,7 +87,6 @@ fn log_ndtr_f64(x: f64) -> f64 {
  * This implementation uses $\erfc(z) = \exp(-z^2) w(iz)$ taking special care to select
  * the principal branch of the log function log( exp(-z^2) w(i z) )
  */
-#[allow(non_snake_case)]
 fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
     if z.re > 6.0 {
         // Underflow. Close to the real axis, expand the log in log(1 - ndtr(-z)).
@@ -160,7 +161,6 @@ fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
 /// [stdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stdtr.html
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn stdtr(nu: f64, x: f64) -> f64 {
     if nu <= 0.0 {
         f64::NAN
@@ -206,7 +206,6 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
 /// - [`stdtr`]: Student's t distribution CDF
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn stdtri(nu: f64, p: f64) -> f64 {
     if nu <= 0.0 || !(0.0..=1.0).contains(&p) {
         f64::NAN
@@ -945,7 +944,6 @@ pub fn bdtri(k: f64, n: i32, y: f64) -> f64 {
 
 // Poisson binomial
 
-#[allow(clippy::needless_range_loop)]
 fn poisson_binom_pmf_all_impl(p: &[f64], res: &mut [f64]) {
     let n = p.len();
 
@@ -1042,7 +1040,6 @@ fn take_from_discrete_cdf(cdf: &[f64], k: i64) -> f64 {
 // Wilcoxon signed-rank
 
 /// Shared implementation used by PMF and CDF table generation.
-#[allow(clippy::manual_midpoint, clippy::needless_range_loop)]
 fn wilcoxon_pmf_all_impl(n: usize, res: &mut [f64]) {
     let max_k = n * (n + 1) / 2;
 
@@ -1124,7 +1121,6 @@ pub fn wilcoxon_cdf_all(n: usize) -> Vec<f64> {
 /// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
 #[must_use]
 #[inline]
-#[allow(clippy::cast_possible_truncation)]
 pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
     if k.is_nan() {
         return f64::NAN;
@@ -1144,7 +1140,6 @@ pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
 /// - [`wilcoxon_sf`]: Survival function
 #[must_use]
 #[inline]
-#[allow(clippy::cast_possible_truncation)]
 pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
     if k.is_nan() {
         return f64::NAN;
@@ -1164,7 +1159,6 @@ pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
 /// - [`wilcoxon_cdf`]: Cumulative distribution function
 #[must_use]
 #[inline]
-#[allow(clippy::cast_possible_truncation)]
 pub fn wilcoxon_sf(k: f64, cdf: &[f64]) -> f64 {
     if k.is_nan() {
         return f64::NAN;
@@ -1272,7 +1266,6 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
 }
 
 // Helpers for psi1 computations
-#[allow(non_snake_case)]
 fn psi1_G(y: f64) -> f64 {
     // Helper implementing the G-type Bessel combination appearing in equation 1.10
     // in Csörgő, S. and Faraway, J. (1996).
@@ -1281,7 +1274,6 @@ fn psi1_G(y: f64) -> f64 {
     (-z).exp() * (y / 2.0).powf(1.5) * b / SQRT_PI
 }
 
-#[allow(non_snake_case)]
 fn psi1_H(y: f64) -> f64 {
     // Helper implementing the H-type Bessel combination appearing in equation 1.10
     // in Csörgő, S. and Faraway, J. (1996).
@@ -1309,7 +1301,6 @@ fn psi1_term(k: i32, x: f64) -> f64 {
     e1 + e2 + e3 + e4 + e5
 }
 
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn psi1_mod(x: f64) -> f64 {
     // psi1 is defined in equation 1.10 in Csörgő, S. and Faraway, J. (1996).
     // This implements a modified version by excluding the term V(x) / 12

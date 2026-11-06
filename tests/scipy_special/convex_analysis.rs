@@ -120,7 +120,6 @@ fn test_rel_entr_gh_20710_overflow() {
 
 /// translated from `scipy.special.tests.test_basic.test_huber`
 #[test]
-#[allow(clippy::float_cmp)]
 fn test_huber() {
     assert_eq!(xsf::huber(-1.0, 1.5), f64::INFINITY);
     np_assert_allclose!([xsf::huber(2.0, 1.5)], [0.5 * 1.5_f64.powi(2)]);
@@ -128,7 +127,6 @@ fn test_huber() {
 }
 
 #[test]
-#[allow(clippy::float_cmp)]
 fn test_pseudo_huber() {
     assert_eq!(xsf::pseudo_huber(-1.0, 1.5), f64::INFINITY);
     np_assert_allclose!([xsf::pseudo_huber(2.0, 1.5)], [1.0]);

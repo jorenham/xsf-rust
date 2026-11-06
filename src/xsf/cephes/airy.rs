@@ -7,8 +7,6 @@
 //!
 //! Unlike in xsf, `(status, ai, aip, bi, bip)` is returned instead of written to output pointers.
 
-#![allow(clippy::unreadable_literal, clippy::excessive_precision)]
-
 use crate::utils::{MACHEP, SQRT1OPI, SQRT3};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::PI;
@@ -236,7 +234,6 @@ const APGD: [f64; 10] = [
 ///
 /// Returns `(status, ai, aip, bi, bip)`, where `status` is `-1` if `x > 103.892` (in which case
 /// `(ai, aip, bi, bip) = (0, 0, inf, inf)`), and `0` otherwise. NaN input gives NaN outputs.
-#[allow(clippy::too_many_lines)]
 pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
     // Written on every path before returning, so these initial NaNs are never observed
     let mut ai = f64::NAN;

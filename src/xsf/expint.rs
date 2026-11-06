@@ -18,7 +18,6 @@ use crate::xsf::complex::{cdiv, cmul, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn exp1_f64(x: f64) -> f64 {
     // ============================================
     // Purpose: Compute exponential integral E1(x)
@@ -53,7 +52,6 @@ fn exp1_f64(x: f64) -> f64 {
     (-x).exp() * t
 }
 
-#[allow(clippy::float_cmp)]
 fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
     // ====================================================
     // Purpose: Compute complex exponential integral E1(z)
@@ -120,7 +118,6 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
     ce1
 }
 
-#[allow(clippy::float_cmp)]
 fn expi_f64(x: f64) -> f64 {
     // ============================================
     // Purpose: Compute exponential integral Ei(x)
@@ -205,7 +202,6 @@ fn expi_c64(z: Complex<f64>) -> Complex<f64> {
 //    F(x) = ---  ---  ---  ---  ---  ---  ---  ...
 //           1 +  x +  1 +  x +  1 +  x +  1 +
 //
-#[allow(clippy::cast_possible_truncation)]
 fn expint1_factor_cont_frac(x: f64) -> f64 {
     // The number of terms to use in the truncated continued fraction
     // depends on x.  Larger values of x require fewer terms.
@@ -322,7 +318,6 @@ pub fn expi<T: ExpIntArg>(z: T) -> T {
 /// - [`expi`]: exponential integral $Ei$
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn scaled_exp1(x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;

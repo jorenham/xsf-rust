@@ -23,7 +23,7 @@
 //! Note that our `lanczos_sum_expg_scaled` uses fused multiply-adds, so `exp_rgamma` (and therefore
 //! `wright_bessel` for `a == 0` or tiny `a`) can differ from xsf in the last bits.
 
-#![allow(non_snake_case, clippy::if_not_else)]
+#![allow(non_snake_case)]
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -43,7 +43,6 @@ fn exp_rgamma(x: f64, y: f64) -> f64 {
     (x + (1.0 - (y + LANCZOS_G - 0.5).ln()) * (y - 0.5)).exp() / lanczos_sum_expg_scaled(y)
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn wb_series(a: f64, b: f64, x: f64, nstart: u32, mut nstop: u32) -> f64 {
     /* 1. Taylor series expansion in x=0 for x <= 1.
      *
@@ -69,7 +68,6 @@ fn wb_series(a: f64, b: f64, x: f64, nstart: u32, mut nstop: u32) -> f64 {
     res
 }
 
-#[allow(clippy::cast_possible_truncation)]
 fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
     /* 2. Taylor series expansion in x=0, for large a.
      *
@@ -108,12 +106,7 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
     res
 }
 
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::items_after_statements,
-    clippy::many_single_char_names,
-    clippy::too_many_lines
-)]
+#[allow(clippy::items_after_statements)]
 fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f64 {
     /* 3. Taylor series in a=0 up to order 5, for tiny a and not too large x
     *
@@ -238,7 +231,7 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
     res
 }
 
-#[allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#[allow(clippy::needless_range_loop)]
 fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     /* 4. Asymptotic expansion for large x up to order 8
      *
@@ -1097,12 +1090,7 @@ fn wright_bessel_integral<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::manual_range_contains,
-    clippy::too_many_lines
-)]
+#[allow(clippy::manual_range_contains)]
 fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     /* Compute Wright's generalized Bessel function for scalar arguments.
      *

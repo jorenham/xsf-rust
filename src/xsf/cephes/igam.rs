@@ -24,6 +24,8 @@
 //! The Cephes `expm1` from `cephes/unity.h` is replaced by `f64::exp_m1` from the Rust standard
 //! library, like in `xsf/exp.rs`.
 
+#![allow(clippy::if_same_then_else)]
+
 use core::f64::consts::{E, TAU};
 
 use crate::utils::{MACHEP, MAXLOG};
@@ -107,7 +109,6 @@ pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
 }
 
 /// Compute igamc using DLMF 8.9.2.
-#[allow(clippy::float_cmp, clippy::if_not_else)]
 fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
     let ax = igam_fac(a, x);
     if ax == 0.0 {
@@ -158,7 +159,6 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
 }
 
 /// Compute igam using DLMF 8.11.4.
-#[allow(clippy::float_cmp)]
 fn igam_series(a: f64, x: f64) -> f64 {
     let ax = igam_fac(a, x);
     if ax == 0.0 {
@@ -298,7 +298,6 @@ fn asymptotic_series(a: f64, x: f64, func: i32) -> f64 {
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
 /// were excluded from these statistics.
-#[allow(clippy::float_cmp, clippy::if_same_then_else)]
 pub(crate) fn igam(a: f64, x: f64) -> f64 {
     if a.is_nan() || x.is_nan() {
         return f64::NAN;
@@ -369,7 +368,6 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
 ///    IEEE     0.5,100   0,100       20000       1.1e-13     8.4e-15
 ///    IEEE     0.01,0.5  0,100       20000       1.5e-14     3.9e-15
 /// ```
-#[allow(clippy::float_cmp, clippy::if_same_then_else)]
 pub(crate) fn igamc(a: f64, x: f64) -> f64 {
     if a.is_nan() || x.is_nan() {
         return f64::NAN;

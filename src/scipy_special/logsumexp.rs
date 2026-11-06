@@ -32,7 +32,7 @@ fn fmax(xs: &[f64]) -> f64 {
 /// - [`logaddexp`](crate::logaddexp)
 /// - [`softmax`]
 #[must_use]
-#[allow(clippy::float_cmp, clippy::missing_panics_doc)]
+#[allow(clippy::missing_panics_doc)]
 pub fn logsumexp(xs: &[f64]) -> f64 {
     let x_max = fmax(xs);
 

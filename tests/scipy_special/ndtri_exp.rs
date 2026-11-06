@@ -39,7 +39,6 @@ fn test_very_small_arg() {
 }
 
 #[test]
-#[allow(clippy::float_cmp)]
 fn test_asymptotes() {
     assert_eq!(xsf::ndtri_exp(f64::NEG_INFINITY), f64::NEG_INFINITY);
     assert_eq!(xsf::ndtri_exp(0.0), f64::INFINITY);

@@ -97,7 +97,6 @@ fn airye_f64(z: f64) -> [f64; 4] {
     [ai, aip, bi, bip]
 }
 
-#[allow(clippy::manual_range_contains)]
 fn airy_f64(x: f64) -> [f64; 4] {
     /* For small arguments, use Cephes as it's slightly faster.
      * For large arguments, use AMOS as it's more accurate.
@@ -202,12 +201,6 @@ fn ai_tail(zeta: Complex64) -> Complex64 {
     (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
 }
 
-#[allow(
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 fn itairy_impl(x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute the integrals of Airy fnctions with
@@ -384,16 +377,6 @@ pub fn airy_integrals(mut x: f64) -> [f64; 4] {
     [apt, bpt, ant, bnt]
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::excessive_precision,
-    clippy::unreadable_literal
-)]
 fn airyb(x: f64, ai: &mut f64, bi: &mut f64, ad: &mut f64, bd: &mut f64) {
     // =======================================================
     // Purpose: Compute Airy functions and their derivatives
@@ -580,15 +563,6 @@ fn airyb(x: f64, ai: &mut f64, bi: &mut f64, ad: &mut f64, bd: &mut f64) {
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::cast_sign_loss,
-    clippy::excessive_precision,
-    clippy::unreadable_literal
-)]
 fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: &mut [f64]) {
     // ========================================================
     // Purpose: Compute the first NT zeros of Airy functions

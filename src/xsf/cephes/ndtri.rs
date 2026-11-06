@@ -119,7 +119,6 @@ pub(super) fn ndtri_central(y: f64) -> f64 {
 /// ndtri domain       x < 0        NAN
 /// ndtri domain       x > 1        NAN
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn ndtri(y0: f64) -> f64 {
     if y0 == 0.0 {
         return f64::NEG_INFINITY;

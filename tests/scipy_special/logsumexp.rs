@@ -6,7 +6,6 @@ use xsref::np_assert_allclose;
 
 /// Corresponds to `TestLogSumExp.test_logsumexp`.
 #[test]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn test_logsumexp() {
     // default rtol of `xp_assert_close`
     let rtol: f64 = f64::EPSILON.sqrt() * 4.0;

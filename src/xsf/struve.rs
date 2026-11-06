@@ -6,7 +6,7 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
-#![allow(clippy::unreadable_literal)]
+#![allow(clippy::needless_late_init)]
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 
@@ -14,7 +14,6 @@ use crate::xsf::bessel::bessel_j_miller;
 use crate::xsf::cephes;
 use crate::xsf::specfun::SPECFUN_INF;
 
-#[allow(clippy::float_cmp)]
 fn specfun_convinf(x: f64) -> f64 {
     if x == SPECFUN_INF {
         return f64::INFINITY;
@@ -43,7 +42,6 @@ fn itsh0_neumann(x: f64) -> (f64, f64) {
     (4.0 * FRAC_2_PI * se / norm, 2.0 * FRAC_2_PI * so / norm)
 }
 
-#[allow(clippy::needless_late_init)]
 fn itth0(x: f64) -> f64 {
     // ===========================================================
     // Purpose: Evaluate the integral H0(t)/t with respect to t
@@ -100,7 +98,6 @@ fn itth0(x: f64) -> f64 {
     tth
 }
 
-#[allow(clippy::manual_midpoint, clippy::needless_late_init)]
 fn itsh0(x: f64) -> f64 {
     // ===================================================
     // Purpose: Evaluate the integral of Struve function
@@ -176,7 +173,6 @@ fn itsh0(x: f64) -> f64 {
     th0
 }
 
-#[allow(clippy::needless_late_init)]
 fn itsl0(x: f64) -> f64 {
     // ===========================================================
     // Purpose: Evaluate the integral of modified Struve function

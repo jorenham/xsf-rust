@@ -83,7 +83,6 @@ fn recurrence_a_and_b_coefficients(
 /// `tools::apply_recurrence_relation_backward`, which solves the recurrence relation
 /// `a(n) w(n-1) + b(n) w(n) + c(n) w(n+1) = 0` in the backward direction, starting from
 /// `first = w(1)` and `second = w(0)`, and returns `(w(-number_of_steps), w(1-number_of_steps))`.
-#[allow(clippy::cast_possible_truncation)]
 fn apply_recurrence_relation_backward(
     get_coefs: impl Fn(i32) -> (f64, f64, f64),
     number_of_steps: i32,
@@ -120,7 +119,6 @@ fn apply_recurrence_relation_backward(
 
 /// `hypergeometric_1F1_backward_recurrence_for_negative_a`: backward recurrence on `a` from
 /// `M(frac(a) + 2, b, z)` and `M(frac(a) + 1, b, z)`, for non-integer `a < 0`
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn backward_recurrence_for_negative_a(
     a: f64,
     b: f64,
@@ -162,7 +160,6 @@ fn backward_recurrence_for_negative_a(
 }
 
 /// `hypergeometric_1F1_backwards_recursion_on_b_for_negative_a`
-#[allow(clippy::cast_possible_truncation)]
 fn backwards_recursion_on_b_for_negative_a(
     a: f64,
     b: f64,
@@ -332,7 +329,6 @@ fn backwards_recursion_on_b_for_negative_a(
 ///
 /// `m(a', b')` computes the initial values `M(a', b', z)`, with `-1 < a' < 2` and `b' > z`.
 /// Returns `None` if `m` does, or if more than 10^6 steps are needed.
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub(super) fn hyp1f1_neg_a(
     a: f64,
     b: f64,
@@ -357,7 +353,6 @@ pub(super) fn hyp1f1_neg_a(
 }
 
 /// `result * e^log_scaling`, from `hypergeometric_1F1_imp`
-#[allow(clippy::cast_precision_loss)]
 fn apply_log_scaling(mut result: f64, mut log_scaling: i64) -> f64 {
     //
     // Actual result will be result * e^log_scaling.
@@ -386,7 +381,6 @@ fn apply_log_scaling(mut result: f64, mut log_scaling: i64) -> f64 {
 ///
 /// The error is estimated by a rerun with `m(b + n + 1)` perturbed, and also each step if
 /// `per_step`, since errors made midway can grow far more.
-#[allow(clippy::cast_precision_loss)]
 pub(super) fn hyp1f1_b_recurrence(
     a: f64,
     b: f64,
@@ -427,7 +421,6 @@ pub(super) fn hyp1f1_b_recurrence(
 
 /// Unlike in xsf (scipy/xsf#365): `hyp1f1_b_recurrence` for non-integer `b < 0` from `b + n > 0`,
 /// first trying a start where the series of `M(a, b + n, z)` hardly cancels if `a z < 0`.
-#[allow(clippy::cast_possible_truncation)]
 pub(super) fn hyp1f1_neg_b(
     a: f64,
     b: f64,

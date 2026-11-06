@@ -12,7 +12,6 @@ use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
 
 /* Mathieu functions */
 /* Characteristic values */
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn cem_cva(m: f64, q: f64) -> f64 {
     let mut kd = 1;
 
@@ -34,7 +33,6 @@ fn cem_cva(m: f64, q: f64) -> f64 {
     cva2(kd, int_m, q)
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn sem_cva(m: f64, q: f64) -> f64 {
     let mut kd = 4;
 
@@ -56,7 +54,6 @@ fn sem_cva(m: f64, q: f64) -> f64 {
 }
 
 /* Mathieu functions */
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let kf = 1;
     let (mut csf, mut csd) = (0.0, 0.0);
@@ -81,7 +78,6 @@ fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     (csf, csd)
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let kf = 2;
     let (mut csf, mut csd) = (0.0, 0.0);
@@ -113,7 +109,6 @@ fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 
 /// Unlike in xsf, the modified Mathieu functions share this implementation (xsf duplicates it),
 /// with `kf = 1` for `mcm` and `kf = 2` for `msm`, and `kc` the kind.
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
         // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
