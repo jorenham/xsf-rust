@@ -5,10 +5,11 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
-use core::f64::consts::{PI, SQRT_2};
+use core::f64::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
+use crate::xsf::amos;
 use crate::xsf::specfun::SPECFUN_INF;
 
 /// `SPECFUN_ZCONVINF` (only the real part is checked)
@@ -31,6 +32,34 @@ struct Klvna {
     dei: f64,
     her: f64,
     hei: f64,
+}
+
+/// The relative tolerance of the power series
+const EPS: f64 = 1.0e-15;
+
+/// ber x, bei x, ber'x and bei'x from their power series
+fn ber_series(x: f64) -> (f64, f64, f64, f64) {
+    let x2 = 0.25 * x * x;
+    let x4 = x2 * x2;
+    // `r_0 + r_1 + ...` with `r_m = -r_(m-1) x4 / (4 d1 d2 d3)` and `[d1, d2, d3] = d(m)`
+    let sum = |mut r: f64, d: fn(f64) -> [f64; 3]| {
+        let mut s = r;
+        for m in 1..=60 {
+            let [d1, d2, d3] = d(f64::from(m));
+            r = -0.25 * r / d1 / d2 / d3 * x4;
+            s += r;
+            if r.abs() < s.abs() * EPS {
+                break;
+            }
+        }
+        s
+    };
+    (
+        sum(1.0, |m| [m * m, (2.0 * m - 1.0).powi(2), 1.0]),
+        sum(x2, |m| [m * m, (2.0 * m + 1.0).powi(2), 1.0]),
+        sum(-0.25 * x * x2, |m| [m, m + 1.0, (2.0 * m + 1.0).powi(2)]),
+        sum(0.5 * x, |m| [m * m, 2.0 * m - 1.0, 2.0 * m + 1.0]),
+    )
 }
 
 #[allow(
@@ -57,9 +86,8 @@ fn klvna(x: f64) -> Klvna {
     // ================================================
 
     let el = 0.5772156649015329;
-    let eps = 1.0e-15;
 
-    let (mut ber, mut bei, mut ger, mut gei, mut der, mut dei, mut her, mut hei);
+    let (ber, bei, mut ger, mut gei, der, dei, mut her, mut hei);
     let mut r;
     let mut gs;
 
@@ -79,28 +107,8 @@ fn klvna(x: f64) -> Klvna {
     let x2 = 0.25 * x * x;
     let x4 = x2 * x2;
 
-    if x.abs() < 10.0 {
-        ber = 1.0;
-        r = 1.0;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) - 1.0;
-            r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
-            ber += r;
-            if r.abs() < ber.abs() * eps {
-                break;
-            }
-        }
-
-        bei = x2;
-        r = x2;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) + 1.0;
-            r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
-            bei += r;
-            if r.abs() < bei.abs() * eps {
-                break;
-            }
-        }
+    if x.abs() < 3.0 {
+        (ber, bei, der, dei) = ber_series(x);
 
         ger = -((x / 2.0).ln() + el) * ber + 0.25 * PI * bei;
 
@@ -111,7 +119,7 @@ fn klvna(x: f64) -> Klvna {
             r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
             gs = gs + 1.0 / (2.0 * f64::from(m) - 1.0) + 1.0 / (2.0 * f64::from(m));
             ger += r * gs;
-            if (r * gs).abs() < ger.abs() * eps {
+            if (r * gs).abs() < ger.abs() * EPS {
                 break;
             }
         }
@@ -125,32 +133,7 @@ fn klvna(x: f64) -> Klvna {
             r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
             gs = gs + 1.0 / (2.0 * f64::from(m)) + 1.0 / (2.0 * f64::from(m) + 1.0);
             gei += r * gs;
-            if (r * gs).abs() < gei.abs() * eps {
-                break;
-            }
-        }
-
-        der = -0.25 * x * x2;
-        r = der;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) + 1.0;
-            r = -0.25 * r / f64::from(m) / (f64::from(m) + 1.0) / (t * t) * x4;
-            der += r;
-            if r.abs() < der.abs() * eps {
-                break;
-            }
-        }
-
-        dei = 0.5 * x;
-        r = dei;
-        for m in 1..=60 {
-            r = -0.25 * r
-                / f64::from(m * m)
-                / (2.0 * f64::from(m) - 1.0)
-                / (2.0 * f64::from(m) + 1.0)
-                * x4;
-            dei += r;
-            if r.abs() < dei.abs() * eps {
+            if (r * gs).abs() < gei.abs() * EPS {
                 break;
             }
         }
@@ -163,7 +146,7 @@ fn klvna(x: f64) -> Klvna {
             r = -0.25 * r / f64::from(m) / (f64::from(m) + 1.0) / (t * t) * x4;
             gs = gs + 1.0 / (2.0 * f64::from(m) + 1.0) + 1.0 / (f64::from(2 * m) + 2.0);
             her += r * gs;
-            if (r * gs).abs() < her.abs() * eps {
+            if (r * gs).abs() < her.abs() * EPS {
                 break;
             }
         }
@@ -176,10 +159,24 @@ fn klvna(x: f64) -> Klvna {
                 * x4;
             gs = gs + 1.0 / (2.0 * f64::from(m)) + 1.0 / (f64::from(2 * m) + 1.0);
             hei += r * gs;
-            if (r * gs).abs() < hei.abs() * eps {
+            if (r * gs).abs() < hei.abs() * EPS {
                 break;
             }
         }
+    } else if x.abs() < 18.0 {
+        // Unlike in xsf (scipy/xsf#232):
+        // - ber, bei, ber' and bei' use the series up to x = 18, where the asymptotic expansion
+        //   becomes the more accurate one;
+        // - ker x + i kei x = K_0(z) and ker'x + i kei'x = -w K_1(z), with z = w x, w = e^(i pi/4)
+        //   (DLMF 10.61.2, 10.29.3), since their series cancels from x = 3 on. AMOS can't
+        //   overflow or underflow here.
+        (ber, bei, der, dei) = ber_series(x);
+
+        let w = c64(FRAC_1_SQRT_2, FRAC_1_SQRT_2);
+        let mut k = [Complex64::ZERO; 2];
+        amos::besk(w * x, 0.0, 1, 2, &mut k, &mut 0);
+        let (ke, kep) = (k[0], -w * k[1]);
+        (ger, gei, her, hei) = (ke.re, ke.im, kep.re, kep.im);
     } else {
         let mut pp0 = 1.0;
         let mut pn0 = 1.0;
