@@ -331,6 +331,11 @@ where
             continue;
         }
 
+        // the berp and beip references at |x| = 10 are xsf's inaccurate values (scipy/xsf#232)
+        if (name == "berp" || name == "beip") && case.r#in[0].abs() == 10.0 {
+            continue;
+        }
+
         let desired = case.out;
         let desired_magnitude = desired.magnitude();
 

@@ -1,3 +1,5 @@
+use num_complex::c64;
+
 #[test]
 fn test_ber_f64() {
     xsref::test("ber", "d-d", |x| xsf::ber(x[0]));
@@ -56,6 +58,35 @@ fn test_kelvin_wronskian() {
         let [be, ke, bep, kep] = xsf::kelvin(x);
         let residual = (x * (be * kep - bep * ke) + 1.0).norm();
         assert!(residual <= 1e-9, "x = {x}: residual = {residual:e}");
+    }
+}
+
+#[test]
+fn test_kelvin_be_mid() {
+    // ber + i bei and ber' + i bei' for 10 <= x < 18, computed with mpmath (40 digits)
+    let cases = [
+        (
+            10.0,
+            (138.840_465_941_632_66, 56.370_458_553_906_64),
+            (51.195_258_393_599_61, 135.309_301_715_964_6),
+        ),
+        (
+            14.0,
+            (-2_131.281_170_574_877_7, -160.937_689_652_486_43),
+            (-1_316.093_925_831_294_4, -1_616.089_442_962_944),
+        ),
+        (
+            17.5,
+            (18_848.671_223_081_736, -12_619.261_010_554_887),
+            (21_711.202_282_744_056, 4_774.935_372_065_795),
+        ),
+    ];
+    for (x, (ber, bei), (berp, beip)) in cases {
+        let [be, _, bep, _] = xsf::kelvin(x);
+        for (y, r) in [(be, c64(ber, bei)), (bep, c64(berp, beip))] {
+            let err = (y - r).norm() / r.norm();
+            assert!(err <= 1e-14, "x = {x}: {y} != {r} (err = {err:e})");
+        }
     }
 }
 
