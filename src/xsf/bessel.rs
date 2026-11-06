@@ -1210,8 +1210,9 @@ fn itika(x: f64) -> (f64, f64) {
         }
         tk *= x;
     } else if x < 40.0 {
-        // Unlike in xsf, pi/2 - int_x^inf K0 for 0.5 <= x < 40 (instead of the series for x < 12),
-        // with int_x^inf K0 = int_0^inf exp(-x cosh(u)) / cosh(u) du (DLMF 10.32.9)
+        // Unlike in xsf (scipy/xsf#379), pi/2 - int_x^inf K0 for 0.5 <= x < 40 (instead of the
+        // series for x < 12), with int_x^inf K0 = int_0^inf exp(-x cosh(u)) / cosh(u) du
+        // (DLMF 10.32.9)
         tk = PI / 2.0 - trapezoid_cosh(x, |w| (-w).exp() / (x + w)) * x * (-x).exp();
     } else {
         tk = 1.0;

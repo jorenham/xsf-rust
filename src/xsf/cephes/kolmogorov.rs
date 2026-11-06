@@ -198,8 +198,7 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
          * Want q^((2k-1)^2)(1-q^(4k-1)) / q(1-q^3) < epsilon to break out of loop.
          * With KOLMOG_CUTOVER ~ 0.82, k <= 4.  Just unroll the loop, 4 iterations
          */
-        // Unlike in xsf, sum 5 terms instead of 4 (v^24 is 1e-14 at x = 0.82), and start D at
-        // 5^2 instead of 0.
+        // Unlike in xsf (scipy/xsf#451), sum 5 terms instead of 4, and start D at 5^2 instead of 0.
         let vsq = v * v;
         let v3 = v.powf(3.0);
 
