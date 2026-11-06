@@ -175,13 +175,40 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
     z.airye()
 }
 
+/// `int_z^inf Ai(t) dt` for `|ph z| <= pi/3`, given `zeta = 2/3 z^(3/2)`
+///
+/// By DLMF 9.6.2 and 10.32.9, this is
+/// `1/(pi sqrt(3)) int_0^inf e^(-zeta cosh u) cosh(u/3) / cosh(u) du`. On the path
+/// `cosh u = 1 + v^2 / zeta`, i.e. `u = 2 asinh(v / sqrt(2 zeta))`, the exponent is `-zeta - v^2`,
+/// so that the trapezoidal rule in `v` converges exponentially:
+///
+/// - the step `H` keeps the error from the poles at `v = +-i sqrt(zeta)`, i.e.
+///   `exp(-pi sqrt(2 |zeta|) / H)` for `ph zeta = pi/2`, below `2^-53` for `|zeta| > 1.88`
+///   (`x > 2`)
+/// - the last node `v = 41 H` has `e^(-v^2) < 2^-54`
+fn ai_tail(zeta: Complex64) -> Complex64 {
+    const H: f64 = 0.15;
+    let r = (2.0 * zeta).sqrt().inv();
+    let sum: Complex64 = (1..=41)
+        .map(|k| {
+            let v = H * f64::from(k);
+            let s = v * r; // sinh(u/2)
+            let c = (1.0 + s * s).sqrt(); // cosh(u/2)
+            let u3 = (s + c).ln() * (2.0 / 3.0); // u/3
+            (-v * v).exp() * u3.cosh() / ((1.0 + 2.0 * s * s) * c)
+        })
+        .sum();
+    // (+ 0.5 for the node v = 0, whose integrand is 1, with the trapezoidal weight 1/2)
+    (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
+}
+
 #[allow(
     clippy::excessive_precision,
     clippy::float_cmp,
     clippy::too_many_lines,
     clippy::unreadable_literal
 )]
-fn itairy_impl(mut x: f64) -> [f64; 4] {
+fn itairy_impl(x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute the integrals of Airy fnctions with
     //          respect to t from 0 and x ( x ≥ 0 )
@@ -226,42 +253,47 @@ fn itairy_impl(mut x: f64) -> [f64; 4] {
     if x == 0.0 {
         return [apt, bpt, ant, bnt];
     }
-    if x.abs() <= 9.25 {
-        for l in 0..2 {
-            x *= (-1.0_f64).powf(f64::from(l));
-            let mut fx = x;
-            let mut r = x;
-            for k in 1..41 {
-                let k = f64::from(k);
-                r = r * (3.0 * k - 2.0) / (3.0 * k + 1.0) * x / (3.0 * k) * x / (3.0 * k - 1.0) * x;
-                fx += r;
-                if r.abs() < fx.abs() * eps {
+    // the power series of int_0^x of f and g (DLMF 9.4.1-9.4.3), whose term ratios are
+    // (3k + o0) / (3k + o1) x^3 / (3k (3k + o2)) with the offsets `o`
+    let series = |x: f64| {
+        let sum = |mut r: f64, o: [f64; 3]| {
+            let mut sum = r;
+            // Unlike in xsf (scipy/xsf#448), allow 80 terms instead of 40, which cover x <= 20
+            for k in 1..81 {
+                let k = 3.0 * f64::from(k);
+                r = r * (k + o[0]) / (k + o[1]) * x / k * x / (k + o[2]) * x;
+                sum += r;
+                if r.abs() < sum.abs() * eps {
                     break;
                 }
             }
-            let mut gx = 0.5 * x * x;
-            r = gx;
-            for k in 1..41 {
-                let k = f64::from(k);
-                r = r * (3.0 * k - 1.0) / (3.0 * k + 2.0) * x / (3.0 * k) * x / (3.0 * k + 1.0) * x;
-                gx += r;
-                if r.abs() < gx.abs() * eps {
-                    break;
-                }
-            }
-            ant = c1 * fx - c2 * gx;
-            bnt = sr3 * (c1 * fx + c2 * gx);
-            if l == 0 {
-                apt = ant;
-                bpt = bnt;
-            } else {
-                ant = -ant;
-                bnt = -bnt;
-                x = -x;
-            }
-        }
+            sum
+        };
+        let (fx, gx) = (
+            sum(x, [-2.0, 1.0, -1.0]),
+            sum(0.5 * x * x, [-1.0, 2.0, 1.0]),
+        );
+        (c1 * fx - c2 * gx, sr3 * (c1 * fx + c2 * gx))
+    };
+
+    let xe = x * x.sqrt() / 1.5;
+    if x <= 2.0 {
+        (apt, bpt) = series(x);
+        (ant, bnt) = series(-x);
+        ant = -ant;
+        bnt = -bnt;
+    } else if x <= 20.0 {
+        // Unlike in xsf (scipy/xsf#448), use the series of BPT (with positive terms) and the tail
+        // integral of Ai for 2 < x <= 20:
+        // - APT = 1/3 - int_x^inf Ai(t) dt
+        // - ANT + i BNT = 2/3 - 2 int_w^inf Ai(t) dt with w = x e^(i pi/3), by DLMF 9.2.10 and
+        //   9.2.12
+        bpt = series(x).1;
+        apt = q0 - ai_tail(c64(xe, 0.0)).re;
+        let t = ai_tail(c64(0.0, xe));
+        ant = q1 - 2.0 * t.re;
+        bnt = -2.0 * t.im;
     } else {
-        let xe = x * x.sqrt() / 1.5;
         let xp6 = 1.0 / (6.0 * PI * xe).sqrt();
         let mut su1 = 1.0;
         let mut r = 1.0;
