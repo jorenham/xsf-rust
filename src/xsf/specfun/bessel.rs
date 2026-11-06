@@ -620,7 +620,6 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     }
 }
 
-#[allow(clippy::assign_op_pattern)]
 pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {
     // =========================================================
     // Purpose: Compute lambda function with arbitrary order v,
@@ -656,7 +655,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
 
             for i in 1..=50 {
                 r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk));
-                bk = bk + r;
+                bk += r;
 
                 if r.abs() < bk.abs() * 1.0e-15 {
                     break;
@@ -669,7 +668,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
 
             for i in 1..=50 {
                 r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk + 1.0));
-                uk = uk + r;
+                uk += r;
 
                 if r.abs() < uk.abs() * 1.0e-15 {
                     break;
@@ -798,7 +797,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     for j in 1..=n {
         vl[j as usize] *= fac * r0;
         dl[(j - 1) as usize] = -0.5 * x / (f64::from(j) + v0) * vl[j as usize];
-        r0 = 2.0 * (f64::from(j) + v0 + 1.0) / x * r0;
+        r0 *= 2.0 * (f64::from(j) + v0 + 1.0) / x;
     }
 
     dl[n as usize] = 2.0 * (v0 + f64::from(n)) * (vl[(n - 1) as usize] - vl[n as usize]) / x;

@@ -271,7 +271,6 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
     *gd = gd1 + xm * gd0;
 }
 
-#[allow(clippy::assign_op_pattern, clippy::range_minus_one)]
 pub(crate) fn kmn(
     m: i32,
     n: i32,
@@ -343,7 +342,7 @@ pub(crate) fn kmn(
 
     for k in 1..=m {
         let mut t = v[m as usize];
-        for l in 0..=m - k - 1 {
+        for l in 0..m - k {
             t = v[(m - l - 1) as usize] - w[(m - l) as usize] * u[(m - l - 1) as usize] / t;
         }
 
@@ -352,13 +351,13 @@ pub(crate) fn kmn(
 
     let mut r = 1.0;
     for k in 1..=m {
-        r = r * rk[(k - 1) as usize];
+        r *= rk[(k - 1) as usize];
         dn[(k - 1) as usize] = df[0] * r;
     }
 
     tp[(nn - 1) as usize] = v[nn as usize];
 
-    for k in (m + 1..=nn - 1).rev() {
+    for k in (m + 1..nn).rev() {
         tp[(k - 1) as usize] = v[k as usize] - w[(k + 1) as usize] * u[k as usize] / tp[k as usize];
 
         if k > m + 1 {
@@ -378,7 +377,7 @@ pub(crate) fn kmn(
 
     let mut r1 = 1.0;
     for j in 1..=(n + m + ip) / 2 {
-        r1 = r1 * (f64::from(j) + 0.5 * f64::from(n + m + ip));
+        r1 *= f64::from(j) + 0.5 * f64::from(n + m + ip);
     }
     r = 1.0;
     for j in 1..=2 * m + ip {
@@ -391,7 +390,7 @@ pub(crate) fn kmn(
         r = r * (f64::from(m + k) - 1.0) * (f64::from(m + k + ip) - 1.5)
             / (f64::from(k) - 1.0)
             / (f64::from(k + ip) - 1.5);
-        su0 = su0 + r * df[(k - 1) as usize];
+        su0 += r * df[(k - 1) as usize];
         if k > (n - m) / 2 && ((su0 - sw) / su0).abs() < eps {
             break;
         }
@@ -408,7 +407,7 @@ pub(crate) fn kmn(
         let mut r3 = 1.0;
 
         for j in 1..=(n - m - ip) / 2 {
-            r3 = r3 * f64::from(j);
+            r3 *= f64::from(j);
         }
 
         let sa0 = (2.0 * f64::from(m + ip) + 1.0) * r1
@@ -497,7 +496,6 @@ pub(crate) fn qstar(
     Status::Ok
 }
 
-#[allow(clippy::assign_op_pattern)]
 pub(crate) fn rmn1(
     m: i32,
     n: i32,
@@ -579,7 +577,7 @@ pub(crate) fn rmn1(
 
         let mut r1 = 1.0;
         for j in 1..=(n + m + ip) / 2 {
-            r1 = r1 * (f64::from(j) + 0.5 * f64::from(n + m + ip));
+            r1 *= f64::from(j) + 0.5 * f64::from(n + m + ip);
         }
 
         let mut r2 = 1.0;
@@ -658,7 +656,7 @@ pub(crate) fn rmn1(
         }
 
         let np = m + 2 * k - 2 + ip;
-        sud = sud + f64::from(lg) * r * df[(k - 1) as usize] * dj[np as usize];
+        sud += f64::from(lg) * r * df[(k - 1) as usize] * dj[np as usize];
 
         if (k > nm1) && ((sud - sw).abs() < sud.abs() * eps) {
             break;

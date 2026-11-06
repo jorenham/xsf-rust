@@ -1,4 +1,4 @@
-#![allow(clippy::assign_op_pattern, clippy::cast_possible_wrap)]
+#![allow(clippy::cast_possible_wrap)]
 
 use core::ops::{Add, Mul};
 
@@ -1171,7 +1171,7 @@ fn itika(x: f64) -> (f64, f64) {
             ti += A[k - 1] * r;
         }
         let rc1 = 1.0 / (2.0 * PI * x).sqrt();
-        ti = rc1 * x.exp() * ti;
+        ti *= rc1 * x.exp();
     }
 
     if x < 0.5 {
@@ -1553,7 +1553,7 @@ fn ittjya(x: f64) -> (f64, f64) {
                     break;
                 }
             }
-            qx = 0.125 * (vt - 1.0) / x * qx;
+            qx *= 0.125 * (vt - 1.0) / x;
             let xk = x - (0.25 + 0.5 * l) * PI;
             bj1 = a0 * (px * xk.cos() - qx * xk.sin());
             by1 = a0 * (px * xk.sin() + qx * xk.cos());
@@ -1776,7 +1776,7 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
             rj1 / f0
         };
         for k in 0..=*nm {
-            rj[k as usize] = cs * rj[k as usize];
+            rj[k as usize] *= cs;
         }
     }
     dj[0] = x.cos();

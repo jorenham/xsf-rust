@@ -105,12 +105,10 @@
 // E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
 #![allow(
     clippy::approx_constant,
-    clippy::assign_op_pattern,
     clippy::bool_to_int_with_if,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::manual_clamp,
-    clippy::manual_range_contains,
     clippy::match_same_arms,
     clippy::needless_late_init,
     clippy::needless_return,
@@ -833,10 +831,10 @@ pub(crate) fn airy(
     *ierr = 0;
     *nz = 0;
     ai = c64(0.0, 0.0);
-    if (id < 0) || (id > 1) {
+    if !(0..=1).contains(&id) {
         *ierr = 1;
     }
-    if (kode < 1) || (kode > 2) {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if *ierr != 0 {
@@ -1360,10 +1358,10 @@ pub(crate) fn besh(
     if fnu < 0.0 {
         *ierr = 1;
     }
-    if (m < 1) || (m > 2) {
+    if !(1..=2).contains(&m) {
         *ierr = 1;
     }
-    if (kode < 1) || (kode > 2) {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if n < 1 {
@@ -1707,7 +1705,7 @@ pub(crate) fn besi(
     if fnu < 0.0 {
         *ierr = 1;
     }
-    if (kode < 1) || (kode > 2) {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if n < 1 {
@@ -1958,7 +1956,7 @@ pub(crate) fn besj(
     if fnu < 0.0 {
         *ierr = 1;
     }
-    if kode < 1 || kode > 2 {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if n < 1 {
@@ -2222,7 +2220,7 @@ pub(crate) fn besk(
     if fnu < 0.0 {
         *ierr = 1;
     }
-    if kode < 1 || kode > 2 {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if n < 1 {
@@ -2534,7 +2532,7 @@ pub(crate) fn besy(
     if fnu < 0.0 {
         *ierr = 1;
     }
-    if (kode < 1) || (kode > 2) {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if n < 1 {
@@ -2930,10 +2928,10 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
 
     *ierr = 0;
     nz = 0;
-    if (id < 0) || (id > 1) {
+    if !(0..=1).contains(&id) {
         *ierr = 1;
     }
-    if (kode < 1) || (kode > 2) {
+    if !(1..=2).contains(&kode) {
         *ierr = 1;
     }
     if *ierr != 0 {
@@ -3310,8 +3308,8 @@ pub(crate) fn bknu(
                         t1 = 0.25 * caz * caz;
                         loop {
                             f = (f * ak + p + q) / bk;
-                            p = p / (ak - dnu);
-                            q = q / (ak + dnu);
+                            p /= ak - dnu;
+                            q /= ak + dnu;
                             rk = 1.0 / ak;
                             ck = cmul(ck, cz * rk);
                             s1 += cmul(ck, f);
@@ -6364,7 +6362,7 @@ pub(crate) fn unk1(
         c1 = y[(kk - 1) as usize];
         if kode != 1 {
             nw = s1s2(zr, &mut c1, &mut c2, asc, alim, &mut iuf);
-            nz = nz + nw;
+            nz += nw;
         }
         y[(kk - 1) as usize] = cmul(c1, cspn) + c2;
         kk -= 1;
@@ -6970,7 +6968,7 @@ pub(crate) fn unk2(
         c1 = y[(kk - 1) as usize];
         if kode != 1 {
             nw = s1s2(zr, &mut c1, &mut c2, asc, alim, &mut iuf);
-            nz = nz + nw;
+            nz += nw;
         }
         y[(kk - 1) as usize] = cmul(c1, cspn) + c2;
         kk -= 1;

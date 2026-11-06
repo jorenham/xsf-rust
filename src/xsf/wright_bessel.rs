@@ -1090,7 +1090,6 @@ fn wright_bessel_integral<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     }
 }
 
-#[allow(clippy::manual_range_contains)]
 fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     /* Compute Wright's generalized Bessel function for scalar arguments.
      *
@@ -1254,7 +1253,7 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
          * Note: We ensured a <= 5 as this is a bad approximation for large a. */
         return wb_asymptotic::<LOG_WB>(a, b, x);
     }
-    if 0.5 <= a && a <= 1.8 && 100.0 <= b && 1e5 <= x {
+    if (0.5..=1.8).contains(&a) && 100.0 <= b && 1e5 <= x {
         // This is a very hard domain. This condition is placed after wb_asymptotic.
         // TODO: Explore ways to cover this domain.
         return f64::NAN;

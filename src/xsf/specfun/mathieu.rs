@@ -101,7 +101,6 @@ pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     }
 }
 
-#[allow(clippy::assign_op_pattern)]
 pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     // ======================================================
     // Purpose: Calculate a specific characteristic value of
@@ -149,7 +148,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             let mut a2 = cvqm(m, q2);
             let mut qq = 3.0 * f64::from(m);
             for _i in 1..=nn {
-                qq = qq + delta;
+                qq += delta;
                 a = (a1 * q2 - a2 * q1 + (a2 - a1) * qq) / (q2 - q1);
                 a = refine(kd, m, qq, a);
                 q1 = q2;
@@ -168,7 +167,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             let mut a2 = cvql(kd, m, q2);
             let mut qq = f64::from(m.wrapping_mul(m));
             for _i in 1..=nn {
-                qq = qq - delta;
+                qq -= delta;
                 a = (a1 * q2 - a2 * q1 + (a2 - a1) * qq) / (q2 - q1);
                 a = refine(kd, m, qq, a);
                 q1 = q2;
@@ -313,11 +312,9 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
 }
 
 #[allow(
-    clippy::assign_op_pattern,
     clippy::needless_range_loop,
     clippy::needless_late_init,
     clippy::redundant_else,
-    clippy::range_minus_one,
     unused_assignments
 )]
 pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
@@ -545,7 +542,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         u = fc[0];
         f1 = fc[1];
 
-        for i in 2..=kb - 1 {
+        for i in 2..kb {
             v = u;
             u = f1;
             f1 = (a - (2.0 * f64::from(i) - 1.0) * (2.0 * f64::from(i) - 1.0)) * u / q - v;
@@ -616,14 +613,14 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         u = fc[0];
         f1 = fc[1];
 
-        for i in 2..=kb - 1 {
+        for i in 2..kb {
             v = u;
             u = f1;
             f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
-                sp = sp + f1 * f1;
+                sp += f1 * f1;
             } else {
                 f2 = f1;
             }

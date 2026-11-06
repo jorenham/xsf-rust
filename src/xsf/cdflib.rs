@@ -70,12 +70,11 @@ pub fn gdtrix(a: f64, b: f64, p: f64) -> f64 {
 /// - [`gdtr`](crate::gdtr): Gamma CDF
 /// - [`gdtrc`](crate::gdtrc): Gamma survival function
 #[must_use]
-#[allow(clippy::manual_range_contains)]
 pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
     if p.is_nan() || a.is_nan() || x.is_nan() {
         return f64::NAN;
     }
-    if !((0.0 <= p) && (p <= 1.0)) {
+    if !(0.0..=1.0).contains(&p) {
         return f64::NAN;
     }
     if !(a > 0.0) || a.is_infinite() {

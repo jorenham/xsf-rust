@@ -327,7 +327,6 @@ fn pbdv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
 }
 
 /// `pbvv` with `vv` and `vp` as `buf[..num]` and `buf[num..]`, like the C++ `malloc` block
-#[allow(clippy::manual_range_contains)]
 fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     // ===================================================
     // Purpose: Compute parabolic cylinder functions Vv(x)
@@ -396,7 +395,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f0 = f1;
             f1 = f;
         }
-    } else if ((x >= 0.0) && (x <= 7.5)) || (xa <= 10.0 && v <= 0.5 * x * x) {
+    } else if (0.0..=7.5).contains(&x) || (xa <= 10.0 && v <= 0.5 * x * x) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
         // v <= x^2 / 2 (here v is the order + 1).
         //

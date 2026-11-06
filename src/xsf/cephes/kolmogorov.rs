@@ -62,7 +62,7 @@
 //! `f64`. This only affects the initial bracket and estimate of the root, and occasionally the
 //! last bit of the result.
 
-#![allow(clippy::manual_range_contains, non_snake_case)]
+#![allow(non_snake_case)]
 
 use core::f64::consts::{E, LN_2, PI, SQRT_2};
 
@@ -239,7 +239,7 @@ fn kolmogi_(psf: f64, pcdf: f64) -> f64 {
     let (mut a, mut b);
     let mut x;
 
-    if !(psf >= 0.0 && pcdf >= 0.0 && pcdf <= 1.0 && psf <= 1.0) {
+    if !((0.0..=1.0).contains(&psf) && (0.0..=1.0).contains(&pcdf)) {
         return f64::NAN;
     }
     if (1.0 - pcdf - psf).abs() > 4.0 * f64::EPSILON {
@@ -638,7 +638,7 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
 
     let mut use_upper_sum;
 
-    if !(n > 0 && x >= 0.0 && x <= 1.0) {
+    if !(n > 0 && (0.0..=1.0).contains(&x)) {
         return ThreeProbs {
             sf: f64::NAN,
             cdf: f64::NAN,
@@ -846,7 +846,7 @@ fn smirnovi_(n: i32, psf: f64, pcdf: f64) -> f64 {
     let (mut a, mut b);
     let (mut dx, mut dxold);
 
-    if !(n > 0 && psf >= 0.0 && pcdf >= 0.0 && pcdf <= 1.0 && psf <= 1.0) {
+    if !(n > 0 && (0.0..=1.0).contains(&psf) && (0.0..=1.0).contains(&pcdf)) {
         return f64::NAN;
     }
     if (1.0 - pcdf - psf).abs() > 4.0 * f64::EPSILON {
@@ -1033,7 +1033,7 @@ pub(crate) fn smirnovc(n: i32, d: f64) -> f64 {
 /// Derivative of smirnov(n, d)
 ///  One interior point of discontinuity at d=1/n.
 pub(crate) fn smirnovp(n: i32, d: f64) -> f64 {
-    if !(n > 0 && d >= 0.0 && d <= 1.0) {
+    if !(n > 0 && (0.0..=1.0).contains(&d)) {
         return f64::NAN;
     }
     if n == 1 {

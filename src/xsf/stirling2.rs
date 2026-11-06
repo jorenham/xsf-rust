@@ -24,7 +24,6 @@ use num_complex::Complex;
 
 /// Dynamic programming method for small n.
 /// Only valid for n <= 219; the stack array is sized accordingly (max 110 elements).
-#[allow(clippy::cast_lossless)]
 fn stirling2_dp(n: f64, k: f64) -> f64 {
     // Maximum arraySize for n <= 219 is 110. Guard against misuse.
     const MAX_ARRAY_SIZE: usize = 111;
@@ -61,7 +60,7 @@ fn stirling2_dp(n: f64, k: f64) -> f64 {
     } else {
         for i in 1..ki {
             for j in 1..(ni - ki + 1) as usize {
-                curr[j] += (i + 1) as f64 * curr[j - 1];
+                curr[j] += f64::from(i + 1) * curr[j - 1];
                 if curr[j].is_infinite() {
                     return f64::INFINITY;
                 }
