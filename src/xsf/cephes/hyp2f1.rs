@@ -71,6 +71,16 @@ fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     if loss < err { (series, loss) } else { (y, err) }
 }
 
+/// The series of the Pfaff transformations (DLMF 15.8.1) in `x / (x - 1)`, by `hys2f1_min`, with
+/// the smaller error estimate
+fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+    let w = x / (x - 1.0);
+    let (ya, ea) = hys2f1_min(a, c - b, c, w);
+    let (yb, eb) = hys2f1_min(b, c - a, c, w);
+    let (y, err, p) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+    ((1.0 - x).powf(-p) * y, err)
+}
+
 /// `hys2f1`, also returning an estimate of the relative error that, unlike `loss`, includes the
 /// error of the recurrence in `a`
 #[allow(
@@ -614,6 +624,17 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     }
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
+        let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
+        // Unlike in xsf, if c < 0 is not an integer and -1 < x < 0, first try the series of the
+        // Pfaff transformations (as for x < -2 below).
+        //
+        // E.g. `hyp2f1(6.5, 8.9, -9.8, -0.08)` was 1.70764138 instead of 1.70764180.
+        if c_pole && x < 0.0 && x > -1.0 {
+            let (y, err) = hys2f1_pfaff(a, b, c, x);
+            if err < HYP2F1_ETHRESH {
+                return y;
+            }
+        }
         // Unlike in xsf, if 0 < x < 1, first try the power series (see `hys2f1_min`):
         // - if c < 0 is not an integer, where this transformation tends to overflow or cancel;
         // - if c > 0 and the series of this transformation is estimated to lose precision. If the
@@ -623,7 +644,6 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         //
         // E.g. `hyp2f1(-0.5, 125.0, 62.5, 0.4)` was 1.04e5 instead of 0.453, and
         // `hyp2f1(-3.1, 17.4, 12.3, 0.97)` was -0.0136 instead of -0.0104.
-        let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
         let lossy = || c > 0.0 && hys2f1(c - a, c - b, c, x).1 >= HYP2F1_ETHRESH;
         if x > 0.0 && x < 1.0 && (c_pole || lossy()) {
             let (y, err) = hys2f1_min(a, b, c, x);
@@ -686,12 +706,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 // since the inner functions of the 1/x transformation can be inaccurate.
                 //
                 // E.g. `hyp2f1(12.0, 3.1, 99.3, -2.8)` was -1.19e12 instead of 0.417.
-                let w = x / (x - 1.0);
-                let (ya, _, ea) = hys2f1_err(a, c - b, c, w);
-                let (yb, _, eb) = hys2f1_err(b, c - a, c, w);
-                let (y1, e1, a1) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+                let (y1, e1) = hys2f1_pfaff(a, b, c, x);
                 if e1 < HYP2F1_ETHRESH {
-                    return s.powf(-a1) * y1;
+                    return y1;
                 }
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1

@@ -223,6 +223,32 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
     // but here the starting values of their recurrence need a recurrence as well (mpmath)
     let actual = xsf::hyp2f1(-20.000_000_000_2, -14.47, 2.93, -5.48);
     np_assert_allclose!([actual], [64_520_380_601.436_584], rtol = 1e-12);
+
+    // or need the series without that recurrence (mpmath)
+    let actual = [
+        xsf::hyp2f1(-19.6, -4.1, 16.7, -9.9),
+        xsf::hyp2f1(-4.2, -19.6, 14.6, -9.6),
+    ];
+    let desired = [-1_046_594.825_411_287_6, -4_908_149.039_599_091];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
+fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
+    // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
+    let actual = [
+        xsf::hyp2f1(6.5, 8.9, -9.8, -0.08),
+        xsf::hyp2f1(9.9, 4.5, -9.9, -0.01),
+        xsf::hyp2f1(16.5, -19.2, -19.7, -0.3),
+        xsf::hyp2f1(14.5, -15.5, -19.6, -0.63),
+    ];
+    let desired = [
+        1.707_641_797_398_377,
+        1.046_566_861_351_764,
+        1.874_594_164_146_283_7e-4,
+        -0.143_812_194_757_134_78,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 }
 
 #[test]
