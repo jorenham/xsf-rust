@@ -187,6 +187,27 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
     Some(sum / (2.0 * PI))
 }
 
+/// `P(X > h, Y > k)` if `0 < r < 0.925`, `k < r h` (or `h < r k`), and
+/// `bivariate_normal_sf_tail` takes the complement below. Returns `None` otherwise.
+///
+/// - Say `k < r h` (the other case is symmetric). If also `h > 0`, the density on the region
+///   peaks on its edge at `(h, r h)`. Sheppard's formula (used for `|r| < 0.925`) then has a
+///   narrow peak that its Gauss-Legendre rule misses, e.g. `bivariate_normal_cdf(-9.5, -5.7,
+///   0.92)` had error 9e-10.
+/// - Instead, `P = phid(-h) - P(X > h, Y < k)`, where the second term has correlation `-r` and
+///   peaks at its corner `(h, k)`. Since `r > 0`, it is at most `P`, so this doesn't cancel.
+/// - But `phid(-h)` underflows to 0 for `h > 37.7`, e.g. at `(38, 34, 0.9)`, so a result
+///   that isn't positive is left to the rule below.
+fn bivariate_normal_sf_edge(h: f64, k: f64, r: f64) -> Option<f64> {
+    if !(r > 0.0 && r < 0.925) {
+        return None;
+    }
+    bivariate_normal_sf_tail(h, -k, -r)
+        .map(|q| ndtr(-h) - q)
+        .or_else(|| bivariate_normal_sf_tail(-h, k, -r).map(|q| ndtr(-k) - q))
+        .filter(|&p| p > 0.0)
+}
+
 /// Cumulative distribution function of the standard bivariate normal distribution
 ///
 /// Returns $P(X \le h, Y \le k)$, with $h$ = `dh` and $k$ = `dk`, for a standard bivariate
@@ -239,6 +260,11 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     // Unlike in xsf (scipy/xsf#360), the tail where the density peaks at the corner (h, k) is
     // computed without cancellation, see `bivariate_normal_sf_tail`
     if let Some(p) = bivariate_normal_sf_tail(dh, dk, r) {
+        return p;
+    }
+    // Unlike in xsf (scipy/xsf#425), the tail where the density peaks on an edge is computed
+    // from its complement, see `bivariate_normal_sf_edge`
+    if let Some(p) = bivariate_normal_sf_edge(dh, dk, r) {
         return p;
     }
     // else, tp = 2*pi; h = dh; k = dk; hk = h*k; bvn = 0;
