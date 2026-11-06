@@ -295,6 +295,11 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         bnt = -2.0 * t.im;
     } else {
         let xp6 = 1.0 / (6.0 * PI * xe).sqrt();
+        if xp6 == 0.0 {
+            // Unlike in xsf, return the limits as x -> inf once 6 pi xe overflows, i.e. for
+            // x > 5.9e204 (approx.)
+            return [q0, f64::INFINITY, q1, 0.0];
+        }
         let mut su1 = 1.0;
         let mut r = 1.0;
         let xr1 = 1.0 / xe;
