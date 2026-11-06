@@ -36,6 +36,31 @@ fn test_hypu_huge_a() {
     // NaN without ~2^31 iterations, like in xsf
     assert!(xsf::hypu(-2_147_483_649.0, 1.0, 1.0).is_nan());
     assert!(xsf::hypu(1.0, f64::INFINITY, 1.0).is_nan());
+    // 1 in xsf
+    assert!(xsf::hypu(-2_147_483_648.0, 1.0, 1.0).is_nan());
+}
+
+#[test]
+fn test_hypu_huge_b() {
+    // Arb; took 5 s and 90 s, or was wrong (2 and -1.3e9), like in xsf (and 16 s for the inf)
+    let abx = [
+        (-2.0, 1e9, 2.0),
+        (1.0, 2_147_483_648.0, 2_147_483_648.0),
+        (-1.0, 2_147_483_648.0, 2.0),
+        (0.0, 1e10, 2.0),
+    ];
+    let expected = [
+        9.999_999_97e17,
+        2.704_487_856_590_993_5e-5,
+        -2_147_483_646.0,
+        1.0,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+    assert_eq!(xsf::hypu(1.5, 2_147_483_647.5, 2.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(1.0, 1001.0, 2.0), f64::INFINITY);
+    // no method is accurate here (Arb: 1e-6), like in xsf
+    assert!(xsf::hypu(1.0, -1e6, 0.5).is_nan());
 }
 
 #[test]
