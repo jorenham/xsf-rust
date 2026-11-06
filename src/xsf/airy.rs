@@ -296,8 +296,7 @@ fn itairy_impl(x: f64) -> [f64; 4] {
     } else {
         let xp6 = 1.0 / (6.0 * PI * xe).sqrt();
         if xp6 == 0.0 {
-            // Unlike in xsf, return the limits as x -> inf once 6 pi xe overflows, i.e. for
-            // x > 5.9e204 (approx.)
+            // Unlike in xsf (scipy/xsf#448), return the limits as x -> inf once 6 pi xe overflows
             return [q0, f64::INFINITY, q1, 0.0];
         }
         let mut su1 = 1.0;
@@ -316,8 +315,7 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         apt = q0 - (-xe).exp() * xp6 * su1;
         bpt = 2.0 * xe.exp() * xp6 * su2;
         if bpt.is_infinite() {
-            // Unlike in xsf, retry with e^xe split as e^(xe/2) squared, since 2 e^xe overflows for
-            // x > 104.2 (approx.), while BPT only overflows for x > 104.66 (approx.)
+            // Unlike in xsf (scipy/xsf#448), retry with e^xe split as e^(xe/2) squared
             let g = (0.5 * xe).exp();
             bpt = 2.0 * g * xp6 * su2 * g;
         }

@@ -28,9 +28,9 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
         nu = -nu;
         factor = nu % 2.0 == 1.0;
     }
-    // Unlike in xsf (scipy/scipy#13750), use a Neumann series where the terms of the power series
-    // below grow (to about e^(2a)) and then cancel. For a < 1.5 the power series is more
-    // accurate, and for a >= 500 the backward recurrence can overflow.
+    // Unlike in xsf (scipy/xsf#452), use a Neumann series where the power series below cancels.
+    // For a < 1.5 the power series is more accurate, and for a >= 500 the backward recurrence can
+    // overflow.
     if (1.5..500.0).contains(&a)
         && (-1.0..a * a - 1.0).contains(&nu)
         && (-1.0..f64::INFINITY).contains(&lambda)
