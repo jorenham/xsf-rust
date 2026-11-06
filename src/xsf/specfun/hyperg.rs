@@ -4,7 +4,7 @@
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use core::f64::consts::PI;
-use core::ops::Mul;
+use core::ops::{Div, Mul};
 
 use num_complex::{Complex64, c64};
 
@@ -16,6 +16,15 @@ use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
+
+/// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
+///
+/// Unlike in xsf (scipy/xsf#436), with `a + (j - 1)` instead of `a + j - 1` (likewise for `b`),
+/// which loses a tiny `a` or `b` (e.g. `b = 1e-17`).
+fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: f64, j: i32) -> T {
+    let n = f64::from(j - 1);
+    t * (a + n) / (f64::from(j) * (b + n))
+}
 
 #[allow(
     clippy::cast_possible_truncation,
@@ -73,11 +82,10 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
         let m = int_x86(-a);
         let mut cr = c64(1.0, 0.0);
         chg = c64(1.0, 0.0);
+        // Unlike in xsf, a + (k - 1) and b + (k - 1), as in `kummer_term`
         for k in 1..=m {
-            cr = cmul(
-                cr * (a + f64::from(k) - 1.0) / f64::from(k) / (b + f64::from(k) - 1.0),
-                z,
-            );
+            let n = f64::from(k - 1);
+            cr = cmul(cr * (a + n) / f64::from(k) / (b + n), z);
             chg += cr;
         }
     } else {
@@ -106,10 +114,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 let mut chw = c64(0.0, 0.0);
                 let mut crg = c64(1.0, 0.0);
                 for j in 1..501 {
-                    crg = cmul(
-                        crg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)),
-                        z,
-                    );
+                    crg = cmul(kummer_term(crg, a, b, j), z);
                     chg += crg;
                     if cdiv(chg - chw, chg).norm() < 1e-15 {
                         break;
@@ -449,7 +454,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let mut accurate = false;
             let mut converged = false;
             for j in 1..501 {
-                rg = rg * (a + f64::from(j) - 1.0) / (f64::from(j) * (b + f64::from(j) - 1.0)) * x;
+                rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
                 rs += rg.abs();
                 if (hg != 0.0) && ((rg / hg).abs() < 1e-15) {
@@ -1179,10 +1184,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut converged = false;
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
-    // Unlike in xsf (scipy/xsf#436), the r1 terms use a + (j - 1) instead of a + j - 1, and
-    // likewise b + (j - 1), which matters for small b
     for j in 1..151 {
-        r1 = r1 * (a + f64::from(j - 1)) / (f64::from(j) * (b + f64::from(j - 1))) * x;
+        r1 = kummer_term(r1, a, b, j) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
         s1 += r1;
