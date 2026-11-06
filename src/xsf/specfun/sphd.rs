@@ -3,8 +3,6 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
-#![allow(clippy::bool_to_int_with_if)]
-
 use core::f64::consts::PI;
 
 use super::{SPECFUN_INF, Status, lpmns, lqmns, sphj, sphy, try_zeroed};
@@ -52,7 +50,7 @@ pub(crate) fn aswfa(
     let eps = 1e-14;
     let x0 = x;
     let x = x.abs();
-    let ip = if (n - m) % 2 == 0 { 0 } else { 1 };
+    let ip = i32::from((n - m) % 2 != 0);
     // NOTE: `(int)` is UB in C++ if `(n - m) / 2 + c` is NaN or out of the int range; `as i32`
     // saturates (NaN -> 0).
     let nm = 40 + (f64::from((n - m) / 2) + c) as i32;
@@ -123,7 +121,7 @@ pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut
 
     let eps = 1.0e-14;
 
-    let ip = if (n - m) % 2 == 0 { 0 } else { 1 };
+    let ip = i32::from((n - m) % 2 != 0);
     // NOTE: `(int)` is UB in C++ if `0.5 * (n - m) + c` is NaN or out of the int range; `as i32`
     // saturates (NaN -> 0).
     let nm = 25 + (0.5 * f64::from(n - m) + c) as i32;
@@ -230,7 +228,7 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
     // ===========================================================
 
     let eps = 1.0e-14;
-    let ip = if (n - m) % 2 == 0 { 0 } else { 1 };
+    let ip = i32::from((n - m) % 2 != 0);
     // NOTE: `(int)` is UB in C++ if `0.5 * (n - m) + c` is NaN or out of the int range; `as i32`
     // saturates (NaN -> 0).
     let nm = 25 + (0.5 * f64::from(n - m) + c) as i32;
@@ -325,7 +323,7 @@ pub(crate) fn kmn(
     *ck1 = 0.0;
     *ck2 = 0.0;
 
-    let ip: i32 = if (n - m) % 2 == 0 { 0 } else { 1 };
+    let ip: i32 = i32::from((n - m) % 2 != 0);
 
     for i in 1..=nn + 3 {
         let k: i32 = if ip == 0 { -2 * (i - 1) } else { -(2 * i - 3) };
@@ -460,7 +458,7 @@ pub(crate) fn qstar(
     let Some(mut ap) = try_zeroed(200) else {
         return Status::NoMemory;
     };
-    let ip = if (n - m) == 2 * ((n - m) / 2) { 0 } else { 1 };
+    let ip = i32::from((n - m) != 2 * ((n - m) / 2));
     let mut r = 1.0 / (ck[0] * ck[0]);
     ap[0] = r;
 
@@ -531,7 +529,7 @@ pub(crate) fn rmn1(
     let eps = 1.0e-14;
 
     let nm1 = (n - m) / 2;
-    let ip = if n - m == 2 * nm1 { 0 } else { 1 };
+    let ip = i32::from(n - m != 2 * nm1);
     // NOTE: `(int)c` is UB in C++ for NaN or |c| >= 2^31 (g++ on x86-64 gives INT_MIN, so nm < 0
     // and all sums below are empty); `as i32` saturates (NaN -> 0, +inf -> i32::MAX, after which
     // the addition overflows).
@@ -1507,7 +1505,6 @@ pub(crate) fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> 
     Status::Ok
 }
 
-#[allow(clippy::collapsible_if, clippy::int_plus_one)]
 pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]) -> Status {
     // =========================================================
     // Purpose: Compute the characteristic values of spheroidal
@@ -1620,10 +1617,8 @@ pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]
                     break;
                 }
             }
-            if k != 1 {
-                if h[(k - 1) as usize] < h[(k - 2) as usize] {
-                    h[(k - 1) as usize] = h[(k - 2) as usize];
-                }
+            if k != 1 && h[(k - 1) as usize] < h[(k - 2) as usize] {
+                h[(k - 1) as usize] = h[(k - 2) as usize];
             }
             let mut x1;
             loop {
@@ -1669,7 +1664,7 @@ pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]
                 index = 2 * k - 1;
             }
             // boundary check
-            if index >= n - m + 1 {
+            if index > n - m {
                 break;
             }
             eg[index as usize] = cv0[(k - 1) as usize];

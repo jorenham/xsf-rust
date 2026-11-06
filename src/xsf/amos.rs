@@ -105,15 +105,8 @@
 // E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
 #![allow(
     clippy::approx_constant,
-    clippy::bool_to_int_with_if,
-    clippy::collapsible_else_if,
-    clippy::collapsible_if,
     clippy::manual_clamp,
     clippy::match_same_arms,
-    clippy::needless_return,
-    clippy::range_plus_one,
-    clippy::redundant_comparisons,
-    clippy::redundant_else,
     unused_assignments
 )]
 
@@ -620,10 +613,8 @@ pub(crate) fn acon(
             let mut kflag: i32 = 2;
             if as2 <= bry[0] {
                 kflag = 1;
-            } else {
-                if as2 >= bry[1] {
-                    kflag = 3;
-                }
+            } else if as2 >= bry[1] {
+                kflag = 3;
             }
             let mut bscle = bry[(kflag - 1) as usize];
             s1 = cmul(s1, css[(kflag - 1) as usize]);
@@ -636,18 +627,16 @@ pub(crate) fn acon(
                 c1 = cmul(s2, cs);
                 st = c1;
                 c2 = y[(i - 1) as usize];
-                if kode != 1 {
-                    if iuf >= 0 {
-                        nw = s1s2(zn, &mut c1, &mut c2, ascle, alim, &mut iuf);
-                        nz += nw;
-                        sc1 = sc2;
-                        sc2 = c1;
-                        if iuf == 3 {
-                            iuf = -4;
-                            s1 = cmul(sc1, css[(kflag - 1) as usize]);
-                            s2 = cmul(sc2, css[(kflag - 1) as usize]);
-                            st = sc2;
-                        }
+                if kode != 1 && iuf >= 0 {
+                    nw = s1s2(zn, &mut c1, &mut c2, ascle, alim, &mut iuf);
+                    nz += nw;
+                    sc1 = sc2;
+                    sc2 = c1;
+                    if iuf == 3 {
+                        iuf = -4;
+                        s1 = cmul(sc1, css[(kflag - 1) as usize]);
+                        s2 = cmul(sc2, css[(kflag - 1) as usize]);
+                        st = sc2;
                     }
                 }
                 y[(i - 1) as usize] = cmul(cspn, c1) + cmul(csgn, c2);
@@ -991,11 +980,10 @@ pub(crate) fn airy(
             if nn == -1 {
                 *nz = 1;
                 return c64(0.0, 0.0);
-            } else {
-                *nz = 0;
-                *ierr = 5;
-                return c64(0.0, 0.0);
             }
+            *nz = 0;
+            *ierr = 5;
+            return c64(0.0, 0.0);
         }
         *nz += nn;
     } else {
@@ -1029,7 +1017,7 @@ pub(crate) fn airy(
         return s1 / sfac;
     }
     s1 = cmul(s1, -z);
-    return s1 / sfac;
+    s1 / sfac
 }
 
 pub(crate) fn asyi(
@@ -1417,7 +1405,7 @@ pub(crate) fn besh(
             /* GO TO 70 */
         } else if (fn_ > 1.0) && (fn_ <= 2.0) && (az > tol) {
             /* Failed all but the az > tol hence do nothing and GO TO 70 */
-        } else if (fn_ > 1.0) && (fn_ > 2.0) {
+        } else if fn_ > 2.0 {
             /* GO TO 60 */
             let nuf = uoik(zn, fnu, kode, 2, nn, cy, tol, elim, alim);
             if nuf < 0 {
@@ -2614,6 +2602,7 @@ pub(crate) fn besy(
     nz
 }
 
+#[allow(clippy::collapsible_else_if)]
 pub(crate) fn binu(
     z: Complex64,
     fnu: f64,
@@ -3108,7 +3097,7 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     /* 120 */
     s1 = cmul(s1, z);
     bi = s1 / sfac;
-    return bi;
+    bi
 }
 
 pub(crate) fn bknu(
@@ -3996,10 +3985,8 @@ pub(crate) fn gamln(z: f64) -> f64 {
         if z <= 101.0 {
             nz = z as i32;
             fz = z - f64::from(nz);
-            if fz <= 0.0 {
-                if nz <= 100 {
-                    return DGAMLN_GLN[(nz - 1) as usize];
-                }
+            if fz <= 0.0 && nz <= 100 {
+                return DGAMLN_GLN[(nz - 1) as usize];
             }
         }
         wdtol = D1MACH[3].max(1e-18);
@@ -4450,7 +4437,7 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     p1 = c64(1.0 / ap2, 0.0);
     p2 = c64(0.0, 0.0);
 
-    for _i in 1..(kk + 1) {
+    for _i in 1..=kk {
         pt = p1;
         p1 = cmul(cmul(rz, cdfnu + t1), p1) + p2;
         p2 = pt;
@@ -4470,7 +4457,7 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     t1 = c64(ak, 0.0);
     cdfnu = fnu * rz;
 
-    for _i in 2..(n + 1) {
+    for _i in 2..=n {
         pt = cdfnu + cmul(t1, rz) + cy[k as usize];
         if pt.re == 0.0 && pt.im == 0.0 {
             pt = c64(tol, tol);
@@ -4599,7 +4586,7 @@ pub(crate) fn seri(
                 coef = aa * c64(ak.cos(), ak.sin());
                 atol = tol * acz / fnup;
                 il = if nn > 2 { 2 } else { nn };
-                for i in 1..(il + 1) {
+                for i in 1..=il {
                     dfnu = fnu + f64::from(nn - i);
                     fnup = dfnu + 1.0;
                     s1 = c64(1.0, 0.0);
@@ -4624,10 +4611,8 @@ pub(crate) fn seri(
                     }
                     s2 = cmul(s1, coef);
                     w[(i - 1) as usize] = s2;
-                    if iflag != 0 {
-                        if uchk(s2, ascle, tol) != 0 {
-                            break 'l20; // goto L20;
-                        }
+                    if iflag != 0 && uchk(s2, ascle, tol) != 0 {
+                        break 'l20; // goto L20;
                     }
                     m = nn - i + 1;
                     y[(m - 1) as usize] = cmul(s2, crsc);
@@ -4658,7 +4643,7 @@ pub(crate) fn seri(
                     s1 = w[0];
                     s2 = w[1];
                     'l100: {
-                        for l_ in 3..(nn + 1) {
+                        for l_ in 3..=nn {
                             l = l_;
                             ck = s2;
                             s2 = s1 + cmul((ak + fnu) * rz, s2);
@@ -4681,7 +4666,7 @@ pub(crate) fn seri(
                     // goto L60;
                 }
                 // L60:
-                for _i in ib..(nn + 1) {
+                for _i in ib..=nn {
                     y[(k - 1) as usize] =
                         cmul((ak + fnu) * rz, y[k as usize]) + y[(k + 1) as usize];
                     ak -= 1.0;
@@ -4757,19 +4742,17 @@ pub(crate) fn s1s2(
     aa = s1.re;
     aln = s1.im;
 
-    if (aa != 0.) || (aln != 0.) {
-        if as1 != 0. {
-            xx = zr.re;
-            aln = -xx - xx + as1.ln();
-            s1d = *s1;
-            *s1 = c64(0.0, 0.0);
-            as1 = 0.;
-            if aln >= -alim {
-                c1 = clog(s1d) - zr - zr;
-                *s1 = cexp(c1);
-                as1 = s1.norm();
-                *iuf += 1;
-            }
+    if ((aa != 0.) || (aln != 0.)) && as1 != 0. {
+        xx = zr.re;
+        aln = -xx - xx + as1.ln();
+        s1d = *s1;
+        *s1 = c64(0.0, 0.0);
+        as1 = 0.;
+        if aln >= -alim {
+            c1 = clog(s1d) - zr - zr;
+            *s1 = cexp(c1);
+            as1 = s1.norm();
+            *iuf += 1;
         }
     }
     aa = as1.max(as2);
@@ -4805,7 +4788,7 @@ pub(crate) fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
         0
     } else {
         st /= tol;
-        if ss < st { 1 } else { 0 }
+        i32::from(ss < st)
     }
 }
 
@@ -4978,7 +4961,7 @@ pub(crate) fn unhj(
         // SUM SERIES FOR ASUM AND BSUM
         //
         sumb = c64(0.0, 0.0);
-        for k in 1..(kmax + 1) {
+        for k in 1..=kmax {
             sumb += p[(k - 1) as usize] * ZUNHJ_BETA[(k - 1) as usize];
         }
         *asum = c64(0.0, 0.0);
@@ -5002,7 +4985,7 @@ pub(crate) fn unhj(
             pp *= rfnu2;
             if ias != 1 {
                 suma = c64(0.0, 0.0);
-                for k in 1..(kmax + 1) {
+                for k in 1..=kmax {
                     m = l1 + k;
                     suma += p[(k - 1) as usize] * ZUNHJ_ALFA[(m - 1) as usize];
                     if ap[(k - 1) as usize] < atol {
@@ -5016,7 +4999,7 @@ pub(crate) fn unhj(
             }
             if ibs != 1 {
                 sumb = c64(0.0, 0.0);
-                for k in 1..(kmax + 1) {
+                for k in 1..=kmax {
                     m = l2 + k;
                     sumb += p[(k - 1) as usize] * ZUNHJ_BETA[(m - 1) as usize];
                     if ap[(k - 1) as usize] < atol {
@@ -5036,7 +5019,6 @@ pub(crate) fn unhj(
         }
         *asum += 1.;
         *bsum *= rfnu * rfn13;
-        return;
     } else {
         //
         // ABS(W2) > 0.25
@@ -5130,12 +5112,12 @@ pub(crate) fn unhj(
             // COMPUTE TWO ADDITIONAL CR, DR, AND UP FOR TWO MORE TERMS IN
             // NEXT SUMA AND SUMB
             //
-            for _k in lr..(lrp1 + 1) {
+            for _k in lr..=lrp1 {
                 ks += 1;
                 kp1 += 1;
                 l += 1;
                 za = c64(ZUNHJ_C[(l - 1) as usize], 0.0);
-                for _j in 2..(kp1 + 1) {
+                for _j in 2..=kp1 {
                     l += 1;
                     za = cmul(za, t2) + ZUNHJ_C[(l - 1) as usize];
                 }
@@ -5182,7 +5164,6 @@ pub(crate) fn unhj(
         }
         *asum += 1.;
         *bsum = cmul(*bsum, cdiv(c64(-rfn13, 0.0), rtzta));
-        return;
     }
 }
 
@@ -5282,7 +5263,7 @@ pub(crate) fn uni1(
         // L30:
         'l110: {
             nn = if nd > 2 { 2 } else { nd };
-            for i in 1..(nn + 1) {
+            for i in 1..=nn {
                 fn_ = fnu + f64::from(nd) - f64::from(i);
                 init = 0;
                 unik(
@@ -5316,10 +5297,8 @@ pub(crate) fn uni1(
                     if i == 1 {
                         iflag = 1;
                     }
-                    if rs1 >= 0.0 {
-                        if i == 1 {
-                            iflag = 3;
-                        }
+                    if rs1 >= 0.0 && i == 1 {
+                        iflag = 3;
                     }
                 }
                 /* 60 */
@@ -5329,10 +5308,8 @@ pub(crate) fn uni1(
                 s2 = cmul(phi, sum);
                 s1 = s1.re.exp() * css[(iflag - 1) as usize] * c64(s1.im.cos(), s1.im.sin());
                 s2 = cmul(s2, s1);
-                if iflag == 1 {
-                    if uchk(s2, bry[0], tol) != 0 {
-                        break 'l110; // goto L110;
-                    }
+                if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
+                    break 'l110; // goto L110;
                 }
                 /* 70 */
                 cy[(i - 1) as usize] = s2;
@@ -5348,7 +5325,7 @@ pub(crate) fn uni1(
                 ascle = bry[(iflag - 1) as usize];
                 k = nd - 2;
                 fn_ = f64::from(k);
-                for _i in 3..(nd + 1) {
+                for _i in 3..=nd {
                     c2 = s2;
                     s2 = s1 + cmul((fnu + fn_) * rz, c2);
                     s1 = c2;
@@ -5538,7 +5515,7 @@ pub(crate) fn uni2(
         'l50: {
             nn = if nd > 2 { 2 } else { nd };
             // i = 1;
-            for i in 1..(nn + 1) {
+            for i in 1..=nn {
                 fn_ = fnu + f64::from(nd - i);
                 unhj(
                     zn, fn_, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum,
@@ -5574,10 +5551,8 @@ pub(crate) fn uni2(
                     if i == 1 {
                         iflag = 1;
                     }
-                    if rs1 >= 0.0 {
-                        if i == 1 {
-                            iflag = 3;
-                        }
+                    if rs1 >= 0.0 && i == 1 {
+                        iflag = 3;
                     }
                 }
                 //
@@ -5591,10 +5566,8 @@ pub(crate) fn uni2(
                 c2i = s1.im;
                 s1 = c2r * c64(c2i.cos(), c2i.sin());
                 s2 = cmul(s2, s1);
-                if iflag == 1 {
-                    if uchk(s2, bry[0], tol) != 0 {
-                        break 'l50; // goto L50;
-                    }
+                if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
+                    break 'l50; // goto L50;
                 }
                 if yy <= 0.0 {
                     s2 = s2.conj();
@@ -5615,7 +5588,7 @@ pub(crate) fn uni2(
                 ascle = bry[(iflag - 1) as usize];
                 k = nd - 2;
                 fn_ = f64::from(k);
-                for _i in 3..(nd + 1) {
+                for _i in 3..=nd {
                     c2 = s2;
                     s2 = s1 + cmul((fnu + fn_) * rz, s2);
                     s1 = c2;
@@ -5776,7 +5749,7 @@ pub(crate) fn unik(
         k = 2;
         while k < 16 {
             s = c64(0.0, 0.0);
-            for _j in 1..(k + 1) {
+            for _j in 1..=k {
                 l += 1;
                 s = cmul(s, t2) + ZUNIK_C[(l - 1) as usize];
             }
@@ -5806,7 +5779,7 @@ pub(crate) fn unik(
         }
         *phi = cwrk[15] * con[0];
     } else {
-        for i in 1..(*init + 1) {
+        for i in 1..=*init {
             *total += cmul(t, cwrk[(i - 1) as usize]);
             t = -t;
         }
@@ -5943,10 +5916,8 @@ pub(crate) fn unk1(
                     if kdflg == 1 {
                         kflag = 1;
                     }
-                    if rs1 >= 0.0 {
-                        if kdflg == 1 {
-                            kflag = 3;
-                        }
+                    if rs1 >= 0.0 && kdflg == 1 {
+                        kflag = 3;
                     }
                 }
 
@@ -5982,11 +5953,9 @@ pub(crate) fn unk1(
         kdflg = 1;
         y[(i - 1) as usize] = c64(0.0, 0.0);
         nz += 1;
-        if i > 1 {
-            if y[(i - 2) as usize] != Complex64::ZERO {
-                y[(i - 2) as usize] = c64(0.0, 0.0);
-                nz += 1;
-            }
+        if i > 1 && y[(i - 2) as usize] != Complex64::ZERO {
+            y[(i - 2) as usize] = c64(0.0, 0.0);
+            nz += 1;
         }
         i += 1;
     }
@@ -6066,7 +6035,7 @@ pub(crate) fn unk1(
         s2 = cy[1];
         c1 = csr[(kflag - 1) as usize];
         ascle = bry[(kflag - 1) as usize];
-        for i in ib..(n + 1) {
+        for i in ib..=n {
             c2 = s2;
             s2 = cmul(ck, s2) + s1;
             s1 = c2;
@@ -6192,10 +6161,8 @@ pub(crate) fn unk1(
                         if kdflg == 1 {
                             iflag = 1;
                         }
-                        if rs1 >= 0.0 {
-                            if kdflg == 1 {
-                                iflag = 3;
-                            }
+                        if rs1 >= 0.0 && kdflg == 1 {
+                            iflag = 3;
                         }
                     }
 
@@ -6205,10 +6172,8 @@ pub(crate) fn unk1(
                     c2m = c2r.exp() * css[(iflag - 1) as usize].re;
                     s1 = c2m * c64(c2i.cos(), c2i.sin());
                     s2 = cmul(s2, s1);
-                    if iflag == 1 {
-                        if uchk(s2, bry[0], tol) != 0 {
-                            s2 = c64(0.0, 0.0);
-                        }
+                    if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
+                        s2 = c64(0.0, 0.0);
                     }
                     break 'l100; // (fall through to L100)
                 }
@@ -6271,7 +6236,7 @@ pub(crate) fn unk1(
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
     fn_ = f64::from(inu + il);
-    for _i in 1..(il + 1) {
+    for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
         s2 = s1 + cmul((fn_ + fnf) * rz, s2);
@@ -6479,11 +6444,9 @@ pub(crate) fn unk2(
                     y[(i - 1) as usize] = c64(0.0, 0.0);
                     cs = cmul(cs, -c64(0.0, 1.0));
                     nz += 1;
-                    if i != 1 {
-                        if y[(i - 2) as usize] != Complex64::ZERO {
-                            y[(i - 2) as usize] = c64(0.0, 0.0);
-                            nz += 1;
-                        }
+                    if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
+                        y[(i - 2) as usize] = c64(0.0, 0.0);
+                        nz += 1;
                     }
                     i += 1;
                     continue 'for_i;
@@ -6491,10 +6454,8 @@ pub(crate) fn unk2(
                 if kdflg == 1 {
                     kflag = 1;
                 }
-                if rs1 >= 0.0 {
-                    if kdflg == 1 {
-                        kflag = 3;
-                    }
+                if rs1 >= 0.0 && kdflg == 1 {
+                    kflag = 3;
                 }
             }
             //
@@ -6513,29 +6474,25 @@ pub(crate) fn unk2(
             c2m = c2r.exp() * css[(kflag - 1) as usize].re;
             s1 = c2m * c64(c2i.cos(), c2i.sin());
             s2 = cmul(s2, s1);
-            if kflag == 1 {
-                if uchk(s2, bry[0], tol) != 0 {
-                    /* GO TO 70 */
-                    if rs1 > 0.0 {
-                        return -1;
-                    }
-                    /* FOR X < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW */
-                    if x < 0.0 {
-                        return -1;
-                    }
-                    kdflg = 1;
-                    y[(i - 1) as usize] = c64(0.0, 0.0);
-                    cs = cmul(cs, -c64(0.0, 1.0));
-                    nz += 1;
-                    if i != 1 {
-                        if y[(i - 2) as usize] != Complex64::ZERO {
-                            y[(i - 2) as usize] = c64(0.0, 0.0);
-                            nz += 1;
-                        }
-                    }
-                    i += 1;
-                    continue 'for_i;
+            if kflag == 1 && uchk(s2, bry[0], tol) != 0 {
+                /* GO TO 70 */
+                if rs1 > 0.0 {
+                    return -1;
                 }
+                /* FOR X < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW */
+                if x < 0.0 {
+                    return -1;
+                }
+                kdflg = 1;
+                y[(i - 1) as usize] = c64(0.0, 0.0);
+                cs = cmul(cs, -c64(0.0, 1.0));
+                nz += 1;
+                if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
+                    y[(i - 2) as usize] = c64(0.0, 0.0);
+                    nz += 1;
+                }
+                i += 1;
+                continue 'for_i;
             }
             if yy <= 0.0 {
                 s2 = s2.conj();
@@ -6562,11 +6519,9 @@ pub(crate) fn unk2(
         y[(i - 1) as usize] = c64(0.0, 0.0);
         cs = cmul(cs, -c64(0.0, 1.0));
         nz += 1;
-        if i != 1 {
-            if y[(i - 2) as usize] != Complex64::ZERO {
-                y[(i - 2) as usize] = c64(0.0, 0.0);
-                nz += 1;
-            }
+        if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
+            y[(i - 2) as usize] = c64(0.0, 0.0);
+            nz += 1;
         }
         i += 1;
         // continue;
@@ -6641,7 +6596,7 @@ pub(crate) fn unk2(
         s2 = cy[1];
         c1 = csr[(kflag - 1) as usize];
         ascle = bry[(kflag - 1) as usize];
-        for i in ib..(n + 1) {
+        for i in ib..=n {
             c2 = s2;
             s2 = cmul(ck, s2) + s1;
             s1 = c2;
@@ -6778,10 +6733,8 @@ pub(crate) fn unk2(
                 if kdflg == 1 {
                     iflag = 1;
                 }
-                if rs1 >= 0.0 {
-                    if kdflg == 1 {
-                        iflag = 3;
-                    }
+                if rs1 >= 0.0 && kdflg == 1 {
+                    iflag = 3;
                 }
             }
 
@@ -6793,10 +6746,8 @@ pub(crate) fn unk2(
             c2m = c2r.exp() * css[(iflag - 1) as usize].re;
             s1 = c2m * c64(c2i.cos(), c2i.sin());
             s2 = cmul(s2, s1);
-            if iflag == 1 {
-                if uchk(s2, bry[0], tol) != 0 {
-                    s2 = c64(0.0, 0.0);
-                }
+            if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
+                s2 = c64(0.0, 0.0);
             }
         }
         // L250:
@@ -6859,7 +6810,7 @@ pub(crate) fn unk2(
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
     fn_ = f64::from(inu + il);
-    for _i in 1..(il + 1) {
+    for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
         s2 = s1 + cmul((fn_ + fnf) * rz, c2);
@@ -7207,7 +7158,7 @@ pub(crate) fn wrsk(
     if n == 1 {
         return nz;
     }
-    for i in 2..(n + 1) {
+    for i in 2..=n {
         cinu = cmul(cinu, st);
         st = y[(i - 1) as usize];
         y[(i - 1) as usize] = cmul(cinu, cscl);

@@ -705,12 +705,11 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
 //          QD(n) --- Qn'(x)
 // ====================================================
 
-#[allow(clippy::items_after_statements)]
 fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
+    const EPS: f64 = 1.0e-14;
     let n = int(qn.size()) - 1;
 
     let (mut q0, mut q1, mut qf, mut qr, mut qf0, mut qf1, mut qf2);
-    const EPS: f64 = 1.0e-14;
 
     if x.abs() == 1.0 {
         for k in 0..=n {

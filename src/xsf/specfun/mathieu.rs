@@ -311,11 +311,7 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
     a0
 }
 
-#[allow(
-    clippy::needless_range_loop,
-    clippy::redundant_else,
-    unused_assignments
-)]
+#[allow(clippy::needless_range_loop, unused_assignments)]
 pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     // =====================================================
     // Purpose: Compute expansion coefficients for Mathieu
@@ -488,10 +484,9 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                     }
                 }
                 return;
-            } else {
-                fc[(k - 1) as usize] = f;
-                s += f * f;
             }
+            fc[(k - 1) as usize] = f;
+            s += f * f;
         }
 
         fc[1] = q * fc[2] / (a - 4.0 - 2.0 * q * q / a);

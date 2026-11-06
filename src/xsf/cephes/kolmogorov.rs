@@ -630,7 +630,6 @@ fn compute_av(n: i32, x: f64, v: i32, cman: DoubleDouble, cexpt: i32) -> DoubleD
     ans.ldexp(ans_e)
 }
 
-#[allow(clippy::bool_to_int_with_if)]
 fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     let mut aj_sum = DoubleDouble::new(0.0);
     let mut daj_sum = DoubleDouble::new(0.0);
@@ -668,7 +667,7 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     }
 
     let (alpha, nxfl, nx) = mod_nx(n, x);
-    let mut n1mxfl = n - nxfl - if alpha == 0.0 { 0 } else { 1 };
+    let mut n1mxfl = n - nxfl - i32::from(alpha != 0.0);
     let mut n1mxceil = n - nxfl;
     /*
      * If alpha is 0, don't actually want to include the last term
