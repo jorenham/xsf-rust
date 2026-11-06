@@ -277,7 +277,7 @@ fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
 fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T>>, TestError> {
     let tables_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("xsref/tables/scipy_special_tests")
+        .join("xsref/src/xsref/tables/scipy_special_tests")
         .join(name);
 
     let open = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
