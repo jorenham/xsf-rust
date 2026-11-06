@@ -32,6 +32,11 @@ fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     (y, loss)
 }
 
+/// Whether `t` is a non-positive integer, up to `HYP2F1_EPS` (as in cephes)
+fn near_neg_int(t: f64) -> bool {
+    t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS
+}
+
 /// Unlike in xsf (scipy/xsf#371), `hys2f1_err`, or the power series and `true` if the recurrence
 /// in `a` has a small `loss` but a large error, and the series is accurate and shows it to be less
 /// accurate. Not if `a` or `b` is near a non-positive integer, where the series can stop too early.
@@ -39,7 +44,6 @@ fn hys2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 /// E.g. `hyp2f1(29.0, -14.5, 0.1, 0.99)` was -7.25e21 instead of -5.13e21.
 fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> ((f64, f64, f64), bool) {
     let y = hys2f1_err(a, b, c, x);
-    let near_neg_int = |t: f64| t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS;
     if y.1 < HYP2F1_ETHRESH && y.2 >= HYP2F1_ETHRESH && !(near_neg_int(a) || near_neg_int(b)) {
         let series = hys2f1_series(a, b, c, x);
         if series.1 < HYP2F1_ETHRESH && less_accurate(y.0, series.0, series.1) {
@@ -54,6 +58,27 @@ fn hys2f1_checked(a: f64, b: f64, c: f64, x: f64) -> ((f64, f64, f64), bool) {
 fn less_accurate(y: f64, alt: f64, err: f64) -> bool {
     let diff = (y - alt).abs();
     diff > 2.0 * err * alt.abs() && diff > HYP2F1_ETHRESH * alt.abs()
+}
+
+/// `hys2f1_err` and its error estimate, or if that is large, `hys2f1_series` and its `loss` if
+/// smaller (not if `a` or `b` is near a non-positive integer, as in `hys2f1_checked`)
+fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+    let (y, _, err) = hys2f1_err(a, b, c, x);
+    if err < HYP2F1_ETHRESH || near_neg_int(a) || near_neg_int(b) {
+        return (y, err);
+    }
+    let (series, loss, _) = hys2f1_series(a, b, c, x);
+    if loss < err { (series, loss) } else { (y, err) }
+}
+
+/// The series of the Pfaff transformations (DLMF 15.8.1) in `x / (x - 1)`, by `hys2f1_min`, with
+/// the smaller error estimate
+fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+    let w = x / (x - 1.0);
+    let (ya, ea) = hys2f1_min(a, c - b, c, w);
+    let (yb, eb) = hys2f1_min(b, c - a, c, w);
+    let (y, err, p) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+    ((1.0 - x).powf(-p) * y, err)
 }
 
 /// `hys2f1`, also returning an estimate of the relative error that, unlike `loss`, includes the
@@ -599,16 +624,33 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     }
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
-        // Unlike in xsf, if 0 < x < 1, first try the power series (incl. its recurrence error) if
-        // c > 0 and the series of this transformation is estimated to lose precision, or if c < 0
-        // is not an integer (where this transformation tends to overflow or cancel).
-        //
-        // E.g. `hyp2f1(-0.5, 125.0, 62.5, 0.4)` was 1.04e5 instead of 0.453.
         let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
+        // Unlike in xsf, if c < 0 is not an integer and -1 < x < 0, first try the series of the
+        // Pfaff transformations (as for x < -2 below).
+        //
+        // E.g. `hyp2f1(6.5, 8.9, -9.8, -0.08)` was 1.70764138 instead of 1.70764180.
+        if c_pole && x < 0.0 && x > -1.0 {
+            let (y, err) = hys2f1_pfaff(a, b, c, x);
+            if err < HYP2F1_ETHRESH {
+                return y;
+            }
+        }
+        // Unlike in xsf, if 0 < x < 1, first try the power series (see `hys2f1_min`):
+        // - if c < 0 is not an integer, where this transformation tends to overflow or cancel;
+        // - if c > 0 and the series of this transformation is estimated to lose precision. If the
+        //   power series does too, but didn't fail (estimate 1), keep it if its error estimate is
+        //   smaller than that of `hyt2f1`, which the call below normally uses (unless c - (c - a)
+        //   or c - (c - b) rounds to a non-positive integer, where that call takes another path).
+        //
+        // E.g. `hyp2f1(-0.5, 125.0, 62.5, 0.4)` was 1.04e5 instead of 0.453, and
+        // `hyp2f1(-3.1, 17.4, 12.3, 0.97)` was -0.0136 instead of -0.0104.
         let lossy = || c > 0.0 && hys2f1(c - a, c - b, c, x).1 >= HYP2F1_ETHRESH;
         if x > 0.0 && x < 1.0 && (c_pole || lossy()) {
-            let (y, _, err) = hys2f1_err(a, b, c, x);
-            if err < HYP2F1_ETHRESH {
+            let (y, err) = hys2f1_min(a, b, c, x);
+            let special = [c - (c - a), c - (c - b)].into_iter().any(near_neg_int);
+            let euler_worse =
+                || c > 0.0 && err < 1.0 && !special && err < hyt2f1(c - a, c - b, c, x).1;
+            if err < HYP2F1_ETHRESH || euler_worse() {
                 return y;
             }
         }
@@ -664,12 +706,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 // since the inner functions of the 1/x transformation can be inaccurate.
                 //
                 // E.g. `hyp2f1(12.0, 3.1, 99.3, -2.8)` was -1.19e12 instead of 0.417.
-                let w = x / (x - 1.0);
-                let (ya, _, ea) = hys2f1_err(a, c - b, c, w);
-                let (yb, _, eb) = hys2f1_err(b, c - a, c, w);
-                let (y1, e1, a1) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+                let (y1, e1) = hys2f1_pfaff(a, b, c, x);
                 if e1 < HYP2F1_ETHRESH {
-                    return s.powf(-a1) * y1;
+                    return y1;
                 }
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
