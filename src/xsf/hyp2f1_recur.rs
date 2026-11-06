@@ -45,10 +45,25 @@
 //!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
 //!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
 //!
-//! 6. Return the result with the smallest error bound, or `None` if that exceeds
+//! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
+//!    with other start values. Those of step 3 are sums of the same series, and can lose precision
+//!    for every `n`, e.g. if `p` is large and negative, while other forms at `c + n` don't. Here
+//!    `F(p, q; c + k; z)` is a multiple of (DLMF 15.8.1)
+//!
+//!    - `F(a, b; c + k; x)` for `(p, q, z) = (a, b, x)`
+//!    - `(1 - x)^k F(a + k, b + k; c + k; x)` for `(c - a, c - b, x)`
+//!    - `F(a, b + k; c + k; x)` for `(a, c - b, x / (x - 1))`
+//!    - `F(a + k, b; c + k; x)` for `(c - a, b, x / (x - 1))`
+//!
+//!    So for each of these, we compute `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1)
+//!    by steps 1 to 5 (and 8), and recur down to `k = 0`, e.g. `F(758.1, 7.7; -151.2; -0.3)`
+//!    from `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`. If `z > 0`, the
+//!    recurrence need not be stable, but its error bound still holds.
+//!
+//! 7. Return the result with the smallest error bound, or `None` if that exceeds
 //!    `HYP2F1_RECUR_TOL`, for the caller to fall back to another method.
 //!
-//! 7. But first, if `p` of a combination is a non-positive integer `-n`, the series of step 2 is a
+//! 8. But first, if `p` of a combination is a non-positive integer `-n`, the series of step 2 is a
 //!    polynomial whose terms alternate in sign, and can cancel, e.g. for
 //!    `F(-522, -123.5; 533.5; -0.9)`. So we recur up in the degree instead, from `F(0) = 1` and
 //!    `F(-1)` to `F(-n)`, with the contiguous relation in `a` (DLMF 15.5.11), and with the error
@@ -57,18 +72,19 @@
 //!    `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`
 //!
 //!    which is often more stable if `c < 0`. If the smallest error bound is at most
-//!    `HYP2F1_RECUR_TOL`, we return that result, and else continue with steps 2 to 6.
+//!    `HYP2F1_RECUR_TOL`, we return that result, and else continue with steps 2 to 7.
 //!
 //! Some details:
 //!
 //! - The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and
 //!   `c` is tiny, and `(1 - x)^s` is computed in double-double, since `|s ln(1 - x)|` can be large.
-//!   For the same reason, the `ln Gamma` of steps 4, 5 and 7 are computed in double-double for
+//!   For the same reason, the `ln Gamma` of steps 4, 5 and 8 are computed in double-double for
 //!   large arguments.
 //! - The series and the recurrence keep their values as `m * 2^e`, to avoid overflow and
 //!   underflow.
 //! - The cost is bounded by `HYP2F1_RECUR_MAXITER` series terms and recurrence steps per
-//!   combination. It's about `(|p| w + 40) / (1 - w)` terms, plus `max(0, q) - c` steps.
+//!   combination. It's about `(|p| w + 40) / (1 - w)` terms, plus `max(0, q) - c` steps. Step 6
+//!   costs up to 8 times as much as steps 1 to 5, but only if those fail.
 //!
 //! # References
 //!
@@ -280,7 +296,9 @@ fn recur_down(
 /// ```text
 /// A_k = C (C - 1) (z - 1),  B_k = C (C - 1 - (2 C - p - q - 1) z),  C_k = (C - p) (C - q) z
 /// ```
-fn coefs_c(p: Dd, q: Dd, c: Dd, z: f64) -> impl Fn(u32) -> (f64, f64, f64, f64) {
+fn coefs_c(p: Dd, q: Dd, c: Dd, z: Dd) -> impl Fn(u32) -> (f64, f64, f64, f64) {
+    // (z - 1 is computed from z, since it can be tiny)
+    let (z, z1) = (z.hi, add_hi(z, -1.0));
     move |k| {
         // (C - 1, C - p and C - q are computed from c, since they can be tiny)
         let (cc, cc1) = (add_hi(c, f64::from(k)), add_hi(c, f64::from(k - 1)));
@@ -288,7 +306,7 @@ fn coefs_c(p: Dd, q: Dd, c: Dd, z: f64) -> impl Fn(u32) -> (f64, f64, f64, f64) 
         let cc_q = (-q + c.hi + f64::from(k) + c.lo).hi;
         let coef_b = cc * (cc1 - (cc_p + cc1 - q.hi) * z);
         let b_abs = cc * (cc1.abs() + (cc_p.abs() + cc1.abs() + q.hi.abs()) * z.abs());
-        (cc * cc1 * (z - 1.0), coef_b, cc_p * cc_q * z, b_abs)
+        (cc * cc1 * z1, coef_b, cc_p * cc_q * z, b_abs)
     }
 }
 
@@ -308,7 +326,7 @@ fn coefs_a(n: u32, r: Dd, c: Dd, t: Dd) -> impl Fn(u32) -> (f64, f64, f64, f64) 
     }
 }
 
-/// `F(-n, r; c; t)` for `n >= 1` (step 7), by recurring up from `F(0) = 1` and
+/// `F(-n, r; c; t)` for `n >= 1` (step 8), by recurring up from `F(0) = 1` and
 /// `F(-1) = 1 - r t / c`, i.e. down in `k` for `y_k = F(k - n, r; c; t)`
 fn poly_up(n: u32, r: Dd, c: Dd, t: Dd) -> Option<Scaled> {
     // (r / c first, since r t can underflow if c is tiny, and fail if r / c is subnormal)
@@ -324,7 +342,7 @@ fn poly_up(n: u32, r: Dd, c: Dd, t: Dd) -> Option<Scaled> {
     recur_down(n - 1, start(y_1, err), start(1.0, 0.0), coefs_a(n, r, c, t))
 }
 
-/// The polynomial forms of step 7 of the combinations `(p, q, s)` of step 1 with `p = -n`, as
+/// The polynomial forms of step 8 of the combinations `(p, q, s)` of step 1 with `p = -n`, as
 /// `(y, l)` with the value `y exp(l)`; `w` is as in the module docs, and `ln_1mx` is `ln(1 - x)`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_poly(
@@ -360,6 +378,11 @@ fn hyp2f1_poly(
     best
 }
 
+/// The smallest `n >= 1` with `c + n > max(0, q)`
+fn recur_start(q: Dd, c: Dd) -> f64 {
+    (q.hi.max(0.0) - c.hi).max(0.0).floor() + 1.0
+}
+
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
@@ -376,8 +399,7 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     if c.hi > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_ETHRESH) {
         return direct;
     }
-    // the smallest n with c + n > max(0, q)
-    let n = (q.hi.max(0.0) - c.hi).floor() + 1.0;
+    let n = recur_start(q, c);
     budget -= n;
     if budget < 0.0 {
         return direct;
@@ -386,7 +408,7 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     let recur = series_w(p, r_n, c_n, w, &mut budget).and_then(|y_n| {
         let y_n1 = series_w(p, r_n + 1.0, c_n + 1.0, w, &mut budget)?;
         // (the recurrence is symmetric in p and q)
-        recur_down(n as u32, y_n, y_n1, coefs_c(p, q, c, z))
+        recur_down(n as u32, y_n, y_n1, coefs_c(p, q, c, Dd::new(z)))
     });
     min_err(direct, recur, |y| y.err)
 }
@@ -398,7 +420,7 @@ fn neg_z_combinations(a: Dd, b: Dd, c: Dd) -> [(Dd, Dd, Dd); 4] {
 }
 
 /// The one of `combinations` `(p, q, s)` (step 1) with the smallest error bound (steps 2, 3 and
-/// 6), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
+/// 7), as `(y, s ln(1 - x))`; `ln_1mx` is `ln(1 - x)`, and `z`, `w` are as in the module docs
 fn best_combination(
     mut combinations: [(Dd, Dd, Dd); 4],
     c: Dd,
@@ -541,15 +563,8 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
     (m != 0.0 && err.is_finite()).then_some((Scaled { m, e: 0, err }, lmax))
 }
 
-/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs), or `None` if the
-/// estimated relative error is too large.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
-    // (beyond this, the coefficients of the recurrence can overflow)
-    if !(a.abs().max(b.abs()).max(c.abs()) <= 1e15 && x < 1.0 && x != 0.0) {
-        return None;
-    }
-    let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
+/// `F(a, b; c; x)` by steps 1 to 5 and 8, as `(y, l)` with the value `y exp(l)`
+fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
     // the combinations `(p, q, s)` of step 1, with `F(a, b; c; x)` equal to
     // `(1 - x)^s (1 - z)^p F(p, q; c; z)`
     let (z, w, combinations) = if x < 0.0 {
@@ -564,28 +579,28 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     };
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
-    // step 7, the polynomial cases
+    // step 8, the polynomial cases
     let poly =
         hyp2f1_poly(combinations, c, x, w, ln_1mx).filter(|(y, _)| y.err <= HYP2F1_RECUR_TOL);
+    if poly.is_some() {
+        return poly;
+    }
     // For x < -1, first try the 1/x transformation, whose series are much shorter if w is near 1.
-    let recip = if poly.is_none() && x < -1.0 {
+    let recip = if x < -1.0 {
         hyp2f1_recip(a, b, c, x)
     } else {
         None
     };
-    let best = if poly.is_some() {
-        poly
-    } else if recip.is_some_and(|(y, _)| y.err <= HYP2F1_ETHRESH) {
-        recip
-    } else {
-        min_err(
-            best_combination(combinations, c, z, w, ln_1mx),
-            recip,
-            |y| y.0.err,
-        )
-    };
+    if recip.is_some_and(|(y, _)| y.err <= HYP2F1_ETHRESH) {
+        return recip;
+    }
+    let best = min_err(
+        best_combination(combinations, c, z, w, ln_1mx),
+        recip,
+        |y| y.0.err,
+    );
     // If that fails for x >= -1, also try the 1/t transformation (step 5).
-    let best = if x >= -1.0 && !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
+    if x >= -1.0 && !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
         let recip = if x < 0.0 {
             hyp2f1_recip(a, b, c, x)
         } else {
@@ -595,16 +610,82 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
         min_err(best, recip, |y| y.0.err)
     } else {
         best
-    };
-    let (y, l) = best.filter(|(y, _)| y.err <= HYP2F1_RECUR_TOL)?;
-    // `y 2^e exp(l)`, with `exp(l) = 2^k exp(r)` and `|r| <= ln(2) / 2`. If `|k|` is so large that
-    // it's clamped, then `e + k` is clamped as well, since `|e|` is at most about 1e9 (2^1000 per
-    // term), and the result overflows or underflows.
+    }
+}
+
+/// `y exp(l)` as `m 2^e`, with the roundings of `exp(l)` added to the error bound
+fn fold_exp(y: Scaled, l: Dd) -> Scaled {
+    // `exp(l) = 2^k exp(r)` with `|r| <= ln(2) / 2`. If `|k|` is so large that it's clamped, then
+    // `e + k` is clamped as well, since `|e|` is at most about 1e9 (2^1000 per term), and the value
+    // overflows or underflows.
     let k = (l.hi / LN_2).round().clamp(-1e12, 1e12);
     let r = l - LOG2 * k;
     #[allow(clippy::cast_possible_truncation)]
-    let e = (f64::from(y.e) + k).clamp(-1e4, 1e4) as i32;
-    Some(ldexp_f64(y.m * r.hi.exp() * (1.0 + r.lo), e))
+    let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
+    // (the roundings of `exp`, `1 + r.lo`, and the 2 products)
+    let err = y.err + 4.0 * MACHEP;
+    Scaled {
+        m: y.m * r.hi.exp() * (1.0 + r.lo),
+        e,
+        err,
+    }
+}
+
+/// Step 6: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, as
+/// `(y, l)` with the value `y exp(l)`
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
+    let x_dd = Dd::new(x);
+    let (z_pfaff, ln_1mx) = (x_dd / (x_dd - 1.0), ln_dd(Dd::new(1.0) - x));
+    let mut best = None;
+    // `(p, q, z)` of `F(p, q; c + k; z)`, and the direction `(i, j)` of `(a, b)` along which it's a
+    // multiple of `F(a + i k, b + j k; c + k; x) (1 - x)^(i j k)` (DLMF 15.8.1)
+    for (p, q, z, i, j) in [
+        (a, b, x_dd, 0.0, 0.0),
+        (c - a, c - b, x_dd, 1.0, 1.0),
+        (a, c - b, z_pfaff, 0.0, 1.0),
+        (c - a, b, z_pfaff, 1.0, 0.0),
+    ] {
+        let n = recur_start(q, c);
+        if n > HYP2F1_RECUR_MAXITER {
+            continue;
+        }
+        // (only those start values that step 7 would accept)
+        let start = |k: f64| {
+            let (y, l) = hyp2f1_recur_dd(a + i * k, b + j * k, c + k, x)?;
+            (y.err <= HYP2F1_RECUR_TOL).then(|| (y, l + ln_1mx * (i * j * k)))
+        };
+        let y = start(n).and_then(|(y_n, l)| {
+            // (with `y_(n+1)` relative to `exp(l)`)
+            let (y_n1, l1) = start(n + 1.0)?;
+            let y = recur_down(n as u32, y_n, fold_exp(y_n1, l1 - l), coefs_c(p, q, c, z))?;
+            Some((y, l))
+        });
+        // (stop at the first with an error bound below `HYP2F1_ETHRESH`, as in `best_combination`)
+        best = min_err(best, y, |y| y.0.err);
+        if best.is_some_and(|(y, _)| y.err <= HYP2F1_ETHRESH) {
+            break;
+        }
+    }
+    best
+}
+
+/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs), or `None` if the
+/// estimated relative error is too large.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
+    // (beyond this, the coefficients of the recurrence can overflow)
+    if !(a.abs().max(b.abs()).max(c.abs()) <= 1e15 && x < 1.0 && x != 0.0) {
+        return None;
+    }
+    let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
+    let mut best = hyp2f1_recur_dd(a, b, c, x);
+    if !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
+        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x), |y| y.0.err);
+    }
+    let (y, l) = best.filter(|(y, _)| y.err <= HYP2F1_RECUR_TOL)?;
+    let y = fold_exp(y, l);
+    Some(ldexp_f64(y.m, y.e))
 }
 
 #[cfg(test)]
@@ -616,7 +697,13 @@ mod tests {
         // y_0 = y_2 / 8 (as B_1 = 0), so the error of y_2 carries over, although u_1 = 0
         let y = |m, err| Scaled { m, e: 0, err };
         let (p, q, c) = (Dd::new(3.5), Dd::new(1.5), Dd::new(1.0));
-        let y_0 = recur_down(1, y(0.5, 0.0), y(0.8, 1e-6), coefs_c(p, q, c, -0.5)).unwrap();
+        let y_0 = recur_down(
+            1,
+            y(0.5, 0.0),
+            y(0.8, 1e-6),
+            coefs_c(p, q, c, Dd::new(-0.5)),
+        )
+        .unwrap();
         assert!((y_0.m - 0.1).abs() < 1e-15 && y_0.err >= 1e-6, "{y_0:?}");
     }
 
