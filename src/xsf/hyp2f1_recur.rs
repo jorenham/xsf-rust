@@ -28,6 +28,13 @@
 //!    above (with `w = 1 / (1 - x)`), and only continue with the 4 combinations if its error bound
 //!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`.
 //!
+//! 5. If `x >= -1` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
+//!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
+//!    `(1 - x)^-b F(c - a, b; c; x / (x - 1))` if `0 < x < 1` (i.e. the 1 - x transformation,
+//!    DLMF 15.8.4). Its series are in `w = 1 / (1 - x)` or `w = 1 - x`. The 4 combinations can
+//!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
+//!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
+//!
 //! Finally, return the result with the smallest error bound, if that is at most `HYP2F1_RECUR_TOL`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
@@ -407,10 +414,11 @@ fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
     Some(Scaled::new(m, 0, err_abs / m.abs() + MACHEP)?.with_l(lmax))
 }
 
-/// `F(a, b; c; x)` for `x < -1` by the 1/x transformation (step 4, DLMF 15.8.2):
+/// `F(a, b; c; t)` for `t < 0` by the 1/t transformation (steps 4 and 5, DLMF 15.8.2), where
+/// `t = x` if `x < 0`, and `t = x / (x - 1)` if `0 < x < 1`:
 ///
 /// ```text
-/// F(a, b; c; x) = G(a, b) (-x)^-a F(a, a - c + 1; a - b + 1; 1/x) + G(b, a) (-x)^-b F(b, ...)
+/// F(a, b; c; t) = G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t) + G(b, a) (-t)^-b F(b, ...)
 /// G(a, b) = Gamma(c) Gamma(b - a) / (Gamma(b) Gamma(c - a))
 /// ```
 ///
@@ -418,20 +426,23 @@ fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
 /// close to one.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     let one = Dd::new(1.0);
-    // z = 1/x, and w = z / (z - 1) = 1 / (1 - x)
-    let (z, w, ln_mx) = (1.0 / x, one / (one - x), ln_dd(Dd::new(-x)));
-    // ln(1 - 1/x) = ln(1 - x) - ln(-x)
-    let ln_1mz = ln_dd(one - x) - ln_mx;
-    // the term `G(a, b) (-x)^-a F(a, a - c + 1; a - b + 1; 1/x)`
+    let (ln_x, ln_1mx) = (ln_dd(Dd::new(x.abs())), ln_dd(one - x));
+    // z = 1/t, w = 1 / (1 - t), ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if 0 < x < 1)
+    let (z, w, ln_mt, ln_1mz) = if x < 0.0 {
+        (1.0 / x, one / (one - x), ln_x, ln_1mx - ln_x)
+    } else {
+        ((x - 1.0) / x, one - x, ln_x - ln_1mx, -ln_x)
+    };
+    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`
     let term = |a: Dd, b: Dd| {
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
         let y = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
-        mul_gamma_ratio(&[c, b - a], &[b, c - a], || Some(y.with_l(y.l - a * ln_mx)))
+        mul_gamma_ratio(&[c, b - a], &[b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
     };
     add_exp([term(a, b)?, term(b, a)?])
 }
 
-/// `F(a, b; c; x)` by steps 1 to 4, with `ln_1mx = ln(1 - x)`
+/// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
 fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     // `z`, `w`, and the combinations `(p, q, s)` of step 1
     let (z, w, combinations) = if x < 0.0 {
@@ -449,7 +460,19 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     if err_of(recip) <= HYP2F1_ETHRESH {
         return recip;
     }
-    min_err(best_combination(combinations, c, z, w, ln_1mx), recip)
+    let best = min_err(best_combination(combinations, c, z, w, ln_1mx), recip);
+    // If that fails for x >= -1, also try the 1/t transformation (step 5).
+    if x >= -1.0 && !(err_of(best) <= HYP2F1_RECUR_TOL) {
+        let recip = if x < 0.0 {
+            hyp2f1_recip(a, b, c, x)
+        } else {
+            // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
+            hyp2f1_recip(c - a, b, c, x).map(|y| y.with_l(y.l - b * ln_1mx))
+        };
+        min_err(best, recip)
+    } else {
+        best
+    }
 }
 
 /// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs), or `None` if the
