@@ -73,6 +73,17 @@ fn test_itairy_overflow() {
 }
 
 #[test]
+fn test_itairy_inf() {
+    // the limits as x -> inf
+    let [a, b, c, d] = [1.0 / 3.0, f64::INFINITY, 2.0 / 3.0, 0.0];
+    for x in [1e205, 1e300, f64::INFINITY] {
+        assert_eq!(xsf::airy_integrals(x), [a, b, c, d]);
+        assert_eq!(xsf::airy_integrals(-x), [-c, -d, -a, -b]);
+    }
+    assert!(xsf::airy_integrals(f64::NAN).iter().all(|y| y.is_nan()));
+}
+
+#[test]
 fn test_itairy_2_20() {
     // mpmath: `_airy_int` in tools/accuracy/specs.py
     let cases = [
