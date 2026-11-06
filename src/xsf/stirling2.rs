@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/stirling2.h` (scipy/xsf@a10ea72).
+//! Translated into pure Rust from `xsf/stirling2.h` (scipy/xsf@fbfd597).
 //!
 //! Stirling numbers of the second kind
 //!
@@ -17,10 +17,6 @@
 //!    Applied Mathematics, 89(3):233-243, 1993.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! This is only called with non-negative integer n and k (through
-//! [`stirling2::<f64>`](crate::stirling2())), which rules out the out-of-bounds reads in
-//! `stirling2_dp` that xsf has for `NaN` k, or for `0 < k < 1`.
 
 use crate::xsf::binom::binom;
 use crate::xsf::lambertw::lambertw;
@@ -42,8 +38,11 @@ fn stirling2_dp(n: f64, k: f64) -> f64 {
     if (n == 0.0 && k == 0.0) || (n == 1.0 && k == 1.0) {
         return 1.0;
     }
-    if k <= 0.0 || k > n || n < 0.0 {
+    if k < 1.0 || k > n || n < 0.0 {
         return 0.0;
+    }
+    if k.is_nan() {
+        return f64::NAN;
     }
 
     let ni = n as i32;
@@ -117,13 +116,26 @@ fn stirling2_temme(n: f64, k: f64) -> f64 {
     A.exp() * k.powf(n - k) * binom(n, k) * (F - F1 / k)
 }
 
-/// Stirling numbers of the second kind, using dynamic programming for n <= 219 (n <= 50 for
-/// k < 1 or NaN), and else the second-order Temme asymptotic approximation.
+/// Stirling numbers of the second kind, using dynamic programming for n <= 219, and else the
+/// second-order Temme asymptotic approximation.
 pub(crate) fn stirling2(n: f64, k: f64) -> f64 {
     // 219 is the largest n for which no S(n, k) overflows.
-    // Keep k < 1 and NaN k with n > 50 out of the DP (scipy/xsf#354).
-    if n <= 50.0 || (n <= 219.0 && k >= 1.0) {
+    if n <= 219.0 {
         return stirling2_dp(n, k);
     }
     stirling2_temme(n, k)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stirling2;
+
+    #[test]
+    fn test_stirling2_k_below_1_or_nan() {
+        // scipy/xsf#434
+        assert_eq!(stirling2(5.0, 0.5), 0.0);
+        assert_eq!(stirling2(100.0, 0.5), 0.0);
+        assert!(stirling2(5.0, f64::NAN).is_nan());
+        assert!(stirling2(300.0, f64::NAN).is_nan());
+    }
 }
