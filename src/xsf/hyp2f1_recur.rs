@@ -59,7 +59,11 @@
 //!    So for each of these, we compute `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1)
 //!    by steps 1 to 5 (and 8), and recur down to `k = 0`, e.g. `F(758.1, 7.7; -151.2; -0.3)`
 //!    from `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`. If `z > 0`, the
-//!    recurrence need not be stable, but its error bound still holds.
+//!    recurrence need not be stable, but its error bound still holds. We skip those with
+//!    `c > max(0, q)` (so `n = 1`) if the error bound of steps 1 to 5 exceeds 100 times
+//!    `HYP2F1_RECUR_TOL` (an empirical cutoff), since their start values at `c + 1` and `c + 2`
+//!    are hardly different from `F(a, b; c; x)`: in our tests, their results had error bounds at
+//!    most about 15 times smaller.
 //!
 //! 7. Return the result with the smallest error bound, or `None` if that exceeds
 //!    `HYP2F1_RECUR_TOL`, for the caller to fall back to another method.
@@ -664,9 +668,9 @@ fn fold_exp(y: Scaled, l: Dd) -> Scaled {
 }
 
 /// Step 6: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, as
-/// `(y, l)` with the value `y exp(l)`
+/// `(y, l)` with the value `y exp(l)`, where `err` is the error bound of steps 1 to 5
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
+fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, err: f64) -> Option<(Scaled, Dd)> {
     let x_dd = Dd::new(x);
     let (z_pfaff, ln_1mx) = (x_dd / (x_dd - 1.0), ln_dd(Dd::new(1.0) - x));
     let mut best = None;
@@ -678,8 +682,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
         (a, c - b, z_pfaff, 0.0, 1.0),
         (c - a, b, z_pfaff, 1.0, 0.0),
     ] {
+        // (if c > max(0, q), only if steps 1 to 5 nearly succeeded, see the module docs)
         let n = recur_start(q, c);
-        if n > HYP2F1_RECUR_MAXITER {
+        if c.hi > q.hi.max(0.0) && err > 100.0 * HYP2F1_RECUR_TOL || n > HYP2F1_RECUR_MAXITER {
             continue;
         }
         // (only those start values that step 7 would accept)
@@ -712,8 +717,9 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     }
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     let mut best = hyp2f1_recur_dd(a, b, c, x);
-    if !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
-        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x), |y| y.0.err);
+    let err = best.map_or(f64::INFINITY, |(y, _)| y.err);
+    if !(err <= HYP2F1_RECUR_TOL) {
+        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, err), |y| y.0.err);
     }
     let (y, l) = best?;
     if !(y.err <= HYP2F1_RECUR_TOL) {

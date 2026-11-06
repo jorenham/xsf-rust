@@ -295,6 +295,11 @@ fn test_hyp2f1_f64_large_c_lt_0() {
         -2.046_272_877_671_090_4e24,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // from the start values at c + 1 and c + 2, which only help since the other forms nearly
+    // succeeded (reference: Arb)
+    let actual = xsf::hyp2f1(130.25, 125.25, 1.96, -145.46);
+    np_assert_allclose!([actual], [-3.043_786_288_636_934_7e-280], rtol = 1e-12);
 }
 
 #[test]
