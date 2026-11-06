@@ -341,6 +341,12 @@ impl DoubleDouble {
         self.hi.is_finite()
     }
 
+    /// Whether `self` is an integer
+    #[inline]
+    pub(crate) fn is_integer(self) -> bool {
+        self.hi.fract() == 0.0 && self.lo.fract() == 0.0
+    }
+
     pub(crate) fn floor(self) -> Self {
         let mut hi = self.hi.floor();
         let mut lo = 0.0;

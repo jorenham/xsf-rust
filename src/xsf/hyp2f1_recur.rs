@@ -17,6 +17,15 @@
 //!    For `k > -p`, its terms have one sign while `C + k` and `C - q + k` do, e.g. for all `k` if
 //!    `C > max(0, q)`. So it cancels little if `p >= 0` or `|p|` is small. We sum it at `C = c`.
 //!
+//!    But if `p = -n` is a negative integer (with `n <= HYP2F1_RECUR_MAXITER`), its terms can
+//!    alternate in sign and cancel, e.g. for `F(-522, -123.5; 533.5; -0.9)`. So we first recur up
+//!    in the degree, from `F(0) = 1` and `F(-1)` to `F(-n)` (DLMF 15.5.11), with the error bound
+//!    of step 3, for `F(-n, c - q; c; w)` and the form (DLMF 15.8.7), often more stable if `c < 0`,
+//!
+//!    `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`
+//!
+//!    and return the best of these if its error bound is at most `HYP2F1_RECUR_TOL`.
+//!
 //! 3. If `c <= max(0, q)` and that loses too much precision, we also sum it at `C = c + n` and
 //!    `C = c + n + 1`, with the smallest `n` with `c + n > max(0, q)`, and recur down to `C = c`
 //!    (DLMF 15.5.18). For `Re z < 1/2`, `F(p, q; c + n; z)` is minimal as `n -> inf` (Gil, Segura
@@ -72,6 +81,9 @@ const HYP2F1_RECUR_MAXITER: f64 = 1e6;
 
 /// The combinations `(p, q, s)` of step 1
 type Combinations = [(Dd, Dd, Dd); 4];
+
+/// `(A_k, B_k, C_k, b_abs)` of `recur_down`
+type Coefs = (f64, f64, f64, f64);
 
 /// `m 2^e exp(l)`, with a bound of its relative error
 #[derive(Clone, Copy, Debug)]
@@ -210,15 +222,9 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     Scaled::new(sum, e, err)
 }
 
-/// `F(p, q; c; z)` by recurring down from `y_n = F(p, q; c + n; z)` and `y_(n+1)` with
-/// DLMF 15.5.18, where `C = c + k`:
-///
-/// ```text
-/// A_k y_(k-1) + B_k y_k + C_k y_(k+1) = 0
-/// A_k = C (C - 1) (z - 1)
-/// B_k = C (C - 1 - (2 C - p - q - 1) z)
-/// C_k = (C - p) (C - q) z
-/// ```
+/// `y_0` from `y_n` and `y_(n+1)` by the recurrence `A_k y_(k-1) + B_k y_k + C_k y_(k+1) = 0`,
+/// where `coefs(k)` is `(A_k, B_k, C_k, b_abs)`, with `|b_abs|` the sum of `|parts|` of `B_k` (at
+/// most 5 roundings in `A_k` and `B_k`, and 4 in `C_k`).
 ///
 /// The relative error bound is to first order, with `g` another solution and
 /// `d_k = g_(k+1) / y_(k+1) - g_k / y_k`:
@@ -232,28 +238,19 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
 /// - The bound is `sum_m |t_m u_m|`, plus the errors of `y_n` and `y_(n+1)` times `|u_n|` and
 ///   `|1 - u_n|`. Where `y` oscillates in `k`, the `d_k` change sign, and `|u_m|` can stay small,
 ///   while `(|d_0| + ... + |d_m|) / |d_m|` grows like `m`.
-fn recur_down(p: Dd, q: Dd, c: Dd, z: f64, n: f64, y_n: Scaled, y_n1: Scaled) -> Option<Scaled> {
+fn recur_down(n: f64, y_n: Scaled, y_n1: Scaled, coefs: impl Fn(f64) -> Coefs) -> Option<Scaled> {
     let n = n as u32;
     let finite_nonzero = |v: f64| (v != 0.0 && v.is_finite()).then_some(v);
     // y_(k+1) and y_k, scaled by 2^-e
     let (mut y1, mut y0, mut e) = (ldexp_f64(y_n1.m, y_n1.e - y_n.e), y_n.m, y_n.e);
-    let (q_abs, z_abs) = (q.hi.abs(), z.abs());
     // `t_(k-1)` and `d_(k-1) / d_k`, for the error bound
     let mut steps = Vec::with_capacity(n as usize);
     for k in (1..=n).rev().map(f64::from) {
-        // (C - 1, C - p and C - q are computed from c, since they can be tiny)
-        let (cc, cc1) = (add_hi(c, k), add_hi(c, k - 1.0));
-        let cc_minus = |v: Dd| (-v + c.hi + k + c.lo).hi;
-        let (cc_p, cc_q) = (cc_minus(p), cc_minus(q));
-        let coef_a = cc * cc1 * (z - 1.0);
-        let coef_b = cc * (cc1 - (cc_p + cc1 - q.hi) * z);
-        let coef_c = cc_p * cc_q * z;
+        let (coef_a, coef_b, coef_c, b_abs) = coefs(k);
         let (t0, t1) = (coef_b * y0, coef_c * y1);
         let ym = finite_nonzero(-(t0 + t1) / coef_a)?;
-        // The rounding errors of the step: of t0, t1 and their sum (6), of the parts of `coef_b`
-        // (5), whose absolute values sum to `|b_abs|`, and of `coef_a` and the division (6).
-        let cc1_abs = cc1.abs();
-        let b_abs = cc * (cc1_abs + (cc_p.abs() + cc1_abs + q_abs) * z_abs);
+        // The rounding errors of the step: of t0, t1 (incl. `coef_c`) and their sum (6), of the
+        // parts of `coef_b` (5), and of `coef_a` and the division (6).
         let t_m = MACHEP * (6.0 * (t0.abs() + t1.abs()) + 5.0 * (b_abs * y0).abs())
             / (coef_a * ym).abs()
             + 6.0 * MACHEP;
@@ -273,6 +270,83 @@ fn recur_down(p: Dd, q: Dd, c: Dd, z: f64, n: f64, y_n: Scaled, y_n1: Scaled) ->
         });
     let err = err + (y_n.err * u.abs() + y_n1.err * (1.0 - u).abs());
     Scaled::new(y0, e, err)
+}
+
+/// The coefficients of `recur_down` for `y_k = F(p, q; c + k; z)` (DLMF 15.5.18, `C = c + k`):
+///
+/// ```text
+/// A_k = C (C - 1) (z - 1)
+/// B_k = C (C - 1 - (2 C - p - q - 1) z)
+/// C_k = (C - p) (C - q) z
+/// ```
+fn coefs_c(p: Dd, q: Dd, c: Dd, z: f64) -> impl Fn(f64) -> Coefs {
+    let (q_abs, z_abs) = (q.hi.abs(), z.abs());
+    move |k| {
+        // (C - 1, C - p and C - q are computed from c, since they can be tiny)
+        let (cc, cc1) = (add_hi(c, k), add_hi(c, k - 1.0));
+        let cc_minus = |v: Dd| (-v + c.hi + k + c.lo).hi;
+        let (cc_p, cc_q) = (cc_minus(p), cc_minus(q));
+        let coef_b = cc * (cc1 - (cc_p + cc1 - q.hi) * z);
+        let cc1_abs = cc1.abs();
+        let b_abs = cc * (cc1_abs + (cc_p.abs() + cc1_abs + q_abs) * z_abs);
+        (cc * cc1 * (z - 1.0), coef_b, cc_p * cc_q * z, b_abs)
+    }
+}
+
+/// The coefficients of `recur_down` for `y_k = F(k - n, r; c; t)` (DLMF 15.5.11, `a = k - n`):
+///
+/// ```text
+/// A_k = c - a
+/// B_k = 2 a - c + (r - a) t
+/// C_k = a (t - 1)
+/// ```
+fn coefs_a(n: f64, r: Dd, c: Dd, t: Dd) -> impl Fn(f64) -> Coefs {
+    // (t - 1 is computed from t, since it can be tiny)
+    let t1 = add_hi(t, -1.0);
+    move |k| {
+        let a = k - n;
+        let (c_2a, r_a_t) = (add_hi(c, -2.0 * a), add_hi(r, -a) * t.hi);
+        let b_abs = c_2a.abs() + r_a_t.abs();
+        (add_hi(c, -a), r_a_t - c_2a, a * t1, b_abs)
+    }
+}
+
+/// `F(-n, r; c; t)` for `n >= 1` (step 2), by recurring up from `F(0) = 1` and
+/// `F(-1) = 1 - r t / c`, i.e. down in `k` for `y_k = F(k - n, r; c; t)`
+fn poly_up(n: f64, r: Dd, c: Dd, t: Dd) -> Option<Scaled> {
+    // (r / c first, since r t can underflow if c is tiny, and fail if r / c is subnormal)
+    let r_c = Some(r.hi / c.hi).filter(|&r_c| r_c == 0.0 || r_c.is_normal())?;
+    let rtc = r_c * t.hi;
+    // (the roundings of r, t, c, the quotient and the product (5), and of the difference)
+    let err = MACHEP * (5.0 * rtc.abs() + 1.0) / (1.0 - rtc).abs();
+    let (y_1, y_0) = (Scaled::new(1.0 - rtc, 0, err)?, Scaled::new(1.0, 0, 0.0)?);
+    recur_down(n - 1.0, y_1, y_0, coefs_a(n, r, c, t))
+}
+
+/// The polynomial forms of step 2 of `combs` with `p = -n`; `ln_1mx` is `ln(1 - x)`
+fn hyp2f1_poly(combs: Combinations, c: Dd, x: f64, w: Dd, ln_1mx: Dd) -> Option<Scaled> {
+    // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
+    let (one_mz, ln_1mz) = if x < 0.0 {
+        (Dd::new(1.0) - x, ln_1mx)
+    } else {
+        (1.0 / (Dd::new(1.0) - x), -ln_1mx)
+    };
+    let is_poly = |p: Dd| p.is_integer() && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+    combs
+        .into_iter()
+        .filter(|&(p, ..)| is_poly(p))
+        .map(|(p, q, s)| {
+            let (n, r, l) = (-p.hi, c - q, s * ln_1mx);
+            // `(1 - z)^p F(p, q; c; z) = F(p, c - q; c; w)`, as in step 2
+            let y_w = poly_up(n, r, c, w).map(|y| y.with_l(l));
+            // `(c - q)_n / (c)_n = Gamma(c - q + n) Gamma(c) / (Gamma(c - q) Gamma(c + n))`
+            let y_1mz = mul_gamma_ratio(&[r + n, c], &[r, c + n], || {
+                let y = poly_up(n, q, q - c + (1.0 - n), one_mz)?;
+                Some(y.with_l(l + p * ln_1mz))
+            });
+            min_err(y_w, y_1mz)
+        })
+        .fold(None, min_err)
 }
 
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
@@ -296,7 +370,7 @@ fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     let recur = series_w(p, r_n, c_n, w, &mut budget).and_then(|y_n| {
         let y_n1 = series_w(p, r_n + 1.0, c_n + 1.0, w, &mut budget)?;
         // (the recurrence is symmetric in p and q)
-        recur_down(p, q, c, z, n, y_n, y_n1)
+        recur_down(n, y_n, y_n1, coefs_c(p, q, c, z))
     });
     min_err(direct, recur)
 }
@@ -423,10 +497,10 @@ fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
 /// ```
 ///
 /// It fails if `b - a` is an integer (a pole of `G`), and its error bound is large if `b - a` is
-/// close to one.
-fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+/// close to one. `ln_1mx` is `ln(1 - x)`.
+fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
-    let (ln_x, ln_1mx) = (ln_dd(Dd::new(x.abs())), ln_dd(one - x));
+    let ln_x = ln_dd(Dd::new(x.abs()));
     // z = 1/t, w = 1 / (1 - t), ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if 0 < x < 1)
     let (z, w, ln_mt, ln_1mz) = if x < 0.0 {
         (1.0 / x, one / (one - x), ln_x, ln_1mx - ln_x)
@@ -455,8 +529,15 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         let combinations = [(a, cb, zero), (cb, a, cab), (ca, b, cab), (b, ca, zero)];
         (x / (x - 1.0), Dd::new(x), combinations)
     };
+    // the polynomial cases of step 2
+    let poly = hyp2f1_poly(combinations, c, x, w, ln_1mx);
+    if err_of(poly) <= HYP2F1_RECUR_TOL {
+        return poly;
+    }
     // For x < -1, first try the 1/x transformation, whose series are much shorter if w is near 1.
-    let recip = (x < -1.0).then(|| hyp2f1_recip(a, b, c, x)).flatten();
+    let recip = (x < -1.0)
+        .then(|| hyp2f1_recip(a, b, c, x, ln_1mx))
+        .flatten();
     if err_of(recip) <= HYP2F1_ETHRESH {
         return recip;
     }
@@ -464,10 +545,10 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     // If that fails for x >= -1, also try the 1/t transformation (step 5).
     if x >= -1.0 && !(err_of(best) <= HYP2F1_RECUR_TOL) {
         let recip = if x < 0.0 {
-            hyp2f1_recip(a, b, c, x)
+            hyp2f1_recip(a, b, c, x, ln_1mx)
         } else {
             // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
-            hyp2f1_recip(c - a, b, c, x).map(|y| y.with_l(y.l - b * ln_1mx))
+            hyp2f1_recip(c - a, b, c, x, ln_1mx).map(|y| y.with_l(y.l - b * ln_1mx))
         };
         min_err(best, recip)
     } else {
@@ -483,8 +564,8 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
         return None;
     }
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
-    // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `log` is accurate)
-    let ln_1mx = (Dd::new(1.0) - x).log();
+    // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
+    let ln_1mx = ln_dd(Dd::new(1.0) - x);
     let best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);
     let y = best.filter(|y| y.err <= HYP2F1_RECUR_TOL)?;
     // `y = m 2^e exp(l)`, with `exp(l) = 2^k exp(r)` and `|r| <= ln(2) / 2`. If `|k|` is so large
@@ -498,14 +579,14 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dd, Scaled, hyp2f1_recur, recur_down};
+    use super::{Dd, Scaled, coefs_c, hyp2f1_recur, recur_down};
 
     #[test]
     fn test_recur_down_start_errors() {
         // y_0 = y_2 / 8 (as B_1 = 0), so the error of y_2 carries over, although u_1 = 0
         let y = |m, err| Scaled::new(m, 0, err).unwrap();
         let (p, q, c) = (Dd::new(3.5), Dd::new(1.5), Dd::new(1.0));
-        let y_0 = recur_down(p, q, c, -0.5, 1.0, y(0.5, 0.0), y(0.8, 1e-6)).unwrap();
+        let y_0 = recur_down(1.0, y(0.5, 0.0), y(0.8, 1e-6), coefs_c(p, q, c, -0.5)).unwrap();
         assert!((y_0.m - 0.1).abs() < 1e-15 && y_0.err >= 1e-6, "{y_0:?}");
     }
 

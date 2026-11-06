@@ -379,7 +379,6 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         (19.0, -19.0, 0.5, 0.99),
         (22.0, -22.0, -3.5, 0.95),
         (195.0, -195.0, 1.0, 0.9),
-        (195.0, -195.0, -200.5, 0.01),
     ];
     let desired = [
         0.489_514_398_515_199_2,
@@ -387,7 +386,6 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         0.787_059_088_545_409,
         -6_540_705.712_015_875,
         -0.019_154_323_187_421_253,
-        6.722_964_015_601_578,
     ];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         // also with a and b swapped, which was already accurate
@@ -395,9 +393,19 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         np_assert_allclose!(actual, [y, y], rtol = 1e-14);
     }
 
-    // but not beyond the recurrence limit, where the swapped order is NaN
-    let actual = [xsf::hyp2f1(10_001.0, -10_001.0, 9_999.5, 1e-12)];
-    np_assert_allclose!(actual, [0.999_999_989_997_499_8], rtol = 1e-14);
+    // via the recurrence in the degree, accurate to ~1e-13 here
+    let actual = [
+        xsf::hyp2f1(195.0, -195.0, -200.5, 0.01),
+        xsf::hyp2f1(-195.0, 195.0, -200.5, 0.01),
+    ];
+    np_assert_allclose!(actual, [6.722_964_015_601_578; 2], rtol = 1e-13);
+
+    // and beyond the recurrence limit of the power series, in both orders by `hyp2f1_recur`
+    let actual = [
+        xsf::hyp2f1(10_001.0, -10_001.0, 9_999.5, 1e-12),
+        xsf::hyp2f1(-10_001.0, 10_001.0, 9_999.5, 1e-12),
+    ];
+    np_assert_allclose!(actual, [0.999_999_989_997_499_8; 2], rtol = 1e-12);
 }
 
 #[test]
@@ -664,18 +672,24 @@ fn test_hyp2f1_f64_euler_both_out_of_range() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_lost() {
-    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 2.36e5,
-    // 4.83e51 and 7.5e-4 (Arb: 1, 1 and 3.77e-17)
+    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 2.36e5
+    // and 4.83e51 (Arb: 1 and 1)
     assert!(xsf::hyp2f1(-3.53e-26, -1592.2, -17.239, 0.04516).is_nan());
     assert!(xsf::hyp2f1(-3.25e-18, 491.04, -0.010_315, -0.328).is_nan());
-    assert!(xsf::hyp2f1(90.0, -90.0, 180.7, 0.8).is_nan());
-    // but `hyp2f1_recur` bounds its error for these, which were 7.7e149, 2.4e7 and -5.6e85 (Arb)
+    // but `hyp2f1_recur` bounds its error for these, which were 7.7e149, 2.4e7, -5.6e85 and 7.5e-4
+    // (Arb)
     let actual = [
         xsf::hyp2f1(6.08e-26, -908.762, -19.967, 0.5),
         xsf::hyp2f1(-50.7, 0.1, 344.3, -1.0),
         xsf::hyp2f1(1e-14, -1500.5, 0.7, 0.2),
+        xsf::hyp2f1(90.0, -90.0, 180.7, 0.8),
     ];
-    let desired = [1.0, 1.016_019_727_590_008, 0.999_999_999_999_930_7];
+    let desired = [
+        1.0,
+        1.016_019_727_590_008,
+        0.999_999_999_999_930_7,
+        3.771_813_135_532_291e-17,
+    ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
     // a series that doesn't converge is estimated as 1, but this is accurate (Arb)
     let actual = [xsf::hyp2f1(-8.999_999_999_999_99, 4.0, 2.5, -1.0)];
@@ -715,5 +729,21 @@ fn test_hyp2f1_f64_large_opposite_signs() {
         xsf::hyp2f1(-880.55, -75.65, 0.091, -0.472),
     ];
     let desired = [-1.469_500_580_590_125_3e-75, 8.556_925_324_233_141e83];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials() {
+    // unlike in xsf: the recurrence in the degree, since the series cancel (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.9),
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.5),
+        xsf::hyp2f1(-3.75, 10_675.75, -0.25, -5600.0),
+    ];
+    let desired = [
+        6.485_127_939_853_472_5e-52,
+        -4.200_865_766_102_724e-45,
+        -2.143_761_498_506_179_6e29,
+    ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
