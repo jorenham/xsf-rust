@@ -25,6 +25,7 @@ mod fresnel;
 mod gamma;
 mod gen_harmonic;
 mod hyp2f1;
+mod hyp2f1_recur;
 mod iv_ratio;
 mod kelvin;
 mod lambertw;
@@ -127,6 +128,7 @@ pub use wright_bessel::{log_wright_bessel, wright_bessel};
 pub use zeta::{riemann_zeta, zeta, zetac};
 
 pub(crate) use hyp2f1::Hyp2F1Arg;
+pub(crate) use hyp2f1_recur::hyp2f1_recur;
 pub(crate) use loggamma::zlog1;
 pub(crate) use specfun::Hyp1F1Arg;
 pub(crate) use stirling2::stirling2 as stirling2_float;
