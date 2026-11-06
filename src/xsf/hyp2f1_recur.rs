@@ -57,16 +57,20 @@
 //!    So for each of these, we compute `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1)
 //!    by steps 1 to 5, and recur down to `k = 0`, e.g. `F(758.1, 7.7; -151.2; -0.3)` from
 //!    `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`. If `z > 0`, the recurrence
-//!    need not be stable, but its error bound still holds.
+//!    need not be stable, but its error bound still holds. We skip those with `c > max(0, q)` (so
+//!    `n = 1`) unless steps 1 to 5 got within `HYP2F1_RECUR_SHIFT_TOL`: their start values at
+//!    `c + 1` and `c + 2` hardly differ from `F(a, b; c; x)`, and in our tests improved the bound
+//!    at most 15-fold.
 //!
 //! Finally, return the result with the smallest error bound, if that is at most `HYP2F1_RECUR_TOL`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
 //! is tiny, and so are `s ln(1 - x)` and the `ln Gamma` of the transformations. The values are
 //! kept as `m 2^e`, to avoid over- and underflow. The cost is at most `HYP2F1_RECUR_MAXITER`
-//! series terms and recurrence steps per combination: about `(|p| w + 40) / (1 - w)` terms, plus
-//! `max(0, q) - c` steps. Step 6 costs up to 8 times as much as steps 1 to 5, but only if those
-//! fail.
+//! series terms and recurrence steps per combination, which is skipped (or only its step 3) if it
+//! would exceed that: about `(|p| w + 40) / (1 - w)` terms (but at least
+//! `(w (c - q) - c) / (1 - w)`), plus `max(0, q) - c` steps. Step 6 costs up to 8 times as much as
+//! steps 1 to 5, but only if those fail.
 //!
 //! # References
 //!
@@ -91,6 +95,10 @@ use crate::xsf::trig::{cospi, sinpi};
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
 const HYP2F1_RECUR_TOL: f64 = 1e-10;
+
+/// The largest error bound of steps 1 to 5 for which step 6 also tries the forms with
+/// `c > max(0, q)` (empirical)
+const HYP2F1_RECUR_SHIFT_TOL: f64 = 100.0 * HYP2F1_RECUR_TOL;
 
 /// The maximum number of series terms plus recurrence steps, per combination
 const HYP2F1_RECUR_MAXITER: f64 = 1e6;
@@ -197,9 +205,17 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     // numerators
     let (mut pk, mut rk) = (p.hi, r.hi);
     let (mut f0, mut f1) = (pk, rk / c.hi);
+    let tame = 2.0_f64.powi(-250)..=2.0_f64.powi(250);
     loop {
-        (t, te) = mul_scaled((t, te), f0, pk)?;
-        (t, te) = mul_scaled((t, te), f1 * w, rk)?;
+        let fw = f1 * w;
+        if [f0, fw].into_iter().all(|f| tame.contains(&f.abs())) {
+            // (usually: then `|t f0 fw|` is 0 or in `[2^-1000, 2^1000]`, and one rescale equals two
+            // `mul_scaled`, as scaling by powers of 2 is exact)
+            (t, te) = rescaled(t * f0 * fw, te);
+        } else {
+            (t, te) = mul_scaled((t, te), f0, pk)?;
+            (t, te) = mul_scaled((t, te), fw, rk)?;
+        }
         let term = if te == 0 { t } else { ldexp_f64(t, te) };
         let term_abs = term.abs();
         k += 1.0;
@@ -375,16 +391,20 @@ fn recur_start(q: Dd, c: Dd) -> f64 {
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     // Give up early if the series takes too many terms: they peak near k = |p| w / (1 - w), then
-    // decay like w^k, for about ln(2^53) / (1 - w) ~ 40 / (1 - w) terms.
-    if (p.hi.abs() * w.hi + 40.0) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
+    // decay like w^k, for about ln(2^53) / (1 - w) ~ 40 / (1 - w) terms. It only stops once
+    // w (r + k) / (c + k) < 1, i.e. after k = (w r - c) / (1 - w).
+    let r = -q + c.hi + c.lo;
+    if (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
         return None;
     }
     // the number of series terms plus recurrence steps left
     let mut budget = HYP2F1_RECUR_MAXITER;
-    let r = -q + c.hi + c.lo;
     let direct = series_w(p, r, c, w, &mut budget);
     let n = recur_start(q, c);
-    if c.hi > q.hi.max(0.0) || err_of(direct) <= HYP2F1_ETHRESH || budget < n {
+    // Give up if too little is left for the n steps and the series at c + n and c + n + 1, each
+    // estimated at n terms fewer than this one (without its first -c terms).
+    let terms = (HYP2F1_RECUR_MAXITER - budget - n).max(0.0);
+    if c.hi > q.hi.max(0.0) || err_of(direct) <= HYP2F1_ETHRESH || budget - n < 2.0 * terms {
         return direct;
     }
     budget -= n;
@@ -595,8 +615,8 @@ fn fold_exp(y: Scaled) -> Scaled {
 }
 
 /// Step 6: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, with
-/// `ln_1mx = ln(1 - x)`
-fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
+/// `ln_1mx = ln(1 - x)`, where `err` is the error bound of steps 1 to 5
+fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Option<Scaled> {
     let x_dd = Dd::new(x);
     let z_pfaff = x_dd / (x_dd - 1.0);
     // `(p, q, z)` of `F(p, q; c + k; z)`, and the direction `(i, j)` of `(a, b)` along which it's a
@@ -608,8 +628,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scale
         (c - a, b, z_pfaff, 1.0, 0.0),
     ];
     best_of(forms.into_iter().map(|(p, q, z, i, j)| {
+        // (if c > max(0, q), only if steps 1 to 5 nearly succeeded, see the module docs)
         let n = recur_start(q, c);
-        if n > HYP2F1_RECUR_MAXITER {
+        if c.hi > q.hi.max(0.0) && err > HYP2F1_RECUR_SHIFT_TOL || n > HYP2F1_RECUR_MAXITER {
             return None;
         }
         // (only the start values that we would return)
@@ -636,8 +657,9 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
     let mut best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);
-    if !(err_of(best) <= HYP2F1_RECUR_TOL) {
-        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx));
+    let err = err_of(best);
+    if !(err <= HYP2F1_RECUR_TOL) {
+        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
     let y = fold_exp(best.filter(|y| y.err <= HYP2F1_RECUR_TOL)?);
     Some(ldexp_f64(y.m, y.e))
