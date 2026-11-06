@@ -514,3 +514,39 @@ fn test_hyp1f1_large_b_or_neg_x() {
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
 }
+
+#[test]
+fn test_hyp1f1_tiny_a_or_b() {
+    // Arb; in xsf the first is inf, and the others have a relative error of 8.3e-8, 1.1e-13, and
+    // 8.3e-8
+    let abx = [
+        (1.0, 1e-17, 1.0),
+        (0.5, 1e-10, 1.0),
+        (1e-10, 0.5, 10.0),
+        (0.5, 1e-10, -10.0),
+    ];
+    let expected = [
+        2.718_281_828_459_045e17,
+        10_892_917_406.618_07,
+        1.000_001_309_153_013,
+        -978_427_283.172_141_4,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+
+    // Arb; in xsf the first two are NaN, and the others have a relative error of 8.3e-8 and 1.1e-13
+    let abz = [
+        (0.5, 1e-17, c64(1.0, 1.0)),
+        (-2.0, 1e-17, c64(1.0, 1.0)),
+        (0.5, 1e-10, c64(2.0, 1.0)),
+        (1e-10, 0.5, c64(10.0, 1.0)),
+    ];
+    let expected = [
+        c64(-3_278_454_977_900_773.0, 1.504_208_434_788_265e17),
+        c64(-2e17, -2.0),
+        c64(14_042_459_676.442_57, 52_867_238_789.940_98),
+        c64(1.000_000_766_147_509_9, 1.056_275_226_895_348_6e-6),
+    ];
+    let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+}
