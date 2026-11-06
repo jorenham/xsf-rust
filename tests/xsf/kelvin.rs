@@ -53,11 +53,11 @@ fn test_kelvin_c64() {
 fn test_kelvin_wronskian() {
     // x (Be Ke' - Be' Ke) = -1 checks all eight functions at once.
     //
-    // The residual is largest (2.5e-10) just below the branch point at x = 10.
+    // Unlike in xsf (scipy/xsf#232), it holds to 1e-14 (xsf: 2.5e-10 at x = 9.9).
     for x in [0.01, 1.0, 9.9, 10.1, 30.0] {
         let [be, ke, bep, kep] = xsf::kelvin(x);
         let residual = (x * (be * kep - bep * ke) + 1.0).norm();
-        assert!(residual <= 1e-9, "x = {x}: residual = {residual:e}");
+        assert!(residual <= 1e-14, "x = {x}: residual = {residual:e}");
     }
 }
 
@@ -84,6 +84,35 @@ fn test_kelvin_be_mid() {
     for (x, (ber, bei), (berp, beip)) in cases {
         let [be, _, bep, _] = xsf::kelvin(x);
         for (y, r) in [(be, c64(ber, bei)), (bep, c64(berp, beip))] {
+            let err = (y - r).norm() / r.norm();
+            assert!(err <= 1e-14, "x = {x}: {y} != {r} (err = {err:e})");
+        }
+    }
+}
+
+#[test]
+fn test_kelvin_ke_mid() {
+    // ker + i kei and ker' + i kei' for 3 <= x < 18, computed with mpmath (40 digits)
+    let cases = [
+        (
+            4.0,
+            (-0.036_178_847_899_547_61, 0.002_198_399_294_972_519_7),
+            (0.031_478_489_822_108_15, 0.023_910_613_791_704_644),
+        ),
+        (
+            9.5,
+            (0.000_333_028_933_957_937_05, -0.000_355_743_339_928_496_86),
+            (-0.000_504_543_773_915_663_6, 3.415_790_306_469_979e-5),
+        ),
+        (
+            12.5,
+            (-5.002_032_136_217_098_3e-5, -1.013_641_248_284_213_7e-5),
+            (3.016_978_394_412_561_7e-5, 4.296_237_309_176_477e-5),
+        ),
+    ];
+    for (x, (ker, kei), (kerp, keip)) in cases {
+        let [_, ke, _, kep] = xsf::kelvin(x);
+        for (y, r) in [(ke, c64(ker, kei)), (kep, c64(kerp, keip))] {
             let err = (y - r).norm() / r.norm();
             assert!(err <= 1e-14, "x = {x}: {y} != {r} (err = {err:e})");
         }

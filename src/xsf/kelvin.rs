@@ -5,10 +5,11 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
-use core::f64::consts::{PI, SQRT_2};
+use core::f64::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
+use crate::xsf::amos;
 use crate::xsf::specfun::SPECFUN_INF;
 
 /// `SPECFUN_ZCONVINF` (only the real part is checked)
@@ -86,7 +87,7 @@ fn klvna(x: f64) -> Klvna {
 
     let el = 0.5772156649015329;
 
-    let (mut ber, mut bei, mut ger, mut gei, mut der, mut dei, mut her, mut hei);
+    let (ber, bei, mut ger, mut gei, der, dei, mut her, mut hei);
     let mut r;
     let mut gs;
 
@@ -106,7 +107,7 @@ fn klvna(x: f64) -> Klvna {
     let x2 = 0.25 * x * x;
     let x4 = x2 * x2;
 
-    if x.abs() < 10.0 {
+    if x.abs() < 3.0 {
         (ber, bei, der, dei) = ber_series(x);
 
         ger = -((x / 2.0).ln() + el) * ber + 0.25 * PI * bei;
@@ -162,6 +163,20 @@ fn klvna(x: f64) -> Klvna {
                 break;
             }
         }
+    } else if x.abs() < 18.0 {
+        // Unlike in xsf (scipy/xsf#232):
+        // - ber, bei, ber' and bei' use the series up to x = 18, where the asymptotic expansion
+        //   becomes the more accurate one;
+        // - ker x + i kei x = K_0(z) and ker'x + i kei'x = -w K_1(z), with z = w x, w = e^(i pi/4)
+        //   (DLMF 10.61.2, 10.29.3), since their series cancels from x = 3 on. AMOS can't
+        //   overflow or underflow here.
+        (ber, bei, der, dei) = ber_series(x);
+
+        let w = c64(FRAC_1_SQRT_2, FRAC_1_SQRT_2);
+        let mut k = [Complex64::ZERO; 2];
+        amos::besk(w * x, 0.0, 1, 2, &mut k, &mut 0);
+        let (ke, kep) = (k[0], -w * k[1]);
+        (ger, gei, her, hei) = (ke.re, ke.im, kep.re, kep.im);
     } else {
         let mut pp0 = 1.0;
         let mut pn0 = 1.0;
@@ -229,12 +244,6 @@ fn klvna(x: f64) -> Klvna {
         hei = xc2 * xe2 * (pn1 * sn0 + qn1 * cn0);
         der = xc1 * xe1 * (pp1 * cp0 + qp1 * sp0) - hei / PI;
         dei = xc1 * xe1 * (pp1 * sp0 - qp1 * cp0) + her / PI;
-
-        // Unlike in xsf (scipy/xsf#232), ber, bei, ber' and bei' use the power series up to x = 18,
-        // where the asymptotic expansion becomes the more accurate one.
-        if x.abs() < 18.0 {
-            (ber, bei, der, dei) = ber_series(x);
-        }
     }
     Klvna {
         ber,
