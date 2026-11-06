@@ -1,2 +1,3 @@
 * text=auto eol=lf
 *.lock -diff merge=ours linguist-generated=true
+ACCURACY.md linguist-generated=true
