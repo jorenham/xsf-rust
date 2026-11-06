@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/owens_t.h` (scipy/xsf@527cef1). Original header
+//! Translated into pure Rust from `xsf/cephes/owens_t.h` (scipy/xsf@ed43abd). Original header
 //! comment appears below.
 //!
 //! Copyright Benjamin Sobotta 2012
@@ -18,7 +18,7 @@
 use core::f64::consts::{SQRT_2, TAU};
 
 use crate::utils::SQRT_TAU;
-use crate::xsf::cephes::{erf, erfc, ndtr};
+use crate::xsf::cephes::{erf, erfc};
 
 const OWENS_T_SELECT_METHOD: [usize; 120] = [
     0, 0, 1, 12, 12, 12, 12, 12, 12, 12, 12, 15, 15, 15, 8, 0, 1, 1, 2, 2, 4, 4, 13, 13, 14, 14,
@@ -172,7 +172,7 @@ fn owens_t2(h: f64, a: f64, ah: f64, m: f64) -> f64 {
     let y = 1.0 / hs;
     let mut val = 0.0;
     let mut vi = a * (-0.5 * ah * ah).exp() / SQRT_TAU;
-    let mut z = (ndtr(ah) - 0.5) / h;
+    let mut z = owens_t_norm1(ah) / h;
 
     loop {
         val += z;

@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@65d313a).
+//! (scipy/xsf@d54dd52).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
@@ -167,9 +167,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         return;
     }
 
-    // Unlike in xsf (scipy/xsf#351), the Hankel expansion is used for x >= 2^31 / 0.9 (~2.39e9),
-    // since `as i32` saturates.
-    if (x <= 300.0) || (n > (0.9 * x) as i32) {
+    if (x <= 300.0) || (f64::from(n) > 0.9 * x) {
         // Backward recurrence for Jn
         if n == 0 {
             *nm = 1;
@@ -791,9 +789,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
-    // NOTE: `(int)(0.9 * x)` is UB in C++ for x >= 2^31 / 0.9 (Rust saturates); the caller only
-    // passes |x| <= 1e9.
-    if n >= 2 && n <= (0.9 * x) as i32 {
+    if n >= 2 && f64::from(n) <= 0.9 * x {
         let mut f0 = bjv0;
         let mut f1 = bjv1;
 
@@ -861,7 +857,7 @@ pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     // the secant step is NaN, +-inf (e.g. for x == 0) or huge. Rust's `as i32` saturates
     // (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. The `+ 1` / `+ 5` / `nn - n1` below can
     // then overflow i32 (panics in debug builds). jynbh only calls this for x >= 1e-100 with
-    // n > (int)(0.9 * x) or x <= 300.
+    // n > 0.9 * x or x <= 300.
     let a0 = x.abs();
     let mut n0 = (1.1 * a0) as i32 + 1;
     let mut f0 = 0.5 * (6.28 * f64::from(n0)).log10()

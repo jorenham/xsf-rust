@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`a10ea72`](https://github.com/scipy/xsf/tree/a10ea724576d5312f6301299baeb5dc007ba954d)), and
+it is translated from (commit [`d54dd52`](https://github.com/scipy/xsf/tree/d54dd5296dc4e3fb644aa7cc34b1ae39d555c13f)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -98,7 +98,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>ndtri_exp</code></td><td>y ∈ [−20, 0]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.8e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap><samp>1.8e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>97.3%</td></tr>
 <tr><td><code>ndtri_exp</code></td><td>y ∈ −⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>6.6e-13</samp></td><td align="right" nowrap><samp>3.0e-14</samp></td><td align="right" nowrap><samp>6.6e-13</samp></td><td align="right" nowrap><samp>3.0e-14</samp></td><td align="right" nowrap>99.9%</td></tr>
 <tr><td><code>owens_t</code></td><td>h, a ∈ [−5, 5]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.8e-13</samp></td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap><samp>1.8e-13</samp></td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap>98.3%</td></tr>
-<tr><td><code>owens_t</code></td><td>h ∈ ±⁠[10⁻⁵, 40] (log)<br>a ∈ ±⁠[10⁻⁵, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.6e-14</samp></td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>4.6e-14</samp></td><td align="right" nowrap>99.6%</td></tr>
+<tr><td><code>owens_t</code></td><td>h ∈ ±⁠[10⁻⁵, 40] (log)<br>a ∈ ±⁠[10⁻⁵, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.0e-13</samp></td><td align="right" nowrap><samp>1.1e-14</samp></td><td align="right" nowrap><samp>2.0e-13</samp></td><td align="right" nowrap><samp>1.1e-14</samp></td><td align="right" nowrap>99.6%</td></tr>
 <tr><td><code>bivariate_normal_cdf</code></td><td>h, k ∈ [−10, 10]<br>r ∈ [−1, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>6.7e-10</samp></b></td><td align="right" nowrap><b><samp>1.5e-11</samp></b></td><td align="right" nowrap><samp>2.8e+240</samp></td><td align="right" nowrap><samp>6.3e+238</samp></td><td align="right" nowrap>65.8%</td></tr>
 <tr><td><code>trivariate_normal_cdf</code></td><td>h₁, h₂, h₃ ∈ [−3, 3]<br>r₁₂, r₁₃ ∈ [−0.9, 0.9]<br>r₂₃ ∈ r₁₂r₁₃ ± 0.9√((1 − r₁₂²)(1 − r₁₃²))</td><td align="right" nowrap>1000</td><td align="right" nowrap><samp>2.4e+32</samp></td><td align="right" nowrap><samp>7.6e+30</samp></td><td align="right" nowrap><samp>2.4e+32</samp></td><td align="right" nowrap><samp>7.6e+30</samp></td><td align="right" nowrap>85.6%</td></tr>
 <tr><td><code>nrdtrimn</code></td><td>p ∈ [0, 1]<br>std ∈ [10⁻³, 1000] (log)<br>x ∈ [−10, 10]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.9e-13</samp></td><td align="right" nowrap><samp>5.5e-15</samp></td><td align="right" nowrap><samp>4.9e-13</samp></td><td align="right" nowrap><samp>5.5e-15</samp></td><td align="right" nowrap>100%</td></tr>

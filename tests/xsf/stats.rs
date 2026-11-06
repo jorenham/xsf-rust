@@ -443,6 +443,19 @@ fn test_owens_t() {
 }
 
 #[test]
+fn test_owens_t_large_h_small_a() {
+    // scipy/xsf#326, with the reference values from mpmath
+    for (h, a, expected) in [
+        (5.0, 1e-10, 5.931_152_735_254_122e-17),
+        (6.0, 1e-14, 2.423_926_559_560_457e-23),
+        (8.0, 1e-3, 2.015_542_376_282_099_7e-18),
+    ] {
+        let t = xsf::owens_t(h, a);
+        xsref::np_assert_allclose!(&[t], &[expected], rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_chdtr() {
     xsref::test("chdtr", "d_d-d", |x| xsf::chdtr(x[0], x[1]));
 }
