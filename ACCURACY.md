@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`d54dd52`](https://github.com/scipy/xsf/tree/d54dd5296dc4e3fb644aa7cc34b1ae39d555c13f)), and
+it is translated from (commit [`e9eb557`](https://github.com/scipy/xsf/tree/e9eb5573ed7a3546d9e4296d76fa809b14c7f1e6)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -362,8 +362,8 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>itstruve0</code></td><td>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.2e-15</samp></b></td><td align="right" nowrap><b><samp>7.6e-17</samp></b></td><td align="right" nowrap><samp>7.8e-07</samp></td><td align="right" nowrap><samp>7.9e-09</samp></td><td align="right" nowrap>99.5%</td></tr>
 <tr><td><code>it2struve0</code></td><td>x ∈ [0, 30]</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>9.1e-14</samp></b></td><td align="right" nowrap><b><samp>1.3e-14</samp></b></td><td align="right" nowrap><samp>2.7e-07</samp></td><td align="right" nowrap><samp>3.2e-08</samp></td><td align="right" nowrap>3.0%</td></tr>
 <tr><td><code>it2struve0</code></td><td>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>4.6e-14</samp></b></td><td align="right" nowrap><b><samp>8.0e-16</samp></b></td><td align="right" nowrap><samp>1.1e-07</samp></td><td align="right" nowrap><samp>2.0e-09</samp></td><td align="right" nowrap>98.6%</td></tr>
-<tr><td><code>itmodstruve0</code></td><td>x ∈ [0, 30]</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.7e-15</samp></b></td><td align="right" nowrap><b><samp>3.6e-16</samp></b></td><td align="right" nowrap><samp>2.3e-08</samp></td><td align="right" nowrap><samp>6.8e-09</samp></td><td align="right" nowrap>3.0%</td></tr>
-<tr><td><code>itmodstruve0</code></td><td>x ∈ [10⁻³⁰⁰, 700] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.0e-15</samp></b></td><td align="right" nowrap><b><samp>7.3e-17</samp></b></td><td align="right" nowrap><samp>2.2e-08</samp></td><td align="right" nowrap><samp>3.7e-10</samp></td><td align="right" nowrap>99.1%</td></tr>
+<tr><td><code>itmodstruve0</code></td><td>x ∈ [0, 30]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.7e-15</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap><samp>1.7e-15</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>itmodstruve0</code></td><td>x ∈ [10⁻³⁰⁰, 700] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>7.3e-17</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>7.3e-17</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
 </table>
 
