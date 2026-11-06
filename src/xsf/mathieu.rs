@@ -394,12 +394,14 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
 
     let qm = mathieu_qm(q);
     // km = int(qm + 0.5*m)
-    let km = (qm + 0.5 * f64::from(m)).floor().to_usize().unwrap();
+    let km = (qm + 0.5 * f64::from(m)).floor();
     // if km > 251:
-    if km > 251 {
+    // (unlike in scipy, also for NaN `km`, e.g. if `q` is NaN, instead of raising in `int`)
+    if km.is_nan() || km > 251.0 {
         // warnings.warn("Too many predicted coefficients.", RuntimeWarning, stacklevel=2)
-        return Err(format!("Too many predicted coefficients ({km})"));
+        return Err(format!("Too many predicted coefficients ({km:.0})"));
     }
+    let km = km.to_usize().unwrap();
 
     let cv = if KD == 1 || KD == 2 {
         mathieu_a(m, q)
@@ -415,7 +417,8 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     let mut fc = [f64::NAN; 252];
     specfun_fcoef(KD, m.try_into().unwrap(), q, cv, &mut fc);
     if fc[0].is_nan() {
-        assert!(fc.iter().all(|c| c.is_nan()), "expected all NaN");
+        // only `fc[..km]`, since `fcoef` zeroes `fc[km..251]`
+        assert!(fc[..km].iter().all(|c| c.is_nan()), "expected all NaN");
         Err("Computation of Fourier coefficients failed".to_string())
     } else {
         Ok((fc, km))

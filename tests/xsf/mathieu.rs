@@ -154,6 +154,22 @@ fn test_mathieu_odd_coef() {
 }
 
 #[test]
+fn test_mathieu_coef_huge_q() {
+    // `km` is NaN, inf, or too large for `usize`
+    for q in [f64::NAN, f64::INFINITY, 1e15, 1e300] {
+        assert!(xsf::mathieu_even_coef(0, q).is_err(), "q = {q}");
+        assert!(xsf::mathieu_odd_coef(1, q).is_err(), "q = {q}");
+    }
+}
+
+#[test]
+fn test_mathieu_coef_nan() {
+    // `fcoef` gives NaN coefficients (also in scipy)
+    assert!(xsf::mathieu_even_coef(200, 1.0).is_err());
+    assert!(xsf::mathieu_odd_coef(201, 1.0).is_err());
+}
+
+#[test]
 fn test_mathieu_odd_coef_m0() {
     assert!(xsf::mathieu_odd_coef(0, 0.0).is_err());
 }
