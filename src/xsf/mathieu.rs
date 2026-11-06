@@ -4,8 +4,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
-//! This way, the modified Mathieu functions don't return 0 or NaN if `sqrt(q) * exp(|x|) > 2.39e9`
-//! (scipy/xsf#351), and the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
+//! This way, the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
 
 use num_traits::ToPrimitive;
 
