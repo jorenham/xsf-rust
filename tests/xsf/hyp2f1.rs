@@ -540,8 +540,9 @@ fn test_hyp2f1_f64_ams55_15_3_6_gamma_range() {
     ];
     np_assert_allclose!(actual, desired, rtol = 5e-13);
 
-    // but not at a pole of `Gamma(c - a - b)`, where this gave -inf instead of inf
-    assert!(xsf::hyp2f1(1e5, 7.5, 21.5, 0.95).is_nan());
+    // but not at a pole of `Gamma(c - a - b)` (this gave -inf), where `hyp2f1_recur` overflows
+    // to inf, as the true value does (Arb)
+    assert_eq!(xsf::hyp2f1(1e5, 7.5, 21.5, 0.95), f64::INFINITY);
     // and here an inner series fails (this gave -3.96e59), but `hyp2f1_recur` does not (Arb)
     let actual = [xsf::hyp2f1(862.559, -310.305, 906.676, 0.999_993_238)];
     np_assert_allclose!(actual, [2.416_601_765_882_886e-243], rtol = 1e-14);
@@ -770,6 +771,35 @@ fn test_hyp2f1_f64_large_near_1() {
         9_480_012.959_767_725,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_integer_b_minus_a() {
+    // unlike in xsf: the log case of the 1/x transformation of `hyp2f1_recur` if b - a is an
+    // integer, e.g. the first was NaN (references: Arb)
+    let actual = [
+        xsf::hyp2f1(12.5, 812.5, 300.25, -25_000.0),
+        xsf::hyp2f1(25.0, 25.0, -0.5, -1e6),
+        xsf::hyp2f1(1.5, -50.5, 2.25, -100.0),
+        xsf::hyp2f1(-40.5, -20.5, 2.25, -100.0),
+        xsf::hyp2f1(25.5, 26.5, 27.25, -100.0),
+    ];
+    let desired = [
+        3.490_725_745_476_049e-61,
+        -8.873_628_661_650_908e-148,
+        1.101_295_428_271_828_5e100,
+        -2.154_549_921_333_831e66,
+        7.125_787_400_134_933e-51,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // and of the 1 - x transformation near x = 1 if c - a - b is an integer (Arb)
+    let actual = xsf::hyp2f1(
+        -151.265_625,
+        -167.078_125,
+        -314.343_75,
+        0.996_171_893_522_054_3,
+    );
+    np_assert_allclose!([actual], [1.140_175_032_534_544_3e-91], rtol = 1e-12);
 }
 
 #[test]

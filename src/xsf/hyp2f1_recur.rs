@@ -35,7 +35,10 @@
 //! 4. For `x < -1`, `w` is near 1 if `|x|` is large, and the series take about `|p| |x|` terms.
 //!    So we first try the 1/x transformation (DLMF 15.8.2), with its two `F(..; 1/x)` computed as
 //!    above (with `w = 1 / (1 - x)`), and only continue with the 4 combinations if its error bound
-//!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`.
+//!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`. If `b - a` is an integer
+//!    (a pole of its Gamma factors), we use its limit instead (DLMF 15.8.9), whose series in `w`
+//!    has `psi` weights, so it can't be transformed or recurred like the others, and it can cancel
+//!    whatever the signs of the parameters (see `recip_log`), e.g. `F(-900.5, -800.5; 50; -40)`.
 //!
 //! 5. If `-1 <= x < 0.9` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
 //!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
@@ -43,7 +46,9 @@
 //!    DLMF 15.8.4). Its series are in `w = 1 / (1 - x)` or `w = 1 - x`. The 4 combinations can
 //!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
 //!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
-//!    For `x >= 0.9`, where `w = x` is close to 1, we try it first instead, as in step 4.
+//!    For `x >= 0.9`, where `w = x` is close to 1, we try it first instead, as in step 4. Its log
+//!    case (step 4) applies here too: if `b - a` is an integer for `x < 0`, or `c - a - b` for
+//!    `0 < x < 1` (DLMF 15.8.10).
 //!
 //! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
 //!    with other start values. Those of step 3 are sums of the same series, and can lose precision
@@ -193,20 +198,42 @@ fn add_hi(v: Dd, k: f64) -> f64 {
 /// first order in `w.lo`, since it can be much more sensitive to `w` than `F(a, b; c; x)` itself.
 /// Each term `t_k` has at most `8 eps` more relative error than `t_(k-1)` (from `p + k`, `r + k`,
 /// `c + k` and 5 operations), and summing `k` terms adds at most `k eps` of `sum_j |t_j|`.
-fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
+///
+/// With `weights = Some((beta_0, err))` (step 4), it sums `t_k beta_k` instead, with `err` bounding
+/// the error of `beta_0`, and
+///
+/// `beta_(k+1) = beta_k + 1/(k + 1) + 1/(c + k) - 1/(p + k) - 1/(r + k)`
+///
+/// It sums through at most `t_kmax`. It's inlined, since the weights make the unweighted series
+/// about 5% slower otherwise.
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn series_weighted(
+    p: Dd,
+    r: Dd,
+    c: Dd,
+    w: Dd,
+    budget: &mut f64,
+    weights: Option<(f64, f64)>,
+    kmax: f64,
+) -> Option<Scaled> {
     let (w, w_lo) = (w.hi, w.lo);
     // from here on, the factors of the term ratios have constant signs
     let kmin = [-p.hi, -r.hi, -c.hi].into_iter().fold(0.0, f64::max).ceil();
+    // `beta_k` and a bound of its absolute error, the sum of `|t_k|` times that bound, and the
+    // sum of `|parts|` of `beta_k - beta_(k-1)`
+    let (mut beta, mut beta_err) = weights.unwrap_or((1.0, 0.0));
+    let (mut sum_err, mut d_abs) = (beta_err, 0.0);
     // The terms are `t 2^te`, and the sums are scaled by `2^-e`, since the terms can underflow
     // before `k = -c`, and be huge after it.
-    let (mut sum, mut sum_abs, mut k_sum, mut k_sum_abs) = (1.0, 1.0_f64, 0.0, 0.0_f64);
+    let (mut sum, mut sum_abs, mut k_sum, mut k_sum_abs) = (beta, beta.abs(), 0.0, 0.0_f64);
     let (mut t, mut te, mut e, mut k) = (1.0, 0, 0, 0.0);
-    // the factors `(p + k) / (k + 1)` and `(r + k) / (c + k)` of the next term ratio, and their
-    // numerators
-    let (mut pk, mut rk) = (p.hi, r.hi);
-    let (mut f0, mut f1) = (pk, rk / c.hi);
+    // the factors `(p + k) / (k + 1)` and `(r + k) / (c + k)` of the next term ratio, and `p + k`,
+    // `r + k` and `c + k`
+    let (mut pk, mut rk, mut ck) = (p.hi, r.hi, c.hi);
+    let (mut f0, mut f1) = (pk, rk / ck);
     let tame = 2.0_f64.powi(-250)..=2.0_f64.powi(250);
-    loop {
+    while k < kmax {
         let fw = f1 * w;
         if [f0, fw].into_iter().all(|f| tame.contains(&f.abs())) {
             // (usually: then `|t f0 fw|` is 0 or in `[2^-1000, 2^1000]`, and one rescale equals two
@@ -219,20 +246,34 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         let term = if te == 0 { t } else { ldexp_f64(t, te) };
         let term_abs = term.abs();
         k += 1.0;
-        sum += term;
-        sum_abs += term_abs;
-        k_sum += k * term;
-        k_sum_abs += k * term_abs;
+        if weights.is_some() {
+            let parts = [1.0 / k, 1.0 / ck, -1.0 / pk, -1.0 / rk];
+            d_abs = parts.into_iter().map(f64::abs).sum();
+            beta += parts.into_iter().sum::<f64>();
+            // (2 roundings per part, and 4 additions)
+            beta_err += MACHEP * (5.0 * d_abs + beta.abs());
+            sum_err += term_abs * beta_err;
+        }
+        // (the rounding of `term * beta` is within the `(k + 1) eps` of `sum_abs` below)
+        let term_beta = term * beta;
+        let term_beta_abs = term_beta.abs();
+        sum += term_beta;
+        sum_abs += term_beta_abs;
+        k_sum += k * term_beta;
+        k_sum_abs += k * term_beta_abs;
         if !k_sum_abs.is_finite() {
             return None;
         }
-        (pk, rk) = (add_hi(p, k), add_hi(r, k));
-        (f0, f1) = (pk / (k + 1.0), rk / add_hi(c, k));
+        (pk, rk, ck) = (add_hi(p, k), add_hi(r, k), add_hi(c, k));
+        (f0, f1) = (pk / (k + 1.0), rk / ck);
         // For j >= k > kmin, both factors of the term ratio are positive and tend monotonically
         // to 1, so the ratio is at most `rho`, which bounds the rest of the series geometrically.
+        // With weights, the parts of `beta_j - beta_(j-1)` decrease as well, so
+        // `|beta_j| <= |beta_k| + (j - k) d_abs`.
         if k > kmin {
             let rho = w * f0.max(1.0) * f1.max(1.0);
-            if rho < 1.0 && term_abs * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
+            let beta_max = beta.abs() + d_abs / (1.0 - rho);
+            if rho < 1.0 && term_abs * beta_max * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
                 break;
             }
         }
@@ -243,6 +284,8 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
         if let Some(s) = rescale_exp(sum_abs) {
             [sum, sum_abs, k_sum, k_sum_abs] =
                 [sum, sum_abs, k_sum, k_sum_abs].map(|v| ldexp_f64(v, -s));
+            // (separately, since a 5-element array makes the series about 4% slower)
+            sum_err = ldexp_f64(sum_err, -s);
             (e, te) = (e + s, te - s);
         }
     }
@@ -250,8 +293,13 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     if w != 0.0 {
         sum += k_sum * (w_lo / w);
     }
-    let err = MACHEP * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) / sum.abs();
+    let err = (MACHEP * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + sum_err) / sum.abs();
     Scaled::new(sum, e, err)
+}
+
+/// `series_weighted` without weights
+fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
+    series_weighted(p, r, c, w, budget, None, f64::INFINITY)
 }
 
 /// `y_0` from `y_n` and `y_(n+1)` by the recurrence `A_k y_(k-1) + B_k y_k + C_k y_(k+1) = 0`,
@@ -388,13 +436,18 @@ fn recur_start(q: Dd, c: Dd) -> f64 {
     (q.hi.max(0.0) - c.hi).max(0.0).floor() + 1.0
 }
 
+/// Whether the series `F(p, r; c; w)` likely takes more than `HYP2F1_RECUR_MAXITER` terms
+fn series_too_long(p: Dd, r: Dd, c: Dd, w: Dd) -> bool {
+    // The terms peak near k = |p| w / (1 - w), then decay like w^k, for about
+    // ln(2^53) / (1 - w) ~ 40 / (1 - w) terms. It only stops once w (r + k) / (c + k) < 1, i.e.
+    // after k = (w r - c) / (1 - w).
+    (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER
+}
+
 /// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
-    // Give up early if the series takes too many terms: they peak near k = |p| w / (1 - w), then
-    // decay like w^k, for about ln(2^53) / (1 - w) ~ 40 / (1 - w) terms. It only stops once
-    // w (r + k) / (c + k) < 1, i.e. after k = (w r - c) / (1 - w).
     let r = -q + c.hi + c.lo;
-    if (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
+    if series_too_long(p, r, c, w) {
         return None;
     }
     // the number of series terms plus recurrence steps left
@@ -441,6 +494,13 @@ fn ln_dd(v: Dd) -> Dd {
     v.ldexp(1 - k).log() + LOG2 * f64::from(k - 1)
 }
 
+/// A lower bound `d` of the distance of `g.hi + [-|g.lo|, |g.lo|]` to the integers (negative if it
+/// contains one), or `None` if `g < 1/2` and `d <= 0`, i.e. at (or too close to) a pole of `Gamma`
+fn pole_distance(g: Dd) -> Option<f64> {
+    let d = (g.hi - g.hi.round()).abs() - g.lo.abs();
+    (!(g.hi < 0.5 && d <= 0.0)).then_some(d)
+}
+
 /// `ln|Gamma(g)|`, the sign of `Gamma(g)`, and a bound of the absolute error of the former, or
 /// `None` at (or too close to) a pole:
 ///
@@ -460,10 +520,7 @@ fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
         // (the correction is below 0.01, and its error below eps)
         return Some((v, 1.0, 2.0 * MACHEP + 16.0 * MACHEP * MACHEP * v.hi.abs()));
     }
-    let d = (g.hi - g.hi.round()).abs() - g.lo.abs();
-    if g.hi < 0.5 && d <= 0.0 {
-        return None;
-    }
+    let d = pole_distance(g)?;
     if g.hi <= -13.0 {
         let s = sinpi(g.hi);
         let (v, _, err) = ln_gamma(-g + 1.0)?;
@@ -498,6 +555,17 @@ fn trigamma_lo(g: Dd, d: f64) -> f64 {
     }
 }
 
+/// `psi(v)` at `v.hi`, and a bound of its absolute error, or `None` at (or too close to) a pole.
+/// For `v < 0`, `psi` uses `psi(v) = psi(1 - v) - pi cot(pi v)`, with `|pi cot(pi v)| <= 1/d`
+/// (`d` as in `pole_distance`), and its error is relative to both terms.
+fn psi_dd(v: Dd) -> Option<(f64, f64)> {
+    let d = pole_distance(v)?;
+    let y = psi(v.hi);
+    let cot = if v.hi < 0.0 { 1.0 / d } else { 0.0 };
+    let err = 8.0 * MACHEP * (y.abs() + 2.0 * cot + 1.0) + trigamma_lo(v, d);
+    Some((y, err))
+}
+
 /// `y()` times `Gamma(num_0) Gamma(num_1) ... / (Gamma(den_0) Gamma(den_1) ...)`, with the error
 /// bounds of their `ln_gamma` added; `y` is only evaluated if no argument is at a pole
 fn mul_gamma_ratio(num: &[Dd], den: &[Dd], y: impl FnOnce() -> Option<Scaled>) -> Option<Scaled> {
@@ -530,6 +598,57 @@ fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
     Some(Scaled::new(m, 0, err_abs / m.abs() + MACHEP)?.with_l(lmax))
 }
 
+/// `hyp2f1_recip` if `m = b - a` is a non-negative integer, by the limit `b - a -> m` of its
+/// transformation (DLMF 15.8.9), with `w = 1 / (1 - t)`:
+///
+/// ```text
+/// F(a, b; c; t) / Gamma(c) = (1 - t)^-a Gamma(m) / (Gamma(b) Gamma(c - a)) S_1
+///     + (-1)^m (1 - t)^-b / (Gamma(a) Gamma(c - b) m!) S_2
+/// S_1 = sum_(k < m) (a)_k (c - b)_k / ((1 - m)_k k!) w^k
+/// S_2 = sum_k (b)_k (c - a)_k / ((m + 1)_k k!) w^k beta_k
+/// beta_k = ln(1 - t) + psi(k + 1) + psi(m + k + 1) - psi(b + k) - psi(c - a + k)
+/// ```
+///
+/// `S_2` is the series of step 2 of the second term of `hyp2f1_recip`, but with the weights
+/// `beta_k` of `series_weighted`. As `ln(1 - t) = -ln(w)`, its terms are
+///
+/// ```text
+/// t_k beta_k = -g'(k) / g(0)
+/// g(s) = Gamma(b + s) Gamma(c - a + s) / (Gamma(1 + s) Gamma(m + 1 + s)) w^s
+/// ```
+///
+/// so they change sign where `|g|` peaks, and `S_2` cancels if that peak is far above `|g(0)|`
+/// (e.g. if `b (c - a) w / (m + 1)` is large), whatever the signs of `b` and `c - a`.
+fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
+    let (m, ca, cb) = ((b - a).hi, c - a, c - b);
+    let m1 = Dd::new(m + 1.0);
+    if series_too_long(b, ca, m1, w) || m > HYP2F1_RECUR_MAXITER {
+        return None;
+    }
+    // beta_0 and a bound of its absolute error
+    let (beta, beta_err) = [(Dd::new(1.0), 1.0), (m1, 1.0), (b, -1.0), (ca, -1.0)]
+        .into_iter()
+        .try_fold((ln_1mt, 0.0), |(beta, beta_err), (v, sign)| {
+            let (y, err) = psi_dd(v)?;
+            Some((beta + sign * y, beta_err + err))
+        })?;
+    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs()));
+    let mut budget = HYP2F1_RECUR_MAXITER;
+    let term2 = mul_gamma_ratio(&[c], &[a, cb, m1], || {
+        let mut s2 = series_weighted(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
+        // (-1)^m
+        s2.m *= if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        Some(s2.with_l(-b * ln_1mt))
+    })?;
+    if m == 0.0 {
+        // (S_1 is an empty sum)
+        return add_exp([term2]);
+    }
+    let s1 = series_weighted(a, cb, Dd::new(1.0 - m), w, &mut budget, None, m - 1.0)?;
+    let term1 = mul_gamma_ratio(&[c, Dd::new(m)], &[b, ca], || Some(s1.with_l(-a * ln_1mt)))?;
+    add_exp([term1, term2])
+}
+
 /// `F(a, b; c; t)` for `t < 0` by the 1/t transformation (steps 4 and 5, DLMF 15.8.2), where
 /// `t = x` if `x < 0`, and `t = x / (x - 1)` if `0 < x < 1`:
 ///
@@ -538,8 +657,9 @@ fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
 /// G(a, b) = Gamma(c) Gamma(b - a) / (Gamma(b) Gamma(c - a))
 /// ```
 ///
-/// It fails if `b - a` is an integer (a pole of `G`), and its error bound is large if `b - a` is
-/// close to one. `ln_1mx` is `ln(1 - x)`.
+/// If `b - a` is an integer (a pole of `G`; in step 5 with `0 < x < 1`, that's an integer
+/// `c - a - b`), it uses `recip_log` instead. Its error bound is large if `b - a` is close to an
+/// integer. `ln_1mx` is `ln(1 - x)`.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     let ln_x = ln_dd(Dd::new(x.abs()));
@@ -555,7 +675,14 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         let y = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
         mul_gamma_ratio(&[c, b - a], &[b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
     };
-    add_exp([term(a, b)?, term(b, a)?])
+    let m = b - a;
+    if m.is_integer() {
+        let (a, b) = if m.hi < 0.0 { (b, a) } else { (a, b) };
+        // ln(-t) + ln(1 - 1/t) = ln(1 - t)
+        recip_log(a, b, c, w, ln_mt + ln_1mz)
+    } else {
+        add_exp([term(a, b)?, term(b, a)?])
+    }
 }
 
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
