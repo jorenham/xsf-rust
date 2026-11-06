@@ -84,8 +84,10 @@
 //! - The series and the recurrence keep their values as `m * 2^e`, to avoid overflow and
 //!   underflow.
 //! - The cost is bounded by `HYP2F1_RECUR_MAXITER` series terms and recurrence steps per
-//!   combination. It's about `(|p| w + 40) / (1 - w)` terms, plus `max(0, q) - c` steps. Step 6
-//!   costs up to 8 times as much as steps 1 to 5, but only if those fail.
+//!   combination, which is skipped (or only its step 3) if it's expected to exceed that. It's about
+//!   `(|p| w + 40) / (1 - w)` terms (but at least `(w (c - q) - c) / (1 - w)`), plus
+//!   `max(0, q) - c` steps. Step 6 costs up to 8 times as much as steps 1 to 5, but only if those
+//!   fail.
 //!
 //! # References
 //!
@@ -408,20 +410,25 @@ fn recur_start(q: Dd, c: Dd) -> f64 {
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     // The series takes about (|p| w + 40) / (1 - w) terms, so give up early if that's too many:
     // the terms peak near k = |p| w / (1 - w), and then decay like w^k, which takes about
-    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms.
-    if (p.hi.abs() * w.hi + 40.0) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
+    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms. But if r > c, it takes at least
+    // (w r - c) / (1 - w) terms, since it only stops once w (r + k) / (c + k) < 1.
+    let r = -q + c.hi + c.lo;
+    if (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
         return None;
     }
     // the number of series terms plus recurrence steps left
     let mut budget = HYP2F1_RECUR_MAXITER;
-    let r = -q + c.hi + c.lo;
     let direct = series_w(p, r, c, w, &mut budget);
     if c.hi > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_ETHRESH) {
         return direct;
     }
     let n = recur_start(q, c);
+    // Give up if the rest of the budget is likely short of the n steps and the series at c + n and
+    // c + n + 1, each estimated at n terms fewer than this one (e.g. without its first -c terms,
+    // where c + k < 0).
+    let terms = (HYP2F1_RECUR_MAXITER - budget - n).max(0.0);
     budget -= n;
-    if budget < 0.0 {
+    if budget < 2.0 * terms {
         return direct;
     }
     let (c_n, r_n) = (c + n, r + n);
