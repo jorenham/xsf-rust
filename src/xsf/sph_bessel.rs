@@ -99,19 +99,16 @@ impl SphBesselArg for Complex64 {
 // Translated from `xsf/sph_bessel.h`
 
 /// `n + 1 / static_cast<T>(2)`
-#[allow(clippy::cast_precision_loss)]
 fn half(n: i64) -> f64 {
     n as f64 + 0.5
 }
 
 /// `static_cast<T>(n + 1)`
-#[allow(clippy::cast_precision_loss)]
 fn np1(n: i64) -> f64 {
     n.wrapping_add(1) as f64
 }
 
 /// `std::pow(-1, n)`
-#[allow(clippy::cast_precision_loss)]
 fn pow_m1(n: i64) -> f64 {
     (-1.0_f64).powf(n as f64)
 }
@@ -120,7 +117,6 @@ fn pow_m1(n: i64) -> f64 {
 /// <https://dlmf.nist.gov/10.52.E1>
 ///
 /// The extra stop if the product overflows (returning `inf`) is for `sph_bessel_j_series`.
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_tiny(n: i64, x: f64) -> f64 {
     let mut res = 1.0_f64;
     let mut k: i64 = 1;
@@ -134,7 +130,6 @@ fn sph_bessel_tiny(n: i64, x: f64) -> f64 {
 /// The power series of `j_n(x)` (DLMF 10.53.1) if `x^2 < 2n + 3`, so that each term is at most
 /// half the previous one, and if the product for the leading term doesn't overflow (else `j_n(x)`
 /// underflows).
-#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
     let nf = n as f64;
     if x * x >= 2.0 * nf + 3.0 {
@@ -152,7 +147,6 @@ fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
 
 /// The leading term `n x^(n-1) / (2n + 1)!!` of the power series of both `j_n'(x)` and
 /// `i_n'(x)` for `n >= 1`, if `x` is below the tiny-`x` cutoff of `i_{n-1}(x)`.
-#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_prime_tiny_x(n: i64, x: f64) -> Option<f64> {
     let ax = x.abs();
     if n < 1 || x.is_nan() || ax * ax >= ((n - 1) as f64 + 1.5) * f64::EPSILON {
@@ -169,7 +163,6 @@ fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
     csqrt(cdiv(c64(FRAC_PI_2, 0.0), z))
 }
 
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -245,7 +238,6 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     sn
 }
 
-#[allow(clippy::float_cmp)]
 fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
@@ -289,7 +281,6 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
     out
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
     if n == 0 {
         return -sph_bessel_j_f64(1, z);
@@ -341,7 +332,6 @@ fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
     sph_bessel_j_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_j_c64(n, z)), z)
 }
 
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -390,7 +380,6 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
     sn
 }
 
-#[allow(clippy::float_cmp)]
 fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
@@ -447,7 +436,6 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
     sph_bessel_y_c64(n.wrapping_sub(1), x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
 }
 
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -490,7 +478,6 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     (FRAC_PI_2 / x).sqrt() * crate::bessel_i(half(n), x)
 }
 
-#[allow(clippy::float_cmp)]
 fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
@@ -531,7 +518,6 @@ fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
     cmul(sqrt_pi_2_div(z), cyl_bessel_i_c64(half(n), z))
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
     if n == 0 {
         return sph_bessel_i_f64(1, z);
@@ -576,7 +562,6 @@ fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
     sph_bessel_i_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_i_c64(n, z)), z)
 }
 
-#[allow(clippy::float_cmp)]
 fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
     if z.is_nan() {
         return z;
@@ -610,7 +595,6 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
     (FRAC_PI_2 / z).sqrt() * cyl_bessel_k_f64(half(n), z)
 }
 
-#[allow(clippy::float_cmp)]
 fn sph_bessel_k_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;

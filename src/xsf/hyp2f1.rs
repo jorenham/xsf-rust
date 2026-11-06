@@ -70,11 +70,6 @@ fn digamma(x: f64) -> f64 {
     crate::digamma(x)
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
 fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
     /* Compute ratio of gamma functions using lanczos approximation.
      *
@@ -206,7 +201,6 @@ fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
     result
 }
 
-#[allow(clippy::float_cmp, clippy::many_single_char_names)]
 fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     // Without loss of generality, ensure |u| >= |v| and |w| >= |x|.
     if v.abs() > u.abs() {
@@ -234,7 +228,6 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     result
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn hypergeometric_series_generator(
     a: f64,
     b: f64,
@@ -351,7 +344,6 @@ fn series_eval_finite(g: impl FnMut() -> Complex64, num_terms: u64) -> Complex64
     series_eval_fixed_length(g, Complex64::ZERO, num_terms)
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn hyp2f1_transform2_limit_series_generator(
     a: f64,
     b: f64,
@@ -383,7 +375,6 @@ fn hyp2f1_transform2_limit_series_generator(
     }
 }
 
-#[allow(clippy::cast_precision_loss, clippy::float_cmp)]
 fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     a: f64,
     b: f64,
@@ -460,7 +451,6 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn hyp2f1_transform2_limit_finite_part_generator(
     b: f64,
     c: f64,
@@ -484,7 +474,7 @@ fn hyp2f1_transform2_limit_finite_part_generator(
     }
 }
 
-#[allow(clippy::cast_precision_loss, non_snake_case)]
+#[allow(non_snake_case)]
 fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl FnMut() -> Complex64 {
     /* Lopez-Temme Series for Gaussian hypergeometric function [4].
      *
@@ -515,7 +505,6 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: Complex64) -> (Complex64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
     let m = (c - a - b).round();
@@ -545,7 +534,6 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: Complex64) -> (Com
     (result, cancellation(abs_sum, result))
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64) -> Complex64 {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
@@ -581,13 +569,6 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
     result
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::too_many_lines
-)]
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
     /* Special Cases
      * nan input */

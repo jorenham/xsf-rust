@@ -36,7 +36,6 @@ fn test_stirling2_f64_small() {
     for n in 0..=43 {
         for k in 0..=n + 1 {
             let s0: u128 = xsf::stirling2(n, k);
-            #[allow(clippy::cast_precision_loss)]
             let s0 = s0 as f64;
             let s: f64 = xsf::stirling2(n, k);
             assert!((s - s0).abs() <= 4.0 * f64::EPSILON * s0, "S({n}, {k})");

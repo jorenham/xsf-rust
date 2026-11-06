@@ -80,7 +80,6 @@ const ELLPE_Q: [f64; 10] = [
 ///   message         condition      value returned
 /// ellpe domain         m>1               NaN
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn ellpe(mut x: f64) -> f64 {
     x = 1.0 - x;
     if x <= 0.0 {

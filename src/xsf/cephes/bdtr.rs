@@ -58,7 +58,6 @@ use crate::xsf::cephes::incbi::incbi;
 /// ```
 ///
 /// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
-#[allow(clippy::float_cmp)]
 pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
     let fk = k.floor();
 
@@ -135,7 +134,6 @@ pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 /// ```
 ///
 /// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
-#[allow(clippy::float_cmp)]
 pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
     let fk = k.floor();
 
@@ -219,7 +217,6 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 /// ```
 ///
 /// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
-#[allow(clippy::float_cmp)]
 pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
     let fk = k.floor();
 

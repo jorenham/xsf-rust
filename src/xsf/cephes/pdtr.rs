@@ -36,7 +36,6 @@ use crate::xsf::cephes::igami::igamci;
 /// ACCURACY:
 ///
 /// See igam.c.
-#[allow(clippy::float_cmp)]
 pub(crate) fn pdtrc(k: f64, m: f64) -> f64 {
     if k < 0.0 || m < 0.0 {
         return f64::NAN;
@@ -73,7 +72,6 @@ pub(crate) fn pdtrc(k: f64, m: f64) -> f64 {
 /// ACCURACY:
 ///
 /// See igamc().
-#[allow(clippy::float_cmp)]
 pub(crate) fn pdtr(k: f64, m: f64) -> f64 {
     if k < 0.0 || m < 0.0 {
         return f64::NAN;

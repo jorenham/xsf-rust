@@ -46,7 +46,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted, and so are the
 //! `XSF_ASSERT`s, which are only enabled in debug builds of xsf.
 
-#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
+#![allow(non_snake_case)]
 
 use core::f64::consts::{FRAC_2_PI, PI};
 
@@ -60,7 +60,6 @@ const MAXITER: u64 = 500;
  * Compute Iv from (AMS5 9.7.1), asymptotic expansion for large |z|
  * Iv ~ exp(x)/sqrt(2 pi x) ( 1 + (4*v*v-1)/8x + (4*v*v-1)(4*v*v-9)/8x/2! + ...)
  */
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn iv_asymptotic(v: f64, x: f64) -> f64 {
     let mut term;
     let mut factor;
@@ -162,7 +161,7 @@ const IV_ASYMPTOTIC_UFACTORS: [[f64; IV_N_UFACTOR_TERMS]; IV_N_UFACTORS] = [
 /*
  * Compute Iv, Kv from (AMS5 9.7.7 + 9.7.8), asymptotic expansion for large v
  */
-#[allow(clippy::needless_range_loop, clippy::similar_names)]
+#[allow(clippy::needless_range_loop)]
 fn ikv_asymptotic_uniform(
     mut v: f64,
     x: f64,
@@ -246,7 +245,6 @@ fn ikv_asymptotic_uniform(
  * Calculate K(v, x) and K(v+1, x) by method analogous to
  * Temme, Journal of Computational Physics, vol 21, 343 (1976)
  */
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 fn temme_ik_series(v: f64, x: f64) -> (f64, f64) {
     /*
      * |x| <= 2, Temme series converge rapidly
@@ -305,7 +303,6 @@ fn temme_ik_series(v: f64, x: f64) -> (f64, f64) {
 
 /* Evaluate continued fraction fv = I_(v+1) / I_v, derived from
  * Abramowitz and Stegun, Handbook of Mathematical Functions, 1972, 9.1.73 */
-#[allow(clippy::cast_precision_loss, clippy::float_cmp, non_snake_case)]
 fn CF1_ik(v: f64, x: f64) -> f64 {
     let mut C;
     let mut D;
@@ -355,11 +352,6 @@ fn CF1_ik(v: f64, x: f64) -> f64 {
  * z1 / z0 = U(v+1.5, 2v+1, 2x) / U(v+0.5, 2v+1, 2x), see
  * Thompson and Barnett, Computer Physics Communications, vol 47, 245 (1987)
  */
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    non_snake_case
-)]
 fn CF2_ik(v: f64, x: f64) -> (f64, f64) {
     let mut q;
 
@@ -420,12 +412,6 @@ const IKV_TEMME_NEED_K: i32 = 0x2;
  * Compute I(v, x) and K(v, x) simultaneously by Temme's method, see
  * Temme, Journal of Computational Physics, vol 19, 324 (1975)
  */
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    non_snake_case
-)]
 fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>) {
     /* Kv1 = K_(v+1), fv = I_(v+1) / I_v */
     /* Ku1 = K_(u+1), fu = I_(u+1) / I_u */
@@ -542,7 +528,6 @@ fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>)
 }
 
 /// Power series for small `x` (DLMF 10.25.2)
-#[allow(clippy::cast_precision_loss)]
 fn iv_power_series(v: f64, x: f64) -> f64 {
     let y = 0.25 * x * x;
     let mut term = 1.0;
@@ -562,7 +547,6 @@ fn iv_power_series(v: f64, x: f64) -> f64 {
 ///
 /// Returns modified Bessel function of order v of the
 /// argument.  If x is negative, v must be integer valued.
-#[allow(clippy::float_cmp)]
 pub(crate) fn iv(mut v: f64, x: f64) -> f64 {
     let mut res = 0.0;
 

@@ -54,7 +54,6 @@ const RGAMMA_R: [f64; 16] = [
 ///
 /// For arguments less than -34.034 the peak error is 6.9e-16
 /// (IEEE, -170,-34.034, 10000 trials), excepting overflow or underflow.
-#[allow(clippy::float_cmp)]
 pub(crate) fn rgamma(x: f64) -> f64 {
     if x.abs() < f64::MIN_POSITIVE {
         // 1/Gamma(x) = x + gamma x^2 + ... rounds to x (DLMF 5.7.1), with the sign of zero.

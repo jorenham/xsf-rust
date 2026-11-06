@@ -1,5 +1,3 @@
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-
 const FACT1_5: u8 = 120;
 const FACT1_8: u16 = 40_320;
 const FACT1_12: u32 = 479_001_600;

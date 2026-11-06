@@ -21,7 +21,6 @@ impl GammaArg for Complex<f64> {
 }
 
 /// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (scipy/xsf@56a9b96)
-#[allow(clippy::float_cmp)]
 fn cgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute Gamma(z) using loggamma.
     if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {

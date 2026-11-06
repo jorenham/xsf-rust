@@ -223,7 +223,6 @@ pub fn cosine_cdf(x: f64) -> f64 {
 /// # See also
 /// - [`cosine_cdf`]
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn cosine_invcdf(mut p: f64) -> f64 {
     // Compute the inverse CDF of the standard cosine distribution.
     let mut sgn = 1.0;

@@ -133,7 +133,6 @@ fn digamma_f64(z: f64) -> f64 {
 }
 
 /// `xsf::digamma` for complex `z`
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
     /*
      * Compute the digamma function for complex arguments. The strategy

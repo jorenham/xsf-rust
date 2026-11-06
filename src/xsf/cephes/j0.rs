@@ -192,7 +192,6 @@ pub(crate) fn j0(mut x: f64) -> f64 {
 /// arithmetic   domain     # trials      peak         rms
 ///    IEEE      0, 30       20000       1.3e-15     1.3e-16
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn y0(x: f64) -> f64 {
     if x <= 5.0 {
         if x == 0.0 {

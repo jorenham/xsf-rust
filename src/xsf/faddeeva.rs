@@ -130,6 +130,8 @@
 //! The products of two `std::complex<double>` are computed with `cmul`, and `double - complex`
 //! with `rsub`, to match the C++ in the overflow and signed zero cases.
 
+#![allow(non_snake_case)]
+
 use core::f64::consts::{FRAC_2_PI, FRAC_2_SQRT_PI, PI};
 
 use num_complex::{Complex, c64};
@@ -147,7 +149,6 @@ pub(crate) fn erfcx_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
 }
 
 // compute the error function erf(z)
-#[allow(non_snake_case, clippy::float_cmp)]
 pub(crate) fn erf_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
@@ -259,7 +260,6 @@ pub(crate) fn erfi_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
 }
 
 // erfc(z) = 1 - erf(z)
-#[allow(non_snake_case, clippy::float_cmp)]
 pub(crate) fn erfc_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
@@ -310,7 +310,6 @@ pub(crate) fn erfc_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
 }
 
 // compute Dawson(z) = sqrt(pi)/2  *  exp(-z^2) * erfi(z)
-#[allow(non_snake_case, clippy::float_cmp, clippy::too_many_lines)]
 pub(crate) fn dawson_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
@@ -537,11 +536,6 @@ const EXPA2N2: [f64; 52] = [
 /////////////////////////////////////////////////////////////////////////
 
 // compute w(z) = exp(-z^2) erfc(-iz) [ Faddeeva / scaled complex error func ]
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::too_many_lines
-)]
 pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
     if z.re == 0.0 {
         return c64(erfcx(z.im), z.re); // give correct sign of 0 in imag(w)
@@ -993,7 +987,6 @@ const ERFCX_Y100: [[f64; 7]; 100] = [
     [2.487_365_235_555_555_7e-13, 7.819_152_682_936_823e-11, 1.651_401_954_782_282e-8, 2.515_368_832_524_531_6e-6, 2.795_161_070_268_238e-4, 2.200_093_857_283_048e-2, 9.777_170_133_588_503e-1],
 ];
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn erfcx_y100(y100: f64) -> f64 {
     let k = y100 as i32; // switch ((int)y100)
     if let Some(coef) = ERFCX_Y100.get(k as usize) {
@@ -1150,7 +1143,6 @@ const W_IM_Y100: [&[f64]; 99] = [
     &[-8.627_294_749_333_333e-14, 1.110_170_935_676_266_6e-11, -8.605_580_904_736_73e-10, -3.764_296_349_644_367e-8, 2.859_184_109_538_096e-5, -5.812_341_954_316_113e-3, 1.718_078_272_261_787_7e-2],
 ];
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn w_im_y100(y100: f64, x: f64) -> f64 {
     let k = y100 as i32; // switch ((int)y100)
     if let Some(coef) = W_IM_Y100.get(k as usize) {

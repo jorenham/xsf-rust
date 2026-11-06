@@ -314,7 +314,6 @@ pub(crate) fn continued_fraction_series<G: FnMut() -> (T, T), T: Real>(
 /// This is a private function intended specifically for the situation where
 /// the goal is to invert a CDF function F for a parametrized family of distributions with respect to one
 /// parameter, when the other parameters are known, and where F is monotonic with respect to the unknown parameter.
-#[allow(clippy::too_many_arguments, clippy::float_cmp)]
 pub(crate) fn bracket_root_for_cdf_inversion(
     func: impl Fn(f64) -> f64,
     x0: f64,
@@ -406,11 +405,6 @@ pub(crate) fn bracket_root_for_cdf_inversion(
 }
 
 /// Find root of a scalar function using Chandrupatla's algorithm
-#[allow(
-    clippy::too_many_arguments,
-    clippy::float_cmp,
-    clippy::many_single_char_names
-)]
 pub(crate) fn find_root_chandrupatla(
     func: impl Fn(f64) -> f64,
     mut x1: f64,
@@ -488,7 +482,6 @@ pub(crate) enum NewtonRootFinderStatus {
 /// Find root of a scalar function using Newton-Raphson.
 ///
 /// Function `func` must return a pair `(f(x), f'(x))`.
-#[allow(clippy::float_cmp)]
 pub(crate) fn find_root_newton(
     func: impl Fn(f64) -> (f64, f64),
     mut x: f64,
@@ -541,7 +534,6 @@ pub(crate) fn find_root_newton(
 
 /// `(int)x` as compiled by g++ for x86-64 (`cvttsd2si`), i.e. INT_MIN if `x` is NaN or out of
 /// range, where it is undefined behavior in C++
-#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn int_x86(x: f64) -> i32 {
     if x > -2_147_483_649.0 && x < 2_147_483_648.0 {
         x as i32

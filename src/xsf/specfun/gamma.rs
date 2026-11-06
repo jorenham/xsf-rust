@@ -7,8 +7,6 @@
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior,
 //! except for the loop count in `gamma2`, which is INT_MIN like with g++ on x86-64.
 
-#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
-
 use core::f64::consts::PI;
 
 use num_complex::{Complex64, c64};
@@ -17,7 +15,6 @@ use super::SPECFUN_INF;
 use crate::utils::LN_TAU;
 use crate::xsf::tools::int_x86;
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 pub(crate) fn gamma2(x: f64) -> f64 {
     // ==================================================
     // Purpose: Compute gamma function Г(x)
@@ -97,12 +94,6 @@ pub(crate) fn gamma2(x: f64) -> f64 {
     ga
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::similar_names
-)]
 pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     // =========================================================
     // Purpose: Compute the gamma function Г(z) or ln[Г(z)]
@@ -183,13 +174,6 @@ pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     }
 }
 
-#[allow(
-    clippy::approx_constant,
-    clippy::cast_possible_truncation,
-    clippy::excessive_precision,
-    clippy::float_cmp,
-    clippy::unreadable_literal
-)]
 pub(crate) fn psi_spec(x: f64) -> f64 {
     // ======================================
     // Purpose: Compute Psi function

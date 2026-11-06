@@ -8,7 +8,6 @@ use core::f64::consts::PI;
 use super::{SPECFUN_INF, gamma2, psi_spec};
 use crate::xsf::tools::int_x86;
 
-#[allow(clippy::float_cmp, clippy::cast_sign_loss)]
 pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
     // ========================================================
     // Purpose: Compute associated Legendre functions Pmn(x)
@@ -86,7 +85,6 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     // =======================================================
     // Purpose: Compute the associated Legendre function
@@ -160,17 +158,6 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     pmv
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::approx_constant,
-    clippy::assign_op_pattern,
-    clippy::manual_midpoint,
-    clippy::unreadable_literal
-)]
 pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
     // =======================================================
     // Purpose: Compute the associated Legendre function
@@ -291,7 +278,7 @@ pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
 
             let mut s2 = 0.0;
             for j in 1..=k {
-                s2 = s2 + 1.0 / (f64::from(j) * (f64::from(j) * f64::from(j) - v * v));
+                s2 += 1.0 / (f64::from(j) * (f64::from(j) * f64::from(j) - v * v));
             }
 
             let pss = pa + s + 2.0 * v * v * s2 - 1.0 / (f64::from(m) + f64::from(k) - v)
@@ -306,15 +293,6 @@ pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::similar_names,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::assign_op_pattern
-)]
 pub(crate) fn lqmns(m: i32, n: i32, x: f64, qm: &mut [f64], qd: &mut [f64]) {
     // ========================================================
     // Purpose: Compute associated Legendre functions Qmn(x)
@@ -469,7 +447,7 @@ pub(crate) fn lqmns(m: i32, n: i32, x: f64, qm: &mut [f64], qd: &mut [f64]) {
 
     if x.abs() < 1.0 {
         for k in 0..=n {
-            qm[k as usize] = (-1.0_f64).powf(f64::from(m)) * qm[k as usize];
+            qm[k as usize] *= (-1.0_f64).powf(f64::from(m));
         }
     }
 

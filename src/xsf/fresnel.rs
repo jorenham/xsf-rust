@@ -12,7 +12,6 @@ use crate::utils::{SQRT_TAU, SQRT1OPI, SQRT2OPI};
 use crate::xsf::complex::cdiv;
 use crate::xsf::trig::{ccos, csin};
 
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
 fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     // =========================================================
     // Purpose: Compute complex Fresnel integral C(z) and C'(z)
@@ -94,7 +93,6 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     (c, ccos(FRAC_PI_2 * z * z))
 }
 
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
 fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     // =========================================================
     // Purpose: Compute complex Fresnel Integral S(z) and S'(z)
@@ -181,12 +179,6 @@ fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     (s, csin(FRAC_PI_2 * z * z))
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
 fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
     // =======================================================
     // Purpose: Compute modified Fresnel integrals F±(x)
@@ -322,7 +314,6 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
     (f, g)
 }
 
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 fn fcszo(kf: i32, nt: usize, zo: &mut [Complex<f64>]) {
     // ===============================================================
     // Purpose: Compute the complex zeros of Fresnel integral C(z)

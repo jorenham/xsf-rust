@@ -13,7 +13,6 @@ fn test_bessel_j_prime() {
 
 /// Translated from `scipy.special.tests.test_basic.TestBessel.test_yvp`
 #[test]
-#[allow(clippy::similar_names)]
 fn test_bessel_y_prime() {
     // yvpr = (special.yv(1,.2) - special.yv(3,.2))/2.0
     let yvpr = (xsf::bessel_y(1.0, 0.2) - xsf::bessel_y(3.0, 0.2)) * 0.5;

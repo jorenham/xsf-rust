@@ -45,14 +45,12 @@ impl<'a, T, const R: usize> Mdspan<'a, T, R> {
 
 impl<T> Index<i32> for Mdspan<'_, T, 1> {
     type Output = T;
-    #[allow(clippy::cast_sign_loss)]
     fn index(&self, i: i32) -> &T {
         &self.data[i as usize]
     }
 }
 
 impl<T> IndexMut<i32> for Mdspan<'_, T, 1> {
-    #[allow(clippy::cast_sign_loss)]
     fn index_mut(&mut self, i: i32) -> &mut T {
         &mut self.data[i as usize]
     }
@@ -60,27 +58,24 @@ impl<T> IndexMut<i32> for Mdspan<'_, T, 1> {
 
 impl<T> Index<(i32, i32)> for Mdspan<'_, T, 2> {
     type Output = T;
-    #[allow(clippy::cast_sign_loss)]
     fn index(&self, (i, j): (i32, i32)) -> &T {
         &self.data[i as usize * self.extents[1] + j as usize]
     }
 }
 
 impl<T> IndexMut<(i32, i32)> for Mdspan<'_, T, 2> {
-    #[allow(clippy::cast_sign_loss)]
     fn index_mut(&mut self, (i, j): (i32, i32)) -> &mut T {
         &mut self.data[i as usize * self.extents[1] + j as usize]
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+#[allow(clippy::cast_possible_wrap)]
 pub(crate) const fn int(x: usize) -> i32 {
     x as i32
 }
 
 /// The `int` product `static_cast<T>(a * b * ...)`, computed in `i64` (instead of `int`) to avoid
 /// overflow, so that, unlike a product of `f64`, a zero product is `+0.0`
-#[allow(clippy::cast_precision_loss)]
 fn int_product(factors: &[i32]) -> f64 {
     factors
         .iter()
@@ -386,7 +381,6 @@ fn assoc_legendre_p_pm1<const NORM: bool, T: Num>(n: i32, m: i32, z: T, res: &mu
 /// - `args`: arguments to forward to the callback
 ///
 /// Returns the value of the polynomial
-#[allow(clippy::float_cmp)]
 fn assoc_legendre_p_for_each_n_from<const NORM: bool, T: Num>(
     n: i32,
     m: i32,
@@ -711,7 +705,7 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
 //          QD(n) --- Qn'(x)
 // ====================================================
 
-#[allow(clippy::float_cmp, clippy::items_after_statements)]
+#[allow(clippy::items_after_statements)]
 fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
     let n = int(qn.size()) - 1;
 
@@ -807,7 +801,6 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
 //          CQD(n) --- Qn'(z)
 // ==================================================
 
-#[allow(clippy::float_cmp)]
 fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, Complex64, 1>) {
     let n = int(cqn.size()) - 1;
 
@@ -841,7 +834,6 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
             cqf1 = cqf2;
         }
     } else {
-        #[allow(clippy::cast_possible_truncation)]
         let km = if z.norm() > 1.1 {
             40_i32.wrapping_add(n)
         } else {
@@ -883,7 +875,6 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
 //          QD(m,n) --- Qmn'(x)
 // ==========================================================
 
-#[allow(clippy::float_cmp, clippy::too_many_lines)]
 fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
@@ -929,7 +920,6 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
         }
     } else {
         // (unlike in xsf, scipy/xsf#368) `log(|x| - 1)` instead of `log(x - 1)`
-        #[allow(clippy::cast_possible_truncation)]
         let km = if x.abs() > 1.1 {
             40_i32.wrapping_add(m).wrapping_add(n)
         } else {
@@ -1012,7 +1002,6 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
 //          CQD(m,n) --- Qmn'(z)
 // =======================================================
 
-#[allow(clippy::float_cmp, clippy::too_many_lines)]
 fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_, Complex64, 2>) {
     let m = int(cqm.extent(0)) - 1;
     let n = int(cqm.extent(1)) - 1;
@@ -1065,7 +1054,6 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
             }
         }
     } else {
-        #[allow(clippy::cast_possible_truncation)]
         let km = if xc > 1.1 {
             40_i32.wrapping_add(m).wrapping_add(n)
         } else {

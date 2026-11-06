@@ -5,8 +5,6 @@
 //! In xsf, the integer arguments are templated on `T`, which is either `long long` or `double`,
 //! where the *values* are expected to be positive integers less than 2**53. Here they are `u64`.
 
-#![allow(clippy::cast_precision_loss)]
-
 use crate::xsf::cephes::zeta;
 
 //
@@ -99,7 +97,6 @@ fn normalized_sum_powers(j: u64, k: u64, n: u64, a: f64) -> f64 {
 /// - [`normalized_gen_harmonic`]: Ratio of partial sums of $i^{-a}$
 /// - [`zeta`](crate::zeta): Hurwitz zeta function
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn gen_harmonic(n: u64, a: f64) -> f64 {
     if n < 1 {
         return f64::NAN;
@@ -156,7 +153,6 @@ pub fn gen_harmonic(n: u64, a: f64) -> f64 {
 /// # See also
 /// - [`gen_harmonic`]: Generalized harmonic number $H_{n,a}$
 #[must_use]
-#[allow(clippy::float_cmp)]
 pub fn normalized_gen_harmonic(j: u64, k: u64, n: u64, a: f64) -> f64 {
     if j < 1 || k < j || n < k {
         return f64::NAN;

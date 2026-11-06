@@ -3,15 +3,12 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
+#![allow(clippy::approx_constant)]
+
 use core::f64::consts::PI;
 
 use super::SPECFUN_INF;
 
-#[allow(
-    clippy::approx_constant,
-    clippy::excessive_precision,
-    clippy::unreadable_literal
-)]
 pub(crate) fn gam0(x: f64) -> f64 {
     // ================================================
     // Purpose: Compute gamma function Г(x)
@@ -52,7 +49,6 @@ pub(crate) fn gam0(x: f64) -> f64 {
     1.0 / (gr * x)
 }
 
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn jynb(
     n: i32,
     x: f64,
@@ -97,17 +93,7 @@ pub(crate) fn jynb(
     }
 }
 
-#[allow(
-    clippy::approx_constant,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::excessive_precision,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
+#[allow(clippy::needless_late_init)]
 pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]) {
     // =====================================================
     // Purpose: Compute Bessel functions Jn(x), Yn(x)
@@ -282,7 +268,6 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
     }
 }
 
-#[allow(clippy::similar_names, clippy::too_many_arguments)]
 pub(crate) fn jyndd(
     n: i32,
     x: f64,
@@ -326,13 +311,7 @@ pub(crate) fn jyndd(
     *fyn = (f64::from(n) * f64::from(n) / (x * x) - 1.0) * (*byn) - (*dyn_) / x;
 }
 
-#[allow(
-    non_snake_case,
-    clippy::cast_sign_loss,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
+#[allow(non_snake_case)]
 pub(crate) fn jyzo(
     n: i32,
     nt: i32,
@@ -543,11 +522,6 @@ pub(crate) fn jyzo(
     }
 }
 
-#[allow(
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names
-)]
 pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64]) {
     // =========================================================
     // Purpose: Compute lambda functions and their derivatives
@@ -646,18 +620,6 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     }
 }
 
-#[allow(
-    clippy::approx_constant,
-    clippy::assign_op_pattern,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::manual_midpoint,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {
     // =========================================================
     // Purpose: Compute lambda function with arbitrary order v,
@@ -693,7 +655,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
 
             for i in 1..=50 {
                 r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk));
-                bk = bk + r;
+                bk += r;
 
                 if r.abs() < bk.abs() * 1.0e-15 {
                     break;
@@ -706,7 +668,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
 
             for i in 1..=50 {
                 r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + vk + 1.0));
-                uk = uk + r;
+                uk += r;
 
                 if r.abs() < uk.abs() * 1.0e-15 {
                     break;
@@ -835,14 +797,13 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     for j in 1..=n {
         vl[j as usize] *= fac * r0;
         dl[(j - 1) as usize] = -0.5 * x / (f64::from(j) + v0) * vl[j as usize];
-        r0 = 2.0 * (f64::from(j) + v0 + 1.0) / x * r0;
+        r0 *= 2.0 * (f64::from(j) + v0 + 1.0) / x;
     }
 
     dl[n as usize] = 2.0 * (v0 + f64::from(n)) * (vl[(n - 1) as usize] - vl[n as usize]) / x;
     *vm = f64::from(n) + v0;
 }
 
-#[allow(clippy::approx_constant, clippy::cast_possible_truncation)]
 pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     // ===================================================
     // Purpose: Determine the starting point for backward
@@ -884,7 +845,6 @@ pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     nn
 }
 
-#[allow(clippy::approx_constant, clippy::cast_possible_truncation)]
 pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     // ===================================================
     // Purpose: Determine the starting point for backward
@@ -936,7 +896,6 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     nn + 10
 }
 
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn sphj(x: f64, n: i32, nm: &mut i32, sj: &mut [f64], dj: &mut [f64]) {
     //  MODIFIED to ALLOW N=0 CASE (ALSO IN SPHY)
     //
@@ -1007,7 +966,6 @@ pub(crate) fn sphj(x: f64, n: i32, nm: &mut i32, sj: &mut [f64], dj: &mut [f64])
     }
 }
 
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64]) {
     // ======================================================
     // Purpose: Compute spherical Bessel functions yn(x) and

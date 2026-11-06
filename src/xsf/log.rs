@@ -18,7 +18,6 @@ const MAXITER: u64 = 500;
 /// doesn't lose precision near the unit circle (the real part is computed in double-double
 /// precision there) or for extreme magnitudes (the input is scaled by a power of two), like
 /// glibc's `clog`. For non-finite or zero `z`, the return values are as in C99 Annex G.
-#[allow(clippy::many_single_char_names)]
 pub(crate) fn clog(z: Complex<f64>) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
     let m = x.abs().max(y.abs());
@@ -189,7 +188,6 @@ pub fn log1p<T: LogArg>(z: T) -> T {
 /// - [`log1p`]
 #[must_use]
 #[inline]
-#[allow(clippy::cast_precision_loss)]
 pub fn log1pmx(x: f64) -> f64 {
     if x.abs() < 0.5 {
         let mut xfac = x;

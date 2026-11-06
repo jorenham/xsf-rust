@@ -136,12 +136,6 @@ const ZETAC_TAYLOR0: [f64; 10] = [
 const ZETAC_MAXL2: f64 = 127.0;
 
 /// Compute zetac for positive arguments
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::neg_cmp_op_on_partial_ord
-)]
 fn zetac_positive(x: f64) -> f64 {
     let mut a;
     let mut b;
@@ -211,7 +205,6 @@ fn zetac_smallneg(x: f64) -> f64 {
 
 /// Compute zetac using the reflection formula (see DLMF 25.4.2) plus
 /// the Lanczos approximation for Gamma to avoid overflow.
-#[allow(clippy::float_cmp)]
 fn zeta_reflection(x: f64) -> f64 {
     let hx = x / 2.0;
     if hx == hx.floor() {

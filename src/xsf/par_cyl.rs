@@ -9,8 +9,6 @@
 //! other `double` -> `int` conversions saturate. Like in xsf, they also return NaN if the
 //! allocation of their work buffer fails.
 
-#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
-
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
@@ -21,7 +19,6 @@ use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
 use crate::{airy, airy_scaled, cospi, log1pmx, loggamma, rgamma, sinpi};
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn dvsa(x: f64, va: f64) -> f64 {
     // ===================================================
     // Purpose: Compute parabolic cylinder function Dv(x)
@@ -145,7 +142,6 @@ fn vvla_qe(x: f64, va: f64, qe: f64) -> f64 {
     pv
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn vvsa(x: f64, va: f64) -> f64 {
     // ===================================================
     // Purpose: Compute parabolic cylinder function Vv(x)
@@ -199,12 +195,6 @@ fn vvsa(x: f64, va: f64) -> f64 {
 }
 
 /// `pbdv` with `dv` and `dp` as `buf[..num]` and `buf[num..]`, like the C++ `malloc` block
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::too_many_lines
-)]
 fn pbdv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     // ====================================================
     // Purpose: Compute parabolic cylinder functions Dv(x)
@@ -337,13 +327,6 @@ fn pbdv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
 }
 
 /// `pbvv` with `vv` and `vp` as `buf[..num]` and `buf[num..]`, like the C++ `malloc` block
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::manual_range_contains,
-    clippy::too_many_lines
-)]
 fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     // ===================================================
     // Purpose: Compute parabolic cylinder functions Vv(x)
@@ -412,7 +395,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f0 = f1;
             f1 = f;
         }
-    } else if ((x >= 0.0) && (x <= 7.5)) || (xa <= 10.0 && v <= 0.5 * x * x) {
+    } else if (0.0..=7.5).contains(&x) || (xa <= 10.0 && v <= 0.5 * x * x) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
         // v <= x^2 / 2 (here v is the order + 1).
         //
@@ -484,7 +467,6 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     (buf[vv(na - 1)], buf[vp(na - 1)])
 }
 
-#[allow(clippy::cast_sign_loss, clippy::float_cmp, clippy::similar_names)]
 fn pbwa_impl(a: f64, x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute parabolic cylinder functions W(a,±x)
@@ -624,7 +606,6 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     let (mut w, mut dw) = (u.re, du.re);
 
     // steps `h` of at most 1/2 from `x0`, with `b_m = c_m h^m` the terms of `w(x0 + h)`
-    #[allow(clippy::cast_possible_truncation)]
     let n = (2.0 * (X - x)).ceil() as i32;
     let h = (x - X) / f64::from(n);
     for i in 0..n {
@@ -651,7 +632,6 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
 /// The `dv`/`dp` (or `vv`/`vp`) buffer of length `2 * num` with `num = std::abs((int) v) + 3`,
 /// or `None` where `(int) v` is undefined behavior in C++, or if the allocation fails (like the
 /// C++ `malloc`)
-#[allow(clippy::cast_possible_truncation)]
 fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
     if v.abs() >= 2_147_483_648.0 {
         return None;
@@ -913,7 +893,6 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
 
 /// `D_{w+n}(x)`, `D_{w+n}'(x)` from `d0 = D_w(x)` and `d1 = D_{w+1}(x)`, by
 /// `D_{w+1} = x D_w - w D_{w-1}` (12.8.1) and 12.8.3
-#[allow(clippy::cast_possible_truncation)]
 fn pbdv_up(w: f64, x: f64, n: f64, mut d0: f64, mut d1: f64) -> (f64, f64) {
     for k in 1..=n as i32 {
         (d0, d1) = (d1, x * d1 - (w + f64::from(k)) * d0);
@@ -967,7 +946,6 @@ fn near_int(v: f64) -> bool {
 }
 
 /// `D_v(x)`, `D_v'(x)` by uniform asymptotic expansions, or `None` outside their regime
-#[allow(clippy::cast_possible_truncation)]
 fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     if !(v.abs() < 2_147_483_648.0 && x.is_finite()) {
         return None;
@@ -1065,7 +1043,6 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
 /// # See also
 /// - [`pbdv`]
 /// - [`pbvv`]
-#[allow(clippy::manual_range_contains)]
 #[must_use]
 #[inline]
 pub fn pbwa(a: f64, mut x: f64) -> (f64, f64) {

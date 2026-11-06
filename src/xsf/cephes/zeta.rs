@@ -64,7 +64,6 @@ const ZETA_A: [f64; 12] = [
 ///
 /// Gradshteyn, I. S., and I. M. Ryzhik, Tables of Integrals,
 /// Series, and Products, p. 1073; Academic Press, 1980.
-#[allow(clippy::float_cmp)]
 pub(crate) fn zeta(x: f64, q: f64) -> f64 {
     if x == 1.0 {
         // retinf

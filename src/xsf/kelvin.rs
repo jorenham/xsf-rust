@@ -13,7 +13,6 @@ use crate::xsf::amos;
 use crate::xsf::specfun::SPECFUN_INF;
 
 /// `SPECFUN_ZCONVINF` (only the real part is checked)
-#[allow(clippy::float_cmp)]
 fn specfun_zconvinf(z: &mut Complex64) {
     if z.re == SPECFUN_INF {
         z.re = f64::INFINITY;
@@ -62,14 +61,6 @@ fn ber_series(x: f64) -> (f64, f64, f64, f64) {
     )
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 fn klvna(x: f64) -> Klvna {
     // ======================================================
     // Purpose: Compute Kelvin functions ber x, bei x, ker x
@@ -527,7 +518,6 @@ enum KelvinFunction {
     Keip = 8,
 }
 
-#[allow(clippy::unreadable_literal)]
 fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
     // ====================================================
     // Purpose: Compute the zeros of Kelvin functions

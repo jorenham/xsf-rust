@@ -99,7 +99,6 @@ const STRUVE_ACCEPTABLE_ATOL: f64 = 1e-300;
  * Large-z expansion for Struve H and L
  * https://dlmf.nist.gov/11.6.1, https://dlmf.nist.gov/11.6.2
  */
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let sgn = if is_h { -1 } else { 1 };
 
@@ -167,7 +166,6 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
  *
  * Starts to converge roughly at |n| > |z|
  */
-#[allow(clippy::float_cmp, clippy::manual_range_contains)]
 fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let mut term;
     let mut sum;
@@ -239,7 +237,6 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
  * Bessel series
  * https://dlmf.nist.gov/11.4.19
  */
-#[allow(clippy::float_cmp)]
 fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let mut term = 0.0;
 
@@ -279,7 +276,6 @@ fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     sum
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn struve_hl(v: f64, z: f64, is_h: bool) -> f64 {
     let mut value = [0.0; 4];
     let mut err = [0.0; 4];

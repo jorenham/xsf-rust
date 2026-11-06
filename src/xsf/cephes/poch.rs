@@ -5,12 +5,10 @@
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::cephes_sinpi;
 
-#[allow(clippy::float_cmp)]
 fn is_nonpos_int(x: f64) -> bool {
     x <= 0.0 && x == x.ceil() && x.abs() < 1e13
 }
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     let mut r = 1.0;
 
@@ -120,7 +118,6 @@ pub fn pow_rising(x: f64, m: f64) -> f64 {
 /// - [`gamma`](crate::gamma): gamma function $\Gamma(x)$
 #[must_use]
 #[inline]
-#[allow(clippy::float_cmp)]
 pub fn pow_falling(x: f64, m: f64) -> f64 {
     let a = x - m + 1.0;
     if a < -10.0 && x < 0.0 && m != m.floor() {

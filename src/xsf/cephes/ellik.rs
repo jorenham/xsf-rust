@@ -31,7 +31,6 @@ use core::f64::consts::{FRAC_PI_2, PI};
 /// Most variable names reflect Carlson's usage.
 ///
 /// In this routine, we assume m < 0 and  0 > phi > pi/2.
-#[allow(clippy::float_cmp, clippy::many_single_char_names)]
 fn ellik_neg_m(phi: f64, m: f64) -> f64 {
     let (x, y, z, scale);
     let mut n = 0;
@@ -128,12 +127,6 @@ fn ellik_neg_m(phi: f64, m: f64) -> f64 {
 /// arithmetic   domain     # trials      peak         rms
 ///    IEEE     -10,10        20000      7.0e-16     1.0e-16
 /// ```
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::if_not_else,
-    clippy::many_single_char_names
-)]
 pub(crate) fn ellik(mut phi: f64, m: f64) -> f64 {
     if phi.is_nan() || m.is_nan() {
         return f64::NAN;

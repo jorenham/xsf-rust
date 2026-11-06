@@ -26,13 +26,6 @@ fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: 
     t * (a + n) / (f64::from(j) * (b + n))
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
@@ -366,14 +359,7 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         .or_else(|| checked(x, |x0| chgm_series_dd(ak, b, xk, x0)))
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::needless_late_init,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
+#[allow(clippy::needless_late_init)]
 pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
@@ -547,12 +533,6 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     hg
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
-    clippy::collapsible_else_if
-)]
 pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
@@ -670,16 +650,6 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     hu
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::excessive_precision,
-    clippy::unreadable_literal,
-    clippy::approx_constant
-)]
 pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
@@ -861,15 +831,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::excessive_precision,
-    clippy::unreadable_literal,
-    clippy::let_and_return
-)]
+#[allow(clippy::let_and_return)]
 pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute hypergeometric function U(a,b,x) by
@@ -1031,7 +993,6 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
@@ -1132,11 +1093,6 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::similar_names
-)]
 pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function

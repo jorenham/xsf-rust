@@ -83,7 +83,6 @@ const ELLPK_C1: f64 = 1.386_294_361_119_890_6; /* log(4) */
 ///   message         condition      value returned
 /// ellpk domain         x<0               NaN
 /// ```
-#[allow(clippy::float_cmp)]
 pub(crate) fn ellpk(x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;

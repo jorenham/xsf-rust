@@ -95,7 +95,6 @@ fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
 }
 
 /// Continued fraction expansion #1 for incomplete beta integral
-#[allow(clippy::if_not_else)]
 fn incbcf(a: f64, b: f64, x: f64) -> f64 {
     let mut xk;
     let mut pk;
@@ -186,7 +185,6 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
 /// Continued fraction expansion #2 for incomplete beta integral
 ///
 /// Unlike in xsf (scipy/xsf#358), `xc = 1 - x` is passed, since `x` can be rounded (see `incbet`).
-#[allow(clippy::if_not_else)]
 fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let mut xk;
     let mut pk;
@@ -337,7 +335,6 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 ///
 /// Unlike in xsf (scipy/xsf#358), `yy` is passed, which is exact also if `xx` is rounded (see
 /// `betainc_xy`).
-#[allow(clippy::float_cmp)]
 pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     let mut flag = false;
 

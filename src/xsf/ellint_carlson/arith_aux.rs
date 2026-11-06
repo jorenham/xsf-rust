@@ -106,7 +106,6 @@ fn masked_sum<const LEN: usize>(p: &[f64; LEN], mask: &[bool; LEN]) -> f64 {
 }
 
 /* Algorithm 6.1 */
-#[allow(clippy::cast_precision_loss)]
 pub(super) fn acc_sum<const LEN: usize>(p: &mut [f64; LEN], mask: &mut [bool; LEN]) -> f64 {
     if LEN == 0 || none(mask) {
         return 0.0;

@@ -86,7 +86,6 @@ pub(crate) fn cephes_sinpi(mut x: f64) -> f64 {
 }
 
 /// `cephes::cospi`: compute cos(pi * x)
-#[allow(clippy::float_cmp)]
 pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
     if x < 0.0 {
         x = -x;
@@ -220,7 +219,6 @@ pub(crate) fn ccosh(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::sinpi` for complex `z`
-#[allow(clippy::float_cmp)]
 fn csinpi(z: Complex<f64>) -> Complex<f64> {
     let x = z.re;
     let piy = PI * z.im;
@@ -271,7 +269,6 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::cospi` for complex `z`
-#[allow(clippy::float_cmp)]
 fn ccospi(z: Complex<f64>) -> Complex<f64> {
     let x = z.re;
     let piy = PI * z.im;
@@ -312,7 +309,6 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `cephes::detail::tancot`
-#[allow(clippy::float_cmp, clippy::cast_possible_truncation)]
 fn tancot(xx: f64, cotflg: bool) -> f64 {
     let mut x;
     let mut sign: i32;
@@ -434,7 +430,6 @@ pub fn cospi<T: TrigArg>(z: T) -> T {
 /// - [`cotdg`]
 #[must_use]
 #[inline]
-#[allow(clippy::cast_possible_truncation)]
 pub fn sindg(mut x: f64) -> f64 {
     let mut y;
     let mut z;
@@ -501,7 +496,6 @@ pub fn sindg(mut x: f64) -> f64 {
 /// - [`cotdg`]
 #[must_use]
 #[inline]
-#[allow(clippy::cast_possible_truncation)]
 pub fn cosdg(mut x: f64) -> f64 {
     let mut y;
     let mut z;
@@ -602,7 +596,6 @@ pub fn cotdg(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn cosm1(x: f64) -> f64 {
-    #[allow(clippy::manual_range_contains)]
     if x < -FRAC_PI_4 || x > FRAC_PI_4 {
         return x.cos() - 1.0;
     }

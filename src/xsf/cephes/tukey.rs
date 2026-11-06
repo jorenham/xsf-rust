@@ -13,7 +13,6 @@ const TUKEY_SMALLVAL: f64 = 1e-4;
 const TUKEY_EPS: f64 = 1.0e-18;
 const TUKEY_MAXCOUNT: i32 = 60;
 
-#[allow(clippy::float_cmp)]
 pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
     if x.is_nan() || lmbda.is_nan() {
         return f64::NAN;

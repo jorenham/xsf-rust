@@ -139,11 +139,7 @@ fn psi_asy(x: f64) -> f64 {
 ///     message         condition      value returned
 /// psi singularity    x integer <=0      INFINITY
 /// ```
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::if_same_then_else
-)]
+#[allow(clippy::if_same_then_else)]
 pub(crate) fn psi(mut x: f64) -> f64 {
     let mut y = 0.0;
 

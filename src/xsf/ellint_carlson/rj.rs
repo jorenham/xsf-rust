@@ -224,7 +224,6 @@ mod rjimpl {
         pub(super) h: f64,
     }
 
-    #[allow(clippy::manual_midpoint)]
     pub(super) fn rj_asym_conf(x: f64, y: f64, z: f64, p: f64, conf: &mut AsymConfig) -> AsymFlag {
         let mut t;
 
@@ -312,7 +311,6 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
     s.atan() / s
 }
 
-#[allow(clippy::too_many_lines)]
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
     use rjimpl::AsymFlag;
 

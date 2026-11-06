@@ -8,7 +8,6 @@ const DENORM_MIN: f64 = f64::from_bits(1);
 // max_float * 2**-(mantissa_bits + 1) = ulp(max_float)
 const ULP_MAX: f64 = f64::EPSILON / 2.0 * f64::MAX;
 
-#[allow(clippy::float_cmp)]
 fn extended_absolute_error_f64(actual: f64, desired: f64) -> f64 {
     if actual == desired || (actual.is_nan() && desired.is_nan()) {
         return 0.0;

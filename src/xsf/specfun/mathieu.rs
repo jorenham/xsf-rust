@@ -6,13 +6,14 @@
 //!
 //! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
+#![allow(clippy::let_and_return)]
+
 use core::f64::consts::SQRT_2;
 
 use super::{Status, jynb, try_zeroed};
 use crate::xsf::cephes::polevl::polevl;
 
 /// The `cv0` polynomials in `q` (highest degree first), as `(m, kd, q_max, coefficients)`
-#[allow(clippy::unreadable_literal)]
 #[rustfmt::skip]
 const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
     (0.0, 1.0, 10.0, &[3.999267e-3, -9.638957e-2, -0.88297, 0.5542818]),
@@ -43,12 +44,6 @@ const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
     (12.0, 4.0, 144.0, &[3.08902e-7, -1.577869e-4, 0.0247911, -1.05454, 161.471]),
 ];
 
-#[allow(
-    clippy::float_cmp,
-    clippy::excessive_precision,
-    clippy::unreadable_literal,
-    clippy::cast_possible_truncation
-)]
 pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     // =====================================================
     // Purpose: Compute the initial characteristic value of
@@ -106,13 +101,6 @@ pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     }
 }
 
-#[allow(
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
-    clippy::many_single_char_names,
-    clippy::assign_op_pattern
-)]
 pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     // ======================================================
     // Purpose: Calculate a specific characteristic value of
@@ -160,7 +148,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             let mut a2 = cvqm(m, q2);
             let mut qq = 3.0 * f64::from(m);
             for _i in 1..=nn {
-                qq = qq + delta;
+                qq += delta;
                 a = (a1 * q2 - a2 * q1 + (a2 - a1) * qq) / (q2 - q1);
                 a = refine(kd, m, qq, a);
                 q1 = q2;
@@ -179,7 +167,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
             let mut a2 = cvql(kd, m, q2);
             let mut qq = f64::from(m.wrapping_mul(m));
             for _i in 1..=nn {
-                qq = qq - delta;
+                qq -= delta;
                 a = (a1 * q2 - a2 * q1 + (a2 - a1) * qq) / (q2 - q1);
                 a = refine(kd, m, qq, a);
                 q1 = q2;
@@ -192,7 +180,6 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     a
 }
 
-#[allow(clippy::let_and_return, clippy::many_single_char_names)]
 pub(crate) fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
     // ======================================================
     // Purpose: Compute the value of F for characteristic
@@ -269,11 +256,6 @@ pub(crate) fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
     f
 }
 
-#[allow(
-    clippy::let_and_return,
-    clippy::similar_names,
-    clippy::assign_op_pattern
-)]
 pub(crate) fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     // ========================================================
     // Purpose: Compute the characteristic value of Mathieu
@@ -308,7 +290,6 @@ pub(crate) fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     a0
 }
 
-#[allow(clippy::let_and_return)]
 pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
     // =====================================================
     // Purpose: Compute the characteristic value of Mathieu
@@ -331,18 +312,9 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
 }
 
 #[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::assign_op_pattern,
     clippy::needless_range_loop,
     clippy::needless_late_init,
     clippy::redundant_else,
-    clippy::range_minus_one,
-    clippy::if_not_else,
     unused_assignments
 )]
 pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
@@ -570,7 +542,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         u = fc[0];
         f1 = fc[1];
 
-        for i in 2..=kb - 1 {
+        for i in 2..kb {
             v = u;
             u = f1;
             f1 = (a - (2.0 * f64::from(i) - 1.0) * (2.0 * f64::from(i) - 1.0)) * u / q - v;
@@ -641,14 +613,14 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         u = fc[0];
         f1 = fc[1];
 
-        for i in 2..=kb - 1 {
+        for i in 2..kb {
             v = u;
             u = f1;
             f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
-                sp = sp + f1 * f1;
+                sp += f1 * f1;
             } else {
                 f2 = f1;
             }
@@ -686,12 +658,6 @@ fn sum_sq_rel(fc: &[f64], f2: f64) -> f64 {
     fc.iter().map(|c| (c / f2) * (c / f2)).sum()
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::too_many_lines,
-    clippy::unreadable_literal
-)]
 pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64) -> Status {
     // ===============================================================
     // Purpose: Compute Mathieu functions cem(x,q) and sem(x,q)
@@ -803,14 +769,6 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
     Status::Ok
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
-)]
 pub(crate) fn mtu12(
     kf: i32,
     kc: i32,
@@ -1054,7 +1012,6 @@ pub(crate) fn mtu12(
     Status::Ok
 }
 
-#[allow(clippy::float_cmp, clippy::many_single_char_names)]
 pub(crate) fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
     // =====================================================
     // Purpose: calculate the accurate characteristic value

@@ -1,5 +1,3 @@
-#![allow(clippy::cast_possible_truncation)]
-
 use xsref::np_assert_allclose;
 
 #[test]

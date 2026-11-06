@@ -55,7 +55,6 @@ const COEFFS: [f64; 8] = [
 // https://doi.org/10.1016/0010-4655(72)90012-4.
 
 /// `xsf::trigamma` for real `z`
-#[allow(clippy::cast_possible_truncation)]
 fn trigamma_f64(mut z: f64) -> f64 {
     let x = z;
     if x <= 0.0 {
@@ -86,7 +85,6 @@ fn trigamma_f64(mut z: f64) -> f64 {
 }
 
 /// `xsf::trigamma` for complex `z`
-#[allow(clippy::cast_possible_truncation)]
 fn trigamma_c64(mut z: Complex<f64>) -> Complex<f64> {
     let x = z.re;
     if x <= 0.0 {

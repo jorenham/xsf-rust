@@ -124,7 +124,6 @@ const SHICHI_C2: [f64; 24] = [
  *
  * The series is only asymptotic, so this requires z large enough.
  */
-#[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
 fn hyp3f0(a1: f64, a2: f64, a3: f64, z: f64) -> f64 {
     let m = z.powf(-1.0 / 3.0);
     let maxiter = if m < 50.0 { m as i32 } else { 50 };
@@ -188,11 +187,6 @@ fn hyp3f0(a1: f64, a2: f64, a3: f64, z: f64) -> f64 {
 ///        Absolute error, except relative when |Chi| > 1:
 ///    IEEE         Chi      20000       9.5e-16     1.3e-16
 /// ```
-#[allow(
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::neg_cmp_op_on_partial_ord
-)]
 pub(crate) fn shichi(mut x: f64) -> (f64, f64) {
     let sign: i16 = if x < 0.0 {
         x = -x;

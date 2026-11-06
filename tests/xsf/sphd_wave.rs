@@ -1,5 +1,3 @@
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-
 #[test]
 fn test_prolate_segv() {
     xsref::test("prolate_segv", "d_d_d-d", |x| {
