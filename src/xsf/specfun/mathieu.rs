@@ -313,7 +313,6 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
 
 #[allow(
     clippy::needless_range_loop,
-    clippy::needless_late_init,
     clippy::redundant_else,
     unused_assignments
 )]
@@ -342,7 +341,6 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     let mut jm = 0;
     let mut kb: i32;
     let mut f1: f64;
-    let qm: f64;
     let mut s: f64;
     let mut f: f64;
     let mut u: f64;
@@ -357,7 +355,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         fc[i] = 0.0;
     }
 
-    if q.abs() <= 1.0e-7 {
+    let qm: f64 = if q.abs() <= 1.0e-7 {
         // Expansion up to order Q^1 (Abramowitz & Stegun 20.2.27-28)
         if kd == 1 {
             jm = m / 2 + 1;
@@ -408,10 +406,10 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
         return;
     } else if q <= 1.0 {
-        qm = 7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q;
+        7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q
     } else {
-        qm = 17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q;
-    }
+        17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
+    };
 
     // NOTE: if `qm` is NaN (q < -1e-7 or q NaN) or +inf (q == +inf), the C++ `(int)` cast is UB
     // (x86-64 yields INT_MIN, after which `fc[km - 1]` is out of bounds); `as i32` gives 0
