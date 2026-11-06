@@ -289,27 +289,34 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
                 xg += xr;
             }
 
-            c1 = 0.5 + (xf * x2.sin() - xg * x2.cos()) / SQRT_TAU / xa;
-            s1 = 0.5 - (xf * x2.cos() + xg * x2.sin()) / SQRT_TAU / xa;
+            let (sin, cos) = x2.sin_cos();
+            c1 = 0.5 + (xf * sin - xg * cos) / SQRT_TAU / xa;
+            s1 = 0.5 - (xf * cos + xg * sin) / SQRT_TAU / xa;
+
+            // Unlike in xsf, K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x) directly, instead
+            // of F+-(x) e^(-+i (x^2 + pi/4)) / sqrt(pi), which loses digits to the rounding of x^2
+            g.re = (xf + xg) / (2.0 * SQRT_TAU) / xa;
+            g.im = (-1.0_f64).powi(ks) * (xf - xg) / (2.0 * SQRT_TAU) / xa;
         }
 
         f.re = PP2 * (0.5 - c1);
         let fi0 = PP2 * (0.5 - s1);
         f.im = (-1.0_f64).powi(ks) * fi0;
 
-        let xp = x2 + FRAC_PI_4;
-        let cs = xp.cos();
-        let ss = xp.sin();
-        let xq2 = SQRT1OPI;
+        if xa < 5.5 {
+            let (ss, cs) = (x2 + FRAC_PI_4).sin_cos();
+            let xq2 = SQRT1OPI;
 
-        g.re = xq2 * (f.re * cs + fi0 * ss);
-        g.im = (-1.0_f64).powi(ks) * xq2 * (fi0 * cs - f.re * ss);
+            g.re = xq2 * (f.re * cs + fi0 * ss);
+            g.im = (-1.0_f64).powi(ks) * xq2 * (fi0 * cs - f.re * ss);
+        }
 
         if x < 0.0 {
             f.re = PP2 - f.re;
             f.im = (-1.0_f64).powi(ks) * PP2 - f.im;
-            g.re = x2.cos() - g.re;
-            g.im = -(-1.0_f64).powi(ks) * x2.sin() - g.im;
+            let (sin, cos) = x2.sin_cos();
+            g.re = cos - g.re;
+            g.im = -(-1.0_f64).powi(ks) * sin - g.im;
         }
     }
     (f, g)

@@ -44,6 +44,23 @@ fn test_modified_fresnel_negative_x() {
     xsref::np_assert_allclose!(&[fm.im], &[-0.936_925_370_381_131_2], rtol = 1e-15);
 }
 
+#[test]
+fn test_modified_fresnel_k_large_x() {
+    // K+(x) = erfcx(e^(-i pi/4) x) / 2 (Arb), and K-(x) its conjugate
+    let xs = [1e2, 1e3, 1e4, 1e200, f64::MAX];
+    let k = [
+        c64(1.994_811_122_613_189_5e-3, 1.994_611_651_480_469e-3),
+        c64(1.994_712_399_361_368_2e-4, 1.994_710_404_649_966_4e-4),
+        c64(1.994_711_411_980_720_2e-5, 1.994_711_392_033_606_3e-5),
+        c64(1.994_711_402_007_163_6e-201, 1.994_711_402_007_163_6e-201),
+        c64(1.109_595_048_968_1e-309, 1.109_595_048_968_1e-309),
+    ];
+    let kp = xs.map(|x| xsf::modified_fresnel_plus(x).1);
+    let km = xs.map(|x| xsf::modified_fresnel_minus(x).1);
+    xsref::np_assert_allclose!(&kp, &k, rtol = 1e-15);
+    xsref::np_assert_allclose!(&km, &k.map(|k| k.conj()), rtol = 1e-15);
+}
+
 /// Ported from `scipy.special.tests.test_basic.TestFresnel.test_fresnel_zeros`
 #[test]
 fn test_fresnel_zeros() {
