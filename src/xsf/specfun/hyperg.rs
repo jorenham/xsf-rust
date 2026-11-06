@@ -565,6 +565,13 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
 
+    // Unlike in xsf, chgus and chgul need 12 digits (instead of 9) to be accepted. With 9 to 11
+    // digits, the result of the other method is only used if it agrees with theirs within 10 times
+    // their error estimate (it can be far off, e.g. for small x). Both thresholds are empirical.
+    //
+    // E.g. U(0.8, 0.95, 15) was 0.1098838166 instead of 0.1098838676.
+    const ID_MIN: i32 = 12;
+
     let mut id1: i32 = 0;
     let mut hu = 0.0;
 
@@ -586,7 +593,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if b != f64::from(b as i32) {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
-        if id1 >= 9 {
+        if id1 >= ID_MIN {
             return hu;
         }
         hu1 = hu;
@@ -597,7 +604,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
-        if id >= 9 {
+        if id >= ID_MIN {
             return hu;
         }
         if id1 > id {
@@ -606,6 +613,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = hu1;
         }
     }
+    let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
         if bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) {
             hu = chgubi(x, a, b, &mut id);
@@ -622,14 +630,34 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = chguit(x, a, b, &mut id);
             hu *= x.powf(1.0 - b00);
             *md = 4;
-        } else if bn != 0 && (!il1) != 0 {
-            // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so this
-            // condition is just `bn`. Reproduced as is.
-            hu = chgubi(x, a, b, &mut id);
-            *md = 3;
+        } else {
+            if bn != 0 && (!il1) != 0 {
+                // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
+                // this condition is just `bn`. Reproduced as is.
+                hu = chgubi(x, a, b, &mut id);
+                *md = 3;
+            }
+            // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
+            // or if chgubi fails and chgul has fewer than 9 digits
+            let failed = id < 6 || hu.is_nan();
+            if (bn == 0 || failed && id0 < 9) && a > -1000.0 {
+                let u = super::hypu_rec(a, b, x);
+                if !u.is_nan() {
+                    (hu, id) = (u, ID_MIN);
+                }
+            }
         }
         // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
         // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
+    }
+    // see `ID_MIN`
+    if id0 >= 9 && !hu0.is_nan() {
+        let tol = 10f64.powi(1 - id0) * hu0.abs();
+        let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
+        if !agrees {
+            return hu0;
+        }
+        id = id.max(id0);
     }
     if id < 6 {
         *isfer = 6;
@@ -1062,10 +1090,12 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         if u.is_finite() {
             hu = if kummer { x.powf(1.0 - b) * u } else { u };
+            // the recurrence is stable here, so this has (nearly) all digits
+            *id = 15;
         } else {
             let sum = hu;
             hu *= x.powf(-a);
-            if cancels && hu.is_finite() {
+            if hu.is_finite() {
                 *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
             }
         }

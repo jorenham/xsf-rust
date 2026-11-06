@@ -233,14 +233,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         let a1 = a + 1.0;
         (x + a + a1) * xsf_hypu(a1, 1.0, x) - a1 * a1 * xsf_hypu(a + 2.0, 1.0, x)
     } else {
-        let u = xsf_hypu(a, b, x);
-        // Unlike in xsf (scipy/xsf#380), the recurrence in `a` is used if `chgu` fails for a < 1
-        // and b > a
-        if u.is_nan() && a < 1.0 && a > -1000.0 && b > a {
-            hypu_rec(a, b, x)
-        } else {
-            u
-        }
+        xsf_hypu(a, b, x)
     }
 }
 

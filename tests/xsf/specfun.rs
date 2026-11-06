@@ -156,6 +156,32 @@ fn test_hypu_small_a() {
 }
 
 #[test]
+fn test_hypu_digits() {
+    // Arb; 0.1098838166, 0.2518536383, and 0.9378950474 in xsf
+    let abx = [(0.8, 0.95, 15.0), (0.5, 0.7, 15.0), (0.03, -0.001, 7.5)];
+    let expected = [
+        0.109_883_867_556_135_05,
+        0.251_853_637_950_820_1,
+        0.937_895_047_309_956_8,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; -48.29100258 in xsf
+    let actual = xsf::hypu(-8.36, 0.9956, 7.86);
+    xsref::np_assert_allclose!([actual], [-48.291_009_037_510_32], rtol = 1e-10);
+
+    // Arb; still finite if `chgubi` fails (NaN with 15 digits)
+    let actual = xsf::hypu(0.3, 172.0, 100.0);
+    xsref::np_assert_allclose!([actual], [122_292_314.484_337_23], rtol = 1e-13);
+
+    // Arb; `chgul` has all digits here, but claimed only 10
+    let actual = [xsf::hypu(-36.0, -32.2, 16.2), xsf::hypu(-39.0, 23.5, 10.0)];
+    let expected = [-1.512_832_103_737_844e44, 1.358_838_881_564_021_4e54];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hypu_chgus() {
     // mpmath; 3.07e67 and 6.13e-197 (poles of Gamma(a) and Gamma(1 + a - b)) in xsf
     let actual = [
