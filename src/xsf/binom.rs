@@ -79,29 +79,23 @@ pub fn binom(n: f64, k: f64) -> f64 {
     }
     if k > 1e8 * n.abs() {
         // avoid loss of precision
-        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1.
+        //
+        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1, |k|^n is split
+        // in two if `den` over- or underflows, the parity of kx is also determined for
+        // kx >= 2^31, and sinpi is used instead of sin. The `k <= 0` branch of xsf is omitted,
+        // since k > 1e8 |n| implies k > 0.
         num = gamma(1.0 + n) / k.abs() + gamma(1.0 + n) * n / (2.0 * k * k) * (n + 1.0); // + ...
         let den = PI * k.abs().powf(n);
         if den.is_normal() {
             num /= den;
         } else {
-            // Unlike in xsf (scipy/xsf#352), |k|^n is split in two if `den` over- or underflows
             let kn2 = k.abs().powf(0.5 * n);
             num = num / (PI * kn2) / kn2;
         }
-        if k > 0.0 {
-            kx = k.floor();
-            // Unlike in xsf (scipy/xsf#352), the parity of kx is also determined for kx >= 2^31
-            let dk = k - kx;
-            let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
-            // Unlike in xsf (scipy/xsf#352), sinpi is used instead of sin
-            return num * cephes_sinpi(dk - n) * sgn;
-        }
         kx = k.floor();
-        if kx == f64::from(kx as i32) {
-            return 0.0;
-        }
-        return num * (k * PI).sin();
+        let dk = k - kx;
+        let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        return num * cephes_sinpi(dk - n) * sgn;
     }
     if k.is_finite() && k.abs() > 2e4 && n.abs() < 170.0 {
         // Unlike in xsf (scipy/xsf#352), the reflection formula

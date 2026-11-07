@@ -133,7 +133,7 @@ fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     }
     let n = (z.im.abs() / 4.0).max(50.0);
     if n >= usize::MAX as f64 {
-        // (unlike in xsf) the number of terms doesn't fit in a `size_t`
+        // Unlike in xsf, return NaN if the number of terms doesn't fit in a `size_t`.
         return NAN;
     }
     let n = n as usize;

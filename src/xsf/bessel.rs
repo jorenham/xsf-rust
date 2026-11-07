@@ -997,9 +997,11 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
     let (mut j, mut jp) = ([f64::NAN; N], [f64::NAN; N]);
     let (mut y, mut yp) = ([f64::NAN; N], [f64::NAN; N]);
     if N == 0 || v > 100_000_000 {
-        // like in scipy (where `nt` must be positive), since `jyzo` writes at least 1 zero, and
-        // (unlike in scipy) avoids the `int` overflows in `msta1` and `msta2` for huge `v`, where
-        // the zeros are NaN anyway (as for `v >~ 5000`)
+        // Like in SciPy (where `nt` must be positive), `jyzo` isn't called for `N == 0`, since it
+        // writes at least 1 zero.
+        //
+        // Unlike in SciPy, the same is done for huge `v`, to avoid the `int` overflows in `msta1`
+        // and `msta2`, where the zeros are NaN anyway (as for `v >~ 5000`).
         return [j, jp, y, yp];
     }
     specfun::jyzo(
@@ -1148,8 +1150,8 @@ fn itika(x: f64) -> (f64, f64) {
     if x == 0.0 {
         return (0.0, 0.0);
     } else if x < 40.0 {
-        // Unlike in xsf (scipy/xsf#379), 40 (instead of 20), and 28 (instead of 10) asymptotic
-        // terms below
+        // Unlike in xsf (scipy/xsf#379), the series of `ti` is used for x < 40 (instead of 20),
+        // and its asymptotic expansion below has 28 terms (instead of 10).
         x2 = x * x;
         ti = 1.0;
         r = 1.0;
@@ -1871,8 +1873,8 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     }
 
     if N > 2 && (x.is_nan() || x.abs() > 1e9) {
-        // (unlike in scipy) avoids the `int` casts of `|x|` in `msta1` and `msta2`, which are
-        // undefined for NaN and `|x| >= 2**31 / 1.1`
+        // Unlike in SciPy, this avoids the `int` casts of `|x|` in `msta1` and `msta2`, which are
+        // undefined for NaN and `|x| >= 2**31 / 1.1`.
         return (rj, dj);
     }
 
@@ -1969,8 +1971,9 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     // checked before allocating, since `lamv` casts `v` to `int` as well
     assert!(core::ffi::c_int::try_from(n).is_ok(), "v is too large");
     if x.is_nan() || x.abs() > 1e9 {
-        // (unlike in scipy) avoids out-of-bounds indexing in `lamn` and `lamv`, where `int` casts
-        // of `|x|` (e.g. in `msta1` and `msta2`) are undefined for NaN and `|x| >= 2**31 / 1.1`
+        // Unlike in SciPy, this avoids out-of-bounds indexing in `lamn` and `lamv`, where `int`
+        // casts of `|x|` (e.g. in `msta1` and `msta2`) are undefined for NaN and
+        // `|x| >= 2**31 / 1.1`.
         return (vec![f64::NAN; n + 1], vec![f64::NAN; n + 1]);
     }
     let v0 = v - n.to_f64().unwrap();
