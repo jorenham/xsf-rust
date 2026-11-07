@@ -787,6 +787,21 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 /* Apply the recurrence if power series fails */
                 let aid = (2.0 - id) as i32;
                 let mut e = c + f64::from(aid);
+                // Unlike in xsf, for |e| >= 2^53, where the unit shifts can round and recurse
+                // forever, use Euler (DLMF 15.8.1), or Pfaff for x < 0.5 if its error estimate is
+                // smaller.
+                //
+                // E.g. `hyp2f1(1e17 + 16.0, -15.5, 1e17, 0.95)` overflowed the stack.
+                if e.abs() * MACHEP >= 1.0 {
+                    let (z, err) = hyt2f1(c - a, c - b, c, x);
+                    if x < 0.5 {
+                        let (y, pfaff_err) = hys2f1_pfaff(a, b, c, x);
+                        if pfaff_err < err {
+                            return y;
+                        }
+                    }
+                    return s.powf(d) * z;
+                }
                 let mut d2 = hyp2f1(a, b, e, x);
                 let mut d1 = hyp2f1(a, b, e + 1.0, x);
                 q = a + b + 1.0;

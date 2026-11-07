@@ -313,3 +313,25 @@ fn test_hyp2f1_f64_psi_expansion_overflow() {
     // but a correct overflow (to 3.96e320) is kept
     assert_eq!(xsf::hyp2f1(6.5, 6.5, 1e-300, 0.95), f64::INFINITY);
 }
+
+#[test]
+fn test_hyp2f1_f64_huge_c_minus_1_lt_c_minus_a_minus_b_lt_0() {
+    // unlike in xsf: the recurrence on c overflowed the stack for |c| >= 2^53, or was wrong
+    // (6.78e137 for the last) (Arb)
+    let actual = [
+        xsf::hyp2f1(1e17 + 16.0, -15.5, 1e17, 0.5),
+        xsf::hyp2f1(1e17 + 16.0, -15.5, 1e17, 0.95),
+        xsf::hyp2f1(1e17 - 96.0, 96.5, 1e17, -0.1),
+        xsf::hyp2f1(1e17 - 96.0, 96.5, 1e17, 0.7),
+        xsf::hyp2f1(1e16 - 1000.0, 1000.9, 1e16, -0.3),
+    ];
+    let desired = [
+        2.157_918_643_757_769e-5,
+        6.823_937_919_615_83e-21,
+        1.012_991_688_969_088_8e-4,
+        2.869_451_704_379_998e50,
+        8.997_019_796_944_917e-115,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    assert!(xsf::hyp2f1(1e17, 0.5, 1e17, f64::NAN).is_nan());
+}
