@@ -587,7 +587,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
 
     let aa = a - b + 1.0;
     *isfer = 0;
-    // NOTE: `(int)a` (and `(int)aa`, `(int)b` below) is UB in C++ if out of `int` range (incl.
+    // NOTE: `(int)a` (and `(int)aa` below) is UB in C++ if out of `int` range (incl.
     // inf/NaN; GCC/x86 gives INT_MIN); here it saturates. Either way an out-of-range value never
     // compares equal, so the results of these comparisons are the same.
     let il1 = i32::from((a == f64::from(a as i32)) && (a <= 0.0));
@@ -596,11 +596,12 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     let bl1 = i32::from((x <= 5.0) || (x <= 10.0 && a <= 2.0));
     let bl2 = i32::from((x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0)));
     let bl3 = i32::from((x > 12.5) && (a >= 5.0) && (b >= a + 5.0));
-    let bn = i32::from((b == f64::from(b as i32)) && (b != 0.0));
+    let bn = i32::from(b.fract() == 0.0 && b != 0.0);
 
     let mut id = -100;
     let mut hu1 = 0.0;
-    if b != f64::from(b as i32) {
+    // Unlike in xsf (scipy/xsf#380), also not for the integers |b| >= 2^31
+    if b != b.trunc() {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN {
@@ -625,7 +626,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     }
     let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
-        if bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) {
+        // Unlike in xsf (scipy/xsf#380), chguit is used for b - 1 >= 1000, where chgubi gives up
+        if bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) && b - 1.0 < 1000.0 {
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
         } else {
@@ -693,11 +695,13 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
     let (a0, a1, a2, ga1, ua, ub);
 
+    // Unlike in xsf (scipy/xsf#380), NaN for |b - 1| >= 1000 (where n! overflows), without ~150 n
+    // steps
+    if (b - 1.0).abs() >= 1000.0 {
+        return f64::NAN;
+    }
     *id = -100;
-    // NOTE: `(int)fabs(b - 1)` is UB in C++ if |b - 1| >= 2^31; like g++ on x86-64, `int_x86` gives
-    // INT_MIN, so that the loops are skipped, instead of running ~150 * 2^31 iterations. The `int`
-    // arithmetic with `n` below wraps (as with g++), since it overflows for |n| close to 2^31.
-    let n = int_x86((b - 1.0).abs());
+    let n = (b - 1.0).abs() as i32;
     let mut rn1 = 1.0;
     let mut rn = 1.0;
     for j in 1..=n {
@@ -713,14 +717,14 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         a1 = a - f64::from(n);
         a2 = a1;
         ga1 = gamma2(a1);
-        ua = (-1.0_f64).powf(f64::from(n.wrapping_sub(1))) / (rn * ga1);
-        ub = rn1 / ga * x.powf(f64::from(n.wrapping_neg()));
+        ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga1);
+        ub = rn1 / ga * x.powf(f64::from(-n));
     } else {
         a0 = a + f64::from(n);
         a1 = a0;
         a2 = a;
         ga1 = gamma2(a1);
-        ua = (-1.0_f64).powf(f64::from(n.wrapping_sub(1))) / (rn * ga) * x.powf(f64::from(n));
+        ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga) * x.powf(f64::from(n));
         ub = rn1 / ga1;
     }
     let mut hm1 = 1.0;
@@ -729,9 +733,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmin: f64 = SPECFUN_INF;
     let mut h0 = 0.0;
     for k in 1..=150 {
-        // NOTE: `(n + k) * k` overflows `int` (C++ UB) for |b| >~ 1.43e7; `wrapping_mul` does what
-        // GCC's code does (and avoids a panic in debug builds).
-        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from(n.wrapping_add(k).wrapping_mul(k));
+        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
         hm1 += r;
         let hu1 = hm1.abs();
 
@@ -784,10 +786,10 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 s1 -= (f64::from(m) + 2.0 * a - 2.0) / (f64::from(m) * (f64::from(m) + a - 1.0));
             }
             for m in 1..=n {
-                s2 += 1.0 / f64::from(k.wrapping_add(m));
+                s2 += 1.0 / f64::from(k + m);
             }
         } else {
-            for m in 1..=k.wrapping_add(n) {
+            for m in 1..=k + n {
                 s1 += (1.0 - a) / (f64::from(m) * (f64::from(m) + a - 1.0));
             }
             for m in 1..=k {
@@ -796,7 +798,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
 
         let hw = 2.0 * EL + ps + s1 - s2;
-        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from(n.wrapping_add(k).wrapping_mul(k));
+        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
         hm2 += r * hw;
         let hu2 = hm2.abs();
 
@@ -832,9 +834,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     }
     r = 1.0;
     for k in 1..n {
-        // NOTE: `(k - n) * k` overflows `int` (C++ UB) for |b| >~ 92682; `wrapping_mul` does what
-        // GCC's code does (and avoids a panic in debug builds).
-        r = r * (a2 + f64::from(k) - 1.0) / f64::from(k.wrapping_sub(n).wrapping_mul(k)) * x;
+        r = r * (a2 + f64::from(k) - 1.0) / f64::from((k - n) * k) * x;
         hm3 += r;
     }
     let sa = ua * (hm1 + hm2);
@@ -1036,16 +1036,16 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
     *id = -100;
     let aa = a - b + 1.0;
-    let il1 = i32::from((a == f64::from(a as i32)) && (a <= 0.0));
-    let il2 = i32::from((aa == f64::from(aa as i32)) && (aa <= 0.0));
+    // Unlike in xsf (scipy/xsf#380), a (or aa) = -2^31 is excluded
+    let is_nonpos_int = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
+    let il1 = i32::from(is_nonpos_int(a));
+    let il2 = i32::from(is_nonpos_int(aa));
     let mut nm = 0;
-    // NOTE: for a (or aa) = -2^31, `(int)fabs(a)` is UB in C++; like g++ on x86-64, `int_x86`
-    // gives INT_MIN, so that the loop below doesn't run.
     if il1 != 0 {
-        nm = int_x86(a.abs());
+        nm = -a as i32;
     }
     if il2 != 0 {
-        nm = int_x86(aa.abs());
+        nm = -aa as i32;
     }
     // IL1: DLMF 13.2.7 with k=-s-a
     // IL2: DLMF 13.2.8
@@ -1053,10 +1053,29 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         hu = 1.0;
         r = 1.0;
         let mut rmax: f64 = 1.0;
+        // (a + k - 1) (a - b + k) < 0 for k between 1 - a and b - a, so the terms keep their sign
+        // there, and a sum that is +-inf at k >= k_inf stays +-inf
+        let (lo, hi) = ((1.0 - a).min(b - a), (1.0 - a).max(b - a));
+        let k_inf = if f64::from(nm) < hi {
+            lo.floor()
+        } else {
+            f64::INFINITY
+        };
         for k in 1..=nm {
-            r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
+            let k = f64::from(k);
+            let prev = r;
+            r = -r * (a + k - 1.0) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
+            // Unlike in xsf (scipy/xsf#380), the loop stops once
+            // - the sum is NaN, or +-inf for good (k >= k_inf)
+            // - the terms decrease below `MIN_POSITIVE`
+            if hu.is_nan()
+                || hu.is_infinite() && k >= k_inf
+                || r.abs() < f64::MIN_POSITIVE && r.abs() <= prev.abs()
+            {
+                break;
+            }
         }
         *id = 10;
         // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with
@@ -1073,7 +1092,7 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
             let mut u1 = 0.0;
             u = 1.0;
-            for k in 0..int_x86(-n) {
+            for k in 0..-n as i32 {
                 // U(k - 1, c, x) = (2k - c + x) U(k, c, x) - k (k - c + 1) U(k + 1, c, x)
                 let k = -f64::from(k);
                 (u, u1) = ((2.0 * k - c + x) * u - k * (k - c + 1.0) * u1, u);

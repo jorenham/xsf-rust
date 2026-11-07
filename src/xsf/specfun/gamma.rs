@@ -4,8 +4,7 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior,
-//! except for the loop count in `gamma2`, which is INT_MIN like with g++ on x86-64.
+//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 use core::f64::consts::PI;
 
@@ -13,7 +12,6 @@ use num_complex::{Complex64, c64};
 
 use super::SPECFUN_INF;
 use crate::utils::LN_TAU;
-use crate::xsf::tools::int_x86;
 
 pub(crate) fn gamma2(x: f64) -> f64 {
     // ==================================================
@@ -52,13 +50,18 @@ pub(crate) fn gamma2(x: f64) -> f64 {
         0.1000000000000000e-15,
     ];
 
+    // Unlike in xsf (scipy/xsf#380), the integers |x| >= 2^31 are also recognized, and the loops
+    // stop once the product overflows
     let mut ga;
-    if x == f64::from(x as i32) {
+    if x == x.trunc() {
         if x > 0.0 {
             ga = 1.0;
             let m = (x - 1.0) as i32;
             for k in 2..=m {
                 ga *= f64::from(k);
+                if ga.is_infinite() {
+                    break;
+                }
             }
         } else {
             ga = SPECFUN_INF;
@@ -68,13 +71,15 @@ pub(crate) fn gamma2(x: f64) -> f64 {
         let mut z;
         if x.abs() > 1.0 {
             z = x.abs();
-            // like g++ on x86-64, INT_MIN for |x| >= 2^31 (UB in C++), instead of saturating and
-            // running ~2^31 iterations
-            let m = int_x86(z);
+            let m = z as i32;
             for k in 1..=m {
                 r *= z - f64::from(k);
+                if r.is_infinite() {
+                    break;
+                }
             }
-            z -= f64::from(m);
+            // `z - m` if z < 2^31
+            z = z.fract();
         } else {
             z = x;
         }
