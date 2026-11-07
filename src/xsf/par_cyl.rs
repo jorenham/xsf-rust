@@ -17,6 +17,7 @@ use crate::utils::{SQRT_PI, SQRT2OPI};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
+use crate::xsf::tools::INT_OVERFLOW;
 use crate::{airy, airy_scaled, cospi, log1pmx, loggamma, rgamma, sinpi};
 
 fn dvsa(x: f64, va: f64) -> f64 {
@@ -399,8 +400,9 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
         // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
         // v <= x^2 / 2 (here v is the order + 1).
         //
-        // Unlike in xsf, the same is done for -7.5 <= x < 0, where the upward recurrence below is
-        // unstable, e.g. `pbvv(10.0, -7.5).0` was -1.3046973e-3 instead of -1.3046974e-3.
+        // Unlike in xsf, the same is done for -7.5 <= x < 0 and v <= x^2 / 2, where the upward
+        // recurrence below is unstable, e.g. `pbvv(10.0, -7.5).0` was -1.3046973e-3 instead of
+        // -1.3046974e-3.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -633,7 +635,7 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
 /// or `None` where `(int) v` is undefined behavior in C++, or if the allocation fails (like the
 /// C++ `malloc`)
 fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
-    if v.abs() >= 2_147_483_648.0 {
+    if v.abs() >= INT_OVERFLOW {
         return None;
     }
     // NB. Indexing of DV/DP in specfun.f:PBDV starts from 0 and |v| + 1 can round up, hence +3
@@ -880,7 +882,7 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     }
 
     let t = 0.5 * x / a.sqrt();
-    let q = t.mul_add(t, 1.0);
+    let q = t * t + 1.0;
     let w = 1.0 / (q * q.sqrt() * mu2);
     let (mut su, mut sv) = (0.0, 0.0);
     for k in (0..=10).rev() {
@@ -947,7 +949,7 @@ fn near_int(v: f64) -> bool {
 
 /// `D_v(x)`, `D_v'(x)` by uniform asymptotic expansions, or `None` outside their regime
 fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
-    if !(v.abs() < 2_147_483_648.0 && x.is_finite()) {
+    if !(v.abs() < INT_OVERFLOW && x.is_finite()) {
         return None;
     }
     if v <= -20.0 {
@@ -1099,17 +1101,21 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     }
     // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
     // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`).
-    if v > 0.0 && v < 2.0 && !near_int(v) && (-10.0..-5.8).contains(&x) {
-        let pdf = dvsa(x, v);
-        return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
-    }
-    // Unlike in xsf, the same is done for -30 <= v < 0 (not for tiny |v|, where `dvsa` stops too
-    // early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was 26.98964
-    // instead of 26.98963.
-    if (-30.0..-1e-15).contains(&v) && (-10.0..-5.8).contains(&x) {
-        let pdf = dvsa(x, v);
-        // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in `dvsa(x, v + 1)`
-        return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
+    //
+    // Unlike in xsf, the same is done with D_{v-1}(x) for -30 <= v < 0 (not for tiny |v|, where
+    // `dvsa` stops too early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was
+    // 26.98964 instead of 26.98963.
+    if (-10.0..-5.8).contains(&x) {
+        if v > 0.0 && v < 2.0 && !near_int(v) {
+            let pdf = dvsa(x, v);
+            return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
+        }
+        if (-30.0..-1e-15).contains(&v) {
+            let pdf = dvsa(x, v);
+            // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in
+            // `dvsa(x, v + 1)`
+            return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
+        }
     }
     // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
     // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
