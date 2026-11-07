@@ -1,7 +1,8 @@
 //! Ported from `scipy/special/_ndtri_exp.pxd`
 
-use core::f64::consts::SQRT_2;
+use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
 
+use crate::utils::SQRT2OPI;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::cephes::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2};
 
@@ -25,7 +26,17 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     } else {
         polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
     };
-    x1 - x0
+    let r = x1 - x0;
+
+    // Unlike in xsf, refine with a Newton step on `log_ndtr` outside the fitted range of P2/Q2
+    // (x <= 64, or y >= -2048). Its extrapolation loses up to 3000 eps (e.g. y = -2e5), and the
+    // error is below eps/4 again for x >= 2^18 (y <= -2^35).
+    if x > 64.0 && x < 262_144.0 {
+        // d/dr log_ndtr(r) = sqrt(2/pi) / erfcx(-r/sqrt(2))
+        r - (crate::log_ndtr(r) - y) * crate::erfcx(-r * FRAC_1_SQRT_2) / SQRT2OPI
+    } else {
+        r
+    }
 }
 
 /// Inverse of [`log_ndtr`](crate::log_ndtr) vs x.

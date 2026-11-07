@@ -39,6 +39,22 @@ fn test_very_small_arg() {
 }
 
 #[test]
+fn test_small_y_tail() {
+    // mpmath: findroot(lambda x: log(ncdf(x)) - y, -sqrt(-2 * y))
+    let cases = [
+        (-5e3, -99.944_748_174_841_1),
+        (-1e4, -141.379_839_873_127_17),
+        (-2e5, -632.443_881_253_468),
+        (-1e8, -14_142.134_882_976_301),
+    ];
+    np_assert_allclose!(
+        cases.map(|(y, _)| xsf::ndtri_exp(y)),
+        cases.map(|(_, x)| x),
+        rtol = 1e-15
+    );
+}
+
+#[test]
 fn test_asymptotes() {
     assert_eq!(xsf::ndtri_exp(f64::NEG_INFINITY), f64::NEG_INFINITY);
     assert_eq!(xsf::ndtri_exp(0.0), f64::INFINITY);
