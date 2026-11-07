@@ -218,6 +218,28 @@ fn test_carlson_huge_and_tiny_args() {
 }
 
 #[test]
+fn test_elliprg_wide_span() {
+    let actual = [
+        xsf::elliprg(1e-300, 1e150, 1e300),
+        xsf::elliprg(1e-300, 1e300, 1e300),
+        xsf::elliprg(2.23e-308, 6.76e-279, 1.03e-74),
+        xsf::elliprg(c64(1.0, 1.0), c64(1e300, 0.0), c64(1e300, 1e-300)).re,
+    ];
+    // Arb
+    let expected = [
+        5e149,                       // 5.0000000000000001313e149
+        7.853_981_633_974_483_5e149, // 7.8539816339744833023e149
+        5.074_445_782_546_11e-38,    // 5.0744457825461098929e-38
+        7.853_981_633_974_483_5e149, // 7.8539816339744833023e149
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // 1e-40 isn't treated as 0, since -1 is invalid
+    let invalid = xsf::elliprg(c64(1e-40, 0.0), ONE, c64(-1.0, 0.0));
+    assert!(invalid.re.is_nan());
+}
+
+#[test]
 fn test_elliprd_overflow() {
     // just below the overflow threshold, where `3 * adt` overflows
     let actual = xsf::elliprd(
