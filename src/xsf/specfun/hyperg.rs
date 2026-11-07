@@ -632,9 +632,9 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
         }
-        // Unlike in xsf, chguit is also used if chgubi has fewer than `ID_MIN` digits, unless
-        // chgubi overflows (e.g. for b < -170, where chguit is often wrong too) or chguit does
-        // (e.g. U(150, 9, 0.1) = 2.23e-250)
+        // Unlike in xsf (scipy/xsf#380), chguit is also used if chgubi has fewer than `ID_MIN`
+        // digits, unless chgubi overflows (e.g. for b < -170, where chguit is often wrong too) or
+        // chguit does (e.g. U(150, 9, 0.1) = 2.23e-250)
         if !ubi || id < ID_MIN && hu.is_finite() {
             let mut id_it = 0;
             let u = chguit(x, a, b, false, &mut id_it);
@@ -697,9 +697,9 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
 }
 
 pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
-    // Unlike in xsf, for a < 1 with `digamma` and `gamma` instead of `psi_spec` and `gamma2`, which
-    // lose digits near the poles (e.g. both are 8% off at -2 + 1e-15), unless Gamma isn't normal or
-    // the result isn't finite, e.g. U(-169 - 3e-14, 14, 4) = inf (not inf - inf)
+    // Unlike in xsf (scipy/xsf#380), for a < 1 with `digamma` and `gamma` instead of `psi_spec` and
+    // `gamma2`, which lose digits near the poles (e.g. both are 8% off at -2 + 1e-15), unless Gamma
+    // isn't normal or the result isn't finite, e.g. U(-169 - 3e-14, 14, 4) = inf (not inf - inf)
     if a < 1.0 {
         let hu = chgubi_with(x, a, b, id, false);
         if hu.is_finite() {
@@ -749,8 +749,8 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
         a0 = a;
         a1 = a - f64::from(n);
         a2 = a1;
-        // Unlike in xsf, Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because `a1` rounds,
-        // e.g. U(-2 + 1e-15, 4, 0.157) was 20.2 instead of 18.5
+        // Unlike in xsf (scipy/xsf#380), Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because
+        // `a1` rounds, e.g. U(-2 + 1e-15, 4, 0.157) was 20.2 instead of 18.5
         ga1 = if xsf {
             gamma2(a1)
         } else {
@@ -857,10 +857,10 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     let sa = ua * (hm1 + hm2);
     let sb = ub * hm3;
     let hu = sa + sb;
-    // Unlike in xsf, the digits are estimated from the rounding errors (of the largest partial
-    // sums) and the truncation errors (the last terms) of the series. xsf uses the ratio of the
-    // largest and smallest partial sums, which is large if a sum grows, and it misses the
-    // cancellation in `hm1 + hm2`.
+    // Unlike in xsf (scipy/xsf#380), the digits are estimated from the rounding errors (of the
+    // largest partial sums) and the truncation errors (the last terms) of the series. xsf uses the
+    // ratio of the largest and smallest partial sums, which is large if a sum grows, and it misses
+    // the cancellation in `hm1 + hm2`.
     //
     // E.g. U(13.5, 25, 0.005) = 2.54e68 had -69 digits (so NaN), and U(30, -10, 2) had 7 digits,
     // of which only 4 are correct. If `hu` overflows (inf / inf) or underflows to 0 (0 / 0, e.g.
@@ -1095,8 +1095,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
-            // Unlike in xsf, a + (k - 1) instead of a + k - 1, which loses the digits of a tiny
-            // a at k = 1 (all if |a| <= eps / 4)
+            // Unlike in xsf (scipy/xsf#459), a + (k - 1) instead of a + k - 1, which loses the
+            // digits of a tiny a at k = 1 (all if |a| <= eps / 4)
             //
             // e.g. U(1e-20, 10, 0.01) = 408.8 instead of 1
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);

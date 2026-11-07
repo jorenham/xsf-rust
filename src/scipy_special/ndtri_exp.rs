@@ -29,9 +29,9 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     };
     let r = x1 - x0;
 
-    // Unlike in xsf, refine with a Newton step on `log_ndtr` outside the fitted range of P2/Q2
-    // (x <= 64, or y >= -2048). Its extrapolation loses up to 3000 eps (e.g. y = -2e5), and the
-    // error is below eps/4 again for x >= 2^18 (y <= -2^35).
+    // Unlike in xsf (scipy/xsf#458), refine with a Newton step on `log_ndtr` outside the fitted
+    // range of P2/Q2 (x <= 64, or y >= -2048). Its extrapolation loses up to 3000 eps (e.g.
+    // y = -2e5), and the error is below eps/4 again for x >= 2^18 (y <= -2^35).
     if x > 64.0 && x < 262_144.0 {
         // d/dr log_ndtr(r) = sqrt(2/pi) / erfcx(-r/sqrt(2))
         r - (crate::log_ndtr(r) - y) * crate::erfcx(-r * FRAC_1_SQRT_2) / SQRT2OPI

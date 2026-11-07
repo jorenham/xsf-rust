@@ -88,8 +88,8 @@ const IGAM_ASYMP_COEFF_D: [[f64; IGAM_ASYMP_COEFF_N]; IGAM_ASYMP_COEFF_K] = [
 /// exp(a - x).
 pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
     if (a - x).abs() > 0.4 * a.abs() {
-        // Unlike in xsf, `rgamma` is used for a < MACHEP, where `exp(-lgam(a))` loses digits
-        // (~1e-13 for a = 1e-300), or underflows.
+        // Unlike in xsf (scipy/xsf#456), `rgamma` is used for a < MACHEP, where `exp(-lgam(a))`
+        // loses digits (~1e-13 for a = 1e-300), or underflows.
         if a < MACHEP {
             return (a * x.ln() - x).exp() * rgamma(a);
         }
@@ -218,7 +218,7 @@ fn igamc_series(a: f64, x: f64) -> f64 {
 
     let logx = x.ln();
     let term = -(a * logx - lgam1p(a)).exp_m1();
-    // Unlike in xsf, `rgamma` is used for a < MACHEP, as in `igam_fac`.
+    // Unlike in xsf (scipy/xsf#456), `rgamma` is used for a < MACHEP, as in `igam_fac`.
     if a < MACHEP {
         return term - (a * logx).exp() * rgamma(a) * sum;
     }
@@ -339,7 +339,7 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
         return asymptotic_series(a, x, IGAM);
     }
 
-    // Unlike in xsf, a < MACHEP also uses `1 - igamc`, without cancellation as then
+    // Unlike in xsf (scipy/xsf#456), a < MACHEP also uses `1 - igamc`, without cancellation as then
     // igamc < 746 a < 1e-13.
     //
     // E.g. igam(1e-310, 0.5) was 0 instead of 1.
