@@ -335,3 +335,24 @@ fn test_hyp2f1_f64_huge_c_minus_1_lt_c_minus_a_minus_b_lt_0() {
     np_assert_allclose!(actual, desired, rtol = 1e-13);
     assert!(xsf::hyp2f1(1e17, 0.5, 1e17, f64::NAN).is_nan());
 }
+
+#[test]
+fn test_hyp2f1_f64_tiny_c_or_c_minus_a() {
+    // unlike in xsf: tiny c and c - a were treated as 0, which gave 2, inf, NaN, 1.0 and
+    // 1.0000000000000023e-5 (Arb)
+    let actual = [
+        xsf::hyp2f1(-1e-30, 1.0, 1e-17, 0.5),
+        xsf::hyp2f1(5.2, 12.5, -1e-17, 0.6),
+        xsf::hyp2f1(12.5, 0.3, 1e-15, 0.2),
+        xsf::hyp2f1(1e-14, -1.5, 1e-17, -1.5),
+        xsf::hyp2f1(-0.4, -2.5, -0.400_000_000_000_09, 0.99),
+    ];
+    let desired = [
+        0.999_999_999_999_9,
+        -5.650_224_541_964_126e27,
+        6.795_217_861_653_541e15,
+        2_953.847_075_210_480_4,
+        1.000_000_042_269_799_7e-5,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+}
