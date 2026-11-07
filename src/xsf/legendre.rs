@@ -918,7 +918,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        // (unlike in xsf, scipy/xsf#368) `log(|x| - 1)` instead of `log(x - 1)`
+        // Unlike in xsf (scipy/xsf#368), this uses `log(|x| - 1)` instead of `log(x - 1)`.
         let km = if x.abs() > 1.1 {
             40_i32.wrapping_add(m).wrapping_add(n)
         } else {

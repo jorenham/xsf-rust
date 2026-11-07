@@ -272,7 +272,9 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
     let mut k = dk;
     let mut hk = h * k;
     let mut bvn = 0.0;
-    // Unlike in xsf (scipy/xsf#360), the 20-point rule is also used in the tail
+    // Unlike in xsf (scipy/xsf#360), the 20-point rule is also used in the tail, heuristically
+    // where |r| (h^2 + k^2) / 2 > 1, which bounds the first-order change |r h k| of the exponent of
+    // the integrand below over the interval.
     let tail = r.abs() * (h * h + k * k) > 2.0;
     let (w, x): (&[f64], &[f64]) = if r.abs() < 0.3 && !tail {
         // Gauss Legendre points and weights, n = 6
