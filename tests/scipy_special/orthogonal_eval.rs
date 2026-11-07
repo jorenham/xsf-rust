@@ -1,3 +1,4 @@
+use num_complex::c64;
 use xsref::np_assert_allclose;
 
 #[test]
@@ -52,6 +53,28 @@ fn test_eval_real_degree_large() {
         1_132.803_574_409_967_7,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_eval_jacobi_alpha_near_minus_one() {
+    // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
+    let actual = [
+        xsf::eval_jacobi(7_i32, -1.0 + 1e-15, 2.0, -0.6),
+        xsf::eval_jacobi(7.5, -1.0 + 1e-15, 2.0, -0.6),
+        xsf::eval_jacobi(7.5, -1.0 + 1e-15, 2.0, 1.0),
+        xsf::eval_jacobi(46.5, -1.0 + 1e-14, -0.4, -0.57),
+    ];
+    let desired = [
+        1.370_879_999_999_999_2,
+        1.337_487_196_225_991_4,
+        1.332_267_629_550_191_2e-16,
+        0.040_543_716_001_115_56,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    let actual = xsf::eval_jacobi(7.5, -1.0 + 1e-15, 2.0, c64(-0.6, 0.25));
+    let desired = c64(6.901_490_182_319_64, -3.299_333_682_536_697);
+    np_assert_allclose!([actual], [desired], rtol = 1e-12);
 }
 
 #[test]
