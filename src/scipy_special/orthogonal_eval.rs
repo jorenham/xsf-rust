@@ -717,9 +717,9 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
 
 /// `binom(n + alpha, n)`
 ///
-/// Unlike in xsf, this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if `alpha < 0`
-/// and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the digits of a
-/// small `b`.
+/// Unlike in xsf (scipy/xsf#457), this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if
+/// `alpha < 0` and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the
+/// digits of a small `b`.
 ///
 /// E.g. `eval_genlaguerre(30, -1 + 1e-14, 10.0)` was -11.70 instead of -10.97.
 fn genlaguerre_binom(n: f64, alpha: f64) -> f64 {
