@@ -1,7 +1,7 @@
-use core::f64::consts::TAU;
 use num_complex::Complex64;
 
 use crate::utils::MAXLOG;
+use crate::xsf::cephes::lgam_stirling_corr;
 
 const LN_MAX: f64 = MAXLOG; // f64::MAX.ln()
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
@@ -21,14 +21,15 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let p1 = (1.0 + z.signum() * x * x).sqrt();
     let eta = p1 + x.ln() - crate::log1p(p1);
 
-    let mut arg_exp_i = -0.5 * p1.ln();
-    arg_exp_i -= 0.5 * (TAU * v1).ln();
-    arg_exp_i += crate::gammaln(v);
-    let gs = crate::gammasgn(v);
-
-    let mut arg_exp_k = arg_exp_i;
-    arg_exp_i += v1 * eta;
-    arg_exp_k -= v1 * eta;
+    // Unlike in xsf (scipy/xsf#366), the ~v1 ln(v1) terms of the exponent cancel analytically
+    // (Stirling's formula), e.g. hyp0f1(1e12, 2e12) is 7.389 instead of 7.360:
+    //
+    //   zeta = ln(Gamma(v) arg^(1-v) e^(v1 eta) / sqrt(2 pi v1))                (v > 1)
+    //        = -ln(Gamma(v) 2 sin(pi v1) arg^v1 e^(-v1 eta) / sqrt(2 pi v1))    (v < 1)
+    //        = v1 (h - log1pmx(h)) + corr(v1),  h = (p1 - 1) / 2
+    let h = z.signum() * x * x / (2.0 * (1.0 + p1));
+    let zeta = v1 * (h - crate::log1pmx(h)) + lgam_stirling_corr(v1);
+    let ln_sqrt_p1 = 0.5 * p1.ln();
 
     // large-v asymptotic correction, DLMF 10.41.10
     let pp = 1.0 / p1;
@@ -40,18 +41,22 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
     let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
 
-    // Unlike in xsf (scipy/xsf#366), this multiplies by arg^(1-v) instead of arg^(-|v-1|).
-    let out = (arg_exp_i + crate::xlogy(1.0 - v, arg)).exp() * gs * u_corr_i;
-
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
         // (or DLMF 10.2.3: J_{-v} = cos(pi*v) J_v - sin(pi*v) Y_v, where J_v is negligible if
         // J_{-v} overflows)
-        let out = if z < 0.0 { 0.0 } else { out };
         let u_corr_k = 1.0 - u1 / v1 + u2 / (v1 * v1) - u3 / (v1 * v1 * v1);
-        out + (arg_exp_k + crate::xlogy(v1, arg)).exp() * gs * 2.0 * crate::sinpi(v1) * u_corr_k
+        let out = (-zeta - ln_sqrt_p1).exp() * u_corr_k;
+        if z < 0.0 {
+            out
+        } else {
+            // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent
+            let s = 2.0 * crate::sinpi(v);
+            let i = (2.0 * v1 * eta - zeta - ln_sqrt_p1 - s.abs().ln()).exp();
+            out + i.copysign(s) * u_corr_i
+        }
     } else {
-        out
+        (zeta - ln_sqrt_p1).exp() * u_corr_i
     }
 }
 
