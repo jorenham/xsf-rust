@@ -17,6 +17,7 @@
 
 use crate::utils::MACHEP;
 use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};
+use crate::xsf::hyp2f1_recur;
 
 const HYP2F1_EPS: f64 = 1.0e-13;
 
@@ -558,6 +559,18 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
+    hyp2f1_impl(a, b, c, x, is_large(a, b, c))
+}
+
+/// Unlike in xsf, `hyp2f1_recur` is tried first if `max(|a|, |b|, |c|)` is at least this
+const HYP2F1_RECUR_MIN: f64 = 10.0;
+
+fn is_large(a: f64, b: f64, c: f64) -> bool {
+    a.abs().max(b.abs()).max(c.abs()) >= HYP2F1_RECUR_MIN
+}
+
+/// `hyp2f1`, where `recur` is whether the parameters of the outermost call are large
+fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_a = false;
     let mut neg_int_b = false;
@@ -597,6 +610,24 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         neg_int_b = true;
     }
 
+    // Unlike in xsf, for large parameters first try the backward recurrence in c of
+    // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
+    // excludes the polynomial cases (incl. c - a or c - b a non-positive integer), and c a
+    // non-positive integer. The transformations below also use it, but only if the parameters of
+    // the outermost call are large, so that the other results are unchanged.
+    //
+    // E.g. hyp2f1(658.99, 0.0047, 51.38, -2.72) was NaN instead of 0.983.
+    if recur
+        && x < 0.9
+        && is_large(a, b, c)
+        && ![c, c - a, c - b].into_iter().any(near_neg_int)
+        && !(neg_int_a || neg_int_b)
+    {
+        if let Some(y) = hyp2f1_recur(a, b, c, x) {
+            return y;
+        }
+    }
+
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
         let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
         // Unlike in xsf, if c < 0 is not an integer and -1 < x < 0, first try the series of the
@@ -628,7 +659,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 return y;
             }
         }
-        return s.powf(d) * hyp2f1(c - a, c - b, c, x);
+        return s.powf(d) * hyp2f1_impl(c - a, c - b, c, x, recur);
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
         return f64::INFINITY; // goto hypdiv
@@ -687,8 +718,8 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
                  */
-                p = hyp2f1(a, 1.0 - c + a, 1.0 - b + a, 1.0 / x);
-                q = hyp2f1(b, 1.0 - c + b, 1.0 - a + b, 1.0 / x);
+                p = hyp2f1_impl(a, 1.0 - c + a, 1.0 - b + a, 1.0 / x, recur);
+                q = hyp2f1_impl(b, 1.0 - c + b, 1.0 - a + b, 1.0 / x, recur);
                 p *= (-x).powf(-a);
                 q *= (-x).powf(-b);
                 t1 = gamma(c);
@@ -697,9 +728,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 return s * p + y * q;
             } else if x < -1.0 {
                 if a.abs() < b.abs() {
-                    return s.powf(-a) * hyp2f1(a, c - b, c, x / (x - 1.0));
+                    return s.powf(-a) * hyp2f1_impl(a, c - b, c, x / (x - 1.0), recur);
                 }
-                return s.powf(-b) * hyp2f1(b, c - a, c, x / (x - 1.0));
+                return s.powf(-b) * hyp2f1_impl(b, c - a, c, x / (x - 1.0), recur);
             }
 
             if ax > 1.0 {
@@ -758,8 +789,8 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 /* Apply the recurrence if power series fails */
                 let aid = (2.0 - id) as i32;
                 let mut e = c + f64::from(aid);
-                let mut d2 = hyp2f1(a, b, e, x);
-                let mut d1 = hyp2f1(a, b, e + 1.0, x);
+                let mut d2 = hyp2f1_impl(a, b, e, x, recur);
+                let mut d1 = hyp2f1_impl(a, b, e + 1.0, x, recur);
                 q = a + b + 1.0;
                 for _ in 0..aid {
                     r = e - 1.0;

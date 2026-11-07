@@ -268,7 +268,55 @@ fn test_hyp2f1_f64_c_lt_0() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
-    // but it fails (instead of returning 1 or -7.13e279) if the ratio of its terms underflows
-    assert!(xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8).is_nan());
-    assert!(xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8).is_nan());
+    // the ratio of its terms underflows here, but not for the backward recurrence in c (the direct
+    // sum of the power series in high precision)
+    let actual = [
+        xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8),
+        xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8),
+    ];
+    let desired = [-5.767_096_442_064_845e199, -5.767_096_442_064_845e279];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_parameters() {
+    // unlike in xsf: the backward recurrence in c for large parameters (references: the direct sum
+    // of the power series of the Pfaff transformation in high precision)
+    let actual = [
+        xsf::hyp2f1(35.17, 102.3, 0.0054, -9.74),
+        xsf::hyp2f1(658.99, 0.0047, 51.38, -2.72),
+        xsf::hyp2f1(-0.5, 692.8, 83.35, -3.98),
+        xsf::hyp2f1(-21.2, -10.2, -1e-8, -0.46),
+    ];
+    let desired = [
+        1.955_342_940_723_380_9e-60,
+        0.983_273_621_397_356_7,
+        5.845_197_863_408_547,
+        -53_404_320_641.112_48,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // x << -1: the 1/x transformation (references: its two series summed in high precision)
+    let actual = [
+        xsf::hyp2f1(1.35, 87.4, -32.1, -8478.0),
+        xsf::hyp2f1(-41.6, -16.3, 720.1, -204.7),
+        xsf::hyp2f1(387.2, -2.01, 1.7, -6264.9),
+        xsf::hyp2f1(849.1, -1.54, 55.0, -236.7),
+    ];
+    let desired = [
+        -4.397_527_737_978_469e-6,
+        -1.151_698_277_128_985_8e17,
+        1_471_625_105_699.610_7,
+        304_675.781_003_058_8,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // long recurrences, whose solutions oscillate in c (references: Arb), e.g. 1.6e617 overflows
+    let actual = [
+        xsf::hyp2f1(-522.3, -123.4, 533.9, -0.9),
+        xsf::hyp2f1(-552.3, -953.1, -55.5, -4.13),
+        xsf::hyp2f1(-679.9, -678.6, -28.7, -4.79),
+    ];
+    let desired = [5.957_219_702_847_165e-52, f64::INFINITY, f64::NEG_INFINITY];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
