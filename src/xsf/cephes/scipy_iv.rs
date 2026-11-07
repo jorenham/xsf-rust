@@ -160,14 +160,15 @@ const IV_ASYMPTOTIC_UFACTORS: [[f64; IV_N_UFACTOR_TERMS]; IV_N_UFACTORS] = [
 
 /// The sums `sum_k u_k(t) / v^k` and `sum_k (-1)^k u_k(t) / v^k` of the uniform asymptotic
 /// expansions of `I_v` and `K_v` (AMS5 9.7.7 + 9.7.8), with `t = 1 / sqrt(1 + (x / v)^2)`, up to
-/// the first term below `tol`
+/// the first of two consecutive terms below `MACHEP`
 #[allow(clippy::needless_range_loop)]
-pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64, tol: f64) -> (f64, f64) {
+pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
     let t2 = t * t;
     let mut i_sum = 1.0;
     let mut k_sum = 1.0;
 
     let mut divisor = v;
+    let mut prev_small = false;
     for n in 1..IV_N_UFACTORS {
         /*
          * Evaluate u_k(t) with Horner's scheme;
@@ -185,15 +186,20 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64, tol: f64) -> (f64, f64
             term *= t;
         }
 
-        /* Sum terms */
         term /= divisor;
-        i_sum += term;
-        k_sum += if n % 2 == 0 { term } else { -term };
 
-        /* Check convergence */
-        if term.abs() < tol {
+        // Unlike in xsf, a term below MACHEP only stops the sum if the next one is too, since a
+        // single u_k(t) can vanish, e.g. u_1(t) at t^2 = 3/5, where
+        // bessel_i(100, 81.6496580927726) is 6392289838 instead of 6392309069
+        let small = term.abs() < MACHEP;
+        if small && prev_small {
             break;
         }
+        prev_small = small;
+
+        /* Sum terms */
+        i_sum += term;
+        k_sum += if n % 2 == 0 { term } else { -term };
 
         divisor *= v;
     }
@@ -223,7 +229,7 @@ fn ikv_asymptotic_uniform(
 
     let i_prefactor = (t / (2.0 * PI * v)).sqrt() * (v * eta).exp();
     let k_prefactor = (PI * t / (2.0 * v)).sqrt() * (-v * eta).exp();
-    let (i_sum, k_sum) = ikv_asymptotic_uniform_sums(v, t, MACHEP);
+    let (i_sum, k_sum) = ikv_asymptotic_uniform_sums(v, t);
 
     if let Some(k_value) = k_value {
         /* symmetric in v */
