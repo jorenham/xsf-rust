@@ -239,6 +239,26 @@ fn test_bessel_jyi_near_overflow() {
     }
 }
 
+#[test]
+fn test_bessel_huge_order() {
+    // Debye expansions (DLMF 10.19.6) at 60 digits, and J(-x) = e^(i pi v) J(x) (DLMF 10.11.1)
+    let actual = [
+        xsf::bessel_j(2_147_483_647.0, c64(2_149_631_130.647, 0.0)),
+        xsf::bessel_j(8_804_682_956.5, c64(-8_813_487_639.456_5, 0.0)),
+        xsf::hankel_1(8_804_682_957.25, c64(-8_813_487_640.207_249, 0.0)),
+        xsf::bessel_y(36_099_200_123.25, c64(36_135_299_323.373_245, 0.0)),
+    ];
+    let expected = [
+        c64(-1.632_029_240_809_612_2e-5, 0.0),
+        c64(0.0, 3.866_168_657_892_145e-5),
+        c64(1.953_806_271_557_623_4e-5, -3.513_747_043_055_447_5e-5),
+        c64(-8.323_868_312_936_047e-6, 0.0),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-6);
+    let j = xsf::bessel_j(2_147_483_648.0, 2_149_631_131.648);
+    np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
+}
+
 // Bessel K
 
 #[test]
