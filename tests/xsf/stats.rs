@@ -543,6 +543,27 @@ fn test_fdtr_fdtrc_tiny_df() {
 }
 
 #[test]
+fn test_fdtr_fdtrc_df_below_eps() {
+    // reference values from mpmath; one df is below eps times the other (see `betainc_xy`)
+    let p = [
+        xsf::fdtrc(1e-300, 1.0, 1.0),
+        xsf::fdtr(1.0, 1e-300, 1.0),
+        xsf::fdtr(0.1, 1e-20, 1e10),
+        xsf::fdtr(3.0, 1e-20, 1e-3),
+        // both df are below eps / 1000
+        xsf::fdtr(1e-200, 1e-210, 1e100),
+    ];
+    let p_ref = [
+        3.460_809_111_296_668e-298,
+        3.460_809_111_296_668e-298,
+        4.334_779_851_161_283e-19,
+        1.981_442_661_534_338_8e-19,
+        9.999_999_999_000_001e-11,
+    ];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
+}
+
+#[test]
 fn test_fdtr_bdtr_large_df() {
     // reference values from mpmath (see `incbet_lnpow`)
     let p = xsf::fdtr(100.0, 1e20, 0.5);

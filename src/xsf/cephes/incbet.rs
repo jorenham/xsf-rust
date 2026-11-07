@@ -5,8 +5,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG};
-use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr};
+use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG, SCIPY_EULER};
+use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi};
 use crate::xsf::log::log1pmx;
 
 use core::f64::consts::TAU;
@@ -50,6 +50,42 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
         }
     }
     s
+}
+
+/// `1 - I_x(a, b)` for `a <= eps min(1, b)`, `b x <= 1` and `x <= 1/2` (`apser` of TOMS 708 \[1\])
+///
+/// To first order in `a`, with `gamma` the Euler-Mascheroni constant,
+///
+/// ```text
+/// 1 - I_x(a, b) = -a (ln(x) + psi(b) + gamma + sum_{j >= 1} (1 - b)_j x^j / (j j!)),
+/// ```
+///
+/// where the neglected terms are smaller by a factor of ~`a max(|ln(x)|, 1/b)`.
+///
+/// \[1\] See `incbet_lnpow`.
+fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
+    let bx = b * x;
+    let mut t = x - bx;
+    // for b eps > 0.02, psi(b) is ln(b) up to eps / 0.04, and ln(b x) avoids the cancellation
+    let ln_x_psi_b = if b * MACHEP <= 0.02 {
+        x.ln() + psi(b)
+    } else {
+        bx.ln()
+    };
+    let c = ln_x_psi_b + SCIPY_EULER + t;
+    let tol = 5.0 * MACHEP * c.abs();
+    let mut j = 1.0;
+    let mut s = 0.0;
+    loop {
+        j += 1.0;
+        t *= x - bx / j;
+        let aj = t / j;
+        s += aj;
+        if aj.abs() <= tol {
+            break;
+        }
+    }
+    -a * (c + s)
 }
 
 /// Unlike in xsf (scipy/xsf#358), the continued fractions are not limited to 300 iterations.
@@ -432,8 +468,21 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 ///   absolute error of ~(1 - ln(b)) eps and the result is at least ~b/5 (both measured), if its
 ///   relative error ~5 (1 - ln(b)) eps / b is below the ~0.1 eps / y of the continued fractions.
 /// - Otherwise `y` is passed to `incbet` as well.
+///
+/// Unlike in xsf, for tiny `b` the result is not computed as `1 - (1 - I)`, as in TOMS 708 (see
+/// `incbet_lnpow`), e.g. fdtrc(1e-300, 1, 1) was 1 instead of 3.5e-298:
+///
+/// - If `a` and `b` are both below `eps / 1000`, `I_x(a, b) = b / (a + b)`, up to a relative
+///   ~`a |ln(y)| < 745 a < eps`.
+/// - Else if `b <= eps min(1, a)` and `a y <= 1`, `incbet_apser` is used.
 pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
-    if x > 0.95 && a.is_finite() && b.is_finite() {
+    if x > 0.95 && y > 0.0 && a.is_finite() && b.is_finite() {
+        if a.max(b) < 1e-3 * MACHEP {
+            return b / (a + b);
+        }
+        if b <= MACHEP * a.min(1.0) && a * y <= 1.0 {
+            return incbet_apser(b, a, y);
+        }
         let p = if y < b / (a + b) || (a * y <= 1.0 && 50.0 * (1.0 - b.ln()) * y < b) {
             1.0 - betainc(b, a, y)
         } else {
