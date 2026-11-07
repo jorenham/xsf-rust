@@ -1045,7 +1045,11 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
-            r = -r * (a + k - 1.0) * (a - b + k) / (k * x);
+            // Unlike in xsf, a + (k - 1) instead of a + k - 1, which loses the digits of a tiny
+            // a at k = 1 (all if |a| <= eps / 4)
+            //
+            // e.g. U(1e-20, 10, 0.01) = 408.8 instead of 1
+            r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
             // Unlike in xsf (scipy/xsf#380), the loop stops once

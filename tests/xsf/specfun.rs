@@ -29,6 +29,22 @@ fn test_hypu_tiny_a() {
     let expected = [1.0, 0.999_999_999_999_996_1, 1.0, 1.0];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; 1 in xsf (`chgul` rounds `a + k - 1`)
+    let abx = [
+        (1e-20, 10.0, 0.01),
+        (-1e-20, 15.0, 0.1),
+        (1e-30, 30.0, 1.0),
+        (1e-40, 20.0, 0.002),
+    ];
+    let expected = [
+        408.762_021_103_157_6,
+        -6_934.305_358_080_271,
+        1.859_511_646_545_143_5,
+        1.223_736_600_747_381e27,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]
