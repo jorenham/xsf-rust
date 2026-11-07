@@ -298,6 +298,29 @@ fn test_hypu_large_neg_b() {
 }
 
 #[test]
+fn test_hypu_int_b() {
+    // Arb; NaN, NaN, NaN, and 4.534890e-44 (from `chgubi`) in xsf
+    let abx = [
+        (13.5, 25.0, 0.005),
+        (1.0, -26.0, 0.02),
+        (25.0, 2.0, 5.0),
+        (30.0, -10.0, 2.0),
+    ];
+    let expected = [
+        2.541_392_992_138_2e68,
+        0.037_008_569_781_592_95,
+        5.851_475_774_467_137e-33,
+        4.534_945_524_706_779e-44,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; still from `chgubi` (11 digits) if `chguit` overflows
+    let actual = xsf::hypu(150.0, 9.0, 0.1);
+    xsref::np_assert_allclose!([actual], [2.229_672_231_677_937e-250], rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp1f1() {
     xsref::test("hyp1f1", "d_d_cd-cd", |x| {
         xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]))
