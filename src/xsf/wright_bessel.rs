@@ -106,7 +106,6 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
     res
 }
 
-#[allow(clippy::items_after_statements)]
 fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f64 {
     /* 3. Taylor series in a=0 up to order 5, for tiny a and not too large x
     *
@@ -128,8 +127,6 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
     * and in b=0 to order 4.
     * Call: python _precompute/wright_bessel.py 2
     */
-    let mut A = [0.0; 6]; // coefficients of a^k  (1, -x * Psi(b), ...)
-    let mut B = [0.0; 6]; // powers of b^k/k! or terms in polygamma functions
     const C: [f64; 5] = [
         // coefficients of a^k1 * b^k2
         1.0,                      // C[0]
@@ -138,6 +135,8 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
         -1.008_063_240_818_285_7, // C[3]
         19.984_633_365_874_98,    // C[4]
     ];
+    let mut A = [0.0; 6]; // coefficients of a^k  (1, -x * Psi(b), ...)
+    let mut B = [0.0; 6]; // powers of b^k/k! or terms in polygamma functions
     let X = [
         // polynomials in x;
         1.0,                                                  // X[0]

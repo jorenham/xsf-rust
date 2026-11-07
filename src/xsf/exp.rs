@@ -58,7 +58,6 @@ pub(crate) fn cexp(z: Complex<f64>) -> Complex<f64> {
 // z.real = -log(cos(z.imag)).  There isn't a way around this problem  that
 // doesn't involve computing exp(z.real) and/or cos(z.imag) to higher
 // precision.
-#[allow(clippy::needless_late_init)]
 fn cexpm1(z: Complex<f64>) -> Complex<f64> {
     if !z.re.is_finite() || !z.im.is_finite() {
         // NOTE(xsf-rust): `num_complex::Complex::exp` follows libc++'s special cases, which differ
@@ -67,14 +66,13 @@ fn cexpm1(z: Complex<f64>) -> Complex<f64> {
         return z.exp() - 1.0;
     }
 
-    let x;
     let mut ezr = 0.0;
-    if z.re <= -40.0 {
-        x = -1.0;
+    let x = if z.re <= -40.0 {
+        -1.0
     } else {
         ezr = z.re.exp_m1();
-        x = ezr * z.im.cos() + cosm1(z.im);
-    }
+        ezr * z.im.cos() + cosm1(z.im)
+    };
 
     // don't compute exp(zr) too, unless necessary
     let y = if z.re > -1.0 {

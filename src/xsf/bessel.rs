@@ -1362,7 +1362,6 @@ fn itjya(x: f64) -> (f64, f64) {
     (tj, ty)
 }
 
-#[allow(clippy::needless_late_init)]
 fn ittika(x: f64) -> (f64, f64) {
     // =========================================================
     // Purpose: Integrate [I0(t)-1]/t with respect to t from 0
@@ -1407,7 +1406,6 @@ fn ittika(x: f64) -> (f64, f64) {
 
     let el = 0.5772156649015329;
     let mut tti;
-    let ttk;
     let mut r;
 
     if x == 0.0 {
@@ -1435,7 +1433,7 @@ fn ittika(x: f64) -> (f64, f64) {
         let rc = x * (2.0 * PI * x).sqrt();
         tti = tti * x.exp() / rc;
     }
-    if x <= 1.0 {
+    let ttk = if x <= 1.0 {
         let e0 = (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln() + PI * PI / 24.0 + 0.5 * el * el;
         let mut b1 = 1.5 - (el + (x / 2.0).ln());
         let mut rs = 1.0;
@@ -1449,11 +1447,11 @@ fn ittika(x: f64) -> (f64, f64) {
                 break;
             }
         }
-        ttk = e0 - 0.125 * x * x * b1;
+        e0 - 0.125 * x * x * b1
     } else if x < 40.0 {
         // Unlike in xsf (scipy/xsf#379), the trapezoidal rule on int_0^inf E1(x cosh(u)) du
         // (DLMF 10.32.9)
-        ttk = trapezoid_cosh(x, |w| (-w).exp() * scaled_exp1(x + w) / (x + w)) * (-x).exp();
+        trapezoid_cosh(x, |w| (-w).exp() * scaled_exp1(x + w) / (x + w)) * (-x).exp()
     } else {
         let mut ttk_ = 1.0;
         r = 1.0;
@@ -1463,8 +1461,8 @@ fn ittika(x: f64) -> (f64, f64) {
             ttk_ += C[k - 1] * r;
         }
         let rc = x * (FRAC_2_PI * x).sqrt();
-        ttk = ttk_ * (-x).exp() / rc;
-    }
+        ttk_ * (-x).exp() / rc
+    };
     (tti, ttk)
 }
 

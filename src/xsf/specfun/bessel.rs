@@ -93,7 +93,6 @@ pub(crate) fn jynb(
     }
 }
 
-#[allow(clippy::needless_late_init)]
 pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]) {
     // =====================================================
     // Purpose: Compute Bessel functions Jn(x), Yn(x)
@@ -108,7 +107,6 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
     //          point for backward recurrence
     // =====================================================
 
-    let ky: i32;
     let r2p = 0.63661977236758;
     let mut bj0: f64;
     let mut bj1: f64;
@@ -153,7 +151,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         return;
     }
 
-    if (x <= 300.0) || (f64::from(n) > 0.9 * x) {
+    let ky: i32 = if (x <= 300.0) || (f64::from(n) > 0.9 * x) {
         // Backward recurrence for Jn
         if n == 0 {
             *nm = 1;
@@ -207,7 +205,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
         if 1 >= nmin {
             by[(1 - nmin) as usize] = by1;
         }
-        ky = 2;
+        2
     } else {
         // Hankel expansion
         let t1 = x - 0.25 * PI;
@@ -253,8 +251,8 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
             bj0 = bj1;
             bj1 = bjk;
         }
-        ky = 2;
-    }
+        2
+    };
     // Forward recurrence for Yn
     for k in ky..=*nm {
         let byk = 2.0 * (f64::from(k) - 1.0) * by1 / x - by0;
