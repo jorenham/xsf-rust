@@ -224,16 +224,15 @@ mod rjimpl {
         pub(super) h: f64,
     }
 
-    /// `sqrt(x * y)`
+    /// `sqrt(x * y * ...)`
     ///
-    /// Unlike in xsf (scipy/xsf#376), as `sqrt(x) sqrt(y)` if `x * y` underflows.
-    fn sqrt_prod(x: f64, y: f64) -> f64 {
-        let xy = x * y;
-        if xy.is_normal() {
-            xy.sqrt()
-        } else {
-            x.sqrt() * y.sqrt()
-        }
+    /// Unlike in xsf (scipy/xsf#376), as `sqrt(x) sqrt(y) ...` if `x * y`, `x * y * z`, ...
+    /// underflows or overflows.
+    fn sqrt_prod(args: &[f64]) -> f64 {
+        args[1..]
+            .iter()
+            .try_fold(args[0], |prod, &a| Some(prod * a).filter(|p| p.is_normal()))
+            .map_or_else(|| args.iter().copied().map(f64::sqrt).product(), f64::sqrt)
     }
 
     /// `ln(c x / y)`
@@ -260,11 +259,7 @@ mod rjimpl {
         /* this bound is sharp. RJ in this case behaves with logarithmic
          * singularity as p -> +0 */
         if abs_close_zero(p) || ((x != 0.0) && asymp_zero(p / x)) {
-            conf.f = (x * y * z).sqrt();
-            // Unlike in xsf (scipy/xsf#376), also if `x * y` or `x * y * z` underflows.
-            if !((x * y).is_normal() && (x * y * z).is_normal()) {
-                conf.f = x.sqrt() * y.sqrt() * z.sqrt();
-            }
+            conf.f = sqrt_prod(&[x, y, z]);
             return AsymFlag::Tinyp;
         }
 
@@ -285,7 +280,7 @@ mod rjimpl {
         if ((0.0 < y) && (y <= 1e-26)) || asymp_zero(t) {
             /* bound fairly sharp even if p is large */
             conf.a = 0.5 * (x + y);
-            conf.g = sqrt_prod(x, y);
+            conf.g = sqrt_prod(&[x, y]);
             if (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
                 return AsymFlag::Tinyy;
             }
@@ -299,7 +294,7 @@ mod rjimpl {
 
         if (z != 0.0) && asymp_zero(y.max(p) / z) {
             conf.b = 0.5 * (x + y);
-            conf.h = sqrt_prod(x, y);
+            conf.h = sqrt_prod(&[x, y]);
             /* when bounds are sharp */
             if ln_ratio(1.0, z, conf.b + conf.h).abs() <= z.sqrt() {
                 return AsymFlag::Hugez;
