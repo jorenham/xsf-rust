@@ -82,6 +82,22 @@ fn test_betainc_huge_b() {
 }
 
 #[test]
+fn test_betainc_a_or_b_above_1e154() {
+    assert_eq!(xsf::betainc(2.1e164, 4.6e5, 0.5), 0.0);
+    xsref::np_assert_allclose!(&[xsf::betainc(381.0, 9.9e154, 0.5)], &[1.0], rtol = 1e-15);
+    // not supported if both are huge (the true value is 1/2), unless far from the mean
+    assert!(xsf::betainc(1e200, 1e200, 0.5).is_nan());
+    assert_eq!(xsf::betainc(1e200, 1e100, 1e-99), 0.0);
+    // reference values from mpmath, using fdtr(a, inf, x) = P(a/2, a x/2)
+    let p = [xsf::fdtr(3.0, 1e200, 2.0), xsf::fdtr(0.5, 1e300, 10.0)];
+    let p_ref = [0.888_389_774_905_287_4, 0.990_786_251_520_46];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
+    let q = [xsf::fdtrc(3.0, 1e200, 2.0), xsf::fdtrc(0.5, 1e300, 10.0)];
+    let q_ref = [0.111_610_225_094_712_56, 0.009_213_748_479_540_033];
+    xsref::np_assert_allclose!(&q, &q_ref, rtol = 1e-13);
+}
+
+#[test]
 fn test_betainc_edge_cases() {
     for &((a, b, x), expected) in &[
         ((0.0, 0.0, 0.0), f64::NAN),

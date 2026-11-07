@@ -130,6 +130,19 @@ fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
         - lgam_stirling_corr(b)
 }
 
+/// `x k1 k2 / (k3 k4)`, a term of the continued fractions
+///
+/// Unlike in xsf, the ratios are taken first if a product overflows (e.g. `k3 k4 ~ a^2` for
+/// `a > 1.3e154`), where fdtr(3, 1e200, 2) was NaN instead of 0.89.
+fn incbet_term(x: f64, k1: f64, k2: f64, k3: f64, k4: f64) -> f64 {
+    let (num, den) = (x * k1 * k2, k3 * k4);
+    if num.is_finite() && den.is_finite() {
+        num / den
+    } else {
+        x * (k1 / k3) * (k2 / k4)
+    }
+}
+
 /// Continued fraction expansion #1 for incomplete beta integral
 fn incbcf(a: f64, b: f64, x: f64) -> f64 {
     let mut xk;
@@ -156,7 +169,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
     let nmax = incbet_maxiter(a, b, x);
     let thresh = 3.0 * MACHEP;
     loop {
-        xk = -(x * k1 * k2) / (k3 * k4);
+        xk = -incbet_term(x, k1, k2, k3, k4);
         pk = pkm1 + pkm2 * xk;
         qk = qkm1 + qkm2 * xk;
         pkm2 = pkm1;
@@ -164,7 +177,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
         qkm2 = qkm1;
         qkm1 = qk;
 
-        xk = (x * k5 * k6) / (k7 * k8);
+        xk = incbet_term(x, k5, k6, k7, k8);
         pk = pkm1 + pkm2 * xk;
         qk = qkm1 + qkm2 * xk;
         pkm2 = pkm1;
@@ -247,7 +260,7 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let nmax = incbet_maxiter(a, b, x);
     let thresh = 3.0 * MACHEP;
     loop {
-        xk = -(z * k1 * k2) / (k3 * k4);
+        xk = -incbet_term(z, k1, k2, k3, k4);
         pk = pkm1 + pkm2 * xk;
         qk = qkm1 + qkm2 * xk;
         pkm2 = pkm1;
@@ -255,7 +268,7 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
         qkm2 = qkm1;
         qkm1 = qk;
 
-        xk = (z * k5 * k6) / (k7 * k8);
+        xk = incbet_term(z, k5, k6, k7, k8);
         pk = pkm1 + pkm2 * xk;
         qk = qkm1 + qkm2 * xk;
         pkm2 = pkm1;
@@ -448,7 +461,16 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             y = a * (-xc).ln_1p() + t - lbeta(a, b);
         }
         y += (w / a).ln();
-        if y < MINLOG { 0.0 } else { y.exp() }
+        if y < MINLOG {
+            0.0
+        } else if b + 1.0 == b && (a * a).is_infinite() {
+            // The terms of the continued fractions no longer overflow (see `incbet_term`), but
+            // they are unreliable near the mean if `b` is huge too, so this is still NaN, e.g.
+            // betainc(1e200, 1e200, 0.5) instead of 1.1e-100.
+            f64::NAN
+        } else {
+            y.exp()
+        }
     };
 
     // done:
