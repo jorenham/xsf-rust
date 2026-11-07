@@ -374,6 +374,27 @@ fn test_hyp2f1_f64_large_near_1() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_integer_b_minus_a() {
+    // unlike in xsf: the log case of the 1/x transformation of `hyp2f1_recur` if b - a is an
+    // integer, e.g. the first was NaN (references: Arb)
+    let actual = [
+        xsf::hyp2f1(12.5, 812.5, 300.25, -25_000.0),
+        xsf::hyp2f1(25.0, 25.0, -0.5, -1e6),
+        xsf::hyp2f1(1.5, -50.5, 2.25, -100.0),
+        xsf::hyp2f1(-40.5, -20.5, 2.25, -100.0),
+        xsf::hyp2f1(25.5, 26.5, 27.25, -100.0),
+    ];
+    let desired = [
+        3.490_725_745_476_049e-61,
+        -8.873_628_661_650_908e-148,
+        1.101_295_428_271_828_5e100,
+        -2.154_549_921_333_831e66,
+        7.125_787_400_134_933e-51,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_polynomials() {
     // unlike in xsf: the recurrence in the degree, since the series cancel (references: Arb)
     let actual = [
