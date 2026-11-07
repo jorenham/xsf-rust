@@ -495,6 +495,16 @@ fn test_fdtrc() {
 }
 
 #[test]
+fn test_fdtr_fdtrc_inf() {
+    for &(a, b) in &[(1.0, 1.0), (1e-300, 1e300), (1e300, 1e-300)] {
+        assert_eq!(xsf::fdtr(a, b, f64::INFINITY), 1.0);
+        assert_eq!(xsf::fdtrc(a, b, f64::INFINITY), 0.0);
+    }
+    assert!(xsf::fdtr(f64::NAN, 1.0, f64::INFINITY).is_nan());
+    assert!(xsf::fdtr(1.0, f64::NAN, f64::INFINITY).is_nan());
+}
+
+#[test]
 fn test_fdtr_fdtrc_w_near_1() {
     // reference values from mpmath
     let p = xsf::fdtr(1.38, 0.112, 5.77e62);
