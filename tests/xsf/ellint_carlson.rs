@@ -409,6 +409,31 @@ fn test_elliprj_tiny_p() {
 }
 
 #[test]
+fn test_elliprj_subnormal() {
+    let actual = [
+        // R_D(0, 5e-324, 1)
+        xsf::elliprj(0.0, 5e-324, 1.0, 1.0),
+        // `z / p` underflows
+        xsf::elliprj(0.0, 5e-324, 5e-324, 3.0),
+        // `(x + y) / 2 + sqrt(x y)` is subnormal, and 0, respectively
+        xsf::elliprj(5e-324, 1e-320, 1e-10, 1.0),
+        xsf::elliprj(0.0, 5e-324, 1e20, 0.5),
+    ];
+    // Arb
+    let expected = [
+        1_117.818_990_965_431_6,    // 1117.8189909654315653
+        7.066_877_263_035_343e161,  // 7.0668772630353430919e161
+        107_479_496.807_218_07,     // 107479496.80721808114
+        2.235_399_657_305_823_6e-7, // 2.2353996573058236229e-7
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    assert_eq!(xsf::elliprj(0.0, 0.0, 1.0, 5e-324), INF);
+    // Arb: 8.2588819190784932822e308
+    assert_eq!(xsf::elliprj(0.0, 5e-324, 0.5, 1e-307), INF);
+}
+
+#[test]
 fn test_carlson_near_conjugate() {
     // a conjugate pair close to the negative real axis
     let x = c64(-1e-4, 1e-30);

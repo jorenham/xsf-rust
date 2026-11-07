@@ -48,9 +48,11 @@ mod rjimpl {
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
     use super::{rc, rf, rj};
 
+    // Unlike in xsf, also if `r` underflows to 0 (it is a ratio of positive numbers), e.g. z / p
+    // for R_J(0, 5e-324, 5e-324, 3)
     #[inline]
     pub(super) fn asymp_zero(r: f64) -> bool {
-        (0.0 < r) && (r <= config::ASYM_ZERO_UL)
+        (0.0..=config::ASYM_ZERO_UL).contains(&r)
     }
 
     #[inline]
@@ -91,7 +93,10 @@ mod rjimpl {
      * NOTE: x, y, z must be in-order by real parts.
      */
     pub(super) fn good_args<T: Num>(x: T, y: T, z: T, p: T, classify: &mut ArgCases) -> bool {
-        classify.hit_pole = x.too_small() && y.too_small() && z.ph_good() && !p.too_small();
+        // Unlike in xsf, subnormal arguments are not treated as 0 here and below, e.g. for
+        // R_J(0, 5e-324, 1, 1) = R_D(0, 5e-324, 1)
+        let zero = T::from(0.0);
+        classify.hit_pole = x == zero && y == zero && z.ph_good() && p != zero;
         if classify.hit_pole {
             return false;
         }
@@ -137,14 +142,14 @@ mod rjimpl {
          * 0, while Re p > 0."
          *     * By "them", Carlson seems to have meant the numbers x, y, z
          *       themselves, rather than their "real parts". */
-        let x0 = x.too_small();
-        let y0 = y.too_small();
-        let z0 = z.too_small();
+        let x0 = x == zero;
+        let y0 = y == zero;
+        let z0 = z == zero;
         if (pr > 0.0) && (xr >= 0.0) && !((y0 && (x0 || z0)) || (x0 && z0)) {
             return true;
         }
         /* "Alternatively, if p != 0 and |ph p| < pi ..." */
-        if !p.too_small() && p.ph_good() {
+        if p != zero && p.ph_good() {
             /* "... either let x, y, z be real and nonnegative and at most one of
              * them be 0, ..." */
             let mut flag = false;
@@ -281,7 +286,9 @@ mod rjimpl {
             /* bound fairly sharp even if p is large */
             conf.a = 0.5 * (x + y);
             conf.g = sqrt_prod(&[x, y]);
-            if (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
+            // Unlike in xsf, also if `a` underflows to 0 (where the bound tends to 0), e.g. for
+            // R_J(0, 5e-324, 1e20, 0.5)
+            if conf.a == 0.0 || (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
                 return AsymFlag::Tinyy;
             }
         }
@@ -446,6 +453,11 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 xct1[0] = 3.0;
                 xct1[1] = 2.0;
                 tmpres = ndot2(&xct1, &xct2, 2);
+                // Unlike in xsf, inf (not NaN) if a term overflows, e.g. for
+                // R_J(0, 5e-324, 0.5, 1e-307)
+                if tmpres.is_nan() {
+                    tmpres = 3.0 * xct2[0] + 2.0 * xct2[1];
+                }
             },
             AsymFlag::Hugey => {
                 /* Ref[2], Eq. 19.27.14 <https://dlmf.nist.gov/19.27.E14> */
@@ -468,10 +480,21 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 /* Ref[5], Proposition J3
                  * The bounds given in the ref is better than the one in
                  * Ref[6]. */
+                // Unlike in xsf, ln(c v / (a + g)) as 2 ln(sqrt(2 c) sqrt(v) / (sqrt(x) + sqrt(y)))
+                // if `a + g = (sqrt(x) + sqrt(y))^2 / 2` is subnormal, e.g. for
+                // R_J(5e-324, 1e-320, 1e-10, 1)
+                let ag = config.a + config.g;
+                let ln_ag = |c: f64, v: f64| {
+                    if ag.is_normal() {
+                        rjimpl::ln_ratio(c, v, ag)
+                    } else {
+                        2.0 * rjimpl::ln_ratio((2.0 * c).sqrt(), v.sqrt(), xr.sqrt() + yr.sqrt())
+                    }
+                };
                 let mut tx;
                 (status, tx) = rc(1.0, pr / zr, rerr);
-                tmpres = rjimpl::ln_ratio(8.0, zr, config.a + config.g) - 2.0 * tx;
-                tx = rjimpl::ln_ratio(2.0, pr, config.a + config.g) / pr;
+                tmpres = ln_ag(8.0, zr) - 2.0 * tx;
+                tx = ln_ag(2.0, pr) / pr;
                 let rt_h = tx * config.a * (1.0 + 0.5 * pr / zr) / (1.0 - config.a / pr);
                 tx = 1.5 / (zr.sqrt() * pr);
                 tmpres *= tx;
