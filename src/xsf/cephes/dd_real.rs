@@ -51,7 +51,7 @@ pub(crate) fn two_sum(a: f64, b: f64) -> (f64, f64) {
 
 /// Computes fl(a*b) and err(a*b).
 #[inline]
-fn two_prod(a: f64, b: f64) -> (f64, f64) {
+pub(crate) fn two_prod(a: f64, b: f64) -> (f64, f64) {
     let p = a * b;
     (p, a.mul_add(b, -p))
 }
