@@ -59,7 +59,11 @@
 //!    So for each of these, we compute `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1)
 //!    by steps 1 to 5 (and 8), and recur down to `k = 0`, e.g. `F(758.1, 7.7; -151.2; -0.3)`
 //!    from `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`. If `z > 0`, the
-//!    recurrence need not be stable, but its error bound still holds.
+//!    recurrence need not be stable, but its error bound still holds. We skip those with
+//!    `c > max(0, q)` (so `n = 1`) if the error bound of steps 1 to 5 exceeds 100 times
+//!    `HYP2F1_RECUR_TOL` (an empirical cutoff), since their start values at `c + 1` and `c + 2`
+//!    are hardly different from `F(a, b; c; x)`: in our tests, their results had error bounds at
+//!    most about 15 times smaller.
 //!
 //! 7. Return the result with the smallest error bound, or `None` if that exceeds
 //!    `HYP2F1_RECUR_TOL`, for the caller to fall back to another method.
@@ -84,8 +88,10 @@
 //! - The series and the recurrence keep their values as `m * 2^e`, to avoid overflow and
 //!   underflow.
 //! - The cost is bounded by `HYP2F1_RECUR_MAXITER` series terms and recurrence steps per
-//!   combination. It's about `(|p| w + 40) / (1 - w)` terms, plus `max(0, q) - c` steps. Step 6
-//!   costs up to 8 times as much as steps 1 to 5, but only if those fail.
+//!   combination, which is skipped (or only its step 3) if it's expected to exceed that. It's about
+//!   `(|p| w + 40) / (1 - w)` terms (but at least `(w (c - q) - c) / (1 - w)`), plus
+//!   `max(0, q) - c` steps. Step 6 costs up to 8 times as much as steps 1 to 5, but only if those
+//!   fail.
 //!
 //! # References
 //!
@@ -130,6 +136,11 @@ fn rescale_exp(x: f64) -> Option<i32> {
     (x != 0.0 && x.is_finite() && !(1.0 / big..=big).contains(&x)).then(|| x.log2().round() as i32)
 }
 
+/// Whether `2^-250 <= |f| <= 2^250`
+fn tame(f: f64) -> bool {
+    (2.0_f64.powi(-250)..=2.0_f64.powi(250)).contains(&f.abs())
+}
+
 /// `v + k`, rounded to `f64` (if `v` is a double, `v.hi + k` is the same, and faster)
 fn add_hi(v: Dd, k: f64) -> f64 {
     if v.lo == 0.0 { v.hi + k } else { (v + k).hi }
@@ -167,23 +178,36 @@ fn series_w(p: Dd, r: Dd, c: Dd, w: Dd, budget: &mut f64) -> Option<Scaled> {
     let (mut pk, mut rk) = (p.hi, r.hi);
     let (mut f0, mut f1) = (pk, rk / c.hi);
     loop {
-        // Multiply by the two factors separately, with `|t|` in `[2^-500, 2^500]`, or in `[1, 2)`
-        // if a factor is outside that range, so that the product can't underflow (e.g. for tiny p
-        // and r), and fail if a factor underflows, or a factor or the product overflows.
-        for (f, num) in [(f0, pk), (f1 * w, rk)] {
-            if !f.is_finite() || f.abs() < f64::MIN_POSITIVE && num != 0.0 {
-                return None;
-            }
-            if t != 0.0 && rescale_exp(f).is_some() {
-                let (m, s) = frexp_f64(t);
-                (t, te) = (2.0 * m, te + s - 1);
-            }
-            t *= f;
-            if !t.is_finite() {
-                return None;
-            }
+        let fw = f1 * w;
+        if tame(f0) && tame(fw) {
+            // The usual case: `|t|` is 0 or within `[2^-500, 2^500]`, so `|t f0|` and `|t f0 fw|`
+            // are 0 or within `[2^-1000, 2^1000]`, and `t` need only be rescaled once, which gives
+            // the same `t 2^te` (as long as the values are normal, scaling by powers of 2 doesn't
+            // change the rounding).
+            t = t * f0 * fw;
             if let Some(s) = rescale_exp(t) {
                 (t, te) = (ldexp_f64(t, -s), te + s);
+            }
+        } else {
+            // Multiply by the two factors separately, with `|t|` in `[2^-500, 2^500]`, or in
+            // `[1, 2)` if a factor is outside that range, so that the product can't underflow (e.g.
+            // for tiny p and r), and fail if a factor underflows, or a factor or the product
+            // overflows.
+            for (f, num) in [(f0, pk), (fw, rk)] {
+                if !f.is_finite() || f.abs() < f64::MIN_POSITIVE && num != 0.0 {
+                    return None;
+                }
+                if t != 0.0 && rescale_exp(f).is_some() {
+                    let (m, s) = frexp_f64(t);
+                    (t, te) = (2.0 * m, te + s - 1);
+                }
+                t *= f;
+                if !t.is_finite() {
+                    return None;
+                }
+                if let Some(s) = rescale_exp(t) {
+                    (t, te) = (ldexp_f64(t, -s), te + s);
+                }
             }
         }
         let term = if te == 0 { t } else { ldexp_f64(t, te) };
@@ -389,20 +413,25 @@ fn recur_start(q: Dd, c: Dd) -> f64 {
 fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
     // The series takes about (|p| w + 40) / (1 - w) terms, so give up early if that's too many:
     // the terms peak near k = |p| w / (1 - w), and then decay like w^k, which takes about
-    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms.
-    if (p.hi.abs() * w.hi + 40.0) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
+    // ln(2^53) / (1 - w) ~ 37 / (1 - w) more terms. But if r > c, it takes at least
+    // (w r - c) / (1 - w) terms, since it only stops once w (r + k) / (c + k) < 1.
+    let r = -q + c.hi + c.lo;
+    if (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER {
         return None;
     }
     // the number of series terms plus recurrence steps left
     let mut budget = HYP2F1_RECUR_MAXITER;
-    let r = -q + c.hi + c.lo;
     let direct = series_w(p, r, c, w, &mut budget);
     if c.hi > q.hi.max(0.0) || direct.is_some_and(|y| y.err <= HYP2F1_ETHRESH) {
         return direct;
     }
     let n = recur_start(q, c);
+    // Give up if the rest of the budget is likely short of the n steps and the series at c + n and
+    // c + n + 1, each estimated at n terms fewer than this one (e.g. without its first -c terms,
+    // where c + k < 0).
+    let terms = (HYP2F1_RECUR_MAXITER - budget - n).max(0.0);
     budget -= n;
-    if budget < 0.0 {
+    if budget < 2.0 * terms {
         return direct;
     }
     let (c_n, r_n) = (c + n, r + n);
@@ -633,9 +662,9 @@ fn fold_exp(y: Scaled, l: Dd) -> Scaled {
 }
 
 /// Step 6: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, as
-/// `(y, l)` with the value `y exp(l)`
+/// `(y, l)` with the value `y exp(l)`, where `err` is the error bound of steps 1 to 5
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
+fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, err: f64) -> Option<(Scaled, Dd)> {
     let x_dd = Dd::new(x);
     let (z_pfaff, ln_1mx) = (x_dd / (x_dd - 1.0), ln_dd(Dd::new(1.0) - x));
     let mut best = None;
@@ -647,8 +676,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64) -> Option<(Scaled, Dd)> {
         (a, c - b, z_pfaff, 0.0, 1.0),
         (c - a, b, z_pfaff, 1.0, 0.0),
     ] {
+        // (if c > max(0, q), only if steps 1 to 5 nearly succeeded, see the module docs)
         let n = recur_start(q, c);
-        if n > HYP2F1_RECUR_MAXITER {
+        if c.hi > q.hi.max(0.0) && err > 100.0 * HYP2F1_RECUR_TOL || n > HYP2F1_RECUR_MAXITER {
             continue;
         }
         // (only those start values that step 7 would accept)
@@ -681,8 +711,9 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     }
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     let mut best = hyp2f1_recur_dd(a, b, c, x);
-    if !best.is_some_and(|(y, _)| y.err <= HYP2F1_RECUR_TOL) {
-        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x), |y| y.0.err);
+    let err = best.map_or(f64::INFINITY, |(y, _)| y.err);
+    if !(err <= HYP2F1_RECUR_TOL) {
+        best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, err), |y| y.0.err);
     }
     let (y, l) = best.filter(|(y, _)| y.err <= HYP2F1_RECUR_TOL)?;
     let y = fold_exp(y, l);
