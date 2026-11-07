@@ -102,6 +102,30 @@ fn test_elliprf() {
 }
 
 #[test]
+fn test_elliprf_yz_underflow() {
+    let actual = [
+        xsf::elliprf(0.0, 1e-221, 2.9e-166),
+        xsf::elliprf(1e-320, 1e-221, 2.9e-166),
+        xsf::elliprf(0.0, 1e-200, 1e-200),
+        // with a correction of -1e-10 relative
+        xsf::elliprf(1e-320, 1e-300, 1e-100),
+    ];
+    // Arb
+    let expected = [
+        3.831_009_431_877_63e84,     // 3.8310094318776299821e84
+        3.831_009_431_877_63e84,     // 3.8310094318776299821e84
+        1.570_796_326_794_896_6e100, // 1.5707963267948966333e100
+        2.316_448_036_604_244_7e52,  // 2.3164480366042445726e52
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // Arb: 1.3736768699491089418e100
+    let actual = xsf::elliprf(ZERO, c64(1e-200, 1e-200), c64(1e-200, -1e-200));
+    assert_eq!(actual.im, 0.0);
+    xsref::np_assert_allclose!(&[actual.re], &[1.373_676_869_949_108_9e100], rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprg() {
     let actual = [
         xsf::elliprg(0.0, 16.0, 16.0),

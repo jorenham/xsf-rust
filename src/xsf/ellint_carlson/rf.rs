@@ -73,7 +73,14 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         let (status, tmpres) = rf0(ym, zm, rerr * 0.5);
         /* Correction for non-zero x, see Eq. 19.27.3 in
          * https://dlmf.nist.gov/19.27.E3 */
-        let res = tmpres - xm.quot(ym.prod(zm)).sqrt();
+        let yz = ym.prod(zm);
+        // Unlike in xsf, as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows, e.g. for
+        // R_F(0, 1e-200, 1e-200)
+        let res = if yz.too_small() {
+            tmpres - xm.sqrt().quot(ym.sqrt().prod(zm.sqrt()))
+        } else {
+            tmpres - xm.quot(yz).sqrt()
+        };
         return (status, res);
     }
 
