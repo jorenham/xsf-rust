@@ -1,4 +1,9 @@
-//! Rust translation of <https://github.com/scipy/scipy/blob/d3ac276/scipy/special/wright.cc>
+//! Translated into pure Rust from `xsf/wright.h` (scipy/xsf@527cef1). Original author: Piers
+//! Lawrence (ACM TOMS 917).
+//!
+//! Unlike in xsf, the complex arithmetic is that of `num_complex` (naive `*` and `/`, and `sqrt`
+//! in polar form), not that of `std::complex`, and the iterations use `Complex::ln` instead of
+//! `std::log` (`clog`).
 
 use crate::numpy::nextafter;
 use crate::xsf::cephes::dd_real::two_sum;
@@ -9,7 +14,7 @@ use num_traits::Zero;
 const TWOITERTOL: f64 = f64::EPSILON;
 const I: Complex64 = Complex64 { re: 0.0, im: 1.0 };
 
-/// Translated from <https://github.com/scipy/scipy/blob/3dcd7b9/scipy/special/_round.h#L28-L45>
+/// `a + b`, rounded up
 fn add_round_up(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         return f64::NAN;
@@ -25,7 +30,7 @@ fn add_round_up(a: f64, b: f64) -> f64 {
     }
 }
 
-/// Translated from <https://github.com/scipy/scipy/blob/3dcd7b9/scipy/special/_round.h#L48-L63>
+/// `a + b`, rounded down
 fn add_round_down(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         return f64::NAN;
@@ -121,55 +126,34 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
             + (1.0 / 16.0 + (-1.0 / 192.0 + (-1.0 / 3072.0 + 13.0 / 61440.0 * pz) * pz) * pz)
                 * pz
                 * pz;
-    } else if x <= -0.105e1 && pi < y && y - pi <= -0.75e0 * (x + 0.1e1) {
-        // Region 5: Top wing
-        // Negative log series
-        let t = z - I * pi;
-        let pz = clog(-t);
-        w = t - pz;
-        if z.norm() > 1e50 {
-            // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
-            return w;
-        }
-        let mut fac = pz / t;
-        w += fac;
-        fac /= t;
-        w += fac * (0.5 * pz - 1.0);
-        fac /= t;
-        w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
-    } else if x <= -0.105e1 && 0.75e0 * (x + 0.1e1) < y + pi && y + pi <= 0.0e0 {
-        // Region 6: Bottom wing
-        // Negative log series
-        let t = z + I * pi;
-        let pz = clog(-t);
-        w = t - pz;
-        if z.norm() > 1e50 {
-            // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
-            return w;
-        }
-        let mut fac = pz / t;
-        w += fac;
-        fac /= t;
-        w += fac * (0.5 * pz - 1.0);
-        fac /= t;
-        w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
     } else {
-        // Region 7: Everywhere else
-        // Series solution about infinity
-        let pz = clog(z);
-        w = z - pz;
+        let (t, pz) = if x <= -0.105e1 && pi < y && y - pi <= -0.75e0 * (x + 0.1e1) {
+            // Region 5: Top wing
+            // Negative log series
+            let t = z - I * pi;
+            (t, clog(-t))
+        } else if x <= -0.105e1 && 0.75e0 * (x + 0.1e1) < y + pi && y + pi <= 0.0e0 {
+            // Region 6: Bottom wing
+            // Negative log series
+            let t = z + I * pi;
+            (t, clog(-t))
+        } else {
+            // Region 7: Everywhere else
+            // Series solution about infinity
+            (z, clog(z))
+        };
+        w = t - pz;
         if z.norm() > 1e50 {
             // Series is accurate and the iterative scheme could overflow
-            // (unlike in SciPy, skipping the negligible correction terms, which can overflow)
+            //
+            // Unlike in xsf, this skips the negligible correction terms below, which can overflow.
             return w;
         }
-        let mut fac = pz / z;
+        let mut fac = pz / t;
         w += fac;
-        fac /= z;
+        fac /= t;
         w += fac * (0.5 * pz - 1.0);
-        fac /= z;
+        fac /= t;
         w += fac * (pz * pz / 3.0 - 3.0 * pz / 2.0 + 1.0);
     }
 
@@ -208,8 +192,8 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     w *= 1.0 + e;
 
     // Iteration two
-    if ((2.0 * w * w - 8.0 * w - 1.0) * r.norm().powi(4)).norm()
-        >= TWOITERTOL * 72.0 * wp1.norm().powi(6)
+    if ((2.0 * w * w - 8.0 * w - 1.0) * r.norm().powf(4.0)).norm()
+        >= TWOITERTOL * 72.0 * wp1.norm().powf(6.0)
     {
         let r = z - s * w - w.ln();
         let wp1 = s * w + 1.0;
@@ -303,8 +287,8 @@ fn wrightomega_real(x: f64) -> f64 {
     //     w = w*(1.0+e);
     // }
     // return w;
-    if ((2.0 * w * w - 8.0 * w - 1.0) * r.abs().powi(4)).abs()
-        >= TWOITERTOL * 72.0 * wp1.abs().powi(6)
+    if ((2.0 * w * w - 8.0 * w - 1.0) * r.abs().powf(4.0)).abs()
+        >= TWOITERTOL * 72.0 * wp1.abs().powf(6.0)
     {
         let r = x - w - w.ln();
         let wp1 = w + 1.0;

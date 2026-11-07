@@ -912,8 +912,8 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
         SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
     } else {
-        // Unlike in SciPy, use `hermite_rec` for non-integer n > 0 and x > 0, where `hypu` below
-        // has relative errors of up to 1e-6.
+        // For non-integer n > 0 and x > 0 (which xsf and SciPy don't support), use `hermite_rec`,
+        // since `hypu` below has relative errors of up to 1e-6 there.
         //
         // E.g. `eval_hermite_h(55.5, 3.5)` was 2.862819e47 instead of 2.862818e47.
         if (0.0..1e4).contains(&x) && (0.0..1e3).contains(&n) && n.fract() != 0.0 {
