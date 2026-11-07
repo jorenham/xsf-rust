@@ -1,7 +1,8 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@86be599).
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
+//! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::PI;
 use core::ops::{Div, Mul};
@@ -413,9 +414,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         x = x.abs();
     }
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
-    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows).
-    //
-    // Unlike in xsf (scipy/xsf#365), this includes b - a = -n >= -1e5 for -700 < x < 0.
+    // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows). This includes
+    // b - a = -n >= -1e5 for -700 < x < 0.
     let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -1e5);
     if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b && poly {
         let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
@@ -424,12 +424,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         }
     }
     // Unlike in xsf (scipy/xsf#365), the series DLMF 13.2.2 is summed directly for a >= 2 and
-    // b > 0, and for a > -1 and x > 30 + |b|.
+    // b > 0, and for a > -1 and x > 30 + |b|. This includes x <= -700, where e^x underflows.
     //
-    // Unlike in xsf (scipy/xsf#365), this includes x <= -700, where e^x underflows.
-    //
-    // For b < 0 an infinite sum isn't used, since the alternating terms (n < -b) can overflow
-    // first.
+    // For b < 0 the sum is only used if it's finite, since the alternating terms (n < -b) can
+    // overflow first.
     let series = (a >= 2.0 && b > 0.0) || (a > -1.0 && x > 30.0 + b.abs());
     if series && a.is_finite() && b.is_finite() && x.is_finite() {
         if let Some((hg, _)) = chgm_series(a, b, x, x0).filter(|&(hg, _)| b > 0.0 || hg.is_finite())
@@ -456,7 +454,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
             hg = 1.0;
             let mut rg = 1.0;
-            // Unlike in xsf (scipy/xsf#365): the sum of |rg|, to measure the cancellation
+            // Unlike in xsf (scipy/xsf#365), the sum of |rg|, to measure the cancellation
             let mut rs = 1.0;
             let mut cancellation = f64::INFINITY;
             let mut accurate = false;
@@ -610,8 +608,9 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         }
         hu1 = hu;
     }
-    // Unlike in xsf (scipy/xsf#380), chgul is also tried if no method below applies (not for
-    // |a| < 1.1e-16, where `a + 1 - 1` rounds to 0 in chgul)
+    // Unlike in xsf (scipy/xsf#380), chgul is also tried for a < 1 and b > a, with b zero or
+    // non-integer, before the recurrence in a below (not for |a| < 1.1e-16, where `a + 1 - 1`
+    // rounds to 0 in chgul)
     let il4 = a < 1.0 && b > a && bn == 0 && a + 1.0 != 1.0;
     if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
         hu = chgul(x, a, b, &mut id);
@@ -1161,9 +1160,8 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             rmax = rmax.max(ra);
         }
         // Unlike in xsf (scipy/xsf#380), the error estimate is relative to min(|sum|, 1), and
-        // includes the rounding of the largest term
-        //
-        // Unlike in xsf (scipy/xsf#430), a last term of 0 needs no special case
+        // includes the rounding of the largest term, so a last term of 0 needs no special case
+        // (unlike the one of scipy/xsf#430)
         //
         // NOTE: the `int` conversion is UB in C++ if the estimate is not finite; here it
         // saturates (0 for NaN).

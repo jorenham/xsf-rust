@@ -558,8 +558,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 u = f;
                 f = (a - 4.0 * f64::from(k) * f64::from(k)) * u / q - v;
 
-                // Unlike in xsf, this compares against `fc[k - 1]` instead of `fc[k]`, like the
-                // Fortran original (FC(K)) and the KD=2,3 case do (scipy/xsf#343)
+                // Unlike in xsf (scipy/xsf#343), this compares against `fc[k - 1]` instead of
+                // `fc[k]`, like the Fortran original (FC(K)) and the KD=2,3 case do
                 if f.abs() >= fc[(k - 1) as usize].abs() {
                     fc[(k - 2) as usize] = f;
                     s += f * f;
@@ -705,7 +705,8 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
         return Status::Other;
     }
 
-    // (unlike in xsf, scipy/xsf#312) 252, since fcoef reads fc[km] and km can be 251
+    // Unlike in xsf (scipy/xsf#312), 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
+    // can be 251
     let Some(mut fg) = try_zeroed(252) else {
         *csf = f64::NAN;
         *csd = f64::NAN;
