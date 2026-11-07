@@ -36,6 +36,18 @@ pub(crate) const SQRT2OPI: f64 = 0.797_884_560_802_865_4;
 /// sqrt(3)
 pub(crate) const SQRT3: f64 = 1.732_050_807_568_877_2;
 
+/// `m * e^e`, without spurious over- or underflow of `e^e`
+///
+/// This is `m * h * h` with `h = e^(e/2)`, which is a normal float for `|e| <= 1400 = 2 * 700`
+/// (`ln(f64::MIN_POSITIVE) ~ -708.4`), and `e^(ln|m| + e)` beyond that.
+pub(crate) fn mul_exp(m: f64, e: f64) -> f64 {
+    if e.abs() > 1400.0 {
+        return m.signum() * (m.abs().ln() + e).exp();
+    }
+    let h = (0.5 * e).exp();
+    m * h * h
+}
+
 #[inline]
 pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
     xs.into_iter().map(S::into).collect()
