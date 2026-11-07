@@ -66,6 +66,32 @@ fn test_elliprd() {
 }
 
 #[test]
+fn test_elliprd_subnormal() {
+    let actual = [
+        xsf::elliprd(1.0, 1.0, 5e-324),
+        xsf::elliprd(1e10, 1e20, 1e-320),
+        xsf::elliprd(5e-324, 0.0, 1.0),
+        xsf::elliprd(0.0, 1e-310, 1.0),
+    ];
+    // Arb
+    let expected = [
+        1.349_674_138_362_959e162, // 1.3496741383629589148e162
+        3.000_016_699_365_409e145, // 3.0000166993654088595e145
+        1_117.818_990_965_431_6,   // 1117.8189909654315653
+        1_071.860_951_325_591,     // 1071.8609513255909195
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // Arb: 9.5436373562855885717e161 - 9.5436373562855885717e161i
+    let actual = xsf::elliprd(ONE, I, c64(5e-324, 0.0));
+    let expected = c64(9.543_637_356_285_59e161, -9.543_637_356_285_59e161);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+
+    // Arb: 6.0720675992193185506e323
+    assert_eq!(xsf::elliprd(0.0, 1.0, 5e-324), INF);
+}
+
+#[test]
 fn test_elliprf() {
     let actual = [xsf::elliprf(0.0, 1.0, 2.0), xsf::elliprf(2.0, 3.0, 4.0)];
     let expected = [1.311_028_777_146_059_8, 0.584_082_841_677_151_7];
