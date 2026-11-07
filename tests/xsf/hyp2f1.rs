@@ -291,3 +291,25 @@ fn test_hyp2f1_f64_huge_c() {
     let desired = [1.0, 1.0, 1.0, 1.0, 2.585_709_685_660_995_7];
     np_assert_allclose!(actual, desired, rtol = 1e-15);
 }
+
+#[test]
+fn test_hyp2f1_f64_psi_expansion_overflow() {
+    // unlike in xsf: these were NaN, as the Gamma functions in the psi function expansion for
+    // x > 0.9 and integer c - a - b over- or underflow (Arb)
+    let actual = [
+        xsf::hyp2f1(1.3, 6.5, 107.8, 0.95),
+        xsf::hyp2f1(-1.5, -1.5, 110.0, 0.99),
+        xsf::hyp2f1(0.25, 20.5, 283.75, 0.95),
+        xsf::hyp2f1(20.5, 30.5, 10_051.0, 0.95),
+    ];
+    let desired = [
+        1.080_572_289_607_784_4,
+        1.020_272_592_726_024_6,
+        1.017_973_915_497_389_6,
+        1.061_033_031_294_106_8,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+
+    // but a correct overflow (to 3.96e320) is kept
+    assert_eq!(xsf::hyp2f1(6.5, 6.5, 1e-300, 0.95), f64::INFINITY);
+}
