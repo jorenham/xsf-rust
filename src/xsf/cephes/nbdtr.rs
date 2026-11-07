@@ -39,7 +39,7 @@ use crate::xsf::cephes::incbi::incbi;
 /// ```text
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
-///    IEEE     0,100        20000      2.8e-13     1.5e-14
+///    IEEE     0,100         2000      3.1e-13     9.3e-15
 /// ```
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
@@ -90,7 +90,7 @@ pub(crate) fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
 /// ```text
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
-///    IEEE     0,100        20000      3.4e-13     1.6e-14
+///    IEEE     0,100         2000      1.6e-13     4.1e-15
 /// ```
 ///
 /// See also incbet.c.
@@ -115,7 +115,7 @@ pub(crate) fn nbdtr(k: i32, n: i32, p: f64) -> f64 {
 /// ```text
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
-///    IEEE     0,100        20000      1.9e-14     1.4e-15
+///    IEEE     0,100         2000      3.1e-15     3.6e-16
 /// ```
 ///
 /// See also incbi.c.

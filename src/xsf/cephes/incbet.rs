@@ -346,9 +346,9 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
 /// arithmetic   domain     # trials      peak         rms
 ///    IEEE      0,5         10000       3.6e-15     4.9e-16
 ///    IEEE      0,85       250000       1.5e-13     1.7e-14
-///    IEEE      0,1000      30000       4.5e-12     6.1e-13
-///    IEEE      0,10000    250000       8.4e-11     6.9e-12
-///    IEEE      0,100000    10000       5.8e-10     4.4e-11
+///    IEEE      0,1000        400       2.1e-13     3.8e-14
+///    IEEE      0,10000       400       1.9e-13     3.8e-14
+///    IEEE      0,100000      400       5.5e-13     7.9e-14
 /// ```
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
