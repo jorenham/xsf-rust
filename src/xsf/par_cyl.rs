@@ -13,7 +13,7 @@ use core::f64::consts::{LN_2, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::{SQRT_PI, SQRT2OPI};
+use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
@@ -736,15 +736,6 @@ fn sin_tail(u: f64, hyperbolic: bool) -> f64 {
 /// `ln(Gamma(z + 1/2) / (sqrt(2 pi) z^z e^-z))`, for `z >= 20`; cf. DLMF 12.10.16
 fn ln_gamma_ratio(z: f64) -> f64 {
     z * log1pmx(0.5 / z) + lgam_stirling_corr(z + 0.5)
-}
-
-/// `m * e^e`, without spurious over- or underflow of `e^e`
-fn mul_exp(m: f64, e: f64) -> f64 {
-    if e.abs() > 1400.0 {
-        return m.signum() * (m.abs().ln() + e).exp();
-    }
-    let h = (0.5 * e).exp();
-    m * h * h
 }
 
 /// `zeta`, `phi(zeta)`, and the coefficients `A_s`, `B_s`, `C_s`, `D_s` (DLMF 12.10.39-46) for

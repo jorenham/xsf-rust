@@ -2,6 +2,7 @@ use core::f64::consts::{PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
+use crate::utils::mul_exp;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
@@ -111,8 +112,8 @@ fn airy_f64(x: f64) -> [f64; 4] {
         // x > 103.892, while Bi(x) only overflows at x = 104.44
         if x > 103.892 && x < 104.5 {
             let [_, _, bi, bip] = airye_f64(x);
-            let g = (x * x.sqrt() / 3.0).exp(); // e^(zeta / 2), to avoid overflow
-            return [0.0, 0.0, bi * g * g, bip * g * g];
+            let zeta = 2.0 * x * x.sqrt() / 3.0;
+            return [0.0, 0.0, mul_exp(bi, zeta), mul_exp(bip, zeta)];
         }
     }
 
@@ -308,9 +309,8 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         apt = q0 - (-xe).exp() * xp6 * su1;
         bpt = 2.0 * xe.exp() * xp6 * su2;
         if bpt.is_infinite() {
-            // Unlike in xsf (scipy/xsf#448), retry with e^xe split as e^(xe/2) squared
-            let g = (0.5 * xe).exp();
-            bpt = 2.0 * g * xp6 * su2 * g;
+            // Unlike in xsf (scipy/xsf#448), retry with `mul_exp` to avoid premature overflow
+            bpt = mul_exp(2.0 * xp6 * su2, xe);
         }
         let mut su3 = 1.0;
         r = 1.0;
