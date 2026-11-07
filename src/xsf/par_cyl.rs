@@ -4,10 +4,10 @@
 //!
 //! `pow(2.0, y)` is written as `y.exp2()`, which is what LLVM optimizes it to anyway.
 //!
-//! Unlike in xsf, `pbdv` and `pbvv` return NaN for `|v| >= 2^31`, where `(int) v` is undefined
-//! behavior in C++ (in practice the allocation fails there, which also returns NaN), and the
-//! other `double` -> `int` conversions saturate. Like in xsf, they also return NaN if the
-//! allocation of their work buffer fails.
+//! Unlike in xsf, `pbdv` and `pbvv` return NaN for `|v| >= LARGE_V` where they would recur over
+//! their work buffer of `|v|` values (e.g. 4 GiB and 20 s for `pbvv(2.7e8, 0.0)`), and the
+//! `double` -> `int` conversions saturate. Like in xsf, they also return NaN if the allocation of
+//! their work buffer fails.
 
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
@@ -631,11 +631,13 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     (w, dw)
 }
 
+/// `|v|` from which `pbdv` uses only its uniform asymptotic expansions (for finite `x`)
+const LARGE_V: f64 = 1000.0;
+
 /// The `dv`/`dp` (or `vv`/`vp`) buffer of length `2 * num` with `num = std::abs((int) v) + 3`,
-/// or `None` where `(int) v` is undefined behavior in C++, or if the allocation fails (like the
-/// C++ `malloc`)
+/// or `None` for `|v| >= LARGE_V`, or if the allocation fails (like the C++ `malloc`)
 fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
-    if v.abs() >= INT_OVERFLOW {
+    if v.abs() >= LARGE_V {
         return None;
     }
     // NB. Indexing of DV/DP in specfun.f:PBDV starts from 0 and |v| + 1 can round up, hence +3
@@ -947,7 +949,9 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
         // Unlike in xsf, also for -10 <= x < -5.8 (with v < -30, see `pbdv`), where `dvla` is
         // inaccurate, e.g. `pbdv(-100.5, -6.0).0` was 3.1514260110e-53 instead of
         // 3.1514260109e-53.
-        return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x)).then(|| {
+        //
+        // Unlike in xsf, also for all x if v <= -LARGE_V, where D_v(x) underflows for x >= -50.
+        return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x) || v <= -LARGE_V).then(|| {
             let ([d, dp], l) = pbdv_elementary(v, x);
             (mul_exp(d, l), mul_exp(dp, l))
         });

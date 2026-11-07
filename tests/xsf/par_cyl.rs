@@ -447,3 +447,11 @@ fn test_pbdv_pbvv_negative_zero_v() {
         assert_eq!(xsf::pbvv(-0.0, x), xsf::pbvv(0.0, x), "pbvv(-0.0, {x})");
     }
 }
+
+#[test]
+fn test_pbdv_pbvv_huge_v() {
+    // xsf allocates and recurs over |v| values here; D_v(0) ~ 10^(-1.08e9) for v = -2.7e8
+    assert_eq!(xsf::pbdv(-2.7e8, -8.9e-309), (0.0, -0.0));
+    let (w, wp) = xsf::pbvv(2.7e8, 0.0);
+    assert!(w.is_nan() && wp.is_nan());
+}
