@@ -435,6 +435,11 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             return hg;
         }
     }
+    // Unlike in xsf, NaN without the O(a) recurrence below, e.g. `hyp1f1(1.13e9, 0.0, 1.0)`
+    // took 11 s
+    if b == 0.0 && a >= 2.0 {
+        return f64::NAN;
+    }
     let mut nl = 0;
     let mut la = 0;
     if a >= 2.0 {

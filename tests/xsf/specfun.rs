@@ -416,6 +416,16 @@ fn test_hyp1f1_huge_a() {
 }
 
 #[test]
+fn test_hyp1f1_pole_b_zero() {
+    // unlike in xsf: these took ~a steps (or were inf for the last two)
+    assert!(xsf::hyp1f1(1.13e9, 0.0, 1.0).is_nan());
+    assert!(xsf::hyp1f1(1.13e9, -0.0, 0.0).is_nan());
+    assert!(xsf::hyp1f1(-1.13e9, 0.0, -1.0).is_nan());
+    assert!(xsf::hyp1f1(2.0, 0.0, 31.0).is_nan());
+    assert!(xsf::hyp1f1(3e9, 0.0, 1.0).is_nan());
+}
+
+#[test]
 fn test_hyp1f1_large_a() {
     // mpmath; in xsf these are 1.2e87, 3.3e251, 7.9e303, inf, and NaN
     let abx = [
