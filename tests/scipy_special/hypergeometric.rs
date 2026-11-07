@@ -172,6 +172,31 @@ fn test_hyp0f1_large_b() {
     assert_eq!(hyp0f1(-85.5, 5.5e5), f64::INFINITY);
     assert_eq!(hyp0f1(-300.5, 2e5), f64::NEG_INFINITY);
 
+    // |z| > |b| >> 1, where the asymptotic expansion lost ~eps |b| ln|b| in its exponent
+    let bz = [
+        (1e12, 2e12),
+        (1e12, -2e12),
+        (-1e12 - 0.5, 2e12),
+        (-1e12 - 0.5, -2e12),
+        (100_000.5, 1e7),
+    ];
+    // computed with mpmath from the Maclaurin series
+    let expected = [
+        7.389_056_098_915_872,
+        0.135_335_283_236_342_03,
+        0.135_335_283_237_018_7,
+        7.389_056_098_938_039,
+        2.555_911_194_624_412_4e43,
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-14);
+    // close to overflow (computed with Arb), and with Gamma(b) = inf
+    np_assert_allclose!(
+        [hyp0f1(-10_001.5, 12_872_883.657_095_07)],
+        [1.116_996_244_411_357_3e308],
+        rtol = 1e-11
+    );
+    assert_eq!(hyp0f1(1e-20, 2e5), f64::INFINITY);
+
     // near zeros of J_{b-1}(2 sqrt(-z)), where it rounds to 0 (instead of 5.2e-17 and 6.1e-15)
     assert!(hyp0f1(1.674_445_551_227_833_6, -2.866_969_344_179_029).abs() < 1e-14);
     assert!(hyp0f1(-3.854_390_408_608_444_4, -5.550_754_014_064_338).abs() < 1e-14);

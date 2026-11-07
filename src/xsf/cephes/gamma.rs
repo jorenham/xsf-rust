@@ -313,8 +313,12 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
 }
 
 /// The correction `lgam(x) - ((x - 1/2) ln(x) - x + ln(2 pi) / 2)` to Stirling's formula, for
-/// `x >= 13`
+/// `x > 0`
 pub(crate) fn lgam_stirling_corr(x: f64) -> f64 {
+    if x < 13.0 {
+        // where `lgam` doesn't use Stirling's formula
+        return lgam(x) - ((x - 0.5) * x.ln() - x + LN_SQRT_2PI);
+    }
     let p = 1.0 / (x * x);
     polevl(p, &GAMMA_A) / x
 }
