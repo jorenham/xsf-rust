@@ -40,3 +40,18 @@ fn test_diric() {
     // assert_allclose(special.diric(x, 3), octave_result, atol=ATOL, rtol=0)
     xsref::np_assert_allclose!(x.map(|x| xsf::diric(3, x)), &octave_result, atol = ATOL);
 }
+
+#[test]
+fn test_diric_near_tau_and_large_n() {
+    let n = [3, 1000, 1 << 30, u32::MAX];
+    let x = [TAU + 1e-6, 2.0 * TAU + 1e-8, 1e-7, -1e-7];
+    // reference values from mpmath (80 dps)
+    let expected = [
+        0.999_999_999_999_666_7,
+        0.999_999_999_995_833_3,
+        -0.005_147_813_091_498_542_5,
+        0.004_191_549_762_497_768,
+    ];
+    let actual: [f64; 4] = core::array::from_fn(|i| xsf::diric(n[i], x[i]));
+    xsref::np_assert_allclose!(actual, &expected, rtol = 1e-15);
+}
