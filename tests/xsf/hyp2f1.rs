@@ -234,6 +234,24 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
 }
 
 #[test]
+fn test_hyp2f1_f64_x_lt_minus_2_pfaff_overflow() {
+    // unlike in xsf: these were NaN for a < b, as one of the Pfaff series overflows there, and
+    // the 1/x transformation is NaN (Arb)
+    let args = [
+        (1e-20, 3000.5, 1e7, -100.0),
+        (3.1e-111, 344_352.06, 1.77e10, -621.8),
+        (0.1, 3000.5, 3600.6, -100.0),
+        (1.5, 344_352.06, 413_222.472, -3.0),
+    ];
+    let desired = [1.0, 1.0, 0.641_802_447_619_336_4, 0.152_720_780_375_729_64];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        // also with a and b swapped, which was already accurate
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-14);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
     // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
     let actual = [
