@@ -205,6 +205,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
     let mut err = 0.0;
     let s = 1.0 - x;
+    let mut psi_expansion = false;
     let y = 'done: {
         if x < -0.5 && !(neg_int_a || neg_int_b) {
             let y;
@@ -295,6 +296,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
              * involved have poles.
              */
 
+            psi_expansion = true;
             let aid;
             if id >= 0.0 {
                 e = d;
@@ -325,7 +327,8 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 t += 1.0;
                 if t > HYP2F1_MAXITER as f64 {
                     /* should never happen */
-                    return (f64::NAN, 1.0);
+                    err = 1.0;
+                    break 'done f64::NAN;
                 }
                 if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
                     break;
@@ -381,6 +384,16 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         y
     };
     // done:
+    // Unlike in xsf, if the psi function expansion fails, e.g. if Gamma(c) overflows, use the
+    // power series if accurate.
+    //
+    // E.g. `hyp2f1(1.3, 6.5, 107.8, 0.95)` was NaN instead of 1.08.
+    if psi_expansion && !y.is_finite() {
+        let ((series, loss, full), _) = hys2f1_checked(a, b, c, x);
+        if loss < HYP2F1_ETHRESH && full < HYP2F1_ETHRESH {
+            return (series, loss);
+        }
+    }
     (y, err)
 }
 
