@@ -1,7 +1,8 @@
 //! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@65d313a).
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
+//! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
+//! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::PI;
 
@@ -1529,7 +1530,7 @@ pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]
     if c < 1e-10 {
         for i in 1..=(n - m + 1) {
             // Unlike in xsf, the product is computed in `double` instead of `int`, which overflows
-            // for `n > 46340`; this is exact, since both factors are less than 2^31
+            // for `n > 46340`; this is exact for `n < 2^26`
             eg[(i - 1) as usize] = f64::from(i + m) * f64::from(i + m - 1);
         }
         *cv = eg[(n - m) as usize];
