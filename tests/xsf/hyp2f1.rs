@@ -272,3 +272,22 @@ fn test_hyp2f1_f64_c_lt_0() {
     assert!(xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8).is_nan());
     assert!(xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8).is_nan());
 }
+
+#[test]
+fn test_hyp2f1_f64_huge_c() {
+    // unlike in xsf: these were NaN, and the first and fourth hung (Arb, or the limit 1)
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        tx.send([
+            xsf::hyp2f1(1.3, 6.5, f64::INFINITY, 0.999),
+            xsf::hyp2f1(1.3, 6.5, f64::INFINITY, 1.0),
+            xsf::hyp2f1(1.3, 6.5, f64::INFINITY, -3.0),
+            xsf::hyp2f1(1.3, 6.5, 1e300, 0.999),
+            xsf::hyp2f1(100_000_000.5, 1_000_000_000.5, 1e17, 0.95),
+        ])
+        .unwrap();
+    });
+    let actual = rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+    let desired = [1.0, 1.0, 1.0, 1.0, 2.585_709_685_660_995_7];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+}

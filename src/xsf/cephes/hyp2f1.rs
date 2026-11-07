@@ -220,7 +220,11 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         let id = d.round(); /* nearest integer to d */
 
         if x > 0.9 && !(neg_int_a || neg_int_b) {
-            if (d - id).abs() > MACHEP {
+            // Unlike in xsf, also if c - a - b is an integer beyond `HYP2F1_MAXITER`, since the
+            // psi function expansion below fails there (and its finite sum can hang).
+            //
+            // E.g. `hyp2f1(1.3, 6.5, 1e17, 0.95)` was NaN instead of 1.
+            if (d - id).abs() > MACHEP || id.abs() > HYP2F1_MAXITER as f64 {
                 let (mut lg, mut sgngam);
                 let (err1, full0, q_full, r_full);
                 let mut y;
@@ -581,6 +585,13 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     let mut id = d.round();
 
     if (a == 0.0 || b == 0.0) && c != 0.0 {
+        return 1.0;
+    }
+
+    // Unlike in xsf, 2F1 -> 1 as c -> inf (DLMF 15.12.2), also at x = 1 (DLMF 15.4.20).
+    //
+    // E.g. `hyp2f1(1.3, 6.5, inf, -3.0)` was NaN.
+    if c == f64::INFINITY && a.is_finite() && b.is_finite() && x.is_finite() && x <= 1.0 {
         return 1.0;
     }
 
