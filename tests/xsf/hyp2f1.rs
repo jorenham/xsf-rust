@@ -333,3 +333,19 @@ fn test_hyp2f1_f64_large_opposite_signs() {
     let desired = [-1.469_500_580_590_125_3e-75, 8.556_925_324_233_141e83];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials() {
+    // unlike in xsf: the recurrence in the degree, since the series cancel (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.9),
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.5),
+        xsf::hyp2f1(-3.75, 10_675.75, -0.25, -5600.0),
+    ];
+    let desired = [
+        6.485_127_939_853_472_5e-52,
+        -4.200_865_766_102_724e-45,
+        -2.143_761_498_506_179_6e29,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
