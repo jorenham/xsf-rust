@@ -30,7 +30,7 @@ use core::f64::consts::{E, TAU};
 
 use crate::utils::{MACHEP, MAXLOG};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
-use crate::xsf::cephes::{erfc, lgam, lgam1p};
+use crate::xsf::cephes::{erfc, lgam, lgam1p, rgamma};
 use crate::xsf::log::log1pmx;
 
 const IGAM_MAXITER: i32 = 2000;
@@ -88,6 +88,11 @@ const IGAM_ASYMP_COEFF_D: [[f64; IGAM_ASYMP_COEFF_N]; IGAM_ASYMP_COEFF_K] = [
 /// exp(a - x).
 pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
     if (a - x).abs() > 0.4 * a.abs() {
+        // Unlike in xsf, `rgamma` is used for a < MACHEP, where `exp(-lgam(a))` loses digits
+        // (~1e-13 for a = 1e-300), or underflows.
+        if a < MACHEP {
+            return (a * x.ln() - x).exp() * rgamma(a);
+        }
         let ax = a * x.ln() - x - lgam(a);
         if ax < -MAXLOG {
             return 0.0;
@@ -213,6 +218,10 @@ fn igamc_series(a: f64, x: f64) -> f64 {
 
     let logx = x.ln();
     let term = -(a * logx - lgam1p(a)).exp_m1();
+    // Unlike in xsf, `rgamma` is used for a < MACHEP, as in `igam_fac`.
+    if a < MACHEP {
+        return term - (a * logx).exp() * rgamma(a) * sum;
+    }
     term - (a * logx - lgam(a)).exp() * sum
 }
 
@@ -330,7 +339,11 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
         return asymptotic_series(a, x, IGAM);
     }
 
-    if (x > 1.0) && (x > a) {
+    // Unlike in xsf, a < MACHEP also uses `1 - igamc`, without cancellation as then
+    // igamc < 746 a < 1e-13.
+    //
+    // E.g. igam(1e-310, 0.5) was 0 instead of 1.
+    if (x > 1.0 && x > a) || a < MACHEP {
         return 1.0 - igamc(a, x);
     }
 
