@@ -96,8 +96,8 @@
 //! Unlike in xsf:
 //! - The out-of-bounds read of `csr[-1]` in `unk1` and `unk2` (undefined behavior in C++) uses `1`
 //!   instead.
-//! - In `besh` and `besj`, `(int) fnu` saturates for `fnu >= 2^31` (undefined behavior in C++,
-//!   where x86-64 gives `INT_MIN`), which can change the sign of the result for such huge orders.
+//! - The phase factors of `besh`, `besj`, `uni2`, `unk1`, and `unk2` use `fnu mod 4` instead of
+//!   `(int) fnu` (undefined behavior in C++ for `fnu >= 2^31`), see `order_mod4`.
 //! - The complex `sqrt`, `exp`, and `log` are computed with the crate's `csqrt` (from FreeBSD),
 //!   `cexp`, and `clog`, which can differ from glibc's in the last bit.
 
@@ -182,6 +182,15 @@ const MACH: (f64, f64, f64, f64, f64) = {
     let fnul = 10.0 + 6.0 * (dig - 3.0);
     (tol, elim, alim, rl, fnul)
 };
+
+/// The order `fnu >= 0` modulo 4, and its integer part, e.g. `(1.5, 1)` for `fnu = 5.5`.
+///
+/// Unlike in xsf (scipy/xsf#338), this avoids `(int)fnu`, which is UB for `fnu >= 2^31`. Only
+/// `fnu mod 4` is needed (for phase factors like `i^fnu`).
+fn order_mod4(fnu: f64) -> (f64, i32) {
+    let fnu4 = fnu % 4.0;
+    (fnu4, fnu4 as i32)
+}
 
 #[rustfmt::skip]
 const ZUNHJ_AR: [f64; 14] = [
@@ -1493,13 +1502,10 @@ pub(crate) fn besh(
     // CALCULATE EXP(FNU*HPI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     // WHEN FNU IS LARGE
     //
-    // NOTE: The range test above allows `fnu > i32::MAX` (up to ~2.3e15), where the C++ `(int)fnu`
-    // is UB (x86-64: `INT_MIN`). Here `as i32` saturates to `i32::MAX`, which gives a different
-    // `csgn` (NaN gives 0, with the same NaN `csgn` as in C++).
-    let inu = fnu as i32;
+    let (fnu4, inu) = order_mod4(fnu);
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
-    let arg = (fnu - f64::from(inu - ir)) * sgn;
+    let arg = (fnu4 - f64::from(inu - ir)) * sgn;
     let rhpi = 1.0 / sgn;
     let cpn = rhpi * arg.cos();
     let spn = -rhpi * arg.sin();
@@ -1979,13 +1985,10 @@ pub(crate) fn besj(
     // WHEN FNU IS LARGE
     //
     ci.im = 1.0;
-    // NOTE: The range test above allows `fnu > i32::MAX` (up to ~2.3e15), where the C++ `(int)fnu`
-    // is UB (x86-64: `INT_MIN`). Here `as i32` saturates to `i32::MAX`, which gives a different
-    // `csgn` (NaN gives 0, with the same NaN `csgn` as in C++).
-    let inu = fnu as i32;
+    let (fnu4, inu) = order_mod4(fnu);
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
-    let arg = (fnu - f64::from(inu - ir)) * hpi;
+    let arg = (fnu4 - f64::from(inu - ir)) * hpi;
     let r1 = arg.cos();
     let r2 = arg.sin();
     let mut csgn = c64(r1, r2);
@@ -5473,8 +5476,8 @@ pub(crate) fn uni2(
     zn = cmul(-z, ci);
     zb = z;
     cid = -ci;
-    let inu: i32 = fnu as i32;
-    let ang: f64 = hpi * (fnu - f64::from(inu));
+    let (fnu4, inu) = order_mod4(fnu);
+    let ang: f64 = hpi * (fnu4 - f64::from(inu));
     c2 = c64(ang.cos(), ang.sin());
     let zar: Complex64 = c2;
     in_ = inu + n - 1;
@@ -6069,8 +6072,8 @@ pub(crate) fn unk1(
     // CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //
     let csgn: Complex64 = c64(0.0, sgn);
-    let inu: i32 = fnu as i32;
-    let fnf: f64 = fnu - f64::from(inu);
+    let (fnu4, inu) = order_mod4(fnu);
+    let fnf: f64 = fnu4 - f64::from(inu);
     let ifn: i32 = inu + n - 1;
     let ang: f64 = fnf * sgn;
     cspn = c64(ang.cos(), ang.sin());
@@ -6235,7 +6238,7 @@ pub(crate) fn unk1(
     s2 = cy[1];
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
-    fn_ = f64::from(inu + il);
+    fn_ = fnu.trunc() + f64::from(il);
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
@@ -6374,8 +6377,8 @@ pub(crate) fn unk2(
     let yy: f64 = zr.im;
     zn = cmul(-zr, c64(0.0, 1.0));
     zb = zr;
-    let inu: i32 = fnu as i32;
-    let fnf: f64 = fnu - f64::from(inu);
+    let (fnu4, inu) = order_mod4(fnu);
+    let fnf: f64 = fnu4 - f64::from(inu);
     ang = -hpi * fnf;
     let car: f64 = ang.cos();
     let sar: f64 = ang.sin();
@@ -6809,7 +6812,7 @@ pub(crate) fn unk2(
     s2 = cy[1];
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
-    fn_ = f64::from(inu + il);
+    fn_ = fnu.trunc() + f64::from(il);
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
