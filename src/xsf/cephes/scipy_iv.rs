@@ -158,33 +158,13 @@ const IV_ASYMPTOTIC_UFACTORS: [[f64; IV_N_UFACTOR_TERMS]; IV_N_UFACTORS] = [
      0.0, 0.0, 0.0, 0.0, 0.0],
 ];
 
-/*
- * Compute Iv, Kv from (AMS5 9.7.7 + 9.7.8), asymptotic expansion for large v
- */
+/// The sums `sum_k u_k(t) / v^k` and `sum_k (-1)^k u_k(t) / v^k` of the uniform asymptotic
+/// expansions of `I_v` and `K_v` (AMS5 9.7.7 + 9.7.8), with `t = 1 / sqrt(1 + (x / v)^2)`, up to
+/// the first term below `tol`
 #[allow(clippy::needless_range_loop)]
-fn ikv_asymptotic_uniform(
-    mut v: f64,
-    x: f64,
-    i_value: Option<&mut f64>,
-    k_value: Option<&mut f64>,
-) {
-    let mut sign = 1;
-
-    if v < 0.0 {
-        /* Negative v; compute I_{-v} and K_{-v} and use (AMS 9.6.2) */
-        sign = -1;
-        v = -v;
-    }
-
-    let z = x / v;
-    let t = 1.0 / (1.0 + z * z).sqrt();
+pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64, tol: f64) -> (f64, f64) {
     let t2 = t * t;
-    let eta = (1.0 + z * z).sqrt() + (z / (1.0 + 1.0 / t)).ln();
-
-    let i_prefactor = (t / (2.0 * PI * v)).sqrt() * (v * eta).exp();
     let mut i_sum = 1.0;
-
-    let k_prefactor = (PI * t / (2.0 * v)).sqrt() * (-v * eta).exp();
     let mut k_sum = 1.0;
 
     let mut divisor = v;
@@ -211,12 +191,39 @@ fn ikv_asymptotic_uniform(
         k_sum += if n % 2 == 0 { term } else { -term };
 
         /* Check convergence */
-        if term.abs() < MACHEP {
+        if term.abs() < tol {
             break;
         }
 
         divisor *= v;
     }
+    (i_sum, k_sum)
+}
+
+/*
+ * Compute Iv, Kv from (AMS5 9.7.7 + 9.7.8), asymptotic expansion for large v
+ */
+fn ikv_asymptotic_uniform(
+    mut v: f64,
+    x: f64,
+    i_value: Option<&mut f64>,
+    k_value: Option<&mut f64>,
+) {
+    let mut sign = 1;
+
+    if v < 0.0 {
+        /* Negative v; compute I_{-v} and K_{-v} and use (AMS 9.6.2) */
+        sign = -1;
+        v = -v;
+    }
+
+    let z = x / v;
+    let t = 1.0 / (1.0 + z * z).sqrt();
+    let eta = (1.0 + z * z).sqrt() + (z / (1.0 + 1.0 / t)).ln();
+
+    let i_prefactor = (t / (2.0 * PI * v)).sqrt() * (v * eta).exp();
+    let k_prefactor = (PI * t / (2.0 * v)).sqrt() * (-v * eta).exp();
+    let (i_sum, k_sum) = ikv_asymptotic_uniform_sums(v, t, MACHEP);
 
     if let Some(k_value) = k_value {
         /* symmetric in v */
