@@ -200,6 +200,35 @@ fn test_hyp0f1_large_b() {
     // near zeros of J_{b-1}(2 sqrt(-z)), where it rounds to 0 (instead of 5.2e-17 and 6.1e-15)
     assert!(hyp0f1(1.674_445_551_227_833_6, -2.866_969_344_179_029).abs() < 1e-14);
     assert!(hyp0f1(-3.854_390_408_608_444_4, -5.550_754_014_064_338).abs() < 1e-14);
+
+    // where the Bessel functions lost digits, through their prefactor or near poles
+    let bz = [
+        (-7.000_001, 0.1),
+        (200.0, 100.0),
+        (300.0, 1000.0),
+        (300.0, -1000.0),
+        (-300.5, -1000.0),
+    ];
+    // computed with Arb
+    let expected = [
+        0.985_832_546_664_187_5,
+        1.647_699_631_540_315_4,
+        27.526_315_983_675_59,
+        0.035_011_885_022_349_28,
+        28.404_724_822_364_255,
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-14);
+    // Debye's expansion with b near an integer (with the J term), and with u_1(p) = 0
+    np_assert_allclose!(
+        [hyp0f1(-999.999_999_999_999_9, -216_000.0)],
+        [3.099_721_235_145_35e109],
+        rtol = 1e-11
+    );
+    np_assert_allclose!(
+        [hyp0f1(3001.0, 1_500_000.0)],
+        [1.242_442_611_337_837e202],
+        rtol = 1e-12
+    );
 }
 
 #[test]

@@ -1,12 +1,12 @@
 use num_complex::Complex64;
 
 use crate::utils::MAXLOG;
-use crate::xsf::cephes::lgam_stirling_corr;
+use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 
 const LN_MAX: f64 = MAXLOG; // f64::MAX.ln()
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
-/// Asymptotic expansion for $I_{v-1}(2\sqrt{z}) \Gamma(v)$ for real $z>0$ and $v \to +\infty$.
+/// Debye's expansion of $\Gamma(v) z^{(1-v)/2} I_{v-1}(2\sqrt{z})$ for real $z$ and large $|v|$
 ///
 /// Corresponds to `scipy.special._hyp0f1._hyp0f1_asy`:
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L59-L100>
@@ -31,27 +31,21 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let zeta = v1 * (h - crate::log1pmx(h)) + lgam_stirling_corr(v1);
     let ln_sqrt_p1 = 0.5 * p1.ln();
 
-    // large-v asymptotic correction, DLMF 10.41.10
-    let pp = 1.0 / p1;
-    let p2 = pp * pp;
-    let p4 = p2 * p2;
-    let p6 = p4 * p2;
-    let u1 = (3.0 - 5.0 * p2) * pp / 24.0;
-    let u2 = (81.0 - 462.0 * p2 + 385.0 * p4) * p2 / 1152.0;
-    let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
-    let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
+    // Unlike in xsf (scipy/xsf#366), the large-v asymptotic correction has 11 terms (DLMF 10.41.9)
+    // instead of 4 (DLMF 10.41.10), all of them (tol = 0) since one can vanish, e.g. u_1 for
+    // p1^2 = 5/3
+    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1, 0.0);
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
-        // (or DLMF 10.2.3: J_{-v} = cos(pi*v) J_v - sin(pi*v) Y_v, where J_v is negligible if
-        // J_{-v} overflows)
-        let u_corr_k = 1.0 - u1 / v1 + u2 / (v1 * v1) - u3 / (v1 * v1 * v1);
+        // (or DLMF 10.2.3: J_{-v} = cos(pi*v) J_v - sin(pi*v) Y_v)
         let out = (-zeta - ln_sqrt_p1).exp() * u_corr_k;
+        let s = 2.0 * crate::sinpi(v);
         if z < 0.0 {
-            out
+            // the J_v term relative to the Y_v term, with cos(pi v1) = -cos(pi v)
+            out * (1.0 - crate::cospi(v) / s * (2.0 * v1 * eta).exp() * u_corr_i / u_corr_k)
         } else {
             // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent
-            let s = 2.0 * crate::sinpi(v);
             let i = (2.0 * v1 * eta - zeta - ln_sqrt_p1 - s.abs().ln()).exp();
             out + i.copysign(s) * u_corr_i
         }
@@ -77,6 +71,16 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     } else if z.abs() < 1e-6 * (1.0 + v.abs()) {
         // both v and z small: truncate the Taylor series at O(z**2)
         1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
+    } else if z.abs() <= v.abs().max(1.0) {
+        // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed instead of the Bessel
+        // functions, which lose digits for large |v| and near the poles, e.g.
+        // hyp0f1(-7.000001, 0.1) is 0.985832546664 instead of 0.985832547540
+        hyp0f1_series(v, z)
+    } else if debye_is_accurate(v, z) {
+        // Unlike in xsf (scipy/xsf#366), Debye's expansion is used instead of the Bessel
+        // functions, whose prefactor loses ~eps v ln(v), e.g. hyp0f1(300, -1000) is
+        // 0.035011885022349 instead of 0.035011885022344
+        hyp0f1_asy(v, z)
     } else if z > 0.0 {
         let arg = z.sqrt();
         let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
@@ -87,7 +91,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
             && (arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite())
         {
             // overflow or underflow
-            hyp0f1_large_v(v, z)
+            hyp0f1_asy(v, z)
         } else {
             arg_exp.exp() * bess_val * crate::gammasgn(v)
         }
@@ -103,35 +107,32 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows
         if prefactor_ok && out.is_normal() {
             out
-        } else if -z > v.abs() && bess_val.is_normal() {
+        } else if bess_val.is_normal() {
             (crate::xlogy(1.0 - v, arg) + crate::gammaln(v)).exp() * bess_val * crate::gammasgn(v)
-        } else if -z <= v.abs()
-            || (4.0 * -z < (v - 1.0).powi(2) && (v > 1.0 || !bess_val.is_finite()))
-        {
-            // the series, or Debye's expansion if J_{v-1}(2 sqrt(-z)) under- (or for v < 1,
-            // over-) flowed in its non-oscillatory regime
-            hyp0f1_large_v(v, z)
+        } else if 4.0 * -z < (v - 1.0).powi(2) && (v > 1.0 || !bess_val.is_finite()) {
+            // Debye's expansion if J_{v-1}(2 sqrt(-z)) under- (or for v < 1, over-) flowed in its
+            // non-oscillatory regime
+            hyp0f1_asy(v, z)
         } else {
             out
         }
     }
 }
 
-/// Fallback for large $|v|$, if the evaluation in terms of Bessel functions over- or underflows
+/// Whether Debye's expansion in `hyp0f1_asy` is accurate (empirically to within ~50 eps)
 ///
-/// Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed if $|z| \le |v|$.
-fn hyp0f1_large_v(v: f64, z: f64) -> f64 {
-    if z.abs() <= v.abs() {
-        hyp0f1_series(v, z)
-    } else {
-        hyp0f1_asy(v, z)
-    }
+/// As in cephes `iv`, this is for $|v-1| > 50$. For $z<0$ its terms grow like $p^{-3k}$, with
+/// $p = \sqrt{1 - 4|z|/(v-1)^2}$, so then this is for $|v-1| p^3 > 50$.
+fn debye_is_accurate(v: f64, z: f64) -> bool {
+    let v1 = (v - 1.0).abs();
+    let p2 = 1.0 + 4.0 * z.min(0.0) / (v1 * v1);
+    v1 * p2 * p2.sqrt() > 50.0
 }
 
 /// Maclaurin series $\sum_n z^n / ((v)_n n!)$ (DLMF 16.2.1)
 ///
-/// Only used for $|z| \le |v|$ with large $|v|$, where the terms decrease rapidly (up to the
-/// negligible ones with $n > -v$ if $v < 0$), and cancel by at most roughly $e^2$.
+/// Only used for $|z| \le \max(|v|, 1)$, where the terms decrease rapidly, except near the poles
+/// at $n \approx -v$ if $v < 0$.
 fn hyp0f1_series(v: f64, z: f64) -> f64 {
     let mut term = 1.0;
     let mut sum = 1.0;
@@ -139,7 +140,8 @@ fn hyp0f1_series(v: f64, z: f64) -> f64 {
         let n = f64::from(n);
         term *= z / (v + n) / (n + 1.0);
         sum += term;
-        if term.abs() <= f64::EPSILON * sum.abs() {
+        // not before the term with the smallest |v + n|, e.g. 1 / (-7.000001)_8 ~ 1e6 / 7!
+        if term.abs() <= f64::EPSILON * sum.abs() && (v + n > -0.5 || term == 0.0) {
             break;
         }
     }
