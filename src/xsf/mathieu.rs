@@ -15,7 +15,8 @@ use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
 fn cem_cva(m: f64, q: f64) -> f64 {
     let mut kd = 1;
 
-    if (m < 0.0) || (m != m.floor()) {
+    // Unlike in xsf, also NaN if `m` doesn't fit in `int`
+    if (m < 0.0) || (m != m.floor()) || (m > f64::from(i32::MAX)) {
         return f64::NAN;
     }
     let int_m = m as i32;
@@ -36,7 +37,8 @@ fn cem_cva(m: f64, q: f64) -> f64 {
 fn sem_cva(m: f64, q: f64) -> f64 {
     let mut kd = 4;
 
-    if (m <= 0.0) || (m != m.floor()) {
+    // Unlike in xsf, also NaN if `m` doesn't fit in `int`
+    if (m <= 0.0) || (m != m.floor()) || (m > f64::from(i32::MAX)) {
         return f64::NAN;
     }
     let int_m = m as i32;
