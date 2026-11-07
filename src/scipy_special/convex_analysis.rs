@@ -1,4 +1,5 @@
-//! Translated from <https://github.com/scipy/scipy/blob/4845755/scipy/special/_convex_analysis.pxd>
+//! Translated into pure Rust from `xsf/convex_analysis.h` (scipy/xsf@09c93c7). Original author:
+//! argriffing.
 
 /// Elementwise function for computing the entropy
 ///
@@ -36,7 +37,7 @@
 #[inline]
 pub fn entr(x_i: f64) -> f64 {
     if x_i.is_nan() {
-        f64::NAN
+        x_i
     } else if x_i > 0.0 {
         -x_i * x_i.ln()
     } else if x_i == 0.0 {
@@ -93,10 +94,10 @@ pub fn rel_entr(x_i: f64, y_i: f64) -> f64 {
         }
     } else {
         let ratio = x_i / y_i;
-        if (0.5..2.0).contains(&ratio) {
+        if 0.5 < ratio && ratio < 2.0 {
             // When x_i and y_i are close, this is more accurate
             x_i * ((x_i - y_i) / y_i).ln_1p()
-        } else if (f64::MIN_POSITIVE..f64::INFINITY).contains(&ratio) {
+        } else if f64::MIN_POSITIVE < ratio && ratio < f64::INFINITY {
             // There are no underflow or overflow issues
             x_i * ratio.ln()
         } else {
@@ -141,7 +142,7 @@ pub fn kl_div(x: f64, y: f64) -> f64 {
     if x.is_nan() || y.is_nan() {
         f64::NAN
     } else if 0.0 < x && 0.0 < y {
-        // Unlike in SciPy (scipy/xsf#362), `rel_entr` is reused, and y ((1 + e) ln(1 + e) - e) is
+        // Unlike in xsf (scipy/xsf#362), `rel_entr` is reused, and y ((1 + e) ln(1 + e) - e) is
         // used near x = y.
         let e = (x - y) / y;
         if (-0.5..1.0).contains(&e) {
@@ -244,7 +245,7 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
     } else if delta == 0.0 || r == 0.0 {
         0.0
     } else {
-        // Unlike in SciPy (scipy/xsf#362), this uses r^2 / (sqrt(1 + v^2) + 1) with v = r / delta,
+        // Unlike in xsf (scipy/xsf#362), this uses r^2 / (sqrt(1 + v^2) + 1) with v = r / delta,
         // scaled like `hypot`, instead of delta^2 expm1(log1p(v^2) / 2).
         let r = r.abs();
         if r <= delta {

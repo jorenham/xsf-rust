@@ -1,4 +1,5 @@
-//! Ported from `scipy/special/_ndtri_exp.pxd`
+//! Translated into pure Rust from `xsf/ndtri_exp.h` (scipy/xsf@09c93c7). Original author:
+//! Albert Steppi.
 
 use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
 
@@ -20,11 +21,11 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
         SQRT_2 * (-y).sqrt()
     };
     let x0 = x - x.ln() / x;
-    let z = x.recip();
-    let x1 = z * if x < 8.0 {
-        polevl(z, &NDTRI_P1) / p1evl(z, &NDTRI_Q1)
+    let z = 1.0 / x;
+    let x1 = if x < 8.0 {
+        z * polevl(z, &NDTRI_P1) / p1evl(z, &NDTRI_Q1)
     } else {
-        polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
+        z * polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
     };
     let r = x1 - x0;
 

@@ -1,3 +1,8 @@
+//! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@b1eb270).
+//!
+//! Unlike in xsf, the complex `hyp0f1` uses the `sqrt` and `powf` of `num_complex` (in polar
+//! form) instead of `std::sqrt` and `std::pow`.
+
 use num_complex::Complex64;
 
 use crate::utils::MAXLOG;
@@ -7,9 +12,6 @@ const LN_MAX: f64 = MAXLOG; // f64::MAX.ln()
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
 /// Debye's expansion of $\Gamma(v) z^{(1-v)/2} I_{v-1}(2\sqrt{z})$ for real $z$ and large $|v|$
-///
-/// Corresponds to `scipy.special._hyp0f1._hyp0f1_asy`:
-/// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L59-L100>
 ///
 /// Unlike in xsf (scipy/xsf#366), this also handles $z<0$ with $4|z| < (v-1)^2$, through Debye's
 /// expansion of $J_{v-1}(2\sqrt{-z})$ (DLMF 10.19.3).
@@ -54,10 +56,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     }
 }
 
-/// Real-valued kernel
-///
-/// Corresponds to `scipy.special._hyp0f1._hyp0f1_real`:
-/// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L31-L56>
+/// `xsf::hyp0f1` for real `z`
 #[inline]
 fn hyp0f1_real(v: f64, z: f64) -> f64 {
     if v.is_nan() || z.is_nan() {
@@ -148,10 +147,7 @@ fn hyp0f1_series(v: f64, z: f64) -> f64 {
     sum
 }
 
-/// Complex valued kernel
-///
-/// Corresponds to `scipy.special._hyp0f1._hyp0f1_cmplx`:
-/// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/_hyp0f1.pxd#L106-L136>
+/// `xsf::hyp0f1` for complex `z`
 #[inline]
 fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
