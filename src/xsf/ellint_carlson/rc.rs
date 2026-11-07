@@ -32,7 +32,16 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
             tmpres.prod(x.quot(x - y).sqrt())
         };
         return (status, res);
-    } else if y.too_small() || !x.ph_good() {
+    }
+
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled
+    if let Some(f) = common::scale_factor(&[x, y], f64::MIN_POSITIVE) {
+        let (status, res) = rc(x * f * f, y * f * f, rerr);
+        return (status, res * f);
+    }
+
+    // Unlike in xsf, a subnormal y is not treated as 0, e.g. for R_C(1, 5e-324)
+    if y == T::from(0.0) || !x.ph_good() {
         return (ExitStatus::BadArgs, T::NAN);
     } else if x.isinf() || y.isinf() {
         return (ExitStatus::Success, T::from(0.0));
