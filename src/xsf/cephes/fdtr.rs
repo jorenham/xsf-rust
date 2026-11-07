@@ -107,6 +107,10 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
+    // Unlike in xsf, fdtr(a, b, inf) is 1 instead of NaN (from w = inf / inf).
+    if x == f64::INFINITY && !a.is_nan() && !b.is_nan() {
+        return 1.0;
+    }
     let mut w = a * x;
     w = w / (b + w);
     // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`).
