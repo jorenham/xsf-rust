@@ -224,6 +224,30 @@ mod rjimpl {
         pub(super) h: f64,
     }
 
+    /// `sqrt(x * y)`
+    ///
+    /// Unlike in xsf (scipy/xsf#376), as `sqrt(x) sqrt(y)` if `x * y` underflows.
+    fn sqrt_prod(x: f64, y: f64) -> f64 {
+        let xy = x * y;
+        if xy.is_normal() {
+            xy.sqrt()
+        } else {
+            x.sqrt() * y.sqrt()
+        }
+    }
+
+    /// `ln(c x / y)`
+    ///
+    /// Unlike in xsf (scipy/xsf#376), as `ln(c) + ln(x) - ln(y)` if `c x / y` overflows.
+    pub(super) fn ln_ratio(c: f64, x: f64, y: f64) -> f64 {
+        let r = c * x / y;
+        if r.is_finite() {
+            r.ln()
+        } else {
+            c.ln() + x.ln() - y.ln()
+        }
+    }
+
     pub(super) fn rj_asym_conf(x: f64, y: f64, z: f64, p: f64, conf: &mut AsymConfig) -> AsymFlag {
         let mut t;
 
@@ -261,8 +285,8 @@ mod rjimpl {
         if ((0.0 < y) && (y <= 1e-26)) || asymp_zero(t) {
             /* bound fairly sharp even if p is large */
             conf.a = 0.5 * (x + y);
-            conf.g = (x * y).sqrt();
-            if (conf.a / z + conf.a / p) * (p / conf.a).ln().abs() <= 1.0 {
+            conf.g = sqrt_prod(x, y);
+            if (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
                 return AsymFlag::Tinyy;
             }
         }
@@ -275,9 +299,9 @@ mod rjimpl {
 
         if (z != 0.0) && asymp_zero(y.max(p) / z) {
             conf.b = 0.5 * (x + y);
-            conf.h = (x * y).sqrt();
+            conf.h = sqrt_prod(x, y);
             /* when bounds are sharp */
-            if (z / (conf.b + conf.h)).ln().abs() <= z.sqrt() {
+            if ln_ratio(1.0, z, conf.b + conf.h).abs() <= z.sqrt() {
                 return AsymFlag::Hugez;
             }
         }
@@ -323,9 +347,16 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled (not below 2^-254, so
-    // that `beta` below doesn't underflow)
-    if let Some(f) = common::scale_factor(&[x, y, z, p], 2.0_f64.powi(-254)) {
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, not below 2^-511 so
+    // that products of two of them don't underflow, or 2^-254 if complex (wider spans are
+    // inaccurate there)
+    let real = [x, y, z, p].iter().all(|a| argcheck::too_small(a.imag()));
+    let min = if real {
+        f64::MIN_POSITIVE.sqrt()
+    } else {
+        2.0_f64.powi(-254)
+    };
+    if let Some(f) = common::scale_factor(&[x, y, z, p], min) {
         let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
         return (status, res * f * f * f);
     }
@@ -444,8 +475,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                  * Ref[6]. */
                 let mut tx;
                 (status, tx) = rc(1.0, pr / zr, rerr);
-                tmpres = (8.0 * zr / (config.a + config.g)).ln() - 2.0 * tx;
-                tx = (2.0 * pr / (config.a + config.g)).ln() / pr;
+                tmpres = rjimpl::ln_ratio(8.0, zr, config.a + config.g) - 2.0 * tx;
+                tx = rjimpl::ln_ratio(2.0, pr, config.a + config.g) / pr;
                 let rt_h = tx * config.a * (1.0 + 0.5 * pr / zr) / (1.0 - config.a / pr);
                 tx = 1.5 / (zr.sqrt() * pr);
                 tmpres *= tx;
@@ -458,14 +489,20 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 tt *= tt;
                 let tm = config.b + config.h;
                 (status, tmpres) = rc(tt, 2.0 * tm * pr, rerr * 0.5);
-                tt = (2.0 * zr / tm).ln();
+                tt = rjimpl::ln_ratio(2.0, zr, tm);
                 let rt_h = 0.75 * (2.0 * pr * tmpres / zr - tt / (zr - config.h));
                 tt = 3.0 / zr.sqrt();
                 tmpres *= tt;
                 /* Also try if direct computation gives reasonable approx. */
                 let (status_direct, tmp_direct) = rj(xr, yr, zr, pr, rerr * 0.5, true);
-                if (tmp_direct > tmpres) || (tmp_direct < tmpres + rt_h * tt) {
-                    tmpres += tt * 0.3 * rt_h;
+                let asym = tmpres + tt * 0.3 * rt_h;
+                // Unlike in xsf (scipy/xsf#376), `asym` is also used if `tmp_direct` is NaN, unless
+                // `tmpres` is 0 or subnormal (e.g. if `rc` overflows), or `asym` is not finite
+                if (tmp_direct > tmpres)
+                    || (tmp_direct < tmpres + rt_h * tt)
+                    || (tmp_direct.is_nan() && tmpres.is_normal() && asym.is_finite())
+                {
+                    tmpres = asym;
                 } else {
                     tmpres = tmp_direct;
                     status = status_direct;

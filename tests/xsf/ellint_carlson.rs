@@ -264,6 +264,29 @@ fn test_elliprg_wide_span() {
 }
 
 #[test]
+fn test_elliprj_wide_span() {
+    let actual = [
+        xsf::elliprj(1e-200, 1e-200, 1.0, 1.0),
+        xsf::elliprj(1e-100, 1.0, 1e200, 1.0),
+        // the direct computation of the "huge z" case is NaN
+        xsf::elliprj(1e-320, 1e75, 1e294, 1e4),
+        // `8 z / (a + g)` of the "tiny y" case overflows
+        xsf::elliprj(1e-200, 1e-200, 1e300, 1.0),
+    ];
+    // Arb
+    let expected = [
+        689.854_969_439_893_6,        // 689.85496943989354116
+        3e-100,                       // 3.0000000000000000454e-100
+        1.490_188_239_869_415_3e-186, // 1.4901882398694151904e-186
+        6.907_755_278_982_136e-148,   // 6.9077552789821368710e-148
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // NaN instead of a wrong value if `rc` of the "huge z" case overflows (Arb: 3e-284)
+    assert!(xsf::elliprj(1e-320, 1e180, 1e208, 1e180).is_nan());
+}
+
+#[test]
 fn test_elliprd_overflow() {
     // just below the overflow threshold, where `3 * adt` overflows
     let actual = xsf::elliprd(
