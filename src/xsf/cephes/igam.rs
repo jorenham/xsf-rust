@@ -94,7 +94,9 @@ pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
             return (a * x.ln() - x).exp() * rgamma(a);
         }
         let ax = a * x.ln() - x - lgam(a);
-        if ax < -MAXLOG {
+        // Unlike in xsf, also 0 for a >= MAX / MAXLOG (where ax < -a / 16), as `a * x.ln()` or
+        // `lgam(a)` can overflow there, e.g. igam(1e308, 3) was NaN instead of 0.
+        if ax < -MAXLOG || a >= f64::MAX / MAXLOG {
             return 0.0;
         }
         return ax.exp();
