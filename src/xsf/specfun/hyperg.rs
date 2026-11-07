@@ -19,8 +19,8 @@ use crate::xsf::trig::cephes_sinpi;
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
-/// Unlike in xsf (scipy/xsf#436), with `a + (j - 1)` instead of `a + j - 1` (likewise for `b`),
-/// which loses a tiny `a` or `b` (e.g. `b = 1e-17`).
+/// Unlike in xsf (scipy/xsf#436, scipy/xsf#454), with `a + (j - 1)` instead of `a + j - 1`
+/// (likewise for `b`).
 fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: f64, j: i32) -> T {
     let n = f64::from(j - 1);
     t * (a + n) / (f64::from(j) * (b + n))
@@ -84,7 +84,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
         let m = int_x86(-a);
         let mut cr = c64(1.0, 0.0);
         chg = c64(1.0, 0.0);
-        // Unlike in xsf, a + (k - 1) and b + (k - 1), as in `kummer_term`
+        // Unlike in xsf (scipy/xsf#454), a + (k - 1) and b + (k - 1), as in `kummer_term`
         for k in 1..=m {
             let n = f64::from(k - 1);
             cr = cmul(cr * (a + n) / f64::from(k) / (b + n), z);
@@ -115,9 +115,9 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 chg = c64(1.0, 0.0);
                 let mut chw = c64(0.0, 0.0);
                 let mut crg = c64(1.0, 0.0);
-                // Unlike in xsf, a negligible term only ends the sum if the terms can't grow again
-                // (see `term_ratio`), e.g. not for tiny a. Otherwise the sum up to the first one is
-                // used if the sum doesn't end, or if the later terms are below its rounding error.
+                // Unlike in xsf (scipy/xsf#454), a negligible term only ends the sum if the terms
+                // can't grow again (see `term_ratio`). Otherwise the sum up to the first one is used
+                // if the sum doesn't end, or if the later terms are below its rounding error.
                 let mut early = None;
                 let mut ended = false;
                 // the sum of |crg|
@@ -464,7 +464,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                 rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
                 rs += rg.abs();
-                // Unlike in xsf, not if the terms can grow again (see `term_ratio`), as for tiny a
+                // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`)
                 if (hg != 0.0)
                     && ((rg / hg).abs() < 1e-15)
                     && (rg == 0.0 || term_ratio(a, b, x, f64::from(j)).is_some())
