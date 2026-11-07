@@ -8,7 +8,10 @@ use core::ops::Range;
 use num_traits::Zero;
 
 use crate::utils::{MAXGAM, SQRT_EPS, SQRT_PI};
-use crate::xsf::cephes::HYP2F1_ETHRESH;
+use crate::xsf::cephes::{HYP2F1_EPS, HYP2F1_ETHRESH};
+
+/// The degrees `n` with an exact `n - 1`
+const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
 
 mod sealed {
     pub trait OrthoPolyArg:
@@ -150,7 +153,16 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
                 return (self - 1.0) * ((n + b) / (2.0 * n)) * p;
             }
         }
-        let d = crate::binom(n + a, n);
+        // Unlike in xsf, if `|alpha + 1| < HYP2F1_EPS` (where the real `hyp2f1` treats it as 0),
+        // alpha is shifted up by a relation that follows from DLMF 18.5.7 term by term.
+        // E.g. `eval_jacobi(7.5, -1 + 1e-15, 2.0, -0.6)` was NaN instead of 1.337.
+        if (a + 1.0).abs() < HYP2F1_EPS && EXACT_N_MINUS_1.contains(&n) {
+            let c = a + 1.0;
+            let p = self.clone().eval_jacobi(n, c, b) * c;
+            let q = self.clone().eval_jacobi(n - 1.0, c + 1.0, b) * (self - 1.0) * (0.5 * (n + b));
+            return (p + q) / (n + c);
+        }
+        let d = binom_alpha(n, a);
         self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0) * d
     }
 
@@ -189,8 +201,7 @@ impl JacobiArg<i32> for f64 {
                     / (2.0 * (k + alpha + 1.0) * (k + alpha + beta + 1.0) * t);
                 p += d;
             }
-            let n = f64::from(n);
-            crate::binom(n + alpha, n) * p
+            binom_alpha(f64::from(n), alpha) * p
         }
     }
 
@@ -715,15 +726,16 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
     fn eval_genlaguerre(self, n: N, a: f64) -> Self;
 }
 
-/// `binom(n + alpha, n)`
+/// `binom(n + alpha, n)`, for `eval_genlaguerre` and `eval_jacobi`
 ///
 /// Unlike in xsf (scipy/xsf#457), this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if
 /// `alpha < 0` and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the
 /// digits of a small `b`.
 ///
-/// E.g. `eval_genlaguerre(30, -1 + 1e-14, 10.0)` was -11.70 instead of -10.97.
-fn genlaguerre_binom(n: f64, alpha: f64) -> f64 {
-    if alpha < 0.0 && (1.0..=2.0 / f64::EPSILON).contains(&n) {
+/// E.g. `eval_genlaguerre(30, -1 + 1e-14, 10.0)` was -11.70 instead of -10.97, and
+/// `eval_jacobi(7, -1 + 1e-15, 2.0, -0.6)` was 1.219 instead of 1.371.
+fn binom_alpha(n: f64, alpha: f64) -> f64 {
+    if alpha < 0.0 && EXACT_N_MINUS_1.contains(&n) {
         crate::binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
     } else {
         crate::binom(n + alpha, n)
@@ -739,7 +751,7 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
             return Self::ZERO + f64::NAN;
         }
 
-        let d = genlaguerre_binom(n, alpha);
+        let d = binom_alpha(n, alpha);
         self.hyp1f1(-n, alpha + 1.0) * d
     }
 }
@@ -773,7 +785,7 @@ impl LaguerreArg<i32> for f64 {
             d = -x / (k + alpha + 1.0) * p + (k / (k + alpha + 1.0)) * d;
             p += d;
         }
-        genlaguerre_binom(f64::from(n), alpha) * p
+        binom_alpha(f64::from(n), alpha) * p
     }
 }
 
