@@ -532,10 +532,13 @@ pub(crate) fn find_root_newton(
     (x, MaxIterationsExceeded)
 }
 
+/// `2^31`, the smallest `x` for which `(int)x` overflows (undefined behavior in C++)
+pub(crate) const INT_OVERFLOW: f64 = 2_147_483_648.0;
+
 /// `(int)x` as compiled by g++ for x86-64 (`cvttsd2si`), i.e. INT_MIN if `x` is NaN or out of
 /// range, where it is undefined behavior in C++
 pub(crate) fn int_x86(x: f64) -> i32 {
-    if x > -2_147_483_649.0 && x < 2_147_483_648.0 {
+    if x > -INT_OVERFLOW - 1.0 && x < INT_OVERFLOW {
         x as i32
     } else {
         i32::MIN
