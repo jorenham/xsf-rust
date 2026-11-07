@@ -53,3 +53,27 @@ fn test_eval_real_degree_large() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
+
+#[test]
+fn test_eval_genlaguerre_alpha_near_minus_one() {
+    // `binom(n + alpha, n)` lost the digits of `alpha + 1` (mpmath)
+    let actual = [
+        xsf::eval_genlaguerre(30_i32, -1.0 + 1e-14, 10.0),
+        xsf::eval_genlaguerre(20_i32, -1.0 + 1e-12, 3.0),
+        xsf::eval_genlaguerre(7_i32, -1.0 + 1e-15, 2.5),
+        xsf::eval_genlaguerre(25.0, -1.0 + 1e-13, 4.0),
+        xsf::eval_genlaguerre(40.0, -1.0 + 1e-6, 25.0),
+    ];
+    let desired = [
+        -10.969_942_483_703_025,
+        -0.312_622_172_273_621_26,
+        -0.554_044_208_829_365,
+        -0.131_747_458_557_938_53,
+        19_671.412_951_251_726,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but not for n > 2^53, where `n - 1` rounds (mpmath: 0.999999999999998)
+    let actual = xsf::eval_genlaguerre(2.0_f64.powi(54), -2.0_f64.powi(-54), 0.0);
+    np_assert_allclose!([actual], [0.999_999_999_999_997_9], rtol = 1e-14);
+}

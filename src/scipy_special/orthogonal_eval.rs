@@ -715,6 +715,21 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
     fn eval_genlaguerre(self, n: N, a: f64) -> Self;
 }
 
+/// `binom(n + alpha, n)`
+///
+/// Unlike in xsf, this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if `alpha < 0`
+/// and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the digits of a
+/// small `b`.
+///
+/// E.g. `eval_genlaguerre(30, -1 + 1e-14, 10.0)` was -11.70 instead of -10.97.
+fn genlaguerre_binom(n: f64, alpha: f64) -> f64 {
+    if alpha < 0.0 && (1.0..=2.0 / f64::EPSILON).contains(&n) {
+        crate::binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
+    } else {
+        crate::binom(n + alpha, n)
+    }
+}
+
 impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_genlaguerre` in `xsf/cpu/orthogonal_eval.h`
     #[inline]
@@ -724,7 +739,7 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
             return Self::ZERO + f64::NAN;
         }
 
-        let d = crate::binom(n + alpha, n);
+        let d = genlaguerre_binom(n, alpha);
         self.hyp1f1(-n, alpha + 1.0) * d
     }
 }
@@ -758,8 +773,7 @@ impl LaguerreArg<i32> for f64 {
             d = -x / (k + alpha + 1.0) * p + (k / (k + alpha + 1.0)) * d;
             p += d;
         }
-        let n = f64::from(n);
-        crate::binom(n + alpha, n) * p
+        genlaguerre_binom(f64::from(n), alpha) * p
     }
 }
 
