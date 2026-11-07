@@ -174,7 +174,17 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if nu == 1.0 {
         0.5 + FRAC_1_PI * x.atan()
     } else if nu == 2.0 {
-        f64::midpoint(1.0, x / (2.0 + x * x).sqrt())
+        if x < 0.0 {
+            // (1 + x / s) / 2 = 1 / (s (s - x)) with s = sqrt(2 + x^2) avoids the cancellation, and
+            // hypot the overflow, e.g. stdtr(2, -1e5) was 5.0000004e-11 instead of 4.9999999993e-11
+            let s = x.hypot(SQRT_2);
+            s.recip() / (s - x)
+        } else if x * x == f64::INFINITY {
+            // e.g. stdtr(2, 1e200) was 0.5 instead of 1
+            1.0
+        } else {
+            f64::midpoint(1.0, x / (2.0 + x * x).sqrt())
+        }
     } else {
         let t2 = x * x;
         let w = nu / (nu + t2);
