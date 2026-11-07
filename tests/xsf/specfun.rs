@@ -355,6 +355,32 @@ fn test_hypu_int_b() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 
+    // Arb; 20.24, 1.0210079, -2.5019, -11.2, and 4.17144e16 in xsf (`a - n`, `gamma2`, and
+    // `psi_spec` lose digits near the poles of Gamma(a))
+    let abx = [
+        (-2.0 + 1e-15, 4.0, 0.157),
+        (2.1e-10, 6.0, 0.048),
+        (-1.0 + 1e-13, 3.0, 0.5),
+        (-1.0 + 1e-14, 12.0, 2.4),
+        (-16.0 - 1e-14, -16.0, 7.6),
+    ];
+    let expected = [
+        18.454_649_000_001_735,
+        1.021_005_617_856_604_2,
+        -2.500_000_000_000_773_5,
+        -9.600_000_000_047_481,
+        4.171_421_288_044_156e16,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; the over- and underflows aren't NaN
+    assert_eq!(xsf::hypu(171.61, 1.0, 2.0), 0.0);
+    assert_eq!(xsf::hypu(-3.0 + 1e-15, 999.0, 1e-300), f64::NEG_INFINITY);
+    assert_eq!(xsf::hypu(-1e10, 10.0, 1e-300), f64::INFINITY);
+    assert_eq!(xsf::hypu(-169.0 - 3e-14, 14.0, 4.0), f64::INFINITY);
+    assert_eq!(xsf::hypu(-167.0 - 3e-14, -16.0, 385.0), f64::NEG_INFINITY);
+
     // Arb; still from `chgubi` (11 digits) if `chguit` overflows
     let actual = xsf::hypu(150.0, 9.0, 0.1);
     xsref::np_assert_allclose!([actual], [2.229_672_231_677_937e-250], rtol = 1e-12);

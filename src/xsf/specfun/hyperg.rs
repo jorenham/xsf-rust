@@ -10,13 +10,13 @@ use num_complex::{Complex64, c64};
 
 use super::hyp1f1_recurrence::{hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b};
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::gammaln;
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
+use crate::{digamma, gamma, gammaln};
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
@@ -698,6 +698,20 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
 }
 
 pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+    // Unlike in xsf, for a < 1 with `digamma` and `gamma` instead of `psi_spec` and `gamma2`, which
+    // lose digits near the poles (e.g. both are 8% off at -2 + 1e-15), unless Gamma isn't normal or
+    // the result isn't finite, e.g. U(-169 - 3e-14, 14, 4) = inf (not inf - inf)
+    if a < 1.0 {
+        let hu = chgubi_with(x, a, b, id, false);
+        if hu.is_finite() {
+            return hu;
+        }
+    }
+    chgubi_with(x, a, b, id, true)
+}
+
+/// `chgubi` with `psi_spec` and `gamma2` if `xsf`, else with `digamma` and `gamma`
+fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
     //          U(a,b,x) with integer b ( b = ±1,±2,... )
@@ -730,22 +744,32 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             rn1 = rn;
         }
     }
-    let ps = psi_spec(a);
-    let ga = gamma2(a);
+    let ps = if xsf { psi_spec(a) } else { digamma(a) };
+    let ga = if xsf { gamma2(a) } else { gamma(a) };
     if b > 0.0 {
         a0 = a;
         a1 = a - f64::from(n);
         a2 = a1;
-        ga1 = gamma2(a1);
+        // Unlike in xsf, Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because `a1` rounds,
+        // e.g. U(-2 + 1e-15, 4, 0.157) was 20.2 instead of 18.5
+        ga1 = if xsf {
+            gamma2(a1)
+        } else {
+            ga / (1..=n).map(|j| a - f64::from(j)).product::<f64>()
+        };
         ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga1);
         ub = rn1 / ga * x.powf(f64::from(-n));
     } else {
         a0 = a + f64::from(n);
         a1 = a0;
         a2 = a;
-        ga1 = gamma2(a1);
+        ga1 = if xsf { gamma2(a1) } else { gamma(a1) };
         ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga) * x.powf(f64::from(n));
         ub = rn1 / ga1;
+    }
+    // see `chgubi`
+    if !(xsf || ga.is_normal() && ga1.is_normal()) {
+        return f64::NAN;
     }
     let mut hm1 = 1.0;
     let mut r = 1.0;
