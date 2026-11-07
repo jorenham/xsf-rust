@@ -53,6 +53,12 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled
+    if let Some(f) = common::scale_factor(&[x, y, z], f64::MIN_POSITIVE) {
+        let (status, res) = rf(x * f * f, y * f * f, z * f * f, rerr);
+        return (status, res * f);
+    }
+
     if x.ph_good() && y.ph_good() && z.ph_good() {
         if x.isinf() || y.isinf() || z.isinf() {
             return (ExitStatus::Success, T::from(0.0));
@@ -66,8 +72,11 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     let mut xm = cct1[0];
     let mut ym = cct1[1];
     let mut zm = cct1[2];
-    if xm.too_small() {
-        if ym.too_small() {
+    // Unlike in xsf, for a subnormal x only if |x| <= eps |y|, as the first-order correction
+    // below is inaccurate otherwise, e.g. not for R_F(1e-310, 1e-309, 1)
+    if xm.too_small() && xm.abs() <= f64::EPSILON * ym.abs() {
+        // Unlike in xsf, not for a subnormal y, e.g. for R_F(0, 5e-324, 1)
+        if ym == T::from(0.0) {
             return (ExitStatus::Singular, T::HUGE);
         }
         let (status, tmpres) = rf0(ym, zm, rerr * 0.5);
