@@ -627,41 +627,49 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
         // Unlike in xsf (scipy/xsf#380), chguit is used for b - 1 >= 1000, where chgubi gives up
-        if bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) && b - 1.0 < 1000.0 {
+        let ubi = bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) && b - 1.0 < 1000.0;
+        if ubi {
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
-        } else {
-            hu = chguit(x, a, b, &mut id);
-            *md = 4;
         }
+        // Unlike in xsf, chguit is also used if chgubi has fewer than `ID_MIN` digits, unless
+        // chgubi overflows (e.g. for b < -170, where chguit is often wrong too) or chguit does
+        // (e.g. U(150, 9, 0.1) = 2.23e-250)
+        if !ubi || id < ID_MIN && hu.is_finite() {
+            let mut id_it = 0;
+            let u = chguit(x, a, b, &mut id_it);
+            if !ubi || u.is_finite() {
+                (hu, id) = (u, id_it);
+                *md = 4;
+            }
+        }
+    } else if b <= a {
+        let b00 = b;
+        a -= b - 1.0;
+        b = 2.0 - b;
+        hu = chguit(x, a, b, &mut id);
+        hu *= x.powf(1.0 - b00);
+        *md = 4;
     } else {
-        if b <= a {
-            let b00 = b;
-            a -= b - 1.0;
-            b = 2.0 - b;
-            hu = chguit(x, a, b, &mut id);
-            hu *= x.powf(1.0 - b00);
-            *md = 4;
-        } else {
-            if bn != 0 && (!il1) != 0 {
-                // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
-                // this condition is just `bn`. Reproduced as is.
-                hu = chgubi(x, a, b, &mut id);
-                *md = 3;
-            }
-            // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
-            // or if chgubi fails and chgul has fewer than 9 digits
-            let failed = id < 6 || hu.is_nan();
-            if (bn == 0 || failed && id0 < 9) && a > -1000.0 {
-                let u = super::hypu_rec(a, b, x);
-                if !u.is_nan() {
-                    (hu, id) = (u, ID_MIN);
-                }
+        if bn != 0 && (!il1) != 0 {
+            // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
+            // this condition is just `bn`. Reproduced as is.
+            hu = chgubi(x, a, b, &mut id);
+            *md = 3;
+        }
+        // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
+        // or if chgubi has fewer than `ID_MIN` digits (or overflows) and chgul fewer than 9
+        let failed = id < ID_MIN || !hu.is_finite();
+        if (bn == 0 || failed && id0 < 9) && a > -1000.0 {
+            let u = super::hypu_rec(a, b, x);
+            if !u.is_nan() {
+                (hu, id) = (u, ID_MIN);
             }
         }
-        // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
-        // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
     }
+    // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
+    // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
+
     // see `ID_MIN`
     if id0 >= 9 && !hu0.is_nan() {
         let tol = 10f64.powi(1 - id0) * hu0.abs();
@@ -730,7 +738,6 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hm1 = 1.0;
     let mut r = 1.0;
     let mut hmax: f64 = 0.0;
-    let mut hmin: f64 = SPECFUN_INF;
     let mut h0 = 0.0;
     for k in 1..=150 {
         r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
@@ -740,26 +747,13 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if hu1 > hmax {
             hmax = hu1;
         }
-        if hu1 < hmin {
-            hmin = hu1;
-        }
         if (hm1 - h0).abs() < hm1.abs() * 1.0e-15 {
             break;
         }
         h0 = hm1;
     }
 
-    let da1 = hmax.log10();
-    let mut da2 = 0.0;
-
-    if hmin != 0.0 {
-        da2 = hmin.log10();
-    }
-
-    // NOTE: if `hmax` is inf (or `hm1` is NaN, so that `hmax == 0` and `da1 = -inf`), `(int)inf`
-    // is UB in C++ (GCC/x86: INT_MIN, so `15 - INT_MIN` overflows to -2147483633); here it
-    // saturates to i32::MAX, giving -2147483632. Same for the `(int)fabs(db1 - db2)` below.
-    *id = 15 - (da1 - da2).abs() as i32;
+    let (hmax1, t1) = (hmax, r);
     hm1 *= x.ln();
     let mut s0 = 0.0;
 
@@ -773,9 +767,9 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     }
 
     let mut hm2 = ps + 2.0 * EL + s0;
+    let mut t2 = 0.0;
     r = 1.0;
     hmax = 0.0;
-    hmin = SPECFUN_INF;
 
     for k in 1..=150_i32 {
         let mut s1 = 0.0;
@@ -799,15 +793,12 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
         let hw = 2.0 * EL + ps + s1 - s2;
         r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
-        hm2 += r * hw;
+        t2 = r * hw;
+        hm2 += t2;
         let hu2 = hm2.abs();
 
         if hu2 > hmax {
             hmax = hu2;
-        }
-
-        if hu2 < hmin {
-            hmin = hu2;
         }
 
         // NOTE: `h0` is not reset: in the first iteration it still holds the last `hm1` of the
@@ -819,15 +810,6 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         h0 = hm2;
     }
 
-    let db1 = hmax.log10();
-    let mut db2 = 0.0;
-    if hmin != 0.0 {
-        db2 = hmin.log10();
-    }
-    let mut id1 = 15 - (db1 - db2).abs() as i32;
-    if id1 < *id {
-        *id = id1;
-    }
     let mut hm3 = 1.0;
     if n == 0 {
         hm3 = 0.0;
@@ -840,19 +822,18 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let sa = ua * (hm1 + hm2);
     let sb = ub * hm3;
     let hu = sa + sb;
-    let mut id2 = 0;
-    // NOTE: `(int)log10(fabs(sa))` (and of `hu`) is UB in C++ if `sa` (`hu`) is inf or NaN
-    // (GCC/x86: INT_MIN; here: i32::MAX for inf, 0 for NaN). The wrapping arithmetic below avoids
-    // panics in debug builds for those saturated values.
-    if sa != 0.0 {
-        id1 = sa.abs().log10() as i32;
-    }
-    if hu != 0.0 {
-        id2 = hu.abs().log10() as i32;
-    }
-    if sa * sb < 0.0 {
-        *id = (*id).wrapping_sub(id1.wrapping_sub(id2).wrapping_abs());
-    }
+    // Unlike in xsf, the digits are estimated from the rounding errors (of the largest partial
+    // sums) and the truncation errors (the last terms) of the series. xsf uses the ratio of the
+    // largest and smallest partial sums, which is large if a sum grows, and it misses the
+    // cancellation in `hm1 + hm2`.
+    //
+    // E.g. U(13.5, 25, 0.005) = 2.54e68 had -69 digits (so NaN), and U(30, -10, 2) had 7 digits,
+    // of which only 4 are correct. If `hu` overflows (inf / inf) or underflows to 0 (0 / 0, e.g.
+    // U(1e6, 2, 0.1)), `min` turns the NaN into 15 digits.
+    let lnx = x.ln().abs();
+    let round = 1e-15 * (ua.abs() * (hmax1 * lnx + hmax) + sb.abs());
+    let trunc = ua.abs() * (t1.abs() * lnx + t2.abs());
+    *id = (-((round + trunc) / hu.abs()).log10()).min(15.0) as i32;
     hu
 }
 
