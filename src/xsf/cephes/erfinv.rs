@@ -36,7 +36,8 @@ pub fn erfinv(y: f64) -> f64 {
     const DOMAIN_LB: f64 = -1.0;
     const DOMAIN_UB: f64 = 1.0;
 
-    // Unlike in xsf (1e-7, scipy/xsf#349), so that the neglected cubic term stays below 1/4 ulp
+    // Unlike in xsf (scipy/xsf#349), 1e-8 instead of 1e-7, so that the neglected cubic term stays
+    // below 1/4 ulp
     const THRESH: f64 = 1e-8;
 
     /*

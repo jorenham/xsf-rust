@@ -37,6 +37,11 @@ fn near_neg_int(t: f64) -> bool {
     t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS
 }
 
+/// Whether `t < 0` is not an integer, up to `HYP2F1_EPS`
+fn neg_non_int(t: f64) -> bool {
+    t < 0.0 && (t - t.round()).abs() > HYP2F1_EPS
+}
+
 /// Unlike in xsf (scipy/xsf#371), `hys2f1_err`, or the power series and `true` if the recurrence
 /// in `a` has a small `loss` but a large error, and the series is accurate and shows it to be less
 /// accurate. Not if `a` or `b` is near a non-positive integer, where the series can stop too early.
@@ -133,7 +138,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // - it fails if their ratio underflows, e.g. for tiny a and b
     //
     // E.g. `hyp2f1(0.1, 0.2, -1000.5, 0.55)` was inf instead of -6.23e83.
-    let pole_ahead = x > 0.0 && h < 0.0 && (h - h.round()).abs() > HYP2F1_EPS;
+    let pole_ahead = x > 0.0 && neg_non_int(h);
     let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
     let (mut n_scaled, mut i_scaled) = (0, 0);
     loop {
@@ -598,7 +603,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     }
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
-        let c_pole = c < 0.0 && (c - c.round()).abs() > HYP2F1_EPS;
+        let c_pole = neg_non_int(c);
         // Unlike in xsf, if c < 0 is not an integer and -1 < x < 0, first try the series of the
         // Pfaff transformations (as for x < -2 below).
         //

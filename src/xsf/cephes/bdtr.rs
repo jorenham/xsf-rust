@@ -57,7 +57,7 @@ use crate::xsf::cephes::incbi::incbi;
 /// bdtrc domain      x<0, x>1, n<k       NaN
 /// ```
 ///
-/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
     let fk = k.floor();
 
@@ -133,7 +133,7 @@ pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 ///                     x < 0, x > 1
 /// ```
 ///
-/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
     let fk = k.floor();
 
@@ -212,7 +212,7 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 ///                  x < 0, x > 1
 /// ```
 ///
-/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
     let fk = k.floor();
 

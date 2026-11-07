@@ -4,8 +4,6 @@
 //! Copyright 1984, 1987, 1995 by Stephen L. Moshier
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the values returned on domain errors are documented as NaN instead of 0.0.
 
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::igami::igamci;
@@ -42,6 +40,8 @@ use crate::xsf::cephes::igami::igamci;
 ///   message         condition      value returned
 /// gdtr domain         x < 0            NaN
 /// ```
+///
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn gdtr(a: f64, b: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
@@ -81,6 +81,8 @@ pub(crate) fn gdtr(a: f64, b: f64, x: f64) -> f64 {
 ///   message         condition      value returned
 /// gdtrc domain         x < 0            NaN
 /// ```
+///
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;

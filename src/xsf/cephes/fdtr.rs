@@ -48,7 +48,7 @@ use crate::xsf::cephes::incbi::incbi;
 /// fdtrc domain    a<=0, b<=0, x<0       NaN
 /// ```
 ///
-/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
@@ -102,7 +102,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 /// fdtr domain     a<=0, b<=0, x<0       NaN
 /// ```
 ///
-/// (Unlike in xsf, where the value returned on a domain error is documented as 0.0.)
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;

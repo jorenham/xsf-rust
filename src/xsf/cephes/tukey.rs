@@ -28,9 +28,9 @@ pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
         }
     }
 
-    // Unlike in xsf, the logistic CDF only for (subnormal) lambda = 0, instead of |lambda| < 1e-4,
-    // as its relative error is ~lambda x^2 / 2, e.g. `tukeylambdacdf(-20.0, 9e-5)` was 2.06e-9,
-    // not 2.02e-9.
+    // Unlike in xsf, the logistic CDF is used only for zero or subnormal lambda instead of
+    // |lambda| < 1e-4, as its relative error is ~lambda x^2 / 2, e.g.
+    // `tukeylambdacdf(-20.0, 9e-5)` was 2.06e-9, not 2.02e-9.
     if lmbda.abs() < f64::MIN_POSITIVE {
         if x >= 0.0 {
             return 1.0 / (1.0 + (-x).exp());

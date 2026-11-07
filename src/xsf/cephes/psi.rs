@@ -157,8 +157,7 @@ pub(crate) fn psi(mut x: f64) -> f64 {
         if r == 0.0 {
             return f64::NAN;
         }
-        // (unlike in xsf, scipy/xsf#311) reduce r to [-1/2, 1/2), where tan(pi r) doesn't lose
-        // precision
+        // reduce r to [-1/2, 1/2), where tan(pi r) doesn't lose precision
         if r < -0.5 {
             r += 1.0;
         }

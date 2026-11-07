@@ -6,7 +6,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, `k + 1` in `pdtri` is computed in `f64`, so that it doesn't overflow for
-//! `k = i32::MAX`, and the value returned on a domain error is documented as NaN instead of 0.0.
+//! `k = i32::MAX`.
 
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::igami::igamci;
@@ -107,6 +107,8 @@ pub(crate) fn pdtr(k: f64, m: f64) -> f64 {
 /// pdtri domain    y < 0 or y >= 1       NaN
 ///                     k < 0
 /// ```
+///
+/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn pdtri(k: i32, y: f64) -> f64 {
     if (k < 0) || (y < 0.0) || (y >= 1.0) {
         return f64::NAN;
