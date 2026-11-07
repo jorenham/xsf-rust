@@ -27,7 +27,7 @@
 //!
 //! Use for double precision.
 
-use crate::xsf::cephes::polevl::ratevl;
+use crate::xsf::cephes::polevl::ratevl_fma;
 
 const LANCZOS_SUM_EXPG_SCALED_NUM: [f64; 13] = [
     6.061_842_346_248_907e-3,
@@ -67,7 +67,7 @@ pub(crate) const LANCZOS_G: f64 = 6.024_680_040_776_73; // 6.0246800407767295837
 #[must_use]
 #[inline]
 pub fn lanczos_sum_expg_scaled(x: f64) -> f64 {
-    ratevl(
+    ratevl_fma(
         x,
         &LANCZOS_SUM_EXPG_SCALED_NUM,
         &LANCZOS_SUM_EXPG_SCALED_DENOM,
