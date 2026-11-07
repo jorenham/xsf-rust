@@ -5,7 +5,7 @@
 //! using a bracketing search with special checks
 //!
 //! The PPF of the Tukey-lambda distribution is
-//! G(p) = (p**lam + (1-p)**lam) / lam
+//! G(p) = (p**lam - (1-p)**lam) / lam
 //!
 //! Author:  Travis Oliphant
 

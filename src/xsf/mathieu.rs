@@ -113,7 +113,7 @@ fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
 /// with `kf = 1` for `mcm` and `kf = 2` for `msm`, and `kc` the kind.
 fn mathieu_mod(kf: i32, kc: i32, m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) instead of indexing out of bounds if `km` overflows
+        // Unlike in xsf (scipy/xsf#312), NaN instead of indexing out of bounds if `km` overflows
         // `int`
         return (f64::NAN, f64::NAN);
     }
@@ -194,7 +194,7 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
     if mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) NaN, as for km > 251, instead of indexing out of bounds
+        // Unlike in xsf (scipy/xsf#312), NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     cem(f64::from(m), q, x)
@@ -229,7 +229,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
     if m > 0 && mathieu_km_too_large(m, q) {
-        // (unlike in scipy, scipy/xsf#312) NaN, as for km > 251, instead of indexing out of bounds
+        // Unlike in xsf (scipy/xsf#312), NaN, as for km > 251, instead of indexing out of bounds
         return (f64::NAN, f64::NAN);
     }
     sem(f64::from(m), q, x)
@@ -393,7 +393,7 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     // km = int(qm + 0.5*m)
     let km = (qm + 0.5 * f64::from(m)).floor();
     // if km > 251:
-    // (unlike in scipy, also for NaN `km`, e.g. if `q` is NaN, instead of raising in `int`)
+    // Unlike in SciPy, also for NaN `km` (e.g. if `q` is NaN), instead of raising in `int`
     if km.is_nan() || km > 251.0 {
         // warnings.warn("Too many predicted coefficients.", RuntimeWarning, stacklevel=2)
         return Err(format!("Too many predicted coefficients ({km:.0})"));
@@ -409,7 +409,7 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     };
 
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_specfun.pyx#L158-L171
-    // (unlike in scipy, scipy/xsf#312) 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
+    // Unlike in SciPy (scipy/xsf#312), 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
     // can be 251
     let mut fc = [f64::NAN; 252];
     specfun_fcoef(KD, m.try_into().unwrap(), q, cv, &mut fc);
