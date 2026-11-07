@@ -69,6 +69,51 @@ fn test_mathieu_cem_sem_large_m() {
         [-0.499_984_345_080_641_2, -80.541_173_731_920_72],
         rtol = 1e-13
     );
+
+    // NaN in xsf, because the coefficients in `fcoef` themselves overflow; the expected values
+    // are from mpmath
+    let (y, yp) = xsf::mathieu_cem(200, 1.0, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-0.939_995_772_283_597_3, 68.242_508_215_617_67],
+        rtol = 1e-13
+    );
+    let (y, yp) = xsf::mathieu_cem(161, 1e-3, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-0.984_807_586_411_290_2, -27.957_524_503_128_47],
+        rtol = 1e-13
+    );
+    let (y, yp) = xsf::mathieu_sem(100, 1e-6, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-0.984_807_753_355_469_1, 17.364_817_597_481_87],
+        rtol = 1e-13
+    );
+    let (y, yp) = xsf::mathieu_sem(351, 300.0, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-0.990_457_823_187_051_1, -51.090_578_748_552_91],
+        rtol = 1e-13
+    );
+}
+
+#[test]
+fn test_mathieu_a_b_huge_m() {
+    // 0 resp. NaN in xsf, because `m * m` overflows `int`; the second expected value is from
+    // the series DLMF 28.6.14
+    let m = 1 << 30;
+    assert_eq!(xsf::mathieu_a(m, 0.0), 2f64.powi(60));
+    assert_eq!(xsf::mathieu_b(m, 0.0), 2f64.powi(60));
+    xsref::np_assert_allclose!(
+        [xsf::mathieu_a(46341, 1e6)],
+        [2_147_488_513.830_157_2],
+        rtol = 1e-15
+    );
+
+    // `m` doesn't fit in `int`
+    assert!(xsf::mathieu_a(u32::MAX, 0.0).is_nan());
+    assert!(xsf::mathieu_b(u32::MAX, 0.0).is_nan());
 }
 
 #[test]
@@ -163,10 +208,17 @@ fn test_mathieu_coef_huge_q() {
 }
 
 #[test]
-fn test_mathieu_coef_nan() {
-    // `fcoef` gives NaN coefficients (also in scipy)
-    assert!(xsf::mathieu_even_coef(200, 1.0).is_err());
-    assert!(xsf::mathieu_odd_coef(201, 1.0).is_err());
+fn test_mathieu_coef_large_m() {
+    // NaN in xsf, because the coefficients in `fcoef` overflow; the expected `A_200` and
+    // `B_201` are from mpmath, and `A_0` and `B_1` (~1e-435) underflow to 0
+    for (fc, expected) in [
+        (xsf::mathieu_even_coef(200, 1.0), 0.999_998_437_383_417_9),
+        (xsf::mathieu_odd_coef(201, 1.0), 0.999_998_452_894_309_6),
+    ] {
+        let fc = fc.unwrap();
+        xsref::np_assert_allclose!([fc[100]], [expected], rtol = 1e-13);
+        assert_eq!(fc[0], 0.0);
+    }
 }
 
 #[test]

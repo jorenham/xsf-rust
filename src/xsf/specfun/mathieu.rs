@@ -126,8 +126,10 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
 
     let mut a = 0.0;
 
-    // NOTE: the `int` product `m * m` overflows for `m > 46340` (UB in C++, wrapping on x86-64)
-    if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > f64::from(m.wrapping_mul(m))) {
+    // Unlike in xsf, `m * m` is computed in `double` instead of `int`, which overflows for
+    // `m > 46340`, e.g. giving `mathieu_a(2^20, 0) = 0`
+    let m2 = f64::from(m) * f64::from(m);
+    if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > m2) {
         a = cv0(f64::from(kd), f64::from(m), q);
         if (q != 0.0) && (m != 2) {
             a = refine(kd, m, q, a);
@@ -139,7 +141,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
         let ndiv = 10;
         let mut delta = (f64::from(m) - 3.0) * f64::from(m) / f64::from(ndiv);
 
-        if (q - 3.0 * f64::from(m)) <= (f64::from(m.wrapping_mul(m)) - q) {
+        if (q - 3.0 * f64::from(m)) <= (m2 - q) {
             let nn = ((q - 3.0 * f64::from(m)) / delta) as i32 + 1;
             delta = (q - 3.0 * f64::from(m)) / f64::from(nn);
             let mut q1 = 2.0 * f64::from(m);
@@ -159,13 +161,13 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
         } else {
             // Unlike in xsf, a NaN `q` (with `m > 12`) results in NaN instead of 0, since
             // `NaN as i32` is 0 (so the loop runs once), whereas `(int)NaN` is UB in C++ (INT_MIN).
-            let nn = ((f64::from(m.wrapping_mul(m)) - q) / delta) as i32 + 1;
-            delta = (f64::from(m.wrapping_mul(m)) - q) / f64::from(nn);
+            let nn = ((m2 - q) / delta) as i32 + 1;
+            delta = (m2 - q) / f64::from(nn);
             let mut q1 = f64::from(m) * (f64::from(m) - 1.0);
             let mut a1 = cvql(kd, m, q1);
-            let mut q2 = f64::from(m.wrapping_mul(m));
+            let mut q2 = m2;
             let mut a2 = cvql(kd, m, q2);
-            let mut qq = f64::from(m.wrapping_mul(m));
+            let mut qq = m2;
             for _i in 1..=nn {
                 qq -= delta;
                 a = (a1 * q2 - a2 * q1 + (a2 - a1) * qq) / (q2 - q1);
@@ -299,12 +301,12 @@ pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
     // Output:  A0 --- Initial characteristic value
     // =====================================================
 
-    // NOTE: the `int` product `m * m` overflows for `m > 46340` (UB in C++, wrapping on x86-64)
-    let hm1 = 0.5 * q / (f64::from(m.wrapping_mul(m)) - 1.0);
-    let hm3 = 0.25 * hm1.powf(3.0) / (f64::from(m.wrapping_mul(m)) - 4.0);
-    let hm5 = hm1 * hm3 * q
-        / ((f64::from(m.wrapping_mul(m)) - 1.0) * (f64::from(m.wrapping_mul(m)) - 9.0));
-    let a0 = f64::from(m.wrapping_mul(m))
+    // Unlike in xsf, `m * m` is computed in `double` (see `cva2`)
+    let m2 = f64::from(m) * f64::from(m);
+    let hm1 = 0.5 * q / (m2 - 1.0);
+    let hm3 = 0.25 * hm1.powf(3.0) / (m2 - 4.0);
+    let hm5 = hm1 * hm3 * q / ((m2 - 1.0) * (m2 - 9.0));
+    let a0 = m2
         + q * (hm1
             + (5.0 * f64::from(m) * f64::from(m) + 7.0) * hm3
             + (9.0 * f64::from(m).powf(4.0) + 58.0 * f64::from(m) * f64::from(m) + 29.0) * hm5);
@@ -451,6 +453,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                     v = u;
                     u = f1;
                     f1 = (a - 4.0 * (f64::from(i) - 1.0) * (f64::from(i) - 1.0)) * u / q - v;
+                    rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
                     fc[i as usize] = f1;
 
                     if i == kb {
@@ -462,13 +465,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 }
 
                 sp += 2.0 * fc[0] * fc[0] + fc[1] * fc[1] + fc[2] * fc[2];
-                // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
-                ss = if sp.is_finite() {
-                    s + sp * (f3 / f2) * (f3 / f2)
-                } else {
-                    let sp_rel = sum_sq_rel(&fc[..kb as usize], f2) + (fc[0] / f2) * (fc[0] / f2);
-                    s + sp_rel * f3 * f3
-                };
+                ss = s + sp * (f3 / f2) * (f3 / f2);
                 s0 = (1.0 / ss).sqrt();
 
                 for j in 1..=km {
@@ -478,11 +475,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                         fc[(j - 1) as usize] *= s0;
                     }
                 }
-                if fc[0] < 0.0 {
-                    for j in 0..km {
-                        fc[j as usize] = -fc[j as usize];
-                    }
-                }
+                flip_sign(&mut fc[..km as usize]);
                 return;
             }
             fc[(k - 1) as usize] = f;
@@ -521,11 +514,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             for k in 1..=km {
                 fc[(k - 1) as usize] *= s0;
             }
-            if fc[0] < 0.0 {
-                for j in 0..km {
-                    fc[j as usize] = -fc[j as usize];
-                }
-            }
+            flip_sign(&mut fc[..km as usize]);
             return;
         }
         // L45:
@@ -539,6 +528,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             v = u;
             u = f1;
             f1 = (a - (2.0 * f64::from(i) - 1.0) * (2.0 * f64::from(i) - 1.0)) * u / q - v;
+            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
@@ -549,12 +539,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
 
         sp += fc[0] * fc[0] + fc[1] * fc[1];
-        // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
-        ss = if sp.is_finite() {
-            s + sp * (f3 / f2) * (f3 / f2)
-        } else {
-            s + sum_sq_rel(&fc[..(kb - 1) as usize], f2) * f3 * f3
-        };
+        ss = s + sp * (f3 / f2) * (f3 / f2);
         s0 = (1.0 / ss).sqrt();
 
         for j in 1..=km {
@@ -592,11 +577,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             for k in 1..=km {
                 fc[(k - 1) as usize] *= s0;
             }
-            if fc[0] < 0.0 {
-                for j in 0..km {
-                    fc[j as usize] = -fc[j as usize];
-                }
-            }
+            flip_sign(&mut fc[..km as usize]);
             return;
         }
         // L70:
@@ -610,6 +591,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             v = u;
             u = f1;
             f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
+            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
@@ -620,12 +602,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
 
         sp += fc[0] * fc[0] + fc[1] * fc[1];
-        // (unlike in xsf, scipy/xsf#344) see `sum_sq_rel`
-        ss = if sp.is_finite() {
-            s + sp * (f3 / f2) * (f3 / f2)
-        } else {
-            s + sum_sq_rel(&fc[..(kb - 1) as usize], f2) * f3 * f3
-        };
+        ss = s + sp * (f3 / f2) * (f3 / f2);
         s0 = (1.0 / ss).sqrt();
 
         for j in 1..=km {
@@ -636,19 +613,31 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             }
         }
     }
-    if fc[0] < 0.0 {
-        for j in 0..km {
-            fc[j as usize] = -fc[j as usize];
+    flip_sign(&mut fc[..km as usize]);
+}
+
+/// Negates `fc` if `fc[0] < 0`.
+///
+/// Unlike in xsf, also if `fc[0]` is -0, i.e. if it underflowed after `rescale`.
+fn flip_sign(fc: &mut [f64]) {
+    if fc[0] <= 0.0 && fc[0].is_sign_negative() {
+        for c in fc {
+            *c = -*c;
         }
     }
 }
 
-/// `sum((fc / f2)^2)`, for computing `sp * (f3 / f2)^2` in `fcoef` without overflowing `sp`.
-///
-/// Unlike in xsf (scipy/xsf#344), `fcoef` uses this if the sum of squares `sp` of the forward
-/// recurrence overflows.
-fn sum_sq_rel(fc: &[f64], f2: f64) -> f64 {
-    fc.iter().map(|c| (c / f2) * (c / f2)).sum()
+/// Unlike in xsf (scipy/xsf#344), `fcoef` rescales its forward recurrence `fc`, `u`, `f1` and
+/// their sum of squares `sp` if `sp` would overflow. Otherwise the coefficients are all 0 (e.g.
+/// for `m = 92, q = 0.01`), or all NaN if `fc` itself overflows (e.g. for `m = 200, q = 1`).
+fn rescale(fc: &mut [f64], u: &mut f64, f1: &mut f64, sp: &mut f64) {
+    if !(*sp + *f1 * *f1).is_finite() {
+        let scale = f1.abs().recip();
+        for c in fc.iter_mut().chain([u, f1]) {
+            *c *= scale;
+        }
+        *sp = *sp * scale * scale;
+    }
 }
 
 pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64) -> Status {
