@@ -32,9 +32,8 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let ln_sqrt_p1 = 0.5 * p1.ln();
 
     // Unlike in xsf (scipy/xsf#366), the large-v asymptotic correction has 11 terms (DLMF 10.41.9)
-    // instead of 4 (DLMF 10.41.10), all of them (tol = 0) since one can vanish, e.g. u_1 for
-    // p1^2 = 5/3
-    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1, 0.0);
+    // instead of 4 (DLMF 10.41.10)
+    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1);
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v

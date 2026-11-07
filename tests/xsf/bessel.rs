@@ -164,6 +164,27 @@ fn test_bessel_i_small_x_k_overflow() {
 }
 
 #[test]
+fn test_bessel_i_large_v_vanishing_term() {
+    // Arb: I_v(x) where u_1(t) = 0 (x = |v| sqrt(2/3)) or u_2(t) = 0 (x = 1.921 |v| or
+    // x = 0.1157 |v|, where K_v dominates I_{-v}) in the uniform asymptotic expansion
+    let actual = [
+        xsf::bessel_i(100.0, 81.649_658_092_772_6),
+        xsf::bessel_i(-100.5, 82.057_906_383_236_47),
+        xsf::bessel_i(1000.0, 816.496_580_927_726_1),
+        xsf::bessel_i(100.0, 192.102_108_828_307_14),
+        xsf::bessel_i(-70.5, 8.155_385_051_326_476),
+    ];
+    let expected = [
+        6_392_289_838.263_86,
+        7_258_961_449.952_213,
+        4.441_674_522_431_231e110,
+        6.238_986_295_989_078e70,
+        3.311_216_933_797_801_6e55,
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_bessel_amos_underflow() {
     // mpmath: besselj(7.3156, 1.19e-41) = 2.6872935555094642e-306,
     // besselj(-43, 4.418464059606903e-6) = -1.0500997742421043e-296,
