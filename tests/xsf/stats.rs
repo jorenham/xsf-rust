@@ -763,6 +763,20 @@ fn test_cdf_cvm_inf_smoke() {
 }
 
 #[test]
+fn test_cdf_cvm_inf_near_1() {
+    // reference values from mpmath (the series summed to convergence)
+    for &(x, p) in &[
+        (1.49, 0.999_817_995_788_864_9),
+        (3.0, 0.999_999_924_322_565_5),
+        (4.0, 0.999_999_999_526_554_7),
+        (6.0, 0.999_999_999_999_979_9),
+        (7.0, 0.999_999_999_999_999_9),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::cdf_cvm_inf(x)], &[p], rtol = 4e-15);
+    }
+}
+
+#[test]
 fn test_cdf_cvm_smoke() {
     const N: i32 = 10;
     let lower = 1.0 / (12.0 * f64::from(N));

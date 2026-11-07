@@ -1222,17 +1222,12 @@ pub fn nbdtri(k: i32, n: i32, y: f64) -> f64 {
 /// [f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises.html
 /// [f2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises_2samp.html
 ///
-/// Accurate for practical hypothesis testing but not expected to be accurate for large values of
-/// `x`, e.g. `x > 4`, when the cdf is very close to `1`.
-///
 /// # See also
 /// - [`cdf_cvm`]: For a finite sample size
 #[must_use]
 #[inline]
 pub fn cdf_cvm_inf(x: f64) -> f64 {
     // CDF of the Cramer-von Mises test statistic (infinite sample limit).
-    // Accurate for practical hypothesis testing but not expected to be accurate
-    // for large values of x, e.g. x > 4, when the cdf is very close to 1.
     if x.is_nan() {
         return x;
     }
@@ -1256,7 +1251,9 @@ pub fn cdf_cvm_inf(x: f64) -> f64 {
         let z = u * y.sqrt() * (-q).exp() * b;
 
         total += z;
-        if z.abs() < 1e-7 {
+        // Unlike in xsf, stop at a relative tolerance instead of `|z| < 1e-7`, which loses digits
+        // near 1 (e.g. a relative error of 2e-10 at x = 4).
+        if z <= f64::EPSILON * total {
             break;
         }
         k += 1;
