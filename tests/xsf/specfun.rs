@@ -113,16 +113,7 @@ fn test_hypu_neg_a_large_b() {
     let expected = [-9_737_194_064.088_581, -4_550_121_582.442_501];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-7);
 
-    // still NaN (mpmath: 1.0075 and -inf), instead of a wrong 0 if Gamma(a) overflows in
-    // `chguit`, or a wrong 1 from `chgul`
-    assert!(
-        xsf::hypu(
-            -0.001_455_282_650_156_073,
-            -170.624_101_975_403_85,
-            1.490_954_765_747_425_4
-        )
-        .is_nan()
-    );
+    // still NaN (mpmath: -inf), instead of a wrong 1 from `chgul`
     assert!(xsf::hypu(-4.2e-66, 26.000_000_000_000_018, 1e-300).is_nan());
 }
 
@@ -311,6 +302,39 @@ fn test_hypu_large_neg_b() {
     let expected = [0.354_135_821_455_708_52, 9.542_883_153_865_268];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
+fn test_hypu_kummer_overflow() {
+    // Arb; NaN or inf in xsf, where U(a - b + 1, 2 - b, x) or x^(1 - b) over- or underflows
+    let abx = [
+        (-7.0, -7.0, 1e-187),
+        (-1.25, -4.0, 1e-219),
+        (0.5, -100.0, 0.01),
+        (-107.0, -173.0, 0.006),
+        (-0.5, -300.0, 2.0),
+        (0.25, -250.0, 100.0),
+        (
+            -0.001_455_282_650_156_073,
+            -170.624_101_975_403_85,
+            1.490_954_765_747_425_4,
+        ),
+    ];
+    let expected = [
+        5040.0,
+        5.426_195_543_094_943,
+        0.099_621_961_951_682_32,
+        6.809_106_301_661_743e220,
+        17.385_389_278_273_84,
+        0.231_064_916_158_941_04,
+        1.007_524_453_974_522_3,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+
+    // Arb; still from `chgus`, as the integral misses the near-singularity at s = x if 0 < b < 1
+    let actual = xsf::hypu(0.999_999_99, 0.999_999_99, 1e-200);
+    xsref::np_assert_allclose!([actual], [459.938_742_565_798_5], rtol = 1e-8);
 }
 
 #[test]

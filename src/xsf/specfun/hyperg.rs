@@ -10,6 +10,7 @@ use num_complex::{Complex64, c64};
 
 use super::hyp1f1_recurrence::{hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b};
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
+use crate::gammaln;
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
@@ -637,7 +638,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         // (e.g. U(150, 9, 0.1) = 2.23e-250)
         if !ubi || id < ID_MIN && hu.is_finite() {
             let mut id_it = 0;
-            let u = chguit(x, a, b, &mut id_it);
+            let u = chguit(x, a, b, false, &mut id_it);
             if !ubi || u.is_finite() {
                 (hu, id) = (u, id_it);
                 *md = 4;
@@ -647,9 +648,20 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         let b00 = b;
         a -= b - 1.0;
         b = 2.0 - b;
-        hu = chguit(x, a, b, &mut id);
-        hu *= x.powf(1.0 - b00);
         *md = 4;
+        hu = chguit(x, a, b, false, &mut id);
+        hu *= x.powf(1.0 - b00);
+        // Unlike in xsf (scipy/xsf#380), if this or the sum in chgul over- or underflows, x^(1-b)
+        // is moved into the integral, for -1e5 <= b <= 0 (where its integrand is bounded at 0; in
+        // log space it loses about |b| ln|b| eps)
+        //
+        // e.g. U(0.5, -100, 0.01) = 0.0996 was NaN, and U(-107, -173, 0.006) = 6.8e220 was inf
+        if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
+            hu = chguit(x, a, b, true, &mut id);
+            if hu0.is_infinite() {
+                return hu;
+            }
+        }
     } else {
         if bn != 0 && (!il1) != 0 {
             // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
@@ -838,7 +850,7 @@ pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 }
 
 #[allow(clippy::let_and_return)]
-pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+pub(crate) fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute hypergeometric function U(a,b,x) by
     //          using Gaussian-Legendre integration (n=60)
@@ -918,8 +930,19 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // DLMF 13.4.4, integration up to C=12/X
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
-    let c = 12.0 / x;
-    let f = |t: f64| (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
+    // Unlike in xsf (scipy/xsf#380), with `kummer` this is x^(b-1) U(a, b, x) = U(a-b+1, 2-b, x)
+    // (DLMF 13.2.40), integrated over s = x t in log space, which can be finite where U or
+    // x^(b-1) over- or underflows. The integrand peaks at s < b, so up to C = 12 + b.
+    let c = if kummer { 12.0 + b } else { 12.0 / x };
+    let lg = if kummer { gammaln(a) } else { 0.0 };
+    let f = |t: f64| {
+        if kummer {
+            // s^(a-1) (s + x)^(b-a-1) e^(-s) / Gamma(a)
+            (a1 * t.ln() + b1 * (t + x).ln() - t - lg).exp()
+        } else {
+            (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1)
+        }
+    };
     // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
     //
@@ -954,7 +977,7 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         hu0 = hu1;
     }
-    let mut ga = gamma2(a);
+    let ga = if kummer { 1.0 } else { gamma2(a) };
     hu1 /= ga;
     // DLMF 13.4.4 with substitution t=C/(1-u)
     // integration u from 0 to 1, i.e. t from C=12/X to infinity
@@ -962,6 +985,19 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), a non-finite integrand (0 * inf) is recomputed in log space,
     // unless b is infinite or Gamma(a) overflows (a > 171)
     let log_space = b1.is_finite() && a < 171.0;
+    // the integrand times dt/du = t^2 / c
+    let f_tail = |t: f64| {
+        let dt = t * t / c;
+        if kummer {
+            return dt * f(t);
+        }
+        let ft = dt * (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1);
+        if log_space && !ft.is_finite() {
+            dt * (a1 * t.ln() + b1 * t.ln_1p() - x * t).exp()
+        } else {
+            ft
+        }
+    };
     for m in (2..=10).step_by(2) {
         hu2 = 0.0;
         let g = 0.5 / f64::from(m);
@@ -973,15 +1009,7 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 let t2 = d - g * T[k - 1];
                 let t3 = c / (1.0 - t1);
                 let t4 = c / (1.0 - t2);
-                let mut f1 = t3 * t3 / c * (-x * t3).exp() * t3.powf(a1) * (1.0 + t3).powf(b1);
-                let mut f2 = t4 * t4 / c * (-x * t4).exp() * t4.powf(a1) * (1.0 + t4).powf(b1);
-                if log_space && !f1.is_finite() {
-                    f1 = t3 * t3 / c * (a1 * t3.ln() + b1 * t3.ln_1p() - x * t3).exp();
-                }
-                if log_space && !f2.is_finite() {
-                    f2 = t4 * t4 / c * (a1 * t4.ln() + b1 * t4.ln_1p() - x * t4).exp();
-                }
-                s += W[k - 1] * (f1 + f2);
+                s += W[k - 1] * (f_tail(t3) + f_tail(t4));
             }
             hu2 += s * g;
             d += 2.0 * g;
@@ -993,7 +1021,6 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         hu0 = hu2;
     }
-    ga = gamma2(a);
     hu2 /= ga;
     let hu = hu1 + hu2;
     hu
