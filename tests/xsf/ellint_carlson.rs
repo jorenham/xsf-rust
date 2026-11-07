@@ -38,6 +38,37 @@ fn test_elliprc() {
 }
 
 #[test]
+fn test_elliprc_subnormal_huge() {
+    let actual = [
+        xsf::elliprc(1.0, 5e-324),
+        xsf::elliprc(1.0, -5e-324), // Cauchy principal value
+        xsf::elliprc(0.0, 1e-320),
+        xsf::elliprc(1e-320, 1e-320),
+        xsf::elliprc(1e300, 1e308),
+    ];
+    // Arb
+    let expected = [
+        372.913_183_141_250_6,        // 372.91318314125057647
+        372.913_183_141_250_6,        // 372.91318314125057647
+        1.570_805_070_562_178e160,    // 1.5708050705621779667e160
+        1.000_005_566_455_136_3e160,  // 1.0000055664551362865e160
+        1.570_696_334_648_211_6e-154, // 1.5706963346482116368e-154
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // Arb: 286.75424458785220432 - 118.77749717634007236i
+    let actual = xsf::elliprc(c64(1.0, 1.0), c64(1e-320, 1e-320));
+    let expected = c64(286.754_244_587_852_2, -118.777_497_176_340_07);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+
+    // Cauchy principal value, as the imaginary part of y is subnormal
+    // Arb: 6.8720984451488491504e149 + 4.6016926624554902025e148i
+    let actual = xsf::elliprc(c64(1e-300, 1e-300), c64(-1e-300, 1e-310));
+    let expected = c64(6.872_098_445_148_849e149, 4.601_692_662_455_49e148);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprd() {
     let actual = [xsf::elliprd(0.0, 2.0, 1.0), xsf::elliprd(2.0, 3.0, 4.0)];
     let expected = [1.797_210_352_103_388_4, 0.165_105_272_942_610_54];
