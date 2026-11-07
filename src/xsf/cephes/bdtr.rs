@@ -42,7 +42,7 @@ use crate::xsf::cephes::incbi::incbi;
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
 ///  For p between 0.001 and 1:
-///    IEEE     0,100       100000      3.2e-13     1.5e-14
+///    IEEE     0,100         1000      2.0e-13     6.8e-15
 ///  For p between 0 and .001:
 ///    IEEE     0,100       100000      4.0e-13     2.7e-14
 /// ```
@@ -119,7 +119,7 @@ pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
 ///  For p between 0.001 and 1:
-///    IEEE     0,100       100000      2.7e-13     1.5e-14
+///    IEEE     0,100         2000      4.9e-14     2.2e-15
 /// ```
 ///
 /// See also incbet.c.
@@ -189,22 +189,18 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
 ///               a,b                     Relative error:
 /// arithmetic  domain     # trials      peak         rms
 ///  For p between 0.001 and 1:
-///    IEEE     0,100        10000      1.8e-08     1.8e-10
-///    IEEE     0,10000      10000      3.0e+01     8.8e-01
+///    IEEE     0,100          500      1.2e-15     1.6e-16
+///    IEEE     0,10000        500      8.4e-16     9.1e-17
 ///  For p between 10^-6 and 0.001:
-///    IEEE     0,100        10000      3.6e-15     3.2e-16
-///    IEEE     0,10000      10000      9.6e-02     4.0e-03
+///    IEEE     0,100          500      2.9e-16     7.7e-17
+///    IEEE     0,10000        500      5.0e-16     7.4e-17
 /// ```
 ///
 /// Here y = bdtr(k, n, p) for random p in the given range, and the
 /// error is relative to the exact inverse of that (rounded) y, which
 /// can lie outside that range, e.g. if y rounds to almost 1. Cases
-/// where y underflows or rounds to 1 were excluded (e.g. 3316 of the
-/// 10000 trials for a,b up to 10000 and p between 0.001 and 1).
-///
-/// The large errors for a,b up to 10000 are from incbi, e.g. for
-/// k = 44, n = 6831, y = 1.9e-47, where p ≈ 1 is returned instead
-/// of 0.032.
+/// where y underflows or rounds to 1 were excluded (e.g. 171 of the
+/// 500 trials for a,b up to 10000 and p between 0.001 and 1).
 ///
 /// See also incbi.c.
 ///

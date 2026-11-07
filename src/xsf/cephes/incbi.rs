@@ -35,15 +35,15 @@ enum Label {
 ///                      Relative error:
 ///                x     a,b
 /// arithmetic   domain  domain  # trials    peak       rms
-///    IEEE      0,1    .5,10000   50000    1.9e-11   2.3e-13
-///    IEEE      0,1   .25,100    100000    1.4e-13   4.1e-15
+///    IEEE      0,1    .5,10000     350    3.2e-15   3.9e-16
+///    IEEE      0,1   .25,100       350    6.8e-14   4.8e-15
 ///    IEEE      0,1     0,5       50000    1.8e-12   9.0e-15
 ///    VAX       0,1    .5,100     25000    3.5e-14   1.1e-15
 /// With a and b constrained to half-integer or integer values:
-///    IEEE      0,1    .5,10000   50000    4.9e-11   3.0e-13
-///    IEEE      0,1    .5,100    100000    2.4e-14   1.4e-15
+///    IEEE      0,1    .5,10000     350    3.0e-15   2.6e-16
+///    IEEE      0,1    .5,100       350    2.9e-15   4.4e-16
 /// With a = .5, b constrained to half-integer or integer values:
-///    IEEE      0,1    .5,10000   10000    1.1e-10   1.5e-11
+///    IEEE      0,1    .5,10000     350    3.7e-15   1.2e-15
 /// ```
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
