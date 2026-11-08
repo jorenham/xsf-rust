@@ -1,0 +1,44 @@
+name: proptest
+permissions: {}
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  proptest:
+    runs-on: ubuntu-latest
+    name: proptest (release)
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: cargo test
+        env:
+          PROPTEST_CASES: 100000
+          # a new seed for every run
+          PROPTEST_RNG_SEED: ${{ github.run_id }}
+          # in ms per case; this runs the tests in a child process, which catches hangs and stack
+          # overflows
+          PROPTEST_TIMEOUT: 10000
+          # the default is 4 times the cases
+          PROPTEST_MAX_SHRINK_ITERS: 10000
+        run: cargo test --release --test main properties
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: proptest-regressions
+          path: proptest-regressions/
