@@ -20,4 +20,5 @@ num-complex = "0.4.6"
 num-traits = "0.2.19"
 
 [dev-dependencies]
+proptest = "1.12.0"
 xsref = { path = "testing" }

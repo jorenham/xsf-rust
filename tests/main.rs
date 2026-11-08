@@ -12,5 +12,6 @@
 )]
 
 mod numpy;
+mod properties;
 mod scipy_special;
 mod xsf;
