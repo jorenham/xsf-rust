@@ -203,6 +203,29 @@ fn test_hyp2f1_f64_recurrence_in_a() {
         268_344_349.251_342_5,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but its error estimate shouldn't be too large if a starting value is tiny, so that the less
+    // accurate alternatives aren't used instead (Arb)
+    let actual = [
+        xsf::hyp2f1(-9.5, 10.5, 0.5, 0.95),
+        xsf::hyp2f1(10.000_000_001, 9.999_999_999_999_99, 1.5, -3.0),
+        xsf::hyp2f1(9.999_999_999, 20.0, -10.5, -3.0),
+    ];
+    let desired = [
+        -0.897_769_973_095_626_9,
+        4.289_686_233_768_906e-8,
+        0.001_570_408_561_128_409_7,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // and its starting values, by the power series with c = 1 - (c - a - b) = -8 - 1e-14 in AMS55
+    // #15.3.6, shouldn't stop before the near pole of c (Arb)
+    let actual = [
+        xsf::hyp2f1(-12.5, 8.999_999_999_999_99, 5.5, 0.998),
+        xsf::hyp2f1(-11.5, 8.999_999_999_999_99, 6.5, 0.998),
+    ];
+    let desired = [2.259_678_955_985_816e-8, -3.542_896_384_613_633e-8];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 }
 
 #[test]

@@ -146,8 +146,9 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut s = 1.0;
     let mut u = 1.0;
     let mut k = 0.0;
-    // Unlike in xsf, if x > 0 and c < 0 is not an integer, don't stop before the terms have
-    // passed k = -c and stopped growing, since they can be tiny before and huge after it:
+    // Unlike in xsf, if x > 0 and c < 0 is not an integer (even if near one, e.g. -7 - 1e-14),
+    // don't stop before the terms have passed k = -c and stopped growing, since they can be tiny
+    // before and huge after it:
     //
     // - so this may take up to twice `HYP2F1_MAXITER` terms (before and after k = -c)
     // - terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and only
@@ -155,7 +156,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // - it fails if their ratio underflows, e.g. for tiny a and b
     //
     // E.g. `hyp2f1(0.1, 0.2, -1000.5, 0.55)` was inf instead of -6.23e83.
-    let pole_ahead = x > 0.0 && neg_non_int(h);
+    let pole_ahead = x > 0.0 && h < 0.0 && h.fract() != 0.0;
     let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
     let (mut n_scaled, mut i_scaled) = (0, 0);
     loop {
@@ -453,9 +454,7 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
 /// AMS55 #15.2.10
 fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut f2, mut f1, mut f0);
-    let (mut err, mut e);
-    let mut start_err = 0.0;
-    let (start1, start0);
+    let mut err;
     // the coefficients `(A, B)` of a step `f0 = A f1 + B f2`, and its rounding error in MACHEP
     let mut steps = Vec::new();
     let step = |t: f64, q: f64, den: f64, f1: f64, f2: f64| {
@@ -493,13 +492,10 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
     if da < 0.0 {
         /* Recurse down */
-        (f1, err, e) = start_f1;
+        (f1, err, _) = start_f1;
         loss += err;
-        start_err += e;
-        (f0, err, e) = start_f0;
+        (f0, err, _) = start_f0;
         loss += err;
-        start_err += e;
-        (start1, start0) = (f1, f0);
         t -= 1.0;
         let mut n = 1.0;
         while n < -da {
@@ -512,13 +508,10 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         }
     } else {
         /* Recurse up */
-        (f1, err, e) = start_f1;
+        (f1, err, _) = start_f1;
         loss += err;
-        start_err += e;
-        (f0, err, e) = start_f0;
+        (f0, err, _) = start_f0;
         loss += err;
-        start_err += e;
-        (start1, start0) = (f1, f0);
         t += 1.0;
         let mut n = 1.0;
         while n < da {
@@ -534,16 +527,25 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // Unlike in xsf, also estimate the error of the result, which is large if the recurrence is
     // unstable:
     //
-    // - the errors of the starting values (`start_err`, incl. that of their own recurrence) and
-    //   of each step are weighted by their effect on `f0`
+    // - the error of each starting value (incl. that of its own recurrence) and of each step is
+    //   weighted by its effect on `f0`, separately, since e.g. `hyp2f1(-1.0, 10.0, 0.5, 0.05)`
+    //   has a large relative but a tiny absolute error
     // - that is `(g, h) = (d f0 / d f1, d f0 / d f2)`, from the last step backwards
     let (mut g, mut h, mut rounding) = (1.0_f64, 0.0, 0.0);
     for &(a_k, b_k, e) in steps.iter().rev() {
         rounding += e * g.abs();
         (g, h) = (a_k * g + h, b_k * g);
     }
-    let start = (g * start0).abs() + (h * start1).abs();
-    (f0, loss, (start_err * start + MACHEP * rounding) / f0.abs())
+    // `e |w s|` for a weight `w`, but inf (not NaN) if `e` is inf and `s` is 0
+    let weigh = |w: f64, (s, _, e): (f64, f64, f64)| {
+        if e.is_infinite() {
+            e
+        } else {
+            e * (w * s).abs()
+        }
+    };
+    let start = weigh(g, start_f0) + weigh(h, start_f1);
+    (f0, loss, (start + MACHEP * rounding) / f0.abs())
 }
 
 /// ```text
