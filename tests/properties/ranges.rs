@@ -4,8 +4,7 @@ use proptest::prelude::*;
 
 use super::strategies::{nonnegative, positive, real, unit};
 
-/// Known: `betainc` and `fdtr` can be NaN if both a and b are above this
-const HUGE: f64 = 1.0 / f64::EPSILON;
+// Known: `betainc` and `fdtr` can be NaN if `a + b` overflows
 
 fn in_unit_interval(f: f64) -> Result<(), TestCaseError> {
     prop_assert!((0.0..=1.0).contains(&f), "{f:e}");
@@ -16,12 +15,12 @@ property!(in_unit_interval, gammainc(a in positive(), x in nonnegative()));
 property!(in_unit_interval, gammaincc(a in positive(), x in nonnegative()));
 property!(
     in_unit_interval,
-    betainc(a in positive(), b in positive(), x in unit()) if a.min(b) <= HUGE
+    betainc(a in positive(), b in positive(), x in unit()) if (a + b).is_finite()
 );
 
 property!(
     in_unit_interval,
-    fdtr(a in positive(), b in positive(), x in nonnegative()) if a.min(b) <= HUGE
+    fdtr(a in positive(), b in positive(), x in nonnegative()) if (a + b).is_finite()
 );
 property!(in_unit_interval, stdtr(nu in positive(), x in real()));
 property!(in_unit_interval, chdtr(nu in positive(), x in nonnegative()));

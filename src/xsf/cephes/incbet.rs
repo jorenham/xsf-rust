@@ -5,11 +5,12 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG, SCIPY_EULER};
+use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG, SCIPY_EULER, SQRT_TAU};
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi};
+use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
 
-use core::f64::consts::TAU;
+use core::f64::consts::{SQRT_2, TAU};
 
 const INCBET_BIG: f64 = 4.503_599_627_370_496e15;
 const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;
@@ -123,11 +124,12 @@ fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
     -a * (c + s)
 }
 
+/// The iteration limit of the continued fractions, which bounds the run time
+const INCBET_MAXITER: f64 = 1e6;
+
 /// Unlike in xsf (scipy/xsf#358), the continued fractions are not limited to 300 iterations.
-///
-/// The limit of 1e6 iterations bounds the run time.
 fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
-    (8.0 * ((a + b).sqrt() + 1.0 / (1.0 - x).sqrt())).clamp(300.0, 1e6)
+    (8.0 * ((a + b).sqrt() + 1.0 / (1.0 - x).sqrt())).clamp(300.0, INCBET_MAXITER)
 }
 
 /// `ln(x^a y^b / B(a, b))` for `a, b >= 13` and `x <= a / (a + b)`, with `y = 1 - x`
@@ -163,6 +165,78 @@ fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
     a * phi_a + b * log1pmx(-d / b) + 0.5 * (a / c * (b / TAU)).ln() + lgam_stirling_corr(c)
         - lgam_stirling_corr(a)
         - lgam_stirling_corr(b)
+}
+
+/// `I_x(a, b)` for `a, b > 100` and `|lambda| <= 0.03 min(a, b)`, with `lambda = a (1 - x) - b x`
+/// (`basym` of TOMS 708 \[1\])
+///
+/// This is an expansion in powers of `w0 = 1 / sqrt(min(a, b) (1 + min(a, b) / max(a, b)))`, with
+/// leading term `erfc(z0) / 2`, where `z0^2 = -a log1pmx(-lambda / a) - b log1pmx(lambda / b)`.
+///
+/// \[1\] See `incbet_lnpow`.
+fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
+    // the maximum (even) number of terms
+    const NUM: usize = 20;
+
+    // `x` above the mean, e.g. within a few ulp of it after the swap in `incbet_xy`
+    if lambda < 0.0 {
+        return 1.0 - incbet_basym(b, a, -lambda);
+    }
+    let f = -a * log1pmx(-lambda / a) - b * log1pmx(lambda / b);
+    // e^-f with the Stirling corrections of 1 / B(a, b)
+    let t = (lgam_stirling_corr(a + b) - lgam_stirling_corr(a) - lgam_stirling_corr(b) - f).exp();
+    if t == 0.0 {
+        return 0.0;
+    }
+    let z0 = f.sqrt();
+    let z2 = 2.0 * f;
+    let (lo, hi) = (a.min(b), a.max(b));
+    let h = lo / hi;
+    let r0 = 1.0 / (1.0 + h);
+    let r1 = (b - a) / hi;
+    let w0 = 1.0 / (lo * (1.0 + h)).sqrt();
+
+    let [mut a0, mut b0, mut c, mut d] = [[0.0; NUM + 1]; 4];
+    a0[0] = 2.0 / 3.0 * r1;
+    c[0] = -0.5 * a0[0];
+    d[0] = -c[0];
+    // TOMS 708's `j0` and `j1` times its final factor 2 / sqrt(pi)
+    let mut j0 = 0.5 * erfcx(z0);
+    let mut j1 = 1.0 / SQRT_TAU;
+    let mut sum = j0 + d[0] * w0 * j1;
+    let (mut s, mut hn, mut w, mut znm1, mut zn) = (1.0, 1.0, w0, SQRT_2 * z0, z2);
+    for n in (2..=NUM).step_by(2) {
+        hn *= h * h;
+        a0[n - 1] = 2.0 * r0 * (1.0 + h * hn) / (n + 2) as f64;
+        s += hn;
+        a0[n] = 2.0 * r1 * s / (n + 3) as f64;
+        for i in n..=n + 1 {
+            let r = -0.5 * (i + 1) as f64;
+            b0[0] = r * a0[0];
+            for m in 2..=i {
+                let bsum: f64 = (1..m)
+                    .map(|j| (j as f64 * r - (m - j) as f64) * a0[j - 1] * b0[m - j - 1])
+                    .sum();
+                b0[m - 1] = r * a0[m - 1] + bsum / m as f64;
+            }
+            c[i - 1] = b0[i - 1] / (i + 1) as f64;
+            let dsum: f64 = (1..i).map(|j| d[i - j - 1] * c[j - 1]).sum();
+            d[i - 1] = -(dsum + c[i - 1]);
+        }
+        j0 = znm1 / SQRT_TAU + (n - 1) as f64 * j0;
+        j1 = zn / SQRT_TAU + n as f64 * j1;
+        znm1 *= z2;
+        zn *= z2;
+        w *= w0;
+        let t0 = d[n - 1] * w * j0;
+        w *= w0;
+        let t1 = d[n] * w * j1;
+        sum += t0 + t1;
+        if t0.abs() + t1.abs() <= MACHEP * sum {
+            break;
+        }
+    }
+    t * sum
 }
 
 /// `x k1 k2 / (k3 k4)`, a term of the continued fractions
@@ -462,6 +536,16 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done incbet_pseries(a, b, x);
         }
 
+        // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708) if
+        // the continued fractions would be cut off there before they converge.
+        let lambda = a * xc - b * x;
+        if incbet_maxiter(a, b, x) >= INCBET_MAXITER
+            && a.min(b) > 100.0
+            && lambda <= 0.03 * a.min(b)
+        {
+            break 'done incbet_basym(a, b, lambda);
+        }
+
         /* Choose expansion for better convergence. */
         let mut y = x * (a + b - 2.0) - (a - 1.0);
         if x > 0.95 {
@@ -505,16 +589,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             y = a * (-xc).ln_1p() + t - lbeta(a, b);
         }
         y += (w / a).ln();
-        if y < MINLOG {
-            0.0
-        } else if b + 1.0 == b && (a * a).is_infinite() {
-            // The terms of the continued fractions no longer overflow (see `incbet_term`), but
-            // they are unreliable near the mean if `b` is huge too, so this is still NaN, e.g.
-            // betainc(1e200, 1e200, 0.5) instead of 1.1e-100.
-            f64::NAN
-        } else {
-            y.exp()
-        }
+        if y < MINLOG { 0.0 } else { y.exp() }
     };
 
     // done:
