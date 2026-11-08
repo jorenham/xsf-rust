@@ -675,7 +675,12 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         neg_int_b = true;
     }
 
-    if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
+    // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
+    // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
+    // cancels `F(c, c - b; c; x) = (1 - x)^(b - c)` (DLMF 15.4.6). Only if c > 0, as for c < 0
+    // the other paths can be less accurate (in the recurrence in `a`).
+    let lost = c > 0.0 && (c - a == c || c - b == c);
+    if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b || lost) {
         let c_pole = neg_non_int(c);
         // Unlike in xsf (scipy/xsf#464), if c < 0 is not an integer and -1 < x < 0, first try the
         // series of the Pfaff transformations (as for x < -2 below).
@@ -794,7 +799,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                     return y1;
                 }
                 return u + v;
-            } else if x < -1.0 {
+            } else if x < -1.0 || lost && near(x, -1.0) {
+                // Unlike in xsf (scipy/xsf#470), also near x = -1 if `a` or `b` is lost (see
+                // above), as the power series diverges there if c - a - b <= -1.
                 if a.abs() < b.abs() {
                     return s.powf(-a) * hyp2f1(a, c - b, c, x / (x - 1.0));
                 }
@@ -862,7 +869,11 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 // estimate is smaller.
                 //
                 // E.g. `hyp2f1(1e17 + 16.0, -15.5, 1e17, 0.95)` overflowed the stack.
-                if e.abs() * MACHEP >= 1.0 {
+                //
+                // Unlike in xsf (scipy/xsf#470), also if `a` or `b` is lost in `c - a` or `c - b`
+                // (see above), as the recurrence can then amplify the rounding of its starting
+                // values.
+                if e.abs() * MACHEP >= 1.0 || lost {
                     let (z, err) = hyt2f1(c - a, c - b, c, x);
                     if x < 0.5 {
                         let (y, pfaff_err) = hys2f1_pfaff(a, b, c, x);
