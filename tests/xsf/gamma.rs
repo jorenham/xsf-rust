@@ -84,6 +84,31 @@ fn test_gammainc_tiny_a() {
 }
 
 #[test]
+fn test_gammainc_small_a() {
+    // unlike in xsf, these are accurate for a < 1 (mpmath)
+    for (a, x, expected) in [
+        (1e-10, 1e-50, 0.999_999_988_544_796_2), // was 4e-15 off
+        (1e-12, 0.3, 0.999_999_999_999_094_3),   // was 1.9e-15 off
+    ] {
+        let actual = xsf::gammainc(a, x);
+        assert!(
+            (actual / expected - 1.0).abs() < 4e-16,
+            "{actual} != {expected}"
+        );
+    }
+    for (a, x, expected) in [
+        (1e-10, 1.1, 1.859_909_045_564_036_6e-11), // was 1.7e-14 off
+        (1e-6, 1.0, 2.193_841_588_705_092_2e-7),   // was 4.7e-15 off
+    ] {
+        let actual = xsf::gammaincc(a, x);
+        assert!(
+            (actual / expected - 1.0).abs() < 2e-15,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
 fn test_gammaincinv() {
     xsref::test("gammaincinv", "d_d-d", |x| xsf::gammaincinv(x[0], x[1]));
 }
