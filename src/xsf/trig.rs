@@ -238,7 +238,7 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
      *
      * so we can compute exp(y/2), scale by the right factor of sin/cos
      * and then multiply by exp(y/2) to avoid overflow. */
-    // Unlike in xsf (scipy/xsf#308), this propagates NaN and avoids premature rounding of tiny
+    // Unlike in xsf (scipy/xsf#469), this propagates NaN and avoids premature rounding of tiny
     // sin/cos factors.
     //
     // It still overflows prematurely if exp(|pi y|/2) overflows while the result wouldn't (only
@@ -281,7 +281,7 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     }
 
     // See csinpi(z) for an idea of what's going on here.
-    // Unlike in xsf (scipy/xsf#308), this propagates NaN and avoids premature rounding; see
+    // Unlike in xsf (scipy/xsf#469), this propagates NaN and avoids premature rounding; see
     // csinpi(z).
     let sinpix = -1.0_f64.copysign(piy) * sinpix;
     let exphpiy = (abspiy / 2.0).exp();
