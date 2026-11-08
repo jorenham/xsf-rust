@@ -69,6 +69,20 @@ fn test_betainc_large_ab() {
 }
 
 #[test]
+fn test_betainc_large_ab_near_mean() {
+    // reference values from Arb (python-flint)
+    for &(a, b, x, p) in &[
+        (200.0, 2000.0, 0.091, 0.513_981_623_504_570_9),
+        (730.0, 9560.0, 0.0714, 0.575_863_132_192_416_2),
+        (2000.0, 30000.0, 0.0626, 0.532_119_378_151_077_6),
+        (2600.0, 32000.0, 0.076, 0.728_174_963_532_355_2),
+        (6000.0, 85000.0, 0.066, 0.533_466_639_319_583_9),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 5e-15);
+    }
+}
+
+#[test]
 fn test_betainc_huge_ab_near_mean() {
     // 1/2 by symmetry
     for a in [1e15, 1e20, 1e200] {
