@@ -19,7 +19,7 @@
 //! LICENSE_1_0.txt or copy at <https://www.boost.org/LICENSE_1_0.txt>)
 
 /// `policies::get_max_series_iterations<Policy>()` (the Boost default, also used by SciPy)
-const MAX_SERIES_ITERATIONS: f64 = 1e6;
+pub(super) const MAX_SERIES_ITERATIONS: f64 = 1e6;
 
 /// `max_scaling` in `hypergeometric_1F1_imp`, i.e. `lltrunc(log_max_value<T>()) - 2`
 const MAX_SCALING: i64 = 707;

@@ -426,6 +426,43 @@ fn test_hyp1f1_pole_b_zero() {
 }
 
 #[test]
+fn test_hyp1f1_huge_b_minus_a() {
+    // Arb; these took ~(b - a) steps (up to 21 s), and were 0
+    let abx = [
+        (0.5, 1e9, -1e8),
+        (100.3, 2e8, -2e6),
+        (3.7, 2.1e9, -1e9),
+        (-3.7, 1e7, -5e6),
+    ];
+    let expected = [
+        0.953_462_589_242_637_4,
+        0.368_609_232_323_196_9,
+        0.236_686_301_386_977_8,
+        4.482_678_936_020_103,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb: 0.9999999990000010005 and 0.99999999996849996850; these were NaN and 1
+    let actual = [
+        xsf::hyp1f1(1_000_001.5, -1_000_002.5, 1e-9),
+        xsf::hyp1f1(1_000_001.0, -4e15 - 0.5, 0.126),
+    ];
+    let expected = [0.999_999_999_000_001, 0.999_999_999_968_5];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+    // as before
+    assert_eq!(xsf::hyp1f1(1_000_001.0, -4e15 - 0.5, 2e-7), 1.0);
+    assert_eq!(xsf::hyp1f1(1_000_001.0, -1.0, 0.0), 1.0);
+
+    // DLMF 13.6.3 and 13.6.1; these took ~1e9 steps, and were NaN
+    assert_eq!(xsf::hyp1f1(-0.0, 6.3e8, -4.6e10), 1.0);
+    assert_eq!(xsf::hyp1f1(1e9, 1e9, f64::INFINITY), f64::INFINITY);
+    // these took ~1e9 steps
+    assert!(xsf::hyp1f1(-1.2e9, -10.2, -1.0).is_nan());
+    assert!(xsf::hyp1f1(1e9, 2.5, f64::NAN).is_nan());
+}
+
+#[test]
 fn test_hyp1f1_large_a() {
     // mpmath; in xsf these are 1.2e87, 3.3e251, 7.9e303, inf, and NaN
     let abx = [

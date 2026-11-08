@@ -9,7 +9,9 @@ use core::ops::{Div, Mul};
 
 use num_complex::{Complex64, c64};
 
-use super::hyp1f1_recurrence::{hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b};
+use super::hyp1f1_recurrence::{
+    MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
+};
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
 use crate::xsf::cephes::dd_real::DoubleDouble;
@@ -395,9 +397,18 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // ===================================================
 
     let mut a0 = a;
-    // NOTE: `a1 = a` is omitted: it is only used for the dead store `a = a1;` at the end.
+    let a1 = a;
     let x0 = x;
     let mut hg = 0.0;
+
+    // Unlike in xsf, NaN at once, and M(0, b, x) = 1 and M(b, b, x) = e^x (DLMF 13.6.3, 13.6.1),
+    // e.g. `hyp1f1(0.0, 1e9, -1e8)` took 10 s
+    if a.is_nan() || b.is_nan() || x.is_nan() {
+        return f64::NAN;
+    }
+    if b.is_finite() && (b > 0.0 || b != b.trunc()) && (a == 0.0 || a == b) {
+        return if a == 0.0 { 1.0 } else { x.exp() };
+    }
 
     // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 the series or a recurrence in b is used
     // if accurate (see `chgm_neg_b`).
@@ -442,16 +453,21 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     let mut nl = 0;
     let mut la = 0;
+    let mut capped = false;
     if a >= 2.0 {
         // preparing terms for DLMF 13.3.1
         nl = 1;
         // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
-        // `la + 1` overflows (and wraps, as with g++) for a in [2^31 - 1, 2^31).
         la = int_x86(a);
-        a -= f64::from(la.wrapping_add(1));
+        // Unlike in xsf, not if that takes over 10^6 steps (see `capped` below)
+        if f64::from(la) > MAX_SERIES_ITERATIONS {
+            (capped, nl, la) = (true, 0, 0);
+        }
+        a -= f64::from(la + 1);
     }
     let mut y0 = 0.0;
     let mut y1 = 0.0;
+    let mut accurate = false;
     for n in 0..=nl {
         if a0 >= 2.0 {
             a += 1.0;
@@ -462,7 +478,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // Unlike in xsf (scipy/xsf#365), the sum of |rg|, to measure the cancellation
             let mut rs = 1.0;
             let mut cancellation = f64::INFINITY;
-            let mut accurate = false;
+            accurate = false;
             let mut converged = false;
             for j in 1..501 {
                 rg = kummer_term(rg, a, b, j) * x;
@@ -547,6 +563,22 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         if n == 1 {
             y1 = hg;
         }
+    }
+    // Unlike in xsf, if capped, the series above (at a itself) if accurate, else for x < 0 the one
+    // without DLMF 13.2.39, e.g. `hyp1f1(0.5, 1e9, -1e8)` was 0 after 10 s
+    if capped && !accurate {
+        let hg = (x0 < 0.0).then(|| hyp1f1_series(a1, b, c64(x0, 0.0), Complex64::ONE, 0.0));
+        if let Some((hg, _)) = hg
+            .flatten()
+            .filter(|&(h, e)| h.is_finite() && e <= SQRT_EPS * h.norm())
+        {
+            return hg.re;
+        }
+        // DLMF 13.4.1: 0 < M(a, b, x) <= I_s(a, b - a) + e^(s x) for x < 0 < a < b, s in [0, 1]
+        let s = a1 / (2.0 * b);
+        let zero =
+            x0 < 0.0 && 0.0 < a1 && a1 < b && crate::betainc(a1, b - a1, s) + (s * x0).exp() == 0.0;
+        return if zero { 0.0 } else { f64::NAN };
     }
     if a0 >= 2.0 {
         // DLMF 13.3.1
