@@ -5,7 +5,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use super::incbet::incbet;
+use super::incbet::{INCBET_TINY, incbet};
+use crate::expit;
 use crate::utils::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::{lgam, ndtri};
 
@@ -69,6 +70,13 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     }
     if yy0 >= 1.0 {
         return 1.0;
+    }
+    // Unlike in xsf, for `a, b < eps / 1000`, where `I_x(a, b)` is nearly flat, the root of its
+    // first order `c + a c ln(x / (1 - x))` with `c = b / (a + b)` is used, e.g.
+    // betaincinv(1e-300, 1e-300, 0.5) was 0.25 instead of 0.5.
+    if aa.min(bb) > 0.0 && aa.max(bb) < INCBET_TINY {
+        let c = bb / (aa + bb);
+        return expit((yy0 - c) / aa / c);
     }
     let mut x0 = 0.0;
     let mut yl = 0.0;
