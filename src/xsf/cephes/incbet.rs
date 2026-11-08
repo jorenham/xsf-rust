@@ -536,13 +536,10 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done incbet_pseries(a, b, x);
         }
 
-        // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708) if
-        // the continued fractions would be cut off there before they converge.
+        // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708),
+        // where it is generally more accurate than the continued fractions.
         let lambda = a * xc - b * x;
-        if incbet_maxiter(a, b, x) >= INCBET_MAXITER
-            && a.min(b) > 100.0
-            && lambda <= 0.03 * a.min(b)
-        {
+        if a.min(b) > 100.0 && lambda <= 0.03 * a.min(b) {
             break 'done incbet_basym(a, b, lambda);
         }
 
