@@ -7,8 +7,11 @@
 //!
 //! Unlike in xsf, some formulas and domain conditions in the comments are corrected.
 
+use crate::utils::SQRT_EPS;
+use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
+use crate::xsf::cephes::lgam1p;
 
 /// Complemented F distribution
 ///
@@ -53,9 +56,12 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
-    let w = b / (b + a * x);
+    if let Some((_, q)) = fdtr_large_a(a, b, x) {
+        return q;
+    }
+    let (w1, w) = fdtr_w(a, b, x);
     // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`).
-    betainc_xy(0.5 * b, 0.5 * a, w, a * x / (b + a * x))
+    betainc_xy(0.5 * b, 0.5 * a, w, w1)
 }
 
 /// F distribution
@@ -111,10 +117,49 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if x == f64::INFINITY && !a.is_nan() && !b.is_nan() {
         return 1.0;
     }
-    let mut w = a * x;
-    w = w / (b + w);
+    if let Some((p, _)) = fdtr_large_a(a, b, x) {
+        return p;
+    }
+    let (w, w1) = fdtr_w(a, b, x);
     // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`).
-    betainc_xy(0.5 * a, 0.5 * b, w, b / (b + a * x))
+    betainc_xy(0.5 * a, 0.5 * b, w, w1)
+}
+
+/// `(w, 1 - w)` with `w = a x / (b + a x)`
+fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
+    let ax = a * x;
+    if ax.is_infinite() && b.is_finite() {
+        // Unlike in xsf, `w` is not inf / inf if `a x` overflows, e.g. fdtr(1e308, 10, 2).
+        // Here `b / a` can overflow if `x` is inf.
+        let r = b / x / a;
+        (1.0 / (1.0 + r), r / (1.0 + r))
+    } else {
+        let s = b + ax;
+        (ax / s, b / s)
+    }
+}
+
+/// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal and `a` is large, else `None`
+///
+/// Unlike in xsf, this is accurate if `y` is subnormal or underflows, e.g. fdtr(4e178, 0.006, 8e182)
+/// is 0.72 instead of NaN.
+///
+/// For `A = a/2 -> inf`, `I_y(B, A) = P(B, t)` with `t = (A + (B - 1)/2) y` for tiny `y`, up to a
+/// relative `B |B^2 - 1| / (24 A^2)`. With `y` subnormal, that is below eps unless `P` underflows.
+fn fdtr_large_a(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
+    let large = 0.5 * a * SQRT_EPS > 1.0 && (0.0..f64::MIN_POSITIVE).contains(&(b / a / x));
+    if !large {
+        return None;
+    }
+    // t = s b / x, with y = b / (a x)
+    let (hb, s) = (0.5 * b, 0.5 + (0.25 * b - 0.5) / a);
+    let t = s * (b / x);
+    if t >= f64::MIN_POSITIVE {
+        return Some((igamc(hb, t), igam(hb, t)));
+    }
+    // P(B, t) = t^B / Gamma(1 + B) for tiny t
+    let ln_p = b * (0.5 * (s.ln() + b.ln() - x.ln())) - lgam1p(hb);
+    Some((-ln_p.exp_m1(), ln_p.exp()))
 }
 
 /// Inverse of F distribution

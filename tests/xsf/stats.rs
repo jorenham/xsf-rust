@@ -509,6 +509,11 @@ fn test_fdtr_fdtrc_inf() {
     }
     assert!(xsf::fdtr(f64::NAN, 1.0, f64::INFINITY).is_nan());
     assert!(xsf::fdtr(1.0, f64::NAN, f64::INFINITY).is_nan());
+    // huge `a` or subnormal `b`
+    assert_eq!(xsf::fdtrc(1e10, 5e-324, f64::INFINITY), 0.0);
+    assert_eq!(xsf::fdtr(1e10, 1.0, -0.0), 0.0);
+    assert_eq!(xsf::fdtr(f64::INFINITY, 1.0, 1e-310), 0.0);
+    assert_eq!(xsf::fdtrc(f64::INFINITY, 1.0, 1e-310), 1.0);
 }
 
 #[test]
@@ -578,6 +583,30 @@ fn test_fdtr_fdtrc_df_below_eps() {
         9.999_999_999_000_001e-11,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
+}
+
+#[test]
+fn test_fdtr_fdtrc_ax_overflow() {
+    // reference values from Arb; `a x` overflows and `1 - w = b / (b + a x)` is tiny
+    let abx = [
+        (4e178, 0.006, 8e182),
+        (1e308, 10.0, 2.0),
+        (1e200, 1e-250, 1e200),
+    ];
+    let p = [
+        0.721_727_090_722_264_3,
+        0.891_178_018_914_151_3,
+        5.181_396_116_814_895_5e-248,
+    ];
+    let q = [0.278_272_909_277_735_74, 0.108_821_981_085_848_76, 1.0];
+    let rtol = 1e-13;
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtr(a, b, x)), &p, rtol = rtol);
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtrc(a, b, x)), &q, rtol = rtol);
+    let q = xsf::fdtrc(1.4e13, 1.0, 1.4e306);
+    xsref::np_assert_allclose!(&[q], &[6.743_355_313_447_234e-154], rtol = rtol);
+    // fdtr(inf, b, x) = Q(b/2, b / (2 x))
+    let p = xsf::fdtr(f64::INFINITY, 1.0, 1.0);
+    xsref::np_assert_allclose!(&[p], &[0.317_310_507_862_914_1], rtol = rtol);
 }
 
 #[test]
