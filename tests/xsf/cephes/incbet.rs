@@ -69,6 +69,28 @@ fn test_betainc_large_ab() {
 }
 
 #[test]
+fn test_betainc_huge_ab_near_mean() {
+    // 1/2 by symmetry
+    for a in [1e15, 1e20, 1e200] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, a, 0.5)], &[0.5], rtol = 1e-15);
+    }
+    xsref::np_assert_allclose!(&[xsf::fdtr(2e15, 2e15, 1.0)], &[0.5], rtol = 1e-15);
+
+    // reference values from Arb (python-flint), and mpmath quadrature for the last one
+    for &(a, b, x, p) in &[
+        (1e12, 3e12, 0.250_000_1, 0.677_916_442_949_691_3),
+        (4e15, 1e12, 0.999_750_062_48, 0.493_009_849_083_284_6),
+        (1e18, 1e15, 0.999_000_999, 0.487_379_439_441_624_5),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-8);
+    }
+
+    // reference value from mpmath, using I_x(a, b) ~ P(a, -(b + (a - 1)/2) ln(1 - x)) for b >> a
+    let p = xsf::betainc(101.0, 1e20, 1.01e-18);
+    xsref::np_assert_allclose!(&[p], &[0.513_232_791_918_545_2], rtol = 1e-15);
+}
+
+#[test]
 fn test_betainc_huge_b() {
     // reference values from mpmath
     for &(a, b, x, p) in &[
@@ -85,8 +107,6 @@ fn test_betainc_huge_b() {
 fn test_betainc_a_or_b_above_1e154() {
     assert_eq!(xsf::betainc(2.1e164, 4.6e5, 0.5), 0.0);
     xsref::np_assert_allclose!(&[xsf::betainc(381.0, 9.9e154, 0.5)], &[1.0], rtol = 1e-15);
-    // not supported if both are huge (the true value is 1/2), unless far from the mean
-    assert!(xsf::betainc(1e200, 1e200, 0.5).is_nan());
     assert_eq!(xsf::betainc(1e200, 1e100, 1e-99), 0.0);
     // reference values from mpmath, using fdtr(a, inf, x) = P(a/2, a x/2)
     let p = [xsf::fdtr(3.0, 1e200, 2.0), xsf::fdtr(0.5, 1e300, 10.0)];
