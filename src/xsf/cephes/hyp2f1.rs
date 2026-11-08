@@ -65,6 +65,14 @@ fn less_accurate(y: f64, alt: f64, err: f64) -> bool {
     diff > 2.0 * err * alt.abs() && diff > HYP2F1_ETHRESH * alt.abs()
 }
 
+/// Whether `t` is `n` up to `HYP2F1_EPS`. Unlike in xsf, relative to `n` if `|n| < 1`, so that a
+/// tiny `c`, `c - a` or `c - b` isn't 0.
+///
+/// E.g. `hyp2f1(-1e-30, 1.0, 1e-17, 0.5)` was 2 instead of 1.
+fn near(t: f64, n: f64) -> bool {
+    (t - n).abs() <= HYP2F1_EPS * n.abs().min(1.0)
+}
+
 /// `hys2f1_err` and its error estimate, or if that is large, `hys2f1_series` and its `loss` if
 /// smaller (not if `a` or `b` is near a non-positive integer, as in `hys2f1_checked`)
 fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
@@ -142,7 +150,10 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
     let (mut n_scaled, mut i_scaled) = (0, 0);
     loop {
-        if h.abs() < HYP2F1_EPS {
+        // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0.
+        //
+        // E.g. `hyp2f1(-2.5, 1.0, 1e-17, 0.2)` was inf instead of -3.58e16.
+        if h == 0.0 {
             return (f64::INFINITY, 1.0, 1.0);
         }
         let m = k + 1.0;
@@ -665,7 +676,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 
     if ax < 1.0 || x == -1.0 {
         /* 2F1(a,b;b;x) = (1-x)**(-a) */
-        if (b - c).abs() < HYP2F1_EPS {
+        if near(b, c) {
             /* b = c */
             if neg_int_b {
                 y = hyp2f1_neg_c_equal_bc(a, b, x);
@@ -674,7 +685,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             }
             return y; // goto hypdon
         }
-        if (a - c).abs() < HYP2F1_EPS {
+        if near(a, c) {
             /* a = c */
             y = s.powf(-b); /* s to the -b power */
             return y; // goto hypdon
@@ -685,7 +696,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         'hypok: {
             if c <= 0.0 {
                 let ic = c.round(); /* nearest integer to c */
-                if (c - ic).abs() < HYP2F1_EPS {
+                if near(c, ic) {
                     /* c is a negative integer */
                     /* check if termination before explosion */
                     if neg_int_a && (ia > ic) {
@@ -738,14 +749,14 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 
             p = c - a;
             ia = p.round(); /* nearest integer to c-a */
-            if (ia <= 0.0) && ((p - ia).abs() < HYP2F1_EPS) {
+            if (ia <= 0.0) && near(p, ia) {
                 /* negative int c - a */
                 neg_int_ca_or_cb = true;
             }
 
             r = c - b;
             ib = r.round(); /* nearest integer to c-b */
-            if (ib <= 0.0) && ((r - ib).abs() < HYP2F1_EPS) {
+            if (ib <= 0.0) && near(r, ib) {
                 /* negative int c - b */
                 neg_int_ca_or_cb = true;
             }
