@@ -41,6 +41,10 @@ const IGAM_LARGE: f64 = 200.0;
 const IGAM_SMALLRATIO: f64 = 0.3;
 const IGAM_LARGERATIO: f64 = 4.5;
 
+/// If `x <= 1` and `m = a max(|ln(x)|, 1)` is at most this, `igamc` uses `igamc_series`, which is
+/// then `O(m)` with an absolute error below 0.04 eps, so `1 - igamc` is within 0.3 eps (measured)
+const IGAM_COMPLEMENT_MAX: f64 = 1e-2;
+
 const IGAM_BIG: f64 = 4.503_599_627_370_496e15;
 const IGAM_BIGINV: f64 = 2.220_446_049_250_313e-16;
 
@@ -341,11 +345,11 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
         return asymptotic_series(a, x, IGAM);
     }
 
-    // Unlike in xsf (scipy/xsf#456), a < MACHEP also uses `1 - igamc`, without cancellation as then
-    // igamc < 746 a < 1e-13.
+    // Unlike in xsf (scipy/xsf#456), `1 - igamc` is also used if `igam = 1 - O(m)` (see
+    // `IGAM_COMPLEMENT_MAX`), where `igam_series` is a few eps off, and can exceed 1 or underflow.
     //
-    // E.g. igam(1e-310, 0.5) was 0 instead of 1.
-    if (x > 1.0 && x > a) || a < MACHEP {
+    // E.g. igam(2e-16, 0.9) was 1 + 4.4e-16, and igam(1e-310, 0.5) was 0 instead of 1.
+    if (x > 1.0 && x > a) || a * x.ln().abs().max(1.0) <= IGAM_COMPLEMENT_MAX {
         return 1.0 - igamc(a, x);
     }
 
