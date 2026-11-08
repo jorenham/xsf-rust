@@ -574,7 +574,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let cancels = cancellation > 1e5 && (1.0..=5e3).contains(&n);
             if accurate && cancels && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
                 let m = |b| chgm_series(a, b, x, x0).map_or(f64::NAN, |(hg, _)| hg);
-                let rec = hyp1f1_b_recurrence(a, b, x, n as i32, true, m);
+                let rec = hyp1f1_b_recurrence(a, b, x, n as i32, m);
                 if let Some((r, _)) = rec.filter(|&(r, err)| (r - hg).abs() > 2.0 * err * r.abs()) {
                     return r;
                 }
