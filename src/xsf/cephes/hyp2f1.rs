@@ -21,6 +21,9 @@ use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
 pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
+/// The estimated relative error from which `hyp2f1` returns NaN: if a sum is only rounding error,
+/// then its estimate is about 1/2 to 1.
+const HYP2F1_LOST: f64 = 0.5;
 const HYP2F1_MAXITER: u64 = 10000;
 /// 2^512 (about `sqrt(f64::MAX)`), to rescale tiny terms exactly, far from overflow and underflow
 const HYP2F1_SCALE: f64 = 1.340_780_792_994_259_7e154;
@@ -235,8 +238,9 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
     (m - n) * x.ln() + ln_ratio(a, 1.0) + ln_ratio(b, c)
 }
 
-/// Apply transformations for |x| near 1 then call the power series
-fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+/// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, also returns
+/// an error estimate that includes the recurrences in `a`.
+fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut p, mut q, mut r, mut t, mut w, d);
     let (d1, d2, e, mut y1);
     let mut sign;
@@ -257,16 +261,16 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         neg_int_b = true;
     }
 
-    let mut err = 0.0;
+    let (mut err, mut err_full) = (0.0, 0.0);
     let s = 1.0 - x;
     let y = 'done: {
         if x < -0.5 && !(neg_int_a || neg_int_b) {
             let y;
             if b > a {
-                (y, err) = hys2f1(a, c - b, c, -x / s);
+                (y, err, err_full) = hys2f1_err(a, c - b, c, -x / s);
                 break 'done s.powf(-a) * y;
             }
-            (y, err) = hys2f1(c - a, b, c, -x / s);
+            (y, err, err_full) = hys2f1_err(c - a, b, c, -x / s);
             break 'done s.powf(-b) * y;
         }
 
@@ -283,7 +287,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
             // be less accurate.
             let ((y0, loss0, full0), _) = hys2f1_checked(a, b, c, x);
             if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
-                err = loss0;
+                (err, err_full) = (loss0, full0);
                 break 'done y0;
             }
 
@@ -355,9 +359,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
                 y *= gamma_c;
                 if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
-                    err = loss0;
+                    (err, err_full) = (loss0, full0);
                     break 'done y0;
                 }
+                err_full = full;
                 break 'done y;
             }
             /* Psi function expansion, AMS55 #15.3.10, #15.3.11, #15.3.12
@@ -452,11 +457,11 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too, e.g.
         // `hyp2f1(-33.21, -82.91, -19.5, -0.001)` was -253 instead of 1.15.
         let y;
-        ((y, err, _), _) = hys2f1_checked(a, b, c, x);
+        ((y, err, err_full), _) = hys2f1_checked(a, b, c, x);
         y
     };
     // done:
-    (y, err)
+    (y, err, err_full)
 }
 
 /*
@@ -871,7 +876,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             if d < 0.0 {
                 /* Try the power series first */
                 let err;
-                (y, err) = hyt2f1(a, b, c, x);
+                (y, err, _) = hyt2f1(a, b, c, x);
                 if err < HYP2F1_ETHRESH {
                     return y; // goto hypdon
                 }
@@ -888,7 +893,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 // (see above), as the recurrence can then amplify the rounding of its starting
                 // values.
                 if e.abs() * MACHEP >= 1.0 || lost {
-                    let (z, err) = hyt2f1(c - a, c - b, c, x);
+                    let (z, err, _) = hyt2f1(c - a, c - b, c, x);
                     if x < 0.5 {
                         let (y, pfaff_err) = hys2f1_pfaff(a, b, c, x);
                         if pfaff_err < err {
@@ -916,9 +921,17 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             }
         }
         // hypok:
-        (y, _) = hyt2f1(a, b, c, x);
+        let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // hypdon:
+        // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if both its error estimates,
+        // without and with the recurrences in `a`, are at least `HYP2F1_LOST`. Not if one is at
+        // least 1, as a series that fails (doesn't converge) is estimated as 1, while its value can
+        // be accurate.
+        let lost = |e| (HYP2F1_LOST..1.0).contains(&e);
+        if y.is_finite() && lost(err) && lost(err_full) {
+            return f64::NAN;
+        }
         return y;
     }
 
