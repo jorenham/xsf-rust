@@ -191,7 +191,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             return (s, 1.0, 1.0);
         }
         let growing = pole_ahead && u != 0.0 && (k < 1.0 - h || r.abs() > 1.0);
-        // Unlike in xsf (scipy/xsf#463), a negligible term doesn't end the sum if a later one
+        // Unlike in xsf (scipy/xsf#470), a negligible term doesn't end the sum if a later one
         // isn't, e.g. a tiny first term from a tiny `a`, after which the terms can grow again.
         let grows_back = || (t / s).abs() * ln_max_growth(f, g, h, x, k).exp() > MACHEP;
         if !(s == 0.0 || (t / s).abs() > MACHEP || growing || grows_back()) {
@@ -709,7 +709,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         }
         let p = s.powf(d);
         let y = hyp2f1(c - a, c - b, c, x);
-        // Unlike in xsf (scipy/xsf#464), split `s^d` in two if it under- or overflows (and `y`
+        // Unlike in xsf (scipy/xsf#471), split `s^d` in two if it under- or overflows (and `y`
         // doesn't), as their product can still be normal, e.g. for x << -1, where `y` is huge.
         if s > 0.0 && !p.is_normal() && y.is_normal() {
             let h = s.powf(d / 2.0);
