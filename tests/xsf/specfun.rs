@@ -694,6 +694,32 @@ fn test_hyp1f1_neg_b_cancellation() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_large_a() {
+    // Arb; DLMF 13.3.1 (forward in a) is unstable here, and these were 6.4e25, 0.99975004419684,
+    // NaN, and NaN
+    let abx = [
+        (10.3, -2e5 - 0.3, 1.0),
+        (2.5, -1e7 - 0.5, 1000.0),
+        (1e6 + 0.5, -1e7 - 0.3, 30.0),
+        (-3e5 - 0.5, -2e5 - 0.3, -1.0),
+    ];
+    let expected = [
+        0.999_948_501_532_098,
+        0.999_750_043_755_938_4,
+        0.049_787_244_613_952_18,
+        0.223_130_522_734_272_4,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+    // this was -1.4e41
+    assert_eq!(xsf::hyp1f1(10.3, -1e7 - 0.5, 0.0), 1.0);
+    // Arb: -5.4e5011; the terms shrink, but grow again near -b, and this was 0.59
+    assert!(xsf::hyp1f1(2.0, -1.2e5 - 0.3, 3.6e4).is_nan());
+    // as before (here DLMF 13.3.1 is still used)
+    assert_eq!(xsf::hyp1f1(2.0, -31.4, 1e5), f64::INFINITY);
+}
+
+#[test]
 fn test_hyp1f1_large_b_or_neg_x() {
     // mpmath; in xsf these are 0, 0, 14.511, and -1.3e197
     let abx = [

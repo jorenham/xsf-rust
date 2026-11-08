@@ -471,26 +471,28 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     if b == 0.0 && a >= 2.0 {
         return f64::NAN;
     }
+    // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles b = 0, -1, ...
+    // and for infinite a or x
+    let check = a1.is_finite() && x0.is_finite() && (b > 0.0 || b != b.trunc());
     let mut nl = 0;
     let mut la = 0;
-    let mut capped = false;
+    let mut direct = false;
     if a >= 2.0 {
         // preparing terms for DLMF 13.3.1
         nl = 1;
         // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
         la = int_x86(a);
-        // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps (see `capped` below)
-        if f64::from(la) > MAX_SERIES_ITERATIONS {
-            (capped, nl, la) = (true, 0, 0);
+        // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps, nor (if `check`) for the
+        // series below with b < 0, where it can be unstable (see `direct` below), e.g.
+        // `hyp1f1(10.3, -2e5 - 0.3, 1)` was 6.4e25 instead of 0.99995
+        if f64::from(la) > MAX_SERIES_ITERATIONS || check && b < 0.0 && x <= 30.0 + b.abs() {
+            (direct, nl, la) = (true, 0, 0);
         }
         a -= f64::from(la + 1);
     }
     let mut y0 = 0.0;
     let mut y1 = 0.0;
     let mut accurate = false;
-    // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles b = 0, -1, ...
-    // and for infinite a or x
-    let check = a1.is_finite() && x0.is_finite() && (b > 0.0 || b != b.trunc());
     let mut wrong = false;
     for n in 0..=nl {
         if a0 >= 2.0 {
@@ -613,9 +615,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             y1 = hg;
         }
     }
-    // Unlike in xsf (scipy/xsf#365), if capped, the series above (at a itself) if accurate, else
+    // Unlike in xsf (scipy/xsf#365), if `direct`, the series above (at a itself) if accurate, else
     // for x < 0 the one without DLMF 13.2.39, e.g. `hyp1f1(0.5, 1e9, -1e8)` was 0 after 10 s
-    if capped && !accurate {
+    if direct && !accurate {
         let hg = (x0 < 0.0).then(|| hyp1f1_series(a1, b, c64(x0, 0.0), Complex64::ONE, 0.0));
         if let Some((hg, _)) = hg
             .flatten()
