@@ -18,6 +18,10 @@ const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;
 /// `745 max(a, b) < eps` (see `betainc_xy`)
 pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
 
+/// If `m = a max(|ln(x)|, 1/b)` is at most this, `1 - incbet_apser` is `I_x(a, b)` up to its
+/// neglected terms of ~`2.5 m^2 < eps / 40` (measured)
+const INCBET_APSER_MAX: f64 = 1e-9;
+
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
 /// Then `1 / (a B(a, b)) = b / (a + b) Gamma(a + b + 1) / (Gamma(a + 1) Gamma(b + 1))`, and the
@@ -77,7 +81,7 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
     s
 }
 
-/// `1 - I_x(a, b)` for `a <= eps min(1, b)`, `b x <= 1` and `x <= 1/2` (`apser` of TOMS 708 \[1\])
+/// `1 - I_x(a, b)` for tiny `a`, `b x <= 1` and `x <= 0.95` (`apser` of TOMS 708 \[1\])
 ///
 /// To first order in `a`, with `gamma` the Euler-Mascheroni constant,
 ///
@@ -430,6 +434,11 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 
     let t = 'done: {
         if (bb * xx) <= 1.0 && xx <= 0.95 {
+            // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`,
+            // e.g. betainc(5.5e-15, 25, 0.015) was 1 + 4e-16 instead of 1 - 4e-15.
+            if aa * xx.ln().abs().max(1.0 / bb) <= INCBET_APSER_MAX {
+                break 'done 1.0 - incbet_apser(aa, bb, xx);
+            }
             break 'done incbet_pseries(aa, bb, xx);
         }
 

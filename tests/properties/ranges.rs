@@ -7,7 +7,7 @@ use super::strategies::{nonnegative, positive, real, unit};
 /// Known: `betainc` and `fdtr` can be NaN if both a and b are above this
 const HUGE: f64 = 1.0 / f64::EPSILON;
 
-/// Known: `gammainc` and `betainc` can be up to ~300 ulp (7e-14) above 1 for a < 1
+/// Known: `gammainc` can be up to ~300 ulp (7e-14) above 1 for a < 1
 const KNOWN_ERROR: f64 = 1e-12;
 
 fn in_unit_interval(f: f64) -> Result<(), TestCaseError> {
@@ -24,12 +24,12 @@ fn nearly_in_unit_interval(f: f64) -> Result<(), TestCaseError> {
 property!(nearly_in_unit_interval, gammainc(a in positive(), x in nonnegative()));
 property!(in_unit_interval, gammaincc(a in positive(), x in nonnegative()));
 property!(
-    nearly_in_unit_interval,
+    in_unit_interval,
     betainc(a in positive(), b in positive(), x in unit()) if a.min(b) <= HUGE
 );
 
 property!(
-    nearly_in_unit_interval,
+    in_unit_interval,
     fdtr(a in positive(), b in positive(), x in nonnegative()) if a.min(b) <= HUGE
 );
 property!(in_unit_interval, stdtr(nu in positive(), x in real()));
