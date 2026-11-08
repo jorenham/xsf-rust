@@ -409,6 +409,26 @@ fn test_hyp2f1_f64_psi_expansion_near_int() {
 }
 
 #[test]
+fn test_hyp2f1_f64_psi_expansion_int() {
+    // unlike in xsf: the power series is also tried first if c - a - b is an integer, here after
+    // Pfaff, where the psi function expansion gave 6.7467671e-4, 2.0396740e-3, 0.1223477772 and
+    // 0.358811271431 (Arb)
+    let actual = [
+        xsf::hyp2f1(7.5, 10.5, 50.7, -10.0),
+        xsf::hyp2f1(7.5, 8.5, 50.7, -10.0),
+        xsf::hyp2f1(3.0, 6.0, 50.7, -10.0),
+        xsf::hyp2f1(1.5, 5.5, 50.7, -10.0),
+    ];
+    let desired = [
+        6.746_767_352_078e-4,
+        2.039_673_789_485_802e-3,
+        0.122_347_777_162_347_68,
+        0.358_811_271_434_322,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp2f1_f64_huge_c_minus_1_lt_c_minus_a_minus_b_lt_0() {
     // unlike in xsf: the recurrence on c overflowed the stack for |c| >= 2^53, or was wrong
     // (6.78e137 for the last) (Arb)
