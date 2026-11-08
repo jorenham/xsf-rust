@@ -674,7 +674,15 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 return y;
             }
         }
-        return s.powf(d) * hyp2f1(c - a, c - b, c, x);
+        let p = s.powf(d);
+        let y = hyp2f1(c - a, c - b, c, x);
+        // Unlike in xsf (scipy/xsf#464), split `s^d` in two if it under- or overflows (and `y`
+        // doesn't), as their product can still be normal, e.g. for x << -1, where `y` is huge.
+        if s > 0.0 && !p.is_normal() && y.is_normal() {
+            let h = s.powf(d / 2.0);
+            return h * y * h;
+        }
+        return p * y;
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
         return f64::INFINITY; // goto hypdiv

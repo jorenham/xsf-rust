@@ -491,3 +491,24 @@ fn test_hyp2f1_f64_tiny_c_or_c_minus_a() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
 }
+
+#[test]
+fn test_hyp2f1_f64_euler_pow_underflow() {
+    // unlike in xsf: (1 - x)^(c - a - b) under- or overflowed in the Euler transformation, which
+    // gave 0, 0, 0, 0 and inf (Arb)
+    let actual = [
+        xsf::hyp2f1(9.7, 23.71, -20.7, -1e6),
+        xsf::hyp2f1(0.5, 3.7, 0.7, -1e100),
+        xsf::hyp2f1(0.5, 9.7, -5.5, -1e30),
+        xsf::hyp2f1(2.5, 50.7, 20.37, -1e10),
+        xsf::hyp2f1(3.0, 20.37, 4.000_000_000_000_001, 0.999_999_999_999_999_9),
+    ];
+    let desired = [
+        2.339_902_740_854_614e-57,
+        1.643_323_996_265_172_4e-51,
+        2.444_777_663_146_785_3e-287,
+        8.912_118_823_854_448e-27,
+        1.699_790_832_401_936_6e308,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
