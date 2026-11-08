@@ -208,6 +208,21 @@ fn test_stdtri_large_nu() {
 }
 
 #[test]
+fn test_stdtri_tiny_p() {
+    // reference values from mpmath
+    for &(nu, p, t) in &[
+        (1.0, 1e-20, -3.183_098_861_837_907e19),
+        (2.0, 5e-324, -3.181_212_452_095_196_2e161),
+        (100.0, 5e-324, -16_559.999_468_166_71),
+        (1e4, 5e-324, -39.936_370_979_369_5),
+        (100_001.0, 5e-324, -38.610_245_498_234_78),
+        (1e200, 5e-324, -38.467_405_617_144_346),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::stdtri(nu, p)], &[t], rtol = 2e-15);
+    }
+}
+
+#[test]
 fn test_ndtr_f64() {
     xsref::test("ndtr", "d-d", |x| xsf::ndtr(x[0]));
 }

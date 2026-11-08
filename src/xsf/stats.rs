@@ -13,8 +13,9 @@ use num_complex::{Complex64, c64};
 
 use crate::utils::{LN_PI, LN_TAU, SQRT_PI};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
-use crate::xsf::cephes::{betainc_xy, gamma, lgam, lgam1p};
+use crate::xsf::cephes::{betainc_xy, gamma, incbet_pseries_sum, lgam, lgam1p};
 use crate::xsf::multivariate_normal::{LAGUERRE_W20, LAGUERRE_X20};
+use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 pub trait StatsArg: crate::sealed::Sealed {
     fn ndtr(self) -> Self;
@@ -217,6 +218,7 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn stdtri(nu: f64, p: f64) -> f64 {
+    let q = p.min(1.0 - p);
     if nu <= 0.0 || !(0.0..=1.0).contains(&p) {
         f64::NAN
     } else if p == 0.0 {
@@ -228,12 +230,16 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
     } else if nu.is_infinite() {
         ndtri(p)
     } else if nu == 1.0 {
-        (PI * (p - 0.5)).tan()
+        // |tan(pi (p - 1/2))| = cot(pi q), since p - 1/2 rounds off the digits of a tiny q
+        let t = cephes_cospi(q) / cephes_sinpi(q);
+        if p < 0.5 { -t } else { t }
     } else if nu == 2.0 {
-        (p - 0.5) * (2.0 / (p * (1.0 - p))).sqrt()
+        // (p - 1/2) sqrt(2 / (p (1 - p))), rearranged so that it doesn't overflow for tiny p
+        (2.0 * p - 1.0) / (2.0 * p * (1.0 - p)).sqrt()
     } else {
         let a = 0.5 * nu;
-        let y = 2.0 * p.min(1.0 - p);
+        let y = 2.0 * q;
+        let subnormal = q < f64::MIN_POSITIVE;
         if nu <= 1e3 && p > 0.25 && p < 0.75 {
             // Solve I_x(1/2, a) = |1 - 2p| (exact) for x = t^2 / (nu + t^2) = 1 - w, which is more
             // accurate than computing `1 - w` if x < 1/2, e.g. stdtri(10, 0.5 + 1e-10) was
@@ -246,24 +252,21 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
         }
         let w = crate::betaincinv(a, 0.5, y);
         let mut t = (nu * (1.0 - w) / w).sqrt();
-        if t.is_infinite() {
+        if t.is_infinite() || subnormal && w < f64::EPSILON {
             // For small nu, `w` can underflow (or `nu / w` overflow), so invert the leading term
-            // of the power series I_w(a, 1/2) ~ w^a / (a B(a, 1/2)) (see `stdtr`) instead:
+            // of the power series I_w(a, 1/2) ~ w^a / (a B(a, 1/2)) (see `stdtr`) instead. It is
+            // exact if w < eps, so it's also used then if q is subnormal, where `betaincinv` is
+            // inaccurate:
             //
             // - t = sqrt(nu / w) = (y c)^(-1/2a), with c = a B(a, 1/2) / nu^a
             // - computed as a square, since y^(-1/4a) can't overflow if t doesn't
-            //
-            // e.g. stdtri(0.0017, 0.79) was inf instead of 8.6e219
             let e = -0.25 / a;
             let c = a * crate::beta(a, 0.5) / nu.powf(a);
             t = (y.powf(e) * c.powf(e)).powi(2);
-        }
-        if (nu > 1e3 || w > 0.5) && y >= 2.0 * f64::MIN_POSITIVE {
-            // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a`, so start from
-            // the Cornish-Fisher expansion if nu > 1e3, and (unless that's already exact) solve
-            // stdtr(nu, -t) = y / 2 with Newton's method on ln(stdtr), e.g. stdtri(1e20, 0.01)
-            // was -105.4 instead of -2.326
-            let q = 0.5 * y;
+        } else if nu > 1e3 || w > 0.5 || subnormal {
+            // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a` or subnormal q,
+            // so start from the Cornish-Fisher expansion if nu > 1e3, and (unless that's already
+            // exact) solve stdtr(nu, -t) = q with Newton's method on ln(stdtr)
             let mut err = 1.0;
             if nu > 1e3 {
                 (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
@@ -274,9 +277,23 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
                 if err <= 4.0 * f64::EPSILON * t {
                     break;
                 }
-                let f = stdtr(nu, -t);
-                let pdf = (-(a + 0.5) * (t * t / nu).ln_1p()).exp() / c;
-                let dt = (f / q).ln() * f / pdf;
+                let (ln_fq, f_pdf) = if subnormal && nu <= 3e5 {
+                    // A subnormal `stdtr` has too few digits, so use ln(stdtr(nu, -t)) =
+                    // ln(w^a s / (nu B(a, 1/2))) with s = 2F1(a, 1/2; a + 1; w) (DLMF 8.17.7), from
+                    // the power series of `incbet`, and stdtr / pdf = s / sqrt(nu w). For nu > 3e5
+                    // its ~nu / 40 terms are too many, but then the Cornish-Fisher start is
+                    // accurate to ~eps.
+                    let r = t * t / nu;
+                    let w = (1.0 + r).recip();
+                    let s = 1.0 + a * incbet_pseries_sum(a, 0.5, w);
+                    let ln_f = (s / (nu.sqrt() * c)).ln() - a * r.ln_1p();
+                    (ln_f - q.ln(), s / (nu * w).sqrt())
+                } else {
+                    let f = stdtr(nu, -t);
+                    let pdf = (-(a + 0.5) * (t * t / nu).ln_1p()).exp() / c;
+                    ((f / q).ln(), f / pdf)
+                };
+                let dt = ln_fq * f_pdf;
                 t += dt;
                 err = dt.abs();
             }

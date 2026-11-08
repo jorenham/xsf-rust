@@ -39,17 +39,16 @@ fn incbet_subnormal_div_a_beta(a: f64, b: f64, t: f64) -> Option<f64> {
     })
 }
 
-/// Power series for incomplete beta integral.
-/// Use when b*x is small and x not too close to 1.
-fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
-    let ai = 1.0 / a;
+/// The sum of the power series `x^a / B(a, b) (1 / a + sum_(n >= 1) (1 - b)_n / n! x^n / (a + n))`
+/// of `I_x(a, b)`, without its `1 / a` term
+pub(crate) fn incbet_pseries_sum(a: f64, b: f64, x: f64) -> f64 {
     let mut u = (1.0 - b) * x;
     let mut v = u / (a + 1.0);
     let t1 = v;
     let mut t = u;
     let mut n = 2.0;
     let mut s = 0.0;
-    let z = MACHEP * ai;
+    let z = MACHEP * (1.0 / a);
     while v.abs() > z {
         u = (n - b) * x / n;
         t *= u;
@@ -57,21 +56,28 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
         s += v;
         n += 1.0;
     }
-    s += t1;
+    s + t1
+}
+
+/// Power series for incomplete beta integral.
+/// Use when b*x is small and x not too close to 1.
+fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
+    let ai = 1.0 / a;
+    let mut s = incbet_pseries_sum(a, b, x);
     // Unlike in xsf, e.g. betainc(1e-310, 1, 0.5) was NaN instead of 1
     if let Some(p) = incbet_subnormal_div_a_beta(a, b, x.powf(a) * (a * s + 1.0)) {
         return p;
     }
     s += ai;
 
-    u = a * x.ln();
+    let u = a * x.ln();
     if (a + b) < MAXGAM && u.abs() < MAXLOG {
-        t = 1.0 / beta(a, b);
+        let t = 1.0 / beta(a, b);
         // `triple_product(s, t, pow(x, a))` in xsf, which only disables optimizations for gcc on
         // 32-bit x86, to prevent aggressive optimizations from degrading accuracy
         s = (s * t) * x.powf(a);
     } else {
-        t = -lbeta(a, b) + u + s.ln();
+        let t = -lbeta(a, b) + u + s.ln();
         if t < MINLOG {
             s = 0.0;
         } else {

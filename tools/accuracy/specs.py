@@ -3370,6 +3370,7 @@ add(
     r_stdtri,
     D(LU(1e-3, 1e3), U(0, 1), n=2000),
     D(LU(1e3, 1e20), U(0, 1), n=2000),
+    D(LU(1, 1e20), LU(1e-323, 1e-10), n=2000),
     cpp=False,
     timeout=120,
     note="inv",
