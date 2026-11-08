@@ -9,16 +9,9 @@ fn no_panic<T>(value: T) -> Result<(), TestCaseError> {
     Ok(())
 }
 
-/// Known: O(n) time for n = |a| or |b - a| up to 2^31, e.g. hyp1f1(-1.2e9, -10.2, -1) takes 10 s
-fn slow_hyp1f1(a: f64, b: f64) -> bool {
-    [a, b - a]
-        .into_iter()
-        .any(|n| (1e7..=f64::from(i32::MAX)).contains(&n.abs()))
-}
-
 property!(no_panic, hyp2f1(a, b, c, x));
 property!(no_panic, hyp2f1_complex(a, b, c, re, im) => xsf::hyp2f1(a, b, c, c64(re, im)));
-property!(no_panic, hyp1f1(a, b, x) if !slow_hyp1f1(a, b));
+property!(no_panic, hyp1f1(a, b, x));
 property!(no_panic, hypu(a, b, x));
 property!(no_panic, hyp0f1(b, x));
 
