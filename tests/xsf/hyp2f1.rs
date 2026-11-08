@@ -296,6 +296,31 @@ fn test_hyp2f1_f64_x_lt_minus_2_pfaff_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_tiny_first_term() {
+    // unlike in xsf: these were 1, as the series stopped after a tiny first term (Arb)
+    let actual = [
+        xsf::hyp2f1(1e-20, -300.5, 300.5, -10.0),
+        xsf::hyp2f1(1e-300, -500.5, 0.7, -10.0),
+        xsf::hyp2f1(1e-20, 150.5, 100.7, 0.9),
+        xsf::hyp2f1(-1e-20, 50.5, 0.7, 0.8),
+    ];
+    let desired = [
+        6.528_217_172_881_034e123,
+        2.950_367_578_022_261_5e219,
+        1.000_000_046_617_229,
+        -63_717_533_596_884.64,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // Arb: 1.88e1141
+    assert_eq!(xsf::hyp2f1(1e-300, -3000.5, 3000.5, -10.0), f64::INFINITY);
+    // the terms grow again here, but stay negligible
+    assert_eq!(
+        xsf::hyp2f1(1e-300, 4.000_000_000_000_008e30, 1e30, 0.25),
+        1.0
+    );
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
     // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
     let actual = [

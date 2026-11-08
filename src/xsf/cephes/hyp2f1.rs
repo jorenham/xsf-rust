@@ -16,7 +16,7 @@
 //! `c - b` is close to a negative integer.
 
 use crate::utils::MACHEP;
-use crate::xsf::cephes::{gamma, lgam_sgn, psi, rgamma};
+use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
@@ -191,7 +191,10 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             return (s, 1.0, 1.0);
         }
         let growing = pole_ahead && u != 0.0 && (k < 1.0 - h || r.abs() > 1.0);
-        if !(s == 0.0 || (t / s).abs() > MACHEP || growing) {
+        // Unlike in xsf (scipy/xsf#463), a negligible term doesn't end the sum if a later one
+        // isn't, e.g. a tiny first term from a tiny `a`, after which the terms can grow again.
+        let grows_back = || (t / s).abs() * ln_max_growth(f, g, h, x, k).exp() > MACHEP;
+        if !(s == 0.0 || (t / s).abs() > MACHEP || growing || grows_back()) {
             break;
         }
     }
@@ -200,6 +203,36 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let loss = (MACHEP * umax) / s.abs() + (MACHEP * (i - i_scaled) as f64);
 
     (s, loss, loss)
+}
+
+/// The largest `ln(t_m / t_n)` (`m >= n`) of the terms `t_m` of the power series, if their ratios
+/// `x (a + m) (b + m) / ((c + m) (m + 1))` are positive, from `0 < x < 1` and `a + n`, `b + n`,
+/// `c + n > 0`, else 0. The ratios are at least 1 between the roots of a quadratic in `m`, so the
+/// largest term is at its larger root (rounded up).
+///
+/// If the ratios alternate in sign, summing growing terms cancels, e.g. `hyp2f1(1e-300, -3000.5,
+/// 5.5, 0.95)` is 1, but its full sum is NaN.
+fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
+    if !(x > 0.0 && x < 1.0 && a + n > 0.0 && b + n > 0.0 && c + n > 0.0) {
+        return 0.0;
+    }
+    // x (a + m) (b + m) - (c + m) (m + 1) = p m^2 + q m + r, with p < 0
+    let (p, q, r) = (x - 1.0, x * (a + b) - c - 1.0, x * a * b - c);
+    let m = ((-q - (q * q - 4.0 * p * r).sqrt()) / (2.0 * p)).ceil();
+    if !(m > n) {
+        return 0.0;
+    }
+    // the sum of `ln((u + j) / (v + j))` for `n <= j < m`, with the smaller of `m - n` and
+    // `|u - v|` as the (non-negative) second argument of `lgam_ratio`, to bound the cancellation
+    let ln_ratio = |u: f64, v: f64| {
+        let (u, v, sign) = if u >= v { (u, v, 1.0) } else { (v, u, -1.0) };
+        sign * if m - n < u - v {
+            lgam_ratio(u + n, m - n) - lgam_ratio(v + n, m - n)
+        } else {
+            lgam_ratio(v + m, u - v) - lgam_ratio(v + n, u - v)
+        }
+    };
+    (m - n) * x.ln() + ln_ratio(a, 1.0) + ln_ratio(b, c)
 }
 
 /// Apply transformations for |x| near 1 then call the power series
