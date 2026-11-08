@@ -246,21 +246,31 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
             // psi function expansion below fails there (and its finite sum can hang).
             //
             // E.g. `hyp2f1(1.3, 6.5, 1e17, 0.95)` was NaN instead of 1.
-            if (d - id).abs() > MACHEP || id.abs() > HYP2F1_MAXITER as f64 {
+            let huge_id = id.abs() > HYP2F1_MAXITER as f64;
+
+            /* Try the power series first (if c-a-b is not an integer) */
+            // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
+            // the recurrence in `a` isn't, only replace it by AMS55 #15.3.6 if that shows it to
+            // be less accurate.
+            let (y0, loss0, full0) = if (d - id).abs() > MACHEP || huge_id {
+                hys2f1_checked(a, b, c, x).0
+            } else {
+                (f64::NAN, 1.0, 1.0)
+            };
+            if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
+                err = loss0;
+                break 'done y0;
+            }
+
+            // Unlike in xsf, the psi function expansion is used if c-a-b is an integer up to
+            // `HYP2F1_EPS`, not `MACHEP`, since AMS55 #15.3.6 cancels near one, e.g.
+            // `hyp2f1(7.5, 2.5 - 1e-14, 10, 0.999)` was 573 instead of 465
+            if (d - id).abs() > HYP2F1_EPS || huge_id {
                 let (mut lg, mut sgngam);
-                let (err1, full0, q_full, r_full);
+                let (err1, q_full, r_full);
                 let mut y;
 
                 /* test for integer c-a-b */
-                /* Try the power series first */
-                // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate
-                // incl. the recurrence in `a` isn't, only replace it by AMS55 #15.3.6 if that
-                // shows it to be less accurate.
-                ((y, err, full0), _) = hys2f1_checked(a, b, c, x);
-                if err < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
-                    break 'done y;
-                }
-                let (y0, loss0) = (y, err);
                 /* If power series fails, then apply AMS55 #15.3.6 */
                 ((q, err, q_full), _) = hys2f1_checked(a, b, 1.0 - d, s);
                 sign = 1;
