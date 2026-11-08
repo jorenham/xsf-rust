@@ -481,6 +481,15 @@ fn test_hyp1f1_neg_x_no_convergence() {
 }
 
 #[test]
+fn test_hyp1f1_truncated() {
+    // Arb: 1.0004, -1.64e183, and 9.31e-145; 500 terms are too few, and these were 0.854,
+    // 1.02e266, and 1.39e126
+    assert!(xsf::hyp1f1(2.61, -2_880_000.5, -477.5).is_nan());
+    assert!(xsf::hyp1f1(-2e6 - 0.3, -600.5, 0.1).is_nan());
+    assert!(xsf::hyp1f1(-2e6 - 0.3, 2_880_000.5, 477.5).is_nan());
+}
+
+#[test]
 fn test_hyp1f1_large_a() {
     // mpmath; in xsf these are 1.2e87, 3.3e251, 7.9e303, inf, and NaN
     let abx = [

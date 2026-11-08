@@ -468,6 +468,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let mut y0 = 0.0;
     let mut y1 = 0.0;
     let mut accurate = false;
+    // Unlike in xsf (scipy/xsf#365), NaN if a sum below ends with a term that isn't negligible
+    // (unless it overflows), except at the poles b = 0, -1, ... and for infinite a or x
+    let check = a1.is_finite() && x0.is_finite() && (b > 0.0 || b != b.trunc());
+    let mut truncated = false;
     for n in 0..=nl {
         if a0 >= 2.0 {
             a += 1.0;
@@ -495,6 +499,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     break;
                 }
             }
+            truncated |= check && hg.is_finite() && !(rg == 0.0 || (rg / hg).abs() < 1e-15);
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms
             if x0 < 0.0 {
@@ -580,6 +585,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         let zero =
             x0 < 0.0 && 0.0 < a1 && a1 < b && crate::betainc(a1, b - a1, s) + (s * x0).exp() == 0.0;
         return if zero { 0.0 } else { f64::NAN };
+    }
+    if truncated {
+        return f64::NAN;
     }
     if a0 >= 2.0 {
         // DLMF 13.3.1
