@@ -153,8 +153,9 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
                 return (self - 1.0) * ((n + b) / (2.0 * n)) * p;
             }
         }
-        // Unlike in xsf, if `|alpha + 1| < HYP2F1_EPS` (where the real `hyp2f1` loses precision),
-        // alpha is shifted up by a relation that follows from DLMF 18.5.7 term by term.
+        // Unlike in xsf (scipy/xsf#457), if `|alpha + 1| < HYP2F1_EPS` (where the real `hyp2f1`
+        // loses precision), alpha is shifted up by a relation that follows from DLMF 18.5.7 term by
+        // term.
         // E.g. `eval_jacobi(7.5, -1 + 1e-15, 2.0, -0.6)` was NaN instead of 1.337.
         if (a + 1.0).abs() < HYP2F1_EPS && EXACT_N_MINUS_1.contains(&n) {
             let c = a + 1.0;
