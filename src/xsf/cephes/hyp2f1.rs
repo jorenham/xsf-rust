@@ -644,8 +644,8 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b) {
         let c_pole = neg_non_int(c);
-        // Unlike in xsf, if c < 0 is not an integer and -1 < x < 0, first try the series of the
-        // Pfaff transformations (as for x < -2 below).
+        // Unlike in xsf (scipy/xsf#464), if c < 0 is not an integer and -1 < x < 0, first try the
+        // series of the Pfaff transformations (as for x < -2 below).
         //
         // E.g. `hyp2f1(6.5, 8.9, -9.8, -0.08)` was 1.70764138 instead of 1.70764180.
         if c_pole && x < 0.0 && x > -1.0 {
@@ -654,7 +654,8 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 return y;
             }
         }
-        // Unlike in xsf, if 0 < x < 1, first try the power series (see `hys2f1_min`):
+        // Unlike in xsf (scipy/xsf#464), if 0 < x < 1, first try the power series (see
+        // `hys2f1_min`):
         // - if c < 0 is not an integer, where this transformation tends to overflow or cancel;
         // - if c > 0 and the series of this transformation is estimated to lose precision. If the
         //   power series does too, but didn't fail (estimate 1), keep it if its error estimate is
@@ -721,8 +722,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
 
             let mut t1 = (b - a).abs();
             if x < -2.0 && (t1 - t1.round()).abs() > HYP2F1_EPS {
-                // Unlike in xsf, first try the series of the Pfaff transformations as for x < -1,
-                // since the inner functions of the 1/x transformation can be inaccurate.
+                // Unlike in xsf (scipy/xsf#465), first try the series of the Pfaff transformations
+                // as for x < -1, since the inner functions of the 1/x transformation can be
+                // inaccurate.
                 //
                 // E.g. `hyp2f1(12.0, 3.1, 99.3, -2.8)` was -1.19e12 instead of 0.417.
                 let (y1, e1) = hys2f1_pfaff(a, b, c, x);
@@ -814,9 +816,9 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 /* Apply the recurrence if power series fails */
                 let aid = (2.0 - id) as i32;
                 let mut e = c + f64::from(aid);
-                // Unlike in xsf, for |e| >= 2^53, where the unit shifts can round and recurse
-                // forever, use Euler (DLMF 15.8.1), or Pfaff for x < 0.5 if its error estimate is
-                // smaller.
+                // Unlike in xsf (scipy/xsf#466), for |e| >= 2^53, where the unit shifts can round
+                // and recurse forever, use Euler (DLMF 15.8.1), or Pfaff for x < 0.5 if its error
+                // estimate is smaller.
                 //
                 // E.g. `hyp2f1(1e17 + 16.0, -15.5, 1e17, 0.95)` overflowed the stack.
                 if e.abs() * MACHEP >= 1.0 {
