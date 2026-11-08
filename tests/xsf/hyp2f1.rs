@@ -457,6 +457,30 @@ fn test_hyp2f1_f64_psi_expansion_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_ams55_15_3_6_gamma_range() {
+    // unlike in xsf: these were 1, NaN, NaN and NaN, as a factor of AMS55 #15.3.6 left the normal
+    // range, e.g. `Gamma(-d) / (Gamma(a) Gamma(b))` for a tiny `b`, or `Gamma(c)` (Arb)
+    let actual = [
+        xsf::hyp2f1(211.205, 4.1e-92, 141.983, 0.9992),
+        xsf::hyp2f1(90.5, 1e-180, 1.25, 0.99999),
+        xsf::hyp2f1(26.5, -508.5, 590.5, 0.999_999),
+        xsf::hyp2f1(-1.5, -693.5, -176.25, 0.999_999_97),
+    ];
+    let desired = [
+        3.803_424_824_536_675e64,
+        5.865_541_318_634_591e263,
+        5.295_559_383_862_064_7e-8,
+        5.041_937_663_630_442,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 5e-13);
+
+    // but not at a pole of `Gamma(c - a - b)` or if an inner series fails, where this gave -inf
+    // instead of inf, and -3.96e59 instead of 2.42e-243
+    assert!(xsf::hyp2f1(1e5, 7.5, 21.5, 0.95).is_nan());
+    assert!(xsf::hyp2f1(862.559, -310.305, 906.676, 0.999_993_238).is_nan());
+}
+
+#[test]
 fn test_hyp2f1_f64_psi_expansion_near_int() {
     // unlike in xsf: c - a - b (or b - a for x < -1) within 1e-13 of an integer cancelled in
     // AMS55 #15.3.6, which gave 573, -1.03, -1.33e14, 5.23345 and 3.49e-4 (Arb)
