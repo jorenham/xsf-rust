@@ -30,8 +30,6 @@ proptest! {
     fn hyp2f1(a in moderate(), b in moderate(), c in moderate(), x in -1.0..0.9_f64) {
         // known: also near the poles of c
         prop_assume!(!near_pole(c));
-        // known: hyp2f1(13, -13, 0.5, 0.9) is less accurate than hyp2f1(-13, 13, 0.5, 0.9)
-        prop_assume!(near_pole(a) == near_pole(b));
         let (ab, ba) = (xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x));
         // half the digits, for ill-conditioned parameters
         prop_assert!(close(ab, ba, f64::EPSILON.sqrt()), "{ab:e} != {ba:e}");

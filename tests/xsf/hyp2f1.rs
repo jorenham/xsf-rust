@@ -270,6 +270,34 @@ fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
 }
 
 #[test]
+fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
+    // unlike in xsf: these were 0.4895077, 194.8, -3.18e18, -1.48e9 and -5.45e169 (Arb)
+    let args = [
+        (13.0, -13.0, 0.5, 0.9),
+        (16.0, -16.0, 0.5, 0.95),
+        (19.0, -19.0, 0.5, 0.99),
+        (22.0, -22.0, -3.5, 0.95),
+        (195.0, -195.0, 1.0, 0.9),
+    ];
+    let desired = [
+        0.489_514_398_515_199_2,
+        0.595_230_641_982_666_2,
+        0.787_059_088_545_409,
+        -6_540_705.712_015_875,
+        -0.019_154_323_187_421_253,
+    ];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        // also with a and b swapped, which was already accurate
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-14);
+    }
+
+    // but not beyond the recurrence limit, where the swapped order is NaN
+    let actual = [xsf::hyp2f1(10_001.0, -10_001.0, 9_999.5, 1e-12)];
+    np_assert_allclose!(actual, [0.999_999_989_997_499_8], rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0() {
     // the terms of the power series are tiny before k = -c, and huge after it (mpmath)
     let actual = [
