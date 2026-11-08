@@ -401,8 +401,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let x0 = x;
     let mut hg = 0.0;
 
-    // Unlike in xsf, NaN at once, and M(0, b, x) = 1 and M(b, b, x) = e^x (DLMF 13.6.3, 13.6.1),
-    // e.g. `hyp1f1(0.0, 1e9, -1e8)` took 10 s
+    // Unlike in xsf (scipy/xsf#365), NaN at once, and M(0, b, x) = 1 and M(b, b, x) = e^x
+    // (DLMF 13.6.3, 13.6.1), e.g. `hyp1f1(0.0, 1e9, -1e8)` took 10 s
     if a.is_nan() || b.is_nan() || x.is_nan() {
         return f64::NAN;
     }
@@ -459,7 +459,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         nl = 1;
         // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
         la = int_x86(a);
-        // Unlike in xsf, not if that takes over 10^6 steps (see `capped` below)
+        // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps (see `capped` below)
         if f64::from(la) > MAX_SERIES_ITERATIONS {
             (capped, nl, la) = (true, 0, 0);
         }
@@ -495,8 +495,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     break;
                 }
             }
-            // DLMF 13.2.39 (cf. above); unlike in xsf, also if the series doesn't converge within
-            // 500 terms
+            // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
+            // converge within 500 terms
             if x0 < 0.0 {
                 hg *= x0.exp();
             }
@@ -565,8 +565,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             y1 = hg;
         }
     }
-    // Unlike in xsf, if capped, the series above (at a itself) if accurate, else for x < 0 the one
-    // without DLMF 13.2.39, e.g. `hyp1f1(0.5, 1e9, -1e8)` was 0 after 10 s
+    // Unlike in xsf (scipy/xsf#365), if capped, the series above (at a itself) if accurate, else
+    // for x < 0 the one without DLMF 13.2.39, e.g. `hyp1f1(0.5, 1e9, -1e8)` was 0 after 10 s
     if capped && !accurate {
         let hg = (x0 < 0.0).then(|| hyp1f1_series(a1, b, c64(x0, 0.0), Complex64::ONE, 0.0));
         if let Some((hg, _)) = hg

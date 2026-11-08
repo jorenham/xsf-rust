@@ -106,8 +106,8 @@ fn hys2f1_err(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut f;
     let mut intflag = false;
 
-    // Unlike in xsf, also for `b = -a` a negative integer, so that the recurrence is in `b`, e.g.
-    // `hyp2f1(195, -195, 1, 0.9)` was -5.45e169 instead of -0.0192
+    // Unlike in xsf (scipy/xsf#460), also for `b = -a` a negative integer, so that the recurrence
+    // is in `b`, e.g. `hyp2f1(195, -195, 1, 0.9)` was -5.45e169 instead of -0.0192
     let neg_int_tie = b == -a && near_neg_int(b) && a <= HYP2F1_MAXITER as f64;
     if b.abs() > a.abs() || neg_int_tie {
         /* Ensure that |a| > |b| ... */
@@ -254,8 +254,8 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 break 'done y0;
             }
 
-            // Unlike in xsf, use the psi function expansion if c-a-b is an integer up to
-            // `HYP2F1_EPS`, not `MACHEP`, as AMS55 #15.3.6 cancels near one (e.g.
+            // Unlike in xsf (scipy/xsf#461), use the psi function expansion if c-a-b is an
+            // integer up to `HYP2F1_EPS`, not `MACHEP`, as AMS55 #15.3.6 cancels near one (e.g.
             // `hyp2f1(7.5, 2.5 - 1e-14, 10, 0.999)` was 573, not 465), and only up to
             // `HYP2F1_MAXITER`, beyond which its finite sum can hang
             if (d - id).abs() > HYP2F1_EPS || id.abs() > HYP2F1_MAXITER as f64 {

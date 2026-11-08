@@ -4,10 +4,10 @@
 //!
 //! `pow(2.0, y)` is written as `y.exp2()`, which is what LLVM optimizes it to anyway.
 //!
-//! Unlike in xsf, `pbdv` and `pbvv` return NaN for `|v| >= LARGE_V` where they would recur over
-//! their work buffer of `|v|` values (e.g. 4 GiB and 20 s for `pbvv(2.7e8, 0.0)`), and the
-//! `double` -> `int` conversions saturate. Like in xsf, they also return NaN if the allocation of
-//! their work buffer fails.
+//! Unlike in xsf (scipy/xsf#382), `pbdv` and `pbvv` return NaN for `|v| >= LARGE_V` where they
+//! would recur over their work buffer of `|v|` values (e.g. 4 GiB and 20 s for
+//! `pbvv(2.7e8, 0.0)`), and the `double` -> `int` conversions saturate. Like in xsf, they also
+//! return NaN if the allocation of their work buffer fails.
 
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
