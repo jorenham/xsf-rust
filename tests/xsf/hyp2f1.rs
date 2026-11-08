@@ -384,6 +384,31 @@ fn test_hyp2f1_f64_psi_expansion_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_psi_expansion_near_int() {
+    // unlike in xsf: c - a - b (or b - a for x < -1) within 1e-13 of an integer cancelled in
+    // AMS55 #15.3.6, which gave 573, -1.03, -1.33e14, 5.23345 and 3.49e-4 (Arb)
+    let actual = [
+        xsf::hyp2f1(7.5, 2.5 - 1e-14, 10.0, 0.999),
+        xsf::hyp2f1(-12.5, 23.0 - 1e-14, 5.5, 0.95),
+        xsf::hyp2f1(-2.5, 2.5, 1e-14, 0.99),
+        xsf::hyp2f1(1.5, 4.5 - 1e-14, 8.0, 0.999),
+        xsf::hyp2f1(3.0, 3.0 - 1e-14, 50.7, -1000.0),
+    ];
+    let desired = [
+        465.329_511_494_182_9,
+        0.066_364_450_275_830_67,
+        -113_060_171_546_044.02,
+        5.233_384_708_085_254,
+        7.920_150_150_695_394e-5,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // but the power series is tried first (the psi function expansion gives 6.746770e-4)
+    let actual = [xsf::hyp2f1(7.5, 10.5 - 1e-13, 50.7, -10.0)];
+    np_assert_allclose!(actual, [6.746_767_352_078_354e-4], rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp2f1_f64_huge_c_minus_1_lt_c_minus_a_minus_b_lt_0() {
     // unlike in xsf: the recurrence on c overflowed the stack for |c| >= 2^53, or was wrong
     // (6.78e137 for the last) (Arb)
