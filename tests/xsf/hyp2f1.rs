@@ -257,6 +257,27 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
 }
 
 #[test]
+fn test_hyp2f1_f64_x_lt_minus_2_b_minus_a_near_int() {
+    // unlike in xsf: these were -1.26e5, -2.06e69 and -5.53e3, the last of which is the second
+    // function of the 1/x transformation of the one before it (Arb)
+    let actual = [
+        xsf::hyp2f1(-13.2, -29.200_000_000_001, 5.5, -2.5),
+        xsf::hyp2f1(-13.2, -33.21, 50.7, -1000.0),
+        xsf::hyp2f1(-33.21, -82.91, -19.01, -0.001),
+    ];
+    let desired = [
+        -602_275.348_686_216_6,
+        4.298_609_352_869_04e65,
+        1.155_996_198_053_486_3,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // and this was -2.74e6 (Arb)
+    let actual = xsf::hyp2f1(-4.6, -20.600_000_000_1, 50.7, -10.0);
+    np_assert_allclose!([actual], [-65.931_816_188_886_59], rtol = 1e-11);
+}
+
+#[test]
 fn test_hyp2f1_f64_x_lt_minus_2_pfaff_overflow() {
     // unlike in xsf: these were NaN for a < b, as one of the Pfaff series overflows there, and
     // the 1/x transformation is NaN (Arb)
