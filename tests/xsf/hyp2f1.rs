@@ -321,6 +321,33 @@ fn test_hyp2f1_f64_tiny_first_term() {
 }
 
 #[test]
+fn test_hyp2f1_f64_euler_tiny_a() {
+    // unlike in xsf: these were 1, 1, inf, 1 and -1.24e43, as `a` or `b` was lost in `c - a` or
+    // `c - b` (Arb)
+    let actual = [
+        xsf::hyp2f1(1e-20, 300.5, 0.7, 0.5),
+        xsf::hyp2f1(300.5, 1e-20, 0.7, 0.5),
+        xsf::hyp2f1(1e-20, -800.5, 0.1, -1.5),
+        xsf::hyp2f1(1e-20, 40.5, 20.5, 0.99),
+        xsf::hyp2f1(1e-20, -370.5, 53.5, -1.0),
+    ];
+    let desired = [
+        6.921_479_145_123_81e68,
+        6.921_479_145_123_81e68,
+        1.824_849_365_063_929_7e299,
+        63_529_516.407_577_99,
+        2.948_782_385_828_795e37,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // and these are 1 to rounding
+    let actual = [
+        xsf::hyp2f1(1e-20, 3.0, 0.7, -1.0),
+        xsf::hyp2f1(1e-20, 300.5, 0.7, -0.999_999_999_999_99),
+    ];
+    np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
     // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
     let actual = [
