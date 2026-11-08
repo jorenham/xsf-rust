@@ -463,6 +463,24 @@ fn test_hyp1f1_huge_b_minus_a() {
 }
 
 #[test]
+fn test_hyp1f1_neg_x_no_convergence() {
+    // Arb; the series after DLMF 13.2.39 doesn't converge within 500 terms (b + 500 < 0), and these
+    // were e^-x times too large
+    let abx = [
+        (2e7 + 0.3, -2e5 - 0.3, -1.0),
+        (10.3, -1e6 - 0.5, -100.0),
+        (-1000.3, -2e5 - 0.3, -100.0),
+    ];
+    let expected = [
+        2.756_493_631_860_608e43,
+        1.001_030_581_673_679_5,
+        0.606_364_673_033_219_6,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_large_a() {
     // mpmath; in xsf these are 1.2e87, 3.3e251, 7.9e303, inf, and NaN
     let abx = [

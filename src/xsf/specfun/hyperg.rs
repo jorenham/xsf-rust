@@ -492,12 +492,13 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     accurate = rs * SQRT_EPS <= hg.abs();
                     cancellation = rs / hg.abs();
                     converged = true;
-                    // DLMF 13.2.39 (cf. above)
-                    if x0 < 0.0 {
-                        hg *= x0.exp();
-                    }
                     break;
                 }
+            }
+            // DLMF 13.2.39 (cf. above); unlike in xsf, also if the series doesn't converge within
+            // 500 terms
+            if x0 < 0.0 {
+                hg *= x0.exp();
             }
             // Unlike in xsf (scipy/xsf#365), for -1 < a < 2 and b > 0 the series is summed in full
             // if it doesn't converge within 500 terms.
