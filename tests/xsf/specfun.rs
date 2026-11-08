@@ -720,6 +720,25 @@ fn test_hyp1f1_neg_b_large_a() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_unstable() {
+    // Arb; DLMF 13.3.2 (backward in b from b + n > 0) is unstable here
+    let abx = [
+        (10.3, -99_999.5, 30.0),
+        (100.5, -1000.3, 100.0),
+        (1.7, -99_999.5, 10.0),
+        (31.7, -99_999.5, 300.0),
+    ];
+    let expected = [
+        0.996_915_215_768_620_1,
+        7.233_114_758_583_054e-5,
+        0.999_830_022_097_624_5,
+        0.909_411_072_212_928,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_large_b_or_neg_x() {
     // mpmath; in xsf these are 0, 0, 14.511, and -1.3e197
     let abx = [

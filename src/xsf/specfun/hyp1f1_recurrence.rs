@@ -379,17 +379,19 @@ fn apply_log_scaling(mut result: f64, mut log_scaling: i64) -> f64 {
 /// Unlike in xsf (scipy/xsf#365): `M(a, b, z)` and its relative error, by DLMF 13.3.2 backward
 /// from `m(b + n)` and `m(b + n + 1)`, with `m(b') = M(a, b', z)`.
 ///
-/// The error is estimated by a rerun with `m(b + n + 1)` perturbed, and also each step if
-/// `per_step`, since errors made midway can grow far more.
+/// The error is estimated by a rerun with `m(b + n + 1)` and every other step perturbed by
+/// `DELTA`, since errors made midway can grow far more, also if that growth alternates in sign
+/// (which perturbing each step would cancel). `DELTA = 2^-40` is far above rounding, yet small
+/// enough that an O(1) change in the rerun, as for a result lost to rounding, gives an error of
+/// about `2^-52 / DELTA = 2^-12`.
 pub(super) fn hyp1f1_b_recurrence(
     a: f64,
     b: f64,
     z: f64,
     n: i32,
-    per_step: bool,
     m: impl Fn(f64) -> f64,
 ) -> Option<(f64, f64)> {
-    const DELTA: f64 = 1.0 / 1_048_576.0;
+    const DELTA: f64 = 1.0 / (1_u64 << 40) as f64;
 
     // `m` can be slow, so stop at the first non-finite initial value
     let m0 = m(b + f64::from(n));
@@ -400,20 +402,19 @@ pub(super) fn hyp1f1_b_recurrence(
     if !m1.is_finite() {
         return None;
     }
-    // `scale` multiplies `a(n)`, i.e. divides each step's result
+    // `scale` multiplies `a(n)` in every other step, i.e. divides that step's result
     let run = |m1, scale: f64| {
         let mut log_scaling = 0;
         let coefs = recurrence_small_b_coefficients(a, b, z, n);
         let coefs = |i| {
             let (an, bn, cn) = coefs(i);
-            (an * scale, bn, cn)
+            (if i % 2 == 0 { an * scale } else { an }, bn, cn)
         };
         let (w, _) = apply_recurrence_relation_backward(coefs, n, m1, m0, &mut log_scaling);
         (w, log_scaling)
     };
     let (w, log_scaling) = run(m1, 1.0);
-    let scale = if per_step { 1.0 + DELTA } else { 1.0 };
-    let (w2, log_scaling2) = run(m1 * (1.0 + DELTA), scale);
+    let (w2, log_scaling2) = run(m1 * (1.0 + DELTA), 1.0 + DELTA);
     let diff = w2 / w * ((log_scaling2 - log_scaling) as f64).exp() - 1.0;
     let err = f64::EPSILON * (diff.abs() / DELTA + f64::from(n));
     Some((apply_log_scaling(w, log_scaling), err))
@@ -429,7 +430,7 @@ pub(super) fn hyp1f1_neg_b(
     m: impl Fn(f64) -> f64,
 ) -> Option<f64> {
     let from = |n: f64, max_err| {
-        hyp1f1_b_recurrence(a, b, z, n as i32, false, &m)
+        hyp1f1_b_recurrence(a, b, z, n as i32, &m)
             .filter(|&(_, err)| err <= max_err)
             .map(|(hg, _)| hg)
     };
