@@ -373,6 +373,15 @@ fn chgm_series_dd(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<(f64, f64)
         .map(|(hg, err)| (hg.hi, err))
 }
 
+/// Whether the terms `t_m` (`m >= n`) of DLMF 13.2.2 with `z > 0` have one sign: `t_(k+1) / t_k`
+/// is negative only for the integers `k` between `-a` and `-b` (and `t_(k+1) = 0` for `k >= -a`
+/// if `a = 0, -1, ...`).
+fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
+    let poly = a <= 0.0 && a == a.trunc();
+    let end = if poly { -a } else { (-a).max(-b) };
+    f64::from(n).max((-a).min(-b).floor() + 1.0) >= end
+}
+
 /// Unlike in xsf (scipy/xsf#365): `M(a, b, x)` for non-integer `b < 0` from the series, or else
 /// from `hyp1f1_neg_b`, or else from the series in double-double, if any loses at most half of
 /// its digits.
@@ -511,10 +520,14 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let negligible = |rg: f64, hg: f64| rg == 0.0 || (rg / hg).abs() < 1e-15;
             let rest_negligible = |j| rest_is_negligible(a, b, x, f64::from(j));
             let mut terms = 0;
+            let mut finite = 0;
             for j in 1..=(if check && b < 0.0 { MAX_TERMS } else { 500 }) {
                 terms = j;
                 rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
+                if hg.is_finite() {
+                    finite = j;
+                }
                 rs += rg.abs();
                 // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
                 // nor (see below) if they underflow to 0 after 500 terms
@@ -533,15 +546,18 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     break;
                 }
             }
-            // The sum is wrong if its last term isn't negligible (unless it overflows within 500
-            // terms), or if it has over 500 terms and the rest isn't negligible, or it loses over
-            // half of its digits (as in `chgm_neg_b`).
-            wrong |= check
-                && if terms > 500 {
-                    !(negligible(rg, hg) && rest_negligible(terms)) || rs * SQRT_EPS > hg.abs()
-                } else {
-                    !negligible(rg, hg) && hg.is_finite()
-                };
+            // A finite sum is wrong if its last term (or after 500 terms, the rest) isn't
+            // negligible, or for b < 0 if it loses over half of its digits (as in `chgm_neg_b`).
+            // For b < 0 an overflow is wrong if the terms can change sign after it, since then so
+            // can the sum.
+            let truncated = !negligible(rg, hg) || terms > 500 && !rest_negligible(terms);
+            let lossy = b < 0.0 && rs * SQRT_EPS > hg.abs();
+            let sign_unknown = b < 0.0 && !(hg.is_infinite() && terms_keep_sign(a, b, finite + 1));
+            if check && hg.is_finite() {
+                wrong |= truncated || lossy;
+            } else if check {
+                wrong |= sign_unknown;
+            }
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms, and after 500 terms (finite if not `wrong`) in two steps
             // for x <= -700, where e^x can be subnormal

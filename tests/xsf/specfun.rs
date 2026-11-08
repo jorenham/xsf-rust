@@ -720,6 +720,21 @@ fn test_hyp1f1_neg_b_large_a() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_lossy() {
+    // Arb: -165.6, -183.1, -505.3, and -2.1e715; the series cancels, or overflows while its terms
+    // still change sign, within 500 terms
+    assert!(xsf::hyp1f1(1e5 + 0.3, -0.5, -0.1).is_nan());
+    assert!(xsf::hyp1f1(-1e5 - 0.3, -0.5, 0.1).is_nan());
+    assert!(xsf::hyp1f1(1e6 + 0.3, -0.5, -0.1).is_nan());
+    assert!(xsf::hyp1f1(-1e5 - 0.3, -600.5, 100.0).is_nan());
+    // Arb: -7.8e1116 and -6.4e1081; the terms keep their sign after the overflow
+    assert_eq!(xsf::hyp1f1(-0.3, -165.5, 2000.0), f64::NEG_INFINITY);
+    assert_eq!(xsf::hyp1f1(-1.7, -0.5, 2500.0), f64::NEG_INFINITY);
+    // Arb: 2.6e4157; a polynomial with positive terms
+    assert_eq!(xsf::hyp1f1(-1e5, -1e6 - 0.5, 1e5), f64::INFINITY);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_unstable() {
     // Arb; DLMF 13.3.2 (backward in b from b + n > 0) is unstable here
     let abx = [
