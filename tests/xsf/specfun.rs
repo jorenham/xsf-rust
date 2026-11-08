@@ -481,11 +481,20 @@ fn test_hyp1f1_neg_x_no_convergence() {
 }
 
 #[test]
+fn test_hyp1f1_beyond_500_terms() {
+    // Arb; the series needs over 500 terms (b < 0), and these were 0.854 and NaN
+    let abx = [(2.61, -2_880_000.5, -477.5), (2.5, -50_000.5, -750.0)];
+    let expected = [1.000_432_863_835_773_4, 1.038_506_615_033_215_6];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp1f1_truncated() {
-    // Arb: 1.0004, -1.64e183, and 9.31e-145; 500 terms are too few, and these were 0.854,
-    // 1.02e266, and 1.39e126
-    assert!(xsf::hyp1f1(2.61, -2_880_000.5, -477.5).is_nan());
+    // Arb: -1.64e183 and 9.31e-145; 500 terms are too few, and these were 1.02e266 and 1.39e126
     assert!(xsf::hyp1f1(-2e6 - 0.3, -600.5, 0.1).is_nan());
+    // Arb: 2.7e84592; the terms shrink, but grow again near -b
+    assert!(xsf::hyp1f1(-800.3, -100_000.5, 100_000.5).is_nan());
     assert!(xsf::hyp1f1(-2e6 - 0.3, 2_880_000.5, 477.5).is_nan());
 }
 

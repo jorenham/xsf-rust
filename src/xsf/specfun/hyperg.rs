@@ -21,6 +21,9 @@ use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, gamma, gammaln};
 
+/// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
+const MAX_TERMS: i32 = 100_000;
+
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
 /// Unlike in xsf (scipy/xsf#436, scipy/xsf#454), with `a + (j - 1)` instead of `a + j - 1`
@@ -37,6 +40,23 @@ fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: 
 fn term_ratio(a: f64, b: f64, abs_z: f64, n: f64) -> Option<f64> {
     let q = (a + n) / (n + 1.0) * (abs_z / (b + n));
     (q.abs() < 1.0 && b + n >= abs_z).then_some(q)
+}
+
+/// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 after a negligible `t_n` are negligible: if
+/// they can't grow again (see `term_ratio`), or, for non-integer `b < 0` where they can near
+/// `m = -b`, if they sum to at most `2 |t_n|`.
+///
+/// Since `|a + m| <= |b + m| + d` with `d = |a - b|`, `|t_m+1 / t_m| <= s = 2 |z| / (n + 1)` if
+/// `|b + m| >= d`. So if `s <= 1/2`, they only grow for the (at most `2d + 2`) `m` with
+/// `|b + m| < d`, by at most `16^d (1 + d / e)^2` in all, with `e` the distance of `b` to the
+/// integers. It thus suffices that the `k` terms before shrink by `(2d + 4) 16^d (1 + d / e)^2`.
+fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
+    let d = (a - b).abs();
+    let s = 2.0 * abs_z / (n + 1.0);
+    let k = (-b - d).ceil() - n;
+    let e = (b - b.round()).abs();
+    let growth = (2.0 * d + 4.0).ln() + d * 16_f64.ln() + 2.0 * (d / e).ln_1p();
+    term_ratio(a, b, abs_z, n).is_some() || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
 }
 
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
@@ -293,7 +313,7 @@ fn hyp1f1_sum<T: Term>(
     let mut sum = scale;
     let mut comp = T::default();
     let mut err = t.norm();
-    for n in 0..100_000 {
+    for n in 0..MAX_TERMS {
         let n = f64::from(n);
         t = next_term(t, n);
         t.add_to(&mut sum, &mut comp);
@@ -468,10 +488,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let mut y0 = 0.0;
     let mut y1 = 0.0;
     let mut accurate = false;
-    // Unlike in xsf (scipy/xsf#365), NaN if a sum below ends with a term that isn't negligible
-    // (unless it overflows), except at the poles b = 0, -1, ... and for infinite a or x
+    // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles b = 0, -1, ...
+    // and for infinite a or x
     let check = a1.is_finite() && x0.is_finite() && (b > 0.0 || b != b.trunc());
-    let mut truncated = false;
+    let mut wrong = false;
     for n in 0..=nl {
         if a0 >= 2.0 {
             a += 1.0;
@@ -484,25 +504,48 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let mut cancellation = f64::INFINITY;
             accurate = false;
             let mut converged = false;
-            for j in 1..501 {
+            // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 the sum goes on after 500 terms
+            // until the rest is negligible, e.g. for `hyp1f1(2.61, -2880000.5, -477.5)`
+            let negligible = |rg: f64, hg: f64| rg == 0.0 || (rg / hg).abs() < 1e-15;
+            let rest_negligible = |j| rest_is_negligible(a, b, x, f64::from(j));
+            let mut terms = 0;
+            for j in 1..=(if check && b < 0.0 { MAX_TERMS } else { 500 }) {
+                terms = j;
                 rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
                 rs += rg.abs();
-                // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`)
+                // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
+                // nor (see below) if they underflow to 0 after 500 terms
                 if (hg != 0.0)
                     && ((rg / hg).abs() < 1e-15)
-                    && (rg == 0.0 || term_ratio(a, b, x, f64::from(j)).is_some())
+                    && ((rg == 0.0 && j <= 500) || term_ratio(a, b, x, f64::from(j)).is_some())
                 {
                     accurate = rs * SQRT_EPS <= hg.abs();
                     cancellation = rs / hg.abs();
                     converged = true;
                     break;
                 }
+                if j >= 500
+                    && (!hg.is_finite() || negligible(rg, hg) && (j == 500 || rest_negligible(j)))
+                {
+                    break;
+                }
             }
-            truncated |= check && hg.is_finite() && !(rg == 0.0 || (rg / hg).abs() < 1e-15);
+            // The sum is wrong if its last term isn't negligible (unless it overflows within 500
+            // terms), or if it has over 500 terms and the rest isn't negligible, or it loses over
+            // half of its digits (as in `chgm_neg_b`).
+            wrong |= check
+                && if terms > 500 {
+                    !(negligible(rg, hg) && rest_negligible(terms)) || rs * SQRT_EPS > hg.abs()
+                } else {
+                    !negligible(rg, hg) && hg.is_finite()
+                };
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
-            // converge within 500 terms
-            if x0 < 0.0 {
+            // converge within 500 terms, and after 500 terms (finite if not `wrong`) in two steps
+            // for x <= -700, where e^x can be subnormal
+            if x0 <= -700.0 && terms > 500 {
+                hg = hg * (x0 / 2.0).exp() * (x0 / 2.0).exp();
+            } else if x0 < 0.0 {
                 hg *= x0.exp();
             }
             // Unlike in xsf (scipy/xsf#365), for -1 < a < 2 and b > 0 the series is summed in full
@@ -586,7 +629,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             x0 < 0.0 && 0.0 < a1 && a1 < b && crate::betainc(a1, b - a1, s) + (s * x0).exp() == 0.0;
         return if zero { 0.0 } else { f64::NAN };
     }
-    if truncated {
+    if wrong {
         return f64::NAN;
     }
     if a0 >= 2.0 {
