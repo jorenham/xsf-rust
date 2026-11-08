@@ -14,6 +14,27 @@ use core::f64::consts::TAU;
 const INCBET_BIG: f64 = 4.503_599_627_370_496e15;
 const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;
 
+/// If `a` and `b` are both below this, `I_x(a, b)` is `b / (a + b)` up to a relative
+/// `745 max(a, b) < eps` (see `betainc_xy`)
+pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
+
+/// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
+///
+/// Then `1 / (a B(a, b)) = b / (a + b) Gamma(a + b + 1) / (Gamma(a + 1) Gamma(b + 1))`, and the
+/// ratio of Gamma functions is 1 up to `min(a, b) (psi(a + b + 1) + gamma) < eps`. If `b / (a + b)`
+/// is subnormal, `t` is divided first, e.g. betainc(2, 5e-324, 0.99) would be 0 instead of 2e-323.
+fn incbet_subnormal_div_a_beta(a: f64, b: f64, t: f64) -> Option<f64> {
+    if a.min(b) >= f64::MIN_POSITIVE {
+        return None;
+    }
+    let r = b / (a + b);
+    Some(if r >= f64::MIN_POSITIVE {
+        t * r
+    } else {
+        t / (a + b) * b
+    })
+}
+
 /// Power series for incomplete beta integral.
 /// Use when b*x is small and x not too close to 1.
 fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
@@ -33,6 +54,10 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
         n += 1.0;
     }
     s += t1;
+    // Unlike in xsf, e.g. betainc(1e-310, 1, 0.5) was NaN instead of 1
+    if let Some(p) = incbet_subnormal_div_a_beta(a, b, x.powf(a) * (a * s + 1.0)) {
+        return p;
+    }
     s += ai;
 
     u = a * x.ln();
@@ -443,6 +468,10 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         if (a + b) < MAXGAM && y.abs() < MAXLOG && t.abs() < MAXLOG {
             t = xc.powf(b);
             t *= x.powf(a);
+            // Unlike in xsf, e.g. betainc(1, 1e-310, 0.99) was 0 instead of 4.6e-310
+            if let Some(p) = incbet_subnormal_div_a_beta(a, b, t * w) {
+                break 'done p;
+            }
             t /= a;
             t *= w;
             t *= 1.0 / beta(a, b);
@@ -499,7 +528,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 /// - Else if `b <= eps min(1, a)` and `a y <= 1`, `incbet_apser` is used.
 pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
     if x > 0.95 && y > 0.0 && a.is_finite() && b.is_finite() {
-        if a.max(b) < 1e-3 * MACHEP {
+        if a.max(b) < INCBET_TINY {
             return b / (a + b);
         }
         if b <= MACHEP * a.min(1.0) && a * y <= 1.0 {

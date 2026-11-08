@@ -143,3 +143,13 @@ fn test_betainc_gh22682() {
         xsref::np_assert_allclose!(&[res], &[reference], rtol = rtol);
     }
 }
+
+#[test]
+fn test_betainc_subnormal_ab() {
+    // B(a, b) overflows; I_x(1, b) = 1 - (1 - x)^b, i.e. -b ln(1 - x) for tiny b
+    assert_eq!(xsf::betainc(1e-310, 1.0, 0.5), 1.0);
+    let p = xsf::betainc(1.0, 1e-310, 0.99);
+    xsref::np_assert_allclose!(&[p], &[4.605_170_185_988_06e-310], rtol = 1e-13);
+    // b / (a + b) is subnormal; I_x(2, b) = -b (ln(1 - x) + x) for tiny b and x close to 1
+    assert_eq!(xsf::betainc(2.0, 5e-324, 0.99), 2e-323);
+}

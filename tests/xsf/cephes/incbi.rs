@@ -86,3 +86,10 @@ fn test_betaincinv_gh21426() {
     let result = xsf::betaincinv(a, a, x);
     xsref::np_assert_allclose!(&[result], &[0.5], rtol = 10.0 * f64::EPSILON);
 }
+
+#[test]
+fn test_betaincinv_tiny_ab() {
+    // I_x(a, a) = 1/2 at x = 1/2, and is 1/2 up to ~745 a for all 0 < x < 1
+    assert_eq!(xsf::betaincinv(1e-300, 1e-300, 0.5), 0.5);
+    assert_eq!(xsf::betaincinv(1e-308, 1e-308, 0.5), 0.5);
+}
