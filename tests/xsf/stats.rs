@@ -610,6 +610,34 @@ fn test_fdtr_fdtrc_ax_overflow() {
 }
 
 #[test]
+fn test_fdtr_fdtrc_subnormal_1mw() {
+    // reference values from Arb; `1 - w = b / (b + a x)` is subnormal or underflows
+    let abx = [
+        (2.0, 1e-278, 1e307),
+        (0.1, 1e-300, 1e300),
+        (1e8, 0.002, 1e308),
+        (1.0, 1.0, 1e308),
+    ];
+    let p = [
+        6.738_527_132_910_383e-276,
+        6.995_845_500_149_159e-298,
+        0.511_065_903_382_357_5,
+        1.0,
+    ];
+    let q = [
+        1.0,
+        1.0,
+        0.488_934_096_617_642_5,
+        6.366_197_723_675_813_5e-155,
+    ];
+    let rtol = 1e-14;
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtr(a, b, x)), &p, rtol = rtol);
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtrc(a, b, x)), &q, rtol = rtol);
+    // `b / a` underflows, but `1 - w = 1/3`
+    assert_eq!(xsf::fdtr(4.0, 1e-323, 5e-324), 0.0);
+}
+
+#[test]
 fn test_fdtr_bdtr_large_df() {
     // reference values from mpmath (see `incbet_lnpow`)
     let p = xsf::fdtr(100.0, 1e20, 0.5);

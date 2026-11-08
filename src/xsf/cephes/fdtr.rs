@@ -56,7 +56,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
-    if let Some((_, q)) = fdtr_large_a(a, b, x) {
+    if let Some((_, q)) = fdtr_tiny_y(a, b, x) {
         return q;
     }
     let (w1, w) = fdtr_w(a, b, x);
@@ -117,7 +117,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if x == f64::INFINITY && !a.is_nan() && !b.is_nan() {
         return 1.0;
     }
-    if let Some((p, _)) = fdtr_large_a(a, b, x) {
+    if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         return p;
     }
     let (w, w1) = fdtr_w(a, b, x);
@@ -139,20 +139,34 @@ fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     }
 }
 
-/// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal and `a` is large, else `None`
+/// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal, else `None`
 ///
 /// Unlike in xsf, this is accurate if `y` is subnormal or underflows, e.g. fdtr(4e178, 0.006, 8e182)
-/// is 0.72 instead of NaN.
+/// is 0.72 instead of NaN, and fdtr(2, 1e-278, 1e307) is 6.7e-276 instead of 1.
 ///
 /// For `A = a/2 -> inf`, `I_y(B, A) = P(B, t)` with `t = (A + (B - 1)/2) y` for tiny `y`, up to a
 /// relative `B |B^2 - 1| / (24 A^2)`. With `y` subnormal, that is below eps unless `P` underflows.
-fn fdtr_large_a(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
-    let large = 0.5 * a * SQRT_EPS > 1.0 && (0.0..f64::MIN_POSITIVE).contains(&(b / a / x));
-    if !large {
+///
+/// Otherwise, `I_y(B, A) = (y / y0)^B I_y0(B, A)` with `y0 = MIN_POSITIVE`, up to a relative
+/// `(2 A + 1) y0` (DLMF 8.17.8).
+fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
+    // y = b / (a x) in the division order that does not underflow spuriously (one of them can,
+    // e.g. `b / a` for fdtr(4, 1e-323, 5e-324), where `1 - w = 1/3`)
+    let y = (b / a / x).max(b / x / a);
+    if !(0.0..f64::MIN_POSITIVE).contains(&y) {
         return None;
     }
+    let hb = 0.5 * b;
+    if 0.5 * a * SQRT_EPS <= 1.0 {
+        let (ha, y0) = (0.5 * a, f64::MIN_POSITIVE);
+        let (p0, q0) = (betainc_xy(ha, hb, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
+        // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
+        let ln_r = b * (0.5 * (b.ln() - a.min(x).ln() - (a.max(x) * y0).ln()));
+        // fdtr = p0 + q0 (1 - (y / y0)^B) has no cancellation
+        return Some((p0 - q0 * ln_r.exp_m1(), q0 * ln_r.exp()));
+    }
     // t = s b / x, with y = b / (a x)
-    let (hb, s) = (0.5 * b, 0.5 + (0.25 * b - 0.5) / a);
+    let s = 0.5 + (0.25 * b - 0.5) / a;
     let t = s * (b / x);
     if t >= f64::MIN_POSITIVE {
         return Some((igamc(hb, t), igam(hb, t)));
