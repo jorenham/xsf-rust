@@ -455,8 +455,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
     // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows). This includes
-    // b - a = -n >= -1e5 for -700 < x < 0.
-    let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -1e5);
+    // b - a = -n >= -10^6 (the cost bound of `hyp1f1_neg_a`) for -700 < x < 0.
+    let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -MAX_SERIES_ITERATIONS);
     if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b && poly {
         let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
         if p.is_finite() {
@@ -573,10 +573,12 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     return hg;
                 }
             }
-            // Unlike in xsf (scipy/xsf#365), for non-integer a < -1 and b > 0, the backward
-            // recurrences from Boost.Math (`hyp1f1_recurrence`) are used if the series doesn't
-            // converge or loses more than half of its digits (as in Boost's checked series).
-            if !accurate && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
+            // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, if the series doesn't converge or
+            // is estimated to lose more than half of its digits (as in Boost's checked series), the
+            // backward recurrences from Boost.Math (`hyp1f1_recurrence`) are used for non-integer a,
+            // or else (e.g. if they take over 10^6 steps) the result is NaN.
+            let lossy = !accurate && a < -1.0 && b > 0.0 && x > 0.0;
+            if lossy && a != a.trunc() {
                 // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
                 let m =
                     |a, b| hyp1f1_series(a, b, c64(x, 0.0), Complex64::ONE, 0.0).map(|(s, _)| s.re);
@@ -584,6 +586,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                     return hg;
                 }
             }
+            wrong |= check && lossy;
             // Unlike in xsf (scipy/xsf#365), if the series cancels by over 1e5, DLMF 13.3.2 is used
             // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error.
             let n = (-a * x / 2.0 - b).ceil();

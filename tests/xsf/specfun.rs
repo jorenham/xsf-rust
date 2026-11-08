@@ -622,6 +622,22 @@ fn test_hyp1f1_neg_a_cancellation() {
 }
 
 #[test]
+fn test_hyp1f1_huge_neg_a() {
+    // Arb: -0.572 and -0.0295; the series cancels, and the recurrences take over 10^6 steps
+    assert!(xsf::hyp1f1(-999_999.8, 0.5, 0.1).is_nan());
+    assert!(xsf::hyp1f1(1e6 + 0.3, 1.0, -0.1).is_nan());
+    // Arb; DLMF 13.2.39 gives a polynomial of degree 10^5 < a - b <= 10^6
+    let abx = [(3e5, 1.0, -0.01), (3e5, 30.0, -1.0), (1e6, 30.0, -0.1)];
+    let expected = [
+        -0.027_636_911_294_932_15,
+        4.867_432_831_661_024e-51,
+        -6.454_678_759_269_63e-44,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp1f1_large_x() {
     // mpmath; in xsf these are -1.0e286, -1.6e194, 1788, NaN, 6.4e214, -2.56741098e157,
     // -1.2e252, accurate, accurate, and 1 (stopping at the negligible first term)
