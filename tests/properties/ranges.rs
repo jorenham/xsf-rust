@@ -28,11 +28,9 @@ property!(
     betainc(a in positive(), b in positive(), x in unit()) if a.min(b) <= HUGE
 );
 
-// known: NaN if a x overflows, e.g. fdtr(1.4e13, 1, 1.4e306)
 property!(
     nearly_in_unit_interval,
-    fdtr(a in positive(), b in positive(), x in nonnegative())
-        if a.min(b) <= HUGE && (x.is_infinite() || (a * x).is_finite())
+    fdtr(a in positive(), b in positive(), x in nonnegative()) if a.min(b) <= HUGE
 );
 property!(in_unit_interval, stdtr(nu in positive(), x in real()));
 property!(nearly_in_unit_interval, chdtr(nu in positive(), x in nonnegative()));
