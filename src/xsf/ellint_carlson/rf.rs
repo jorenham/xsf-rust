@@ -83,8 +83,8 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         /* Correction for non-zero x, see Eq. 19.27.3 in
          * https://dlmf.nist.gov/19.27.E3 */
         let yz = ym.prod(zm);
-        // Unlike in xsf, as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows, e.g. for
-        // R_F(0, 1e-300, 1e-70)
+        // Unlike in xsf (scipy/xsf#467), as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows, e.g.
+        // for R_F(0, 1e-300, 1e-70)
         let res = if yz.too_small() {
             tmpres - xm.sqrt().quot(ym.sqrt().prod(zm.sqrt()))
         } else {
