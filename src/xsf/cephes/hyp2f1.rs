@@ -402,8 +402,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
         }
 
         /* Use defining power series if no special cases */
+        // Unlike in xsf (scipy/xsf#371), check the recurrence in `a` here too, e.g.
+        // `hyp2f1(-33.21, -82.91, -19.5, -0.001)` was -253 instead of 1.15.
         let y;
-        (y, err) = hys2f1(a, b, c, x);
+        ((y, err, _), _) = hys2f1_checked(a, b, c, x);
         y
     };
     // done:
@@ -730,14 +732,25 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
                  */
-                p = hyp2f1(a, 1.0 - c + a, 1.0 - b + a, 1.0 / x);
-                q = hyp2f1(b, 1.0 - c + b, 1.0 - a + b, 1.0 / x);
+                // Unlike in xsf, round `b - a` only once, since the poles of `Gamma(b - a)` and
+                // `Gamma(a - b)` only cancel those of `p` and `q` at the same `b - a`, e.g.
+                // `hyp2f1(-4.6, -20.6000000001, 50.7, -10.0)` was -2.74e6 instead of -65.9.
+                let e = b - a;
+                p = hyp2f1(a, 1.0 - c + a, 1.0 - e, 1.0 / x);
+                q = hyp2f1(b, 1.0 - c + b, 1.0 + e, 1.0 / x);
                 p *= (-x).powf(-a);
                 q *= (-x).powf(-b);
                 t1 = gamma(c);
-                s = t1 * gamma(b - a) * (rgamma(b) * rgamma(c - a));
-                y = t1 * gamma(a - b) * (rgamma(a) * rgamma(c - b));
-                return s * p + y * q;
+                s = t1 * gamma(e) * (rgamma(b) * rgamma(c - a));
+                y = t1 * gamma(-e) * (rgamma(a) * rgamma(c - b));
+                // Unlike in xsf, keep the series if its error estimate is smaller than the
+                // cancellation of `s p + y q`, e.g. `hyp2f1(-13.2, -29.200000000001, 5.5, -2.5)`
+                // was -1.26e5 instead of -6.02e5.
+                let (u, v) = (s * p, y * q);
+                if e1 < MACHEP * u.abs().max(v.abs()) / (u + v).abs() {
+                    return y1;
+                }
+                return u + v;
             } else if x < -1.0 {
                 if a.abs() < b.abs() {
                     return s.powf(-a) * hyp2f1(a, c - b, c, x / (x - 1.0));
