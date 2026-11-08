@@ -90,7 +90,13 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     let w = x / (x - 1.0);
     let (ya, ea) = hys2f1_min(a, c - b, c, w);
     let (yb, eb) = hys2f1_min(b, c - a, c, w);
-    let (y, err, p) = if ea <= eb { (ya, ea, a) } else { (yb, eb, b) };
+    // If one of these overflows, its error estimate is NaN, so use the other, e.g. for
+    // `hyp2f1(1e-20, 3000.5, 1e7, -100.0)`
+    let (y, err, p) = if ea <= eb || eb.is_nan() {
+        (ya, ea, a)
+    } else {
+        (yb, eb, b)
+    };
     ((1.0 - x).powf(-p) * y, err)
 }
 
