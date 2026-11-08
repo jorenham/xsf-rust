@@ -79,6 +79,26 @@ fn test_beta_near_171() {
 }
 
 #[test]
+fn test_beta_small_b() {
+    // unlike in xsf, the rounding error of a + b isn't amplified by Gamma(a + b) for |b| < 1 < a
+    // (mpmath)
+    for (a, b, expected) in [
+        (1e-10, 171.0, 9_999_999_994.284_047),
+        (-0.004, 171.5, -255.788_154_100_805_54),
+        (0.3, 150.7, 0.664_917_516_596_133),
+        (1e17, 1e-300, 1e300),
+    ] {
+        let actual = xsf::beta(a, b);
+        assert!(
+            (actual / expected - 1.0).abs() < 5e-15,
+            "{actual:e} != {expected:e}"
+        );
+    }
+    let actual = xsf::betaln(0.3, 150.7);
+    assert!((actual / -0.408_092_281_213_068_6 - 1.0).abs() < 5e-15);
+}
+
+#[test]
 fn test_beta_negint_int_overflow() {
     // unlike in xsf, 1 - a doesn't overflow the C++ `int` for a = -2^31 and -2^31 + 1
     for a in [-2_147_483_648.0, -2_147_483_647.0] {

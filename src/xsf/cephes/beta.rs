@@ -72,6 +72,16 @@ fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
         && !(gamma(a).is_normal() && gamma(b).is_normal() && rgamma(y).is_normal())
 }
 
+/// Whether `|b| < 1` and `4 < a < inf`, where `Gamma(a) / Gamma(a + b)` is computed as
+/// `exp(-lgam_ratio(a, b))`
+///
+/// Unlike in xsf, the rounding error of `a + b` is then not amplified ~`a ln(a)` times by
+/// `Gamma(a + b)`, e.g. in `beta(1e-10, 171)`. For `a <= 4` that rounding error is (measured)
+/// smaller than the error of `lgam_ratio`.
+fn small_b(a: f64, b: f64) -> bool {
+    b.abs() < 1.0 && a > 4.0 && a.is_finite()
+}
+
 /// Special case for a negative integer argument
 fn beta_negint(a: i32, b: f64) -> f64 {
     // Like the C++ `static_cast<int>(b)` wherever that is defined; the saturating cast makes the
@@ -148,6 +158,10 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
         y = a;
         a = b;
         b = y;
+    }
+
+    if small_b(a, b) {
+        return gamma(b) * (-lgam_ratio(a, b)).exp();
     }
 
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
@@ -229,6 +243,10 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
         (y, _) = lbeta_asymp(a, b);
         return y;
+    }
+
+    if small_b(a, b) {
+        return lgam(b) - lgam_ratio(a, b);
     }
 
     y = a + b;
