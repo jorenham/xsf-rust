@@ -594,13 +594,13 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // NOTE: `(int)a` (and `(int)aa` below) is UB in C++ if out of `int` range (incl.
     // inf/NaN; GCC/x86 gives INT_MIN); here it saturates. Either way an out-of-range value never
     // compares equal, so the results of these comparisons are the same.
-    let il1 = i32::from((a == f64::from(a as i32)) && (a <= 0.0));
-    let il2 = i32::from((aa == f64::from(aa as i32)) && (aa <= 0.0));
-    let il3 = i32::from((a * (a - b + 1.0)).abs() / x <= 2.0);
-    let bl1 = i32::from((x <= 5.0) || (x <= 10.0 && a <= 2.0));
-    let bl2 = i32::from((x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0)));
-    let bl3 = i32::from((x > 12.5) && (a >= 5.0) && (b >= a + 5.0));
-    let bn = i32::from(b.fract() == 0.0 && b != 0.0);
+    let il1 = (a == f64::from(a as i32)) && (a <= 0.0);
+    let il2 = (aa == f64::from(aa as i32)) && (aa <= 0.0);
+    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0;
+    let bl1 = (x <= 5.0) || (x <= 10.0 && a <= 2.0);
+    let bl2 = (x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0));
+    let bl3 = (x > 12.5) && (a >= 5.0) && (b >= a + 5.0);
+    let bn = b.fract() == 0.0 && b != 0.0;
 
     let mut id = -100;
     let mut hu1 = 0.0;
@@ -616,8 +616,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf (scipy/xsf#380), chgul is also tried for a < 1 and b > a, with b zero or
     // non-integer, before the recurrence in a below (not for |a| < 1.1e-16, where `a + 1 - 1`
     // rounds to 0 in chgul)
-    let il4 = a < 1.0 && b > a && bn == 0 && a + 1.0 != 1.0;
-    if il1 != 0 || il2 != 0 || il3 != 0 || il4 {
+    let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0;
+    if il1 || il2 || il3 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= ID_MIN {
@@ -632,7 +632,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
         // Unlike in xsf (scipy/xsf#380), chguit is used for b - 1 >= 1000, where chgubi gives up
-        let ubi = bn != 0 && (bl1 != 0 || bl2 != 0 || bl3 != 0) && b - 1.0 < 1000.0;
+        let ubi = bn && (bl1 || bl2 || bl3) && b - 1.0 < 1000.0;
         if ubi {
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
@@ -667,16 +667,15 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             }
         }
     } else {
-        if bn != 0 && (!il1) != 0 {
-            // NOTE: `~il1` is a bitwise NOT of 0 or 1, i.e. -1 or -2, which is always truthy, so
-            // this condition is just `bn`. Reproduced as is.
+        // NOTE: xsf checks `bn && ~il1`, where `~il1` (-1 or -2) is always true
+        if bn {
             hu = chgubi(x, a, b, &mut id);
             *md = 3;
         }
         // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
         // or if chgubi has fewer than `ID_MIN` digits (or overflows) and chgul fewer than 9
         let failed = id < ID_MIN || !hu.is_finite();
-        if (bn == 0 || failed && id0 < 9) && a > -1000.0 {
+        if (!bn || failed && id0 < 9) && a > -1000.0 {
             let u = super::hypu_rec(a, b, x);
             if !u.is_nan() {
                 (hu, id) = (u, ID_MIN);
@@ -1074,18 +1073,18 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let aa = a - b + 1.0;
     // Unlike in xsf (scipy/xsf#380), a (or aa) = -2^31 is excluded
     let is_nonpos_int = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
-    let il1 = i32::from(is_nonpos_int(a));
-    let il2 = i32::from(is_nonpos_int(aa));
+    let il1 = is_nonpos_int(a);
+    let il2 = is_nonpos_int(aa);
     let mut nm = 0;
-    if il1 != 0 {
+    if il1 {
         nm = -a as i32;
     }
-    if il2 != 0 {
+    if il2 {
         nm = -aa as i32;
     }
     // IL1: DLMF 13.2.7 with k=-s-a
     // IL2: DLMF 13.2.8
-    if il1 != 0 || il2 != 0 {
+    if il1 || il2 {
         hu = 1.0;
         r = 1.0;
         let mut rmax: f64 = 1.0;
@@ -1125,7 +1124,7 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // e.g. U(-60, 30, 10) = -6.398e95 instead of -6.902e95
         let cancels = rmax > 1e6 * hu.abs();
         // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
-        let kummer = il1 == 0 || (il2 != 0 && b < 1.0);
+        let kummer = !il1 || (il2 && b < 1.0);
         let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
         let mut u = f64::NAN;
         if (cancels || !hu.is_finite()) && c + x >= 0.0 {
@@ -1254,11 +1253,9 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if !converged {
         // the last terms, and the r1 terms that still grow (up to j = 300)
         let mut rmax = (r1 - r2).abs();
-        let mut j = 151.0;
-        while j <= jconv && j <= 300.0 {
-            r1 = r1 * (a + (j - 1.0)) / (j * (b + j - 1.0)) * x;
+        for j in (151..=300).take_while(|&j| f64::from(j) <= jconv) {
+            r1 = kummer_term(r1, a, b, j) * x;
             rmax = rmax.max(r1.abs());
-            j += 1.0;
         }
         *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
