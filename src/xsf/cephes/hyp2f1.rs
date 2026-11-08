@@ -308,9 +308,8 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 (lg, sgngam) = lgam_sgn(c - b);
                 w -= lg;
                 sign *= sgngam;
-                q *= f64::from(sign) * w.exp();
+                let (w_q, sign_q) = (w, f64::from(sign));
                 ((r, err1, r_full), _) = hys2f1_checked(c - a, c - b, d + 1.0, s);
-                r *= s.powf(d);
                 sign = 1;
                 (w, sgngam) = lgam_sgn(-d);
                 sign *= sgngam;
@@ -320,7 +319,22 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 (lg, sgngam) = lgam_sgn(b);
                 w -= lg;
                 sign *= sgngam;
-                r *= f64::from(sign) * w.exp();
+                // Unlike in xsf, if a factor leaves the normal range, combine `Gamma(c)` and `s^d`
+                // with the logarithms of the others, as the terms can still be normal (e.g. for a
+                // tiny `b`). Not at a pole of `Gamma(+-d)`, nor if an inner series is inaccurate.
+                let (mut exp_q, mut s_d, mut exp_r, mut gamma_c) =
+                    (w_q.exp(), s.powf(d), w.exp(), gamma(c));
+                let in_range = [exp_q, s_d, exp_r, gamma_c].into_iter().all(f64::is_normal);
+                let accurate = q_full < HYP2F1_ETHRESH && r_full < HYP2F1_ETHRESH;
+                if !in_range && w_q.is_finite() && w.is_finite() && accurate {
+                    // `s^d` and `|Gamma(c)|` are moved into the exponents
+                    let (lg_c, sign_c) = lgam_sgn(c);
+                    exp_q = (w_q + lg_c).exp();
+                    (s_d, exp_r) = (1.0, (w + d * s.ln() + lg_c).exp());
+                    gamma_c = f64::from(sign_c);
+                }
+                q *= sign_q * exp_q;
+                r = r * s_d * (f64::from(sign) * exp_r);
                 y = q + r;
 
                 // the error of `y` from `q` and `r` (incl. their recurrences in `a`), their sum,
@@ -339,7 +353,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
                 }
                 err += err1 + (MACHEP * r) / y;
 
-                y *= gamma(c);
+                y *= gamma_c;
                 if loss0 < HYP2F1_ETHRESH && !less_accurate(y0, y, full) {
                     err = loss0;
                     break 'done y0;
