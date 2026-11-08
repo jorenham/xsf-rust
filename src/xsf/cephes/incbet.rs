@@ -599,13 +599,13 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 
 /// `betainc(a, b, x)`, given `y = 1 - x` computed without cancellation by the caller
 ///
-/// Unlike in xsf (scipy/xsf#358), where `betainc` is only given `x`. For `x > 0.95`:
+/// Unlike in xsf (scipy/xsf#358), where `betainc` is only given `x`, `y` is passed to `incbet` as
+/// well. For `x > 0.95`:
 ///
 /// - Above the mean (compared with `y`), `1 - betainc(b, a, y)` is used.
 /// - Below the mean, the complement is also used if `a y <= 1`, where its power series has an
 ///   absolute error of ~(1 - ln(b)) eps and the result is at least ~b/5 (both measured), if its
 ///   relative error ~5 (1 - ln(b)) eps / b is below the ~0.1 eps / y of the continued fractions.
-/// - Otherwise `y` is passed to `incbet` as well.
 ///
 /// Unlike in xsf, for tiny `b` the result is not computed as `1 - (1 - I)`, as in TOMS 708 (see
 /// `incbet_lnpow`), e.g. fdtrc(1e-300, 1, 1) was 1 instead of 3.5e-298:
@@ -626,12 +626,17 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
         } else {
             incbet_xy(a, b, x, y)
         };
-        // `incbet` can be NaN for huge `a` and `b` (or for `a` or `b` zero), and slightly exceed 1
+        // `incbet` can be NaN for huge `a` and `b`, for `a` or `b` zero, or if `x` is rounded to 1
+        // (e.g. fdtr(12.5, 2.3e-16, 0.5)), and slightly exceed 1
         if !p.is_nan() {
             return p.max(0.0);
         }
     }
-    betainc(a, b, x)
+    if x <= 0.95 {
+        betainc_y(a, b, x, y)
+    } else {
+        betainc(a, b, x)
+    }
 }
 
 /// Regularized incomplete Beta function $\I_x(a,b)$
@@ -671,6 +676,11 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
 )]
 #[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
+    betainc_y(a, b, x, 1.0 - x)
+}
+
+/// `betainc(a, b, x)`, given `y = 1 - x`
+fn betainc_y(a: f64, b: f64, x: f64, y: f64) -> f64 {
     if (a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&x))
         || (a.is_nan() || b.is_nan() || x.is_nan())
         || (a == 0.0 && b == 0.0)
@@ -682,6 +692,6 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     } else if a.is_infinite() || b == 0.0 {
         if x < 1.0 { 0.0 } else { 1.0 }
     } else {
-        incbet(a, b, x)
+        incbet_xy(a, b, x, y)
     }
 }

@@ -710,8 +710,42 @@ fn test_fdtr_stdtr_huge_df() {
 }
 
 #[test]
+fn test_fdtr_fdtrc_exact_1mw() {
+    // reference values from Arb; the Beta argument (`w` for fdtr, `1 - w` for fdtrc) is in
+    // (1/2, 0.95], where its complement is inexact
+    let p = [
+        xsf::fdtr(1.76e5, 1e4, 1.031),
+        xsf::fdtr(1.2e7, 1.1e6, 1.0042),
+    ];
+    let q = [
+        xsf::fdtrc(5.165e4, 2.308e5, 0.987),
+        xsf::fdtrc(2.5e6, 3.3e7, 0.9976),
+    ];
+    let p_ref = [0.981_513_729_308_534_3, 0.998_524_516_014_640_7];
+    let q_ref = [0.971_070_538_485_072_5, 0.995_187_634_483_848_4];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-15);
+    xsref::np_assert_allclose!(&q, &q_ref, rtol = 1e-15);
+}
+
+#[test]
 fn test_fdtri() {
     xsref::test("fdtri", "d_d_d-d", |x| xsf::fdtri(x[0], x[1], x[2]));
+}
+
+#[test]
+fn test_fdtri_tiny_p() {
+    // reference values from Arb
+    let x = [
+        xsf::fdtri(10.0, 20.0, 1e-20),
+        xsf::fdtri(3.0, 4.0, 1e-15),
+        xsf::fdtri(100.0, 50.0, 1e-30),
+    ];
+    let x_ref = [
+        4.372_813_139_522_666e-5,
+        7.238_446_978_136_566e-11,
+        0.061_376_206_282_273_02,
+    ];
+    xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
 }
 
 #[test]

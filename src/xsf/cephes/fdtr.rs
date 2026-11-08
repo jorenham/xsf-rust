@@ -226,6 +226,8 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (y <= 0.0) || (y > 1.0) {
         return f64::NAN;
     }
+    // Unlike in xsf, the original `y` is used below instead of the rounded `1 - (1 - y)`.
+    let p = y;
     y = 1.0 - y;
     /* Compute probability for x = 0.5.  */
     let mut w = incbet(0.5 * b, 0.5 * a, 0.5);
@@ -235,7 +237,7 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
         w = incbi(0.5 * b, 0.5 * a, y);
         (b - b * w) / (a * w)
     } else {
-        w = incbi(0.5 * a, 0.5 * b, 1.0 - y);
+        w = incbi(0.5 * a, 0.5 * b, p);
         b * w / (a * (1.0 - w))
     }
 }
