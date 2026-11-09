@@ -145,17 +145,29 @@ fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
     lead.is_finite().then_some(lead * sum)
 }
 
-/// The leading term `n x^(n-1) / (2n + 1)!!` of the power series of both `j_n'(x)` and
-/// `i_n'(x)` for `n >= 1`, if `x` is below the tiny-`x` cutoff of `i_{n-1}(x)`.
-fn sph_bessel_prime_tiny_x(n: i64, x: f64) -> Option<f64> {
-    let ax = x.abs();
-    if n < 1 || x.is_nan() || ax * ax >= ((n - 1) as f64 + 1.5) * f64::EPSILON {
-        return None;
-    }
+/// `f_n'(x) = f_{n-1}(x) - (n + 1) f_n(x) / x` (DLMF 10.51.2, 10.51.5) for `f = j` (`c = -1`)
+/// or `f = i` (`c = 1`), and `x != 0`.
+fn sph_bessel_ji_jac(f: fn(i64, f64) -> f64, c: f64, n: i64, x: f64) -> f64 {
     let nf = n as f64;
-    // f_n'(-x) = (-1)^(n+1) f_n'(x), which also gives the right sign if the product underflows
-    let sign = if x < 0.0 && n % 2 == 0 { -1.0 } else { 1.0 };
-    Some(sign * nf * sph_bessel_tiny(n - 1, ax) / (2.0 * nf + 1.0))
+
+    // Unlike in xsf (scipy/xsf#373), use the leading power series term n x^(n-1) / (2n + 1)!!
+    // if x is below the tiny-x cutoff of f_{n-1}(x). The sign is from f_n'(-x) = (-1)^(n+1)
+    // f_n'(x), so that it's also right if the product underflows.
+    let ax = x.abs();
+    if n >= 1 && ax * ax < ((n - 1) as f64 + 1.5) * f64::EPSILON {
+        let sign = if x < 0.0 && n % 2 == 0 { -1.0 } else { 1.0 };
+        return sign * nf * sph_bessel_tiny(n - 1, ax) / (2.0 * nf + 1.0);
+    }
+
+    // Unlike in xsf, use (2n + 1) f_n' = n f_{n-1} + c (n + 1) f_{n+1} (DLMF 10.51.1, 10.51.4)
+    // if f_n(x) underflows, since (n + 1) f_n(x) / x then loses precision.
+    let (f_m, f_n) = (f(n.wrapping_sub(1), x), f(n, x));
+    if f_n.abs() < f64::MIN_POSITIVE {
+        let f_p = f(n.saturating_add(1), x);
+        return (nf * f_m + c * np1(n) * f_p) / (2.0 * nf + 1.0);
+    }
+
+    f_m - np1(n) * f_n / x
 }
 
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
@@ -202,8 +214,7 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
 
     if n > 0 && n as f64 >= x {
         let jv = cyl_bessel_j_f64(half(n), x);
-        // Unlike in xsf, use the power series if J_{n + 1/2}(x) is subnormal, which loses
-        // precision, e.g. j_256(12) was 0 instead of 9.02e-310.
+        // Unlike in xsf, use the power series if J_{n + 1/2}(x) underflows.
         if jv.abs() < f64::MIN_POSITIVE {
             if let Some(res) = sph_bessel_j_series(n, x) {
                 return res;
@@ -295,23 +306,7 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
         return 0.0;
     }
 
-    // Unlike in xsf (scipy/xsf#373), use the leading power series term n x^(n-1) / (2n + 1)!! for
-    // tiny x.
-    if let Some(res) = sph_bessel_prime_tiny_x(n, z) {
-        return res;
-    }
-
-    // Unlike in xsf, use DLMF 10.51.1 if j_n(x) underflows, since (n + 1) j_n(x) / x then loses
-    // precision, e.g. j_38'(1.6e-7) had a relative error of 3e-7.
-    let jn = sph_bessel_j_f64(n, z);
-    if jn.abs() < f64::MIN_POSITIVE {
-        let jm = n as f64 * sph_bessel_j_f64(n.wrapping_sub(1), z);
-        let jp = np1(n) * sph_bessel_j_f64(n.saturating_add(1), z);
-        return (jm - jp) / (2.0 * n as f64 + 1.0);
-    }
-
-    // DLMF 10.51.2
-    sph_bessel_j_f64(n.wrapping_sub(1), z) - np1(n) * jn / z
+    sph_bessel_ji_jac(sph_bessel_j_f64, -1.0, n, z)
 }
 
 fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
@@ -417,9 +412,8 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
         return -sph_bessel_y_f64(1, x);
     }
 
-    // Unlike in xsf (scipy/xsf#373), if y_n(x) is infinite, return -(n + 1) y_n(x) / x.
-    //
-    // Here x = -0 is treated as +0, as in y_n(x).
+    // Unlike in xsf (scipy/xsf#373), if y_n(x) is infinite, return its dominant term
+    // -(n + 1) y_n(x) / x, with x = -0 treated as +0 (like in y_n(x)).
     let yn = sph_bessel_y_f64(n, x);
     if yn.is_infinite() {
         return if x < 0.0 { yn } else { -yn };
@@ -530,21 +524,7 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
         return 0.0;
     }
 
-    // Unlike in xsf (scipy/xsf#373), use the leading power series term for tiny x (see
-    // sph_bessel_j_jac_f64).
-    if let Some(res) = sph_bessel_prime_tiny_x(n, z) {
-        return res;
-    }
-
-    // Unlike in xsf, use DLMF 10.51.4 if i_n(x) underflows (see sph_bessel_j_jac_f64).
-    let i_n = sph_bessel_i_f64(n, z);
-    if i_n.abs() < f64::MIN_POSITIVE {
-        let im = n as f64 * sph_bessel_i_f64(n.wrapping_sub(1), z);
-        let ip = np1(n) * sph_bessel_i_f64(n.saturating_add(1), z);
-        return (im + ip) / (2.0 * n as f64 + 1.0);
-    }
-
-    sph_bessel_i_f64(n.wrapping_sub(1), z) - np1(n) * i_n / z
+    sph_bessel_ji_jac(sph_bessel_i_f64, 1.0, n, z)
 }
 
 fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
