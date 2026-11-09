@@ -526,6 +526,7 @@ fn test_fdtr_fdtrc_inf() {
     assert!(xsf::fdtr(1.0, f64::NAN, f64::INFINITY).is_nan());
     // huge `a` or subnormal `b`
     assert_eq!(xsf::fdtrc(1e10, 5e-324, f64::INFINITY), 0.0);
+    assert_eq!(xsf::fdtr(5e-324, 5e-324, f64::INFINITY), 1.0);
     assert_eq!(xsf::fdtr(1e10, 1.0, -0.0), 0.0);
     assert_eq!(xsf::fdtr(f64::INFINITY, 1.0, 1e-310), 0.0);
     assert_eq!(xsf::fdtrc(f64::INFINITY, 1.0, 1e-310), 1.0);
@@ -581,7 +582,7 @@ fn test_fdtr_fdtrc_tiny_df() {
 
 #[test]
 fn test_fdtr_fdtrc_df_below_eps() {
-    // reference values from mpmath; one df is below eps times the other (see `betainc_xy`)
+    // reference values from mpmath and Arb; one df is below eps times the other (see `incbet_xy`)
     let p = [
         xsf::fdtrc(1e-300, 1.0, 1.0),
         xsf::fdtr(1.0, 1e-300, 1.0),
@@ -589,6 +590,9 @@ fn test_fdtr_fdtrc_df_below_eps() {
         xsf::fdtr(3.0, 1e-20, 1e-3),
         // both df are below eps / 1000
         xsf::fdtr(1e-200, 1e-210, 1e100),
+        // the small result is not computed as `1 - (1 - I)`
+        xsf::fdtrc(2.3e-16, 1e6, 172.0),
+        xsf::fdtrc(1e-15, 100.0, 0.089_235_272_459_266_45),
     ];
     let p_ref = [
         3.460_809_111_296_668e-298,
@@ -596,6 +600,8 @@ fn test_fdtr_fdtrc_df_below_eps() {
         4.334_779_851_161_283e-19,
         1.981_442_661_534_338_8e-19,
         9.999_999_999_000_001e-11,
+        3.562_342_396_438_712e-15,
+        1.854_061_006_448_489_2e-14,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
 }
@@ -681,7 +687,7 @@ fn test_bdtr_nbdtrc_large_n() {
 
 #[test]
 fn test_fdtr_stdtr_huge_df() {
-    // reference values from mpmath (see `betainc_xy`)
+    // reference values from mpmath (see `incbet_xy`)
     let abx = [
         (100.0, 1e20, 0.5),
         (30.0, 1e20, 2.0),

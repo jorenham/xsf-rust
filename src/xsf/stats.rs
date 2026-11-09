@@ -168,20 +168,19 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
     } else if x == 0.0 {
         0.5
     } else if nu > 1e150 {
-        // The 1/nu correction phi(x) (x^3 + x) / (4 nu) is negligible, e.g. stdtr(1e200, -2.33)
-        // was 0.5 instead of 0.0099 when the terms of the continued fractions in `incbet` (~nu^2)
-        // overflowed
+        // The 1/nu correction phi(x) (x^3 + x) / (4 nu) is negligible, and the terms of the
+        // continued fractions in `incbet` (~nu^2) can overflow
         ndtr(x)
     } else if nu == 1.0 {
         0.5 + FRAC_1_PI * x.atan()
     } else if nu == 2.0 {
         if x < 0.0 {
             // (1 + x / s) / 2 = 1 / (s (s - x)) with s = sqrt(2 + x^2) avoids the cancellation, and
-            // hypot the overflow, e.g. stdtr(2, -1e5) was 5.0000004e-11 instead of 4.9999999993e-11
+            // hypot the overflow
             let s = x.hypot(SQRT_2);
             s.recip() / (s - x)
         } else if x * x == f64::INFINITY {
-            // e.g. stdtr(2, 1e200) was 0.5 instead of 1
+            // x / sqrt(2 + x^2) would be NaN or 0
             1.0
         } else {
             f64::midpoint(1.0, x / (2.0 + x * x).sqrt())
@@ -193,14 +192,13 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
             * if w < f64::MIN_POSITIVE && nu < 2.0 && x.is_finite() {
                 // `w` underflows (and `t2` may overflow), so use the leading term of the power
                 // series I_w(a, 1/2) ~ w^a / (a B(a, 1/2)) in log space, with w ~ nu / t^2 and
-                // a B(a, 1/2) = Gamma(a + 1) sqrt(pi) / Gamma(a + 1/2), e.g. stdtr(0.0016, -3.8e274)
-                // was 0 instead of 0.1807. For nu >= 2 the tail probability is subnormal at most.
+                // a B(a, 1/2) = Gamma(a + 1) sqrt(pi) / Gamma(a + 1/2). For nu >= 2 the tail
+                // probability is subnormal at most.
                 let a = 0.5 * nu;
                 let lnw = nu.ln() - 2.0 * x.abs().ln();
                 (a * lnw - lgam1p(a) + lgam(a + 0.5) - 0.5 * LN_PI).exp()
             } else {
-                // `1 - w` is passed as well (see `betainc_xy`), e.g. stdtr(7.8e5, 5.9e-8) was 0.5
-                // instead of 0.5 + 2.4e-8
+                // `1 - w` is passed as well (see `betainc_xy`)
                 betainc_xy(0.5 * nu, 0.5, w, t2 / (nu + t2))
             };
         if x >= 0.0 { 1.0 - p } else { p }
@@ -242,8 +240,7 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
         let subnormal = q < f64::MIN_POSITIVE;
         if nu <= 1e3 && p > 0.25 && p < 0.75 {
             // Solve I_x(1/2, a) = |1 - 2p| (exact) for x = t^2 / (nu + t^2) = 1 - w, which is more
-            // accurate than computing `1 - w` if x < 1/2, e.g. stdtri(10, 0.5 + 1e-10) was
-            // 3.3e-8 instead of 2.6e-10
+            // accurate than computing `1 - w` if x < 1/2
             let x = crate::betaincinv(0.5, a, (1.0 - 2.0 * p).abs());
             if x < 0.5 {
                 let t = (nu * x / (1.0 - x)).sqrt();
@@ -264,42 +261,50 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
             let c = a * crate::beta(a, 0.5) / nu.powf(a);
             t = (y.powf(e) * c.powf(e)).powi(2);
         } else if nu > 1e3 || w > 0.5 || subnormal {
-            // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a` or subnormal q,
-            // so start from the Cornish-Fisher expansion if nu > 1e3, and (unless that's already
-            // exact) solve stdtr(nu, -t) = q with Newton's method on ln(stdtr)
-            let mut err = 1.0;
-            if nu > 1e3 {
-                (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
-                t = -t;
-            }
-            let c = nu.sqrt() * crate::beta(a, 0.5);
-            for _ in 0..20 {
-                if err <= 4.0 * f64::EPSILON * t {
-                    break;
-                }
-                let (ln_fq, f_pdf) = if subnormal && nu <= 3e5 {
-                    // A subnormal `stdtr` has too few digits, so use ln(stdtr(nu, -t)) =
-                    // ln(w^a s / (nu B(a, 1/2))) with s = 2F1(a, 1/2; a + 1; w) (DLMF 8.17.7), from
-                    // the power series of `incbet`, and stdtr / pdf = s / sqrt(nu w). For nu > 3e5
-                    // its ~nu / 40 terms are too many, but then the Cornish-Fisher start is
-                    // accurate to ~eps.
-                    let r = t * t / nu;
-                    let w = (1.0 + r).recip();
-                    let s = 1.0 + a * incbet_pseries_sum(a, 0.5, w);
-                    let ln_f = (s / (nu.sqrt() * c)).ln() - a * r.ln_1p();
-                    (ln_f - q.ln(), s / (nu * w).sqrt())
-                } else {
-                    let f = stdtr(nu, -t);
-                    let pdf = (-(a + 0.5) * (t * t / nu).ln_1p()).exp() / c;
-                    ((f / q).ln(), f / pdf)
-                };
-                let dt = ln_fq * f_pdf;
-                t += dt;
-                err = dt.abs();
-            }
+            // `1 - w` is inaccurate if w > 1/2, and `betaincinv` too for huge `a` or subnormal q
+            t = stdtri_newton(nu, q, t);
         }
         if p < 0.5 { -t } else { t }
     }
+}
+
+/// The `t > 0` with `stdtr(nu, -t) = q`, by Newton's method on `ln(stdtr)`
+///
+/// It starts from `t`, or from the Cornish-Fisher expansion if `nu > 1e3` (and stops right away if
+/// that is already exact).
+fn stdtri_newton(nu: f64, q: f64, mut t: f64) -> f64 {
+    let a = 0.5 * nu;
+    let subnormal = q < f64::MIN_POSITIVE;
+    let mut err = 1.0;
+    if nu > 1e3 {
+        (t, err) = stdtri_cornish_fisher(nu, ndtri(q));
+        t = -t;
+    }
+    let c = nu.sqrt() * crate::beta(a, 0.5);
+    for _ in 0..20 {
+        if err <= 4.0 * f64::EPSILON * t {
+            break;
+        }
+        let (ln_fq, f_pdf) = if subnormal && nu <= 3e5 {
+            // A subnormal `stdtr` has too few digits, so use ln(stdtr(nu, -t)) =
+            // ln(w^a s / (nu B(a, 1/2))) with s = 2F1(a, 1/2; a + 1; w) (DLMF 8.17.7), from the
+            // power series of `incbet`, and stdtr / pdf = s / sqrt(nu w). For nu > 3e5 its ~nu / 40
+            // terms are too many, but then the Cornish-Fisher start is accurate to ~eps.
+            let r = t * t / nu;
+            let w = (1.0 + r).recip();
+            let s = 1.0 + a * incbet_pseries_sum(a, 0.5, w);
+            let ln_f = (s / (nu.sqrt() * c)).ln() - a * r.ln_1p();
+            (ln_f - q.ln(), s / (nu * w).sqrt())
+        } else {
+            let f = stdtr(nu, -t);
+            let pdf = (-(a + 0.5) * (t * t / nu).ln_1p()).exp() / c;
+            ((f / q).ln(), f / pdf)
+        };
+        let dt = ln_fq * f_pdf;
+        t += dt;
+        err = dt.abs();
+    }
+    t
 }
 
 /// Cornish-Fisher expansion of the Student t quantile in terms of the normal quantile `z`, up to

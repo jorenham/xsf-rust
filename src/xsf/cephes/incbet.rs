@@ -16,7 +16,7 @@ const INCBET_BIG: f64 = 4.503_599_627_370_496e15;
 const INCBET_BIGINV: f64 = 2.220_446_049_250_313e-16;
 
 /// If `a` and `b` are both below this, `I_x(a, b)` is `b / (a + b)` up to a relative
-/// `745 max(a, b) < eps` (see `betainc_xy`)
+/// `745 max(a, b) < eps`
 pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
 
 /// If `m = a max(|ln(x)|, 1/b)` is at most this, `1 - incbet_apser` is `I_x(a, b)` up to its
@@ -25,9 +25,11 @@ const INCBET_APSER_MAX: f64 = 1e-9;
 
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
-/// Then `1 / (a B(a, b)) = b / (a + b) Gamma(a + b + 1) / (Gamma(a + 1) Gamma(b + 1))`, and the
+/// Unlike in xsf, which returns NaN or 0 then.
+///
+/// Here `1 / (a B(a, b)) = b / (a + b) Gamma(a + b + 1) / (Gamma(a + 1) Gamma(b + 1))`, and the
 /// ratio of Gamma functions is 1 up to `min(a, b) (psi(a + b + 1) + gamma) < eps`. If `b / (a + b)`
-/// is subnormal, `t` is divided first, e.g. betainc(2, 5e-324, 0.99) would be 0 instead of 2e-323.
+/// is subnormal, `t` is divided first, so that the product keeps its digits.
 fn incbet_subnormal_div_a_beta(a: f64, b: f64, t: f64) -> Option<f64> {
     if a.min(b) >= f64::MIN_POSITIVE {
         return None;
@@ -63,9 +65,12 @@ pub(crate) fn incbet_pseries_sum(a: f64, b: f64, x: f64) -> f64 {
 /// Power series for incomplete beta integral.
 /// Use when b*x is small and x not too close to 1.
 fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
+    // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`
+    if a * x.ln().abs().max(1.0 / b) <= INCBET_APSER_MAX {
+        return 1.0 - incbet_apser(a, b, x);
+    }
     let ai = 1.0 / a;
     let mut s = incbet_pseries_sum(a, b, x);
-    // Unlike in xsf, e.g. betainc(1e-310, 1, 0.5) was NaN instead of 1
     if let Some(p) = incbet_subnormal_div_a_beta(a, b, x.powf(a) * (a * s + 1.0)) {
         return p;
     }
@@ -79,11 +84,9 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
         s = (s * t) * x.powf(a);
     } else {
         let t = -lbeta(a, b) + u + s.ln();
-        if t < MINLOG {
-            s = 0.0;
-        } else {
-            s = t.exp();
-        }
+        // Unlike in xsf, also 0 if `t` is NaN, as `lbeta` can be `inf - inf` if `a` and `b` are
+        // both huge, where `x^a` underflows
+        s = if t >= MINLOG { t.exp() } else { 0.0 };
     }
     s
 }
@@ -127,9 +130,18 @@ fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
 /// The iteration limit of the continued fractions, which bounds the run time
 const INCBET_MAXITER: f64 = 1e6;
 
-/// Unlike in xsf (scipy/xsf#358), the continued fractions are not limited to 300 iterations.
+/// The iteration limit of the continued fractions at `(a, b, x)`
+///
+/// Unlike in xsf (scipy/xsf#358), where it is always 300. The continued fractions also stop at
+/// NaN, which would otherwise persist until this limit.
 fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
     (8.0 * ((a + b).sqrt() + 1.0 / (1.0 - x).sqrt())).clamp(300.0, INCBET_MAXITER)
+}
+
+/// `corr(a + b) - corr(a) - corr(b)`, the Stirling correction of `-ln(B(a, b))`, with `corr` the
+/// correction to Stirling's formula of `ln(Gamma)` (`lgam_stirling_corr`)
+fn incbet_corr(a: f64, b: f64) -> f64 {
+    lgam_stirling_corr(a + b) - lgam_stirling_corr(a) - lgam_stirling_corr(b)
 }
 
 /// `ln(x^a y^b / B(a, b))` for `a, b >= 13` and `x <= a / (a + b)`, with `y = 1 - x`
@@ -139,15 +151,13 @@ fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
 ///
 /// Instead, Stirling's formula is used for the Gamma functions in `B(a, b)`, as in `brcomp` of
 /// TOMS 708 \[1\]. With `c = a + b` and `d = c x - a = b - c y`, the large linear parts `d` and
-/// `-d` of `a ln(c x / a) = a ln(1 + d / a)` and `b ln(c y / b) = b ln(1 - d / b)` cancel
+/// `-d` of `a ln(c x / a) = a ln(1 + d / a)` and `b ln(c y / b) = b ln(1 - d / b)` then cancel
 /// analytically:
 ///
 /// ```text
 /// ln(x^a y^b / B(a, b)) = a log1pmx(d / a) + b log1pmx(-d / b) + ln(a b / (2 pi c)) / 2
-///                         + corr(c) - corr(a) - corr(b),
+///                         + incbet_corr(a, b).
 /// ```
-///
-/// where `corr` is the correction to Stirling's formula (`lgam_stirling_corr`).
 ///
 /// \[1\] A. R. DiDonato and A. H. Morris, "Algorithm 708: Significant digit computation of the
 /// incomplete beta function ratios", ACM Trans. Math. Softw. 18(3), 360-373 (1992).
@@ -162,9 +172,7 @@ fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
     } else {
         (c * x / a).ln() - t
     };
-    a * phi_a + b * log1pmx(-d / b) + 0.5 * (a / c * (b / TAU)).ln() + lgam_stirling_corr(c)
-        - lgam_stirling_corr(a)
-        - lgam_stirling_corr(b)
+    a * phi_a + b * log1pmx(-d / b) + 0.5 * (a / c * (b / TAU)).ln() + incbet_corr(a, b)
 }
 
 /// `I_x(a, b)` for `a, b > 100` and `|lambda| <= 0.03 min(a, b)`, with `lambda = a (1 - x) - b x`
@@ -184,7 +192,7 @@ fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
     }
     let f = -a * log1pmx(-lambda / a) - b * log1pmx(lambda / b);
     // e^-f with the Stirling corrections of 1 / B(a, b)
-    let t = (lgam_stirling_corr(a + b) - lgam_stirling_corr(a) - lgam_stirling_corr(b) - f).exp();
+    let t = (incbet_corr(a, b) - f).exp();
     if t == 0.0 {
         return 0.0;
     }
@@ -242,7 +250,7 @@ fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
 /// `x k1 k2 / (k3 k4)`, a term of the continued fractions
 ///
 /// Unlike in xsf, the ratios are taken first if a product overflows (e.g. `k3 k4 ~ a^2` for
-/// `a > 1.3e154`), where fdtr(3, 1e200, 2) was NaN instead of 0.89.
+/// `a > 1.3e154`).
 fn incbet_term(x: f64, k1: f64, k2: f64, k3: f64, k4: f64) -> f64 {
     let (num, den) = (x * k1 * k2, k3 * k4);
     if num.is_finite() && den.is_finite() {
@@ -303,8 +311,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        // Unlike in xsf (scipy/xsf#358), also stop once the result is NaN (which it then stays),
-        // because the larger iteration limit would otherwise make this very slow for huge `a + b`.
+        // also stop at NaN (see `incbet_maxiter`)
         if t < thresh || r.is_nan() {
             break;
         }
@@ -342,7 +349,7 @@ fn incbcf(a: f64, b: f64, x: f64) -> f64 {
 
 /// Continued fraction expansion #2 for incomplete beta integral
 ///
-/// Unlike in xsf (scipy/xsf#358), `xc = 1 - x` is passed, since `x` can be rounded (see `incbet`).
+/// `xc = 1 - x` is passed as well, since `x` can be rounded (see `incbet_xy`).
 fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let mut xk;
     let mut pk;
@@ -394,8 +401,7 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
         } else {
             t = 1.0;
         }
-        // Unlike in xsf (scipy/xsf#358), also stop once the result is NaN (which it then stays),
-        // because the larger iteration limit would otherwise make this very slow for huge `a + b`.
+        // also stop at NaN (see `incbet_maxiter`)
         if t < thresh || r.is_nan() {
             break;
         }
@@ -491,8 +497,8 @@ pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
 
 /// `incbet(aa, bb, xx)`, given `yy = 1 - xx`
 ///
-/// Unlike in xsf (scipy/xsf#358), `yy` is passed, which is exact also if `xx` is rounded (see
-/// `betainc_xy`).
+/// Unlike in xsf (scipy/xsf#358), `yy` is passed, which is exact also if `xx` is rounded (e.g. in
+/// `fdtr`).
 pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     let mut flag = false;
 
@@ -513,20 +519,21 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     }
 
     let t = 'done: {
+        // Unlike in xsf, `I_x(a, b)` is `b / (a + b)` for tiny `a` and `b` (see `INCBET_TINY`)
+        if aa.max(bb) < INCBET_TINY {
+            break 'done bb / (aa + bb);
+        }
         if (bb * xx) <= 1.0 && xx <= 0.95 {
-            // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`,
-            // e.g. betainc(5.5e-15, 25, 0.015) was 1 + 4e-16 instead of 1 - 4e-15.
-            if aa * xx.ln().abs().max(1.0 / bb) <= INCBET_APSER_MAX {
-                break 'done 1.0 - incbet_apser(aa, bb, xx);
-            }
             break 'done incbet_pseries(aa, bb, xx);
         }
-        // Unlike in xsf, `I_x(a, b) = O(b)` is computed as `incbet_apser(b, a, 1 - x)` for tiny `b`
-        // if the continued fractions would be cut off at `INCBET_MAXITER`, where they can be off by
-        // orders of magnitude, while `incbet_apser` is off by a relative ~`b max(|ln(1 - x)|, 1/a)`.
+        // Unlike in xsf, `I_x(a, b) = O(b)` is computed as `incbet_apser(b, a, 1 - x)` for tiny `b`,
+        // i.e. `b <= eps min(1, a)` as in TOMS 708. Being off by a relative ~`b max(|ln(1 - x)|,
+        // 1/a)`, it is also used up to `INCBET_APSER_MAX` where the continued fractions would be cut
+        // off at `INCBET_MAXITER`, and are worse.
         if aa * yy <= 1.0
-            && bb * yy.ln().abs().max(1.0 / aa) <= INCBET_APSER_MAX
-            && incbet_maxiter(aa, bb, xx) >= INCBET_MAXITER
+            && (bb <= MACHEP * aa.min(1.0)
+                || bb * yy.ln().abs().max(1.0 / aa) <= INCBET_APSER_MAX
+                    && incbet_maxiter(aa, bb, xx) >= INCBET_MAXITER)
         {
             break 'done incbet_apser(bb, aa, yy);
         }
@@ -534,7 +541,14 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         let mut w = yy;
 
         /* Reverse a and b if x is greater than the mean. */
-        let (a, b, xc, x) = if xx > (aa / (aa + bb)) {
+        // Unlike in xsf (scipy/xsf#358), `yy` is also compared with its mean (as `xx` or the mean
+        // can be rounded to 1), and they are also reversed if the power series of the complement
+        // applies and its absolute error of ~(1 - ln(b)) eps, relative to its result of at least
+        // ~b/5 (both measured), is below the ~0.1 eps / y of the continued fractions.
+        let (a, b, xc, x) = if xx > (aa / (aa + bb))
+            || yy < bb / (aa + bb)
+            || (aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb)
+        {
             flag = true;
             (bb, aa, xx, w)
         } else {
@@ -554,14 +568,12 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 
         /* Choose expansion for better convergence. */
         let mut y = x * (a + b - 2.0) - (a - 1.0);
-        if x > 0.95 {
-            // Unlike in xsf (scipy/xsf#358), `incbd` is used with the exact `xc` if `x` is close
-            // to 1, where `incbcf` amplifies the rounding error of `x` by about `a / |a xc - b|`.
-            w = incbd(a, b, x, xc) / xc;
-        } else if y < 0.0 {
+        // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
+        // amplifies the rounding error of `x` by ~`a / |a xc - b|`.
+        if y < 0.0 && x <= 0.95 {
             w = incbcf(a, b, x);
         } else {
-            w = incbd(a, b, x, 1.0 - x) / xc;
+            w = incbd(a, b, x, xc) / xc;
         }
 
         /* Multiply w by the factor
@@ -573,7 +585,6 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         if (a + b) < MAXGAM && y.abs() < MAXLOG && t.abs() < MAXLOG {
             t = xc.powf(b);
             t *= x.powf(a);
-            // Unlike in xsf, e.g. betainc(1, 1e-310, 0.99) was 0 instead of 4.6e-310
             if let Some(p) = incbet_subnormal_div_a_beta(a, b, t * w) {
                 break 'done p;
             }
@@ -583,8 +594,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done t;
         }
         /* Resort to logarithms.  */
-        // Unlike in xsf (scipy/xsf#358), `incbet_lnpow` is used for `a, b >= 13` (where `lgam` uses
-        // Stirling's formula)
+        // `incbet_lnpow` for `a, b >= 13`, where `lgam` uses Stirling's formula
         if a.min(b) >= 13.0 {
             y = incbet_lnpow(a, b, x, xc);
         } else if x < xc {
@@ -602,48 +612,6 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     // Unlike in xsf, `1 - t` is not clamped to `1 - MACHEP` if `t <= MACHEP`, so that `incbi` can
     // tell `x` far past the root of `I_x(a, b) = 1 - MACHEP` from the root.
     if flag { 1.0 - t } else { t }
-}
-
-/// `betainc(a, b, x)`, given `y = 1 - x` computed without cancellation by the caller
-///
-/// Unlike in xsf (scipy/xsf#358), where `betainc` is only given `x`, `y` is passed to `incbet` as
-/// well. For `x > 0.95`:
-///
-/// - Above the mean (compared with `y`), `1 - betainc(b, a, y)` is used.
-/// - Below the mean, the complement is also used if `a y <= 1`, where its power series has an
-///   absolute error of ~(1 - ln(b)) eps and the result is at least ~b/5 (both measured), if its
-///   relative error ~5 (1 - ln(b)) eps / b is below the ~0.1 eps / y of the continued fractions.
-///
-/// Unlike in xsf, for tiny `b` the result is not computed as `1 - (1 - I)`, as in TOMS 708 (see
-/// `incbet_lnpow`), e.g. fdtrc(1e-300, 1, 1) was 1 instead of 3.5e-298:
-///
-/// - If `a` and `b` are both below `eps / 1000`, `I_x(a, b) = b / (a + b)`, up to a relative
-///   ~`a |ln(y)| < 745 a < eps`.
-/// - Else if `b <= eps min(1, a)` and `a y <= 1`, `incbet_apser` is used.
-pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
-    if x > 0.95 && y > 0.0 && a.is_finite() && b.is_finite() {
-        if a.max(b) < INCBET_TINY {
-            return b / (a + b);
-        }
-        if b <= MACHEP * a.min(1.0) && a * y <= 1.0 {
-            return incbet_apser(b, a, y);
-        }
-        let p = if y < b / (a + b) || (a * y <= 1.0 && 50.0 * (1.0 - b.ln()) * y < b) {
-            1.0 - betainc(b, a, y)
-        } else {
-            incbet_xy(a, b, x, y)
-        };
-        // `incbet` can be NaN for huge `a` and `b`, for `a` or `b` zero, or if `x` is rounded to 1
-        // (e.g. fdtr(12.5, 2.3e-16, 0.5)), and slightly exceed 1
-        if !p.is_nan() {
-            return p.max(0.0);
-        }
-    }
-    if x <= 0.95 {
-        betainc_y(a, b, x, y)
-    } else {
-        betainc(a, b, x)
-    }
 }
 
 /// Regularized incomplete Beta function $\I_x(a,b)$
@@ -683,13 +651,13 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
 )]
 #[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
-    betainc_y(a, b, x, 1.0 - x)
+    betainc_xy(a, b, x, 1.0 - x)
 }
 
-/// `betainc(a, b, x)`, given `y = 1 - x`
-fn betainc_y(a: f64, b: f64, x: f64, y: f64) -> f64 {
+/// `betainc(a, b, x)`, given `y = 1 - x`, which is exact also if `x` is rounded
+pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
     if (a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&x))
-        || (a.is_nan() || b.is_nan() || x.is_nan())
+        || (a.is_nan() || b.is_nan())
         || (a == 0.0 && b == 0.0)
         || (a.is_infinite() && b.is_infinite())
     {
@@ -697,7 +665,7 @@ fn betainc_y(a: f64, b: f64, x: f64, y: f64) -> f64 {
     } else if a == 0.0 || b.is_infinite() {
         if x > 0.0 { 1.0 } else { 0.0 }
     } else if a.is_infinite() || b == 0.0 {
-        if x < 1.0 { 0.0 } else { 1.0 }
+        if y > 0.0 { 0.0 } else { 1.0 }
     } else {
         incbet_xy(a, b, x, y)
     }
