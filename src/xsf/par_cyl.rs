@@ -397,12 +397,9 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
             f1 = f;
         }
     } else if (0.0..=7.5).contains(&x) || (xa <= 10.0 && v <= 0.5 * x * x) {
-        // Unlike in xsf (scipy/xsf#374), this branch is also used for 7.5 < |x| <= 10 and
-        // v <= x^2 / 2 (here v is the order + 1).
-        //
-        // Unlike in xsf, the same is done for -7.5 <= x < 0 and v <= x^2 / 2, where the upward
-        // recurrence below is unstable, e.g. `pbvv(10.0, -7.5).0` was -1.3046973e-3 instead of
-        // -1.3046974e-3.
+        // Unlike in xsf (scipy/xsf#374 for 7.5 < |x| <= 10), this branch is also used for
+        // -10 <= x < 0 and 7.5 < x <= 10 if v <= x^2 / 2 (here v is the order + 1), where the
+        // recurrences below are unstable or have not converged.
         let mut v2 = v;
         if v2 < 1.0 {
             v2 += 1.0;
@@ -810,6 +807,9 @@ fn airy_coefs(t: f64) -> (f64, f64, [[f64; 5]; 4]) {
     (zeta, r.sqrt().sqrt(), c)
 }
 
+/// `|l|` beyond which a mantissa of moderate size times `e^l` under- or overflows
+const HUGE_EXP: f64 = 1000.0;
+
 /// `D_v(y)`, `D_v'(y)`, `Gamma(v + 1) V(-v - 1/2, y)` and its derivative, for `v >= 20`, `y >= 0`,
 /// as mantissas (with exponents `ea` for `D_v`, and `eb`), by 12.10.35-38
 fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
@@ -829,7 +829,7 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     } else {
         (lh, lh)
     };
-    if t > 1.0 && ea.abs() > 1000.0 {
+    if t > 1.0 && ea.abs() > HUGE_EXP {
         // D_v(y) and Ubar_v(y) under- or overflow, so only their signs matter
         return ([1.0, -1.0, 1.0, 1.0], ea, eb);
     }
@@ -870,7 +870,7 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
         a.ln() - (s - 0.5 * x).ln()
     };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
-    if l.abs() > 1000.0 {
+    if l.abs() > HUGE_EXP {
         return ([1.0, -1.0], l);
     }
 
@@ -947,10 +947,7 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     }
     if v <= -20.0 {
         // Unlike in xsf, also for -10 <= x < -5.8 (with v < -30, see `pbdv`), where `dvla` is
-        // inaccurate, e.g. `pbdv(-100.5, -6.0).0` was 3.1514260110e-53 instead of
-        // 3.1514260109e-53.
-        //
-        // Unlike in xsf, also for all x if v <= -LARGE_V, where D_v(x) underflows for x >= -50.
+        // inaccurate, and for all x if v <= -LARGE_V, where D_v(x) underflows for x >= -50.
         return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x) || v <= -LARGE_V).then(|| {
             let ([d, dp], l) = pbdv_elementary(v, x);
             (mul_exp(d, l), mul_exp(dp, l))
@@ -965,36 +962,39 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
             (mul_exp(d, ea), mul_exp(dp, ea))
         });
     }
-    // Unlike in xsf, this is also used near an integer v (see `near_int`), e.g.
-    // `pbdv(1e-16, -10.0).0` was 1.39e-11 instead of -1.82e-6, and for -5 <= x < -4, where
-    // `pbdv_impl` loses up to 1e-12.
-    if !(v >= 2.0 || near_int(v)) || (x >= -4.0 && v < 300.0) {
-        return None;
-    }
+    // Unlike in xsf, D_v(x) for x < -4 (the remaining x < 0 if v >= 300) is computed by
+    // reflection if v >= 2 or v is near an integer (see `near_int`), where `pbdv_impl` loses
+    // accuracy.
+    (v >= 300.0 || (x < -4.0 && (v >= 2.0 || near_int(v)))).then(|| pbdv_reflect(v, -x))
+}
 
-    // D_v(-y) = cos(pi v) D_v(y) - sin(pi v) Ubar_v(y), with Ubar_v(y) = Gamma(v + 1) V(-v - 1/2, y)
-    // (12.2.15, 12.2.21)
-    let y = -x;
+/// `D_v(-y)`, `D_v'(-y)` for `y > 0`, by `D_v(-y) = cos(pi v) D_v(y) - sin(pi v) Ubar_v(y)` with
+/// `Ubar_v(y) = Gamma(v + 1) V(-v - 1/2, y)` (12.2.15, 12.2.21)
+fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
     let (c, s) = (cospi(v), sinpi(v));
     if s == 0.0 {
         let (d, dp) = pbdv(v, y);
-        return Some((c * d, -c * dp));
+        return (c * d, -c * dp);
     }
     if v >= 20.0 {
         let ([d, dp, ub, ubp], ea, eb) = pbdv_airy(v, y);
         let r = (ea - eb).exp(); // <= 1
-        return Some((
+        return (
             mul_exp(c * d * r - s * ub, eb),
             mul_exp(s * ubp - c * dp * r, eb),
-        ));
+        );
     }
 
     let n = (20.0 - v).ceil();
     let ([.., mut u0, _], ea, eb) = pbdv_airy(v + n, y);
-    if ea < -1000.0 {
-        // sin(pi v) Ubar_v(y) overflows (unless v is tiny), and D_v(y) underflows
+    if ea < -HUGE_EXP {
+        // D_v(y) underflows, and sin(pi v) Ubar_v(y) overflows unless v is tiny
         let ub = mul_exp(s, eb);
-        return ub.is_infinite().then_some((-ub, ub));
+        return if ub.is_infinite() {
+            (-ub, ub)
+        } else {
+            pbdv_large_neg_x(v, y)
+        };
     }
     let (dy, dpy) = pbdv(v, y);
     // Ubar_{w-1}(y) = (y Ubar_w(y) - Ubar_{w+1}(y)) / w (12.8.5), stable for decreasing w
@@ -1003,18 +1003,30 @@ fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     for k in (1..=n as i32).rev() {
         (u0, u1) = ((y * u0 - u1) / (v + f64::from(k)), u0);
     }
-    // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent, e.g.
-    // `pbdv(1e-323, -60.0).0` was -2.89e66 instead of -3.03e66.
+    // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent
     let (s, eb) = if v.is_subnormal() {
         (PI.copysign(v), eb + v.abs().ln())
     } else {
         (s, eb)
     };
     // Ubar_v'(y) = y / 2 Ubar_v(y) - Ubar_{v+1}(y) (12.8.6)
-    Some((
+    (
         c * dy - mul_exp(s * u0, eb),
         mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy,
-    ))
+    )
+}
+
+/// `D_v(-y)`, `D_v'(-y)` for `|v| < 20` and `y > 50`, by `D_v(-y) = pi / Gamma(-v) V_v(y)`, i.e.
+/// `dvla` without the exponentially small `D_v(y)`
+fn pbdv_large_neg_x(v: f64, y: f64) -> (f64, f64) {
+    let y = y.min(100.0); // D_v(-y) overflows for y > 77 anyway
+    // half of e^(y^2 / 4) is applied first, since 1 / Gamma(-v) ~ -v can be subnormal
+    let e = 0.125 * y * y;
+    let r = mul_exp(rgamma(-v), e) * PI;
+    let w = vvla_qe(y, v, 1.0);
+    // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), with v / Gamma(1 - v) = -1 / Gamma(-v)
+    let wp = 0.5 * y * w - vvla_qe(y, v - 1.0, 1.0);
+    (mul_exp(r * w, e), mul_exp(r * wp, e))
 }
 
 /// Parabolic cylinder function $W$
@@ -1094,63 +1106,47 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the series
-    // `dvsa` for -10 <= x < -5.8 and 0 < v < 2 (else see `pbdv_uniform`).
-    //
-    // Unlike in xsf, the same is done with D_{v-1}(x) for -30 <= v < 0 (not for tiny |v|, where
-    // `dvsa` stops too early), since `dvla` loses accuracy there, e.g. `pbdv(-0.01, -5.9).0` was
-    // 26.98964 instead of 26.98963.
     if (-10.0..-5.8).contains(&x) {
+        // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the
+        // series `dvsa` for 0 < v < 2 (else see `pbdv_uniform`).
         if v > 0.0 && v < 2.0 && !near_int(v) {
             let pdf = dvsa(x, v);
             return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
         }
+        // Unlike in xsf, the same is done for -30 <= v < 0, where `dvla` also loses accuracy (not
+        // for tiny |v|, where `dvsa` stops too early), with D_v' = v D_{v-1} - x / 2 D_v (12.8.2)
+        // to avoid the poles of `gamma2` in `dvsa(x, v + 1)`.
         if (-30.0..-1e-15).contains(&v) {
             let pdf = dvsa(x, v);
-            // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), avoiding the poles of `gamma2` in
-            // `dvsa(x, v + 1)`
             return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
         }
-    }
-    // Unlike in xsf, D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20 for
-    // |v| < 20 and 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to 2e-8, e.g.
-    // `pbdv(-2.5, 5.9).0` was 1.754156199e-6 instead of 1.754156195e-6.
-    //
-    // The same is done for 36.5 <= x < 60 (53 <= x for v >= 0), where xsf underflows prematurely,
-    // e.g. `pbdv(-5.5, 45.0).0` was 0 instead of 1.10136e-229.
-    let (lo, hi) = if v < 0.0 { (1.0, 36.5) } else { (4.5, 53.0) };
-    if v.abs() < 20.0 && x > lo && x < 60.0 && !(12.0..hi).contains(&x) {
-        let n = (v + 20.0).ceil();
-        let w = v - n;
-        let ([d, dp], l) = pbdv_elementary(w, x);
-        // D_{w+1} = x / 2 D_w - D_w' (12.8.3), and the recurrence is stable for increasing w
-        let (d, dp) = pbdv_up(w, x, n, d, 0.5 * x * d - dp);
-        return (mul_exp(d, l), mul_exp(dp, l));
     }
     // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
     }
-    // Unlike in xsf, for |v| < 20 and x < -50 (if not done by `pbdv_uniform`), D_v(x) is computed
-    // as in `dvla`, but with e^(x^2 / 4) split in two, since `dvla` overflows prematurely, and
-    // `pbdv_impl` returned D_0(x) for tiny |v|, where v +- 1 rounds to an integer.
-    //
-    // E.g. `pbdv(0.5, -53.3).0` was -inf instead of -5.1e305, and `pbdv(1e-200, -66.0).0` was 0
-    // instead of -3.4e271.
-    if v.abs() < 20.0 && (f64::MIN..-50.0).contains(&x) {
-        let y = (-x).min(100.0); // D_v(-y) overflows for y > 77 anyway
-        let e = 0.125 * y * y;
-        // D_v(-y) = pi / Gamma(-v) V_v(y) (without the exponentially small D_v(y) of `dvla`), with
-        // half of e^(y^2 / 4) applied first, since 1 / Gamma(-v) ~ -v can be subnormal
-        let r = mul_exp(rgamma(-v), e) * PI;
-        let w = vvla_qe(y, v, 1.0);
-        // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), with v / Gamma(1 - v) = -1 / Gamma(-v)
-        let wp = 0.5 * y * w - vvla_qe(y, v - 1.0, 1.0);
-        return (mul_exp(r * w, e), mul_exp(r * wp, e));
+    if v.abs() < 20.0 {
+        // Unlike in xsf, for 1 < x < 12 (4.5 < x for v >= 0), where `dvsa` and `dvla` lose up to
+        // 2e-8, and for 36.5 <= x < 60 (53 <= x for v >= 0), where xsf underflows prematurely,
+        // D_v(x) is computed by recurrence from D_{v-n}(x) with v - n <= -20.
+        let (lo, hi) = if v < 0.0 { (1.0, 36.5) } else { (4.5, 53.0) };
+        if (x > lo && x < 12.0) || (hi..60.0).contains(&x) {
+            let n = (v + 20.0).ceil();
+            let w = v - n;
+            let ([d, dp], l) = pbdv_elementary(w, x);
+            // D_{w+1} = x / 2 D_w - D_w' (12.8.3), and the recurrence is stable for increasing w
+            let (d, dp) = pbdv_up(w, x, n, d, 0.5 * x * d - dp);
+            return (mul_exp(d, l), mul_exp(dp, l));
+        }
+        // Unlike in xsf, for x < -50 (if not done by `pbdv_uniform`), since `dvla` overflows
+        // prematurely, and `pbdv_impl` returns D_0(x) for tiny |v| (where v +- 1 rounds to an
+        // integer).
+        if (f64::MIN..-50.0).contains(&x) {
+            return pbdv_large_neg_x(v, -x);
+        }
     }
     // Unlike in xsf, near an integer n (see `near_int`), D_v(x) is computed by recurrence from
-    // D_w(x) and D_{w-1}(x) with w = v - n, e.g. `pbdv(3.000000001, 2.0).0` was 0.7357588
-    // instead of 0.7357589.
+    // D_w(x) and D_{w-1}(x) with w = v - n.
     let (n, w) = (v.round(), v - v.round());
     if near_int(v) && w != 0.0 && v < 300.0 && x.abs() <= 5.8 {
         // D_w = D_0 to double precision for |w| <= eps^2, where `dvsa` can overflow
@@ -1159,7 +1155,6 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
         // D_{w+1} = x D_w - w D_{w-1} (12.8.1)
         return pbdv_up(w, x, n, d0, x * d0 - w * dvsa(x, w - 1.0));
     }
-    /* NB. Indexing of DV/DP in specfun.f:PBDV starts from 0, hence +2 */
     let Some((mut buf, num)) = alloc_buf(v) else {
         return (f64::NAN, f64::NAN);
     };
@@ -1202,7 +1197,6 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         let (d, dp) = pbdv(v, -x);
         return (-s * d - c * w, s * dp + c * wp);
     }
-    /* NB. Indexing of DV/DP in specfun.f:PBVV starts from 0, hence +2 */
     let Some((mut buf, num)) = alloc_buf(v) else {
         return (f64::NAN, f64::NAN);
     };
