@@ -1,5 +1,7 @@
 use core::f64::consts::PI;
 
+use num_complex::{Complex, c64};
+
 /// ln(pi)
 pub(crate) const LN_PI: f64 = 1.144_729_885_849_400_2;
 /// ln(2 pi), as `TAU.ln()`
@@ -46,6 +48,53 @@ pub(crate) fn mul_exp(m: f64, e: f64) -> f64 {
     }
     let h = (0.5 * e).exp();
     m * h * h
+}
+
+/// glibc's `t = (int) ((DBL_MAX_EXP - 1) * ln(2))`, so that `e^T` doesn't overflow
+const T: f64 = 709.0;
+
+/// `y.sin_cos()`, or `(y, 1)` for subnormal `y`, as in glibc's complex `exp`, `sin`, and `cos`
+pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
+    if y.abs() > f64::MIN_POSITIVE {
+        y.sin_cos()
+    } else {
+        (y, 1.0)
+    }
+}
+
+/// `f e^(x - T) w` for `x > T`, without overflowing prematurely, as in glibc
+///
+/// `f` is applied first, then `e^(x - T)` as factors of at most `e^T`. For `x > 3 T`, the result
+/// saturates to `MAX f e^T w`.
+fn exp_mul_large(x: f64, f: f64, w: Complex<f64>) -> Complex<f64> {
+    let x = x - T;
+    let (x, w) = if x > T {
+        (x - T, w * f * T.exp())
+    } else {
+        (x, w * f)
+    };
+    // overflow if the original x > 3 T
+    (if x > T { f64::MAX } else { x.exp() }) * w
+}
+
+/// `(a cosh(x), b sinh(x))` as in glibc's `ccosh`, which doesn't overflow prematurely when only
+/// `cosh(x)` and `sinh(x)` overflow
+pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> Complex<f64> {
+    if x.abs() > T {
+        let b = if x.is_sign_negative() { -b } else { b };
+        exp_mul_large(x.abs(), T.exp() / 2.0, c64(a, b))
+    } else {
+        c64(x.cosh() * a, x.sinh() * b)
+    }
+}
+
+/// `w e^x` without overflowing prematurely, as in glibc's complex `exp`
+pub(crate) fn cmul_exp(w: Complex<f64>, x: f64) -> Complex<f64> {
+    if x > T {
+        exp_mul_large(x, T.exp(), w)
+    } else {
+        x.exp() * w
+    }
 }
 
 #[inline]
