@@ -2,8 +2,9 @@
 //! which (at least on Linux) are more accurate than the Cephes ones in xsf. Only the complex
 //! `expm1` is translated into pure Rust from `xsf/exp.h` (scipy/xsf@b1eb270).
 
-use num_complex::Complex;
+use num_complex::{Complex, c64};
 
+use crate::utils::{cmul_exp, sin_cos_glibc};
 use crate::xsf::trig::cosm1;
 
 /// Exponential of complex `z`
@@ -13,42 +14,17 @@ use crate::xsf::trig::cosm1;
 /// only `exp(z.re)` overflows (instead of NaN, the imaginary part of `exp(x + 0i)` is `0`). The
 /// sign of the zero imaginary part of `exp(-inf + i(+-inf | NaN))` also follows glibc.
 pub(crate) fn cexp(z: Complex<f64>) -> Complex<f64> {
-    // (int) ((DBL_MAX_EXP - 1) * ln(2))
-    const T: f64 = 709.0;
-
     if !z.re.is_finite() || !z.im.is_finite() {
         if z.re == f64::NEG_INFINITY && !z.im.is_finite() {
             // like glibc (`num_complex` returns `0 + 0i` here)
-            return Complex::new(0.0, 0.0_f64.copysign(z.im));
+            return c64(0.0, 0.0_f64.copysign(z.im));
         }
         // See the note in cexpm1(z) below.
         return z.exp();
     }
 
-    let (mut sinix, mut cosix) = if z.im.abs() > f64::MIN_POSITIVE {
-        z.im.sin_cos()
-    } else {
-        (z.im, 1.0)
-    };
-    let mut x = z.re;
-    if x > T {
-        let exp_t = T.exp();
-        x -= T;
-        sinix *= exp_t;
-        cosix *= exp_t;
-        if x > T {
-            x -= T;
-            sinix *= exp_t;
-            cosix *= exp_t;
-        }
-    }
-    if x > T {
-        // overflow (the original z.re > 3 T)
-        Complex::new(f64::MAX * cosix, f64::MAX * sinix)
-    } else {
-        let exp_val = x.exp();
-        Complex::new(exp_val * cosix, exp_val * sinix)
-    }
+    let (sinix, cosix) = sin_cos_glibc(z.im);
+    cmul_exp(c64(cosix, sinix), z.re)
 }
 
 // cexpm1(z) = cexp(z) - 1
@@ -81,7 +57,7 @@ fn cexpm1(z: Complex<f64>) -> Complex<f64> {
         z.re.exp() * z.im.sin()
     };
 
-    Complex::new(x, y)
+    c64(x, y)
 }
 
 pub trait ExpArg: crate::sealed::Sealed {

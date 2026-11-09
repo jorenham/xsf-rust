@@ -7,10 +7,11 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::{mul_cosh_sinh, sin_cos_glibc};
 use crate::xsf::cephes::polevl::polevl;
 
 use core::f64::consts::{FRAC_PI_4, PI};
-use num_complex::Complex;
+use num_complex::{Complex, c64};
 
 // cephes/const.h
 
@@ -109,46 +110,15 @@ pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
 /// glibc's `csin`, which, unlike `num_complex::Complex::sin`, doesn't overflow prematurely (to
 /// infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
 pub(crate) fn csin(z: Complex<f64>) -> Complex<f64> {
-    // (int) ((DBL_MAX_EXP - 1) * ln(2))
-    const T: f64 = 709.0;
-
     if !z.re.is_finite() || !z.im.is_finite() {
         return z.sin();
     }
 
-    let rx = z.re.abs();
-    let (mut sinix, mut cosix) = if rx > f64::MIN_POSITIVE {
-        rx.sin_cos()
-    } else {
-        (rx, 1.0)
-    };
+    let (mut sinix, cosix) = sin_cos_glibc(z.re.abs());
     if z.re.is_sign_negative() {
         sinix = -sinix;
     }
-    if z.im.abs() > T {
-        let exp_t = T.exp();
-        let mut ix = z.im.abs();
-        if z.im.is_sign_negative() {
-            cosix = -cosix;
-        }
-        ix -= T;
-        sinix *= exp_t / 2.0;
-        cosix *= exp_t / 2.0;
-        if ix > T {
-            ix -= T;
-            sinix *= exp_t;
-            cosix *= exp_t;
-        }
-        if ix > T {
-            // overflow (the original |z.im| > 3 T)
-            Complex::new(f64::MAX * sinix, f64::MAX * cosix)
-        } else {
-            let ev = ix.exp();
-            Complex::new(ev * sinix, ev * cosix)
-        }
-    } else {
-        Complex::new(z.im.cosh() * sinix, z.im.sinh() * cosix)
-    }
+    mul_cosh_sinh(z.im, sinix, cosix)
 }
 
 /// Cosine of complex `z`
@@ -157,44 +127,13 @@ pub(crate) fn csin(z: Complex<f64>) -> Complex<f64> {
 /// glibc's `ccos`, i.e. as `ccosh(i z)`, which, unlike `num_complex::Complex::cos`, doesn't
 /// overflow prematurely (to infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
 pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
-    // (int) ((DBL_MAX_EXP - 1) * ln(2))
-    const T: f64 = 709.0;
-
     if !z.re.is_finite() || !z.im.is_finite() {
         return z.cos();
     }
 
     // ccosh(x + i y) with x = -z.im and y = z.re
-    let (x, y) = (-z.im, z.re);
-    let (mut sinix, mut cosix) = if y.abs() > f64::MIN_POSITIVE {
-        y.sin_cos()
-    } else {
-        (y, 1.0)
-    };
-    if x.abs() > T {
-        let exp_t = T.exp();
-        let mut rx = x.abs();
-        if x.is_sign_negative() {
-            sinix = -sinix;
-        }
-        rx -= T;
-        sinix *= exp_t / 2.0;
-        cosix *= exp_t / 2.0;
-        if rx > T {
-            rx -= T;
-            sinix *= exp_t;
-            cosix *= exp_t;
-        }
-        if rx > T {
-            // overflow (the original |z.im| > 3 T)
-            Complex::new(f64::MAX * cosix, f64::MAX * sinix)
-        } else {
-            let ev = rx.exp();
-            Complex::new(ev * cosix, ev * sinix)
-        }
-    } else {
-        Complex::new(x.cosh() * cosix, x.sinh() * sinix)
-    }
+    let (sinix, cosix) = sin_cos_glibc(z.re);
+    mul_cosh_sinh(-z.im, cosix, sinix)
 }
 
 /* Implement sin(pi*z) and cos(pi*z) for complex z. Since the periods
@@ -207,15 +146,15 @@ pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
 ///
 /// This replaces `std::sinh(std::complex<double>)` from C++, as `sinh(z) = -i sin(i z)`.
 pub(crate) fn csinh(z: Complex<f64>) -> Complex<f64> {
-    let w = csin(Complex::new(-z.im, z.re));
-    Complex::new(w.im, -w.re)
+    let w = csin(c64(-z.im, z.re));
+    c64(w.im, -w.re)
 }
 
 /// Hyperbolic cosine of complex `z`
 ///
 /// This replaces `std::cosh(std::complex<double>)` from C++, as `cosh(z) = cos(-i z)`.
 pub(crate) fn ccosh(z: Complex<f64>) -> Complex<f64> {
-    ccos(Complex::new(z.im, -z.re))
+    ccos(c64(z.im, -z.re))
 }
 
 /// `xsf::sinpi` for complex `z`
@@ -227,7 +166,7 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
     let cospix = cephes_cospi(x);
 
     if abspiy < 700.0 {
-        return Complex::new(sinpix * piy.cosh(), cospix * piy.sinh());
+        return c64(sinpix * piy.cosh(), cospix * piy.sinh());
     }
 
     /* Have to be careful--sinh/cosh could overflow while cos/sin are small.
@@ -243,29 +182,18 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
     //
     // It still overflows prematurely if exp(|pi y|/2) overflows while the result wouldn't (only
     // for |x| < ~1e-308).
-    let cospix = 1.0_f64.copysign(piy) * cospix;
-    let exphpiy = (abspiy / 2.0).exp();
-    let coshfac;
-    let sinhfac;
-    if exphpiy == f64::INFINITY {
-        if sinpix == 0.0 {
-            // Preserve the sign of zero.
-            coshfac = 0.0_f64.copysign(sinpix);
-        } else {
-            coshfac = sinpix * f64::INFINITY;
-        }
-        if cospix == 0.0 {
-            // Preserve the sign of zero.
-            sinhfac = 0.0_f64.copysign(cospix);
-        } else {
-            sinhfac = cospix * f64::INFINITY;
-        }
-        return Complex::new(coshfac, sinhfac);
-    }
+    mul_half_exp(abspiy, sinpix, 1.0_f64.copysign(piy) * cospix)
+}
 
-    coshfac = sinpix * exphpiy * 0.5;
-    sinhfac = cospix * exphpiy * 0.5;
-    Complex::new(coshfac * exphpiy, sinhfac * exphpiy)
+/// `(a, b) e^h / 2` for large `h` as in xsf, with `e^h` applied as two factors `e^(h/2)`
+fn mul_half_exp(h: f64, a: f64, b: f64) -> Complex<f64> {
+    let exp_half = (h / 2.0).exp();
+    if exp_half == f64::INFINITY {
+        // Preserve the sign of zero.
+        let inf_mul = |f: f64| if f == 0.0 { f } else { f * f64::INFINITY };
+        return c64(inf_mul(a), inf_mul(b));
+    }
+    c64(a * exp_half * 0.5 * exp_half, b * exp_half * 0.5 * exp_half)
 }
 
 /// `xsf::cospi` for complex `z`
@@ -277,35 +205,13 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     let cospix = cephes_cospi(x);
 
     if abspiy < 700.0 {
-        return Complex::new(cospix * piy.cosh(), -sinpix * piy.sinh());
+        return c64(cospix * piy.cosh(), -sinpix * piy.sinh());
     }
 
     // See csinpi(z) for an idea of what's going on here.
     // Unlike in xsf (scipy/xsf#469), this propagates NaN and avoids premature rounding; see
     // csinpi(z).
-    let sinpix = -1.0_f64.copysign(piy) * sinpix;
-    let exphpiy = (abspiy / 2.0).exp();
-    let coshfac;
-    let sinhfac;
-    if exphpiy == f64::INFINITY {
-        if cospix == 0.0 {
-            // Preserve the sign of zero.
-            coshfac = 0.0_f64.copysign(cospix);
-        } else {
-            coshfac = cospix * f64::INFINITY;
-        }
-        if sinpix == 0.0 {
-            // Preserve the sign of zero.
-            sinhfac = 0.0_f64.copysign(sinpix);
-        } else {
-            sinhfac = sinpix * f64::INFINITY;
-        }
-        return Complex::new(coshfac, sinhfac);
-    }
-
-    coshfac = cospix * exphpiy * 0.5;
-    sinhfac = sinpix * exphpiy * 0.5;
-    Complex::new(coshfac * exphpiy, sinhfac * exphpiy)
+    mul_half_exp(abspiy, cospix, -1.0_f64.copysign(piy) * sinpix)
 }
 
 /// `cephes::detail::tancot`
