@@ -20,7 +20,7 @@ use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
-use crate::{digamma, gamma, gammaln};
+use crate::{digamma, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
 const MAX_TERMS: i32 = 100_000;
@@ -425,15 +425,16 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
 }
 
 /// Unlike in xsf (scipy/xsf#365): `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0`
-/// from Tricomi's expansion in Bessel functions (DLMF 13.11.3, 13.11.4), as
-/// `Gamma(b) e^(x0/2) (t/2)^(1-b) sum_n B_n J_(b-1+n)(t)` with `t = sqrt(2 c x)`, `B_n = A_n w^n` and
-/// `w = sqrt(x / (2c))`.
+/// from Tricomi's expansion `Gamma(b) e^(x0/2) (t/2)^(1-b) sum_n B_n J_(b-1+n)(t)` (DLMF 13.11.3,
+/// 13.11.4), with `t = sqrt(2 c x)`, `B_n = A_n w^n` and `w = sqrt(x / (2c))`. If `b > t` and
+/// `Gamma(b) (t/2)^(1-b) > 1`, its terms are `B_n p_n 0F1(; b + n; -t^2/4)` with
+/// `p_n = (t/2)^n / (b)_n` (DLMF 10.16.9) instead, which underflow later.
 ///
-/// For `n >= 2`, `|B_(n+1)| <= q max(|B_n|, |B_(n-1)|, |B_(n-2)|)` with
-/// `q = ((b + 3) w^2 + c w^3) / 3`. So if `q <= 1/2`, the rest of the sum after `B_n` is at most 3
-/// times that maximum (`|J_v| <= 1` for `v >= 0`), and `sum |B_n| < 5` bounds the effect of the
-/// absolute errors of the `J_v`. `None` if `q > 1/2`, or if the sum doesn't converge within 500 terms
-/// (as the series), is too small for underflowing `J_v` to be negligible, or the result isn't finite.
+/// If `q = ((b + 3) w^2 + c w^3) / 3 <= 1/2`, then for `n >= 2`,
+/// `|B_(n+1)| <= q max(|B_n|, |B_(n-1)|, |B_(n-2)|)`, so as `|J_v|, |0F1| <= 1` (DLMF 10.14.1,
+/// 10.14.4), the rest after `B_n` is at most `3 p_n` times that maximum, and `sum |B_n| < 5`.
+/// `None` if `q > 1/2`, after 500 terms, if underflowing terms aren't negligible, or if the result
+/// isn't finite.
 fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
     let c = b - 2.0 * a;
     let t = (2.0 * c * x).sqrt();
@@ -443,22 +444,45 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
     if !(q <= 0.5) {
         return None;
     }
+    let ln_scale = gammaln(b) + (1.0 - b) * (t / 2.0).ln();
+    let scaled = b > t && ln_scale > 0.0;
     let j = |v| cyl_bessel_j_f64(v, t);
-    // J_(b-1) = (2b/t) J_b - J_(b+1) (DLMF 10.6.1), since `b - 1` can round off a tiny `b`
-    let mut sum = 2.0 * b / t * j(b) - j(b + 1.0);
+    let f = |n| {
+        if scaled {
+            hyp0f1(b + n, -t * t / 4.0)
+        } else if n == 0.0 {
+            // J_(b-1) = (2b/t) J_b - J_(b+1) (DLMF 10.6.1), since `b - 1` can round off a tiny `b`
+            2.0 * b / t * j(b) - j(b + 1.0)
+        } else {
+            j(b - 1.0 + n)
+        }
+    };
+    let mut sum = f(0.0);
     let mut abs_sum = sum.abs();
+    let mut p = 1.0;
     // B_(n-2), B_(n-1) and B_n, with B_0 = 1 and B_1 = 0
     let [mut bn2, mut bn1, mut bn] = [0.0, 1.0, 0.0_f64];
     for n in (1..500).map(f64::from) {
-        let term = bn * j(b - 1.0 + n);
+        if scaled {
+            p *= t / 2.0 / (b + n - 1.0);
+        }
+        let term = bn * p * f(n);
         sum += term;
         abs_sum += term.abs();
-        if 3.0 * bn.abs().max(bn1.abs()).max(bn2.abs()) <= f64::EPSILON * abs_sum {
-            // the `J_v` that underflow add less than `5 MIN_POSITIVE`, i.e. `5 EPSILON abs_sum`
+        if 3.0 * bn.abs().max(bn1.abs()).max(bn2.abs()) * p <= f64::EPSILON * abs_sum {
+            // the terms that underflow add less than `5 MIN_POSITIVE`, i.e. `5 EPSILON abs_sum`
             if abs_sum < f64::MIN_POSITIVE / f64::EPSILON {
                 return None;
             }
-            let scale = (gammaln(b) + (1.0 - b) * (t / 2.0).ln() + x0 / 2.0).exp();
+            // the product if in range, as `exp` amplifies the rounding of a large logarithm
+            let [g, pw, e] = [gamma(b), (t / 2.0).powf(1.0 - b), (x0 / 2.0).exp()];
+            let scale = if scaled {
+                e
+            } else if [g, pw, e, g * pw, g * pw * e].iter().all(|v| v.is_normal()) {
+                g * pw * e
+            } else {
+                (ln_scale + x0 / 2.0).exp()
+            };
             return Some(scale * sum).filter(|hg| hg.is_finite());
         }
         // (n + 1) B_(n+1) = (n + b - 1) w^2 B_(n-1) - c w^3 B_(n-2)

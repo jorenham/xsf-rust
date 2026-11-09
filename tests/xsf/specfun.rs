@@ -676,6 +676,31 @@ fn test_hyp1f1_huge_neg_a_tricomi() {
 }
 
 #[test]
+fn test_hyp1f1_huge_neg_a_tricomi_scaling() {
+    // Arb; `b` far above `t = sqrt(2 (b - 2a) x)`, where the `J_v` of Tricomi's expansion underflow
+    // (condition numbers 1e2, 45, and 3e2)
+    let abx = [
+        (1e6 + 0.3, 3000.0, -0.1),
+        (-299_989.44, 801.9, 0.039_59),
+        (-647_118.44, 1839.0, 0.2452),
+    ];
+    let expected = [
+        2.767_870_543_528_383e-15,
+        3.212_622_595_478_475_4e-7,
+        3.858_006_441_225_035e-39,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; the prefactor `Gamma(b) (t/2)^(1-b)` of Tricomi's expansion for large and tiny `b`
+    // (condition numbers 12 and 29)
+    let abx = [(-3000.3, 79.07, 0.1), (-79.5, 1e-300, 2.0)];
+    let expected = [0.020_380_553_037_493_01, 3.559_294_019_842_940_4e300];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_large_x() {
     // mpmath; in xsf these are -1.0e286, -1.6e194, 1788, NaN, 6.4e214, -2.56741098e157,
     // -1.2e252, accurate, accurate, and 1 (stopping at the negligible first term)
