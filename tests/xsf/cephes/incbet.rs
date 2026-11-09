@@ -122,6 +122,9 @@ fn test_betainc_a_or_b_above_1e154() {
     assert_eq!(xsf::betainc(2.1e164, 4.6e5, 0.5), 0.0);
     xsref::np_assert_allclose!(&[xsf::betainc(381.0, 9.9e154, 0.5)], &[1.0], rtol = 1e-15);
     assert_eq!(xsf::betainc(1e200, 1e100, 1e-99), 0.0);
+    // `lbeta(a, b)` is `inf - inf` here
+    assert_eq!(xsf::betainc(1e306, 1e306, 1e-307), 0.0);
+    assert_eq!(xsf::fdtrc(1e306, 1e306, 1e-307), 1.0);
     // reference values from mpmath, using fdtr(a, inf, x) = P(a/2, a x/2)
     let p = [xsf::fdtr(3.0, 1e200, 2.0), xsf::fdtr(0.5, 1e300, 10.0)];
     let p_ref = [0.888_389_774_905_287_4, 0.990_786_251_520_46];

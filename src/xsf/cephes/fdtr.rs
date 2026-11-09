@@ -60,7 +60,6 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         return q;
     }
     let (w1, w) = fdtr_w(a, b, x);
-    // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`).
     betainc_xy(0.5 * b, 0.5 * a, w, w1)
 }
 
@@ -113,24 +112,26 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
-    // Unlike in xsf, fdtr(a, b, inf) is 1 instead of NaN (from w = inf / inf).
-    if x == f64::INFINITY && !a.is_nan() && !b.is_nan() {
+    // Unlike in xsf, fdtr(a, b, inf) is 1, not NaN from `w = inf / inf`
+    if x == f64::INFINITY && !(a + b).is_nan() {
         return 1.0;
     }
     if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         return p;
     }
     let (w, w1) = fdtr_w(a, b, x);
-    // Unlike in xsf (scipy/xsf#358), `1 - w` is passed as well (see `betainc_xy`).
     betainc_xy(0.5 * a, 0.5 * b, w, w1)
 }
 
 /// `(w, 1 - w)` with `w = a x / (b + a x)`
+///
+/// Unlike in xsf (scipy/xsf#358), `1 - w` is computed without cancellation and passed to
+/// `betainc_xy` as well.
 fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     let ax = a * x;
     if ax.is_infinite() && b.is_finite() {
-        // Unlike in xsf, `w` is not inf / inf if `a x` overflows, e.g. fdtr(1e308, 10, 2).
-        // Here `b / a` can overflow if `x` is inf.
+        // Unlike in xsf, `w` is not inf / inf if `a x` overflows. Dividing by `x` first, since
+        // `b / a` can overflow if `x` is inf.
         let r = b / x / a;
         (1.0 / (1.0 + r), r / (1.0 + r))
     } else {
@@ -139,26 +140,24 @@ fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     }
 }
 
-/// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal, else `None`
+/// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal or zero, else `None`
 ///
-/// Unlike in xsf, this is accurate if `y` is subnormal or underflows, e.g. fdtr(4e178, 0.006, 8e182)
-/// is 0.72 instead of NaN, and fdtr(2, 1e-278, 1e307) is 6.7e-276 instead of 1.
+/// Unlike in xsf, where `fdtr` can be NaN or lose all digits then. With `A = a/2` and `B = b/2`:
 ///
-/// For `A = a/2 -> inf`, `I_y(B, A) = P(B, t)` with `t = (A + (B - 1)/2) y` for tiny `y`, up to a
-/// relative `B |B^2 - 1| / (24 A^2)`. With `y` subnormal, that is below eps unless `P` underflows.
-///
-/// Otherwise, `I_y(B, A) = (y / y0)^B I_y0(B, A)` with `y0 = MIN_POSITIVE`, up to a relative
-/// `(2 A + 1) y0` (DLMF 8.17.8).
+/// - If `A <= 1 / sqrt(eps)`, `I_y(B, A) = (y / y0)^B I_y0(B, A)` with `y0 = MIN_POSITIVE`, up to
+///   a relative `(2 A + 1) y0` (DLMF 8.17.8).
+/// - Otherwise `I_y(B, A) = P(B, t)` with `t = (A + (B - 1)/2) y`, up to a relative
+///   `B |B^2 - 1| / (24 A^2)`, which is below eps for subnormal `y` unless `P` underflows.
 fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
-    // y = b / (a x) in the division order that does not underflow spuriously (one of them can,
-    // e.g. `b / a` for fdtr(4, 1e-323, 5e-324), where `1 - w = 1/3`)
+    // y = b / (a x), in the division order that does not underflow spuriously (e.g. `b / a`
+    // does for fdtr(4, 1e-323, 5e-324), where `1 - w = 1/3`)
     let y = (b / a / x).max(b / x / a);
     if !(0.0..f64::MIN_POSITIVE).contains(&y) {
         return None;
     }
-    let hb = 0.5 * b;
-    if 0.5 * a * SQRT_EPS <= 1.0 {
-        let (ha, y0) = (0.5 * a, f64::MIN_POSITIVE);
+    let (ha, hb) = (0.5 * a, 0.5 * b);
+    if ha <= 1.0 / SQRT_EPS {
+        let y0 = f64::MIN_POSITIVE;
         let (p0, q0) = (betainc_xy(ha, hb, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
         // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
         let ln_r = b * (0.5 * (b.ln() - a.min(x).ln() - (a.max(x) * y0).ln()));
@@ -233,11 +232,13 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     let mut w = incbet(0.5 * b, 0.5 * a, 0.5);
     /* If that is greater than y, then the solution w < .5.
      * Otherwise, solve at 1-y to remove cancellation in (b - b*w).  */
-    // Unlike in xsf, this branch inverts at the rounded `1 - p` only if that loses less than the
-    // other one, which loses ~eps / w to cancellation in `1 - w`: it is tried if p exceeds the
-    // mean `b / (a + b)` of w (or p >= 1/2, where `1 - p` is exact), but not at `y = 1 - MACHEP`,
-    // and its result is kept if the relative rounding error `|1 - y - p| / p` is at most eps / w
-    // (or if w is NaN), as w can far exceed its mean, e.g. for tiny b.
+    // Unlike in xsf, this branch, which inverts at the rounded `1 - p`, is only taken if that
+    // loses less than the other one, which loses ~eps / w in `1 - w`:
+    //
+    // - it is tried if p is at least the mean `b / (a + b)` of w, or 1/2 (where `1 - p` is
+    //   exact), but not at `y = 1 - MACHEP`;
+    // - its result is kept if `|1 - y - p| / p <= eps / w` (or if w is NaN), as w can far exceed
+    //   its mean, e.g. for tiny b.
     if (w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y);
         if w.is_nan() || (1.0 - y - p).abs() * w <= f64::EPSILON * p {

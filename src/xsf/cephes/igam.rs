@@ -93,13 +93,13 @@ const IGAM_ASYMP_COEFF_D: [[f64; IGAM_ASYMP_COEFF_N]; IGAM_ASYMP_COEFF_K] = [
 pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
     if (a - x).abs() > 0.4 * a.abs() {
         // Unlike in xsf (scipy/xsf#456), `rgamma` is used for a < 1, where `exp(-lgam(a))` loses
-        // ~|ln a| eps (e.g. ~1e-13 for a = 1e-300), or underflows.
+        // ~|ln a| eps, or underflows.
         if a < 1.0 {
             return (a * x.ln() - x).exp() * rgamma(a);
         }
         let ax = a * x.ln() - x - lgam(a);
         // Unlike in xsf (scipy/xsf#462), also 0 for a >= MAX / MAXLOG (where ax < -a / 16), as
-        // `a * x.ln()` or `lgam(a)` can overflow there, e.g. igam(1e308, 3) was NaN instead of 0.
+        // `a * x.ln()` or `lgam(a)` can overflow there.
         if ax < -MAXLOG || a >= f64::MAX / MAXLOG {
             return 0.0;
         }
@@ -191,13 +191,9 @@ fn igam_series(a: f64, x: f64) -> f64 {
     }
     if c > MACHEP * ans {
         // Unlike in xsf (scipy/xsf#339), the asymptotic series is used if the power series did not
-        // converge within IGAM_MAXITER terms.
-        //
-        // - Near the asymptotic window, the power series needs ~5 sqrt(a) terms, i.e. more than
-        //   IGAM_MAXITER for a > 1.8e5.
-        // - This only happens for (a - x) / a < -ln(MACHEP) / IGAM_MAXITER (~0.018), where the
-        //   asymptotic series is accurate for such large a, unless the result is subnormal (where
-        //   `erfc` flushes to 0).
+        // converge within IGAM_MAXITER terms (only near the asymptotic window for a > 1.8e5, where
+        // it needs ~5 sqrt(a) terms). The asymptotic series is accurate there, unless the result
+        // is subnormal, where `erfc` flushes to 0.
         let res = asymptotic_series(a, x, IGAM);
         if res >= f64::MIN_POSITIVE {
             return res;
@@ -224,7 +220,7 @@ fn igamc_series(a: f64, x: f64) -> f64 {
 
     let logx = x.ln();
     let term = -(a * logx - lgam1p(a)).exp_m1();
-    // Unlike in xsf (scipy/xsf#456), `rgamma` is used for a < 1, as in `igam_fac`.
+    // `rgamma` for a < 1, as in `igam_fac`
     if a < 1.0 {
         return term - (a * logx).exp() * rgamma(a) * sum;
     }
@@ -347,8 +343,6 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
 
     // Unlike in xsf (scipy/xsf#456), `1 - igamc` is also used if `igam = 1 - O(m)` (see
     // `IGAM_COMPLEMENT_MAX`), where `igam_series` is a few eps off, and can exceed 1 or underflow.
-    //
-    // E.g. igam(2e-16, 0.9) was 1 + 4.4e-16, and igam(1e-310, 0.5) was 0 instead of 1.
     if (x > 1.0 && x > a) || a * x.ln().abs().max(1.0) <= IGAM_COMPLEMENT_MAX {
         return 1.0 - igamc(a, x);
     }

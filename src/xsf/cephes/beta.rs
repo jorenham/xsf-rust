@@ -45,19 +45,20 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
 /// Unlike in xsf (scipy/scipy#26423, scipy/xsf#357), `lgam_ratio` avoids the cancellation in
 /// `lgam(a) + lgam(b) - lgam(a + b)`. The negative one of the two largest arguments is reflected.
 fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
-    if a > 0.0 && b.abs() < 0.125 * a {
+    if b.abs() < 0.125 * a.abs() {
         let (y, sign) = lgam_sgn(b);
-        Some((y - lgam_ratio(a, b), f64::from(sign)))
+        if a > 0.0 {
+            Some((y - lgam_ratio(a, b), f64::from(sign)))
+        } else {
+            // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
+            let s = cephes_sinpi(a + b) / cephes_sinpi(a);
+            let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
+            Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
+        }
     } else if a > 0.0 && b <= -0.5 * a {
         // B(a, b) = pi / sin(pi b) Gamma(a) / Gamma(1 - b) / Gamma(a + b), with exact a + b
         let y = (PI / cephes_sinpi(b).abs()).ln() - lgam_ratio(a, 1.0 - (a + b)) - lgam(a + b);
         Some((y, gammasgn(b)))
-    } else if a < 0.0 && b.abs() < -0.125 * a {
-        // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
-        let (y, sign) = lgam_sgn(b);
-        let s = cephes_sinpi(a + b) / cephes_sinpi(a);
-        let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
-        Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
     } else {
         None
     }
