@@ -8,7 +8,6 @@ use num_complex::Complex64;
 use crate::utils::MAXLOG;
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 
-const LN_MAX: f64 = MAXLOG; // f64::MAX.ln()
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
 /// Debye's expansion of $\Gamma(v) z^{(1-v)/2} I_{v-1}(2\sqrt{z})$ for real $z$ and large $|v|$
@@ -86,7 +85,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 
         // Unlike in xsf (scipy/xsf#366), v = 1 doesn't fall back to `hyp0f1_asy`.
         if v != 1.0
-            && (arg_exp > LN_MAX || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite())
+            && (arg_exp > MAXLOG || bess_val == 0.0 || arg_exp < LN_MIN || bess_val.is_infinite())
         {
             // overflow or underflow
             hyp0f1_asy(v, z)

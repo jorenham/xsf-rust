@@ -13,7 +13,7 @@ use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
 };
-use crate::xsf::complex::{cdiv, cmul, csqrt};
+use crate::xsf::complex::{cdiv, cmul, csqrt, rdiv};
 
 pub trait SphBesselArg: crate::sealed::Sealed {
     fn sph_bessel_j(self, n: i64) -> Self;
@@ -172,7 +172,7 @@ fn sph_bessel_ji_jac(f: fn(i64, f64) -> f64, c: f64, n: i64, x: f64) -> f64 {
 
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
 fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
-    csqrt(cdiv(c64(FRAC_PI_2, 0.0), z))
+    csqrt(rdiv(FRAC_PI_2, z))
 }
 
 fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
@@ -317,7 +317,7 @@ fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
     if z == c64(0.0, 0.0) {
         // DLMF 10.51.2 doesn't work, so use 10.51.1 to get the exact value
         if n == 1 {
-            return cdiv(c64(1.0, 0.0), c64(3.0, 0.0));
+            return rdiv(1.0, c64(3.0, 0.0));
         }
 
         return c64(0.0, 0.0);

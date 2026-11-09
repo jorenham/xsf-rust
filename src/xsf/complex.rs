@@ -130,6 +130,11 @@ pub(crate) fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
     Complex::new(x - z.re, -z.im)
 }
 
+/// `x / z` for real `x` as in C++, i.e. `cdiv(x + 0i, z)`
+pub(crate) fn rdiv(x: f64, z: Complex<f64>) -> Complex<f64> {
+    cdiv(Complex::new(x, 0.0), z)
+}
+
 /// Square root of complex `z`
 ///
 /// This replaces `std::sqrt(std::complex<double>)` in C++. Unlike `num_complex::Complex::sqrt`,

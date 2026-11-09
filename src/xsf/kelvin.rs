@@ -10,17 +10,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 use num_complex::{Complex64, c64};
 
 use crate::xsf::amos;
-use crate::xsf::specfun::SPECFUN_INF;
-
-/// `SPECFUN_ZCONVINF` (only the real part is checked)
-fn specfun_zconvinf(z: &mut Complex64) {
-    if z.re == SPECFUN_INF {
-        z.re = f64::INFINITY;
-    }
-    if z.re == -SPECFUN_INF {
-        z.re = f64::NEG_INFINITY;
-    }
-}
+use crate::xsf::specfun::{SPECFUN_INF, specfun_zconvinf};
 
 struct Klvna {
     ber: f64,

@@ -30,7 +30,7 @@ use core::f64::consts::PI;
 use num_complex::{Complex, c64};
 
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::complex::{cdiv, cmul};
+use crate::xsf::complex::{cmul, rdiv};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::trig::cephes_sinpi;
 
@@ -90,7 +90,7 @@ fn trigamma_c64(mut z: Complex<f64>) -> Complex<f64> {
     if x <= 0.0 {
         // reflection formula http://dlmf.nist.gov/5.15.E6
         let s = crate::sinpi(z);
-        let c = cdiv(PI.into(), s);
+        let c = rdiv(PI, s);
         return cmul(c, c) - trigamma_c64(c64(1.0, 0.0) - z);
     }
 
@@ -98,16 +98,16 @@ fn trigamma_c64(mut z: Complex<f64>) -> Complex<f64> {
     if x < f64::from(N) {
         // recursion based on https://dlmf.nist.gov/5.15.E1
         let n = (f64::from(N) - x.floor()) as i32;
-        psi += cdiv(Complex::ONE, z * z);
+        psi += rdiv(1.0, z * z);
         for v in 1..n {
             let w = z + f64::from(v);
-            psi += cdiv(Complex::ONE, w * w);
+            psi += rdiv(1.0, w * w);
         }
         z += f64::from(n);
     }
 
     // https://dlmf.nist.gov/5.15.E8
-    let t = cdiv(Complex::ONE, z);
+    let t = rdiv(1.0, z);
     let w = t * t;
     psi += t + 0.5 * w;
     psi += t * w * cevalpoly(&COEFFS, w);

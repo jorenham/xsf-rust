@@ -4,7 +4,7 @@ use core::f64::consts::PI;
 
 use num_complex::Complex;
 
-use crate::xsf::complex::{cdiv, rsub};
+use crate::xsf::complex::{cdiv, rdiv, rsub};
 use crate::xsf::log::clog;
 
 // All of the following were computed with mpmath
@@ -60,7 +60,7 @@ fn digamma_forward_recurrence(z: Complex<f64>, psiz: Complex<f64>, n: i32) -> Co
     let mut res = psiz;
 
     for k in 0..n {
-        res += cdiv(Complex::ONE, z + f64::from(k));
+        res += rdiv(1.0, z + f64::from(k));
     }
     res
 }
@@ -70,7 +70,7 @@ fn digamma_backward_recurrence(z: Complex<f64>, psiz: Complex<f64>, n: i32) -> C
     let mut res = psiz;
 
     for k in 1..=n {
-        res -= cdiv(Complex::ONE, z - f64::from(k));
+        res -= rdiv(1.0, z - f64::from(k));
     }
     res
 }
@@ -97,7 +97,7 @@ fn digamma_asymptotic_series(z: Complex<f64>) -> Complex<f64> {
         6.015_808_739_006_424e8,
         -1.511_631_576_709_215_7e10,
     ];
-    let rzz = cdiv(cdiv(Complex::ONE, z), z);
+    let rzz = cdiv(rdiv(1.0, z), z);
     let mut zfac = Complex::ONE;
 
     if !(z.re.is_finite() && z.im.is_finite()) {
@@ -108,7 +108,7 @@ fn digamma_asymptotic_series(z: Complex<f64>) -> Complex<f64> {
         return clog(z);
     }
 
-    let mut res = clog(z) - cdiv(0.5.into(), z);
+    let mut res = clog(z) - rdiv(0.5, z);
 
     for (k, &b2k) in (1_u32..17).zip(&BERNOULLI2K) {
         zfac *= rzz;
@@ -180,7 +180,7 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
     if absz < 0.5 {
         /* Use one step of the recurrence relation to step away from
          * the pole. */
-        res = cdiv((-1.0).into(), z);
+        res = rdiv(-1.0, z);
         z += 1.0;
         absz = z.norm();
     }

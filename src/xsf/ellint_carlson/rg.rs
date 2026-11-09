@@ -14,11 +14,12 @@
 
 use num_complex::Complex64;
 
-use super::arithmetic::{dot2, eft_prod, eft_sum};
+use super::arithmetic::{dot2, eft_sum};
 use super::common::{self, ExitStatus, abscmp, config, constants, is_horrible, sort_by};
 use super::rd::rd;
 use super::rf::agm_update;
 use super::typing::Num;
+use crate::xsf::cephes::dd_real::two_prod;
 
 /// The complex `arithmetic::aux::rg_dot2_acc`; the real one is `arithmetic::fdot2_acc`
 #[inline]
@@ -28,8 +29,8 @@ pub(super) fn rg_dot2_acc_cplx(
     acc: &mut Complex64,
     cor: &mut Complex64,
 ) {
-    let (ar, cr) = eft_prod(fac, term.re);
-    let (ai, ci) = eft_prod(fac, term.im);
+    let (ar, cr) = two_prod(fac, term.re);
+    let (ai, ci) = two_prod(fac, term.im);
     let (p, q) = eft_sum(*acc, Complex64::new(ar, ai));
     *acc = p;
     *cor += q + Complex64::new(cr, ci);

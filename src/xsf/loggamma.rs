@@ -21,7 +21,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{LN_PI, LN_SQRT_2PI};
-use crate::xsf::complex::cdiv;
+use crate::xsf::complex::{cdiv, rdiv};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -49,7 +49,7 @@ fn loggamma_stirling(z: Complex<f64>) -> Complex<f64> {
         -0.002_777_777_777_777_778,
         0.083_333_333_333_333_33,
     ];
-    let rz = cdiv(Complex::new(1.0, 0.0), z);
+    let rz = rdiv(1.0, z);
     let rzz = cdiv(rz, z);
 
     (z - 0.5) * clog(z) - z + LN_SQRT_2PI + rz * cevalpoly(&coeffs, rzz)

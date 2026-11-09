@@ -12,17 +12,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 
 use crate::xsf::bessel::bessel_j_miller;
 use crate::xsf::cephes;
-use crate::xsf::specfun::SPECFUN_INF;
-
-fn specfun_convinf(x: f64) -> f64 {
-    if x == SPECFUN_INF {
-        return f64::INFINITY;
-    }
-    if x == -SPECFUN_INF {
-        return f64::NEG_INFINITY;
-    }
-    x
-}
+use crate::xsf::specfun::specfun_convinf;
 
 /// `(int_0^x H0(t) dt, int_0^x H0(t)/t dt)` for `0.5 <= x < 40`, by integrating DLMF 11.4.21,
 /// `H0 = 4/pi sum_k J_{2k+1} / (2k+1)`, term by term, with Miller's backward recurrence for `J_n`.

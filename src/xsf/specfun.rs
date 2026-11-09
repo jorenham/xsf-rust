@@ -20,6 +20,20 @@ pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 /// The `1e300` that specfun returns in place of infinity, e.g. `gamma2` at the poles
 pub(crate) const SPECFUN_INF: f64 = 1e300;
 
+/// `SPECFUN_CONVINF`: specfun's `+-1e300` sentinels as signed infinities
+pub(crate) fn specfun_convinf(x: f64) -> f64 {
+    if x.abs() == SPECFUN_INF {
+        f64::INFINITY.copysign(x)
+    } else {
+        x
+    }
+}
+
+/// `SPECFUN_ZCONVINF` (only the real part is checked)
+pub(crate) fn specfun_zconvinf(z: &mut Complex<f64>) {
+    z.re = specfun_convinf(z.re);
+}
+
 /// `specfun::Status`
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Status {
@@ -294,12 +308,5 @@ fn hypu_rec_b(a: f64, b: f64, x: f64) -> f64 {
 #[inline]
 pub fn pmv(m: i32, v: f64, x: f64) -> f64 {
     // `xsf::pmv`
-    let mut out = lpmv(x, m, v);
-    if out == SPECFUN_INF {
-        out = f64::INFINITY;
-    }
-    if out == -SPECFUN_INF {
-        out = f64::NEG_INFINITY;
-    }
-    out
+    specfun_convinf(lpmv(x, m, v))
 }

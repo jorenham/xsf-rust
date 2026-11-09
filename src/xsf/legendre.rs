@@ -18,7 +18,7 @@ use core::ffi::c_int;
 use num_complex::{Complex64, c64};
 
 use crate::utils;
-use crate::xsf::complex::{Num, cdiv, cmul, csqrt, rsub};
+use crate::xsf::complex::{Num, cdiv, cmul, csqrt, rdiv, rsub};
 use crate::xsf::log::clog;
 use crate::xsf::specfun::SPECFUN_INF;
 
@@ -1032,7 +1032,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
     cq0 = clog(cdiv((1.0 + z) * f64::from(ls), rsub(1.0, z))) / 2.0;
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
-        cqm[(1, 0)] = cdiv(c64(-1.0, 0.0), zq);
+        cqm[(1, 0)] = rdiv(-1.0, zq);
         cqm[(0, 1)] = cmul(z, cq0) - 1.0;
         cqm[(1, 1)] = cmul(-zq, cq0 + cdiv(z, rsub(1.0, cmul(z, z))));
 
@@ -1090,7 +1090,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
             cqf1 = cqf0;
         }
 
-        let cq10 = cdiv(c64(-1.0, 0.0), zq);
+        let cq10 = rdiv(-1.0, zq);
         for k in 0..=n {
             cqm[(1, k)] = cmul(cqm[(1, k)], cdiv(cq10, cqf0));
         }
@@ -1109,7 +1109,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
         }
     }
 
-    cqd[(0, 0)] = cdiv(c64(f64::from(ls), 0.0), zs);
+    cqd[(0, 0)] = rdiv(f64::from(ls), zs);
     for j in 1..=n {
         cqd[(0, j)] = cdiv(
             (cqm[(0, j - 1)] - cmul(z, cqm[(0, j)])) * (f64::from(ls) * f64::from(j)),
@@ -1120,10 +1120,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
     for i in 1..=m {
         for j in 0..=n {
             cqd[(i, j)] = cmul(cdiv(z * f64::from(ls * i), zs), cqm[(i, j)])
-                + cmul(
-                    cdiv(c64(int_product(&[i + j, j - i + 1]), 0.0), zq),
-                    cqm[(i - 1, j)],
-                );
+                + cmul(rdiv(int_product(&[i + j, j - i + 1]), zq), cqm[(i - 1, j)]);
         }
     }
 }

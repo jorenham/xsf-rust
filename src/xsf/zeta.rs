@@ -14,7 +14,7 @@ use std::f64::consts::{LN_2, PI, TAU};
 use num_complex::Complex;
 
 use crate::utils::{LN_PI, LN_TAU};
-use crate::xsf::complex::{cdiv, rsub};
+use crate::xsf::complex::{cdiv, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 
@@ -149,7 +149,7 @@ fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     }
     let big_n = n as f64;
     let b = rpow(big_n, -z);
-    result += b * (0.5 + cdiv(big_n.into(), z - 1.0));
+    result += b * (0.5 + rdiv(big_n, z - 1.0));
     /* The terms of the Euler-Maclaurin
      * expansion below are T(k, n) = B2k/(2k)! * n^(1 - z - 2k) * z(z+1)...(z+2k-2).
      * We work with logarithms to avoid overflow in all cases at the expense of
@@ -273,7 +273,7 @@ fn zeta_borwein(z: Complex<f64>) -> Complex<f64> {
     for k in (0..50).rev() {
         let sign = (-1.0_f64).powi(k);
         let den = rpow(f64::from(k + 1), z);
-        let term = cdiv((sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0)).into(), den);
+        let term = rdiv(sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0), den);
         result += term;
     }
     cdiv(-result, rsub(1.0, rpow(2.0, rsub(1.0, z))))
