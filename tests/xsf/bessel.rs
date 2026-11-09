@@ -134,7 +134,10 @@ fn test_bessel_scaled_overflow() {
     let inf = f64::INFINITY;
     assert_eq!(xsf::bessel_ye(10.0, x), -inf);
     assert_eq!(xsf::bessel_ye(10.0, z), c64(-inf, 0.0));
+    // Arb: besselj(-1000.25, 300) = 9.2e397
+    assert_eq!(xsf::bessel_j(-1000.25, c64(300.0, 0.0)), c64(inf, 0.0));
     for (v, s) in [(-10.25, 1.0), (-11.25, -1.0)] {
+        assert_eq!(xsf::bessel_j(v, z), c64(s * inf, 0.0));
         assert_eq!(xsf::bessel_je(v, x), s * inf);
         assert_eq!(xsf::bessel_ye(v, x), -s * inf);
         assert_eq!(xsf::bessel_ie(v, x), s * inf);
