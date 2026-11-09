@@ -1,4 +1,3 @@
-#[test]
-fn test_cbrt() {
-    xsref::test("cbrt", "d-d", |x| xsf::cbrt(x[0]));
+xsref::tests! {
+    test_cbrt: "cbrt", "d-d", |x| xsf::cbrt(x[0]);
 }

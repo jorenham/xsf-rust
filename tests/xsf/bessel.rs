@@ -3,76 +3,22 @@
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
-// Bessel J
+xsref::tests! {
+    // Bessel J
+    test_bessel_j0: "cyl_bessel_j0", "d-d", |x| xsf::bessel_j0(x[0]);
+    test_bessel_j1: "cyl_bessel_j1", "d-d", |x| xsf::bessel_j1(x[0]);
+    test_bessel_j_f64: "cyl_bessel_j", "d_d-d", |x| xsf::bessel_j(x[0], x[1]);
+    test_bessel_j_c64: "cyl_bessel_j", "d_cd-cd", |x| xsf::bessel_j(x[0], c64(x[1], x[2]));
+    test_bessel_je_f64: "cyl_bessel_je", "d_d-d", |x| xsf::bessel_je(x[0], x[1]);
+    test_bessel_je_c64: "cyl_bessel_je", "d_cd-cd", |x| xsf::bessel_je(x[0], c64(x[1], x[2]));
 
-#[test]
-fn test_bessel_j0() {
-    xsref::test("cyl_bessel_j0", "d-d", |x| xsf::bessel_j0(x[0]));
-}
-
-#[test]
-fn test_bessel_j1() {
-    xsref::test("cyl_bessel_j1", "d-d", |x| xsf::bessel_j1(x[0]));
-}
-
-#[test]
-fn test_bessel_j_f64() {
-    xsref::test("cyl_bessel_j", "d_d-d", |x| xsf::bessel_j(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_j_c64() {
-    xsref::test("cyl_bessel_j", "d_cd-cd", |x| {
-        xsf::bessel_j(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_bessel_je_f64() {
-    xsref::test("cyl_bessel_je", "d_d-d", |x| xsf::bessel_je(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_je_c64() {
-    xsref::test("cyl_bessel_je", "d_cd-cd", |x| {
-        xsf::bessel_je(x[0], c64(x[1], x[2]))
-    });
-}
-
-// Bessel Y
-
-#[test]
-fn test_bessel_y0() {
-    xsref::test("cyl_bessel_y0", "d-d", |x| xsf::bessel_y0(x[0]));
-}
-
-#[test]
-fn test_bessel_y1() {
-    xsref::test("cyl_bessel_y1", "d-d", |x| xsf::bessel_y1(x[0]));
-}
-
-#[test]
-fn test_bessel_y_f64() {
-    xsref::test("cyl_bessel_y", "d_d-d", |x| xsf::bessel_y(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_y_c64() {
-    xsref::test("cyl_bessel_y", "d_cd-cd", |x| {
-        xsf::bessel_y(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_bessel_ye_f64() {
-    xsref::test("cyl_bessel_ye", "d_d-d", |x| xsf::bessel_ye(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_ye_c64() {
-    xsref::test("cyl_bessel_ye", "d_cd-cd", |x| {
-        xsf::bessel_ye(x[0], c64(x[1], x[2]))
-    });
+    // Bessel Y
+    test_bessel_y0: "cyl_bessel_y0", "d-d", |x| xsf::bessel_y0(x[0]);
+    test_bessel_y1: "cyl_bessel_y1", "d-d", |x| xsf::bessel_y1(x[0]);
+    test_bessel_y_f64: "cyl_bessel_y", "d_d-d", |x| xsf::bessel_y(x[0], x[1]);
+    test_bessel_y_c64: "cyl_bessel_y", "d_cd-cd", |x| xsf::bessel_y(x[0], c64(x[1], x[2]));
+    test_bessel_ye_f64: "cyl_bessel_ye", "d_d-d", |x| xsf::bessel_ye(x[0], x[1]);
+    test_bessel_ye_c64: "cyl_bessel_ye", "d_cd-cd", |x| xsf::bessel_ye(x[0], c64(x[1], x[2]));
 }
 
 #[test]
@@ -86,50 +32,16 @@ fn test_bessel_y_negative_half_integer_tiny_x() {
     }
 }
 
-// Bessel I
-
-#[test]
-fn test_bessel_i0() {
-    xsref::test("cyl_bessel_i0", "d-d", |x| xsf::bessel_i0(x[0]));
-}
-
-#[test]
-fn test_bessel_i0e() {
-    xsref::test("cyl_bessel_i0e", "d-d", |x| xsf::bessel_i0e(x[0]));
-}
-
-#[test]
-fn test_bessel_i1() {
-    xsref::test("cyl_bessel_i1", "d-d", |x| xsf::bessel_i1(x[0]));
-}
-
-#[test]
-fn test_bessel_i1e() {
-    xsref::test("cyl_bessel_i1e", "d-d", |x| xsf::bessel_i1e(x[0]));
-}
-
-#[test]
-fn test_bessel_i_f64() {
-    xsref::test("cyl_bessel_i", "d_d-d", |x| xsf::bessel_i(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_i_c64() {
-    xsref::test("cyl_bessel_i", "d_cd-cd", |x| {
-        xsf::bessel_i(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_bessel_ie_f64() {
-    xsref::test("cyl_bessel_ie", "d_d-d", |x| xsf::bessel_ie(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_ie_c64() {
-    xsref::test("cyl_bessel_ie", "d_cd-cd", |x| {
-        xsf::bessel_ie(x[0], c64(x[1], x[2]))
-    });
+xsref::tests! {
+    // Bessel I
+    test_bessel_i0: "cyl_bessel_i0", "d-d", |x| xsf::bessel_i0(x[0]);
+    test_bessel_i0e: "cyl_bessel_i0e", "d-d", |x| xsf::bessel_i0e(x[0]);
+    test_bessel_i1: "cyl_bessel_i1", "d-d", |x| xsf::bessel_i1(x[0]);
+    test_bessel_i1e: "cyl_bessel_i1e", "d-d", |x| xsf::bessel_i1e(x[0]);
+    test_bessel_i_f64: "cyl_bessel_i", "d_d-d", |x| xsf::bessel_i(x[0], x[1]);
+    test_bessel_i_c64: "cyl_bessel_i", "d_cd-cd", |x| xsf::bessel_i(x[0], c64(x[1], x[2]));
+    test_bessel_ie_f64: "cyl_bessel_ie", "d_d-d", |x| xsf::bessel_ie(x[0], x[1]);
+    test_bessel_ie_c64: "cyl_bessel_ie", "d_cd-cd", |x| xsf::bessel_ie(x[0], c64(x[1], x[2]));
 }
 
 #[test]
@@ -280,31 +192,13 @@ fn test_bessel_huge_order() {
     np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
 }
 
-// Bessel K
-
-#[test]
-fn test_bessel_k0() {
-    xsref::test("cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]));
-}
-
-#[test]
-fn test_bessel_k0e() {
-    xsref::test("cyl_bessel_k0e", "d-d", |x| xsf::bessel_k0e(x[0]));
-}
-
-#[test]
-fn test_bessel_k1() {
-    xsref::test("cyl_bessel_k1", "d-d", |x| xsf::bessel_k1(x[0]));
-}
-
-#[test]
-fn test_bessel_k1e() {
-    xsref::test("cyl_bessel_k1e", "d-d", |x| xsf::bessel_k1e(x[0]));
-}
-
-#[test]
-fn test_bessel_k_f64() {
-    xsref::test("cyl_bessel_k", "d_d-d", |x| xsf::bessel_k(x[0], x[1]));
+xsref::tests! {
+    // Bessel K
+    test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);
+    test_bessel_k0e: "cyl_bessel_k0e", "d-d", |x| xsf::bessel_k0e(x[0]);
+    test_bessel_k1: "cyl_bessel_k1", "d-d", |x| xsf::bessel_k1(x[0]);
+    test_bessel_k1e: "cyl_bessel_k1e", "d-d", |x| xsf::bessel_k1e(x[0]);
+    test_bessel_k_f64: "cyl_bessel_k", "d_d-d", |x| xsf::bessel_k(x[0], x[1]);
 }
 
 #[test]
@@ -332,53 +226,16 @@ fn test_bessel_k_near_overflow() {
     }
 }
 
-#[test]
-fn test_bessel_k_c64() {
-    xsref::test("cyl_bessel_k", "d_cd-cd", |x| {
-        xsf::bessel_k(x[0], c64(x[1], x[2]))
-    });
-}
+xsref::tests! {
+    test_bessel_k_c64: "cyl_bessel_k", "d_cd-cd", |x| xsf::bessel_k(x[0], c64(x[1], x[2]));
+    test_bessel_ke_f64: "cyl_bessel_ke", "d_d-d", |x| xsf::bessel_ke(x[0], x[1]);
+    test_bessel_ke_c64: "cyl_bessel_ke", "d_cd-cd", |x| xsf::bessel_ke(x[0], c64(x[1], x[2]));
 
-#[test]
-fn test_bessel_ke_f64() {
-    xsref::test("cyl_bessel_ke", "d_d-d", |x| xsf::bessel_ke(x[0], x[1]));
-}
-
-#[test]
-fn test_bessel_ke_c64() {
-    xsref::test("cyl_bessel_ke", "d_cd-cd", |x| {
-        xsf::bessel_ke(x[0], c64(x[1], x[2]))
-    });
-}
-
-// Hankel
-
-#[test]
-fn test_hankel_1_c64() {
-    xsref::test("cyl_hankel_1", "d_cd-cd", |x| {
-        xsf::hankel_1(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_hankel_1e_c64() {
-    xsref::test("cyl_hankel_1e", "d_cd-cd", |x| {
-        xsf::hankel_1e(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_hankel_2_c64() {
-    xsref::test("cyl_hankel_2", "d_cd-cd", |x| {
-        xsf::hankel_2(x[0], c64(x[1], x[2]))
-    });
-}
-
-#[test]
-fn test_hankel_2e_c64() {
-    xsref::test("cyl_hankel_2e", "d_cd-cd", |x| {
-        xsf::hankel_2e(x[0], c64(x[1], x[2]))
-    });
+    // Hankel
+    test_hankel_1_c64: "cyl_hankel_1", "d_cd-cd", |x| xsf::hankel_1(x[0], c64(x[1], x[2]));
+    test_hankel_1e_c64: "cyl_hankel_1e", "d_cd-cd", |x| xsf::hankel_1e(x[0], c64(x[1], x[2]));
+    test_hankel_2_c64: "cyl_hankel_2", "d_cd-cd", |x| xsf::hankel_2(x[0], c64(x[1], x[2]));
+    test_hankel_2e_c64: "cyl_hankel_2e", "d_cd-cd", |x| xsf::hankel_2e(x[0], c64(x[1], x[2]));
 }
 
 // Bessel zeros
@@ -409,11 +266,9 @@ fn test_bessel_zeros() {
     );
 }
 
-// Bessel integrals
-
-#[test]
-fn test_it1j0y0() {
-    xsref::test("it1j0y0", "d-d_d", |x| xsf::it1j0y0(x[0]));
+xsref::tests! {
+    // Bessel integrals
+    test_it1j0y0: "it1j0y0", "d-d_d", |x| xsf::it1j0y0(x[0]);
 }
 
 #[test]
@@ -460,14 +315,9 @@ fn test_itj0y0_mid_x() {
     }
 }
 
-#[test]
-fn test_it1i0k0() {
-    xsref::test("it1i0k0", "d-d_d", |x| xsf::it1i0k0(x[0]));
-}
-
-#[test]
-fn test_it2i0k0() {
-    xsref::test("it2i0k0", "d-d_d", |x| xsf::it2i0k0(x[0]));
+xsref::tests! {
+    test_it1i0k0: "it1i0k0", "d-d_d", |x| xsf::it1i0k0(x[0]);
+    test_it2i0k0: "it2i0k0", "d-d_d", |x| xsf::it2i0k0(x[0]);
 }
 
 #[test]
@@ -519,11 +369,8 @@ fn test_itk0_mid_x() {
     }
 }
 
-#[test]
-fn test_besselpoly() {
-    xsref::test("besselpoly", "d_d_d-d", |x| {
-        xsf::besselpoly(x[0], x[1], x[2])
-    });
+xsref::tests! {
+    test_besselpoly: "besselpoly", "d_d_d-d", |x| xsf::besselpoly(x[0], x[1], x[2]);
 }
 
 #[test]

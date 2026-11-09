@@ -1,31 +1,10 @@
 use num_traits::ToPrimitive;
 
-#[test]
-fn test_mathieu_a() {
-    xsref::test("cem_cva", "d_d-d", |x| {
-        xsf::mathieu_a(x[0].to_u32().unwrap(), x[1])
-    });
-}
-
-#[test]
-fn test_mathieu_b() {
-    xsref::test("sem_cva", "d_d-d", |x| {
-        xsf::mathieu_b(x[0].to_u32().unwrap(), x[1])
-    });
-}
-
-#[test]
-fn test_mathieu_cem() {
-    xsref::test("cem", "d_d_d-d_d", |x| {
-        xsf::mathieu_cem(x[0].to_u32().unwrap(), x[1], x[2])
-    });
-}
-
-#[test]
-fn test_mathieu_sem() {
-    xsref::test("sem", "d_d_d-d_d", |x| {
-        xsf::mathieu_sem(x[0].to_u32().unwrap(), x[1], x[2])
-    });
+xsref::tests! {
+    test_mathieu_a: "cem_cva", "d_d-d", |x| xsf::mathieu_a(x[0].to_u32().unwrap(), x[1]);
+    test_mathieu_b: "sem_cva", "d_d-d", |x| xsf::mathieu_b(x[0].to_u32().unwrap(), x[1]);
+    test_mathieu_cem: "cem", "d_d_d-d_d", |x| xsf::mathieu_cem(x[0].to_u32().unwrap(), x[1], x[2]);
+    test_mathieu_sem: "sem", "d_d_d-d_d", |x| xsf::mathieu_sem(x[0].to_u32().unwrap(), x[1], x[2]);
 }
 
 #[test]
@@ -116,32 +95,19 @@ fn test_mathieu_a_b_huge_m() {
     assert!(xsf::mathieu_b(u32::MAX, 0.0).is_nan());
 }
 
-#[test]
-fn test_mathieu_modcem1() {
-    xsref::test("mcm1", "d_d_d-d_d", |x| {
+xsref::tests! {
+    test_mathieu_modcem1: "mcm1", "d_d_d-d_d", |x| {
         xsf::mathieu_modcem1(x[0].to_u32().unwrap(), x[1], x[2])
-    });
-}
-
-#[test]
-fn test_mathieu_modsem1() {
-    xsref::test("msm1", "d_d_d-d_d", |x| {
+    };
+    test_mathieu_modsem1: "msm1", "d_d_d-d_d", |x| {
         xsf::mathieu_modsem1(x[0].to_u32().unwrap(), x[1], x[2])
-    });
-}
-
-#[test]
-fn test_mathieu_modcem2() {
-    xsref::test("mcm2", "d_d_d-d_d", |x| {
+    };
+    test_mathieu_modcem2: "mcm2", "d_d_d-d_d", |x| {
         xsf::mathieu_modcem2(x[0].to_u32().unwrap(), x[1], x[2])
-    });
-}
-
-#[test]
-fn test_mathieu_modsem2() {
-    xsref::test("msm2", "d_d_d-d_d", |x| {
+    };
+    test_mathieu_modsem2: "msm2", "d_d_d-d_d", |x| {
         xsf::mathieu_modsem2(x[0].to_u32().unwrap(), x[1], x[2])
-    });
+    };
 }
 
 #[test]

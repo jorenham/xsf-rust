@@ -1,14 +1,9 @@
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
-#[test]
-fn test_spence_xsref_f64() {
-    xsref::test("spence", "d-d", |x| xsf::spence(x[0]));
-}
-
-#[test]
-fn test_spence_xsref_c64() {
-    xsref::test("spence", "d-d", |x| xsf::spence(c64(x[0], 0.0)).re);
+xsref::tests! {
+    test_spence_xsref_f64: "spence", "d-d", |x| xsf::spence(x[0]);
+    test_spence_xsref_c64: "spence", "d-d", |x| xsf::spence(c64(x[0], 0.0)).re;
 }
 
 #[test]

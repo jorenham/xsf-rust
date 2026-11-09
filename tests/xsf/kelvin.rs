@@ -1,51 +1,18 @@
 use num_complex::c64;
 
-#[test]
-fn test_ber_f64() {
-    xsref::test("ber", "d-d", |x| xsf::ber(x[0]));
-}
-
-#[test]
-fn test_bei_f64() {
-    xsref::test("bei", "d-d", |x| xsf::bei(x[0]));
-}
-
-#[test]
-fn test_ker_f64() {
-    xsref::test("ker", "d-d", |x| xsf::ker(x[0]));
-}
-
-#[test]
-fn test_kei_f64() {
-    xsref::test("kei", "d-d", |x| xsf::kei(x[0]));
-}
-
-#[test]
-fn test_berp_f64() {
-    xsref::test("berp", "d-d", |x| xsf::berp(x[0]));
-}
-
-#[test]
-fn test_beip_f64() {
-    xsref::test("beip", "d-d", |x| xsf::beip(x[0]));
-}
-
-#[test]
-fn test_kerp_f64() {
-    xsref::test("kerp", "d-d", |x| xsf::kerp(x[0]));
-}
-
-#[test]
-fn test_keip_f64() {
-    xsref::test("keip", "d-d", |x| xsf::keip(x[0]));
-}
-
-#[test]
-fn test_kelvin_c64() {
-    xsref::test("kelvin", "d-cd_cd_cd_cd", |x| {
+xsref::tests! {
+    test_ber_f64: "ber", "d-d", |x| xsf::ber(x[0]);
+    test_bei_f64: "bei", "d-d", |x| xsf::bei(x[0]);
+    test_ker_f64: "ker", "d-d", |x| xsf::ker(x[0]);
+    test_kei_f64: "kei", "d-d", |x| xsf::kei(x[0]);
+    test_berp_f64: "berp", "d-d", |x| xsf::berp(x[0]);
+    test_beip_f64: "beip", "d-d", |x| xsf::beip(x[0]);
+    test_kerp_f64: "kerp", "d-d", |x| xsf::kerp(x[0]);
+    test_keip_f64: "keip", "d-d", |x| xsf::keip(x[0]);
+    test_kelvin_c64: "kelvin", "d-cd_cd_cd_cd", |x| {
         let [a, b, c, d] = xsf::kelvin(x[0]);
         (a, b, c, d)
-    });
+    };
 }
 
 /// Ported from xsf's `test_kelvin.cpp`

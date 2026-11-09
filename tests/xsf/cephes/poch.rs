@@ -1,6 +1,5 @@
-#[test]
-fn test_pow_rising() {
-    xsref::test("poch", "d_d-d", |x| xsf::pow_rising(x[0], x[1]));
+xsref::tests! {
+    test_pow_rising: "poch", "d_d-d", |x| xsf::pow_rising(x[0], x[1]);
 }
 
 #[test]

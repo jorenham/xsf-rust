@@ -1,13 +1,8 @@
 use num_complex::c64;
 
-#[test]
-fn test_gamma_f64() {
-    xsref::test("gamma", "d-d", |x| xsf::gamma(x[0]));
-}
-
-#[test]
-fn test_gamma_c64() {
-    xsref::test("gamma", "cd-cd", |x| xsf::gamma(c64(x[0], x[1])));
+xsref::tests! {
+    test_gamma_f64: "gamma", "d-d", |x| xsf::gamma(x[0]);
+    test_gamma_c64: "gamma", "cd-cd", |x| xsf::gamma(c64(x[0], x[1]));
 }
 
 #[test]
@@ -20,14 +15,9 @@ fn test_gamma_c64_real_axis() {
     assert_eq!(w.im.to_bits(), 0.0_f64.to_bits());
 }
 
-#[test]
-fn test_gammainc() {
-    xsref::test("gammainc", "d_d-d", |x| xsf::gammainc(x[0], x[1]));
-}
-
-#[test]
-fn test_gammaincc() {
-    xsref::test("gammaincc", "d_d-d", |x| xsf::gammaincc(x[0], x[1]));
+xsref::tests! {
+    test_gammainc: "gammainc", "d_d-d", |x| xsf::gammainc(x[0], x[1]);
+    test_gammaincc: "gammaincc", "d_d-d", |x| xsf::gammaincc(x[0], x[1]);
 }
 
 #[test]
@@ -128,22 +118,9 @@ fn test_gammainc_small_a() {
     }
 }
 
-#[test]
-fn test_gammaincinv() {
-    xsref::test("gammaincinv", "d_d-d", |x| xsf::gammaincinv(x[0], x[1]));
-}
-
-#[test]
-fn test_gammainccinv() {
-    xsref::test("gammainccinv", "d_d-d", |x| xsf::gammainccinv(x[0], x[1]));
-}
-
-#[test]
-fn test_gammaln() {
-    xsref::test("gammaln", "d-d", |x| xsf::gammaln(x[0]));
-}
-
-#[test]
-fn test_gammasgn() {
-    xsref::test("gammasgn", "d-d", |x| xsf::gammasgn(x[0]));
+xsref::tests! {
+    test_gammaincinv: "gammaincinv", "d_d-d", |x| xsf::gammaincinv(x[0], x[1]);
+    test_gammainccinv: "gammainccinv", "d_d-d", |x| xsf::gammainccinv(x[0], x[1]);
+    test_gammaln: "gammaln", "d-d", |x| xsf::gammaln(x[0]);
+    test_gammasgn: "gammasgn", "d-d", |x| xsf::gammasgn(x[0]);
 }

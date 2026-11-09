@@ -1,10 +1,9 @@
 use num_complex::c64;
 use num_traits::ToPrimitive;
 
-#[test]
-fn test_hypu() {
+xsref::tests! {
     // the table is called "hyperu" instead of "hypu"
-    xsref::test("hyperu", "d_d_d-d", |x| xsf::hypu(x[0], x[1], x[2]));
+    test_hypu: "hyperu", "d_d_d-d", |x| xsf::hypu(x[0], x[1], x[2]);
 }
 
 #[test]
@@ -386,18 +385,9 @@ fn test_hypu_int_b() {
     xsref::np_assert_allclose!([actual], [2.229_672_231_677_937e-250], rtol = 1e-12);
 }
 
-#[test]
-fn test_hyp1f1() {
-    xsref::test("hyp1f1", "d_d_cd-cd", |x| {
-        xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]))
-    });
-}
-
-#[test]
-fn test_pmv() {
-    xsref::test("pmv", "d_d_d-d", |x| {
-        xsf::pmv(x[0].to_i32().unwrap(), x[1], x[2])
-    });
+xsref::tests! {
+    test_hyp1f1: "hyp1f1", "d_d_cd-cd", |x| xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]));
+    test_pmv: "pmv", "d_d_d-d", |x| xsf::pmv(x[0].to_i32().unwrap(), x[1], x[2]);
 }
 
 #[test]

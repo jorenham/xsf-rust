@@ -1,8 +1,7 @@
 use num_complex::c64;
 
-#[test]
-fn test_fresnel_f64() {
-    xsref::test("fresnel", "d-d_d", |x| xsf::fresnel(x[0]));
+xsref::tests! {
+    test_fresnel_f64: "fresnel", "d-d_d", |x| xsf::fresnel(x[0]);
 }
 
 #[test]
@@ -14,23 +13,14 @@ fn test_fresnel_f64_huge() {
     }
 }
 
-#[test]
-fn test_fresnel_c64() {
-    xsref::test("fresnel", "cd-cd_cd", |x| xsf::fresnel(c64(x[0], x[1])));
-}
-
-#[test]
-fn test_modified_fresnel_plus_c64() {
-    xsref::test("modified_fresnel_plus", "d-cd_cd", |x| {
+xsref::tests! {
+    test_fresnel_c64: "fresnel", "cd-cd_cd", |x| xsf::fresnel(c64(x[0], x[1]));
+    test_modified_fresnel_plus_c64: "modified_fresnel_plus", "d-cd_cd", |x| {
         xsf::modified_fresnel_plus(x[0])
-    });
-}
-
-#[test]
-fn test_modified_fresnel_minus_c64() {
-    xsref::test("modified_fresnel_minus", "d-cd_cd", |x| {
+    };
+    test_modified_fresnel_minus_c64: "modified_fresnel_minus", "d-cd_cd", |x| {
         xsf::modified_fresnel_minus(x[0])
-    });
+    };
 }
 
 #[test]

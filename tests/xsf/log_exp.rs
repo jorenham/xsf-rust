@@ -1,38 +1,13 @@
 use xsref::np_assert_allclose;
 
-#[test]
-fn test_expit_f32() {
-    xsref::test("expit", "f-f", |x| xsf::expit(x[0] as f32));
-}
-
-#[test]
-fn test_expit_f64() {
-    xsref::test("expit", "d-d", |x| xsf::expit(x[0]));
-}
-
-#[test]
-fn test_logit_f32() {
-    xsref::test("logit", "f-f", |x| xsf::logit(x[0] as f32));
-}
-
-#[test]
-fn test_logit_f64() {
-    xsref::test("logit", "d-d", |x| xsf::logit(x[0]));
-}
-
-#[test]
-fn test_log_expit_f32() {
-    xsref::test("log_expit", "f-f", |x| xsf::log_expit(x[0] as f32));
-}
-
-#[test]
-fn test_log_expit_f64() {
-    xsref::test("log_expit", "d-d", |x| xsf::log_expit(x[0]));
-}
-
-#[test]
-fn test_exprel() {
-    xsref::test("exprel", "d-d", |x| xsf::exprel(x[0]));
+xsref::tests! {
+    test_expit_f32: "expit", "f-f", |x| xsf::expit(x[0] as f32);
+    test_expit_f64: "expit", "d-d", |x| xsf::expit(x[0]);
+    test_logit_f32: "logit", "f-f", |x| xsf::logit(x[0] as f32);
+    test_logit_f64: "logit", "d-d", |x| xsf::logit(x[0]);
+    test_log_expit_f32: "log_expit", "f-f", |x| xsf::log_expit(x[0] as f32);
+    test_log_expit_f64: "log_expit", "d-d", |x| xsf::log_expit(x[0]);
+    test_exprel: "exprel", "d-d", |x| xsf::exprel(x[0]);
 }
 
 #[test]

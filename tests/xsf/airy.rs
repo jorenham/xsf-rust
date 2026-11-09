@@ -4,9 +4,8 @@ fn as_tuple<T: Clone>(x: &[T; 4]) -> (T, T, T, T) {
     (x[0].clone(), x[1].clone(), x[2].clone(), x[3].clone())
 }
 
-#[test]
-fn test_airy_f64() {
-    xsref::test("airy", "d-d_d_d_d", |x| as_tuple(&xsf::airy(x[0])));
+xsref::tests! {
+    test_airy_f64: "airy", "d-d_d_d_d", |x| as_tuple(&xsf::airy(x[0]));
 }
 
 #[test]
@@ -33,30 +32,11 @@ fn test_airy_f64_overflow() {
     assert_eq!(xsf::airy(1e9), [0.0, 0.0, inf, inf]);
 }
 
-#[test]
-fn test_airy_c64() {
-    xsref::test("airy", "cd-cd_cd_cd_cd", |x| {
-        as_tuple(&xsf::airy(c64(x[0], x[1])))
-    });
-}
-
-#[test]
-fn test_airye_f64() {
-    xsref::test("airye", "d-d_d_d_d", |x| as_tuple(&xsf::airy_scaled(x[0])));
-}
-
-#[test]
-fn test_airye_c64() {
-    xsref::test("airye", "cd-cd_cd_cd_cd", |x| {
-        as_tuple(&xsf::airy_scaled(c64(x[0], x[1])))
-    });
-}
-
-#[test]
-fn test_itairy() {
-    xsref::test("itairy", "d-d_d_d_d", |x| {
-        as_tuple(&xsf::airy_integrals(x[0]))
-    });
+xsref::tests! {
+    test_airy_c64: "airy", "cd-cd_cd_cd_cd", |x| as_tuple(&xsf::airy(c64(x[0], x[1])));
+    test_airye_f64: "airye", "d-d_d_d_d", |x| as_tuple(&xsf::airy_scaled(x[0]));
+    test_airye_c64: "airye", "cd-cd_cd_cd_cd", |x| as_tuple(&xsf::airy_scaled(c64(x[0], x[1])));
+    test_itairy: "itairy", "d-d_d_d_d", |x| as_tuple(&xsf::airy_integrals(x[0]));
 }
 
 #[test]

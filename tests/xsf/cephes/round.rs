@@ -1,4 +1,3 @@
-#[test]
-fn test_round() {
-    xsref::test("round", "d-d", |x| xsf::round(x[0]));
+xsref::tests! {
+    test_round: "round", "d-d", |x| xsf::round(x[0]);
 }

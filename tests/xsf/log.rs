@@ -1,42 +1,13 @@
 use num_complex::c64;
 
-#[test]
-fn test_log1p_f64() {
-    xsref::test("log1p", "d-d", |x| xsf::log1p(x[0]));
-}
-
-#[test]
-fn test_log1p_c64() {
-    xsref::test("log1p", "cd-cd", |x| xsf::log1p(c64(x[0], x[1])));
-}
-
-#[test]
-fn test_log1pmx_f64() {
-    xsref::test("log1pmx", "d-d", |x| xsf::log1pmx(x[0]));
-}
-
-#[test]
-fn test_xlogy_f64() {
-    xsref::test("xlogy", "d_d-d", |x| xsf::xlogy(x[0], x[1]));
-}
-
-#[test]
-fn test_xlogy_c64() {
-    xsref::test("xlogy", "cd_cd-cd", |x| {
-        xsf::xlogy(c64(x[0], x[1]), c64(x[2], x[3]))
-    });
-}
-
-#[test]
-fn test_xlog1py_f64() {
-    xsref::test("xlog1py", "d_d-d", |x| xsf::xlog1py(x[0], x[1]));
-}
-
-#[test]
-fn test_xlog1py_c64() {
-    xsref::test("xlog1py", "cd_cd-cd", |x| {
-        xsf::xlog1py(c64(x[0], x[1]), c64(x[2], x[3]))
-    });
+xsref::tests! {
+    test_log1p_f64: "log1p", "d-d", |x| xsf::log1p(x[0]);
+    test_log1p_c64: "log1p", "cd-cd", |x| xsf::log1p(c64(x[0], x[1]));
+    test_log1pmx_f64: "log1pmx", "d-d", |x| xsf::log1pmx(x[0]);
+    test_xlogy_f64: "xlogy", "d_d-d", |x| xsf::xlogy(x[0], x[1]);
+    test_xlogy_c64: "xlogy", "cd_cd-cd", |x| xsf::xlogy(c64(x[0], x[1]), c64(x[2], x[3]));
+    test_xlog1py_f64: "xlog1py", "d_d-d", |x| xsf::xlog1py(x[0], x[1]);
+    test_xlog1py_c64: "xlog1py", "cd_cd-cd", |x| xsf::xlog1py(c64(x[0], x[1]), c64(x[2], x[3]));
 }
 
 #[test]

@@ -1,6 +1,5 @@
-#[test]
-fn test_lgam1p() {
-    xsref::test("lgam1p", "d-d", |x| xsf::lgam1p(x[0]));
+xsref::tests! {
+    test_lgam1p: "lgam1p", "d-d", |x| xsf::lgam1p(x[0]);
 }
 
 #[test]

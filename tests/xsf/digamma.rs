@@ -1,6 +1,5 @@
-#[test]
-fn test_digamma_f64() {
-    xsref::test("digamma", "d-d", |x| xsf::digamma(x[0]));
+xsref::tests! {
+    test_digamma_f64: "digamma", "d-d", |x| xsf::digamma(x[0]);
 }
 
 #[test]

@@ -222,14 +222,9 @@ fn test_stdtri_tiny_p() {
     }
 }
 
-#[test]
-fn test_ndtr_f64() {
-    xsref::test("ndtr", "d-d", |x| xsf::ndtr(x[0]));
-}
-
-#[test]
-fn test_ndtr_c64() {
-    xsref::test("ndtr", "cd-cd", |x| xsf::ndtr(c64(x[0], x[1])));
+xsref::tests! {
+    test_ndtr_f64: "ndtr", "d-d", |x| xsf::ndtr(x[0]);
+    test_ndtr_c64: "ndtr", "cd-cd", |x| xsf::ndtr(c64(x[0], x[1]));
 }
 
 // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
@@ -254,9 +249,8 @@ fn test_log_ndtr() {
     xsref::np_assert_allclose!(&y, &expected, rtol = 1e-14);
 }
 
-#[test]
-fn test_ndtri() {
-    xsref::test("ndtri", "d-d", |x| xsf::ndtri(x[0]));
+xsref::tests! {
+    test_ndtri: "ndtri", "d-d", |x| xsf::ndtri(x[0]);
 }
 
 #[test]
@@ -369,29 +363,12 @@ fn test_nrdtrimn_nrdtrisd() {
     assert!(xsf::nrdtrisd(0.0, 1.0, 1.0).is_nan());
 }
 
-#[test]
-fn test_kolmogorov() {
-    xsref::test("kolmogorov", "d-d", |x| xsf::kolmogorov(x[0]));
-}
-
-#[test]
-fn test_kolmogc() {
-    xsref::test("kolmogc", "d-d", |x| xsf::kolmogc(x[0]));
-}
-
-#[test]
-fn test_kolmogi() {
-    xsref::test("kolmogi", "d-d", |x| xsf::kolmogi(x[0]));
-}
-
-#[test]
-fn test_kolmogci() {
-    xsref::test("kolmogci", "d-d", |x| xsf::kolmogci(x[0]));
-}
-
-#[test]
-fn test_kolmogp() {
-    xsref::test("kolmogp", "d-d", |x| xsf::kolmogp(x[0]));
+xsref::tests! {
+    test_kolmogorov: "kolmogorov", "d-d", |x| xsf::kolmogorov(x[0]);
+    test_kolmogc: "kolmogc", "d-d", |x| xsf::kolmogc(x[0]);
+    test_kolmogi: "kolmogi", "d-d", |x| xsf::kolmogi(x[0]);
+    test_kolmogci: "kolmogci", "d-d", |x| xsf::kolmogci(x[0]);
+    test_kolmogp: "kolmogp", "d-d", |x| xsf::kolmogp(x[0]);
 }
 
 #[test]
@@ -410,24 +387,11 @@ fn test_kolmogp_near_cutover() {
     xsref::np_assert_allclose!(&[sf], &[0.496_190_995_350_505_8], rtol = 1e-15);
 }
 
-#[test]
-fn test_smirnov() {
-    xsref::test("smirnov", "p_d-d", |x| xsf::smirnov(x[0] as i32, x[1]));
-}
-
-#[test]
-fn test_smirnovc() {
-    xsref::test("smirnovc", "p_d-d", |x| xsf::smirnovc(x[0] as i32, x[1]));
-}
-
-#[test]
-fn test_smirnovi() {
-    xsref::test("smirnovi", "p_d-d", |x| xsf::smirnovi(x[0] as i32, x[1]));
-}
-
-#[test]
-fn test_smirnovci() {
-    xsref::test("smirnovci", "p_d-d", |x| xsf::smirnovci(x[0] as i32, x[1]));
+xsref::tests! {
+    test_smirnov: "smirnov", "p_d-d", |x| xsf::smirnov(x[0] as i32, x[1]);
+    test_smirnovc: "smirnovc", "p_d-d", |x| xsf::smirnovc(x[0] as i32, x[1]);
+    test_smirnovi: "smirnovi", "p_d-d", |x| xsf::smirnovi(x[0] as i32, x[1]);
+    test_smirnovci: "smirnovci", "p_d-d", |x| xsf::smirnovci(x[0] as i32, x[1]);
 }
 
 #[test]
@@ -449,9 +413,8 @@ fn test_smirnovp_signed_zero() {
     assert_eq!(p.to_bits(), (-0.0_f64).to_bits(), "{p:?}");
 }
 
-#[test]
-fn test_smirnovp() {
-    xsref::test("smirnovp", "p_d-d", |x| xsf::smirnovp(x[0] as i32, x[1]));
+xsref::tests! {
+    test_smirnovp: "smirnovp", "p_d-d", |x| xsf::smirnovp(x[0] as i32, x[1]);
 }
 
 #[test]
@@ -473,9 +436,8 @@ fn test_tukeylambdacdf_small_p_or_lambda() {
     }
 }
 
-#[test]
-fn test_owens_t() {
-    xsref::test("owens_t", "d_d-d", |x| xsf::owens_t(x[0], x[1]));
+xsref::tests! {
+    test_owens_t: "owens_t", "d_d-d", |x| xsf::owens_t(x[0], x[1]);
 }
 
 #[test]
@@ -491,29 +453,12 @@ fn test_owens_t_large_h_small_a() {
     }
 }
 
-#[test]
-fn test_chdtr() {
-    xsref::test("chdtr", "d_d-d", |x| xsf::chdtr(x[0], x[1]));
-}
-
-#[test]
-fn test_chdtrc() {
-    xsref::test("chdtrc", "d_d-d", |x| xsf::chdtrc(x[0], x[1]));
-}
-
-#[test]
-fn test_chdtri() {
-    xsref::test("chdtri", "d_d-d", |x| xsf::chdtri(x[0], x[1]));
-}
-
-#[test]
-fn test_fdtr() {
-    xsref::test("fdtr", "d_d_d-d", |x| xsf::fdtr(x[0], x[1], x[2]));
-}
-
-#[test]
-fn test_fdtrc() {
-    xsref::test("fdtrc", "d_d_d-d", |x| xsf::fdtrc(x[0], x[1], x[2]));
+xsref::tests! {
+    test_chdtr: "chdtr", "d_d-d", |x| xsf::chdtr(x[0], x[1]);
+    test_chdtrc: "chdtrc", "d_d-d", |x| xsf::chdtrc(x[0], x[1]);
+    test_chdtri: "chdtri", "d_d-d", |x| xsf::chdtri(x[0], x[1]);
+    test_fdtr: "fdtr", "d_d_d-d", |x| xsf::fdtr(x[0], x[1], x[2]);
+    test_fdtrc: "fdtrc", "d_d_d-d", |x| xsf::fdtrc(x[0], x[1], x[2]);
 }
 
 #[test]
@@ -733,9 +678,8 @@ fn test_fdtr_fdtrc_exact_1mw() {
     xsref::np_assert_allclose!(&q, &q_ref, rtol = 1e-15);
 }
 
-#[test]
-fn test_fdtri() {
-    xsref::test("fdtri", "d_d_d-d", |x| xsf::fdtri(x[0], x[1], x[2]));
+xsref::tests! {
+    test_fdtri: "fdtri", "d_d_d-d", |x| xsf::fdtri(x[0], x[1], x[2]);
 }
 
 #[test]
@@ -806,34 +750,13 @@ fn test_fdtri_tiny_dfd_small_p() {
     xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
 }
 
-#[test]
-fn test_gdtr() {
-    xsref::test("gdtr", "d_d_d-d", |x| xsf::gdtr(x[0], x[1], x[2]));
-}
-
-#[test]
-fn test_gdtrc() {
-    xsref::test("gdtrc", "d_d_d-d", |x| xsf::gdtrc(x[0], x[1], x[2]));
-}
-
-#[test]
-fn test_pdtr() {
-    xsref::test("pdtr", "d_d-d", |x| xsf::pdtr(x[0], x[1]));
-}
-
-#[test]
-fn test_pdtrc() {
-    xsref::test("pdtrc", "d_d-d", |x| xsf::pdtrc(x[0], x[1]));
-}
-
-#[test]
-fn test_pdtri() {
-    xsref::test("pdtri", "p_d-d", |x| xsf::pdtri(x[0] as i32, x[1]));
-}
-
-#[test]
-fn test_bdtr() {
-    xsref::test("bdtr", "d_p_d-d", |x| xsf::bdtr(x[0], x[1] as i32, x[2]));
+xsref::tests! {
+    test_gdtr: "gdtr", "d_d_d-d", |x| xsf::gdtr(x[0], x[1], x[2]);
+    test_gdtrc: "gdtrc", "d_d_d-d", |x| xsf::gdtrc(x[0], x[1], x[2]);
+    test_pdtr: "pdtr", "d_d-d", |x| xsf::pdtr(x[0], x[1]);
+    test_pdtrc: "pdtrc", "d_d-d", |x| xsf::pdtrc(x[0], x[1]);
+    test_pdtri: "pdtri", "p_d-d", |x| xsf::pdtri(x[0] as i32, x[1]);
+    test_bdtr: "bdtr", "d_p_d-d", |x| xsf::bdtr(x[0], x[1] as i32, x[2]);
 }
 
 #[test]
@@ -843,14 +766,9 @@ fn test_bdtri_small_y() {
     assert!((p / 0.814_405_035_443_584 - 1.0).abs() < 1e-14, "p = {p}");
 }
 
-#[test]
-fn test_bdtrc() {
-    xsref::test("bdtrc", "d_p_d-d", |x| xsf::bdtrc(x[0], x[1] as i32, x[2]));
-}
-
-#[test]
-fn test_bdtri() {
-    xsref::test("bdtri", "d_p_d-d", |x| xsf::bdtri(x[0], x[1] as i32, x[2]));
+xsref::tests! {
+    test_bdtrc: "bdtrc", "d_p_d-d", |x| xsf::bdtrc(x[0], x[1] as i32, x[2]);
+    test_bdtri: "bdtri", "d_p_d-d", |x| xsf::bdtri(x[0], x[1] as i32, x[2]);
 }
 
 #[test]
@@ -919,18 +837,9 @@ fn test_wilcoxon() {
     assert!(xsf::wilcoxon_sf(f64::NAN, &cdf).is_nan());
 }
 
-#[test]
-fn test_nbdtr() {
-    xsref::test("nbdtr", "p_p_d-d", |x| {
-        xsf::nbdtr(x[0] as i32, x[1] as i32, x[2])
-    });
-}
-
-#[test]
-fn test_nbdtrc() {
-    xsref::test("nbdtrc", "p_p_d-d", |x| {
-        xsf::nbdtrc(x[0] as i32, x[1] as i32, x[2])
-    });
+xsref::tests! {
+    test_nbdtr: "nbdtr", "p_p_d-d", |x| xsf::nbdtr(x[0] as i32, x[1] as i32, x[2]);
+    test_nbdtrc: "nbdtrc", "p_p_d-d", |x| xsf::nbdtrc(x[0] as i32, x[1] as i32, x[2]);
 }
 
 #[test]
