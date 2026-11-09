@@ -590,6 +590,21 @@ fn test_hyp2f1_f64_euler_pow_underflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_euler_both_out_of_range() {
+    // Arb; both factors of the Euler transformation leave the normal range here
+    let actual = [
+        xsf::hyp2f1(14.5, 1e-290, -368.7, -135.0),
+        xsf::hyp2f1(97.0, 1e-240, -16.1, -7.7e5),
+        xsf::hyp2f1(4.1, -6.5e-8, -68.9, -1.25e7),
+        xsf::hyp2f1(-1.5e-9, 932.0, 8.5, -56.8),
+    ];
+    let desired = [1.0, 1.0, 1.000_001_498_528_907_5, 1.000_000_013_194_575_4];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // but not where x / (x - 1) rounds to 1 (Arb: 8.12e10)
+    assert!(xsf::hyp2f1(1e-20, -0.1, -2.5, -1e300).is_nan());
+}
+
+#[test]
 fn test_hyp2f1_f64_nan_if_lost() {
     // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 7.7e149,
     // 2.4e7, -5.6e85 and 7.5e-4 (Arb: 1, 1.016, 1 and 3.77e-17)

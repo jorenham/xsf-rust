@@ -740,6 +740,16 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             let h = s.powf(d / 2.0);
             return h * y * h;
         }
+        // Unlike in xsf (scipy/xsf#471), if `y` isn't normal either (so `p y` is 0, inf or NaN),
+        // for x < 0 first try the series of the Pfaff transformations (as for x < -2 below), and
+        // keep their result if it is normal, e.g. about 1 for a tiny `b` and c < 0. Not if their
+        // argument x / (x - 1) rounds to 1, as their error estimate misses that.
+        if !p.is_normal() && x < 0.0 && x / (x - 1.0) < 1.0 {
+            let (y1, e1) = hys2f1_pfaff(a, b, c, x);
+            if e1 < HYP2F1_ETHRESH && y1.is_normal() {
+                return y1;
+            }
+        }
         return p * y;
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
