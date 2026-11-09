@@ -153,11 +153,14 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                             }
                         }
                         y = incbet(a, b, x);
-                        yp = (x1 - x0) / (x1 + x0);
+                        // Unlike in xsf, the interval width and the error of y are relative to
+                        // the distance to 0 or 1, whichever is closer, since otherwise, near 1 they
+                        // can stop the halving too far from the root for Newton to converge.
+                        yp = (x1 - x0) / (x1 + x0).min(2.0 - x1 - x0);
                         if yp.abs() < dithresh {
                             break 'ihalve Label::Newt;
                         }
-                        yp = (y - y0) / y0;
+                        yp = (y - y0) / y0.min(1.0 - y0);
                         if yp.abs() < dithresh {
                             break 'ihalve Label::Newt;
                         }

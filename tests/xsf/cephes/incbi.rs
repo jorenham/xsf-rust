@@ -14,15 +14,15 @@ fn test_betaincinv_nontrivial() {
         (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
         // scipy/scipy#3761:
         (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
-        // scipy/scipy#4244 (NOTE: this results in a relative error of 1.872e-6)
+        // scipy/scipy#4244 (NOTE: this results in a relative error of 4.0e-12)
         // (
         //     0.0002742794749792665,
         //     289206.03125,
         //     1.639984034231756e-56,
         //     0.9688708782196045,
         // ),
-        // scipy/scipy#12796 (NOTE: this results in a relative error of 1.787e2)
-        // (4.0, 99997.0, 0.0001947841578892121, 0.999995),
+        // scipy/scipy#12796:
+        (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
     ] {
         let x1 = xsf::betaincinv(a, b, p);
         xsref::np_assert_allclose!(&[x1], &[x], rtol = 5e-13);
@@ -75,6 +75,34 @@ fn test_betaincinv_small_y_near_1() {
     ] {
         let x = xsf::betaincinv(a, b, y);
         xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_betaincinv_small_a_y_near_1() {
+    // a <= 1 and y near 1, with the root far below where I_x(a, b) rounds to 1; reference values
+    // from Arb (for a = 1, the root is 1 - (1 - y)^(1/b)), with a condition number of ~1e6
+    for &(a, b, y, ref_) in &[
+        (0.15, 2.7e6, 0.999_999_7, 4.103_212_725_816_707e-6),
+        (0.5, 1e8, 0.999_999_9, 1.418_699_271_051_264e-7),
+        (0.25, 1e10, 0.999_999_9, 1.286_131_058_351_140_3e-9),
+        (1.0, 1e6, 0.999_999_9, 1.611_796_575_567_885_2e-5),
+    ] {
+        let x = xsf::betaincinv(a, b, y);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-10);
+    }
+}
+
+#[test]
+fn test_betaincinv_huge_a_x_near_1() {
+    // huge a, b <= 1 and small y, with the root within ~1e-7 of 1; reference values from Arb
+    for &(a, b, y, ref_) in &[
+        (4e8, 0.4, 1e-12, 0.999_999_937_792_828_8),
+        (4e9, 0.1, 1e-100, 0.999_999_944_216_303_9),
+        (1e10, 0.5, 1e-20, 0.999_999_995_641_913_3),
+    ] {
+        let x = xsf::betaincinv(a, b, y);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-15);
     }
 }
 
