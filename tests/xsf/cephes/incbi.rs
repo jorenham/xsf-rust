@@ -107,6 +107,23 @@ fn test_betaincinv_huge_a_x_near_1() {
 }
 
 #[test]
+fn test_betaincinv_y_max() {
+    // y = 1 - 2^-53, the largest f64 below 1; reference values from Arb. For a root far from 1,
+    // the condition number is ~3e14, i.e. the rounding of I_x(a, b) alone moves it by ~1e-2.
+    let y = 1.0 - f64::EPSILON / 2.0;
+    for &(a, b, ref_, rtol) in &[
+        (0.01, 1e3, 0.028_382_173_017_582_47, 3e-2),
+        (0.001, 1e10, 2.651_928_480_581_199_2e-9, 3e-2),
+        (100.0, 1e5, 0.002_051_315_441_176_488_3, 3e-2),
+        (0.1, 3.0, 0.999_985_766_388_452_3, 1e-15),
+        (1.0, 10.0, 0.974_617_112_613_867_6, 1e-15),
+    ] {
+        let x = xsf::betaincinv(a, b, y);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = rtol);
+    }
+}
+
+#[test]
 fn test_betaincinv_gh21426() {
     // Test for scipy/scipy#21426: betaincinv must not return NaN
     let a = 5.0;

@@ -7,7 +7,7 @@
 //!
 //! Unlike in xsf, some formulas and domain conditions in the comments are corrected.
 
-use crate::utils::SQRT_EPS;
+use crate::utils::{MACHEP, SQRT_EPS};
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
@@ -236,8 +236,9 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     // Unlike in xsf, this branch is only taken if `y = 1 - p` is exact (p >= 1/2) or if p exceeds
     // the mean `b / (a + b)` of w: inverting at the rounded `1 - p` changes p by ~eps / p
     // (relative), and the other branch, which solves for `1 - w`, loses ~eps / w to cancellation
-    // (w >~ its mean if p < 1/2).
-    if (w > y && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
+    // (w >~ its mean if p < 1/2). Nor is it taken at `y = 1 - MACHEP`, where the rounded `1 - p`
+    // changes p by up to a factor 2.
+    if (w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y);
         (b - b * w) / (a * w)
     } else {
