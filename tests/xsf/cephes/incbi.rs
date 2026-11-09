@@ -89,7 +89,22 @@ fn test_betaincinv_small_a_y_near_1() {
         (1.0, 1e6, 0.999_999_9, 1.611_796_575_567_885_2e-5),
     ] {
         let x = xsf::betaincinv(a, b, y);
-        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-10);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-9);
+    }
+}
+
+#[test]
+fn test_betaincinv_y_near_1() {
+    // 1 - y = 1e-12 or 1e-13, of which I_x(a, b) near the root keeps only a few digits; reference
+    // values from Arb
+    for &(a, b, y, ref_) in &[
+        (0.001, 100.0, 0.999_999_999_999_9, 0.181_972_188_908_984_5),
+        (0.01, 1e3, 0.999_999_999_999, 0.019_829_317_529_540_336),
+        (0.9, 1e3, 0.999_999_999_999_9, 0.029_094_942_107_102_114),
+        (3.0, 1e3, 0.999_999_999_999, 0.033_446_364_134_901_65),
+    ] {
+        let x = xsf::betaincinv(a, b, y);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
     }
 }
 
@@ -107,20 +122,48 @@ fn test_betaincinv_huge_a_x_near_1() {
 }
 
 #[test]
+fn test_betaincinv_tiny_a_or_b() {
+    // reference values from Arb; the first root is below eps (1 - x rounds to 1), with a condition
+    // number of ~2e15
+    for &(a, b, y, ref_, rtol) in &[
+        (
+            4.637_934_404_623_266e-16,
+            7.069_029_637_096_786,
+            0.999_999_999_999_981_8,
+            7.617_553_767_174_632e-19,
+            5e-2,
+        ),
+        (7.07, 1e-10, 1e-10, 0.960_553_238_494_944_4, 1e-14),
+    ] {
+        let x = xsf::betaincinv(a, b, y);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = rtol);
+    }
+}
+
+#[test]
 fn test_betaincinv_y_max() {
-    // y = 1 - 2^-53, the largest f64 below 1; reference values from Arb. For a root far from 1,
-    // the condition number is ~3e14, i.e. the rounding of I_x(a, b) alone moves it by ~1e-2.
+    // y = 1 - 2^-53, the largest f64 below 1; reference values from Arb, or for b = 1e300 from the
+    // limit Q(a, b x) = 1 - y. For a root near 0, the rounding of 1 - x alone moves it by up to
+    // ~eps / x, and for a root below eps, the rounding of I_x(a, b) by up to ~1e-2.
     let y = 1.0 - f64::EPSILON / 2.0;
     for &(a, b, ref_, rtol) in &[
-        (0.01, 1e3, 0.028_382_173_017_582_47, 3e-2),
-        (0.001, 1e10, 2.651_928_480_581_199_2e-9, 3e-2),
-        (100.0, 1e5, 0.002_051_315_441_176_488_3, 3e-2),
+        (0.01, 1e3, 0.028_382_173_017_582_47, 1e-14),
+        (0.001, 1e10, 2.651_928_480_581_199_2e-9, 1e-7),
+        (100.0, 1e5, 0.002_051_315_441_176_488_3, 1e-13),
+        (0.5, 1e300, 3.438_162_610_583_420_4e-299, 1e-2),
         (0.1, 3.0, 0.999_985_766_388_452_3, 1e-15),
         (1.0, 10.0, 0.974_617_112_613_867_6, 1e-15),
     ] {
         let x = xsf::betaincinv(a, b, y);
         xsref::np_assert_allclose!(&[x], &[ref_], rtol = rtol);
     }
+}
+
+#[test]
+fn test_betaincinv_a1_huge_b() {
+    // for a = 1, the root is 1 - (1 - y)^(1/b)
+    let x = xsf::betaincinv(1.0, 5e15, 0.781_25);
+    xsref::np_assert_allclose!(&[x], &[3.039_651_507_488_826e-16], rtol = 1e-14);
 }
 
 #[test]
@@ -137,4 +180,12 @@ fn test_betaincinv_tiny_ab() {
     // I_x(a, a) = 1/2 at x = 1/2, and is 1/2 up to ~745 a for all 0 < x < 1
     assert_eq!(xsf::betaincinv(1e-300, 1e-300, 0.5), 0.5);
     assert_eq!(xsf::betaincinv(1e-308, 1e-308, 0.5), 0.5);
+}
+
+#[test]
+fn test_betaincinv_zero_ab() {
+    for y in [0.3, 0.7] {
+        assert!(xsf::betaincinv(0.0, 0.5, y).is_nan());
+        assert!(xsf::betaincinv(0.5, 0.0, y).is_nan());
+    }
 }

@@ -192,6 +192,23 @@ fn test_betainc_tiny_a() {
 }
 
 #[test]
+fn test_betainc_tiny_b_x_near_1() {
+    // reference values from Arb; I_x(a, b) = O(b), up to a relative ~b |ln(1 - x)|
+    for &(a, b, x, p) in &[
+        (
+            7.069_029_637_096_786,
+            4.637_934_404_623_266e-16,
+            0.999_999_999_999_930_9,
+            1.291_354_777_599_956_3e-14,
+        ),
+        (2.0, 1e-12, 0.999_999_999_999_9, 2.893_329_531_165_079_5e-11),
+        (0.5, 1e-20, 0.999_999_999_999, 2.901_733_759_901_274_8e-19),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-10);
+    }
+}
+
+#[test]
 fn test_betainc_subnormal_ab() {
     // B(a, b) overflows; I_x(1, b) = 1 - (1 - x)^b, i.e. -b ln(1 - x) for tiny b
     assert_eq!(xsf::betainc(1e-310, 1.0, 0.5), 1.0);

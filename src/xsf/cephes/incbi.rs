@@ -50,9 +50,6 @@ enum Label {
 /// Outputs smaller than the IEEE gradual underflow threshold
 /// were excluded from these statistics.
 pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
-    let mut a;
-    let mut b;
-    let mut y0;
     let mut d;
     let mut y = 0.0;
     let mut x;
@@ -61,7 +58,6 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     let mut di;
     let mut dithresh;
     let mut xt;
-    let mut rflg;
     let mut dir;
     let mut nflg;
 
@@ -70,6 +66,10 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     }
     if yy0 >= 1.0 {
         return 1.0;
+    }
+    // `incbet` is NaN for `a = 0` or `b = 0`
+    if aa == 0.0 || bb == 0.0 {
+        return f64::NAN;
     }
     // Unlike in xsf, for `a, b < eps / 1000`, where `I_x(a, b)` is nearly flat, the root of its
     // first order `c + a c ln(x / (1 - x))` with `c = b / (a + b)` is used, e.g.
@@ -84,13 +84,22 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     let mut yh = 1.0;
     nflg = false;
 
+    // `I_x(aa, bb) = yy0`, or if `rflg`, `I_(1-x)(bb, aa) = 1 - yy0`
+    let frame = |rflg| {
+        if rflg {
+            (bb, aa, 1.0 - yy0)
+        } else {
+            (aa, bb, yy0)
+        }
+    };
+    // Unlike in xsf, `a <= 1` or `b <= 1` with `y0 > 1/2` also starts with `rflg`, since
+    // `I_x(a, b)` near 1 has lost the low digits of its complement.
+    let mut rflg = yy0 > 0.5;
+    let (mut a, mut b, mut y0) = frame(rflg);
+
     let mut label = 'start: {
         if aa <= 1.0 || bb <= 1.0 {
             dithresh = 1.0e-6;
-            rflg = false;
-            a = aa;
-            b = bb;
-            y0 = yy0;
             x = a / (a + b);
             y = incbet(a, b, x);
             break 'start Label::Ihalve;
@@ -99,20 +108,7 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
 
         /* approximation to inverse function */
 
-        yp = -ndtri(yy0);
-
-        if yy0 > 0.5 {
-            rflg = true;
-            a = bb;
-            b = aa;
-            y0 = 1.0 - yy0;
-            yp = -yp;
-        } else {
-            rflg = false;
-            a = aa;
-            b = bb;
-            y0 = yy0;
-        }
+        yp = if rflg { ndtri(yy0) } else { -ndtri(yy0) };
 
         lgm = (yp * yp - 3.0) / 6.0;
         x = 2.0 / (1.0 / (2.0 * a - 1.0) + 1.0 / (2.0 * b - 1.0));
@@ -180,21 +176,12 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                             di = (y0 - y) / (yh - yl);
                         }
                         dir += 1;
-                        // Unlike in xsf (scipy/xsf#364), the switch to 1 - x (but not back)
-                        // requires y0 >= 1/512, or 1 - x0 < y0 (heuristic: rounding 1 - y0 then
-                        // loses less than staying near x = 1, i.e. MACHEP / (1 - x0)).
-                        if x0 > 0.75 && (rflg || y0 >= 1.0 / 512.0 || 1.0 - x0 < y0) {
-                            if rflg {
-                                rflg = false;
-                                a = aa;
-                                b = bb;
-                                y0 = yy0;
-                            } else {
-                                rflg = true;
-                                a = bb;
-                                b = aa;
-                                y0 = 1.0 - yy0;
-                            }
+                        // Unlike in xsf (scipy/xsf#364), the frame switch requires y0 >= 1/512,
+                        // or 1 - x0 <= y0 (rounding 1 - y0 then loses less than staying near
+                        // x = 1, i.e. MACHEP / (1 - x0)), or x0 = 1 - MACHEP, the largest x tried.
+                        if x0 > 0.75 && (y0 >= 1.0 / 512.0 || 1.0 - x0 <= y0.max(MACHEP)) {
+                            rflg = !rflg;
+                            (a, b, y0) = frame(rflg);
                             x = 1.0 - x;
                             y = incbet(a, b, x);
                             x0 = 0.0;
@@ -297,6 +284,9 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
                 }
                 /* Did not converge.  */
                 dithresh = 256.0 * MACHEP;
+                // Unlike in xsf, the halving starts from `y` at `x`, instead of from a stale `y`
+                // or the bisection fraction that the loop above stores in it.
+                y = incbet(a, b, x);
                 Label::Ihalve
             },
             Label::Done => break,
