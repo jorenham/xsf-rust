@@ -782,6 +782,25 @@ fn test_fdtri_tiny_dfd_p_eps() {
 }
 
 #[test]
+fn test_fdtri_tiny_dfd_small_p() {
+    // reference values from Arb; here the rounding of `1 - p` changes p by far more than the
+    // ~eps / (1 - w) lost in the other branch
+    let x = [
+        xsf::fdtri(30.0, 1e-12, 1e-13),
+        xsf::fdtri(100.0, 1e-14, 1e-15),
+        xsf::fdtri(1e3, 1e-10, 1e-13),
+        xsf::fdtri(1e4, 1e-9, 1e-12),
+    ];
+    let x_ref = [
+        4.415_753_830_305_983e-13,
+        4.639_393_680_922_096e-15,
+        1.097_587_864_249_657_5e-11,
+        1.103_072_688_087_557_6e-10,
+    ];
+    xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
+}
+
+#[test]
 fn test_gdtr() {
     xsref::test("gdtr", "d_d_d-d", |x| xsf::gdtr(x[0], x[1], x[2]));
 }
