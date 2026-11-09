@@ -323,9 +323,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 (lg, sgngam) = lgam_sgn(b);
                 w -= lg;
                 sign *= sgngam;
-                // Unlike in xsf, if a factor leaves the normal range, combine `Gamma(c)` and `s^d`
-                // with the logarithms of the others, as the terms can still be normal (e.g. for a
-                // tiny `b`). Not at a pole of `Gamma(+-d)`, nor if an inner series is inaccurate.
+                // Unlike in xsf (scipy/xsf#473), if a factor leaves the normal range, combine
+                // `Gamma(c)` and `s^d` with the logarithms of the others, as the terms can still be
+                // normal (e.g. for a tiny `b`). Not at a pole of `Gamma(+-d)`, nor if an inner
+                // series is inaccurate.
                 let (mut exp_q, mut s_d, mut exp_r, mut gamma_c) =
                     (w_q.exp(), s.powf(d), w.exp(), gamma(c));
                 let in_range = [exp_q, s_d, exp_r, gamma_c].into_iter().all(f64::is_normal);
