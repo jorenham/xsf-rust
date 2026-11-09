@@ -368,8 +368,8 @@ fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
     ldexp_f64(p, -e)
 }
 
-/// Unlike in xsf (scipy/xsf#365): `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` with `x >= 0`
-/// (cf. DLMF 13.2.39), where `e^x0` is applied gradually for `x0 <= -700`, since it underflows
+/// Unlike in xsf (scipy/xsf#365): `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` (cf. DLMF
+/// 13.2.39), where `e^x0` is applied gradually for `x0 <= -700`, to avoid underflow
 fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
     let s = if x0 > -700.0 { x0.min(0.0) } else { 0.0 };
     hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
@@ -415,12 +415,7 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         (DoubleDouble::new(a), x)
     };
     checked(x, |x0| chgm_series(ak.hi, b, xk, x0))
-        // not for huge |a|, where the initial values are too slow (e.g. a polynomial of degree -a)
-        .or_else(|| {
-            (a.abs() <= 1e5)
-                .then(|| hyp1f1_neg_b(a, b, x, SQRT_EPS, |b| chgm(x, a, b)))
-                .flatten()
-        })
+        .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
         .or_else(|| checked(x, |x0| chgm_series_dd(ak, b, xk, x0)))
 }
 
@@ -474,23 +469,26 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
             if abs_sum < f64::MIN_POSITIVE / f64::EPSILON {
                 return None;
             }
-            // the product if in range, as `exp` amplifies the rounding of a large logarithm
-            let [g, pw, e] = [gamma(b), (t / 2.0).powf(1.0 - b), (x0 / 2.0).exp()];
-            let scale = if scaled {
-                e
-            } else if [g, pw, e, g * pw, g * pw * e].iter().all(|v| v.is_normal()) {
+            let e = (x0 / 2.0).exp();
+            if scaled {
+                return Some(e * sum).filter(|hg| hg.is_finite());
+            }
+            // the product if in range, as `exp` amplifies the rounding of a large logarithm; if
+            // only the prefactor overflows, `sum` first, or else in the exponent
+            let [g, pw] = [gamma(b), (t / 2.0).powf(1.0 - b)];
+            let ln_scale = ln_scale + x0 / 2.0;
+            let scale = if [g, pw, e, g * pw, g * pw * e].iter().all(|v| v.is_normal()) {
                 g * pw * e
             } else {
-                (ln_scale + x0 / 2.0).exp()
+                ln_scale.exp()
             };
-            // if only `scale` overflows, `sum` first, or else in the exponent
             let product = g * sum * pw * e;
-            let hg = if scaled || scale.is_finite() {
+            let hg = if scale.is_finite() {
                 scale * sum
             } else if product.is_finite() {
                 product
             } else {
-                (ln_scale + x0 / 2.0 + sum.abs().ln()).exp().copysign(sum)
+                (ln_scale + sum.abs().ln()).exp().copysign(sum)
             };
             return Some(hg).filter(|hg| hg.is_finite());
         }
@@ -518,17 +516,20 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let mut hg = 0.0;
 
     // Unlike in xsf (scipy/xsf#365), NaN at once, and M(0, b, x) = 1 and M(b, b, x) = e^x
-    // (DLMF 13.6.3, 13.6.1), e.g. `hyp1f1(0.0, 1e9, -1e8)` took 10 s
+    // (DLMF 13.6.3, 13.6.1), without the O(a) recurrence below
     if a.is_nan() || b.is_nan() || x.is_nan() {
         return f64::NAN;
     }
-    if b.is_finite() && (b > 0.0 || b != b.trunc()) && (a == 0.0 || a == b) {
+    let neg_b = b < 0.0 && b != b.trunc();
+    // b is not a pole 0, -1, ...
+    let regular = b > 0.0 || neg_b;
+    if b.is_finite() && regular && (a == 0.0 || a == b) {
         return if a == 0.0 { 1.0 } else { x.exp() };
     }
 
     // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 the series or a recurrence in b is used
     // if accurate (see `chgm_neg_b`).
-    if b < 0.0 && b != b.trunc() && a.is_finite() && x.is_finite() {
+    if neg_b && a.is_finite() && x.is_finite() {
         if let Some(hg) = chgm_neg_b(x, a, b) {
             return hg;
         }
@@ -543,8 +544,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
     // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows). This includes
     // b - a = -n for -700 < x < 0. Not for n > 10^6 (the cost bound of `hyp1f1_neg_a`).
-    let poly = x0 > -700.0 && a >= -MAX_SERIES_ITERATIONS;
-    if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b && poly {
+    let poly = a < 0.0 && a == a.trunc() && a >= -MAX_SERIES_ITERATIONS && b > 0.0 && -a * x > b;
+    if poly && x0 > -700.0 {
         let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
         if p.is_finite() {
             return p;
@@ -562,14 +563,13 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             return hg;
         }
     }
-    // Unlike in xsf, NaN without the O(a) recurrence below, e.g. `hyp1f1(1.13e9, 0.0, 1.0)`
-    // took 11 s
+    // Unlike in xsf, NaN at the pole without the O(a) recurrence below
     if b == 0.0 && a >= 2.0 {
         return f64::NAN;
     }
-    // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles b = 0, -1, ...
-    // and for infinite a or x
-    let check = a1.is_finite() && x0.is_finite() && (b > 0.0 || b != b.trunc());
+    // Unlike in xsf (scipy/xsf#365), NaN if a sum below is wrong, except at the poles of b and for
+    // infinite a or x
+    let check = a1.is_finite() && x0.is_finite() && regular;
     let mut nl = 0;
     let mut la = 0;
     let mut direct = false;
@@ -578,10 +578,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         nl = 1;
         // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
         la = int_x86(a);
-        // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps, nor (if `check`) for the
-        // series below with b < 0, where it can be unstable (see `direct` below), e.g.
-        // `hyp1f1(10.3, -2e5 - 0.3, 1)` was 6.4e25 instead of 0.99995
-        if f64::from(la) > MAX_SERIES_ITERATIONS || check && b < 0.0 && x <= 30.0 + b.abs() {
+        // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps, nor for the series
+        // below with b < 0, where it is unstable (see `direct` below)
+        if f64::from(la) > MAX_SERIES_ITERATIONS || check && neg_b && x <= 30.0 + b.abs() {
             (direct, nl, la) = (true, 0, 0);
         }
         a -= f64::from(la + 1);
@@ -603,12 +602,12 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             accurate = false;
             let mut converged = false;
             // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 the sum goes on after 500 terms
-            // until the rest is negligible, e.g. for `hyp1f1(2.61, -2880000.5, -477.5)`
+            // until the rest is negligible
             let negligible = |rg: f64, hg: f64| rg == 0.0 || (rg / hg).abs() < 1e-15;
             let rest_negligible = |j| rest_is_negligible(a, b, x, f64::from(j));
             let mut terms = 0;
             let mut finite = 0;
-            for j in 1..=(if check && b < 0.0 { MAX_TERMS } else { 500 }) {
+            for j in 1..=(if check && neg_b { MAX_TERMS } else { 500 }) {
                 terms = j;
                 rg = kummer_term(rg, a, b, j) * x;
                 hg += rg;
@@ -637,13 +636,11 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // negligible, or for b < 0 if it loses over half of its digits (as in `chgm_neg_b`).
             // For b < 0 an overflow is wrong if the terms can change sign after it, since then so
             // can the sum.
-            let truncated = !negligible(rg, hg) || terms > 500 && !rest_negligible(terms);
-            let lossy = b < 0.0 && rs * SQRT_EPS > hg.abs();
-            let sign_unknown = b < 0.0 && !(hg.is_infinite() && terms_keep_sign(a, b, finite + 1));
             if check && hg.is_finite() {
-                wrong |= truncated || lossy;
-            } else if check {
-                wrong |= sign_unknown;
+                let truncated = !negligible(rg, hg) || terms > 500 && !rest_negligible(terms);
+                wrong |= truncated || b < 0.0 && rs * SQRT_EPS > hg.abs();
+            } else if check && neg_b {
+                wrong |= !(hg.is_infinite() && terms_keep_sign(a, b, finite + 1));
             }
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms, and after 500 terms (finite if not `wrong`) in two steps
@@ -661,32 +658,31 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                 }
             }
             // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, Tricomi's expansion (see
-            // `chgm_tricomi`) if the series cancels by over 1e3; below that the series is usually
-            // more accurate
-            if cancellation > 1e3 && a < -1.0 && b > 0.0 {
+            // `chgm_tricomi`) is tried first if the series cancels by over 1e3; below that the
+            // series is usually more accurate
+            let neg_a = a < -1.0 && b > 0.0;
+            if neg_a && cancellation > 1e3 {
                 if let Some(hg) = chgm_tricomi(a, b, x, x0) {
                     return hg;
                 }
             }
-            // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, if the series doesn't converge or
-            // is estimated to lose more than half of its digits (as in Boost's checked series), the
-            // backward recurrences from Boost.Math (`hyp1f1_recurrence`) are used for non-integer a,
-            // or else (e.g. if they take over 10^6 steps) the result is NaN.
-            let lossy = !accurate && a < -1.0 && b > 0.0 && x > 0.0;
+            // Unlike in xsf (scipy/xsf#365), then if the series doesn't converge or is estimated to
+            // lose more than half of its digits (as in Boost's checked series), the backward
+            // recurrences from Boost.Math (`hyp1f1_recurrence`) for non-integer a, or else NaN
+            let lossy = neg_a && !accurate && x > 0.0;
             if lossy && a != a.trunc() {
                 // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
-                let m =
-                    |a, b| hyp1f1_series(a, b, c64(x, 0.0), Complex64::ONE, 0.0).map(|(s, _)| s.re);
+                let m = |a, b| chgm_series(a, b, x, 0.0).map(|(s, _)| s);
                 if let Some(hg) = hyp1f1_neg_a(a, b, x, x0.min(0.0), m) {
                     return hg;
                 }
             }
             wrong |= check && lossy;
-            // Unlike in xsf (scipy/xsf#365), if the series cancels by over 1e5, DLMF 13.3.2 is used
-            // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error.
+            // Unlike in xsf (scipy/xsf#365), next, if the series cancels by over 1e5, DLMF 13.3.2
+            // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error
             let n = (-a * x / 2.0 - b).ceil();
             let cancels = cancellation > 1e5 && (1.0..=5e3).contains(&n);
-            if accurate && cancels && a < -1.0 && a != a.trunc() && b > 0.0 && x > 0.0 {
+            if neg_a && accurate && cancels && a != a.trunc() && x > 0.0 {
                 let m = |b| chgm_series(a, b, x, x0).map_or(f64::NAN, |(hg, _)| hg);
                 let rec = hyp1f1_b_recurrence(a, b, x, n as i32, m);
                 if let Some((r, _)) = rec.filter(|&(r, err)| (r - hg).abs() > 2.0 * err * r.abs()) {
@@ -730,14 +726,11 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         }
     }
     // Unlike in xsf (scipy/xsf#365), if `direct`, the series above (at a itself) if accurate, else
-    // for x < 0 the one without DLMF 13.2.39, e.g. `hyp1f1(0.5, 1e9, -1e8)` was 0 after 10 s
+    // for x < 0 the one without DLMF 13.2.39
     if direct && !accurate {
-        let hg = (x0 < 0.0).then(|| hyp1f1_series(a1, b, c64(x0, 0.0), Complex64::ONE, 0.0));
-        if let Some((hg, _)) = hg
-            .flatten()
-            .filter(|&(h, e)| h.is_finite() && e <= SQRT_EPS * h.norm())
-        {
-            return hg.re;
+        let hg = (x0 < 0.0).then(|| chgm_series(a1, b, x0, 0.0)).flatten();
+        if let Some((hg, _)) = hg.filter(|&(h, e)| h.is_finite() && e <= SQRT_EPS * h.abs()) {
+            return hg;
         }
         // DLMF 13.4.1: 0 < M(a, b, x) <= I_s(a, b - a) + e^(s x) for x < 0 < a < b, s in [0, 1]
         let s = a1 / (2.0 * b);
@@ -782,8 +775,6 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf, chgus and chgul need 12 digits (instead of 9) to be accepted. With 9 to 11
     // digits, the result of the other method is only used if it agrees with theirs within 10 times
     // their error estimate (it can be far off, e.g. for small x). Both thresholds are empirical.
-    //
-    // E.g. U(0.8, 0.95, 15) was 0.1098838166 instead of 0.1098838676.
     const ID_MIN: i32 = 12;
 
     let mut id1: i32 = 0;
@@ -858,8 +849,6 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         // Unlike in xsf (scipy/xsf#380), if this or the sum in chgul over- or underflows, x^(1-b)
         // is moved into the integral, for -1e5 <= b <= 0 (where its integrand is bounded at 0; in
         // log space it loses about |b| ln|b| eps)
-        //
-        // e.g. U(0.5, -100, 0.01) = 0.0996 was NaN, and U(-107, -173, 0.006) = 6.8e220 was inf
         if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
@@ -954,7 +943,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
         a1 = a - f64::from(n);
         a2 = a1;
         // Unlike in xsf (scipy/xsf#380), Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because
-        // `a1` rounds, e.g. U(-2 + 1e-15, 4, 0.157) was 20.2 instead of 18.5
+        // `a1` rounds
         ga1 = if xsf {
             gamma2(a1)
         } else {
@@ -1064,11 +1053,8 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     // Unlike in xsf (scipy/xsf#380), the digits are estimated from the rounding errors (of the
     // largest partial sums) and the truncation errors (the last terms) of the series. xsf uses the
     // ratio of the largest and smallest partial sums, which is large if a sum grows, and it misses
-    // the cancellation in `hm1 + hm2`.
-    //
-    // E.g. U(13.5, 25, 0.005) = 2.54e68 had -69 digits (so NaN), and U(30, -10, 2) had 7 digits,
-    // of which only 4 are correct. If `hu` overflows (inf / inf) or underflows to 0 (0 / 0, e.g.
-    // U(1e6, 2, 0.1)), `min` turns the NaN into 15 digits.
+    // the cancellation in `hm1 + hm2`. If `hu` overflows (inf / inf) or underflows to 0 (0 / 0),
+    // `min` turns the NaN into 15 digits.
     let lnx = x.ln().abs();
     let round = 1e-15 * (ua.abs() * (hmax1 * lnx + hmax) + sb.abs());
     let trunc = ua.abs() * (t1.abs() * lnx + t2.abs());
@@ -1172,9 +1158,6 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 
     };
     // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
-    //
-    // E.g. `U(1.1, 0.5, 15)` was 0.04576321 instead of 0.04576317, and `U(3.5, 0, 0.002)` was
-    // 0.0831444376 instead of 0.0831444002.
     let cubic = a < 4.0 && a != a.trunc();
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
@@ -1301,8 +1284,6 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             let prev = r;
             // Unlike in xsf (scipy/xsf#459), a + (k - 1) instead of a + k - 1, which loses the
             // digits of a tiny a at k = 1 (all if |a| <= eps / 4)
-            //
-            // e.g. U(1e-20, 10, 0.01) = 408.8 instead of 1
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
@@ -1320,8 +1301,6 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // Unlike in xsf (scipy/xsf#380), if the sum cancels or overflows, U(-n, c, x) with
         // c + x >= 0 is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and
         // otherwise the id reflects the cancellation, so that other methods are tried
-        //
-        // e.g. U(-60, 30, 10) = -6.398e95 instead of -6.902e95
         let cancels = rmax > 1e6 * hu.abs();
         // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
         let kummer = !il1 || (il2 && b < 1.0);
@@ -1406,7 +1385,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         r1 = 0.0;
     }
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
-    // (and hu back by exp(lr2 / 2) twice), e.g. U(-14.2, 95.7, 0.0028) = -inf instead of NaN
+    // (and hu back by exp(lr2 / 2) twice)
     let c = hu0 / (ga * gb2);
     let mut lr2 = 0.0;
     if r2.is_infinite() && r1.is_finite() && c.is_finite() {
@@ -1460,8 +1439,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
-    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel,
-    // e.g. U(-7.5, -6.999996, 15) = 9.0273143e8 instead of 9.0260273e8
+    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel
     let k = |z: f64| {
         if z < 0.0 && z.fract() != 0.0 {
             f64::EPSILON * (z / cephes_sinpi(z)).abs()

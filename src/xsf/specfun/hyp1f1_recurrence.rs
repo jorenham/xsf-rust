@@ -18,6 +18,8 @@
 //! Boost Software License, Version 1.0. (See accompanying file
 //! LICENSE_1_0.txt or copy at <https://www.boost.org/LICENSE_1_0.txt>)
 
+use crate::utils::SQRT_EPS;
+
 /// `policies::get_max_series_iterations<Policy>()` (the Boost default, also used by SciPy)
 pub(super) const MAX_SERIES_ITERATIONS: f64 = 1e6;
 
@@ -420,30 +422,28 @@ pub(super) fn hyp1f1_b_recurrence(
     Some((apply_log_scaling(w, log_scaling), err))
 }
 
-/// Unlike in xsf (scipy/xsf#365): `hyp1f1_b_recurrence` for non-integer `b < 0` from `b + n > 0`,
-/// first trying a start where the series of `M(a, b + n, z)` hardly cancels if `a z < 0`.
-pub(super) fn hyp1f1_neg_b(
-    a: f64,
-    b: f64,
-    z: f64,
-    max_err: f64,
-    m: impl Fn(f64) -> f64,
-) -> Option<f64> {
+/// Unlike in xsf (scipy/xsf#365): `hyp1f1_b_recurrence` for non-integer `b < 0` from `b + n > 0`
+/// if its relative error is at most `sqrt(eps)`, first trying a farther start (with an error of at
+/// most 1e-12) where the series of `M(a, b + n, z)` hardly cancels if `a z < 0`.
+///
+/// `None` for `|a| > 1e5` or `b < -1e5`, where the initial values or the recurrence are too slow
+/// (e.g. `m` sums a polynomial of degree `-a`).
+pub(super) fn hyp1f1_neg_b(a: f64, b: f64, z: f64, m: impl Fn(f64) -> f64) -> Option<f64> {
     let from = |n: f64, max_err| {
         hyp1f1_b_recurrence(a, b, z, n as i32, &m)
             .filter(|&(_, err)| err <= max_err)
             .map(|(hg, _)| hg)
     };
     let n = -b.floor();
-    let b_far = if z > 0.0 { -a * z } else { a * -z / (1.0 - z) };
-    let n_far = (b_far - b).ceil();
-    if n > 1e5 {
+    if a.abs() > 1e5 || n > 1e5 {
         return None;
     }
+    let b_far = if z > 0.0 { -a * z } else { a * -z / (1.0 - z) };
+    let n_far = (b_far - b).ceil();
     if a * z < 0.0 && n_far > n && n_far <= n + 1e3 {
         if let Some(hg) = from(n_far, 1e-12) {
             return Some(hg);
         }
     }
-    from(n, max_err)
+    from(n, SQRT_EPS)
 }
