@@ -41,23 +41,23 @@ impl ErfArg for f64 {
 impl ErfArg for Complex64 {
     #[inline]
     fn erf(self) -> Self {
-        crate::xsf::faddeeva::erf_c64(self, 0.0)
+        crate::xsf::faddeeva::erf_c64(self)
     }
     #[inline]
     fn erfc(self) -> Self {
-        crate::xsf::faddeeva::erfc_c64(self, 0.0)
+        crate::xsf::faddeeva::erfc_c64(self)
     }
     #[inline]
     fn erfcx(self) -> Self {
-        crate::xsf::faddeeva::erfcx_c64(self, 0.0)
+        crate::xsf::faddeeva::erfcx_c64(self)
     }
     #[inline]
     fn erfi(self) -> Self {
-        crate::xsf::faddeeva::erfi_c64(self, 0.0)
+        crate::xsf::faddeeva::erfi_c64(self)
     }
     #[inline]
     fn dawsn(self) -> Self {
-        crate::xsf::faddeeva::dawson_c64(self, 0.0)
+        crate::xsf::faddeeva::dawson_c64(self)
     }
 }
 
@@ -180,7 +180,7 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn wofz(z: Complex64) -> Complex64 {
-    crate::xsf::faddeeva::w(z, 0.0)
+    crate::xsf::faddeeva::w(z)
 }
 
 /// Voigt profile
@@ -218,6 +218,6 @@ pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
     let zreal = x / sigma * INV_SQRT_2;
     let zimag = gamma / sigma * INV_SQRT_2;
     let z = c64(zreal, zimag);
-    let w = crate::xsf::faddeeva::w(z, 0.0);
+    let w = crate::xsf::faddeeva::w(z);
     w.re / sigma / SQRT_TAU
 }
