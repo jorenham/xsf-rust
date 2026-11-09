@@ -40,6 +40,12 @@ fn near_neg_int(t: f64) -> bool {
     t <= 0.0 && (t - t.round()).abs() < HYP2F1_EPS
 }
 
+/// Whether `t <= 0` is the integer `n`, up to `HYP2F1_EPS`, and if `exact`, also as in `near`, so
+/// that a tiny `t` isn't 0
+fn neg_int(t: f64, n: f64, exact: bool) -> bool {
+    t <= 0.0 && (t - n).abs() < HYP2F1_EPS && (!exact || near(t, n))
+}
+
 /// Whether `t < 0` is not an integer, up to `HYP2F1_EPS`
 fn neg_non_int(t: f64) -> bool {
     t < 0.0 && (t - t.round()).abs() > HYP2F1_EPS
@@ -240,7 +246,7 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
 
 /// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, also returns
 /// an error estimate that includes the recurrences in `a`.
-fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
+fn hyt2f1(a: f64, b: f64, c: f64, x: f64, exact: bool) -> (f64, f64, f64) {
     let (mut p, mut q, mut r, mut t, mut w, d);
     let (d1, d2, e, mut y1);
     let mut sign;
@@ -251,12 +257,12 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let ia = a.round() as i32;
     let ib = b.round() as i32;
 
-    if a <= 0.0 && (a - f64::from(ia)).abs() < HYP2F1_EPS {
+    if neg_int(a, f64::from(ia), exact) {
         /* a is a negative integer */
         neg_int_a = true;
     }
 
-    if b <= 0.0 && (b - f64::from(ib)).abs() < HYP2F1_EPS {
+    if neg_int(b, f64::from(ib), exact) {
         /* b is a negative integer */
         neg_int_b = true;
     }
@@ -266,12 +272,22 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let y = 'done: {
         if x < -0.5 && !(neg_int_a || neg_int_b) {
             let y;
-            if b > a {
-                (y, err, err_full) = hys2f1_err(a, c - b, c, -x / s);
-                break 'done s.powf(-a) * y;
+            // Unlike in xsf (scipy/xsf#470), not the form that loses `b` in `c - b` (or `a` in
+            // `c - a`) if the other one doesn't.
+            let (lost_a, lost_b) = (c - a == c, c - b == c);
+            let keep_a = if lost_a == lost_b { b > a } else { lost_a };
+            let p;
+            ((y, err, err_full), p) = if keep_a {
+                (hys2f1_err(a, c - b, c, -x / s), a)
+            } else {
+                (hys2f1_err(c - a, b, c, -x / s), b)
+            };
+            // If `exact`, NaN (see `hyp2f1`) if this is inaccurate, as the power series of the
+            // paths for polynomials can be accurate for a tiny `a` or `b`
+            if exact && err_full >= HYP2F1_ETHRESH {
+                break 'done f64::NAN;
             }
-            (y, err, err_full) = hys2f1_err(c - a, b, c, -x / s);
-            break 'done s.powf(-b) * y;
+            break 'done s.powf(-p) * y;
         }
 
         d = c - a - b;
@@ -649,6 +665,22 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
+    // Unlike in xsf (scipy/xsf#470), for x < 0 a tiny negative `a` or `b` isn't the integer 0, as
+    // the paths for polynomials lose it: their power series stops after its tiny first term, or
+    // diverges for x < -1. But if the result then isn't finite (e.g. if other paths overflow for
+    // large parameters), use them after all, as 2F1 = 1 + O(t) for a tiny `t`.
+    let tiny = |t: f64| t != 0.0 && neg_int(t, 0.0, false);
+    if x < 0.0 && (tiny(a) || tiny(b)) {
+        let y = hyp2f1_exact(a, b, c, x, true);
+        if y.is_finite() {
+            return y;
+        }
+    }
+    hyp2f1_exact(a, b, c, x, false)
+}
+
+/// `hyp2f1`, where if `exact`, a tiny `a` or `b` isn't the integer 0 (see `neg_int`)
+fn hyp2f1_exact(a: f64, b: f64, c: f64, x: f64, exact: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_a = false;
     let mut neg_int_b = false;
@@ -685,12 +717,12 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         return result;
     }
 
-    if a <= 0.0 && (a - ia).abs() < HYP2F1_EPS {
+    if neg_int(a, ia, exact) {
         /* a is a negative integer */
         neg_int_a = true;
     }
 
-    if b <= 0.0 && (b - ib).abs() < HYP2F1_EPS {
+    if neg_int(b, ib, exact) {
         /* b is a negative integer */
         neg_int_b = true;
     }
@@ -701,6 +733,11 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
     // the other paths can be less accurate (in the recurrence in `a`).
     let lost = c > 0.0 && (c - a == c || c - b == c);
     if d <= -1.0 && !((d - id).abs() > HYP2F1_EPS && s < 0.0) && !(neg_int_a || neg_int_b || lost) {
+        // If `exact`, NaN (so that `hyp2f1` falls back to the paths for polynomials) where this
+        // loses a tiny `a` or `b` in `c - a` or `c - b` (only for c < 0, see `lost`)
+        if exact && (c - a == c || c - b == c) {
+            return f64::NAN;
+        }
         let c_pole = neg_non_int(c);
         // Unlike in xsf (scipy/xsf#464), if c < 0 is not an integer and -1 < x < 0, first try the
         // series of the Pfaff transformations (as for x < -2 below).
@@ -727,7 +764,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             let (y, err) = hys2f1_min(a, b, c, x);
             let special = [c - (c - a), c - (c - b)].into_iter().any(near_neg_int);
             let euler_worse =
-                || c > 0.0 && err < 1.0 && !special && err < hyt2f1(c - a, c - b, c, x).1;
+                || c > 0.0 && err < 1.0 && !special && err < hyt2f1(c - a, c - b, c, x, exact).1;
             if err < HYP2F1_ETHRESH || euler_worse() {
                 return y;
             }
@@ -887,7 +924,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             if d < 0.0 {
                 /* Try the power series first */
                 let err;
-                (y, err, _) = hyt2f1(a, b, c, x);
+                (y, err, _) = hyt2f1(a, b, c, x, exact);
                 if err < HYP2F1_ETHRESH {
                     return y; // goto hypdon
                 }
@@ -904,7 +941,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
                 // (see above), as the recurrence can then amplify the rounding of its starting
                 // values.
                 if e.abs() * MACHEP >= 1.0 || lost {
-                    let (z, err, _) = hyt2f1(c - a, c - b, c, x);
+                    let (z, err, _) = hyt2f1(c - a, c - b, c, x, exact);
                     if x < 0.5 {
                         let (y, pfaff_err) = hys2f1_pfaff(a, b, c, x);
                         if pfaff_err < err {
@@ -932,7 +969,7 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
             }
         }
         // hypok:
-        let (y, err, err_full) = hyt2f1(a, b, c, x);
+        let (y, err, err_full) = hyt2f1(a, b, c, x, exact);
 
         // hypdon:
         // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if its error estimates say

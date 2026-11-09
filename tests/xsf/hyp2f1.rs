@@ -348,6 +348,43 @@ fn test_hyp2f1_f64_euler_tiny_a() {
 }
 
 #[test]
+fn test_hyp2f1_f64_tiny_negative_a_or_b() {
+    // unlike in xsf, where a tiny negative `a` or `b` counts as the integer 0 (inf, 1, 1, 1), and
+    // `c - b` loses `b` (NaN) (Arb)
+    let actual = [
+        xsf::hyp2f1(26.5, -3e-21, 0.001, -2e4),
+        xsf::hyp2f1(-120.5, -2.5e-28, -9.94, -0.5005),
+        xsf::hyp2f1(-1e-20, -50.5, 3.5, -1.5),
+        xsf::hyp2f1(-1e-20, -30.5, 2.5, -100.0),
+        xsf::hyp2f1(-120.5, 2.5e-28, -9.94, -0.5005),
+    ];
+    let desired = [
+        1.0,
+        -10_864.775_782_791_036,
+        0.999_973_883_705_280_6,
+        -3.386_320_822_599_271e37,
+        10_866.775_782_791_036,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // 1 + 1.9e-131, where the Euler transformation loses `a` in `c - a`
+    let actual = xsf::hyp2f1(
+        -7.198_130_764_455_374_4e-130,
+        -4.5,
+        -173.5,
+        -1.012_857_569_095_475_8,
+    );
+    assert_eq!(actual, 1.0);
+    // where the Pfaff transformation is inaccurate, but the power series isn't (Arb)
+    let actual = xsf::hyp2f1(
+        -975.629_519_544_957_9,
+        -7.518_933_616_094_864e-14,
+        -0.5,
+        -0.680_347_737_448_921_3,
+    );
+    np_assert_allclose!([actual], [4.262_400_903_247_43e208], rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
     // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
     let actual = [
