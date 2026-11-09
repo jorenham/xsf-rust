@@ -185,8 +185,9 @@ fn sph_bessel_recur(n: i64, x: f64, mut s0: f64, mut s1: f64) -> f64 {
         return s0;
     }
 
-    // Unlike in xsf, also stop if f_1 is infinite: if f_0 is infinite too (y_n for
-    // x < 1 / f64::MAX), f_2 = inf - inf would be NaN, and the recurrence would run all n steps.
+    // Unlike in xsf (scipy/xsf#487), also stop if f_1 is infinite: if f_0 is infinite too
+    // (y_n for x < 1 / f64::MAX), f_2 = inf - inf would be NaN, and the recurrence would run all
+    // n steps.
     if n == 1 || s1.is_infinite() {
         return s1;
     }
