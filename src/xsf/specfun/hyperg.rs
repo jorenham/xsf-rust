@@ -14,7 +14,7 @@ use super::hyp1f1_recurrence::{
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
-use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
@@ -347,14 +347,24 @@ fn hyp1f1_sum<T: Term>(
 /// Unlike in xsf (scipy/xsf#365): the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the
 /// recurrence of `xsf::detail::eval_genlaguerre_l`, since
 /// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
+///
+/// The recurrence is linear in `(d, p)`, so they are scaled up by `2^512` (exactly) whenever both
+/// are below `2^-512`, far from the subnormals, where the arithmetic is inexact and slow.
 fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
+    const LOG2_SCALE: i32 = 512;
+    const SCALE: f64 = f64::from_bits((1023 + LOG2_SCALE as u64) << 52);
     let (mut d, mut p) = (0.0, 1.0);
+    // `M = p 2^-e`
+    let mut e = 0_i32;
     for k in 0..n {
         let k = f64::from(k);
         d = (d * k - p * x) / (k + b);
         p += d;
+        if d.abs().max(p.abs()) * SCALE < 1.0 {
+            (d, p, e) = (d * SCALE, p * SCALE, e.saturating_add(LOG2_SCALE));
+        }
     }
-    p
+    ldexp_f64(p, -e)
 }
 
 /// Unlike in xsf (scipy/xsf#365): `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` with `x >= 0`
@@ -455,8 +465,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#365), for a = -n (n a positive integer), b > 0 and n x > b, the
     // polynomial M(-n, b, x) is evaluated with `chgm_poly` (unless that overflows). This includes
-    // b - a = -n >= -10^6 (the cost bound of `hyp1f1_neg_a`) for -700 < x < 0.
-    let poly = x0 >= 0.0 || (x0 > -700.0 && a >= -MAX_SERIES_ITERATIONS);
+    // b - a = -n for -700 < x < 0. Not for n > 10^6 (the cost bound of `hyp1f1_neg_a`).
+    let poly = x0 > -700.0 && a >= -MAX_SERIES_ITERATIONS;
     if a < 0.0 && a == a.trunc() && a > f64::from(i32::MIN) && b > 0.0 && -a * x > b && poly {
         let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
         if p.is_finite() {

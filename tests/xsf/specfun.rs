@@ -638,6 +638,21 @@ fn test_hyp1f1_huge_neg_a() {
 }
 
 #[test]
+fn test_hyp1f1_poly_underflow() {
+    // Arb, rounded to the nearest subnormal
+    let abx = [(-1e5, 300.0, 15.0), (-1e5, 300.0, 17.0)];
+    let expected = [5.488_687_915_453e-311, 8.469_77e-319];
+    assert_eq!(abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x)), expected);
+    // Arb: -1.3e-415 and -4.8e-459, which round to -0
+    let abx = [(-1e5, 300.0, 100.0), (100_300.0, 300.0, -100.0)];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x).to_bits());
+    assert_eq!(actual, [(-0.0_f64).to_bits(); 2]);
+    // NaN past the cost bound of 10^6 steps, for both signs of `x`
+    assert!(xsf::hyp1f1(-1e7, 300.0, 1.0).is_nan());
+    assert!(xsf::hyp1f1(10_000_300.0, 300.0, -1.0).is_nan());
+}
+
+#[test]
 fn test_hyp1f1_large_x() {
     // mpmath; in xsf these are -1.0e286, -1.6e194, 1788, NaN, 6.4e214, -2.56741098e157,
     // -1.2e252, accurate, accurate, and 1 (stopping at the negligible first term)
