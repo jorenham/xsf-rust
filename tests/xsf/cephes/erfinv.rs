@@ -18,9 +18,8 @@ fn test_erfinv_literal_values() {
     xsref::np_assert_allclose!(&actual, &expected, atol = 1e-15);
 }
 
-#[test]
-fn test_erfcinv() {
-    xsref::test("erfcinv", "d-d", |x| xsf::erfcinv(x[0]));
+xsref::tests! {
+    test_erfcinv: "erfcinv", "d-d", |x| xsf::erfcinv(x[0]);
 }
 
 /// Based on the "cephes::erfcinv subnormal arguments" test in xsf

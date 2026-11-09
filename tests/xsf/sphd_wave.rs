@@ -1,86 +1,43 @@
-#[test]
-fn test_prolate_segv() {
-    xsref::test("prolate_segv", "d_d_d-d", |x| {
+xsref::tests! {
+    test_prolate_segv: "prolate_segv", "d_d_d-d", |x| {
         xsf::prolate_segv(x[0] as u64, x[1] as u64, x[2])
-    });
-}
+    };
 
-// https://github.com/scipy/xsref/issues/9
-// #[test]
-// fn test_oblate_segv() {
-//     testing::test("oblate_segv", "d_d_d-d", |x| {
-//         xsf::oblate_segv(x[0] as u64, x[1] as u64, x[2])
-//     });
-// }
+    // https://github.com/scipy/xsref/issues/9
+    // test_oblate_segv: "oblate_segv", "d_d_d-d", |x| {
+    //     xsf::oblate_segv(x[0] as u64, x[1] as u64, x[2])
+    // };
 
-#[test]
-fn test_prolate_aswfa_nocv() {
-    xsref::test("prolate_aswfa_nocv", "d_d_d_d-d_d", |x| {
+    test_prolate_aswfa_nocv: "prolate_aswfa_nocv", "d_d_d_d-d_d", |x| {
         xsf::prolate_aswfa_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-    });
-}
-
-#[test]
-fn test_oblate_aswfa_nocv() {
-    xsref::test("oblate_aswfa_nocv", "d_d_d_d-d_d", |x| {
+    };
+    test_oblate_aswfa_nocv: "oblate_aswfa_nocv", "d_d_d_d-d_d", |x| {
         xsf::oblate_aswfa_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-    });
-}
-
-#[test]
-fn test_prolate_radial1_nocv() {
-    xsref::test("prolate_radial1_nocv", "d_d_d_d-d_d", |x| {
+    };
+    test_prolate_radial1_nocv: "prolate_radial1_nocv", "d_d_d_d-d_d", |x| {
         xsf::prolate_radial1_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-    });
-}
-
-#[test]
-fn test_oblate_radial1_nocv() {
-    xsref::test("oblate_radial1_nocv", "d_d_d_d-d_d", |x| {
+    };
+    test_oblate_radial1_nocv: "oblate_radial1_nocv", "d_d_d_d-d_d", |x| {
         xsf::oblate_radial1_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-    });
-}
-
-#[test]
-fn test_prolate_radial2_nocv() {
-    xsref::test("prolate_radial2_nocv", "d_d_d_d-d_d", |x| {
+    };
+    test_prolate_radial2_nocv: "prolate_radial2_nocv", "d_d_d_d-d_d", |x| {
         xsf::prolate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
-    });
-}
-
-#[test]
-fn test_prolate_aswfa() {
-    xsref::test("prolate_aswfa", "d_d_d_d_d-d_d", |x| {
+    };
+    test_prolate_aswfa: "prolate_aswfa", "d_d_d_d_d-d_d", |x| {
         xsf::prolate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-    });
-}
-
-#[test]
-fn test_oblate_aswfa() {
-    xsref::test("oblate_aswfa", "d_d_d_d_d-d_d", |x| {
+    };
+    test_oblate_aswfa: "oblate_aswfa", "d_d_d_d_d-d_d", |x| {
         xsf::oblate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-    });
-}
-
-#[test]
-fn test_prolate_radial1() {
-    xsref::test("prolate_radial1", "d_d_d_d_d-d_d", |x| {
+    };
+    test_prolate_radial1: "prolate_radial1", "d_d_d_d_d-d_d", |x| {
         xsf::prolate_radial1(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-    });
-}
-
-#[test]
-fn test_oblate_radial1() {
-    xsref::test("oblate_radial1", "d_d_d_d_d-d_d", |x| {
+    };
+    test_oblate_radial1: "oblate_radial1", "d_d_d_d_d-d_d", |x| {
         xsf::oblate_radial1(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-    });
-}
-
-#[test]
-fn test_prolate_radial2() {
-    xsref::test("prolate_radial2", "d_d_d_d_d-d_d", |x| {
+    };
+    test_prolate_radial2: "prolate_radial2", "d_d_d_d_d-d_d", |x| {
         xsf::prolate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
-    });
+    };
 }
 
 #[test]

@@ -1,28 +1,23 @@
 use num_traits::ToPrimitive;
 
-// The xsref tables also contain negative `n`, which in scipy returns NaN.
-
-#[test]
-fn test_expn_u32() {
-    xsref::test("expn", "p_d-d", |x| {
+xsref::tests! {
+    // The xsref tables also contain negative `n`, which in scipy returns NaN.
+    test_expn_u32: "expn", "p_d-d", |x| {
         if x[0] < 0.0 {
             f64::NAN
         } else {
             xsf::expn(x[0].to_u32().unwrap(), x[1])
         }
-    });
-}
+    };
 
-#[test]
-fn test_expn_f64() {
     // not sure why this table exists; but we might as well use it 🤷🏻
-    xsref::test("expn", "d_d-d", |x| {
+    test_expn_f64: "expn", "d_d-d", |x| {
         if x[0] < 0.0 {
             f64::NAN
         } else {
             xsf::expn(x[0].to_u32().unwrap(), x[1])
         }
-    });
+    };
 }
 #[test]
 fn test_expn_large_n() {

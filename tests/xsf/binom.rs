@@ -1,6 +1,5 @@
-#[test]
-fn test_binom_f64() {
-    xsref::test("binom", "d_d-d", |x| xsf::binom(x[0], x[1]));
+xsref::tests! {
+    test_binom_f64: "binom", "d_d-d", |x| xsf::binom(x[0], x[1]);
 }
 
 #[test]

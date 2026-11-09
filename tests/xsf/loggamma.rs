@@ -1,13 +1,8 @@
 use num_complex::c64;
 
-#[test]
-fn test_loggamma_f64() {
-    xsref::test("loggamma", "d-d", |x| xsf::loggamma(x[0]));
-}
-
-#[test]
-fn test_loggamma_c64() {
-    xsref::test("loggamma", "cd-cd", |x| xsf::loggamma(c64(x[0], x[1])));
+xsref::tests! {
+    test_loggamma_f64: "loggamma", "d-d", |x| xsf::loggamma(x[0]);
+    test_loggamma_c64: "loggamma", "cd-cd", |x| xsf::loggamma(c64(x[0], x[1]));
 }
 
 #[test]
@@ -25,9 +20,8 @@ fn test_loggamma_c64_negative_axis() {
     assert_eq!(xsf::rgamma(c64(-2.0, 0.0)), c64(0.0, 0.0));
 }
 
-#[test]
-fn test_rgamma_f64() {
-    xsref::test("rgamma", "d-d", |x| xsf::rgamma(x[0]));
+xsref::tests! {
+    test_rgamma_f64: "rgamma", "d-d", |x| xsf::rgamma(x[0]);
 }
 
 #[test]
@@ -56,7 +50,6 @@ fn test_rgamma_f64_near_overflow() {
     assert_eq!(xsf::rgamma(-173.5), f64::INFINITY);
 }
 
-#[test]
-fn test_rgamma_c64() {
-    xsref::test("rgamma", "cd-cd", |x| xsf::rgamma(c64(x[0], x[1])));
+xsref::tests! {
+    test_rgamma_c64: "rgamma", "cd-cd", |x| xsf::rgamma(c64(x[0], x[1]));
 }

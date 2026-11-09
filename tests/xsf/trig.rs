@@ -2,54 +2,17 @@ use core::f64::consts::{FRAC_PI_4, PI};
 
 use num_complex::c64;
 
-#[test]
-fn test_sinpi_f64() {
-    xsref::test("sinpi", "d-d", |x| xsf::sinpi(x[0]));
-}
-
-#[test]
-fn test_sinpi_c64() {
-    xsref::test("sinpi", "cd-cd", |x| xsf::sinpi(c64(x[0], x[1])));
-}
-
-#[test]
-fn test_cospi_f64() {
-    xsref::test("cospi", "d-d", |x| xsf::cospi(x[0]));
-}
-
-#[test]
-fn test_cospi_c64() {
-    xsref::test("cospi", "cd-cd", |x| xsf::cospi(c64(x[0], x[1])));
-}
-
-#[test]
-fn test_sindg() {
-    xsref::test("sindg", "d-d", |x| xsf::sindg(x[0]));
-}
-
-#[test]
-fn test_cosdg() {
-    xsref::test("cosdg", "d-d", |x| xsf::cosdg(x[0]));
-}
-
-#[test]
-fn test_tandg() {
-    xsref::test("tandg", "d-d", |x| xsf::tandg(x[0]));
-}
-
-#[test]
-fn test_cotdg() {
-    xsref::test("cotdg", "d-d", |x| xsf::cotdg(x[0]));
-}
-
-#[test]
-fn test_cosm1() {
-    xsref::test("cosm1", "d-d", |x| xsf::cosm1(x[0]));
-}
-
-#[test]
-fn test_radian() {
-    xsref::test("radian", "d_d_d-d", |x| xsf::radian(x[0], x[1], x[2]));
+xsref::tests! {
+    test_sinpi_f64: "sinpi", "d-d", |x| xsf::sinpi(x[0]);
+    test_sinpi_c64: "sinpi", "cd-cd", |x| xsf::sinpi(c64(x[0], x[1]));
+    test_cospi_f64: "cospi", "d-d", |x| xsf::cospi(x[0]);
+    test_cospi_c64: "cospi", "cd-cd", |x| xsf::cospi(c64(x[0], x[1]));
+    test_sindg: "sindg", "d-d", |x| xsf::sindg(x[0]);
+    test_cosdg: "cosdg", "d-d", |x| xsf::cosdg(x[0]);
+    test_tandg: "tandg", "d-d", |x| xsf::tandg(x[0]);
+    test_cotdg: "cotdg", "d-d", |x| xsf::cotdg(x[0]);
+    test_cosm1: "cosm1", "d-d", |x| xsf::cosm1(x[0]);
+    test_radian: "radian", "d_d_d-d", |x| xsf::radian(x[0], x[1], x[2]);
 }
 
 // Edge cases that the xsref tables don't cover (they skip large inputs and outputs, and most

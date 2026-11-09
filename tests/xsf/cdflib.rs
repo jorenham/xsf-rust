@@ -1,6 +1,5 @@
-#[test]
-fn test_gdtrib() {
-    xsref::test("gdtrib", "d_d_d-d", |x| xsf::gdtrib(x[0], x[1], x[2]));
+xsref::tests! {
+    test_gdtrib: "gdtrib", "d_d_d-d", |x| xsf::gdtrib(x[0], x[1], x[2]);
 }
 
 #[test]

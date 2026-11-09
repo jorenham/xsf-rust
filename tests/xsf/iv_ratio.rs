@@ -4,9 +4,8 @@ fn test_iv_ratio() {
     assert_eq!(xsf::iv_ratio(0.5, 3.0), 3.0_f64.tanh());
 }
 
-#[test]
-fn test_iv_ratio_c() {
-    xsref::test("iv_ratio_c", "d_d-d", |x| xsf::iv_ratio_c(x[0], x[1]));
+xsref::tests! {
+    test_iv_ratio_c: "iv_ratio_c", "d_d-d", |x| xsf::iv_ratio_c(x[0], x[1]);
 }
 
 #[test]

@@ -1,3 +1,16 @@
+/// One `#[test] fn name() { xsref::test(func, sig, test_fn); }` per `name: func, sig, test_fn;`
+#[macro_export]
+macro_rules! tests {
+    ($($name:ident: $func:literal, $sig:literal, $test_fn:expr;)*) => {
+        $(
+            #[test]
+            fn $name() {
+                $crate::test($func, $sig, $test_fn);
+            }
+        )*
+    };
+}
+
 /// Similar to `numpy.testing.assert_allclose`
 #[macro_export]
 macro_rules! np_assert_allclose {

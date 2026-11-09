@@ -1,11 +1,6 @@
-#[test]
-fn test_beta() {
-    xsref::test("beta", "d_d-d", |x| xsf::beta(x[0], x[1]));
-}
-
-#[test]
-fn test_betaln() {
-    xsref::test("betaln", "d_d-d", |x| xsf::betaln(x[0], x[1]));
+xsref::tests! {
+    test_beta: "beta", "d_d-d", |x| xsf::beta(x[0], x[1]);
+    test_betaln: "betaln", "d_d-d", |x| xsf::betaln(x[0], x[1]);
 }
 
 #[test]

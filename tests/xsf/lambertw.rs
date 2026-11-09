@@ -1,11 +1,10 @@
 use num_complex::c64;
 use num_traits::ToPrimitive;
 
-#[test]
-fn test_lambertw_c64() {
-    xsref::test("lambertw", "cd_p_d-cd", |x| {
+xsref::tests! {
+    test_lambertw_c64: "lambertw", "cd_p_d-cd", |x| {
         xsf::lambertw(c64(x[0], x[1]), x[2].to_isize().unwrap(), x[3])
-    });
+    };
 }
 
 #[test]
