@@ -855,6 +855,9 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 /// When defined, a non-positive integer $a_1$ or $a_2$ equal to $-n$ makes the result a polynomial of
 /// degree at most $n$.
 ///
+/// For `f64` $z$, a finite result may be replaced by NaN if the internal error estimates say that
+/// none of its digits are correct.
+///
 /// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
 /// defined by
 ///

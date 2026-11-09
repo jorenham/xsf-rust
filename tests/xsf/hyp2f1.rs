@@ -588,3 +588,16 @@ fn test_hyp2f1_f64_euler_pow_underflow() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
+
+#[test]
+fn test_hyp2f1_f64_nan_if_lost() {
+    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 7.7e149,
+    // 2.4e7, -5.6e85 and 7.5e-4 (Arb: 1, 1.016, 1 and 3.77e-17)
+    assert!(xsf::hyp2f1(6.08e-26, -908.762, -19.967, 0.5).is_nan());
+    assert!(xsf::hyp2f1(-50.7, 0.1, 344.3, -1.0).is_nan());
+    assert!(xsf::hyp2f1(1e-14, -1500.5, 0.7, 0.2).is_nan());
+    assert!(xsf::hyp2f1(90.0, -90.0, 180.7, 0.8).is_nan());
+    // a series that doesn't converge is estimated as 1, but this is accurate (Arb)
+    let actual = [xsf::hyp2f1(-8.999_999_999_999_99, 4.0, 2.5, -1.0)];
+    np_assert_allclose!(actual, [2_246.910_399_198_305_6], rtol = 1e-13);
+}
