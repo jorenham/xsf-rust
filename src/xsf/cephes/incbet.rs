@@ -590,11 +590,9 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     };
 
     // done:
-    if flag {
-        if t <= MACHEP { 1.0 - MACHEP } else { 1.0 - t }
-    } else {
-        t
-    }
+    // Unlike in xsf, `1 - t` is not clamped to `1 - MACHEP` if `t <= MACHEP`, so that `incbi` can
+    // tell `x` far past the root of `I_x(a, b) = 1 - MACHEP` from the root.
+    if flag { 1.0 - t } else { t }
 }
 
 /// `betainc(a, b, x)`, given `y = 1 - x` computed without cancellation by the caller

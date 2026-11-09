@@ -765,6 +765,23 @@ fn test_fdtri_small_p_large_dfn() {
 }
 
 #[test]
+fn test_fdtri_tiny_dfd_p_eps() {
+    // reference values from Arb; here `1 - p` rounds to `1 - 2^-53` and
+    // `incbet(dfd/2, dfn/2, 1/2)` to 1
+    let x = [
+        xsf::fdtri(3.0, 1e-16, 1e-16),
+        xsf::fdtri(10.0, 1e-16, 1e-16),
+        xsf::fdtri(100.0, 1e-16, 1e-16),
+    ];
+    let x_ref = [
+        4.044_941_625_584_34e-16,
+        5.425_247_889_451_073e-16,
+        6.004_433_381_771_332e-16,
+    ];
+    xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
+}
+
+#[test]
 fn test_gdtr() {
     xsref::test("gdtr", "d_d_d-d", |x| xsf::gdtr(x[0], x[1], x[2]));
 }
