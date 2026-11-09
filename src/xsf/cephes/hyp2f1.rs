@@ -935,12 +935,18 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // hypdon:
-        // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if both its error estimates,
-        // without and with the recurrences in `a`, are at least `HYP2F1_LOST`. Not if one is at
-        // least 1, as a series that fails (doesn't converge) is estimated as 1, while its value can
-        // be accurate.
+        // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if its error estimates say
+        // that no digit is correct:
+        //
+        // - if both, without and with the recurrences in `a`, are in [`HYP2F1_LOST`, 1); not 1
+        //   itself, as a series that fails (doesn't converge) is estimated as 1, while its value
+        //   can be accurate
+        // - or if the latter is above 1 and finite (it is inf if it overflows or `y` is 0); not for
+        //   a polynomial, as near a root its estimate is also above 1, while `y` is accurate in
+        //   absolute terms
         let lost = |e| (HYP2F1_LOST..1.0).contains(&e);
-        if y.is_finite() && lost(err) && lost(err_full) {
+        let wrong = err_full > 1.0 && err_full.is_finite() && !(neg_int_a || neg_int_b);
+        if y.is_finite() && (lost(err) && lost(err_full) || wrong) {
             return f64::NAN;
         }
         return y;
