@@ -13,7 +13,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{SCIPY_EULER, SQRT_EPS};
+use crate::utils::{SCIPY_EULER, SQRT_EPS, mul_exp};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
@@ -399,14 +399,14 @@ fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     fn checked(x: f64, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
         let mut hg = series(x);
-        // if the partial sums overflow, `e^-1400 M` is summed instead (`e^700 < MAX`)
-        let mut scale = 1.0;
+        // if the partial sums overflow, `e^-1400 M` is summed instead
+        let mut ln_scale = 0.0;
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
-            hg = series(x.min(0.0) - 1400.0);
-            scale = 700_f64.exp();
+            ln_scale = 1400.0;
+            hg = series(x.min(0.0) - ln_scale);
         }
         hg.filter(|&(hg, err)| hg.is_finite() && err <= SQRT_EPS * hg.abs())
-            .map(|(hg, _)| hg * scale * scale)
+            .map(|(hg, _)| mul_exp(hg, ln_scale))
     }
     // `b - a` also without rounding, e.g. to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
     let (ak, xk) = if x < 0.0 {
@@ -643,10 +643,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
                 wrong |= !(hg.is_infinite() && terms_keep_sign(a, b, finite + 1));
             }
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
-            // converge within 500 terms, and after 500 terms (finite if not `wrong`) in two steps
+            // converge within 500 terms, and after 500 terms (finite if not `wrong`) with `mul_exp`
             // for x <= -700, where e^x can be subnormal
             if x0 <= -700.0 && terms > 500 {
-                hg = hg * (x0 / 2.0).exp() * (x0 / 2.0).exp();
+                hg = mul_exp(hg, x0);
             } else if x0 < 0.0 {
                 hg *= x0.exp();
             }
@@ -1385,7 +1385,7 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         r1 = 0.0;
     }
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
-    // (and hu back by exp(lr2 / 2) twice)
+    // (and hu back with `mul_exp`)
     let c = hu0 / (ga * gb2);
     let mut lr2 = 0.0;
     if r2.is_infinite() && r1.is_finite() && c.is_finite() {
@@ -1450,6 +1450,5 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let e1 = 1e-15 + k(1.0 + a - b);
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
     *id = (*id).min((-((e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
-    let h = (0.5 * lr2).exp();
-    hu * h * h
+    mul_exp(hu, lr2)
 }
