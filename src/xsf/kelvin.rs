@@ -159,31 +159,30 @@ fn klvna(x: f64) -> Klvna {
         let (ke, kep) = (k[0], -w * k[1]);
         (ger, gei, her, hei) = (ke.re, ke.im, kep.re, kep.im);
     } else {
-        let mut pp0 = 1.0;
-        let mut pn0 = 1.0;
-        let mut qp0 = 0.0;
-        let mut qn0 = 0.0;
-        let mut r0 = 1.0;
-        let mut km = 18;
-        if x.abs() >= 40.0 {
-            km = 10;
-        }
-        let mut fac = 1.0;
-        for k in 1..=km {
-            let kf = f64::from(k);
-            fac = -fac;
-            let xt = 0.25 * kf * PI - (0.125 * kf).trunc() * 2.0 * PI;
-            let cs = xt.cos();
-            let ss = xt.sin();
-            let t = 2.0 * kf - 1.0;
-            r0 = 0.125 * r0 * (t * t) / kf / x;
-            let rc = r0 * cs;
-            let rs = r0 * ss;
-            pp0 += rc;
-            pn0 += fac * rc;
-            qp0 += rs;
-            qn0 += fac * rs;
-        }
+        let km = if x.abs() >= 40.0 { 10 } else { 18 };
+        // `(sum r_k c_k, sum (-1)^k r_k c_k, sum r_k s_k, sum (-1)^k r_k s_k)` over k = 0..=km,
+        // with `(c_k, s_k) = (cos, sin)(k pi / 4)`, `r_0 = 1` and `r_k = next(r_(k-1), k, x)`
+        let sums = |next: fn(f64, f64, f64) -> f64| {
+            let (mut pp, mut pn, mut qp, mut qn) = (1.0, 1.0, 0.0, 0.0);
+            let mut r = 1.0;
+            let mut fac = 1.0;
+            for k in 1..=km {
+                let kf = f64::from(k);
+                fac = -fac;
+                let xt = 0.25 * kf * PI - (0.125 * kf).trunc() * 2.0 * PI;
+                let cs = xt.cos();
+                let ss = xt.sin();
+                r = next(r, kf, x);
+                let rc = r * cs;
+                let rs = r * ss;
+                pp += rc;
+                pn += fac * rc;
+                qp += rs;
+                qn += fac * rs;
+            }
+            (pp, pn, qp, qn)
+        };
+        let (pp0, pn0, qp0, qn0) = sums(|r0, k, x| 0.125 * r0 * (2.0 * k - 1.0).powi(2) / k / x);
 
         let xd = x / SQRT_2;
         let xe1 = xd.exp();
@@ -200,27 +199,8 @@ fn klvna(x: f64) -> Klvna {
         ber = xc1 * xe1 * (pp0 * cn0 + qp0 * sn0) - gei / PI;
         bei = xc1 * xe1 * (pp0 * sn0 - qp0 * cn0) + ger / PI;
 
-        let mut pp1 = 1.0;
-        let mut pn1 = 1.0;
-        let mut qp1 = 0.0;
-        let mut qn1 = 0.0;
-        let mut r1 = 1.0;
-        fac = 1.0;
-        for k in 1..=km {
-            let kf = f64::from(k);
-            fac = -fac;
-            let xt = 0.25 * kf * PI - f64::from((0.125 * kf) as i32) * 2.0 * PI;
-            let cs = xt.cos();
-            let ss = xt.sin();
-            let t = 2.0 * kf - 1.0;
-            r1 = 0.125 * r1 * (4.0 - t * t) / (kf * x);
-            let rc = r1 * cs;
-            let rs = r1 * ss;
-            pp1 += fac * rc;
-            pn1 += rc;
-            qp1 += fac * rs;
-            qn1 += rs;
-        }
+        let (pn1, pp1, qn1, qp1) =
+            sums(|r1, k, x| 0.125 * r1 * (4.0 - (2.0 * k - 1.0).powi(2)) / (k * x));
         her = xc2 * xe2 * (-pn1 * cn0 + qn1 * sn0);
         hei = xc2 * xe2 * (pn1 * sn0 + qn1 * cn0);
         der = xc1 * xe1 * (pp1 * cp0 + qp1 * sp0) - hei / PI;
