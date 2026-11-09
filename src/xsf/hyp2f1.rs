@@ -47,7 +47,7 @@ use core::f64::consts::{FRAC_1_PI, PI};
 use num_complex::{Complex64, c64};
 
 use crate::xsf::cephes::{LANCZOS_G, gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
-use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
+use crate::xsf::complex::{cdiv, cmul, cpow, rdiv, rsub};
 use crate::xsf::log::clog;
 use crate::xsf::tools::{series_eval, series_eval_fixed_length};
 
@@ -60,11 +60,6 @@ const HYP2F1_EPS: f64 = 1e-15;
  * at a reasonable level of accuracy. We've bumped the iteration limit to 3000,
  * and may adjust it again based on further analysis. */
 const HYP2F1_MAXITER: u64 = 3000;
-
-/// `x / z` for real `x` and complex `z`, as in C++
-fn rdiv(x: f64, z: Complex64) -> Complex64 {
-    cdiv(c64(x, 0.0), z)
-}
 
 fn digamma(x: f64) -> f64 {
     crate::digamma(x)

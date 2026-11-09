@@ -9,7 +9,7 @@ use core::ffi::c_int;
 use num_complex::{Complex, c64};
 
 use crate::utils::{SQRT_TAU, SQRT1OPI, SQRT2OPI};
-use crate::xsf::complex::cdiv;
+use crate::xsf::complex::{cdiv, rdiv};
 use crate::xsf::trig::{ccos, csin};
 
 fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
@@ -58,7 +58,7 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
             cf1 = cf0;
             cf0 = cf;
         }
-        c *= cdiv(cdiv(2.0.into(), PI * z) * csin(zp), cf);
+        c *= cdiv(rdiv(2.0, PI * z) * csin(zp), cf);
         c
     } else {
         // See comment at CFS(), use C(z) = iC(-iz)
@@ -81,7 +81,7 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
             cr = cdiv(-0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0), zp2);
             cf += cr;
         }
-        cr = cdiv(1.0.into(), PI * z * z);
+        cr = rdiv(1.0, PI * z * z);
         let mut cg = cr;
         for k in 1..=12 {
             let k = f64::from(k);
@@ -139,7 +139,7 @@ fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
             cf1 = cf0;
             cf0 = cf;
         }
-        cdiv(cdiv(2.0.into(), PI * z) * csin(zp), cf) * s
+        cdiv(rdiv(2.0, PI * z) * csin(zp), cf) * s
     } else {
         // Auxiliary functions f(z) and g(z) can be computed using an
         // asymptotic expansion in the right quadrant |arg(z)| <= pi/4, not pi/2

@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 use num_complex::{Complex, c64};
 
 use crate::utils::SCIPY_EULER;
-use crate::xsf::complex::{cdiv, cmul, rsub};
+use crate::xsf::complex::{cmul, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 
@@ -94,16 +94,16 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         // E1 = exp(-z) * ----- ----- ----- ----- ----- ----- ----- ...
         //                Z +   1 +   Z +   1 +   Z +   1 +   Z +
         let mut zc = c64(0.0, 0.0);
-        let mut zd = cdiv(c64(1.0, 0.0), z);
+        let mut zd = rdiv(1.0, z);
         let mut zdc = zd;
         zc += zdc;
         for k in 1..501 {
             let fk = f64::from(k);
-            zd = cdiv(c64(1.0, 0.0), zd * fk + 1.0);
+            zd = rdiv(1.0, zd * fk + 1.0);
             zdc = cmul(zdc, zd - 1.0);
             zc += zdc;
 
-            zd = cdiv(c64(1.0, 0.0), zd * fk + z);
+            zd = rdiv(1.0, zd * fk + z);
             zdc = cmul(zdc, cmul(z, zd) - 1.0);
             zc += zdc;
             if (zdc.norm() <= zc.norm() * 1e-15) && (k > 20) {

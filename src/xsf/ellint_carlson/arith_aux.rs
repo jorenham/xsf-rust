@@ -15,13 +15,12 @@
 //! evaluation.
 //! ```
 
-/// `std::numeric_limits<double>::epsilon() * 0.5`
-const HALF_EPSILON: f64 = f64::EPSILON * 0.5;
+use crate::utils::MACHEP; // `typing::half_epsilon<double>()`
 
 /* Algorithm 3.6 */
 #[inline]
 fn next_power_two(p: f64) -> f64 {
-    let q = p / HALF_EPSILON;
+    let q = p / MACHEP;
     let mut l = ((q + p) - q).abs();
     if l == 0.0 {
         l = p.abs();
@@ -118,7 +117,7 @@ pub(super) fn acc_sum<const LEN: usize>(p: &mut [f64; LEN], mask: &mut [bool; LE
 
     let two_pm = next_power_two((count(mask) + 2) as f64);
     let mut sigma = two_pm * next_power_two(mu);
-    let phi = HALF_EPSILON * two_pm;
+    let phi = MACHEP * two_pm;
     let factor = f64::EPSILON * two_pm * two_pm;
 
     let mut t = 0.0;

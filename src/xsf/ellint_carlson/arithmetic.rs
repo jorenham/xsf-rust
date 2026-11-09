@@ -31,6 +31,7 @@ use num_complex::Complex64;
 use super::arith_aux as aux;
 use super::common::NPOLY;
 use super::typing::Num;
+use crate::xsf::cephes::dd_real::two_prod;
 use crate::xsf::complex::cmul;
 
 /* Knuth's TwoSum algorithm, EFT on addition, with the sum written to s
@@ -76,16 +77,7 @@ pub(super) fn sum2<T: Num>(arr: &[T]) -> T {
     nsum2(arr, arr.len())
 }
 
-/* EFT for multiplication, with real-type arguments.
- * NOTE: This implementation uses the FMA function for correct rounding.
- * (mandated by standard since C++11)
- * Algorithm 2.5 in Ref. [1] */
-#[inline]
-pub(super) fn eft_prod(x: f64, y: f64) -> (f64, f64) {
-    let prod = x * y;
-    let corr = x.mul_add(y, -prod);
-    (prod, corr)
-}
+// `eft_prod`, the EFT for real multiplication (Algorithm 2.5 in Ref. [1]), is `dd_real::two_prod`.
 
 /* Buffer holding the correction terms for multiplication.  For real
  * floating-point types, this is just the same type ("just" numeric type).
@@ -117,10 +109,10 @@ fn eft_prod_cplx(x: Complex64, y: Complex64, corr: &mut CorrBuf) -> Complex64 {
     let z4;
     let z5;
     let z6;
-    (z1, corr.value_real[0]) = eft_prod(a, c);
-    (z2, corr.value_real[1]) = eft_prod(b, d);
-    (z3, corr.value_imag[0]) = eft_prod(a, d);
-    (z4, corr.value_imag[1]) = eft_prod(b, c);
+    (z1, corr.value_real[0]) = two_prod(a, c);
+    (z2, corr.value_real[1]) = two_prod(b, d);
+    (z3, corr.value_imag[0]) = two_prod(a, d);
+    (z4, corr.value_imag[1]) = two_prod(b, c);
     (z5, corr.value_real[2]) = eft_sum(z1, -z2);
     (z6, corr.value_imag[2]) = eft_sum(z3, z4);
 
@@ -132,7 +124,7 @@ fn eft_prod_cplx(x: Complex64, y: Complex64, corr: &mut CorrBuf) -> Complex64 {
  * Algorithm 4.3 in Ref. [2] */
 #[inline]
 pub(super) fn fdot2_acc(x: f64, y: f64, acc: &mut f64, corr: &mut f64) {
-    let (h, r) = eft_prod(x, y);
+    let (h, r) = two_prod(x, y);
     let (t, q) = eft_sum(*acc, h);
     *acc = t;
     *corr += q + r;
@@ -195,7 +187,7 @@ pub(super) fn dcomp_horner_real(x: f64, poly: &[f64], degree: usize) -> f64 {
     let mut r = 0.0;
 
     for i in (0..degree).rev() {
-        let (ptmp, pp) = eft_prod(s, x);
+        let (ptmp, pp) = two_prod(s, x);
         let ps;
         (s, ps) = eft_sum(ptmp, poly[i]);
         r = r * x + (pp + ps);
