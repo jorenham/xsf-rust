@@ -72,10 +72,9 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     let mut xm = cct1[0];
     let mut ym = cct1[1];
     let mut zm = cct1[2];
-    // Unlike in xsf, for a subnormal x only if |x| <= eps |y|, as the first-order correction
-    // below is inaccurate otherwise, e.g. not for R_F(1e-310, 1e-309, 1)
+    // Unlike in xsf, the expansion for x = 0 is used for a subnormal x only if |x| <= eps |y|, as
+    // its first-order correction is inaccurate otherwise, and a subnormal y is not treated as 0
     if xm.too_small() && xm.abs() <= f64::EPSILON * ym.abs() {
-        // Unlike in xsf, not for a subnormal y, e.g. for R_F(0, 5e-324, 1)
         if ym == T::from(0.0) {
             return (ExitStatus::Singular, T::HUGE);
         }
@@ -83,8 +82,7 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         /* Correction for non-zero x, see Eq. 19.27.3 in
          * https://dlmf.nist.gov/19.27.E3 */
         let yz = ym.prod(zm);
-        // Unlike in xsf (scipy/xsf#467), as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows, e.g.
-        // for R_F(0, 1e-300, 1e-70)
+        // Unlike in xsf (scipy/xsf#467), as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows
         let res = if yz.too_small() {
             tmpres - xm.sqrt().quot(ym.sqrt().prod(zm.sqrt()))
         } else {
