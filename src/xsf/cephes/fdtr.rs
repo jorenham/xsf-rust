@@ -233,7 +233,11 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     let mut w = incbet(0.5 * b, 0.5 * a, 0.5);
     /* If that is greater than y, then the solution w < .5.
      * Otherwise, solve at 1-y to remove cancellation in (b - b*w).  */
-    if w > y || y < 0.001 {
+    // Unlike in xsf, this branch is only taken if `y = 1 - p` is exact (p >= 1/2) or if p exceeds
+    // the mean `b / (a + b)` of w: inverting at the rounded `1 - p` changes p by ~eps / p
+    // (relative), and the other branch, which solves for `1 - w`, loses ~eps / w to cancellation
+    // (w >~ its mean if p < 1/2).
+    if (w > y && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y);
         (b - b * w) / (a * w)
     } else {
