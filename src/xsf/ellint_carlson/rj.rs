@@ -48,8 +48,7 @@ mod rjimpl {
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
     use super::{rc, rf, rj};
 
-    // Unlike in xsf, also if `r` underflows to 0 (it is a ratio of positive numbers), e.g. z / p
-    // for R_J(0, 5e-324, 5e-324, 3)
+    // Unlike in xsf, also if `r` underflows to 0 (it is a ratio of positive numbers)
     #[inline]
     pub(super) fn asymp_zero(r: f64) -> bool {
         (0.0..=config::ASYM_ZERO_UL).contains(&r)
@@ -93,8 +92,7 @@ mod rjimpl {
      * NOTE: x, y, z must be in-order by real parts.
      */
     pub(super) fn good_args<T: Num>(x: T, y: T, z: T, p: T, classify: &mut ArgCases) -> bool {
-        // Unlike in xsf, subnormal arguments are not treated as 0 here and below, e.g. for
-        // R_J(0, 5e-324, 1, 1) = R_D(0, 5e-324, 1)
+        // Unlike in xsf, subnormal arguments are not treated as 0 here and below
         let zero = T::from(0.0);
         classify.hit_pole = x == zero && y == zero && z.ph_good() && p != zero;
         if classify.hit_pole {
@@ -286,8 +284,7 @@ mod rjimpl {
             /* bound fairly sharp even if p is large */
             conf.a = 0.5 * (x + y);
             conf.g = sqrt_prod(&[x, y]);
-            // Unlike in xsf, also if `a` underflows to 0 (where the bound tends to 0), e.g. for
-            // R_J(0, 5e-324, 1e20, 0.5)
+            // Unlike in xsf, also if `a` underflows to 0, where the bound tends to 0
             if conf.a == 0.0 || (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
                 return AsymFlag::Tinyy;
             }
@@ -453,8 +450,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 xct1[0] = 3.0;
                 xct1[1] = 2.0;
                 tmpres = ndot2(&xct1, &xct2, 2);
-                // Unlike in xsf, inf (not NaN) if a term overflows, e.g. for
-                // R_J(0, 5e-324, 0.5, 1e-307)
+                // Unlike in xsf, inf (not NaN) if a term overflows
                 if tmpres.is_nan() {
                     tmpres = 3.0 * xct2[0] + 2.0 * xct2[1];
                 }
@@ -481,8 +477,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                  * The bounds given in the ref is better than the one in
                  * Ref[6]. */
                 // Unlike in xsf, ln(c v / (a + g)) as 2 ln(sqrt(2 c) sqrt(v) / (sqrt(x) + sqrt(y)))
-                // if `a + g = (sqrt(x) + sqrt(y))^2 / 2` is subnormal, e.g. for
-                // R_J(5e-324, 1e-320, 1e-10, 1)
+                // if `a + g = (sqrt(x) + sqrt(y))^2 / 2` is subnormal
                 let ag = config.a + config.g;
                 let ln_ag = |c: f64, v: f64| {
                     if ag.is_normal() {
@@ -577,12 +572,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             // Unlike in xsf (scipy/xsf#409), `p + lam` as `(a + lam) + (p - a)` if it cancels, with
             // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
-                let mut i = 0;
-                for j in 1..3 {
-                    if (pm - xyz[j]).abs() < (pm - xyz[i]).abs() {
-                        i = j;
-                    }
-                }
+                let dist = |i: usize| (pm - xyz[i]).abs();
+                let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
                 pl = xyzl[i] + (pm - xyz[i]);
             }
             [xm, ym, zm] = xyzl.map(|a| a * 0.25);

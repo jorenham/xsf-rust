@@ -40,7 +40,7 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         return (status, res * f);
     }
 
-    // Unlike in xsf, a subnormal y is not treated as 0, e.g. for R_C(1, 5e-324)
+    // Unlike in xsf, a subnormal y is not treated as 0
     if y == T::from(0.0) || !x.ph_good() {
         return (ExitStatus::BadArgs, T::NAN);
     } else if x.isinf() || y.isinf() {
