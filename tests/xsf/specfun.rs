@@ -623,9 +623,6 @@ fn test_hyp1f1_neg_a_cancellation() {
 
 #[test]
 fn test_hyp1f1_huge_neg_a() {
-    // Arb: -0.572 and -0.0295; the series cancels, and the recurrences take over 10^6 steps
-    assert!(xsf::hyp1f1(-999_999.8, 0.5, 0.1).is_nan());
-    assert!(xsf::hyp1f1(1e6 + 0.3, 1.0, -0.1).is_nan());
     // Arb; DLMF 13.2.39 gives a polynomial of degree 10^5 < a - b <= 10^6
     let abx = [(3e5, 1.0, -0.01), (3e5, 30.0, -1.0), (1e6, 30.0, -0.1)];
     let expected = [
@@ -647,9 +644,35 @@ fn test_hyp1f1_poly_underflow() {
     let abx = [(-1e5, 300.0, 100.0), (100_300.0, 300.0, -100.0)];
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x).to_bits());
     assert_eq!(actual, [(-0.0_f64).to_bits(); 2]);
-    // NaN past the cost bound of 10^6 steps, for both signs of `x`
-    assert!(xsf::hyp1f1(-1e7, 300.0, 1.0).is_nan());
-    assert!(xsf::hyp1f1(10_000_300.0, 300.0, -1.0).is_nan());
+}
+
+#[test]
+fn test_hyp1f1_huge_neg_a_tricomi() {
+    // Arb; the series cancels, and the recurrences in a lose digits or take over 10^6 steps
+    // (condition numbers 1e3, 1e2, 4e2, 1e2, 2e5, and 3e3)
+    let abx = [
+        (-999_999.8, 0.5, 0.1),
+        (1e6 + 0.3, 1.0, -0.1),
+        (100_000.3, 0.5, -0.1),
+        (-100_000.3, 300.0, 0.1),
+        (1e6 + 0.3, 300.0, -0.1),
+        (-2.3, 1e-20, 4.343_478_260_869_565e-21),
+        // integer `a` past the 10^6 steps of the polynomial
+        (-1e7, 1.0, 1.0),
+        (-2_147_483_647.0, 1.0, 1e-6),
+    ];
+    let expected = [
+        -0.572_048_140_852_985_2,
+        -0.029_517_956_327_592_655,
+        0.463_461_893_294_257_1,
+        3.699_009_173_383_038e-16,
+        -3.953_672_642_019_636_4e-140,
+        0.001_000_000_000_000_050_2,
+        -0.016_002_420_737_843_012,
+        -0.058_394_171_687_540_5,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-10);
 }
 
 #[test]

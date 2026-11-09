@@ -160,6 +160,9 @@ pub fn euler<const N: usize>() -> [f64; N] {
 /// See [^DLMF] for more details.
 /// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
 ///
+/// For `f64` $z$, NaN is returned if the estimated accuracy of the result is too low, e.g. if its
+/// series cancels or doesn't converge and no other method applies.
+///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
 /// # See also
