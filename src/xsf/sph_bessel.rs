@@ -175,6 +175,36 @@ fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
     csqrt(rdiv(FRAC_PI_2, z))
 }
 
+/// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence
+/// `f_(k+1) = (2k + 1) f_k / x - f_(k-1)` of `j_n` and `y_n` (DLMF 10.51.1), which stops at the
+/// first infinite `f_k`.
+///
+/// Unlike in xsf, `j_n` and `y_n` share this implementation (xsf duplicates it).
+fn sph_bessel_recur(n: i64, x: f64, mut s0: f64, mut s1: f64) -> f64 {
+    if n == 0 {
+        return s0;
+    }
+
+    if n == 1 {
+        return s1;
+    }
+
+    let mut sn = 0.0;
+    let mut i: i64 = 0;
+    while i < n - 1 {
+        sn = (2 * i + 3) as f64 * s1 / x - s0;
+        s0 = s1;
+        s1 = sn;
+        if sn.is_infinite() {
+            // Overflow occurred already: terminate recurrence.
+            return sn;
+        }
+        i += 1;
+    }
+
+    sn
+}
+
 fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     if x.is_nan() {
         return x;
@@ -223,30 +253,8 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
         return (FRAC_PI_2 / x).sqrt() * jv;
     }
 
-    let mut s0 = x.sin() / x;
-    if n == 0 {
-        return s0;
-    }
-
-    let mut s1 = (s0 - x.cos()) / x;
-    if n == 1 {
-        return s1;
-    }
-
-    let mut sn = 0.0;
-    let mut i: i64 = 0;
-    while i < n - 1 {
-        sn = (2 * i + 3) as f64 * s1 / x - s0;
-        s0 = s1;
-        s1 = sn;
-        if sn.is_infinite() {
-            // Overflow occurred already : terminate recurrence.
-            return sn;
-        }
-        i += 1;
-    }
-
-    sn
+    let s0 = x.sin() / x;
+    sph_bessel_recur(n, x, s0, (s0 - x.cos()) / x)
 }
 
 fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
@@ -349,30 +357,8 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
         return f64::NEG_INFINITY;
     }
 
-    let mut s0 = -x.cos() / x;
-    if n == 0 {
-        return s0;
-    }
-
-    let mut s1 = (s0 - x.sin()) / x;
-    if n == 1 {
-        return s1;
-    }
-
-    let mut sn = 0.0;
-    let mut idx: i64 = 0;
-    while idx < n - 1 {
-        sn = (2 * idx + 3) as f64 * s1 / x - s0;
-        s0 = s1;
-        s1 = sn;
-        if sn.is_infinite() {
-            // Overflow occurred already: terminate recurrence.
-            return sn;
-        }
-        idx += 1;
-    }
-
-    sn
+    let s0 = -x.cos() / x;
+    sph_bessel_recur(n, x, s0, (s0 - x.sin()) / x)
 }
 
 fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
