@@ -49,7 +49,7 @@ use num_complex::{Complex64, c64};
 use crate::xsf::cephes::{LANCZOS_G, gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::complex::{cdiv, cmul, cpow, rdiv, rsub};
 use crate::xsf::log::clog;
-use crate::xsf::tools::{series_eval, series_eval_fixed_length};
+use crate::xsf::tools::{self, series_eval_fixed_length};
 
 const HYP2F1_EPS: f64 = 1e-15;
 /* The original implementation in SciPy from Zhang and Jin used 1500 for the
@@ -63,6 +63,11 @@ const HYP2F1_MAXITER: u64 = 3000;
 
 fn digamma(x: f64) -> f64 {
     crate::digamma(x)
+}
+
+/// `tools::series_eval` with the tolerance and term limit of hyp2f1
+fn series_eval(g: impl FnMut() -> Complex64) -> Complex64 {
+    tools::series_eval(g, Complex64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER)
 }
 
 fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
@@ -109,91 +114,52 @@ fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
         return 0.0;
     }
 
-    let mut result = 1.0;
-    let (ugh, vgh, wgh, xgh, u_prime, v_prime, w_prime, x_prime);
-
-    if u >= 0.5 {
-        result *= lanczos_sum_expg_scaled(u);
-        ugh = u + LANCZOS_G - 0.5;
-        u_prime = u;
-    } else {
-        result /= lanczos_sum_expg_scaled(1.0 - u) * (PI * u).sin() * FRAC_1_PI;
-        ugh = 0.5 - u + LANCZOS_G;
-        u_prime = 1.0 - u;
-    }
-
-    if v >= 0.5 {
-        result *= lanczos_sum_expg_scaled(v);
-        vgh = v + LANCZOS_G - 0.5;
-        v_prime = v;
-    } else {
-        result /= lanczos_sum_expg_scaled(1.0 - v) * (PI * v).sin() * FRAC_1_PI;
-        vgh = 0.5 - v + LANCZOS_G;
-        v_prime = 1.0 - v;
-    }
-
-    if w >= 0.5 {
-        result /= lanczos_sum_expg_scaled(w);
-        wgh = w + LANCZOS_G - 0.5;
-        w_prime = w;
-    } else {
-        result *= lanczos_sum_expg_scaled(1.0 - w) * (PI * w).sin() * FRAC_1_PI;
-        wgh = 0.5 - w + LANCZOS_G;
-        w_prime = 1.0 - w;
-    }
-
-    if x >= 0.5 {
-        result /= lanczos_sum_expg_scaled(x);
-        xgh = x + LANCZOS_G - 0.5;
-        x_prime = x;
-    } else {
-        result *= lanczos_sum_expg_scaled(1.0 - x) * (PI * x).sin() * FRAC_1_PI;
-        xgh = 0.5 - x + LANCZOS_G;
-        x_prime = 1.0 - x;
-    }
+    let (u_num, u_den, ugh, u_prime) = lanczos_parts(u);
+    let (v_num, v_den, vgh, v_prime) = lanczos_parts(v);
+    let (w_num, w_den, wgh, w_prime) = lanczos_parts(w);
+    let (x_num, x_den, xgh, x_prime) = lanczos_parts(x);
+    let mut result = u_num / u_den * v_num / v_den * w_den / w_num * x_den / x_num;
 
     if u.abs() >= w.abs() {
         // u has greatest absolute value. Absorb ugh into the others.
-        if ((v_prime - u_prime) * (v - 0.5)).abs() < 100.0 * ugh && v > 100.0 {
-            /* Special case where base is close to 1. Condition taken from
-             * Boost's beta function implementation. */
-            result *= ((v - 0.5) * ((v_prime - u_prime) / ugh).ln_1p()).exp();
-        } else {
-            result *= (vgh / ugh).powf(v - 0.5);
-        }
-
-        if ((u_prime - w_prime) * (w - 0.5)).abs() < 100.0 * wgh && u > 100.0 {
-            result *= ((w - 0.5) * ((u_prime - w_prime) / wgh).ln_1p()).exp();
-        } else {
-            result *= (ugh / wgh).powf(w - 0.5);
-        }
-
-        if ((u_prime - x_prime) * (x - 0.5)).abs() < 100.0 * xgh && u > 100.0 {
-            result *= ((x - 0.5) * ((u_prime - x_prime) / xgh).ln_1p()).exp();
-        } else {
-            result *= (ugh / xgh).powf(x - 0.5);
-        }
+        result *= pow_ratio(vgh, ugh, v_prime - u_prime, v, v > 100.0);
+        result *= pow_ratio(ugh, wgh, u_prime - w_prime, w, u > 100.0);
+        result *= pow_ratio(ugh, xgh, u_prime - x_prime, x, u > 100.0);
     } else {
         // w has greatest absolute value. Absorb wgh into the others.
-        if ((u_prime - w_prime) * (u - 0.5)).abs() < 100.0 * wgh && u > 100.0 {
-            result *= ((u - 0.5) * ((u_prime - w_prime) / wgh).ln_1p()).exp();
-        } else {
-            result *= (ugh / wgh).powf(u - 0.5);
-        }
-        if ((v_prime - w_prime) * (v - 0.5)).abs() < 100.0 * wgh && v > 100.0 {
-            result *= ((v - 0.5) * ((v_prime - w_prime) / wgh).ln_1p()).exp();
-        } else {
-            result *= (vgh / wgh).powf(v - 0.5);
-        }
-        if ((w_prime - x_prime) * (x - 0.5)).abs() < 100.0 * xgh && x > 100.0 {
-            result *= ((x - 0.5) * ((w_prime - x_prime) / xgh).ln_1p()).exp();
-        } else {
-            result *= (wgh / xgh).powf(x - 0.5);
-        }
+        result *= pow_ratio(ugh, wgh, u_prime - w_prime, u, u > 100.0);
+        result *= pow_ratio(vgh, wgh, v_prime - w_prime, v, v > 100.0);
+        result *= pow_ratio(wgh, xgh, w_prime - x_prime, x, x > 100.0);
     }
     // This exhausts all cases because we assume |u| >= |v| and |w| >= |x|.
 
     result
+}
+
+/// `(num, den, gh, t')`, with `num / den` the Lanczos sum factor of `gamma(t)`, `t'` either `t` or
+/// `1 - t` if `t < 0.5` (reflection), and `gh = t' + g - 1/2`
+///
+/// `num` or `den` is 1, so that `r * num / den` rounds as a single product or quotient.
+fn lanczos_parts(t: f64) -> (f64, f64, f64, f64) {
+    if t >= 0.5 {
+        (lanczos_sum_expg_scaled(t), 1.0, t + LANCZOS_G - 0.5, t)
+    } else {
+        let den = lanczos_sum_expg_scaled(1.0 - t) * (PI * t).sin() * FRAC_1_PI;
+        (1.0, den, 0.5 - t + LANCZOS_G, 1.0 - t)
+    }
+}
+
+/// `(num_gh / den_gh)^(e - 1/2)`, where `d` is the difference of the primed arguments of `num_gh`
+/// and `den_gh` (before the Lanczos shift), via `ln_1p(d / den_gh)` if `big` and the base is close
+/// to 1
+fn pow_ratio(num_gh: f64, den_gh: f64, d: f64, e: f64, big: bool) -> f64 {
+    if (d * (e - 0.5)).abs() < 100.0 * den_gh && big {
+        /* Special case where base is close to 1. Condition taken from
+         * Boost's beta function implementation. */
+        ((e - 0.5) * (d / den_gh).ln_1p()).exp()
+    } else {
+        (num_gh / den_gh).powf(e - 0.5)
+    }
 }
 
 fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
@@ -323,7 +289,7 @@ fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64
         abs_sum += term.norm();
         term
     };
-    let result = series_eval(g, Complex64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER);
+    let result = series_eval(g);
     (result, cancellation(abs_sum, result))
 }
 
@@ -540,27 +506,11 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64)
     if (n - n.round()).abs() < HYP2F1_EPS {
         let series_generator2 =
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
-        result += cmul(
-            prefactor,
-            series_eval(
-                series_generator2,
-                Complex64::ZERO,
-                HYP2F1_EPS,
-                HYP2F1_MAXITER,
-            ),
-        );
+        result += cmul(prefactor, series_eval(series_generator2));
         return result;
     }
     let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
-    result += cmul(
-        prefactor,
-        series_eval(
-            series_generator2,
-            Complex64::ZERO,
-            HYP2F1_EPS,
-            HYP2F1_MAXITER,
-        ),
-    );
+    result += cmul(prefactor, series_eval(series_generator2));
     result
 }
 
@@ -667,24 +617,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         if c - a < a && c - b < b {
             result = cpow(rsub(1.0, z), c - a - b);
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            result = cmul(
-                result,
-                series_eval(
-                    series_generator,
-                    Complex64::ZERO,
-                    HYP2F1_EPS,
-                    HYP2F1_MAXITER,
-                ),
-            );
+            result = cmul(result, series_eval(series_generator));
             return result;
         }
         let series_generator = hypergeometric_series_generator(a, b, c, z);
-        return series_eval(
-            series_generator,
-            Complex64::ZERO,
-            HYP2F1_EPS,
-            HYP2F1_MAXITER,
-        );
+        return series_eval(series_generator);
     }
     /* Points near exp(iπ/3), exp(-iπ/3) not handled by any of the standard
      * transformations. Use series of López and Temme [5]. These regions
@@ -698,24 +635,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
             let series_generator = lopez_temme_series_generator(c - a, c - b, c, z);
             result = cpow(rsub(1.0, z * 0.5), a - c); // Lopez-Temme prefactor
-            result = cmul(
-                result,
-                series_eval(
-                    series_generator,
-                    Complex64::ZERO,
-                    HYP2F1_EPS,
-                    HYP2F1_MAXITER,
-                ),
-            );
+            result = cmul(result, series_eval(series_generator));
             return cmul(cpow(rsub(1.0, z), c - a - b), result); // Euler transform prefactor.
         }
         let series_generator = lopez_temme_series_generator(a, b, c, z);
-        result = series_eval(
-            series_generator,
-            Complex64::ZERO,
-            HYP2F1_EPS,
-            HYP2F1_MAXITER,
-        );
+        result = series_eval(series_generator);
         return cmul(cpow(rsub(1.0, z * 0.5), -a), result); // Lopez-Temme prefactor.
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
@@ -726,15 +650,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             core::mem::swap(&mut a, &mut b);
         }
         let series_generator = hypergeometric_series_generator(a, c - b, c, cdiv(z, z - 1.0));
-        return cmul(
-            cpow(rsub(1.0, z), -a),
-            series_eval(
-                series_generator,
-                Complex64::ZERO,
-                HYP2F1_EPS,
-                HYP2F1_MAXITER,
-            ),
-        );
+        return cmul(cpow(rsub(1.0, z), -a), series_eval(series_generator));
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
@@ -744,12 +660,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             // terms vanish fast.
             if c > HYP2F1_MAXITER as f64 * (1.0 + a.abs()) * (1.0 + b.abs()) {
                 let series_generator = hypergeometric_series_generator(a, b, c, z);
-                return series_eval(
-                    series_generator,
-                    Complex64::ZERO,
-                    HYP2F1_EPS,
-                    HYP2F1_MAXITER,
-                );
+                return series_eval(series_generator);
             }
             hyp2f1_transform1_limiting_case(a, b, c, z)
         } else {
