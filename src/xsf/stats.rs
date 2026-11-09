@@ -47,7 +47,7 @@ impl StatsArg for Complex64 {
 }
 
 fn ndtr_c64(z: Complex64) -> Complex64 {
-    crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2, 0.0) * 0.5
+    crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2) * 0.5
 }
 
 /*
@@ -91,7 +91,7 @@ fn log_ndtr_f64(x: f64) -> f64 {
 fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
     if z.re > 6.0 {
         // Underflow. Close to the real axis, expand the log in log(1 - ndtr(-z)).
-        let w = crate::xsf::faddeeva::erfc_c64(z * FRAC_1_SQRT_2, 0.0) * -0.5;
+        let w = crate::xsf::faddeeva::erfc_c64(z * FRAC_1_SQRT_2) * -0.5;
         if w.norm() < 1e-8 {
             return w;
         }
@@ -115,7 +115,7 @@ fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
 
     let val1 = c64(mRe_z2, im);
 
-    let val2 = crate::xsf::log::clog(crate::xsf::faddeeva::w(c64(-y, x), 0.0));
+    let val2 = crate::xsf::log::clog(crate::xsf::faddeeva::w(c64(-y, x)));
     let result = val1 + val2 - LN_2;
 
     /* Again, select the principal branch: log(z) = log|z| + i arg(z), thus

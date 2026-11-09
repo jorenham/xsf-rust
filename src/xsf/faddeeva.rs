@@ -132,7 +132,7 @@
 
 #![allow(non_snake_case)]
 
-use core::f64::consts::{FRAC_2_PI, FRAC_2_SQRT_PI, PI};
+use core::f64::consts::FRAC_2_SQRT_PI;
 
 use num_complex::{Complex, c64};
 
@@ -144,12 +144,12 @@ use crate::xsf::exp::cexp;
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
 
 // compute erfcx(z) = exp(z^2) erfz(z)
-pub(crate) fn erfcx_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
-    w(c64(-z.im, z.re), 0.0)
+pub(crate) fn erfcx_c64(z: Complex<f64>) -> Complex<f64> {
+    w(c64(-z.im, z.re))
 }
 
 // compute the error function erf(z)
-pub(crate) fn erf_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
+pub(crate) fn erf_c64(z: Complex<f64>) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
@@ -195,7 +195,7 @@ pub(crate) fn erf_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
                 values when multiplying w in an overflow situation. */
                 return rsub(
                     1.0,
-                    mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(-y, x), 0.0)),
+                    mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(-y, x))),
                 );
             }
             // x < 0
@@ -211,7 +211,7 @@ pub(crate) fn erf_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
             }
             /* don't use complex exp function, since that will produce spurious NaN
             values when multiplying w in an overflow situation. */
-            return mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(y, -x), 0.0)) - 1.0;
+            return mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(y, -x))) - 1.0;
         }
         // taylor:
         // Use Taylor series for small |z|, to avoid cancellation inaccuracy
@@ -254,13 +254,13 @@ pub(crate) fn erf_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
 }
 
 // erfi(z) = -i erf(iz)
-pub(crate) fn erfi_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
-    let e = erf_c64(c64(-z.im, z.re), relerr);
+pub(crate) fn erfi_c64(z: Complex<f64>) -> Complex<f64> {
+    let e = erf_c64(c64(-z.im, z.re));
     c64(e.im, -e.re)
 }
 
 // erfc(z) = 1 - erf(z)
-pub(crate) fn erfc_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
+pub(crate) fn erfc_c64(z: Complex<f64>) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
@@ -303,14 +303,14 @@ pub(crate) fn erfc_c64(z: Complex<f64>, relerr: f64) -> Complex<f64> {
     }
 
     if x >= 0.0 {
-        cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(-y, x), relerr))
+        cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(-y, x)))
     } else {
-        rsub(2.0, cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(y, -x), relerr)))
+        rsub(2.0, cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(y, -x))))
     }
 }
 
 // compute Dawson(z) = sqrt(pi)/2  *  exp(-z^2) * erfi(z)
-pub(crate) fn dawson_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
+pub(crate) fn dawson_c64(z: Complex<f64>) -> Complex<f64> {
     let (x, y) = (z.re, z.im);
 
     // handle axes separately for speed & proper handling of x or y = Inf or NaN
@@ -353,7 +353,7 @@ pub(crate) fn dawson_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
                         break 'taylor_realaxis;
                     }
                 }
-                let res = cexp(mz2) - w(z, 0.0);
+                let res = cexp(mz2) - w(z);
                 return SPI2 * c64(-res.im, res.re);
             }
             // y < 0
@@ -367,7 +367,7 @@ pub(crate) fn dawson_c64(z: Complex<f64>, _relerr: f64) -> Complex<f64> {
             } else if y.is_nan() {
                 return c64(if x == 0.0 { 0.0 } else { f64::NAN }, f64::NAN);
             }
-            let res = w(-z, 0.0) - cexp(mz2);
+            let res = w(-z) - cexp(mz2);
             return SPI2 * c64(-res.im, res.re);
         }
         // taylor:
@@ -536,27 +536,20 @@ const EXPA2N2: [f64; 52] = [
 /////////////////////////////////////////////////////////////////////////
 
 // compute w(z) = exp(-z^2) erfc(-iz) [ Faddeeva / scaled complex error func ]
-pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
+//
+// Unlike in xsf, this and the complex wrappers above have no `relerr` argument: xsf defaults it
+// to 0 and never passes another value, so the convergence tolerance is always machine epsilon.
+pub(crate) fn w(z: Complex<f64>) -> Complex<f64> {
     if z.re == 0.0 {
         return c64(erfcx(z.im), z.re); // give correct sign of 0 in imag(w)
     } else if z.im == 0.0 {
         return c64((-sqr(z.re)).exp(), w_im(z.re));
     }
 
-    let (a, a2, c);
-    if relerr <= f64::EPSILON {
-        relerr = f64::EPSILON;
-        a = 0.518_321_480_430_086; // pi / sqrt(-log(eps*0.5))
-        c = 0.329_973_702_884_629_07; // (2/pi) * a;
-        a2 = 0.268_657_157_075_235_96; // a^2
-    } else {
-        if relerr > 0.1 {
-            relerr = 0.1; // not sensible to compute < 1 digit
-        }
-        a = PI / (-(relerr * 0.5).ln()).sqrt();
-        c = FRAC_2_PI * a;
-        a2 = a * a;
-    }
+    let relerr = f64::EPSILON;
+    let a = 0.518_321_480_430_086; // pi / sqrt(-log(eps*0.5))
+    let c = 0.329_973_702_884_629_07; // (2/pi) * a;
+    let a2 = 0.268_657_157_075_235_96; // a^2
     let x = z.re.abs();
     let (y, ya) = (z.im, z.im.abs());
 
@@ -661,105 +654,53 @@ pub(crate) fn w(z: Complex<f64>, mut relerr: f64) -> Complex<f64> {
         speedups from using the special-case code with the precomputed
         exponential, and the x < 5e-4 special case is needed for accuracy. */
 
-        if relerr == f64::EPSILON {
-            // use precomputed exp(-a2*(n*n)) table
-            if x < 5e-4 {
-                // compute sum4 and sum5 together as sum5-sum4
-                let x2 = x * x;
-                expx2 = 1.0 - x2 * (1.0 - 0.5 * x2); // exp(-x*x) via Taylor
-                // compute exp(2*a*x) and exp(-2*a*x) via Taylor, to double precision
-                let ax2 = 1.036_642_960_860_172 * x; // 2*a*x
-                let exp2ax = 1.0 + ax2 * (1.0 + ax2 * (0.5 + 0.166_666_666_666_666_66 * ax2));
-                let expm2ax = 1.0 - ax2 * (1.0 - ax2 * (0.5 - 0.166_666_666_666_666_66 * ax2));
-                let mut n: u32 = 1;
-                loop {
-                    let coef = EXPA2N2[n as usize - 1] * expx2 / (a2 * f64::from(n * n) + y * y);
-                    prod2ax *= exp2ax;
-                    prodm2ax *= expm2ax;
-                    sum1 += coef;
-                    sum2 += coef * prodm2ax;
-                    sum3 += coef * prod2ax;
+        // use precomputed exp(-a2*(n*n)) table
+        if x < 5e-4 {
+            // compute sum4 and sum5 together as sum5-sum4
+            let x2 = x * x;
+            expx2 = 1.0 - x2 * (1.0 - 0.5 * x2); // exp(-x*x) via Taylor
+            // compute exp(2*a*x) and exp(-2*a*x) via Taylor, to double precision
+            let ax2 = 1.036_642_960_860_172 * x; // 2*a*x
+            let exp2ax = 1.0 + ax2 * (1.0 + ax2 * (0.5 + 0.166_666_666_666_666_66 * ax2));
+            let expm2ax = 1.0 - ax2 * (1.0 - ax2 * (0.5 - 0.166_666_666_666_666_66 * ax2));
+            let mut n: u32 = 1;
+            loop {
+                let coef = EXPA2N2[n as usize - 1] * expx2 / (a2 * f64::from(n * n) + y * y);
+                prod2ax *= exp2ax;
+                prodm2ax *= expm2ax;
+                sum1 += coef;
+                sum2 += coef * prodm2ax;
+                sum3 += coef * prod2ax;
 
-                    // really = sum5 - sum4
-                    sum5 +=
-                        coef * (2.0 * a) * f64::from(n) * sinh_taylor((2.0 * a) * f64::from(n) * x);
+                // really = sum5 - sum4
+                sum5 += coef * (2.0 * a) * f64::from(n) * sinh_taylor((2.0 * a) * f64::from(n) * x);
 
-                    // test convergence via sum3
-                    if coef * prod2ax < relerr * sum3 {
-                        break;
-                    }
-                    n += 1;
+                // test convergence via sum3
+                if coef * prod2ax < relerr * sum3 {
+                    break;
                 }
-            } else {
-                // x > 5e-4, compute sum4 and sum5 separately
-                expx2 = (-x * x).exp();
-                let exp2ax = ((2.0 * a) * x).exp();
-                let expm2ax = 1.0 / exp2ax;
-                let mut n: u32 = 1;
-                loop {
-                    let coef = EXPA2N2[n as usize - 1] * expx2 / (a2 * f64::from(n * n) + y * y);
-                    prod2ax *= exp2ax;
-                    prodm2ax *= expm2ax;
-                    sum1 += coef;
-                    sum2 += coef * prodm2ax;
-                    sum4 += (coef * prodm2ax) * (a * f64::from(n));
-                    sum3 += coef * prod2ax;
-                    sum5 += (coef * prod2ax) * (a * f64::from(n));
-                    // test convergence via sum5, since this sum has the slowest decay
-                    if (coef * prod2ax) * (a * f64::from(n)) < relerr * sum5 {
-                        break;
-                    }
-                    n += 1;
-                }
+                n += 1;
             }
         } else {
-            // relerr != DBL_EPSILON, compute exp(-a2*(n*n)) on the fly
+            // x > 5e-4, compute sum4 and sum5 separately
+            expx2 = (-x * x).exp();
             let exp2ax = ((2.0 * a) * x).exp();
             let expm2ax = 1.0 / exp2ax;
-            if x < 5e-4 {
-                // compute sum4 and sum5 together as sum5-sum4
-                let x2 = x * x;
-                expx2 = 1.0 - x2 * (1.0 - 0.5 * x2); // exp(-x*x) via Taylor
-                let mut n: u32 = 1;
-                loop {
-                    let coef =
-                        (-a2 * f64::from(n * n)).exp() * expx2 / (a2 * f64::from(n * n) + y * y);
-                    prod2ax *= exp2ax;
-                    prodm2ax *= expm2ax;
-                    sum1 += coef;
-                    sum2 += coef * prodm2ax;
-                    sum3 += coef * prod2ax;
-
-                    // really = sum5 - sum4
-                    sum5 +=
-                        coef * (2.0 * a) * f64::from(n) * sinh_taylor((2.0 * a) * f64::from(n) * x);
-
-                    // test convergence via sum3
-                    if coef * prod2ax < relerr * sum3 {
-                        break;
-                    }
-                    n += 1;
+            let mut n: u32 = 1;
+            loop {
+                let coef = EXPA2N2[n as usize - 1] * expx2 / (a2 * f64::from(n * n) + y * y);
+                prod2ax *= exp2ax;
+                prodm2ax *= expm2ax;
+                sum1 += coef;
+                sum2 += coef * prodm2ax;
+                sum4 += (coef * prodm2ax) * (a * f64::from(n));
+                sum3 += coef * prod2ax;
+                sum5 += (coef * prod2ax) * (a * f64::from(n));
+                // test convergence via sum5, since this sum has the slowest decay
+                if (coef * prod2ax) * (a * f64::from(n)) < relerr * sum5 {
+                    break;
                 }
-            } else {
-                // x > 5e-4, compute sum4 and sum5 separately
-                expx2 = (-x * x).exp();
-                let mut n: u32 = 1;
-                loop {
-                    let coef =
-                        (-a2 * f64::from(n * n)).exp() * expx2 / (a2 * f64::from(n * n) + y * y);
-                    prod2ax *= exp2ax;
-                    prodm2ax *= expm2ax;
-                    sum1 += coef;
-                    sum2 += coef * prodm2ax;
-                    sum4 += (coef * prodm2ax) * (a * f64::from(n));
-                    sum3 += coef * prod2ax;
-                    sum5 += (coef * prod2ax) * (a * f64::from(n));
-                    // test convergence via sum5, since this sum has the slowest decay
-                    if (coef * prod2ax) * (a * f64::from(n)) < relerr * sum5 {
-                        break;
-                    }
-                    n += 1;
-                }
+                n += 1;
             }
         }
         let expx2erfcxy = // avoid spurious overflow for large negative y
