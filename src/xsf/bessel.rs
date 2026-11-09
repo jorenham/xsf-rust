@@ -487,7 +487,7 @@ fn cyl_bessel_j_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
         nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
         set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
         // Unlike in xsf (scipy/xsf#383), an AMOS overflow of Y_v(x) is -inf instead of NaN.
-        if kode == 2 && ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
             cy_y = c64(f64::NEG_INFINITY, 0.0);
         }
         cy_j = rotate_jy(cy_j, cy_y, v);
@@ -501,9 +501,10 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     }
 
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
-    if res.re.is_nan() || amos_underflow(res.re, v, x) {
+    if !res.re.is_finite() || amos_underflow(res.re, v, x) {
         /* AMOS returned NaN, possibly due to overflow */
-        // Unlike in xsf (scipy/xsf#402), also if AMOS underflowed.
+        // Unlike in xsf (scipy/xsf#383, scipy/xsf#402), also if AMOS overflowed to inf or
+        // underflowed.
         return crate::xsf::cephes::jv(v, x);
     }
 
