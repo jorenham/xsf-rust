@@ -749,6 +749,22 @@ fn test_fdtri_tiny_p() {
 }
 
 #[test]
+fn test_fdtri_small_p_large_dfn() {
+    // reference values from Arb; here `incbet(dfd/2, dfn/2, 1/2) > 1 - p`
+    let x = [
+        xsf::fdtri(1e4, 1e3, 1e-14),
+        xsf::fdtri(1e4, 1.0, 1e-14),
+        xsf::fdtri(1e3, 0.5, 1e-9),
+    ];
+    let x_ref = [
+        0.710_423_069_118_838,
+        0.016_644_796_655_940_685,
+        0.014_226_162_949_357_642,
+    ];
+    xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
+}
+
+#[test]
 fn test_gdtr() {
     xsref::test("gdtr", "d_d_d-d", |x| xsf::gdtr(x[0], x[1], x[2]));
 }
