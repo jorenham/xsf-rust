@@ -14,6 +14,7 @@ use super::hyp1f1_recurrence::{
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS};
+use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
 use crate::xsf::exp::cexp;
@@ -423,6 +424,49 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         .or_else(|| checked(x, |x0| chgm_series_dd(ak, b, xk, x0)))
 }
 
+/// Unlike in xsf (scipy/xsf#365): `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0`
+/// from Tricomi's expansion in Bessel functions (DLMF 13.11.3, 13.11.4), as
+/// `Gamma(b) e^(x0/2) (t/2)^(1-b) sum_n B_n J_(b-1+n)(t)` with `t = sqrt(2 c x)`, `B_n = A_n w^n` and
+/// `w = sqrt(x / (2c))`.
+///
+/// For `n >= 2`, `|B_(n+1)| <= q max(|B_n|, |B_(n-1)|, |B_(n-2)|)` with
+/// `q = ((b + 3) w^2 + c w^3) / 3`. So if `q <= 1/2`, the rest of the sum after `B_n` is at most 3
+/// times that maximum (`|J_v| <= 1` for `v >= 0`), and `sum |B_n| < 5` bounds the effect of the
+/// absolute errors of the `J_v`. `None` if `q > 1/2`, or if the sum doesn't converge within 500 terms
+/// (as the series), is too small for underflowing `J_v` to be negligible, or the result isn't finite.
+fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
+    let c = b - 2.0 * a;
+    let t = (2.0 * c * x).sqrt();
+    let w2 = x / (2.0 * c);
+    let cw3 = c * w2 * w2.sqrt();
+    let q = ((b + 3.0) * w2 + cw3) / 3.0;
+    if !(q <= 0.5) {
+        return None;
+    }
+    let j = |v| cyl_bessel_j_f64(v, t);
+    // J_(b-1) = (2b/t) J_b - J_(b+1) (DLMF 10.6.1), since `b - 1` can round off a tiny `b`
+    let mut sum = 2.0 * b / t * j(b) - j(b + 1.0);
+    let mut abs_sum = sum.abs();
+    // B_(n-2), B_(n-1) and B_n, with B_0 = 1 and B_1 = 0
+    let [mut bn2, mut bn1, mut bn] = [0.0, 1.0, 0.0_f64];
+    for n in (1..500).map(f64::from) {
+        let term = bn * j(b - 1.0 + n);
+        sum += term;
+        abs_sum += term.abs();
+        if 3.0 * bn.abs().max(bn1.abs()).max(bn2.abs()) <= f64::EPSILON * abs_sum {
+            // the `J_v` that underflow add less than `5 MIN_POSITIVE`, i.e. `5 EPSILON abs_sum`
+            if abs_sum < f64::MIN_POSITIVE / f64::EPSILON {
+                return None;
+            }
+            let scale = (gammaln(b) + (1.0 - b) * (t / 2.0).ln() + x0 / 2.0).exp();
+            return Some(scale * sum).filter(|hg| hg.is_finite());
+        }
+        // (n + 1) B_(n+1) = (n + b - 1) w^2 B_(n-1) - c w^3 B_(n-2)
+        (bn2, bn1, bn) = (bn1, bn, ((n + b - 1.0) * w2 * bn1 - cw3 * bn2) / (n + 1.0));
+    }
+    None
+}
+
 #[allow(clippy::needless_late_init)]
 pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // ===================================================
@@ -580,6 +624,14 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // if it doesn't converge within 500 terms.
             if !converged && hg.is_finite() && a > -1.0 && a0 < 2.0 && b > 0.0 {
                 if let Some((hg, _)) = chgm_series(a, b, x, x0) {
+                    return hg;
+                }
+            }
+            // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, Tricomi's expansion (see
+            // `chgm_tricomi`) if the series cancels by over 1e3; below that the series is usually
+            // more accurate
+            if cancellation > 1e3 && a < -1.0 && b > 0.0 {
+                if let Some(hg) = chgm_tricomi(a, b, x, x0) {
                     return hg;
                 }
             }
