@@ -278,13 +278,12 @@ pub(crate) fn cyl_bessel_ke_f64(v: f64, x: f64) -> f64 {
     }
 
     let ke = cyl_bessel_ke_c64(v, c64(x, 0.0)).re;
-    if ke == f64::INFINITY {
-        return cyl_bessel_overflow(cyl_bessel_ke_c64, 1.0, v.abs(), x, ke);
-    }
-    ke
+    cyl_bessel_overflow(cyl_bessel_ke_c64, 1.0, v.abs(), x, ke)
 }
 
-/// Unlike in xsf (scipy/xsf#372), retry an AMOS overflow `inf` with the recurrence
+/// Returns `res = f(v, x)`, unless it's an AMOS overflow `inf`.
+///
+/// Unlike in xsf (scipy/xsf#372), retry such an `inf` with the recurrence
 /// f_{u+d} = 2u/x f_u + c f_{u-d} (DLMF 10.6.1, 10.29.1), d = sign(v), from the first order
 /// v - md (m = 1, 2, 4, 8, 16 < |v|) without overflow; c = -1 for J and Y, and 1 for I and K.
 fn cyl_bessel_overflow(
@@ -292,8 +291,11 @@ fn cyl_bessel_overflow(
     c: f64,
     v: f64,
     x: f64,
-    inf: f64,
+    res: f64,
 ) -> f64 {
+    if !res.is_infinite() {
+        return res;
+    }
     let (d, z) = (v.signum(), c64(x, 0.0));
     for m in [1, 2, 4, 8, 16_u8] {
         if f64::from(m) >= v.abs() {
@@ -307,9 +309,9 @@ fn cyl_bessel_overflow(
         for k in (1..=m).rev() {
             (f0, f1) = (f1, 2.0 * (v - f64::from(k) * d) / x * f1 + c * f0);
         }
-        return if f1.is_finite() { f1 } else { inf };
+        return if f1.is_finite() { f1 } else { res };
     }
-    inf
+    res
 }
 
 /// Whether a real AMOS J or I result underflowed to 0, which AMOS does early: from about 1e-290
@@ -405,10 +407,7 @@ pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
     }
 
     let k = cyl_bessel_k_c64(v, c64(z, 0.0)).re;
-    if k == f64::INFINITY {
-        return cyl_bessel_overflow(cyl_bessel_k_c64, 1.0, v.abs(), z, k);
-    }
-    k
+    cyl_bessel_overflow(cyl_bessel_k_c64, 1.0, v.abs(), z, k)
 }
 
 fn cyl_bessel_je_c64(mut v: f64, z: Complex64) -> Complex64 {
@@ -447,14 +446,11 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
     }
 
     let je = cyl_bessel_je_c64(v, c64(x, 0.0)).re;
-    if je.is_infinite() {
-        return cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je);
-    }
     // Unlike in xsf (scipy/xsf#402), use cephes (for real x, e^-|Im x| = 1) if AMOS underflowed.
     if amos_underflow(je, v, x) {
         return crate::xsf::cephes::jv(v, x);
     }
-    je
+    cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je)
 }
 
 fn cyl_bessel_ye_c64(mut v: f64, z: Complex64) -> Complex64 {
@@ -496,14 +492,11 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
     }
 
     let ye = cyl_bessel_ye_c64(v, c64(x, 0.0)).re;
-    if ye.is_infinite() {
-        return cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye);
-    }
-    ye
+    cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye)
 }
 
-/// Unlike in xsf, the four Hankel functions share this implementation (xsf duplicates it), with
-/// `kode = 2` for the exponentially scaled ones and `m` the kind.
+/// Unlike in xsf, the four Hankel functions share this implementation, with `kode = 2` for the
+/// exponentially scaled ones and `m` the kind.
 fn cyl_hankel_c64(mut v: f64, z: Complex64, kode: i32, m: i32) -> Complex64 {
     let n = 1;
     let mut ierr = 0;
@@ -626,11 +619,8 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     if res.re.is_nan() {
         return crate::xsf::cephes::yv(v, x);
     }
-    if res.re.is_infinite() {
-        return cyl_bessel_overflow(cyl_bessel_y_c64, -1.0, v, x, res.re);
-    }
 
-    res.re
+    cyl_bessel_overflow(cyl_bessel_y_c64, -1.0, v, x, res.re)
 }
 
 // Bessel J
@@ -1119,8 +1109,8 @@ fn itika(x: f64) -> (f64, f64) {
         1.1192354495579e+4,
         9.515939374212e+4,
         9.0412425769041e+5,
-        // Unlike in xsf (scipy/xsf#379), also A(11:28): A(k) = a(k) + (k - 1/2) A(k-1), with a(k)
-        // from DLMF 10.40.1
+        // Unlike in xsf (scipy/xsf#379), also A(11:28), for the asymptotic expansion of `ti`:
+        // A(k) = a(k) + (k - 1/2) A(k-1), with a(k) from DLMF 10.40.1
         9.493856041645449e6,
         1.0918238256943358e8,
         1.3647980398733943e9,
@@ -1150,8 +1140,7 @@ fn itika(x: f64) -> (f64, f64) {
     if x == 0.0 {
         return (0.0, 0.0);
     } else if x < 40.0 {
-        // Unlike in xsf (scipy/xsf#379), the series of `ti` is used for x < 40 (instead of 20),
-        // and its asymptotic expansion below has 28 terms (instead of 10).
+        // Unlike in xsf (scipy/xsf#379), the series of `ti` is used for x < 40 (instead of 20)
         x2 = x * x;
         ti = 1.0;
         r = 1.0;
@@ -1287,15 +1276,15 @@ fn itj0y0_neumann(x: f64) -> [f64; 4] {
 }
 
 fn itjya(x: f64) -> (f64, f64) {
-    let mut a = [0.0; 18];
-    let el = 0.5772156649015329;
-    let eps = 1.0e-12;
-
     // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40.
     if (0.5..40.0).contains(&x) {
         let [tj, _, ty, _] = itj0y0_neumann(x);
         return (tj, ty);
     }
+
+    let mut a = [0.0; 18];
+    let el = 0.5772156649015329;
+    let eps = 1.0e-12;
 
     let tj;
     let ty;
@@ -1382,8 +1371,8 @@ fn ittika(x: f64) -> (f64, f64) {
         2.3448727161884e3,
         1.7588273098916e4,
         1.4950639538279e5,
-        // Unlike in xsf (scipy/xsf#379), also C(9:28): C(k) = a(k) + (k + 1/2) C(k-1), with a(k)
-        // from DLMF 10.40.1
+        // Unlike in xsf (scipy/xsf#379), also C(9:28), for both asymptotic expansions:
+        // C(k) = a(k) + (k + 1/2) C(k-1), with a(k) from DLMF 10.40.1
         1.4203351366661638e6,
         1.491362895213499e7,
         1.715072842854485e8,
@@ -1425,7 +1414,6 @@ fn ittika(x: f64) -> (f64, f64) {
         }
         tti *= 0.125 * x * x;
     } else {
-        // Unlike in xsf (scipy/xsf#379), 28 (instead of 8) terms
         tti = 1.0;
         r = 1.0;
         for k in 1..=28 {
@@ -1457,7 +1445,6 @@ fn ittika(x: f64) -> (f64, f64) {
     } else {
         let mut ttk_ = 1.0;
         r = 1.0;
-        // Unlike in xsf (scipy/xsf#379), 28 (instead of 8) terms
         for k in 1..=28 {
             r = -r / x;
             ttk_ += C[k - 1] * r;
@@ -1477,8 +1464,6 @@ fn ittjya(x: f64) -> (f64, f64) {
     //          TTY --- Integration of Y0(t)/t from x to ∞
     // =========================================================
 
-    let el = 0.5772156649015329;
-
     // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 34 (from about 34, the
     // asymptotic expansion below is more accurate).
     if (0.5..34.0).contains(&x) {
@@ -1486,6 +1471,7 @@ fn ittjya(x: f64) -> (f64, f64) {
         return (ttj, tty);
     }
 
+    let el = 0.5772156649015329;
     let mut ttj;
     let tty;
     let mut r;
