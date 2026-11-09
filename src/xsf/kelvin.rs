@@ -5,7 +5,7 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
-use core::f64::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
@@ -26,16 +26,30 @@ struct Klvna {
 /// The relative tolerance of the power series
 const EPS: f64 = 1.0e-15;
 
+/// The offsets `[i, j, k]` of the ber x, bei x, ber'x and bei'x series (see `ber_term`)
+const BER_OFFSETS: [[f64; 3]; 4] = [
+    [0.0, -1.0, -1.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [0.0, -1.0, 1.0],
+];
+
+/// The term `r_m = -r_(m-1) x4 / (4 m (m + i) (2m + j) (2m + k))` of a series with the offsets
+/// `[i, j, k]` of `BER_OFFSETS`, where `x4 = (x/2)^4`
+fn ber_term(r: f64, m: f64, x4: f64, [i, j, k]: [f64; 3]) -> f64 {
+    // The products of these small integers are exact
+    -0.25 * r / (m * (m + i)) / ((2.0 * m + j) * (2.0 * m + k)) * x4
+}
+
 /// ber x, bei x, ber'x and bei'x from their power series
 fn ber_series(x: f64) -> (f64, f64, f64, f64) {
     let x2 = 0.25 * x * x;
     let x4 = x2 * x2;
-    // `r_0 + r_1 + ...` with `r_m = -r_(m-1) x4 / (4 d1 d2 d3)` and `[d1, d2, d3] = d(m)`
-    let sum = |mut r: f64, d: fn(f64) -> [f64; 3]| {
+    // `r_0 + r_1 + ...` with the `r_m` of `ber_term`
+    let sum = |mut r: f64, d: [f64; 3]| {
         let mut s = r;
         for m in 1..=60 {
-            let [d1, d2, d3] = d(f64::from(m));
-            r = -0.25 * r / d1 / d2 / d3 * x4;
+            r = ber_term(r, f64::from(m), x4, d);
             s += r;
             if r.abs() < s.abs() * EPS {
                 break;
@@ -44,10 +58,10 @@ fn ber_series(x: f64) -> (f64, f64, f64, f64) {
         s
     };
     (
-        sum(1.0, |m| [m * m, (2.0 * m - 1.0).powi(2), 1.0]),
-        sum(x2, |m| [m * m, (2.0 * m + 1.0).powi(2), 1.0]),
-        sum(-0.25 * x * x2, |m| [m, m + 1.0, (2.0 * m + 1.0).powi(2)]),
-        sum(0.5 * x, |m| [m * m, 2.0 * m - 1.0, 2.0 * m + 1.0]),
+        sum(1.0, BER_OFFSETS[0]),
+        sum(x2, BER_OFFSETS[1]),
+        sum(-0.25 * x * x2, BER_OFFSETS[2]),
+        sum(0.5 * x, BER_OFFSETS[3]),
     )
 }
 
@@ -68,16 +82,14 @@ fn klvna(x: f64) -> Klvna {
 
     let el = 0.5772156649015329;
 
-    let (ber, bei, mut ger, mut gei, der, dei, mut her, mut hei);
-    let mut r;
-    let mut gs;
+    let (ber, bei, ger, gei, der, dei, her, hei);
 
     if x == 0.0 {
         return Klvna {
             ber: 1.0,
             bei: 0.0,
             ger: SPECFUN_INF,
-            gei: -0.25 * PI,
+            gei: -FRAC_PI_4,
             der: 0.0,
             dei: 0.0,
             her: -SPECFUN_INF,
@@ -91,59 +103,28 @@ fn klvna(x: f64) -> Klvna {
     if x.abs() < 3.0 {
         (ber, bei, der, dei) = ber_series(x);
 
-        ger = -((x / 2.0).ln() + el) * ber + 0.25 * PI * bei;
-
-        r = 1.0;
-        gs = 0.0;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) - 1.0;
-            r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
-            gs = gs + 1.0 / (2.0 * f64::from(m) - 1.0) + 1.0 / (2.0 * f64::from(m));
-            ger += r * gs;
-            if (r * gs).abs() < ger.abs() * EPS {
-                break;
+        // `s + r_1 g_1 + r_2 g_2 + ...` with the `r_m` of `ber_term` and
+        // `g_m = g_(m-1) + 1 / (2m + k - 1) + 1 / (2m + k)`
+        let sum = |mut s: f64, mut r: f64, mut gs: f64, k: f64, d: [f64; 3]| {
+            for m in 1..=60 {
+                let m = f64::from(m);
+                r = ber_term(r, m, x4, d);
+                gs = gs + 1.0 / (2.0 * m + k - 1.0) + 1.0 / (2.0 * m + k);
+                s += r * gs;
+                if (r * gs).abs() < s.abs() * EPS {
+                    break;
+                }
             }
-        }
-
-        gei = x2 - ((x / 2.0).ln() + el) * bei - 0.25 * PI * ber;
-
-        r = x2;
-        gs = 1.0;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) + 1.0;
-            r = -0.25 * r / f64::from(m * m) / (t * t) * x4;
-            gs = gs + 1.0 / (2.0 * f64::from(m)) + 1.0 / (2.0 * f64::from(m) + 1.0);
-            gei += r * gs;
-            if (r * gs).abs() < gei.abs() * EPS {
-                break;
-            }
-        }
-
-        r = -0.25 * x * x2;
-        gs = 1.5;
-        her = 1.5 * r - ber / x - ((x / 2.0).ln() + el) * der + 0.25 * PI * dei;
-        for m in 1..=60 {
-            let t = 2.0 * f64::from(m) + 1.0;
-            r = -0.25 * r / f64::from(m) / (f64::from(m) + 1.0) / (t * t) * x4;
-            gs = gs + 1.0 / (2.0 * f64::from(m) + 1.0) + 1.0 / (f64::from(2 * m) + 2.0);
-            her += r * gs;
-            if (r * gs).abs() < her.abs() * EPS {
-                break;
-            }
-        }
-
-        r = 0.5 * x;
-        gs = 1.0;
-        hei = 0.5 * x - bei / x - ((x / 2.0).ln() + el) * dei - 0.25 * PI * der;
-        for m in 1..=60 {
-            r = -0.25 * r / f64::from(m * m) / (f64::from(2 * m) - 1.0) / (f64::from(2 * m) + 1.0)
-                * x4;
-            gs = gs + 1.0 / (2.0 * f64::from(m)) + 1.0 / (f64::from(2 * m) + 1.0);
-            hei += r * gs;
-            if (r * gs).abs() < hei.abs() * EPS {
-                break;
-            }
-        }
+            s
+        };
+        let l = (x / 2.0).ln() + el;
+        ger = sum(-l * ber + FRAC_PI_4 * bei, 1.0, 0.0, 0.0, BER_OFFSETS[0]);
+        gei = sum(x2 - l * bei - FRAC_PI_4 * ber, x2, 1.0, 1.0, BER_OFFSETS[1]);
+        let r = -0.25 * x * x2;
+        let s = 1.5 * r - ber / x - l * der + FRAC_PI_4 * dei;
+        her = sum(s, r, 1.5, 2.0, BER_OFFSETS[2]);
+        let s = 0.5 * x - bei / x - l * dei - FRAC_PI_4 * der;
+        hei = sum(s, 0.5 * x, 1.0, 1.0, BER_OFFSETS[3]);
     } else if x.abs() < 18.0 {
         // Unlike in xsf (scipy/xsf#232):
         // - ber, bei, ber' and bei' use the series up to x = 18, where the asymptotic expansion
