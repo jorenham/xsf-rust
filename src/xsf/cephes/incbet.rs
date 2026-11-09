@@ -521,6 +521,15 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             }
             break 'done incbet_pseries(aa, bb, xx);
         }
+        // Unlike in xsf, `I_x(a, b) = O(b)` is computed as `incbet_apser(b, a, 1 - x)` for tiny `b`
+        // if the continued fractions would be cut off at `INCBET_MAXITER`, where they can be off by
+        // orders of magnitude, while `incbet_apser` is off by a relative ~`b max(|ln(1 - x)|, 1/a)`.
+        if aa * yy <= 1.0
+            && bb * yy.ln().abs().max(1.0 / aa) <= INCBET_APSER_MAX
+            && incbet_maxiter(aa, bb, xx) >= INCBET_MAXITER
+        {
+            break 'done incbet_apser(bb, aa, yy);
+        }
 
         let mut w = yy;
 
