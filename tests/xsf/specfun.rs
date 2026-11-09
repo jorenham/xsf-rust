@@ -698,6 +698,15 @@ fn test_hyp1f1_huge_neg_a_tricomi_scaling() {
     let expected = [0.020_380_553_037_493_01, 3.559_294_019_842_940_4e300];
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; where only that prefactor (times `e^(x/2)`) overflows, for tiny `b` and large `x`
+    // (condition numbers 29, 2e2, and 3e6)
+    let abx = [(-79.5, 1e-307, 2.0), (10_000.3, 5e-308, -0.1)];
+    let expected = [3.559_294_019_842_941e307, 2.153_758_520_051_220_8e307];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+    let actual = xsf::hyp1f1(-100_000_000.5, 0.5, 1420.0);
+    xsref::np_assert_allclose!([actual], [-4.922_030_132_579_361e307], rtol = 1e-9);
 }
 
 #[test]

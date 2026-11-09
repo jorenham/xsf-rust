@@ -483,7 +483,16 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
             } else {
                 (ln_scale + x0 / 2.0).exp()
             };
-            return Some(scale * sum).filter(|hg| hg.is_finite());
+            // if only `scale` overflows, `sum` first, or else in the exponent
+            let product = g * sum * pw * e;
+            let hg = if scaled || scale.is_finite() {
+                scale * sum
+            } else if product.is_finite() {
+                product
+            } else {
+                (ln_scale + x0 / 2.0 + sum.abs().ln()).exp().copysign(sum)
+            };
+            return Some(hg).filter(|hg| hg.is_finite());
         }
         // (n + 1) B_(n+1) = (n + b - 1) w^2 B_(n-1) - c w^3 B_(n-2)
         (bn2, bn1, bn) = (bn1, bn, ((n + b - 1.0) * w2 * bn1 - cw3 * bn2) / (n + 1.0));
