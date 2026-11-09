@@ -616,3 +616,15 @@ fn test_hyp2f1_f64_nan_if_lost() {
     let actual = [xsf::hyp2f1(-8.999_999_999_999_99, 4.0, 2.5, -1.0)];
     np_assert_allclose!(actual, [2_246.910_399_198_305_6], rtol = 1e-13);
 }
+
+#[test]
+fn test_hyp2f1_f64_nan_if_err_above_1() {
+    // NaN if the error estimate with the recurrences in `a` is above 1 (Arb: 9.596, 0.8029 and
+    // 0.7836)
+    assert!(xsf::hyp2f1(29.0, -29.1, 0.18, 0.86).is_nan());
+    assert!(xsf::hyp2f1(-38.9, 34.5, -0.07, 0.885).is_nan());
+    assert!(xsf::hyp2f1(-0.15, -45.9, 51.0, -0.94).is_nan());
+    // but not for a polynomial, here T_10 near a root, which is accurate in absolute terms (Arb)
+    let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
+    assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
+}
