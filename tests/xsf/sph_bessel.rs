@@ -86,6 +86,18 @@ fn test_sph_bessel_y_exact() {
     xsref::np_assert_allclose!(&actual, &expected);
 }
 
+#[test]
+fn test_sph_bessel_y_tiny_x() {
+    // y_n(x) ~ -(2n - 1)!! / x^(n + 1) (DLMF 10.52.2) overflows, also for x < 1 / f64::MAX
+    for x in [5e-324, 1e-310] {
+        assert_eq!(xsf::sph_bessel_y(2, x), f64::NEG_INFINITY);
+        assert_eq!(xsf::sph_bessel_y(2, -x), f64::INFINITY);
+        assert_eq!(xsf::sph_bessel_y_prime(2, x), f64::INFINITY);
+        // returns right away instead of running the recurrence n times
+        assert_eq!(xsf::sph_bessel_y(i64::MAX, x), f64::NEG_INFINITY);
+    }
+}
+
 /// From `scipy.special.tests.test_spherical_bessel.TestSphericalIn.test_spherical_in_exact`
 #[test]
 fn test_sph_bessel_i_exact() {
