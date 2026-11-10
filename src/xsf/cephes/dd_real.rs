@@ -27,6 +27,8 @@ use core::cmp::Ordering;
 use core::f64::consts::{E as E_HI, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::utils::pow2;
+
 /*************************************************************************
  * The basic routines taking double arguments, returning 1 (or 2) doubles
  *************************************************************************/
@@ -65,8 +67,8 @@ fn two_sqr(a: f64) -> (f64, f64) {
 
 /// `std::ldexp`, i.e. `x * 2^n` without intermediate overflow or double rounding (as in musl).
 pub(crate) fn ldexp_f64(x: f64, mut n: i32) -> f64 {
-    const P1023: f64 = f64::from_bits(0x7fe0_0000_0000_0000); // 2^1023
-    const M969: f64 = f64::from_bits(0x0360_0000_0000_0000); // 2^-1022 * 2^53
+    const P1023: f64 = pow2(1023);
+    const M969: f64 = pow2(53 - 1022);
 
     let mut y = x;
     if n > 1023 {
@@ -99,7 +101,7 @@ pub(crate) fn frexp_f64(x: f64) -> (f64, i32) {
             return (x, 0);
         }
         // subnormal
-        let (m, e) = frexp_f64(x * f64::from_bits(0x43f0_0000_0000_0000)); // 2^64
+        let (m, e) = frexp_f64(x * const { pow2(64) });
         return (m, e - 64);
     }
     if ee == 0x7ff {

@@ -38,6 +38,12 @@ pub(crate) const SQRT2OPI: f64 = 0.797_884_560_802_865_4;
 /// sqrt(3)
 pub(crate) const SQRT3: f64 = 1.732_050_807_568_877_2;
 
+/// `2^k` for a normal result (`-1022 <= k <= 1023`)
+pub(crate) const fn pow2(k: i32) -> f64 {
+    assert!(-1022 <= k && k <= 1023);
+    f64::from_bits(((1023 + k) as u64) << 52)
+}
+
 /// `m * e^e`, without spurious over- or underflow of `e^e`
 ///
 /// This is `m * h * h` with `h = e^(e/2)`, which is a normal float for `|e| <= 1400 = 2 * 700`
@@ -157,5 +163,6 @@ mod tests {
         assert_eq!(SQRT_2.to_bits(), black_box(2.0_f64).sqrt().to_bits());
         let (ln10, ln2) = (black_box(10.0_f64).ln(), black_box(2.0_f64).ln());
         assert_eq!((LN_10 / LN_2).to_bits(), (ln10 / ln2).to_bits());
+        assert!((-1022..=1023).all(|k| pow2(k) == 2.0_f64.powi(k)));
     }
 }
