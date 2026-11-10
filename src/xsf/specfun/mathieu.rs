@@ -349,9 +349,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     let ss: f64;
     let s0: f64;
 
-    for i in 0..251 {
-        fc[i] = 0.0;
-    }
+    fc.fill(0.0);
 
     let qm: f64 = if q.abs() <= 1.0e-7 {
         // Expansion up to order Q^1 (Abramowitz & Stegun 20.2.27-28)
@@ -363,11 +361,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             jm = m / 2;
         }
 
-        if jm + 1 > 251 {
-            let fnan = f64::NAN;
-            for i in 0..251 {
-                fc[i] = fnan;
-            }
+        if jm as usize >= fc.len() {
+            fc.fill(f64::NAN);
             return;
         }
         // Proceed using the simplest expansion
@@ -415,16 +410,16 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     // q > 1e-7, qm >= 7.5.
     let km = (qm + 0.5 * f64::from(m)) as i32;
 
-    if km > 251 {
+    if km as usize >= fc.len() {
         // Overflow, generate NaNs
-        for i in 0..251 {
-            fc[i] = f64::NAN;
-        }
+        fc.fill(f64::NAN);
         return;
     }
 
     kb = 0;
     s = 0.0;
+    // `rescale` keeps the backward sum `s` below this, so that `s + sp * (f3 / f2)^2` can't overflow
+    let s_max = f64::MAX.sqrt();
     f = 1.0e-100;
     u = 0.0;
     fc[(km - 1) as usize] = 0.0;
@@ -435,10 +430,11 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             v = u;
             u = f;
             f = (a - 4.0 * f64::from(k) * f64::from(k)) * u / q - v;
+            rescale(&mut fc[k as usize..], &mut u, &mut f, &mut s, s_max);
 
             // NOTE: reads `fc[251]` when km == 251 (the first iteration): out of bounds for the
             // 251-element buffers that the C++ callers (`mtu0`, `mtu12`) pass (C++ UB; panics here
-            // if `fc.len() == 251`). For a 252-element `fc`, `fc[251]` is not zeroed above.
+            // if `fc.len() == 251`).
             if f.abs() < fc[k as usize].abs() {
                 kb = k;
                 fc[0] = 1.0e-100;
@@ -453,7 +449,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                     v = u;
                     u = f1;
                     f1 = (a - 4.0 * (f64::from(i) - 1.0) * (f64::from(i) - 1.0)) * u / q - v;
-                    rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
+                    rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp, f64::MAX);
                     fc[i as usize] = f1;
 
                     if i == kb {
@@ -496,6 +492,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 v = u;
                 u = f;
                 f = (a - (2.0 * f64::from(k) - 1.0) * (2.0 * f64::from(k) - 1.0)) * u / q - v;
+                rescale(&mut fc[(k - 1) as usize..], &mut u, &mut f, &mut s, s_max);
 
                 if f.abs() >= fc[(k - 1) as usize].abs() {
                     fc[(k - 2) as usize] = f;
@@ -528,7 +525,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             v = u;
             u = f1;
             f1 = (a - (2.0 * f64::from(i) - 1.0) * (2.0 * f64::from(i) - 1.0)) * u / q - v;
-            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
+            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp, f64::MAX);
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
@@ -557,6 +554,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 v = u;
                 u = f;
                 f = (a - 4.0 * f64::from(k) * f64::from(k)) * u / q - v;
+                rescale(&mut fc[(k - 1) as usize..], &mut u, &mut f, &mut s, s_max);
 
                 // Unlike in xsf (scipy/xsf#343), this compares against `fc[k - 1]` instead of
                 // `fc[k]`, like the Fortran original (FC(K)) and the KD=2,3 case do
@@ -591,7 +589,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             v = u;
             u = f1;
             f1 = (a - 4.0 * f64::from(i) * f64::from(i)) * u / q - v;
-            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp);
+            rescale(&mut fc[..i as usize], &mut u, &mut f1, &mut sp, f64::MAX);
 
             if i != kb - 1 {
                 fc[i as usize] = f1;
@@ -627,11 +625,12 @@ fn flip_sign(fc: &mut [f64]) {
     }
 }
 
-/// Unlike in xsf (scipy/xsf#344), `fcoef` rescales its forward recurrence `fc`, `u`, `f1` and
-/// their sum of squares `sp` if `sp` would overflow. Otherwise the coefficients are all 0 (e.g.
-/// for `m = 92, q = 0.01`), or all NaN if `fc` itself overflows (e.g. for `m = 200, q = 1`).
-fn rescale(fc: &mut [f64], u: &mut f64, f1: &mut f64, sp: &mut f64) {
-    if !(*sp + *f1 * *f1).is_finite() {
+/// Unlike in xsf (scipy/xsf#344), `fcoef` rescales its forward and backward recurrences `fc`,
+/// `u`, `f1` and their sum of squares `sp` if `sp` would exceed `sp_max`. Otherwise the
+/// coefficients are all 0 (e.g. for `m = 92, q = 0.01`, or `m = 170, q = 1500`), or all NaN if `fc`
+/// itself overflows (e.g. for `m = 200, q = 1`).
+fn rescale(fc: &mut [f64], u: &mut f64, f1: &mut f64, sp: &mut f64, sp_max: f64) {
+    if !(*sp + *f1 * *f1 <= sp_max) {
         let scale = f1.abs().recip();
         for c in fc.iter_mut().chain([u, f1]) {
             *c *= scale;
@@ -694,20 +693,13 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
         17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
     };
 
-    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7).
-    // Rust's `as i32` saturates (NaN -> 0), so a huge qm returns NaNs (km > 251), whereas g++ on
-    // x86-64 gives km = INT_MIN, i.e. csf = csd = 0 with Status::OK.
+    // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7);
+    // g++ on x86-64 gives km = INT_MIN, i.e. csf = csd = 0 with Status::OK.
     let km = (qm + 0.5 * f64::from(m)) as i32;
 
-    if km > 251 {
-        *csf = f64::NAN;
-        *csd = f64::NAN;
-        return Status::Other;
-    }
-
-    // Unlike in xsf (scipy/xsf#312), 252 instead of 251, since `fcoef` reads `fc[km]`, and `km`
-    // can be 251
-    let Some(mut fg) = try_zeroed(252) else {
+    // Unlike in xsf (scipy/xsf#312), `fg` has `km + 1` elements, instead of 251 with NaN results for
+    // `km > 251`, since `fcoef` reads `fc[km]`. The callers bound `m` and `q` instead.
+    let Some(mut fg) = try_zeroed(km as usize + 1) else {
         *csf = f64::NAN;
         *csd = f64::NAN;
         return Status::NoMemory;
