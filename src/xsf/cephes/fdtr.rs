@@ -226,13 +226,16 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     let mut w = incbet(0.5 * b, 0.5 * a, 0.5);
     /* If that is greater than y, then the solution w < .5.
      * Otherwise, solve at 1-y to remove cancellation in (b - b*w).  */
-    // Unlike in xsf, this branch, which inverts at the rounded `1 - p`, is only taken if that
-    // loses less than the ~eps / w that the other one loses in `1 - w`. It is tried if p is at
-    // least the mean `b / (a + b)` of w or 1/2 (where `1 - p` is exact), except at
-    // `y = 1 - MACHEP`, and kept if the error of `1 - p` relative to p is at most eps / w (or w
-    // is NaN), as w can far exceed its mean, e.g. for tiny b.
-    if (w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
+    // Unlike in xsf, the solution at the rounded `1 - p` is only used if that rounding loses
+    // less than the ~eps / w that the other branch loses in `1 - w`.
+    //
+    // Tried if p is at least the mean `b / (a + b)` of w, or 1/2 (where `1 - p` is exact), and
+    // not at `y = 1 - MACHEP`.
+    let try_complement = w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5);
+    if try_complement || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y);
+        // Kept if the error of `1 - p` relative to p is at most eps / w (w can far exceed its
+        // mean, e.g. for tiny b), or if w is NaN.
         if w.is_nan() || (1.0 - y - p).abs() * w <= f64::EPSILON * p {
             return (b - b * w) / (a * w);
         }
