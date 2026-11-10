@@ -80,11 +80,9 @@ pub fn binom(n: f64, k: f64) -> f64 {
     if k > 1e8 * n.abs() {
         // avoid loss of precision
         //
-        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1, |k|^n is split
-        // in two if `den` over- or underflows, the parity of kx is also determined for
-        // kx >= 2^31, and sinpi is used instead of sin. The `k <= 0` branch of xsf is omitted,
-        // since k > 1e8 |n| implies k > 0.
+        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1
         num = gamma(1.0 + n) / k.abs() + gamma(1.0 + n) * n / (2.0 * k * k) * (n + 1.0); // + ...
+        // Unlike in xsf (scipy/xsf#352), |k|^n is split in two if `den` over- or underflows
         let den = PI * k.abs().powf(n);
         if den.is_normal() {
             num /= den;
@@ -92,38 +90,44 @@ pub fn binom(n: f64, k: f64) -> f64 {
             let kn2 = k.abs().powf(0.5 * n);
             num = num / (PI * kn2) / kn2;
         }
+        // Unlike in xsf (scipy/xsf#352), the parity of kx is also determined for kx >= 2^31, and
+        // sinpi is used instead of sin. The `k <= 0` branch of xsf is omitted, since
+        // k > 1e8 |n| implies k > 0.
         kx = k.floor();
         let dk = k - kx;
         let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
         return num * cephes_sinpi(dk - n) * sgn;
     }
     if k.is_finite() && k.abs() > 2e4 && n.abs() < 170.0 {
-        // Unlike in xsf (scipy/xsf#352), the reflection formula
-        // binom(n, k) = Gamma(1 + n) sin(pi (n - k + 1)) / (pi poch(k - n, n + 1))
-        // is used for large |k|. The cutoff ensures that the `poch` base exceeds 1e4.
-        let (a, s) = if k > 0.0 {
-            kx = k.round();
-            nx = n.round();
-            // sin(pi (n - k + 1)) = (-1)^(kx - nx) sin(pi ((k - kx) - (n - nx)))
-            let sgn = if (kx - nx) % 2.0 == 0.0 { 1.0 } else { -1.0 };
-            (k - n, cephes_sinpi((k - kx) - (n - nx)) * sgn)
-        } else {
-            // the reflection of Gamma(1 + k) instead of Gamma(1 + n - k)
-            (-k, cephes_sinpi(-k))
-        };
-        if s == 0.0 {
-            return 0.0;
-        }
-        // poch(a, n + 1) = poch(a, n) (a + n), because the rounding error of n + 1 would be
-        // amplified by ~ln(a)
-        let p = poch(a, n);
-        let q = p * (a + n);
-        if p.is_normal() && q.is_normal() {
-            return gamma(1.0 + n) / q * (s / PI);
-        }
-        // poch(a, n) is split in two if it over- or underflows
-        let m = 0.5 * n;
-        return gamma(1.0 + n) / poch(a, m) * (s / PI) / (poch(a + m, m) * (a + n));
+        // Unlike in xsf (scipy/xsf#352), the reflection formula is used for large |k|
+        return binom_reflection(n, k);
     }
     1.0 / (n + 1.0) / beta(1.0 + n - k, 1.0 + k)
+}
+
+/// `Gamma(1 + n) sin(pi (n - k + 1)) / (pi poch(k - n, n + 1))`, the reflection formula of
+/// `binom(n, k)`, for `|k| > 2e4` and `|n| < 170`, so that the `poch` base exceeds 1e4
+fn binom_reflection(n: f64, k: f64) -> f64 {
+    let (a, s) = if k > 0.0 {
+        let (kx, nx) = (k.round(), n.round());
+        // sin(pi (n - k + 1)) = (-1)^(kx - nx) sin(pi ((k - kx) - (n - nx)))
+        let sgn = if (kx - nx) % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        (k - n, cephes_sinpi((k - kx) - (n - nx)) * sgn)
+    } else {
+        // the reflection of Gamma(1 + k) instead of Gamma(1 + n - k)
+        (-k, cephes_sinpi(-k))
+    };
+    if s == 0.0 {
+        return 0.0;
+    }
+    // poch(a, n + 1) = poch(a, n) (a + n), because the rounding error of n + 1 would be
+    // amplified by ~ln(a)
+    let p = poch(a, n);
+    let q = p * (a + n);
+    if p.is_normal() && q.is_normal() {
+        return gamma(1.0 + n) / q * (s / PI);
+    }
+    // poch(a, n) is split in two if it over- or underflows
+    let m = 0.5 * n;
+    gamma(1.0 + n) / poch(a, m) * (s / PI) / (poch(a + m, m) * (a + n))
 }
