@@ -1095,8 +1095,9 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
         ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga) * x.powf(f64::from(n));
         ub = rn1 / ga1;
     }
-    // see `chgubi`
-    if !(xsf || ga.is_normal() && ga1.is_normal()) {
+    // `chgubi` then retries with `psi_spec` and `gamma2`
+    let normal = ga.is_normal() && ga1.is_normal();
+    if !xsf && !normal {
         return f64::NAN;
     }
     let mut hm1 = 1.0;
@@ -1293,6 +1294,15 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
     let cubic = a < 4.0 && a != a.trunc();
+    // the integrand, times dt/du = 3 c u^2 if `cubic`
+    let f_head = |u: f64| {
+        if cubic {
+            let v = c * u * u;
+            3.0 * v * f(v * u)
+        } else {
+            f(u)
+        }
+    };
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
     for m in (10..=100).step_by(5) {
@@ -1304,14 +1314,7 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
             for k in 1..=30 {
                 let t1 = d + g * T[k - 1];
                 let t2 = d - g * T[k - 1];
-                let (f1, f2) = if cubic {
-                    // t1 and t2 are u here, and dt = 3 c u^2 du
-                    let (v1, v2) = (c * t1 * t1, c * t2 * t2);
-                    (3.0 * v1 * f(v1 * t1), 3.0 * v2 * f(v2 * t2))
-                } else {
-                    (f(t1), f(t2))
-                };
-                s += W[k - 1] * (f1 + f2);
+                s += W[k - 1] * (f_head(t1) + f_head(t2));
             }
             hu1 += s * g;
             d += 2.0 * g;
