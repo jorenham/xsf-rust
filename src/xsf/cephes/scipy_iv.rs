@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (scipy/xsf@09c93c7).
+//! Translated into pure Rust from `xsf/cephes/scipy_iv.h` (scipy/xsf@f8add8a).
 //!
 //! ```text
 //! Parts of the code are copyright:
@@ -188,9 +188,7 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
 
         term /= divisor;
 
-        // Unlike in xsf (scipy/xsf#468), a term below MACHEP only stops the sum if the next one is
-        // too, since a single u_k(t) can vanish, e.g. u_1(t) at t^2 = 3/5, where
-        // bessel_i(100, 81.6496580927726) is 6392289838 instead of 6392309069
+        /* Check convergence; u_k(t) itself can vanish, so wait for two small terms */
         let small = term.abs() < MACHEP;
         if small && prev_small {
             break;
