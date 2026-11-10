@@ -35,7 +35,7 @@ fn test_itmodstruve0_series_asymptotic() {
         (45.0, 2.107_522_588_189_009_7e18),
         (110.0, 2.265_187_556_512_247_2e46),
     ] {
-        let rel = (xsf::itmodstruve0(x) - expected).abs() / expected;
+        let rel = (xsf::itmodstruve0(x) - expected).abs() / expected.abs();
         assert!(rel < 4e-15, "itmodstruve0({x}): rel = {rel:e}");
     }
 }
@@ -54,7 +54,7 @@ fn test_struve_l_near_half_integer() {
         (-7.499_999_999_7, 15.0, 50_900.655_128_588_08),
         (-15.500_000_1, 15.0, 162.742_950_300_856_3),
     ] {
-        let rel = (xsf::struve_l(v, z) - expected).abs() / expected;
+        let rel = (xsf::struve_l(v, z) - expected).abs() / expected.abs();
         assert!(rel < 2e-12, "struve_l({v}, {z}): rel = {rel:e}");
     }
 }

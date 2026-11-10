@@ -431,7 +431,7 @@ fn test_tukeylambdacdf_small_p_or_lambda() {
         (-20.0, -9e-5, 2.098_545_034_667_178_4e-9, 1e-14),
         (3.0, 5e-5, 0.952_584_620_711_382_7, 1e-15),
     ] {
-        let rel = (xsf::tukeylambdacdf(x, lambda) - expected).abs() / expected;
+        let rel = (xsf::tukeylambdacdf(x, lambda) - expected).abs() / expected.abs();
         assert!(rel < tol, "tukeylambdacdf({x}, {lambda}): rel = {rel:e}");
     }
 }

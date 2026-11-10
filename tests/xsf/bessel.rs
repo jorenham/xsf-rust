@@ -452,8 +452,6 @@ fn test_it2j0y0() {
     // see https://github.com/scipy/xsref/issues/10.
     // So we instead use values that were verified using a Wolfram notebook.
 
-    // xsref::test("it2j0y0", "d-d_d", |x| xsf::it2j0y0(x[0]));
-
     let xs = [-1.0, 10.0, -10.0, 1.0, 0.2];
     let expect_0 = [
         0.121_165_246_995_068_71,

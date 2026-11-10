@@ -26,7 +26,7 @@ fn test_zeta_large_q() {
     // asymptotic expansion for q > 1e8 (reference value from mpmath)
     let (x, q) = (36.0, 1.1e8);
     let expected = 1.016_688_811_413_570_4e-283;
-    let rel = (xsf::zeta(x, q) - expected).abs() / expected;
+    let rel = (xsf::zeta(x, q) - expected).abs() / expected.abs();
     assert!(rel < 1e-15, "rel = {rel:e}");
 
     assert_eq!(xsf::zeta(f64::INFINITY, q), 0.0);
@@ -40,7 +40,7 @@ fn test_zeta_near_1_tiny_q() {
         (1.0 + f64::EPSILON, 1e-15, 5.503_599_627_370_504e15),
         (1.000_000_000_001, 1e-17, 1.000_009_999_150_220_6e17),
     ] {
-        let rel = (xsf::zeta(x, q) - expected).abs() / expected;
+        let rel = (xsf::zeta(x, q) - expected).abs() / expected.abs();
         assert!(rel < 1e-15, "zeta({x}, {q}): rel = {rel:e}");
     }
 }
@@ -54,7 +54,7 @@ fn test_zeta_negative_q() {
         (31.0, -7.5, 1.593_135_539_215_446_3e-29),
         (31.0, -0.500_000_000_000_000_1, 3.304_063_430_367_368e-5),
     ] {
-        let rel = (xsf::zeta(x, q) - expected).abs() / expected;
+        let rel = (xsf::zeta(x, q) - expected).abs() / expected.abs();
         assert!(rel < 1e-15, "zeta({x}, {q}): rel = {rel:e}");
     }
     // all terms underflow
