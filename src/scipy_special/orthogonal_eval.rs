@@ -1,7 +1,7 @@
-//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@bb0e909).
+//! Translated from `xsf/orthogonal_eval.h` and `xsf/cpu/orthogonal_eval.h` (scipy/xsf@e1800e8).
 //!
-//! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/orthogonal_eval.h>
-//! - <https://github.com/scipy/xsf/blob/bb0e909/include/xsf/cpu/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/orthogonal_eval.h>
+//! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/cpu/orthogonal_eval.h>
 
 use core::f64::consts::SQRT_2;
 use core::ops::Range;
@@ -163,7 +163,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             let q = self.clone().eval_jacobi(n - 1.0, c + 1.0, b) * (self - 1.0) * (0.5 * (n + b));
             return (p + q) / (n + c);
         }
-        let d = binom_alpha(n, a);
+        let d = jacobi_binom(n, a);
         self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0) * d
     }
 
@@ -204,7 +204,7 @@ impl JacobiArg<i32> for f64 {
                     / (2.0 * (k + alpha + 1.0) * (k + alpha + beta + 1.0) * t);
                 p += d;
             }
-            binom_alpha(f64::from(n), alpha) * p
+            jacobi_binom(f64::from(n), alpha) * p
         }
     }
 
@@ -729,20 +729,27 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
     fn eval_genlaguerre(self, n: N, a: f64) -> Self;
 }
 
-/// `binom(n + alpha, n)`, for `eval_genlaguerre` and `eval_jacobi`
+/// `binom(n + alpha, n)`, for `eval_jacobi`
 ///
 /// Unlike in xsf (scipy/xsf#457), this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if
 /// `alpha < 0` and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the
-/// digits of a small `b`.
-///
-/// E.g. `eval_genlaguerre(30, -1 + 1e-14, 10.0)` was -11.70 instead of -10.97, and
-/// `eval_jacobi(7, -1 + 1e-15, 2.0, -0.6)` was 1.219 instead of 1.371.
-fn binom_alpha(n: f64, alpha: f64) -> f64 {
+/// digits of a small `b`. `binom_alpha` is more accurate, but near `alpha = -2, -3, ...` it exposes
+/// the cancellation of the `eval_jacobi` recurrence for `beta = +-1`.
+fn jacobi_binom(n: f64, alpha: f64) -> f64 {
     if alpha < 0.0 && EXACT_N_MINUS_1.contains(&n) {
         crate::binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
     } else {
         crate::binom(n + alpha, n)
     }
+}
+
+// binom(n + alpha, n) = 1 / (n B(alpha + 1, n)) (DLMF 5.12.1), keeping the digits of alpha + 1 for
+// alpha near -1
+fn binom_alpha(n: f64, alpha: f64) -> f64 {
+    if alpha < -0.5 && n >= 1.0 {
+        return 1.0 / n / crate::beta(alpha + 1.0, n);
+    }
+    crate::binom(n + alpha, n)
 }
 
 impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
