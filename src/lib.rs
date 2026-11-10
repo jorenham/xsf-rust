@@ -54,6 +54,9 @@
 //! | [`wright_bessel`]       | Wright's generalized Bessel function                              |
 //! | [`log_wright_bessel`]   | Natural logarithm of Wright's generalized Bessel function         |
 //! | [`jahnke_emden_lambda`] | Jahnke-Emden Lambda function $\Lambda_{\nu}(x)$ and derivatives   |
+//! | [`iv_ratio`]            | Ratio $I_v(x) / I_{v-1}(x)$ of modified Bessel functions          |
+//! | [`iv_ratio_c`]          | Complement of [`iv_ratio`], $1 - I_v(x) / I_{v-1}(x)$             |
+//! | [`iv_ratioinv`]         | Inverse of [`iv_ratio`] with respect to $x$                       |
 //!
 //! ## Zeros of Bessel functions
 //!
@@ -533,6 +536,10 @@
 //! | [`sindg`]      | Sine of an angle in degrees                         |
 //! | [`tandg`]      | Tangent of an angle in degrees                      |
 //! | [`cotdg`]      | Cotangent of an angle in degrees                    |
+//! | [`cospi`]      | $\cos(\pi z)$                                       |
+//! | [`sinpi`]      | $\sin(\pi z)$                                       |
+//! | [`log1p`]      | $\ln(1+z)$                                          |
+//! | [`log1pmx`]    | $\ln(1+x) - x$                                      |
 //! | [`expm1`]      | $e^x - 1$                                           |
 //! | [`cosm1`]      | $\cos(x) - 1$                                       |
 //! | [`round`]      | Round to nearest or even integer-valued float       |
