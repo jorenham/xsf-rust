@@ -134,7 +134,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/bessel.h` (scipy/xsf@473a8f8)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@451aa7b)
 
 fn rotate(z: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
@@ -147,8 +147,8 @@ fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
     let s = cephes_sinpi(v);
 
-    // Unlike in xsf (scipy/xsf#383), drop `c * j` if c = 0 and j overflows or is NaN.
-    if c == 0.0 && !j.is_finite() {
+    if c == 0.0 {
+        // half-integer v: c * j is 0, but NaN if j overflowed
         return -s * y;
     }
     c * j - s * y
@@ -492,7 +492,6 @@ fn cyl_bessel_j_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
         nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
         set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
-        // Unlike in xsf (scipy/xsf#383), an AMOS overflow of Y_v(x) is -inf instead of NaN.
         if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
             cy_y = c64(f64::NEG_INFINITY, 0.0);
         }
@@ -507,11 +506,13 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     }
 
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
+    // Unlike in xsf (scipy/xsf#402), also if AMOS underflowed.
     if !res.re.is_finite() || amos_underflow(res.re, v, x) {
-        /* AMOS returned NaN, possibly due to overflow */
-        // Unlike in xsf (scipy/xsf#383, scipy/xsf#402), also if AMOS overflowed to inf or
-        // underflowed.
-        return crate::xsf::cephes::jv(v, x);
+        /* AMOS returned NaN or inf, possibly due to overflow */
+        let r = crate::xsf::cephes::jv(v, x);
+        if !r.is_nan() {
+            return r;
+        }
     }
 
     res.re
@@ -548,7 +549,6 @@ fn cyl_bessel_y_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
         set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
         if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
             /* overflow */
-            // Unlike in xsf (scipy/xsf#383), -inf also if `kode = 2`, instead of inf.
             cy_y.re = f64::NEG_INFINITY;
             cy_y.im = 0.0;
         }
