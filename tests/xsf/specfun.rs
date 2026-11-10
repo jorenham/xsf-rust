@@ -886,6 +886,43 @@ fn test_hyp1f1_tiny_a_or_b() {
 }
 
 #[test]
+fn test_hyp1f1_tiny_b_overflow() {
+    // Arb; in xsf these are inf, inf, NaN, and NaN, since the terms (~ 1/b) or ln Gamma(b) overflow
+    let abx = [
+        (-1.0, 1e-300, -20.0),
+        (-1.5, 1e-300, -20.0),
+        (20.0, 1e-300, -30.0),
+        (-50.0, 1e-300, 30.0),
+    ];
+    let expected = [
+        1.999_999_999_999_999_9e301,
+        1.046_860_343_479_010_6e302,
+        -7.920_209_383_780_516e293,
+        7.714_620_828_937_928e306,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-15);
+
+    // Arb; in xsf these are NaN, inf - inf i, and NaN
+    let abz = [
+        (1e-300, -1e-300, c64(20.0, 1.0)),
+        (-10.5, 1e-300, c64(-5.0, 1.0)),
+        (0.5, 1e-300, c64(-50.0, 1.0)),
+    ];
+    let expected = [
+        c64(-262_135_871.806_876_27, -408_252_434.775_991_8),
+        c64(7.907_968_079_087_868e304, -1.454_232_915_254_029_6e305),
+        c64(-4.051_003_078_579_772e298, -4.180_074_037_583_19e296),
+    ];
+    let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-15);
+
+    // NaN instead of the series with `b - a` rounded to -8, or with `|b| M` underflowing
+    assert!(xsf::hyp1f1(8.0, 1e-300, -780.0).is_nan());
+    assert!(xsf::hyp1f1(50.0, 1e-300, c64(-1000.0, 0.0)).is_nan());
+}
+
+#[test]
 fn test_hyp1f1_tiny_a_early_stop() {
     // Arb; in xsf the relative errors are 2.0e-9 and 2.3e-6
     let abx = [(1e-17, 0.5, 20.0), (-1e-17, 1.0, 29.5)];
