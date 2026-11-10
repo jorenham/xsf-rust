@@ -4,9 +4,8 @@
 //! Copyright 1984, 1987 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
-//! Unlike in xsf, `(Shi, Chi)` is returned instead of written to output references, the (unused)
-//! status code is dropped, and the range for which INFINITY is returned is corrected in the
-//! comments.
+//! Unlike in xsf, `(Shi, Chi)` is returned instead of written to output references, and the
+//! (unused) status code is dropped.
 
 use crate::utils::{MACHEP, SCIPY_EULER};
 use crate::xsf::cephes::chbevl::chbevl;

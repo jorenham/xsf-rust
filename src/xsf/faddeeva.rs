@@ -123,8 +123,6 @@
 //! (highest degree first) and evaluated with `polevl`, instead of the unrolled `switch` cases in
 //! the C++ code, which evaluates them in the same order.
 //!
-//! Unlike in xsf, `erfc(x)` is corrected to `erfcx(x)` in two comments on `erfcx`.
-//!
 //! The real `Faddeeva::erf` and `Faddeeva::erfc` are not translated, since xsf uses the Cephes
 //! `erf` and `erfc` instead, and neither are the `#if !USE_CONTINUED_FRACTION` code paths.
 //! The products of two `std::complex<double>` are computed with `cmul`, and `double - complex`

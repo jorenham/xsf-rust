@@ -4,8 +4,6 @@
 //! Copyright 1984, 1987, 2000 by Stephen L. Moshier
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the intervals and the error conditions are corrected in the comments.
 
 use crate::xsf::cephes::chbevl::chbevl;
 use crate::xsf::cephes::i0::i0;

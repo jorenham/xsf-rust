@@ -1,8 +1,5 @@
 //! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@65d313a).
-//!
-//! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
-//! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::PI;
 
@@ -52,8 +49,6 @@ pub(crate) fn aswfa(
     let x0 = x;
     let x = x.abs();
     let ip = i32::from((n - m) % 2 != 0);
-    // NOTE: `(int)` is UB in C++ if `(n - m) / 2 + c` is NaN or out of the int range; `as i32`
-    // saturates (NaN -> 0).
     let nm = 40 + (f64::from((n - m) / 2) + c) as i32;
     let nm2 = nm / 2 - 2;
     if sdmn(m, n, c, cv, kd, &mut df) == Status::NoMemory {
@@ -123,8 +118,6 @@ pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut
     let eps = 1.0e-14;
 
     let ip = i32::from((n - m) % 2 != 0);
-    // NOTE: `(int)` is UB in C++ if `0.5 * (n - m) + c` is NaN or out of the int range; `as i32`
-    // saturates (NaN -> 0).
     let nm = 25 + (0.5 * f64::from(n - m) + c) as i32;
 
     let u = try_zeroed(200);
@@ -230,8 +223,6 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
 
     let eps = 1.0e-14;
     let ip = i32::from((n - m) % 2 != 0);
-    // NOTE: `(int)` is UB in C++ if `0.5 * (n - m) + c` is NaN or out of the int range; `as i32`
-    // saturates (NaN -> 0).
     let nm = 25 + (0.5 * f64::from(n - m) + c) as i32;
     let xm = (1.0 + x * x).powf(-0.5 * f64::from(m));
     let mut gf0 = 0.0;
@@ -707,8 +698,6 @@ pub(crate) fn rmn2l(
     if n - m == 2 * nm1 {
         ip = 0;
     }
-    // NOTE: `(int)c` is UB in C++ for NaN or |c| >= 2^31 (g++ on x86-64 gives INT_MIN); `as i32`
-    // saturates (NaN -> 0).
     let nm = 25 + nm1 + c as i32;
     let mut reg = 1.0;
     if m + nm > 80 {
@@ -877,8 +866,6 @@ pub(crate) fn rmn2so(
         return Status::NoMemory;
     };
 
-    // NOTE: `(int)` is UB in C++ for NaN or out-of-range `(n - m) / 2 + c` (g++ on x86-64 gives
-    // INT_MIN); `as i32` saturates (NaN -> 0).
     let nm = 25 + (f64::from((n - m) / 2) + c) as i32;
     let ip = (n - m) % 2;
     // NOTE: out of bounds (C++ UB, panics here) for the 200-element buffers: sckb writes ck[0..nm']
@@ -1288,8 +1275,6 @@ pub(crate) fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
     if c <= 1.0e-10 {
         c = 1.0e-10;
     }
-    // NOTE: `(int)` is UB in C++ if `0.5 * (n - m) + c` is NaN or out of the int range; `as i32`
-    // saturates (NaN -> 0).
     let nm = 25 + (0.5 * f64::from(n - m) + c) as i32;
     let ip = (n - m) % 2;
     let reg = if (m + nm) > 80 { 1.0e-200 } else { 1.0 };
@@ -1529,8 +1514,6 @@ pub(crate) fn segv(m: i32, n: i32, c: f64, kd: i32, cv: &mut f64, eg: &mut [f64]
 
     if c < 1e-10 {
         for i in 1..=(n - m + 1) {
-            // Unlike in xsf, the product is computed in `double` instead of `int`, which overflows
-            // for `n > 46340`; this is exact for `n < 2^26`
             eg[(i - 1) as usize] = f64::from(i + m) * f64::from(i + m - 1);
         }
         *cv = eg[(n - m) as usize];

@@ -9,8 +9,6 @@
 //! (which gets immediately converted to m1 = 1-m)
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the domain error condition and return value are corrected in the comments.
 
 use crate::xsf::cephes::polevl::polevl;
 

@@ -77,9 +77,6 @@
 //! ```
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, `(int) v` and `(int) (-v - 0.5)` saturate for `v` outside the `int` range
-//! (undefined behavior in C++).
 
 use core::f64::consts::{FRAC_2_SQRT_PI, PI};
 

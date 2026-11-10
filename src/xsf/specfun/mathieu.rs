@@ -3,8 +3,6 @@
 //! The `cv0` polynomials in `q` are stored as a coefficient table (highest degree first) and
 //! evaluated with `polevl`, instead of the unrolled `if` branches in the C++ code, which evaluates
 //! them in the same order.
-//!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 #![allow(clippy::let_and_return)]
 
@@ -126,8 +124,6 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
 
     let mut a = 0.0;
 
-    // Unlike in xsf, `m * m` is computed in `double` instead of `int`, which overflows for
-    // `m > 46340`, e.g. giving `mathieu_a(2^20, 0) = 0`
     let m2 = f64::from(m) * f64::from(m);
     if (m <= 12) || (q <= 3.0 * f64::from(m)) || (q > m2) {
         a = cv0(f64::from(kd), f64::from(m), q);

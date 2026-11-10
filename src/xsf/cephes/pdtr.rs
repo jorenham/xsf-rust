@@ -107,8 +107,6 @@ pub(crate) fn pdtr(k: f64, m: f64) -> f64 {
 /// pdtri domain    y < 0 or y >= 1       NaN
 ///                     k < 0
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn pdtri(k: i32, y: f64) -> f64 {
     if (k < 0) || (y < 0.0) || (y >= 1.0) {
         return f64::NAN;

@@ -1,7 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@d54dd52).
-//!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
 
 #![allow(clippy::approx_constant)]
 
@@ -178,8 +176,6 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
                 bs += 2.0 * f;
                 su += (-1.0_f64).powf(f64::from(k / 2)) * f / f64::from(k);
             } else if k > 1 {
-                // Unlike in xsf, `k * k` is computed in `double` instead of `int`, which overflows for
-                // k > 46340 (e.g. for jyzo with n >~ 4e4); this is exact for k < 2^26
                 sv += (-1.0_f64).powf(f64::from(k / 2)) * f64::from(k)
                     / (f64::from(k) * f64::from(k) - 1.0)
                     * f;
@@ -303,8 +299,6 @@ pub(crate) fn jyndd(
     *byn = by[0];
     *djn = -bj[1] + f64::from(n) * bj[0] / x;
     *dyn_ = -by[1] + f64::from(n) * by[0] / x;
-    // Unlike in xsf, `n * n` is computed in `double` instead of `int`, which overflows for n > 46340
-    // (e.g. for jyzo); this is exact for n < 2^26
     *fjn = (f64::from(n) * f64::from(n) / (x * x) - 1.0) * (*bjn) - (*djn) / x;
     *fyn = (f64::from(n) * f64::from(n) / (x * x) - 1.0) * (*byn) - (*dyn_) / x;
 }
@@ -552,8 +546,6 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
             let mut bk = 1.0;
             let mut r = 1.0;
             for i in 1..=50 {
-                // Unlike in xsf, `i * (i + k)` is computed in `double` instead of `int`, which
-                // overflows for k >~ 4e7; this is exact, since `i <= 50`
                 r = -0.25 * r * x2 / (f64::from(i) * f64::from(i + k));
                 bk += r;
 

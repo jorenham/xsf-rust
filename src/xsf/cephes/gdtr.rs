@@ -40,8 +40,6 @@ use crate::xsf::cephes::igami::igamci;
 ///   message         condition      value returned
 /// gdtr domain         x < 0            NaN
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn gdtr(a: f64, b: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
@@ -81,8 +79,6 @@ pub(crate) fn gdtr(a: f64, b: f64, x: f64) -> f64 {
 ///   message         condition      value returned
 /// gdtrc domain         x < 0            NaN
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;

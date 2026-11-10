@@ -2,9 +2,6 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the comment on the `increasing` argument is corrected ("not increasing" instead of
-//! "not decreasing").
-//!
 //! Note that our `igam` and `igamc` can differ from those in xsf in the last bits (e.g. because
 //! `f64::exp_m1` is used instead of the Cephes `expm1`), so the roots found by `gdtrib` can as well.
 

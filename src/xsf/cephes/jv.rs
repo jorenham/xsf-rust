@@ -6,8 +6,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
 //! Unlike in xsf, `cbrt` is the one from the Rust standard library, which is more accurate than
-//! the Cephes one (see [`crate::cbrt`]), and the `double` -> `int` conversions saturate instead of
-//! being undefined behavior (taking the same branches as the x86 conversion in C++).
+//! the Cephes one (see [`crate::cbrt`]).
 
 use core::f64::consts::PI;
 

@@ -9,7 +9,6 @@
 //! - `set_error` is a no-op in our build of xsf, so its calls are omitted, `goto hypdon` and
 //!   `goto hypdiv` become plain returns, and the never-read assignments to `err` and `q` in
 //!   `hyp2f1` are dropped.
-//! - The threshold of the psi function expansion is corrected in the comments.
 //!
 //! Our `psi` is more accurate than xsf's just above negative integers, so the psi function
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
