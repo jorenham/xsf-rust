@@ -250,6 +250,26 @@ mod rjimpl {
         }
     }
 
+    /// `R_C(a^2, p b^2)` for when `a^2` or `p b^2` under- or overflows, where
+    /// `a = p S + sqrt(x y z)`, `b = p + sqrt(x y) + sqrt(y z) + sqrt(z x)`, and `S` is the sum
+    /// of the square roots `[sz, sx, sy]`:
+    ///
+    /// - R_C(a^2, p b^2) = (s / b) R_C((s a / b)^2, s^2 p), by homogeneity
+    /// - s = 2^64 keeps s^2 p normal for subnormal p
+    /// - a / b = p (S / b) + sqrt(x) sqrt(y) (sqrt(z) / b) can't overflow, as p <= b and
+    ///   sqrt(y z) <= b
+    pub(super) fn rc_rescaled(
+        [sz, sx, sy]: [f64; 3],
+        p: f64,
+        b: f64,
+        rerr: f64,
+    ) -> (ExitStatus, f64) {
+        let s = 2.0_f64.powi(64);
+        let t = (p * ((sx + sy + sz) / b) + sx * (sy * (sz / b))) * s;
+        let (status, res) = rc(t * t, s * s * p, rerr);
+        (status, res * s / b)
+    }
+
     pub(super) fn rj_asym_conf(x: f64, y: f64, z: f64, p: f64, conf: &mut AsymConfig) -> AsymFlag {
         let mut t;
 
@@ -429,19 +449,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
                 (status_tmp, xct2[0]) = if alpha.is_normal() && beta.is_normal() {
                     rc(alpha, beta, r)
                 } else {
-                    // Unlike in xsf (scipy/xsf#376), `alpha` and `beta` are rescaled if they
-                    // under- or overflow.
-                    //
-                    // - R_C(a^2, p b^2) = (s / b) R_C((s a / b)^2, s^2 p), by homogeneity
-                    // - s = 2^64 keeps s^2 p normal for subnormal p
-                    // - a / b = p (S / b) + sqrt(x) sqrt(y) (sqrt(z) / b), with S the sum of the
-                    //   square roots, can't overflow, as p <= b and sqrt(y z) <= b
-                    let s = 2.0_f64.powi(64);
-                    let b = pr + lamt;
-                    let [sz, sx, sy] = xct1;
-                    let t = (pr * ((sx + sy + sz) / b) + sx * (sy * (sz / b))) * s;
-                    let (status_rc, res_rc) = rc(t * t, s * s * pr, r);
-                    (status_rc, res_rc * s / b)
+                    // Unlike in xsf (scipy/xsf#376), rescaled if `alpha` or `beta` under- or
+                    // overflows.
+                    rjimpl::rc_rescaled(xct1, pr, pr + lamt, r)
                 };
                 (status, xct2[1]) = rj(xr + lamt, yr + lamt, zr + lamt, pr + lamt, r, false);
                 if status_tmp != ExitStatus::Success {
