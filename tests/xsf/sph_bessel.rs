@@ -41,6 +41,15 @@ fn test_sph_bessel_prime_tiny_x() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
+    // the same leading term n z^(n - 1) / (2n + 1)!! for complex z
+    let z = num_complex::c64(0.0, 1e-300);
+    let expected = num_complex::c64(0.0, 1.333_333_333_333_333_3e-301);
+    xsref::np_assert_allclose!(
+        &[xsf::sph_bessel_j_prime(2, z), xsf::sph_bessel_i_prime(2, z)],
+        &[expected, expected],
+        rtol = 1e-15
+    );
+
     // underflow to +0, since j_7' and i_7' are even
     assert_eq!(xsf::sph_bessel_j_prime(7, -1e-80).to_bits(), 0);
     assert_eq!(xsf::sph_bessel_i_prime(7, -1e-80).to_bits(), 0);
