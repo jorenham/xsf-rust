@@ -287,6 +287,28 @@ fn test_bessel_amos_i_near_overflow() {
     assert_eq!(xsf::bessel_i(0.0, c64(720.0, 0.0)), c64(f64::INFINITY, 0.0));
 }
 
+#[test]
+fn test_bessel_amos_subnormal_order() {
+    // Arb: besselj(-5e-324, 1e-200) = 1 + 4.6e-321, bessely(5e-324, 0.5 + 0.5j),
+    // hankel1(1e-320, -1 + 1j), and besseli(-5e-324, 2)
+    let actual = [
+        xsf::bessel_j(-5e-324, c64(1e-200, 0.0)),
+        xsf::bessel_y(5e-324, c64(0.5, 0.5)),
+        xsf::hankel_1(1e-320, c64(-1.0, 1.0)),
+        xsf::bessel_i(-5e-324, c64(2.0, 0.0)),
+    ];
+    let expected = [
+        c64(1.0, 0.0),
+        c64(-0.227_087_358_059_979_5, 0.614_350_253_501_374_8),
+        c64(-0.227_449_894_802_294_76, -0.051_055_458_673_089_62),
+        c64(2.279_585_302_336_067_3, 0.0),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    // Arb: besselk(-1e-310, 1)
+    let k = xsf::bessel_k(-1e-310, 1.0);
+    np_assert_allclose!(&[k], &[0.421_024_438_240_708_33], rtol = 1e-15);
+}
+
 xsref::tests! {
     test_bessel_k_c64: "cyl_bessel_k", "d_cd-cd", |x| xsf::bessel_k(x[0], c64(x[1], x[2]));
     test_bessel_ke_f64: "cyl_bessel_ke", "d_d-d", |x| xsf::bessel_ke(x[0], x[1]);
