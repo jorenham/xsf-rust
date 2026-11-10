@@ -223,10 +223,45 @@ fn test_bessel_k_near_overflow() {
     let actual = [xsf::bessel_k(115.0, 0.178), xsf::bessel_ke(115.0, 0.178)];
     let expected = [8.404_870_096_416_689e306, 1.004_235_161_288_784_1e307];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
-    for (v, x) in [(1.5, 1e-210), (1.0, 1e-310), (-1.0, 1e-310), (0.5, 1e-306)] {
+    for (v, x) in [(1.5, 1e-210), (1.0, 1e-310), (-1.0, 1e-310), (0.99, 5e-324)] {
         assert_eq!(xsf::bessel_k(v, x), f64::INFINITY);
         assert_eq!(xsf::bessel_ke(v, x), f64::INFINITY);
     }
+}
+
+#[test]
+fn test_bessel_amos_tiny_z() {
+    // Arb: besselk(0, 1e-306), besselj(-0.25, 5e-324), bessely(0.75, -1e-310 + 1e-310j), and
+    // besselj(1e-20, 5e-324) = 1 - 7.4e-18
+    let actual = [
+        xsf::bessel_k(0.0, c64(1e-306, 0.0)),
+        xsf::bessel_j(-0.25, c64(5e-324, 0.0)),
+        xsf::bessel_y(0.75, c64(-1e-310, 1e-310)),
+        xsf::bessel_j(1e-20, c64(5e-324, 0.0)),
+    ];
+    let expected = [
+        c64(704.706_969_971_836_4, 0.0),
+        c64(6.509_198_852_597_573e80, 0.0),
+        c64(3.120_727_850_251_321e231, 1.568_895_836_574_547e232),
+        c64(1.0, 0.0),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
+
+#[test]
+fn test_bessel_amos_k_near_overflow() {
+    // Arb: besselk(1.001, 1e-305), bessely(2.5, 2.7e-122), and besselk(0.9535, 5e-324 + 5e-324j)
+    let actual = [
+        xsf::bessel_k(1.001, c64(1e-305, 0.0)),
+        xsf::bessel_y(2.5, c64(2.7e-122, 0.0)),
+        xsf::bessel_k(0.9535, c64(5e-324, 5e-324)),
+    ];
+    let expected = [
+        c64(2.018_602_028_941_825e305, 0.0),
+        c64(-1.998_259_589_560_272_5e304, 0.0),
+        c64(9.821_768_931_473_591e307, -9.129_347_072_678_403e307),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 }
 
 xsref::tests! {

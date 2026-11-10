@@ -114,7 +114,7 @@ use core::f64::consts::{LN_2, LN_10};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::SQRT3;
+use crate::utils::{MAXLOG, SQRT3};
 use crate::xsf::complex::{cdiv, cmul, csqrt, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -190,6 +190,15 @@ const MACH: (f64, f64, f64, f64, f64) = {
 fn order_mod4(fnu: f64) -> (f64, i32) {
     let fnu4 = fnu % 4.0;
     (fnu4, fnu4 as i32)
+}
+
+/// Whether `K_fnu(z) ~ gamma(fnu) / 2 (2 / |z|)^fnu` overflows, for `|z| <= tol` and `fnu > 1/2`
+/// (only `fnu > 0.95` can overflow as `|z| >= 5e-324`, and the estimate is too large for tiny fnu).
+///
+/// Unlike in xsf, this compares with `f64::MAX` instead of `exp(elim)`, as `bknu` scales the result
+/// near it, and doesn't round a subnormal `|z|` or `|z| / 2`.
+fn small_z_k_overflows(z: Complex64, fnu: f64) -> bool {
+    fnu * (LN_2 - clog(z).re) + gamln(fnu) - LN_2 > MAXLOG
 }
 
 #[rustfmt::skip]
@@ -1395,7 +1404,8 @@ pub(crate) fn besh(
     // OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //
     let ufl = D1MACH[0] * 1.0e3;
-    if az < ufl {
+    // Unlike in xsf, only z = 0 overflows here, as `bknu` handles any tiny z.
+    if az == 0.0 {
         *ierr = 2;
         return 0;
     } /* GO TO 230 */
@@ -1403,11 +1413,9 @@ pub(crate) fn besh(
         //
         // Untangling GOTOs with explicit conditions
         //
-        if (fn_ > 1.0) && (fn_ <= 2.0) && (az <= tol) {
+        if (fn_ > 0.5) && (fn_ <= 2.0) && (az <= tol) {
             /* Failed through all checks */
-            let arg = 0.5 * az;
-            let aln = -fn_ * arg.ln();
-            if aln > elim {
+            if small_z_k_overflows(z, fn_) {
                 *ierr = 2;
                 return 0; /* GO TO 230 */
             }
@@ -2244,21 +2252,17 @@ pub(crate) fn besk(
     //
     // OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //
-    let ufl = D1MACH[0] * 1.0E+3;
-    if az < ufl {
+    // Unlike in xsf, only z = 0 overflows here, as `bknu` handles any tiny z.
+    if az == 0.0 {
         *ierr = 2;
         return 0;
     }
     if fnu <= fnul {
-        if fn_ > 1.0 {
+        if fn_ > 0.5 {
             if fn_ <= 2.0 {
-                if az <= tol {
-                    let arg = 0.5 * az;
-                    let aln = -fn_ * arg.ln();
-                    if aln > elim {
-                        *ierr = 2;
-                        return 0;
-                    }
+                if az <= tol && small_z_k_overflows(z, fn_) {
+                    *ierr = 2;
+                    return 0;
                 }
                 /* GO TO 60 */
             } else {
@@ -3238,7 +3242,12 @@ pub(crate) fn bknu(
                 //    SERIES FOR ABS(Z) <= R1
                 //
                 fc = 1.;
-                smu = clog(rz);
+                // Unlike in xsf, ln(2/z) and p2 (2/z) below don't use `rz = 2/z` if it overflows.
+                smu = if rz.is_finite() {
+                    clog(rz)
+                } else {
+                    LN_2 - clog(z)
+                };
                 fmu = smu * dnu;
                 csh = csinh(fmu);
                 cch = ccosh(fmu);
@@ -3341,7 +3350,11 @@ pub(crate) fn bknu(
                     kflag = 3;
                 }
                 p2 = cmul(s2, css[(kflag - 1) as usize]);
-                s2 = cmul(p2, rz);
+                s2 = if rz.is_finite() {
+                    cmul(p2, rz)
+                } else {
+                    cdiv(2.0 * p2, z)
+                };
                 s1 = cmul(s1, css[(kflag - 1) as usize]);
                 if koded != 1 {
                     f = cexp(z);
@@ -4546,7 +4559,9 @@ pub(crate) fn seri(
     let rtr1: f64 = arm.sqrt();
     crsc = c64(1.0, 0.0);
     iflag = 0;
-    if az >= arm {
+    // Unlike in xsf, also sum the series for 0 < |z| < arm (where I_fnu(z) can be normal), with
+    // ln(z/2) = ln(z) - ln(2) if z/2 can be subnormal.
+    if az > 0.0 {
         half_z = 0.5 * z;
         cz = c64(0.0, 0.0);
         if az > rtr1 {
@@ -4554,7 +4569,11 @@ pub(crate) fn seri(
         }
         acz = cz.norm();
         nn = n;
-        ck = clog(half_z);
+        ck = if az < 2.0 * D1MACH[0] {
+            clog(z) - LN_2
+        } else {
+            clog(half_z)
+        };
         loop {
             // L10:
             dfnu = fnu + f64::from(nn - 1);
@@ -6958,7 +6977,10 @@ pub(crate) fn uoik(
     rcz = cz.re;
 
     /*  OVERFLOW TEST  */
-    if rcz > elim {
+    // Unlike in xsf, K only overflows past `f64::MAX` instead of `exp(elim)`, as `bknu` scales the
+    // result near it.
+    let rcz_max = if ikflg == 2 { MAXLOG } else { elim };
+    if rcz > rcz_max {
         return -1;
     }
     if rcz >= alim {
@@ -6966,7 +6988,7 @@ pub(crate) fn uoik(
         if iform == 2 {
             rcz -= 0.25 * aarg.ln() + aic;
         }
-        if rcz > elim {
+        if rcz > rcz_max {
             return -1;
         }
     } else {
