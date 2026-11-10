@@ -2,6 +2,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
+//! Unlike in xsf, the scalar functions (`ber`, ..., `keip`) share `kelvin` (xsf duplicates it).
+//!
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
@@ -211,15 +213,8 @@ fn klvna(x: f64) -> Klvna {
 /// - [`kei`] - Kelvin function *kei*
 #[must_use]
 #[inline]
-pub fn ber(mut x: f64) -> f64 {
-    if x < 0.0 {
-        x = -x;
-    }
-
-    let k = klvna(x);
-    let mut be = c64(k.ber, k.bei);
-    specfun_zconvinf(&mut be);
-    be.re
+pub fn ber(x: f64) -> f64 {
+    kelvin(x)[0].re
 }
 
 /// Kelvin function *bei*
@@ -234,15 +229,8 @@ pub fn ber(mut x: f64) -> f64 {
 /// - [`kei`] - Kelvin function *kei*
 #[must_use]
 #[inline]
-pub fn bei(mut x: f64) -> f64 {
-    if x < 0.0 {
-        x = -x;
-    }
-
-    let k = klvna(x);
-    let mut be = c64(k.ber, k.bei);
-    specfun_zconvinf(&mut be);
-    be.im
+pub fn bei(x: f64) -> f64 {
+    kelvin(x)[0].im
 }
 
 /// Kelvin function *ker*
@@ -258,14 +246,7 @@ pub fn bei(mut x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn ker(x: f64) -> f64 {
-    if x < 0.0 {
-        return f64::NAN;
-    }
-
-    let k = klvna(x);
-    let mut ke = c64(k.ger, k.gei);
-    specfun_zconvinf(&mut ke);
-    ke.re
+    kelvin(x)[1].re
 }
 
 /// Kelvin function *kei*
@@ -281,14 +262,7 @@ pub fn ker(x: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn kei(x: f64) -> f64 {
-    if x < 0.0 {
-        return f64::NAN;
-    }
-
-    let k = klvna(x);
-    let mut ke = c64(k.ger, k.gei);
-    specfun_zconvinf(&mut ke);
-    ke.im
+    kelvin(x)[1].im
 }
 
 /// Derivative of the Kelvin function [`ber`]
@@ -304,21 +278,8 @@ pub fn kei(x: f64) -> f64 {
 #[must_use]
 #[inline]
 #[doc(alias = "ber_prime")]
-pub fn berp(mut x: f64) -> f64 {
-    let mut flag = false;
-
-    if x < 0.0 {
-        x = -x;
-        flag = true;
-    }
-
-    let k = klvna(x);
-    let mut bep = c64(k.der, k.dei);
-    specfun_zconvinf(&mut bep);
-    if flag {
-        return -bep.re;
-    }
-    bep.re
+pub fn berp(x: f64) -> f64 {
+    kelvin(x)[2].re
 }
 
 /// Derivative of the Kelvin function [`bei`]
@@ -334,20 +295,8 @@ pub fn berp(mut x: f64) -> f64 {
 #[must_use]
 #[inline]
 #[doc(alias = "bei_prime")]
-pub fn beip(mut x: f64) -> f64 {
-    let mut flag = false;
-
-    if x < 0.0 {
-        x = -x;
-        flag = true;
-    }
-    let k = klvna(x);
-    let mut bep = c64(k.der, k.dei);
-    specfun_zconvinf(&mut bep);
-    if flag {
-        return -bep.im;
-    }
-    bep.im
+pub fn beip(x: f64) -> f64 {
+    kelvin(x)[2].im
 }
 
 /// Derivative of the Kelvin function [`ker`]
@@ -364,13 +313,7 @@ pub fn beip(mut x: f64) -> f64 {
 #[inline]
 #[doc(alias = "ker_prime")]
 pub fn kerp(x: f64) -> f64 {
-    if x < 0.0 {
-        return f64::NAN;
-    }
-    let k = klvna(x);
-    let mut kep = c64(k.her, k.hei);
-    specfun_zconvinf(&mut kep);
-    kep.re
+    kelvin(x)[3].re
 }
 
 /// Derivative of the Kelvin function [`kei`]
@@ -387,13 +330,7 @@ pub fn kerp(x: f64) -> f64 {
 #[inline]
 #[doc(alias = "kei_prime")]
 pub fn keip(x: f64) -> f64 {
-    if x < 0.0 {
-        return f64::NAN;
-    }
-    let k = klvna(x);
-    let mut kep = c64(k.her, k.hei);
-    specfun_zconvinf(&mut kep);
-    kep.im
+    kelvin(x)[3].im
 }
 
 /// Kelvin functions as complex numbers
