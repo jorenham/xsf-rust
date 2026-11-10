@@ -165,14 +165,19 @@ fn test_bessel_jyi_near_overflow() {
         1e308,
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
-    // mpmath: 1.9e308, 1.45e-21, and 1.99e-37 (exp(-2x) underflows, so no retry)
+    // mpmath: 1.9e308 and 1.99e-37 (exp(-2x) underflows, so no retry)
     for (v, x) in [
         (-2.000_000_000_000_000_4, 3.057_653_761_164_066_6e-162),
-        (-804.25, 373.0),
         (-840.25, 400.0),
     ] {
         assert_eq!(xsf::bessel_ie(v, x), f64::INFINITY);
     }
+    // Arb: 1.4501132090238621e-21
+    xsref::np_assert_allclose!(
+        &[xsf::bessel_ie(-804.25, 373.0)],
+        &[1.450_113_209_023_862_1e-21],
+        rtol = 1e-10
+    );
 }
 
 #[test]
@@ -330,6 +335,43 @@ fn test_bessel_amos_i_near_max() {
     np_assert_allclose!(&actual, &expected, rtol = 1e-13);
     // Arb: besseli(0, 714.5) = 3.0e308
     assert_eq!(xsf::bessel_i(0.0, c64(714.5, 0.0)), c64(f64::INFINITY, 0.0));
+}
+
+#[test]
+fn test_bessel_amos_large_order_near_overflow() {
+    // Arb: besselk(100, 0.0627), besselk(86.25, -706), hankel1(86.25, -706j), bessely(100.25,
+    // -706j), and besselj(-300.75, -760j)
+    let actual = [
+        xsf::bessel_k(100.0, c64(0.0627, 0.0)),
+        xsf::bessel_k(86.25, c64(-706.0, 0.0)),
+        xsf::hankel_1(86.25, c64(0.0, -706.0)),
+        xsf::bessel_y(100.25, c64(0.0, -706.0)),
+        xsf::bessel_j(-300.75, c64(0.0, -760.0)),
+    ];
+    let expected = [
+        c64(1.109_723_622_584_384_7e306, 0.0),
+        c64(0.0, -9.972_378_534_887_147e302),
+        c64(-5.865_353_936_519_697e302, 2.429_509_148_624_880_3e302),
+        c64(-1.919_476_381_292_648_6e301, -4.634_025_912_371_543e301),
+        c64(1.863_353_773_515_49e302, 4.498_533_951_520_18e302),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_bessel_amos_huge_z_airy_failure() {
+    // AMOS's Airy functions fail for |z| > ~7e8, so these are NaN instead of 0.
+    // Arb: hankel2(86.5, 1e15 + 700j) = -2.2e296 + 1.3e296j and bessely(86.5, 1e10 + 10j) = 0.077 +
+    // 0.043j
+    assert!(xsf::hankel_2(86.5, c64(1e15, 700.0)).re.is_nan());
+    assert!(xsf::bessel_y(86.5, c64(1e10, 10.0)).re.is_nan());
+    // Arb: bessely(-86.5, 1e15 + 10j) = sin(86.5 pi) besselj(86.5, 1e15 + 10j)
+    let y = xsf::bessel_y(-86.5, c64(1e15, 10.0));
+    np_assert_allclose!(
+        &[y],
+        &[c64(-2.384_955_233_412_051_6e-4, 1.426_054_857_376_210_6e-4)],
+        rtol = 1e-13
+    );
 }
 
 xsref::tests! {

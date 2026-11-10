@@ -147,8 +147,8 @@ fn rotate_jy(j: Complex64, y: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
     let s = cephes_sinpi(v);
 
-    // Unlike in xsf (scipy/xsf#383), drop `c * j` if c = 0 and j overflows.
-    if c == 0.0 && j.is_infinite() {
+    // Unlike in xsf (scipy/xsf#383), drop `c * j` if c = 0 and j overflows or is NaN.
+    if c == 0.0 && !j.is_finite() {
         return -s * y;
     }
     c * j - s * y
@@ -209,8 +209,14 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
         /* adjust scaling to match zbesi */
         cy_k = rotate(cy_k, -z.im / PI);
         if z.re > 0.0 {
-            cy_k.re *= (-2.0 * z.re).exp();
-            cy_k.im *= (-2.0 * z.re).exp();
+            // Unlike in xsf, apply e^-2x as (e^-x)^2 if it underflows, as the result may not.
+            let e2 = (-2.0 * z.re).exp();
+            cy_k = if e2 >= f64::MIN_POSITIVE {
+                cy_k * e2
+            } else {
+                let e = (-z.re).exp();
+                cy_k * e * e
+            };
         }
         // Unlike in xsf (scipy/xsf#383), an AMOS overflow of K_v(x) is inf instead of NaN.
         if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {

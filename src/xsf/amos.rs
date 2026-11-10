@@ -5607,6 +5607,12 @@ pub(crate) fn uni2(
                 //
                 ai = airy(arg, 0, 2, &mut nai, &mut idum);
                 dai = airy(arg, 1, 2, &mut ndai, &mut idum);
+                // Unlike in xsf, fail if `airy` does (ierr = 3 is only a loss of precision),
+                // instead of using its 0 (for |z| > ~7e8).
+                if !matches!(idum, 0 | 3) {
+                    *nz = -2;
+                    return;
+                }
                 s2 = cmul(phi, cmul(ai, asum) + cmul(dai, bsum));
                 c2r = s1.re.exp() * css[(iflag - 1) as usize].re;
                 c2i = s1.im;
@@ -5946,7 +5952,7 @@ pub(crate) fn unk1(
         //
         rs1 = s1.re;
         'l10: {
-            if rs1.abs() <= elim {
+            if on_scale(rs1, elim) {
                 if kdflg == 1 {
                     kflag = 2;
                 }
@@ -5956,7 +5962,7 @@ pub(crate) fn unk1(
                     //
                     aphi = phi[jc as usize].norm();
                     rs1 += aphi.ln();
-                    if rs1.abs() > elim {
+                    if !on_scale(rs1, elim) {
                         break 'l10; // goto L10;
                     }
                     if kdflg == 1 {
@@ -5993,9 +5999,8 @@ pub(crate) fn unk1(
         if rs1 > 0.0 {
             return -1;
         }
-        if x < 0.0 {
-            return -1;
-        }
+        // Unlike in xsf, an underflow of K(zr) isn't an overflow if x < 0, as the I term added
+        // below dominates then.
         kdflg = 1;
         y[(i - 1) as usize] = c64(0.0, 0.0);
         nz += 1;
@@ -6189,7 +6194,7 @@ pub(crate) fn unk1(
             rs1 = s1.re;
             'l100: {
                 'l110: {
-                    if rs1.abs() > elim {
+                    if !on_scale(rs1, elim) {
                         break 'l110; // goto L110;
                     }
                     if kdflg == 1 {
@@ -6201,7 +6206,7 @@ pub(crate) fn unk1(
                         //
                         aphi = phid.norm();
                         rs1 += aphi.ln();
-                        if rs1.abs() > elim {
+                        if !on_scale(rs1, elim) {
                             break 'l110; // goto L110;
                         }
                         if kdflg == 1 {
@@ -6244,6 +6249,10 @@ pub(crate) fn unk1(
                     csr[(iflag - 1) as usize]
                 },
             );
+            // Unlike in xsf, report an overflow of the pi I term, as I is computed up to f64::MAX.
+            if !s2.is_finite() {
+                return -1;
+            }
             //
             // ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
             //
@@ -6289,6 +6298,10 @@ pub(crate) fn unk1(
         s1 = c2;
         fn_ -= 1.0;
         c2 = cmul(s2, cs);
+        // Unlike in xsf, report an overflow of the pi I term here too.
+        if !c2.is_finite() {
+            return -1;
+        }
         ck = c2;
         c1 = y[(kk - 1) as usize];
         if kode != 1 {
@@ -6466,7 +6479,7 @@ pub(crate) fn unk2(
         // TEST FOR UNDERFLOW AND OVERFLOW
         //
         rs1 = s1.re;
-        if rs1.abs() <= elim {
+        if on_scale(rs1, elim) {
             if kdflg == 1 {
                 kflag = 2;
             }
@@ -6477,15 +6490,13 @@ pub(crate) fn unk2(
                 aphi = phi[(j - 1) as usize].norm();
                 aarg = arg[(j - 1) as usize].norm();
                 rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
-                if rs1.abs() > elim {
+                if !on_scale(rs1, elim) {
                     /* GO TO 70 */
                     if rs1 > 0.0 {
                         return -1;
                     }
-                    /* FOR X < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW */
-                    if x < 0.0 {
-                        return -1;
-                    }
+                    // Unlike in xsf, an underflow of K(zr) isn't an overflow if x < 0, as the I
+                    // term added below dominates then.
                     kdflg = 1;
                     y[(i - 1) as usize] = c64(0.0, 0.0);
                     cs = cmul(cs, -c64(0.0, 1.0));
@@ -6525,10 +6536,7 @@ pub(crate) fn unk2(
                 if rs1 > 0.0 {
                     return -1;
                 }
-                /* FOR X < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW */
-                if x < 0.0 {
-                    return -1;
-                }
+                // Unlike in xsf, not an overflow if x < 0 (see above).
                 kdflg = 1;
                 y[(i - 1) as usize] = c64(0.0, 0.0);
                 cs = cmul(cs, -c64(0.0, 1.0));
@@ -6557,10 +6565,7 @@ pub(crate) fn unk2(
         if rs1 > 0.0 {
             return -1;
         }
-        /* FOR X < 0.0, THE I FUNCTION TO BE ADDED WILL OVERFLOW */
-        if x < 0.0 {
-            return -1;
-        }
+        // Unlike in xsf, not an overflow if x < 0 (see above).
         kdflg = 1;
         y[(i - 1) as usize] = c64(0.0, 0.0);
         cs = cmul(cs, -c64(0.0, 1.0));
@@ -6751,7 +6756,7 @@ pub(crate) fn unk2(
         //
         rs1 = s1.re;
         'l250: {
-            if rs1.abs() > elim {
+            if !on_scale(rs1, elim) {
                 if rs1 > 0.0 {
                     return -1;
                 }
@@ -6769,7 +6774,7 @@ pub(crate) fn unk2(
                 aarg = argd.norm();
                 // NOTE: the C++ has `0.25f` here, which is exact, so it's the same as `0.25`
                 rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
-                if rs1.abs() > elim {
+                if !on_scale(rs1, elim) {
                     if rs1 > 0.0 {
                         return -1;
                     }
@@ -6786,6 +6791,11 @@ pub(crate) fn unk2(
 
             ai = airy(argd, 0, 2, &mut nai, &mut idum);
             dai = airy(argd, 1, 2, &mut ndai, &mut idum);
+            // Unlike in xsf, fail if `airy` does (ierr = 3 is only a loss of precision), instead
+            // of using its 0 (for |z| > ~7e8).
+            if !matches!(idum, 0 | 3) {
+                return -2;
+            }
             s2 = cmul(cmul(cs, phid), cmul(ai, asumd) + cmul(dai, bsumd));
             c2r = s1.re;
             c2i = s1.im;
@@ -6813,6 +6823,10 @@ pub(crate) fn unk2(
                 csr[(iflag - 1) as usize]
             },
         );
+        // Unlike in xsf, report an overflow of the pi I term, as I is computed up to f64::MAX.
+        if !s2.is_finite() {
+            return -1;
+        }
         //
         // ADD I AND K FUNCTIONS, K SEQUENCE IN Y(I), I=1,N
         //
@@ -6863,6 +6877,10 @@ pub(crate) fn unk2(
         s1 = c2;
         fn_ -= 1.0;
         c2 = cmul(s2, cs);
+        // Unlike in xsf, report an overflow of the pi I term here too.
+        if !c2.is_finite() {
+            return -1;
+        }
         ck = c2;
         c1 = y[(kk - 1) as usize];
         if kode != 1 {
