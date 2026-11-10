@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@df273dd).
+//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@c9f477d).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -197,9 +197,8 @@ fn sph_bessel_recur(n: i64, x: f64, mut s0: f64, mut s1: f64) -> f64 {
         return s0;
     }
 
-    // Unlike in xsf (scipy/xsf#487), also stop if f_1 is infinite: if f_0 is infinite too
-    // (y_n for x < 1 / f64::MAX), f_2 = inf - inf would be NaN, and the recurrence would run all
-    // n steps.
+    // If s1 overflows (tiny x, only for y_n), so does y_n(x); if s0 does too, the recurrence would
+    // give inf - inf.
     if n == 1 || s1.is_infinite() {
         return s1;
     }
