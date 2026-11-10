@@ -489,7 +489,8 @@ pub(crate) fn acai(
     // ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //
     nw = bknu(zn, fnu, kode, 1, &mut cy, tol, elim, alim);
-    if nw != 0 {
+    // Unlike in xsf, an underflow of K(zn) isn't an overflow, as the I term dominates then.
+    if nw < 0 {
         nz = -1;
         if nw == -2 {
             nz = -2;
@@ -525,7 +526,12 @@ pub(crate) fn acai(
         nw = s1s2(zn, &mut c1, &mut c2, ascle, alim, &mut iuf);
         nz += nw;
     }
-    y[0] = cmul(cspn, c1) + cmul(csgn, c2);
+    // Unlike in xsf, report an overflow of the pi I term, as `asyi` computes I up to f64::MAX.
+    let ci = cmul(csgn, c2);
+    if !ci.is_finite() {
+        return -1;
+    }
+    y[0] = cmul(cspn, c1) + ci;
     nz
 }
 
@@ -995,10 +1001,13 @@ pub(crate) fn airy(
             // OVERFLOW TEST
             //
             if aa <= -alim {
-                aa = -aa + 0.25 * alaz;
+                // Unlike in xsf, this is ln|2 sqrt(pi) Ai(z)| ~ -Re(zta) - ln|z| / 4 (+ ln|z| / 4
+                // for Ai'), and is compared with ln(f64::MAX) instead of elim, as the result is
+                // scaled by sfac.
+                aa = -aa + if id == 1 { 0.25 } else { -0.25 } * alaz;
                 iflag = 1;
                 sfac = tol;
-                if aa > elim {
+                if aa > MAXLOG {
                     /* 270 */
                     *nz = 0;
                     *ierr = 2;
@@ -1015,8 +1024,9 @@ pub(crate) fn airy(
         }
         let nn = acai(zta, fnu, kode, mr, 1, &mut cy, rl, tol, elim, alim);
         if nn < 0 {
+            // Unlike in xsf, this is an overflow (as in the Fortran), not an underflow to 0.
             if nn == -1 {
-                *nz = 1;
+                *ierr = 2;
                 return c64(0.0, 0.0);
             }
             *nz = 0;
@@ -3073,9 +3083,12 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         //
         bb = aa.abs();
         if bb >= alim {
-            bb += 0.25 * az.ln();
+            // Unlike in xsf, this is ln|sqrt(pi) Bi(z)| ~ |Re(zta)| - ln|z| / 4 (+ ln|z| / 4 for
+            // Bi'), and is compared with ln(f64::MAX) instead of elim, as the result is scaled by
+            // sfac.
+            bb += if id == 1 { 0.25 } else { -0.25 } * az.ln();
             sfac = tol;
-            if bb > elim {
+            if bb > MAXLOG {
                 *ierr = 2;
                 return c64(0.0, 0.0);
             }
