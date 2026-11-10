@@ -103,9 +103,11 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     }
 
     // Unlike in xsf (scipy/xsf#376), if `3 adt` overflows and all |arguments| are below 1, they are
-    // scaled up by 2^128, scaling R_D by 2^-192 (degree -3/2). The scaled real R_D is finite, as
-    // R_D < 3 / (z sqrt(max(x, y))) < 2^1204 for z >= 2^-1074 and max(x, y, z) >= 2^-256. Otherwise
-    // z is subnormal, and the real R_D > 3 adt overflows.
+    // scaled up by 2^128, scaling R_D by 2^-192 (degree -3/2).
+    //
+    // NOTE: the scaled real R_D is finite, as R_D < 3 / (z sqrt(max(x, y))) < 2^1204 for
+    // z >= 2^-1074 and max(x, y, z) >= 2^-256. Otherwise z is subnormal, and the real
+    // R_D > 3 adt overflows.
     if (adt * 3.0).isinf() {
         if common::max(&[x.abs(), y.abs(), z.abs()]) >= 1.0 {
             return (ExitStatus::Overflow, T::HUGE);

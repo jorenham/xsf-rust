@@ -89,8 +89,6 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     }
     // Unlike in xsf (scipy/xsf#375), m = 1 is exact, and u is first reduced by q quarter periods K,
     // so that the expansion in 1 - m below is only used for |u| <= K/2 (unless |u| is huge).
-    //
-    // E.g. ellpj(-407.5, 0.9999999999999998) had 3e-6 and 2e-3 errors in cn and dn.
     if m == 1.0 {
         // sech(u), also for |u| > 710 where cosh(u) overflows
         let b = u.cosh();
@@ -175,7 +173,7 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
     /* See discussion after DLMF 22.20.5 */
     let dn = if dnfac.abs() < 0.1 {
         // Unlike in xsf, dn^2 = 1 - m + m cn^2 is used instead of 1 - m sn^2, which cancels if
-        // m sn^2 is close to 1, e.g. ellpj(11.75, 0.999999999) had a 4e-8 error
+        // m sn^2 is close to 1, e.g. for ellpj(11.75, 0.999999999)
         ((1.0 - m) + m * t * t).sqrt()
     } else {
         t / dnfac

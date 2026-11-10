@@ -105,10 +105,8 @@ fn airy_f64(x: f64) -> [f64; 4] {
     if x < -10.0 || x > 10.0 {
         let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0), 1);
         // Unlike in xsf (scipy/xsf#310), fall back to Cephes if AMOS overflows (NaN Bi', which
-        // overflows first).
+        // overflows first), and for Ai if AMOS underflows (from about 1e-305).
         if x < 0.0 || !zbip.re.is_nan() {
-            // Unlike in xsf, use Cephes for Ai if AMOS underflowed, which it does from about
-            // 1e-305.
             if x > 0.0 && zai.re == 0.0 {
                 let (_, ai, aip, _, _) = crate::xsf::cephes::airy(x);
                 return [ai, aip, zbi.re, zbip.re];

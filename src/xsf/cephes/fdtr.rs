@@ -233,12 +233,10 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     /* If that is greater than y, then the solution w < .5.
      * Otherwise, solve at 1-y to remove cancellation in (b - b*w).  */
     // Unlike in xsf, this branch, which inverts at the rounded `1 - p`, is only taken if that
-    // loses less than the other one, which loses ~eps / w in `1 - w`:
-    //
-    // - it is tried if p is at least the mean `b / (a + b)` of w, or 1/2 (where `1 - p` is
-    //   exact), but not at `y = 1 - MACHEP`;
-    // - its result is kept if `|1 - y - p| / p <= eps / w` (or if w is NaN), as w can far exceed
-    //   its mean, e.g. for tiny b.
+    // loses less than the ~eps / w that the other one loses in `1 - w`. It is tried if p is at
+    // least the mean `b / (a + b)` of w or 1/2 (where `1 - p` is exact), except at
+    // `y = 1 - MACHEP`, and kept if the error of `1 - p` relative to p is at most eps / w (or w
+    // is NaN), as w can far exceed its mean, e.g. for tiny b.
     if (w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5)) || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y);
         if w.is_nan() || (1.0 - y - p).abs() * w <= f64::EPSILON * p {
