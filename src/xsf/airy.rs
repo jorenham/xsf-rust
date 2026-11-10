@@ -99,31 +99,37 @@ fn airye_f64(z: f64) -> [f64; 4] {
 }
 
 fn airy_f64(x: f64) -> [f64; 4] {
+    let cephes = || {
+        let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
+        [ai, aip, bi, bip]
+    };
     /* For small arguments, use Cephes as it's slightly faster.
      * For large arguments, use AMOS as it's more accurate.
      */
     if x < -10.0 || x > 10.0 {
-        let [zai, zaip, zbi, zbip] = airy_c64(c64(x, 0.0), 1);
-        // Unlike in xsf (scipy/xsf#310), fall back to Cephes if AMOS overflows (NaN Bi', which
-        // overflows first), and for Ai if AMOS underflows (from about 1e-305).
-        if x < 0.0 || !zbip.re.is_nan() {
-            if x > 0.0 && zai.re == 0.0 {
-                let (_, ai, aip, _, _) = crate::xsf::cephes::airy(x);
-                return [ai, aip, zbi.re, zbip.re];
+        let [ai, aip, bi, bip] = airy_c64(c64(x, 0.0), 1).map(|z| z.re);
+        // Unlike in xsf (scipy/xsf#310), Cephes or `airye` takes over where AMOS over- or
+        // underflows.
+        if x > 0.0 && bip.is_nan() {
+            // Bi' overflows first. Cephes returns inf for x > 103.892, while Bi(x) only
+            // overflows at x = 104.44, so `airye` is unscaled in between.
+            if x > 103.892 && x < 104.5 {
+                let [_, _, bi, bip] = airye_f64(x);
+                let zeta = 2.0 * x * x.sqrt() / 3.0;
+                [0.0, 0.0, mul_exp(bi, zeta), mul_exp(bip, zeta)]
+            } else {
+                cephes()
             }
-            return [zai.re, zaip.re, zbi.re, zbip.re];
+        } else if x > 0.0 && ai == 0.0 {
+            // AMOS returns 0 for Ai(x) below about 1e-305
+            let [ai, aip, ..] = cephes();
+            [ai, aip, bi, bip]
+        } else {
+            [ai, aip, bi, bip]
         }
-        // Unlike in xsf (scipy/xsf#310), unscale `airye` here, since Cephes returns inf for
-        // x > 103.892, while Bi(x) only overflows at x = 104.44
-        if x > 103.892 && x < 104.5 {
-            let [_, _, bi, bip] = airye_f64(x);
-            let zeta = 2.0 * x * x.sqrt() / 3.0;
-            return [0.0, 0.0, mul_exp(bi, zeta), mul_exp(bip, zeta)];
-        }
+    } else {
+        cephes()
     }
-
-    let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
-    [ai, aip, bi, bip]
 }
 
 /// Airy functions and derivatives
