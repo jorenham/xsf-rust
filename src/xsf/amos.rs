@@ -100,6 +100,17 @@
 //!   `(int) fnu` (undefined behavior in C++ for `fnu >= 2^31`), see `order_mod4`.
 //! - The complex `sqrt`, `exp`, and `log` are computed with the crate's `csqrt` (from FreeBSD),
 //!   `cexp`, and `clog`, which can differ from glibc's in the last bit.
+//! - Overflow threshold: a result overflows past `f64::MAX` instead of `exp(elim)`, as `asyi`
+//!   computes the exponential itself, and `bknu`, `uni1`, and `uni2` scale the result near it,
+//!   see `on_scale`.
+//! - K underflow: an underflow of K in the continuation to `Re(z) < 0` isn't an overflow, as the
+//!   I term dominates there.
+//! - pi I overflow: an overflow of the pi I term of that continuation is reported, as I is
+//!   computed up to `f64::MAX`.
+//! - Tiny z: `besh` and `besk` only reject `z = 0` for its magnitude alone, as `bknu` and `seri`
+//!   compute K and I for any tiny z.
+//! - Inner `airy` failure: `uni2` and `unk2` fail if `airy` does (`ierr = 3` is only a loss of
+//!   precision) instead of using its 0 (for `|z| > ~7e8`).
 
 // The C++ literals and the control flow of the line-by-line Fortran translation are kept verbatim.
 // E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
@@ -195,16 +206,15 @@ fn order_mod4(fnu: f64) -> (f64, i32) {
 /// Whether `K_fnu(z) ~ gamma(fnu) / 2 (2 / |z|)^fnu` overflows, for `|z| <= tol` and `fnu > 1/2`
 /// (only `fnu > 0.95` can overflow as `|z| >= 5e-324`, and the estimate is too large for tiny fnu).
 ///
-/// Unlike in xsf, this compares with `f64::MAX` instead of `exp(elim)`, as `bknu` scales the result
-/// near it, and doesn't round a subnormal `|z|` or `|z| / 2`.
+/// Unlike in xsf, this uses the overflow threshold of the module docs, and doesn't round a
+/// subnormal `|z|` or `|z| / 2`.
 fn small_z_k_overflows(z: Complex64, fnu: f64) -> bool {
     fnu * (LN_2 - clog(z).re) + gamln(fnu) - LN_2 > MAXLOG
 }
 
 /// Whether `exp(e)` is on scale, i.e. neither underflows past `exp(-elim)` nor overflows.
 ///
-/// Unlike in xsf, the upper bound is `ln(f64::MAX)` instead of `elim`, as `asyi` computes
-/// `exp(e)` itself, and `uni1` and `uni2` scale the result near it.
+/// Unlike in xsf, the upper bound is `ln(f64::MAX)` instead of `elim` (overflow threshold).
 fn on_scale(e: f64, elim: f64) -> bool {
     (-elim..=MAXLOG).contains(&e)
 }
@@ -489,7 +499,7 @@ pub(crate) fn acai(
     // ANALYTIC CONTINUATION TO THE LEFT HALF PLANE FOR THE K FUNCTION
     //
     nw = bknu(zn, fnu, kode, 1, &mut cy, tol, elim, alim);
-    // Unlike in xsf, an underflow of K(zn) isn't an overflow, as the I term dominates then.
+    // Unlike in xsf: K underflow (see the module docs).
     if nw < 0 {
         nz = -1;
         if nw == -2 {
@@ -526,7 +536,7 @@ pub(crate) fn acai(
         nw = s1s2(zn, &mut c1, &mut c2, ascle, alim, &mut iuf);
         nz += nw;
     }
-    // Unlike in xsf, report an overflow of the pi I term, as `asyi` computes I up to f64::MAX.
+    // Unlike in xsf: pi I overflow (see the module docs).
     let ci = cmul(csgn, c2);
     if !ci.is_finite() {
         return -1;
@@ -583,8 +593,8 @@ pub(crate) fn acon(
         //
         nn = if n > 2 { 2 } else { n };
         nw = bknu(zn, fnu, kode, nn, &mut cy, tol, elim, alim);
-        // Unlike in xsf, an underflow of K(zn) isn't an overflow for n <= 2, as the I term
-        // dominates then (the recurrence below needs K for n > 2).
+        // Unlike in xsf: K underflow for n <= 2 (see the module docs), as the recurrence below
+        // needs K for n > 2.
         if nw == 0 || (nw > 0 && n <= 2) {
             let mut s1 = cy[0];
             let fmr = f64::from(mr);
@@ -609,8 +619,7 @@ pub(crate) fn acon(
                 nz += nw;
                 sc1 = c1;
             }
-            // Unlike in xsf, report an overflow of the pi I term, as `asyi` computes I up to
-            // f64::MAX.
+            // Unlike in xsf: pi I overflow (see the module docs).
             let ci = cmul(csgn, c2);
             if !ci.is_finite() {
                 return -1;
@@ -1001,9 +1010,8 @@ pub(crate) fn airy(
             // OVERFLOW TEST
             //
             if aa <= -alim {
-                // Unlike in xsf, this is ln|2 sqrt(pi) Ai(z)| ~ -Re(zta) - ln|z| / 4 (+ ln|z| / 4
-                // for Ai'), and is compared with ln(f64::MAX) instead of elim, as the result is
-                // scaled by sfac.
+                // Unlike in xsf: overflow threshold (see the module docs), as the result is scaled
+                // by sfac, of ln|2 sqrt(pi) Ai(z)| ~ -Re(zta) - ln|z| / 4 (+ ln|z| / 4 for Ai').
                 aa = -aa + if id == 1 { 0.25 } else { -0.25 } * alaz;
                 iflag = 1;
                 sfac = tol;
@@ -1445,7 +1453,7 @@ pub(crate) fn besh(
     // OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //
     let ufl = D1MACH[0] * 1.0e3;
-    // Unlike in xsf, only z = 0 overflows here, as `bknu` handles any tiny z.
+    // Unlike in xsf: tiny z (see the module docs).
     if az == 0.0 {
         *ierr = 2;
         return 0;
@@ -1474,8 +1482,7 @@ pub(crate) fn besh(
             // HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
             // IF NUF=NN, THEN CY(I)=CZERO FOR ALL I
             //
-            // Unlike in xsf, if xn < 0, `acon` handles this underflow of K(-zn) instead of
-            // reporting an overflow.
+            // Unlike in xsf: K underflow (see the module docs), left to `acon` if xn < 0.
             if nuf == nn && xn >= 0.0 {
                 /* GO TO 140 */
                 return nuf;
@@ -2288,7 +2295,7 @@ pub(crate) fn besk(
     //
     // OVERFLOW TEST ON THE LAST MEMBER OF THE SEQUENCE
     //
-    // Unlike in xsf, only z = 0 overflows here, as `bknu` handles any tiny z.
+    // Unlike in xsf: tiny z (see the module docs).
     if az == 0.0 {
         *ierr = 2;
         return 0;
@@ -2311,8 +2318,7 @@ pub(crate) fn besk(
                 // HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
                 // IF NUF=NN, THEN CY(I)=CZERO FOR ALL I
                 //
-                // Unlike in xsf, if xx < 0, `acon` handles this underflow of K(-z) instead of
-                // reporting an overflow.
+                // Unlike in xsf: K underflow (see the module docs), left to `acon` if xx < 0.
                 if nuf == nn && xx >= 0.0 {
                     return nuf;
                 }
@@ -3083,9 +3089,8 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         //
         bb = aa.abs();
         if bb >= alim {
-            // Unlike in xsf, this is ln|sqrt(pi) Bi(z)| ~ |Re(zta)| - ln|z| / 4 (+ ln|z| / 4 for
-            // Bi'), and is compared with ln(f64::MAX) instead of elim, as the result is scaled by
-            // sfac.
+            // Unlike in xsf: overflow threshold (see the module docs), as the result is scaled by
+            // sfac, of ln|sqrt(pi) Bi(z)| ~ |Re(zta)| - ln|z| / 4 (+ ln|z| / 4 for Bi').
             bb += if id == 1 { 0.25 } else { -0.25 } * az.ln();
             sfac = tol;
             if bb > MAXLOG {
@@ -5620,8 +5625,7 @@ pub(crate) fn uni2(
                 //
                 ai = airy(arg, 0, 2, &mut nai, &mut idum);
                 dai = airy(arg, 1, 2, &mut ndai, &mut idum);
-                // Unlike in xsf, fail if `airy` does (ierr = 3 is only a loss of precision),
-                // instead of using its 0 (for |z| > ~7e8).
+                // Unlike in xsf: inner `airy` failure (see the module docs).
                 if !matches!(idum, 0 | 3) {
                     *nz = -2;
                     return;
@@ -6012,8 +6016,7 @@ pub(crate) fn unk1(
         if rs1 > 0.0 {
             return -1;
         }
-        // Unlike in xsf, an underflow of K(zr) isn't an overflow if x < 0, as the I term added
-        // below dominates then.
+        // Unlike in xsf: K underflow if x < 0 (see the module docs).
         kdflg = 1;
         y[(i - 1) as usize] = c64(0.0, 0.0);
         nz += 1;
@@ -6262,7 +6265,7 @@ pub(crate) fn unk1(
                     csr[(iflag - 1) as usize]
                 },
             );
-            // Unlike in xsf, report an overflow of the pi I term, as I is computed up to f64::MAX.
+            // Unlike in xsf: pi I overflow (see the module docs).
             if !s2.is_finite() {
                 return -1;
             }
@@ -6311,7 +6314,7 @@ pub(crate) fn unk1(
         s1 = c2;
         fn_ -= 1.0;
         c2 = cmul(s2, cs);
-        // Unlike in xsf, report an overflow of the pi I term here too.
+        // Unlike in xsf: pi I overflow (see the module docs).
         if !c2.is_finite() {
             return -1;
         }
@@ -6508,8 +6511,7 @@ pub(crate) fn unk2(
                     if rs1 > 0.0 {
                         return -1;
                     }
-                    // Unlike in xsf, an underflow of K(zr) isn't an overflow if x < 0, as the I
-                    // term added below dominates then.
+                    // Unlike in xsf: K underflow if x < 0 (see the module docs).
                     kdflg = 1;
                     y[(i - 1) as usize] = c64(0.0, 0.0);
                     cs = cmul(cs, -c64(0.0, 1.0));
@@ -6549,7 +6551,7 @@ pub(crate) fn unk2(
                 if rs1 > 0.0 {
                     return -1;
                 }
-                // Unlike in xsf, not an overflow if x < 0 (see above).
+                // Unlike in xsf: K underflow if x < 0 (see the module docs).
                 kdflg = 1;
                 y[(i - 1) as usize] = c64(0.0, 0.0);
                 cs = cmul(cs, -c64(0.0, 1.0));
@@ -6578,7 +6580,7 @@ pub(crate) fn unk2(
         if rs1 > 0.0 {
             return -1;
         }
-        // Unlike in xsf, not an overflow if x < 0 (see above).
+        // Unlike in xsf: K underflow if x < 0 (see the module docs).
         kdflg = 1;
         y[(i - 1) as usize] = c64(0.0, 0.0);
         cs = cmul(cs, -c64(0.0, 1.0));
@@ -6804,8 +6806,7 @@ pub(crate) fn unk2(
 
             ai = airy(argd, 0, 2, &mut nai, &mut idum);
             dai = airy(argd, 1, 2, &mut ndai, &mut idum);
-            // Unlike in xsf, fail if `airy` does (ierr = 3 is only a loss of precision), instead
-            // of using its 0 (for |z| > ~7e8).
+            // Unlike in xsf: inner `airy` failure (see the module docs).
             if !matches!(idum, 0 | 3) {
                 return -2;
             }
@@ -6836,7 +6837,7 @@ pub(crate) fn unk2(
                 csr[(iflag - 1) as usize]
             },
         );
-        // Unlike in xsf, report an overflow of the pi I term, as I is computed up to f64::MAX.
+        // Unlike in xsf: pi I overflow (see the module docs).
         if !s2.is_finite() {
             return -1;
         }
@@ -6890,7 +6891,7 @@ pub(crate) fn unk2(
         s1 = c2;
         fn_ -= 1.0;
         c2 = cmul(s2, cs);
-        // Unlike in xsf, report an overflow of the pi I term here too.
+        // Unlike in xsf: pi I overflow (see the module docs).
         if !c2.is_finite() {
             return -1;
         }
@@ -7032,8 +7033,7 @@ pub(crate) fn uoik(
     rcz = cz.re;
 
     /*  OVERFLOW TEST  */
-    // Unlike in xsf, I and K only overflow past `f64::MAX` instead of `exp(elim)`, as `bknu`,
-    // `uni1` and `uni2` scale the result near it.
+    // Unlike in xsf: overflow threshold (see the module docs).
     if rcz > MAXLOG {
         return -1;
     }
