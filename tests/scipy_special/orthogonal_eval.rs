@@ -511,6 +511,26 @@ fn test_eval_hermite_negative_integer_degree_neg_x() {
 }
 
 #[test]
+fn test_eval_hermite_neg_x_overflow() {
+    // mpmath; x^2 overflows, and H_n(x) -> inf / Gamma(-n) for x -> -inf
+    let h = [
+        eval_hermite_h(-1.5, -1e155),
+        eval_hermite_h(0.5, -1e200),
+        eval_hermite_h(-300.0, f64::NEG_INFINITY),
+        eval_hermite_he(1.5, -2e154),
+        eval_hermite_he(170.5, f64::NEG_INFINITY),
+    ];
+    let h_expected = [
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    assert_eq!(h, h_expected);
+}
+
+#[test]
 fn test_eval_hermite_real_degree_pos_x() {
     // mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
     let h = [
