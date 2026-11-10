@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@a180082).
+//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@3b73def).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -103,9 +103,9 @@ fn half(n: i64) -> f64 {
     n as f64 + 0.5
 }
 
-/// `static_cast<T>(n + 1)`
+/// `static_cast<T>(n + 1UL)`
 fn np1(n: i64) -> f64 {
-    n.wrapping_add(1) as f64
+    (n as u64).wrapping_add(1) as f64
 }
 
 /// `std::pow(-1, n)`

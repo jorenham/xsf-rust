@@ -277,6 +277,18 @@ fn test_sph_bessel_kn_prime() {
 }
 
 #[test]
+fn test_sph_bessel_prime_n_max() {
+    let n = i64::MAX;
+    // y_n(1) overflows to -inf for huge n (https://dlmf.nist.gov/10.19.E2); n is odd, so
+    // y_n'(-x) = -y_n'(x)
+    assert_eq!(xsf::sph_bessel_y_prime(n, 1.0), f64::INFINITY);
+    assert_eq!(xsf::sph_bessel_y_prime(n, -1.0), f64::NEG_INFINITY);
+    // k_n'(x) < 0 for x > 0, so k_n'(inf) = -0, as for small n
+    let k_prime = xsf::sph_bessel_k_prime(n, f64::INFINITY);
+    assert_eq!(k_prime.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn test_sph_bessel_prime_n_min() {
     // `n - 1` overflowed (and panicked in debug builds)
     let (n, z) = (i64::MIN, num_complex::c64(1.0, 1.0));
