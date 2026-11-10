@@ -184,7 +184,7 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
-/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+/// Both are NaN for `|q|` above about 2103, or `m > 65536`.
 ///
 /// # See also
 /// - [`mathieu_sem`]: Odd Mathieu function
@@ -193,8 +193,7 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_km_too_large(m, q) {
-        // Unlike in xsf (scipy/xsf#312), NaN, as for km > 251, instead of indexing out of bounds
+    if mathieu_cem_sem_unsupported(m, q) {
         return (f64::NAN, f64::NAN);
     }
     cem(f64::from(m), q, x)
@@ -219,7 +218,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// - `y`: value of the function
 /// - `yp`: Value of the derivative w.r.t. *x*
 ///
-/// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
+/// Both are NaN for `m > 0` and `|q|` above about 2103, or `m > 65536`.
 ///
 /// # See also
 /// - [`mathieu_cem`]: Even Mathieu function
@@ -228,8 +227,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if m > 0 && mathieu_km_too_large(m, q) {
-        // Unlike in xsf (scipy/xsf#312), NaN, as for km > 251, instead of indexing out of bounds
+    if m > 0 && mathieu_cem_sem_unsupported(m, q) {
         return (f64::NAN, f64::NAN);
     }
     sem(f64::from(m), q, x)
@@ -370,13 +368,23 @@ fn mathieu_qm(q: f64) -> f64 {
     }
 }
 
-/// Whether `km >= 251`, in which case `mtu0` (used by `cem` and `sem`) and `mtu12` (used by the
-/// modified Mathieu functions) would index out of bounds: `mtu0` only returns NaN if `km > 251`,
-/// and both cast `km` to `int`, which overflows for huge or NaN `q`
+/// Whether `km >= 251`, in which case `mtu12` (used by the modified Mathieu functions) would index
+/// out of bounds, and `km` overflows `int` for huge or NaN `q`
 fn mathieu_km_too_large(m: u32, q: f64) -> bool {
     // `q < 0` is reflected to `-q`, with the same `m`
     let km = mathieu_qm(q.abs()) + 0.5 * f64::from(m);
     km.is_nan() || km >= 251.0
+}
+
+/// Largest order `m` of [`mathieu_cem`] and [`mathieu_sem`], whose cost grows faster than `m`
+/// (about 0.03 s per call at this `m`)
+const CEM_SEM_M_MAX: u32 = 1 << 16;
+
+/// Unlike in xsf (scipy/xsf#312), `mtu0` sizes its coefficients by `km`, so that `cem` and `sem`
+/// are NaN if `km - m/2 >= 251` (i.e. `|q| > 2102.92`) or `m > CEM_SEM_M_MAX`, instead of if
+/// `km > 251`, and don't index out of bounds if `km = 251`
+fn mathieu_cem_sem_unsupported(m: u32, q: f64) -> bool {
+    m > CEM_SEM_M_MAX || mathieu_km_too_large(0, q)
 }
 
 #[inline]

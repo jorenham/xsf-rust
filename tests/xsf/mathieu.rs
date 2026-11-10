@@ -78,6 +78,43 @@ fn test_mathieu_cem_sem_large_m() {
 }
 
 #[test]
+fn test_mathieu_cem_sem_km_gt_251() {
+    // NaN in xsf, which only has room for 251 coefficients; the expected values are from the
+    // tridiagonal eigenproblem (DLMF 28.4.5) in mpmath
+    let (y, yp) = xsf::mathieu_cem(1000, 1.0, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [0.173_479_844_385_168_09, 984.836_971_453_448_2],
+        rtol = 1e-12
+    );
+    let (y, yp) = xsf::mathieu_sem(10_000, 100.0, 37.3);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [0.639_087_540_712_494, 7_691.339_718_009_938],
+        rtol = 1e-11
+    );
+    // also needs the backward sum of squares to leave room for the forward one
+    let (y, yp) = xsf::mathieu_cem(131, 2100.0, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [0.400_830_572_645_642_4, -113.482_637_316_450_79],
+        rtol = 1e-12
+    );
+}
+
+#[test]
+fn test_mathieu_cem_large_q() {
+    // zeros in xsf, because the backward sum of squares in `fcoef` overflows; the expected values
+    // are from the tridiagonal eigenproblem (DLMF 28.4.5) in mpmath
+    let (y, yp) = xsf::mathieu_cem(170, 1500.0, 10.0);
+    xsref::np_assert_allclose!(
+        [y, yp],
+        [-1.015_989_436_317_424_7, -21.795_261_688_798_792],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_mathieu_a_b_huge_m() {
     // 0 resp. NaN in xsf, because `m * m` overflows `int`; the second expected value is from
     // the series DLMF 28.6.14
@@ -194,12 +231,14 @@ fn test_mathieu_odd_coef_m0() {
 
 #[test]
 fn test_mathieu_cem_sem_km251() {
-    // `mtu0` would read out of bounds
+    // `|q| > 2102`, for which `mtu0` in xsf would read out of bounds, or `m > 65536`
     for (y, yp) in [
         xsf::mathieu_cem(0, 2103.0, 10.0),
         xsf::mathieu_cem(0, -2103.0, 10.0),
-        xsf::mathieu_sem(1, 2100.0, 10.0),
-        xsf::mathieu_sem(1, -2100.0, 10.0),
+        xsf::mathieu_sem(1, 2103.0, 10.0),
+        xsf::mathieu_sem(1, -2103.0, 10.0),
+        xsf::mathieu_cem(65_537, 1.0, 10.0),
+        xsf::mathieu_sem(65_537, 1.0, 10.0),
     ] {
         assert!(y.is_nan() && yp.is_nan());
     }
