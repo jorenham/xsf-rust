@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ndtri_exp.h` (scipy/xsf@09c93c7). Original author:
+//! Translated into pure Rust from `xsf/ndtri_exp.h` (scipy/xsf@acc2ec6). Original author:
 //! Albert Steppi.
 
 use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
@@ -29,12 +29,13 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     };
     let r = x1 - x0;
 
-    // Unlike in xsf (scipy/xsf#458), refine with a Newton step on `log_ndtr` outside the fitted
-    // range of P2/Q2 (x <= 64, or y >= -2048). Its extrapolation loses up to 3000 eps (e.g.
-    // y = -2e5), and the error is below eps/4 again for x >= 2^18 (y <= -2^35).
+    // P2/Q2 are fitted for 8 <= x <= 64 and inaccurate up to x ~ 2^18, so refine with a Newton step
+    // (DLMF 3.8.4) on log_ndtr(r) = log(erfcx(t) / 2) - t^2, with t = -r/sqrt(2), whose derivative
+    // is sqrt(2/pi) / erfcx(t) (DLMF 7.2.2)
     if x > 64.0 && x < 262_144.0 {
-        // d/dr log_ndtr(r) = sqrt(2/pi) / erfcx(-r/sqrt(2))
-        r - (crate::log_ndtr(r) - y) * crate::erfcx(-r * FRAC_1_SQRT_2) / SQRT2OPI
+        let t = -r * FRAC_1_SQRT_2;
+        let e = crate::erfcx(t);
+        r - ((e / 2.0).ln() - t * t - y) * e / SQRT2OPI
     } else {
         r
     }
