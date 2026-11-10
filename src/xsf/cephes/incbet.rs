@@ -465,21 +465,19 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done incbet_apser(bb, aa, yy);
         }
 
-        let mut w = yy;
-
         /* Reverse a and b if x is greater than the mean. */
-        // Unlike in xsf (scipy/xsf#358), `yy` is also compared with its mean (as `xx` or the mean
-        // can be rounded to 1), and they are also reversed if the power series of the complement
-        // applies and its absolute error of ~(1 - ln(b)) eps, relative to its result of at least
-        // ~b/5 (both measured), is below the ~0.1 eps / y of the continued fractions.
-        let (a, b, xc, x) = if xx > (aa / (aa + bb))
-            || yy < bb / (aa + bb)
-            || (aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb)
-        {
-            flag = true;
-            (bb, aa, xx, w)
+        // Unlike in xsf (scipy/xsf#358), `yy` is also compared with its mean, as `xx` or the mean
+        // can be rounded to 1.
+        let past_mean = xx > (aa / (aa + bb)) || yy < bb / (aa + bb);
+        // Unlike in xsf (scipy/xsf#358), they are also reversed if the power series of the
+        // complement applies and its absolute error of ~(1 - ln(b)) eps, relative to its result of
+        // at least ~b/5 (both measured), is below the ~0.1 eps / y of the continued fractions.
+        let pseries_y = aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb;
+        flag = past_mean || pseries_y;
+        let (a, b, xc, x) = if flag {
+            (bb, aa, xx, yy)
         } else {
-            (aa, bb, w, xx)
+            (aa, bb, yy, xx)
         };
 
         if flag && (b * x) <= 1.0 && x <= 0.95 {
@@ -497,11 +495,11 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         let mut y = x * (a + b - 2.0) - (a - 1.0);
         // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
         // amplifies the rounding error of `x` by ~`a / |a xc - b|`.
-        if y < 0.0 && x <= 0.95 {
-            w = incbcf(a, b, x);
+        let w = if y < 0.0 && x <= 0.95 {
+            incbcf(a, b, x)
         } else {
-            w = incbd(a, b, x, xc) / xc;
-        }
+            incbd(a, b, x, xc) / xc
+        };
 
         /* Multiply w by the factor
          * a      b   _             _     _
