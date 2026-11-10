@@ -15,6 +15,7 @@ use super::arithmetic::{comp_horner, dot2, ndot2, nsum2, ocrt, sum2_acc};
 use super::common::{ExitStatus, config, constants};
 use super::typing::Num;
 use super::{argcheck, common};
+use crate::utils::pow2;
 
 pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     let mut cct1 = [T::from(0.0); 6];
@@ -112,9 +113,9 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         if common::max(&[x.abs(), y.abs(), z.abs()]) >= 1.0 {
             return (ExitStatus::Overflow, T::HUGE);
         }
-        let s = 2.0_f64.powi(128);
+        let s = const { pow2(128) };
         let (status, res) = rd(x * s, y * s, z * s, rerr);
-        return (status, res * 2.0_f64.powi(192));
+        return (status, res * const { pow2(192) });
     }
 
     /* Burn some extra cycles re-balancing Am as the "true" centroid */

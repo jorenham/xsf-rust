@@ -42,11 +42,12 @@ use super::rf::rf;
 use super::rg::rg;
 use super::typing::Num;
 use super::{argcheck, common};
+use crate::utils::pow2;
 use crate::xsf::complex::{atanh, catan, cdiv, csqrt};
 
 mod rjimpl {
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
-    use super::{rc, rf, rj};
+    use super::{pow2, rc, rf, rj};
 
     // Unlike in xsf, also if `r` underflows to 0 (it is a ratio of positive numbers)
     #[inline]
@@ -264,7 +265,7 @@ mod rjimpl {
         b: f64,
         rerr: f64,
     ) -> (ExitStatus, f64) {
-        let s = 2.0_f64.powi(64);
+        let s = const { pow2(64) };
         let t = (p * ((sx + sy + sz) / b) + sx * (sy * (sz / b))) * s;
         let (status, res) = rc(t * t, s * s * p, rerr);
         (status, res * s / b)
@@ -373,7 +374,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let min = if real {
         f64::MIN_POSITIVE.sqrt()
     } else {
-        2.0_f64.powi(-254)
+        const { pow2(-254) }
     };
     if let Some(f) = common::scale_factor(&[x, y, z, p], min) {
         let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
