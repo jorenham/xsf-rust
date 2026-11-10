@@ -9,12 +9,6 @@
 //! - comments that contradict the code are corrected, e.g. the value returned on a domain error
 //!   is documented as NaN instead of 0.0.
 
-pub(crate) mod cephes;
-
-pub(crate) mod exp;
-pub(crate) mod fp_error_metrics;
-pub(crate) mod log;
-
 mod airy;
 mod alg;
 mod amos;
@@ -22,6 +16,7 @@ pub(crate) mod bessel;
 mod beta;
 mod binom;
 mod cdflib;
+pub(crate) mod cephes;
 pub(crate) mod complex;
 mod cosine;
 mod digamma;
@@ -30,8 +25,10 @@ mod ellint_carlson;
 mod ellip;
 mod erf;
 mod evalpoly;
+mod exp;
 mod expint;
 mod faddeeva;
+mod fp_error_metrics;
 mod fresnel;
 mod gamma;
 mod gen_harmonic;
@@ -40,6 +37,7 @@ mod iv_ratio;
 mod kelvin;
 mod lambertw;
 mod legendre;
+pub(crate) mod log;
 mod log_exp;
 mod loggamma;
 mod mathieu;
