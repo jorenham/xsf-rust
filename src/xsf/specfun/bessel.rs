@@ -7,7 +7,7 @@ use core::f64::consts::PI;
 
 use super::SPECFUN_INF;
 
-pub(crate) fn gam0(x: f64) -> f64 {
+fn gam0(x: f64) -> f64 {
     // ================================================
     // Purpose: Compute gamma function Г(x)
     // Input :  x  --- Argument of Г(x)  ( |x| ≤ 1 )
@@ -91,7 +91,7 @@ pub(crate) fn jynb(
     }
 }
 
-pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]) {
+fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]) {
     // =====================================================
     // Purpose: Compute Bessel functions Jn(x), Yn(x)
     // Input :  x --- Argument of Jn(x) and Yn(x) ( x ≥ 0 )
@@ -262,7 +262,7 @@ pub(crate) fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by:
     }
 }
 
-pub(crate) fn jyndd(
+fn jyndd(
     n: i32,
     x: f64,
     bjn: &mut f64,

@@ -87,7 +87,7 @@ pub(crate) fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
 }
 
 #[allow(dead_code)] // unused, also in xsf
-pub(crate) fn gdtri(a: f64, b: f64, y: f64) -> f64 {
+fn gdtri(a: f64, b: f64, y: f64) -> f64 {
     if (y < 0.0) || (y > 1.0) || (a <= 0.0) || (b < 0.0) {
         return f64::NAN;
     }

@@ -156,7 +156,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
     pmv
 }
 
-pub(crate) fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
+fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
     // =======================================================
     // Purpose: Compute the associated Legendre function
     //          Pmv(x) with an integer order and an arbitrary

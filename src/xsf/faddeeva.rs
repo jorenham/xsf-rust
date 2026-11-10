@@ -1103,7 +1103,7 @@ fn w_im_y100(y100: f64, x: f64) -> f64 {
     f64::NAN
 }
 
-pub(crate) fn w_im(x: f64) -> f64 {
+fn w_im(x: f64) -> f64 {
     if x >= 0.0 {
         if x > 45.0 {
             // continued-fraction expansion is faster

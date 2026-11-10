@@ -106,7 +106,7 @@ pub(crate) fn aswfa(
     Status::Ok
 }
 
-pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut [f64]) -> Status {
+fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut [f64]) -> Status {
     // ==========================================================
     // Return value:
     //          Status::OK
@@ -215,7 +215,7 @@ pub(crate) fn cbk(m: i32, n: i32, c: f64, cv: f64, qt: f64, ck: &[f64], bk: &mut
     Status::Ok
 }
 
-pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: &mut f64) {
+fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: &mut f64) {
     // ===========================================================
     // Purpose: Compute gmn(-ic,ix) and its derivative for oblate
     //          radial functions with a small argument
@@ -261,7 +261,7 @@ pub(crate) fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: 
     *gd = gd1 + xm * gd0;
 }
 
-pub(crate) fn kmn(
+fn kmn(
     m: i32,
     n: i32,
     c: f64,
@@ -428,15 +428,7 @@ pub(crate) fn kmn(
     Status::Ok
 }
 
-pub(crate) fn qstar(
-    m: i32,
-    n: i32,
-    c: f64,
-    ck1: f64,
-    ck: &[f64],
-    qs: &mut f64,
-    qt: &mut f64,
-) -> Status {
+fn qstar(m: i32, n: i32, c: f64, ck1: f64, ck: &[f64], qs: &mut f64, qt: &mut f64) -> Status {
     // ==========================================================
     // Return value:
     //          Status::OK
@@ -486,7 +478,7 @@ pub(crate) fn qstar(
     Status::Ok
 }
 
-pub(crate) fn rmn1(
+fn rmn1(
     m: i32,
     n: i32,
     c: f64,
@@ -657,7 +649,7 @@ pub(crate) fn rmn1(
     Status::Ok
 }
 
-pub(crate) fn rmn2l(
+fn rmn2l(
     m: i32,
     n: i32,
     c: f64,
@@ -812,7 +804,7 @@ pub(crate) fn rmn2l(
     Status::Ok
 }
 
-pub(crate) fn rmn2so(
+fn rmn2so(
     m: i32,
     n: i32,
     c: f64,
@@ -919,7 +911,7 @@ pub(crate) fn rmn2so(
     Status::Ok
 }
 
-pub(crate) fn rmn2sp(
+fn rmn2sp(
     m: i32,
     n: i32,
     c: f64,
@@ -1259,7 +1251,7 @@ pub(crate) fn rswfo(
     Status::Ok
 }
 
-pub(crate) fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
+fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
     // ======================================================
     // Purpose: Compute the expansion coefficients of the
     //          prolate and oblate spheroidal functions
@@ -1317,7 +1309,7 @@ pub(crate) fn sckb(m: i32, n: i32, mut c: f64, df: &[f64], ck: &mut [f64]) {
     }
 }
 
-pub(crate) fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> Status {
+fn sdmn(m: i32, n: i32, c: f64, cv: f64, kd: i32, df: &mut [f64]) -> Status {
     // =====================================================
     // Purpose: Compute the expansion coefficients of the
     //          prolate and oblate spheroidal functions, dk
