@@ -1,4 +1,6 @@
-use num_complex::c64;
+use core::f64::consts::PI;
+
+use num_complex::{Complex64, c64};
 
 fn as_tuple<T: Clone>(x: &[T; 4]) -> (T, T, T, T) {
     (x[0].clone(), x[1].clone(), x[2].clone(), x[3].clone())
@@ -30,6 +32,25 @@ fn test_airy_f64_overflow() {
     assert_eq!(bip, inf);
     assert_eq!(xsf::airy(415.617_809_554_110_47), [0.0, 0.0, inf, inf]);
     assert_eq!(xsf::airy(1e9), [0.0, 0.0, inf, inf]);
+}
+
+#[test]
+fn test_airy_c64_near_overflow() {
+    // Arb: airyai(z), airyai(z, 1), airybi(z), and airybi(z, 1) for z = -51.8 + 89.7j
+    let expected = [
+        c64(1.360_456_903_014_940_5e304, -6.086_330_281_445_445e303),
+        c64(-1.228_420_803_265_360_1e305, -8.892_381_505_257_792e304),
+        c64(6.086_330_281_445_445e303, 1.360_456_903_014_940_5e304),
+        c64(8.892_381_505_257_792e304, -1.228_420_803_265_360_1e305),
+    ];
+    xsref::np_assert_allclose!(&xsf::airy(c64(-51.8, 89.7)), &expected, rtol = 1e-12);
+    // Arb: airyai(z) and airyai(z, 1) for z = 101.5 exp(2 pi i / 3)
+    let [ai, aip, _, _] = xsf::airy(Complex64::from_polar(101.5, 2.0 * PI / 3.0));
+    let expected = [
+        c64(9.011_428_166_917_66e294, -5.202_750_477_955_84e294),
+        c64(-9.076_541_392_795_495e295, -5.240_343_616_438_283e295),
+    ];
+    xsref::np_assert_allclose!(&[ai, aip], &expected, rtol = 1e-12);
 }
 
 xsref::tests! {
