@@ -433,7 +433,6 @@ const JV_P7: [f64; 8] = [
     1.7277275025844573975E0,
 ];
 
-#[allow(clippy::needless_late_init)]
 fn jv_jnx(n: f64, x: f64) -> f64 {
     let mut u = [0.0; 8];
 
@@ -450,21 +449,15 @@ fn jv_jnx(n: f64, x: f64) -> f64 {
         return 0.0;
     }
 
-    let sz;
-    let mut t;
-    let zeta;
-    let nflg;
-    if zz > 0.0 {
-        sz = zz.sqrt();
-        t = 1.5 * (((1.0 + sz) / z).ln() - sz); /* zeta ** 3/2          */
-        zeta = (t * t).cbrt();
-        nflg = 1;
+    let (sz, mut t, zeta, nflg) = if zz > 0.0 {
+        let sz = zz.sqrt();
+        let t = 1.5 * (((1.0 + sz) / z).ln() - sz); /* zeta ** 3/2          */
+        (sz, t, (t * t).cbrt(), 1)
     } else {
-        sz = (-zz).sqrt();
-        t = 1.5 * (sz - (1.0 / z).acos());
-        zeta = -(t * t).cbrt();
-        nflg = -1;
-    }
+        let sz = (-zz).sqrt();
+        let t = 1.5 * (sz - (1.0 / z).acos());
+        (sz, t, -(t * t).cbrt(), -1)
+    };
     let z32i = (1.0 / t).abs();
     let sqz = t.cbrt();
 

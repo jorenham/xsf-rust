@@ -717,7 +717,8 @@ fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     let mut res = C[0];
     for k in 1..9 {
         Zp /= Z;
-        res += f64::from(if k % 2 == 0 { 1 } else { -1 }) * C[k] * Zp;
+        let sign = if k % 2 == 0 { 1.0 } else { -1.0 };
+        res += sign * C[k] * Zp;
     }
     if !LOG_WB {
         res *= Z.powf(0.5 - b) * (Ap1[1] / a * Z).exp();
@@ -1159,7 +1160,6 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         return x - lgam(b);
     }
 
-    let order;
     if (a <= 1e-3 && b <= 50.0 && x <= 9.0)
         || (a <= 1e-4 && b <= 70.0 && x <= 100.0)
         || (a <= 1e-5 && b <= 170.0 && (x < EXP_INF || (LOG_WB && x <= 1e3)))
@@ -1167,6 +1167,7 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         /* Taylor Series expansion in a=0 to order=order => precision <= 1e-11
          * If beta is also small => precision <= 1e-11.
          * max order = 5 */
+        let order;
         if a <= 1e-5 {
             if x <= 1.0 {
                 order = 2;
