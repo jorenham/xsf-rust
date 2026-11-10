@@ -1,4 +1,4 @@
-//! Translated into pure Rust from xsf (scipy/xsf@e58388a):
+//! Translated into pure Rust from xsf (scipy/xsf@d350b94):
 //!
 //! - `xsf/trig.h`: original author: Josh Wilson, 2016.
 //! - `xsf/cephes/trig.h`: original author: Josh Wilson, 2020.
@@ -177,9 +177,6 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
      *
      * so we can compute exp(y/2), scale by the right factor of sin/cos
      * and then multiply by exp(y/2) to avoid overflow. */
-    // Unlike in xsf (scipy/xsf#469), this propagates NaN and avoids premature rounding of tiny
-    // sin/cos factors.
-    //
     // It still overflows prematurely if exp(|pi y|/2) overflows while the result wouldn't (only
     // for |x| < ~1e-308).
     mul_half_exp(abspiy, sinpix, 1.0_f64.copysign(piy) * cospix)
@@ -209,8 +206,6 @@ fn ccospi(z: Complex<f64>) -> Complex<f64> {
     }
 
     // See csinpi(z) for an idea of what's going on here.
-    // Unlike in xsf (scipy/xsf#469), this propagates NaN and avoids premature rounding; see
-    // csinpi(z).
     mul_half_exp(abspiy, cospix, -1.0_f64.copysign(piy) * sinpix)
 }
 
