@@ -148,6 +148,33 @@ fn test_bessel_scaled_overflow() {
 }
 
 #[test]
+fn test_bessel_jy_negative_order_overflow() {
+    // mpmath: bessely(10.25, 1e-100) = -2.5e1033, besselj(-10.25, 1e-100) = 1.8e1033,
+    // bessely(-200.5, 1) = 3.9e-437, besselj(-1611.5, 200) = -3.9e1246, and
+    // besselj(-10.001, 1e-30) = 3.993385638016181e305
+    let inf = f64::INFINITY;
+    assert_eq!(xsf::bessel_ye(10.25, 1e-100), -inf);
+    assert_eq!(xsf::bessel_je(-10.25, 1e-100), inf);
+    assert_eq!(xsf::bessel_y(-200.5, 1.0), 0.0);
+    assert_eq!(xsf::bessel_j(-1611.5, 200.0), -inf);
+    let j = xsf::bessel_j(-10.001, 1e-30);
+    np_assert_allclose!(&[j], &[3.993_385_638_016_181e305], rtol = 1e-13);
+}
+
+#[test]
+fn test_bessel_k_huge_order_overflow() {
+    // K_v(x) and e^x K_v(x) overflow (DLMF 10.41.2, 10.41.4); for the last, ln(e^x K_v(x)) = 3.5e8
+    let inf = f64::INFINITY;
+    let v30 = 2.0_f64.powi(30);
+    for (v, x) in [(v30, 1.0), (-1e12, 1.0), (1e300, 1e200)] {
+        assert_eq!(xsf::bessel_k(v, x), inf);
+        assert_eq!(xsf::bessel_ke(v, x), inf);
+        assert_eq!(xsf::bessel_k(v, c64(x, 0.0)), c64(inf, 0.0));
+    }
+    assert_eq!(xsf::bessel_ke(v30, 1.5 * v30), inf);
+}
+
+#[test]
 fn test_bessel_jyi_near_overflow() {
     // mpmath: bessely(v, x), besselj(v, x), and besseli(v, x) * exp(-x)
     let actual = [

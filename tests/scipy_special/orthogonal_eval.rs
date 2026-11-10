@@ -90,6 +90,9 @@ fn test_eval_jacobi_alpha_near_minus_one() {
         -0.655_967_500_183_011_9,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // near alpha = -8 the recurrence cancels, but the result stays small (Arb: 3.7e-9)
+    assert!(xsf::eval_jacobi(20_i32, -7.999_999_999_999_998, 1.0, 0.9585).abs() < 1e-8);
 }
 
 #[test]
@@ -101,6 +104,8 @@ fn test_eval_genlaguerre_alpha_near_minus_one() {
         xsf::eval_genlaguerre(7_i32, -1.0 + 1e-15, 2.5),
         xsf::eval_genlaguerre(25.0, -1.0 + 1e-13, 4.0),
         xsf::eval_genlaguerre(40.0, -1.0 + 1e-6, 25.0),
+        xsf::eval_genlaguerre(2_i32, -0.999_999_999_999_99, 0.5),
+        xsf::eval_genlaguerre(3.0, -0.999_999_999_999_999_8, 2.0),
     ];
     let desired = [
         -10.969_942_483_703_025,
@@ -108,10 +113,12 @@ fn test_eval_genlaguerre_alpha_near_minus_one() {
         -0.554_044_208_829_365,
         -0.131_747_458_557_938_53,
         19_671.412_951_251_726,
+        -0.375,
+        0.666_666_666_666_666_5,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
-    // but not for n > 2^53, where `n - 1` rounds (mpmath: 0.999999999999998)
+    // alpha >= -0.5 keeps `binom(n + alpha, n)`, also for n > 2^53 (mpmath: 0.999999999999998)
     let actual = xsf::eval_genlaguerre(2.0_f64.powi(54), -2.0_f64.powi(-54), 0.0);
     np_assert_allclose!([actual], [0.999_999_999_999_997_9], rtol = 1e-14);
 }

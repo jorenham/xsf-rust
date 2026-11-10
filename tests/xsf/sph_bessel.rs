@@ -61,6 +61,19 @@ fn test_sph_bessel_prime_tiny_x() {
 }
 
 #[test]
+fn test_sph_bessel_complex_real_overflow() {
+    // mpmath: y_1(1e-300) = -1e600, y_2(-1e-300) = 3e900, y_50(1e-10) = -2.7e588, and (DLMF
+    // 10.51.2, 10.51.5) y_1'(1e-300) = 2e900 and k_1'(1e-300) = -3.1e900
+    let c = num_complex::c64;
+    let inf = f64::INFINITY;
+    assert_eq!(xsf::sph_bessel_y(1, c(1e-300, 0.0)), c(-inf, 0.0));
+    assert_eq!(xsf::sph_bessel_y(2, c(-1e-300, 0.0)), c(inf, 0.0));
+    assert_eq!(xsf::sph_bessel_y(50, c(1e-10, 0.0)), c(-inf, 0.0));
+    assert_eq!(xsf::sph_bessel_y_prime(1, c(1e-300, 0.0)), c(inf, 0.0));
+    assert_eq!(xsf::sph_bessel_k_prime(1, c(1e-300, 0.0)), c(-inf, 0.0));
+}
+
+#[test]
 fn test_sph_bessel_small_x_underflow() {
     // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x) etc.
     let actual = [

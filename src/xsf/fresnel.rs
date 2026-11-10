@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/fresnel.h` (scipy/xsf@b1eb270).
+//! Translated into pure Rust from `xsf/cpu/fresnel.h` (scipy/xsf@5709919).
 //!
 //! Unlike in xsf (scipy/xsf#367), for `x < 0`, the imaginary part of F+-(x) in `ffk` is computed
 //! from its own value, instead of from the already updated real part.
@@ -285,8 +285,8 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
             c1 = 0.5 + (xf * sin - xg * cos) / SQRT_TAU / xa;
             s1 = 0.5 - (xf * cos + xg * sin) / SQRT_TAU / xa;
 
-            // Unlike in xsf (scipy/xsf#453), K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x)
-            // directly, instead of F+-(x) e^(-+i (x^2 + pi/4)) / sqrt(pi)
+            // K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x), DLMF 7.5.10, 7.12.2, 7.12.3;
+            // avoids the rounding error of the phase x^2 + pi/4 below
             g.re = (xf + xg) / (2.0 * SQRT_TAU) / xa;
             g.im = (-1.0_f64).powi(ks) * (xf - xg) / (2.0 * SQRT_TAU) / xa;
         }

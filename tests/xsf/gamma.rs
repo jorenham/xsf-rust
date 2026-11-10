@@ -45,7 +45,7 @@ fn test_gammainc_large_a() {
 
 #[test]
 fn test_gammainc_huge_a() {
-    // unlike in xsf, these are not NaN (Arb: min(P, Q) < 10^(-6e306))
+    // Arb: min(P, Q) < 10^(-6e306)
     assert_eq!(xsf::gammainc(f64::MAX, 3.0), 0.0);
     assert_eq!(xsf::gammaincc(4.4e306, 3.7e180), 1.0);
     assert_eq!(xsf::gammaincc(2.532_737_276_080_075_8e305, f64::MAX), 0.0); // MAX / ln(MAX)

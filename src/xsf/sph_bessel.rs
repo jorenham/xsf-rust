@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@3b73def).
+//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@316ab68).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -383,10 +383,8 @@ fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(1.0, 1.0) * f64::INFINITY;
     }
 
-    // y_n(-z) = (-1)^(n+1) * y_n(z); see sph_bessel_j note above.
-    if z.im == 0.0 && z.re < 0.0 {
-        let r = sph_bessel_y_c64(n, c64(-z.re, 0.0));
-        return if n % 2 == 0 { -r } else { r };
+    if z.im == 0.0 {
+        return c64(sph_bessel_y_f64(n, z.re), 0.0);
     }
 
     cmul(sqrt_pi_2_div(z), cyl_bessel_y_c64(half(n), z))
@@ -407,6 +405,11 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
+    // Real z: avoid nan + nan j where y_n(z) overflows; complex 0 still gives nan.
+    if x.im == 0.0 && x.re != 0.0 {
+        return c64(sph_bessel_y_jac_f64(n, x.re), 0.0);
+    }
+
     if n == 0 {
         return -sph_bessel_y_c64(1, x);
     }
@@ -591,6 +594,11 @@ fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_k_jac_c64(n: i64, x: Complex64) -> Complex64 {
+    // Real z: avoid nan + nan j where k_n(z) overflows; complex 0 still gives nan.
+    if x.im == 0.0 && x.re != 0.0 {
+        return c64(sph_bessel_k_jac_f64(n, x.re), 0.0);
+    }
+
     if n == 0 {
         return -sph_bessel_k_c64(1, x);
     }
