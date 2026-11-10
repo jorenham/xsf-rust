@@ -75,6 +75,21 @@ fn test_eval_jacobi_alpha_near_minus_one() {
     let actual = xsf::eval_jacobi(7.5, -1.0 + 1e-15, 2.0, c64(-0.6, 0.25));
     let desired = c64(6.901_490_182_319_64, -3.299_333_682_536_697);
     np_assert_allclose!([actual], [desired], rtol = 1e-12);
+
+    // and at alpha = -1 with an integer degree, for any beta (Arb)
+    let actual = [
+        xsf::eval_jacobi(5_i32, -1.0, -0.9, -0.99),
+        xsf::eval_jacobi(30_i32, -1.0, 0.5, 0.3),
+        xsf::eval_jacobi(64_i32, -1.0, 9.5, -0.75),
+        xsf::eval_sh_jacobi(10_i32, -1.0, 2.5, 0.3),
+    ];
+    let desired = [
+        -5.342_672_184_935_159e-4,
+        0.017_321_739_003_478_2,
+        -2_235.655_409_379_344_7,
+        -0.655_967_500_183_011_9,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
 #[test]

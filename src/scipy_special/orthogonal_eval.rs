@@ -188,7 +188,9 @@ impl JacobiArg<i32> for f64 {
             1.0
         } else if n == 1 {
             0.5 * (2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (x - 1.0))
-        } else if alpha == -1.0 && beta.abs() == 1.0 {
+        } else if alpha == -1.0 {
+            // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
+            // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
             let n = f64::from(n);
             ((n + beta) / (2.0 * n)) * (x - 1.0) * x.eval_jacobi(n - 1.0, 1.0, beta)
         } else {
