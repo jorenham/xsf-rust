@@ -13,7 +13,7 @@ use core::f64::consts::{LN_2, PI, SQRT_2};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp};
+use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp, pow2};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
@@ -902,7 +902,7 @@ fn pbdv_maclaurin(v: f64, x: f64) -> (f64, f64) {
     let c1 = SQRT_2 * sinpi(0.5 * v) / SQRT_PI;
     if x.abs() < 1e-150 {
         // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
-        let (k, ex) = (2.0_f64.powi(600), e - 600.0 * LN_2);
+        let (k, ex) = (const { pow2(600) }, e - 600.0 * LN_2);
         return (
             mul_exp(c0 * k + c1 * (x * k), ex),
             mul_exp(c1 * k + a * c0 * (x * k), ex),
