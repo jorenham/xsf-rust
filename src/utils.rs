@@ -56,8 +56,8 @@ pub(crate) fn mul_exp(m: f64, e: f64) -> f64 {
     m * h * h
 }
 
-/// glibc's `t = (int) ((DBL_MAX_EXP - 1) * ln(2))`, so that `e^T` doesn't overflow
-const T: f64 = 709.0;
+/// glibc's `t = (int) ((DBL_MAX_EXP - 1) * ln(2))`, so that `e^t` doesn't overflow
+const EXP_T: f64 = 709.0;
 
 /// `y.sin_cos()`, or `(y, 1)` for subnormal `y`, as in glibc's complex `exp`, `sin`, and `cos`
 pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
@@ -68,27 +68,27 @@ pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
     }
 }
 
-/// `f e^(x - T) w` for `x > T`, without overflowing prematurely, as in glibc
+/// `f e^(x - t) w` for `x > t = EXP_T`, without overflowing prematurely, as in glibc
 ///
-/// `f` is applied first, then `e^(x - T)` as factors of at most `e^T`. For `x > 3 T`, the result
-/// saturates to `MAX f e^T w`.
+/// `f` is applied first, then `e^(x - t)` as factors of at most `e^t`. For `x > 3 t`, the result
+/// saturates to `MAX f e^t w`.
 fn exp_mul_large(x: f64, f: f64, w: Complex<f64>) -> Complex<f64> {
-    let x = x - T;
-    let (x, w) = if x > T {
-        (x - T, w * f * T.exp())
+    let x = x - EXP_T;
+    let (x, w) = if x > EXP_T {
+        (x - EXP_T, w * f * EXP_T.exp())
     } else {
         (x, w * f)
     };
-    // overflow if the original x > 3 T
-    (if x > T { f64::MAX } else { x.exp() }) * w
+    // overflow if the original x > 3 t
+    (if x > EXP_T { f64::MAX } else { x.exp() }) * w
 }
 
 /// `(a cosh(x), b sinh(x))` as in glibc's `ccosh`, which doesn't overflow prematurely when only
 /// `cosh(x)` and `sinh(x)` overflow
 pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> Complex<f64> {
-    if x.abs() > T {
+    if x.abs() > EXP_T {
         let b = if x.is_sign_negative() { -b } else { b };
-        exp_mul_large(x.abs(), T.exp() / 2.0, c64(a, b))
+        exp_mul_large(x.abs(), EXP_T.exp() / 2.0, c64(a, b))
     } else {
         c64(x.cosh() * a, x.sinh() * b)
     }
@@ -96,8 +96,8 @@ pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> Complex<f64> {
 
 /// `w e^x` without overflowing prematurely, as in glibc's complex `exp`
 pub(crate) fn cmul_exp(w: Complex<f64>, x: f64) -> Complex<f64> {
-    if x > T {
-        exp_mul_large(x, T.exp(), w)
+    if x > EXP_T {
+        exp_mul_large(x, EXP_T.exp(), w)
     } else {
         x.exp() * w
     }
