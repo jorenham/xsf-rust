@@ -483,6 +483,34 @@ fn test_eval_hermite_real_degree_neg_x() {
 }
 
 #[test]
+fn test_eval_hermite_negative_integer_degree_neg_x() {
+    // mpmath; H_n has no parity for n < 0, e.g. H_{-1}(x) = sqrt(pi)/2 e^(x^2) erfc(x)
+    let h = [
+        eval_hermite_h(-1.0, -1.999),
+        eval_hermite_h(-3.0, -0.5),
+        eval_hermite_h(-50.0, -10.0),
+    ];
+    let h_expected = [
+        96.160_046_802_329_64,
+        0.773_837_912_638_887_6,
+        1.007_433_655_655_245e32,
+    ];
+    np_assert_allclose!(h, h_expected, rtol = 1e-14);
+
+    let he = [
+        eval_hermite_he(-2.0, -2.5),
+        eval_hermite_he(-10.0, -5.0),
+        eval_hermite_he(-5.0, -0.1),
+    ];
+    let he_expected = [
+        142.740_828_644_349_21,
+        11_323_616.674_348_935,
+        0.194_271_792_571_189_13,
+    ];
+    np_assert_allclose!(he, he_expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_eval_hermite_real_degree_pos_x() {
     // mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
     let h = [
