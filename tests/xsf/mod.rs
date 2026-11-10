@@ -5,6 +5,7 @@ mod beta;
 mod binom;
 mod cdflib;
 mod cephes;
+mod cosine;
 mod digamma;
 mod digammainv;
 mod ellint_carlson;

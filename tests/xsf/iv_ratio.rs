@@ -1,11 +1,12 @@
-#[test]
-fn test_iv_ratio() {
-    xsref::test("iv_ratio", "d_d-d", |x| xsf::iv_ratio(x[0], x[1]));
-    assert_eq!(xsf::iv_ratio(0.5, 3.0), 3.0_f64.tanh());
+xsref::tests! {
+    test_iv_ratio: "iv_ratio", "d_d-d", |x| xsf::iv_ratio(x[0], x[1]);
+    test_iv_ratio_c: "iv_ratio_c", "d_d-d", |x| xsf::iv_ratio_c(x[0], x[1]);
 }
 
-xsref::tests! {
-    test_iv_ratio_c: "iv_ratio_c", "d_d-d", |x| xsf::iv_ratio_c(x[0], x[1]);
+#[test]
+fn test_iv_ratio_half() {
+    // I_{1/2}(x) / I_{-1/2}(x) = tanh(x)
+    assert_eq!(xsf::iv_ratio(0.5, 3.0), 3.0_f64.tanh());
 }
 
 #[test]

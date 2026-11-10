@@ -1,5 +1,8 @@
+use num_complex::c64;
+
 xsref::tests! {
     test_digamma_f64: "digamma", "d-d", |x| xsf::digamma(x[0]);
+    test_digamma_c64: "digamma", "cd-cd", |x| xsf::digamma(c64(x[0], x[1]));
 }
 
 #[test]
@@ -17,15 +20,8 @@ fn test_digamma_near_negative_pole() {
 #[test]
 fn test_digamma_c64_abs16() {
     // the forward recurrence boundary at |z| = 16 (reference values from mpmath)
-    let w = xsf::digamma(num_complex::c64(-1e-300, 16.0));
-    let expected = num_complex::c64(2.772_914_370_467_193_5, 1.602_046_326_794_896_6);
+    let w = xsf::digamma(c64(-1e-300, 16.0));
+    let expected = c64(2.772_914_370_467_193_5, 1.602_046_326_794_896_6);
     let rel = (w - expected).norm() / expected.norm();
     assert!(rel < 1e-15, "rel = {rel:e}");
-}
-
-#[test]
-fn test_digamma_c64() {
-    use num_complex::c64;
-
-    xsref::test("digamma", "cd-cd", |x| xsf::digamma(c64(x[0], x[1])));
 }

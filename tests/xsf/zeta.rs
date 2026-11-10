@@ -1,15 +1,10 @@
 use num_complex::c64;
 
-#[test]
-fn test_riemann_zeta_f64() {
-    xsref::test("riemann_zeta", "d-d", |x| xsf::riemann_zeta(x[0]));
-}
-
-#[test]
-fn test_riemann_zeta_c64() {
-    xsref::test("riemann_zeta", "cd-cd", |x| {
-        xsf::riemann_zeta(c64(x[0], x[1]))
-    });
+xsref::tests! {
+    test_riemann_zeta_f64: "riemann_zeta", "d-d", |x| xsf::riemann_zeta(x[0]);
+    test_riemann_zeta_c64: "riemann_zeta", "cd-cd", |x| xsf::riemann_zeta(c64(x[0], x[1]));
+    test_zeta_f64: "zeta", "d_d-d", |x| xsf::zeta(x[0], x[1]);
+    test_zetac_f64: "zetac", "d-d", |x| xsf::zetac(x[0]);
 }
 
 #[test]
@@ -24,11 +19,6 @@ fn test_riemann_zeta_c64_extreme() {
         let w = xsf::riemann_zeta(c64(3.0, im));
         assert!(w.re.is_nan() && w.im.is_nan());
     }
-}
-
-#[test]
-fn test_zeta_f64() {
-    xsref::test("zeta", "d_d-d", |x| xsf::zeta(x[0], x[1]));
 }
 
 #[test]
@@ -71,11 +61,6 @@ fn test_zeta_negative_q() {
     assert_eq!(xsf::zeta(1e300, 1.5), 0.0);
     assert_eq!(xsf::zeta(f64::INFINITY, 1.5), 0.0);
     assert_eq!(xsf::zeta(f64::INFINITY, -0.5), f64::INFINITY);
-}
-
-#[test]
-fn test_zetac_f64() {
-    xsref::test("zetac", "d-d", |x| xsf::zetac(x[0]));
 }
 
 #[test]
