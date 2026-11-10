@@ -5,7 +5,8 @@
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::cephes_sinpi;
 
-fn is_nonpos_int(x: f64) -> bool {
+/// `xsf::cephes::detail::is_nonpos_int`, which is false for `|x| >= 1e13`
+fn is_small_nonpos_int(x: f64) -> bool {
     x <= 0.0 && x == x.ceil() && x.abs() < 1e13
 }
 
@@ -69,12 +70,12 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     }
 
     /* Check for infinity */
-    if is_nonpos_int(a + m) && !is_nonpos_int(a) && a + m != m {
+    if is_small_nonpos_int(a + m) && !is_small_nonpos_int(a) && a + m != m {
         return f64::INFINITY;
     }
 
     /* Check for zero */
-    if !is_nonpos_int(a + m) && is_nonpos_int(a) {
+    if !is_small_nonpos_int(a + m) && is_small_nonpos_int(a) {
         return 0.0;
     }
 

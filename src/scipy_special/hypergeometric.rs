@@ -5,7 +5,7 @@
 
 use num_complex::Complex64;
 
-use crate::utils::MAXLOG;
+use crate::utils::{MAXLOG, is_nonpos_int};
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 use crate::xsf::complex::C64_NAN;
 
@@ -60,7 +60,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
 fn hyp0f1_real(v: f64, z: f64) -> f64 {
     if v.is_nan() || z.is_nan() {
         f64::NAN
-    } else if v <= 0.0 && v == v.floor() {
+    } else if is_nonpos_int(v) {
         // poles
         f64::NAN
     } else if z == 0.0 && v != 0.0 {
@@ -148,7 +148,7 @@ fn hyp0f1_series(v: f64, z: f64) -> f64 {
 fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         C64_NAN
-    } else if v <= 0.0 && v == v.floor() {
+    } else if is_nonpos_int(v) {
         // poles
         f64::NAN.into()
     } else if z.re == 0.0 && z.im == 0.0 && v != 0.0 {

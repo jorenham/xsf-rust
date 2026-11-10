@@ -1,5 +1,6 @@
 use num_complex::Complex;
 
+use crate::utils::is_nonpos_int;
 use crate::xsf::complex::C64_NAN;
 use crate::xsf::exp::cexp;
 
@@ -24,7 +25,7 @@ impl GammaArg for Complex<f64> {
 /// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (scipy/xsf@56a9b96)
 fn cgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute Gamma(z) using loggamma.
-    if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
+    if z.im == 0.0 && is_nonpos_int(z.re) {
         // Poles
         return C64_NAN;
     }

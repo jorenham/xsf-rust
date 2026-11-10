@@ -8,7 +8,7 @@
 //! Unlike in xsf, `1 - a` in the negative integer helpers is computed in floating point instead of
 //! in `int`, where it overflows (UB) for `a = -2^31` and `a = -2^31 + 1`.
 
-use crate::utils::{MAXGAM, MAXLOG};
+use crate::utils::{MAXGAM, MAXLOG, is_nonpos_int};
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::cephes_sinpi;
 
@@ -138,7 +138,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     let mut y;
     let mut sign = 1;
 
-    if a <= 0.0 && a == a.floor() {
+    if is_nonpos_int(a) {
         if a == f64::from(a as i32) {
             return beta_negint(a as i32, b);
         }
@@ -146,7 +146,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
         return f64::from(sign) * f64::INFINITY;
     }
 
-    if b <= 0.0 && b == b.floor() {
+    if is_nonpos_int(b) {
         if b == f64::from(b as i32) {
             return beta_negint(b as i32, a);
         }
@@ -217,7 +217,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     let mut y;
     let sign = 1;
 
-    if a <= 0.0 && a == a.floor() {
+    if is_nonpos_int(a) {
         if a == f64::from(a as i32) {
             return lbeta_negint(a as i32, b);
         }
@@ -225,7 +225,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
         return f64::from(sign) * f64::INFINITY;
     }
 
-    if b <= 0.0 && b == b.floor() {
+    if is_nonpos_int(b) {
         if b == f64::from(b as i32) {
             return lbeta_negint(b as i32, a);
         }
