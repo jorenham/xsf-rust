@@ -1,9 +1,8 @@
-//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@c9f477d).
+//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@a180082).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows), and the loop
-//! counters of the recurrences are also 64-bit (instead of `int`, which could overflow).
+//! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use core::ops::{Div, Mul};
