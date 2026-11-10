@@ -916,9 +916,10 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         } else {
             0.0
         }
-    } else if x.is_sign_negative() && n.is_finite() && n.fract() != 0.0 {
-        // For non-integer n and x < 0, the negative-base `powf` of the `hypu` formula below is NaN,
-        // so use the two Kummer M terms of U(-n/2, 1/2, x^2) (DLMF 13.2.42), with |x| -> x:
+    } else if x.is_sign_negative() && n.is_finite() && (n < 0.0 || n.fract() != 0.0) {
+        // For x < 0, the `hypu` formula below only holds for integer n >= 0, where H_n has the
+        // parity (-1)^n, so otherwise use the two Kummer M terms of U(-n/2, 1/2, x^2)
+        // (DLMF 13.2.42), with |x| -> x:
         //
         // H_n(x) = 2^n sqrt(pi) [M(-n/2, 1/2, x^2) / Gamma((1-n)/2)
         //                        - 2x M((1-n)/2, 3/2, x^2) / Gamma(-n/2)]
@@ -941,7 +942,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         let c = if x.is_sign_positive() {
             (scale * n).exp2()
         } else {
-            // only for integer or infinite n, where `powf` of a negative base isn't NaN
+            // only for integer n >= 0, where H_n(-x) = (-1)^n H_n(x), or infinite n
             (-2.0 * scale.sqrt()).powf(n)
         };
         c * crate::hypu(-0.5 * n, 0.5, scale * x * x)
