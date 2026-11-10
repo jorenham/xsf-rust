@@ -1,5 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
-//! (scipy/xsf@ab4b284).
+//! (scipy/xsf@3df1659).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
@@ -1278,8 +1278,6 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
-            // Unlike in xsf (scipy/xsf#459), a + (k - 1) instead of a + k - 1, which loses the
-            // digits of a tiny a at k = 1 (all if |a| <= eps / 4)
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
