@@ -14,6 +14,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use num_complex::Complex;
 
 use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::complex::C64_NAN;
 
 /// The working type of the series and continued fraction evaluators
 pub(crate) trait Real:
@@ -108,7 +109,7 @@ pub(crate) fn series_eval(
         }
     }
     // Exceeded max terms without converging. Return NaN.
-    Complex::new(f64::NAN, f64::NAN)
+    C64_NAN
 }
 
 /// Sum a fixed number of terms from a series.

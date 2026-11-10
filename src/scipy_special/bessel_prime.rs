@@ -100,7 +100,7 @@ pub fn bessel_k_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
 #[doc(alias = "h1vp")]
 #[inline]
 pub fn hankel_1_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Complex<f64> {
-    bessel_diff_formula(v, n, |v| z.hankel_1(v), -1.0)
+    bessel_diff_formula(v, n, |v| crate::hankel_1(v, z), -1.0)
 }
 
 /// Compute the $n$th derivative of [`hankel_2(v, z)`](crate::hankel_2) w.r.t. `z`
@@ -114,5 +114,5 @@ pub fn hankel_1_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Comple
 #[doc(alias = "h2vp")]
 #[inline]
 pub fn hankel_2_prime<T: BesselArg>(v: f64, z: T, n: u32) -> num_complex::Complex<f64> {
-    bessel_diff_formula(v, n, |v| z.hankel_2(v), -1.0)
+    bessel_diff_formula(v, n, |v| crate::hankel_2(v, z), -1.0)
 }

@@ -9,14 +9,21 @@ use num_traits::ToPrimitive;
 
 use crate::utils::{MAXLOG, PISQ_6, SCIPY_EULER};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+use crate::xsf::complex::C64_NAN;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
 use crate::xsf::specfun::SPECFUN_INF;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
-// the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
+// the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`, and
+// `Into` for the Hankel functions, which are complex for real arguments too
 pub trait BesselArg:
-    crate::sealed::Sealed + Copy + From<f64> + Add<Output = Self> + Mul<Output = Self>
+    crate::sealed::Sealed
+    + Copy
+    + From<f64>
+    + Into<Complex<f64>>
+    + Add<Output = Self>
+    + Mul<Output = Self>
 {
     fn bessel_j(self, v: f64) -> Self;
     fn bessel_je(self, v: f64) -> Self;
@@ -26,10 +33,6 @@ pub trait BesselArg:
     fn bessel_ie(self, v: f64) -> Self;
     fn bessel_k(self, v: f64) -> Self;
     fn bessel_ke(self, v: f64) -> Self;
-    fn hankel_1(self, v: f64) -> Complex<f64>;
-    fn hankel_1e(self, v: f64) -> Complex<f64>;
-    fn hankel_2(self, v: f64) -> Complex<f64>;
-    fn hankel_2e(self, v: f64) -> Complex<f64>;
 }
 
 impl BesselArg for f64 {
@@ -65,22 +68,6 @@ impl BesselArg for f64 {
     fn bessel_ke(self, v: f64) -> Self {
         cyl_bessel_ke_f64(v, self)
     }
-    #[inline]
-    fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 1, 1)
-    }
-    #[inline]
-    fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 2, 1)
-    }
-    #[inline]
-    fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 1, 2)
-    }
-    #[inline]
-    fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 2, 2)
-    }
 }
 
 impl BesselArg for Complex<f64> {
@@ -115,22 +102,6 @@ impl BesselArg for Complex<f64> {
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
         cyl_bessel_ke_c64(v, self)
-    }
-    #[inline]
-    fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 1, 1)
-    }
-    #[inline]
-    fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 2, 1)
-    }
-    #[inline]
-    fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 1, 2)
-    }
-    #[inline]
-    fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 2, 2)
     }
 }
 
@@ -184,28 +155,40 @@ fn rotate_i(i: Complex64, k: Complex64, v: f64) -> Complex64 {
     i + s * k
 }
 
-fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
+/// The signature of `amos::besi`, `besj`, `besk` and `besy`.
+type AmosBessel = fn(Complex64, f64, i32, i32, &mut [Complex64], &mut i32) -> i32;
+
+/// Returns the order `v` result of the AMOS routine `bes` and its `ierr`, with the result set to
+/// NaN on the errors of `set_error_and_nan`.
+fn amos1(bes: AmosBessel, z: Complex64, v: f64, kode: i32) -> (Complex64, i32) {
     let n = 1;
+    let mut ierr = 0;
+    let mut cy = C64_NAN;
+    let nz = bes(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    (cy, ierr)
+}
+
+/// Whether AMOS overflowed (`ierr = 2`) on the real axis `z >= 0`, where the result is `+-inf`.
+fn overflowed_real(ierr: i32, z: Complex64) -> bool {
+    ierr == 2 && z.re >= 0.0 && z.im == 0.0
+}
+
+fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
     let kode = 2;
     let mut sign = 1;
-    let mut nz;
-    let mut ierr = 0;
-    let mut cy = c64(f64::NAN, f64::NAN);
-    let mut cy_k = c64(f64::NAN, f64::NAN);
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
         sign = -1;
     }
-    nz = amos::besi(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    let (mut cy, _) = amos1(amos::besi, z, v, kode);
 
     if sign == -1 && !reflect_i(&mut cy, v) {
-        nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy_k), &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_k);
+        let (mut cy_k, ierr) = amos1(amos::besk, z, v, kode);
         /* adjust scaling to match zbesi */
         cy_k = rotate(cy_k, -z.im / PI);
         if z.re > 0.0 {
@@ -219,7 +202,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
             };
         }
         // Unlike in xsf (scipy/xsf#383), an AMOS overflow of K_v(x) is inf instead of NaN.
-        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        if overflowed_real(ierr, z) {
             cy_k = c64(f64::INFINITY, 0.0);
         }
         /* v -> -v */
@@ -309,23 +292,17 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
 }
 
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
-    let n = 1;
     let kode = 1;
     let mut sign = 1.0;
-    let mut nz;
-    let mut ierr = 0;
-    let mut cy = c64(f64::NAN, f64::NAN);
-    let mut cy_k = c64(f64::NAN, f64::NAN);
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
         sign = -1.0;
     }
-    nz = amos::besi(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
+    let (mut cy, ierr) = amos1(amos::besi, z, v, kode);
     if ierr == 2 {
         /* overflow */
         if z.im == 0.0 && (z.re >= 0.0 || v == v.floor()) {
@@ -343,8 +320,7 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
     }
 
     if sign == -1.0 && !reflect_i(&mut cy, v) {
-        nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy_k), &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_k);
+        let (cy_k, _) = amos1(amos::besk, z, v, kode);
         cy = rotate_i(cy, cy_k, v);
     }
 
@@ -358,9 +334,8 @@ pub(crate) fn cyl_bessel_k_c64(v: f64, z: Complex64) -> Complex64 {
 /// Unlike in xsf, `K_v` and `e^z K_v` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_k_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
-    let mut cy = c64(f64::NAN, f64::NAN);
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy;
+        return C64_NAN;
     }
 
     if v < 0.0 {
@@ -372,11 +347,8 @@ fn cyl_bessel_k_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
         return c64(f64::INFINITY, 0.0);
     }
 
-    let n = 1;
-    let mut ierr = 0;
-    let nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
-    if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+    let (mut cy, ierr) = amos1(amos::besk, z, v, kode);
+    if overflowed_real(ierr, z) {
         /* overflow */
         cy = c64(f64::INFINITY, 0.0);
     }
@@ -457,7 +429,7 @@ fn cyl_hankel_c64(mut v: f64, z: Complex64, kode: i32, m: i32) -> Complex64 {
     let n = 1;
     let mut ierr = 0;
     let mut sign = 1;
-    let mut cy = c64(f64::NAN, f64::NAN);
+    let mut cy = C64_NAN;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         return cy;
@@ -486,22 +458,16 @@ pub(crate) fn cyl_bessel_j_c64(v: f64, z: Complex64) -> Complex64 {
 /// Unlike in xsf, `J_v` and `e^-|Im z| J_v` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_j_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
-    let n = 1;
-    let mut nz;
-    let mut ierr = 0;
     let mut sign = 1;
-    let mut cy_j = c64(f64::NAN, f64::NAN);
-    let mut cy_y = c64(f64::NAN, f64::NAN);
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return cy_j;
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
         sign = -1;
     }
-    nz = amos::besj(z, v, kode, n, core::slice::from_mut(&mut cy_j), &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_j);
+    let (mut cy_j, ierr) = amos1(amos::besj, z, v, kode);
     if kode == 1 && ierr == 2 {
         /* overflow */
         cy_j = cyl_bessel_j_kode(v, z, 2);
@@ -510,9 +476,8 @@ fn cyl_bessel_j_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     }
 
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
-        nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
-        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        let (mut cy_y, ierr) = amos1(amos::besy, z, v, kode);
+        if overflowed_real(ierr, z) {
             cy_y = c64(f64::NEG_INFINITY, 0.0);
         }
         cy_j = rotate_jy(cy_j, cy_y, v);
@@ -545,12 +510,8 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: Complex64) -> Complex64 {
 /// Unlike in xsf, `Y_v` and `e^-|Im z| Y_v` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_y_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
-    let n = 1;
-    let mut nz;
-    let mut ierr = 0;
     let mut sign = 1;
-    let mut cy_y = c64(f64::NAN, f64::NAN);
-    let mut cy_j = c64(f64::NAN, f64::NAN);
+    let mut cy_y = C64_NAN;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         return cy_y;
@@ -565,9 +526,9 @@ fn cyl_bessel_y_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
         cy_y.re = f64::NEG_INFINITY;
         cy_y.im = 0.0;
     } else {
-        nz = amos::besy(z, v, kode, n, core::slice::from_mut(&mut cy_y), &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_y);
-        if ierr == 2 && z.re >= 0.0 && z.im == 0.0 {
+        let ierr;
+        (cy_y, ierr) = amos1(amos::besy, z, v, kode);
+        if overflowed_real(ierr, z) {
             /* overflow */
             cy_y.re = f64::NEG_INFINITY;
             cy_y.im = 0.0;
@@ -575,8 +536,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     }
 
     if sign == -1 && !reflect_jy(&mut cy_y, v) {
-        nz = amos::besj(z, v, kode, n, core::slice::from_mut(&mut cy_j), &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy_j);
+        let (cy_j, _) = amos1(amos::besj, z, v, kode);
         cy_y = rotate_jy(cy_y, cy_j, -v);
     }
     cy_y
@@ -993,7 +953,7 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 #[must_use]
 #[inline]
 pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_1(v)
+    cyl_hankel_c64(v, z.into(), 1, 1)
 }
 
 /// Exponentially scaled Hankel function of the first kind, $e^{-iz} H_v^{(1)}(z)$
@@ -1008,7 +968,7 @@ pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_1e(v)
+    cyl_hankel_c64(v, z.into(), 2, 1)
 }
 
 // Hankel 2
@@ -1027,7 +987,7 @@ pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_2(v)
+    cyl_hankel_c64(v, z.into(), 1, 2)
 }
 
 /// Exponentially scaled Hankel function of the second kind, $e^{iz} H_v^{(2)}(z)$
@@ -1042,7 +1002,7 @@ pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_2e(v)
+    cyl_hankel_c64(v, z.into(), 2, 2)
 }
 
 // Integrals

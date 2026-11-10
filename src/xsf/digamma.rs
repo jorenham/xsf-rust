@@ -4,7 +4,7 @@ use core::f64::consts::PI;
 
 use num_complex::Complex;
 
-use crate::xsf::complex::{cdiv, rdiv, rsub};
+use crate::xsf::complex::{C64_NAN, cdiv, rdiv, rsub};
 use crate::xsf::log::clog;
 
 // All of the following were computed with mpmath
@@ -160,7 +160,7 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
 
     if z.re <= 0.0 && z == Complex::from(z.re.ceil()) {
         // Poles
-        return Complex::new(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if (z - DIGAMMA_NEGROOT).norm() < 0.3 {
         // First negative root.

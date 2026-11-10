@@ -6,6 +6,9 @@ use num_complex::{Complex, c64};
 use crate::xsf::log::clog;
 use crate::xsf::trig::{ccos, csin};
 
+/// The complex NaN, i.e. NaN + NaN i.
+pub(crate) const C64_NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
+
 /// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
 /// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
 /// the intermediate results don't lose precision by becoming subnormal.

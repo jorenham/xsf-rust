@@ -7,6 +7,7 @@ use num_complex::Complex64;
 
 use crate::utils::MAXLOG;
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
+use crate::xsf::complex::C64_NAN;
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
@@ -146,7 +147,7 @@ fn hyp0f1_series(v: f64, z: f64) -> f64 {
 #[inline]
 fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        Complex64::new(f64::NAN, f64::NAN)
+        C64_NAN
     } else if v <= 0.0 && v == v.floor() {
         // poles
         f64::NAN.into()
