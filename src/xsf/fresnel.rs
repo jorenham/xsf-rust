@@ -1,7 +1,4 @@
 //! Translated into pure Rust from `xsf/cpu/fresnel.h` (scipy/xsf@5709919).
-//!
-//! Unlike in xsf (scipy/xsf#367), for `x < 0`, the imaginary part of F+-(x) in `ffk` is computed
-//! from its own value, instead of from the already updated real part.
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
@@ -305,6 +302,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
 
         if x < 0.0 {
             f.re = PP2 - f.re;
+            // Unlike in xsf (scipy/xsf#367), this subtracts `f.im` instead of the updated `f.re`
             f.im = (-1.0_f64).powi(ks) * PP2 - f.im;
             let (sin, cos) = x2.sin_cos();
             g.re = cos - g.re;

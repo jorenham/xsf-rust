@@ -314,6 +314,9 @@ fn exppi(z: Complex<f64>) -> Complex<f64> {
 fn logsinpi(z: Complex<f64>) -> Complex<f64> {
     let result = clog(crate::sinpi(z));
     // If it doesn't overflow, just do the regular calculation.
+    //
+    // NOTE: as in xsf, the condition is `!isfinite(result.imag())`, which only holds for a NaN
+    // angle, so in effect the factored form below is always used.
     if result.re.is_finite() && !result.im.is_finite() {
         return result;
     }
