@@ -161,52 +161,23 @@ pub(crate) fn ccosh(z: Complex<f64>) -> Complex<f64> {
 fn csinpi(z: Complex<f64>) -> Complex<f64> {
     let x = z.re;
     let piy = PI * z.im;
-    let abspiy = piy.abs();
     let sinpix = cephes_sinpi(x);
     let cospix = cephes_cospi(x);
 
-    if abspiy < 700.0 {
-        return c64(sinpix * piy.cosh(), cospix * piy.sinh());
-    }
-
-    /* Have to be careful--sinh/cosh could overflow while cos/sin are small.
-     * At this large of values
-     *
-     * cosh(y) ~ exp(y)/2
-     * sinh(y) ~ sgn(y)*exp(y)/2
-     *
-     * so we can compute exp(y/2), scale by the right factor of sin/cos
-     * and then multiply by exp(y/2) to avoid overflow. */
-    // It still overflows prematurely if exp(|pi y|/2) overflows while the result wouldn't (only
-    // for |x| < ~1e-308).
-    mul_half_exp(abspiy, sinpix, 1.0_f64.copysign(piy) * cospix)
-}
-
-/// `(a, b) e^h / 2` for large `h` as in xsf, with `e^h` applied as two factors `e^(h/2)`
-fn mul_half_exp(h: f64, a: f64, b: f64) -> Complex<f64> {
-    let exp_half = (h / 2.0).exp();
-    if exp_half == f64::INFINITY {
-        // Preserve the sign of zero.
-        let inf_mul = |f: f64| if f == 0.0 { f } else { f * f64::INFINITY };
-        return c64(inf_mul(a), inf_mul(b));
-    }
-    c64(a * exp_half * 0.5 * exp_half, b * exp_half * 0.5 * exp_half)
+    // Unlike in xsf, `cosh` and `sinh` of large |pi y| are scaled as in glibc's `csin`, so that
+    // this overflows only if the result does.
+    mul_cosh_sinh(piy, sinpix, cospix)
 }
 
 /// `xsf::cospi` for complex `z`
 fn ccospi(z: Complex<f64>) -> Complex<f64> {
     let x = z.re;
     let piy = PI * z.im;
-    let abspiy = piy.abs();
     let sinpix = cephes_sinpi(x);
     let cospix = cephes_cospi(x);
 
-    if abspiy < 700.0 {
-        return c64(cospix * piy.cosh(), -sinpix * piy.sinh());
-    }
-
-    // See csinpi(z) for an idea of what's going on here.
-    mul_half_exp(abspiy, cospix, -1.0_f64.copysign(piy) * sinpix)
+    // Unlike in xsf, this is scaled as in glibc's `ccos`; see csinpi(z).
+    mul_cosh_sinh(-piy, cospix, sinpix)
 }
 
 /// `cephes::detail::tancot`

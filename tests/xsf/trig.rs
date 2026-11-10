@@ -187,7 +187,7 @@ fn test_radian_edges() {
 
 #[test]
 fn test_sinpi_cospi_complex_small_imag() {
-    // |pi y| < 700, both signs of x and y, just below the threshold
+    // |pi y| < 700, both signs of x and y
     for (x, y) in [
         (0.25, 222.8),
         (-0.25, -222.8),
@@ -206,7 +206,7 @@ fn test_sinpi_cospi_complex_small_imag() {
 }
 
 /// `a * cosh(t)` (`sgn = 1`) or `a * sinh(t)` (`sgn = sgn(t)`) for `|t| >= 700`, in the log
-/// domain, so that it's independent of the `exp(|t|/2)` scaling in `csinpi` and `ccospi`
+/// domain, so that it's independent of the scaling in `csinpi` and `ccospi`
 fn mul_cosh_sinh_large(a: f64, t: f64, sgn: f64) -> f64 {
     if a == 0.0 {
         0.0_f64.copysign(a * sgn)
@@ -226,7 +226,8 @@ fn assert_same_or_close(actual: f64, expected: f64, what: &str) {
 
 #[test]
 fn test_sinpi_cospi_complex_large_imag() {
-    // 700 <= |pi y|: below and beyond the overflow of exp(|pi y| / 2) at |y| ~ 451.9
+    // 700 <= |pi y|: below and beyond the overflow of cosh(pi y) at |y| ~ 226.2, and of
+    // exp(|pi y| / 2) at |y| ~ 451.9
     let xs = [
         0.0, -0.0, 0.25, -0.25, 0.5, -0.5, 0.75, 1.0, -1.0, 1.75, 2.5, 1e-10, -3e-200,
     ];
@@ -285,12 +286,16 @@ fn test_sinpi_cospi_complex_large_imag() {
     let z = xsf::cospi(c64(0.25, 225.0));
     assert!(z.re > 0.0 && z.im < 0.0);
 
-    // subnormal sin(pi x)
+    // subnormal sin(pi x), for which the result is finite up to |y| ~ 462.7
     let x = f64::from_bits(1);
-    let (sx, z) = (xsf::sinpi(x), c64(x, 222.9));
-    let expected = mul_cosh_sinh_large(sx, PI * z.im, 1.0);
-    assert_same_or_close(xsf::sinpi(z).re, expected, "sinpi(5e-324+222.9i).re");
-    assert_same_or_close(xsf::cospi(z.conj()).im, expected, "cospi(5e-324-222.9i).im");
+    let sx = xsf::sinpi(x);
+    for y in [222.9, 226.0, 300.0, 452.0, 462.0, 463.0] {
+        let z = c64(x, y);
+        let expected = mul_cosh_sinh_large(sx, PI * y, 1.0);
+        assert_eq!(expected.is_finite(), y < 462.5);
+        assert_same_or_close(xsf::sinpi(z).re, expected, &format!("sinpi({z}).re"));
+        assert_same_or_close(xsf::cospi(z.conj()).im, expected, &format!("cospi({z}).im"));
+    }
 
     // NaN or infinite real part, or NaN imaginary part
     for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
