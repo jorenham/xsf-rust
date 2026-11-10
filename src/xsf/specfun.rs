@@ -11,7 +11,7 @@ mod sphd;
 pub(crate) use bessel::{jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu};
+pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_small_b};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
@@ -60,7 +60,8 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        chgm(self, a, b)
+        let hg = Complex::new(chgm(self, a, b), 0.0);
+        hyp1f1_small_b(a, b, Complex::new(self, 0.0), hg).re
     }
 }
 
@@ -71,7 +72,7 @@ impl Hyp1F1Arg for Complex<f64> {
         if a.is_nan() || b.is_nan() || self.re.is_nan() || self.im.is_nan() {
             return Complex::new(f64::NAN, f64::NAN);
         }
-        let mut outz = cchg(a, b, self);
+        let mut outz = hyp1f1_small_b(a, b, self, cchg(a, b, self));
         if outz.re == SPECFUN_INF {
             outz.re = f64::INFINITY;
         }

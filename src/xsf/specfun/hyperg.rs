@@ -345,13 +345,37 @@ fn hyp1f1_sum<T: Term>(
     None
 }
 
+/// Unlike in xsf: `hg` if finite, else `M(a, b, z)` for `0 < |b| < 1` from `hyp1f1_series` with
+/// the first term `|b|`, as the next ones are `~ 1/b` and can overflow first. For `Re z < 0` via
+/// DLMF 13.2.39, unless rounding `b - a` moves it relatively far (over `sqrt(eps)`) from an
+/// integer `<= 0`. Also `hg` if the sum loses over half of its digits or underflows.
+pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: Complex64, hg: Complex64) -> Complex64 {
+    if hg.is_finite() || !(a.is_finite() && z.is_finite() && b != 0.0 && b.abs() < 1.0) {
+        return hg;
+    }
+    let (a, z, ln_scale, phase) = if z.re < 0.0 {
+        let DoubleDouble { hi, lo } = DoubleDouble::new(b) - a;
+        if hi <= 0.0 && lo.abs() > SQRT_EPS * (hi - hi.round()).abs() {
+            return hg;
+        }
+        (hi, -z, z.re, z.im)
+    } else {
+        (a, z, 0.0, 0.0)
+    };
+    hyp1f1_series(a, b, z, Complex64::from_polar(b.abs(), phase), ln_scale)
+        .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPS * m.norm())
+        .map_or(hg, |(m, _)| m / b.abs())
+}
+
 /// Unlike in xsf (scipy/xsf#365): the polynomial `M(-n, b, x)` for `n >= 0` and `b > 0`, using the
 /// recurrence of `xsf::detail::eval_genlaguerre_l`, since
 /// `M(-n, b, x) = L_n^(b-1)(x) / binom(n+b-1, n)` (DLMF 13.6.19).
 ///
 /// The recurrence is linear in `(d, p)`, so they are scaled up by `2^512` (exactly) whenever both
-/// are below `2^-512`, far from the subnormals, where the arithmetic is inexact and slow.
-fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
+/// are below `2^-512`, far from the subnormals, where the arithmetic is inexact and slow, and down
+/// whenever one is above `2^512` (e.g. `~ 1/b` for tiny `b`). Returns `scale M`, as `M` can
+/// overflow when `scale M` doesn't.
+fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
     const LOG2_SCALE: i32 = 512;
     const SCALE: f64 = f64::from_bits((1023 + LOG2_SCALE as u64) << 52);
     let (mut d, mut p) = (0.0, 1.0);
@@ -361,11 +385,14 @@ fn chgm_poly(n: i32, b: f64, x: f64) -> f64 {
         let k = f64::from(k);
         d = (d * k - p * x) / (k + b);
         p += d;
-        if d.abs().max(p.abs()) * SCALE < 1.0 {
+        let max = d.abs().max(p.abs());
+        if max * SCALE < 1.0 {
             (d, p, e) = (d * SCALE, p * SCALE, e.saturating_add(LOG2_SCALE));
+        } else if max > SCALE {
+            (d, p, e) = (d / SCALE, p / SCALE, e.saturating_sub(LOG2_SCALE));
         }
     }
-    ldexp_f64(p, -e)
+    ldexp_f64(p * scale, -e)
 }
 
 /// Unlike in xsf (scipy/xsf#365): `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` (cf. DLMF
@@ -546,7 +573,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // b - a = -n for -700 < x < 0. Not for n > 10^6 (the cost bound of `hyp1f1_neg_a`).
     let poly = a < 0.0 && a == a.trunc() && a >= -MAX_SERIES_ITERATIONS && b > 0.0 && -a * x > b;
     if poly && x0 > -700.0 {
-        let p = chgm_poly(-a as i32, b, x) * x0.min(0.0).exp();
+        let p = chgm_poly(-a as i32, b, x, x0.min(0.0).exp());
         if p.is_finite() {
             return p;
         }

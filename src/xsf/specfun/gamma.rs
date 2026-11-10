@@ -127,6 +127,11 @@ pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
     let z1;
     if (yy == 0.0) && (xx <= 0.0) && (xx == f64::from(xx as i32)) {
         return c64(SPECFUN_INF, 0.0);
+    } else if z.norm_sqr() < f64::MIN_POSITIVE {
+        // Unlike in xsf, `-ln z` if `|z|^2` below underflows, since `ln Gamma(z) = -ln z + O(z)`
+        // (DLMF 5.7.1)
+        let g = -z.ln();
+        return if kf == 1 { g.exp() } else { g };
     } else if xx < 0.0 {
         z1 = z;
         z = -z;
