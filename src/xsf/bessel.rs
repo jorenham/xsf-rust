@@ -1009,7 +1009,16 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 
 /// `int_0^1 t^lambda J_nu(2a t) dt` as the Neumann series DLMF 10.22.10 with `x = 2a`
 fn besselpoly_neumann(a: f64, lambda: f64, nu: f64) -> f64 {
-    use crate::xsf::cephes::jv;
+    // Unlike in xsf, use AMOS where cephes `jv` recurs down from the power series at order
+    // ~ v + x, which cancels for large x and can underflow: for a non-integer order 2x < v < 500
+    // with x >= 3.6 sqrt(v).
+    let jv = |v: f64, x: f64| {
+        if v.fract() != 0.0 && v > 2.0 * x && v < 500.0 && x >= 3.6 * v.sqrt() {
+            cyl_bessel_j_f64(v, x)
+        } else {
+            crate::xsf::cephes::jv(v, x)
+        }
+    };
 
     let b = 2.0 * a;
     let c0 = (lambda + nu + 1.0) / 2.0;
