@@ -40,7 +40,7 @@ impl TestOutputValue for Complex<f64> {
     }
 }
 
-pub trait TestOutput: Copy + PartialEq {
+pub trait TestOutput: Copy {
     type Value: TestOutputValue;
 
     fn from_parquet_row(row: Vec<f64>) -> Self;
@@ -221,38 +221,24 @@ fn read_parquet_df(file: File) -> Result<DataFrame, TestError> {
 }
 
 #[inline]
-fn for_each_column_value<F>(column: &Column, mut f: F) -> Result<(), TestError>
-where
-    F: FnMut(f64) -> Result<(), TestError>,
-{
+fn column_values(column: &Column) -> Result<Vec<f64>, TestError> {
     let series = column.as_materialized_series().cast(&DataType::Float64)?;
-    for value in series.f64()?.iter() {
-        f(value.unwrap_or(f64::NAN))?;
-    }
-    Ok(())
+    Ok(series
+        .f64()?
+        .iter()
+        .map(|x| x.unwrap_or(f64::NAN))
+        .collect())
 }
 
 #[inline]
 fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
     let df = read_parquet_df(file)?;
-    let height = df.height();
-    let width = df.width();
-    let mut rows = vec![Vec::with_capacity(width); height];
+    let mut rows = vec![Vec::with_capacity(df.width()); df.height()];
 
+    // every column of a `DataFrame` has `height` values
     for column in df.columns() {
-        let mut row_idx = 0;
-        for_each_column_value(column, |value| {
-            if row_idx >= rows.len() {
-                Err(TestError::DataFormat)
-            } else {
-                rows[row_idx].push(value);
-                row_idx += 1;
-                Ok(())
-            }
-        })?;
-
-        if row_idx != height {
-            return Err(TestError::DataFormat);
+        for (row, value) in rows.iter_mut().zip(column_values(column)?) {
+            row.push(value);
         }
     }
 
@@ -262,15 +248,7 @@ fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
 #[inline]
 fn read_parquet_column(file: File) -> Result<Vec<f64>, TestError> {
     let df = read_parquet_df(file)?;
-    let column = df.columns().first().ok_or(TestError::DataFormat)?;
-    let mut values = Vec::with_capacity(df.height());
-
-    for_each_column_value(column, |value| {
-        values.push(value);
-        Ok(())
-    })?;
-
-    Ok(values)
+    column_values(df.columns().first().ok_or(TestError::DataFormat)?)
 }
 
 #[inline]
