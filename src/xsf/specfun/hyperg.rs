@@ -416,6 +416,11 @@ fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
     f64::from(n).max((-a).min(-b).floor() + 1.0) >= end
 }
 
+/// Whether the value of `(value, error bound)` is finite and keeps at least half of its digits
+fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
+    hg.is_finite() && err <= SQRT_EPS * hg.abs()
+}
+
 /// Unlike in xsf (scipy/xsf#365): `M(a, b, x)` for non-integer `b < 0` from the series, or else
 /// from `hyp1f1_neg_b`, or else from the series in double-double, if any loses at most half of
 /// its digits.
@@ -428,7 +433,7 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
             ln_scale = 1400.0;
             hg = series(x.min(0.0) - ln_scale);
         }
-        hg.filter(|&(hg, err)| hg.is_finite() && err <= SQRT_EPS * hg.abs())
+        hg.filter(half_accurate)
             .map(|(hg, _)| mul_exp(hg, ln_scale))
     }
     // `b - a` also without rounding, e.g. to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
@@ -517,6 +522,156 @@ fn chgm_tricomi(a: f64, b: f64, x: f64, x0: f64) -> Option<f64> {
         }
         // (n + 1) B_(n+1) = (n + b - 1) w^2 B_(n-1) - c w^3 B_(n-2)
         (bn2, bn1, bn) = (bn1, bn, ((n + b - 1.0) * w2 * bn1 - cw3 * bn2) / (n + 1.0));
+    }
+    None
+}
+
+/// The series DLMF 13.2.2 as summed by `chgm_sum`, with what `chgm` needs to judge it
+struct KummerSum {
+    /// the sum, without the factor of DLMF 13.2.39
+    hg: f64,
+    /// its last term
+    rg: f64,
+    /// Unlike in xsf (scipy/xsf#365), the sum of |rg|, to measure the cancellation
+    rs: f64,
+    /// the number of terms
+    terms: i32,
+    /// the number of terms of the last finite partial sum
+    last_finite: i32,
+    /// whether a negligible term ended the sum
+    converged: bool,
+}
+
+impl KummerSum {
+    /// Whether the term `rg` is negligible in the sum `hg`
+    fn negligible(rg: f64, hg: f64) -> bool {
+        rg == 0.0 || (rg / hg).abs() < 1e-15
+    }
+
+    /// Whether the sum converged and loses at most half of its digits
+    fn accurate(&self) -> bool {
+        self.converged && self.rs * SQRT_EPS <= self.hg.abs()
+    }
+
+    /// By how much the sum cancels, if it converged
+    fn cancellation(&self) -> f64 {
+        if self.converged {
+            self.rs / self.hg.abs()
+        } else {
+            f64::INFINITY
+        }
+    }
+
+    /// Whether the sum of a series with a < -1 and b > 0 doesn't converge or is estimated to lose
+    /// more than half of its digits (as in Boost's checked series)
+    fn lossy(&self, a: f64, b: f64, x: f64) -> bool {
+        a < -1.0 && b > 0.0 && !self.accurate() && x > 0.0
+    }
+
+    /// A finite sum is wrong if its last term (or after 500 terms, the rest) isn't negligible, or
+    /// for b < 0 if it loses over half of its digits (as in `chgm_neg_b`). For b < 0 an overflow is
+    /// wrong if the terms can change sign after it, since then so can the sum.
+    fn wrong(&self, a: f64, b: f64, x: f64, neg_b: bool) -> bool {
+        let (hg, terms) = (self.hg, self.terms);
+        if hg.is_finite() {
+            let rest_negligible = || rest_is_negligible(a, b, x, f64::from(terms));
+            let truncated = !Self::negligible(self.rg, hg) || terms > 500 && !rest_negligible();
+            truncated || b < 0.0 && self.rs * SQRT_EPS > hg.abs()
+        } else {
+            neg_b && !(hg.is_infinite() && terms_keep_sign(a, b, self.last_finite + 1))
+        }
+    }
+}
+
+/// The series of `chgm`: up to `max_terms` terms of DLMF 13.2.2
+fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
+    let mut hg = 1.0;
+    let mut rg = 1.0;
+    let mut rs = 1.0;
+    let mut converged = false;
+    let mut terms = 0;
+    let mut last_finite = 0;
+    for j in 1..=max_terms {
+        terms = j;
+        rg = kummer_term(rg, a, b, j) * x;
+        hg += rg;
+        if hg.is_finite() {
+            last_finite = j;
+        }
+        rs += rg.abs();
+        // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
+        // nor (see below) if they underflow to 0 after 500 terms
+        if (hg != 0.0)
+            && ((rg / hg).abs() < 1e-15)
+            && ((rg == 0.0 && j <= 500) || term_ratio(a, b, x, f64::from(j)).is_some())
+        {
+            converged = true;
+            break;
+        }
+        // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 (`max_terms > 500`) the sum goes on
+        // after 500 terms until the rest is negligible
+        let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
+        if j >= 500
+            && (!hg.is_finite() || KummerSum::negligible(rg, hg) && (j == 500 || rest_negligible()))
+        {
+            break;
+        }
+    }
+    KummerSum {
+        hg,
+        rg,
+        rs,
+        terms,
+        last_finite,
+        converged,
+    }
+}
+
+/// What `chgm` tries in turn in place of its series `sum`, which gave `hg = e^min(x0, 0) sum.hg`
+fn chgm_fallback(
+    a: f64,
+    a0: f64,
+    b: f64,
+    x: f64,
+    x0: f64,
+    hg: f64,
+    sum: &KummerSum,
+) -> Option<f64> {
+    // Unlike in xsf (scipy/xsf#365), for -1 < a < 2 and b > 0 the series is summed in full
+    // if it doesn't converge within 500 terms.
+    if !sum.converged && hg.is_finite() && a > -1.0 && a0 < 2.0 && b > 0.0 {
+        if let Some((hg, _)) = chgm_series(a, b, x, x0) {
+            return Some(hg);
+        }
+    }
+    // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, Tricomi's expansion (see
+    // `chgm_tricomi`) is tried first if the series cancels by over 1e3; below that the
+    // series is usually more accurate
+    let neg_a = a < -1.0 && b > 0.0;
+    if neg_a && sum.cancellation() > 1e3 {
+        if let Some(hg) = chgm_tricomi(a, b, x, x0) {
+            return Some(hg);
+        }
+    }
+    // Unlike in xsf (scipy/xsf#365), then if the series is `lossy`, the backward recurrences from
+    // Boost.Math (`hyp1f1_recurrence`) for non-integer a
+    if sum.lossy(a, b, x) && a != a.trunc() {
+        // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
+        let m = |a, b| chgm_series(a, b, x, 0.0).map(|(s, _)| s);
+        if let Some(hg) = hyp1f1_neg_a(a, b, x, x0.min(0.0), m) {
+            return Some(hg);
+        }
+    }
+    // Unlike in xsf (scipy/xsf#365), next, if the series cancels by over 1e5, DLMF 13.3.2
+    // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error
+    let n = (-a * x / 2.0 - b).ceil();
+    let cancels = sum.cancellation() > 1e5 && (1.0..=5e3).contains(&n);
+    if neg_a && sum.accurate() && cancels && a != a.trunc() && x > 0.0 {
+        let m = |b| chgm_series(a, b, x, x0).map_or(f64::NAN, |(hg, _)| hg);
+        let rec = hyp1f1_b_recurrence(a, b, x, n as i32, m);
+        if let Some((r, _)) = rec.filter(|&(r, err)| (r - hg).abs() > 2.0 * err * r.abs()) {
+            return Some(r);
+        }
     }
     None
 }
@@ -617,100 +772,23 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             a += 1.0;
         }
         if (x <= 30.0 + b.abs()) || (a < 0.0) {
-            hg = 1.0;
-            let mut rg = 1.0;
-            // Unlike in xsf (scipy/xsf#365), the sum of |rg|, to measure the cancellation
-            let mut rs = 1.0;
-            let mut cancellation = f64::INFINITY;
-            accurate = false;
-            let mut converged = false;
             // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 the sum goes on after 500 terms
             // until the rest is negligible
-            let negligible = |rg: f64, hg: f64| rg == 0.0 || (rg / hg).abs() < 1e-15;
-            let rest_negligible = |j| rest_is_negligible(a, b, x, f64::from(j));
-            let mut terms = 0;
-            let mut finite = 0;
-            for j in 1..=(if check && neg_b { MAX_TERMS } else { 500 }) {
-                terms = j;
-                rg = kummer_term(rg, a, b, j) * x;
-                hg += rg;
-                if hg.is_finite() {
-                    finite = j;
-                }
-                rs += rg.abs();
-                // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
-                // nor (see below) if they underflow to 0 after 500 terms
-                if (hg != 0.0)
-                    && ((rg / hg).abs() < 1e-15)
-                    && ((rg == 0.0 && j <= 500) || term_ratio(a, b, x, f64::from(j)).is_some())
-                {
-                    accurate = rs * SQRT_EPS <= hg.abs();
-                    cancellation = rs / hg.abs();
-                    converged = true;
-                    break;
-                }
-                if j >= 500
-                    && (!hg.is_finite() || negligible(rg, hg) && (j == 500 || rest_negligible(j)))
-                {
-                    break;
-                }
-            }
-            // A finite sum is wrong if its last term (or after 500 terms, the rest) isn't
-            // negligible, or for b < 0 if it loses over half of its digits (as in `chgm_neg_b`).
-            // For b < 0 an overflow is wrong if the terms can change sign after it, since then so
-            // can the sum.
-            if check && hg.is_finite() {
-                let truncated = !negligible(rg, hg) || terms > 500 && !rest_negligible(terms);
-                wrong |= truncated || b < 0.0 && rs * SQRT_EPS > hg.abs();
-            } else if check && neg_b {
-                wrong |= !(hg.is_infinite() && terms_keep_sign(a, b, finite + 1));
-            }
+            let sum = chgm_sum(a, b, x, if check && neg_b { MAX_TERMS } else { 500 });
+            accurate = sum.accurate();
+            wrong |= check && (sum.wrong(a, b, x, neg_b) || sum.lossy(a, b, x));
+            hg = sum.hg;
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms, and after 500 terms (finite if not `wrong`) with `mul_exp`
             // for x <= -700, where e^x can be subnormal
-            if x0 <= -700.0 && terms > 500 {
+            if x0 <= -700.0 && sum.terms > 500 {
                 hg = mul_exp(hg, x0);
             } else if x0 < 0.0 {
                 hg *= x0.exp();
             }
-            // Unlike in xsf (scipy/xsf#365), for -1 < a < 2 and b > 0 the series is summed in full
-            // if it doesn't converge within 500 terms.
-            if !converged && hg.is_finite() && a > -1.0 && a0 < 2.0 && b > 0.0 {
-                if let Some((hg, _)) = chgm_series(a, b, x, x0) {
-                    return hg;
-                }
-            }
-            // Unlike in xsf (scipy/xsf#365), for a < -1 and b > 0, Tricomi's expansion (see
-            // `chgm_tricomi`) is tried first if the series cancels by over 1e3; below that the
-            // series is usually more accurate
-            let neg_a = a < -1.0 && b > 0.0;
-            if neg_a && cancellation > 1e3 {
-                if let Some(hg) = chgm_tricomi(a, b, x, x0) {
-                    return hg;
-                }
-            }
-            // Unlike in xsf (scipy/xsf#365), then if the series doesn't converge or is estimated to
-            // lose more than half of its digits (as in Boost's checked series), the backward
-            // recurrences from Boost.Math (`hyp1f1_recurrence`) for non-integer a, or else NaN
-            let lossy = neg_a && !accurate && x > 0.0;
-            if lossy && a != a.trunc() {
-                // NOTE: here `a` is in (-1, 2); only the (unused) error bound needs `a >= 1`.
-                let m = |a, b| chgm_series(a, b, x, 0.0).map(|(s, _)| s);
-                if let Some(hg) = hyp1f1_neg_a(a, b, x, x0.min(0.0), m) {
-                    return hg;
-                }
-            }
-            wrong |= check && lossy;
-            // Unlike in xsf (scipy/xsf#365), next, if the series cancels by over 1e5, DLMF 13.3.2
-            // backward from b + n >= -a x / 2 (n <= 5000) if they differ by over twice its error
-            let n = (-a * x / 2.0 - b).ceil();
-            let cancels = cancellation > 1e5 && (1.0..=5e3).contains(&n);
-            if neg_a && accurate && cancels && a != a.trunc() && x > 0.0 {
-                let m = |b| chgm_series(a, b, x, x0).map_or(f64::NAN, |(hg, _)| hg);
-                let rec = hyp1f1_b_recurrence(a, b, x, n as i32, m);
-                if let Some((r, _)) = rec.filter(|&(r, err)| (r - hg).abs() > 2.0 * err * r.abs()) {
-                    return r;
-                }
+            // Unlike in xsf (scipy/xsf#365), the alternatives to the series are tried
+            if let Some(hg) = chgm_fallback(a, a0, b, x, x0, hg, &sum) {
+                return hg;
             }
         } else {
             // DLMF 13.7.2 & 13.2.4, SUM2 corresponds to first sum
@@ -752,7 +830,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // for x < 0 the one without DLMF 13.2.39
     if direct && !accurate {
         let hg = (x0 < 0.0).then(|| chgm_series(a1, b, x0, 0.0)).flatten();
-        if let Some((hg, _)) = hg.filter(|&(h, e)| h.is_finite() && e <= SQRT_EPS * h.abs()) {
+        if let Some((hg, _)) = hg.filter(half_accurate) {
             return hg;
         }
         // DLMF 13.4.1: 0 < M(a, b, x) <= I_s(a, b - a) + e^(s x) for x < 0 < a < b, s in [0, 1]
