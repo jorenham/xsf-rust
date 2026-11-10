@@ -7,9 +7,6 @@
 //! except YP, YQ which are designed for absolute error.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the sign of the value of `y0(x) - 2 log(x) j0(x) / pi` at `x = 0`, and the
-//! absolute error condition in the `y0` accuracy table, are corrected in the comments.
 
 use crate::utils::{SQRT1OPI, SQRT2OPI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};

@@ -4,9 +4,6 @@
 //! Copyright 1984, 1987, 1989, 2000 by Stephen L. Moshier
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the descriptions of the approximations (intervals, kind, and degrees) are
-//! corrected in the comments.
 
 use crate::utils::{SQRT_EPS, SQRT1OPI, SQRT2OPI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};

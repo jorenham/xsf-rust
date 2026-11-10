@@ -132,8 +132,7 @@ fn lbeta_negint(a: i32, b: f64) -> f64 {
 ///                  a or b <=0 integer       INFINITY
 /// ```
 ///
-/// (Unlike in xsf, where the value returned is documented as 0.0.) If `a <= 0` and `b` are
-/// integers that fit in an `int` (32 bits) and `1 - a - b > 0`, the limit
+/// If `a <= 0` and `b` are integers that fit in an `int` (32 bits) and `1 - a - b > 0`, the limit
 /// `(-1)^b * beta(1 - a - b, b)` is returned instead (and likewise with `a` and `b` swapped).
 pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     let mut y;

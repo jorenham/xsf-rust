@@ -4,8 +4,6 @@
 //! Copyright 1984, 1987, 1995 by Stephen L. Moshier
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, some formulas and domain conditions in the comments are corrected.
 
 use crate::utils::{MACHEP, SQRT_EPS};
 use crate::xsf::cephes::igam::{igam, igamc};
@@ -50,8 +48,6 @@ use crate::xsf::cephes::lgam1p;
 ///   message         condition      value returned
 /// fdtrc domain    a<=0, b<=0, x<0       NaN
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
@@ -106,8 +102,6 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 ///   message         condition      value returned
 /// fdtr domain     a<=0, b<=0, x<0       NaN
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;

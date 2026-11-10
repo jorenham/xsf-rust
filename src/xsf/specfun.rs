@@ -1,3 +1,10 @@
+//! The specfun ports (`xsf/specfun/specfun.h`, in the submodules) and their wrappers
+//! (`xsf/specfun.h`).
+//!
+//! Unlike in xsf, the specfun ports compute some `int` products that can overflow (e.g. `n * n`
+//! for `n > 46340`) in `f64`, as `f64::from(n) * f64::from(n)`, which is exact for products
+//! below 2^53.
+
 mod bessel;
 mod erf;
 mod gamma;

@@ -1,8 +1,5 @@
 //! Associated Legendre functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@65d313a).
-//!
-//! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
-//! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::PI;
 

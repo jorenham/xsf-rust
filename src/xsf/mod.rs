@@ -1,3 +1,14 @@
+//! The translations of [xsf](https://github.com/scipy/xsf), including its Cephes, specfun and
+//! AMOS ports.
+//!
+//! Unlike in xsf, in all of these modules:
+//!
+//! - `double` -> `int` conversions that are undefined behavior in C++ (NaN or out of range) are
+//!   defined: `as i32` saturates (NaN -> 0), and `int_x86` gives INT_MIN like g++ on x86-64 where
+//!   a branch depends on it;
+//! - comments that contradict the code are corrected, e.g. the value returned on a domain error
+//!   is documented as NaN instead of 0.0.
+
 pub(crate) mod cephes;
 
 pub(crate) mod exp;

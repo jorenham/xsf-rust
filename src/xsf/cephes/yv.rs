@@ -4,8 +4,6 @@
 //! Copyright 1984, 1987, 2000 by Stephen L. Moshier
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, `(int) v` saturates for `v` outside the `int` range (undefined behavior in C++).
 
 use core::f64::consts::PI;
 

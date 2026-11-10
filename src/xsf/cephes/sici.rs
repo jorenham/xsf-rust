@@ -4,10 +4,9 @@
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
-//! Unlike in xsf, `(Si, Ci)` is returned instead of written to output references, the (unused)
-//! status code is dropped, and the threshold of the auxiliary functions is corrected in the
-//! comments. The `Si` and `Ci` values that xsf computes for finite `x > 1e9` are omitted, because
-//! they are always overwritten by the asymptotic expansion.
+//! Unlike in xsf, `(Si, Ci)` is returned instead of written to output references, and the
+//! (unused) status code is dropped. The `Si` and `Ci` values that xsf computes for finite
+//! `x > 1e9` are omitted, because they are always overwritten by the asymptotic expansion.
 
 use crate::utils::SCIPY_EULER;
 use crate::xsf::cephes::polevl::{p1evl, polevl};

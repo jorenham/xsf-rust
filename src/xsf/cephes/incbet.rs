@@ -489,8 +489,6 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
 /// incbet domain      x<0, x>1          NaN
 /// incbet underflow                     0.0
 /// ```
-///
-/// Unlike in xsf, the value returned on a domain error is documented as NaN instead of 0.0.
 pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
     incbet_xy(aa, bb, xx, 1.0 - xx)
 }

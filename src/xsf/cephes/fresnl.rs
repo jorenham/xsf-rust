@@ -4,8 +4,8 @@
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
-//! Unlike in xsf, `(S, C)` is returned instead of written to output pointers, the (unused) status
-//! code is dropped, and the threshold between the two methods is corrected in the comments.
+//! Unlike in xsf, `(S, C)` is returned instead of written to output pointers, and the (unused)
+//! status code is dropped.
 
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::trig::{cephes_cospi as cospi, cephes_sinpi as sinpi};

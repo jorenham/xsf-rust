@@ -5,8 +5,6 @@
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, some formulas and domain conditions in the comments are corrected.
 
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::igami::igamci;

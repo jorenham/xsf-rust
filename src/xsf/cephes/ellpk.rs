@@ -5,8 +5,6 @@
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, the domain error condition and return value are corrected in the comments.
 
 use crate::utils::MACHEP;
 use crate::xsf::cephes::polevl::polevl;

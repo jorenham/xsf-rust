@@ -3,8 +3,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the `double` -> `int` conversions saturate instead of being undefined behavior.
-//! This way, the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`.
+//! Unlike in xsf, the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`, as
+//! the `double` -> `int` conversion saturates.
 
 use num_traits::ToPrimitive;
 
