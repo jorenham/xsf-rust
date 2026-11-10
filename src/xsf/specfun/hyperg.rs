@@ -912,7 +912,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     hu
 }
 
-pub(crate) fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+fn chgubi(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), for a < 1 with `digamma` and `gamma` instead of `psi_spec` and
     // `gamma2`, which lose digits near the poles (e.g. both are 8% off at -2 + 1e-15), unless Gamma
     // isn't normal or the result isn't finite, e.g. U(-169 - 3e-14, 14, 4) = inf (not inf - inf)
@@ -1086,7 +1086,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
 }
 
 #[allow(clippy::let_and_return)]
-pub(crate) fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
+fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute hypergeometric function U(a,b,x) by
     //          using Gaussian-Legendre integration (n=60)
@@ -1259,7 +1259,7 @@ pub(crate) fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 
     hu
 }
 
-pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
     //          U(a,b,x) for large argument x
@@ -1375,7 +1375,7 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
     //          U(a,b,x) for small argument x

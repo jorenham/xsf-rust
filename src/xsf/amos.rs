@@ -429,7 +429,7 @@ const DGAMLN_CF: [f64; 22] = [
     4.88788064793079335e+14, -2.13203339609193739e+16,                                                    // 20
 ];
 
-pub(crate) fn acai(
+fn acai(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -545,7 +545,7 @@ pub(crate) fn acai(
     nz
 }
 
-pub(crate) fn acon(
+fn acon(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -1076,7 +1076,7 @@ pub(crate) fn airy(
     s1 / sfac
 }
 
-pub(crate) fn asyi(
+fn asyi(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -2648,7 +2648,7 @@ pub(crate) fn besy(
 }
 
 #[allow(clippy::collapsible_else_if)]
-pub(crate) fn binu(
+fn binu(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -3147,7 +3147,7 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     bi
 }
 
-pub(crate) fn bknu(
+fn bknu(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -3753,7 +3753,7 @@ pub(crate) fn bknu(
     }
 }
 
-pub(crate) fn buni(
+fn buni(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -3940,7 +3940,7 @@ pub(crate) fn buni(
     nz
 }
 
-pub(crate) fn bunk(
+fn bunk(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -3981,7 +3981,7 @@ pub(crate) fn bunk(
     nz
 }
 
-pub(crate) fn gamln(z: f64) -> f64 {
+fn gamln(z: f64) -> f64 {
     //***BEGIN PROLOGUE  DGAMLN
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  830501   (YYMMDD)
@@ -4092,14 +4092,7 @@ pub(crate) fn gamln(z: f64) -> f64 {
     f64::NAN
 }
 
-pub(crate) fn mlri(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    y: &mut [Complex64],
-    tol: f64,
-) -> i32 {
+fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64) -> i32 {
     //***BEGIN PROLOGUE  ZMLRI
     //***REFER TO  ZBESI,ZBESK
     //
@@ -4281,7 +4274,7 @@ pub(crate) fn mlri(
     nz
 }
 
-pub(crate) fn kscl(
+fn kscl(
     zr: Complex64,
     fnu: f64,
     n: i32,
@@ -4405,7 +4398,7 @@ pub(crate) fn kscl(
     nz
 }
 
-pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
+fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     //***BEGIN PROLOGUE  ZRATI
     //***REFER TO  ZBESI,ZBESK,ZBESH
     //
@@ -4526,7 +4519,7 @@ pub(crate) fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f6
     }
 }
 
-pub(crate) fn seri(
+fn seri(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -4772,7 +4765,7 @@ pub(crate) fn seri(
     nz
 }
 
-pub(crate) fn s1s2(
+fn s1s2(
     zr: Complex64,
     s1: &mut Complex64,
     s2: &mut Complex64,
@@ -4829,7 +4822,7 @@ pub(crate) fn s1s2(
     1
 }
 
-pub(crate) fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
+fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
     //***BEGIN PROLOGUE  ZUCHK
     //***REFER TO ZSERI,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
     //
@@ -4856,7 +4849,7 @@ pub(crate) fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
     }
 }
 
-pub(crate) fn unhj(
+fn unhj(
     z: Complex64,
     fnu: f64,
     ipmtr: i32,
@@ -5231,7 +5224,7 @@ pub(crate) fn unhj(
     }
 }
 
-pub(crate) fn uni1(
+fn uni1(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -5446,7 +5439,7 @@ pub(crate) fn uni1(
     }
 }
 
-pub(crate) fn uni2(
+fn uni2(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -5729,7 +5722,7 @@ pub(crate) fn uni2(
     }
 }
 
-pub(crate) fn unik(
+fn unik(
     zr: Complex64,
     fnu: f64,
     ikflg: i32,
@@ -5856,7 +5849,7 @@ pub(crate) fn unik(
     }
 }
 
-pub(crate) fn unk1(
+fn unk1(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -6343,7 +6336,7 @@ pub(crate) fn unk1(
     nz
 }
 
-pub(crate) fn unk2(
+fn unk2(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -6920,7 +6913,7 @@ pub(crate) fn unk2(
     nz
 }
 
-pub(crate) fn uoik(
+fn uoik(
     z: Complex64,
     fnu: f64,
     kode: i32,
@@ -7149,7 +7142,7 @@ pub(crate) fn uoik(
     // return -1;  (unreachable)
 }
 
-pub(crate) fn wrsk(
+fn wrsk(
     zr: Complex64,
     fnu: f64,
     kode: i32,

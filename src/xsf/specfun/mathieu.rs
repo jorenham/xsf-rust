@@ -42,7 +42,7 @@ const CV0_POLY: [(f64, f64, f64, &[f64]); 25] = [
     (12.0, 4.0, 144.0, &[3.08902e-7, -1.577869e-4, 0.0247911, -1.05454, 161.471]),
 ];
 
-pub(crate) fn cv0(kd: f64, m: f64, q: f64) -> f64 {
+fn cv0(kd: f64, m: f64, q: f64) -> f64 {
     // =====================================================
     // Purpose: Compute the initial characteristic value of
     //          Mathieu functions for m ≤ 12  or q ≤ 300 or
@@ -178,7 +178,7 @@ pub(crate) fn cva2(kd: i32, m: i32, q: f64) -> f64 {
     a
 }
 
-pub(crate) fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
+fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
     // ======================================================
     // Purpose: Compute the value of F for characteristic
     //          equation of Mathieu functions
@@ -254,7 +254,7 @@ pub(crate) fn cvf(kd: i32, m: i32, q: f64, a: f64, mj: i32) -> f64 {
     f
 }
 
-pub(crate) fn cvql(kd: i32, m: i32, q: f64) -> f64 {
+fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     // ========================================================
     // Purpose: Compute the characteristic value of Mathieu
     //          functions  for q ≥ 3m
@@ -288,7 +288,7 @@ pub(crate) fn cvql(kd: i32, m: i32, q: f64) -> f64 {
     a0
 }
 
-pub(crate) fn cvqm(m: i32, q: f64) -> f64 {
+fn cvqm(m: i32, q: f64) -> f64 {
     // =====================================================
     // Purpose: Compute the characteristic value of Mathieu
     //          functions for q ≤ m*m
@@ -983,7 +983,7 @@ pub(crate) fn mtu12(
     Status::Ok
 }
 
-pub(crate) fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
+fn refine(kd: i32, m: i32, q: f64, a: f64) -> f64 {
     // =====================================================
     // Purpose: calculate the accurate characteristic value
     //          by the secant method

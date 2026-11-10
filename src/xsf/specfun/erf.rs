@@ -7,7 +7,7 @@ use num_complex::{Complex64, c64};
 use crate::utils::SQRT_PI;
 use crate::xsf::complex::{cdiv, cmul};
 
-pub(crate) fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
+fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
     // ==========================================================
     // Purpose: Compute complex Error function erf(z) & erf'(z)
     // Input:   z   --- Complex argument of erf(z)
