@@ -58,8 +58,6 @@ mod sealed {
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
             // hypergeometric series cancels catastrophically for large non-integer degrees.
-            //
-            // E.g. `eval_legendre(100.5, 0.3)` was 0.963 instead of 0.01165.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
             let y = crate::hyp2f1(-n, b, c, self * -0.5 + 0.5);
             super::jacobi_hyp2f1_recurrence(self, nu, lam, c, y).unwrap_or(y)
@@ -87,15 +85,16 @@ mod sealed {
 }
 
 /// `G_n = 2F1(-n, n + lam; c; (1 - x) / 2)` by forward recurrence in `n` from `n - floor(n)`, or
-/// `None` if that isn't more accurate than `series` (`G_n` itself).
+/// `None` if that isn't estimated to be more accurate than `series` (`G_n` itself).
 ///
 /// - With `alpha = c - 1` and `beta = lam - c`, this is the Jacobi recurrence (DLMF 18.9.2) of
 ///   `binom(n + alpha, n) G_n`, also for non-integer `n` (as a contiguous relation of 2F1).
 /// - It needs `alpha, beta > -1` (positive denominators), `n > 2` (at least one step), and
 ///   `n < 1e5` (to bound its cost).
-/// - `series` is estimated to be less accurate if it differs by more than relative errors `tol`
-///   in the starting values explain: `HYP2F1_ETHRESH`, or even 1 if the recurrence is unstable
-///   (the errors grow by more than `1 / SQRT_EPS`, leaving less than half the digits).
+/// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
+///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
+///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPS <= |G_n|`, which
+///   limits that amplification to `1 / SQRT_EPS`), and 1 otherwise.
 fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Option<f64> {
     let (alpha, beta) = (c - 1.0, lam - c);
     if !(x.abs() < 1.0 && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && beta > -1.0) {
@@ -121,12 +120,12 @@ fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Op
     // `lam` is passed separately, so that `c - a - b` is the same as in the caller's 2F1
     let g = |v: f64| crate::hyp2f1(-v, v + lam, c, x * -0.5 + 0.5);
     let (g0, g1) = (g(n - m), g(n - m + 1.0));
-    let y = recur(g0, g1);
+    let rec = recur(g0, g1);
     // the solutions with starting values (1, 0) and (0, 1)
     let growth = (recur(1.0, 0.0) * g0).abs() + (recur(0.0, 1.0) * g1).abs();
-    let stable = growth * SQRT_EPS <= y.abs();
+    let stable = growth * SQRT_EPS <= rec.abs();
     let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
-    (!series.is_finite() || (y - series).abs() > tol * growth).then_some(y)
+    (!series.is_finite() || (rec - series).abs() > tol * growth).then_some(rec)
 }
 
 ///////////////////////////////
@@ -156,7 +155,6 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         // Unlike in xsf (scipy/xsf#457), if `|alpha + 1| < HYP2F1_EPS` (where the real `hyp2f1`
         // loses precision), alpha is shifted up by a relation that follows from DLMF 18.5.7 term by
         // term.
-        // E.g. `eval_jacobi(7.5, -1 + 1e-15, 2.0, -0.6)` was NaN instead of 1.337.
         if (a + 1.0).abs() < HYP2F1_EPS && EXACT_N_MINUS_1.contains(&n) {
             let c = a + 1.0;
             let p = self.clone().eval_jacobi(n, c, b) * c;
@@ -927,8 +925,6 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         //
         // For x > 0 these terms cancel (H_n(x) ~ (2x)^n, while both terms grow like e^(x^2)),
         // which is why `hypu` is used there.
-        //
-        // E.g. `eval_hermite_h(2.5, -5.0)` was NaN, not -5.77e8.
         let z = scale * x * x;
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
@@ -936,8 +932,6 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
     } else {
         // For non-integer n > 0 and x > 0 (which xsf and SciPy don't support), use `hermite_rec`,
         // since `hypu` below has relative errors of up to 1e-6 there.
-        //
-        // E.g. `eval_hermite_h(55.5, 3.5)` was 2.862819e47 instead of 2.862818e47.
         if (0.0..1e4).contains(&x) && (0.0..1e3).contains(&n) && n.fract() != 0.0 {
             let h = hermite_rec(x, n, scale);
             if h.is_finite() {
@@ -947,6 +941,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         let c = if x.is_sign_positive() {
             (scale * n).exp2()
         } else {
+            // only for integer or infinite n, where `powf` of a negative base isn't NaN
             (-2.0 * scale.sqrt()).powf(n)
         };
         c * crate::hypu(-0.5 * n, 0.5, scale * x * x)
