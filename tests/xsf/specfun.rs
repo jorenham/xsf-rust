@@ -29,7 +29,7 @@ fn test_hypu_tiny_a() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
 
-    // Arb; 1 in xsf (`chgul` rounds `a + k - 1`)
+    // Arb (scipy/xsf#459)
     let abx = [
         (1e-20, 10.0, 0.01),
         (-1e-20, 15.0, 0.1),
@@ -852,8 +852,7 @@ fn test_hyp1f1_large_b_or_neg_x() {
 
 #[test]
 fn test_hyp1f1_tiny_a_or_b() {
-    // Arb; in xsf the first is inf, and the others have a relative error of 8.3e-8, 1.1e-13, and
-    // 8.3e-8
+    // Arb (scipy/xsf#454)
     let abx = [
         (1.0, 1e-17, 1.0),
         (0.5, 1e-10, 1.0),
@@ -869,7 +868,7 @@ fn test_hyp1f1_tiny_a_or_b() {
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
 
-    // Arb; in xsf the first two are NaN, and the others have a relative error of 8.3e-8 and 1.1e-13
+    // Arb (scipy/xsf#454)
     let abz = [
         (0.5, 1e-17, c64(1.0, 1.0)),
         (-2.0, 1e-17, c64(1.0, 1.0)),

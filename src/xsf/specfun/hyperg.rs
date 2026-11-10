@@ -1,5 +1,5 @@
-//! Confluent hypergeometric functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@86be599).
+//! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
+//! (scipy/xsf@3df1659).
 //!
 //! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
@@ -26,9 +26,6 @@ use crate::{digamma, gamma, gammaln, hyp0f1};
 const MAX_TERMS: i32 = 100_000;
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
-///
-/// Unlike in xsf (scipy/xsf#436, scipy/xsf#454), with `a + (j - 1)` instead of `a + j - 1`
-/// (likewise for `b`).
 fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: f64, j: i32) -> T {
     let n = f64::from(j - 1);
     t * (a + n) / (f64::from(j) * (b + n))
@@ -109,7 +106,6 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
         let m = int_x86(-a);
         let mut cr = c64(1.0, 0.0);
         chg = c64(1.0, 0.0);
-        // Unlike in xsf (scipy/xsf#454), a + (k - 1) and b + (k - 1), as in `kummer_term`
         for k in 1..=m {
             let n = f64::from(k - 1);
             cr = cmul(cr * (a + n) / f64::from(k) / (b + n), z);
@@ -1282,8 +1278,6 @@ pub(crate) fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
-            // Unlike in xsf (scipy/xsf#459), a + (k - 1) instead of a + k - 1, which loses the
-            // digits of a tiny a at k = 1 (all if |a| <= eps / 4)
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
@@ -1402,6 +1396,8 @@ pub(crate) fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
     for j in 1..151 {
+        // Unlike in xsf, `b + (j - 1)` (see `kummer_term`) instead of `b + j - 1`, which loses the
+        // digits of `b` near 0, -1, -2, ...
         r1 = kummer_term(r1, a, b, j) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;

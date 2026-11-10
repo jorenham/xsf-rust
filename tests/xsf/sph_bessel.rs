@@ -41,6 +41,15 @@ fn test_sph_bessel_prime_tiny_x() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
+    // the same leading term n z^(n - 1) / (2n + 1)!! for complex z
+    let z = num_complex::c64(0.0, 1e-300);
+    let expected = num_complex::c64(0.0, 1.333_333_333_333_333_3e-301);
+    xsref::np_assert_allclose!(
+        &[xsf::sph_bessel_j_prime(2, z), xsf::sph_bessel_i_prime(2, z)],
+        &[expected, expected],
+        rtol = 1e-15
+    );
+
     // underflow to +0, since j_7' and i_7' are even
     assert_eq!(xsf::sph_bessel_j_prime(7, -1e-80).to_bits(), 0);
     assert_eq!(xsf::sph_bessel_i_prime(7, -1e-80).to_bits(), 0);
@@ -265,6 +274,18 @@ fn test_sph_bessel_kn_prime() {
     );
     // assert_allclose(kn[1], [kn0, kn1, kn2], atol=1.5e-9, rtol=0)
     xsref::np_assert_allclose!(&kn[1], &[kn0, kn1, kn2], atol = 1.5e-9);
+}
+
+#[test]
+fn test_sph_bessel_prime_n_max() {
+    let n = i64::MAX;
+    // y_n(1) overflows to -inf for huge n (https://dlmf.nist.gov/10.19.E2); n is odd, so
+    // y_n'(-x) = -y_n'(x)
+    assert_eq!(xsf::sph_bessel_y_prime(n, 1.0), f64::INFINITY);
+    assert_eq!(xsf::sph_bessel_y_prime(n, -1.0), f64::NEG_INFINITY);
+    // k_n'(x) < 0 for x > 0, so k_n'(inf) = -0, as for small n
+    let k_prime = xsf::sph_bessel_k_prime(n, f64::INFINITY);
+    assert_eq!(k_prime.to_bits(), (-0.0_f64).to_bits());
 }
 
 #[test]

@@ -1,13 +1,13 @@
-//! Translated into pure Rust from `xsf/sph_bessel.h` (scipy/xsf@ecd15fd).
+//! Translated into pure Rust from `xsf/cpu/sph_bessel.h` (scipy/xsf@3b73def).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows), and the loop
-//! counters of the recurrences are also 64-bit (instead of `int`, which could overflow).
+//! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use core::ops::{Div, Mul};
 
-use num_complex::{Complex64, c64};
+use num_complex::{Complex64, ComplexFloat, c64};
 
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
@@ -103,9 +103,9 @@ fn half(n: i64) -> f64 {
     n as f64 + 0.5
 }
 
-/// `static_cast<T>(n + 1)`
+/// `static_cast<T>(n + 1UL)`
 fn np1(n: i64) -> f64 {
-    n.wrapping_add(1) as f64
+    (n as u64).wrapping_add(1) as f64
 }
 
 /// `std::pow(-1, n)`
@@ -113,18 +113,31 @@ fn pow_m1(n: i64) -> f64 {
     (-1.0_f64).powf(n as f64)
 }
 
-/// Leading term `x^n / (2n + 1)!!` of `j_n(x)` and `i_n(x)` as `x -> 0`,
+/// Leading term `z^n / (2n + 1)!!` of `j_n(z)` and `i_n(z)` as `z -> 0`,
 /// <https://dlmf.nist.gov/10.52.E1>
 ///
 /// The extra stop if the product overflows (returning `inf`) is for `sph_bessel_j_series`.
-fn sph_bessel_tiny(n: i64, x: f64) -> f64 {
-    let mut res = 1.0_f64;
+fn sph_bessel_tiny<T: ComplexFloat + Div<f64, Output = T>>(n: i64, z: T) -> T {
+    let mut res = T::one();
     let mut k: i64 = 1;
-    while k <= n && res != 0.0 && res.is_finite() {
-        res *= x / (2.0 * k as f64 + 1.0);
+    while k <= n && !res.is_zero() && res.is_finite() {
+        res = res * (z / (2.0 * k as f64 + 1.0));
         k += 1;
     }
     res
+}
+
+/// `j_n'(z)` and `i_n'(z)` for tiny `z`, or `None`
+fn sph_bessel_jac_tiny<T>(n: i64, z: T) -> Option<T>
+where
+    T: ComplexFloat<Real = f64> + Mul<f64, Output = T> + Div<f64, Output = T>,
+{
+    // Leading term n z^(n - 1) / (2n + 1)!! of the derivative of https://dlmf.nist.gov/10.52.E1,
+    // as DLMF 10.51.2 fails when j_n(z) underflows; the first correction term is below eps / 2 here.
+    // |z| < 1 keeps the product from overflowing for huge n, as in sph_bessel_j.
+    let (nf, abs_z) = (n as f64, z.abs());
+    (abs_z < 1.0 && abs_z * abs_z < (nf + 0.5) * f64::EPSILON)
+        .then(|| sph_bessel_tiny(n - 1, z) * (nf / (2.0 * nf + 1.0)))
 }
 
 /// The power series of `j_n(x)` (DLMF 10.53.1) if `x^2 < 2n + 3`, so that each term is at most
@@ -146,17 +159,15 @@ fn sph_bessel_j_series(n: i64, x: f64) -> Option<f64> {
 }
 
 /// `f_n'(x) = f_{n-1}(x) - (n + 1) f_n(x) / x` (DLMF 10.51.2, 10.51.5) for `f = j` (`c = -1`)
-/// or `f = i` (`c = 1`), and `x != 0`.
+/// or `f = i` (`c = 1`).
 fn sph_bessel_ji_jac(f: fn(i64, f64) -> f64, c: f64, n: i64, x: f64) -> f64 {
     let nf = n as f64;
 
-    // Unlike in xsf (scipy/xsf#373), use the leading power series term n x^(n-1) / (2n + 1)!!
-    // if x is below the tiny-x cutoff of f_{n-1}(x). The sign is from f_n'(-x) = (-1)^(n+1)
-    // f_n'(x), so that it's also right if the product underflows.
-    let ax = x.abs();
-    if n >= 1 && ax * ax < ((n - 1) as f64 + 1.5) * f64::EPSILON {
+    // Unlike in xsf, the sign is from f_n'(-x) = (-1)^(n+1) f_n'(x), so that it's also right if
+    // the product underflows.
+    if let Some(res) = sph_bessel_jac_tiny(n, x.abs()) {
         let sign = if x < 0.0 && n % 2 == 0 { -1.0 } else { 1.0 };
-        return sign * nf * sph_bessel_tiny(n - 1, ax) / (2.0 * nf + 1.0);
+        return sign * res;
     }
 
     // Unlike in xsf, use (2n + 1) f_n' = n f_{n-1} + c (n + 1) f_{n+1} (DLMF 10.51.1, 10.51.4)
@@ -185,9 +196,8 @@ fn sph_bessel_recur(n: i64, x: f64, mut s0: f64, mut s1: f64) -> f64 {
         return s0;
     }
 
-    // Unlike in xsf (scipy/xsf#487), also stop if f_1 is infinite: if f_0 is infinite too
-    // (y_n for x < 1 / f64::MAX), f_2 = inf - inf would be NaN, and the recurrence would run all
-    // n steps.
+    // If s1 overflows (tiny x, only for y_n), so does y_n(x); if s0 does too, the recurrence would
+    // give inf - inf.
     if n == 1 || s1.is_infinite() {
         return s1;
     }
@@ -308,15 +318,6 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
         return -sph_bessel_j_f64(1, z);
     }
 
-    if z == 0.0 {
-        // DLMF 10.51.2 doesn't work, so use 10.51.1 to get the exact value
-        if n == 1 {
-            return 1.0 / 3.0;
-        }
-
-        return 0.0;
-    }
-
     sph_bessel_ji_jac(sph_bessel_j_f64, -1.0, n, z)
 }
 
@@ -325,13 +326,8 @@ fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
         return -sph_bessel_j_c64(1, z);
     }
 
-    if z == c64(0.0, 0.0) {
-        // DLMF 10.51.2 doesn't work, so use 10.51.1 to get the exact value
-        if n == 1 {
-            return rdiv(1.0, c64(3.0, 0.0));
-        }
-
-        return c64(0.0, 0.0);
+    if let Some(res) = sph_bessel_jac_tiny(n, z) {
+        return res;
     }
 
     // DLMF 10.51.2
@@ -401,14 +397,13 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
         return -sph_bessel_y_f64(1, x);
     }
 
-    // Unlike in xsf (scipy/xsf#373), if y_n(x) is infinite, return its dominant term
-    // -(n + 1) y_n(x) / x, with x = -0 treated as +0 (like in y_n(x)).
-    let yn = sph_bessel_y_f64(n, x);
-    if yn.is_infinite() {
-        return if x < 0.0 { yn } else { -yn };
+    // DLMF 10.51.2; y_{n-1}(x) is negligible if the second term overflows, so avoid inf - inf.
+    let res = -np1(n) * sph_bessel_y_f64(n, x) / x;
+    if res.is_infinite() {
+        return res;
     }
 
-    sph_bessel_y_f64(n.wrapping_sub(1), x) - np1(n) * yn / x
+    sph_bessel_y_f64(n.wrapping_sub(1), x) + res
 }
 
 fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
@@ -506,13 +501,6 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
         return sph_bessel_i_f64(1, z);
     }
 
-    if z == 0.0 {
-        if n == 1 {
-            return 1. / 3.;
-        }
-        return 0.0;
-    }
-
     sph_bessel_ji_jac(sph_bessel_i_f64, 1.0, n, z)
 }
 
@@ -521,11 +509,8 @@ fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
         return sph_bessel_i_c64(1, z);
     }
 
-    if z == c64(0.0, 0.0) {
-        if n == 1 {
-            return c64(1. / 3., 0.0);
-        }
-        return c64(0.0, 0.0);
+    if let Some(res) = sph_bessel_jac_tiny(n, z) {
+        return res;
     }
 
     sph_bessel_i_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_i_c64(n, z)), z)
