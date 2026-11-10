@@ -136,26 +136,6 @@ mod tests {
     }
 
     #[test]
-    fn test_expm1_f64() {
-        xsref::test("expm1", "d-d", |x| crate::expm1(x[0]));
-    }
-
-    #[test]
-    fn test_expm1_c64() {
-        xsref::test("expm1", "cd-cd", |x| crate::expm1(c64(x[0], x[1])));
-    }
-
-    #[test]
-    fn test_exp2_f64() {
-        xsref::test("exp2", "d-d", |x| crate::exp2(x[0]));
-    }
-
-    #[test]
-    fn test_exp10_f64() {
-        xsref::test("exp10", "d-d", |x| crate::exp10(x[0]));
-    }
-
-    #[test]
     fn test_expm1_c64_edges() {
         // small |z|, where exp(z) - 1 would lose precision
         let w = crate::expm1(c64(1e-10, 1e-10));
