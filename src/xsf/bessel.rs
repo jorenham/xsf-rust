@@ -1249,7 +1249,8 @@ fn itj0y0_neumann(x: f64) -> [f64; 4] {
 }
 
 fn itjya(x: f64) -> (f64, f64) {
-    // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40.
+    // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40. That leaves the
+    // power series below to x < 0.5, and the asymptotic expansion to x >= 40.
     if (0.5..40.0).contains(&x) {
         let [tj, _, ty, _] = itj0y0_neumann(x);
         return (tj, ty);
@@ -1438,7 +1439,7 @@ fn ittjya(x: f64) -> (f64, f64) {
     // =========================================================
 
     // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 34 (from about 34, the
-    // asymptotic expansion below is more accurate).
+    // asymptotic expansion below is more accurate). That leaves the power series below to x < 0.5.
     if (0.5..34.0).contains(&x) {
         let [_, ttj, _, tty] = itj0y0_neumann(x);
         return (ttj, tty);
