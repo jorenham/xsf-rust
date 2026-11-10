@@ -309,6 +309,29 @@ fn test_bessel_amos_subnormal_order() {
     np_assert_allclose!(&[k], &[0.421_024_438_240_708_33], rtol = 1e-15);
 }
 
+#[test]
+fn test_bessel_amos_i_near_max() {
+    // Arb: besseli(0, 713.9), besseli(1.5, 712 - 30j), besselj(0, 712j), bessely(0, -712j), and
+    // besselk(0, -712 + 0.5j)
+    let actual = [
+        xsf::bessel_i(0.0, c64(713.9, 0.0)),
+        xsf::bessel_i(1.5, c64(712.0, -30.0)),
+        xsf::bessel_j(0.0, c64(0.0, 712.0)),
+        xsf::bessel_y(0.0, c64(0.0, -712.0)),
+        xsf::bessel_k(0.0, c64(-712.0, 0.5)),
+    ];
+    let expected = [
+        c64(1.648_155_186_695_137_8e308, 0.0),
+        c64(3.288_042_717_302_672_6e306, 2.441_382_590_454_382e307),
+        c64(2.468_411_057_762_752_4e307, 0.0),
+        c64(-1.811_143_065_969_3e-311, -2.468_411_057_762_752_4e307),
+        c64(-3.715_430_308_432_895e307, -6.806_731_004_735_646e307),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    // Arb: besseli(0, 714.5) = 3.0e308
+    assert_eq!(xsf::bessel_i(0.0, c64(714.5, 0.0)), c64(f64::INFINITY, 0.0));
+}
+
 xsref::tests! {
     test_bessel_k_c64: "cyl_bessel_k", "d_cd-cd", |x| xsf::bessel_k(x[0], c64(x[1], x[2]));
     test_bessel_ke_f64: "cyl_bessel_ke", "d_d-d", |x| xsf::bessel_ke(x[0], x[1]);

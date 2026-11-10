@@ -114,7 +114,7 @@ use core::f64::consts::{LN_2, LN_10};
 
 use num_complex::{Complex64, c64};
 
-use crate::utils::{MAXLOG, SQRT3};
+use crate::utils::{MAXLOG, SQRT3, cmul_exp};
 use crate::xsf::complex::{cdiv, cmul, csqrt, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -603,7 +603,13 @@ pub(crate) fn acon(
                 nz += nw;
                 sc1 = c1;
             }
-            y[0] = cmul(cspn, c1) + cmul(csgn, c2);
+            // Unlike in xsf, report an overflow of the pi I term, as `asyi` computes I up to
+            // f64::MAX.
+            let ci = cmul(csgn, c2);
+            if !ci.is_finite() {
+                return -1;
+            }
+            y[0] = cmul(cspn, c1) + ci;
             if n == 1 {
                 return nz;
             }
@@ -616,7 +622,11 @@ pub(crate) fn acon(
                 nz += nw;
                 sc2 = c1;
             }
-            y[1] = cmul(cspn, c1) + cmul(csgn, c2);
+            let ci = cmul(csgn, c2);
+            if !ci.is_finite() {
+                return -1;
+            }
+            y[1] = cmul(cspn, c1) + ci;
             if n == 2 {
                 return nz;
             }
@@ -1087,12 +1097,16 @@ pub(crate) fn asyi(
         cz = c64(0.0, z.im);
     }
     let acz = cz.re;
-    if on_scale(acz, elim) {
+    // Unlike in xsf, there's no overflow test for n <= 2, as exp(cz) is then applied last if it
+    // overflows (below), so that only an overflow of I_fnu(z) is reported.
+    if n <= 2 || on_scale(acz, elim) {
         let dnu2 = dfnu + dfnu;
         let mut koded = 1;
         if !((acz.abs() > alim) && (n > 2)) {
             koded = 0;
-            ak1 = cmul(ak1, cexp(cz));
+            if acz <= MAXLOG {
+                ak1 = cmul(ak1, cexp(cz));
+            }
         }
         let mut fdn: f64 = 0.0;
         if dnu2 > rtr1 {
@@ -1162,7 +1176,15 @@ pub(crate) fn asyi(
             fdn += 8.0 * dfnu + 4.0;
             p1 = -p1;
             let m = n - il + k;
-            y[(m - 1) as usize] = cmul(s2, ak1);
+            s2 = cmul(s2, ak1);
+            if acz > MAXLOG {
+                // s2 exp(cz), without overflowing prematurely
+                s2 = cmul_exp(cmul(s2, cexp(c64(0.0, cz.im))), acz);
+                if !s2.is_finite() {
+                    return -1;
+                }
+            }
+            y[(m - 1) as usize] = s2;
         }
         if n <= 2 {
             return nz;
