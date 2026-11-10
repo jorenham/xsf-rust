@@ -227,6 +227,7 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
+    // `sem` is `(0, 0)` for `m = 0`, whatever `q`
     if m > 0 && mathieu_cem_sem_unsupported(m, q) {
         return (f64::NAN, f64::NAN);
     }
@@ -380,9 +381,11 @@ fn mathieu_km_too_large(m: u32, q: f64) -> bool {
 /// (about 0.03 s per call at this `m`)
 const CEM_SEM_M_MAX: u32 = 1 << 16;
 
-/// Unlike in xsf (scipy/xsf#312), `mtu0` sizes its coefficients by `km`, so that `cem` and `sem`
-/// are NaN if `km - m/2 >= 251` (i.e. `|q| > 2102.92`) or `m > CEM_SEM_M_MAX`, instead of if
-/// `km > 251`, and don't index out of bounds if `km = 251`
+/// Whether `cem` and `sem` don't support `m` and `q` (NaN): `qm >= 251` (`|q|` above about
+/// 2102.92) or `m > CEM_SEM_M_MAX`.
+///
+/// Unlike in xsf (scipy/xsf#312), `mtu0` sizes its coefficients by `km`, so `cem` and `sem` aren't
+/// NaN for every `km > 251`, and `km = 251` doesn't index out of bounds.
 fn mathieu_cem_sem_unsupported(m: u32, q: f64) -> bool {
     m > CEM_SEM_M_MAX || mathieu_km_too_large(0, q)
 }
