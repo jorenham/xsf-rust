@@ -98,11 +98,6 @@ pub(crate) fn cmul_exp(w: Complex<f64>, x: f64) -> Complex<f64> {
 }
 
 #[inline]
-pub(crate) fn vec_into<S: Into<T>, T>(xs: Vec<S>) -> Vec<T> {
-    xs.into_iter().map(S::into).collect()
-}
-
-#[inline]
 pub(crate) fn vec_to_vecvec<T: Clone>(
     vec: &[T],
     rows: usize,
@@ -130,16 +125,6 @@ pub(crate) fn vecvec_truncate<T>(mut vv: Vec<Vec<T>>, rows: usize, cols: usize) 
         v.truncate(cols);
     }
     vv
-}
-
-#[inline]
-pub(crate) fn vec_into_vecvec<S: Into<T>, T: Clone>(
-    vec: Vec<S>,
-    rows: usize,
-    cols: usize,
-    transpose: bool,
-) -> Vec<Vec<T>> {
-    vec_to_vecvec(&vec_into(vec), rows, cols, transpose)
 }
 
 #[cfg(test)]

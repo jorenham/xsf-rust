@@ -1146,7 +1146,7 @@ fn sph_legendre_p_all_vec<T: Num>(z: T, n: usize, m: usize) -> Vec<Vec<T>> {
     let extents = [n + 1, 2 * m + 1];
     let mut pnm = vec![T::from(f64::NAN); extents[0] * extents[1]];
     sph_legendre_p_all_t(z, Mdspan::new(&mut pnm, extents));
-    utils::vec_into_vecvec(pnm, extents[0], extents[1], false)
+    utils::vec_to_vecvec(&pnm, extents[0], extents[1], false)
 }
 
 fn assoc_legendre_p_dyn<T: Num>(z: T, n: c_int, m: c_int, bc: c_int, norm: bool) -> T {
@@ -1172,7 +1172,7 @@ fn assoc_legendre_p_all_vec<T: Num>(
     } else {
         assoc_legendre_p_all_t::<false, T>(z, bc, res);
     }
-    utils::vec_into_vecvec(pnm, extents[0], extents[1], false)
+    utils::vec_to_vecvec(&pnm, extents[0], extents[1], false)
 }
 
 macro_rules! impl_legendre_p_arg {
@@ -1263,8 +1263,8 @@ macro_rules! impl_legendre_q_arg {
 
                 let [ni, nj] = extents;
                 (
-                    utils::vecvec_truncate(utils::vec_into_vecvec(qm, ni, nj, true), n + 1, m + 1),
-                    utils::vecvec_truncate(utils::vec_into_vecvec(qd, ni, nj, true), n + 1, m + 1),
+                    utils::vecvec_truncate(utils::vec_to_vecvec(&qm, ni, nj, true), n + 1, m + 1),
+                    utils::vecvec_truncate(utils::vec_to_vecvec(&qd, ni, nj, true), n + 1, m + 1),
                 )
             }
         }
