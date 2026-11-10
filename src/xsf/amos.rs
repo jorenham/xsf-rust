@@ -201,6 +201,14 @@ fn small_z_k_overflows(z: Complex64, fnu: f64) -> bool {
     fnu * (LN_2 - clog(z).re) + gamln(fnu) - LN_2 > MAXLOG
 }
 
+/// Whether `exp(e)` is on scale, i.e. neither underflows past `exp(-elim)` nor overflows.
+///
+/// Unlike in xsf, the upper bound is `ln(f64::MAX)` instead of `elim`, as `asyi` computes
+/// `exp(e)` itself, and `uni1` and `uni2` scale the result near it.
+fn on_scale(e: f64, elim: f64) -> bool {
+    (-elim..=MAXLOG).contains(&e)
+}
+
 #[rustfmt::skip]
 const ZUNHJ_AR: [f64; 14] = [
     1.00000000000000000e+00, 1.04166666666666667e-01, 8.35503472222222222e-02, 1.28226574556327160e-01, //  0
@@ -569,7 +577,9 @@ pub(crate) fn acon(
         //
         nn = if n > 2 { 2 } else { n };
         nw = bknu(zn, fnu, kode, nn, &mut cy, tol, elim, alim);
-        if nw == 0 {
+        // Unlike in xsf, an underflow of K(zn) isn't an overflow for n <= 2, as the I term
+        // dominates then (the recurrence below needs K for n > 2).
+        if nw == 0 || (nw > 0 && n <= 2) {
             let mut s1 = cy[0];
             let fmr = f64::from(mr);
             let sgn = if fmr < 0.0 { pi } else { -pi };
@@ -1077,7 +1087,7 @@ pub(crate) fn asyi(
         cz = c64(0.0, z.im);
     }
     let acz = cz.re;
-    if acz.abs() <= elim {
+    if on_scale(acz, elim) {
         let dnu2 = dfnu + dfnu;
         let mut koded = 1;
         if !((acz.abs() > alim) && (n > 2)) {
@@ -1347,7 +1357,6 @@ pub(crate) fn besh(
     //***END PROLOGUE  ZBESH
 
     let mut aa: f64;
-    let mut nn: i32;
     let mut nz: i32;
 
     let hpi = 1.57079632679489662; /* 0.5 PI */
@@ -1375,7 +1384,7 @@ pub(crate) fn besh(
     if *ierr != 0 {
         return nz;
     }
-    nn = n;
+    let nn = n;
     let (tol, elim, alim, rl, fnul) = MACH;
     let fn_ = fnu + f64::from(nn - 1); // `fn` in C++
     let mm = 3 - m - m;
@@ -1429,19 +1438,15 @@ pub(crate) fn besh(
                 *ierr = 2;
                 return 0;
             } /* GO TO 230 */
-            nz += nuf;
-            nn -= nuf;
             //
             // HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
             // IF NUF=NN, THEN CY(I)=CZERO FOR ALL I
             //
-            if nn == 0 {
+            // Unlike in xsf, if xn < 0, `acon` handles this underflow of K(-zn) instead of
+            // reporting an overflow.
+            if nuf == nn && xn >= 0.0 {
                 /* GO TO 140 */
-                if xn < 0.0 {
-                    *ierr = 2;
-                    return 0;
-                } /* GO TO 230 */
-                return nz;
+                return nuf;
             }
             /* GO TO 70 */
         } else {
@@ -2205,7 +2210,6 @@ pub(crate) fn besk(
     let yy = z.im;
     let mut aa: f64;
     let mut mr: i32;
-    let mut nn: i32;
     let nw: i32;
     let mut nz: i32;
 
@@ -2228,7 +2232,7 @@ pub(crate) fn besk(
         return nz;
     }
 
-    nn = n;
+    let nn = n;
     let (tol, elim, alim, rl, fnul) = MACH;
     //
     // TEST FOR PROPER RANGE
@@ -2271,18 +2275,14 @@ pub(crate) fn besk(
                     *ierr = 2;
                     return 0;
                 }
-                nz += nuf;
-                nn -= nuf;
                 //
                 // HERE NN=N OR NN=0 SINCE NUF=0,NN, OR -1 ON RETURN FROM CUOIK
                 // IF NUF=NN, THEN CY(I)=CZERO FOR ALL I
                 //
-                if nn == 0 {
-                    if xx < 0.0 {
-                        *ierr = 2;
-                        return 0;
-                    }
-                    return nz;
+                // Unlike in xsf, if xx < 0, `acon` handles this underflow of K(-z) instead of
+                // reporting an overflow.
+                if nuf == nn && xx >= 0.0 {
+                    return nuf;
                 }
             }
         }
@@ -5270,7 +5270,7 @@ pub(crate) fn uni1(
     }
 
     rs1 = s1.re;
-    if rs1.abs() > elim {
+    if !on_scale(rs1, elim) {
         if rs1 > 0. {
             *nz = -1;
             return;
@@ -5301,7 +5301,7 @@ pub(crate) fn uni1(
                 // TEST FOR UNDERFLOW AND OVERFLOW
                 //
                 rs1 = s1.re;
-                if rs1.abs() > elim {
+                if !on_scale(rs1, elim) {
                     break 'l110; // goto L110;
                 }
                 if i == 1 {
@@ -5313,7 +5313,7 @@ pub(crate) fn uni1(
                     //
                     aphi = phi.norm();
                     rs1 += aphi.ln();
-                    if rs1.abs() > elim {
+                    if !on_scale(rs1, elim) {
                         break 'l110; // goto L110;
                     }
                     if i == 1 {
@@ -5522,7 +5522,7 @@ pub(crate) fn uni2(
         s1 = -zeta1 + zeta2;
     }
     rs1 = s1.re;
-    if rs1.abs() > elim {
+    if !on_scale(rs1, elim) {
         if rs1 > 0. {
             *nz = -1;
             return;
@@ -5554,7 +5554,7 @@ pub(crate) fn uni2(
                 // TEST FOR UNDERFLOW AND OVERFLOW
                 //
                 rs1 = s1.re;
-                if rs1.abs() > elim {
+                if !on_scale(rs1, elim) {
                     break 'l50; // goto L50;
                 }
                 if i == 1 {
@@ -5567,7 +5567,7 @@ pub(crate) fn uni2(
                     aphi = phi.norm();
                     aarg = arg.norm();
                     rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
-                    if rs1.abs() > elim {
+                    if !on_scale(rs1, elim) {
                         break 'l50; // goto L50;
                     }
                     if i == 1 {
@@ -6977,10 +6977,9 @@ pub(crate) fn uoik(
     rcz = cz.re;
 
     /*  OVERFLOW TEST  */
-    // Unlike in xsf, K only overflows past `f64::MAX` instead of `exp(elim)`, as `bknu` scales the
-    // result near it.
-    let rcz_max = if ikflg == 2 { MAXLOG } else { elim };
-    if rcz > rcz_max {
+    // Unlike in xsf, I and K only overflow past `f64::MAX` instead of `exp(elim)`, as `bknu`,
+    // `uni1` and `uni2` scale the result near it.
+    if rcz > MAXLOG {
         return -1;
     }
     if rcz >= alim {
@@ -6988,7 +6987,7 @@ pub(crate) fn uoik(
         if iform == 2 {
             rcz -= 0.25 * aarg.ln() + aic;
         }
-        if rcz > rcz_max {
+        if rcz > MAXLOG {
             return -1;
         }
     } else {
