@@ -871,6 +871,26 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     hg
 }
 
+/// Tricomi's function `U(a, b, x)`.
+///
+/// # Deviations from xsf
+///
+/// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
+/// Here (scipy/xsf#380):
+///
+/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`). The first with `ID_MIN`
+///    digits is returned; otherwise the better of the two is kept as `(hu0, id0)`.
+/// 2. One method by region:
+///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
+///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
+///    - `a < 1`, `b <= a`: `chguit` for `U(a-b+1, 2-b, x)`, times `x^(1-b)`; for `-1e5 <= b <= 0`
+///      with `x^(1-b)` in the integral if that product isn't normal or step 1 overflowed
+///    - `a < 1`, `b > a`: `chgubi` (nonzero integer `b`); the recurrence in `a > -1000` otherwise,
+///      or if `chgubi` isn't finite with `ID_MIN` digits and step 1 has fewer than 9
+/// 3. If `hu0` has 9 to 11 digits (and isn't NaN), the result of step 2 only replaces it if the
+///    two agree within 10 times its error estimate (step 2 can be far off, e.g. for small `x`).
+///
+/// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
@@ -888,9 +908,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
 
-    // Unlike in xsf, chgus and chgul need 12 digits (instead of 9) to be accepted. With 9 to 11
-    // digits, the result of the other method is only used if it agrees with theirs within 10 times
-    // their error estimate (it can be far off, e.g. for small x). Both thresholds are empirical.
+    // Unlike in xsf (scipy/xsf#380), chgus and chgul need 12 digits (instead of 9) to be returned
+    // at once (step 1); chgubi needs as many to be kept as is (step 2)
     const ID_MIN: i32 = 12;
 
     let mut id1: i32 = 0;
@@ -936,6 +955,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             hu = hu1;
         }
     }
+    // step 1's best
     let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
         // Unlike in xsf (scipy/xsf#380), chguit is used for b - 1 >= 1000, where chgubi gives up
@@ -990,7 +1010,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
     // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
 
-    // see `ID_MIN`
+    // step 3
     if id0 >= 9 && !hu0.is_nan() {
         let tol = 10f64.powi(1 - id0) * hu0.abs();
         let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
