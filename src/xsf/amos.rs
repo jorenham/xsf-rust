@@ -3251,7 +3251,9 @@ pub(crate) fn bknu(
                 fmu = smu * dnu;
                 csh = csinh(fmu);
                 cch = ccosh(fmu);
-                if dnu != 0.0 {
+                // Unlike in xsf, `fc` and `smu` keep their limits for `dnu -> 0` if `|dnu| <= tol`
+                // instead of only if `dnu = 0`, as `1 / sin(fc)` overflows for a subnormal `dnu`.
+                if dnu.abs() > tol {
                     fc = dnu * pi;
                     fc *= 1. / fc.sin();
                     smu = csh / dnu;
