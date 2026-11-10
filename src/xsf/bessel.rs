@@ -2,12 +2,12 @@
 
 use core::ops::{Add, Mul};
 
-use core::f64::consts::{FRAC_2_PI, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 
 use num_complex::{Complex, Complex64, c64};
 use num_traits::ToPrimitive;
 
-use crate::utils::{PISQ_6, SCIPY_EULER};
+use crate::utils::{MAXLOG, PISQ_6, SCIPY_EULER};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
@@ -134,7 +134,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@451aa7b)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@5c5e1b9)
 
 fn rotate(z: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
@@ -368,6 +368,10 @@ fn cyl_bessel_k_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
         v = -v;
     }
 
+    if cyl_bessel_k_overflows(v, z, kode == 2) {
+        return c64(f64::INFINITY, 0.0);
+    }
+
     let n = 1;
     let mut ierr = 0;
     let nz = amos::besk(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
@@ -378,6 +382,22 @@ fn cyl_bessel_k_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     }
 
     cy
+}
+
+/* AMOS rejects orders above INT_MAX / 2. For real z = x > 0, check if K_v(x)
+ * (times exp(x) if scaled) overflows, with the lower bound
+ * K_v(x) >= sqrt(pi / (2 v)) (2 v / (e x))^v exp(-x^2 / (4 (v - 1))),
+ * from Jensen's inequality on https://dlmf.nist.gov/10.32.E10 and
+ * https://dlmf.nist.gov/5.6.E1.
+ */
+fn cyl_bessel_k_overflows(v: f64, z: Complex64, scaled: bool) -> bool {
+    let x = z.re;
+    if v <= f64::from(i32::MAX) * 0.5 || z.im != 0.0 || !(x > 0.0) {
+        return false;
+    }
+    let logk =
+        v * ((v / x * 2.0).ln() - 1.0) - x / (v - 1.0) * x / 4.0 - (v / FRAC_PI_2).ln() / 2.0;
+    logk + if scaled { x } else { 0.0 } > MAXLOG
 }
 
 pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {

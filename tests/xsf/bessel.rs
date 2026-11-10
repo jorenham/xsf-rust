@@ -162,6 +162,19 @@ fn test_bessel_jy_negative_order_overflow() {
 }
 
 #[test]
+fn test_bessel_k_huge_order_overflow() {
+    // K_v(x) and e^x K_v(x) overflow (DLMF 10.41.2, 10.41.4); for the last, ln(e^x K_v(x)) = 3.5e8
+    let inf = f64::INFINITY;
+    let v30 = 2.0_f64.powi(30);
+    for (v, x) in [(v30, 1.0), (-1e12, 1.0), (1e300, 1e200)] {
+        assert_eq!(xsf::bessel_k(v, x), inf);
+        assert_eq!(xsf::bessel_ke(v, x), inf);
+        assert_eq!(xsf::bessel_k(v, c64(x, 0.0)), c64(inf, 0.0));
+    }
+    assert_eq!(xsf::bessel_ke(v30, 1.5 * v30), inf);
+}
+
+#[test]
 fn test_bessel_jyi_near_overflow() {
     // mpmath: bessely(v, x), besselj(v, x), and besseli(v, x) * exp(-x)
     let actual = [
