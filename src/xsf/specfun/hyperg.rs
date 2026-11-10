@@ -13,7 +13,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{SCIPY_EULER, SQRT_EPS, mul_exp};
+use crate::utils::{SCIPY_EULER, SQRT_EPS, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
 use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
@@ -373,7 +373,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: Complex64, hg: Complex64) -> Com
 /// overflow when `scale M` doesn't.
 fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
     const LOG2_SCALE: i32 = 512;
-    const SCALE: f64 = f64::from_bits((1023 + LOG2_SCALE as u64) << 52);
+    const SCALE: f64 = pow2(LOG2_SCALE);
     let (mut d, mut p) = (0.0, 1.0);
     // `M = p 2^-e`
     let mut e = 0_i32;

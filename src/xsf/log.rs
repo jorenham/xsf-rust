@@ -6,7 +6,7 @@ use core::f64::consts::LN_2;
 
 use num_complex::Complex;
 
-use crate::utils::MACHEP;
+use crate::utils::{MACHEP, pow2};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h
@@ -24,7 +24,7 @@ pub(crate) fn clog(z: Complex<f64>) -> Complex<f64> {
 
     let re = if m < f64::MIN_POSITIVE {
         // scale up subnormal inputs by 2^54
-        let s = f64::from_bits(0x4350_0000_0000_0000);
+        let s = const { pow2(54) };
         (x * s).hypot(y * s).ln() - 54.0 * LN_2
     } else if m > f64::MAX / 2.0 {
         // scale down to avoid overflow in hypot

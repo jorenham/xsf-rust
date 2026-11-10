@@ -3,6 +3,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use num_complex::{Complex, c64};
 
+use crate::utils::pow2;
 use crate::xsf::log::clog;
 use crate::xsf::trig::{ccos, csin};
 
@@ -20,8 +21,8 @@ pub(crate) const C64_NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
 /// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
 #[inline]
 pub(crate) fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
-    const TWO_M400: f64 = f64::from_bits((1023 - 400) << 52); // 2^-400
-    const TWO_600: f64 = f64::from_bits((1023 + 600) << 52); // 2^600
+    const TWO_M400: f64 = pow2(-400);
+    const TWO_600: f64 = pow2(600);
 
     if b.re.abs().max(b.im.abs()) < TWO_M400 {
         a *= TWO_600;
@@ -173,9 +174,9 @@ pub(crate) fn rdiv(x: f64, z: Complex<f64>) -> Complex<f64> {
 pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
     /* For avoiding overflow for components >= DBL_MAX / (1 + sqrt(2)). */
     const THRESH: f64 = 7.446_288_774_449_766e307; // 0x1.a827999fcef32p+1022
-    const TWO_M1020: f64 = f64::from_bits((1023 - 1020) << 52); // 0x1p-1020
-    const TWO_54: f64 = f64::from_bits((1023 + 54) << 52); // 0x1p54
-    const TWO_M27: f64 = f64::from_bits((1023 - 27) << 52); // 0x1p-27
+    const TWO_M1020: f64 = pow2(-1020);
+    const TWO_54: f64 = pow2(54);
+    const TWO_M27: f64 = pow2(-27);
 
     let mut a = z.re;
     let mut b = z.im;
@@ -298,7 +299,7 @@ pub(crate) fn atanh(x: f64) -> f64 {
      *      atanh(NaN) is that NaN with no signal;
      *      atanh(+-1) is +-INF with signal.
      */
-    const TWO_M28: f64 = f64::from_bits((1023 - 28) << 52); // 2^-28
+    const TWO_M28: f64 = pow2(-28);
 
     let xa = x.abs();
     if xa > 1.0 || xa.is_nan() {
@@ -448,7 +449,7 @@ fn catanh(z: Complex<f64>) -> Complex<f64> {
  */
 #[inline]
 fn sum_squares(x: f64, y: f64) -> f64 {
-    const SQRT_MIN: f64 = f64::from_bits((1023 - 511) << 52); /* 0x1p-511 >= sqrt(DBL_MIN) */
+    const SQRT_MIN: f64 = pow2(-511); /* >= sqrt(DBL_MIN) */
 
     /* Avoid underflow when y is small. */
     if y < SQRT_MIN {
