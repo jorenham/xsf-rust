@@ -6,6 +6,7 @@ use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
 use crate::utils::PISQ_6;
+use crate::xsf::complex::C64_NAN;
 use crate::xsf::zlog1;
 
 // Relative tolerance for the series
@@ -31,7 +32,7 @@ fn cspence(z: Complex64) -> Complex64 {
 
     if z.re.is_nan() || z.im.is_nan() {
         // like in xsf, instead of iterating 500 times
-        c64(f64::NAN, f64::NAN)
+        C64_NAN
     } else if z.norm() < 0.5 {
         // This step isn't necessary, but this series converges faster.
         cspence_series0(z)

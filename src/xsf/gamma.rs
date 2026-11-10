@@ -1,5 +1,6 @@
 use num_complex::Complex;
 
+use crate::xsf::complex::C64_NAN;
 use crate::xsf::exp::cexp;
 
 pub trait GammaArg: crate::sealed::Sealed {
@@ -25,7 +26,7 @@ fn cgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute Gamma(z) using loggamma.
     if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
         // Poles
-        return Complex::new(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     cexp(crate::loggamma(z))
 }

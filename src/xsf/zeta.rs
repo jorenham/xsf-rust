@@ -14,11 +14,9 @@ use std::f64::consts::{LN_2, PI, TAU};
 use num_complex::Complex;
 
 use crate::utils::{LN_PI, LN_TAU};
-use crate::xsf::complex::{cdiv, rdiv, rsub};
+use crate::xsf::complex::{C64_NAN, cdiv, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-
-const NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
 
 /// `std::pow(x, z)` for real `x > 0` and complex `z`, as in libstdc++
 fn rpow(x: f64, z: Complex<f64>) -> Complex<f64> {
@@ -129,12 +127,12 @@ fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
 fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     if z == Complex::ONE {
         /* Return NaN at pole since value depends on how z approaches 1.0. */
-        return NAN;
+        return C64_NAN;
     }
     let n = (z.im.abs() / 4.0).max(50.0);
     if n >= usize::MAX as f64 {
         // Unlike in xsf, return NaN if the number of terms doesn't fit in a `size_t`.
-        return NAN;
+        return C64_NAN;
     }
     let n = n as usize;
     let m = n;
@@ -181,7 +179,7 @@ fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     if error > 1e-1 {
         /* If error estimate predicts we don't even get 1 digit of precision, return NaN
          * and signal no result */
-        return NAN;
+        return C64_NAN;
     }
     result
 }
@@ -282,7 +280,7 @@ fn zeta_borwein(z: Complex<f64>) -> Complex<f64> {
 /// Compute riemann zeta for complex z and real part >= 0
 fn zeta_right_halfplane(z: Complex<f64>) -> Complex<f64> {
     if z == Complex::ONE {
-        return NAN;
+        return C64_NAN;
     }
     /* Cutoff for using Euler-MacLaurin chosen based on cursory empirical search.
      * TODO: Choose cutoffs in a more principled way. */
@@ -290,7 +288,7 @@ fn zeta_right_halfplane(z: Complex<f64>) -> Complex<f64> {
         if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > 1e9 {
             /* Euler-MacLaurin summation starts to take an unreasonable amount of time in this
              * region, so just give up and return NaN instead. */
-            return NAN;
+            return C64_NAN;
         }
         return zeta_euler_maclaurin(z);
     }
@@ -423,7 +421,7 @@ impl ZetaArg for num_complex::Complex<f64> {
             num_complex::Complex::new(self.re.zeta(q), 0.0)
         } else {
             // Complex input for Hurwitz Zeta is not currently supported.
-            num_complex::Complex::new(f64::NAN, f64::NAN)
+            C64_NAN
         }
     }
 }

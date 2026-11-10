@@ -9,6 +9,7 @@ use num_traits::ToPrimitive;
 
 use crate::utils::{MAXLOG, PISQ_6, SCIPY_EULER};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+use crate::xsf::complex::C64_NAN;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
 use crate::xsf::specfun::SPECFUN_INF;
@@ -162,7 +163,7 @@ type AmosBessel = fn(Complex64, f64, i32, i32, &mut [Complex64], &mut i32) -> i3
 fn amos1(bes: AmosBessel, z: Complex64, v: f64, kode: i32) -> (Complex64, i32) {
     let n = 1;
     let mut ierr = 0;
-    let mut cy = c64(f64::NAN, f64::NAN);
+    let mut cy = C64_NAN;
     let nz = bes(z, v, kode, n, core::slice::from_mut(&mut cy), &mut ierr);
     set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cy);
     (cy, ierr)
@@ -178,7 +179,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: Complex64) -> Complex64 {
     let mut sign = 1;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return c64(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
@@ -295,7 +296,7 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex64) -> Complex64 {
     let mut sign = 1.0;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return c64(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
@@ -334,7 +335,7 @@ pub(crate) fn cyl_bessel_k_c64(v: f64, z: Complex64) -> Complex64 {
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_k_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return c64(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
 
     if v < 0.0 {
@@ -428,7 +429,7 @@ fn cyl_hankel_c64(mut v: f64, z: Complex64, kode: i32, m: i32) -> Complex64 {
     let n = 1;
     let mut ierr = 0;
     let mut sign = 1;
-    let mut cy = c64(f64::NAN, f64::NAN);
+    let mut cy = C64_NAN;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         return cy;
@@ -460,7 +461,7 @@ fn cyl_bessel_j_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     let mut sign = 1;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return c64(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if v < 0.0 {
         v = -v;
@@ -510,7 +511,7 @@ pub(crate) fn cyl_bessel_y_c64(v: f64, z: Complex64) -> Complex64 {
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_y_kode(mut v: f64, z: Complex64, kode: i32) -> Complex64 {
     let mut sign = 1;
-    let mut cy_y = c64(f64::NAN, f64::NAN);
+    let mut cy_y = C64_NAN;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
         return cy_y;

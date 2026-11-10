@@ -136,7 +136,7 @@ use num_complex::{Complex, c64};
 
 use crate::utils::SQRT1OPI;
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::complex::{cmul, rsub};
+use crate::xsf::complex::{C64_NAN, cmul, rsub};
 use crate::xsf::exp::cexp;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
@@ -586,7 +586,7 @@ pub(crate) fn w(z: Complex<f64>) -> Complex<f64> {
                     ret = c64(denom * yax, denom);
                 } else if ya.is_infinite() {
                     return if x.is_nan() || y < 0.0 {
-                        c64(f64::NAN, f64::NAN)
+                        C64_NAN
                     } else {
                         c64(0.0, 0.0)
                     };

@@ -34,7 +34,7 @@
 //! underflow of the naive formula for tiny `z` with `k != 0`.
 
 use crate::xsf::cephes::polevl::ratevl;
-use crate::xsf::complex::cdiv;
+use crate::xsf::complex::{C64_NAN, cdiv};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::log::clog;
 
@@ -886,5 +886,5 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
         }
     }
 
-    Complex::new(f64::NAN, f64::NAN)
+    C64_NAN
 }

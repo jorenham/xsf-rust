@@ -21,7 +21,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{LN_PI, LN_SQRT_2PI};
-use crate::xsf::complex::{cdiv, rdiv};
+use crate::xsf::complex::{C64_NAN, cdiv, rdiv};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -143,10 +143,10 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
     // Compute the principal branch of log-Gamma
 
     if z.re.is_nan() || z.im.is_nan() {
-        return Complex::new(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
-        return Complex::new(f64::NAN, f64::NAN);
+        return C64_NAN;
     }
     if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
         return loggamma_stirling(z);

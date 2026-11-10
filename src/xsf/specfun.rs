@@ -59,6 +59,8 @@ pub(crate) fn try_zeroed(n: usize) -> Option<Vec<f64>> {
 
 use num_complex::Complex;
 
+use crate::xsf::complex::C64_NAN;
+
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
 }
@@ -77,7 +79,7 @@ impl Hyp1F1Arg for Complex<f64> {
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
         if a.is_nan() || b.is_nan() || self.re.is_nan() || self.im.is_nan() {
-            return Complex::new(f64::NAN, f64::NAN);
+            return C64_NAN;
         }
         let mut outz = hyp1f1_small_b(a, b, self, cchg(a, b, self));
         if outz.re == SPECFUN_INF {

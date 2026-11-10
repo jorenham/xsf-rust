@@ -7,6 +7,7 @@
 
 use crate::numpy::nextafter;
 use crate::xsf::cephes::dd_real::two_sum;
+use crate::xsf::complex::C64_NAN;
 use crate::xsf::log::clog;
 use num_complex::{Complex64, c64};
 use num_traits::Zero;
@@ -59,7 +60,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     // Test for floating point exceptions
     if x.is_nan() || y.is_nan() {
         // NaN output for NaN inpu
-        return c64(f64::NAN, f64::NAN);
+        return C64_NAN;
     } else if x.is_infinite() && x.is_sign_negative() && (-pi < y) && (y <= pi) {
         // Signed zeros between branches
         return if y.abs() <= pi / 2.0 {

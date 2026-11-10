@@ -86,7 +86,7 @@ impl Num for f64 {
 impl Num for Complex64 {
     /* Complexified specialisation, with the complex NaN and infinity as
      * return values. */
-    const NAN: Self = Complex64::new(f64::NAN, f64::NAN);
+    const NAN: Self = complex::C64_NAN;
     const HUGE: Self = Complex64::new(f64::INFINITY, 0.0);
 
     #[inline]
