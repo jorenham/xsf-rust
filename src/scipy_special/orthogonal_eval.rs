@@ -927,6 +927,13 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
         // For x > 0 these terms cancel (H_n(x) ~ (2x)^n, while both terms grow like e^(x^2)),
         // which is why `hypu` is used there.
         let z = scale * x * x;
+        if z.is_infinite() && n.abs() <= x.abs() {
+            // Both terms are infinite where x^2 overflows, so use the sign of their sum for
+            // x -> -inf, which requires |n| << x^2 (DLMF 13.7.1):
+            //
+            // H_n(x) ~ sqrt(pi) e^(x^2) |x|^(-n-1) / Gamma(-n)
+            return crate::gammasgn(-n) * f64::INFINITY;
+        }
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
         SQRT_PI * (scale * n).exp2() * (m0 - 2.0 * scale.sqrt() * x * m1)
