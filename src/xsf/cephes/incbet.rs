@@ -262,106 +262,37 @@ fn incbet_term(x: f64, k1: f64, k2: f64, k3: f64, k4: f64) -> f64 {
 
 /// Continued fraction expansion #1 for incomplete beta integral
 fn incbcf(a: f64, b: f64, x: f64) -> f64 {
-    let mut xk;
-    let mut pk;
-    let mut qk;
-    let mut t;
-
-    let mut k1 = a;
-    let mut k2 = a + b;
-    let mut k3 = a;
-    let mut k4 = a + 1.0;
-    let mut k5 = 1.0;
-    let mut k6 = b - 1.0;
-    let mut k7 = k4;
-    let mut k8 = a + 2.0;
-
-    let mut pkm2 = 0.0;
-    let mut qkm2 = 1.0;
-    let mut pkm1 = 1.0;
-    let mut qkm1 = 1.0;
-    let mut ans = 1.0;
-    let mut r = 1.0;
-    let mut n = 0;
-    let nmax = incbet_maxiter(a, b, x);
-    let thresh = 3.0 * MACHEP;
-    loop {
-        xk = -incbet_term(x, k1, k2, k3, k4);
-        pk = pkm1 + pkm2 * xk;
-        qk = qkm1 + qkm2 * xk;
-        pkm2 = pkm1;
-        pkm1 = pk;
-        qkm2 = qkm1;
-        qkm1 = qk;
-
-        xk = incbet_term(x, k5, k6, k7, k8);
-        pk = pkm1 + pkm2 * xk;
-        qk = qkm1 + qkm2 * xk;
-        pkm2 = pkm1;
-        pkm1 = pk;
-        qkm2 = qkm1;
-        qkm1 = qk;
-
-        if qk != 0.0 {
-            r = pk / qk;
-        }
-        if r != 0.0 {
-            t = ((ans - r) / r).abs();
-            ans = r;
-        } else {
-            t = 1.0;
-        }
-        // also stop at NaN (see `incbet_maxiter`)
-        if t < thresh || r.is_nan() {
-            break;
-        }
-
-        k1 += 1.0;
-        k2 += 1.0;
-        k3 += 2.0;
-        k4 += 2.0;
-        k5 += 1.0;
-        k6 -= 1.0;
-        k7 += 2.0;
-        k8 += 2.0;
-
-        if (qk.abs() + pk.abs()) > INCBET_BIG {
-            pkm2 *= INCBET_BIGINV;
-            pkm1 *= INCBET_BIGINV;
-            qkm2 *= INCBET_BIGINV;
-            qkm1 *= INCBET_BIGINV;
-        }
-        if (qk.abs() < INCBET_BIGINV) || (pk.abs() < INCBET_BIGINV) {
-            pkm2 *= INCBET_BIG;
-            pkm1 *= INCBET_BIG;
-            qkm2 *= INCBET_BIG;
-            qkm1 *= INCBET_BIG;
-        }
-
-        n += 1;
-        if f64::from(n) >= nmax {
-            break;
-        }
-    }
-
-    ans
+    incbet_cf(a, x, a + b, b - 1.0, 1.0, incbet_maxiter(a, b, x))
 }
 
 /// Continued fraction expansion #2 for incomplete beta integral
 ///
 /// `xc = 1 - x` is passed as well, since `x` can be rounded (see `incbet_xy`).
 fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
+    incbet_cf(a, x / xc, b - 1.0, a + b, -1.0, incbet_maxiter(a, b, x))
+}
+
+/// The continued fraction of `incbcf` and `incbd`, with iteration limit `nmax`
+///
+/// Unlike in xsf, `incbcf` and `incbd` share this loop (xsf duplicates it). They only differ in
+/// their argument `z`, and in `k2` and `k6`, which are swapped and step by `step` in opposite
+/// directions:
+///
+/// ```text
+///           z        k2       k6       step
+/// incbcf    x        a + b    b - 1     1
+/// incbd     x / xc   b - 1    a + b    -1
+/// ```
+fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> f64 {
     let mut xk;
     let mut pk;
     let mut qk;
     let mut t;
 
     let mut k1 = a;
-    let mut k2 = b - 1.0;
     let mut k3 = a;
     let mut k4 = a + 1.0;
     let mut k5 = 1.0;
-    let mut k6 = a + b;
     let mut k7 = a + 1.0;
     let mut k8 = a + 2.0;
 
@@ -369,11 +300,9 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
     let mut qkm2 = 1.0;
     let mut pkm1 = 1.0;
     let mut qkm1 = 1.0;
-    let z = x / xc;
     let mut ans = 1.0;
     let mut r = 1.0;
     let mut n = 0;
-    let nmax = incbet_maxiter(a, b, x);
     let thresh = 3.0 * MACHEP;
     loop {
         xk = -incbet_term(z, k1, k2, k3, k4);
@@ -407,11 +336,11 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
         }
 
         k1 += 1.0;
-        k2 -= 1.0;
+        k2 += step;
         k3 += 2.0;
         k4 += 2.0;
         k5 += 1.0;
-        k6 += 1.0;
+        k6 -= step;
         k7 += 2.0;
         k8 += 2.0;
 
