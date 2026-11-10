@@ -936,14 +936,15 @@ fn near_int(v: f64) -> bool {
     v.round() >= 0.0 && (v - v.round()).abs() <= 1e-3
 }
 
-/// `D_v(x)`, `D_v'(x)` by uniform asymptotic expansions, or `None` outside their regime
+/// `D_v(x)`, `D_v'(x)` by the methods for large `|v|` or by reflection (see the map in `pbdv`), or
+/// `None` where neither applies
 fn pbdv_uniform(v: f64, x: f64) -> Option<(f64, f64)> {
     if !(v.abs() < INT_OVERFLOW && x.is_finite()) {
         return None;
     }
     if v <= -20.0 {
-        // Unlike in xsf, also for -10 <= x < -5.8 (with v < -30, see `pbdv`), where `dvla` is
-        // inaccurate, and for all x if v <= -LARGE_V, where D_v(x) underflows for x >= -50.
+        // Unlike in xsf, also for -10 <= x < -5.8, where `dvla` is inaccurate, and for all x if
+        // v <= -LARGE_V, where D_v(x) underflows for x >= -50.
         return (x >= 0.0 || x < -50.0 || (-10.0..-5.8).contains(&x) || v <= -LARGE_V).then(|| {
             let ([d, dp], l) = pbdv_elementary(v, x);
             (mul_exp(d, l), mul_exp(dp, l))
@@ -1101,9 +1102,27 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
+    // The methods by (v, x): the first match wins, and xsf always uses the last one. "Near an
+    // integer" is `near_int`.
+    //
+    //   -10 <= x < -5.8 and 0 < v < 2, not near an integer    `dvsa` at v and v + 1
+    //   -10 <= x < -5.8 and -30 <= v < -1e-15                 `dvsa` at v and v - 1
+    //   in `pbdv_uniform`, for finite x and |v| < 2^31:
+    //     v <= -20 and (x >= 0, x < -50, -10 <= x < -5.8      `pbdv_elementary`
+    //       or v <= -LARGE_V)
+    //     v >= 300 and |x| sqrt(v + 1/2) < 1                  `pbdv_maclaurin`
+    //     x >= 0 and (v >= 300, or v >= 20 and x >= 53)       `pbdv_airy`
+    //     x < 0 and (v >= 300, or x < -4 and (v >= 2 or       `pbdv_reflect`
+    //       near an integer))
+    //   |v| < 20 and (1 < x < 12 or 36.5 <= x < 60; for       `pbdv_elementary` at an order near
+    //     v >= 0: 4.5 < x < 12 or 53 <= x < 60)               -20, then `pbdv_up`
+    //   |v| < 20 and finite x < -50                           `pbdv_large_neg_x`
+    //   v < 300 near an integer n != v, and |x| <= 5.8        `dvsa` at orders near 0 and -1,
+    //                                                         then `pbdv_up`
+    //   otherwise                                             `pbdv_impl`, or NaN (see `alloc_buf`)
     if (-10.0..-5.8).contains(&x) {
         // Unlike in xsf (scipy/xsf#374), D_v(x) and D_{v+1}(x) are computed directly with the
-        // series `dvsa` for 0 < v < 2 (else see `pbdv_uniform`).
+        // series `dvsa`, since `dvla` loses accuracy here.
         if v > 0.0 && v < 2.0 && !near_int(v) {
             let pdf = dvsa(x, v);
             return (pdf, 0.5 * x * pdf - dvsa(x, v + 1.0));
@@ -1116,7 +1135,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
             return (pdf, v * dvsa(x, v - 1.0) - 0.5 * x * pdf);
         }
     }
-    // Unlike in xsf (scipy/xsf#382), uniform asymptotic expansions are used for large |v|.
+    // Unlike in xsf (scipy/xsf#382), large |v|, and x < -4 for some v, have their own methods.
     if let Some(r) = pbdv_uniform(v, x) {
         return r;
     }
@@ -1133,10 +1152,9 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
             let (d, dp) = pbdv_up(w, x, n, d, 0.5 * x * d - dp);
             return (mul_exp(d, l), mul_exp(dp, l));
         }
-        // Unlike in xsf, for x < -50 (if not done by `pbdv_uniform`), since `dvla` overflows
-        // prematurely, and `pbdv_impl` returns D_0(x) for tiny |v| (where v +- 1 rounds to an
-        // integer).
-        if (f64::MIN..-50.0).contains(&x) {
+        // Unlike in xsf, for x < -50, since `dvla` overflows prematurely, and `pbdv_impl` returns
+        // D_0(x) for tiny |v| (where v +- 1 rounds to an integer).
+        if x < -50.0 && x.is_finite() {
             return pbdv_large_neg_x(v, -x);
         }
     }
