@@ -6,7 +6,6 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::xsf::cephes::igam::{igam, igamc};
-use crate::xsf::cephes::igami::igamci;
 
 /// Gamma distribution function
 ///
@@ -84,13 +83,4 @@ pub(crate) fn gdtrc(a: f64, b: f64, x: f64) -> f64 {
         return f64::NAN;
     }
     igamc(b, a * x)
-}
-
-#[allow(dead_code)] // unused, also in xsf
-fn gdtri(a: f64, b: f64, y: f64) -> f64 {
-    if (y < 0.0) || (y > 1.0) || (a <= 0.0) || (b < 0.0) {
-        return f64::NAN;
-    }
-
-    igamci(b, 1.0 - y) / a
 }
