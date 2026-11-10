@@ -14,9 +14,15 @@ use crate::xsf::specfun;
 use crate::xsf::specfun::SPECFUN_INF;
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
-// the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`
+// the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`, and
+// `Into` for the Hankel functions, which are complex for real arguments too
 pub trait BesselArg:
-    crate::sealed::Sealed + Copy + From<f64> + Add<Output = Self> + Mul<Output = Self>
+    crate::sealed::Sealed
+    + Copy
+    + From<f64>
+    + Into<Complex<f64>>
+    + Add<Output = Self>
+    + Mul<Output = Self>
 {
     fn bessel_j(self, v: f64) -> Self;
     fn bessel_je(self, v: f64) -> Self;
@@ -26,10 +32,6 @@ pub trait BesselArg:
     fn bessel_ie(self, v: f64) -> Self;
     fn bessel_k(self, v: f64) -> Self;
     fn bessel_ke(self, v: f64) -> Self;
-    fn hankel_1(self, v: f64) -> Complex<f64>;
-    fn hankel_1e(self, v: f64) -> Complex<f64>;
-    fn hankel_2(self, v: f64) -> Complex<f64>;
-    fn hankel_2e(self, v: f64) -> Complex<f64>;
 }
 
 impl BesselArg for f64 {
@@ -65,22 +67,6 @@ impl BesselArg for f64 {
     fn bessel_ke(self, v: f64) -> Self {
         cyl_bessel_ke_f64(v, self)
     }
-    #[inline]
-    fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 1, 1)
-    }
-    #[inline]
-    fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 2, 1)
-    }
-    #[inline]
-    fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 1, 2)
-    }
-    #[inline]
-    fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self.into(), 2, 2)
-    }
 }
 
 impl BesselArg for Complex<f64> {
@@ -115,22 +101,6 @@ impl BesselArg for Complex<f64> {
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
         cyl_bessel_ke_c64(v, self)
-    }
-    #[inline]
-    fn hankel_1(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 1, 1)
-    }
-    #[inline]
-    fn hankel_1e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 2, 1)
-    }
-    #[inline]
-    fn hankel_2(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 1, 2)
-    }
-    #[inline]
-    fn hankel_2e(self, v: f64) -> Complex<f64> {
-        cyl_hankel_c64(v, self, 2, 2)
     }
 }
 
@@ -993,7 +963,7 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
 #[must_use]
 #[inline]
 pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_1(v)
+    cyl_hankel_c64(v, z.into(), 1, 1)
 }
 
 /// Exponentially scaled Hankel function of the first kind, $e^{-iz} H_v^{(1)}(z)$
@@ -1008,7 +978,7 @@ pub fn hankel_1<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_1e(v)
+    cyl_hankel_c64(v, z.into(), 2, 1)
 }
 
 // Hankel 2
@@ -1027,7 +997,7 @@ pub fn hankel_1e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_2(v)
+    cyl_hankel_c64(v, z.into(), 1, 2)
 }
 
 /// Exponentially scaled Hankel function of the second kind, $e^{iz} H_v^{(2)}(z)$
@@ -1042,7 +1012,7 @@ pub fn hankel_2<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
-    z.hankel_2e(v)
+    cyl_hankel_c64(v, z.into(), 2, 2)
 }
 
 // Integrals
