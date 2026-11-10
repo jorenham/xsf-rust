@@ -130,5 +130,5 @@ pub fn sph_harm_y_all(n: usize, m: usize, theta: f64, phi: f64) -> Vec<Vec<Compl
     let (nr, nc) = (n + 1, 2 * m + 1);
     let mut out = vec![f64::NAN.into(); nr * nc];
     sph_harm_y_all_t(theta, phi, Mdspan::new(&mut out, [nr, nc]));
-    crate::utils::vec_to_vecvec(&out, nr, nc, false)
+    crate::utils::vec_to_vecvec(&out, nc)
 }
