@@ -1,5 +1,5 @@
 //! Translated into pure Rust from `xsf/cephes/igam.h` and `xsf/cephes/igam_asymp_coeff.h`
-//! (scipy/xsf@527cef1).
+//! (scipy/xsf@3682d38).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1985, 1987 by Stephen L. Moshier
@@ -98,8 +98,7 @@ pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
             return (a * x.ln() - x).exp() * rgamma(a);
         }
         let ax = a * x.ln() - x - lgam(a);
-        // Unlike in xsf (scipy/xsf#462), also 0 for a >= MAX / MAXLOG (where ax < -a / 16), as
-        // `a * x.ln()` or `lgam(a)` can overflow there.
+        // ax < log(sqrt(a)) - a / 16 here (DLMF 5.6.1), but a * log(x) can overflow for huge a
         if ax < -MAXLOG || a >= f64::MAX / MAXLOG {
             return 0.0;
         }
