@@ -40,7 +40,7 @@ fn stirling2_dp(n: f64, k: f64) -> f64 {
 
     let ni = n as i32;
     let ki = k as i32;
-    let array_size = if ki <= ni - ki + 1 { ki } else { ni - ki + 1 } as usize;
+    let array_size = ki.min(ni - ki + 1) as usize;
 
     if array_size > MAX_ARRAY_SIZE {
         return f64::NAN;
