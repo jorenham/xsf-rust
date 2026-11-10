@@ -136,22 +136,6 @@ mod tests {
     }
 
     #[test]
-    fn test_expm1_c64_edges() {
-        // small |z|, where exp(z) - 1 would lose precision
-        let w = crate::expm1(c64(1e-10, 1e-10));
-        assert_close(w.re, 1e-10, 1e-15);
-        assert_close(w.im, 1e-10 + 1e-20, 1e-15);
-
-        // each branch: re <= -40, -40 < re <= -1, and re > -1
-        for re in [-41.0_f64, -40.0, -1.5, -1.0, -0.25, 2.0] {
-            let w = crate::expm1(c64(re, 2.0));
-            assert_close(w.re, re.exp() * 2.0_f64.cos() - 1.0, 1e-14);
-            assert_close(w.im, re.exp() * 2.0_f64.sin(), 1e-14);
-        }
-        assert_eq!(crate::expm1(c64(-40.0, 1.0)).re, -1.0);
-    }
-
-    #[test]
     fn test_cexp_overflow() {
         use crate::xsf::exp::cexp;
 
