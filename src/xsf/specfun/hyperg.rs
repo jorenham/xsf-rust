@@ -1278,9 +1278,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     *id = -100;
     let aa = a - b + 1.0;
     // Unlike in xsf (scipy/xsf#380), a (or aa) = -2^31 is excluded
-    let is_nonpos_int = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
-    let il1 = is_nonpos_int(a);
-    let il2 = is_nonpos_int(aa);
+    let is_nonpos_i32 = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
+    let il1 = is_nonpos_i32(a);
+    let il2 = is_nonpos_i32(aa);
     let mut nm = 0;
     if il1 {
         nm = -a as i32;

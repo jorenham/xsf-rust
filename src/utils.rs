@@ -103,6 +103,12 @@ pub(crate) fn cmul_exp(w: Complex<f64>, x: f64) -> Complex<f64> {
     }
 }
 
+/// Whether `x` is zero or a negative integer, i.e. a pole of the Gamma function, as
+/// `x <= 0 && x == std::floor(x)` in xsf (also true for `-inf`)
+pub(crate) fn is_nonpos_int(x: f64) -> bool {
+    x <= 0.0 && x == x.floor()
+}
+
 #[inline]
 pub(crate) fn vec_to_vecvec<T: Clone>(
     vec: &[T],

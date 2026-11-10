@@ -20,7 +20,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{LN_PI, LN_SQRT_2PI};
+use crate::utils::{LN_PI, LN_SQRT_2PI, is_nonpos_int};
 use crate::xsf::complex::{C64_NAN, cdiv, rdiv};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
@@ -145,7 +145,7 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
     if z.re.is_nan() || z.im.is_nan() {
         return C64_NAN;
     }
-    if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
+    if z.im == 0.0 && is_nonpos_int(z.re) {
         return C64_NAN;
     }
     if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
@@ -175,7 +175,7 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
 /// `xsf::rgamma` for complex `z`
 fn crgamma(z: Complex<f64>) -> Complex<f64> {
     // Compute 1/Gamma(z) using loggamma.
-    if z.re <= 0.0 && z.im == 0.0 && z.re == z.re.floor() {
+    if z.im == 0.0 && is_nonpos_int(z.re) {
         // Zeros at 0, -1, -2, ...
         return Complex::new(0.0, 0.0);
     }
