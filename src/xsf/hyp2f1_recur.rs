@@ -16,6 +16,8 @@
 //!
 //!    For `k > -p`, its terms have one sign while `C + k` and `C - q + k` do, e.g. for all `k` if
 //!    `C > max(0, q)`. So it cancels little if `p >= 0` or `|p|` is small. We sum it at `C = c`.
+//!    The twin combinations `(p, q)` and `(c - q, c - p)` share this series, as `F` is symmetric
+//!    in its first two parameters, so the twin reuses its sum (if it succeeded).
 //!
 //!    But if `p = -n` is a negative integer (with `n <= HYP2F1_RECUR_MAXITER`), its terms can
 //!    alternate in sign and cancel, e.g. for `F(-522, -123.5; 533.5; -0.9)`. So we first recur up
@@ -444,15 +446,30 @@ fn series_too_long(p: Dd, r: Dd, c: Dd, w: Dd) -> bool {
     (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER
 }
 
-/// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`
-fn hyp2f1_recur_form(p: Dd, q: Dd, c: Dd, z: f64, w: Dd) -> Option<Scaled> {
+/// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`. `shared` holds
+/// the step-2 sum and the budget left after it, for the twin `(c - q, c - p)`.
+fn hyp2f1_recur_form(
+    p: Dd,
+    q: Dd,
+    c: Dd,
+    z: f64,
+    w: Dd,
+    shared: &mut Option<(Scaled, f64)>,
+) -> Option<Scaled> {
     let r = -q + c.hi + c.lo;
     if series_too_long(p, r, c, w) {
         return None;
     }
-    // the number of series terms plus recurrence steps left
-    let mut budget = HYP2F1_RECUR_MAXITER;
-    let direct = series_w(p, r, c, w, &mut budget);
+    // the step-2 sum, and the number of series terms plus recurrence steps left
+    let (direct, mut budget) = if let Some((y, budget)) = *shared {
+        (Some(y), budget)
+    } else {
+        let mut budget = HYP2F1_RECUR_MAXITER;
+        (series_w(p, r, c, w, &mut budget), budget)
+    };
+    // (if it failed, the twin sums it again: e.g. for subnormal `p`, `p / (k + 1)` underflows,
+    // but `p / (c + k)` may not)
+    *shared = direct.map(|y| (y, budget));
     let n = recur_start(q, c);
     // Give up if too little is left for the n steps and the series at c + n and c + n + 1, each
     // estimated at n terms fewer than this one (without its first -c terms).
@@ -476,13 +493,18 @@ fn neg_z_combinations(a: Dd, b: Dd, c: Dd) -> Combinations {
     [(a, b, -a), (b, a, -b), (ca, cb, -b), (cb, ca, -a)]
 }
 
-/// `best_of` the forms of `combs` (steps 1 to 3); `ln_1mx` is `ln(1 - x)`
-fn best_combination(mut combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Option<Scaled> {
+/// `best_of` the forms of `combs` (steps 1 to 3); `ln_1mx` is `ln(1 - x)`. `combs[i]` and
+/// `combs[3 - i]` must be twins, `(p, q)` and `(c - q, c - p)`.
+fn best_combination(combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Option<Scaled> {
     // First try those with p >= 0 and small |p|, whose series cancel less and are shorter.
-    let key = |(p, ..): &(Dd, Dd, Dd)| (p.hi < 0.0, p.hi.abs());
-    combs.sort_by(|u, v| key(u).partial_cmp(&key(v)).unwrap_or(Ordering::Equal));
-    best_of(combs.into_iter().map(|(p, q, s)| {
-        let y = hyp2f1_recur_form(p, q, c, z, w)?;
+    let key = |i: usize| (combs[i].0.hi < 0.0, combs[i].0.hi.abs());
+    let mut order = [0, 1, 2, 3];
+    order.sort_by(|&i, &j| key(i).partial_cmp(&key(j)).unwrap_or(Ordering::Equal));
+    // the step-2 sums of the twins
+    let mut shared = [None; 2];
+    best_of(order.into_iter().map(|i| {
+        let (p, q, s) = combs[i];
+        let y = hyp2f1_recur_form(p, q, c, z, w, &mut shared[i.min(3 - i)])?;
         Some(y.with_l(s * ln_1mx))
     }))
 }
