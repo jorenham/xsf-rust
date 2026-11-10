@@ -263,6 +263,9 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
 /// `a + m` in `[1, 2)`; NaN if a (heuristic) check finds that the recurrence is ill-conditioned
+///
+/// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
+/// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1).
 fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
