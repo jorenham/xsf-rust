@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/par_cyl.h` (scipy/xsf@d184ccb).
+//! Translated into pure Rust from `xsf/cpu/par_cyl.h` (scipy/xsf@67fce76).
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
@@ -18,7 +18,7 @@ use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
 use crate::xsf::tools::INT_OVERFLOW;
-use crate::{airy, airy_scaled, cospi, log1pmx, loggamma, rgamma, sinpi};
+use crate::{airy, airy_scaled, cospi, log1pmx, rgamma, sinpi};
 
 fn dvsa(x: f64, va: f64) -> f64 {
     // ===================================================
@@ -488,7 +488,6 @@ fn pbwa_impl(a: f64, x: f64) -> [f64; 4] {
     let g1;
     let g2;
     if a == 0.0 {
-        // Unlike in xsf (scipy/xsf#450), `Gamma(1/4)` and `Gamma(3/4)` to full precision
         g1 = 3.625_609_908_221_908_3;
         g2 = 1.225_416_702_465_177_6;
     } else {
@@ -572,11 +571,8 @@ fn pbwa_impl(a: f64, x: f64) -> [f64; 4] {
     ]
 }
 
-/// `W(a, x)` and `W'(a, x)` for `|a| <= 5` and `-5 <= x <= 10`, by 12.14.17 and 12.14.23 at
-/// `x = 10`, and then Taylor steps of `w'' = (a - x^2 / 4) w` (12.2.3) down to `x`
-///
-/// Unlike the Maclaurin series of `pbwa_impl`, this does not cancel where `W(a, x)` is
-/// exponentially small, e.g. `W(5, 4)`, since it grows in the direction of integration.
+/// `W(a, x)` and `W'(a, x)` from DLMF 12.14.17 and 12.14.23 at `x = 10`, followed by Taylor steps
+/// of `w'' = (a - x^2 / 4) w` (DLMF 12.2.3) down to `x`, a direction in which `W` does not decay
 fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     const X: f64 = 10.0;
 
@@ -597,8 +593,8 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     }
     // 12.14.17 as `Re(u)` with `u = sqrt(2 k / x) s e^(i omega)` (12.14.5, 12.14.19)
     let e = (PI * a).exp();
-    let k = 1.0 / (e.hypot(1.0) + e);
-    let omega = X * X / 4.0 - a * X.ln() + PI / 4.0 + loggamma(z).im / 2.0;
+    let k = 1.0 / ((1.0 + e * e).sqrt() + e);
+    let omega = X * X / 4.0 - a * X.ln() + PI / 4.0 + cgama(z, 0).im / 2.0;
     let f = Complex64::from_polar((2.0 * k / X).sqrt(), omega);
     let u = s * f;
     let du = u * c64(-0.5 / X, X / 2.0 - a / X) + ds * f;
@@ -1066,7 +1062,6 @@ pub fn pbwa(a: f64, mut x: f64) -> (f64, f64) {
          */
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf (scipy/xsf#450), `pbwa_ode` is used for `|x| > 1/2`.
     if x.abs() > 0.5 {
         return pbwa_ode(a, x);
     }
