@@ -4,8 +4,15 @@ xsref::tests! {
 
 #[test]
 fn test_pbwa_large_x() {
-    // |x| > 1/2, e.g. exponentially small W(a, x) for a > 0, x > 0 (reference values from mpmath)
+    // |x| > 1/2, e.g. exponentially small W(a, x) for a > 0, x > 0, and a = 0 (reference values
+    // from mpmath)
     for (a, x, w, wp) in [
+        (
+            5.0,
+            4.5,
+            2.541_807_960_527_841_4e-4,
+            -2.554_687_616_971_141e-4,
+        ),
         (
             5.0,
             4.0,
@@ -31,6 +38,12 @@ fn test_pbwa_large_x() {
             -1.701_506_079_333_943e-2,
         ),
         (0.0, -5.0, 0.659_963_371_235_628_3, -1.755_222_408_147_501_6),
+        (
+            0.0,
+            0.25,
+            0.900_470_774_827_227_4,
+            -0.490_082_863_168_841_53,
+        ),
     ] {
         let (y, yp) = xsf::pbwa(a, x);
         let rel = ((y - w) / w).abs().max(((yp - wp) / wp).abs());

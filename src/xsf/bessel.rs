@@ -105,7 +105,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@5c5e1b9)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@2168259)
 
 fn rotate(z: Complex64, v: f64) -> Complex64 {
     let c = cephes_cospi(v);
@@ -1007,6 +1007,27 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 
 // Integrals
 
+/// `int_0^1 t^lambda J_nu(2a t) dt` as the Neumann series DLMF 10.22.10 with `x = 2a`
+fn besselpoly_neumann(a: f64, lambda: f64, nu: f64) -> f64 {
+    use crate::xsf::cephes::jv;
+
+    let b = 2.0 * a;
+    let c0 = (lambda + nu + 1.0) / 2.0;
+    let c1 = c0 - lambda;
+    let (mut f, mut g, mut sum) = (1.0, 0.0, 0.0); // J_mu(b), J_(mu+1)(b) up to a common factor
+    let k_max = (f64::from(specfun::msta2(b, (nu + 1.0).ceil() as i32, 15)) - nu) / 2.0;
+    for k in (0..=k_max as i32).rev() {
+        let k = f64::from(k);
+        let mu = nu + 1.0 + 2.0 * k;
+        for j in [2.0, 1.0] {
+            // J_(mu+j-1) = 2(mu+j)/b J_(mu+j) - J_(mu+j+1)
+            (f, g) = (2.0 * (mu + j) / b * f - g, f);
+        }
+        sum = mu * f + (c1 + k) / (c0 + k + 1.0) * sum;
+    }
+    sum * (jv(nu + 1.0, b) * f + jv(nu + 2.0, b) * g) / (f * f + g * g) / b / c0
+}
+
 /// Weighted integral of the Bessel function of the first kind,
 /// $\int_0^1 x^\lambda \mathop{J}_v(2ax) \dd x$
 ///
@@ -1016,6 +1037,26 @@ pub fn hankel_2e<T: BesselArg>(v: f64, z: T) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
+    let n = if v < 0.0 && v.floor() == v { -v } else { v }; // J_(-n) = (-1)^n J_n
+    // Use the Neumann series where the power series cancels badly, and where the Neumann series
+    // is accurate:
+    // - a >= 1.5 and n < a^2 - 1: otherwise the power series terms grow to at most ~e^3, or
+    //   decrease from the start.
+    // - n > -1: all orders n + 2k + 1 are positive, where Miller's backward recurrence gives J.
+    // - lambda >= -1: then c0 > -1/2 and |c1 + k| <= c0 + k + 1, so the coefficients don't grow.
+    // - a < 500: the recurrence isn't rescaled, and f * f overflows from about a = 800.
+    // For lambda + n + 1 <= 0 the integral diverges, but the Neumann series (like the power
+    // series) still converges, since J_(n+2k+1)(2a) decays rapidly in k, to the same analytic
+    // continuation in lambda.
+    if (1.5..500.0).contains(&a)
+        && n > -1.0
+        && n < a * a - 1.0
+        && lambda >= -1.0
+        && lambda.is_finite()
+    {
+        let s = besselpoly_neumann(a, lambda, n);
+        return if n != v && n % 2.0 == 1.0 { -s } else { s };
+    }
     crate::xsf::cephes::besselpoly(a, lambda, v)
 }
 
