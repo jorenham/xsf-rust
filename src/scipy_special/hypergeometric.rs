@@ -23,7 +23,7 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let eta = p1 + x.ln() - crate::log1p(p1);
 
     // Unlike in xsf (scipy/xsf#366), the ~v1 ln(v1) terms of the exponent cancel analytically
-    // (Stirling's formula), e.g. hyp0f1(1e12, 2e12) is 7.389 instead of 7.360:
+    // (Stirling's formula):
     //
     //   zeta = ln(Gamma(v) arg^(1-v) e^(v1 eta) / sqrt(2 pi v1))                (v > 1)
     //        = -ln(Gamma(v) 2 sin(pi v1) arg^v1 e^(-v1 eta) / sqrt(2 pi v1))    (v < 1)
@@ -69,14 +69,11 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         // both v and z small: truncate the Taylor series at O(z**2)
         1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
     } else if z.abs() <= v.abs().max(1.0) {
-        // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed instead of the Bessel
-        // functions, which lose digits for large |v| and near the poles, e.g.
-        // hyp0f1(-7.000001, 0.1) is 0.985832546664 instead of 0.985832547540
+        // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed here, and Debye's
+        // expansion is used below, instead of the Bessel functions, which lose digits near the
+        // poles and (~eps v ln(v) in their prefactor) for large |v|.
         hyp0f1_series(v, z)
     } else if debye_is_accurate(v, z) {
-        // Unlike in xsf (scipy/xsf#366), Debye's expansion is used instead of the Bessel
-        // functions, whose prefactor loses ~eps v ln(v), e.g. hyp0f1(300, -1000) is
-        // 0.035011885022349 instead of 0.035011885022344
         hyp0f1_asy(v, z)
     } else if z > 0.0 {
         let arg = z.sqrt();

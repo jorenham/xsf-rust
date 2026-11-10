@@ -276,7 +276,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
         u
     } else if (3.0..1000.0).contains(&b) {
         // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
-        // large b and a << 0), e.g. U(-60.2, 30.6, 10) = -1.875e96 instead of NaN
+        // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
         hypu_rec_b(a, b, x)
     } else {
         f64::NAN

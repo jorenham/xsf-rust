@@ -668,9 +668,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         };
         // Unlike in xsf, if the 1 - z series lose more than HYP2F1_EPS to cancellation, also sum
         // the Maclaurin series, and keep the one that cancels less: for large c - a - b the 1 - z
-        // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2).
-        //
-        // E.g. hyp2f1(4.5, 2.5, 57, 0.64+0.65i) was 1.6e19+2.1e19i instead of 1.12+0.158i.
+        // terms are huge, but the first Maclaurin terms decay fast for large c > 0 (DLMF 15.12.2),
+        // e.g. for hyp2f1(4.5, 2.5, 57, 0.64+0.65i).
         if c > 0.0 && cancellation * f64::EPSILON > HYP2F1_EPS {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             let (maclaurin, maclaurin_cancellation) = series_eval_cancellation(series_generator);

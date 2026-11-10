@@ -192,8 +192,8 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
 ///
 /// - Say `k < r h` (the other case is symmetric). If also `h > 0`, the density on the region
 ///   peaks on its edge at `(h, r h)`. Sheppard's formula (used for `|r| < 0.925`) then has a
-///   narrow peak that its Gauss-Legendre rule misses, e.g. `bivariate_normal_cdf(-9.5, -5.7,
-///   0.92)` had error 9e-10.
+///   narrow peak that its Gauss-Legendre rule misses, e.g. for `bivariate_normal_cdf(-9.5,
+///   -5.7, 0.92)`.
 /// - Instead, `P = phid(-h) - P(X > h, Y < k)`, where the second term has correlation `-r` and
 ///   peaks at its corner `(h, k)`. Since `r > 0`, it is at most `P`, so this doesn't cancel.
 /// - But `phid(-h)` underflows to 0 for `h > 37.7`, e.g. at `(38, 34, 0.9)`, so a result

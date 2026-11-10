@@ -534,8 +534,8 @@ fn von_mises_cdf_left(k: f64, x: f64) -> f64 {
 /// CDF of the von Mises distribution with concentration `k`, extended periodically over `x`
 ///
 /// Unlike in xsf, which uses Hill's series for `k < 50` and a normal approximation otherwise,
-/// this uses Gauss quadrature, which is also accurate in the tails, e.g.
-/// `von_mises_cdf(25.0, -3.0)` was `6e-14` instead of `6e-23`.
+/// this uses Gauss quadrature, which is also accurate in the tails, e.g. for
+/// `von_mises_cdf(25.0, -3.0)`.
 ///
 /// Corresponds to `xsf::von_mises_cdf`, which is used by
 /// [`scipy.stats.vonmises`][vonmises].

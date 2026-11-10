@@ -72,8 +72,7 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
         return f64::NAN;
     }
     // Unlike in xsf, for `a, b < eps / 1000`, where `I_x(a, b)` is nearly flat, the root of its
-    // first order `c + a c ln(x / (1 - x))` with `c = b / (a + b)` is used, e.g.
-    // betaincinv(1e-300, 1e-300, 0.5) was 0.25 instead of 0.5.
+    // first order `c + a c ln(x / (1 - x))` with `c = b / (a + b)` is used.
     if aa.min(bb) > 0.0 && aa.max(bb) < INCBET_TINY {
         let c = bb / (aa + bb);
         return expit((yy0 - c) / aa / c);

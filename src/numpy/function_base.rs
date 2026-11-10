@@ -16,8 +16,7 @@ pub fn sinc(x: f64) -> f64 {
         1.0
     } else {
         // Unlike in NumPy, sin(pi x) is computed with `sinpi`, as the rounding error of y = pi x in
-        // sin(y) / y is amplified for large x and near the nonzero integers, e.g.
-        // sinc(3.0) was 4e-17 instead of 0.
+        // sin(y) / y is amplified for large x and near the nonzero integers, where sinc is 0.
         crate::sinpi(x) / (PI * x)
     }
 }

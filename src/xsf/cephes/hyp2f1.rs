@@ -136,14 +136,12 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut k = 0.0;
     // Unlike in xsf, if x > 0 and c < 0 is not an integer (even if near one), don't stop before
     // the terms have passed k = -c and stopped growing, since they can be tiny before and huge
-    // after it:
-    //
-    // - so this may take up to twice `HYP2F1_MAXITER` terms (before and after k = -c)
-    // - terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and only
-    //   summed (and counted in `loss`) if `n_scaled == 0` (else they are negligible)
-    // - it fails if their ratio underflows, e.g. for tiny a and b
+    // after it.
     let pole_ahead = x > 0.0 && h < 0.0 && h.fract() != 0.0;
+    // up to `HYP2F1_MAXITER` terms before and after k = -c
     let maxiter = HYP2F1_MAXITER * if pole_ahead { 2 } else { 1 };
+    // the terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and are only
+    // summed (and counted in `loss`) if `n_scaled == 0`, as they are negligible otherwise
     let (mut n_scaled, mut i_scaled) = (0, 0);
     loop {
         // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0
@@ -153,6 +151,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         let m = k + 1.0;
         let r = (f + k) * (g + k) * x / ((h + k) * m);
         u *= r;
+        // fail if the term ratio underflows, e.g. for tiny a and b
         if pole_ahead && r.abs() < f64::MIN_POSITIVE && f + k != 0.0 && g + k != 0.0 {
             return (s, 1.0, 1.0);
         }
@@ -217,8 +216,8 @@ fn ln_max_growth(a: f64, b: f64, c: f64, x: f64, n: f64) -> f64 {
     (m - n) * x.ln() + ln_ratio(a, 1.0) + ln_ratio(b, c)
 }
 
-/// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, also returns
-/// an error estimate that includes the recurrences in `a`.
+/// Apply transformations for |x| near 1 then call the power series. Unlike in xsf, the third
+/// return value is an error estimate as in `hys2f1`.
 fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut p, mut q, mut r, mut t, mut w, d);
     let (d1, d2, e, mut y1);
@@ -259,9 +258,11 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         if x > 0.9 && !(neg_int_a || neg_int_b) {
             /* Try the power series first */
             // Unlike in xsf, also if c-a-b is an integer, as the psi function expansion below
-            // can be inexact or fail. Unlike in xsf (scipy/xsf#371), if its `loss` is small but
-            // its error estimate incl. the recurrence in `a` isn't, only replace it by AMS55
-            // #15.3.6 if that shows it to be less accurate.
+            // can be inexact or fail.
+            //
+            // Unlike in xsf (scipy/xsf#371), if its `loss` is small but its error estimate incl.
+            // the recurrence in `a` isn't, it is only replaced by AMS55 #15.3.6 if that shows it
+            // to be less accurate.
             let ((y0, loss0, full0), _) = hys2f1_checked(a, b, c, x);
             if loss0 < HYP2F1_ETHRESH && full0 < HYP2F1_ETHRESH {
                 (err, err_full) = (loss0, full0);
@@ -886,16 +887,14 @@ pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // hypdon:
-        // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if its error estimates say
-        // that no digit is correct:
+        // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if its error estimates
+        // (without and with the recurrences in `a`) say that no digit is correct.
         //
-        // - if both, without and with the recurrences in `a`, are in [`HYP2F1_LOST`, 1); not 1
-        //   itself, as a series that fails (doesn't converge) is estimated as 1, while its value
-        //   can be accurate
-        // - or if the latter is above 1 and finite (it is inf if it overflows or `y` is 0); not for
-        //   a polynomial, as near a root its estimate is also above 1, while `y` is accurate in
-        //   absolute terms
+        // Not 1 itself: a series that fails to converge is estimated as 1, while its value can
+        // be accurate.
         let no_digit = |e| (HYP2F1_LOST..1.0).contains(&e);
+        // The estimate is inf if it overflows or `y` is 0. Not for a polynomial: near a root its
+        // estimate also exceeds 1, while `y` is accurate in absolute terms.
         let wrong = err_full > 1.0 && err_full.is_finite() && !(neg_int_a || neg_int_b);
         if y.is_finite() && (no_digit(err) && no_digit(err_full) || wrong) {
             return f64::NAN;

@@ -60,8 +60,7 @@ fn itth0(x: f64) -> f64 {
         tth = PI / 2.0 - FRAC_2_PI * x * s;
     } else {
         // Unlike in xsf, sum up to eps (instead of 1e-12), and integrate `Y0(t)/t` by parts with
-        // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8,
-        // e.g. `it2struve0(1000)` had a relative error of 1.6e-9.
+        // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8.
         for k in 1..11 {
             let k = f64::from(k);
             r = -r * (2.0 * k - 1.0).powf(3.0) / ((2.0 * k + 1.0) * x * x);
