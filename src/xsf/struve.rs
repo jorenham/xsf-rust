@@ -40,7 +40,8 @@ fn itth0(x: f64) -> f64 {
     // Output:  TTH --- Integration of H0(t)/t from x to infinity
     // ===========================================================
 
-    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40.
+    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40. That leaves the
+    // power series below to x < 0.5, and the asymptotic expansion to x >= 40.
     if (0.5..40.0).contains(&x) {
         return FRAC_PI_2 - itsh0_neumann(x).1;
     }
@@ -100,7 +101,8 @@ fn itsh0(x: f64) -> f64 {
     let th0;
     let el = 0.57721566490153;
 
-    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40.
+    // Unlike in xsf (scipy/xsf#399), use the Neumann series for 0.5 <= x < 40. That leaves the
+    // power series below to x < 0.5, and the asymptotic expansion to x >= 40.
     if (0.5..40.0).contains(&x) {
         return itsh0_neumann(x).0;
     }
