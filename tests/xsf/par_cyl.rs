@@ -431,6 +431,34 @@ fn test_pbvv_negative_x() {
             2.796_250_555_935_439e102,
             -4.526_043_015_443_377e103,
         ),
+        // half-integer v, where V_v(x) ~ e^(-x^2 / 4)
+        (
+            -0.5,
+            -12.0,
+            3.768_056_387_424_32e-17,
+            2.276_374_881_417_856_2e-16,
+        ),
+        (
+            0.5,
+            -10.0,
+            -4.961_700_955_848_634e-11,
+            -2.456_163_625_713_448e-10,
+        ),
+        (
+            -4.5,
+            -3.0,
+            0.001_115_077_593_188_748,
+            0.002_854_734_180_064_508,
+        ),
+        // half-integer v, where 1 / Gamma(v + 1) underflows
+        (
+            171.5,
+            -1.0,
+            4.599_811_494_807_479_7e-157,
+            2.462_869_246_412_484e-155,
+        ),
+        // v = 0 and x < -10
+        (0.0, -10.5, -71_618_497_117.408_92, 369_046_542_474.260_2),
     ] {
         let (y, yp) = xsf::pbvv(v, x);
         let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
@@ -447,12 +475,17 @@ fn test_pbvv_negative_x() {
         (yp / -4.355_816_750_767e-312 - 1.0).abs(),
     );
     assert!(rel < 1e-9 && relp < 1e-9, "{rel:e}, {relp:e}");
+
+    // v = 0, where V_v(-x) is NaN
+    for v in [0.0, -0.0] {
+        assert_eq!(xsf::pbvv(v, -5000.0).0, f64::NEG_INFINITY);
+    }
 }
 
 #[test]
 fn test_pbdv_pbvv_negative_zero_v() {
     // unlike in xsf, v = -0.0 is the same as v = +0.0
-    for x in [-5.0, 0.5, 5.0, 50.0] {
+    for x in [-10.5, -5.0, 0.5, 5.0, 50.0] {
         assert_eq!(xsf::pbdv(-0.0, x), xsf::pbdv(0.0, x), "pbdv(-0.0, {x})");
         assert_eq!(xsf::pbvv(-0.0, x), xsf::pbvv(0.0, x), "pbvv(-0.0, {x})");
     }
