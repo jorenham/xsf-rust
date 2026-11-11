@@ -1201,14 +1201,25 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v > 0 is computed from V_v(-x) and
-    // D_v(-x) (DLMF 12.2.16).
-    if x < -10.0 && v > 0.0 {
+    if x < 0.0 {
+        // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v >= 0 is computed from V_v(-x)
+        // and D_v(-x) (DLMF 12.2.16), with c = cos(pi v) and s = sin(pi v) / Gamma(v + 1):
+        //
+        //   V_v(x) = -s D_v(-x) - c V_v(-x)
+        //
+        // Unlike in xsf (scipy/xsf#520), so is V_v(x) for any x < 0 at a half-integer v (c = 0)
+        // if s is normal (-172 < v < 170): `vvsa` and `vvla` round c to about 1e-16, so that the
+        // growing V_v(-x) ~ e^(x^2 / 4) swamps V_v(x) ~ e^(-x^2 / 4).
         let (c, s) = (cospi(v), sinpi(v) * rgamma(v + 1.0));
-        // V_v(-x) can overflow, so skip it if c = 0
-        let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
-        let (d, dp) = pbdv(v, -x);
-        return (-s * d - c * w, s * dp + c * wp);
+        if (c == 0.0 && s.is_normal()) || (x < -10.0 && v >= 0.0) {
+            // V_v(-x) can overflow, so skip it if c = 0
+            let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
+            // V_0(-x) is NaN for -x > 2600 or so, where `pbvv_impl` returns V_0(x) = -inf
+            if v != 0.0 || !w.is_nan() {
+                let (d, dp) = pbdv(v, -x);
+                return (-s * d - c * w, s * dp + c * wp);
+            }
+        }
     }
     let Some((mut buf, num)) = alloc_buf(v) else {
         return (f64::NAN, f64::NAN);
