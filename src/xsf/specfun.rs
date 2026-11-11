@@ -262,14 +262,16 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
-/// `a + m` in `[1, 2)`; NaN if a (heuristic) check finds that the recurrence is ill-conditioned
+/// `a + m` in `[1, 2)`, with its estimated number of digits; NaN if a (heuristic) check finds that
+/// the recurrence is ill-conditioned
 ///
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
 /// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1).
-fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
+fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
-        return x.powf(1.0 - b) * hypu_rec(a - b + 1.0, 2.0 - b, x);
+        let (u, id) = hypu_rec(a - b + 1.0, 2.0 - b, x);
+        return (x.powf(1.0 - b) * u, id);
     }
     let m = (1.0 - a).ceil();
     // The two starting values are recurred separately, to detect their cancellation (the
@@ -285,28 +287,39 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> f64 {
     }
     let u = p0 + q0;
     if p0.abs() + q0.abs() < 1e4 * u.abs() {
-        u
+        // the starting values are taken to have 15 digits
+        (u, digits_left(15, p0, q0))
     } else if (3.0..1000.0).contains(&b) {
         // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
         // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
         hypu_rec_b(a, b, x)
     } else {
-        f64::NAN
+        (f64::NAN, 0)
     }
 }
 
 /// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
-/// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`
-fn hypu_rec_b(a: f64, b: f64, x: f64) -> f64 {
+/// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
+fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, i32) {
     let n = (b - 1.0).floor();
-    let (mut u0, mut u1) = (hypu_rec(a, b - n, x), hypu_rec(a, b - n + 1.0, x));
+    let ((mut u0, id0), (mut u1, id1)) = (hypu_rec(a, b - n, x), hypu_rec(a, b - n + 1.0, x));
+    // The first starting value is also recurred on its own, to estimate their cancellation
+    let (mut p0, mut p1) = (u0, 0.0);
     let mut c = b - n + 1.0;
     while c < b {
         // U(a, c + 1, x) = ((c + x - 1) U(a, c, x) - (c - a - 1) U(a, c - 1, x)) / x
-        (u0, u1) = (u1, ((c + x - 1.0) * u1 - (c - a - 1.0) * u0) / x);
+        let next = |u0: f64, u1: f64| ((c + x - 1.0) * u1 - (c - a - 1.0) * u0) / x;
+        (u0, u1) = (u1, next(u0, u1));
+        (p0, p1) = (p1, next(p0, p1));
         c += 1.0;
     }
-    if u1.is_finite() { u1 } else { f64::NAN }
+    let id = digits_left(id0.min(id1), p1, u1 - p1);
+    (if u1.is_finite() { u1 } else { f64::NAN }, id)
+}
+
+/// The estimated number of digits of `p + q`, if `p` and `q` have `id` digits
+fn digits_left(id: i32, p: f64, q: f64) -> i32 {
+    (f64::from(id) - ((p.abs() + q.abs()) / (p + q).abs()).log10()) as i32
 }
 
 /// Associated Legendre function for $|x| \leq 1$
