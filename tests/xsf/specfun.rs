@@ -383,6 +383,23 @@ fn test_hypu_int_b() {
     // Arb; still from `chgubi` (11 digits) if `chguit` overflows
     let actual = xsf::hypu(150.0, 9.0, 0.1);
     xsref::np_assert_allclose!([actual], [2.229_672_231_677_937e-250], rtol = 1e-12);
+
+    // mpmath; near a zero of U, where `chgubi` has as many estimated digits as the recurrence in
+    // `a` (in `b` for the last)
+    let abx = [
+        (-0.271_543_086_172_344_7, 1.0, 0.023_848_456_913_827_66),
+        (-0.379_759_519_038_076_14, 1.0, 0.084_368_893_787_575_16),
+        (-41.1575, 1.0, 2.154_434_690_031_882_3e-5),
+        (-28.6575, 4.0, 0.215_443_469_003_188_67),
+    ];
+    let expected = [
+        -7.824_866_488_540_172e-4,
+        3.360_727_288_593_018e-4,
+        3.386_947_244_049_369e47,
+        1.089_830_835_818_625e30,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
 }
 
 xsref::tests! {

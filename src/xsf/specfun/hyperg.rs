@@ -886,7 +886,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 ///    - `a < 1`, `b <= a`: `chguit` for `U(a-b+1, 2-b, x)`, times `x^(1-b)`; for `-1e5 <= b <= 0`
 ///      with `x^(1-b)` in the integral if that product isn't normal or step 1 overflowed
 ///    - `a < 1`, `b > a`: `chgubi` (nonzero integer `b`); the recurrence in `a > -1000` otherwise,
-///      or if `chgubi` isn't finite with `ID_MIN` digits and step 1 has fewer than 9
+///      or if `chgubi` isn't finite with `ID_MIN` digits and step 1 has fewer than 9, unless a
+///      finite `chgubi` has at least as many estimated digits as the recurrence (by the
+///      cancellation of its two starting values)
 /// 3. If `hu0` has 9 to 11 digits (and isn't NaN), the result of step 2 only replaces it if the
 ///    two agree within 10 times its error estimate (step 2 can be far off, e.g. for small `x`).
 ///
@@ -998,11 +1000,12 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             *md = 3;
         }
         // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
-        // or if chgubi has fewer than `ID_MIN` digits (or overflows) and chgul fewer than 9
+        // or if chgubi has fewer than `ID_MIN` digits (or overflows) and chgul fewer than 9; a
+        // finite chgubi is only replaced if the recurrence has more estimated digits
         let failed = id < ID_MIN || !hu.is_finite();
         if (!bn || failed && id0 < 9) && a > -1000.0 {
-            let u = super::hypu_rec(a, b, x);
-            if !u.is_nan() {
+            let (u, id_rec) = super::hypu_rec(a, b, x);
+            if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) {
                 (hu, id) = (u, ID_MIN);
             }
         }
