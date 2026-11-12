@@ -30,6 +30,26 @@ gives its remainder to the finite one), each drawn uniformly without replacement
 `random.Random(0)`, in that order. On top of these, every row with a half-integer order `v`, or
 one in `BESSEL_I_OVERFLOWS` (`testing/src/xsref.rs`), is kept. `--no-cap` keeps all rows.
 
+## Generated tables
+
+[`tools/tables/generate.py`](../../../tools/tables/generate.py) replaces xsref's references and
+tolerances by our own, for the tables of
+[`tools/tables/mapping.py`](../../../tools/tables/mapping.py):
+
+```sh
+uv run tools/tables/convert.py /tmp/xsref /tmp/baseline
+uv run tools/tables/generate.py /tmp/baseline
+```
+
+The inputs, the row order, and the row flags stay xsref's. Each output gets a status (see below):
+
+- computed: an mpmath reference of `tools/accuracy/specs.py` with 50 and with 100 digits, which
+  must agree to 1e-30. Arb must confirm it where the Arb version of the mapping applies; an output
+  without one needs an identity. Its tolerance is the error of xsf (C++), or at most the largest
+  error of xsf-rust where the mapping marks xsf as wrong.
+- convention: a rule of the mapping, which xsref and xsf-rust must follow already.
+- legacy: where our reference timed out.
+
 ## Statuses and scales
 
 Each logical output of each row has a status:
