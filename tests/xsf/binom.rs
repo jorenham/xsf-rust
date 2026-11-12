@@ -55,3 +55,27 @@ fn test_binom_reflection() {
     }
     assert_eq!(xsf::binom(2.5, f64::NEG_INFINITY), 0.0);
 }
+
+#[test]
+fn test_binom_negative_n() {
+    // unlike in xsf (scipy/xsf#352), without the rounding error of 1 + n - k (mpmath, Wolfram)
+    // (the last one is near the switch to `lgam` in `beta`)
+    let nk = [
+        (-75_088_638.198_055_71, 0.805_624_372_712_259_8),
+        (-21_271_018.999_750_603, 0.001_101_100_669_294_745),
+        (-171.999_999_999_999_97, 0.3),
+    ];
+    let actual = nk.map(|(n, k)| xsf::binom(n, k));
+    let expected = [
+        -47_030.442_475_758_64,
+        -3.481_296_578_119_637,
+        -47_264_014_799_068.09,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    // B(1 + k, -n) under- or overflows, and n - k or k is an integer in the first three
+    assert_eq!(xsf::binom(-10_000.5, 200.5), 0.0);
+    assert_eq!(xsf::binom(-173.5, -2.0), 0.0);
+    assert_eq!(xsf::binom(-1_000.5, -2.0), 0.0);
+    let actual = [xsf::binom(-9_999.999_999_999_998, -135.3)];
+    xsref::np_assert_allclose!(&actual, &[5.038_684_715_231_528e-302], rtol = 5e-13);
+}
