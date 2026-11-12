@@ -2,8 +2,8 @@
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 
-use crate::xsf::cephes::{beta, gamma, lbeta, poch};
-use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::cephes::{beta, beta_reflects_a, gamma, gammasgn, lbeta, poch};
+use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::PI;
 
@@ -102,7 +102,22 @@ pub fn binom(n: f64, k: f64) -> f64 {
         // Unlike in xsf (scipy/xsf#352), the reflection formula is used for large |k|
         return binom_reflection(n, k);
     }
-    1.0 / (n + 1.0) / beta(1.0 + n - k, 1.0 + k)
+    let a = 1.0 + n - k;
+    if beta_reflects_a(a, 1.0 + k) {
+        // Unlike in xsf (scipy/xsf#352), Gamma(1 + n) and Gamma(1 + n - k) are reflected where
+        // `beta` would reflect the rounded `a`, with an error of ~|a| eps:
+        //
+        // binom(n, k) = sin(pi (n - k)) / (sin(pi n) (k - n) B(1 + k, -n))
+        let t = sinpi_sub(n, k) / cephes_sinpi(n) / (k - n);
+        let b = beta(1.0 + k, -n);
+        return if b.is_normal() {
+            t / b
+        } else {
+            // B(1 + k, -n) under- or overflows
+            t.signum() * gammasgn(1.0 + k) * (t.abs().ln() - lbeta(1.0 + k, -n)).exp()
+        };
+    }
+    1.0 / (n + 1.0) / beta(a, 1.0 + k)
 }
 
 /// `Gamma(1 + n) sin(pi (n - k + 1)) / (pi poch(k - n, n + 1))`, the reflection formula of

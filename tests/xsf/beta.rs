@@ -122,3 +122,18 @@ fn test_betaln_both_large() {
     let actual = ab.map(|(a, b)| xsf::betaln(a, b));
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_beta_negative_large_a() {
+    // unlike in xsf, without the rounding error of a + b in sin(pi (a + b)) (mpmath, Wolfram)
+    let ab = [
+        (-74_061.790_200_612_61, 10.000_418_349_923_688),
+        (-235_133.091_586_901_66, 0.077_013_497_544_615_35),
+    ];
+    let actual = ab.map(|(a, b)| xsf::betaln(a, b));
+    let expected = [-99.326_169_615_310_02, -0.253_073_826_200_146_45];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-15);
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    let expected = [7.297_811_264_583_918e-44, 0.776_410_560_266_429_4];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-14);
+}

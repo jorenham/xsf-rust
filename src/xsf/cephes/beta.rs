@@ -11,7 +11,7 @@
 use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
-use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::PI;
 
@@ -47,16 +47,16 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
 /// the cancellation in `lgam(a) + lgam(b) - lgam(a + b)`. The negative one of the two largest
 /// arguments is reflected.
 fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
-    if b.abs() < 0.125 * a.abs() {
+    if a > 0.0 && b.abs() < 0.125 * a {
         let (y, sign) = lgam_sgn(b);
-        if a > 0.0 {
-            Some((y - lgam_ratio(a, b), f64::from(sign)))
-        } else {
-            // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
-            let s = cephes_sinpi(a + b) / cephes_sinpi(a);
-            let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
-            Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
-        }
+        Some((y - lgam_ratio(a, b), f64::from(sign)))
+    } else if lbeta_reflects_a(a, b) {
+        // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
+        // `sinpi_sub` avoids the rounding error of a + b
+        let (y, sign) = lgam_sgn(b);
+        let s = sinpi_sub(a, -b) / cephes_sinpi(a);
+        let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
+        Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
     } else if a > 0.0 && b <= -0.5 * a {
         // B(a, b) = pi / sin(pi b) Gamma(a) / Gamma(1 - b) / Gamma(a + b), with exact a + b
         let y = (PI / cephes_sinpi(b).abs()).ln() - lgam_ratio(a, 1.0 - (a + b)) - lgam(a + b);
@@ -73,6 +73,22 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     } else {
         None
     }
+}
+
+/// Whether `beta(a, b)` and `lbeta(a, b)` reflect a negative `a` in `lbeta_ratio`
+pub(crate) fn beta_reflects_a(a: f64, b: f64) -> bool {
+    !is_nonpos_int(a) && !is_nonpos_int(b) && lbeta_reflects_a(a, b) && beta_uses_lgam(a, b)
+}
+
+/// Whether `lbeta_ratio` reflects a negative `a`
+fn lbeta_reflects_a(a: f64, b: f64) -> bool {
+    a < 0.0 && b.abs() < -0.125 * a
+}
+
+/// Whether `beta` and `lbeta` use `lbeta_ratio` or `lgam` instead of `gamma`
+fn beta_uses_lgam(a: f64, b: f64) -> bool {
+    let y = a + b;
+    y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y)
 }
 
 /// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
@@ -182,7 +198,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
+    if beta_uses_lgam(a, b) {
         if let Some((y, sign)) = lbeta_ratio(a, b) {
             return sign * y.exp();
         }
@@ -261,7 +277,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y = a + b;
-    if y.abs() > MAXGAM || a.abs() > MAXGAM || b.abs() > MAXGAM || gamma_out_of_range(a, b, y) {
+    if beta_uses_lgam(a, b) {
         if let Some((y, _)) = lbeta_ratio(a, b) {
             return y;
         }

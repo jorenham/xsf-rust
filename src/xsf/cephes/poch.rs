@@ -4,9 +4,8 @@
 
 use core::f64::consts::FRAC_1_PI;
 
-use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
-use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 /// `xsf::cephes::detail::is_nonpos_int`, which is false for `|x| >= 1e13`
 fn is_small_nonpos_int(x: f64) -> bool {
@@ -141,12 +140,4 @@ pub fn pow_falling(x: f64, m: f64) -> f64 {
         let q = poch(x + 1.0, -m);
         if q.is_normal() { 1.0 / q } else { poch(a, m) }
     }
-}
-
-/// sin(pi (x - m)), without the rounding error of x - m near an integer
-fn sinpi_sub(x: f64, m: f64) -> f64 {
-    let (s, e) = two_sum(x, -m);
-    let n = s.round();
-    let t = cephes_sinpi((s - n) + e);
-    if n % 2.0 == 0.0 { t } else { -t }
 }
