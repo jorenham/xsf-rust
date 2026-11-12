@@ -154,20 +154,6 @@ impl C64 {
         cpow(self, x)
     }
 
-    /// `z^x` in polar form, i.e. `|z|^x (cos(x arg z) + i sin(x arg z))`, as in `num_complex`
-    ///
-    /// Unlike `std::pow(z, x)`, i.e. `exp(x log(z))`, this doesn't amplify the error of `log |z|`.
-    #[inline]
-    pub(crate) fn powf_polar(self, x: f64) -> Self {
-        if x == 0.0 {
-            Self::ONE
-        } else {
-            let rho = self.norm().powf(x);
-            let (sin, cos) = (self.im.atan2(self.re) * x).sin_cos();
-            c64(rho * cos, rho * sin)
-        }
-    }
-
     /// `std::sin(z)`
     #[inline]
     pub(crate) fn sin(self) -> Self {

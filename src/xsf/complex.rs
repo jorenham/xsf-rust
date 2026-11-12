@@ -123,15 +123,30 @@ pub(crate) fn csqrt(z: C64) -> C64 {
 }
 
 /// `std::pow(z, y)` for complex `z` and real `y`, as in libstdc++
+///
+/// Unlike in xsf, `z^0` is 1 for all `z`, and the modulus is `|z|^y` instead of `exp(y log |z|)`,
+/// which amplifies the relative rounding error of `log |z|` by `|y log |z||`. Only for a rounded
+/// `|z|` in `[0.5, 2]`, where [`clog`] computes `log |z|` in double-double precision, or outside
+/// the normal range, the modulus is as in xsf.
 pub(crate) fn cpow(z: C64, y: f64) -> C64 {
-    if z.im == 0.0 && z.re > 0.0 {
-        return c64(z.re.powf(y), 0.0);
+    if y == 0.0 {
+        C64::ONE
+    } else if z.im == 0.0 && z.re > 0.0 {
+        c64(z.re.powf(y), 0.0)
+    } else {
+        let t = clog(z);
+        let r = z.norm();
+        // `r` is exact on the axes
+        let exact = z.re == 0.0 || z.im == 0.0;
+        let rho = if exact || !(0.5..=2.0).contains(&r) && r.is_normal() {
+            r.powf(y)
+        } else {
+            (y * t.re).exp()
+        };
+        // std::polar(rho, y * t.imag())
+        let (sin, cos) = (y * t.im).sin_cos();
+        c64(rho * cos, rho * sin)
     }
-    let t = clog(z);
-    // std::polar(exp(y * t.real()), y * t.imag())
-    let rho = (y * t.re).exp();
-    let theta = y * t.im;
-    c64(rho * theta.cos(), rho * theta.sin())
 }
 
 /// Inverse hyperbolic tangent of real `x`
@@ -450,7 +465,8 @@ impl Num for C64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::xsf::c64::c64;
+    use crate::utils::pow2;
+    use crate::xsf::c64::{C64, c64};
     use core::f64::consts::FRAC_1_SQRT_2;
     use num_complex::Complex;
 
@@ -462,6 +478,25 @@ mod tests {
             [r.re.to_bits(), r.im.to_bits()],
             [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
         );
+    }
+
+    #[test]
+    fn test_cpow() {
+        let rel = |w: C64, r: f64| (w.norm() / r - 1.0).abs();
+        // `|z|^y` on an axis, where `exp(y log |z|)` loses 3 digits
+        let w = super::cpow(c64(-3.0, 0.0), 600.0);
+        assert!(rel(w, 3.0_f64.powf(600.0)) < 4.0 * f64::EPSILON);
+        // `exp(y log |z|)` where `|z|` rounds to 1
+        let w = super::cpow(c64(1.0, pow2(-27)), pow2(52));
+        assert!(rel(w, 0.125_f64.exp()) < 4.0 * f64::EPSILON);
+        // and where `|z|` overflows
+        let w = super::cpow(c64(f64::MAX, f64::MAX), -0.5);
+        assert!(rel(w, pow2(-512) / 2.0_f64.powf(0.25)) < 1e-12);
+
+        // `z^0`, and both sides of the branch cut
+        assert_eq!(super::cpow(c64(f64::NAN, 0.0), 0.0), c64(1.0, 0.0));
+        assert_eq!(super::cpow(c64(-4.0, 0.0), 0.5).im, 2.0);
+        assert_eq!(super::cpow(c64(-4.0, -0.0), 0.5).im, -2.0);
     }
 
     #[test]
