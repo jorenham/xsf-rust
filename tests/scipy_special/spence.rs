@@ -41,12 +41,18 @@ fn test_spence_near_1_c64() {
 
 #[test]
 fn test_spence_huge_c64() {
-    // mpmath: polylog(2, 1 - z), where |z|^2 overflows
-    let zs = [c64(1e200, 1e200), c64(-3e160, 2e155), c64(0.0, -1e300)];
+    // mpmath: polylog(2, 1 - z), where |z|^2 or |z| overflows
+    let zs = [
+        c64(1e200, 1e200),
+        c64(-3e160, 2e155),
+        c64(0.0, -1e300),
+        c64(f64::MAX, f64::MAX),
+    ];
     let expect = [
         c64(-106_198.961_811_644_83, -361.961_418_882_061_2),
         c64(-68_266.353_166_041_1, -1_160.854_434_866_919_6),
         c64(-238_585.826_205_044_6, 1_085.067_661_862_319_7),
+        c64(-252_143.138_269_828_16, -557.734_237_379_010_1),
     ];
     np_assert_allclose!(zs.map(xsf::spence), expect, rtol = 1e-15);
 }

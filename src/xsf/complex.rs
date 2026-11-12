@@ -12,11 +12,11 @@ pub(crate) const C64_NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
 
 /// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
 /// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
-/// the intermediate results don't lose precision by becoming subnormal.
+/// the intermediate results don't lose precision by becoming subnormal, and finite operands are
+/// halved if a sum of the algorithm overflows.
 ///
 /// This replaces the complex division in C++, i.e. GCC's `__divdc3`. Like `__divdc3`, it recovers
-/// the infinities and zeros that would otherwise be computed as NaN + NaN i (C99 Annex G), but
-/// unlike `__divdc3`, it doesn't scale huge operands (e.g. `1 / (MAX + i MAX)` underflows to zero).
+/// the infinities and zeros that would otherwise be computed as NaN + NaN i (C99 Annex G).
 ///
 /// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
 #[inline]
@@ -28,15 +28,23 @@ pub(crate) fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
         a *= TWO_600;
         b *= TWO_600;
     }
-    let w = if b.re.abs() >= b.im.abs() {
-        let r = b.im / b.re;
-        let den = b.re + b.im * r;
-        Complex::new((a.re + a.im * r) / den, (a.im - a.re * r) / den)
-    } else {
-        let r = b.re / b.im;
-        let den = b.re * r + b.im;
-        Complex::new((a.re * r + a.im) / den, (a.im * r - a.re) / den)
+    // the denominator and the two numerators
+    let smith = |a: Complex<f64>, b: Complex<f64>| {
+        if b.re.abs() >= b.im.abs() {
+            let r = b.im / b.re;
+            [b.re + b.im * r, a.re + a.im * r, a.im - a.re * r]
+        } else {
+            let r = b.re / b.im;
+            [b.re * r + b.im, a.re * r + a.im, a.im * r - a.re]
+        }
     };
+    let mut sums = smith(a, b);
+    if sums.iter().any(|s| s.is_infinite()) && a.is_finite() && b.is_finite() {
+        // halved, the sums are at most twice their largest term
+        sums = smith(0.5 * a, 0.5 * b);
+    }
+    let [den, x, y] = sums;
+    let w = Complex::new(x / den, y / den);
 
     // Recover infinities and zeros that computed as NaN+iNaN; the only
     // cases are nonzero/zero, infinite/finite, and finite/infinite.
@@ -603,6 +611,20 @@ mod tests {
             [r.re.to_bits(), r.im.to_bits()],
             [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
         );
+    }
+
+    #[test]
+    fn test_cdiv_overflow() {
+        // exact, where a sum of Smith's algorithm overflows
+        let max = f64::MAX;
+        let z = c64(max, max);
+        assert_eq!(super::cdiv(z, z), c64(1.0, 0.0));
+        assert_eq!(super::cdiv(z, c64(2.0, 2.0)), c64(0.5 * max, 0.0));
+        assert_eq!(super::cdiv(c64(1.0, 0.0), z), c64(0.5 / max, -0.5 / max));
+
+        // not halved otherwise, which would lose the sign of the zero
+        let w = super::cdiv(c64(-1.0, 0.0), c64(max, -(2.0_f64.powi(-50))));
+        assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
     }
 
     #[test]
