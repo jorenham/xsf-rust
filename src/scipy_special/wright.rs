@@ -1,19 +1,16 @@
 //! Translated into pure Rust from `xsf/wright.h` (scipy/xsf@527cef1). Original author: Piers
 //! Lawrence (ACM TOMS 917).
 //!
-//! Unlike in xsf, the complex arithmetic is that of `num_complex` (naive `*` and `/`, and `sqrt`
-//! in polar form), not that of `std::complex`, and the iterations use `Complex::ln` instead of
-//! `std::log` (`clog`).
+//! Unlike in xsf, `sqrt` is that of `num_complex` (in polar form), not `std::sqrt`, and the
+//! iterations use `Complex::ln` instead of `std::log` (`clog`).
 
 use crate::numpy::nextafter;
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::two_sum;
-use crate::xsf::complex::C64_NAN;
-use crate::xsf::log::clog;
-use num_complex::{Complex64, c64};
-use num_traits::Zero;
+use num_complex::Complex64;
 
 const TWOITERTOL: f64 = f64::EPSILON;
-const I: Complex64 = Complex64 { re: 0.0, im: 1.0 };
+const I: C64 = C64::I;
 
 /// `a + b`, rounded up
 fn add_round_up(a: f64, b: f64) -> f64 {
@@ -45,7 +42,7 @@ fn add_round_down(a: f64, b: f64) -> f64 {
     }
 }
 
-fn wrightomega_ext(z: Complex64) -> Complex64 {
+fn wrightomega_ext(z: C64) -> C64 {
     let pi = core::f64::consts::PI;
     let mut s = 1.0;
 
@@ -60,7 +57,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     // Test for floating point exceptions
     if x.is_nan() || y.is_nan() {
         // NaN output for NaN inpu
-        return C64_NAN;
+        return C64::NAN;
     } else if x.is_infinite() && x.is_sign_negative() && (-pi < y) && (y <= pi) {
         // Signed zeros between branches
         return if y.abs() <= pi / 2.0 {
@@ -87,12 +84,15 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     }
 
     // Choose approximation based on region
-    let mut w: Complex64;
+    let mut w: C64;
     #[allow(clippy::manual_range_contains)]
     if -2.0 < x && x <= 1.0 && 1.0 < y && y < 2.0 * pi {
         // Region 1: upper branch point
         // Series about z = -1 + Pi*I
-        let pz = (2.0 * (z + 1.0 - I * pi)).conj().sqrt().conj();
+        let pz = (2.0 * (z + 1.0 - I * pi))
+            .conj()
+            .via(Complex64::sqrt)
+            .conj();
         w = -1.0
             + (I + (1.0 / 3.0
                 + (-1.0 / 36.0 * I + (1.0 / 270.0 + 1.0 / 4320.0 * I * pz) * pz) * pz)
@@ -101,7 +101,10 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     } else if -2.0 < x && x <= 1.0 && -2.0 * pi < y && y < -1.0 {
         // Region 2: lower branch point
         // Series about z = -1 - Pi*I
-        let pz = (2.0 * (z + 1.0 + I * pi)).conj().sqrt().conj();
+        let pz = (2.0 * (z + 1.0 + I * pi))
+            .conj()
+            .via(Complex64::sqrt)
+            .conj();
         w = -1.0
             + (-I
                 + (1.0 / 3.0 + (1.0 / 36.0 * I + (1.0 / 270.0 - 1.0 / 4320.0 * I * pz) * pz) * pz)
@@ -112,7 +115,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
         // Series: About -infinity
         let pz = z.exp();
         w = (1.0 + (-1.0 + (3.0 / 2.0 + (-8.0 / 3.0 + 125.0 / 24.0 * pz) * pz) * pz) * pz) * pz;
-        if w.is_zero() {
+        if w == C64::ZERO {
             // sf_error(underflow)
             return w;
         }
@@ -132,16 +135,16 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
             // Region 5: Top wing
             // Negative log series
             let t = z - I * pi;
-            (t, clog(-t))
+            (t, (-t).ln())
         } else if x <= -0.105e1 && 0.75e0 * (x + 0.1e1) < y + pi && y + pi <= 0.0e0 {
             // Region 6: Bottom wing
             // Negative log series
             let t = z + I * pi;
-            (t, clog(-t))
+            (t, (-t).ln())
         } else {
             // Region 7: Everywhere else
             // Series solution about infinity
-            (z, clog(z))
+            (z, z.ln())
         };
         w = t - pz;
         if z.norm() > 1e50 {
@@ -186,7 +189,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
 
     // Iteration one
     w = s * w;
-    let r = z - s * w - w.ln();
+    let r = z - s * w - w.via(Complex64::ln);
     let wp1 = s * w + 1.0;
     let e = r / wp1 * (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - r)
         / (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - 2.0 * r);
@@ -196,7 +199,7 @@ fn wrightomega_ext(z: Complex64) -> Complex64 {
     if ((2.0 * w * w - 8.0 * w - 1.0) * r.norm().powf(4.0)).norm()
         >= TWOITERTOL * 72.0 * wp1.norm().powf(6.0)
     {
-        let r = z - s * w - w.ln();
+        let r = z - s * w - w.via(Complex64::ln);
         let wp1 = s * w + 1.0;
         let e = r / wp1 * (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - r)
             / (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - 2.0 * r);
@@ -315,7 +318,7 @@ impl WrightOmegaArg for f64 {
 impl WrightOmegaArg for Complex64 {
     #[inline]
     fn wrightomega(self) -> Self {
-        wrightomega_ext(self)
+        self.via(wrightomega_ext)
     }
 }
 

@@ -32,11 +32,11 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted. Complex division
 //! uses Smith's algorithm (see [`cdiv`]), which, like GCC's `__divdc3`, avoids the spurious
 //! underflow of the naive formula for tiny `z` with `k != 0`.
+//!
+//! [`cdiv`]: crate::xsf::complex::cdiv
 
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::ratevl;
-use crate::xsf::complex::{C64_NAN, cdiv};
-use crate::xsf::evalpoly::cevalpoly;
-use crate::xsf::log::clog;
 
 use core::f64::consts::{E, PI};
 use num_complex::Complex;
@@ -44,15 +44,15 @@ use num_complex::Complex;
 const EXPN1: f64 = 0.367_879_441_171_442_33; // exp(-1)
 const OMEGA: f64 = 0.567_143_290_409_783_8; // W(1, 0)
 
-fn lambertw_branchpt(z: Complex<f64>) -> Complex<f64> {
+fn lambertw_branchpt(z: C64) -> C64 {
     // Series for W(z, 0) around the branch point; see 4.22 in [1].
     let coeffs = [-1.0 / 3.0, 1.0, -1.0];
-    let p = (2.0 * (E * z + 1.0)).sqrt();
+    let p = (2.0 * (E * z + 1.0)).via(Complex::sqrt);
 
-    cevalpoly(&coeffs, p)
+    p.evalpoly(&coeffs)
 }
 
-fn lambertw_pade0(z: Complex<f64>) -> Complex<f64> {
+fn lambertw_pade0(z: C64) -> C64 {
     // (3, 2) Pade approximation for W(z, 0) around 0.
     let num = [12.851_063_829_787_234, 12.340_425_531_914_894, 1.0];
     let denom = [32.531_914_893_617_02, 14.340_425_531_914_894, 1.0];
@@ -60,15 +60,15 @@ fn lambertw_pade0(z: Complex<f64>) -> Complex<f64> {
     /* This only gets evaluated close to 0, so we don't need a more
      * careful algorithm that avoids overflow in the numerator for
      * large z. */
-    cdiv(z * cevalpoly(&num, z), cevalpoly(&denom, z))
+    z * z.evalpoly(&num) / z.evalpoly(&denom)
 }
 
-fn lambertw_asy(z: Complex<f64>, k: isize) -> Complex<f64> {
+fn lambertw_asy(z: C64, k: isize) -> C64 {
     /* Compute the W function using the first two terms of the
      * asymptotic series. See 4.20 in [1].
      */
-    let w = clog(z) + 2.0 * PI * k as f64 * Complex::I;
-    w - clog(w)
+    let w = z.ln() + 2.0 * PI * k as f64 * C64::I;
+    w - w.ln()
 }
 
 mod lambertw_real {
@@ -811,32 +811,37 @@ fn lambertw_f64(z: f64, k: isize) -> f64 {
 #[doc(alias = "lambert_w")]
 #[must_use]
 pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
+    z.via(|z| lambertw_c64(z, k, tol))
+}
+
+/// `xsf::lambertw(std::complex<double>, long, double)`
+fn lambertw_c64(z: C64, k: isize, tol: f64) -> C64 {
     if z.im == 0.0
         && ((k == 0 && z.re > lambertw_real::Z0)
             || (k == -1 && z.re > lambertw_real::Z0 && z.re < 0.0))
     {
         // shortcut and use the real-valued calculation
-        return Complex::new(lambertw_f64(z.re, k), 0.0);
+        return c64(lambertw_f64(z.re, k), 0.0);
     }
 
     if z.is_nan() {
         return z;
     }
     if z.re == f64::INFINITY {
-        return z + 2.0 * PI * k as f64 * Complex::I;
+        return z + 2.0 * PI * k as f64 * C64::I;
     }
     if z.re == f64::NEG_INFINITY {
-        return -z + (2.0 * PI * k as f64 + PI) * Complex::I;
+        return -z + (2.0 * PI * k as f64 + PI) * C64::I;
     }
-    if z == Complex::ZERO {
+    if z == C64::ZERO {
         if k == 0 {
             return z;
         }
-        return Complex::new(f64::NEG_INFINITY, 0.0);
+        return c64(f64::NEG_INFINITY, 0.0);
     }
-    if z == Complex::ONE && k == 0 {
+    if z == C64::ONE && k == 0 {
         // Split out this case because the asymptotic series blows up
-        return Complex::new(OMEGA, 0.0);
+        return c64(OMEGA, 0.0);
     }
 
     let absz = z.norm();
@@ -853,7 +858,7 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
         }
     } else if k == -1 {
         if absz <= EXPN1 && z.im == 0.0 && z.re < 0.0 {
-            Complex::new((-z.re).ln(), 0.0)
+            c64((-z.re).ln(), 0.0)
         } else {
             lambertw_asy(z, k)
         }
@@ -867,7 +872,7 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
         for _ in 0..100 {
             let ew = (-w).exp();
             let wewz = w - z * ew;
-            let wn = w - cdiv(wewz, w + 1.0 - cdiv((w + 2.0) * wewz, 2.0 * w + 2.0));
+            let wn = w - wewz / (w + 1.0 - (w + 2.0) * wewz / (2.0 * w + 2.0));
             if (wn - w).norm() <= tol * wn.norm() {
                 return wn;
             }
@@ -878,7 +883,7 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
             let ew = w.exp();
             let wew = w * ew;
             let wewz = wew - z;
-            let wn = w - cdiv(wewz, wew + ew - cdiv((w + 2.0) * wewz, 2.0 * w + 2.0));
+            let wn = w - wewz / (wew + ew - (w + 2.0) * wewz / (2.0 * w + 2.0));
             if (wn - w).norm() <= tol * wn.norm() {
                 return wn;
             }
@@ -886,5 +891,5 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
         }
     }
 
-    C64_NAN
+    C64::NAN
 }

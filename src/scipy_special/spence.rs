@@ -1,13 +1,15 @@
 //! NOTE: The Cephes library only provides a real implementation of the Spence function.
 //! For complex argument, `scipy.special.spence` uses the Cython implementation at
 //! `scipy/special/_spence.pxd`.
+//!
+//! Cython converts the real operand of a complex subtraction to complex, so `1 - z` is
+//! `C64::ONE - z` here, with the imaginary part `0.0 - z.im`.
 
-use num_complex::{Complex64, c64};
-use num_traits::Zero;
+use num_complex::Complex64;
 
 use crate::utils::PISQ_6;
-use crate::xsf::complex::{C64_NAN, cdiv};
-use crate::xsf::zlog1;
+use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::zlog1_c64;
 
 // Relative tolerance for the series
 const TOL: f64 = f64::EPSILON;
@@ -21,7 +23,7 @@ const TOL: f64 = f64::EPSILON;
 /// to move close to 1. See \[1\].
 /// - If z is close to 1, use a series centered at 1.
 #[inline]
-fn cspence(z: Complex64) -> Complex64 {
+fn cspence(z: C64) -> C64 {
     // if zabs(z) < 0.5:
     //     # This step isn't necessary, but this series converges faster.
     //     return cspence_series0(z)
@@ -32,14 +34,14 @@ fn cspence(z: Complex64) -> Complex64 {
 
     if z.re.is_nan() || z.im.is_nan() {
         // like in xsf, instead of iterating 500 times
-        C64_NAN
+        C64::NAN
     } else if z.norm() < 0.5 {
         // This step isn't necessary, but this series converges faster.
         cspence_series0(z)
-    } else if (1.0 - z).norm() > 1.0 {
+    } else if (C64::ONE - z).norm() > 1.0 {
         let zm1 = z - 1.0;
-        // `cdiv`, as the `/` of `Complex` overflows for |z| > 1e154
-        -cspence_series1(cdiv(z, zm1)) - PISQ_6 - 0.5 * zlog1(zm1).powi(2)
+        let log_zm1 = zlog1_c64(zm1);
+        -cspence_series1(z / zm1) - PISQ_6 - 0.5 * (log_zm1 * log_zm1)
     } else {
         cspence_series1(z)
     }
@@ -47,8 +49,8 @@ fn cspence(z: Complex64) -> Complex64 {
 
 /// A series centered at z = 0; see <https://functions.wolfram.com/10.07.06.0005.02>
 #[inline]
-fn cspence_series0(z: Complex64) -> Complex64 {
-    if z.is_zero() {
+fn cspence_series0(z: C64) -> C64 {
+    if z == C64::ZERO {
         return c64(PISQ_6, 0.0);
     }
     // cdef:
@@ -57,9 +59,9 @@ fn cspence_series0(z: Complex64) -> Complex64 {
     //     double complex sum1 = 0
     //     double complex sum2 = 0
     //     double complex term1, term2
-    let mut zfac = c64(1.0, 0.0);
-    let mut sum1 = c64(0.0, 0.0);
-    let mut sum2 = c64(0.0, 0.0);
+    let mut zfac = C64::ONE;
+    let mut sum1 = C64::ZERO;
+    let mut sum2 = C64::ZERO;
 
     // for n in range(1, 500):
     for n in 1..500 {
@@ -84,7 +86,7 @@ fn cspence_series0(z: Complex64) -> Complex64 {
     }
 
     // return PISQ_6 - sum1 + zlog1(z)*sum2
-    PISQ_6 - sum1 + zlog1(z) * sum2
+    c64(PISQ_6, 0.0) - sum1 + zlog1_c64(z) * sum2
 }
 
 /// A series centered at z = 1 which enjoys faster convergence than the Taylor series.
@@ -92,13 +94,13 @@ fn cspence_series0(z: Complex64) -> Complex64 {
 /// The number of terms used comes from bounding the absolute tolerance at the edge of the radius of
 /// convergence where the sum is O(1).
 #[inline]
-fn cspence_series1(z: Complex64) -> Complex64 {
+fn cspence_series1(z: C64) -> C64 {
     // z = 1 - z
-    let z = 1.0 - z;
+    let z = C64::ONE - z;
 
     // if z == 1:
     //     return 0
-    if z.is_zero() {
+    if z == C64::ZERO {
         return z;
     }
 
@@ -107,8 +109,8 @@ fn cspence_series1(z: Complex64) -> Complex64 {
     //     double complex zfac = 1
     //     double complex res = 0
     //     double complex term, zz
-    let mut zfac = c64(1.0, 0.0);
-    let mut res = c64(0.0, 0.0);
+    let mut zfac = C64::ONE;
+    let mut res = C64::ZERO;
 
     // for n in range(1, 500):
     //     if zabs(term) <= TOL*zabs(res):
@@ -133,7 +135,7 @@ fn cspence_series1(z: Complex64) -> Complex64 {
     // res *= 4*zz
     res *= 4.0 * zz;
     // res += 4*z + 5.75*zz + 3*(1 - zz)*zlog1(1 - z)
-    res += 4.0 * z + 5.75 * zz + 3.0 * (1.0 - zz) * zlog1(1.0 - z);
+    res += 4.0 * z + 5.75 * zz + 3.0 * (C64::ONE - zz) * zlog1_c64(C64::ONE - z);
     // res /= 1 + 4*z + zz
     res /= 1.0 + 4.0 * z + zz;
     // return res
@@ -154,7 +156,7 @@ impl SpenceArg for f64 {
 impl SpenceArg for Complex64 {
     #[inline]
     fn spence(self) -> Self {
-        cspence(self)
+        self.via(cspence)
     }
 }
 

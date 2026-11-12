@@ -92,6 +92,12 @@ impl C64 {
         self.via(cexp)
     }
 
+    /// `std::isnan(z.real()) || std::isnan(z.imag())`
+    #[inline]
+    pub(crate) fn is_nan(self) -> bool {
+        self.re.is_nan() || self.im.is_nan()
+    }
+
     /// `std::log(z)`
     #[inline]
     pub(crate) fn ln(self) -> Self {
@@ -112,7 +118,7 @@ impl C64 {
 
     /// `f(z)` for a function `f` of [`num_complex::Complex`]
     #[inline]
-    fn via(self, f: impl FnOnce(Complex<f64>) -> Complex<f64>) -> Self {
+    pub(crate) fn via(self, f: impl FnOnce(Complex<f64>) -> Complex<f64>) -> Self {
         f(self.into()).into()
     }
 
