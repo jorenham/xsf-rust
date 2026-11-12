@@ -44,11 +44,8 @@
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
-use num_complex::{Complex64, c64};
-
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::{LANCZOS_G, gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
-use crate::xsf::complex::{cdiv, cmul, cpow, rdiv, rsub};
-use crate::xsf::log::clog;
 use crate::xsf::tools::{self, series_eval_fixed_length};
 
 const HYP2F1_EPS: f64 = 1e-15;
@@ -66,8 +63,8 @@ fn digamma(x: f64) -> f64 {
 }
 
 /// `tools::series_eval` with the tolerance and term limit of hyp2f1
-fn series_eval(g: impl FnMut() -> Complex64) -> Complex64 {
-    tools::series_eval(g, Complex64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER)
+fn series_eval(g: impl FnMut() -> C64) -> C64 {
+    tools::series_eval(g, C64::ZERO, HYP2F1_EPS, HYP2F1_MAXITER)
 }
 
 fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
@@ -189,100 +186,81 @@ fn four_gammas(mut u: f64, mut v: f64, mut w: f64, mut x: f64) -> f64 {
     result
 }
 
-fn hypergeometric_series_generator(
-    a: f64,
-    b: f64,
-    c: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
+fn hypergeometric_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
     /* Maclaurin series for hyp2f1.
      *
      * Series is convergent for |z| < 1 but is only practical for numerical
      * computation when |z| < 0.9.
      */
-    let mut term = c64(1.0, 0.0);
+    let mut term = C64::ONE;
     let mut k: u64 = 0;
     move || {
         let output = term;
         let k_ = k as f64;
-        term = cmul(term * (a + k_) * (b + k_) / ((k + 1) as f64 * (c + k_)), z);
+        term = term * (a + k_) * (b + k_) / ((k + 1) as f64 * (c + k_)) * z;
         k += 1;
         output
     }
 }
 
-fn hyp2f1_transform1_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl FnMut() -> Complex64 {
+fn hyp2f1_transform1_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
     /* 1 -z transformation of standard series.*/
     let factor1 = c64(four_gammas(c, c - a - b, c - a, c - b), 0.0);
-    let factor2 = cpow(rsub(1.0, z), c - a - b) * four_gammas(c, a + b - c, a, b);
-    let mut generator1 = hypergeometric_series_generator(a, b, a + b - c + 1.0, rsub(1.0, z));
-    let mut generator2 =
-        hypergeometric_series_generator(c - a, c - b, c - a - b + 1.0, rsub(1.0, z));
-    move || cmul(factor1, generator1()) + cmul(factor2, generator2())
+    let factor2 = (1.0 - z).powf(c - a - b) * four_gammas(c, a + b - c, a, b);
+    let mut generator1 = hypergeometric_series_generator(a, b, a + b - c + 1.0, 1.0 - z);
+    let mut generator2 = hypergeometric_series_generator(c - a, c - b, c - a - b + 1.0, 1.0 - z);
+    move || factor1 * generator1() + factor2 * generator2()
 }
 
-fn hyp2f1_transform1_limit_series_generator(
-    a: f64,
-    b: f64,
-    m: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
+fn hyp2f1_transform1_limit_series_generator(a: f64, b: f64, m: f64, z: C64) -> impl FnMut() -> C64 {
     /* 1 - z transform in limit as c - a - b approaches an integer m. */
     let mut d1 = digamma(a);
     let mut d2 = digamma(b);
     let mut d3 = digamma(1.0 + m);
     let mut d4 = digamma(1.0);
-    let log_1_z = clog(rsub(1.0, z));
+    let log_1_z = (1.0 - z).ln();
     let mut factor = c64(rgamma(m + 1.0), 0.0);
     let mut k: i32 = 0;
     move || {
-        let term = cmul(d1 + d2 - d3 - d4 + log_1_z, factor);
+        let term = (d1 + d2 - d3 - d4 + log_1_z) * factor;
         let k_ = f64::from(k);
         // Use digamma(x + 1) = digamma(x) + 1/x
         d1 += 1.0 / (a + k_); // d1 = digamma(a + k)
         d2 += 1.0 / (b + k_); // d2 = digamma(b + k)
         d3 += 1.0 / (1.0 + m + k_); // d3 = digamma(1 + m + k)
         d4 += 1.0 / (1.0 + k_); // d4 = digamma(1 + k)
-        factor = cmul(
-            factor,
-            rsub(1.0, z) * ((a + k_) * (b + k_) / ((k_ + 1.0) * (m + k_ + 1.0))),
-        );
+        factor *= (1.0 - z) * ((a + k_) * (b + k_) / ((k_ + 1.0) * (m + k_ + 1.0)));
         k += 1;
         term
     }
 }
 
-fn hyp2f1_transform2_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl FnMut() -> Complex64 {
+fn hyp2f1_transform2_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
     /* 1/z transformation of standard series.*/
-    let factor1 = cpow(-z, -a) * four_gammas(c, b - a, b, c - a);
-    let factor2 = cpow(-z, -b) * four_gammas(c, a - b, a, c - b);
-    let mut generator1 = hypergeometric_series_generator(a, a - c + 1.0, a - b + 1.0, rdiv(1.0, z));
-    let mut generator2 = hypergeometric_series_generator(b, b - c + 1.0, b - a + 1.0, rdiv(1.0, z));
-    move || cmul(factor1, generator1()) + cmul(factor2, generator2())
+    let factor1 = (-z).powf(-a) * four_gammas(c, b - a, b, c - a);
+    let factor2 = (-z).powf(-b) * four_gammas(c, a - b, a, c - b);
+    let mut generator1 = hypergeometric_series_generator(a, a - c + 1.0, a - b + 1.0, 1.0 / z);
+    let mut generator2 = hypergeometric_series_generator(b, b - c + 1.0, b - a + 1.0, 1.0 / z);
+    move || factor1 * generator1() + factor2 * generator2()
 }
 
 /// `hyp2f1_transform2_generator(c - a, c - b, c, z)`, but without `c - (c - a)` losing `a` if tiny
-fn hyp2f1_transform2_euler_generator(
-    a: f64,
-    b: f64,
-    c: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
-    let factor1 = cpow(-z, a - c) * four_gammas(c, a - b, c - b, a);
-    let factor2 = cpow(-z, b - c) * four_gammas(c, b - a, c - a, b);
-    let mut generator1 = hypergeometric_series_generator(c - a, 1.0 - a, b - a + 1.0, rdiv(1.0, z));
-    let mut generator2 = hypergeometric_series_generator(c - b, 1.0 - b, a - b + 1.0, rdiv(1.0, z));
-    move || cmul(factor1, generator1()) + cmul(factor2, generator2())
+fn hyp2f1_transform2_euler_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
+    let factor1 = (-z).powf(a - c) * four_gammas(c, a - b, c - b, a);
+    let factor2 = (-z).powf(b - c) * four_gammas(c, b - a, c - a, b);
+    let mut generator1 = hypergeometric_series_generator(c - a, 1.0 - a, b - a + 1.0, 1.0 / z);
+    let mut generator2 = hypergeometric_series_generator(c - b, 1.0 - b, a - b + 1.0, 1.0 / z);
+    move || factor1 * generator1() + factor2 * generator2()
 }
 
 /// The estimated cancellation `abs_sum / |sum|`, or infinity if NaN (e.g. if `sum` is NaN)
-fn cancellation(abs_sum: f64, sum: Complex64) -> f64 {
+fn cancellation(abs_sum: f64, sum: C64) -> f64 {
     let ratio = abs_sum / sum.norm();
     if ratio.is_nan() { f64::INFINITY } else { ratio }
 }
 
 /// `series_eval` of the generator, and its estimated cancellation sum(|term|) / |sum|
-fn series_eval_cancellation(mut g: impl FnMut() -> Complex64) -> (Complex64, f64) {
+fn series_eval_cancellation(mut g: impl FnMut() -> C64) -> (C64, f64) {
     let mut abs_sum = 0.0;
     let g = || {
         let term = g();
@@ -298,11 +276,11 @@ const HYP2F1_MAX_FIXED_TERMS: u64 = 1 << 20;
 /// `series_eval_fixed_length`, or NaN if that would sum more than `HYP2F1_MAX_FIXED_TERMS` terms
 //
 // Unlike in xsf (scipy/xsf#388), cap num_terms.
-fn series_eval_finite(g: impl FnMut() -> Complex64, num_terms: u64) -> Complex64 {
+fn series_eval_finite(g: impl FnMut() -> C64, num_terms: u64) -> C64 {
     if num_terms > HYP2F1_MAX_FIXED_TERMS {
-        return c64(f64::NAN, f64::NAN);
+        return C64::NAN;
     }
-    series_eval_fixed_length(g, Complex64::ZERO, num_terms)
+    series_eval_fixed_length(g, C64::ZERO, num_terms)
 }
 
 fn hyp2f1_transform2_limit_series_generator(
@@ -310,19 +288,19 @@ fn hyp2f1_transform2_limit_series_generator(
     b: f64,
     c: f64,
     m: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
+    z: C64,
+) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m. (Can swap a and b to
      * handle the m a negative integer case. */
     let mut d1 = digamma(1.0);
     let mut d2 = digamma(1.0 + m);
     let mut d3 = digamma(a);
     let mut d4 = digamma(c - a);
-    let log_neg_z = clog(-z);
+    let log_neg_z = (-z).ln();
     let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
     let mut k: u64 = 0;
     move || {
-        let term = cmul(d1 + d2 - d3 - d4 + log_neg_z, factor);
+        let term = (d1 + d2 - d3 - d4 + log_neg_z) * factor;
         let k_ = k as f64;
         // Use digamma(x + 1) = digamma(x) + 1/x
         d1 += 1.0 / (1.0 + k_); // d1 = digamma(1 + k)
@@ -330,7 +308,7 @@ fn hyp2f1_transform2_limit_series_generator(
         d3 += 1.0 / (a + k_); // d3 = digamma(a + k)
         d4 -= 1.0 / (c - a - k_ - 1.0); // d4 = digamma(c - a - k)
         let f = (b + m + k_) * (1.0 - c + b + m + k_) / ((k + 1) as f64 * (m + k_ + 1.0));
-        factor = cmul(factor, rdiv(f, z));
+        factor *= f / z;
         k += 1;
         term
     }
@@ -342,28 +320,28 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
     c: f64,
     m: f64,
     n: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
+    z: C64,
+) -> impl FnMut() -> C64 {
     /* 1/z transform in limit as a - b approaches a non-negative integer m, and c - a approaches
      * a positive integer n. */
     let mut d1 = digamma(1.0);
     let mut d2 = digamma(1.0 + m);
     let mut d3 = digamma(a);
     let mut d4 = digamma(n);
-    let log_neg_z = clog(-z);
+    let log_neg_z = (-z).ln();
     let mut factor = c64(poch(b, m) * poch(1.0 - c + b, m) * rgamma(m + 1.0), 0.0);
     let mut k: u64 = 0;
     move || {
         let k_ = k as f64;
         if k_ < n {
-            let term = cmul(d1 + d2 - d3 - d4 + log_neg_z, factor);
+            let term = (d1 + d2 - d3 - d4 + log_neg_z) * factor;
             // Use digamma(x + 1) = digamma(x) + 1/x
             d1 += 1.0 / (1.0 + k_); // d1 = digamma(1 + k)
             d2 += 1.0 / (1.0 + m + k_); // d2 = digamma(1 + m + k)
             d3 += 1.0 / (a + k_); // d3 = digamma(a + k)
             d4 -= 1.0 / (n - k_ - 1.0); // d4 = digamma(c - a - k)
             let f = (b + m + k_) * (1.0 - c + b + m + k_) / ((k + 1) as f64 * (m + k_ + 1.0));
-            factor = cmul(factor, rdiv(f, z));
+            factor *= f / z;
             k += 1;
             return term;
         }
@@ -402,11 +380,11 @@ fn hyp2f1_transform2_limit_series_cminus_a_int_generator(
             let f = (-1.0_f64).powf(m + n)
                 * crate::binom(c - 1.0, b - 1.0)
                 * poch(c - a + 1.0, m - 1.0);
-            factor = rdiv(f, cpow(z, k_));
+            factor = f / z.powf(k_);
         }
         let term = factor;
         let f = (b + m + k_) * (k_ + a - c + 1.0) / ((k + 1) as f64 * (m + k_ + 1.0));
-        factor = cmul(factor, rdiv(f, z));
+        factor *= f / z;
         k += 1;
         term
     }
@@ -416,8 +394,8 @@ fn hyp2f1_transform2_limit_finite_part_generator(
     b: f64,
     c: f64,
     m: f64,
-    z: Complex64,
-) -> impl FnMut() -> Complex64 {
+    z: C64,
+) -> impl FnMut() -> C64 {
     /* Initial finite sum in limit as a - b approaches a non-negative integer m. The limiting series
      * for the 1 - z transform also has an initial finite sum, but it is a standard hypergeometric
      * series. */
@@ -426,17 +404,14 @@ fn hyp2f1_transform2_limit_finite_part_generator(
     move || {
         let output = term;
         let k_ = k as f64;
-        term = cdiv(
-            term * (b + k_) * (c - b - k_ - 1.0) / ((k + 1) as f64 * (m - k_ - 1.0)),
-            z,
-        );
+        term = term * (b + k_) * (c - b - k_ - 1.0) / ((k + 1) as f64 * (m - k_ - 1.0)) / z;
         k += 1;
         output
     }
 }
 
 #[allow(non_snake_case)]
-fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl FnMut() -> Complex64 {
+fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: C64) -> impl FnMut() -> C64 {
     /* Lopez-Temme Series for Gaussian hypergeometric function [4].
      *
      * Converges for all z with real(z) < 1, including in the regions surrounding
@@ -446,11 +421,11 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
     let mut n: u64 = 0;
     let mut phi_previous = 1.0;
     let mut phi = 1.0 - 2.0 * b / c;
-    let mut Z = cdiv(z * a, z - 2.0);
+    let mut Z = z * a / (z - 2.0);
     move || {
         if n == 0 {
             n += 1;
-            return c64(1.0, 0.0);
+            return C64::ONE;
         }
         if n > 1 {
             // Update phi and Z for n>=2
@@ -458,7 +433,7 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
             let new_phi = (n1 * phi_previous - (2.0 * b - c) * phi) / (c + n1);
             phi_previous = phi;
             phi = new_phi;
-            Z = cdiv(cmul(Z, z), z - 2.0) * ((a + n1) / n as f64);
+            Z = Z * z / (z - 2.0) * ((a + n1) / n as f64);
         }
         n += 1;
         Z * phi
@@ -466,71 +441,70 @@ fn lopez_temme_series_generator(a: f64, b: f64, c: f64, z: Complex64) -> impl Fn
 }
 
 /// The result, and its estimated cancellation as in `series_eval_cancellation`
-fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: Complex64) -> (Complex64, f64) {
+fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64) {
     /* 1 - z transform in limiting case where c - a - b approaches an integer m. */
     let m = (c - a - b).round();
-    let mut result = Complex64::ZERO;
+    let mut result = C64::ZERO;
     let (prefactor, series_generator) = if m >= 0.0 {
         if m != 0.0 {
-            let series_generator = hypergeometric_series_generator(a, b, 1.0 - m, rsub(1.0, z));
+            let series_generator = hypergeometric_series_generator(a, b, 1.0 - m, 1.0 - z);
             result +=
                 series_eval_finite(series_generator, m as u64) * four_gammas(m, c, a + m, b + m);
         }
         let prefactor =
-            cpow(rsub(1.0, z), m) * ((-1.0_f64).powf(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
+            (1.0 - z).powf(m) * ((-1.0_f64).powf(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
         let series_generator = hyp2f1_transform1_limit_series_generator(a + m, b + m, m, z);
         (prefactor, series_generator)
     } else {
-        result = cpow(rsub(1.0, z), m) * four_gammas(-m, c, a, b);
-        let series_generator1 =
-            hypergeometric_series_generator(a + m, b + m, 1.0 + m, rsub(1.0, z));
-        result = cmul(result, series_eval_finite(series_generator1, (-m) as u64));
+        result = (1.0 - z).powf(m) * four_gammas(-m, c, a, b);
+        let series_generator1 = hypergeometric_series_generator(a + m, b + m, 1.0 + m, 1.0 - z);
+        result *= series_eval_finite(series_generator1, (-m) as u64);
         let prefactor = (-1.0_f64).powf(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         (c64(prefactor, 0.0), series_generator2)
     };
     let (series, series_cancellation) = series_eval_cancellation(series_generator);
     let abs_sum = result.norm() + prefactor.norm() * series.norm() * series_cancellation;
-    result += cmul(prefactor, series);
+    result += prefactor * series;
     (result, cancellation(abs_sum, result))
 }
 
-fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: Complex64) -> Complex64 {
+fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C64 {
     /* 1 / z transform in limiting case where a - b approaches a non-negative integer m. Negative integer case
      * can be handled by swapping a and b. */
     let series_generator1 = hyp2f1_transform2_limit_finite_part_generator(b, c, m, z);
-    let mut result = cpow(-z, -b) * (gamma(c) * rgamma(a));
-    result = cmul(result, series_eval_finite(series_generator1, m as u64));
-    let prefactor = cpow(-z, -a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
+    let mut result = (-z).powf(-b) * (gamma(c) * rgamma(a));
+    result *= series_eval_finite(series_generator1, m as u64);
+    let prefactor = (-z).powf(-a) * (rgamma(a) * rgamma(c - b)) * gamma(c);
     let n = c - a;
     if (n - n.round()).abs() < HYP2F1_EPS {
         let series_generator2 =
             hyp2f1_transform2_limit_series_cminus_a_int_generator(a, b, c, m, n, z);
-        result += cmul(prefactor, series_eval(series_generator2));
+        result += prefactor * series_eval(series_generator2);
         return result;
     }
     let series_generator2 = hyp2f1_transform2_limit_series_generator(a, b, c, m, z);
-    result += cmul(prefactor, series_eval(series_generator2));
+    result += prefactor * series_eval(series_generator2);
     result
 }
 
-fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
+fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
     if a.is_nan() || b.is_nan() || c.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return c64(f64::NAN, f64::NAN);
+        return C64::NAN;
     }
 
     /* Takes constant value 1 when a = 0 or b = 0, even if c is a non-positive
      * integer. This follows mpmath. */
     if a == 0.0 || b == 0.0 {
-        return c64(1.0, 0.0);
+        return C64::ONE;
     }
     let z_abs = z.norm();
     // Equals 1 when z i 0, unless c is 0.
     if z_abs == 0.0 {
         if c != 0.0 {
-            return c64(1.0, 0.0);
+            return C64::ONE;
         }
         // Returning real part NAN and imaginary part 0 follows mpmath.
         return c64(f64::NAN, 0.0);
@@ -564,7 +538,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             let series_generator = hypergeometric_series_generator(a, b, c, z);
             return series_eval_finite(series_generator, (max_degree + 1.0) as u64);
         }
-        return c64(f64::NAN, f64::NAN);
+        return C64::NAN;
     }
     // Kummer's Theorem for z = -1; c = 1 + a - b (DLMF 15.4.26)
     if (z + 1.0).norm() < HYP2F1_EPS && (1.0 + a - b - c).abs() < HYP2F1_EPS && !c_non_pos_int {
@@ -586,15 +560,12 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
             (c - a).abs()
         };
         if max_degree <= u64::MAX as f64 {
-            result = cpow(rsub(1.0, z), c - a - b);
+            result = (1.0 - z).powf(c - a - b);
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            result = cmul(
-                result,
-                series_eval_finite(series_generator, (max_degree + 2.0) as u64),
-            );
+            result *= series_eval_finite(series_generator, (max_degree + 2.0) as u64);
             return result;
         }
-        return c64(f64::NAN, f64::NAN);
+        return C64::NAN;
     }
     /* Diverges as real(z) -> 1 when c <= a + b.
      * Todo: Actually check for overflow instead of using a fixed tolerance for
@@ -615,9 +586,9 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
      * stands, this hurts precision in some cases. */
     if z_abs < 0.9 && z.re >= 0.0 {
         if c - a < a && c - b < b {
-            result = cpow(rsub(1.0, z), c - a - b);
+            result = (1.0 - z).powf(c - a - b);
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);
-            result = cmul(result, series_eval(series_generator));
+            result *= series_eval(series_generator);
             return result;
         }
         let series_generator = hypergeometric_series_generator(a, b, c, z);
@@ -627,20 +598,20 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
      * transformations. Use series of López and Temme [5]. These regions
      * were not correctly handled by Zhang and Jin's implementation.
      * -------------------------------------------------------------------------*/
-    if (0.9..1.1).contains(&z_abs) && rsub(1.0, z).norm() >= 0.9 && z.re >= 0.0 {
+    if (0.9..1.1).contains(&z_abs) && (1.0 - z).norm() >= 0.9 && z.re >= 0.0 {
         /* This condition for applying Euler Transformation (DLMF 15.8.1)
          * was determined empirically to work better for this case than that
          * used in Zhang and Jin's implementation for |z| < 0.9,
          *  real(z) >= 0. */
         if (c - a <= a && c - b < b) || (c - a < a && c - b <= b) {
             let series_generator = lopez_temme_series_generator(c - a, c - b, c, z);
-            result = cpow(rsub(1.0, z * 0.5), a - c); // Lopez-Temme prefactor
-            result = cmul(result, series_eval(series_generator));
-            return cmul(cpow(rsub(1.0, z), c - a - b), result); // Euler transform prefactor.
+            result = (1.0 - z * 0.5).powf(a - c); // Lopez-Temme prefactor
+            result *= series_eval(series_generator);
+            return (1.0 - z).powf(c - a - b) * result; // Euler transform prefactor.
         }
         let series_generator = lopez_temme_series_generator(a, b, c, z);
         result = series_eval(series_generator);
-        return cmul(cpow(rsub(1.0, z * 0.5), -a), result); // Lopez-Temme prefactor.
+        return (1.0 - z * 0.5).powf(-a) * result; // Lopez-Temme prefactor.
     }
     /* z/(z - 1) transformation (DLMF 15.8.1). Avoids cancellation issues that
      * occur with Maclaurin series for real(z) < 0.
@@ -649,8 +620,8 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
         if 0.0 < b && b < a && a < c {
             core::mem::swap(&mut a, &mut b);
         }
-        let series_generator = hypergeometric_series_generator(a, c - b, c, cdiv(z, z - 1.0));
-        return cmul(cpow(rsub(1.0, z), -a), series_eval(series_generator));
+        let series_generator = hypergeometric_series_generator(a, c - b, c, z / (z - 1.0));
+        return (1.0 - z).powf(-a) * series_eval(series_generator);
     }
     /* 1 - z transformation (DLMF 15.8.4). */
     if (0.9..1.1).contains(&z_abs) {
@@ -684,9 +655,9 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: Complex64) -> Complex64 {
     // reduces a and b, as for |z| < 0.9.
     let euler = c - a < a && c - b < b;
     // times (1 - z)^(c - a - b), if both are normal
-    let euler_scaled = move |result: Complex64| {
-        let prefactor = cpow(rsub(1.0, z), c - a - b);
-        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| cmul(prefactor, result))
+    let euler_scaled = move |result: C64| {
+        let prefactor = (1.0 - z).powf(c - a - b);
+        (prefactor.norm().is_normal() && result.norm().is_normal()).then(|| prefactor * result)
     };
     if (a - b - (a - b).round()).abs() < HYP2F1_EPS {
         if b > a {
@@ -732,7 +703,7 @@ impl Hyp2F1Arg for f64 {
 impl Hyp2F1Arg for num_complex::Complex<f64> {
     #[inline]
     fn hyp2f1(self, a: f64, b: f64, c: f64) -> Self {
-        hyp2f1_c64(a, b, c, self)
+        self.via(|z| hyp2f1_c64(a, b, c, z))
     }
 }
 

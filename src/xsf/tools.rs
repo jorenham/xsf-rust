@@ -11,10 +11,8 @@
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use num_complex::Complex;
-
+use crate::xsf::c64::C64;
 use crate::xsf::cephes::dd_real::DoubleDouble;
-use crate::xsf::complex::C64_NAN;
 
 /// The working type of the series and continued fraction evaluators
 pub(crate) trait Real:
@@ -95,11 +93,11 @@ impl Real for DoubleDouble {
 /// - `max_terms`: The maximum number of terms to add before giving up and declaring
 ///   non-convergence.
 pub(crate) fn series_eval(
-    mut g: impl FnMut() -> Complex<f64>,
-    init_val: Complex<f64>,
+    mut g: impl FnMut() -> C64,
+    init_val: C64,
     tol: f64,
     max_terms: u64,
-) -> Complex<f64> {
+) -> C64 {
     let mut result = init_val;
     for _ in 0..max_terms {
         let term = g();
@@ -109,7 +107,7 @@ pub(crate) fn series_eval(
         }
     }
     // Exceeded max terms without converging. Return NaN.
-    C64_NAN
+    C64::NAN
 }
 
 /// Sum a fixed number of terms from a series.
@@ -119,10 +117,10 @@ pub(crate) fn series_eval(
 ///   the result.
 /// - `num_terms`: The number of terms from the series to sum.
 pub(crate) fn series_eval_fixed_length(
-    mut g: impl FnMut() -> Complex<f64>,
-    init_val: Complex<f64>,
+    mut g: impl FnMut() -> C64,
+    init_val: C64,
     num_terms: u64,
-) -> Complex<f64> {
+) -> C64 {
     let mut result = init_val;
     for _ in 0..num_terms {
         result += g();

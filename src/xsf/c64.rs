@@ -5,7 +5,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 use num_complex::Complex;
 
 use crate::utils::cmul_exp;
-use crate::xsf::complex::{catan, cdiv, cmul, csqrt, rdiv, rsub};
+use crate::xsf::complex::{catan, cdiv, cmul, cpow, csqrt, rdiv, rsub};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -134,6 +134,12 @@ impl C64 {
     #[inline]
     pub(crate) fn mul_exp(self, x: f64) -> Self {
         self.via(|z| cmul_exp(z, x))
+    }
+
+    /// `std::pow(z, x)`
+    #[inline]
+    pub(crate) fn powf(self, x: f64) -> Self {
+        self.via(|z| cpow(z, x))
     }
 
     /// `std::sin(z)`
