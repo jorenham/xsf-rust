@@ -730,22 +730,26 @@ pub trait LaguerreArg<N>: sealed::OrthoPolyArg {
 /// `binom(n + alpha, n)`, for `eval_jacobi`
 ///
 /// Unlike in xsf (scipy/xsf#457), this is `binom(n + alpha, n - 1) * b / n` with `b = alpha + 1` if
-/// `alpha < 0` and `1 <= n <= 2^53` (so `n - 1` is exact), since rounding `n + alpha` loses the
-/// digits of a small `b`. `binom_alpha` is more accurate, but near `alpha = -2, -3, ...` it exposes
-/// the cancellation of the `eval_jacobi` recurrence for `beta = +-1`.
+/// `alpha < 0` and `1 <= n <= 2^53` (so `n - 1` is exact), and `binom_alpha` otherwise, since
+/// rounding `n + alpha` loses the digits of a small `b`. `binom_alpha` is more accurate, but near
+/// `alpha = -2, -3, ...` it exposes the cancellation of the `eval_jacobi` recurrence for
+/// `beta = +-1`.
 fn jacobi_binom(n: f64, alpha: f64) -> f64 {
     if alpha < 0.0 && EXACT_N_MINUS_1.contains(&n) {
         crate::binom(n + alpha, n - 1.0) * (alpha + 1.0) / n
     } else {
-        crate::binom(n + alpha, n)
+        binom_alpha(n, alpha)
     }
 }
 
 // binom(n + alpha, n) = 1 / (n B(alpha + 1, n)) (DLMF 5.12.1), keeping the digits of alpha + 1 for
-// alpha near -1
+// alpha near -1, unless that isn't finite (for subnormal n, or at a pole)
 fn binom_alpha(n: f64, alpha: f64) -> f64 {
-    if alpha < -0.5 && n >= 1.0 {
-        return 1.0 / n / crate::beta(alpha + 1.0, n);
+    if alpha < -0.5 && n > 0.0 {
+        let b = 1.0 / n / crate::beta(alpha + 1.0, n);
+        if b.is_finite() {
+            return b;
+        }
     }
     crate::binom(n + alpha, n)
 }
