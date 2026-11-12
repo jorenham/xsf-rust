@@ -30,10 +30,8 @@
 //! at `-1/e` and make sure that the proper branch is chosen there.
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted. Complex division
-//! uses Smith's algorithm (see [`cdiv`]), which, like GCC's `__divdc3`, avoids the spurious
+//! uses Smith's algorithm (see [`C64`]), which, like GCC's `__divdc3`, avoids the spurious
 //! underflow of the naive formula for tiny `z` with `k != 0`.
-//!
-//! [`cdiv`]: crate::xsf::complex::cdiv
 
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::ratevl;

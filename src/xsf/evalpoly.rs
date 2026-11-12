@@ -7,8 +7,10 @@
 
 use num_complex::Complex;
 
+use crate::xsf::c64::{C64, ViaC64};
+
 /// `xsf::cevalpoly`, with `degree = coeffs.len() - 1`
-fn xsf_cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
+fn xsf_cevalpoly(coeffs: &[f64], z: C64) -> C64 {
     /* Evaluate a polynomial with real coefficients at a complex point.
      *
      * Uses equation (3) in section 4.6.4 of [1]. Note that it is more
@@ -49,6 +51,11 @@ fn xsf_cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
 #[must_use]
 #[inline]
 pub fn cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
+    z.via(|z| cevalpoly_c64(coeffs, z))
+}
+
+/// [`cevalpoly`] for [`C64`]
+pub(crate) fn cevalpoly_c64(coeffs: &[f64], z: C64) -> C64 {
     match coeffs {
         [] => xsf_cevalpoly(&[0.0, 0.0], z),
         &[c] => xsf_cevalpoly(&[0.0, c], z),

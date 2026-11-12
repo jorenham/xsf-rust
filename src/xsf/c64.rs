@@ -4,17 +4,17 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 
 use num_complex::Complex;
 
-use crate::utils::cmul_exp;
-use crate::xsf::complex::{catan, cdiv, cmul, cpow, csqrt, rdiv, rsub};
-use crate::xsf::evalpoly::cevalpoly;
+use crate::utils::{cmul_exp, pow2};
+use crate::xsf::complex::{catan, cpow, csqrt};
+use crate::xsf::evalpoly::cevalpoly_c64;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-use crate::xsf::trig::{ccos, ccosh, csin, csinh};
+use crate::xsf::trig::{ccos, ccosh, ccospi, csin, csinh, csinpi};
 
 /// A complex number with the arithmetic of `std::complex<double>` in C++ (GCC), so that ported
 /// code can use the same operators:
 ///
-/// - `z * w` is [`cmul`] and `z / w` is [`cdiv`], also for a real numerator (`x / w`);
+/// - `z * w` is [`mul`] and `z / w` is [`div`], also for a real numerator (`x / w`);
 /// - a real operand scales both parts in `z * x`, `x * z` and `z / x`, and only changes the real
 ///   part in `z + x`, `x + z` and `z - x`;
 /// - `x - z` has the imaginary part `-z.im`.
@@ -73,7 +73,7 @@ impl C64 {
     /// `std::atan(z)`
     #[inline]
     pub(crate) fn atan(self) -> Self {
-        self.via(catan)
+        catan(self)
     }
 
     /// `std::conj(z)`
@@ -85,31 +85,31 @@ impl C64 {
     /// `std::cos(z)`
     #[inline]
     pub(crate) fn cos(self) -> Self {
-        self.via(ccos)
+        ccos(self)
     }
 
     /// `std::cosh(z)`
     #[inline]
     pub(crate) fn cosh(self) -> Self {
-        self.via(ccosh)
+        ccosh(self)
     }
 
     /// `xsf::cospi(z)`
     #[inline]
     pub(crate) fn cospi(self) -> Self {
-        self.via(crate::cospi)
+        ccospi(self)
     }
 
     /// `xsf::cevalpoly(coeffs, degree, z)`
     #[inline]
     pub(crate) fn evalpoly(self, coeffs: &[f64]) -> Self {
-        self.via(|z| cevalpoly(coeffs, z))
+        cevalpoly_c64(coeffs, self)
     }
 
     /// `std::exp(z)`
     #[inline]
     pub(crate) fn exp(self) -> Self {
-        self.via(cexp)
+        cexp(self)
     }
 
     /// `std::isfinite(z.real()) && std::isfinite(z.imag())`
@@ -133,13 +133,13 @@ impl C64 {
     /// `std::log(z)`
     #[inline]
     pub(crate) fn ln(self) -> Self {
-        self.via(clog)
+        clog(self)
     }
 
     /// `z * std::exp(x)` without overflowing prematurely, as in glibc's complex `exp`
     #[inline]
     pub(crate) fn mul_exp(self, x: f64) -> Self {
-        self.via(|z| cmul_exp(z, x))
+        cmul_exp(self, x)
     }
 
     /// `z.real() * z.real() + z.imag() * z.imag()`
@@ -151,7 +151,7 @@ impl C64 {
     /// `std::pow(z, x)`
     #[inline]
     pub(crate) fn powf(self, x: f64) -> Self {
-        self.via(|z| cpow(z, x))
+        cpow(self, x)
     }
 
     /// `z^x` in polar form, i.e. `|z|^x (cos(x arg z) + i sin(x arg z))`, as in `num_complex`
@@ -171,37 +171,25 @@ impl C64 {
     /// `std::sin(z)`
     #[inline]
     pub(crate) fn sin(self) -> Self {
-        self.via(csin)
+        csin(self)
     }
 
     /// `std::sinh(z)`
     #[inline]
     pub(crate) fn sinh(self) -> Self {
-        self.via(csinh)
+        csinh(self)
     }
 
     /// `xsf::sinpi(z)`
     #[inline]
     pub(crate) fn sinpi(self) -> Self {
-        self.via(crate::sinpi)
+        csinpi(self)
     }
 
     /// `std::sqrt(z)`
     #[inline]
     pub(crate) fn sqrt(self) -> Self {
-        self.via(csqrt)
-    }
-
-    /// `f(z)` for a function `f` of [`num_complex::Complex`]
-    #[inline]
-    fn via(self, f: impl FnOnce(Complex<f64>) -> Complex<f64>) -> Self {
-        f(self.into()).into()
-    }
-
-    /// `f(z, w)` for a function `f` of [`num_complex::Complex`]
-    #[inline]
-    fn via2(self, w: Self, f: fn(Complex<f64>, Complex<f64>) -> Complex<f64>) -> Self {
-        f(self.into(), w.into()).into()
+        csqrt(self)
     }
 }
 
@@ -291,22 +279,150 @@ impl_op!(
     SubAssign::sub_assign,
     |z, w| c64(z.re - w.re, z.im - w.im),
     |x| c64(z.re - x, z.im),
-    w.via(|w| rsub(x, w))
+    // as in C++, the imaginary part is `-w.im` instead of `0.0 - w.im`
+    c64(x - w.re, -w.im)
 );
 impl_op!(
     Mul::mul,
     MulAssign::mul_assign,
-    |z, w| z.via2(w, cmul),
+    |z, w| mul(z, w),
     |x| c64(z.re * x, z.im * x),
     c64(x * w.re, x * w.im)
 );
 impl_op!(
     Div::div,
     DivAssign::div_assign,
-    |z, w| z.via2(w, cdiv),
+    |z, w| div(z, w),
     |x| c64(z.re / x, z.im / x),
-    w.via(|w| rdiv(x, w))
+    // as in C++, i.e. `(x + 0i) / w`
+    div(c64(x, 0.0), w)
 );
+
+/// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
+/// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
+/// the intermediate results don't lose precision by becoming subnormal, and finite operands are
+/// halved if a sum of the algorithm overflows.
+///
+/// This replaces the complex division in C++, i.e. GCC's `__divdc3`. Like `__divdc3`, it recovers
+/// the infinities and zeros that would otherwise be computed as NaN + NaN i (C99 Annex G).
+///
+/// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
+fn div(mut a: C64, mut b: C64) -> C64 {
+    const TWO_M400: f64 = pow2(-400);
+    const TWO_600: f64 = pow2(600);
+
+    if b.re.abs().max(b.im.abs()) < TWO_M400 {
+        a *= TWO_600;
+        b *= TWO_600;
+    }
+    // the denominator and the two numerators
+    let smith = |a: C64, b: C64| {
+        if b.re.abs() >= b.im.abs() {
+            let r = b.im / b.re;
+            [b.re + b.im * r, a.re + a.im * r, a.im - a.re * r]
+        } else {
+            let r = b.re / b.im;
+            [b.re * r + b.im, a.re * r + a.im, a.im * r - a.re]
+        }
+    };
+    let mut sums = smith(a, b);
+    if sums.iter().any(|s| s.is_infinite()) && a.is_finite() && b.is_finite() {
+        // halved, the sums are at most twice their largest term
+        sums = smith(0.5 * a, 0.5 * b);
+    }
+    let [den, x, y] = sums;
+    let w = c64(x / den, y / den);
+
+    // Recover infinities and zeros that computed as NaN+iNaN; the only
+    // cases are nonzero/zero, infinite/finite, and finite/infinite.
+    if w.re.is_nan() && w.im.is_nan() {
+        let (C64 { re: a, im: b }, C64 { re: c, im: d }) = (a, b);
+        if c == 0.0 && d == 0.0 && (!a.is_nan() || !b.is_nan()) {
+            let inf = f64::INFINITY.copysign(c);
+            return c64(inf * a, inf * b);
+        } else if (a.is_infinite() || b.is_infinite()) && c.is_finite() && d.is_finite() {
+            let a = box_inf(a);
+            let b = box_inf(b);
+            return c64(
+                f64::INFINITY * (a * c + b * d),
+                f64::INFINITY * (b * c - a * d),
+            );
+        } else if (c.is_infinite() || d.is_infinite()) && a.is_finite() && b.is_finite() {
+            let c = box_inf(c);
+            let d = box_inf(d);
+            return c64(0.0 * (a * c + b * d), 0.0 * (b * c - a * d));
+        }
+    }
+    w
+}
+
+/// Complex multiplication `a * b`, like GCC's `__muldc3` (C99 Annex G)
+///
+/// This replaces the complex multiplication in C++. For finite results it is the same as the naive
+/// formula (i.e. `num_complex`'s `*`), but it recovers the infinities that would otherwise be
+/// computed as NaN + NaN i, e.g. `(inf + inf i) * (1 + 0i)`.
+#[inline]
+fn mul(a: C64, b: C64) -> C64 {
+    let (
+        C64 {
+            re: mut a,
+            im: mut b,
+        },
+        C64 {
+            re: mut c,
+            im: mut d,
+        },
+    ) = (a, b);
+    let (ac, bd, ad, bc) = (a * c, b * d, a * d, b * c);
+    let (mut x, mut y) = (ac - bd, ad + bc);
+
+    if x.is_nan() && y.is_nan() {
+        // Recover infinities that computed as NaN+iNaN.
+        let mut recalc = false;
+        if a.is_infinite() || b.is_infinite() {
+            // z is infinite.  "Box" the infinity and change NaNs in
+            // the other factor to 0.
+            a = box_inf(a);
+            b = box_inf(b);
+            c = nan_to_zero(c);
+            d = nan_to_zero(d);
+            recalc = true;
+        }
+        if c.is_infinite() || d.is_infinite() {
+            // w is infinite.  "Box" the infinity and change NaNs in
+            // the other factor to 0.
+            c = box_inf(c);
+            d = box_inf(d);
+            a = nan_to_zero(a);
+            b = nan_to_zero(b);
+            recalc = true;
+        }
+        if !recalc && (ac.is_infinite() || bd.is_infinite() || ad.is_infinite() || bc.is_infinite())
+        {
+            // Recover infinities from overflow by changing NaNs to 0.
+            a = nan_to_zero(a);
+            b = nan_to_zero(b);
+            c = nan_to_zero(c);
+            d = nan_to_zero(d);
+            recalc = true;
+        }
+        if recalc {
+            x = f64::INFINITY * (a * c - b * d);
+            y = f64::INFINITY * (a * d + b * c);
+        }
+    }
+    c64(x, y)
+}
+
+/// `isnan(x) ? copysign(0, x) : x`, used by [`mul`]
+fn nan_to_zero(x: f64) -> f64 {
+    if x.is_nan() { 0.0_f64.copysign(x) } else { x }
+}
+
+/// `copysign(isinf(x) ? 1 : 0, x)`, used to "box" infinities in C99 Annex G
+fn box_inf(x: f64) -> f64 {
+    (if x.is_infinite() { 1.0_f64 } else { 0.0 }).copysign(x)
+}
 
 #[cfg(test)]
 mod tests {
@@ -347,6 +463,20 @@ mod tests {
         assert_eq!(c64(inf, inf) * c64(1.0, 0.0), c64(inf, inf));
         // no overflow of |w|^2
         assert_eq!(c64(1e200, 1e200) / c64(1e200, 1e200), c64(1.0, 0.0));
+    }
+
+    #[test]
+    fn test_div_overflow() {
+        // exact, where a sum of Smith's algorithm overflows
+        let max = f64::MAX;
+        let z = c64(max, max);
+        assert_eq!(z / z, c64(1.0, 0.0));
+        assert_eq!(z / c64(2.0, 2.0), c64(0.5 * max, 0.0));
+        assert_eq!(c64(1.0, 0.0) / z, c64(0.5 / max, -0.5 / max));
+
+        // not halved otherwise, which would lose the sign of the zero
+        let w = c64(-1.0, 0.0) / c64(max, -(2.0_f64.powi(-50)));
+        assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
     }
 
     #[test]

@@ -8,10 +8,11 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{mul_cosh_sinh, sin_cos_glibc};
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::polevl;
 
 use core::f64::consts::{FRAC_PI_4, PI};
-use num_complex::{Complex, c64};
+use num_complex::Complex;
 
 // cephes/const.h
 
@@ -109,9 +110,9 @@ pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
 /// This replaces `std::sin(std::complex<double>)` from C++. For finite `z`, it is computed like
 /// glibc's `csin`, which, unlike `num_complex::Complex::sin`, doesn't overflow prematurely (to
 /// infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
-pub(crate) fn csin(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn csin(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
-        return z.sin();
+        return Complex::from(z).sin().into();
     }
 
     let (mut sinix, cosix) = sin_cos_glibc(z.re.abs());
@@ -126,9 +127,9 @@ pub(crate) fn csin(z: Complex<f64>) -> Complex<f64> {
 /// This replaces `std::cos(std::complex<double>)` from C++. For finite `z`, it is computed like
 /// glibc's `ccos`, i.e. as `ccosh(i z)`, which, unlike `num_complex::Complex::cos`, doesn't
 /// overflow prematurely (to infinity or NaN) when only `cosh(z.im)` or `sinh(z.im)` overflows.
-pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn ccos(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
-        return z.cos();
+        return Complex::from(z).cos().into();
     }
 
     // ccosh(x + i y) with x = -z.im and y = z.re
@@ -145,7 +146,7 @@ pub(crate) fn ccos(z: Complex<f64>) -> Complex<f64> {
 /// Hyperbolic sine of complex `z`
 ///
 /// This replaces `std::sinh(std::complex<double>)` from C++, as `sinh(z) = -i sin(i z)`.
-pub(crate) fn csinh(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn csinh(z: C64) -> C64 {
     let w = csin(c64(-z.im, z.re));
     c64(w.im, -w.re)
 }
@@ -153,12 +154,12 @@ pub(crate) fn csinh(z: Complex<f64>) -> Complex<f64> {
 /// Hyperbolic cosine of complex `z`
 ///
 /// This replaces `std::cosh(std::complex<double>)` from C++, as `cosh(z) = cos(-i z)`.
-pub(crate) fn ccosh(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn ccosh(z: C64) -> C64 {
     ccos(c64(z.im, -z.re))
 }
 
 /// `xsf::sinpi` for complex `z`
-fn csinpi(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn csinpi(z: C64) -> C64 {
     let x = z.re;
     let piy = PI * z.im;
     let sinpix = cephes_sinpi(x);
@@ -170,7 +171,7 @@ fn csinpi(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::cospi` for complex `z`
-fn ccospi(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn ccospi(z: C64) -> C64 {
     let x = z.re;
     let piy = PI * z.im;
     let sinpix = cephes_sinpi(x);
@@ -257,12 +258,12 @@ impl TrigArg for f64 {
 impl TrigArg for Complex<f64> {
     #[inline]
     fn sinpi(self) -> Self {
-        csinpi(self)
+        self.via(csinpi)
     }
 
     #[inline]
     fn cospi(self) -> Self {
-        ccospi(self)
+        self.via(ccospi)
     }
 }
 

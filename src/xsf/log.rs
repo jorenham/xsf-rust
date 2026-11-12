@@ -7,6 +7,7 @@ use core::f64::consts::LN_2;
 use num_complex::Complex;
 
 use crate::utils::{MACHEP, pow2};
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h
@@ -18,7 +19,7 @@ const MAXITER: u64 = 500;
 /// doesn't lose precision near the unit circle (the real part is computed in double-double
 /// precision there) or for extreme magnitudes (the input is scaled by a power of two), like
 /// glibc's `clog`. For non-finite or zero `z`, the return values are as in C99 Annex G.
-pub(crate) fn clog(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn clog(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
     let m = x.abs().max(y.abs());
 
@@ -39,10 +40,10 @@ pub(crate) fn clog(z: Complex<f64>) -> Complex<f64> {
             r.ln()
         }
     };
-    Complex::new(re, y.atan2(x))
+    c64(re, y.atan2(x))
 }
 
-fn clog1p_ddouble(zr: f64, zi: f64) -> Complex<f64> {
+fn clog1p_ddouble(zr: f64, zi: f64) -> C64 {
     let r = DoubleDouble::new(zr);
     let i = DoubleDouble::new(zi);
     let two = DoubleDouble::new(2.0);
@@ -55,7 +56,7 @@ fn clog1p_ddouble(zr: f64, zi: f64) -> Complex<f64> {
 
     let x = 0.5 * f64::from(absm1).ln_1p();
     let y = zi.atan2(zr + 1.0);
-    Complex::new(x, y)
+    c64(x, y)
 }
 
 // log(z + 1) = log(x + 1 + 1j*y)
@@ -72,7 +73,7 @@ fn clog1p_ddouble(zr: f64, zi: f64) -> Complex<f64> {
 // This expression suffers from cancellation when x < 0 and
 // y = +/-sqrt(2*fabs(x)). To get around this cancellation problem, we use
 // double-double precision when necessary.
-fn clog1p(mut z: Complex<f64>) -> Complex<f64> {
+fn clog1p(mut z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
         z += 1.0;
         return clog(z);
@@ -82,7 +83,7 @@ fn clog1p(mut z: Complex<f64>) -> Complex<f64> {
     let zi = z.im;
 
     if zi == 0.0 && zr >= -1.0 {
-        return Complex::new(zr.ln_1p(), 0.0);
+        return c64(zr.ln_1p(), 0.0);
     }
 
     let az = z.norm();
@@ -93,7 +94,7 @@ fn clog1p(mut z: Complex<f64>) -> Complex<f64> {
         }
         let x = 0.5 * (az * (az + 2.0 * zr / az)).ln_1p();
         let y = zi.atan2(zr + 1.0);
-        return Complex::new(x, y);
+        return c64(x, y);
     }
 
     z += 1.0;
@@ -139,7 +140,7 @@ impl LogArg for f64 {
 impl LogArg for Complex<f64> {
     #[inline]
     fn xsf_log1p(self) -> Self {
-        clog1p(self)
+        self.via(clog1p)
     }
 
     #[inline]
@@ -149,7 +150,7 @@ impl LogArg for Complex<f64> {
             return Complex::ZERO;
         }
 
-        x * clog(y)
+        x * y.via(clog)
     }
 
     #[inline]
@@ -159,7 +160,7 @@ impl LogArg for Complex<f64> {
             return Complex::ZERO;
         }
 
-        x * clog1p(y)
+        x * y.via(clog1p)
     }
 }
 
@@ -239,7 +240,7 @@ pub fn xlog1py<T: LogArg>(x: T, y: T) -> T {
 
 #[cfg(test)]
 mod tests {
-    use num_complex::c64;
+    use crate::xsf::c64::c64;
 
     #[test]
     fn test_clog() {
