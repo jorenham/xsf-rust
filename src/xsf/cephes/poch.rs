@@ -2,6 +2,9 @@
 //!
 //! Pochhammer symbol (a)_m = gamma(a + m) / gamma(a)
 
+use core::f64::consts::FRAC_1_PI;
+
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::cephes_sinpi;
 
@@ -120,14 +123,30 @@ pub fn pow_rising(x: f64, m: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn pow_falling(x: f64, m: f64) -> f64 {
+    // `poch(a, m)` amplifies the rounding error of `a` near the poles of Gamma(a) and Gamma(x + 1),
+    // so it is only the last resort
     let a = x - m + 1.0;
-    if a < -10.0 && x < 0.0 && m != m.floor() {
-        // `poch(a, m)` would reflect, which amplifies the rounding error of `a` near the poles of
-        // Gamma(x + 1), e.g. 3e-5 for pow_falling(-59.0000000001, -7.3)
+    // Reflection (DLMF 5.5.3), where the sine of x - m isn't affected by the rounding of `a`:
+    // -x poch(1 - x, m - 1) sin(pi (x - m)) / sin(pi x)
+    let reflected = (a < 0.5 && x != x.floor())
+        .then(|| poch(1.0 - x, m - 1.0))
+        .filter(|p| p.is_normal());
+    if let Some(p) = reflected {
+        // -x / sin(pi x), which is -1 / pi if sin(pi x) is subnormal
+        let s = cephes_sinpi(x);
+        let r = if s.is_normal() { -x / s } else { -FRAC_1_PI };
+        p * (sinpi_sub(x, m) * r)
+    } else {
+        // Gamma(x + 1) / Gamma(x + 1 - m), where x + 1 is exact near the poles of Gamma(x + 1)
         let q = poch(x + 1.0, -m);
-        if q.is_normal() {
-            return 1.0 / q;
-        }
+        if q.is_normal() { 1.0 / q } else { poch(a, m) }
     }
-    poch(a, m)
+}
+
+/// sin(pi (x - m)), without the rounding error of x - m near an integer
+fn sinpi_sub(x: f64, m: f64) -> f64 {
+    let (s, e) = two_sum(x, -m);
+    let n = s.round();
+    let t = cephes_sinpi((s - n) + e);
+    if n % 2.0 == 0.0 { t } else { -t }
 }
