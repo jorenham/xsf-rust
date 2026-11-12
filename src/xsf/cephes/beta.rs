@@ -11,7 +11,7 @@
 use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
-use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::PI;
 
@@ -52,8 +52,9 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
         Some((y - lgam_ratio(a, b), f64::from(sign)))
     } else if lbeta_reflects_a(a, b) {
         // Gamma(a) / Gamma(a + b) = sin(pi (a + b)) / sin(pi a) Gamma(1 - a - b) / Gamma(1 - a)
+        // `sinpi_sub` avoids the rounding error of a + b
         let (y, sign) = lgam_sgn(b);
-        let s = cephes_sinpi(a + b) / cephes_sinpi(a);
+        let s = sinpi_sub(a, -b) / cephes_sinpi(a);
         let y = y + s.abs().ln() - lgam_ratio(1.0 - a - b, b);
         Some((y, f64::from(if s < 0.0 { -sign } else { sign })))
     } else if a > 0.0 && b <= -0.5 * a {
