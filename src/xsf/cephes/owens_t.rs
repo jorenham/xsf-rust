@@ -18,7 +18,7 @@
 use core::f64::consts::{SQRT_2, TAU};
 
 use crate::utils::SQRT_TAU;
-use crate::xsf::cephes::{erf, erfc};
+use crate::xsf::cephes::{erf, ndtr};
 
 const OWENS_T_SELECT_METHOD: [usize; 120] = [
     0, 0, 1, 12, 12, 12, 12, 12, 12, 12, 12, 15, 15, 15, 8, 0, 1, 1, 2, 2, 4, 4, 13, 13, 14, 14,
@@ -131,7 +131,9 @@ fn owens_t_norm1(x: f64) -> f64 {
 }
 
 fn owens_t_norm2(x: f64) -> f64 {
-    erfc(x / SQRT_2) / 2.0
+    // Unlike in xsf, erfc(x / sqrt(2)) / 2 is ndtr(-x), which avoids the rounding error of
+    // x / sqrt(2) in the tail
+    ndtr(-x)
 }
 
 fn owens_t1(h: f64, a: f64, m: f64) -> f64 {
