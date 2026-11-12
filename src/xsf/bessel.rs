@@ -73,7 +73,7 @@ impl BesselArg for f64 {
 impl BesselArg for Complex<f64> {
     #[inline]
     fn bessel_j(self, v: f64) -> Self {
-        cyl_bessel_j_c64(v, self)
+        self.via(|z| cyl_bessel_j_c64(v, z))
     }
     #[inline]
     fn bessel_je(self, v: f64) -> Self {
@@ -81,7 +81,7 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_y(self, v: f64) -> Self {
-        cyl_bessel_y_c64(v, self)
+        self.via(|z| cyl_bessel_y_c64(v, z))
     }
     #[inline]
     fn bessel_ye(self, v: f64) -> Self {
@@ -89,7 +89,7 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
-        cyl_bessel_i_c64(v, self)
+        self.via(|z| cyl_bessel_i_c64(v, z))
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {
@@ -97,7 +97,7 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_k(self, v: f64) -> Self {
-        cyl_bessel_k_c64(v, self)
+        self.via(|z| cyl_bessel_k_c64(v, z))
     }
     #[inline]
     fn bessel_ke(self, v: f64) -> Self {
@@ -285,13 +285,12 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
-pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex<f64>) -> Complex<f64> {
-    let z = C64::from(z);
+pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
     let kode = 1;
     let mut sign = 1.0;
 
     if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        return C64::NAN.into();
+        return C64::NAN;
     }
     if v < 0.0 {
         v = -v;
@@ -319,11 +318,11 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: Complex<f64>) -> Complex<f64> {
         cy = rotate_i(cy, cy_k, v);
     }
 
-    cy.into()
+    cy
 }
 
-pub(crate) fn cyl_bessel_k_c64(v: f64, z: Complex<f64>) -> Complex<f64> {
-    z.via(|z| cyl_bessel_k_kode(v, z, 1))
+pub(crate) fn cyl_bessel_k_c64(v: f64, z: C64) -> C64 {
+    cyl_bessel_k_kode(v, z, 1)
 }
 
 /// Unlike in xsf, `K_v` and `e^z K_v` share this implementation (xsf duplicates it), with
@@ -384,8 +383,8 @@ pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
         return 0.0;
     }
 
-    let k = cyl_bessel_k_kode(v, c64(z, 0.0), 1).re;
-    cyl_bessel_overflow(|v, z| cyl_bessel_k_kode(v, z, 1), 1.0, v.abs(), z, k)
+    let k = cyl_bessel_k_c64(v, c64(z, 0.0)).re;
+    cyl_bessel_overflow(cyl_bessel_k_c64, 1.0, v.abs(), z, k)
 }
 
 fn cyl_bessel_je_c64(v: f64, z: C64) -> C64 {
@@ -446,8 +445,8 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     cy
 }
 
-pub(crate) fn cyl_bessel_j_c64(v: f64, z: Complex<f64>) -> Complex<f64> {
-    z.via(|z| cyl_bessel_j_kode(v, z, 1))
+pub(crate) fn cyl_bessel_j_c64(v: f64, z: C64) -> C64 {
+    cyl_bessel_j_kode(v, z, 1)
 }
 
 /// Unlike in xsf, `J_v` and `e^-|Im z| J_v` share this implementation (xsf duplicates it), with
@@ -485,7 +484,7 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    let res = cyl_bessel_j_kode(v, c64(x, 0.0), 1);
+    let res = cyl_bessel_j_c64(v, c64(x, 0.0));
     // Unlike in xsf (scipy/xsf#402), also if AMOS underflowed.
     if !res.re.is_finite() || amos_underflow(res.re, v, x) {
         /* AMOS returned NaN or inf, possibly due to overflow */
@@ -498,8 +497,8 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     res.re
 }
 
-pub(crate) fn cyl_bessel_y_c64(v: f64, z: Complex<f64>) -> Complex<f64> {
-    z.via(|z| cyl_bessel_y_kode(v, z, 1))
+pub(crate) fn cyl_bessel_y_c64(v: f64, z: C64) -> C64 {
+    cyl_bessel_y_kode(v, z, 1)
 }
 
 /// Unlike in xsf, `Y_v` and `e^-|Im z| Y_v` share this implementation (xsf duplicates it), with
@@ -542,12 +541,12 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    let res = cyl_bessel_y_kode(v, c64(x, 0.0), 1);
+    let res = cyl_bessel_y_c64(v, c64(x, 0.0));
     if res.re.is_nan() {
         return crate::xsf::cephes::yv(v, x);
     }
 
-    cyl_bessel_overflow(|v, z| cyl_bessel_y_kode(v, z, 1), -1.0, v, x, res.re)
+    cyl_bessel_overflow(cyl_bessel_y_c64, -1.0, v, x, res.re)
 }
 
 // Bessel J
