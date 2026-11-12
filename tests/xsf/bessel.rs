@@ -162,6 +162,22 @@ fn test_bessel_jy_negative_order_overflow() {
 }
 
 #[test]
+fn test_bessel_ie_negative_order_large_imag() {
+    // mpmath (dps = 50): besseli(-7.25, 1e9j), besseli(-0.5, 1e9j), and besseli(-7.25, 1e8j)
+    let actual = [
+        xsf::bessel_ie(-7.25, c64(0.0, 1e9)),
+        xsf::bessel_ie(-0.5, c64(0.0, 1e9)),
+        xsf::bessel_ie(-7.25, c64(0.0, 1e8)),
+    ];
+    let expected = [
+        c64(1.773_234_206_304_038_3e-6, 4.280_966_070_123_1e-6),
+        c64(1.494_894_726_886_609e-5, -1.494_894_726_886_609e-5),
+        c64(3.052_711_541_179_276e-5, 7.369_897_604_727_882e-5),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+}
+
+#[test]
 fn test_bessel_k_huge_order_overflow() {
     // K_v(x) and e^x K_v(x) overflow (DLMF 10.41.2, 10.41.4); for the last, ln(e^x K_v(x)) = 3.5e8
     let inf = f64::INFINITY;
