@@ -1,8 +1,5 @@
 //! Translated into pure Rust from `xsf/wright.h` (scipy/xsf@527cef1). Original author: Piers
 //! Lawrence (ACM TOMS 917).
-//!
-//! Unlike in xsf, `sqrt` is that of `num_complex` (in polar form), not `std::sqrt`, and the
-//! iterations use `Complex::ln` instead of `std::log` (`clog`).
 
 use crate::numpy::nextafter;
 use crate::xsf::c64::{C64, ViaC64, c64};
@@ -89,10 +86,7 @@ fn wrightomega_ext(z: C64) -> C64 {
     if -2.0 < x && x <= 1.0 && 1.0 < y && y < 2.0 * pi {
         // Region 1: upper branch point
         // Series about z = -1 + Pi*I
-        let pz = (2.0 * (z + 1.0 - I * pi))
-            .conj()
-            .via(Complex64::sqrt)
-            .conj();
+        let pz = (2.0 * (z + 1.0 - I * pi)).conj().sqrt().conj();
         w = -1.0
             + (I + (1.0 / 3.0
                 + (-1.0 / 36.0 * I + (1.0 / 270.0 + 1.0 / 4320.0 * I * pz) * pz) * pz)
@@ -101,10 +95,7 @@ fn wrightomega_ext(z: C64) -> C64 {
     } else if -2.0 < x && x <= 1.0 && -2.0 * pi < y && y < -1.0 {
         // Region 2: lower branch point
         // Series about z = -1 - Pi*I
-        let pz = (2.0 * (z + 1.0 + I * pi))
-            .conj()
-            .via(Complex64::sqrt)
-            .conj();
+        let pz = (2.0 * (z + 1.0 + I * pi)).conj().sqrt().conj();
         w = -1.0
             + (-I
                 + (1.0 / 3.0 + (1.0 / 36.0 * I + (1.0 / 270.0 - 1.0 / 4320.0 * I * pz) * pz) * pz)
@@ -189,7 +180,7 @@ fn wrightomega_ext(z: C64) -> C64 {
 
     // Iteration one
     w = s * w;
-    let r = z - s * w - w.via(Complex64::ln);
+    let r = z - s * w - w.ln();
     let wp1 = s * w + 1.0;
     let e = r / wp1 * (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - r)
         / (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - 2.0 * r);
@@ -199,7 +190,7 @@ fn wrightomega_ext(z: C64) -> C64 {
     if ((2.0 * w * w - 8.0 * w - 1.0) * r.norm().powf(4.0)).norm()
         >= TWOITERTOL * 72.0 * wp1.norm().powf(6.0)
     {
-        let r = z - s * w - w.via(Complex64::ln);
+        let r = z - s * w - w.ln();
         let wp1 = s * w + 1.0;
         let e = r / wp1 * (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - r)
             / (2.0 * wp1 * (wp1 + 2.0 / 3.0 * r) - 2.0 * r);

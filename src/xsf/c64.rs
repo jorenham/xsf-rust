@@ -162,7 +162,7 @@ impl C64 {
 
     /// `f(z)` for a function `f` of [`num_complex::Complex`]
     #[inline]
-    pub(crate) fn via(self, f: impl FnOnce(Complex<f64>) -> Complex<f64>) -> Self {
+    fn via(self, f: impl FnOnce(Complex<f64>) -> Complex<f64>) -> Self {
         f(self.into()).into()
     }
 

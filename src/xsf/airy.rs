@@ -198,10 +198,10 @@ pub fn airy_scaled<T: AiryArg>(z: T) -> [T; 4] {
 ///   `exp(-pi sqrt(2 |zeta|) / H)` for `ph zeta = pi/2`, below `2^-53` for `|zeta| > 1.88`
 ///   (`x > 2`)
 /// - the last node `v = 41 H` has `e^(-v^2) < 2^-54`
-fn ai_tail(zeta: Complex64) -> Complex64 {
+fn ai_tail(zeta: C64) -> C64 {
     const H: f64 = 0.15;
-    let r = (2.0 * zeta).sqrt().inv();
-    let sum: Complex64 = (1..=41)
+    let r = 1.0 / (2.0 * zeta).sqrt();
+    let sum = (1..=41)
         .map(|k| {
             let v = H * f64::from(k);
             let s = v * r; // sinh(u/2)
@@ -209,7 +209,7 @@ fn ai_tail(zeta: Complex64) -> Complex64 {
             let u3 = (s + c).ln() * (2.0 / 3.0); // u/3
             (-v * v).exp() * u3.cosh() / ((1.0 + 2.0 * s * s) * c)
         })
-        .sum();
+        .fold(C64::ZERO, |sum, t| sum + t);
     // (+ 0.5 for the node v = 0, whose integrand is 1, with the trapezoidal weight 1/2)
     (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
 }
@@ -295,8 +295,8 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         // - ANT + i BNT = 2/3 - 2 int_w^inf Ai(t) dt with w = x e^(i pi/3), by DLMF 9.2.10 and
         //   9.2.12
         bpt = series(x).1;
-        apt = q0 - ai_tail(Complex64::new(xe, 0.0)).re;
-        let t = ai_tail(Complex64::new(0.0, xe));
+        apt = q0 - ai_tail(c64(xe, 0.0)).re;
+        let t = ai_tail(c64(0.0, xe));
         ant = q1 - 2.0 * t.re;
         bnt = -2.0 * t.im;
     } else {
