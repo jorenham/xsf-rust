@@ -175,37 +175,42 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     }
 }
 
+/// Corresponds to `xsf::detail::eval_jacobi_l`, for `n >= 0`
+fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -> Z {
+    // Unlike in xsf, `alpha + beta + 2` is `(alpha + 1) + (beta + 1)`, which doesn't cancel
+    // for alpha and beta near -1.
+    let ab2 = (alpha + 1.0) + (beta + 1.0);
+    if n == 0 {
+        Z::ZERO + 1.0
+    } else if n == 1 {
+        ((x - 1.0) * ab2 + 2.0 * (alpha + 1.0)) * 0.5
+    } else if alpha == -1.0 {
+        // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
+        // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
+        let n = f64::from(n);
+        (x.clone() - 1.0) * ((n + beta) / (2.0 * n)) * x.eval_jacobi(n - 1.0, 1.0, beta)
+    } else {
+        let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
+        let mut p = d.clone() + 1.0;
+        for kk in 0..n - 1 {
+            let k = f64::from(kk) + 1.0;
+            let t = 2.0 * (k - 1.0) + ab2;
+            d = ((x.clone() - 1.0) * (t * (t + 1.0) * (t + 2.0)) * p.clone()
+                + d * (2.0 * k * (k + beta) * (t + 2.0)))
+                / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
+            p = p + d.clone();
+        }
+        p * jacobi_binom(f64::from(n), alpha)
+    }
+}
+
 impl JacobiArg<i32> for f64 {
-    /// Corresponds to `xsf::detail::eval_jacobi_l`
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
-        let x = self;
-        // Unlike in xsf, `alpha + beta + 2` is `(alpha + 1) + (beta + 1)`, which doesn't cancel
-        // for alpha and beta near -1.
-        let ab2 = (alpha + 1.0) + (beta + 1.0);
         if n < 0 {
-            x.eval_jacobi(f64::from(n), alpha, beta)
-        } else if n == 0 {
-            1.0
-        } else if n == 1 {
-            0.5 * (2.0 * (alpha + 1.0) + ab2 * (x - 1.0))
-        } else if alpha == -1.0 {
-            // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
-            // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
-            let n = f64::from(n);
-            ((n + beta) / (2.0 * n)) * (x - 1.0) * x.eval_jacobi(n - 1.0, 1.0, beta)
+            self.eval_jacobi(f64::from(n), alpha, beta)
         } else {
-            let mut d = ab2 * (x - 1.0) / (2.0 * (alpha + 1.0));
-            let mut p = d + 1.0;
-            for kk in 0..n - 1 {
-                let k = f64::from(kk) + 1.0;
-                let t = 2.0 * (k - 1.0) + ab2;
-                d = ((t * (t + 1.0) * (t + 2.0)) * (x - 1.0) * p
-                    + 2.0 * k * (k + beta) * (t + 2.0) * d)
-                    / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
-                p += d;
-            }
-            jacobi_binom(f64::from(n), alpha) * p
+            eval_jacobi_l(n, alpha, beta, self)
         }
     }
 
