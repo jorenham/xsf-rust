@@ -11,12 +11,10 @@
 
 use core::f64::consts::PI;
 
-use num_complex::{Complex, c64};
+use num_complex::Complex;
 
 use crate::utils::SCIPY_EULER;
-use crate::xsf::complex::{cmul, rdiv, rsub};
-use crate::xsf::exp::cexp;
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, ViaC64, c64};
 
 fn exp1_f64(x: f64) -> f64 {
     // ============================================
@@ -52,7 +50,7 @@ fn exp1_f64(x: f64) -> f64 {
     (-x).exp() * t
 }
 
-fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
+fn exp1_c64(z: C64) -> C64 {
     // ====================================================
     // Purpose: Compute complex exponential integral E1(z)
     // Input :  z   --- Argument of E1(z)
@@ -75,7 +73,7 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         ce1 = c64(1.0, 0.0);
         let mut cr = c64(1.0, 0.0);
         for k in 1..501 {
-            cr = cmul(-cr, z) * (f64::from(k) / f64::from(k + 1).powi(2));
+            cr = -cr * z * (f64::from(k) / f64::from(k + 1).powi(2));
             ce1 += cr;
             if cr.norm() < ce1.norm() * 1e-15 {
                 break;
@@ -84,9 +82,9 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         if (x <= 0.0) && (z.im == 0.0) {
             // Careful on the branch cut -- use the sign of the imaginary part
             //  to get the right sign on the factor if pi.
-            ce1 = rsub(-EL, clog(-z)) + cmul(z, ce1) - PI.copysign(z.im) * c64(0.0, 1.0);
+            ce1 = -EL - (-z).ln() + z * ce1 - PI.copysign(z.im) * c64(0.0, 1.0);
         } else {
-            ce1 = rsub(-EL, clog(z)) + cmul(z, ce1);
+            ce1 = -EL - z.ln() + z * ce1;
         }
     } else {
         // Continued fraction https://dlmf.nist.gov/6.9
@@ -94,23 +92,23 @@ fn exp1_c64(z: Complex<f64>) -> Complex<f64> {
         // E1 = exp(-z) * ----- ----- ----- ----- ----- ----- ----- ...
         //                Z +   1 +   Z +   1 +   Z +   1 +   Z +
         let mut zc = c64(0.0, 0.0);
-        let mut zd = rdiv(1.0, z);
+        let mut zd = 1.0 / z;
         let mut zdc = zd;
         zc += zdc;
         for k in 1..501 {
             let fk = f64::from(k);
-            zd = rdiv(1.0, zd * fk + 1.0);
-            zdc = cmul(zdc, zd - 1.0);
+            zd = 1.0 / (zd * fk + 1.0);
+            zdc *= zd - 1.0;
             zc += zdc;
 
-            zd = rdiv(1.0, zd * fk + z);
-            zdc = cmul(zdc, cmul(z, zd) - 1.0);
+            zd = 1.0 / (zd * fk + z);
+            zdc *= z * zd - 1.0;
             zc += zdc;
             if (zdc.norm() <= zc.norm() * 1e-15) && (k > 20) {
                 break;
             }
         }
-        ce1 = cmul(cexp(-z), zc);
+        ce1 = (-z).exp() * zc;
         if (x <= 0.0) && (z.im == 0.0) {
             ce1 -= PI * c64(0.0, 1.0);
         }
@@ -159,7 +157,7 @@ fn expi_f64(x: f64) -> f64 {
     }
 }
 
-fn expi_c64(z: Complex<f64>) -> Complex<f64> {
+fn expi_c64(z: C64) -> C64 {
     // ============================================
     // Purpose: Compute exponential integral Ei(x)
     // Input :  x  --- Complex argument of Ei(x)
@@ -234,12 +232,12 @@ impl ExpIntArg for f64 {
 impl ExpIntArg for Complex<f64> {
     #[inline]
     fn expi(self) -> Self {
-        expi_c64(self)
+        self.via(expi_c64)
     }
 
     #[inline]
     fn exp1(self) -> Self {
-        exp1_c64(self)
+        self.via(exp1_c64)
     }
 }
 
