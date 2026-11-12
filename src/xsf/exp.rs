@@ -2,9 +2,10 @@
 //! which (at least on Linux) are more accurate than the Cephes ones in xsf. Only the complex
 //! `expm1` is translated into pure Rust from `xsf/exp.h` (scipy/xsf@b1eb270).
 
-use num_complex::{Complex, c64};
+use num_complex::Complex;
 
 use crate::utils::{cmul_exp, sin_cos_glibc};
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::trig::cosm1;
 
 /// Exponential of complex `z`
@@ -13,14 +14,14 @@ use crate::xsf::trig::cosm1;
 /// glibc's `cexp`, which, unlike `num_complex::Complex::exp`, doesn't overflow prematurely when
 /// only `exp(z.re)` overflows (instead of NaN, the imaginary part of `exp(x + 0i)` is `0`). The
 /// sign of the zero imaginary part of `exp(-inf + i(+-inf | NaN))` also follows glibc.
-pub(crate) fn cexp(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn cexp(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
         if z.re == f64::NEG_INFINITY && !z.im.is_finite() {
             // like glibc (`num_complex` returns `0 + 0i` here)
             return c64(0.0, 0.0_f64.copysign(z.im));
         }
         // See the note in cexpm1(z) below.
-        return z.exp();
+        return Complex::from(z).exp().into();
     }
 
     let (sinix, cosix) = sin_cos_glibc(z.im);
@@ -34,12 +35,12 @@ pub(crate) fn cexp(z: Complex<f64>) -> Complex<f64> {
 // z.real = -log(cos(z.imag)).  There isn't a way around this problem  that
 // doesn't involve computing exp(z.real) and/or cos(z.imag) to higher
 // precision.
-fn cexpm1(z: Complex<f64>) -> Complex<f64> {
+fn cexpm1(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
         // NOTE(xsf-rust): `num_complex::Complex::exp` follows libc++'s special cases, which differ
         // from glibc's `cexp` (used by libstdc++) only in the sign of the zero imaginary part of
         // exp(-inf + i(+-inf | NaN)).
-        return z.exp() - 1.0;
+        return (Complex::from(z).exp() - 1.0).into();
     }
 
     let mut ezr = 0.0;
@@ -74,7 +75,7 @@ impl ExpArg for f64 {
 impl ExpArg for Complex<f64> {
     #[inline]
     fn expm1(self) -> Self {
-        cexpm1(self)
+        self.via(cexpm1)
     }
 }
 
@@ -126,7 +127,7 @@ pub fn exp10(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use num_complex::c64;
+    use crate::xsf::c64::c64;
 
     fn assert_close(actual: f64, expected: f64, rtol: f64) {
         assert!(

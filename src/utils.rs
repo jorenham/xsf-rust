@@ -1,6 +1,6 @@
 use core::f64::consts::PI;
 
-use num_complex::{Complex, c64};
+use crate::xsf::c64::{C64, c64};
 
 /// ln(pi)
 pub(crate) const LN_PI: f64 = 1.144_729_885_849_400_2;
@@ -72,7 +72,7 @@ pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
 ///
 /// `f` is applied first, then `e^(x - t)` as factors of at most `e^t`. For `x > 3 t`, the result
 /// saturates to `MAX f e^t w`.
-fn exp_mul_large(x: f64, f: f64, w: Complex<f64>) -> Complex<f64> {
+fn exp_mul_large(x: f64, f: f64, w: C64) -> C64 {
     let x = x - EXP_T;
     let (x, w) = if x > EXP_T {
         (x - EXP_T, w * f * EXP_T.exp())
@@ -85,7 +85,7 @@ fn exp_mul_large(x: f64, f: f64, w: Complex<f64>) -> Complex<f64> {
 
 /// `(a cosh(x), b sinh(x))` as in glibc's `ccosh`, which doesn't overflow prematurely when only
 /// `cosh(x)` and `sinh(x)` overflow
-pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> Complex<f64> {
+pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> C64 {
     if x.abs() > EXP_T {
         let b = if x.is_sign_negative() { -b } else { b };
         exp_mul_large(x.abs(), EXP_T.exp() / 2.0, c64(a, b))
@@ -95,7 +95,7 @@ pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> Complex<f64> {
 }
 
 /// `w e^x` without overflowing prematurely, as in glibc's complex `exp`
-pub(crate) fn cmul_exp(w: Complex<f64>, x: f64) -> Complex<f64> {
+pub(crate) fn cmul_exp(w: C64, x: f64) -> C64 {
     if x > EXP_T {
         exp_mul_large(x, EXP_T.exp(), w)
     } else {

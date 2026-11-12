@@ -1,148 +1,9 @@
 use core::f64::consts::{FRAC_PI_2, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use num_complex::{Complex, c64};
-
 use crate::utils::pow2;
-use crate::xsf::c64::C64;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::log::clog;
-
-/// Complex division `a / b` using Smith's algorithm, which avoids the overflow and underflow of
-/// `|b|^2` in the naive formula. Tiny operands are first scaled by the same power of 2, so that
-/// the intermediate results don't lose precision by becoming subnormal, and finite operands are
-/// halved if a sum of the algorithm overflows.
-///
-/// This replaces the complex division in C++, i.e. GCC's `__divdc3`. Like `__divdc3`, it recovers
-/// the infinities and zeros that would otherwise be computed as NaN + NaN i (C99 Annex G).
-///
-/// R. L. Smith, "Algorithm 116: Complex division", Communications of the ACM 5(8), 1962.
-#[inline]
-pub(crate) fn cdiv(mut a: Complex<f64>, mut b: Complex<f64>) -> Complex<f64> {
-    const TWO_M400: f64 = pow2(-400);
-    const TWO_600: f64 = pow2(600);
-
-    if b.re.abs().max(b.im.abs()) < TWO_M400 {
-        a *= TWO_600;
-        b *= TWO_600;
-    }
-    // the denominator and the two numerators
-    let smith = |a: Complex<f64>, b: Complex<f64>| {
-        if b.re.abs() >= b.im.abs() {
-            let r = b.im / b.re;
-            [b.re + b.im * r, a.re + a.im * r, a.im - a.re * r]
-        } else {
-            let r = b.re / b.im;
-            [b.re * r + b.im, a.re * r + a.im, a.im * r - a.re]
-        }
-    };
-    let mut sums = smith(a, b);
-    if sums.iter().any(|s| s.is_infinite()) && a.is_finite() && b.is_finite() {
-        // halved, the sums are at most twice their largest term
-        sums = smith(0.5 * a, 0.5 * b);
-    }
-    let [den, x, y] = sums;
-    let w = Complex::new(x / den, y / den);
-
-    // Recover infinities and zeros that computed as NaN+iNaN; the only
-    // cases are nonzero/zero, infinite/finite, and finite/infinite.
-    if w.re.is_nan() && w.im.is_nan() {
-        let (Complex { re: a, im: b }, Complex { re: c, im: d }) = (a, b);
-        if c == 0.0 && d == 0.0 && (!a.is_nan() || !b.is_nan()) {
-            let inf = f64::INFINITY.copysign(c);
-            return Complex::new(inf * a, inf * b);
-        } else if (a.is_infinite() || b.is_infinite()) && c.is_finite() && d.is_finite() {
-            let a = box_inf(a);
-            let b = box_inf(b);
-            return Complex::new(
-                f64::INFINITY * (a * c + b * d),
-                f64::INFINITY * (b * c - a * d),
-            );
-        } else if (c.is_infinite() || d.is_infinite()) && a.is_finite() && b.is_finite() {
-            let c = box_inf(c);
-            let d = box_inf(d);
-            return Complex::new(0.0 * (a * c + b * d), 0.0 * (b * c - a * d));
-        }
-    }
-    w
-}
-
-/// Complex multiplication `a * b`, like GCC's `__muldc3` (C99 Annex G)
-///
-/// This replaces the complex multiplication in C++. For finite results it is the same as the naive
-/// formula (i.e. `num_complex`'s `*`), but it recovers the infinities that would otherwise be
-/// computed as NaN + NaN i, e.g. `(inf + inf i) * (1 + 0i)`.
-#[inline]
-pub(crate) fn cmul(a: Complex<f64>, b: Complex<f64>) -> Complex<f64> {
-    let (
-        Complex {
-            re: mut a,
-            im: mut b,
-        },
-        Complex {
-            re: mut c,
-            im: mut d,
-        },
-    ) = (a, b);
-    let (ac, bd, ad, bc) = (a * c, b * d, a * d, b * c);
-    let (mut x, mut y) = (ac - bd, ad + bc);
-
-    if x.is_nan() && y.is_nan() {
-        // Recover infinities that computed as NaN+iNaN.
-        let mut recalc = false;
-        if a.is_infinite() || b.is_infinite() {
-            // z is infinite.  "Box" the infinity and change NaNs in
-            // the other factor to 0.
-            a = box_inf(a);
-            b = box_inf(b);
-            c = nan_to_zero(c);
-            d = nan_to_zero(d);
-            recalc = true;
-        }
-        if c.is_infinite() || d.is_infinite() {
-            // w is infinite.  "Box" the infinity and change NaNs in
-            // the other factor to 0.
-            c = box_inf(c);
-            d = box_inf(d);
-            a = nan_to_zero(a);
-            b = nan_to_zero(b);
-            recalc = true;
-        }
-        if !recalc && (ac.is_infinite() || bd.is_infinite() || ad.is_infinite() || bc.is_infinite())
-        {
-            // Recover infinities from overflow by changing NaNs to 0.
-            a = nan_to_zero(a);
-            b = nan_to_zero(b);
-            c = nan_to_zero(c);
-            d = nan_to_zero(d);
-            recalc = true;
-        }
-        if recalc {
-            x = f64::INFINITY * (a * c - b * d);
-            y = f64::INFINITY * (a * d + b * c);
-        }
-    }
-    Complex::new(x, y)
-}
-
-/// `isnan(x) ? copysign(0, x) : x`, used by [`cmul`]
-fn nan_to_zero(x: f64) -> f64 {
-    if x.is_nan() { 0.0_f64.copysign(x) } else { x }
-}
-
-/// `copysign(isinf(x) ? 1 : 0, x)`, used to "box" infinities in C99 Annex G
-fn box_inf(x: f64) -> f64 {
-    (if x.is_infinite() { 1.0_f64 } else { 0.0 }).copysign(x)
-}
-
-/// `x - z` for real `x` as in C++, where the imaginary part is `-z.im` instead of `0.0 - z.im`
-pub(crate) fn rsub(x: f64, z: Complex<f64>) -> Complex<f64> {
-    Complex::new(x - z.re, -z.im)
-}
-
-/// `x / z` for real `x` as in C++, i.e. `cdiv(x + 0i, z)`
-pub(crate) fn rdiv(x: f64, z: Complex<f64>) -> Complex<f64> {
-    cdiv(Complex::new(x, 0.0), z)
-}
 
 /// Square root of complex `z`
 ///
@@ -176,7 +37,7 @@ pub(crate) fn rdiv(x: f64, z: Complex<f64>) -> Complex<f64> {
 /// > OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 /// > SUCH DAMAGE.
 #[allow(clippy::eq_op)] // `b - b` is NaN for infinite `b`
-pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn csqrt(z: C64) -> C64 {
     /* For avoiding overflow for components >= DBL_MAX / (1 + sqrt(2)). */
     const THRESH: f64 = 7.446_288_774_449_766e307; // 0x1.a827999fcef32p+1022
     const TWO_M1020: f64 = pow2(-1020);
@@ -188,14 +49,14 @@ pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
 
     /* Handle special cases. */
     if a == 0.0 && b == 0.0 {
-        return Complex::new(0.0, b);
+        return c64(0.0, b);
     }
     if b.is_infinite() {
-        return Complex::new(f64::INFINITY, b);
+        return c64(f64::INFINITY, b);
     }
     if a.is_nan() {
         let t = (b - b) / (b - b); /* raise invalid if b is not a NaN */
-        return Complex::new(a + 0.0 + t, a + 0.0 + t); /* NaN + NaN i */
+        return c64(a + 0.0 + t, a + 0.0 + t); /* NaN + NaN i */
     }
     if a.is_infinite() {
         /*
@@ -205,13 +66,13 @@ pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
          * csqrt(-inf + y i)   = 0   +  inf i
          */
         if a.is_sign_negative() {
-            return Complex::new((b - b).abs(), a.copysign(b));
+            return c64((b - b).abs(), a.copysign(b));
         }
-        return Complex::new(a, (b - b).copysign(b));
+        return c64(a, (b - b).copysign(b));
     }
     if b.is_nan() {
         let t = (a - a) / (a - a); /* raise invalid */
-        return Complex::new(b + 0.0 + t, b + 0.0 + t); /* NaN + NaN i */
+        return c64(b + 0.0 + t, b + 0.0 + t); /* NaN + NaN i */
     }
 
     /* Scale to avoid overflow. */
@@ -258,11 +119,11 @@ pub(crate) fn csqrt(z: Complex<f64>) -> Complex<f64> {
         ry = (scale * t).copysign(b);
     }
 
-    Complex::new(rx, ry)
+    c64(rx, ry)
 }
 
 /// `std::pow(z, y)` for complex `z` and real `y`, as in libstdc++
-pub(crate) fn cpow(z: Complex<f64>, y: f64) -> Complex<f64> {
+pub(crate) fn cpow(z: C64, y: f64) -> C64 {
     if z.im == 0.0 && z.re > 0.0 {
         return c64(z.re.powf(y), 0.0);
     }
@@ -358,13 +219,13 @@ pub(crate) fn atanh(x: f64) -> f64 {
 /// > LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 /// > OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 /// > SUCH DAMAGE.
-pub(crate) fn catan(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn catan(z: C64) -> C64 {
     /*
      * catan(z) = reverse(catanh(reverse(z)))
      * where reverse(x + I*y) = y + I*x = I*conj(z).
      */
-    let w = catanh(Complex::new(z.im, z.re));
-    Complex::new(w.im, w.re)
+    let w = catanh(c64(z.im, z.re));
+    c64(w.im, w.re)
 }
 
 /*
@@ -379,7 +240,7 @@ pub(crate) fn catan(z: Complex<f64>) -> Complex<f64> {
  * Re(catanh(z)) = x/|z|^2 + O(x/z^4)
  *    as z -> infinity, uniformly in x
  */
-fn catanh(z: Complex<f64>) -> Complex<f64> {
+fn catanh(z: C64) -> C64 {
     const RECIP_EPSILON: f64 = 1.0 / f64::EPSILON;
     const SQRT_3_EPSILON: f64 = 2.580_956_827_951_785e-8; /*  0x1bb67ae8584caa.0p-78 */
 
@@ -390,33 +251,33 @@ fn catanh(z: Complex<f64>) -> Complex<f64> {
 
     /* This helps handle many cases. */
     if y == 0.0 && ax <= 1.0 {
-        return Complex::new(atanh(x), y);
+        return c64(atanh(x), y);
     }
 
     /* To ensure the same accuracy as atan(), and to filter out z = 0. */
     if x == 0.0 {
-        return Complex::new(x, y.atan());
+        return c64(x, y.atan());
     }
 
     if x.is_nan() || y.is_nan() {
         /* catanh(+-Inf + I*NaN) = +-0 + I*NaN */
         if x.is_infinite() {
-            return Complex::new(0.0_f64.copysign(x), y + y);
+            return c64(0.0_f64.copysign(x), y + y);
         }
         /* catanh(NaN + I*+-Inf) = sign(NaN)0 + I*+-PI/2 */
         if y.is_infinite() {
-            return Complex::new(0.0_f64.copysign(x), FRAC_PI_2.copysign(y));
+            return c64(0.0_f64.copysign(x), FRAC_PI_2.copysign(y));
         }
         /*
          * All other cases involving NaN return NaN + I*NaN.
          * C99 leaves it optional whether to raise invalid if one of
          * the arguments is not NaN, so we opt not to raise it.
          */
-        return Complex::new(x + y, x + y);
+        return c64(x + y, x + y);
     }
 
     if ax > RECIP_EPSILON || ay > RECIP_EPSILON {
-        return Complex::new(real_part_reciprocal(x, y), FRAC_PI_2.copysign(y));
+        return c64(real_part_reciprocal(x, y), FRAC_PI_2.copysign(y));
     }
 
     if ax < SQRT_3_EPSILON / 2.0 && ay < SQRT_3_EPSILON / 2.0 {
@@ -442,7 +303,7 @@ fn catanh(z: Complex<f64>) -> Complex<f64> {
         (2.0 * ay).atan2((1.0 - ax) * (1.0 + ax) - ay * ay) / 2.0
     };
 
-    Complex::new(rx.copysign(x), ry.copysign(y))
+    c64(rx.copysign(x), ry.copysign(y))
 }
 
 /*
@@ -589,8 +450,9 @@ impl Num for C64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::xsf::c64::c64;
     use core::f64::consts::FRAC_1_SQRT_2;
-    use num_complex::c64;
+    use num_complex::Complex;
 
     #[test]
     fn test_csqrt_imaginary() {
@@ -600,20 +462,6 @@ mod tests {
             [r.re.to_bits(), r.im.to_bits()],
             [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
         );
-    }
-
-    #[test]
-    fn test_cdiv_overflow() {
-        // exact, where a sum of Smith's algorithm overflows
-        let max = f64::MAX;
-        let z = c64(max, max);
-        assert_eq!(super::cdiv(z, z), c64(1.0, 0.0));
-        assert_eq!(super::cdiv(z, c64(2.0, 2.0)), c64(0.5 * max, 0.0));
-        assert_eq!(super::cdiv(c64(1.0, 0.0), z), c64(0.5 / max, -0.5 / max));
-
-        // not halved otherwise, which would lose the sign of the zero
-        let w = super::cdiv(c64(-1.0, 0.0), c64(max, -(2.0_f64.powi(-50))));
-        assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
     }
 
     #[test]
@@ -637,13 +485,14 @@ mod tests {
             c64(2.0, -3.0),
             c64(1e300, 1.0),
         ]
-        .map(super::catan);
+        .map(|z| Complex::from(super::catan(z)));
         let expected = [
             c64(0.553_574_358_897_045_2, 0.402_359_478_108_525_07),
             c64(0.785_400_663_397_448_3, 6.103_036_322_771_337),
             c64(1.409_921_049_596_575_5, -0.229_072_682_968_538_78),
             c64(core::f64::consts::FRAC_PI_2, 0.0),
-        ];
+        ]
+        .map(Complex::from);
         crate::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
 
         // signed zeros and the branch points
