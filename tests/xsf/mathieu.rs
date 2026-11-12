@@ -1,10 +1,12 @@
-use num_traits::ToPrimitive;
-
 xsref::tests! {
-    test_mathieu_a: "cem_cva", "d_d-d", |x| xsf::mathieu_a(x[0].to_u32().unwrap(), x[1]);
-    test_mathieu_b: "sem_cva", "d_d-d", |x| xsf::mathieu_b(x[0].to_u32().unwrap(), x[1]);
-    test_mathieu_cem: "cem", "d_d_d-d_d", |x| xsf::mathieu_cem(x[0].to_u32().unwrap(), x[1], x[2]);
-    test_mathieu_sem: "sem", "d_d_d-d_d", |x| xsf::mathieu_sem(x[0].to_u32().unwrap(), x[1], x[2]);
+    test_mathieu_a: "cem_cva", "d_d-d", |x| xsref::with_int(x[0], |m| xsf::mathieu_a(m, x[1]));
+    test_mathieu_b: "sem_cva", "d_d-d", |x| xsref::with_int(x[0], |m| xsf::mathieu_b(m, x[1]));
+    test_mathieu_cem: "cem", "d_d_d-d_d", |x| {
+        xsref::with_int(x[0], |m| xsf::mathieu_cem(m, x[1], x[2]))
+    };
+    test_mathieu_sem: "sem", "d_d_d-d_d", |x| {
+        xsref::with_int(x[0], |m| xsf::mathieu_sem(m, x[1], x[2]))
+    };
 }
 
 #[test]
@@ -134,16 +136,16 @@ fn test_mathieu_a_b_huge_m() {
 
 xsref::tests! {
     test_mathieu_modcem1: "mcm1", "d_d_d-d_d", |x| {
-        xsf::mathieu_modcem1(x[0].to_u32().unwrap(), x[1], x[2])
+        xsref::with_int(x[0], |m| xsf::mathieu_modcem1(m, x[1], x[2]))
     };
     test_mathieu_modsem1: "msm1", "d_d_d-d_d", |x| {
-        xsf::mathieu_modsem1(x[0].to_u32().unwrap(), x[1], x[2])
+        xsref::with_int(x[0], |m| xsf::mathieu_modsem1(m, x[1], x[2]))
     };
     test_mathieu_modcem2: "mcm2", "d_d_d-d_d", |x| {
-        xsf::mathieu_modcem2(x[0].to_u32().unwrap(), x[1], x[2])
+        xsref::with_int(x[0], |m| xsf::mathieu_modcem2(m, x[1], x[2]))
     };
     test_mathieu_modsem2: "msm2", "d_d_d-d_d", |x| {
-        xsf::mathieu_modsem2(x[0].to_u32().unwrap(), x[1], x[2])
+        xsref::with_int(x[0], |m| xsf::mathieu_modsem2(m, x[1], x[2]))
     };
 }
 

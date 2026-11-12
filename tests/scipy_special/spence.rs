@@ -3,7 +3,10 @@ use xsref::np_assert_allclose;
 
 xsref::tests! {
     test_spence_xsref_f64: "spence", "d-d", |x| xsf::spence(x[0]);
-    test_spence_xsref_c64: "spence", "d-d", |x| xsf::spence(c64(x[0], 0.0)).re;
+    // the complex result isn't real for x < 0, where the real one is NaN
+    test_spence_xsref_c64: "spence", "d-d", |x| {
+        if x[0] < 0.0 { f64::NAN } else { xsf::spence(c64(x[0], 0.0)).re }
+    };
 }
 
 #[test]
