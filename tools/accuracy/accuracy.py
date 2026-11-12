@@ -57,7 +57,7 @@ import flint
 import mpmath as mp
 import specs
 
-XSF_COMMIT: Final = "67fce766df68e4f2debef689996f69006d5ac15a"
+XSF_COMMIT: Final = "3a715f22c5e5f852da5487dd4832269690fd781d"
 XSF_URL: Final = f"https://codeload.github.com/scipy/xsf/tar.gz/{XSF_COMMIT}"
 
 HERE: Final = Path(__file__).resolve().parent

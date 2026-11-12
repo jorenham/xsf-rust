@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (scipy/xsf@8a3ca8d). Original header
+//! Translated into pure Rust from `xsf/cephes/kolmogorov.h` (scipy/xsf@cee1282). Original header
 //! comment appears below.
 //!
 //! File altered for inclusion in cephes module for Python:
@@ -197,9 +197,8 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
         let v = logv.exp();
         /*
          * Want q^((2k-1)^2)(1-q^(4k-1)) / q(1-q^3) < epsilon to break out of loop.
-         * With KOLMOG_CUTOVER ~ 0.82, k <= 4.  Just unroll the loop, 4 iterations
+         * With KOLMOG_CUTOVER ~ 0.82, k <= 5.  Just unroll the loop, 5 iterations
          */
-        // Unlike in xsf (scipy/xsf#451), sum 5 terms instead of 4, and start D at 5^2 instead of 0.
         let vsq = v * v;
         let v3 = v.powf(3.0);
 

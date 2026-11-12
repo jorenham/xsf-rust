@@ -181,6 +181,15 @@ fn test_elliprf_yz_underflow() {
 }
 
 #[test]
+fn test_elliprf_tiny_x_branch() {
+    // the correction for x is sqrt(x) / (sqrt(y) sqrt(z)), not sqrt(x / (y z)), if
+    // arg(y) + arg(z) > pi; mpmath (dps = 50): 109.73848232833850925 - 264.93213234591670474i
+    let actual = xsf::elliprf(c64(1e-312, 0.0), c64(-1e-295, 1e-295), c64(-1.0, 1.0));
+    let expected = c64(109.738_482_328_338_5, -264.932_132_345_916_7);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprf_subnormal_huge() {
     let actual = [
         xsf::elliprf(5e-324, 5e-324, 1.0),

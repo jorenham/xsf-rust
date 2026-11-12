@@ -287,8 +287,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "hyp2f1" if x[0] == -1.0 => f64::INFINITY,
         // xsf computes the wrong imaginary part of F+-(x) for x < 0, which is fixed in xsf-rust
         "modified_fresnel_plus" | "modified_fresnel_minus" if x[0] < 0.0 => f64::INFINITY,
-        // the reference for x = 1 is xsf's inaccurate value, which is fixed in xsf-rust
-        "kolmogp" if x[0] == 1.0 => f64::INFINITY,
         // the Kelvin derivative references at |x| = 10 are xsf's inaccurate values (scipy/xsf#232)
         "berp" | "beip" | "kerp" | "keip" if x[0].abs() == 10.0 => f64::INFINITY,
         "kelvin" if i >= 2 && x[0].abs() == 10.0 => f64::INFINITY,

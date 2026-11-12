@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/convex_analysis.h` (scipy/xsf@09c93c7). Original author:
+//! Translated into pure Rust from `xsf/convex_analysis.h` (scipy/xsf@95e131e). Original author:
 //! argriffing.
 
 /// Elementwise function for computing the entropy
@@ -245,8 +245,8 @@ pub fn pseudo_huber(delta: f64, r: f64) -> f64 {
     } else if delta == 0.0 || r == 0.0 {
         0.0
     } else {
-        // Unlike in xsf (scipy/xsf#362), this uses r^2 / (sqrt(1 + v^2) + 1) with v = r / delta,
-        // scaled like `hypot`, instead of delta^2 expm1(log1p(v^2) / 2).
+        // delta^2 (sqrt(1 + v^2) - 1) = r^2 / (sqrt(1 + v^2) + 1) with v = r / delta,
+        // scaled by the larger of |r| and delta to avoid over- and underflow
         let r = r.abs();
         if r <= delta {
             let v = r / delta;
