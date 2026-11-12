@@ -124,6 +124,12 @@ impl C64 {
         self.re.is_nan() || self.im.is_nan()
     }
 
+    /// `std::abs(z.real()) + std::abs(z.imag())`
+    #[inline]
+    pub(crate) fn l1_norm(self) -> f64 {
+        self.re.abs() + self.im.abs()
+    }
+
     /// `std::log(z)`
     #[inline]
     pub(crate) fn ln(self) -> Self {
@@ -134,6 +140,12 @@ impl C64 {
     #[inline]
     pub(crate) fn mul_exp(self, x: f64) -> Self {
         self.via(|z| cmul_exp(z, x))
+    }
+
+    /// `z.real() * z.real() + z.imag() * z.imag()`
+    #[inline]
+    pub(crate) fn norm_sqr(self) -> f64 {
+        self.re * self.re + self.im * self.im
     }
 
     /// `std::pow(z, x)`

@@ -6,10 +6,9 @@
 
 use core::f64::consts::PI;
 
-use num_complex::{Complex64, c64};
-
 use super::SPECFUN_INF;
 use crate::utils::LN_TAU;
+use crate::xsf::c64::{C64, c64};
 
 pub(crate) fn gamma2(x: f64) -> f64 {
     // ==================================================
@@ -97,7 +96,7 @@ pub(crate) fn gamma2(x: f64) -> f64 {
     ga
 }
 
-pub(crate) fn cgama(mut z: Complex64, kf: i32) -> Complex64 {
+pub(crate) fn cgama(mut z: C64, kf: i32) -> C64 {
     // =========================================================
     // Purpose: Compute the gamma function Г(z) or ln[Г(z)]
     //          for a complex argument

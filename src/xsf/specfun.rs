@@ -59,7 +59,7 @@ pub(crate) fn try_zeroed(n: usize) -> Option<Vec<f64>> {
 
 use num_complex::Complex;
 
-use crate::xsf::complex::C64_NAN;
+use crate::xsf::c64::{C64, ViaC64, c64};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -69,8 +69,8 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        let hg = Complex::new(chgm(self, a, b), 0.0);
-        hyp1f1_small_b(a, b, Complex::new(self, 0.0), hg).re
+        let hg = c64(chgm(self, a, b), 0.0);
+        hyp1f1_small_b(a, b, c64(self, 0.0), hg).re
     }
 }
 
@@ -78,14 +78,16 @@ impl Hyp1F1Arg for Complex<f64> {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        if a.is_nan() || b.is_nan() || self.re.is_nan() || self.im.is_nan() {
-            return C64_NAN;
-        }
-        let mut outz = hyp1f1_small_b(a, b, self, cchg(a, b, self));
-        if outz.re == SPECFUN_INF {
-            outz.re = f64::INFINITY;
-        }
-        outz
+        self.via(|z| {
+            if a.is_nan() || b.is_nan() || z.re.is_nan() || z.im.is_nan() {
+                return C64::NAN;
+            }
+            let mut outz = hyp1f1_small_b(a, b, z, cchg(a, b, z));
+            if outz.re == SPECFUN_INF {
+                outz.re = f64::INFINITY;
+            }
+            outz
+        })
     }
 }
 
