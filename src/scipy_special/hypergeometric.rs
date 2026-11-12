@@ -1,7 +1,4 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@b1eb270).
-//!
-//! Unlike in xsf, the complex `hyp0f1` computes its power in polar form instead of with `std::pow`,
-//! i.e. `exp(x log(z))`, which is less accurate here.
 
 use crate::utils::{MAXLOG, is_nonpos_int};
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
@@ -172,7 +169,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             (arg, cyl_bessel_j_c64(v - 1.0, 2.0 * arg))
         };
 
-        r * crate::gamma(v) * arg.powf_polar(1.0 - v)
+        r * crate::gamma(v) * arg.powf(1.0 - v)
     }
 }
 
@@ -214,8 +211,7 @@ impl HypergeometricArg for num_complex::Complex<f64> {
         if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
             f64::NAN.into()
         } else {
-            // (in polar form, which is more accurate than `std::pow` here)
-            self.via(|z| (1.0 - z).powf_polar(-a))
+            self.via(|z| (1.0 - z).powf(-a))
         }
     }
 
