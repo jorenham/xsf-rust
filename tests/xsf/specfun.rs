@@ -1,5 +1,4 @@
 use num_complex::c64;
-use num_traits::ToPrimitive;
 
 xsref::tests! {
     // the table is called "hyperu" instead of "hypu"
@@ -404,7 +403,7 @@ fn test_hypu_int_b() {
 
 xsref::tests! {
     test_hyp1f1: "hyp1f1", "d_d_cd-cd", |x| xsf::hyp1f1(x[0], x[1], c64(x[2], x[3]));
-    test_pmv: "pmv", "d_d_d-d", |x| xsf::pmv(x[0].to_i32().unwrap(), x[1], x[2]);
+    test_pmv: "pmv", "d_d_d-d", |x| xsref::with_int(x[0], |m| xsf::pmv(m, x[1], x[2]));
 }
 
 #[test]

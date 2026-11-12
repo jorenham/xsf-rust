@@ -1,6 +1,6 @@
 xsref::tests! {
     test_prolate_segv: "prolate_segv", "d_d_d-d", |x| {
-        xsf::prolate_segv(x[0] as u64, x[1] as u64, x[2])
+        xsref::with_int(x[0], |m| xsref::with_int(x[1], |n| xsf::prolate_segv(m, n, x[2])))
     };
 
     // https://github.com/scipy/xsref/issues/9
