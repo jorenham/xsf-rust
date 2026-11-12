@@ -2,10 +2,7 @@
 
 use core::f64::consts::PI;
 
-use num_complex::Complex;
-
-use crate::xsf::complex::{C64_NAN, cdiv, rdiv, rsub};
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, ViaC64, c64};
 
 // All of the following were computed with mpmath
 /// Location of the positive root
@@ -34,9 +31,9 @@ fn digamma_zeta_series(z: f64, root: f64, rootval: f64) -> f64 {
 }
 
 /// `digamma_zeta_series` for complex `z`
-fn digamma_zeta_series_c(z: Complex<f64>, root: f64, rootval: f64) -> Complex<f64> {
-    let mut res = Complex::from(rootval);
-    let mut coeff = Complex::new(-1.0, 0.0);
+fn digamma_zeta_series_c(z: C64, root: f64, rootval: f64) -> C64 {
+    let mut res = c64(rootval, 0.0);
+    let mut coeff = c64(-1.0, 0.0);
 
     let z = z - root;
     for n in 1..100 {
@@ -50,7 +47,7 @@ fn digamma_zeta_series_c(z: Complex<f64>, root: f64, rootval: f64) -> Complex<f6
     res
 }
 
-fn digamma_forward_recurrence(z: Complex<f64>, psiz: Complex<f64>, n: i32) -> Complex<f64> {
+fn digamma_forward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
     /* Compute digamma(z + n) using digamma(z) using the recurrence
      * relation
      *
@@ -60,22 +57,22 @@ fn digamma_forward_recurrence(z: Complex<f64>, psiz: Complex<f64>, n: i32) -> Co
     let mut res = psiz;
 
     for k in 0..n {
-        res += rdiv(1.0, z + f64::from(k));
+        res += 1.0 / (z + f64::from(k));
     }
     res
 }
 
-fn digamma_backward_recurrence(z: Complex<f64>, psiz: Complex<f64>, n: i32) -> Complex<f64> {
+fn digamma_backward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
     /* Compute digamma(z - n) using digamma(z) and a recurrence relation. */
     let mut res = psiz;
 
     for k in 1..=n {
-        res -= rdiv(1.0, z - f64::from(k));
+        res -= 1.0 / (z - f64::from(k));
     }
     res
 }
 
-fn digamma_asymptotic_series(z: Complex<f64>) -> Complex<f64> {
+fn digamma_asymptotic_series(z: C64) -> C64 {
     /* Evaluate digamma using an asymptotic series. See
      *
      * https://dlmf.nist.gov/5.11#E2 */
@@ -97,18 +94,18 @@ fn digamma_asymptotic_series(z: Complex<f64>) -> Complex<f64> {
         6.015_808_739_006_424e8,
         -1.511_631_576_709_215_7e10,
     ];
-    let rzz = cdiv(rdiv(1.0, z), z);
-    let mut zfac = Complex::ONE;
+    let rzz = 1.0 / z / z;
+    let mut zfac = C64::ONE;
 
     if !(z.re.is_finite() && z.im.is_finite()) {
         /* Check for infinity (or nan) and return early.
          * Result of division by complex infinity is implementation dependent.
          * and has been observed to vary between C++ stdlib and CUDA stdlib.
          */
-        return clog(z);
+        return z.ln();
     }
 
-    let mut res = clog(z) - rdiv(0.5, z);
+    let mut res = z.ln() - 0.5 / z;
 
     for (k, &b2k) in (1_u32..17).zip(&BERNOULLI2K) {
         zfac *= rzz;
@@ -133,7 +130,7 @@ fn digamma_f64(z: f64) -> f64 {
 }
 
 /// `xsf::digamma` for complex `z`
-fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
+fn digamma_c64(mut z: C64) -> C64 {
     /*
      * Compute the digamma function for complex arguments. The strategy
      * is:
@@ -150,7 +147,7 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
      */
     // Unlike in xsf (scipy/xsf#157), non-finite `z` is not handled separately.
     let mut absz = z.norm();
-    let mut res = Complex::ZERO;
+    let mut res = C64::ZERO;
     /* Use the asymptotic series for z away from the negative real axis
      * with abs(z) > smallabsz. */
     let smallabsz = 16.0;
@@ -158,9 +155,9 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
      * smallimag of the negative real axis.
      * int smallimag = 6  # unused below except in a comment */
 
-    if z.re <= 0.0 && z == Complex::from(z.re.ceil()) {
+    if z.re <= 0.0 && z == c64(z.re.ceil(), 0.0) {
         // Poles
-        return C64_NAN;
+        return C64::NAN;
     }
     if (z - DIGAMMA_NEGROOT).norm() < 0.3 {
         // First negative root.
@@ -172,15 +169,15 @@ fn digamma_c64(mut z: Complex<f64>) -> Complex<f64> {
          *
          *https://dlmf.nist.gov/5.5#E4
          */
-        res = cdiv(-PI * crate::cospi(z), crate::sinpi(z));
-        z = rsub(1.0, z);
+        res = -PI * z.cospi() / z.sinpi();
+        z = 1.0 - z;
         absz = z.norm();
     }
 
     if absz < 0.5 {
         /* Use one step of the recurrence relation to step away from
          * the pole. */
-        res = rdiv(-1.0, z);
+        res = -1.0 / z;
         z += 1.0;
         absz = z.norm();
     }
@@ -216,7 +213,7 @@ impl DigammaArg for f64 {
 impl DigammaArg for num_complex::Complex<f64> {
     #[inline]
     fn digamma(self) -> Self {
-        digamma_c64(self)
+        self.via(digamma_c64)
     }
 }
 

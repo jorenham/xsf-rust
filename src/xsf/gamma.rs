@@ -1,8 +1,8 @@
 use num_complex::Complex;
 
 use crate::utils::is_nonpos_int;
-use crate::xsf::complex::C64_NAN;
-use crate::xsf::exp::cexp;
+use crate::xsf::c64::{C64, ViaC64};
+use crate::xsf::loggamma::cloggamma;
 
 pub trait GammaArg: crate::sealed::Sealed {
     fn xsf_gamma(self) -> Self;
@@ -18,18 +18,18 @@ impl GammaArg for f64 {
 impl GammaArg for Complex<f64> {
     #[inline]
     fn xsf_gamma(self) -> Self {
-        cgamma(self)
+        self.via(cgamma)
     }
 }
 
 /// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (scipy/xsf@56a9b96)
-fn cgamma(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn cgamma(z: C64) -> C64 {
     // Compute Gamma(z) using loggamma.
     if z.im == 0.0 && is_nonpos_int(z.re) {
         // Poles
-        return C64_NAN;
+        return C64::NAN;
     }
-    cexp(crate::loggamma(z))
+    cloggamma(z).exp()
 }
 
 /// Gamma function $\Gamma(z)$ for real or complex argument.

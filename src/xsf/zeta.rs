@@ -11,20 +11,18 @@
 
 use std::f64::consts::{LN_2, PI, TAU};
 
-use num_complex::Complex;
-
 use crate::utils::{LN_PI, LN_TAU};
-use crate::xsf::complex::{C64_NAN, cdiv, rdiv, rsub};
-use crate::xsf::exp::cexp;
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::gamma::cgamma;
+use crate::xsf::loggamma::cloggamma;
 
 /// `std::pow(x, z)` for real `x > 0` and complex `z`, as in libstdc++
-fn rpow(x: f64, z: Complex<f64>) -> Complex<f64> {
+fn rpow(x: f64, z: C64) -> C64 {
     debug_assert!(x > 0.0);
     // std::polar(pow(x, z.real()), z.imag() * log(x))
     let rho = x.powf(z.re);
     let theta = z.im * x.ln();
-    Complex::new(rho * theta.cos(), rho * theta.sin())
+    c64(rho * theta.cos(), rho * theta.sin())
 }
 
 /// Log of absolute value of expansion coefficients for Euler-Maclaurin
@@ -103,20 +101,20 @@ const ZETA_EM_LOG_ABS_COEFF_LOOKUP: [f64; 51] = [
 ];
 
 /// Complex log of expansion coefficients for Euler-Maclaurin summation formula.
-fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
-    let mut result: Complex<f64> = if n < 50 {
-        ZETA_EM_LOG_ABS_COEFF_LOOKUP[n].into()
+fn zeta_em_log_coeff(n: usize) -> C64 {
+    let mut result = if n < 50 {
+        c64(ZETA_EM_LOG_ABS_COEFF_LOOKUP[n], 0.0)
     } else {
         /* Asymptotic formula
          * Uses https://dlmf.nist.gov/24.11#E1 to approximate B_{2n} and
          * Stirling's approximation for (2n)!.
          */
-        (LN_2 - 2.0 * n as f64 * LN_TAU).into()
+        c64(LN_2 - 2.0 * n as f64 * LN_TAU, 0.0)
     };
     if n % 2 == 0 {
         /* B_{2n}/(2n)! is negative for even n. This contributes a term
          * pi*i when taking the log. */
-        result += PI * Complex::I;
+        result += PI * C64::I;
     }
     result
 }
@@ -124,19 +122,19 @@ fn zeta_em_log_coeff(n: usize) -> Complex<f64> {
 /// Compute riemann_zeta for complex input z using the Euler-Maclaurin formula.
 /// Computation of individual terms in expansion are logarithmized to avoid
 /// overflow. TODO: only logarithmize when necessary.
-fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
-    if z == Complex::ONE {
+fn zeta_euler_maclaurin(z: C64) -> C64 {
+    if z == C64::ONE {
         /* Return NaN at pole since value depends on how z approaches 1.0. */
-        return C64_NAN;
+        return C64::NAN;
     }
     let n = (z.im.abs() / 4.0).max(50.0);
     if n >= usize::MAX as f64 {
         // Unlike in xsf, return NaN if the number of terms doesn't fit in a `size_t`.
-        return C64_NAN;
+        return C64::NAN;
     }
     let n = n as usize;
     let m = n;
-    let mut result = Complex::ZERO;
+    let mut result = C64::ZERO;
     for i in 1..n {
         let term = rpow(i as f64, -z);
         result += term;
@@ -147,7 +145,7 @@ fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
     }
     let big_n = n as f64;
     let b = rpow(big_n, -z);
-    result += b * (0.5 + rdiv(big_n, z - 1.0));
+    result += b * (0.5 + big_n / (z - 1.0));
     /* The terms of the Euler-Maclaurin
      * expansion below are T(k, n) = B2k/(2k)! * n^(1 - z - 2k) * z(z+1)...(z+2k-2).
      * We work with logarithms to avoid overflow in all cases at the expense of
@@ -157,29 +155,31 @@ fn zeta_euler_maclaurin(z: Complex<f64>) -> Complex<f64> {
      * These are updated one extra time after the loop completes for use in the
      * Euler-Maclaurin error estimate.
      */
-    let mut log_poch = clog(z);
+    let mut log_poch = z.ln();
     let mut log_factor = -(z + 1.0) * big_n.ln();
     for k in 1..=m {
-        let term = cexp(zeta_em_log_coeff(k) + log_factor + log_poch);
+        let term = (zeta_em_log_coeff(k) + log_factor + log_poch).exp();
         result += term;
         if term.norm() / result.norm() <= f64::EPSILON {
             return result;
         }
-        log_poch += clog(z + (2 * k - 1) as f64) + clog(z + (2 * k) as f64);
+        log_poch += (z + (2 * k - 1) as f64).ln() + (z + (2 * k) as f64).ln();
         log_factor -= 2.0 * big_n.ln();
     }
     /* Euler-maclaurin absolute error estimate.
      * The error is bounded above by |(z + 2m + 1)/(z.real + 2m + 1) * T(m+1, n)|
      * See https://en.wikipedia.org/wiki/Riemann_zeta_function#Numerical_algorithms
      */
-    let mut error = cexp(zeta_em_log_coeff(m + 1) + log_factor + log_poch).norm();
+    let mut error = (zeta_em_log_coeff(m + 1) + log_factor + log_poch)
+        .exp()
+        .norm();
     error *= ((z + 2.0 * m as f64 + 1.0) / (z.re + 2.0 * m as f64 + 1.0)).norm();
     // convert to relative error estimate
     error /= result.norm();
     if error > 1e-1 {
         /* If error estimate predicts we don't even get 1 digit of precision, return NaN
          * and signal no result */
-        return C64_NAN;
+        return C64::NAN;
     }
     result
 }
@@ -265,22 +265,22 @@ const ZETA_BORWEIN_COEFF: [f64; 50] = [
 ];
 
 /// Compute riemann_zeta for complex input z using Algorithm 2 from Borwein 1995.
-fn zeta_borwein(z: Complex<f64>) -> Complex<f64> {
-    let mut result = Complex::ZERO;
+fn zeta_borwein(z: C64) -> C64 {
+    let mut result = C64::ZERO;
     // Sum in reverse order because smaller terms come later.
     for k in (0..50).rev() {
         let sign = (-1.0_f64).powi(k);
         let den = rpow(f64::from(k + 1), z);
-        let term = rdiv(sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0), den);
+        let term = sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0) / den;
         result += term;
     }
-    cdiv(-result, rsub(1.0, rpow(2.0, rsub(1.0, z))))
+    -result / (1.0 - rpow(2.0, 1.0 - z))
 }
 
 /// Compute riemann zeta for complex z and real part >= 0
-fn zeta_right_halfplane(z: Complex<f64>) -> Complex<f64> {
-    if z == Complex::ONE {
-        return C64_NAN;
+fn zeta_right_halfplane(z: C64) -> C64 {
+    if z == C64::ONE {
+        return C64::NAN;
     }
     /* Cutoff for using Euler-MacLaurin chosen based on cursory empirical search.
      * TODO: Choose cutoffs in a more principled way. */
@@ -288,7 +288,7 @@ fn zeta_right_halfplane(z: Complex<f64>) -> Complex<f64> {
         if z.re >= 0.0 && z.re < 2.5 && z.im.abs() > 1e9 {
             /* Euler-MacLaurin summation starts to take an unreasonable amount of time in this
              * region, so just give up and return NaN instead. */
-            return C64_NAN;
+            return C64::NAN;
         }
         return zeta_euler_maclaurin(z);
     }
@@ -296,10 +296,10 @@ fn zeta_right_halfplane(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// exp(pi*z) for complex z.
-fn exppi(z: Complex<f64>) -> Complex<f64> {
+fn exppi(z: C64) -> C64 {
     let x = z.re;
     let y = z.im;
-    let factor1 = Complex::new(crate::cospi(y), crate::sinpi(y));
+    let factor1 = c64(crate::cospi(y), crate::sinpi(y));
     let factor2 = (PI * x).exp();
     factor1 * factor2
 }
@@ -311,8 +311,8 @@ fn exppi(z: Complex<f64>) -> Complex<f64> {
 /// result of log(sinpi(z)) will be added to other terms, and the sum
 /// will then be exponentiated, making the choice of a specific branch
 /// unnecessary.
-fn logsinpi(z: Complex<f64>) -> Complex<f64> {
-    let result = clog(crate::sinpi(z));
+fn logsinpi(z: C64) -> C64 {
+    let result = z.sinpi().ln();
     // If it doesn't overflow, just do the regular calculation.
     //
     // NOTE: as in xsf, the condition is `!isfinite(result.imag())`, which only holds for a NaN
@@ -330,16 +330,11 @@ fn logsinpi(z: Complex<f64>) -> Complex<f64> {
          * log(exp(-i*pi*z)*((exp(2*i*pi*z) - 1.0)/(2i)) =
          * log(exp(-i*pi*z)) + log((exp(2*i*pi*z) - 1.0)/(2i)) =
          * -i*pi*z + log((exp(2*i*pi*z) - 1.0)/(2i)) */
-        return -Complex::I * PI * z
-            + clog(cdiv(exppi(2.0 * z * Complex::I) - 1.0, 2.0 * Complex::I));
+        return -C64::I * PI * z + ((exppi(2.0 * z * C64::I) - 1.0) / (2.0 * C64::I)).ln();
     }
     /* if z.imag() < 0 then, exp(i*pi*z) has greatest magnitude. Factor similarly
      * to above */
-    Complex::I * PI * z
-        + clog(cdiv(
-            rsub(1.0, exppi(-2.0 * z * Complex::I)),
-            2.0 * Complex::I,
-        ))
+    C64::I * PI * z + ((1.0 - exppi(-2.0 * z * C64::I)) / (2.0 * C64::I)).ln()
 }
 
 /// Leading factor in reflection formula for zeta function.
@@ -349,21 +344,21 @@ fn logsinpi(z: Complex<f64>) -> Complex<f64> {
 /// Computation is logarithimized to prevent overflow.
 /// TODO: Complexify the cephes zeta_reflection implementation, which uses
 /// the lanczos approximation for the gamma function.
-fn zeta_reflection_factor_with_logs(z: Complex<f64>) -> Complex<f64> {
+fn zeta_reflection_factor_with_logs(z: C64) -> C64 {
     let t1 = z * LN_2;
     let t2 = (z - 1.0) * LN_PI;
     let t3 = logsinpi(z / 2.0);
-    let t4 = crate::loggamma(rsub(1.0, z));
-    cexp(t1 + t2 + t3 + t4)
+    let t4 = cloggamma(1.0 - z);
+    (t1 + t2 + t3 + t4).exp()
 }
 
-fn zeta_reflection(z: Complex<f64>) -> Complex<f64> {
-    let mut factor = 2.0 * rpow(TAU, z - 1.0) * crate::sinpi(z / 2.0) * crate::gamma(rsub(1.0, z));
+fn zeta_reflection(z: C64) -> C64 {
+    let mut factor = 2.0 * rpow(TAU, z - 1.0) * (z / 2.0).sinpi() * cgamma(1.0 - z);
     if !factor.re.is_finite() || !factor.im.is_finite() {
         // Try again with logs if standard calculation had overflow.
         factor = zeta_reflection_factor_with_logs(z);
     }
-    let result = zeta_right_halfplane(rsub(1.0, z));
+    let result = zeta_right_halfplane(1.0 - z);
     /* zeta tends to 1.0 as real part tends to +inf. In cases where
      * the real part of zeta tends to -inf, then zeta(1 - z) in the
      * reflection formula will tend to 1.0. Factor overflows then,
@@ -372,16 +367,16 @@ fn zeta_reflection(z: Complex<f64>) -> Complex<f64> {
      * is handled because this is the only practical case where we should
      *  expect zeta(1 - z) == x for a real number x when z is not on the
      * real line. */
-    if result == Complex::ONE {
+    if result == C64::ONE {
         factor
     } else {
         factor * result
     }
 }
 
-fn criemann_zeta(z: Complex<f64>) -> Complex<f64> {
+fn criemann_zeta(z: C64) -> C64 {
     if z.im == 0.0 {
-        return crate::xsf::cephes::riemann_zeta(z.re).into();
+        return c64(crate::xsf::cephes::riemann_zeta(z.re), 0.0);
     }
     if z.re >= 0.5 {
         return zeta_right_halfplane(z);
@@ -412,7 +407,7 @@ impl ZetaArg for f64 {
 impl ZetaArg for num_complex::Complex<f64> {
     #[inline]
     fn riemann_zeta(self) -> Self {
-        criemann_zeta(self)
+        self.via(criemann_zeta)
     }
 
     #[inline]
@@ -424,7 +419,7 @@ impl ZetaArg for num_complex::Complex<f64> {
             num_complex::Complex::new(self.re.zeta(q), 0.0)
         } else {
             // Complex input for Hurwitz Zeta is not currently supported.
-            C64_NAN
+            C64::NAN.into()
         }
     }
 }

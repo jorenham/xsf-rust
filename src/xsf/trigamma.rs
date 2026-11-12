@@ -27,11 +27,10 @@
 
 use core::f64::consts::PI;
 
-use num_complex::{Complex, c64};
+use num_complex::Complex;
 
+use crate::xsf::c64::{C64, ViaC64};
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::complex::{cmul, rdiv};
-use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::trig::cephes_sinpi;
 
 const N: i32 = 10;
@@ -85,32 +84,32 @@ fn trigamma_f64(mut z: f64) -> f64 {
 }
 
 /// `xsf::trigamma` for complex `z`
-fn trigamma_c64(mut z: Complex<f64>) -> Complex<f64> {
+fn trigamma_c64(mut z: C64) -> C64 {
     let x = z.re;
     if x <= 0.0 {
         // reflection formula http://dlmf.nist.gov/5.15.E6
-        let s = crate::sinpi(z);
-        let c = rdiv(PI, s);
-        return cmul(c, c) - trigamma_c64(c64(1.0, 0.0) - z);
+        let s = z.sinpi();
+        let c = PI / s;
+        return c * c - trigamma_c64(C64::ONE - z);
     }
 
-    let mut psi = Complex::ZERO;
+    let mut psi = C64::ZERO;
     if x < f64::from(N) {
         // recursion based on https://dlmf.nist.gov/5.15.E1
         let n = (f64::from(N) - x.floor()) as i32;
-        psi += rdiv(1.0, z * z);
+        psi += 1.0 / (z * z);
         for v in 1..n {
             let w = z + f64::from(v);
-            psi += rdiv(1.0, w * w);
+            psi += 1.0 / (w * w);
         }
         z += f64::from(n);
     }
 
     // https://dlmf.nist.gov/5.15.E8
-    let t = rdiv(1.0, z);
+    let t = 1.0 / z;
     let w = t * t;
     psi += t + 0.5 * w;
-    psi += t * w * cevalpoly(&COEFFS, w);
+    psi += t * w * w.evalpoly(&COEFFS);
     psi
 }
 
@@ -128,7 +127,7 @@ impl TrigammaArg for f64 {
 impl TrigammaArg for Complex<f64> {
     #[inline]
     fn trigamma(self) -> Self {
-        trigamma_c64(self)
+        self.via(trigamma_c64)
     }
 }
 
