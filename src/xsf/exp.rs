@@ -127,26 +127,18 @@ pub fn exp10(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use super::cexp;
     use crate::xsf::c64::c64;
-
-    fn assert_close(actual: f64, expected: f64, rtol: f64) {
-        assert!(
-            (actual - expected).abs() <= rtol * expected.abs(),
-            "actual: {actual:e}, expected: {expected:e}"
-        );
-    }
 
     #[test]
     fn test_cexp_overflow() {
-        use crate::xsf::exp::cexp;
-
         // exp(z.re) overflows, but not all of exp(z) does (reference values from mpmath)
         let w = cexp(c64(709.9, 1.5));
-        assert_close(w.re, 1.429_883_248_952_389_1e307, 1e-15);
+        xsref::np_assert_allclose!([w.re], [1.429_883_248_952_389_1e307], rtol = 1e-15);
         assert_eq!(w.im, f64::INFINITY);
         let w = cexp(c64(1450.0, 5e-324));
         assert_eq!(w.re, f64::INFINITY);
-        assert_close(w.im, 2.635_016_970_633_634_3e306, 1e-15);
+        xsref::np_assert_allclose!([w.im], [2.635_016_970_633_634_3e306], rtol = 1e-15);
 
         // real z: inf + 0i instead of inf + NaN i (once or twice scaled, and z.re > 3 * 709)
         for re in [800.0, 1500.0, 3000.0] {

@@ -1,6 +1,11 @@
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
+xsref::tests! {
+    test_hyp2f1_f64: "hyp2f1", "d_d_d_d-d", |x| xsf::hyp2f1(x[0], x[1], x[2], x[3]);
+    test_hyp2f1_c64: "hyp2f1", "d_d_d_cd-cd", |x| xsf::hyp2f1(x[0], x[1], x[2], c64(x[3], x[4]));
+}
+
 #[test]
 fn test_hyp2f1_c64_transform2_euler() {
     // unlike in xsf: the 1/z transformation of the Euler transform (mpmath references)

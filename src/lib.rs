@@ -584,9 +584,6 @@
     clippy::manual_midpoint
 )]
 
-#[cfg(test)]
-use xsref::np_assert_allclose;
-
 mod numpy;
 mod scipy_special;
 mod utils;

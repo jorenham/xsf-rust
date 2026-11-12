@@ -760,6 +760,13 @@ xsref::tests! {
 }
 
 #[test]
+fn test_pdtri_k_max() {
+    // `k + 1` overflows `int` in xsf
+    let m = xsf::pdtri(i32::MAX, 0.5);
+    assert!(m.is_finite() && m > f64::from(i32::MAX), "{m}");
+}
+
+#[test]
 fn test_bdtri_small_y() {
     // mpmath: the p for which bdtr(96, 191, p) == 2.1012712563041036e-22
     let p = xsf::bdtri(96.0, 191, 2.101_271_256_304_103_6e-22);

@@ -474,10 +474,7 @@ mod tests {
     fn test_csqrt_imaginary() {
         // correctly rounded, unlike in FreeBSD
         let r = super::csqrt(c64(0.0, -1.0));
-        assert_eq!(
-            [r.re.to_bits(), r.im.to_bits()],
-            [FRAC_1_SQRT_2.to_bits(), (-FRAC_1_SQRT_2).to_bits()]
-        );
+        assert_eq!(r, c64(FRAC_1_SQRT_2, -FRAC_1_SQRT_2));
     }
 
     #[test]
@@ -504,7 +501,7 @@ mod tests {
         // mpmath
         let actual = [0.5, 1e-10, -0.9].map(super::atanh);
         let expected = [0.549_306_144_334_054_9, 1e-10, -1.472_219_489_583_220_4];
-        crate::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
 
         assert_eq!(super::atanh(-0.0).to_bits(), (-0.0_f64).to_bits());
         assert_eq!(super::atanh(-1.0), f64::NEG_INFINITY);
@@ -528,7 +525,7 @@ mod tests {
             c64(core::f64::consts::FRAC_PI_2, 0.0),
         ]
         .map(Complex::from);
-        crate::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-16);
 
         // signed zeros and the branch points
         let r = super::catan(c64(-0.0, 0.0));

@@ -95,6 +95,27 @@ fn test_wrightomega_real_nan() {
 }
 
 #[test]
+fn test_wrightomega_real_series_crossover() {
+    // the neighbours of the crossover at 1e20 (mpmath)
+    let x = 1e20_f64.to_bits();
+    let actual = [x - 1, x + 1].map(|b| xsf::wrightomega(f64::from_bits(b)));
+    let desired = [
+        99_999_999_999_999_983_569.948,
+        100_000_000_000_000_016_337.948,
+    ];
+    np_assert_allclose!(actual, desired, atol = 0.0, rtol = 2.0 * f64::EPSILON);
+}
+
+#[test]
+fn test_wrightomega_exp_approximation_crossover() {
+    // the neighbours of the crossover at -50, towards and away from 0 (mpmath)
+    let x = (-50.0_f64).to_bits();
+    let actual = [x - 1, x + 1].map(|b| xsf::wrightomega(f64::from_bits(b)));
+    let desired = [1.928_749_847_963_931_5e-22, 1.928_749_847_963_904_2e-22];
+    np_assert_allclose!(actual, desired, atol = 0.0, rtol = 2.0 * f64::EPSILON);
+}
+
+#[test]
 fn test_wrightomega_real_versus_complex() {
     // x = np.linspace(-500, 500, 1001)
     let res_f: Vec<f64> = (-500..=500)

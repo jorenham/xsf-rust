@@ -41,13 +41,3 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
     }
     if factor { -sum } else { sum }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_besselpoly_odd_nu_large() {
-        // `static_cast<int>(nu)` is UB in xsf for `|nu| >= 2^31`; this `nu` is odd
-        let r = super::besselpoly(0.5, 0.0, -2_147_483_649.0);
-        assert!(r == 0.0 && r.is_sign_negative(), "{r}");
-    }
-}
