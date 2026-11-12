@@ -2,12 +2,10 @@
 
 use core::f64::consts::{FRAC_2_SQRT_PI, PI};
 
-use num_complex::{Complex64, c64};
-
 use crate::utils::SQRT_PI;
-use crate::xsf::complex::{cdiv, cmul};
+use crate::xsf::c64::{C64, c64};
 
-fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
+fn cerf(z: C64, cer: &mut C64, cder: &mut C64) {
     // ==========================================================
     // Purpose: Compute complex Error function erf(z) & erf'(z)
     // Input:   z   --- Complex argument of erf(z)
@@ -100,10 +98,10 @@ fn cerf(z: Complex64, cer: &mut Complex64, cder: &mut Complex64) {
         }
         *cer = c64(err, ei1 + c0 * ei2);
     }
-    *cder = FRAC_2_SQRT_PI * cmul(-z, z).exp();
+    *cder = FRAC_2_SQRT_PI * (-z * z).exp();
 }
 
-pub(crate) fn cerzo(nt: i32, zo: &mut [Complex64]) {
+pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
     // ===============================================================
     // Purpose : Evaluate the complex zeros of error function erf(z)
     //           using the modified Newton's iteration method
@@ -113,14 +111,14 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [Complex64]) {
     // ===============================================================
 
     let mut it: i32;
-    let mut z: Complex64;
+    let mut z: C64;
     let mut zf = c64(0.0, 0.0);
     let mut zd = c64(0.0, 0.0);
-    let mut zp: Complex64;
-    let mut zw: Complex64;
-    let mut zq: Complex64;
-    let mut zfd: Complex64;
-    let mut zgd: Complex64;
+    let mut zp: C64;
+    let mut zw: C64;
+    let mut zq: C64;
+    let mut zfd: C64;
+    let mut zgd: C64;
     let mut w0: f64;
     let mut w = 0.0;
 
@@ -138,9 +136,9 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [Complex64]) {
             zp = c64(1.0, 0.0);
 
             for i in 1..nr {
-                zp = cmul(zp, z - zo[(i - 1) as usize]);
+                zp *= z - zo[(i - 1) as usize];
             }
-            zfd = cdiv(zf, zp);
+            zfd = zf / zp;
             zq = c64(0.0, 0.0);
             for i in 1..nr {
                 zw = c64(1.0, 0.0);
@@ -148,12 +146,12 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [Complex64]) {
                     if j == i {
                         continue;
                     }
-                    zw = cmul(zw, z - zo[(j - 1) as usize]);
+                    zw *= z - zo[(j - 1) as usize];
                 }
                 zq += zw;
             }
-            zgd = cdiv(zd - cmul(zq, zfd), zp);
-            z -= cdiv(zfd, zgd);
+            zgd = (zd - zq * zfd) / zp;
+            z -= zfd / zgd;
             w0 = w;
             w = z.norm();
             if !((it <= 50) && (((w - w0) / w).abs() > 1.0e-11)) {

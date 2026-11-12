@@ -3,13 +3,12 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use core::ffi::c_int;
-use num_complex::{Complex, c64};
+use num_complex::Complex;
 
 use crate::utils::{SQRT_TAU, SQRT1OPI, SQRT2OPI};
-use crate::xsf::complex::{cdiv, rdiv};
-use crate::xsf::trig::{ccos, csin};
+use crate::xsf::c64::{C64, c64};
 
-fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+fn cfc(z: C64) -> (C64, C64) {
     // =========================================================
     // Purpose: Compute complex Fresnel integral C(z) and C'(z)
     // Input :  z --- Argument of C(z)
@@ -36,7 +35,7 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
             c += cr;
             let wa = c.norm();
             if (((wa - wa0) / wa).abs() < EPS) && (k > 10.0) {
-                return (c, ccos(FRAC_PI_2 * z * z));
+                return (c, (FRAC_PI_2 * z * z).cos());
             }
             wa0 = wa;
         }
@@ -48,14 +47,14 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         let mut cf1 = z0;
         let mut cf0 = c64(1.0e-100, 0.0);
         for k in (0..=m).rev() {
-            cf = cdiv((2.0 * f64::from(k) + 3.0) * cf0, zp) - cf1;
+            cf = (2.0 * f64::from(k) + 3.0) * cf0 / zp - cf1;
             if k % 2 == 0 {
                 c += cf;
             }
             cf1 = cf0;
             cf0 = cf;
         }
-        c *= cdiv(rdiv(2.0, PI * z) * csin(zp), cf);
+        c *= 2.0 / (PI * z) * zp.sin() / cf;
         c
     } else {
         // See comment at CFS(), use C(z) = iC(-iz)
@@ -75,22 +74,22 @@ fn cfc(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         let mut cf = c64(1.0, 0.0);
         for k in 1..=20 {
             let k = f64::from(k);
-            cr = cdiv(-0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0), zp2);
+            cr = -0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0) / zp2;
             cf += cr;
         }
-        cr = rdiv(1.0, PI * z * z);
+        cr = 1.0 / (PI * z * z);
         let mut cg = cr;
         for k in 1..=12 {
             let k = f64::from(k);
-            cr = cdiv(-0.25 * cr * (4.0 * k + 1.0) * (4.0 * k - 1.0), zp2);
+            cr = -0.25 * cr * (4.0 * k + 1.0) * (4.0 * k - 1.0) / zp2;
             cg += cr;
         }
-        d + cdiv(cf * csin(zp) - cg * ccos(zp), PI * z)
+        d + (cf * zp.sin() - cg * zp.cos()) / (PI * z)
     };
-    (c, ccos(FRAC_PI_2 * z * z))
+    (c, (FRAC_PI_2 * z * z).cos())
 }
 
-fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+fn cfs(z: C64) -> (C64, C64) {
     // =========================================================
     // Purpose: Compute complex Fresnel Integral S(z) and S'(z)
     // Input :  z  --- Argument of S(z)
@@ -117,7 +116,7 @@ fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
             s += cr;
             let wb = s.norm();
             if ((wb - wb0).abs() < EPS) && (k > 10.0) {
-                return (s, csin(FRAC_PI_2 * z * z));
+                return (s, (FRAC_PI_2 * z * z).sin());
             }
             wb0 = wb;
         }
@@ -129,14 +128,14 @@ fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         let mut cf1 = z0;
         let mut cf0 = c64(1.0e-100, 0.0);
         for k in (0..=m).rev() {
-            cf = cdiv((2.0 * f64::from(k) + 3.0) * cf0, zp) - cf1;
+            cf = (2.0 * f64::from(k) + 3.0) * cf0 / zp - cf1;
             if k % 2 == 1 {
                 s += cf;
             }
             cf1 = cf0;
             cf0 = cf;
         }
-        cdiv(rdiv(2.0, PI * z) * csin(zp), cf) * s
+        2.0 / (PI * z) * zp.sin() / cf * s
     } else {
         // Auxiliary functions f(z) and g(z) can be computed using an
         // asymptotic expansion in the right quadrant |arg(z)| <= pi/4, not pi/2
@@ -160,23 +159,23 @@ fn cfs(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         let mut cf = c64(1.0, 0.0);
         for k in 1..=20 {
             let k = f64::from(k);
-            cr = cdiv(-0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0), zp2);
+            cr = -0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0) / zp2;
             cf += cr;
         }
         cr = c64(1.0, 0.0);
         let mut cg = c64(1.0, 0.0);
         for k in 1..=12 {
             let k = f64::from(k);
-            cr = cdiv(-0.25 * cr * (4.0 * k + 1.0) * (4.0 * k - 1.0), zp2);
+            cr = -0.25 * cr * (4.0 * k + 1.0) * (4.0 * k - 1.0) / zp2;
             cg += cr;
         }
-        cg = cdiv(cg, PI * z * z);
-        d - cdiv(cf * ccos(zp) + cg * csin(zp), PI * z)
+        cg /= PI * z * z;
+        d - (cf * zp.cos() + cg * zp.sin()) / (PI * z)
     };
-    (s, csin(FRAC_PI_2 * z * z))
+    (s, (FRAC_PI_2 * z * z).sin())
 }
 
-fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
+fn ffk(ks: i32, x: f64) -> (C64, C64) {
     // =======================================================
     // Purpose: Compute modified Fresnel integrals F±(x)
     //          and K±(x)
@@ -312,7 +311,7 @@ fn ffk(ks: i32, x: f64) -> (Complex<f64>, Complex<f64>) {
     (f, g)
 }
 
-fn fcszo(kf: i32, nt: usize, zo: &mut [Complex<f64>]) {
+fn fcszo(kf: i32, nt: usize, zo: &mut [C64]) {
     // ===============================================================
     // Purpose: Compute the complex zeros of Fresnel integral C(z)
     //          or S(z) using modified Newton's iteration method
@@ -362,7 +361,7 @@ fn fcszo(kf: i32, nt: usize, zo: &mut [Complex<f64>]) {
                 zp *= z - zo[i - 1];
             }
 
-            let zfd = cdiv(zf, zp);
+            let zfd = zf / zp;
             let mut zq = c64(0.0, 0.0);
             for i in 1..nr {
                 let mut zw = c64(1.0, 0.0);
@@ -374,8 +373,8 @@ fn fcszo(kf: i32, nt: usize, zo: &mut [Complex<f64>]) {
                 }
                 zq += zw;
             }
-            let zgd = cdiv(zd - zq * zfd, zp);
-            z -= cdiv(zfd, zgd);
+            let zgd = (zd - zq * zfd) / zp;
+            z -= zfd / zgd;
             let w0 = w;
             w = z.norm();
             if !((it <= 50) && (((w - w0) / w).abs() > 1.0e-12)) {
@@ -400,7 +399,8 @@ impl FresnelArg for f64 {
 impl FresnelArg for Complex<f64> {
     #[inline]
     fn fresnel(self) -> (Self, Self) {
-        (cfs(self).0, cfc(self).0)
+        let z = C64::from(self);
+        (cfs(z).0.into(), cfc(z).0.into())
     }
 }
 
@@ -443,7 +443,8 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 #[must_use]
 #[inline]
 pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    ffk(0, x)
+    let (f, k) = ffk(0, x);
+    (f.into(), k.into())
 }
 
 /// Modified Fresnel negative integrals
@@ -463,7 +464,8 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 #[must_use]
 #[inline]
 pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
-    ffk(1, x)
+    let (f, k) = ffk(1, x);
+    (f.into(), k.into())
 }
 
 /// Zeros of Fresnel integrals S(z) and C(z)
@@ -491,5 +493,8 @@ pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     let mut czo = vec![c64(f64::NAN, 0.0); nt];
     fcszo(2, nt, &mut szo);
     fcszo(1, nt, &mut czo);
-    (szo, czo)
+    (
+        szo.into_iter().map(Into::into).collect(),
+        czo.into_iter().map(Into::into).collect(),
+    )
 }

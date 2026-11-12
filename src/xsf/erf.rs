@@ -3,9 +3,10 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, PI};
 
-use num_complex::{Complex64, c64};
+use num_complex::Complex64;
 
 use crate::utils::SQRT_TAU;
+use crate::xsf::c64::{ViaC64, c64};
 
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
@@ -41,23 +42,23 @@ impl ErfArg for f64 {
 impl ErfArg for Complex64 {
     #[inline]
     fn erf(self) -> Self {
-        crate::xsf::faddeeva::erf_c64(self)
+        self.via(crate::xsf::faddeeva::erf_c64)
     }
     #[inline]
     fn erfc(self) -> Self {
-        crate::xsf::faddeeva::erfc_c64(self)
+        self.via(crate::xsf::faddeeva::erfc_c64)
     }
     #[inline]
     fn erfcx(self) -> Self {
-        crate::xsf::faddeeva::erfcx_c64(self)
+        self.via(crate::xsf::faddeeva::erfcx_c64)
     }
     #[inline]
     fn erfi(self) -> Self {
-        crate::xsf::faddeeva::erfi_c64(self)
+        self.via(crate::xsf::faddeeva::erfi_c64)
     }
     #[inline]
     fn dawsn(self) -> Self {
-        crate::xsf::faddeeva::dawson_c64(self)
+        self.via(crate::xsf::faddeeva::dawson_c64)
     }
 }
 
@@ -146,9 +147,9 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn erf_zeros<const N: usize>() -> [Complex64; N] {
-    let mut zo = [f64::NAN.into(); N];
+    let mut zo = [c64(f64::NAN, 0.0); N];
     crate::xsf::specfun::cerzo(N.try_into().unwrap(), &mut zo);
-    zo
+    zo.map(Into::into)
 }
 
 /// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
@@ -180,7 +181,7 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn wofz(z: Complex64) -> Complex64 {
-    crate::xsf::faddeeva::w(z)
+    z.via(crate::xsf::faddeeva::w)
 }
 
 /// Voigt profile

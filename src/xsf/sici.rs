@@ -14,13 +14,11 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use num_complex::{Complex, c64};
-
 use crate::utils::SCIPY_EULER;
-use crate::xsf::complex::cmul;
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, c64};
+use crate::xsf::expint::expi_c64;
 
-fn sici_power_series(sgn: i32, z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+fn sici_power_series(sgn: i32, z: C64) -> (C64, C64) {
     /* DLMF 6.6.5 and 6.6.6. If sgn = -1 computes si/ci, and if sgn = 1
      * computes shi/chi.
      */
@@ -31,10 +29,10 @@ fn sici_power_series(sgn: i32, z: Complex<f64>) -> (Complex<f64>, Complex<f64>) 
     let mut c = c64(0.0, 0.0);
     for n in 1..100 {
         let n = f64::from(n);
-        fac = cmul(fac, f64::from(sgn) * z / (2.0 * n));
+        fac *= f64::from(sgn) * z / (2.0 * n);
         let term2 = fac / (2.0 * n);
         c += term2;
-        fac = cmul(fac, z / (2.0 * n + 1.0));
+        fac *= z / (2.0 * n + 1.0);
         let term1 = fac / (2.0 * n + 1.0);
         s += term1;
         if term1.norm() < TOL * s.norm() && term2.norm() < TOL * c.norm() {
@@ -44,7 +42,7 @@ fn sici_power_series(sgn: i32, z: Complex<f64>) -> (Complex<f64>, Complex<f64>) 
     (s, c)
 }
 
-fn sici_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+fn sici_c64(z: C64) -> (C64, C64) {
     /* Compute sin/cos integrals at complex arguments. The algorithm
      * largely follows that of [1].
      */
@@ -65,16 +63,16 @@ fn sici_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         if z == c64(0.0, 0.0) {
             ci = c64(f64::NEG_INFINITY, f64::NAN);
         } else {
-            ci += EULER + clog(z);
+            ci += EULER + z.ln();
         }
         return (si, ci);
     }
 
     // DLMF 6.5.5/6.5.6 plus DLMF 6.4.4/6.4.6/6.4.7
-    let jz = cmul(c64(0.0, 1.0), z);
-    let term1 = crate::expi(jz);
-    let term2 = crate::expi(-jz);
-    let mut si = cmul(c64(0.0, -0.5), term1 - term2);
+    let jz = c64(0.0, 1.0) * z;
+    let term1 = expi_c64(jz);
+    let term2 = expi_c64(-jz);
+    let mut si = c64(0.0, -0.5) * (term1 - term2);
     let mut ci = 0.5 * (term1 + term2);
     if z.re == 0.0 {
         if z.im > 0.0 {
@@ -95,7 +93,7 @@ fn sici_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
     (si, ci)
 }
 
-fn shichi_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+fn shichi_c64(z: C64) -> (C64, C64) {
     /* Compute sinh/cosh integrals at complex arguments. The algorithm
      * largely follows that of [1].
      */
@@ -113,13 +111,13 @@ fn shichi_c64(z: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
         if z == c64(0.0, 0.0) {
             chi = c64(f64::NEG_INFINITY, f64::NAN);
         } else {
-            chi += EULER + clog(z);
+            chi += EULER + z.ln();
         }
         return (shi, chi);
     }
 
-    let term1 = crate::expi(z);
-    let term2 = crate::expi(-z);
+    let term1 = expi_c64(z);
+    let term2 = expi_c64(-z);
     let mut shi = 0.5 * (term1 - term2);
     let mut chi = 0.5 * (term1 + term2);
     if z.im > 0.0 {
@@ -154,12 +152,14 @@ impl SiciArg for f64 {
 impl SiciArg for num_complex::Complex64 {
     #[inline]
     fn sici(self) -> (Self, Self) {
-        sici_c64(self)
+        let (si, ci) = sici_c64(self.into());
+        (si.into(), ci.into())
     }
 
     #[inline]
     fn shichi(self) -> (Self, Self) {
-        shichi_c64(self)
+        let (shi, chi) = shichi_c64(self.into());
+        (shi.into(), chi.into())
     }
 }
 

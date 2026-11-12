@@ -157,7 +157,7 @@ fn expi_f64(x: f64) -> f64 {
     }
 }
 
-fn expi_c64(z: C64) -> C64 {
+pub(crate) fn expi_c64(z: C64) -> C64 {
     // ============================================
     // Purpose: Compute exponential integral Ei(x)
     // Input :  x  --- Complex argument of Ei(x)
