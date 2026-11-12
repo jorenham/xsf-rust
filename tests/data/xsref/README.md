@@ -3,14 +3,14 @@
 The reference tables of the tests (read by `testing/src/xsref.rs`), converted from the parquet
 tables in `src/xsref/tables/scipy_special_tests` of
 [scipy/xsref](https://github.com/scipy/xsref) at commit
-[`e55f882`](https://github.com/scipy/xsref/tree/e55f8825a74246703417e2d5ce17e22b0e03d310)
+[`58b3fff`](https://github.com/scipy/xsref/tree/58b3fff7058717ea5c3a1a1286f5836489b21782)
 (BSD-3-Clause, see [`LICENSE`](LICENSE)). Only the tables that a test uses are included.
 
 They were generated with [`tools/tables/convert.py`](../../../tools/tables/convert.py):
 
 ```sh
 git clone https://github.com/scipy/xsref /tmp/xsref
-git -C /tmp/xsref checkout e55f8825a74246703417e2d5ce17e22b0e03d310
+git -C /tmp/xsref checkout 58b3fff7058717ea5c3a1a1286f5836489b21782
 uv run tools/tables/convert.py /tmp/xsref tests/data/xsref
 ```
 
