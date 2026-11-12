@@ -9,6 +9,7 @@
 
 use crate::utils::{mul_cosh_sinh, sin_cos_glibc};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::polevl::polevl;
 
 use core::f64::consts::{FRAC_PI_4, PI};
@@ -103,6 +104,14 @@ pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
     } else {
         (PI * (r - 1.5)).sin()
     }
+}
+
+/// sin(pi (x - m)), without the rounding error of x - m near an integer
+pub(crate) fn sinpi_sub(x: f64, m: f64) -> f64 {
+    let (s, e) = two_sum(x, -m);
+    let n = s.round();
+    let t = cephes_sinpi((s - n) + e);
+    if n % 2.0 == 0.0 { t } else { -t }
 }
 
 /// Sine of complex `z`
