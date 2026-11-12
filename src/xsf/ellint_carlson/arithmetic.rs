@@ -26,13 +26,11 @@
 //! The output arguments that the C++ functions take by (non-const) reference are returned instead,
 //! except for the accumulators.
 
-use num_complex::Complex64;
-
 use super::arith_aux as aux;
 use super::common::NPOLY;
 use super::typing::Num;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::two_prod;
-use crate::xsf::complex::cmul;
 
 /* Knuth's TwoSum algorithm, EFT on addition, with the sum written to s
  * and the correction term to p. This algorithm is generic enough to
@@ -93,7 +91,7 @@ struct CorrBuf {
 /* EFT for multiplication, with complex-type arguments.
  * Algorithm 3.4 in Ref. [1] */
 #[inline]
-fn eft_prod_cplx(x: Complex64, y: Complex64, corr: &mut CorrBuf) -> Complex64 {
+fn eft_prod_cplx(x: C64, y: C64, corr: &mut CorrBuf) -> C64 {
     /*  p                  e    f    g
      * z5 | value_real : [h1, -h2,  h5, xx]
      * z6 | value_imag : [h3,  h4,  h6, xx]
@@ -117,7 +115,7 @@ fn eft_prod_cplx(x: Complex64, y: Complex64, corr: &mut CorrBuf) -> Complex64 {
     (z6, corr.value_imag[2]) = eft_sum(z3, z4);
 
     corr.value_real[1] = -corr.value_real[1];
-    Complex64::new(z5, z6)
+    c64(z5, z6)
 }
 
 /* Accumulator version of dot-product
@@ -145,7 +143,7 @@ pub(super) fn ndot2_real(x: &[f64], y: &[f64], n: usize) -> f64 {
 
 /* Dot-product, but for complex types.
  * Algorithm 4.4 in Ref. [2] */
-pub(super) fn ndot2_cplx(x: &[Complex64], y: &[Complex64], n: usize) -> Complex64 {
+pub(super) fn ndot2_cplx(x: &[C64], y: &[C64], n: usize) -> C64 {
     let mut pr = 0.0;
     let mut pi = 0.0;
     let mut cr = 0.0;
@@ -163,7 +161,7 @@ pub(super) fn ndot2_cplx(x: &[Complex64], y: &[Complex64], n: usize) -> Complex6
         fdot2_acc(b, c, &mut pi, &mut ci);
     }
 
-    Complex64::new(pr + cr, pi + ci)
+    c64(pr + cr, pi + ci)
 }
 
 /// `ndot2(x, y, n)` for real or complex `T`
@@ -198,9 +196,9 @@ pub(super) fn dcomp_horner_real(x: f64, poly: &[f64], degree: usize) -> f64 {
 /* For complex-valued input: Algorithm 5.4 in Ref. [2].
  * Notice that this makes use of the aux::acc_sum() algorithm, which is
  * named "Accsum" in the referenced paper. */
-pub(super) fn dcomp_horner_cplx(x: Complex64, poly: &[f64], degree: usize) -> Complex64 {
-    let mut s = Complex64::from(poly[degree]);
-    let mut r = Complex64::from(0.0);
+pub(super) fn dcomp_horner_cplx(x: C64, poly: &[f64], degree: usize) -> C64 {
+    let mut s = C64::from(poly[degree]);
+    let mut r = C64::ZERO;
 
     for i in (0..degree).rev() {
         let mut ws = CorrBuf::default();
@@ -209,13 +207,13 @@ pub(super) fn dcomp_horner_cplx(x: Complex64, poly: &[f64], degree: usize) -> Co
 
         let p = eft_prod_cplx(s, x, &mut ws);
         let tmp; /* tmp is for copying into the buffer arrays. */
-        (s, tmp) = eft_sum(p, Complex64::from(poly[i]));
+        (s, tmp) = eft_sum(p, C64::from(poly[i]));
         ws.value_real[NPOLY - 1] = tmp.re;
         ws.value_imag[NPOLY - 1] = tmp.im;
         aux::make(&ws.value_real, &mut mask_r);
         aux::make(&ws.value_imag, &mut mask_i);
-        r = cmul(r, x)
-            + Complex64::new(
+        r = r * x
+            + c64(
                 aux::acc_sum(&mut ws.value_real, &mut mask_r),
                 aux::acc_sum(&mut ws.value_imag, &mut mask_i),
             );

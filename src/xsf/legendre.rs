@@ -15,11 +15,11 @@ use core::f64::consts::PI;
 use core::ops::{Index, IndexMut};
 
 use core::ffi::c_int;
-use num_complex::{Complex64, c64};
+use num_complex::Complex64;
 
 use crate::utils;
-use crate::xsf::complex::{Num, cdiv, cmul, csqrt, rdiv, rsub};
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, c64};
+use crate::xsf::complex::Num;
 use crate::xsf::specfun::SPECFUN_INF;
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
@@ -87,7 +87,7 @@ fn int_product(factors: &[i32]) -> f64 {
 fn dot<T: Num, const N: usize>(x: &[T; N], y: &[T; N]) -> T {
     let mut res = T::from(0.0);
     for i in 0..N {
-        res = res + x[i].prod(y[i]);
+        res = res + x[i] * y[i];
     }
 
     res
@@ -183,11 +183,11 @@ fn legendre_p_initializer_n<T: Num>(z: T, res: &mut [T; 2]) {
 
 fn legendre_p_recurrence_n<T: Num>(z: T, n: i32, res: &mut [T; 2]) {
     let n = f64::from(n);
-    let fac0 = (-T::from(n - 1.0)).quot(T::from(n));
-    let fac1 = T::from(2.0 * n - 1.0).quot(T::from(n));
+    let fac0 = -T::from(n - 1.0) / T::from(n);
+    let fac1 = T::from(2.0 * n - 1.0) / T::from(n);
 
     res[0] = fac0;
-    res[1] = fac1.prod(z);
+    res[1] = fac1 * z;
 }
 
 /// Compute the Legendre polynomial of degree n.
@@ -238,17 +238,17 @@ fn assoc_legendre_p_initializer_m_abs_m<const NORM: bool, T: Num>(
 ) {
     let mut w;
     if branch_cut == 3 {
-        w = (z - T::from(1.0)).sqrt().prod((z + T::from(1.0)).sqrt()); // form for this branch cut
+        w = (z - T::from(1.0)).sqrt() * (z + T::from(1.0)).sqrt(); // form for this branch cut
     } else {
-        w = -(T::from(1.0) - z.prod(z)).sqrt(); // form for this branch cut
+        w = -(T::from(1.0) - z * z).sqrt(); // form for this branch cut
         if m_signbit {
             w = -w;
         }
     }
 
     if NORM {
-        res[0] = T::from(1.0).quot(T::from(2.0).sqrt());
-        res[1] = T::from(3.0).sqrt().prod(w).quot(T::from(2.0));
+        res[0] = T::from(1.0) / T::from(2.0).sqrt();
+        res[1] = T::from(3.0).sqrt() * w / T::from(2.0);
     } else {
         res[0] = T::from(1.0);
         res[1] = w;
@@ -274,18 +274,17 @@ fn assoc_legendre_p_recurrence_m_abs_m<const NORM: bool, T: Num>(
     let m_abs = f64::from(m.wrapping_abs());
 
     let fac = if NORM {
-        branch_cut_sign.prod(
-            T::from((2.0 * m_abs + 1.0) * (2.0 * m_abs - 1.0))
-                .quot(T::from(4.0 * m_abs * (m_abs - 1.0)))
-                .sqrt(),
-        )
+        branch_cut_sign
+            * (T::from((2.0 * m_abs + 1.0) * (2.0 * m_abs - 1.0))
+                / T::from(4.0 * m_abs * (m_abs - 1.0)))
+            .sqrt()
     } else if m < 0 {
-        branch_cut_sign.quot(T::from((2.0 * m_abs) * (2.0 * m_abs - 2.0)))
+        branch_cut_sign / T::from((2.0 * m_abs) * (2.0 * m_abs - 2.0))
     } else {
-        branch_cut_sign.prod(T::from((2.0 * m_abs - 1.0) * (2.0 * m_abs - 3.0)))
+        branch_cut_sign * T::from((2.0 * m_abs - 1.0) * (2.0 * m_abs - 3.0))
     };
 
-    res[0] = fac.prod(T::from(1.0) - z.prod(z));
+    res[0] = fac * (T::from(1.0) - z * z);
     res[1] = T::from(0.0);
 }
 
@@ -325,11 +324,11 @@ fn assoc_legendre_p_initializer_n<const NORM: bool, T: Num>(
     let fac = if NORM {
         T::from(2.0 * m_abs + 3.0).sqrt()
     } else {
-        T::from(2.0 * (m_abs + 1.0) - 1.0).quot(T::from(m_abs + 1.0 - f64::from(m)))
+        T::from(2.0 * (m_abs + 1.0) - 1.0) / T::from(m_abs + 1.0 - f64::from(m))
     };
 
     res[0] = res_m_abs_m;
-    res[1] = fac.prod(z).prod(res_m_abs_m);
+    res[1] = fac * z * res_m_abs_m;
 }
 
 fn assoc_legendre_p_recurrence_n<const NORM: bool, T: Num>(m: i32, z: T, n: i32, res: &mut [T; 2]) {
@@ -337,19 +336,15 @@ fn assoc_legendre_p_recurrence_n<const NORM: bool, T: Num>(m: i32, z: T, n: i32,
     let (fac0, fac1);
     if NORM {
         let den = T::from((2.0 * n - 3.0) * (n * n - m * m));
-        fac0 = -T::from((2.0 * n + 1.0) * ((n - 1.0) * (n - 1.0) - m * m))
-            .quot(den)
-            .sqrt();
-        fac1 = T::from((2.0 * n + 1.0) * (4.0 * (n - 1.0) * (n - 1.0) - 1.0))
-            .quot(den)
-            .sqrt();
+        fac0 = -(T::from((2.0 * n + 1.0) * ((n - 1.0) * (n - 1.0) - m * m)) / den).sqrt();
+        fac1 = (T::from((2.0 * n + 1.0) * (4.0 * (n - 1.0) * (n - 1.0) - 1.0)) / den).sqrt();
     } else {
-        fac0 = (-T::from(n + m - 1.0)).quot(T::from(n - m));
-        fac1 = T::from(2.0 * n - 1.0).quot(T::from(n - m));
+        fac0 = -T::from(n + m - 1.0) / T::from(n - m);
+        fac1 = T::from(2.0 * n - 1.0) / T::from(n - m);
     }
 
     res[0] = fac0;
-    res[1] = fac1.prod(z);
+    res[1] = fac1 * z;
 }
 
 fn assoc_legendre_p_pm1<const NORM: bool, T: Num>(n: i32, m: i32, z: T, res: &mut T) {
@@ -361,7 +356,7 @@ fn assoc_legendre_p_pm1<const NORM: bool, T: Num>(n: i32, m: i32, z: T, res: &mu
         }
         // Apply normalization for m=0
         if NORM {
-            *res = res.prod(T::from(2.0 * f64::from(n) + 1.0).quot(T::from(2.0)).sqrt());
+            *res = *res * (T::from(2.0 * f64::from(n) + 1.0) / T::from(2.0)).sqrt();
         }
     } else {
         *res = T::from(0.0);
@@ -529,9 +524,8 @@ fn assoc_legendre_p_all_t<const NORM: bool, T: Num>(
 }
 
 fn sph_legendre_p_initializer_m_abs_m<T: Num>(m_signbit: bool, theta_sin: T, res: &mut [T; 2]) {
-    let fac0 = T::from(1.0).quot(T::from(2.0).prod(T::from(PI).sqrt()));
-    let mut fac1 =
-        (-T::from(3.0).sqrt()).quot(T::from(2.0).prod(T::from(2.0).prod(T::from(PI)).sqrt()));
+    let fac0 = T::from(1.0) / (T::from(2.0) * T::from(PI).sqrt());
+    let mut fac1 = -T::from(3.0).sqrt() / (T::from(2.0) * (T::from(2.0) * T::from(PI)).sqrt());
     if m_signbit {
         fac1 = -fac1;
     }
@@ -543,11 +537,11 @@ fn sph_legendre_p_initializer_m_abs_m<T: Num>(m_signbit: bool, theta_sin: T, res
 fn sph_legendre_p_recurrence_m_abs_m<T: Num>(theta_sin: T, m: i32, res: &mut [T; 2]) {
     let m_abs = f64::from(m.wrapping_abs());
 
-    let fac = T::from((2.0 * m_abs + 1.0) * (2.0 * m_abs - 1.0))
-        .quot(T::from(4.0 * m_abs * (m_abs - 1.0)))
-        .sqrt();
+    let fac = (T::from((2.0 * m_abs + 1.0) * (2.0 * m_abs - 1.0))
+        / T::from(4.0 * m_abs * (m_abs - 1.0)))
+    .sqrt();
 
-    res[0] = fac.prod(theta_sin).prod(theta_sin);
+    res[0] = fac * theta_sin * theta_sin;
     res[1] = T::from(0.0);
 }
 
@@ -575,21 +569,17 @@ fn sph_legendre_p_initializer_n<T: Num>(m: i32, theta_cos: T, res_m_abs_m: T, re
     let fac = T::from(2.0 * f64::from(m.wrapping_abs()) + 3.0).sqrt();
 
     res[0] = res_m_abs_m;
-    res[1] = fac.prod(theta_cos).prod(res_m_abs_m);
+    res[1] = fac * theta_cos * res_m_abs_m;
 }
 
 fn sph_legendre_p_recurrence_n<T: Num>(m: i32, theta_cos: T, n: i32, res: &mut [T; 2]) {
     let (n, m) = (f64::from(n), f64::from(m));
     let den = T::from((2.0 * n - 3.0) * (n * n - m * m));
-    let fac0 = -T::from((2.0 * n + 1.0) * ((n - 1.0) * (n - 1.0) - m * m))
-        .quot(den)
-        .sqrt();
-    let fac1 = T::from((2.0 * n + 1.0) * (4.0 * (n - 1.0) * (n - 1.0) - 1.0))
-        .quot(den)
-        .sqrt();
+    let fac0 = -(T::from((2.0 * n + 1.0) * ((n - 1.0) * (n - 1.0) - m * m)) / den).sqrt();
+    let fac1 = (T::from((2.0 * n + 1.0) * (4.0 * (n - 1.0) * (n - 1.0) - 1.0)) / den).sqrt();
 
     res[0] = fac0;
-    res[1] = fac1.prod(theta_cos);
+    res[1] = fac1 * theta_cos;
 }
 
 /// Compute the spherical Legendre polynomial of degree n and order m.
@@ -800,11 +790,11 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
 //          CQD(n) --- Qn'(z)
 // ==================================================
 
-fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, Complex64, 1>) {
+fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     let n = int(cqn.size()) - 1;
 
     let (cq0, cq1);
-    let mut cqf0 = c64(0.0, 0.0);
+    let mut cqf0 = C64::ZERO;
     let (mut cqf1, mut cqf2);
 
     if z.re == 1.0 {
@@ -816,8 +806,8 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
     }
     let ls = if z.norm() > 1.0 { -1.0 } else { 1.0 };
 
-    cq0 = clog(cdiv((1.0 + z) * ls, rsub(1.0, z))) / 2.0;
-    cq1 = cmul(z, cq0) - 1.0;
+    cq0 = ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+    cq1 = z * cq0 - 1.0;
 
     cqn[0] = cq0;
     cqn[1] = cq1;
@@ -827,7 +817,7 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
         cqf1 = cq1;
         for k in 2..=n {
             let k_ = f64::from(k);
-            cqf2 = (cmul(z * (2.0 * k_ - 1.0), cqf1) - cqf0 * (k_ - 1.0)) / k_;
+            cqf2 = (z * (2.0 * k_ - 1.0) * cqf1 - cqf0 * (k_ - 1.0)) / k_;
             cqn[k] = cqf2;
             cqf0 = cqf1;
             cqf1 = cqf2;
@@ -840,11 +830,11 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
                 as i32
         };
 
-        cqf2 = c64(0.0, 0.0);
-        cqf1 = c64(1.0, 0.0);
+        cqf2 = C64::ZERO;
+        cqf1 = C64::ONE;
         for k in (0..=km).rev() {
             let k_ = f64::from(k);
-            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
+            cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
             if k <= n {
                 cqn[k] = cqf0;
             }
@@ -852,14 +842,14 @@ fn lqn_c64(z: Complex64, mut cqn: Mdspan<'_, Complex64, 1>, mut cqd: Mdspan<'_, 
             cqf1 = cqf0;
         }
         for k in 0..=n {
-            cqn[k] = cmul(cqn[k], cdiv(cq0, cqf0));
+            cqn[k] *= cq0 / cqf0;
         }
     }
-    cqd[0] = cdiv(cqn[1] - cmul(z, cqn[0]), cmul(z, z) - 1.0);
+    cqd[0] = (cqn[1] - z * cqn[0]) / (z * z - 1.0);
 
     for k in 1..=n {
         let k_ = f64::from(k);
-        cqd[k] = cdiv(cmul(z * k_, cqn[k]) - cqn[k - 1] * k_, cmul(z, z) - 1.0);
+        cqd[k] = (z * k_ * cqn[k] - cqn[k - 1] * k_) / (z * z - 1.0);
     }
 }
 
@@ -1001,7 +991,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
 //          CQD(m,n) --- Qmn'(z)
 // =======================================================
 
-fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_, Complex64, 2>) {
+fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     let m = int(cqm.extent(0)) - 1;
     let n = int(cqm.extent(1)) - 1;
 
@@ -1026,20 +1016,20 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
     if xc > 1.0 {
         ls = -1;
     }
-    let zs = rsub(1.0, cmul(z, z)) * f64::from(ls);
-    let zq = csqrt(zs);
+    let zs = (1.0 - z * z) * f64::from(ls);
+    let zq = zs.sqrt();
 
-    cq0 = clog(cdiv((1.0 + z) * f64::from(ls), rsub(1.0, z))) / 2.0;
+    cq0 = ((1.0 + z) * f64::from(ls) / (1.0 - z)).ln() / 2.0;
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
-        cqm[(1, 0)] = rdiv(-1.0, zq);
-        cqm[(0, 1)] = cmul(z, cq0) - 1.0;
-        cqm[(1, 1)] = cmul(-zq, cq0 + cdiv(z, rsub(1.0, cmul(z, z))));
+        cqm[(1, 0)] = -1.0 / zq;
+        cqm[(0, 1)] = z * cq0 - 1.0;
+        cqm[(1, 1)] = -zq * (cq0 + z / (1.0 - z * z));
 
         for i in 0..=1 {
             for j in 2..=n {
                 let (i_, j_) = (f64::from(i), f64::from(j));
-                cqm[(i, j)] = (cmul(z * (2.0 * j_ - 1.0), cqm[(i, j - 1)])
+                cqm[(i, j)] = (z * (2.0 * j_ - 1.0) * cqm[(i, j - 1)]
                     - cqm[(i, j - 2)] * (j_ + i_ - 1.0))
                     / (j_ - i_);
             }
@@ -1048,7 +1038,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
         for i in 2..=m {
             for j in 0..=n {
                 let i_ = f64::from(i);
-                cqm[(i, j)] = cmul(cdiv(z * (-2.0 * (i_ - 1.0)), zq), cqm[(i - 1, j)])
+                cqm[(i, j)] = z * (-2.0 * (i_ - 1.0)) / zq * cqm[(i - 1, j)]
                     - cqm[(i - 2, j)] * int_product(&[ls, j + i - 1, j - i + 2]);
             }
         }
@@ -1061,12 +1051,12 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
                 .wrapping_add(n)
                 .wrapping_mul((-1.0 - 1.8 * (xc - 1.).ln()) as i32)
         };
-        cqf2 = c64(0.0, 0.0);
-        cqf1 = c64(1.0, 0.0);
-        cqf0 = c64(0.0, 0.0);
+        cqf2 = C64::ZERO;
+        cqf1 = C64::ONE;
+        cqf0 = C64::ZERO;
         for k in (0..=km).rev() {
             let k_ = f64::from(k);
-            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
+            cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
             if k <= n {
                 cqm[(0, k)] = cqf0;
             }
@@ -1075,14 +1065,14 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
         }
 
         for k in 0..=n {
-            cqm[(0, k)] = cmul(cqm[(0, k)], cdiv(cq0, cqf0));
+            cqm[(0, k)] *= cq0 / cqf0;
         }
 
-        cqf2 = c64(0.0, 0.0);
-        cqf1 = c64(1.0, 0.0);
+        cqf2 = C64::ZERO;
+        cqf1 = C64::ONE;
         for k in (0..=km).rev() {
             let k_ = f64::from(k);
-            cqf0 = (cmul(z * (2.0 * k_ + 3.0), cqf1) - cqf2 * (k_ + 1.0)) / (k_ + 2.0);
+            cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 1.0)) / (k_ + 2.0);
             if k <= n {
                 cqm[(1, k)] = cqf0;
             }
@@ -1090,9 +1080,9 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
             cqf1 = cqf0;
         }
 
-        let cq10 = rdiv(-1.0, zq);
+        let cq10 = -1.0 / zq;
         for k in 0..=n {
-            cqm[(1, k)] = cmul(cqm[(1, k)], cdiv(cq10, cqf0));
+            cqm[(1, k)] *= cq10 / cqf0;
         }
 
         for j in 0..=n {
@@ -1100,8 +1090,7 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
             cq1 = cqm[(1, j)];
             for i in 0..=(m - 2) {
                 let i_ = f64::from(i);
-                cqf = cmul(cdiv(z * -(2.0 * (i_ + 1.0)), zq), cq1)
-                    + cq0 * int_product(&[j - i, j + i + 1]);
+                cqf = z * -(2.0 * (i_ + 1.0)) / zq * cq1 + cq0 * int_product(&[j - i, j + i + 1]);
                 cqm[(i + 2, j)] = cqf;
                 cq0 = cq1;
                 cq1 = cqf;
@@ -1109,18 +1098,15 @@ fn lqmn_c64(z: Complex64, mut cqm: Mdspan<'_, Complex64, 2>, mut cqd: Mdspan<'_,
         }
     }
 
-    cqd[(0, 0)] = rdiv(f64::from(ls), zs);
+    cqd[(0, 0)] = f64::from(ls) / zs;
     for j in 1..=n {
-        cqd[(0, j)] = cdiv(
-            (cqm[(0, j - 1)] - cmul(z, cqm[(0, j)])) * (f64::from(ls) * f64::from(j)),
-            zs,
-        );
+        cqd[(0, j)] = (cqm[(0, j - 1)] - z * cqm[(0, j)]) * (f64::from(ls) * f64::from(j)) / zs;
     }
 
     for i in 1..=m {
         for j in 0..=n {
-            cqd[(i, j)] = cmul(cdiv(z * f64::from(ls * i), zs), cqm[(i, j)])
-                + cmul(rdiv(int_product(&[i + j, j - i + 1]), zq), cqm[(i - 1, j)]);
+            cqd[(i, j)] = z * f64::from(ls * i) / zs * cqm[(i, j)]
+                + int_product(&[i + j, j - i + 1]) / zq * cqm[(i - 1, j)];
         }
     }
 }
@@ -1136,13 +1122,13 @@ pub trait LegendrePArg: crate::sealed::Sealed + Sized {
     fn assoc_legendre_p_all(self, n: usize, m: usize, bc: c_int, norm: bool) -> Vec<Vec<Self>>;
 }
 
-fn legendre_p_all_vec<T: Num>(z: T, n: usize) -> Vec<T> {
+fn legendre_p_all_vec<T: Num + Into<P>, P>(z: T, n: usize) -> Vec<P> {
     let mut pn = vec![T::from(f64::NAN); n + 1];
     legendre_p_all_t(z, Mdspan::new(&mut pn, [n + 1]));
-    pn
+    pn.into_iter().map(Into::into).collect()
 }
 
-fn sph_legendre_p_all_vec<T: Num>(z: T, n: usize, m: usize) -> Vec<Vec<T>> {
+fn sph_legendre_p_all_vec<T: Num + Into<P>, P>(z: T, n: usize, m: usize) -> Vec<Vec<P>> {
     let extents = [n + 1, 2 * m + 1];
     let mut pnm = vec![T::from(f64::NAN); extents[0] * extents[1]];
     sph_legendre_p_all_t(z, Mdspan::new(&mut pnm, extents));
@@ -1157,13 +1143,13 @@ fn assoc_legendre_p_dyn<T: Num>(z: T, n: c_int, m: c_int, bc: c_int, norm: bool)
     }
 }
 
-fn assoc_legendre_p_all_vec<T: Num>(
+fn assoc_legendre_p_all_vec<T: Num + Into<P>, P>(
     z: T,
     n: usize,
     m: usize,
     bc: c_int,
     norm: bool,
-) -> Vec<Vec<T>> {
+) -> Vec<Vec<P>> {
     let extents = [n + 1, 2 * m + 1];
     let mut pnm = vec![T::from(f64::NAN); extents[0] * extents[1]];
     let res = Mdspan::new(&mut pnm, extents);
@@ -1175,32 +1161,33 @@ fn assoc_legendre_p_all_vec<T: Num>(
     utils::vec_to_vecvec(&pnm, extents[1])
 }
 
+/// `$T` is the public type, and `$K` the type of the computation
 macro_rules! impl_legendre_p_arg {
-    ($T:ty) => {
+    ($T:ty, $K:ty) => {
         impl LegendrePArg for $T {
             #[inline]
             fn legendre_p(self, n: c_int) -> Self {
-                legendre_p_t(n, self)
+                legendre_p_t(n, <$K>::from(self)).into()
             }
 
             #[inline]
             fn legendre_p_all(self, n: usize) -> Vec<Self> {
-                legendre_p_all_vec(self, n)
+                legendre_p_all_vec(<$K>::from(self), n)
             }
 
             #[inline]
             fn sph_legendre_p(self, n: c_int, m: c_int) -> Self {
-                sph_legendre_p_t(n, m, self)
+                sph_legendre_p_t(n, m, <$K>::from(self)).into()
             }
 
             #[inline]
             fn sph_legendre_p_all(self, n: usize, m: usize) -> Vec<Vec<Self>> {
-                sph_legendre_p_all_vec(self, n, m)
+                sph_legendre_p_all_vec(<$K>::from(self), n, m)
             }
 
             #[inline]
             fn assoc_legendre_p(self, n: c_int, m: c_int, bc: c_int, norm: bool) -> Self {
-                assoc_legendre_p_dyn(self, n, m, bc, norm)
+                assoc_legendre_p_dyn(<$K>::from(self), n, m, bc, norm).into()
             }
 
             #[inline]
@@ -1211,39 +1198,39 @@ macro_rules! impl_legendre_p_arg {
                 bc: c_int,
                 norm: bool,
             ) -> Vec<Vec<Self>> {
-                assoc_legendre_p_all_vec(self, n, m, bc, norm)
+                assoc_legendre_p_all_vec(<$K>::from(self), n, m, bc, norm)
             }
         }
     };
 }
 
-impl_legendre_p_arg!(f64);
-impl_legendre_p_arg!(Complex64);
+impl_legendre_p_arg!(f64, f64);
+impl_legendre_p_arg!(Complex64, C64);
 
 pub trait LegendreQArg: crate::sealed::Sealed + Sized {
     fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>);
     fn assoc_legendre_q_all(self, n: usize, m: usize) -> (Vec<Vec<Self>>, Vec<Vec<Self>>);
 }
 
+/// `$T` is the public type, and `$K` the type of the computation
 macro_rules! impl_legendre_q_arg {
-    ($T:ty, $lqn:ident, $lqmn:ident) => {
+    ($T:ty, $K:ty, $lqn:ident, $lqmn:ident) => {
         impl LegendreQArg for $T {
             #[inline]
             fn legendre_q_all(self, n: usize) -> (Vec<Self>, Vec<Self>) {
                 // like in scipy, since `lqn` writes at least 2 terms
                 let n1 = n.max(1);
 
-                let mut qn = vec![<$T>::from(f64::NAN); n1 + 1];
-                let mut qd = vec![<$T>::from(f64::NAN); n1 + 1];
+                let mut qn = vec![<$K>::from(f64::NAN); n1 + 1];
+                let mut qd = vec![<$K>::from(f64::NAN); n1 + 1];
 
                 $lqn(
-                    self,
+                    <$K>::from(self),
                     Mdspan::new(&mut qn, [n1 + 1]),
                     Mdspan::new(&mut qd, [n1 + 1]),
                 );
-                qn.truncate(n + 1);
-                qd.truncate(n + 1);
-                (qn, qd)
+                let head = |q: Vec<$K>| q.into_iter().take(n + 1).map(Into::into).collect();
+                (head(qn), head(qd))
             }
 
             #[inline]
@@ -1252,19 +1239,19 @@ macro_rules! impl_legendre_q_arg {
                 let (mm, nn) = (m.max(1), n.max(1));
 
                 let extents = [mm + 1, nn + 1];
-                let mut qm = vec![<$T>::from(f64::NAN); extents[0] * extents[1]];
-                let mut qd = vec![<$T>::from(f64::NAN); extents[0] * extents[1]];
+                let mut qm = vec![<$K>::from(f64::NAN); extents[0] * extents[1]];
+                let mut qd = vec![<$K>::from(f64::NAN); extents[0] * extents[1]];
 
                 $lqmn(
-                    self,
+                    <$K>::from(self),
                     Mdspan::new(&mut qm, extents),
                     Mdspan::new(&mut qd, extents),
                 );
 
                 // [order][degree] -> [degree][order], without the padding of `mm` and `nn`
-                let by_degree = |q: &[$T]| -> Vec<Vec<$T>> {
+                let by_degree = |q: &[$K]| -> Vec<Vec<$T>> {
                     (0..=n)
-                        .map(|j| (0..=m).map(|i| q[i * (nn + 1) + j]).collect())
+                        .map(|j| (0..=m).map(|i| q[i * (nn + 1) + j].into()).collect())
                         .collect()
                 };
                 (by_degree(&qm), by_degree(&qd))
@@ -1273,8 +1260,8 @@ macro_rules! impl_legendre_q_arg {
     };
 }
 
-impl_legendre_q_arg!(f64, lqn, lqmn);
-impl_legendre_q_arg!(Complex64, lqn_c64, lqmn_c64);
+impl_legendre_q_arg!(f64, f64, lqn, lqmn);
+impl_legendre_q_arg!(Complex64, C64, lqn_c64, lqmn_c64);
 
 /// Legendre polynomial of degree `n`
 ///

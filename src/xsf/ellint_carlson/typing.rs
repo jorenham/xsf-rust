@@ -2,15 +2,14 @@
 //!
 //! The C++ templates are generic over the real or complex floating-point type `T`, with
 //! `RT = typing::decplx_t<T>` the underlying real type. Here `T` is generic over [`Num`], which
-//! is implemented for `f64` and `Complex64`, and `RT` is always `f64`. The C++ overloads that are
+//! is implemented for `f64` and `C64`, and `RT` is always `f64`. The C++ overloads that are
 //! selected by template matching on real or complex `T` (`typing::real_only` and
 //! `typing::cplx_only`) are the methods of [`Num`].
 
 use core::ops::Add;
 
-use num_complex::Complex64;
-
 use super::{argcheck, arithmetic, rg, rj};
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::complex;
 
 /// The arithmetic of `T` in C++ ([`complex::Num`]), extended with `ellint_carlson` specifics
@@ -83,11 +82,11 @@ impl Num for f64 {
     }
 }
 
-impl Num for Complex64 {
+impl Num for C64 {
     /* Complexified specialisation, with the complex NaN and infinity as
      * return values. */
-    const NAN: Self = complex::C64_NAN;
-    const HUGE: Self = Complex64::new(f64::INFINITY, 0.0);
+    const NAN: Self = C64::NAN;
+    const HUGE: Self = c64(f64::INFINITY, 0.0);
 
     #[inline]
     fn too_small(self) -> bool {

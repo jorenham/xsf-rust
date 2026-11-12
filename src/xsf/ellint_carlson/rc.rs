@@ -29,7 +29,7 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         let res = if is_horrible(status) {
             T::NAN
         } else {
-            tmpres.prod(x.quot(x - y).sqrt())
+            tmpres * (x / (x - y)).sqrt()
         };
         return (status, res);
     }
@@ -61,7 +61,7 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
             break;
         }
 
-        let lam = (xm.sqrt() * 2.0).prod(ym.sqrt()) + ym;
+        let lam = xm.sqrt() * 2.0 * ym.sqrt() + ym;
         am = (am + lam) * 0.25;
         xm = (xm + lam) * 0.25;
         ym = (ym + lam) * 0.25;
@@ -71,8 +71,8 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         m += 1;
     }
     am = (xm + ym + ym) / 3.0;
-    sm = sm.quot(am);
+    sm = sm / am;
     /* Eq. (20) of Ref[2] */
-    let res = comp_horner(sm, &constants::RC_C).quot(am.sqrt() * constants::RC_C[0]);
+    let res = comp_horner(sm, &constants::RC_C) / (am.sqrt() * constants::RC_C[0]);
     (status, res)
 }

@@ -12,28 +12,22 @@
 //!     https://dlmf.nist.gov/19.20.ii
 //! ```
 
-use num_complex::Complex64;
-
 use super::arithmetic::{dot2, eft_sum};
 use super::common::{self, ExitStatus, abscmp, config, constants, is_horrible, sort_by};
 use super::rd::rd;
 use super::rf::agm_update;
 use super::typing::Num;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::two_prod;
 
 /// The complex `arithmetic::aux::rg_dot2_acc`; the real one is `arithmetic::fdot2_acc`
 #[inline]
-pub(super) fn rg_dot2_acc_cplx(
-    fac: f64,
-    term: Complex64,
-    acc: &mut Complex64,
-    cor: &mut Complex64,
-) {
+pub(super) fn rg_dot2_acc_cplx(fac: f64, term: C64, acc: &mut C64, cor: &mut C64) {
     let (ar, cr) = two_prod(fac, term.re);
     let (ai, ci) = two_prod(fac, term.im);
-    let (p, q) = eft_sum(*acc, Complex64::new(ar, ai));
+    let (p, q) = eft_sum(*acc, c64(ar, ai));
     *acc = p;
-    *cor += q + Complex64::new(cr, ci);
+    *cor += q + c64(cr, ci);
 }
 
 fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
@@ -44,7 +38,7 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
     let mut xm = x.sqrt();
     let mut ym = y.sqrt();
     let mut dm = (xm + ym) * 0.5;
-    let mut sum = (-dm).prod(dm);
+    let mut sum = -dm * dm;
     let mut cor = T::from(0.0);
     dm = xm - ym;
     let mut m = 0;
@@ -58,13 +52,13 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         /* Ref[1], Eq. 2.39 or Eq. (46) in the arXiv preprint */
         fac *= 2.0;
         dm = xm - ym;
-        T::rg_dot2_acc(fac, dm.prod(dm), &mut sum, &mut cor);
+        T::rg_dot2_acc(fac, dm * dm, &mut sum, &mut cor);
 
         m += 1;
     }
 
-    let mut res = T::from(constants::PI).quot(xm + ym);
-    res = res.prod((sum + cor) * -0.5);
+    let mut res = T::from(constants::PI) / (xm + ym);
+    res = res * ((sum + cor) * -0.5);
     (status, res)
 }
 

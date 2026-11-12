@@ -33,8 +33,6 @@
 //! The complex `std::atan` is `catan` from `xsf/complex.rs`, which is a translation of FreeBSD's
 //! `catan`, so it isn't bit-identical to the glibc one that is used by g++.
 
-use num_complex::Complex64;
-
 use super::arithmetic::{comp_horner, dot2, ndot2, nsum2, ocrt};
 use super::common::{ExitStatus, config, constants, is_horrible, is_troublesome, sort_by};
 use super::rc::rc;
@@ -43,7 +41,8 @@ use super::rg::rg;
 use super::typing::Num;
 use super::{argcheck, common};
 use crate::utils::pow2;
-use crate::xsf::complex::{atanh, catan, cdiv, csqrt};
+use crate::xsf::c64::C64;
+use crate::xsf::complex::atanh;
 
 mod rjimpl {
     use super::{ExitStatus, Num, argcheck, config, is_horrible, is_troublesome, ndot2, nsum2};
@@ -333,12 +332,12 @@ mod rjimpl {
 /* Prevent division by zero due to underflow in atan(sqrt(z)) / sqrt(z) and
  * square root of negative number in the real context. */
 #[inline]
-pub(super) fn safe_atan_sqrt_div_cplx(z: Complex64) -> Complex64 {
+pub(super) fn safe_atan_sqrt_div_cplx(z: C64) -> C64 {
     if z.too_small() {
-        return Complex64::from(1.0);
+        return C64::ONE;
     }
-    let s = csqrt(z);
-    cdiv(catan(s), s)
+    let s = z.sqrt();
+    s.atan() / s
 }
 
 #[inline]
@@ -541,7 +540,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct1[3] = p;
     cct1[4] = p;
     let mut am = nsum2(&cct1, 5) / 5.0;
-    let delta = (p - xm).prod(p - ym).prod(p - zm);
+    let delta = (p - xm) * (p - ym) * (p - zm);
     let mut xxm = am - xm;
     let mut yym = am - ym;
     let mut zzm = am - zm;
@@ -569,8 +568,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             cct2[0] = cct1[2];
             lam = ndot2(&cct1, &cct2, 3);
             dm = common::sqrt_sum(pm, xm, prm, cct1[0])
-                .prod(common::sqrt_sum(pm, ym, prm, cct1[1]))
-                .prod(common::sqrt_sum(pm, zm, prm, cct1[2]));
+                * common::sqrt_sum(pm, ym, prm, cct1[1])
+                * common::sqrt_sum(pm, zm, prm, cct1[2]);
         };
     }
 
@@ -614,9 +613,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             status = ExitStatus::NIter;
             break;
         }
-        let rm = sm.prod(((delta * d4m).quot(sm.prod(sm)) + 1.0).sqrt() + 1.0);
+        let rm = sm * ((delta * d4m / (sm * sm) + 1.0).sqrt() + 1.0);
         ellint_rj_calc!();
-        sm = ((rm.prod(dm) - delta * (d4m * d4m)) * 0.5).quot(dm + rm * d4m);
+        sm = (rm * dm - delta * (d4m * d4m)) * 0.5 / (dm + rm * d4m);
 
         /* next */
         ellint_rj_updt!();
@@ -629,9 +628,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct1[3] = pm;
     cct1[4] = pm;
     am = nsum2(&cct1, 5) / 5.0;
-    xxm = xxm.quot(am);
-    yym = yym.quot(am);
-    zzm = zzm.quot(am);
+    xxm = xxm / am;
+    yym = yym / am;
+    zzm = zzm / am;
     /* pp = -0.5 * (xxm + yym + zzm) */
     cct1[0] = xxm;
     cct2[2] = xxm;
@@ -643,19 +642,19 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct1[3] = pp;
     cct2[3] = pp;
     cct1[3] = cct1[3] * -3.0;
-    let pp2 = pp.prod(pp);
-    let xyz = yym.prod(zzm).prod(xxm);
+    let pp2 = pp * pp;
+    let xyz = yym * zzm * xxm;
     /* Prepare the "elementary" terms E_n as in Eqs. (31-32) in Ref. [2] */
     /* e2 = xxm * yym + zzm * xxm + yym * zzm - pp2 * 3.0 */
     let e2 = ndot2(&cct1, &cct2, 4);
     /* e3 = xyz + 2.0 * pp * (e2 + 2.0 * pp2) */
-    let e3 = xyz + (pp * 2.0).prod(e2 + pp2 * 2.0);
+    let e3 = xyz + pp * 2.0 * (e2 + pp2 * 2.0);
     /* e4 = (2.0 * xyz + (e2 + 3.0 * pp2) * pp) * pp */
-    let e4 = (xyz * 2.0 + (e2 + pp2 * 3.0).prod(pp)).prod(pp);
-    let e5 = xyz.prod(pp2);
+    let e4 = (xyz * 2.0 + (e2 + pp2 * 3.0) * pp) * pp;
+    let e5 = xyz * pp2;
     /* tmp = d4m * pow(sqrt(Am), -3) */
     let mut t = am.sqrt();
-    let mut tmp = T::from(d4m).quot(t.prod(t).prod(t));
+    let mut tmp = T::from(d4m) / (t * t * t);
     /* Evaluate the 7th-degree expansion using the E_n terms, following
      * Eq. 19.36.2 of [1], https://dlmf.nist.gov/19.36#E2
      * The order of expansion is higher than that in Eq. (32) of Ref. [2]. */
@@ -673,10 +672,10 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct2[4] = e5;
     cct2[5] = e4;
     t = dot2(&cct1, &cct2) / constants::RDJ_DENOM + 1.0;
-    tmp = tmp.prod(t);
-    t = (delta * d4m).quot(sm.prod(sm));
+    tmp = tmp * t;
+    t = delta * d4m / (sm * sm);
     /* Use the library atan function, following Ref[4], Sec. 1.6.1. */
-    tmp = tmp + (t.safe_atan_sqrt_div() * 3.0).quot(sm);
+    tmp = tmp + t.safe_atan_sqrt_div() * 3.0 / sm;
 
     (status, tmp)
 }

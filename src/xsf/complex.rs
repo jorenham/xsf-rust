@@ -4,8 +4,8 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use num_complex::{Complex, c64};
 
 use crate::utils::pow2;
+use crate::xsf::c64::C64;
 use crate::xsf::log::clog;
-use crate::xsf::trig::{ccos, csin};
 
 /// The complex NaN, i.e. NaN + NaN i.
 pub(crate) const C64_NAN: Complex<f64> = Complex::new(f64::NAN, f64::NAN);
@@ -507,13 +507,11 @@ pub(crate) trait Num:
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
     + Mul<f64, Output = Self>
     + Div<f64, Output = Self>
 {
-    /// `T * T`
-    fn prod(self, rhs: Self) -> Self;
-    /// `T / T`
-    fn quot(self, rhs: Self) -> Self;
     /// `std::sqrt(x)`
     fn sqrt(self) -> Self;
     /// `std::sin(x)`
@@ -529,14 +527,6 @@ pub(crate) trait Num:
 }
 
 impl Num for f64 {
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        self * rhs
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        self / rhs
-    }
     #[inline]
     fn sqrt(self) -> Self {
         f64::sqrt(self)
@@ -563,26 +553,18 @@ impl Num for f64 {
     }
 }
 
-impl Num for Complex<f64> {
-    #[inline]
-    fn prod(self, rhs: Self) -> Self {
-        cmul(self, rhs)
-    }
-    #[inline]
-    fn quot(self, rhs: Self) -> Self {
-        cdiv(self, rhs)
-    }
+impl Num for C64 {
     #[inline]
     fn sqrt(self) -> Self {
-        csqrt(self)
+        C64::sqrt(self)
     }
     #[inline]
     fn sin(self) -> Self {
-        csin(self)
+        C64::sin(self)
     }
     #[inline]
     fn cos(self) -> Self {
-        ccos(self)
+        C64::cos(self)
     }
     #[inline]
     fn abs(self) -> f64 {
