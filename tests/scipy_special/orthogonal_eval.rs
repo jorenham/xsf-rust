@@ -61,6 +61,24 @@ fn test_eval_real_degree_large() {
 }
 
 #[test]
+fn test_eval_integer_degree_reflection() {
+    // the integer degrees use the symmetry for x < 0 (Arb)
+    let actual = [
+        xsf::eval_legendre(742_i32, -1.0),
+        xsf::eval_jacobi(3_i32, 1.0, -0.999_999_999_999_999_8, -0.999_999_999_999_99),
+    ];
+    np_assert_allclose!(actual, [1.0, 1.990_999_957_494_398_3e-14], rtol = 1e-14);
+
+    // only for alpha, beta > -1: the recurrence cancels near their negative integers (Arb)
+    let actual = xsf::eval_jacobi(3_i32, 1.0, -1.999_999_999_999_999_8, -0.5);
+    np_assert_allclose!([actual], [-0.218_749_999_999_999_97], rtol = 1e-14);
+
+    // and unless the reflected recurrence is nonfinite (Arb)
+    let actual = xsf::eval_jacobi(2_i32, 1e100, 0.5, -0.5);
+    np_assert_allclose!([actual], [3.125e198], rtol = 1e-14);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [
