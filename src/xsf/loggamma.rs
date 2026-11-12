@@ -21,10 +21,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{LN_PI, LN_SQRT_2PI, is_nonpos_int};
-use crate::xsf::complex::{C64_NAN, cdiv, rdiv};
-use crate::xsf::evalpoly::cevalpoly;
-use crate::xsf::exp::cexp;
-use crate::xsf::log::clog;
+use crate::xsf::c64::{C64, ViaC64, c64};
 
 use core::f64::consts::PI;
 use num_complex::Complex;
@@ -33,7 +30,7 @@ const LOGGAMMA_SMALLX: f64 = 7.0;
 const LOGGAMMA_SMALLY: f64 = 7.0;
 const LOGGAMMA_TAYLOR_RADIUS: f64 = 0.2;
 
-fn loggamma_stirling(z: Complex<f64>) -> Complex<f64> {
+fn loggamma_stirling(z: C64) -> C64 {
     /* Stirling series for log-Gamma
      *
      * The coefficients are B[2*n]/(2*n*(2*n - 1)) where B[2*n] is the
@@ -49,13 +46,13 @@ fn loggamma_stirling(z: Complex<f64>) -> Complex<f64> {
         -0.002_777_777_777_777_778,
         0.083_333_333_333_333_33,
     ];
-    let rz = rdiv(1.0, z);
-    let rzz = cdiv(rz, z);
+    let rz = 1.0 / z;
+    let rzz = rz / z;
 
-    (z - 0.5) * clog(z) - z + LN_SQRT_2PI + rz * cevalpoly(&coeffs, rzz)
+    (z - 0.5) * z.ln() - z + LN_SQRT_2PI + rz * rzz.evalpoly(&coeffs)
 }
 
-fn loggamma_recurrence(mut z: Complex<f64>) -> Complex<f64> {
+fn loggamma_recurrence(mut z: C64) -> C64 {
     /* Backward recurrence relation.
      *
      * See Proposition 2.2 in [1] and the Julia implementation [2].
@@ -73,10 +70,10 @@ fn loggamma_recurrence(mut z: Complex<f64>) -> Complex<f64> {
         sb = nsb;
         z += 1.0;
     }
-    loggamma_stirling(z) - clog(shiftprod) - f64::from(signflips) * 2.0 * PI * Complex::I
+    loggamma_stirling(z) - shiftprod.ln() - f64::from(signflips) * 2.0 * PI * C64::I
 }
 
-fn loggamma_taylor(mut z: Complex<f64>) -> Complex<f64> {
+fn loggamma_taylor(mut z: C64) -> C64 {
     /* Taylor series for log-Gamma around z = 1.
      *
      * It is
@@ -112,26 +109,31 @@ fn loggamma_taylor(mut z: Complex<f64>) -> Complex<f64> {
     ];
 
     z -= 1.0;
-    z * cevalpoly(&coeffs, z)
+    z * z.evalpoly(&coeffs)
+}
+
+/// [`zlog1_c64`] for [`num_complex::Complex`]
+pub(crate) fn zlog1(z: Complex<f64>) -> Complex<f64> {
+    z.via(zlog1_c64)
 }
 
 /// `xsf::detail::zlog1` from `xsf/zlog1.h` (original author: Josh Wilson, 2016)
-pub(crate) fn zlog1(mut z: Complex<f64>) -> Complex<f64> {
+fn zlog1_c64(mut z: C64) -> C64 {
     /* Compute log, paying special attention to accuracy around 1. We
      * implement this ourselves because some systems (most notably the
      * Travis CI machines) are weak in this regime. */
-    let mut coeff = Complex::new(-1.0, 0.0);
-    let mut res = Complex::new(0.0, 0.0);
+    let mut coeff = c64(-1.0, 0.0);
+    let mut res = C64::ZERO;
 
     if (z - 1.0).norm() > 0.1 {
-        return clog(z);
+        return z.ln();
     }
 
     z -= 1.0;
     for n in 1..17 {
         coeff *= -z;
         res += coeff / f64::from(n);
-        if cdiv(res, coeff).norm() < f64::EPSILON {
+        if (res / coeff).norm() < f64::EPSILON {
             break;
         }
     }
@@ -139,14 +141,14 @@ pub(crate) fn zlog1(mut z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::loggamma` for complex `z`
-fn cloggamma(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn cloggamma(z: C64) -> C64 {
     // Compute the principal branch of log-Gamma
 
     if z.re.is_nan() || z.im.is_nan() {
-        return C64_NAN;
+        return C64::NAN;
     }
     if z.im == 0.0 && is_nonpos_int(z.re) {
-        return C64_NAN;
+        return C64::NAN;
     }
     if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
         return loggamma_stirling(z);
@@ -156,14 +158,12 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
     }
     if (z - 2.0).norm() < LOGGAMMA_TAYLOR_RADIUS {
         // Recurrence relation and the Taylor series around 1.
-        return zlog1(z - 1.0) + loggamma_taylor(z - 1.0);
+        return zlog1_c64(z - 1.0) + loggamma_taylor(z - 1.0);
     }
     if z.re < 0.1 {
         // Reflection formula; see Proposition 3.1 in [1]
         let tmp = (2.0 * PI).copysign(z.im) * (0.5 * z.re + 0.25).floor();
-        // `1.0 - z` as in C++, where the imaginary part is `-z.im` instead of `0.0 - z.im`
-        let omz = Complex::new(1.0 - z.re, -z.im);
-        return Complex::new(LN_PI, tmp) - clog(crate::sinpi(z)) - cloggamma(omz);
+        return c64(LN_PI, tmp) - z.sinpi().ln() - cloggamma(1.0 - z);
     }
     if !z.im.is_sign_negative() {
         // z.imag() >= 0 but is not -0.0
@@ -173,13 +173,13 @@ fn cloggamma(z: Complex<f64>) -> Complex<f64> {
 }
 
 /// `xsf::rgamma` for complex `z`
-fn crgamma(z: Complex<f64>) -> Complex<f64> {
+fn crgamma(z: C64) -> C64 {
     // Compute 1/Gamma(z) using loggamma.
     if z.im == 0.0 && is_nonpos_int(z.re) {
         // Zeros at 0, -1, -2, ...
-        return Complex::new(0.0, 0.0);
+        return C64::ZERO;
     }
-    cexp(-cloggamma(z))
+    (-cloggamma(z)).exp()
 }
 
 pub trait LogGammaArg: crate::sealed::Sealed {
@@ -205,12 +205,12 @@ impl LogGammaArg for f64 {
 impl LogGammaArg for Complex<f64> {
     #[inline]
     fn xsf_loggamma(self) -> Self {
-        cloggamma(self)
+        self.via(cloggamma)
     }
 
     #[inline]
     fn xsf_rgamma(self) -> Self {
-        crgamma(self)
+        self.via(crgamma)
     }
 }
 

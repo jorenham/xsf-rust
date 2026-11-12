@@ -5,6 +5,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 use num_complex::Complex;
 
 use crate::xsf::complex::{cdiv, cmul, rdiv, rsub};
+use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
 use crate::xsf::trig::{ccos, csin};
@@ -46,8 +47,14 @@ impl From<C64> for Complex<f64> {
 }
 
 impl C64 {
+    /// The imaginary unit
+    pub(crate) const I: Self = c64(0.0, 1.0);
     /// NaN + NaN i
     pub(crate) const NAN: Self = c64(f64::NAN, f64::NAN);
+    /// 1 + 0 i
+    pub(crate) const ONE: Self = c64(1.0, 0.0);
+    /// 0 + 0 i
+    pub(crate) const ZERO: Self = c64(0.0, 0.0);
 
     /// `std::abs(z)`
     #[inline]
@@ -55,10 +62,28 @@ impl C64 {
         self.re.hypot(self.im)
     }
 
+    /// `std::conj(z)`
+    #[inline]
+    pub(crate) fn conj(self) -> Self {
+        c64(self.re, -self.im)
+    }
+
     /// `std::cos(z)`
     #[inline]
     pub(crate) fn cos(self) -> Self {
         self.via(ccos)
+    }
+
+    /// `xsf::cospi(z)`
+    #[inline]
+    pub(crate) fn cospi(self) -> Self {
+        self.via(crate::cospi)
+    }
+
+    /// `xsf::cevalpoly(coeffs, degree, z)`
+    #[inline]
+    pub(crate) fn evalpoly(self, coeffs: &[f64]) -> Self {
+        self.via(|z| cevalpoly(coeffs, z))
     }
 
     /// `std::exp(z)`
@@ -77,6 +102,12 @@ impl C64 {
     #[inline]
     pub(crate) fn sin(self) -> Self {
         self.via(csin)
+    }
+
+    /// `xsf::sinpi(z)`
+    #[inline]
+    pub(crate) fn sinpi(self) -> Self {
+        self.via(crate::sinpi)
     }
 
     /// `f(z)` for a function `f` of [`num_complex::Complex`]
