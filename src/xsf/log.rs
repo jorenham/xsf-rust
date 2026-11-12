@@ -248,11 +248,11 @@ mod tests {
 
         // near the unit circle: |z|^2 = 1 + 2^-40 exactly, so ln|z| = 2^-41 - 2^-82 + ...
         let w = clog(c64(1.0, 2f64.powi(-20)));
-        crate::np_assert_allclose!([w.re], [2f64.powi(-41) - 2f64.powi(-82)], rtol = 1e-15);
+        xsref::np_assert_allclose!([w.re], [2f64.powi(-41) - 2f64.powi(-82)], rtol = 1e-15);
         // extreme magnitudes
         let w = clog(c64(f64::MAX, f64::MAX));
-        crate::np_assert_allclose!([w.re], [710.129_286_483_663_9], rtol = 1e-15);
+        xsref::np_assert_allclose!([w.re], [710.129_286_483_663_9], rtol = 1e-15);
         let w = clog(c64(f64::from_bits(1), f64::from_bits(1)));
-        crate::np_assert_allclose!([w.re], [-744.093_498_331_101_4], rtol = 1e-15);
+        xsref::np_assert_allclose!([w.re], [-744.093_498_331_101_4], rtol = 1e-15);
     }
 }

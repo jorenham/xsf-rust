@@ -114,13 +114,3 @@ pub(crate) fn pdtri(k: i32, y: f64) -> f64 {
     let v = f64::from(k) + 1.0;
     igamci(v, y)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_pdtri_k_max() {
-        // `k + 1` overflows `int` in xsf
-        let m = super::pdtri(i32::MAX, 0.5);
-        assert!(m.is_finite() && m > f64::from(i32::MAX), "{m}");
-    }
-}

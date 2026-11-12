@@ -124,3 +124,12 @@ xsref::tests! {
     test_gammaln: "gammaln", "d-d", |x| xsf::gammaln(x[0]);
     test_gammasgn: "gammasgn", "d-d", |x| xsf::gammasgn(x[0]);
 }
+
+#[test]
+fn test_gammasgn_large_negative() {
+    // unlike in xsf, also for `x < -2^31`: Gamma(x) < 0 if floor(x) is odd, else Gamma(x) > 0
+    for (x, s) in [(-2_147_483_648.5, -1.0), (-2_147_483_649.5, 1.0)] {
+        assert_eq!(xsf::gammasgn(x), s);
+        assert_eq!(xsf::gamma(x).signum(), s);
+    }
+}

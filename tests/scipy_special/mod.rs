@@ -13,5 +13,6 @@ mod perm;
 mod polygamma;
 mod softplus;
 mod spence;
+mod spfun_stats;
 mod stirling;
 mod wright;

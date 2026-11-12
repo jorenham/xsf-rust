@@ -727,22 +727,3 @@ pub(crate) fn jv(mut n: f64, mut x: f64) -> f64 {
     // done:
     f64::from(sign) * y
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_jv_overflow_sign() {
-        assert_eq!(
-            super::jv(-123.57388919180612, 0.028605192190944706),
-            f64::NEG_INFINITY
-        );
-        assert_eq!(
-            super::jv(-124.68311766689978, 0.032989216721374115),
-            f64::INFINITY
-        );
-        assert_eq!(
-            crate::bessel_j(-111.29415504271454, 0.06094218693261655),
-            f64::NEG_INFINITY
-        );
-    }
-}

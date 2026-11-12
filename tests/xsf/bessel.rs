@@ -162,6 +162,19 @@ fn test_bessel_jy_negative_order_overflow() {
 }
 
 #[test]
+fn test_bessel_j_power_series_overflow_sign() {
+    // unlike in xsf, the sign is kept if the power series of cephes `jv` overflows
+    let inf = f64::INFINITY;
+    for (v, x, expected) in [
+        (-123.573_889_191_806_12, 0.028_605_192_190_944_706, -inf),
+        (-124.683_117_666_899_78, 0.032_989_216_721_374_115, inf),
+        (-111.294_155_042_714_54, 0.060_942_186_932_616_55, -inf),
+    ] {
+        assert_eq!(xsf::bessel_j(v, x), expected);
+    }
+}
+
+#[test]
 fn test_bessel_ie_negative_order_large_imag() {
     // mpmath (dps = 50): besseli(-7.25, 1e9j), besseli(-0.5, 1e9j), and besseli(-7.25, 1e8j)
     let actual = [
@@ -595,6 +608,13 @@ fn test_besselpoly_large_order() {
             "{actual:e} != {expected:e}"
         );
     }
+}
+
+#[test]
+fn test_besselpoly_odd_nu_large() {
+    // `static_cast<int>(nu)` is UB in xsf for `|nu| >= 2^31`; this `nu` is odd
+    let r = xsf::besselpoly(0.5, 0.0, -2_147_483_649.0);
+    assert!(r == 0.0 && r.is_sign_negative(), "{r}");
 }
 
 // Riccati-Bessel

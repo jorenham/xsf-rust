@@ -392,14 +392,9 @@ pub(crate) fn gammasgn(x: f64) -> f64 {
 mod tests {
     /// Unlike in xsf, the sign is also correct for `x < -2^31`
     #[test]
-    fn test_sign_large_negative() {
-        // floor(x) = -2^31 - 1 is odd, so Gamma(x) < 0
-        assert_eq!(super::gammasgn(-2_147_483_648.5), -1.0);
+    fn test_lgam_sgn_large_negative() {
+        // floor(x) = -2^31 - 1 is odd, so Gamma(x) < 0, and floor(x) = -2^31 - 2 is even
         assert_eq!(super::lgam_sgn(-2_147_483_648.5).1, -1);
-        assert!(super::gamma(-2_147_483_648.5).is_sign_negative());
-        // floor(x) = -2^31 - 2 is even, so Gamma(x) > 0
-        assert_eq!(super::gammasgn(-2_147_483_649.5), 1.0);
         assert_eq!(super::lgam_sgn(-2_147_483_649.5).1, 1);
-        assert!(super::gamma(-2_147_483_649.5).is_sign_positive());
     }
 }
