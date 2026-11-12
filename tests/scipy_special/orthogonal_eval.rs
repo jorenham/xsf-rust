@@ -96,6 +96,14 @@ fn test_eval_jacobi_alpha_near_minus_one() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 
+    // and with beta also near -1, where `alpha + beta + 2` cancelled (Arb)
+    let actual = [
+        xsf::eval_jacobi(2_i32, -0.999_999_999_999_98, -0.999_999_999_999_999_7, -0.5),
+        xsf::eval_jacobi(16_i32, -0.999_999_999_999_996, -0.999_999_999_999_993, 0.58),
+    ];
+    let desired = [-0.187_500_000_000_003_08, -0.087_684_044_487_768_09];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
     // near alpha = -8 the recurrence cancels, but the result stays small (Arb: 3.7e-9)
     assert!(xsf::eval_jacobi(20_i32, -7.999_999_999_999_998, 1.0, 0.9585).abs() < 1e-8);
 }
@@ -122,6 +130,21 @@ fn test_eval_genlaguerre_alpha_near_minus_one() {
         0.666_666_666_666_666_5,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // also for 0 < n < 1 (Arb)
+    let actual = [
+        xsf::eval_genlaguerre(0.117_437_084_084_326_67, -0.999_999_999_999_999_8, 0.334_97),
+        xsf::eval_jacobi(0.2, -0.999_999_999_999_999_7, -0.95, -0.5),
+    ];
+    let desired = [-0.390_135_391_859_476_15, 0.625_966_941_316_431];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // and for subnormal n, where `1 / (n B(alpha + 1, n))` overflows (Arb: 1)
+    let actual = [
+        xsf::eval_genlaguerre(1e-310, -0.75, 0.0),
+        xsf::eval_jacobi(1e-310, -0.75, 0.0, 1.0),
+    ];
+    np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-15);
 
     // alpha >= -0.5 keeps `binom(n + alpha, n)`, also for n > 2^53 (mpmath: 0.999999999999998)
     let actual = xsf::eval_genlaguerre(2.0_f64.powi(54), -2.0_f64.powi(-54), 0.0);
