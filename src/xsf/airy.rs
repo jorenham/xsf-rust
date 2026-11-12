@@ -1,9 +1,10 @@
 use core::f64::consts::{PI, SQRT_2};
 
-use num_complex::{Complex64, c64};
+use num_complex::Complex64;
 
 use crate::utils::mul_exp;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
+use crate::xsf::c64::{C64, c64};
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
@@ -25,12 +26,12 @@ impl AiryArg for f64 {
 impl AiryArg for Complex64 {
     #[inline]
     fn airy(self) -> [Self; 4] {
-        airy_c64(self, 1)
+        airy_c64(self.into(), 1).map(Into::into)
     }
 
     #[inline]
     fn airye(self) -> [Self; 4] {
-        airy_c64(self, 2)
+        airy_c64(self.into(), 2).map(Into::into)
     }
 }
 
@@ -38,7 +39,7 @@ impl AiryArg for Complex64 {
 
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
-fn airy_c64(z: Complex64, kode: i32) -> [Complex64; 4] {
+fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let mut id = 0;
     let mut ierr = 0;
     let mut nz = 0;
@@ -294,8 +295,8 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         // - ANT + i BNT = 2/3 - 2 int_w^inf Ai(t) dt with w = x e^(i pi/3), by DLMF 9.2.10 and
         //   9.2.12
         bpt = series(x).1;
-        apt = q0 - ai_tail(c64(xe, 0.0)).re;
-        let t = ai_tail(c64(0.0, xe));
+        apt = q0 - ai_tail(Complex64::new(xe, 0.0)).re;
+        let t = ai_tail(Complex64::new(0.0, xe));
         ant = q1 - 2.0 * t.re;
         bnt = -2.0 * t.im;
     } else {
