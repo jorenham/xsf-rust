@@ -6,7 +6,7 @@ use num_complex::{Complex64, c64};
 use num_traits::Zero;
 
 use crate::utils::PISQ_6;
-use crate::xsf::complex::C64_NAN;
+use crate::xsf::complex::{C64_NAN, cdiv};
 use crate::xsf::zlog1;
 
 // Relative tolerance for the series
@@ -38,7 +38,8 @@ fn cspence(z: Complex64) -> Complex64 {
         cspence_series0(z)
     } else if (1.0 - z).norm() > 1.0 {
         let zm1 = z - 1.0;
-        -cspence_series1(z / zm1) - PISQ_6 - 0.5 * zlog1(zm1).powi(2)
+        // `cdiv`, as the `/` of `Complex` overflows for |z| > 1e154
+        -cspence_series1(cdiv(z, zm1)) - PISQ_6 - 0.5 * zlog1(zm1).powi(2)
     } else {
         cspence_series1(z)
     }
