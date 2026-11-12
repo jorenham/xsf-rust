@@ -5,15 +5,15 @@
 //! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
 use core::f64::consts::{FRAC_PI_2, PI};
-use core::ops::{Div, Mul};
 
-use num_complex::{Complex64, ComplexFloat, c64};
+use num_complex::Complex64;
 
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
 };
-use crate::xsf::complex::{cdiv, cmul, csqrt, rdiv};
+use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::complex::Num;
 
 pub trait SphBesselArg: crate::sealed::Sealed {
     fn sph_bessel_j(self, n: i64) -> Self;
@@ -64,35 +64,35 @@ impl SphBesselArg for f64 {
 impl SphBesselArg for Complex64 {
     #[inline]
     fn sph_bessel_j(self, n: i64) -> Self {
-        sph_bessel_j_c64(n, self)
+        self.via(|z| sph_bessel_j_c64(n, z))
     }
     #[inline]
     fn sph_bessel_y(self, n: i64) -> Self {
-        sph_bessel_y_c64(n, self)
+        self.via(|z| sph_bessel_y_c64(n, z))
     }
     #[inline]
     fn sph_bessel_i(self, n: i64) -> Self {
-        sph_bessel_i_c64(n, self)
+        self.via(|z| sph_bessel_i_c64(n, z))
     }
     #[inline]
     fn sph_bessel_k(self, n: i64) -> Self {
-        sph_bessel_k_c64(n, self)
+        self.via(|z| sph_bessel_k_c64(n, z))
     }
     #[inline]
     fn sph_bessel_j_prime(self, n: i64) -> Self {
-        sph_bessel_j_jac_c64(n, self)
+        self.via(|z| sph_bessel_j_jac_c64(n, z))
     }
     #[inline]
     fn sph_bessel_y_prime(self, n: i64) -> Self {
-        sph_bessel_y_jac_c64(n, self)
+        self.via(|z| sph_bessel_y_jac_c64(n, z))
     }
     #[inline]
     fn sph_bessel_i_prime(self, n: i64) -> Self {
-        sph_bessel_i_jac_c64(n, self)
+        self.via(|z| sph_bessel_i_jac_c64(n, z))
     }
     #[inline]
     fn sph_bessel_k_prime(self, n: i64) -> Self {
-        sph_bessel_k_jac_c64(n, self)
+        self.via(|z| sph_bessel_k_jac_c64(n, z))
     }
 }
 
@@ -117,10 +117,10 @@ fn pow_m1(n: i64) -> f64 {
 /// <https://dlmf.nist.gov/10.52.E1>
 ///
 /// The extra stop if the product overflows (returning `inf`) is for `sph_bessel_j_series`.
-fn sph_bessel_tiny<T: ComplexFloat + Div<f64, Output = T>>(n: i64, z: T) -> T {
-    let mut res = T::one();
+fn sph_bessel_tiny<T: Num>(n: i64, z: T) -> T {
+    let mut res = T::from(1.0);
     let mut k: i64 = 1;
-    while k <= n && !res.is_zero() && res.is_finite() {
+    while k <= n && res.abs() != 0.0 && res.is_finite() {
         res = res * (z / (2.0 * k as f64 + 1.0));
         k += 1;
     }
@@ -128,10 +128,7 @@ fn sph_bessel_tiny<T: ComplexFloat + Div<f64, Output = T>>(n: i64, z: T) -> T {
 }
 
 /// `j_n'(z)` and `i_n'(z)` for tiny `z`, or `None`
-fn sph_bessel_jac_tiny<T>(n: i64, z: T) -> Option<T>
-where
-    T: ComplexFloat<Real = f64> + Mul<f64, Output = T> + Div<f64, Output = T>,
-{
+fn sph_bessel_jac_tiny<T: Num>(n: i64, z: T) -> Option<T> {
     // Leading term n z^(n - 1) / (2n + 1)!! of the derivative of https://dlmf.nist.gov/10.52.E1,
     // as DLMF 10.51.2 fails when j_n(z) underflows; the first correction term is below eps / 2 here.
     // |z| < 1 keeps the product from overflowing for huge n, as in sph_bessel_j.
@@ -182,8 +179,8 @@ fn sph_bessel_ji_jac(f: fn(i64, f64) -> f64, c: f64, n: i64, x: f64) -> f64 {
 }
 
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
-fn sqrt_pi_2_div(z: Complex64) -> Complex64 {
-    csqrt(rdiv(FRAC_PI_2, z))
+fn sqrt_pi_2_div(z: C64) -> C64 {
+    (FRAC_PI_2 / z).sqrt()
 }
 
 /// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence
@@ -270,7 +267,7 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     sph_bessel_recur(n, x, s0, (s0 - x.cos()) / x)
 }
 
-fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
     }
@@ -282,7 +279,7 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_infinite() {
         // https://dlmf.nist.gov/10.52.E3
         if z.im == 0.0 {
-            return c64(0.0, 0.0);
+            return C64::ZERO;
         }
 
         return c64(1.0, 1.0) * f64::INFINITY;
@@ -290,10 +287,10 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
 
     if z.re == 0.0 && z.im == 0.0 {
         if n == 0 {
-            return c64(1.0, 0.0);
+            return C64::ONE;
         }
 
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
 
     // For purely real negative z, the principal-branch product
@@ -305,7 +302,7 @@ fn sph_bessel_j_c64(n: i64, z: Complex64) -> Complex64 {
         return if n % 2 == 0 { r } else { -r };
     }
 
-    let out = cmul(sqrt_pi_2_div(z), cyl_bessel_j_c64(half(n), z));
+    let out = sqrt_pi_2_div(z) * cyl_bessel_j_c64(half(n), z);
     if z.im == 0.0 {
         return c64(out.re, 0.0); // Small imaginary part is spurious
     }
@@ -321,7 +318,7 @@ fn sph_bessel_j_jac_f64(n: i64, z: f64) -> f64 {
     sph_bessel_ji_jac(sph_bessel_j_f64, -1.0, n, z)
 }
 
-fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_j_jac_c64(n: i64, z: C64) -> C64 {
     if n == 0 {
         return -sph_bessel_j_c64(1, z);
     }
@@ -331,7 +328,7 @@ fn sph_bessel_j_jac_c64(n: i64, z: Complex64) -> Complex64 {
     }
 
     // DLMF 10.51.2
-    sph_bessel_j_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_j_c64(n, z)), z)
+    sph_bessel_j_c64(n.wrapping_sub(1), z) - c64(np1(n), 0.0) * sph_bessel_j_c64(n, z) / z
 }
 
 fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
@@ -360,7 +357,7 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
     sph_bessel_recur(n, x, s0, (s0 - x.sin()) / x)
 }
 
-fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
     }
@@ -377,7 +374,7 @@ fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
     if z.re.is_infinite() {
         // https://dlmf.nist.gov/10.52.E3
         if z.im == 0.0 {
-            return c64(0.0, 0.0);
+            return C64::ZERO;
         }
 
         return c64(1.0, 1.0) * f64::INFINITY;
@@ -387,7 +384,7 @@ fn sph_bessel_y_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(sph_bessel_y_f64(n, z.re), 0.0);
     }
 
-    cmul(sqrt_pi_2_div(z), cyl_bessel_y_c64(half(n), z))
+    sqrt_pi_2_div(z) * cyl_bessel_y_c64(half(n), z)
 }
 
 fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
@@ -404,7 +401,7 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
     sph_bessel_y_f64(n.wrapping_sub(1), x) + res
 }
 
-fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
+fn sph_bessel_y_jac_c64(n: i64, x: C64) -> C64 {
     // Real z: avoid nan + nan j where y_n(z) overflows; complex 0 still gives nan.
     if x.im == 0.0 && x.re != 0.0 {
         return c64(sph_bessel_y_jac_f64(n, x.re), 0.0);
@@ -414,7 +411,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: Complex64) -> Complex64 {
         return -sph_bessel_y_c64(1, x);
     }
 
-    sph_bessel_y_c64(n.wrapping_sub(1), x) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_y_c64(n, x)), x)
+    sph_bessel_y_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_y_c64(n, x) / x
 }
 
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
@@ -459,7 +456,7 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
     (FRAC_PI_2 / x).sqrt() * crate::bessel_i(half(n), x)
 }
 
-fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
     }
@@ -471,10 +468,10 @@ fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
     if z.norm() == 0.0 {
         // https://dlmf.nist.gov/10.52.E1
         if n == 0 {
-            return c64(1.0, 0.0);
+            return C64::ONE;
         }
 
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
 
     if z.re.is_infinite() || z.im.is_infinite() {
@@ -496,7 +493,7 @@ fn sph_bessel_i_c64(n: i64, z: Complex64) -> Complex64 {
         return if n % 2 == 0 { r } else { -r };
     }
 
-    cmul(sqrt_pi_2_div(z), cyl_bessel_i_c64(half(n), z))
+    sqrt_pi_2_div(z) * cyl_bessel_i_c64(half(n), z)
 }
 
 fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
@@ -507,7 +504,7 @@ fn sph_bessel_i_jac_f64(n: i64, z: f64) -> f64 {
     sph_bessel_ji_jac(sph_bessel_i_f64, 1.0, n, z)
 }
 
-fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_i_jac_c64(n: i64, z: C64) -> C64 {
     if n == 0 {
         return sph_bessel_i_c64(1, z);
     }
@@ -516,7 +513,7 @@ fn sph_bessel_i_jac_c64(n: i64, z: Complex64) -> Complex64 {
         return res;
     }
 
-    sph_bessel_i_c64(n.wrapping_sub(1), z) - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_i_c64(n, z)), z)
+    sph_bessel_i_c64(n.wrapping_sub(1), z) - c64(np1(n), 0.0) * sph_bessel_i_c64(n, z) / z
 }
 
 fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
@@ -552,7 +549,7 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
     (FRAC_PI_2 / z).sqrt() * cyl_bessel_k_f64(half(n), z)
 }
 
-fn sph_bessel_k_c64(n: i64, z: Complex64) -> Complex64 {
+fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
     if z.re.is_nan() || z.im.is_nan() {
         return z;
     }
@@ -569,7 +566,7 @@ fn sph_bessel_k_c64(n: i64, z: Complex64) -> Complex64 {
         // https://dlmf.nist.gov/10.52.E6
         if z.im == 0.0 {
             if z.re == f64::INFINITY {
-                return c64(0.0, 0.0);
+                return C64::ZERO;
             }
 
             return c64(f64::NEG_INFINITY, 0.0);
@@ -582,7 +579,7 @@ fn sph_bessel_k_c64(n: i64, z: Complex64) -> Complex64 {
         return c64(sph_bessel_k_f64(n, z.re), 0.0);
     }
 
-    cmul(sqrt_pi_2_div(z), cyl_bessel_k_c64(half(n), z))
+    sqrt_pi_2_div(z) * cyl_bessel_k_c64(half(n), z)
 }
 
 fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
@@ -593,7 +590,7 @@ fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
     -sph_bessel_k_f64(n.wrapping_sub(1), x) - np1(n) * sph_bessel_k_f64(n, x) / x
 }
 
-fn sph_bessel_k_jac_c64(n: i64, x: Complex64) -> Complex64 {
+fn sph_bessel_k_jac_c64(n: i64, x: C64) -> C64 {
     // Real z: avoid nan + nan j where k_n(z) overflows; complex 0 still gives nan.
     if x.im == 0.0 && x.re != 0.0 {
         return c64(sph_bessel_k_jac_f64(n, x.re), 0.0);
@@ -603,8 +600,7 @@ fn sph_bessel_k_jac_c64(n: i64, x: Complex64) -> Complex64 {
         return -sph_bessel_k_c64(1, x);
     }
 
-    -sph_bessel_k_c64(n.wrapping_sub(1), x)
-        - cdiv(cmul(c64(np1(n), 0.0), sph_bessel_k_c64(n, x)), x)
+    -sph_bessel_k_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_k_c64(n, x) / x
 }
 
 /// Spherical Bessel function of the first kind, $j_n(z)$

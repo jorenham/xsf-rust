@@ -524,6 +524,8 @@ pub(crate) trait Num:
     fn real(self) -> f64;
     /// `std::imag(x)`
     fn imag(self) -> f64;
+    /// Whether `x` (each part, if complex) is finite
+    fn is_finite(self) -> bool;
 }
 
 impl Num for f64 {
@@ -551,6 +553,10 @@ impl Num for f64 {
     fn imag(self) -> f64 {
         0.0
     }
+    #[inline]
+    fn is_finite(self) -> bool {
+        f64::is_finite(self)
+    }
 }
 
 impl Num for C64 {
@@ -577,6 +583,10 @@ impl Num for C64 {
     #[inline]
     fn imag(self) -> f64 {
         self.im
+    }
+    #[inline]
+    fn is_finite(self) -> bool {
+        C64::is_finite(self)
     }
 }
 
