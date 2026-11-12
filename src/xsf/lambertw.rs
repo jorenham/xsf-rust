@@ -47,7 +47,7 @@ const OMEGA: f64 = 0.567_143_290_409_783_8; // W(1, 0)
 fn lambertw_branchpt(z: C64) -> C64 {
     // Series for W(z, 0) around the branch point; see 4.22 in [1].
     let coeffs = [-1.0 / 3.0, 1.0, -1.0];
-    let p = (2.0 * (E * z + 1.0)).via(Complex::sqrt);
+    let p = (2.0 * (E * z + 1.0)).sqrt();
 
     p.evalpoly(&coeffs)
 }
