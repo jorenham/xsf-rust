@@ -4,11 +4,12 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 
 use num_complex::Complex;
 
+use crate::utils::cmul_exp;
 use crate::xsf::complex::{catan, cdiv, cmul, csqrt, rdiv, rsub};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
-use crate::xsf::trig::{ccos, csin};
+use crate::xsf::trig::{ccos, ccosh, csin, csinh};
 
 /// A complex number with the arithmetic of `std::complex<double>` in C++ (GCC), so that ported
 /// code can use the same operators:
@@ -87,6 +88,12 @@ impl C64 {
         self.via(ccos)
     }
 
+    /// `std::cosh(z)`
+    #[inline]
+    pub(crate) fn cosh(self) -> Self {
+        self.via(ccosh)
+    }
+
     /// `xsf::cospi(z)`
     #[inline]
     pub(crate) fn cospi(self) -> Self {
@@ -105,6 +112,12 @@ impl C64 {
         self.via(cexp)
     }
 
+    /// `std::isfinite(z.real()) && std::isfinite(z.imag())`
+    #[inline]
+    pub(crate) fn is_finite(self) -> bool {
+        self.re.is_finite() && self.im.is_finite()
+    }
+
     /// `std::isnan(z.real()) || std::isnan(z.imag())`
     #[inline]
     pub(crate) fn is_nan(self) -> bool {
@@ -117,10 +130,22 @@ impl C64 {
         self.via(clog)
     }
 
+    /// `z * std::exp(x)` without overflowing prematurely, as in glibc's complex `exp`
+    #[inline]
+    pub(crate) fn mul_exp(self, x: f64) -> Self {
+        self.via(|z| cmul_exp(z, x))
+    }
+
     /// `std::sin(z)`
     #[inline]
     pub(crate) fn sin(self) -> Self {
         self.via(csin)
+    }
+
+    /// `std::sinh(z)`
+    #[inline]
+    pub(crate) fn sinh(self) -> Self {
+        self.via(csinh)
     }
 
     /// `xsf::sinpi(z)`

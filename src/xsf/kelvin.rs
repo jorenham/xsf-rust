@@ -9,9 +9,10 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, SQRT_2};
 
-use num_complex::{Complex64, c64};
+use num_complex::Complex64;
 
 use crate::xsf::amos;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::specfun::{SPECFUN_INF, specfun_zconvinf};
 
 struct Klvna {
@@ -137,7 +138,7 @@ fn klvna(x: f64) -> Klvna {
         (ber, bei, der, dei) = ber_series(x);
 
         let w = c64(FRAC_1_SQRT_2, FRAC_1_SQRT_2);
-        let mut k = [Complex64::ZERO; 2];
+        let mut k = [C64::ZERO; 2];
         amos::besk(w * x, 0.0, 1, 2, &mut k, &mut 0);
         let (ke, kep) = (k[0], -w * k[1]);
         (ger, gei, her, hei) = (ke.re, ke.im, kep.re, kep.im);
@@ -374,10 +375,10 @@ pub fn kelvin(mut x: f64) -> [Complex64; 4] {
     }
 
     let k = klvna(x);
-    let mut be = c64(k.ber, k.bei);
-    let mut ke = c64(k.ger, k.gei);
-    let mut bep = c64(k.der, k.dei);
-    let mut kep = c64(k.her, k.hei);
+    let mut be = Complex64::new(k.ber, k.bei);
+    let mut ke = Complex64::new(k.ger, k.gei);
+    let mut bep = Complex64::new(k.der, k.dei);
+    let mut kep = Complex64::new(k.her, k.hei);
 
     specfun_zconvinf(&mut be);
     specfun_zconvinf(&mut ke);

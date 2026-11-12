@@ -123,13 +123,8 @@
 
 use core::f64::consts::{LN_2, LN_10};
 
-use num_complex::{Complex64, c64};
-
-use crate::utils::{MAXLOG, SQRT3, cmul_exp};
-use crate::xsf::complex::{cdiv, cmul, csqrt, rdiv, rsub};
-use crate::xsf::exp::cexp;
-use crate::xsf::log::clog;
-use crate::xsf::trig::{ccosh, csinh};
+use crate::utils::{MAXLOG, SQRT3};
+use crate::xsf::c64::{C64, c64};
 
 #[rustfmt::skip]
 const D1MACH: [f64; 5] = [
@@ -208,8 +203,8 @@ fn order_mod4(fnu: f64) -> (f64, i32) {
 ///
 /// Unlike in xsf, this uses the overflow threshold of the module docs, and doesn't round a
 /// subnormal `|z|` or `|z| / 2`.
-fn small_z_k_overflows(z: Complex64, fnu: f64) -> bool {
-    fnu * (LN_2 - clog(z).re) + gamln(fnu) - LN_2 > MAXLOG
+fn small_z_k_overflows(z: C64, fnu: f64) -> bool {
+    fnu * (LN_2 - z.ln().re) + gamln(fnu) - LN_2 > MAXLOG
 }
 
 /// Whether `exp(e)` is on scale, i.e. neither underflows past `exp(-elim)` nor overflows.
@@ -430,12 +425,12 @@ const DGAMLN_CF: [f64; 22] = [
 ];
 
 fn acai(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     mr: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     rl: f64,
     tol: f64,
     elim: f64,
@@ -458,7 +453,7 @@ fn acai(
     //***ROUTINES CALLED  ZASYI,ZBKNU,ZMLRI,ZSERI,ZS1S2,D1MACH,AZABS
     //***END PROLOGUE  ZACAI
 
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let mut cpn: f64;
     let mut spn: f64;
     let mut nw: i32;
@@ -514,7 +509,7 @@ fn acai(
         let yy = -zn.im;
         cpn = yy.cos();
         spn = yy.sin();
-        csgn = cmul(csgn, c64(cpn, spn));
+        csgn *= c64(cpn, spn);
     }
     //
     // CALCULATE CSPN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
@@ -537,21 +532,21 @@ fn acai(
         nz += nw;
     }
     // Unlike in xsf: pi I overflow (see the module docs).
-    let ci = cmul(csgn, c2);
+    let ci = csgn * c2;
     if !ci.is_finite() {
         return -1;
     }
-    y[0] = cmul(cspn, c1) + ci;
+    y[0] = cspn * c1 + ci;
     nz
 }
 
 fn acon(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     mr: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     rl: f64,
     fnul: f64,
     tol: f64,
@@ -572,15 +567,15 @@ fn acon(
     //***ROUTINES CALLED  ZBINU,ZBKNU,ZS1S2,D1MACH,AZABS,ZMLT
     //***END PROLOGUE  ZACON
 
-    let mut sc1: Complex64;
-    let mut sc2 = Complex64::ZERO;
-    let mut st: Complex64;
+    let mut sc1: C64;
+    let mut sc2 = C64::ZERO;
+    let mut st: C64;
     let mut nw: i32;
     let mut nz: i32;
     let pi: f64 = 3.14159265358979324;
-    let mut cy = [Complex64::ZERO; 2];
-    let mut css = [Complex64::ZERO; 3];
-    let mut csr = [Complex64::ZERO; 3];
+    let mut cy = [C64::ZERO; 2];
+    let mut css = [C64::ZERO; 3];
+    let mut csr = [C64::ZERO; 3];
     let mut bry = [0.0_f64; 3];
 
     nz = 0;
@@ -602,7 +597,7 @@ fn acon(
             let mut csgn = c64(0.0, sgn);
             if kode != 1 {
                 let yy = -zn.im;
-                csgn = cmul(csgn, c64(yy.cos(), yy.sin()));
+                csgn *= c64(yy.cos(), yy.sin());
             }
             let inu = fnu as i32;
             let arg = (fnu - f64::from(inu)) * sgn;
@@ -620,11 +615,11 @@ fn acon(
                 sc1 = c1;
             }
             // Unlike in xsf: pi I overflow (see the module docs).
-            let ci = cmul(csgn, c2);
+            let ci = csgn * c2;
             if !ci.is_finite() {
                 return -1;
             }
-            y[0] = cmul(cspn, c1) + ci;
+            y[0] = cspn * c1 + ci;
             if n == 1 {
                 return nz;
             }
@@ -637,16 +632,16 @@ fn acon(
                 nz += nw;
                 sc2 = c1;
             }
-            let ci = cmul(csgn, c2);
+            let ci = csgn * c2;
             if !ci.is_finite() {
                 return -1;
             }
-            y[1] = cmul(cspn, c1) + ci;
+            y[1] = cspn * c1 + ci;
             if n == 2 {
                 return nz;
             }
             cspn = -cspn;
-            let rz = rdiv(2.0, zn);
+            let rz = 2.0 / zn;
             let mut ck = (fnu + 1.0) * rz;
             //
             // SCALE NEAR EXPONENT EXTREMES DURING RECURRENCE ON K FUNCTIONS
@@ -654,10 +649,10 @@ fn acon(
             let cscl = c64(1.0 / tol, 0.0);
             let cscr = c64(tol, 0.0);
             css[0] = cscl;
-            css[1] = c64(1.0, 0.0);
+            css[1] = C64::ONE;
             css[2] = cscr;
             csr[0] = cscr;
-            csr[1] = c64(1.0, 0.0);
+            csr[1] = C64::ONE;
             csr[2] = cscl;
             bry[0] = ascle;
             bry[1] = 1.0 / ascle;
@@ -670,14 +665,14 @@ fn acon(
                 kflag = 3;
             }
             let mut bscle = bry[(kflag - 1) as usize];
-            s1 = cmul(s1, css[(kflag - 1) as usize]);
-            s2 = cmul(s2, css[(kflag - 1) as usize]);
+            s1 *= css[(kflag - 1) as usize];
+            s2 *= css[(kflag - 1) as usize];
             let mut cs = csr[(kflag - 1) as usize];
             for i in 3..=n {
                 st = s2;
-                s2 = cmul(ck, s2) + s1;
+                s2 = ck * s2 + s1;
                 s1 = st;
-                c1 = cmul(s2, cs);
+                c1 = s2 * cs;
                 st = c1;
                 c2 = y[(i - 1) as usize];
                 if kode != 1 && iuf >= 0 {
@@ -687,12 +682,12 @@ fn acon(
                     sc2 = c1;
                     if iuf == 3 {
                         iuf = -4;
-                        s1 = cmul(sc1, css[(kflag - 1) as usize]);
-                        s2 = cmul(sc2, css[(kflag - 1) as usize]);
+                        s1 = sc1 * css[(kflag - 1) as usize];
+                        s2 = sc2 * css[(kflag - 1) as usize];
                         st = sc2;
                     }
                 }
-                y[(i - 1) as usize] = cmul(cspn, c1) + cmul(csgn, c2);
+                y[(i - 1) as usize] = cspn * c1 + csgn * c2;
                 ck += rz;
                 cspn = -cspn;
                 if kflag < 3 {
@@ -702,10 +697,10 @@ fn acon(
                     if c1m > bscle {
                         kflag += 1;
                         bscle = bry[(kflag - 1) as usize];
-                        s1 = cmul(s1, cs);
+                        s1 *= cs;
                         s2 = st;
-                        s1 = cmul(s1, css[(kflag - 1) as usize]);
-                        s2 = cmul(s2, css[(kflag - 1) as usize]);
+                        s1 *= css[(kflag - 1) as usize];
+                        s2 *= css[(kflag - 1) as usize];
                         cs = csr[(kflag - 1) as usize];
                     }
                 }
@@ -720,13 +715,7 @@ fn acon(
     nz
 }
 
-pub(crate) fn airy(
-    mut z: Complex64,
-    id: i32,
-    kode: i32,
-    nz: &mut i32,
-    ierr: &mut i32,
-) -> Complex64 {
+pub(crate) fn airy(mut z: C64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i32) -> C64 {
     //***BEGIN PROLOGUE  ZAIRY
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -855,11 +844,11 @@ pub(crate) fn airy(
     //***ROUTINES CALLED  ZACAI,ZBKNU,AZEXP,AZSQRT,I1MACH,D1MACH
     //***END PROLOGUE  ZAIRY
 
-    let mut ai: Complex64;
-    let mut cy = [Complex64::ZERO; 1];
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zta: Complex64;
+    let mut ai: C64;
+    let mut cy = [C64::ZERO; 1];
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zta: C64;
     let mut aa: f64;
     let mut ak: f64;
     let mut bk: f64;
@@ -871,7 +860,7 @@ pub(crate) fn airy(
 
     *ierr = 0;
     *nz = 0;
-    ai = c64(0.0, 0.0);
+    ai = C64::ZERO;
     if !(0..=1).contains(&id) {
         *ierr = 1;
     }
@@ -879,7 +868,7 @@ pub(crate) fn airy(
         *ierr = 1;
     }
     if *ierr != 0 {
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
     if z.im == 0.0 {
         z = c64(z.re, 0.0);
@@ -892,32 +881,32 @@ pub(crate) fn airy(
         //
         // POWER SERIES FOR ABS(Z) <= 1.
         //
-        s1 = c64(1.0, 0.0);
-        s2 = c64(1.0, 0.0);
+        s1 = C64::ONE;
+        s2 = C64::ONE;
         if az < tol {
             aa = 1e3 * D1MACH[0];
-            s1 = c64(0.0, 0.0);
+            s1 = C64::ZERO;
             if id != 1 {
                 if az > aa {
                     s1 = c2 * z;
                 }
-                ai = rsub(c1, s1);
+                ai = c1 - s1;
                 return ai;
             }
             ai = c64(-c2, 0.0);
             aa = aa.sqrt();
             if az > aa {
-                s1 = cmul(z, z) * 0.5;
+                s1 = z * z * 0.5;
             }
             ai += s1 * c1;
             return ai;
         }
         aa = az * az;
         if aa >= tol / az {
-            let mut trm1 = c64(1.0, 0.0);
-            let mut trm2 = c64(1.0, 0.0);
+            let mut trm1 = C64::ONE;
+            let mut trm2 = C64::ONE;
             let mut atrm: f64 = 1.0;
-            let z3 = cmul(cmul(z, z), z);
+            let z3 = z * z * z;
             let az3 = az * aa;
             ak = 2.0 + fid;
             bk = 3.0 - fid - fid;
@@ -929,9 +918,9 @@ pub(crate) fn airy(
             ak = 24.0 + 9.0 * fid;
             bk = 30.0 - 9.0 * fid;
             for _k in 1..26 {
-                trm1 = cmul(trm1, z3 / d1);
+                trm1 *= z3 / d1;
                 s1 += trm1;
-                trm2 = cmul(trm2, z3 / d2);
+                trm2 *= z3 / d2;
                 s2 += trm2;
                 atrm *= az3 / ad;
                 d1 += ak;
@@ -945,23 +934,23 @@ pub(crate) fn airy(
             }
         }
         if id != 1 {
-            ai = s1 * c1 - cmul(z, s2) * c2;
+            ai = s1 * c1 - z * s2 * c2;
             if kode == 1 {
                 return ai;
             }
-            zta = cmul(z, csqrt(z)) * tth;
-            ai = cmul(ai, cexp(zta));
+            zta = z * z.sqrt() * tth;
+            ai *= zta.exp();
             return ai;
         }
         ai = -s2 * c2;
         if az > tol {
-            ai += cmul(cmul(z, z), s1) * c1 / (1.0 + fid);
+            ai += z * z * s1 * c1 / (1.0 + fid);
         }
         if kode == 1 {
             return ai;
         }
-        zta = cmul(z, csqrt(z)) * tth;
-        return cmul(ai, cexp(zta));
+        zta = z * z.sqrt() * tth;
+        return ai * zta.exp();
     }
     //
     // CASE FOR ABS(Z) > 1.0
@@ -979,14 +968,14 @@ pub(crate) fn airy(
     if az > aa {
         *ierr = 4;
         *nz = 0;
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
     aa = aa.sqrt();
     if az > aa {
         *ierr = 3;
     }
-    let csq = csqrt(z);
-    zta = cmul(z, csq) * tth;
+    let csq = z.sqrt();
+    zta = z * csq * tth;
     //
     // RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
     //
@@ -1035,11 +1024,11 @@ pub(crate) fn airy(
             // Unlike in xsf, this is an overflow (as in the Fortran), not an underflow to 0.
             if nn == -1 {
                 *ierr = 2;
-                return c64(0.0, 0.0);
+                return C64::ZERO;
             }
             *nz = 0;
             *ierr = 5;
-            return c64(0.0, 0.0);
+            return C64::ZERO;
         }
         *nz += nn;
     } else {
@@ -1053,7 +1042,7 @@ pub(crate) fn airy(
                 sfac = 1.0 / tol;
                 if aa < -elim {
                     *nz = 1;
-                    return c64(0.0, 0.0);
+                    return C64::ZERO;
                 }
             }
         }
@@ -1063,25 +1052,25 @@ pub(crate) fn airy(
 
     if iflag == 0 {
         if id != 1 {
-            return cmul(csq, s1);
+            return csq * s1;
         }
-        return cmul(-z, s1);
+        return -z * s1;
     }
     s1 *= sfac;
     if id != 1 {
-        s1 = cmul(s1, csq);
+        s1 *= csq;
         return s1 / sfac;
     }
-    s1 = cmul(s1, -z);
+    s1 *= -z;
     s1 / sfac
 }
 
 fn asyi(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     rl: f64,
     tol: f64,
     elim: f64,
@@ -1109,7 +1098,7 @@ fn asyi(
     let il = if n > 2 { 2 } else { n };
     let dfnu = fnu + f64::from(n - il);
     // OVERFLOW TEST
-    let mut ak1 = csqrt(rdiv(rpi, z));
+    let mut ak1 = (rpi / z).sqrt();
     let mut cz = z;
     if kode == 2 {
         cz = c64(0.0, z.im);
@@ -1123,7 +1112,7 @@ fn asyi(
         if !((acz.abs() > alim) && (n > 2)) {
             koded = 0;
             if acz <= MAXLOG {
-                ak1 = cmul(ak1, cexp(cz));
+                ak1 *= cz.exp();
             }
         }
         let mut fdn: f64 = 0.0;
@@ -1139,7 +1128,7 @@ fn asyi(
         let s = tol / aez;
         let jl = (rl + rl) as i32 + 2;
         let yy = z.im;
-        let mut p1 = c64(0.0, 0.0);
+        let mut p1 = C64::ZERO;
         if yy != 0.0 {
             let mut inu = fnu as i32;
             let arg = (fnu - f64::from(inu)) * pi;
@@ -1158,9 +1147,9 @@ fn asyi(
             let mut sqk = fdn - 1.0;
             let atol = s * sqk.abs();
             let mut sgn: f64 = 1.0;
-            let mut cs1 = c64(1.0, 0.0);
-            let mut cs2 = c64(1.0, 0.0);
-            let mut ck = c64(1.0, 0.0);
+            let mut cs1 = C64::ONE;
+            let mut cs2 = C64::ONE;
+            let mut ck = C64::ONE;
             ak = 0.0;
             let mut aa: f64 = 1.0;
             let mut bb = aez;
@@ -1168,7 +1157,7 @@ fn asyi(
             // C++: `j = 1; for (j = 1; j < (jl + 1); j++) { ... }` (j is used after the loop)
             let mut j = 1;
             while j < (jl + 1) {
-                ck = cmul(ck, rdiv(sqk, dk));
+                ck *= sqk / dk;
                 cs2 += ck;
                 sgn = -sgn;
                 cs1 += ck * sgn;
@@ -1189,15 +1178,15 @@ fn asyi(
             /* 50 */
             let mut s2 = cs1;
             if x + x < elim {
-                s2 += cmul(cmul(p1, cs2), cexp(-z - z));
+                s2 += p1 * cs2 * (-z - z).exp();
             }
             fdn += 8.0 * dfnu + 4.0;
             p1 = -p1;
             let m = n - il + k;
-            s2 = cmul(s2, ak1);
+            s2 *= ak1;
             if acz > MAXLOG {
                 // s2 exp(cz), without overflowing prematurely
-                s2 = cmul_exp(cmul(s2, cexp(c64(0.0, cz.im))), acz);
+                s2 = (s2 * c64(0.0, cz.im).exp()).mul_exp(acz);
                 if !s2.is_finite() {
                     return -1;
                 }
@@ -1210,19 +1199,19 @@ fn asyi(
         let nn = n;
         let mut k = nn - 2;
         ak = f64::from(k);
-        let rz = rdiv(2.0, z);
+        let rz = 2.0 / z;
         let ib = 3;
         for _i in ib..=nn {
-            y[(k - 1) as usize] = cmul((ak + fnu) * rz, y[k as usize]) + y[(k + 1) as usize];
+            y[(k - 1) as usize] = (ak + fnu) * rz * y[k as usize] + y[(k + 1) as usize];
             ak -= 1.0;
             k -= 1;
         }
         if koded == 0 {
             return nz;
         }
-        let ck = cexp(cz);
+        let ck = cz.exp();
         for i in 0..nn {
-            y[i as usize] = cmul(y[i as usize], ck);
+            y[i as usize] *= ck;
         }
         /* 90 */
         return nz;
@@ -1232,12 +1221,12 @@ fn asyi(
 }
 
 pub(crate) fn besh(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     m: i32,
     n: i32,
-    cy: &mut [Complex64],
+    cy: &mut [C64],
     ierr: &mut i32,
 ) -> i32 {
     //***BEGIN PROLOGUE  ZBESH
@@ -1429,7 +1418,7 @@ pub(crate) fn besh(
     let fn_ = fnu + f64::from(nn - 1); // `fn` in C++
     let mm = 3 - m - m;
     let fmm = f64::from(mm);
-    let mut zn = cmul(z, c64(0.0, -fmm));
+    let mut zn = z * c64(0.0, -fmm);
     let xn = zn.re;
     let yn = zn.im;
     //
@@ -1575,21 +1564,14 @@ pub(crate) fn besh(
             zn *= rtol;
             atol = tol;
         }
-        zn = cmul(zn, csgn);
+        zn *= csgn;
         cy[(i - 1) as usize] = zn * atol;
-        csgn = cmul(csgn, zt);
+        csgn *= zt;
     }
     nz
 }
 
-pub(crate) fn besi(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    cy: &mut [Complex64],
-    ierr: &mut i32,
-) -> i32 {
+pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &mut i32) -> i32 {
     //***BEGIN PROLOGUE  ZBESI
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -1782,7 +1764,7 @@ pub(crate) fn besi(
         *ierr = 3;
     }
     let mut zn = z;
-    let mut csgn = c64(1.0, 0.0);
+    let mut csgn = C64::ONE;
     if xx < 0.0 {
         zn = -z;
         //
@@ -1828,7 +1810,7 @@ pub(crate) fn besi(
             zn *= rtol;
             atol = tol;
         }
-        cy[(i - 1) as usize] = atol * cmul(zn, csgn);
+        cy[(i - 1) as usize] = atol * (zn * csgn);
         csgn = -csgn;
     }
     // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if
@@ -1837,14 +1819,7 @@ pub(crate) fn besi(
     nz
 }
 
-pub(crate) fn besj(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    cy: &mut [Complex64],
-    ierr: &mut i32,
-) -> i32 {
+pub(crate) fn besj(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &mut i32) -> i32 {
     //***BEGIN PROLOGUE  ZBESJ
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -1990,7 +1965,7 @@ pub(crate) fn besj(
     //***ROUTINES CALLED  ZBINU,I1MACH,D1MACH
     //***END PROLOGUE  ZBESJ
 
-    let mut ci = Complex64::ZERO;
+    let mut ci = C64::ZERO;
     let mut aa: f64;
     let mut bb: f64;
     let mut nz: i32;
@@ -2050,7 +2025,7 @@ pub(crate) fn besj(
     //
     // ZN IS IN THE RIGHT HALF PLANE
     //
-    let mut zn = cmul(-z, ci);
+    let mut zn = -z * ci;
     if yy < 0.0 {
         zn = -zn;
         csgn = csgn.conj();
@@ -2080,20 +2055,13 @@ pub(crate) fn besj(
             zn *= rtol;
             atol = tol;
         }
-        cy[(i - 1) as usize] = atol * cmul(zn, csgn);
-        csgn = cmul(csgn, ci);
+        cy[(i - 1) as usize] = atol * (zn * csgn);
+        csgn *= ci;
     }
     nz
 }
 
-pub(crate) fn besk(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    cy: &mut [Complex64],
-    ierr: &mut i32,
-) -> i32 {
+pub(crate) fn besk(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &mut i32) -> i32 {
     //***BEGIN PROLOGUE  ZBESK
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -2390,14 +2358,7 @@ pub(crate) fn besk(
     nz
 }
 
-pub(crate) fn besy(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    cy: &mut [Complex64],
-    ierr: &mut i32,
-) -> i32 {
+pub(crate) fn besy(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &mut i32) -> i32 {
     //***BEGIN PROLOGUE  ZBESY
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -2546,8 +2507,8 @@ pub(crate) fn besy(
     //***ROUTINES CALLED  ZBESH,I1MACH,D1MACH
     //***END PROLOGUE  ZBESY
 
-    let c1: Complex64;
-    let c2: Complex64;
+    let c1: C64;
+    let c2: C64;
     let mut aa: f64;
     let mut bb: f64;
     let mut atol: f64;
@@ -2582,7 +2543,7 @@ pub(crate) fn besy(
 
     // NOTE: if this allocation fails, the C++ sets `*ierr = 6` ("Memory allocation failed.") and
     // returns 0, whereas Rust aborts.
-    let mut cwrk = vec![Complex64::ZERO; n as usize];
+    let mut cwrk = vec![C64::ZERO; n as usize];
 
     let nz2 = besh(z, fnu, kode, 2, n, &mut cwrk, ierr);
     if (*ierr != 0) && (*ierr != 3) {
@@ -2592,7 +2553,7 @@ pub(crate) fn besy(
     nz = if nz1 > nz2 { nz2 } else { nz1 };
     if kode != 2 {
         for i in 1..=n {
-            cy[(i - 1) as usize] = cmul(hci, cwrk[(i - 1) as usize] - cy[(i - 1) as usize]);
+            cy[(i - 1) as usize] = hci * (cwrk[(i - 1) as usize] - cy[(i - 1) as usize]);
         }
         return nz;
     }
@@ -2627,7 +2588,7 @@ pub(crate) fn besy(
             atol = tol;
         }
 
-        let mut st = cmul(c64(aa, bb), c2) * atol;
+        let mut st = c64(aa, bb) * c2 * atol;
         aa = cy[(i - 1) as usize].re;
         bb = cy[(i - 1) as usize].im;
         atol = 1.0;
@@ -2637,9 +2598,9 @@ pub(crate) fn besy(
             atol = tol;
         }
 
-        st -= cmul(c64(aa, bb), c1) * atol;
-        cy[(i - 1) as usize] = cmul(st, hci);
-        if (st == Complex64::ZERO) && (ey == 0.0) {
+        st -= c64(aa, bb) * c1 * atol;
+        cy[(i - 1) as usize] = st * hci;
+        if (st == C64::ZERO) && (ey == 0.0) {
             nz += 1;
         }
     }
@@ -2649,11 +2610,11 @@ pub(crate) fn besy(
 
 #[allow(clippy::collapsible_else_if)]
 fn binu(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    cy: &mut [Complex64],
+    cy: &mut [C64],
     rl: f64,
     fnul: f64,
     tol: f64,
@@ -2668,7 +2629,7 @@ fn binu(
     //***ROUTINES CALLED  AZABS,ZASYI,ZBUNI,ZMLRI,ZSERI,ZUOIK,ZWRSK
     //***END PROLOGUE  ZBINU
 
-    let mut cw = [Complex64::ZERO; 2];
+    let mut cw = [C64::ZERO; 2];
     let mut dfnu: f64;
     let inw: i32;
     let mut nlast: i32 = 0;
@@ -2799,7 +2760,7 @@ fn binu(
         nz = nn;
         /* 90 */
         for i in 0..nn {
-            cy[i as usize] = Complex64::ZERO;
+            cy[i as usize] = C64::ZERO;
         }
         return nz;
     }
@@ -2818,7 +2779,7 @@ fn binu(
     nz
 }
 
-pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Complex64 {
+pub(crate) fn biry(mut z: C64, id: i32, kode: i32, ierr: &mut i32) -> C64 {
     //***BEGIN PROLOGUE  ZBIRY
     //***DATE WRITTEN   830501   (YYMMDD)
     //***REVISION DATE  890801   (YYMMDD)
@@ -2941,17 +2902,17 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     //***ROUTINES CALLED  ZBINU,AZABS,ZDIV,AZSQRT,D1MACH,I1MACH
     //***END PROLOGUE  ZBIRY
 
-    let mut bi: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zta: Complex64;
+    let mut bi: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zta: C64;
     let mut aa: f64;
     let mut ak: f64;
     let mut bk: f64;
     let ck: f64;
     let mut bb: f64;
     let mut nz: i32;
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let tth: f64 = 2. / 3.;
     let c1: f64 = 0.614926627446000735150922369; /* 1/( 3**(1/6) Gamma(2/3)) */
     let c2: f64 = 0.448288357353826357914823710; /* 3**(1/6) / Gamma(1/3)    */
@@ -2967,7 +2928,7 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         *ierr = 1;
     }
     if *ierr != 0 {
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
     if z.im == 0.0 {
         z = c64(z.re, 0.0);
@@ -2979,18 +2940,18 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         //
         // POWER SERIES FOR ABS(Z) <= 1.
         //
-        s1 = c64(1.0, 0.0);
-        s2 = c64(1.0, 0.0);
+        s1 = C64::ONE;
+        s2 = C64::ONE;
         if az < tol {
             aa = c1 * (1.0 - fid) + fid * c2;
             return c64(aa, 0.0);
         }
         aa = az * az;
         if aa >= tol / az {
-            let mut trm1 = c64(1.0, 0.0);
-            let mut trm2 = c64(1.0, 0.0);
+            let mut trm1 = C64::ONE;
+            let mut trm2 = C64::ONE;
             let mut atrm: f64 = 1.0;
-            let z3 = cmul(cmul(z, z), z);
+            let z3 = z * z * z;
             let az3 = az * aa;
             ak = 2.0 + fid;
             bk = 3.0 - fid - fid;
@@ -3002,9 +2963,9 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
             ak = 24.0 + 9.0 * fid;
             bk = 30.0 - 9.0 * fid;
             for _k in 1..26 {
-                trm1 = cmul(trm1, z3 / d1);
+                trm1 *= z3 / d1;
                 s1 += trm1;
-                trm2 = cmul(trm2, z3 / d2);
+                trm2 *= z3 / d2;
                 s2 += trm2;
                 atrm *= az3 / ad;
                 d1 += ak;
@@ -3020,11 +2981,11 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         }
         /* 40 */
         if id != 1 {
-            bi = s1 * c1 + cmul(z, s2) * c2;
+            bi = s1 * c1 + z * s2 * c2;
             if kode == 1 {
                 return bi;
             }
-            zta = cmul(z, csqrt(z)) * tth;
+            zta = z * z.sqrt() * tth;
             aa = -zta.re.abs();
             bi *= aa.exp();
             return bi;
@@ -3032,12 +2993,12 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         /* 50 */
         bi = s2 * c2;
         if az > tol {
-            bi += cmul(cmul(z, z), s1) * c1 / (1.0 + fid);
+            bi += z * z * s1 * c1 / (1.0 + fid);
         }
         if kode == 1 {
             return bi;
         }
-        zta = cmul(z, csqrt(z)) * tth;
+        zta = z * z.sqrt() * tth;
         aa = -zta.re.abs();
         bi *= aa.exp();
         return bi;
@@ -3057,14 +3018,14 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
     aa = aa.powf(tth);
     if az > aa {
         *ierr = 4;
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
     aa = aa.sqrt();
     if az > aa {
         *ierr = 3;
     }
-    let csq = csqrt(z);
-    zta = cmul(z, csq) * tth;
+    let csq = z.sqrt();
+    zta = z * csq * tth;
     //
     // RE(ZTA) <= 0 WHEN RE(Z) < 0, ESPECIALLY WHEN IM(Z) IS SMALL
     //
@@ -3095,7 +3056,7 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
             sfac = tol;
             if bb > MAXLOG {
                 *ierr = 2;
-                return c64(0.0, 0.0);
+                return C64::ZERO;
             }
         }
     }
@@ -3120,43 +3081,34 @@ pub(crate) fn biry(mut z: Complex64, id: i32, kode: i32, ierr: &mut i32) -> Comp
         } else {
             *ierr = 5;
         }
-        return c64(0.0, 0.0);
+        return C64::ZERO;
     }
     aa = fmr * fnu;
     let z3 = c64(sfac, 0.0);
-    s1 = cmul(cmul(cy[0], c64(aa.cos(), aa.sin())), z3);
+    s1 = cy[0] * c64(aa.cos(), aa.sin()) * z3;
     fnu = (2.0 - fid) / 3.0;
     // NOTE: as in C++, the returned nz of this second binu call is never checked
     nz = binu(zta, fnu, kode, 2, &mut cy, rl, fnul, tol, elim, alim);
-    cy[0] = cmul(cy[0], z3);
-    cy[1] = cmul(cy[1], z3);
+    cy[0] *= z3;
+    cy[1] *= z3;
     //
     // BACKWARD RECUR ONE STEP FOR ORDERS -1/3 OR -2/3
     //
-    s2 = cdiv(cy[0] * (fnu + fnu), zta) + cy[1];
+    s2 = cy[0] * (fnu + fnu) / zta + cy[1];
     aa = fmr * (fnu - 1.0);
-    s1 = (s1 + cmul(s2, c64(aa.cos(), aa.sin()))) * coef;
+    s1 = (s1 + s2 * c64(aa.cos(), aa.sin())) * coef;
     if id != 1 {
-        s1 = cmul(s1, csq);
+        s1 *= csq;
         bi = s1 / sfac;
         return bi;
     }
     /* 120 */
-    s1 = cmul(s1, z);
+    s1 *= z;
     bi = s1 / sfac;
     bi
 }
 
-fn bknu(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    y: &mut [Complex64],
-    tol: f64,
-    elim: f64,
-    alim: f64,
-) -> i32 {
+fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64, alim: f64) -> i32 {
     //***BEGIN PROLOGUE  ZBKNU
     //***REFER TO  ZBESI,ZBESK,ZAIRY,ZBESH
     //
@@ -3177,24 +3129,24 @@ fn bknu(
         L190,
     }
 
-    let cch: Complex64;
-    let mut ck: Complex64;
-    let mut coef: Complex64;
-    let mut cs: Complex64;
-    let csh: Complex64;
-    let cz: Complex64;
-    let mut f: Complex64;
-    let fmu: Complex64;
-    let mut p: Complex64;
-    let mut pt: Complex64;
-    let mut p1: Complex64;
-    let mut p2: Complex64;
-    let mut q: Complex64;
-    let mut smu: Complex64;
-    let mut st: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zd: Complex64 = Complex64::ZERO; // uninitialized in C++; required by Rust (goto paths)
+    let cch: C64;
+    let mut ck: C64;
+    let mut coef: C64;
+    let mut cs: C64;
+    let csh: C64;
+    let cz: C64;
+    let mut f: C64;
+    let fmu: C64;
+    let mut p: C64;
+    let mut pt: C64;
+    let mut p1: C64;
+    let mut p2: C64;
+    let mut q: C64;
+    let mut smu: C64;
+    let mut st: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zd: C64 = C64::ZERO; // uninitialized in C++; required by Rust (goto paths)
     let aa: f64;
     let mut ak: f64;
     let mut ascle: f64;
@@ -3234,7 +3186,7 @@ fn bknu(
     let mut j: i32 = 0;
     let mut inub: i32 = 0;
     let mut i: i32 = 1;
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
 
     let kmax = 30;
     let r1 = 2.;
@@ -3256,21 +3208,21 @@ fn bknu(
     let xx: f64 = z.re;
     let yy: f64 = z.im;
     let caz: f64 = z.norm();
-    let cscl: Complex64 = c64(1. / tol, 0.0);
-    let crsc: Complex64 = c64(tol, 0.0);
-    let css: [Complex64; 3] = [cscl, c64(1., 0.0), crsc];
-    let csr: [Complex64; 3] = [crsc, c64(1., 0.0), cscl];
+    let cscl: C64 = c64(1. / tol, 0.0);
+    let crsc: C64 = c64(tol, 0.0);
+    let css: [C64; 3] = [cscl, C64::ONE, crsc];
+    let csr: [C64; 3] = [crsc, C64::ONE, cscl];
     let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / (1e3 * D1MACH[0]), D1MACH[1]];
     let mut nz = 0;
     iflag = 0;
     koded = kode;
-    let rz: Complex64 = rdiv(2.0, z);
+    let rz: C64 = 2.0 / z;
     inu = (fnu + 0.5) as i32;
     let dnu: f64 = fnu - f64::from(inu);
     // Definitions for silencing initialization warnings.
-    s1 = Complex64::ZERO;
-    s2 = Complex64::ZERO;
-    ck = Complex64::ZERO;
+    s1 = C64::ZERO;
+    s2 = C64::ZERO;
+    ck = C64::ZERO;
     dnu2 = 0.0;
     let mut goto: Goto = 'pre: {
         if dnu.abs() != 0.5 {
@@ -3284,13 +3236,13 @@ fn bknu(
                 fc = 1.;
                 // Unlike in xsf, ln(2/z) and p2 (2/z) below don't use `rz = 2/z` if it overflows.
                 smu = if rz.is_finite() {
-                    clog(rz)
+                    rz.ln()
                 } else {
-                    LN_2 - clog(z)
+                    LN_2 - z.ln()
                 };
                 fmu = smu * dnu;
-                csh = csinh(fmu);
-                cch = ccosh(fmu);
+                csh = fmu.sinh();
+                cch = fmu.cosh();
                 // Unlike in xsf, `fc` and `smu` keep their limits for `dnu -> 0` if `|dnu| <= tol`
                 // instead of only if `dnu = 0`, as `1 / sin(fc)` overflows for a subnormal `dnu`.
                 if dnu.abs() > tol {
@@ -3324,29 +3276,29 @@ fn bknu(
                 }
                 g2 = 0.5 * (t1 + t2);
                 f = fc * (g1 * cch + smu * g2);
-                pt = cexp(fmu);
+                pt = fmu.exp();
                 p = (0.5 / t2) * pt;
-                q = rdiv(0.5 / t1, pt);
+                q = 0.5 / t1 / pt;
                 s1 = f;
                 s2 = p;
                 ak = 1.0;
                 a1 = 1.0;
-                ck = c64(1.0, 0.0);
+                ck = C64::ONE;
                 bk = 1.0 - dnu2;
                 if (inu <= 0) && (n <= 1) {
                     //
                     // GENERATE K(FNU,Z), 0.0D0  <=  FNU  <  0.5D0 AND N=1
                     //
                     if caz >= tol {
-                        cz = cmul(z, z) * 0.25;
+                        cz = z * z * 0.25;
                         t1 = 0.25 * caz * caz;
                         loop {
                             f = (f * ak + p + q) / bk;
                             p /= ak - dnu;
                             q /= ak + dnu;
                             rk = 1.0 / ak;
-                            ck = cmul(ck, cz * rk);
-                            s1 += cmul(ck, f);
+                            ck *= cz * rk;
+                            s1 += ck * f;
                             a1 *= t1 * rk;
                             bk += ak + ak + 1.0;
                             ak += 1.0;
@@ -3359,23 +3311,23 @@ fn bknu(
                     if koded == 1 {
                         return nz;
                     }
-                    y[0] = cmul(s1, cexp(z));
+                    y[0] = s1 * z.exp();
                     return nz;
                 }
                 //
                 // GENERATE K(DNU,Z) AND K(DNU+1,Z) FOR FORWARD RECURRENCE
                 //
                 if caz >= tol {
-                    cz = cmul(z, z) * 0.25;
+                    cz = z * z * 0.25;
                     t1 = 0.25 * caz * caz;
                     loop {
                         f = (f * ak + p + q) / bk;
                         p *= 1.0 / (ak - dnu);
                         q *= 1.0 / (ak + dnu);
                         rk = 1. / ak;
-                        ck = cmul(ck, cz * rk);
-                        s1 += cmul(ck, f);
-                        s2 += cmul(ck, p - f * ak);
+                        ck *= cz * rk;
+                        s1 += ck * f;
+                        s2 += ck * (p - f * ak);
                         a1 *= t1 * rk;
                         bk += ak + ak + 1.0;
                         ak += 1.0;
@@ -3391,17 +3343,17 @@ fn bknu(
                 if ak > alim {
                     kflag = 3;
                 }
-                p2 = cmul(s2, css[(kflag - 1) as usize]);
+                p2 = s2 * css[(kflag - 1) as usize];
                 s2 = if rz.is_finite() {
-                    cmul(p2, rz)
+                    p2 * rz
                 } else {
-                    cdiv(2.0 * p2, z)
+                    2.0 * p2 / z
                 };
-                s1 = cmul(s1, css[(kflag - 1) as usize]);
+                s1 *= css[(kflag - 1) as usize];
                 if koded != 1 {
-                    f = cexp(z);
-                    s1 = cmul(s1, f);
-                    s2 = cmul(s2, f);
+                    f = z.exp();
+                    s1 *= f;
+                    s2 *= f;
                 }
                 break 'pre Goto::L100;
             }
@@ -3412,7 +3364,7 @@ fn bknu(
         // KODED=2 AND A TEST FOR ON SCALE VALUES IS MADE DURING FORWARD
         // RECURSION
         //
-        coef = rdiv(rthpi, csqrt(z));
+        coef = rthpi / z.sqrt();
         kflag = 2;
         if koded != 2 {
             if xx > alim {
@@ -3422,7 +3374,7 @@ fn bknu(
             } else {
                 a1 = (-xx).exp() * css[(kflag - 1) as usize].re;
                 pt = a1 * c64(yy.cos(), -yy.sin());
-                coef = cmul(coef, pt);
+                coef *= pt;
             }
         }
 
@@ -3513,7 +3465,7 @@ fn bknu(
         k = fk as i32;
         fk = f64::from(k);
         fks = fk * fk;
-        p1 = Complex64::ZERO;
+        p1 = C64::ZERO;
         p2 = c64(tol, 0.0);
         cs = p2;
         for _ in 1..=k {
@@ -3523,7 +3475,7 @@ fn bknu(
             t1 = (fk + xx) * rk;
             t2 = yy * rk;
             pt = p2;
-            p2 = (cmul(p2, c64(t1, t2)) - p1) * a2;
+            p2 = (p2 * c64(t1, t2) - p1) * a2;
             p1 = pt;
             cs += p2;
             fks = a1 - fk + 1.0;
@@ -3535,9 +3487,9 @@ fn bknu(
         //
         tm = cs.norm();
         pt = c64(1.0 / tm, 0.0);
-        s1 = cmul(pt, p2);
-        cs = cmul(cs.conj(), pt);
-        s1 = cmul(s1, cmul(coef, cs));
+        s1 = pt * p2;
+        cs = cs.conj() * pt;
+        s1 *= coef * cs;
         if (inu <= 0) && (n <= 1) {
             zd = z;
             if iflag == 1 {
@@ -3550,10 +3502,10 @@ fn bknu(
         //
         tm = p2.norm();
         pt = c64(1.0 / tm, 0.0);
-        p1 = cmul(pt, p1);
-        p2 = cmul(p2.conj(), pt);
-        pt = cmul(p1, p2);
-        s2 = cmul(s1, 1. + cdiv(rsub(dnu + 0.5, pt), z));
+        p1 = pt * p1;
+        p2 = p2.conj() * pt;
+        pt = p1 * p2;
+        s2 = s1 * (1. + (dnu + 0.5 - pt) / z);
         //
         // FORWARD RECURSION ON THE THREE TERM RECURSION RELATION WITH
         // SCALING NEAR EXPONENT EXTREMES ON KFLAG=1 OR KFLAG=3
@@ -3591,19 +3543,19 @@ fn bknu(
                 ascle = bry[(kflag - 1) as usize];
                 for _ in inub..=inu {
                     st = s2;
-                    s2 = cmul(ck, s2) + s1;
+                    s2 = ck * s2 + s1;
                     s1 = st;
                     ck += rz;
                     if kflag < 3 {
-                        p2 = cmul(s2, p1);
+                        p2 = s2 * p1;
                         p2m = p2.re.abs().max(p2.im.abs());
                         if p2m > ascle {
                             kflag += 1;
                             ascle = bry[(kflag - 1) as usize];
-                            s1 = cmul(s1, p1);
+                            s1 *= p1;
                             s2 = p2;
-                            s1 = cmul(s1, css[(kflag - 1) as usize]);
-                            s2 = cmul(s2, css[(kflag - 1) as usize]);
+                            s1 *= css[(kflag - 1) as usize];
+                            s2 *= css[(kflag - 1) as usize];
                             p1 = csr[(kflag - 1) as usize];
                         }
                     }
@@ -3614,11 +3566,11 @@ fn bknu(
                 goto = Goto::L130;
             },
             Goto::L130 => {
-                y[0] = cmul(s1, csr[(kflag - 1) as usize]);
+                y[0] = s1 * csr[(kflag - 1) as usize];
                 if n == 1 {
                     return nz;
                 }
-                y[1] = cmul(s2, csr[(kflag - 1) as usize]);
+                y[1] = s2 * csr[(kflag - 1) as usize];
                 if n == 2 {
                     return nz;
                 }
@@ -3634,20 +3586,20 @@ fn bknu(
                 ascle = bry[(kflag - 1) as usize];
                 for i in kk..=n {
                     p2 = s2;
-                    s2 = cmul(ck, s2) + s1;
+                    s2 = ck * s2 + s1;
                     s1 = p2;
                     ck += rz;
-                    p2 = cmul(s2, p1);
+                    p2 = s2 * p1;
                     y[(i - 1) as usize] = p2;
                     if kflag < 3 {
                         p2m = p2.re.abs().max(p2.im.abs());
                         if p2m > ascle {
                             kflag += 1;
                             ascle = bry[(kflag - 1) as usize];
-                            s1 = cmul(s1, p1);
+                            s1 *= p1;
                             s2 = p2;
-                            s1 = cmul(s1, css[(kflag - 1) as usize]);
-                            s2 = cmul(s2, css[(kflag - 1) as usize]);
+                            s1 *= css[(kflag - 1) as usize];
+                            s2 *= css[(kflag - 1) as usize];
                             p1 = csr[(kflag - 1) as usize];
                         }
                     }
@@ -3669,14 +3621,14 @@ fn bknu(
                     i = 1;
                     while i < (inu + 1) {
                         st = s2;
-                        s2 = cmul(ck, s2) + s1;
+                        s2 = ck * s2 + s1;
                         s1 = st;
                         ck += rz;
                         as_ = s2.norm();
                         alas = as_.ln();
                         p2r = alas - xd;
                         if p2r >= -elim {
-                            p2 = -zd + clog(s2);
+                            p2 = -zd + s2.ln();
                             p2r = p2.re;
                             p2i = p2.im;
                             p2m = p2r.exp() / tol;
@@ -3734,13 +3686,13 @@ fn bknu(
                 }
                 kk = nz + 1;
                 s1 = y[(kk - 1) as usize];
-                y[(kk - 1) as usize] = cmul(s1, csr[0]);
+                y[(kk - 1) as usize] = s1 * csr[0];
                 if inu == 1 {
                     return nz;
                 }
                 kk = nz + 2;
                 s2 = y[(kk - 1) as usize];
-                y[(kk - 1) as usize] = cmul(s2, csr[0]);
+                y[(kk - 1) as usize] = s2 * csr[0];
                 if inu == 2 {
                     return nz;
                 }
@@ -3754,11 +3706,11 @@ fn bknu(
 }
 
 fn buni(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     nui: i32,
     nlast: &mut i32,
     fnul: f64,
@@ -3778,12 +3730,12 @@ fn buni(
     //***ROUTINES CALLED  ZUNI1,ZUNI2,AZABS,D1MACH
     //***END PROLOGUE  ZBUNI
 
-    let mut cscl: Complex64;
-    let mut cscr: Complex64;
-    let rz: Complex64;
-    let mut st: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
+    let mut cscl: C64;
+    let mut cscr: C64;
+    let rz: C64;
+    let mut st: C64;
+    let mut s1: C64;
+    let mut s2: C64;
     let mut ax: f64;
     let mut ay: f64;
     let mut fnui: f64;
@@ -3797,7 +3749,7 @@ fn buni(
     let nl: i32;
     let mut nz: i32;
     let mut nw: i32 = 0; // uninitialized in C++
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let mut bry = [0.0_f64; 3];
 
     nz = 0;
@@ -3870,34 +3822,34 @@ fn buni(
         }
         ay = 1.0 / ax;
         cscr = c64(ay, 0.0);
-        s1 = cmul(cy[1], cscl);
-        s2 = cmul(cy[0], cscl);
-        rz = rdiv(2.0, z);
+        s1 = cy[1] * cscl;
+        s2 = cy[0] * cscl;
+        rz = 2.0 / z;
         for _ in 1..=nui {
             st = s2;
-            s2 = cmul((dfnu + fnui) * rz, st) + s1;
+            s2 = (dfnu + fnui) * rz * st + s1;
             s1 = st;
             fnui -= 1.0;
             if iflag < 3 {
-                st = cmul(s2, cscr);
+                st = s2 * cscr;
                 str = st.re.abs();
                 sti = st.im.abs();
                 stm = str.max(sti);
                 if stm > ascle {
                     iflag += 1;
                     ascle = bry[(iflag - 1) as usize];
-                    s1 = cmul(s1, cscr);
+                    s1 *= cscr;
                     s2 = st;
                     ax *= tol;
                     ay = 1.0 / ax;
                     cscl = c64(ax, 0.0);
                     cscr = c64(ay, 0.0);
-                    s1 = cmul(s1, cscl);
-                    s2 = cmul(s2, cscl);
+                    s1 *= cscl;
+                    s2 *= cscl;
                 }
             }
         }
-        y[(n - 1) as usize] = cmul(s2, cscr);
+        y[(n - 1) as usize] = s2 * cscr;
         if n == 1 {
             return nz;
         }
@@ -3906,28 +3858,28 @@ fn buni(
         k = nl;
         for _ in 0..nl {
             st = s2;
-            s2 = cmul((fnu + fnui) * rz, s2) + s1;
+            s2 = (fnu + fnui) * rz * s2 + s1;
             s1 = st;
-            st = cmul(s2, cscr);
+            st = s2 * cscr;
             y[(k - 1) as usize] = st;
             fnui -= 1.0;
             k -= 1;
             if iflag < 3 {
-                st = cmul(s2, cscr);
+                st = s2 * cscr;
                 str = st.re.abs();
                 sti = st.im.abs();
                 stm = str.max(sti);
                 if stm > ascle {
                     iflag += 1;
                     ascle = bry[(iflag - 1) as usize];
-                    s1 = cmul(s1, cscr);
+                    s1 *= cscr;
                     s2 = st;
                     ax *= tol;
                     ay = 1.0 / ax;
                     cscl = c64(ax, 0.0);
                     cscr = c64(ay, 0.0);
-                    s1 = cmul(s1, cscl);
-                    s2 = cmul(s2, cscl);
+                    s1 *= cscl;
+                    s2 *= cscl;
                 }
             }
         }
@@ -3941,12 +3893,12 @@ fn buni(
 }
 
 fn bunk(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     mr: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     tol: f64,
     elim: f64,
     alim: f64,
@@ -4092,7 +4044,7 @@ fn gamln(z: f64) -> f64 {
     f64::NAN
 }
 
-fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64) -> i32 {
+fn mlri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64) -> i32 {
     //***BEGIN PROLOGUE  ZMLRI
     //***REFER TO  ZBESI,ZBESK
     //
@@ -4102,11 +4054,11 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     //***ROUTINES CALLED  DGAMLN,D1MACH,AZABS,AZEXP,AZLOG,ZMLT
     //***END PROLOGUE  ZMLRI
 
-    let mut ck: Complex64;
-    let mut pt: Complex64;
-    let mut p1: Complex64;
-    let mut p2: Complex64;
-    let mut sum: Complex64;
+    let mut ck: C64;
+    let mut pt: C64;
+    let mut p1: C64;
+    let mut p2: C64;
+    let mut sum: C64;
     let mut ack: f64;
     let mut ak: f64;
     let mut ap: f64;
@@ -4129,10 +4081,10 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     let ifnu: i32 = fnu as i32;
     let inu: i32 = ifnu + n - 1;
     at = f64::from(iaz + 1);
-    ck = rdiv(at, z);
-    let rz: Complex64 = rdiv(2.0, z);
-    p1 = Complex64::ZERO;
-    p2 = c64(1., 0.0);
+    ck = at / z;
+    let rz: C64 = 2.0 / z;
+    p1 = C64::ZERO;
+    p2 = C64::ONE;
     ack = (at + 1.0) / az;
     rho = ack + (ack * ack - 1.).sqrt();
     let rho2: f64 = rho * rho;
@@ -4145,7 +4097,7 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     i = 1;
     while i < 81 {
         pt = p2;
-        p2 = p1 - cmul(ck, p2);
+        p2 = p1 - ck * p2;
         p1 = pt;
         ck += rz;
         ap = p2.norm();
@@ -4165,17 +4117,17 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
         //
         // COMPUTE RELATIVE TRUNCATION ERROR FOR RATIOS
         //
-        p1 = Complex64::ZERO;
-        p2 = c64(1.0, 0.0);
+        p1 = C64::ZERO;
+        p2 = C64::ONE;
         at = f64::from(inu + 1);
-        ck = rdiv(at, z);
+        ck = at / z;
         ack = at / az;
         tst = (ack / tol).sqrt();
         itime = 1;
         k = 1;
         while k < 81 {
             pt = p2;
-            p2 = p1 - cmul(ck, p2);
+            p2 = p1 - ck * p2;
             p1 = pt;
             ck += rz;
             ap = p2.norm();
@@ -4203,7 +4155,7 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     k += 1;
     let kk: i32 = f64::from(i + iaz).max(f64::from(k + inu)) as i32;
     fkk = f64::from(kk);
-    p1 = Complex64::ZERO;
+    p1 = C64::ZERO;
     //
     // SCALE P2 AND SUM BY SCLE
     //
@@ -4212,11 +4164,11 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     let tfnf: f64 = fnf + fnf;
     bk = gamln(fkk + tfnf + 1.0) - gamln(fkk + 1.0) - gamln(tfnf + 1.0);
     bk = bk.exp();
-    sum = Complex64::ZERO;
+    sum = C64::ZERO;
     let km: i32 = kk - inu;
     for _ in 1..=km {
         pt = p2;
-        p2 = p1 + cmul((fkk + fnf) * rz, p2);
+        p2 = p1 + (fkk + fnf) * rz * p2;
         p1 = pt;
         ak = 1. - tfnf / (fkk + tfnf);
         ack = bk * ak;
@@ -4228,7 +4180,7 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     if n != 1 {
         for i in 2..=n {
             pt = p2;
-            p2 = p1 + cmul((fkk + fnf) * rz, p2);
+            p2 = p1 + (fkk + fnf) * rz * p2;
             p1 = pt;
             ak = 1. - tfnf / (fkk + tfnf);
             ack = bk * ak;
@@ -4242,7 +4194,7 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     if ifnu > 0 {
         for _ in 1..=ifnu {
             pt = p2;
-            p2 = p1 + cmul((fkk + fnf) * rz, p2);
+            p2 = p1 + (fkk + fnf) * rz * p2;
             p1 = pt;
             ak = 1. - tfnf / (fkk + tfnf);
             ack = bk * ak;
@@ -4255,7 +4207,7 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     if kode == 2 {
         pt -= x;
     }
-    p1 = -fnf * clog(rz) + pt;
+    p1 = -fnf * rz.ln() + pt;
     ap = gamln(1. + fnf);
     pt = p1 - ap;
     //
@@ -4265,21 +4217,21 @@ fn mlri(z: Complex64, fnu: f64, kode: i32, n: i32, y: &mut [Complex64], tol: f64
     p2 += sum;
     ap = p2.norm();
     p1 = c64(1. / ap, 0.0);
-    ck = cmul(cexp(pt), p1);
-    pt = cmul(p2.conj(), p1);
-    let cnorm: Complex64 = cmul(ck, pt);
+    ck = pt.exp() * p1;
+    pt = p2.conj() * p1;
+    let cnorm: C64 = ck * pt;
     for i in 0..n {
-        y[i as usize] = cmul(y[i as usize], cnorm);
+        y[i as usize] *= cnorm;
     }
     nz
 }
 
 fn kscl(
-    zr: Complex64,
+    zr: C64,
     fnu: f64,
     n: i32,
-    y: &mut [Complex64],
-    rz: Complex64,
+    y: &mut [C64],
+    rz: C64,
     ascle: &mut f64,
     tol: f64,
     elim: f64,
@@ -4294,17 +4246,17 @@ fn kscl(
     //***ROUTINES CALLED  ZUCHK,AZABS,AZLOG
     //***END PROLOGUE  ZKSCL
 
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     // NOTE: C++ `as` and `fn` are Rust keywords, renamed to `as_` and `fn_`
     let mut as_: f64;
     let mut acs: f64;
     let mut alas: f64;
     let mut xx: f64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut cs: Complex64;
-    let mut ck: Complex64;
-    let mut zd: Complex64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut cs: C64;
+    let mut ck: C64;
+    let mut zd: C64;
     let mut nz = 0;
     let mut ic = 0;
     let nn = if n > 2 { 2 } else { n };
@@ -4318,11 +4270,11 @@ fn kscl(
         as_ = s1.norm();
         acs = -zr.re + as_.ln();
         nz += 1;
-        y[(i - 1) as usize] = Complex64::ZERO;
+        y[(i - 1) as usize] = C64::ZERO;
         if acs < -elim {
             continue;
         }
-        cs = -zr + clog(s1);
+        cs = -zr + s1.ln();
         cs = (cs.re.exp() / tol) * c64(cs.im.cos(), cs.im.sin());
         if uchk(cs, *ascle, tol) == 0 {
             y[(i - 1) as usize] = cs;
@@ -4334,7 +4286,7 @@ fn kscl(
         return nz;
     }
     if ic <= 1 {
-        y[0] = Complex64::ZERO;
+        y[0] = C64::ZERO;
         nz = 2;
     }
     if n == 2 {
@@ -4353,7 +4305,7 @@ fn kscl(
     for i in 3..=n {
         kk = i;
         cs = s2;
-        s2 = cmul(s2, ck);
+        s2 *= ck;
         s2 += s1;
         s1 = cs;
         ck += rz;
@@ -4361,9 +4313,9 @@ fn kscl(
         alas = as_.ln();
         acs = alas - xx;
         nz += 1;
-        y[(i - 1) as usize] = Complex64::ZERO;
+        y[(i - 1) as usize] = C64::ZERO;
         if acs >= -elim {
-            cs = clog(s2);
+            cs = s2.ln();
             cs -= zd;
             cs = (cs.re.exp() / tol) * c64(cs.im.cos(), cs.im.sin());
             if uchk(cs, *ascle, tol) == 0 {
@@ -4372,7 +4324,7 @@ fn kscl(
                 if ic == kk - 1 {
                     nz = kk - 2;
                     for i in 0..nz {
-                        y[i as usize] = Complex64::ZERO;
+                        y[i as usize] = C64::ZERO;
                     }
                     return nz;
                 }
@@ -4393,12 +4345,12 @@ fn kscl(
     }
 
     for i in 0..nz {
-        y[i as usize] = Complex64::ZERO;
+        y[i as usize] = C64::ZERO;
     }
     nz
 }
 
-fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
+fn rati(z: C64, fnu: f64, n: i32, cy: &mut [C64], tol: f64) {
     //***BEGIN PROLOGUE  ZRATI
     //***REFER TO  ZBESI,ZBESK,ZBESH
     //
@@ -4412,11 +4364,11 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     //***ROUTINES CALLED  AZABS,ZDIV
     //***END PROLOGUE  ZRATI
 
-    let mut cdfnu: Complex64;
-    let mut pt: Complex64;
-    let mut p1: Complex64;
-    let mut p2: Complex64;
-    let mut t1: Complex64;
+    let mut cdfnu: C64;
+    let mut pt: C64;
+    let mut p1: C64;
+    let mut p2: C64;
+    let mut t1: C64;
     let mut ak: f64;
     let mut ap1: f64;
     let mut ap2: f64;
@@ -4437,10 +4389,10 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     id = idnu - magz - 1;
     itime = 1;
     k = 1;
-    let rz: Complex64 = rdiv(2.0, z);
+    let rz: C64 = 2.0 / z;
     t1 = fnup * rz;
     p2 = -t1;
-    p1 = c64(1.0, 0.0);
+    p1 = C64::ONE;
     t1 += rz;
     if id > 0 {
         id = 0;
@@ -4465,7 +4417,7 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
         k += 1;
         ap1 = ap2;
         pt = p2;
-        p2 = p1 - cmul(t1, p2);
+        p2 = p1 - t1 * p2;
         p1 = pt;
         t1 += rz;
         ap2 = p2.norm();
@@ -4486,11 +4438,11 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     cdfnu = c64(dfnu, 0.0);
     t1 = c64(ak, 0.0);
     p1 = c64(1.0 / ap2, 0.0);
-    p2 = c64(0.0, 0.0);
+    p2 = C64::ZERO;
 
     for _i in 1..=kk {
         pt = p1;
-        p1 = cmul(cmul(rz, cdfnu + t1), p1) + p2;
+        p1 = rz * (cdfnu + t1) * p1 + p2;
         p2 = pt;
         t1 -= 1.0;
     }
@@ -4499,7 +4451,7 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
         p1 = c64(tol, tol);
     }
 
-    cy[(n - 1) as usize] = cdiv(p2, p1);
+    cy[(n - 1) as usize] = p2 / p1;
     if n == 1 {
         return;
     }
@@ -4509,26 +4461,17 @@ fn rati(z: Complex64, fnu: f64, n: i32, cy: &mut [Complex64], tol: f64) {
     cdfnu = fnu * rz;
 
     for _i in 2..=n {
-        pt = cdfnu + cmul(t1, rz) + cy[k as usize];
+        pt = cdfnu + t1 * rz + cy[k as usize];
         if pt.re == 0.0 && pt.im == 0.0 {
             pt = c64(tol, tol);
         }
-        cy[(k - 1) as usize] = rdiv(1.0, pt);
+        cy[(k - 1) as usize] = 1.0 / pt;
         t1 -= 1.0;
         k -= 1;
     }
 }
 
-fn seri(
-    z: Complex64,
-    fnu: f64,
-    kode: i32,
-    n: i32,
-    y: &mut [Complex64],
-    tol: f64,
-    elim: f64,
-    alim: f64,
-) -> i32 {
+fn seri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64, alim: f64) -> i32 {
     //***BEGIN PROLOGUE  ZSERI
     //***REFER TO  ZBESI,ZBESK
     //
@@ -4543,16 +4486,16 @@ fn seri(
     //***ROUTINES CALLED  DGAMLN,D1MACH,ZUCHK,AZABS,ZDIV,AZLOG,ZMLT
     //***END PROLOGUE  ZSERI
 
-    let mut ak1: Complex64;
-    let mut ck: Complex64;
-    let mut coef: Complex64;
-    let mut crsc: Complex64;
-    let mut cz: Complex64;
-    let half_z: Complex64;
-    let rz: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut w = [Complex64::ZERO; 2];
+    let mut ak1: C64;
+    let mut ck: C64;
+    let mut coef: C64;
+    let mut crsc: C64;
+    let mut cz: C64;
+    let half_z: C64;
+    let rz: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut w = [C64::ZERO; 2];
     let mut aa: f64;
     let acz: f64;
     let mut ak: f64;
@@ -4577,37 +4520,37 @@ fn seri(
     let mut nz = 0;
     let az: f64 = z.norm();
     if az == 0.0 {
-        y[0] = c64(0.0, 0.0);
+        y[0] = C64::ZERO;
         if fnu == 0. {
-            y[0] = c64(1.0, 0.0);
+            y[0] = C64::ONE;
         }
         if n == 1 {
             return nz;
         }
         for i in 1..n {
-            y[i as usize] = c64(0.0, 0.0);
+            y[i as usize] = C64::ZERO;
         }
         return nz;
     }
     let x: f64 = z.re;
     let arm: f64 = 1e3 * D1MACH[0];
     let rtr1: f64 = arm.sqrt();
-    crsc = c64(1.0, 0.0);
+    crsc = C64::ONE;
     iflag = 0;
     // Unlike in xsf, also sum the series for 0 < |z| < arm (where I_fnu(z) can be normal), with
     // ln(z/2) = ln(z) - ln(2) if z/2 can be subnormal.
     if az > 0.0 {
         half_z = 0.5 * z;
-        cz = c64(0.0, 0.0);
+        cz = C64::ZERO;
         if az > rtr1 {
-            cz = cmul(half_z, half_z);
+            cz = half_z * half_z;
         }
         acz = cz.norm();
         nn = n;
         ck = if az < 2.0 * D1MACH[0] {
-            clog(z) - LN_2
+            z.ln() - LN_2
         } else {
-            clog(half_z)
+            half_z.ln()
         };
         loop {
             // L10:
@@ -4646,15 +4589,15 @@ fn seri(
                 for i in 1..=il {
                     dfnu = fnu + f64::from(nn - i);
                     fnup = dfnu + 1.0;
-                    s1 = c64(1.0, 0.0);
+                    s1 = C64::ONE;
                     if acz >= tol * fnup {
-                        ak1 = c64(1.0, 0.0);
+                        ak1 = C64::ONE;
                         ak = fnup + 2.0;
                         s = fnup;
                         aa = 2.0;
                         loop {
                             rs = 1.0 / s;
-                            ak1 = cmul(ak1, cz);
+                            ak1 *= cz;
                             ak1 *= rs;
                             s1 += ak1;
                             s += ak;
@@ -4666,15 +4609,15 @@ fn seri(
                             }
                         }
                     }
-                    s2 = cmul(s1, coef);
+                    s2 = s1 * coef;
                     w[(i - 1) as usize] = s2;
                     if iflag != 0 && uchk(s2, ascle, tol) != 0 {
                         break 'l20; // goto L20;
                     }
                     m = nn - i + 1;
-                    y[(m - 1) as usize] = cmul(s2, crsc);
+                    y[(m - 1) as usize] = s2 * crsc;
                     if i != il {
-                        coef = cmul(coef, rdiv(dfnu, half_z));
+                        coef *= dfnu / half_z;
                     }
                 }
                 if nn <= 2 {
@@ -4682,7 +4625,7 @@ fn seri(
                 }
                 k = nn - 2;
                 ak = f64::from(k);
-                rz = rdiv(2.0, z);
+                rz = 2.0 / z;
                 'l60: {
                     if iflag != 1 {
                         ib = 3;
@@ -4703,9 +4646,9 @@ fn seri(
                         for l_ in 3..=nn {
                             l = l_;
                             ck = s2;
-                            s2 = s1 + cmul((ak + fnu) * rz, s2);
+                            s2 = s1 + (ak + fnu) * rz * s2;
                             s1 = ck;
-                            ck = cmul(s2, crsc);
+                            ck = s2 * crsc;
                             y[(k - 1) as usize] = ck;
                             ak -= 1.0;
                             k -= 1;
@@ -4724,8 +4667,7 @@ fn seri(
                 }
                 // L60:
                 for _i in ib..=nn {
-                    y[(k - 1) as usize] =
-                        cmul((ak + fnu) * rz, y[k as usize]) + y[(k + 1) as usize];
+                    y[(k - 1) as usize] = (ak + fnu) * rz * y[k as usize] + y[(k + 1) as usize];
                     ak -= 1.0;
                     k -= 1;
                 }
@@ -4733,7 +4675,7 @@ fn seri(
             }
             // L20:
             nz += 1;
-            y[(nn - 1) as usize] = c64(0.0, 0.0);
+            y[(nn - 1) as usize] = C64::ZERO;
             //
             // RETURN WITH NZ < 0 IF ABS(Z*Z/4) > FNU+N-NZ-1 COMPLETE
             // THE CALCULATION IN CBINU WITH N=N-ABS(NZ)
@@ -4752,27 +4694,20 @@ fn seri(
     if fnu == 0.0 {
         nz -= 1;
     }
-    y[0] = c64(0.0, 0.0);
+    y[0] = C64::ZERO;
     if fnu == 0. {
-        y[0] = c64(1.0, 0.0);
+        y[0] = C64::ONE;
     }
     if n == 1 {
         return nz;
     }
     for i in 1..n {
-        y[i as usize] = c64(0.0, 0.0);
+        y[i as usize] = C64::ZERO;
     }
     nz
 }
 
-fn s1s2(
-    zr: Complex64,
-    s1: &mut Complex64,
-    s2: &mut Complex64,
-    ascle: f64,
-    alim: f64,
-    iuf: &mut i32,
-) -> i32 {
+fn s1s2(zr: C64, s1: &mut C64, s2: &mut C64, ascle: f64, alim: f64, iuf: &mut i32) -> i32 {
     //***BEGIN PROLOGUE  ZS1S2
     //***REFER TO  ZBESK,ZAIRY
     //
@@ -4787,8 +4722,8 @@ fn s1s2(
     //***ROUTINES CALLED  AZABS,AZEXP,AZLOG
     //***END PROLOGUE  ZS1S2
 
-    let c1: Complex64;
-    let s1d: Complex64;
+    let c1: C64;
+    let s1d: C64;
     let mut aa: f64;
     let mut aln: f64;
     let mut as1: f64;
@@ -4803,11 +4738,11 @@ fn s1s2(
         xx = zr.re;
         aln = -xx - xx + as1.ln();
         s1d = *s1;
-        *s1 = c64(0.0, 0.0);
+        *s1 = C64::ZERO;
         as1 = 0.;
         if aln >= -alim {
-            c1 = clog(s1d) - zr - zr;
-            *s1 = cexp(c1);
+            c1 = s1d.ln() - zr - zr;
+            *s1 = c1.exp();
             as1 = s1.norm();
             *iuf += 1;
         }
@@ -4816,13 +4751,13 @@ fn s1s2(
     if aa > ascle {
         return nz;
     }
-    *s1 = c64(0.0, 0.0);
-    *s2 = c64(0.0, 0.0);
+    *s1 = C64::ZERO;
+    *s2 = C64::ZERO;
     *iuf = 0;
     1
 }
 
-fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
+fn uchk(y: C64, ascle: f64, tol: f64) -> i32 {
     //***BEGIN PROLOGUE  ZUCHK
     //***REFER TO ZSERI,ZUOIK,ZUNK1,ZUNK2,ZUNI1,ZUNI2,ZKSCL
     //
@@ -4850,16 +4785,16 @@ fn uchk(y: Complex64, ascle: f64, tol: f64) -> i32 {
 }
 
 fn unhj(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     ipmtr: i32,
     tol: f64,
-    phi: &mut Complex64,
-    arg: &mut Complex64,
-    zeta1: &mut Complex64,
-    zeta2: &mut Complex64,
-    asum: &mut Complex64,
-    bsum: &mut Complex64,
+    phi: &mut C64,
+    arg: &mut C64,
+    zeta1: &mut C64,
+    zeta2: &mut C64,
+    asum: &mut C64,
+    bsum: &mut C64,
 ) {
     //***BEGIN PROLOGUE  ZUNHJ
     //***REFER TO  ZBESI,ZBESK
@@ -4893,21 +4828,21 @@ fn unhj(
     //***ROUTINES CALLED  AZABS,ZDIV,AZLOG,AZSQRT,D1MACH
     //***END PROLOGUE  ZUNHJ
 
-    let cfnu: Complex64;
-    let mut przth: Complex64;
-    let mut ptfn: Complex64;
-    let rtzta: Complex64;
-    let rzth: Complex64;
-    let mut suma: Complex64;
-    let mut sumb: Complex64;
-    let tfn: Complex64;
-    let t2: Complex64;
-    let w: Complex64;
-    let mut w2: Complex64;
-    let mut za: Complex64;
-    let mut zc: Complex64;
-    let zeta: Complex64;
-    let zth: Complex64;
+    let cfnu: C64;
+    let mut przth: C64;
+    let mut ptfn: C64;
+    let rtzta: C64;
+    let rzth: C64;
+    let mut suma: C64;
+    let mut sumb: C64;
+    let tfn: C64;
+    let t2: C64;
+    let w: C64;
+    let mut w2: C64;
+    let mut za: C64;
+    let mut zc: C64;
+    let zeta: C64;
+    let zth: C64;
     let mut ang: f64;
     let mut atol: f64;
     let azth: f64;
@@ -4944,10 +4879,10 @@ fn unhj(
     let mut l2: i32;
     let mut m: i32;
     /* array vars */
-    let mut cr = [Complex64::ZERO; 14];
-    let mut dr = [Complex64::ZERO; 14];
-    let mut up = [Complex64::ZERO; 14];
-    let mut p = [Complex64::ZERO; 30];
+    let mut cr = [C64::ZERO; 14];
+    let mut dr = [C64::ZERO; 14];
+    let mut up = [C64::ZERO; 14];
+    let mut p = [C64::ZERO; 30];
     let mut ap = [0.0_f64; 30];
 
     let rfnu: f64 = 1. / fnu;
@@ -4959,11 +4894,11 @@ fn unhj(
     if (z.re.abs() <= ac) && (z.im.abs() <= ac) {
         *zeta1 = c64(2.0 * test.ln().abs() + fnu, 0.0);
         *zeta2 = c64(fnu, 0.0);
-        *phi = c64(1., 0.0);
-        *arg = c64(1., 0.0);
+        *phi = C64::ONE;
+        *arg = C64::ONE;
         return;
     }
-    let zb: Complex64 = z * rfnu;
+    let zb: C64 = z * rfnu;
     let rfnu2: f64 = rfnu * rfnu;
     //
     // COMPUTE IN THE FOURTH QUADRANT
@@ -4971,9 +4906,9 @@ fn unhj(
     let fn13: f64 = fnu.powf(ex1);
     let fn23: f64 = fn13 * fn13;
     let rfn13: f64 = 1.0 / fn13;
-    w2 = rsub(1.0, cmul(zb, zb));
+    w2 = 1.0 - zb * zb;
     /* AMOS AZSQRT and C CSQRT differs when imaginary 0.0 swaps sign */
-    w2 = rsub(1.0, cmul(zb, zb));
+    w2 = 1.0 - zb * zb;
     if w2.im == -0.0 {
         w2 = c64(w2.re, 0.0);
     }
@@ -4983,13 +4918,13 @@ fn unhj(
         // POWER SERIES FOR ABS(W2) <= 0.25
         //
         k = 1;
-        p[0] = c64(1., 0.0);
+        p[0] = C64::ONE;
         suma = c64(ZUNHJ_GAMA[0], 0.0);
         ap[0] = 1.;
         if aw2 >= tol {
             k = 2;
             while k < 31 {
-                p[(k - 1) as usize] = cmul(p[(k - 2) as usize], w2);
+                p[(k - 1) as usize] = p[(k - 2) as usize] * w2;
                 suma += p[(k - 1) as usize] * ZUNHJ_GAMA[(k - 1) as usize];
                 ap[(k - 1) as usize] = ap[(k - 2) as usize] * aw2;
                 if ap[(k - 1) as usize] < tol {
@@ -5004,24 +4939,24 @@ fn unhj(
         }
 
         kmax = k;
-        zeta = cmul(w2, suma);
+        zeta = w2 * suma;
         *arg = zeta * fn23;
-        za = csqrt(suma);
-        *zeta2 = csqrt(w2) * fnu;
-        *zeta1 = cmul(*zeta2, 1. + cmul(zeta, za) * ex2);
+        za = suma.sqrt();
+        *zeta2 = w2.sqrt() * fnu;
+        *zeta1 = *zeta2 * (1. + zeta * za * ex2);
         za = za + za;
-        *phi = csqrt(za) * rfn13;
+        *phi = za.sqrt() * rfn13;
         if ipmtr == 1 {
             return;
         }
         //
         // SUM SERIES FOR ASUM AND BSUM
         //
-        sumb = c64(0.0, 0.0);
+        sumb = C64::ZERO;
         for k in 1..=kmax {
             sumb += p[(k - 1) as usize] * ZUNHJ_BETA[(k - 1) as usize];
         }
-        *asum = c64(0.0, 0.0);
+        *asum = C64::ZERO;
         *bsum = sumb;
         l1 = 0;
         l2 = 30;
@@ -5041,7 +4976,7 @@ fn unhj(
             atol /= rfnu2;
             pp *= rfnu2;
             if ias != 1 {
-                suma = c64(0.0, 0.0);
+                suma = C64::ZERO;
                 for k in 1..=kmax {
                     m = l1 + k;
                     suma += p[(k - 1) as usize] * ZUNHJ_ALFA[(m - 1) as usize];
@@ -5055,7 +4990,7 @@ fn unhj(
                 }
             }
             if ibs != 1 {
-                sumb = c64(0.0, 0.0);
+                sumb = C64::ZERO;
                 for k in 1..=kmax {
                     m = l2 + k;
                     sumb += p[(k - 1) as usize] * ZUNHJ_BETA[(m - 1) as usize];
@@ -5079,7 +5014,7 @@ fn unhj(
     } else {
         //
         // ABS(W2) > 0.25
-        w = csqrt(w2);
+        w = w2.sqrt();
         wr = w.re;
         wi = w.im;
         if wr < 0. {
@@ -5090,8 +5025,8 @@ fn unhj(
         }
         // NOTE: like in C++, the clamped `wr` and `wi` are never used; `w` itself is used below
         // (the Fortran uses the clamped `WR`, `WI` for `ZA`, `ZTH`, and `ZETA2`)
-        za = cdiv(1. + w, zb);
-        zc = clog(za);
+        za = (1. + w) / zb;
+        zc = za.ln();
         zcr = zc.re;
         zci = zc.im;
         if zci < 0. {
@@ -5106,8 +5041,8 @@ fn unhj(
         zc = c64(zcr, zci);
         zth = (zc - w) * 1.5;
         cfnu = c64(fnu, 0.0);
-        *zeta1 = cmul(zc, cfnu);
-        *zeta2 = cmul(w, cfnu);
+        *zeta1 = zc * cfnu;
+        *zeta2 = w * cfnu;
         azth = zth.norm();
         zthr = zth.re;
         zthi = zth.im;
@@ -5130,29 +5065,29 @@ fn unhj(
         }
         zeta = c64(zetar, zetai);
         *arg = zeta * fn23;
-        rtzta = cdiv(zth, zeta);
-        za = cdiv(rtzta, w);
-        *phi = csqrt(za + za) * rfn13;
+        rtzta = zth / zeta;
+        za = rtzta / w;
+        *phi = (za + za).sqrt() * rfn13;
         if ipmtr == 1 {
             return;
         }
-        tfn = rdiv(rfnu, w);
-        rzth = rdiv(rfnu, zth);
+        tfn = rfnu / w;
+        rzth = rfnu / zth;
         zc = rzth * ZUNHJ_AR[1];
-        t2 = rdiv(1.0, w2);
-        up[1] = cmul(t2 * ZUNHJ_C[1] + ZUNHJ_C[2], tfn);
+        t2 = 1.0 / w2;
+        up[1] = (t2 * ZUNHJ_C[1] + ZUNHJ_C[2]) * tfn;
         *bsum = up[1] + zc;
-        *asum = c64(0., 0.0);
+        *asum = C64::ZERO;
 
         if rfnu < tol {
             *asum += 1.;
-            *bsum = cmul(*bsum, rdiv(-rfn13, rtzta));
+            *bsum *= -rfn13 / rtzta;
             return;
         }
 
         przth = rzth;
         ptfn = tfn;
-        up[0] = c64(1.0, 0.0);
+        up[0] = C64::ONE;
         pp = 1.0;
         bsumr = bsum.re;
         bsumi = bsum.im;
@@ -5176,12 +5111,12 @@ fn unhj(
                 za = c64(ZUNHJ_C[(l - 1) as usize], 0.0);
                 for _j in 2..=kp1 {
                     l += 1;
-                    za = cmul(za, t2) + ZUNHJ_C[(l - 1) as usize];
+                    za = za * t2 + ZUNHJ_C[(l - 1) as usize];
                 }
-                ptfn = cmul(ptfn, tfn);
-                up[(kp1 - 1) as usize] = cmul(ptfn, za);
+                ptfn *= tfn;
+                up[(kp1 - 1) as usize] = ptfn * za;
                 cr[(ks - 1) as usize] = przth * ZUNHJ_BR[ks as usize];
-                przth = cmul(przth, rzth);
+                przth *= rzth;
                 dr[(ks - 1) as usize] = przth * ZUNHJ_AR[(ks + 1) as usize];
             }
             pp *= rfnu2;
@@ -5190,7 +5125,7 @@ fn unhj(
                 ju = lrp1;
                 for jr in 1..lrp1 {
                     ju -= 1;
-                    suma += cmul(cr[(jr - 1) as usize], up[(ju - 1) as usize]);
+                    suma += cr[(jr - 1) as usize] * up[(ju - 1) as usize];
                 }
                 *asum += suma;
                 asumr = asum.re;
@@ -5201,11 +5136,11 @@ fn unhj(
                 }
             }
             if ibs != 1 {
-                sumb = up[(lr + 1) as usize] + cmul(up[lr as usize], zc);
+                sumb = up[(lr + 1) as usize] + up[lr as usize] * zc;
                 ju = lrp1;
                 for jr in 1..lrp1 {
                     ju -= 1;
-                    sumb += cmul(dr[(jr - 1) as usize], up[(ju - 1) as usize]);
+                    sumb += dr[(jr - 1) as usize] * up[(ju - 1) as usize];
                 }
                 *bsum += sumb;
                 bsumr = bsum.re;
@@ -5220,16 +5155,16 @@ fn unhj(
             }
         }
         *asum += 1.;
-        *bsum = cmul(*bsum, rdiv(-rfn13, rtzta));
+        *bsum *= -rfn13 / rtzta;
     }
 }
 
 fn uni1(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     nz: &mut i32,
     nlast: &mut i32,
     fnul: f64,
@@ -5252,14 +5187,14 @@ fn uni1(
     //***ROUTINES CALLED  ZUCHK,ZUNIK,ZUOIK,D1MACH,AZABS
     //***END PROLOGUE  ZUNI1
 
-    let mut c2: Complex64;
-    let mut phi = Complex64::ZERO;
-    let rz: Complex64;
-    let mut sum = Complex64::ZERO;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zeta1 = c64(0.0, 0.0);
-    let mut zeta2 = c64(0.0, 0.0);
+    let mut c2: C64;
+    let mut phi = C64::ZERO;
+    let rz: C64;
+    let mut sum = C64::ZERO;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zeta1 = C64::ZERO;
+    let mut zeta2 = C64::ZERO;
     let mut aphi: f64;
     let mut ascle: f64;
     let mut c1r: f64;
@@ -5273,8 +5208,8 @@ fn uni1(
     let mut nd: i32;
     let mut nn: i32;
     let mut nuf: i32;
-    let mut cwrk = [Complex64::ZERO; 16];
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cwrk = [C64::ZERO; 16];
+    let mut cy = [C64::ZERO; 2];
     *nz = 0;
     nd = n;
     *nlast = 0;
@@ -5299,7 +5234,7 @@ fn uni1(
         z, fn_, 1, 1, tol, &mut init, &mut phi, &mut zeta1, &mut zeta2, &mut sum, &mut cwrk,
     );
     if kode != 1 {
-        s1 = -zeta1 + fn_ * rdiv(fn_, z + zeta2);
+        s1 = -zeta1 + fn_ * (fn_ / (z + zeta2));
     } else {
         s1 = -zeta1 + zeta2;
     }
@@ -5312,7 +5247,7 @@ fn uni1(
         }
         *nz = n;
         for i in 0..n {
-            y[i as usize] = c64(0.0, 0.0);
+            y[i as usize] = C64::ZERO;
         }
         // NOTE: like in C++, there's no `return` here (the Fortran returns), so it continues at L30
     }
@@ -5328,7 +5263,7 @@ fn uni1(
                     &mut cwrk,
                 );
                 if kode != 1 {
-                    s1 = -zeta1 + fn_ * rdiv(fn_, z + zeta2) + c64(0.0, z.im);
+                    s1 = -zeta1 + fn_ * (fn_ / (z + zeta2)) + c64(0.0, z.im);
                 } else {
                     s1 = -zeta1 + zeta2;
                 }
@@ -5362,9 +5297,9 @@ fn uni1(
                 //
                 // SCALE S1 IF CABS(S1) < ASCLE
                 //
-                s2 = cmul(phi, sum);
+                s2 = phi * sum;
                 s1 = s1.re.exp() * css[(iflag - 1) as usize] * c64(s1.im.cos(), s1.im.sin());
-                s2 = cmul(s2, s1);
+                s2 *= s1;
                 if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                     break 'l110; // goto L110;
                 }
@@ -5375,7 +5310,7 @@ fn uni1(
             }
             /* 80 */
             if nd > 2 {
-                rz = rdiv(2.0, z);
+                rz = 2.0 / z;
                 s1 = cy[0];
                 s2 = cy[1];
                 c1r = csr[(iflag - 1) as usize];
@@ -5384,7 +5319,7 @@ fn uni1(
                 fn_ = f64::from(k);
                 for _i in 3..=nd {
                     c2 = s2;
-                    s2 = s1 + cmul((fnu + fn_) * rz, c2);
+                    s2 = s1 + (fnu + fn_) * rz * c2;
                     s1 = c2;
                     c2 = s2 * c1r;
                     y[(k - 1) as usize] = c2;
@@ -5414,7 +5349,7 @@ fn uni1(
             *nz = -1;
             return;
         }
-        y[(nd - 1) as usize] = c64(0.0, 0.0);
+        y[(nd - 1) as usize] = C64::ZERO;
         *nz += 1;
         nd -= 1;
         if nd == 0 {
@@ -5440,11 +5375,11 @@ fn uni1(
 }
 
 fn uni2(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     nz: &mut i32,
     nlast: &mut i32,
     fnul: f64,
@@ -5468,23 +5403,23 @@ fn uni2(
     //***ROUTINES CALLED  ZAIRY,ZUCHK,ZUNHJ,ZUOIK,D1MACH,AZABS
     //***END PROLOGUE  ZUNI2
 
-    let mut ai: Complex64;
-    let mut arg = Complex64::ZERO;
-    let mut asum = Complex64::ZERO;
-    let mut bsum = Complex64::ZERO;
-    let mut cfn: Complex64;
-    let mut cid: Complex64;
-    let mut c1: Complex64;
-    let mut c2: Complex64;
-    let mut dai: Complex64;
-    let mut phi = Complex64::ZERO;
-    let rz: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zb: Complex64;
-    let mut zeta1 = Complex64::ZERO;
-    let mut zeta2 = Complex64::ZERO;
-    let mut zn: Complex64;
+    let mut ai: C64;
+    let mut arg = C64::ZERO;
+    let mut asum = C64::ZERO;
+    let mut bsum = C64::ZERO;
+    let mut cfn: C64;
+    let mut cid: C64;
+    let mut c1: C64;
+    let mut c2: C64;
+    let mut dai: C64;
+    let mut phi = C64::ZERO;
+    let rz: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zb: C64;
+    let mut zeta1 = C64::ZERO;
+    let mut zeta2 = C64::ZERO;
+    let mut zn: C64;
     let mut aarg: f64;
     let mut aphi: f64;
     let mut ascle: f64;
@@ -5507,19 +5442,19 @@ fn uni2(
     let mut idum: i32 = 0;
     let hpi = 1.57079632679489662; /* 0.5 pi */
     let aic = 1.265512123484645396; /* log(2 sqrt(pi)) */
-    let cip: [Complex64; 4] = [c64(1.0, 0.0), c64(0.0, 1.0), c64(-1.0, 0.0), -c64(0.0, 1.0)];
-    let ci = c64(0.0, 1.0);
+    let cip: [C64; 4] = [C64::ONE, C64::I, c64(-1.0, 0.0), -C64::I];
+    let ci = C64::I;
     //
     // COMPUTED VALUES WITH EXPONENTS BETWEEN ALIM AND ELIM IN MAGNITUDE
     // ARE SCALED TO KEEP INTERMEDIATE ARITHMETIC ON SCALE,
     // EXP(ALIM) = EXP(ELIM)*TOL
     //
-    let cscl: Complex64 = c64(1.0 / tol, 0.0);
-    let crsc: Complex64 = c64(tol, 0.0);
-    let csr: [Complex64; 3] = [crsc, c64(1.0, 0.0), cscl];
-    let css: [Complex64; 3] = [cscl, c64(1.0, 0.0), crsc];
+    let cscl: C64 = c64(1.0 / tol, 0.0);
+    let crsc: C64 = c64(tol, 0.0);
+    let csr: [C64; 3] = [crsc, C64::ONE, cscl];
+    let css: [C64; 3] = [cscl, C64::ONE, crsc];
     let mut bry: [f64; 3] = [1e3 * D1MACH[0] / tol, 0.0, 0.0];
-    let mut cy = [Complex64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let yy: f64 = z.im;
     *nz = 0;
     nd = n;
@@ -5527,16 +5462,16 @@ fn uni2(
     //
     // ZN IS IN THE RIGHT HALF PLANE AFTER ROTATION BY CI OR -CI
     //
-    zn = cmul(-z, ci);
+    zn = -z * ci;
     zb = z;
     cid = -ci;
     let (fnu4, inu) = order_mod4(fnu);
     let ang: f64 = hpi * (fnu4 - f64::from(inu));
     c2 = c64(ang.cos(), ang.sin());
-    let zar: Complex64 = c2;
+    let zar: C64 = c2;
     in_ = inu + n - 1;
     in_ %= 4;
-    c2 = cmul(c2, cip[in_ as usize]);
+    c2 *= cip[in_ as usize];
     if yy <= 0.0 {
         zn = (-zn).conj();
         zb = zb.conj();
@@ -5552,7 +5487,7 @@ fn uni2(
     );
     if kode != 1 {
         cfn = c64(fnu, 0.0);
-        s1 = -zeta1 + cmul(cfn, cdiv(cfn, zb + zeta2));
+        s1 = -zeta1 + cfn * (cfn / (zb + zeta2));
     } else {
         s1 = -zeta1 + zeta2;
     }
@@ -5563,7 +5498,7 @@ fn uni2(
             return;
         }
         for i in 0..n {
-            y[i as usize] = c64(0.0, 0.0);
+            y[i as usize] = C64::ZERO;
         }
         return;
     }
@@ -5581,7 +5516,7 @@ fn uni2(
                 if kode != 1 {
                     cfn = c64(fn_, 0.0);
                     ay = yy.abs();
-                    s1 = -zeta1 + cmul(cfn, cdiv(cfn, zb + zeta2)) + ay * c64(0.0, 1.0);
+                    s1 = -zeta1 + cfn * (cfn / (zb + zeta2)) + ay * C64::I;
                 } else {
                     s1 = -zeta1 + zeta2;
                 }
@@ -5623,11 +5558,11 @@ fn uni2(
                     *nz = -2;
                     return;
                 }
-                s2 = cmul(phi, cmul(ai, asum) + cmul(dai, bsum));
+                s2 = phi * (ai * asum + dai * bsum);
                 c2r = s1.re.exp() * css[(iflag - 1) as usize].re;
                 c2i = s1.im;
                 s1 = c2r * c64(c2i.cos(), c2i.sin());
-                s2 = cmul(s2, s1);
+                s2 *= s1;
                 if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                     break 'l50; // goto L50;
                 }
@@ -5635,13 +5570,13 @@ fn uni2(
                     s2 = s2.conj();
                 }
                 j = nd - i + 1;
-                s2 = cmul(s2, c2);
+                s2 *= c2;
                 cy[(i - 1) as usize] = s2;
-                y[(j - 1) as usize] = cmul(s2, csr[(iflag - 1) as usize]);
-                c2 = cmul(c2, cid);
+                y[(j - 1) as usize] = s2 * csr[(iflag - 1) as usize];
+                c2 *= cid;
             }
             if nd > 2 {
-                rz = rdiv(2.0, z);
+                rz = 2.0 / z;
                 bry[1] = 1.0 / bry[0];
                 bry[2] = D1MACH[1];
                 s1 = cy[0];
@@ -5652,9 +5587,9 @@ fn uni2(
                 fn_ = f64::from(k);
                 for _i in 3..=nd {
                     c2 = s2;
-                    s2 = s1 + cmul((fnu + fn_) * rz, s2);
+                    s2 = s1 + (fnu + fn_) * rz * s2;
                     s1 = c2;
-                    c2 = cmul(s2, c1);
+                    c2 = s2 * c1;
                     y[(k - 1) as usize] = c2;
                     k -= 1;
                     fn_ -= 1.0;
@@ -5665,10 +5600,10 @@ fn uni2(
                         if c2m > ascle {
                             iflag += 1;
                             ascle = bry[(iflag - 1) as usize];
-                            s1 = cmul(s1, c1);
+                            s1 *= c1;
                             s2 = c2;
-                            s1 = cmul(s1, css[(iflag - 1) as usize]);
-                            s2 = cmul(s2, css[(iflag - 1) as usize]);
+                            s1 *= css[(iflag - 1) as usize];
+                            s2 *= css[(iflag - 1) as usize];
                             c1 = csr[(iflag - 1) as usize];
                         }
                     }
@@ -5681,7 +5616,7 @@ fn uni2(
             //
             // SET UNDERFLOW AND UPDATE PARAMETERS
             //
-            y[(nd - 1) as usize] = c64(0.0, 0.0);
+            y[(nd - 1) as usize] = C64::ZERO;
             *nz += 1;
             nd -= 1;
             if nd == 0 {
@@ -5707,7 +5642,7 @@ fn uni2(
                     // C      C2I = C2R*S1I + C2I*S1R
                     // C      C2R = STR
                     in_ = (inu + nd - 1) % 4;
-                    c2 = cmul(zar, cip[in_ as usize]);
+                    c2 = zar * cip[in_ as usize];
                     if yy <= 0.0 {
                         c2 = c2.conj();
                     }
@@ -5723,17 +5658,17 @@ fn uni2(
 }
 
 fn unik(
-    zr: Complex64,
+    zr: C64,
     fnu: f64,
     ikflg: i32,
     ipmtr: i32,
     tol: f64,
     init: &mut i32,
-    phi: &mut Complex64,
-    zeta1: &mut Complex64,
-    zeta2: &mut Complex64,
-    total: &mut Complex64,
-    cwrk: &mut [Complex64],
+    phi: &mut C64,
+    zeta1: &mut C64,
+    zeta2: &mut C64,
+    total: &mut C64,
+    cwrk: &mut [C64],
 ) {
     //***BEGIN PROLOGUE  ZUNIK
     //***REFER TO  ZBESI,ZBESK
@@ -5756,13 +5691,13 @@ fn unik(
     //***ROUTINES CALLED  ZDIV,AZLOG,AZSQRT,D1MACH
     //***END PROLOGUE  ZUNIK
 
-    let cfn: Complex64;
-    let mut crfn: Complex64;
-    let mut s: Complex64;
-    let mut sr: Complex64;
-    let mut t: Complex64;
-    let t2: Complex64;
-    let zn: Complex64;
+    let cfn: C64;
+    let mut crfn: C64;
+    let mut s: C64;
+    let mut sr: C64;
+    let mut t: C64;
+    let t2: C64;
+    let zn: C64;
     let mut ac: f64;
     let rfn: f64;
     let mut test: f64;
@@ -5785,38 +5720,38 @@ fn unik(
             ac = 2.0 * test.ln().abs() + fnu;
             *zeta1 = c64(ac, 0.0);
             *zeta2 = c64(fnu, 0.0);
-            *phi = c64(1.0, 0.0);
+            *phi = C64::ONE;
             // NOTE: like in C++, there's no `return` here (the Fortran returns), so these are
             // overwritten below
         }
-        t = cmul(zr, crfn);
-        s = 1.0 + cmul(t, t);
-        sr = csqrt(s);
+        t = zr * crfn;
+        s = 1.0 + t * t;
+        sr = s.sqrt();
         cfn = c64(fnu, 0.0);
-        zn = cdiv(1. + sr, t);
-        *zeta1 = cmul(cfn, clog(zn));
-        *zeta2 = cmul(cfn, sr);
-        t = rdiv(1.0, sr);
-        sr = cmul(t, crfn);
-        cwrk[15] = csqrt(sr);
+        zn = (1. + sr) / t;
+        *zeta1 = cfn * zn.ln();
+        *zeta2 = cfn * sr;
+        t = 1.0 / sr;
+        sr = t * crfn;
+        cwrk[15] = sr.sqrt();
         *phi = cwrk[15] * con[(ikflg - 1) as usize];
         if ipmtr != 0 {
             return;
         }
-        t2 = rdiv(1.0, s);
-        cwrk[0] = c64(1., 0.0);
-        crfn = c64(1., 0.0);
+        t2 = 1.0 / s;
+        cwrk[0] = C64::ONE;
+        crfn = C64::ONE;
         ac = 1.;
         l = 1;
         k = 2;
         while k < 16 {
-            s = c64(0.0, 0.0);
+            s = C64::ZERO;
             for _j in 1..=k {
                 l += 1;
-                s = cmul(s, t2) + ZUNIK_C[(l - 1) as usize];
+                s = s * t2 + ZUNIK_C[(l - 1) as usize];
             }
-            crfn = cmul(crfn, sr);
-            cwrk[(k - 1) as usize] = cmul(crfn, s);
+            crfn *= sr;
+            cwrk[(k - 1) as usize] = crfn * s;
             ac *= rfn;
             tstr = cwrk[(k - 1) as usize].re;
             tsti = cwrk[(k - 1) as usize].im;
@@ -5833,8 +5768,8 @@ fn unik(
         *init = k;
     }
 
-    *total = c64(0.0, 0.0);
-    t = c64(1.0, 0.0);
+    *total = C64::ZERO;
+    t = C64::ONE;
     if ikflg != 2 {
         for i in 0..*init {
             *total += cwrk[i as usize];
@@ -5842,7 +5777,7 @@ fn unik(
         *phi = cwrk[15] * con[0];
     } else {
         for i in 1..=*init {
-            *total += cmul(t, cwrk[(i - 1) as usize]);
+            *total += t * cwrk[(i - 1) as usize];
             t = -t;
         }
         *phi = cwrk[15] * con[1];
@@ -5850,12 +5785,12 @@ fn unik(
 }
 
 fn unk1(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     mr: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     tol: f64,
     elim: f64,
     alim: f64,
@@ -5872,19 +5807,19 @@ fn unk1(
     //***ROUTINES CALLED  ZKSCL,ZS1S2,ZUCHK,ZUNIK,D1MACH,AZABS
     //***END PROLOGUE  ZUNK1
 
-    let mut cfn: Complex64;
-    let mut ck: Complex64;
-    let mut cs: Complex64;
-    let mut cspn: Complex64;
-    let mut c1: Complex64;
-    let mut c2: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zr: Complex64;
-    let mut phid = Complex64::ZERO;
-    let mut zeta1d = c64(0.0, 0.0);
-    let mut zeta2d = c64(0.0, 0.0);
-    let mut sumd = Complex64::ZERO;
+    let mut cfn: C64;
+    let mut ck: C64;
+    let mut cs: C64;
+    let mut cspn: C64;
+    let mut c1: C64;
+    let mut c2: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zr: C64;
+    let mut phid = C64::ZERO;
+    let mut zeta1d = C64::ZERO;
+    let mut zeta2d = C64::ZERO;
+    let mut sumd = C64::ZERO;
     let mut aphi: f64;
     let mut ascle: f64;
     let mut c2i: f64;
@@ -5908,16 +5843,16 @@ fn unk1(
     let mut ipard: i32;
     let mut initd: i32 = 0;
 
-    let cscl: Complex64 = c64(1.0 / tol, 0.0);
-    let crsc: Complex64 = c64(tol, 0.0);
-    let css: [Complex64; 3] = [cscl, c64(1.0, 0.0), crsc];
-    let csr: [Complex64; 3] = [crsc, c64(1.0, 0.0), cscl];
-    let mut cwrk = [[Complex64::ZERO; 16]; 3];
-    let mut phi = [Complex64::ZERO; 2];
-    let mut sum = [Complex64::ZERO; 2];
-    let mut zeta1 = [Complex64::ZERO; 2];
-    let mut zeta2 = [Complex64::ZERO; 2];
-    let mut cy = [Complex64::ZERO; 2];
+    let cscl: C64 = c64(1.0 / tol, 0.0);
+    let crsc: C64 = c64(tol, 0.0);
+    let css: [C64; 3] = [cscl, C64::ONE, crsc];
+    let csr: [C64; 3] = [crsc, C64::ONE, cscl];
+    let mut cwrk = [[C64::ZERO; 16]; 3];
+    let mut phi = [C64::ZERO; 2];
+    let mut sum = [C64::ZERO; 2];
+    let mut zeta1 = [C64::ZERO; 2];
+    let mut zeta2 = [C64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / (1e3 * D1MACH[0]), D1MACH[1]];
     let mut init = [0_i32; 2];
     let pi: f64 = 3.14159265358979324;
@@ -5953,7 +5888,7 @@ fn unk1(
         );
         if kode != 1 {
             cfn = c64(fn_, 0.0);
-            s1 = zeta1[jc as usize] - cmul(cfn, cdiv(cfn, zr + zeta2[jc as usize]));
+            s1 = zeta1[jc as usize] - cfn * (cfn / (zr + zeta2[jc as usize]));
         } else {
             s1 = zeta1[jc as usize] - zeta2[jc as usize];
         }
@@ -5987,15 +5922,15 @@ fn unk1(
                 // SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
                 // EXPONENT EXTREMES
                 //
-                s2 = cmul(phi[jc as usize], sum[jc as usize]);
+                s2 = phi[jc as usize] * sum[jc as usize];
                 c2r = s1.re;
                 c2i = s1.im;
                 c2m = c2r.exp() * css[(kflag - 1) as usize].re;
                 s1 = c2m * c64(c2i.cos(), c2i.sin());
-                s2 = cmul(s2, s1);
+                s2 *= s1;
                 if !((kflag == 1) && (uchk(s2, bry[0], tol) != 0)) {
                     cy[(kdflg - 1) as usize] = s2;
-                    y[(i - 1) as usize] = cmul(s2, csr[(kflag - 1) as usize]);
+                    y[(i - 1) as usize] = s2 * csr[(kflag - 1) as usize];
                     if kdflg == 2 {
                         break 'for_i;
                     }
@@ -6011,10 +5946,10 @@ fn unk1(
         }
         // Unlike in xsf: K underflow if x < 0 (see the module docs).
         kdflg = 1;
-        y[(i - 1) as usize] = c64(0.0, 0.0);
+        y[(i - 1) as usize] = C64::ZERO;
         nz += 1;
-        if i > 1 && y[(i - 2) as usize] != Complex64::ZERO {
-            y[(i - 2) as usize] = c64(0.0, 0.0);
+        if i > 1 && y[(i - 2) as usize] != C64::ZERO {
+            y[(i - 2) as usize] = C64::ZERO;
             nz += 1;
         }
         i += 1;
@@ -6024,7 +5959,7 @@ fn unk1(
         i = n;
     }
 
-    let rz: Complex64 = rdiv(2.0, zr);
+    let rz: C64 = 2.0 / zr;
     ck = fn_ * rz;
     ib = i + 1;
     if n >= ib {
@@ -6053,7 +5988,7 @@ fn unk1(
         );
         if kode != 1 {
             cfn = c64(fn_, 0.0);
-            s1 = zeta1d - cmul(cfn, cdiv(cfn, zr + zeta2d));
+            s1 = zeta1d - cfn * (cfn / (zr + zeta2d));
         } else {
             s1 = zeta1d - zeta2d;
         }
@@ -6083,7 +6018,7 @@ fn unk1(
             }
             nz = n;
             for i in 0..n {
-                y[i as usize] = c64(0.0, 0.0);
+                y[i as usize] = C64::ZERO;
             }
             return nz;
         }
@@ -6097,20 +6032,20 @@ fn unk1(
         ascle = bry[(kflag - 1) as usize];
         for i in ib..=n {
             c2 = s2;
-            s2 = cmul(ck, s2) + s1;
+            s2 = ck * s2 + s1;
             s1 = c2;
             ck += rz;
-            c2 = cmul(s2, c1);
+            c2 = s2 * c1;
             y[(i - 1) as usize] = c2;
             if kflag < 3 {
                 c2m = c2.re.abs().max(c2.im.abs());
                 if c2m > ascle {
                     kflag += 1;
                     ascle = bry[(kflag - 1) as usize];
-                    s1 = cmul(s1, c1);
+                    s1 *= c1;
                     s2 = c2;
-                    s1 = cmul(s1, css[(kflag - 1) as usize]);
-                    s2 = cmul(s2, css[(kflag - 1) as usize]);
+                    s1 *= css[(kflag - 1) as usize];
+                    s2 *= css[(kflag - 1) as usize];
                     c1 = csr[(kflag - 1) as usize];
                 }
             }
@@ -6128,7 +6063,7 @@ fn unk1(
     //
     // CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //
-    let csgn: Complex64 = c64(0.0, sgn);
+    let csgn: C64 = c64(0.0, sgn);
     let (fnu4, inu) = order_mod4(fnu);
     let fnf: f64 = fnu4 - f64::from(inu);
     let ifn: i32 = inu + n - 1;
@@ -6193,7 +6128,7 @@ fn unk1(
             );
             if kode != 1 {
                 cfn = c64(fn_, 0.0);
-                s1 = -zeta1d + cmul(cfn, cdiv(cfn, zr + zeta2d));
+                s1 = -zeta1d + cfn * (cfn / (zr + zeta2d));
             } else {
                 s1 = -zeta1d + zeta2d;
             }
@@ -6226,14 +6161,14 @@ fn unk1(
                         }
                     }
 
-                    s2 = cmul(cmul(csgn, phid), sumd);
+                    s2 = csgn * phid * sumd;
                     c2r = s1.re;
                     c2i = s1.im;
                     c2m = c2r.exp() * css[(iflag - 1) as usize].re;
                     s1 = c2m * c64(c2i.cos(), c2i.sin());
-                    s2 = cmul(s2, s1);
+                    s2 *= s1;
                     if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
-                        s2 = c64(0.0, 0.0);
+                        s2 = C64::ZERO;
                     }
                     break 'l100; // (fall through to L100)
                 }
@@ -6241,7 +6176,7 @@ fn unk1(
                 if rs1 > 0.0 {
                     return -1;
                 }
-                s2 = c64(0.0, 0.0);
+                s2 = C64::ZERO;
                 // goto L100;
             }
             // L100:
@@ -6250,14 +6185,11 @@ fn unk1(
             // NOTE: `iflag` is still 0 here if all terms so far went through L110 (so `s2 == 0`),
             // in which case the C++ reads `csr[-1]` (UB); that factor is replaced by 1 here
             // (equivalent for any positive real factor).
-            s2 = cmul(
-                s2,
-                if iflag == 0 {
-                    c64(1.0, 0.0)
-                } else {
-                    csr[(iflag - 1) as usize]
-                },
-            );
+            s2 *= if iflag == 0 {
+                C64::ONE
+            } else {
+                csr[(iflag - 1) as usize]
+            };
             // Unlike in xsf: pi I overflow (see the module docs).
             if !s2.is_finite() {
                 return -1;
@@ -6270,10 +6202,10 @@ fn unk1(
                 nw = s1s2(zr, &mut s1, &mut s2, asc, alim, &mut iuf);
                 nz += nw;
             }
-            y[(kk - 1) as usize] = cmul(s1, cspn) + s2;
+            y[(kk - 1) as usize] = s1 * cspn + s2;
             kk -= 1;
             cspn = -cspn;
-            if c2 == Complex64::ZERO {
+            if c2 == C64::ZERO {
                 kdflg = 1;
                 k += 1;
                 continue 'for_k;
@@ -6303,10 +6235,10 @@ fn unk1(
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
-        s2 = s1 + cmul((fn_ + fnf) * rz, s2);
+        s2 = s1 + (fn_ + fnf) * rz * s2;
         s1 = c2;
         fn_ -= 1.0;
-        c2 = cmul(s2, cs);
+        c2 = s2 * cs;
         // Unlike in xsf: pi I overflow (see the module docs).
         if !c2.is_finite() {
             return -1;
@@ -6317,7 +6249,7 @@ fn unk1(
             nw = s1s2(zr, &mut c1, &mut c2, asc, alim, &mut iuf);
             nz += nw;
         }
-        y[(kk - 1) as usize] = cmul(c1, cspn) + c2;
+        y[(kk - 1) as usize] = c1 * cspn + c2;
         kk -= 1;
         cspn = -cspn;
         if iflag < 3 {
@@ -6325,10 +6257,10 @@ fn unk1(
             if c2m > ascle {
                 iflag += 1;
                 ascle = bry[(iflag - 1) as usize];
-                s1 = cmul(s1, cs);
+                s1 *= cs;
                 s2 = ck;
-                s1 = cmul(s1, css[(iflag - 1) as usize]);
-                s2 = cmul(s2, css[(iflag - 1) as usize]);
+                s1 *= css[(iflag - 1) as usize];
+                s2 *= css[(iflag - 1) as usize];
                 cs = csr[(iflag - 1) as usize];
             }
         }
@@ -6337,12 +6269,12 @@ fn unk1(
 }
 
 fn unk2(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     mr: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     tol: f64,
     elim: f64,
     alim: f64,
@@ -6362,26 +6294,26 @@ fn unk2(
     //***ROUTINES CALLED  ZAIRY,ZKSCL,ZS1S2,ZUCHK,ZUNHJ,D1MACH,AZABS
     //***END PROLOGUE  ZUNK2
 
-    let mut ai: Complex64;
-    let mut cfn: Complex64;
-    let mut ck: Complex64;
-    let mut cs: Complex64;
-    let mut csgn: Complex64;
-    let mut cspn: Complex64;
-    let mut c1: Complex64;
-    let mut c2: Complex64;
-    let mut dai: Complex64;
-    let mut s1: Complex64;
-    let mut s2: Complex64;
-    let mut zb: Complex64;
-    let mut zn: Complex64;
-    let mut zr: Complex64;
-    let mut phid = Complex64::ZERO;
-    let mut argd = Complex64::ZERO;
-    let mut zeta1d = Complex64::ZERO;
-    let mut zeta2d = Complex64::ZERO;
-    let mut asumd = Complex64::ZERO;
-    let mut bsumd = Complex64::ZERO;
+    let mut ai: C64;
+    let mut cfn: C64;
+    let mut ck: C64;
+    let mut cs: C64;
+    let mut csgn: C64;
+    let mut cspn: C64;
+    let mut c1: C64;
+    let mut c2: C64;
+    let mut dai: C64;
+    let mut s1: C64;
+    let mut s2: C64;
+    let mut zb: C64;
+    let mut zn: C64;
+    let mut zr: C64;
+    let mut phid = C64::ZERO;
+    let mut argd = C64::ZERO;
+    let mut zeta1d = C64::ZERO;
+    let mut zeta2d = C64::ZERO;
+    let mut asumd = C64::ZERO;
+    let mut bsumd = C64::ZERO;
     let mut aarg: f64;
     let mut ang: f64;
     let mut aphi: f64;
@@ -6407,23 +6339,23 @@ fn unk2(
     let mut j: i32;
     let mut ipard: i32;
 
-    let cr1: Complex64 = c64(1.0, 1.73205080756887729); /*   1 + sqrt(3)i  */
-    let cr2: Complex64 = c64(-0.5, -8.66025403784438647e-1); /*      0.5 cr1    */
+    let cr1: C64 = c64(1.0, 1.73205080756887729); /*   1 + sqrt(3)i  */
+    let cr2: C64 = c64(-0.5, -8.66025403784438647e-1); /*      0.5 cr1    */
     let hpi: f64 = 1.57079632679489662; /*      0.5 pi     */
     let pi: f64 = 3.14159265358979324;
     let aic: f64 = 1.26551212348464539; /* log(2 sqrt(pi)) */
-    let cip: [Complex64; 4] = [c64(1.0, 0.0), -c64(0.0, 1.0), c64(-1.0, 0.0), c64(0.0, 1.0)];
+    let cip: [C64; 4] = [C64::ONE, -C64::I, c64(-1.0, 0.0), C64::I];
     let cscl: f64 = 1.0 / tol;
     let crsc: f64 = tol;
-    let css: [Complex64; 3] = [c64(cscl, 0.0), c64(1.0, 0.0), c64(crsc, 0.0)];
-    let csr: [Complex64; 3] = [c64(crsc, 0.0), c64(1.0, 0.0), c64(cscl, 0.0)];
-    let mut phi = [Complex64::ZERO; 2];
-    let mut arg = [Complex64::ZERO; 2];
-    let mut zeta1 = [Complex64::ZERO; 2];
-    let mut zeta2 = [Complex64::ZERO; 2];
-    let mut asum = [Complex64::ZERO; 2];
-    let mut bsum = [Complex64::ZERO; 2];
-    let mut cy = [Complex64::ZERO; 2];
+    let css: [C64; 3] = [c64(cscl, 0.0), C64::ONE, c64(crsc, 0.0)];
+    let csr: [C64; 3] = [c64(crsc, 0.0), C64::ONE, c64(cscl, 0.0)];
+    let mut phi = [C64::ZERO; 2];
+    let mut arg = [C64::ZERO; 2];
+    let mut zeta1 = [C64::ZERO; 2];
+    let mut zeta2 = [C64::ZERO; 2];
+    let mut asum = [C64::ZERO; 2];
+    let mut bsum = [C64::ZERO; 2];
+    let mut cy = [C64::ZERO; 2];
     let bry: [f64; 3] = [1e3 * D1MACH[0] / tol, tol / (1e3 * D1MACH[0]), D1MACH[1]];
 
     kdflg = 1;
@@ -6440,7 +6372,7 @@ fn unk2(
         zr = -z;
     }
     let yy: f64 = zr.im;
-    zn = cmul(-zr, c64(0.0, 1.0));
+    zn = -zr * C64::I;
     zb = zr;
     let (fnu4, inu) = order_mod4(fnu);
     let fnf: f64 = fnu4 - f64::from(inu);
@@ -6451,7 +6383,7 @@ fn unk2(
     let spn: f64 = hpi * sar;
     c2 = c64(spn, -cpn);
     kk = (inu % 4) + 1;
-    cs = cmul(cmul(cr1, c2), cip[(kk - 1) as usize]);
+    cs = cr1 * c2 * cip[(kk - 1) as usize];
     if yy <= 0.0 {
         zn = (-zn).conj();
         zb = zb.conj();
@@ -6480,7 +6412,7 @@ fn unk2(
         );
         if kode != 1 {
             cfn = c64(fn_, 0.0);
-            s1 = zeta1[(j - 1) as usize] - cmul(cfn, cdiv(cfn, zb + zeta2[(j - 1) as usize]));
+            s1 = zeta1[(j - 1) as usize] - cfn * (cfn / (zb + zeta2[(j - 1) as usize]));
         } else {
             s1 = zeta1[(j - 1) as usize] - zeta2[(j - 1) as usize];
         }
@@ -6506,11 +6438,11 @@ fn unk2(
                     }
                     // Unlike in xsf: K underflow if x < 0 (see the module docs).
                     kdflg = 1;
-                    y[(i - 1) as usize] = c64(0.0, 0.0);
-                    cs = cmul(cs, -c64(0.0, 1.0));
+                    y[(i - 1) as usize] = C64::ZERO;
+                    cs *= -C64::I;
                     nz += 1;
-                    if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
-                        y[(i - 2) as usize] = c64(0.0, 0.0);
+                    if i != 1 && y[(i - 2) as usize] != C64::ZERO {
+                        y[(i - 2) as usize] = C64::ZERO;
                         nz += 1;
                     }
                     i += 1;
@@ -6527,18 +6459,17 @@ fn unk2(
             // SCALE S1 TO KEEP INTERMEDIATE ARITHMETIC ON SCALE NEAR
             // EXPONENT EXTREMES
             //
-            c2 = cmul(arg[(j - 1) as usize], cr2);
+            c2 = arg[(j - 1) as usize] * cr2;
             ai = airy(c2, 0, 2, &mut nai, &mut idum);
             dai = airy(c2, 1, 2, &mut ndai, &mut idum);
-            s2 = cmul(
-                cmul(cs, phi[(j - 1) as usize]),
-                cmul(ai, asum[(j - 1) as usize]) + cmul(cmul(cr2, dai), bsum[(j - 1) as usize]),
-            );
+            s2 = cs
+                * phi[(j - 1) as usize]
+                * (ai * asum[(j - 1) as usize] + cr2 * dai * bsum[(j - 1) as usize]);
             c2r = s1.re;
             c2i = s1.im;
             c2m = c2r.exp() * css[(kflag - 1) as usize].re;
             s1 = c2m * c64(c2i.cos(), c2i.sin());
-            s2 = cmul(s2, s1);
+            s2 *= s1;
             if kflag == 1 && uchk(s2, bry[0], tol) != 0 {
                 /* GO TO 70 */
                 if rs1 > 0.0 {
@@ -6546,11 +6477,11 @@ fn unk2(
                 }
                 // Unlike in xsf: K underflow if x < 0 (see the module docs).
                 kdflg = 1;
-                y[(i - 1) as usize] = c64(0.0, 0.0);
-                cs = cmul(cs, -c64(0.0, 1.0));
+                y[(i - 1) as usize] = C64::ZERO;
+                cs *= -C64::I;
                 nz += 1;
-                if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
-                    y[(i - 2) as usize] = c64(0.0, 0.0);
+                if i != 1 && y[(i - 2) as usize] != C64::ZERO {
+                    y[(i - 2) as usize] = C64::ZERO;
                     nz += 1;
                 }
                 i += 1;
@@ -6560,8 +6491,8 @@ fn unk2(
                 s2 = s2.conj();
             }
             cy[(kdflg - 1) as usize] = s2;
-            y[(i - 1) as usize] = cmul(s2, csr[(kflag - 1) as usize]);
-            cs = cmul(cs, -c64(0.0, 1.0));
+            y[(i - 1) as usize] = s2 * csr[(kflag - 1) as usize];
+            cs *= -C64::I;
             if kdflg == 2 {
                 break 'for_i;
             }
@@ -6575,11 +6506,11 @@ fn unk2(
         }
         // Unlike in xsf: K underflow if x < 0 (see the module docs).
         kdflg = 1;
-        y[(i - 1) as usize] = c64(0.0, 0.0);
-        cs = cmul(cs, -c64(0.0, 1.0));
+        y[(i - 1) as usize] = C64::ZERO;
+        cs *= -C64::I;
         nz += 1;
-        if i != 1 && y[(i - 2) as usize] != Complex64::ZERO {
-            y[(i - 2) as usize] = c64(0.0, 0.0);
+        if i != 1 && y[(i - 2) as usize] != C64::ZERO {
+            y[(i - 2) as usize] = C64::ZERO;
             nz += 1;
         }
         i += 1;
@@ -6590,7 +6521,7 @@ fn unk2(
         i = n;
     }
 
-    let rz: Complex64 = rdiv(2.0, zr);
+    let rz: C64 = 2.0 / zr;
     ck = fn_ * rz;
     ib = i + 1;
     if n >= ib {
@@ -6613,7 +6544,7 @@ fn unk2(
         );
         if kode != 1 {
             cfn = c64(fn_, 0.0);
-            s1 = zeta1d - cmul(cfn, cdiv(cfn, zb + zeta2d));
+            s1 = zeta1d - cfn * (cfn / (zb + zeta2d));
         } else {
             s1 = zeta1d - zeta2d;
         }
@@ -6643,7 +6574,7 @@ fn unk2(
             }
             nz = n;
             for i in 0..n {
-                y[i as usize] = c64(0.0, 0.0);
+                y[i as usize] = C64::ZERO;
             }
             return nz;
         }
@@ -6657,20 +6588,20 @@ fn unk2(
         ascle = bry[(kflag - 1) as usize];
         for i in ib..=n {
             c2 = s2;
-            s2 = cmul(ck, s2) + s1;
+            s2 = ck * s2 + s1;
             s1 = c2;
             ck += rz;
-            c2 = cmul(s2, c1);
+            c2 = s2 * c1;
             y[(i - 1) as usize] = c2;
             if kflag < 3 {
                 c2m = c2.re.abs().max(c2.im.abs());
                 if c2m > ascle {
                     kflag += 1;
                     ascle = bry[(kflag - 1) as usize];
-                    s1 = cmul(s1, c1);
+                    s1 *= c1;
                     s2 = c2;
-                    s1 = cmul(s1, css[(kflag - 1) as usize]);
-                    s2 = cmul(s2, css[(kflag - 1) as usize]);
+                    s1 *= css[(kflag - 1) as usize];
+                    s2 *= css[(kflag - 1) as usize];
                     c1 = csr[(kflag - 1) as usize];
                 }
             }
@@ -6704,10 +6635,10 @@ fn unk2(
     // QUADRANT.  FOURTH QUADRANT VALUES (YY <= 0.0_dp) ARE COMPUTED BY
     // CONJUGATION SINCE THE I FUNCTION IS REAL ON THE POSITIVE REAL AXIS
     //
-    cs = cmul(c64(car, -sar), csgn);
+    cs = c64(car, -sar) * csgn;
     let in_: i32 = (ifn % 4) + 1;
     c2 = cip[(in_ - 1) as usize];
-    cs = cmul(cs, c2.conj());
+    cs *= c2.conj();
     let asc: f64 = bry[0];
     iuf = 0;
     kk = n;
@@ -6755,7 +6686,7 @@ fn unk2(
         // L210:
         if kode != 1 {
             cfn = c64(fn_, 0.0);
-            s1 = -zeta1d + cmul(cfn, cdiv(cfn, zb + zeta2d));
+            s1 = -zeta1d + cfn * (cfn / (zb + zeta2d));
         } else {
             s1 = -zeta1d + zeta2d;
         }
@@ -6768,7 +6699,7 @@ fn unk2(
                 if rs1 > 0.0 {
                     return -1;
                 }
-                s2 = c64(0.0, 0.0);
+                s2 = C64::ZERO;
                 break 'l250; // goto L250;
             }
             if kdflg == 1 {
@@ -6786,7 +6717,7 @@ fn unk2(
                     if rs1 > 0.0 {
                         return -1;
                     }
-                    s2 = c64(0.0, 0.0);
+                    s2 = C64::ZERO;
                     break 'l250; // goto L250;
                 }
                 if kdflg == 1 {
@@ -6803,14 +6734,14 @@ fn unk2(
             if !matches!(idum, 0 | 3) {
                 return -2;
             }
-            s2 = cmul(cmul(cs, phid), cmul(ai, asumd) + cmul(dai, bsumd));
+            s2 = cs * phid * (ai * asumd + dai * bsumd);
             c2r = s1.re;
             c2i = s1.im;
             c2m = c2r.exp() * css[(iflag - 1) as usize].re;
             s1 = c2m * c64(c2i.cos(), c2i.sin());
-            s2 = cmul(s2, s1);
+            s2 *= s1;
             if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
-                s2 = c64(0.0, 0.0);
+                s2 = C64::ZERO;
             }
         }
         // L250:
@@ -6822,14 +6753,11 @@ fn unk2(
         // NOTE: `iflag` is still 0 here if all terms so far went to L250 via the first `|rs1| >
         // elim` branch (so `s2 == 0`), in which case the C++ reads `csr[-1]` (UB); that factor is
         // replaced by 1 here (equivalent for any positive real factor).
-        s2 = cmul(
-            s2,
-            if iflag == 0 {
-                c64(1.0, 0.0)
-            } else {
-                csr[(iflag - 1) as usize]
-            },
-        );
+        s2 *= if iflag == 0 {
+            C64::ONE
+        } else {
+            csr[(iflag - 1) as usize]
+        };
         // Unlike in xsf: pi I overflow (see the module docs).
         if !s2.is_finite() {
             return -1;
@@ -6842,11 +6770,11 @@ fn unk2(
             nw = s1s2(zr, &mut s1, &mut s2, asc, alim, &mut iuf);
             nz += nw;
         }
-        y[(kk - 1) as usize] = cmul(s1, cspn) + s2;
+        y[(kk - 1) as usize] = s1 * cspn + s2;
         kk -= 1;
         cspn = -cspn;
-        cs = cmul(cs, -c64(0.0, 1.0));
-        if c2 == Complex64::ZERO {
+        cs *= -C64::I;
+        if c2 == C64::ZERO {
             kdflg = 1;
             k += 1;
             continue 'for_k;
@@ -6880,10 +6808,10 @@ fn unk2(
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
-        s2 = s1 + cmul((fn_ + fnf) * rz, c2);
+        s2 = s1 + (fn_ + fnf) * rz * c2;
         s1 = c2;
         fn_ -= 1.0;
-        c2 = cmul(s2, cs);
+        c2 = s2 * cs;
         // Unlike in xsf: pi I overflow (see the module docs).
         if !c2.is_finite() {
             return -1;
@@ -6894,7 +6822,7 @@ fn unk2(
             nw = s1s2(zr, &mut c1, &mut c2, asc, alim, &mut iuf);
             nz += nw;
         }
-        y[(kk - 1) as usize] = cmul(c1, cspn) + c2;
+        y[(kk - 1) as usize] = c1 * cspn + c2;
         kk -= 1;
         cspn = -cspn;
         if iflag < 3 {
@@ -6902,10 +6830,10 @@ fn unk2(
             if c2m > ascle {
                 iflag += 1;
                 ascle = bry[(iflag - 1) as usize];
-                s1 = cmul(s1, cs);
+                s1 *= cs;
                 s2 = ck;
-                s1 = cmul(s1, css[(iflag - 1) as usize]);
-                s2 = cmul(s2, css[(iflag - 1) as usize]);
+                s1 *= css[(iflag - 1) as usize];
+                s2 *= css[(iflag - 1) as usize];
                 cs = csr[(iflag - 1) as usize];
             }
         }
@@ -6914,12 +6842,12 @@ fn unk2(
 }
 
 fn uoik(
-    z: Complex64,
+    z: C64,
     fnu: f64,
     kode: i32,
     ikflg: i32,
     n: i32,
-    y: &mut [Complex64],
+    y: &mut [C64],
     tol: f64,
     elim: f64,
     alim: f64,
@@ -6950,16 +6878,16 @@ fn uoik(
     //***ROUTINES CALLED  ZUCHK,ZUNHJ,ZUNIK,D1MACH,AZABS,AZLOG
     //***END PROLOGUE  ZUOIK
 
-    let mut arg = Complex64::ZERO;
-    let mut asum = Complex64::ZERO;
-    let mut bsum = Complex64::ZERO;
-    let mut cz: Complex64;
-    let mut phi = Complex64::ZERO;
-    let mut sum = Complex64::ZERO;
-    let mut zeta1 = Complex64::ZERO;
-    let mut zeta2 = Complex64::ZERO;
-    let mut zn = Complex64::ZERO;
-    let mut zr: Complex64;
+    let mut arg = C64::ZERO;
+    let mut asum = C64::ZERO;
+    let mut bsum = C64::ZERO;
+    let mut cz: C64;
+    let mut phi = C64::ZERO;
+    let mut sum = C64::ZERO;
+    let mut zeta1 = C64::ZERO;
+    let mut zeta2 = C64::ZERO;
+    let mut zn = C64::ZERO;
+    let mut zr: C64;
     // (uninitialized in the C++; only read if `iform == 2`, in which case it has been set)
     let mut aarg: f64 = 0.0;
     let mut aphi: f64;
@@ -6974,7 +6902,7 @@ fn uoik(
     let mut init: i32;
     let mut nn: i32;
     let aic: f64 = 1.265512123484645396;
-    let mut cwrk = [Complex64::ZERO; 16];
+    let mut cwrk = [C64::ZERO; 16];
 
     let mut nuf: i32 = 0;
     nn = n;
@@ -6983,7 +6911,7 @@ fn uoik(
     if x < 0. {
         zr = -z;
     }
-    let zb: Complex64 = zr;
+    let zb: C64 = zr;
     let yy: f64 = zr.im;
     ax = x.abs() * SQRT3;
     ay = yy.abs();
@@ -7006,7 +6934,7 @@ fn uoik(
         );
         cz = -zeta1 + zeta2;
     } else {
-        zn = cmul(-zr, c64(0.0, 1.0));
+        zn = -zr * C64::I;
         if yy <= 0. {
             zn.re = -zn.re;
         }
@@ -7051,9 +6979,9 @@ fn uoik(
                 if rcz > -elim {
                     /* goto 30 */
                     ascle = 1e3 * D1MACH[0] / tol;
-                    cz += clog(phi);
+                    cz += phi.ln();
                     if iform != 1 {
-                        cz -= 0.25 * clog(arg) + aic;
+                        cz -= 0.25 * arg.ln() + aic;
                     }
                     ax = rcz.exp() / tol;
                     ay = cz.im;
@@ -7062,20 +6990,20 @@ fn uoik(
                     cz = c64(ax * ay.exp(), 0.0);
                     if uchk(cz, ascle, tol) != 0 {
                         for i in 0..nn {
-                            y[i as usize] = c64(0., 0.0);
+                            y[i as usize] = C64::ZERO;
                         }
                         return nn;
                     }
                 } else {
                     for i in 0..nn {
-                        y[i as usize] = c64(0., 0.0);
+                        y[i as usize] = C64::ZERO;
                     }
                     return nn;
                 }
             }
         } else {
             for i in 0..nn {
-                y[i as usize] = c64(0., 0.0);
+                y[i as usize] = C64::ZERO;
             }
             return nn;
         }
@@ -7119,20 +7047,20 @@ fn uoik(
             }
             if rcz > -elim {
                 ascle = 1e3 * D1MACH[0] / tol;
-                cz += clog(phi);
+                cz += phi.ln();
                 if iform != 1 {
-                    cz -= 0.25 * clog(arg) + aic;
+                    cz -= 0.25 * arg.ln() + aic;
                 }
                 ax = rcz.exp() / tol;
                 ay = cz.im;
-                cz = ax * (ay.cos() + ay.sin() * c64(0.0, 1.0));
+                cz = ax * (ay.cos() + ay.sin() * C64::I);
                 if uchk(cz, ascle, tol) == 0 {
                     return nuf;
                 }
             }
         }
 
-        y[(nn - 1) as usize] = c64(0., 0.0);
+        y[(nn - 1) as usize] = C64::ZERO;
         nn -= 1;
         nuf += 1;
         if nn == 0 {
@@ -7143,12 +7071,12 @@ fn uoik(
 }
 
 fn wrsk(
-    zr: Complex64,
+    zr: C64,
     fnu: f64,
     kode: i32,
     n: i32,
-    y: &mut [Complex64],
-    cw: &mut [Complex64],
+    y: &mut [C64],
+    cw: &mut [C64],
     tol: f64,
     elim: f64,
     alim: f64,
@@ -7162,10 +7090,10 @@ fn wrsk(
     //***ROUTINES CALLED  D1MACH,ZBKNU,ZRATI,AZABS
     //***END PROLOGUE  ZWRSK
 
-    let mut cinu: Complex64;
-    let mut cscl: Complex64;
-    let mut ct: Complex64;
-    let mut st: Complex64;
+    let mut cinu: C64;
+    let mut cscl: C64;
+    let mut ct: C64;
+    let mut st: C64;
     let mut ascle: f64;
     let yy: f64;
     let mut nz: i32;
@@ -7190,7 +7118,7 @@ fn wrsk(
     // RECUR FORWARD ON I(FNU+1,Z) = R(FNU,Z)*I(FNU,Z),
     // R(FNU+J-1,Z)=Y(J),  J=1,...,N
     //
-    cinu = c64(1.0, 0.0);
+    cinu = C64::ONE;
     if kode != 1 {
         yy = zr.im;
         cinu = c64(yy.cos(), yy.sin());
@@ -7203,7 +7131,7 @@ fn wrsk(
     //
     let acw: f64 = cw[1].norm();
     ascle = 1e3 * D1MACH[0] / tol;
-    cscl = c64(1.0, 0.0);
+    cscl = C64::ONE;
 
     if acw <= ascle {
         cscl = c64(1.0 / tol, 0.0);
@@ -7214,26 +7142,26 @@ fn wrsk(
         }
     }
 
-    let c1: Complex64 = cmul(cw[0], cscl);
-    let c2: Complex64 = cmul(cw[1], cscl);
+    let c1: C64 = cw[0] * cscl;
+    let c2: C64 = cw[1] * cscl;
     st = y[0];
     //
     // CINU=CINU*(CONJG(CT)/ABS(CT))*(1.0_dp/ABS(CT) PREVENTS
     // UNDER- OR OVERFLOW PREMATURELY BY SQUARING ABS(CT)
     //
-    ct = cmul(zr, c2 + cmul(st, c1));
+    ct = zr * (c2 + st * c1);
     let act: f64 = ct.norm();
-    let rct: Complex64 = c64(1.0 / act, 0.0);
-    ct = cmul(ct.conj(), rct);
-    cinu = cmul(cinu, cmul(ct, rct));
-    y[0] = cmul(cinu, cscl);
+    let rct: C64 = c64(1.0 / act, 0.0);
+    ct = ct.conj() * rct;
+    cinu *= ct * rct;
+    y[0] = cinu * cscl;
     if n == 1 {
         return nz;
     }
     for i in 2..=n {
-        cinu = cmul(cinu, st);
+        cinu *= st;
         st = y[(i - 1) as usize];
-        y[(i - 1) as usize] = cmul(cinu, cscl);
+        y[(i - 1) as usize] = cinu * cscl;
     }
     nz
 }
@@ -7277,7 +7205,7 @@ pub(crate) fn ierr_to_sferr(nz: i32, ierr: i32) -> SfError {
 
 // error.h
 
-pub(crate) fn set_error_and_nan(code: SfError, value: &mut Complex64) {
+pub(crate) fn set_error_and_nan(code: SfError, value: &mut C64) {
     if code != SfError::Ok
         && (code == SfError::Domain || code == SfError::Overflow || code == SfError::NoResult)
     {
