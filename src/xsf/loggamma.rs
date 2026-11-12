@@ -112,13 +112,8 @@ fn loggamma_taylor(mut z: C64) -> C64 {
     z * z.evalpoly(&coeffs)
 }
 
-/// [`zlog1_c64`] for [`num_complex::Complex`]
-pub(crate) fn zlog1(z: Complex<f64>) -> Complex<f64> {
-    z.via(zlog1_c64)
-}
-
 /// `xsf::detail::zlog1` from `xsf/zlog1.h` (original author: Josh Wilson, 2016)
-fn zlog1_c64(mut z: C64) -> C64 {
+pub(crate) fn zlog1_c64(mut z: C64) -> C64 {
     /* Compute log, paying special attention to accuracy around 1. We
      * implement this ourselves because some systems (most notably the
      * Travis CI machines) are weak in this regime. */
