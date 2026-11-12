@@ -79,6 +79,53 @@ fn test_eval_integer_degree_reflection() {
 }
 
 #[test]
+fn test_eval_integer_degree_f64() {
+    // integer degrees use the integer-degree recurrence, where `hyp2f1` was NaN or cancelled (Arb)
+    let x = 1.0 - f64::EPSILON / 2.0; // the largest f64 below 1
+    let actual = [
+        xsf::eval_legendre(1843.0, -0.93),
+        xsf::eval_legendre(10_000.0, x),
+        xsf::eval_jacobi(3569.0, 2.6, 7.6, -0.86),
+        xsf::eval_jacobi(4.0, 1.0, -0.999_999_999_999_999_1, -1.0),
+        xsf::eval_jacobi(3.0, 1.0, -0.999_999_999_999_999_8, -0.999_999_999_999_99),
+        xsf::eval_jacobi(3.0, 1.0, 1e30, 1.0),
+        xsf::eval_jacobi(3.0, 1.0, 1e15, x),
+    ];
+    let desired = [
+        0.010_688_711_712_761_17,
+        0.999_999_994_448_329_8,
+        303.059_497_866_840_5,
+        2.220_446_049_250_316_5e-16,
+        1.990_999_957_494_398_3e-14,
+        4.0,
+        3.673_067_558_944_249_6,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // also for complex z (Arb)
+    let actual = xsf::eval_jacobi(296.0, 7.0, 6.9, c64(0.23, 0.11));
+    let desired = c64(1_666_010_717_672_526.0, -1_439_182_896_291_838.2);
+    np_assert_allclose!([actual], [desired], rtol = 1e-12);
+
+    // only for alpha, beta > -1: the recurrence cancels near their negative integers (Arb)
+    let actual = [
+        xsf::eval_jacobi(2.0, 1.0, -2.999_999_999_999_999_6, 0.25),
+        xsf::eval_jacobi(3.0, -1.0, -1.999_999_999_999_999_8, -0.5),
+    ];
+    let desired = [2.015_624_999_999_999_6, -0.046_874_999_999_999_965];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // the series is used where the reflected recurrence is nonfinite (Arb)
+    let actual = xsf::eval_jacobi(2.0, 1e100, 0.5, -0.999_999_999_999_973_4);
+    np_assert_allclose!([actual], [8.874_685_183_736_382e171], rtol = 1e-14);
+
+    // complex z with Re z < 0 is reflected too (Arb)
+    let actual = xsf::eval_jacobi(1.0, 1e100, 0.0, c64(-0.999_999_999_999_999_1, 1e-20));
+    let desired = c64(4.440_892_098_500_626e84, 5e79);
+    np_assert_allclose!([actual], [desired], rtol = 1e-14);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [

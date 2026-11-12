@@ -155,6 +155,13 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_jacobi`
     #[inline]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
+        // Unlike in xsf, integer degrees with `alpha, beta > -1` use the recurrence of the integer
+        // degrees, since the series cancels catastrophically for large degrees, unless the
+        // recurrence is nonfinite.
+        let p = int_degree(n, a, b).map(|n| eval_jacobi_l_reflected(n, a, b, self.clone()));
+        if let Some(p) = p.filter(sealed::OrthoPolyArg::is_finite) {
+            return p;
+        }
         if a == -1.0 && b.abs() == 1.0 {
             if n == 0.0 {
                 return Self::ZERO + 1.0;
@@ -184,13 +191,26 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         if self.is_nan() {
             return self;
         }
-        self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0)
+        // Unlike in xsf, use the recurrence of the integer degrees for those (see above)
+        let p = int_degree(n, 0.0, 0.0).map(|n| match self.as_f64() {
+            Some(x) => Self::ZERO + x.eval_legendre(n),
+            None => eval_jacobi_l_reflected(n, 0.0, 0.0, self.clone()),
+        });
+        p.filter(sealed::OrthoPolyArg::is_finite)
+            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0))
     }
 }
 
 /// Whether the recurrence of `eval_jacobi_l` has positive denominators
 fn is_classical(alpha: f64, beta: f64) -> bool {
     alpha > -1.0 && beta > -1.0
+}
+
+/// `n` as `i32` if it is an integer in `1..=1e5` (to bound the cost of the recurrence) and
+/// the parameters are classical
+fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
+    let int = n.fract() == 0.0 && (1.0..=1e5).contains(&n);
+    (int && is_classical(alpha, beta)).then_some(n as i32)
 }
 
 /// `eval_jacobi_l`, where `Re x < 0` is reflected (DLMF Table 18.6.1) if `alpha, beta > -1`
