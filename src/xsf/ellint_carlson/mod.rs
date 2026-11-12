@@ -17,6 +17,8 @@ mod typing;
 
 use num_complex::Complex64;
 
+use crate::xsf::c64::C64;
+
 const ELLINT_CARLSON_RERR: f64 = 5e-16;
 
 pub trait CarlsonArg: crate::sealed::Sealed + Sized {
@@ -27,35 +29,43 @@ pub trait CarlsonArg: crate::sealed::Sealed + Sized {
     fn elliprj(self, y: Self, z: Self, p: Self) -> Self;
 }
 
+/// `CarlsonArg` for the public type `$T`, computed with the type `$U`
 macro_rules! impl_carlson_arg {
-    ($T:ty) => {
+    ($T:ty, $U:ty) => {
         impl CarlsonArg for $T {
             #[inline]
             fn elliprc(self, y: Self) -> Self {
-                rc::rc(self, y, ELLINT_CARLSON_RERR).1
+                let [x, y] = [self, y].map(Into::into);
+                rc::rc::<$U>(x, y, ELLINT_CARLSON_RERR).1.into()
             }
             #[inline]
             fn elliprd(self, y: Self, z: Self) -> Self {
-                rd::rd(self, y, z, ELLINT_CARLSON_RERR).1
+                let [x, y, z] = [self, y, z].map(Into::into);
+                rd::rd::<$U>(x, y, z, ELLINT_CARLSON_RERR).1.into()
             }
             #[inline]
             fn elliprf(self, y: Self, z: Self) -> Self {
-                rf::rf(self, y, z, ELLINT_CARLSON_RERR).1
+                let [x, y, z] = [self, y, z].map(Into::into);
+                rf::rf::<$U>(x, y, z, ELLINT_CARLSON_RERR).1.into()
             }
             #[inline]
             fn elliprg(self, y: Self, z: Self) -> Self {
-                rg::rg(self, y, z, ELLINT_CARLSON_RERR).1
+                let [x, y, z] = [self, y, z].map(Into::into);
+                rg::rg::<$U>(x, y, z, ELLINT_CARLSON_RERR).1.into()
             }
             #[inline]
             fn elliprj(self, y: Self, z: Self, p: Self) -> Self {
-                rj::rj(self, y, z, p, ELLINT_CARLSON_RERR, false).1
+                let [x, y, z, p] = [self, y, z, p].map(Into::into);
+                rj::rj::<$U>(x, y, z, p, ELLINT_CARLSON_RERR, false)
+                    .1
+                    .into()
             }
         }
     };
 }
 
-impl_carlson_arg!(f64);
-impl_carlson_arg!(Complex64);
+impl_carlson_arg!(f64, f64);
+impl_carlson_arg!(Complex64, C64);
 
 /// Degenerate symmetric elliptic integral $R_C(x, y)$ for real or complex input
 ///

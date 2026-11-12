@@ -2,9 +2,8 @@
 
 use core::num::FpCategory;
 
-use num_complex::Complex64;
-
 use super::typing::Num;
+use crate::xsf::c64::C64;
 
 #[inline]
 pub(super) fn invalid_rerr(r: f64, upper: f64) -> bool {
@@ -17,7 +16,7 @@ pub(super) fn too_small(x: f64) -> bool {
 }
 
 #[inline]
-pub(super) fn too_small_cplx(z: Complex64) -> bool {
+pub(super) fn too_small_cplx(z: C64) -> bool {
     too_small(z.re) && too_small(z.im)
 }
 
@@ -31,7 +30,7 @@ pub(super) fn ph_good(x: f64) -> bool {
 }
 
 #[inline]
-pub(super) fn ph_good_cplx(z: Complex64) -> bool {
+pub(super) fn ph_good_cplx(z: C64) -> bool {
     match z.im.classify() {
         FpCategory::Normal | FpCategory::Subnormal => {
             let r = z.re;

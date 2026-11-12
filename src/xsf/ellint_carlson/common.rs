@@ -137,9 +137,9 @@ pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
     if s.abs() < sa.abs() {
         let d = a - b;
         if d.abs().is_finite() {
-            d.quot(sa - sb)
+            d / (sa - sb)
         } else {
-            (a * 0.5 - b * 0.5).quot((sa - sb) * 0.5)
+            (a * 0.5 - b * 0.5) / ((sa - sb) * 0.5)
         }
     } else {
         s
@@ -156,7 +156,7 @@ pub(super) fn add_lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3], lam: T)
         let a = xyz[i] + lam;
         if a.abs() < xyz[i].abs() {
             let [j, k] = [(i + 1) % 3, (i + 2) % 3];
-            sqrt_sum(xyz[i], xyz[j], sq[i], sq[j]).prod(sqrt_sum(xyz[i], xyz[k], sq[i], sq[k]))
+            sqrt_sum(xyz[i], xyz[j], sq[i], sq[j]) * sqrt_sum(xyz[i], xyz[k], sq[i], sq[k])
         } else {
             a
         }

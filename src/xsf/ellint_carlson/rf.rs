@@ -19,7 +19,7 @@ use super::{argcheck, common};
 #[inline]
 pub(super) fn agm_update<T: Num>(x: &mut T, y: &mut T) {
     let xnext = (*x + *y) * 0.5;
-    let ynext = x.prod(*y).sqrt();
+    let ynext = (*x * *y).sqrt();
 
     *x = xnext;
     *y = ynext;
@@ -43,7 +43,7 @@ fn rf0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         m += 1;
     }
 
-    let res = T::from(constants::PI).quot(xm + ym);
+    let res = T::from(constants::PI) / (xm + ym);
     (status, res)
 }
 
@@ -81,12 +81,12 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         let (status, tmpres) = rf0(ym, zm, rerr * 0.5);
         /* Correction for non-zero x, see Eq. 19.27.3 in
          * https://dlmf.nist.gov/19.27.E3 */
-        let yz = ym.prod(zm);
+        let yz = ym * zm;
         // Unlike in xsf (scipy/xsf#467), as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows
         let res = if yz.too_small() {
-            tmpres - xm.sqrt().quot(ym.sqrt().prod(zm.sqrt()))
+            tmpres - xm.sqrt() / (ym.sqrt() * zm.sqrt())
         } else {
-            tmpres - xm.quot(yz).sqrt()
+            tmpres - (xm / yz).sqrt()
         };
         return (status, res);
     }
@@ -122,20 +122,20 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     /* Burn some extra cycles re-balancing Am as the "true" centroid. */
     cct1 = [xm, ym, zm];
     am = sum2(&cct1) / 3.0;
-    xxm = xxm.quot(am);
-    yym = yym.quot(am);
+    xxm = xxm / am;
+    yym = yym / am;
     /* Prepare the E_2 and E_3 terms used in the expansion */
     let zzm = -(xxm + yym);
-    let e2 = xxm.prod(yym) - zzm.prod(zzm);
-    let e3 = xxm.prod(yym.prod(zzm));
+    let e2 = xxm * yym - zzm * zzm;
+    let e3 = xxm * (yym * zzm);
     /* Evaluate the 7th-degree expansion using the E_2 and E3 terms, following
      * Eq. 19.36.1 of [1], https://dlmf.nist.gov/19.36.E1
      * The order of expansion is higher than that in Eq. (14) of Ref. [2]. */
     let mut s = comp_horner(e2, &constants::RF_C1);
-    s = s + e3.prod(comp_horner(e2, &constants::RF_C2) + e3 * constants::RF_C33);
+    s = s + e3 * (comp_horner(e2, &constants::RF_C2) + e3 * constants::RF_C33);
     s = s / constants::RF_DENOM;
     s = s + 1.0;
 
-    let res = s.quot(am.sqrt());
+    let res = s / am.sqrt();
     (status, res)
 }

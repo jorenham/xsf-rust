@@ -4,7 +4,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 
 use num_complex::Complex;
 
-use crate::xsf::complex::{cdiv, cmul, rdiv, rsub};
+use crate::xsf::complex::{catan, cdiv, cmul, csqrt, rdiv, rsub};
 use crate::xsf::evalpoly::cevalpoly;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
@@ -39,6 +39,13 @@ impl From<Complex<f64>> for C64 {
     }
 }
 
+impl From<f64> for C64 {
+    #[inline]
+    fn from(re: f64) -> Self {
+        c64(re, 0.0)
+    }
+}
+
 impl From<C64> for Complex<f64> {
     #[inline]
     fn from(z: C64) -> Self {
@@ -60,6 +67,12 @@ impl C64 {
     #[inline]
     pub(crate) fn norm(self) -> f64 {
         self.re.hypot(self.im)
+    }
+
+    /// `std::atan(z)`
+    #[inline]
+    pub(crate) fn atan(self) -> Self {
+        self.via(catan)
     }
 
     /// `std::conj(z)`
@@ -114,6 +127,12 @@ impl C64 {
     #[inline]
     pub(crate) fn sinpi(self) -> Self {
         self.via(crate::sinpi)
+    }
+
+    /// `std::sqrt(z)`
+    #[inline]
+    pub(crate) fn sqrt(self) -> Self {
+        self.via(csqrt)
     }
 
     /// `f(z)` for a function `f` of [`num_complex::Complex`]

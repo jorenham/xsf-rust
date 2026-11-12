@@ -109,10 +109,12 @@ pub(crate) fn is_nonpos_int(x: f64) -> bool {
     x <= 0.0 && x == x.floor()
 }
 
-/// The rows of a row-major matrix with `cols` columns
+/// The rows of a row-major matrix with `cols` columns, with the elements converted to `U`
 #[inline]
-pub(crate) fn vec_to_vecvec<T: Clone>(vec: &[T], cols: usize) -> Vec<Vec<T>> {
-    vec.chunks_exact(cols).map(<[T]>::to_vec).collect()
+pub(crate) fn vec_to_vecvec<T: Copy + Into<U>, U>(vec: &[T], cols: usize) -> Vec<Vec<U>> {
+    vec.chunks_exact(cols)
+        .map(|row| row.iter().map(|&x| x.into()).collect())
+        .collect()
 }
 
 #[cfg(test)]

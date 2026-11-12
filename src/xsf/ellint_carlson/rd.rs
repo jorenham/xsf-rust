@@ -88,7 +88,7 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
          * accumulating the summation term into adt with compensation
          * term ade */
         let [xl, yl, zl] = common::add_lambda([xm, ym, zm], [cct1[0], cct1[1], cct1[2]], lam);
-        tmp = T::from(d4m).quot(cct1[2].prod(zl));
+        tmp = T::from(d4m) / (cct1[2] * zl);
         sum2_acc(tmp, &mut adt, &mut ade);
 
         am = (am + lam) * 0.25;
@@ -125,18 +125,18 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     cct1[3] = zm;
     cct1[4] = zm;
     am = nsum2(&cct1, 5) / 5.0;
-    xxm = xxm.quot(am);
-    yym = yym.quot(am);
+    xxm = xxm / am;
+    yym = yym / am;
     let zzm = (xxm + yym) / -3.0;
     /* Prepare the "elementary" terms E_n as in Eqs. (39-40) in Ref. [2] */
-    let xy = xxm.prod(yym);
-    let zz2 = zzm.prod(zzm);
+    let xy = xxm * yym;
+    let zz2 = zzm * zzm;
     let e2 = xy - zz2 * 6.0;
-    let e3 = (xy * 3.0 - zz2 * 8.0).prod(zzm);
-    let e4 = (xy - zz2).prod(zz2) * 3.0;
-    let e5 = xy.prod(zz2).prod(zzm);
+    let e3 = (xy * 3.0 - zz2 * 8.0) * zzm;
+    let e4 = (xy - zz2) * zz2 * 3.0;
+    let e5 = xy * zz2 * zzm;
     let mut t = am.sqrt();
-    tmp = T::from(d4m).quot(t.prod(t).prod(t));
+    tmp = T::from(d4m) / (t * t * t);
     /* Evaluate the 7th-degree expansion using the E_n terms, following
      * Eq. 19.36.2 of [1], https://dlmf.nist.gov/19.36#E2
      * The order of expansion is higher than that in Eq. (41) of Ref. [2]. */
