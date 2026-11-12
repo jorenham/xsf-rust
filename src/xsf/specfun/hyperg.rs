@@ -7,17 +7,14 @@
 use core::f64::consts::PI;
 use core::ops::{Div, Mul};
 
-use num_complex::{Complex64, c64};
-
 use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{SCIPY_EULER, SQRT_EPS, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
-use crate::xsf::complex::{cdiv, cmul, cpow, rsub};
-use crate::xsf::exp::cexp;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, gamma, gammaln, hyp0f1};
@@ -59,7 +56,7 @@ fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
     term_ratio(a, b, abs_z, n).is_some() || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
 }
 
-pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
+pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
     // ===================================================
     // Purpose: Compute confluent hypergeometric function
     //          M(a,b,z) with real parameters a, b and a
@@ -71,34 +68,34 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
     // Routine called: CGAMA for computing complex ln[Г(x)]
     // ===================================================
 
-    let ci = c64(0.0, 1.0);
+    let ci = C64::I;
     let mut a0 = a;
     // NOTE: `a1 = a; z0 = z;` are omitted: they are only used for the dead stores
     // `a = a1; z = z0;` at the end.
-    let mut cy0 = c64(0.0, 0.0);
-    let mut cy1 = c64(0.0, 0.0);
+    let mut cy0 = C64::ZERO;
+    let mut cy1 = C64::ZERO;
     // NOTE: uninitialized in C++, but always written before it is read (the `n` loop below
     // runs at least once).
-    let mut chg = c64(0.0, 0.0);
+    let mut chg = C64::ZERO;
     // NOTE: `(int)fabs(b)` is UB for |b| >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN,
     // which negates to INT_MIN (so b = -2^31 returns 1e300).
     if (b == 0.0) || (b == f64::from(int_x86(b.abs()).wrapping_neg())) {
         return c64(SPECFUN_INF, 0.0);
     }
-    if (a == 0.0) || (z == c64(0.0, 0.0)) {
-        return c64(1.0, 0.0);
+    if (a == 0.0) || (z == C64::ZERO) {
+        return C64::ONE;
     }
     if a == -1.0 {
-        return rsub(1.0, z / b);
+        return 1.0 - z / b;
     }
     if a == b {
-        return cexp(z);
+        return z.exp();
     }
     if a - b == 1.0 {
-        return cmul(1.0 + z / b, cexp(z));
+        return (1.0 + z / b) * z.exp();
     }
     if (a == 1.0) && (b == 2.0) {
-        return cdiv(cexp(z) - 1.0, z);
+        return (z.exp() - 1.0) / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
         // NOTE: for a = -2^31, `(int)(-a)` is UB; like g++ on x86-64, `int_x86` gives INT_MIN, so
@@ -106,11 +103,11 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
         // for m = INT_MAX (a = -(2^31 - 1)) `m + 1` overflows (UB), and g++ -O2 then also runs
         // ~2^31 iterations (i.e. treats it as `k <= m`), giving NaN.
         let m = int_x86(-a);
-        let mut cr = c64(1.0, 0.0);
-        chg = c64(1.0, 0.0);
+        let mut cr = C64::ONE;
+        chg = C64::ONE;
         for k in 1..=m {
             let n = f64::from(k - 1);
-            cr = cmul(cr * (a + n) / f64::from(k) / (b + n), z);
+            cr = cr * (a + n) / f64::from(k) / (b + n) * z;
             chg += cr;
         }
     } else {
@@ -135,9 +132,9 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 a += 1.0;
             }
             if (z.norm() < 20.0 + b.abs()) || (a < 0.0) {
-                chg = c64(1.0, 0.0);
-                let mut chw = c64(0.0, 0.0);
-                let mut crg = c64(1.0, 0.0);
+                chg = C64::ONE;
+                let mut chw = C64::ZERO;
+                let mut crg = C64::ONE;
                 // Unlike in xsf (scipy/xsf#454), a negligible term only ends the sum if the terms
                 // can't grow again (see `term_ratio`). Otherwise the sum up to the first one is used
                 // if the sum doesn't end, or if the later terms are below its rounding error.
@@ -146,10 +143,10 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 // the sum of |crg|
                 let mut rs = 1.0;
                 for j in 1..501 {
-                    crg = cmul(kummer_term(crg, a, b, j), z);
+                    crg = kummer_term(crg, a, b, j) * z;
                     chg += crg;
                     rs += crg.l1_norm();
-                    if cdiv(chg - chw, chg).norm() < 1e-15 {
+                    if ((chg - chw) / chg).norm() < 1e-15 {
                         if term_ratio(a, b, z.norm(), f64::from(j)).is_some() {
                             ended = true;
                             break;
@@ -168,31 +165,27 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
                 let cg1 = cgama(c64(a, 0.0), 0);
                 let cg2 = cgama(c64(b, 0.0), 0);
                 let cg3 = cgama(c64(b - a, 0.0), 0);
-                let mut cs1 = c64(1.0, 0.0);
-                let mut cs2 = c64(1.0, 0.0);
-                let mut cr1 = c64(1.0, 0.0);
-                let mut cr2 = c64(1.0, 0.0);
+                let mut cs1 = C64::ONE;
+                let mut cs2 = C64::ONE;
+                let mut cr1 = C64::ONE;
+                let mut cr2 = C64::ONE;
                 for i in 1..=8 {
-                    cr1 = cdiv(
-                        -cr1 * (a + f64::from(i) - 1.0) * (a - b + f64::from(i)),
-                        z * f64::from(i),
-                    );
-                    cr2 = cdiv(
-                        cr2 * (b - a + f64::from(i) - 1.0) * (f64::from(i) - a),
-                        z * f64::from(i),
-                    );
+                    cr1 = -cr1 * (a + f64::from(i) - 1.0) * (a - b + f64::from(i))
+                        / (z * f64::from(i));
+                    cr2 = cr2 * (b - a + f64::from(i) - 1.0) * (f64::from(i) - a)
+                        / (z * f64::from(i));
                     cs1 += cr1;
                     cs2 += cr2;
                 }
                 let y = z.im;
                 // DLMF 13.7.2, with the sign of ph z (Re z >= 0 here)
                 let ns = if y > 0.0 { 1 } else { -1 };
-                let mut cfac = cexp(f64::from(ns) * ci * PI * a);
+                let mut cfac = (f64::from(ns) * ci * PI * a).exp();
                 if y == 0.0 {
                     cfac = c64((PI * a).cos(), 0.0);
                 }
-                let chg1 = cmul(cmul(cmul(cexp(cg2 - cg3), cpow(z, -a)), cfac), cs1);
-                let chg2 = cmul(cmul(cexp(cg2 - cg1 + z), cpow(z, a - b)), cs2);
+                let chg1 = (cg2 - cg3).exp() * z.powf(-a) * cfac * cs1;
+                let chg2 = (cg2 - cg1 + z).exp() * z.powf(a - b) * cs2;
                 chg = chg1 + chg2;
             }
             if n == 0 {
@@ -204,7 +197,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
         }
         if a0 >= 2.0 {
             for _i in 1..la {
-                chg = (cmul(2.0 * a - b + z, cy1) + (b - a) * cy0) / a;
+                chg = ((2.0 * a - b + z) * cy1 + (b - a) * cy0) / a;
                 cy0 = cy1;
                 cy1 = chg;
                 a += 1.0;
@@ -212,17 +205,15 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: Complex64) -> Complex64 {
             // Unlike in xsf (scipy/scipy#5349), the series (DLMF 13.2.2) replaces the forward
             // recurrence in a above if they differ by more than twice the series' error bound.
             if b > 0.0 {
-                if let Some((s, _)) =
-                    hyp1f1_series(a0, b, z, Complex64::ONE, 0.0).filter(|&(s, err)| {
-                        err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
-                    })
-                {
+                if let Some((s, _)) = hyp1f1_series(a0, b, z, C64::ONE, 0.0).filter(|&(s, err)| {
+                    err.is_finite() && (!chg.is_finite() || (chg - s).norm() > 2.0 * err)
+                }) {
                     chg = s;
                 }
             }
         }
         if x0 < 0.0 {
-            chg = cmul(chg, cexp(-z));
+            chg *= (-z).exp();
         }
     }
     // a = a1;
@@ -235,14 +226,14 @@ trait Term: Copy + Default + Mul<f64, Output = Self> {
     /// the relative precision `2 u` of the error bound
     const EPS: f64;
     fn norm(self) -> f64;
-    /// `sum += self`, with the Kahan compensation `comp` for `Complex64`
+    /// `sum += self`, with the Kahan compensation `comp` for `C64`
     fn add_to(self, sum: &mut Self, comp: &mut Self);
 }
 
-impl Term for Complex64 {
+impl Term for C64 {
     const EPS: f64 = f64::EPSILON;
     fn norm(self) -> f64 {
-        Complex64::norm(self)
+        C64::norm(self)
     }
     fn add_to(self, sum: &mut Self, comp: &mut Self) {
         kahan_step(sum, comp, self);
@@ -265,13 +256,7 @@ impl Term for DoubleDouble {
 }
 
 /// `hyp1f1_sum` in complex arithmetic.
-fn hyp1f1_series(
-    a: f64,
-    b: f64,
-    z: Complex64,
-    scale: Complex64,
-    log_scale: f64,
-) -> Option<(Complex64, f64)> {
+fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(C64, f64)> {
     let next_term = |t, n| t * ((a + n) / (n + 1.0) * (z / (b + n)));
     hyp1f1_sum(a, b, z.norm(), next_term, scale, log_scale)
 }
@@ -284,7 +269,7 @@ fn hyp1f1_series(
 /// - the tail after the last term `t_N`: at most `|t_N| q_N / (1 - q_N)`, since the term ratios
 ///   `q_n = (a + n) |z| / ((n + 1) (b + n))` are non-increasing;
 /// - the rounding error: at most `8 u sum (n + 1) |t_n|` (`8 n u` per term, `2 u |t_n|` per Kahan
-///   step of `Complex64`).
+///   step of `C64`).
 ///
 /// A negligible `t_N` is skipped if the terms can grow again (see `term_ratio`), unless the sum
 /// overflowed.
@@ -346,7 +331,7 @@ fn hyp1f1_sum<T: Term>(
 /// the first term `|b|`, as the next ones are `~ 1/b` and can overflow first. For `Re z < 0` via
 /// DLMF 13.2.39, unless rounding `b - a` moves it relatively far (over `sqrt(eps)`) from an
 /// integer `<= 0`. Also `hg` if the sum loses over half of its digits or underflows.
-pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: Complex64, hg: Complex64) -> Complex64 {
+pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
     if hg.is_finite() || !(a.is_finite() && z.is_finite() && b != 0.0 && b.abs() < 1.0) {
         return hg;
     }
@@ -359,7 +344,8 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: Complex64, hg: Complex64) -> Com
     } else {
         (a, z, 0.0, 0.0)
     };
-    hyp1f1_series(a, b, z, Complex64::from_polar(b.abs(), phase), ln_scale)
+    let scale = c64(b.abs() * phase.cos(), b.abs() * phase.sin());
+    hyp1f1_series(a, b, z, scale, ln_scale)
         .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPS * m.norm())
         .map_or(hg, |(m, _)| m / b.abs())
 }
@@ -824,12 +810,12 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let hg1;
             let hg2;
             if x0 >= 0.0 {
-                hg1 = cexp(ctb - ctba).re * x.powf(-a) * (PI * a).cos() * sum1;
-                hg2 = cexp(ctb - cta + x).re * x.powf(a - b) * sum2;
+                hg1 = (ctb - ctba).exp().re * x.powf(-a) * (PI * a).cos() * sum1;
+                hg2 = (ctb - cta + x).exp().re * x.powf(a - b) * sum2;
             } else {
                 // DLMF 13.2.39 (cf. above)
-                hg1 = cexp(ctb - ctba + x0).re * x.powf(-a) * (PI * a).cos() * sum1;
-                hg2 = cexp(ctb - cta).re * x.powf(a - b) * sum2;
+                hg1 = (ctb - ctba + x0).exp().re * x.powf(-a) * (PI * a).cos() * sum1;
+                hg2 = (ctb - cta).exp().re * x.powf(a - b) * sum2;
             }
             hg = hg1 + hg2;
         }

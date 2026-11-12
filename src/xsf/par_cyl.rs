@@ -11,9 +11,8 @@
 
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
-use num_complex::{Complex64, c64};
-
 use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp, pow2};
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
 use crate::xsf::specfun::{cgama, gamma2};
@@ -579,12 +578,12 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     // `s = s1 + i s2` (12.14.23) and its derivative `ds`, where the terms `t` of `s` decrease
     // until `r ~ X^2 / 2 = 50`, and drop below eps by `r = 24`
     let z = c64(0.5, a);
-    let mut t = Complex64::ONE;
+    let mut t = C64::ONE;
     let mut s = t;
-    let mut ds = Complex64::ZERO;
+    let mut ds = C64::ZERO;
     for r in 1..=50 {
         let r = f64::from(r);
-        t *= -Complex64::I * (z + 2.0 * r - 2.0) * (z + 2.0 * r - 1.0) / (2.0 * r * X * X);
+        t *= -C64::I * (z + 2.0 * r - 2.0) * (z + 2.0 * r - 1.0) / (2.0 * r * X * X);
         s += t;
         ds -= t * (2.0 * r / X);
         if t.norm() < f64::EPSILON {
@@ -595,7 +594,8 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     let e = (PI * a).exp();
     let k = 1.0 / ((1.0 + e * e).sqrt() + e);
     let omega = X * X / 4.0 - a * X.ln() + PI / 4.0 + cgama(z, 0).im / 2.0;
-    let f = Complex64::from_polar((2.0 * k / X).sqrt(), omega);
+    let rho = (2.0 * k / X).sqrt();
+    let f = c64(rho * omega.cos(), rho * omega.sin());
     let u = s * f;
     let du = u * c64(-0.5 / X, X / 2.0 - a / X) + ds * f;
     let (mut w, mut dw) = (u.re, du.re);
