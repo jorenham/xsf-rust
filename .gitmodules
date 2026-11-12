@@ -1,4 +1,0 @@
-[submodule "xsref"]
-	path = xsref
-	url = https://github.com/scipy/xsref.git
-	tag = v0.0.0

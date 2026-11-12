@@ -1,13 +1,9 @@
 use core::fmt::LowerExp;
-use std::fs::File;
+use std::fs;
 use std::io::Error as IOError;
 use std::path::PathBuf;
 
 use num_complex::{Complex, c64};
-use polars::error::PolarsError;
-use polars::io::SerReader;
-use polars::io::parquet::read::ParquetReader;
-use polars::prelude::{Column, DataFrame, DataType};
 
 use crate::{ExtendedErrorArg, extended_relative_error};
 
@@ -24,19 +20,14 @@ impl TestOutputValue for Complex<f64> {}
 pub trait TestOutput: Copy {
     type Value: TestOutputValue;
 
-    fn from_parquet_row(row: Vec<f64>) -> Self;
-
-    #[inline]
-    fn from_parquet_rows(rows: Vec<Vec<f64>>) -> Vec<Self> {
-        rows.into_iter().map(Self::from_parquet_row).collect()
-    }
+    fn from_row(row: &[f64]) -> Self;
 
     fn values(&self) -> Vec<Self::Value>;
 
     /// All outputs NaN
     #[inline]
     fn nan() -> Self {
-        Self::from_parquet_row(vec![f64::NAN; 8])
+        Self::from_row(&[f64::NAN; 8])
     }
 
     /// The extended relative error of each output
@@ -70,7 +61,7 @@ impl TestOutput for f32 {
     type Value = f32;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         row[0] as f32
     }
 
@@ -84,7 +75,7 @@ impl TestOutput for f64 {
     type Value = f64;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         row[0]
     }
 
@@ -98,7 +89,7 @@ impl TestOutput for Complex<f64> {
     type Value = Complex<f64>;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         c64(row[0], row[1])
     }
 
@@ -112,7 +103,7 @@ impl TestOutput for (f64, f64) {
     type Value = f64;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         (row[0], row[1])
     }
 
@@ -126,7 +117,7 @@ impl TestOutput for (Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         (c64(row[0], row[1]), c64(row[2], row[3]))
     }
 
@@ -140,7 +131,7 @@ impl TestOutput for (f64, f64, f64, f64) {
     type Value = f64;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         (row[0], row[1], row[2], row[3])
     }
 
@@ -154,7 +145,7 @@ impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
     type Value = Complex<f64>;
 
     #[inline]
-    fn from_parquet_row(row: Vec<f64>) -> Self {
+    fn from_row(row: &[f64]) -> Self {
         (
             c64(row[0], row[1]),
             c64(row[2], row[3]),
@@ -190,63 +181,89 @@ impl From<IOError> for TestError {
     }
 }
 
-impl From<PolarsError> for TestError {
-    #[inline]
-    fn from(_: PolarsError) -> Self {
-        TestError::DataFormat
-    }
+/// A table of `tests/data/xsref`, whose format is described in the README.md there
+#[derive(Debug)]
+struct Table {
+    n_in: usize,
+    n_out: usize,
+    n_tol: usize,
+    /// The inputs, outputs, and tolerances of each row (row-major)
+    values: Vec<f64>,
 }
 
-#[inline]
-fn read_parquet_df(file: File) -> Result<DataFrame, TestError> {
-    Ok(ParquetReader::new(file).finish()?)
-}
+impl Table {
+    const MAGIC: &[u8] = b"XSFT";
+    const VERSION: u32 = 1;
+    const HEADER_LEN: usize = 20;
+    /// The row flag for a reference that is xsf's own value (xsref's `fallback`)
+    const FALLBACK: u8 = 1;
 
-#[inline]
-fn column_values(column: &Column) -> Result<Vec<f64>, TestError> {
-    let series = column.as_materialized_series().cast(&DataType::Float64)?;
-    Ok(series
-        .f64()?
-        .iter()
-        .map(|x| x.unwrap_or(f64::NAN))
-        .collect())
-}
+    fn parse(bytes: &[u8]) -> Result<Self, TestError> {
+        let (header, data) = bytes
+            .split_at_checked(Self::HEADER_LEN)
+            .ok_or(TestError::DataFormat)?;
+        let u16_at = |i: usize| usize::from(u16::from_le_bytes([header[i], header[i + 1]]));
+        let u32_at = |i: usize| u32::from_le_bytes(header[i..i + 4].try_into().unwrap());
 
-#[inline]
-fn read_parquet_rows(file: File) -> Result<Vec<Vec<f64>>, TestError> {
-    let df = read_parquet_df(file)?;
-    let mut rows = vec![Vec::with_capacity(df.width()); df.height()];
-
-    // every column of a `DataFrame` has `height` values
-    for column in df.columns() {
-        for (row, value) in rows.iter_mut().zip(column_values(column)?) {
-            row.push(value);
+        // the header flags are reserved for optional sections
+        if &header[..4] != Self::MAGIC || u32_at(4) != Self::VERSION || u16_at(18) != 0 {
+            return Err(TestError::DataFormat);
         }
+        let n_rows = u32_at(8) as usize;
+        let (n_in, n_out, n_tol) = (u16_at(12), u16_at(14), u16_at(16));
+        let width = n_in + n_out + n_tol;
+
+        // each row has its `f64` values and a flags byte
+        let len = n_rows
+            .checked_mul(width * size_of::<f64>() + 1)
+            .and_then(|n| n.checked_add(Self::HEADER_LEN));
+        if n_rows == 0 || width == 0 || len != Some(bytes.len()) {
+            return Err(TestError::DataFormat);
+        }
+        let (values, row_flags) = data.split_at(n_rows * width * size_of::<f64>());
+        if row_flags.iter().any(|&flags| flags & !Self::FALLBACK != 0) {
+            return Err(TestError::DataFormat);
+        }
+
+        let values = values
+            .chunks_exact(size_of::<f64>())
+            .map(|x| f64::from_le_bytes(x.try_into().unwrap()))
+            .collect();
+        Ok(Self {
+            n_in,
+            n_out,
+            n_tol,
+            values,
+        })
     }
 
-    Ok(rows)
+    /// The inputs, outputs, and tolerances of each row
+    fn rows(&self) -> impl Iterator<Item = (&[f64], &[f64], &[f64])> {
+        let width = self.n_in + self.n_out + self.n_tol;
+        self.values.chunks_exact(width).map(|row| {
+            let (inputs, rest) = row.split_at(self.n_in);
+            let (outputs, tols) = rest.split_at(self.n_out);
+            (inputs, outputs, tols)
+        })
+    }
 }
 
 #[inline]
 fn load_testcases<T: TestOutput>(name: &str, sig: &str) -> Result<Vec<TestCase<T>>, TestError> {
-    let tables_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("xsref/src/xsref/tables/scipy_special_tests")
-        .join(name);
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../tests/data/xsref")
+        .join(name)
+        .join(format!("{sig}.bin"));
+    let table = Table::parse(&fs::read(path)?)?;
 
-    let open = |name: &str| File::open(tables_dir.join(format!("{name}.parquet")));
-
-    let table_in = read_parquet_rows(open(&format!("In_{sig}"))?)?;
-    let table_out = T::from_parquet_rows(read_parquet_rows(open(&format!("Out_{sig}"))?)?);
-    let table_err = read_parquet_rows(open(&format!("Err_{sig}_other"))?)?;
-
-    let test_cases = (0..table_in.len())
-        .map(|i| TestCase {
-            r#in: table_in[i].clone(),
-            out: table_out[i],
-            err: table_err[i].clone(),
+    let test_cases = table
+        .rows()
+        .map(|(inputs, outputs, tols)| TestCase {
+            r#in: inputs.to_vec(),
+            out: T::from_row(outputs),
+            err: tols.to_vec(),
         })
-        .collect::<Vec<_>>();
+        .collect();
 
     Ok(test_cases)
 }
@@ -371,4 +388,57 @@ where
         "{name}: {failed}/{total} tests failed, worst case for {worst_in:?} \
         (actual={worst_actual}; desired={worst_expect}; error={worst_err:.2e})",
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Table, TestError};
+
+    /// A file with `rows` of `(values, row flags)` and the dimensions `n_in, n_out, n_tol`
+    fn file(dims: [u16; 3], rows: &[(&[f64], u8)]) -> Vec<u8> {
+        let mut bytes = Table::MAGIC.to_vec();
+        bytes.extend(Table::VERSION.to_le_bytes());
+        bytes.extend(u32::try_from(rows.len()).unwrap().to_le_bytes());
+        bytes.extend(dims.into_iter().chain([0]).flat_map(u16::to_le_bytes));
+        for (row, _) in rows {
+            bytes.extend(row.iter().flat_map(|x| x.to_le_bytes()));
+        }
+        bytes.extend(rows.iter().map(|&(_, flags)| flags));
+        bytes
+    }
+
+    #[test]
+    fn test_table_singleton_bits() {
+        // one row: an input, two complex outputs, and their tolerances
+        let nan = f64::from_bits(0xfff8_0000_dead_beef);
+        let row = [-0.0, 1.5, nan, -2.0, f64::INFINITY, 1e-16, 2.5e-13];
+        let table = Table::parse(&file([1, 4, 2], &[(&row, Table::FALLBACK)])).unwrap();
+
+        let rows = table.rows().collect::<Vec<_>>();
+        assert_eq!(rows.len(), 1);
+        let (inputs, outputs, tols) = rows[0];
+        let bits = |x: &[f64]| x.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(inputs), bits(&row[..1]));
+        assert_eq!(bits(outputs), bits(&row[1..5]));
+        assert_eq!(bits(tols), bits(&row[5..]));
+    }
+
+    #[test]
+    fn test_table_invalid() {
+        let valid = file([1, 1, 1], &[(&[1.0, 2.0, 0.0], 0), (&[3.0, 4.0, 0.0], 0)]);
+        assert!(Table::parse(&valid).is_ok());
+
+        let invalid = |edit: fn(&mut Vec<u8>)| {
+            let mut bytes = valid.clone();
+            edit(&mut bytes);
+            matches!(Table::parse(&bytes), Err(TestError::DataFormat))
+        };
+        // truncated, wrong magic, unknown version, nonzero header flags, unknown row flags
+        assert!(invalid(|b| _ = b.pop()));
+        assert!(invalid(|b| b.truncate(Table::HEADER_LEN - 1)));
+        assert!(invalid(|b| b[0] = b'Y'));
+        assert!(invalid(|b| b[4] = 2));
+        assert!(invalid(|b| b[18] = 1));
+        assert!(invalid(|b| *b.last_mut().unwrap() = 2));
+    }
 }

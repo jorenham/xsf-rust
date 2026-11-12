@@ -24,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: true
           persist-credentials: false
 
       - name: dprint
@@ -86,7 +85,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: true
           persist-credentials: false
 
       - name: read rust-version from Cargo.toml
@@ -112,7 +110,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: true
           persist-credentials: false
 
       - name: cargo package
@@ -137,7 +134,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: true
           persist-credentials: false
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -150,3 +146,6 @@ jobs:
         env:
           PROFILE: ${{ matrix.profile }}
         run: cargo test --verbose --profile "$PROFILE" -- --nocapture
+
+      - name: cargo test (table reader)
+        run: cargo test --manifest-path testing/Cargo.toml
