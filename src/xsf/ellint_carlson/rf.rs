@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/_rf.hh` (scipy/xsf@d5182c3).
+//! Translated into pure Rust from `xsf/ellint_carlson/_rf.hh` (scipy/xsf@3a715f2).
 //!
 //! ```text
 //! References
@@ -81,13 +81,7 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         let (status, tmpres) = rf0(ym, zm, rerr * 0.5);
         /* Correction for non-zero x, see Eq. 19.27.3 in
          * https://dlmf.nist.gov/19.27.E3 */
-        let yz = ym * zm;
-        // Unlike in xsf (scipy/xsf#467), as sqrt(x) / (sqrt(y) sqrt(z)) if `y z` underflows
-        let res = if yz.too_small() {
-            tmpres - xm.sqrt() / (ym.sqrt() * zm.sqrt())
-        } else {
-            tmpres - (xm / yz).sqrt()
-        };
+        let res = tmpres - xm.sqrt() / (ym.sqrt() * zm.sqrt());
         return (status, res);
     }
 
