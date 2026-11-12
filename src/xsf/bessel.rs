@@ -141,11 +141,7 @@ fn reflect_jy(jy: &mut C64, v: f64) -> bool {
 }
 
 fn reflect_i(_ik: &mut C64, v: f64) -> bool {
-    if v != v.floor() {
-        return false;
-    }
-
-    true /* I is symmetric for integer v */
+    v == v.floor() /* I is symmetric for integer v */
 }
 
 fn rotate_i(i: C64, k: C64, v: f64) -> C64 {
