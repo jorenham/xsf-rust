@@ -125,29 +125,24 @@
 //!
 //! The real `Faddeeva::erf` and `Faddeeva::erfc` are not translated, since xsf uses the Cephes
 //! `erf` and `erfc` instead, and neither are the `#if !USE_CONTINUED_FRACTION` code paths.
-//! The products of two `std::complex<double>` are computed with `cmul`, and `double - complex`
-//! with `rsub`, to match the C++ in the overflow and signed zero cases.
 
 #![allow(non_snake_case)]
 
 use core::f64::consts::FRAC_2_SQRT_PI;
 
-use num_complex::{Complex, c64};
-
 use crate::utils::SQRT1OPI;
+use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::complex::{C64_NAN, cmul, rsub};
-use crate::xsf::exp::cexp;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2
 
 // compute erfcx(z) = exp(z^2) erfz(z)
-pub(crate) fn erfcx_c64(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn erfcx_c64(z: C64) -> C64 {
     w(c64(-z.im, z.re))
 }
 
 // compute the error function erf(z)
-pub(crate) fn erf_c64(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn erf_c64(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
@@ -191,10 +186,7 @@ pub(crate) fn erf_c64(z: Complex<f64>) -> Complex<f64> {
                 }
                 /* don't use complex exp function, since that will produce spurious NaN
                 values when multiplying w in an overflow situation. */
-                return rsub(
-                    1.0,
-                    mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(-y, x))),
-                );
+                return 1.0 - mRe_z2.exp() * (c64(mIm_z2.cos(), mIm_z2.sin()) * w(c64(-y, x)));
             }
             // x < 0
             if x > -5e-3 {
@@ -209,20 +201,14 @@ pub(crate) fn erf_c64(z: Complex<f64>) -> Complex<f64> {
             }
             /* don't use complex exp function, since that will produce spurious NaN
             values when multiplying w in an overflow situation. */
-            return mRe_z2.exp() * cmul(c64(mIm_z2.cos(), mIm_z2.sin()), w(c64(y, -x))) - 1.0;
+            return mRe_z2.exp() * (c64(mIm_z2.cos(), mIm_z2.sin()) * w(c64(y, -x))) - 1.0;
         }
         // taylor:
         // Use Taylor series for small |z|, to avoid cancellation inaccuracy
         //     erf(z) = 2/sqrt(pi) * z * (1 - z^2/3 + z^4/10 - ...)
         let mz2 = c64(mRe_z2, mIm_z2); // -z^2
-        return cmul(
-            z,
-            FRAC_2_SQRT_PI
-                + cmul(
-                    mz2,
-                    0.376_126_389_031_837_54 + mz2 * 0.112_837_916_709_551_26,
-                ),
-        );
+        return z
+            * (FRAC_2_SQRT_PI + mz2 * (0.376_126_389_031_837_54 + mz2 * 0.112_837_916_709_551_26));
     }
     // taylor_erfi:
     /* for small |x| and small |xy|,
@@ -252,13 +238,13 @@ pub(crate) fn erf_c64(z: Complex<f64>) -> Complex<f64> {
 }
 
 // erfi(z) = -i erf(iz)
-pub(crate) fn erfi_c64(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn erfi_c64(z: C64) -> C64 {
     let e = erf_c64(c64(-z.im, z.re));
     c64(e.im, -e.re)
 }
 
 // erfc(z) = 1 - erf(z)
-pub(crate) fn erfc_c64(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn erfc_c64(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
 
     if x == 0.0 {
@@ -301,14 +287,14 @@ pub(crate) fn erfc_c64(z: Complex<f64>) -> Complex<f64> {
     }
 
     if x >= 0.0 {
-        cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(-y, x)))
+        c64(mRe_z2, mIm_z2).exp() * w(c64(-y, x))
     } else {
-        rsub(2.0, cmul(cexp(c64(mRe_z2, mIm_z2)), w(c64(y, -x))))
+        2.0 - c64(mRe_z2, mIm_z2).exp() * w(c64(y, -x))
     }
 }
 
 // compute Dawson(z) = sqrt(pi)/2  *  exp(-z^2) * erfi(z)
-pub(crate) fn dawson_c64(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn dawson_c64(z: C64) -> C64 {
     let (x, y) = (z.re, z.im);
 
     // handle axes separately for speed & proper handling of x or y = Inf or NaN
@@ -351,7 +337,7 @@ pub(crate) fn dawson_c64(z: Complex<f64>) -> Complex<f64> {
                         break 'taylor_realaxis;
                     }
                 }
-                let res = cexp(mz2) - w(z);
+                let res = mz2.exp() - w(z);
                 return SPI2 * c64(-res.im, res.re);
             }
             // y < 0
@@ -365,19 +351,13 @@ pub(crate) fn dawson_c64(z: Complex<f64>) -> Complex<f64> {
             } else if y.is_nan() {
                 return c64(if x == 0.0 { 0.0 } else { f64::NAN }, f64::NAN);
             }
-            let res = w(-z) - cexp(mz2);
+            let res = w(-z) - mz2.exp();
             return SPI2 * c64(-res.im, res.re);
         }
         // taylor:
         // Use Taylor series for small |z|, to avoid cancellation inaccuracy
         //     dawson(z) = z - 2/3 z^3 + 4/15 z^5 + ...
-        return cmul(
-            z,
-            1. + cmul(
-                mz2,
-                0.666_666_666_666_666_6 + mz2 * 0.266_666_666_666_666_66,
-            ),
-        );
+        return z * (1. + mz2 * (0.666_666_666_666_666_6 + mz2 * 0.266_666_666_666_666_66));
     }
     // taylor_realaxis:
     /* for small |y| and small |xy|,
@@ -537,7 +517,7 @@ const EXPA2N2: [f64; 52] = [
 //
 // Unlike in xsf, this and the complex wrappers above have no `relerr` argument: xsf defaults it
 // to 0 and never passes another value, so the convergence tolerance is always machine epsilon.
-pub(crate) fn w(z: Complex<f64>) -> Complex<f64> {
+pub(crate) fn w(z: C64) -> C64 {
     if z.re == 0.0 {
         return c64(erfcx(z.im), z.re); // give correct sign of 0 in imag(w)
     } else if z.im == 0.0 {
@@ -586,7 +566,7 @@ pub(crate) fn w(z: Complex<f64>) -> Complex<f64> {
                     ret = c64(denom * yax, denom);
                 } else if ya.is_infinite() {
                     return if x.is_nan() || y < 0.0 {
-                        C64_NAN
+                        C64::NAN
                     } else {
                         c64(0.0, 0.0)
                     };
@@ -624,7 +604,7 @@ pub(crate) fn w(z: Complex<f64>) -> Complex<f64> {
             // use w(z) = 2.0*exp(-z*z) - w(-z),
             // but be careful of overflow in exp(-z*z)
             //                                = exp(-(xs*xs-ya*ya) -2*i*xs*ya)
-            return 2.0 * cexp(c64((ya - xs) * (xs + ya), 2.0 * xs * y)) - ret;
+            return 2.0 * c64((ya - xs) * (xs + ya), 2.0 * xs * y).exp() - ret;
         }
         return ret;
     }

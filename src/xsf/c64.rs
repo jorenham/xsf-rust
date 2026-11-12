@@ -7,6 +7,7 @@ use num_complex::Complex;
 use crate::xsf::complex::{cdiv, cmul, rdiv, rsub};
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
+use crate::xsf::trig::{ccos, csin};
 
 /// A complex number with the arithmetic of `std::complex<double>` in C++ (GCC), so that ported
 /// code can use the same operators:
@@ -45,10 +46,19 @@ impl From<C64> for Complex<f64> {
 }
 
 impl C64 {
+    /// NaN + NaN i
+    pub(crate) const NAN: Self = c64(f64::NAN, f64::NAN);
+
     /// `std::abs(z)`
     #[inline]
     pub(crate) fn norm(self) -> f64 {
         self.re.hypot(self.im)
+    }
+
+    /// `std::cos(z)`
+    #[inline]
+    pub(crate) fn cos(self) -> Self {
+        self.via(ccos)
     }
 
     /// `std::exp(z)`
@@ -61,6 +71,12 @@ impl C64 {
     #[inline]
     pub(crate) fn ln(self) -> Self {
         self.via(clog)
+    }
+
+    /// `std::sin(z)`
+    #[inline]
+    pub(crate) fn sin(self) -> Self {
+        self.via(csin)
     }
 
     /// `f(z)` for a function `f` of [`num_complex::Complex`]

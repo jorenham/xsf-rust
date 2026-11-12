@@ -13,6 +13,7 @@ use num_complex::{Complex64, c64};
 
 use crate::utils::{LN_PI, LN_TAU, SQRT_PI};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
+use crate::xsf::c64::ViaC64;
 use crate::xsf::cephes::{betainc_xy, gamma, incbet_pseries_sum, lgam, lgam1p};
 use crate::xsf::multivariate_normal::{LAGUERRE_W20, LAGUERRE_X20};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
@@ -47,7 +48,7 @@ impl StatsArg for Complex64 {
 }
 
 fn ndtr_c64(z: Complex64) -> Complex64 {
-    crate::xsf::faddeeva::erfc_c64(-z * FRAC_1_SQRT_2) * 0.5
+    (-z * FRAC_1_SQRT_2).via(crate::xsf::faddeeva::erfc_c64) * 0.5
 }
 
 /*
@@ -91,7 +92,7 @@ fn log_ndtr_f64(x: f64) -> f64 {
 fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
     if z.re > 6.0 {
         // Underflow. Close to the real axis, expand the log in log(1 - ndtr(-z)).
-        let w = crate::xsf::faddeeva::erfc_c64(z * FRAC_1_SQRT_2) * -0.5;
+        let w = (z * FRAC_1_SQRT_2).via(crate::xsf::faddeeva::erfc_c64) * -0.5;
         if w.norm() < 1e-8 {
             return w;
         }
@@ -115,7 +116,7 @@ fn log_ndtr_c64(mut z: Complex64) -> Complex64 {
 
     let val1 = c64(mRe_z2, im);
 
-    let val2 = crate::xsf::log::clog(crate::xsf::faddeeva::w(c64(-y, x)));
+    let val2 = crate::xsf::log::clog(c64(-y, x).via(crate::xsf::faddeeva::w));
     let result = val1 + val2 - LN_2;
 
     /* Again, select the principal branch: log(z) = log|z| + i arg(z), thus
