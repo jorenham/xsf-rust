@@ -29,6 +29,9 @@ mod sealed {
         /// `Some(x)` if `Self` is `f64`
         fn as_f64(&self) -> Option<f64>;
 
+        /// The real part
+        fn re(&self) -> f64;
+
         /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded)
         #[inline]
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
@@ -52,6 +55,11 @@ mod sealed {
         #[inline]
         fn as_f64(&self) -> Option<f64> {
             Some(*self)
+        }
+
+        #[inline]
+        fn re(&self) -> f64 {
+            *self
         }
 
         #[inline]
@@ -80,6 +88,11 @@ mod sealed {
         #[inline]
         fn as_f64(&self) -> Option<f64> {
             None
+        }
+
+        #[inline]
+        fn re(&self) -> f64 {
+            self.re
         }
     }
 }
@@ -142,6 +155,13 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
     /// Corresponds to `xsf::detail::eval_jacobi`
     #[inline]
     fn eval_jacobi(self, n: f64, a: f64, b: f64) -> Self {
+        // Unlike in xsf, integer degrees with `alpha, beta > -1` use the recurrence of the integer
+        // degrees, since the series cancels catastrophically for large degrees, unless the
+        // recurrence is nonfinite.
+        let p = int_degree(n, a, b).map(|n| eval_jacobi_l_reflected(n, a, b, self.clone()));
+        if let Some(p) = p.filter(sealed::OrthoPolyArg::is_finite) {
+            return p;
+        }
         if a == -1.0 && b.abs() == 1.0 {
             if n == 0.0 {
                 return Self::ZERO + 1.0;
@@ -171,41 +191,83 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         if self.is_nan() {
             return self;
         }
-        self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0)
+        // Unlike in xsf, use the recurrence of the integer degrees for those (see above)
+        let p = int_degree(n, 0.0, 0.0).map(|n| match self.as_f64() {
+            Some(x) => Self::ZERO + x.eval_legendre(n),
+            None => eval_jacobi_l_reflected(n, 0.0, 0.0, self.clone()),
+        });
+        p.filter(sealed::OrthoPolyArg::is_finite)
+            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0))
+    }
+}
+
+/// Whether the recurrence of `eval_jacobi_l` has positive denominators
+fn is_classical(alpha: f64, beta: f64) -> bool {
+    alpha > -1.0 && beta > -1.0
+}
+
+/// `n` as `i32` if it is an integer in `1..=1e5` (to bound the cost of the recurrence) and
+/// the parameters are classical
+fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
+    let int = n.fract() == 0.0 && (1.0..=1e5).contains(&n);
+    (int && is_classical(alpha, beta)).then_some(n as i32)
+}
+
+/// `eval_jacobi_l`, where `Re x < 0` is reflected (DLMF Table 18.6.1) if `alpha, beta > -1`
+///
+/// The recurrence starts at x = 1, and loses the small values near x = -1 (e.g. for beta near
+/// -1, or alpha far above beta). The reflected one can be nonfinite where the other one isn't.
+fn eval_jacobi_l_reflected<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -> Z {
+    if is_classical(alpha, beta) && x.re() < 0.0 {
+        let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+        eval_jacobi_l(n, beta, alpha, x * -1.0) * sign
+    } else {
+        eval_jacobi_l(n, alpha, beta, x)
+    }
+}
+
+/// Corresponds to `xsf::detail::eval_jacobi_l`, for `n >= 0`
+fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -> Z {
+    // Unlike in xsf, `alpha + beta + 2` is `(alpha + 1) + (beta + 1)`, which doesn't cancel
+    // for alpha and beta near -1.
+    let ab2 = (alpha + 1.0) + (beta + 1.0);
+    if n == 0 {
+        Z::ZERO + 1.0
+    } else if n == 1 {
+        ((x - 1.0) * ab2 + 2.0 * (alpha + 1.0)) * 0.5
+    } else if alpha == -1.0 {
+        // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
+        // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
+        let n = f64::from(n);
+        (x.clone() - 1.0) * ((n + beta) / (2.0 * n)) * x.eval_jacobi(n - 1.0, 1.0, beta)
+    } else {
+        let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
+        let mut p = d.clone() + 1.0;
+        for kk in 0..n - 1 {
+            let k = f64::from(kk) + 1.0;
+            let t = 2.0 * (k - 1.0) + ab2;
+            d = ((x.clone() - 1.0) * (t * (t + 1.0) * (t + 2.0)) * p.clone()
+                + d * (2.0 * k * (k + beta) * (t + 2.0)))
+                / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
+            p = p + d.clone();
+        }
+        p * jacobi_binom(f64::from(n), alpha)
     }
 }
 
 impl JacobiArg<i32> for f64 {
-    /// Corresponds to `xsf::detail::eval_jacobi_l`
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
-        let x = self;
-        // Unlike in xsf, `alpha + beta + 2` is `(alpha + 1) + (beta + 1)`, which doesn't cancel
-        // for alpha and beta near -1.
-        let ab2 = (alpha + 1.0) + (beta + 1.0);
         if n < 0 {
-            x.eval_jacobi(f64::from(n), alpha, beta)
-        } else if n == 0 {
-            1.0
-        } else if n == 1 {
-            0.5 * (2.0 * (alpha + 1.0) + ab2 * (x - 1.0))
-        } else if alpha == -1.0 {
-            // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
-            // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
-            let n = f64::from(n);
-            ((n + beta) / (2.0 * n)) * (x - 1.0) * x.eval_jacobi(n - 1.0, 1.0, beta)
+            self.eval_jacobi(f64::from(n), alpha, beta)
         } else {
-            let mut d = ab2 * (x - 1.0) / (2.0 * (alpha + 1.0));
-            let mut p = d + 1.0;
-            for kk in 0..n - 1 {
-                let k = f64::from(kk) + 1.0;
-                let t = 2.0 * (k - 1.0) + ab2;
-                d = ((t * (t + 1.0) * (t + 2.0)) * (x - 1.0) * p
-                    + 2.0 * k * (k + beta) * (t + 2.0) * d)
-                    / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
-                p += d;
+            // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
+            let p = eval_jacobi_l_reflected(n, alpha, beta, self);
+            if p.is_finite() {
+                p
+            } else {
+                eval_jacobi_l(n, alpha, beta, self)
             }
-            jacobi_binom(f64::from(n), alpha) * p
         }
     }
 
@@ -228,6 +290,11 @@ impl JacobiArg<i32> for f64 {
             1.0
         } else if n == 1 {
             x
+        } else if x < 0.0 {
+            // Unlike in xsf, use P_n(-x) = (-1)^n P_n(x), since the recurrence below starts at
+            // x = 1 (as for `eval_jacobi_l`)
+            let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+            sign * (-x).eval_legendre(n)
         } else if x.abs() < 1e-5 {
             // Power series rather than recurrence due to loss of precision
             // http://functions.wolfram.com/Polynomials/LegendreP/02/
