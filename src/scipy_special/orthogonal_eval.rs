@@ -180,26 +180,29 @@ impl JacobiArg<i32> for f64 {
     #[inline]
     fn eval_jacobi(self, n: i32, alpha: f64, beta: f64) -> Self {
         let x = self;
+        // Unlike in xsf, `alpha + beta + 2` is `(alpha + 1) + (beta + 1)`, which doesn't cancel
+        // for alpha and beta near -1.
+        let ab2 = (alpha + 1.0) + (beta + 1.0);
         if n < 0 {
             x.eval_jacobi(f64::from(n), alpha, beta)
         } else if n == 0 {
             1.0
         } else if n == 1 {
-            0.5 * (2.0 * (alpha + 1.0) + (alpha + beta + 2.0) * (x - 1.0))
+            0.5 * (2.0 * (alpha + 1.0) + ab2 * (x - 1.0))
         } else if alpha == -1.0 {
             // Unlike in xsf, for every beta (not only |beta| = 1), since the recurrence below
             // divides by alpha + 1. This follows from DLMF 18.5.7 term by term.
             let n = f64::from(n);
             ((n + beta) / (2.0 * n)) * (x - 1.0) * x.eval_jacobi(n - 1.0, 1.0, beta)
         } else {
-            let mut d = (alpha + beta + 2.0) * (x - 1.0) / (2.0 * (alpha + 1.0));
+            let mut d = ab2 * (x - 1.0) / (2.0 * (alpha + 1.0));
             let mut p = d + 1.0;
             for kk in 0..n - 1 {
                 let k = f64::from(kk) + 1.0;
-                let t = 2.0 * k + alpha + beta;
+                let t = 2.0 * (k - 1.0) + ab2;
                 d = ((t * (t + 1.0) * (t + 2.0)) * (x - 1.0) * p
                     + 2.0 * k * (k + beta) * (t + 2.0) * d)
-                    / (2.0 * (k + alpha + 1.0) * (k + alpha + beta + 1.0) * t);
+                    / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
                 p += d;
             }
             jacobi_binom(f64::from(n), alpha) * p

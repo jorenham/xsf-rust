@@ -96,6 +96,14 @@ fn test_eval_jacobi_alpha_near_minus_one() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 
+    // and with beta also near -1, where `alpha + beta + 2` cancelled (Arb)
+    let actual = [
+        xsf::eval_jacobi(2_i32, -0.999_999_999_999_98, -0.999_999_999_999_999_7, -0.5),
+        xsf::eval_jacobi(16_i32, -0.999_999_999_999_996, -0.999_999_999_999_993, 0.58),
+    ];
+    let desired = [-0.187_500_000_000_003_08, -0.087_684_044_487_768_09];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
     // near alpha = -8 the recurrence cancels, but the result stays small (Arb: 3.7e-9)
     assert!(xsf::eval_jacobi(20_i32, -7.999_999_999_999_998, 1.0, 0.9585).abs() < 1e-8);
 }
