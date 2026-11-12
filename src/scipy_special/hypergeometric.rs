@@ -1,13 +1,12 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@b1eb270).
 //!
-//! Unlike in xsf, the complex `hyp0f1` uses the `sqrt` and `powf` of `num_complex` (in polar
-//! form) instead of `std::sqrt` and `std::pow`.
-
-use num_complex::Complex64;
+//! Unlike in xsf, the complex `hyp0f1` computes its power in polar form instead of with `std::pow`,
+//! i.e. `exp(x log(z))`, which is less accurate here.
 
 use crate::utils::{MAXLOG, is_nonpos_int};
+use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
+use crate::xsf::c64::{C64, ViaC64};
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
-use crate::xsf::complex::C64_NAN;
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
@@ -147,15 +146,15 @@ fn hyp0f1_series(v: f64, z: f64) -> f64 {
 
 /// `xsf::hyp0f1` for complex `z`
 #[inline]
-fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
-        C64_NAN
+fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
+    if v.is_nan() || z.is_nan() {
+        C64::NAN
     } else if is_nonpos_int(v) {
         // poles
         f64::NAN.into()
     } else if z.re == 0.0 && z.im == 0.0 && v != 0.0 {
         // zeros
-        1.0.into()
+        C64::ONE
     } else if z.norm() < 1e-6 * (1.0 + v.abs()) {
         // both v and z small: truncate the Taylor series at O(z**2)
 
@@ -167,15 +166,13 @@ fn hyp0f1_cmplx(v: f64, z: Complex64) -> Complex64 {
     } else {
         let (arg, r) = if z.re > 0.0 {
             let arg = z.sqrt();
-            let bess_val = crate::bessel_i(v - 1.0, 2.0 * arg);
-            (arg, bess_val)
+            (arg, cyl_bessel_i_c64(v - 1.0, 2.0 * arg))
         } else {
             let arg = (-z).sqrt();
-            let bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
-            (arg, bess_val)
+            (arg, cyl_bessel_j_c64(v - 1.0, 2.0 * arg))
         };
 
-        r * crate::gamma(v) * arg.powf(1.0 - v)
+        r * crate::gamma(v) * arg.powf_polar(1.0 - v)
     }
 }
 
@@ -209,7 +206,7 @@ impl HypergeometricArg for f64 {
 impl HypergeometricArg for num_complex::Complex<f64> {
     #[inline]
     fn hyp0f0(self) -> Self {
-        self.exp()
+        self.via(C64::exp)
     }
 
     #[inline]
@@ -217,13 +214,14 @@ impl HypergeometricArg for num_complex::Complex<f64> {
         if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
             f64::NAN.into()
         } else {
-            (1.0 - self).powf(-a)
+            // (in polar form, which is more accurate than `std::pow` here)
+            self.via(|z| (1.0 - z).powf_polar(-a))
         }
     }
 
     #[inline]
     fn hyp0f1(self, b: f64) -> Self {
-        hyp0f1_cmplx(b, self)
+        self.via(|z| hyp0f1_cmplx(b, z))
     }
 }
 
