@@ -22,13 +22,14 @@
 
 use crate::utils::{LN_PI, LN_SQRT_2PI, is_nonpos_int};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::polevl::polevl;
 
 use core::f64::consts::PI;
 use num_complex::Complex;
 
 const LOGGAMMA_SMALLX: f64 = 7.0;
 const LOGGAMMA_SMALLY: f64 = 7.0;
-const LOGGAMMA_TAYLOR_RADIUS: f64 = 0.2;
+pub(crate) const LOGGAMMA_TAYLOR_RADIUS: f64 = 0.2;
 
 fn loggamma_stirling(z: C64) -> C64 {
     /* Stirling series for log-Gamma
@@ -73,43 +74,49 @@ fn loggamma_recurrence(mut z: C64) -> C64 {
     loggamma_stirling(z) - shiftprod.ln() - f64::from(signflips) * 2.0 * PI * C64::I
 }
 
-fn loggamma_taylor(mut z: C64) -> C64 {
-    /* Taylor series for log-Gamma around z = 1.
-     *
-     * It is
-     *
-     * loggamma(z + 1) = -gamma*z + zeta(2)*z**2/2 - zeta(3)*z**3/3 ...
-     *
-     * where gamma is the Euler-Mascheroni constant.
-     */
-    let coeffs = [
-        -0.043_478_266_053_040_26,
-        0.045_454_556_293_204_67,
-        -0.047_619_070_330_142_226,
-        0.050_000_047_698_101_69,
-        -0.052_631_679_379_616_66,
-        0.055_555_767_627_403_614,
-        -0.058_823_978_658_684_585,
-        0.062_500_955_141_213_04,
-        -0.066_668_705_882_420_46,
-        0.071_432_946_295_361_33,
-        -0.076_932_516_411_352_2,
-        0.083_353_840_546_109,
-        -0.090_954_017_145_829_04,
-        0.100_099_457_512_781_8,
-        -0.111_334_265_869_564_69,
-        0.125_509_669_524_743_04,
-        -0.144_049_896_768_846_1,
-        0.169_557_176_997_408_2,
-        -0.207_385_551_028_673_98,
-        0.270_580_808_427_784_54,
-        -0.400_685_634_386_531_43,
-        0.822_467_033_424_113_2,
-        -0.577_215_664_901_532_9,
-    ];
+/* Taylor series for log-Gamma around z = 1.
+ *
+ * It is
+ *
+ * loggamma(z + 1) = -gamma*z + zeta(2)*z**2/2 - zeta(3)*z**3/3 ...
+ *
+ * where gamma is the Euler-Mascheroni constant.
+ */
+const LOGGAMMA_TAYLOR_COEFFS: [f64; 23] = [
+    -0.043_478_266_053_040_26,
+    0.045_454_556_293_204_67,
+    -0.047_619_070_330_142_226,
+    0.050_000_047_698_101_69,
+    -0.052_631_679_379_616_66,
+    0.055_555_767_627_403_614,
+    -0.058_823_978_658_684_585,
+    0.062_500_955_141_213_04,
+    -0.066_668_705_882_420_46,
+    0.071_432_946_295_361_33,
+    -0.076_932_516_411_352_2,
+    0.083_353_840_546_109,
+    -0.090_954_017_145_829_04,
+    0.100_099_457_512_781_8,
+    -0.111_334_265_869_564_69,
+    0.125_509_669_524_743_04,
+    -0.144_049_896_768_846_1,
+    0.169_557_176_997_408_2,
+    -0.207_385_551_028_673_98,
+    0.270_580_808_427_784_54,
+    -0.400_685_634_386_531_43,
+    0.822_467_033_424_113_2,
+    -0.577_215_664_901_532_9,
+];
 
+fn loggamma_taylor(mut z: C64) -> C64 {
     z -= 1.0;
-    z * z.evalpoly(&coeffs)
+    z * z.evalpoly(&LOGGAMMA_TAYLOR_COEFFS)
+}
+
+/// [`loggamma_taylor`] for real `x`
+pub(crate) fn loggamma_taylor_real(mut x: f64) -> f64 {
+    x -= 1.0;
+    x * polevl(x, &LOGGAMMA_TAYLOR_COEFFS)
 }
 
 /// `xsf::detail::zlog1` from `xsf/zlog1.h` (original author: Josh Wilson, 2016)

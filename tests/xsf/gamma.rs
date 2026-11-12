@@ -133,3 +133,25 @@ fn test_gammasgn_large_negative() {
         assert_eq!(xsf::gamma(x).signum(), s);
     }
 }
+
+#[test]
+fn test_gammaln_near_zeros() {
+    // unlike in xsf, with a small relative error near the zeros at 1 and 2 (mpmath references)
+    let x = [
+        0.999_999_999_999_999_9,
+        0.998_622_470_062_837_7,
+        1.999_999_999_999_969_1,
+        1.15,
+        1.85,
+    ];
+    let expected = [
+        6.408_381_213_480_008e-17,
+        0.000_796_693_611_134_219_1,
+        -1.304_890_031_110_462_7e-14,
+        -0.069_306_208_671_046_85,
+        -0.055_923_813_019_657_244,
+    ];
+    xsref::np_assert_allclose!(&x.map(xsf::gammaln), &expected, rtol = 1e-15);
+    // the zeros are +0
+    assert_eq!([1.0, 2.0].map(|x| xsf::gammaln(x).to_bits()), [0, 0]);
+}
