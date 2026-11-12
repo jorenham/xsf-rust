@@ -78,7 +78,8 @@ fn log_ndtr_f64(x: f64) -> f64 {
     if x < -1.0 {
         (crate::xsf::faddeeva::erfcx(-t) / 2.0).ln() - t * t
     } else {
-        (-crate::xsf::cephes::erfc(t) / 2.0).ln_1p()
+        // Unlike in xsf, erfc(t) / 2 is ndtr(-x), which avoids the rounding error of t
+        (-crate::xsf::cephes::ndtr(-x)).ln_1p()
     }
 }
 

@@ -227,6 +227,28 @@ xsref::tests! {
     test_ndtr_c64: "ndtr", "cd-cd", |x| xsf::ndtr(c64(x[0], x[1]));
 }
 
+#[test]
+fn test_ndtr_tails() {
+    // Reference values from mpmath (`ncdf`, `owens_t` in tools/accuracy/specs.py, 50 digits),
+    // confirmed with Wolfram (`CDF[NormalDistribution[], x]`, NIntegrate of Owen's T)
+    let y = [-20.0, -30.0].map(xsf::ndtr);
+    xsref::np_assert_allclose!(
+        &y,
+        &[2.753_624_118_606_233_7e-89, 4.906_713_927_148_187e-198],
+        rtol = 1e-15
+    );
+    // subnormal, to a multiple of 2^-1074
+    let y = [-38.0, -38.4].map(xsf::ndtr);
+    xsref::np_assert_allclose!(&y, &[2.885_428_35e-316, 6.4e-323], atol = 5e-324);
+    // ~0.50016 and ~0.419 times 2^-1074
+    assert_eq!(xsf::ndtr(-38.4854), f64::from_bits(1));
+    assert_eq!(xsf::ndtr(-38.49), 0.0);
+    let y = xsf::log_ndtr(30.0);
+    xsref::np_assert_allclose!(&[y], &[-4.906_713_927_148_187e-198], rtol = 1e-15);
+    let t = xsf::owens_t(30.0, 2.0);
+    xsref::np_assert_allclose!(&[t], &[2.453_356_963_574_093_6e-198], rtol = 1e-15);
+}
+
 // Based on `scipy.special.tests.test_ndtr.TestLogNdtr.test_log_ndtr_moderate_le8`
 #[test]
 #[allow(clippy::approx_constant)]

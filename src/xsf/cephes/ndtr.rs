@@ -8,8 +8,9 @@
 
 use core::f64::consts::FRAC_1_SQRT_2;
 
-use crate::utils::MAXLOG;
+use crate::utils::{MAXLOG, MINLOG, mul_exp, pow2};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
+use crate::xsf::faddeeva::erfcx;
 
 const NDTR_P: [f64; 9] = [
     2.461_969_814_735_305e-10,
@@ -194,21 +195,14 @@ pub(crate) fn erf(x: f64) -> f64 {
 /// ```
 ///
 /// where z = x/sqrt(2). Computation is via the functions
-/// erf and erfc.
+/// erf and erfcx.
 ///
 /// ACCURACY:
 ///
 /// ```text
 ///                      Relative error:
 /// arithmetic   domain     # trials      peak         rms
-///    IEEE     -13,0        30000       3.4e-14     6.8e-15
-/// ```
-///
-/// ERROR MESSAGES:
-///
-/// ```text
-///   message         condition         value returned
-/// erfc underflow    x > 37.519379347       0.0
+///    IEEE     -13,0         2000       1.2e-15     2.1e-16
 /// ```
 pub(crate) fn ndtr(a: f64) -> f64 {
     if a.is_nan() {
@@ -221,7 +215,36 @@ pub(crate) fn ndtr(a: f64) -> f64 {
     if z < 1.0 {
         0.5 + 0.5 * erf(x)
     } else {
-        let y = 0.5 * erfc(z);
+        // Unlike in xsf, erfc(z) / 2 is erfcx(z) exp(-a^2 / 2) / 2 with the exponential of the
+        // unrounded a: rounding z = |a| / sqrt(2) and z^2 costs up to ~z^2 ulp in exp(-z^2).
+        let y = if z * z < -MINLOG {
+            mul_exp_neg_half_sq(0.5 * erfcx(z), a)
+        } else {
+            0.0
+        };
         if x > 0.0 { 1.0 - y } else { y }
+    }
+}
+
+/// `m exp(-x^2 / 2)`, without amplifying the rounding error of `x^2`
+///
+/// Like `expx2` of Cephes 2.9 (not in xsf), but with one `exp`. Only for `x^2` that neither over-
+/// nor underflows, as `2 <= x^2 < -2 MINLOG` in `ndtr`.
+fn mul_exp_neg_half_sq(m: f64, x: f64) -> f64 {
+    // Veltkamp's split x = h + (x - h), where h has at most 26 bits, so h^2 is exact
+    const SPLITTER: f64 = pow2(27) + 1.0;
+    let t = SPLITTER * x;
+    let h = t - (t - x);
+    let u = -0.5 * (h * h);
+    let v = -0.5 * ((x - h) * (x + h));
+    // exp(u + v) = exp(s) exp(e) ~ exp(s) (1 + e), with s + e = u + v exactly (Fast2Sum)
+    let s = u + v;
+    let e = (u - s) + v;
+    let g = s.exp();
+    if g < f64::MIN_POSITIVE {
+        // exp(s) is subnormal: apply m first, so that only the final product rounds there
+        mul_exp(m * (1.0 + e), s)
+    } else {
+        m * (g * (1.0 + e))
     }
 }
