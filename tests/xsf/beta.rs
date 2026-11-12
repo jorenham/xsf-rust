@@ -102,3 +102,23 @@ fn test_beta_negint_int_overflow() {
         assert!((xsf::betaln(a, 1.0) / expected.abs().ln() - 1.0).abs() < 1e-14);
     }
 }
+
+#[test]
+fn test_betaln_both_large() {
+    // unlike in xsf, without the cancellation in lgam(a) + lgam(b) - lgam(a + b) (mpmath)
+    // (a + b overflows for the last one)
+    let ab = [
+        (106.5, 765.0),
+        (9005.8, 1260.8),
+        (1.34e182, 3.03e182),
+        (1e308, 1e308),
+    ];
+    let expected = [
+        -324.929_840_678_593_45,
+        -3_826.675_079_633_965_7,
+        -2.693_592_329_940_119e182,
+        -1.386_294_361_119_890_7e308,
+    ];
+    let actual = ab.map(|(a, b)| xsf::betaln(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
