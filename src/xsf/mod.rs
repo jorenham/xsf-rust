@@ -15,6 +15,7 @@ mod amos;
 pub(crate) mod bessel;
 mod beta;
 mod binom;
+pub(crate) mod c64;
 mod cdflib;
 pub(crate) mod cephes;
 pub(crate) mod complex;
