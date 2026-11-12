@@ -8,7 +8,8 @@
 //! Unlike in xsf, `1 - a` in the negative integer helpers is computed in floating point instead of
 //! in `int`, where it overflows (UB) for `a = -2^31` and `a = -2^31 + 1`.
 
-use crate::utils::{MAXGAM, MAXLOG, is_nonpos_int};
+use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
+use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::cephes_sinpi;
 
@@ -40,10 +41,11 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
 }
 
 /// `ln(|B(a, b)|)` and the sign of `B(a, b)` for `|b| < |a| / 8`, or `a > 0` and `b <= -a / 2`,
-/// or `None` otherwise
+/// or `a, b > 0`, or `None` otherwise
 ///
-/// Unlike in xsf (scipy/scipy#26423, scipy/xsf#357), `lgam_ratio` avoids the cancellation in
-/// `lgam(a) + lgam(b) - lgam(a + b)`. The negative one of the two largest arguments is reflected.
+/// Unlike in xsf (scipy/scipy#26423, scipy/xsf#357), `lgam_ratio` or Stirling's formula avoids
+/// the cancellation in `lgam(a) + lgam(b) - lgam(a + b)`. The negative one of the two largest
+/// arguments is reflected.
 fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     if b.abs() < 0.125 * a.abs() {
         let (y, sign) = lgam_sgn(b);
@@ -59,6 +61,15 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
         // B(a, b) = pi / sin(pi b) Gamma(a) / Gamma(1 - b) / Gamma(a + b), with exact a + b
         let y = (PI / cephes_sinpi(b).abs()).ln() - lgam_ratio(a, 1.0 - (a + b)) - lgam(a + b);
         Some((y, gammasgn(b)))
+    } else if a > 0.0 && b > 0.0 {
+        // Stirling's formula for all three Gamma functions, with b >= a / 8 > 0 and a + b > MAXGAM
+        // here, so b > MAXGAM / 9. Its large terms are combined into ln(q) and ln(1 - q), with
+        // q = b / (a + b) from b / a, as a + b may overflow.
+        let r = b / a;
+        let q = r / (1.0 + r);
+        let y =
+            (b - 0.5) * q.ln() + a * (-q).ln_1p() - 0.5 * a.ln() + LN_SQRT_2PI - incbet_corr(a, b);
+        Some((y, 1.0))
     } else {
         None
     }

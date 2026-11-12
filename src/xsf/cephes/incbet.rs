@@ -140,7 +140,7 @@ fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
 
 /// `corr(a + b) - corr(a) - corr(b)`, the Stirling correction of `-ln(B(a, b))`, with `corr` the
 /// correction to Stirling's formula of `ln(Gamma)` (`lgam_stirling_corr`)
-fn incbet_corr(a: f64, b: f64) -> f64 {
+pub(super) fn incbet_corr(a: f64, b: f64) -> f64 {
     lgam_stirling_corr(a + b) - lgam_stirling_corr(a) - lgam_stirling_corr(b)
 }
 
