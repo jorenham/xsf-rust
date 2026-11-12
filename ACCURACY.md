@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`cee1282`](https://github.com/scipy/xsf/tree/cee1282c4e8a41473cc9f13b5638ca98297fc63f)), and
+it is translated from (commit [`95e131e`](https://github.com/scipy/xsf/tree/95e131e979f08361320226cd31e3e971aa0a0ff9)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -217,8 +217,8 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>kl_div</code></td><td>x, y ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.1e-15</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>5.4e-10</samp></td><td align="right" nowrap><samp>5.7e-12</samp></td><td align="right" nowrap>90.7%</td></tr>
 <tr><td><code>kl_div</code></td><td>x, y ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>7.6e-16</samp></b></td><td align="right" nowrap><b><samp>6.2e-17</samp></b></td><td align="right" nowrap><samp>inf (2261)</samp></td><td align="right" nowrap><samp>8.4e-16</samp></td><td align="right" nowrap>77.2%</td></tr>
 <tr><td><code>huber</code></td><td>δ ∈ [0, 5]<br>r ∈ [−10, 10]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap><samp>6.3e-17</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap><samp>6.3e-17</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>pseudo_huber</code></td><td>δ ∈ [0, 5]<br>r ∈ [−10, 10]</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>3.7e-16</samp></b></td><td align="right" nowrap><b><samp>1.0e-16</samp></b></td><td align="right" nowrap><samp>7.3e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>35.1%</td></tr>
-<tr><td><code>pseudo_huber</code></td><td>δ ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)<br>r ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>2.8e-16</samp></b></td><td align="right" nowrap><b><samp>4.0e-17</samp></b></td><td align="right" nowrap><samp>inf (4449)</samp></td><td align="right" nowrap><samp>2.9e-01</samp></td><td align="right" nowrap>32.2%</td></tr>
+<tr><td><code>pseudo_huber</code></td><td>δ ∈ [0, 5]<br>r ∈ [−10, 10]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap><samp>1.0e-16</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap><samp>1.0e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>pseudo_huber</code></td><td>δ ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)<br>r ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>4.0e-17</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>4.0e-17</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
 </table>
 
