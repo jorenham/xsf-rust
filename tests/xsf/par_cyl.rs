@@ -485,6 +485,235 @@ fn test_pbvv_negative_x() {
 }
 
 #[test]
+fn test_pbvv_large_v() {
+    // reference values from mpmath
+    for (v, x, w, wp) in [
+        (
+            25.3,
+            4.0,
+            -5.777_153_868_029_441e-14,
+            1.327_249_559_703_159_1e-13,
+        ),
+        (
+            150.3,
+            20.0,
+            -4.119_468_656_196_315e-133,
+            -3.693_109_177_319_835e-132,
+        ),
+        (
+            150.3,
+            30.0,
+            1.179_413_979_479_286_2e-119,
+            1.009_901_234_984_507_4e-118,
+        ),
+        (
+            150.3,
+            -30.0,
+            -6.932_421_434_854_68e-120,
+            5.936_050_521_958_197e-119,
+        ),
+        (
+            290.7,
+            45.0,
+            2.999_521_874_951_864e-252,
+            4.390_798_719_310_778e-251,
+        ),
+        (
+            400.3,
+            80.0,
+            8.459_655_601_735_92e-64,
+            2.928_827_924_305_044_3e-62,
+        ),
+        (
+            64.0,
+            9.0,
+            -7.084_976_078_229_602e-46,
+            4.411_096_112_929_504_5e-45,
+        ),
+        (
+            25.0,
+            -45.0,
+            7.183_239_697_080_053e176,
+            -1.574_156_824_765_211_2e178,
+        ),
+        (
+            30.5,
+            -12.0,
+            -2.079_776_347_317_268_5e-18,
+            -5.153_529_108_803_416e-18,
+        ),
+        // 0 <= v < 20 and |x| > 10
+        (
+            13.34,
+            10.52,
+            0.006_004_622_034_643_07,
+            0.021_723_114_515_175_362,
+        ),
+        (
+            19.22,
+            10.11,
+            8.805_340_662_442_205e-9,
+            1.870_195_036_947_229_2e-8,
+        ),
+        (
+            16.68,
+            -10.23,
+            1.050_419_685_285_707_9e-6,
+            -2.978_230_774_399_075e-6,
+        ),
+        (
+            19.0,
+            56.0,
+            2.846_671_109_075_960_5e305,
+            7.868_321_974_102_153e306,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 5e-13 && relp < 5e-13,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // under- and overflow, e.g. V_v(3) = -6.8e-1287 for v = 1000.5
+    assert_eq!(xsf::pbvv(1000.5, 3.0), (0.0, 0.0));
+    assert_eq!(xsf::pbvv(400.3, 150.0), (f64::INFINITY, f64::INFINITY));
+    assert_eq!(xsf::pbvv(400.3, -150.0), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(xsf::pbvv(0.0, 1e200), (f64::INFINITY, f64::INFINITY));
+}
+
+#[test]
+fn test_pbvv_large_negative_v() {
+    // reference values from mpmath
+    for (v, x, w, wp) in [
+        (
+            -30.3,
+            2.5,
+            7.089_110_557_718_442e20,
+            3.963_220_939_431_277e21,
+        ),
+        (
+            -150.3,
+            20.0,
+            5.462_269_581_400_841e246,
+            8.627_684_568_412_071e247,
+        ),
+        (
+            -150.3,
+            -20.0,
+            -3.210_641_503_993_037e246,
+            5.071_225_750_743_717e247,
+        ),
+        // near x = 0, and near an integer v
+        (-30.0, 1e-9, 4_939_131.514_855_863, 4_939_131_514_855_862.0),
+        (
+            -100.25,
+            0.05,
+            2.359_339_814_647_227e77,
+            4.016_159_740_490_819e78,
+        ),
+        // x < 0 and v at or near a half-integer
+        (
+            -40.499_999_999,
+            -6.0,
+            -1.822_141_829_408_578e31,
+            1.272_728_702_893_606_7e32,
+        ),
+        (
+            -200.5,
+            -26.7,
+            0.908_161_939_510_384_2,
+            17.669_894_335_241_05,
+        ),
+        (
+            -417.5,
+            -52.0,
+            1.254_872_179_052_325_3e-111,
+            4.149_422_651_663_031_3e-110,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 5e-13 && relp < 5e-13,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // overflow, e.g. V_v(-3) = -7.8e593 for v = -500.3
+    assert_eq!(xsf::pbvv(-199.4, 44.6), (f64::INFINITY, f64::INFINITY));
+    assert_eq!(xsf::pbvv(-500.3, -3.0), (f64::NEG_INFINITY, f64::INFINITY));
+
+    // at and near x = 0, where V_v(0) = 0 for even v, and V_v'(0) = 0 for odd v
+    assert_eq!(xsf::pbvv(-1000.0, 0.0), (0.0, f64::INFINITY));
+    assert_eq!(xsf::pbvv(-1001.0, 0.0), (f64::INFINITY, 0.0));
+    assert_eq!(
+        xsf::pbvv(-1000.0, -1e-30),
+        (f64::NEG_INFINITY, f64::INFINITY)
+    );
+    let (y, yp) = xsf::pbvv(-360.0, 1e-300);
+    assert!((y / 1.032_280_976_314_67e82 - 1.0).abs() < 5e-13, "{y:e}");
+    assert_eq!(yp, f64::INFINITY);
+}
+
+#[test]
+fn test_pbvv_large_v_small_x() {
+    // |x| sqrt|v| < 1, and near an integer v (reference values from mpmath)
+    for (v, x, w, wp) in [
+        (
+            64.0,
+            0.05,
+            3.458_515_779_879_155_6e-46,
+            6.541_184_176_841_311e-45,
+        ),
+        (
+            20.0,
+            1e-200,
+            1.218_648_432_258_588e-209,
+            1.218_648_432_258_587_9e-9,
+        ),
+        (
+            35.000_000_001,
+            -1e-10,
+            3.599_862_010_847_432e-21,
+            4.647_252_921_256_134e-29,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 5e-13 && relp < 5e-13,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // V_v(0) = 0 for even v, and V_v'(0) = 0 for odd v
+    assert_eq!(xsf::pbvv(20.0, 0.0).0, 0.0);
+    assert_eq!(xsf::pbvv(21.0, 0.0).1, 0.0);
+}
+
+#[test]
+fn test_pbdv_pbvv_wronskian() {
+    // D_v V_v' - D_v' V_v = sqrt(2 / pi) (DLMF 12.2.10), where neither under- nor overflows
+    for (v, x) in [
+        (33.3, 5.0),
+        (33.3, -5.0),
+        (1e3 + 0.5, 140.0),
+        (1e5 + 0.3, 1724.5),
+        (1e6 + 0.3, 5887.5),
+        (1e7, 19_884.4),
+        (-33.3, 5.0),
+        (-1e3 - 0.5, -82.0),
+        (-1e4 - 0.5, -312.0),
+    ] {
+        let ((d, dp), (w, wp)) = (xsf::pbdv(v, x), xsf::pbvv(v, x));
+        let rel = ((d * wp - dp * w) / core::f64::consts::FRAC_2_PI.sqrt() - 1.0).abs();
+        assert!(rel < 5e-13, "v = {v}, x = {x}: {rel:e}");
+    }
+}
+
+#[test]
 fn test_pbdv_pbvv_negative_zero_v() {
     // unlike in xsf, v = -0.0 is the same as v = +0.0
     for x in [-10.5, -5.0, 0.5, 5.0, 50.0] {
@@ -497,8 +726,8 @@ fn test_pbdv_pbvv_negative_zero_v() {
 fn test_pbdv_pbvv_huge_v() {
     // xsf allocates and recurs over |v| values here; D_v(0) ~ 10^(-1.08e9) for v = -2.7e8
     assert_eq!(xsf::pbdv(-2.7e8, -8.9e-309), (0.0, -0.0));
-    let (w, wp) = xsf::pbvv(2.7e8, 0.0);
-    assert!(w.is_nan() && wp.is_nan());
+    assert_eq!(xsf::pbvv(2.7e8, 0.0), (0.0, 0.0));
+    assert_eq!(xsf::pbvv(-2.7e8, 0.0), (0.0, f64::INFINITY));
 }
 
 /// `(v, x, dv, dp)`
@@ -709,7 +938,7 @@ fn test_pbvv_seq_extreme() {
 fn test_pbdv_pbvv_seq_mpmath() {
     // D_v, D_v', V_v, V_v' at the last order, where SciPy is off by up to 1e34 for x < 0 (reference
     // values from mpmath)
-    let cases: [(f64, f64, [f64; 4]); 6] = [
+    let cases: [(f64, f64, [f64; 4]); 7] = [
         (
             12.3,
             -6.0,
@@ -751,7 +980,7 @@ fn test_pbdv_pbvv_seq_mpmath() {
                 -1.460_262_082_277_329_8e-11,
             ],
         ),
-        // x >= 0, where the recurrences start near x^2 / 4, or far above for V if x > 10
+        // x >= 0, where the recurrences start near x^2 / 4
         (
             24.75,
             5.5,
@@ -770,6 +999,17 @@ fn test_pbdv_pbvv_seq_mpmath() {
                 -6.254_317_881_877_676e-9,
                 64_392_038.803_103_14,
                 344_895_751.112_665_24,
+            ],
+        ),
+        // x > 10 and v > x^2 / 4
+        (
+            120.25,
+            14.5,
+            [
+                -5.625_078_507_764_18e98,
+                -1.117_260_943_084_587_5e100,
+                6.094_670_796_426_426e-101,
+                -2.079_096_255_472_565_4e-100,
             ],
         ),
     ];

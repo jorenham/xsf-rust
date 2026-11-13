@@ -5,7 +5,7 @@
 //! `pow(2.0, y)` is written as `y.exp2()`, which is what LLVM optimizes it to anyway.
 //!
 //! Unlike in xsf (scipy/xsf#382), `pbdv` and `pbvv` return NaN for `|v| >= LARGE_V` where they
-//! would recur over their work buffer of `|v|` values (e.g. 4 GiB and 20 s for
+//! would recur over their work buffer of `|v|` values (in xsf e.g. 4 GiB and 20 s for
 //! `pbvv(2.7e8, 0.0)`), and the `double` -> `int` conversions saturate. Like in xsf, they also
 //! return NaN if the allocation of their work buffer fails.
 
@@ -704,24 +704,6 @@ fn pb_recur(
     Some(y)
 }
 
-/// `V_w(x)` for `k = 0..=n + 1` by Miller's algorithm like in `pbvv_impl`, but for the ratios
-/// `r_w = V_{w-1} / V_w`, which don't overflow
-fn pbvv_miller((v0, n): (f64, usize), x: f64) -> Vec<f64> {
-    let mut y = vec![0.0; n + 2];
-    let mut r = x;
-    for k in (1..=n + 100).rev() {
-        r = x - (v0 + k as f64 + 1.0) / r;
-        if k <= n + 1 {
-            y[k] = r;
-        }
-    }
-    y[0] = pbvv(v0, x).0;
-    for k in 1..=n + 1 {
-        y[k] = y[k - 1] / y[k];
-    }
-    y
-}
-
 /// `c cos(pi w) a_w + s sin(pi w) b(k)` for `w = v0 + k`, `k < a.len()`
 fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) -> Vec<f64> {
     let (c, s) = (c * cospi(v0), s * sinpi(v0));
@@ -945,7 +927,7 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
 fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     let a = -v - 0.5;
     let mu2 = 2.0 * a;
-    let x = x.clamp(-1e100, 1e100); // the result under/overflows far beyond
+    let x = x.clamp(-1e9, 1e9); // far beyond, the result under/overflows, and so would u_s(t)
     let s = (0.25 * x * x + a).sqrt();
     // gbar(mu) = (1 + 1/r) / (2 sqrt(2) mu h(mu)) (12.10.28, with r as in `ln_gamma_ratio`), and
     // e^(-mu^2 xibar) / (sqrt(2) mu h(mu) (t^2 + 1)^(1/4)) = e^l / sqrt(2 s) (12.10.15, 12.10.26)
@@ -955,9 +937,6 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
         a.ln() - (s - 0.5 * x).ln()
     };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
-    if l.abs() > HUGE_EXP {
-        return ([1.0, -1.0], l);
-    }
 
     let t = 0.5 * x / a.sqrt();
     let q = t * t + 1.0;
@@ -980,15 +959,19 @@ fn pbdv_up(w: f64, x: f64, n: f64, mut d0: f64, mut d1: f64) -> (f64, f64) {
     (d0, 0.5 * x * d0 - d1)
 }
 
-/// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by the Maclaurin series, with the
-/// values at `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact, and
-/// `w'' = (x^2 / 4 - v - 1/2) w` (12.2.2)
+/// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by `pb_maclaurin` with the values at
+/// `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact
 fn pbdv_maclaurin(v: f64, x: f64) -> (f64, f64) {
-    let a = -v - 0.5;
     let lg = lgam(0.5 * v + 1.0);
     let e = 0.5 * v * LN_2 + lg; // with mantissas c0 and c1
     let c0 = cospi(0.5 * v) / SQRT_PI * (lgam(0.5 * v + 0.5) - lg).exp();
     let c1 = SQRT_2 * sinpi(0.5 * v) / SQRT_PI;
+    pb_maclaurin(-v - 0.5, x, c0, c1, e)
+}
+
+/// `w(x)`, `w'(x)` for `|x| sqrt|a| < 1`, by the Maclaurin series of `w'' = (x^2 / 4 + a) w`
+/// (12.2.2), with `w(0)` and `w'(0)` as the mantissas `c0` and `c1` with exponent `e`
+fn pb_maclaurin(a: f64, x: f64, c0: f64, c1: f64, e: f64) -> (f64, f64) {
     if x.abs() < 1e-150 {
         // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
         let (k, ex) = (const { pow2(600) }, e - 600.0 * LN_2);
@@ -1122,6 +1105,83 @@ fn pbdv_large_neg_x(v: f64, y: f64) -> (f64, f64) {
     // D_v' = v D_{v-1} - x / 2 D_v (12.8.2), with v / Gamma(1 - v) = -1 / Gamma(-v)
     let wp = 0.5 * y * w - vvla_qe(y, v - 1.0, 1.0);
     (mul_exp(r * w, e), mul_exp(r * wp, e))
+}
+
+/// `V_v(x)`, `V_v'(x)` for `v >= 20`, by 12.10.37 with `V_v = Ubar_v / Gamma(v + 1)` (see
+/// `pbdv_airy`), and by `V_v(-y) = -sin(pi v) / Gamma(v + 1) D_v(y) - cos(pi v) V_v(y)` (12.2.16)
+fn pbvv_airy(v: f64, x: f64) -> (f64, f64) {
+    let ([d, dp, ub, ubp], ea, eb) = pbdv_airy(v, x.abs());
+    let m = v + 0.5;
+    // e^l = e^eb / Gamma(v + 1), with ea + eb = 2 ln h(mu) (see `pbdv_airy`) and
+    // Gamma(v + 1) = sqrt(2 pi) (m / e)^m e^(ln_gamma_ratio(m))
+    let g = -0.5 * (4.0 * TAU * m).ln() - ln_gamma_ratio(m);
+    let l = g - ea;
+    if x >= 0.0 {
+        return (mul_exp(ub, l), mul_exp(ubp, l));
+    }
+    let (c, s) = (cospi(v), sinpi(v));
+    // only D_v(y) remains at a half-integer v
+    let (r, l) = if c == 0.0 {
+        (1.0, g - eb)
+    } else {
+        ((ea - eb).exp(), l)
+    };
+    (
+        mul_exp(-s * d * r - c * ub, l),
+        mul_exp(s * dp * r + c * ubp, l),
+    )
+}
+
+/// `V_v(x)`, `V_v'(x)` for `0 <= v < 20`, `x >= 0`, by `V_v = Ubar_v / Gamma(v + 1)` (see
+/// `pbdv_ubar`) and `V_v' = x / 2 V_v - (v + 1) V_{v+1}`
+fn pbvv_recur(v: f64, x: f64) -> (f64, f64) {
+    let x = x.min(100.0); // V_v(x) overflows for x > 57 anyway
+    let (ub, _, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, x);
+    let r = rgamma(v + 1.0);
+    (
+        mul_exp(r * ub[0], eb),
+        mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb),
+    )
+}
+
+/// `V_v(x)`, `V_v'(x)` for `v <= -20`, by `V_v(x) = Gamma(-v) / pi (D_v(-x) - cos(pi v) D_v(x))`
+/// (12.2.15) with `pbdv_elementary`
+fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
+    let y = x.abs();
+    let ([d, dp], l) = pbdv_elementary(v, y);
+    let ([e, ep], l2) = pbdv_elementary(v, -y);
+    let c = cospi(v);
+    // Gamma(-v) = sqrt(2 pi) e^(lg - l - l2)
+    let lg = ln_gamma_ratio(-v - 0.5);
+    // only D_v(y) remains for x < 0 at a half-integer v
+    let (q, lv) = if x < 0.0 && c == 0.0 {
+        (1.0, lg - l2)
+    } else {
+        ((l - l2).exp(), lg - l)
+    };
+    let (w, wp) = if x >= 0.0 {
+        (e - c * d * q, -ep - c * dp * q)
+    } else {
+        (d * q - c * e, -dp * q - c * ep)
+    };
+    (mul_exp(SQRT2OPI * w, lv), mul_exp(SQRT2OPI * wp, lv))
+}
+
+/// `V_v(x)`, `V_v'(x)` for `|v| >= 20` and `|x| sqrt|v| < 1`, by `pb_maclaurin` with the values
+/// at `x = 0` (12.2.8, 12.2.9, and 5.5.3), so that its zeros are exact
+fn pbvv_maclaurin(v: f64, x: f64) -> (f64, f64) {
+    let h = 0.5 * v;
+    let (s, c) = (sinpi(h), cospi(h));
+    // V_v(0) = -2^(-v / 2) s / Gamma(v / 2 + 1), V_v'(0) = 2^((1 - v) / 2) c / Gamma((v + 1) / 2),
+    // and for v < 0, 1 / Gamma(v / 2 + 1) = -s Gamma(-v / 2) / pi and
+    // 1 / Gamma((v + 1) / 2) = c Gamma((1 - v) / 2) / pi
+    let (lg, lg1, c0, c1) = if v < 0.0 {
+        (lgam(-h), lgam(0.5 - h), s * s / PI, c * c / PI)
+    } else {
+        (-lgam(h + 1.0), -lgam(h + 0.5), -s, c)
+    };
+    let e = -h * LN_2 + lg; // with mantissas c0 and c1
+    pb_maclaurin(-v - 0.5, x, c0, SQRT_2 * c1 * (lg1 - lg).exp(), e)
 }
 
 /// Parabolic cylinder function $W$
@@ -1299,6 +1359,28 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
+    // Unlike in xsf, V_v(x) for |v| >= 20 is computed from the uniform asymptotic expansions of
+    // `pbdv`, or from its Maclaurin series near x = 0, and V_v(x) for 0 <= v < 20 and x > 10 by
+    // recurrence from an order w >= 20. `pbvv_impl` is inaccurate
+    //
+    //   - for v >= 20,
+    //   - for x > 10 if v > x^2 / 4 - 25 or so, where its backward recurrence has not converged,
+    //   - for v <= -20 if x < 0 and v is near a half-integer, or |x| is tiny and v is near an
+    //     integer,
+    //
+    // and its V_v'(x) is NaN where it overflows.
+    if (20.0..INT_OVERFLOW).contains(&v.abs()) {
+        return if x.abs() * (v + 0.5).abs().sqrt() < 1.0 {
+            pbvv_maclaurin(v, x)
+        } else if v > 0.0 {
+            pbvv_airy(v, x)
+        } else {
+            pbvv_elementary(v, x)
+        };
+    }
+    if (0.0..20.0).contains(&v) && x > 10.0 {
+        return pbvv_recur(v, x);
+    }
     if x < 0.0 {
         // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v >= 0 is computed from V_v(-x)
         // and D_v(-x) (DLMF 12.2.16), with c = cos(pi v) and s = sin(pi v) / Gamma(v + 1):
@@ -1312,11 +1394,8 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         if (c == 0.0 && s.is_normal()) || (x < -10.0 && v >= 0.0) {
             // V_v(-x) can overflow, so skip it if c = 0
             let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
-            // V_0(-x) is NaN for -x > 2600 or so, where `pbvv_impl` returns V_0(x) = -inf
-            if v != 0.0 || !w.is_nan() {
-                let (d, dp) = pbdv(v, -x);
-                return (-s * d - c * w, s * dp + c * wp);
-            }
+            let (d, dp) = pbdv(v, -x);
+            return (-s * d - c * w, s * dp + c * wp);
         }
     }
     let Some((mut buf, num)) = alloc_buf(v) else {
@@ -1401,27 +1480,18 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
     let orders @ (v0, _) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
-    // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4, where
-    // `pbvv` is inaccurate if |x| > 10
+    // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4
     let y = x.abs();
-    let ys = if x > 10.0 {
-        Some(pbvv_miller(orders, x))
-    } else if x >= -10.0 {
-        let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
-        if x < 0.0 {
-            // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
-            // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
-            let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
-            let e = pb_recur(orders, y, dg, ca, 0.0);
-            vy.zip(e)
-                .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
-        } else {
-            vy
-        }
+    let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
+    let ys = if x < 0.0 {
+        // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
+        // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
+        let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
+        let e = pb_recur(orders, y, dg, ca, 0.0);
+        vy.zip(e)
+            .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
     } else {
-        // like `pbvv`, by 12.2.16 for each order, since `pbvv_miller` loses accuracy for orders
-        // near or above x^2 / 4
-        None
+        vy
     };
     pb_seq(orders, x, pbvv, ca, ys)
 }
