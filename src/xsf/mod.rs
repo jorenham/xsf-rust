@@ -75,8 +75,8 @@ pub use cdflib::{gdtria, gdtrib, gdtrix};
 // `cephes` is `pub(crate)`, so newer rustdoc versions list these as re-exports otherwise
 #[doc(inline)]
 pub use cephes::{
-    betainc, betaincinv, erfcinv, erfinv, expn, lanczos_sum_expg_scaled, lgam1p, pow_falling,
-    pow_rising, round,
+    betainc, betaincc, betainccinv, betaincinv, erfcinv, erfinv, expn, lanczos_sum_expg_scaled,
+    lgam1p, pow_falling, pow_rising, round,
 };
 pub use cosine::{cosine_cdf, cosine_invcdf};
 pub use digamma::digamma;

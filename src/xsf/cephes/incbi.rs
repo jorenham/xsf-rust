@@ -5,10 +5,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use super::incbet::{INCBET_TINY, incbet};
+use super::incbet::{INCBET_TINY, betainc_xy, incbet};
 use crate::expit;
 use crate::utils::{MACHEP, MAXLOG, MINLOG};
-use crate::xsf::cephes::{lgam, ndtri};
+use crate::xsf::cephes::{lbeta, lgam, ndtri};
 
 /// The `goto` labels in `incbi`
 #[derive(Clone, Copy)]
@@ -324,6 +324,7 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
 ///
 /// # See also
 /// - [`betainc`](crate::betainc): Regularized incomplete Beta function $\I_x(a, b)$
+/// - [`betainccinv`]: Inverse of the complement of the regularized incomplete Beta function
 /// - [`beta`](crate::beta): Beta function $\B(a, b)$
 /// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
 /// - [`scipy.special.betaincinv`][scipy]: Corresponding function in SciPy
@@ -347,4 +348,126 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
     } else {
         incbi(a, b, y).0
     }
+}
+
+/// Inverse of the complement of the regularized incomplete Beta function, $y = 1 - \I_x(a, b)$
+///
+/// Computes $x \in \[0, 1\]$ such that [^DLMF]:
+///
+/// $$
+/// y = 1 - \I_x(a, b) = \I_{1-x}(b, a) ,
+/// $$
+///
+/// for $0 \le y \le 1$ and $a,b > 0$, with $\I_x(a, b)$ the regularized incomplete Beta function.
+///
+/// This function is the inverse survival function of the Beta distribution.
+///
+/// # Notes
+/// This function uses the `incbi` Cephes routine [^CEPHES] for the root of $\I_{1-x}(b, a) = y$,
+/// refined by safeguarded Newton steps, whereas [`scipy.special.betainccinv`][scipy] wraps the
+/// Boost `ibetac_inv` routine [^BOOST]. For example, with $10^{-3} \le a, b \le 10^5$, the
+/// relative error is up to 4e-13, for $a = 10^{-3}$, where the root is ill-conditioned.
+/// Where $1 - \I_x(a, b)$ rounds to $y$ over a range of $x$, e.g. for a subnormal $y$, the result
+/// can be anywhere in that range.
+///
+/// # See also
+/// - [`betaincc`](crate::betaincc): Complement of the regularized incomplete Beta function
+/// - [`betaincinv`]: Inverse of the regularized incomplete Beta function
+/// - [`betainc`](crate::betainc): Regularized incomplete Beta function $\I_x(a, b)$
+/// - [`scipy.special.betainccinv`][scipy]: Corresponding function in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainccinv.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17.E4>.
+/// [^CEPHES]: Cephes Math Library Release 2.4.
+/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
+#[doc(alias = "ibetac_inv")]
+#[must_use]
+pub fn betainccinv(a: f64, b: f64, y: f64) -> f64 {
+    if a.is_nan() || b.is_nan() || y.is_nan() || a <= 0.0 || b <= 0.0 || !(0.0..=1.0).contains(&y) {
+        return f64::NAN;
+    }
+    if y == 0.0 || y == 1.0 {
+        return 1.0 - y;
+    }
+    if a.is_infinite() || b.is_infinite() {
+        // As in SciPy, NaN unless a = 1 or b = 1, where the roots are `1 - y^(1/b)` and
+        // `(1 - y)^(1/a)`
+        return if a == 1.0 {
+            0.0
+        } else if b == 1.0 {
+            1.0
+        } else {
+            f64::NAN
+        };
+    }
+    let x = incbi(b, a, y).1;
+    // `incbi` returns 1 if its root `t` rounds to 0, 0 for roots below eps in its reflected frame
+    // or if `t` rounds to 1, and NaN if it fails, e.g. if `lgam(a + b)` overflows
+    if x == 1.0 {
+        x
+    } else {
+        betainccinv_refine(a, b, y, if x.is_nan() { 0.5 } else { x })
+    }
+}
+
+/// Enough for the bisection alone to narrow `ln(x)` from `[ln(5e-324), 0]` to `eps`
+const BETAINCCINV_MAXITER: usize = 64;
+
+/// Refines the root `x` of `I_(1-x)(b, a) = y` by Newton steps in `ln(x)` on the log of the
+/// smaller side, safeguarded by bisection in `ln(x)` (as `rtsafe` in Numerical Recipes)
+///
+/// The root from `incbi` can be off, as `1 - t` of its root `t` near 1 (by ~eps / x), or if the
+/// rounding of `1 - y` in its reflected frame lands on a plateau of `I_x(a, b)`, and it is 0 for
+/// roots below eps.
+fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
+    let lbeta_ab = lbeta(a, b);
+    // `g(x)` is decreasing, and >= 0 at `lo` and <= 0 at `hi`
+    let (mut lo, mut hi) = (0.0, 1.0);
+    let mut step = f64::INFINITY;
+    for _ in 0..BETAINCCINV_MAXITER {
+        // `g = ln(I_(1-x)(b, a) / y)`, or `ln((1 - y) / I_x(a, b))` where `1 - y` is exact, and
+        // `p` the one of these that depends on `x`
+        let (p, g) = if y < 0.5 {
+            let p = betainc_xy(b, a, 1.0 - x, x);
+            (p, (p / y).ln())
+        } else {
+            let p = betainc_xy(a, b, x, 1.0 - x);
+            (p, ((1.0 - y) / p).ln())
+        };
+        if g > 0.0 {
+            lo = x;
+        } else if g < 0.0 {
+            hi = x;
+        } else if g == 0.0 {
+            break;
+        } else {
+            return f64::NAN;
+        }
+        // the root is below the smallest subnormal
+        if hi == f64::from_bits(1) {
+            return 0.0;
+        }
+        // within rounding of the root
+        if hi - lo <= f64::EPSILON * lo {
+            break;
+        }
+        // the Newton step in `ln(x)`, with `x^a (1 - x)^(b-1) / B(a, b)` the `|dp/d(ln x)|`
+        let newton = g * p / (a * x.ln() + (b - 1.0) * (-x).ln_1p() - lbeta_ab).exp();
+        let mut xn = x * newton.exp();
+        if newton.abs() <= f64::EPSILON {
+            return xn;
+        }
+        // bisection if the step leaves the bracket, or does not halve once there is one
+        if !(lo < xn && xn < hi) || (lo > 0.0 && hi < 1.0 && newton.abs() > 0.5 * step) {
+            // `lo` is at least the smallest subnormal here
+            xn = lo.max(f64::from_bits(1)).sqrt() * hi.sqrt();
+            if (xn - x).abs() <= f64::EPSILON * x {
+                return xn;
+            }
+        }
+        step = (xn / x).ln().abs();
+        x = xn;
+    }
+    x
 }

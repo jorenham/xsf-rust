@@ -324,6 +324,8 @@
 //! | [`betaln`]       | Log-Beta function, $\ln\abs{\B(a,b)}$                             |
 //! | [`betainc`]      | Regularized incomplete beta function, $\I_x(a,b)$                 |
 //! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
+//! | [`betaincc`]     | Complement of [`betainc`], $1 - \I_x(a,b)$                        |
+//! | [`betainccinv`]  | Inverse of [`betaincc`]                                           |
 //! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
 //! | [`digammainv`]   | Inverse of [`digamma`], $\psi^{-1}(y)$                            |
 //! | [`trigamma`]     | The trigamma function, $\psi\'(z)$                                |

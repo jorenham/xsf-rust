@@ -559,6 +559,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 ///
 /// # See also
 /// - [`betaincinv`](crate::betaincinv): Inverse of the regularized incomplete Beta function
+/// - [`betaincc`]: Complement of the regularized incomplete Beta function
 /// - [`beta`](crate::beta): Beta function $\B(a, b)$
 /// - [`gamma`](crate::gamma): Gamma function $\Gamma(x)$
 /// - [`scipy.special.betainc`][scipy]: Corresponding function in SciPy
@@ -593,5 +594,47 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
         if y > 0.0 { 0.0 } else { 1.0 }
     } else {
         incbet_xy(a, b, x, y)
+    }
+}
+
+/// Complement of the regularized incomplete Beta function, $1 - \I_x(a,b)$
+///
+/// Computes [^DLMF]:
+///
+/// $$
+/// 1 - \I_x(a,b)
+/// = \I_{1-x}(b,a)
+/// = {\Gamma(a+b) \over \Gamma(a)\Gamma(b)} \int_x^1 t^{a-1} (1-t)^{b-1} \dd t ,
+/// $$
+///
+/// for $0 \le x \le 1$, with $\I_x(a,b)$ the regularized incomplete Beta function.
+///
+/// This function is the survival function of the Beta distribution.
+///
+/// # Notes
+/// This function uses the `incbet` Cephes routine [^CEPHES] for $\I_{1-x}(b,a)$, given both $x$
+/// and $1 - x$, whereas [`scipy.special.betaincc`][scipy] wraps the Boost `ibetac` routine
+/// [^BOOST].
+///
+/// # See also
+/// - [`betainc`]: Regularized incomplete Beta function $\I_x(a,b)$
+/// - [`betainccinv`](crate::betainccinv): Inverse of the complement of the regularized incomplete
+///   Beta function
+/// - [`beta`](crate::beta): Beta function $\B(a, b)$
+/// - [`scipy.special.betaincc`][scipy]: Corresponding function in SciPy
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincc.html
+///
+/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17.E4>.
+/// [^CEPHES]: Cephes Math Library Release 2.3.
+/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
+#[doc(alias = "ibetac")]
+#[must_use]
+pub fn betaincc(a: f64, b: f64, x: f64) -> f64 {
+    // `betainc_xy` checks `1 - x`, which rounds to 1 for tiny negative `x`
+    if x < 0.0 {
+        f64::NAN
+    } else {
+        betainc_xy(b, a, 1.0 - x, x)
     }
 }
