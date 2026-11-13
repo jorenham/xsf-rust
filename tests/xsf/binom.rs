@@ -88,3 +88,17 @@ fn test_binom_integer_zero() {
     // 1 / Gamma(1 + k) = 0
     assert_eq!(xsf::binom(171.0, 1e16), 0.0);
 }
+
+#[test]
+fn test_binom_reflection_negative_a() {
+    // unlike in xsf (scipy/xsf#352), without the rounding error of a = 1 + n - k < 0, also near
+    // (or onto) a pole of Gamma(a) (Arb)
+    let nk = [
+        (-0.333_333_333_333_333_3, 6.666_666_666_666_667),
+        (300.5, 700.75),
+    ];
+    let actual = nk.map(|(n, k)| xsf::binom(n, k));
+    let expected = [-1.043_378_523_381_252_6e-16, 2.591_771_256_021_541_7e-210];
+    xsref::np_assert_allclose!(&actual[..1], &expected[..1], rtol = 5e-15);
+    xsref::np_assert_allclose!(&actual[1..], &expected[1..], rtol = 2e-13);
+}

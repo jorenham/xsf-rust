@@ -55,7 +55,7 @@ mod zetac;
 pub(crate) use airy::airy;
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use besselpoly::besselpoly;
-pub(crate) use beta::{beta, beta_reflects_a, lbeta};
+pub(crate) use beta::{beta, lbeta};
 pub(crate) use chdtr::{chdtr, chdtrc, chdtri};
 pub(crate) use ellie::ellie;
 pub(crate) use ellik::ellik;

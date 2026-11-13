@@ -430,6 +430,8 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
         // xsf takes the integers a <= 0 that don't fit in an `int` as poles (scipy/xsf#338)
         "beta" if x.iter().any(|&a| a < -2f64.powi(31) && a.fract() == 0.0) => f64::INFINITY,
+        // xsf's error is ~1000 times below its usual error there, which sets the tolerance
+        "binom" if x == [-183.163_877_831_128_73, 69.000_000_000_000_07] => 5e-14,
         _ => 0.0,
     }
 }

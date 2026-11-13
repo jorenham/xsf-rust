@@ -2,7 +2,7 @@
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 
-use crate::xsf::cephes::{beta, beta_reflects_a, gamma, gammasgn, lbeta, poch};
+use crate::xsf::cephes::{beta, gamma, gammasgn, lbeta, poch};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::PI;
@@ -99,9 +99,10 @@ pub fn binom(n: f64, k: f64) -> f64 {
         return binom_reflection(n, k);
     }
     let a = 1.0 + n - k;
-    if beta_reflects_a(a, 1.0 + k) {
-        // Unlike in xsf (scipy/xsf#352), Gamma(1 + n) and Gamma(1 + n - k) are reflected where
-        // `beta` would reflect the rounded `a`, with an error of ~|a| eps:
+    if a < 0.0 && n.fract() != 0.0 {
+        // Unlike in xsf (scipy/xsf#352), Gamma(1 + n) and Gamma(1 + n - k) are reflected, without
+        // the rounding error of `a`, which Gamma(a) amplifies ~|a| times, and more near its poles
+        // (`a` is exact for integer n):
         //
         // binom(n, k) = sin(pi (n - k)) / (sin(pi n) (k - n) B(1 + k, -n))
         let t = sinpi_sub(n, k) / cephes_sinpi(n) / (k - n);
@@ -110,7 +111,8 @@ pub fn binom(n: f64, k: f64) -> f64 {
             t / b
         } else {
             // B(1 + k, -n) under- or overflows
-            t.signum() * gammasgn(1.0 + k) * (t.abs().ln() - lbeta(1.0 + k, -n)).exp()
+            let sgn = t.signum() * gammasgn(1.0 + k) * gammasgn(-n);
+            sgn * (t.abs().ln() - lbeta(1.0 + k, -n)).exp()
         };
     }
     1.0 / (n + 1.0) / beta(a, 1.0 + k)

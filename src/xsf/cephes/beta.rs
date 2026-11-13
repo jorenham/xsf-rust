@@ -76,11 +76,6 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     }
 }
 
-/// Whether `beta(a, b)` and `lbeta(a, b)` reflect a negative `a` in `lbeta_ratio`
-pub(crate) fn beta_reflects_a(a: f64, b: f64) -> bool {
-    !is_nonpos_int(a) && !is_nonpos_int(b) && lbeta_reflects_a(a, b) && beta_uses_lgam(a, b)
-}
-
 /// Whether `lbeta_ratio` reflects a negative `a`
 fn lbeta_reflects_a(a: f64, b: f64) -> bool {
     a < 0.0 && b.abs() < -0.125 * a
