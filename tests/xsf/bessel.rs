@@ -407,6 +407,28 @@ fn test_bessel_k_near_underflow() {
 }
 
 #[test]
+fn test_bessel_k_large_order_near_underflow() {
+    // Arb: besselk(v, x), where e^x K_v(x) overflows
+    let actual = [
+        xsf::bessel_k(2000.0, 1749.66),
+        xsf::bessel_k(-1e4, 7022.24),
+        xsf::bessel_k(1e5, 66659.8),
+        xsf::bessel_k(3000.0, c64(2400.63, 0.0)).re,
+    ];
+    let expected = [
+        4.932_831_061_297_247e-306,
+        6.630_171_739_413_170_6e-307,
+        1.383_450_601_290_715_8e-305,
+        1.796_796_534_493_318e-306,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-11);
+    assert_eq!(xsf::bessel_k(3000.0, c64(2400.63, 0.0)).im, 0.0);
+    // subnormal, rounded
+    let actual = [xsf::bessel_k(5000.0, 3731.38)];
+    xsref::np_assert_allclose!(&actual, &[9.233_667e-318], rtol = 1e-9);
+}
+
+#[test]
 fn test_bessel_amos_tiny_z() {
     // Arb: besselk(0, 1e-306), besselj(-0.25, 5e-324), bessely(0.75, -1e-310 + 1e-310j), and
     // besselj(1e-20, 5e-324) = 1 - 7.4e-18

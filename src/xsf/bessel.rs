@@ -375,11 +375,14 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         /* overflow */
         cy = C64::INFINITY;
     }
-    // Unlike in xsf, rescale e^z K_v(z) if AMOS underflowed, which it does from about 4e-305.
+    // Unlike in xsf, rescale e^z K_v(z) if AMOS underflowed, which it does from about 4e-305, or
+    // for real z use the uniform expansion if e^z K_v(z) overflows (for v above about 1400).
     if kode == 1 && cy == C64::ZERO {
         let w = cyl_bessel_k_kode(v, z, 2) * C64::cis(z.im).conj();
         if w.is_finite() {
             cy = c64(mul_exp(w.re, -z.re), mul_exp(w.im, -z.re));
+        } else if z.im == 0.0 {
+            crate::xsf::cephes::ikv_asymptotic_uniform(v, z.re, None, Some(&mut cy.re));
         }
     }
 

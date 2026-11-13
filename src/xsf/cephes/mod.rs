@@ -94,7 +94,7 @@ pub use poch::*;
 pub(crate) use psi::psi;
 pub(crate) use rgamma::rgamma;
 pub use round::*;
-pub(crate) use scipy_iv::{ikv_asymptotic_uniform_sums, iv};
+pub(crate) use scipy_iv::{ikv_asymptotic_uniform, ikv_asymptotic_uniform_sums, iv};
 pub(crate) use shichi::shichi;
 pub(crate) use sici::sici;
 pub(crate) use spence::spence;
