@@ -118,6 +118,7 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("nrdtrisd", &[m, p, x]) => xsf::nrdtrisd(m, p, x),
         // elementary functions
         ("cosm1", &[x]) => xsf::cosm1(x),
+        ("powm1", &[x, y]) => xsf::powm1(x, y),
         ("sindg", &[x]) => xsf::sindg(x),
         ("cosdg", &[x]) => xsf::cosdg(x),
         ("tandg", &[x]) => xsf::tandg(x),

@@ -146,7 +146,7 @@ class Int:
         return f"{{{self.lo}, ..., {self.hi}}}"
 
     def pretty(self) -> str:
-        return f"{{{self.lo}, {ELLIPSIS}, {self.hi}}}"
+        return f"{{{self.lo}, {ELLIPSIS}, {self.hi}}}".replace("-", MINUS)
 
 
 @dataclass(frozen=True)
@@ -1067,6 +1067,10 @@ def r_nrdtrisd(mean, p, x):
 def r_cosm1(x):
     with wdps(xd(x)):
         return -2 * mp.sin(x / 2) ** 2
+
+
+def r_powm1(x, y):
+    return mp.powm1(x, y)
 
 
 def _deg(x):
@@ -2602,6 +2606,16 @@ add(
     D(U(-math.pi, math.pi)),
     D(LU(1e-300, 1e3, 0)),
     note="zeros_c",
+)
+add(
+    "powm1",
+    "x y",
+    r_powm1,
+    D(LU(1e-3, 1e3), U(-5, 5)),
+    D(Offset(1, LU(1e-15, 0.1, 0)), LU(1e-3, 1e3, 0)),
+    D(LU(1e-300, 1e300), LU(1e-300, 1e-3, 0)),
+    D(U(-10, 0), Int(-50, 50)),
+    cpp=False,
 )
 for f, r in [
     ("sindg", r_sindg),
