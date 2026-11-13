@@ -2297,6 +2297,123 @@ WRIGHT_FLOORS: Final = (
 )
 
 
+def _hypu_poly(m: int, b: Fraction, x: Fraction) -> Fraction:
+    """U(-m, b, x), a polynomial (DLMF 13.2.7), exactly."""
+    terms = (
+        math.comb(m, s) * math.prod(b + s + j for j in range(m - s)) * (-x) ** s
+        for s in range(m + 1)
+    )
+    return (-1) ** m * sum(terms, Fraction(0))
+
+
+def _mpf(q: Fraction) -> mp.mpf:
+    return mp.mpf(q.numerator) / q.denominator
+
+
+def _hypu_terms(a: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """The size of the terms of U(a, 1, x) = -1 / Gamma(a) sum_k (a)_k x^k / k!^2 (ln x +
+    psi(a + k) - 2 psi(1 + k)) (DLMF 13.2.9), with the three parts apart, since ln x and
+    psi(a) + 2 gamma cancel near a zero of U."""
+    t, psi_a, psi_1, ln_x = mp.rgamma(a), mp.digamma(a), -mp.euler, abs(mp.log(x))
+    s, k = mp.mpf(0), 0
+    while True:
+        term = abs(t) * (ln_x + abs(psi_a) + 2 * abs(psi_1))
+        s += term
+        if k > abs(a) and term <= mp.eps * s:
+            return s
+        t *= (a + k) * x / (k + 1) ** 2
+        psi_a += 1 / (a + k)
+        psi_1 += mp.mpf(1) / (k + 1)
+        k += 1
+
+
+def _hypu(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> Value:
+    """`specs.r_hypu`, but exactly where a or a - b + 1 is a non-positive integer (DLMF 13.2.7
+    and 13.2.40, where mpmath fails at the zeros), and U(a, b, 0) for b < 1 (DLMF 13.2.20-22).
+    For b = 1 and 0 < x < 1, the error scale is the size of the terms that cancel: those of
+    DLMF 13.2.9, and of DLMF 13.3.7 where xsf's `hypu` uses it."""
+    fa, fb, fx = (Fraction(float(v)) for v in (a, b, x))
+    if _nonpos_int(float(a)):
+        return _mpf(_hypu_poly(-int(fa), fb, fx))
+    if (aa := fa - fb + 1) <= 0 and aa.denominator == 1:
+        return x ** (1 - b) * _mpf(_hypu_poly(-int(aa), 2 - fb, fx))
+    if x == 0:
+        return mp.gamma(1 - b) * mp.rgamma(_mpf(aa))
+    u = specs.r_hypu(a, b, x)
+    if b != 1 or x >= 1:
+        return u
+    scale = _hypu_terms(a, x)
+    if -0.25 < a < 0.3:
+        # U(a, 1, x) = (x + 2a + 1) U(a + 1, 1, x) - (a + 1)^2 U(a + 2, 1, x)
+        rec = abs(x + 2 * a + 1) * abs(specs.r_hypu(a + 1, b, x))
+        scale = max(scale, rec + (a + 1) ** 2 * abs(specs.r_hypu(a + 2, b, x)))
+    return u, scale
+
+
+def _hypu_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
+    return x.hypgeom_u(a, b)
+
+
+def _chgul_digits(a: float, b: float, x: float) -> int:
+    """The digits that xsf-rust's chgul estimates for its DLMF 13.7.3 sum (a and a - b + 1 not
+    0, -1, ...), which `chgu` returns from 12 digits, before it tries chgubi."""
+    hu = r = rmax = 1.0
+    r0 = ra = 0.0
+    for k in range(1, 26):
+        r = -r * (a + k - 1) * (a - b + k) / (k * x)
+        ra = abs(r)
+        if k > 5 and ra >= r0 or ra < 1e-15:
+            break
+        r0 = ra
+        hu += r
+        rmax = max(rmax, ra)
+    return int(-math.log10(max(ra, rmax * 1e-15) / min(abs(hu), 1.0)))
+
+
+def _hypu_x0_sign(a: tuple[float, ...]) -> int:
+    """The sign of U(a, b, x) ~ 1 / Gamma(a) for x -> 0+ with b >= 1, or 0 where it is finite
+    (a = 0, -1, ...) or x != 0."""
+    if a[2] != 0 or a[1] < 1 or _nonpos_int(a[0]):
+        return 0
+    return 1 if a[0] > 0 else (-1) ** (math.floor(-a[0]) + 1)
+
+
+HYPU_RULES: Final = (
+    NAN,
+    Rule(lambda a: a[2] < 0, math.nan, "NaN for x < 0, outside of the domain of xsf"),
+    *(
+        Rule(
+            lambda a, s=s: _hypu_x0_sign(a) == s,
+            math.copysign(math.inf, s),
+            "the limit for x -> 0+ with b >= 1 and a != 0, -1, ... (DLMF 13.2.16-19)",
+        )
+        for s in (1, -1)
+    ),
+)
+
+HYPU_OVERRIDES: Final = (
+    Override(
+        lambda a: (
+            _hypu_x0_sign(a) == -1 or a[2] == 0 and a[1] > 1 and _nonpos_int(a[0])
+        ),
+        "xsf returns +inf at x = 0 with b >= 1, also where U is finite or -inf",
+    ),
+    Override(
+        lambda a: (
+            a[2] == 0
+            and a[1] < 1
+            and _nonpos_int(1 - a[1] + a[0])
+            and (Fraction(a[0]) - Fraction(a[1])).denominator != 1
+        ),
+        "xsf returns 0 at x = 0 for b < 1 where its 1 - b + a rounds onto a pole of Gamma",
+    ),
+    Override(
+        lambda a: a in {(1.0, -10.0, 10.0), (1.0, -1.0, 10.0), (1.0, 1.0, 10.0)},
+        "xsf's chgubi loses digits for U(1, b, 10) with b = -10, -1, 1 (scipy/xsf#380)",
+    ),
+)
+
+
 def _wright_wrong(why: str, *points: tuple[float, float, float]) -> Override:
     """At these inputs (found from the tables), xsf is wrong."""
     return Override(lambda a: a in points, why)
@@ -3069,6 +3186,31 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (_besselpoly_arb,),
                 BESSELPOLY_RULES,
                 BESSELPOLY_OVERRIDES,
+            ),
+        )
+    ),
+    ("hyperu", "d_d_d-d"): Entry(
+        (
+            Out(
+                "hypu",
+                (_hypu,),
+                (_precise(_hypu_arb),),
+                HYPU_RULES,
+                HYPU_OVERRIDES,
+                (
+                    Floor(
+                        lambda a: (
+                            a[1] == 1
+                            and 0 < a[0] < 1
+                            and a[2] >= 1
+                            and _chgul_digits(*a) < 12
+                        ),
+                        2e-15,
+                        "the series of chgubi cancels, with digamma and gamma for a < 1 "
+                        "(unlike in xsf, scipy/xsf#380), for b = 1, 0 < a < 1 and x >= 1 "
+                        "where chgul has fewer than 12 digits",
+                    ),
+                ),
             ),
         )
     ),
