@@ -60,7 +60,7 @@ class Entry:
     identity: Identity | None = None
 
 
-NAN: Final = Rule(lambda a: math.isnan(a[0]), math.nan, "NaN propagates")
+NAN: Final = Rule(lambda a: any(map(math.isnan, a)), math.nan, "NaN propagates")
 INF: Final = Rule(lambda a: a[0] == math.inf, math.inf, "the limit for x -> +inf")
 NEG_INF: Final = Rule(lambda a: a[0] == -math.inf, math.nan, "no limit for x -> -inf")
 POLE: Final = Rule(
@@ -289,6 +289,32 @@ def _airy_out(i: int) -> Out:
     return Out(f"airy[{i}]", (ref,), (arb,), overrides=AIRY_OVERRIDES)
 
 
+def _real(
+    func: str,
+    ref: Callable[[mp.mpf], Value] | Callable[[mp.mpf, mp.mpf], Value],
+    arb: Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb],
+    rules: tuple[Rule, ...] = (),
+    overrides: tuple[Override, ...] = (),
+) -> Entry:
+    """A table with a real output."""
+    return Entry((Out(func, (ref,), (arb,), rules, overrides),))
+
+
+def _log1pmx(x: mp.mpf) -> mp.mpf:
+    """`specs.r_log1pmx`, whose series does not end at x = 0."""
+    return x if x == 0 else specs.r_log1pmx(x)
+
+
+EXPIT_OVERRIDE: Final = Override(
+    lambda a: a[0] < -709.78,
+    "xsf returns 0 where exp(-x) overflows, for x < -709.78",
+)
+# of the last input
+LOG1P_DOMAIN: Final = Rule(lambda a: a[-1] < -1, math.nan, "log1p is not real below -1")
+# like in xsf, also where the logarithm is infinite
+X_ZERO: Final = Rule(lambda a: a[0] == 0, 0.0, "x log y = 0 for x = 0")
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -437,4 +463,83 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **{(name, "d-d"): Entry((_kelvin_out(kind),)) for kind, name in enumerate(KELVIN)},
     ("kelvin", "d-cd_cd_cd_cd"): Entry(tuple(_kelvin_complex_out(j) for j in range(4))),
     ("airy", "d-d_d_d_d"): Entry(tuple(_airy_out(i) for i in range(4))),
+    ("expm1", "d-d"): _real(
+        "expm1", specs.r_expm1, flint.arb.expm1, _limits(-1, math.inf)
+    ),
+    ("exprel", "d-d"): _real(
+        "exprel",
+        specs.r_exprel,
+        lambda x: x.expm1() / x,
+        (
+            *_limits(0.0, math.inf),
+            Rule(lambda a: a[0] == 0, 1.0, "the limit for x -> 0"),
+        ),
+    ),
+    ("log1p", "d-d"): _real(
+        "log1p",
+        specs.r_log1p,
+        flint.arb.log1p,
+        (
+            INF,
+            LOG1P_DOMAIN,
+            Rule(lambda a: a[0] == -1, -math.inf, "the limit for x -> -1+"),
+        ),
+    ),
+    ("log1pmx", "d-d"): _real(
+        "log1pmx", _log1pmx, lambda x: x.log1p() - x, (LOG1P_DOMAIN,)
+    ),
+    ("exp2", "d-d"): _real("exp2", specs.r_exp2, lambda x: flint.arb(2) ** x),
+    ("exp10", "d-d"): _real("exp10", specs.r_exp10, lambda x: flint.arb(10) ** x),
+    ("expit", "d-d"): _real(
+        "expit",
+        specs.r_expit,
+        lambda x: 1 / (1 + (-x).exp()),
+        overrides=(EXPIT_OVERRIDE,),
+    ),
+    ("log_expit", "d-d"): _real(
+        "log_expit", specs.r_log_expit, lambda x: -(-x).exp().log1p()
+    ),
+    ("logit", "d-d"): _real(
+        "logit",
+        specs.r_logit,
+        lambda p: p.log() - (-p).log1p(),
+        (
+            Rule(
+                lambda a: not 0 <= a[0] <= 1, math.nan, "expit takes values in [0, 1]"
+            ),
+            Rule(lambda a: a[0] == 0, -math.inf, "expit(x) -> 0 for x -> -inf"),
+            Rule(lambda a: a[0] == 1, math.inf, "expit(x) -> 1 for x -> +inf"),
+        ),
+    ),
+    ("cbrt", "d-d"): _real("cbrt", specs.r_cbrt, lambda x: x.sgn() * abs(x).root(3)),
+    ("cosm1", "d-d"): _real("cosm1", specs.r_cosm1, lambda x: x.cos() - 1),
+    ("xlogy", "d_d-d"): _real(
+        "xlogy",
+        specs.r_xlogy,
+        lambda x, y: x * y.log(),
+        (
+            NAN,
+            X_ZERO,
+            Rule(lambda a: a[1] < 0, math.nan, "log y is not real for y < 0"),
+            Rule(
+                lambda a: a[0] > 0 and a[1] == math.inf,
+                math.inf,
+                "the limit for y -> +inf, with x > 0",
+            ),
+        ),
+    ),
+    ("xlog1py", "d_d-d"): _real(
+        "xlog1py",
+        specs.r_xlog1py,
+        lambda x, y: x * y.log1p(),
+        (
+            NAN,
+            X_ZERO,
+            LOG1P_DOMAIN,
+            Rule(
+                lambda a: a[0] > 0 and a[1] == -1, -math.inf, "the limit for y -> -1+"
+            ),
+            Rule(lambda a: a[0] < 0 and a[1] == -1, math.inf, "the limit for y -> -1+"),
+        ),
+    ),
 }
