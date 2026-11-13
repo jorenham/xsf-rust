@@ -117,6 +117,22 @@ fn test_bessel_i_large_v_near_overflow() {
 }
 
 #[test]
+fn test_bessel_i_huge_x() {
+    // I_v(x) ~ e^x / sqrt(2 pi x) overflows, also where 2 pi x or (x / v)^2 does
+    let inf = f64::INFINITY;
+    let x = 2f64.powi(1023);
+    for v in [-49.5, -1e-30, 0.0, 0.5, 3.0, 50.0] {
+        assert_eq!(xsf::bessel_i(v, x), inf);
+    }
+    for (v, x) in [(100.0, 1e200), (-100.5, 1e200), (1e5, 1e300)] {
+        assert_eq!(xsf::bessel_i(v, x), inf);
+    }
+    // odd orders
+    assert_eq!(xsf::bessel_i(3.0, -x), -inf);
+    assert_eq!(xsf::bessel_i(51.0, -1e200), -inf);
+}
+
+#[test]
 fn test_bessel_amos_underflow() {
     // mpmath: besselj(7.3156, 1.19e-41) = 2.6872935555094642e-306,
     // besselj(-43, 4.418464059606903e-6) = -1.0500997742421043e-296,

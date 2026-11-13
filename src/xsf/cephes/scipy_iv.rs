@@ -66,8 +66,9 @@ fn iv_asymptotic(v: f64, x: f64) -> f64 {
 
     let prefactor = x.exp() / (2.0 * PI * x).sqrt();
 
-    if prefactor == f64::INFINITY {
-        return prefactor;
+    // Unlike in xsf, also for the NaN of inf / inf, where 2 pi x overflows.
+    if !prefactor.is_finite() {
+        return f64::INFINITY;
     }
 
     let mu = 4.0 * v * v;
@@ -222,8 +223,10 @@ fn ikv_asymptotic_uniform(
     }
 
     let z = x / v;
-    let t = 1.0 / (1.0 + z * z).sqrt();
-    let eta = (1.0 + z * z).sqrt() + (z / (1.0 + 1.0 / t)).ln();
+    // Unlike in xsf, 1 + z^2 saturates instead of overflowing, where eta would be inf - inf.
+    let z2p1 = (1.0 + z * z).min(f64::MAX);
+    let t = 1.0 / z2p1.sqrt();
+    let eta = z2p1.sqrt() + (z / (1.0 + 1.0 / t)).ln();
 
     let (i_scale, k_scale) = ((t / (TAU * v)).sqrt(), (PI * t / (2.0 * v)).sqrt());
     let i_prefactor = i_scale * (v * eta).exp();
@@ -531,7 +534,14 @@ fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>)
         let z = u + f64::from(n % 2);
 
         if let Some(Iv_p) = Iv_p {
-            *Iv_p = Iv + FRAC_2_PI * sinpi(z) * Kv; /* reflection formula */
+            /* reflection formula */
+            // Unlike in xsf, without the K term if I overflowed: it vanishes for large x, and
+            // `CF2_ik` is NaN for x >= 2^1023.
+            *Iv_p = if Iv.is_infinite() {
+                Iv
+            } else {
+                Iv + FRAC_2_PI * sinpi(z) * Kv
+            };
         }
         if let Some(Kv_p) = Kv_p {
             *Kv_p = Kv;
