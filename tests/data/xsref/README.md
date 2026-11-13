@@ -24,11 +24,16 @@ Each `<table>/<sig>.bin` holds the rows of xsref's `In_<sig>`, `Out_<sig>`, and
 (`f32` values are widened, nulls become NaN), and the column order is kept. The `fallback` column
 of `Out_<sig>` (the reference is xsf's own value) is the row flag, not an output.
 
-Only `cyl_bessel_i` is subsampled, to 20,000 rows per signature: 16,000 rows where all outputs
+`cyl_bessel_i` is subsampled to 20,000 rows per signature: 16,000 rows where all outputs
 are finite, 2,000 with a NaN output, and 2,000 with an infinite output (a class with fewer rows
 gives its remainder to the finite one), each drawn uniformly without replacement with
 `random.Random(0)`, in that order. On top of these, every row with a half-integer order `v`, or
-one in `BESSEL_I_OVERFLOWS` (`testing/src/xsref.rs`), is kept. `--no-cap` keeps all rows.
+one in `BESSEL_I_OVERFLOWS` (`testing/src/xsref.rs`), is kept.
+
+Of the 173,167 rows of the real `airy` table with -1e4 < x < -1e3 (near the zeros of Ai, Ai', Bi,
+and Bi'), every 8th is kept (from the first one, in xsref's order).
+
+`--no-cap` keeps all rows.
 
 ## Generated tables
 

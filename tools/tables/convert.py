@@ -15,7 +15,8 @@ Steps:
 2. Read `In_<sig>`, `Out_<sig>`, and `Err_<sig>_other` of each pair, and cast every column to
    f64 on its own (nulls become NaN), like the parquet loader of the tests did. The `fallback`
    column of `Out_<sig>` is the row flag, not an output.
-3. Only keep a stratified sample of the `cyl_bessel_i` rows (see `cap_rows`), unless `--no-cap`.
+3. Only keep a stratified sample of the `cyl_bessel_i` rows (see `cap_rows`) and a part of the
+   real `airy` rows (see `thin_rows`), unless `--no-cap`.
 4. Write one `<table>/<sig>.bin` per pair (the format is described in `tests/data/xsref/README.md`),
    `MANIFEST.tsv`, and xsref's `LICENSE`. The tables that `generate.py` has replaced (those with
    header flags) are kept.
@@ -51,6 +52,12 @@ CAPPED: Final = "cyl_bessel_i"
 CAP_NAN: Final = 2_000
 CAP_INF: Final = 2_000
 CAP: Final = 20_000
+
+# of the real `airy` rows with x inside of `THIN_RANGE` (near the zeros of Ai, Ai', Bi, and Bi'),
+# every `THIN_STEP`th is kept
+THINNED: Final = ("airy", "d-d_d_d_d")
+THIN_RANGE: Final = (-1e4, -1e3)
+THIN_STEP: Final = 8
 
 
 def _uncommented(path: Path) -> str:
@@ -117,6 +124,13 @@ def cap_rows(inputs: list[pl.Series], outputs: list[pl.Series]) -> pl.Series:
     return pl.Series([i in keep for i in range(len(nan))])
 
 
+def thin_rows(x: pl.Series) -> pl.Series:
+    """The row mask of the real `airy` table: every `THIN_STEP`th row with `x` inside of
+    `THIN_RANGE` (from the first one), and all other rows."""
+    dense = x.is_between(*THIN_RANGE, closed="none")
+    return ~dense | (dense.cast(pl.UInt32).cum_sum() % THIN_STEP == 1)
+
+
 def convert(src: Path, table: str, sig: str, *, cap: bool) -> tuple[bytes, int]:
     """The flat file of a table and signature, and its number of source rows."""
     inputs = read_columns(src / f"In_{sig}.parquet")
@@ -137,8 +151,12 @@ def convert(src: Path, table: str, sig: str, *, cap: bool) -> tuple[bytes, int]:
     assert all(len(col) == n_rows for col in columns), (table, sig)
 
     flags = fallback.cast(pl.UInt8) * FALLBACK
+    mask = None
     if cap and table == CAPPED:
         mask = cap_rows(inputs, outputs)
+    elif cap and (table, sig) == THINNED:
+        mask = thin_rows(inputs[0])
+    if mask is not None:
         columns = [col.filter(mask) for col in columns]
         flags = flags.filter(mask)
 
@@ -160,7 +178,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("xsref", type=Path, help="a checkout of scipy/xsref")
     parser.add_argument("out", type=Path, help="the output directory")
-    parser.add_argument("--no-cap", action="store_true", help=f"keep all {CAPPED} rows")
+    parser.add_argument("--no-cap", action="store_true", help="keep all rows")
     args = parser.parse_args()
     xsref: Path = args.xsref
     out: Path = args.out
