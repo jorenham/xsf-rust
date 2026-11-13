@@ -127,11 +127,14 @@ def _limits(neg: float, pos: float) -> tuple[Rule, ...]:
     )
 
 
-# Arb loses about log2(x^2) bits in exp(+-x^2), so up to 2048 for an f64 x
+# Arb loses about log2(x^2) bits in exp(+-x^2), so up to 2048 for an f64 x (and up to 1024 in
+# exp(+-x))
 EXP_SQUARE_BITS: Final = 2048
 
 
-def _exp_square(f: Callable[[flint.arb], flint.arb]) -> Arb:
+def _exp_square(
+    f: Callable[[flint.arb], flint.arb],
+) -> Callable[[flint.arb], flint.arb]:
     """`f` with `EXP_SQUARE_BITS` more bits."""
 
     def arb(x: flint.arb) -> flint.arb:
@@ -396,6 +399,21 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
             entry("ke", at_n(specs.r_ke), cut("K"), ke),
         ]
     )
+
+
+def _of_abs(f: Callable[[flint.arb], flint.arb]) -> Callable[[flint.arb], flint.arb]:
+    """`f` of |x| with `EXP_SQUARE_BITS` more bits, like `specs.r_ci` and `specs.r_chi`."""
+
+    def arb(x: flint.arb) -> flint.arb:
+        return f(abs(x))
+
+    return _exp_square(arb)
+
+
+# also at x = -0
+LOG_AT_0: Final = Rule(
+    lambda a: a[0] == 0, -math.inf, "the limit for x -> 0, like ln |x|"
+)
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -710,4 +728,73 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("round", "d-d"): _real("round", mp.nint, _round_arb),
     **_bessel(0),
     **_bessel(1),
+    ("exp1", "d-d"): _real(
+        "exp1",
+        specs.r_exp1,
+        _exp_square(lambda x: x.expint(1)),
+        (
+            Rule(lambda a: a[0] < 0, math.nan, "E1(x) is not real for x < 0"),
+            Rule(lambda a: a[0] == 0, math.inf, "the limit for x -> 0+, at x = +-0"),
+        ),
+    ),
+    ("expi", "d-d"): _real(
+        "expi", specs.r_expi, _exp_square(flint.arb.ei), (LOG_AT_0,)
+    ),
+    ("expn", "p_d-d"): _real(
+        "expn",
+        specs.r_expn,
+        lambda n, x: x.expint(n),
+        (
+            Rule(lambda a: a[0] < 0, math.nan, "E_n is NaN for n < 0, like in xsf"),
+            Rule(
+                lambda a: a[1] < 0,
+                math.nan,
+                "NaN for x < 0, where E_n is not real for n >= 1",
+            ),
+        ),
+    ),
+    ("scaled_exp1", "d-d"): _real(
+        "scaled_exp1",
+        specs.r_scaled_exp1,
+        _exp_square(lambda x: x * x.exp() * x.expint(1)),
+        (
+            Rule(lambda a: a[0] == 0, 0.0, "the limit for x -> 0+, at x = +-0"),
+            Rule(lambda a: a[0] == math.inf, 1.0, "the limit for x -> +inf"),
+        ),
+    ),
+    ("shichi", "d-d_d"): Entry(
+        (
+            Out("shichi.0", (specs.r_shi,), (_exp_square(flint.arb.shi),)),
+            Out(
+                "shichi.1",
+                (specs.r_chi,),
+                (_of_abs(flint.arb.chi),),
+                (LOG_AT_0,),
+            ),
+        )
+    ),
+    ("sici", "d-d_d"): Entry(
+        (
+            Out(
+                "sici.0",
+                (specs.r_si,),
+                (_exp_square(flint.arb.si),),
+                _limits(-math.pi / 2, math.pi / 2)[1:],
+            ),
+            Out(
+                "sici.1",
+                (specs.r_ci,),
+                (_of_abs(flint.arb.ci),),
+                (
+                    LOG_AT_0,
+                    Rule(lambda a: a[0] == math.inf, 0.0, "the limit for x -> +inf"),
+                    Rule(
+                        lambda a: a[0] == -math.inf,
+                        math.nan,
+                        "NaN for x = -inf, like in xsf, not the limit 0 of Ci(|x|)",
+                    ),
+                ),
+            ),
+        )
+    ),
 }
