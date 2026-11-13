@@ -141,6 +141,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("betaln", xsf::betaln(x, y))
     F2("binom", xsf::binom(x, y))
     F2("pow_rising", xsf::cephes::poch(x, y))
+    F1("lanczos_sum_expg_scaled", xsf::cephes::lanczos_sum_expg_scaled(x))
     // error function and normal distribution
     F1("erf", xsf::erf(x))
     F1("erfc", xsf::erfc(x))
