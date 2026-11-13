@@ -16,7 +16,9 @@ type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
 type Arb = Callable[..., flint.arb | flint.acb | None]  # None where Arb can't check
 type RealArb = (
-    Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb]
+    Callable[[flint.arb], flint.arb]
+    | Callable[[flint.arb, flint.arb], flint.arb]
+    | Callable[[flint.arb, flint.arb, flint.arb], flint.arb]
 )
 
 
@@ -854,7 +856,10 @@ def _smirnovi(n: mp.mpf, q: mp.mpf) -> mp.mpf:
 
 
 def _inverse_arb(
-    f: RealArb, ref: Callable[[mp.mpf], mp.mpf] | Callable[[mp.mpf, mp.mpf], mp.mpf]
+    f: RealArb,
+    ref: Callable[[mp.mpf], mp.mpf]
+    | Callable[[mp.mpf, mp.mpf], mp.mpf]
+    | Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpf],
 ) -> RealArb:
     """The root x of f(*a, x) = y for the inputs (*a, y), for a monotonic f: a ball around
     `ref(*a, y)` at 50 digits, which Arb confirms by the signs of f - y at its ends."""
@@ -1056,11 +1061,11 @@ def _gammainc_arb(a: flint.arb, x: flint.arb) -> flint.arb:
     return p
 
 
-def _precise(f: Callable[[flint.arb, flint.arb], flint.arb]) -> Arb:
+def _precise[*A](f: Callable[[*A], flint.arb]) -> Callable[[*A], flint.arb | None]:
     """`f`, but None where its ball is too wide to confirm a reference."""
 
-    def arb(a: flint.arb, x: flint.arb) -> flint.arb | None:
-        y = f(a, x)
+    def arb(*args: *A) -> flint.arb | None:
+        y = f(*args)
         return y if y.rel_accuracy_bits() >= ARB_BITS else None
 
     return arb
@@ -1267,6 +1272,161 @@ def _pdtri() -> Out:
         (specs.r_pdtri,),
         (_inverse_arb(lambda k, m: _gammaincc_arb(k + 1, m), specs.r_pdtri),),
         (PDTRI_DOMAIN,),
+    )
+
+
+def _floor_k(a: tuple[float, ...]) -> float:
+    """floor(k) of the first input."""
+    return _floor(a[0])
+
+
+BIN_P: Final = Rule(
+    lambda a: not 0 <= a[2] <= 1, math.nan, "NaN outside of 0 <= p <= 1"
+)
+BIN_N: Final = Rule(lambda a: a[1] < _floor_k(a), math.nan, "NaN for n < floor(k)")
+BDTR_RULES: Final = (
+    BIN_P,
+    BIN_N,
+    Rule(lambda a: a[0] < 0, math.nan, "NaN for k < 0"),
+    Rule(lambda a: a[1] == _floor_k(a), 1.0, "bdtr(k, n, p) = 1 for floor(k) = n"),
+)
+BDTRC_RULES: Final = (
+    BIN_P,
+    BIN_N,
+    Rule(lambda a: a[0] < 0, 1.0, "bdtrc(k, n, p) = 1 for k < 0"),
+    Rule(lambda a: a[1] == _floor_k(a), 0.0, "bdtrc(k, n, p) = 0 for floor(k) = n"),
+)
+BDTRI_RULES: Final = (
+    Rule(
+        lambda a: not 0 <= a[2] <= 1 or a[0] < 0 or a[1] <= _floor_k(a),
+        math.nan,
+        "NaN outside of 0 <= y <= 1, k >= 0, n > floor(k)",
+    ),
+    Rule(lambda a: a[2] == 1, 0.0, "bdtri(k, n, 1) = 0, since bdtr(k, n, 0) = 1"),
+)
+NBDTR_RULES: Final = (
+    Rule(
+        lambda a: a[0] < 0 or not 0 <= a[2] <= 1,
+        math.nan,
+        "NaN outside of k >= 0, 0 <= p <= 1",
+    ),
+    Rule(lambda a: a[1] <= 0, math.nan, "NaN for n <= 0"),
+)
+FDTR_DOMAIN: Final = Rule(
+    lambda a: a[0] <= 0 or a[1] <= 0 or a[2] < 0,
+    math.nan,
+    "NaN outside of a, b > 0, x >= 0",
+)
+FDTRI_RULES: Final = (
+    Rule(
+        lambda a: a[0] <= 0 or a[1] <= 0 or not 0 < a[2] <= 1,
+        math.nan,
+        "NaN outside of a, b > 0, 0 < y <= 1",
+    ),
+    Rule(lambda a: a[2] == 1, math.inf, "the limit for y -> 1"),
+)
+
+
+def _betainc_arb(a: flint.arb, b: flint.arb, x: flint.arb, y: flint.arb) -> flint.arb:
+    """I_x(a, b) with y = 1 - x, as I_x(a, b) or 1 - I_y(b, a), by the one that is more
+    precise (starting on the side of the mean of the beta distribution, as `specs._betainc`)."""
+    low = x < (a + 1) / (a + b + 2)
+    r = (
+        x.beta_lower(a, b, regularized=1)
+        if low
+        else 1 - y.beta_lower(b, a, regularized=1)
+    )
+    if r.rel_accuracy_bits() >= ARB_BITS:
+        return r
+    return (
+        1 - y.beta_lower(b, a, regularized=1)
+        if low
+        else x.beta_lower(a, b, regularized=1)
+    )
+
+
+class BetaArgs(Protocol):
+    """The (a, b, x, y = 1 - x) of I_x(a, b) of the inputs as `mpf`s, or balls."""
+
+    def __call__[T: (mp.mpf, flint.arb)](
+        self, a: tuple[T, ...], /
+    ) -> tuple[T, T, T, T]: ...
+
+
+def _bdtr_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    k, n, p = _floor(a[0]), a[1], a[2]
+    return n - k, k + 1, 1 - p, p
+
+
+def _bdtrc_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    k, n, p = _floor(a[0]), a[1], a[2]
+    return k + 1, n - k, p, 1 - p
+
+
+def _nbdtr_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    k, n, p = a
+    return n, k + 1, p, 1 - p
+
+
+def _nbdtrc_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    k, n, p = a
+    return k + 1, n, 1 - p, p
+
+
+def _fdtr_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    """w = a x / (b + a x) and 1 - w = b / (b + a x), both without cancellation."""
+    d1, d2, x = a
+    s = d2 + d1 * x
+    return d1 / 2, d2 / 2, d1 * x / s, d2 / s
+
+
+def _fdtrc_args[T: (mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T, T, T]:
+    d1, d2, x = a
+    s = d2 + d1 * x
+    return d2 / 2, d1 / 2, d2 / s, d1 * x / s
+
+
+def _beta_dist(func: str, to_args: BetaArgs, rules: tuple[Rule, ...]) -> Out:
+    """A distribution function that is I_x(a, b) at (a, b, x) = `to_args`, after `rules`."""
+    arb = _precise(_betainc_arb)
+
+    def ref(*a: mp.mpf) -> mp.mpf:
+        return specs._betainc(*to_args(a))
+
+    def ball(*a: flint.arb) -> flint.arb | None:
+        return arb(*to_args(a))
+
+    return Out(func, (ref,), (ball,), (NAN, *rules))
+
+
+def _bdtr_ref(k: mp.mpf, n: mp.mpf, y: mp.mpf) -> mp.mpf:
+    """The p with bdtr(floor(k), n, p) = y."""
+    return specs.r_bdtri(_floor(k), n, y)
+
+
+def _bdtri() -> Out:
+    return Out(
+        "bdtri",
+        (_bdtr_ref,),
+        (
+            _inverse_arb(
+                lambda k, n, p: _betainc_arb(*_bdtr_args((k, n, p))), _bdtr_ref
+            ),
+        ),
+        (NAN, *BDTRI_RULES),
+    )
+
+
+def _fdtri() -> Out:
+    return Out(
+        "fdtri",
+        (specs.r_fdtri,),
+        (
+            _inverse_arb(
+                lambda a, b, x: _betainc_arb(*_fdtr_args((a, b, x))), specs.r_fdtri
+            ),
+        ),
+        (NAN, *FDTRI_RULES),
     )
 
 
@@ -1935,4 +2095,12 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         (_distribution("pdtrc", False, _poisson, "(floor(k) + 1, m)", (K_M_NEG,)),)
     ),
     ("pdtri", "p_d-d"): Entry((_pdtri(),)),
+    ("bdtr", "d_p_d-d"): Entry((_beta_dist("bdtr", _bdtr_args, BDTR_RULES),)),
+    ("bdtrc", "d_p_d-d"): Entry((_beta_dist("bdtrc", _bdtrc_args, BDTRC_RULES),)),
+    ("bdtri", "d_p_d-d"): Entry((_bdtri(),)),
+    ("fdtr", "d_d_d-d"): Entry((_beta_dist("fdtr", _fdtr_args, (FDTR_DOMAIN,)),)),
+    ("fdtrc", "d_d_d-d"): Entry((_beta_dist("fdtrc", _fdtrc_args, (FDTR_DOMAIN,)),)),
+    ("fdtri", "d_d_d-d"): Entry((_fdtri(),)),
+    ("nbdtr", "p_p_d-d"): Entry((_beta_dist("nbdtr", _nbdtr_args, NBDTR_RULES),)),
+    ("nbdtrc", "p_p_d-d"): Entry((_beta_dist("nbdtrc", _nbdtrc_args, NBDTR_RULES),)),
 }
