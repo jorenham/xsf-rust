@@ -60,26 +60,59 @@ class Entry:
     identity: Identity | None = None
 
 
+NAN: Final = Rule(lambda a: math.isnan(a[0]), math.nan, "NaN propagates")
+NEG_INF: Final = Rule(lambda a: a[0] == -math.inf, math.nan, "no limit for x -> -inf")
+POLE: Final = Rule(
+    lambda a: a[0] < 0 and a[0].is_integer(),
+    math.nan,
+    "a pole whose one-sided limits have opposite signs",
+)
 GAMMA: Final = Out(
     "gamma",
     (specs.r_gamma,),
     (specs.ARB["gamma"],),
     rules=(
-        Rule(lambda a: math.isnan(a[0]), math.nan, "NaN propagates"),
+        NAN,
         Rule(lambda a: a[0] == math.inf, math.inf, "the limit for x -> +inf"),
-        Rule(lambda a: a[0] == -math.inf, math.nan, "no limit for x -> -inf"),
+        NEG_INF,
         Rule(
             lambda a: a[0] == 0 and math.copysign(1, a[0]) > 0,
             math.inf,
             "the limit for x -> 0+, like C's tgamma(+0)",
         ),
-        Rule(
-            lambda a: a[0] < 0 and a[0].is_integer(),
-            math.nan,
-            "a pole whose one-sided limits have opposite signs",
-        ),
+        POLE,
     ),
 )
+
+
+def _ln_abs_gamma(x: flint.arb) -> flint.arb:
+    """ln |Gamma(x)|, also for x < 0, where `arb.lgamma` is NaN."""
+    return flint.acb(x).lgamma().real
+
+
+LN_GAMMA_POLE: Final = Rule(
+    lambda a: a[0] <= 0 and a[0].is_integer(),
+    math.inf,
+    "ln |Gamma(x)| -> +inf at a pole",
+)
+TAYLOR_RADIUS: Final = 0.2  # `LOGGAMMA_TAYLOR_RADIUS` of `src/xsf/loggamma.rs`
+LN_GAMMA_ZEROS: Final = Override(
+    lambda a: abs(a[0] - 1) < TAYLOR_RADIUS or 2 - TAYLOR_RADIUS < a[0] < 2,
+    "xsf loses digits near the zeros at 1 and 2, where xsf-rust differs (scipy/xsf#529)",
+)
+
+
+def _gammasgn_arb(x: flint.arb) -> flint.arb:
+    return x.gamma().sgn()
+
+
+def _lgam1p(x: mp.mpf) -> mp.mpf:
+    """`specs.r_lgam1p`, but ln |Gamma(1 + x)| for x < -1, like xsf."""
+    return mp.re(specs.r_lgam1p(x))
+
+
+def _lgam1p_arb(x: flint.arb) -> flint.arb:
+    return _ln_abs_gamma(1 + x)
 
 
 def _it2struve0_residual(x: mp.mpf) -> mp.mpf:
@@ -195,6 +228,58 @@ def _airy_out(i: int) -> Out:
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
+    ("gammaln", "d-d"): Entry(
+        (
+            Out(
+                "gammaln",
+                (specs.r_gammaln,),
+                (_ln_abs_gamma,),
+                (LN_GAMMA_POLE,),
+                (LN_GAMMA_ZEROS,),
+            ),
+        )
+    ),
+    ("loggamma", "d-d"): Entry(
+        (
+            Out(
+                "loggamma",
+                (specs.r_loggamma,),
+                (_ln_abs_gamma,),
+                (
+                    Rule(
+                        lambda a: a[0] < 0,
+                        math.nan,
+                        "the principal ln Gamma(x) is not real for x < 0",
+                    ),
+                    LN_GAMMA_POLE,
+                ),
+                (LN_GAMMA_ZEROS,),
+            ),
+        )
+    ),
+    ("rgamma", "d-d"): Entry(
+        (Out("rgamma", (specs.r_rgamma,), (specs.ARB["rgamma"],), (NAN,)),)
+    ),
+    ("gammasgn", "d-d"): Entry(
+        (
+            Out(
+                "gammasgn",
+                (specs.r_gammasgn,),
+                (_gammasgn_arb,),
+                (
+                    Rule(lambda a: a[0] == math.inf, 1.0, "the limit for x -> +inf"),
+                    NEG_INF,
+                    Rule(
+                        lambda a: a[0] == 0 and math.copysign(1, a[0]) < 0,
+                        -1.0,
+                        "the sign of Gamma(-0) = -inf",
+                    ),
+                    POLE,
+                ),
+            ),
+        )
+    ),
+    ("lgam1p", "d-d"): Entry((Out("lgam1p", (_lgam1p,), (_lgam1p_arb,)),)),
     ("it2struve0", "d-d"): Entry(
         (Out("it2struve0", (specs.r_it2struve0,)),),
         Identity(lambda a: math.isfinite(a[0]), _it2struve0_residual),
