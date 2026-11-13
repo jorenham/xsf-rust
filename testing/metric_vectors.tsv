@@ -1,0 +1,50 @@
+# Test vectors of the table metric (see tests/data/xsref/README.md), which the reader
+# (testing/src/xsref.rs) and the generator (tools/tables/generate.py) both check:
+# actual, reference, scale (0 for none), error. A complex value is `re,im`.
+# normal
+1.0000000000000002	1	0	2.220446049250313e-16
+1.5	1	0	0.5
+-1	1	0	2.0
+1	1	0	0.0
+# zero
+0	0	0	0.0
+-0	0	0	0.0
+5e-324	0	0	1.0
+1e-300	-0	0	2.0240225330731062e+23
+# subnormal
+0	5e-324	0	1.0
+1e-310	2e-310	0	0.5
+-5e-324	5e-324	0	2.0
+# overflow
+inf	inf	0	0.0
+1.7976931348623157e308	inf	0	1.1102230246251565e-16
+inf	1.7976931348623157e308	0	1.1102230246251565e-16
+inf	1e308	0	0.7976931348623159
+-inf	inf	0	inf
+1	-inf	0	inf
+-inf	0	0	inf
+# NaN
+nan	nan	0	0.0
+nan	1	0	inf
+1	nan	0	inf
+inf	nan	0	inf
+# complex
+6,8	3,4	0	1.0
+1,1	1,0	0	1.0
+0,-0	-0,0	0	0.0
+nan,0	nan,0	0	0.0
+nan,1	1,1	0	inf
+inf,0	1.7976931348623157e308,0	0	1.1102230246251565e-16
+3e307,4e307	1.2e308,1.6e308	0	0.7499999999999999
+1,inf	1,inf	0	0.0
+0,3	inf,4	0	inf
+# scaled
+1.5	1	4	0.125
+1.5	1	0.25	0.5
+0.5	0	2	0.25
+nan	1	2	inf
+inf	inf	2	0.0
+1	nan	2	inf
+inf	1	1e300	inf
+1,1	1,0	4	0.25
+5e-324	0	5e-324	1.0

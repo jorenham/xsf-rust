@@ -86,6 +86,13 @@ template <int I, typename F> cd nthc(F f) {
     return o[I];
 }
 
+// Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
+static cd kelvin(double x, int index) {
+    cd o[4];
+    xsf::kelvin(x, o[0], o[1], o[2], o[3]);
+    return o[index];
+}
+
 static bool eval(const std::string &f, const std::vector<double> &a, double &r, cd &rc, bool &cplx) {
 #define F1(name, expr)                                                                             \
     if (f == name && a.size() == 1) {                                                              \
@@ -432,6 +439,11 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("modified_fresnel_minus.0", 1, nthc<0>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("modified_fresnel_minus.1", 1, nthc<1>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("sph_harm_y", 4, xsf::sph_harm_y(i(a[0]), i(a[1]), a[2], a[3]))
+    // for the reference tables (tools/tables/mapping.py); the parts are above
+    C("kelvin.0", 1, kelvin(a[0], 0))
+    C("kelvin.1", 1, kelvin(a[0], 1))
+    C("kelvin.2", 1, kelvin(a[0], 2))
+    C("kelvin.3", 1, kelvin(a[0], 3))
 #undef F1
 #undef F2
 #undef F3

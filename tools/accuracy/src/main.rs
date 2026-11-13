@@ -377,6 +377,11 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("modified_fresnel_minus.0", &[x]) => xsf::modified_fresnel_minus(x).0,
         ("modified_fresnel_minus.1", &[x]) => xsf::modified_fresnel_minus(x).1,
         ("sph_harm_y", &[n, m, t, p]) => xsf::sph_harm_y(n as usize, m as isize, t, p),
+        // for the reference tables (`tools/tables/mapping.py`); the parts are in `eval_xsf`
+        ("kelvin.0", &[x]) => xsf::kelvin(x)[0],
+        ("kelvin.1", &[x]) => xsf::kelvin(x)[1],
+        ("kelvin.2", &[x]) => xsf::kelvin(x)[2],
+        ("kelvin.3", &[x]) => xsf::kelvin(x)[3],
         _ => return None,
     })
 }

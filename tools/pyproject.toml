@@ -20,7 +20,7 @@ package = false
 
 [tool.pyrefly]
 preset = "strict"
-search-path = ["accuracy"]
+search-path = ["accuracy", "tables"]
 
 # the references are unannotated: they take and return untyped mpmath numbers
 [[tool.pyrefly.sub-config]]

@@ -17,7 +17,8 @@ Steps:
    column of `Out_<sig>` is the row flag, not an output.
 3. Only keep a stratified sample of the `cyl_bessel_i` rows (see `cap_rows`), unless `--no-cap`.
 4. Write one `<table>/<sig>.bin` per pair (the format is described in `tests/data/xsref/README.md`),
-   `MANIFEST.tsv`, and xsref's `LICENSE`.
+   `MANIFEST.tsv`, and xsref's `LICENSE`. The tables that `generate.py` has replaced (those with
+   header flags) are kept.
 
 The output is deterministic: running it twice gives identical files.
 """
@@ -42,6 +43,7 @@ MAGIC: Final = b"XSFT"
 VERSION: Final = 1
 HEADER: Final = struct.Struct("<4sIIHHHH")
 FALLBACK: Final = 1  # row flag: the reference is xsf's own value
+COLUMNS: Final = "table\tsig\trows\tsource_rows\tn_in\tn_out\tn_tol\tsha256"
 
 # per signature of `cyl_bessel_i`: rows with all outputs finite, with a NaN output, and with an
 # infinite output (a short class gives its remainder to the finite one)
@@ -163,10 +165,24 @@ def main() -> None:
     xsref: Path = args.xsref
     out: Path = args.out
 
-    manifest = ["table\tsig\trows\tsource_rows\tn_in\tn_out\tn_tol\tsha256"]
+    # a generated table has header flags
+    path = out / "MANIFEST.tsv"
+    old = path.read_text().splitlines()[1:] if path.exists() else []
+    generated = {
+        (table, sig): line
+        for line in old
+        for table, sig in [line.split("\t")[:2]]
+        if (file := out / table / f"{sig}.bin").exists()
+        and HEADER.unpack_from(file.read_bytes())[6]
+    }
+
+    manifest = [COLUMNS]
     total = total_source = 0
     used = consumers()
     for table, sig in sorted(set(used)):
+        if line := generated.get((table, sig)):
+            manifest.append(line)
+            continue
         data, n_source = convert(
             xsref / TABLES / table, table, sig, cap=not args.no_cap
         )
@@ -181,10 +197,12 @@ def main() -> None:
         total += n_rows
         total_source += n_source
 
-    (out / "MANIFEST.tsv").write_text("\n".join(manifest) + "\n")
+    path.write_text("\n".join(manifest) + "\n")
     shutil.copyfile(xsref / "LICENSE", out / "LICENSE")
+    n_converted = len(manifest) - 1 - len(generated)
     print(
-        f"{len(used)} tests of {len(manifest) - 1} tables, {total} of {total_source} rows"
+        f"{len(used)} tests of {len(manifest) - 1} tables; converted {n_converted}"
+        f" ({total} of {total_source} rows), kept {len(generated)} generated ones"
     )
 
 
