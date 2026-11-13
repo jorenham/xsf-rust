@@ -406,6 +406,7 @@
 //!
 //! | Function     | Description                                                        |
 //! | ------------ | ------------------------------------------------------------------ |
+//! | [`pbdn_seq`] | [`pbdv`] for the integer orders $0, \ldots, n$ and complex $z$     |
 //! | [`pbdv`]     | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
 //! | [`pbdv_seq`] | [`pbdv`] for the orders $v - \lfloor v\rfloor, \ldots, v$          |
 //! | [`pbvv`]     | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |

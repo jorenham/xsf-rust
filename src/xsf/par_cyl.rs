@@ -11,13 +11,14 @@
 
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
+use num_complex::Complex64;
 use num_traits::ToPrimitive;
 
 use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
-use crate::xsf::specfun::{cgama, gamma2};
+use crate::xsf::specfun::{cgama, cpbdn, gamma2};
 use crate::xsf::tools::INT_OVERFLOW;
 use crate::{airy, airy_scaled, cospi, log1pmx, rgamma, sinpi};
 
@@ -1312,4 +1313,45 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 #[must_use]
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
     pb_seq(v, x, pbvv_impl)
+}
+
+/// Parabolic cylinder functions $D_n(z)$ and their derivatives for the orders $0, \ldots, n$
+///
+/// Corresponds to [`scipy.special.pbdn_seq`][scipy], and uses a translation of
+/// `xsf::specfun::cpbdn`.
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbdn_seq.html
+///
+/// # Arguments
+/// - `n`: Integer order
+/// - `z`: Complex argument
+///
+/// # Returns
+/// - `dv`: Values of $D_i(z)$ for $i = 0, 1, \ldots, n$, or $i = 0, -1, \ldots, n$ if $n < 0$
+/// - `dp`: Derivatives $D_i\'(z)$ for the same orders
+///
+/// Like in SciPy, both vectors also contain $D_1(z)$ if $n = 0$.
+///
+/// Unlike in SciPy, the results are also correct for non-real $z$, where `cpbdn` in xsf uses
+/// $e^{-|z|^2/4}$ in place of $e^{-z^2/4}$, and both vectors have length $|n| + 1$ if $n < 0$,
+/// where SciPy returns $D_1(z)$ in place of $D_{-1}(z)$ for $n = -1$, and 3 values for $n < -1$.
+///
+/// # See also
+/// - [`pbdv_seq`]
+///
+/// # Panics
+/// - Panics if $n \le -2^{31} + 100$
+#[must_use]
+pub fn pbdn_seq(n: i32, z: Complex64) -> (Vec<Complex64>, Vec<Complex64>) {
+    // `cpbdn` computes `100 + abs(n)` as an `int`
+    assert!(n > i32::MIN + 100, "n is too small");
+    // like in SciPy, at least D_0 and D_1 if n >= 0
+    let m = if n < 0 { n } else { n.max(1) };
+    let mut cpb = vec![C64::ZERO; m.unsigned_abs() as usize + 2];
+    let mut cpd = cpb.clone();
+    cpbdn(m, z.into(), &mut cpb, &mut cpd);
+
+    let len = n.unsigned_abs().max(1) as usize + 1;
+    let to_vec = |c: Vec<C64>| c[..len].iter().map(|&w| w.into()).collect();
+    (to_vec(cpb), to_vec(cpd))
 }

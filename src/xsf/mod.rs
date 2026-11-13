@@ -110,7 +110,7 @@ pub use mathieu::{
     mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem,
 };
 pub use multivariate_normal::{bivariate_normal_cdf, trivariate_normal_cdf};
-pub use par_cyl::{pbdv, pbdv_seq, pbvv, pbvv_seq, pbwa};
+pub use par_cyl::{pbdn_seq, pbdv, pbdv_seq, pbvv, pbvv_seq, pbwa};
 pub use sici::{shichi, sici};
 pub use specfun::{bernoulli, euler, hyp1f1, hypu, pmv};
 pub use sph_bessel::{
