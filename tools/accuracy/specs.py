@@ -1688,7 +1688,8 @@ def _ellipj(u, m):
     """sn, cn, dn, and the amplitude am(u | m) = n pi + atan2(sn(u'), cn(u')), where
     u' = u - 2 n K(m) in [-K, K), so that sn(u') = (-1)^n sn(u) and cn(u') = (-1)^n cn(u) >= 0."""
     with wdps(xd(u)):
-        sn, cn, dn = (mp.ellipfun(k, u, m=m) for k in ("sn", "cn", "dn"))
+        # complex with a zero imaginary part for m < 0
+        sn, cn, dn = (mp.re(mp.ellipfun(k, u, m=m)) for k in ("sn", "cn", "dn"))
         if m == 1:
             return sn, cn, dn, mp.asin(mp.tanh(u))
         n = int(mp.floor((u + mp.ellipk(m)) / (2 * mp.ellipk(m))))

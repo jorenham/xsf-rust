@@ -41,14 +41,7 @@ fn test_ellipkinc_m1_pi2() {
 xsref::tests! {
     test_ellipe: "ellipe", "d-d", |x| xsf::ellipe(x[0]);
     test_ellipeinc: "ellipeinc", "d_d-d", |x| xsf::ellipeinc(x[0], x[1]);
-
-    // Workaround for https://github.com/scipy/xsref/issues/11:
-    // The xsref table contains incorrect values for the phase φ (am),
-    // so we reconstruct it from sn using sn.asin()
-    test_ellipj: "ellipj", "d_d-d_d_d_d", |x| {
-        let (sn, cn, dn, am) = xsf::ellipj(x[0], x[1]);
-        (sn, cn, dn, am.sin().asin())
-    };
+    test_ellipj: "ellipj", "d_d-d_d_d_d", |x| xsf::ellipj(x[0], x[1]);
 }
 
 #[test]

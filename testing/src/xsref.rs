@@ -414,10 +414,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "modified_fresnel_plus" | "modified_fresnel_minus" if x[0] < 0.0 => f64::INFINITY,
         // xsf returns NaN for m = 10000
         "cem" | "sem" if x[0] == 1e4 => f64::INFINITY,
-        // xsf returns NaN instead of the limit for m = 1 (scipy/xsf#375)
-        "ellipj" if x[0].is_infinite() && x[1] == 1.0 => f64::INFINITY,
-        // the phase is reconstructed from sn in the test (scipy/xsref#11)
-        "ellipj" if i == 3 => 5e-9,
         // xsf's `fcoef` is inaccurate for even m (scipy/xsf#343)
         "sem" if x[0] % 2.0 == 0.0 => 1e-8,
         // the references for even m are xsf's values, which differ by up to 1e-7 (unverified,
