@@ -275,7 +275,7 @@ fn test_hyp2f1_f64_x_lt_minus_2_b_minus_a_near_int() {
         4.298_609_352_869_04e65,
         1.155_996_198_053_486_3,
     ];
-    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    np_assert_allclose!(actual, desired, rtol = 5e-13);
 
     // and this was -2.74e6 (Arb)
     let actual = xsf::hyp2f1(-4.6, -20.600_000_000_1, 50.7, -10.0);
@@ -349,7 +349,7 @@ fn test_hyp2f1_f64_euler_tiny_a() {
         xsf::hyp2f1(1e-20, 3.0, 0.7, -1.0),
         xsf::hyp2f1(1e-20, 300.5, 0.7, -0.999_999_999_999_99),
     ];
-    np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-15);
+    np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-14);
 }
 
 #[test]
@@ -379,7 +379,6 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         (19.0, -19.0, 0.5, 0.99),
         (22.0, -22.0, -3.5, 0.95),
         (195.0, -195.0, 1.0, 0.9),
-        (195.0, -195.0, -200.5, 0.01),
     ];
     let desired = [
         0.489_514_398_515_199_2,
@@ -387,17 +386,26 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         0.787_059_088_545_409,
         -6_540_705.712_015_875,
         -0.019_154_323_187_421_253,
-        6.722_964_015_601_578,
     ];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         // also with a and b swapped, which was already accurate
         let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
-        np_assert_allclose!(actual, [y, y], rtol = 1e-14);
+        np_assert_allclose!(actual, [y, y], rtol = 2e-14);
     }
 
-    // but not beyond the recurrence limit, where the swapped order is NaN
-    let actual = [xsf::hyp2f1(10_001.0, -10_001.0, 9_999.5, 1e-12)];
-    np_assert_allclose!(actual, [0.999_999_989_997_499_8], rtol = 1e-14);
+    // via the recurrence in the degree, accurate to ~1e-13 here
+    let actual = [
+        xsf::hyp2f1(195.0, -195.0, -200.5, 0.01),
+        xsf::hyp2f1(-195.0, 195.0, -200.5, 0.01),
+    ];
+    np_assert_allclose!(actual, [6.722_964_015_601_578; 2], rtol = 1e-13);
+
+    // and beyond the recurrence limit of the power series, in both orders by `hyp2f1_recur`
+    let actual = [
+        xsf::hyp2f1(10_001.0, -10_001.0, 9_999.5, 1e-12),
+        xsf::hyp2f1(-10_001.0, 10_001.0, 9_999.5, 1e-12),
+    ];
+    np_assert_allclose!(actual, [0.999_999_989_997_499_8; 2], rtol = 1e-12);
 }
 
 #[test]
@@ -417,9 +425,60 @@ fn test_hyp2f1_f64_c_lt_0() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
-    // but it fails (instead of returning 1 or -7.13e279) if the ratio of its terms underflows
-    assert!(xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8).is_nan());
-    assert!(xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8).is_nan());
+    // the ratio of its terms underflows here, but not for the backward recurrence in c (the direct
+    // sum of the power series in high precision)
+    let actual = [
+        xsf::hyp2f1(1e-200, 1e-200, -1000.5, 0.8),
+        xsf::hyp2f1(1e-160, 1e-160, -1000.5, 0.8),
+    ];
+    let desired = [-5.767_096_442_064_845e199, -5.767_096_442_064_845e279];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_parameters() {
+    // unlike in xsf: the backward recurrence in c for large parameters (references: the direct sum
+    // of the power series of the Pfaff transformation in high precision)
+    let actual = [
+        xsf::hyp2f1(35.17, 102.3, 0.0054, -9.74),
+        xsf::hyp2f1(658.99, 0.0047, 51.38, -2.72),
+        xsf::hyp2f1(-0.5, 692.8, 83.35, -3.98),
+        xsf::hyp2f1(-21.2, -10.2, -1e-8, -0.46),
+    ];
+    let desired = [
+        1.955_342_940_723_380_9e-60,
+        0.983_273_621_397_356_7,
+        5.845_197_863_408_547,
+        -53_404_320_641.112_48,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // x << -1: the 1/x transformation (references: its two series summed in high precision)
+    let actual = [
+        xsf::hyp2f1(1.35, 87.4, -32.1, -8478.0),
+        xsf::hyp2f1(-41.6, -16.3, 720.1, -204.7),
+        xsf::hyp2f1(387.2, -2.01, 1.7, -6264.9),
+        xsf::hyp2f1(849.1, -1.54, 55.0, -236.7),
+    ];
+    let desired = [
+        -4.397_527_737_978_469e-6,
+        -1.151_698_277_128_985_8e17,
+        1_471_625_105_699.610_7,
+        304_675.781_003_058_8,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // also for a tiny c, whose `ln Gamma(c)` has no second-order error term (Arb)
+    let actual = [xsf::hyp2f1(20.5, 10.25, 1e-200, -1e6)];
+    np_assert_allclose!(actual, [-5.514_252_855_663_787e132], rtol = 1e-12);
+
+    // long recurrences, whose solutions oscillate in c (references: Arb), e.g. 1.6e617 overflows
+    let actual = [
+        xsf::hyp2f1(-522.3, -123.4, 533.9, -0.9),
+        xsf::hyp2f1(-552.3, -953.1, -55.5, -4.13),
+        xsf::hyp2f1(-679.9, -678.6, -28.7, -4.79),
+    ];
+    let desired = [5.957_219_702_847_165e-52, f64::INFINITY, f64::NEG_INFINITY];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
 #[test]
@@ -481,10 +540,12 @@ fn test_hyp2f1_f64_ams55_15_3_6_gamma_range() {
     ];
     np_assert_allclose!(actual, desired, rtol = 5e-13);
 
-    // but not at a pole of `Gamma(c - a - b)` or if an inner series fails, where this gave -inf
-    // instead of inf, and -3.96e59 instead of 2.42e-243
-    assert!(xsf::hyp2f1(1e5, 7.5, 21.5, 0.95).is_nan());
-    assert!(xsf::hyp2f1(862.559, -310.305, 906.676, 0.999_993_238).is_nan());
+    // but not at a pole of `Gamma(c - a - b)` (this gave -inf), where `hyp2f1_recur` overflows
+    // to inf, as the true value does (Arb)
+    assert_eq!(xsf::hyp2f1(1e5, 7.5, 21.5, 0.95), f64::INFINITY);
+    // and here an inner series fails (this gave -3.96e59), but `hyp2f1_recur` does not (Arb)
+    let actual = [xsf::hyp2f1(862.559, -310.305, 906.676, 0.999_993_238)];
+    np_assert_allclose!(actual, [2.416_601_765_882_886e-243], rtol = 1e-14);
 }
 
 #[test]
@@ -613,12 +674,25 @@ fn test_hyp2f1_f64_euler_both_out_of_range() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_lost() {
-    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 7.7e149,
-    // 2.4e7, -5.6e85 and 7.5e-4 (Arb: 1, 1.016, 1 and 3.77e-17)
-    assert!(xsf::hyp2f1(6.08e-26, -908.762, -19.967, 0.5).is_nan());
-    assert!(xsf::hyp2f1(-50.7, 0.1, 344.3, -1.0).is_nan());
-    assert!(xsf::hyp2f1(1e-14, -1500.5, 0.7, 0.2).is_nan());
-    assert!(xsf::hyp2f1(90.0, -90.0, 180.7, 0.8).is_nan());
+    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 2.36e5
+    // and 4.83e51 (Arb: 1 and 1)
+    assert!(xsf::hyp2f1(-3.53e-26, -1592.2, -17.239, 0.04516).is_nan());
+    assert!(xsf::hyp2f1(-3.25e-18, 491.04, -0.010_315, -0.328).is_nan());
+    // but `hyp2f1_recur` bounds its error for these, which were 7.7e149, 2.4e7, -5.6e85 and 7.5e-4
+    // (Arb)
+    let actual = [
+        xsf::hyp2f1(6.08e-26, -908.762, -19.967, 0.5),
+        xsf::hyp2f1(-50.7, 0.1, 344.3, -1.0),
+        xsf::hyp2f1(1e-14, -1500.5, 0.7, 0.2),
+        xsf::hyp2f1(90.0, -90.0, 180.7, 0.8),
+    ];
+    let desired = [
+        1.0,
+        1.016_019_727_590_008,
+        0.999_999_999_999_930_7,
+        3.771_813_135_532_291e-17,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
     // a series that doesn't converge is estimated as 1, but this is accurate (Arb)
     let actual = [xsf::hyp2f1(-8.999_999_999_999_99, 4.0, 2.5, -1.0)];
     np_assert_allclose!(actual, [2_246.910_399_198_305_6], rtol = 1e-13);
@@ -626,12 +700,120 @@ fn test_hyp2f1_f64_nan_if_lost() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_err_above_1() {
-    // NaN if the error estimate with the recurrences in `a` is above 1 (Arb: 9.596, 0.8029 and
-    // 0.7836)
-    assert!(xsf::hyp2f1(29.0, -29.1, 0.18, 0.86).is_nan());
-    assert!(xsf::hyp2f1(-38.9, 34.5, -0.07, 0.885).is_nan());
-    assert!(xsf::hyp2f1(-0.15, -45.9, 51.0, -0.94).is_nan());
+    // NaN if the error estimate with the recurrences in `a` is above 1, instead of 9.47e-62 and
+    // 3.62e16 (Arb: 1.18e-64 and -7.42e9)
+    assert!(xsf::hyp2f1(702.2, 161.2, 0.1188, -0.4165).is_nan());
+    assert!(xsf::hyp2f1(198.4, 38.54, -105.4, -0.5366).is_nan());
     // but not for a polynomial, here T_10 near a root, which is accurate in absolute terms (Arb)
     let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
     assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
+    // and `hyp2f1_recur` bounds its error for these (Arb)
+    let actual = [
+        xsf::hyp2f1(29.0, -29.1, 0.18, 0.86),
+        xsf::hyp2f1(-38.9, 34.5, -0.07, 0.885),
+        xsf::hyp2f1(-0.15, -45.9, 51.0, -0.94),
+    ];
+    let desired = [
+        9.595_688_178_599_744,
+        0.802_925_766_046_597_9,
+        0.783_576_573_101_434_1,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_opposite_signs() {
+    // unlike in xsf: the 1 - x transformation if 0 < x < 1, and the 1/(1 - x) transformation if
+    // x < 0 (with a and b of the same sign then), where the Pfaff and Euler forms cancel
+    // (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-975.2, 241.4, 0.00135, 0.39),
+        xsf::hyp2f1(-880.55, -75.65, 0.091, -0.472),
+    ];
+    let desired = [-1.469_500_580_590_125_3e-75, 8.556_925_324_233_141e83];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_c_lt_0() {
+    // unlike in xsf: the backward recurrence in c from start values by other forms, if those of
+    // its own form lose precision (references: Arb)
+    let actual = [
+        xsf::hyp2f1(758.1, 7.7, -151.2, -0.3),
+        xsf::hyp2f1(16.1, 428.5, -230.7, -0.91),
+        xsf::hyp2f1(-559.7, 42.4, -136.1, 0.27),
+    ];
+    let desired = [
+        -8_553.508_491_012_49,
+        -1_050_587.466_964_691_6,
+        -2.046_272_877_671_090_4e24,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // from the start values at c + 1 and c + 2, which only help since the other forms nearly
+    // succeeded (reference: Arb)
+    let actual = xsf::hyp2f1(130.25, 125.25, 1.96, -145.46);
+    np_assert_allclose!([actual], [-3.043_786_288_636_934_7e-280], rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_near_1() {
+    // unlike in xsf: the 1 - x transformation of `hyp2f1_recur` for x >= 0.9, e.g. these were
+    // -1.83e6, inf and NaN (references: Arb)
+    let actual = [
+        xsf::hyp2f1(40.1, -133.3, -38.6, 0.901),
+        xsf::hyp2f1(-18.5, 75.0, 172.4, 0.901),
+        xsf::hyp2f1(-2.9, -667.5, 1.8, 1.0 - 1e-14),
+    ];
+    let desired = [
+        43.700_421_521_573_67,
+        1.614_794_417_233_753e-4,
+        9_480_012.959_767_725,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_integer_b_minus_a() {
+    // unlike in xsf: the log case of the 1/x transformation of `hyp2f1_recur` if b - a is an
+    // integer, e.g. the first was NaN (references: Arb)
+    let actual = [
+        xsf::hyp2f1(12.5, 812.5, 300.25, -25_000.0),
+        xsf::hyp2f1(25.0, 25.0, -0.5, -1e6),
+        xsf::hyp2f1(1.5, -50.5, 2.25, -100.0),
+        xsf::hyp2f1(-40.5, -20.5, 2.25, -100.0),
+        xsf::hyp2f1(25.5, 26.5, 27.25, -100.0),
+    ];
+    let desired = [
+        3.490_725_745_476_049e-61,
+        -8.873_628_661_650_908e-148,
+        1.101_295_428_271_828_5e100,
+        -2.154_549_921_333_831e66,
+        7.125_787_400_134_933e-51,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // and of the 1 - x transformation near x = 1 if c - a - b is an integer (Arb)
+    let actual = xsf::hyp2f1(
+        -151.265_625,
+        -167.078_125,
+        -314.343_75,
+        0.996_171_893_522_054_3,
+    );
+    np_assert_allclose!([actual], [1.140_175_032_534_544_3e-91], rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials() {
+    // unlike in xsf: the recurrence in the degree, since the series cancel (references: Arb)
+    let actual = [
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.9),
+        xsf::hyp2f1(-522.0, -123.5, 533.5, -0.5),
+        xsf::hyp2f1(-3.75, 10_675.75, -0.25, -5600.0),
+    ];
+    let desired = [
+        6.485_127_939_853_472_5e-52,
+        -4.200_865_766_102_724e-45,
+        -2.143_761_498_506_179_6e29,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }

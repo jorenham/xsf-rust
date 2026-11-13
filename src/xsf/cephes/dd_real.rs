@@ -27,7 +27,7 @@ use core::cmp::Ordering;
 use core::f64::consts::{E as E_HI, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::utils::pow2;
+use crate::utils::{LN_PI, LN_SQRT_2PI, pow2};
 
 /*************************************************************************
  * The basic routines taking double arguments, returning 1 (or 2) doubles
@@ -341,6 +341,12 @@ impl DoubleDouble {
         self.hi.is_finite()
     }
 
+    /// Whether `self` is an integer
+    #[inline]
+    pub(crate) fn is_integer(self) -> bool {
+        self.hi.fract() == 0.0 && self.lo.fract() == 0.0
+    }
+
     pub(crate) fn floor(self) -> Self {
         let mut hi = self.hi.floor();
         let mut lo = 0.0;
@@ -434,9 +440,23 @@ const E: DoubleDouble = DoubleDouble {
     hi: E_HI,
     lo: 1.445_646_891_729_250_2e-16,
 };
-const LOG2: DoubleDouble = DoubleDouble {
+
+/// `ln(2)` in double-double precision
+pub(crate) const LOG2: DoubleDouble = DoubleDouble {
     hi: LN_2,
     lo: 2.319_046_813_846_299_6e-17,
+};
+
+/// `ln(pi)` in double-double precision
+pub(crate) const LN_PI_DD: DoubleDouble = DoubleDouble {
+    hi: LN_PI,
+    lo: 1.026_595_116_270_782_6e-17,
+};
+
+/// `ln(2 pi) / 2` in double-double precision
+pub(crate) const LN_SQRT_2PI_DD: DoubleDouble = DoubleDouble {
+    hi: LN_SQRT_2PI,
+    lo: -3.878_294_158_067_241_4e-17,
 };
 const EPS: f64 = 4.930_380_657_631_32e-32; // 2^-104
 
