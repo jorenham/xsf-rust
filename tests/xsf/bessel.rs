@@ -344,6 +344,26 @@ fn test_bessel_jy_huge_order_limits() {
     assert_eq!(xsf::bessel_j(3e9, -5.0), 0.0);
 }
 
+#[test]
+fn test_bessel_y_large_integer_order_huge_x() {
+    // Arb: bessely(n, x) for x above the AMOS limit 2^51
+    let actual = [
+        xsf::bessel_y(2_147_483_647.0, 1e16),
+        xsf::bessel_y(-2_147_483_648.0, 1e16),
+        xsf::bessel_y(2e8, 1e20),
+        xsf::bessel_y(1_000_000_007.0, 2_251_799_813_685_250.0),
+        xsf::bessel_y(3.0, 1e300),
+    ];
+    let expected = [
+        7.247_404_648_227_662e-9,
+        -3.337_228_298_107_891_7e-9,
+        -7.950_547_863_231_89e-11,
+        -5.381_323_928_723_016_5e-9,
+        -7.860_673_062_724_093e-151,
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);

@@ -7,6 +7,8 @@
 //!
 //! Unlike in xsf, `-n` wraps for `n = INT_MIN` (undefined behavior in C++).
 
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_4};
+
 use crate::xsf::cephes::{y0, y1};
 
 /*                                                     yn.c
@@ -83,6 +85,20 @@ pub(crate) fn yn(mut n: i32, x: f64) -> f64 {
         return f64::NEG_INFINITY * sign;
     } else if x < 0.0 {
         return f64::NAN;
+    }
+
+    // Unlike in xsf, use the Debye expansion (https://dlmf.nist.gov/10.19.E6) above the AMOS limit
+    // x = 2^51, where the n-step recurrence is slow. With s = n / x, the amplitude is
+    // sqrt(2 / (pi sqrt(x^2 - n^2))) and the phase x - (2n + 1) pi / 4 + n s (1 + s^2 / 12) / 2,
+    // up to O(1 / x + n^6 / x^5), which is negligible for |n| <= 2^31.
+    if x > 0.5 / f64::EPSILON {
+        let m = n.unsigned_abs();
+        let nf = f64::from(m);
+        let s = nf / x;
+        let phi = nf * s / 2.0 * (1.0 + s * s / 12.0) - f64::from(2 * (m % 4) + 1) * FRAC_PI_4;
+        let amp = (FRAC_2_PI / (x - nf).sqrt() / (x + nf).sqrt()).sqrt();
+        let ((sin_x, cos_x), (sin_phi, cos_phi)) = (x.sin_cos(), phi.sin_cos());
+        return sign * amp * (sin_x * cos_phi + cos_x * sin_phi);
     }
 
     /* forward recurrence on n */
