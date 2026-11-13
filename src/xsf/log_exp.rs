@@ -11,7 +11,13 @@ use num_traits::Float;
 #[must_use]
 #[inline]
 pub fn expit<T: Float>(x: T) -> T {
-    (T::one() + (-x).exp()).recip()
+    let e = (-x).exp();
+    if e.is_infinite() {
+        // Unlike in xsf, e^x where e^-x overflows, since expit is subnormal there, not 0
+        x.exp()
+    } else {
+        (T::one() + e).recip()
+    }
 }
 
 /// Relative error exponential, $(e^x - 1) / x$
@@ -25,10 +31,17 @@ pub fn expit<T: Float>(x: T) -> T {
 #[must_use]
 #[inline]
 pub fn exprel<T: Float>(x: T) -> T {
+    let y = x.exp_m1();
     if x.abs() < T::epsilon() {
         T::one()
+    } else if x == T::infinity() {
+        x
+    } else if y.is_infinite() {
+        // Unlike in xsf, not infinite where e^x overflows but e^x / x does not (x < ~716.4)
+        let h = (x / (T::one() + T::one())).exp();
+        h / x * h
     } else {
-        x.exp_m1() / x
+        y / x
     }
 }
 
