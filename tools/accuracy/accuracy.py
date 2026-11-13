@@ -406,6 +406,8 @@ def bits(x: complex) -> tuple[bytes | str, ...]:
 
 IMPLS: Final = {"rust": "xsf-rust", "cpp": "xsf", "std": "std"}
 NA: Final = "\u2014"  # for functions that xsf does not have
+# footnote marks: *, dagger, double dagger, section sign, double bar, pilcrow
+FOOTNOTES: Final = "*\u2020\u2021\u00a7\u2016\u00b6"
 
 
 def fmt(x: float | str | None, ninf: int = 0) -> str:
@@ -462,7 +464,7 @@ def table(impls: list[str], rows: list[list[str]]) -> str:
     lines.append("<tr>" + "<th>peak</th><th>rms</th>" * len(impls) + "</tr>")
     lines += ["</thead>", "<tbody>"]
     for name, domain, n, *errs, same in rows:
-        cells = [f"<td><code>{name}</code></td>", f"<td>{domain}</td>"]
+        cells = [f"<td>{name}</td>", f"<td>{domain}</td>"]
         cells += [
             f'<td align="right" nowrap>{x}</td>' for x in [n, *mark_best(errs), same]
         ]
@@ -522,14 +524,26 @@ METHOD: Final = """\
 
 def render(results: list[Result], ver: dict[str, str]) -> str:
     out = [HEADER.format(short=XSF_COMMIT[:7], commit=XSF_COMMIT, **ver).rstrip("\n")]
-    for title in specs.SECTIONS:
+    group = None  # the heading of a group without a table, until one of its subgroups has one
+    for title, level in specs.SECTIONS.items():
+        heading = f"{'#' * level} {title}"
+        if level == 2:
+            group = heading
         sec = [r for r in results if r.spec.section == title]
         if not sec:
             continue
+        if level == 3 and group:
+            out.append(group)
+        group = None
         impls = ["rust", "cpp"] + (["std"] if any(r.spec.std for r in sec) else [])
+        # the notes of this section, as footnote marks in order of first use
+        notes = dict.fromkeys(note for r in sec for note in r.spec.note.split())
+        marks = dict(zip(notes, FOOTNOTES[: len(notes)], strict=True))
         rows: list[list[str]] = []
         for r in sec:
-            row = [r.spec.func, r.domain, str(r.n)]
+            sup = "".join(marks[note] for note in r.spec.note.split())
+            name = f"<code>{r.spec.func}</code>" + (f"<sup>{sup}</sup>" if sup else "")
+            row = [name, r.domain, str(r.n)]
             for impl in impls:
                 s = r.stats.get(impl)
                 if s is None:
@@ -542,15 +556,9 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
                     "100%" if r.same == 1 else f"{math.floor(1000 * r.same) / 10:.1f}%"
                 )
             rows.append(row)
-        out += [f"## {title}", table(impls, rows)]
-        notes: dict[str, list[str]] = {}
-        for r in sec:
-            for note in r.spec.note.split():
-                notes.setdefault(note, []).append(r.spec.func)
-        for note, funcs in notes.items():
-            names = ", ".join(f"`{n}`" for n in dict.fromkeys(funcs))
-            out.append(f"{names}: {specs.NOTES[note]}")
-    out.append(specs.NOT_COVERED)
+        out += [heading, table(impls, rows)]
+        out += [f"<sup>{m}</sup> {specs.NOTES[note]}" for note, m in marks.items()]
+    out.append(specs.NOT_COVERED.rstrip("\n"))
     out.append(METHOD.format(**ver).rstrip("\n"))
     return "\n\n".join(out) + "\n"
 
