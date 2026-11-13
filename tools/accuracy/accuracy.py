@@ -2,7 +2,7 @@
 # requires-python = ">=3.15"
 # dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2", "python-flint==0.9.0"]
 # ///
-"""Generate ACCURACY.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
+"""Generate docs/accuracy.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
 
 Usage (from the repository root; or `just accuracy`):
 
@@ -18,8 +18,8 @@ Steps:
 3. Compute the mpmath references in parallel (with `--jobs` worker processes, 8 by default);
    these are cached in `.cache/refs/`, keyed by the inputs, the source of the reference
    function (normalized, see `_source`), and the mpmath version.
-4. Write the table to `ACCURACY.md` (or to stdout with `--only`, `--section`, or `--n`), and the
-   inputs with the largest errors to `.cache/worst.txt`.
+4. Write the table to `docs/accuracy.md` (or to stdout with `--only`, `--section`, or `--n`), and
+   the inputs with the largest errors to `.cache/worst.txt`.
 5. With `--arb-check`, compare the references with Arb (see `specs.ARB`), and write those that
    Arb refutes or cannot confirm to `.cache/arb_check.txt`.
 """
@@ -342,7 +342,7 @@ def arb_check(jobs: list[Job], refs: list[list[Ref | str]], nproc: int) -> None:
 
 
 def error(y: complex, ref: Ref) -> float:
-    """Relative error of `y` w.r.t. the reference (see the header of ACCURACY.md)."""
+    """Relative error of `y` w.r.t. the reference (see the header of docs/accuracy.md)."""
     value, scale = ref
     assert not isinstance(scale, list)
     if isinstance(value, list):
@@ -654,8 +654,8 @@ def main() -> None:
     if opts.only or opts.section or opts.n:
         print(md)
     else:
-        (ROOT / "ACCURACY.md").write_text(md)
-        log(f"wrote {ROOT / 'ACCURACY.md'}")
+        (ROOT / "docs" / "accuracy.md").write_text(md)
+        log(f"wrote {ROOT / 'docs' / 'accuracy.md'}")
     log(f"done in {time.time() - t0:.0f} s")
 
 
