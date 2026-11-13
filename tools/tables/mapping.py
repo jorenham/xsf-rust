@@ -5,6 +5,7 @@ replaces: an `Entry` per table and signature. The other tables keep those of xsr
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Final
 
 import flint
@@ -14,6 +15,9 @@ import specs
 type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
 type Arb = Callable[..., flint.arb | flint.acb | None]  # None where Arb can't check
+type RealArb = (
+    Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb]
+)
 
 
 @dataclass(frozen=True)
@@ -290,7 +294,7 @@ def _airy_out(i: int) -> Out:
 def _real(
     func: str,
     ref: Callable[[mp.mpf], Value] | Callable[[mp.mpf, mp.mpf], Value],
-    arb: Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb],
+    arb: RealArb,
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
 ) -> Entry:
@@ -473,6 +477,118 @@ def _incomplete(
             Rule(lambda a: a[0] == -math.inf, -math.inf, "the limit for phi -> -inf"),
         ),
     )
+
+
+def _kolmogc_arb(x: flint.arb, r: int = 0) -> flint.arb:
+    """1 - Q(x) = theta_4(0, tau) with the nome e^(i pi tau) = e^(-2 x^2), or its r-th
+    derivative in z."""
+    tau = flint.acb(0, 2 * x * x / flint.arb.pi())
+    return flint.acb(0).modular_theta(tau, r)[3].real
+
+
+def _kolmogorov_arb(x: flint.arb) -> flint.arb:
+    return 1 - _kolmogc_arb(x)
+
+
+def _kolmogp_arb(x: flint.arb) -> flint.arb:
+    """Q'(x) = -(x / pi^2) theta_4''(0, tau), by the heat equation of theta_4."""
+    return -x / flint.arb.pi() ** 2 * _kolmogc_arb(x, 2)
+
+
+def _smirnov_jmax_arb(k: int, x: flint.arb) -> int | None:
+    """`specs._smirnov_jmax` of the ball x, or None where x straddles a breakpoint (where the
+    sum changes)."""
+
+    def exact(e: flint.arb) -> Fraction:
+        man, exp = e.mid().man_exp()
+        return Fraction(int(man)) * Fraction(2) ** int(exp)
+
+    lo, hi = (specs._smirnov_jmax(k, exact(e)) for e in (x.lower(), x.upper()))
+    return lo if lo == hi else None
+
+
+def _smirnov_arb(n: flint.arb, x: flint.arb, rest: bool = False) -> flint.arb:
+    """`specs._smirnov`, or with `rest` the rest of its sum (`specs._smirnovc`); NaN, which
+    Arb does not confirm, where x straddles a breakpoint."""
+    k = int(float(n))
+    jmax = _smirnov_jmax_arb(k, x)
+    if jmax is None:
+        return flint.arb.nan()
+    js = range(jmax + 1, k + 1) if rest else range(jmax + 1)
+    # the terms binom(k, j) a^(j - 1) b^(k - j), with a = x + j/k and b = 1 - a
+    return x * sum(
+        math.comb(k, j)
+        * ((j + k * x) / k) ** (j - 1)
+        * ((k - j - k * x) / k) ** (k - j)
+        for j in js
+    )
+
+
+def _smirnovc_arb(n: flint.arb, x: flint.arb) -> flint.arb:
+    """`specs._smirnovc`: 1 - smirnov(n, x), or the rest of its sum where that cancels."""
+    c = 1 - _smirnov_arb(n, x)
+    return c if c > 1e-3 else _smirnov_arb(n, x, rest=True)
+
+
+def _smirnovp(n: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_smirnovp`, the left derivative, but the mean of the one-sided derivatives
+    (which differ by 1) at the kink x = 1/n for n > 1, like in xsf."""
+    return specs.r_smirnovp(n, x) + (0.5 if n > 1 and n * x == 1 else 0)
+
+
+def _smirnovp_arb(n: flint.arb, x: flint.arb) -> flint.arb:
+    """`_smirnovp`, the derivative of the sum of `_smirnov_arb` term by term."""
+    k = int(float(n))
+    jmax = _smirnov_jmax_arb(k, x)
+    if jmax is None:
+        return flint.arb.nan()
+    d = -k * (1 - x) ** (k - 1) + (0.5 if k > 1 and k * x == 1 else 0)
+    for j in range(1, jmax + 1):
+        a, b = (j + k * x) / k, (k - j - k * x) / k
+        t = a ** (j - 1) * b ** (k - j) + x * (j - 1) * a ** (j - 2) * b ** (k - j)
+        d += math.comb(k, j) * (t - x * (k - j) * a ** (j - 1) * b ** (k - j - 1))
+    return d
+
+
+def _smirnovi(n: mp.mpf, q: mp.mpf) -> mp.mpf:
+    """`specs.r_smirnovi`, but 1 - q exactly for n = 1 (smirnov(1, d) = 1 - d): where that is
+    halfway between two f64s, a root found to 50 digits may round to either."""
+    return 1 - q if n == 1 else specs.r_smirnovi(n, q)
+
+
+def _inverse_arb(
+    f: RealArb, ref: Callable[[mp.mpf], mp.mpf] | Callable[[mp.mpf, mp.mpf], mp.mpf]
+) -> RealArb:
+    """The root x of f(*a, x) = y for the inputs (*a, y), for a monotonic f: a ball around
+    `ref(*a, y)` at 50 digits, which Arb confirms by the signs of f - y at its ends."""
+
+    def arb(*args: flint.arb) -> flint.arb:
+        y = args[-1]
+        with mp.workdps(50):
+            x = flint.arb(mp.nstr(ref(*(mp.mpf(float(t)) for t in args)), 50)).mid()
+        r = abs(x) / 10**40
+        # one unpacking, whose length pyrefly does not count against either signature
+        lo, hi = (f(*(*args[:-1], x + s * r)) - y for s in (-1, 1))
+        # a ball that Arb cannot confirm, unless f - y changes its sign
+        return flint.arb(x, r if lo < 0 < hi or hi < 0 < lo else abs(x))
+
+    return arb
+
+
+def _unit_domain(why: str) -> Rule:
+    """NaN where the last input is outside of [0, 1]."""
+    return Rule(lambda a: not 0 <= a[-1] <= 1, math.nan, why)
+
+
+def _ends(at_0: float, at_1: float, why: str) -> tuple[Rule, Rule]:
+    """The values where the last input is 0 and where it is 1."""
+    return (
+        Rule(lambda a: a[-1] == 0, at_0, why),
+        Rule(lambda a: a[-1] == 1, at_1, why),
+    )
+
+
+SMIRNOV_N: Final = Rule(lambda a: a[0] < 1, math.nan, "there is no sample for n < 1")
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -897,6 +1013,91 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 math.inf,
                 "the limit for m -> -inf, with 0 < phi < inf",
             ),
+        ),
+    ),
+    ("kolmogorov", "d-d"): _real(
+        "kolmogorov",
+        specs.r_kolmogorov,
+        _kolmogorov_arb,
+        (NAN, Rule(lambda a: a[0] <= 0, 1.0, "Q(x) = P(K >= x) = 1 for x <= 0")),
+    ),
+    ("kolmogc", "d-d"): _real(
+        "kolmogc",
+        specs.r_kolmogc,
+        _kolmogc_arb,
+        (Rule(lambda a: a[0] <= 0, 0.0, "1 - Q(x) = P(K < x) = 0 for x <= 0"),),
+    ),
+    ("kolmogp", "d-d"): _real(
+        "kolmogp",
+        specs.r_kolmogp,
+        _kolmogp_arb,
+        (NAN, Rule(lambda a: a[0] <= 0, -0.0, "Q'(x) = -0 for x <= 0, like in xsf")),
+    ),
+    ("kolmogi", "d-d"): _real(
+        "kolmogi",
+        specs.r_kolmogi,
+        _inverse_arb(_kolmogorov_arb, specs.r_kolmogi),
+        (
+            NAN,
+            _unit_domain("kolmogorov takes values in [0, 1]"),
+            Rule(lambda a: a[0] == 1, 0.0, "kolmogorov(x) -> 1 for x -> 0+"),
+        ),
+    ),
+    ("kolmogci", "d-d"): _real(
+        "kolmogci",
+        specs.r_kolmogci,
+        _inverse_arb(_kolmogc_arb, specs.r_kolmogci),
+        (NAN, Rule(lambda a: a[0] == 0, 0.0, "kolmogc(x) -> 0 for x -> 0+")),
+    ),
+    ("smirnov", "p_d-d"): _real(
+        "smirnov",
+        specs.r_smirnov,
+        _smirnov_arb,
+        (
+            NAN,
+            SMIRNOV_N,
+            _unit_domain("NaN for d outside of [0, 1], like in xsf"),
+            *_ends(1.0, 0.0, "P(D_n^+ >= d) is 1 at d = 0 and 0 at d = 1"),
+        ),
+    ),
+    ("smirnovc", "p_d-d"): _real(
+        "smirnovc",
+        specs.r_smirnovc,
+        _smirnovc_arb,
+        (NAN, *_ends(0.0, 1.0, "P(D_n^+ < d) is 0 at d = 0 and 1 at d = 1")),
+    ),
+    ("smirnovp", "p_d-d"): _real(
+        "smirnovp",
+        _smirnovp,
+        _smirnovp_arb,
+        (
+            NAN,
+            Rule(lambda a: a[1] == 0, -1.0, "the right derivative at d = 0 is -1"),
+            Rule(
+                lambda a: a[0] >= 2 and a[1] == 1,
+                -0.0,
+                "the left derivative at d = 1 is -0 for n >= 2, like in xsf",
+            ),
+        ),
+    ),
+    ("smirnovi", "p_d-d"): _real(
+        "smirnovi",
+        _smirnovi,
+        _inverse_arb(_smirnov_arb, _smirnovi),
+        (
+            NAN,
+            SMIRNOV_N,
+            _unit_domain("smirnov takes values in [0, 1]"),
+            *_ends(1.0, 0.0, "smirnov(n, d) is 0 only at d = 1 and 1 only at d = 0"),
+        ),
+    ),
+    ("smirnovci", "p_d-d"): _real(
+        "smirnovci",
+        specs.r_smirnovci,
+        _inverse_arb(_smirnovc_arb, specs.r_smirnovci),
+        (
+            NAN,
+            *_ends(0.0, 1.0, "smirnovc(n, d) is 0 only at d = 0 and 1 only at d = 1"),
         ),
     ),
 }

@@ -2092,8 +2092,8 @@ def _smirnov_terms(n, x, js):
 
 
 def _smirnov_jmax(n, x):
-    """floor(n (1 - x)), exactly."""
-    return math.floor(n * (1 - Fraction(float(x))))
+    """floor(n (1 - x)), exactly, also for an x with more digits than an f64."""
+    return math.floor(n * (1 - Fraction(*x.as_integer_ratio())))
 
 
 def _smirnov(n, x):
