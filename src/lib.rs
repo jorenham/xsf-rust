@@ -404,11 +404,13 @@
 //!
 //! # Parabolic cylinder functions
 //!
-//! | Function | Description                                                        |
-//! | -------- | ------------------------------------------------------------------ |
-//! | [`pbdv`] | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
-//! | [`pbvv`] | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
-//! | [`pbwa`] | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
+//! | Function     | Description                                                        |
+//! | ------------ | ------------------------------------------------------------------ |
+//! | [`pbdv`]     | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
+//! | [`pbdv_seq`] | [`pbdv`] for the orders $v - \lfloor v\rfloor, \ldots, v$          |
+//! | [`pbvv`]     | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
+//! | [`pbvv_seq`] | [`pbvv`] for the orders $v - \lfloor v\rfloor, \ldots, v$          |
+//! | [`pbwa`]     | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
 //!
 //! # Mathieu and related functions
 //!
