@@ -43,6 +43,17 @@ fn exp_rgamma(x: f64, y: f64) -> f64 {
     (x + (1.0 - (y + LANCZOS_G - 0.5).ln()) * (y - 0.5)).exp() / lanczos_sum_expg_scaled(y)
 }
 
+/// `ln(x + y)` for `x, y >= 0`, without the cancellation of `ln` for a sum near 1.
+///
+/// `x - 1` is exact for `1/2 <= x <= 2` (Sterbenz), and as accurate as `x` above that.
+fn ln_add(x: f64, y: f64) -> f64 {
+    if x < 0.5 {
+        (x + y).ln()
+    } else {
+        ((x - 1.0) + y).ln_1p()
+    }
+}
+
 fn wb_series(a: f64, b: f64, x: f64, nstart: u32, mut nstop: u32) -> f64 {
     /* 1. Taylor series expansion in x=0 for x <= 1.
      *
@@ -83,6 +94,7 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
         nstart = 0;
     }
 
+    let mut lead = 0.0;
     let mut res = 0.0;
     let lnx = x.ln();
     // For numerical stability, we factor out the maximum term exp(..) with k=k_max
@@ -93,15 +105,21 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
             - lgam(a * f64::from(k_max) + b),
     );
     for k in nstart..nstart.wrapping_add(n) {
-        let k = f64::from(k);
-        res += (k * lnx - lgam(k + 1.0) - lgam(a * k + b) - max_exponent).exp();
+        let kf = f64::from(k);
+        let term = (kf * lnx - lgam(kf + 1.0) - lgam(a * kf + b) - max_exponent).exp();
+        // Unlike in xsf, the log keeps the first term apart, for `ln_add`
+        if LOG_WB && k == nstart {
+            lead = term;
+        } else {
+            res += term;
+        }
     }
 
     if !LOG_WB {
         res *= max_exponent.exp();
     } else {
         // logarithm of Wright's function
-        res = max_exponent + res.ln();
+        res = max_exponent + ln_add(lead, res);
     }
     res
 }
@@ -186,7 +204,7 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
         // pg1 = polygamma(1, b)
         let pg1 = zeta(2.0, b);
         if order <= 2 {
-            res = 1.0 + a * x * (-dg + 0.5 * a * (1.0 + x) * (dg * dg - pg1));
+            res = a * x * (-dg + 0.5 * a * (1.0 + x) * (dg * dg - pg1));
         } else {
             if order > 5 {
                 order = 5;
@@ -197,7 +215,6 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
             B[1] = -dg;
             B[2] = dg * dg - pg1;
             B[3] = (-dg * dg + 3.0 * pg1) * dg - pg2;
-            A[order] = 1.0;
             A[order - 1] = X[1] * B[1];
             A[order - 2] = X[2] * B[2] / 2.;
             A[order - 3] = X[3] * B[3] / 6.;
@@ -219,12 +236,12 @@ fn wb_small_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, mut order: usize) -> f
             }
             res = polevl(a, &A[..=order]);
         }
-        // res *= exp(x) * rgamma(b)
+        // Unlike in xsf, res is the sum without its leading 1 (A[order] = 0), for ln_1p
         if !LOG_WB {
-            res *= exp_rgamma(x, b);
+            res = (1.0 + res) * exp_rgamma(x, b);
         } else {
             // logarithm of Wright's function
-            res = x - lgam(b) + res.ln();
+            res = x - lgam(b) + res.ln_1p();
         }
     }
     res
@@ -1207,21 +1224,15 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         return wb_small_a::<LOG_WB>(a, b, x, order);
     }
 
-    if x <= 1.0 {
-        // 18 term Taylor Series => error mostly smaller 5e-14
-        let mut res = wb_series(a, b, x, 0, 18);
-        if LOG_WB {
-            res = res.ln();
-        }
-        return res;
-    }
     if x <= 2.0 {
-        // 20 term Taylor Series => error mostly smaller 1e-12 to 1e-13
-        let mut res = wb_series(a, b, x, 0, 20);
+        // 18 term Taylor Series for x <= 1 => error mostly smaller 5e-14
+        // 20 term Taylor Series for x <= 2 => error mostly smaller 1e-12 to 1e-13
+        let nstop = if x <= 1.0 { 18 } else { 20 };
         if LOG_WB {
-            res = res.ln();
+            // Unlike in xsf, the leading term rgamma(b) is kept apart, for `ln_add`
+            return ln_add(rgamma(b), wb_series(a, b, x, 1, nstop));
         }
-        return res;
+        return wb_series(a, b, x, 0, nstop);
     }
     if a >= 5.0 {
         /* Taylor series around the approximate maximum term.
