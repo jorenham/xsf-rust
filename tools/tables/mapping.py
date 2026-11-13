@@ -123,6 +123,61 @@ def _digamma(x: mp.mpf) -> Value:
     return (psi, mp.mpf(1)) if x < -1 else psi
 
 
+def _limits(neg: float, pos: float) -> tuple[Rule, ...]:
+    """NaN propagates, and the limits for x -> -inf and x -> +inf are `neg` and `pos`."""
+    return (
+        NAN,
+        Rule(lambda a: a[0] == -math.inf, neg, "the limit for x -> -inf"),
+        Rule(lambda a: a[0] == math.inf, pos, "the limit for x -> +inf"),
+    )
+
+
+# Arb loses about log2(x^2) bits in exp(+-x^2), so up to 2048 for an f64 x
+EXP_SQUARE_BITS: Final = 2048
+
+
+def _exp_square(f: Callable[[flint.arb], flint.arb]) -> Arb:
+    """`f` with `EXP_SQUARE_BITS` more bits."""
+
+    def arb(x: flint.arb) -> flint.arb:
+        with flint.ctx.extraprec(EXP_SQUARE_BITS):
+            return f(x)
+
+    return arb
+
+
+EXP_SQUARE_OVERRIDE: Final = Override(
+    lambda a: abs(a[0]) > 26.64,
+    "xsf returns 0 for erfc and inf for erfi where exp(x^2) overflows, for |x| > 26.64",
+)
+
+
+def _ndtr(x: mp.mpf) -> mp.mpf:
+    """`specs.r_ndtr` with the 2 log10 |x| more digits that x / sqrt(2) needs in
+    exp(-x^2 / 2)."""
+    with specs.wdps(2 * specs.xd(x)):
+        return specs.r_ndtr(x)
+
+
+def _ndtr_arb(x: flint.arb) -> flint.arb:
+    """Q(1/2, x^2 / 2) / 2 for x <= 0 (DLMF 7.11.2), whose argument is exact, unlike that of
+    erfc(-x / sqrt(2)), whose error Arb bounds absolutely."""
+    q = (x * x / 2).gamma_upper(0.5, regularized=1) / 2
+    return q if x <= 0 else 1 - q
+
+
+def _erfcx_arb(x: flint.arb) -> flint.arb:
+    return x.erfc() * (x * x).exp()
+
+
+def _dawsn_arb(x: flint.arb) -> flint.arb:
+    return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
+
+
+def _ndtri_arb(p: flint.arb) -> flint.arb:
+    return -flint.arb(2).sqrt() * (2 * p).erfcinv()
+
+
 def _it2struve0_residual(x: mp.mpf) -> mp.mpf:
     """`r_it2struve0(x) - (pi/2 - int_0^x H_0(t)/t dt)` by quadrature, which checks the
     derivative and the value at 0. The limit at infinity is checked at x = 1e4, where
@@ -303,6 +358,74 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                         "the limit for x -> 0+",
                     ),
                     POLE,
+                ),
+            ),
+        )
+    ),
+    ("erf", "d-d"): Entry(
+        (Out("erf", (specs.r_erf,), (flint.arb.erf,), _limits(-1, 1)),)
+    ),
+    ("erfc", "d-d"): Entry(
+        (
+            Out(
+                "erfc",
+                (specs.r_erfc,),
+                (_exp_square(flint.arb.erfc),),
+                _limits(2, 0),
+                (EXP_SQUARE_OVERRIDE,),
+            ),
+        )
+    ),
+    ("erfi", "d-d"): Entry(
+        (
+            Out(
+                "erfi",
+                (specs.r_erfi,),
+                (_exp_square(flint.arb.erfi),),
+                _limits(-math.inf, math.inf),
+                (EXP_SQUARE_OVERRIDE,),
+            ),
+        )
+    ),
+    ("erfcx", "d-d"): Entry(
+        (Out("erfcx", (specs.r_erfcx,), (_erfcx_arb,), _limits(math.inf, 0)),)
+    ),
+    ("dawsn", "d-d"): Entry(
+        (Out("dawsn", (specs.r_dawsn,), (_dawsn_arb,), _limits(-0.0, 0.0)),)
+    ),
+    ("erfcinv", "d-d"): Entry(
+        (
+            Out(
+                "erfcinv",
+                (specs.r_erfcinv,),
+                (specs.ARB["erfcinv"],),
+                (
+                    Rule(
+                        lambda a: not 0 <= a[0] <= 2,
+                        math.nan,
+                        "erfc takes values in [0, 2]",
+                    ),
+                    Rule(lambda a: a[0] == 0, math.inf, "erfc(x) -> 0 for x -> +inf"),
+                    Rule(lambda a: a[0] == 2, -math.inf, "erfc(x) -> 2 for x -> -inf"),
+                ),
+            ),
+        )
+    ),
+    ("ndtr", "d-d"): Entry((Out("ndtr", (_ndtr,), (_exp_square(_ndtr_arb),)),)),
+    ("ndtri", "d-d"): Entry(
+        (
+            Out(
+                "ndtri",
+                (specs.r_ndtri,),
+                (_ndtri_arb,),
+                (
+                    Rule(
+                        lambda a: not 0 <= a[0] <= 1,
+                        math.nan,
+                        "ndtr takes values in [0, 1]",
+                    ),
+                    Rule(lambda a: a[0] == 0, -math.inf, "ndtr(x) -> 0 for x -> -inf"),
+                    Rule(lambda a: a[0] == 1, math.inf, "ndtr(x) -> 1 for x -> +inf"),
                 ),
             ),
         )
