@@ -186,7 +186,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
                 }
                 /* don't use complex exp function, since that will produce spurious NaN
                 values when multiplying w in an overflow situation. */
-                return 1.0 - mRe_z2.exp() * (c64(mIm_z2.cos(), mIm_z2.sin()) * w(c64(-y, x)));
+                return 1.0 - mRe_z2.exp() * (C64::cis(mIm_z2) * w(c64(-y, x)));
             }
             // x < 0
             if x > -5e-3 {
@@ -201,7 +201,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
             }
             /* don't use complex exp function, since that will produce spurious NaN
             values when multiplying w in an overflow situation. */
-            return mRe_z2.exp() * (c64(mIm_z2.cos(), mIm_z2.sin()) * w(c64(y, -x))) - 1.0;
+            return mRe_z2.exp() * (C64::cis(mIm_z2) * w(c64(y, -x))) - 1.0;
         }
         // taylor:
         // Use Taylor series for small |z|, to avoid cancellation inaccuracy

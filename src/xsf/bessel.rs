@@ -187,7 +187,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: C64) -> C64 {
     if sign == -1 && !reflect_i(&mut cy, v) {
         let (mut cy_k, ierr) = amos1(amos::besk, z, v, kode);
         /* adjust scaling to match zbesi */
-        cy_k *= c64(z.im.cos(), -z.im.sin());
+        cy_k *= C64::cis(z.im).conj();
         if z.re > 0.0 {
             // Unlike in xsf, apply e^-2x as (e^-x)^2 if it underflows, as the result may not.
             let e2 = (-2.0 * z.re).exp();

@@ -76,6 +76,12 @@ impl C64 {
         catan(self)
     }
 
+    /// `std::complex(std::cos(t), std::sin(t))`
+    #[inline]
+    pub(crate) fn cis(t: f64) -> Self {
+        c64(t.cos(), t.sin())
+    }
+
     /// `std::conj(z)`
     #[inline]
     pub(crate) fn conj(self) -> Self {
