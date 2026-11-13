@@ -62,11 +62,12 @@ mod zeta;
 pub use airy::{airy, airy_ai_zeros, airy_bi_zeros, airy_integrals, airy_scaled};
 pub use alg::cbrt;
 pub use bessel::{
-    bessel_i, bessel_i0, bessel_i0e, bessel_i1, bessel_i1e, bessel_ie, bessel_j, bessel_j0,
-    bessel_j1, bessel_je, bessel_k, bessel_k0, bessel_k0e, bessel_k1, bessel_k1e, bessel_ke,
-    bessel_y, bessel_y0, bessel_y1, bessel_ye, bessel_zeros, besselpoly, hankel_1, hankel_1e,
-    hankel_2, hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, jahnke_emden_lambda, riccati_j,
-    riccati_y,
+    bessel_i, bessel_i0, bessel_i0e, bessel_i1, bessel_i1e, bessel_ie, bessel_j,
+    bessel_j_jprime_zeros, bessel_j0, bessel_j1, bessel_je, bessel_k, bessel_k0, bessel_k0e,
+    bessel_k1, bessel_k1e, bessel_ke, bessel_y, bessel_y0, bessel_y0_zeros, bessel_y1,
+    bessel_y1_prime_zeros, bessel_y1_zeros, bessel_ye, bessel_zeros, besselpoly, hankel_1,
+    hankel_1e, hankel_2, hankel_2e, it1i0k0, it1j0y0, it2i0k0, it2j0y0, jahnke_emden_lambda,
+    riccati_j, riccati_y,
 };
 pub use beta::{beta, betaln};
 pub use binom::binom;
@@ -110,7 +111,7 @@ pub use mathieu::{
     mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem,
 };
 pub use multivariate_normal::{bivariate_normal_cdf, trivariate_normal_cdf};
-pub use par_cyl::{pbdv, pbvv, pbwa};
+pub use par_cyl::{pbdn_seq, pbdv, pbdv_seq, pbvv, pbvv_seq, pbwa};
 pub use sici::{shichi, sici};
 pub use specfun::{bernoulli, euler, hyp1f1, hypu, pmv};
 pub use sph_bessel::{

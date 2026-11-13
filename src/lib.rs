@@ -60,9 +60,13 @@
 //!
 //! ## Zeros of Bessel functions
 //!
-//! | Function         | Description                                                              |
-//! | ---------------- | ------------------------------------------------------------------------ |
-//! | [`bessel_zeros`] | Zeros of Bessel functions $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$ |
+//! | Function                  | Description                                                              |
+//! | ------------------------- | ------------------------------------------------------------------------ |
+//! | [`bessel_zeros`]          | Zeros of Bessel functions $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$ |
+//! | [`bessel_j_jprime_zeros`] | Zeros of all $J_n(x)$ and $J_n\'(x)$, in ascending order                  |
+//! | [`bessel_y0_zeros`]       | Real or complex zeros of $Y_0(z)$                                        |
+//! | [`bessel_y1_zeros`]       | Real or complex zeros of $Y_1(z)$                                        |
+//! | [`bessel_y1_prime_zeros`] | Real or complex zeros of $Y_1\'(z)$                                      |
 //!
 //! ## Faster versions of common Bessel functions
 //!
@@ -404,11 +408,14 @@
 //!
 //! # Parabolic cylinder functions
 //!
-//! | Function | Description                                                        |
-//! | -------- | ------------------------------------------------------------------ |
-//! | [`pbdv`] | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
-//! | [`pbvv`] | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
-//! | [`pbwa`] | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
+//! | Function     | Description                                                        |
+//! | ------------ | ------------------------------------------------------------------ |
+//! | [`pbdn_seq`] | [`pbdv`] for the integer orders $0, \ldots, n$ and complex $z$     |
+//! | [`pbdv`]     | Parabolic cylinder function $D_v(x)$ and its derivative $D_v\'(x)$ |
+//! | [`pbdv_seq`] | [`pbdv`] for the orders $v - \lfloor v\rfloor, \ldots, v$          |
+//! | [`pbvv`]     | Parabolic cylinder function $V_v(x)$ and its derivative $V_v\'(x)$ |
+//! | [`pbvv_seq`] | [`pbvv`] for the orders $v - \lfloor v\rfloor, \ldots, v$          |
+//! | [`pbwa`]     | Parabolic cylinder function $W_a(x)$ and its derivative $W_a\'(x)$ |
 //!
 //! # Mathieu and related functions
 //!

@@ -154,6 +154,22 @@ impl C64 {
         cpow(self, x)
     }
 
+    /// `std::pow(z, n)` for an `int` exponent, i.e. by repeated squaring as in libstdc++
+    pub(crate) fn powi(self, n: i32) -> Self {
+        let mut m = n.unsigned_abs();
+        let mut x = self;
+        let mut y = if m % 2 == 1 { x } else { Self::ONE };
+        m >>= 1;
+        while m != 0 {
+            x *= x;
+            if m % 2 == 1 {
+                y *= x;
+            }
+            m >>= 1;
+        }
+        if n < 0 { Self::ONE / y } else { y }
+    }
+
     /// `std::sin(z)`
     #[inline]
     pub(crate) fn sin(self) -> Self {
@@ -463,6 +479,16 @@ mod tests {
         // not halved otherwise, which would lose the sign of the zero
         let w = c64(-1.0, 0.0) / c64(max, -(2.0_f64.powi(-50)));
         assert_eq!(w.im.to_bits(), (-0.0_f64).to_bits());
+    }
+
+    #[test]
+    fn test_powi() {
+        let z = c64(1.0, 1.0);
+        assert_eq!(z.powi(0), C64::ONE);
+        assert_eq!(z.powi(1), z);
+        assert_eq!(z.powi(5), c64(-4.0, -4.0));
+        assert_eq!(z.powi(-1), c64(0.5, -0.5));
+        assert_eq!(z.powi(-4), c64(-0.25, 0.0));
     }
 
     #[test]
