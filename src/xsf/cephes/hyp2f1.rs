@@ -14,7 +14,7 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
-use crate::utils::MACHEP;
+use crate::utils::{MACHEP, pow2};
 use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
 use crate::xsf::hyp2f1_recur;
@@ -26,8 +26,8 @@ pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
 /// then its estimate is about 1/2 to 1.
 const HYP2F1_LOST: f64 = 0.5;
 const HYP2F1_MAXITER: u64 = 10000;
-/// 2^512 (about `sqrt(f64::MAX)`), to rescale tiny terms exactly, far from overflow and underflow
-const HYP2F1_SCALE: f64 = 1.340_780_792_994_259_7e154;
+/// About `sqrt(f64::MAX)`, to rescale tiny terms exactly, far from overflow and underflow
+const HYP2F1_SCALE: f64 = pow2(512);
 
 /// Whether `t` is a non-positive integer, up to `HYP2F1_EPS` (as in cephes)
 fn near_neg_int(t: f64) -> bool {
@@ -633,8 +633,6 @@ fn is_large(a: f64, b: f64, c: f64) -> bool {
 /// call are large (and not in the Pfaff transformation below for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
-    let mut neg_int_a = false;
-    let mut neg_int_b = false;
     let mut neg_int_ca_or_cb = false;
 
     let ax = x.abs();
@@ -666,15 +664,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         return result;
     }
 
-    if a <= 0.0 && (a - ia).abs() < HYP2F1_EPS {
-        /* a is a negative integer */
-        neg_int_a = true;
-    }
-
-    if b <= 0.0 && (b - ib).abs() < HYP2F1_EPS {
-        /* b is a negative integer */
-        neg_int_b = true;
-    }
+    let neg_int_a = near_neg_int(a);
+    let neg_int_b = near_neg_int(b);
 
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This

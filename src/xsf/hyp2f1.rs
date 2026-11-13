@@ -44,6 +44,7 @@
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
+use crate::utils::is_nonpos_int;
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::{LANCZOS_G, gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::tools::{self, series_eval_fixed_length};
@@ -101,12 +102,12 @@ fn four_gammas_lanczos(u: f64, v: f64, w: f64, x: f64) -> f64 {
 
     /* The below implementation may incorrectly return finite results
      * at poles of the gamma function. Handle these cases explicitly. */
-    if (u == u.trunc() && u <= 0.0) || (v == v.trunc() && v <= 0.0) {
+    if is_nonpos_int(u) || is_nonpos_int(v) {
         /* Return nan if numerator has pole. Diverges to +- infinity
          * depending on direction so value is undefined. */
         return f64::NAN;
     }
-    if (w == w.trunc() && w <= 0.0) || (x == x.trunc() && x <= 0.0) {
+    if is_nonpos_int(w) || is_nonpos_int(x) {
         // Return 0 if denominator has pole but not numerator.
         return 0.0;
     }
@@ -511,7 +512,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     }
     let a_neg_int = a == a.trunc() && a < 0.0;
     let b_neg_int = b == b.trunc() && b < 0.0;
-    let c_non_pos_int = c == c.trunc() && c <= 0.0;
+    let c_non_pos_int = is_nonpos_int(c);
     /* Diverges when c is a non-positive integer unless a is an integer with
      * c <= a <= 0 or b is an integer with c <= b <= 0, (or z equals 0 with
      * c != 0) Cases z = 0, a = 0, or b = 0 have already been handled. We follow
