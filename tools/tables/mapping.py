@@ -5,6 +5,7 @@ replaces: an `Entry` per table and signature. The other tables keep those of xsr
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Final
 
 import flint
@@ -14,6 +15,9 @@ import specs
 type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
 type Arb = Callable[..., flint.arb | flint.acb | None]  # None where Arb can't check
+type RealArb = (
+    Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb]
+)
 
 
 @dataclass(frozen=True)
@@ -290,7 +294,7 @@ def _airy_out(i: int) -> Out:
 def _real(
     func: str,
     ref: Callable[[mp.mpf], Value] | Callable[[mp.mpf, mp.mpf], Value],
-    arb: Callable[[flint.arb], flint.arb] | Callable[[flint.arb, flint.arb], flint.arb],
+    arb: RealArb,
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
 ) -> Entry:
@@ -357,6 +361,15 @@ ODD_AT_ZERO: Final = Rule(
 )
 
 
+def _cut(f: str) -> Rule:
+    """NaN for x < 0, where `f` has a branch cut."""
+    return Rule(
+        lambda a: a[0] < 0,
+        math.nan,
+        f"{f} has a branch cut along the negative real axis",
+    )
+
+
 def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     """The tables of J_n, Y_n, I_n, e^-|x| I_n, K_n, and e^x K_n."""
 
@@ -373,10 +386,6 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     def ke(x: flint.arb) -> flint.arb:
         return x.bessel_k(n, scaled=True)
 
-    def cut(f: str) -> tuple[Rule, ...]:
-        why = f"{f}_{n} has a branch cut along the negative real axis"
-        return (Rule(lambda a: a[0] < 0, math.nan, why),)
-
     def entry(
         f: str,
         ref: Callable[[mp.mpf], Value],
@@ -392,11 +401,11 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     return dict(
         [
             entry("j", j, odd),
-            entry("y", at_n(specs.r_yv), cut("Y")),
+            entry("y", at_n(specs.r_yv), (_cut(f"Y_{n}"),)),
             entry("i", at_n(specs.r_iv), odd),
             entry("ie", at_n(specs.r_ie), odd, ie),
-            entry("k", at_n(specs.r_kv), cut("K")),
-            entry("ke", at_n(specs.r_ke), cut("K"), ke),
+            entry("k", at_n(specs.r_kv), (_cut(f"K_{n}"),)),
+            entry("ke", at_n(specs.r_ke), (_cut(f"K_{n}"),), ke),
         ]
     )
 
@@ -473,6 +482,233 @@ def _incomplete(
             Rule(lambda a: a[0] == -math.inf, -math.inf, "the limit for phi -> -inf"),
         ),
     )
+
+
+def _kolmogc_arb(x: flint.arb, r: int = 0) -> flint.arb:
+    """1 - Q(x) = theta_4(0, tau) with the nome e^(i pi tau) = e^(-2 x^2), or its r-th
+    derivative in z."""
+    tau = flint.acb(0, 2 * x * x / flint.arb.pi())
+    return flint.acb(0).modular_theta(tau, r)[3].real
+
+
+def _kolmogorov_arb(x: flint.arb) -> flint.arb:
+    return 1 - _kolmogc_arb(x)
+
+
+def _kolmogp_arb(x: flint.arb) -> flint.arb:
+    """Q'(x) = -(x / pi^2) theta_4''(0, tau), by the heat equation of theta_4."""
+    return -x / flint.arb.pi() ** 2 * _kolmogc_arb(x, 2)
+
+
+def _smirnov_jmax_arb(k: int, x: flint.arb) -> int | None:
+    """`specs._smirnov_jmax` of the ball x, or None where x straddles a breakpoint (where the
+    sum changes)."""
+
+    def exact(e: flint.arb) -> Fraction:
+        man, exp = e.mid().man_exp()
+        return Fraction(int(man)) * Fraction(2) ** int(exp)
+
+    lo, hi = (specs._smirnov_jmax(k, exact(e)) for e in (x.lower(), x.upper()))
+    return lo if lo == hi else None
+
+
+def _smirnov_arb(n: flint.arb, x: flint.arb, rest: bool = False) -> flint.arb:
+    """`specs._smirnov`, or with `rest` the rest of its sum (`specs._smirnovc`); NaN, which
+    Arb does not confirm, where x straddles a breakpoint."""
+    k = int(float(n))
+    jmax = _smirnov_jmax_arb(k, x)
+    if jmax is None:
+        return flint.arb.nan()
+    js = range(jmax + 1, k + 1) if rest else range(jmax + 1)
+    # the terms binom(k, j) a^(j - 1) b^(k - j), with a = x + j/k and b = 1 - a
+    return x * sum(
+        math.comb(k, j)
+        * ((j + k * x) / k) ** (j - 1)
+        * ((k - j - k * x) / k) ** (k - j)
+        for j in js
+    )
+
+
+def _smirnovc_arb(n: flint.arb, x: flint.arb) -> flint.arb:
+    """`specs._smirnovc`: 1 - smirnov(n, x), or the rest of its sum where that cancels."""
+    c = 1 - _smirnov_arb(n, x)
+    return c if c > 1e-3 else _smirnov_arb(n, x, rest=True)
+
+
+def _smirnovp(n: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_smirnovp`, the left derivative, but the mean of the one-sided derivatives
+    (which differ by 1) at the kink x = 1/n for n > 1, like in xsf."""
+    return specs.r_smirnovp(n, x) + (0.5 if n > 1 and n * x == 1 else 0)
+
+
+def _smirnovp_arb(n: flint.arb, x: flint.arb) -> flint.arb:
+    """`_smirnovp`, the derivative of the sum of `_smirnov_arb` term by term."""
+    k = int(float(n))
+    jmax = _smirnov_jmax_arb(k, x)
+    if jmax is None:
+        return flint.arb.nan()
+    d = -k * (1 - x) ** (k - 1) + (0.5 if k > 1 and k * x == 1 else 0)
+    for j in range(1, jmax + 1):
+        a, b = (j + k * x) / k, (k - j - k * x) / k
+        t = a ** (j - 1) * b ** (k - j) + x * (j - 1) * a ** (j - 2) * b ** (k - j)
+        d += math.comb(k, j) * (t - x * (k - j) * a ** (j - 1) * b ** (k - j - 1))
+    return d
+
+
+def _smirnovi(n: mp.mpf, q: mp.mpf) -> mp.mpf:
+    """`specs.r_smirnovi`, but 1 - q exactly for n = 1 (smirnov(1, d) = 1 - d): where that is
+    halfway between two f64s, a root found to 50 digits may round to either."""
+    return 1 - q if n == 1 else specs.r_smirnovi(n, q)
+
+
+def _inverse_arb(
+    f: RealArb, ref: Callable[[mp.mpf], mp.mpf] | Callable[[mp.mpf, mp.mpf], mp.mpf]
+) -> RealArb:
+    """The root x of f(*a, x) = y for the inputs (*a, y), for a monotonic f: a ball around
+    `ref(*a, y)` at 50 digits, which Arb confirms by the signs of f - y at its ends."""
+
+    def arb(*args: flint.arb) -> flint.arb:
+        y = args[-1]
+        with mp.workdps(50):
+            x = flint.arb(mp.nstr(ref(*(mp.mpf(float(t)) for t in args)), 50)).mid()
+        r = abs(x) / 10**40
+        # one unpacking, whose length pyrefly does not count against either signature
+        lo, hi = (f(*(*args[:-1], x + s * r)) - y for s in (-1, 1))
+        # a ball that Arb cannot confirm, unless f - y changes its sign
+        return flint.arb(x, r if lo < 0 < hi or hi < 0 < lo else abs(x))
+
+    return arb
+
+
+def _unit_domain(why: str) -> Rule:
+    """NaN where the last input is outside of [0, 1]."""
+    return Rule(lambda a: not 0 <= a[-1] <= 1, math.nan, why)
+
+
+def _ends(at_0: float, at_1: float, why: str) -> tuple[Rule, Rule]:
+    """The values where the last input is 0 and where it is 1."""
+    return (
+        Rule(lambda a: a[-1] == 0, at_0, why),
+        Rule(lambda a: a[-1] == 1, at_1, why),
+    )
+
+
+SMIRNOV_N: Final = Rule(lambda a: a[0] < 1, math.nan, "there is no sample for n < 1")
+
+
+def _struve_arb[T: (flint.arb, flint.acb)](v: float, x: T, sign: int) -> T:
+    """H_v(x) (sign -1) or L_v(x) (sign 1) by DLMF 11.2.1 or 11.2.2, also for x < 0 with an
+    integer v."""
+    # in Arb, since v + 1 and v + 3/2 round in f64 for tiny v
+    w = flint.arb(v)
+    p = int(v) + 1 if v.is_integer() else w + 1
+    return (x / 2) ** p * (sign * x * x / 4).hypgeom(
+        [1], [1.5, w + 1.5], regularized=True
+    )
+
+
+def _struve(sign: int) -> Entry:
+    """The table of H_v (sign -1) or L_v (sign 1)."""
+    name = "LH"[sign < 0]
+
+    def ref(v: mp.mpf, x: mp.mpf) -> Value:
+        """`specs.r_struve_h` or `specs.r_struve_l`, and for H_v at x < 0 the scale at |x|
+        (H_n is even or odd)."""
+        if sign > 0:
+            return specs.r_struve_l(v, x)
+        h = specs.r_struve_h(v, x)
+        return h if x >= 0 else specs._osc(h, v, -x)
+
+    def arb(v: flint.arb, x: flint.arb) -> flint.arb:
+        # the terms of H_v cancel up to about e^|x|, and for v << 0 Arb needs about |v| / 10
+        # more bits (measured), so 2 (|x| + |v|) bits cover both
+        with flint.ctx.extraprec(2 * int(abs(float(x)) + abs(float(v)))):
+            return _struve_arb(float(v), x, sign)
+
+    def gamma_sign(v: float) -> int:
+        """The sign of Gamma(v + 3/2) for v < -1, or 0 at a pole."""
+        return 0 if (v + 0.5).is_integer() else -1 if math.ceil(-v - 1.5) % 2 else 1
+
+    def pole(s: int) -> Rule:
+        return Rule(
+            lambda a: a[1] == 0 and a[0] < -1 and gamma_sign(a[0]) == s,
+            s * math.inf,
+            f"the limit for x -> 0+, for v < -1 with Gamma(v + 3/2) {'<>'[s > 0]} 0",
+        )
+
+    rules = (
+        Rule(lambda a: a[1] == 0 and a[0] > -1, 0.0, f"{name}_v(0) = 0 for v > -1"),
+        pole(1),
+        pole(-1),
+    )
+    # only the table of H_v has such rows
+    if sign < 0:
+        why = "H_v(x) is not real for x < 0 and a non-integer v"
+        rules += (Rule(lambda a: a[1] < 0 and not a[0].is_integer(), math.nan, why),)
+    return _real(f"struve_{name.lower()}", ref, arb, rules)
+
+
+def _integral_arb(
+    f: Callable[[flint.acb], flint.acb],
+) -> Callable[[flint.arb], flint.arb]:
+    """int_0^x f(t) dt, for an entire f."""
+    return lambda x: flint.acb.integral(lambda t, _: f(t), 0, x).real
+
+
+def _int_c0_arb(c: Callable[[flint.arb, int], flint.arb], sign: int) -> Arb:
+    """int_0^x Y_0(t) dt (sign -1) or int_0^x K_0(t) dt (sign 1), like `specs.r_ity0` and
+    `specs.r_itk0`, where `c` is Y or K."""
+
+    def arb(x: flint.arb) -> flint.arb:
+        c0, c1 = c(x, 0), c(x, 1)
+        s0, s1 = (_struve_arb(v, x, sign) for v in (0.0, 1.0))
+        return x * c0 + flint.arb.pi() * x / 2 * (c1 * s0 + sign * c0 * s1)
+
+    return arb
+
+
+INTEGRAL_AT_0: Final = Rule(lambda a: a[0] == 0, 0.0, "int_0^0 f(t) dt = +0")
+
+
+def _it2k0_residual(x: mp.mpf) -> mp.mpf:
+    """`r_it2k0(x) - int_x^inf K_0(t)/t dt` by quadrature."""
+
+    def integrand(t: mp.mpf) -> mp.mpf:
+        return mp.besselk(0, t) / t
+
+    return abs(specs.r_it2k0(x) - mp.quad(integrand, [x, mp.inf]))
+
+
+def _it2i0_arb(x: flint.arb) -> flint.arb:
+    """Like `specs.r_it2i0`."""
+    return x * x / 8 * (x * x / 4).hypgeom([1, 1], [2, 2, 2])
+
+
+def _mid_x_override(issue: int) -> Override:
+    """Where xsf-rust uses another method than xsf, for 0.5 <= |x| < 40."""
+    return Override(
+        lambda a: 0.5 <= abs(a[0]) < 40,
+        f"xsf loses digits for 0.5 <= |x| < 40, where xsf-rust differs (scipy/xsf#{issue})",
+    )
+
+
+ITAIRY_OVERRIDE: Final = Override(
+    lambda a: 2 < abs(a[0]) <= 20,
+    "xsf loses digits for 2 < |x| <= 20, where xsf-rust differs (scipy/xsf#448)",
+)
+
+
+def _itairy_out(i: int) -> Out:
+    """int_0^x Ai(t), Bi(t), Ai(-t), or Bi(-t) dt (i = 0 to 3)."""
+
+    def ref(x: mp.mpf) -> mp.mpf:
+        return specs._airy_int(x)[i]
+
+    def f(t: flint.acb) -> flint.acb:
+        return (flint.acb.airy_ai, flint.acb.airy_bi)[i % 2](-t if i // 2 else t)
+
+    arbs = (_integral_arb(f),)
+    return Out(f"airy_integrals[{i}]", (ref,), arbs, overrides=(ITAIRY_OVERRIDE,))
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -899,4 +1135,162 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         ),
     ),
+    ("kolmogorov", "d-d"): _real(
+        "kolmogorov",
+        specs.r_kolmogorov,
+        _kolmogorov_arb,
+        (NAN, Rule(lambda a: a[0] <= 0, 1.0, "Q(x) = P(K >= x) = 1 for x <= 0")),
+    ),
+    ("kolmogc", "d-d"): _real(
+        "kolmogc",
+        specs.r_kolmogc,
+        _kolmogc_arb,
+        (Rule(lambda a: a[0] <= 0, 0.0, "1 - Q(x) = P(K < x) = 0 for x <= 0"),),
+    ),
+    ("kolmogp", "d-d"): _real(
+        "kolmogp",
+        specs.r_kolmogp,
+        _kolmogp_arb,
+        (NAN, Rule(lambda a: a[0] <= 0, -0.0, "Q'(x) = -0 for x <= 0, like in xsf")),
+    ),
+    ("kolmogi", "d-d"): _real(
+        "kolmogi",
+        specs.r_kolmogi,
+        _inverse_arb(_kolmogorov_arb, specs.r_kolmogi),
+        (
+            NAN,
+            _unit_domain("kolmogorov takes values in [0, 1]"),
+            Rule(lambda a: a[0] == 1, 0.0, "kolmogorov(x) -> 1 for x -> 0+"),
+        ),
+    ),
+    ("kolmogci", "d-d"): _real(
+        "kolmogci",
+        specs.r_kolmogci,
+        _inverse_arb(_kolmogc_arb, specs.r_kolmogci),
+        (NAN, Rule(lambda a: a[0] == 0, 0.0, "kolmogc(x) -> 0 for x -> 0+")),
+    ),
+    ("smirnov", "p_d-d"): _real(
+        "smirnov",
+        specs.r_smirnov,
+        _smirnov_arb,
+        (
+            NAN,
+            SMIRNOV_N,
+            _unit_domain("NaN for d outside of [0, 1], like in xsf"),
+            *_ends(1.0, 0.0, "P(D_n^+ >= d) is 1 at d = 0 and 0 at d = 1"),
+        ),
+    ),
+    ("smirnovc", "p_d-d"): _real(
+        "smirnovc",
+        specs.r_smirnovc,
+        _smirnovc_arb,
+        (NAN, *_ends(0.0, 1.0, "P(D_n^+ < d) is 0 at d = 0 and 1 at d = 1")),
+    ),
+    ("smirnovp", "p_d-d"): _real(
+        "smirnovp",
+        _smirnovp,
+        _smirnovp_arb,
+        (
+            NAN,
+            Rule(lambda a: a[1] == 0, -1.0, "the right derivative at d = 0 is -1"),
+            Rule(
+                lambda a: a[0] >= 2 and a[1] == 1,
+                -0.0,
+                "the left derivative at d = 1 is -0 for n >= 2, like in xsf",
+            ),
+        ),
+    ),
+    ("smirnovi", "p_d-d"): _real(
+        "smirnovi",
+        _smirnovi,
+        _inverse_arb(_smirnov_arb, _smirnovi),
+        (
+            NAN,
+            SMIRNOV_N,
+            _unit_domain("smirnov takes values in [0, 1]"),
+            *_ends(1.0, 0.0, "smirnov(n, d) is 0 only at d = 1 and 1 only at d = 0"),
+        ),
+    ),
+    ("smirnovci", "p_d-d"): _real(
+        "smirnovci",
+        specs.r_smirnovci,
+        _inverse_arb(_smirnovc_arb, specs.r_smirnovci),
+        (
+            NAN,
+            *_ends(0.0, 1.0, "smirnovc(n, d) is 0 only at d = 0 and 1 only at d = 1"),
+        ),
+    ),
+    ("struve_h", "d_d-d"): _struve(-1),
+    ("struve_l", "d_d-d"): _struve(1),
+    ("itstruve0", "d-d"): _real(
+        "itstruve0",
+        specs.r_itstruve0,
+        _integral_arb(lambda t: _struve_arb(0.0, t, -1)),
+        (INTEGRAL_AT_0,),
+        (_mid_x_override(399),),
+    ),
+    ("itmodstruve0", "d-d"): _real(
+        "itmodstruve0",
+        specs.r_itmodstruve0,
+        _integral_arb(lambda t: _struve_arb(0.0, t, 1)),
+        (INTEGRAL_AT_0,),
+    ),
+    ("it1j0y0", "d-d_d"): Entry(
+        (
+            Out(
+                "it1j0y0.0",
+                (specs.r_itj0,),
+                (_integral_arb(lambda t: t.bessel_j(0)),),
+                (INTEGRAL_AT_0,),
+                (_mid_x_override(446),),
+            ),
+            Out(
+                "it1j0y0.1",
+                (specs.r_ity0,),
+                (_int_c0_arb(flint.arb.bessel_y, -1),),
+                (INTEGRAL_AT_0, _cut("Y_0")),
+                (_mid_x_override(446),),
+            ),
+        )
+    ),
+    ("it1i0k0", "d-d_d"): Entry(
+        (
+            Out(
+                "it1i0k0.0",
+                (specs.r_iti0,),
+                (_integral_arb(lambda t: t.bessel_i(0)),),
+                (INTEGRAL_AT_0,),
+            ),
+            Out(
+                "it1i0k0.1",
+                (specs.r_itk0,),
+                (_int_c0_arb(flint.arb.bessel_k, 1),),
+                (INTEGRAL_AT_0, _cut("K_0")),
+                (_mid_x_override(379),),
+            ),
+        )
+    ),
+    ("it2i0k0", "d-d_d"): Entry(
+        (
+            Out(
+                "it2i0k0.0",
+                (specs.r_it2i0,),
+                (_it2i0_arb,),
+            ),
+            Out(
+                "it2i0k0.1",
+                (specs.r_it2k0,),
+                rules=(_cut("K_0"),),
+                overrides=(
+                    Override(
+                        lambda a: 1 < a[0] < 40,
+                        "xsf loses digits for 1 < x < 40, where xsf-rust differs "
+                        "(scipy/xsf#379)",
+                    ),
+                ),
+            ),
+        ),
+        Identity(lambda a: a[0] > 0, _it2k0_residual),
+    ),
+    ("itairy", "d-d_d_d_d"): Entry(tuple(_itairy_out(i) for i in range(4))),
 }
