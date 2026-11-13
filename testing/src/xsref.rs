@@ -433,18 +433,7 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         },
         // xsf overflows early for a complex z = x[1] + x[2] i
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
-        // xsf returns +inf for U(a, b, 0) with b >= 1, also where it is finite or -inf
-        "hyperu" if x[2] == 0.0 && hyperu_x0_wrong(x[0], x[1]) => f64::INFINITY,
         _ => 0.0,
-    }
-}
-
-/// Whether U(a, b, 0) is finite (a = 0, -1, ... and b > 1) or -inf (b >= 1 and Gamma(a) < 0)
-fn hyperu_x0_wrong(a: f64, b: f64) -> bool {
-    if a.fract() == 0.0 {
-        a <= 0.0 && b > 1.0
-    } else {
-        a < 0.0 && b >= 1.0 && a.floor() % 2.0 != 0.0
     }
 }
 
@@ -452,22 +441,11 @@ fn hyperu_x0_wrong(a: f64, b: f64) -> bool {
 /// any reference
 fn rtol_ill_conditioned(name: &str, x: &[f64]) -> f64 {
     match name {
-        // U(a, 1, x) near its zeros
-        "hyperu" if x[1] == 1.0 && HYPERU_ZEROS.contains(&(x[0], x[2])) => 1e-12,
         // sin(pi v) of the reflection for large |v|
         "cyl_bessel_i" if x[0] < -100.0 && x[0].fract() != 0.0 => 5e-15 * x[0].abs(),
         _ => 0.0,
     }
 }
-
-/// The `(a, x)` of the `hyperu` test cases that are nearest to a zero of `U(a, 1, x)`
-const HYPERU_ZEROS: [(f64, f64); 5] = [
-    (-0.321_643_286_573_146_34, 0.047_094_717_434_869_746),
-    (-0.351_703_406_813_627_3, 0.065_331_008_016_032_07),
-    (-0.371_743_486_973_947_9, 0.080_360_917_835_671_36),
-    (-0.381_763_527_054_108_2, 0.085_170_488_977_955_93),
-    (-0.393_787_575_150_300_6, 0.094_589_232_464_929_87),
-];
 
 /// The orders of the complex `cyl_bessel_i` test cases where xsf overflows and the reference
 /// isn't finite

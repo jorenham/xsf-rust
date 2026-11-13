@@ -69,8 +69,9 @@ Each logical output of each row has a status:
 
 An output passes if its error is at most `4 max(eps, tol)`. The error is xsf's
 `extended_relative_error`, or its `extended_absolute_error` over the scale (the local amplitude of
-an oscillating function, 1 for an absolute error, the smallest normal `f64` for a subnormal
-reference without one, or 0 for none) if that is smaller.
+an oscillating function, the size of the terms that cancel in a sum near its zeros, 1 for an
+absolute error, the smallest normal `f64` for a subnormal reference without one, or 0 for none)
+if that is smaller.
 [`testing/metric_vectors.tsv`](../../../testing/metric_vectors.tsv) has test vectors.
 
 ## Format (version 1)
