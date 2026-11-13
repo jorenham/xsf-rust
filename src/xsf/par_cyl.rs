@@ -945,7 +945,7 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
 fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     let a = -v - 0.5;
     let mu2 = 2.0 * a;
-    let x = x.clamp(-1e100, 1e100); // the result under/overflows far beyond
+    let x = x.clamp(-1e9, 1e9); // far beyond, the result under/overflows, and so would u_s(t)
     let s = (0.25 * x * x + a).sqrt();
     // gbar(mu) = (1 + 1/r) / (2 sqrt(2) mu h(mu)) (12.10.28, with r as in `ln_gamma_ratio`), and
     // e^(-mu^2 xibar) / (sqrt(2) mu h(mu) (t^2 + 1)^(1/4)) = e^l / sqrt(2 s) (12.10.15, 12.10.26)
@@ -955,9 +955,6 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
         a.ln() - (s - 0.5 * x).ln()
     };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
-    if l.abs() > HUGE_EXP {
-        return ([1.0, -1.0], l);
-    }
 
     let t = 0.5 * x / a.sqrt();
     let q = t * t + 1.0;
