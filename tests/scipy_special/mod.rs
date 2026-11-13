@@ -5,6 +5,7 @@ mod comb;
 mod convex_analysis;
 mod diric;
 mod ellip_harm;
+mod ellip_harm_2;
 mod factorial;
 mod hypergeometric;
 mod logsumexp;

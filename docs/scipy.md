@@ -47,10 +47,9 @@ of 353 functions whose algorithm isn't in xsf.
 | `huber`, `pseudo_huber`                 | Cython                 | same                       |
 | `hyp0f1`                                | Cython                 | same                       |
 | `ndtri_exp`                             | Cython                 | same                       |
-| `ellip_harm`                            | Cython                 | same                       |
+| `ellip_harm`, `ellip_harm_2`            | Cython                 | same                       |
+| `ellip_normal`                          | Cython                 | same                       |
 | `spence`                                | xsf; complex: Cython   | same                       |
-| `ellip_harm_2`                          | Cython                 |                            |
-| `ellip_normal`                          | Cython                 |                            |
 | `assoc_laguerre`                        | Python                 | `eval_genlaguerre`         |
 | `diric`                                 | Python                 | same                       |
 | `factorial`                             | Python                 | same                       |

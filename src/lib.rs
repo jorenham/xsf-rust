@@ -37,9 +37,11 @@
 //!
 //! # Ellipsoidal harmonics
 //!
-//! | Function       | Description                               |
-//! | -------------- | ----------------------------------------- |
-//! | [`ellip_harm`] | Ellipsoidal harmonic functions $E^p_n(s)$ |
+//! | Function         | Description                                              |
+//! | ---------------- | -------------------------------------------------------- |
+//! | [`ellip_harm`]   | Ellipsoidal harmonic functions $E^p_n(s)$                |
+//! | [`ellip_harm_2`] | Ellipsoidal harmonic functions $F^p_n(s)$                |
+//! | [`ellip_normal`] | Ellipsoidal harmonic normalization constants $\gamma^p_n$ |
 //!
 //! # Bessel functions
 //!

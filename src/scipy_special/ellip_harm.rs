@@ -5,7 +5,7 @@ use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 
 /// `x^2 - c`, without the rounding error of `x^2`, which matters if `x^2 ~ c`
-fn sq_sub(x: f64, c: f64) -> f64 {
+pub(super) fn sq_sub(x: f64, c: f64) -> f64 {
     // Veltkamp's split `x = hi + lo` (as in Dekker's `two_prod`), where `hi` and `lo` have at
     // most 26 bits, so that `hi^2`, `hi lo`, and `lo^2` are exact
     const SPLITTER: f64 = pow2(27) + 1.0;
@@ -163,12 +163,17 @@ impl Lame {
 
     /// `ellip_harm_eval`
     ///
-    /// Unlike in SciPy, `s^2 - h2` and `s^2 - k2` are computed with [`sq_sub`], and their square
-    /// roots are taken separately, and without `s^2` if that overflows, so that they can't
-    /// overflow needlessly.
+    /// Unlike in SciPy, `s^2 - h2` and `s^2 - k2` are computed with [`sq_sub`].
     pub(crate) fn eval(&self, s: f64, signm: f64, signn: f64) -> f64 {
+        self.eval_with(s, sq_sub(s, self.h2), sq_sub(s, self.k2), signm, signn)
+    }
+
+    /// [`Self::eval`], with `s^2 - h2` and `s^2 - k2` given, e.g. without cancellation
+    ///
+    /// Unlike in SciPy, their square roots are taken separately, and without `s^2` if that
+    /// overflows, so that they can't overflow needlessly.
+    pub(crate) fn eval_with(&self, s: f64, s2_h2: f64, s2_k2: f64, signm: f64, signn: f64) -> f64 {
         let (h2, k2) = (self.h2, self.k2);
-        let (s2_h2, s2_k2) = (sq_sub(s, h2), sq_sub(s, k2));
         // `sqrt(|s^2 - c|)`
         let root = |s2_c: f64, c: f64| {
             if s2_c.is_finite() {
@@ -219,6 +224,9 @@ impl Lame {
 /// Returns NaN if `p` or a sign is invalid.
 ///
 /// # See also
+/// - [`ellip_harm_2`](crate::ellip_harm_2): Ellipsoidal harmonic function $F^p_n(s)$
+/// - [`ellip_normal`](crate::ellip_normal): Ellipsoidal harmonic normalization constant
+///   $\gamma^p_n$
 /// - [DLMF 29.12](https://dlmf.nist.gov/29.12)
 #[must_use]
 pub fn ellip_harm(h2: f64, k2: f64, n: u32, p: u32, s: f64, signm: f64, signn: f64) -> f64 {
