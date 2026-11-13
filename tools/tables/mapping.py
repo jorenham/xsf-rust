@@ -1807,6 +1807,66 @@ def _fdtri() -> Out:
     )
 
 
+def _besselpoly_order(v: float) -> tuple[float, int]:
+    """(|v|, (-1)^v) for a negative integer v, else (v, 1)."""
+    if v < 0 and v.is_integer():
+        return -v, -1 if -v % 2 else 1
+    return v, 1
+
+
+def _besselpoly_pole(a: tuple[float, ...]) -> int:
+    """The sign of the integral at a pole lambda + |nu| + 1 = 0, -2, ..., else 0."""
+    x, lmbda, v = a
+    if x == 0 or not all(map(math.isfinite, a)) or (x < 0 and not v.is_integer()):
+        return 0
+    n, sign = _besselpoly_order(v)
+    e = Fraction(lmbda) + Fraction(n) + 1
+    if e > 0 or e.denominator != 1 or e % 2:
+        return 0
+    lead = 1 if n + 1 > 0 else (-1) ** math.floor(n + 1)  # the sign of Gamma(n + 1)
+    return lead * sign * (-1 if x < 0 and v % 2 else 1)
+
+
+BESSELPOLY_RULES: Final = tuple(
+    Rule(
+        lambda a, s=s: _besselpoly_pole(a) == s,
+        math.copysign(math.inf, s),
+        "the integral diverges at a pole",
+    )
+    for s in (1, -1)
+)
+
+BESSELPOLY_OVERRIDES: Final = (
+    Override(
+        lambda a: a[0] < 0 and a[2].is_integer(),
+        "xsf returns NaN for a < 0",
+    ),
+    Override(
+        lambda a: a[0] > 0 and _besselpoly_pole(a) != 0,
+        "xsf returns a partial sum at a pole",
+    ),
+)
+
+
+def _besselpoly(a: mp.mpf, lmbda: mp.mpf, v: mp.mpf) -> mp.mpf:
+    """`specs.r_besselpoly`, with J_{-n} = (-1)^n J_n."""
+    n, sign = _besselpoly_order(float(v))
+    return sign * specs.r_besselpoly(a, lmbda, mp.mpf(n))
+
+
+def _besselpoly_arb(a: flint.arb, lmbda: flint.arb, v: flint.arb) -> flint.arb:
+    """`_besselpoly` as a 1F2 in Arb."""
+    order, sign = _besselpoly_order(float(v))
+    n = flint.arb(order)
+    c = (lmbda + n + 1) / 2
+    return (
+        sign
+        * a**n
+        / ((lmbda + n + 1) * (n + 1).gamma())
+        * (-a * a).hypgeom([c], [n + 1, c + 1])
+    )
+
+
 def _voigt(x: mp.mpf, sigma: mp.mpf, gamma: mp.mpf) -> mp.mpf:
     """`specs.r_voigt_profile`, and its limits for sigma = 0 (Cauchy) and gamma = 0 (normal)."""
     if sigma == 0:
@@ -2615,6 +2675,17 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("fdtri", "d_d_d-d"): Entry((_fdtri(),)),
     ("nbdtr", "p_p_d-d"): Entry((_beta_dist("nbdtr", _nbdtr_args, NBDTR_RULES),)),
     ("nbdtrc", "p_p_d-d"): Entry((_beta_dist("nbdtrc", _nbdtrc_args, NBDTR_RULES),)),
+    ("besselpoly", "d_d_d-d"): Entry(
+        (
+            Out(
+                "besselpoly",
+                (_besselpoly,),
+                (_besselpoly_arb,),
+                BESSELPOLY_RULES,
+                BESSELPOLY_OVERRIDES,
+            ),
+        )
+    ),
     ("voigt_profile", "d_d_d-d"): Entry(
         (Out("voigt_profile", (_voigt,), (_voigt_arb,), VOIGT_RULES),)
     ),
