@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/hyp2f1.h` (scipy/xsf@f2a68ec).
+//! Translated into pure Rust from `xsf/cephes/hyp2f1.h` (scipy/xsf@9a1dfd1).
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 1992, 2000 by Stephen L. Moshier
@@ -93,10 +93,7 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let mut f;
     let mut intflag = false;
 
-    // Unlike in xsf (scipy/xsf#460), also for `b = -a` a negative integer, so that the recurrence
-    // is in `b`
-    let neg_int_tie = b == -a && near_neg_int(b) && a <= HYP2F1_MAXITER as f64;
-    if b.abs() > a.abs() || neg_int_tie {
+    if b.abs() > a.abs() {
         /* Ensure that |a| > |b| ... */
         f = b;
         b = a;
@@ -105,12 +102,15 @@ fn hys2f1(mut a: f64, mut b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 
     let ib = b.round() as i32;
 
-    if (b - f64::from(ib)).abs() < HYP2F1_EPS && ib <= 0 && b.abs() < a.abs() {
-        /* .. except when `b` is a smaller negative integer */
+    if (b - f64::from(ib)).abs() < HYP2F1_EPS
+        && ib <= 0
+        && (b.abs() < a.abs() || (b == -a && a <= HYP2F1_MAXITER as f64))
+    {
+        /* .. except when `b` is a negative integer with |b| <= |a| */
         f = b;
         b = a;
         a = f;
-        intflag = true;
+        intflag = a.abs() != b.abs(); /* not for the tie `b == -a` */
     }
 
     if (a.abs() > c.abs() + 1.0 || intflag) && (c - a).abs() > 2.0 && a.abs() > 2.0 {

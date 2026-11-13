@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`a985488`](https://github.com/scipy/xsf/tree/a985488ef1ffb688a681f2b4d2b1fcbc633352e1)), and
+it is translated from (commit [`9a1dfd1`](https://github.com/scipy/xsf/tree/9a1dfd1771f43dd68959be145527ab5189b32c92)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
@@ -611,7 +611,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tbody>
 <tr><td><code>hyp0f0</code></td><td>z ∈ [−700, 700]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>4.7e-17</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 <tr><td><code>hyp1f0</code></td><td>a ∈ [−10, 10]<br>z ∈ [−10, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>hyp0f1</code></td><td>b, z ∈ ±⁠[10⁻³, 10⁶] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.3e-12</samp></b></td><td align="right" nowrap><b><samp>4.2e-14</samp></b></td><td align="right" nowrap><samp>inf (1937)</samp></td><td align="right" nowrap><samp>4.6e-02</samp></td><td align="right" nowrap>41.2%</td></tr>
+<tr><td><code>hyp0f1</code></td><td>b, z ∈ ±⁠[10⁻³, 10⁶] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>1.3e-12</samp></b></td><td align="right" nowrap><b><samp>4.2e-14</samp></b></td><td align="right" nowrap><samp>inf (1937)</samp></td><td align="right" nowrap><samp>4.6e-02</samp></td><td align="right" nowrap>41.1%</td></tr>
 <tr><td><code>hyp1f1</code></td><td>a, b ∈ [−20, 20]<br>x ∈ [−50, 50]</td><td align="right" nowrap>5000</td><td align="right" nowrap><b><samp>6.6e-11</samp></b></td><td align="right" nowrap><b><samp>1.9e-12</samp></b></td><td align="right" nowrap><samp>1.4e-04</samp></td><td align="right" nowrap><samp>2.2e-06</samp></td><td align="right" nowrap>17.5%</td></tr>
 <tr><td><code>hyp1f1</code></td><td>a, b, x ∈ ±⁠[10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>2.0e-11</samp></b></td><td align="right" nowrap><b><samp>5.3e-13</samp></b></td><td align="right" nowrap><samp>inf (51)</samp></td><td align="right" nowrap><samp>6.3e+290</samp></td><td align="right" nowrap>33.4%</td></tr>
 <tr><td><code>hypu</code></td><td>a, b ∈ [−10, 10]<br>x ∈ [0, 50]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>2.1e-11</samp></b></td><td align="right" nowrap><b><samp>4.8e-13</samp></b></td><td align="right" nowrap><samp>inf (12)</samp></td><td align="right" nowrap><samp>5.7e-08</samp></td><td align="right" nowrap>63.3%</td></tr>

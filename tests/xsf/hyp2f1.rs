@@ -372,13 +372,14 @@ fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
 
 #[test]
 fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
-    // unlike in xsf: these were 0.4895077, 194.8, -3.18e18, -1.48e9 and -5.45e169 (Arb)
+    // Arb
     let args = [
         (13.0, -13.0, 0.5, 0.9),
         (16.0, -16.0, 0.5, 0.95),
         (19.0, -19.0, 0.5, 0.99),
         (22.0, -22.0, -3.5, 0.95),
         (195.0, -195.0, 1.0, 0.9),
+        (195.0, -195.0, -200.5, 0.01),
     ];
     let desired = [
         0.489_514_398_515_199_2,
@@ -386,6 +387,7 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         0.787_059_088_545_409,
         -6_540_705.712_015_875,
         -0.019_154_323_187_421_253,
+        6.722_964_015_601_578,
     ];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         // also with a and b swapped, which was already accurate
