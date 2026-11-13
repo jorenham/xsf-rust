@@ -704,24 +704,6 @@ fn pb_recur(
     Some(y)
 }
 
-/// `V_w(x)` for `k = 0..=n + 1` by Miller's algorithm like in `pbvv_impl`, but for the ratios
-/// `r_w = V_{w-1} / V_w`, which don't overflow
-fn pbvv_miller((v0, n): (f64, usize), x: f64) -> Vec<f64> {
-    let mut y = vec![0.0; n + 2];
-    let mut r = x;
-    for k in (1..=n + 100).rev() {
-        r = x - (v0 + k as f64 + 1.0) / r;
-        if k <= n + 1 {
-            y[k] = r;
-        }
-    }
-    y[0] = pbvv(v0, x).0;
-    for k in 1..=n + 1 {
-        y[k] = y[k - 1] / y[k];
-    }
-    y
-}
-
 /// `c cos(pi w) a_w + s sin(pi w) b(k)` for `w = v0 + k`, `k < a.len()`
 fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) -> Vec<f64> {
     let (c, s) = (c * cospi(v0), s * sinpi(v0));
@@ -1447,12 +1429,9 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
     let orders @ (v0, _) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
-    // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4, where
-    // `pbvv` is inaccurate if |x| > 10
+    // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4
     let y = x.abs();
-    let ys = if x > 10.0 {
-        Some(pbvv_miller(orders, x))
-    } else if x >= -10.0 {
+    let ys = if x >= -10.0 {
         let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
         if x < 0.0 {
             // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
@@ -1465,8 +1444,8 @@ pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
             vy
         }
     } else {
-        // like `pbvv`, by 12.2.16 for each order, since `pbvv_miller` loses accuracy for orders
-        // near or above x^2 / 4
+        // each order by `pbvv`: slower than the reflection above, but more accurate for orders
+        // far above x^2 / 4
         None
     };
     pb_seq(orders, x, pbvv, ca, ys)

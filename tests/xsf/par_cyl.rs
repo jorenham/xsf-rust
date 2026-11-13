@@ -826,7 +826,7 @@ fn test_pbvv_seq_extreme() {
 fn test_pbdv_pbvv_seq_mpmath() {
     // D_v, D_v', V_v, V_v' at the last order, where SciPy is off by up to 1e34 for x < 0 (reference
     // values from mpmath)
-    let cases: [(f64, f64, [f64; 4]); 6] = [
+    let cases: [(f64, f64, [f64; 4]); 7] = [
         (
             12.3,
             -6.0,
@@ -868,7 +868,7 @@ fn test_pbdv_pbvv_seq_mpmath() {
                 -1.460_262_082_277_329_8e-11,
             ],
         ),
-        // x >= 0, where the recurrences start near x^2 / 4, or far above for V if x > 10
+        // x >= 0, where the recurrences start near x^2 / 4
         (
             24.75,
             5.5,
@@ -887,6 +887,17 @@ fn test_pbdv_pbvv_seq_mpmath() {
                 -6.254_317_881_877_676e-9,
                 64_392_038.803_103_14,
                 344_895_751.112_665_24,
+            ],
+        ),
+        // x > 10 and v > x^2 / 4
+        (
+            120.25,
+            14.5,
+            [
+                -5.625_078_507_764_18e98,
+                -1.117_260_943_084_587_5e100,
+                6.094_670_796_426_426e-101,
+                -2.079_096_255_472_565_4e-100,
             ],
         ),
     ];
