@@ -61,6 +61,7 @@ class Entry:
 
 
 NAN: Final = Rule(lambda a: math.isnan(a[0]), math.nan, "NaN propagates")
+INF: Final = Rule(lambda a: a[0] == math.inf, math.inf, "the limit for x -> +inf")
 NEG_INF: Final = Rule(lambda a: a[0] == -math.inf, math.nan, "no limit for x -> -inf")
 POLE: Final = Rule(
     lambda a: a[0] < 0 and a[0].is_integer(),
@@ -73,7 +74,7 @@ GAMMA: Final = Out(
     (specs.ARB["gamma"],),
     rules=(
         NAN,
-        Rule(lambda a: a[0] == math.inf, math.inf, "the limit for x -> +inf"),
+        INF,
         NEG_INF,
         Rule(
             lambda a: a[0] == 0 and math.copysign(1, a[0]) > 0,
@@ -113,6 +114,13 @@ def _lgam1p(x: mp.mpf) -> mp.mpf:
 
 def _lgam1p_arb(x: flint.arb) -> flint.arb:
     return _ln_abs_gamma(1 + x)
+
+
+def _digamma(x: mp.mpf) -> Value:
+    """`specs.r_digamma`, with an absolute error where |psi(x)| < 1 for x < -1 (the accuracy
+    that Cephes states), where the terms of the reflection cancel near a zero."""
+    psi = specs.r_digamma(x)
+    return (psi, mp.mpf(1)) if x < -1 else psi
 
 
 def _it2struve0_residual(x: mp.mpf) -> mp.mpf:
@@ -280,6 +288,25 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         )
     ),
     ("lgam1p", "d-d"): Entry((Out("lgam1p", (_lgam1p,), (_lgam1p_arb,)),)),
+    ("digamma", "d-d"): Entry(
+        (
+            Out(
+                "digamma",
+                (_digamma,),
+                (specs.ARB["digamma"],),
+                (
+                    INF,
+                    NEG_INF,
+                    Rule(
+                        lambda a: a[0] == 0 and math.copysign(1, a[0]) > 0,
+                        -math.inf,
+                        "the limit for x -> 0+",
+                    ),
+                    POLE,
+                ),
+            ),
+        )
+    ),
     ("it2struve0", "d-d"): Entry(
         (Out("it2struve0", (specs.r_it2struve0,)),),
         Identity(lambda a: math.isfinite(a[0]), _it2struve0_residual),
