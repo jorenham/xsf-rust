@@ -110,17 +110,20 @@ pub(crate) fn erfc(a: f64) -> f64 {
         return 1.0 - erf(a);
     }
 
-    let mut z = -a * a;
+    let z = -a * a;
 
-    if z >= -MAXLOG {
-        z = z.exp();
-
+    // Unlike in xsf, also for -MAXLOG > z >= MINLOG, where erfc is subnormal instead of 0
+    if z >= MINLOG {
         let (p, q) = if x < 8.0 {
             (polevl(x, &NDTR_P), p1evl(x, &NDTR_Q))
         } else {
             (polevl(x, &NDTR_R), p1evl(x, &NDTR_S))
         };
-        let mut y = (z * p) / q;
+        let mut y = if z >= -MAXLOG {
+            (z.exp() * p) / q
+        } else {
+            mul_exp(p / q, z)
+        };
 
         if a < 0.0 {
             y = 2.0 - y;

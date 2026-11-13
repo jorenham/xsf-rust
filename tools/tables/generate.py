@@ -10,7 +10,8 @@ Usage (from the repository root; BASELINE holds xsref's tables as `convert.py` w
 
 For each entry of `mapping.ENTRIES`, every logical output of every row gets a status:
 
-- convention (2): the inputs match a `mapping.Rule`, which xsref and xsf-rust must follow.
+- convention (2): the inputs match a `mapping.Rule`, which xsf-rust must follow, and which must
+  pass xsref's test (so xsref may differ where its tolerance allows it).
 - computed (1): the mpmath reference at both `DPS`, which must agree to `AGREE`, round to the
   same f64, and be confirmed by Arb where its Arb version applies (or by an identity, without
   one). xsf-rust must be NaN or an infinity exactly where the reference is. The tolerance is
@@ -431,13 +432,17 @@ def generate(
         old_ref = value(rows[r][a : a + widths[i]])
         try:
             if rule := rules.get((r, i)):
-                # xsref and xsf-rust must follow a convention already
-                for name, x in (("xsref", old_ref), ("xsf-rust", rust[r, i])):
-                    ok = same_class(x, rule.value)
-                    require(ok, f"{name} has {x}, the rule {rule.value} ({rule.why})")
+                # a convention must pass xsref's test, and xsf-rust must follow it already
+                ok = table_error(rule.value, old_ref) <= 4 * max(EPS, rows[r][tol])
+                require(ok, f"xsref has {old_ref}, the rule {rule.value} ({rule.why})")
+                ok = same_class(rust[r, i], rule.value)
+                require(
+                    ok, f"xsf-rust has {rust[r, i]}, the rule {rule.value} ({rule.why})"
+                )
                 notes[i][f"convention: {rule.why}"] += 1
-                differs = not same_class(xsf[r, i], rule.value)
-                notes[i]["conventions that xsf does not follow"] += differs
+                for name, x in (("xsref", old_ref), ("xsf", xsf[r, i])):
+                    differs = not same_class(x, rule.value)
+                    notes[i][f"conventions that {name} does not follow"] += differs
                 ref = struct.pack(f"<{widths[i]}d", *parts(rule.value))
                 new[r, i] = Cell(CONVENTION, ref, struct.pack("<d", 0.0))
             elif any(t not in refs for lo_hi in tasks[r, i] for t in lo_hi):

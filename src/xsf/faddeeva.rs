@@ -130,7 +130,7 @@
 
 use core::f64::consts::FRAC_2_SQRT_PI;
 
-use crate::utils::SQRT1OPI;
+use crate::utils::{MAXLOG, SQRT1OPI, mul_exp};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 
@@ -1114,14 +1114,18 @@ fn w_im(x: f64) -> f64 {
 
 // erfi(x) = -i erf(ix)
 pub(crate) fn erfi(x: f64) -> f64 {
-    if x * x > 720.0 {
+    let z = x * x;
+    if z > 720.0 {
         if x > 0.0 {
             f64::INFINITY
         } else {
             f64::NEG_INFINITY
         }
+    } else if z > MAXLOG {
+        // Unlike in xsf, erfi is finite where only e^(x^2) overflows (x^2 < ~713.6)
+        mul_exp(w_im(x), z)
     } else {
-        (x * x).exp() * w_im(x)
+        z.exp() * w_im(x)
     }
 }
 
