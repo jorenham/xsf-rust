@@ -706,10 +706,10 @@ fn test_pbvv_seq_extreme() {
 }
 
 #[test]
-fn test_pbdv_pbvv_seq_negative_x() {
-    // D_v, D_v', V_v, V_v' at the last order, where SciPy is off by up to 1e34 (reference values
-    // from mpmath)
-    let cases: [(f64, f64, [f64; 4]); 4] = [
+fn test_pbdv_pbvv_seq_mpmath() {
+    // D_v, D_v', V_v, V_v' at the last order, where SciPy is off by up to 1e34 for x < 0 (reference
+    // values from mpmath)
+    let cases: [(f64, f64, [f64; 4]); 6] = [
         (
             12.3,
             -6.0,
@@ -751,6 +751,27 @@ fn test_pbdv_pbvv_seq_negative_x() {
                 -1.460_262_082_277_329_8e-11,
             ],
         ),
+        // x >= 0, where the recurrences start near x^2 / 4, or far above for V if x > 10
+        (
+            24.75,
+            5.5,
+            [
+                1_136_759_125_110.24,
+                614_257_430_493.421_1,
+                -1.961_024_725_224_811_4e-14,
+                6.912_975_698_683_309e-13,
+            ],
+        ),
+        (
+            6.25,
+            12.0,
+            [
+                1.145_726_729_863_287_4e-9,
+                -6.254_317_881_877_676e-9,
+                64_392_038.803_103_14,
+                344_895_751.112_665_24,
+            ],
+        ),
     ];
     for (v, x, expected) in cases {
         let (dv, dp) = xsf::pbdv_seq(v, x);
@@ -758,6 +779,13 @@ fn test_pbdv_pbvv_seq_negative_x() {
         let actual = [dv, dp, vv, vp].map(|y| y[y.len() - 1]);
         xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
     }
+}
+
+#[test]
+fn test_pbdv_seq_near_overflow() {
+    // the recurrence overflows at 301 D_300(x), but D_302(x) does not (reference value from mpmath)
+    let (dv, _) = xsf::pbdv_seq(302.0, 0.625);
+    xsref::np_assert_allclose!(&dv[302..], &[1.417_826_147_401_142_5e308], rtol = 1e-12);
 }
 
 #[test]

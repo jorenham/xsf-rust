@@ -645,12 +645,74 @@ fn alloc_buf(v: f64) -> Option<(Vec<f64>, usize)> {
     Some((buf, num))
 }
 
-/// `pbdv_seq(v, x)` (or `pbvv_seq`) of `scipy/special/_basic.py`, with `f` as `pbdv` (or `pbvv`)
-fn pb_seq(v: f64, x: f64, f: fn(f64, f64) -> (f64, f64)) -> (Vec<f64>, Vec<f64>) {
+/// `(v0, n)` for the orders `v0 + k`, `k = 0..=n`, of `pbdv_seq` and `pbvv_seq`
+fn seq_orders(v: f64) -> (f64, usize) {
     assert!(v >= 0.0, "v must be non-negative");
     let n = v.to_i32().expect("v is too large");
-    let v0 = v - f64::from(n);
-    (0..=n.max(1)).map(|k| f(v0 + f64::from(k), x)).unzip()
+    (v - f64::from(n), n.max(1) as usize)
+}
+
+/// `f(w, x)` for `w = v0 + k`, `k = 0..=n`, or from finite `ys` by `y_w' = x / 2 y_w - c y_{w+1}`
+fn pb_seq(
+    (v0, n): (f64, usize),
+    x: f64,
+    f: fn(f64, f64) -> (f64, f64),
+    ca: fn(f64) -> (f64, f64),
+    ys: Option<Vec<f64>>,
+) -> (Vec<f64>, Vec<f64>) {
+    let w = |k: usize| v0 + k as f64;
+    let Some(mut y) = ys.filter(|y| y.iter().all(|t| t.is_finite())) else {
+        return (0..=n).map(|k| f(w(k), x)).unzip();
+    };
+    let dy = (0..=n)
+        .map(|k| 0.5 * x * y[k] - ca(w(k)).0 * y[k + 1])
+        .collect();
+    y.truncate(n + 1);
+    (y, dy)
+}
+
+/// `c y_{w+1} = x y_w - a y_{w-1}` for `k = 0..=n + 1`, in both directions from `f` near `start`
+fn pb_recur(
+    (v0, n): (f64, usize),
+    x: f64,
+    f: fn(f64, f64) -> (f64, f64),
+    ca: fn(f64) -> (f64, f64),
+    start: f64,
+) -> Option<Vec<f64>> {
+    let w = |k: usize| v0 + k as f64;
+    let s = ((start - v0).ceil().max(0.0) as usize).min(n);
+    let mut y = vec![0.0; n + 2];
+    (y[s], y[s + 1]) = (f(w(s), x).0, f(w(s + 1), x).0);
+    if !(y[s].is_normal() && y[s + 1].is_normal()) {
+        return None;
+    }
+    for k in s + 1..=n {
+        let (c, a) = ca(w(k));
+        y[k + 1] = (x * y[k] - a * y[k - 1]) / c;
+    }
+    for k in (1..=s).rev() {
+        let (c, a) = ca(w(k));
+        y[k - 1] = (x * y[k] - c * y[k + 1]) / a;
+    }
+    Some(y)
+}
+
+/// `V_w(x)` for `k = 0..=n + 1` by Miller's algorithm like in `pbvv_impl`, but for the ratios
+/// `r_w = V_{w-1} / V_w`, which don't overflow
+fn pbvv_miller((v0, n): (f64, usize), x: f64) -> Vec<f64> {
+    let mut y = vec![0.0; n + 2];
+    let mut r = x;
+    for k in (1..=n + 100).rev() {
+        r = x - (v0 + k as f64 + 1.0) / r;
+        if k <= n + 1 {
+            y[k] = r;
+        }
+    }
+    y[0] = pbvv(v0, x).0;
+    for k in 1..=n + 1 {
+        y[k] = y[k - 1] / y[k];
+    }
+    y
 }
 
 // Uniform asymptotic expansions of D_v(x) = U(-v - 1/2, x) for large |v| (not in xsf), following
@@ -1240,9 +1302,8 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
 
 /// Parabolic cylinder functions $D_v(x)$ and their derivatives for a sequence of orders
 ///
-/// Corresponds to [`scipy.special.pbdv_seq`][scipy]. Unlike in SciPy, which recurs over the
-/// orders and can lose all accuracy for $x < -5.8$ (scipy/xsf#374), each order is computed by
-/// [`pbdv`], so that this is as accurate as (and costs as much as) $n + 1$ calls of [`pbdv`].
+/// Corresponds to [`scipy.special.pbdv_seq`][scipy]. Unlike in SciPy, which can lose all
+/// accuracy for $x < -5.8$ (scipy/xsf#374), this is about as accurate as [`pbdv`].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbdv_seq.html
 ///
@@ -1266,14 +1327,21 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    pb_seq(v, x, pbdv)
+    let orders = seq_orders(v);
+    let ca: fn(f64) -> (f64, f64) = |w| (1.0, w);
+    // D_{w+1} = x D_w - w D_{w-1} (DLMF 12.8.1) is only stable upwards for x >= 0
+    let ys = if x >= 0.0 {
+        pb_recur(orders, x, pbdv, ca, 0.0)
+    } else {
+        None
+    };
+    pb_seq(orders, x, pbdv, ca, ys)
 }
 
 /// Parabolic cylinder functions $V_v(x)$ and their derivatives for a sequence of orders
 ///
-/// Corresponds to [`scipy.special.pbvv_seq`][scipy]. Unlike in SciPy, which recurs over the
-/// orders and can lose all accuracy for $|x| > 7.5$ (scipy/xsf#374), each order is computed by
-/// [`pbvv`], so that this is as accurate as (and costs as much as) $n + 1$ calls of [`pbvv`].
+/// Corresponds to [`scipy.special.pbvv_seq`][scipy]. Unlike in SciPy, which can lose all
+/// accuracy for $|x| > 7.5$ (scipy/xsf#374), this is about as accurate as [`pbvv`].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pbvv_seq.html
 ///
@@ -1297,7 +1365,18 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    pb_seq(v, x, pbvv)
+    let orders = seq_orders(v);
+    let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
+    // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4, where
+    // `pbvv` is inaccurate if x > 10
+    let ys = if x > 10.0 {
+        Some(pbvv_miller(orders, x))
+    } else if x >= 0.0 {
+        pb_recur(orders, x, pbvv, ca, 0.25 * x * x)
+    } else {
+        None
+    };
+    pb_seq(orders, x, pbvv, ca, ys)
 }
 
 /// Parabolic cylinder functions $D_n(z)$ and their derivatives for the orders $0, \ldots, n$
