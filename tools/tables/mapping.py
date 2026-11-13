@@ -416,6 +416,65 @@ LOG_AT_0: Final = Rule(
 )
 
 
+# with these more bits, 1 - x is exact and x - n pi keeps its precision for any f64 x
+F64_BITS: Final = 1100
+# 1 - m sin^2 phi cancels down to cos^2(fl(pi/2)) = 3.7e-33 for f64 inputs
+CANCEL_DIGITS: Final = 40
+
+
+def _ellipkm1_arb(p: flint.arb) -> flint.arb:
+    with flint.ctx.extraprec(F64_BITS):
+        return flint.acb(1 - p).elliptic_k().real
+
+
+def _beyond_real(a: tuple[float, ...]) -> bool:
+    """|phi| > asin(m^(-1/2)) for m > 1, where the incomplete integrals are not real."""
+    phi, m = a
+    return m > 1 and abs(phi) > math.asin(1 / math.sqrt(m))
+
+
+def _incomplete(
+    func: str,
+    ref: Callable[[mp.mpf, mp.mpf], mp.mpf],
+    arb: Callable[[flint.acb, flint.acb], flint.acb],
+    letter: str,
+    rules: tuple[Rule, ...],
+) -> Entry:
+    """An incomplete elliptic integral `letter`(phi|m), whose `rules` follow those for NaN and
+    m > 1, and precede those for phi = +-inf."""
+
+    def ref_digits(phi: mp.mpf, m: mp.mpf) -> mp.mpf:
+        with specs.wdps(CANCEL_DIGITS):
+            return ref(phi, m)
+
+    def arb_real(phi: flint.arb, m: flint.arb) -> flint.arb:
+        with flint.ctx.extraprec(F64_BITS):
+            return arb(flint.acb(phi), flint.acb(m)).real
+
+    f = f"{letter}(phi|m)"
+    return _real(
+        func,
+        ref_digits,
+        arb_real,
+        (
+            NAN,
+            Rule(
+                _beyond_real,
+                math.nan,
+                f"{f} is not real for m > 1, |phi| > asin(m^(-1/2))",
+            ),
+            Rule(
+                lambda a: a[1] > 1,
+                math.nan,
+                f"{f} is real for m > 1, |phi| <= asin(m^(-1/2)), but NaN like in xsf",
+            ),
+            *rules,
+            Rule(lambda a: a[0] == math.inf, math.inf, "the limit for phi -> +inf"),
+            Rule(lambda a: a[0] == -math.inf, -math.inf, "the limit for phi -> -inf"),
+        ),
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -796,5 +855,48 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 ),
             ),
         )
+    ),
+    ("ellipk", "d-d"): _real(
+        "ellipk",
+        mp.ellipk,
+        lambda m: flint.acb(m).elliptic_k().real,
+        (
+            Rule(lambda a: a[0] > 1, math.nan, "K(m) is not real for m > 1"),
+            Rule(lambda a: a[0] == 1, math.inf, "K(m) -> +inf for m -> 1-"),
+        ),
+    ),
+    ("ellipkm1", "d-d"): _real(
+        "ellipkm1",
+        specs.r_ellipkm1,
+        _ellipkm1_arb,
+        (
+            NAN,
+            Rule(lambda a: a[0] < 0, math.nan, "K(1 - p) is not real for p < 0"),
+            Rule(lambda a: a[0] == 0, math.inf, "K(1 - p) -> +inf for p -> 0+"),
+            Rule(lambda a: a[0] == math.inf, 0.0, "the limit for p -> +inf"),
+        ),
+    ),
+    ("ellipe", "d-d"): _real(
+        "ellipe",
+        mp.ellipe,
+        lambda m: flint.acb(m).elliptic_e().real,
+        (
+            NAN,
+            Rule(lambda a: a[0] > 1, math.nan, "E(m) is not real for m > 1"),
+            Rule(lambda a: a[0] == -math.inf, math.inf, "the limit for m -> -inf"),
+        ),
+    ),
+    ("ellipeinc", "d_d-d"): _incomplete(
+        "ellipeinc",
+        mp.ellipe,
+        flint.acb.elliptic_e_inc,
+        "E",
+        (
+            Rule(
+                lambda a: a[1] == -math.inf and 0 < a[0] < math.inf,
+                math.inf,
+                "the limit for m -> -inf, with 0 < phi < inf",
+            ),
+        ),
     ),
 }
