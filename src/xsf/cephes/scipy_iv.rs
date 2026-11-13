@@ -208,7 +208,7 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
 /*
  * Compute Iv, Kv from (AMS5 9.7.7 + 9.7.8), asymptotic expansion for large v
  */
-fn ikv_asymptotic_uniform(
+pub(crate) fn ikv_asymptotic_uniform(
     mut v: f64,
     x: f64,
     i_value: Option<&mut f64>,
