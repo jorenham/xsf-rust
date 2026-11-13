@@ -19,6 +19,20 @@ xsref::tests! {
 }
 
 #[test]
+fn test_erfc_f64_tail() {
+    // mpmath and Arb, at the f64 values of x, where rounding x^2 would cost ~x^2 ulp
+    let x = [10.5, 15.3, 20.1, 25.7, 26.5];
+    let desired = [
+        7.035_928_090_177_523e-50,
+        7.976_560_125_420_7e-104,
+        9.735_977_140_428_878e-178,
+        3.118_899_933_007_384e-289,
+        2.210_907_664_263_734e-307,
+    ];
+    xsref::np_assert_allclose!(x.map(xsf::erfc), desired, rtol = 2e-15);
+}
+
+#[test]
 fn test_erfc_f64_subnormal() {
     // mpmath
     let x = [26.65, 26.7, 27.0, 27.2, 27.3];

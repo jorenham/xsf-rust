@@ -8,7 +8,7 @@
 
 use core::f64::consts::FRAC_1_SQRT_2;
 
-use crate::utils::{MAXLOG, MINLOG, mul_exp, pow2};
+use crate::utils::{MINLOG, mul_exp, pow2};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::faddeeva::erfcx;
 
@@ -94,7 +94,7 @@ const NDTR_U: [f64; 5] = [
 /// ```text
 ///                      Relative error:
 /// arithmetic   domain     # trials      peak         rms
-///    IEEE      0,26.6417   30000       5.7e-14     1.6e-14
+///    IEEE      0,26.6417    5066       1.2e-15     2.1e-16
 /// ```
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
@@ -119,11 +119,8 @@ pub(crate) fn erfc(a: f64) -> f64 {
         } else {
             (polevl(x, &NDTR_R), p1evl(x, &NDTR_S))
         };
-        let mut y = if z >= -MAXLOG {
-            (z.exp() * p) / q
-        } else {
-            mul_exp(p / q, z)
-        };
+        // Unlike in xsf, exp(-x^2) uses the unrounded x: rounding z = -x^2 costs up to ~x^2 ulp.
+        let mut y = mul_exp_sq(p / q, -1.0, x);
 
         if a < 0.0 {
             y = 2.0 - y;
@@ -221,7 +218,7 @@ pub(crate) fn ndtr(a: f64) -> f64 {
         // Unlike in xsf, erfc(z) / 2 is erfcx(z) exp(-a^2 / 2) / 2 with the exponential of the
         // unrounded a: rounding z = |a| / sqrt(2) and z^2 costs up to ~z^2 ulp in exp(-z^2).
         let y = if z * z < -MINLOG {
-            mul_exp_neg_half_sq(0.5 * erfcx(z), a)
+            mul_exp_sq(0.5 * erfcx(z), -0.5, a)
         } else {
             0.0
         };
@@ -229,17 +226,17 @@ pub(crate) fn ndtr(a: f64) -> f64 {
     }
 }
 
-/// `m exp(-x^2 / 2)`, without amplifying the rounding error of `x^2`
+/// `m exp(c x^2)`, without amplifying the rounding error of `x^2`
 ///
-/// Like `expx2` of Cephes 2.9 (not in xsf), but with one `exp`. Only for `x^2` that neither over-
-/// nor underflows, as `2 <= x^2 < -2 MINLOG` in `ndtr`.
-fn mul_exp_neg_half_sq(m: f64, x: f64) -> f64 {
+/// Like `expx2` of Cephes 2.9 (not in xsf), but with one `exp`. Only for a power of two `c < 0`
+/// (so that `c h^2` is exact) and `x^2` that doesn't overflow, as in `erfc` and `ndtr`.
+fn mul_exp_sq(m: f64, c: f64, x: f64) -> f64 {
     // Veltkamp's split x = h + (x - h), where h has at most 26 bits, so h^2 is exact
     const SPLITTER: f64 = pow2(27) + 1.0;
     let t = SPLITTER * x;
     let h = t - (t - x);
-    let u = -0.5 * (h * h);
-    let v = -0.5 * ((x - h) * (x + h));
+    let u = c * (h * h);
+    let v = c * ((x - h) * (x + h));
     // exp(u + v) = exp(s) exp(e) ~ exp(s) (1 + e), with s + e = u + v exactly (Fast2Sum)
     let s = u + v;
     let e = (u - s) + v;
