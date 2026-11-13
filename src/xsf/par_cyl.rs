@@ -980,15 +980,19 @@ fn pbdv_up(w: f64, x: f64, n: f64, mut d0: f64, mut d1: f64) -> (f64, f64) {
     (d0, 0.5 * x * d0 - d1)
 }
 
-/// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by the Maclaurin series, with the
-/// values at `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact, and
-/// `w'' = (x^2 / 4 - v - 1/2) w` (12.2.2)
+/// `D_v(x)`, `D_v'(x)` for `v >= 300` and `|x| sqrt(v) < 1`, by `pb_maclaurin` with the values at
+/// `x = 0` (12.2.6, 12.2.7, and 5.5.3), so that its zeros are exact
 fn pbdv_maclaurin(v: f64, x: f64) -> (f64, f64) {
-    let a = -v - 0.5;
     let lg = lgam(0.5 * v + 1.0);
     let e = 0.5 * v * LN_2 + lg; // with mantissas c0 and c1
     let c0 = cospi(0.5 * v) / SQRT_PI * (lgam(0.5 * v + 0.5) - lg).exp();
     let c1 = SQRT_2 * sinpi(0.5 * v) / SQRT_PI;
+    pb_maclaurin(-v - 0.5, x, c0, c1, e)
+}
+
+/// `w(x)`, `w'(x)` for `|x| sqrt|a| < 1`, by the Maclaurin series of `w'' = (x^2 / 4 + a) w`
+/// (12.2.2), with `w(0)` and `w'(0)` as the mantissas `c0` and `c1` with exponent `e`
+fn pb_maclaurin(a: f64, x: f64, c0: f64, c1: f64, e: f64) -> (f64, f64) {
     if x.abs() < 1e-150 {
         // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
         let (k, ex) = (const { pow2(600) }, e - 600.0 * LN_2);
