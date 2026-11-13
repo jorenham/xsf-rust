@@ -4,8 +4,13 @@
 
 use core::f64::consts::FRAC_1_PI;
 
+use crate::utils::{is_nonpos_int, pow2};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
+
+/// From here on, `m - 1` and `m + 1` aren't exact, and `m` is an even integer
+const BIG: f64 = pow2(53);
 
 /// `xsf::cephes::detail::is_nonpos_int`, which is false for `|x| >= 1e13`
 fn is_small_nonpos_int(x: f64) -> bool {
@@ -14,6 +19,24 @@ fn is_small_nonpos_int(x: f64) -> bool {
 
 pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     let mut r = 1.0;
+
+    // Unlike in xsf (scipy/xsf#357), the poles are those of the exact a + m, of any size
+    if a.is_finite() && m.is_finite() {
+        let (s, e) = two_sum(a, m);
+        let sum_pole = is_nonpos_int(s) && e.fract() == 0.0;
+        if is_nonpos_int(a) != sum_pole {
+            return if sum_pole { f64::INFINITY } else { 0.0 };
+        }
+        if sum_pole {
+            // both are poles: the limit (-1)^m Gamma(1 - a) / Gamma(1 - a - m), which the loops
+            // below can't reach when they overflow, or for |m| >= 2^53 (an even integer)
+            if m.abs() >= BIG {
+                return if m > 0.0 { f64::INFINITY } else { 0.0 };
+            }
+            let sgn = if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
+            return sgn * poch((1.0 - s) - e, m);
+        }
+    }
 
     /*
      * 1. Reduce magnitude of `m` to |m| < 1 by using recurrence relations.
