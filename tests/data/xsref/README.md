@@ -51,7 +51,8 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
 - computed: an mpmath reference of `tools/accuracy/specs.py` with 50 and with 100 digits, which
   must agree to 1e-30. Arb must confirm it where the Arb version of the mapping applies; an output
   without one needs an identity. Its tolerance is the error of xsf (C++), or at most the largest
-  error of xsf-rust where the mapping marks xsf as wrong.
+  error of xsf-rust where the mapping marks xsf as wrong, and at least the floor of the mapping
+  where xsf-rust uses another method than xsf.
 - convention: a rule of the mapping, which xsf-rust must follow already, and which must pass
   xsref's test.
 - legacy: where our reference timed out.

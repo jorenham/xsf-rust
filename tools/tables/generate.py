@@ -342,14 +342,17 @@ class Result(NamedTuple):
     problems: list[str]
 
 
-def tolerance(c: Computed, override: mapping.Override | None, budget: float) -> float:
+def tolerance(
+    c: Computed, override: mapping.Override | None, budget: float, floor: float
+) -> float:
     """The tolerance of a computed output: the error of xsf, so that the test (which accepts
     4 max(eps, tol)) means "at most 4 times less accurate than xsf". Under an override it is
     at most `budget`, the largest error of xsf-rust there, and an error of xsf above
-    `XSF_WRONG` needs one."""
+    `XSF_WRONG` needs one. It is at least `floor`, the floor of the mapping there."""
     tol = min(c.e_xsf, budget) if override else c.e_xsf
     errors = f"xsf-rust: {c.e_rust:.2e}, xsf: {c.e_xsf:.2e}"
     require(tol <= XSF_WRONG, f"xsf is wrong, which needs an override ({errors})")
+    tol = max(tol, floor)
     require(c.e_rust <= 4 * max(EPS, tol), f"xsf-rust fails the test ({errors})")
     return tol
 
@@ -487,15 +490,21 @@ def generate(
         (r, i): next((o for o in entry.outs[i].overrides if o.when(inputs[r])), None)
         for r, i in computed
     }
+    floors = {
+        (r, i): next((f for f in entry.outs[i].floors if f.when(inputs[r])), None)
+        for r, i in computed
+    }
     budgets: dict[tuple[int, mapping.Override | None], float] = {}
     for (r, i), c in computed.items():
         key = (i, overrides[r, i])
         budgets[key] = max(budgets.get(key, 0.0), c.e_rust)
     described: list[dict[Args, tuple[Computed, float]]] = [{} for _ in range(n)]
     for (r, i), c in computed.items():
-        override = overrides[r, i]
+        override, floor = overrides[r, i], floors[r, i]
         try:
-            tol = tolerance(c, override, budgets[i, override])
+            tol = tolerance(
+                c, override, budgets[i, override], floor.tol if floor else 0
+            )
         except Problem as e:
             problems.append(f"[{i}] at {inputs[r]}: {e}")
             continue
@@ -503,6 +512,8 @@ def generate(
         new[r, i] = Cell(COMPUTED, ref, struct.pack("<d", tol), c.scale)
         if override:
             notes[i][f"override: {override.why}"] += tol != c.e_xsf
+        if floor:
+            notes[i][f"floor {floor.tol:g}: {floor.why}"] += tol == floor.tol
         described[i][inputs[r]] = (c, tol)
 
     # the identity, on an even spread of the computed inputs

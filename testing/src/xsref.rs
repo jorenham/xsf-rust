@@ -440,8 +440,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
 /// any reference
 fn rtol_ill_conditioned(name: &str, x: &[f64]) -> f64 {
     match name {
-        // for small a
-        "gammaincinv" | "gammainccinv" if (0.0..0.01).contains(&x[0]) => 4e-12,
         // U(a, 1, x) near its zeros
         "hyperu" if x[1] == 1.0 && HYPERU_ZEROS.contains(&(x[0], x[2])) => 1e-12,
         // sin(pi v) of the reflection for large |v|
@@ -809,11 +807,11 @@ mod tests {
         assert!(check("pbwa", &cases(1.0, [0, 1]), actual).is_err());
         assert!(check("pbwa", &cases(1.0, [0, 0]), |_| (1.0 + 5e-12, 1.0)).is_err());
         assert!(check("f", &cases(1.0, [0, 0]), actual).is_err());
-        // the rule for the ill-conditioned `gammaincinv` at small a applies to any output
-        let actual = |_: &[f64]| (1.0 + 2e-12, 1.0 + 2e-12);
-        assert!(check("gammaincinv", &cases(0.0, [0, 0]), actual).is_ok());
-        assert!(check("gammaincinv", &cases(0.0, [1, 2]), actual).is_ok());
-        assert!(check("gammaincinv", &cases(1.0, [1, 2]), actual).is_err());
+        // the rule for the ill-conditioned `cyl_bessel_i` at v < -100 applies to any output
+        let actual = |_: &[f64]| (1.0 + 5e-13, 1.0 + 5e-13);
+        assert!(check("cyl_bessel_i", &cases(-150.5, [0, 0]), actual).is_ok());
+        assert!(check("cyl_bessel_i", &cases(-150.5, [1, 2]), actual).is_ok());
+        assert!(check("cyl_bessel_i", &cases(1.0, [1, 2]), actual).is_err());
     }
 
     #[test]
