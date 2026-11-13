@@ -171,6 +171,38 @@ fn overflowed_real(ierr: i32, z: C64) -> bool {
     ierr == 2 && z.re >= 0.0 && z.im == 0.0
 }
 
+/// Whether `J_v(x) = 0` and `Y_v(x) = -inf` in f64, for real `z = x` and a finite order `v` above
+/// the AMOS limit of 2^51.
+///
+/// With `w = sqrt(1 - (x / v)^2)` and `t = v (atanh(w) - w) >= v w^3 / 3`, `|J_v(x)| <= e^-t`
+/// (DLMF 10.14.5) and `Y_v(x) ~ -e^t / sqrt(pi v w / 2)` (DLMF 10.19.3), where
+/// `e^t > f64::MAX^2` leaves room for the square root.
+fn jy_huge_order(v: f64, z: C64) -> bool {
+    let s = z.re.abs() / v;
+    let w2 = (1.0 - s) * (1.0 + s);
+    let huge = v > 0.5 / f64::EPSILON && v.is_finite();
+    huge && z.im == 0.0 && v * w2 * w2.sqrt() / 3.0 > 2.0 * MAXLOG
+}
+
+/// `amos1` of `besj`. Unlike in xsf, 0 instead of NaN for a `jy_huge_order`, with the sign of
+/// `J_v(-x) = (-1)^v J_v(x)` for an integer `v`.
+fn amos_j(z: C64, v: f64, kode: i32) -> (C64, i32) {
+    if jy_huge_order(v, z) {
+        let sign = if v % 2.0 == 1.0 { z.re } else { 1.0 };
+        return (c64(0.0_f64.copysign(sign), 0.0), 0);
+    }
+    amos1(amos::besj, z, v, kode)
+}
+
+/// `amos1` of `besy`. Unlike in xsf, an overflow (`ierr = 2`) instead of `ierr = 4` for a
+/// `jy_huge_order`.
+fn amos_y(z: C64, v: f64, kode: i32) -> (C64, i32) {
+    if jy_huge_order(v, z) {
+        return (C64::NAN, 2);
+    }
+    amos1(amos::besy, z, v, kode)
+}
+
 fn cyl_bessel_ie_c64(mut v: f64, z: C64) -> C64 {
     let kode = 2;
     let mut sign = 1;
@@ -403,9 +435,10 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
     }
 
     let je = cyl_bessel_je_c64(v, c64(x, 0.0)).re;
-    // Unlike in xsf (scipy/xsf#402), use cephes (for real x, e^-|Im x| = 1) if AMOS underflowed.
+    // Unlike in xsf (scipy/xsf#402), use the cephes fallback of J_v(x) (for real x,
+    // e^-|Im x| = 1) if AMOS underflowed.
     if amos_underflow(je, v, x) {
-        return crate::xsf::cephes::jv(v, x);
+        return cyl_bessel_j_f64(v, x);
     }
     cyl_bessel_overflow(cyl_bessel_je_c64, -1.0, v, x, je)
 }
@@ -467,7 +500,7 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         v = -v;
         sign = -1;
     }
-    let (mut cy_j, ierr) = amos1(amos::besj, z, v, kode);
+    let (mut cy_j, ierr) = amos_j(z, v, kode);
     if kode == 1 && ierr == 2 {
         /* overflow */
         cy_j = cyl_bessel_j_kode(v, z, 2);
@@ -476,7 +509,7 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     }
 
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
-        let (mut cy_y, ierr) = amos1(amos::besy, z, v, kode);
+        let (mut cy_y, ierr) = amos_y(z, v, kode);
         if overflowed_real(ierr, z) {
             cy_y = c64(f64::NEG_INFINITY, 0.0);
         }
@@ -486,7 +519,9 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
 }
 
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
-    if f64::from(v as i32) != v && x < 0.0 {
+    // Unlike in xsf, the integer test doesn't cast v to `int` (undefined behavior in C++ for
+    // |v| >= 2^31).
+    if v != v.floor() && x < 0.0 {
         return f64::NAN;
     }
 
@@ -527,7 +562,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         cy_y.im = 0.0;
     } else {
         let ierr;
-        (cy_y, ierr) = amos1(amos::besy, z, v, kode);
+        (cy_y, ierr) = amos_y(z, v, kode);
         if overflowed_real(ierr, z) {
             /* overflow */
             cy_y.re = f64::NEG_INFINITY;
@@ -536,7 +571,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     }
 
     if sign == -1 && !reflect_jy(&mut cy_y, v) {
-        let (cy_j, _) = amos1(amos::besj, z, v, kode);
+        let (cy_j, _) = amos_j(z, v, kode);
         cy_y = rotate_jy(cy_y, cy_j, -v);
     }
     cy_y

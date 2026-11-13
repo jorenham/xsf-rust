@@ -252,8 +252,60 @@ fn test_bessel_huge_order() {
         c64(-8.323_868_312_936_047e-6, 0.0),
     ];
     np_assert_allclose!(&actual, &expected, rtol = 1e-6);
-    let j = xsf::bessel_j(2_147_483_648.0, 2_149_631_131.648);
-    np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
+    // also for x < 0, as (-1)^v J_v(-x)
+    for x in [2_149_631_131.648, -2_149_631_131.648] {
+        let j = xsf::bessel_j(2_147_483_648.0, x);
+        np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
+    }
+}
+
+#[test]
+fn test_bessel_jy_huge_order_limits() {
+    // |J_v(x)| <= e^-t and Y_v(x) ~ -e^t / sqrt(pi v w / 2) for x < v, with t >= v w^3 / 3 and
+    // w^2 = 1 - (x / v)^2 (DLMF 10.14.5, 10.19.3); Arb: besselj(1e100, 5) = 1.8e-9.9e101
+    let inf = f64::INFINITY;
+    // even integers
+    for (v, x) in [
+        (2_251_799_813_685_250.0, 5.0),
+        (1e18, 9.9e17),
+        (3.162_277_660_168_379e50, 1e8),
+        (1e100, 5.0),
+    ] {
+        for (v, x) in [(v, x), (v, -x), (-v, x), (-v, -x)] {
+            assert_eq!(xsf::bessel_j(v, x), 0.0);
+            assert_eq!(xsf::bessel_je(v, x), 0.0);
+            assert_eq!(xsf::bessel_j(v, c64(x, 0.0)), c64(0.0, 0.0));
+        }
+        for v in [v, -v] {
+            assert_eq!(xsf::bessel_y(v, x), -inf);
+            assert_eq!(xsf::bessel_ye(v, x), -inf);
+            assert_eq!(xsf::bessel_y(v, c64(x, 0.0)), c64(-inf, 0.0));
+        }
+    }
+    // the odd integer 2^52 + 1: (-1)^v for -v and -x, also as the sign of the 0
+    let odd = 4_503_599_627_370_497.0;
+    assert_eq!(xsf::bessel_y(-odd, 5.0), inf);
+    for (j, negative) in [
+        (xsf::bessel_j(odd, 5.0), false),
+        (xsf::bessel_j(odd, -5.0), true),
+        (xsf::bessel_j(-odd, 5.0), true),
+        (xsf::bessel_j(-odd, -5.0), false),
+        (xsf::bessel_j(odd, -0.0), true),
+        (xsf::bessel_j(-odd, -0.0), false),
+        (xsf::bessel_je(odd, -0.0), true),
+        (xsf::bessel_je(-odd, -0.0), false),
+        (xsf::bessel_j(odd, c64(-5.0, 0.0)).re, true),
+        (xsf::bessel_je(odd, c64(-5.0, 0.0)).re, true),
+        (xsf::bessel_j(-odd, c64(-5.0, 0.0)).re, false),
+    ] {
+        assert!(j == 0.0 && j.is_sign_negative() == negative, "{j}");
+    }
+    // the half-integer 2^51 + 1/2: J_-v = -Y_v and Y_-v = J_v (DLMF 10.2.3)
+    let half = 2_251_799_813_685_248.5;
+    assert_eq!(xsf::bessel_j(-half, 5.0), inf);
+    assert_eq!(xsf::bessel_y(-half, 5.0), 0.0);
+    // Arb: besselj(3e9, -5) = 2.7e-25934660298
+    assert_eq!(xsf::bessel_j(3e9, -5.0), 0.0);
 }
 
 xsref::tests! {
