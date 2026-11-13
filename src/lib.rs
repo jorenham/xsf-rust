@@ -60,9 +60,12 @@
 //!
 //! ## Zeros of Bessel functions
 //!
-//! | Function         | Description                                                              |
-//! | ---------------- | ------------------------------------------------------------------------ |
-//! | [`bessel_zeros`] | Zeros of Bessel functions $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$ |
+//! | Function                  | Description                                                              |
+//! | ------------------------- | ------------------------------------------------------------------------ |
+//! | [`bessel_zeros`]          | Zeros of Bessel functions $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$ |
+//! | [`bessel_y0_zeros`]       | Real or complex zeros of $Y_0(z)$                                        |
+//! | [`bessel_y1_zeros`]       | Real or complex zeros of $Y_1(z)$                                        |
+//! | [`bessel_y1_prime_zeros`] | Real or complex zeros of $Y_1\'(z)$                                      |
 //!
 //! ## Faster versions of common Bessel functions
 //!

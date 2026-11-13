@@ -3,9 +3,11 @@
 
 #![allow(clippy::approx_constant)]
 
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_2_PI, PI};
 
 use super::SPECFUN_INF;
+use crate::utils::SCIPY_EULER;
+use crate::xsf::c64::{C64, c64};
 
 fn gam0(x: f64) -> f64 {
     // ================================================
@@ -45,6 +47,264 @@ fn gam0(x: f64) -> f64 {
         gr = gr * x + G[k];
     }
     1.0 / (gr * x)
+}
+
+/// `cy01`, with the outputs `(zf, zd)` returned instead
+fn cy01(kf: i32, z: C64) -> (C64, C64) {
+    // ===========================================================
+    // Purpose: Compute complex Bessel functions Y0(z), Y1(z)
+    //          and their derivatives
+    // Input :  z  --- Complex argument of Yn(z) ( n=0,1 )
+    //          KF --- Function choice code
+    //              KF=0 for ZF=Y0(z) and ZD=Y0'(z)
+    //              KF=1 for ZF=Y1(z) and ZD=Y1'(z)
+    //              KF=2 for ZF=Y1'(z) and ZD=Y1''(z)
+    // Output:  ZF --- Y0(z) or Y1(z) or Y1'(z)
+    //          ZD --- Y0'(z) or Y1'(z) or Y1''(z)
+    // ===========================================================
+
+    // Unlike in xsf, the coefficients have the exponents of the Fortran original (and of `jynbh`),
+    // which the C++ lost from the 3rd or 4th coefficient on, e.g. `a[3] = 0.607...` instead of
+    // `6.07...`, so that the zeros with `|z| > 12` had relative errors up to 1e-9.
+    #[rustfmt::skip]
+    const A: [f64; 12] = [
+        -0.703125e-01, 0.112152099609375, -0.5725014209747314, 0.6074042001273483e+01,
+        -0.1100171402692467e+03, 0.3038090510922384e+04, -0.1188384262567832e+06,
+        0.6252951493434797e+07, -0.4259392165047669e+09, 0.3646840080706556e+11,
+        -0.3833534661393944e+13, 0.4854014686852901e+15,
+    ];
+    #[rustfmt::skip]
+    const B: [f64; 12] = [
+        0.732421875e-01, -0.2271080017089844, 0.1727727502584457e+01, -0.2438052969955606e+02,
+        0.5513358961220206e+03, -0.1825775547429318e+05, 0.8328593040162893e+06,
+        -0.5006958953198893e+08, 0.3836255180230433e+10, -0.3649010818849833e+12,
+        0.4218971570284096e+14, -0.5827244631566907e+16,
+    ];
+    #[rustfmt::skip]
+    const A1: [f64; 12] = [
+        0.1171875, -0.144195556640625, 0.6765925884246826, -0.6883914268109947e+01,
+        0.1215978918765359e+03, -0.3302272294480852e+04, 0.1276412726461746e+06,
+        -0.6656367718817688e+07, 0.4502786003050393e+09, -0.3833857520742790e+11,
+        0.4011838599133198e+13, -0.5060568503314727e+15,
+    ];
+    #[rustfmt::skip]
+    const B1: [f64; 12] = [
+        -0.1025390625, 0.2775764465332031, -0.1993531733751297e+01, 0.2724882731126854e+02,
+        -0.6038440767050702e+03, 0.1971837591223663e+05, -0.8902978767070678e+06,
+        0.5310411010968522e+08, -0.4043620325107754e+10, 0.3827011346598605e+12,
+        -0.4406481417852278e+14, 0.6065091351222699e+16,
+    ];
+
+    let a0 = z.norm();
+    let mut z1 = z;
+    let z2 = z * z;
+    // The C++ returns early for `a0 == 0`, with the same outputs as below
+    let (cby0, cby1, cdy0, cdy1) = if a0 == 0.0 {
+        (
+            c64(-SPECFUN_INF, 0.0),
+            c64(-SPECFUN_INF, 0.0),
+            c64(SPECFUN_INF, 0.0),
+            c64(SPECFUN_INF, 0.0),
+        )
+    } else {
+        if z.re < 0.0 {
+            z1 = -z;
+        }
+
+        let (mut cbj0, mut cbj1, mut cby0, mut cby1);
+        if a0 <= 12.0 {
+            cbj0 = C64::ONE;
+            let mut cr = C64::ONE;
+            for k in 1..=40 {
+                cr = -0.25 * cr * z2 / f64::from(k * k);
+                cbj0 += cr;
+                if cr.norm() < cbj0.norm() * 1.0e-15 {
+                    break;
+                }
+            }
+
+            cbj1 = C64::ONE;
+            cr = C64::ONE;
+            for k in 1..=40 {
+                cr = -0.25 * cr * z2 / (f64::from(k) * (f64::from(k) + 1.0));
+                cbj1 += cr;
+                if cr.norm() < cbj1.norm() * 1.0e-15 {
+                    break;
+                }
+            }
+
+            cbj1 *= 0.5 * z1;
+            let mut w0 = 0.0;
+            cr = C64::ONE;
+            let mut cs = C64::ZERO;
+            for k in 1..=40 {
+                w0 += 1.0 / f64::from(k);
+                cr = -0.25 * cr / f64::from(k * k) * z2;
+                let cp = cr * w0;
+                cs += cp;
+                if cp.norm() < cs.norm() * 1.0e-15 {
+                    break;
+                }
+            }
+
+            cby0 = FRAC_2_PI * ((z1 / 2.0).ln() + SCIPY_EULER) * cbj0 - FRAC_2_PI * cs;
+            let mut w1 = 0.0;
+            cr = C64::ONE;
+            cs = C64::ONE;
+            for k in 1..=40 {
+                w1 += 1.0 / f64::from(k);
+                cr = -0.25 * cr / f64::from(k * (k + 1)) * z2;
+                let cp = cr * (2.0 * w1 + 1.0 / (f64::from(k) + 1.0));
+                cs += cp;
+                if cp.norm() < cs.norm() * 1.0e-15 {
+                    break;
+                }
+            }
+            cby1 = FRAC_2_PI * (((z1 / 2.0).ln() + SCIPY_EULER) * cbj1 - 1.0 / z1 - 0.25 * z1 * cs);
+        } else {
+            let mut k0 = 12;
+            if a0 >= 35.0 {
+                k0 = 10;
+            }
+            if a0 >= 50.0 {
+                k0 = 8;
+            }
+
+            let ct1 = z1 - 0.25 * PI;
+            let mut cp0 = C64::ONE;
+            for k in 1..=k0 {
+                cp0 += A[k as usize - 1] * z1.powi(-2 * k);
+            }
+            let mut cq0 = -0.125 / z1;
+            for k in 1..=k0 {
+                cq0 += B[k as usize - 1] * z1.powi(-2 * k - 1);
+            }
+
+            let cu = (FRAC_2_PI / z1).sqrt();
+            cbj0 = cu * (cp0 * ct1.cos() - cq0 * ct1.sin());
+            cby0 = cu * (cp0 * ct1.sin() + cq0 * ct1.cos());
+
+            let ct2 = z1 - 0.75 * PI;
+            let mut cp1 = C64::ONE;
+            for k in 1..=k0 {
+                cp1 += A1[k as usize - 1] * z1.powi(-2 * k);
+            }
+
+            let mut cq1 = 0.375 / z1;
+            for k in 1..=k0 {
+                cq1 += B1[k as usize - 1] * z1.powi(-2 * k - 1);
+            }
+            cbj1 = cu * (cp1 * ct2.cos() - cq1 * ct2.sin());
+            cby1 = cu * (cp1 * ct2.sin() + cq1 * ct2.cos());
+        }
+
+        if z.re < 0.0 {
+            if z.im < 0.0 {
+                cby0 -= 2.0 * C64::I * cbj0;
+            }
+            if z.im > 0.0 {
+                cby0 += 2.0 * C64::I * cbj0;
+            }
+            if z.im < 0.0 {
+                cby1 = -(cby1 - 2.0 * C64::I * cbj1);
+            }
+            if z.im > 0.0 {
+                cby1 = -(cby1 + 2.0 * C64::I * cbj1);
+            }
+            // (the C++ also negates `cbj1` here, which is not used after)
+        }
+
+        (cby0, cby1, -cby1, cby0 - 1.0 / z * cby1)
+    };
+
+    if kf == 0 {
+        (cby0, cdy0)
+    } else if kf == 1 {
+        (cby1, cdy1)
+    } else {
+        // kf == 2
+        (cdy1, -cdy1 / z - (1.0 - 1.0 / (z * z)) * cby1)
+    }
+}
+
+/// `cyzo`; `nt` is the length of `zo` and `zv`
+pub(crate) fn cyzo(kf: i32, kc: i32, zo: &mut [C64], zv: &mut [C64]) {
+    // ===========================================================
+    // Purpose : Compute the complex zeros of Y0(z), Y1(z) and
+    //           Y1'(z), and their associated values at the zeros
+    //           using the modified Newton's iteration method
+    // Input:    NT --- Total number of zeros/roots
+    //           KF --- Function choice code
+    //                  KF=0 for  Y0(z) & Y1(z0)
+    //                  KF=1 for  Y1(z) & Y0(z1)
+    //                  KF=2 for  Y1'(z) & Y1(z1')
+    //           KC --- Choice code
+    //                  KC=0 for complex roots
+    //                  KC=1 for real roots
+    // Output:   ZO(L) --- L-th zero of Y0(z) or Y1(z) or Y1'(z)
+    //           ZV(L) --- Value of Y0'(z) or Y1'(z) or Y1(z)
+    //                     at the L-th zero
+    // Routine called: CY01 for computing Y0(z) and Y1(z), and
+    //                 their derivatives
+    // ===========================================================
+
+    let nt = zo.len();
+    let mut x = 0.0;
+    let mut y = 0.0;
+    let mut h = 0.0;
+
+    if kc == 0 {
+        x = -2.4;
+        y = 0.54;
+        h = 3.14;
+    } else if kc == 1 {
+        x = 0.89;
+        y = 0.0;
+        h = -3.14;
+    }
+
+    if kf == 1 {
+        x = -0.503;
+    }
+
+    if kf == 2 {
+        x = 0.577;
+    }
+    let mut z = c64(x, y);
+    let mut w = 0.0;
+    for nr in 1..=nt {
+        if nr > 1 {
+            z = zo[nr - 2] - h;
+        }
+        let mut it = 0;
+        loop {
+            it += 1;
+            let (zf, zd) = cy01(kf, z);
+            // Unlike in xsf, the Newton step for `f(z) / prod(z - z_i)`, with the zeros `z_i` found
+            // so far, is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
+            // which overflow from the 140th zero on (that zero was inaccurate, the next ones NaN).
+            let mut zq = C64::ZERO;
+            for &zi in &zo[..nr - 1] {
+                zq += 1.0 / (z - zi);
+            }
+            z -= zf / (zd - zq * zf);
+            let w0 = w;
+            w = z.norm();
+            if !(it <= 50 && ((w - w0) / w).abs() > 1.0e-12) {
+                break;
+            }
+        }
+
+        zo[nr - 1] = z;
+    }
+
+    for (&z, v) in zo.iter().zip(zv.iter_mut()) {
+        if kf == 0 || kf == 2 {
+            *v = cy01(1, z).0;
+        } else if kf == 1 {
+            *v = cy01(0, z).0;
+        }
+    }
 }
 
 pub(crate) fn jynb(

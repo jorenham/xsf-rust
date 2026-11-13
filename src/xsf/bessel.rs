@@ -927,6 +927,87 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
     [j, jp, y, yp]
 }
 
+/// The first `N` real or complex zeros of `Y0`, `Y1` (`kf = 1`) or `Y1'` (`kf = 2`), and the
+/// values of `Y1`, `Y0` or `Y1` there
+fn cyzo<const N: usize>(kf: i32, complex: bool) -> [[Complex<f64>; N]; 2] {
+    let (mut zo, mut zv) = ([C64::ZERO; N], [C64::ZERO; N]);
+    specfun::cyzo(kf, (!complex).into(), &mut zo, &mut zv);
+    [zo.map(Into::into), zv.map(Into::into)]
+}
+
+/// Compute $N$ zeros $z_k$ of the Bessel function $Y_0(z)$, and the values $Y_1(z_k)$
+///
+/// Corresponds to [`scipy.special.y0_zeros`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y0_zeros.html
+///
+/// # Returns
+///
+/// - The real zeros $z_k > 0$ if `complex` is `false`, else the complex zeros with
+///   $\mathrm{Re}\\, z_k < 0$ and $\mathrm{Im}\\, z_k > 0$ (their conjugates are zeros as well)
+/// - The values $Y_1(z_k) = -Y_0\'(z_k)$ (the SciPy docs call them $Y_0\'(z_k)$)
+///
+/// # See also
+/// - [`bessel_y1_zeros`]: zeros of $Y_1(z)$
+/// - [`bessel_y1_prime_zeros`]: zeros of $Y_1\'(z)$
+/// - [`bessel_zeros`]: real zeros of $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$
+/// - [`bessel_y0`]: Bessel function $Y_0(x)$
+#[doc(alias = "y0_zeros", alias = "cyzo")]
+#[must_use]
+#[inline]
+pub fn bessel_y0_zeros<const N: usize>(complex: bool) -> [[Complex<f64>; N]; 2] {
+    cyzo(0, complex)
+}
+
+/// Compute $N$ zeros $z_k$ of the Bessel function $Y_1(z)$, and the values $Y_1\'(z_k)$
+///
+/// Corresponds to [`scipy.special.y1_zeros`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y1_zeros.html
+///
+/// # Returns
+///
+/// - The real zeros $z_k > 0$ if `complex` is `false`, else the complex zeros with
+///   $\mathrm{Re}\\, z_k < 0$ and $\mathrm{Im}\\, z_k > 0$ (their conjugates are zeros as well)
+/// - The values $Y_1\'(z_k) = Y_0(z_k)$
+///
+/// # See also
+/// - [`bessel_y0_zeros`]: zeros of $Y_0(z)$
+/// - [`bessel_y1_prime_zeros`]: zeros of $Y_1\'(z)$
+/// - [`bessel_zeros`]: real zeros of $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$
+/// - [`bessel_y1`]: Bessel function $Y_1(x)$
+#[doc(alias = "y1_zeros", alias = "cyzo")]
+#[must_use]
+#[inline]
+pub fn bessel_y1_zeros<const N: usize>(complex: bool) -> [[Complex<f64>; N]; 2] {
+    cyzo(1, complex)
+}
+
+/// Compute $N$ zeros $z_k$ of the derivative $Y_1\'(z)$, and the values $Y_1(z_k)$
+///
+/// Corresponds to [`scipy.special.y1p_zeros`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.y1p_zeros.html
+///
+/// # Returns
+///
+/// - The real zeros $z_k > 0$ if `complex` is `false`, else the complex zeros with
+///   $\mathrm{Im}\\, z_k > 0$, all but the first with $\mathrm{Re}\\, z_k < 0$ (their conjugates
+///   are zeros as well)
+/// - The values $Y_1(z_k)$
+///
+/// # See also
+/// - [`bessel_y0_zeros`]: zeros of $Y_0(z)$
+/// - [`bessel_y1_zeros`]: zeros of $Y_1(z)$
+/// - [`bessel_zeros`]: real zeros of $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$
+/// - [`bessel_y_prime`](crate::bessel_y_prime): derivatives of $Y_v(z)$
+#[doc(alias = "y1p_zeros", alias = "cyzo")]
+#[must_use]
+#[inline]
+pub fn bessel_y1_prime_zeros<const N: usize>(complex: bool) -> [[Complex<f64>; N]; 2] {
+    cyzo(2, complex)
+}
+
 // Hankel 1
 
 /// Hankel function of the first kind, $H_v^{(1)}(z)$

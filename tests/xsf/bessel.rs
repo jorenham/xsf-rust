@@ -1,6 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
-use num_complex::c64;
+use num_complex::{Complex64, c64};
 use xsref::np_assert_allclose;
 
 xsref::tests! {
@@ -711,6 +711,49 @@ fn test_bessel_zeros_large_v() {
     // no `int` overflow of `k * k` in `jynbh`, or in `msta1` and `msta2`
     let _ = xsf::bessel_zeros::<1>(40_000);
     assert!(xsf::bessel_zeros::<1>(u32::MAX)[0][0].is_nan());
+}
+
+/// Checks `f(z_k) = 0` and `g(z_k) = v_k` for the real and complex zeros `z_k` and values `v_k`
+fn check_y_zeros(
+    zeros: impl Fn(bool) -> [[Complex64; 20]; 2],
+    f: impl Fn(Complex64) -> Complex64,
+    g: impl Fn(Complex64) -> Complex64,
+) {
+    for complex in [false, true] {
+        let [z, v] = zeros(complex);
+        np_assert_allclose!(&z.map(&f), &[c64(0.0, 0.0); 20], atol = 5e-12);
+        np_assert_allclose!(&z.map(&g), &v, rtol = 1e-11);
+    }
+}
+
+/// Based on `scipy.special.tests.test_basic.TestBessel.test_y0_zeros`
+#[test]
+fn test_bessel_y_zeros() {
+    let y0 = |z| xsf::bessel_y(0.0, z);
+    let y1 = |z| xsf::bessel_y(1.0, z);
+    let y1p = |z| xsf::bessel_y_prime(1.0, z, 1);
+    check_y_zeros(xsf::bessel_y0_zeros, y0, y1);
+    check_y_zeros(xsf::bessel_y1_zeros, y1, y0);
+    check_y_zeros(xsf::bessel_y1_prime_zeros, y1p, y1);
+
+    assert_eq!(xsf::bessel_y0_zeros::<0>(false), [[]; 2]);
+}
+
+#[test]
+fn test_bessel_y_zeros_mpmath() {
+    // mpmath.findroot(lambda z: mpmath.bessely(0, z), z0), and bessely(1, z) there
+    let [z, v] = xsf::bessel_y0_zeros::<5>(false);
+    let (zr, vr) = (13.361_097_473_872_763, -0.218_358_296_597_671_34);
+    // in SciPy 1.18.1: 13.361097493, with relative error 1.4e-9
+    np_assert_allclose!(&[z[4].re], &[zr], rtol = 1e-13);
+    np_assert_allclose!(&[v[4].re], &[vr], rtol = 1e-12);
+
+    // the 200th zero, which is NaN in SciPy 1.18.1
+    let [z, v] = xsf::bessel_y1_zeros::<200>(true);
+    let zr = c64(-625.961_737_150_745_7, 0.549_306_670_047_127_9);
+    let vr = c64(2.423_609_448_416_835e-5, -0.055_236_539_410_424_08);
+    np_assert_allclose!(&[z[199]], &[zr], rtol = 1e-14);
+    np_assert_allclose!(&[v[199]], &[vr], rtol = 1e-14);
 }
 
 #[test]
