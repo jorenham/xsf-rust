@@ -1526,7 +1526,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let jmin = (b - 1.0).abs();
     let jconv = if b < 1.0 { jmin + x } else { jmin };
     for j in 1..151 {
-        // Unlike in xsf, `b + (j - 1)` instead of `b + j - 1` (see `kummer_term`)
+        // Unlike in xsf (scipy/xsf#533), `b + (j - 1)` instead of `b + j - 1` (see `kummer_term`)
         r1 = kummer_term(r1, a, b, j) * x;
         r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
         hu += r1 - r2;
