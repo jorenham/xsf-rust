@@ -822,3 +822,43 @@ fn test_hyp2f1_f64_large_polynomials() {
     );
     np_assert_allclose!([actual], [6.322_565_669_978_735e124], rtol = 1e-14);
 }
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials_fallback() {
+    // unlike in xsf: the result of `hyp2f1_recur` above its tolerance if the other methods are
+    // worse, e.g. these were -2.17e161, -9.14e10, -3.46e71 and 1.3151516683e7 (references: Arb)
+    let args = [
+        (
+            -578.0,
+            43.025_054_517_833_25,
+            -211.365_284_520_633_9,
+            -0.069_048_681_694_701_13,
+        ),
+        (
+            -155.0,
+            -13.114_295_459_606_085,
+            -268.184_224_512_442_7,
+            -5.777_086_149_646_716,
+        ),
+        (
+            -405.0,
+            284.751_961_714_356_3,
+            -356.779_446_566_434_4,
+            -0.159_163_126_801_461_27,
+        ),
+        (
+            -102.0,
+            -11.303_623_418_304_845,
+            -173.188_097_441_151_14,
+            -5.633_877_370_886_577,
+        ),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        6.286_253_119_942_306e-4,
+        -5_907_450_570.238_56,
+        3.872_322_967_067_562_6e-21,
+        13_151_516.340_537_345,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}

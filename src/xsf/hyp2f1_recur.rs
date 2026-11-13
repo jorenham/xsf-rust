@@ -70,7 +70,8 @@
 //!    `c + 1` and `c + 2` hardly differ from `F(a, b; c; x)`, and in our tests improved the bound
 //!    at most 15-fold.
 //!
-//! Finally, return the result with the smallest error bound, if that is at most `HYP2F1_RECUR_TOL`.
+//! Finally, return the result with the smallest error bound, which is too large if it exceeds
+//! `HYP2F1_RECUR_TOL`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
 //! is tiny, and so are `s ln(1 - x)` and the `ln Gamma` of the transformations. The values are
@@ -102,7 +103,7 @@ use crate::xsf::trig::{cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
-const HYP2F1_RECUR_TOL: f64 = 1e-10;
+pub(crate) const HYP2F1_RECUR_TOL: f64 = 1e-10;
 
 /// The largest error bound of steps 1 to 5 for which step 6 also tries the forms with
 /// `c > max(0, q)` (empirical)
@@ -809,9 +810,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
     }))
 }
 
-/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs), or `None` if the
-/// estimated relative error is too large.
-pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
+/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs) and its error bound, which
+/// is too large if it exceeds `HYP2F1_RECUR_TOL`.
+pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<(f64, f64)> {
     // (beyond 1e15, the coefficients of the recurrence can overflow)
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
@@ -824,13 +825,13 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     if !(err <= HYP2F1_RECUR_TOL) {
         best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
-    let y = fold_exp(best.filter(|y| y.err <= HYP2F1_RECUR_TOL)?);
-    Some(ldexp_f64(y.m, y.e))
+    let y = fold_exp(best?);
+    Some((ldexp_f64(y.m, y.e), y.err))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Dd, Scaled, coefs_c, hyp2f1_recur, recur_down};
+    use super::{Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, hyp2f1_recur, recur_down};
 
     #[test]
     fn test_recur_down_start_errors() {
@@ -853,9 +854,9 @@ mod tests {
             (1e-150, 1e-200, -1000.5, 0.8, -5.767_096_442_064_845e249),
             (1e-140, 1e-180, -1000.5, 0.8, -5.767_096_442_064_845e279),
         ] {
-            let actual = hyp2f1_recur(a, b, c, x);
+            let actual = hyp2f1_recur(a, b, c, x).filter(|&(_, err)| err <= HYP2F1_RECUR_TOL);
             assert!(
-                actual.is_none_or(|y| (y / desired - 1.0).abs() < 1e-10),
+                actual.is_none_or(|(y, _)| (y / desired - 1.0).abs() < 1e-10),
                 "{actual:?} != {desired}"
             );
         }
