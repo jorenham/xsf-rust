@@ -30,6 +30,33 @@ pub fn prolate_segv(m: u64, n: u64, c: f64) -> f64 {
     segv(m, n, c, 1).unwrap_or(f64::NAN)
 }
 
+/// Characteristic values of the prolate spheroidal functions for modes `m..=n`
+///
+/// Corresponds to [`scipy.special.pro_cv_seq`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pro_cv_seq.html
+///
+/// # Arguments
+/// - `m`, `n`: Mode parameters ($n \ge m$)
+/// - `c`: Spheroidal parameter
+///
+/// # Returns
+/// - Vector of length `n - m + 1` with the characteristic values for modes $m, \dots, n$; its
+///   last element equals [`prolate_segv`]`(m, n, c)`
+///
+/// # Panics
+/// - if `n < m` or `n - m > 199`
+///
+/// # See also
+/// - [`prolate_segv`]: Characteristic value of prolate spheroidal function
+/// - [`oblate_segv_seq`]: Characteristic values of oblate spheroidal functions
+#[doc(alias = "pro_cv_seq")]
+#[inline]
+#[must_use]
+pub fn prolate_segv_seq(m: u64, n: u64, c: f64) -> Vec<f64> {
+    segv_seq(m, n, c, 1)
+}
+
 /// Characteristic value of oblate spheroidal function
 ///
 /// Corresponds to [`scipy.special.obl_cv`][scipy].
@@ -53,6 +80,33 @@ pub fn oblate_segv(m: u64, n: u64, c: f64) -> f64 {
         return f64::NAN;
     }
     segv(m, n, c, -1).unwrap_or(f64::NAN)
+}
+
+/// Characteristic values of the oblate spheroidal functions for modes `m..=n`
+///
+/// Corresponds to [`scipy.special.obl_cv_seq`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.obl_cv_seq.html
+///
+/// # Arguments
+/// - `m`, `n`: Mode parameters ($n \ge m$)
+/// - `c`: Spheroidal parameter
+///
+/// # Returns
+/// - Vector of length `n - m + 1` with the characteristic values for modes $m, \dots, n$; its
+///   last element equals [`oblate_segv`]`(m, n, c)`
+///
+/// # Panics
+/// - if `n < m` or `n - m > 199`
+///
+/// # See also
+/// - [`oblate_segv`]: Characteristic value of oblate spheroidal function
+/// - [`prolate_segv_seq`]: Characteristic values of prolate spheroidal functions
+#[doc(alias = "obl_cv_seq")]
+#[inline]
+#[must_use]
+pub fn oblate_segv_seq(m: u64, n: u64, c: f64) -> Vec<f64> {
+    segv_seq(m, n, c, -1)
 }
 
 /// Prolate spheroidal angular function of the 1st kind and its derivative
@@ -424,18 +478,35 @@ fn out_of_bounds(m: f64, n: f64, c: f64, lo: f64, hi: f64) -> bool {
     !(lo < h + c && h + c.max(0.0) < hi) || m >= 1e8
 }
 
-/// `specfun::segv`, or `None` if an allocation fails
-fn segv(m: f64, n: f64, c: f64, kd: i32) -> Option<f64> {
+/// `specfun::segv`, returning `eg[..=n-m]`, or `None` if an allocation fails
+fn segv_all(m: f64, n: f64, c: f64, kd: i32) -> Option<Vec<f64>> {
+    let len = (n - m + 1.0) as usize;
     // `nm = 10 + (int)(0.5 (n - m) + c)` indexes buffers of size 300
     if out_of_bounds(m, n, c, -1e9, 291.0) {
-        return Some(f64::NAN);
+        return Some(vec![f64::NAN; len]);
     }
     let int_m = m as i32;
     let int_n = n as i32;
-    let mut eg = try_zeroed((n - m + 2.0) as usize)?;
+    let mut eg = try_zeroed(len + 1)?;
     let mut cv = 0.0;
     let status = specfun::segv(int_m, int_n, c, kd, &mut cv, &mut eg);
-    (status != Status::NoMemory).then_some(cv)
+    eg.truncate(len);
+    (status != Status::NoMemory).then_some(eg)
+}
+
+/// `specfun::segv`'s `cv`, i.e. the last element of `eg`
+fn segv(m: f64, n: f64, c: f64, kd: i32) -> Option<f64> {
+    segv_all(m, n, c, kd)?.last().copied()
+}
+
+/// Characteristic values of the spheroidal functions for `n' = m..=n`
+fn segv_seq(m: u64, n: u64, c: f64, kd: i32) -> Vec<f64> {
+    // a `ValueError` in SciPy
+    assert!(n >= m && n - m <= 199, "n - m must be in 0..=199");
+    // NaN if an allocation fails, and the exact length where m, n >= 2^53 round
+    let mut eg = segv_all(m as f64, n as f64, c, kd).unwrap_or_default();
+    eg.resize((n - m) as usize + 1, f64::NAN);
+    eg
 }
 
 /// `specfun::aswfa`, i.e. `prolate_aswfa` (`kd = 1`) or `oblate_aswfa` (`kd = -1`)
