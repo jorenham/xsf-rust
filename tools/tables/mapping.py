@@ -596,6 +596,64 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     )
 
 
+def _bessel_v() -> dict[tuple[str, str], Entry]:
+    """The tables of J_v, Y_v, e^-|x| I_v, and e^x K_v of real order v (J_v and Y_v are not
+    scaled for real x)."""
+
+    def j(v: mp.mpf, x: mp.mpf) -> Value:
+        """(-1)^v J_v(|x|) for x < 0 and an integer v, with the Bessel modulus as error scale
+        like `specs.r_jv`."""
+        with specs.wdps(specs.xd(v, x)):
+            j = mp.besselj(v, abs(x)) * (-1 if x < 0 and v % 2 else 1)
+            return specs._osc(j, v, abs(x))
+
+    def ie(v: flint.arb, x: flint.arb) -> flint.arb:
+        return x.bessel_i(v) * (-abs(x)).exp()
+
+    def ke(v: flint.arb, x: flint.arb) -> flint.arb:
+        return x.bessel_k(v, scaled=True)
+
+    def entry(
+        f: str,
+        ref: Callable[[mp.mpf, mp.mpf], Value],
+        arb: Arb,
+        *rules: Rule,
+    ) -> tuple[tuple[str, str], Entry]:
+        func = f"bessel_{f}"
+        return (f"cyl_{func}", "d_d-d"), Entry((Out(func, (ref,), (arb,), rules),))
+
+    def not_real(f: str) -> Rule:
+        return Rule(
+            lambda a: a[1] < 0 and not a[0].is_integer(),
+            math.nan,
+            f"{f} is not real for x < 0 and a non-integer v",
+        )
+
+    def cut(f: str) -> Rule:
+        return Rule(
+            lambda a: a[1] < 0,
+            math.nan,
+            f"{f} has a branch cut along the negative real axis",
+        )
+
+    return dict(
+        [
+            entry("je", j, specs.ARB["bessel_j"], not_real("J_v")),
+            entry("ye", specs.r_yv, specs.ARB["bessel_y"], cut("Y_v")),
+            entry("ie", specs.r_ie, ie, not_real("I_v")),
+            entry(
+                "ke",
+                specs.r_ke,
+                ke,
+                cut("K_v"),
+                Rule(
+                    lambda a: a[1] == 0, math.inf, "the limit for x -> 0+, at x = +-0"
+                ),
+            ),
+        ]
+    )
+
+
 def _of_abs(f: Callable[[flint.arb], flint.arb]) -> Callable[[flint.arb], flint.arb]:
     """`f` of |x| with `EXP_SQUARE_BITS` more bits, like `specs.r_ci` and `specs.r_chi`."""
 
@@ -1779,6 +1837,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("round", "d-d"): _real("round", mp.nint, _round_arb),
     **_bessel(0),
     **_bessel(1),
+    **_bessel_v(),
     ("exp1", "d-d"): _real(
         "exp1",
         specs.r_exp1,
