@@ -70,3 +70,15 @@ fn test_wright_bessel_peak() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 }
+
+#[test]
+fn test_wright_bessel_asymptotic() {
+    // unlike in xsf, the series around the maximum term just above Z = 14 + b^2 / (2 (1 + a)) (Arb)
+    let abx = [(0.5, 10.0, 709.782_712_893_384_1), (4.0, 1.0, 224_388.0)];
+    let actual = abx.map(|(a, b, x)| xsf::wright_bessel(a, b, x));
+    let expected = [
+        2.680_788_404_494_657e48, // was 8.1e-8 off
+        11_866_812.621_349_995,   // was 1.5e-6 off
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
