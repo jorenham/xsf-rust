@@ -23,6 +23,9 @@ xsref::tests! {
     test_prolate_radial2_nocv: "prolate_radial2_nocv", "d_d_d_d-d_d", |x| {
         xsf::prolate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
     };
+    test_oblate_radial2_nocv: "oblate_radial2_nocv", "d_d_d_d-d_d", |x| {
+        xsf::oblate_radial2_nocv(x[0] as u64, x[1] as u64, x[2], x[3])
+    };
     test_prolate_aswfa: "prolate_aswfa", "d_d_d_d_d-d_d", |x| {
         xsf::prolate_aswfa(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
     };
@@ -38,6 +41,9 @@ xsref::tests! {
     test_prolate_radial2: "prolate_radial2", "d_d_d_d_d-d_d", |x| {
         xsf::prolate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
     };
+    test_oblate_radial2: "oblate_radial2", "d_d_d_d_d-d_d", |x| {
+        xsf::oblate_radial2(x[0] as u64, x[1] as u64, x[2], x[3], x[4])
+    };
 }
 
 #[test]
@@ -47,8 +53,6 @@ fn test_prolate_radial1_nocv_out_of_bounds() {
     assert!(r1f.is_nan() && r1d.is_nan());
 }
 
-// The xsref `oblate_radial2` cases are computed with scipy, which has the `qstar` and `gmn`
-// bugs that are fixed in xsf-rust.
 #[test]
 fn test_oblate_radial2_wronskian() {
     // `R1 R2' - R1' R2 = 1 / (c (x^2 + 1))`
