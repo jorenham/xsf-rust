@@ -2123,6 +2123,52 @@ VOIGT_RULES: Final = (
 )
 
 
+def _wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
+    """Phi(a, b; x) for a, b, x >= 0: exp(x) / Gamma(b) for a = 0, else the power series with
+    a ball for the tail.
+
+    The ratio of consecutive terms decreases, since Gamma(y + a) / Gamma(y) increases in y,
+    so the tail after a term t with a ratio r <= 1/2 is at most t r / (1 - r) <= t."""
+    if x == 0:
+        return b.rgamma()
+    if a == 0:
+        return x.exp() * b.rgamma()
+    prec = flint.ctx.prec
+    s, power, k = flint.arb(0), flint.arb(1), 0
+    while True:
+        term = power * (a * k + b).rgamma()
+        s += term
+        k += 1
+        power *= x / k
+        if k > 1 and term < s * 2 ** (1 - prec):
+            ratio = power * (a * k + b).rgamma() / term
+            if ratio < 0.5:
+                return s + flint.arb(0, term)
+
+
+def _log_wright_bessel_arb(a: flint.arb, b: flint.arb, x: flint.arb) -> flint.arb:
+    return _wright_bessel_arb(a, b, x).log()
+
+
+def _log_wright_bessel(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_log_wright_bessel`, with ln Phi = x - ln Gamma(b) for a = 0."""
+    if a == 0 and x > 0:
+        return x + mp.log(mp.rgamma(b))
+    return specs.r_log_wright_bessel(a, b, x)
+
+
+def _wright_bessel(a: mp.mpf, b: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_wright_bessel`, with exp(x) / Gamma(b) for a = 0."""
+    if a == 0 and x > 0:
+        return mp.exp(x) * mp.rgamma(b)
+    return specs.r_wright_bessel(a, b, x)
+
+
+WRIGHT_DOMAIN: Final = Rule(
+    lambda a: min(a) < 0, math.nan, "only a, b, x >= 0 are supported, like in xsf"
+)
+
+
 def _voigt_arb(x: flint.arb, sigma: flint.arb, gamma: flint.arb) -> flint.arb:
     """Re w(z) / (sigma sqrt(2 pi)), with z = (x + i gamma) / (sigma sqrt(2)); the limits for
     sigma = 0 and gamma = 0 like `_voigt`."""
@@ -2177,6 +2223,119 @@ def _iv_ratio_ball(v: flint.arb, x: flint.arb) -> flint.arb:
 def _iv_ratio_c_ball(v: flint.arb, x: flint.arb) -> flint.arb:
     return 1 - _iv_ratio_ball(v, x)
 
+
+def _wright_asymptotic(a: float, b: float, x: float) -> bool:
+    """Whether xsf evaluates the asymptotic expansion, which needs a < 5 here."""
+    return (a * x) ** (1 / (1 + a)) >= 14 + b * b / (2 * (1 + a))
+
+
+WRIGHT_NAN: Final = Override(
+    lambda a: (
+        0.5 <= a[0] <= 1.8
+        and 100 <= a[1] < math.inf
+        and 1e5 <= a[2] < math.inf
+        and not _wright_asymptotic(*a)
+    ),
+    "xsf returns NaN for 1/2 <= a <= 9/5, b >= 100, x >= 10^5, where the asymptotic expansion "
+    "does not apply",
+)
+
+
+def _wright_series(a: float, b: float, x: float) -> bool:
+    """Whether `wright_bessel` in xsf-rust gets past its special cases and its series for a
+    small a or x <= 2 (the `rgamma_zero` and `EXP_INF` constants of xsf)."""
+    return (
+        0 < a < 178.47241115886637
+        and 0 <= b < 178.47241115886637
+        and 2 < x < math.inf
+        and not (a <= 1e-3 and b <= 50 and x <= 9)
+        and not (a <= 1e-4 and b <= 70 and x <= 100)
+        and not (a <= 1e-5 and b <= 170 and x < 709.7827128933841)
+    )
+
+
+def _wright_peak(a: float, b: float, x: float) -> bool:
+    """Whether `wright_bessel` in xsf-rust sums the terms around the maximum term for a < 5."""
+    if not (_wright_series(a, b, x) and a < 5):
+        return False
+    z = (a * x) ** (1 / (1 + a))
+    return (
+        z / a <= 1e8
+        and z < 14 * (1 + a) + 4 * b * b / (1 + a)
+        and (b >= 80 or (z >= 10 and x >= 200))
+    )
+
+
+def _wright_integral(a: float, b: float, x: float) -> bool:
+    """Whether `wright_bessel` in xsf-rust evaluates the integral representation."""
+    if not (_wright_series(a, b, x) and a < 5) or _wright_peak(a, b, x):
+        return False
+    z = (a * x) ** (1 / (1 + a))
+    beyond = z / a > 1e8 or z >= 14 * (1 + a) + 4 * b * b / (1 + a)
+    return not (_wright_asymptotic(a, b, x) and beyond)
+
+
+WRIGHT_FLOORS: Final = (
+    Floor(
+        lambda a: _wright_series(*a) and a[0] >= 5,
+        8e-16,
+        "for a >= 5, xsf-rust centers the series on the maximum term including b, and sizes it "
+        "by the spread of the terms",
+    ),
+    Floor(
+        lambda a: _wright_peak(*a),
+        5e-14,
+        "for large b, or large Z and x, or Z near xsf's threshold of the asymptotic expansion, "
+        "xsf-rust sums the terms around the maximum term instead",
+    ),
+    Floor(
+        lambda a: _wright_integral(*a),
+        7e-16,
+        "the error of the integral representation depends on the platform's libm (2.66e-15 at "
+        "(4.999, 1e-10, 9.999999999999778) on macOS)",
+    ),
+)
+
+
+def _wright_wrong(why: str, *points: tuple[float, float, float]) -> Override:
+    """At these inputs (found from the tables), xsf is wrong."""
+    return Override(lambda a: a in points, why)
+
+
+WRIGHT_OVERRIDES: Final = (
+    WRIGHT_NAN,
+    _wright_wrong(
+        "xsf's quadrature of the integral representation has a relative error of 5e-8",
+        (0.5, 100.0, 1000.0),
+    ),
+    _wright_wrong(
+        "xsf's asymptotic expansion has a relative error of 8e-8 (its source says up to 1e-7)",
+        (0.5, 10.0, 709.7827128933841),
+    ),
+)
+
+LOG_WRIGHT_OVERRIDES: Final = (
+    WRIGHT_NAN,
+    _wright_wrong(
+        "xsf returns NaN, where its quadrature of the integral representation fails",
+        (0.001, 100.0, 1e5),
+    ),
+    _wright_wrong(
+        "xsf's quadrature of the integral representation has a relative error of 4e-4",
+        (0.001, 50.0, 1e5),
+    ),
+    _wright_wrong(
+        "xsf takes the ln of a series that rounds to about 1 + 1e-10, without ln_1p",
+        (10.0, 1.0, 1e-3),
+        (10.0, 2.0, 1e-3),
+    ),
+    _wright_wrong(
+        "xsf's Taylor series around the maximum term is off by up to 1e-4 for a = 5, b = 100, "
+        "x >= 1e12",
+        (5.0, 100.0, 1e12),
+        (5.0, 100.0, 1e20),
+    ),
+)
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
@@ -2933,6 +3092,38 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (specs.r_iv_ratio_c,),
                 (_precise(_sums_exact(_iv_ratio_c_ball)),),
                 _iv_ratio_rules(True),
+            ),
+        )
+    ),
+    ("wright_bessel", "d_d_d-d"): Entry(
+        (
+            Out(
+                "wright_bessel",
+                (_wright_bessel,),
+                (_wright_bessel_arb,),
+                (WRIGHT_DOMAIN,),
+                WRIGHT_OVERRIDES,
+                WRIGHT_FLOORS,
+            ),
+        )
+    ),
+    ("log_wright_bessel", "d_d_d-d"): Entry(
+        (
+            Out(
+                "log_wright_bessel",
+                (_log_wright_bessel,),
+                (_log_wright_bessel_arb,),
+                (
+                    WRIGHT_DOMAIN,
+                    Rule(
+                        lambda a: (
+                            a[1] == 0 and (a[0] == 0 or a[2] == 0) and min(a) >= 0
+                        ),
+                        -math.inf,
+                        "Phi(a, 0; x) = 0 for a = 0 or x = 0",
+                    ),
+                ),
+                LOG_WRIGHT_OVERRIDES,
             ),
         )
     ),
