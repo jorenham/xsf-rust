@@ -410,6 +410,81 @@ def _real(
     return Entry((Out(func, (ref,), (arb,), rules, overrides),))
 
 
+def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
+    """S (i = 0) or C (i = 1) with the normalization of scipy."""
+    return _exp_square(lambda x: (x.fresnel_s, x.fresnel_c)[i](normalized=True))
+
+
+FRESNEL_RULES: Final = (
+    NAN,
+    Rule(lambda a: a[0] == math.inf, 0.5, "the limit of S and C for x -> +inf"),
+    Rule(lambda a: a[0] == -math.inf, -0.5, "the limit of S and C for x -> -inf"),
+)
+
+
+OWENS_T_H_INF: Final = (
+    Rule(
+        lambda a: abs(a[0]) == math.inf and a[1] >= 0,
+        0.0,
+        "T(h, a) -> 0 for |h| -> inf and a >= 0 (+-0 included)",
+    ),
+    Rule(
+        lambda a: abs(a[0]) == math.inf and a[1] < 0,
+        -0.0,
+        "T(h, a) -> -0 for |h| -> inf and a < 0 (odd in a)",
+    ),
+)
+# above this H = h^2 / 2 (or a^2 H for a > 1, after the argument reduction), Owen's series
+# returns 0 instead of the tiny result, because it needs too many digits for its cancellation
+OWENS_T_SERIES_H: Final = 2000
+# for a > 1 the series drops T(a h, 1 / a) ~ exp(-a^2 H), which is negligible relative to
+# T ~ exp(-H) from (a^2 - 1) H of this on (exp(-100) < 1e-43)
+OWENS_T_DROPPED_H: Final = 100
+
+
+def _owens_t(h: mp.mpf, a: mp.mpf) -> mp.mpf:
+    """`specs.r_owens_t`, also for a = +-inf (T = sign(a) Phi(-|h|) / 2), and by quadrature
+    where its series would return 0 although the result is not negligible."""
+    if abs(a) == mp.inf:
+        return mp.sign(a) * mp.ncdf(-abs(h)) / 2
+    big_h = h * h / 2
+    dropped = big_h * (a * a - 1)
+    if big_h * max(a * a, 1) <= OWENS_T_SERIES_H or dropped >= OWENS_T_DROPPED_H:
+        return specs.r_owens_t(h, a)
+    # T = exp(-H) int_0^(a sqrt(H)) exp(-s^2) / (1 + s^2 / H) ds / (2 pi sqrt(H)), where
+    # exp(-s^2) is negligible beyond s = 40
+    top = min(abs(a) * mp.sqrt(big_h), mp.mpf(40))
+
+    def integrand(s: mp.mpf) -> mp.mpf:
+        return mp.exp(-s * s) / (1 + s * s / big_h)
+
+    def scaled(u: mp.mpf) -> mp.mpf:
+        return integrand(top * u)
+
+    # (over [0, 1] for top < 1, where the absolute tolerance of `mp.quad` would stop it early)
+    f = (
+        top * mp.quad(scaled, [0, 1])
+        if top < 1
+        else mp.quad(integrand, [0, *range(1, int(top))[::2], top])
+    )
+    return mp.sign(a) * mp.exp(-big_h) * f / (2 * mp.pi * mp.sqrt(big_h))
+
+
+def _owens_t_arb(h: flint.arb, a: flint.arb) -> flint.arb:
+    """T(h, a) = exp(-H) int_0^a exp(-H t^2) / (1 + t^2) dt / (2 pi) for H = h^2 / 2, whose
+    integral has no tiny absolute tolerance to miss for a large H."""
+    if not a.is_finite():
+        return a.sgn() * (abs(h) / flint.arb(2).sqrt()).erfc() / 4
+    big_h = h * h / 2
+
+    def integrand(t: flint.acb, _analytic: bool) -> flint.acb:
+        return (-big_h * t * t).exp() / (1 + t * t)
+
+    return (
+        (-big_h).exp() * flint.acb.integral(integrand, 0, a).real / (2 * flint.arb.pi())
+    )
+
+
 def _log1pmx(x: mp.mpf) -> mp.mpf:
     """`specs.r_log1pmx`, whose series does not end at x = 0."""
     return x if x == 0 else specs.r_log1pmx(x)
@@ -1363,6 +1438,15 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **{(name, "d-d"): Entry((_kelvin_out(kind),)) for kind, name in enumerate(KELVIN)},
     ("kelvin", "d-cd_cd_cd_cd"): Entry(tuple(_kelvin_complex_out(j) for j in range(4))),
     ("airy", "d-d_d_d_d"): Entry(tuple(_airy_out(i) for i in range(4))),
+    ("fresnel", "d-d_d"): Entry(
+        (
+            Out("fresnel.0", (specs.r_fresnel_s,), (_fresnel_arb(0),), FRESNEL_RULES),
+            Out("fresnel.1", (specs.r_fresnel_c,), (_fresnel_arb(1),), FRESNEL_RULES),
+        )
+    ),
+    ("owens_t", "d_d-d"): _real(
+        "owens_t", _owens_t, _owens_t_arb, (NAN, *OWENS_T_H_INF)
+    ),
     ("expm1", "d-d"): _real(
         "expm1", specs.r_expm1, flint.arb.expm1, _limits(-1, math.inf)
     ),
