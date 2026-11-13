@@ -332,6 +332,72 @@ def _radian_arb(d: flint.arb, m: flint.arb, s: flint.arb) -> flint.arb:
     return (d + m / 60 + s / 3600) * flint.arb.pi() / 180
 
 
+ZETA_POLE: Final = Rule(
+    lambda a: a[0] == 1,
+    math.inf,
+    "the pole at x = 1, as +inf like in xsf (the limit for x -> 1- is -inf)",
+)
+
+
+def _zetac_arb(x: flint.arb) -> flint.arb:
+    """zeta(x, 2) = zeta(x) - 1, without the cancellation for large x."""
+    return x.zeta(2)
+
+
+def _round_arb(x: flint.arb) -> flint.arb:
+    """Python's `round`, which also rounds half to even, of the exact f64 input."""
+    return flint.arb(round(float(x)))
+
+
+ODD_AT_ZERO: Final = Rule(
+    lambda a: a[0] == 0 and math.copysign(1, a[0]) > 0, 0.0, "f(+0) = +0 for an odd f"
+)
+
+
+def _bessel(n: int) -> dict[tuple[str, str], Entry]:
+    """The tables of J_n, Y_n, I_n, e^-|x| I_n, K_n, and e^x K_n."""
+
+    def j(x: mp.mpf) -> Value:
+        """J_n(x), scaled by the Bessel modulus like `specs.r_jv` (at |x|: J_n is even or odd)."""
+        return specs._osc(mp.besselj(n, x), n, abs(x))
+
+    def at_n(f: Callable[[int, mp.mpf], Value]) -> Callable[[mp.mpf], Value]:
+        return lambda x: f(n, x)
+
+    def ie(x: flint.arb) -> flint.arb:
+        return x.bessel_i(n) * (-abs(x)).exp()
+
+    def ke(x: flint.arb) -> flint.arb:
+        return x.bessel_k(n, scaled=True)
+
+    def cut(f: str) -> tuple[Rule, ...]:
+        why = f"{f}_{n} has a branch cut along the negative real axis"
+        return (Rule(lambda a: a[0] < 0, math.nan, why),)
+
+    def entry(
+        f: str,
+        ref: Callable[[mp.mpf], Value],
+        rules: tuple[Rule, ...],
+        arb: Arb | None = None,
+    ) -> tuple[tuple[str, str], Entry]:
+        """The table of `f` ("j", "ie", ...), with the Arb version of `specs.ARB` by default."""
+        func = f"bessel_{f[0]}{n}{f[1:]}"
+        out = Out(func, (ref,), (arb or specs.ARB[func],), rules)
+        return (f"cyl_{func}", "d-d"), Entry((out,))
+
+    odd = (ODD_AT_ZERO,) if n else ()
+    return dict(
+        [
+            entry("j", j, odd),
+            entry("y", at_n(specs.r_yv), cut("Y")),
+            entry("i", at_n(specs.r_iv), odd),
+            entry("ie", at_n(specs.r_ie), odd, ie),
+            entry("k", at_n(specs.r_kv), cut("K")),
+            entry("ke", at_n(specs.r_ke), cut("K"), ke),
+        ]
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -614,4 +680,34 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         ),
     ),
     ("radian", "d_d_d-d"): Entry((Out("radian", (specs.r_radian,), (_radian_arb,)),)),
+    ("riemann_zeta", "d-d"): _real(
+        "riemann_zeta",
+        specs.r_riemann_zeta,
+        flint.arb.zeta,
+        (
+            NAN,
+            Rule(lambda a: a[0] == math.inf, 1.0, "the limit for x -> +inf"),
+            Rule(
+                lambda a: a[0] < 0 and a[0] % 2 == 0,
+                0.0,
+                "the trivial zeros at x = -2, -4, ..., as +0 like in xsf",
+            ),
+        ),
+    ),
+    ("zetac", "d-d"): _real(
+        "zetac",
+        specs.r_zetac,
+        _zetac_arb,
+        (
+            NEG_INF,
+            Rule(lambda a: a[0] == math.inf, 0.0, "the limit for x -> +inf"),
+            ZETA_POLE,
+        ),
+    ),
+    ("zeta", "d_d-d"): _real(
+        "zeta", specs.r_hurwitz_zeta, flint.arb.zeta, (ZETA_POLE,)
+    ),
+    ("round", "d-d"): _real("round", mp.nint, _round_arb),
+    **_bessel(0),
+    **_bessel(1),
 }
