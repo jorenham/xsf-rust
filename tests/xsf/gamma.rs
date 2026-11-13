@@ -44,6 +44,43 @@ fn test_gammainc_large_a() {
 }
 
 #[test]
+fn test_gammainc_large_a_tails() {
+    // unlike in xsf (scipy/scipy#26535): accurate for |x - a| > 0.4 a, where these were ~2e-11 off
+    // (mpmath, Arb)
+    for (a, x, expected) in [
+        (
+            4_539.614_661_308_867,
+            2_638.637_810_126_278_5,
+            1.053_583_186_114_541_3e-246,
+        ),
+        (
+            5_965.501_074_765_158,
+            3_523.337_672_155_038_5,
+            2.834_471_063_272_162_8e-306,
+        ),
+        (
+            4_532.911_009_098_821,
+            2_712.174_570_596_431_7,
+            6.239_827_729_196_435e-223,
+        ),
+        (
+            4_600.020_859_664_592_5,
+            2_684.110_636_552_072_3,
+            1.001_757_841_288_208e-246,
+        ),
+    ] {
+        let actual = xsf::gammainc(a, x);
+        assert!(
+            (actual / expected - 1.0).abs() < 3e-13,
+            "{actual:e} != {expected:e}"
+        );
+    }
+    let q = xsf::gammaincc(4_757.294_281_037_745, 7_144.513_767_033_158);
+    let expected = 3.186_365_208_226_036_4e-199; // was 1.4e-11 off
+    assert!((q / expected - 1.0).abs() < 3e-13, "{q:e} != {expected:e}");
+}
+
+#[test]
 fn test_gammainc_huge_a() {
     // Arb: min(P, Q) < 10^(-6e306)
     assert_eq!(xsf::gammainc(f64::MAX, 3.0), 0.0);
