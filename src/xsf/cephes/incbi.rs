@@ -49,7 +49,10 @@ enum Label {
 ///
 /// Outputs smaller than the IEEE gradual underflow threshold
 /// were excluded from these statistics.
-pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
+///
+/// Unlike in xsf, the complement of the root is returned as well, `(x, 1 - x)`, which is not
+/// rounded if `incbi` ends in the reflected frame (`rflg`), where it is the root.
+pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
     let mut d;
     let mut y = 0.0;
     let mut x;
@@ -62,20 +65,21 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
     let mut nflg;
 
     if yy0 <= 0.0 {
-        return 0.0;
+        return (0.0, 1.0);
     }
     if yy0 >= 1.0 {
-        return 1.0;
+        return (1.0, 0.0);
     }
     // `incbet` is NaN for `a = 0` or `b = 0`
     if aa == 0.0 || bb == 0.0 {
-        return f64::NAN;
+        return (f64::NAN, f64::NAN);
     }
     // Unlike in xsf, for `a, b < eps / 1000`, where `I_x(a, b)` is nearly flat, the root of its
     // first order `c + a c ln(x / (1 - x))` with `c = b / (a + b)` is used.
     if aa.min(bb) > 0.0 && aa.max(bb) < INCBET_TINY {
         let c = bb / (aa + bb);
-        return expit((yy0 - c) / aa / c);
+        let t = (yy0 - c) / aa / c;
+        return (expit(t), expit(-t));
     }
     let mut x0 = 0.0;
     let mut yl = 0.0;
@@ -294,9 +298,9 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> f64 {
 
     // done:
     if rflg {
-        if x <= MACHEP { 1.0 - MACHEP } else { 1.0 - x }
+        (if x <= MACHEP { 1.0 - MACHEP } else { 1.0 - x }, x)
     } else {
-        x
+        (x, 1.0 - x)
     }
 }
 
@@ -341,6 +345,6 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
     if a.is_nan() || b.is_nan() || y.is_nan() || a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&y) {
         f64::NAN
     } else {
-        incbi(a, b, y)
+        incbi(a, b, y).0
     }
 }

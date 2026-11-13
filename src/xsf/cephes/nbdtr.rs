@@ -126,5 +126,5 @@ pub(crate) fn nbdtri(k: i32, n: i32, p: f64) -> f64 {
     }
     let dk = f64::from(k) + 1.0;
     let dn = f64::from(n);
-    incbi(dn, dk, p)
+    incbi(dn, dk, p).0
 }
