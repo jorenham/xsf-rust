@@ -706,6 +706,61 @@ fn test_pbvv_seq_extreme() {
 }
 
 #[test]
+fn test_pbdv_pbvv_seq_negative_x() {
+    // D_v, D_v', V_v, V_v' at the last order, where SciPy is off by up to 1e34 (reference values
+    // from mpmath)
+    let cases: [(f64, f64, [f64; 4]); 4] = [
+        (
+            12.3,
+            -6.0,
+            [
+                19_693.375_088_003_137,
+                6_102.655_984_098_969,
+                -4.686_742_328_059_231e-6,
+                3.906_303_420_571_309e-5,
+            ],
+        ),
+        (
+            20.25,
+            -9.75,
+            [
+                -2_257_616_641.659_593_6,
+                3_838_833_608.496_538,
+                -5.301_522_454_605_69e-10,
+                5.480_477_393_103_981e-10,
+            ],
+        ),
+        (
+            29.25,
+            -27.25,
+            [
+                3.613_628_387_360_167_4e68,
+                -4.503_918_908_981_867e69,
+                1.751_802_927_415_628_8e37,
+                -2.183_395_048_919_47e38,
+            ],
+        ),
+        // half-integer v (scipy/xsf#520)
+        (
+            10.5,
+            -12.0,
+            [
+                -27_648_252_045.213_875,
+                136_544_115_915.528_37,
+                -2.886_595_421_057_735e-12,
+                -1.460_262_082_277_329_8e-11,
+            ],
+        ),
+    ];
+    for (v, x, expected) in cases {
+        let (dv, dp) = xsf::pbdv_seq(v, x);
+        let (vv, vp) = xsf::pbvv_seq(v, x);
+        let actual = [dv, dp, vv, vp].map(|y| y[y.len() - 1]);
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_pbdv_pbvv_seq_nan() {
     for (y, yp) in [xsf::pbdv_seq(2.5, f64::NAN), xsf::pbvv_seq(2.5, f64::NAN)] {
         assert_eq!((y.len(), yp.len()), (3, 3));
