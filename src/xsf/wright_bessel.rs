@@ -1254,8 +1254,14 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         // Taylor series around the approximate maximum term.
         return wb_large_a::<LOG_WB>(a, b, x);
     }
-    let Z = (a * x).powf(1.0 / (1. + a));
-    if Z >= 14.0 + b * b / (2.0 * (1.0 + a)) {
+    let a1 = 1.0 + a;
+    let Z = (a * x).powf(1.0 / a1);
+    // Unlike in xsf, if the series around the maximum term is affordable, the asymptotic expansion
+    // only for Z >= 14 (1 + a) + 4 b^2 / (1 + a): its error grows with a and b^2 / Z, up to 3e-4 at
+    // xsf's threshold.
+    let series = Z / a <= 1e8;
+    let b2 = b * b / a1;
+    if Z >= 14.0 + 0.5 * b2 && (!series || Z >= 14.0 * a1 + 4.0 * b2) {
         /* Asymptotic expansion in Z = (a*x)^(1/(1+a)) up to 8th term 1/Z^8.
          * For 1/Z^k, the highest term in b is b^(2*k) * a0 / (2^k k! (1+a)^k).
          * As a0 is a common factor to all orders, this explains a bit the
@@ -1267,7 +1273,7 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     // Unlike in xsf, the series around the maximum term where the integral loses accuracy (large
     // b, or large Z and x), with about 20 sqrt(k_max) <= 20 sqrt(Z / a) terms. This includes
     // xsf's NaN domain a in [0.5, 1.8], b >= 100, x >= 1e5.
-    if (b >= 80.0 || (Z >= 10.0 && x >= 200.0)) && Z / a <= 1e8 {
+    if (b >= 80.0 || (Z >= 10.0 && x >= 200.0)) && series {
         return wb_large_a::<LOG_WB>(a, b, x);
     }
     wright_bessel_integral::<LOG_WB>(a, b, x)
