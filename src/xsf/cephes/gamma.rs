@@ -268,9 +268,9 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
         return (z, sign);
     }
 
-    // Unlike in xsf (scipy/xsf#529), the Taylor series of `loggamma` around 1 is used near the
-    // zeros at 1 and 2, where the recurrence below only has a small absolute error. Above 2 it has
-    // a small relative error already.
+    // Unlike in xsf, which only does this in `gammaln` and the real `loggamma` (scipy/xsf#531), the
+    // Taylor series of `loggamma` around 1 is used near the zeros at 1 and 2, where the recurrence
+    // below only has a small absolute error. Above 2 it has a small relative error already.
     if (x - 1.0).abs() < LOGGAMMA_TAYLOR_RADIUS {
         // (`+ 0.0` keeps lgam(1) = +0)
         return (loggamma_taylor_real(x) + 0.0, 1);

@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/loggamma.h` and `xsf/zlog1.h` (scipy/xsf@f2a68ec). Original
+//! Translated into pure Rust from `xsf/loggamma.h` and `xsf/zlog1.h` (scipy/xsf@075f2a4). Original
 //! header comment appears below.
 //!
 //! An implementation of the principal branch of the logarithm of
@@ -195,6 +195,7 @@ impl LogGammaArg for f64 {
         if self < 0.0 {
             return f64::NAN;
         }
+        // Unlike in xsf, `lgam` itself uses the Taylor series near its zeros at 1 and 2
         crate::xsf::cephes::lgam(self)
     }
 
