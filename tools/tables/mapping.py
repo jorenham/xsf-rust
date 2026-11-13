@@ -361,6 +361,15 @@ ODD_AT_ZERO: Final = Rule(
 )
 
 
+def _cut(f: str) -> Rule:
+    """NaN for x < 0, where `f` has a branch cut."""
+    return Rule(
+        lambda a: a[0] < 0,
+        math.nan,
+        f"{f} has a branch cut along the negative real axis",
+    )
+
+
 def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     """The tables of J_n, Y_n, I_n, e^-|x| I_n, K_n, and e^x K_n."""
 
@@ -377,10 +386,6 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     def ke(x: flint.arb) -> flint.arb:
         return x.bessel_k(n, scaled=True)
 
-    def cut(f: str) -> tuple[Rule, ...]:
-        why = f"{f}_{n} has a branch cut along the negative real axis"
-        return (Rule(lambda a: a[0] < 0, math.nan, why),)
-
     def entry(
         f: str,
         ref: Callable[[mp.mpf], Value],
@@ -396,11 +401,11 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     return dict(
         [
             entry("j", j, odd),
-            entry("y", at_n(specs.r_yv), cut("Y")),
+            entry("y", at_n(specs.r_yv), (_cut(f"Y_{n}"),)),
             entry("i", at_n(specs.r_iv), odd),
             entry("ie", at_n(specs.r_ie), odd, ie),
-            entry("k", at_n(specs.r_kv), cut("K")),
-            entry("ke", at_n(specs.r_ke), cut("K"), ke),
+            entry("k", at_n(specs.r_kv), (_cut(f"K_{n}"),)),
+            entry("ke", at_n(specs.r_ke), (_cut(f"K_{n}"),), ke),
         ]
     )
 
@@ -589,6 +594,121 @@ def _ends(at_0: float, at_1: float, why: str) -> tuple[Rule, Rule]:
 
 
 SMIRNOV_N: Final = Rule(lambda a: a[0] < 1, math.nan, "there is no sample for n < 1")
+
+
+def _struve_arb[T: (flint.arb, flint.acb)](v: float, x: T, sign: int) -> T:
+    """H_v(x) (sign -1) or L_v(x) (sign 1) by DLMF 11.2.1 or 11.2.2, also for x < 0 with an
+    integer v."""
+    # in Arb, since v + 1 and v + 3/2 round in f64 for tiny v
+    w = flint.arb(v)
+    p = int(v) + 1 if v.is_integer() else w + 1
+    return (x / 2) ** p * (sign * x * x / 4).hypgeom(
+        [1], [1.5, w + 1.5], regularized=True
+    )
+
+
+def _struve(sign: int) -> Entry:
+    """The table of H_v (sign -1) or L_v (sign 1)."""
+    name = "LH"[sign < 0]
+
+    def ref(v: mp.mpf, x: mp.mpf) -> Value:
+        """`specs.r_struve_h` or `specs.r_struve_l`, and for H_v at x < 0 the scale at |x|
+        (H_n is even or odd)."""
+        if sign > 0:
+            return specs.r_struve_l(v, x)
+        h = specs.r_struve_h(v, x)
+        return h if x >= 0 else specs._osc(h, v, -x)
+
+    def arb(v: flint.arb, x: flint.arb) -> flint.arb:
+        # the terms of H_v cancel up to about e^|x|, and for v << 0 Arb needs about |v| / 10
+        # more bits (measured), so 2 (|x| + |v|) bits cover both
+        with flint.ctx.extraprec(2 * int(abs(float(x)) + abs(float(v)))):
+            return _struve_arb(float(v), x, sign)
+
+    def gamma_sign(v: float) -> int:
+        """The sign of Gamma(v + 3/2) for v < -1, or 0 at a pole."""
+        return 0 if (v + 0.5).is_integer() else -1 if math.ceil(-v - 1.5) % 2 else 1
+
+    def pole(s: int) -> Rule:
+        return Rule(
+            lambda a: a[1] == 0 and a[0] < -1 and gamma_sign(a[0]) == s,
+            s * math.inf,
+            f"the limit for x -> 0+, for v < -1 with Gamma(v + 3/2) {'<>'[s > 0]} 0",
+        )
+
+    rules = (
+        Rule(lambda a: a[1] == 0 and a[0] > -1, 0.0, f"{name}_v(0) = 0 for v > -1"),
+        pole(1),
+        pole(-1),
+    )
+    # only the table of H_v has such rows
+    if sign < 0:
+        why = "H_v(x) is not real for x < 0 and a non-integer v"
+        rules += (Rule(lambda a: a[1] < 0 and not a[0].is_integer(), math.nan, why),)
+    return _real(f"struve_{name.lower()}", ref, arb, rules)
+
+
+def _integral_arb(
+    f: Callable[[flint.acb], flint.acb],
+) -> Callable[[flint.arb], flint.arb]:
+    """int_0^x f(t) dt, for an entire f."""
+    return lambda x: flint.acb.integral(lambda t, _: f(t), 0, x).real
+
+
+def _int_c0_arb(c: Callable[[flint.arb, int], flint.arb], sign: int) -> Arb:
+    """int_0^x Y_0(t) dt (sign -1) or int_0^x K_0(t) dt (sign 1), like `specs.r_ity0` and
+    `specs.r_itk0`, where `c` is Y or K."""
+
+    def arb(x: flint.arb) -> flint.arb:
+        c0, c1 = c(x, 0), c(x, 1)
+        s0, s1 = (_struve_arb(v, x, sign) for v in (0.0, 1.0))
+        return x * c0 + flint.arb.pi() * x / 2 * (c1 * s0 + sign * c0 * s1)
+
+    return arb
+
+
+INTEGRAL_AT_0: Final = Rule(lambda a: a[0] == 0, 0.0, "int_0^0 f(t) dt = +0")
+
+
+def _it2k0_residual(x: mp.mpf) -> mp.mpf:
+    """`r_it2k0(x) - int_x^inf K_0(t)/t dt` by quadrature."""
+
+    def integrand(t: mp.mpf) -> mp.mpf:
+        return mp.besselk(0, t) / t
+
+    return abs(specs.r_it2k0(x) - mp.quad(integrand, [x, mp.inf]))
+
+
+def _it2i0_arb(x: flint.arb) -> flint.arb:
+    """Like `specs.r_it2i0`."""
+    return x * x / 8 * (x * x / 4).hypgeom([1, 1], [2, 2, 2])
+
+
+def _mid_x_override(issue: int) -> Override:
+    """Where xsf-rust uses another method than xsf, for 0.5 <= |x| < 40."""
+    return Override(
+        lambda a: 0.5 <= abs(a[0]) < 40,
+        f"xsf loses digits for 0.5 <= |x| < 40, where xsf-rust differs (scipy/xsf#{issue})",
+    )
+
+
+ITAIRY_OVERRIDE: Final = Override(
+    lambda a: 2 < abs(a[0]) <= 20,
+    "xsf loses digits for 2 < |x| <= 20, where xsf-rust differs (scipy/xsf#448)",
+)
+
+
+def _itairy_out(i: int) -> Out:
+    """int_0^x Ai(t), Bi(t), Ai(-t), or Bi(-t) dt (i = 0 to 3)."""
+
+    def ref(x: mp.mpf) -> mp.mpf:
+        return specs._airy_int(x)[i]
+
+    def f(t: flint.acb) -> flint.acb:
+        return (flint.acb.airy_ai, flint.acb.airy_bi)[i % 2](-t if i // 2 else t)
+
+    arbs = (_integral_arb(f),)
+    return Out(f"airy_integrals[{i}]", (ref,), arbs, overrides=(ITAIRY_OVERRIDE,))
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -1100,4 +1220,77 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             *_ends(0.0, 1.0, "smirnovc(n, d) is 0 only at d = 0 and 1 only at d = 1"),
         ),
     ),
+    ("struve_h", "d_d-d"): _struve(-1),
+    ("struve_l", "d_d-d"): _struve(1),
+    ("itstruve0", "d-d"): _real(
+        "itstruve0",
+        specs.r_itstruve0,
+        _integral_arb(lambda t: _struve_arb(0.0, t, -1)),
+        (INTEGRAL_AT_0,),
+        (_mid_x_override(399),),
+    ),
+    ("itmodstruve0", "d-d"): _real(
+        "itmodstruve0",
+        specs.r_itmodstruve0,
+        _integral_arb(lambda t: _struve_arb(0.0, t, 1)),
+        (INTEGRAL_AT_0,),
+    ),
+    ("it1j0y0", "d-d_d"): Entry(
+        (
+            Out(
+                "it1j0y0.0",
+                (specs.r_itj0,),
+                (_integral_arb(lambda t: t.bessel_j(0)),),
+                (INTEGRAL_AT_0,),
+                (_mid_x_override(446),),
+            ),
+            Out(
+                "it1j0y0.1",
+                (specs.r_ity0,),
+                (_int_c0_arb(flint.arb.bessel_y, -1),),
+                (INTEGRAL_AT_0, _cut("Y_0")),
+                (_mid_x_override(446),),
+            ),
+        )
+    ),
+    ("it1i0k0", "d-d_d"): Entry(
+        (
+            Out(
+                "it1i0k0.0",
+                (specs.r_iti0,),
+                (_integral_arb(lambda t: t.bessel_i(0)),),
+                (INTEGRAL_AT_0,),
+            ),
+            Out(
+                "it1i0k0.1",
+                (specs.r_itk0,),
+                (_int_c0_arb(flint.arb.bessel_k, 1),),
+                (INTEGRAL_AT_0, _cut("K_0")),
+                (_mid_x_override(379),),
+            ),
+        )
+    ),
+    ("it2i0k0", "d-d_d"): Entry(
+        (
+            Out(
+                "it2i0k0.0",
+                (specs.r_it2i0,),
+                (_it2i0_arb,),
+            ),
+            Out(
+                "it2i0k0.1",
+                (specs.r_it2k0,),
+                rules=(_cut("K_0"),),
+                overrides=(
+                    Override(
+                        lambda a: 1 < a[0] < 40,
+                        "xsf loses digits for 1 < x < 40, where xsf-rust differs "
+                        "(scipy/xsf#379)",
+                    ),
+                ),
+            ),
+        ),
+        Identity(lambda a: a[0] > 0, _it2k0_residual),
+    ),
+    ("itairy", "d-d_d_d_d"): Entry(tuple(_itairy_out(i) for i in range(4))),
 }
