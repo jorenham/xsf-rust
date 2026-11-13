@@ -78,7 +78,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use core::f64::consts::{FRAC_2_SQRT_PI, PI};
+use core::f64::consts::{FRAC_2_SQRT_PI, TAU};
 
 use crate::utils::SQRT_PI;
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
@@ -246,7 +246,7 @@ fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let mut sum = 0.0;
     let mut maxterm: f64 = 0.0;
 
-    let mut cterm = (z / (2.0 * PI)).sqrt();
+    let mut cterm = (z / TAU).sqrt();
 
     for n in 0..STRUVE_MAXITER {
         if is_h {

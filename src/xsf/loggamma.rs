@@ -24,7 +24,7 @@ use crate::utils::{LN_PI, LN_SQRT_2PI, is_nonpos_int};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::polevl;
 
-use core::f64::consts::PI;
+use core::f64::consts::TAU;
 use num_complex::Complex;
 
 const LOGGAMMA_SMALLX: f64 = 7.0;
@@ -71,7 +71,7 @@ fn loggamma_recurrence(mut z: C64) -> C64 {
         sb = nsb;
         z += 1.0;
     }
-    loggamma_stirling(z) - shiftprod.ln() - f64::from(signflips) * 2.0 * PI * C64::I
+    loggamma_stirling(z) - shiftprod.ln() - f64::from(signflips) * TAU * C64::I
 }
 
 /* Taylor series for log-Gamma around z = 1.
@@ -164,7 +164,7 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
     }
     if z.re < 0.1 {
         // Reflection formula; see Proposition 3.1 in [1]
-        let tmp = (2.0 * PI).copysign(z.im) * (0.5 * z.re + 0.25).floor();
+        let tmp = TAU.copysign(z.im) * (0.5 * z.re + 0.25).floor();
         return c64(LN_PI, tmp) - z.sinpi().ln() - cloggamma(1.0 - z);
     }
     if !z.im.is_sign_negative() {

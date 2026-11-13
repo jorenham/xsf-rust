@@ -36,7 +36,7 @@
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::ratevl;
 
-use core::f64::consts::{E, PI};
+use core::f64::consts::{E, PI, TAU};
 use num_complex::Complex;
 
 const EXPN1: f64 = 0.367_879_441_171_442_33; // exp(-1)
@@ -65,7 +65,7 @@ fn lambertw_asy(z: C64, k: isize) -> C64 {
     /* Compute the W function using the first two terms of the
      * asymptotic series. See 4.20 in [1].
      */
-    let w = z.ln() + 2.0 * PI * k as f64 * C64::I;
+    let w = z.ln() + TAU * k as f64 * C64::I;
     w - w.ln()
 }
 
@@ -826,10 +826,10 @@ fn lambertw_c64(z: C64, k: isize, tol: f64) -> C64 {
         return z;
     }
     if z.re == f64::INFINITY {
-        return z + 2.0 * PI * k as f64 * C64::I;
+        return z + TAU * k as f64 * C64::I;
     }
     if z.re == f64::NEG_INFINITY {
-        return -z + (2.0 * PI * k as f64 + PI) * C64::I;
+        return -z + (TAU * k as f64 + PI) * C64::I;
     }
     if z == C64::ZERO {
         if k == 0 {

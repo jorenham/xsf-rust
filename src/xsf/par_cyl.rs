@@ -9,7 +9,7 @@
 //! `pbvv(2.7e8, 0.0)`), and the `double` -> `int` conversions saturate. Like in xsf, they also
 //! return NaN if the allocation of their work buffer fails.
 
-use core::f64::consts::{LN_2, PI, SQRT_2};
+use core::f64::consts::{FRAC_PI_4, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 use num_traits::ToPrimitive;
@@ -171,7 +171,7 @@ fn vvsa(x: f64, va: f64) -> f64 {
         }
     } else {
         let sq2 = SQRT_2;
-        let a0 = (-0.5 * va).exp2() * ep / (2.0 * PI);
+        let a0 = (-0.5 * va).exp2() * ep / TAU;
         let sv = (-(va + 0.5) * PI).sin();
         let v1 = -0.5 * va;
         let g1 = gamma2(v1);
@@ -596,7 +596,7 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     // 12.14.17 as `Re(u)` with `u = sqrt(2 k / x) s e^(i omega)` (12.14.5, 12.14.19)
     let e = (PI * a).exp();
     let k = 1.0 / ((1.0 + e * e).sqrt() + e);
-    let omega = X * X / 4.0 - a * X.ln() + PI / 4.0 + cgama(z, 0).im / 2.0;
+    let omega = X * X / 4.0 - a * X.ln() + FRAC_PI_4 + cgama(z, 0).im / 2.0;
     let rho = (2.0 * k / X).sqrt();
     let f = c64(rho * omega.cos(), rho * omega.sin());
     let u = s * f;

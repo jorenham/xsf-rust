@@ -8,7 +8,7 @@
 
 #![allow(clippy::needless_late_init)]
 
-use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 
 use crate::xsf::bessel::bessel_j_miller;
 use crate::xsf::cephes;
@@ -58,7 +58,7 @@ fn itth0(x: f64) -> f64 {
                 break;
             }
         }
-        tth = PI / 2.0 - FRAC_2_PI * x * s;
+        tth = FRAC_PI_2 - FRAC_2_PI * x * s;
     } else {
         // Unlike in xsf, sum up to eps (instead of 1e-12), and integrate `Y0(t)/t` by parts with
         // `(t Y1)' = t Y0` and `Y0' = -Y1`, instead of using fits with a relative error of 1e-8.
@@ -157,7 +157,7 @@ fn itsh0(x: f64) -> f64 {
             r = -r / (x * x);
             bg += a[2 * k] * r;
         }
-        let xp = x + 0.25 * PI;
+        let xp = x + FRAC_PI_4;
         let ty = (2.0 / (PI * x)).sqrt() * (bg * xp.cos() - bf * xp.sin());
         th0 = ty + s0;
     }
@@ -222,7 +222,7 @@ fn itsl0(x: f64) -> f64 {
             r /= x;
             ti += ak * r;
         }
-        tl0 = ti / (2.0 * PI * x).sqrt() * x.exp() + s0;
+        tl0 = ti / (TAU * x).sqrt() * x.exp() + s0;
     }
     tl0
 }

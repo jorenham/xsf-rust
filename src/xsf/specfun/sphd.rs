@@ -1,7 +1,7 @@
 //! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h`
 //! (scipy/xsf@370171f).
 
-use core::f64::consts::PI;
+use core::f64::consts::FRAC_PI_2;
 
 use super::{SPECFUN_INF, Status, lpmns, lqmns, sphj, sphy, try_zeroed};
 use crate::xsf::tools::int_x86;
@@ -886,19 +886,19 @@ fn rmn2so(
 
         if ip == 0 {
             r1f = sum / ck1;
-            *r2f = -0.5 * PI * qs * r1f;
+            *r2f = -FRAC_PI_2 * qs * r1f;
             *r2d = qs * r1f + bk[0];
         } else {
             r1d = sum / ck1;
             *r2f = bk[0];
-            *r2d = -0.5 * PI * qs * r1d;
+            *r2d = -FRAC_PI_2 * qs * r1d;
         }
     } else {
         gmn(m, n, c, x, &bk, &mut gf, &mut gd);
         if rmn1(m, n, c, x, kd, df, &mut r1f, &mut r1d) == Status::NoMemory {
             return Status::NoMemory;
         }
-        let h0 = x.atan() - 0.5 * PI;
+        let h0 = x.atan() - FRAC_PI_2;
         *r2f = qs * r1f * h0 + gf;
         *r2d = qs * (r1d * h0 + r1f / (1.0 + x * x)) + gd;
     }

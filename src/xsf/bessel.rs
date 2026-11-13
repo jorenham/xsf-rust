@@ -2,7 +2,7 @@
 
 use core::ops::{Add, Mul};
 
-use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 
 use num_complex::Complex;
 use num_traits::ToPrimitive;
@@ -1281,7 +1281,7 @@ fn itika(x: f64) -> (f64, f64) {
             r /= x;
             ti += A[k - 1] * r;
         }
-        let rc1 = 1.0 / (2.0 * PI * x).sqrt();
+        let rc1 = 1.0 / (TAU * x).sqrt();
         ti *= rc1 * x.exp();
     }
 
@@ -1309,7 +1309,7 @@ fn itika(x: f64) -> (f64, f64) {
         // Unlike in xsf (scipy/xsf#379), pi/2 - int_x^inf K0 for 0.5 <= x < 40 (instead of the
         // series for x < 12), with int_x^inf K0 = int_0^inf exp(-x cosh(u)) / cosh(u) du
         // (DLMF 10.32.9)
-        tk = PI / 2.0 - trapezoid_cosh(x, |w| (-w).exp() / (x + w)) * x * (-x).exp();
+        tk = FRAC_PI_2 - trapezoid_cosh(x, |w| (-w).exp() / (x + w)) * x * (-x).exp();
     } else {
         tk = 1.0;
         r = 1.0;
@@ -1318,7 +1318,7 @@ fn itika(x: f64) -> (f64, f64) {
             tk += A[k - 1] * r;
         }
         let rc2 = (PI / (2.0 * x)).sqrt();
-        tk = PI / 2.0 - rc2 * tk * (-x).exp();
+        tk = FRAC_PI_2 - rc2 * tk * (-x).exp();
     }
     (ti, tk)
 }
@@ -1466,7 +1466,7 @@ fn itjya(x: f64) -> (f64, f64) {
             r = -r / (x * x);
             bg += a[2 * k] * r;
         }
-        let xp = x + 0.25 * PI;
+        let xp = x + FRAC_PI_4;
         let rc = (2.0 / (PI * x)).sqrt();
         tj = 1.0 - rc * (bf * xp.cos() + bg * xp.sin());
         ty = rc * (bg * xp.cos() - bf * xp.sin());
@@ -1541,7 +1541,7 @@ fn ittika(x: f64) -> (f64, f64) {
             r /= x;
             tti += C[k - 1] * r;
         }
-        let rc = x * (2.0 * PI * x).sqrt();
+        let rc = x * (TAU * x).sqrt();
         tti = tti * x.exp() / rc;
     }
     let ttk = if x <= 1.0 {

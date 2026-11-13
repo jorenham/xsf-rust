@@ -7,7 +7,7 @@
 //! `pow(y, 2)` is written as `y * y`, which is what GCC compiles it to, and what LLVM only does
 //! when optimizing.
 
-use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI, SQRT_2};
+use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, FRAC_PI_4, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
@@ -153,7 +153,7 @@ fn klvna(x: f64) -> Klvna {
             for k in 1..=km {
                 let kf = f64::from(k);
                 fac = -fac;
-                let xt = 0.25 * kf * PI - (0.125 * kf).trunc() * 2.0 * PI;
+                let xt = 0.25 * kf * PI - (0.125 * kf).trunc() * TAU;
                 let cs = xt.cos();
                 let ss = xt.sin();
                 r = next(r, kf, x);
@@ -171,8 +171,8 @@ fn klvna(x: f64) -> Klvna {
         let xd = x / SQRT_2;
         let xe1 = xd.exp();
         let xe2 = (-xd).exp();
-        let xc1 = 1.0 / (2.0 * PI * x).sqrt();
-        let xc2 = (0.5 * PI / x).sqrt();
+        let xc1 = 1.0 / (TAU * x).sqrt();
+        let xc2 = (FRAC_PI_2 / x).sqrt();
         let cp0 = (xd + 0.125 * PI).cos();
         let cn0 = (xd - 0.125 * PI).cos();
         let sp0 = (xd + 0.125 * PI).sin();

@@ -555,8 +555,8 @@ pub fn von_mises_cdf(k: f64, x: f64) -> f64 {
     // `k = inf` (with `i0e(k) = 0`) as the largest finite `k`, for which this is a step at 0
     let k = k.min(f64::MAX);
 
-    let ix = (x / (2.0 * PI)).round();
-    let x = x - ix * 2.0 * PI;
+    let ix = (x / TAU).round();
+    let x = x - ix * TAU;
     let result = if x > 0.0 {
         1.0 - von_mises_cdf_left(k, -x)
     } else {
