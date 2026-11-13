@@ -16,7 +16,7 @@ xsref::tests! {
 }
 
 // Edge cases that the xsref tables don't cover (they skip large inputs and outputs, and most
-// NaNs, and don't distinguish signed zeros).
+// NaNs, and the complex ones don't distinguish signed zeros).
 
 fn assert_close(actual: f64, expected: f64) {
     let ok = if expected.is_finite() {

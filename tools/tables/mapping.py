@@ -310,6 +310,28 @@ LOG1P_DOMAIN: Final = Rule(lambda a: a[-1] < -1, math.nan, "log1p is not real be
 X_ZERO: Final = Rule(lambda a: a[0] == 0, 0.0, "x log y = 0 for x = 0")
 
 
+def _sign_at(x: float, n: float) -> float:
+    """The sign of x times (-1)^n, for an integer n."""
+    return math.copysign(1, x) * (-1 if n % 2 else 1)
+
+
+def _zeros(at: Pred, sign: Callable[[float], float], why: str) -> tuple[Rule, Rule]:
+    """The zeros where `at` holds, with the sign `sign(x)`."""
+    return (
+        Rule(lambda a: at(a) and sign(a[0]) > 0, 0.0, why),
+        Rule(lambda a: at(a) and sign(a[0]) < 0, -0.0, why),
+    )
+
+
+def _degrees(f: Callable[[flint.arb], flint.arb]) -> Callable[[flint.arb], flint.arb]:
+    """`f` of x / 180, so that pi x / 180 has no rounding error in pi."""
+    return lambda x: f(x / 180)
+
+
+def _radian_arb(d: flint.arb, m: flint.arb, s: flint.arb) -> flint.arb:
+    return (d + m / 60 + s / 3600) * flint.arb.pi() / 180
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -535,4 +557,61 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             Rule(lambda a: a[0] < 0 and a[1] == -1, math.inf, "the limit for y -> -1+"),
         ),
     ),
+    ("sinpi", "d-d"): _real(
+        "sinpi",
+        specs.r_sinpi,
+        flint.arb.sin_pi,
+        _zeros(
+            lambda a: a[0].is_integer(),
+            lambda x: _sign_at(x, x),
+            "sin(pi n) = +-0 with the sign of (-1)^n n, like in xsf",
+        ),
+    ),
+    ("cospi", "d-d"): _real(
+        "cospi",
+        specs.r_cospi,
+        flint.arb.cos_pi,
+        (Rule(lambda a: a[0] % 1 == 0.5, 0.0, "cos(pi (n + 1/2)) = +0, like in xsf"),),
+    ),
+    ("sindg", "d-d"): _real("sindg", specs.r_sindg, _degrees(flint.arb.sin_pi)),
+    ("cosdg", "d-d"): _real(
+        "cosdg",
+        specs.r_cosdg,
+        _degrees(flint.arb.cos_pi),
+        (
+            Rule(
+                lambda a: abs(a[0]) % 360 == 90,
+                -0.0,
+                "cos(x) = -0 for |x| = 90 + 360 n, like in xsf",
+            ),
+        ),
+    ),
+    ("tandg", "d-d"): _real(
+        "tandg",
+        specs.r_tandg,
+        _degrees(flint.arb.tan_pi),
+        _zeros(
+            lambda a: a[0] % 180 == 0,
+            lambda x: _sign_at(x, x // 180),
+            "tan(180 n) = +-0 with the sign of (-1)^n n, like in xsf",
+        ),
+    ),
+    ("cotdg", "d-d"): _real(
+        "cotdg",
+        specs.r_cotdg,
+        _degrees(flint.arb.cot_pi),
+        _zeros(
+            lambda a: a[0] % 180 == 90,
+            lambda x: _sign_at(1, (x - 90) // 180),
+            "cot(90 + 180 n) = +-0 with the sign of (-1)^n, like in xsf",
+        ),
+        (
+            Override(
+                lambda a: not 45 <= abs(a[0]) % 180 <= 135,
+                "xsf loses digits near the poles at 180 n, where xsf-rust differs "
+                "(scipy/xsf#363)",
+            ),
+        ),
+    ),
+    ("radian", "d_d_d-d"): Entry((Out("radian", (specs.r_radian,), (_radian_arb,)),)),
 }
