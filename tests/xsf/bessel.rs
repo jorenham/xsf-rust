@@ -291,6 +291,34 @@ fn test_bessel_k_near_overflow() {
 }
 
 #[test]
+fn test_bessel_k_near_underflow() {
+    // mpmath: besselk(v, x)
+    let actual = [
+        xsf::bessel_k(0.0, 700.6),
+        xsf::bessel_k(12.49, 700.6),
+        xsf::bessel_k(-20.0, 700.6),
+        xsf::bessel_k(0.0, c64(700.6, 1.0)).re,
+        xsf::bessel_k(0.0, c64(700.6, 1.0)).im,
+    ];
+    let expected = [
+        2.561_730_385_750_867_3e-306,
+        2.863_182_898_540_892_5e-306,
+        3.407_332_893_410_498_4e-306,
+        1.382_569_916_659_872e-306,
+        -2.156_607_594_040_158_8e-306,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    // subnormal, rounded
+    let actual = [xsf::bessel_k(1.0, 708.0), xsf::bessel_k(0.0, 720.0)];
+    let expected = [1.558_762_642_090_316e-309, 9.490_549_83e-315];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-9);
+    // mpmath: 9.6e-325, 2.4e-325, and below e^-800
+    for (v, x) in [(0.0, 743.0), (30.25, 745.0), (100.0, 800.0), (1e9, 1.1e9)] {
+        assert_eq!(xsf::bessel_k(v, x), 0.0);
+    }
+}
+
+#[test]
 fn test_bessel_amos_tiny_z() {
     // Arb: besselk(0, 1e-306), besselj(-0.25, 5e-324), bessely(0.75, -1e-310 + 1e-310j), and
     // besselj(1e-20, 5e-324) = 1 - 7.4e-18

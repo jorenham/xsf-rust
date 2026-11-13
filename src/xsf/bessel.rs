@@ -7,7 +7,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{MAXLOG, PISQ_6, SCIPY_EULER};
+use crate::utils::{MAXLOG, MINLOG, PISQ_6, SCIPY_EULER, mul_exp};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::two_sum;
@@ -343,6 +343,13 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         /* overflow */
         cy = c64(f64::INFINITY, 0.0);
     }
+    // Unlike in xsf, rescale e^z K_v(z) if AMOS underflowed, which it does from about 4e-305.
+    if kode == 1 && cy == C64::ZERO {
+        let w = cyl_bessel_k_kode(v, z, 2) * C64::cis(z.im).conj();
+        if w.is_finite() {
+            cy = c64(mul_exp(w.re, -z.re), mul_exp(w.im, -z.re));
+        }
+    }
 
     cy
 }
@@ -372,10 +379,12 @@ pub(crate) fn cyl_bessel_k_f64(v: f64, z: f64) -> f64 {
         return f64::INFINITY;
     }
 
-    if z > 710.0 * (1.0 + v.abs()) {
+    // Unlike in xsf, this is a strict bound instead of x > 710 (1 + |v|), where K_v(x) can be
+    // subnormal: K_v(x) <= sqrt(pi / (2 x)) e^(v^2 / (2 x) - x) < 2^-1075, by
+    // cosh(t) >= 1 + t^2 / 2 in https://dlmf.nist.gov/10.32.E9.
+    if z - v / z * v / 2.0 > -MINLOG {
         /* Underflow. See uniform expansion https://dlmf.nist.gov/10.41
-         * This condition is not a strict bound (it can underflow earlier),
-         * rather, we are here working around a restriction in AMOS.
+         * We are here working around a restriction in AMOS.
          */
         return 0.0;
     }
