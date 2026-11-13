@@ -99,15 +99,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * (m - 1.0) / (2.0 * a)
                 + m * (m - 1.0) * (m - 2.0) * (3.0 * m - 1.0) / (24.0 * a * a)
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
-    } else if a > 10.0 && m.abs() <= 1.0 {
+    } else if a >= 1.0 && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), `lgam_ratio` avoids the cancellation in
         // lgam(a + m) - lgam(a) (below)
         return r * lgam_ratio(a, m).exp();
-    }
-
-    /* Check for infinity */
-    if is_small_nonpos_int(a + m) && !is_small_nonpos_int(a) && a + m != m {
-        return f64::INFINITY;
     }
 
     /* Check for zero */
@@ -115,11 +110,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
         return 0.0;
     }
 
-    if a < -10.0 && m.abs() <= 1.0 {
+    if (a < -10.0 || a + m < 0.0) && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), the reflection formula avoids the cancellation in
-        // lgam(a + m) - lgam(a), with the sines of the exact fractional part of `a`.
-        let f = a - a.floor();
-        return r * (cephes_sinpi(f) / cephes_sinpi(f + m)) * poch(1.0 - a - m, m);
+        // lgam(a + m) - lgam(a), and the rounding error of a + m near the poles.
+        return r * (cephes_sinpi(a) / sinpi_sub(a, -m)) * poch(1.0 - a - m, m);
     }
 
     r * (lgam(a + m) - lgam(a)).exp() * gammasgn(a + m) * gammasgn(a)

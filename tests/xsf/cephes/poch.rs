@@ -62,6 +62,19 @@ fn test_pow_rising_poles() {
 }
 
 #[test]
+fn test_pow_rising_sum_near_pole() {
+    // unlike in xsf (scipy/xsf#357), without the rounding error of a + m near (or onto) a pole
+    // of Gamma(a + m) (Arb)
+    let am = [
+        (-0.033_978_567_503_241_18, -0.966_021_432_496_758_9),
+        (-0.013_566_220_790_266_651, 0.013_566_220_790_266_646),
+    ];
+    let actual = am.map(|(a, m)| xsf::pow_rising(a, m));
+    let expected = [-685_298_206_918_409.0, 2_586_070_687_183_794.2];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_pow_falling_near_pole() {
     for (x, m, expected) in [
         (
