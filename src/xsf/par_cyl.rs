@@ -1167,15 +1167,21 @@ fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
     (mul_exp(SQRT2OPI * w, lv), mul_exp(SQRT2OPI * wp, lv))
 }
 
-/// `V_v(x)`, `V_v'(x)` for `v <= -20` and `|x| sqrt(-v) < 1`, by `pb_maclaurin` with the values at
-/// `x = 0` (12.2.8, 12.2.9, and 5.5.3), so that its zeros are exact
+/// `V_v(x)`, `V_v'(x)` for `|v| >= 20` and `|x| sqrt|v| < 1`, by `pb_maclaurin` with the values
+/// at `x = 0` (12.2.8, 12.2.9, and 5.5.3), so that its zeros are exact
 fn pbvv_maclaurin(v: f64, x: f64) -> (f64, f64) {
     let h = 0.5 * v;
-    let lg = lgam(-h);
+    let (s, c) = (sinpi(h), cospi(h));
+    // V_v(0) = -2^(-v / 2) s / Gamma(v / 2 + 1), V_v'(0) = 2^((1 - v) / 2) c / Gamma((v + 1) / 2),
+    // and for v < 0, 1 / Gamma(v / 2 + 1) = -s Gamma(-v / 2) / pi and
+    // 1 / Gamma((v + 1) / 2) = c Gamma((1 - v) / 2) / pi
+    let (lg, lg1, c0, c1) = if v < 0.0 {
+        (lgam(-h), lgam(0.5 - h), s * s / PI, c * c / PI)
+    } else {
+        (-lgam(h + 1.0), -lgam(h + 0.5), -s, c)
+    };
     let e = -h * LN_2 + lg; // with mantissas c0 and c1
-    let c0 = sinpi(h).powi(2) / PI;
-    let c1 = SQRT_2 * cospi(h).powi(2) / PI * (lgam(0.5 - h) - lg).exp();
-    pb_maclaurin(-v - 0.5, x, c0, c1, e)
+    pb_maclaurin(-v - 0.5, x, c0, SQRT_2 * c1 * (lg1 - lg).exp(), e)
 }
 
 /// Parabolic cylinder function $W$
@@ -1353,26 +1359,27 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
-    // Unlike in xsf, V_v(x) for v >= 20, and for 0 <= v < 20 and x > 10, is computed from
-    // Ubar_w(|x|) of `pbdv_airy` at an order w >= 20: `pbvv_impl` is inaccurate for v >= 20, and
-    // its backward recurrence for x > 10 has not converged if v > x^2 / 4 - 25 or so.
-    if (0.0..INT_OVERFLOW).contains(&v) {
-        if v >= 20.0 {
-            return pbvv_airy(v, x);
-        }
-        if x > 10.0 {
-            return pbvv_recur(v, x);
-        }
-    }
-    // Unlike in xsf, V_v(x) for v <= -20 is computed from D_v(x) and D_v(-x): `pbvv_impl` is
-    // inaccurate for x < 0 if v is near a half-integer, and for tiny |x| if v is near an
-    // integer, and its V_v'(x) is NaN where it overflows.
-    if v <= -20.0 && -v < INT_OVERFLOW {
-        return if x.abs() * (-v - 0.5).sqrt() < 1.0 {
+    // Unlike in xsf, V_v(x) for |v| >= 20 is computed from the uniform asymptotic expansions of
+    // `pbdv`, or from its Maclaurin series near x = 0, and V_v(x) for 0 <= v < 20 and x > 10 by
+    // recurrence from an order w >= 20. `pbvv_impl` is inaccurate
+    //
+    //   - for v >= 20,
+    //   - for x > 10 if v > x^2 / 4 - 25 or so, where its backward recurrence has not converged,
+    //   - for v <= -20 if x < 0 and v is near a half-integer, or |x| is tiny and v is near an
+    //     integer,
+    //
+    // and its V_v'(x) is NaN where it overflows.
+    if (20.0..INT_OVERFLOW).contains(&v.abs()) {
+        return if x.abs() * (v + 0.5).abs().sqrt() < 1.0 {
             pbvv_maclaurin(v, x)
+        } else if v > 0.0 {
+            pbvv_airy(v, x)
         } else {
             pbvv_elementary(v, x)
         };
+    }
+    if (0.0..20.0).contains(&v) && x > 10.0 {
+        return pbvv_recur(v, x);
     }
     if x < 0.0 {
         // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v >= 0 is computed from V_v(-x)

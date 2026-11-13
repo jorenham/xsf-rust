@@ -658,6 +658,42 @@ fn test_pbvv_large_negative_v() {
 }
 
 #[test]
+fn test_pbvv_large_v_small_x() {
+    // |x| sqrt|v| < 1, and near an integer v (reference values from mpmath)
+    for (v, x, w, wp) in [
+        (
+            64.0,
+            0.05,
+            3.458_515_779_879_155_6e-46,
+            6.541_184_176_841_311e-45,
+        ),
+        (
+            20.0,
+            1e-200,
+            1.218_648_432_258_588e-209,
+            1.218_648_432_258_587_9e-9,
+        ),
+        (
+            35.000_000_001,
+            -1e-10,
+            3.599_862_010_847_432e-21,
+            4.647_252_921_256_134e-29,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 5e-13 && relp < 5e-13,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // V_v(0) = 0 for even v, and V_v'(0) = 0 for odd v
+    assert_eq!(xsf::pbvv(20.0, 0.0).0, 0.0);
+    assert_eq!(xsf::pbvv(21.0, 0.0).1, 0.0);
+}
+
+#[test]
 fn test_pbdv_pbvv_wronskian() {
     // D_v V_v' - D_v' V_v = sqrt(2 / pi) (DLMF 12.2.10), where neither under- nor overflows
     for (v, x) in [
