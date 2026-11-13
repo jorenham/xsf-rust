@@ -491,7 +491,7 @@ mod tests {
         assert!(rel(w, pow2(-512) / 2.0_f64.powf(0.25)) < 1e-12);
 
         // `z^0`, and both sides of the branch cut
-        assert_eq!(super::cpow(c64(f64::NAN, 0.0), 0.0), C64::ONE);
+        assert_eq!(super::cpow(C64::NAN_RE, 0.0), C64::ONE);
         assert_eq!(super::cpow(c64(-4.0, 0.0), 0.5).im, 2.0);
         assert_eq!(super::cpow(c64(-4.0, -0.0), 0.5).im, -2.0);
     }

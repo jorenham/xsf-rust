@@ -32,7 +32,7 @@ fn cspence(z: C64) -> C64 {
     // else:
     //     return cspence_series1(z)
 
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         // like in xsf, instead of iterating 500 times
         C64::NAN
     } else if z.norm() < 0.5 {

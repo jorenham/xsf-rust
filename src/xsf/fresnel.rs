@@ -198,10 +198,11 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
     let xa = x.abs();
     let x2 = x * x;
     let x4 = x2 * x2;
+    let sgn = (-1.0_f64).powi(ks);
 
     if x == 0.0 {
         f.re = 0.5 * FRAC_PI_2.sqrt();
-        f.im = (-1.0_f64).powi(ks) * f.re;
+        f.im = sgn * f.re;
         g = c64(0.5, 0.0);
     } else {
         let (c1, s1);
@@ -233,7 +234,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
             (c1, s1) = (c, s);
             f.re = PP2 * (0.5 - c1);
             let fi0 = PP2 * (0.5 - s1);
-            f.im = (-1.0_f64).powi(ks) * fi0;
+            f.im = sgn * fi0;
         } else if xa < 5.5 {
             let m = (42.0 + 1.75 * x2) as i32;
             let mut xsu = 0.0;
@@ -284,28 +285,28 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
             // K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x), DLMF 7.5.10, 7.12.2, 7.12.3;
             // avoids the rounding error of the phase x^2 + pi/4 below
             g.re = (xf + xg) / (2.0 * SQRT_TAU) / xa;
-            g.im = (-1.0_f64).powi(ks) * (xf - xg) / (2.0 * SQRT_TAU) / xa;
+            g.im = sgn * (xf - xg) / (2.0 * SQRT_TAU) / xa;
         }
 
         f.re = PP2 * (0.5 - c1);
         let fi0 = PP2 * (0.5 - s1);
-        f.im = (-1.0_f64).powi(ks) * fi0;
+        f.im = sgn * fi0;
 
         if xa < 5.5 {
             let (ss, cs) = (x2 + FRAC_PI_4).sin_cos();
             let xq2 = SQRT1OPI;
 
             g.re = xq2 * (f.re * cs + fi0 * ss);
-            g.im = (-1.0_f64).powi(ks) * xq2 * (fi0 * cs - f.re * ss);
+            g.im = sgn * xq2 * (fi0 * cs - f.re * ss);
         }
 
         if x < 0.0 {
             f.re = PP2 - f.re;
             // Unlike in xsf (scipy/xsf#367), this subtracts `f.im` instead of the updated `f.re`
-            f.im = (-1.0_f64).powi(ks) * PP2 - f.im;
+            f.im = sgn * PP2 - f.im;
             let (sin, cos) = x2.sin_cos();
             g.re = cos - g.re;
-            g.im = -(-1.0_f64).powi(ks) * sin - g.im;
+            g.im = -sgn * sin - g.im;
         }
     }
     (f, g)
@@ -489,8 +490,8 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut szo = vec![c64(f64::NAN, 0.0); nt];
-    let mut czo = vec![c64(f64::NAN, 0.0); nt];
+    let mut szo = vec![C64::NAN_RE; nt];
+    let mut czo = vec![C64::NAN_RE; nt];
     fcszo(2, nt, &mut szo);
     fcszo(1, nt, &mut czo);
     (

@@ -6,7 +6,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI};
 use num_complex::Complex64;
 
 use crate::utils::SQRT_TAU;
-use crate::xsf::c64::{ViaC64, c64};
+use crate::xsf::c64::{C64, ViaC64, c64};
 
 pub trait ErfArg: crate::sealed::Sealed {
     fn erf(self) -> Self;
@@ -147,7 +147,7 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
 #[must_use]
 #[inline]
 pub fn erf_zeros<const N: usize>() -> [Complex64; N] {
-    let mut zo = [c64(f64::NAN, 0.0); N];
+    let mut zo = [C64::NAN_RE; N];
     crate::xsf::specfun::cerzo(N.try_into().unwrap(), &mut zo);
     zo.map(Into::into)
 }

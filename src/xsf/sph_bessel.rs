@@ -268,12 +268,12 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
     if n < 0 {
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.re.is_infinite() {
@@ -358,17 +358,17 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
     if n < 0 {
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.re == 0.0 && z.im == 0.0 {
         // https://dlmf.nist.gov/10.52.E2
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.re.is_infinite() {
@@ -457,12 +457,12 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
     if n < 0 {
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.norm() == 0.0 {
@@ -484,7 +484,7 @@ fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
             return C64::INFINITY;
         }
 
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     // i_n(-z) = (-1)^n * i_n(z); see sph_bessel_j note above.
@@ -550,16 +550,16 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
 }
 
 fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
     if n < 0 {
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.norm() == 0.0 {
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.re.is_infinite() || z.im.is_infinite() {
@@ -572,7 +572,7 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
             return C64::NEG_INFINITY;
         }
 
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
 
     if z.im == 0.0 {
