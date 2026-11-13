@@ -61,6 +61,8 @@ impl C64 {
     pub(crate) const INFINITY: Self = c64(f64::INFINITY, 0.0);
     /// NaN + NaN i
     pub(crate) const NAN: Self = c64(f64::NAN, f64::NAN);
+    /// NaN + 0 i
+    pub(crate) const NAN_RE: Self = c64(f64::NAN, 0.0);
     /// -inf + 0 i
     pub(crate) const NEG_INFINITY: Self = c64(f64::NEG_INFINITY, 0.0);
     /// 1 + 0 i

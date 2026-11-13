@@ -489,8 +489,8 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     assert!(nt <= c_int::MAX as usize);
 
-    let mut szo = vec![c64(f64::NAN, 0.0); nt];
-    let mut czo = vec![c64(f64::NAN, 0.0); nt];
+    let mut szo = vec![C64::NAN_RE; nt];
+    let mut czo = vec![C64::NAN_RE; nt];
     fcszo(2, nt, &mut szo);
     fcszo(1, nt, &mut czo);
     (

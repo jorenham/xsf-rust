@@ -508,7 +508,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
             return C64::ONE;
         }
         // Returning real part NAN and imaginary part 0 follows mpmath.
-        return c64(f64::NAN, 0.0);
+        return C64::NAN_RE;
     }
     let a_neg_int = a == a.trunc() && a < 0.0;
     let b_neg_int = b == b.trunc() && b < 0.0;
