@@ -476,8 +476,8 @@ fn test_hyp1f1_huge_b_minus_a() {
     // DLMF 13.6.3 and 13.6.1; these took ~1e9 steps, and were NaN
     assert_eq!(xsf::hyp1f1(-0.0, 6.3e8, -4.6e10), 1.0);
     assert_eq!(xsf::hyp1f1(1e9, 1e9, f64::INFINITY), f64::INFINITY);
-    // these took ~1e9 steps
-    assert!(xsf::hyp1f1(-1.2e9, -10.2, -1.0).is_nan());
+    // these took ~1e9 steps; mpmath: -3.7e30130, and this was NaN
+    assert_eq!(xsf::hyp1f1(-1.2e9, -10.2, -1.0), f64::NEG_INFINITY);
     assert!(xsf::hyp1f1(1e9, 2.5, f64::NAN).is_nan());
 }
 

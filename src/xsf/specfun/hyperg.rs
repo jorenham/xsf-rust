@@ -672,7 +672,8 @@ fn chgm_fallback(
 /// 4. `a >= 2`, `b > 0`, or `a > -1`, `x > 30 + |b|`: the series in full (scipy/xsf#365).
 /// 5. `a >= 2`, `b = 0`: NaN at once (no issue).
 /// 6. No recurrence in `a` over 10^6 steps, nor for the series with non-integer `b < 0`, but that
-///    series at `a` itself, or the one at `x0 < 0`, if accurate, or else 0 or NaN (scipy/xsf#365).
+///    series at `a` itself, or the one at `x0 < 0`, if accurate, or else an overflow (see below), 0
+///    or NaN (scipy/xsf#365).
 /// 7. A negligible nonzero term only marks convergence if the terms can't grow again
 ///    (scipy/xsf#454).
 /// 8. Non-integer `b < 0`: up to 100000 terms, until the rest is negligible (scipy/xsf#365).
@@ -766,6 +767,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     let mut y0 = 0.0;
     let mut y1 = 0.0;
     let mut accurate = false;
+    let mut overflow = false;
     let mut wrong = false;
     for n in 0..=nl {
         if a0 >= 2.0 {
@@ -777,6 +779,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             let sum = chgm_sum(a, b, x, if check && neg_b { MAX_TERMS } else { 500 });
             accurate = sum.accurate();
             wrong |= check && (sum.wrong(a, b, x, neg_b) || sum.lossy(a, b, x));
+            // |M| > MAX if the sum overflows where its terms keep their sign (not `wrong`)
+            overflow = check && sum.hg.is_infinite() && !wrong;
             hg = sum.hg;
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms, and after 500 terms (finite if not `wrong`) with `mul_exp`
@@ -828,10 +832,15 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         }
     }
     // Unlike in xsf (scipy/xsf#365), if `direct`, the series above (at a itself) if accurate, else
-    // for x < 0 the one without DLMF 13.2.39
+    // for x < 0 the one without DLMF 13.2.39, else an overflow
     if direct && !accurate {
         let hg = (x0 < 0.0).then(|| chgm_series(a1, b, x0, 0.0)).flatten();
         if let Some((hg, _)) = hg.filter(half_accurate) {
+            return hg;
+        }
+        // and |e^x0 M| > MAX too if the series with that factor also overflows
+        let hg = overflow.then(|| chgm_series(a, b, x, x0)).flatten();
+        if let Some((hg, _)) = hg.filter(|(hg, _)| hg.is_infinite()) {
             return hg;
         }
         // DLMF 13.4.1: 0 < M(a, b, x) <= I_s(a, b - a) + e^(s x) for x < 0 < a < b, s in [0, 1]
