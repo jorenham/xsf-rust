@@ -166,7 +166,7 @@ pub(super) fn incbet_corr(a: f64, b: f64) -> f64 {
 ///
 /// \[1\] A. R. DiDonato and A. H. Morris, "Algorithm 708: Significant digit computation of the
 /// incomplete beta function ratios", ACM Trans. Math. Softw. 18(3), 360-373 (1992).
-pub(super) fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
+pub(crate) fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
     let c = a + b;
     // without the rounding error of c
     let d = x * b - y * a;

@@ -11,6 +11,7 @@ mod hypergeometric;
 mod logsumexp;
 mod ndtri_exp;
 mod orthogonal_eval;
+mod orthogonal_roots;
 mod perm;
 mod polygamma;
 mod powm1;

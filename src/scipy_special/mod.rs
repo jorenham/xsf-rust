@@ -11,6 +11,7 @@ mod hypergeometric;
 mod logsumexp;
 mod ndtri_exp;
 mod orthogonal_eval;
+mod orthogonal_roots;
 mod perm;
 mod polygamma;
 mod powm1;
@@ -41,6 +42,10 @@ pub use orthogonal_eval::{
     eval_gengegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi,
     eval_laguerre, eval_legendre, eval_sh_chebyshev_t, eval_sh_chebyshev_u, eval_sh_jacobi,
     eval_sh_legendre,
+};
+pub use orthogonal_roots::{
+    roots_chebyshev_t, roots_gegenbauer, roots_gengegenbauer, roots_jacobi, roots_legendre,
+    roots_sh_jacobi, roots_sh_legendre,
 };
 pub use perm::perm;
 pub use polygamma::polygamma;

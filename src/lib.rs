@@ -405,6 +405,19 @@
 //! Note that [`eval_sh_jacobi`] differs from `scipy.special.eval_sh_jacobi`, which is
 //! [`eval_gengegenbauer`] here (scipy/scipy#18988).
 //!
+//! The following functions compute the nodes and weights of Gauss quadrature, i.e. the roots of
+//! these polynomials:
+//!
+//! | Function                 | Roots of                |
+//! | ------------------------ | ----------------------- |
+//! | [`roots_jacobi`]         | $P_n^{(\alpha,\beta)}$  |
+//! | [`roots_sh_jacobi`]      | $P_n^{*(\alpha,\beta)}$ |
+//! | [`roots_gengegenbauer`]  | $G_n^{(p,q)}$           |
+//! | [`roots_legendre`]       | $P_n$                   |
+//! | [`roots_sh_legendre`]    | $P_n^*$                 |
+//! | [`roots_chebyshev_t`]    | $T_n$                   |
+//! | [`roots_gegenbauer`]     | $C_n^{(\alpha)}$        |
+//!
 //! # Hypergeometric functions
 //!
 //! | Function   | Description                             | Notation                         |
