@@ -20,6 +20,9 @@ property!(no_panic, elliprd(x, y, z));
 property!(no_panic, elliprf(x, y, z));
 property!(no_panic, elliprg(x, y, z));
 property!(no_panic, elliprj(x, y, z, p));
+property!(no_panic, ellip_harm(h2, k2, n in 0..100_u32, p in 0..202_u32, s) => {
+    xsf::ellip_harm(h2, k2, n, p, s, 1.0, -1.0)
+});
 
 property!(no_panic, betainc(a, b, x));
 property!(no_panic, betaincinv(a, b, y));

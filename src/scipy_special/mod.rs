@@ -4,6 +4,7 @@ mod boxcox;
 mod comb;
 mod convex_analysis;
 mod diric;
+mod ellip_harm;
 mod factorial;
 mod hypergeometric;
 mod logsumexp;
@@ -16,7 +17,6 @@ mod softplus;
 mod spence;
 mod spfun_stats;
 mod stirling;
-#[allow(dead_code)] // for the ports of `ellip_harm` and `roots_*`
 mod tridiag;
 mod wright;
 
@@ -28,6 +28,7 @@ pub use boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
 pub use comb::{comb, comb_rep};
 pub use convex_analysis::{entr, huber, kl_div, pseudo_huber, rel_entr};
 pub use diric::diric;
+pub use ellip_harm::ellip_harm;
 pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
 pub use hypergeometric::{hyp0f0, hyp0f1, hyp1f0};
 pub use logsumexp::{log_softmax, logsumexp, softmax};

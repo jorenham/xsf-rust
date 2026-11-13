@@ -35,6 +35,12 @@
 //! | [`elliprg`]      | Completely-symmetric elliptic integral of the second kind   |
 //! | [`elliprj`]      | Symmetric elliptic integral of the third kind               |
 //!
+//! # Ellipsoidal harmonics
+//!
+//! | Function       | Description                               |
+//! | -------------- | ----------------------------------------- |
+//! | [`ellip_harm`] | Ellipsoidal harmonic functions $E^p_n(s)$ |
+//!
 //! # Bessel functions
 //!
 //! | Function                | Description                                                       |

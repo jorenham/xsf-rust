@@ -1055,8 +1055,8 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 ## Not covered
 
-- No mpmath reference: Mathieu (`mathieu_*`) and spheroidal wave functions (`prolate_*`,
-  `oblate_*`)
+- No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
+  `oblate_*`), and ellipsoidal harmonics (`ellip_harm`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
 - All orders or degrees: `*_all`, `riccati_j`, `riccati_y`, `jahnke_emden_lambda`
 - Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`

@@ -4,6 +4,7 @@ mod boxcox;
 mod comb;
 mod convex_analysis;
 mod diric;
+mod ellip_harm;
 mod factorial;
 mod hypergeometric;
 mod logsumexp;
