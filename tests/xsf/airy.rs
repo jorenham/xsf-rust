@@ -35,6 +35,26 @@ fn test_airy_f64_overflow() {
 }
 
 #[test]
+fn test_airy_f64_large_negative() {
+    // mpmath: airyai(x), airyai(x, 1), airybi(x), airybi(x, 1)
+    let expected = [
+        -0.013_152_978_737_498_165,
+        -9.130_078_851_932_488,
+        0.028_871_844_285_058_44,
+        -4.159_337_010_446_404,
+    ];
+    xsref::np_assert_allclose!(&xsf::airy(-1e5), &expected, rtol = 1e-14);
+    let expected = [
+        0.005_418_514_944_210_602,
+        -26.701_707_811_976_564,
+        0.008_443_821_410_258_535,
+        17.134_848_759_576_796,
+    ];
+    xsref::np_assert_allclose!(&xsf::airy(-1e7), &expected, rtol = 1e-14);
+    assert!(xsf::airy(-1e17).iter().all(|y| y.is_nan()));
+}
+
+#[test]
 fn test_airy_c64_near_overflow() {
     // Arb: airyai(z), airyai(z, 1), airybi(z), and airybi(z, 1) for z = -51.8 + 89.7j
     let expected = [

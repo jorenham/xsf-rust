@@ -107,11 +107,13 @@ fn airy_f64(x: f64) -> [f64; 4] {
     /* For small arguments, use Cephes as it's slightly faster.
      * For large arguments, use AMOS as it's more accurate.
      */
-    if x < -10.0 || x > 10.0 {
+    // Unlike in xsf, Cephes is also used for x < -10, where its double-double phase makes it more
+    // accurate than AMOS.
+    if x > 10.0 {
         let [ai, aip, bi, bip] = airy_c64(c64(x, 0.0), 1).map(|z| z.re);
         // Unlike in xsf (scipy/xsf#310), Cephes or `airye` takes over where AMOS over- or
         // underflows.
-        if x > 0.0 && bip.is_nan() {
+        if bip.is_nan() {
             // Bi' overflows first. Cephes returns inf for x > 103.892, while Bi(x) only
             // overflows at x = 104.44, so `airye` is unscaled in between.
             if x > 103.892 && x < 104.5 {
@@ -121,7 +123,7 @@ fn airy_f64(x: f64) -> [f64; 4] {
             } else {
                 cephes()
             }
-        } else if x > 0.0 && ai == 0.0 {
+        } else if ai == 0.0 {
             // AMOS returns 0 for Ai(x) below about 1e-305
             let [ai, aip, ..] = cephes();
             [ai, aip, bi, bip]

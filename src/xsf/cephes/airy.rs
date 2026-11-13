@@ -7,13 +7,21 @@
 //!
 //! Unlike in xsf, `(status, ai, aip, bi, bip)` is returned instead of written to output pointers.
 
-use crate::utils::{MACHEP, SQRT1OPI, SQRT3};
+use crate::utils::{MACHEP, SQRT1OPI, SQRT3, pow2};
+use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-use core::f64::consts::PI;
+use core::f64::consts::FRAC_PI_4;
 
 const C1: f64 = 0.35502805388781723926;
 const C2: f64 = 0.258819403792806798405;
 const MAXAIRY: f64 = 103.892;
+/// Below this, the phase error of `sin_cos_theta`, ~ `theta` 2^-106, is ~ sqrt(eps)
+const MINAIRY: f64 = -1e16;
+/// 2/3 in double-double, as 2/3 - fl(2/3) = 2^-53 / 3
+const TWO_THIRDS: DoubleDouble = DoubleDouble {
+    hi: 2.0 / 3.0,
+    lo: pow2(-53) / 3.0,
+};
 
 const AN: [f64; 8] = [
     3.46538101525629032477E-1,
@@ -201,6 +209,23 @@ const APGD: [f64; 10] = [
     5.79912514929147598821E-9,
 ];
 
+/// `sin` and `cos` of `theta = 2/3 a^(3/2) + pi/4`, given `t = sqrt(a)`
+///
+/// Unlike in xsf, `theta` is computed in double-double, since its rounding error (~ `theta` eps)
+/// is the error of Ai, Bi, Ai', Bi' relative to their amplitude.
+fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
+    // sqrt(a) = t + (a - t^2) / (2 t)
+    let (tt, e) = two_prod(t, t);
+    let t = DoubleDouble {
+        hi: t,
+        lo: ((a - tt) - e) / (2.0 * t),
+    };
+    let theta = t * a * TWO_THIRDS + FRAC_PI_4;
+    let (s, c) = theta.hi.sin_cos();
+    let (sl, cl) = theta.lo.sin_cos();
+    (s * cl + c * sl, c * cl - s * sl)
+}
+
 /// Airy function
 ///
 /// Solution of the differential equation
@@ -219,21 +244,21 @@ const APGD: [f64; 10] = [
 ///
 /// Error criterion is absolute when function <= 1, relative
 /// when function > 1, except * denotes relative error criterion.
-/// For large negative x, the absolute error increases as x^1.5.
 /// For large positive x, the relative error increases as x^1.5.
 ///
 /// ```text
 /// Arithmetic  domain   function  # trials      peak         rms
-/// IEEE        -10, 0     Ai        10000       2.0e-15     2.9e-16
+/// IEEE        -10, 0     Ai        10000       2.5e-16     3.8e-17
 /// IEEE          0, 10    Ai        10000       2.5e-14*    1.7e-15*
-/// IEEE        -10, 0     Ai'       10000       6.3e-15     8.0e-16
+/// IEEE        -10, 0     Ai'       10000       3.8e-16     7.7e-17
 /// IEEE          0, 10    Ai'       10000       1.8e-14*    1.4e-15*
-/// IEEE        -10, 10    Bi        30000       5.7e-15     6.5e-16
-/// IEEE        -10, 10    Bi'       30000       6.2e-15     8.4e-16
+/// IEEE        -10, 10    Bi        30000       3.9e-15     4.6e-16
+/// IEEE        -10, 10    Bi'       30000       3.8e-15     4.7e-16
 /// ```
 ///
 /// Returns `(status, ai, aip, bi, bip)`, where `status` is `-1` if `x > 103.892` (in which case
-/// `(ai, aip, bi, bip) = (0, 0, inf, inf)`), and `0` otherwise. NaN input gives NaN outputs.
+/// `(ai, aip, bi, bip) = (0, 0, inf, inf)`) or `x < -1e16` (all NaN), and `0` otherwise. NaN
+/// input gives NaN outputs.
 pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
     // Written on every path before returning, so these initial NaNs are never observed
     let mut ai = f64::NAN;
@@ -245,20 +270,22 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
     if x > MAXAIRY {
         return (-1, 0.0, 0.0, f64::INFINITY, f64::INFINITY);
     }
+    // Unlike in xsf, NaN for x < MINAIRY, since the result has lost over half of its digits.
+    if x < MINAIRY {
+        return (-1, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+    }
 
     if x < -2.09 {
         // domflg = 15; (unused, since this branch always returns)
         let t = (-x).sqrt();
         let zeta = -2.0 * x * t / 3.0;
+        let (f, g) = sin_cos_theta(-x, t);
         let t = t.sqrt();
         let k = SQRT1OPI / t;
         let z = 1.0 / zeta;
         let zz = z * z;
         let uf = 1.0 + zz * polevl(zz, &AFN) / p1evl(zz, &AFD);
         let ug = z * polevl(zz, &AGN) / p1evl(zz, &AGD);
-        let theta = zeta + 0.25 * PI;
-        let f = theta.sin();
-        let g = theta.cos();
         ai = k * (f * uf - g * ug);
         bi = k * (g * uf + f * ug);
         let uf = 1.0 + zz * polevl(zz, &APFN) / p1evl(zz, &APFD);
