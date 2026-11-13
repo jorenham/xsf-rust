@@ -11,7 +11,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, MAXLOG, SCIPY_EULER};
+use crate::utils::{MACHEP, MAXLOG, MINLOG, SCIPY_EULER, mul_exp};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::rgamma;
 
@@ -92,11 +92,6 @@ fn expn_large_n(n: u32, x: f64) -> f64 {
     let mut fac = 1.0;
     let mut res = 1.0; /* A[0] = 1 */
 
-    let expfac = (-lambda * p).exp() / (lambda + 1.0) / p;
-    if expfac == 0.0 {
-        return 0.0;
-    }
-
     /* Do the k = 1 term outside the loop since A[1] = 1 */
     fac *= multiplier;
     res += fac;
@@ -110,6 +105,11 @@ fn expn_large_n(n: u32, x: f64) -> f64 {
         }
     }
 
+    // Unlike in xsf, see `expn` (and with the exact -x instead of the rounded -lambda p)
+    if x > MAXLOG {
+        return mul_exp(res / (lambda + 1.0) / p, -x);
+    }
+    let expfac = (-lambda * p).exp() / (lambda + 1.0) / p;
     expfac * res
 }
 
@@ -151,7 +151,10 @@ pub fn expn(n: u32, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    if x > MAXLOG {
+    // Unlike in xsf, not 0 from MAXLOG on, since E_n(x) ~ e^-x / x is subnormal up to ~ -MINLOG.
+    // There, e^-x is applied last with `mul_exp`, since rounding e^-x and the subnormal result
+    // separately can be off by a subnormal ulp, e.g. 0 instead of 5e-324 for E_0(738.5281143251407)
+    if x > -MINLOG {
         return 0.0;
     }
 
@@ -163,6 +166,9 @@ pub fn expn(n: u32, x: f64) -> f64 {
     }
 
     if n == 0 {
+        if x > MAXLOG {
+            return mul_exp(1.0 / x, -x);
+        }
         return (-x).exp() / x;
     }
 
@@ -212,6 +218,9 @@ pub fn expn(n: u32, x: f64) -> f64 {
             }
         }
 
+        if x > MAXLOG {
+            return mul_exp(ans, -x);
+        }
         ans *= (-x).exp();
         return ans;
     }
