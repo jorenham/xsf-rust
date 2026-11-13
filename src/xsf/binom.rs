@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/binom.h` (scipy/xsf@09c93c7).
+//! Translated into pure Rust from `xsf/binom.h` (scipy/xsf@a985488).
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 
@@ -78,21 +78,12 @@ pub fn binom(n: f64, k: f64) -> f64 {
         return (-lbeta(1.0 + n - k, 1.0 + k) - (n + 1.0).ln()).exp();
     }
     if k > 1e8 * n.abs() {
-        // avoid loss of precision
-        //
-        // Unlike in xsf (scipy/xsf#352), the second term includes the factor n + 1
-        num = gamma(1.0 + n) / k.abs() + gamma(1.0 + n) * n / (2.0 * k * k) * (n + 1.0); // + ...
-        // Unlike in xsf (scipy/xsf#352), |k|^n is split in two if `den` over- or underflows
-        let den = PI * k.abs().powf(n);
-        if den.is_normal() {
-            num /= den;
-        } else {
-            let kn2 = k.abs().powf(0.5 * n);
-            num = num / (PI * kn2) / kn2;
-        }
-        // Unlike in xsf (scipy/xsf#352), the parity of kx is also determined for kx >= 2^31, and
-        // sinpi is used instead of sin. The `k <= 0` branch of xsf is omitted, since
-        // k > 1e8 |n| implies k > 0.
+        // avoid loss of precision (DLMF 5.11.13)
+        num = gamma(1.0 + n) / k.abs() * (1.0 + n * (n + 1.0) / (2.0 * k)); // + ...
+        // split k^n, which can overflow when the result doesn't
+        den = k.abs().powf(n / 2.0);
+        num = num / (PI * den) / den;
+        // Unlike in xsf, the unreachable `k <= 0` branch is omitted
         kx = k.floor();
         let dk = k - kx;
         let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
