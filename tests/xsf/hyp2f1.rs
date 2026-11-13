@@ -353,6 +353,59 @@ fn test_hyp2f1_f64_euler_tiny_a() {
 }
 
 #[test]
+fn test_hyp2f1_f64_tiny_negative_a_or_b() {
+    // unlike in xsf, where a tiny negative `a` or `b` counts as the integer 0: these were inf, 1,
+    // 1, 1, 1, 1, 1, -4.27e6, 1, 1 and -inf (Arb)
+    let actual = [
+        xsf::hyp2f1(26.5, -3e-21, 0.001, -2e4),
+        xsf::hyp2f1(-120.5, -2.5e-28, -9.94, -0.5005),
+        xsf::hyp2f1(-1e-20, -30.5, 2.5, -100.0),
+        xsf::hyp2f1(-1e-20, -50.5, 3.5, -1.5),
+        xsf::hyp2f1(-1e-20, 150.5, 0.7, 0.99),
+        // also for small parameters, and if the other is a negative integer
+        xsf::hyp2f1(-4e-23, -9.75, -5.5, -5800.0),
+        xsf::hyp2f1(-7.0, -1e-27, 9.5, -48000.0),
+        xsf::hyp2f1(8.25, -3e-17, 1.25, 0.999_99),
+        xsf::hyp2f1(-3e-23, 7.0, 1.625, 0.999_98),
+        xsf::hyp2f1(-0.25, -1e-25, -9.25, 0.9985),
+        xsf::hyp2f1(-9.9e-14, 5.25, -0.0112, -3.75),
+    ];
+    let desired = [
+        1.0,
+        -10_864.775_782_791_036,
+        -3.386_320_822_599_271e37,
+        0.999_973_883_705_280_6,
+        -1.562_482_690_977_387e278,
+        -5.396_467_458_796_281e16,
+        -8.719_200_573_711_808,
+        -2.337_318_708_006_997_3e17,
+        -27.935_689_206_440_796,
+        1.146_412_218_027_53,
+        0.999_999_999_991_500_6,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // and these are 1 to rounding, also if the 1/x transformation would lose `a` in `c - (c - a)`
+    let actual = [
+        xsf::hyp2f1(-5e-324, -9.75, -5.5, -5800.0),
+        xsf::hyp2f1(-1e-300, -120.5, -9.94, -0.5005),
+        xsf::hyp2f1(
+            -4.833_976_887_147_481e-28,
+            -1.075_991_900_035_736_5,
+            117.5,
+            -1.631_640_163_446_271_4,
+        ),
+    ];
+    np_assert_allclose!(actual, [1.0, 1.0, 1.0], rtol = 1e-15);
+    // also where the error estimates of the paths for polynomials say that no digit is correct
+    // (Arb)
+    let actual = [
+        xsf::hyp2f1(-3.53e-26, -1592.2, -17.239, 0.04516),
+        xsf::hyp2f1(-3.25e-18, 491.04, -0.010_315, -0.328),
+    ];
+    np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp2f1_f64_c_lt_0_x_lt_0() {
     // the Euler transformation cancels here, but the Pfaff ones don't (mpmath)
     let actual = [
@@ -669,10 +722,26 @@ fn test_hyp2f1_f64_euler_both_out_of_range() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_lost() {
-    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 2.36e5
-    // and 4.83e51 (Arb: 1 and 1)
-    assert!(xsf::hyp2f1(-3.53e-26, -1592.2, -17.239, 0.04516).is_nan());
-    assert!(xsf::hyp2f1(-3.25e-18, 491.04, -0.010_315, -0.328).is_nan());
+    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 6.75e10
+    // and -2.81e238 (Arb: 1.19e11 and -210)
+    let args = [
+        (
+            -7.000_000_000_000_021,
+            -208.513_348_904_413_08,
+            0.5,
+            0.471_817_095_982_536_96,
+        ),
+        (
+            -17.000_000_000_000_007,
+            738.317_738_730_952_2,
+            -128.5,
+            -0.362_556_171_941_935_9,
+        ),
+    ];
+    assert!(
+        args.into_iter()
+            .all(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x).is_nan())
+    );
     // but `hyp2f1_recur` bounds its error for these, which were 7.7e149, 2.4e7, -5.6e85 and 7.5e-4
     // (Arb)
     let actual = [
