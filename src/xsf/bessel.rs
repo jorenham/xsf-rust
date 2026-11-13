@@ -200,7 +200,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: C64) -> C64 {
         }
         // Unlike in xsf (scipy/xsf#383), an AMOS overflow of K_v(x) is inf instead of NaN.
         if overflowed_real(ierr, z) {
-            cy_k = c64(f64::INFINITY, 0.0);
+            cy_k = C64::INFINITY;
         }
         /* v -> -v */
         cy = rotate_i(cy, cy_k, v);
@@ -335,13 +335,13 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     }
 
     if cyl_bessel_k_overflows(v, z, kode == 2) {
-        return c64(f64::INFINITY, 0.0);
+        return C64::INFINITY;
     }
 
     let (mut cy, ierr) = amos1(amos::besk, z, v, kode);
     if overflowed_real(ierr, z) {
         /* overflow */
-        cy = c64(f64::INFINITY, 0.0);
+        cy = C64::INFINITY;
     }
 
     cy
@@ -469,7 +469,7 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     if sign == -1 && !reflect_jy(&mut cy_j, v) {
         let (mut cy_y, ierr) = amos1(amos::besy, z, v, kode);
         if overflowed_real(ierr, z) {
-            cy_y = c64(f64::NEG_INFINITY, 0.0);
+            cy_y = C64::NEG_INFINITY;
         }
         cy_j = rotate_jy(cy_j, cy_y, v);
     }

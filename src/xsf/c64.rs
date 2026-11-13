@@ -57,8 +57,12 @@ impl From<C64> for Complex<f64> {
 impl C64 {
     /// The imaginary unit
     pub(crate) const I: Self = c64(0.0, 1.0);
+    /// inf + 0 i
+    pub(crate) const INFINITY: Self = c64(f64::INFINITY, 0.0);
     /// NaN + NaN i
     pub(crate) const NAN: Self = c64(f64::NAN, f64::NAN);
+    /// -inf + 0 i
+    pub(crate) const NEG_INFINITY: Self = c64(f64::NEG_INFINITY, 0.0);
     /// 1 + 0 i
     pub(crate) const ONE: Self = c64(1.0, 0.0);
     /// 0 + 0 i

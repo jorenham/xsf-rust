@@ -491,7 +491,7 @@ mod tests {
         assert!(rel(w, pow2(-512) / 2.0_f64.powf(0.25)) < 1e-12);
 
         // `z^0`, and both sides of the branch cut
-        assert_eq!(super::cpow(c64(f64::NAN, 0.0), 0.0), c64(1.0, 0.0));
+        assert_eq!(super::cpow(c64(f64::NAN, 0.0), 0.0), C64::ONE);
         assert_eq!(super::cpow(c64(-4.0, 0.0), 0.5).im, 2.0);
         assert_eq!(super::cpow(c64(-4.0, -0.0), 0.5).im, -2.0);
     }
@@ -530,7 +530,7 @@ mod tests {
         // signed zeros and the branch points
         let r = super::catan(c64(-0.0, 0.0));
         assert_eq!([r.re.to_bits(), r.im.to_bits()], [(-0.0_f64).to_bits(), 0]);
-        assert_eq!(super::catan(c64(0.0, 1.0)), c64(0.0, f64::INFINITY));
+        assert_eq!(super::catan(C64::I), c64(0.0, f64::INFINITY));
         assert_eq!(super::catan(c64(0.0, -1.0)), c64(0.0, f64::NEG_INFINITY));
     }
 }

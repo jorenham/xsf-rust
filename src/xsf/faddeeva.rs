@@ -568,7 +568,7 @@ pub(crate) fn w(z: C64) -> C64 {
                     return if x.is_nan() || y < 0.0 {
                         C64::NAN
                     } else {
-                        c64(0.0, 0.0)
+                        C64::ZERO
                     };
                 } else {
                     let xya = xs / ya;

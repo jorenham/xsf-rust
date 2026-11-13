@@ -835,7 +835,7 @@ fn lambertw_c64(z: C64, k: isize, tol: f64) -> C64 {
         if k == 0 {
             return z;
         }
-        return c64(f64::NEG_INFINITY, 0.0);
+        return C64::NEG_INFINITY;
     }
     if z == C64::ONE && k == 0 {
         // Split out this case because the asymptotic series blows up

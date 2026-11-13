@@ -481,7 +481,7 @@ fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
                 return c64(pow_m1(n) * f64::INFINITY, 0.0);
             }
 
-            return c64(f64::INFINITY, 0.0);
+            return C64::INFINITY;
         }
 
         return c64(f64::NAN, 0.0);
@@ -569,7 +569,7 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
                 return C64::ZERO;
             }
 
-            return c64(f64::NEG_INFINITY, 0.0);
+            return C64::NEG_INFINITY;
         }
 
         return c64(f64::NAN, 0.0);

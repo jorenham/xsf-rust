@@ -9,7 +9,7 @@
 use core::ops::Add;
 
 use super::{argcheck, arithmetic, rg, rj};
-use crate::xsf::c64::{C64, c64};
+use crate::xsf::c64::C64;
 use crate::xsf::complex;
 
 /// The arithmetic of `T` in C++ ([`complex::Num`]), extended with `ellint_carlson` specifics
@@ -86,7 +86,7 @@ impl Num for C64 {
     /* Complexified specialisation, with the complex NaN and infinity as
      * return values. */
     const NAN: Self = C64::NAN;
-    const HUGE: Self = c64(f64::INFINITY, 0.0);
+    const HUGE: Self = C64::INFINITY;
 
     #[inline]
     fn too_small(self) -> bool {

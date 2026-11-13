@@ -58,11 +58,7 @@ fn wrightomega_ext(z: C64) -> C64 {
     } else if x.is_infinite() && x.is_sign_negative() && (-pi < y) && (y <= pi) {
         // Signed zeros between branches
         return if y.abs() <= pi / 2.0 {
-            if y >= 0.0 {
-                c64(0.0, 0.0)
-            } else {
-                c64(0.0, -0.0)
-            }
+            if y >= 0.0 { C64::ZERO } else { c64(0.0, -0.0) }
         } else {
             if y >= 0.0 {
                 c64(-0.0, 0.0)

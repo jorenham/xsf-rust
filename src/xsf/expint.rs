@@ -65,13 +65,13 @@ fn exp1_c64(z: C64) -> C64 {
     let xt = -2.0 * z.im.abs();
 
     if a0 == 0.0 {
-        return c64(f64::INFINITY, 0.0);
+        return C64::INFINITY;
     }
     let mut ce1;
     if (a0 < 5.0) || ((x < xt) && (a0 < 40.0)) {
         // Power series
-        ce1 = c64(1.0, 0.0);
-        let mut cr = c64(1.0, 0.0);
+        ce1 = C64::ONE;
+        let mut cr = C64::ONE;
         for k in 1..501 {
             cr = -cr * z * (f64::from(k) / f64::from(k + 1).powi(2));
             ce1 += cr;
@@ -82,7 +82,7 @@ fn exp1_c64(z: C64) -> C64 {
         if (x <= 0.0) && (z.im == 0.0) {
             // Careful on the branch cut -- use the sign of the imaginary part
             //  to get the right sign on the factor if pi.
-            ce1 = -EL - (-z).ln() + z * ce1 - PI.copysign(z.im) * c64(0.0, 1.0);
+            ce1 = -EL - (-z).ln() + z * ce1 - PI.copysign(z.im) * C64::I;
         } else {
             ce1 = -EL - z.ln() + z * ce1;
         }
@@ -91,7 +91,7 @@ fn exp1_c64(z: C64) -> C64 {
         //                  1     1     1     2     2     3     3
         // E1 = exp(-z) * ----- ----- ----- ----- ----- ----- ----- ...
         //                Z +   1 +   Z +   1 +   Z +   1 +   Z +
-        let mut zc = c64(0.0, 0.0);
+        let mut zc = C64::ZERO;
         let mut zd = 1.0 / z;
         let mut zdc = zd;
         zc += zdc;
@@ -110,7 +110,7 @@ fn exp1_c64(z: C64) -> C64 {
         }
         ce1 = (-z).exp() * zc;
         if (x <= 0.0) && (z.im == 0.0) {
-            ce1 -= PI * c64(0.0, 1.0);
+            ce1 -= PI * C64::I;
         }
     }
     ce1

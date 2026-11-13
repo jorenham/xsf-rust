@@ -26,7 +26,7 @@ fn sici_power_series(sgn: i32, z: C64) -> (C64, C64) {
 
     let mut fac = z;
     let mut s = fac;
-    let mut c = c64(0.0, 0.0);
+    let mut c = C64::ZERO;
     for n in 1..100 {
         let n = f64::from(n);
         fac *= f64::from(sgn) * z / (2.0 * n);
@@ -49,10 +49,10 @@ fn sici_c64(z: C64) -> (C64, C64) {
 
     const EULER: f64 = SCIPY_EULER;
 
-    if z == c64(f64::INFINITY, 0.0) {
-        return (c64(FRAC_PI_2, 0.0), c64(0.0, 0.0));
+    if z == C64::INFINITY {
+        return (c64(FRAC_PI_2, 0.0), C64::ZERO);
     }
-    if z == c64(f64::NEG_INFINITY, 0.0) {
+    if z == C64::NEG_INFINITY {
         return (c64(-FRAC_PI_2, 0.0), c64(0.0, PI));
     }
 
@@ -60,7 +60,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
         // Use the series to avoid cancellation in si
         let (si, mut ci) = sici_power_series(-1, z);
 
-        if z == c64(0.0, 0.0) {
+        if z == C64::ZERO {
             ci = c64(f64::NEG_INFINITY, f64::NAN);
         } else {
             ci += EULER + z.ln();
@@ -69,7 +69,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
     }
 
     // DLMF 6.5.5/6.5.6 plus DLMF 6.4.4/6.4.6/6.4.7
-    let jz = c64(0.0, 1.0) * z;
+    let jz = C64::I * z;
     let term1 = expi_c64(jz);
     let term2 = expi_c64(-jz);
     let mut si = c64(0.0, -0.5) * (term1 - term2);
@@ -99,16 +99,16 @@ fn shichi_c64(z: C64) -> (C64, C64) {
      */
     const EULER: f64 = SCIPY_EULER;
 
-    if z == c64(f64::INFINITY, 0.0) {
-        return (c64(f64::INFINITY, 0.0), c64(f64::INFINITY, 0.0));
+    if z == C64::INFINITY {
+        return (C64::INFINITY, C64::INFINITY);
     }
-    if z == c64(f64::NEG_INFINITY, 0.0) {
-        return (c64(f64::NEG_INFINITY, 0.0), c64(f64::INFINITY, 0.0));
+    if z == C64::NEG_INFINITY {
+        return (C64::NEG_INFINITY, C64::INFINITY);
     }
     if z.norm() < 0.8 {
         // Use the series to avoid cancellation in shi
         let (shi, mut chi) = sici_power_series(1, z);
-        if z == c64(0.0, 0.0) {
+        if z == C64::ZERO {
             chi = c64(f64::NEG_INFINITY, f64::NAN);
         } else {
             chi += EULER + z.ln();

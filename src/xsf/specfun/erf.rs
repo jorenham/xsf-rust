@@ -112,8 +112,8 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
 
     let mut it: i32;
     let mut z: C64;
-    let mut zf = c64(0.0, 0.0);
-    let mut zd = c64(0.0, 0.0);
+    let mut zf = C64::ZERO;
+    let mut zd = C64::ZERO;
     let mut zp: C64;
     let mut zw: C64;
     let mut zq: C64;
@@ -133,15 +133,15 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
         loop {
             it += 1;
             cerf(z, &mut zf, &mut zd);
-            zp = c64(1.0, 0.0);
+            zp = C64::ONE;
 
             for i in 1..nr {
                 zp *= z - zo[(i - 1) as usize];
             }
             zfd = zf / zp;
-            zq = c64(0.0, 0.0);
+            zq = C64::ZERO;
             for i in 1..nr {
-                zw = c64(1.0, 0.0);
+                zw = C64::ONE;
                 for j in 1..nr {
                     if j == i {
                         continue;
