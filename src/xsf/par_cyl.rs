@@ -1055,8 +1055,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         );
     }
 
-    let n = (20.0 - v).ceil();
-    let ([.., mut u0, _], ea, eb) = pbdv_airy(v + n, y);
+    let (ub, ea, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, y);
     if ea < -HUGE_EXP {
         // D_v(y) underflows, and sin(pi v) Ubar_v(y) overflows unless v is tiny
         let ub = mul_exp(s, eb);
@@ -1067,12 +1066,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         };
     }
     let (dy, dpy) = pbdv(v, y);
-    // Ubar_{w-1}(y) = (y Ubar_w(y) - Ubar_{w+1}(y)) / w (12.8.5), stable for decreasing w
-    let ([.., u1, _], _, eb1) = pbdv_airy(v + n + 1.0, y);
-    let mut u1 = mul_exp(u1, eb1 - eb);
-    for k in (1..=n as i32).rev() {
-        (u0, u1) = ((y * u0 - u1) / (v + f64::from(k)), u0);
-    }
+    let (u0, u1) = (ub[0], ub[1]);
     // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent
     let (s, eb) = if v.is_subnormal() {
         (PI.copysign(v), eb + v.abs().ln())
@@ -1084,6 +1078,21 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         c * dy - mul_exp(s * u0, eb),
         mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy,
     )
+}
+
+/// `Ubar_{v+k}(y)` for `k = 0..=n + 1` and `v + n >= 20` as mantissas with the exponents `ea`, `eb`
+/// of `pbdv_airy(v + n, y)`, by `Ubar_{w-1} = (y Ubar_w - Ubar_{w+1}) / w` (12.8.5), which is
+/// stable for decreasing w
+fn pbdv_ubar(v: f64, n: usize, y: f64) -> (Vec<f64>, f64, f64) {
+    let w = v + n as f64;
+    let ([.., u0, _], ea, eb) = pbdv_airy(w, y);
+    let ([.., u1, _], _, eb1) = pbdv_airy(w + 1.0, y);
+    let mut ub = vec![0.0; n + 2];
+    (ub[n], ub[n + 1]) = (u0, mul_exp(u1, eb1 - eb));
+    for k in (1..=n).rev() {
+        ub[k - 1] = (y * ub[k] - ub[k + 1]) / (v + k as f64);
+    }
+    (ub, ea, eb)
 }
 
 /// `D_v(-y)`, `D_v'(-y)` for `|v| < 20` and `y > 50`, by `D_v(-y) = pi / Gamma(-v) V_v(y)`, i.e.
