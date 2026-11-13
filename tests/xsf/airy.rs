@@ -24,9 +24,18 @@ fn test_airy_f64_overflow() {
         rtol = 1e-13
     );
     let inf = f64::INFINITY;
-    let [_, _, bi, bip] = xsf::airy(104.0);
-    let expected = [2.095_173_527_033_602e306, 2.136_162_195_043_275_3e307];
-    xsref::np_assert_allclose!([bi, bip], expected, rtol = 1e-13);
+    let expected = [
+        7.448_752_158_292_226e-309,
+        -7.598_056_033_156_867e-308,
+        2.095_173_527_033_602e306,
+        2.136_162_195_043_275_3e307,
+    ];
+    xsref::np_assert_allclose!(&xsf::airy(104.0), &expected, rtol = 1e-13);
+    let [ai, aip, bi, _] = xsf::airy(106.5);
+    let expected = [5.3808e-320, -5.5542e-319];
+    xsref::np_assert_allclose!([ai, aip], expected, rtol = 1e-4);
+    assert_eq!(bi, inf);
+    assert_eq!(xsf::airy(107.7), [0.0, 0.0, inf, inf]);
     let [_, _, bi, bip] = xsf::airy(104.4);
     xsref::np_assert_allclose!([bi], [1.241_898_624_243_905_2e308], rtol = 1e-13);
     assert_eq!(bip, inf);
