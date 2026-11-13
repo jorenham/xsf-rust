@@ -24,6 +24,7 @@ fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
         ("betaln", &[a, b]) => xsf::betaln(a, b),
         ("binom", &[n, k]) => xsf::binom(n, k),
         ("pow_rising", &[a, m]) => xsf::pow_rising(a, m),
+        ("lanczos_sum_expg_scaled", &[x]) => xsf::lanczos_sum_expg_scaled(x),
         // error function and normal distribution
         ("erf", &[x]) => xsf::erf(x),
         ("erfc", &[x]) => xsf::erfc(x),

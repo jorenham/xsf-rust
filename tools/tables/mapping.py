@@ -127,6 +127,104 @@ def _lgam1p_arb(x: flint.arb) -> flint.arb:
     return _ln_abs_gamma(1 + x)
 
 
+def _nonpos_int(x: float) -> bool:
+    return math.isfinite(x) and x <= 0 and x.is_integer()
+
+
+def _sum_nonpos_int(a: tuple[float, ...]) -> bool:
+    """Whether the exact sum of the two inputs is a non-positive integer."""
+    if not all(map(math.isfinite, a)):
+        return False
+    s = sum(map(Fraction, a))
+    return s <= 0 and s.denominator == 1
+
+
+def _gamma_pole(a: tuple[float, ...]) -> bool:
+    """Whether Gamma(a) or Gamma(b) is a pole that Gamma(a + b) does not cancel, or both are."""
+    poles = tuple(map(_nonpos_int, a))
+    return all(poles) or any(poles) and not _sum_nonpos_int(a)
+
+
+def _gamma_ratio(a: flint.arb, m: flint.arb) -> flint.arb:
+    """Gamma(a + m) / Gamma(a), also where both are poles, by reflection (DLMF 5.5.3)."""
+    s = a + m
+    if a.is_integer() and a <= 0 and s.is_integer() and s <= 0:
+        return (-1) ** (int(float(m)) % 2) * (1 - a).gamma() * (1 - s).rgamma()
+    return s.gamma() * a.rgamma()
+
+
+def _beta_arb(a: flint.arb, b: flint.arb) -> flint.arb:
+    """Gamma(a) Gamma(b) / Gamma(a + b), with the first factor that is not a pole in front,
+    and the bits that make a + b exact, even for very different sizes."""
+    if a.is_integer() and a <= 0:
+        a, b = b, a
+    with flint.ctx.extraprec(2 * max(abs(math.frexp(float(x))[1]) for x in (a, b))):
+        return a.gamma() * _gamma_ratio(a + b, -a)
+
+
+def _betaln_arb(a: flint.arb, b: flint.arb) -> flint.arb:
+    return abs(_beta_arb(a, b)).log()
+
+
+# the Lanczos approximation (g = 6.024680040776729583740234375) of Gamma, scaled by exp(g): the
+# coefficients of the rational function in descending powers, as in xsf
+LANCZOS_NUM: Final = (
+    6.061842346248907e-3,
+    5.098416655656676e-1,
+    19.519927882476175,
+    449.9445569063168,
+    6955.999602515376,
+    75999.29304014542,
+    601859.6171681099,
+    3481712.154980646,
+    14605578.087685067,
+    43338889.32467614,
+    86363131.2881386,
+    103794043.11634454,
+    56906521.913471565,
+)
+LANCZOS_DENOM: Final = (
+    1.0,
+    66.0,
+    1925.0,
+    32670.0,
+    357423.0,
+    2637558.0,
+    13339535.0,
+    45995730.0,
+    105258076.0,
+    150917976.0,
+    120543840.0,
+    39916800.0,
+    0.0,
+)
+
+
+SMALL_B: Final = (
+    "for |b| < 1 and a > 4, xsf-rust computes ln Gamma(a) - ln Gamma(a + b) with lgam_ratio "
+    "(scipy/xsf#357), which avoids the rounding error of a + b that xsf amplifies"
+)
+
+
+def _small_b(args: tuple[float, ...]) -> bool:
+    """Whether `lbeta` takes the `small_b` path: |b| < 1 and a > 4 for the larger |a|, not
+    the asymptotic expansion first."""
+    a, b = sorted(args, key=abs, reverse=True)
+    return abs(b) < 1 and 4 < a < math.inf and not (a > 1e6 * abs(b) and a > 1e6)
+
+
+def _lanczos[T: (mp.mpf, flint.arb)](x: T) -> T:
+    """The rational function of `lanczos_sum_expg_scaled`, exactly."""
+
+    def horner(coef: tuple[float, ...]) -> T:
+        acc = x * 0 + coef[0]
+        for c in coef[1:]:
+            acc = acc * x + c
+        return acc
+
+    return horner(LANCZOS_NUM) / horner(LANCZOS_DENOM)
+
+
 def _digamma(x: mp.mpf) -> Value:
     """`specs.r_digamma`, with an absolute error where |psi(x)| < 1 for x < -1 (the accuracy
     that Cephes states), where the terms of the reflection cancel near a zero."""
@@ -1044,6 +1142,28 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         )
     ),
     ("lgam1p", "d-d"): Entry((Out("lgam1p", (_lgam1p,), (_lgam1p_arb,)),)),
+    ("betaln", "d_d-d"): Entry(
+        (
+            Out(
+                "betaln",
+                (specs.r_betaln,),
+                (_betaln_arb,),
+                (
+                    NAN,
+                    Rule(_gamma_pole, math.inf, "ln |B(a, b)| -> +inf at a pole"),
+                    Rule(
+                        lambda a: _sum_nonpos_int(a) and not any(map(_nonpos_int, a)),
+                        -math.inf,
+                        "B(a, b) = 0 if a + b is a pole of Gamma but a and b are not",
+                    ),
+                ),
+                floors=(Floor(_small_b, 8e-16, SMALL_B),),
+            ),
+        )
+    ),
+    ("lanczos_sum_expg_scaled", "d-d"): _real(
+        "lanczos_sum_expg_scaled", _lanczos, _lanczos, (NAN,)
+    ),
     ("digamma", "d-d"): Entry(
         (
             Out(
