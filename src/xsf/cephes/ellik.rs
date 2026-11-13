@@ -147,7 +147,8 @@ pub(crate) fn ellik(mut phi: f64, m: f64) -> f64 {
     }
     let mut a = 1.0 - m;
     if a == 0.0 {
-        if phi.abs() >= FRAC_PI_2 {
+        // Unlike in xsf, `>` instead of `>=`: fl(pi/2) < pi/2, so F(fl(pi/2) | 1) is finite
+        if phi.abs() > FRAC_PI_2 {
             return f64::INFINITY;
         }
         /* DLMF 19.6.8, and 4.23.42 */
