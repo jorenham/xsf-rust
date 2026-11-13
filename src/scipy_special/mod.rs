@@ -13,6 +13,8 @@ mod orthogonal_eval;
 mod perm;
 mod polygamma;
 mod powm1;
+#[allow(dead_code)] // for the port of `ellip_harm_2` and `ellip_normal`
+mod quadpack;
 mod softplus;
 mod spence;
 mod spfun_stats;
