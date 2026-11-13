@@ -16,6 +16,8 @@ mod softplus;
 mod spence;
 mod spfun_stats;
 mod stirling;
+#[allow(dead_code)] // for the ports of `ellip_harm` and `roots_*`
+mod tridiag;
 mod wright;
 
 pub use agm::agm;
