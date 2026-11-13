@@ -597,11 +597,11 @@ fn acon(
             let mut csgn = c64(0.0, sgn);
             if kode != 1 {
                 let yy = -zn.im;
-                csgn *= c64(yy.cos(), yy.sin());
+                csgn *= C64::cis(yy);
             }
             let inu = fnu as i32;
             let arg = (fnu - f64::from(inu)) * sgn;
-            let mut cspn = c64(arg.cos(), arg.sin());
+            let mut cspn = C64::cis(arg);
             if inu % 2 == 1 {
                 cspn = -cspn;
             }
@@ -1776,7 +1776,7 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
         if yy < 0.0 {
             arg = -arg;
         }
-        csgn = c64(arg.cos(), arg.sin());
+        csgn = C64::cis(arg);
         if inu % 2 == 1 {
             csgn = -csgn;
         }
@@ -3085,7 +3085,7 @@ pub(crate) fn biry(mut z: C64, id: i32, kode: i32, ierr: &mut i32) -> C64 {
     }
     aa = fmr * fnu;
     let z3 = c64(sfac, 0.0);
-    s1 = cy[0] * c64(aa.cos(), aa.sin()) * z3;
+    s1 = cy[0] * C64::cis(aa) * z3;
     fnu = (2.0 - fid) / 3.0;
     // NOTE: as in C++, the returned nz of this second binu call is never checked
     nz = binu(zta, fnu, kode, 2, &mut cy, rl, fnul, tol, elim, alim);
@@ -3096,7 +3096,7 @@ pub(crate) fn biry(mut z: C64, id: i32, kode: i32, ierr: &mut i32) -> C64 {
     //
     s2 = cy[0] * (fnu + fnu) / zta + cy[1];
     aa = fmr * (fnu - 1.0);
-    s1 = (s1 + s2 * c64(aa.cos(), aa.sin())) * coef;
+    s1 = (s1 + s2 * C64::cis(aa)) * coef;
     if id != 1 {
         s1 *= csq;
         bi = s1 / sfac;
@@ -3373,7 +3373,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                 kflag = 2;
             } else {
                 a1 = (-xx).exp() * css[(kflag - 1) as usize].re;
-                pt = a1 * c64(yy.cos(), -yy.sin());
+                pt = a1 * C64::cis(yy).conj();
                 coef *= pt;
             }
         }
@@ -3632,7 +3632,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                             p2r = p2.re;
                             p2i = p2.im;
                             p2m = p2r.exp() / tol;
-                            p1 = p2m * c64(p2i.cos(), p2i.sin());
+                            p1 = p2m * C64::cis(p2i);
                             if uchk(p1, ascle, tol) == 0 {
                                 j = 3 - j;
                                 cy[(j - 1) as usize] = p1;
@@ -4275,7 +4275,7 @@ fn kscl(
             continue;
         }
         cs = -zr + s1.ln();
-        cs = (cs.re.exp() / tol) * c64(cs.im.cos(), cs.im.sin());
+        cs = (cs.re.exp() / tol) * C64::cis(cs.im);
         if uchk(cs, *ascle, tol) == 0 {
             y[(i - 1) as usize] = cs;
             nz -= 1;
@@ -4317,7 +4317,7 @@ fn kscl(
         if acs >= -elim {
             cs = s2.ln();
             cs -= zd;
-            cs = (cs.re.exp() / tol) * c64(cs.im.cos(), cs.im.sin());
+            cs = (cs.re.exp() / tol) * C64::cis(cs.im);
             if uchk(cs, *ascle, tol) == 0 {
                 y[(i - 1) as usize] = cs;
                 nz -= 1;
@@ -4583,7 +4583,7 @@ fn seri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                 if iflag == 1 {
                     aa *= ss;
                 }
-                coef = aa * c64(ak.cos(), ak.sin());
+                coef = aa * C64::cis(ak);
                 atol = tol * acz / fnup;
                 il = if nn > 2 { 2 } else { nn };
                 for i in 1..=il {
@@ -5298,7 +5298,7 @@ fn uni1(
                 // SCALE S1 IF CABS(S1) < ASCLE
                 //
                 s2 = phi * sum;
-                s1 = s1.re.exp() * css[(iflag - 1) as usize] * c64(s1.im.cos(), s1.im.sin());
+                s1 = s1.re.exp() * css[(iflag - 1) as usize] * C64::cis(s1.im);
                 s2 *= s1;
                 if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                     break 'l110; // goto L110;
@@ -5467,7 +5467,7 @@ fn uni2(
     cid = -ci;
     let (fnu4, inu) = order_mod4(fnu);
     let ang: f64 = hpi * (fnu4 - f64::from(inu));
-    c2 = c64(ang.cos(), ang.sin());
+    c2 = C64::cis(ang);
     let zar: C64 = c2;
     in_ = inu + n - 1;
     in_ %= 4;
@@ -5561,7 +5561,7 @@ fn uni2(
                 s2 = phi * (ai * asum + dai * bsum);
                 c2r = s1.re.exp() * css[(iflag - 1) as usize].re;
                 c2i = s1.im;
-                s1 = c2r * c64(c2i.cos(), c2i.sin());
+                s1 = c2r * C64::cis(c2i);
                 s2 *= s1;
                 if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                     break 'l50; // goto L50;
@@ -5926,7 +5926,7 @@ fn unk1(
                 c2r = s1.re;
                 c2i = s1.im;
                 c2m = c2r.exp() * css[(kflag - 1) as usize].re;
-                s1 = c2m * c64(c2i.cos(), c2i.sin());
+                s1 = c2m * C64::cis(c2i);
                 s2 *= s1;
                 if !((kflag == 1) && (uchk(s2, bry[0], tol) != 0)) {
                     cy[(kdflg - 1) as usize] = s2;
@@ -6068,7 +6068,7 @@ fn unk1(
     let fnf: f64 = fnu4 - f64::from(inu);
     let ifn: i32 = inu + n - 1;
     let ang: f64 = fnf * sgn;
-    cspn = c64(ang.cos(), ang.sin());
+    cspn = C64::cis(ang);
     if ifn % 2 == 1 {
         cspn = -cspn;
     }
@@ -6165,7 +6165,7 @@ fn unk1(
                     c2r = s1.re;
                     c2i = s1.im;
                     c2m = c2r.exp() * css[(iflag - 1) as usize].re;
-                    s1 = c2m * c64(c2i.cos(), c2i.sin());
+                    s1 = c2m * C64::cis(c2i);
                     s2 *= s1;
                     if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                         s2 = C64::ZERO;
@@ -6468,7 +6468,7 @@ fn unk2(
             c2r = s1.re;
             c2i = s1.im;
             c2m = c2r.exp() * css[(kflag - 1) as usize].re;
-            s1 = c2m * c64(c2i.cos(), c2i.sin());
+            s1 = c2m * C64::cis(c2i);
             s2 *= s1;
             if kflag == 1 && uchk(s2, bry[0], tol) != 0 {
                 /* GO TO 70 */
@@ -6625,7 +6625,7 @@ fn unk2(
     }
     let ifn: i32 = inu + n - 1;
     ang = fnf * sgn;
-    cspn = c64(ang.cos(), ang.sin());
+    cspn = C64::cis(ang);
     if ifn % 2 == 1 {
         cspn = -cspn;
     }
@@ -6738,7 +6738,7 @@ fn unk2(
             c2r = s1.re;
             c2i = s1.im;
             c2m = c2r.exp() * css[(iflag - 1) as usize].re;
-            s1 = c2m * c64(c2i.cos(), c2i.sin());
+            s1 = c2m * C64::cis(c2i);
             s2 *= s1;
             if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                 s2 = C64::ZERO;
@@ -7121,7 +7121,7 @@ fn wrsk(
     cinu = C64::ONE;
     if kode != 1 {
         yy = zr.im;
-        cinu = c64(yy.cos(), yy.sin());
+        cinu = C64::cis(yy);
     }
     //
     // ON LOW EXPONENT MACHINES THE K FUNCTIONS CAN BE CLOSE TO BOTH THE
