@@ -34,7 +34,8 @@ class Rule:
 @dataclass(frozen=True)
 class Override:
     """Where `when` holds, xsf is wrong or much less accurate than xsf-rust, so the tolerance
-    is at most the largest error of xsf-rust there."""
+    is at most the largest error of xsf-rust there, and a convention need not pass xsref's
+    test."""
 
     when: Pred
     why: str
@@ -1245,9 +1246,9 @@ K_M_NEG: Final = Rule(
     lambda a: a[0] < 0 or a[1] < 0, math.nan, "NaN outside of k >= 0, m >= 0"
 )
 PDTRI_DOMAIN: Final = Rule(
-    lambda a: a[0] < 0 or not 0 <= a[1] < 1,
+    lambda a: a[0] < 0 or not 0 <= a[1] <= 1,
     math.nan,
-    "NaN outside of k >= 0, 0 <= y < 1",
+    "NaN outside of k >= 0, 0 <= y <= 1",
 )
 
 
@@ -1266,12 +1267,17 @@ def _chdtri() -> Out:
 
 
 def _pdtri() -> Out:
-    """The m with Q(k + 1, m) = y, for the integer k >= 0 and 0 <= y < 1."""
+    """The m with Q(k + 1, m) = y, for the integer k >= 0 and 0 <= y <= 1."""
     return Out(
         "pdtri",
         (specs.r_pdtri,),
         (_inverse_arb(lambda k, m: _gammaincc_arb(k + 1, m), specs.r_pdtri),),
-        (PDTRI_DOMAIN,),
+        (PDTRI_DOMAIN, Rule(lambda a: a[1] == 1, 0.0, "pdtri(k, 1) = 0")),
+        (
+            Override(
+                lambda a: a[1] == 1, "xsf returns NaN for y = 1, inside the domain"
+            ),
+        ),
     )
 
 
@@ -1319,9 +1325,9 @@ FDTR_DOMAIN: Final = Rule(
 )
 FDTRI_RULES: Final = (
     Rule(
-        lambda a: a[0] <= 0 or a[1] <= 0 or not 0 < a[2] <= 1,
+        lambda a: a[0] <= 0 or a[1] <= 0 or not 0 <= a[2] <= 1,
         math.nan,
-        "NaN outside of a, b > 0, 0 < y <= 1",
+        "NaN outside of a, b > 0, 0 <= y <= 1",
     ),
     Rule(lambda a: a[2] == 1, math.inf, "the limit for y -> 1"),
 )

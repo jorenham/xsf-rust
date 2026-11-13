@@ -104,11 +104,12 @@ pub(crate) fn pdtr(k: f64, m: f64) -> f64 {
 ///
 /// ```text
 ///   message         condition      value returned
-/// pdtri domain    y < 0 or y >= 1       NaN
+/// pdtri domain    y < 0 or y > 1        NaN
 ///                     k < 0
 /// ```
 pub(crate) fn pdtri(k: i32, y: f64) -> f64 {
-    if (k < 0) || (y < 0.0) || (y >= 1.0) {
+    // Unlike in xsf, y = 1 is in the domain (m = 0) instead of NaN
+    if (k < 0) || (y < 0.0) || (y > 1.0) {
         return f64::NAN;
     }
     let v = f64::from(k) + 1.0;

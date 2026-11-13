@@ -782,6 +782,13 @@ xsref::tests! {
 }
 
 #[test]
+fn test_domain_ends() {
+    // NaN only outside the domain, like the other inverses
+    assert_eq!(xsf::fdtri(3.0, 7.5, 0.0), 0.0);
+    assert_eq!(xsf::pdtri(3, 1.0), 0.0);
+}
+
+#[test]
 fn test_pdtri_k_max() {
     // `k + 1` overflows `int` in xsf
     let m = xsf::pdtri(i32::MAX, 0.5);
