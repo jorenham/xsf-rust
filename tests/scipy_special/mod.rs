@@ -11,6 +11,7 @@ mod ndtri_exp;
 mod orthogonal_eval;
 mod perm;
 mod polygamma;
+mod powm1;
 mod softplus;
 mod spence;
 mod spfun_stats;

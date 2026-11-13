@@ -551,6 +551,7 @@
 //! | [`log1pmx`]    | $\ln(1+x) - x$                                      |
 //! | [`expm1`]      | $e^x - 1$                                           |
 //! | [`cosm1`]      | $\cos(x) - 1$                                       |
+//! | [`powm1`]      | $x^y - 1$                                           |
 //! | [`round`]      | Round to nearest or even integer-valued float       |
 //! | [`xlogy`]      | $x \ln(y)$ or $0$ if $x = 0$                        |
 //! | [`xlog1py`]    | $x \ln(1+y)$ or $0$ if $x = 0$                      |
