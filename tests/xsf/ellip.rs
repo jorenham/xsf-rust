@@ -154,3 +154,19 @@ fn test_ellipj_near_1() {
         );
     }
 }
+
+#[test]
+fn test_ellipj_am_small_u() {
+    // m = 1 or close to 1, where 2 atan(e^u) - pi/2 cancels (reference values from mpmath)
+    for (u, m, expected) in [
+        (1e-30, 1.0, 1e-30),
+        (1.29e-15, 1.0, 1.29e-15),
+        (-1.27e-10, 1.0, -1.27e-10),
+        (1e-30, 0.999_999_999_95, 1e-30),
+        (1e-5, 0.999_999_999_95, 9.999_999_999_833_334e-6),
+    ] {
+        let (_, _, _, ph) = xsf::ellipj(u, m);
+        let rel = (ph - expected).abs() / expected.abs();
+        assert!(rel < 1e-15, "ellipj({u}, {m}): {ph} != {expected}");
+    }
+}

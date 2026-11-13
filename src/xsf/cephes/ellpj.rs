@@ -14,7 +14,7 @@
 
 use crate::utils::MACHEP;
 use crate::xsf::cephes::ellpk::ellpk;
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::PI;
 
 /// Jacobian Elliptic Functions
 ///
@@ -98,7 +98,9 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
             let t = (-0.5 * u.abs()).exp();
             2.0 * t * t
         };
-        return (u.tanh(), phi, phi, 2.0 * u.exp().atan() - FRAC_PI_2);
+        // Unlike in xsf (scipy/xsf#375), am(u | 1) = gd(u) = atan(sinh(u)) (DLMF 4.23.40), since
+        // 2 atan(exp(u)) - pi/2 cancels for small |u|
+        return (u.tanh(), phi, phi, u.sinh().atan());
     }
     if m >= 0.999_999_999_9 && u.abs() < 1e10 {
         let k = ellpk(1.0 - m);
@@ -111,7 +113,8 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
         let phi = 1.0 / b;
         let twon = b * u.sinh();
         let sn = t + ai * (twon - u) / (b * b);
-        let ph = 2.0 * u.exp().atan() - FRAC_PI_2 + ai * (twon - u) / b;
+        // Unlike in xsf (scipy/xsf#375), with gd(u) as for m = 1 above
+        let ph = u.sinh().atan() + ai * (twon - u) / b;
         ai *= t * phi;
         let cn = phi - ai * (twon - u);
         let dn = phi + ai * (twon + u);
