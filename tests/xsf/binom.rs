@@ -4,11 +4,13 @@ xsref::tests! {
 
 #[test]
 fn test_binom_large_k() {
-    // unlike in xsf (scipy/xsf#352): the n (n + 1) / (2 k) term, the parity of k >= 2^31,
-    // sinpi, and the split |k|^n (which over- or underflows here)
+    // scipy/xsf#352: the n (n + 1) / (2 k) term, the parity of k >= 2^31, sinpi, and the split
+    // |k|^n (which over- or underflows here)
     for (n, k, expected) in [
         (2.5, 300_000_000.7, 1.329_598_785_965_806_2e-30),
         (0.5, 10_000_000_001.25, 1.994_711_401_707_956_7e-16),
+        (20.5, 2_100_000_000.25, -9.316_864_069_123_419e-183),
+        (-10.5, 500_000_000_000.25, 8.617_145_704_224_517e104),
         (
             31.687_271_077_096_36,
             10_283_293_173.796_093,
