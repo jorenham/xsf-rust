@@ -50,3 +50,23 @@ fn test_wright_bessel_huge_x() {
     assert_eq!(xsf::wright_bessel(5.0, 0.0, 3.064e59), f64::INFINITY);
     assert_eq!(xsf::wright_bessel(5.0, 0.0, 1e60), f64::INFINITY);
 }
+
+#[test]
+fn test_wright_bessel_peak() {
+    // unlike in xsf, the terms around the maximum term instead of the integral (Arb)
+    let abx = [(0.5, 100.0, 1e3), (1.0, 100.0, 1e5)];
+    let actual = abx.map(|(a, b, x)| xsf::wright_bessel(a, b, x));
+    let expected = [
+        3.411_236_758_044_524_3e-117, // was 5.1e-8 off
+        1.026_933_459_623_076_3e22,   // was NaN
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    let abx = [(0.001, 100.0, 1e5), (0.001, 50.0, 1e5), (1.0, 100.0, 1e5)];
+    let actual = abx.map(|(a, b, x)| xsf::log_wright_bessel(a, b, x));
+    let expected = [
+        99_143.465_191_656_53, // was NaN
+        99_401.240_922_855_65, // was 4.4e-4 off
+        50.683_449_183_697,    // was NaN
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
