@@ -617,6 +617,43 @@ fn test_besselpoly_odd_nu_large() {
     assert!(r == 0.0 && r.is_sign_negative(), "{r}");
 }
 
+#[test]
+fn test_besselpoly_negative_a_and_poles() {
+    // mpmath: `quad(lambda t: t**l * besselj(v, 2 * a * t), [0, 0.5, 1])`
+    for (a, lambda, v, expected) in [
+        (-1.0, -1.0, -1.0, 0.849_045_485_440_153_2),
+        (-2.5, 0.5, 2.0, 0.205_682_344_823_084_3),
+        (-3.0, 1.0, 3.0, -0.145_444_613_310_487_95),
+        (-1.5, 0.0, -2.0, 0.236_483_111_652_664_03),
+        (-0.5, 2.0, -1.0, 0.114_903_484_931_900_48),
+    ] {
+        let actual = xsf::besselpoly(a, lambda, v);
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-14,
+            "{actual:e} != {expected:e}"
+        );
+    }
+    assert!(xsf::besselpoly(-1.0, 0.0, 0.5).is_nan());
+
+    // lambda + |v| + 1 is a non-positive even integer: the integral diverges
+    for (a, lambda, v, expected) in [
+        (10.0, -10.0, 1.0, f64::INFINITY),
+        (1.0, -10.0, 1.0, f64::INFINITY),
+        (1.0, -10.0, -1.0, f64::NEG_INFINITY),
+        (10.0, -10.0, -1.0, f64::NEG_INFINITY),
+        (-1.0, -10.0, 1.0, f64::NEG_INFINITY),
+        (2.0, -1.0, 0.0, f64::INFINITY),
+    ] {
+        assert_eq!(xsf::besselpoly(a, lambda, v), expected, "{a} {lambda} {v}");
+    }
+    // lambda + 1 rounds to an even integer, but is not a pole
+    assert!(xsf::besselpoly(1.0, -18_014_398_509_481_984.0, 0.0).is_finite());
+    assert_eq!(
+        xsf::besselpoly(1.0, -4_503_599_627_370_499.0, 0.0),
+        f64::INFINITY
+    );
+}
+
 // Riccati-Bessel
 
 /// Based on `scipy.special.tests.test_basic.TestRiccati.test_riccati_jn`

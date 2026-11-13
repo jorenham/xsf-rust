@@ -10,6 +10,7 @@ use num_traits::ToPrimitive;
 use crate::utils::{MAXLOG, PISQ_6, SCIPY_EULER};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
 use crate::xsf::specfun::SPECFUN_INF;
@@ -1160,7 +1161,30 @@ fn besselpoly_neumann(a: f64, lambda: f64, nu: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
+    // Unlike in xsf, J_v(-y) = (-1)^v J_v(y) for a < 0 and integer v, instead of NaN
+    if a < 0.0 {
+        let s = besselpoly(-a, lambda, v);
+        return if v % 2.0 == 0.0 {
+            s
+        } else if v.fract() == 0.0 {
+            -s
+        } else {
+            f64::NAN
+        };
+    }
+
     let n = if v < 0.0 && v.floor() == v { -v } else { v }; // J_(-n) = (-1)^n J_n
+    let negate = n != v && n % 2.0 == 1.0;
+
+    // Unlike in xsf, +-inf at the poles of the series (lambda + n + 1 = 0, -2, ...), with the sign
+    // of the leading term, instead of a partial sum (only where `pole` is exact, so above -2^53)
+    let (s, e0) = two_sum(lambda, n);
+    let (pole, e1) = two_sum(s, 1.0);
+    if a > 0.0 && e0 == 0.0 && e1 == 0.0 && pole <= 0.0 && pole % 2.0 == 0.0 {
+        let s = f64::INFINITY * crate::xsf::cephes::gammasgn(n + 1.0);
+        return if negate { -s } else { s };
+    }
+
     // Use the Neumann series where the power series cancels badly, and where the Neumann series
     // is accurate:
     // - a >= 1.5 and n < a^2 - 1: otherwise the power series terms grow to at most ~e^3, or
@@ -1178,7 +1202,7 @@ pub fn besselpoly(a: f64, lambda: f64, v: f64) -> f64 {
         && lambda.is_finite()
     {
         let s = besselpoly_neumann(a, lambda, n);
-        return if n != v && n % 2.0 == 1.0 { -s } else { s };
+        return if negate { -s } else { s };
     }
     crate::xsf::cephes::besselpoly(a, lambda, v)
 }
