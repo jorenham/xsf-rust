@@ -308,8 +308,10 @@ def validated(
 
     confirmed = None if arb is None else arb_confirms(arb, args, hi)
     require(confirmed is not False, f"Arb does not confirm {hi}")
-    # a scale must be a normal f64
-    return f, scale if DBL_MIN <= scale <= DBL_MAX else 0.0, bool(confirmed)
+    # a scale must be a normal f64, and a subnormal f has the absolute precision of DBL_MIN
+    if not DBL_MIN <= scale <= DBL_MAX:
+        scale = DBL_MIN if 0 < abs(f) < DBL_MIN else 0.0
+    return f, scale, bool(confirmed)
 
 
 class Computed(NamedTuple):
