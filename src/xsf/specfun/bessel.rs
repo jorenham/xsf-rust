@@ -49,6 +49,50 @@ fn gam0(x: f64) -> f64 {
     1.0 / (gr * x)
 }
 
+fn bjndd(x: f64, n: usize, bj: &mut [f64], dj: &mut [f64], fj: &mut [f64]) {
+    // =====================================================
+    // Purpose: Compute Bessel functions Jn(x) and their
+    //          first and second derivatives ( 0 <= n <= 100)
+    // Input:   x ---  Argument of Jn(x)  ( x ≥ 0 )
+    //          n ---  Order of Jn(x)
+    // Output:  BJ(n+1) ---  Jn(x)
+    //          DJ(n+1) ---  Jn'(x)
+    //          FJ(n+1) ---  Jn"(x)
+    // =====================================================
+
+    let mut bs = 0.0;
+    let mut f = 0.0;
+    let mut f0 = 0.0;
+    let mut f1 = 1e-35;
+
+    let m = (1..901)
+        .find(|&m| {
+            let m = m as f64;
+            (0.5 * (6.28 * m).log10() - m * (1.36 * x.abs() / m).log10()) as i32 > 20
+        })
+        .unwrap_or(900);
+    for k in (0..=m).rev() {
+        f = 2.0 * (k as f64 + 1.0) * f1 / x - f0;
+        if k <= n {
+            bj[k] = f;
+        }
+        if k % 2 == 0 {
+            bs += 2.0 * f;
+        }
+        f0 = f1;
+        f1 = f;
+    }
+    for b in &mut bj[..=n] {
+        *b /= bs - f;
+    }
+    dj[0] = -bj[1];
+    fj[0] = -bj[0] - dj[0] / x;
+    for k in 1..=n {
+        dj[k] = bj[k - 1] - k as f64 * bj[k] / x;
+        fj[k] = ((k * k) as f64 / (x * x) - 1.0) * bj[k] - dj[k] / x;
+    }
+}
+
 /// `cy01`, with the outputs `(zf, zd)` returned instead
 fn cy01(kf: i32, z: C64) -> (C64, C64) {
     // ===========================================================
@@ -304,6 +348,161 @@ pub(crate) fn cyzo(kf: i32, kc: i32, zo: &mut [C64], zv: &mut [C64]) {
         } else if kf == 1 {
             *v = cy01(0, z).0;
         }
+    }
+}
+
+/// `jdzo`; `zo` needs `nt + 25` elements (`n`, `m` and `p` `nt + 24`), and `p` is `true` for 1 (TE)
+pub(crate) fn jdzo(nt: i32, zo: &mut [f64], n: &mut [u32], m: &mut [u32], p: &mut [bool]) {
+    // ===========================================================
+    // Purpose: Compute the zeros of Bessel functions Jn(x) and
+    //          Jn'(x), and arrange them in the order of their
+    //          magnitudes
+    // Input :  NT    --- Number of total zeros ( NT ≤ 1200 )
+    // Output:  ZO(L) --- Value of the L-th zero of Jn(x)
+    //                    and Jn'(x)
+    //          N(L)  --- n, order of Jn(x) or Jn'(x) associated
+    //                    with the L-th zero
+    //          M(L)  --- m, serial number of the zeros of Jn(x)
+    //                    or Jn'(x) associated with the L-th zero
+    //                    ( L is the serial number of all the
+    //                      zeros of Jn(x) and Jn'(x) )
+    //          P(L)  --- 0 (TM) or 1 (TE), a code for designating the
+    //                    zeros of Jn(x)  or Jn'(x).
+    //                    In the waveguide applications, the zeros
+    //                    of Jn(x) correspond to TM modes and
+    //                    those of Jn'(x) correspond to TE modes
+    //
+    // Routine called:    BJNDD for computing Jn(x), Jn'(x) and
+    //                    Jn''(x)
+    // =============================================================
+
+    // Unlike in xsf, the work arrays are on the stack, as in specfun.f (`m1`, `n1` and `zoc` are
+    // `mnzoc`, and `bj`, `dj` and `fj` are `bdfj` in C++), so there's no `Status::NoMemory`.
+    // Note: ZO and ZOC arrays are 0-indexed in specfun.f
+    let mut p1 = [false; 70];
+    let mut m1 = [0; 70];
+    let mut n1 = [0; 70];
+    let mut zoc = [0.0; 71];
+    let mut bj = [0.0; 101];
+    let mut dj = [0.0; 101];
+    let mut fj = [0.0; 101];
+
+    let mut x = 0.0;
+    let ntf = f64::from(nt);
+
+    let (xm, nm, mm) = if nt < 600 {
+        (
+            -1.0 + 2.248485 * ntf.sqrt() - 0.0159382 * ntf + 3.208775e-4 * ntf.powf(1.5),
+            (14.5 + 0.05875 * ntf) as usize,
+            (0.02 * ntf) as usize + 6,
+        )
+    } else {
+        (
+            5.0 + 1.445389 * ntf.sqrt() + 0.01889876 * ntf - 2.147763e-4 * ntf.powf(1.5),
+            (27.8 + 0.0327 * ntf) as usize,
+            (0.01088 * ntf) as usize + 10,
+        )
+    };
+    // Unlike in xsf, all orders `n <= xm` are searched (and `j'_{n,1} > n` for the others), since
+    // the `nm` above misses some, e.g. `j'_{26,1}` for `nt = 210`.
+    let nm = nm.max(xm as usize + 1);
+
+    let mut l0 = 0;
+    /* 45 LOOP */
+    for i in 1..=nm {
+        let i1 = (i - 1) as f64;
+        let mut x1 = 0.407658 + 0.4795504 * i1.sqrt() + 0.983618 * i1;
+        let mut x2 = 1.99535 + 0.8333883 * i1.sqrt() + 0.984584 * i1;
+        let mut l1 = 0;
+
+        /* 30 LOOP */
+        'l30: for j in 1..=mm {
+            'l20: {
+                if i != 1 || j != 1 {
+                    x = x1;
+                    loop {
+                        bjndd(x, i, &mut bj, &mut dj, &mut fj);
+                        let x0 = x;
+                        x -= dj[i - 1] / fj[i - 1];
+                        // Unlike in xsf, `x` is checked instead of the initial guess `x1` (as for
+                        // the zeros of Jn below), since `x1 > xm` misses e.g. `j'_{56,2}` for
+                        // `nt = 1121`.
+                        if x > xm {
+                            break 'l20;
+                        }
+                        if !((x - x0).abs() > 1e-10) {
+                            break;
+                        }
+                    }
+                }
+                /* 15 */
+                l1 += 1;
+                n1[l1 - 1] = i as u32 - 1;
+                m1[l1 - 1] = j as u32;
+                if i == 1 {
+                    m1[l1 - 1] = j as u32 - 1;
+                }
+                p1[l1 - 1] = true;
+                zoc[l1] = x;
+                if i <= 15 {
+                    x1 =
+                        x + 3.057 + 0.0122 * i1 + (1.555 + 0.41575 * i1) / ((j + 1) as f64).powi(2);
+                } else {
+                    x1 =
+                        x + 2.918 + 0.01924 * i1 + (6.26 + 0.13205 * i1) / ((j + 1) as f64).powi(2);
+                }
+            }
+            // L20:
+            x = x2;
+            loop {
+                bjndd(x, i, &mut bj, &mut dj, &mut fj);
+                let x0 = x;
+                x -= bj[i - 1] / dj[i - 1];
+                if x > xm {
+                    continue 'l30;
+                }
+                if !((x - x0).abs() > 1e-10) {
+                    break;
+                }
+            }
+            l1 += 1;
+            n1[l1 - 1] = i as u32 - 1;
+            m1[l1 - 1] = j as u32;
+            p1[l1 - 1] = false;
+            zoc[l1] = x;
+            if i <= 15 {
+                x2 = x + 3.11 + 0.0138 * i1 + (0.04832 + 0.2804 * i1) / ((j + 1) as f64).powi(2);
+            } else {
+                x2 = x + 3.001 + 0.0105 * i1 + (11.52 + 0.48525 * i1) / ((j + 3) as f64).powi(2);
+            }
+        }
+        let l = l0 + l1;
+        loop {
+            if l0 == 0 {
+                p[..l].copy_from_slice(&p1[..l]);
+                m[..l].copy_from_slice(&m1[..l]);
+                n[..l].copy_from_slice(&n1[..l]);
+                zo[1..=l].copy_from_slice(&zoc[1..=l]);
+                l1 = 0;
+            } else if zo[l0] >= zoc[l1] {
+                p[l0 + l1 - 1] = p[l0 - 1];
+                m[l0 + l1 - 1] = m[l0 - 1];
+                n[l0 + l1 - 1] = n[l0 - 1];
+                zo[l0 + l1] = zo[l0];
+                l0 -= 1;
+            } else {
+                p[l0 + l1 - 1] = p1[l1 - 1];
+                m[l0 + l1 - 1] = m1[l1 - 1];
+                n[l0 + l1 - 1] = n1[l1 - 1];
+                zo[l0 + l1] = zoc[l1];
+                l1 -= 1;
+            }
+            if l1 == 0 {
+                break;
+            }
+        }
+        /* 45 */
+        l0 = l;
     }
 }
 

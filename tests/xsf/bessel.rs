@@ -713,6 +713,40 @@ fn test_bessel_zeros_large_v() {
     assert!(xsf::bessel_zeros::<1>(u32::MAX)[0][0].is_nan());
 }
 
+/// Based on `scipy.special.tests.test_basic.TestBessel.test_jnjnp_zeros`
+#[test]
+fn test_bessel_j_jprime_zeros() {
+    // as in SciPy 1.18.1
+    let (_, n, m, t) = xsf::bessel_j_jprime_zeros::<8>();
+    assert_eq!(n, [0, 1, 0, 2, 1, 0, 3, 2]);
+    assert_eq!(m, [0, 1, 1, 1, 1, 1, 1, 1]);
+    assert_eq!(t, [true, true, false, true, false, true, true, false]);
+
+    let (z, n, _, t) = xsf::bessel_j_jprime_zeros::<1200>();
+    for l in 0..1200 {
+        let y = xsf::bessel_j_prime(f64::from(n[l]), z[l], u32::from(t[l]));
+        assert!(y.abs() < 1e-13, "l = {l}: {y:e}");
+    }
+    // mpmath.besseljzero(32, 9, derivative=1)
+    np_assert_allclose!(&[z[1199]], &[68.563_138_567_071_27], rtol = 1e-15);
+
+    // the 210th zero, which SciPy 1.18.1 misses: mpmath.besseljzero(26, 1, derivative=1)
+    let (z, n, m, t) = xsf::bessel_j_jprime_zeros::<210>();
+    assert_eq!((n[209], m[209], t[209]), (26, 1, true));
+    np_assert_allclose!(&[z[209]], &[28.418_074_834_560_365], rtol = 1e-15);
+
+    // in SciPy 1.18.1, `jdzo` writes past the end of `zo` for these
+    let _ = xsf::bessel_j_jprime_zeros::<569>();
+    let _ = xsf::bessel_j_jprime_zeros::<572>();
+    assert_eq!(xsf::bessel_j_jprime_zeros::<0>(), ([], [], [], []));
+}
+
+#[test]
+#[should_panic(expected = "N must be at most 1200")]
+fn test_bessel_j_jprime_zeros_n1201() {
+    let _ = xsf::bessel_j_jprime_zeros::<1201>();
+}
+
 /// Checks `f(z_k) = 0` and `g(z_k) = v_k` for the real and complex zeros `z_k` and values `v_k`
 fn check_y_zeros(
     zeros: impl Fn(bool) -> [[Complex64; 20]; 2],

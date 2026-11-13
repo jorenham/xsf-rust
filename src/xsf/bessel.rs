@@ -1008,6 +1008,45 @@ pub fn bessel_y1_prime_zeros<const N: usize>(complex: bool) -> [[Complex<f64>; N
     cyzo(2, complex)
 }
 
+/// Compute the first $N$ zeros of all $J_n(x)$ and $J_n\'(x)$ with integer $n \ge 0$, in ascending
+/// order
+///
+/// Corresponds to [`scipy.special.jnjnp_zeros`][scipy].
+///
+/// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.jnjnp_zeros.html
+///
+/// # Returns
+///
+/// - The zeros $x_l$, starting with $x_1 = 0$ (of $J_0\'(x)$)
+/// - The orders $n_l$
+/// - The serial numbers $m_l$ of the zeros $x_l$ of $J_{n_l}(x)$ or $J_{n_l}\'(x)$ (from 0 for
+///   $J_0\'(x)$, so that $x_1 = 0$ has $m_1 = 0$, and from 1 otherwise)
+/// - Whether $x_l$ is a zero of $J_{n_l}\'(x)$ (`true`) or of $J_{n_l}(x)$ (`false`)
+///
+/// # Panics
+/// - if `N` is greater than 1200
+///
+/// # See also
+/// - [`bessel_zeros`]: zeros of $J_v(x)$, $J_v\'(x)$, $Y_v(x)$, and $Y_v\'(x)$ for a given $v$
+/// - [`bessel_j`]: Bessel function $J_v(z)$
+#[doc(alias = "jnjnp_zeros", alias = "jdzo")]
+#[must_use]
+pub fn bessel_j_jprime_zeros<const N: usize>() -> ([f64; N], [u32; N], [u32; N], [bool; N]) {
+    assert!(N <= 1200, "N must be at most 1200");
+
+    // `jdzo` computes at most `N + 24` zeros (for `N <= 1200`), into the 1-based `zo`
+    let len = N + 25;
+    let (mut zo, mut n, mut m, mut p) =
+        (vec![0.0; len], vec![0; len], vec![0; len], vec![false; len]);
+    specfun::jdzo(N as i32, &mut zo, &mut n, &mut m, &mut p);
+    (
+        core::array::from_fn(|l| zo[l + 1]),
+        core::array::from_fn(|l| n[l]),
+        core::array::from_fn(|l| m[l]),
+        core::array::from_fn(|l| p[l]),
+    )
+}
+
 // Hankel 1
 
 /// Hankel function of the first kind, $H_v^{(1)}(z)$
