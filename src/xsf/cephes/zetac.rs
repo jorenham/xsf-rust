@@ -4,7 +4,7 @@
 //! Copyright 1984, 1987, 1989 by Stephen L. Moshier
 //! Direct inquiries to 30 Frost Street, Cambridge, MA 02140
 
-use std::f64::consts::{E, PI};
+use std::f64::consts::{E, FRAC_PI_2, TAU};
 
 use crate::utils::{MACHEP, SQRT2OPI};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
@@ -214,11 +214,11 @@ fn zeta_reflection(x: f64) -> f64 {
 
     /* Reduce the argument to sine */
     let x_shift = x % 4.0;
-    let mut small_term = -SQRT2OPI * (0.5 * PI * x_shift).sin();
+    let mut small_term = -SQRT2OPI * (FRAC_PI_2 * x_shift).sin();
     small_term *= lanczos_sum_expg_scaled(x + 1.0) * zeta(x + 1.0, 1.0);
 
     /* Group large terms together to prevent overflow */
-    let base = (x + LANCZOS_G + 0.5) / (2.0 * PI * E);
+    let base = (x + LANCZOS_G + 0.5) / (TAU * E);
     let mut large_term = base.powf(x + 0.5);
     if large_term.is_finite() {
         return large_term * small_term;

@@ -1,6 +1,6 @@
 //! `cerf` and `cerzo`, translated into pure Rust from `xsf/specfun/specfun.h` (scipy/xsf@65d313a).
 
-use core::f64::consts::{FRAC_2_SQRT_PI, PI};
+use core::f64::consts::{FRAC_2_SQRT_PI, PI, TAU};
 
 use crate::utils::SQRT_PI;
 use crate::xsf::c64::{C64, c64};
@@ -67,8 +67,8 @@ fn cerf(z: C64, cer: &mut C64, cder: &mut C64) {
         // NaN + NaN i (in C++ as well).
         let cs = (2.0 * x * y).cos();
         let ss = (2.0 * x * y).sin();
-        let er1 = (-x2).exp() * (1.0 - cs) / (2.0 * PI * x);
-        let ei1 = (-x2).exp() * ss / (2.0 * PI * x);
+        let er1 = (-x2).exp() * (1.0 - cs) / (TAU * x);
+        let ei1 = (-x2).exp() * ss / (TAU * x);
         let mut er2 = 0.0;
         let mut w1 = 0.0;
 
@@ -112,8 +112,8 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
 
     let mut it: i32;
     let mut z: C64;
-    let mut zf = c64(0.0, 0.0);
-    let mut zd = c64(0.0, 0.0);
+    let mut zf = C64::ZERO;
+    let mut zd = C64::ZERO;
     let mut zp: C64;
     let mut zw: C64;
     let mut zq: C64;
@@ -133,15 +133,15 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
         loop {
             it += 1;
             cerf(z, &mut zf, &mut zd);
-            zp = c64(1.0, 0.0);
+            zp = C64::ONE;
 
             for i in 1..nr {
                 zp *= z - zo[(i - 1) as usize];
             }
             zfd = zf / zp;
-            zq = c64(0.0, 0.0);
+            zq = C64::ZERO;
             for i in 1..nr {
-                zw = c64(1.0, 0.0);
+                zw = C64::ONE;
                 for j in 1..nr {
                     if j == i {
                         continue;

@@ -1,4 +1,4 @@
-use core::f64::consts::{PI, SQRT_2};
+use core::f64::consts::{FRAC_PI_4, PI, SQRT_2};
 
 use num_complex::Complex64;
 
@@ -553,8 +553,8 @@ fn airyb(x: f64, ai: &mut f64, bi: &mut f64, ad: &mut f64, bd: &mut f64) {
             *ad = -0.5 * rp / xf * xp1 * sad;
             *bd = rp / xf / xp1 * sbd;
         } else {
-            let xcs = (xe + PI / 4.0).cos();
-            let xss = (xe + PI / 4.0).sin();
+            let xcs = (xe + FRAC_PI_4).cos();
+            let xss = (xe + FRAC_PI_4).sin();
             let mut ssa = 1.0;
             let mut sda = 1.0;
             r = 1.0;

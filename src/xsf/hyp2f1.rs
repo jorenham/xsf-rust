@@ -519,7 +519,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
      * mpmath in handling the degenerate cases where any of a, b, c are
      * non-positive integers. See [3] for a treatment of degenerate cases. */
     if c_non_pos_int && !((a_neg_int && c <= a && a < 0.0) || (b_neg_int && c <= b && b < 0.0)) {
-        return c64(f64::INFINITY, 0.0);
+        return C64::INFINITY;
     }
     /* Reduces to a polynomial when a or b is a negative integer.
      * If a and b are both negative integers, we take care to terminate
@@ -572,7 +572,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
      * Todo: Actually check for overflow instead of using a fixed tolerance for
      * all parameter combinations like in the Fortran original. */
     if (1.0 - z.re).abs() < HYP2F1_EPS && z.im == 0.0 && c - a - b <= 0.0 && !c_non_pos_int {
-        return c64(f64::INFINITY, 0.0);
+        return C64::INFINITY;
     }
     // Gauss's Summation Theorem for z = 1; c - a - b > 0 (DLMF 15.4.20).
     if z.re == 1.0 && z.im == 0.0 && c - a - b > 0.0 && !c_non_pos_int {

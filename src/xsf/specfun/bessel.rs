@@ -3,7 +3,7 @@
 
 #![allow(clippy::approx_constant)]
 
-use core::f64::consts::{FRAC_2_PI, PI};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::SPECFUN_INF;
 use crate::utils::SCIPY_EULER;
@@ -214,7 +214,7 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
                 k0 = 8;
             }
 
-            let ct1 = z1 - 0.25 * PI;
+            let ct1 = z1 - FRAC_PI_4;
             let mut cp0 = C64::ONE;
             for k in 1..=k0 {
                 cp0 += A[k as usize - 1] * z1.powi(-2 * k);
@@ -663,7 +663,7 @@ fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]
         2
     } else {
         // Hankel expansion
-        let t1 = x - 0.25 * PI;
+        let t1 = x - FRAC_PI_4;
         let mut p0 = 1.0;
         let mut q0 = -0.125 / x;
 
@@ -850,7 +850,7 @@ pub(crate) fn jyzo(
             // NOTE: `atan(h)` here, but `tan(h)` in the corresponding step for y_{N,L} below;
             // reproduced as is.
             let b = -djn / (bjn * h.atan());
-            x -= (h - PI / 2.0) / b;
+            x -= (h - FRAC_PI_2) / b;
         }
 
         if L < nt {
@@ -933,7 +933,7 @@ pub(crate) fn jyzo(
             );
             let h = dyn_.abs().atan2((fyn * byn).abs().sqrt());
             let b = -dyn_ / (byn * h.tan());
-            x -= (h - PI / 2.0) / b;
+            x -= (h - FRAC_PI_2) / b;
         }
 
         if L < nt {

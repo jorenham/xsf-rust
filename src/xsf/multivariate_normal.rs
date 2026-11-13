@@ -30,7 +30,7 @@
 //! > TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 //! > USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::xsf::cephes::ndtr;
 
@@ -184,7 +184,7 @@ fn bivariate_normal_sf_tail(h: f64, k: f64, r: f64) -> Option<f64> {
         let w = w0 + t / a;
         sum += wt * (-a * w0 - b * w / (2.0 * w - 1.0)).exp() / (a * w * (2.0 * w - 1.0).sqrt());
     }
-    Some(sum / (2.0 * PI))
+    Some(sum / TAU)
 }
 
 /// `P(X > h, Y > k)` if `0 < r < 0.925`, `k < r h` (or `h < r k`), and
@@ -267,7 +267,7 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
         return p;
     }
     // else, tp = 2*pi; h = dh; k = dk; hk = h*k; bvn = 0;
-    let tp = 2.0 * PI;
+    let tp = TAU;
     let h = dh;
     let mut k = dk;
     let mut hk = h * k;
@@ -653,7 +653,7 @@ pub fn trivariate_normal_cdf(
         // singular values from the Plackett formula.
         let a12 = r12.asin();
         let a13 = r13.asin();
-        let tvn = tvn_adaptive_integral(h1, h2, h3, r23, a12, a13, epst) / (2.0 * PI);
+        let tvn = tvn_adaptive_integral(h1, h2, h3, r23, a12, a13, epst) / TAU;
         tvn + bivariate_normal_cdf(h2, h3, r23) * ndtr(h1)
     };
 

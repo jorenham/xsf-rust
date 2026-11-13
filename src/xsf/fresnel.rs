@@ -21,7 +21,7 @@ fn cfc(z: C64) -> (C64, C64) {
     let w0 = z.norm();
     let zp = FRAC_PI_2 * z * z;
     let zp2 = zp * zp;
-    let z0 = c64(0.0, 0.0);
+    let z0 = C64::ZERO;
 
     let c = if z == z0 {
         z0
@@ -70,8 +70,8 @@ fn cfc(z: C64) -> (C64, C64) {
         } else {
             c64(0.0, -0.5)
         };
-        let mut cr = c64(1.0, 0.0);
-        let mut cf = c64(1.0, 0.0);
+        let mut cr = C64::ONE;
+        let mut cf = C64::ONE;
         for k in 1..=20 {
             let k = f64::from(k);
             cr = -0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0) / zp2;
@@ -102,7 +102,7 @@ fn cfs(z: C64) -> (C64, C64) {
     let w0 = z.norm();
     let zp = FRAC_PI_2 * z * z;
     let zp2 = zp * zp;
-    let z0 = c64(0.0, 0.0);
+    let z0 = C64::ZERO;
 
     let s = if z == z0 {
         z0
@@ -155,15 +155,15 @@ fn cfs(z: C64) -> (C64, C64) {
         } else {
             c64(0.0, 0.5)
         };
-        let mut cr = c64(1.0, 0.0);
-        let mut cf = c64(1.0, 0.0);
+        let mut cr = C64::ONE;
+        let mut cf = C64::ONE;
         for k in 1..=20 {
             let k = f64::from(k);
             cr = -0.25 * cr * (4.0 * k - 1.0) * (4.0 * k - 3.0) / zp2;
             cf += cr;
         }
-        cr = c64(1.0, 0.0);
-        let mut cg = c64(1.0, 0.0);
+        cr = C64::ONE;
+        let mut cg = C64::ONE;
         for k in 1..=12 {
             let k = f64::from(k);
             cr = -0.25 * cr * (4.0 * k + 1.0) * (4.0 * k - 1.0) / zp2;
@@ -192,8 +192,8 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
     const EPS: f64 = 1.0e-15;
     const PP2: f64 = 1.253_314_137_315_5;
 
-    let mut f = c64(0.0, 0.0);
-    let mut g = c64(0.0, 0.0);
+    let mut f = C64::ZERO;
+    let mut g = C64::ZERO;
 
     let xa = x.abs();
     let x2 = x * x;
@@ -356,15 +356,15 @@ fn fcszo(kf: i32, nt: usize, zo: &mut [C64]) {
             it += 1;
             let (zf, zd) = if kf == 1 { cfc(z) } else { cfs(z) };
 
-            let mut zp = c64(1.0, 0.0);
+            let mut zp = C64::ONE;
             for i in 1..nr {
                 zp *= z - zo[i - 1];
             }
 
             let zfd = zf / zp;
-            let mut zq = c64(0.0, 0.0);
+            let mut zq = C64::ZERO;
             for i in 1..nr {
-                let mut zw = c64(1.0, 0.0);
+                let mut zw = C64::ONE;
                 for j in 1..nr {
                     if j == i {
                         continue;
