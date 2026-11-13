@@ -163,3 +163,26 @@ fn test_beta_negative_large_a() {
     let expected = [7.297_811_264_583_918e-44, 0.776_410_560_266_429_4];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-14);
 }
+
+#[test]
+fn test_beta_rounded_sum() {
+    // unlike in xsf, without the rounding error of a + b, also near (or onto) a pole of
+    // Gamma(a + b) (Arb)
+    let ab = [
+        (-6.666_666_666_666_667, -0.333_333_333_333_333_3),
+        (-30.858_942_823_759_296, 15.858_942_823_759_29),
+        (0.183_639_517_359_248_47, -97.990_895_136_226_37),
+        (5.000_000_000_000_004, 102.797_422_273_845_83),
+    ];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    let expected = [
+        7.948_413_069_931_127e-15,
+        -8.976_745_447_400_22e-24,
+        43.051_432_964_084_93,
+        1.899_573_016_458_819e-9,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+    let actual = ab.map(|(a, b)| xsf::betaln(a, b));
+    let expected = expected.map(|y: f64| y.abs().ln());
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+}

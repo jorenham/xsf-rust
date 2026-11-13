@@ -9,6 +9,7 @@
 //! and integer `b`, not only those that fit in an `int`.
 
 use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
@@ -108,6 +109,23 @@ fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
 /// smaller than the error of `lgam_ratio`.
 fn small_b(a: f64, b: f64) -> bool {
     b.abs() < 1.0 && a > 4.0 && a.is_finite()
+}
+
+/// `1 / Gamma(a + b)` for `|a + b| <= MAXGAM`
+///
+/// Unlike in xsf, without the rounding error `e` of `y = a + b`: to first order in `e`,
+/// `1 / Gamma(y + e) = (1 - e psi(y)) / Gamma(y)`, with `psi(y) ~ ln(y - 1/2)` for `y > 1`, and
+/// `y < -1/2` is reflected (DLMF 5.5.3), where `sinpi_sub` gives the exact sine, and
+/// `Gamma(1 - y - e) = -y Gamma(-y) (1 - e psi(1 - y))`.
+fn rgamma_sum(a: f64, b: f64) -> f64 {
+    let (y, e) = two_sum(a, b);
+    if y < -0.5 && y > -MAXGAM {
+        sinpi_sub(a, -b) * (-y / PI) * gamma(-y) * (1.0 - e * (0.5 - y).ln())
+    } else if y > 1.0 {
+        rgamma(y) * (1.0 - e * (y - 0.5).ln())
+    } else {
+        rgamma(y)
+    }
 }
 
 /// Special case for a negative integer argument
@@ -224,7 +242,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
         return f64::from(sign) * y.exp();
     }
 
-    y = rgamma(y);
+    y = rgamma_sum(a, b);
     a = gamma(a);
     b = gamma(b);
     if y.is_infinite() {
@@ -291,7 +309,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
         return y;
     }
 
-    y = rgamma(y);
+    y = rgamma_sum(a, b);
     a = gamma(a);
     b = gamma(b);
     if y.is_infinite() {
