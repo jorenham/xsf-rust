@@ -188,6 +188,15 @@ def with_timeout[T](f: Callable[[], T]) -> T | None:
         signal.alarm(0)
 
 
+def digits(v: mp.mpf, dps: int) -> str:
+    """`v` with `dps` digits, or exactly if it is a short binary fraction in the range of the
+    f64s, such as the midpoint of two f64s, which `dps` digits could round to either side."""
+    man, exp = v.man_exp
+    if abs(man).bit_length() > 64 or not -1200 < exp < 1100:
+        return mp.nstr(v, dps)
+    return mp.nstr(v, max(dps, len(str(abs(man) * (5**-exp if exp < 0 else 2**exp)))))
+
+
 def evaluate(task: Task) -> Ref | None:
     """A part of a reference as decimal strings with all digits, or None if it timed out."""
     table, sig, i, part, args, dps = task
@@ -197,7 +206,7 @@ def evaluate(task: Task) -> Ref | None:
         mp.mp.dps = dps
         v = ref(*map(mp.mpf, args))
         v, scale = v if isinstance(v, tuple) else (v, None)
-        return [mp.nstr(mp.mpf(v), dps), None if scale is None else mp.nstr(scale, dps)]
+        return [digits(mp.mpf(v), dps), None if scale is None else mp.nstr(scale, dps)]
 
     try:
         return with_timeout(f)
@@ -222,6 +231,7 @@ def residual(task: tuple[str, str, Args]) -> float | None:
 def stamp() -> dict[str, str]:
     """What a cached reference depends on, other than its key."""
     return {
+        "generate.py": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "specs.py": hashlib.sha256(Path(specs.__file__).read_bytes()).hexdigest(),
         "mapping.py": hashlib.sha256(Path(mapping.__file__).read_bytes()).hexdigest(),
         "mpmath": mp.__version__,
