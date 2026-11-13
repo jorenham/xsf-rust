@@ -1482,22 +1482,16 @@ pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
     let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
     // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4
     let y = x.abs();
-    let ys = if x >= -10.0 {
-        let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
-        if x < 0.0 {
-            // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
-            // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
-            let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
-            let e = pb_recur(orders, y, dg, ca, 0.0);
-            vy.zip(e)
-                .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
-        } else {
-            vy
-        }
+    let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
+    let ys = if x < 0.0 {
+        // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
+        // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
+        let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
+        let e = pb_recur(orders, y, dg, ca, 0.0);
+        vy.zip(e)
+            .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
     } else {
-        // each order by `pbvv`: slower than the reflection above, but more accurate for orders
-        // far above x^2 / 4
-        None
+        vy
     };
     pb_seq(orders, x, pbvv, ca, ys)
 }
