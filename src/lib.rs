@@ -156,11 +156,12 @@
 //!
 //! ## F distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`fdtr`]  | Cumulative distribution function |
-//! | [`fdtrc`] | Complement of [`fdtr`]           |
-//! | [`fdtri`] | Inverse of [`fdtr`]              |
+//! | Function     | Description                                            |
+//! | ------------ | ------------------------------------------------------ |
+//! | [`fdtr`]     | Cumulative distribution function                       |
+//! | [`fdtrc`]    | Complement of [`fdtr`]                                 |
+//! | [`fdtri`]    | Inverse of [`fdtr`]                                    |
+//! | [`fdtridfd`] | Inverse of [`fdtr(a, b, x)`](fdtr) with respect to `b` |
 //!
 //! ## Gamma distribution
 //!
@@ -222,10 +223,11 @@
 //!
 //! ## Student's t distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`stdtr`]  | Cumulative distribution function |
-//! | [`stdtri`] | Inverse of [`stdtr`]             |
+//! | Function     | Description                                             |
+//! | ------------ | ------------------------------------------------------- |
+//! | [`stdtr`]    | Cumulative distribution function                        |
+//! | [`stdtri`]   | Inverse of [`stdtr`]                                    |
+//! | [`stdtridf`] | Inverse of [`stdtr(nu, x)`](stdtr) with respect to `nu` |
 //!
 //! ## Chi square distribution
 //!

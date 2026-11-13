@@ -102,8 +102,17 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
         }
         q - igamc(b, a * x)
     };
-    let lower_bound = f64::MIN_POSITIVE;
-    let upper_bound = f64::MAX;
+    find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, false)
+}
+
+/// Root of `func` in `[lower_bound, upper_bound]`, or 0 or inf if it lies below or above, or NaN if
+/// the search fails
+pub(crate) fn find_positive_root(
+    func: impl Fn(f64) -> f64,
+    lower_bound: f64,
+    upper_bound: f64,
+    increasing: bool,
+) -> f64 {
     /* To explain the magic constants used below:
      * 1.0 is the initial guess for the root. -0.875 is the initial step size
      * for the leading bracket endpoint if the bracket search will proceed to the
@@ -120,13 +129,13 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
      *    the number of necessary function evaluations in the worst case scenario for
      *    Chandrupatla's algorithm will remain constant.
      *
-     * false specifies that the function is not increasing. 342 is equal to
+     * `increasing` specifies whether the function is increasing. 342 is equal to
      * max(ceil(log_8(DBL_MAX)), ceil(log_(1/8)(DBL_MIN))). An upper bound for the
      * number of iterations needed in this bracket search to check all normalized
      * floating point values.
      */
     let (xl, xr, f_xl, f_xr, bracket_status) = bracket_root_for_cdf_inversion(
-        func,
+        &func,
         1.0,
         lower_bound,
         upper_bound,
@@ -134,7 +143,7 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
         7.0,
         0.125,
         8.0,
-        false,
+        increasing,
         342,
     );
     if bracket_status == 1 {
@@ -147,7 +156,7 @@ pub fn gdtrib(a: f64, p: f64, x: f64) -> f64 {
         return f64::NAN;
     }
     let (result, root_status) =
-        find_root_chandrupatla(func, xl, xr, f_xl, f_xr, f64::EPSILON, 1e-100, 100);
+        find_root_chandrupatla(&func, xl, xr, f_xl, f_xr, f64::EPSILON, 1e-100, 100);
     if root_status != 0 {
         /* The root finding return should only fail if there's a bug in our code. */
         return f64::NAN;
