@@ -81,7 +81,7 @@ impl Hyp1F1Arg for Complex<f64> {
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
         self.via(|z| {
-            if a.is_nan() || b.is_nan() || z.re.is_nan() || z.im.is_nan() {
+            if a.is_nan() || b.is_nan() || z.is_nan() {
                 return C64::NAN;
             }
             let mut outz = hyp1f1_small_b(a, b, z, cchg(a, b, z));

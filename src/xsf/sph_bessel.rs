@@ -268,7 +268,7 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
@@ -358,7 +358,7 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
@@ -457,7 +457,7 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
 }
 
 fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 
@@ -550,7 +550,7 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
 }
 
 fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return z;
     }
 

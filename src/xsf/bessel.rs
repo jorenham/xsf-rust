@@ -207,7 +207,7 @@ fn cyl_bessel_ie_c64(mut v: f64, z: C64) -> C64 {
     let kode = 2;
     let mut sign = 1;
 
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return C64::NAN;
     }
     if v < 0.0 {
@@ -318,7 +318,7 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
     let kode = 1;
     let mut sign = 1.0;
 
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return C64::NAN;
     }
     if v < 0.0 {
@@ -357,7 +357,7 @@ pub(crate) fn cyl_bessel_k_c64(v: f64, z: C64) -> C64 {
 /// Unlike in xsf, `K_v` and `e^z K_v` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return C64::NAN;
     }
 
@@ -464,7 +464,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     let mut sign = 1;
     let mut cy = C64::NAN;
 
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return cy;
     }
     if kode == 1 && m == 2 && v == 0.0 && z.re == 0.0 && z.im == 0.0 {
@@ -493,7 +493,7 @@ pub(crate) fn cyl_bessel_j_c64(v: f64, z: C64) -> C64 {
 fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     let mut sign = 1;
 
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return C64::NAN;
     }
     if v < 0.0 {
@@ -548,7 +548,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     let mut sign = 1;
     let mut cy_y = C64::NAN;
 
-    if v.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if v.is_nan() || z.is_nan() {
         return cy_y;
     }
     if v < 0.0 {

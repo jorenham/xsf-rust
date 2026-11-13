@@ -492,7 +492,7 @@ fn hyp2f1_transform2_limiting_case(a: f64, b: f64, c: f64, m: f64, z: C64) -> C6
 fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Special Cases
      * nan input */
-    if a.is_nan() || b.is_nan() || c.is_nan() || z.re.is_nan() || z.im.is_nan() {
+    if a.is_nan() || b.is_nan() || c.is_nan() || z.is_nan() {
         return C64::NAN;
     }
 

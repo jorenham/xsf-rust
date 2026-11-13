@@ -146,7 +146,7 @@ pub(crate) fn zlog1_c64(mut z: C64) -> C64 {
 pub(crate) fn cloggamma(z: C64) -> C64 {
     // Compute the principal branch of log-Gamma
 
-    if z.re.is_nan() || z.im.is_nan() {
+    if z.is_nan() {
         return C64::NAN;
     }
     if z.im == 0.0 && is_nonpos_int(z.re) {
