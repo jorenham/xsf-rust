@@ -13,4 +13,5 @@ This crate provides pure Rust implementations of `scipy.special` functions, tran
 
 Most of the `scipy.special` functions are available. See <https://docs.rs/xsf/> and the
 [`scipy.special` docs](https://docs.scipy.org/doc/scipy/reference/special.html) for additional
-information.
+information. [`SCIPY.md`](https://github.com/jorenham/xsf-rust/blob/master/SCIPY.md) lists the
+functions that SciPy computes with another library than xsf.
