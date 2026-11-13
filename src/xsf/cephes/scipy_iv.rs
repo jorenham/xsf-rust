@@ -48,9 +48,9 @@
 
 #![allow(non_snake_case)]
 
-use core::f64::consts::{FRAC_2_PI, PI};
+use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
-use crate::utils::{MACHEP, SCIPY_EULER};
+use crate::utils::{MACHEP, SCIPY_EULER, mul_exp};
 use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
@@ -225,8 +225,9 @@ fn ikv_asymptotic_uniform(
     let t = 1.0 / (1.0 + z * z).sqrt();
     let eta = (1.0 + z * z).sqrt() + (z / (1.0 + 1.0 / t)).ln();
 
-    let i_prefactor = (t / (2.0 * PI * v)).sqrt() * (v * eta).exp();
-    let k_prefactor = (PI * t / (2.0 * v)).sqrt() * (-v * eta).exp();
+    let (i_scale, k_scale) = ((t / (TAU * v)).sqrt(), (PI * t / (2.0 * v)).sqrt());
+    let i_prefactor = i_scale * (v * eta).exp();
+    let k_prefactor = k_scale * (-v * eta).exp();
     let (i_sum, k_sum) = ikv_asymptotic_uniform_sums(v, t);
 
     if let Some(k_value) = k_value {
@@ -240,6 +241,13 @@ fn ikv_asymptotic_uniform(
         } else {
             /* (AMS 9.6.2) */
             *i_value = i_prefactor * i_sum + FRAC_2_PI * sinpi(v) * k_prefactor * k_sum;
+        }
+        // Unlike in xsf, retry an inf with the exponentials applied last, as they overflow before
+        // the result does.
+        if i_value.is_infinite() {
+            let k_factor = if sign == 1 { 0.0 } else { FRAC_2_PI * sinpi(v) };
+            *i_value =
+                mul_exp(i_scale * i_sum, v * eta) + mul_exp(k_factor * k_scale * k_sum, -v * eta);
         }
     }
 }

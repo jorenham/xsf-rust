@@ -97,6 +97,26 @@ fn test_bessel_i_large_v_vanishing_term() {
 }
 
 #[test]
+fn test_bessel_i_large_v_near_overflow() {
+    // mpmath: besseli(v, x), where e^(v eta) or e^(-v eta) of the uniform expansion overflows
+    let actual = [
+        xsf::bessel_i(151.294_607_482_530_7, 725.792_704_381_556_1),
+        xsf::bessel_i(-110.325_996_643_116_67, 0.128_128_079_375_989_13),
+        xsf::bessel_i(60.0, 716.0),
+        xsf::bessel_i(-60.5, 716.0),
+    ];
+    let expected = [
+        3.546_579_661_379_236e306,
+        8.326_693_651_321_992e307,
+        1.087_560_322_184_507_3e308,
+        1.042_772_683_333_504_7e308,
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+    // mpmath: 1.1e310
+    assert_eq!(xsf::bessel_i(100.0, 725.0), f64::INFINITY);
+}
+
+#[test]
 fn test_bessel_amos_underflow() {
     // mpmath: besselj(7.3156, 1.19e-41) = 2.6872935555094642e-306,
     // besselj(-43, 4.418464059606903e-6) = -1.0500997742421043e-296,
