@@ -5,7 +5,7 @@
 //! `pow(2.0, y)` is written as `y.exp2()`, which is what LLVM optimizes it to anyway.
 //!
 //! Unlike in xsf (scipy/xsf#382), `pbdv` and `pbvv` return NaN for `|v| >= LARGE_V` where they
-//! would recur over their work buffer of `|v|` values (e.g. 4 GiB and 20 s for
+//! would recur over their work buffer of `|v|` values (in xsf e.g. 4 GiB and 20 s for
 //! `pbvv(2.7e8, 0.0)`), and the `double` -> `int` conversions saturate. Like in xsf, they also
 //! return NaN if the allocation of their work buffer fails.
 
@@ -1125,6 +1125,43 @@ fn pbdv_large_neg_x(v: f64, y: f64) -> (f64, f64) {
     (mul_exp(r * w, e), mul_exp(r * wp, e))
 }
 
+/// `V_v(x)`, `V_v'(x)` for `v >= 20`, by 12.10.37 with `V_v = Ubar_v / Gamma(v + 1)` (see
+/// `pbdv_airy`), and by `V_v(-y) = -sin(pi v) / Gamma(v + 1) D_v(y) - cos(pi v) V_v(y)` (12.2.16)
+fn pbvv_airy(v: f64, x: f64) -> (f64, f64) {
+    let ([d, dp, ub, ubp], ea, eb) = pbdv_airy(v, x.abs());
+    let m = v + 0.5;
+    // e^l = e^eb / Gamma(v + 1), with ea + eb = 2 ln h(mu) (see `pbdv_airy`) and
+    // Gamma(v + 1) = sqrt(2 pi) (m / e)^m e^(ln_gamma_ratio(m))
+    let g = -0.5 * (4.0 * TAU * m).ln() - ln_gamma_ratio(m);
+    let l = g - ea;
+    if x >= 0.0 {
+        return (mul_exp(ub, l), mul_exp(ubp, l));
+    }
+    let (c, s) = (cospi(v), sinpi(v));
+    // only D_v(y) remains at a half-integer v
+    let (r, l) = if c == 0.0 {
+        (1.0, g - eb)
+    } else {
+        ((ea - eb).exp(), l)
+    };
+    (
+        mul_exp(-s * d * r - c * ub, l),
+        mul_exp(s * dp * r + c * ubp, l),
+    )
+}
+
+/// `V_v(x)`, `V_v'(x)` for `0 <= v < 20`, `x >= 0`, by `V_v = Ubar_v / Gamma(v + 1)` (see
+/// `pbdv_ubar`) and `V_v' = x / 2 V_v - (v + 1) V_{v+1}`
+fn pbvv_recur(v: f64, x: f64) -> (f64, f64) {
+    let x = x.min(100.0); // V_v(x) overflows for x > 57 anyway
+    let (ub, _, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, x);
+    let r = rgamma(v + 1.0);
+    (
+        mul_exp(r * ub[0], eb),
+        mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb),
+    )
+}
+
 /// Parabolic cylinder function $W$
 ///
 /// The function is a particular solution to the differential equation:
@@ -1300,6 +1337,17 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
     if v.is_nan() || x.is_nan() {
         return (f64::NAN, f64::NAN);
     }
+    // Unlike in xsf, V_v(x) for v >= 20, and for 0 <= v < 20 and x > 10, is computed from
+    // Ubar_w(|x|) of `pbdv_airy` at an order w >= 20: `pbvv_impl` is inaccurate for v >= 20, and
+    // its backward recurrence for x > 10 has not converged if v > x^2 / 4 - 25 or so.
+    if (0.0..INT_OVERFLOW).contains(&v) {
+        if v >= 20.0 {
+            return pbvv_airy(v, x);
+        }
+        if x > 10.0 {
+            return pbvv_recur(v, x);
+        }
+    }
     if x < 0.0 {
         // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v >= 0 is computed from V_v(-x)
         // and D_v(-x) (DLMF 12.2.16), with c = cos(pi v) and s = sin(pi v) / Gamma(v + 1):
@@ -1313,11 +1361,8 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         if (c == 0.0 && s.is_normal()) || (x < -10.0 && v >= 0.0) {
             // V_v(-x) can overflow, so skip it if c = 0
             let (w, wp) = if c == 0.0 { (0.0, 0.0) } else { pbvv(v, -x) };
-            // V_0(-x) is NaN for -x > 2600 or so, where `pbvv_impl` returns V_0(x) = -inf
-            if v != 0.0 || !w.is_nan() {
-                let (d, dp) = pbdv(v, -x);
-                return (-s * d - c * w, s * dp + c * wp);
-            }
+            let (d, dp) = pbdv(v, -x);
+            return (-s * d - c * w, s * dp + c * wp);
         }
     }
     let Some((mut buf, num)) = alloc_buf(v) else {
