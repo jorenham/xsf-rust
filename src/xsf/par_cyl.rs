@@ -661,11 +661,18 @@ fn pb_seq(
     ys: Option<Vec<f64>>,
 ) -> (Vec<f64>, Vec<f64>) {
     let w = |k: usize| v0 + k as f64;
-    let Some(mut y) = ys.filter(|y| y.iter().all(|t| t.is_finite())) else {
+    // `ys` steps w by exactly 1, so it is unusable if v0 + 1 rounds off v0 (only if v < 1, since
+    // v0 + k is exact for k <= n otherwise, and rounding v0 + n + 1 only shifts it by ulp(n))
+    let exact = v0 + 1.0 - 1.0 == v0;
+    let Some(mut y) = ys.filter(|y| exact && y.iter().all(|t| t.is_finite())) else {
         return (0..=n).map(|k| f(w(k), x)).unzip();
     };
     let dy = (0..=n)
-        .map(|k| 0.5 * x * y[k] - ca(w(k)).0 * y[k + 1])
+        .map(|k| {
+            let dy = 0.5 * x * y[k] - ca(w(k)).0 * y[k + 1];
+            // its terms can overflow where y_w' does not
+            if dy.is_finite() { dy } else { f(w(k), x).1 }
+        })
         .collect();
     y.truncate(n + 1);
     (y, dy)
@@ -713,6 +720,15 @@ fn pbvv_miller((v0, n): (f64, usize), x: f64) -> Vec<f64> {
         y[k] = y[k - 1] / y[k];
     }
     y
+}
+
+/// `c cos(pi w) a_w + s sin(pi w) b(k)` for `w = v0 + k`, `k < a.len()`
+fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) -> Vec<f64> {
+    let (c, s) = (c * cospi(v0), s * sinpi(v0));
+    // cos(pi w) and sin(pi w) alternate in sign
+    (0..a.len())
+        .map(|k| (c * a[k] + s * b(k)) * if k % 2 == 0 { 1.0 } else { -1.0 })
+        .collect()
 }
 
 // Uniform asymptotic expansions of D_v(x) = U(-v - 1/2, x) for large |v| (not in xsf), following
@@ -1055,8 +1071,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         );
     }
 
-    let n = (20.0 - v).ceil();
-    let ([.., mut u0, _], ea, eb) = pbdv_airy(v + n, y);
+    let (ub, ea, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, y);
     if ea < -HUGE_EXP {
         // D_v(y) underflows, and sin(pi v) Ubar_v(y) overflows unless v is tiny
         let ub = mul_exp(s, eb);
@@ -1067,12 +1082,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         };
     }
     let (dy, dpy) = pbdv(v, y);
-    // Ubar_{w-1}(y) = (y Ubar_w(y) - Ubar_{w+1}(y)) / w (12.8.5), stable for decreasing w
-    let ([.., u1, _], _, eb1) = pbdv_airy(v + n + 1.0, y);
-    let mut u1 = mul_exp(u1, eb1 - eb);
-    for k in (1..=n as i32).rev() {
-        (u0, u1) = ((y * u0 - u1) / (v + f64::from(k)), u0);
-    }
+    let (u0, u1) = (ub[0], ub[1]);
     // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent
     let (s, eb) = if v.is_subnormal() {
         (PI.copysign(v), eb + v.abs().ln())
@@ -1084,6 +1094,21 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         c * dy - mul_exp(s * u0, eb),
         mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy,
     )
+}
+
+/// `Ubar_{v+k}(y)` for `k = 0..=n + 1` and `v + n >= 20` as mantissas with the exponents `ea`, `eb`
+/// of `pbdv_airy(v + n, y)`, by `Ubar_{w-1} = (y Ubar_w - Ubar_{w+1}) / w` (12.8.5), which is
+/// stable for decreasing w
+fn pbdv_ubar(v: f64, n: usize, y: f64) -> (Vec<f64>, f64, f64) {
+    let w = v + n as f64;
+    let ([.., u0, _], ea, eb) = pbdv_airy(w, y);
+    let ([.., u1, _], _, eb1) = pbdv_airy(w + 1.0, y);
+    let mut ub = vec![0.0; n + 2];
+    (ub[n], ub[n + 1]) = (u0, mul_exp(u1, eb1 - eb));
+    for k in (1..=n).rev() {
+        ub[k - 1] = (y * ub[k] - ub[k + 1]) / (v + k as f64);
+    }
+    (ub, ea, eb)
 }
 
 /// `D_v(-y)`, `D_v'(-y)` for `|v| < 20` and `y > 50`, by `D_v(-y) = pi / Gamma(-v) V_v(y)`, i.e.
@@ -1327,13 +1352,22 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let orders = seq_orders(v);
+    let orders @ (v0, n) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (1.0, w);
-    // D_{w+1} = x D_w - w D_{w-1} (DLMF 12.8.1) is only stable upwards for x >= 0
-    let ys = if x >= 0.0 {
+    // D_{w+1} = x D_w - w D_{w-1} (DLMF 12.8.1) is stable upwards for x >= 0, and for -4 <= x < 0
+    // only unstable for the orders below x^2 / 4 <= 4
+    let ys = if x >= -4.0 {
         pb_recur(orders, x, pbdv, ca, 0.0)
     } else {
-        None
+        // D_w(x) = cos(pi w) D_w(-x) - sin(pi w) Ubar_w(-x) (DLMF 12.2.15, 12.2.21), like in
+        // `pbdv_reflect`
+        let d = pb_recur(orders, -x, pbdv, ca, 0.0);
+        if v0 == 0.0 {
+            d.map(|d| pb_reflect(v0, (1.0, 0.0), &d, |_| 0.0))
+        } else {
+            let (ub, _, eb) = pbdv_ubar(v0, (n + 1).max(20), -x);
+            d.map(|d| pb_reflect(v0, (1.0, -1.0), &d, |k| mul_exp(ub[k], eb)))
+        }
     };
     pb_seq(orders, x, pbdv, ca, ys)
 }
@@ -1365,15 +1399,28 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let orders = seq_orders(v);
+    let orders @ (v0, _) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
     // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4, where
-    // `pbvv` is inaccurate if x > 10
+    // `pbvv` is inaccurate if |x| > 10
+    let y = x.abs();
     let ys = if x > 10.0 {
         Some(pbvv_miller(orders, x))
-    } else if x >= 0.0 {
-        pb_recur(orders, x, pbvv, ca, 0.25 * x * x)
+    } else if x >= -10.0 {
+        let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
+        if x < 0.0 {
+            // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
+            // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
+            let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
+            let e = pb_recur(orders, y, dg, ca, 0.0);
+            vy.zip(e)
+                .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
+        } else {
+            vy
+        }
     } else {
+        // like `pbvv`, by 12.2.16 for each order, since `pbvv_miller` loses accuracy for orders
+        // near or above x^2 / 4
         None
     };
     pb_seq(orders, x, pbvv, ca, ys)
