@@ -3,6 +3,7 @@ replaces: an `Entry` per table and signature. The other tables keep those of xsr
 """
 
 import math
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from fractions import Fraction
@@ -14,7 +15,8 @@ import specs
 
 type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
-type Arb = Callable[..., flint.arb | flint.acb | None]  # None where Arb can't check
+type Ball = flint.arb | flint.acb
+type Arb = Callable[..., Ball | None]  # None where Arb can't check
 type RealArb = (
     Callable[[flint.arb], flint.arb]
     | Callable[[flint.arb, flint.arb], flint.arb]
@@ -909,9 +911,205 @@ def _bessel(n: int) -> dict[tuple[str, str], Entry]:
     )
 
 
+def _j_pole(v: float) -> int:
+    """The sign of the limit of J_v(x) for x -> 0+, 0 if it is finite: J_v(x) ~ (x / 2)^v /
+    Gamma(v + 1), where Gamma(v + 1) has the sign (-1)^floor(-v) for a non-integer v < 0."""
+    return 0 if v >= 0 or v.is_integer() else -1 if math.floor(-v) % 2 else 1
+
+
+def _y_pole(v: float) -> int:
+    """The sign of the limit of Y_v(x) for x -> 0+, 0 if it is finite: Y_v(x) ~ -Gamma(v) / pi
+    (2 / x)^v for v > 0, and cos(pi v) times that of -v for v < 0, which is 0 for a
+    half-integer v."""
+    if v >= 0:
+        return -1
+    f = Fraction(v) % 2
+    return 0 if f.denominator == 2 else -1 if f < 0.5 or f > 1.5 else 1
+
+
+def _poles_at_0(name: str, pole: Callable[[float], int]) -> tuple[Rule, ...]:
+    return tuple(
+        Rule(
+            lambda a, s=s: a[1] == 0 and pole(a[0]) == s,
+            math.copysign(math.inf, s),
+            f"{name} has the limit {s * math.inf} for x -> 0+, at x = +-0",
+        )
+        for s in (1, -1)
+    )
+
+
+# the orders above which all f64 are even integers
+EVEN_ORDERS: Final = 2.0**53
+
+
+# the terms and bits that the series of mpmath need for x up to 1e8, above its defaults
+SERIES: Final = {"maxterms": 10**8, "maxprec": 20000}
+
+
+def _yv(v: mp.mpf, x: mp.mpf) -> Value:
+    """`specs.r_yv` with `SERIES` (also for its Bessel modulus), or for |v| > `EVEN_ORDERS` and
+    x^2 < |v|, where mpmath does not converge for large x, Y_|v|(x) (DLMF 10.4.1) by the finite
+    sum of DLMF 10.8.1, as the rest is smaller by a factor of about (x / 2)^(2 |v|) /
+    Gamma(|v|)^2."""
+    n = abs(v)
+    with specs.wdps(specs.xd(v, x)):
+        if n <= EVEN_ORDERS or x * x >= n:
+            y = mp.bessely(v, x, **SERIES)
+            return (y, mp.hypot(mp.besselj(v, x, **SERIES), y)) if x > n else y
+        s, t, k = mp.mpf(0), mp.mpf(1), 0
+        while t > mp.eps * s:
+            s, k = s + t, k + 1
+            t *= x * x / 4 / (k * (n - k))
+        return -mp.gamma(n) / mp.pi * (2 / x) ** n * s
+
+
+def _iv(v: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_iv` with `SERIES`."""
+    with specs.wdps(specs.xd(v, x)):
+        return mp.besseli(v, x, **SERIES)
+
+
+# the orders above which AMOS returns NaN
+AMOS_ORDERS: Final = 2.0**51
+LOG_MAX: Final = math.log(sys.float_info.max)
+CEPHES_MACHEP: Final = 2.0**-53
+
+
+def _inf(f: Callable[[], float]) -> bool:
+    """Whether `f()` overflows, like in C."""
+    try:
+        return math.isinf(f())
+    except OverflowError:
+        return True
+
+
+def _inputs(vs: tuple[float, ...], xs: tuple[float, ...]) -> Pred:
+    """Whether (v, x) is one of `vs` x `xs`, the inputs where xsf fails, checked one by one."""
+    rows = {(v, x) for v in vs for x in xs}
+    return lambda a: a in rows
+
+
+def _jv_nan(a: tuple[float, ...]) -> bool:
+    """Whether cephes `jv` is NaN for x > 0, as pow(x / 2, n) / Gamma(n + 1) of its power
+    series for x^2 < |n + 1| eps / 2 is inf * 0 (with n = |v| for an integer v)."""
+    v, x = a
+    n = abs(v) if v.is_integer() else v
+    return (
+        x > 0
+        and x * x < abs(n + 1) * CEPHES_MACHEP
+        and _inf(lambda: math.pow(x / 2, n))
+    )
+
+
+def _asymptotic_nan(a: tuple[float, ...]) -> bool:
+    """Whether I_v(x) of xsf is NaN instead of inf, as 2 pi x of its large-x expansion (for
+    |v| <= 50) or 1 + (x / v)^2 of its uniform asymptotic expansion (for |v| > 50) overflows."""
+    v, x = a
+    n = abs(v)
+    y = (abs(x) / n) * (abs(x) / n) if n > 50 else 2 * math.pi * abs(x)
+    return not (x < 0 and not v.is_integer()) and math.isinf(y)
+
+
+def _uniform_overflow(a: tuple[float, ...]) -> bool:
+    """Whether e^(v eta) (or for a non-integer v < 0, e^(-v eta) of its K_v term) overflows in
+    the uniform asymptotic expansion of I_v(x) of xsf for |v| > 50, but I_v(x) does not."""
+    v, x = a
+    n, k_term = abs(v), v < 0 and not v.is_integer()
+    if n <= 50 or x == 0 or x < 0 and not v.is_integer() or _asymptotic_nan(a):
+        return False
+    z = abs(x) / n
+    # like `ikv_asymptotic_uniform` of xsf
+    t = 1 / math.sqrt(1 + z * z)
+    e = n * (math.sqrt(1 + z * z) + math.log(z / (1 + 1 / t)))
+    # I_v(x) ~ e^e sqrt(t / (2 pi n)), which is inf beyond this bound of e
+    i_overflows = (
+        _inf(lambda: math.exp(e)) and e < LOG_MAX + 1 - math.log(t / (math.tau * n)) / 2
+    )
+    k_overflows = k_term and _inf(lambda: math.exp(-e))
+    return (i_overflows or k_overflows) and math.isfinite(float(_iv(*map(mp.mpf, a))))
+
+
+J_OVERRIDES: Final = (
+    Override(
+        lambda a: a[1] < 0 and a[0].is_integer() and not -(2**31) <= a[0] < 2**31,
+        "xsf returns NaN for x < 0 and an integer v outside of the range of int, as its integer"
+        " test casts v to int",
+    ),
+    Override(
+        lambda a: abs(a[0]) > AMOS_ORDERS and _jv_nan(a),
+        "xsf returns NaN for |v| > 2^51 (the limit of AMOS) where its cephes fallback is NaN",
+    ),
+    Override(
+        _inputs((10.0, -10.0), (1e-30, -1e-30)),
+        "xsf returns 0 where AMOS underflows, which J_10(1e-30) = 2.7e-310 does"
+        " (scipy/xsf#402)",
+    ),
+)
+Y_OVERRIDES: Final = (
+    Override(
+        lambda a: abs(a[0]) > AMOS_ORDERS and a[0].is_integer() and a[1] > 0,
+        "xsf returns NaN for an integer |v| > 2^51 (the limit of AMOS) and x > 0, as its cephes"
+        " fallback casts v to int",
+    ),
+    Override(
+        _inputs((10.0, -10.0), (1e-30,)),
+        "xsf returns -inf where AMOS overflows, which Y_10(1e-30) = -1.2e308 does"
+        " (scipy/xsf#372)",
+    ),
+)
+I_OVERRIDES: Final = (
+    Override(
+        _uniform_overflow,
+        "xsf returns inf for |v| > 50 where e^(+-v eta) of its uniform asymptotic expansion"
+        " overflows, before I_v(x) does",
+    ),
+    Override(
+        _asymptotic_nan,
+        "xsf returns NaN instead of inf where its asymptotic expansions overflow in an"
+        " intermediate",
+    ),
+)
+I_FLOOR: Final = Floor(
+    lambda a: a[0] < 0 and not a[0].is_integer(),
+    3e-16,
+    "for a non-integer v < 0, the error of I_|v| + 2 / pi sin(pi |v|) K_|v| depends on the"
+    " platform's libm (1.15e-15 at (-48.6, 0.0551) on macOS and Windows)",
+)
+Y_FLOOR: Final = Floor(
+    lambda a: a[0] < 0 and not a[0].is_integer(),
+    4e-16,
+    "for a non-integer v < 0, the error of cos(pi |v|) Y_|v| + sin(pi |v|) J_|v| depends on"
+    " the platform's libm (1.37e-15 at (-7.37, 2.22) on macOS and Windows)",
+)
+K_OVERRIDE: Final = Override(
+    _inputs((-20.0, -10.0, -1.0, -0.5, 0.0, 1.0, 12.0, 12.49), (700.6,)),
+    "xsf returns 0 where AMOS underflows, which K_v(700.6) of about 3e-306 does",
+)
+
+
+def _bessel_arb(f: str) -> Arb:
+    """Arb's J_v, Y_v, I_v, or K_v (`f`), at -v for an integer v < 0 (DLMF 10.4.1, 10.27.1)
+    or for K_v (DLMF 10.27.3), with up to 4 times the precision until its ball can confirm a
+    reference, else None."""
+    g = _precise(specs.ARB[f"bessel_{f}"])
+
+    def arb(v: flint.arb, x: flint.arb) -> Ball | None:
+        n = float(v)
+        sign = 1
+        if n < 0 and (n.is_integer() or f == "k"):
+            v, sign = -v, -1 if f in "jy" and n % 2 else 1
+        for k in range(3):
+            with flint.ctx.extraprec(flint.ctx.prec * (2**k - 1)):
+                if (y := g(v, x)) is not None:
+                    return sign * y
+        return None
+
+    return arb
+
+
 def _bessel_v() -> dict[tuple[str, str], Entry]:
-    """The tables of J_v, Y_v, e^-|x| I_v, and e^x K_v of real order v (J_v and Y_v are not
-    scaled for real x)."""
+    """The tables of J_v, Y_v, I_v, K_v, and their exponentially scaled versions, of real order
+    v (J_v and Y_v are not scaled for real x)."""
 
     def j(v: mp.mpf, x: mp.mpf) -> Value:
         """(-1)^v J_v(|x|) for x < 0 and an integer v, with the Bessel modulus as error scale
@@ -931,9 +1129,12 @@ def _bessel_v() -> dict[tuple[str, str], Entry]:
         ref: Callable[[mp.mpf, mp.mpf], Value],
         arb: Arb,
         *rules: Rule,
+        overrides: tuple[Override, ...] = (),
+        floors: tuple[Floor, ...] = (),
     ) -> tuple[tuple[str, str], Entry]:
         func = f"bessel_{f}"
-        return (f"cyl_{func}", "d_d-d"), Entry((Out(func, (ref,), (arb,), rules),))
+        out = Out(func, (ref,), (arb,), rules, overrides, floors)
+        return (f"cyl_{func}", "d_d-d"), Entry((out,))
 
     def not_real(f: str) -> Rule:
         return Rule(
@@ -949,20 +1150,46 @@ def _bessel_v() -> dict[tuple[str, str], Entry]:
             f"{f} has a branch cut along the negative real axis",
         )
 
+    k0 = Rule(lambda a: a[1] == 0, math.inf, "the limit for x -> 0+, at x = +-0")
     return dict(
         [
+            entry(
+                "j",
+                j,
+                _bessel_arb("j"),
+                not_real("J_v"),
+                *_poles_at_0("J_v", _j_pole),
+                overrides=J_OVERRIDES,
+            ),
             entry("je", j, specs.ARB["bessel_j"], not_real("J_v")),
+            entry(
+                "y",
+                _yv,
+                _bessel_arb("y"),
+                cut("Y_v"),
+                *_poles_at_0("Y_v", _y_pole),
+                overrides=Y_OVERRIDES,
+                floors=(Y_FLOOR,),
+            ),
             entry("ye", specs.r_yv, specs.ARB["bessel_y"], cut("Y_v")),
+            entry(
+                "i",
+                _iv,
+                _bessel_arb("i"),
+                not_real("I_v"),
+                overrides=I_OVERRIDES,
+                floors=(I_FLOOR,),
+            ),
             entry("ie", specs.r_ie, ie, not_real("I_v")),
             entry(
-                "ke",
-                specs.r_ke,
-                ke,
+                "k",
+                specs.r_kv,
+                _bessel_arb("k"),
                 cut("K_v"),
-                Rule(
-                    lambda a: a[1] == 0, math.inf, "the limit for x -> 0+, at x = +-0"
-                ),
+                k0,
+                overrides=(K_OVERRIDE,),
             ),
+            entry("ke", specs.r_ke, ke, cut("K_v"), k0),
         ]
     )
 
@@ -1433,10 +1660,10 @@ def _gammainc_arb(a: flint.arb, x: flint.arb) -> flint.arb:
     return p
 
 
-def _precise[*A](f: Callable[[*A], flint.arb]) -> Callable[[*A], flint.arb | None]:
+def _precise[*A](f: Callable[[*A], Ball]) -> Callable[[*A], Ball | None]:
     """`f`, but None where its ball is too wide to confirm a reference."""
 
-    def arb(*args: *A) -> flint.arb | None:
+    def arb(*args: *A) -> Ball | None:
         y = f(*args)
         return y if y.rel_accuracy_bits() >= ARB_BITS else None
 
@@ -1600,7 +1827,7 @@ def _distribution(
     def ref(*a: mp.mpf) -> mp.mpf:
         return g(*to_args(a))
 
-    def ball(*a: flint.arb) -> flint.arb | flint.acb | None:
+    def ball(*a: flint.arb) -> Ball | None:
         return arb(*to_args(a))
 
     return Out(
@@ -1770,7 +1997,7 @@ def _beta_dist(func: str, to_args: BetaArgs, rules: tuple[Rule, ...]) -> Out:
     def ref(*a: mp.mpf) -> mp.mpf:
         return specs._betainc(*to_args(a))
 
-    def ball(*a: flint.arb) -> flint.arb | None:
+    def ball(*a: flint.arb) -> Ball | None:
         return arb(*to_args(a))
 
     return Out(func, (ref,), (ball,), (NAN, *rules))
