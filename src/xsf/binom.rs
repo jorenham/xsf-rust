@@ -56,6 +56,11 @@ pub fn binom(n: f64, k: f64) -> f64 {
             // Reduce kx by symmetry
             kx = nx - kx;
         }
+        if kx < 0.0 && kx.is_finite() {
+            // Unlike in xsf, 1 / Gamma(1 + kx) = 0 is not lost to the rounding of 1 + k or 1 + n - k
+            // for |k| >= 2^53
+            return 0.0;
+        }
 
         if (0.0..20.0).contains(&kx) {
             num = 1.0;

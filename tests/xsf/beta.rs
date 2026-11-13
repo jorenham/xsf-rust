@@ -104,6 +104,32 @@ fn test_beta_negint_int_overflow() {
 }
 
 #[test]
+fn test_beta_negint_huge() {
+    // unlike in xsf (scipy/xsf#338), also for integers that don't fit in an `int` (Arb); the
+    // beta table covers the other cases
+    let n = 2.998_076_996_061_15e154;
+    let ab = [
+        (-n, 10.0),
+        (-n, 5.0),
+        (-n, n),
+        (-1_152_921_504_606_846_976.0, 3.0),
+    ];
+    let actual = [xsf::beta(ab[3].0, ab[3].1)];
+    xsref::np_assert_allclose!(&actual, &[-1.305_060_893_599_705e-54], rtol = 5e-14);
+    let actual = ab.map(|(a, b)| xsf::betaln(a, b));
+    let expected = [
+        -3_544.158_926_549_009,
+        -1_775.302_323_184_197_1,
+        -355.696_075_402_909,
+        -124.073_345_320_230_22,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    // both are poles
+    assert_eq!(xsf::beta(-n, -1.0), f64::NEG_INFINITY);
+    assert_eq!(xsf::betaln(-10.0, -n), f64::INFINITY);
+}
+
+#[test]
 fn test_betaln_both_large() {
     // unlike in xsf, without the cancellation in lgam(a) + lgam(b) - lgam(a + b) (mpmath)
     // (a + b overflows for the last one)

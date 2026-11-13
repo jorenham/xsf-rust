@@ -428,6 +428,8 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == -10.0 => f64::INFINITY,
         // xsf overflows early for a complex z = x[1] + x[2] i
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
+        // xsf takes the integers a <= 0 that don't fit in an `int` as poles (scipy/xsf#338)
+        "beta" if x.iter().any(|&a| a < -2f64.powi(31) && a.fract() == 0.0) => f64::INFINITY,
         _ => 0.0,
     }
 }

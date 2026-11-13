@@ -81,3 +81,10 @@ fn test_binom_negative_n() {
     let actual = [xsf::binom(-9_999.999_999_999_998, -135.3)];
     xsref::np_assert_allclose!(&actual, &[5.038_684_715_231_528e-302], rtol = 5e-13);
 }
+
+#[test]
+fn test_binom_integer_zero() {
+    // unlike in xsf, 1 / Gamma(1 + n - k) = 0 also for |k| >= 2^53; the binom table covers
+    // 1 / Gamma(1 + k) = 0
+    assert_eq!(xsf::binom(171.0, 1e16), 0.0);
+}
