@@ -163,6 +163,36 @@ def _kelvin_complex_out(j: int) -> Out:
     )
 
 
+AIRY_OVERRIDES: Final = (
+    Override(
+        lambda a: a[0] > 103,
+        "xsf returns 0 or NaN for x > 103.09, where AMOS under- or overflows (scipy/xsf#310)",
+    ),
+    Override(
+        lambda a: a[0] < -10,
+        "xsf rounds the phase 2/3 |x|^(3/2) for x < -10, and returns NaN for x < -1.05e6",
+    ),
+)
+
+
+def _airy_out(i: int) -> Out:
+    """Ai, Ai', Bi, or Bi' (i = 0 to 3), like `specs._airy` but without the functions that
+    neither it nor its scale needs."""
+    d, f = i % 2, (mp.airyai, mp.airybi)[i // 2]
+
+    def ref(x: mp.mpf) -> Value:
+        with specs.wdps(specs.xd(x) + 10):
+            if x >= 0:
+                return f(x, derivative=d)
+            ai, bi = mp.airyai(x, derivative=d), mp.airybi(x, derivative=d)
+            return (ai, bi)[i // 2], mp.hypot(ai, bi)
+
+    def arb(x: flint.arb) -> flint.arb:
+        return (x.airy_ai, x.airy_bi)[i // 2](derivative=d)
+
+    return Out(f"airy[{i}]", (ref,), (arb,), overrides=AIRY_OVERRIDES)
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("it2struve0", "d-d"): Entry(
@@ -171,4 +201,5 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     **{(name, "d-d"): Entry((_kelvin_out(kind),)) for kind, name in enumerate(KELVIN)},
     ("kelvin", "d-cd_cd_cd_cd"): Entry(tuple(_kelvin_complex_out(j) for j in range(4))),
+    ("airy", "d-d_d_d_d"): Entry(tuple(_airy_out(i) for i in range(4))),
 }
