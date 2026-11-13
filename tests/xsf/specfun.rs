@@ -256,6 +256,19 @@ fn test_hypu_chgus() {
 }
 
 #[test]
+fn test_hypu_b_near_zero() {
+    // mpmath (scipy/xsf#533)
+    let abx = [(2.5, -1e-12, 15.0), (0.75, -1e-13, 3.0), (2.5, 1e-12, 15.0)];
+    let expected = [
+        0.000_707_019_879_343_321_6,
+        0.324_157_202_834_937_1,
+        0.000_707_019_879_343_501_9,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hypu_large_a() {
     // mpmath; NaN in xsf
     let actual = xsf::hypu(
