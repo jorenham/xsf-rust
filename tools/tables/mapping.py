@@ -332,6 +332,23 @@ def _radian_arb(d: flint.arb, m: flint.arb, s: flint.arb) -> flint.arb:
     return (d + m / 60 + s / 3600) * flint.arb.pi() / 180
 
 
+ZETA_POLE: Final = Rule(
+    lambda a: a[0] == 1,
+    math.inf,
+    "the pole at x = 1, as +inf like in xsf (the limit for x -> 1- is -inf)",
+)
+
+
+def _zetac_arb(x: flint.arb) -> flint.arb:
+    """zeta(x, 2) = zeta(x) - 1, without the cancellation for large x."""
+    return x.zeta(2)
+
+
+def _round_arb(x: flint.arb) -> flint.arb:
+    """Python's `round`, which also rounds half to even, of the exact f64 input."""
+    return flint.arb(round(float(x)))
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -614,4 +631,32 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         ),
     ),
     ("radian", "d_d_d-d"): Entry((Out("radian", (specs.r_radian,), (_radian_arb,)),)),
+    ("riemann_zeta", "d-d"): _real(
+        "riemann_zeta",
+        specs.r_riemann_zeta,
+        flint.arb.zeta,
+        (
+            NAN,
+            Rule(lambda a: a[0] == math.inf, 1.0, "the limit for x -> +inf"),
+            Rule(
+                lambda a: a[0] < 0 and a[0] % 2 == 0,
+                0.0,
+                "the trivial zeros at x = -2, -4, ..., as +0 like in xsf",
+            ),
+        ),
+    ),
+    ("zetac", "d-d"): _real(
+        "zetac",
+        specs.r_zetac,
+        _zetac_arb,
+        (
+            NEG_INF,
+            Rule(lambda a: a[0] == math.inf, 0.0, "the limit for x -> +inf"),
+            ZETA_POLE,
+        ),
+    ),
+    ("zeta", "d_d-d"): _real(
+        "zeta", specs.r_hurwitz_zeta, flint.arb.zeta, (ZETA_POLE,)
+    ),
+    ("round", "d-d"): _real("round", mp.nint, _round_arb),
 }

@@ -26,6 +26,7 @@
 #include "xsf/cephes/incbet.h"
 #include "xsf/cephes/incbi.h"
 #include "xsf/cephes/poch.h"
+#include "xsf/cephes/round.h"
 #include "xsf/cephes/unity.h"
 #include "xsf/convex_analysis.h"
 #include "xsf/cosine.h"
@@ -195,6 +196,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     // other
     F1("lambertw", xsf::lambertw(std::complex<double>(x, 0.0), 0, 1e-8).real())
     F1("spence", xsf::spence(x))
+    F1("round", xsf::cephes::round(x))
     F1("wrightomega", xsf::wrightomega(x))
     F2("stirling2", xsf::stirling2(x, y))
     // gamma and related

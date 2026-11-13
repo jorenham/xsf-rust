@@ -79,6 +79,7 @@ fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
         // other
         ("lambertw", &[x]) => xsf::lambertw(Complex::new(x, 0.0), 0, 1e-8).re,
         ("spence", &[x]) => xsf::spence(x),
+        ("round", &[x]) => xsf::round(x),
         ("wrightomega", &[x]) => xsf::wrightomega(x),
         ("stirling2", &[n, k]) => xsf::stirling2::<f64>(n as u32, k as u32),
         _ => return eval_xsf_2(f, a),
