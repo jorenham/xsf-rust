@@ -629,8 +629,8 @@ fn is_large(a: f64, b: f64, c: f64) -> bool {
     [a, b, c].into_iter().any(|v| v.abs() >= HYP2F1_RECUR_MIN)
 }
 
-/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur`: if the parameters of the outermost
-/// call are large (and not in the Pfaff transformation below for x <= -9)
+/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` for large parameters: if those of the
+/// outermost call are large (and not in the Pfaff transformation below for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_ca_or_cb = false;
@@ -670,13 +670,19 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
     // excludes c a non-positive integer, and a, b, c - a and c - b close to one, unless exactly a
-    // negative integer (the polynomial cases). The transformations below also use it, but only if
-    // the parameters of the outermost call are large, so that the other results are unchanged.
-    let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer());
+    // negative integer (the polynomial cases) or tiny. The transformations below also use it, but
+    // only if the parameters of the outermost call are large, so that the other results are
+    // unchanged.
+    //
+    // Unlike in xsf (scipy/xsf#470), also try it for a tiny negative `a` or `b`. That counts as the
+    // integer 0 below, but the paths for polynomials lose it: their power series stops after its
+    // tiny first term, or diverges for x < -1. Not for a subnormal one, where the series of
+    // `hyp2f1_recur` underflow.
+    let tiny = |t: f64| t < 0.0 && -t < HYP2F1_EPS && t.is_normal();
+    let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer()) && !tiny(t.hi);
     // the result of `hyp2f1_recur` and its error bound, if that exceeds its tolerance
     let mut inexact = None;
-    if recur
-        && is_large(a, b, c)
+    if (recur && is_large(a, b, c) || tiny(a) || tiny(b))
         && !near_neg_int(c)
         && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
             .into_iter()

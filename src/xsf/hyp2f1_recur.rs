@@ -1,6 +1,7 @@
 //! The Gauss hypergeometric function `F(a, b; c; x)` for real `x < 1` and large real parameters,
 //! by backward recurrence in `c`. Not a port: `hyp2f1` (in `cephes/hyp2f1.rs`) tries it first for
-//! large parameters, where its series and transformations can lose all precision.
+//! large parameters, where its series and transformations can lose all precision, and for a tiny
+//! negative `a` or `b`.
 //!
 //! # Algorithm
 //!
@@ -461,17 +462,17 @@ fn series_too_long(p: Dd, r: Dd, c: Dd, w: Dd) -> bool {
     (p.hi.abs() * w.hi + 40.0).max(w.hi * r.hi - c.hi) / (1.0 - w.hi) > HYP2F1_RECUR_MAXITER
 }
 
-/// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)`. `shared` holds
-/// the step-2 sum and the budget left after it, for the twin `(c - q, c - p)`.
+/// `(1 - z)^p F(p, q; c; z)` for `z <= 0` (steps 2 and 3), with `w = z / (z - 1)` and `r = c - q`.
+/// `shared` holds the step-2 sum and the budget left after it, for the twin `(c - q, c - p)`.
 fn hyp2f1_recur_form(
     p: Dd,
     q: Dd,
+    r: Dd,
     c: Dd,
     z: f64,
     w: Dd,
     shared: &mut Option<(Scaled, f64)>,
 ) -> Option<Scaled> {
-    let r = -q + c.hi + c.lo;
     if series_too_long(p, r, c, w) {
         return None;
     }
@@ -519,7 +520,9 @@ fn best_combination(combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Op
     let mut shared = [None; 2];
     best_of(order.into_iter().map(|i| {
         let (p, q, s) = combs[i];
-        let y = hyp2f1_recur_form(p, q, c, z, w, &mut shared[i.min(3 - i)])?;
+        // `c - q` is the `p` of the twin, while `c - (c - p)` would round a tiny `p`
+        let r = combs[3 - i].0;
+        let y = hyp2f1_recur_form(p, q, r, c, z, w, &mut shared[i.min(3 - i)])?;
         Some(y.with_l(s * ln_1mx))
     }))
 }
