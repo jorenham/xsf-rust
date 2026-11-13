@@ -1,3 +1,4 @@
+use core::f64::consts::PI;
 use xsf::{hyp2f1, hyp3f2};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
@@ -128,22 +129,52 @@ fn test_hyp3f2_continuation() {
 }
 
 #[test]
+fn test_hyp3f2_weniger() {
+    // mpmath references at 50 and 120 digits, cross-checked with Mathematica
+    for (a, b, z, expected) in [
+        // -Li_2(-1) = pi^2 / 12
+        ([1.0, 1.0, 1.0], [2.0, 2.0], -1.0, PI * PI / 12.0),
+        ([0.5, 1.5, 2.5], [3.25, 4.75], -1.0, 0.902_702_134_732_558_7),
+        (
+            [0.5, 1.25, 2.75],
+            [3.25, 4.75],
+            -0.99,
+            0.910_875_206_300_700_3,
+        ),
+        // z < -1, where the terms of the continuation cancel
+        (
+            [0.5, 1.25, 2.75],
+            [3.25, 4.75],
+            -2.5,
+            0.820_925_159_215_043_4,
+        ),
+        // z < -1 with integer a_i - a_j
+        ([1.0, 1.0, 1.0], [2.0, 2.0], -2.0, 0.718_373_183_441_840_4),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
+}
+
+#[test]
 fn test_hyp3f2_none() {
-    // |z| = 1
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -1.0), None);
+    // z = 1
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
-    // z < -1 with an integer a_2 - a_1
-    assert_eq!(hyp3f2(1.5, 2.5, 3.25, 0.5, 4.5, -2.5), None);
     // more than 10^4 terms
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.999), None);
-    assert_eq!(hyp3f2(1.5, 2.25, 3.125, 0.5, 4.5, -1.001), None);
+    // z < -1 with integer a_i - a_j, where the sequence transformation does not converge
+    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 2.0, -50.0), None);
+    // the same for a huge |z|, where its orders hardly change before they converge
+    assert_eq!(hyp3f2(2e-15, 1.0, 1.0, 2.0, 2.0, -1e150), None);
     // the terms cancel
     assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -1.0), None);
     // near a zero of the polynomial
     assert_eq!(
         hyp3f2(-2.0, 1.0, 1.0, 0.5, 0.5, 0.143_237_254_218_789_44),
         None
     );
+    // a huge negative parameter
+    assert_eq!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9), None);
 }
 
 #[test]
@@ -157,4 +188,7 @@ fn test_hyp3f2_underflow() {
     assert_eq!(hyp3f2(1e-320, 1.0, 1.0, 2.0, 2.0, 0.5), Some(1.0));
     // the first term underflows, and later ones are large
     assert_eq!(hyp3f2(1e-200, 1e-200, 500.0, 1.0, 1.0, 0.9), None);
+    // the same at z = -1, where the series is summed by the sequence transformation
+    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 1e300, -1.0), Some(1.0));
+    assert_eq!(hyp3f2(1e-200, 1e-200, -1500.5, 1.0, 1.0, -1.0), None);
 }

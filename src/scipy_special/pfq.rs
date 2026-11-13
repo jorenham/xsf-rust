@@ -28,6 +28,16 @@ const PFQ_LN_UNDERFLOW: f64 = -709.0;
 /// up to a distance of 0.01
 const PFQ_NEAR_INTEGER: f64 = 0.0625;
 
+/// Maximum order of `pfq_weniger`
+const PFQ_WENIGER_MAXITER: usize = 40;
+
+/// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
+const PFQ_WENIGER_MAX_Z: f64 = -0.6;
+
+/// Smallest `z` for which `pfq_weniger` is tried before `pfq_continuation`, as it is more often
+/// accurate there (measured)
+const PFQ_WENIGER_FIRST_Z: f64 = -1.5;
+
 /// The smallest $n$ with $v + n = 0$ for a `v` in `params`, or infinity if there is none
 fn first_zero(params: &[f64]) -> f64 {
     let zeros = params.iter().filter(|&&v| is_nonpos_int(v));
@@ -98,6 +108,27 @@ fn pfq_underflow_bound(term: f64, z: f64) -> f64 {
     f64::MIN_POSITIVE * term.abs().max(1.0) * z.abs().max(1.0)
 }
 
+/// Whether `pfq_products` is not exact enough for these parameters
+fn pfq_extreme<const P: usize, const Q: usize>(a: &[f64; P], b: &[f64; Q]) -> bool {
+    a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
+}
+
+/// $t_{n+1} / (z t_n)$, which is `checked` if the parameters are extreme
+#[inline]
+fn pfq_ratio<const P: usize, const Q: usize>(
+    a: &[f64; P],
+    b: &[f64; Q],
+    n: f64,
+    checked: bool,
+) -> f64 {
+    if checked {
+        pfq_checked_ratio(a, b, n)
+    } else {
+        let [num, den] = pfq_products(a, b, n);
+        num / den
+    }
+}
+
 /// The terms $t_1, t_2, \dots$ of the series after $t_0 = 1$
 ///
 /// A term that underflows is a bound on it. The terms end before one that overflows or is NaN,
@@ -109,18 +140,12 @@ fn pfq_terms<const P: usize, const Q: usize>(
 ) -> impl Iterator<Item = f64> {
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
-    let checked = a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()));
+    let checked = pfq_extreme(a, b);
     // the largest term, which is small once the terms are only upper bounds
     let mut limit = f64::MAX;
     let indices = (0_u32..).map(f64::from);
     indices.scan(1.0_f64, move |term, n| {
-        let ratio = if checked {
-            pfq_checked_ratio(a, b, n)
-        } else {
-            let [num, den] = pfq_products(a, b, n);
-            num / den
-        };
-        let next = *term * (ratio * z);
+        let next = *term * (pfq_ratio(a, b, n, checked) * z);
         // (the terms after the last one of a polynomial are zero; tested last, as that is faster)
         *term = if next.abs() < f64::MIN_POSITIVE && n < degree {
             // the term or its ratio underflows, after which the terms can become large again:
@@ -202,6 +227,104 @@ fn pfq_series_tails<const P: usize, const Q: usize>(
         }
     }
     (sum, f64::INFINITY, f64::INFINITY)
+}
+
+/// Weniger's delta transformation of the series, and an estimate of its absolute error
+///
+/// This is a factorial Levin-type sequence transformation \[1\], which is used for
+/// ${}_pF_q$ in HypergeometricFunctions.jl \[2\]. For $z < 0$ it converges much faster than the
+/// series, and also for $z < -1$, where the series diverges. With the term $t_{n+1}$ as the
+/// remainder estimate of the partial sum $s_n$, its order $k$ is
+///
+/// $$
+/// \delta_k = {\sum_{j=0}^k c_j s_j / t_{j+1} \over \sum_{j=0}^k c_j / t_{j+1}} , \quad
+/// c_j = (-1)^j \binom k j (j + 1)_{k-1} ,
+/// $$
+///
+/// by the three-term recursion of its numerator and denominator. It is applied from the $n$
+/// where the terms start to alternate, so that the weights of the $s_j$ are positive. The same
+/// recursion for $|s_j|$ then gives their weighted mean, which scales the rounding errors.
+///
+/// The estimate is infinite if the orders up to `PFQ_WENIGER_MAXITER` did not converge, or if a
+/// term overflows, or underflows before the terms become large again. It is `None` if the terms
+/// only alternate after more than `PFQ_MAXITER` terms, or if a term before that overflows or
+/// underflows.
+///
+/// 1. E. J. Weniger, "Nonlinear sequence transformations for the acceleration of convergence
+///    and the summation of divergent series", Comput. Phys. Rep. 10 (1989), 189-371
+/// 2. R. M. Slevinsky, "Fast and stable rational approximation of generalized hypergeometric
+///    functions", Numer. Algor. 98 (2025), 587-624, <https://doi.org/10.1007/s11075-024-01808-w>
+pub(crate) fn pfq_weniger<const P: usize, const Q: usize>(
+    a: &[f64; P],
+    b: &[f64; Q],
+    z: f64,
+) -> Option<(f64, f64)> {
+    let settled = pfq_settled(a, b).ceil();
+    if settled > f64::from(PFQ_MAXITER) {
+        return None;
+    }
+    // the degree of a polynomial, else infinity
+    let degree = first_zero(a);
+    // the transformation starts at this n
+    let start = settled.min(degree);
+    let checked = pfq_extreme(a, b);
+    let ratio = |n| pfq_ratio(a, b, n, checked);
+    let (mut term, mut sum) = (1.0_f64, 1.0_f64);
+    // the largest |s_n| before `start`
+    let mut scale = 1.0_f64;
+    for n in (0..start as u32).map(f64::from) {
+        term *= ratio(n) * z;
+        if !term.is_normal() {
+            // overflow or underflow
+            return None;
+        }
+        sum += term;
+        scale = scale.max(sum.abs());
+    }
+    if start == degree {
+        // the series terminated
+        return Some((sum, 4.0 * f64::EPSILON * scale));
+    }
+    let mut rows = [[0.0; 3]; PFQ_WENIGER_MAXITER];
+    let (mut delta, mut step) = (sum, f64::INFINITY);
+    for k in 0..PFQ_WENIGER_MAXITER {
+        let n = start + k as f64;
+        term *= ratio(n) * z;
+        if !term.is_normal() {
+            // overflow, or underflow, after which the terms only matter if they can increase
+            let negligible = term.abs() < 1.0 && pfq_ratio_bound(a, b, z, n) <= 1.0;
+            let noise = 4.0 * f64::EPSILON * scale;
+            return Some((sum, if negligible { noise } else { f64::INFINITY }));
+        }
+        // the numerator, the denominator, and the numerator for |s_j|
+        rows[k] = [sum / term, 1.0 / term, sum.abs() / term];
+        for j in (0..k).rev() {
+            // the order of `rows[j]`, which starts at s_j
+            let (m, i) = (j as f64, (k - j - 1) as f64);
+            let c = if i == 0.0 {
+                1.0
+            } else {
+                let (s, t) = (m + i, m + 2.0 * i);
+                (s + 1.0) * s / ((t + 1.0) * t)
+            };
+            rows[j] = core::array::from_fn(|l| rows[j + 1][l] - c * rows[j][l]);
+        }
+        let [num, den, abs] = rows[0];
+        // the rounding errors of the partial sums and of the terms (the factor is measured)
+        let noise = 4.0 * f64::EPSILON * ((abs / den).abs() + (num / den).abs() + scale);
+        let last = step;
+        step = (num / den - delta).abs();
+        delta = num / den;
+        // delta is a weighted mean of the last one and of the one of that order from s_1
+        // (NaN for k = 0). For a large |z| the weight of the latter is small, and so are the
+        // steps, also while the two still differ, so it has to agree as well.
+        let other = rows[1][0] / rows[1][1];
+        if step <= noise && last <= noise && (other - delta).abs() <= noise {
+            return Some((delta, noise));
+        }
+        sum += term;
+    }
+    Some((delta, f64::INFINITY))
 }
 
 /// $\Gamma(u) / \Gamma(w)$ and an estimate of its relative error, for `u` and `w` as `two_sum`s
@@ -294,6 +417,31 @@ pub(crate) fn pfq_continuation<const N: usize>(
     Some((sum, err))
 }
 
+/// A method for $p = q + 1$, which returns the result and an estimate of its absolute error, or
+/// `None`
+type Method<const N: usize> = fn(&[f64; N], &[f64; N], f64) -> Option<(f64, f64)>;
+
+/// ${}_{q+1}F_q$ for $z < 1$, or for a polynomial, by the first method for `z` that is accurate
+///
+/// `b` contains the 1 of $n!$.
+pub(crate) fn pfq_accurate<const N: usize>(a: &[f64; N], b: &[f64; N], z: f64) -> Option<f64> {
+    let series: Method<N> = |a, b, z| Some(pfq_series(a, b, z));
+    let methods: &[Method<N>] = if first_zero(a).is_finite() || z > PFQ_WENIGER_MAX_Z {
+        &[series]
+    } else if z > -1.0 {
+        &[pfq_weniger, series]
+    } else if z == -1.0 {
+        &[pfq_weniger]
+    } else if z >= PFQ_WENIGER_FIRST_Z {
+        &[pfq_weniger, pfq_continuation]
+    } else {
+        &[pfq_continuation, pfq_weniger]
+    };
+    let mut results = methods.iter().filter_map(|method| method(a, b, z));
+    let accurate = results.find(|&(y, err)| y.is_finite() && err <= PFQ_TOL * y.abs());
+    accurate.map(|(y, _)| y)
+}
+
 /// Generalized hypergeometric function $_3F_2$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -328,9 +476,8 @@ pub(crate) fn pfq_continuation<const N: usize>(
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - for $\abs z = 1$, unless it is a polynomial;
-/// - for $\abs z$ within about 0.004 of 1;
-/// - for $z < -1$, if two $a_i$ differ by an integer;
+/// - at $z = 1$, and for $0.996 \lesssim z < 1$;
+/// - for $z < -1$ if two $a_i$ differ by an integer (nearly always for $z < -3$);
 /// - if the terms cancel too much (e.g. large parameters, near a zero), overflow or underflow;
 /// - if an argument is infinite.
 ///
@@ -370,15 +517,10 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
         } else if z == 1.0 && b1 + b2 <= a1 + a2 + a3 {
             // the series diverges
             return Some(f64::INFINITY);
-        } else if z.abs() == 1.0 {
+        } else if z == 1.0 {
             return None;
         }
     }
     let (a, b) = (descending(a), descending(b));
-    let (y, err) = if z < -1.0 && degree.is_infinite() {
-        pfq_continuation(&a, &b, z)?
-    } else {
-        pfq_series(&a, &b, z)
-    };
-    (y.is_finite() && err <= PFQ_TOL * y.abs()).then_some(y)
+    pfq_accurate(&a, &b, z)
 }
