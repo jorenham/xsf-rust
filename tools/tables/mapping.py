@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Final
+from typing import Final, Protocol
 
 import flint
 import mpmath as mp
@@ -1090,6 +1090,111 @@ def _gammaincinv_out(upper: bool, floor: float) -> Out:
     )
 
 
+class ToArgs(Protocol):
+    """The (a, x) of Q(a, x), or P(a, x), of the inputs as `float`s, `mpf`s, or balls."""
+
+    def __call__[T: (float, mp.mpf, flint.arb)](
+        self, a: tuple[T, ...], /
+    ) -> tuple[T, T]: ...
+
+
+def _rules_at(rules: tuple[Rule, ...], to_args: ToArgs, sub: str) -> tuple[Rule, ...]:
+    """The rules of Q(a, x), P(a, x), or their inverses, for the function of other inputs with
+    (a, x) (or (a, y)) = `sub`."""
+    return tuple(
+        Rule(
+            lambda a, r=r: r.when(to_args(a)), r.value, f"{r.why}, with (a, x) = {sub}"
+        )
+        for r in rules
+    )
+
+
+def _floors_at(floors: tuple[Floor, ...], to_args: ToArgs) -> tuple[Floor, ...]:
+    return tuple(Floor(lambda a, f=f: f.when(to_args(a)), f.tol, f.why) for f in floors)
+
+
+def _half[T: (float, mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T]:
+    return a[0] / 2, a[1] / 2
+
+
+def _floor[T: (float, mp.mpf, flint.arb)](x: T) -> T:
+    """floor(x), which is x for an infinity or NaN."""
+    if isinstance(x, flint.arb):
+        return x.floor()
+    return type(x)(math.floor(x)) if math.isfinite(x) else x
+
+
+def _poisson[T: (float, mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T]:
+    return _floor(a[0]) + 1, a[1]
+
+
+def _gamma_dist[T: (float, mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T]:
+    return a[1], a[0] * a[2]
+
+
+def _distribution(
+    func: str,
+    upper: bool,
+    to_args: ToArgs,
+    sub: str,
+    extra: tuple[Rule, ...] = (),
+    floors: tuple[Floor, ...] = (),
+) -> Out:
+    """A distribution function that is Q(a, x) (or P(a, x)) at (a, x) = `sub`, after the rules
+    `extra`."""
+    g = _gammainc(upper)
+    arb = _precise(_gammaincc_arb if upper else _gammainc_arb)
+
+    def ref(*a: mp.mpf) -> mp.mpf:
+        return g(*to_args(a))
+
+    def ball(*a: flint.arb) -> flint.arb | flint.acb | None:
+        return arb(*to_args(a))
+
+    return Out(
+        func,
+        (ref,),
+        (ball,),
+        extra + _rules_at(_gammainc_rules(upper), to_args, sub),
+        floors=_floors_at(floors, to_args),
+    )
+
+
+X_NEG: Final = Rule(lambda a: a[2] < 0, math.nan, "NaN for x < 0")
+K_M_NEG: Final = Rule(
+    lambda a: a[0] < 0 or a[1] < 0, math.nan, "NaN outside of k >= 0, m >= 0"
+)
+PDTRI_DOMAIN: Final = Rule(
+    lambda a: a[0] < 0 or not 0 <= a[1] < 1,
+    math.nan,
+    "NaN outside of k >= 0, 0 <= y < 1",
+)
+
+
+def _chdtri_args[T: (float, mp.mpf, flint.arb)](a: tuple[T, ...], /) -> tuple[T, T]:
+    return a[0] / 2, a[1]
+
+
+def _chdtri() -> Out:
+    """The x with Q(v / 2, x / 2) = y, which is twice the root of Q(v / 2, .) = y."""
+    return Out(
+        "chdtri",
+        (specs.r_chdtri,),
+        (_inverse_arb(lambda v, x: _gammaincc_arb(v / 2, x / 2), specs.r_chdtri),),
+        _rules_at(_gammaincinv_rules(True, 0.0), _chdtri_args, "(v / 2, y)"),
+    )
+
+
+def _pdtri() -> Out:
+    """The m with Q(k + 1, m) = y, for the integer k >= 0 and 0 <= y < 1."""
+    return Out(
+        "pdtri",
+        (specs.r_pdtri,),
+        (_inverse_arb(lambda k, m: _gammaincc_arb(k + 1, m), specs.r_pdtri),),
+        (PDTRI_DOMAIN,),
+    )
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -1717,4 +1822,33 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gammaincc", "d_d-d"): Entry((_gammainc_out(True, 3e-15),)),
     ("gammaincinv", "d_d-d"): Entry((_gammaincinv_out(False, 8e-16),)),
     ("gammainccinv", "d_d-d"): Entry((_gammaincinv_out(True, 2e-14),)),
+    ("chdtr", "d_d-d"): Entry(
+        (_distribution("chdtr", False, _half, "(v / 2, x / 2)"),)
+    ),
+    ("chdtrc", "d_d-d"): Entry(
+        (_distribution("chdtrc", True, _half, "(v / 2, x / 2)"),)
+    ),
+    ("chdtri", "d_d-d"): Entry((_chdtri(),)),
+    ("gdtr", "d_d_d-d"): Entry(
+        (_distribution("gdtr", False, _gamma_dist, "(b, a x)", (X_NEG,)),)
+    ),
+    ("gdtrc", "d_d_d-d"): Entry(
+        (
+            _distribution(
+                "gdtrc",
+                True,
+                _gamma_dist,
+                "(b, a x)",
+                (X_NEG,),
+                (Floor(lambda a: _igam_fac_rgamma(*a), 2e-15, RGAMMA),),
+            ),
+        )
+    ),
+    ("pdtr", "d_d-d"): Entry(
+        (_distribution("pdtr", True, _poisson, "(floor(k) + 1, m)", (K_M_NEG,)),)
+    ),
+    ("pdtrc", "d_d-d"): Entry(
+        (_distribution("pdtrc", False, _poisson, "(floor(k) + 1, m)", (K_M_NEG,)),)
+    ),
+    ("pdtri", "p_d-d"): Entry((_pdtri(),)),
 }
