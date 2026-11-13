@@ -87,13 +87,56 @@ fn test_hyp3f2_special() {
 }
 
 #[test]
+fn test_hyp3f2_continuation() {
+    // mpmath references at 50 and 120 digits, cross-checked with Mathematica
+    for (a, b, z, expected) in [
+        (
+            [0.5, 1.25, 2.75],
+            [3.25, 4.75],
+            -100.0,
+            0.267_996_937_273_824_95,
+        ),
+        (
+            [10.5, 20.25, 0.125],
+            [5.75, 30.5],
+            -50.0,
+            0.594_745_542_710_990_4,
+        ),
+        (
+            [0.25, 1.375, 2.875],
+            [1.75, 3.875],
+            -1e6,
+            0.038_052_289_002_429_94,
+        ),
+        // b_1 - a_1 = -1, so that the term of a_1 vanishes
+        (
+            [2.5, 0.25, 1.125],
+            [1.5, 4.25],
+            -3.0,
+            0.822_861_429_867_887_1,
+        ),
+        // the factors of each coefficient underflow or overflow, unlike their product
+        (
+            [80.25, 120.5, 160.75],
+            [150.125, 140.5],
+            -1000.0,
+            1.689_865_300_058_061_6e-236,
+        ),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
+}
+
+#[test]
 fn test_hyp3f2_none() {
-    // |z| >= 1
+    // |z| = 1
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -1.0), None);
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -2.5), None);
+    // z < -1 with an integer a_2 - a_1
+    assert_eq!(hyp3f2(1.5, 2.5, 3.25, 0.5, 4.5, -2.5), None);
     // more than 10^4 terms
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.999), None);
+    assert_eq!(hyp3f2(1.5, 2.25, 3.125, 0.5, 4.5, -1.001), None);
     // the terms cancel
     assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
     // near a zero of the polynomial

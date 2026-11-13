@@ -5,6 +5,8 @@
 //! $t_n = z^n \prod_i (a_i)_n / \prod_j (b_j)_n$.
 
 use crate::utils::is_nonpos_int;
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
@@ -20,6 +22,11 @@ const PFQ_MODERATE: core::ops::RangeInclusive<f64> = 1e-30..=1e30;
 
 /// Below the logarithm of the smallest positive normal number
 const PFQ_LN_UNDERFLOW: f64 = -709.0;
+
+/// Largest distance of a parameter to a non-positive integer $-m$ at which its rounding error
+/// is counted for the whole tail of the series from $n = m$ on, as errors of that size are seen
+/// up to a distance of 0.01
+const PFQ_NEAR_INTEGER: f64 = 0.0625;
 
 /// The smallest $n$ with $v + n = 0$ for a `v` in `params`, or infinity if there is none
 fn first_zero(params: &[f64]) -> f64 {
@@ -131,25 +138,36 @@ fn pfq_terms<const P: usize, const Q: usize>(
 ///
 /// The estimate is infinite if the series did not converge within `PFQ_MAXITER` terms, or if
 /// its terms overflow, or underflow before they become large again.
-///
-/// The rounding error of each ratio $t_{n+1} / t_n$ affects the terms after it, which sum to
-/// $s - s_n$ for the partial sum $s_n$ and the sum $s$. These errors are added in quadrature,
-/// like those of the partial sums. A part of them adds up instead, as `a + n` rounds alike
-/// for all `n` between two powers of 2. The constants are measured.
 pub(crate) fn pfq_series<const P: usize, const Q: usize>(
     a: &[f64; P],
     b: &[f64; Q],
     z: f64,
 ) -> (f64, f64) {
+    let (y, err, _) = pfq_series_tails(a, b, z);
+    (y, err)
+}
+
+/// `pfq_series`, and the root of the sum of its squared tails $s - s_n$, which is at least the
+/// largest of them
+///
+/// The rounding error of each ratio $t_{n+1} / t_n$ affects the terms after it, which sum to
+/// $s - s_n$ for the partial sum $s_n$ and the sum $s$. These errors are added in quadrature,
+/// like those of the partial sums. A part of them adds up instead, as `a + n` rounds alike
+/// for all `n` between two powers of 2. The constants are measured.
+fn pfq_series_tails<const P: usize, const Q: usize>(
+    a: &[f64; P],
+    b: &[f64; Q],
+    z: f64,
+) -> (f64, f64, f64) {
     let settled = pfq_settled(a, b);
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
     let mut sum = 1.0_f64;
     // the sums of s_n and s_n^2
     let (mut sum1, mut sum2) = (0.0, 0.0_f64);
-    let rounding = |n: f64, sum: f64, sum1: f64, sum2: f64| {
-        // the root of the sum of (s - s_n)^2, which is accurate enough for an estimate, relative
-        // to s so that its parts don't overflow
+    // the rounding error, and the root of the sum of (s - s_n)^2
+    let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64| {
+        // accurate enough for an estimate, relative to s so that its parts don't overflow
         let tails = if sum == 0.0 {
             sum2.sqrt()
         } else {
@@ -158,7 +176,8 @@ pub(crate) fn pfq_series<const P: usize, const Q: usize>(
                 .sqrt()
                 * sum.abs()
         };
-        f64::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt())
+        let rounding = f64::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt());
+        (rounding, tails)
     };
     let mut terms = pfq_terms(a, b, z);
     for n in (0..PFQ_MAXITER).map(f64::from) {
@@ -166,7 +185,8 @@ pub(crate) fn pfq_series<const P: usize, const Q: usize>(
         sum2 += sum * sum;
         if n == degree {
             // the series terminated
-            return (sum, rounding(n, sum, sum1, sum2));
+            let (rounding, tails) = estimates(n, sum, sum1, sum2);
+            return (sum, rounding, tails);
         }
         // t_(n+1)
         let Some(term) = terms.next() else { break };
@@ -176,11 +196,102 @@ pub(crate) fn pfq_series<const P: usize, const Q: usize>(
             // geometric bound on the remaining terms
             let tail = term.abs() * rho / (1.0 - rho);
             if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
-                return (sum, rounding(n, sum, sum1, sum2) + tail);
+                let (rounding, tails) = estimates(n, sum, sum1, sum2);
+                return (sum, rounding + tail, tails);
             }
         }
     }
-    (sum, f64::INFINITY)
+    (sum, f64::INFINITY, f64::INFINITY)
+}
+
+/// $\Gamma(u) / \Gamma(w)$ and an estimate of its relative error, for `u` and `w` as `two_sum`s
+///
+/// The low part `e` of an argument `x + e` is its rounding error, which matters near a pole.
+/// It is applied to first order: $\Gamma(x + e) \approx \Gamma(x) (1 + \psi(x) e)$, where the
+/// square of $\psi(x) e$ estimates the error of that.
+///
+/// The ratio is zero only if `w` is a pole, and `None` if it underflows or overflows.
+pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
+    let low = |(x, e): (f64, f64)| if e == 0.0 { 0.0 } else { crate::digamma(x) * e };
+    // `gamma` and `rgamma` are within 2.3 ulp for 99% of |x| <= 170 (measured)
+    let (mut ratio, mut err) = (gamma(u.0) * rgamma(w.0), 3.0 * f64::EPSILON);
+    if !ratio.is_normal() {
+        if is_nonpos_int(w.0) && w.1 == 0.0 {
+            return Some((0.0, 0.0));
+        }
+        // overflow or underflow
+        let (ln_u, ln_w) = (lgam(u.0), lgam(w.0));
+        ratio = gammasgn(u.0) * gammasgn(w.0) * (ln_u - ln_w).exp();
+        err += f64::EPSILON * (ln_u.abs() + ln_w.abs());
+    }
+    ratio.is_normal().then(|| {
+        let (low_u, low_w) = (low(u), low(w));
+        let err = err + low_u * low_u + low_w * low_w;
+        (ratio * (1.0 + low_u - low_w), err)
+    })
+}
+
+/// The analytic continuation to $z < -1$ (DLMF 16.8.8) and an estimate of its absolute error, or
+/// `None` if a factor of a coefficient overflows or underflows
+///
+/// This is for $p = q + 1$, where `b` contains the 1 of $n!$, and no two $a_i$ may differ by an
+/// integer. It is a sum over $j$ of series in $1 / z$ with the parameters $a_j + 1 - b$ and
+/// $a_j + 1 - a$.
+pub(crate) fn pfq_continuation<const N: usize>(
+    a: &[f64; N],
+    b: &[f64; N],
+    z: f64,
+) -> Option<(f64, f64)> {
+    let skip = |v: [f64; N], i| (0..N).filter(move |&k| k != i).map(move |k| v[k]);
+    let one = b.iter().position(|&v| v == 1.0)?;
+    let (mut sum, mut err) = (0.0, 0.0);
+    for (j, &aj) in a.iter().enumerate() {
+        if skip(*a, j).any(|ak| (ak - aj).fract() == 0.0) {
+            return None;
+        }
+        // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
+        let ratios = skip(*a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
+        let ratios = ratios.chain(skip(*b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
+        // (-z)^(-a_j) is the square of this root, which stays normal for larger a_j
+        let root = Some((-z).powf(-0.5 * aj)).filter(|r| r.is_normal())?;
+        // the coefficient as a mantissa and a power of 2, as products of its factors can
+        // underflow or overflow while it does not; their errors are added in quadrature
+        let (mut c, mut exp, mut c_err2) = (1.0, 0, 0.0);
+        for factor in [Some((root, f64::EPSILON)); 2].into_iter().chain(ratios) {
+            let (factor, factor_err) = factor?;
+            let (mantissa, e) = frexp_f64(factor);
+            (c, exp) = (c * mantissa, exp + e);
+            c_err2 += factor_err * factor_err;
+        }
+        if c == 0.0 {
+            // a b_k - a_j is a non-positive integer
+            continue;
+        }
+        let c = ldexp_f64(c, exp);
+        // a_j + 1 - b and a_j + 1 - a, and the relative effect of their rounding errors on the
+        // terms of their series, which is large near a non-positive integer -m: there it is on
+        // the terms from n = m on, and not on those before them
+        let (mut rounding, mut near) = (0.0, 0.0);
+        let mut shift = |v: f64| {
+            let (d, e1) = two_sum(aj, -v);
+            let (x, e2) = two_sum(d, 1.0);
+            if e1 + e2 != 0.0 {
+                let distance = (x - x.round().min(0.0)).abs();
+                rounding += (e1 + e2).abs() / distance;
+                if distance < PFQ_NEAR_INTEGER {
+                    near += (e1 + e2).abs() / distance;
+                }
+            }
+            x
+        };
+        let (upper, lower) = (descending(b.map(&mut shift)), descending(a.map(&mut shift)));
+        let (f, f_err, tails) = pfq_series_tails(&upper, &lower, 1.0 / z);
+        sum += c * f;
+        // those terms sum to a tail of the series; the last part is for a subnormal c
+        err += c.abs() * (f_err + (c_err2.sqrt() + rounding) * f.abs() + near * tails)
+            + f64::MIN_POSITIVE * f.abs();
+    }
+    Some((sum, err))
 }
 
 /// Generalized hypergeometric function $_3F_2$ for real arguments
@@ -200,7 +311,7 @@ pub(crate) fn pfq_series<const P: usize, const Q: usize>(
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)). For
-/// $z < -1$, it is the analytic continuation [^1]. A non-positive integer $a_i = -n$ makes it
+/// $z < -1$, it is the analytic continuation [^1] [^2]. A non-positive integer $a_i = -n$ makes it
 /// a polynomial of degree at most $n$, defined for all $z$.
 ///
 /// As in [`hyp2f1`](crate::hyp2f1), an $a_i$ equal to a $b_j$ cancels it, also if it is a
@@ -217,12 +328,14 @@ pub(crate) fn pfq_series<const P: usize, const Q: usize>(
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - for $\abs z \ge 1$, unless it is a polynomial;
-/// - for $\abs z \gtrsim 0.996$;
+/// - for $\abs z = 1$, unless it is a polynomial;
+/// - for $\abs z$ within about 0.004 of 1;
+/// - for $z < -1$, if two $a_i$ differ by an integer;
 /// - if the terms cancel too much (e.g. large parameters, near a zero), overflow or underflow;
 /// - if an argument is infinite.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.8.E8>
 ///
 /// # See also
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
@@ -257,11 +370,15 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
         } else if z == 1.0 && b1 + b2 <= a1 + a2 + a3 {
             // the series diverges
             return Some(f64::INFINITY);
-        } else if z.abs() >= 1.0 {
+        } else if z.abs() == 1.0 {
             return None;
         }
     }
     let (a, b) = (descending(a), descending(b));
-    let (y, err) = pfq_series(&a, &b, z);
+    let (y, err) = if z < -1.0 && degree.is_infinite() {
+        pfq_continuation(&a, &b, z)?
+    } else {
+        pfq_series(&a, &b, z)
+    };
     (y.is_finite() && err <= PFQ_TOL * y.abs()).then_some(y)
 }
