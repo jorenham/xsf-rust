@@ -447,14 +447,15 @@
 //!
 //! # Hypergeometric functions
 //!
-//! | Function   | Description                             | Notation                         |
-//! | ---------- | --------------------------------------- | -------------------------------- |
-//! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\left[ \middle\| z\right]$ |
-//! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\left[a\middle\| z\right]$ |
-//! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\left[b\middle\| z\right]$ |
-//! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp 1 1 a b z$                 |
-//! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$ |
-//! | [`hypu`]   | Confluent hypergeometric function       | $U(a_1,a_2,x)$                   |
+//! | Function   | Description                             | Notation                                                     |
+//! | ---------- | --------------------------------------- | ------------------------------------------------------------ |
+//! | [`hyp0f0`] | Generalized hypergeometric function     | $_0F_0\left[ \middle\| z\right]$                             |
+//! | [`hyp1f0`] | Generalized hypergeometric function     | $_1F_0\left[a\middle\| z\right]$                             |
+//! | [`hyp0f1`] | Confluent hypergeometric limit function | $_0F_1\left[b\middle\| z\right]$                             |
+//! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp 1 1 a b z$                                             |
+//! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$                             |
+//! | [`hyp3f2`] | Generalized hypergeometric function     | $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$ |
+//! | [`hypu`]   | Confluent hypergeometric function       | $U(a_1,a_2,x)$                                               |
 //!
 //! # Parabolic cylinder functions
 //!
