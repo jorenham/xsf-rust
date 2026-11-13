@@ -211,8 +211,8 @@ const APGD: [f64; 10] = [
 
 /// `sin` and `cos` of `theta = 2/3 a^(3/2) + pi/4`, given `t = sqrt(a)`
 ///
-/// Unlike in xsf, `theta` is computed in double-double, since its rounding error (~ `theta` eps)
-/// is the error of Ai, Bi, Ai', Bi' relative to their amplitude.
+/// Unlike in xsf (scipy/xsf#532), `theta` is computed in double-double, since its rounding error
+/// (~ `theta` eps) is the error of Ai, Bi, Ai', Bi' relative to their amplitude.
 fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
     // sqrt(a) = t + (a - t^2) / (2 t)
     let (tt, e) = two_prod(t, t);
