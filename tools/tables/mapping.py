@@ -96,11 +96,6 @@ LN_GAMMA_POLE: Final = Rule(
     math.inf,
     "ln |Gamma(x)| -> +inf at a pole",
 )
-TAYLOR_RADIUS: Final = 0.2  # `LOGGAMMA_TAYLOR_RADIUS` of `src/xsf/loggamma.rs`
-LN_GAMMA_ZEROS: Final = Override(
-    lambda a: abs(a[0] - 1) < TAYLOR_RADIUS or 2 - TAYLOR_RADIUS < a[0] < 2,
-    "xsf loses digits near the zeros at 1 and 2, where xsf-rust differs (scipy/xsf#529)",
-)
 
 
 def _gammasgn_arb(x: flint.arb) -> flint.arb:
@@ -324,7 +319,6 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (specs.r_gammaln,),
                 (_ln_abs_gamma,),
                 (LN_GAMMA_POLE,),
-                (LN_GAMMA_ZEROS,),
             ),
         )
     ),
@@ -342,7 +336,6 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                     ),
                     LN_GAMMA_POLE,
                 ),
-                (LN_GAMMA_ZEROS,),
             ),
         )
     ),
