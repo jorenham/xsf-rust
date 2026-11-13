@@ -4,8 +4,13 @@
 
 use core::f64::consts::FRAC_1_PI;
 
+use crate::utils::{is_nonpos_int, pow2};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
+
+/// From here on, `m - 1` and `m + 1` aren't exact, and `m` is an even integer
+const BIG: f64 = pow2(53);
 
 /// `xsf::cephes::detail::is_nonpos_int`, which is false for `|x| >= 1e13`
 fn is_small_nonpos_int(x: f64) -> bool {
@@ -14,6 +19,29 @@ fn is_small_nonpos_int(x: f64) -> bool {
 
 pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     let mut r = 1.0;
+
+    let finite = a.is_finite() && m.is_finite();
+    // Unlike in xsf (scipy/xsf#357), the poles are those of the exact a + m, of any size
+    if finite {
+        let (s, e) = two_sum(a, m);
+        let sum_pole = is_nonpos_int(s) && e.fract() == 0.0;
+        if is_nonpos_int(a) != sum_pole {
+            return if sum_pole { f64::INFINITY } else { 0.0 };
+        }
+        if sum_pole {
+            // both are poles: the limit (-1)^m Gamma(1 - a) / Gamma(1 - a - m), which the loops
+            // below can't reach when they overflow, or for |m| >= 2^53 (an even integer)
+            if m.abs() >= BIG {
+                return if m > 0.0 { f64::INFINITY } else { 0.0 };
+            }
+            let sgn = if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
+            return sgn * poch((1.0 - s) - e, m);
+        }
+        if m <= -BIG && a + m < 0.0 {
+            // Gamma(a + m) underflows, with the sign of sin(pi (a + m)) = sin(pi a)
+            return 0.0_f64.copysign(cephes_sinpi(a) * gammasgn(a));
+        }
+    }
 
     /*
      * 1. Reduce magnitude of `m` to |m| < 1 by using recurrence relations.
@@ -54,6 +82,12 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
      * If so, the function itself does similarly.
      */
 
+    // Unlike in xsf, `r` is the result if it over- or underflows for a, a + m >= 1, where
+    // Gamma(a + m) / Gamma(a) can't undo that, instead of NaN if lgam(a) overflows
+    if finite && (r == 0.0 || r.is_infinite()) && a >= 1.0 && a + m >= 1.0 {
+        return r;
+    }
+
     if m == 0.0 {
         /* Easy case */
         return r;
@@ -65,15 +99,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
                 + m * (m - 1.0) / (2.0 * a)
                 + m * (m - 1.0) * (m - 2.0) * (3.0 * m - 1.0) / (24.0 * a * a)
                 + m * m * (m - 1.0) * (m - 1.0) * (m - 2.0) * (m - 3.0) / (48.0 * a * a * a));
-    } else if a > 10.0 && m.abs() <= 1.0 {
+    } else if a >= 1.0 && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), `lgam_ratio` avoids the cancellation in
         // lgam(a + m) - lgam(a) (below)
         return r * lgam_ratio(a, m).exp();
-    }
-
-    /* Check for infinity */
-    if is_small_nonpos_int(a + m) && !is_small_nonpos_int(a) && a + m != m {
-        return f64::INFINITY;
     }
 
     /* Check for zero */
@@ -81,11 +110,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
         return 0.0;
     }
 
-    if a < -10.0 && m.abs() <= 1.0 {
+    if (a < -10.0 || a + m < 0.0) && m.abs() <= 1.0 {
         // Unlike in xsf (scipy/xsf#357), the reflection formula avoids the cancellation in
-        // lgam(a + m) - lgam(a), with the sines of the exact fractional part of `a`.
-        let f = a - a.floor();
-        return r * (cephes_sinpi(f) / cephes_sinpi(f + m)) * poch(1.0 - a - m, m);
+        // lgam(a + m) - lgam(a), and the rounding error of a + m near the poles.
+        return r * (cephes_sinpi(a) / sinpi_sub(a, -m)) * poch(1.0 - a - m, m);
     }
 
     r * (lgam(a + m) - lgam(a)).exp() * gammasgn(a + m) * gammasgn(a)

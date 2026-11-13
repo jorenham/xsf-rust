@@ -5,10 +5,11 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! Unlike in xsf, `1 - a` in the negative integer helpers is computed in floating point instead of
-//! in `int`, where it overflows (UB) for `a = -2^31` and `a = -2^31 + 1`.
+//! Unlike in xsf (scipy/xsf#338), the negative integer helpers take any non-positive integer `a`
+//! and integer `b`, not only those that fit in an `int`.
 
 use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
@@ -75,11 +76,6 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     }
 }
 
-/// Whether `beta(a, b)` and `lbeta(a, b)` reflect a negative `a` in `lbeta_ratio`
-pub(crate) fn beta_reflects_a(a: f64, b: f64) -> bool {
-    !is_nonpos_int(a) && !is_nonpos_int(b) && lbeta_reflects_a(a, b) && beta_uses_lgam(a, b)
-}
-
 /// Whether `lbeta_ratio` reflects a negative `a`
 fn lbeta_reflects_a(a: f64, b: f64) -> bool {
     a < 0.0 && b.abs() < -0.125 * a
@@ -110,21 +106,42 @@ fn small_b(a: f64, b: f64) -> bool {
     b.abs() < 1.0 && a > 4.0 && a.is_finite()
 }
 
+/// `1 / Gamma(a + b)` for `|a + b| <= MAXGAM`
+///
+/// Unlike in xsf, without the rounding error `e` of `y = a + b`: to first order in `e`,
+/// `1 / Gamma(y + e) = (1 - e psi(y)) / Gamma(y)`, with `psi(y) ~ ln(y - 1/2)` for `y > 1`, and
+/// `y < -1/2` is reflected (DLMF 5.5.3), where `sinpi_sub` gives the exact sine, and
+/// `Gamma(1 - y - e) = -y Gamma(-y) (1 - e psi(1 - y))`.
+fn rgamma_sum(a: f64, b: f64) -> f64 {
+    let (y, e) = two_sum(a, b);
+    if y < -0.5 && y > -MAXGAM {
+        sinpi_sub(a, -b) * (-y / PI) * gamma(-y) * (1.0 - e * (0.5 - y).ln())
+    } else if y > 1.0 {
+        rgamma(y) * (1.0 - e * (y - 0.5).ln())
+    } else {
+        rgamma(y)
+    }
+}
+
 /// Special case for a negative integer argument
-fn beta_negint(a: i32, b: f64) -> f64 {
-    // Like the C++ `static_cast<int>(b)` wherever that is defined; the saturating cast makes the
-    // comparison false otherwise.
-    if b == f64::from(b as i32) && 1.0 - f64::from(a) - b > 0.0 {
-        let sgn = if (b as i32) % 2 == 0 { 1 } else { -1 };
-        f64::from(sgn) * beta(1.0 - f64::from(a) - b, b)
+fn beta_negint(a: f64, b: f64) -> f64 {
+    // `b <= -a` is `1 - a - b > 0` for integers, without its rounding error
+    if b.fract() == 0.0 && b <= -a {
+        let sgn = if b % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        // B(1 - a - b, b) is a pole for b <= 0, which the rounding of 1 - a - b could hide
+        sgn * if b > 0.0 {
+            beta(1.0 + (-a - b), b)
+        } else {
+            f64::INFINITY
+        }
     } else {
         f64::INFINITY
     }
 }
 
-fn lbeta_negint(a: i32, b: f64) -> f64 {
-    if b == f64::from(b as i32) && 1.0 - f64::from(a) - b > 0.0 {
-        lbeta(1.0 - f64::from(a) - b, b)
+fn lbeta_negint(a: f64, b: f64) -> f64 {
+    if b.fract() == 0.0 && 0.0 < b && b <= -a {
+        lbeta(1.0 + (-a - b), b)
     } else {
         f64::INFINITY
     }
@@ -159,23 +176,23 @@ fn lbeta_negint(a: i32, b: f64) -> f64 {
 ///                  a or b <=0 integer       INFINITY
 /// ```
 ///
-/// If `a <= 0` and `b` are integers that fit in an `int` (32 bits) and `1 - a - b > 0`, the limit
-/// `(-1)^b * beta(1 - a - b, b)` is returned instead (and likewise with `a` and `b` swapped).
+/// If `a <= 0` and `b` are integers and `1 - a - b > 0`, the limit `(-1)^b * beta(1 - a - b, b)`
+/// is returned instead (and likewise with `a` and `b` swapped).
 pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     let mut y;
     let mut sign = 1;
 
     if is_nonpos_int(a) {
-        if a == f64::from(a as i32) {
-            return beta_negint(a as i32, b);
+        if a.is_finite() {
+            return beta_negint(a, b);
         }
         // overflow
         return f64::from(sign) * f64::INFINITY;
     }
 
     if is_nonpos_int(b) {
-        if b == f64::from(b as i32) {
-            return beta_negint(b as i32, a);
+        if b.is_finite() {
+            return beta_negint(b, a);
         }
         // overflow
         return f64::from(sign) * f64::INFINITY;
@@ -220,7 +237,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
         return f64::from(sign) * y.exp();
     }
 
-    y = rgamma(y);
+    y = rgamma_sum(a, b);
     a = gamma(a);
     b = gamma(b);
     if y.is_infinite() {
@@ -245,16 +262,16 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     let sign = 1;
 
     if is_nonpos_int(a) {
-        if a == f64::from(a as i32) {
-            return lbeta_negint(a as i32, b);
+        if a.is_finite() {
+            return lbeta_negint(a, b);
         }
         // over
         return f64::from(sign) * f64::INFINITY;
     }
 
     if is_nonpos_int(b) {
-        if b == f64::from(b as i32) {
-            return lbeta_negint(b as i32, a);
+        if b.is_finite() {
+            return lbeta_negint(b, a);
         }
         // over
         return f64::from(sign) * f64::INFINITY;
@@ -287,7 +304,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
         return y;
     }
 
-    y = rgamma(y);
+    y = rgamma_sum(a, b);
     a = gamma(a);
     b = gamma(b);
     if y.is_infinite() {
