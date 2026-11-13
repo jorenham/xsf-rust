@@ -24,6 +24,20 @@ fn test_ellipkinc_ellipeinc_huge_phi() {
     assert_eq!(xsf::ellipeinc(-phi, m), f64::INFINITY);
 }
 
+#[test]
+fn test_ellipkinc_m1_pi2() {
+    // fl(pi/2) < pi/2, so F(fl(pi/2) | 1) is finite (reference value from mpmath and Arb)
+    let expected = 38.025_003_373_828_866;
+    for s in [1.0, -1.0] {
+        let got = xsf::ellipkinc(s * core::f64::consts::FRAC_PI_2, 1.0);
+        let rel = (got - s * expected).abs() / expected;
+        assert!(rel < 1e-15, "{got} != {}", s * expected);
+    }
+    // but infinite just above
+    let above = f64::from_bits(core::f64::consts::FRAC_PI_2.to_bits() + 1);
+    assert_eq!(xsf::ellipkinc(above, 1.0), f64::INFINITY);
+}
+
 xsref::tests! {
     test_ellipe: "ellipe", "d-d", |x| xsf::ellipe(x[0]);
     test_ellipeinc: "ellipeinc", "d_d-d", |x| xsf::ellipeinc(x[0], x[1]);
