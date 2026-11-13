@@ -584,6 +584,80 @@ fn test_pbvv_large_v() {
 }
 
 #[test]
+fn test_pbvv_large_negative_v() {
+    // reference values from mpmath
+    for (v, x, w, wp) in [
+        (
+            -30.3,
+            2.5,
+            7.089_110_557_718_442e20,
+            3.963_220_939_431_277e21,
+        ),
+        (
+            -150.3,
+            20.0,
+            5.462_269_581_400_841e246,
+            8.627_684_568_412_071e247,
+        ),
+        (
+            -150.3,
+            -20.0,
+            -3.210_641_503_993_037e246,
+            5.071_225_750_743_717e247,
+        ),
+        // near x = 0, and near an integer v
+        (-30.0, 1e-9, 4_939_131.514_855_863, 4_939_131_514_855_862.0),
+        (
+            -100.25,
+            0.05,
+            2.359_339_814_647_227e77,
+            4.016_159_740_490_819e78,
+        ),
+        // x < 0 and v at or near a half-integer
+        (
+            -40.499_999_999,
+            -6.0,
+            -1.822_141_829_408_578e31,
+            1.272_728_702_893_606_7e32,
+        ),
+        (
+            -200.5,
+            -26.7,
+            0.908_161_939_510_384_2,
+            17.669_894_335_241_05,
+        ),
+        (
+            -417.5,
+            -52.0,
+            1.254_872_179_052_325_3e-111,
+            4.149_422_651_663_031_3e-110,
+        ),
+    ] {
+        let (y, yp) = xsf::pbvv(v, x);
+        let (rel, relp) = (((y - w) / w).abs(), ((yp - wp) / wp).abs());
+        assert!(
+            rel < 5e-13 && relp < 5e-13,
+            "v = {v}, x = {x}: {rel:e}, {relp:e}"
+        );
+    }
+
+    // overflow, e.g. V_v(-3) = -7.8e593 for v = -500.3
+    assert_eq!(xsf::pbvv(-199.4, 44.6), (f64::INFINITY, f64::INFINITY));
+    assert_eq!(xsf::pbvv(-500.3, -3.0), (f64::NEG_INFINITY, f64::INFINITY));
+
+    // at and near x = 0, where V_v(0) = 0 for even v, and V_v'(0) = 0 for odd v
+    assert_eq!(xsf::pbvv(-1000.0, 0.0), (0.0, f64::INFINITY));
+    assert_eq!(xsf::pbvv(-1001.0, 0.0), (f64::INFINITY, 0.0));
+    assert_eq!(
+        xsf::pbvv(-1000.0, -1e-30),
+        (f64::NEG_INFINITY, f64::INFINITY)
+    );
+    let (y, yp) = xsf::pbvv(-360.0, 1e-300);
+    assert!((y / 1.032_280_976_314_67e82 - 1.0).abs() < 5e-13, "{y:e}");
+    assert_eq!(yp, f64::INFINITY);
+}
+
+#[test]
 fn test_pbdv_pbvv_wronskian() {
     // D_v V_v' - D_v' V_v = sqrt(2 / pi) (DLMF 12.2.10), where neither under- nor overflows
     for (v, x) in [
@@ -593,6 +667,9 @@ fn test_pbdv_pbvv_wronskian() {
         (1e5 + 0.3, 1724.5),
         (1e6 + 0.3, 5887.5),
         (1e7, 19_884.4),
+        (-33.3, 5.0),
+        (-1e3 - 0.5, -82.0),
+        (-1e4 - 0.5, -312.0),
     ] {
         let ((d, dp), (w, wp)) = (xsf::pbdv(v, x), xsf::pbvv(v, x));
         let rel = ((d * wp - dp * w) / core::f64::consts::FRAC_2_PI.sqrt() - 1.0).abs();
@@ -614,8 +691,7 @@ fn test_pbdv_pbvv_huge_v() {
     // xsf allocates and recurs over |v| values here; D_v(0) ~ 10^(-1.08e9) for v = -2.7e8
     assert_eq!(xsf::pbdv(-2.7e8, -8.9e-309), (0.0, -0.0));
     assert_eq!(xsf::pbvv(2.7e8, 0.0), (0.0, 0.0));
-    let (w, wp) = xsf::pbvv(-2.7e8, 0.0);
-    assert!(w.is_nan() && wp.is_nan());
+    assert_eq!(xsf::pbvv(-2.7e8, 0.0), (0.0, f64::INFINITY));
 }
 
 /// `(v, x, dv, dp)`

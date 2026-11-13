@@ -1144,6 +1144,40 @@ fn pbvv_recur(v: f64, x: f64) -> (f64, f64) {
     )
 }
 
+/// `V_v(x)`, `V_v'(x)` for `v <= -20`, by `V_v(x) = Gamma(-v) / pi (D_v(-x) - cos(pi v) D_v(x))`
+/// (12.2.15) with `pbdv_elementary`
+fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
+    let y = x.abs();
+    let ([d, dp], l) = pbdv_elementary(v, y);
+    let ([e, ep], l2) = pbdv_elementary(v, -y);
+    let c = cospi(v);
+    // Gamma(-v) = sqrt(2 pi) e^(lg - l - l2)
+    let lg = ln_gamma_ratio(-v - 0.5);
+    // only D_v(y) remains for x < 0 at a half-integer v
+    let (q, lv) = if x < 0.0 && c == 0.0 {
+        (1.0, lg - l2)
+    } else {
+        ((l - l2).exp(), lg - l)
+    };
+    let (w, wp) = if x >= 0.0 {
+        (e - c * d * q, -ep - c * dp * q)
+    } else {
+        (d * q - c * e, -dp * q - c * ep)
+    };
+    (mul_exp(SQRT2OPI * w, lv), mul_exp(SQRT2OPI * wp, lv))
+}
+
+/// `V_v(x)`, `V_v'(x)` for `v <= -20` and `|x| sqrt(-v) < 1`, by `pb_maclaurin` with the values at
+/// `x = 0` (12.2.8, 12.2.9, and 5.5.3), so that its zeros are exact
+fn pbvv_maclaurin(v: f64, x: f64) -> (f64, f64) {
+    let h = 0.5 * v;
+    let lg = lgam(-h);
+    let e = -h * LN_2 + lg; // with mantissas c0 and c1
+    let c0 = sinpi(h).powi(2) / PI;
+    let c1 = SQRT_2 * cospi(h).powi(2) / PI * (lgam(0.5 - h) - lg).exp();
+    pb_maclaurin(-v - 0.5, x, c0, c1, e)
+}
+
 /// Parabolic cylinder function $W$
 ///
 /// The function is a particular solution to the differential equation:
@@ -1329,6 +1363,16 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
         if x > 10.0 {
             return pbvv_recur(v, x);
         }
+    }
+    // Unlike in xsf, V_v(x) for v <= -20 is computed from D_v(x) and D_v(-x): `pbvv_impl` is
+    // inaccurate for x < 0 if v is near a half-integer, and for tiny |x| if v is near an
+    // integer, and its V_v'(x) is NaN where it overflows.
+    if v <= -20.0 && -v < INT_OVERFLOW {
+        return if x.abs() * (-v - 0.5).sqrt() < 1.0 {
+            pbvv_maclaurin(v, x)
+        } else {
+            pbvv_elementary(v, x)
+        };
     }
     if x < 0.0 {
         // Unlike in xsf (scipy/xsf#374), V_v(x) for x < -10 and v >= 0 is computed from V_v(-x)
