@@ -39,6 +39,17 @@ class Override:
 
 
 @dataclass(frozen=True)
+class Floor:
+    """Where `when` holds, the rounding errors of xsf-rust can exceed those of xsf by more than
+    the test allows, because it uses another method, or because they depend on the platform's
+    libm, so the tolerance is at least `tol`."""
+
+    when: Pred
+    tol: float
+    why: str
+
+
+@dataclass(frozen=True)
 class Out:
     """A logical output: real, or complex with a reference per part."""
 
@@ -47,6 +58,7 @@ class Out:
     arbs: tuple[Arb, ...] = ()  # of the inputs as balls
     rules: tuple[Rule, ...] = ()
     overrides: tuple[Override, ...] = ()
+    floors: tuple[Floor, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -136,14 +148,12 @@ def _limits(neg: float, pos: float) -> tuple[Rule, ...]:
 EXP_SQUARE_BITS: Final = 2048
 
 
-def _exp_square(
-    f: Callable[[flint.arb], flint.arb],
-) -> Callable[[flint.arb], flint.arb]:
+def _exp_square[**P](f: Callable[P, flint.arb]) -> Callable[P, flint.arb]:
     """`f` with `EXP_SQUARE_BITS` more bits."""
 
-    def arb(x: flint.arb) -> flint.arb:
+    def arb(*args: P.args, **kwargs: P.kwargs) -> flint.arb:
         with flint.ctx.extraprec(EXP_SQUARE_BITS):
-            return f(x)
+            return f(*args, **kwargs)
 
     return arb
 
@@ -425,6 +435,41 @@ LOG_AT_0: Final = Rule(
 )
 
 
+def _expn(n: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_expn` of the integer part of n, to which xsf and xsf-rust truncate n (like
+    scipy's `expn` of a float n), but mpmath's E_n for x > 1e15, where the points
+    1 + 1/(x + n) of the quadrature of `specs.r_expn` lose their digits."""
+    n = mp.floor(n)
+    return mp.expint(int(n), x) if x > 1e15 else specs.r_expn(n, x)
+
+
+EXPN: Final = _real(
+    "expn",
+    _expn,
+    _exp_square(lambda n, x: x.expint(n.floor())),
+    (
+        Rule(lambda a: a[0] < 0, math.nan, "E_n is NaN for n < 0, like in xsf"),
+        Rule(
+            lambda a: a[1] < 0,
+            math.nan,
+            "NaN for x < 0, where E_n is not real for n >= 1",
+        ),
+        Rule(
+            lambda a: a[0] in (0, 1) and a[1] == 0,
+            math.inf,
+            "E_n(x) -> +inf for x -> 0+ and n = 0, 1",
+        ),
+    ),
+    (
+        Override(
+            lambda a: a[1] > 709.78,
+            "xsf returns 0 for x > 709.78, where E_n(x) ~ e^-x / x can still be subnormal "
+            "(scipy/xsf#536)",
+        ),
+    ),
+)
+
+
 # with these more bits, 1 - x is exact and x - n pi keeps its precision for any f64 x
 F64_BITS: Final = 1100
 # 1 - m sin^2 phi cancels down to cos^2(fl(pi/2)) = 3.7e-33 for f64 inputs
@@ -448,6 +493,7 @@ def _incomplete(
     arb: Callable[[flint.acb, flint.acb], flint.acb],
     letter: str,
     rules: tuple[Rule, ...],
+    overrides: tuple[Override, ...] = (),
 ) -> Entry:
     """An incomplete elliptic integral `letter`(phi|m), whose `rules` follow those for NaN and
     m > 1, and precede those for phi = +-inf."""
@@ -481,7 +527,80 @@ def _incomplete(
             Rule(lambda a: a[0] == math.inf, math.inf, "the limit for phi -> +inf"),
             Rule(lambda a: a[0] == -math.inf, -math.inf, "the limit for phi -> -inf"),
         ),
+        overrides,
     )
+
+
+def _jacobi_arb(u: flint.arb, m: flint.arb) -> tuple[flint.arb, flint.arb, flint.arb]:
+    """sn, cn, and dn for m < 1, by theta functions with the nome of tau = i K(1 - m) / K(m),
+    and for m < 0 by sn(u|m) = sd(u k'|-m/k'^2) / k', with k' = sqrt(1 - m)."""
+    if m < 0:
+        k1 = (1 - m).sqrt()
+        sn, cn, dn = _jacobi_arb(u * k1, -m / (1 - m))
+        return sn / (k1 * dn), cn / dn, 1 / dn
+    if m == 0:
+        return u.sin(), u.cos(), flint.arb(1)
+    k = flint.acb(m).elliptic_k()
+    tau = 1j * flint.acb(1 - m).elliptic_k() / k
+    t1, t2, t3, t4 = flint.acb.modular_theta(u / (2 * k), tau)
+    _, a2, a3, a4 = flint.acb.modular_theta(flint.acb(0), tau)
+    return (a3 / a2 * t1 / t4).real, (a4 / a2 * t2 / t4).real, (a4 / a3 * t3 / t4).real
+
+
+ELLIPJ_RULES: Final = (
+    NAN,
+    Rule(
+        lambda a: a[1] > 1,
+        math.nan,
+        "sn, cn, dn, and am are real for m > 1, but NaN like in xsf",
+    ),
+)
+ELLIPJ_OVERRIDE: Final = Override(
+    lambda a: a[1] == 1 and abs(a[0]) > 710.47,
+    "xsf returns NaN for m = 1 where cosh(u) overflows, for |u| > 710.47 (scipy/xsf#375)",
+)
+ELLIPJ_FLOOR: Final = Floor(
+    lambda a: a[1] < 0,
+    1e-15,
+    "for m < 0, the error depends on the platform's libm (1.15e-15 at (-1, -10) on macOS "
+    "and Windows)",
+)
+AM_OVERRIDE: Final = Override(
+    lambda a: a[1] >= 0.9999999999 and abs(a[0]) < 1,
+    "xsf's am = 2 atan(e^u) - pi/2 for m >= 0.9999999999 cancels for |u| < 1 (scipy/xsf#375)",
+)
+
+
+def _ellipj_out(i: int) -> Out:
+    """sn, cn, dn, or am (i = 0 to 3) of `specs._ellipj`, exact at u = 0, with the limits for
+    u -> +-inf with m = 1 (where Arb can't check), and an absolute error for sn = sin am and
+    cn = cos am where they oscillate (m < 1)."""
+
+    def ref(u: mp.mpf, m: mp.mpf) -> Value:
+        if u == 0:
+            f = mp.mpf((0, 1, 1, 0)[i])
+        elif mp.isinf(u):
+            f = (mp.sign(u), mp.mpf(0), mp.mpf(0), mp.sign(u) * mp.pi / 2)[i]
+        else:
+            f = specs._ellipj(u, m)[i]
+        return (f, mp.mpf(1)) if i < 2 and m < 1 else f
+
+    def arb(u: flint.arb, m: flint.arb) -> flint.arb | None:
+        if not u.is_finite():
+            return None
+        if m == 1:
+            sech = 1 / u.cosh()
+            return (u.tanh(), sech, sech, u.sinh().atan())[i]
+        sn, cn, dn = _jacobi_arb(u, m)
+        if i < 3:
+            return (sn, cn, dn)[i]
+        k = flint.acb(m).elliptic_k().real
+        n = math.floor(float((u + k) / (2 * k)))
+        s = -1 if n % 2 else 1
+        return n * flint.arb.pi() + flint.arb.atan2(s * sn, s * cn)
+
+    overrides = (ELLIPJ_OVERRIDE, AM_OVERRIDE) if i == 3 else (ELLIPJ_OVERRIDE,)
+    return Out(f"ellipj.{i}", (ref,), (arb,), ELLIPJ_RULES, overrides, (ELLIPJ_FLOOR,))
 
 
 def _kolmogc_arb(x: flint.arb, r: int = 0) -> flint.arb:
@@ -709,6 +828,168 @@ def _itairy_out(i: int) -> Out:
 
     arbs = (_integral_arb(f),)
     return Out(f"airy_integrals[{i}]", (ref,), arbs, overrides=(ITAIRY_OVERRIDE,))
+
+
+# from here on, Temme's expansion (with a relative error of about a^-3, checked against Arb)
+# replaces Arb, whose Q(a, x) loses all digits near x = a from about a = 1e17
+TEMME_A: Final = 1e15
+
+
+def _temme(a: mp.mpf, x: mp.mpf, upper: bool) -> mp.mpf:
+    """Q(a, x) (or P(a, x)) by Temme's uniform expansion (DLMF 8.12.3, 8.12.4, 8.12.7) to the
+    c_2(eta) term, with c_0 and c_1 of DLMF 8.12.9, c_2 by the recursion of DLMF 8.12.10, and
+    their limits at eta = 0."""
+    mu = (x - a) / a
+    # c_2(eta) has a removable singularity of order 5 at mu = 0
+    with specs.wdps(5 * specs.xd(1 / mu) if mu else 0):
+        mu = (x - a) / a
+        c = (mp.mpf(-1) / 3, mp.mpf(-1) / 540, mp.mpf(25) / 6048)
+        eta = mp.mpf(0)
+        if mu:
+            eta = mp.sign(mu) * mp.sqrt(2 * (mu - mp.log1p(mu)))
+            c = (
+                1 / mu - 1 / eta,
+                1 / eta**3 - 1 / mu**3 - 1 / mu**2 - 1 / (12 * mu),
+                (1 + mu) * (3 / mu**5 + 2 / mu**4 + 1 / (12 * mu**3))
+                - 3 / eta**5
+                + 1 / (288 * mu),
+            )
+        s = c[0] + c[1] / a + c[2] / a**2
+        s *= mp.exp(-a * eta**2 / 2) / mp.sqrt(2 * mp.pi * a)
+        e = mp.erfc((eta if upper else -eta) * mp.sqrt(a / 2)) / 2
+        return e + s if upper else e - s
+
+
+def _gammainc(upper: bool) -> Callable[[mp.mpf, mp.mpf], mp.mpf]:
+    """Q(a, x) (or P(a, x)) of `specs`, or by Temme's expansion for large a."""
+    return lambda a, x: (
+        _temme(a, x, upper) if a >= TEMME_A else specs._gammainc_pq(a, x, upper)
+    )
+
+
+# the relative accuracy of an Arb ball that can confirm a reference
+ARB_BITS: Final = 128
+
+
+def _gammaincc_arb(a: flint.arb, x: flint.arb) -> flint.arb:
+    return x.gamma_upper(a, regularized=1)
+
+
+def _gammainc_arb(a: flint.arb, x: flint.arb) -> flint.arb:
+    """1 - Q(a, x), or where P(a, x) is too small for that, P(a, x) (which is slow for large a)."""
+    p = 1 - _gammaincc_arb(a, x)
+    if p.rel_accuracy_bits() < ARB_BITS and a < TEMME_A:
+        p = x.gamma_lower(a, regularized=1)
+    return p
+
+
+def _precise(f: Callable[[flint.arb, flint.arb], flint.arb]) -> Arb:
+    """`f`, but None where its ball is too wide to confirm a reference."""
+
+    def arb(a: flint.arb, x: flint.arb) -> flint.arb | None:
+        y = f(a, x)
+        return y if y.rel_accuracy_bits() >= ARB_BITS else None
+
+    return arb
+
+
+def _gammainc_rules(upper: bool) -> tuple[Rule, ...]:
+    """xsf's conventions for Q(a, x) (or P(a, x)), which is `x_inf` for x -> +inf and `x_0` at
+    x = 0."""
+    x_inf, x_0 = (0.0, 1.0) if upper else (1.0, 0.0)
+    f = "Q" if upper else "P"
+    return (
+        NAN,
+        Rule(lambda a: a[0] < 0 or a[1] < 0, math.nan, "NaN outside of a >= 0, x >= 0"),
+        Rule(
+            lambda a: math.isinf(a[0]) and math.isinf(a[1]),
+            math.nan,
+            "no limit for a, x -> +inf",
+        ),
+        Rule(lambda a: math.isinf(a[0]), x_0, "the limit for a -> +inf, with x finite"),
+        Rule(
+            lambda a: math.isinf(a[1]), x_inf, "the limit for x -> +inf, with a finite"
+        ),
+        Rule(lambda a: a[0] == a[1] == 0, math.nan, "no limit for a, x -> 0+"),
+        Rule(lambda a: a[0] == 0, x_inf, "the limit for a -> 0+, with x > 0"),
+        Rule(lambda a: a[1] == 0, x_0, f"{f}(a, 0) = {x_0:g}, with a > 0"),
+    )
+
+
+def _gammaincinv_rules(upper: bool, at_one: float) -> tuple[Rule, ...]:
+    """xsf's conventions for the inverse of Q(a, x) (or P(a, x)), which is `at_one` at 1."""
+    f = "Q" if upper else "P"
+    return (
+        Rule(
+            lambda a: a[0] < 0 or not 0 <= a[1] <= 1,
+            math.nan,
+            f"NaN outside of a >= 0, 0 <= {f.lower()} <= 1",
+        ),
+        Rule(
+            lambda a: a[0] > 0 and a[1] == 1,
+            at_one,
+            f"{f}(a, {at_one:g}) = 1, with a > 0",
+        ),
+    )
+
+
+RGAMMA: Final = (
+    "for a < 1, xsf-rust computes 1 / Gamma(a) with rgamma(a) instead of exp(-lgam(a)) "
+    "(scipy/xsf#456)"
+)
+
+
+def _igam_fac_rgamma(a: float, x: float) -> bool:
+    """Whether `igam_fac(a, x)` uses rgamma(a)."""
+    return a < 1 and abs(a - x) > 0.4 * a
+
+
+def _uses_rgamma(a: float, x: float, upper: bool) -> bool:
+    """Whether xsf-rust's Q(a, x) (or P(a, x)) for 0 < a < 1 and x > 0 reaches a method that
+    differs from that of xsf (scipy/xsf#456): `igam_fac` or `igamc_series` with rgamma(a), or
+    P = 1 - Q where P = 1 - O(a), by the branches of `igamc` (or `igam`)."""
+    fac = _igam_fac_rgamma(a, x)
+    if not upper and not (x > 1 and x > a):
+        return fac or a * max(abs(math.log(x)), 1) <= 0.01
+    if x > 1.1:
+        return fac
+    # otherwise igamc_series, or 1 - igam_series
+    return fac or (-0.4 / math.log(x) >= a if x <= 0.5 else x * 1.1 >= a)
+
+
+def _gammainc_out(upper: bool, floor: float) -> Out:
+    """Q(a, x) (or P(a, x)), with the tolerance floor `floor` where `igam_fac` uses rgamma(a),
+    so that each branch of `igamc` (or `igam`) does."""
+    return Out(
+        "gammaincc" if upper else "gammainc",
+        (_gammainc(upper),),
+        (_precise(_gammaincc_arb if upper else _gammainc_arb),),
+        _gammainc_rules(upper),
+        floors=(Floor(lambda a: _igam_fac_rgamma(*a), floor, RGAMMA),),
+    )
+
+
+def _gammaincinv_out(upper: bool, floor: float) -> Out:
+    """The inverse of Q(a, x) (or P(a, x)), with the tolerance floor `floor` where its Halley
+    steps reach rgamma(a) at the root x (by `specs`, with 20 digits): in `igam_fac`, or in Q
+    (or P), which they evaluate instead of P (or Q) for y > 0.9."""
+    ref = specs.r_gammainccinv if upper else specs.r_gammaincinv
+
+    def when(args: tuple[float, ...]) -> bool:
+        a, y = args
+        if not 0 < a < 1:
+            return False
+        with mp.workdps(20):
+            x = float(ref(mp.mpf(a), mp.mpf(y)))
+        return _igam_fac_rgamma(a, x) or _uses_rgamma(a, x, upper != (y > 0.9))
+
+    return Out(
+        "gammainccinv" if upper else "gammaincinv",
+        (ref,),
+        (_inverse_arb(_gammaincc_arb if upper else _gammainc_arb, ref),),
+        _gammaincinv_rules(upper, 0.0 if upper else math.inf),
+        floors=(Floor(when, floor, RGAMMA),),
+    )
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -1035,19 +1316,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("expi", "d-d"): _real(
         "expi", specs.r_expi, _exp_square(flint.arb.ei), (LOG_AT_0,)
     ),
-    ("expn", "p_d-d"): _real(
-        "expn",
-        specs.r_expn,
-        lambda n, x: x.expint(n),
-        (
-            Rule(lambda a: a[0] < 0, math.nan, "E_n is NaN for n < 0, like in xsf"),
-            Rule(
-                lambda a: a[1] < 0,
-                math.nan,
-                "NaN for x < 0, where E_n is not real for n >= 1",
-            ),
-        ),
-    ),
+    ("expn", "d_d-d"): EXPN,
+    ("expn", "p_d-d"): EXPN,
     ("scaled_exp1", "d-d"): _real(
         "scaled_exp1",
         specs.r_scaled_exp1,
@@ -1122,6 +1392,35 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             Rule(lambda a: a[0] == -math.inf, math.inf, "the limit for m -> -inf"),
         ),
     ),
+    ("ellipkinc", "d_d-d"): _incomplete(
+        "ellipkinc",
+        mp.ellipf,
+        flint.acb.elliptic_f,
+        "F",
+        (
+            Rule(
+                lambda a: math.isinf(a[0]) and a[1] == -math.inf,
+                math.nan,
+                "no limit for phi -> +-inf and m -> -inf",
+            ),
+            Rule(
+                lambda a: a[1] == -math.inf and 0 < a[0] < math.inf,
+                0.0,
+                "the limit for m -> -inf, with 0 < phi < inf",
+            ),
+            Rule(
+                lambda a: a[1] == 1 and abs(a[0]) > math.pi / 2,
+                math.inf,
+                "F(phi|1) diverges for |phi| > pi/2, +inf like in xsf and mpmath",
+            ),
+        ),
+        (
+            Override(
+                lambda a: a[1] == 1 and abs(a[0]) == math.pi / 2,
+                "xsf returns +inf for m = 1 and |phi| = fl(pi/2) < pi/2, where F is finite",
+            ),
+        ),
+    ),
     ("ellipeinc", "d_d-d"): _incomplete(
         "ellipeinc",
         mp.ellipe,
@@ -1135,6 +1434,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         ),
     ),
+    ("ellipj", "d_d-d_d_d_d"): Entry(tuple(_ellipj_out(i) for i in range(4))),
     ("kolmogorov", "d-d"): _real(
         "kolmogorov",
         specs.r_kolmogorov,
@@ -1293,4 +1593,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         Identity(lambda a: a[0] > 0, _it2k0_residual),
     ),
     ("itairy", "d-d_d_d_d"): Entry(tuple(_itairy_out(i) for i in range(4))),
+    ("gammainc", "d_d-d"): Entry((_gammainc_out(False, 7e-16),)),
+    ("gammaincc", "d_d-d"): Entry((_gammainc_out(True, 3e-15),)),
+    ("gammaincinv", "d_d-d"): Entry((_gammaincinv_out(False, 8e-16),)),
+    ("gammainccinv", "d_d-d"): Entry((_gammaincinv_out(True, 2e-14),)),
 }
