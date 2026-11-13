@@ -391,14 +391,11 @@ fn mathieu_cem_sem_unsupported(m: u32, q: f64) -> bool {
 }
 
 #[inline]
-fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
+fn fcoef<const KD: i32>(m: u32, q: f64) -> Option<([f64; 252], usize)> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
 
-    // if (q < 0):
-    if q < 0.0 {
-        // raise ValueError("q >=0")
-        return Err("q >=0".to_string());
-    }
+    // if (q < 0): raise ValueError("q >=0")
+    assert!(q >= 0.0 || q.is_nan(), "q must be non-negative");
 
     let qm = mathieu_qm(q);
     // km = int(qm + 0.5*m)
@@ -407,7 +404,7 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     // Unlike in SciPy, also for NaN `km` (e.g. if `q` is NaN), instead of raising in `int`
     if km.is_nan() || km > 251.0 {
         // warnings.warn("Too many predicted coefficients.", RuntimeWarning, stacklevel=2)
-        return Err(format!("Too many predicted coefficients ({km:.0})"));
+        return None;
     }
     let km = km.to_usize().unwrap();
 
@@ -427,9 +424,9 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
     if fc[0].is_nan() {
         // only `fc[..km]`, since `fcoef` zeroes `fc[km..251]`
         assert!(fc[..km].iter().all(|c| c.is_nan()), "expected all NaN");
-        Err("Computation of Fourier coefficients failed".to_string())
+        None
     } else {
-        Ok((fc, km))
+        Some((fc, km))
     }
 }
 
@@ -438,14 +435,17 @@ fn fcoef<const KD: i32>(m: u32, q: f64) -> Result<([f64; 252], usize), String> {
 /// See the SciPy documentation for `scipy.special.mathieu_even_coef` for details:
 /// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_even_coef.html>
 ///
-/// # Errors
-/// - `q < 0`
-/// - too many predicted coefficients
+/// # Returns
+/// - `None` if there are more than 251 coefficients (SciPy warns), or their computation fails
+///
+/// # Panics
+/// - if `q < 0`
 ///
 /// # See also
 /// - [`mathieu_odd_coef`]: Fourier coefficients for odd Mathieu and modified Mathieu functions
 #[inline]
-pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
+#[must_use]
+pub fn mathieu_even_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1582-L1639
 
     // kd = 1
@@ -460,7 +460,7 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
     };
 
     // return fc[:km]
-    Ok(fc[..km].to_vec())
+    Some(fc[..km].to_vec())
 }
 
 /// Fourier coefficients for odd Mathieu and modified Mathieu functions
@@ -468,22 +468,21 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
 /// See the SciPy documentation for `scipy.special.mathieu_odd_coef` for details:
 /// <https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_odd_coef.html>
 ///
-/// # Errors
-/// - `m == 0`
-/// - `q < 0`
-/// - too many predicted coefficients
+/// # Returns
+/// - `None` if there are more than 251 coefficients (SciPy warns), or their computation fails
+///
+/// # Panics
+/// - if `m == 0` or `q < 0`
 ///
 /// # See also
 /// - [`mathieu_even_coef`]: Fourier coefficients for even Mathieu and modified Mathieu functions
 #[inline]
-pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
+#[must_use]
+pub fn mathieu_odd_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // based on https://github.com/scipy/scipy/blob/51dfbcc/scipy/special/_basic.py#L1642-L1698
 
-    // if (m != floor(m)) or (m <= 0):
-    if m == 0 {
-        // raise ValueError("m must be an integer > 0")
-        return Err("m must be an integer > 0".to_string());
-    }
+    // if (m != floor(m)) or (m <= 0): raise ValueError("m must be an integer > 0")
+    assert!(m > 0, "m must be positive");
 
     // kd = 4
     // m = int(floor(m))
@@ -497,5 +496,5 @@ pub fn mathieu_odd_coef(m: u32, q: f64) -> Result<Vec<f64>, String> {
     };
 
     // return fc[:km]
-    Ok(fc[..km].to_vec())
+    Some(fc[..km].to_vec())
 }

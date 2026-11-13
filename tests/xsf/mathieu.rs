@@ -168,48 +168,31 @@ fn test_mathieu_modcem1_large_x() {
 }
 
 #[test]
-fn test_mathieu_even_coef() {
-    // Smoke test: verify function returns Ok and non-empty coefficients
-    let result = xsf::mathieu_even_coef(2, 1.0);
-    assert!(result.is_ok());
-    let coefs = result.unwrap();
-    assert_ne!(coefs, [] as [f64; 0]);
-    assert!(coefs.iter().all(|&c| c.is_finite()));
-
-    // Test with q = 0
-    let result = xsf::mathieu_even_coef(0, 0.0);
-    assert!(result.is_ok());
-
-    // Test error case: negative q
-    let result = xsf::mathieu_even_coef(1, -1.0);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_mathieu_odd_coef() {
-    // Smoke test: verify function returns Ok and non-empty coefficients
-    let result = xsf::mathieu_odd_coef(1, 1.0);
-    assert!(result.is_ok());
-    let coefs = result.unwrap();
-    assert_ne!(coefs, [] as [f64; 0]);
-    assert!(coefs.iter().all(|&c| c.is_finite()));
-
-    // Test with q = 0
-    let result = xsf::mathieu_odd_coef(1, 0.0);
-    assert!(result.is_ok());
-
-    // Test error case: negative q
-    let result = xsf::mathieu_odd_coef(1, -1.0);
-    assert!(result.is_err());
+fn test_mathieu_coef() {
+    for coefs in [
+        xsf::mathieu_even_coef(2, 1.0),
+        xsf::mathieu_odd_coef(1, 1.0),
+        xsf::mathieu_even_coef(0, 0.0),
+        xsf::mathieu_odd_coef(1, 0.0),
+    ] {
+        let coefs = coefs.unwrap();
+        assert!(!coefs.is_empty() && coefs.iter().all(|c| c.is_finite()));
+    }
 }
 
 #[test]
 fn test_mathieu_coef_huge_q() {
     // `km` is NaN, inf, or too large for `usize`
     for q in [f64::NAN, f64::INFINITY, 1e15, 1e300] {
-        assert!(xsf::mathieu_even_coef(0, q).is_err(), "q = {q}");
-        assert!(xsf::mathieu_odd_coef(1, q).is_err(), "q = {q}");
+        assert!(xsf::mathieu_even_coef(0, q).is_none(), "q = {q}");
+        assert!(xsf::mathieu_odd_coef(1, q).is_none(), "q = {q}");
     }
+}
+
+#[test]
+#[should_panic(expected = "q must be non-negative")]
+fn test_mathieu_coef_negative_q() {
+    let _ = xsf::mathieu_even_coef(1, -1.0);
 }
 
 #[test]
@@ -227,8 +210,9 @@ fn test_mathieu_coef_large_m() {
 }
 
 #[test]
+#[should_panic(expected = "m must be positive")]
 fn test_mathieu_odd_coef_m0() {
-    assert!(xsf::mathieu_odd_coef(0, 0.0).is_err());
+    let _ = xsf::mathieu_odd_coef(0, 0.0);
 }
 
 #[test]
