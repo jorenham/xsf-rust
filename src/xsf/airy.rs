@@ -745,6 +745,23 @@ fn airy_zeros<const NT: usize, const KF: i32>() -> [[f64; NT]; 4] {
     [x, xp, ai_xp, aip_x]
 }
 
+/// The first `nt` zeros of Ai, for a runtime `nt` (see [`airy_ai_zeros`])
+pub(crate) fn airy_ai_zeros_vec(nt: usize) -> Vec<f64> {
+    let mut x = vec![f64::NAN; nt];
+    let [mut xp, mut ai_xp, mut aip_x] = [x.clone(), x.clone(), x.clone()];
+    if nt > 0 {
+        airyzo(
+            nt.try_into().unwrap(),
+            1,
+            &mut x,
+            &mut xp,
+            &mut ai_xp,
+            &mut aip_x,
+        );
+    }
+    x
+}
+
 /// Zeros and values of the Airy function Ai and its derivative
 ///
 /// This corresponds to [`scipy.special.ai_zeros`][ai_zeros] in SciPy.

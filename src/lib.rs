@@ -417,6 +417,10 @@
 //! | [`roots_sh_legendre`]    | $P_n^*$                 |
 //! | [`roots_chebyshev_t`]    | $T_n$                   |
 //! | [`roots_gegenbauer`]     | $C_n^{(\alpha)}$        |
+//! | [`roots_genlaguerre`]    | $L_n^{(\alpha)}$        |
+//! | [`roots_laguerre`]       | $L_n$                   |
+//! | [`roots_hermite_h`]      | $H_n$                   |
+//! | [`roots_hermite_he`]     | $He_n$                  |
 //!
 //! # Hypergeometric functions
 //!

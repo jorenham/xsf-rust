@@ -62,8 +62,11 @@ of 353 functions whose algorithm isn't in xsf.
 | `perm`                                  | Python                 | same                       |
 | `polygamma`                             | Python                 | same                       |
 | `roots_{jacobi,gegenbauer,legendre}`    | Python                 | same                       |
+| `roots_{laguerre,genlaguerre}`          | Python                 | same                       |
 | `roots_sh_legendre`                     | Python                 | same                       |
 | `roots_chebyt`                          | Python                 | `roots_chebyshev_t`        |
+| `roots_hermite`                         | Python                 | `roots_hermite_h`          |
+| `roots_hermitenorm`                     | Python                 | `roots_hermite_he`         |
 | `roots_sh_jacobi`                       | Python                 | `roots_gengegenbauer`      |
 | other `roots_*` and their aliases       | Python                 |                            |
 | orthogonal polynomial classes           | Python                 |                            |

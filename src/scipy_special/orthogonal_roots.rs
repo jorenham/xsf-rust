@@ -4,13 +4,16 @@
 //!
 //! The nodes are in ascending order, and the weights sum to the integral of the weight function.
 
-use core::f64::consts::{LN_2, PI};
+use core::f64::consts::{LN_2, PI, SQRT_2};
 
-use super::orthogonal_eval::{eval_gegenbauer, eval_jacobi, eval_legendre};
+use super::orthogonal_eval::{
+    eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_legendre,
+};
 use super::tridiag::eigvals;
-use crate::utils::MAXLOG;
+use crate::utils::{MAXLOG, SQRT_PI, SQRT_TAU};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, ldexp_f64, two_sum};
 use crate::xsf::cephes::incbet_lnpow;
+use crate::xsf::ln_gamma;
 use Nodes::{Plain, Shifted, Symmetric};
 
 /// Corresponds to `_gen_roots_and_weights`: Gauss quadrature by the Golub-Welsch algorithm
@@ -133,6 +136,13 @@ enum Nodes {
     /// Shifts the roots `x` to `[0, 1]` as `(x + 1) / 2`, but with their rounding errors, so that
     /// the ones near 0 have a small relative error
     Shifted,
+}
+
+/// The rule for `f(x / s)` from the one for `f(x)`
+fn scale((x, w): (Vec<f64>, Vec<f64>), s: f64) -> (Vec<f64>, Vec<f64>) {
+    let x = x.into_iter().map(|xi| xi * s).collect();
+    let w = w.into_iter().map(|wi| wi * s).collect();
+    (x, w)
 }
 
 /// `(m, e)` with `m 2^e = exp(l)`, and `e >= 0` only as large as needed for a finite `m`
@@ -440,4 +450,367 @@ pub fn roots_chebyshev_t(n: usize) -> (Vec<f64>, Vec<f64>) {
     // `sin(pi k / (2n))` for `k = 1 - n, 3 - n, ..., n - 1`
     let x = (0..n).map(|i| crate::sinpi((2.0 * i as f64 + 1.0 - m) / (2.0 * m)));
     (x.collect(), vec![PI / m; n])
+}
+
+/// Gauss-generalized Laguerre quadrature
+///
+/// Corresponds to [`scipy.special.roots_genlaguerre`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_genlaguerre.html
+///
+/// The nodes are the roots of the generalized Laguerre polynomial $L_n^{(\alpha)}$, and the rule
+/// is exact for polynomials of degree $2n - 1$ with the weight function $x^\alpha e^{-x}$ on
+/// $[0, \infty)$ (A&S 22.3.9).
+///
+/// # Panics
+/// - if `n` is zero
+/// - if $\alpha \le -1$
+///
+/// # See also
+/// - [`eval_genlaguerre`]: Evaluate generalized Laguerre polynomials, $L_n^{(\alpha)}$
+#[must_use]
+pub fn roots_genlaguerre(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
+    check_n(n);
+    assert!(alpha > -1.0, "alpha must be greater than -1");
+
+    let mu0 = crate::gamma(alpha + 1.0);
+    if n == 1 {
+        return (vec![alpha + 1.0], vec![mu0]);
+    }
+
+    let an = |k: f64| 2.0 * k + alpha + 1.0;
+    let bn = |k: f64| -(k * (k + alpha)).sqrt();
+    let f = |n, x| eval_genlaguerre(n, alpha, x);
+    // Unlike in SciPy, the derivative is `-L_{n-1}^(alpha+1)` (DLMF 18.9.23), which doesn't cancel
+    // for alpha near -1.
+    let df = |n: i32, x: f64| -eval_genlaguerre(n - 1, alpha + 1.0, x);
+
+    // Unlike in SciPy, the weights can be finite where `mu0` overflows (alpha > 170.6), with
+    // `ln(mu0)` in double-double.
+    let (mu0, e) = if mu0.is_finite() {
+        (mu0, 0.0)
+    } else {
+        ln_gamma(Dd::new(alpha) + 1.0).map_or((f64::NAN, 0.0), |(l, _, _)| exp_scaled(l))
+    };
+    let rule = gen_roots_and_weights(
+        n,
+        mu0,
+        an,
+        bn,
+        f,
+        df,
+        |x, dx| x + dx,
+        |x| alpha + 1.0 - x,
+        Plain,
+    );
+    ldexp_weights(rule, e)
+}
+
+/// Gauss-Laguerre quadrature
+///
+/// Corresponds to [`scipy.special.roots_laguerre`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_laguerre.html
+///
+/// The nodes are the roots of the Laguerre polynomial $L_n$, and the rule is exact for
+/// polynomials of degree $2n - 1$ with the weight function $e^{-x}$ on $[0, \infty)$
+/// (A&S 22.2.13).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_laguerre`](crate::eval_laguerre): Evaluate Laguerre polynomials, $L_n$
+#[must_use]
+pub fn roots_laguerre(n: usize) -> (Vec<f64>, Vec<f64>) {
+    roots_genlaguerre(n, 0.0)
+}
+
+/// The largest `n` for which the Hermite rules use [`gen_roots_and_weights`] instead of
+/// [`roots_hermite_asy`], like in SciPy
+const HERMITE_GW_MAX: usize = 150;
+
+/// Gauss-Hermite (physicist's) quadrature
+///
+/// Corresponds to [`scipy.special.roots_hermite`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_hermite.html
+///
+/// The nodes are the roots of the Hermite polynomial $H_n$, and the rule is exact for polynomials
+/// of degree $2n - 1$ with the weight function $e^{-x^2}$ on $(-\infty, \infty)$ (A&S 22.2.14).
+/// For $n > 150$, they are computed by the asymptotic method of Townsend, Trogdon, and Olver
+/// [^TTO].
+///
+/// [^TTO]: A. Townsend, T. Trogdon, and S. Olver, "Fast computation of Gauss quadrature nodes and
+///   weights on the whole real line", IMA J. Numer. Anal. 36 (2016),
+///   <https://arxiv.org/abs/1410.5286>
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_hermite_h`]: Evaluate physicist's Hermite polynomials, $H_n$
+#[doc(alias = "roots_hermite")]
+#[must_use]
+pub fn roots_hermite_h(n: usize) -> (Vec<f64>, Vec<f64>) {
+    check_n(n);
+    if n > HERMITE_GW_MAX {
+        return roots_hermite_asy(n);
+    }
+    let an = |_| 0.0;
+    let bn = |k: f64| (k / 2.0).sqrt();
+    let f = |n: i32, x| eval_hermite_h(n as u32, x);
+    let df = |n: i32, x| 2.0 * f64::from(n) * f(n - 1, x);
+    let tau = |x: f64| -2.0 * x;
+    gen_roots_and_weights(n, SQRT_PI, an, bn, f, df, |_, _| 1.0, tau, Symmetric)
+}
+
+/// Gauss-Hermite (statistician's) quadrature
+///
+/// Corresponds to [`scipy.special.roots_hermitenorm`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_hermitenorm.html
+///
+/// The nodes are the roots of the Hermite polynomial $He_n$, and the rule is exact for
+/// polynomials of degree $2n - 1$ with the weight function $e^{-x^2/2}$ on $(-\infty, \infty)$
+/// (A&S 22.2.15). For $n > 150$, they are scaled from [`roots_hermite_h`].
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_hermite_he`]: Evaluate probabilist's Hermite polynomials, $He_n$
+#[doc(alias = "roots_hermitenorm")]
+#[must_use]
+pub fn roots_hermite_he(n: usize) -> (Vec<f64>, Vec<f64>) {
+    check_n(n);
+    if n > HERMITE_GW_MAX {
+        return scale(roots_hermite_asy(n), SQRT_2);
+    }
+    let an = |_| 0.0;
+    let bn = |k: f64| k.sqrt();
+    let f = |n: i32, x| eval_hermite_he(n as u32, x);
+    let df = |n: i32, x| f64::from(n) * f(n - 1, x);
+    gen_roots_and_weights(n, SQRT_TAU, an, bn, f, df, |_, _| 1.0, |x| -x, Symmetric)
+}
+
+/// Corresponds to `_compute_tauk`: the root of `tau - sin(tau) = c` of Lemma 3.1 in [^TTO], by
+/// 5 Newton steps
+///
+/// [^TTO]: see [`roots_hermite_h`]
+fn compute_tauk(n: usize, k: f64) -> f64 {
+    let a = (n % 2) as f64 - 0.5;
+    let h = (n / 2) as f64;
+    let c = (4.0 * h - 4.0 * k + 3.0) * PI / (4.0 * h + 2.0 * a + 2.0);
+    let mut xi = 0.5 * PI;
+    for _ in 0..5 {
+        xi -= (xi - xi.sin() - c) / (1.0 - xi.cos());
+    }
+    xi
+}
+
+/// Corresponds to `_initial_nodes_a`: Tricomi's approximation of the square of the `k`-th
+/// positive root of `H_n` (Lemma 3.1 in [^TTO]), except near `sqrt(2n + 1)`
+///
+/// [^TTO]: see [`roots_hermite_h`]
+fn initial_nodes_a(n: usize, k: f64) -> f64 {
+    let tauk = compute_tauk(n, k);
+    let sigk = (0.5 * tauk).cos().powi(2);
+    let a = (n % 2) as f64 - 0.5;
+    let nu = 4.0 * (n / 2) as f64 + 2.0 * a + 2.0;
+    // Initial approximation of Hermite roots (square)
+    nu * sigk - 1.0 / (3.0 * nu) * (5.0 / (4.0 * (1.0 - sigk).powi(2)) - 1.0 / (1.0 - sigk) - 0.25)
+}
+
+/// Corresponds to `_initial_nodes_b`: Gatteschi's approximation of the square of the `k`-th
+/// positive root of `H_n` from the top (Lemma 3.2 in [^TTO]), given the `k`-th zero `ak` of Ai
+///
+/// [^TTO]: see [`roots_hermite_h`]
+fn initial_nodes_b(n: usize, ak: f64) -> f64 {
+    let a = (n % 2) as f64 - 0.5;
+    let nu = 4.0 * (n / 2) as f64 + 2.0 * a + 2.0;
+    // Initial approximation of Hermite roots (square)
+    nu + 2.0_f64.powf(2.0 / 3.0) * ak * nu.powf(1.0 / 3.0)
+        + 1.0 / 5.0 * 2.0_f64.powf(4.0 / 3.0) * ak.powi(2) * nu.powf(-1.0 / 3.0)
+        + (9.0 / 140.0 - 12.0 / 175.0 * ak.powi(3)) * nu.powi(-1)
+        + (16.0 / 1575.0 * ak + 92.0 / 7875.0 * ak.powi(4))
+            * 2.0_f64.powf(2.0 / 3.0)
+            * nu.powf(-5.0 / 3.0)
+        - (15152.0 / 3031875.0 * ak.powi(5) + 1088.0 / 121275.0 * ak.powi(2))
+            * 2.0_f64.powf(1.0 / 3.0)
+            * nu.powf(-7.0 / 3.0)
+}
+
+/// Corresponds to `_initial_nodes`: approximations of the non-negative roots of `H_n`, by
+/// [`initial_nodes_a`] up to the turnover point, and [`initial_nodes_b`] above it
+fn initial_nodes(n: usize) -> Vec<f64> {
+    // Turnover point
+    // linear polynomial fit to error of 10, 25, 40, ..., 1000 point rules
+    let fit = 0.49082003 * n as f64 - 4.37859653;
+    let turnover = fit.round_ties_even() as usize;
+    let h = n / 2;
+    // the indices `k` of `initial_nodes_b`, from `kmax` down to 1
+    let kmax = h.saturating_sub(turnover + 1);
+    let ak = crate::xsf::airy_ai_zeros_vec(kmax);
+
+    // Central node is always zero
+    let zero = (n % 2 == 1).then_some(0.0);
+    let xa = (1..=h.min(turnover + 1)).map(|k| initial_nodes_a(n, k as f64));
+    let xb = ak.into_iter().rev().map(|ak| initial_nodes_b(n, ak));
+    zero.into_iter()
+        .chain(xa.chain(xb).map(f64::sqrt))
+        .collect()
+}
+
+/// Corresponds to `_pbcf`: the parabolic cylinder function `U(a, x)` (DLMF 12.10.35) and its
+/// derivative (DLMF 12.10.36), with `a = -n - 1/2` and `x = sqrt(2n + 1) cos(theta)`, by its
+/// asymptotic expansion in Airy functions (Sections 3.2 and 3.3 of [^TTO], with one more term)
+///
+/// [^TTO]: see [`roots_hermite_h`]
+#[rustfmt::skip]
+fn pbcf(n: usize, theta: f64) -> (f64, f64) {
+    let (st, ct) = theta.sin_cos();
+    // https://dlmf.nist.gov/12.10#vii
+    let mu = 2.0 * n as f64 + 1.0;
+    // https://dlmf.nist.gov/12.10#E23
+    let eta = 0.5 * theta - 0.5 * st * ct;
+    // https://dlmf.nist.gov/12.10#E39
+    let zeta = -(3.0 * eta / 2.0).powf(2.0 / 3.0);
+    // https://dlmf.nist.gov/12.10#E40
+    let phi = (-zeta / st.powi(2)).powf(0.25);
+    // Coefficients
+    // https://dlmf.nist.gov/12.10#E43
+    let a0 = 1.0;
+    let a1 = 0.10416666666666666667;
+    let a2 = 0.08355034722222222222;
+    let a3 = 0.12822657455632716049;
+    let a4 = 0.29184902646414046425;
+    let a5 = 0.88162726744375765242;
+    let b0 = 1.0;
+    let b1 = -0.14583333333333333333;
+    let b2 = -0.09874131944444444444;
+    let b3 = -0.14331205391589506173;
+    let b4 = -0.31722720267841354810;
+    let b5 = -0.94242914795712024914;
+    // Polynomials
+    // https://dlmf.nist.gov/12.10#E9
+    // https://dlmf.nist.gov/12.10#E10
+    let ctp = |k: i32| ct.powi(k);
+    let u0 = 1.0;
+    let u1 = (1.0 * ctp(3) - 6.0 * ct) / 24.0;
+    let u2 = (-9.0 * ctp(4) + 249.0 * ctp(2) + 145.0) / 1152.0;
+    let u3 = (-4042.0 * ctp(9) + 18189.0 * ctp(7) - 28287.0 * ctp(5)
+        - 151995.0 * ctp(3) - 259290.0 * ct) / 414720.0;
+    let u4 = (72756.0 * ctp(10) - 321339.0 * ctp(8) - 154982.0 * ctp(6)
+        + 50938215.0 * ctp(4) + 122602962.0 * ctp(2) + 12773113.0) / 39813120.0;
+    let u5 = (82393456.0 * ctp(15) - 617950920.0 * ctp(13) + 1994971575.0 * ctp(11)
+        - 3630137104.0 * ctp(9) + 4433574213.0 * ctp(7) - 37370295816.0 * ctp(5)
+        - 119582875013.0 * ctp(3) - 34009066266.0 * ct) / 6688604160.0;
+    let v0 = 1.0;
+    let v1 = (1.0 * ctp(3) + 6.0 * ct) / 24.0;
+    let v2 = (15.0 * ctp(4) - 327.0 * ctp(2) - 143.0) / 1152.0;
+    let v3 = (-4042.0 * ctp(9) + 18189.0 * ctp(7) - 36387.0 * ctp(5)
+        + 238425.0 * ctp(3) + 259290.0 * ct) / 414720.0;
+    let v4 = (-121260.0 * ctp(10) + 551733.0 * ctp(8) - 151958.0 * ctp(6)
+        - 57484425.0 * ctp(4) - 132752238.0 * ctp(2) - 12118727.0) / 39813120.0;
+    let v5 = (82393456.0 * ctp(15) - 617950920.0 * ctp(13) + 2025529095.0 * ctp(11)
+        - 3750839308.0 * ctp(9) + 3832454253.0 * ctp(7) + 35213253348.0 * ctp(5)
+        + 130919230435.0 * ctp(3) + 34009066266.0 * ct) / 6688604160.0;
+    // Airy Evaluation (Bi and Bip unused)
+    let [ai, aip, _, _] = crate::airy(mu.powf(4.0 / 6.0) * zeta);
+    // Prefactor for U
+    let p = 2.0 * SQRT_PI * mu.powf(1.0 / 6.0) * phi;
+    // Terms for U
+    // https://dlmf.nist.gov/12.10#E42
+    let phip = |k: i32| phi.powi(6 * k);
+    let a_0 = b0 * u0;
+    let a_1 = (b2 * u0 + phip(1) * b1 * u1 + phip(2) * b0 * u2) / zeta.powi(3);
+    let a_2 = (b4 * u0 + phip(1) * b3 * u1 + phip(2) * b2 * u2 + phip(3) * b1 * u3
+        + phip(4) * b0 * u4) / zeta.powi(6);
+    let b_0 = -(a1 * u0 + phip(1) * a0 * u1) / zeta.powi(2);
+    let b_1 = -(a3 * u0 + phip(1) * a2 * u1 + phip(2) * a1 * u2 + phip(3) * a0 * u3)
+        / zeta.powi(5);
+    let b_2 = -(a5 * u0 + phip(1) * a4 * u1 + phip(2) * a3 * u2 + phip(3) * a2 * u3
+        + phip(4) * a1 * u4 + phip(5) * a0 * u5) / zeta.powi(8);
+    // U
+    // https://dlmf.nist.gov/12.10#E35
+    let u = p * (ai * (a_0 + a_1 / mu.powi(2) + a_2 / mu.powi(4))
+        + aip * (b_0 + b_1 / mu.powi(2) + b_2 / mu.powi(4)) / mu.powf(8.0 / 6.0));
+    // Prefactor for derivative of U
+    let pd = SQRT_TAU * mu.powf(2.0 / 6.0) / phi;
+    // Terms for derivative of U
+    // https://dlmf.nist.gov/12.10#E46
+    let c_0 = -(b1 * v0 + phip(1) * b0 * v1) / zeta;
+    let c_1 = -(b3 * v0 + phip(1) * b2 * v1 + phip(2) * b1 * v2 + phip(3) * b0 * v3)
+        / zeta.powi(4);
+    let c_2 = -(b5 * v0 + phip(1) * b4 * v1 + phip(2) * b3 * v2 + phip(3) * b2 * v3
+        + phip(4) * b1 * v4 + phip(5) * b0 * v5) / zeta.powi(7);
+    let d_0 = a0 * v0;
+    let d_1 = (a2 * v0 + phip(1) * a1 * v1 + phip(2) * a0 * v2) / zeta.powi(3);
+    let d_2 = (a4 * v0 + phip(1) * a3 * v1 + phip(2) * a2 * v2 + phip(3) * a1 * v3
+        + phip(4) * a0 * v4) / zeta.powi(6);
+    // Derivative of U
+    // https://dlmf.nist.gov/12.10#E36
+    let ud = pd * (ai * (c_0 + c_1 / mu.powi(2) + c_2 / mu.powi(4)) / mu.powf(4.0 / 6.0)
+        + aip * (d_0 + d_1 / mu.powi(2) + d_2 / mu.powi(4)));
+    (u, ud)
+}
+
+/// Corresponds to `_newton`: at most 5 Newton steps in `theta` (see [`pbcf`]) from the
+/// approximate non-negative roots `x` of `H_n`, and the weights of those roots
+fn newton(n: usize, x: &[f64]) -> (Vec<f64>, Vec<f64>) {
+    // Variable transformation
+    let mu = (2.0 * n as f64 + 1.0).sqrt();
+    let mut theta: Vec<f64> = x.iter().map(|xi| (xi / mu).acos()).collect();
+    let mut ud = Vec::new();
+    // Newton iteration
+    for _ in 0..5 {
+        let (u, d): (Vec<f64>, Vec<f64>) = theta.iter().map(|&t| pbcf(n, t)).unzip();
+        let mut max = 0.0_f64;
+        for ((t, ui), udi) in theta.iter_mut().zip(u).zip(&d) {
+            let dtheta = ui / (SQRT_2 * mu * t.sin() * udi);
+            *t += dtheta;
+            max = max.max(dtheta.abs());
+        }
+        ud = d;
+        if max < 1e-14 {
+            break;
+        }
+    }
+    // Undo variable transformation
+    let mut x: Vec<f64> = theta.iter().map(|t| mu * t.cos()).collect();
+    // Central node is always zero
+    if n % 2 == 1 {
+        x[0] = 0.0;
+    }
+    // Compute weights
+    let w: Vec<f64> = x
+        .iter()
+        .zip(ud)
+        .map(|(xi, udi)| (-xi * xi).exp() / (2.0 * udi * udi))
+        .collect();
+    (x, w)
+}
+
+/// Corresponds to `_roots_hermite_asy`: [`roots_hermite_h`] for large `n`, in linear time
+fn roots_hermite_asy(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let (nodes, weights) = newton(n, &initial_nodes(n));
+    // Combine with negative parts (without the central zero of odd n)
+    let skip = n % 2;
+    let x = nodes
+        .iter()
+        .skip(skip)
+        .rev()
+        .map(|x| -x)
+        .chain(nodes.iter().copied());
+    let w: Vec<f64> = weights
+        .iter()
+        .skip(skip)
+        .rev()
+        .chain(&weights)
+        .copied()
+        .collect();
+    // Scale weights
+    let scale = SQRT_PI / w.iter().sum::<f64>();
+    (x.collect(), w.into_iter().map(|wi| wi * scale).collect())
 }

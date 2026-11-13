@@ -201,3 +201,85 @@ fn test_roots_gengegenbauer_q_tiny() {
 fn test_roots_gegenbauer_alpha_invalid() {
     let _ = xsf::roots_gegenbauer(3, -0.75);
 }
+
+#[test]
+fn test_roots_laguerre() {
+    for alpha in [-0.5, 0.1, 10.0, 50.0] {
+        let p = |k, x| xsf::eval_genlaguerre(k, alpha, x);
+        let mu0 = xsf::gamma(alpha + 1.0);
+        assert_gauss(xsf::roots_genlaguerre(25, alpha), p, mu0, 1e-12);
+    }
+    assert_eq!(xsf::roots_laguerre(5), xsf::roots_genlaguerre(5, 0.0));
+    assert_eq!(xsf::roots_genlaguerre(1, 2.0), (vec![3.0], vec![2.0]));
+
+    // the derivative would cancel (Arb)
+    let (_, w) = xsf::roots_genlaguerre(2, -0.999_999_999_999_999_9);
+    np_assert_allclose!(w, [9_007_199_254_740_991.0, 0.25], rtol = 1e-15);
+    // mu0 / sum(w) would overflow (Arb)
+    let (_, w) = xsf::roots_genlaguerre(2, 170.0);
+    np_assert_allclose!(
+        w,
+        [3.905_394_184_064_997e306, 3.352_021_431_243_001_6e306],
+        rtol = 1e-14
+    );
+    // mu0 = gamma(alpha + 1) would overflow (Arb)
+    let (_, w) = xsf::roots_genlaguerre(2, 170.7);
+    np_assert_allclose!(
+        w,
+        [1.427_030_187_170_566_4e308, 1.225_209_102_672_075_3e308],
+        rtol = 1e-14
+    );
+    // mu0 / 2^alpha would also overflow (Arb)
+    let (_, w) = xsf::roots_genlaguerre(200, 220.0);
+    np_assert_allclose!([w[199]], [1.603_580_611_056_378_5e171], rtol = 1e-13);
+}
+
+#[test]
+fn test_roots_hermite() {
+    let sqrt_pi = PI.sqrt();
+    let p = |k, x| xsf::eval_hermite_h(k as u32, x);
+    assert_gauss(xsf::roots_hermite_h(25), p, sqrt_pi, 1e-12);
+    let p = |k, x| xsf::eval_hermite_he(k as u32, x);
+    assert_gauss(xsf::roots_hermite_he(25), p, (2.0 * PI).sqrt(), 1e-12);
+}
+
+/// test_roots_hermite_asy
+#[test]
+fn test_roots_hermite_asy() {
+    for n in [151, 300, 301, 2000] {
+        let (x, w) = xsf::roots_hermite_h(n);
+        np_assert_allclose!([w.iter().sum::<f64>()], [PI.sqrt()], rtol = 1e-15);
+
+        // the normalized Hermite functions `psi_k(x) = H_k(x) e^(-x^2 / 2) / sqrt(2^k k! sqrt(pi))`
+        // of degree `n` vanish at the nodes
+        for xi in x {
+            let (mut p0, mut p1) = (0.0, PI.powf(-0.25) * (-xi * xi / 2.0).exp());
+            for k in 1..=n {
+                let k = k as f64;
+                (p0, p1) = (p1, (2.0 / k).sqrt() * xi * p1 - ((k - 1.0) / k).sqrt() * p0);
+            }
+            assert!(p1.abs() <= 1e-12, "n = {n}, x = {xi}: {p1:e}");
+        }
+    }
+
+    // He_n(x) = 2^(-n/2) H_n(x / sqrt(2))
+    let (x, w) = xsf::roots_hermite_he(200);
+    let (y, v) = xsf::roots_hermite_h(200);
+    let sqrt_2 = 2.0_f64.sqrt();
+    np_assert_allclose!(
+        x,
+        y.iter().map(|y| y * sqrt_2).collect::<Vec<_>>(),
+        rtol = 1e-15
+    );
+    np_assert_allclose!(
+        w,
+        v.iter().map(|v| v * sqrt_2).collect::<Vec<_>>(),
+        rtol = 1e-15
+    );
+}
+
+#[test]
+#[should_panic(expected = "alpha must be greater than -1")]
+fn test_roots_genlaguerre_alpha_invalid() {
+    let _ = xsf::roots_genlaguerre(3, -1.1);
+}
