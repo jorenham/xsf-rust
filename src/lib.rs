@@ -432,6 +432,8 @@
 //! | [`oblate_radial2_nocv`]  | Oblate spheroidal radial function of the second kind  |
 //! | [`prolate_segv`]         | Characteristic value of prolate spheroidal function   |
 //! | [`oblate_segv`]          | Characteristic value of oblate spheroidal function    |
+//! | [`prolate_segv_seq`]     | Characteristic values of prolate spheroidal functions |
+//! | [`oblate_segv_seq`]      | Characteristic values of oblate spheroidal functions  |
 //!
 //! The following functions require pre-computed characteristic value:
 //!

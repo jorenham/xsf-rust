@@ -120,8 +120,9 @@ pub use sph_bessel::{
 pub use sph_harm::{sph_harm_y, sph_harm_y_all};
 pub use sphd_wave::{
     oblate_aswfa, oblate_aswfa_nocv, oblate_radial1, oblate_radial1_nocv, oblate_radial2,
-    oblate_radial2_nocv, oblate_segv, prolate_aswfa, prolate_aswfa_nocv, prolate_radial1,
-    prolate_radial1_nocv, prolate_radial2, prolate_radial2_nocv, prolate_segv,
+    oblate_radial2_nocv, oblate_segv, oblate_segv_seq, prolate_aswfa, prolate_aswfa_nocv,
+    prolate_radial1, prolate_radial1_nocv, prolate_radial2, prolate_radial2_nocv, prolate_segv,
+    prolate_segv_seq,
 };
 pub use stats::{
     bdtr, bdtrc, bdtri, cdf_cvm, cdf_cvm_inf, chdtr, chdtrc, chdtri, fdtr, fdtrc, fdtri, gdtr,
