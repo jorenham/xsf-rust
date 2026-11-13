@@ -64,6 +64,8 @@ fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
         ("zetac", &[x]) => xsf::zetac(x),
         // exponential integrals
         ("expi", &[x]) => xsf::expi(x),
+        // NaN for n < 0, like in xsf
+        ("expn", &[n, _]) if n < 0.0 => f64::NAN,
         ("expn", &[n, x]) => xsf::expn(n as u32, x),
         // incomplete gamma and beta functions
         ("gammainc", &[a, x]) => xsf::gammainc(a, x),
