@@ -54,7 +54,7 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
   error of xsf-rust where the mapping marks xsf as wrong, and at least the floor of the mapping
   where xsf-rust uses another method than xsf, or where the error depends on the platform's libm.
 - convention: a rule of the mapping, which xsf-rust must follow already, and which must pass
-  xsref's test.
+  xsref's test, unless the mapping marks xsf as wrong there.
 - legacy: where our reference timed out.
 
 ## Statuses and scales

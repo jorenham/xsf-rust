@@ -447,9 +447,16 @@ def generate(
         old_ref = value(rows[r][a : a + widths[i]])
         try:
             if rule := rules.get((r, i)):
-                # a convention must pass xsref's test, and xsf-rust must follow it already
+                # a convention must pass xsref's test, unless an override marks xsf (and so
+                # xsref) wrong there, and xsf-rust must follow it already
+                over = next((o for o in out.overrides if o.when(inputs[r])), None)
                 ok = table_error(rule.value, old_ref) <= 4 * max(EPS, rows[r][tol])
-                require(ok, f"xsref has {old_ref}, the rule {rule.value} ({rule.why})")
+                require(
+                    ok or over is not None,
+                    f"xsref has {old_ref}, the rule {rule.value} ({rule.why})",
+                )
+                if over:
+                    notes[i][f"override: {over.why}"] += 1
                 ok = same_class(rust[r, i], rule.value)
                 require(
                     ok, f"xsf-rust has {rust[r, i]}, the rule {rule.value} ({rule.why})"

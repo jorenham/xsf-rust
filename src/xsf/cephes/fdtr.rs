@@ -212,11 +212,12 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
 ///
 /// ```text
 ///   message         condition      value returned
-/// fdtri domain   p <= 0 or p > 1       NaN
+/// fdtri domain   p < 0 or p > 1        NaN
 ///                a<=0, b<=0
 /// ```
 pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
-    if (a <= 0.0) || (b <= 0.0) || (y <= 0.0) || (y > 1.0) {
+    // Unlike in xsf, y = 0 is in the domain (x = 0) instead of NaN
+    if (a <= 0.0) || (b <= 0.0) || (y < 0.0) || (y > 1.0) {
         return f64::NAN;
     }
     // Unlike in xsf, the original `y` is used below instead of the rounded `1 - (1 - y)`.
