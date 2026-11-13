@@ -1807,6 +1807,90 @@ def _fdtri() -> Out:
     )
 
 
+def _voigt(x: mp.mpf, sigma: mp.mpf, gamma: mp.mpf) -> mp.mpf:
+    """`specs.r_voigt_profile`, and its limits for sigma = 0 (Cauchy) and gamma = 0 (normal)."""
+    if sigma == 0:
+        return gamma / (mp.pi * (x * x + gamma * gamma))
+    if gamma == 0:
+        return mp.exp(-((x / sigma) ** 2) / 2) / (abs(sigma) * mp.sqrt(2 * mp.pi))
+    return specs.r_voigt_profile(x, sigma, gamma)
+
+
+VOIGT_RULES: Final = (
+    NAN,
+    Rule(
+        lambda a: a[1] == a[2] == 0 and a[0] == 0,
+        math.inf,
+        "the density of a point mass at x = 0, for sigma = gamma = 0",
+    ),
+    Rule(
+        lambda a: a[1] == a[2] == 0 and a[0] != 0,
+        0.0,
+        "the density of a point mass at x != 0, for sigma = gamma = 0",
+    ),
+    Rule(
+        lambda a: math.isinf(a[0]) and math.isfinite(a[1]) and math.isfinite(a[2]),
+        0.0,
+        "the limit for x -> +-inf",
+    ),
+)
+
+
+def _voigt_arb(x: flint.arb, sigma: flint.arb, gamma: flint.arb) -> flint.arb:
+    """Re w(z) / (sigma sqrt(2 pi)), with z = (x + i gamma) / (sigma sqrt(2)); the limits for
+    sigma = 0 and gamma = 0 like `_voigt`."""
+    if sigma == 0:
+        return gamma / (flint.arb.pi() * (x * x + gamma * gamma))
+    if gamma == 0:
+        return (-((x / sigma) ** 2) / 2).exp() / (
+            abs(sigma) * (2 * flint.arb.pi()).sqrt()
+        )
+    z = flint.acb(x, gamma) / (sigma * flint.arb(2).sqrt())
+    w = (-z * z).exp() * (-flint.acb(0, 1) * z).erfc()
+    return w.real / (sigma * (2 * flint.arb.pi()).sqrt())
+
+
+def _iv_ratio_rules(complement: bool) -> tuple[Rule, ...]:
+    """The conventions of iv_ratio(v, x) = I_v(x) / I_{v-1}(x), or of its complement."""
+    small, large = (
+        (1.0, 0.0) if complement else (0.0, 1.0)
+    )  # the ratio's limits 0 and 1
+    return (
+        NAN,
+        Rule(
+            lambda a: a[0] < 0.5 or a[1] < 0,
+            math.nan,
+            "NaN outside of v >= 0.5, x >= 0",
+        ),
+        Rule(
+            lambda a: math.isinf(a[0]) and math.isinf(a[1]),
+            math.nan,
+            "no limit for v, x -> +inf",
+        ),
+        Rule(lambda a: a[1] == 0, small, "the limit for x -> 0+, with v >= 0.5"),
+        Rule(
+            lambda a: math.isinf(a[0]),
+            small,
+            "the limit for v -> +inf, with x finite",
+        ),
+        Rule(
+            lambda a: math.isinf(a[1]),
+            large,
+            "the limit for x -> +inf, with v finite",
+        ),
+    )
+
+
+def _iv_ratio_ball(v: flint.arb, x: flint.arb) -> flint.arb:
+    """x / (2 v) 0F1(; v + 1; x^2 / 4) / 0F1(; v; x^2 / 4), which also works for a huge v."""
+    z = x * x / 4
+    return x / (2 * v) * z.hypgeom([], [v + 1]) / z.hypgeom([], [v])
+
+
+def _iv_ratio_c_ball(v: flint.arb, x: flint.arb) -> flint.arb:
+    return 1 - _iv_ratio_ball(v, x)
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -2531,4 +2615,27 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("fdtri", "d_d_d-d"): Entry((_fdtri(),)),
     ("nbdtr", "p_p_d-d"): Entry((_beta_dist("nbdtr", _nbdtr_args, NBDTR_RULES),)),
     ("nbdtrc", "p_p_d-d"): Entry((_beta_dist("nbdtrc", _nbdtrc_args, NBDTR_RULES),)),
+    ("voigt_profile", "d_d_d-d"): Entry(
+        (Out("voigt_profile", (_voigt,), (_voigt_arb,), VOIGT_RULES),)
+    ),
+    ("iv_ratio", "d_d-d"): Entry(
+        (
+            Out(
+                "iv_ratio",
+                (specs.r_iv_ratio,),
+                (_precise(_sums_exact(_iv_ratio_ball)),),
+                _iv_ratio_rules(False),
+            ),
+        )
+    ),
+    ("iv_ratio_c", "d_d-d"): Entry(
+        (
+            Out(
+                "iv_ratio_c",
+                (specs.r_iv_ratio_c,),
+                (_precise(_sums_exact(_iv_ratio_c_ball)),),
+                _iv_ratio_rules(True),
+            ),
+        )
+    ),
 }
