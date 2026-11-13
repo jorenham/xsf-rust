@@ -661,11 +661,18 @@ fn pb_seq(
     ys: Option<Vec<f64>>,
 ) -> (Vec<f64>, Vec<f64>) {
     let w = |k: usize| v0 + k as f64;
-    let Some(mut y) = ys.filter(|y| y.iter().all(|t| t.is_finite())) else {
+    // `ys` steps w by exactly 1, so it is unusable if v0 + 1 rounds off v0 (only if v < 1, since
+    // v0 + k is exact for k <= n otherwise, and rounding v0 + n + 1 only shifts it by ulp(n))
+    let exact = v0 + 1.0 - 1.0 == v0;
+    let Some(mut y) = ys.filter(|y| exact && y.iter().all(|t| t.is_finite())) else {
         return (0..=n).map(|k| f(w(k), x)).unzip();
     };
     let dy = (0..=n)
-        .map(|k| 0.5 * x * y[k] - ca(w(k)).0 * y[k + 1])
+        .map(|k| {
+            let dy = 0.5 * x * y[k] - ca(w(k)).0 * y[k + 1];
+            // its terms can overflow where y_w' does not
+            if dy.is_finite() { dy } else { f(w(k), x).1 }
+        })
         .collect();
     y.truncate(n + 1);
     (y, dy)
@@ -713,6 +720,15 @@ fn pbvv_miller((v0, n): (f64, usize), x: f64) -> Vec<f64> {
         y[k] = y[k - 1] / y[k];
     }
     y
+}
+
+/// `c cos(pi w) a_w + s sin(pi w) b(k)` for `w = v0 + k`, `k < a.len()`
+fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) -> Vec<f64> {
+    let (c, s) = (c * cospi(v0), s * sinpi(v0));
+    // cos(pi w) and sin(pi w) alternate in sign
+    (0..a.len())
+        .map(|k| (c * a[k] + s * b(k)) * if k % 2 == 0 { 1.0 } else { -1.0 })
+        .collect()
 }
 
 // Uniform asymptotic expansions of D_v(x) = U(-v - 1/2, x) for large |v| (not in xsf), following
@@ -1336,13 +1352,22 @@ pub fn pbvv(v: f64, x: f64) -> (f64, f64) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let orders = seq_orders(v);
+    let orders @ (v0, n) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (1.0, w);
-    // D_{w+1} = x D_w - w D_{w-1} (DLMF 12.8.1) is only stable upwards for x >= 0
-    let ys = if x >= 0.0 {
+    // D_{w+1} = x D_w - w D_{w-1} (DLMF 12.8.1) is stable upwards for x >= 0, and for -4 <= x < 0
+    // only unstable for the orders below x^2 / 4 <= 4
+    let ys = if x >= -4.0 {
         pb_recur(orders, x, pbdv, ca, 0.0)
     } else {
-        None
+        // D_w(x) = cos(pi w) D_w(-x) - sin(pi w) Ubar_w(-x) (DLMF 12.2.15, 12.2.21), like in
+        // `pbdv_reflect`
+        let d = pb_recur(orders, -x, pbdv, ca, 0.0);
+        if v0 == 0.0 {
+            d.map(|d| pb_reflect(v0, (1.0, 0.0), &d, |_| 0.0))
+        } else {
+            let (ub, _, eb) = pbdv_ubar(v0, (n + 1).max(20), -x);
+            d.map(|d| pb_reflect(v0, (1.0, -1.0), &d, |k| mul_exp(ub[k], eb)))
+        }
     };
     pb_seq(orders, x, pbdv, ca, ys)
 }
@@ -1374,15 +1399,28 @@ pub fn pbdv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 /// - Panics if `v` is too large to convert to `c_int`
 #[must_use]
 pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
-    let orders = seq_orders(v);
+    let orders @ (v0, _) = seq_orders(v);
     let ca: fn(f64) -> (f64, f64) = |w| (w + 1.0, 1.0);
     // (w + 1) V_{w+1} = x V_w - V_{w-1} is only stable for x >= 0, away from w = x^2 / 4, where
-    // `pbvv` is inaccurate if x > 10
+    // `pbvv` is inaccurate if |x| > 10
+    let y = x.abs();
     let ys = if x > 10.0 {
         Some(pbvv_miller(orders, x))
-    } else if x >= 0.0 {
-        pb_recur(orders, x, pbvv, ca, 0.25 * x * x)
+    } else if x >= -10.0 {
+        let vy = pb_recur(orders, y, pbvv, ca, 0.25 * y * y);
+        if x < 0.0 {
+            // V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1) - cos(pi w) V_w(-x) (DLMF 12.2.16), with
+            // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
+            let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
+            let e = pb_recur(orders, y, dg, ca, 0.0);
+            vy.zip(e)
+                .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
+        } else {
+            vy
+        }
     } else {
+        // like `pbvv`, by 12.2.16 for each order, since `pbvv_miller` loses accuracy for orders
+        // near or above x^2 / 4
         None
     };
     pb_seq(orders, x, pbvv, ca, ys)

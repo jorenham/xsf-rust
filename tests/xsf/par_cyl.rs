@@ -782,10 +782,179 @@ fn test_pbdv_pbvv_seq_mpmath() {
 }
 
 #[test]
+fn test_pbdv_pbvv_seq_negative_x() {
+    // D_w, D_w', V_w, V_w' at the order w = v0 + k for x < 0 (reference values from mpmath)
+    let cases: [(f64, f64, usize, [f64; 4]); 7] = [
+        // by recurrence upwards
+        (
+            30.25,
+            -3.0,
+            0,
+            [
+                -1.456_261_965_365_941_7,
+                1.581_334_886_909_426_8,
+                -1.825_086_976_888_088_4,
+                1.433_937_847_075_193,
+            ],
+        ),
+        (
+            150.25,
+            -2.0,
+            0,
+            [
+                -0.461_487_958_125_567,
+                0.736_055_843_823_063_2,
+                -1.204_702_515_947_661_9,
+                0.192_515_892_483_124_1,
+            ],
+        ),
+        // by reflection
+        (
+            7.75,
+            -9.5,
+            0,
+            [
+                -65_245_535.534_070_46,
+                297_501_666.177_631_2,
+                70_991_400.071_301_62,
+                -323_701_225.418_962_06,
+            ],
+        ),
+        // near an integer, where the recurrence would lose accuracy
+        (
+            24.999,
+            -12.5,
+            0,
+            [
+                -1_511_253_261_551.437_3,
+                9_198_792_574_222.822,
+                481_248_537_281_494.8,
+                -2_929_294_237_920_117.5,
+            ],
+        ),
+        // an integer
+        (
+            20.0,
+            -15.0,
+            10,
+            [
+                1.743_792_436_522_914_4e-13,
+                1.186_554_927_380_725_4e-12,
+                -338_256_891_196.778_1,
+                2_273_918_452_264.326_7,
+            ],
+        ),
+        // a half-integer, where V_w(x) = -sin(pi w) D_w(-x) / Gamma(w + 1)
+        (
+            12.5,
+            -7.0,
+            3,
+            [
+                409.449_518_253_618_35,
+                -1_128.898_906_702_858,
+                0.000_340_123_094_321_913_5,
+                0.001_010_918_203_650_386_9,
+            ],
+        ),
+        (
+            299.5,
+            -5.0,
+            150,
+            [
+                -1.107_132_256_131_699_2e131,
+                2.227_522_611_994_000_3e132,
+                -2.638_735_264_466_26e-133,
+                -1.897_698_425_574_699_7e-132,
+            ],
+        ),
+    ];
+    for (v, x, k, expected) in cases {
+        let (dv, dp) = xsf::pbdv_seq(v, x);
+        let (vv, vp) = xsf::pbvv_seq(v, x);
+        let actual = [dv, dp, vv, vp].map(|y| y[k]);
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_pbdv_seq_tiny_v() {
+    // v + 1 rounds off v, which the recurrences and reflections can't use (reference values from
+    // mpmath)
+    let (_, dp) = xsf::pbdv_seq(1e-20, -1e-30);
+    xsref::np_assert_allclose!(&dp[..1], &[1.253_314_137_365_500_2e-20], rtol = 1e-14);
+    let (_, dp) = xsf::pbdv_seq(1e-20, 1e-30);
+    xsref::np_assert_allclose!(&dp[..1], &[1.253_314_137_265_500_2e-20], rtol = 1e-14);
+    let (dv, _) = xsf::pbdv_seq(5e-324, -40.0);
+    xsref::np_assert_allclose!(
+        &dv,
+        &[-1.617_630_103_999_578e-151, -7.660_678_386_856_023e-173],
+        rtol = 1e-12
+    );
+    // v0 + 1 is exact, but v0 + 2 rounds
+    let (dv, _) = xsf::pbdv_seq(0.999_999_999_999_999_8, -1e-30);
+    xsref::np_assert_allclose!(&dv[..1], &[2.782_916_424_671_757e-16], rtol = 1e-13);
+}
+
+#[test]
+fn test_pbdv_pbvv_seq_rounded_top() {
+    // D_w, D_w', V_w, V_w' at the last order w = v, where v + 1 = 4.1 rounds off the last bit of v0
+    // (reference values from mpmath)
+    let cases: [(f64, f64, [f64; 4]); 2] = [
+        (
+            3.1,
+            -1.0,
+            [
+                1.530_947_645_326_732_8,
+                1.381_335_130_903_42,
+                -0.114_442_020_996_103_79,
+                0.417_912_251_083_422_7,
+            ],
+        ),
+        (
+            3.1,
+            -5.0,
+            [
+                1.935_819_347_972_753_2,
+                -3.288_384_900_961_538,
+                0.991_657_235_128_728,
+                -1.272_363_622_516_276_9,
+            ],
+        ),
+    ];
+    for (v, x, expected) in cases {
+        let (dv, dp) = xsf::pbdv_seq(v, x);
+        let (vv, vp) = xsf::pbvv_seq(v, x);
+        let actual = [dv, dp, vv, vp].map(|y| y[3]);
+        xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_pbdv_seq_near_int_small_x() {
+    // v near an integer, where D_2(x) is near its zero at x = -1, and a downward recurrence from
+    // the top orders would be off by 1e-13 (reference values from mpmath)
+    let (dv, _) = xsf::pbdv_seq(300.000_000_000_000_06, -1.0);
+    xsref::np_assert_allclose!(
+        &dv[..4],
+        &[
+            0.778_800_783_071_284_1,
+            -0.778_800_783_071_438,
+            1.096_583_384_118_796_8e-13,
+            1.557_601_566_142_810_6,
+        ],
+        rtol = 1e-14,
+        atol = 1e-15
+    );
+}
+
+#[test]
 fn test_pbdv_seq_near_overflow() {
     // the recurrence overflows at 301 D_300(x), but D_302(x) does not (reference value from mpmath)
     let (dv, _) = xsf::pbdv_seq(302.0, 0.625);
     xsref::np_assert_allclose!(&dv[302..], &[1.417_826_147_401_142_5e308], rtol = 1e-12);
+    // x / 2 D_v(x) overflows, but D_v'(x) = x / 2 D_v(x) - D_{v+1}(x) does not
+    let (_, dp) = xsf::pbdv_seq(295.5, -37.25);
+    xsref::np_assert_allclose!(&dp[295..], &[-7.409_263_218_453_497e307], rtol = 1e-12);
 }
 
 #[test]
