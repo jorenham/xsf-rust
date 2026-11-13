@@ -61,6 +61,7 @@ pub(crate) fn try_zeroed(n: usize) -> Option<Vec<f64>> {
 
 use num_complex::Complex;
 
+use crate::utils::is_nonpos_int;
 use crate::xsf::c64::{C64, ViaC64, c64};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
@@ -249,12 +250,37 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         // Domain error
         f64::NAN
     } else if x == 0.0 {
-        if b > 1.0 {
-            // Singular. DLMF 13.2.16-18
-            f64::INFINITY
+        // Unlike in xsf, finite for a = 0, -1, ... and b > 1, singular with the sign of
+        // 1 / Gamma(a) (not always +inf), and without rounding a - b + 1 onto a pole
+        if is_nonpos_int(a) {
+            // (-1)^m (b)_m for a = -m (DLMF 13.2.7), i.e. (-1)^m b^m for infinite b
+            let mut p = if b.is_infinite() {
+                b.powf(-a)
+            } else {
+                crate::pow_rising(b, -a)
+            };
+            if (p == 0.0 || !p.is_finite()) && b.is_finite() && !is_nonpos_int(b) {
+                // `pow_rising` multiplies from b + m - 1 down, so unlike the product from b up,
+                // it can overflow before the factors near 0, e.g. for U(-172, 1/64, 0) = 2.1e307,
+                // and for a subnormal b, it can give 0 or NaN
+                p = 1.0;
+                let mut j = 0.0;
+                while j < -a && p.is_finite() && p != 0.0 {
+                    p *= b + j;
+                    j += 1.0;
+                }
+                // an overflow has the sign of the ceil(-b) negative factors, not of those so far
+                if p.is_infinite() {
+                    p = f64::INFINITY * crate::cospi((-b).ceil().clamp(0.0, -a));
+                }
+            }
+            crate::cospi(a) * p
+        } else if b >= 1.0 {
+            // Singular. DLMF 13.2.16-19
+            f64::INFINITY.copysign(crate::gammasgn(a))
         } else {
-            // DLMF 13.2.14-15 and 13.2.19-21
-            crate::pow_rising(1.0 - b + a, -a)
+            // Gamma(1 - b) / Gamma(a - b + 1). DLMF 13.2.20-22
+            crate::pow_falling(-b, -a)
         }
     } else if x < 1.0 && a > -0.25 && a < 0.3 && b == 1.0 {
         // DLMF 13.3.7. Fixes scipy/scipy#15650

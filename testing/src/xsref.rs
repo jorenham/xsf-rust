@@ -435,7 +435,18 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         },
         // xsf overflows early for a complex z = x[1] + x[2] i
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
+        // xsf returns +inf for U(a, b, 0) with b >= 1, also where it is finite or -inf
+        "hyperu" if x[2] == 0.0 && hyperu_x0_wrong(x[0], x[1]) => f64::INFINITY,
         _ => 0.0,
+    }
+}
+
+/// Whether U(a, b, 0) is finite (a = 0, -1, ... and b > 1) or -inf (b >= 1 and Gamma(a) < 0)
+fn hyperu_x0_wrong(a: f64, b: f64) -> bool {
+    if a.fract() == 0.0 {
+        a <= 0.0 && b > 1.0
+    } else {
+        a < 0.0 && b >= 1.0 && a.floor() % 2.0 != 0.0
     }
 }
 

@@ -46,6 +46,48 @@ fn test_hypu_tiny_a() {
 }
 
 #[test]
+fn test_hypu_x0() {
+    // DLMF 13.2.7; +inf in xsf
+    let actual = [xsf::hypu(0.0, 3.42, 0.0), xsf::hypu(-2.0, 5.0, 0.0)];
+    xsref::np_assert_allclose!(actual, [1.0, 30.0], rtol = 1e-15);
+    // (-75 - 1.4e-14)_204 = 1.36e311
+    assert_eq!(
+        xsf::hypu(-204.0, -75.000_000_000_000_01, 0.0),
+        f64::INFINITY
+    );
+    let actual = [-3.0, -2.0].map(|a| xsf::hypu(a, f64::INFINITY, -0.0));
+    assert_eq!(actual, [f64::NEG_INFINITY, f64::INFINITY]);
+    // exact; finite, but the product (b + m - 1) ... b over- or underflows (0 for 1e-300 in xsf)
+    let abx = [
+        (-172.0, 0.015_625, 0.0),
+        (-200.0, 1e-300, 0.0),
+        (-170.0, 1e-310, 0.0),
+        (-172.0, 1e-310, 0.0),
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    let expected = [
+        2.120_016_193_072_081_3e307,
+        3.943_289_336_823_953e72,
+        4.269_068_009_004_692e-6,
+        0.124_101_807_021_766_4,
+    ];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // DLMF 13.2.16-19, with the sign of 1 / Gamma(a); +inf in xsf
+    assert_eq!(xsf::hypu(-0.5, 2.0, 0.0), f64::NEG_INFINITY);
+    assert_eq!(xsf::hypu(-10.5, 1.0, 0.0), f64::NEG_INFINITY);
+    assert_eq!(xsf::hypu(-1.5, 2.0, 0.0), f64::INFINITY);
+
+    // mpmath, Gamma(1 - b) / Gamma(a - b + 1) (DLMF 13.2.22); 0 in xsf
+    let actual = [
+        xsf::hypu(-5.421_052_631_578_947, -3.421_052_631_578_947_3, 0.0),
+        xsf::hypu(-1.5, -0.500_000_000_000_000_9, 0.0),
+    ];
+    let expected = [-4.632_697_274_741_578e-15, 7.871_276_301_443_317e-16];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_huge_a() {
     // NaN without ~2^31 iterations, like in xsf
     assert!(xsf::hypu(-2_147_483_649.0, 1.0, 1.0).is_nan());
