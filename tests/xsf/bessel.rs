@@ -97,6 +97,42 @@ fn test_bessel_i_large_v_vanishing_term() {
 }
 
 #[test]
+fn test_bessel_i_large_v_near_overflow() {
+    // mpmath: besseli(v, x), where e^(v eta) or e^(-v eta) of the uniform expansion overflows
+    let actual = [
+        xsf::bessel_i(151.294_607_482_530_7, 725.792_704_381_556_1),
+        xsf::bessel_i(-110.325_996_643_116_67, 0.128_128_079_375_989_13),
+        xsf::bessel_i(60.0, 716.0),
+        xsf::bessel_i(-60.5, 716.0),
+    ];
+    let expected = [
+        3.546_579_661_379_236e306,
+        8.326_693_651_321_992e307,
+        1.087_560_322_184_507_3e308,
+        1.042_772_683_333_504_7e308,
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+    // mpmath: 1.1e310
+    assert_eq!(xsf::bessel_i(100.0, 725.0), f64::INFINITY);
+}
+
+#[test]
+fn test_bessel_i_huge_x() {
+    // I_v(x) ~ e^x / sqrt(2 pi x) overflows, also where 2 pi x or (x / v)^2 does
+    let inf = f64::INFINITY;
+    let x = 2f64.powi(1023);
+    for v in [-49.5, -1e-30, 0.0, 0.5, 3.0, 50.0] {
+        assert_eq!(xsf::bessel_i(v, x), inf);
+    }
+    for (v, x) in [(100.0, 1e200), (-100.5, 1e200), (1e5, 1e300)] {
+        assert_eq!(xsf::bessel_i(v, x), inf);
+    }
+    // odd orders
+    assert_eq!(xsf::bessel_i(3.0, -x), -inf);
+    assert_eq!(xsf::bessel_i(51.0, -1e200), -inf);
+}
+
+#[test]
 fn test_bessel_amos_underflow() {
     // mpmath: besselj(7.3156, 1.19e-41) = 2.6872935555094642e-306,
     // besselj(-43, 4.418464059606903e-6) = -1.0500997742421043e-296,
@@ -252,8 +288,60 @@ fn test_bessel_huge_order() {
         c64(-8.323_868_312_936_047e-6, 0.0),
     ];
     np_assert_allclose!(&actual, &expected, rtol = 1e-6);
-    let j = xsf::bessel_j(2_147_483_648.0, 2_149_631_131.648);
-    np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
+    // also for x < 0, as (-1)^v J_v(-x)
+    for x in [2_149_631_131.648, -2_149_631_131.648] {
+        let j = xsf::bessel_j(2_147_483_648.0, x);
+        np_assert_allclose!(&[j], &[-1.632_266_889_229_664_4e-5], rtol = 1e-6);
+    }
+}
+
+#[test]
+fn test_bessel_jy_huge_order_limits() {
+    // |J_v(x)| <= e^-t and Y_v(x) ~ -e^t / sqrt(pi v w / 2) for x < v, with t >= v w^3 / 3 and
+    // w^2 = 1 - (x / v)^2 (DLMF 10.14.5, 10.19.3); Arb: besselj(1e100, 5) = 1.8e-9.9e101
+    let inf = f64::INFINITY;
+    // even integers
+    for (v, x) in [
+        (2_251_799_813_685_250.0, 5.0),
+        (1e18, 9.9e17),
+        (3.162_277_660_168_379e50, 1e8),
+        (1e100, 5.0),
+    ] {
+        for (v, x) in [(v, x), (v, -x), (-v, x), (-v, -x)] {
+            assert_eq!(xsf::bessel_j(v, x), 0.0);
+            assert_eq!(xsf::bessel_je(v, x), 0.0);
+            assert_eq!(xsf::bessel_j(v, c64(x, 0.0)), c64(0.0, 0.0));
+        }
+        for v in [v, -v] {
+            assert_eq!(xsf::bessel_y(v, x), -inf);
+            assert_eq!(xsf::bessel_ye(v, x), -inf);
+            assert_eq!(xsf::bessel_y(v, c64(x, 0.0)), c64(-inf, 0.0));
+        }
+    }
+    // the odd integer 2^52 + 1: (-1)^v for -v and -x, also as the sign of the 0
+    let odd = 4_503_599_627_370_497.0;
+    assert_eq!(xsf::bessel_y(-odd, 5.0), inf);
+    for (j, negative) in [
+        (xsf::bessel_j(odd, 5.0), false),
+        (xsf::bessel_j(odd, -5.0), true),
+        (xsf::bessel_j(-odd, 5.0), true),
+        (xsf::bessel_j(-odd, -5.0), false),
+        (xsf::bessel_j(odd, -0.0), true),
+        (xsf::bessel_j(-odd, -0.0), false),
+        (xsf::bessel_je(odd, -0.0), true),
+        (xsf::bessel_je(-odd, -0.0), false),
+        (xsf::bessel_j(odd, c64(-5.0, 0.0)).re, true),
+        (xsf::bessel_je(odd, c64(-5.0, 0.0)).re, true),
+        (xsf::bessel_j(-odd, c64(-5.0, 0.0)).re, false),
+    ] {
+        assert!(j == 0.0 && j.is_sign_negative() == negative, "{j}");
+    }
+    // the half-integer 2^51 + 1/2: J_-v = -Y_v and Y_-v = J_v (DLMF 10.2.3)
+    let half = 2_251_799_813_685_248.5;
+    assert_eq!(xsf::bessel_j(-half, 5.0), inf);
+    assert_eq!(xsf::bessel_y(-half, 5.0), 0.0);
+    // Arb: besselj(3e9, -5) = 2.7e-25934660298
+    assert_eq!(xsf::bessel_j(3e9, -5.0), 0.0);
 }
 
 xsref::tests! {
@@ -287,6 +375,34 @@ fn test_bessel_k_near_overflow() {
     for (v, x) in [(1.5, 1e-210), (1.0, 1e-310), (-1.0, 1e-310), (0.99, 5e-324)] {
         assert_eq!(xsf::bessel_k(v, x), f64::INFINITY);
         assert_eq!(xsf::bessel_ke(v, x), f64::INFINITY);
+    }
+}
+
+#[test]
+fn test_bessel_k_near_underflow() {
+    // mpmath: besselk(v, x)
+    let actual = [
+        xsf::bessel_k(0.0, 700.6),
+        xsf::bessel_k(12.49, 700.6),
+        xsf::bessel_k(-20.0, 700.6),
+        xsf::bessel_k(0.0, c64(700.6, 1.0)).re,
+        xsf::bessel_k(0.0, c64(700.6, 1.0)).im,
+    ];
+    let expected = [
+        2.561_730_385_750_867_3e-306,
+        2.863_182_898_540_892_5e-306,
+        3.407_332_893_410_498_4e-306,
+        1.382_569_916_659_872e-306,
+        -2.156_607_594_040_158_8e-306,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    // subnormal, rounded
+    let actual = [xsf::bessel_k(1.0, 708.0), xsf::bessel_k(0.0, 720.0)];
+    let expected = [1.558_762_642_090_316e-309, 9.490_549_83e-315];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-9);
+    // mpmath: 9.6e-325, 2.4e-325, and below e^-800
+    for (v, x) in [(0.0, 743.0), (30.25, 745.0), (100.0, 800.0), (1e9, 1.1e9)] {
+        assert_eq!(xsf::bessel_k(v, x), 0.0);
     }
 }
 

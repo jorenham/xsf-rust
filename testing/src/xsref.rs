@@ -426,6 +426,13 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == 10.0 => 1e-8,
         // the references of V' are xsf's wrong values (scipy/xsf#374)
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == -10.0 => f64::INFINITY,
+        // xsf returns NaN for orders above the AMOS limit of 2^51 and a real z = x[1] + x[2] i,
+        // where J_v is 0 and Y_v is infinite
+        "cyl_bessel_j" | "cyl_bessel_y"
+            if x[0].abs() > 2f64.powi(51) && x.get(2).is_none_or(|&im| im == 0.0) =>
+        {
+            f64::INFINITY
+        },
         // xsf overflows early for a complex z = x[1] + x[2] i
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
         _ => 0.0,
