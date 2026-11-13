@@ -20,9 +20,10 @@
 //!    in its first two parameters, so the twin reuses its sum (if it succeeded).
 //!
 //!    But if `p = -n` is a negative integer (with `n <= HYP2F1_RECUR_MAXITER`), its terms can
-//!    alternate in sign and cancel, e.g. for `F(-522, -123.5; 533.5; -0.9)`. So we first recur up
-//!    in the degree, from `F(0) = 1` and `F(-1)` to `F(-n)` (DLMF 15.5.11), with the error bound
-//!    of step 3, for `F(-n, c - q; c; w)` and the form (DLMF 15.8.7), often more stable if `c < 0`,
+//!    alternate in sign and cancel, e.g. for `F(-522, -123.5; 533.5; -0.9)`. So unless its sum or
+//!    that of `F(-n, q; c; z)` is within `HYP2F1_ETHRESH`, we also recur up in the degree, from
+//!    `F(0) = 1` and `F(-1)` to `F(-n)` (DLMF 15.5.11), with the error bound of step 3, for
+//!    `F(-n, c - q; c; w)` and the form (DLMF 15.8.7), often more stable if `c < 0`,
 //!
 //!    `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`
 //!
@@ -69,7 +70,8 @@
 //!    `c + 1` and `c + 2` hardly differ from `F(a, b; c; x)`, and in our tests improved the bound
 //!    at most 15-fold.
 //!
-//! Finally, return the result with the smallest error bound, if that is at most `HYP2F1_RECUR_TOL`.
+//! Finally, return the result with the smallest error bound, which is too large if it exceeds
+//! `HYP2F1_RECUR_TOL`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
 //! is tiny, and so are `s ln(1 - x)` and the `ln Gamma` of the transformations. The values are
@@ -101,7 +103,7 @@ use crate::xsf::trig::{cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
-const HYP2F1_RECUR_TOL: f64 = 1e-10;
+pub(crate) const HYP2F1_RECUR_TOL: f64 = 1e-10;
 
 /// The largest error bound of steps 1 to 5 for which step 6 also tries the forms with
 /// `c > max(0, q)` (empirical)
@@ -410,10 +412,11 @@ fn poly_up(n: f64, r: Dd, c: Dd, t: Dd) -> Option<Scaled> {
 /// The polynomial forms of step 2 of `combs` with `p = -n`; `ln_1mx` is `ln(1 - x)`
 fn hyp2f1_poly(combs: Combinations, c: Dd, x: f64, w: Dd, ln_1mx: Dd) -> Option<Scaled> {
     // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
+    let one = Dd::new(1.0);
     let (one_mz, ln_1mz) = if x < 0.0 {
-        (Dd::new(1.0) - x, ln_1mx)
+        (one - x, ln_1mx)
     } else {
-        (1.0 / (Dd::new(1.0) - x), -ln_1mx)
+        (1.0 / (one - x), -ln_1mx)
     };
     let is_poly = |p: Dd| p.is_integer() && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     combs
@@ -421,14 +424,26 @@ fn hyp2f1_poly(combs: Combinations, c: Dd, x: f64, w: Dd, ln_1mx: Dd) -> Option<
         .filter(|&(p, ..)| is_poly(p))
         .map(|(p, q, s)| {
             let (n, r, l) = (-p.hi, c - q, s * ln_1mx);
+            // (with the factor `(1 - z)^p` of the forms in `z` and `1 - z`)
+            let l_z = l + p * ln_1mz;
+            // The sums of `F(p, q; c; z)` and `F(p, c - q; c; w)` come first: if the terms of one
+            // have one sign, it is more accurate than the recurrences.
+            let sum = |q: Dd, t: Dd, l: Dd| {
+                let mut budget = HYP2F1_RECUR_MAXITER;
+                Some(series_weighted(p, q, c, t, &mut budget, None, n)?.with_l(l))
+            };
+            let direct = min_err(sum(q, one - one_mz, l_z), sum(r, w, l));
+            if err_of(direct) <= HYP2F1_ETHRESH {
+                return direct;
+            }
             // `(1 - z)^p F(p, q; c; z) = F(p, c - q; c; w)`, as in step 2
             let y_w = poly_up(n, r, c, w).map(|y| y.with_l(l));
             // `(c - q)_n / (c)_n = Gamma(c - q + n) Gamma(c) / (Gamma(c - q) Gamma(c + n))`
             let y_1mz = mul_gamma_ratio(&[r + n, c], &[r, c + n], || {
                 let y = poly_up(n, q, q - c + (1.0 - n), one_mz)?;
-                Some(y.with_l(l + p * ln_1mz))
+                Some(y.with_l(l_z))
             });
-            min_err(y_w, y_1mz)
+            min_err(direct, min_err(y_w, y_1mz))
         })
         .fold(None, min_err)
 }
@@ -795,9 +810,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
     }))
 }
 
-/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs), or `None` if the
-/// estimated relative error is too large.
-pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
+/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs) and its error bound, which
+/// is too large if it exceeds `HYP2F1_RECUR_TOL`.
+pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<(f64, f64)> {
     // (beyond 1e15, the coefficients of the recurrence can overflow)
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
@@ -810,13 +825,13 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<f64> {
     if !(err <= HYP2F1_RECUR_TOL) {
         best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
-    let y = fold_exp(best.filter(|y| y.err <= HYP2F1_RECUR_TOL)?);
-    Some(ldexp_f64(y.m, y.e))
+    let y = fold_exp(best?);
+    Some((ldexp_f64(y.m, y.e), y.err))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Dd, Scaled, coefs_c, hyp2f1_recur, recur_down};
+    use super::{Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, hyp2f1_recur, recur_down};
 
     #[test]
     fn test_recur_down_start_errors() {
@@ -839,9 +854,9 @@ mod tests {
             (1e-150, 1e-200, -1000.5, 0.8, -5.767_096_442_064_845e249),
             (1e-140, 1e-180, -1000.5, 0.8, -5.767_096_442_064_845e279),
         ] {
-            let actual = hyp2f1_recur(a, b, c, x);
+            let actual = hyp2f1_recur(a, b, c, x).filter(|&(_, err)| err <= HYP2F1_RECUR_TOL);
             assert!(
-                actual.is_none_or(|y| (y / desired - 1.0).abs() < 1e-10),
+                actual.is_none_or(|(y, _)| (y / desired - 1.0).abs() < 1e-10),
                 "{actual:?} != {desired}"
             );
         }

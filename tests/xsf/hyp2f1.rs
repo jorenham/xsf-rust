@@ -379,6 +379,7 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         (19.0, -19.0, 0.5, 0.99),
         (22.0, -22.0, -3.5, 0.95),
         (195.0, -195.0, 1.0, 0.9),
+        (195.0, -195.0, -200.5, 0.01),
     ];
     let desired = [
         0.489_514_398_515_199_2,
@@ -386,19 +387,13 @@ fn test_hyp2f1_f64_a_eq_minus_b_neg_int() {
         0.787_059_088_545_409,
         -6_540_705.712_015_875,
         -0.019_154_323_187_421_253,
+        6.722_964_015_601_578,
     ];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         // also with a and b swapped, which was already accurate
         let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
         np_assert_allclose!(actual, [y, y], rtol = 2e-14);
     }
-
-    // via the recurrence in the degree, accurate to ~1e-13 here
-    let actual = [
-        xsf::hyp2f1(195.0, -195.0, -200.5, 0.01),
-        xsf::hyp2f1(-195.0, 195.0, -200.5, 0.01),
-    ];
-    np_assert_allclose!(actual, [6.722_964_015_601_578; 2], rtol = 1e-13);
 
     // and beyond the recurrence limit of the power series, in both orders by `hyp2f1_recur`
     let actual = [
@@ -814,6 +809,56 @@ fn test_hyp2f1_f64_large_polynomials() {
         6.485_127_939_853_472_5e-52,
         -4.200_865_766_102_724e-45,
         -2.143_761_498_506_179_6e29,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // but their sums first, which are more accurate if their terms have one sign, e.g. this was
+    // inf (Arb)
+    let actual = xsf::hyp2f1(
+        -193.331_054_687_5,
+        -361.893_861_580_878_37,
+        -784.331_054_687_5,
+        -8.501_040_652_827_827,
+    );
+    np_assert_allclose!([actual], [6.322_565_669_978_735e124], rtol = 1e-14);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials_fallback() {
+    // unlike in xsf: the result of `hyp2f1_recur` above its tolerance if the other methods are
+    // worse, e.g. these were -2.17e161, -9.14e10, -3.46e71 and 1.3151516683e7 (references: Arb)
+    let args = [
+        (
+            -578.0,
+            43.025_054_517_833_25,
+            -211.365_284_520_633_9,
+            -0.069_048_681_694_701_13,
+        ),
+        (
+            -155.0,
+            -13.114_295_459_606_085,
+            -268.184_224_512_442_7,
+            -5.777_086_149_646_716,
+        ),
+        (
+            -405.0,
+            284.751_961_714_356_3,
+            -356.779_446_566_434_4,
+            -0.159_163_126_801_461_27,
+        ),
+        (
+            -102.0,
+            -11.303_623_418_304_845,
+            -173.188_097_441_151_14,
+            -5.633_877_370_886_577,
+        ),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        6.286_253_119_942_306e-4,
+        -5_907_450_570.238_56,
+        3.872_322_967_067_562_6e-21,
+        13_151_516.340_537_345,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }

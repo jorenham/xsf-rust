@@ -14,10 +14,10 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
-use crate::utils::MACHEP;
+use crate::utils::{MACHEP, pow2};
 use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
-use crate::xsf::hyp2f1_recur;
+use crate::xsf::{HYP2F1_RECUR_TOL, hyp2f1_recur};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
@@ -26,8 +26,8 @@ pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
 /// then its estimate is about 1/2 to 1.
 const HYP2F1_LOST: f64 = 0.5;
 const HYP2F1_MAXITER: u64 = 10000;
-/// 2^512 (about `sqrt(f64::MAX)`), to rescale tiny terms exactly, far from overflow and underflow
-const HYP2F1_SCALE: f64 = 1.340_780_792_994_259_7e154;
+/// About `sqrt(f64::MAX)`, to rescale tiny terms exactly, far from overflow and underflow
+const HYP2F1_SCALE: f64 = pow2(512);
 
 /// Whether `t` is a non-positive integer, up to `HYP2F1_EPS` (as in cephes)
 fn near_neg_int(t: f64) -> bool {
@@ -633,8 +633,6 @@ fn is_large(a: f64, b: f64, c: f64) -> bool {
 /// call are large (and not in the Pfaff transformation below for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
-    let mut neg_int_a = false;
-    let mut neg_int_b = false;
     let mut neg_int_ca_or_cb = false;
 
     let ax = x.abs();
@@ -666,15 +664,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         return result;
     }
 
-    if a <= 0.0 && (a - ia).abs() < HYP2F1_EPS {
-        /* a is a negative integer */
-        neg_int_a = true;
-    }
-
-    if b <= 0.0 && (b - ib).abs() < HYP2F1_EPS {
-        /* b is a negative integer */
-        neg_int_b = true;
-    }
+    let neg_int_a = near_neg_int(a);
+    let neg_int_b = near_neg_int(b);
 
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
@@ -682,6 +673,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // negative integer (the polynomial cases). The transformations below also use it, but only if
     // the parameters of the outermost call are large, so that the other results are unchanged.
     let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer());
+    // the result of `hyp2f1_recur` and its error bound, if that exceeds its tolerance
+    let mut inexact = None;
     if recur
         && is_large(a, b, c)
         && !near_neg_int(c)
@@ -689,7 +682,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             .into_iter()
             .any(near_poly)
     {
-        if let Some(y) = hyp2f1_recur(a, b, c, x) {
+        inexact = hyp2f1_recur(a, b, c, x);
+        if let Some((y, _)) = inexact.filter(|&(_, err)| err <= HYP2F1_RECUR_TOL) {
             return y;
         }
     }
@@ -925,6 +919,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         }
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
+
+        // Unlike in xsf, for a polynomial, the result of `hyp2f1_recur` instead if its error bound
+        // is below the estimate of `y`, or shows `y` to be less accurate.
+        let poly = neg_int_a || neg_int_b;
+        if let Some((alt, bound)) = inexact.filter(|&(_, e)| poly && e < HYP2F1_LOST) {
+            if !(err_full <= bound) || less_accurate(y, alt, bound) {
+                return alt;
+            }
+        }
 
         // hypdon:
         // Unlike in xsf (scipy/xsf#371), NaN instead of a finite `y` if its error estimates
