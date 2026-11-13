@@ -44,8 +44,9 @@ pub use orthogonal_eval::{
     eval_sh_legendre,
 };
 pub use orthogonal_roots::{
-    roots_chebyshev_t, roots_gegenbauer, roots_gengegenbauer, roots_genlaguerre, roots_hermite_h,
-    roots_hermite_he, roots_jacobi, roots_laguerre, roots_legendre, roots_sh_jacobi,
+    roots_chebyshev_c, roots_chebyshev_s, roots_chebyshev_t, roots_chebyshev_u, roots_gegenbauer,
+    roots_gengegenbauer, roots_genlaguerre, roots_hermite_h, roots_hermite_he, roots_jacobi,
+    roots_laguerre, roots_legendre, roots_sh_chebyshev_t, roots_sh_chebyshev_u, roots_sh_jacobi,
     roots_sh_legendre,
 };
 pub use perm::perm;

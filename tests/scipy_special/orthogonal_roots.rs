@@ -203,6 +203,32 @@ fn test_roots_gegenbauer_alpha_invalid() {
 }
 
 #[test]
+fn test_roots_chebyshev() {
+    let p = |k, x| xsf::eval_chebyshev_u(k, x);
+    assert_gauss(xsf::roots_chebyshev_u(25), p, PI / 2.0, 1e-14);
+    let p = |k, x| xsf::eval_chebyshev_c(k, x);
+    assert_gauss(xsf::roots_chebyshev_c(25), p, 2.0 * PI, 1e-14);
+    let p = |k, x| xsf::eval_chebyshev_s(k, x);
+    assert_gauss(xsf::roots_chebyshev_s(25), p, PI, 1e-14);
+    let p = |k, x| xsf::eval_sh_chebyshev_t(k, x);
+    assert_gauss(xsf::roots_sh_chebyshev_t(25), p, PI, 1e-14);
+    let p = |k, x| xsf::eval_sh_chebyshev_u(k, x);
+    assert_gauss(xsf::roots_sh_chebyshev_u(25), p, PI / 8.0, 1e-14);
+
+    // (1 + x) / 2 would cancel near 0 (Arb)
+    let (x, _) = xsf::roots_sh_chebyshev_t(2000);
+    np_assert_allclose!([x[0]], [1.542_125_608_398_492_6e-7], rtol = 1e-15);
+    let (x, _) = xsf::roots_sh_chebyshev_u(2000);
+    np_assert_allclose!([x[0]], [6.162_337_605_410_999e-7], rtol = 1e-15);
+
+    // U_3 = 8x^3 - 4x has the roots 0 and +-1/sqrt(2)
+    let (x, w) = xsf::roots_chebyshev_u(3);
+    let r = 0.5_f64.sqrt();
+    np_assert_allclose!(x, [-r, 0.0, r], rtol = 1e-15);
+    np_assert_allclose!(w, [PI / 8.0, PI / 4.0, PI / 8.0], rtol = 1e-15);
+}
+
+#[test]
 fn test_roots_laguerre() {
     for alpha in [-0.5, 0.1, 10.0, 50.0] {
         let p = |k, x| xsf::eval_genlaguerre(k, alpha, x);

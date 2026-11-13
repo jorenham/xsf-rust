@@ -416,6 +416,11 @@
 //! | [`roots_legendre`]       | $P_n$                   |
 //! | [`roots_sh_legendre`]    | $P_n^*$                 |
 //! | [`roots_chebyshev_t`]    | $T_n$                   |
+//! | [`roots_chebyshev_u`]    | $U_n$                   |
+//! | [`roots_chebyshev_c`]    | $C_n$                   |
+//! | [`roots_chebyshev_s`]    | $S_n$                   |
+//! | [`roots_sh_chebyshev_t`] | $T_n^*$                 |
+//! | [`roots_sh_chebyshev_u`] | $U_n^*$                 |
 //! | [`roots_gegenbauer`]     | $C_n^{(\alpha)}$        |
 //! | [`roots_genlaguerre`]    | $L_n^{(\alpha)}$        |
 //! | [`roots_laguerre`]       | $L_n$                   |

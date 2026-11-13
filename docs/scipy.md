@@ -64,10 +64,11 @@ of 353 functions whose algorithm isn't in xsf.
 | `roots_{jacobi,gegenbauer,legendre}`    | Python                 | same                       |
 | `roots_{laguerre,genlaguerre}`          | Python                 | same                       |
 | `roots_sh_legendre`                     | Python                 | same                       |
-| `roots_chebyt`                          | Python                 | `roots_chebyshev_t`        |
+| `roots_cheby{c,s,t,u}`                  | Python                 | `roots_chebyshev_*`        |
+| `roots_sh_cheby{t,u}`                   | Python                 | `roots_sh_chebyshev_*`     |
 | `roots_hermite`                         | Python                 | `roots_hermite_h`          |
 | `roots_hermitenorm`                     | Python                 | `roots_hermite_he`         |
 | `roots_sh_jacobi`                       | Python                 | `roots_gengegenbauer`      |
-| other `roots_*` and their aliases       | Python                 |                            |
+| aliases of `roots_*`, e.g. `p_roots`    | Python                 |                            |
 | orthogonal polynomial classes           | Python                 |                            |
 | `sinc`                                  | NumPy                  | same                       |

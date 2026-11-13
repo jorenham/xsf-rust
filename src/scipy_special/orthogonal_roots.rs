@@ -452,6 +452,130 @@ pub fn roots_chebyshev_t(n: usize) -> (Vec<f64>, Vec<f64>) {
     (x.collect(), vec![PI / m; n])
 }
 
+/// Gauss-Chebyshev (second kind) quadrature
+///
+/// Corresponds to [`scipy.special.roots_chebyu`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebyu.html
+///
+/// The nodes are the roots of the Chebyshev polynomial $U_n$, and the rule is exact for
+/// polynomials of degree $2n - 1$ with the weight function $\sqrt{1 - x^2}$ on $[-1, 1]$
+/// (A&S 22.2.5).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_chebyshev_u`](crate::eval_chebyshev_u): Evaluate Chebyshev polynomials of the second
+///   kind, $U_n$
+#[doc(alias = "roots_chebyu")]
+#[must_use]
+pub fn roots_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
+    check_n(n);
+    let m = n as f64 + 1.0;
+    // Unlike in SciPy, `cos(t)` and `sin(t)` with `t = pi k / (n + 1)` are `sinpi` of arguments in
+    // `[-1/2, 1/2]`, as in `roots_chebyshev_t`, which is more accurate near `t = 0` and `t = pi`.
+    let rule = (1..=n).rev().map(|k| {
+        let sin = crate::sinpi(k.min(n + 1 - k) as f64 / m);
+        (
+            crate::sinpi((m - 2.0 * k as f64) / (2.0 * m)),
+            PI * sin * sin / m,
+        )
+    });
+    rule.unzip()
+}
+
+/// Gauss-Chebyshev (first kind) quadrature on $[-2, 2]$
+///
+/// Corresponds to [`scipy.special.roots_chebyc`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebyc.html
+///
+/// The nodes are the roots of $C_n(x) = 2 T_n(x / 2)$, and the rule is exact for polynomials of
+/// degree $2n - 1$ with the weight function $1 / \sqrt{1 - (x/2)^2}$ on $[-2, 2]$ (A&S 22.2.6).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_chebyshev_c`](crate::eval_chebyshev_c): Evaluate $C_n$
+#[doc(alias = "roots_chebyc")]
+#[must_use]
+pub fn roots_chebyshev_c(n: usize) -> (Vec<f64>, Vec<f64>) {
+    scale(roots_chebyshev_t(n), 2.0)
+}
+
+/// Gauss-Chebyshev (second kind) quadrature on $[-2, 2]$
+///
+/// Corresponds to [`scipy.special.roots_chebys`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebys.html
+///
+/// The nodes are the roots of $S_n(x) = U_n(x / 2)$, and the rule is exact for polynomials of
+/// degree $2n - 1$ with the weight function $\sqrt{1 - (x/2)^2}$ on $[-2, 2]$ (A&S 22.2.7).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_chebyshev_s`](crate::eval_chebyshev_s): Evaluate $S_n$
+#[doc(alias = "roots_chebys")]
+#[must_use]
+pub fn roots_chebyshev_s(n: usize) -> (Vec<f64>, Vec<f64>) {
+    scale(roots_chebyshev_u(n), 2.0)
+}
+
+/// Gauss-Chebyshev (first kind, shifted) quadrature
+///
+/// Corresponds to [`scipy.special.roots_sh_chebyt`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_chebyt.html
+///
+/// The nodes are the roots of $T_n^*(x) = T_n(2x - 1)$, and the rule is exact for polynomials of
+/// degree $2n - 1$ with the weight function $1 / \sqrt{x - x^2}$ on $[0, 1]$ (A&S 22.2.8).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_sh_chebyshev_t`](crate::eval_sh_chebyshev_t): Evaluate $T_n^*$
+#[doc(alias = "roots_sh_chebyt")]
+#[must_use]
+pub fn roots_sh_chebyshev_t(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let (_, w) = roots_chebyshev_t(n);
+    let m = n as f64;
+    // Unlike in SciPy, the nodes are `sin(t / 2 + pi / 4)^2` instead of `(1 + sin(t)) / 2`, with
+    // `sin(t)` the nodes of `roots_chebyshev_t`, which cancels near 0.
+    let x = (0..n).map(|i| crate::sinpi((2.0 * i as f64 + 1.0) / (4.0 * m)).powi(2));
+    (x.collect(), w)
+}
+
+/// Gauss-Chebyshev (second kind, shifted) quadrature
+///
+/// Corresponds to [`scipy.special.roots_sh_chebyu`][docs].
+///
+/// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_chebyu.html
+///
+/// The nodes are the roots of $U_n^*(x) = U_n(2x - 1)$, and the rule is exact for polynomials of
+/// degree $2n - 1$ with the weight function $\sqrt{x - x^2}$ on $[0, 1]$ (A&S 22.2.9).
+///
+/// # Panics
+/// - if `n` is zero
+///
+/// # See also
+/// - [`eval_sh_chebyshev_u`](crate::eval_sh_chebyshev_u): Evaluate $U_n^*$
+#[doc(alias = "roots_sh_chebyu")]
+#[must_use]
+pub fn roots_sh_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let (_, w) = roots_chebyshev_u(n);
+    let m = n as f64 + 1.0;
+    // Unlike in SciPy, the nodes are `cos(t / 2)^2` instead of `(1 + cos(t)) / 2`, with `cos(t)`
+    // the nodes of `roots_chebyshev_u`, which cancels near 0.
+    let x = (1..=n).map(|k| crate::sinpi(k as f64 / (2.0 * m)).powi(2));
+    // the weights sum to `B(3/2, 3/2) = pi/8` instead of `pi/2`
+    (x.collect(), w.into_iter().map(|wi| wi / 4.0).collect())
+}
+
 /// Gauss-generalized Laguerre quadrature
 ///
 /// Corresponds to [`scipy.special.roots_genlaguerre`][docs].
