@@ -20,8 +20,9 @@ fn is_small_nonpos_int(x: f64) -> bool {
 pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
     let mut r = 1.0;
 
+    let finite = a.is_finite() && m.is_finite();
     // Unlike in xsf (scipy/xsf#357), the poles are those of the exact a + m, of any size
-    if a.is_finite() && m.is_finite() {
+    if finite {
         let (s, e) = two_sum(a, m);
         let sum_pole = is_nonpos_int(s) && e.fract() == 0.0;
         if is_nonpos_int(a) != sum_pole {
@@ -35,6 +36,10 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
             }
             let sgn = if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
             return sgn * poch((1.0 - s) - e, m);
+        }
+        if m <= -BIG && a + m < 0.0 {
+            // Gamma(a + m) underflows, with the sign of sin(pi (a + m)) = sin(pi a)
+            return 0.0_f64.copysign(cephes_sinpi(a) * gammasgn(a));
         }
     }
 
@@ -76,6 +81,12 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
      * Now either `m` is not big, or the `r` product has over/underflown.
      * If so, the function itself does similarly.
      */
+
+    // Unlike in xsf, `r` is the result if it over- or underflows for a, a + m >= 1, where
+    // Gamma(a + m) / Gamma(a) can't undo that, instead of NaN if lgam(a) overflows
+    if finite && (r == 0.0 || r.is_infinite()) && a >= 1.0 && a + m >= 1.0 {
+        return r;
+    }
 
     if m == 0.0 {
         /* Easy case */
