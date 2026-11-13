@@ -21,3 +21,52 @@ fn test_log_wright_bessel_near_zero() {
         );
     }
 }
+
+#[test]
+fn test_wright_bessel_large_a() {
+    // unlike in xsf, the terms around the maximum term account for b (Arb)
+    let actual = xsf::wright_bessel(5.0, 100.0, 1e12);
+    let expected = 4.066_520_826_827_190_5e-147; // was 3.3e-2 off
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-13);
+    let abx = [(5.0, 100.0, 1e12), (5.0, 100.0, 1e20), (177.0, 177.0, 2.5)];
+    let actual = abx.map(|(a, b, x)| xsf::log_wright_bessel(a, b, x));
+    let expected = [
+        -337.077_220_869_952_3,  // was 9.9e-5 off
+        2_588.247_122_998_684_5, // was 1.2e-6 off
+        -737.509_837_141_777_4,  // was 3.5e-7 off
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_wright_bessel_huge_x() {
+    // unlike in xsf, no `int` overflow of k_max = 2147367898 and 2.3e9 (Arb)
+    let actual = [3.064e59, 1e60].map(|x| xsf::log_wright_bessel(5.0, 0.0, x));
+    let expected = [
+        12_884_207_403.503_17,  // was -inf
+        15_691_925_841.974_194, // was -inf
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    assert_eq!(xsf::wright_bessel(5.0, 0.0, 3.064e59), f64::INFINITY);
+    assert_eq!(xsf::wright_bessel(5.0, 0.0, 1e60), f64::INFINITY);
+}
+
+#[test]
+fn test_wright_bessel_peak() {
+    // unlike in xsf, the terms around the maximum term instead of the integral (Arb)
+    let abx = [(0.5, 100.0, 1e3), (1.0, 100.0, 1e5)];
+    let actual = abx.map(|(a, b, x)| xsf::wright_bessel(a, b, x));
+    let expected = [
+        3.411_236_758_044_524_3e-117, // was 5.1e-8 off
+        1.026_933_459_623_076_3e22,   // was NaN
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+    let abx = [(0.001, 100.0, 1e5), (0.001, 50.0, 1e5), (1.0, 100.0, 1e5)];
+    let actual = abx.map(|(a, b, x)| xsf::log_wright_bessel(a, b, x));
+    let expected = [
+        99_143.465_191_656_53, // was NaN
+        99_401.240_922_855_65, // was 4.4e-4 off
+        50.683_449_183_697,    // was NaN
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}

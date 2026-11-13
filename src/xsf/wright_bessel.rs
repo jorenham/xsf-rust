@@ -16,10 +16,6 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 //!
-//! In `wb_large_a`, the `int` arithmetic on `k_max` overflows for huge `x` (e.g. `x > 3e59` for
-//! `a = 5`), which is undefined behavior in C++. Like the C++ (on x86-64), it wraps around here,
-//! so that `wright_bessel` returns `0` and `log_wright_bessel` returns `-inf` in that case.
-//!
 //! Note that our `lanczos_sum_expg_scaled` uses fused multiply-adds, so `exp_rgamma` (and therefore
 //! `wright_bessel` for `a == 0` or tiny `a`) can differ from xsf in the last bits.
 
@@ -79,7 +75,7 @@ fn wb_series(a: f64, b: f64, x: f64, nstart: u32, mut nstop: u32) -> f64 {
     res
 }
 
-fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
+fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     /* 2. Taylor series expansion in x=0, for large a.
      *
      * Phi(a, b, x) = sum_k x^k / k! / Gamma(a*k + b)
@@ -87,26 +83,46 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64, n: i32) -> f64 {
      * Use Stirling's formula to find k=k_max, the maximum term.
      * Then use n terms of Taylor series around k_max.
      */
-    let k_max = (a.powf(-a) * x).powf(1.0 / (1.0 + a)) as i32;
-
-    let mut nstart = k_max.wrapping_sub(n / 2);
-    if nstart < 0 {
-        nstart = 0;
+    // Unlike in xsf, k_max accounts for b, and n (from the caller in xsf) for the spread of the
+    // terms: k_max solves ln(k) + a*ln(a*k + b) = ln(x), by Newton's method in ln(k) from xsf's
+    // root for b = 0, and n spans k_max +- 10 sigma, with 1/sigma^2 = 1/k + a^2/(a*k + b).
+    let lnx = x.ln();
+    let mut ln_k = (lnx - a * a.ln()) / (1.0 + a);
+    let mut sigma = 0.0;
+    for _ in 0..3 {
+        let k = ln_k.exp();
+        let y = a * k + b;
+        let dh = 1.0 + a * a * k / y;
+        ln_k += (lnx - ln_k - a * y.ln()) / dh;
+        sigma = (k / dh).sqrt();
     }
+    let k = ln_k.exp();
+    let ln_term = |k: f64| k * lnx - lgam(k + 1.0) - lgam(a * k + b);
+    // Unlike in xsf, where the `int` k_max overflows, Laplace's method for k_max >= 2^31: the sum
+    // is exp(ln_term(k_max)) * sqrt(2 pi) * sigma up to a factor 1 + O(1/k_max), which the log
+    // cannot resolve, and `wright_bessel` overflows.
+    if k >= 2_f64.powi(31) {
+        let res = ln_term(k) + (TAU.sqrt() * sigma).ln();
+        return if LOG_WB { res } else { res.exp() };
+    }
+    let k_max = k as u32;
+    let n = (20.0 * sigma + 10.0) as u32;
+    let nstart = k_max.saturating_sub(n / 2);
 
     let mut lead = 0.0;
     let mut res = 0.0;
-    let lnx = x.ln();
     // For numerical stability, we factor out the maximum term exp(..) with k=k_max
     // but only if it is larger than 0.
-    let max_exponent = 0.0_f64.max(
-        f64::from(k_max) * lnx
-            - lgam(f64::from(k_max.wrapping_add(1)))
-            - lgam(a * f64::from(k_max) + b),
-    );
-    for k in nstart..nstart.wrapping_add(n) {
-        let kf = f64::from(k);
-        let term = (kf * lnx - lgam(kf + 1.0) - lgam(a * kf + b) - max_exponent).exp();
+    // Unlike in xsf, the maximum of k_max and k_max + 1, and for the log also if below 0,
+    // against subnormal terms.
+    let max_exponent = ln_term(f64::from(k_max)).max(ln_term(f64::from(k_max + 1)));
+    let max_exponent = if LOG_WB {
+        max_exponent
+    } else {
+        max_exponent.max(0.0)
+    };
+    for k in nstart..nstart + n {
+        let term = (ln_term(f64::from(k)) - max_exponent).exp();
         // Unlike in xsf, the log keeps the first term apart, for `ln_add`
         if LOG_WB && k == nstart {
             lead = term;
@@ -1235,27 +1251,11 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
         return wb_series(a, b, x, 0, nstop);
     }
     if a >= 5.0 {
-        /* Taylor series around the approximate maximum term.
-         * Set number of terms=order. */
-        let order;
-        if a >= 10.0 {
-            if x <= 1e11 {
-                order = 6;
-            } else {
-                order = (x.log10() - 5.0 + b / 10.0).min(30.0) as i32;
-            }
-        } else if x <= 1e4 {
-            order = 6;
-        } else if x <= 1e8 {
-            order = (2.0 * x.log10()) as i32;
-        } else if x <= 1e10 {
-            order = (4.0 * x.log10() - 16.0) as i32;
-        } else {
-            order = (6.0 * x.log10() - 36.0).min(100.0) as i32;
-        }
-        return wb_large_a::<LOG_WB>(a, b, x, order);
+        // Taylor series around the approximate maximum term.
+        return wb_large_a::<LOG_WB>(a, b, x);
     }
-    if (a * x).powf(1.0 / (1. + a)) >= 14.0 + b * b / (2.0 * (1.0 + a)) {
+    let Z = (a * x).powf(1.0 / (1. + a));
+    if Z >= 14.0 + b * b / (2.0 * (1.0 + a)) {
         /* Asymptotic expansion in Z = (a*x)^(1/(1+a)) up to 8th term 1/Z^8.
          * For 1/Z^k, the highest term in b is b^(2*k) * a0 / (2^k k! (1+a)^k).
          * As a0 is a common factor to all orders, this explains a bit the
@@ -1264,10 +1264,11 @@ fn wright_bessel_t<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
          * Note: We ensured a <= 5 as this is a bad approximation for large a. */
         return wb_asymptotic::<LOG_WB>(a, b, x);
     }
-    if (0.5..=1.8).contains(&a) && 100.0 <= b && 1e5 <= x {
-        // This is a very hard domain. This condition is placed after wb_asymptotic.
-        // TODO: Explore ways to cover this domain.
-        return f64::NAN;
+    // Unlike in xsf, the series around the maximum term where the integral loses accuracy (large
+    // b, or large Z and x), with about 20 sqrt(k_max) <= 20 sqrt(Z / a) terms. This includes
+    // xsf's NaN domain a in [0.5, 1.8], b >= 100, x >= 1e5.
+    if (b >= 80.0 || (Z >= 10.0 && x >= 200.0)) && Z / a <= 1e8 {
+        return wb_large_a::<LOG_WB>(a, b, x);
     }
     wright_bessel_integral::<LOG_WB>(a, b, x)
 }
