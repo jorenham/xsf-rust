@@ -1,5 +1,5 @@
 //! Spheroidal wave functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@65d313a).
+//! (scipy/xsf@370171f).
 
 use core::f64::consts::PI;
 
@@ -249,8 +249,6 @@ fn gmn(m: i32, n: i32, c: f64, x: f64, bk: &[f64], gf: &mut f64, gd: &mut f64) {
                 * bk[(k - 1) as usize]
                 * x.powf(2.0 * f64::from(k) - 2.0);
         } else {
-            // Unlike in xsf (scipy/xsf#342), `bk[k]` (as `BK(K+1)` in the Fortran original),
-            // instead of `bk[k - 1]`
             gd0 += 2.0 * f64::from(k) * bk[k as usize] * x.powf(2.0 * f64::from(k) - 1.0);
         }
         if (((gd0 - gw) / gd0).abs() < eps) && (k >= 10) {
@@ -437,8 +435,6 @@ fn qstar(m: i32, n: i32, c: f64, ck1: f64, ck: &[f64], qs: &mut f64, qt: &mut f6
     //              An internal memory allocation failed.
     // ==========================================================
 
-    // NOTE: uninitialized (`new T[200]`) in C++; the only element that can be read before being
-    // written is ap[-1] (for m == 0, see below).
     let Some(mut ap) = try_zeroed(200) else {
         return Status::NoMemory;
     };
@@ -459,8 +455,6 @@ fn qstar(m: i32, n: i32, c: f64, ck1: f64, ck: &[f64], qs: &mut f64, qt: &mut f6
         }
         ap[i as usize] = -r * s;
     }
-    // Unlike in xsf (scipy/xsf#342), `ap[m]` and `l <= m` (as `QS0=AP(M+1)` and `DO 30 L=1,M` in
-    // the Fortran original), instead of `ap[m - 1]` and `l < m`
     let mut qs0 = ap[m as usize];
 
     for l in 1..=m {
