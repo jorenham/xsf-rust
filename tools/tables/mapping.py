@@ -148,6 +148,18 @@ def _gamma_pole(a: tuple[float, ...]) -> bool:
     return all(poles) or any(poles) and not _sum_nonpos_int(a)
 
 
+def _sums_exact(
+    f: Callable[[flint.arb, flint.arb], flint.arb],
+) -> Callable[[flint.arb, flint.arb], flint.arb]:
+    """`f` with the bits that make sums of its arguments exact, even of very different size."""
+
+    def arb(a: flint.arb, b: flint.arb) -> flint.arb:
+        with flint.ctx.extraprec(2 * max(abs(math.frexp(float(x))[1]) for x in (a, b))):
+            return f(a, b)
+
+    return arb
+
+
 def _gamma_ratio(a: flint.arb, m: flint.arb) -> flint.arb:
     """Gamma(a + m) / Gamma(a), also where both are poles, by reflection (DLMF 5.5.3)."""
     s = a + m
@@ -156,17 +168,36 @@ def _gamma_ratio(a: flint.arb, m: flint.arb) -> flint.arb:
     return s.gamma() * a.rgamma()
 
 
+@_sums_exact
 def _beta_arb(a: flint.arb, b: flint.arb) -> flint.arb:
-    """Gamma(a) Gamma(b) / Gamma(a + b), with the first factor that is not a pole in front,
-    and the bits that make a + b exact, even for very different sizes."""
+    """Gamma(a) Gamma(b) / Gamma(a + b), with the first factor that is not a pole in front."""
     if a.is_integer() and a <= 0:
         a, b = b, a
-    with flint.ctx.extraprec(2 * max(abs(math.frexp(float(x))[1]) for x in (a, b))):
-        return a.gamma() * _gamma_ratio(a + b, -a)
+    return a.gamma() * _gamma_ratio(a + b, -a)
 
 
 def _betaln_arb(a: flint.arb, b: flint.arb) -> flint.arb:
     return abs(_beta_arb(a, b)).log()
+
+
+@_sums_exact
+def _binom_arb(n: flint.arb, k: flint.arb) -> flint.arb:
+    return (k + 1).rgamma() * _gamma_ratio(n + 1 - k, k)
+
+
+BETA_POLES: Final = (
+    Rule(
+        lambda a: all(map(_nonpos_int, a)) and a[1] % 2 == 0,
+        math.inf,
+        "both arguments are poles, and xsf returns (-1)^b inf",
+    ),
+    Rule(
+        lambda a: all(map(_nonpos_int, a)) and a[1] % 2 == 1,
+        -math.inf,
+        "both arguments are poles, and xsf returns (-1)^b inf",
+    ),
+    Rule(_gamma_pole, math.inf, "a pole whose one-sided limits have opposite signs"),
+)
 
 
 # the Lanczos approximation (g = 6.024680040776729583740234375) of Gamma, scaled by exp(g): the
@@ -203,17 +234,299 @@ LANCZOS_DENOM: Final = (
 )
 
 
+# `MAXGAM` of src/utils.rs, above which Gamma overflows, `MAXLGM` of gamma.rs, above which
+# lgam does, and `BETA_ASYMP_FACTOR` of beta.rs
+MAXGAM: Final = 171.6243769563027
+MAXLGM: Final = 2.556348e305
+ASYMP_FACTOR: Final = 1e6
+
+
 SMALL_B: Final = (
     "for |b| < 1 and a > 4, xsf-rust computes ln Gamma(a) - ln Gamma(a + b) with lgam_ratio "
     "(scipy/xsf#357), which avoids the rounding error of a + b that xsf amplifies"
 )
+STIRLING: Final = (
+    "for a, b > 0 and a + b > 171.6, xsf-rust uses Stirling's formula instead of "
+    "ln Gamma(a) + ln Gamma(b) - ln Gamma(a + b) (scipy/xsf#357), and so rounds differently"
+)
+
+
+def _by_size(args: tuple[float, ...]) -> tuple[float, float]:
+    """The arguments of `beta` and `lbeta`, the larger |a| first."""
+    a, b = sorted(args, key=abs, reverse=True)
+    return a, b
+
+
+def _asymptotic(a: float, b: float) -> bool:
+    """Whether `lbeta_asymp` applies."""
+    return a > ASYMP_FACTOR * abs(b) and a > ASYMP_FACTOR
+
+
+def _small_b_beta(args: tuple[float, ...]) -> bool:
+    """Whether `beta` takes the `small_b` path: |b| < 1 and a > 4 for the larger |a|."""
+    a, b = _by_size(args)
+    return abs(b) < 1 and 4 < a < math.inf
 
 
 def _small_b(args: tuple[float, ...]) -> bool:
-    """Whether `lbeta` takes the `small_b` path: |b| < 1 and a > 4 for the larger |a|, not
-    the asymptotic expansion first."""
-    a, b = sorted(args, key=abs, reverse=True)
-    return abs(b) < 1 and 4 < a < math.inf and not (a > 1e6 * abs(b) and a > 1e6)
+    """Whether `lbeta` takes the `small_b` path, which the asymptotic expansion precedes."""
+    return _small_b_beta(args) and not _asymptotic(*_by_size(args))
+
+
+def _stirling(args: tuple[float, ...]) -> bool:
+    """Whether `beta` takes the Stirling branch of `lbeta_ratio`: a, b > 0, b >= a / 8, and
+    a + b > MAXGAM, after `small_b` and the asymptotic expansion."""
+    a, b = _by_size(args)
+    return (
+        b > 0
+        and b >= a / 8
+        and a + b > MAXGAM
+        and not _small_b_beta(args)
+        and not _asymptotic(a, b)
+    )
+
+
+def _beta_huge_negint(args: tuple[float, ...]) -> bool:
+    """Whether xsf's `beta` takes an integer below -2^31 as a pole, which does not fit in an
+    `int`, although the limit is finite: for the first argument that is a non-positive integer
+    (xsf checks a before b), and the other one an integer 0 < y <= -x."""
+    a, b = args
+    x, y = (a, b) if _nonpos_int(a) else (b, a)
+    return _nonpos_int(x) and x < -(2.0**31) and y.is_integer() and 0 < y <= -x
+
+
+def _no_pole(args: tuple[float, ...]) -> bool:
+    return not any(map(_nonpos_int, args))
+
+
+def _beta_float_sum_pole(args: tuple[float, ...]) -> bool:
+    """Whether the rounded a + b is a pole of Gamma, but their exact sum is not, and neither
+    a nor b is (xsf then has 1 / Gamma(a + b) = 0, or ln Gamma(a + b) = inf)."""
+    return (
+        _no_pole(args) and _nonpos_int(args[0] + args[1]) and not _sum_nonpos_int(args)
+    )
+
+
+BETA_OVERRIDES: Final = (
+    Override(
+        _beta_huge_negint,
+        "xsf takes the integers below -2^31, which do not fit in an `int`, as poles "
+        "(scipy/xsf#338)",
+    ),
+    Override(
+        lambda a: _stirling(a) and max(a) > MAXLGM,
+        "xsf has ln Gamma(a) = inf and ln Gamma(a + b) = inf for the larger a > 2.6e305, and "
+        "so NaN (scipy/xsf#357)",
+    ),
+    Override(
+        _beta_float_sum_pole,
+        "xsf takes a + b as a pole where only its rounded value is one (scipy/xsf#357)",
+    ),
+)
+BETA_FLOORS: Final = (
+    Floor(_small_b_beta, 5e-16, SMALL_B),
+    Floor(_stirling, 8e-15, STIRLING),
+)
+
+
+def _binom_kx(args: tuple[float, ...]) -> float | None:
+    """The `kx` of the integer k case of `binom`, after the symmetry for an integer n > 0."""
+    n, k = args
+    if not (math.isfinite(k) and k.is_integer() and (abs(n) > 1e-8 or n == 0)):
+        return None
+    return n - k if n.is_integer() and n > 0 and k > n / 2 else k
+
+
+def _binom_late(args: tuple[float, ...]) -> bool:
+    """Whether `binom` gets past the integer k (kx < 20), `n >= 1e10 k`, `k > 1e8 |n|`, and
+    `|k| > 2e4` branches, to the evaluation with `a = 1 + n - k`."""
+    n, k = args
+    kx = _binom_kx(args)
+    return not (
+        (kx is not None and kx < 20)
+        or (n >= 1e10 * k and k > 0)
+        or k > 1e8 * abs(n)
+        or (math.isfinite(k) and abs(k) > 2e4 and abs(n) < 170)
+    )
+
+
+def _binom_reflects(args: tuple[float, ...]) -> bool:
+    """Whether `binom` reflects Gamma(1 + n) and Gamma(1 + n - k), for a < 0 and a fractional n."""
+    n, k = args
+    return _binom_late(args) and 1 + n - k < 0 and n % 1 != 0
+
+
+def _binom_beta(args: tuple[float, ...]) -> tuple[float, float] | None:
+    """The arguments of the `beta` at the end of `binom`, if it gets there."""
+    n, k = args
+    return (
+        (1 + n - k, 1 + k) if _binom_late(args) and not _binom_reflects(args) else None
+    )
+
+
+def _in_beta(pred: Pred) -> Pred:
+    """`pred` of the arguments of the `beta` at the end of `binom`."""
+
+    def when(args: tuple[float, ...]) -> bool:
+        ab = _binom_beta(args)
+        return ab is not None and pred(ab)
+
+    return when
+
+
+def _binom_big_zero(args: tuple[float, ...]) -> bool:
+    """Whether xsf's `binom` gets NaN where `kx < 0` after the symmetry: k > 1e8 |n| takes its
+    expansion, where Gamma(1 + n) = inf for 1 + n > MAXGAM times sinpi(...) = 0 is NaN."""
+    n, k = args
+    kx = _binom_kx(args)
+    return kx is not None and kx < 0 and k > 1e8 * abs(n) and 1 + n > MAXGAM
+
+
+def _reflects_pole(args: tuple[float, ...]) -> bool:
+    """Whether `binom` reflects, where xsf's `beta(a, 1 + k)` gets a = 1 + n - k that is a pole
+    of Gamma only after rounding (1 + k is not a pole)."""
+    n, k = args
+    exact = Fraction(n) + 1 - Fraction(k)
+    return (
+        _binom_reflects(args)
+        and _nonpos_int(1 + n - k)
+        and not _nonpos_int(1 + k)
+        and exact.denominator != 1
+    )
+
+
+def _xsf_gamma_mag(x: float) -> float:
+    """|Gamma(x)| of xsf for -MAXGAM < x < -33, from the reflection formula and Stirling's."""
+    q = -x
+    z = q - math.floor(q)
+    z = min(z, 1 - z)
+    return math.pi / abs(q * math.sin(math.pi * z) * math.gamma(q))
+
+
+def _reflects_underflow(args: tuple[float, ...]) -> bool:
+    """Whether `binom` reflects, where xsf's `beta(a, 1 + k)` evaluates Gamma(a) (|a|, |1 + k|,
+    |a + 1 + k| <= MAXGAM) for a = 1 + n - k < -33, which is a subnormal with fewer than 26 bits
+    (< 2^-1049), so that its relative error exceeds 2^-26."""
+    n, k = args
+    a, b = 1 + n - k, 1 + k
+    return (
+        _binom_reflects(args)
+        and -MAXGAM < a < -33
+        and abs(a + b) <= MAXGAM
+        and abs(b) <= MAXGAM
+        and _xsf_gamma_mag(a) < 2.0**-1049
+    )
+
+
+BINOM_OVERRIDES: Final = (
+    Override(
+        _binom_big_zero,
+        "xsf has Gamma(1 + n) = inf for 1 + n > 171.6 in its expansion for k > 1e8 |n|, and so "
+        "NaN where the result is 0",
+    ),
+    Override(
+        _reflects_pole,
+        "xsf takes 1 + n - k as a pole where only its rounded value is one, and so returns 0 "
+        "(scipy/xsf#352)",
+    ),
+    Override(
+        _reflects_underflow,
+        "xsf has Gamma(1 + n - k) as a subnormal with fewer than 26 bits, or 0, for "
+        "-171.6 < 1 + n - k < -33 (scipy/xsf#352)",
+    ),
+)
+BINOM_FLOORS: Final = (
+    Floor(
+        _binom_reflects,
+        2e-14,
+        "xsf-rust reflects Gamma(1 + n) and Gamma(1 + n - k) for 1 + n - k < 0 and a fractional "
+        "n (scipy/xsf#352), and so rounds differently",
+    ),
+    Floor(_in_beta(_stirling), 2e-14, STIRLING),
+    Floor(_in_beta(_small_b_beta), 3e-16, SMALL_B),
+)
+
+
+def _xsf_poch_loops(a: float, m: float) -> tuple[float, float] | None:
+    """The `r` and the reduced `m` of the loops of xsf's `poch`, or None if they take > 100 steps
+    (so that r is still finite and nonzero)."""
+    r = 1.0
+    for _ in range(100):
+        if m >= 1 and a + m != 1:
+            m -= 1
+            r *= a + m
+        elif m <= -1 and a + m != 0:
+            r /= a + m
+            m += 1
+        else:
+            return r, m
+        if not math.isfinite(r) or r == 0:
+            return r, m
+    return None
+
+
+def _xsf_pole(x: float) -> bool:
+    """`is_nonpos_int` of xsf's `poch`, which is false for |x| >= 1e13."""
+    return _nonpos_int(x) and abs(x) < 1e13
+
+
+def _poch_final_nan(args: tuple[float, ...]) -> str | None:
+    """How the last line of xsf's `poch`, `r * exp(lgam(a + m) - lgam(a)) * gammasgn(a + m) *
+    gammasgn(a)` with the reduced m of its loops, is NaN: "pole" for `gammasgn` at a pole (a or
+    a + m is a negative integer, both below 1e13 or one of them not), "lgam" for r = 0 or inf
+    times exp(+-inf) or 0, or inf - inf (lgam is inf for x > 2.6e305), else None."""
+    a, m = args
+    if not all(map(math.isfinite, args)) or (loops := _xsf_poch_loops(a, m)) is None:
+        return None
+    r, m = loops
+    s = a + m
+    if m == 0 or (a > 1e4 and abs(m) <= 1):
+        return None
+    if _xsf_pole(s) and not _xsf_pole(a) and s != m:
+        return None
+    if _xsf_pole(a) and not _xsf_pole(s):
+        return None
+    if (a < 0 and a.is_integer()) or (s < 0 and s.is_integer()):
+        return "pole"
+    inf_s, inf_a = s > MAXLGM, a > MAXLGM
+    if (inf_s and inf_a) or (r == 0 and inf_s) or (math.isinf(r) and inf_a):
+        return "lgam"
+    return None
+
+
+def _poch_float_sum_pole(args: tuple[float, ...]) -> bool:
+    """Whether xsf's `poch` returns inf from a rounded a + m' that is a pole (a is not) for the
+    reduced m' of its loops, but the exact a + m is not a pole."""
+    a, m = args
+    if not all(map(math.isfinite, args)) or (loops := _xsf_poch_loops(a, m)) is None:
+        return False
+    s = a + loops[1]
+    return (
+        loops[1] != 0
+        and not (a > 1e4 and abs(loops[1]) <= 1)
+        and _xsf_pole(s)
+        and not _xsf_pole(a)
+        and s != loops[1]
+        and not _sum_nonpos_int(args)
+    )
+
+
+POCH_OVERRIDES: Final = (
+    Override(
+        lambda a: _poch_final_nan(a) == "pole",
+        "xsf has gammasgn(x) = NaN for a negative integer x = a or a + m (after the reduction "
+        "of m), where the exact values need not be poles (scipy/xsf#357)",
+    ),
+    Override(
+        lambda a: _poch_final_nan(a) == "lgam",
+        "xsf has NaN from inf - inf in lgam(a + m) - lgam(a), or from r = 0 or inf (its loops "
+        "stopped on an under- or overflow) times exp(+-inf) (scipy/xsf#357)",
+    ),
+    Override(
+        _poch_float_sum_pole,
+        "xsf takes a + m as a pole where only its rounded value is one (scipy/xsf#357)",
+    ),
+)
 
 
 def _lanczos[T: (mp.mpf, flint.arb)](x: T) -> T:
@@ -1488,6 +1801,56 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
         )
     ),
     ("lgam1p", "d-d"): Entry((Out("lgam1p", (_lgam1p,), (_lgam1p_arb,)),)),
+    ("beta", "d_d-d"): Entry(
+        (
+            Out(
+                "beta",
+                (specs.r_beta,),
+                (_beta_arb,),
+                (NAN, *BETA_POLES),
+                BETA_OVERRIDES,
+                BETA_FLOORS,
+            ),
+        )
+    ),
+    ("binom", "d_d-d"): Entry(
+        (
+            Out(
+                "binom",
+                (specs.r_binom,),
+                (_binom_arb,),
+                (
+                    NAN,
+                    Rule(
+                        lambda a: a[0] < 0 and a[0].is_integer(),
+                        math.nan,
+                        "xsf leaves binom(n, k) undefined for a negative integer n",
+                    ),
+                ),
+                BINOM_OVERRIDES,
+                BINOM_FLOORS,
+            ),
+        )
+    ),
+    ("poch", "d_d-d"): _real(
+        "pow_rising",
+        specs.r_poch,
+        _sums_exact(_gamma_ratio),
+        (
+            NAN,
+            Rule(
+                lambda a: _nonpos_int(a[0]) and not _sum_nonpos_int(a),
+                0.0,
+                "1 / Gamma(a) = 0 at a pole of Gamma(a) that Gamma(a + m) does not share",
+            ),
+            Rule(
+                lambda a: _sum_nonpos_int(a) and not _nonpos_int(a[0]),
+                math.inf,
+                "a pole whose one-sided limits have opposite signs",
+            ),
+        ),
+        POCH_OVERRIDES,
+    ),
     ("betaln", "d_d-d"): Entry(
         (
             Out(
