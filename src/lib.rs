@@ -5,9 +5,9 @@
 //! [`scipy.special` documentation](https://docs.scipy.org/doc/scipy/reference/special.html)
 //! for additional information.
 //!
-//! [`ACCURACY.md`](https://github.com/jorenham/xsf-rust/blob/master/ACCURACY.md) compares the
-//! accuracy of many of these functions with that of xsf and, where available, the Rust standard
-//! library.
+//! [`docs/accuracy.md`](https://github.com/jorenham/xsf-rust/blob/master/docs/accuracy.md)
+//! compares the accuracy of many of these functions with that of xsf and, where available, the Rust
+//! standard library.
 //!
 //! # Airy functions
 //!

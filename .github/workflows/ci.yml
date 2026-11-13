@@ -127,7 +127,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         profile: [dev]
         include:
-          # ACCURACY.md is measured in release, and some results differ from debug builds
+          # docs/accuracy.md is measured in release, and some results differ from debug builds
           - os: ubuntu-latest
             profile: release
 
