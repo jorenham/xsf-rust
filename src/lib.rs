@@ -163,6 +163,14 @@
 //! | [`fdtri`]    | Inverse of [`fdtr`]                                    |
 //! | [`fdtridfd`] | Inverse of [`fdtr(a, b, x)`](fdtr) with respect to `b` |
 //!
+//! ## Noncentral F distribution
+//!
+//! | Function       | Description                              |
+//! | -------------- | ---------------------------------------- |
+//! | [`ncfdtridfd`] | Inverse of the CDF with respect to `dfd` |
+//! | [`ncfdtridfn`] | Inverse of the CDF with respect to `dfn` |
+//! | [`ncfdtrinc`]  | Inverse of the CDF with respect to `nc`  |
+//!
 //! ## Gamma distribution
 //!
 //! | Function   | Description                                            |

@@ -500,21 +500,13 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done incbet_basym(a, b, lambda);
         }
 
-        /* Choose expansion for better convergence. */
-        let mut y = x * (a + b - 2.0) - (a - 1.0);
-        // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
-        // amplifies the rounding error of `x` by ~`a / |a xc - b|`.
-        let w = if y < 0.0 && x <= 0.95 {
-            incbcf(a, b, x)
-        } else {
-            incbd(a, b, x, xc) / xc
-        };
+        let w = incbet_cf_factor(a, b, x, xc);
 
         /* Multiply w by the factor
          * a      b   _             _     _
          * x  (1-x)   | (a+b) / ( a | (a) | (b) ) .   */
 
-        y = a * x.ln();
+        let mut y = a * x.ln();
         let mut t = b * xc.ln();
         if (a + b) < MAXGAM && y.abs() < MAXLOG && t.abs() < MAXLOG {
             t = xc.powf(b);
@@ -546,6 +538,19 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
     // Unlike in xsf, `1 - t` is not clamped to `1 - MACHEP` if `t <= MACHEP`, so that `incbi` can
     // tell `x` far past the root of `I_x(a, b) = 1 - MACHEP` from the root.
     if flag { 1.0 - t } else { t }
+}
+
+/// `I_x(a, b) a B(a, b) / (x^a y^b)`, i.e. `2F1(a + b, 1; a + 1; x)` (DLMF 8.17.8), with
+/// `y = 1 - x`, by the continued fractions of `incbet_xy`, for `x` below the mean `a / (a + b)`
+pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    /* Choose expansion for better convergence. */
+    // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
+    // amplifies the rounding error of `x` by ~`a / |a y - b|`.
+    if x * (a + b - 2.0) - (a - 1.0) < 0.0 && x <= 0.95 {
+        incbcf(a, b, x)
+    } else {
+        incbd(a, b, x, y) / y
+    }
 }
 
 /// Regularized incomplete Beta function $\I_x(a,b)$

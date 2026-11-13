@@ -71,7 +71,7 @@ pub(crate) use gdtr::{gdtr, gdtrc};
 pub(crate) use hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1, hyp2f1};
 pub(crate) use i0::{i0, i0e};
 pub(crate) use i1::{i1, i1e};
-pub(crate) use igam::{igam, igamc};
+pub(crate) use igam::{igam, igam_fac, igamc};
 pub(crate) use igami::{igamci, igami};
 pub use incbet::*;
 pub use incbi::*;

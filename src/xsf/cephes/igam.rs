@@ -90,7 +90,7 @@ const IGAM_ASYMP_COEFF_D: [[f64; IGAM_ASYMP_COEFF_N]; IGAM_ASYMP_COEFF_K] = [
 ///
 /// corrected from (15) and (16) in \[2\] by replacing exp(x - a) with
 /// exp(a - x).
-pub(super) fn igam_fac(a: f64, x: f64) -> f64 {
+pub(crate) fn igam_fac(a: f64, x: f64) -> f64 {
     // Unlike in xsf (scipy/scipy#26535), the Lanczos form is also used for a > IGAM_LARGE, where
     // `a ln(x)` and `lgam(a)` cancel, losing ~a ln(a) eps.
     if (a - x).abs() > 0.4 * a.abs() && a <= IGAM_LARGE {
