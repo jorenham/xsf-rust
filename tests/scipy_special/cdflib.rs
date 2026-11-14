@@ -261,6 +261,147 @@ fn test_chndtr() {
 }
 
 #[test]
+fn test_chndtri_chndtridf_chndtrinc() {
+    // `test_chndtr_and_inverses_against_wolfram_alpha` and `test_tails` in
+    // scipy/special/tests/test_cdflib.py: `(x, df, nc, chndtr)`
+    let cases = [
+        (25.0, 20.0, 400.0, 4.121_065_511_239_62e-57),
+        (0.001, 8.0, 40.0, 5.376_180_620_136_604e-24),
+        (20.0, 2.0, 107.0, 1.393_907_435_558_196e-9),
+        (3.0, 2.0, 1.0, 0.620_643_653_219_543_6),
+        (350.0, 300.0, 10.0, 0.938_801_280_062_764_1),
+        (1e-12, 20.0, 50.0, 3.737_446_313_006_551e-141),
+        (9e4, 1e5, 1e3, 1.689_553_370_421_756_6e-141),
+    ];
+    for (x, df, nc, p) in cases {
+        np_assert_allclose!([xsf::chndtri(p, df, nc)], [x], rtol = 1e-13);
+        np_assert_allclose!([xsf::chndtridf(x, p, nc)], [df], rtol = 1e-13);
+        np_assert_allclose!([xsf::chndtrinc(x, df, p)], [nc], rtol = 1e-13);
+    }
+    // `test_chndtrix_gh2158`, from R
+    np_assert_allclose!(
+        [xsf::chndtri(0.999_999, 2.0, 1.0 + 1e-6)],
+        [35.257_285_899_505_4],
+        rtol = 1e-10
+    );
+    // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from mpmath
+    np_assert_allclose!(
+        [xsf::chndtri(
+            0.193_123_859_806_063_84,
+            0.004_028_403_030_778_61,
+            0.503_188_864_805_273_5
+        )],
+        [5.426_817_558_374_058e-301],
+        rtol = 1e-9
+    );
+    // a subnormal root, with `d ln(x) / d ln(p) ~ 1000`; from mpmath
+    np_assert_allclose!(
+        [xsf::chndtri(0.3, 0.001_98, 1.0)],
+        [1.702_160_569_678_88e-309],
+        rtol = 1e-12
+    );
+    // the limits where the CDF is smallest or largest
+    assert_eq!(xsf::chndtri(0.0, 1.0, 1.0), 0.0);
+    assert_eq!(xsf::chndtri(1.0, 1.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::chndtridf(1.0, 0.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::chndtrinc(1.0, 1.0, 1.0), 0.0);
+    // p lies above the CDF at df = 0, or at nc = 0
+    assert_eq!(xsf::chndtridf(1.0, 0.99, 1.0), 0.0);
+    assert_eq!(xsf::chndtrinc(1.0, 1.0, 0.9), 0.0);
+    assert!(xsf::chndtri(0.5, 0.0, 1.0).is_nan());
+    assert!(xsf::chndtridf(0.0, 0.5, 1.0).is_nan());
+    assert!(xsf::chndtrinc(1.0, 1.0, f64::NAN).is_nan());
+}
+
+#[test]
+fn test_ncfdtr_ncfdtri() {
+    // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
+    let cases = [
+        (100.0, 0.1, 0.1, 100.0, 0.297_873_964_100_926_76),
+        (100.0, 100.0, 0.01, 0.1, 4.434_473_759_869_042_4e-26),
+        (100.0, 0.01, 0.1, 0.01, 0.002_848_616_633_080_384),
+        (10.0, 0.01, 1.0, 0.1, 0.012_339_557_729_057_956),
+        (100.0, 100.0, 0.01, 0.01, 1.892_647_742_096_493_6e-72),
+        (1.0, 100.0, 100.0, 0.1, 1.792_594_052_682_130_4e-22),
+        (1.0, 0.01, 100.0, 10.0, 0.012_334_711_965_024_968),
+        (1.0, 0.01, 10.0, 0.01, 0.000_219_445_252_902_99),
+        (10.0, 1.0, 0.1, 100.0, 0.921_934_555_507_070_5),
+        (0.1, 0.1, 1.0, 1.0, 0.313_633_581_342_323_9),
+        (1.0, 0.1, 100.0, 10.0, 0.029_260_642_796_808_97),
+        (1e-100, 3.0, 1.5, 1e100, 0.611_815_287_345_399),
+    ];
+    for (dfn, dfd, nc, f, p) in cases {
+        np_assert_allclose!([xsf::ncfdtr(dfn, dfd, nc, f)], [p], rtol = 1e-13);
+        np_assert_allclose!([xsf::ncfdtri(dfn, dfd, nc, p)], [f], rtol = 5e-11);
+    }
+    assert_eq!(xsf::ncfdtr(100.0, 100.0, 0.1, 10.0), 1.0);
+    // the term j = 1 of the series, where it starts, underflows, while the term j = 0, i.e.
+    // `(2 / pi) atan(sqrt(f))`, does not; SciPy returns NaN
+    np_assert_allclose!(
+        [xsf::ncfdtr(1.0, 1.0, 1e-200, 1e-100)],
+        [6.366_197_723_675_814e-51],
+        rtol = 1e-13
+    );
+    // e^(-nc / 2) (2 / pi) atan(sqrt(f)) + O(f^(3 / 2)), from Wolfram
+    np_assert_allclose!(
+        [xsf::ncfdtr(1.0, 1.0, 1.0, 1e-310)],
+        [3.861_294_105_202_156e-156],
+        rtol = 2e-12
+    );
+    // `dfn f` and `x` underflow, where the series is its first term; from mpmath
+    np_assert_allclose!(
+        [xsf::ncfdtr(1.0, 2.0, 1.0, f64::from_bits(1))],
+        [9.533_010_901_443_612e-163],
+        rtol = 1e-15
+    );
+    np_assert_allclose!(
+        [xsf::ncfdtr(1e-300, 2.0, 1.0, 1e-100)],
+        [0.606_530_659_712_633_4],
+        rtol = 1e-15
+    );
+    // `x` underflows, also if `dfn f` or `dfn / (dfd + dfn f)` does not; from mpmath
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1.0, 1e100, 1.0, 1e-300),
+            xsf::ncfdtr(1e-200, 1e124, 1.0, 1e-120),
+        ],
+        [4.839_414_490_382_867e-151, 0.606_530_659_712_633_4],
+        rtol = 1e-14
+    );
+    // `x` is subnormal and the noncentral chi-square limit is exact; from mpmath
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1.0, 1e308, 1.0, 1e-6),
+            xsf::ncfdtr(1.0, 1.7e308, 1.0, 3e-16),
+        ],
+        [4.839_414_490_382_786e-4, 8.382_111_776_228_172e-9],
+        rtol = 1e-14
+    );
+    // a subnormal root, the exact `tan(pi p / 2)^2`
+    np_assert_allclose!(
+        [xsf::ncfdtri(1.0, 1.0, 0.0, 1e-155)],
+        [2.467_401_100_272_34e-310],
+        rtol = 1e-12
+    );
+    assert_eq!(xsf::ncfdtr(1.0, 1.0, 1.0, 0.0), 0.0);
+    assert_eq!(xsf::ncfdtr(1.0, 1.0, 1.0, f64::INFINITY), 1.0);
+    assert_eq!(xsf::ncfdtri(1.0, 1.0, 1.0, 0.0), 0.0);
+    assert_eq!(xsf::ncfdtri(1.0, 1.0, 1.0, 1.0), f64::INFINITY);
+    // `test_ncfdtri_domain_error`
+    for (dfn, dfd, nc, p) in [
+        (-1.0, 0.1, 0.1, 0.5),
+        (1.0, -1.0, 0.1, 0.5),
+        (1.0, 1.0, -1.0, 0.5),
+        (1.0, 1.0, 1.0, 100.0),
+        (1.0, 1.0, 1.0, -1.0),
+    ] {
+        assert!(xsf::ncfdtri(dfn, dfd, nc, p).is_nan());
+    }
+    assert!(xsf::ncfdtr(0.0, 1.0, 1.0, 1.0).is_nan());
+    assert!(xsf::ncfdtr(1.0, 1.0, -1.0, 1.0).is_nan());
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

@@ -451,6 +451,11 @@ fn find_extremum_root(
 /// an `int`, since they sum `~17 sqrt(nc)` terms.
 const NC_MAX: f64 = 2.0 * i32::MAX as f64;
 
+/// Whether `x` is positive and finite
+fn is_pos_finite(x: f64) -> bool {
+    x > 0.0 && x < f64::INFINITY
+}
+
 /// The exponent of the largest power of 2 by which [`rescale`] divides at once.
 const RESCALE: i32 = 500;
 
@@ -547,6 +552,9 @@ fn poisson_weight(k: f64, lambda: f64) -> f64 {
 ///
 /// # See also
 /// - [`chdtr`](crate::chdtr): CDF of the (central) chi-square distribution
+/// - [`chndtri`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
 #[must_use]
 pub fn chndtr(x: f64, df: f64, nc: f64) -> f64 {
     // the edge cases of SciPy
@@ -571,6 +579,65 @@ pub fn chndtr(x: f64, df: f64, nc: f64) -> f64 {
         // the rounding of the sum can exceed 1, but keep NaN
         if p > 1.0 { 1.0 } else { p }
     }
+}
+
+/// Inverse of [`chndtr`] with respect to `x`
+///
+/// Corresponds to [`scipy.special.chndtrix`][chndtrix].
+///
+/// [chndtrix]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtrix.html
+///
+/// # See also
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
+#[must_use]
+pub fn chndtri(p: f64, df: f64, nc: f64) -> f64 {
+    if !((0.0..=1.0).contains(&p) && is_pos_finite(df) && (0.0..=NC_MAX).contains(&nc)) {
+        return f64::NAN;
+    }
+    limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
+        // as low as the smallest subnormal, where `cumchn` is accurate too
+        find_positive_root(|x| cumchn(x, df, nc) - p, f64::from_bits(1), f64::MAX, true)
+    })
+}
+
+/// Inverse of [`chndtr`] with respect to `df`
+///
+/// Corresponds to [`scipy.special.chndtridf`][chndtridf].
+///
+/// [chndtridf]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtridf.html
+///
+/// # See also
+/// - [`chndtri`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
+#[must_use]
+pub fn chndtridf(x: f64, p: f64, nc: f64) -> f64 {
+    if !(is_pos_finite(x) && (0.0..=1.0).contains(&p) && (0.0..=NC_MAX).contains(&nc)) {
+        return f64::NAN;
+    }
+    // the CDF decreases in df
+    limit_if_p_is_0_or_1(p, false)
+        .unwrap_or_else(|| find_df_root(|df| cumchn(x, df, nc) - p, false))
+}
+
+/// Inverse of [`chndtr`] with respect to `nc`
+///
+/// Corresponds to [`scipy.special.chndtrinc`][chndtrinc].
+///
+/// [chndtrinc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtrinc.html
+///
+/// # See also
+/// - [`chndtri`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+#[must_use]
+pub fn chndtrinc(x: f64, df: f64, p: f64) -> f64 {
+    if !(is_pos_finite(x) && is_pos_finite(df) && (0.0..=1.0).contains(&p)) {
+        return f64::NAN;
+    }
+    // the CDF decreases in nc, from chdtr(df, x) at nc = 0
+    limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
+        find_positive_root(|nc| cumchn(x, df, nc) - p, f64::MIN_POSITIVE, NC_MAX, false)
+    })
 }
 
 /// CDF of the noncentral chi-square distribution, from cdflib's `cumchn`.
@@ -613,7 +680,7 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
     // chid2^adn exp(-chid2) / Gamma(adn + 1)
     let mut dnterm = (ln_gamma_term(adn, chid2) - f64::from(scale) * LN_2).exp();
 
-    // at least once, as the central term underflows for a tiny `nc` while the next need not
+    // as in `cumfnc`, and in cdflib
     loop {
         wt *= i / xnonc;
         i -= 1.0;
@@ -650,6 +717,61 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
     ldexp_f64(ssum, scale)
 }
 
+/// CDF of the noncentral F distribution
+///
+/// Corresponds to [`scipy.special.ncfdtr`][ncfdtr].
+///
+/// [ncfdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ncfdtr.html
+///
+/// # See also
+/// - [`ncfdtri`]: Inverse of [`ncfdtr`] with respect to `f`
+/// - [`fdtr`](crate::fdtr): CDF of the (central) F distribution
+#[must_use]
+pub fn ncfdtr(dfn: f64, dfd: f64, nc: f64, f: f64) -> f64 {
+    // as in SciPy, also for infinite parameters
+    if f == f64::INFINITY && dfn > 0.0 && dfd > 0.0 && nc >= 0.0 {
+        return 1.0;
+    }
+    if !(is_pos_finite(dfn) && is_pos_finite(dfd) && (0.0..=NC_MAX).contains(&nc) && f >= 0.0) {
+        return f64::NAN;
+    }
+    // Unlike in SciPy, cdflib's series (A&S 26.6.20), as Boost's is inaccurate where its central
+    // term underflows, e.g. `ncfdtr(5, 50, 1500, 5) = 1.7e-188`, not `8.2e-161`.
+    let p = cumfnc(f, dfn, dfd, nc);
+    // the rounding of the sum can exceed 1, but keep NaN
+    if p > 1.0 { 1.0 } else { p }
+}
+
+/// Inverse of [`ncfdtr`] with respect to `f`
+///
+/// Corresponds to [`scipy.special.ncfdtri`][ncfdtri].
+///
+/// [ncfdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ncfdtri.html
+///
+/// # See also
+/// - [`ncfdtridfd`]: Inverse of [`ncfdtr`] with respect to `dfd`
+/// - [`ncfdtridfn`]: Inverse of [`ncfdtr`] with respect to `dfn`
+/// - [`ncfdtrinc`]: Inverse of [`ncfdtr`] with respect to `nc`
+#[must_use]
+pub fn ncfdtri(dfn: f64, dfd: f64, nc: f64, p: f64) -> f64 {
+    if !(is_pos_finite(dfn)
+        && is_pos_finite(dfd)
+        && (0.0..=NC_MAX).contains(&nc)
+        && (0.0..=1.0).contains(&p))
+    {
+        return f64::NAN;
+    }
+    limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
+        // as low as the smallest subnormal, like `chndtri`
+        find_positive_root(
+            |f| cumfnc(f, dfn, dfd, nc) - p,
+            f64::from_bits(1),
+            f64::MAX,
+            true,
+        )
+    })
+}
+
 /// CDF of the noncentral F distribution, from cdflib's `cumfnc`.
 ///
 /// It sums the series A&S 26.6.20 forward and backward from the term with the largest Poisson
@@ -663,6 +785,7 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
 /// - the first terms of the recurrences are computed with `lbeta`, also if `a < 2`, where the
 ///   `lgam` differences lose `~b ln(b) eps`,
 /// - `ln(1 - x)` is computed with `ln_1p`,
+/// - subnormal `x` is handled separately, since it rounds,
 /// - the beta terms are rescaled by powers of 2 if the central one underflows,
 /// - `cumf` and `bratio` are replaced by [`fdtr`](crate::fdtr) and `betainc_xy`.
 fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
@@ -685,6 +808,18 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     let centwt = poisson_weight(icent, xnonc);
     let prod = dfn * f;
     let dsum = dfd + prod;
+    // Unlike in cdflib, a subnormal `x = dfn f / dsum`, which rounds: if `dfn f < eps`, the first
+    // term `exp(-nc / 2) x^a / (a B(a, b))` with `a = dfn / 2`, to `~(1 + nc) dfn f` relative, else
+    // (`dfd > 1e291`) the noncentral chi-square CDF of `dfn f`
+    if prod / dsum < 2.0 * f64::MIN_POSITIVE {
+        if prod >= eps {
+            return cumchn(prod, dfn, pnonc);
+        }
+        let a = dfn / 2.0;
+        // `ln(dfn / dsum)`, which can underflow; `min`, since `f^a` underflows first
+        let rest = (ln_beta_term(a, dfd / 2.0, dfn.ln() - dsum.ln(), 0.0) - xnonc).exp();
+        return f.powf(a) * rest.min(f64::MAX);
+    }
     // `dfd / dsum`, also if `prod` overflows
     let mut yy = if prod.is_finite() {
         dfd / dsum
@@ -724,23 +859,29 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     // x^adn y^b / (adn B(adn, b))
     let mut dnterm = (ln_beta_term(adn, b, lnxx, lnyy) - f64::from(scale) * LN_2).exp();
 
-    // `>` instead of `>=`, which never ends if `eps * ssum` underflows, and not past the underflow
-    // of the Poisson weight, which would get stuck at a subnormal, while the scaled `betdn` grows
-    while xmult * betdn > eps * ssum && i > 0.0 && xmult >= f64::MIN_POSITIVE {
+    // Unlike in cdflib, at least once, as the central term underflows for a tiny `nc` while the
+    // next need not, with `>` instead of `>=`, which never ends if `eps * ssum` underflows, and not
+    // past the underflow of the Poisson weight, which gets stuck at a subnormal while the scaled
+    // `betdn` grows
+    loop {
         xmult *= i / xnonc;
         i -= 1.0;
         adn -= 1.0;
-        let ratio = (adn + 1.0) / ((adn + b) * xx);
-        rescale(
+        let num = adn + 1.0;
+        let shift = rescale(
             betdn,
-            adn + 1.0,
+            num,
             (adn + b) * xx,
             &mut scale,
-            &mut [&mut betdn, &mut dnterm, &mut ssum],
+            &mut [&mut betdn, &mut ssum],
         );
-        dnterm *= ratio;
+        // Unlike in cdflib, `xx` scaled first, as `(adn + b) xx` can round to a subnormal
+        dnterm = dnterm * num / ((adn + b) * ldexp_f64(xx, shift));
         betdn += dnterm;
         ssum += xmult * betdn;
+        if !(xmult * betdn > eps * ssum && i > 0.0 && xmult >= f64::MIN_POSITIVE) {
+            break;
+        }
     }
 
     i = icent + 1.0;

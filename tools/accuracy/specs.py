@@ -2136,6 +2136,66 @@ def r_chndtr(x, v, nc):
     return _converged(_chndtr_series, x, v, nc)
 
 
+def r_chndtri(p, v, nc):
+    # x such that chndtr(x, v, nc) = p
+    return _invert_pos(lambda x: _chndtr_series(x, v, nc), p, v + nc)
+
+
+def r_chndtridf(x, p, nc):
+    # v such that chndtr(x, v, nc) = p
+    return _invert_pos(
+        lambda v: _chndtr_series(x, v, nc), p, max(x - nc, 1), decreasing=True
+    )
+
+
+def r_chndtrinc(x, v, p):
+    # nc such that chndtr(x, v, nc) = p
+    return _invert_pos(
+        lambda nc: _chndtr_series(x, v, nc), p, max(x - v, 1), decreasing=True
+    )
+
+
+def _ncfdtr_series(a, b, nc, x):
+    """sum_j Pois(j; nc/2) I_y(a/2 + j, b/2) (A&S 26.6.20) with y = a x / (b + a x), from the
+    largest Poisson weight both ways, with I_y(c, d) - I_y(c + 1, d) = y^c (1 - y)^d / (c B(c, d))
+    (A&S 26.5.16)."""
+    a, b, x = mp.mpf(a), mp.mpf(b), mp.mpf(x)
+    lam, y, z, d = mp.mpf(nc) / 2, a * x / (b + a * x), b / (b + a * x), b / 2
+    j0 = int(lam)
+    c0 = a / 2 + j0
+    w0 = mp.exp(j0 * mp.log(lam) - lam - mp.loggamma(j0 + 1)) if lam else mp.mpf(1)
+    i0 = _betainc(c0, d, y, z)
+    t0 = mp.exp(c0 * mp.log(y) + d * mp.log(z) - mp.log(c0) - mp.log(mp.beta(c0, d)))
+    s, tol = w0 * i0, mp.eps / 2**10
+    w, i, c, t, j = w0, i0, c0, t0, j0
+    while j > 0:
+        t *= c / (y * (c + d - 1))
+        w, j, c = w * j / lam, j - 1, c - 1
+        i += t
+        s += w * i
+        if w * i < tol * s:
+            break
+    w, i, c, t, j = w0, i0, c0, t0, j0
+    while True:
+        i -= t
+        t *= y * (c + d) / (c + 1)
+        w, c, j = w * lam / (j + 1), c + 1, j + 1
+        s += w * i
+        if j > lam and w * i < tol * s:
+            return s
+
+
+def r_ncfdtr(a, b, nc, x):
+    if x == 0:
+        return mp.mpf(0)
+    return _converged(_ncfdtr_series, a, b, nc, x)
+
+
+def r_ncfdtri(a, b, nc, p):
+    # x such that ncfdtr(a, b, nc, x) = p
+    return _invert_pos(lambda x: _ncfdtr_series(a, b, nc, x), p, 1)
+
+
 def r_fdtri(a, b, y):
     # x such that fdtr(a, b, x) = y
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
@@ -2939,6 +2999,25 @@ add(
     note="inv",
 )
 
+section("Noncentral F distribution", 3)
+add(
+    "ncfdtr",
+    "a b nc x",
+    r_ncfdtr,
+    D(LU(1e-2, 1e3), LU(1e-2, 1e3), LU(1e-3, 1e3), LU(1e-3, 1e3), n=2000),
+    cpp=False,
+    timeout=120,
+)
+add(
+    "ncfdtri",
+    "a b nc p",
+    r_ncfdtri,
+    D(LU(1e-2, 1e3), LU(1e-2, 1e3), LU(1e-3, 1e3), U(0, 1), n=500),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+
 section("Gamma distribution", 3)
 
 
@@ -3195,6 +3274,65 @@ add(
     cpp=False,
     timeout=120,
     note="ncx2",
+)
+
+
+def chndtridf_args(r: Random) -> tuple[float, float, float]:
+    """(x, p, nc) with x in [1e-3, 1e3], nc in [1e-3, 30] (log), and p in [0, exp(-nc / 2)],
+    below the CDF at df = 0, so that there is a root."""
+    x, nc = 10 ** r.uniform(-3, 3), 10 ** r.uniform(-3, math.log10(30))
+    return x, r.uniform(0, 1) * math.exp(-nc / 2), nc
+
+
+def chndtrinc_args(r: Random) -> tuple[float, float, float]:
+    """(x, v, p) with x, v in [1e-3, 1e3] (log), and p in (0, chdtr(v, x)], below the CDF at
+    nc = 0, so that there is a finite root."""
+    while True:
+        x, v = 10 ** r.uniform(-3, 3), 10 ** r.uniform(-3, 3)
+        p = r.uniform(0, 1) * float(mp.gammainc(v / 2, 0, x / 2, regularized=True))
+        if p > 0:
+            return x, v, p
+
+
+add(
+    "chndtri",
+    "p v nc",
+    r_chndtri,
+    D(U(0, 1), LU(1e-3, 1e3), LU(1e-3, 1e3), n=500),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "chndtridf",
+    "x p nc",
+    r_chndtridf,
+    D(
+        sampler=chndtridf_args,
+        label="x in [1e-3, 1e3], nc in [1e-3, 30] (log), p in [0, exp(-nc/2)]",
+        pretty=f"{nobreak('x', IN, LU(1e-3, 1e3).pretty())}, "
+        + f"{nobreak('nc', IN, LU(1e-3, 30).pretty())} (log), "
+        + nobreak("p", IN, "[0, e^(\u2212nc/2)]"),
+        n=500,
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "chndtrinc",
+    "x v p",
+    r_chndtrinc,
+    D(
+        sampler=chndtrinc_args,
+        label="x, v in [1e-3, 1e3] (log), p in (0, chdtr(v, x)]",
+        pretty=f"{nobreak('x, v', IN, LU(1e-3, 1e3).pretty())} (log), "
+        + nobreak("p", IN, "(0, chdtr(v, x)]"),
+        n=500,
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv",
 )
 
 section("Kolmogorov distribution", 3)

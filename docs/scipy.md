@@ -13,19 +13,19 @@ of 353 functions whose algorithm isn't in xsf.
 | `btdtria`, `btdtrib`                    | Boost                  | same                       |
 | `chdtriv`                               | Boost                  | same                       |
 | `chndtr`                                | Boost                  | same                       |
+| `chndtridf`, `chndtrinc`                | Boost                  | same                       |
+| `chndtrix`                              | Boost                  | `chndtri`                  |
 | `erfinv`                                | Boost                  | same                       |
 | `fdtr`                                  | Boost                  | same                       |
 | `fdtrc`                                 | Boost                  | same                       |
 | `fdtri`                                 | Boost                  | same                       |
 | `hyp1f1`                                | Boost; complex: xsf    | same                       |
 | `nbdtrik`, `nbdtrin`                    | Boost                  | same                       |
+| `ncfdtr`, `ncfdtri`                     | Boost                  | same                       |
 | `pdtrik`                                | Boost                  | same                       |
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `chndtrix`                              | Boost                  |                            |
-| `chndtridf`, `chndtrinc`                | Boost                  |                            |
-| `ncfdtr`, `ncfdtri`                     | Boost                  |                            |
 | `nctdtr`, `nctdtrit`                    | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |
 | `ncfdtridfd`, `ncfdtridfn`, `ncfdtrinc` | cdflib                 | same                       |

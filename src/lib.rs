@@ -176,6 +176,8 @@
 //!
 //! | Function       | Description                              |
 //! | -------------- | ---------------------------------------- |
+//! | [`ncfdtr`]     | Cumulative distribution function         |
+//! | [`ncfdtri`]    | Inverse of the CDF with respect to `f`   |
 //! | [`ncfdtridfd`] | Inverse of the CDF with respect to `dfd` |
 //! | [`ncfdtridfn`] | Inverse of the CDF with respect to `dfn` |
 //! | [`ncfdtrinc`]  | Inverse of the CDF with respect to `nc`  |
@@ -267,9 +269,12 @@
 //!
 //! ## Noncentral chi square distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`chndtr`] | Cumulative distribution function |
+//! | Function      | Description                                |
+//! | ------------- | ------------------------------------------ |
+//! | [`chndtr`]    | Cumulative distribution function           |
+//! | [`chndtri`]   | Inverse of [`chndtr`] with respect to `x`  |
+//! | [`chndtridf`] | Inverse of [`chndtr`] with respect to `df` |
+//! | [`chndtrinc`] | Inverse of [`chndtr`] with respect to `nc` |
 //!
 //! ## Kolmogorov distribution
 //!
