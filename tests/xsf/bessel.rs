@@ -681,6 +681,25 @@ xsref::tests! {
 }
 
 #[test]
+fn test_iti0k0_series_near_40() {
+    // the power series up to x = 40 (mpmath: `x * hyp1f2(1/2, 1, 3/2, x^2 / 4)` and
+    // `x^2 / 8 * hyp2f3(1, 1, 2, 2, 2, x^2 / 4)`)
+    for (actual, expected) in [
+        (xsf::it1i0k0(35.5).0, 178_319_243_668_161.0),
+        (xsf::it1i0k0(39.25).0, 7_197_960_272_196_551.0),
+        (xsf::it1i0k0(39.75).0, 11_790_021_865_325_739.0),
+        (xsf::it2i0k0(35.5).0, 5_175_762_522_389.534),
+        (xsf::it2i0k0(39.25).0, 188_389_991_318_682.9),
+        (xsf::it2i0k0(39.75).0, 304_585_988_297_001.7),
+    ] {
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-14,
+            "{actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
 fn test_iti0k0_large_x() {
     // unlike in xsf: quadrature and more asymptotic terms (mpmath)
     for (actual, expected, rtol) in [
