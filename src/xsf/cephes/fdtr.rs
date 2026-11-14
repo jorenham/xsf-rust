@@ -55,11 +55,15 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
-    if let Some((_, q)) = fdtr_tiny_y(a, b, x) {
-        return q;
+    if b < 2.0 * f64::MIN_POSITIVE && a < f64::INFINITY && 0.0 < x && x < f64::INFINITY {
+        // Unlike in xsf, the limit `A / (A + B)` of `I_y(B, A)` as `B -> 0`, as in `fdtr`
+        a / (a + b)
+    } else if let Some((_, q)) = fdtr_tiny_y(a, b, x) {
+        q
+    } else {
+        let (w1, w) = fdtr_w(a, b, x);
+        betainc_xy(0.5 * b, 0.5 * a, w, w1)
     }
-    let (w1, w) = fdtr_w(a, b, x);
-    betainc_xy(0.5 * b, 0.5 * a, w, w1)
 }
 
 /// F distribution
@@ -113,23 +117,24 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     if x == f64::INFINITY && !(a + b).is_nan() {
         return 1.0;
     }
-    if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
-        return p;
-    }
     let (w, w1) = fdtr_w(a, b, x);
     let ax = a * x;
-    // Unlike in xsf, the first term `w^A / (A B(A, B))` with `A = a / 2` (DLMF 8.17.7) if `a x` or
-    // `w` is subnormal, as they round, else (`b > 1e291` or inf) the chi-square CDF of `a x`
-    if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
+    if a < 2.0 * f64::MIN_POSITIVE && 0.0 < x && b < f64::INFINITY {
+        // Unlike in xsf, the limit `B / (A + B)` of `I_w(A, B)` as `A -> 0` for `0 < w < 1`, as
+        // `A = a / 2` (and `B`) can round
+        b / (a + b)
+    } else if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
+        p
+    } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
         betainc_xy(0.5 * a, 0.5 * b, w, w1)
     } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
+        // Unlike in xsf, if `a x` or `w` is subnormal, as they round: the chi-square CDF of `a x`,
+        // as `b > 1e291` or inf
         chdtr(a, ax)
     } else if x == 0.0 {
         0.0
-    } else if a < 2.0 * f64::MIN_POSITIVE {
-        // `A` is subnormal, so `a / 2` rounds, `w^A = 1` and `A B(A, B) = 1 + A / B`
-        b / (a + b)
     } else {
+        // likewise, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`
         let (ha, hb) = (0.5 * a, 0.5 * b);
         // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
         let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
