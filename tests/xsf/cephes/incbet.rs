@@ -223,6 +223,13 @@ fn test_betainc_tiny_b_x_near_1() {
         0.999_999_999_999_027_1,
     );
     xsref::np_assert_allclose!(&[p], &[1.666_795_093_743_553_9e-9], rtol = 1e-14);
+    // slowly converging continued fractions (mpmath and Wolfram)
+    let p = xsf::betainc(
+        69.750_627_303_147_8,
+        8.144_470_607_898_787e-11,
+        0.999_999_999_965_863_6,
+    );
+    xsref::np_assert_allclose!(&[p], &[1.570_718_285_542_302_8e-9], rtol = 1e-14);
     // b is not tiny, but `1 - I_(1-x)(b, a)` still cancels (mpmath and Wolfram)
     let p = xsf::betainc(3.0, 1e-4, 0.999_999_999_068_677_4);
     xsref::np_assert_allclose!(&[p], &[0.001_927_587_603_671_827_7], rtol = 1e-14);

@@ -28,6 +28,10 @@ const INCBET_APSER_MAX: f64 = 1e-9;
 /// its series in `a` converges fast
 const INCBET_PSERIES_COMPL_MAX: f64 = 0.1;
 
+/// Largest `a (1 - x)` for `incbet_pseries_compl` if `b <= INCBET_PSERIES_COMPL_MAX`, where the
+/// continued fractions converge slowly; above it, `incbet_pseries_compl` cancels (measured)
+const INCBET_PSERIES_COMPL_AY_MAX: f64 = 0.5;
+
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
 /// Unlike in xsf, which returns NaN or 0 then.
@@ -506,8 +510,8 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         if (bb * xx) <= 1.0 && xx <= 0.95 {
             break 'done incbet_pseries(aa, bb, xx);
         }
-        // Unlike in xsf, `I_x(a, b) = O(b)` is computed as `incbet_apser(b, a, 1 - x)` for tiny `b`,
-        // i.e. `b <= eps min(1, a)` as in TOMS 708. Being off by a relative ~`1.3 m^2`, with
+        // Unlike in xsf, `I_x(a, b) = O(b)` is `incbet_apser(b, a, 1 - x)` for tiny `b`, i.e.
+        // `b <= eps min(1, a)` as in TOMS 708. Being off by a relative ~`1.3 m^2`, with
         // `m = b max(|ln(1 - x)|, 1/a)`, it is also used up to `INCBET_APSER_MAX` where the
         // continued fractions would be cut off at `INCBET_MAXITER`, and are worse.
         let m = bb * yy.ln().abs().max(1.0 / aa);
@@ -524,8 +528,10 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         let past_mean = xx > (aa / (aa + bb)) || yy < bb / (aa + bb);
         // Unlike in xsf (scipy/xsf#358), they are also reversed if the power series of the
         // complement applies and its absolute error of ~(1 - ln(b)) eps, relative to its result of
-        // at least ~b/5 (both measured), is below the ~0.1 eps / y of the continued fractions.
-        let pseries_y = aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb;
+        // at least ~b/5 (both measured), is below the ~0.1 eps / y of the continued fractions, or
+        // for `incbet_pseries_compl`.
+        let pseries_y = aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb
+            || bb <= INCBET_PSERIES_COMPL_MAX && aa * yy <= INCBET_PSERIES_COMPL_AY_MAX;
         flag = past_mean || pseries_y;
         let (a, b, xc, x) = if flag {
             (bb, aa, xx, yy)
