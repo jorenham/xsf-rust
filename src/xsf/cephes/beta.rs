@@ -15,9 +15,12 @@ use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
-use core::f64::consts::PI;
+use core::f64::consts::{PI, TAU};
 
 const BETA_ASYMP_FACTOR: f64 = 1e6;
+/// Below this `|b / a|`, `lbeta_ratio` uses `lgam_ratio`, and from it, for `a, b > 0`, Stirling's
+/// formula, for which `a + b > MAXGAM` then keeps `b > MAXGAM / 9 ~ 19` large enough
+const STIRLING_RATIO: f64 = 0.125;
 /// Below this `|a|` and `|b|`, `B(a, b) = (a + b) / (a b)` to within `~1.6 |a b|` (DLMF 5.7.3)
 const BETA_TINY: f64 = 1e-9;
 
@@ -51,7 +54,7 @@ fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
 /// the cancellation in `lgam(a) + lgam(b) - lgam(a + b)`. The negative one of the two largest
 /// arguments is reflected.
 fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
-    if a > 0.0 && b.abs() < 0.125 * a {
+    if a > 0.0 && b.abs() < STIRLING_RATIO * a {
         let (y, sign) = lgam_sgn(b);
         Some((y - lgam_ratio(a, b), f64::from(sign)))
     } else if lbeta_reflects_a(a, b) {
@@ -67,10 +70,8 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
         Some((y, gammasgn(b)))
     } else if a > 0.0 && b > 0.0 {
         // Stirling's formula for all three Gamma functions, with b >= a / 8 > 0 and a + b > MAXGAM
-        // here, so b > MAXGAM / 9. Its large terms are combined into ln(q) and ln(1 - q), with
-        // q = b / (a + b) from b / a, as a + b may overflow.
-        let r = b / a;
-        let q = r / (1.0 + r);
+        // here, so b > MAXGAM / 9. Its large terms are combined into ln(q) and ln(1 - q).
+        let q = stirling_q(a, b);
         let y =
             (b - 0.5) * q.ln() + a * (-q).ln_1p() - 0.5 * a.ln() + LN_SQRT_TAU - incbet_corr(a, b);
         Some((y, 1.0))
@@ -79,9 +80,40 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
     }
 }
 
+/// `q = b / (a + b)` for Stirling's formula, from `b / a`, as `a + b` may overflow
+fn stirling_q(a: f64, b: f64) -> f64 {
+    let r = b / a;
+    r / (1.0 + r)
+}
+
+/// `B(a, b)` by Stirling's formula, for `a >= b >= a / 8 > 0` and `a + b > MAXGAM`
+///
+/// Not as `exp(ln(B))`, whose rounding error `exp` amplifies `|ln(B)|` (up to ~745) times. With
+/// `q = b / (a + b)`, as in `lbeta_ratio`:
+///
+/// ```text
+/// B(a, b) = sqrt(2 pi / a) q^(b - 1/2) (1 - q)^a exp(-incbet_corr(a, b)).
+/// ```
+///
+/// The rounding error `d` of `q` contributes only `~d / (2 q)`, as `q^b (1 - q)^a` is stationary
+/// at `q = b / (a + b)`.
+fn beta_stirling(a: f64, b: f64) -> f64 {
+    let q = stirling_q(a, b);
+    let p = 1.0 - q;
+    // `1 - q = p + e` exactly (Sterbenz), so `(1 - q)^a = p^a (1 + a e / p)` to first order
+    let e = (1.0 - p) - q;
+    let pow = q.powf(b - 0.5) * p.powf(a);
+    if pow == 0.0 {
+        // also where `1 + a e / p < 0`, which needs `a > ~1e15`
+        0.0
+    } else {
+        pow * (1.0 + a * e / p) * (-incbet_corr(a, b)).exp() * (TAU / a).sqrt()
+    }
+}
+
 /// Whether `lbeta_ratio` reflects a negative `a`
 fn lbeta_reflects_a(a: f64, b: f64) -> bool {
-    a < 0.0 && b.abs() < -0.125 * a
+    a < 0.0 && b.abs() < -STIRLING_RATIO * a
 }
 
 /// Whether `beta` and `lbeta` use `lbeta_ratio` or `lgam` instead of `gamma`
@@ -227,6 +259,10 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
 
     y = a + b;
     if beta_uses_lgam(a, b) {
+        // Unlike in xsf, not as `exp(ln(B))`, which amplifies the rounding error of `ln(B)`
+        if a > 0.0 && b >= STIRLING_RATIO * a {
+            return beta_stirling(a, b);
+        }
         if let Some((y, sign)) = lbeta_ratio(a, b) {
             return sign * y.exp();
         }
