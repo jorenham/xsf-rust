@@ -332,6 +332,8 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("chndtrix", &[p, v, nc]) => xsf::chndtrix(p, v, nc),
         ("chndtridf", &[x, p, nc]) => xsf::chndtridf(x, p, nc),
         ("chndtrinc", &[x, v, p]) => xsf::chndtrinc(x, v, p),
+        ("ncfdtr", &[a, b, nc, x]) => xsf::ncfdtr(a, b, nc, x),
+        ("ncfdtri", &[a, b, nc, p]) => xsf::ncfdtri(a, b, nc, p),
         ("fdtri", &[a, b, y]) => xsf::fdtri(a, b, y),
         ("stdtr", &[v, t]) => xsf::stdtr(v, t),
         ("stdtri", &[v, p]) => xsf::stdtri(v, p),

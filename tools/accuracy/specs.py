@@ -2105,6 +2105,47 @@ def r_chndtrinc(x, v, p):
     )
 
 
+def _ncfdtr_series(a, b, nc, x):
+    """sum_j Pois(j; nc/2) I_y(a/2 + j, b/2) (A&S 26.6.20) with y = a x / (b + a x), from the
+    largest Poisson weight both ways, with I_y(c, d) - I_y(c + 1, d) = y^c (1 - y)^d / (c B(c, d))
+    (A&S 26.5.16)."""
+    a, b, x = mp.mpf(a), mp.mpf(b), mp.mpf(x)
+    lam, y, z, d = mp.mpf(nc) / 2, a * x / (b + a * x), b / (b + a * x), b / 2
+    j0 = int(lam)
+    c0 = a / 2 + j0
+    w0 = mp.exp(j0 * mp.log(lam) - lam - mp.loggamma(j0 + 1)) if lam else mp.mpf(1)
+    i0 = _betainc(c0, d, y, z)
+    t0 = mp.exp(c0 * mp.log(y) + d * mp.log(z) - mp.log(c0) - mp.log(mp.beta(c0, d)))
+    s, tol = w0 * i0, mp.eps / 2**10
+    w, i, c, t, j = w0, i0, c0, t0, j0
+    while j > 0:
+        t *= c / (y * (c + d - 1))
+        w, j, c = w * j / lam, j - 1, c - 1
+        i += t
+        s += w * i
+        if w * i < tol * s:
+            break
+    w, i, c, t, j = w0, i0, c0, t0, j0
+    while True:
+        i -= t
+        t *= y * (c + d) / (c + 1)
+        w, c, j = w * lam / (j + 1), c + 1, j + 1
+        s += w * i
+        if j > lam and w * i < tol * s:
+            return s
+
+
+def r_ncfdtr(a, b, nc, x):
+    if x == 0:
+        return mp.mpf(0)
+    return _converged(_ncfdtr_series, a, b, nc, x)
+
+
+def r_ncfdtri(a, b, nc, p):
+    # x such that ncfdtr(a, b, nc, x) = p
+    return _invert_pos(lambda x: _ncfdtr_series(a, b, nc, x), p, 1)
+
+
 def r_fdtri(a, b, y):
     # x such that fdtr(a, b, x) = y
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
@@ -2865,6 +2906,25 @@ add(
     "a b y",
     r_fdtri,
     D(LU(1e-3, 1e3), LU(1e-3, 1e3), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
+
+section("Noncentral F distribution", 3)
+add(
+    "ncfdtr",
+    "a b nc x",
+    r_ncfdtr,
+    D(LU(1e-2, 1e3), LU(1e-2, 1e3), LU(1e-3, 1e3), LU(1e-3, 1e3), n=2000),
+    cpp=False,
+    timeout=120,
+)
+add(
+    "ncfdtri",
+    "a b nc p",
+    r_ncfdtri,
+    D(LU(1e-2, 1e3), LU(1e-2, 1e3), LU(1e-3, 1e3), U(0, 1), n=500),
+    cpp=False,
     timeout=120,
     note="inv",
 )

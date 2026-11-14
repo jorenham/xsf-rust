@@ -19,11 +19,11 @@ of 353 functions whose algorithm isn't in xsf.
 | `stdtrit`                               | Boost                  | `stdtri`                   |
 | `chndtr`, `chndtrix`                    | Boost                  | same                       |
 | `chndtridf`, `chndtrinc`                | Boost                  | same                       |
+| `ncfdtr`, `ncfdtri`                     | Boost                  | same                       |
 | `bdtrik`, `bdtrin`                      | Boost                  |                            |
 | `btdtria`, `btdtrib`                    | Boost                  |                            |
 | `chdtriv`                               | Boost                  |                            |
 | `nbdtrik`, `nbdtrin`                    | Boost                  |                            |
-| `ncfdtr`, `ncfdtri`                     | Boost                  |                            |
 | `nctdtr`, `nctdtrit`                    | Boost                  |                            |
 | `pdtrik`                                | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |

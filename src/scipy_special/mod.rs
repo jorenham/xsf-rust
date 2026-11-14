@@ -32,8 +32,8 @@ pub use bessel_prime::{
 };
 pub use boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
 pub use cdflib::{
-    chndtr, chndtridf, chndtrinc, chndtrix, fdtridfd, ncfdtridfd, ncfdtridfn, ncfdtrinc, nctdtridf,
-    nctdtrinc, stdtridf,
+    chndtr, chndtridf, chndtrinc, chndtrix, fdtridfd, ncfdtr, ncfdtri, ncfdtridfd, ncfdtridfn,
+    ncfdtrinc, nctdtridf, nctdtrinc, stdtridf,
 };
 pub use comb::{comb, comb_rep};
 pub use convex_analysis::{entr, huber, kl_div, pseudo_huber, rel_entr};

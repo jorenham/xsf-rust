@@ -322,6 +322,21 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+### Noncentral F distribution
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ncfdtr</code></td><td>a, b ∈ [0.01, 1000] (log)<br>nc, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.7e-12</samp></td><td align="right" nowrap><samp>5.5e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ncfdtri</code><sup>*</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>4.9e-11</samp></td><td align="right" nowrap><samp>2.3e-12</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
 ### Gamma distribution
 
 <table>

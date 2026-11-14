@@ -425,8 +425,7 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
     // chid2^adn exp(-chid2) / Gamma(adn + 1)
     let mut dnterm = (ln_gamma_term(adn, chid2) - f64::from(scale) * LN_2).exp();
 
-    // As in `cumfnc`, but at least once, as in cdflib, since the central term underflows if `nc`
-    // is tiny, while the next one need not.
+    // as in `cumfnc`, and in cdflib
     loop {
         wt *= i / xnonc;
         i -= 1.0;
@@ -466,6 +465,64 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
     }
 
     ldexp_f64(ssum, scale)
+}
+
+/// CDF of the noncentral F distribution
+///
+/// Corresponds to [`scipy.special.ncfdtr`][ncfdtr].
+///
+/// Unlike in SciPy, this sums cdflib's series A&S 26.6.20, instead of Boost's, which is inaccurate
+/// where its central term underflows, e.g. `ncfdtr(5, 50, 1500, 5) = 1.7e-188`, not `8.2e-161`.
+///
+/// [ncfdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ncfdtr.html
+///
+/// # See also
+/// - [`ncfdtri`]: Inverse of [`ncfdtr`] with respect to `f`
+/// - [`fdtr`](crate::fdtr): CDF of the (central) F distribution
+#[must_use]
+pub fn ncfdtr(dfn: f64, dfd: f64, nc: f64, f: f64) -> f64 {
+    // the edge cases of SciPy
+    if !(dfn > 0.0 && dfd > 0.0 && nc >= 0.0 && f >= 0.0) {
+        f64::NAN
+    } else if f.is_infinite() {
+        1.0
+    } else if dfn.is_infinite() || dfd.is_infinite() || nc > NC_MAX {
+        f64::NAN
+    } else {
+        // the rounding of the sum can exceed 1
+        cumfnc(f, dfn, dfd, nc).min(1.0)
+    }
+}
+
+/// Inverse of [`ncfdtr`] with respect to `f`
+///
+/// Corresponds to [`scipy.special.ncfdtri`][ncfdtri].
+///
+/// [ncfdtri]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ncfdtri.html
+///
+/// # See also
+/// - [`ncfdtridfd`]: Inverse of [`ncfdtr`] with respect to `dfd`
+/// - [`ncfdtridfn`]: Inverse of [`ncfdtr`] with respect to `dfn`
+/// - [`ncfdtrinc`]: Inverse of [`ncfdtr`] with respect to `nc`
+#[must_use]
+pub fn ncfdtri(dfn: f64, dfd: f64, nc: f64, p: f64) -> f64 {
+    if !(dfn > 0.0)
+        || dfn.is_infinite()
+        || !(dfd > 0.0)
+        || dfd.is_infinite()
+        || !(0.0..=NC_MAX).contains(&nc)
+        || !(0.0..=1.0).contains(&p)
+    {
+        return f64::NAN;
+    }
+    limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
+        find_positive_root(
+            |f| cumfnc(f, dfn, dfd, nc) - p,
+            f64::MIN_POSITIVE,
+            f64::MAX,
+            true,
+        )
+    })
 }
 
 /// CDF of the noncentral F distribution, from cdflib's `cumfnc`.
@@ -543,8 +600,10 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     let mut dnterm = (ln_beta_term(adn, b, lnxx, lnyy) - f64::from(scale) * LN_2).exp();
 
     // `>` instead of `>=`, which never ends if `eps * ssum` underflows, and not past the underflow
-    // of the Poisson weight, which would get stuck at a subnormal, while the scaled `betdn` grows
-    while xmult * betdn > eps * ssum && i > 0.0 && xmult >= f64::MIN_POSITIVE {
+    // of the Poisson weight, which would get stuck at a subnormal, while the scaled `betdn` grows.
+    // Unlike in cdflib, at least once, since the central term underflows if `nc` is tiny, while the
+    // next one need not.
+    loop {
         xmult *= i / xnonc;
         i -= 1.0;
         adn -= 1.0;
@@ -558,6 +617,9 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
         dnterm *= ratio;
         betdn += dnterm;
         ssum += xmult * betdn;
+        if !(xmult * betdn > eps * ssum && i > 0.0 && xmult >= f64::MIN_POSITIVE) {
+            break;
+        }
     }
 
     i = icent + 1.0;
