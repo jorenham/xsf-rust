@@ -534,7 +534,7 @@ fn test_fdtr_fdtrc_tiny_df() {
     // `incbet` with tiny b and x near 1, where the continued fractions are cut off (mpmath and
     // Wolfram)
     let p = xsf::fdtr(1000.0, 6.2e-10, 0.3);
-    xsref::np_assert_allclose!(&[p], &[6.235_420_792_551_117e-9], rtol = 1e-8);
+    xsref::np_assert_allclose!(&[p], &[6.235_420_792_551_117e-9], rtol = 1e-14);
     // inaccurate either way, but the complement would be far worse
     let p = xsf::fdtr(1e16, 1e-13, 6e-14);
     xsref::np_assert_allclose!(&[p], &[1.462_771_840_746_950_6e-14], rtol = 0.02);
