@@ -296,6 +296,7 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("eval_hermite_h_l", &[n, x]) => xsf::eval_hermite_h(n as u32, x),
         ("eval_hermite_he", &[n, x]) => xsf::eval_hermite_he(n, x),
         ("eval_hermite_he_l", &[n, x]) => xsf::eval_hermite_he(n as u32, x),
+        ("hahn_q", &[n, big_n, a, b, x]) => xsf::hahn_q(n as u32, big_n as u32, a, b, x),
         // Legendre functions
         ("legendre_p", &[n, x]) => xsf::legendre_p(n as i32, x),
         ("assoc_legendre_p", &[n, m, x]) => xsf::assoc_legendre_p(n as i32, m as i32, x),

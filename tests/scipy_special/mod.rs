@@ -5,6 +5,7 @@ mod comb;
 mod convex_analysis;
 mod diric;
 mod factorial;
+mod hahn;
 mod hypergeometric;
 mod logsumexp;
 mod ndtri_exp;

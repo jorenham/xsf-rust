@@ -57,3 +57,5 @@ property!(no_panic, mathieu_a(m in 0..10_000_u32, q));
 property!(no_panic, mathieu_b(m in 0..10_000_u32, q));
 property!(no_panic, mathieu_cem(m in 0..10_000_u32, q, x));
 property!(no_panic, mathieu_sem(m in 0..10_000_u32, q, x));
+
+property!(no_panic, hahn_q(n in 0..1000_u32, big_n in any::<u32>(), alpha, beta, x));
