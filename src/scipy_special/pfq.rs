@@ -71,6 +71,13 @@ fn first_zero(params: &[f64]) -> f64 {
     zeros.map(|v| -v).fold(f64::INFINITY, f64::min)
 }
 
+/// The degree of the polynomial if an $a_i$ is a non-positive integer, else infinity, or `None`
+/// at a pole, where a $(b_j)_n$ vanishes before
+fn pfq_degree(a: &[f64], b: &[f64]) -> Option<f64> {
+    let degree = first_zero(a);
+    (first_zero(b) >= degree).then_some(degree)
+}
+
 /// The $n$ from which on all $a_i + n$ and $b_j + n$ are positive
 fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
     a.iter().chain(b).fold(0.0, |n, &v| n.max(-v))
@@ -497,9 +504,22 @@ pub(crate) fn pfq_accurate<const N: usize>(a: &[f64; N], b: &[f64; N], z: f64) -
     } else {
         &[pfq_continuation, pfq_weniger]
     };
-    let mut results = methods.iter().filter_map(|method| method(a, b, z));
-    let accurate = results.find(|&(y, err)| y.is_finite() && err <= PFQ_TOL * y.abs());
-    accurate.map(|(y, _)| y)
+    methods.iter().find_map(|method| accurate(method(a, b, z)?))
+}
+
+/// The result `y`, if it is finite and its estimated absolute error is at most `PFQ_TOL |y|`
+fn accurate((y, err): (f64, f64)) -> Option<f64> {
+    (y.is_finite() && err <= PFQ_TOL * y.abs()).then_some(y)
+}
+
+/// `pfq_series` if it is `accurate`, after sorting the parameters, which tightens
+/// `pfq_ratio_bound`
+fn pfq_series_sorted<const P: usize, const Q: usize>(
+    a: [f64; P],
+    b: [f64; Q],
+    z: f64,
+) -> Option<f64> {
+    accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
 /// Whether the series of ${}_{q+1}F_q$ diverges at $z = 1$, where $\sum_j b_j \le \sum_i a_i$
@@ -525,11 +545,9 @@ fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
     if z == 0.0 {
         return Some(1.0);
     }
-    // the degree of a polynomial, else infinity
-    let degree = first_zero(&a);
-    if first_zero(&b) < degree {
+    let Some(degree) = pfq_degree(&a, &b) else {
         return Some(f64::INFINITY);
-    }
+    };
     if degree.is_infinite() && z > 1.0 {
         // complex
         Some(f64::NAN)
@@ -605,4 +623,69 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
         Some(i) => pfq_real([a[1 - i]], [1.0], z),
         None => pfq_real(a, b, z),
     }
+}
+
+/// Generalized hypergeometric function $_2F_2$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Notes
+///
+/// For all $z$,
+///
+/// $$
+/// \hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z
+/// = \sum\_{n=0}^\infty
+///     {\rpow{a_1}{n} \ \rpow{a_2}{n} \over \rpow{b_1}{n} \ \rpow{b_2}{n}}
+///     {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. A
+/// non-positive integer $a_i = -n$ makes it a polynomial of degree at most $n$.
+///
+/// As in [`hyp3f2`], an $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
+/// that the result is the $_1F_1$ of the other parameters (or $e^z$), and it is $+\infty$ if a
+/// $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if
+/// an argument is NaN.
+///
+/// # Returns `None`
+///
+/// If the relative error could exceed about $10^{-13}$:
+///
+/// - for some $z < 0$, e.g. $z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$;
+/// - for large $z > 0$, and for some large parameters;
+/// - near a zero;
+/// - if an argument is infinite.
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// # See also
+/// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
+/// - [`hyp3f2`]: Generalized hypergeometric function,
+///   $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$
+#[must_use]
+pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
+    let args = [a1, a2, b1, b2, z];
+    if args.into_iter().any(f64::is_nan) {
+        return Some(f64::NAN);
+    } else if args.into_iter().any(f64::is_infinite) {
+        return None;
+    } else if z == 0.0 {
+        return Some(1.0);
+    }
+    let (mut a, mut b) = ([a1, a2], [b1, b2]);
+    // a common parameter cancels, also at a pole; it becomes a_2 = b_2 = 1, which cancels like
+    // the 1 of n! in the series
+    let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
+    if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
+        (a, b) = ([a[1 - i], 1.0], [b[1 - j], 1.0]);
+        if a[0] == b[0] {
+            return Some(z.exp());
+        }
+    }
+    if pfq_degree(&a, &b).is_none() {
+        return Some(f64::INFINITY);
+    }
+    pfq_series_sorted(a, [b[0], b[1], 1.0], z)
 }
