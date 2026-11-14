@@ -300,20 +300,22 @@ fn hyp1f1_sum<T: Term>(
     for n in 0..MAX_TERMS {
         let n = f64::from(n);
         t = next_term(t, n);
+        let mut norm = t.norm();
         t.add_to(&mut sum, &mut comp);
-        err += (n + 2.0) * t.norm();
+        err += (n + 2.0) * norm;
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
             log_scale -= s;
             let s = s.exp();
             (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
+            norm = t.norm();
         }
-        if t.norm() <= T::EPS * sum.norm() {
+        if norm <= T::EPS * sum.norm() {
             let q = term_ratio(a, b, abs_z, n + 1.0);
             if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
-            let tail = q.map_or(f64::INFINITY, |q| t.norm() * q / (1.0 - q));
+            let tail = q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q));
             let bound = 4.0 * T::EPS * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
