@@ -99,7 +99,8 @@ use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
 };
-use crate::xsf::cephes::{HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1, lgam_sgn, lgam_stirling_corr, psi};
+use crate::xsf::cephes::hyp2f1::{HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1};
+use crate::xsf::cephes::{lgam_sgn, lgam_stirling_corr, psi};
 use crate::xsf::trig::{cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually

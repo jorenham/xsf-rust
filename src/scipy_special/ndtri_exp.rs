@@ -4,8 +4,8 @@
 use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
 
 use crate::utils::SQRT_FRAC_2_PI;
+use crate::xsf::cephes::ndtri::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-use crate::xsf::cephes::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2};
 
 /// Return inverse of log CDF of normal distribution for very small y
 ///

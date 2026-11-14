@@ -23,8 +23,9 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
+use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::cephes::{LANCZOS_G, lanczos_sum_expg_scaled, lgam, rgamma, zeta};
+use crate::xsf::cephes::{lanczos_sum_expg_scaled, lgam, rgamma, zeta};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // rgamma_zero: smallest value x for which rgamma(x) == 0 as x gets large

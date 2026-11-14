@@ -9,7 +9,7 @@ use num_traits::Zero;
 
 use crate::utils::{SQRT_EPSILON, SQRT_PI};
 use crate::xsf::cephes::consts::MAXGAM;
-use crate::xsf::cephes::{HYP2F1_EPS, HYP2F1_ETHRESH};
+use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
 const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
