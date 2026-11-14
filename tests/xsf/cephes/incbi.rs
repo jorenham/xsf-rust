@@ -265,6 +265,13 @@ fn test_betainccinv_far_from_incbi() {
 }
 
 #[test]
+fn test_betainccinv_tiny_a() {
+    // reference value from mpmath
+    let x = xsf::betainccinv(2e-12, 1e300, 2e-12);
+    xsref::np_assert_allclose!(&[x], &[2.647_370_104_516_100_4e-301], rtol = 1e-11);
+}
+
+#[test]
 fn test_betainccinv_huge_ab() {
     // the root is 0.5 + 4.5e-151; the log of the derivative cancelled for huge `a` and `b`
     let x = xsf::betainccinv(1e300, 1e300, 0.1);
