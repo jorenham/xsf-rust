@@ -196,7 +196,7 @@ fn test_betainc_tiny_a() {
 
 #[test]
 fn test_betainc_tiny_b_x_near_1() {
-    // reference values from Arb; I_x(a, b) = O(b), up to a relative ~b |ln(1 - x)|
+    // reference values from Arb; I_x(a, b) = O(b)
     for &(a, b, x, p) in &[
         (
             7.069_029_637_096_786,
@@ -207,7 +207,7 @@ fn test_betainc_tiny_b_x_near_1() {
         (2.0, 1e-12, 0.999_999_999_999_9, 2.893_329_531_165_079_5e-11),
         (0.5, 1e-20, 0.999_999_999_999, 2.901_733_759_901_274_8e-19),
     ] {
-        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-10);
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-14);
     }
     // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
     let p = xsf::betainc(
@@ -215,7 +215,17 @@ fn test_betainc_tiny_b_x_near_1() {
         1.112_624_883_358_221_1e-10,
         0.999_999_999_999_989,
     );
-    xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 5e-9);
+    xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 1e-14);
+    // the continued fractions are cut off (mpmath and Wolfram)
+    let p = xsf::betainc(
+        434.632_567_688_369_9,
+        7.934_119_213_387_608e-11,
+        0.999_999_999_999_027_1,
+    );
+    xsref::np_assert_allclose!(&[p], &[1.666_795_093_743_553_9e-9], rtol = 1e-14);
+    // b is not tiny, but `1 - I_(1-x)(b, a)` still cancels (mpmath and Wolfram)
+    let p = xsf::betainc(3.0, 1e-4, 0.999_999_999_068_677_4);
+    xsref::np_assert_allclose!(&[p], &[0.001_927_587_603_671_827_7], rtol = 1e-14);
 }
 
 #[test]
@@ -271,10 +281,13 @@ fn test_betaincc_tails() {
 }
 
 #[test]
-fn test_betaincc_tiny_a() {
+fn test_betaincc_small_a() {
     // reference values from mpmath and Wolfram; 1 - I_x(a, b) = O(a), where `1 - betainc` cancels
     for &(a, b, x, q) in &[
         (2e-12, 1e300, 2.647_370_104_516_100_4e-301, 2e-12),
+        (1e-6, 1.0, 1e-40, 9.209_916_233_148_987e-5),
+        (0.001, 0.5, 1e-10, 0.024_114_975_970_909_96),
+        (0.05, 1e100, 1e-101, 0.088_742_374_762_480_42),
         (
             3.464_166_003_487_626_4e-12,
             3.465_839_753_112_206e186,
@@ -282,7 +295,7 @@ fn test_betaincc_tiny_a() {
             8.058_530_735_930_76e-12,
         ),
     ] {
-        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-11);
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-14);
     }
 }
 
