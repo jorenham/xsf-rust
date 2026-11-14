@@ -891,7 +891,7 @@ fn test_hyp1f1_neg_b_large_a() {
     // this was -1.4e41
     assert_eq!(xsf::hyp1f1(10.3, -1e7 - 0.5, 0.0), 1.0);
     // Arb: -5.4e5011; the terms shrink, but grow again near -b, and this was 0.59
-    assert!(xsf::hyp1f1(2.0, -1.2e5 - 0.3, 3.6e4).is_nan());
+    assert_eq!(xsf::hyp1f1(2.0, -1.2e5 - 0.3, 3.6e4), f64::NEG_INFINITY);
     // as before (here DLMF 13.3.1 is still used)
     assert_eq!(xsf::hyp1f1(2.0, -31.4, 1e5), f64::INFINITY);
 }
@@ -928,6 +928,42 @@ fn test_hyp1f1_neg_b_unstable() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_hyp1f1_neg_b_minimal() {
+    // Arb; the series cancels (its terms reach 3e13 for the first one), DLMF 13.3.2 is unstable in
+    // both directions, and these were NaN
+    let abx = [
+        (316.3, -1000.3, 100.0),
+        (
+            1_188.732_012_905_963_3,
+            -2_499.156_210_279_005_3,
+            54.795_394_470_185_72,
+        ),
+        (
+            24_929.629_251_754_992,
+            -2_777.733_227_779_244_3,
+            32.643_296_363_324_225,
+        ),
+        (
+            -21_502.359_823_571_114,
+            -604.592_668_830_997_2,
+            -1.241_129_540_369_525_7,
+        ),
+    ];
+    let expected = [
+        1.216_742_332_127_376e-13,
+        7.225_475_205_260_988e-12,
+        5.364_873_636_244_66e-103,
+        2.839_256_698_630_232_6e-19,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb: 6.773662582844621e-53, but the continued fraction takes 30573 steps here, and K + I
+    // amplifies its rounding by 5e6
+    assert!(xsf::hyp1f1(1e6, -1000.3, 0.110_081_953_697_908_98).is_nan());
 }
 
 #[test]

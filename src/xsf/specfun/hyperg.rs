@@ -17,6 +17,7 @@ use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
 use crate::{digamma, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
@@ -414,6 +415,65 @@ fn kummer_args(x: f64, a: f64, b: f64) -> (DoubleDouble, f64) {
         (DoubleDouble::new(b) - a, -x)
     } else {
         (DoubleDouble::new(a), x)
+    }
+}
+
+/// `e^min(x0, 0) M(a, b, x)` for `a, x > 0` and non-integer `b < 0` as `K + I` (DLMF 13.2.42), if
+/// that loses at most half of its digits, with
+/// - `K = Gamma(a - b + 1) / Gamma(1 - b) U(a, b, x)`,
+/// - `I = -Gamma(a - b + 1) Gamma(b - 1) / (Gamma(1 - b) Gamma(a)) x^(1 - b) M2`,
+/// - `M2 = M(a - b + 1, 2 - b, x)` and `M3 = M(a - b + 2, 3 - b, x)`, whose terms are positive.
+///
+/// `K` is the minimal solution of DLMF 13.3.1 for increasing `a` (DLMF 13.8.11, 13.8.12), so
+/// `r = K(a + 1) / K(a)` is a continued fraction. The Wronskian of `K` and `x^(1 - b) M2` is that
+/// of `M`, i.e. `(1 - b) x^-b e^x` (DLMF 13.2.33), so by DLMF 13.3.15 and 13.3.24,
+/// `K = (1 - b) e^x / ((1 - b + a (1 - r)) M2 + x (a - b + 1) / (2 - b) M3)`, where `0 < r < 1`.
+fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
+    // a (1 - r) = a / g, with g = 1 + (a_1 - b) / (x + a_1 / (1 + (a_2 - b) / (x + ...))) and
+    // a_n = a + n, by the modified Lentz method. Its terms are positive, so nothing cancels, and
+    // successive convergents enclose g.
+    let (mut g, mut c, mut d) = (1.0, 1.0, 0.0);
+    let n = (1..=MAX_TERMS).find(|&n| {
+        let an = a.hi + f64::from(n);
+        for (p, q) in [(an - b, x), (an, 1.0)] {
+            (c, d) = (q + p / c, 1.0 / (q + p * d));
+            g *= c * d;
+        }
+        (c * d - 1.0).abs() <= f64::EPSILON
+    })?;
+    // e^-x M2 and e^-x M3, with their absolute errors
+    let (a2, b1) = (a - b + 1.0, DoubleDouble::new(1.0) - b);
+    let (m2, err2) = chgm_series_dd(a2, b1 + 1.0, x, -x).filter(half_accurate)?;
+    let (m3, err3) = chgm_series_dd(a2 + 1.0, b1 + 2.0, x, -x).filter(half_accurate)?;
+    let ar = a.hi / g;
+    let den = (b1.hi + ar) * m2 + x * a2.hi / (b1.hi + 1.0) * m3;
+    // The error of g, which only counts for the share of its term in `den`: 1 eps for the
+    // truncation, and at most 16 roundings per step, as the products of the c and of the d are
+    // ratios of sums of products of the rounded terms, off by up to 5 and 6 roundings per step,
+    // and multiplying them into g adds 4.
+    let err_g = (1.0 + 8.0 * f64::from(n)) * f64::EPSILON * (ar * m2 / den);
+    // (and about 10 roundings for the rest)
+    let err_k = err2 / m2 + err3 / m3 + 5.0 * f64::EPSILON + err_g;
+    let k = Scaled::new(b1.hi / den, 0, err_k)?;
+    let i = Scaled::new(-m2, 0, err2 / m2)?.with_l(ln_dd(DoubleDouble::new(x)) * b1 + x0.max(0.0));
+    let i = mul_gamma_ratio(&[a2, -b1], &[b1, a], || Some(i))?;
+    let (hg, err) = add_exp([k.with_l(DoubleDouble::new(x0.min(0.0))), i])?.to_f64();
+    (err <= SQRT_EPSILON).then_some(hg)
+}
+
+/// Unlike in xsf: `hg` unless it is NaN, or else `M(a, b, x)` for non-integer `b < 0` from
+/// `chgm_minimal`, with `a` and `x` as in `kummer_args` if both are positive.
+///
+/// There the series of `M` cancels and DLMF 13.3.2 is unstable in both directions, e.g. for
+/// `hyp1f1(316.3, -1000.3, 100)`.
+pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
+    let (ak, xk) = kummer_args(x, a, b);
+    // the sums of M2 and M3 need over x terms
+    let minimal = b < 0.0 && b != b.trunc() && ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
+    if hg.is_nan() && minimal {
+        chgm_minimal(ak, b, xk, x).unwrap_or(hg)
+    } else {
+        hg
     }
 }
 
