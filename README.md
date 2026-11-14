@@ -11,7 +11,9 @@
 This crate provides pure Rust implementations of `scipy.special` functions, translated from the
 [xsf](https://github.com/scipy/xsf/) C++ library that powers `scipy.special`.
 
-Most of the `scipy.special` functions are available. See <https://docs.rs/xsf/> and the
+All `scipy.special` functions are available, except for the orthogonal polynomial objects
+(e.g. `legendre`) and the error handling (`errstate`, `geterr`, `seterr`). See
+<https://docs.rs/xsf/> and the
 [`scipy.special` docs](https://docs.scipy.org/doc/scipy/reference/special.html) for additional
 information. [`docs/scipy.md`](https://github.com/jorenham/xsf-rust/blob/master/docs/scipy.md)
 lists the functions that SciPy computes with another library than xsf.
