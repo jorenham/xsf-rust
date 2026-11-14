@@ -94,9 +94,10 @@ pub(crate) fn igam_fac(a: f64, x: f64) -> f64 {
     // Unlike in xsf (scipy/scipy#26535), the Lanczos form is also used for a > IGAM_LARGE, where
     // `a ln(x)` and `lgam(a)` cancel, losing ~a ln(a) eps.
     if (a - x).abs() > 0.4 * a.abs() && a <= IGAM_LARGE {
-        // Unlike in xsf, `exp(a ln(x) - x - lgam(a))` is only used where `pow_rgamma` over- or
-        // underflows, since it loses ~eps times its largest term. For a < 1, `x^a` can't
-        // overflow, and `exp(-lgam(a))` would lose ~|ln a| eps, or underflow (scipy/xsf#456).
+        // Unlike in xsf (scipy/xsf#539), `exp(a ln(x) - x - lgam(a))` is only used where
+        // `pow_rgamma` over- or underflows, since it loses ~eps times its largest term. For a < 1,
+        // `x^a` can't overflow, and `exp(-lgam(a))` would lose ~|ln a| eps, or underflow
+        // (scipy/xsf#456).
         // `e^-x` is split, since it is subnormal for x > 708 where the result can still be normal.
         if a < 1.0 {
             let h = (-x / 2.0).exp();
