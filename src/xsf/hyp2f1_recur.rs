@@ -95,7 +95,7 @@
 use core::cmp::Ordering;
 use core::f64::consts::{LN_2, PI};
 
-use crate::utils::MACHEP;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
 };

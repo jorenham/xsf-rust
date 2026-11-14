@@ -12,7 +12,7 @@
 //! Unlike in xsf, `(sn, cn, dn, phi)` is returned instead of written to output pointers, and the
 //! (unused) status code is dropped.
 
-use crate::utils::MACHEP;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::PI;
 

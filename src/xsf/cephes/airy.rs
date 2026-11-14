@@ -7,7 +7,8 @@
 //!
 //! Unlike in xsf, `(status, ai, aip, bi, bip)` is returned instead of written to output pointers.
 
-use crate::utils::{FRAC_1_SQRT_PI, MACHEP, SQRT_3, pow2};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_3, pow2};
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::FRAC_PI_4;

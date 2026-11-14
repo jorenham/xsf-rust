@@ -10,7 +10,7 @@
 
 use core::f64::consts::PI;
 
-use crate::utils::{MACHEP, MAXGAM, MAXLOG};
+use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::frexp_f64;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{airy, j0, j1, lgam_sgn, rgamma};

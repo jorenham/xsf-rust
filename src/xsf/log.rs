@@ -6,8 +6,9 @@ use core::f64::consts::LN_2;
 
 use num_complex::Complex;
 
-use crate::utils::{MACHEP, pow2};
+use crate::utils::pow2;
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h

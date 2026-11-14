@@ -11,7 +11,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{EGAMMA, MACHEP, MAXLOG, MINLOG, mul_exp};
+use crate::utils::{EGAMMA, mul_exp};
+use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::rgamma;
 

@@ -3,8 +3,8 @@
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 2000 by Stephen L. Moshier
 
-use crate::utils::MAXLOG;
 use crate::xsf::cephes::chbevl::chbevl;
+use crate::xsf::cephes::consts::MAXLOG;
 
 /* Chebyshev coefficients for exp(-x) I0(x)
  * in the interval [0,8].

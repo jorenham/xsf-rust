@@ -11,7 +11,8 @@
 //! The other functions in `unity.h` are translated in `xsf/log.rs` (`log1pmx`) and `xsf/trig.rs`
 //! (`cosm1`), or replaced by `f64::ln_1p` and `f64::exp_m1` from the Rust standard library.
 
-use crate::utils::{EGAMMA, MACHEP};
+use crate::utils::EGAMMA;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::{lgam, zeta};
 
 // cephes/const.h

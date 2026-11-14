@@ -5,7 +5,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, MACHEP, MAXGAM, MAXLOG, MINLOG, SQRT_TAU_DOWN};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_TAU_DOWN};
+use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG, MINLOG};
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;

@@ -130,8 +130,9 @@
 
 use core::f64::consts::FRAC_2_SQRT_PI;
 
-use crate::utils::{FRAC_1_SQRT_PI, MAXLOG, mul_exp};
+use crate::utils::{FRAC_1_SQRT_PI, mul_exp};
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::polevl::polevl;
 
 const SPI2: f64 = 0.886_226_925_452_758; // sqrt(pi)/2

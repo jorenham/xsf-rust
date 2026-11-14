@@ -7,7 +7,7 @@
 //! Copyright 2014, Eric W. Moore
 
 use crate::cosm1;
-use crate::utils::MACHEP;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::ellpe::ellpe;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::{FRAC_PI_2, PI};

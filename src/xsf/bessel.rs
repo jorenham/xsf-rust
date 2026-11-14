@@ -7,9 +7,10 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, MAXLOG, MINLOG, mul_exp};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;

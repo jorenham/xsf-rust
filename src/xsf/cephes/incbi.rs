@@ -7,7 +7,7 @@
 
 use super::incbet::{INCBET_TINY, betainc_xy, incbet, incbet_lnpow};
 use crate::expit;
-use crate::utils::{MACHEP, MAXLOG, MINLOG};
+use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::{lbeta, lgam, ndtri};
 
 /// The `goto` labels in `incbi`

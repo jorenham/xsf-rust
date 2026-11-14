@@ -8,7 +8,8 @@
 //! Unlike in xsf (scipy/xsf#338), the negative integer helpers take any non-positive integer `a`
 //! and integer `b`, not only those that fit in an `int`.
 
-use crate::utils::{LN_SQRT_TAU, MAXGAM, MAXLOG, is_nonpos_int};
+use crate::utils::{LN_SQRT_TAU, is_nonpos_int};
+use crate::xsf::cephes::consts::{MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};

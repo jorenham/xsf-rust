@@ -28,7 +28,7 @@
 
 use core::f64::consts::{E, TAU};
 
-use crate::utils::{MACHEP, MAXLOG};
+use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::{erfc, lgam, lgam1p, rgamma};
 use crate::xsf::log::log1pmx;

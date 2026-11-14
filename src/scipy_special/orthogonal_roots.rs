@@ -10,7 +10,8 @@ use super::orthogonal_eval::{
     eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_legendre,
 };
 use super::tridiag::eigvals;
-use crate::utils::{MAXLOG, SQRT_PI, SQRT_TAU_DOWN};
+use crate::utils::{SQRT_PI, SQRT_TAU_DOWN};
+use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, ldexp_f64, two_sum};
 use crate::xsf::cephes::incbet_lnpow;
 use crate::xsf::ln_gamma;

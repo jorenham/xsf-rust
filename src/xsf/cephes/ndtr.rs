@@ -8,7 +8,8 @@
 
 use core::f64::consts::FRAC_1_SQRT_2;
 
-use crate::utils::{MINLOG, mul_exp, pow2};
+use crate::utils::{mul_exp, pow2};
+use crate::xsf::cephes::consts::MINLOG;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::faddeeva::erfcx;
 

@@ -2,7 +2,8 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{EGAMMA, MAXLOG};
+use crate::utils::EGAMMA;
+use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::{psi, zeta};
 use crate::xsf::tools::{NewtonRootFinderStatus, find_root_newton};
 
