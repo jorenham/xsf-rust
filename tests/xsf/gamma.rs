@@ -223,3 +223,16 @@ fn test_gammaln_near_zeros() {
     assert_eq!([1.0, 2.0].map(|x| xsf::gammaln(x).to_bits()), [0, 0]);
     assert_eq!([1.0, 2.0].map(|x| xsf::loggamma(x).to_bits()), [0, 0]);
 }
+
+#[test]
+fn test_gammaln_subnormal() {
+    // unlike in xsf: -ln|x| instead of inf, where 1 / x overflows (mpmath)
+    for (x, expected) in [
+        (5e-309, 709.889_355_822_726),
+        (2e-308, 708.503_061_461_606_1),
+        (5e-324, 744.440_071_921_381_2),
+    ] {
+        assert_eq!(xsf::gammaln(x), expected);
+        assert_eq!(xsf::gammaln(-x), expected);
+    }
+}

@@ -18,6 +18,8 @@ use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 use core::f64::consts::PI;
 
 const BETA_ASYMP_FACTOR: f64 = 1e6;
+/// Below this `|a|` and `|b|`, `B(a, b) = (a + b) / (a b)` to within `~1.6 |a b|` (DLMF 5.7.3)
+const BETA_TINY: f64 = 1e-9;
 
 /// Asymptotic expansion for  ln(|B(a, b)|) for a > ASYMP_FACTOR*max(|b|, 1).
 ///
@@ -91,9 +93,12 @@ fn beta_uses_lgam(a: f64, b: f64) -> bool {
 /// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
 /// `|a + b|` at most `MAXGAM`
 ///
-/// Unlike in xsf (scipy/xsf#357), `lgam` is then used instead.
+/// Unlike in xsf (scipy/xsf#357), `lgam` is then used instead, also if `a` or `b` is subnormal.
 fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
-    (a < 1.0 - MAXGAM || b < 1.0 - MAXGAM || y < 1.0 - MAXGAM)
+    (a < 1.0 - MAXGAM
+        || b < 1.0 - MAXGAM
+        || y < 1.0 - MAXGAM
+        || a.abs().min(b.abs()) < f64::MIN_POSITIVE)
         && !(gamma(a).is_normal() && gamma(b).is_normal() && rgamma(y).is_normal())
 }
 
@@ -205,6 +210,10 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
         b = y;
     }
 
+    // Unlike in xsf, `(a + b) / (a b)` for a tiny `a` and `b`, where `gamma` can overflow
+    if a.abs() < BETA_TINY {
+        return (a + b) / a / b;
+    }
     if small_b(a, b) {
         return gamma(b) * (-lgam_ratio(a, b)).exp();
     }
@@ -284,6 +293,17 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
         b = y;
     }
 
+    // Unlike in xsf, `ln|(a + b) / (a b)|` for a tiny `a` and `b`, where `gamma` can overflow
+    if a.abs() < BETA_TINY {
+        // `b / a` rounds before `ln_1p` if they nearly cancel, where `a + b` is exact (Sterbenz)
+        let r = b / a;
+        let ln_y = if r < -0.5 {
+            ((a + b) / a).abs().ln()
+        } else {
+            r.ln_1p()
+        };
+        return ln_y - b.abs().ln();
+    }
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
         (y, _) = lbeta_asymp(a, b);
