@@ -70,7 +70,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         q
     } else {
         let (w1, w) = fdtr_w(a, b, x);
-        betainc_xy(0.5 * b, 0.5 * a, w, w1)
+        fdtr_betainc(b, a, w, w1)
     }
 }
 
@@ -134,7 +134,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     } else if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         p
     } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
-        betainc_xy(0.5 * a, 0.5 * b, w, w1)
+        fdtr_betainc(a, b, w, w1)
     } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
         // Unlike in xsf, if `a x` or `w` is subnormal, as they round: the chi-square CDF of `a x`,
         // as `b > 1e291` or inf
@@ -169,7 +169,33 @@ fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
         (1.0 / (1.0 + r), r / (1.0 + r))
     } else {
         let s = b + ax;
-        (ax / s, b / s)
+        // Unlike in xsf, without the rounding of a subnormal `a x`, in the division order that
+        // neither underflows nor overflows spuriously (at most one does)
+        let w = if ax < f64::MIN_POSITIVE {
+            let (u, v) = (a / s * x, x / s * a);
+            if u.is_finite() && v.is_finite() {
+                u.max(v)
+            } else {
+                u.min(v)
+            }
+        } else {
+            ax / s
+        };
+        (w, b / s)
+    }
+}
+
+/// `I_x(p / 2, q / 2)`, given `y = 1 - x`
+///
+/// Unlike in xsf, also if `q` is subnormal, where `q / 2` rounds (e.g. to 0), and
+/// `I_x(P, Q) = O(Q)` for `y > 0`. Then `(P + Q) / Q I_x(P, Q)`, whose log has a derivative in `Q`
+/// of about `|ln(y)| + ln(P + 1)`, is evaluated at `Q0 = MIN_POSITIVE` instead.
+fn fdtr_betainc(p: f64, q: f64, x: f64, y: f64) -> f64 {
+    let q0 = 2.0 * f64::MIN_POSITIVE;
+    if q < q0 && y > 0.0 {
+        q / q0 * ((p + q0) / (p + q)) * betainc_xy(0.5 * p, 0.5 * q0, x, y)
+    } else {
+        betainc_xy(0.5 * p, 0.5 * q, x, y)
     }
 }
 
@@ -216,7 +242,7 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
     let (ha, hb) = (0.5 * a, 0.5 * b);
     if ha <= 1.0 / SQRT_EPSILON {
         let y0 = f64::MIN_POSITIVE;
-        let (p0, q0) = (betainc_xy(ha, hb, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
+        let (p0, q0) = (fdtr_betainc(a, b, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
         // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
         let ln_r = b * (0.5 * (b.ln() - a.min(x).ln() - (a.max(x) * y0).ln()));
         // fdtr = p0 + q0 (1 - (y / y0)^B) has no cancellation

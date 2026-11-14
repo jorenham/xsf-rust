@@ -722,6 +722,26 @@ fn test_chdtr_fdtr_subnormal() {
     assert_eq!(xsf::ncfdtr(3.0 * tiny, 2.0 * tiny, 0.0, 1.0), 0.4);
     let q = xsf::fdtrc(16.0 * tiny, f64::MIN_POSITIVE, 1e-127);
     xsref::np_assert_allclose!(&[q], &[3.552_713_678_800_488_3e-15], rtol = 1e-15);
+    // from Arb; the small `fdtr` or `fdtrc` that is `O(df)` for the subnormal `df`
+    let pq = [
+        xsf::fdtr(1e-300, tiny, 1.0),
+        xsf::fdtr(1e-300, tiny, 1e300),
+        xsf::fdtrc(tiny, 1e-300, 1.0),
+        xsf::fdtrc(tiny, 1e-300, 1e-10),
+        xsf::fdtrc(3.0 * tiny, 1e-300, 1.0),
+        xsf::fdtrc(tiny, 1e-18, 1.0),
+        xsf::fdtrc(1e-310, 1.0, 1.0),
+    ];
+    let pq_ref = [
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        1.482_196_937_523_739_7e-23,
+        4.940_656_458_412_467e-306,
+        3.575_938_365_946_359e-308,
+    ];
+    xsref::np_assert_allclose!(&pq, &pq_ref, rtol = 1e-15);
 }
 
 #[test]
