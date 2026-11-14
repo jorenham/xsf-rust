@@ -131,7 +131,7 @@ pub(crate) fn csqrt(z: C64) -> C64 {
 pub(crate) fn cpow(z: C64, y: f64) -> C64 {
     if y == 0.0 {
         C64::ONE
-    } else if z.im == 0.0 && z.re > 0.0 {
+    } else if z.is_real() && z.re > 0.0 {
         c64(z.re.powf(y), 0.0)
     } else {
         let t = clog(z);

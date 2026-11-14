@@ -136,6 +136,12 @@ impl C64 {
         self.re.is_nan() || self.im.is_nan()
     }
 
+    /// `z.imag() == 0`
+    #[inline]
+    pub(crate) fn is_real(self) -> bool {
+        self.im == 0.0
+    }
+
     /// `std::abs(z.real()) + std::abs(z.imag())`
     #[inline]
     pub(crate) fn l1_norm(self) -> f64 {

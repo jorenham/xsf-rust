@@ -278,7 +278,7 @@ fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
 
     if z.re.is_infinite() {
         // https://dlmf.nist.gov/10.52.E3
-        if z.im == 0.0 {
+        if z.is_real() {
             return C64::ZERO;
         }
 
@@ -297,13 +297,13 @@ fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
     // sqrt(M_PI_2/z) * J_{n+1/2}(z) introduces a spurious sign relative
     // to the (entire) function j_n. Use the reflection identity
     // j_n(-z) = (-1)^n * j_n(z) explicitly (DLMF 10.47.14).
-    if z.im == 0.0 && z.re < 0.0 {
+    if z.is_real() && z.re < 0.0 {
         let r = sph_bessel_j_c64(n, c64(-z.re, 0.0));
         return if n % 2 == 0 { r } else { -r };
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_j_c64(half(n), z);
-    if z.im == 0.0 {
+    if z.is_real() {
         return c64(out.re, 0.0); // Small imaginary part is spurious
     }
 
@@ -373,14 +373,14 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
 
     if z.re.is_infinite() {
         // https://dlmf.nist.gov/10.52.E3
-        if z.im == 0.0 {
+        if z.is_real() {
             return C64::ZERO;
         }
 
         return c64(1.0, 1.0) * f64::INFINITY;
     }
 
-    if z.im == 0.0 {
+    if z.is_real() {
         return c64(sph_bessel_y_f64(n, z.re), 0.0);
     }
 
@@ -403,7 +403,7 @@ fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
 
 fn sph_bessel_y_jac_c64(n: i64, x: C64) -> C64 {
     // Real z: avoid nan + nan j where y_n(z) overflows; complex 0 still gives nan.
-    if x.im == 0.0 && x.re != 0.0 {
+    if x.is_real() && x.re != 0.0 {
         return c64(sph_bessel_y_jac_f64(n, x.re), 0.0);
     }
 
@@ -476,7 +476,7 @@ fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
 
     if z.re.is_infinite() || z.im.is_infinite() {
         // https://dlmf.nist.gov/10.52.E5
-        if z.im == 0.0 {
+        if z.is_real() {
             if z.re == f64::NEG_INFINITY {
                 return c64(pow_m1(n) * f64::INFINITY, 0.0);
             }
@@ -488,7 +488,7 @@ fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
     }
 
     // i_n(-z) = (-1)^n * i_n(z); see sph_bessel_j note above.
-    if z.im == 0.0 && z.re < 0.0 {
+    if z.is_real() && z.re < 0.0 {
         let r = sph_bessel_i_c64(n, c64(-z.re, 0.0));
         return if n % 2 == 0 { r } else { -r };
     }
@@ -564,7 +564,7 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
 
     if z.re.is_infinite() || z.im.is_infinite() {
         // https://dlmf.nist.gov/10.52.E6
-        if z.im == 0.0 {
+        if z.is_real() {
             if z.re == f64::INFINITY {
                 return C64::ZERO;
             }
@@ -575,7 +575,7 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
         return C64::NAN_RE;
     }
 
-    if z.im == 0.0 {
+    if z.is_real() {
         return c64(sph_bessel_k_f64(n, z.re), 0.0);
     }
 
@@ -592,7 +592,7 @@ fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
 
 fn sph_bessel_k_jac_c64(n: i64, x: C64) -> C64 {
     // Real z: avoid nan + nan j where k_n(z) overflows; complex 0 still gives nan.
-    if x.im == 0.0 && x.re != 0.0 {
+    if x.is_real() && x.re != 0.0 {
         return c64(sph_bessel_k_jac_f64(n, x.re), 0.0);
     }
 

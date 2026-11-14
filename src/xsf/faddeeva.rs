@@ -521,7 +521,7 @@ const EXPA2N2: [f64; 52] = [
 pub(crate) fn w(z: C64) -> C64 {
     if z.re == 0.0 {
         return c64(erfcx(z.im), z.re); // give correct sign of 0 in imag(w)
-    } else if z.im == 0.0 {
+    } else if z.is_real() {
         return c64((-sqr(z.re)).exp(), w_im(z.re));
     }
 

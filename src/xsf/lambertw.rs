@@ -814,7 +814,7 @@ pub fn lambertw(z: Complex<f64>, k: isize, tol: f64) -> Complex<f64> {
 
 /// `xsf::lambertw(std::complex<double>, long, double)`
 fn lambertw_c64(z: C64, k: isize, tol: f64) -> C64 {
-    if z.im == 0.0
+    if z.is_real()
         && ((k == 0 && z.re > lambertw_real::Z0)
             || (k == -1 && z.re > lambertw_real::Z0 && z.re < 0.0))
     {
@@ -855,7 +855,7 @@ fn lambertw_c64(z: C64, k: isize, tol: f64) -> C64 {
             lambertw_asy(z, k)
         }
     } else if k == -1 {
-        if absz <= EXPN1 && z.im == 0.0 && z.re < 0.0 {
+        if absz <= EXPN1 && z.is_real() && z.re < 0.0 {
             c64((-z.re).ln(), 0.0)
         } else {
             lambertw_asy(z, k)

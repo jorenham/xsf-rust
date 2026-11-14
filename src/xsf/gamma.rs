@@ -25,7 +25,7 @@ impl GammaArg for Complex<f64> {
 /// `xsf::gamma` for complex `z`, translated into pure Rust from `xsf/gamma.h` (scipy/xsf@56a9b96)
 pub(crate) fn cgamma(z: C64) -> C64 {
     // Compute Gamma(z) using loggamma.
-    if z.im == 0.0 && is_nonpos_int(z.re) {
+    if z.is_real() && is_nonpos_int(z.re) {
         // Poles
         return C64::NAN;
     }

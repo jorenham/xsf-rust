@@ -997,7 +997,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
 
     let (mut cq0, mut cq1, mut cqf, mut cqf0, mut cqf1, mut cqf2);
 
-    if z.re.abs() == 1.0 && z.im == 0.0 {
+    if z.re.abs() == 1.0 && z.is_real() {
         for i in 0..=m {
             for j in 0..=n {
                 cqm[(i, j)] = c64(SPECFUN_INF, 0.0);
@@ -1010,7 +1010,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
 
     let xc = z.norm();
     let mut ls = 0;
-    if z.im == 0.0 || xc < 1.0 {
+    if z.is_real() || xc < 1.0 {
         ls = 1;
     }
     if xc > 1.0 {

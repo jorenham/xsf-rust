@@ -375,7 +375,7 @@ fn zeta_reflection(z: C64) -> C64 {
 }
 
 fn criemann_zeta(z: C64) -> C64 {
-    if z.im == 0.0 {
+    if z.is_real() {
         return c64(crate::xsf::cephes::riemann_zeta(z.re), 0.0);
     }
     if z.re >= 0.5 {

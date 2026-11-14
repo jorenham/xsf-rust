@@ -79,7 +79,7 @@ fn exp1_c64(z: C64) -> C64 {
                 break;
             }
         }
-        if (x <= 0.0) && (z.im == 0.0) {
+        if (x <= 0.0) && z.is_real() {
             // Careful on the branch cut -- use the sign of the imaginary part
             //  to get the right sign on the factor if pi.
             ce1 = -EL - (-z).ln() + z * ce1 - PI.copysign(z.im) * C64::I;
@@ -109,7 +109,7 @@ fn exp1_c64(z: C64) -> C64 {
             }
         }
         ce1 = (-z).exp() * zc;
-        if (x <= 0.0) && (z.im == 0.0) {
+        if (x <= 0.0) && z.is_real() {
             ce1 -= PI * C64::I;
         }
     }

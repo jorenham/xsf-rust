@@ -572,11 +572,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     /* Diverges as real(z) -> 1 when c <= a + b.
      * Todo: Actually check for overflow instead of using a fixed tolerance for
      * all parameter combinations like in the Fortran original. */
-    if (1.0 - z.re).abs() < HYP2F1_EPS && z.im == 0.0 && c - a - b <= 0.0 && !c_non_pos_int {
+    if (1.0 - z.re).abs() < HYP2F1_EPS && z.is_real() && c - a - b <= 0.0 && !c_non_pos_int {
         return C64::INFINITY;
     }
     // Gauss's Summation Theorem for z = 1; c - a - b > 0 (DLMF 15.4.20).
-    if z.re == 1.0 && z.im == 0.0 && c - a - b > 0.0 && !c_non_pos_int {
+    if z.re == 1.0 && z.is_real() && c - a - b > 0.0 && !c_non_pos_int {
         return c64(four_gammas(c, c - a - b, c - a, c - b), 0.0);
     }
     /* |z| < 0, z.real() >= 0. Use the Maclaurin Series.

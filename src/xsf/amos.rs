@@ -871,7 +871,7 @@ pub(crate) fn airy(mut z: C64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i32)
     if *ierr != 0 {
         return C64::ZERO;
     }
-    if z.im == 0.0 {
+    if z.is_real() {
         z = c64(z.re, 0.0);
     }
     let az = z.norm();
@@ -2931,7 +2931,7 @@ pub(crate) fn biry(mut z: C64, id: i32, kode: i32, ierr: &mut i32) -> C64 {
     if *ierr != 0 {
         return C64::ZERO;
     }
-    if z.im == 0.0 {
+    if z.is_real() {
         z = c64(z.re, 0.0);
     }
     let az = z.norm();
@@ -4910,7 +4910,7 @@ fn unhj(
     w2 = 1.0 - zb * zb;
     /* AMOS AZSQRT and C CSQRT differs when imaginary 0.0 swaps sign */
     w2 = 1.0 - zb * zb;
-    if w2.im == -0.0 {
+    if w2.is_real() {
         w2 = c64(w2.re, 0.0);
     }
     let aw2: f64 = w2.norm();
