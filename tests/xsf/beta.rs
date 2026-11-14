@@ -186,3 +186,37 @@ fn test_beta_rounded_sum() {
     let expected = expected.map(|y: f64| y.abs().ln());
     xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
 }
+
+#[test]
+fn test_betaln_subnormal() {
+    // unlike in xsf: finite instead of inf, where Gamma(a) or Gamma(b) overflows (mpmath)
+    let cases = [
+        (5e-309, 1.0, 709.889_355_822_726),
+        (5e-309, 2.0, 709.889_355_822_726),
+        (5.0, 5e-309, 709.889_355_822_726),
+        (4e-309, 3.0, 710.112_499_374_040_2),
+        (5e-309, 5e-309, 710.582_503_003_286),
+        (1.0, -5e-309, 709.889_355_822_726),
+        (-5e-309, 2.0, 709.889_355_822_726),
+        (1e-320, 0.5, 736.827_240_890_973_9),
+        (5e-309, 1e300, 709.889_355_822_726),
+        (6e-309, -5.6e-309, 707.067_976_936_316_8),
+    ];
+    let actual = cases.map(|(a, b, _)| xsf::betaln(a, b));
+    let expected = cases.map(|(_, _, y)| y);
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
+fn test_beta_tiny() {
+    // (a + b) / (a b), also for a subnormal a + b (mpmath)
+    let actual = [xsf::beta(6e-309, -5.6e-309), xsf::beta(-2e-10, 5e-11)];
+    let expected = [-1.190_476_190_476_201_6e307, 1.5e10];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    // Gamma(a + b) = Gamma(0) is infinite
+    assert_eq!(xsf::beta(6e-309, -6e-309), 0.0);
+    assert_eq!(xsf::betaln(6e-309, -6e-309), f64::NEG_INFINITY);
+    // a + b nearly cancels (mpmath)
+    let actual = xsf::betaln(6e-10, -5.999_999_999_999_999e-10);
+    xsref::np_assert_allclose!(&[actual], &[-15.063_033_065_050_657], rtol = 1e-15);
+}
