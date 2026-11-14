@@ -46,7 +46,8 @@ use core::f64::consts::{FRAC_1_PI, PI};
 
 use crate::utils::is_nonpos_int;
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::{LANCZOS_G, gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
+use crate::xsf::cephes::lanczos::LANCZOS_G;
+use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
 use crate::xsf::tools::{self, series_eval_fixed_length};
 
 const HYP2F1_EPS: f64 = 1e-15;
