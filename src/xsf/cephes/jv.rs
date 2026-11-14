@@ -13,7 +13,7 @@ use core::f64::consts::PI;
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::frexp_f64;
 use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::cephes::{airy, j0, j1, lgam_sgn, rgamma};
+use crate::xsf::cephes::{airy, j0, j1, lgam_sgn, pow_rgamma, rgamma};
 
 const JV_BIG: f64 = 1.44115188075855872E+17;
 
@@ -198,6 +198,9 @@ fn jv_jvs(n: f64, x: f64) -> f64 {
     ex = (f64::from(ex) * n) as i32;
     if (ex > -1023) && (ex < 1023) && (n > 0.0) && (n < (MAXGAM - 1.0)) {
         t = (0.5 * x).powf(n) * rgamma(n + 1.0);
+        y *= t;
+    } else if let Some(t) = pow_rgamma(0.5 * x, n, 0, n + 1.0, 0.0) {
+        // Unlike in xsf, `exp(n ln(x/2) - lgam(n + 1))` below loses ~|n ln(x/2)| eps
         y *= t;
     } else {
         let (lgam, mut sgngam) = lgam_sgn(n + 1.0);
