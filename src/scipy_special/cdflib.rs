@@ -1007,6 +1007,48 @@ pub fn nctdtr(df: f64, nc: f64, t: f64) -> f64 {
     }
 }
 
+/// Inverse of the noncentral t CDF with respect to `t`
+///
+/// Corresponds to [`scipy.special.nctdtrit`][nctdtrit]. It is slower, but also accurate where
+/// SciPy's loses all digits or returns NaN, e.g. for a small `df` or a large `nc`.
+///
+/// [nctdtrit]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nctdtrit.html
+///
+/// # See also
+/// - [`nctdtr`]: CDF of the noncentral t distribution
+/// - [`stdtri`](crate::stdtri): Inverse of the (central) Student's t CDF
+#[must_use]
+pub fn nctdtrit(df: f64, nc: f64, p: f64) -> f64 {
+    if !(df > 0.0 && nc.is_finite() && (0.0..=1.0).contains(&p)) {
+        f64::NAN
+    } else if df.is_infinite() || p == 0.0 || p == 1.0 {
+        // Unlike in SciPy, -inf if `p = 0`, instead of inf
+        nc + crate::ndtri(p)
+    } else if p > 0.5 {
+        // `F(t; nc) = 1 - F(-t; -nc)`, since `1 - p` is exact, but not `nctdtr` near 1
+        -nctdtrit(df, -nc, 1.0 - p)
+    } else {
+        // Unlike in SciPy, bracketed, with Chandrupatla in `asinh(t)`, as the tails can be as
+        // heavy as `|t|^-df`
+        let func = |x: f64| nctdtr(df, nc, x.sinh()) - p;
+        let x_max = f64::MAX.asinh();
+        let x0 = (nc + crate::ndtri(p)).asinh();
+        let (xl, xr, f_xl, f_xr, bracket_status) =
+            bracket_root_for_cdf_inversion(func, x0, -x_max, x_max, -1.0, 1.0, 2.0, 2.0, true, 64);
+        // relative and absolute, as the rounding of `nctdtr` can jump at `t = 0`
+        let tol = f64::EPSILON;
+        match bracket_status {
+            0 => match find_root_chandrupatla(func, xl, xr, f_xl, f_xr, tol, tol, 100) {
+                (x, 0) => x.sinh(),
+                _ => f64::NAN,
+            },
+            1 => f64::NEG_INFINITY,
+            2 => f64::INFINITY,
+            _ => f64::NAN,
+        }
+    }
+}
+
 /// CDF of the noncentral t distribution, from cdflib's `cumtnc`.
 ///
 /// It sums the series for the upper tail on p. 532 of Johnson, Kotz and Balakrishnan, Continuous

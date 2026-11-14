@@ -619,6 +619,60 @@ fn test_nctdtr_edge_cases() {
 }
 
 #[test]
+fn test_nctdtrit() {
+    // `test_nctdtrit` in scipy/special/tests/test_cdflib.py: `(df, nc, t, nctdtr)`
+    let cases = [
+        (0.98, 38.0, 1.5, 2.591_995_360_483_094e-97),
+        (3000.0, 3.0, 0.1, 0.001_865_778_082_632_332_8),
+        (0.98, -3.8, 15.0, 0.999_999_026_459_194_5),
+        (9.8, 38.0, 15.0, 2.252_076_291_604_796e-9),
+    ];
+    for (df, nc, t, p) in cases {
+        np_assert_allclose!([xsf::nctdtrit(df, nc, p)], [t], rtol = 1e-10);
+    }
+    // from mpmath
+    np_assert_allclose!(
+        [xsf::nctdtrit(1.0, 2.0, 0.5), xsf::nctdtrit(0.01, 0.0, 0.01)],
+        [2.809_050_333_659_89, -3.960_440_137_152_441_5e168],
+        rtol = 1e-13
+    );
+}
+
+#[test]
+fn test_nctdtrit_edge_cases() {
+    let nan = f64::NAN;
+    for (df, nc, p) in [(nan, 1.0, 0.5), (1.0, nan, 0.5), (1.0, 1.0, nan)] {
+        assert!(xsf::nctdtrit(df, nc, p).is_nan());
+    }
+    for (df, nc, p) in [(0.0, 1.0, 0.5), (1.0, f64::INFINITY, 0.5), (1.0, 1.0, 1.5)] {
+        assert!(xsf::nctdtrit(df, nc, p).is_nan());
+    }
+    // `nc + ndtri(p)` if `df = inf` or `p = 1`
+    assert_eq!(
+        xsf::nctdtrit(f64::INFINITY, 2.0, 0.3),
+        2.0 + xsf::ndtri(0.3)
+    );
+    assert_eq!(xsf::nctdtrit(1.0, 1.0, 1.0), f64::INFINITY);
+    // Unlike in SciPy, -inf if `p = 0`, instead of inf
+    assert_eq!(xsf::nctdtrit(1.0, 1.0, 0.0), f64::NEG_INFINITY);
+    // near `t = 0`, where the rounding of `nctdtr` can jump
+    for (df, nc, p) in [
+        (100.0, 1.0, 0.158_655_253_931_457_1),
+        (1.0, 30.0, xsf::ndtr(-30.0)),
+    ] {
+        assert!(xsf::nctdtrit(df, nc, p).abs() <= 1e-15);
+    }
+    // `stdtri` if `nc = 0`, also in the tails
+    for p in [1e-300, 0.3, 1.0 - f64::EPSILON / 2.0] {
+        np_assert_allclose!(
+            [xsf::nctdtrit(5.0, 0.0, p)],
+            [xsf::stdtri(5.0, p)],
+            rtol = 1e-13
+        );
+    }
+}
+
+#[test]
 fn test_nctdtridf() {
     // `test_nctdtridf_accuracy` in scipy/special/tests/test_cdflib.py: `(df, nc, t, nctdtr)`
     let cases = [

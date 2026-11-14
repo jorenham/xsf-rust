@@ -24,12 +24,11 @@ uses instead, and their name in xsf-rust.
 | `hyp1f1`                                | Boost; complex: xsf    | same                       |
 | `nbdtrik`, `nbdtrin`                    | Boost                  | same                       |
 | `ncfdtr`, `ncfdtri`                     | Boost                  | same                       |
-| `nctdtr`                                | Boost                  | same                       |
+| `nctdtr`, `nctdtrit`                    | Boost                  | same                       |
 | `pdtrik`                                | Boost                  | same                       |
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `nctdtrit`                              | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |
 | `ncfdtridfd`, `ncfdtridfn`, `ncfdtrinc` | cdflib                 | same                       |
 | `nctdtridf`, `nctdtrinc`                | cdflib                 | same                       |
