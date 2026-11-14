@@ -494,26 +494,26 @@ it is translated from (commit [`{short}`](https://github.com/scipy/xsf/tree/{com
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
-- **inf (k)**: k infinite errors, e.g. NaN, or a spurious overflow
+- **inf (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
 - **bold**: the smallest peak or rms of a row (if unique at the displayed precision)
 - **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
 - **bit-identical**: the share of inputs where xsf-rust and xsf return the same f64
-- **(log)**: sampled log-uniformly; **\u00b1**: with a random sign
+- **(log)**: sampled log-uniformly; **$`\\pm`$**: with a random sign
 
-For reference, \u03b5 = 2.2e-16. See [Method](#method) for the details.
+For reference, $`\\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 """
 
 METHOD: Final = """\
 ## Method
 
-- Each domain has N seeded pseudo-random f64 inputs, uniform unless marked "(log)".
-- The reference f is computed with mpmath {mpmath} at 50 or more digits, for the exact f64
+- Each domain has $`N`$ seeded pseudo-random f64 inputs, uniform unless marked "(log)".
+- The reference $`f`$ is computed with mpmath {mpmath} at 50 or more digits, for the exact f64
   input, or with an alternative formula where mpmath is inaccurate (see
   `tools/accuracy/specs.py`).
-- The error of y is |y \u2212 f| / |f| (of the complex values, for complex functions). Where
-  a function oscillates, it is the smaller of that and |y \u2212 f| / A, with the local
-  amplitude A given below the table. A result is exact if both overflow to the same infinity,
-  or both underflow (|f| < 2.2e-308).
+- The error of $`y`$ is $`\\lvert y - f\\rvert / \\lvert f\\rvert`$ (of the complex values, for complex functions). Where
+  a function oscillates, it is the smaller of that and $`\\lvert y - f\\rvert / A`$, with the local
+  amplitude $`A`$ given below the table. A result is exact if both overflow to the same infinity,
+  or both underflow ($`\\lvert f\\rvert`$ < 2.2e-308).
 - bit-identical is rounded down, and counts any two NaNs as equal.
 - Built on {platform}: xsf-rust with `{rustc}` (release profile), xsf with `{gxx}`
   (`-O2 -std=c++17`).
