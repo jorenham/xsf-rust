@@ -2234,6 +2234,11 @@ def r_nctdtr(v, nc, t):
     return _converged(_nctdtr_sum, v, nc, t)
 
 
+def r_nctdtrit(v, nc, p):
+    # in `asinh(t)`, since the tails can be as heavy as `|t|^-v`
+    return mp.sinh(_invert(lambda s: r_nctdtr(v, nc, mp.sinh(s)) - p, mp.asinh(nc)))
+
+
 def r_stdtri(v, p):
     if p == 0.5:
         return mp.mpf(0)
@@ -3239,6 +3244,15 @@ add(
     D(LU(1e-2, 1e3), U(0, 10), U(-20, 0), n=500),
     cpp=False,
     timeout=120,
+)
+add(
+    "nctdtrit",
+    "nu nc p",
+    r_nctdtrit,
+    D(LU(1e-2, 1e3), U(-10, 10), U(0, 1), n=500),
+    cpp=False,
+    timeout=120,
+    note="inv",
 )
 
 section("Chi square distribution", 3)

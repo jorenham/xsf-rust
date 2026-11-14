@@ -346,6 +346,7 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("stdtr", &[v, t]) => xsf::stdtr(v, t),
         ("stdtri", &[v, p]) => xsf::stdtri(v, p),
         ("nctdtr", &[v, nc, t]) => xsf::nctdtr(v, nc, t),
+        ("nctdtrit", &[v, nc, p]) => xsf::nctdtrit(v, nc, p),
         ("tukeylambdacdf", &[x, l]) => xsf::tukeylambdacdf(x, l),
         ("von_mises_cdf", &[k, x]) => xsf::von_mises_cdf(k, x),
         ("geninvgauss_pdf", &[x, p, b]) => xsf::geninvgauss_pdf(x, p, b),
