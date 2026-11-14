@@ -94,13 +94,10 @@ fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     if q < 0.0 {
         /* https://dlmf.nist.gov/28.2#E34 */
         let (sgn, (f, d)) = if int_m % 2 == 0 {
-            let sgn = if (int_m / 2) % 2 == 0 { -1 } else { 1 };
-            (sgn, sem(m, -q, 90.0 - x))
+            (-neg_one_pow(int_m / 2), sem(m, -q, 90.0 - x))
         } else {
-            let sgn = if (int_m / 2) % 2 == 0 { 1 } else { -1 };
-            (sgn, cem(m, -q, 90.0 - x))
+            (neg_one_pow(int_m / 2), cem(m, -q, 90.0 - x))
         };
-        let sgn = f64::from(sgn);
         return (sgn * f, -sgn * d);
     }
     let status = mtu0(kf, int_m, q, x, &mut csf, &mut csd);

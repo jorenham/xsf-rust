@@ -152,7 +152,7 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
         // DLMF 14.9.3
         let g1 = gamma2(vx - f64::from(mx) + 1.0);
         let g2 = gamma2(vx + f64::from(mx) + 1.0);
-        pmv = pmv * g1 / g2 * (-1.0_f64).powf(f64::from(mx));
+        pmv = pmv * g1 / g2 * neg_one_pow(mx);
     }
     pmv
 }
@@ -215,7 +215,7 @@ fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
                 * (1.0 + x);
             pmv += r;
         }
-        (-1.0_f64).powf(f64::from(nv)) * c0 * pmv
+        neg_one_pow(nv) * c0 * pmv
     } else if x >= -0.35 {
         // DLMF 14.3.4, 15.2.1
         let mut pmv = 1.0;
@@ -232,7 +232,7 @@ fn lpmv0(v: f64, m: i32, x: f64) -> f64 {
                 break;
             }
         }
-        (-1.0_f64).powf(f64::from(m)) * c0 * pmv
+        neg_one_pow(m) * c0 * pmv
     } else {
         // DLMF 14.3.5, 15.8.10
         let vs = (v * PI).sin() / PI;
@@ -446,7 +446,7 @@ pub(crate) fn lqmns(m: i32, n: i32, x: f64, qm: &mut [f64], qd: &mut [f64]) {
 
     if x.abs() < 1.0 {
         for k in 0..=n {
-            qm[k as usize] *= (-1.0_f64).powf(f64::from(m));
+            qm[k as usize] *= neg_one_pow(m);
         }
     }
 

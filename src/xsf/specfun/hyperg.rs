@@ -11,7 +11,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, pow2};
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
@@ -1229,14 +1229,14 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
         } else {
             ga / (1..=n).map(|j| a - f64::from(j)).product::<f64>()
         };
-        ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga1);
+        ua = neg_one_pow(n - 1) / (rn * ga1);
         ub = rn1 / ga * x.powf(f64::from(-n));
     } else {
         a0 = a + f64::from(n);
         a1 = a0;
         a2 = a;
         ga1 = if xsf { gamma2(a1) } else { gamma(a1) };
-        ua = (-1.0_f64).powf(f64::from(n - 1)) / (rn * ga) * x.powf(f64::from(n));
+        ua = neg_one_pow(n - 1) / (rn * ga) * x.powf(f64::from(n));
         ub = rn1 / ga1;
     }
     // `chgubi` then retries with `psi_spec` and `gamma2`

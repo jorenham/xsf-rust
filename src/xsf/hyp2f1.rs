@@ -44,7 +44,7 @@
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
-use crate::utils::is_nonpos_int;
+use crate::utils::{is_nonpos_int, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::{gamma, gammasgn, lanczos_sum_expg_scaled, lgam, poch, rgamma};
@@ -454,14 +454,14 @@ fn hyp2f1_transform1_limiting_case(a: f64, b: f64, c: f64, z: C64) -> (C64, f64)
                 series_eval_finite(series_generator, m as u64) * four_gammas(m, c, a + m, b + m);
         }
         let prefactor =
-            (1.0 - z).powf(m) * ((-1.0_f64).powf(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
+            (1.0 - z).powf(m) * (neg_one_pow(m + 1.0) * gamma(c) / (gamma(a) * gamma(b)));
         let series_generator = hyp2f1_transform1_limit_series_generator(a + m, b + m, m, z);
         (prefactor, series_generator)
     } else {
         result = (1.0 - z).powf(m) * four_gammas(-m, c, a, b);
         let series_generator1 = hypergeometric_series_generator(a + m, b + m, 1.0 + m, 1.0 - z);
         result *= series_eval_finite(series_generator1, (-m) as u64);
-        let prefactor = (-1.0_f64).powf(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
+        let prefactor = neg_one_pow(m + 1.0) * gamma(c) * (rgamma(a + m) * rgamma(b + m));
         let series_generator2 = hyp2f1_transform1_limit_series_generator(a, b, -m, z);
         (c64(prefactor, 0.0), series_generator2)
     };

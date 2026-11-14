@@ -6,7 +6,7 @@
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::SPECFUN_INF;
-use crate::utils::EGAMMA;
+use crate::utils::{EGAMMA, neg_one_pow};
 use crate::xsf::c64::{C64, c64};
 
 fn gam0(x: f64) -> f64 {
@@ -633,11 +633,9 @@ fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]
             }
             if k == 2 * (k / 2) && k != 0 {
                 bs += 2.0 * f;
-                su += (-1.0_f64).powf(f64::from(k / 2)) * f / f64::from(k);
+                su += neg_one_pow(k / 2) * f / f64::from(k);
             } else if k > 1 {
-                sv += (-1.0_f64).powf(f64::from(k / 2)) * f64::from(k)
-                    / (f64::from(k) * f64::from(k) - 1.0)
-                    * f;
+                sv += neg_one_pow(k / 2) * f64::from(k) / (f64::from(k) * f64::from(k) - 1.0) * f;
             }
             f2 = f1;
             f1 = f;
