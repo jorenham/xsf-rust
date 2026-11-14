@@ -209,6 +209,13 @@ fn test_betainc_tiny_b_x_near_1() {
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-10);
     }
+    // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
+    let p = xsf::betainc(
+        240.444_389_643_372_94,
+        1.112_624_883_358_221_1e-10,
+        0.999_999_999_999_989,
+    );
+    xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 5e-9);
 }
 
 #[test]
@@ -261,6 +268,22 @@ fn test_betaincc_tails() {
     // 1 - I_x(0.5, 2) = 1 - 1.5 sqrt(x) + O(x^1.5)
     let q = xsf::betaincc(0.5, 2.0, 1e-20);
     xsref::np_assert_allclose!(&[q], &[1.0 - 1.5e-10], rtol = 1e-15);
+}
+
+#[test]
+fn test_betaincc_tiny_a() {
+    // reference values from mpmath and Wolfram; 1 - I_x(a, b) = O(a), where `1 - betainc` cancels
+    for &(a, b, x, q) in &[
+        (2e-12, 1e300, 2.647_370_104_516_100_4e-301, 2e-12),
+        (
+            3.464_166_003_487_626_4e-12,
+            3.465_839_753_112_206e186,
+            1.675_272_022_682_781e-188,
+            8.058_530_735_930_76e-12,
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-11);
+    }
 }
 
 #[test]

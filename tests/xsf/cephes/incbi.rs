@@ -265,6 +265,13 @@ fn test_betainccinv_far_from_incbi() {
 }
 
 #[test]
+fn test_betainccinv_tiny_a() {
+    // reference value from mpmath
+    let x = xsf::betainccinv(2e-12, 1e300, 2e-12);
+    xsref::np_assert_allclose!(&[x], &[2.647_370_104_516_100_4e-301], rtol = 1e-11);
+}
+
+#[test]
 fn test_betainccinv_extreme() {
     // the root (1 - y)^(1/a) = 1e-1000 underflows
     assert_eq!(xsf::betainccinv(0.001, 1.0, 0.9), 0.0);

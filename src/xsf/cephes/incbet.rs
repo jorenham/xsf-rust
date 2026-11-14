@@ -23,6 +23,11 @@ pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
 /// neglected terms of ~`2.5 m^2 < eps / 40` (measured)
 const INCBET_APSER_MAX: f64 = 1e-9;
 
+/// If `m` (with `1 - ln(b x)` for `|ln(x)|`, as `psi(b) ~ ln(b)` mostly cancels `ln(x)`) is at most
+/// this, `incbet_apser` is the small `1 - I_x(a, b)` up to a relative ~`1.5 m`, which is below the
+/// error of the cancelling `1 - incbet_pseries` (both measured)
+const INCBET_APSER_COMPL_MAX: f64 = 5e-8;
+
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
 /// Unlike in xsf, which returns NaN or 0 then.
@@ -481,6 +486,10 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         };
 
         if flag && (b * x) <= 1.0 && x <= 0.95 {
+            // Unlike in xsf, the small `1 - I_x(a, b)` is computed directly for tiny `a`
+            if a * (1.0 - (b * x).ln()).max(1.0 / b) <= INCBET_APSER_COMPL_MAX {
+                return incbet_apser(a, b, x);
+            }
             break 'done incbet_pseries(a, b, x);
         }
 
