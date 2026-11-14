@@ -156,6 +156,40 @@ fn test_hyp3f2_weniger() {
 }
 
 #[test]
+fn test_hyp3f2_double_double() {
+    // the terms cancel in `f64`; mpmath references at 50 and 120 digits, cross-checked with Arb
+    for (a, b, z, expected) in [
+        (
+            [3.0, 0.5, -19.5],
+            [0.25, 0.125],
+            0.25,
+            -1.187_310_231_031_717_4,
+        ),
+        (
+            [10.5, 12.5, 9.25],
+            [1.5, 2.5],
+            -0.25,
+            -0.037_909_280_209_963_286,
+        ),
+        (
+            [20.5, 0.75, 3.25],
+            [1.5, 2.5],
+            -0.5,
+            0.099_410_623_211_045_2,
+        ),
+        // near a zero of the polynomial
+        (
+            [-2.0, 1.0, 1.0],
+            [0.5, 0.5],
+            0.143_237_254_218_789_44,
+            -4.403_648_831_270_954e-17,
+        ),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
+}
+
+#[test]
 fn test_hyp3f2_none() {
     // z = 1
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
@@ -165,14 +199,9 @@ fn test_hyp3f2_none() {
     assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 2.0, -50.0), None);
     // the same for a huge |z|, where its orders hardly change before they converge
     assert_eq!(hyp3f2(2e-15, 1.0, 1.0, 2.0, 2.0, -1e150), None);
-    // the terms cancel
+    // the terms cancel too much
     assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -1.0), None);
-    // near a zero of the polynomial
-    assert_eq!(
-        hyp3f2(-2.0, 1.0, 1.0, 0.5, 0.5, 0.143_237_254_218_789_44),
-        None
-    );
     // a huge negative parameter
     assert_eq!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9), None);
 }
