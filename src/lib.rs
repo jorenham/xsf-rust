@@ -255,11 +255,12 @@
 //!
 //! ## Chi square distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`chdtr`]  | Cumulative distribution function |
-//! | [`chdtrc`] | Complement of [`chdtr`]          |
-//! | [`chdtri`] | Inverse of [`chdtrc`]            |
+//! | Function    | Description                                           |
+//! | ----------- | ----------------------------------------------------- |
+//! | [`chdtr`]   | Cumulative distribution function                      |
+//! | [`chdtrc`]  | Complement of [`chdtr`]                               |
+//! | [`chdtri`]  | Inverse of [`chdtrc`]                                 |
+//! | [`chdtriv`] | Inverse of [`chdtr(v, x)`](chdtr) with respect to `v` |
 //!
 //! ## Kolmogorov distribution
 //!

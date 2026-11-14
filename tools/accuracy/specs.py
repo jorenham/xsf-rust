@@ -2076,6 +2076,13 @@ def r_chdtri(v, y):
     )
 
 
+def r_chdtriv(p, x):
+    # v such that chdtr(v, x) = p
+    return _invert_pos(
+        lambda v: _gammainc_pq(v / 2, x / 2, False), p, x, decreasing=True
+    )
+
+
 def r_fdtri(a, b, y):
     # x such that fdtr(a, b, x) = y
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
@@ -3064,6 +3071,15 @@ add(
     "v y",
     r_chdtri,
     D(LU(1e-3, 1e3), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "chdtriv",
+    "p x",
+    r_chdtriv,
+    D(U(0, 1), LU(1e-3, 1e3), n=2000),
+    cpp=False,
     timeout=120,
     note="inv",
 )
