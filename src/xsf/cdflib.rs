@@ -129,10 +129,10 @@ pub(crate) fn find_positive_root(
      *    the number of necessary function evaluations in the worst case scenario for
      *    Chandrupatla's algorithm will remain constant.
      *
-     * `increasing` specifies whether the function is increasing. 342 is equal to
-     * max(ceil(log_8(DBL_MAX)), ceil(log_(1/8)(DBL_MIN))). An upper bound for the
-     * number of iterations needed in this bracket search to check all normalized
-     * floating point values.
+     * `increasing` specifies whether the function is increasing. 359 is equal to
+     * max(ceil(log_8(DBL_MAX)), ceil(log_(1/8)(DBL_TRUE_MIN))) + 1. An upper bound for the
+     * number of iterations needed in this bracket search to check all positive floating point
+     * values, including the subnormals.
      */
     let (xl, xr, f_xl, f_xr, bracket_status) = bracket_root_for_cdf_inversion(
         &func,
@@ -144,7 +144,7 @@ pub(crate) fn find_positive_root(
         0.125,
         8.0,
         increasing,
-        342,
+        359,
     );
     if bracket_status == 1 {
         return 0.0;
@@ -155,10 +155,18 @@ pub(crate) fn find_positive_root(
     if bracket_status >= 3 {
         return f64::NAN;
     }
-    // Unlike in xsf, the absolute tolerance is 0 instead of `1e-100`, so that roots below `~1e-84`
-    // keep their relative precision
-    let (result, root_status) =
-        find_root_chandrupatla(&func, xl, xr, f_xl, f_xr, f64::EPSILON, 0.0, 100);
+    // Unlike in xsf, the absolute tolerance is 2 subnormal ulps instead of `1e-100`, so that roots
+    // below `~1e-84` keep their relative precision, and subnormal ones end at adjacent values
+    let (result, root_status) = find_root_chandrupatla(
+        &func,
+        xl,
+        xr,
+        f_xl,
+        f_xr,
+        f64::EPSILON,
+        f64::from_bits(2),
+        100,
+    );
     if root_status != 0 {
         /* The root finding return should only fail if there's a bug in our code. */
         return f64::NAN;
