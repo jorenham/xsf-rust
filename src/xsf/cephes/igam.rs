@@ -152,7 +152,8 @@ fn igam_fac_exponent(a: f64, x: f64) -> f64 {
         a * ln_r + (a - x)
     } else {
         let num = x - a - LANCZOS_G + 0.5;
-        a * log1pmx(num / fac) + x * (0.5 - LANCZOS_G) / fac
+        // Unlike in xsf, `x / fac` first, since `x (0.5 - g)` overflows if `x` is near `f64::MAX`
+        a * log1pmx(num / fac) + x / fac * (0.5 - LANCZOS_G)
     }
 }
 

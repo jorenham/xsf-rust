@@ -6,16 +6,18 @@
 //! closest, instead of cdflib's search bound. If it is 0 or 1, the limit where the CDF is smallest
 //! or largest is returned, instead of a root where the CDF underflows or rounds to it.
 
-use core::f64::consts::{LN_2, PI};
+use core::f64::consts::{LN_2, PI, SQRT_2};
 
-use crate::utils::pow2;
-use crate::xsf::cephes::dd_real::ldexp_f64;
+use super::quadpack::quad_unimodal;
+use crate::utils::{SQRT_FRAC_2_PI, pow2};
+use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
     betainc_xy, gamma, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
     incbet_cf_factor, lbeta, ln_igam_fac,
 };
 use crate::xsf::{
-    bracket_root_for_cdf_inversion, exp2, find_positive_root, find_root_chandrupatla,
+    bracket_root_for_cdf_inversion, erfcx, exp2, find_positive_root, find_root_chandrupatla,
+    log1pmx,
 };
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
@@ -974,6 +976,37 @@ pub fn ncfdtrinc(dfn: f64, dfd: f64, p: f64, f: f64) -> f64 {
     })
 }
 
+/// CDF of the noncentral t distribution
+///
+/// Corresponds to [`scipy.special.nctdtr`][nctdtr].
+///
+/// [nctdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nctdtr.html
+///
+/// # See also
+/// - [`stdtr`](crate::stdtr): CDF of the (central) Student's t distribution
+/// - [`nctdtridf`]: Inverse of [`nctdtr`] with respect to `df`
+/// - [`nctdtrinc`]: Inverse of [`nctdtr`] with respect to `nc`
+#[must_use]
+pub fn nctdtr(df: f64, nc: f64, t: f64) -> f64 {
+    if !(df > 0.0 && !nc.is_nan() && !t.is_nan()) {
+        f64::NAN
+    } else if t.is_infinite() {
+        // the limits of SciPy, where infinite `t` goes before infinite `nc`
+        if t > 0.0 { 1.0 } else { 0.0 }
+    } else if nc.is_infinite() {
+        f64::NAN
+    } else if df.is_infinite() {
+        crate::ndtr(t - nc)
+    } else if t == 0.0 || 0.5 * df == 0.0 {
+        // the `df -> 0` limit, also if `df / 2` underflows
+        crate::ndtr(-nc)
+    } else {
+        // Unlike in SciPy, quadrature, as Boost's series cancels for `t < 0 < nc`, e.g.
+        // `nctdtr(10, 10, -1) = 2.6e-27`
+        nct_quad(t, df, nc)
+    }
+}
+
 /// CDF of the noncentral t distribution, from cdflib's `cumtnc`.
 ///
 /// It sums the series for the upper tail on p. 532 of Johnson, Kotz and Balakrishnan, Continuous
@@ -1125,6 +1158,96 @@ fn cumtnc(t: f64, df: f64, pnonc: f64) -> f64 {
     // Force it to do so
     let ccum = ldexp_f64(0.5 * ccum, scale).clamp(0.0, 1.0);
     if qrevs { ccum } else { 1.0 - ccum }
+}
+
+/// CDF of the noncentral t distribution, as `E[ndtr(t W - nc)]` over the chi distribution of
+/// `W = sqrt(V / df)` with `V ~ chi^2(df)`, by quadrature in `s = ln(W)`.
+///
+/// The integrand is unimodal in `s`. Below `w0` it is split into `ndtr(-nc) P(W < w0)` and the
+/// difference, whose tail is far shorter if `df` is small.
+fn nct_quad(t: f64, df: f64, nc: f64) -> f64 {
+    // above the `50 eps` floor of the error estimate of `quad`
+    const EPSREL: f64 = 1e-13;
+    let a = 0.5 * df;
+    // the density `2 x^a e^-x / Gamma(a)` of `s`, with `x = a e^(2 s)` left unrounded
+    let peak = 2.0 * igam_fac(a, a);
+    let density = |s: f64| {
+        let u = 2.0 * s;
+        // `ln(x / a) - (x / a - 1)`
+        let ln_ratio = if u.abs() < 1.0 {
+            log1pmx(u.exp_m1())
+        } else {
+            u - u.exp_m1()
+        };
+        peak * (a * ln_ratio).exp()
+    };
+
+    let phi0 = crate::ndtr(-nc);
+    let w0 = (0.5 / (t.abs() * (nc.abs() + 2.0))).min(0.5);
+    let s0 = w0.ln();
+    // `P(W < w0)`, by its leading term `y^a / Gamma(a + 1)` where `y = a w0^2` underflows
+    let y = a * w0 * w0;
+    let head = phi0
+        * if y < f64::MIN_POSITIVE {
+            (a * (a.ln() + 2.0 * s0)).exp() * crate::rgamma(a + 1.0)
+        } else {
+            igam(a, y)
+        };
+    // `t e^s - nc`, from a finite `t - nc` if `e^s > 1/2`, as `e^s` rounds away a small `s`, with
+    // the rounding error of `t - nc`, which would otherwise bias all nodes alike
+    let (t_nc, t_nc_err) = two_sum(t, -nc);
+    let z = |s: f64| {
+        if s > -LN_2 && t_nc.is_finite() {
+            t_nc + (t * s.exp_m1() + t_nc_err)
+        } else {
+            t * s.exp() - nc
+        }
+    };
+    // the difference has the sign of `t`, and its tail decays as `w^(df + 1)`
+    let diff = |s: f64| density(s) * (crate::ndtr(z(s)) - phi0).abs();
+    let below = quad_unimodal(diff, f64::NEG_INFINITY, s0, s0, 1.0 / (df + 1.0), EPSREL);
+
+    // the derivatives of `ln(density(s) ndtr(z))`, with `z = t w - nc` and `w = e^s`
+    let slopes = |s: f64| {
+        let w = s.exp();
+        let (x, z) = (t * w, z(s));
+        // ndtr'(z) / ndtr(z)
+        let h = SQRT_FRAC_2_PI / erfcx(-z / SQRT_2);
+        let xh = x * h;
+        let d1 = xh - df * (2.0 * s).exp_m1();
+        // clamped, as `x z` can overflow where `x h` is 0
+        let d2 = -2.0 * df * w * w + xh * (1.0 - x * (z + h)).max(-f64::MAX);
+        (d1, d2)
+    };
+    let d1 = |s: f64| slopes(s).0;
+    // the mode, to well within the width `~1 / sqrt(2 df)` of the density
+    let mode = if d1(s0) > 0.0 {
+        // bracketed in doubling steps from 0, since the mode is `~x h / (2 df)` if `df` is large
+        let width = 1.0 / (df + 1.0).sqrt();
+        let up = d1(0.0) > 0.0;
+        let (mut near, mut step) = (0.0, width);
+        let far = loop {
+            let far = if up { near + step } else { s0.max(near - step) };
+            if (d1(far) > 0.0) != up {
+                break far;
+            }
+            (near, step) = (far, 2.0 * step);
+        };
+        let (lo, hi) = if up { (near, far) } else { (far, near) };
+        find_root_chandrupatla(d1, lo, hi, d1(lo), d1(hi), 1e-8, 1e-3 * width, 100).0
+    } else {
+        s0
+    };
+    // at most 1, the scale of the density if `df` is small, and at most `1 / |x|`, the scale of the
+    // step of `ndtr(x - nc)` that the curvature misses beyond it
+    let x = t * mode.exp();
+    let width = 1.0 / (-slopes(mode).1).max(1.0).max(x * x).min(f64::MAX).sqrt();
+    let integrand = |s: f64| density(s) * crate::ndtr(z(s));
+    let above = quad_unimodal(integrand, s0, f64::INFINITY, mode, width, EPSREL);
+
+    // the rounding of the sum can exceed 1, but keep NaN
+    let p = head + t.signum() * below + above;
+    if p > 1.0 { 1.0 } else { p }
 }
 
 /// The largest `|nc|` for which [`cumtnc`] is computed, as in cdflib, since it sums `~12 |nc|`

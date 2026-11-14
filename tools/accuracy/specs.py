@@ -2155,22 +2155,26 @@ def r_chndtrinc(x, v, p):
     )
 
 
-def _ncfdtr_series(a, b, nc, x):
-    """sum_j Pois(j; nc/2) I_y(a/2 + j, b/2) (A&S 26.6.20) with y = a x / (b + a x), from the
-    largest Poisson weight both ways, with I_y(c, d) - I_y(c + 1, d) = y^c (1 - y)^d / (c B(c, d))
-    (A&S 26.5.16)."""
+def _ncfdtr_series(a, b, nc, x, k=0):
+    """sum_j Pois(j + k; nc/2) I_y(a/2 + j, b/2) (A&S 26.6.20 if k = 0) with y = a x / (b + a x)
+    and Pois(k; l) = e^-l l^k / Gamma(k + 1), from the largest Poisson weight both ways, with
+    I_y(c, d) - I_y(c + 1, d) = y^c (1 - y)^d / (c B(c, d)) (A&S 26.5.16)."""
     a, b, x = mp.mpf(a), mp.mpf(b), mp.mpf(x)
     lam, y, z, d = mp.mpf(nc) / 2, a * x / (b + a * x), b / (b + a * x), b / 2
     j0 = int(lam)
     c0 = a / 2 + j0
-    w0 = mp.exp(j0 * mp.log(lam) - lam - mp.loggamma(j0 + 1)) if lam else mp.mpf(1)
+    w0 = (
+        mp.exp((j0 + k) * mp.log(lam) - lam - mp.loggamma(j0 + k + 1))
+        if lam
+        else mp.mpf(1)
+    )
     i0 = _betainc(c0, d, y, z)
     t0 = mp.exp(c0 * mp.log(y) + d * mp.log(z) - mp.log(c0) - mp.log(mp.beta(c0, d)))
     s, tol = w0 * i0, mp.eps / 2**10
     w, i, c, t, j = w0, i0, c0, t0, j0
     while j > 0:
         t *= c / (y * (c + d - 1))
-        w, j, c = w * j / lam, j - 1, c - 1
+        w, j, c = w * (j + k) / lam, j - 1, c - 1
         i += t
         s += w * i
         if w * i < tol * s:
@@ -2179,7 +2183,7 @@ def _ncfdtr_series(a, b, nc, x):
     while True:
         i -= t
         t *= y * (c + d) / (c + 1)
-        w, c, j = w * lam / (j + 1), c + 1, j + 1
+        w, c, j = w * lam / (j + k + 1), c + 1, j + 1
         s += w * i
         if j > lam and w * i < tol * s:
             return s
@@ -2210,6 +2214,24 @@ def r_stdtr(v, t):
     with wdps(xd(v, t)):
         tail = _stdtr_tail(v, t)
         return tail if t < 0 else 1 - tail
+
+
+def _nctdtr_sum(v, nc, t):
+    """P(T <= t) = Phi(-nc) + (sgn(t) S_0 + sgn(nc) S_1/2) / 2, with
+    S_k = sum_j Pois(j + k; nc^2/2) I_x(j + k + 1/2, v/2) and x = t^2 / (v + t^2), where S_0 is
+    the noncentral F CDF of T^2."""
+    if t == 0:
+        return mp.ncdf(-nc)
+    v, nc, t = mp.mpf(v), mp.mpf(nc), mp.mpf(t)
+    s = mp.sign(t) * _ncfdtr_series(1, v, nc * nc, t * t)
+    if nc != 0:
+        s += mp.sign(nc) * _ncfdtr_series(2, v, nc * nc, t * t / 2, mp.mpf(1) / 2)
+    return mp.ncdf(-nc) + s / 2
+
+
+def r_nctdtr(v, nc, t):
+    # cancels if t < 0 < nc
+    return _converged(_nctdtr_sum, v, nc, t)
 
 
 def r_stdtri(v, p):
@@ -3205,6 +3227,18 @@ add(
     cpp=False,
     timeout=120,
     note="inv",
+)
+
+section("Noncentral t distribution", 3)
+add(
+    "nctdtr",
+    "nu nc t",
+    r_nctdtr,
+    D(LU(1e-2, 1e3), U(-10, 10), U(-20, 20), n=1000),
+    # `t < 0 < nc`, where the reference cancels
+    D(LU(1e-2, 1e3), U(0, 10), U(-20, 0), n=500),
+    cpp=False,
+    timeout=120,
 )
 
 section("Chi square distribution", 3)
