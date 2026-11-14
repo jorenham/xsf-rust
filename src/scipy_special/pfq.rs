@@ -783,7 +783,15 @@ fn shifted_lower(am: f64, v: f64) -> (f64, f64, f64) {
 
 /// The series of the term of $a_m$ of the algebraic part (DLMF 16.11.2), as its sum and
 /// absolute error, where `b` contains the 1 of $n!$ as its last parameter
-fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Option<(f64, f64)> {
+///
+/// With `sizes`, it is the sum of the sizes of its terms.
+fn pfq_alg_series<A: Params, B: Params>(
+    a: &A,
+    b: &B,
+    m: usize,
+    z: f64,
+    sizes: bool,
+) -> Option<(f64, f64)> {
     let am = a.as_ref()[m];
     // a_m instead of the 1 of n!, and 1 + a_m - b_j
     let mut upper = b.clone();
@@ -809,7 +817,8 @@ fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Optio
         .map(|(t, n)| {
             let ks_factors = ks.as_ref().iter().zip(factors.as_ref());
             ks_factors.fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
-        });
+        })
+        .map(|t| if sizes { t.abs() } else { t });
     // the term ratios are about n^kappa / |z|
     let az = z.abs();
     let scale = match kappa {
@@ -827,7 +836,16 @@ fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Optio
 /// a ${}_{q+1}F_{p-1}$ series in $(-1)^{p+q+1} / z$, with the parameters $a_m$ and
 /// $1 + a_m - b_j$, and $1 + a_m - a_i$. It stays `None` if it vanishes, where
 /// $1 / \Gamma(b_j - a_m)$ does.
-fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
+///
+/// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
+/// size of its factor. Their sum bounds the algebraic part at any phase of $z$ and of its terms.
+fn pfq_alg<A: Params, B: Params>(
+    a: &A,
+    b: &B,
+    z: f64,
+    sizes: bool,
+    terms: &mut [Option<Scaled>],
+) -> Option<()> {
     let (_, lower) = b.as_ref().split_last()?;
     let ln_z = ln_dd(Dd::new(z.abs()));
     let bs = lower.iter().copied().map(Dd::new);
@@ -842,8 +860,12 @@ fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scale
         if den.clone().any(|g| is_pole(&g)) {
             continue;
         }
-        let sum = pfq_alg_series(a, b, m, z)?;
-        terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
+        let sum = pfq_alg_series(a, b, m, z, sizes)?;
+        let mut y = gamma_series(num, den, sum, -ln_z * am)?;
+        if sizes {
+            y.m = y.m.abs();
+        }
+        terms[m] = Some(y);
     }
     Some(())
 }
@@ -859,9 +881,9 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         let mut terms = [None; 2];
         if a[1] == b[1] {
             // they cancel
-            pfq_alg(&[a[0]], &[b[0], 1.0], z, &mut terms)?;
+            pfq_alg(&[a[0]], &[b[0], 1.0], z, false, &mut terms)?;
         } else {
-            pfq_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
+            pfq_alg(&a, &[b[0], b[1], 1.0], z, false, &mut terms)?;
         }
         Some(terms.into_iter().flatten())
     };
@@ -1049,7 +1071,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
     let exp = hyp1f2_exp(a, b, z)?;
     // the algebraic part, `None` if it vanishes
     let mut alg = [None];
-    pfq_alg(&[a], &[b[0], b[1], 1.0], z, &mut alg)?;
+    pfq_alg(&[a], &[b[0], b[1], 1.0], z, false, &mut alg)?;
     if z > 0.0 {
         checked_f64(exp, alg[0])
     } else {
