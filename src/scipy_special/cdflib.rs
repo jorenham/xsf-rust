@@ -6,10 +6,10 @@
 //! closest, instead of cdflib's search bound. If it is 0 or 1, the limit where the CDF is smallest
 //! or largest is returned, instead of a root where the CDF underflows or rounds to it.
 
-use core::f64::consts::{LN_2, PI, SQRT_2};
+use core::f64::consts::{LN_2, SQRT_2};
 
 use super::quadpack::quad_unimodal;
-use crate::utils::{SQRT_FRAC_2_PI, pow2};
+use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
     betainc_xy, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc, incbet_cf_factor,
@@ -1098,7 +1098,7 @@ fn cumtnc(t: f64, df: f64, pnonc: f64) -> f64 {
     // where `igam_fac` loses `~|ln(lambda)| eps` if lambda < 1
     let (dcent, mut ecent) = if cent == 1.0 {
         let dcent = lmbda * (-lmbda).exp();
-        (dcent, dcent * lmbda.sqrt() / (0.75 * PI.sqrt()))
+        (dcent, dcent * lmbda.sqrt() / (0.75 * SQRT_PI))
     } else {
         (
             igam_fac(cent + 1.0, lmbda) / lmbda,

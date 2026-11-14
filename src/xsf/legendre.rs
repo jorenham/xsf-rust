@@ -11,7 +11,6 @@
 //!   (scipy/xsf#368).
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
-use core::f64::consts::PI;
 use core::ops::{Index, IndexMut};
 
 use core::ffi::c_int;
@@ -524,8 +523,8 @@ fn assoc_legendre_p_all_t<const NORM: bool, T: Num>(
 }
 
 fn sph_legendre_p_initializer_m_abs_m<T: Num>(m_signbit: bool, theta_sin: T, res: &mut [T; 2]) {
-    let fac0 = T::from(1.0) / (T::from(2.0) * T::from(PI).sqrt());
-    let mut fac1 = -T::from(3.0).sqrt() / (T::from(2.0) * (T::from(2.0) * T::from(PI)).sqrt());
+    let fac0 = T::from(1.0) / (T::from(2.0) * T::from(utils::SQRT_PI));
+    let mut fac1 = -T::from(3.0).sqrt() / (T::from(2.0) * T::from(utils::SQRT_TAU_DOWN));
     if m_signbit {
         fac1 = -fac1;
     }

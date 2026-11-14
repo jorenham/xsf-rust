@@ -65,7 +65,7 @@ fn iv_asymptotic(v: f64, x: f64) -> f64 {
     let mut term;
     let mut factor;
 
-    let prefactor = x.exp() / (2.0 * PI * x).sqrt();
+    let prefactor = x.exp() / (TAU * x).sqrt();
 
     // Unlike in xsf, also for the NaN of inf / inf, where 2 pi x overflows.
     if !prefactor.is_finite() {

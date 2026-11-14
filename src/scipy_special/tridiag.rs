@@ -248,7 +248,7 @@ fn refine(d: &[f64], e: &[f64], w: f64, x: &mut [f64]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::f64::consts::PI;
+    use core::f64::consts::{PI, SQRT_2};
 
     const N: usize = 9;
 
@@ -329,7 +329,7 @@ mod tests {
             // `d - lambda = 0`
             (vec![1.0; 3], vec![2.0; 2], 1.0),
             // `e^2` underflows without scaling
-            (vec![0.0; 3], vec![1e-200; 2], 2.0_f64.sqrt() * 1e-200),
+            (vec![0.0; 3], vec![1e-200; 2], SQRT_2 * 1e-200),
             // the eigenvalues `1 +- 1e-20` are equal in `f64`
             (vec![1.0; 2], vec![1e-20], 1.0),
             // `lambda = 0` is a multiple eigenvalue, of the blocks split off at the tiny `e_i`
