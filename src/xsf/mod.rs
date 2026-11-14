@@ -142,8 +142,10 @@ pub use zeta::{riemann_zeta, zeta, zetac};
 pub(crate) use airy::airy_ai_zeros_vec;
 pub(crate) use cdflib::find_positive_root;
 pub(crate) use hyp2f1::Hyp2F1Arg;
-pub(crate) use hyp2f1_recur::{HYP2F1_RECUR_TOL, hyp2f1_recur, ln_gamma};
+pub(crate) use hyp2f1_recur::{
+    HYP2F1_RECUR_TOL, Scaled, add_exp, fold_exp, hyp2f1_recur, ln_dd, ln_gamma, mul_gamma_ratio,
+};
 pub(crate) use loggamma::zlog1_c64;
 pub(crate) use specfun::Hyp1F1Arg;
 pub(crate) use stirling2::stirling2 as stirling2_float;
-pub(crate) use tools::{bracket_root_for_cdf_inversion, find_root_chandrupatla};
+pub(crate) use tools::{Real, bracket_root_for_cdf_inversion, find_root_chandrupatla};

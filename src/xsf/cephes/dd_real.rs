@@ -24,7 +24,7 @@
 //! needed here. Note that the error terms of the products are only exact if they don't underflow.
 
 use core::cmp::Ordering;
-use core::f64::consts::{E as E_HI, LN_2};
+use core::f64::consts::{E as E_HI, FRAC_2_PI, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::utils::{LN_PI, LN_SQRT_TAU, pow2};
@@ -451,6 +451,12 @@ pub(crate) const LOG2: DoubleDouble = DoubleDouble {
 pub(crate) const LN_PI_DD: DoubleDouble = DoubleDouble {
     hi: LN_PI,
     lo: 1.026_595_116_270_782_6e-17,
+};
+
+/// `2 / pi` in double-double precision
+pub(crate) const FRAC_2_PI_DD: DoubleDouble = DoubleDouble {
+    hi: FRAC_2_PI,
+    lo: -3.935_735_335_036_497e-17,
 };
 
 /// `ln(2 pi) / 2` in double-double precision

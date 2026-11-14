@@ -15,6 +15,7 @@ mod ndtri_exp;
 mod orthogonal_eval;
 mod orthogonal_roots;
 mod perm;
+mod pfq;
 mod polygamma;
 mod powm1;
 mod quadpack;
@@ -54,6 +55,7 @@ pub use orthogonal_roots::{
     roots_sh_legendre,
 };
 pub use perm::perm;
+pub use pfq::{hyp1f2, hyp2f2, hyp3f2};
 pub use polygamma::polygamma;
 pub use powm1::powm1;
 pub use softplus::softplus;
