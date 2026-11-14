@@ -60,8 +60,12 @@ GREEK = {
     "a1": "a\u2081",
     "a2": "a\u2082",
     "a3": "a\u2083",
+    "a4": "a\u2084",
+    "a5": "a\u2085",
     "b1": "b\u2081",
     "b2": "b\u2082",
+    "b3": "b\u2083",
+    "b4": "b\u2084",
 }
 
 
@@ -1817,18 +1821,20 @@ def _pfq_series(a, b, z):
     return s
 
 
-def r_hyp3f2(a1, a2, a3, b1, b2, z):
-    # mpmath's hyp3f2 can be far off for b < 0, like its hyp2f1 (mpmath/mpmath#1216), and Arb's
+def r_hyppfq(*args):
+    """pFq for p = q + 1, of a_1, ..., a_p, b_1, ..., b_q and z."""
+    # mpmath's hyper can be far off for b < 0, like its hyp2f1 (mpmath/mpmath#1216), and Arb's
     # needs too many bits near |z| = 1, so sum the series directly, with more bits until it is
     # accurate. Only mpmath continues it to z <= -1, where it has to agree with itself at more
     # digits.
-    a = (a1, a2, a3)
+    p = len(args) // 2
+    a, b, z = args[:p], args[p:-1], args[-1]
     if z <= -1 and not any(v == int(v) <= 0 for v in a):
-        return _converged(mp.hyp3f2, *a, b1, b2, z)
+        return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec
     while prec <= 2**14:
         with flint.ctx.workprec(prec):
-            y = _pfq_series(a, (b1, b2, 1), z)
+            y = _pfq_series(a, (*b, 1), z)
         if y.rel_accuracy_bits() >= mp.mp.prec:
             return mp.mpf(y)
         prec *= 2
@@ -3891,7 +3897,7 @@ add(
 add(
     "hyp3f2",
     "a1 a2 a3 b1 b2 z",
-    r_hyp3f2,
+    r_hyppfq,
     D(*[U(-10, 10)] * 5, U(-1, 1), n=5000),
     D(*[LU(1e-3, 100, 0)] * 5, U(-10, 1), n=2000),
     D(Int(-30, -1), *[U(-10, 10)] * 4, U(-10, 10), n=2000),
@@ -3923,6 +3929,21 @@ add(
     timeout=60,
     note="none",
 )
+for name, args in [
+    ("hyppfq#4f3", "a1 a2 a3 a4 b1 b2 b3 z"),
+    ("hyppfq#5f4", "a1 a2 a3 a4 a5 b1 b2 b3 b4 z"),
+]:
+    params = len(args.split()) - 1
+    add(
+        name,
+        args,
+        r_hyppfq,
+        D(*[U(-10, 10)] * params, U(-1, 1), n=2000),
+        D(*[LU(1e-3, 100, 0)] * params, U(-10, 1), n=2000),
+        cpp=False,
+        timeout=60,
+        note="none",
+    )
 add(
     "hyp1f1#c",
     "a b re im",
