@@ -12,6 +12,7 @@ of 353 functions whose algorithm isn't in xsf.
 | `betaincinv`                            | Boost                  | same                       |
 | `btdtria`, `btdtrib`                    | Boost                  | same                       |
 | `chdtriv`                               | Boost                  | same                       |
+| `chndtr`                                | Boost                  | same                       |
 | `erfinv`                                | Boost                  | same                       |
 | `fdtr`                                  | Boost                  | same                       |
 | `fdtrc`                                 | Boost                  | same                       |
@@ -22,7 +23,7 @@ of 353 functions whose algorithm isn't in xsf.
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `chndtr`, `chndtrix`                    | Boost                  |                            |
+| `chndtrix`                              | Boost                  |                            |
 | `chndtridf`, `chndtrinc`                | Boost                  |                            |
 | `ncfdtr`, `ncfdtri`                     | Boost                  |                            |
 | `nctdtr`, `nctdtrit`                    | Boost                  |                            |
