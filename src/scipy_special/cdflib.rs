@@ -113,6 +113,60 @@ pub fn bdtrin(k: f64, y: f64, p: f64) -> f64 {
     k + invert_betainc(y, false, f64::MAX, 1.0 - p, p, |nk| (nk, k + 1.0))
 }
 
+/// Inverse of [`betainc`](crate::betainc) with respect to `a`
+///
+/// Corresponds to [`scipy.special.btdtria`][btdtria].
+///
+/// Unlike in SciPy, NaN is returned for `x > 1` even if `p` is 0 or 1, instead of the limit.
+///
+/// [btdtria]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtria.html
+///
+/// # See also
+/// - [`betainc`](crate::betainc): Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`](crate::betainc) with respect to `x`
+/// - [`btdtrib`]: Inverse of [`betainc`](crate::betainc) with respect to `b`
+#[must_use]
+pub fn btdtria(p: f64, b: f64, x: f64) -> f64 {
+    if !btdtr_is_valid(p, b, x) {
+        return f64::NAN;
+    }
+    // the CDF decreases from 1 at a = 0 to 0 at a = inf
+    invert_betainc(p, false, f64::MAX, x, 1.0 - x, |a| (a, b))
+}
+
+/// Inverse of [`betainc`](crate::betainc) with respect to `b`
+///
+/// Corresponds to [`scipy.special.btdtrib`][btdtrib].
+///
+/// Unlike in SciPy, NaN is returned for `x > 1` even if `p` is 0 or 1, instead of the limit.
+///
+/// [btdtrib]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtrib.html
+///
+/// # See also
+/// - [`betainc`](crate::betainc): Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`](crate::betainc) with respect to `x`
+/// - [`btdtria`]: Inverse of [`betainc`](crate::betainc) with respect to `a`
+#[must_use]
+pub fn btdtrib(a: f64, p: f64, x: f64) -> f64 {
+    if !btdtr_is_valid(p, a, x) {
+        return f64::NAN;
+    }
+    // the CDF increases from 0 at b = 0 to 1 at b = inf
+    invert_betainc(p, true, f64::MAX, x, 1.0 - x, |b| (a, b))
+}
+
+/// Whether `p`, the other shape and `x` are valid arguments of [`btdtria`] and [`btdtrib`]. As in
+/// SciPy, the limits are also returned for `p` = 0 or 1 if the other shape is inf or `x = 1`, where
+/// the CDF doesn't depend on the shape that is solved for.
+fn btdtr_is_valid(p: f64, shape: f64, x: f64) -> bool {
+    let is_limit = p == 0.0 || p == 1.0;
+    (0.0..=1.0).contains(&p)
+        && shape > 0.0
+        && x > 0.0
+        && x <= 1.0
+        && (is_limit || shape.is_finite() && x < 1.0)
+}
+
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
 /// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
 fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {

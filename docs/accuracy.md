@@ -308,6 +308,21 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+### Beta distribution
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>btdtria</code><sup>*</sup></td><td>p ∈ [0, 1]<br>b ∈ [0.01, 100] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>5.0e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>btdtrib</code><sup>*</sup></td><td>a ∈ [0.01, 100] (log)<br>p, x ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
 ### F distribution
 
 <table>

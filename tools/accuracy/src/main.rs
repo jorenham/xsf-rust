@@ -322,6 +322,8 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("pdtrc", &[k, m]) => xsf::pdtrc(k, m),
         ("pdtri", &[k, y]) => xsf::pdtri(k as i32, y),
         // continuous distributions
+        ("btdtria", &[p, b, x]) => xsf::btdtria(p, b, x),
+        ("btdtrib", &[a, p, x]) => xsf::btdtrib(a, p, x),
         ("gdtr", &[a, b, x]) => xsf::gdtr(a, b, x),
         ("gdtrc", &[a, b, x]) => xsf::gdtrc(a, b, x),
         ("gdtria", &[p, b, x]) => xsf::gdtria(p, b, x),

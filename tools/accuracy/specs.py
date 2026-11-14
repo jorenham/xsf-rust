@@ -1998,6 +1998,16 @@ def r_bdtrin(k, y, p):
     )
 
 
+def r_btdtria(p, b, x):
+    # a such that betainc(a, b, x) = p
+    return _invert_pos(lambda a: _betainc(a, b, x, 1 - x), p, 1, decreasing=True)
+
+
+def r_btdtrib(a, p, x):
+    # b such that betainc(a, b, x) = p
+    return _invert_pos(lambda b: _betainc(a, b, x, 1 - x), p, 1)
+
+
 def r_nbdtr(k, n, p):
     return _betainc(n, k + 1, p, 1 - p)
 
@@ -2832,6 +2842,26 @@ add(
     "k y p",
     r_bdtrin,
     D(LU(1e-2, 1000), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+
+section("Beta distribution", 3)
+add(
+    "btdtria",
+    "p b x",
+    r_btdtria,
+    D(U(0, 1), LU(1e-2, 100), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "btdtrib",
+    "a p x",
+    r_btdtrib,
+    D(LU(1e-2, 100), U(0, 1), U(0, 1), n=2000),
     cpp=False,
     timeout=120,
     note="inv",

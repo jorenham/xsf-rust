@@ -60,6 +60,44 @@ fn test_bdtrin() {
 }
 
 #[test]
+fn test_btdtria_btdtrib() {
+    // `test_betainc_and_inverses` in scipy/special/tests/test_basic.py: `(a, b, x, p)`
+    let cases = [
+        (2.0, 4.0, 0.313_810_170_455_697_4, 0.5),
+        (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
+        (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
+        (
+            0.000_274_279_474_979_266_5,
+            289_206.031_25,
+            1.639_984_034_231_756e-56,
+            0.968_870_878_219_604_5,
+        ),
+        (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
+    ];
+    for (a, b, x, p) in cases {
+        np_assert_allclose!([xsf::btdtria(p, b, x)], [a], rtol = 1e-13);
+        np_assert_allclose!([xsf::btdtrib(a, p, x)], [b], rtol = 1e-13);
+    }
+    assert_eq!(xsf::btdtria(0.0, 2.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::btdtria(1.0, 2.0, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 0.0, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 1.0, 0.5), f64::INFINITY);
+    // the limits where the CDF is 1 (or 0 for `btdtrib` with `a = inf`) for all `a` or `b`
+    assert_eq!(xsf::btdtria(0.0, 2.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::btdtria(1.0, f64::INFINITY, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 1.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::btdtrib(f64::INFINITY, 0.0, 0.5), 0.0);
+    assert!(xsf::btdtria(0.5, 2.0, 1.0).is_nan());
+    assert!(xsf::btdtria(0.5, f64::INFINITY, 0.5).is_nan());
+    assert!(xsf::btdtria(0.0, 2.0, 1.5).is_nan());
+    assert!(xsf::btdtrib(2.0, 0.5, 1.0).is_nan());
+    assert!(xsf::btdtrib(0.0, 0.5, 0.5).is_nan());
+    // a tiny root, by the symmetry `betainc(a, a, 1/2) = 1/2`
+    np_assert_allclose!([xsf::btdtria(0.5, 1e-200, 0.5)], [1e-200], rtol = 1e-13);
+    np_assert_allclose!([xsf::btdtrib(1e-200, 0.5, 0.5)], [1e-200], rtol = 1e-13);
+}
+
+#[test]
 fn test_fdtridfd() {
     for dfd in [0.5, 1.0, 2.0, 3.0, 100.0] {
         let p = xsf::fdtr(2.0, dfd, 15.0);
