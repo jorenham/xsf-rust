@@ -25,6 +25,10 @@ pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
 /// neglected terms of ~`1.3 m^3 < eps` (measured)
 const INCBET_APSER_MAX: f64 = 1e-9;
 
+/// Largest `m = a max(|ln(x)|, 1/b)` for `1 - incbet_apser`, whose O(m^3) absolute truncation
+/// error stays below eps (measured)
+const INCBET_APSER_COMPL_MAX: f64 = 3e-6;
+
 /// `incbet_pseries_compl` is used for `a` up to this, where `1 - incbet_pseries` would cancel and
 /// its series in `a` converges fast
 const INCBET_PSERIES_COMPL_MAX: f64 = 0.1;
@@ -79,8 +83,9 @@ fn incbet_pseries_sum_to(a: f64, b: f64, x: f64, z: f64) -> f64 {
 /// Power series for incomplete beta integral.
 /// Use when b*x is small and x not too close to 1.
 fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
-    // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`
-    if a * x.ln().abs().max(1.0 / b) <= INCBET_APSER_MAX {
+    // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`, up to
+    // where the series cancels (`INCBET_APSER_COMPL_MAX`)
+    if a * x.ln().abs().max(1.0 / b) <= INCBET_APSER_COMPL_MAX {
         return 1.0 - incbet_apser(a, b, x);
     }
     let ai = 1.0 / a;
