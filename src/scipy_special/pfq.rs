@@ -110,19 +110,14 @@ fn descending<const N: usize>(mut v: [f64; N]) -> [f64; N] {
 }
 
 /// Bound on $|t_{m+1} / t_m|$ for all $m \ge n$, if all $a_i + n$ and $b_j + n$ are positive,
-/// except that for $P > Q$ the unpaired $a_i + m$ are taken at $m = n$ (and they grow)
+/// except that for a longer `a` the unpaired $a_i + m$ are taken at $m = n$ (and they grow)
 ///
 /// Each $a_i$ is paired with $b_i$: $(a_i + m) / (b_i + m)$ decreases to 1, or stays below 1.
 /// The other $1 / (b_j + m)$ decrease. This is tightest if `a` and `b` are sorted alike.
-fn pfq_ratio_bound<const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    z: f64,
-    n: f64,
-) -> f64 {
+fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let paired = a.iter().zip(b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
-    let unpaired_a = a.iter().skip(Q).map(|a| a + n);
-    let unpaired_b = b.iter().skip(P).map(|b| b + n);
+    let unpaired_a = a.iter().skip(b.len()).map(|a| a + n);
+    let unpaired_b = b.iter().skip(a.len()).map(|b| b + n);
     z.abs() * paired.product::<f64>() * unpaired_a.product::<f64>() / unpaired_b.product::<f64>()
 }
 
@@ -130,11 +125,7 @@ fn pfq_ratio_bound<const P: usize, const Q: usize>(
 ///
 /// For up to four parameters each of a size in `PFQ_MODERATE`, an $a_i + n$ that is not zero is
 /// at least $2^{-100}$ and at most $2^{101}$, so that both products and their quotient are normal.
-fn pfq_products<T: SeriesReal, const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    n: f64,
-) -> [T; 2] {
+fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
     let shifted = |p: T, &v: &f64| p * (T::from_f64(v) + n);
     let one = T::from_f64(1.0);
     [a.iter().fold(one, shifted), b.iter().fold(one, shifted)]
@@ -143,11 +134,7 @@ fn pfq_products<T: SeriesReal, const P: usize, const Q: usize>(
 /// $t_{n+1} / (z t_n)$ for any parameters and $n$, which is zero if it underflows, and infinite
 /// if it overflows or would be inexact, as a product in it is not normal
 #[cold]
-fn pfq_checked_ratio<T: SeriesReal, const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    n: f64,
-) -> T {
+fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
     // normal in the arithmetic of `T`
     let is_normal = |v: T| (T::MIN_POSITIVE..=f64::MAX).contains(&v.to_f64().abs());
     let [num, den]: [T; 2] = pfq_products(a, b, n);
@@ -159,7 +146,7 @@ fn pfq_checked_ratio<T: SeriesReal, const P: usize, const Q: usize>(
     } else {
         // the products of the quotients of the paired parameters are more often normal
         let factor = |v: Option<&f64>| v.map_or(T::from_f64(1.0), |&v| T::from_f64(v) + n);
-        let mut quotients = (0..P.max(Q)).map(|i| factor(a.get(i)) / factor(b.get(i)));
+        let mut quotients = (0..a.len().max(b.len())).map(|i| factor(a.get(i)) / factor(b.get(i)));
         let normal = |p: T, q: T| Some(p * q).filter(|&r| is_normal(q) && is_normal(r));
         let ratio = quotients.try_fold(T::from_f64(1.0), normal);
         ratio.unwrap_or(T::from_f64(f64::INFINITY))
@@ -174,18 +161,13 @@ fn pfq_underflow_bound<T: SeriesReal>(term: T, z: f64) -> T {
 }
 
 /// Whether `pfq_products` is not exact enough for these parameters
-fn pfq_extreme<const P: usize, const Q: usize>(a: &[f64; P], b: &[f64; Q]) -> bool {
+fn pfq_extreme(a: &[f64], b: &[f64]) -> bool {
     a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
 }
 
 /// $t_{n+1} / (z t_n)$, which is `checked` if the parameters are extreme
 #[inline]
-fn pfq_ratio<T: SeriesReal, const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    n: f64,
-    checked: bool,
-) -> T {
+fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
     if checked {
         pfq_checked_ratio(a, b, n)
     } else {
@@ -198,11 +180,7 @@ fn pfq_ratio<T: SeriesReal, const P: usize, const Q: usize>(
 ///
 /// A term that underflows is a bound on it. The terms end before one that overflows or is NaN,
 /// or that is such a bound and not negligible.
-fn pfq_terms<T: SeriesReal, const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    z: f64,
-) -> impl Iterator<Item = T> {
+fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item = T> {
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
     let checked = pfq_extreme(a, b);
@@ -230,27 +208,19 @@ fn pfq_terms<T: SeriesReal, const P: usize, const Q: usize>(
 /// The estimate is infinite if the series did not converge within `PFQ_MAXITER` terms, or if
 /// its terms overflow, or underflow before they become large again. If it converged, but its
 /// terms cancel, then it is summed again in double-double arithmetic.
-pub(crate) fn pfq_series<const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    z: f64,
-) -> (f64, f64) {
+pub(crate) fn pfq_series(a: &[f64], b: &[f64], z: f64) -> (f64, f64) {
     let (y, err, _) = pfq_series_tails(a, b, z);
     (y, err)
 }
 
 /// `pfq_series`, and the root of the sum of its squared tails $s - s_n$, which is at least the
 /// largest of them
-fn pfq_series_tails<const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    z: f64,
-) -> (f64, f64, f64) {
-    let (y, err, tails) = pfq_sum::<f64, P, Q>(a, b, z, PFQ_MAXITER);
+fn pfq_series_tails(a: &[f64], b: &[f64], z: f64) -> (f64, f64, f64) {
+    let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
-        pfq_sum::<Dd, P, Q>(a, b, z, PFQ_DD_MAXITER)
+        pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER)
     }
 }
 
@@ -260,12 +230,7 @@ fn pfq_series_tails<const P: usize, const Q: usize>(
 /// $s - s_n$ for the partial sum $s_n$ and the sum $s$. These errors are added in quadrature,
 /// like those of the partial sums. A part of them adds up instead, as `a + n` rounds alike
 /// for all `n` between two powers of 2. The constants are measured.
-fn pfq_sum<T: SeriesReal, const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
-    z: f64,
-    maxiter: u32,
-) -> (f64, f64, f64) {
+fn pfq_sum<T: SeriesReal>(a: &[f64], b: &[f64], z: f64, maxiter: u32) -> (f64, f64, f64) {
     let settled = pfq_settled(a, b);
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
@@ -288,7 +253,7 @@ fn pfq_sum<T: SeriesReal, const P: usize, const Q: usize>(
         let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt());
         (rounding, tails)
     };
-    let mut terms = pfq_terms::<T, P, Q>(a, b, z);
+    let mut terms = pfq_terms::<T>(a, b, z);
     for n in (0..maxiter).map(f64::from) {
         sum1 += s;
         sum2 += s * s;
@@ -304,9 +269,9 @@ fn pfq_sum<T: SeriesReal, const P: usize, const Q: usize>(
         s = sum.to_f64();
         if n >= settled && t.abs() <= f64::EPSILON * s.abs() {
             let rho = pfq_ratio_bound(a, b, z, n + 1.0);
-            // geometric bound on the remaining terms, if the series converges (P <= Q)
+            // geometric bound on the remaining terms, if the series converges (p <= q + 1)
             let tail = t.abs() * rho / (1.0 - rho);
-            if P <= Q && rho < 1.0 && tail <= f64::EPSILON * s.abs() {
+            if a.len() <= b.len() && rho < 1.0 && tail <= f64::EPSILON * s.abs() {
                 let (rounding, tails) = estimates(n, s, sum1, sum2);
                 return (s, rounding + tail, tails);
             }
