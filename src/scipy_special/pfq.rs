@@ -730,7 +730,12 @@ fn recurrence_terms(
 
 /// `exp(l) sum` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, where `err` is the absolute
 /// error of `sum`
-fn gamma_series(num: &[Dd], den: &[Dd], (sum, err): (f64, f64), l: Dd) -> Option<Scaled> {
+fn gamma_series(
+    num: impl IntoIterator<Item = Dd>,
+    den: impl IntoIterator<Item = Dd>,
+    (sum, err): (f64, f64),
+    l: Dd,
+) -> Option<Scaled> {
     let y = Scaled::new(sum, 0, err / sum.abs())?.with_l(l);
     mul_gamma_ratio(num, den, || Some(y))
 }
@@ -763,7 +768,7 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     // (without small divisors, the terms don't grow again before `settled + |z|`)
     let series = asymptotic_sum(terms, settled, z, |_| 0.0);
     let l = nu * ln_dd(Dd::new(z.abs())) + z;
-    gamma_series(&b.map(Dd::new), &a.map(Dd::new), series, l)
+    gamma_series(b.map(Dd::new), a.map(Dd::new), series, l)
 }
 
 /// `(x, k, factor)` for the rounded lower parameter `x = 1 + am - v` of a series: times `factor`,
@@ -813,6 +818,7 @@ fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
         let series = series.zip((0_u32..).map(f64::from));
         let series = series.map(|(t, i)| if i > k { t * factor } else { t });
         let sum = asymptotic_sum(series, pfq_settled(&up, &low), z, bound);
+        let (num, den) = (num.iter().copied(), den.iter().copied());
         terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
     }
     Some(terms)
@@ -997,7 +1003,7 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
             + 3.0 * f64::EPSILON * ((even * cos).abs() + (odd * sin).abs());
         Scaled::new(m, 0, err / m.abs())?.with_l(l)
     };
-    mul_gamma_ratio(&b.map(Dd::new), &[Dd::new(a)], || Some(y))
+    mul_gamma_ratio(b.map(Dd::new), [Dd::new(a)], || Some(y))
 }
 
 /// The algebraic part of the asymptotic expansion of $_1F_2$ (DLMF 16.11.2, 16.11.8), with
@@ -1018,7 +1024,7 @@ fn hyp1f2_alg(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     // (the term ratios are about n^2 / |z|)
     let sum = asymptotic_sum(series, pfq_settled(&up, &[1.0]), z.abs().sqrt(), bound);
     let l = -ln_dd(Dd::new(z.abs())) * a;
-    gamma_series(&b.map(Dd::new), &bm, sum, l)
+    gamma_series(b.map(Dd::new), bm, sum, l)
 }
 
 /// $_1F_2$ by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at

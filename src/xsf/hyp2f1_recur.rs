@@ -452,7 +452,7 @@ fn hyp2f1_poly(combs: Combinations, c: Dd, x: f64, w: Dd, ln_1mx: Dd) -> Option<
             // `(1 - z)^p F(p, q; c; z) = F(p, c - q; c; w)`, as in step 2
             let y_w = poly_up(n, r, c, w).map(|y| y.with_l(l));
             // `(c - q)_n / (c)_n = Gamma(c - q + n) Gamma(c) / (Gamma(c - q) Gamma(c + n))`
-            let y_1mz = mul_gamma_ratio(&[r + n, c], &[r, c + n], || {
+            let y_1mz = mul_gamma_ratio([r + n, c], [r, c + n], || {
                 let y = poly_up(n, q, q - c + (1.0 - n), one_mz)?;
                 Some(y.with_l(l_z))
             });
@@ -621,12 +621,12 @@ fn psi_dd(v: Dd) -> Option<(f64, f64)> {
 /// `y()` times `Gamma(num_0) Gamma(num_1) ... / (Gamma(den_0) Gamma(den_1) ...)`, with the error
 /// bounds of their `ln_gamma` added; `y` is only evaluated if no argument is at a pole
 pub(crate) fn mul_gamma_ratio(
-    num: &[Dd],
-    den: &[Dd],
+    num: impl IntoIterator<Item = Dd>,
+    den: impl IntoIterator<Item = Dd>,
     y: impl FnOnce() -> Option<Scaled>,
 ) -> Option<Scaled> {
-    let num = num.iter().map(|&g| (g, 1.0));
-    let mut gammas = num.chain(den.iter().map(|&g| (g, -1.0)));
+    let num = num.into_iter().map(|g| (g, 1.0));
+    let mut gammas = num.chain(den.into_iter().map(|g| (g, -1.0)));
     let (ln_g, sign, err) =
         gammas.try_fold((Dd::new(0.0), 1.0, 0.0), |(ln_g, sign, err), (g, power)| {
             let (v, v_sign, v_err) = ln_gamma(g)?;
@@ -690,7 +690,7 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
         })?;
     let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs()));
     let mut budget = HYP2F1_RECUR_MAXITER;
-    let term2 = mul_gamma_ratio(&[c], &[a, cb, m1], || {
+    let term2 = mul_gamma_ratio([c], [a, cb, m1], || {
         let mut s2 = series_weighted(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
         // (-1)^m
         s2.m *= if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
@@ -701,7 +701,7 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
         return add_exp([term2]);
     }
     let s1 = series_weighted(a, cb, Dd::new(1.0 - m), w, &mut budget, None, m - 1.0)?;
-    let term1 = mul_gamma_ratio(&[c, Dd::new(m)], &[b, ca], || Some(s1.with_l(-a * ln_1mt)))?;
+    let term1 = mul_gamma_ratio([c, Dd::new(m)], [b, ca], || Some(s1.with_l(-a * ln_1mt)))?;
     add_exp([term1, term2])
 }
 
@@ -729,7 +729,7 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let term = |a: Dd, b: Dd| {
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
         let y = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
-        mul_gamma_ratio(&[c, b - a], &[b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
+        mul_gamma_ratio([c, b - a], [b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
     };
     let m = b - a;
     if m.is_integer() {

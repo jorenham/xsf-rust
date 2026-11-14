@@ -510,7 +510,7 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
     let err_k = err2 / m2 + err3 / m3 + 5.0 * f64::EPSILON + err_g;
     let k = Scaled::new(b1.hi / den, 0, err_k)?;
     let i = Scaled::new(-m2, 0, err2 / m2)?.with_l(ln_dd(DoubleDouble::new(x)) * b1 + x0.max(0.0));
-    let i = mul_gamma_ratio(&[a2, -b1], &[b1, a], || Some(i))?;
+    let i = mul_gamma_ratio([a2, -b1], [b1, a], || Some(i))?;
     let (hg, err) = add_exp([k.with_l(DoubleDouble::new(x0.min(0.0))), i])?.to_f64();
     (err <= SQRT_EPSILON).then_some(hg)
 }
