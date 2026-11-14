@@ -9,12 +9,12 @@ use core::f64::consts::LN_2;
 
 use crate::utils::SQRT_EPSILON;
 use crate::xsf::cephes::beta::lbeta;
-use crate::xsf::cephes::chdtr::{chdtr, chdtrc};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
 use crate::xsf::cephes::lgam1p;
+use crate::xsf::expint::exp1;
 
 /// Complemented F distribution
 ///
@@ -206,7 +206,7 @@ fn fdtr_betainc(p: f64, q: f64, x: f64, y: f64) -> f64 {
 fn fdtr_chi2(a: f64, x: f64) -> (f64, f64) {
     let ax = a * x;
     if ax >= 2.0 * f64::MIN_POSITIVE {
-        return (chdtr(a, ax), chdtrc(a, ax));
+        return igam_half(a, 0.5 * ax);
     } else if x == 0.0 {
         return (0.0, 1.0);
     }
@@ -222,6 +222,19 @@ fn fdtr_chi2(a: f64, x: f64) -> (f64, f64) {
         ln_p.exp()
     };
     (p, -ln_p.exp_m1())
+}
+
+/// `(P(d / 2, t), Q(d / 2, t))`
+///
+/// Unlike in xsf, also if `d` is subnormal, where `d / 2` can round. Then `Q = d / 2 E1(t)` for
+/// `t > 0`, up to a relative `O(d)` (DLMF 8.4.4, 5.7.1).
+fn igam_half(d: f64, t: f64) -> (f64, f64) {
+    if d < 2.0 * f64::MIN_POSITIVE && t > 0.0 {
+        let q = d * (0.5 * exp1(t));
+        (1.0 - q, q)
+    } else {
+        (igam(0.5 * d, t), igamc(0.5 * d, t))
+    }
 }
 
 /// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal or zero, else `None`
@@ -252,7 +265,8 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
     let s = 0.5 + (0.25 * b - 0.5) / a;
     let t = s * (b / x);
     if t >= f64::MIN_POSITIVE {
-        return Some((igamc(hb, t), igam(hb, t)));
+        let (p, q) = igam_half(b, t);
+        return Some((q, p));
     }
     // P(B, t) = t^B / Gamma(1 + B) for tiny t
     let ln_p = b * (0.5 * (s.ln() + b.ln() - x.ln())) - lgam1p(hb);

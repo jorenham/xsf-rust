@@ -667,6 +667,13 @@ fn test_fdtrc_subnormal_w() {
     assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 1.0), 1.0);
     assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 0.0), 0.0);
     assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 0.0), 1.0);
+    // `a / 2` rounds, while `a x` is normal, or `fdtrc` is the gamma limit `Q(a / 2, t)` as `b` is
+    // large; Arb gives 1.7482875e-321 and 8.7427288e-321
+    assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 1e16), 1.75e-321);
+    assert_eq!(
+        xsf::fdtrc(2.5e-323, 1e20, 1_801_439_850_948_198.2),
+        8.745e-321
+    );
     for (x, q) in [(0.0, 1.0), (1e-310, 1.0), (f64::INFINITY, 0.0)] {
         assert_eq!(xsf::fdtrc(3.0, f64::INFINITY, x), q);
     }
