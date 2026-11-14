@@ -1,10 +1,10 @@
 //! Inverses of distribution functions with respect to a parameter, which `scipy.special` computes
-//! with cdflib. Unlike in SciPy, the roots are found with the bracket search and Chandrupatla
-//! solver of [`gdtrib`](crate::gdtrib) to machine precision, instead of cdflib's `dinvr` with a
-//! relative tolerance of `1e-10` (`1e-8` for the noncentral t). If `p` can't be reached, 0 or inf
-//! is returned, whichever limit is closest, instead of cdflib's search bound. If `p` is 0 or 1, the
-//! limit where the CDF is smallest or largest is returned, instead of a root where the CDF
-//! underflows or rounds to `p`.
+//! with cdflib or Boost. The roots are found with the bracket search and Chandrupatla solver of
+//! [`gdtrib`](crate::gdtrib) to machine precision, whereas cdflib's `dinvr` stops at a relative
+//! tolerance of `1e-10` (`1e-8` for the noncentral t). If the probability can't be reached, 0 or
+//! inf is returned, whichever limit is closest, instead of cdflib's search bound. If it is 0 or 1,
+//! the limit where the CDF is smallest or largest is returned, instead of a root where the CDF
+//! underflows or rounds to it.
 
 use core::f64::consts::{LN_2, PI};
 
@@ -28,15 +28,8 @@ pub fn stdtridf(p: f64, t: f64) -> f64 {
     if !(0.0..=1.0).contains(&p) || t == 0.0 || !t.is_finite() {
         return f64::NAN;
     }
-    let q = 1.0 - p;
     // stdtr(df, -t) = 1 - stdtr(df, t) is used for the upper tail
-    let func = |df: f64| {
-        if p <= q {
-            crate::stdtr(df, t) - p
-        } else {
-            q - crate::stdtr(df, -t)
-        }
-    };
+    let func = cdf_minus_p(p, |df| crate::stdtr(df, t), |df| crate::stdtr(df, -t));
     // stdtr(df, t) increases from 1/2 at df = 0 to ndtr(t) at df = inf if t > 0
     limit_if_p_is_0_or_1(p, t > 0.0).unwrap_or_else(|| find_df_root(func, t > 0.0))
 }
@@ -59,16 +52,20 @@ pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
     if !(dfn > 0.0) || !(0.0..=1.0).contains(&p) || !(f > 0.0) || f.is_infinite() {
         return f64::NAN;
     }
-    let q = 1.0 - p;
-    let func = |dfd: f64| {
-        if p <= q {
-            crate::fdtr(dfn, dfd, f) - p
-        } else {
-            q - crate::fdtrc(dfn, dfd, f)
-        }
-    };
+    let func = cdf_minus_p(
+        p,
+        |dfd| crate::fdtr(dfn, dfd, f),
+        |dfd| crate::fdtrc(dfn, dfd, f),
+    );
     // fdtr(dfn, dfd, f) goes from 0 at dfd = 0 to chdtr(dfn, dfn f) at dfd = inf
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| find_df_root(func, true))
+}
+
+/// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
+/// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
+fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {
+    let q = 1.0 - p;
+    move |x| if p <= q { cdf(x) - p } else { q - sf(x) }
 }
 
 /// 0 or inf, wherever a CDF that is `increasing` in its parameter is smallest if `p = 0`, or
