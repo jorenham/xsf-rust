@@ -5,7 +5,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{SQRT_EPS, SQRT1OPI, SQRT2OPI};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_EPSILON, SQRT_FRAC_2_PI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_PI};
 
@@ -117,7 +117,7 @@ pub(crate) fn j1(x: f64) -> f64 {
     if x < 0.0 {
         return -j1(-x);
     }
-    if x < SQRT_EPS {
+    if x < SQRT_EPSILON {
         return 0.5 * x;
     }
     if x <= 5.0 {
@@ -133,11 +133,11 @@ pub(crate) fn j1(x: f64) -> f64 {
     if x < 10.0 {
         let xn = x - THPIO4;
         let p = p * xn.cos() - w * q * xn.sin();
-        return p * SQRT2OPI / x.sqrt();
+        return p * SQRT_FRAC_2_PI / x.sqrt();
     }
     let a = FRAC_1_SQRT_2 * (w * q - p);
     let b = FRAC_1_SQRT_2 * (p + w * q);
-    (a * x.cos() + b * x.sin()) * SQRT2OPI / x.sqrt()
+    (a * x.cos() + b * x.sin()) * SQRT_FRAC_2_PI / x.sqrt()
 }
 
 /// Bessel function of second kind of order one
@@ -180,8 +180,8 @@ pub(crate) fn y1(x: f64) -> f64 {
     if x < 10.0 {
         let xn = x - THPIO4;
         let p = p * xn.sin() + w * q * xn.cos();
-        return p * SQRT2OPI / x.sqrt();
+        return p * SQRT_FRAC_2_PI / x.sqrt();
     }
     let p = (w * q - p) * x.sin() - (p + w * q) * x.cos();
-    p * SQRT1OPI / x.sqrt()
+    p * FRAC_1_SQRT_PI / x.sqrt()
 }

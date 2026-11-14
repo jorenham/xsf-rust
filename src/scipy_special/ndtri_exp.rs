@@ -3,7 +3,7 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
 
-use crate::utils::SQRT2OPI;
+use crate::utils::SQRT_FRAC_2_PI;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::cephes::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2};
 
@@ -35,7 +35,7 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     if x > 64.0 && x < 262_144.0 {
         let t = -r * FRAC_1_SQRT_2;
         let e = crate::erfcx(t);
-        r - ((e / 2.0).ln() - t * t - y) * e / SQRT2OPI
+        r - ((e / 2.0).ln() - t * t - y) * e / SQRT_FRAC_2_PI
     } else {
         r
     }

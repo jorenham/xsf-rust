@@ -8,7 +8,7 @@
 //! Unlike in xsf (scipy/xsf#338), the negative integer helpers take any non-positive integer `a`
 //! and integer `b`, not only those that fit in an `int`.
 
-use crate::utils::{LN_SQRT_2PI, MAXGAM, MAXLOG, is_nonpos_int};
+use crate::utils::{LN_SQRT_TAU, MAXGAM, MAXLOG, is_nonpos_int};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
@@ -69,7 +69,7 @@ fn lbeta_ratio(a: f64, b: f64) -> Option<(f64, f64)> {
         let r = b / a;
         let q = r / (1.0 + r);
         let y =
-            (b - 0.5) * q.ln() + a * (-q).ln_1p() - 0.5 * a.ln() + LN_SQRT_2PI - incbet_corr(a, b);
+            (b - 0.5) * q.ln() + a * (-q).ln_1p() - 0.5 * a.ln() + LN_SQRT_TAU - incbet_corr(a, b);
         Some((y, 1.0))
     } else {
         None

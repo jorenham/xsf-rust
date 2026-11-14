@@ -7,7 +7,7 @@
 //! Unlike in xsf, `(Shi, Chi)` is returned instead of written to output references, and the
 //! (unused) status code is dropped.
 
-use crate::utils::{MACHEP, SCIPY_EULER};
+use crate::utils::{EGAMMA, MACHEP};
 use crate::xsf::cephes::chbevl::chbevl;
 
 /* x exp(-x) shi(x), inverted interval 8 to 18 */
@@ -280,6 +280,6 @@ pub(crate) fn shichi(mut x: f64) -> (f64, f64) {
 
     let si = s;
 
-    let ci = SCIPY_EULER + x.ln() + c;
+    let ci = EGAMMA + x.ln() + c;
     (si, ci)
 }

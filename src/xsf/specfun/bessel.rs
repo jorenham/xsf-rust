@@ -6,7 +6,7 @@
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::SPECFUN_INF;
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, c64};
 
 fn gam0(x: f64) -> f64 {
@@ -191,7 +191,7 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
                 }
             }
 
-            cby0 = FRAC_2_PI * ((z1 / 2.0).ln() + SCIPY_EULER) * cbj0 - FRAC_2_PI * cs;
+            cby0 = FRAC_2_PI * ((z1 / 2.0).ln() + EGAMMA) * cbj0 - FRAC_2_PI * cs;
             let mut w1 = 0.0;
             cr = C64::ONE;
             cs = C64::ONE;
@@ -204,7 +204,7 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
                     break;
                 }
             }
-            cby1 = FRAC_2_PI * (((z1 / 2.0).ln() + SCIPY_EULER) * cbj1 - 1.0 / z1 - 0.25 * z1 * cs);
+            cby1 = FRAC_2_PI * (((z1 / 2.0).ln() + EGAMMA) * cbj1 - 1.0 / z1 - 0.25 * z1 * cs);
         } else {
             let mut k0 = 12;
             if a0 >= 35.0 {

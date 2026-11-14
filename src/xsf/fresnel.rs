@@ -5,7 +5,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::ffi::c_int;
 use num_complex::Complex;
 
-use crate::utils::{SQRT_TAU, SQRT1OPI, SQRT2OPI};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI, SQRT_TAU_DOWN};
 use crate::xsf::c64::{C64, c64};
 
 fn cfc(z: C64) -> (C64, C64) {
@@ -207,7 +207,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
     } else {
         let (c1, s1);
         if xa <= 2.5 {
-            let mut xr = SQRT2OPI * xa;
+            let mut xr = SQRT_FRAC_2_PI * xa;
             let mut c = xr;
 
             for k in 1..=50 {
@@ -219,7 +219,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
                 }
             }
 
-            let mut s = SQRT2OPI * xa * xa * xa / 3.0;
+            let mut s = SQRT_FRAC_2_PI * xa * xa * xa / 3.0;
             xr = s;
 
             for k in 1..=50 {
@@ -256,7 +256,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
             }
 
             let xq = xsu.sqrt();
-            let xw = SQRT2OPI * xa / xq;
+            let xw = SQRT_FRAC_2_PI * xa / xq;
             c1 = xc * xw;
             s1 = xs * xw;
         } else {
@@ -279,13 +279,13 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
             }
 
             let (sin, cos) = x2.sin_cos();
-            c1 = 0.5 + (xf * sin - xg * cos) / SQRT_TAU / xa;
-            s1 = 0.5 - (xf * cos + xg * sin) / SQRT_TAU / xa;
+            c1 = 0.5 + (xf * sin - xg * cos) / SQRT_TAU_DOWN / xa;
+            s1 = 0.5 - (xf * cos + xg * sin) / SQRT_TAU_DOWN / xa;
 
             // K+-(x) = (xg +- i xf) e^(-+i pi/4) / (2 sqrt(pi) x), DLMF 7.5.10, 7.12.2, 7.12.3;
             // avoids the rounding error of the phase x^2 + pi/4 below
-            g.re = (xf + xg) / (2.0 * SQRT_TAU) / xa;
-            g.im = sgn * (xf - xg) / (2.0 * SQRT_TAU) / xa;
+            g.re = (xf + xg) / (2.0 * SQRT_TAU_DOWN) / xa;
+            g.im = sgn * (xf - xg) / (2.0 * SQRT_TAU_DOWN) / xa;
         }
 
         f.re = PP2 * (0.5 - c1);
@@ -294,7 +294,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
 
         if xa < 5.5 {
             let (ss, cs) = (x2 + FRAC_PI_4).sin_cos();
-            let xq2 = SQRT1OPI;
+            let xq2 = FRAC_1_SQRT_PI;
 
             g.re = xq2 * (f.re * cs + fi0 * ss);
             g.im = sgn * xq2 * (fi0 * cs - f.re * ss);

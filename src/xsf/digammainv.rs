@@ -2,7 +2,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MAXLOG, SCIPY_EULER};
+use crate::utils::{EGAMMA, MAXLOG};
 use crate::xsf::cephes::{psi, zeta};
 use crate::xsf::tools::{NewtonRootFinderStatus, find_root_newton};
 
@@ -14,7 +14,7 @@ fn digammainv_initial_guess(y: f64) -> f64 {
     if y >= -2.22 {
         return y.exp() + 0.5;
     }
-    -1.0 / (y + SCIPY_EULER)
+    -1.0 / (y + EGAMMA)
 }
 
 /// Refine an initial guess x using Newton-Raphson iteration:

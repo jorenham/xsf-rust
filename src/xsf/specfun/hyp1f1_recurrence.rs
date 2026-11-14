@@ -18,7 +18,7 @@
 //! Boost Software License, Version 1.0. (See accompanying file
 //! LICENSE_1_0.txt or copy at <https://www.boost.org/LICENSE_1_0.txt>)
 
-use crate::utils::SQRT_EPS;
+use crate::utils::SQRT_EPSILON;
 
 /// `policies::get_max_series_iterations<Policy>()` (the Boost default, also used by SciPy)
 pub(super) const MAX_SERIES_ITERATIONS: f64 = 1e6;
@@ -445,5 +445,5 @@ pub(super) fn hyp1f1_neg_b(a: f64, b: f64, z: f64, m: impl Fn(f64) -> f64) -> Op
             return Some(hg);
         }
     }
-    from(n, SQRT_EPS)
+    from(n, SQRT_EPSILON)
 }

@@ -5,7 +5,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::SQRT2PI;
+use crate::utils::SQRT_TAU;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 
 /* approximation for 0 <= |y - 0.5| <= 3/8 */
@@ -87,7 +87,7 @@ pub(crate) const NDTRI_Q2: [f64; 8] = [
 pub(super) fn ndtri_central(y: f64) -> f64 {
     let y2 = y * y;
     let x = y + y * (y2 * polevl(y2, &NDTRI_P0) / p1evl(y2, &NDTRI_Q0));
-    x * SQRT2PI
+    x * SQRT_TAU
 }
 
 /// Inverse of Normal distribution function

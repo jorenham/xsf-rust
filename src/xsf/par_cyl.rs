@@ -14,7 +14,7 @@ use core::f64::consts::{FRAC_PI_4, LN_2, PI, SQRT_2, TAU};
 use num_complex::Complex64;
 use num_traits::ToPrimitive;
 
-use crate::utils::{SQRT_PI, SQRT2OPI, mul_exp, pow2};
+use crate::utils::{EPSILON_SQ, SQRT_FRAC_2_PI, SQRT_PI, mul_exp, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
@@ -123,7 +123,7 @@ fn vvla_qe(x: f64, va: f64, qe: f64) -> f64 {
 
     let eps = 1e-12;
 
-    let a0 = x.abs().powf(-va - 1.0) * SQRT2OPI * qe;
+    let a0 = x.abs().powf(-va - 1.0) * SQRT_FRAC_2_PI * qe;
     let mut r = 1.0;
     let mut pv = 1.0;
     for k in 1..=18 {
@@ -359,7 +359,7 @@ fn pbvv_impl(x: f64, mut v: f64, buf: &mut [f64], num: usize) -> (f64, f64) {
     let v0 = v - f64::from(nv);
     let na = nv.abs();
     let qe = (0.25 * x * x).exp();
-    let q2p = SQRT2OPI;
+    let q2p = SQRT_FRAC_2_PI;
     let mut ja = 0;
     if na >= 1 {
         ja = 1;
@@ -1164,7 +1164,10 @@ fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
     } else {
         (d * q - c * e, -dp * q - c * ep)
     };
-    (mul_exp(SQRT2OPI * w, lv), mul_exp(SQRT2OPI * wp, lv))
+    (
+        mul_exp(SQRT_FRAC_2_PI * w, lv),
+        mul_exp(SQRT_FRAC_2_PI * wp, lv),
+    )
 }
 
 /// `V_v(x)`, `V_v'(x)` for `|v| >= 20` and `|x| sqrt|v| < 1`, by `pb_maclaurin` with the values
@@ -1321,7 +1324,7 @@ pub fn pbdv(v: f64, x: f64) -> (f64, f64) {
     let (n, w) = (v.round(), v - v.round());
     if near_int(v) && w != 0.0 && v < 300.0 && x.abs() <= 5.8 {
         // D_w = D_0 to double precision for |w| <= eps^2, where `dvsa` can overflow
-        let tiny = w.abs() <= f64::EPSILON * f64::EPSILON;
+        let tiny = w.abs() <= EPSILON_SQ;
         let d0 = dvsa(x, if tiny { 0.0 } else { w });
         // D_{w+1} = x D_w - w D_{w-1} (12.8.1)
         return pbdv_up(w, x, n, d0, x * d0 - w * dvsa(x, w - 1.0));

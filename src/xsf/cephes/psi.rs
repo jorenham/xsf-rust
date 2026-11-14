@@ -17,7 +17,7 @@
 
 use core::f64::consts::PI;
 
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::cephes::polevl::polevl;
 
 const PSI_A: [f64; 7] = [
@@ -171,7 +171,7 @@ pub(crate) fn psi(mut x: f64) -> f64 {
         for i in 1..n {
             y += 1.0 / f64::from(i);
         }
-        y -= SCIPY_EULER;
+        y -= EGAMMA;
         return y;
     }
 

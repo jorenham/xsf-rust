@@ -66,7 +66,7 @@
 
 use core::f64::consts::{E, LN_2, PI, SQRT_2};
 
-use crate::utils::{LN_SQRT_2PI, MINLOG, SQRT_TAU};
+use crate::utils::{LN_SQRT_TAU, MINLOG, SQRT_TAU_DOWN};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h
@@ -159,7 +159,7 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
          *  w = sqrt(2pi)/x
          *  P = w*u * (1 + u^8 + u^24 + u^48 + ...)
          */
-        let w = SQRT_TAU / x;
+        let w = SQRT_TAU_DOWN / x;
         let logu8 = -PI * PI / (x * x); /* log(u^8) */
         let u = (logu8 / 8.0).exp();
         if u == 0.0 {
@@ -256,10 +256,10 @@ fn kolmogi_(psf: f64, pcdf: f64) -> f64 {
         let logpcdf = pcdf.ln();
         /* Now that 1 >= x >= sqrt(p) */
         /* Iterate twice: x <- pi/(sqrt(8) sqrt(log(sqrt(2pi)) - log(x) - log(pdf))) */
-        a = PI / (2.0 * SQRT_2 * (-(logpcdf + logpcdf / 2.0 - LN_SQRT_2PI)).sqrt());
-        b = PI / (2.0 * SQRT_2 * (-(logpcdf + 0.0 - LN_SQRT_2PI)).sqrt());
-        a = PI / (2.0 * SQRT_2 * (-(logpcdf + a.ln() - LN_SQRT_2PI)).sqrt());
-        b = PI / (2.0 * SQRT_2 * (-(logpcdf + b.ln() - LN_SQRT_2PI)).sqrt());
+        a = PI / (2.0 * SQRT_2 * (-(logpcdf + logpcdf / 2.0 - LN_SQRT_TAU)).sqrt());
+        b = PI / (2.0 * SQRT_2 * (-(logpcdf + 0.0 - LN_SQRT_TAU)).sqrt());
+        a = PI / (2.0 * SQRT_2 * (-(logpcdf + a.ln() - LN_SQRT_TAU)).sqrt());
+        b = PI / (2.0 * SQRT_2 * (-(logpcdf + b.ln() - LN_SQRT_TAU)).sqrt());
         x = f64::midpoint(a, b);
     } else {
         /*

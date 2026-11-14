@@ -8,7 +8,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::cephes::igam::igam_fac;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{gamma, igam, igamc, lgam};
@@ -126,12 +126,12 @@ fn find_inverse_gamma(a: f64, p: f64, q: f64) -> f64 {
             let u = if (b * q > 1e-8) && (q > 1e-5) {
                 (p * g * a).powf(1.0 / a)
             } else {
-                ((-q / a) - SCIPY_EULER).exp()
+                ((-q / a) - EGAMMA).exp()
             };
             u / (1.0 - (u / (a + 1.0)))
         } else if (a < 0.3) && (b >= 0.35) {
             /* DiDonato & Morris Eq 22: */
-            let t = (-SCIPY_EULER - b).exp();
+            let t = (-EGAMMA - b).exp();
             let u = t * t.exp();
             t * u.exp()
         } else if (b > 0.15) || (a >= 0.3) {

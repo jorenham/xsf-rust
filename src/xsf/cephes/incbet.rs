@@ -5,7 +5,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG, PISQ_6, SCIPY_EULER, SQRT_TAU};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, MACHEP, MAXGAM, MAXLOG, MINLOG, SQRT_TAU_DOWN};
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
@@ -124,8 +124,7 @@ fn incbet_ln_x_psi(b: f64, x: f64) -> f64 {
 fn incbet_pseries_compl(a: f64, b: f64, x: f64) -> f64 {
     // `s` is needed up to ~eps, not ~eps / a as in `incbet_pseries`
     let s = incbet_pseries_sum_to(a, b, x, MACHEP);
-    let mut ln_i =
-        a * (incbet_ln_x_psi(1.0 + b, x) + SCIPY_EULER) + (a * s).ln_1p() - (a / b).ln_1p();
+    let mut ln_i = a * (incbet_ln_x_psi(1.0 + b, x) + EGAMMA) + (a * s).ln_1p() - (a / b).ln_1p();
     let mut t = -a;
     let mut k = 1.0;
     loop {
@@ -159,7 +158,7 @@ fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
     let bx = b * x;
     let t1 = x - bx;
     let mut t = t1;
-    let c0 = incbet_ln_x_psi(b, x) + SCIPY_EULER;
+    let c0 = incbet_ln_x_psi(b, x) + EGAMMA;
     let c = c0 + t1;
     let tol = 5.0 * MACHEP * c.abs();
     let mut j = 1.0;
@@ -175,7 +174,7 @@ fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
             break;
         }
     }
-    let d2 = 0.5 * (trigamma(b) - PISQ_6 + c0 * c0) - s2 + c0 * (t1 + s);
+    let d2 = 0.5 * (trigamma(b) - FRAC_PI_SQ_6 + c0 * c0) - s2 + c0 * (t1 + s);
     -a * (c + s) - a * a * d2
 }
 
@@ -262,7 +261,7 @@ fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
     d[0] = -c[0];
     // TOMS 708's `j0` and `j1` times its final factor 2 / sqrt(pi)
     let mut j0 = 0.5 * erfcx(z0);
-    let mut j1 = 1.0 / SQRT_TAU;
+    let mut j1 = 1.0 / SQRT_TAU_DOWN;
     let mut sum = j0 + d[0] * w0 * j1;
     let (mut s, mut hn, mut w, mut znm1, mut zn) = (1.0, 1.0, w0, SQRT_2 * z0, z2);
     for n in (2..=NUM).step_by(2) {
@@ -283,8 +282,8 @@ fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
             let dsum: f64 = (1..i).map(|j| d[i - j - 1] * c[j - 1]).sum();
             d[i - 1] = -(dsum + c[i - 1]);
         }
-        j0 = znm1 / SQRT_TAU + (n - 1) as f64 * j0;
-        j1 = zn / SQRT_TAU + n as f64 * j1;
+        j0 = znm1 / SQRT_TAU_DOWN + (n - 1) as f64 * j0;
+        j1 = zn / SQRT_TAU_DOWN + n as f64 * j1;
         znm1 *= z2;
         zn *= z2;
         w *= w0;

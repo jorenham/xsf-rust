@@ -11,7 +11,7 @@
 //! The other functions in `unity.h` are translated in `xsf/log.rs` (`log1pmx`) and `xsf/trig.rs`
 //! (`cosm1`), or replaced by `f64::ln_1p` and `f64::exp_m1` from the Rust standard library.
 
-use crate::utils::{MACHEP, SCIPY_EULER};
+use crate::utils::{EGAMMA, MACHEP};
 use crate::xsf::cephes::{lgam, zeta};
 
 // cephes/const.h
@@ -22,7 +22,7 @@ fn lgam1p_taylor(x: f64) -> f64 {
     if x == 0.0 {
         return 0.0;
     }
-    let mut res = -SCIPY_EULER * x;
+    let mut res = -EGAMMA * x;
     let mut xfac = -x;
     for n in 2..MAXITER {
         xfac *= -x;

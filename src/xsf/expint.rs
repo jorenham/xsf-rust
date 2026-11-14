@@ -13,7 +13,7 @@ use core::f64::consts::PI;
 
 use num_complex::Complex;
 
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, ViaC64, c64};
 
 fn exp1_f64(x: f64) -> f64 {
@@ -22,7 +22,7 @@ fn exp1_f64(x: f64) -> f64 {
     // Input :  x  --- Argument of E1(x)
     // Output:  E1 --- E1(x)  ( x > 0 )
     // ============================================
-    const GA: f64 = SCIPY_EULER;
+    const GA: f64 = EGAMMA;
 
     if x == 0.0 {
         return f64::INFINITY;
@@ -56,7 +56,7 @@ fn exp1_c64(z: C64) -> C64 {
     // Input :  z   --- Argument of E1(z)
     // Output:  CE1 --- E1(z)
     // ====================================================
-    const EL: f64 = SCIPY_EULER;
+    const EL: f64 = EGAMMA;
 
     let x = z.re;
     let a0 = z.norm();
@@ -122,7 +122,7 @@ fn expi_f64(x: f64) -> f64 {
     // Input :  x  --- Argument of Ei(x)
     // Output:  EI --- Ei(x)
     // ============================================
-    const GA: f64 = SCIPY_EULER;
+    const GA: f64 = EGAMMA;
 
     if x == 0.0 {
         f64::NEG_INFINITY

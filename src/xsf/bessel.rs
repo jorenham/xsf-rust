@@ -7,7 +7,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{MAXLOG, MINLOG, PISQ_6, SCIPY_EULER, mul_exp};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, MAXLOG, MINLOG, mul_exp};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::two_sum;
@@ -1435,7 +1435,7 @@ fn itj0y0_neumann(x: f64) -> [f64; 4] {
             awe = w / n - awe;
         }
     });
-    let l = (0.5 * x).ln() + SCIPY_EULER;
+    let l = (0.5 * x).ln() + EGAMMA;
     let (tj, ttj) = (2.0 * jo / norm, 2.0 * we / norm);
     let ty = FRAC_2_PI * (l * tj - 2.0 * (wo - 4.0 * ajo) / norm);
     let tty = PI / 6.0 + FRAC_2_PI * (l * (ttj - 0.5 * l) - 2.0 * (ww + 2.0 * awe) / norm);
@@ -1658,7 +1658,7 @@ fn ittjya(x: f64) -> (f64, f64) {
             }
         }
         ttj *= 0.125 * x * x;
-        let e0 = 0.5 * (PISQ_6 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
+        let e0 = 0.5 * (FRAC_PI_SQ_6 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
         let mut b1 = el + (x / 2.0).ln() - 1.5;
         let mut rs = 1.0;
         r = -1.0;
