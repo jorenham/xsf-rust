@@ -803,6 +803,34 @@ fn test_hyp1f1_large_x() {
 }
 
 #[test]
+fn test_hyp1f1_neg_x_near_pole() {
+    // Arb; b - a is within 1e-14 of -31, -14, and -82 (where it rounds to -82), and 1e-20 of -1,
+    // so 1/Gamma(b - a) is tiny, and these were -3.9e-75, -8.0e-118, -1.3e-153, and 0
+    let abx = [
+        (31.7, 0.699_999_999_999_988_6, -1000.0),
+        (
+            48.277_939_327_037_45,
+            34.277_939_327_037_46,
+            -1_450.237_668_835_392_7,
+        ),
+        (
+            21.553_847_421_355_318,
+            -60.446_152_578_644_686,
+            -646.529_513_537_224,
+        ),
+        (1.0, -1e-20, -1000.0),
+    ];
+    let expected = [
+        2.580_045_808_721_416_3e-75,
+        5.612_220_190_937_725e-119,
+        5.634_897_230_748_735e-34,
+        -1.002_006_024_120_725_1e-3,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp1f1_neg_b() {
     // mpmath; in xsf these are 1.03, -7844.06, -1.5e56, NaN, NaN, and NaN
     let abx = [
@@ -988,8 +1016,10 @@ fn test_hyp1f1_tiny_b_overflow() {
     let actual = abz.map(|(a, b, z)| xsf::hyp1f1(a, b, z));
     xsref::np_assert_allclose!(actual, expected, rtol = 5e-15);
 
-    // NaN instead of the series with `b - a` rounded to -8, or with `|b| M` underflowing
-    assert!(xsf::hyp1f1(8.0, 1e-300, -780.0).is_nan());
+    // Arb: 3.6808580837139879e-19; the series with the exact `b - a`, not rounded to -8
+    let actual = xsf::hyp1f1(8.0, 1e-300, -780.0);
+    xsref::np_assert_allclose!([actual], [3.680_858_083_713_988e-19], rtol = 1e-15);
+    // NaN instead of the series with `b - a` rounded to -50, or with `|b| M` underflowing
     assert!(xsf::hyp1f1(50.0, 1e-300, c64(-1000.0, 0.0)).is_nan());
 }
 
