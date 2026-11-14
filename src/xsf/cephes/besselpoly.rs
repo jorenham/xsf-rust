@@ -27,8 +27,8 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
     }
     let mut sm = (nu * a.ln()).exp() / (gamma(nu + 1.0) * (lambda + nu + 1.0));
     if !sm.is_normal() {
-        // Unlike in xsf, the leading term is recomputed in log space if `gamma(nu + 1)` or
-        // `a^nu` over- or underflows (e.g. `nu > 171`)
+        // Unlike in xsf (scipy/xsf#538), the leading term is recomputed in log space if
+        // `gamma(nu + 1)` or `a^nu` over- or underflows (e.g. `nu > 171`)
         let (lg, sign) = lgam_sgn(nu + 1.0);
         let d = lambda + nu + 1.0;
         sm = f64::from(sign) * (nu * a.ln() - lg - d.abs().ln()).exp().copysign(d);
