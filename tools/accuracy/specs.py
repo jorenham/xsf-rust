@@ -57,6 +57,11 @@ GREEK = {
     "beta": "\u03b2",
     "re": "Re\u00a0z",
     "im": "Im\u00a0z",
+    "a1": "a\u2081",
+    "a2": "a\u2082",
+    "a3": "a\u2083",
+    "b1": "b\u2081",
+    "b2": "b\u2082",
 }
 
 
@@ -1786,6 +1791,59 @@ def r_hyp2f1(a, b, c, x):
             return _arb("hyp2f1", a, b, c, x)
 
 
+def _pfq_series(a, b, z):
+    """The power series of pFq for p = q + 1 as an Arb ball, for |z| < 1 or a polynomial; `b`
+    contains the 1 of n!.
+
+    For k > kmin, the factors (a_i + k) / (b_i + k) of the term ratios are positive and tend
+    monotonically to 1, so the ratios are at most rho (below), which bounds the rest
+    geometrically."""
+    kmin = max(0, *(-v for v in (*a, *b)))
+    a, b = ([flint.arb(v) for v in sorted(p)] for p in (a, b))
+    z, tol = flint.arb(z), flint.arb(2) ** (-mp.mp.prec - 10)
+    s, t, k = flint.arb(0), flint.arb(1), 0
+    while not t.is_zero():
+        s += t
+        t *= z * math.prod(v + k for v in a) / math.prod(v + k for v in b)
+        k += 1
+        if k > kmin:
+            rho = abs(z) * math.prod(((x + k) / (y + k)).max(1) for x, y in zip(a, b))
+            rest = abs(t) * rho / (1 - rho)
+            # (the upper bound of |s|, so that this also ends if s has no accuracy left)
+            if rho < 1 and rest <= tol * abs(s).upper():
+                return s + t + flint.arb(0, rest.upper())
+        if k > 10**6:
+            raise NoConvergence
+    return s
+
+
+def r_hyp3f2(a1, a2, a3, b1, b2, z):
+    # mpmath's hyp3f2 can be far off for b < 0, like its hyp2f1 (mpmath/mpmath#1216), and Arb's
+    # needs too many bits near |z| = 1, so sum the series directly, with more bits until it is
+    # accurate. Only mpmath continues it to z <= -1, where it has to agree with itself at more
+    # digits.
+    a = (a1, a2, a3)
+    if z <= -1 and not any(v == int(v) <= 0 for v in a):
+        return _converged(mp.hyp3f2, *a, b1, b2, z)
+    prec = 2 * mp.mp.prec
+    while prec <= 2**14:
+        with flint.ctx.workprec(prec):
+            y = _pfq_series(a, (b1, b2, 1), z)
+        if y.rel_accuracy_bits() >= mp.mp.prec:
+            return mp.mpf(y)
+        prec *= 2
+    raise NoConvergence
+
+
+def r_hyp2f2(a1, a2, b1, b2, z):
+    # Arb sums the series with a rigorous error bound, with more bits where its terms cancel
+    return _arb("hyp2f2", a1, a2, b1, b2, z)
+
+
+def r_hyp1f2(a, b1, b2, z):
+    return _arb("hyp1f2", a, b1, b2, z)
+
+
 # ---------------------------------------------------------------- orthogonal polynomials
 
 
@@ -3453,6 +3511,41 @@ add(
     note="zeros_c",
 )
 add(
+    "hyp3f2",
+    "a1 a2 a3 b1 b2 z",
+    r_hyp3f2,
+    D(*[U(-10, 10)] * 5, U(-1, 1), n=5000),
+    D(*[LU(1e-3, 100, 0)] * 5, U(-10, 1), n=2000),
+    D(Int(-30, -1), *[U(-10, 10)] * 4, U(-10, 10), n=2000),
+    cpp=False,
+    timeout=60,
+    note="none",
+)
+add(
+    "hyp2f2",
+    "a1 a2 b1 b2 z",
+    r_hyp2f2,
+    D(*[U(-10, 10)] * 4, U(-30, 30), n=5000),
+    D(*[U(-10, 10)] * 4, LU(1e-3, 1e3, 0), n=2000),
+    D(*[LU(1e-3, 100, 0)] * 4, LU(1e-3, 1e3, 0), n=2000),
+    D(Int(-30, -1), *[U(-10, 10)] * 3, U(-30, 30), n=1000),
+    cpp=False,
+    timeout=60,
+    note="none",
+)
+add(
+    "hyp1f2",
+    "a b1 b2 z",
+    r_hyp1f2,
+    D(*[U(-10, 10)] * 3, U(-225, 225), n=5000),
+    D(*[U(-10, 10)] * 3, LU(1e-3, 1e6, 0), n=2000),
+    D(*[LU(1e-3, 100, 0)] * 3, LU(1e-3, 1e6, 0), n=2000),
+    D(Int(-30, -1), *[U(-10, 10)] * 2, U(-225, 225), n=1000),
+    cpp=False,
+    timeout=60,
+    note="none",
+)
+add(
     "hyp1f1#c",
     "a b re im",
     c_hyp1f1,
@@ -3692,6 +3785,10 @@ NOTES = {
         f"{SQRT}(J_(b{MINUS}1)(x)\u00b2 + Y_(b{MINUS}1)(x)\u00b2)."
     ),
     "beta_dist": f"{MU} = a / (a + b), {SIGMA}\u00b2 = {MU}(1 {MINUS} {MU}) / (a + b + 1).",
+    "none": (
+        "inf (k) counts the `None` results, where it cannot compute the result to a relative "
+        "error of about 10\u207b\u00b9\u00b3."
+    ),
 }
 
 NOTES |= {
@@ -3765,4 +3862,7 @@ ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
     "hyp1f1": lambda a, b, x: x.hypgeom_1f1(a, b),
     "hypu": lambda a, b, x: x.hypgeom_u(a, b),
     "hyp2f1": lambda a, b, c, x: x.hypgeom_2f1(a, b, c),
+    "hyp3f2": lambda a1, a2, a3, b1, b2, z: z.hypgeom([a1, a2, a3], [b1, b2]),
+    "hyp2f2": lambda a1, a2, b1, b2, z: z.hypgeom([a1, a2], [b1, b2]),
+    "hyp1f2": lambda a, b1, b2, z: z.hypgeom([a], [b1, b2]),
 }
