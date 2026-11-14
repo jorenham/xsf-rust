@@ -119,6 +119,12 @@ pub(crate) fn igam_fac(a: f64, x: f64) -> f64 {
     res
 }
 
+/// `ln(igam_fac(a, x))`, from its Lanczos form, also where `igam_fac` underflows
+pub(crate) fn ln_igam_fac(a: f64, x: f64) -> f64 {
+    let fac = a + LANCZOS_G - 0.5;
+    0.5 * (fac / E).ln() - lanczos_sum_expg_scaled(a).ln() + igam_fac_exponent(a, x)
+}
+
 /// `ln(igam_fac(a, x) L(a) / sqrt(fac / e))`, the exponent of its Lanczos form, with
 /// `fac = a + g - 1/2`
 fn igam_fac_exponent(a: f64, x: f64) -> f64 {
@@ -184,7 +190,7 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
 
 /// The power series `sum_k x^k / ((a + 1) ... (a + k))` of DLMF 8.11.4, i.e.
 /// `igam(a, x) a / igam_fac(a, x)`, and whether it converged within `IGAM_MAXITER` terms
-fn igam_series_sum(a: f64, x: f64) -> (f64, bool) {
+pub(crate) fn igam_series_sum(a: f64, x: f64) -> (f64, bool) {
     let mut r = a;
     let mut c = 1.0;
     let mut ans = 1.0;

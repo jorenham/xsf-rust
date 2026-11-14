@@ -72,7 +72,7 @@ pub(crate) use gdtr::{gdtr, gdtrc};
 pub(crate) use hyp2f1::hyp2f1;
 pub(crate) use i0::{i0, i0e};
 pub(crate) use i1::{i1, i1e};
-pub(crate) use igam::{igam, igam_fac, igamc};
+pub(crate) use igam::{igam, igam_fac, igam_series_sum, igamc, ln_igam_fac};
 pub(crate) use igami::{igamci, igami};
 pub use incbet::*;
 pub use incbi::*;
