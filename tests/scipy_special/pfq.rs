@@ -406,20 +406,32 @@ fn test_hyp1f2_special() {
 
 #[test]
 fn test_hyp1f2_asymptotic() {
-    // Arb references, without an algebraic part
+    // Arb references
     for (a, b, z, expected) in [
+        (1.5, [2.25, 3.5], -2000.0, 3.386_681_684_937_679e-5),
+        (1.0, [1.5, 2.5], -900.0, 0.000_953_821_660_161_545),
+        (12.5, [20.25, 30.5], -5000.0, 4.908_658_768_179_874e-16),
+        // a terminating algebraic part
+        (2.5, [0.25, 4.5], -400.0, 0.092_109_577_006_595_11),
+        // no algebraic part
         (2.5, [1.5, 4.0], -500.0, -0.000_951_630_992_123_725_2),
         (3.5, [3.5, 4.0], -1000.0, 5.674_432_067_916_389e-6),
+        // mpmath and Wolfram reference
+        (0.7, [1.3, 2.9], -1e6, 6.306_440_261_147_195e-5),
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
     // overflow
     assert_eq!(hyp1f2(1.5, 0.5, 3.5, 2e5), Some(f64::INFINITY));
     assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp1f2(1.5, 2.25, 3.5, 2e5), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(-0.5, 2.25, 3.5, 2e5), Some(f64::NEG_INFINITY));
 }
 
 #[test]
 fn test_hyp1f2_none() {
-    // the series cancels too much
-    assert_eq!(hyp1f2(1.5, 2.25, 3.5, -2000.0), None);
+    // the series cancels, and |z| is too small for the asymptotic expansion
+    assert_eq!(hyp1f2(25.5, 1.25, 0.05, -4000.0), None);
+    // the phase 2 sqrt(-z) of the oscillating part is too large
+    assert_eq!(hyp1f2(0.5, 0.5, 0.25, -1e40), None);
 }

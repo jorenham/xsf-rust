@@ -954,16 +954,44 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     mul_gamma_ratio(&b.map(Dd::new), &[Dd::new(a)], || Some(y))
 }
 
-/// $_1F_2$ by its asymptotic expansion (DLMF 16.11.8) if it has no algebraic part, where
-/// $1 / \Gamma(b_j - a)$ vanishes, and if its estimated relative error is at most `PFQ_TOL`
+/// The algebraic part of the asymptotic expansion of $_1F_2$ (DLMF 16.11.2, 16.11.8), with
+/// $\abs z$ instead of $-z$,
 ///
-/// For $z > 0$, the terms with $e^{-x}$ are smaller than the truncation error.
+/// $$
+/// {\Gamma(b_1) \Gamma(b_2) \over \Gamma(b_1 - a) \Gamma(b_2 - a)} \abs z^{-a}
+/// \sum_n {\rpow a n \ \rpow{1 + a - b_1}{n} \ \rpow{1 + a - b_2}{n} \over z^n n!}
+/// ,
+/// $$
+///
+/// unless it vanishes (where $1 / \Gamma(b_j - a)$ does, which isn't checked here)
+fn hyp1f2_alg(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
+    let bm = b.map(|bj| Dd::new(bj) - a);
+    let up = descending([a, 1.0 - bm[0].hi, 1.0 - bm[1].hi]);
+    let bound = |n| pfq_ratio_bound(&up, &[1.0], 1.0 / z, n);
+    let series = once(1.0).chain(pfq_terms(&up, &[1.0], 1.0 / z));
+    // (the term ratios are about n^2 / |z|)
+    let sum = asymptotic_sum(series, pfq_settled(&up, &[1.0]), z.abs().sqrt(), bound);
+    let l = -ln_dd(Dd::new(z.abs())) * a;
+    gamma_series(&b.map(Dd::new), &bm, sum, l)
+}
+
+/// $_1F_2$ by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
+/// most `PFQ_TOL`
+///
+/// For $z > 0$, only the exponentially large part is used, and the size of the algebraic part
+/// is added to the error. The terms with $e^{-x}$ are smaller than the truncation error.
 fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
+    let exp = hyp1f2_exp(a, b, z)?;
     let vanishes = b.iter().any(|&bj| is_pole(&(Dd::new(bj) - a)));
-    if vanishes {
-        checked_f64(hyp1f2_exp(a, b, z)?, None)
-    } else {
+    let alg = if vanishes {
         None
+    } else {
+        Some(hyp1f2_alg(a, b, z)?)
+    };
+    if z > 0.0 {
+        checked_f64(exp, alg)
+    } else {
+        checked_f64(add_exp(alg.into_iter().chain([exp]))?, None)
     }
 }
 
@@ -987,17 +1015,16 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 /// As in [`hyp2f2`], an $a$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
 /// that the result is the $_0F_1$ of the other $b_j$, and it is $+\infty$ if a $b_j$ is a
 /// non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if an argument
-/// is NaN.
+/// is NaN, and overflows to $\pm\infty$ for large $z > 0$.
 ///
 /// # Returns `None`
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - for some $z < 0$, e.g. $z \lesssim -400$ if all $\abs a, \abs{b_j} \le 3$, unless $b_1 - a$ or
-///   $b_2 - a$ is a non-positive integer;
-/// - for $z \lesssim -10^{32}$;
+/// - for some $z < 0$: rarely if all $\abs a, \abs{b_j} \le 10$, but e.g. for about half of
+///   $-10^5 < z < -10^3$ if they are up to 100;
+/// - for most $z \lesssim -10^{32}$;
 /// - near a zero, or if the result underflows;
-/// - if the result overflows, unless $b_1 - a$ or $b_2 - a$ is a non-positive integer;
 /// - if an argument is infinite.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
