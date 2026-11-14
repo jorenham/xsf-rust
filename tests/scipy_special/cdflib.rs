@@ -115,3 +115,70 @@ fn test_ncfdtridfd_ncfdtridfn() {
     assert!(xsf::ncfdtridfd(2.0, 0.5, f64::NAN, 15.0).is_nan());
     assert!(xsf::ncfdtridfn(0.5, 2.0, -1.0, 15.0).is_nan());
 }
+
+#[test]
+fn test_nctdtridf() {
+    // `test_nctdtridf_accuracy` in scipy/special/tests/test_cdflib.py: `(df, nc, t, nctdtr)`
+    let cases = [
+        (3000.0, 3.0, 0.1, 0.001_865_778_082_632_332_8),
+        (0.98, -3.8, 15.0, 0.999_999_026_459_194_5),
+        (98.0, 0.38, 0.0015, 0.352_528_178_485_963_13),
+        (980.0, 0.38, 1.5, 0.868_424_706_851_729_3),
+    ];
+    for (df, nc, t, p) in cases {
+        // the CDF barely depends on df here, e.g. d ln(p) / d ln(df) ~ 2e-5 for df = 3000
+        np_assert_allclose!([xsf::nctdtridf(p, nc, t)], [df], rtol = 1e-8);
+    }
+    // The CDF peaks near df = 1e-4, and is lost to the same `~17 eps` at df = 1/8, 1 and 8, which
+    // also limits the accuracy. The root is from mpmath.
+    np_assert_allclose!(
+        [xsf::nctdtridf(1e-7, 100.0, 1.0)],
+        [0.001_359_433_745_890_397_4],
+        rtol = 1e-8
+    );
+    // the central beta terms of the series underflow; the root is from mpmath
+    np_assert_allclose!(
+        [xsf::nctdtridf(3.389_564_203_107_224_7e-262, -20.0, -60.0)],
+        [5000.0],
+        rtol = 1e-12
+    );
+    assert!(xsf::nctdtridf(0.5, 1.0, 0.0).is_nan());
+}
+
+#[test]
+fn test_nctdtrinc() {
+    // `test_nctdtrinc_gh19896` in scipy/special/tests/test_cdflib.py
+    let df = [0.001, 0.98, 9.8, 98.0, 10000.0, 98.0, 0.98, 0.001];
+    let p = [
+        0.001_000_212_411_985_872_6,
+        0.099_999_999_527_969_73,
+        0.299_999_996_819_771_9,
+        0.799_999_958_571_485_6,
+        0.001_005_062_230_783_708_5,
+        0.099_999_999_324_025_53,
+        0.799_999_998_436_441_5,
+        0.998_999_999_551_634_8,
+    ];
+    let t = [0.0015, 0.15, 1.5, 15.0, 0.0015, 0.15, 15.0, 300.0];
+    let nc = [
+        3.090_232_306_168_629,
+        1.406_141_304_556_198,
+        2.014_225_177_124_157,
+        13.727_067_118_283_456,
+        3.090_232_306_168_629,
+        1.431_242_787_793_622_2,
+        3.712_743_137_978_295,
+        -3.086_951_096_691_082,
+    ];
+    for i in 0..df.len() {
+        np_assert_allclose!([xsf::nctdtrinc(df[i], p[i], t[i])], [nc[i]], rtol = 5e-12);
+    }
+    // `test_nctdtrinc_zero_nc`
+    for (df, t) in [(10.0, 2.0), (100.0, -3.0), (1000.0, 4.0)] {
+        let p = xsf::stdtr(df, t);
+        np_assert_allclose!([xsf::nctdtrinc(df, p, t)], [0.0], atol = 1e-15);
+    }
+    assert_eq!(xsf::nctdtrinc(1.0, 0.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::nctdtrinc(1.0, 1.0, 1.0), f64::NEG_INFINITY);
+    assert!(xsf::nctdtrinc(0.0, 0.5, 1.0).is_nan());
+}

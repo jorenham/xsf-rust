@@ -146,4 +146,4 @@ pub(crate) use hyp2f1_recur::{HYP2F1_RECUR_TOL, hyp2f1_recur, ln_gamma};
 pub(crate) use loggamma::zlog1_c64;
 pub(crate) use specfun::Hyp1F1Arg;
 pub(crate) use stirling2::stirling2 as stirling2_float;
-pub(crate) use tools::find_root_chandrupatla;
+pub(crate) use tools::{bracket_root_for_cdf_inversion, find_root_chandrupatla};

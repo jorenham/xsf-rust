@@ -1,16 +1,17 @@
 //! Inverses of distribution functions with respect to a parameter, which `scipy.special` computes
 //! with cdflib. Unlike in SciPy, the roots are found with the bracket search and Chandrupatla
 //! solver of [`gdtrib`](crate::gdtrib) to machine precision, instead of cdflib's `dinvr` with a
-//! relative tolerance of `1e-10`. If `p` can't be reached, 0 or inf is returned, whichever limit
-//! is closest, instead of cdflib's search bound. If `p` is 0 or 1, the limit where the CDF is
-//! smallest or largest is returned, instead of a root where the CDF underflows or rounds to `p`.
+//! relative tolerance of `1e-10` (`1e-8` for the noncentral t). If `p` can't be reached, 0 or inf
+//! is returned, whichever limit is closest, instead of cdflib's search bound. If `p` is 0 or 1, the
+//! limit where the CDF is smallest or largest is returned, instead of a root where the CDF
+//! underflows or rounds to `p`.
 
-use core::f64::consts::LN_2;
+use core::f64::consts::{LN_2, PI};
 
 use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::ldexp_f64;
 use crate::xsf::cephes::{betainc_xy, igam_fac, incbet_cf_factor, lbeta};
-use crate::xsf::{find_positive_root, find_root_chandrupatla};
+use crate::xsf::{bracket_root_for_cdf_inversion, find_positive_root, find_root_chandrupatla};
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
 ///
@@ -438,4 +439,247 @@ pub fn ncfdtrinc(dfn: f64, dfd: f64, p: f64, f: f64) -> f64 {
             false,
         )
     })
+}
+
+/// CDF of the noncentral t distribution, from cdflib's `cumtnc`.
+///
+/// It sums the series for the upper tail on p. 532 of Johnson, Kotz and Balakrishnan, Continuous
+/// Univariate Distributions, Vol. 2, 2nd ed. (1995), forward and backward from the term with the
+/// largest Poisson weight.
+///
+/// Unlike in SciPy, and as in [`cumfnc`],
+/// - the series is summed to machine precision, instead of to a relative tolerance of `1e-7`,
+/// - `t` and `nc` are treated as 0 below `eps` and `1e-102` instead of `1e-10`, and the shortcuts
+///   for `B(2 cent)` and `B(2 cent + 1)` near 0 or 1 are dropped, since they cut off the sum at
+///   `1e-10`, or lose the terms below `cent`,
+/// - the Poisson weights are computed with `igam_fac` (directly if `cent = 1`), and `ln(1 - x)`
+///   with `ln_1p`,
+/// - `s(cent)` is computed with `lbeta`, since `lgam` loses `~df ln(df) eps`,
+/// - the beta terms are rescaled by powers of 2 if the central ones underflow,
+/// - `cumt`, `cumnor` and `bratio` are replaced by [`stdtr`](crate::stdtr),
+///   [`ndtr`](crate::ndtr) and `betainc_xy`.
+///
+/// As in SciPy, the lower tail for `t > 0` is computed as 1 minus the upper tail, so that it is
+/// lost below `~eps`, and the series cancels if `nc` and `t` have opposite signs.
+fn cumtnc(t: f64, df: f64, pnonc: f64) -> f64 {
+    let tiny = f64::EPSILON;
+
+    // the weights below, `~lambda^1.5` if `lambda = nc^2 / 2 < 1`, are subnormal if `|nc| < 1e-102`
+    if pnonc.abs() < 1e-102 {
+        return crate::stdtr(df, t);
+    }
+    let qrevs = t < 0.0;
+    let tt = t.abs();
+    let dpnonc = if qrevs { -pnonc } else { pnonc };
+    let pnonc2 = dpnonc * dpnonc;
+    let t2 = tt * tt;
+    // t is effectively 0, also if 1 - x underflows
+    if tt <= tiny || t2 / df == 0.0 {
+        return crate::ndtr(-pnonc);
+    }
+
+    let lmbda = 0.5 * pnonc2;
+    let x = df / (df + t2);
+    // not t2 / (df + t2), which is NaN if t2 overflows
+    let omx = 1.0 / (1.0 + df / t2);
+    let (lnx, lnomx) = if x > 0.5 {
+        ((-omx).ln_1p(), omx.ln())
+    } else {
+        (x.ln(), (-x).ln_1p())
+    };
+    // Case : i = lambda
+    let cent = lmbda.floor().max(1.0);
+    // Compute d=T(2i) and e=t(2i+1), offset by exp(-lambda)
+    // lambda^cent exp(-lambda) / cent! and lambda^(cent + 1/2) exp(-lambda) / Gamma(cent + 3/2),
+    // where `igam_fac` loses `~|ln(lambda)| eps` if lambda < 1
+    let (dcent, mut ecent) = if cent == 1.0 {
+        let dcent = lmbda * (-lmbda).exp();
+        (dcent, dcent * lmbda.sqrt() / (0.75 * PI.sqrt()))
+    } else {
+        (
+            igam_fac(cent + 1.0, lmbda) / lmbda,
+            igam_fac(cent + 1.5, lmbda) / lmbda,
+        )
+    };
+    if dpnonc < 0.0 {
+        ecent = -ecent;
+    }
+    // Compute bcent=B(2*cent) and bbcent=B(2*cent+1). If they underflow, the terms are carried as
+    // multiples of `2^scale`, since the later ones can still be significant.
+    let (bcent, scale_b) = betainc_scaled(0.5 * df, cent + 0.5, x, omx, lnx, lnomx);
+    let (bbcent, scale_bb) = betainc_scaled(0.5 * df, cent + 1.0, x, omx, lnx, lnomx);
+    let scale_cent = scale_b.max(scale_bb);
+    let bcent = ldexp_f64(bcent, scale_b - scale_cent);
+    let bbcent = ldexp_f64(bbcent, scale_bb - scale_cent);
+    let mut scale = scale_cent;
+
+    // First term in ccum is D*B + E*BB
+    let mut ccum = dcent * bcent + ecent * bbcent;
+    // Compute s(cent) = B(2*(cent+1)) - B(2*cent))
+    let scent =
+        (-lbeta(0.5 * df, cent + 0.5) - (cent + 0.5).ln() + 0.5 * df * lnx + (cent + 0.5) * lnomx
+            - f64::from(scale) * LN_2)
+            .exp();
+    // Compute ss(cent) = B(2*cent+3) - B(2*cent+1)
+    let sscent =
+        (-lbeta(0.5 * df, cent + 1.0) - (cent + 1.0).ln() + 0.5 * df * lnx + (cent + 1.0) * lnomx
+            - f64::from(scale) * LN_2)
+            .exp();
+    // Sum forward. If nc < 0, the sum can cancel to 0 or below, and terms that are NaN end it too.
+    let mut xi = cent + 1.0;
+    let mut twoi = 2.0 * xi;
+    let mut d = dcent;
+    let mut e = ecent;
+    let mut b = bcent;
+    let mut s = scent;
+    let mut bb = bbcent;
+    let mut ss = sscent;
+    loop {
+        rescale(
+            (b + s).max(bb + ss),
+            1.0,
+            &mut scale,
+            &mut [&mut b, &mut bb, &mut s, &mut ss, &mut ccum],
+        );
+        b += s;
+        bb += ss;
+        d *= lmbda / xi;
+        e *= lmbda / (xi + 0.5);
+        let term = d * b + e * bb;
+        ccum += term;
+        s *= omx * (df + twoi - 1.0) / (twoi + 1.0);
+        ss *= omx * (df + twoi) / (twoi + 2.0);
+        xi += 1.0;
+        twoi = 2.0 * xi;
+        // if scaled, not past the underflow of the Poisson weights, which would get stuck at a
+        // subnormal, while `b` and `bb` grow
+        if !(term.abs() > f64::EPSILON * ccum.abs())
+            || scale < 0 && d < f64::MIN_POSITIVE && e.abs() < f64::MIN_POSITIVE
+        {
+            break;
+        }
+    }
+    // Sum Backward
+    xi = cent;
+    twoi = 2.0 * xi;
+    d = dcent;
+    e = ecent;
+    let shift = scale_cent - scale;
+    b = ldexp_f64(bcent, shift);
+    bb = ldexp_f64(bbcent, shift);
+    s = ldexp_f64(scent, shift) * (1.0 + twoi) / ((df + twoi - 1.0) * omx);
+    ss = ldexp_f64(sscent, shift) * (2.0 + twoi) / ((df + twoi) * omx);
+    loop {
+        b -= s;
+        bb -= ss;
+        d *= xi / lmbda;
+        e *= (xi + 0.5) / lmbda;
+        let term = d * b + e * bb;
+        ccum += term;
+        xi -= 1.0;
+        if xi < 0.5 {
+            break;
+        }
+        twoi = 2.0 * xi;
+        s *= (1.0 + twoi) / ((df + twoi - 1.0) * omx);
+        ss *= (2.0 + twoi) / ((df + twoi) * omx);
+        if !(term.abs() > f64::EPSILON * ccum.abs()) {
+            break;
+        }
+    }
+    // Due to roundoff error the answer may not lie between zero and one
+    // Force it to do so
+    let ccum = ldexp_f64(0.5 * ccum, scale).clamp(0.0, 1.0);
+    if qrevs { ccum } else { 1.0 - ccum }
+}
+
+/// The largest `|nc|` for which [`cumtnc`] is computed, as in cdflib, since it sums `~12 |nc|`
+/// terms.
+const NCT_MAX: f64 = 1e6;
+
+/// Inverse of the noncentral t CDF with respect to `df`
+///
+/// Corresponds to [`scipy.special.nctdtridf`][nctdtridf].
+///
+/// [nctdtridf]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nctdtridf.html
+///
+/// # See also
+/// - [`nctdtrinc`]: Inverse of the noncentral t CDF with respect to `nc`
+/// - [`stdtridf`]: Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
+#[must_use]
+pub fn nctdtridf(p: f64, nc: f64, t: f64) -> f64 {
+    // the CDF is ndtr(-nc) if t = 0, and 1 or 0 if t = +-inf, independent of df
+    if !(0.0..=1.0).contains(&p) || !(nc.abs() <= NCT_MAX) || t == 0.0 || !t.is_finite() {
+        return f64::NAN;
+    }
+    let increasing = t > 0.0;
+    if let Some(df) = limit_if_p_is_0_or_1(p, increasing) {
+        return df;
+    }
+    let func = |df: f64| cumtnc(t, df, nc) - p;
+    // The CDF goes from ndtr(-nc) at df = 0 to ndtr(t - nc) at df = inf. If p lies outside, and
+    // also beyond the CDF at the search points, only an extremum in between can reach it, which
+    // saves the searches of `find_df_root` up to its bounds, of ~110 CDFs of ~12 |nc| terms each.
+    let (at_0, at_inf) = (crate::ndtr(-nc) - p, crate::ndtr(t - nc) - p);
+    if (at_0 > 0.0 && at_inf > 0.0) || (at_0 < 0.0 && at_inf < 0.0) {
+        let closest = if at_0.abs() < at_inf.abs() {
+            0.0
+        } else {
+            f64::INFINITY
+        };
+        // With `W = sqrt(V / df)` and `V ~ chi^2(df)`, the CDF is `E[ndtr(t W - nc)]`, so that its
+        // distance from 0 if `t > 0`, or from 1 if `t < 0`, is `E[ndtr(|t| W - s)]` with
+        // `s = sign(t) nc`. This is at least `ndtr(-s)`, and by Markov's inequality
+        // `P(W >= w) <= 1 / w^2` with `w = s / (2 |t|)`, at most `4 t^2 / s^2 + ndtr(-s / 2)` if
+        // `s > 0`, and the same distance `q` of `p` must lie in between.
+        let (q, s) = if t > 0.0 { (p, nc) } else { (1.0 - p, -nc) };
+        // `q < ndtr(-s)`, without the rounding of `1 - p`
+        let below_min = (t > 0.0) == (at_0 > 0.0);
+        if below_min || s > 0.0 && q > 4.0 * t * t / (s * s) + crate::ndtr(-s / 2.0) {
+            return closest;
+        }
+        if let Some(points) = scan_same_sign(func) {
+            return find_extremum_root(func, &points, increasing).unwrap_or(closest);
+        }
+    }
+    find_df_root(func, increasing)
+}
+
+/// Inverse of the noncentral t CDF with respect to `nc`
+///
+/// Corresponds to [`scipy.special.nctdtrinc`][nctdtrinc].
+///
+/// [nctdtrinc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nctdtrinc.html
+///
+/// # See also
+/// - [`nctdtridf`]: Inverse of the noncentral t CDF with respect to `df`
+/// - [`stdtridf`]: Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
+#[must_use]
+pub fn nctdtrinc(df: f64, p: f64, t: f64) -> f64 {
+    if !(df > 0.0) || !(0.0..=1.0).contains(&p) || !t.is_finite() {
+        return f64::NAN;
+    }
+    // The CDF decreases in nc, from 1 at -inf to 0 at inf.
+    if p == 0.0 || p == 1.0 {
+        return if p == 0.0 {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        };
+    }
+    let func = |nc: f64| cumtnc(t, df, nc) - p;
+    // The bracket is expanded in steps of 1, 2, 4, ... from 0, and 64 steps are more than enough
+    // to reach NCT_MAX.
+    let (xl, xr, f_xl, f_xr, bracket_status) = bracket_root_for_cdf_inversion(
+        func, 0.0, -NCT_MAX, NCT_MAX, -1.0, 1.0, 2.0, 2.0, false, 64,
+    );
+    match bracket_status {
+        0 => match find_root_chandrupatla(func, xl, xr, f_xl, f_xr, f64::EPSILON, 1e-100, 100) {
+            (nc, 0) => nc,
+            _ => f64::NAN,
+        },
+        1 => f64::NEG_INFINITY,
+        2 => f64::INFINITY,
+        _ => f64::NAN,
+    }
 }

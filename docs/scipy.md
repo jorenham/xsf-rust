@@ -28,8 +28,8 @@ of 353 functions whose algorithm isn't in xsf.
 | `pdtrik`                                | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |
 | `ncfdtridfd`, `ncfdtridfn`, `ncfdtrinc` | cdflib                 | same                       |
+| `nctdtridf`, `nctdtrinc`                | cdflib                 | same                       |
 | `stdtridf`                              | cdflib                 | same                       |
-| `nctdtridf`, `nctdtrinc`                | cdflib                 |                            |
 | `ellipr{c,d,f,g,j}`                     | C++                    | same                       |
 | `stirling2`                             | C++; Python if `exact` | same                       |
 | `wrightomega`                           | C++                    | same                       |

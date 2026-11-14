@@ -29,7 +29,7 @@ pub use bessel_prime::{
     bessel_i_prime, bessel_j_prime, bessel_k_prime, bessel_y_prime, hankel_1_prime, hankel_2_prime,
 };
 pub use boxcox::{boxcox, boxcox1p, inv_boxcox, inv_boxcox1p};
-pub use cdflib::{fdtridfd, ncfdtridfd, ncfdtridfn, ncfdtrinc, stdtridf};
+pub use cdflib::{fdtridfd, ncfdtridfd, ncfdtridfn, ncfdtrinc, nctdtridf, nctdtrinc, stdtridf};
 pub use comb::{comb, comb_rep};
 pub use convex_analysis::{entr, huber, kl_div, pseudo_huber, rel_entr};
 pub use diric::diric;

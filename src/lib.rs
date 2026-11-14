@@ -203,6 +203,13 @@
 //! | [`nbdtrc`] | Complement of [`nbdtr`]          |
 //! | [`nbdtri`] | Inverse of [`nbdtr`]             |
 //!
+//! ## Noncentral t distribution
+//!
+//! | Function      | Description                             |
+//! | ------------- | --------------------------------------- |
+//! | [`nctdtridf`] | Inverse of the CDF with respect to `df` |
+//! | [`nctdtrinc`] | Inverse of the CDF with respect to `nc` |
+//!
 //! ## Normal distribution
 //!
 //! | Function      | Description                      |
