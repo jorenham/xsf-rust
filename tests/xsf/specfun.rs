@@ -967,6 +967,92 @@ fn test_hyp1f1_neg_b_minimal() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_underflow() {
+    // Arb; the terms of the series underflow before they grow again near n = -b
+    let abx = [
+        (
+            -0.684_601_735_788_336_6,
+            -2_491.988_305_634_539,
+            832.513_525_925_231_6,
+        ),
+        (
+            62.737_058_015_155_66,
+            -3_297.195_657_204_265_4,
+            960.736_598_215_635_5,
+        ),
+        (
+            24.929_513_857_206_913,
+            -2_301.225_825_539_740_5,
+            696.437_582_416_074_4,
+        ),
+    ];
+    let expected = [
+        -2.789_716_220_241_267_4e253,
+        1.783_223_164_215_751_9e224,
+        2.290_201_931_334_463_7e168,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-13);
+}
+
+#[test]
+fn test_hyp1f1_neg_b_underflow_recovered() {
+    // Arb; the series cancels, and the terms of the sum that is tried last underflow before they
+    // grow again near n = -b too
+    let abx = [
+        (
+            16_989.609_124_877_603,
+            -4_777.601_175_257_858,
+            152.667_748_374_787_52,
+        ),
+        (
+            -6_787.386_880_570_961,
+            -3_640.627_368_939_965_4,
+            -331.364_208_829_328,
+        ),
+    ];
+    let expected = [1.344_135_973_488_572_2e191, -1.131_646_211_363_953_3e-59];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb: -1.8e1096; the terms are negligible after 500 terms, long before they grow again near
+    // n = -b
+    let (a, b, x) = (
+        0.011_803_458_803_739_621,
+        -1_710.117_864_120_296_4,
+        1_295.984_122_817_062_8,
+    );
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::NEG_INFINITY);
+    // Arb: -1.1e2003; the terms underflow to 0 from n = 476 on, long before n = -b
+    let (a, b, x) = (
+        -300.428_209_964_808_16,
+        -12_891.937_044_306_565,
+        5_129.663_244_699_865,
+    );
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::NEG_INFINITY);
+    // Arb: 1.0e3136; the alternating terms before n = -b overflow, even times e^-1400, so there
+    // is no reliable sign
+    let (a, b, x) = (
+        -2_147.654_853_551_259_7,
+        -5_933.184_261_261_996,
+        6_410.939_164_492_509,
+    );
+    assert!(xsf::hyp1f1(a, b, x).is_nan());
+}
+
+#[test]
+fn test_hyp1f1_neg_b_poly_beyond_500_terms() {
+    // Arb; the polynomials end after 500 terms, long before n = -b
+    let abx = [
+        (-500.0, -200_000.5, 100_000.0),
+        (-600.0, -100_000.5, 200_001.0),
+    ];
+    let expected = [1.190_070_170_014_810_2e88, 4.173_835_946_190_143_6e286];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_large_b_or_neg_x() {
     // mpmath; in xsf these are 0, 0, 14.511, and -1.3e197
     let abx = [

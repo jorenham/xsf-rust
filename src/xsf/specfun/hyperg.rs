@@ -4,14 +4,14 @@
 //! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
-use core::f64::consts::PI;
+use core::f64::consts::{LN_2, PI};
 use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, mul_exp, pow2};
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
@@ -22,6 +22,10 @@ use crate::{digamma, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
 const MAX_TERMS: i32 = 100_000;
+
+/// The (exact) factor that keeps the terms of `chgm_poly` and `rescale_term` normal
+const LOG2_SCALE: i32 = 512;
+const SCALE: f64 = pow2(LOG2_SCALE);
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
@@ -40,21 +44,69 @@ fn term_ratio(a: f64, b: f64, abs_z: f64, n: f64) -> Option<f64> {
     (q.abs() < 1.0 && b + n >= abs_z).then_some(q)
 }
 
+/// The series term `t / SCALE^k` as `(t, term, |term|)`, where `t` with `norm(t) = |t|` is first
+/// scaled by `SCALE` (raising `k`) if it is below `TINY`, and back once it is `TINY SCALE` again.
+///
+/// Unlike in xsf (scipy/xsf#544), for `b < 0` the terms of DLMF 13.2.2 can underflow before they
+/// grow again near `n = -b`, and that part of the sum would be lost, or rebuilt from a few bits.
+fn rescale_term<T: Copy + Default + Mul<f64, Output = T>>(
+    mut t: T,
+    norm: impl Fn(T) -> f64,
+    k: &mut u32,
+) -> (T, T, f64) {
+    // far enough from the subnormals for the double-double products to be exact
+    const TINY: f64 = pow2(-900);
+    let mut abs_t = norm(t);
+    if (f64::MIN_POSITIVE..TINY).contains(&abs_t) {
+        (t, abs_t, *k) = (t * SCALE, abs_t * SCALE, *k + 1);
+    } else if *k > 0 && abs_t >= TINY * SCALE {
+        (t, abs_t, *k) = (t * (1.0 / SCALE), abs_t * (1.0 / SCALE), *k - 1);
+    }
+    match *k {
+        0 => (t, t, abs_t),
+        // below 2^-1075 the term rounds to 0, which is slow to get by an underflow
+        1 if abs_t >= pow2(LOG2_SCALE - 1075) => {
+            let term = t * (1.0 / SCALE);
+            (t, term, norm(term))
+        },
+        _ => (t, T::default(), 0.0),
+    }
+}
+
+/// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 are 0, as for `a = 0, -1, ...`, where it is a
+/// polynomial of degree `-a`
+fn series_ended(a: f64, n: f64) -> bool {
+    is_nonpos_int(a) && n >= -a
+}
+
 /// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 after a negligible `t_n` are negligible: if
-/// they can't grow again (see `term_ratio`), or, for non-integer `b < 0` where they can near
-/// `m = -b`, if they sum to at most `2 |t_n|`.
+/// they are 0 (see `series_ended`) or can't grow again (see `term_ratio`), or, for non-integer
+/// `b < 0` where they can near `m = -b`, if they sum to at most `2 |t_n|`.
 ///
 /// Since `|a + m| <= |b + m| + d` with `d = |a - b|`, `|t_m+1 / t_m| <= s = 2 |z| / (n + 1)` if
 /// `|b + m| >= d`. So if `s <= 1/2`, they only grow for the (at most `2d + 2`) `m` with
 /// `|b + m| < d`, by at most `16^d (1 + d / e)^2` in all, with `e` the distance of `b` to the
 /// integers. It thus suffices that the `k` terms before shrink by `(2d + 4) 16^d (1 + d / e)^2`.
+///
+/// Likewise, `|t_m+1 / t_m| <= h / |b + m|` with `h = c |z|`, if `c >= max(|a + j| / (j + 1), 1)`
+/// for all `j >= m`. That is at most 1/2 if `|b + m| >= 2h`, and the (at most `4h + 1`) other
+/// terms grow by at most `e^(2h) (1 + 2h / e)^2` in all. So it also suffices that the `k` terms
+/// before those shrink by `(4h + 4) e^(2h) (1 + 2h / e)^2`, e.g. for `|z|` far below `-b`.
 fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
     let d = (a - b).abs();
     let s = 2.0 * abs_z / (n + 1.0);
     let k = (-b - d).ceil() - n;
     let e = (b - b.round()).abs();
     let growth = (2.0 * d + 4.0).ln() + d * 16_f64.ln() + 2.0 * (d / e).ln_1p();
-    term_ratio(a, b, abs_z, n).is_some() || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
+    // c(j) bounds |a + m| / (m + 1) for m >= j; the h from c(n) gives a later j, for a smaller h
+    let c = |j: f64| ((a + j).abs() / (j + 1.0)).max(1.0);
+    let h = c(n.max(-b - 2.0 * c(n) * abs_z)) * abs_z;
+    let k_h = (-b - 2.0 * h).ceil() - n;
+    let growth_h = (4.0 * h + 4.0).ln() + 2.0 * h + 2.0 * (2.0 * h / e).ln_1p();
+    series_ended(a, n)
+        || term_ratio(a, b, abs_z, n).is_some()
+        || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
+        || (k_h > 0.0 && k_h * LN_2 >= growth_h)
 }
 
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
@@ -273,7 +325,7 @@ fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(
 ///   step of `C64`).
 ///
 /// A negligible `t_N` is skipped if the terms can grow again (see `term_ratio`), unless the sum
-/// overflowed.
+/// overflowed. Until then `rescale_term` keeps them from underflowing.
 ///
 /// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
@@ -293,27 +345,30 @@ fn hyp1f1_sum<T: Term>(
     scale: T,
     mut log_scale: f64,
 ) -> Option<(T, f64)> {
-    let mut t = scale;
+    // the term `tn` as scaled `k` times by `rescale_term`
+    let (mut t, mut k) = (scale, 0);
     let mut sum = scale;
     let mut comp = T::default();
     let mut err = t.norm();
     for n in 0..MAX_TERMS {
         let n = f64::from(n);
-        t = next_term(t, n);
-        t.add_to(&mut sum, &mut comp);
-        err += (n + 2.0) * t.norm();
+        let (mut tn, mut norm);
+        (t, tn, norm) = rescale_term(next_term(t, n), T::norm, &mut k);
+        tn.add_to(&mut sum, &mut comp);
+        err += (n + 2.0) * norm;
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
             log_scale -= s;
             let s = s.exp();
-            (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
+            (t, tn, sum, comp, err) = (t * s, tn * s, sum * s, comp * s, err * s);
+            norm = tn.norm();
         }
-        if t.norm() <= T::EPS * sum.norm() {
+        if norm <= T::EPS * sum.norm() {
             let q = term_ratio(a, b, abs_z, n + 1.0);
             if q.is_none() && sum.norm().is_finite() {
                 continue;
             }
-            let tail = q.map_or(f64::INFINITY, |q| t.norm() * q / (1.0 - q));
+            let tail = q.map_or(f64::INFINITY, |q| norm * q / (1.0 - q));
             let bound = 4.0 * T::EPS * err + tail;
             if log_scale == 0.0 {
                 return Some((sum, bound));
@@ -360,8 +415,6 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
 /// whenever one is above `2^512` (e.g. `~ 1/b` for tiny `b`). Returns `scale M`, as `M` can
 /// overflow when `scale M` doesn't.
 fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
-    const LOG2_SCALE: i32 = 512;
-    const SCALE: f64 = pow2(LOG2_SCALE);
     let (mut d, mut p) = (0.0, 1.0);
     // `M = p 2^-e`
     let mut e = 0_i32;
@@ -480,8 +533,8 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
-    fn checked(x: f64, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
-        let mut hg = series(x);
+    fn checked(x: f64, ends: bool, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
+        let mut hg = if ends { series(x) } else { None };
         // if the partial sums overflow, `e^-1400 M` is summed instead
         let mut ln_scale = 0.0;
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
@@ -492,9 +545,12 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
             .map(|(hg, _)| mul_exp(hg, ln_scale))
     }
     let (ak, xk) = kummer_args(x, a, b);
-    checked(x, |x0| chgm_series(ak.hi, b, xk, x0))
+    // whether the series can end with a finite sum, i.e. within `MAX_TERMS` (see `term_ratio`)
+    let ends = b + f64::from(MAX_TERMS) >= xk;
+    let series_dd = |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0);
+    checked(x, ends, |x0| chgm_series(ak.hi, b, xk, x0))
         .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0)))
+        .or_else(|| checked(x, ends, series_dd))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
@@ -637,33 +693,36 @@ impl KummerSum {
 fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
     let mut hg = 1.0;
     let mut rg = 1.0;
+    // the term `rg` as scaled `k` times by `rescale_term`
+    let (mut t, mut k) = (1.0, 0);
     let mut rs = 1.0;
     let mut converged = false;
     let mut terms = 0;
     let mut last_finite = 0;
     for j in 1..=max_terms {
         terms = j;
-        rg = kummer_term(rg, a, b, j) * x;
+        (t, rg, _) = rescale_term(kummer_term(t, a, b, j) * x, f64::abs, &mut k);
         hg += rg;
         if hg.is_finite() {
             last_finite = j;
         }
         rs += rg.abs();
+        let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
+        let ended = || series_ended(a, f64::from(j));
         // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
-        // nor (see below) if they underflow to 0 after 500 terms
+        // unless they are 0: all that follow (see `series_ended`), or within 500 terms exactly
+        // (`t == 0`) or else with a negligible rest
         if (hg != 0.0)
             && ((rg / hg).abs() < 1e-15)
-            && ((rg == 0.0 && j <= 500) || term_ratio(a, b, x, f64::from(j)).is_some())
+            && ((rg == 0.0 && (ended() || j <= 500 && (t == 0.0 || rest_negligible())))
+                || term_ratio(a, b, x, f64::from(j)).is_some())
         {
             converged = true;
             break;
         }
         // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 (`max_terms > 500`) the sum goes on
         // after 500 terms until the rest is negligible
-        let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
-        if j >= 500
-            && (!hg.is_finite() || KummerSum::negligible(rg, hg) && (j == 500 || rest_negligible()))
-        {
+        if j >= 500 && (!hg.is_finite() || KummerSum::negligible(rg, hg) && rest_negligible()) {
             break;
         }
     }
@@ -740,8 +799,8 @@ fn chgm_fallback(
 /// 7. No recurrence in `a` over 10^6 steps, nor for the series with non-integer `b < 0`, but that
 ///    series at `a` itself, or the one at `x0 < 0`, if accurate, or else an overflow (see below), 0
 ///    or NaN (scipy/xsf#365).
-/// 8. A negligible nonzero term only marks convergence if the terms can't grow again
-///    (scipy/xsf#454).
+/// 8. The terms don't underflow (see `rescale_term`, scipy/xsf#544), and a negligible nonzero term
+///    only marks convergence if they can't grow again (scipy/xsf#454).
 /// 9. Non-integer `b < 0`: up to 100000 terms, until the rest is negligible (scipy/xsf#365).
 /// 10. An unconverged sum is scaled by `e^x0` (DLMF 13.2.39) too, and past 500 terms with
 ///     `mul_exp` for `x0 <= -700` (scipy/xsf#365).
