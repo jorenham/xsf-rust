@@ -770,6 +770,25 @@ fn test_itk0_mid_x() {
     }
 }
 
+#[test]
+fn test_bessel_j_negative_order_near_overflow() {
+    // AMOS overflows here, and unlike in xsf, cephes `jv` doesn't compute `(x/2)^v / Gamma(v + 1)`
+    // as `exp(v ln(x/2) - lgam(v + 1))`, which loses ~|v ln(x/2)| eps (Arb)
+    let actual = [
+        xsf::bessel_j(-106.25, 0.097),
+        xsf::bessel_j(-148.25, 0.9),
+        xsf::bessel_j(-150.25, 0.97),
+        xsf::bessel_j(-144.75, 0.78),
+    ];
+    let expected = [
+        3.405_745_826_291_524e307,
+        3.498_014_073_972_006e307,
+        4.953_096_151_443_244e307,
+        5.631_648_726_887_811e307,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
 xsref::tests! {
     test_besselpoly: "besselpoly", "d_d_d-d", |x| xsf::besselpoly(x[0], x[1], x[2]);
 }
@@ -807,6 +826,24 @@ fn test_besselpoly_large_order() {
             "{actual:e} != {expected:e}"
         );
     }
+}
+
+#[test]
+fn test_besselpoly_small_a() {
+    // unlike in xsf, `a^v` isn't `exp(v ln(a))`, which loses ~|v ln(a)| eps (Arb)
+    let actual = [
+        xsf::besselpoly(0.001, 0.0, 60.5),
+        xsf::besselpoly(1e-5, 2.0, 25.5),
+        xsf::besselpoly(0.001, 0.0, -40.5),
+        xsf::besselpoly(0.001, 3.0, -50.25),
+    ];
+    let expected = [
+        7.928_208_231_877_119e-267,
+        1.409_647_783_394_057_2e-155,
+        -3.277_260_630_252_027e166,
+        -4.418_299_195_223_619e211,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]

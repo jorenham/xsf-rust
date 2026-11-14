@@ -155,6 +155,29 @@ fn test_gammainc_small_a() {
     }
 }
 
+#[test]
+fn test_gammainc_far_from_a() {
+    // unlike in xsf, `x^a e^-x / Gamma(a)` isn't `exp(a ln(x) - x - lgam(a))` for |x - a| > 0.4 a,
+    // which loses ~eps times its largest term (Arb)
+    let actual = [
+        xsf::gammainc(120.0, 10.0),
+        xsf::gammainc(30.0, 1e-5),
+        xsf::gammaincc(100.0, 700.0),
+        xsf::gammaincc(160.0, 300.0),
+        xsf::gammaincc(0.5, 600.0),
+        xsf::gammaincc(0.99, 709.0), // e^-x is subnormal
+    ];
+    let expected = [
+        7.397_669_455_489_574e-84,
+        3.769_951_145_241_386e-183,
+        5.684_208_283_879_768e-179,
+        2.686_206_949_999_588e-19,
+        6.099_568_814_808_433_4e-263,
+        1.132_809_914_017_541_5e-308,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
 xsref::tests! {
     test_gammaincinv: "gammaincinv", "d_d-d", |x| xsf::gammaincinv(x[0], x[1]);
     test_gammainccinv: "gammainccinv", "d_d-d", |x| xsf::gammainccinv(x[0], x[1]);
