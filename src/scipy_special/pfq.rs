@@ -8,7 +8,7 @@ use core::ops::Add;
 
 use crate::utils::{EPSILON_SQ, is_nonpos_int, pow2};
 use crate::xsf::Real;
-use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 
 /// Maximum number of terms of `pfq_series`
@@ -58,7 +58,7 @@ impl SeriesReal for f64 {
     const MIN_POSITIVE: f64 = f64::MIN_POSITIVE;
 }
 
-impl SeriesReal for DoubleDouble {
+impl SeriesReal for Dd {
     /// Not 2^-105, as its operations are not correctly rounded to 106 bits
     const EPSILON: f64 = pow2(-100);
     /// Below it, its low part is not normal
@@ -89,7 +89,8 @@ fn descending<const N: usize>(mut v: [f64; N]) -> [f64; N] {
     v
 }
 
-/// Bound on $|t_{m+1} / t_m|$ for all $m \ge n$, if all $a_i + n$ and $b_j + n$ are positive
+/// Bound on $|t_{m+1} / t_m|$ for all $m \ge n$, if all $a_i + n$ and $b_j + n$ are positive,
+/// except that for $P > Q$ the unpaired $a_i + m$ are taken at $m = n$ (and they grow)
 ///
 /// Each $a_i$ is paired with $b_i$: $(a_i + m) / (b_i + m)$ decreases to 1, or stays below 1.
 /// The other $1 / (b_j + m)$ decrease. This is tightest if `a` and `b` are sorted alike.
@@ -99,12 +100,10 @@ fn pfq_ratio_bound<const P: usize, const Q: usize>(
     z: f64,
     n: f64,
 ) -> f64 {
-    if P > Q {
-        return f64::INFINITY;
-    }
     let paired = a.iter().zip(b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
-    let unpaired = b[P..].iter().map(|b| b + n);
-    z.abs() * paired.product::<f64>() / unpaired.product::<f64>()
+    let unpaired_a = a.iter().skip(Q).map(|a| a + n);
+    let unpaired_b = b.iter().skip(P).map(|b| b + n);
+    z.abs() * paired.product::<f64>() * unpaired_a.product::<f64>() / unpaired_b.product::<f64>()
 }
 
 /// The products of the $a_i + n$ and of the $b_j + n$, whose quotient is $t_{n+1} / (z t_n)$
@@ -231,7 +230,7 @@ fn pfq_series_tails<const P: usize, const Q: usize>(
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
-        pfq_sum::<DoubleDouble, P, Q>(a, b, z, PFQ_DD_MAXITER)
+        pfq_sum::<Dd, P, Q>(a, b, z, PFQ_DD_MAXITER)
     }
 }
 
@@ -285,9 +284,9 @@ fn pfq_sum<T: SeriesReal, const P: usize, const Q: usize>(
         s = sum.to_f64();
         if n >= settled && t.abs() <= f64::EPSILON * s.abs() {
             let rho = pfq_ratio_bound(a, b, z, n + 1.0);
-            // geometric bound on the remaining terms
+            // geometric bound on the remaining terms, if the series converges (P <= Q)
             let tail = t.abs() * rho / (1.0 - rho);
-            if rho < 1.0 && tail <= f64::EPSILON * s.abs() {
+            if P <= Q && rho < 1.0 && tail <= f64::EPSILON * s.abs() {
                 let (rounding, tails) = estimates(n, s, sum1, sum2);
                 return (s, rounding + tail, tails);
             }
@@ -359,7 +358,7 @@ pub(crate) fn pfq_weniger<const P: usize, const Q: usize>(
         term *= ratio(n) * z;
         if !term.is_normal() {
             // overflow, or underflow, after which the terms only matter if they can increase
-            let negligible = term.abs() < 1.0 && pfq_ratio_bound(a, b, z, n) <= 1.0;
+            let negligible = term.abs() < 1.0 && P <= Q && pfq_ratio_bound(a, b, z, n) <= 1.0;
             let noise = 4.0 * f64::EPSILON * scale;
             return Some((sum, if negligible { noise } else { f64::INFINITY }));
         }
@@ -527,7 +526,7 @@ fn pfq_series_sorted<const P: usize, const Q: usize>(
 ///
 /// The sums are in double-double, as their rounding can change the sign of their difference.
 fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
-    let sum = |v: &[f64]| v.iter().fold(DoubleDouble::new(0.0), |s, &v| s + v);
+    let sum = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
     let excess = (sum(b) - sum(a)).hi;
     let size = a.iter().chain(b).map(|v| v.abs()).sum::<f64>();
     // certain if no partial sum of the excess rounds

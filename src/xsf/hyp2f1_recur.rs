@@ -122,21 +122,21 @@ type Coefs = (f64, f64, f64, f64);
 
 /// `m 2^e exp(l)`, with a bound of its relative error
 #[derive(Clone, Copy, Debug)]
-struct Scaled {
-    m: f64,
-    e: i32,
+pub(crate) struct Scaled {
+    pub(crate) m: f64,
+    pub(crate) e: i32,
     l: Dd,
-    err: f64,
+    pub(crate) err: f64,
 }
 
 impl Scaled {
     /// `Some(m 2^e)` if `m` is nonzero and `err` is finite
-    fn new(m: f64, e: i32, err: f64) -> Option<Self> {
+    pub(crate) fn new(m: f64, e: i32, err: f64) -> Option<Self> {
         let l = Dd::new(0.0);
         (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
-    fn with_l(self, l: Dd) -> Self {
+    pub(crate) fn with_l(self, l: Dd) -> Self {
         Self { l, ..self }
     }
 }
@@ -530,7 +530,7 @@ fn best_combination(combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Op
 
 /// `ln(v)` for `v > 0`, after scaling `v` to `[1, 2)` by a power of 2, since `DoubleDouble::log`
 /// fails for `v` beyond about `e^709` (as it computes `exp(-ln(v))`)
-fn ln_dd(v: Dd) -> Dd {
+pub(crate) fn ln_dd(v: Dd) -> Dd {
     let (_, k) = frexp_f64(v.hi);
     v.ldexp(1 - k).log() + LOG2 * f64::from(k - 1)
 }
@@ -609,7 +609,11 @@ fn psi_dd(v: Dd) -> Option<(f64, f64)> {
 
 /// `y()` times `Gamma(num_0) Gamma(num_1) ... / (Gamma(den_0) Gamma(den_1) ...)`, with the error
 /// bounds of their `ln_gamma` added; `y` is only evaluated if no argument is at a pole
-fn mul_gamma_ratio(num: &[Dd], den: &[Dd], y: impl FnOnce() -> Option<Scaled>) -> Option<Scaled> {
+pub(crate) fn mul_gamma_ratio(
+    num: &[Dd],
+    den: &[Dd],
+    y: impl FnOnce() -> Option<Scaled>,
+) -> Option<Scaled> {
     let num = num.iter().map(|&g| (g, 1.0));
     let mut gammas = num.chain(den.iter().map(|&g| (g, -1.0)));
     let (ln_g, sign, err) =
@@ -622,14 +626,14 @@ fn mul_gamma_ratio(num: &[Dd], den: &[Dd], y: impl FnOnce() -> Option<Scaled>) -
     Some(y)
 }
 
-/// The sum of the 1 or 2 `terms`, with an error bound that includes their cancellation
-fn add_exp<const N: usize>(terms: [Scaled; N]) -> Option<Scaled> {
+/// The sum of the `terms`, with an error bound that includes their cancellation
+pub(crate) fn add_exp(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Option<Scaled> {
     // the terms with `l` incl. `2^e`, scaled by `exp(-lmax)`, with `lmax` the largest `l`
-    let terms = terms.map(|y| (y, y.l + LOG2 * f64::from(y.e)));
+    let terms = terms.into_iter().map(|y| (y, y.l + LOG2 * f64::from(y.e)));
     let (_, lmax) = terms
-        .into_iter()
+        .clone()
         .reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
-    let (m, err_abs) = terms.into_iter().fold((0.0, 0.0), |(m, err_abs), (y, l)| {
+    let (m, err_abs) = terms.fold((0.0, 0.0), |(m, err_abs), (y, l)| {
         let r = l - lmax;
         let t = y.m * (r.hi.exp() * (1.0 + r.lo));
         // (3 eps for `exp(r)` and the products)
@@ -769,7 +773,7 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
 }
 
 /// `y` with `exp(l)` folded into `m 2^e` (so `l = 0`), and its roundings into the error bound
-fn fold_exp(y: Scaled) -> Scaled {
+pub(crate) fn fold_exp(y: Scaled) -> Scaled {
     // `exp(l) = 2^k exp(r)` with `|r| <= ln(2) / 2`. If `|k|` is so large that it's clamped, then
     // so is `e + k`, since `|e|` is at most about 1e9 (2^1000 per term), and the value overflows
     // or underflows.
