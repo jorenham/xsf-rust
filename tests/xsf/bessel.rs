@@ -769,6 +769,25 @@ fn test_besselpoly_large_order() {
 }
 
 #[test]
+fn test_besselpoly_gamma_overflow() {
+    // `gamma(v + 1)` overflows for v > 171, outside the Neumann series (v >= a^2 - 1); mpmath:
+    // `a**v / gamma(v + 1) / (l + v + 1) * hyp1f2((l + v + 1) / 2, (l + v + 3) / 2, v + 1, -a**2)`
+    for (a, lambda, v, expected) in [
+        (12.3149, 8.9376, 192.1873, 8.809_530_109_564_947e-151),
+        (8.0, 1.0, 175.5, 8.200_286_437_680_841e-164),
+        (5.0, -0.5, 210.25, 9.512_379_993_975_827e-255),
+    ] {
+        let actual = xsf::besselpoly(a, lambda, v);
+        assert!(
+            (actual / expected - 1.0).abs() < 1e-12,
+            "{actual:e} != {expected:e}"
+        );
+    }
+    // `a^v` overflows, but `lambda` is infinite
+    assert_eq!(xsf::besselpoly(1e-29, f64::INFINITY, -10.5), 0.0);
+}
+
+#[test]
 fn test_besselpoly_odd_nu_large() {
     // `static_cast<int>(nu)` is UB in xsf for `|nu| >= 2^31`; this `nu` is odd
     let r = xsf::besselpoly(0.5, 0.0, -2_147_483_649.0);
