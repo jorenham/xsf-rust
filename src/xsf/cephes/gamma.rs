@@ -280,7 +280,8 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
         return ((x - 1.0).ln() + loggamma_taylor_real(x - 1.0), 1);
     }
 
-    // Unlike in xsf, `-ln|x|` (to within `~|x|`) if `x` is subnormal, where `1 / x` overflows
+    // Unlike in xsf (scipy/xsf#540), `-ln|x|` (to within `~|x|`) if `x` is subnormal, where `1 / x`
+    // overflows
     if x.abs() < f64::MIN_POSITIVE {
         return (-x.abs().ln(), if x < 0.0 { -1 } else { 1 });
     }

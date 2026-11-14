@@ -93,7 +93,8 @@ fn beta_uses_lgam(a: f64, b: f64) -> bool {
 /// Whether `gamma(a)`, `gamma(b)` or `rgamma(a + b)` under- or overflows, for `|a|`, `|b|` and
 /// `|a + b|` at most `MAXGAM`
 ///
-/// Unlike in xsf (scipy/xsf#357), `lgam` is then used instead, also if `a` or `b` is subnormal.
+/// Unlike in xsf (scipy/xsf#357, scipy/xsf#540), `lgam` is then used instead, also if `a` or `b`
+/// is subnormal.
 fn gamma_out_of_range(a: f64, b: f64, y: f64) -> bool {
     (a < 1.0 - MAXGAM
         || b < 1.0 - MAXGAM
