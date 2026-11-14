@@ -141,6 +141,53 @@ fn test_chndtrix_chndtridf_chndtrinc() {
 }
 
 #[test]
+fn test_ncfdtr_ncfdtri() {
+    // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
+    let cases = [
+        (100.0, 0.1, 0.1, 100.0, 0.297_873_964_100_926_76),
+        (100.0, 100.0, 0.01, 0.1, 4.434_473_759_869_042_4e-26),
+        (100.0, 0.01, 0.1, 0.01, 0.002_848_616_633_080_384),
+        (10.0, 0.01, 1.0, 0.1, 0.012_339_557_729_057_956),
+        (100.0, 100.0, 0.01, 0.01, 1.892_647_742_096_493_6e-72),
+        (1.0, 100.0, 100.0, 0.1, 1.792_594_052_682_130_4e-22),
+        (1.0, 0.01, 100.0, 10.0, 0.012_334_711_965_024_968),
+        (1.0, 0.01, 10.0, 0.01, 0.000_219_445_252_902_99),
+        (10.0, 1.0, 0.1, 100.0, 0.921_934_555_507_070_5),
+        (0.1, 0.1, 1.0, 1.0, 0.313_633_581_342_323_9),
+        (1.0, 0.1, 100.0, 10.0, 0.029_260_642_796_808_97),
+        (1e-100, 3.0, 1.5, 1e100, 0.611_815_287_345_399),
+    ];
+    for (dfn, dfd, nc, f, p) in cases {
+        np_assert_allclose!([xsf::ncfdtr(dfn, dfd, nc, f)], [p], rtol = 1e-13);
+        np_assert_allclose!([xsf::ncfdtri(dfn, dfd, nc, p)], [f], rtol = 5e-11);
+    }
+    assert_eq!(xsf::ncfdtr(100.0, 100.0, 0.1, 10.0), 1.0);
+    // the term j = 1 of the series, where it starts, underflows, while the term j = 0, i.e.
+    // `(2 / pi) atan(sqrt(f))`, does not; SciPy returns NaN
+    np_assert_allclose!(
+        [xsf::ncfdtr(1.0, 1.0, 1e-200, 1e-100)],
+        [6.366_197_723_675_814e-51],
+        rtol = 1e-13
+    );
+    assert_eq!(xsf::ncfdtr(1.0, 1.0, 1.0, 0.0), 0.0);
+    assert_eq!(xsf::ncfdtr(1.0, 1.0, 1.0, f64::INFINITY), 1.0);
+    assert_eq!(xsf::ncfdtri(1.0, 1.0, 1.0, 0.0), 0.0);
+    assert_eq!(xsf::ncfdtri(1.0, 1.0, 1.0, 1.0), f64::INFINITY);
+    // `test_ncfdtri_domain_error`
+    for (dfn, dfd, nc, p) in [
+        (-1.0, 0.1, 0.1, 0.5),
+        (1.0, -1.0, 0.1, 0.5),
+        (1.0, 1.0, -1.0, 0.5),
+        (1.0, 1.0, 1.0, 100.0),
+        (1.0, 1.0, 1.0, -1.0),
+    ] {
+        assert!(xsf::ncfdtri(dfn, dfd, nc, p).is_nan());
+    }
+    assert!(xsf::ncfdtr(0.0, 1.0, 1.0, 1.0).is_nan());
+    assert!(xsf::ncfdtr(1.0, 1.0, -1.0, 1.0).is_nan());
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [
