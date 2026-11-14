@@ -198,7 +198,7 @@ fn amos_j(z: C64, v: f64, kode: i32) -> (C64, i32) {
     //
     // The scaling e^-|Im z| is 1 here, so this ignores `kode`.
     let (.., fnul) = amos::MACH;
-    if z.im == 0.0 && z.re > fnul && v <= fnul {
+    if z.is_real() && z.re > fnul && v <= fnul {
         let besh1 =
             |z, v, kode, n, cy: &mut [C64], ierr: &mut i32| amos::besh(z, v, kode, 1, n, cy, ierr);
         let (h, ierr) = amos1(besh1, z, v, 1);
