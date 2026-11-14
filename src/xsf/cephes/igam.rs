@@ -30,7 +30,7 @@ use core::f64::consts::{E, TAU};
 
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
-use crate::xsf::cephes::{erfc, lgam, lgam1p, rgamma};
+use crate::xsf::cephes::{erfc, lgam, lgam1p, pow_rgamma, rgamma};
 use crate::xsf::log::log1pmx;
 
 const IGAM_MAXITER: i32 = 2000;
@@ -94,10 +94,16 @@ pub(crate) fn igam_fac(a: f64, x: f64) -> f64 {
     // Unlike in xsf (scipy/scipy#26535), the Lanczos form is also used for a > IGAM_LARGE, where
     // `a ln(x)` and `lgam(a)` cancel, losing ~a ln(a) eps.
     if (a - x).abs() > 0.4 * a.abs() && a <= IGAM_LARGE {
-        // Unlike in xsf (scipy/xsf#456), `rgamma` is used for a < 1, where `exp(-lgam(a))` loses
-        // ~|ln a| eps, or underflows.
+        // Unlike in xsf, `exp(a ln(x) - x - lgam(a))` is only used where `pow_rgamma` over- or
+        // underflows, since it loses ~eps times its largest term. For a < 1, `x^a` can't
+        // overflow, and `exp(-lgam(a))` would lose ~|ln a| eps, or underflow (scipy/xsf#456).
+        // `e^-x` is split, since it is subnormal for x > 708 where the result can still be normal.
         if a < 1.0 {
-            return (a * x.ln() - x).exp() * rgamma(a);
+            let h = (-x / 2.0).exp();
+            return x.powf(a) * h * rgamma(a) * h;
+        }
+        if let Some(t) = pow_rgamma(x, a, 0, a, x) {
+            return t;
         }
         let ax = a * x.ln() - x - lgam(a);
         // ax < log(sqrt(a)) - a / 16 here (DLMF 5.6.1)
