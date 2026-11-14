@@ -139,6 +139,17 @@ impl Scaled {
     pub(crate) fn with_l(self, l: Dd) -> Self {
         Self { l, ..self }
     }
+
+    /// This times `exp(l)`
+    pub(crate) fn mul_exp(self, l: Dd) -> Self {
+        self.with_l(self.l + l)
+    }
+
+    /// The value as an `f64` (which can overflow or underflow), and its error bound
+    pub(crate) fn to_f64(self) -> (f64, f64) {
+        let y = fold_exp(self);
+        (ldexp_f64(y.m, y.e), y.err)
+    }
 }
 
 /// The error bound of `y`, or infinity for `None`
@@ -818,9 +829,9 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
     }))
 }
 
-/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs) and its error bound, which
-/// is too large if it exceeds `HYP2F1_RECUR_TOL`.
-pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<(f64, f64)> {
+/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs). Its error bound (that of
+/// `Scaled::to_f64`) is too large if it exceeds `HYP2F1_RECUR_TOL`.
+pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // (beyond 1e15, the coefficients of the recurrence can overflow)
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
@@ -833,8 +844,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<(f64, f64)>
     if !(err <= HYP2F1_RECUR_TOL) {
         best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
-    let y = fold_exp(best?);
-    Some((ldexp_f64(y.m, y.e), y.err))
+    best
 }
 
 #[cfg(test)]
@@ -862,7 +872,8 @@ mod tests {
             (1e-150, 1e-200, -1000.5, 0.8, -5.767_096_442_064_845e249),
             (1e-140, 1e-180, -1000.5, 0.8, -5.767_096_442_064_845e279),
         ] {
-            let actual = hyp2f1_recur(a, b, c, x).filter(|&(_, err)| err <= HYP2F1_RECUR_TOL);
+            let actual = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+            let actual = actual.filter(|&(_, err)| err <= HYP2F1_RECUR_TOL);
             assert!(
                 actual.is_none_or(|(y, _)| (y / desired - 1.0).abs() < 1e-10),
                 "{actual:?} != {desired}"

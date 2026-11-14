@@ -685,6 +685,37 @@ fn test_hyp2f1_f64_tiny_c_or_c_minus_a() {
 }
 
 #[test]
+fn test_hyp2f1_f64_tiny_negative_c_large_parameters() {
+    // unlike in xsf, where a tiny negative c counts as the integer 0 (Arb)
+    let actual = [
+        xsf::hyp2f1(28.5, 32.25, -6.5e-267, -1.85),
+        xsf::hyp2f1(-44.5, 46.25, -3.5e-103, 0.6),
+        xsf::hyp2f1(41.25, 47.5, -9e-292, -8.75),
+        xsf::hyp2f1(-17.5, 37.25, -6e-271, -9.75),
+        xsf::hyp2f1(44.75, -32.5, -3e-234, 0.83),
+        xsf::hyp2f1(-33.5, 23.25, -8e-16, 0.79),
+        xsf::hyp2f1(-40.5, -47.25, -4.5e-193, -1.8),
+        // and where the inner function of the Euler transformation overflows
+        xsf::hyp2f1(60.0, 2.5e-6, -2e-266, -7.7e4),
+        xsf::hyp2f1(43.0, 9.25, -2.5e-285, -600.0),
+        xsf::hyp2f1(-15.5, 38.0, -3.5e-257, -23.5),
+    ];
+    let desired = [
+        -4.619_620_997_681_311e252,
+        -2.351_118_090_908_530_3e103,
+        7.447_544_914_471_166e247,
+        -6.278_839_855_668_874e302,
+        -6.149_027_963_048_359e238,
+        302_521_514_418.673_6,
+        -3.702_964_233_045_192e212,
+        1.249_950_267_344_792e260,
+        -2.981_261_708_812_470_7e249,
+        -7.762_342_418_664_52e291,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
 fn test_hyp2f1_f64_euler_pow_underflow() {
     // unlike in xsf: (1 - x)^(c - a - b) under- or overflowed in the Euler transformation, which
     // gave 0, 0, 0, 0 and inf (Arb)
@@ -718,6 +749,34 @@ fn test_hyp2f1_f64_euler_both_out_of_range() {
     np_assert_allclose!(actual, desired, rtol = 1e-13);
     // but not where x / (x - 1) rounds to 1 (Arb: 8.12e10)
     assert!(xsf::hyp2f1(1e-20, -0.1, -2.5, -1e300).is_nan());
+}
+
+#[test]
+fn test_hyp2f1_f64_euler_inner_overflow() {
+    // Arb; the inner function of the Euler transformation overflows here, but its product with
+    // (1 - x)^(c - a - b) doesn't
+    let actual = [
+        xsf::hyp2f1(21.0, 43.0, 1e-276, -24.0),
+        xsf::hyp2f1(0.5, 20.0, 1e-233, -7.5e4),
+        xsf::hyp2f1(-15.5, 48.0, 5e-261, -78.0),
+        xsf::hyp2f1(34.0, -1.25, 2e-278, -1.7e4),
+        // also where (1 - x)^(c - a - b) underflows
+        xsf::hyp2f1(47.0, 43.0, 2e-237, -3000.0),
+        // also where the rounding of 1 - x matters
+        xsf::hyp2f1(1e14, 10.0, 1e-300, -1e-12),
+    ];
+    let desired = [
+        -3.248_055_641_674_947_7e228,
+        -2.347_637_291_530_230_8e229,
+        1.281_349_226_923_448_9e305,
+        8.831_616_558_293_24e284,
+        -1.238_995_047_182_927e80,
+        3.787_960_193_849_875e270,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // but not where that product is small, as the polynomial that the inner function is rounded
+    // to lacks the dominant part of the result then (Arb: 5.39e-167)
+    assert!(xsf::hyp2f1(22.0, 4098.5, 1e-189, -8e4).is_nan());
 }
 
 #[test]
