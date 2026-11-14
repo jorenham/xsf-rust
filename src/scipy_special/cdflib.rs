@@ -10,7 +10,7 @@ use core::f64::consts::{LN_2, PI};
 
 use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::ldexp_f64;
-use crate::xsf::cephes::{betainc_xy, igam_fac, incbet_cf_factor, lbeta};
+use crate::xsf::cephes::{betainc_xy, igam, igam_fac, igamc, incbet_cf_factor, lbeta};
 use crate::xsf::{bracket_root_for_cdf_inversion, find_positive_root, find_root_chandrupatla};
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
@@ -237,6 +237,34 @@ pub fn nbdtrin(k: f64, y: f64, p: f64) -> f64 {
     // Unlike in SciPy, the root is found for n, instead of for n + k, which loses n if k >> n.
     // The CDF decreases from 1 at n = 0 to 0 at n = inf.
     invert_betainc(y, false, f64::MAX, p, 1.0 - p, |n| (n, k + 1.0))
+}
+
+/// Inverse of [`pdtr`](crate::pdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.pdtrik`][pdtrik].
+///
+/// The CDF $Q(k + 1, m)$ is continuous in `k`, so that `k` is real. If `p` lies below the CDF at
+/// $k = 0$, i.e. $e^{-m}$, 0 is returned. As in SciPy, NaN is returned if $p = 1$.
+///
+/// [pdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtrik.html
+///
+/// # See also
+/// - [`pdtr`](crate::pdtr): Poisson distribution function
+/// - [`pdtri`](crate::pdtri): Inverse of [`pdtr`](crate::pdtr) with respect to `m`
+#[must_use]
+pub fn pdtrik(p: f64, m: f64) -> f64 {
+    // as in SciPy, 0 if p = 0, also if m = inf
+    if !((0.0..1.0).contains(&p) && m >= 0.0 && (m.is_finite() || p == 0.0)) {
+        return f64::NAN;
+    }
+    // the CDF increases from exp(-m) at k = 0 to 1 at k = inf
+    invert_cdf(
+        p,
+        true,
+        f64::MAX,
+        |k| igamc(k + 1.0, m),
+        |k| igam(k + 1.0, m),
+    )
 }
 
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if

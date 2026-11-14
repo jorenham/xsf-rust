@@ -1,6 +1,30 @@
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_pdtrik() {
+    // `TestPdtrik` in scipy/special/tests/test_cdflib.py
+    let cases = [
+        (1.897_610_755_368_228_5e-40, 100.0, 2.0),
+        (0.486_701_201_720_851_35, 100.0, 99.0),
+        (8.303_834_066_990_52e-69, 1000.0, 500.0),
+        (2.252_837_804_125_894e-227, 100_000.0, 90_000.0),
+    ];
+    for (p, m, k) in cases {
+        np_assert_allclose!([xsf::pdtrik(p, m)], [k], rtol = 1e-15);
+    }
+    for m in [10.0, 50.0, 500.0] {
+        np_assert_allclose!([xsf::pdtrik(xsf::pdtr(5.0, m), m)], [5.0], rtol = 1e-15);
+    }
+    assert_eq!(xsf::pdtrik(0.0, 0.5), 0.0);
+    assert_eq!(xsf::pdtrik(0.0, f64::INFINITY), 0.0);
+    assert!(xsf::pdtrik(0.5, f64::INFINITY).is_nan());
+    assert_eq!(xsf::pdtrik(0.5, 0.0), 0.0);
+    // p lies below pdtr(0, m) = exp(-m)
+    assert_eq!(xsf::pdtrik(0.95, 1e-6), 0.0);
+    assert!(xsf::pdtrik(1.0, 1.0).is_nan());
+}
+
+#[test]
 fn test_stdtridf() {
     // `test_students_t_functions_spot_checks` in scipy/special/tests/test_cdflib.py
     let cases = [

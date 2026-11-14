@@ -323,6 +323,7 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("pdtr", &[k, m]) => xsf::pdtr(k, m),
         ("pdtrc", &[k, m]) => xsf::pdtrc(k, m),
         ("pdtri", &[k, y]) => xsf::pdtri(k as i32, y),
+        ("pdtrik", &[p, m]) => xsf::pdtrik(p, m),
         // continuous distributions
         ("btdtria", &[p, b, x]) => xsf::btdtria(p, b, x),
         ("btdtrib", &[a, p, x]) => xsf::btdtrib(a, p, x),

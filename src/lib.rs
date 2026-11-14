@@ -234,11 +234,12 @@
 //!
 //! ## Poisson distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`pdtr`]  | Cumulative distribution function |
-//! | [`pdtrc`] | Complement of [`pdtr`]           |
-//! | [`pdtri`] | Inverse of [`pdtr`]              |
+//! | Function   | Description                                         |
+//! | ---------- | --------------------------------------------------- |
+//! | [`pdtr`]   | Cumulative distribution function                    |
+//! | [`pdtrc`]  | Complement of [`pdtr`]                              |
+//! | [`pdtri`]  | Inverse of [`pdtr`]                                 |
+//! | [`pdtrik`] | Inverse of [`pdtr(k, m)`](pdtr) with respect to `k` |
 //!
 //! ## Poisson binomial distribution
 //!

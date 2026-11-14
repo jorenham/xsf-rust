@@ -2048,6 +2048,13 @@ def r_pdtri(k, y):
     )
 
 
+def r_pdtrik(p, m):
+    # real k >= 0 such that pdtr(k, m) = p, or 0 if p lies below pdtr(0, m)
+    if p <= mp.exp(-m):
+        return mp.mpf(0)
+    return _invert_pos(lambda k: _gammainc_pq(k + 1, m, True), p, m + 1)
+
+
 def r_gdtr(a, b, x):
     return _gammainc_pq(b, a * x, False)
 
@@ -3055,6 +3062,15 @@ for f, r in [("pdtr", r_pdtr), ("pdtrc", r_pdtrc)]:
         timeout=60,
     )
 add("pdtri", "k y", r_pdtri, D(Int(0, 100), U(0, 1), n=2000), timeout=120, note="inv")
+add(
+    "pdtrik",
+    "p m",
+    r_pdtrik,
+    D(U(0, 1), LU(1e-2, 1e4), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
 
 section("Student's t distribution", 3)
 add(
