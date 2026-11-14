@@ -346,6 +346,9 @@ fn test_hyp2f2_asymptotic() {
     // overflow
     assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
     assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
+    // also for a huge z, with the sign of Gamma(b_1)
+    assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), Some(f64::INFINITY));
+    assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), Some(f64::NEG_INFINITY));
 }
 
 #[test]
@@ -446,6 +449,9 @@ fn test_hyp1f2_asymptotic() {
     assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), Some(f64::NEG_INFINITY));
     assert_eq!(hyp1f2(1.5, 2.25, 3.5, 2e5), Some(f64::INFINITY));
     assert_eq!(hyp1f2(-0.5, 2.25, 3.5, 2e5), Some(f64::NEG_INFINITY));
+    // also for a huge z
+    assert_eq!(hyp1f2(1.5, 2.5, 3.5, 1e100), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(1.5, -2.5, 3.5, 1e100), Some(f64::NEG_INFINITY));
 }
 
 #[test]
