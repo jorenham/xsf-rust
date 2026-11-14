@@ -282,8 +282,8 @@ fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(
 /// - while `err > 1e250`, which leaves room for the next terms below `MAX ~ 1.8e308`;
 /// - in steps of at least `e^-600`, which is normal, with an integer exponent so that `log_scale`
 ///   stays exact (if `|log_scale| < 2^53`);
-/// - the rest in 3 steps, so that (since `|sum| <= MAX`) a step only underflows if the result
-///   does.
+/// - the rest in 4 steps, so that (since `|sum| <= MAX`) a step only underflows if the result
+///   does, and so that the exponent of a step is exact.
 fn hyp1f1_sum<T: Term>(
     a: f64,
     b: f64,
@@ -317,11 +317,11 @@ fn hyp1f1_sum<T: Term>(
             if log_scale == 0.0 {
                 return Some((sum, bound));
             }
-            let s = (log_scale / 3.0).exp();
+            let s = (log_scale / 4.0).exp();
             return sum
                 .norm()
                 .is_finite()
-                .then(|| (sum * s * s * s, bound * s * s * s));
+                .then(|| (sum * s * s * s * s, bound * s * s * s * s));
         }
     }
     None
