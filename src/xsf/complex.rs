@@ -373,6 +373,53 @@ fn real_part_reciprocal(mut x: f64, mut y: f64) -> f64 {
     x / (x * x + y * y) * scale
 }
 
+/// glibc's `t = (int) ((DBL_MAX_EXP - 1) * ln(2))`, so that `e^t` doesn't overflow
+const EXP_T: f64 = 709.0;
+
+/// `y.sin_cos()`, or `(y, 1)` for subnormal `y`, as in glibc's complex `exp`, `sin`, and `cos`
+pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
+    if y.abs() > f64::MIN_POSITIVE {
+        y.sin_cos()
+    } else {
+        (y, 1.0)
+    }
+}
+
+/// `f e^(x - t) w` for `x > t = EXP_T`, without overflowing prematurely, as in glibc
+///
+/// `f` is applied first, then `e^(x - t)` as factors of at most `e^t`. For `x > 3 t`, the result
+/// saturates to `MAX f e^t w`.
+fn exp_mul_large(x: f64, f: f64, w: C64) -> C64 {
+    let x = x - EXP_T;
+    let (x, w) = if x > EXP_T {
+        (x - EXP_T, w * f * EXP_T.exp())
+    } else {
+        (x, w * f)
+    };
+    // overflow if the original x > 3 t
+    (if x > EXP_T { f64::MAX } else { x.exp() }) * w
+}
+
+/// `(a cosh(x), b sinh(x))` as in glibc's `ccosh`, which doesn't overflow prematurely when only
+/// `cosh(x)` and `sinh(x)` overflow
+pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> C64 {
+    if x.abs() > EXP_T {
+        let b = if x.is_sign_negative() { -b } else { b };
+        exp_mul_large(x.abs(), EXP_T.exp() / 2.0, c64(a, b))
+    } else {
+        c64(x.cosh() * a, x.sinh() * b)
+    }
+}
+
+/// `w e^x` without overflowing prematurely, as in glibc's complex `exp`
+pub(crate) fn cmul_exp(w: C64, x: f64) -> C64 {
+    if x > EXP_T {
+        exp_mul_large(x, EXP_T.exp(), w)
+    } else {
+        x.exp() * w
+    }
+}
+
 /// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`
 pub(crate) trait Num:
     Copy

@@ -7,10 +7,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{mul_cosh_sinh, sin_cos_glibc};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::polevl::polevl;
+use crate::xsf::complex::{mul_cosh_sinh, sin_cos_glibc};
 
 use core::f64::consts::{FRAC_PI_4, PI};
 use num_complex::Complex;

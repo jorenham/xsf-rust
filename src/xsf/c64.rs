@@ -4,8 +4,8 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAss
 
 use num_complex::Complex;
 
-use crate::utils::{cmul_exp, pow2};
-use crate::xsf::complex::{catan, cpow, csqrt};
+use crate::utils::pow2;
+use crate::xsf::complex::{catan, cmul_exp, cpow, csqrt};
 use crate::xsf::evalpoly::cevalpoly_c64;
 use crate::xsf::exp::cexp;
 use crate::xsf::log::clog;
