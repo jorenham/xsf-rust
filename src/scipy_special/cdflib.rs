@@ -193,8 +193,9 @@ fn find_extremum_root(
     } else {
         (xm, xr)
     };
+    // only a relative tolerance, as in `find_positive_root`
     let (x, status) =
-        find_root_chandrupatla(&func, x1, x2, func(x1), func(x2), f64::EPSILON, 1e-100, 100);
+        find_root_chandrupatla(&func, x1, x2, func(x1), func(x2), f64::EPSILON, 0.0, 100);
     (status == 0).then_some(x)
 }
 

@@ -43,6 +43,13 @@ fn test_fdtridfd() {
         [0.306_842_477_303_175_2],
         rtol = 1e-13
     );
+    // the root lies far below `1e-84`, where an absolute tolerance of `1e-100` would limit its
+    // precision; the root is from mpmath
+    np_assert_allclose!(
+        [xsf::fdtridfd(2.0, 1.102_686_716_518_312e-93, 3.0)],
+        [1e-95],
+        rtol = 1e-13
+    );
     // not where fdtr underflows to 0
     assert_eq!(xsf::fdtridfd(1.0, 0.0, 1e-300), 0.0);
     assert!(xsf::fdtridfd(1.0, 0.5, 0.0).is_nan());
