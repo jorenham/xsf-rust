@@ -387,11 +387,10 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
 }
 
 /// `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
-fn chgm_series_dd(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
-    let b_dd = DoubleDouble::new(b);
-    let next_term = |t, n| t * (a + n) * x / ((b_dd + n) * (n + 1.0));
-    hyp1f1_sum(a.hi, b, x, next_term, DoubleDouble::new(1.0), x0.min(0.0))
-        .map(|(hg, err)| (hg.hi, err))
+fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(f64, f64)> {
+    let one = DoubleDouble::new(1.0);
+    let next_term = |t, n| t * (a + n) * x / ((b + n) * (n + 1.0));
+    hyp1f1_sum(a.hi, b.hi, x, next_term, one, x0.min(0.0)).map(|(hg, err)| (hg.hi, err))
 }
 
 /// Whether the terms `t_m` (`m >= n`) of DLMF 13.2.2 with `z > 0` have one sign: `t_(k+1) / t_k`
@@ -408,6 +407,16 @@ fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
     hg.is_finite() && err <= SQRT_EPSILON * hg.abs()
 }
 
+/// `(a, x)`, or `(b - a, -x)` of DLMF 13.2.39 for `x < 0`, with `b - a` also without rounding, e.g.
+/// to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
+fn kummer_args(x: f64, a: f64, b: f64) -> (DoubleDouble, f64) {
+    if x < 0.0 {
+        (DoubleDouble::new(b) - a, -x)
+    } else {
+        (DoubleDouble::new(a), x)
+    }
+}
+
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
@@ -422,15 +431,10 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         hg.filter(half_accurate)
             .map(|(hg, _)| mul_exp(hg, ln_scale))
     }
-    // `b - a` also without rounding, e.g. to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
-    let (ak, xk) = if x < 0.0 {
-        (DoubleDouble::new(b) - a, -x)
-    } else {
-        (DoubleDouble::new(a), x)
-    };
+    let (ak, xk) = kummer_args(x, a, b);
     checked(x, |x0| chgm_series(ak.hi, b, xk, x0))
         .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, |x0| chgm_series_dd(ak, b, xk, x0)))
+        .or_else(|| checked(x, |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0)))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
@@ -722,7 +726,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     if regular && a.is_finite() && (30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
         let ak = DoubleDouble::new(b) - a;
         if ak < -1.0 && (ak.hi.fract() != 0.0 || ak.lo.fract() != 0.0) {
-            let hg = chgm_series_dd(ak, b, -x, x)
+            let hg = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)
                 .filter(|&(hg, err)| hg.is_finite() && err <= f64::EPSILON * hg.abs());
             if let Some((hg, _)) = hg {
                 return hg;
