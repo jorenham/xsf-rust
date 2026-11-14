@@ -416,6 +416,31 @@ fn test_ncfdtr_ncfdtri() {
 }
 
 #[test]
+fn test_ncfdtr_tiny_dfn() {
+    // `dfn / 2` rounds to 0, or is lost in `dfn / 2 + icent`, while `I_x(dfn / 2, dfd / 2)` depends
+    // on it relatively, e.g. `~dfd / dfn` if both are tiny; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(5e-324, 1e-300, 1.0, 1.0),
+            xsf::ncfdtr(5e-324, 2.0, 1.0, f64::MAX),
+            xsf::ncfdtr(1e-310, 1e-300, 3.0, 1.0),
+            xsf::ncfdtr(1e-80, 1e-290, 2.0, 1e-20),
+            xsf::ncfdtr(1e-180, 1e-184, 0.75, 1e12),
+            xsf::ncfdtr(0.003, 0.002, 300.0, 0.008),
+        ],
+        [
+            0.606_530_659_712_633_4,
+            0.606_530_659_712_633_5,
+            0.223_130_160_126_116_8,
+            3.678_794_411_714_423e-211,
+            6.872_205_567_352_987e-5,
+            2.872_768_058_013_942_6e-66,
+        ],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

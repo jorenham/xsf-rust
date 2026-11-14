@@ -464,6 +464,10 @@ const RESCALE: i32 = 500;
 /// `ln(x^a y^b / (a B(a, b)))`, with `y = 1 - x`, i.e. `ln(I_x(a, b) - I_x(a + 1, b))`
 /// (A&S 26.5.16)
 fn ln_beta_term(a: f64, b: f64, lnx: f64, lny: f64) -> f64 {
+    // Unlike in cdflib, the limit if `a = dfn / 2` rounds to 0, as `a B(a, b) -> 1`
+    if a == 0.0 {
+        return b * lny;
+    }
     -lbeta(a, b) - a.ln() + a * lnx + b * lny
 }
 
@@ -864,7 +868,9 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     loop {
         xmult *= i / xnonc;
         i -= 1.0;
-        adn -= 1.0;
+        // Unlike in cdflib, `dfn / 2` last, not `adn - 1`, which loses up to `~icent eps` of it
+        // (all if `dfn < eps`), while `I_x(dfn / 2, b)` depends on it relatively
+        adn = if i > 0.0 { adn - 1.0 } else { dfn / 2.0 };
         let num = adn + 1.0;
         let shift = rescale(
             betdn,
