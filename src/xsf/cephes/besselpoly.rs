@@ -6,6 +6,7 @@
 //! cast, which is undefined behavior if `|nu| >= 2^31`.
 
 use crate::xsf::cephes::gamma::{gamma, lgam_sgn};
+use crate::xsf::cephes::pow_rgamma;
 
 const BESSELPOLY_EPS: f64 = 1.0e-17;
 
@@ -25,7 +26,12 @@ pub(crate) fn besselpoly(a: f64, lambda: f64, mut nu: f64) -> f64 {
         nu = -nu;
         factor = nu % 2.0 == 1.0;
     }
-    let mut sm = (nu * a.ln()).exp() / (gamma(nu + 1.0) * (lambda + nu + 1.0));
+    // Unlike in xsf, `a^nu / Gamma(nu + 1)` comes from `pow_rgamma`, since `exp(nu ln(a))` loses
+    // `|nu ln(a)| eps`
+    let mut sm = match pow_rgamma(a, nu, 0, nu + 1.0, 0.0) {
+        Some(t) => t / (lambda + nu + 1.0),
+        None => (nu * a.ln()).exp() / (gamma(nu + 1.0) * (lambda + nu + 1.0)),
+    };
     if !sm.is_normal() {
         // Unlike in xsf (scipy/xsf#538), the leading term is recomputed in log space if
         // `gamma(nu + 1)` or `a^nu` over- or underflows (e.g. `nu > 171`)
