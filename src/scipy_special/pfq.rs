@@ -563,11 +563,7 @@ fn accurate((y, err): (f64, f64)) -> Option<f64> {
 
 /// `pfq_series` if it is `accurate`, after sorting the parameters, which tightens
 /// `pfq_ratio_bound`
-fn pfq_series_sorted<const P: usize, const Q: usize>(
-    a: [f64; P],
-    b: [f64; Q],
-    z: f64,
-) -> Option<f64> {
+fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
     accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
@@ -1182,7 +1178,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
-/// and each $p = q + 1 \ge 4$.
+/// and each other $p \le q + 1$.
 ///
 /// It is:
 ///
@@ -1200,8 +1196,9 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// # Returns `None`
 ///
-/// - for the other $p$ and $q$, unless it is a polynomial;
-/// - where it can't be computed accurately, for $p = q + 1 \ge 3$ as for [`hyp3f2`];
+/// - for $p > q + 1$, unless it is a polynomial;
+/// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], and for
+///   the other $p \le q$ for large $\abs z$, e.g. for most $z < -30$ if $p = q$;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1256,6 +1253,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         _ if a.len() == b.len() + 1 => {
             b.push(1.0);
             pfq_real(a, b, z)
+        },
+        _ if a.len() <= b.len() => {
+            b.push(1.0);
+            pfq_series_sorted(a, b, z)
         },
         _ => None,
     }
