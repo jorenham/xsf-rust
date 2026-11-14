@@ -94,6 +94,53 @@ fn test_chndtr() {
 }
 
 #[test]
+fn test_chndtrix_chndtridf_chndtrinc() {
+    // `test_chndtr_and_inverses_against_wolfram_alpha` and `test_tails` in
+    // scipy/special/tests/test_cdflib.py: `(x, df, nc, chndtr)`
+    let cases = [
+        (25.0, 20.0, 400.0, 4.121_065_511_239_62e-57),
+        (0.001, 8.0, 40.0, 5.376_180_620_136_604e-24),
+        (20.0, 2.0, 107.0, 1.393_907_435_558_196e-9),
+        (3.0, 2.0, 1.0, 0.620_643_653_219_543_6),
+        (350.0, 300.0, 10.0, 0.938_801_280_062_764_1),
+        (1e-12, 20.0, 50.0, 3.737_446_313_006_551e-141),
+        (9e4, 1e5, 1e3, 1.689_553_370_421_756_6e-141),
+    ];
+    for (x, df, nc, p) in cases {
+        np_assert_allclose!([xsf::chndtrix(p, df, nc)], [x], rtol = 1e-13);
+        np_assert_allclose!([xsf::chndtridf(x, p, nc)], [df], rtol = 1e-13);
+        np_assert_allclose!([xsf::chndtrinc(x, df, p)], [nc], rtol = 1e-13);
+    }
+    // `test_chndtrix_gh2158`, from R
+    np_assert_allclose!(
+        [xsf::chndtrix(0.999_999, 2.0, 1.0 + 1e-6)],
+        [35.257_285_899_505_4],
+        rtol = 1e-10
+    );
+    // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from mpmath
+    np_assert_allclose!(
+        [xsf::chndtrix(
+            0.193_123_859_806_063_84,
+            0.004_028_403_030_778_61,
+            0.503_188_864_805_273_5
+        )],
+        [5.426_817_558_374_058e-301],
+        rtol = 1e-9
+    );
+    // the limits where the CDF is smallest or largest
+    assert_eq!(xsf::chndtrix(0.0, 1.0, 1.0), 0.0);
+    assert_eq!(xsf::chndtrix(1.0, 1.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::chndtridf(1.0, 0.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::chndtrinc(1.0, 1.0, 1.0), 0.0);
+    // p lies above the CDF at df = 0, or at nc = 0
+    assert_eq!(xsf::chndtridf(1.0, 0.99, 1.0), 0.0);
+    assert_eq!(xsf::chndtrinc(1.0, 1.0, 0.9), 0.0);
+    assert!(xsf::chndtrix(0.5, 0.0, 1.0).is_nan());
+    assert!(xsf::chndtridf(0.0, 0.5, 1.0).is_nan());
+    assert!(xsf::chndtrinc(1.0, 1.0, f64::NAN).is_nan());
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

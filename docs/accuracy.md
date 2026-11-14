@@ -477,10 +477,15 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tbody>
 <tr><td><code>chndtr</code><sup>*</sup></td><td>x, v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.7e-12</samp></td><td align="right" nowrap><samp>8.4e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 <tr><td><code>chndtr</code><sup>*</sup></td><td>v ∈ [10⁻³, 10⁴]<br>nc ∈ [1, 10⁴] (log)<br>x ∈ μ ± 10σ (x > 0)</td><td align="right" nowrap>1000</td><td align="right" nowrap><samp>9.7e-14</samp></td><td align="right" nowrap><samp>1.2e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>chndtrix</code><sup>†</sup></td><td>p ∈ [0, 1]<br>v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>9.7e-11</samp></td><td align="right" nowrap><samp>7.0e-12</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>chndtridf</code><sup>†</sup></td><td>x ∈ [10⁻³, 1000]<br>nc ∈ [10⁻³, 30] (log)<br>p ∈ [0, e^(−nc/2)]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>6.8e-13</samp></td><td align="right" nowrap><samp>3.1e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>chndtrinc</code><sup>†</sup></td><td>x, v ∈ [10⁻³, 1000] (log)<br>p ∈ (0, chdtr(v, x)]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>1.2e-12</samp></td><td align="right" nowrap><samp>1.2e-13</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> μ = v + nc, σ² = 2(v + 2nc).
+
+<sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 ### Kolmogorov distribution
 
