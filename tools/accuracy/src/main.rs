@@ -328,6 +328,7 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("chdtr", &[v, x]) => xsf::chdtr(v, x),
         ("chdtrc", &[v, x]) => xsf::chdtrc(v, x),
         ("chdtri", &[v, y]) => xsf::chdtri(v, y),
+        ("chndtr", &[x, v, nc]) => xsf::chndtr(x, v, nc),
         ("fdtri", &[a, b, y]) => xsf::fdtri(a, b, y),
         ("stdtr", &[v, t]) => xsf::stdtr(v, t),
         ("stdtri", &[v, p]) => xsf::stdtri(v, p),

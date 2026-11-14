@@ -1,16 +1,18 @@
 //! Inverses of distribution functions with respect to a parameter, which `scipy.special` computes
-//! with cdflib. Unlike in SciPy, the roots are found with the bracket search and Chandrupatla
-//! solver of [`gdtrib`](crate::gdtrib) to machine precision, instead of cdflib's `dinvr` with a
-//! relative tolerance of `1e-10` (`1e-8` for the noncentral t). If `p` can't be reached, 0 or inf
-//! is returned, whichever limit is closest, instead of cdflib's search bound. If `p` is 0 or 1, the
-//! limit where the CDF is smallest or largest is returned, instead of a root where the CDF
-//! underflows or rounds to `p`.
+//! with cdflib, and noncentral distribution functions from cdflib's series. Unlike in SciPy, the
+//! roots are found with the bracket search and Chandrupatla solver of [`gdtrib`](crate::gdtrib) to
+//! machine precision, instead of cdflib's `dinvr` with a relative tolerance of `1e-10` (`1e-8` for
+//! the noncentral t). If `p` can't be reached, 0 or inf is returned, whichever limit is closest,
+//! instead of cdflib's search bound. If `p` is 0 or 1, the limit where the CDF is smallest or
+//! largest is returned, instead of a root where the CDF underflows or rounds to `p`.
 
 use core::f64::consts::{LN_2, PI};
 
 use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::ldexp_f64;
-use crate::xsf::cephes::{betainc_xy, igam_fac, incbet_cf_factor, lbeta};
+use crate::xsf::cephes::{
+    betainc_xy, igam, igam_fac, igam_series_sum, incbet_cf_factor, lbeta, ln_igam_fac,
+};
 use crate::xsf::{bracket_root_for_cdf_inversion, find_positive_root, find_root_chandrupatla};
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
@@ -199,8 +201,8 @@ fn find_extremum_root(
     (status == 0).then_some(x)
 }
 
-/// The largest noncentrality for which [`cumfnc`] is computed: like in cdflib, where `nc / 2` must
-/// fit an `int`, since it sums `~17 sqrt(nc)` terms.
+/// The largest noncentrality for which [`cumchn`] and [`cumfnc`] are computed: like in cdflib,
+/// where `nc / 2` must fit an `int`, since they sum `~17 sqrt(nc)` terms.
 const NC_MAX: f64 = 2.0 * i32::MAX as f64;
 
 /// The exponent of the largest power of 2 by which [`rescale`] divides at once.
@@ -237,6 +239,26 @@ fn scaled_exp(ln_term: f64, w: f64) -> (f64, i32) {
     ((ln_term - f64::from(k) * LN_2).exp() * w, k)
 }
 
+/// `ln(x^a e^-x / Gamma(a + 1))`, i.e. `ln(P(a, x) - P(a + 1, x))` (A&S 6.5.21)
+fn ln_gamma_term(a: f64, x: f64) -> f64 {
+    ln_igam_fac(a, x) - a.ln()
+}
+
+/// `(m, k)` with `P(a, x) = m 2^k`, as [`betainc_scaled`] for `I_x(a, b)`
+fn igam_scaled(a: f64, x: f64) -> (f64, i32) {
+    let p = igam(a, x);
+    if p >= f64::MIN_POSITIVE {
+        return (p, 0);
+    }
+    // P(a, x) = x^a e^-x / Gamma(a + 1) w (DLMF 8.11.4), with x below a if P(a, x) underflows
+    let ln_term = ln_gamma_term(a, x);
+    let (w, converged) = igam_series_sum(a, x);
+    if !ln_term.is_finite() || !converged {
+        return (p, 0);
+    }
+    scaled_exp(ln_term, w)
+}
+
 /// Divides the `values` by powers of 2, adding their exponents to `scale`, while `peak * factor`
 /// lies above `2^RESCALE`, so that the scaled terms of [`betainc_scaled`] stay finite, but not past
 /// `scale = 0`, so that they stay below their unscaled values.
@@ -261,6 +283,126 @@ fn poisson_weight(k: f64, lambda: f64) -> f64 {
     } else {
         igam_fac(k + 1.0, lambda) / lambda
     }
+}
+
+/// CDF of the noncentral chi-square distribution
+///
+/// Corresponds to [`scipy.special.chndtr`][chndtr].
+///
+/// Unlike in SciPy, this sums cdflib's series A&S 26.4.25, instead of Boost's, which returns 0
+/// where the central term underflows, e.g. `chndtr(20, 63.5, 774) = 1.9e-147`.
+///
+/// [chndtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtr.html
+///
+/// # See also
+/// - [`chdtr`](crate::chdtr): CDF of the (central) chi-square distribution
+#[must_use]
+pub fn chndtr(x: f64, df: f64, nc: f64) -> f64 {
+    // the edge cases of SciPy
+    if !(x >= 0.0 && df >= 0.0 && nc >= 0.0) {
+        f64::NAN
+    } else if nc == 0.0 && (df == 0.0 || x.is_infinite()) {
+        1.0
+    } else if nc == 0.0 && df.is_infinite() {
+        0.0
+    } else if df == 0.0 || df.is_infinite() && nc.is_finite() {
+        f64::NAN
+    } else if nc.is_infinite() {
+        if x.is_infinite() { f64::NAN } else { 0.0 }
+    } else if x.is_infinite() {
+        1.0
+    } else if nc > NC_MAX {
+        f64::NAN
+    } else {
+        // the rounding of the sum can exceed 1
+        cumchn(x, df, nc).min(1.0)
+    }
+}
+
+/// CDF of the noncentral chi-square distribution, from cdflib's `cumchn`.
+///
+/// It sums the series A&S 26.4.25 backward and forward from the term with the largest Poisson
+/// weight, with the incomplete gamma functions from the recurrence A&S 6.5.21.
+///
+/// Unlike in cdflib, and as in [`cumfnc`],
+/// - the series is summed to machine precision, instead of to a relative tolerance of `1e-15` or
+///   until the sum is below `1e-300`,
+/// - `nc` is treated as 0 below `2 MIN_POSITIVE` instead of `1e-10`,
+/// - the central Poisson weight is computed with `igam_fac`,
+/// - the first terms of the recurrence are computed with the Lanczos form of `igam_fac`, since the
+///   `lgam` differences lose `~a ln(a) eps`,
+/// - the gamma terms are rescaled by powers of 2 if the central one underflows,
+/// - `cumchi` is replaced by `igam`.
+fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
+    let eps = f64::EPSILON;
+
+    if !(x > 0.0) {
+        return 0.0;
+    }
+    // as in `cumfnc`
+    if !(pnonc >= 2.0 * f64::MIN_POSITIVE) {
+        return crate::chdtr(df, x);
+    }
+
+    let xnonc = pnonc / 2.0;
+    let icent = xnonc.floor().max(1.0);
+    let centwt = poisson_weight(icent, xnonc);
+    let chid2 = x / 2.0;
+    let mut adn = df / 2.0 + icent;
+    // If `P(adn, chid2)` underflows, the terms are carried as multiples of `2^scale`, since the
+    // terms below `icent` can still be significant.
+    let (mut pdn, mut scale) = igam_scaled(adn, chid2);
+    let scale_up = scale;
+    let mut pup = pdn;
+    let mut ssum = centwt * pdn;
+
+    let mut wt = centwt;
+    let mut i = icent;
+
+    // chid2^adn exp(-chid2) / Gamma(adn + 1)
+    let mut dnterm = (ln_gamma_term(adn, chid2) - f64::from(scale) * LN_2).exp();
+
+    // As in `cumfnc`, but at least once, as in cdflib, since the central term underflows if `nc`
+    // is tiny, while the next one need not.
+    loop {
+        wt *= i / xnonc;
+        i -= 1.0;
+        let ratio = adn / chid2;
+        adn -= 1.0;
+        rescale(
+            pdn,
+            ratio,
+            &mut scale,
+            &mut [&mut pdn, &mut dnterm, &mut ssum],
+        );
+        dnterm *= ratio;
+        pdn += dnterm;
+        ssum += wt * pdn;
+        if !(wt * pdn > eps * ssum && i > 0.0 && wt >= f64::MIN_POSITIVE) {
+            break;
+        }
+    }
+
+    i = icent;
+    wt = centwt;
+
+    let mut aup = df / 2.0 + icent;
+    let mut upterm = (ln_gamma_term(aup, chid2) - f64::from(scale) * LN_2).exp();
+    pup = ldexp_f64(pup, scale_up - scale);
+
+    loop {
+        i += 1.0;
+        wt *= xnonc / i;
+        pup -= upterm;
+        aup += 1.0;
+        upterm *= chid2 / aup;
+        ssum += wt * pup;
+        if !(wt * pup > eps * ssum) {
+            break;
+        }
+    }
+
+    ldexp_f64(ssum, scale)
 }
 
 /// CDF of the noncentral F distribution, from cdflib's `cumfnc`.

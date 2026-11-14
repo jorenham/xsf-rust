@@ -57,6 +57,43 @@ fn test_fdtridfd() {
 }
 
 #[test]
+fn test_chndtr() {
+    // `test_chndtr_and_inverses_against_wolfram_alpha` and `test_tails` in
+    // scipy/special/tests/test_cdflib.py: `(x, df, nc, chndtr)`
+    let cases = [
+        (25.0, 20.0, 400.0, 4.121_065_511_239_62e-57),
+        (0.001, 8.0, 40.0, 5.376_180_620_136_604e-24),
+        (20.0, 2.0, 107.0, 1.393_907_435_558_196e-9),
+        (3.0, 2.0, 1.0, 0.620_643_653_219_543_6),
+        (700.0, 20.0, 400.0, 0.999_999_999_256_806_5),
+        (150.0, 13.5, 10.0, 0.999_999_999_999_999_8),
+        (0.1, 200.0, 50.0, 1.131_122_486_720_548_1e-299),
+        (1e-12, 20.0, 50.0, 3.737_446_313_006_551e-141),
+        (9e4, 1e5, 1e3, 1.689_553_370_421_756_6e-141),
+    ];
+    for (x, df, nc, p) in cases {
+        np_assert_allclose!([xsf::chndtr(x, df, nc)], [p], rtol = 1e-13);
+    }
+    // The central term of the series underflows, where SciPy returns 0, and its exponent
+    // `~-1150` limits the accuracy to `~1150 eps`. From Wolfram.
+    np_assert_allclose!(
+        [xsf::chndtr(20.0, 63.5, 774.0)],
+        [1.858_113_891_312_916e-147],
+        rtol = 5e-13
+    );
+    // `test_chndtr_with_nc_zero_equals_chdtr` and `test_chndtr_edge_cases`
+    assert_eq!(xsf::chndtr(1.0, 3.0, 0.0), xsf::chdtr(3.0, 1.0));
+    assert_eq!(xsf::chndtr(1.0, 0.0, 0.0), 1.0);
+    assert_eq!(xsf::chndtr(1.0, f64::INFINITY, f64::INFINITY), 0.0);
+    assert_eq!(xsf::chndtr(f64::INFINITY, 1.0, 1.0), 1.0);
+    assert_eq!(xsf::chndtr(1e3, 10.0, 10.0), 1.0);
+    assert!(xsf::chndtr(1.0, 0.0, 1.0).is_nan());
+    assert!(xsf::chndtr(1.0, f64::INFINITY, 1.0).is_nan());
+    assert!(xsf::chndtr(f64::INFINITY, 1.0, f64::INFINITY).is_nan());
+    assert!(xsf::chndtr(1.0, 1.0, -1.0).is_nan());
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

@@ -2052,6 +2052,40 @@ def r_chdtri(v, y):
     )
 
 
+def _chndtr_series(x, v, nc):
+    """sum_j Pois(j; nc/2) P(v/2 + j, x/2) (A&S 26.4.25), from the largest Poisson weight both
+    ways, with P(a, y) - P(a + 1, y) = y^a e^-y / Gamma(a + 1) (A&S 6.5.21)."""
+    if x == 0:
+        return mp.mpf(0)
+    lam, y = mp.mpf(nc) / 2, mp.mpf(x) / 2
+    j0 = int(lam)
+    a0 = mp.mpf(v) / 2 + j0
+    w0 = mp.exp(j0 * mp.log(lam) - lam - mp.loggamma(j0 + 1))
+    p0 = _gammainc_pq(a0, y, False)
+    t0 = mp.exp(a0 * mp.log(y) - y - mp.loggamma(a0 + 1))
+    s, tol = w0 * p0, mp.eps / 2**10
+    w, p, a, t, j = w0, p0, a0, t0, j0
+    while j > 0:
+        w, t, j, a = w * j / lam, t * a / y, j - 1, a - 1
+        p += t
+        s += w * p
+        if w * p < tol * s:
+            break
+    w, p, a, t, j = w0, p0, a0, t0, j0
+    while True:
+        p -= t
+        w, a, j = w * lam / (j + 1), a + 1, j + 1
+        t *= y / a
+        s += w * p
+        if j > lam and w * p < tol * s:
+            return s
+
+
+def r_chndtr(x, v, nc):
+    # the forward recurrence cancels, and the other way loses digits to the terms' exponents
+    return _converged(_chndtr_series, x, v, nc)
+
+
 def r_fdtri(a, b, y):
     # x such that fdtr(a, b, x) = y
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
@@ -3005,6 +3039,39 @@ add(
     note="inv",
 )
 
+section("Noncentral chi square distribution", 3)
+
+
+def chndtr_mean_pm_sigma(r: Random) -> tuple[float, float, float]:
+    """(x, v, nc) with v in [1e-3, 1e4], nc in [1, 1e4] (log), and x > 0 in mu +- 10 sigma: the
+    transition region and its tails."""
+    while True:
+        v, nc = 10 ** r.uniform(-3, 4), 10 ** r.uniform(0, 4)
+        mu, sigma = v + nc, (2 * (v + 2 * nc)) ** 0.5
+        x = mu + r.uniform(-10, 10) * sigma
+        if x > 0:
+            return x, v, nc
+
+
+add(
+    "chndtr",
+    "x v nc",
+    r_chndtr,
+    D(LU(1e-3, 1e3), LU(1e-3, 1e3), LU(1e-3, 1e3), n=2000),
+    D(
+        sampler=chndtr_mean_pm_sigma,
+        label="v in [1e-3, 1e4], nc in [1, 1e4] (log), x in mu +- 10 sigma (x > 0)",
+        pretty=f"{nobreak('v', IN, LU(1e-3, 1e4).pretty())}, "
+        + f"{nobreak('nc', IN, LU(1, 1e4).pretty())} (log), "
+        + nobreak("x", IN, f"{MU} {PM} 10{SIGMA}")
+        + " (x > 0)",
+        n=1000,
+    ),
+    cpp=False,
+    timeout=120,
+    note="ncx2",
+)
+
 section("Kolmogorov distribution", 3)
 for f, r in [
     ("kolmogorov", r_kolmogorov),
@@ -3785,6 +3852,7 @@ NOTES = {
         f"{SQRT}(J_(b{MINUS}1)(x)\u00b2 + Y_(b{MINUS}1)(x)\u00b2)."
     ),
     "beta_dist": f"{MU} = a / (a + b), {SIGMA}\u00b2 = {MU}(1 {MINUS} {MU}) / (a + b + 1).",
+    "ncx2": f"{MU} = v + nc, {SIGMA}\u00b2 = 2(v + 2nc).",
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about 10\u207b\u00b9\u00b3."
