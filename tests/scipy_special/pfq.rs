@@ -437,6 +437,49 @@ fn test_hyp1f2_none() {
 }
 
 #[test]
+fn test_pfq_extreme_products() {
+    // exact, where a partial product of the lower parameters is 2^-1023
+    let (tiny, huge) = (f64::MIN_POSITIVE / 2.0, 2.0_f64.powi(1023));
+    assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), Some(2.0));
+    assert_eq!(hyp2f2(-1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
+    assert_eq!(hyp3f2(-1.0, 1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
+    // subnormal parameters (mpmath)
+    for (actual, expected) in [
+        (
+            hyp1f2(1.390_671_161_567e-309, 1.618_95e-319, -2.102, -4.284),
+            161_971_933_906.752_96,
+        ),
+        (
+            hyp2f2(
+                -3.0,
+                -1.326_247_37e-315,
+                -1.536_324_334_650_837e-45,
+                8.289_046e-317,
+                0.829,
+            ),
+            -7.395_713_298_118_337e45,
+        ),
+        (
+            hyp3f2(
+                -2.534,
+                -1.358_077_306_22e-312,
+                -3.0,
+                -1.055_757_816_013_944_4e-249,
+                -5.005_207_737_957_752_3e-147,
+                0.019,
+            ),
+            -3.820_474_752_858_302e82,
+        ),
+    ] {
+        let actual = actual.unwrap();
+        assert!(
+            (actual - expected).abs() <= 1e-15 * expected.abs(),
+            "{actual} != {expected}"
+        );
+    }
+}
+
+#[test]
 fn test_hyppfq_routing() {
     let z = -0.75;
     assert_eq!(hyppfq(&[], &[], z), Some(hyp0f0(z)));

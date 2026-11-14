@@ -66,11 +66,23 @@ trait SeriesReal: Real + Add<f64, Output = Self> {
     const EPSILON: f64;
     /// Smallest size of a result that is that accurate: it did not underflow
     const MIN_POSITIVE: f64;
+    /// The mantissa, of size in $[1/2, 1)$, and the exponent
+    fn frexp(self) -> (Self, i32);
+    /// `self` times $2^e$
+    fn ldexp(self, e: i32) -> Self;
 }
 
 impl SeriesReal for f64 {
     const EPSILON: f64 = f64::EPSILON;
     const MIN_POSITIVE: f64 = f64::MIN_POSITIVE;
+
+    fn frexp(self) -> (Self, i32) {
+        frexp_f64(self)
+    }
+
+    fn ldexp(self, e: i32) -> Self {
+        ldexp_f64(self, e)
+    }
 }
 
 impl SeriesReal for Dd {
@@ -78,6 +90,14 @@ impl SeriesReal for Dd {
     const EPSILON: f64 = pow2(-100);
     /// Below it, its low part is not normal
     const MIN_POSITIVE: f64 = pow2(106 - 1022);
+
+    fn frexp(self) -> (Self, i32) {
+        Dd::frexp(self)
+    }
+
+    fn ldexp(self, e: i32) -> Self {
+        Dd::ldexp(self, e)
+    }
 }
 
 /// The smallest $n$ with $v + n = 0$ for a `v` in `params`, or infinity if there is none
@@ -132,24 +152,30 @@ fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
 }
 
 /// $t_{n+1} / (z t_n)$ for any parameters and $n$, which is zero if it underflows, and infinite
-/// if it overflows or would be inexact, as a product in it is not normal
+/// if it overflows or would be inexact, as it is not normal
 #[cold]
 fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
     // normal in the arithmetic of `T`
     let is_normal = |v: T| (T::MIN_POSITIVE..=f64::MAX).contains(&v.to_f64().abs());
-    let [num, den]: [T; 2] = pfq_products(a, b, n);
+    // as mantissa and `i64` exponent, so that no partial product over- or underflows
+    let product = |params: &[f64]| {
+        let times = |(m, e): (T, i64), &v: &f64| {
+            let (vm, ve) = (T::from_f64(v) + n).frexp();
+            let (m, me) = (m * vm).frexp();
+            (m, e + i64::from(ve) + i64::from(me))
+        };
+        params.iter().fold((T::from_f64(1.0), 0), times)
+    };
+    let ((num, ne), (den, de)) = (product(a), product(b));
+    // beyond `i32`, it over- or underflows anyway
+    let ratio = (num / den).ldexp((ne - de).clamp(i32::MIN.into(), i32::MAX.into()) as i32);
     let ln_abs = |params: &[f64]| params.iter().map(|v| (v + n).abs().ln()).sum::<f64>();
-    if is_normal(num) && is_normal(den) && is_normal(num / den) {
-        num / den
+    if is_normal(ratio) {
+        ratio
     } else if ln_abs(a) - ln_abs(b) < PFQ_LN_UNDERFLOW {
         T::from_f64(0.0)
     } else {
-        // the products of the quotients of the paired parameters are more often normal
-        let factor = |v: Option<&f64>| v.map_or(T::from_f64(1.0), |&v| T::from_f64(v) + n);
-        let mut quotients = (0..a.len().max(b.len())).map(|i| factor(a.get(i)) / factor(b.get(i)));
-        let normal = |p: T, q: T| Some(p * q).filter(|&r| is_normal(q) && is_normal(r));
-        let ratio = quotients.try_fold(T::from_f64(1.0), normal);
-        ratio.unwrap_or(T::from_f64(f64::INFINITY))
+        T::from_f64(f64::INFINITY)
     }
 }
 
