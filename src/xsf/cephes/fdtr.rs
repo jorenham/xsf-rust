@@ -6,6 +6,8 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::SQRT_EPSILON;
+use crate::xsf::cephes::beta::lbeta;
+use crate::xsf::cephes::chdtr::chdtr;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
@@ -115,7 +117,30 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
         return p;
     }
     let (w, w1) = fdtr_w(a, b, x);
-    betainc_xy(0.5 * a, 0.5 * b, w, w1)
+    let ax = a * x;
+    // Unlike in xsf, the first term `w^A / (A B(A, B))` with `A = a / 2` (DLMF 8.17.7) if `a x` or
+    // `w` is subnormal, as they round, else (`b > 1e291` or inf) the chi-square CDF of `a x`
+    if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
+        betainc_xy(0.5 * a, 0.5 * b, w, w1)
+    } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
+        chdtr(a, ax)
+    } else if x == 0.0 {
+        0.0
+    } else if a < 2.0 * f64::MIN_POSITIVE {
+        // `A` is subnormal, so `a / 2` rounds, `w^A = 1` and `A B(A, B) = 1 + A / B`
+        b / (a + b)
+    } else {
+        let (ha, hb) = (0.5 * a, 0.5 * b);
+        // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
+        let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
+        // `x^A` apart, unless it underflows, while the rest can be large
+        let x_ha = x.powf(ha);
+        if x_ha >= f64::MIN_POSITIVE {
+            x_ha * ln_rest.exp()
+        } else {
+            (ha * x.ln() + ln_rest).exp()
+        }
+    }
 }
 
 /// `(w, 1 - w)` with `w = a x / (b + a x)`

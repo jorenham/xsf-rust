@@ -12,12 +12,11 @@ use super::quadpack::quad_unimodal;
 use crate::utils::{SQRT_FRAC_2_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
-    betainc_xy, gamma, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
-    incbet_cf_factor, lbeta, ln_igam_fac,
+    betainc_xy, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc, incbet_cf_factor,
+    lbeta, ln_igam_fac,
 };
 use crate::xsf::{
-    bracket_root_for_cdf_inversion, erfcx, exp2, find_positive_root, find_root_chandrupatla,
-    log1pmx,
+    bracket_root_for_cdf_inversion, erfcx, find_positive_root, find_root_chandrupatla, log1pmx,
 };
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
@@ -661,11 +660,10 @@ fn cumchn(x: f64, df: f64, pnonc: f64) -> f64 {
     }
 
     let xnonc = pnonc / 2.0;
-    // Unlike in cdflib, the first term `exp(-nc / 2) (x / 2)^a / Gamma(a + 1)` for a subnormal `x`,
-    // as `x / 2` rounds, to `~(1 + nc) x` relative
+    // Unlike in cdflib, the first term `exp(-nc / 2) chdtr(df, x)` for a subnormal `x`, as `x / 2`
+    // rounds, to `~(1 + nc) x` relative
     if x < 2.0 * f64::MIN_POSITIVE {
-        let a = df / 2.0;
-        return x.powf(a) * (exp2(-a) / gamma(a + 1.0)) * (-xnonc).exp();
+        return crate::chdtr(df, x) * (-xnonc).exp();
     }
     let icent = xnonc.floor().max(1.0);
     let centwt = poisson_weight(icent, xnonc);
@@ -812,16 +810,13 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     let prod = dfn * f;
     let dsum = dfd + prod;
     // Unlike in cdflib, a subnormal `x = dfn f / dsum`, which rounds: if `dfn f < eps`, the first
-    // term `exp(-nc / 2) x^a / (a B(a, b))` with `a = dfn / 2`, to `~(1 + nc) dfn f` relative, else
-    // (`dfd > 1e291`) the noncentral chi-square CDF of `dfn f`
+    // term `exp(-nc / 2) fdtr(dfn, dfd, f)`, to `~(1 + nc) dfn f` relative, else (`dfd > 1e291`)
+    // the noncentral chi-square CDF of `dfn f`
     if prod / dsum < 2.0 * f64::MIN_POSITIVE {
         if prod >= eps {
             return cumchn(prod, dfn, pnonc);
         }
-        let a = dfn / 2.0;
-        // `ln(dfn / dsum)`, which can underflow; `min`, since `f^a` underflows first
-        let rest = (ln_beta_term(a, dfd / 2.0, dfn.ln() - dsum.ln(), 0.0) - xnonc).exp();
-        return f.powf(a) * rest.min(f64::MAX);
+        return crate::fdtr(dfn, dfd, f) * (-xnonc).exp();
     }
     // `dfd / dsum`, also if `prod` overflows
     let mut yy = if prod.is_finite() {

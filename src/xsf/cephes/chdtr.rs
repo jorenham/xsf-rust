@@ -6,8 +6,10 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::xsf::cephes::gamma;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::igami::igamci;
+use crate::xsf::exp2;
 
 /// Complemented Chi-square distribution
 ///
@@ -48,9 +50,13 @@ use crate::xsf::cephes::igami::igamci;
 /// ```
 pub(crate) fn chdtrc(df: f64, x: f64) -> f64 {
     if x < 0.0 {
-        return f64::NAN;
+        f64::NAN
+    } else if df > 0.0 && x == 0.0 {
+        // Unlike in xsf (scipy/xsf#541), also if `df / 2` rounds to 0
+        1.0
+    } else {
+        igamc(df / 2.0, x / 2.0)
     }
-    igamc(df / 2.0, x / 2.0)
 }
 
 /// Chi-square distribution
@@ -93,9 +99,18 @@ pub(crate) fn chdtrc(df: f64, x: f64) -> f64 {
 pub(crate) fn chdtr(df: f64, x: f64) -> f64 {
     if x < 0.0 {
         // || (df < 1.0)
-        return f64::NAN;
+        f64::NAN
+    } else if df > 0.0 && x == 0.0 {
+        // Unlike in xsf (scipy/xsf#541), also if `df / 2` rounds to 0
+        0.0
+    } else if df > 0.0 && x < 2.0 * f64::MIN_POSITIVE {
+        // Unlike in xsf (scipy/xsf#541), `(x / 2)^a / Gamma(a + 1)` with `a = df / 2` if `x` is
+        // subnormal, as `x / 2` rounds
+        let a = df / 2.0;
+        x.powf(a) * (exp2(-a) / gamma(a + 1.0))
+    } else {
+        igam(df / 2.0, x / 2.0)
     }
-    igam(df / 2.0, x / 2.0)
 }
 
 /// Inverse of complemented Chi-square distribution

@@ -359,6 +359,20 @@ fn test_ncfdtr_ncfdtri() {
         [0.606_530_659_712_633_4],
         rtol = 1e-15
     );
+    // `dfn / 2` is subnormal, or `dfn f` is but `x` is not; from mpmath
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1e-308, 2.0, 1.0, 1.0),
+            xsf::ncfdtr(1e-308, 2.0, 1.0, 1e308),
+            xsf::ncfdtr(0.3, 1e-13, 1.0, 1e-320),
+        ],
+        [
+            0.606_530_659_712_633_4,
+            0.716_531_310_573_789_3,
+            1.504_177_081_709_522e-59
+        ],
+        rtol = 1e-14
+    );
     // `x` underflows, also if `dfn f` or `dfn / (dfd + dfn f)` does not; from mpmath
     np_assert_allclose!(
         [

@@ -630,6 +630,47 @@ fn test_fdtr_fdtrc_subnormal_1mw() {
 }
 
 #[test]
+fn test_chdtr_fdtr_subnormal() {
+    // reference values from mpmath; `x / 2`, `a x` or `w = a x / (b + a x)` is subnormal and rounds
+    let p = [
+        xsf::chdtr(1.0, f64::from_bits(1)),
+        xsf::chdtr(1.0, f64::from_bits(3)),
+        xsf::chdtr(0.5, 2.5e-322),
+        xsf::fdtr(0.3, 1.0, 1e-320),
+        xsf::fdtr(0.3, 1e-13, 1e-320),
+        xsf::fdtr(0.7, 1e-10, 3e-319),
+    ];
+    let p_ref = [
+        1.773_504_888_603_627_3e-162,
+        3.071_800_574_533_264_4e-162,
+        3.696_239_685_446_701e-81,
+        6.990_002_794_838_8e-49,
+        2.479_968_749_514_133_6e-59,
+        1.311_231_953_921_511_3e-118,
+    ];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
+    // the chi-square limit if `b = inf`
+    assert_eq!(
+        xsf::fdtr(1.0, f64::INFINITY, 1e-300),
+        xsf::chdtr(1.0, 1e-300)
+    );
+    // `x^(a / 2)` underflows, but the subnormal result does not; from mpmath
+    let p = [
+        xsf::fdtr(2.2, 1e-290, 1e-310),
+        xsf::ncfdtr(2.2, 1e-290, 0.0, 1e-310),
+    ];
+    xsref::np_assert_allclose!(&p, &[1.082_037_389_82e-312; 2], rtol = 1e-11);
+    // `df / 2` rounds to 0
+    let tiny = f64::from_bits(1);
+    assert_eq!(xsf::chdtr(tiny, 0.0), 0.0);
+    assert_eq!(xsf::chdtrc(tiny, 0.0), 1.0);
+    assert_eq!(xsf::fdtr(tiny, 2.0, 0.0), 0.0);
+    assert_eq!(xsf::fdtr(tiny, 2.0, 1.0), 1.0);
+    assert_eq!(xsf::fdtr(tiny, tiny, 1e-300), 0.5);
+    assert_eq!(xsf::fdtr(3.0 * tiny, 2.0 * tiny, 1e-300), 0.4);
+}
+
+#[test]
 fn test_fdtr_bdtr_large_df() {
     // reference values from mpmath (see `incbet_lnpow`)
     let p = xsf::fdtr(100.0, 1e20, 0.5);
