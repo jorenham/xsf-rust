@@ -20,10 +20,11 @@ use crate::xsf::trig::cephes_sinpi;
 use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
 use crate::{digamma, gamma, gammaln, hyp0f1};
 
-/// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
+/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
+/// overflowing sum in `chgul`
 const MAX_TERMS: i32 = 100_000;
 
-/// The (exact) factor that keeps the terms of `chgm_poly` and `rescale_term` normal
+/// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
 const LOG2_SCALE: i32 = 512;
 const SCALE: f64 = pow2(LOG2_SCALE);
 
@@ -1014,8 +1015,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
 /// Here (scipy/xsf#380):
 ///
-/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`). The first with `ID_MIN`
-///    digits is returned; otherwise the better of the two is kept as `(hu0, id0)`.
+/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` excludes
+///    integer `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
+///    the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
@@ -1060,11 +1062,14 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // compares equal, so the results of these comparisons are the same.
     let il1 = (a == f64::from(a as i32)) && (a <= 0.0);
     let il2 = (aa == f64::from(aa as i32)) && (aa <= 0.0);
-    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0;
     let bl1 = (x <= 5.0) || (x <= 10.0 && a <= 2.0);
     let bl2 = (x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0));
     let bl3 = (x > 12.5) && (a >= 5.0) && (b >= a + 5.0);
     let bn = b.fract() == 0.0 && b != 0.0;
+    // Unlike in xsf (scipy/xsf#380), conservatively not for integer b > 1 and x <= |b - 2a|: the
+    // error bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for
+    // tiny a the series overestimates its digits
+    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !(bn && b > 1.0 && x <= (b - 2.0 * a).abs());
 
     let mut id = -100;
     let mut hu1 = 0.0;
@@ -1547,6 +1552,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         hu = 1.0;
         r = 1.0;
         let mut rmax: f64 = 1.0;
+        // Unlike in xsf (scipy/xsf#380), the sum is hu 2^e_sum, where hu is scaled down (exactly)
+        // before it overflows, so that an infinite U has its sign
+        let mut e_sum = 0_i32;
         // (a + k - 1) (a - b + k) < 0 for k between 1 - a and b - a, so the terms keep their sign
         // there, and a sum that is +-inf at k >= k_inf stays +-inf
         let (lo, hi) = ((1.0 - a).min(b - a), (1.0 - a).max(b - a));
@@ -1555,16 +1563,29 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         } else {
             f64::INFINITY
         };
+        // whether the sum stopped early, as a lower bound of |sum|
+        let mut partial = false;
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
+            if rmax > SCALE {
+                (r, hu, rmax) = (r / SCALE, hu / SCALE, rmax / SCALE);
+                e_sum = e_sum.saturating_add(LOG2_SCALE);
+            }
             // Unlike in xsf (scipy/xsf#380), the loop stops once
             // - the sum is NaN, or +-inf for good (k >= k_inf)
             // - the terms decrease below `MIN_POSITIVE`
+            // - the sum overflows (unscaled) and has more than `MAX_TERMS` terms: it is then
+            //   `partial` if it has the sign of the terms that are left (k >= k_inf), and else NaN
+            if e_sum > LOG2_SCALE && k > f64::from(MAX_TERMS) && k < f64::from(nm) {
+                partial = k >= k_inf && hu * r > 0.0;
+                hu = if partial { hu } else { f64::NAN };
+            }
             if hu.is_nan()
+                || partial
                 || hu.is_infinite() && k >= k_inf
                 || r.abs() < f64::MIN_POSITIVE && r.abs() <= prev.abs()
             {
@@ -1576,11 +1597,15 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // c + x >= 0 is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and
         // otherwise the id reflects the cancellation, so that other methods are tried
         let cancels = rmax > 1e6 * hu.abs();
+        // (unscaled, i.e. if its largest term does)
+        let overflows = e_sum > LOG2_SCALE || !hu.is_finite();
         // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
         let kummer = !il1 || (il2 && b < 1.0);
         let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
-        let mut u = f64::NAN;
-        if (cancels || !hu.is_finite()) && c + x >= 0.0 {
+        // U(n, c, x) = u 2^e, where u is scaled down (exactly) before it overflows, so that an
+        // infinite U has its sign
+        let (mut u, mut e) = (f64::NAN, 0_i32);
+        if (cancels || overflows) && c + x >= 0.0 {
             // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
             let mut u1 = 0.0;
             u = 1.0;
@@ -1588,16 +1613,33 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 // U(k - 1, c, x) = (2k - c + x) U(k, c, x) - k (k - c + 1) U(k + 1, c, x)
                 let k = -f64::from(k);
                 (u, u1) = ((2.0 * k - c + x) * u - k * (k - c + 1.0) * u1, u);
+                if u.abs() > SCALE {
+                    (u, u1, e) = (u / SCALE, u1 / SCALE, e.saturating_add(LOG2_SCALE));
+                }
             }
         }
+        // m 2^e x^p, for finite m and x in log space if x^p, or its product with m, over- or
+        // underflows
+        let pow_scaled = |m: f64, e: i32, p: f64| {
+            let xp = x.powf(p);
+            if xp.is_normal() && (m * xp).is_normal() || !(m.is_finite() && x.is_finite()) {
+                ldexp_f64(m * xp, e)
+            } else {
+                let l = ln_dd(DoubleDouble::new(x)) * p;
+                Scaled::new(m, e, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0)
+            }
+        };
         if u.is_finite() {
-            hu = if kummer { x.powf(1.0 - b) * u } else { u };
+            hu = pow_scaled(u, e, if kummer { 1.0 - b } else { 0.0 });
             // the recurrence is stable here, so this has (nearly) all digits
             *id = 15;
         } else {
             let sum = hu;
-            hu *= x.powf(-a);
-            if hu.is_finite() {
+            hu = pow_scaled(sum, e_sum, -a);
+            // a partial sum only shows that U overflows
+            if partial && hu.is_finite() {
+                hu = f64::NAN;
+            } else if sum.is_finite() {
                 *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
             }
         }

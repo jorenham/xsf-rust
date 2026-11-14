@@ -43,6 +43,20 @@ fn test_hypu_tiny_a() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 1.2014, 0.99999999996, and 1.00028382 in xsf
+    let abx = [
+        (7.5e-16, 6.0, 0.0024),
+        (-2.9e-14, 28.0, 4.55),
+        (2.387e-14, 6.0, 0.01834),
+    ];
+    let expected = [
+        1.226_735_389_035_132,
+        0.997_697_971_141_589_2,
+        1.000_282_508_087_199,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]
@@ -200,6 +214,42 @@ fn test_hypu_poly() {
     let actual = [xsf::hypu(-60.5, 30.5, 10.0), xsf::hypu(-100.5, 40.5, 20.0)];
     let expected = [8.123_216_159_896_29e95, -4.104_645_857_033_403e177];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-8);
+}
+
+#[test]
+fn test_hypu_poly_overflow() {
+    // Arb: 1.46e336, -1.38e338, and -2.24e367; -inf, inf, and NaN in xsf
+    assert_eq!(xsf::hypu(-181.0, 1.0, 30.2), f64::INFINITY);
+    assert_eq!(xsf::hypu(-182.0, 1.0, 30.0), f64::NEG_INFINITY);
+    assert_eq!(xsf::hypu(-197.0, 1.0, 0.5), f64::NEG_INFINITY);
+
+    // Arb; NaN and inf in xsf
+    let actual = [xsf::hypu(-171.0, 1.0, 0.5), xsf::hypu(-168.0, 2.0, 30.0)];
+    let expected = [-1.277_404_819_038_795_2e308, 9.572_203_868_570_836e307];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb: 2.88e468; -inf in xsf
+    assert_eq!(xsf::hypu(-237.0, -107.25, 101.0), f64::INFINITY);
+
+    // Arb; 0, -0, inf, and inf in xsf
+    let abx = [
+        (-176.75, -143.75, 0.003),
+        (-277.625, -199.625, 0.0329),
+        (-157.8125, 33.1875, 8.75),
+        (5.125, 330.125, 14.9),
+    ];
+    let expected = [
+        2.692_507_169_282_326e-295,
+        -3.854_488_043_803_876e-115,
+        -3.436_886_227_248_617_6e301,
+        3.387_267_647_106_950_4e303,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb: 3.80e-83005 and 3.59e201603; NaN in xsf
+    assert_eq!(xsf::hypu(100_000.0, 200_002.0, 1000.0), 0.0);
+    assert_eq!(xsf::hypu(150_000.0, 300_002.0, 100.0), f64::INFINITY);
 }
 
 #[test]
