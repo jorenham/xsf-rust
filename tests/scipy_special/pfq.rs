@@ -299,10 +299,51 @@ fn test_hyp2f2_special() {
 }
 
 #[test]
+fn test_hyp2f2_asymptotic() {
+    // Arb references
+    for (a, b, z, expected) in [
+        ([1.5, 2.25], [3.5, 4.75], 500.0, 5.523_108_556_223_365e206),
+        (
+            [-10.5, 0.25],
+            [20.0, 3.5],
+            300.0,
+            -1.057_385_809_228_637_7e71,
+        ),
+        (
+            [1.5, 2.25],
+            [3.5, 4.75],
+            -500.0,
+            0.001_936_926_332_203_224_2,
+        ),
+        ([0.5, -1.25], [2.0, 3.0], -100.0, 17.512_557_901_365_43),
+        (
+            [3.0, 5.5],
+            [3.5, -4.25],
+            -1000.0,
+            -1.124_031_587_749_003_6e-8,
+        ),
+        ([2.5, 3.25], [-0.5, 1.75], -60.0, 4.645_783_675_124_214e-5),
+        // a common parameter cancels, also at a pole
+        ([3.0, 5.5], [3.0, 7.0], -200.0, 1.770_351_282_323_549_3e-10),
+        ([-3.0, 2.5], [-3.0, 4.0], -300.0, 4.324_983_868_207_274_5e-6),
+        // c_3 of the exponentially large part vanishes, but not c_4
+        ([-1.5, -1.5], [-2.5, 1.5], 60.0, -4.921_886_930_234_788e21),
+        ([-1.5, -1.5], [-2.5, 1.5], 100.0, -4.114_326_732_425_412e38),
+    ] {
+        assert_hyp2f2(a, b, z, expected);
+    }
+    // overflow
+    assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
+    assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
+}
+
+#[test]
 fn test_hyp2f2_none() {
-    // the series cancels too much, also in double-double precision
+    // the series cancels, and |z| is too small for the asymptotic expansion
     assert_eq!(hyp2f2(2.5, 3.25, -0.5, 1.75, -40.0), None);
-    assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, -500.0), None);
-    // the terms overflow
-    assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), None);
+    // an integer a_1 - a_2
+    assert_eq!(hyp2f2(1.0, 2.0, 3.5, 4.75, -200.0), None);
+    // the result underflows
+    assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), None);
+    assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0), None);
 }

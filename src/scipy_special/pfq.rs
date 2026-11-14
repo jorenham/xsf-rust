@@ -4,12 +4,15 @@
 //! parameters together with the 1 of $n!$ as `b`, so that the terms of the series are
 //! $t_n = z^n \prod_i (a_i)_n / \prod_j (b_j)_n$.
 
+use core::f64::consts::TAU;
+use core::iter::{once, successors};
 use core::ops::Add;
 
 use crate::utils::{EPSILON_SQ, is_nonpos_int, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
+use crate::xsf::{Scaled, add_exp, fold_exp, ln_dd, mul_gamma_ratio};
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
@@ -44,6 +47,11 @@ const PFQ_WENIGER_MAX_Z: f64 = -0.6;
 /// Smallest `z` for which `pfq_weniger` is tried before `pfq_continuation`, as it is more often
 /// accurate there (measured)
 const PFQ_WENIGER_FIRST_Z: f64 = -1.5;
+
+/// From this $\abs z$ on, `hyp2f2` tries the asymptotic expansion before the series, as for
+/// $z < 0$ the terms of the series then reach about $e^{\abs z} > 10^{13}$, and the expansion
+/// is often accurate and cheaper
+const HYP2F2_ASYMPTOTIC_FIRST: f64 = 30.0;
 
 /// The arithmetic in which a series is summed, with the analogs of the `f64` constants
 trait SeriesReal: Real + Add<f64, Output = Self> {
@@ -624,6 +632,159 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
     }
 }
 
+/// The sum of an asymptotic series in $1/z$ up to its smallest term from term `settled` on, and
+/// an estimate of its absolute error
+///
+/// From term `settled` on, all parameters plus $n$ must be positive. Before it, the terms may
+/// vanish or grow. From term `settled + |z|` on, the term ratios are about $n / \abs z$, so that
+/// growing terms keep growing. The size of a term $t_n$ is $\max(\abs{t_n}, \abs{t_{n+1}})$, as
+/// a $t_n$ of a recurrence of order 2 can vanish while $t_{n+1}$ does not. It stops at a term of
+/// a negligible size if `ratio_bound(n) < 1`, so that the next terms are smaller.
+///
+/// The error is the smallest size times $\sqrt{2 \pi \abs z}$, about the sum of the terms near
+/// it, plus rounding. For terms of one sign, the remainder can be half of that, as for
+/// $\sum_n n! / z^{n+1}$ with $z > 0$, whose term ratios are also about $n / z$.
+fn asymptotic_sum(
+    terms: impl Iterator<Item = f64>,
+    settled: f64,
+    z: f64,
+    ratio_bound: impl Fn(f64) -> f64,
+) -> (f64, f64) {
+    let (mut sum, mut abs_sum, mut prev) = (0.0_f64, 0.0, f64::INFINITY);
+    // the smallest size, the sum before its term, and its error
+    let (mut min, mut best) = (f64::INFINITY, (sum, f64::INFINITY));
+    let remainder = (TAU * z.abs()).sqrt().max(1.0);
+    let mut terms = terms.peekable();
+    for n in (0..PFQ_MAXITER).map(f64::from) {
+        let Some(t) = terms.next() else { break };
+        let size = t.abs().max(terms.peek().map_or(0.0, |next| next.abs()));
+        if !t.is_finite() || n >= settled + z.abs() && t.abs() >= prev {
+            break;
+        } else if n >= settled && size < min {
+            min = size;
+            best = (sum, remainder * min + n * f64::EPSILON * abs_sum);
+            if min <= f64::EPSILON * sum.abs() && ratio_bound(n) < 1.0 {
+                break;
+            }
+        }
+        sum += t;
+        abs_sum += t.abs();
+        prev = t.abs();
+    }
+    best
+}
+
+/// The terms $t_0 = 1, t_1, \dots$ of a recurrence of order 2, where `next(k, t1, t2)` is $t_k$
+/// for $t_{k-1}$ and $t_{k-2}$, with $t_{-1} = 0$
+fn recurrence_terms(next: impl Fn(f64, f64, f64) -> f64) -> impl Iterator<Item = f64> {
+    // k, t_k, and t_(k-1)
+    let terms = successors(Some((0.0, 1.0, 0.0)), move |&(k, t1, t2)| {
+        Some((k + 1.0, next(k + 1.0, t1, t2), t1))
+    });
+    terms.map(|(_, t, _)| t)
+}
+
+/// `exp(l) sum` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, where `err` is the absolute
+/// error of `sum`
+fn gamma_series(num: &[Dd], den: &[Dd], (sum, err): (f64, f64), l: Dd) -> Option<Scaled> {
+    let y = Scaled::new(sum, 0, err / sum.abs())?.with_l(l);
+    mul_gamma_ratio(num, den, || Some(y))
+}
+
+/// The exponentially large part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.1, 16.11.7),
+/// with $\abs z^\nu$ instead of $z^\nu$:
+///
+/// $$
+/// {\Gamma(b_1) \Gamma(b_2) \over \Gamma(a_1) \Gamma(a_2)} e^z \abs z^\nu \sum_k c_k z^{-k},
+/// \qquad \nu = a_1 + a_2 - b_1 - b_2
+/// $$
+///
+/// By the differential equation (DLMF 16.8.3), $c_0 = 1$ and
+/// $k c_k = A_1 c_{k-1} + A_0 c_{k-2}$, with $s = \nu + 1 - k$ and
+///
+/// - $A_1 = 2 s^2 + (2 b_1 + 2 b_2 - a_1 - a_2 - 1) s + b_1 b_2 - a_1 a_2$,
+/// - $A_0 = (s + 1) (s + b_1) (s + b_2)$.
+fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
+    let nu = Dd::new(a[0]) + a[1] - b[0] - b[1];
+    let (sum_a, sum_b, dprod) = (a[0] + a[1], b[0] + b[1], b[0] * b[1] - a[0] * a[1]);
+    // the terms t_k = c_k z^-k
+    let terms = recurrence_terms(|k, t1, t2| {
+        let s = nu.hi + 1.0 - k;
+        let a1 = (2.0 * s + 2.0 * sum_b - sum_a - 1.0) * s + dprod;
+        let a0 = (s + 1.0) * (s + b[0]) * (s + b[1]);
+        (a1 * t1 + a0 / z * t2) / (k * z)
+    });
+    // (the factors of A_0 are negative from here on)
+    let settled = (nu.hi + 2.0 + b[0].max(b[1]).max(0.0)).max(0.0);
+    // (without small divisors, the terms don't grow again before `settled + |z|`)
+    let series = asymptotic_sum(terms, settled, z, |_| 0.0);
+    let l = nu * ln_dd(Dd::new(z.abs())) + z;
+    gamma_series(&b.map(Dd::new), &a.map(Dd::new), series, l)
+}
+
+/// The algebraic part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.2, 16.11.7), with
+/// $\abs z$ instead of $-z$, as its 2 terms, or `None` if $a_1 - a_2$ is an integer (unless
+/// $a_2 = b_2$)
+///
+/// The term of $a_m$ is $\abs z^{-a_m}$ times a $_3F_1$ series in $-1/z$, with the parameters
+/// $a_m$, $1 + a_m - b_1$, $1 + a_m - b_2$, and $1 + a_m - a_n$. It vanishes (as `None`) if
+/// $1 / \Gamma(b_j - a_m)$ does. If $a_2 = b_2$, they cancel, and only the term of $a_1$ is left.
+fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
+    let is_pole = |v: &Dd| v.hi <= 0.0 && v.is_integer();
+    let cancels = a[1] == b[1];
+    if !cancels && (Dd::new(a[1]) - a[0]).is_integer() {
+        return None;
+    }
+    let (b, ln_z) = (b.map(Dd::new), ln_dd(Dd::new(z.abs())));
+    let mut terms = [None; 2];
+    let count = if cancels { 1 } else { 2 };
+    for m in 0..count {
+        let (am, an) = (a[m], a[1 - m]);
+        let (bm, an_am) = (b.map(|bj| bj - am), Dd::new(an) - am);
+        let (num, den): (&[Dd], &[Dd]) = if cancels {
+            // Gamma(b_2) / Gamma(a_2) and Gamma(a_2 - a_1) / Gamma(b_2 - a_1) cancel
+            (&[b[0]], &[bm[0]])
+        } else {
+            (&[b[0], b[1], an_am], &[Dd::new(an), bm[0], bm[1]])
+        };
+        if den.iter().any(is_pole) {
+            continue;
+        }
+        let up = descending([am, 1.0 - bm[0].hi, 1.0 - bm[1].hi]);
+        let low = descending([1.0 + am - an, 1.0]);
+        let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n);
+        let series = once(1.0).chain(pfq_terms(&up, &low, -1.0 / z));
+        let sum = asymptotic_sum(series, pfq_settled(&up, &low), z, bound);
+        terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
+    }
+    Some(terms)
+}
+
+/// $_2F_2$ by its asymptotic expansion (DLMF 16.11.7), if its estimated relative error is at
+/// most `PFQ_TOL`
+///
+/// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
+/// $z < 0$. The size of the other part is added to the error.
+fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
+    // the algebraic part, `Some(None)` if it vanishes
+    let alg = |a| Some(add_exp(hyp2f2_alg(a, b, z)?.into_iter().flatten()));
+    let (y, other) = if z > 0.0 {
+        // (its size is continuous in a_1, also at an integer a_1 - a_2)
+        let nudged = [a[0] + f64::EPSILON.sqrt() * a[0].abs().max(1.0), a[1]];
+        (hyp2f2_exp(a, b, z)?, alg(a).or_else(|| alg(nudged))?)
+    } else {
+        (alg(a)??, Some(hyp2f2_exp(a, b, z)?))
+    };
+    let y = fold_exp(y);
+    let err = other.map(fold_exp).map_or(0.0, |v| {
+        let size = v.m.abs() * (1.0 + v.err) / y.m.abs();
+        ldexp_f64(size, v.e.saturating_sub(y.e))
+    });
+    // the result may overflow, but a subnormal one is not that accurate
+    let accurate = (y.err + err <= PFQ_TOL).then(|| ldexp_f64(y.m, y.e));
+    accurate.filter(|r| r.is_normal() || r.is_infinite())
+}
+
 /// Generalized hypergeometric function $_2F_2$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -646,15 +807,17 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
 /// As in [`hyp3f2`], an $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
 /// that the result is the $_1F_1$ of the other parameters (or $e^z$), and it is $+\infty$ if a
 /// $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if
-/// an argument is NaN.
+/// an argument is NaN, and overflows to $\pm\infty$ for large $z > 0$.
 ///
 /// # Returns `None`
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - for some $z < 0$, e.g. $z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$;
-/// - for large $z > 0$, and for some large parameters;
-/// - near a zero;
+/// - for some $z < 0$, e.g. $-50 < z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$, and wider for
+///   larger parameters;
+/// - for $z < 0$ beyond that if $a_1 - a_2$ is an integer (unless one of them cancels);
+/// - for some large parameters, also for $z > 0$;
+/// - near a zero, or if the result underflows;
 /// - if an argument is infinite.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
@@ -675,16 +838,25 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
     let (mut a, mut b) = ([a1, a2], [b1, b2]);
     // a common parameter cancels, also at a pole; it becomes a_2 = b_2 = 1, which cancels like
-    // the 1 of n! in the series
+    // the 1 of n! in the series, and which `hyp2f2_alg` recognizes
     let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
     if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
         (a, b) = ([a[1 - i], 1.0], [b[1 - j], 1.0]);
         if a[0] == b[0] {
-            return Some(z.exp());
+            // (not if it underflows, as in `hyp2f2_asymptotic`)
+            return Some(z.exp()).filter(|r| r.is_normal() || r.is_infinite());
         }
     }
-    if pfq_degree(&a, &b).is_none() {
+    let Some(degree) = pfq_degree(&a, &b) else {
         return Some(f64::INFINITY);
+    };
+    let series = || pfq_series_sorted(a, [b[0], b[1], 1.0], z);
+    let asymptotic = || hyp2f2_asymptotic(a, b, z);
+    if degree.is_finite() {
+        series()
+    } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
+        series().or_else(asymptotic)
+    } else {
+        asymptotic().or_else(series)
     }
-    pfq_series_sorted(a, [b[0], b[1], 1.0], z)
 }
