@@ -265,6 +265,12 @@
 //! | [`chdtri`]  | Inverse of [`chdtrc`]                                 |
 //! | [`chdtriv`] | Inverse of [`chdtr(v, x)`](chdtr) with respect to `v` |
 //!
+//! ## Noncentral chi square distribution
+//!
+//! | Function   | Description                      |
+//! | ---------- | -------------------------------- |
+//! | [`chndtr`] | Cumulative distribution function |
+//!
 //! ## Kolmogorov distribution
 //!
 //! | Function       | Description                      |
