@@ -7,6 +7,7 @@ mod diric;
 mod ellip_harm;
 mod ellip_harm_2;
 mod factorial;
+mod hahn;
 mod hypergeometric;
 mod logsumexp;
 mod ndtri_exp;

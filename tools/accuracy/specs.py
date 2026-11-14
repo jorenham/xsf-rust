@@ -1860,6 +1860,18 @@ def r_hermite_he(n, x):
         return 2 ** (-n / 2) * mp.hermite(n, x / mp.sqrt(2))
 
 
+def r_hahn_q(n, big_n, a, b, x):
+    """The terminating 3F2 sum (DLMF 18.20.5), in exact rational arithmetic."""
+    a, b, x = (flint.fmpq(*float(v).as_integer_ratio()) for v in (a, b, x))
+    n, big_n = int(n), int(big_n)
+    s = flint.fmpq(1)
+    for k in reversed(range(n)):
+        s = 1 + s * (k - n) * (n + a + b + 1 + k) * (k - x) / (
+            (a + 1 + k) * (k - big_n) * (k + 1)
+        )
+    return mp.mpf(int(s.p)) / int(s.q)
+
+
 # ---------------------------------------------------------------- Legendre functions
 
 
@@ -3370,6 +3382,43 @@ for f, r in [("eval_hermite_h", r_hermite_h), ("eval_hermite_he", r_hermite_he)]
         D(U(0, 50), U(-10, 10), cpp=False),
         note="zeros_c poly",
     )
+
+
+def hahn_domain(name: str, pretty: str, x: Callable[[Random, int], float]) -> Domain:
+    """N in {1, ..., 1000}, n in {0, ..., N}, alpha and beta in [-1, 100], and x(rng, N)."""
+
+    def sample(r: Random) -> tuple[float, ...]:
+        big_n = r.randint(1, 1000)
+        a, b = r.uniform(-1, 100), r.uniform(-1, 100)
+        return float(r.randint(0, big_n)), float(big_n), a, b, x(r, big_n)
+
+    return D(
+        sampler=sample,
+        label=f"N in {{1, ..., 1000}}, n in {{0, ..., N}}, alpha, beta in [-1, 100], x {name}",
+        pretty=f"{nobreak('N', IN, Int(1, 1000).pretty())}, "
+        + f"{nobreak('n', IN, f'{{0, {ELLIPSIS}, N}}')}, "
+        + f"{nobreak(GREEK['alpha'] + ',', GREEK['beta'], IN, U(-1, 100).pretty())}, "
+        + nobreak("x", IN, pretty),
+        n=2000,
+        cpp=False,
+    )
+
+
+add(
+    "hahn_q",
+    "n N alpha beta x",
+    r_hahn_q,
+    hahn_domain(
+        "in {0, ..., N}", f"{{0, {ELLIPSIS}, N}}", lambda r, m: float(r.randint(0, m))
+    ),
+    hahn_domain("in [0, N]", "[0, N]", lambda r, m: r.uniform(0, m)),
+    hahn_domain(
+        "in [-N, 0] or [N, 2N]",
+        f"[{MINUS}N, 0] \u222a [N, 2N]",
+        lambda r, m: r.uniform(-m, 0) if r.random() < 0.5 else r.uniform(m, 2 * m),
+    ),
+    note="zeros_c",
+)
 
 section("Hypergeometric functions")
 add("hyp0f0", "z", r_hyp0f0, D(U(-700, 700)), cpp=False)
