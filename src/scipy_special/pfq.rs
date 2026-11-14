@@ -784,19 +784,19 @@ fn shifted_lower(am: f64, v: f64) -> (f64, f64, f64) {
 }
 
 /// The algebraic part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.2, 16.11.7), with
-/// $\abs z$ instead of $-z$, as its 2 terms, or `None` if $a_1 - a_2$ is an integer (unless
+/// $\abs z$ instead of $-z$, as its 2 `terms`, or `None` if $a_1 - a_2$ is an integer (unless
 /// $a_2 = b_2$)
 ///
-/// The term of $a_m$ is $\abs z^{-a_m}$ times a $_3F_1$ series in $-1/z$, with the parameters
-/// $a_m$, $1 + a_m - b_1$, $1 + a_m - b_2$, and $1 + a_m - a_n$. It vanishes (as `None`) if
-/// $1 / \Gamma(b_j - a_m)$ does. If $a_2 = b_2$, they cancel, and only the term of $a_1$ is left.
-fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
+/// `b` contains the 1 of $n!$ as its last parameter. The term of $a_m$ is $\abs z^{-a_m}$ times
+/// a $_3F_1$ series in $-1/z$, with the parameters $a_m$, $1 + a_m - b_1$, $1 + a_m - b_2$, and
+/// $1 + a_m - a_n$. It stays `None` if it vanishes, where $1 / \Gamma(b_j - a_m)$ does. If
+/// $a_2 = b_2$, they cancel, and only the term of $a_1$ is left.
+fn hyp2f2_alg(a: &[f64; 2], b: &[f64; 3], z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
     let cancels = a[1] == b[1];
     if !cancels && (Dd::new(a[1]) - a[0]).is_integer() {
         return None;
     }
     let (b, ln_z) = (b.map(Dd::new), ln_dd(Dd::new(z.abs())));
-    let mut terms = [None; 2];
     let count = if cancels { 1 } else { 2 };
     for m in 0..count {
         let (am, an) = (a[m], a[1 - m]);
@@ -821,7 +821,7 @@ fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
         let (num, den) = (num.iter().copied(), den.iter().copied());
         terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
     }
-    Some(terms)
+    Some(())
 }
 
 /// $_2F_2$ by its asymptotic expansion (DLMF 16.11.7), if its estimated relative error is at
@@ -831,7 +831,11 @@ fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
 /// $z < 0$. The size of the other part is added to the error.
 fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
     // the algebraic part, `Some(None)` if it vanishes
-    let alg = |a| Some(add_exp(hyp2f2_alg(a, b, z)?.into_iter().flatten()));
+    let alg = |a| {
+        let mut terms = [None; 2];
+        hyp2f2_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
+        Some(add_exp(terms.into_iter().flatten()))
+    };
     let (y, other) = if z > 0.0 {
         // (its size is continuous in a_1, also at an integer a_1 - a_2)
         let nudged = [a[0] + f64::EPSILON.sqrt() * a[0].abs().max(1.0), a[1]];
