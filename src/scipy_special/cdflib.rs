@@ -202,6 +202,31 @@ pub fn btdtrib(a: f64, p: f64, x: f64) -> f64 {
     })
 }
 
+/// Inverse of [`chdtr`](crate::chdtr) with respect to `v`
+///
+/// Corresponds to [`scipy.special.chdtriv`][chdtriv].
+///
+/// [chdtriv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtriv.html
+///
+/// # See also
+/// - [`chdtr`](crate::chdtr): Chi-squared distribution function
+/// - [`chdtri`](crate::chdtri): Inverse of [`chdtrc`](crate::chdtrc) with respect to `x`
+/// - [`gdtrib`](crate::gdtrib): Inverse of [`gdtr`](crate::gdtr) with respect to `b`
+#[must_use]
+pub fn chdtriv(p: f64, x: f64) -> f64 {
+    if !(x > 0.0) {
+        return f64::NAN;
+    }
+    // chdtr(v, x) = gdtr(1/2, v/2, x) decreases from 1 at v = 0 to 0 at v = inf, also if x = inf
+    limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
+        // as in SciPy, NaN if x/2 underflows to 0, where the CDF would be 0 for all v
+        if 0.5 * x == 0.0 {
+            return f64::NAN;
+        }
+        2.0 * crate::gdtrib(0.5, p, x)
+    })
+}
+
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
 /// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
 fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {

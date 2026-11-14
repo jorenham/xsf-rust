@@ -98,6 +98,27 @@ fn test_btdtria_btdtrib() {
 }
 
 #[test]
+fn test_chdtriv() {
+    for (v, x) in [(0.5, 0.1), (1.0, 1.0), (3.0, 10.0), (100.0, 80.0)] {
+        let p = xsf::chdtr(v, x);
+        np_assert_allclose!([xsf::chdtriv(p, x)], [v], rtol = 1e-13);
+    }
+    // `test_chdtriv_p_equals_1_returns_0` in scipy/special/tests/test_cdflib.py
+    assert_eq!(xsf::chdtriv(1.0, 0.1), 0.0);
+    assert_eq!(xsf::chdtriv(1.0, 100.0), 0.0);
+    assert_eq!(xsf::chdtriv(0.0, 1.0), f64::INFINITY);
+    assert!(xsf::chdtriv(0.5, f64::INFINITY).is_nan());
+    assert!(xsf::chdtriv(0.5, 0.0).is_nan());
+    // the smallest subnormal, which `x/2` loses, and the next one, with a root from mpmath
+    assert!(xsf::chdtriv(0.5, f64::from_bits(1)).is_nan());
+    np_assert_allclose!(
+        [xsf::chdtriv(0.5, f64::from_bits(2))],
+        [0.001_863_640_484_035_382_4],
+        rtol = 1e-13
+    );
+}
+
+#[test]
 fn test_fdtridfd() {
     for dfd in [0.5, 1.0, 2.0, 3.0, 100.0] {
         let p = xsf::fdtr(2.0, dfd, 15.0);

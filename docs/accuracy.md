@@ -479,6 +479,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>chdtrc</code></td><td>v, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>1.7e-13</samp></td><td align="right" nowrap><b><samp>7.8e-15</samp></b></td><td align="right" nowrap><samp>1.7e-13</samp></td><td align="right" nowrap><samp>8.8e-15</samp></td><td align="right" nowrap>61.2%</td></tr>
 <tr><td><code>chdtrc</code></td><td>v ∈ [10, 10⁸] (log)<br>x ∈ v ± 6√(2v)</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>1.4e-13</samp></b></td><td align="right" nowrap><b><samp>6.3e-15</samp></b></td><td align="right" nowrap><samp>7.7e-07</samp></td><td align="right" nowrap><samp>2.6e-08</samp></td><td align="right" nowrap>79.0%</td></tr>
 <tr><td><code>chdtri</code><sup>*</sup></td><td>v ∈ [10⁻³, 1000] (log)<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>2.4e-13</samp></b></td><td align="right" nowrap><b><samp>1.8e-14</samp></b></td><td align="right" nowrap><samp>7.2e-13</samp></td><td align="right" nowrap><samp>5.4e-14</samp></td><td align="right" nowrap>61.0%</td></tr>
+<tr><td><code>chdtriv</code><sup>*</sup></td><td>p ∈ [0, 1]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>4.7e-15</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
