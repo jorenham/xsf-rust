@@ -11,7 +11,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, mul_exp, pow2};
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
@@ -73,9 +73,15 @@ fn rescale_term<T: Copy + Default + Mul<f64, Output = T>>(
     }
 }
 
+/// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 are 0, as for `a = 0, -1, ...`, where it is a
+/// polynomial of degree `-a`
+fn series_ended(a: f64, n: f64) -> bool {
+    is_nonpos_int(a) && n >= -a
+}
+
 /// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 after a negligible `t_n` are negligible: if
-/// they can't grow again (see `term_ratio`), or, for non-integer `b < 0` where they can near
-/// `m = -b`, if they sum to at most `2 |t_n|`.
+/// they are 0 (see `series_ended`) or can't grow again (see `term_ratio`), or, for non-integer
+/// `b < 0` where they can near `m = -b`, if they sum to at most `2 |t_n|`.
 ///
 /// Since `|a + m| <= |b + m| + d` with `d = |a - b|`, `|t_m+1 / t_m| <= s = 2 |z| / (n + 1)` if
 /// `|b + m| >= d`. So if `s <= 1/2`, they only grow for the (at most `2d + 2`) `m` with
@@ -97,7 +103,8 @@ fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
     let h = c(n.max(-b - 2.0 * c(n) * abs_z)) * abs_z;
     let k_h = (-b - 2.0 * h).ceil() - n;
     let growth_h = (4.0 * h + 4.0).ln() + 2.0 * h + 2.0 * (2.0 * h / e).ln_1p();
-    term_ratio(a, b, abs_z, n).is_some()
+    series_ended(a, n)
+        || term_ratio(a, b, abs_z, n).is_some()
         || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
         || (k_h > 0.0 && k_h * LN_2 >= growth_h)
 }
@@ -686,33 +693,36 @@ impl KummerSum {
 fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
     let mut hg = 1.0;
     let mut rg = 1.0;
+    // the term `rg` as scaled `k` times by `rescale_term`
+    let (mut t, mut k) = (1.0, 0);
     let mut rs = 1.0;
     let mut converged = false;
     let mut terms = 0;
     let mut last_finite = 0;
     for j in 1..=max_terms {
         terms = j;
-        rg = kummer_term(rg, a, b, j) * x;
+        (t, rg, _) = rescale_term(kummer_term(t, a, b, j) * x, f64::abs, &mut k);
         hg += rg;
         if hg.is_finite() {
             last_finite = j;
         }
         rs += rg.abs();
+        let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
+        let ended = || series_ended(a, f64::from(j));
         // Unlike in xsf (scipy/xsf#454), not if the terms can grow again (see `term_ratio`),
-        // nor (see below) if they underflow to 0 after 500 terms
+        // unless they are 0: all that follow (see `series_ended`), or within 500 terms exactly
+        // (`t == 0`) or else with a negligible rest
         if (hg != 0.0)
             && ((rg / hg).abs() < 1e-15)
-            && ((rg == 0.0 && j <= 500) || term_ratio(a, b, x, f64::from(j)).is_some())
+            && ((rg == 0.0 && (ended() || j <= 500 && (t == 0.0 || rest_negligible())))
+                || term_ratio(a, b, x, f64::from(j)).is_some())
         {
             converged = true;
             break;
         }
         // Unlike in xsf (scipy/xsf#365), for non-integer b < 0 (`max_terms > 500`) the sum goes on
         // after 500 terms until the rest is negligible
-        let rest_negligible = || rest_is_negligible(a, b, x, f64::from(j));
-        if j >= 500
-            && (!hg.is_finite() || KummerSum::negligible(rg, hg) && (j == 500 || rest_negligible()))
-        {
+        if j >= 500 && (!hg.is_finite() || KummerSum::negligible(rg, hg) && rest_negligible()) {
             break;
         }
     }
@@ -789,8 +799,8 @@ fn chgm_fallback(
 /// 7. No recurrence in `a` over 10^6 steps, nor for the series with non-integer `b < 0`, but that
 ///    series at `a` itself, or the one at `x0 < 0`, if accurate, or else an overflow (see below), 0
 ///    or NaN (scipy/xsf#365).
-/// 8. A negligible nonzero term only marks convergence if the terms can't grow again
-///    (scipy/xsf#454).
+/// 8. The terms don't underflow (see `rescale_term`, scipy/xsf#544), and a negligible nonzero term
+///    only marks convergence if they can't grow again (scipy/xsf#454).
 /// 9. Non-integer `b < 0`: up to 100000 terms, until the rest is negligible (scipy/xsf#365).
 /// 10. An unconverged sum is scaled by `e^x0` (DLMF 13.2.39) too, and past 500 terms with
 ///     `mul_exp` for `x0 <= -700` (scipy/xsf#365).
