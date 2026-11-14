@@ -252,6 +252,12 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("hyp1f1", &[a, b, x]) => xsf::hyp1f1(a, b, x),
         ("hypu", &[a, b, x]) => xsf::hypu(a, b, x),
         ("hyp2f1", &[a, b, c, x]) => xsf::hyp2f1(a, b, c, x),
+        // NaN for `None`
+        ("hyp3f2", &[a1, a2, a3, b1, b2, z]) => {
+            xsf::hyp3f2(a1, a2, a3, b1, b2, z).unwrap_or(f64::NAN)
+        },
+        ("hyp2f2", &[a1, a2, b1, b2, z]) => xsf::hyp2f2(a1, a2, b1, b2, z).unwrap_or(f64::NAN),
+        ("hyp1f2", &[a, b1, b2, z]) => xsf::hyp1f2(a, b1, b2, z).unwrap_or(f64::NAN),
         _ => return eval_xsf_3(f, a),
     })
 }
