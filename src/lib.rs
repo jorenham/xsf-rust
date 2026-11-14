@@ -156,11 +156,20 @@
 //!
 //! ## F distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`fdtr`]  | Cumulative distribution function |
-//! | [`fdtrc`] | Complement of [`fdtr`]           |
-//! | [`fdtri`] | Inverse of [`fdtr`]              |
+//! | Function     | Description                                            |
+//! | ------------ | ------------------------------------------------------ |
+//! | [`fdtr`]     | Cumulative distribution function                       |
+//! | [`fdtrc`]    | Complement of [`fdtr`]                                 |
+//! | [`fdtri`]    | Inverse of [`fdtr`]                                    |
+//! | [`fdtridfd`] | Inverse of [`fdtr(a, b, x)`](fdtr) with respect to `b` |
+//!
+//! ## Noncentral F distribution
+//!
+//! | Function       | Description                              |
+//! | -------------- | ---------------------------------------- |
+//! | [`ncfdtridfd`] | Inverse of the CDF with respect to `dfd` |
+//! | [`ncfdtridfn`] | Inverse of the CDF with respect to `dfn` |
+//! | [`ncfdtrinc`]  | Inverse of the CDF with respect to `nc`  |
 //!
 //! ## Gamma distribution
 //!
@@ -194,6 +203,13 @@
 //! | [`nbdtrc`] | Complement of [`nbdtr`]          |
 //! | [`nbdtri`] | Inverse of [`nbdtr`]             |
 //!
+//! ## Noncentral t distribution
+//!
+//! | Function      | Description                             |
+//! | ------------- | --------------------------------------- |
+//! | [`nctdtridf`] | Inverse of the CDF with respect to `df` |
+//! | [`nctdtrinc`] | Inverse of the CDF with respect to `nc` |
+//!
 //! ## Normal distribution
 //!
 //! | Function      | Description                      |
@@ -222,10 +238,11 @@
 //!
 //! ## Student's t distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`stdtr`]  | Cumulative distribution function |
-//! | [`stdtri`] | Inverse of [`stdtr`]             |
+//! | Function     | Description                                             |
+//! | ------------ | ------------------------------------------------------- |
+//! | [`stdtr`]    | Cumulative distribution function                        |
+//! | [`stdtri`]   | Inverse of [`stdtr`]                                    |
+//! | [`stdtridf`] | Inverse of [`stdtr(nu, x)`](stdtr) with respect to `nu` |
 //!
 //! ## Chi square distribution
 //!

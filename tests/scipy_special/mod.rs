@@ -1,6 +1,7 @@
 mod agm;
 mod bessel_prime;
 mod boxcox;
+mod cdflib;
 mod comb;
 mod convex_analysis;
 mod diric;
