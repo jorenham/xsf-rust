@@ -296,6 +296,9 @@ fn poisson_weight(k: f64, lambda: f64) -> f64 {
 ///
 /// # See also
 /// - [`chdtr`](crate::chdtr): CDF of the (central) chi-square distribution
+/// - [`chndtrix`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
 #[must_use]
 pub fn chndtr(x: f64, df: f64, nc: f64) -> f64 {
     // the edge cases of SciPy
@@ -317,6 +320,66 @@ pub fn chndtr(x: f64, df: f64, nc: f64) -> f64 {
         // the rounding of the sum can exceed 1
         cumchn(x, df, nc).min(1.0)
     }
+}
+
+/// Inverse of [`chndtr`] with respect to `x`
+///
+/// Corresponds to [`scipy.special.chndtrix`][chndtrix].
+///
+/// [chndtrix]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtrix.html
+///
+/// # See also
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
+#[must_use]
+pub fn chndtrix(p: f64, df: f64, nc: f64) -> f64 {
+    if !(0.0..=1.0).contains(&p) || !(df > 0.0) || df.is_infinite() || !(0.0..=NC_MAX).contains(&nc)
+    {
+        return f64::NAN;
+    }
+    limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
+        find_positive_root(|x| cumchn(x, df, nc) - p, f64::MIN_POSITIVE, f64::MAX, true)
+    })
+}
+
+/// Inverse of [`chndtr`] with respect to `df`
+///
+/// Corresponds to [`scipy.special.chndtridf`][chndtridf].
+///
+/// [chndtridf]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtridf.html
+///
+/// # See also
+/// - [`chndtrix`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtrinc`]: Inverse of [`chndtr`] with respect to `nc`
+#[must_use]
+pub fn chndtridf(x: f64, p: f64, nc: f64) -> f64 {
+    if !(x > 0.0) || x.is_infinite() || !(0.0..=1.0).contains(&p) || !(0.0..=NC_MAX).contains(&nc) {
+        return f64::NAN;
+    }
+    // the CDF decreases in df
+    limit_if_p_is_0_or_1(p, false)
+        .unwrap_or_else(|| find_df_root(|df| cumchn(x, df, nc) - p, false))
+}
+
+/// Inverse of [`chndtr`] with respect to `nc`
+///
+/// Corresponds to [`scipy.special.chndtrinc`][chndtrinc].
+///
+/// [chndtrinc]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chndtrinc.html
+///
+/// # See also
+/// - [`chndtrix`]: Inverse of [`chndtr`] with respect to `x`
+/// - [`chndtridf`]: Inverse of [`chndtr`] with respect to `df`
+#[must_use]
+pub fn chndtrinc(x: f64, df: f64, p: f64) -> f64 {
+    if !(x > 0.0) || x.is_infinite() || !(df > 0.0) || df.is_infinite() || !(0.0..=1.0).contains(&p)
+    {
+        return f64::NAN;
+    }
+    // the CDF decreases in nc, from chdtr(df, x) at nc = 0
+    limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
+        find_positive_root(|nc| cumchn(x, df, nc) - p, f64::MIN_POSITIVE, NC_MAX, false)
+    })
 }
 
 /// CDF of the noncentral chi-square distribution, from cdflib's `cumchn`.

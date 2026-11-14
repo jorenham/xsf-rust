@@ -17,12 +17,11 @@ of 353 functions whose algorithm isn't in xsf.
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `chndtr`                                | Boost                  | same                       |
+| `chndtr`, `chndtrix`                    | Boost                  | same                       |
+| `chndtridf`, `chndtrinc`                | Boost                  | same                       |
 | `bdtrik`, `bdtrin`                      | Boost                  |                            |
 | `btdtria`, `btdtrib`                    | Boost                  |                            |
 | `chdtriv`                               | Boost                  |                            |
-| `chndtrix`                              | Boost                  |                            |
-| `chndtridf`, `chndtrinc`                | Boost                  |                            |
 | `nbdtrik`, `nbdtrin`                    | Boost                  |                            |
 | `ncfdtr`, `ncfdtri`                     | Boost                  |                            |
 | `nctdtr`, `nctdtrit`                    | Boost                  |                            |

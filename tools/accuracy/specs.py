@@ -2086,6 +2086,25 @@ def r_chndtr(x, v, nc):
     return _converged(_chndtr_series, x, v, nc)
 
 
+def r_chndtrix(p, v, nc):
+    # x such that chndtr(x, v, nc) = p
+    return _invert_pos(lambda x: _chndtr_series(x, v, nc), p, v + nc)
+
+
+def r_chndtridf(x, p, nc):
+    # v such that chndtr(x, v, nc) = p
+    return _invert_pos(
+        lambda v: _chndtr_series(x, v, nc), p, max(x - nc, 1), decreasing=True
+    )
+
+
+def r_chndtrinc(x, v, p):
+    # nc such that chndtr(x, v, nc) = p
+    return _invert_pos(
+        lambda nc: _chndtr_series(x, v, nc), p, max(x - v, 1), decreasing=True
+    )
+
+
 def r_fdtri(a, b, y):
     # x such that fdtr(a, b, x) = y
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
@@ -3070,6 +3089,65 @@ add(
     cpp=False,
     timeout=120,
     note="ncx2",
+)
+
+
+def chndtridf_args(r: Random) -> tuple[float, float, float]:
+    """(x, p, nc) with x in [1e-3, 1e3], nc in [1e-3, 30] (log), and p in [0, exp(-nc / 2)],
+    below the CDF at df = 0, so that there is a root."""
+    x, nc = 10 ** r.uniform(-3, 3), 10 ** r.uniform(-3, math.log10(30))
+    return x, r.uniform(0, 1) * math.exp(-nc / 2), nc
+
+
+def chndtrinc_args(r: Random) -> tuple[float, float, float]:
+    """(x, v, p) with x, v in [1e-3, 1e3] (log), and p in (0, chdtr(v, x)], below the CDF at
+    nc = 0, so that there is a finite root."""
+    while True:
+        x, v = 10 ** r.uniform(-3, 3), 10 ** r.uniform(-3, 3)
+        p = r.uniform(0, 1) * float(mp.gammainc(v / 2, 0, x / 2, regularized=True))
+        if p > 0:
+            return x, v, p
+
+
+add(
+    "chndtrix",
+    "p v nc",
+    r_chndtrix,
+    D(U(0, 1), LU(1e-3, 1e3), LU(1e-3, 1e3), n=500),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "chndtridf",
+    "x p nc",
+    r_chndtridf,
+    D(
+        sampler=chndtridf_args,
+        label="x in [1e-3, 1e3], nc in [1e-3, 30] (log), p in [0, exp(-nc/2)]",
+        pretty=f"{nobreak('x', IN, LU(1e-3, 1e3).pretty())}, "
+        + f"{nobreak('nc', IN, LU(1e-3, 30).pretty())} (log), "
+        + nobreak("p", IN, "[0, e^(\u2212nc/2)]"),
+        n=500,
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "chndtrinc",
+    "x v p",
+    r_chndtrinc,
+    D(
+        sampler=chndtrinc_args,
+        label="x, v in [1e-3, 1e3] (log), p in (0, chdtr(v, x)]",
+        pretty=f"{nobreak('x, v', IN, LU(1e-3, 1e3).pretty())} (log), "
+        + nobreak("p", IN, "(0, chdtr(v, x)]"),
+        n=500,
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv",
 )
 
 section("Kolmogorov distribution", 3)
