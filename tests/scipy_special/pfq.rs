@@ -405,6 +405,20 @@ fn test_hyp1f2_special() {
 }
 
 #[test]
+fn test_hyp1f2_asymptotic() {
+    // Arb references, without an algebraic part
+    for (a, b, z, expected) in [
+        (2.5, [1.5, 4.0], -500.0, -0.000_951_630_992_123_725_2),
+        (3.5, [3.5, 4.0], -1000.0, 5.674_432_067_916_389e-6),
+    ] {
+        assert_hyp1f2(a, b, z, expected);
+    }
+    // overflow
+    assert_eq!(hyp1f2(1.5, 0.5, 3.5, 2e5), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), Some(f64::NEG_INFINITY));
+}
+
+#[test]
 fn test_hyp1f2_none() {
     // the series cancels too much
     assert_eq!(hyp1f2(1.5, 2.25, 3.5, -2000.0), None);
