@@ -4139,20 +4139,20 @@ add(
 NOTES = {
     "zeros_c": "Ill-conditioned near the zeros.",
     "zeros": "Ill-conditioned near the zeros, where the largest errors are.",
-    "osc": f"For x > |v|: A = {SQRT}(J\u1d65(x)\u00b2 + Y\u1d65(x)\u00b2).",
+    "osc": r"For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.",
     "neg": (
-        f"Ill-conditioned for negative non-integer a with large |a|, and near the poles of "
-        f"{GAMMA}(a + b) (or {GAMMA}(a + m)), where the largest errors are."
+        r"Ill-conditioned for negative non-integer $`a`$ with large $`\lvert a\rvert`$, and near the "
+        r"poles of $`\Gamma(a + b)`$ (or $`\Gamma(a + m)`$), where the largest errors are."
     ),
     "osc_hyp0f1": (
-        f"For z < 0 with x = 2{SQRT}{MINUS}z > |b {MINUS} 1|: A = |{GAMMA}(b)| (x/2)^(1 {MINUS} b) "
-        f"{SQRT}(J_(b{MINUS}1)(x)\u00b2 + Y_(b{MINUS}1)(x)\u00b2)."
+        r"For $`z < 0`$ with $`x = 2\sqrt{-z} > \lvert b - 1\rvert`$: "
+        r"$`A = \lvert\Gamma(b)\rvert (x/2)^{1-b} \sqrt{J_{b-1}(x)^2 + Y_{b-1}(x)^2}`$."
     ),
-    "beta_dist": f"{MU} = a / (a + b), {SIGMA}\u00b2 = {MU}(1 {MINUS} {MU}) / (a + b + 1).",
-    "ncx2": f"{MU} = v + nc, {SIGMA}\u00b2 = 2(v + 2nc).",
+    "beta_dist": r"$`\mu = a / (a + b)`$, $`\sigma^2 = \mu(1 - \mu) / (a + b + 1)`$.",
+    "ncx2": r"$`\mu = v + \mathrm{nc}`$, $`\sigma^2 = 2(v + 2\,\mathrm{nc})`$.",
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
-        "error of about 10\u207b\u00b9\u00b3."
+        "error of about $`10^{-13}`$."
     ),
 }
 
@@ -4162,20 +4162,26 @@ NOTES |= {
         "function is flat, e.g. in its tails."
     ),
     "osc_sph": (
-        f"For x > n + {HALF}: A = {SQRT}(\u03c0/(2x)) {SQRT}(J_(n+{HALF})(x)\u00b2 + "
-        f"Y_(n+{HALF})(x)\u00b2)."
+        r"For $`x > n + 1/2`$: "
+        r"$`A = \sqrt{\pi/(2x)}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$."
     ),
-    "osc_c": f"A = {SQRT}(|J\u1d65(z)|\u00b2 + |Y\u1d65(z)|\u00b2).",
-    "kelvin": "A = the modulus of the complex function, e.g. |ber x + i bei x| for `ber` and `bei`.",
+    "osc_c": r"$`A = \sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$.",
+    "kelvin": (
+        r"$`A`$ = the modulus of the complex function, "
+        r"e.g. $`\lvert\mathrm{ber}\,x + i\,\mathrm{bei}\,x\rvert`$ for `ber` and `bei`."
+    ),
     "airy": (
-        f"For x < 0: A = {SQRT}(Ai(x)\u00b2 + Bi(x)\u00b2), or {SQRT}(Ai\u2032(x)\u00b2 + "
-        "Bi\u2032(x)\u00b2) for the derivatives."
+        r"For $`x < 0`$: $`A = \sqrt{\mathrm{Ai}(x)^2 + \mathrm{Bi}(x)^2}`$, "
+        r"or $`\sqrt{\mathrm{Ai}'(x)^2 + \mathrm{Bi}'(x)^2}`$ for the derivatives."
     ),
-    "binom_dist": f"{SIGMA}\u00b2 = np(1 {MINUS} p).",
-    "tvn": "With `epsi` = 10\u207b\u00b9\u2074, its lower bound.",
-    "abs": "Absolute error ~10\u207b\u00b9\u2076 at best, so the relative error is large for tiny probabilities.",
+    "binom_dist": r"$`\sigma^2 = np(1 - p)`$.",
+    "tvn": "With `epsi` = $`10^{-14}`$, its lower bound.",
+    "abs": (
+        r"Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny "
+        "probabilities."
+    ),
     "poly": (
-        f"Rows with n \u2208 {{{ELLIPSIS}}} use an integer degree (`i32`, or `u32` for Hermite), "
+        r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
     ),
 }

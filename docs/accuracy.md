@@ -5,13 +5,13 @@ it is translated from (commit [`370171f`](https://github.com/scipy/xsf/tree/3701
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
-- **inf (k)**: k infinite errors, e.g. NaN, or a spurious overflow
+- **inf (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
 - **bold**: the smallest peak or rms of a row (if unique at the displayed precision)
 - **—**: not in xsf (mostly SciPy's Cython or Python code)
 - **bit-identical**: the share of inputs where xsf-rust and xsf return the same f64
-- **(log)**: sampled log-uniformly; **±**: with a random sign
+- **(log)**: sampled log-uniformly; **$`\pm`$**: with a random sign
 
-For reference, ε = 2.2e-16. See [Method](#method) for the details.
+For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 ## Airy functions
 
@@ -48,7 +48,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x < 0: A = √(Ai(x)² + Bi(x)²), or √(Ai′(x)² + Bi′(x)²) for the derivatives.
+<sup>*</sup> For $`x < 0`$: $`A = \sqrt{\mathrm{Ai}(x)^2 + \mathrm{Bi}(x)^2}`$, or $`\sqrt{\mathrm{Ai}'(x)^2 + \mathrm{Bi}'(x)^2}`$ for the derivatives.
 
 <sup>†</sup> Ill-conditioned near the zeros.
 
@@ -139,9 +139,9 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x > |v|: A = √(Jᵥ(x)² + Yᵥ(x)²).
+<sup>*</sup> For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.
 
-<sup>†</sup> A = √(|Jᵥ(z)|² + |Yᵥ(z)|²).
+<sup>†</sup> $`A = \sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$.
 
 <sup>‡</sup> Ill-conditioned near the zeros.
 
@@ -182,7 +182,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x > |v|: A = √(Jᵥ(x)² + Yᵥ(x)²).
+<sup>*</sup> For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.
 
 ### Integrals of Bessel functions
 
@@ -231,7 +231,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x > |v|: A = √(Jᵥ(x)² + Yᵥ(x)²).
+<sup>*</sup> For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.
 
 ### Spherical Bessel functions
 
@@ -260,7 +260,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x > n + ½: A = √(π/(2x)) √(J_(n+½)(x)² + Y_(n+½)(x)²).
+<sup>*</sup> For $`x > n + 1/2`$: $`A = \sqrt{\pi/(2x)}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$.
 
 ## Struve functions
 
@@ -282,7 +282,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For x > |v|: A = √(Jᵥ(x)² + Yᵥ(x)²).
+<sup>*</sup> For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.
 
 ## Raw statistical functions
 
@@ -304,7 +304,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> σ² = np(1 − p).
+<sup>*</sup> $`\sigma^2 = np(1 - p)`$.
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
@@ -532,7 +532,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> μ = v + nc, σ² = 2(v + 2nc).
+<sup>*</sup> $`\mu = v + \mathrm{nc}`$, $`\sigma^2 = 2(v + 2\,\mathrm{nc})`$.
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
@@ -644,9 +644,9 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> With `epsi` = 10⁻¹⁴, its lower bound.
+<sup>*</sup> With `epsi` = $`10^{-14}`$, its lower bound.
 
-<sup>†</sup> Absolute error ~10⁻¹⁶ at best, so the relative error is large for tiny probabilities.
+<sup>†</sup> Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny probabilities.
 
 ### Miscellaneous
 
@@ -754,11 +754,11 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Ill-conditioned near the zeros, where the largest errors are.
 
-<sup>†</sup> Ill-conditioned for negative non-integer a with large |a|, and near the poles of Γ(a + b) (or Γ(a + m)), where the largest errors are.
+<sup>†</sup> Ill-conditioned for negative non-integer $`a`$ with large $`\lvert a\rvert`$, and near the poles of $`\Gamma(a + b)`$ (or $`\Gamma(a + m)`$), where the largest errors are.
 
 <sup>‡</sup> Ill-conditioned near the zeros.
 
-<sup>§</sup> μ = a / (a + b), σ² = μ(1 − μ) / (a + b + 1).
+<sup>§</sup> $`\mu = a / (a + b)`$, $`\sigma^2 = \mu(1 - \mu) / (a + b + 1)`$.
 
 <sup>‖</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
@@ -872,7 +872,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Ill-conditioned near the zeros.
 
-<sup>†</sup> Rows with n ∈ {…} use an integer degree (`i32`, or `u32` for Hermite), the others an `f64` degree.
+<sup>†</sup> Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), the others an `f64` degree.
 
 ## Hypergeometric functions
 
@@ -908,11 +908,11 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> For z < 0 with x = 2√−z > |b − 1|: A = |Γ(b)| (x/2)^(1 − b) √(J_(b−1)(x)² + Y_(b−1)(x)²).
+<sup>*</sup> For $`z < 0`$ with $`x = 2\sqrt{-z} > \lvert b - 1\rvert`$: $`A = \lvert\Gamma(b)\rvert (x/2)^{1-b} \sqrt{J_{b-1}(x)^2 + Y_{b-1}(x)^2}`$.
 
 <sup>†</sup> Ill-conditioned near the zeros.
 
-<sup>‡</sup> inf (k) counts the `None` results, where it cannot compute the result to a relative error of about 10⁻¹³.
+<sup>‡</sup> inf (k) counts the `None` results, where it cannot compute the result to a relative error of about $`10^{-13}`$.
 
 ## Parabolic cylinder functions
 
@@ -964,7 +964,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> A = the modulus of the complex function, e.g. |ber x + i bei x| for `ber` and `bei`.
+<sup>*</sup> $`A`$ = the modulus of the complex function, e.g. $`\lvert\mathrm{ber}\,x + i\,\mathrm{bei}\,x\rvert`$ for `ber` and `bei`.
 
 ## Combinatorics
 
@@ -1152,14 +1152,14 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 ## Method
 
-- Each domain has N seeded pseudo-random f64 inputs, uniform unless marked "(log)".
-- The reference f is computed with mpmath 1.4.1 at 50 or more digits, for the exact f64
+- Each domain has $`N`$ seeded pseudo-random f64 inputs, uniform unless marked "(log)".
+- The reference $`f`$ is computed with mpmath 1.4.1 at 50 or more digits, for the exact f64
   input, or with an alternative formula where mpmath is inaccurate (see
   `tools/accuracy/specs.py`).
-- The error of y is |y − f| / |f| (of the complex values, for complex functions). Where
-  a function oscillates, it is the smaller of that and |y − f| / A, with the local
-  amplitude A given below the table. A result is exact if both overflow to the same infinity,
-  or both underflow (|f| < 2.2e-308).
+- The error of $`y`$ is $`\lvert y - f\rvert / \lvert f\rvert`$ (of the complex values, for complex functions). Where
+  a function oscillates, it is the smaller of that and $`\lvert y - f\rvert / A`$, with the local
+  amplitude $`A`$ given below the table. A result is exact if both overflow to the same infinity,
+  or both underflow ($`\lvert f\rvert`$ < 2.2e-308).
 - bit-identical is rounded down, and counts any two NaNs as equal.
 - Built on x86_64 Linux: xsf-rust with `rustc 1.99.1 (58cf8f9c3 2026-10-13)` (release profile), xsf with `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`
   (`-O2 -std=c++17`).
