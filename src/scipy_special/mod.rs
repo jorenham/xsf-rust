@@ -55,7 +55,7 @@ pub use orthogonal_roots::{
     roots_sh_legendre,
 };
 pub use perm::perm;
-pub use pfq::{hyp2f2, hyp3f2};
+pub use pfq::{hyp1f2, hyp2f2, hyp3f2};
 pub use polygamma::polygamma;
 pub use powm1::powm1;
 pub use softplus::softplus;

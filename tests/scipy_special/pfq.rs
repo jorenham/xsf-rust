@@ -1,5 +1,5 @@
 use core::f64::consts::PI;
-use xsf::{hyp2f1, hyp2f2, hyp3f2};
+use xsf::{hyp1f2, hyp2f1, hyp2f2, hyp3f2};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
@@ -346,4 +346,66 @@ fn test_hyp2f2_none() {
     // the result underflows
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), None);
     assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0), None);
+}
+
+/// Asserts that `hyp1f2` is within a relative error of `1e-13` of `expected`
+fn assert_hyp1f2(a: f64, b: [f64; 2], z: f64, expected: f64) {
+    let actual = hyp1f2(a, b[0], b[1], z).unwrap();
+    assert!(
+        (actual - expected).abs() <= 1e-13 * expected.abs(),
+        "hyp1f2({a}, {b:?}, {z}) = {actual} != {expected}"
+    );
+}
+
+#[test]
+fn test_hyp1f2_series() {
+    // Arb references
+    for (a, b, z, expected) in [
+        // Si(4) / 4
+        (0.5, [1.5, 1.5], -4.0, 0.439_550_784_737_263_3),
+        (-0.3, [0.7, -3.4], 6.0, -1.790_186_724_968_910_7),
+        (2.5, [3.25, 0.75], 400.0, 7_318_534_180_885_220.0),
+        // in double-double
+        (1.0, [1.5, 2.5], -30.0, 0.031_954_931_160_083_2),
+        (1.5, [2.25, 3.5], -200.0, 0.000_984_924_460_046_181_6),
+        (0.25, [-2.5, 4.75], -60.0, 0.588_049_559_007_606_4),
+    ] {
+        assert_hyp1f2(a, b, z, expected);
+    }
+}
+
+#[test]
+fn test_hyp1f2_polynomial() {
+    // Arb references
+    for (a, b, z, expected) in [
+        (-4.0, [0.75, -6.5], 12.5, 47.894_455_552_464_21),
+        (-25.0, [30.25, 1.5], -300.0, 2_757_805_550.158_651_4),
+        // terminates before the zero of (b_1)_n
+        (-3.0, [-5.0, 2.5], -40.0, -8.261_375_661_375_661),
+    ] {
+        assert_hyp1f2(a, b, z, expected);
+    }
+}
+
+#[test]
+fn test_hyp1f2_special() {
+    assert_eq!(hyp1f2(1.5, 3.5, 4.5, 0.0), Some(1.0));
+    assert!(hyp1f2(f64::NAN, 3.5, 4.5, 0.25).unwrap().is_nan());
+    assert!(hyp1f2(1.5, 3.5, 4.5, f64::NAN).unwrap().is_nan());
+    assert_eq!(hyp1f2(1.5, f64::INFINITY, 4.5, 0.25), None);
+    assert_eq!(hyp1f2(1.5, 3.5, 4.5, f64::NEG_INFINITY), None);
+
+    // a zero of (b_2)_n, also if the polynomial terminates after it
+    assert_eq!(hyp1f2(1.5, 3.5, -2.0, 0.25), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(-3.0, 3.5, -2.0, 0.25), Some(f64::INFINITY));
+
+    // a common parameter cancels, also at a pole (Arb reference of 0F1)
+    assert_hyp1f2(3.5, [3.5, 4.0], -12.5, -0.024_903_987_549_189_11);
+    assert_hyp1f2(-3.0, [4.0, -3.0], -12.5, -0.024_903_987_549_189_11);
+}
+
+#[test]
+fn test_hyp1f2_none() {
+    // the series cancels too much
+    assert_eq!(hyp1f2(1.5, 2.25, 3.5, -2000.0), None);
 }

@@ -860,3 +860,62 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
         asymptotic().or_else(series)
     }
 }
+
+/// Generalized hypergeometric function $_1F_2$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Notes
+///
+/// For all $z$,
+///
+/// $$
+/// \hyp 1 2 a {b_1\enspace b_2} z
+/// = \sum\_{n=0}^\infty {\rpow a n \over \rpow{b_1}{n} \ \rpow{b_2}{n}} {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. A
+/// non-positive integer $a = -n$ makes it a polynomial of degree $n$.
+///
+/// As in [`hyp2f2`], an $a$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
+/// that the result is the $_0F_1$ of the other $b_j$, and it is $+\infty$ if a $b_j$ is a
+/// non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if an argument
+/// is NaN.
+///
+/// # Returns `None`
+///
+/// If the relative error could exceed about $10^{-13}$:
+///
+/// - for some $z < 0$, e.g. $z \lesssim -400$ if all $\abs a, \abs{b_j} \le 3$;
+/// - near a zero;
+/// - if the result overflows;
+/// - if an argument is infinite.
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// # See also
+/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1(b; z)$
+/// - [`hyp2f2`]: Generalized hypergeometric function,
+///   $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$
+#[must_use]
+pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
+    let args = [a, b1, b2, z];
+    if args.into_iter().any(f64::is_nan) {
+        return Some(f64::NAN);
+    } else if args.into_iter().any(f64::is_infinite) {
+        return None;
+    } else if z == 0.0 {
+        return Some(1.0);
+    }
+    let (mut a, mut b) = (a, [b1, b2]);
+    // a common parameter cancels, also at a pole; it becomes a = b_2 = 1, which cancels like the
+    // 1 of n! in the series
+    if let Some(j) = b.iter().position(|&bj| bj == a) {
+        (a, b) = (1.0, [b[1 - j], 1.0]);
+    }
+    if pfq_degree(&[a], &b).is_none() {
+        return Some(f64::INFINITY);
+    }
+    pfq_series_sorted([a], [b[0], b[1], 1.0], z)
+}
