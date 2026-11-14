@@ -630,6 +630,49 @@ fn test_fdtr_fdtrc_subnormal_1mw() {
 }
 
 #[test]
+fn test_fdtrc_subnormal_w() {
+    // reference values from Arb; `w = a x / (b + a x)` is subnormal or underflows, or `b = inf`,
+    // where `fdtrc` is the chi-square survival function of `a x`
+    let abx = [
+        (3.0, f64::INFINITY, 0.5),
+        (1e-20, f64::INFINITY, 1.0),
+        (0.01, 1e300, 1e-30),
+        (0.5, 1e308, 1e-8),
+        (1e-10, 1e300, 1e-20),
+        // `a x` is subnormal or underflows
+        (0.001, f64::INFINITY, 5e-324),
+        (2.7e-185, f64::INFINITY, 3.96e-318),
+        (1e-20, f64::INFINITY, 1e-310),
+    ];
+    let q = [
+        0.682_270_330_336_212_5,
+        2.308_381_668_776_966_3e-19,
+        0.308_584_120_241_167_6,
+        0.992_198_754_982_112_5,
+        3.459_674_209_291_373e-9,
+        0.313_213_691_198_101_83,
+        1.560_528_095_486_543e-182,
+        3.799_845_061_018_467e-18,
+    ];
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtrc(a, b, x)), &q, rtol = 1e-14);
+    let p = xsf::fdtr(0.001, f64::INFINITY, 5e-324);
+    xsref::np_assert_allclose!(&[p], &[0.686_786_308_801_898_2], rtol = 1e-14);
+    // `a / 2` rounds; Arb gives 1.1026785e-320, i.e. 2232 times the smallest subnormal
+    assert_eq!(xsf::fdtrc(1.5e-323, f64::INFINITY, 5e-324), 1.103e-320);
+    // `a x` is just below `2 MIN_POSITIVE`; Arb gives 8.7427288e-321
+    assert_eq!(
+        xsf::fdtrc(2.5e-323, f64::INFINITY, 1_801_439_850_948_198.2),
+        8.745e-321
+    );
+    assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 1.0), 1.0);
+    assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 0.0), 0.0);
+    assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 0.0), 1.0);
+    for (x, q) in [(0.0, 1.0), (1e-310, 1.0), (f64::INFINITY, 0.0)] {
+        assert_eq!(xsf::fdtrc(3.0, f64::INFINITY, x), q);
+    }
+}
+
+#[test]
 fn test_chdtr_fdtr_subnormal() {
     // reference values from mpmath; `x / 2`, `a x` or `w = a x / (b + a x)` is subnormal and rounds
     let p = [

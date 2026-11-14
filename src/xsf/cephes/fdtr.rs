@@ -5,9 +5,11 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use core::f64::consts::LN_2;
+
 use crate::utils::SQRT_EPSILON;
 use crate::xsf::cephes::beta::lbeta;
-use crate::xsf::cephes::chdtr::chdtr;
+use crate::xsf::cephes::chdtr::{chdtr, chdtrc};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
@@ -59,6 +61,12 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         // Unlike in xsf, the limit `A / (A + B)` of `I_y(B, A)` as `B -> 0`, as in `fdtr`
         a / (a + b)
     } else if let Some((_, q)) = fdtr_tiny_y(a, b, x) {
+        q
+    } else if b == f64::INFINITY {
+        // Unlike in xsf, where `w` is NaN: the chi-square survival function of `a x`, the limit
+        fdtr_chi2(a, x).1
+    } else if let Some((q, _)) = fdtr_tiny_y(b, a, 1.0 / x).filter(|_| x >= f64::MIN_POSITIVE) {
+        // Unlike in xsf, likewise `fdtr(b, a, 1 / x)` if `a x / b` is subnormal
         q
     } else {
         let (w1, w) = fdtr_w(a, b, x);
@@ -130,7 +138,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
         // Unlike in xsf, if `a x` or `w` is subnormal, as they round: the chi-square CDF of `a x`,
         // as `b > 1e291` or inf
-        chdtr(a, ax)
+        fdtr_chi2(a, x).0
     } else if x == 0.0 {
         0.0
     } else {
@@ -163,6 +171,31 @@ fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
         let s = b + ax;
         (ax / s, b / s)
     }
+}
+
+/// `(chdtr(a, a x), chdtrc(a, a x))`, the limits as `b -> inf`
+///
+/// Unlike in xsf, also if `a x` is subnormal or underflows, as it rounds. Then
+/// `P = (a x / 2)^A / Gamma(A + 1)` with `A = a / 2`, up to a relative `~a x` (DLMF 8.7.1).
+fn fdtr_chi2(a: f64, x: f64) -> (f64, f64) {
+    let ax = a * x;
+    if ax >= 2.0 * f64::MIN_POSITIVE {
+        return (chdtr(a, ax), chdtrc(a, ax));
+    } else if x == 0.0 {
+        return (0.0, 1.0);
+    }
+    let ha = 0.5 * a;
+    // `ln((a / 2)^A / Gamma(A + 1))`, with `x^A` apart unless it underflows, as in `fdtr`, and
+    // with `a` instead of `A` in the products, as `A` can round
+    let ln_rest = a * (0.5 * (a.ln() - LN_2)) - lgam1p(ha);
+    let ln_p = a * (0.5 * x.ln()) + ln_rest;
+    let x_ha = x.powf(ha);
+    let p = if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        ln_p.exp()
+    };
+    (p, -ln_p.exp_m1())
 }
 
 /// `(fdtr, fdtrc)` if `y = 1 - w` is subnormal or zero, else `None`
