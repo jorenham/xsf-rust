@@ -238,14 +238,14 @@ fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item 
 /// The estimate is infinite if the series did not converge within `PFQ_MAXITER` terms, or if
 /// its terms overflow, or underflow before they become large again. If it converged, but its
 /// terms cancel, then it is summed again in double-double arithmetic.
-pub(crate) fn pfq_series(a: &[f64], b: &[f64], z: f64) -> (f64, f64) {
+pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64) {
     let (y, err, _) = pfq_series_tails(a, b, z);
     (y, err)
 }
 
 /// `pfq_series`, and the root of the sum of its squared tails $s - s_n$, which is at least the
 /// largest of them
-fn pfq_series_tails(a: &[f64], b: &[f64], z: f64) -> (f64, f64, f64) {
+fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
     let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
@@ -260,7 +260,15 @@ fn pfq_series_tails(a: &[f64], b: &[f64], z: f64) -> (f64, f64, f64) {
 /// $s - s_n$ for the partial sum $s_n$ and the sum $s$. These errors are added in quadrature,
 /// like those of the partial sums. A part of them adds up instead, as `a + n` rounds alike
 /// for all `n` between two powers of 2. The constants are measured.
-fn pfq_sum<T: SeriesReal>(a: &[f64], b: &[f64], z: f64, maxiter: u32) -> (f64, f64, f64) {
+fn pfq_sum<T: SeriesReal>(
+    a: &impl AsRef<[f64]>,
+    b: &impl AsRef<[f64]>,
+    z: f64,
+    maxiter: u32,
+) -> (f64, f64, f64) {
+    // generic over the storage of the parameters, as the sum is faster if it is compiled for
+    // the numbers of parameters of its caller
+    let (a, b) = (a.as_ref(), b.as_ref());
     let settled = pfq_settled(a, b);
     // the degree of a polynomial, else infinity
     let degree = first_zero(a);
