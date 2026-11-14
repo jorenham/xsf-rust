@@ -1027,3 +1027,84 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
         asymptotic().or_else(series)
     }
 }
+
+/// Generalized hypergeometric function $_pF_q$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Notes
+///
+/// For $p \le q$, and for $\abs z < 1$ if $p = q + 1$,
+///
+/// $$
+/// \hyp p q {a_1\enspace \cdots\enspace a_p} {b_1\enspace \cdots\enspace b_q} z
+/// = \sum\_{n=0}^\infty
+///     {\rpow{a_1}{n} \cdots \rpow{a_p}{n} \over \rpow{b_1}{n} \cdots \rpow{b_q}{n}}
+///     {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. For
+/// $p = q + 1$ and $z \le -1$, it is the analytic continuation. A non-positive integer
+/// $a_i = -n$ makes it a polynomial of degree at most $n$.
+///
+/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer. The result is
+/// then that of the function for the remaining $p$ and $q$:
+///
+/// | $p$ | $q = 0$                   | $q = 1$                   | $q = 2$    |
+/// | --- | ------------------------- | ------------------------- | ---------- |
+/// | 0   | [`hyp0f0`](crate::hyp0f0) | [`hyp0f1`](crate::hyp0f1) |            |
+/// | 1   | [`hyp1f0`](crate::hyp1f0) | [`hyp1f1`](crate::hyp1f1) | [`hyp1f2`] |
+/// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
+/// | 3   |                           |                           | [`hyp3f2`] |
+///
+/// except that it is:
+///
+/// - 1 at $z = 0$;
+/// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
+///   $\lt m$, and for $_1F_0$ at $z = 1$ if $a_1 > 0$;
+/// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
+///   $_1F_0 = (1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
+///
+/// # Returns `None`
+///
+/// - for the other $p$ and $q$;
+/// - where the function for $p$ and $q$ returns `None` or NaN;
+/// - if an argument is infinite.
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+#[must_use]
+pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
+    let args = || a.iter().chain(b).chain([&z]);
+    if args().any(|v| v.is_nan()) {
+        return Some(f64::NAN);
+    } else if args().any(|v| v.is_infinite()) {
+        return None;
+    } else if z == 0.0 {
+        return Some(1.0);
+    }
+    // each b_j cancels an equal a_i, if any
+    let (mut a, mut b) = (a.to_vec(), b.to_vec());
+    let mut cancel = |bj: &f64| a.iter().position(|ai| ai == bj).map(|i| a.remove(i));
+    b.retain(|bj| cancel(bj).is_none());
+    let Some(degree) = pfq_degree(&a, &b) else {
+        return Some(f64::INFINITY);
+    };
+    let complex = a.len() == b.len() + 1 && z > 1.0 && degree.is_infinite();
+    // the xsf functions are NaN where they are inaccurate
+    let xsf = |y: f64| Some(y).filter(|y| !y.is_nan());
+    match (a.as_slice(), b.as_slice()) {
+        (&[], &[]) => Some(crate::hyp0f0(z)),
+        // +inf where it diverges, and NaN where it is complex
+        (&[a], &[]) if z == 1.0 && a > 0.0 => Some(f64::INFINITY),
+        (&[a], &[]) => Some(crate::hyp1f0(a, z)),
+        (&[], &[b]) => xsf(crate::hyp0f1(b, z)),
+        (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
+        (&[_, _], &[_]) if complex => Some(f64::NAN),
+        (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
+        (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
+        (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
+        (&[a1, a2, a3], &[b1, b2]) => hyp3f2(a1, a2, a3, b1, b2, z),
+        _ => None,
+    }
+}
