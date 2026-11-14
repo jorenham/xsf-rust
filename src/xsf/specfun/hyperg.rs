@@ -482,8 +482,8 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
-    fn checked(x: f64, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
-        let mut hg = series(x);
+    fn checked(x: f64, ends: bool, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
+        let mut hg = if ends { series(x) } else { None };
         // if the partial sums overflow, `e^-1400 M` is summed instead
         let mut ln_scale = 0.0;
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
@@ -494,9 +494,12 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
             .map(|(hg, _)| mul_exp(hg, ln_scale))
     }
     let (ak, xk) = kummer_args(x, a, b);
-    checked(x, |x0| chgm_series(ak.hi, b, xk, x0))
+    // whether the series can end with a finite sum, i.e. within `MAX_TERMS` (see `term_ratio`)
+    let ends = b + f64::from(MAX_TERMS) >= xk;
+    let series_dd = |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0);
+    checked(x, ends, |x0| chgm_series(ak.hi, b, xk, x0))
         .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0)))
+        .or_else(|| checked(x, ends, series_dd))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
