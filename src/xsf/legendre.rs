@@ -351,7 +351,7 @@ fn assoc_legendre_p_pm1<const NORM: bool, T: Num>(n: i32, m: i32, z: T, res: &mu
         if z.real() >= 0.0 {
             *res = T::from(1.0);
         } else {
-            *res = T::from((-1.0_f64).powi(n));
+            *res = T::from(utils::neg_one_pow(n));
         }
         // Apply normalization for m=0
         if NORM {

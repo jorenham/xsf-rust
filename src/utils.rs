@@ -45,6 +45,37 @@ pub(crate) fn mul_exp(m: f64, e: f64) -> f64 {
     m * h * h
 }
 
+/// An integer, or an integer-valued `f64`, as the exponent of `neg_one_pow`
+pub(crate) trait Integer: Copy {
+    fn is_even(self) -> bool;
+}
+
+macro_rules! impl_integer {
+    ($($t:ty),*) => {$(
+        impl Integer for $t {
+            #[inline]
+            fn is_even(self) -> bool {
+                self & 1 == 0
+            }
+        }
+    )*};
+}
+impl_integer!(i32, u32, i64, usize);
+
+impl Integer for f64 {
+    #[inline]
+    fn is_even(self) -> bool {
+        self % 2.0 == 0.0
+    }
+}
+
+/// `(-1)^n`
+#[inline]
+#[must_use]
+pub(crate) fn neg_one_pow<T: Integer>(n: T) -> f64 {
+    if n.is_even() { 1.0 } else { -1.0 }
+}
+
 /// Whether `x` is zero or a negative integer, i.e. a pole of the Gamma function, as
 /// `x <= 0 && x == std::floor(x)` in xsf (also true for `-inf`)
 pub(crate) fn is_nonpos_int(x: f64) -> bool {

@@ -11,7 +11,7 @@
 
 use std::f64::consts::{LN_2, PI, TAU};
 
-use crate::utils::{LN_PI, LN_TAU};
+use crate::utils::{LN_PI, LN_TAU, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::gamma::cgamma;
 use crate::xsf::loggamma::cloggamma;
@@ -268,8 +268,8 @@ const ZETA_BORWEIN_COEFF: [f64; 50] = [
 fn zeta_borwein(z: C64) -> C64 {
     let mut result = C64::ZERO;
     // Sum in reverse order because smaller terms come later.
-    for k in (0..50).rev() {
-        let sign = (-1.0_f64).powi(k);
+    for k in (0..50_i32).rev() {
+        let sign = neg_one_pow(k);
         let den = rpow(f64::from(k + 1), z);
         let term = sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0) / den;
         result += term;

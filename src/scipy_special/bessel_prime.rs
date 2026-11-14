@@ -1,4 +1,5 @@
 //! Derivatives of Bessel functions
+use crate::utils::neg_one_pow;
 use crate::xsf::bessel::BesselArg;
 
 /// Translated from <https://github.com/scipy/scipy/blob/9531cc5/scipy/special/_basic.py#L803-L814>
@@ -85,7 +86,7 @@ pub fn bessel_i_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
 #[doc(alias = "kvp")]
 #[inline]
 pub fn bessel_k_prime<T: BesselArg>(v: f64, z: T, n: u32) -> T {
-    let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+    let sign = neg_one_pow(n);
     bessel_diff_formula(v, n, |v| z.bessel_k(v), 1.0) * sign.into()
 }
 

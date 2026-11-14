@@ -2,6 +2,7 @@
 //!
 //! Original authors: Pauli Virtanen, Eric Moore
 
+use crate::utils::neg_one_pow;
 use crate::xsf::cephes::{beta, gamma, gammasgn, lbeta, poch};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
@@ -91,7 +92,7 @@ pub fn binom(n: f64, k: f64) -> f64 {
         // Unlike in xsf, the unreachable `k <= 0` branch is omitted
         kx = k.floor();
         let dk = k - kx;
-        let sgn = if kx % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        let sgn = neg_one_pow(kx);
         return num * cephes_sinpi(dk - n) * sgn;
     }
     if k.is_finite() && k.abs() > 2e4 && n.abs() < 170.0 {
@@ -124,7 +125,7 @@ fn binom_reflection(n: f64, k: f64) -> f64 {
     let (a, s) = if k > 0.0 {
         let (kx, nx) = (k.round(), n.round());
         // sin(pi (n - k + 1)) = (-1)^(kx - nx) sin(pi ((k - kx) - (n - nx)))
-        let sgn = if (kx - nx) % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        let sgn = neg_one_pow(kx - nx);
         (k - n, cephes_sinpi((k - kx) - (n - nx)) * sgn)
     } else {
         // the reflection of Gamma(1 + k) instead of Gamma(1 + n - k)

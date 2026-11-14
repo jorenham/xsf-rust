@@ -14,7 +14,7 @@ use core::f64::consts::{FRAC_PI_4, LN_2, PI, SQRT_2, TAU};
 use num_complex::Complex64;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EPSILON_SQ, SQRT_FRAC_2_PI, SQRT_PI, SQRT_TAU, mul_exp, pow2};
+use crate::utils::{EPSILON_SQ, SQRT_FRAC_2_PI, SQRT_PI, SQRT_TAU, mul_exp, neg_one_pow, pow2};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lgam, lgam_stirling_corr};
@@ -709,7 +709,7 @@ fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) 
     let (c, s) = (c * cospi(v0), s * sinpi(v0));
     // cos(pi w) and sin(pi w) alternate in sign
     (0..a.len())
-        .map(|k| (c * a[k] + s * b(k)) * if k % 2 == 0 { 1.0 } else { -1.0 })
+        .map(|k| (c * a[k] + s * b(k)) * neg_one_pow(k))
         .collect()
 }
 
@@ -775,7 +775,7 @@ const TURNING_POINT: [[f64; 12]; 16] = [
 /// (DLMF 12.10.27)
 fn uv_poly(p: &[f64], s: usize, t: f64, bar: bool) -> f64 {
     let r = if bar {
-        polevl(-t * t, p) * if s & 2 == 0 { 1.0 } else { -1.0 }
+        polevl(-t * t, p) * neg_one_pow(s / 2)
     } else {
         polevl(t * t, p)
     };

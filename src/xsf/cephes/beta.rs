@@ -8,7 +8,7 @@
 //! Unlike in xsf (scipy/xsf#338), the negative integer helpers take any non-positive integer `a`
 //! and integer `b`, not only those that fit in an `int`.
 
-use crate::utils::{LN_SQRT_TAU, is_nonpos_int};
+use crate::utils::{LN_SQRT_TAU, is_nonpos_int, neg_one_pow};
 use crate::xsf::cephes::consts::{MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
@@ -166,7 +166,7 @@ fn rgamma_sum(a: f64, b: f64) -> f64 {
 fn beta_negint(a: f64, b: f64) -> f64 {
     // `b <= -a` is `1 - a - b > 0` for integers, without its rounding error
     if b.fract() == 0.0 && b <= -a {
-        let sgn = if b % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        let sgn = neg_one_pow(b);
         // B(1 - a - b, b) is a pole for b <= 0, which the rounding of 1 - a - b could hide
         sgn * if b > 0.0 {
             beta(1.0 + (-a - b), b)

@@ -4,6 +4,7 @@
 use core::f64::consts::PI;
 
 use super::{SPECFUN_INF, gamma2, psi_spec};
+use crate::utils::neg_one_pow;
 use crate::xsf::tools::int_x86;
 
 pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
@@ -33,8 +34,8 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
                 pm[k as usize] = 1.0;
                 pd[k as usize] = 0.5 * f64::from(k) * (f64::from(k) + 1.0);
                 if x < 0.0 {
-                    pm[k as usize] *= f64::from(if (k % 2) == 0 { 1 } else { -1 });
-                    pd[k as usize] *= f64::from(if ((k + 1) % 2) == 0 { 1 } else { -1 });
+                    pm[k as usize] *= neg_one_pow(k);
+                    pd[k as usize] *= neg_one_pow(k + 1);
                 }
             } else if m == 1 {
                 pd[k as usize] = SPECFUN_INF;
@@ -45,7 +46,7 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
                     * f64::from(k)
                     * (f64::from(k) - 1.0);
                 if x < 0.0 {
-                    pd[k as usize] *= f64::from(if ((k + 1) % 2) == 0 { 1 } else { -1 });
+                    pd[k as usize] *= neg_one_pow(k + 1);
                 }
             }
         }
@@ -76,7 +77,7 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
             - f64::from(k + m) * pm[(k - 1) as usize])
             / (x * x - 1.0);
     }
-    let coef = f64::from(if (m % 2) == 0 { 1 } else { -1 });
+    let coef = neg_one_pow(m);
     for k in 1..=n {
         pm[k as usize] *= coef;
         pd[k as usize] *= coef;

@@ -2,7 +2,7 @@
 //!
 //! With `a1 = alpha + 1` and `b1 = beta + 1`, which don't cancel for alpha and beta near -1.
 
-use crate::utils::pow2;
+use crate::utils::{neg_one_pow, pow2};
 
 /// The `|q|` above which [`recurrence`] rescales, so that its products stay finite
 const BIG: f64 = pow2(512);
@@ -81,7 +81,7 @@ fn hahn_q_sum(n: u32, a1: f64, b1: f64, big_n: f64, x: f64, mut t: f64) -> f64 {
 /// `Q_n(x; alpha, beta, N) = Q_n(N) Q_n(N - x; beta, alpha, N)` (by the symmetry of the weight in
 /// DLMF Table 18.19.1)
 fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
-    let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+    let sign = neg_one_pow(n);
     (0..n).fold(sign, |q, j| q * ((b1 + f64::from(j)) / (a1 + f64::from(j))))
 }
 

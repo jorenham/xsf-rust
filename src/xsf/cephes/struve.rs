@@ -80,7 +80,7 @@
 
 use core::f64::consts::{FRAC_2_SQRT_PI, TAU};
 
-use crate::utils::SQRT_PI;
+use crate::utils::{SQRT_PI, neg_one_pow};
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gammasgn, iv, lgam, pow_rgamma, rgamma};
@@ -288,7 +288,7 @@ fn struve_hl(v: f64, z: f64, is_h: bool) -> f64 {
     if z < 0.0 {
         let n = v as i32;
         if v == f64::from(n) {
-            tmp = if n % 2 == 0 { -1.0 } else { 1.0 };
+            tmp = -neg_one_pow(n);
             return tmp * struve_hl(v, -z, is_h);
         }
         return f64::NAN;
@@ -304,8 +304,7 @@ fn struve_hl(v: f64, z: f64, is_h: bool) -> f64 {
     let n = (-v - 0.5) as i32;
     if f64::from(n) == -v - 0.5 && n > 0 {
         if is_h {
-            return f64::from(if n % 2 == 0 { 1 } else { -1 })
-                * cyl_bessel_j_f64(f64::from(n) + 0.5, z);
+            return neg_one_pow(n) * cyl_bessel_j_f64(f64::from(n) + 0.5, z);
         }
         return iv(f64::from(n) + 0.5, z);
     }

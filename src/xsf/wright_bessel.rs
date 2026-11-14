@@ -23,7 +23,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use crate::utils::SQRT_TAU_DOWN;
+use crate::utils::{SQRT_TAU_DOWN, neg_one_pow};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lanczos_sum_expg_scaled, lgam, rgamma, zeta};
@@ -752,7 +752,7 @@ fn wb_asymptotic<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     let mut res = C[0];
     for k in 1..9 {
         Zp /= Z;
-        let sign = if k % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = neg_one_pow(k);
         res += sign * C[k] * Zp;
     }
     if !LOG_WB {

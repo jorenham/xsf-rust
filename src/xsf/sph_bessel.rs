@@ -8,6 +8,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_complex::Complex64;
 
+use crate::utils::neg_one_pow;
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
@@ -533,7 +534,7 @@ fn sph_bessel_k_f64(n: i64, z: f64) -> f64 {
         // https://dlmf.nist.gov/10.47#E17
         // and
         // https://dlmf.nist.gov/10.47.E11
-        let sign = if n.abs() % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = neg_one_pow(n);
         return -(PI * sph_bessel_i_f64(n, -z) + sign * sph_bessel_k_f64(n, -z));
     }
 

@@ -4,7 +4,7 @@
 
 use core::f64::consts::FRAC_1_PI;
 
-use crate::utils::{is_nonpos_int, pow2};
+use crate::utils::{is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::{gammasgn, lgam, lgam_ratio};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
@@ -34,7 +34,7 @@ pub(crate) fn poch(a: f64, mut m: f64) -> f64 {
             if m.abs() >= BIG {
                 return if m > 0.0 { f64::INFINITY } else { 0.0 };
             }
-            let sgn = if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
+            let sgn = neg_one_pow(m);
             return sgn * poch((1.0 - s) - e, m);
         }
         if m <= -BIG && a + m < 0.0 {

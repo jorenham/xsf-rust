@@ -8,6 +8,7 @@
 
 use num_traits::ToPrimitive;
 
+use crate::utils::neg_one_pow;
 use crate::xsf::specfun::{Status, cva2, fcoef as specfun_fcoef, mtu0, mtu12};
 
 /* Mathieu functions */
@@ -65,7 +66,7 @@ fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
     let int_m = m as i32;
     if q < 0.0 {
         /* https://dlmf.nist.gov/28.2#E34 */
-        let sgn = f64::from(if (int_m / 2) % 2 == 0 { 1 } else { -1 });
+        let sgn = neg_one_pow(int_m / 2);
         let (f, d) = if int_m % 2 == 0 {
             cem(m, -q, 90.0 - x)
         } else {
