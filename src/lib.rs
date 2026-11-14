@@ -457,6 +457,7 @@
 //! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$                             |
 //! | [`hyp2f2`] | Generalized hypergeometric function     | $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$             |
 //! | [`hyp3f2`] | Generalized hypergeometric function     | $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$ |
+//! | [`hyppfq`] | Generalized hypergeometric function     | $\hyp p q {a_1\enspace \cdots} {b_1\enspace \cdots} z$       |
 //! | [`hypu`]   | Confluent hypergeometric function       | $U(a_1,a_2,x)$                                               |
 //!
 //! # Parabolic cylinder functions

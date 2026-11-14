@@ -1,5 +1,5 @@
 use core::f64::consts::PI;
-use xsf::{hyp1f2, hyp2f1, hyp2f2, hyp3f2};
+use xsf::{hyp0f0, hyp0f1, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
@@ -434,4 +434,72 @@ fn test_hyp1f2_none() {
     assert_eq!(hyp1f2(25.5, 1.25, 0.05, -4000.0), None);
     // the phase 2 sqrt(-z) of the oscillating part is too large
     assert_eq!(hyp1f2(0.5, 0.5, 0.25, -1e40), None);
+}
+
+#[test]
+fn test_hyppfq_routing() {
+    let z = -0.75;
+    assert_eq!(hyppfq(&[], &[], z), Some(hyp0f0(z)));
+    assert_eq!(hyppfq(&[2.5], &[], z), Some(hyp1f0(2.5, z)));
+    assert_eq!(hyppfq(&[], &[1.5], z), Some(hyp0f1(1.5, z)));
+    assert_eq!(hyppfq(&[0.5], &[1.5], z), Some(hyp1f1(0.5, 1.5, z)));
+    assert_eq!(
+        hyppfq(&[0.3, 0.7], &[1.5], z),
+        Some(hyp2f1(0.3, 0.7, 1.5, z))
+    );
+    assert_eq!(hyppfq(&[0.5], &[1.5, 2.5], z), hyp1f2(0.5, 1.5, 2.5, z));
+    assert_eq!(
+        hyppfq(&[0.5, -1.5], &[1.5, 2.5], z),
+        hyp2f2(0.5, -1.5, 1.5, 2.5, z)
+    );
+    assert_eq!(
+        hyppfq(&[0.5, 1.5, 3.5], &[2.25, 4.5], z),
+        hyp3f2(0.5, 1.5, 3.5, 2.25, 4.5, z)
+    );
+}
+
+#[test]
+fn test_hyppfq_cancel() {
+    let z = 0.25;
+    let f1f1 = Some(hyp1f1(0.5, 1.5, z));
+    assert_eq!(hyppfq(&[0.5, 2.5], &[2.5, 1.5], z), f1f1);
+    // also a non-positive integer, which would make it a polynomial
+    assert_eq!(hyppfq(&[-3.0, 0.5], &[1.5, -3.0], z), f1f1);
+    // each b_j cancels one a_i
+    assert_eq!(hyppfq(&[2.5, 2.5], &[2.5], z), Some(hyp1f0(2.5, z)));
+    assert_eq!(hyppfq(&[1.0, 2.0], &[2.0, 1.0], z), Some(hyp0f0(z)));
+    assert_eq!(
+        hyppfq(&[1.0, 2.0, 3.0, 4.0, 5.0], &[5.0, 4.0, 3.0, 2.0], z),
+        Some(hyp1f0(1.0, z))
+    );
+}
+
+#[test]
+fn test_hyppfq_special() {
+    assert_eq!(hyppfq(&[0.5], &[-2.0], 0.0), Some(1.0));
+    // a pole, unless it is a polynomial of a lower degree
+    assert_eq!(hyppfq(&[], &[-2.0], 0.5), Some(f64::INFINITY));
+    assert_eq!(hyppfq(&[-3.0], &[-2.0], 0.5), Some(f64::INFINITY));
+    assert_eq!(hyppfq(&[-1.0], &[-2.0], 0.5), Some(1.25));
+    // complex for p = q + 1 and z > 1, unless it is a polynomial or (1 - z)^-a
+    assert!(hyppfq(&[0.3, 0.7], &[1.5], 2.0).is_some_and(f64::is_nan));
+    assert_eq!(
+        hyppfq(&[-3.0, 0.7], &[1.5], 2.0),
+        Some(hyp2f1(-3.0, 0.7, 1.5, 2.0))
+    );
+    assert_eq!(hyppfq(&[2.0], &[], 3.0), Some(0.25));
+    assert!(hyppfq(&[2.5], &[], 3.0).is_some_and(f64::is_nan));
+    assert_eq!(hyppfq(&[2.5], &[], 1.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq(&[-2.5], &[], 1.0), Some(0.0));
+    assert!(hyppfq(&[0.5], &[f64::NAN], 0.5).is_some_and(f64::is_nan));
+}
+
+#[test]
+fn test_hyppfq_none() {
+    assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
+    assert_eq!(
+        hyppfq(&[0.5, 1.5, 2.5, 3.5], &[1.25, 2.25, 3.25], 0.5),
+        None
+    );
+    assert_eq!(hyppfq(&[0.5], &[1.5], f64::INFINITY), None);
 }
