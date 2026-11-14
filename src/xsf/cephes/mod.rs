@@ -94,7 +94,7 @@ pub(crate) use owens_t::owens_t;
 pub(crate) use pdtr::{pdtr, pdtrc, pdtri};
 pub use poch::*;
 pub(crate) use psi::psi;
-pub(crate) use rgamma::rgamma;
+pub(crate) use rgamma::{pow_rgamma, rgamma};
 pub use round::*;
 pub(crate) use scipy_iv::{ikv_asymptotic_uniform, ikv_asymptotic_uniform_sums, iv};
 pub(crate) use shichi::shichi;

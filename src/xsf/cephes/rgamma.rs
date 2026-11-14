@@ -98,3 +98,14 @@ pub(crate) fn rgamma(x: f64) -> f64 {
 
     w * (1.0 + chbevl(4.0 * w - 2.0, &RGAMMA_R)) / z
 }
+
+/// `h^(v+k) / Gamma(g) / exp(scale)`, unless it over- or underflows
+///
+/// Unlike in xsf, this is used instead of `exp(-lgam(g) + (v+k) ln(h) - scale)`, whose relative
+/// error is about `eps` times the (often large) exponent. Splitting off `h^k` avoids rounding
+/// `v + k`.
+pub(crate) fn pow_rgamma(h: f64, v: f64, k: i32, g: f64, scale: f64) -> Option<f64> {
+    let p = h.powf(v / 2.0) * (-scale / 2.0).exp();
+    let t = p * rgamma(g) * h.powi(k) * p;
+    (p.is_normal() && t.is_normal()).then_some(t)
+}

@@ -83,7 +83,7 @@ use core::f64::consts::{FRAC_2_SQRT_PI, TAU};
 use crate::utils::SQRT_PI;
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
-use crate::xsf::cephes::{gammasgn, iv, lgam, rgamma};
+use crate::xsf::cephes::{gammasgn, iv, lgam, pow_rgamma, rgamma};
 
 const STRUVE_MAXITER: i32 = 10000;
 const STRUVE_SUM_EPS: f64 = 1e-16; /* be sure we are in the tail of the sum */
@@ -93,17 +93,6 @@ const STRUVE_SUM_TINY: f64 = 1e-100;
 const STRUVE_GOOD_EPS: f64 = 1e-15;
 const STRUVE_ACCEPTABLE_EPS: f64 = 1e-7;
 const STRUVE_ACCEPTABLE_ATOL: f64 = 1e-300;
-
-/// `h^(v+k) / Gamma(g) / exp(scale)`, unless it over- or underflows
-///
-/// Unlike in xsf, the series use this instead of `exp(-lgam(g) + (v+k) ln(h) - scale)`, whose
-/// relative error is about `eps` times the (often large) exponent. Splitting off `h^k` avoids
-/// rounding `v + k`.
-fn pow_rgamma(h: f64, v: f64, k: i32, g: f64, scale: f64) -> Option<f64> {
-    let p = h.powf(v / 2.0) * (-scale / 2.0).exp();
-    let t = p * rgamma(g) * h.powi(k) * p;
-    (p.is_normal() && t.is_normal()).then_some(t)
-}
 
 /*
  * Large-z expansion for Struve H and L
