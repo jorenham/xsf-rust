@@ -220,6 +220,7 @@
 //!
 //! | Function      | Description                             |
 //! | ------------- | --------------------------------------- |
+//! | [`nctdtr`]    | Cumulative distribution function        |
 //! | [`nctdtridf`] | Inverse of the CDF with respect to `df` |
 //! | [`nctdtrinc`] | Inverse of the CDF with respect to `nc` |
 //!

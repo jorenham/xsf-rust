@@ -484,6 +484,19 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+### Noncentral t distribution
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>nctdtr</code></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>t ∈ [−20, 20]</td><td align="right" nowrap>1000</td><td align="right" nowrap><samp>1.5e-14</samp></td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>nctdtr</code></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [0, 10]<br>t ∈ [−20, 0]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>2.6e-14</samp></td><td align="right" nowrap><samp>2.1e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+</tbody>
+</table>
+
 ### Chi square distribution
 
 <table>

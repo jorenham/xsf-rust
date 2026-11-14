@@ -105,9 +105,47 @@ pub(crate) fn quad(f: impl Fn(f64) -> f64, a: f64, b: f64, epsabs: f64, epsrel: 
     }
 }
 
+/// The integral of a unimodal `f >= 0` over `[a, b]`, with its maximum near `mode`
+///
+/// It sums [`quad`] with `epsrel` over pieces of width `width`, `2 width`, `4 width`, ... on either
+/// side of `mode`, until a piece is no larger than the one before it and at most `f64::EPSILON`
+/// times the sum, so `mode` and `width` need not be exact. That assumes the rest of that side is no
+/// larger than the last piece, e.g. if `f` decays at least as fast as `|x - mode|^-2`. `a` and `b`
+/// can be infinite.
+pub(crate) fn quad_unimodal(
+    f: impl Fn(f64) -> f64,
+    a: f64,
+    b: f64,
+    mode: f64,
+    width: f64,
+    epsrel: f64,
+) -> f64 {
+    // at least 8 ulps of `mode`, so that the rounding of `x +- w` can't undo its doubling
+    let width = width.max(8.0 * f64::EPSILON * mode.abs());
+    let mut sum = 0.0;
+    for end in [b, a] {
+        let (mut x, mut w, mut prev) = (mode, width, 0.0);
+        while x != end {
+            let y = if end > x {
+                (x + w).min(end)
+            } else {
+                (x - w).max(end)
+            };
+            let (piece, _) = quad(&f, x.min(y), x.max(y), epsrel * sum, epsrel);
+            sum += piece;
+            if !(piece > prev || piece > f64::EPSILON * sum) {
+                break;
+            }
+            (x, w, prev) = (y, 2.0 * w, piece);
+        }
+    }
+    sum
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::SQRT_TAU;
     use core::f64::consts::PI;
 
     #[test]
@@ -135,6 +173,32 @@ mod tests {
             (result - 2.0).abs() <= abserr && abserr > 1e-14 * 2.0,
             "{result} {abserr}"
         );
+    }
+
+    #[test]
+    fn test_quad_unimodal() {
+        // a Gaussian with sigma = 0.01, from a mode that is off
+        let f = |x: f64| (-0.5 * x * x / 1e-4).exp();
+        let expected = 0.01 * SQRT_TAU;
+        let result = quad_unimodal(f, f64::NEG_INFINITY, f64::INFINITY, 0.03, 0.01, 2e-14);
+        assert!(
+            (result - expected).abs() <= 1e-15 * expected,
+            "{result} {expected}"
+        );
+
+        // the exponential decay on [0, inf), which has its maximum at the end
+        let result = quad_unimodal(|x: f64| (-x).exp(), 0.0, f64::INFINITY, 0.0, 1e-3, 2e-14);
+        assert!((result - 1.0).abs() <= 1e-15, "{result}");
+
+        // a width far below the scale, so the pieces grow on both sides
+        let f = |x: f64| (-0.5 * x * x).exp();
+        let result = quad_unimodal(f, f64::NEG_INFINITY, f64::INFINITY, 0.0, 1e-18, 1e-13);
+        assert!((result - SQRT_TAU).abs() <= 1e-15, "{result}");
+
+        // a width below the ulp of the mode
+        let f = |x: f64| (-0.5 * (x - 1.0) * (x - 1.0)).exp();
+        let result = quad_unimodal(f, f64::NEG_INFINITY, f64::INFINITY, 1.0, 1e-20, 1e-13);
+        assert!((result - SQRT_TAU).abs() <= 1e-15, "{result}");
     }
 
     #[test]

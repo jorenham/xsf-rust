@@ -22,11 +22,12 @@ of 353 functions whose algorithm isn't in xsf.
 | `hyp1f1`                                | Boost; complex: xsf    | same                       |
 | `nbdtrik`, `nbdtrin`                    | Boost                  | same                       |
 | `ncfdtr`, `ncfdtri`                     | Boost                  | same                       |
+| `nctdtr`                                | Boost                  | same                       |
 | `pdtrik`                                | Boost                  | same                       |
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `nctdtr`, `nctdtrit`                    | Boost                  |                            |
+| `nctdtrit`                              | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |
 | `ncfdtridfd`, `ncfdtridfn`, `ncfdtrinc` | cdflib                 | same                       |
 | `nctdtridf`, `nctdtrinc`                | cdflib                 | same                       |
