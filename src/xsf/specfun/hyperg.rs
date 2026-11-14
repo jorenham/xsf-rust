@@ -1015,8 +1015,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
 /// Here (scipy/xsf#380):
 ///
-/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`). The first with `ID_MIN`
-///    digits is returned; otherwise the better of the two is kept as `(hu0, id0)`.
+/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` excludes
+///    integer `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
+///    the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
@@ -1061,11 +1062,14 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // compares equal, so the results of these comparisons are the same.
     let il1 = (a == f64::from(a as i32)) && (a <= 0.0);
     let il2 = (aa == f64::from(aa as i32)) && (aa <= 0.0);
-    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0;
     let bl1 = (x <= 5.0) || (x <= 10.0 && a <= 2.0);
     let bl2 = (x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0));
     let bl3 = (x > 12.5) && (a >= 5.0) && (b >= a + 5.0);
     let bn = b.fract() == 0.0 && b != 0.0;
+    // Unlike in xsf (scipy/xsf#380), conservatively not for integer b > 1 and x <= |b - 2a|: the
+    // error bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for
+    // tiny a the series overestimates its digits
+    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !(bn && b > 1.0 && x <= (b - 2.0 * a).abs());
 
     let mut id = -100;
     let mut hu1 = 0.0;
