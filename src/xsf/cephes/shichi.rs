@@ -7,8 +7,9 @@
 //! Unlike in xsf, `(Shi, Chi)` is returned instead of written to output references, and the
 //! (unused) status code is dropped.
 
-use crate::utils::{EGAMMA, MACHEP};
+use crate::utils::EGAMMA;
 use crate::xsf::cephes::chbevl::chbevl;
+use crate::xsf::cephes::consts::MACHEP;
 
 /* x exp(-x) shi(x), inverted interval 8 to 18 */
 const SHICHI_S1: [f64; 22] = [

@@ -7,7 +7,8 @@ use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{MAXGAM, SQRT_EPSILON, SQRT_PI};
+use crate::utils::{SQRT_EPSILON, SQRT_PI};
+use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`

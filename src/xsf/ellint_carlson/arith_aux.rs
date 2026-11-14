@@ -15,7 +15,7 @@
 //! evaluation.
 //! ```
 
-use crate::utils::MACHEP; // `typing::half_epsilon<double>()`
+use crate::xsf::cephes::consts::MACHEP; // `typing::half_epsilon<double>()`
 
 /* Algorithm 3.6 */
 #[inline]

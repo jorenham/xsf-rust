@@ -1,8 +1,9 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@b1eb270).
 
-use crate::utils::{MAXLOG, is_nonpos_int};
+use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64};
+use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()

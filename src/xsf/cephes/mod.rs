@@ -4,6 +4,7 @@ mod besselpoly;
 mod beta;
 pub(crate) mod chbevl;
 mod chdtr;
+pub(crate) mod consts;
 pub(crate) mod dd_real;
 mod ellie;
 mod ellik;

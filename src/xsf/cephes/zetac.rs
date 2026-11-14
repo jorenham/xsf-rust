@@ -6,7 +6,8 @@
 
 use std::f64::consts::{E, FRAC_PI_2, TAU};
 
-use crate::utils::{MACHEP, SQRT_FRAC_2_PI};
+use crate::utils::SQRT_FRAC_2_PI;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::cephes::zeta;

@@ -8,7 +8,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::MACHEP;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::{FRAC_PI_2, PI};
 

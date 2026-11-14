@@ -6,7 +6,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::MACHEP;
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::polevl::polevl;
 
 const ELLPK_P: [f64; 11] = [

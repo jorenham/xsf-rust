@@ -20,17 +20,6 @@ pub(crate) const SQRT_EPSILON: f64 = 1.490_116_119_384_765_6e-8;
 pub(crate) const EPSILON_SQ: f64 = f64::EPSILON * f64::EPSILON;
 /// pi^2 / 6
 pub(crate) const FRAC_PI_SQ_6: f64 = PI * PI / 6.0;
-
-// cephes/const.h
-
-/// 2**-53
-pub(crate) const MACHEP: f64 = 1.110_223_024_625_156_5e-16;
-/// log(DBL_MAX)
-pub(crate) const MAXLOG: f64 = 709.782_712_893_384;
-/// log(2**(-1075))
-pub(crate) const MINLOG: f64 = -745.133_219_101_941_2;
-/// Largest x such that Gamma(x) is finite
-pub(crate) const MAXGAM: f64 = 171.624_376_956_302_7;
 /// Euler-Mascheroni constant
 pub(crate) const EGAMMA: f64 = 0.577_215_664_901_532_9;
 /// sqrt(1/pi)
@@ -146,8 +135,6 @@ mod tests {
             SQRT_EPSILON.to_bits(),
             black_box(f64::EPSILON).sqrt().to_bits()
         );
-        assert_eq!(MACHEP, f64::EPSILON / 2.0);
-        assert_eq!(MAXLOG.to_bits(), black_box(f64::MAX).ln().to_bits());
         assert_eq!(FRAC_1_SQRT_PI.to_bits(), (1.0 / pi.sqrt()).to_bits());
         assert_eq!(SQRT_FRAC_2_PI.to_bits(), (2.0 / pi).sqrt().to_bits());
         assert_eq!(FRAC_2_PI.to_bits(), (2.0 / pi).to_bits());

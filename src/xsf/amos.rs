@@ -123,8 +123,9 @@
 
 use core::f64::consts::{LN_2, LN_10};
 
-use crate::utils::{MAXLOG, SQRT_3};
+use crate::utils::SQRT_3;
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::consts::MAXLOG;
 
 #[rustfmt::skip]
 const D1MACH: [f64; 5] = [

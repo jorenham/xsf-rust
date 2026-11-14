@@ -66,7 +66,8 @@
 
 use core::f64::consts::{E, LN_2, PI, SQRT_2};
 
-use crate::utils::{LN_SQRT_TAU, MINLOG, SQRT_TAU_DOWN};
+use crate::utils::{LN_SQRT_TAU, SQRT_TAU_DOWN};
+use crate::xsf::cephes::consts::MINLOG;
 use crate::xsf::cephes::dd_real::DoubleDouble;
 
 // cephes/const.h

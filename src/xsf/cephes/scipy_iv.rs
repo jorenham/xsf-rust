@@ -50,7 +50,8 @@
 
 use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
-use crate::utils::{EGAMMA, MACHEP, mul_exp};
+use crate::utils::{EGAMMA, mul_exp};
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
 

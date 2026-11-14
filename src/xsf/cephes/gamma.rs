@@ -8,7 +8,8 @@
 //! Unlike in xsf, the parity of `floor(|x|)` is determined with an `i64` instead of an `int`, which
 //! overflows (UB) for `|x| > 2^31`.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, MAXGAM, SQRT_TAU};
+use crate::utils::{LN_PI, LN_SQRT_TAU, SQRT_TAU};
+use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor_real};
 use crate::xsf::trig::cephes_sinpi;
