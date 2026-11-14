@@ -7,6 +7,7 @@ of 353 functions whose algorithm isn't in xsf.
 | `scipy.special`                         | SciPy                  | xsf-rust                   |
 | --------------------------------------- | ---------------------- | -------------------------- |
 | `betainc`                               | Boost                  | same                       |
+| `betaincc`, `betainccinv`               | Boost                  | same                       |
 | `betaincinv`                            | Boost                  | same                       |
 | `erfinv`                                | Boost                  | same                       |
 | `fdtr`                                  | Boost                  | same                       |
@@ -17,7 +18,6 @@ of 353 functions whose algorithm isn't in xsf.
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
 | `bdtrik`, `bdtrin`                      | Boost                  |                            |
-| `betaincc`, `betainccinv`               | Boost                  |                            |
 | `btdtria`, `btdtrib`                    | Boost                  |                            |
 | `chdtriv`                               | Boost                  |                            |
 | `chndtr`, `chndtrix`                    | Boost                  |                            |

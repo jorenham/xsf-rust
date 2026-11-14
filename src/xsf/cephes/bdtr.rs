@@ -234,9 +234,9 @@ pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
         let dk = fk + 1.0;
         // 1 - y is exact for y >= 0.5
         if y >= 0.5 {
-            incbi(dk, dn, 1.0 - y)
+            incbi(dk, dn, 1.0 - y).0
         } else {
-            1.0 - incbi(dn, dk, y)
+            1.0 - incbi(dn, dk, y).0
         }
     }
 }

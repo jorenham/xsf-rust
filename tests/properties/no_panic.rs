@@ -23,6 +23,8 @@ property!(no_panic, elliprj(x, y, z, p));
 
 property!(no_panic, betainc(a, b, x));
 property!(no_panic, betaincinv(a, b, y));
+property!(no_panic, betaincc(a, b, x));
+property!(no_panic, betainccinv(a, b, y));
 property!(no_panic, gammainc(a, x));
 property!(no_panic, gammaincc(a, x));
 property!(no_panic, gammaincinv(a, p));

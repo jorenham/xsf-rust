@@ -167,6 +167,13 @@ fn test_betaincinv_a1_huge_b() {
 }
 
 #[test]
+fn test_betaincinv_huge_a_b1() {
+    // the root is y^(1/a), which rounds to 1; lgam(a + b) overflows
+    let x = xsf::betaincinv(1e306, 1.0, 0.9);
+    xsref::np_assert_allclose!(&[x], &[1.0], rtol = 1e-15);
+}
+
+#[test]
 fn test_betaincinv_gh21426() {
     // Test for scipy/scipy#21426: betaincinv must not return NaN
     let a = 5.0;
@@ -187,5 +194,119 @@ fn test_betaincinv_zero_ab() {
     for y in [0.3, 0.7] {
         assert!(xsf::betaincinv(0.0, 0.5, y).is_nan());
         assert!(xsf::betaincinv(0.5, 0.0, y).is_nan());
+    }
+}
+
+#[test]
+fn test_betainccinv_a1_b1() {
+    // betainccinv(1, 1, x) is 1 - x.
+    let x = [0.0, 0.25, 1.0];
+    assert_eq!(
+        x.map(|xv| xsf::betainccinv(1.0, 1.0, xv)),
+        x.map(|xv| 1.0 - xv)
+    );
+}
+
+#[test]
+fn test_betainccinv_nontrivial() {
+    for &(a, b, x, p) in &[
+        (2.5, 3.0, 0.25, 0.833_251_953_125),
+        (7.5, 13.25, 0.375, 0.432_987_346_455_603_7),
+        (0.125, 7.5, 0.425, 0.000_668_825_785_131_423_7),
+        (0.125, 18.0, 1e-6, 0.729_823_591_450_963_3),
+        (0.125, 18.0, 0.996, 7.274_587_553_838_015e-46),
+        (0.125, 24.0, 0.75, 3.708_534_048_168_62e-17),
+        (16.0, 0.75, 0.999_999_999_75, 5.440_875_927_741_863e-7),
+        // scipy/scipy#4677
+        (
+            0.421_195_964_350_340_1,
+            16_939.046_996_018_118,
+            0.000_815_296_167_195_521,
+            1e-7,
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainccinv(a, b, p)], &[x], rtol = 8e-15);
+    }
+}
+
+#[test]
+fn test_betainccinv_tails() {
+    // roots far below eps, from 1 - I_x(1, 2) = (1 - x)^2 and I_x(1/2, 1/2) = 2 asin(sqrt(x)) / pi
+    let y = 1.0 - f64::EPSILON / 2.0;
+    assert_eq!(xsf::betainccinv(1.0, 2.0, y), f64::EPSILON / 4.0);
+    xsref::np_assert_allclose!(
+        &[xsf::betainccinv(0.5, 0.5, y)],
+        &[3.041_306_664_850_247e-32],
+        rtol = 1e-15
+    );
+    // roots near 0 from the complement of a root near 1; for a = 1 the root is
+    // 1 - y^(1/b), and for a = 2.5 the reference value is from mpmath
+    for &(a, b, y, ref_) in &[
+        (1.0, 1e5, 1e-100, 0.002_299_936_177_446_682_6),
+        (1.0, 1e5, 1e-10, 0.000_230_232_001_843_413_66),
+        (2.5, 1e5, 0.3, 3.032_146_280_274_775_4e-5),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainccinv(a, b, y)], &[ref_], rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_betainccinv_far_from_incbi() {
+    // the roots (1 - y)^(1/a) for b = 1 and 1 - y^(1/b) for a = 1, where the root from `incbi` is
+    // off by orders of magnitude, or 0
+    for &(a, b, y, ref_) in &[
+        (1e-18, 1.0, 1e-16, 3.720_075_976_020_851_6e-44),
+        (1.0, 1e306, 0.1, 2.302_585_092_994_045_5e-306),
+        // `incbi` is NaN, as `lgam(a + b)` overflows; the root rounds to 1
+        (1e306, 1.0, 0.9, 1.0),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainccinv(a, b, y)], &[ref_], rtol = 5e-14);
+    }
+}
+
+#[test]
+fn test_betainccinv_tiny_a() {
+    // reference value from mpmath
+    let x = xsf::betainccinv(2e-12, 1e300, 2e-12);
+    xsref::np_assert_allclose!(&[x], &[2.647_370_104_516_100_4e-301], rtol = 1e-11);
+}
+
+#[test]
+fn test_betainccinv_huge_ab() {
+    // the root is 0.5 + 4.5e-151; the log of the derivative cancelled for huge `a` and `b`
+    let x = xsf::betainccinv(1e300, 1e300, 0.1);
+    xsref::np_assert_allclose!(&[x], &[0.5], rtol = 1e-15);
+}
+
+#[test]
+fn test_betainccinv_extreme() {
+    // the root (1 - y)^(1/a) = 1e-1000 underflows
+    assert_eq!(xsf::betainccinv(0.001, 1.0, 0.9), 0.0);
+    // 1 - I_x(a, 1) = -a ln(x) rounds to y over a range of x around the root 1/e, where any x is
+    // accepted
+    let x = xsf::betainccinv(5e-324, 1.0, 5e-324);
+    assert_eq!(xsf::betaincc(5e-324, 1.0, x), 5e-324);
+}
+
+#[test]
+fn test_betainccinv_edge_cases() {
+    let inf = f64::INFINITY;
+    for &((a, b, y), expected) in &[
+        ((2.0, 3.0, 0.0), 1.0),
+        ((2.0, 3.0, -0.0), 1.0),
+        ((2.0, 3.0, 1.0), 0.0),
+        ((0.0, 3.0, 0.0), f64::NAN),
+        ((2.0, 0.0, 1.0), f64::NAN),
+        ((inf, 2.0, 0.0), 1.0),
+        ((2.0, inf, 1.0), 0.0),
+        ((1.0, inf, 0.5), 0.0),
+        ((inf, 1.0, 0.5), 1.0),
+        ((2.0, inf, 0.5), f64::NAN),
+        ((inf, inf, 0.5), f64::NAN),
+        ((2.0, 3.0, -1e-300), f64::NAN),
+        ((2.0, 3.0, 1.1), f64::NAN),
+        ((2.0, 3.0, f64::NAN), f64::NAN),
+    ] {
+        xsref::np_assert_equal!(&[xsf::betainccinv(a, b, y)], &[expected]);
     }
 }

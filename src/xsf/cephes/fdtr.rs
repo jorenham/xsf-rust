@@ -234,13 +234,13 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     // not at `y = 1 - MACHEP`.
     let try_complement = w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5);
     if try_complement || y < 0.001 {
-        w = incbi(0.5 * b, 0.5 * a, y);
+        w = incbi(0.5 * b, 0.5 * a, y).0;
         // Kept if the error of `1 - p` relative to p is at most eps / w (w can far exceed its
         // mean, e.g. for tiny b), or if w is NaN.
         if w.is_nan() || (1.0 - y - p).abs() * w <= f64::EPSILON * p {
             return (b - b * w) / (a * w);
         }
     }
-    w = incbi(0.5 * a, 0.5 * b, p);
+    w = incbi(0.5 * a, 0.5 * b, p).0;
     b * w / (a * (1.0 - w))
 }

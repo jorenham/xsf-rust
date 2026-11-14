@@ -209,6 +209,13 @@ fn test_betainc_tiny_b_x_near_1() {
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-10);
     }
+    // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
+    let p = xsf::betainc(
+        240.444_389_643_372_94,
+        1.112_624_883_358_221_1e-10,
+        0.999_999_999_999_989,
+    );
+    xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 5e-9);
 }
 
 #[test]
@@ -219,4 +226,86 @@ fn test_betainc_subnormal_ab() {
     xsref::np_assert_allclose!(&[p], &[4.605_170_185_988_06e-310], rtol = 1e-13);
     // b / (a + b) is subnormal; I_x(2, b) = -b (ln(1 - x) + x) for tiny b and x close to 1
     assert_eq!(xsf::betainc(2.0, 5e-324, 0.99), 2e-323);
+}
+
+#[test]
+fn test_betaincc_a1_b1() {
+    // betaincc(1, 1, x) is 1 - x.
+    let x = [0.0, 0.25, 1.0];
+    assert_eq!(
+        x.map(|xv| xsf::betaincc(1.0, 1.0, xv)),
+        x.map(|xv| 1.0 - xv)
+    );
+}
+
+#[test]
+fn test_betaincc_nontrivial() {
+    for &(a, b, x, p) in &[
+        (2.5, 3.0, 0.25, 0.833_251_953_125),
+        (7.5, 13.25, 0.375, 0.432_987_346_455_603_7),
+        (0.125, 7.5, 0.425, 0.000_668_825_785_131_423_7),
+        (0.125, 18.0, 1e-6, 0.729_823_591_450_963_3),
+        (0.125, 18.0, 0.996, 7.274_587_553_838_015e-46),
+        (0.125, 24.0, 0.75, 3.708_534_048_168_62e-17),
+        (16.0, 0.75, 0.999_999_999_75, 5.440_875_927_741_863e-7),
+        // scipy/scipy#4677
+        (
+            0.421_195_964_350_340_1,
+            16_939.046_996_018_118,
+            0.000_815_296_167_195_521,
+            1e-7,
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[p], rtol = 5e-15);
+    }
+}
+
+#[test]
+fn test_betaincc_tails() {
+    // I_(1-x)(3, 2) = y^3 (4 - 3 y) with y = 1 - x, where `1 - betainc` cancels
+    let q = xsf::betaincc(2.0, 3.0, 0.999_999_999_999);
+    xsref::np_assert_allclose!(&[q], &[3.999_734_545_227_945e-36], rtol = 1e-14);
+    // 1 - I_x(0.5, 2) = 1 - 1.5 sqrt(x) + O(x^1.5)
+    let q = xsf::betaincc(0.5, 2.0, 1e-20);
+    xsref::np_assert_allclose!(&[q], &[1.0 - 1.5e-10], rtol = 1e-15);
+}
+
+#[test]
+fn test_betaincc_tiny_a() {
+    // reference values from mpmath and Wolfram; 1 - I_x(a, b) = O(a), where `1 - betainc` cancels
+    for &(a, b, x, q) in &[
+        (2e-12, 1e300, 2.647_370_104_516_100_4e-301, 2e-12),
+        (
+            3.464_166_003_487_626_4e-12,
+            3.465_839_753_112_206e186,
+            1.675_272_022_682_781e-188,
+            8.058_530_735_930_76e-12,
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-11);
+    }
+}
+
+#[test]
+fn test_betaincc_edge_cases() {
+    let inf = f64::INFINITY;
+    for &((a, b, x), expected) in &[
+        ((0.0, 0.0, 0.5), f64::NAN),
+        ((inf, inf, 0.5), f64::NAN),
+        ((0.0, 1.0, 0.0), 1.0),
+        ((0.0, 1.0, 0.5), 0.0),
+        ((1.0, 0.0, 0.5), 1.0),
+        ((1.0, 0.0, 1.0), 0.0),
+        ((0.0, inf, 0.0), 1.0),
+        ((0.0, inf, 0.5), 0.0),
+        ((inf, 0.0, 0.5), 1.0),
+        ((inf, 0.0, 1.0), 0.0),
+        ((1.0, inf, 0.5), 0.0),
+        ((inf, 1.0, 0.5), 1.0),
+        ((1.5, 2.0, -1e-300), f64::NAN),
+        ((1.5, 2.0, 1.1), f64::NAN),
+        ((-1.0, 2.0, 0.5), f64::NAN),
+    ] {
+        xsref::np_assert_equal!(&[xsf::betaincc(a, b, x)], &[expected]);
+    }
 }
