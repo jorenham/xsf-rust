@@ -127,8 +127,8 @@ fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
 }
 
 /// `v` in descending order, as `pfq_ratio_bound` is tightest if `a` and `b` are sorted alike
-fn descending<const N: usize>(mut v: [f64; N]) -> [f64; N] {
-    v.sort_unstable_by(|x, y| y.total_cmp(x));
+fn descending<P: AsMut<[f64]>>(mut v: P) -> P {
+    v.as_mut().sort_unstable_by(|x, y| y.total_cmp(x));
     v
 }
 
@@ -343,11 +343,12 @@ fn pfq_sum<T: SeriesReal>(
 ///    and the summation of divergent series", Comput. Phys. Rep. 10 (1989), 189-371
 /// 2. R. M. Slevinsky, "Fast and stable rational approximation of generalized hypergeometric
 ///    functions", Numer. Algor. 98 (2025), 587-624, <https://doi.org/10.1007/s11075-024-01808-w>
-pub(crate) fn pfq_weniger<const P: usize, const Q: usize>(
-    a: &[f64; P],
-    b: &[f64; Q],
+pub(crate) fn pfq_weniger(
+    a: &impl AsRef<[f64]>,
+    b: &impl AsRef<[f64]>,
     z: f64,
 ) -> Option<(f64, f64)> {
+    let (a, b) = (a.as_ref(), b.as_ref());
     let settled = pfq_settled(a, b).ceil();
     if settled > f64::from(PFQ_MAXITER) {
         return None;
@@ -381,7 +382,8 @@ pub(crate) fn pfq_weniger<const P: usize, const Q: usize>(
         term *= ratio(n) * z;
         if !term.is_normal() {
             // overflow, or underflow, after which the terms only matter if they can increase
-            let negligible = term.abs() < 1.0 && P <= Q && pfq_ratio_bound(a, b, z, n) <= 1.0;
+            let negligible =
+                term.abs() < 1.0 && a.len() <= b.len() && pfq_ratio_bound(a, b, z, n) <= 1.0;
             let noise = 4.0 * f64::EPSILON * scale;
             return Some((sum, if negligible { noise } else { f64::INFINITY }));
         }
@@ -443,27 +445,32 @@ pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
     })
 }
 
+/// The parameters `a` or `b` of a method for $p = q + 1$: an array, or a `Vec` if their number
+/// is only known at run time
+pub(crate) trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
+
+impl<P: Clone + AsRef<[f64]> + AsMut<[f64]>> Params for P {}
+
 /// The analytic continuation to $z < -1$ (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
 /// This is for $p = q + 1$, where `b` contains the 1 of $n!$, and no two $a_i$ may differ by an
 /// integer. It is a sum over $j$ of series in $1 / z$ with the parameters $a_j + 1 - b$ and
 /// $a_j + 1 - a$.
-pub(crate) fn pfq_continuation<const N: usize>(
-    a: &[f64; N],
-    b: &[f64; N],
-    z: f64,
-) -> Option<(f64, f64)> {
-    let skip = |v: [f64; N], i| (0..N).filter(move |&k| k != i).map(move |k| v[k]);
-    let one = b.iter().position(|&v| v == 1.0)?;
+pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    fn skip(v: &impl Params, i: usize) -> impl Iterator<Item = f64> {
+        let v = v.as_ref();
+        (0..v.len()).filter(move |&k| k != i).map(move |k| v[k])
+    }
+    let one = b.as_ref().iter().position(|&v| v == 1.0)?;
     let (mut sum, mut err) = (0.0, 0.0);
-    for (j, &aj) in a.iter().enumerate() {
-        if skip(*a, j).any(|ak| (ak - aj).fract() == 0.0) {
+    for (j, &aj) in a.as_ref().iter().enumerate() {
+        if skip(a, j).any(|ak| (ak - aj).fract() == 0.0) {
             return None;
         }
         // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
-        let ratios = skip(*a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
-        let ratios = ratios.chain(skip(*b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
+        let ratios = skip(a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
+        let ratios = ratios.chain(skip(b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
         // (-z)^(-a_j) is the square of this root, which stays normal for larger a_j
         let root = Some((-z).powf(-0.5 * aj)).filter(|r| r.is_normal())?;
         // the coefficient as a mantissa and a power of 2, as products of its factors can
@@ -496,7 +503,12 @@ pub(crate) fn pfq_continuation<const N: usize>(
             }
             x
         };
-        let (upper, lower) = (descending(b.map(&mut shift)), descending(a.map(&mut shift)));
+        let mut shifted = |v: &P| {
+            let mut v = v.clone();
+            v.as_mut().iter_mut().for_each(|x| *x = shift(*x));
+            descending(v)
+        };
+        let (upper, lower) = (shifted(b), shifted(a));
         let (f, f_err, tails) = pfq_series_tails(&upper, &lower, 1.0 / z);
         sum += c * f;
         // those terms sum to a tail of the series; the last part is for a subnormal c
@@ -508,14 +520,14 @@ pub(crate) fn pfq_continuation<const N: usize>(
 
 /// A method for $p = q + 1$, which returns the result and an estimate of its absolute error, or
 /// `None`
-type Method<const N: usize> = fn(&[f64; N], &[f64; N], f64) -> Option<(f64, f64)>;
+type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 
 /// ${}_{q+1}F_q$ for $z < 1$, or for a polynomial, by the first method for `z` that is accurate
 ///
 /// `b` contains the 1 of $n!$.
-pub(crate) fn pfq_accurate<const N: usize>(a: &[f64; N], b: &[f64; N], z: f64) -> Option<f64> {
-    let series: Method<N> = |a, b, z| Some(pfq_series(a, b, z));
-    let methods: &[Method<N>] = if first_zero(a).is_finite() || z > PFQ_WENIGER_MAX_Z {
+pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
+    let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
+    let methods: &[Method<P>] = if first_zero(a.as_ref()).is_finite() || z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
         &[pfq_weniger, series]
@@ -563,11 +575,11 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
 }
 
 /// ${}_{q+1}F_q$ for finite arguments, where the last of `b` is the 1 of $n!$
-fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
+fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
     if z == 0.0 {
         return Some(1.0);
     }
-    let Some(degree) = pfq_degree(&a, &b) else {
+    let Some(degree) = pfq_degree(a.as_ref(), b.as_ref()) else {
         return Some(f64::INFINITY);
     };
     if degree.is_infinite() && z > 1.0 {
@@ -575,7 +587,7 @@ fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
         Some(f64::NAN)
     } else if degree.is_infinite() && z == 1.0 {
         // +inf where the series diverges, and no method where it converges
-        diverges_at_one(&a, &b[..N - 1])?.then_some(f64::INFINITY)
+        diverges_at_one(a.as_ref(), b.as_ref().split_last()?.1)?.then_some(f64::INFINITY)
     } else {
         pfq_accurate(&descending(a), &descending(b), z)
     }
