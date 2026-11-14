@@ -1,8 +1,8 @@
 # `scipy.special` without xsf
 
 SciPy [v1.18.1](https://github.com/scipy/scipy/tree/v1.18.1/scipy/special) with xsf
-[`f7b85f5`](https://github.com/scipy/xsf/tree/f7b85f505a94fd398024478d2e747b01dd2d7a6d): the 138
-of 353 functions whose algorithm isn't in xsf.
+[`f7b85f5`](https://github.com/scipy/xsf/tree/f7b85f505a94fd398024478d2e747b01dd2d7a6d): the 123
+of 338 functions whose algorithm isn't in xsf.
 
 | `scipy.special`                         | SciPy                  | xsf-rust                   |
 | --------------------------------------- | ---------------------- | -------------------------- |
@@ -71,6 +71,5 @@ of 353 functions whose algorithm isn't in xsf.
 | `roots_hermite`                         | Python                 | `roots_hermite_h`          |
 | `roots_hermitenorm`                     | Python                 | `roots_hermite_he`         |
 | `roots_sh_jacobi`                       | Python                 | `roots_gengegenbauer`      |
-| aliases of `roots_*`, e.g. `p_roots`    | Python                 |                            |
 | orthogonal polynomial classes           | Python                 |                            |
 | `sinc`                                  | NumPy                  | same                       |
