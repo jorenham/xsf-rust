@@ -337,6 +337,25 @@ fn test_hyp2f2_asymptotic() {
         // a common parameter cancels, also at a pole
         ([3.0, 5.5], [3.0, 7.0], -200.0, 1.770_351_282_323_549_3e-10),
         ([-3.0, 2.5], [-3.0, 4.0], -300.0, 4.324_983_868_207_274_5e-6),
+        // a_1 - a_2 is close to an integer
+        (
+            [0.6, 2.600_000_1],
+            [1.25, 2.75],
+            -1000.0,
+            0.010_879_355_879_731_946,
+        ),
+        (
+            [0.3, 2.300_000_01],
+            [1.25, 2.75],
+            -1200.0,
+            0.112_436_870_589_296_16,
+        ),
+        (
+            [3.600_000_01, 0.6],
+            [1.25, 2.75],
+            -1000.0,
+            0.008_367_721_726_240_012,
+        ),
         // c_3 of the exponentially large part vanishes, but not c_4
         ([-1.5, -1.5], [-2.5, 1.5], 60.0, -4.921_886_930_234_788e21),
         ([-1.5, -1.5], [-2.5, 1.5], 100.0, -4.114_326_732_425_412e38),
@@ -346,6 +365,9 @@ fn test_hyp2f2_asymptotic() {
     // overflow
     assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
     assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
+    // also for a huge z, with the sign of Gamma(b_1)
+    assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), Some(f64::INFINITY));
+    assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), Some(f64::NEG_INFINITY));
 }
 
 #[test]
@@ -446,6 +468,9 @@ fn test_hyp1f2_asymptotic() {
     assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), Some(f64::NEG_INFINITY));
     assert_eq!(hyp1f2(1.5, 2.25, 3.5, 2e5), Some(f64::INFINITY));
     assert_eq!(hyp1f2(-0.5, 2.25, 3.5, 2e5), Some(f64::NEG_INFINITY));
+    // also for a huge z
+    assert_eq!(hyp1f2(1.5, 2.5, 3.5, 1e100), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(1.5, -2.5, 3.5, 1e100), Some(f64::NEG_INFINITY));
 }
 
 #[test]

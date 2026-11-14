@@ -766,6 +766,18 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     gamma_series(&b.map(Dd::new), &a.map(Dd::new), series, l)
 }
 
+/// `(x, k, factor)` for the rounded lower parameter `x = 1 + am - v` of a series: times `factor`,
+/// the terms after $t_k$ have the factor $1 / (x + k)$ of the exact parameter
+///
+/// $-k$ is the non-positive integer nearest to `x`. The terms after $t_k$ have the factor
+/// $1 / (x + k)$, in which the rounding error of `x` is large relative to a small $x + k$.
+fn shifted_lower(am: f64, v: f64) -> (f64, f64, f64) {
+    let (s, e1) = two_sum(1.0, am);
+    let (x, e2) = two_sum(s, -v);
+    let k = -x.round().min(0.0);
+    (x, k, (x + k) / (x + k + (e1 + e2)))
+}
+
 /// The algebraic part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.2, 16.11.7), with
 /// $\abs z$ instead of $-z$, as its 2 terms, or `None` if $a_1 - a_2$ is an integer (unless
 /// $a_2 = b_2$)
@@ -794,9 +806,12 @@ fn hyp2f2_alg(a: [f64; 2], b: [f64; 2], z: f64) -> Option<[Option<Scaled>; 2]> {
             continue;
         }
         let up = descending([am, 1.0 - bm[0].hi, 1.0 - bm[1].hi]);
-        let low = descending([1.0 + am - an, 1.0]);
+        let (x, k, factor) = shifted_lower(am, an);
+        let low = descending([x, 1.0]);
         let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n);
         let series = once(1.0).chain(pfq_terms(&up, &low, -1.0 / z));
+        let series = series.zip((0_u32..).map(f64::from));
+        let series = series.map(|(t, i)| if i > k { t * factor } else { t });
         let sum = asymptotic_sum(series, pfq_settled(&up, &low), z, bound);
         terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
     }

@@ -791,8 +791,10 @@ pub(crate) fn fold_exp(y: Scaled) -> Scaled {
     let k = (y.l.hi / LN_2).round().clamp(-1e12, 1e12);
     let r = y.l - LOG2 * k;
     let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
-    let (m, l) = (y.m * r.hi.exp() * (1.0 + r.lo), Dd::new(0.0));
-    // (the roundings of `exp`, `1 + r.lo`, and the 2 products)
+    // For an unclamped `k`, `exp(r.lo)` rounds to 1. It is left out, as `r` is huge for a clamped
+    // `k`, where `m` must keep its sign.
+    let (m, l) = (y.m * r.hi.exp(), Dd::new(0.0));
+    // (the roundings of `exp` and the product, and `exp(r.lo)`)
     let err = y.err + 4.0 * MACHEP;
     Scaled { m, e, l, err }
 }
