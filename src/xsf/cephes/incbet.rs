@@ -6,7 +6,7 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{MACHEP, MAXGAM, MAXLOG, MINLOG, PISQ_6, SCIPY_EULER, SQRT_TAU};
-use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi};
+use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
 use crate::xsf::trigamma;
@@ -24,12 +24,9 @@ pub(super) const INCBET_TINY: f64 = 1e-3 * MACHEP;
 /// neglected terms of ~`1.3 m^3 < eps` (measured)
 const INCBET_APSER_MAX: f64 = 1e-9;
 
-/// If `m` is at most this, `incbet_apser` is the small `1 - I_x(a, b)` up to a relative
-/// ~`1.3 m^2 < 1.3e-10` (measured), below the error of the cancelling `1 - incbet_pseries`, or of
-/// the continued fractions if cut off at `INCBET_MAXITER`
-///
-/// For the former, `m` has `1 - ln(b x)` for `|ln(x)|`, as `psi(b) ~ ln(b)` mostly cancels `ln(x)`.
-const INCBET_APSER_SMALL_MAX: f64 = 1e-5;
+/// `incbet_pseries_compl` is used for `a` up to this, where `1 - incbet_pseries` would cancel and
+/// its series in `a` converges fast
+const INCBET_PSERIES_COMPL_MAX: f64 = 0.1;
 
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
@@ -53,13 +50,17 @@ fn incbet_subnormal_div_a_beta(a: f64, b: f64, t: f64) -> Option<f64> {
 /// The sum of the power series `x^a / B(a, b) (1 / a + sum_(n >= 1) (1 - b)_n / n! x^n / (a + n))`
 /// of `I_x(a, b)`, without its `1 / a` term
 pub(crate) fn incbet_pseries_sum(a: f64, b: f64, x: f64) -> f64 {
+    incbet_pseries_sum_to(a, b, x, MACHEP * (1.0 / a))
+}
+
+/// `incbet_pseries_sum`, up to terms of at most `z`
+fn incbet_pseries_sum_to(a: f64, b: f64, x: f64, z: f64) -> f64 {
     let mut u = (1.0 - b) * x;
     let mut v = u / (a + 1.0);
     let t1 = v;
     let mut t = u;
     let mut n = 2.0;
     let mut s = 0.0;
-    let z = MACHEP * (1.0 / a);
     while v.abs() > z {
         u = (n - b) * x / n;
         t *= u;
@@ -99,6 +100,46 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
     s
 }
 
+/// `ln(x) + psi(b)`, as `ln(b x)` for `b eps > 0.02`, where `psi(b)` is `ln(b)` up to `eps / 0.04`,
+/// which avoids the cancellation
+fn incbet_ln_x_psi(b: f64, x: f64) -> f64 {
+    if b * MACHEP <= 0.02 {
+        x.ln() + psi(b)
+    } else {
+        (b * x).ln()
+    }
+}
+
+/// `1 - I_x(a, b)` for small `a`, `b x <= 1` and `x <= 0.95`, as `-expm1(ln(I_x(a, b)))`
+///
+/// Here `I_x(a, b) = x^a (1 + a s) / (a B(a, b))`, with `s` from `incbet_pseries_sum`, and
+///
+/// ```text
+/// ln(a B(a, b)) = ln(1 + a/b) - a (gamma + psi(1 + b))
+///                 + sum_{k >= 2} (-a)^k (zeta(k) - zeta(k, 1 + b)) / k,
+/// ```
+///
+/// from the Taylor series of `lgam1p(a)` and `ln(Gamma(1 + b + a) / Gamma(1 + b))` in `a`
+/// (DLMF 5.7.3 and 5.15.1), which avoids the cancellation of `1 - incbet_pseries`.
+fn incbet_pseries_compl(a: f64, b: f64, x: f64) -> f64 {
+    // `s` is needed up to ~eps, not ~eps / a as in `incbet_pseries`
+    let s = incbet_pseries_sum_to(a, b, x, MACHEP);
+    let mut ln_i =
+        a * (incbet_ln_x_psi(1.0 + b, x) + SCIPY_EULER) + (a * s).ln_1p() - (a / b).ln_1p();
+    let mut t = -a;
+    let mut k = 1.0;
+    loop {
+        k += 1.0;
+        t *= -a;
+        let term = t * (zeta(k, 1.0) - zeta(k, 1.0 + b)) / k;
+        ln_i -= term;
+        if term.abs() <= MACHEP * ln_i.abs() || ln_i.is_nan() {
+            break;
+        }
+    }
+    -ln_i.exp_m1()
+}
+
 /// `1 - I_x(a, b)` for tiny `a`, `b x <= 1` and `x <= 0.95` (`apser` of TOMS 708 \[1\])
 ///
 /// To second order in `a`, with `gamma` the Euler-Mascheroni constant, `c = ln(x) + psi(b) + gamma`
@@ -118,13 +159,7 @@ fn incbet_apser(a: f64, b: f64, x: f64) -> f64 {
     let bx = b * x;
     let t1 = x - bx;
     let mut t = t1;
-    // for b eps > 0.02, psi(b) is ln(b) up to eps / 0.04, and ln(b x) avoids the cancellation
-    let ln_x_psi_b = if b * MACHEP <= 0.02 {
-        x.ln() + psi(b)
-    } else {
-        bx.ln()
-    };
-    let c0 = ln_x_psi_b + SCIPY_EULER;
+    let c0 = incbet_ln_x_psi(b, x) + SCIPY_EULER;
     let c = c0 + t1;
     let tol = 5.0 * MACHEP * c.abs();
     let mut j = 1.0;
@@ -499,9 +534,9 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         };
 
         if flag && (b * x) <= 1.0 && x <= 0.95 {
-            // Unlike in xsf, the small `1 - I_x(a, b)` is computed directly for tiny `a`
-            if a * (1.0 - (b * x).ln()).max(1.0 / b) <= INCBET_APSER_SMALL_MAX {
-                return incbet_apser(a, b, x);
+            // Unlike in xsf, the small `1 - I_x(a, b)` is computed directly for small `a`
+            if a <= INCBET_PSERIES_COMPL_MAX {
+                return incbet_pseries_compl(a, b, x);
             }
             break 'done incbet_pseries(a, b, x);
         }
@@ -514,14 +549,15 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         }
 
         let (w, cut_off) = incbet_cf_factor(a, b, x, xc);
-        // Unlike in xsf, `I_x(a, b) = O(b)` is also `incbet_apser` (see above) if the continued
-        // fractions were cut off at `INCBET_MAXITER` (below it, they are still close)
+        // Unlike in xsf, the small `I_x(a, b) = 1 - I_(1-x)(b, a)` is `incbet_pseries_compl` if the
+        // continued fractions were cut off at `INCBET_MAXITER` (below it, they are still close)
         if cut_off
             && aa * yy <= 1.0
-            && m <= INCBET_APSER_SMALL_MAX
+            && yy <= 0.95
+            && bb <= INCBET_PSERIES_COMPL_MAX
             && incbet_maxiter(a, b, x) >= INCBET_MAXITER
         {
-            return incbet_apser(bb, aa, yy);
+            return incbet_pseries_compl(bb, aa, yy);
         }
 
         /* Multiply w by the factor

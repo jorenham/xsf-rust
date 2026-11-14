@@ -265,10 +265,13 @@ fn test_betainccinv_far_from_incbi() {
 }
 
 #[test]
-fn test_betainccinv_tiny_a() {
+fn test_betainccinv_small_a() {
     // reference value from mpmath
     let x = xsf::betainccinv(2e-12, 1e300, 2e-12);
     xsref::np_assert_allclose!(&[x], &[2.647_370_104_516_100_4e-301], rtol = 1e-14);
+    // the root (1 - y)^(1/a) for b = 1
+    let x = xsf::betainccinv(1e-6, 1.0, 1e-4);
+    xsref::np_assert_allclose!(&[x], &[3.701_520_785_752_582e-44], rtol = 1e-14);
 }
 
 #[test]
