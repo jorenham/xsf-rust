@@ -227,6 +227,59 @@ pub fn chdtriv(p: f64, x: f64) -> f64 {
     })
 }
 
+/// Inverse of [`nbdtr`](crate::nbdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.nbdtrik`][nbdtrik].
+///
+/// The CDF `I_p(n, k + 1)` is continuous in `k`, so that `k` is real. If `y` lies below the CDF at
+/// `k = 0`, i.e. `p^n`, 0 is returned.
+///
+/// [nbdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrik.html
+///
+/// # See also
+/// - [`nbdtr`](crate::nbdtr): Negative binomial distribution function
+/// - [`nbdtri`](crate::nbdtri): Inverse of [`nbdtr`](crate::nbdtr) with respect to `p`
+/// - [`nbdtrin`]: Inverse of [`nbdtr`](crate::nbdtr) with respect to `n`
+#[must_use]
+pub fn nbdtrik(y: f64, n: f64, p: f64) -> f64 {
+    if !(0.0..=1.0).contains(&y) || !(n > 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+        return f64::NAN;
+    }
+    // the CDF increases from p^n at k = 0 to 1 at k = inf
+    limit_if_p_is_0_or_1(y, true).unwrap_or_else(|| {
+        let func = cdf_minus_p(y, |k| betainc(n, k + 1.0, p), |k| betaincc(n, k + 1.0, p));
+        find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, true)
+    })
+}
+
+/// Inverse of [`nbdtr`](crate::nbdtr) with respect to `n`
+///
+/// Corresponds to [`scipy.special.nbdtrin`][nbdtrin].
+///
+/// The CDF `I_p(n, k + 1)` is continuous in `n`, so that `n` is real. Unlike in SciPy, the limits
+/// inf and 0 are returned if `y` is 0 or 1, instead of NaN. As in SciPy, NaN is returned if `p` is
+/// 0 or 1.
+///
+/// [nbdtrin]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrin.html
+///
+/// # See also
+/// - [`nbdtr`](crate::nbdtr): Negative binomial distribution function
+/// - [`nbdtri`](crate::nbdtri): Inverse of [`nbdtr`](crate::nbdtr) with respect to `p`
+/// - [`nbdtrik`]: Inverse of [`nbdtr`](crate::nbdtr) with respect to `k`
+#[must_use]
+pub fn nbdtrin(k: f64, y: f64, p: f64) -> f64 {
+    // NaN if p is 0 or 1, where the CDF is 0 or 1 for all n > 0
+    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && p > 0.0 && p < 1.0) {
+        return f64::NAN;
+    }
+    // Unlike in SciPy, the root is found for n, instead of for n + k, which loses n if k >> n.
+    // The CDF decreases from 1 at n = 0 to 0 at n = inf.
+    limit_if_p_is_0_or_1(y, false).unwrap_or_else(|| {
+        let func = cdf_minus_p(y, |n| betainc(n, k + 1.0, p), |n| betaincc(n, k + 1.0, p));
+        find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, false)
+    })
+}
+
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
 /// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
 fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {

@@ -206,11 +206,13 @@
 //!
 //! ## Negative binomial distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`nbdtr`]  | Cumulative distribution function |
-//! | [`nbdtrc`] | Complement of [`nbdtr`]          |
-//! | [`nbdtri`] | Inverse of [`nbdtr`]             |
+//! | Function    | Description                                              |
+//! | ----------- | -------------------------------------------------------- |
+//! | [`nbdtr`]   | Cumulative distribution function                         |
+//! | [`nbdtrc`]  | Complement of [`nbdtr`]                                  |
+//! | [`nbdtri`]  | Inverse of [`nbdtr`]                                     |
+//! | [`nbdtrik`] | Inverse of [`nbdtr(k, n, p)`](nbdtr) with respect to `k` |
+//! | [`nbdtrin`] | Inverse of [`nbdtr(k, n, p)`](nbdtr) with respect to `n` |
 //!
 //! ## Noncentral t distribution
 //!

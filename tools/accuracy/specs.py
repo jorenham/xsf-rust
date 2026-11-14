@@ -2021,6 +2021,18 @@ def r_nbdtri(k, n, y):
     return _invert_unit(lambda p, q: _betainc(n, k + 1, p, q), y, n / (n + k + 1))
 
 
+def r_nbdtrik(y, n, p):
+    # real k >= 0 such that nbdtr(k, n, p) = y, or 0 if y lies below nbdtr(0, n, p)
+    if y <= p**n:
+        return mp.mpf(0)
+    return _invert_pos(lambda k: _betainc(n, k + 1, p, 1 - p), y, 1)
+
+
+def r_nbdtrin(k, y, p):
+    # real n such that nbdtr(k, n, p) = y
+    return _invert_pos(lambda n: _betainc(n, k + 1, p, 1 - p), y, 1, decreasing=True)
+
+
 def r_pdtr(k, m):
     return _gammainc_pq(k + 1, m, True)
 
@@ -2988,6 +3000,24 @@ add(
     "k n y",
     r_nbdtri,
     D(Int(0, 1000), Int(1, 1000), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "nbdtrik",
+    "y n p",
+    r_nbdtrik,
+    D(U(0, 1), LU(1e-2, 1000), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "nbdtrin",
+    "k y p",
+    r_nbdtrin,
+    D(LU(1e-2, 1000), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
     timeout=120,
     note="inv",
 )

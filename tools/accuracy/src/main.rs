@@ -318,6 +318,8 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("nbdtr", &[k, n, p]) => xsf::nbdtr(k as i32, n as i32, p),
         ("nbdtrc", &[k, n, p]) => xsf::nbdtrc(k as i32, n as i32, p),
         ("nbdtri", &[k, n, y]) => xsf::nbdtri(k as i32, n as i32, y),
+        ("nbdtrik", &[y, n, p]) => xsf::nbdtrik(y, n, p),
+        ("nbdtrin", &[k, y, p]) => xsf::nbdtrin(k, y, p),
         ("pdtr", &[k, m]) => xsf::pdtr(k, m),
         ("pdtrc", &[k, m]) => xsf::pdtrc(k, m),
         ("pdtri", &[k, y]) => xsf::pdtri(k as i32, y),
