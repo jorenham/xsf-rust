@@ -28,6 +28,10 @@ const INCBET_APSER_MAX: f64 = 1e-9;
 /// error of the cancelling `1 - incbet_pseries` (both measured)
 const INCBET_APSER_COMPL_MAX: f64 = 5e-8;
 
+/// If `m` is at most this, `incbet_apser` is also used where the continued fractions were cut off at
+/// `INCBET_MAXITER`, with a relative error ~`m` below theirs (both measured)
+const INCBET_APSER_CUT_MAX: f64 = 3e-7;
+
 /// `t / (a B(a, b))` if `a` or `b` is subnormal, where `B(a, b)` and `1 / a` can overflow
 ///
 /// Unlike in xsf, which returns NaN or 0 then.
@@ -266,18 +270,19 @@ fn incbet_term(x: f64, k1: f64, k2: f64, k3: f64, k4: f64) -> f64 {
 }
 
 /// Continued fraction expansion #1 for incomplete beta integral
-fn incbcf(a: f64, b: f64, x: f64) -> f64 {
+fn incbcf(a: f64, b: f64, x: f64) -> (f64, bool) {
     incbet_cf(a, x, a + b, b - 1.0, 1.0, incbet_maxiter(a, b, x))
 }
 
 /// Continued fraction expansion #2 for incomplete beta integral
 ///
 /// `xc = 1 - x` is passed as well, since `x` can be rounded (see `incbet_xy`).
-fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
+fn incbd(a: f64, b: f64, x: f64, xc: f64) -> (f64, bool) {
     incbet_cf(a, x / xc, b - 1.0, a + b, -1.0, incbet_maxiter(a, b, x))
 }
 
-/// The continued fraction of `incbcf` and `incbd`, with iteration limit `nmax`
+/// The continued fraction of `incbcf` and `incbd`, with iteration limit `nmax`, and whether it was
+/// cut off there
 ///
 /// Unlike in xsf, `incbcf` and `incbd` share this loop (xsf duplicates it). They only differ in
 /// their argument `z`, and in `k2` and `k6`, which are swapped and step by `step` in opposite
@@ -288,7 +293,7 @@ fn incbd(a: f64, b: f64, x: f64, xc: f64) -> f64 {
 /// incbcf    x        a + b    b - 1     1
 /// incbd     x / xc   b - 1    a + b    -1
 /// ```
-fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> f64 {
+fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> (f64, bool) {
     let mut xk;
     let mut pk;
     let mut qk;
@@ -364,11 +369,11 @@ fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> 
 
         n += 1;
         if f64::from(n) >= nmax {
-            break;
+            return (ans, true);
         }
     }
 
-    ans
+    (ans, false)
 }
 
 /// Incomplete beta integral
@@ -462,10 +467,10 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         // i.e. `b <= eps min(1, a)` as in TOMS 708. Being off by a relative ~`b max(|ln(1 - x)|,
         // 1/a)`, it is also used up to `INCBET_APSER_MAX` where the continued fractions would be cut
         // off at `INCBET_MAXITER`, and are worse.
+        let m = bb * yy.ln().abs().max(1.0 / aa);
         if aa * yy <= 1.0
             && (bb <= MACHEP * aa.min(1.0)
-                || bb * yy.ln().abs().max(1.0 / aa) <= INCBET_APSER_MAX
-                    && incbet_maxiter(aa, bb, xx) >= INCBET_MAXITER)
+                || m <= INCBET_APSER_MAX && incbet_maxiter(aa, bb, xx) >= INCBET_MAXITER)
         {
             break 'done incbet_apser(bb, aa, yy);
         }
@@ -500,7 +505,16 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done incbet_basym(a, b, lambda);
         }
 
-        let w = incbet_cf_factor(a, b, x, xc);
+        let (w, cut_off) = incbet_cf_factor(a, b, x, xc);
+        // Unlike in xsf, `I_x(a, b) = O(b)` is also `incbet_apser` (see above) if the continued
+        // fractions were cut off at `INCBET_MAXITER` (below it, they are still close)
+        if cut_off
+            && aa * yy <= 1.0
+            && m <= INCBET_APSER_CUT_MAX
+            && incbet_maxiter(a, b, x) >= INCBET_MAXITER
+        {
+            return incbet_apser(bb, aa, yy);
+        }
 
         /* Multiply w by the factor
          * a      b   _             _     _
@@ -541,15 +555,17 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 }
 
 /// `I_x(a, b) a B(a, b) / (x^a y^b)`, i.e. `2F1(a + b, 1; a + 1; x)` (DLMF 8.17.8), with
-/// `y = 1 - x`, by the continued fractions of `incbet_xy`, for `x` below the mean `a / (a + b)`
-pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> f64 {
+/// `y = 1 - x`, by the continued fractions of `incbet_xy`, for `x` below the mean `a / (a + b)`,
+/// and whether they were cut off
+pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
     /* Choose expansion for better convergence. */
     // Unlike in xsf (scipy/xsf#358), `incbd` is also used if `x` is close to 1, where `incbcf`
     // amplifies the rounding error of `x` by ~`a / |a y - b|`.
     if x * (a + b - 2.0) - (a - 1.0) < 0.0 && x <= 0.95 {
         incbcf(a, b, x)
     } else {
-        incbd(a, b, x, y) / y
+        let (w, cut_off) = incbd(a, b, x, y);
+        (w / y, cut_off)
     }
 }
 

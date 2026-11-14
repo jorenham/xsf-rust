@@ -216,6 +216,13 @@ fn test_betainc_tiny_b_x_near_1() {
         0.999_999_999_999_989,
     );
     xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 5e-9);
+    // the continued fractions are cut off (mpmath and Wolfram)
+    let p = xsf::betainc(
+        434.632_567_688_369_9,
+        7.934_119_213_387_608e-11,
+        0.999_999_999_999_027_1,
+    );
+    xsref::np_assert_allclose!(&[p], &[1.666_795_093_743_553_9e-9], rtol = 1e-8);
 }
 
 #[test]

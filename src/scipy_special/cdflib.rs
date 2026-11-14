@@ -223,7 +223,7 @@ fn betainc_scaled(a: f64, b: f64, x: f64, y: f64, lnx: f64, lny: f64) -> (f64, i
         return (ix, 0);
     }
     // I_x(a, b) = x^a y^b / (a B(a, b)) w, with x below the mean if I_x underflows
-    let w = incbet_cf_factor(a, b, x, y);
+    let (w, _) = incbet_cf_factor(a, b, x, y);
     if !(w > 0.0 && w.is_finite()) {
         return (ix, 0);
     }
