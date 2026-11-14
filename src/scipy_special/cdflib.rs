@@ -30,7 +30,7 @@ use crate::xsf::{
 #[must_use]
 pub fn stdtridf(p: f64, t: f64) -> f64 {
     // stdtr(df, t) is 1/2 if t = 0, and 1 or 0 if t = +-inf, independent of df
-    if !(0.0..=1.0).contains(&p) || t == 0.0 || !t.is_finite() {
+    if !((0.0..=1.0).contains(&p) && t != 0.0 && t.is_finite()) {
         return f64::NAN;
     }
     // stdtr(df, -t) = 1 - stdtr(df, t) is used for the upper tail
@@ -54,7 +54,7 @@ pub fn stdtridf(p: f64, t: f64) -> f64 {
 #[must_use]
 pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
     // fdtr(dfn, dfd, f) is 0 or 1 if f = 0 or inf, independent of dfd
-    if !(dfn > 0.0) || !(0.0..=1.0).contains(&p) || !(f > 0.0) || f.is_infinite() {
+    if !(dfn > 0.0 && (0.0..=1.0).contains(&p) && is_pos_finite(f)) {
         return f64::NAN;
     }
     let func = cdf_minus_p(
@@ -81,7 +81,8 @@ pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
 /// - [`bdtrin`]: Inverse of [`bdtr`](crate::bdtr) with respect to `n`
 #[must_use]
 pub fn bdtrik(y: f64, n: f64, p: f64) -> f64 {
-    if !(0.0..=1.0).contains(&y) || !(n >= 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+    if !((0.0..=1.0).contains(&y) && (0.0..f64::INFINITY).contains(&n) && (0.0..=1.0).contains(&p))
+    {
         return f64::NAN;
     }
     // the CDF is 0 below k = n if p = 1
@@ -110,7 +111,7 @@ pub fn bdtrin(k: f64, y: f64, p: f64) -> f64 {
     // As in SciPy, NaN if p is 0 or 1, where the CDF is 1 or 0 for all n > k, unless y is 0 or 1,
     // which give the limits n = inf and n = k.
     let p_is_valid = p > 0.0 && p < 1.0 || (p == 0.0 || p == 1.0) && (y == 0.0 || y == 1.0);
-    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && p_is_valid) {
+    if !((0.0..f64::INFINITY).contains(&k) && (0.0..=1.0).contains(&y) && p_is_valid) {
         return f64::NAN;
     }
     // The CDF `betaincc(k + 1, n - k, p)` decreases from 1 at n = k to 0 at n = inf. It is solved
@@ -212,7 +213,7 @@ pub fn chdtriv(p: f64, x: f64) -> f64 {
 /// - [`nbdtrin`]: Inverse of [`nbdtr`](crate::nbdtr) with respect to `n`
 #[must_use]
 pub fn nbdtrik(y: f64, n: f64, p: f64) -> f64 {
-    if !(0.0..=1.0).contains(&y) || !(n > 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+    if !((0.0..=1.0).contains(&y) && is_pos_finite(n) && (0.0..=1.0).contains(&p)) {
         return f64::NAN;
     }
     // the CDF increases from p^n at k = 0 to 1 at k = inf
@@ -236,7 +237,7 @@ pub fn nbdtrik(y: f64, n: f64, p: f64) -> f64 {
 #[must_use]
 pub fn nbdtrin(k: f64, y: f64, p: f64) -> f64 {
     // NaN if p is 0 or 1, where the CDF is 0 or 1 for all n > 0
-    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && p > 0.0 && p < 1.0) {
+    if !((0.0..f64::INFINITY).contains(&k) && (0.0..=1.0).contains(&y) && p > 0.0 && p < 1.0) {
         return f64::NAN;
     }
     // Unlike in SciPy, the root is found for n, instead of for n + k, which loses n if k >> n.
@@ -919,11 +920,7 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
 /// - [`fdtridfd`]: Inverse of [`fdtr`](crate::fdtr) with respect to `b`
 #[must_use]
 pub fn ncfdtridfd(dfn: f64, p: f64, nc: f64, f: f64) -> f64 {
-    if !(dfn > 0.0)
-        || !(0.0..=1.0).contains(&p)
-        || !(0.0..=NC_MAX).contains(&nc)
-        || !(f > 0.0)
-        || f.is_infinite()
+    if !(dfn > 0.0 && (0.0..=1.0).contains(&p) && (0.0..=NC_MAX).contains(&nc) && is_pos_finite(f))
     {
         return f64::NAN;
     }
@@ -942,11 +939,7 @@ pub fn ncfdtridfd(dfn: f64, p: f64, nc: f64, f: f64) -> f64 {
 /// - [`ncfdtrinc`]: Inverse of the noncentral F CDF with respect to `nc`
 #[must_use]
 pub fn ncfdtridfn(p: f64, dfd: f64, nc: f64, f: f64) -> f64 {
-    if !(dfd > 0.0)
-        || !(0.0..=1.0).contains(&p)
-        || !(0.0..=NC_MAX).contains(&nc)
-        || !(f > 0.0)
-        || f.is_infinite()
+    if !(dfd > 0.0 && (0.0..=1.0).contains(&p) && (0.0..=NC_MAX).contains(&nc) && is_pos_finite(f))
     {
         return f64::NAN;
     }
@@ -967,7 +960,7 @@ pub fn ncfdtridfn(p: f64, dfd: f64, nc: f64, f: f64) -> f64 {
 /// - [`ncfdtridfn`]: Inverse of the noncentral F CDF with respect to `dfn`
 #[must_use]
 pub fn ncfdtrinc(dfn: f64, dfd: f64, p: f64, f: f64) -> f64 {
-    if !(dfn > 0.0) || !(dfd > 0.0) || !(0.0..=1.0).contains(&p) || !(f > 0.0) || f.is_infinite() {
+    if !(dfn > 0.0 && dfd > 0.0 && (0.0..=1.0).contains(&p) && is_pos_finite(f)) {
         return f64::NAN;
     }
     // the CDF decreases in nc
@@ -1150,7 +1143,7 @@ const NCT_MAX: f64 = 1e6;
 #[must_use]
 pub fn nctdtridf(p: f64, nc: f64, t: f64) -> f64 {
     // the CDF is ndtr(-nc) if t = 0, and 1 or 0 if t = +-inf, independent of df
-    if !(0.0..=1.0).contains(&p) || !(nc.abs() <= NCT_MAX) || t == 0.0 || !t.is_finite() {
+    if !((0.0..=1.0).contains(&p) && nc.abs() <= NCT_MAX && t != 0.0 && t.is_finite()) {
         return f64::NAN;
     }
     let increasing = t > 0.0;
@@ -1197,7 +1190,7 @@ pub fn nctdtridf(p: f64, nc: f64, t: f64) -> f64 {
 /// - [`stdtridf`]: Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
 #[must_use]
 pub fn nctdtrinc(df: f64, p: f64, t: f64) -> f64 {
-    if !(df > 0.0) || !(0.0..=1.0).contains(&p) || !t.is_finite() {
+    if !(df > 0.0 && (0.0..=1.0).contains(&p) && t.is_finite()) {
         return f64::NAN;
     }
     // The CDF decreases in nc, from 1 at -inf to 0 at inf.
