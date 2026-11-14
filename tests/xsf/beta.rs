@@ -150,6 +150,25 @@ fn test_betaln_both_large() {
 }
 
 #[test]
+fn test_beta_both_large() {
+    // unlike in xsf, without the rounding error of ln(B), which exp amplifies |ln(B)| times
+    // (mpmath)
+    let ab = [
+        (908.203_561_838_525_2, 316.086_166_185_082_73),
+        (505.0, 387.0),
+    ];
+    let expected = [3.433_213_801_808_419_6e-305, 1.287_464_042_485_924_4e-266];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+    let actual = xsf::binom(890.0, 386.0);
+    xsref::np_assert_allclose!(&[actual], &[8.717_404_281_836_937e262], rtol = 2e-15);
+    assert_eq!(xsf::beta(1e308, 1e308), 0.0);
+    // not -0 and -inf, where the powers underflow
+    assert_eq!(xsf::beta(1e20, 2.5e19).to_bits(), 0.0_f64.to_bits());
+    assert_eq!(xsf::binom(1.25e20, 2.5e19), f64::INFINITY);
+}
+
+#[test]
 fn test_beta_negative_large_a() {
     // unlike in xsf, without the rounding error of a + b in sin(pi (a + b)) (mpmath, Wolfram)
     let ab = [
