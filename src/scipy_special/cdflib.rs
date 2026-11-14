@@ -228,6 +228,11 @@ fn betainc_scaled(a: f64, b: f64, x: f64, y: f64, lnx: f64, lny: f64) -> (f64, i
     if !(w > 0.0 && w.is_finite()) {
         return (ix, 0);
     }
+    scaled_exp(ln_term, w)
+}
+
+/// `(m, k)` with `exp(ln_term) w = m 2^k` and `m ~ 1`
+fn scaled_exp(ln_term: f64, w: f64) -> (f64, i32) {
     let k = ((ln_term + w.ln()) / LN_2).round() as i32;
     ((ln_term - f64::from(k) * LN_2).exp() * w, k)
 }
@@ -245,6 +250,16 @@ fn rescale(mut peak: f64, factor: f64, scale: &mut i32, values: &mut [&mut f64])
             **v *= pow2(-k);
         }
         *scale += k;
+    }
+}
+
+/// `lambda^k exp(-lambda) / k!` for `k >= 1`
+fn poisson_weight(k: f64, lambda: f64) -> f64 {
+    // `igam_fac` loses `~|ln(lambda)| eps` if lambda < 1
+    if k == 1.0 {
+        lambda * (-lambda).exp()
+    } else {
+        igam_fac(k + 1.0, lambda) / lambda
     }
 }
 
@@ -280,12 +295,7 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
 
     let xnonc = pnonc / 2.0;
     let icent = xnonc.floor().max(1.0);
-    // xnonc^icent exp(-xnonc) / icent!, where `igam_fac` loses `~|ln(xnonc)| eps` if xnonc < 1
-    let centwt = if icent == 1.0 {
-        xnonc * (-xnonc).exp()
-    } else {
-        igam_fac(icent + 1.0, xnonc) / xnonc
-    };
+    let centwt = poisson_weight(icent, xnonc);
     let prod = dfn * f;
     let dsum = dfd + prod;
     // `dfd / dsum`, also if `prod` overflows

@@ -112,15 +112,24 @@ pub(crate) fn igam_fac(a: f64, x: f64) -> f64 {
 
     if (a < 200.0) && (x < 200.0) {
         res *= (a - x).exp() * (x / fac).powf(a);
-    } else if x < 0.5 * a {
-        // as in Boost, because `num / fac` below loses ~a / x eps
-        res *= (a * (x / fac).ln() + (a - x)).exp();
     } else {
-        let num = x - a - LANCZOS_G + 0.5;
-        res *= (a * log1pmx(num / fac) + x * (0.5 - LANCZOS_G) / fac).exp();
+        res *= igam_fac_exponent(a, x).exp();
     }
 
     res
+}
+
+/// `ln(igam_fac(a, x) L(a) / sqrt(fac / e))`, the exponent of its Lanczos form, with
+/// `fac = a + g - 1/2`
+fn igam_fac_exponent(a: f64, x: f64) -> f64 {
+    let fac = a + LANCZOS_G - 0.5;
+    if x < 0.5 * a {
+        // as in Boost, because `num / fac` below loses ~a / x eps
+        a * (x / fac).ln() + (a - x)
+    } else {
+        let num = x - a - LANCZOS_G + 0.5;
+        a * log1pmx(num / fac) + x * (0.5 - LANCZOS_G) / fac
+    }
 }
 
 /// Compute igamc using DLMF 8.9.2.
@@ -173,14 +182,9 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
     ans * ax
 }
 
-/// Compute igam using DLMF 8.11.4.
-fn igam_series(a: f64, x: f64) -> f64 {
-    let ax = igam_fac(a, x);
-    if ax == 0.0 {
-        return 0.0;
-    }
-
-    /* power series */
+/// The power series `sum_k x^k / ((a + 1) ... (a + k))` of DLMF 8.11.4, i.e.
+/// `igam(a, x) a / igam_fac(a, x)`, and whether it converged within `IGAM_MAXITER` terms
+fn igam_series_sum(a: f64, x: f64) -> (f64, bool) {
     let mut r = a;
     let mut c = 1.0;
     let mut ans = 1.0;
@@ -193,7 +197,19 @@ fn igam_series(a: f64, x: f64) -> f64 {
             break;
         }
     }
-    if c > MACHEP * ans {
+    (ans, !(c > MACHEP * ans))
+}
+
+/// Compute igam using DLMF 8.11.4.
+fn igam_series(a: f64, x: f64) -> f64 {
+    let ax = igam_fac(a, x);
+    if ax == 0.0 {
+        return 0.0;
+    }
+
+    /* power series */
+    let (ans, converged) = igam_series_sum(a, x);
+    if !converged {
         // Unlike in xsf (scipy/xsf#339), the asymptotic series is used if the power series did not
         // converge within IGAM_MAXITER terms (only near the asymptotic window for a > 1.8e5, where
         // it needs ~5 sqrt(a) terms). The asymptotic series is accurate there, unless the result
