@@ -445,6 +445,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>pdtrc</code></td><td>k ∈ {0, …, 100}<br>m ∈ [0, 100]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap>94.9%</td></tr>
 <tr><td><code>pdtrc</code></td><td>m ∈ [10, 10⁹] (log)<br>k ∈ m ± 6√m</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>9.4e-14</samp></b></td><td align="right" nowrap><b><samp>4.0e-15</samp></b></td><td align="right" nowrap><samp>7.2e-01</samp></td><td align="right" nowrap><samp>7.5e-02</samp></td><td align="right" nowrap>75.6%</td></tr>
 <tr><td><code>pdtri</code><sup>*</sup></td><td>k ∈ {0, …, 100}<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>95.5%</td></tr>
+<tr><td><code>pdtrik</code><sup>*</sup></td><td>p ∈ [0, 1]<br>m ∈ [0.01, 10⁴] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.4e-13</samp></td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
