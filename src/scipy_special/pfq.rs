@@ -464,6 +464,12 @@ pub(crate) trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
 
 impl<P: Clone + AsRef<[f64]> + AsMut<[f64]>> Params for P {}
 
+/// `v` without `v[i]`
+fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
+    let v = v.as_ref();
+    (0..v.len()).filter(move |&k| k != i).map(move |k| v[k])
+}
+
 /// The analytic continuation to $z < -1$ (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
@@ -471,10 +477,6 @@ impl<P: Clone + AsRef<[f64]> + AsMut<[f64]>> Params for P {}
 /// integer. It is a sum over $j$ of series in $1 / z$ with the parameters $a_j + 1 - b$ and
 /// $a_j + 1 - a$.
 pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
-    fn skip(v: &impl Params, i: usize) -> impl Iterator<Item = f64> {
-        let v = v.as_ref();
-        (0..v.len()).filter(move |&k| k != i).map(move |k| v[k])
-    }
     let one = b.as_ref().iter().position(|&v| v == 1.0)?;
     let (mut sum, mut err) = (0.0, 0.0);
     for (j, &aj) in a.as_ref().iter().enumerate() {
@@ -812,36 +814,35 @@ fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Optio
     Some(asymptotic_sum(series, pfq_settled(up, low), z, bound))
 }
 
-/// The algebraic part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.2, 16.11.7), with
-/// $\abs z$ instead of $-z$, as its 2 `terms`, or `None` if $a_1 - a_2$ is an integer (unless
-/// $a_2 = b_2$)
+/// The terms of the algebraic part of the asymptotic expansion of ${}_pF_q$ for $p = q$ (DLMF
+/// 16.11.2, 16.11.7), with $\abs z$ instead of $-z$, or `None` if two $a_i$ differ by an integer
 ///
 /// `b` contains the 1 of $n!$ as its last parameter. The term of $a_m$ is $\abs z^{-a_m}$ times
-/// a $_3F_1$ series in $-1/z$, with the parameters $a_m$, $1 + a_m - b_1$, $1 + a_m - b_2$, and
-/// $1 + a_m - a_n$. It stays `None` if it vanishes, where $1 / \Gamma(b_j - a_m)$ does. If
-/// $a_2 = b_2$, they cancel, and only the term of $a_1$ is left.
-fn hyp2f2_alg(a: &[f64; 2], b: &[f64; 3], z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
-    let cancels = a[1] == b[1];
-    if !cancels && (Dd::new(a[1]) - a[0]).is_integer() {
-        return None;
-    }
-    let series = |m| pfq_alg_series(a, b, m, z);
-    let (b, ln_z) = (b.map(Dd::new), ln_dd(Dd::new(z.abs())));
-    let count = if cancels { 1 } else { 2 };
-    for m in 0..count {
-        let (am, an) = (a[m], a[1 - m]);
-        let (bm, an_am) = (b.map(|bj| bj - am), Dd::new(an) - am);
-        let (num, den): (&[Dd], &[Dd]) = if cancels {
-            // Gamma(b_2) / Gamma(a_2) and Gamma(a_2 - a_1) / Gamma(b_2 - a_1) cancel
-            (&[b[0]], &[bm[0]])
-        } else {
-            (&[b[0], b[1], an_am], &[Dd::new(an), bm[0], bm[1]])
-        };
-        if den.iter().any(is_pole) {
+/// a ${}_{q+1}F_{p-1}$ series in $-1/z$, with the parameters $a_m$ and $1 + a_m - b_j$, and
+/// $1 + a_m - a_i$. It stays `None` if it vanishes, where $1 / \Gamma(b_j - a_m)$ does. If the
+/// last $a_p$ equals the last $b_q$, they cancel: no term of $a_p$, and no $\Gamma$ of them.
+fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
+    let (_, lower) = b.as_ref().split_last()?;
+    // the parameters with a term and with Gamma factors
+    let (ga, gb) = match (a.as_ref().split_last(), lower.split_last()) {
+        (Some((ap, ga)), Some((bq, gb))) if ap == bq => (ga, gb),
+        _ => (a.as_ref(), lower),
+    };
+    let ln_z = ln_dd(Dd::new(z.abs()));
+    let bs = gb.iter().copied().map(Dd::new);
+    for (m, &am) in ga.iter().enumerate() {
+        let others = skip(&ga, m).map(Dd::new);
+        let diffs = others.clone().map(|ai| ai - am);
+        if diffs.clone().any(Dd::is_integer) {
+            return None;
+        }
+        let num = bs.clone().chain(diffs);
+        let den = others.chain(bs.clone().map(|bj| bj - am));
+        if den.clone().any(|g| is_pole(&g)) {
             continue;
         }
-        let (num, den) = (num.iter().copied(), den.iter().copied());
-        terms[m] = Some(gamma_series(num, den, series(m)?, -ln_z * am)?);
+        let sum = pfq_alg_series(a, b, m, z)?;
+        terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
     }
     Some(())
 }
@@ -855,7 +856,7 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
     // the algebraic part, `Some(None)` if it vanishes
     let alg = |a| {
         let mut terms = [None; 2];
-        hyp2f2_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
+        pfq_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
         Some(add_exp(terms.into_iter().flatten()))
     };
     let (y, other) = if z > 0.0 {
@@ -935,7 +936,7 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
     let (mut a, mut b) = ([a1, a2], [b1, b2]);
     // a common parameter cancels, also at a pole; it becomes a_2 = b_2 = 1, which cancels like
-    // the 1 of n! in the series, and which `hyp2f2_alg` recognizes
+    // the 1 of n! in the series, and which `pfq_alg` recognizes
     let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
     if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
         (a, b) = ([a[1 - i], 1.0], [b[1 - j], 1.0]);
