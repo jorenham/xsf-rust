@@ -364,6 +364,28 @@ fn test_bessel_y_large_integer_order_huge_x() {
     np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 }
 
+#[test]
+fn test_bessel_jy_large_x() {
+    // Arb: besselj(v, x) and bessely(-v, x) for |v| <= 85.9 < x, where AMOS besj lost up to 4e-11
+    let (v, x) = (49.783_394_220_823_36, 676.539_890_841_376_4);
+    let (v2, x2) = (80.453_624_324_075_55, 3_112.292_748_998_768);
+    let actual = [
+        xsf::bessel_j(v, x),
+        xsf::bessel_y(-v, x),
+        xsf::bessel_j(85.354_188_481_653_78, 3_305.533_246_055_011_7),
+        xsf::bessel_j(-v2, x2),
+        xsf::bessel_y(-v2, x2),
+    ];
+    let expected = [
+        -0.024_323_313_709_129_515,
+        0.029_884_856_070_257_57,
+        0.004_603_076_388_388_536,
+        -0.014_280_000_019_827_793,
+        0.000_836_700_874_927_345_2,
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 2e-14);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);

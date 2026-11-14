@@ -169,7 +169,7 @@ const I1MACH: [f64; 16] = [
 /// RL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC EXPANSION FOR LARGE Z.
 /// DIG = NUMBER OF BASE 10 DIGITS IN TOL = 10**(-DIG).
 /// FNUL IS THE LOWER BOUNDARY OF THE ASYMPTOTIC SERIES FOR LARGE FNU.
-const MACH: (f64, f64, f64, f64, f64) = {
+pub(crate) const MACH: (f64, f64, f64, f64, f64) = {
     let mut k1 = I1MACH[14] as i32;
     let k2 = I1MACH[15] as i32;
     let r1m5 = D1MACH[4];

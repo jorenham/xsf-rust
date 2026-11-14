@@ -192,6 +192,18 @@ fn amos_j(z: C64, v: f64, kode: i32) -> (C64, i32) {
         let sign = if v % 2.0 == 1.0 { z.re } else { 1.0 };
         return (c64(0.0_f64.copysign(sign), 0.0), 0);
     }
+    // Unlike in xsf, J_v(x) = Re H1_v(x) (DLMF 10.4.3) for real x > fnul >= v, where besj
+    // can recur down from the order fnul (85.9) and lose up to 3e-12 of sqrt(J^2 + Y^2),
+    // but besh does not.
+    //
+    // The scaling e^-|Im z| is 1 here, so this ignores `kode`.
+    let (.., fnul) = amos::MACH;
+    if z.im == 0.0 && z.re > fnul && v <= fnul {
+        let besh1 =
+            |z, v, kode, n, cy: &mut [C64], ierr: &mut i32| amos::besh(z, v, kode, 1, n, cy, ierr);
+        let (h, ierr) = amos1(besh1, z, v, 1);
+        return (c64(h.re, 0.0), ierr);
+    }
     amos1(amos::besj, z, v, kode)
 }
 
