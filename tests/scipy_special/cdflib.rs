@@ -26,6 +26,40 @@ fn test_stdtridf() {
 }
 
 #[test]
+fn test_bdtrik() {
+    // `test_bdtrik` in scipy/special/tests/test_cdflib.py
+    let cases = [
+        (6.110_236_824_190_975e-78, 100.0, 0.9, 10.0),
+        (4.018_825_542_119_935_7e-224, 1000.0, 0.9, 500.0),
+        (0.999_999_831_905_892_8, 1000.0, 0.5, 580.0),
+        (0.999_973_438_601_112_4, 100.0, 0.9, 99.0),
+    ];
+    for (y, n, p, k) in cases {
+        np_assert_allclose!([xsf::bdtrik(y, n, p)], [k], rtol = 1e-11);
+    }
+    // y lies below bdtr(0, 10, 0.5) = 2^-10
+    assert_eq!(xsf::bdtrik(1e-4, 10.0, 0.5), 0.0);
+    assert_eq!(xsf::bdtrik(0.5, 10.0, 0.0), 0.0);
+    assert_eq!(xsf::bdtrik(1.0, 10.0, 0.5), 10.0);
+    assert_eq!(xsf::bdtrik(0.5, 10.0, 1.0), 10.0);
+    assert!(xsf::bdtrik(0.5, f64::INFINITY, 0.5).is_nan());
+}
+
+#[test]
+fn test_bdtrin() {
+    for (k, n, p) in [(0.0, 1.0, 0.5), (3.0, 10.0, 0.25), (10.0, 3000.0, 0.01)] {
+        let y = xsf::bdtr(k, n as i32, p);
+        np_assert_allclose!([xsf::bdtrin(k, y, p)], [n], rtol = 1e-12);
+    }
+    assert_eq!(xsf::bdtrin(3.0, 0.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::bdtrin(3.0, 1.0, 0.5), 3.0);
+    assert_eq!(xsf::bdtrin(3.0, 0.0, 0.0), f64::INFINITY);
+    assert_eq!(xsf::bdtrin(3.0, 1.0, 1.0), 3.0);
+    assert!(xsf::bdtrin(3.0, 0.5, 0.0).is_nan());
+    assert!(xsf::bdtrin(3.0, 0.5, 1.0).is_nan());
+}
+
+#[test]
 fn test_fdtridfd() {
     for dfd in [0.5, 1.0, 2.0, 3.0, 100.0] {
         let p = xsf::fdtr(2.0, dfd, 15.0);
