@@ -169,6 +169,31 @@ fn test_beta_both_large() {
 }
 
 #[test]
+fn test_beta_large_small_ratio() {
+    // unlike in xsf, without the rounding error of ln(B), which exp amplifies |ln(B)| times, also
+    // for 1 <= b < a / 8 (Arb)
+    let ab = [
+        (725.0, 90.0),
+        (1_583.0, 197.0),
+        (1_133.057_005_166_411_5, 88.603_068_797_195_35),
+        (1_570.474_121_143_948, 4.515_318_036_067_215),
+        (30_000_000.0, 30.5),
+    ];
+    let expected = [
+        3.028_416_518_333_943_5e-124,
+        2.079_903_940_732_550_2e-270,
+        2.687_723_599_105_541e-139,
+        4.381_351_981_704_815e-14,
+        4.276_467_633_531_768e-197,
+    ];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+    let actual = [xsf::binom(813.0, 89.0), xsf::binom(959.0, 104.0)];
+    let expected = [4.056_579_473_344_959_7e120, 3.788_924_554_904_268e141];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
+}
+
+#[test]
 fn test_beta_negative_large_a() {
     // unlike in xsf, without the rounding error of a + b in sin(pi (a + b)) (mpmath, Wolfram)
     let ab = [

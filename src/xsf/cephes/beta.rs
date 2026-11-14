@@ -18,8 +18,8 @@ use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 use core::f64::consts::{PI, TAU};
 
 const BETA_ASYMP_FACTOR: f64 = 1e6;
-/// Below this `|b / a|`, `lbeta_ratio` uses `lgam_ratio`, and from it, for `a, b > 0`, Stirling's
-/// formula, for which `a + b > MAXGAM` then keeps `b > MAXGAM / 9 ~ 19` large enough
+/// Below this `|b / a|`, `lbeta_ratio` uses `lgam_ratio`, and at or above it, for `a, b > 0`,
+/// Stirling's formula
 const STIRLING_RATIO: f64 = 0.125;
 /// Below this `|a|` and `|b|`, `B(a, b) = (a + b) / (a b)` to within `~1.6 |a b|` (DLMF 5.7.3)
 const BETA_TINY: f64 = 1e-9;
@@ -86,7 +86,7 @@ fn stirling_q(a: f64, b: f64) -> f64 {
     r / (1.0 + r)
 }
 
-/// `B(a, b)` by Stirling's formula, for `a >= b >= a / 8 > 0` and `a + b > MAXGAM`
+/// `B(a, b)` by Stirling's formula, for `a >= b >= 1` and `a + b > MAXGAM`
 ///
 /// Not as `exp(ln(B))`, whose rounding error `exp` amplifies `|ln(B)|` (up to ~745) times. With
 /// `q = b / (a + b)`, as in `lbeta_ratio`:
@@ -259,8 +259,9 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
 
     y = a + b;
     if beta_uses_lgam(a, b) {
-        // Unlike in xsf, not as `exp(ln(B))`, which amplifies the rounding error of `ln(B)`
-        if a > 0.0 && b >= STIRLING_RATIO * a {
+        // Unlike in xsf, not as `exp(ln(B))`, which amplifies the rounding error of `ln(B)`. A
+        // positive `b < 1` is subnormal here, as `small_b` takes the others.
+        if a > 0.0 && b >= 1.0 {
             return beta_stirling(a, b);
         }
         if let Some((y, sign)) = lbeta_ratio(a, b) {
