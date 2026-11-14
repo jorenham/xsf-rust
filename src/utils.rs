@@ -77,6 +77,7 @@ mod tests {
         assert_eq!(SQRT_PI.to_bits(), pi.sqrt().to_bits());
         assert_eq!(SQRT_TAU_DOWN.to_bits(), tau.sqrt().to_bits());
         assert_eq!(SQRT_TAU.to_bits(), SQRT_TAU_DOWN.to_bits() + 1);
+        assert_eq!(SQRT_TAU.to_bits(), (SQRT_2 * black_box(SQRT_PI)).to_bits());
         assert_eq!(SQRT_3.to_bits(), black_box(3.0_f64).sqrt().to_bits());
         assert_eq!(
             FRAC_PI_SQ_6.to_bits(),

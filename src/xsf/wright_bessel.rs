@@ -23,6 +23,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
+use crate::utils::SQRT_TAU_DOWN;
 use crate::xsf::cephes::lanczos::LANCZOS_G;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{lanczos_sum_expg_scaled, lgam, rgamma, zeta};
@@ -103,7 +104,7 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     // is exp(ln_term(k_max)) * sqrt(2 pi) * sigma up to a factor 1 + O(1/k_max), which the log
     // cannot resolve, and `wright_bessel` overflows.
     if k >= 2_f64.powi(31) {
-        let res = ln_term(k) + (TAU.sqrt() * sigma).ln();
+        let res = ln_term(k) + (SQRT_TAU_DOWN * sigma).ln();
         return if LOG_WB { res } else { res.exp() };
     }
     let k_max = k as u32;
