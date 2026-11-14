@@ -61,8 +61,13 @@ fn test_hyp3f2_special() {
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.0), Some(1.0));
     assert!(hyp3f2(f64::NAN, 2.5, 3.5, 0.5, 4.5, 0.25).unwrap().is_nan());
     assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NAN).unwrap().is_nan());
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, f64::INFINITY, 0.25), None);
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NEG_INFINITY), None);
+    // the limits of `hyppfq` for an infinite argument
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, f64::INFINITY, 0.25), Some(1.0));
+    assert_eq!(
+        hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NEG_INFINITY),
+        Some(0.0)
+    );
+    assert_eq!(hyp3f2(f64::INFINITY, 2.5, 3.5, 0.5, 4.5, 0.25), None);
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, -2.0, 0.25), Some(f64::INFINITY));
@@ -284,8 +289,14 @@ fn test_hyp2f2_special() {
     assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, 0.0), Some(1.0));
     assert!(hyp2f2(f64::NAN, 2.5, 3.5, 4.5, 0.25).unwrap().is_nan());
     assert!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NAN).unwrap().is_nan());
-    assert_eq!(hyp2f2(1.5, 2.5, f64::INFINITY, 4.5, 0.25), None);
-    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NEG_INFINITY), None);
+    // the limits of `hyppfq` for an infinite argument
+    assert_eq!(hyp2f2(1.5, 2.5, f64::INFINITY, 4.5, 0.25), Some(1.0));
+    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NEG_INFINITY), Some(0.0));
+    assert_eq!(
+        hyp2f2(1.5, -2.5, 3.5, 4.5, f64::INFINITY),
+        Some(f64::NEG_INFINITY)
+    );
+    assert_eq!(hyp2f2(f64::INFINITY, 2.5, 3.5, 4.5, 0.25), None);
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
     assert_eq!(hyp2f2(1.5, 2.5, 3.5, -2.0, 0.25), Some(f64::INFINITY));
@@ -392,8 +403,17 @@ fn test_hyp1f2_special() {
     assert_eq!(hyp1f2(1.5, 3.5, 4.5, 0.0), Some(1.0));
     assert!(hyp1f2(f64::NAN, 3.5, 4.5, 0.25).unwrap().is_nan());
     assert!(hyp1f2(1.5, 3.5, 4.5, f64::NAN).unwrap().is_nan());
-    assert_eq!(hyp1f2(1.5, f64::INFINITY, 4.5, 0.25), None);
-    assert_eq!(hyp1f2(1.5, 3.5, 4.5, f64::NEG_INFINITY), None);
+    // the limits of `hyppfq` for an infinite argument
+    assert_eq!(hyp1f2(1.5, f64::INFINITY, 4.5, 0.25), Some(1.0));
+    assert_eq!(
+        hyp1f2(1.5, -2.5, 3.5, f64::INFINITY),
+        Some(f64::NEG_INFINITY)
+    );
+    assert_eq!(
+        hyp1f2(-3.0, 2.5, 3.5, f64::NEG_INFINITY),
+        Some(f64::INFINITY)
+    );
+    assert_eq!(hyp1f2(1.5, 0.25, 0.5, f64::NEG_INFINITY), None);
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
     assert_eq!(hyp1f2(1.5, 3.5, -2.0, 0.25), Some(f64::INFINITY));
@@ -546,6 +566,54 @@ fn test_hyppfq_special() {
 }
 
 #[test]
+fn test_hyppfq_infinite() {
+    let inf = f64::INFINITY;
+    // equal infinities cancel, and z = 0 wins
+    let f1f1 = Some(hyp1f1(0.5, 1.5, 0.25));
+    assert_eq!(hyppfq(&[0.5, inf], &[inf, 1.5], 0.25), f1f1);
+    assert_eq!(hyppfq(&[inf], &[-inf], 0.0), Some(1.0));
+    // a polynomial, with the sign of its last term
+    assert_eq!(hyppfq(&[-2.0], &[2.5], -inf), Some(inf));
+    assert_eq!(hyppfq(&[-3.0], &[2.5], inf), Some(-inf));
+    assert_eq!(hyppfq(&[-3.0], &[-4.5], -inf), Some(-inf));
+    assert_eq!(hyppfq(&[-3.0, 2.5], &[-3.5, 4.5], inf), Some(inf));
+    assert_eq!(hyppfq(&[-3.0], &[], inf), Some(-inf));
+    assert_eq!(hyppfq(&[0.0, 2.5], &[1.5], -inf), Some(1.0));
+    // for p <= q at z = +inf, with the sign of prod Gamma(b_j) / prod Gamma(a_i)
+    assert_eq!(hyppfq(&[], &[], inf), Some(inf));
+    assert_eq!(hyppfq(&[0.5], &[1.5], inf), Some(inf));
+    assert_eq!(hyppfq(&[], &[-2.5], inf), Some(-inf));
+    assert_eq!(hyppfq(&[-2.5], &[1.5], inf), Some(-inf));
+    assert_eq!(hyppfq(&[-1.5, 2.5], &[-0.5, -1.75, 2.25], inf), Some(-inf));
+    // for q <= p <= q + 1 at z = -inf if all a_i > 0
+    assert_eq!(hyppfq(&[], &[], -inf), Some(0.0));
+    assert_eq!(hyppfq(&[1.5], &[-2.5], -inf), Some(0.0));
+    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[-0.5, -2.25], -inf), Some(0.0));
+    // the functions of p <= 2 and q <= 1, which have no limit for 0F1(0.25; z)
+    assert_eq!(hyppfq(&[-2.5], &[], -inf), Some(inf));
+    assert_eq!(hyppfq(&[2.0], &[], inf), Some(0.0));
+    assert_eq!(hyppfq(&[-1.5], &[-0.5], -inf), Some(-inf));
+    assert_eq!(hyppfq(&[], &[0.25], -inf), None);
+    // complex for p = q + 1
+    assert!(hyppfq(&[2.5], &[], inf).is_some_and(f64::is_nan));
+    assert!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, 4.5], inf).is_some_and(f64::is_nan));
+    // the terms n >= 1 vanish for a b_j = +inf, unless it is complex
+    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], -10.0), Some(1.0));
+    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], 1.0), Some(1.0));
+    assert_eq!(hyppfq(&[-2.0, 2.5, 3.5], &[0.5, inf], 2.0), Some(1.0));
+    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], 2.0), None);
+    // p > q + 1 diverges, unless it is a polynomial
+    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[inf], 0.5), None);
+    assert_eq!(hyppfq(&[-2.0, 1.5, 2.5], &[inf], 0.5), Some(1.0));
+    // a pole wins
+    assert_eq!(hyppfq(&[1.5], &[-2.0, inf], 0.25), Some(inf));
+    // no limit
+    assert_eq!(hyppfq(&[1.5], &[-inf], 0.25), None);
+    assert_eq!(hyppfq(&[1.5], &[inf], inf), None);
+    assert_eq!(hyppfq(&[inf], &[2.5], 0.25), None);
+}
+
+#[test]
 fn test_hyppfq_polynomial() {
     // the exact sums of the terms (Python `fractions`), rounded
     for (a, b, z, expected) in [
@@ -596,5 +664,4 @@ fn test_hyppfq_none() {
         hyppfq(&[0.5, 1.5, 2.5, 3.5], &[1.25, 2.25, 3.25], 0.5),
         None
     );
-    assert_eq!(hyppfq(&[0.5], &[1.5], f64::INFINITY), None);
 }

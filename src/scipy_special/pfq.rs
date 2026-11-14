@@ -601,7 +601,7 @@ fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
 /// - at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial.
 ///
 /// It is NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is
-/// NaN.
+/// NaN. For an infinite argument, it is the limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
@@ -610,7 +610,7 @@ fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
 /// - at $z = 1$, and for $0.996 \lesssim z < 1$;
 /// - for $z < -1$ if two $a_i$ differ by an integer (nearly always for $z < -3$);
 /// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
-/// - if an argument is infinite.
+/// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 /// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.8.E8>
@@ -624,7 +624,7 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
     if args.into_iter().any(f64::is_nan) {
         return Some(f64::NAN);
     } else if args.into_iter().any(f64::is_infinite) {
-        return None;
+        return hyppfq(&[a1, a2, a3], &[b1, b2], z);
     }
     let (a, b) = ([a1, a2, a3], [b1, b2, 1.0]);
     // a common parameter cancels: 2F1, or 1F0 if that has one as well
@@ -821,7 +821,8 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 /// As in [`hyp3f2`], an $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
 /// that the result is the $_1F_1$ of the other parameters (or $e^z$), and it is $+\infty$ if a
 /// $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if
-/// an argument is NaN, and overflows to $\pm\infty$ for large $z > 0$.
+/// an argument is NaN, and overflows to $\pm\infty$ for large $z > 0$. For an infinite
+/// argument, it is the limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
@@ -832,7 +833,7 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 /// - for $z < 0$ beyond that if $a_1 - a_2$ is an integer (unless one of them cancels);
 /// - for some large parameters, also for $z > 0$;
 /// - near a zero, or if the result underflows;
-/// - if an argument is infinite.
+/// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///
@@ -846,7 +847,7 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     if args.into_iter().any(f64::is_nan) {
         return Some(f64::NAN);
     } else if args.into_iter().any(f64::is_infinite) {
-        return None;
+        return hyppfq(&[a1, a2], &[b1, b2], z);
     } else if z == 0.0 {
         return Some(1.0);
     }
@@ -1010,7 +1011,8 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 /// As in [`hyp2f2`], an $a$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
 /// that the result is the $_0F_1$ of the other $b_j$, and it is $+\infty$ if a $b_j$ is a
 /// non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if an argument
-/// is NaN, and overflows to $\pm\infty$ for large $z > 0$.
+/// is NaN, and overflows to $\pm\infty$ for large $z > 0$. For an infinite argument, it is the
+/// limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
@@ -1020,7 +1022,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///   $-10^5 < z < -10^3$ if they are up to 100;
 /// - for most $z \lesssim -10^{32}$;
 /// - near a zero, or if the result underflows;
-/// - if an argument is infinite.
+/// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///
@@ -1034,7 +1036,7 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     if args.into_iter().any(f64::is_nan) {
         return Some(f64::NAN);
     } else if args.into_iter().any(f64::is_infinite) {
-        return None;
+        return hyppfq(&[a], &[b1, b2], z);
     } else if z == 0.0 {
         return Some(1.0);
     }
@@ -1058,6 +1060,28 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
 }
 
+/// The limit at $z = \pm\infty$ for finite parameters if cheap, with `b` without the 1 of $n!$
+fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
+    if z.is_finite() {
+        None
+    } else if degree == 0.0 {
+        Some(1.0)
+    } else if degree.is_finite() {
+        // the sign of the last term: the parity of its negative factors
+        let odd = |v: &f64| (-v).ceil().clamp(0.0, degree) % 2.0;
+        let parity = a.iter().chain(b).chain([&z]).map(odd).sum::<f64>() % 2.0;
+        Some(f64::INFINITY * (1.0 - 2.0 * parity))
+    } else if z > 0.0 && a.len() <= b.len() {
+        // the sign of the exponentially large term (DLMF 16.11)
+        Some(f64::INFINITY * a.iter().chain(b).map(|&v| gammasgn(v)).product::<f64>())
+    } else if (b.len()..=b.len() + 1).contains(&a.len()) && a.iter().all(|&v| v > 0.0) {
+        // all terms of DLMF 16.11 vanish
+        (z < 0.0).then_some(0.0)
+    } else {
+        None
+    }
+}
+
 /// Generalized hypergeometric function $_pF_q$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -1078,8 +1102,8 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 /// $p = q + 1$ and $z \le -1$, it is the analytic continuation. A non-positive integer
 /// $a_i = -n$ makes it a polynomial of degree at most $n$.
 ///
-/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer. The supported
-/// $p$ and $q$ that remain are:
+/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer or infinite. The
+/// supported $p$ and $q$ that remain are:
 ///
 /// | $p$ | $q = 0$                   | $q = 1$                   | $q = 2$    |
 /// | --- | ------------------------- | ------------------------- | ---------- |
@@ -1090,9 +1114,14 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 ///
 /// It is:
 ///
-/// - 1 at $z = 0$;
+/// - 1 at $z = 0$, and for a $b_j = +\infty$ and a finite $z$ if $p \le q + 1$ or it is a
+///   polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
 ///   $\lt m$, and for $_1F_0$ at $z = 1$ if $a_1 > 0$;
+/// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, with the sign of its
+///   last term, and otherwise at $z = +\infty$ for $p \le q$, with the sign of
+///   $\prod_j \Gamma(b_j) / \prod_i \Gamma(a_i)$;
+/// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
 /// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
 ///   $_1F_0 = (1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
 ///
@@ -1100,16 +1129,14 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 ///
 /// - for the other $p$ and $q$, unless it is a polynomial;
 /// - where it can't be computed accurately;
-/// - if an argument is infinite.
+/// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
+///   table has a limit.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 #[must_use]
 pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
-    let args = || a.iter().chain(b).chain([&z]);
-    if args().any(|v| v.is_nan()) {
+    if a.iter().chain(b).chain([&z]).any(|v| v.is_nan()) {
         return Some(f64::NAN);
-    } else if args().any(|v| v.is_infinite()) {
-        return None;
     } else if z == 0.0 {
         return Some(1.0);
     }
@@ -1120,6 +1147,16 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     let Some(degree) = pfq_degree(&a, &b) else {
         return Some(f64::INFINITY);
     };
+    let complex = a.len() == b.len() + 1 && z > 1.0 && degree.is_infinite();
+    if a.iter().chain(&b).any(|v| v.is_infinite()) {
+        // the terms n >= 1 vanish for b_j = +inf
+        let finite = a.iter().chain([&z]).all(|v| v.is_finite());
+        let converges = a.len() <= b.len() + 1 || degree.is_finite();
+        let one = finite && converges && !b.contains(&f64::NEG_INFINITY) && !complex;
+        return one.then_some(1.0);
+    } else if let Some(y) = pfq_limit(&a, &b, z, degree) {
+        return Some(y);
+    }
     // a polynomial is short enough for double-double
     let polynomial = || {
         let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
@@ -1128,18 +1165,18 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     if let Some(y) = degree.is_finite().then(polynomial).flatten() {
         return Some(y);
     }
-    let complex = a.len() == b.len() + 1 && z > 1.0 && degree.is_infinite();
     // the xsf functions are NaN where they are inaccurate
     let xsf = |y: f64| Some(y).filter(|y| !y.is_nan());
     match (a.as_slice(), b.as_slice()) {
         (&[], &[]) => Some(crate::hyp0f0(z)),
         // +inf where it diverges, and NaN where it is complex
         (&[a], &[]) if z == 1.0 && a > 0.0 => Some(f64::INFINITY),
-        (&[a], &[]) => Some(crate::hyp1f0(a, z)),
+        (&[a], &[]) if !complex || a.fract() == 0.0 => Some(crate::hyp1f0(a, z)),
         _ if complex => Some(f64::NAN),
         (&[], &[b]) => xsf(crate::hyp0f1(b, z)),
         (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
+        _ if z.is_infinite() => None,
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2(a1, a2, a3, b1, b2, z),
