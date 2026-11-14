@@ -667,7 +667,18 @@ fn test_chdtr_fdtr_subnormal() {
     assert_eq!(xsf::fdtr(tiny, 2.0, 0.0), 0.0);
     assert_eq!(xsf::fdtr(tiny, 2.0, 1.0), 1.0);
     assert_eq!(xsf::fdtr(tiny, tiny, 1e-300), 0.5);
-    assert_eq!(xsf::fdtr(3.0 * tiny, 2.0 * tiny, 1e-300), 0.4);
+    // the limit `B / (A + B)` as `A, B -> 0`, also if neither `a x` nor `w` is subnormal, which
+    // mpmath confirms for `w` near 0, 1/2 and 1
+    for x in [1e-300, 1.0, 1e300] {
+        assert_eq!(xsf::fdtr(3.0 * tiny, 2.0 * tiny, x), 0.4);
+        assert_eq!(xsf::fdtrc(3.0 * tiny, 2.0 * tiny, x), 0.6);
+    }
+    assert_eq!(xsf::fdtr(3.0 * tiny, tiny, 1e308), 0.25);
+    assert_eq!(xsf::fdtr(5.0 * tiny, tiny, 1e10), 1.0 / 6.0);
+    assert_eq!(xsf::fdtrc(tiny, 7.0 * tiny, 0.5), 0.125);
+    assert_eq!(xsf::ncfdtr(3.0 * tiny, 2.0 * tiny, 0.0, 1.0), 0.4);
+    let q = xsf::fdtrc(16.0 * tiny, f64::MIN_POSITIVE, 1e-127);
+    xsref::np_assert_allclose!(&[q], &[3.552_713_678_800_488_3e-15], rtol = 1e-15);
 }
 
 #[test]
