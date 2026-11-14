@@ -88,9 +88,22 @@ use crate::xsf::cephes::{gammasgn, iv, lgam, rgamma};
 const STRUVE_MAXITER: i32 = 10000;
 const STRUVE_SUM_EPS: f64 = 1e-16; /* be sure we are in the tail of the sum */
 const STRUVE_SUM_TINY: f64 = 1e-100;
-const STRUVE_GOOD_EPS: f64 = 1e-12;
+// Unlike in xsf, return early only if accurate to about eps (instead of 1e-12), and else the
+// best of the three expansions
+const STRUVE_GOOD_EPS: f64 = 1e-15;
 const STRUVE_ACCEPTABLE_EPS: f64 = 1e-7;
 const STRUVE_ACCEPTABLE_ATOL: f64 = 1e-300;
+
+/// `h^(v+k) / Gamma(g) / exp(scale)`, unless it over- or underflows
+///
+/// Unlike in xsf, the series use this instead of `exp(-lgam(g) + (v+k) ln(h) - scale)`, whose
+/// relative error is about `eps` times the (often large) exponent. Splitting off `h^k` avoids
+/// rounding `v + k`.
+fn pow_rgamma(h: f64, v: f64, k: i32, g: f64, scale: f64) -> Option<f64> {
+    let p = h.powf(v / 2.0) * (-scale / 2.0).exp();
+    let t = p * rgamma(g) * h.powi(k) * p;
+    (p.is_normal() && t.is_normal()).then_some(t)
+}
 
 /*
  * Large-z expansion for Struve H and L
@@ -121,8 +134,9 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
 
     /* Evaluate sum */
     let mut term = f64::from(-sgn) / SQRT_PI
-        * (-lgam(v + 0.5) + (v - 1.0) * (z / 2.0).ln()).exp()
-        * gammasgn(v + 0.5);
+        * pow_rgamma(z / 2.0, v, -1, v + 0.5, 0.0).unwrap_or_else(|| {
+            (-lgam(v + 0.5) + (v - 1.0) * (z / 2.0).ln()).exp() * gammasgn(v + 0.5)
+        });
     let mut sum = term;
     let mut maxterm: f64 = 0.0;
 
@@ -181,7 +195,8 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
         scaleexp = 0.0;
     }
 
-    term = FRAC_2_SQRT_PI * tmp.exp() * gammasgn(v + 1.5);
+    let lead = pow_rgamma(z / 2.0, v, 1, v + 1.5, scaleexp);
+    term = FRAC_2_SQRT_PI * lead.unwrap_or_else(|| tmp.exp() * gammasgn(v + 1.5));
     sum = term;
     let mut maxterm: f64 = 0.0;
 
@@ -214,7 +229,10 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
         }
     }
 
-    *err = term.abs() + maxterm.abs() * 1e-22;
+    // Unlike in xsf, about the accumulated double-double rounding error (instead of 1e-22), unless
+    // the leading term is `exp` of a large exponent, which loses about eps times the exponent
+    let rel_err = if lead.is_some() { 1e-30 } else { 1e-22 };
+    *err = term.abs() + maxterm.abs() * rel_err;
 
     if scaleexp != 0.0 {
         sum *= scaleexp.exp();

@@ -58,3 +58,26 @@ fn test_struve_l_near_half_integer() {
         assert!(rel < 2e-12, "struve_l({v}, {z}): rel = {rel:e}");
     }
 }
+
+#[test]
+fn test_struve_h_l_accurate() {
+    // near the asymptotic expansion's threshold, a large leading-term exponent, one that
+    // overflows (so the Bessel series wins), and L near v = -k - 1/2 (reference values from Arb)
+    let actual = [
+        xsf::struve_h(1.243_519_904_577_050_6, 24.304_034_546_767_898),
+        xsf::struve_h(-4.625_056_973_249_563, 7.710_273_901_087_9e-85),
+        xsf::struve_h(-26.903_775_197_924_794, 6.123_636_709_931_788e-9),
+        xsf::struve_h(800.0, 320.0),
+        xsf::struve_l(-11.499_999_924_029_11, 11.984_087_896_438_211),
+        xsf::struve_l(-10.500_000_254_090_715, 12.134_779_880_436_286),
+    ];
+    let expected = [
+        1.195_317_234_632_318_2,
+        9.796_550_282_644_997e305,
+        6.924_530_589_547_383e245,
+        2.599_493_516_768_558e-215,
+        88.475_249_644_313_31,
+        250.252_585_832_560_87,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-15);
+}
