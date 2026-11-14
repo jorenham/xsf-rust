@@ -978,7 +978,8 @@ pub fn ncfdtrinc(dfn: f64, dfd: f64, p: f64, f: f64) -> f64 {
 
 /// CDF of the noncentral t distribution
 ///
-/// Corresponds to [`scipy.special.nctdtr`][nctdtr].
+/// Corresponds to [`scipy.special.nctdtr`][nctdtr]. It is slower, but also accurate where SciPy's
+/// loses all digits or returns NaN, e.g. for `t < 0 < nc` or a large `nc`.
 ///
 /// [nctdtr]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nctdtr.html
 ///
