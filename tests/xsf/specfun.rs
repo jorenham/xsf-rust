@@ -213,6 +213,29 @@ fn test_hypu_poly_overflow() {
     let actual = [xsf::hypu(-171.0, 1.0, 0.5), xsf::hypu(-168.0, 2.0, 30.0)];
     let expected = [-1.277_404_819_038_795_2e308, 9.572_203_868_570_836e307];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb: 2.88e468; -inf in xsf
+    assert_eq!(xsf::hypu(-237.0, -107.25, 101.0), f64::INFINITY);
+
+    // Arb; 0, -0, inf, and inf in xsf
+    let abx = [
+        (-176.75, -143.75, 0.003),
+        (-277.625, -199.625, 0.0329),
+        (-157.8125, 33.1875, 8.75),
+        (5.125, 330.125, 14.9),
+    ];
+    let expected = [
+        2.692_507_169_282_326e-295,
+        -3.854_488_043_803_876e-115,
+        -3.436_886_227_248_617_6e301,
+        3.387_267_647_106_950_4e303,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb: 3.80e-83005 and 3.59e201603; NaN in xsf
+    assert_eq!(xsf::hypu(100_000.0, 200_002.0, 1000.0), 0.0);
+    assert_eq!(xsf::hypu(150_000.0, 300_002.0, 100.0), f64::INFINITY);
 }
 
 #[test]

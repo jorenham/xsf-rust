@@ -20,7 +20,8 @@ use crate::xsf::trig::cephes_sinpi;
 use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
 use crate::{digamma, gamma, gammaln, hyp0f1};
 
-/// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
+/// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
+/// overflowing sum in `chgul`
 const MAX_TERMS: i32 = 100_000;
 
 /// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
@@ -1547,6 +1548,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         hu = 1.0;
         r = 1.0;
         let mut rmax: f64 = 1.0;
+        // Unlike in xsf (scipy/xsf#380), the sum is hu 2^e_sum, where hu is scaled down (exactly)
+        // before it overflows, so that an infinite U has its sign
+        let mut e_sum = 0_i32;
         // (a + k - 1) (a - b + k) < 0 for k between 1 - a and b - a, so the terms keep their sign
         // there, and a sum that is +-inf at k >= k_inf stays +-inf
         let (lo, hi) = ((1.0 - a).min(b - a), (1.0 - a).max(b - a));
@@ -1555,16 +1559,29 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         } else {
             f64::INFINITY
         };
+        // whether the sum stopped early, as a lower bound of |sum|
+        let mut partial = false;
         for k in 1..=nm {
             let k = f64::from(k);
             let prev = r;
             r = -r * (a + (k - 1.0)) * (a - b + k) / (k * x);
             hu += r;
             rmax = rmax.max(r.abs());
+            if rmax > SCALE {
+                (r, hu, rmax) = (r / SCALE, hu / SCALE, rmax / SCALE);
+                e_sum = e_sum.saturating_add(LOG2_SCALE);
+            }
             // Unlike in xsf (scipy/xsf#380), the loop stops once
             // - the sum is NaN, or +-inf for good (k >= k_inf)
             // - the terms decrease below `MIN_POSITIVE`
+            // - the sum overflows (unscaled) and has more than `MAX_TERMS` terms: it is then
+            //   `partial` if it has the sign of the terms that are left (k >= k_inf), and else NaN
+            if e_sum > LOG2_SCALE && k > f64::from(MAX_TERMS) && k < f64::from(nm) {
+                partial = k >= k_inf && hu * r > 0.0;
+                hu = if partial { hu } else { f64::NAN };
+            }
             if hu.is_nan()
+                || partial
                 || hu.is_infinite() && k >= k_inf
                 || r.abs() < f64::MIN_POSITIVE && r.abs() <= prev.abs()
             {
@@ -1576,13 +1593,15 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // c + x >= 0 is computed by the recurrence in a (DLMF 13.3.7, found to be stable then), and
         // otherwise the id reflects the cancellation, so that other methods are tried
         let cancels = rmax > 1e6 * hu.abs();
+        // (unscaled, i.e. if its largest term does)
+        let overflows = e_sum > LOG2_SCALE || !hu.is_finite();
         // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
         let kummer = !il1 || (il2 && b < 1.0);
         let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
         // U(n, c, x) = u 2^e, where u is scaled down (exactly) before it overflows, so that an
         // infinite U has its sign
         let (mut u, mut e) = (f64::NAN, 0_i32);
-        if (cancels || !hu.is_finite()) && c + x >= 0.0 {
+        if (cancels || overflows) && c + x >= 0.0 {
             // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
             let mut u1 = 0.0;
             u = 1.0;
@@ -1595,10 +1614,11 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 }
             }
         }
-        // m 2^e x^p, in log space if x^p, or its product with m, over- or underflows
+        // m 2^e x^p, for finite m and x in log space if x^p, or its product with m, over- or
+        // underflows
         let pow_scaled = |m: f64, e: i32, p: f64| {
             let xp = x.powf(p);
-            if xp.is_normal() && (m * xp).is_normal() {
+            if xp.is_normal() && (m * xp).is_normal() || !(m.is_finite() && x.is_finite()) {
                 ldexp_f64(m * xp, e)
             } else {
                 let l = ln_dd(DoubleDouble::new(x)) * p;
@@ -1611,8 +1631,11 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             *id = 15;
         } else {
             let sum = hu;
-            hu *= x.powf(-a);
-            if hu.is_finite() {
+            hu = pow_scaled(sum, e_sum, -a);
+            // a partial sum only shows that U overflows
+            if partial && hu.is_finite() {
+                hu = f64::NAN;
+            } else if sum.is_finite() {
                 *id = (15.0 - (rmax / sum.abs()).log10()) as i32;
             }
         }
