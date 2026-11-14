@@ -169,7 +169,7 @@ fn amos1(bes: AmosBessel, z: C64, v: f64, kode: i32) -> (C64, i32) {
 
 /// Whether AMOS overflowed (`ierr = 2`) on the real axis `z >= 0`, where the result is `+-inf`.
 fn overflowed_real(ierr: i32, z: C64) -> bool {
-    ierr == 2 && z.re >= 0.0 && z.im == 0.0
+    ierr == 2 && z.re >= 0.0 && z.is_real()
 }
 
 /// Whether `J_v(x) = 0` and `Y_v(x) = -inf` in f64, for real `z = x` and a finite order `v` above
@@ -182,7 +182,7 @@ fn jy_huge_order(v: f64, z: C64) -> bool {
     let s = z.re.abs() / v;
     let w2 = (1.0 - s) * (1.0 + s);
     let huge = v > 0.5 / f64::EPSILON && v.is_finite();
-    huge && z.im == 0.0 && v * w2 * w2.sqrt() / 3.0 > 2.0 * MAXLOG
+    huge && z.is_real() && v * w2 * w2.sqrt() / 3.0 > 2.0 * MAXLOG
 }
 
 /// `amos1` of `besj`. Unlike in xsf, 0 instead of NaN for a `jy_huge_order`, with the sign of
@@ -329,7 +329,7 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
     let (mut cy, ierr) = amos1(amos::besi, z, v, kode);
     if ierr == 2 {
         /* overflow */
-        if z.im == 0.0 && (z.re >= 0.0 || v == v.floor()) {
+        if z.is_real() && (z.re >= 0.0 || v == v.floor()) {
             if z.re < 0.0 && v / 2.0 != (v / 2.0).floor() {
                 cy.re = f64::NEG_INFINITY;
             } else {
@@ -382,7 +382,7 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         let w = cyl_bessel_k_kode(v, z, 2) * C64::cis(z.im).conj();
         if w.is_finite() {
             cy = c64(mul_exp(w.re, -z.re), mul_exp(w.im, -z.re));
-        } else if z.im == 0.0 {
+        } else if z.is_real() {
             crate::xsf::cephes::ikv_asymptotic_uniform(v, z.re, None, Some(&mut cy.re));
         }
     }
@@ -398,7 +398,7 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
  */
 fn cyl_bessel_k_overflows(v: f64, z: C64, scaled: bool) -> bool {
     let x = z.re;
-    if v <= f64::from(i32::MAX) * 0.5 || z.im != 0.0 || !(x > 0.0) {
+    if v <= f64::from(i32::MAX) * 0.5 || !z.is_real() || !(x > 0.0) {
         return false;
     }
     let logk =

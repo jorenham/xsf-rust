@@ -149,7 +149,7 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
     if z.is_nan() {
         return C64::NAN;
     }
-    if z.im == 0.0 && is_nonpos_int(z.re) {
+    if z.is_real() && is_nonpos_int(z.re) {
         return C64::NAN;
     }
     if z.re > LOGGAMMA_SMALLX || z.im.abs() > LOGGAMMA_SMALLY {
@@ -177,7 +177,7 @@ pub(crate) fn cloggamma(z: C64) -> C64 {
 /// `xsf::rgamma` for complex `z`
 fn crgamma(z: C64) -> C64 {
     // Compute 1/Gamma(z) using loggamma.
-    if z.im == 0.0 && is_nonpos_int(z.re) {
+    if z.is_real() && is_nonpos_int(z.re) {
         // Zeros at 0, -1, -2, ...
         return C64::ZERO;
     }
