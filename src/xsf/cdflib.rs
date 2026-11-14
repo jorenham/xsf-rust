@@ -155,8 +155,10 @@ pub(crate) fn find_positive_root(
     if bracket_status >= 3 {
         return f64::NAN;
     }
+    // Unlike in xsf, the absolute tolerance is 0 instead of `1e-100`, so that roots below `~1e-84`
+    // keep their relative precision
     let (result, root_status) =
-        find_root_chandrupatla(&func, xl, xr, f_xl, f_xr, f64::EPSILON, 1e-100, 100);
+        find_root_chandrupatla(&func, xl, xr, f_xl, f_xr, f64::EPSILON, 0.0, 100);
     if root_status != 0 {
         /* The root finding return should only fail if there's a bug in our code. */
         return f64::NAN;
