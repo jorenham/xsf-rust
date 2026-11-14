@@ -26,6 +26,10 @@ const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 /// Largest estimated relative error of a result
 const PFQ_TOL: f64 = 1e-13;
 
+/// Most parameters, with the 1 of $n!$, for which the rounding errors of the methods in `f64`
+/// are measured
+const PFQ_MEASURED_PARAMS: f64 = 6.0;
+
 /// Largest size of terms that add nothing to a sum, even if there are `PFQ_MAXITER` of them
 const PFQ_NEGLIGIBLE: f64 = 1e-150;
 
@@ -124,6 +128,12 @@ fn is_pole(v: &Dd) -> bool {
 /// The $n$ from which on all $a_i + n$ and $b_j + n$ are positive
 fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
     a.iter().chain(b).fold(0.0, |n, &v| n.max(-v))
+}
+
+/// The factor of the measured rounding errors for more than `PFQ_MEASURED_PARAMS` parameters,
+/// as each of them adds its own to a term
+fn pfq_rounding_scale(a: &[f64], b: &[f64]) -> f64 {
+    ((a.len() + b.len()) as f64 / PFQ_MEASURED_PARAMS).max(1.0)
 }
 
 /// `v` in descending order, as `pfq_ratio_bound` is tightest if `a` and `b` are sorted alike
@@ -247,6 +257,8 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
     let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
+    // (not in double-double, whose `EPSILON` leaves room for many more parameters)
+    let err = err * pfq_rounding_scale(a.as_ref(), b.as_ref());
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
@@ -359,6 +371,8 @@ pub(crate) fn pfq_weniger(
     let start = settled.min(degree);
     let checked = pfq_extreme(a, b);
     let ratio = |n| -> f64 { pfq_ratio(a, b, n, checked) };
+    // the rounding errors of the partial sums and of the terms (the factor is measured)
+    let eps = 4.0 * f64::EPSILON * pfq_rounding_scale(a, b);
     let (mut term, mut sum) = (1.0_f64, 1.0_f64);
     // the largest |s_n| before `start`
     let mut scale = 1.0_f64;
@@ -373,7 +387,7 @@ pub(crate) fn pfq_weniger(
     }
     if start == degree {
         // the series terminated
-        return Some((sum, 4.0 * f64::EPSILON * scale));
+        return Some((sum, eps * scale));
     }
     let mut rows = [[0.0; 3]; PFQ_WENIGER_MAXITER];
     let (mut delta, mut step) = (sum, f64::INFINITY);
@@ -384,7 +398,7 @@ pub(crate) fn pfq_weniger(
             // overflow, or underflow, after which the terms only matter if they can increase
             let negligible =
                 term.abs() < 1.0 && a.len() <= b.len() && pfq_ratio_bound(a, b, z, n) <= 1.0;
-            let noise = 4.0 * f64::EPSILON * scale;
+            let noise = eps * scale;
             return Some((sum, if negligible { noise } else { f64::INFINITY }));
         }
         // the numerator, the denominator, and the numerator for |s_j|
@@ -401,8 +415,7 @@ pub(crate) fn pfq_weniger(
             rows[j] = core::array::from_fn(|l| rows[j + 1][l] - c * rows[j][l]);
         }
         let [num, den, abs] = rows[0];
-        // the rounding errors of the partial sums and of the terms (the factor is measured)
-        let noise = 4.0 * f64::EPSILON * ((abs / den).abs() + (num / den).abs() + scale);
+        let noise = eps * ((abs / den).abs() + (num / den).abs() + scale);
         let last = step;
         step = (num / den - delta).abs();
         delta = num / den;
