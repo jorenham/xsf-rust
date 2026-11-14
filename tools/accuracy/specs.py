@@ -1984,6 +1984,30 @@ def r_bdtri(k, n, y):
     )
 
 
+def r_bdtrik(y, n, p):
+    # real k in [0, n] such that bdtr(k, n, p) = y, or 0 if y lies below bdtr(0, n, p)
+    if y <= (1 - p) ** n:
+        return mp.mpf(0)
+    return n * _invert_unit(lambda u, v: _betainc(n * v, n * u + 1, 1 - p, p), y, 0.5)
+
+
+def r_bdtrin(k, y, p):
+    # real n >= k such that bdtr(k, n, p) = y, found for n - k
+    return k + _invert_pos(
+        lambda nk: _betainc(nk, k + 1, 1 - p, p), y, 1, decreasing=True
+    )
+
+
+def r_btdtria(p, b, x):
+    # a such that betainc(a, b, x) = p
+    return _invert_pos(lambda a: _betainc(a, b, x, 1 - x), p, 1, decreasing=True)
+
+
+def r_btdtrib(a, p, x):
+    # b such that betainc(a, b, x) = p
+    return _invert_pos(lambda b: _betainc(a, b, x, 1 - x), p, 1)
+
+
 def r_nbdtr(k, n, p):
     return _betainc(n, k + 1, p, 1 - p)
 
@@ -1995,6 +2019,18 @@ def r_nbdtrc(k, n, p):
 def r_nbdtri(k, n, y):
     # p such that nbdtr(k, n, p) = y
     return _invert_unit(lambda p, q: _betainc(n, k + 1, p, q), y, n / (n + k + 1))
+
+
+def r_nbdtrik(y, n, p):
+    # real k >= 0 such that nbdtr(k, n, p) = y, or 0 if y lies below nbdtr(0, n, p)
+    if y <= p**n:
+        return mp.mpf(0)
+    return _invert_pos(lambda k: _betainc(n, k + 1, p, 1 - p), y, 1)
+
+
+def r_nbdtrin(k, y, p):
+    # real n such that nbdtr(k, n, p) = y
+    return _invert_pos(lambda n: _betainc(n, k + 1, p, 1 - p), y, 1, decreasing=True)
 
 
 def r_pdtr(k, m):
@@ -2010,6 +2046,13 @@ def r_pdtri(k, y):
     return _invert_pos(
         lambda m: _gammainc_pq(k + 1, m, True), y, k + 1, decreasing=True
     )
+
+
+def r_pdtrik(p, m):
+    # real k >= 0 such that pdtr(k, m) = p, or 0 if p lies below pdtr(0, m)
+    if p <= mp.exp(-m):
+        return mp.mpf(0)
+    return _invert_pos(lambda k: _gammainc_pq(k + 1, m, True), p, m + 1)
 
 
 def r_gdtr(a, b, x):
@@ -2049,6 +2092,13 @@ def r_chdtri(v, y):
     # x such that chdtrc(v, x) = y
     return _invert_pos(
         lambda x: _gammainc_pq(v / 2, x / 2, True), y, v, decreasing=True
+    )
+
+
+def r_chdtriv(p, x):
+    # v such that chdtr(v, x) = p
+    return _invert_pos(
+        lambda v: _gammainc_pq(v / 2, x / 2, False), p, x, decreasing=True
     )
 
 
@@ -2804,6 +2854,45 @@ add(
     note="inv",
 )
 
+add(
+    "bdtrik",
+    "y n p",
+    r_bdtrik,
+    D(U(0, 1), LU(1, 1000), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "bdtrin",
+    "k y p",
+    r_bdtrin,
+    D(LU(1e-2, 1000), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+
+section("Beta distribution", 3)
+add(
+    "btdtria",
+    "p b x",
+    r_btdtria,
+    D(U(0, 1), LU(1e-2, 100), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "btdtrib",
+    "a p x",
+    r_btdtrib,
+    D(LU(1e-2, 100), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+
 section("F distribution", 3)
 for f, r in [("fdtr", r_fdtr), ("fdtrc", r_fdtrc)]:
     add(f, "a b x", r, D(LU(1e-3, 1e6), LU(1e-3, 1e6), LU(1e-30, 1e30)), timeout=60)
@@ -2921,6 +3010,24 @@ add(
     timeout=120,
     note="inv",
 )
+add(
+    "nbdtrik",
+    "y n p",
+    r_nbdtrik,
+    D(U(0, 1), LU(1e-2, 1000), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "nbdtrin",
+    "k y p",
+    r_nbdtrin,
+    D(LU(1e-2, 1000), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
 
 section("Normal distribution", 3)
 add("ndtr", "x", r_ndtr, D(U(-10, 10)), D(LU(1e-300, 38, 0)))
@@ -2955,6 +3062,15 @@ for f, r in [("pdtr", r_pdtr), ("pdtrc", r_pdtrc)]:
         timeout=60,
     )
 add("pdtri", "k y", r_pdtri, D(Int(0, 100), U(0, 1), n=2000), timeout=120, note="inv")
+add(
+    "pdtrik",
+    "p m",
+    r_pdtrik,
+    D(U(0, 1), LU(1e-2, 1e4), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
 
 section("Student's t distribution", 3)
 add(
@@ -3001,6 +3117,15 @@ add(
     "v y",
     r_chdtri,
     D(LU(1e-3, 1e3), U(0, 1), n=2000),
+    timeout=120,
+    note="inv",
+)
+add(
+    "chdtriv",
+    "p x",
+    r_chdtriv,
+    D(U(0, 1), LU(1e-3, 1e3), n=2000),
+    cpp=False,
     timeout=120,
     note="inv",
 )

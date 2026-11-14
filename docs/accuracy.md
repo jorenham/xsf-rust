@@ -299,12 +299,29 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>bdtrc</code><sup>*</sup></td><td>n ∈ {1, …, 1000} (log)<br>k ∈ {0, …, n}<br>p ∈ [0, 1]</td><td align="right" nowrap>5000</td><td align="right" nowrap><b><samp>2.2e-13</samp></b></td><td align="right" nowrap><b><samp>1.2e-14</samp></b></td><td align="right" nowrap><samp>1.7e-12</samp></td><td align="right" nowrap><samp>1.1e-13</samp></td><td align="right" nowrap>73.5%</td></tr>
 <tr><td><code>bdtrc</code><sup>*</sup></td><td>n ∈ [1000, 2e9]<br>p ∈ [10⁻⁶, 1] (log)<br>k ∈ np ± 6σ</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>7.7e-12</samp></b></td><td align="right" nowrap><b><samp>3.9e-13</samp></b></td><td align="right" nowrap><samp>1.1e-02</samp></td><td align="right" nowrap><samp>2.5e-04</samp></td><td align="right" nowrap>13.0%</td></tr>
 <tr><td><code>bdtri</code><sup>†</sup></td><td>n ∈ {1, …, 1000} (log)<br>k ∈ {0, …, n − 1}<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>6.0e-15</samp></b></td><td align="right" nowrap><b><samp>3.8e-16</samp></b></td><td align="right" nowrap><samp>6.6e-13</samp></td><td align="right" nowrap><samp>1.8e-14</samp></td><td align="right" nowrap>71.5%</td></tr>
+<tr><td><code>bdtrik</code><sup>†</sup></td><td>y ∈ [0, 1]<br>n ∈ [1, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.5e-13</samp></td><td align="right" nowrap><samp>4.2e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>bdtrin</code><sup>†</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> σ² = np(1 − p).
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+### Beta distribution
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>btdtria</code><sup>*</sup></td><td>p ∈ [0, 1]<br>b ∈ [0.01, 100] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>5.0e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>btdtrib</code><sup>*</sup></td><td>a ∈ [0.01, 100] (log)<br>p, x ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 ### F distribution
 
@@ -385,6 +402,8 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>nbdtrc</code></td><td>k ∈ {0, …, 1000}<br>n ∈ {1, …, 1000}<br>p ∈ [0, 1]</td><td align="right" nowrap>5000</td><td align="right" nowrap><b><samp>3.2e-13</samp></b></td><td align="right" nowrap><b><samp>3.2e-14</samp></b></td><td align="right" nowrap><samp>3.7e-12</samp></td><td align="right" nowrap><samp>4.6e-13</samp></td><td align="right" nowrap>18.0%</td></tr>
 <tr><td><code>nbdtrc</code></td><td>k, n ∈ {1, …, 2e9} (log)<br>p ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>2.8e-14</samp></b></td><td align="right" nowrap><b><samp>6.2e-16</samp></b></td><td align="right" nowrap><samp>9.8e-09</samp></td><td align="right" nowrap><samp>2.2e-10</samp></td><td align="right" nowrap>95.8%</td></tr>
 <tr><td><code>nbdtri</code><sup>*</sup></td><td>k ∈ {0, …, 1000}<br>n ∈ {1, …, 1000}<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>9.1e-15</samp></b></td><td align="right" nowrap><b><samp>4.1e-16</samp></b></td><td align="right" nowrap><samp>2.8e-13</samp></td><td align="right" nowrap><samp>2.9e-14</samp></td><td align="right" nowrap>1.7%</td></tr>
+<tr><td><code>nbdtrik</code><sup>*</sup></td><td>y ∈ [0, 1]<br>n ∈ [0.01, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>6.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>nbdtrin</code><sup>*</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>2.7e-15</samp></td><td align="right" nowrap><samp>3.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
@@ -426,6 +445,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>pdtrc</code></td><td>k ∈ {0, …, 100}<br>m ∈ [0, 100]</td><td align="right" nowrap>5000</td><td align="right" nowrap><b><samp>8.9e-15</samp></b></td><td align="right" nowrap><b><samp>9.0e-16</samp></b></td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap>62.3%</td></tr>
 <tr><td><code>pdtrc</code></td><td>m ∈ [10, 10⁹] (log)<br>k ∈ m ± 6√m</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>1.3e-14</samp></b></td><td align="right" nowrap><b><samp>1.4e-15</samp></b></td><td align="right" nowrap><samp>7.2e-01</samp></td><td align="right" nowrap><samp>7.5e-02</samp></td><td align="right" nowrap>73.4%</td></tr>
 <tr><td><code>pdtri</code><sup>*</sup></td><td>k ∈ {0, …, 100}<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>9.1e-16</samp></b></td><td align="right" nowrap><b><samp>9.1e-17</samp></b></td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>92.3%</td></tr>
+<tr><td><code>pdtrik</code><sup>*</sup></td><td>p ∈ [0, 1]<br>m ∈ [0.01, 10⁴] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.4e-13</samp></td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
@@ -462,6 +482,7 @@ For reference, ε = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>chdtrc</code></td><td>v, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>5000</td><td align="right" nowrap><b><samp>8.8e-15</samp></b></td><td align="right" nowrap><b><samp>6.9e-16</samp></b></td><td align="right" nowrap><samp>1.7e-13</samp></td><td align="right" nowrap><samp>8.8e-15</samp></td><td align="right" nowrap>51.2%</td></tr>
 <tr><td><code>chdtrc</code></td><td>v ∈ [10, 10⁸] (log)<br>x ∈ v ± 6√(2v)</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>1.4e-13</samp></b></td><td align="right" nowrap><b><samp>3.4e-15</samp></b></td><td align="right" nowrap><samp>7.7e-07</samp></td><td align="right" nowrap><samp>2.6e-08</samp></td><td align="right" nowrap>73.0%</td></tr>
 <tr><td><code>chdtri</code><sup>*</sup></td><td>v ∈ [10⁻³, 1000] (log)<br>y ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><b><samp>2.4e-13</samp></b></td><td align="right" nowrap><b><samp>1.6e-14</samp></b></td><td align="right" nowrap><samp>7.2e-13</samp></td><td align="right" nowrap><samp>5.4e-14</samp></td><td align="right" nowrap>54.2%</td></tr>
+<tr><td><code>chdtriv</code><sup>*</sup></td><td>p ∈ [0, 1]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>4.7e-15</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 

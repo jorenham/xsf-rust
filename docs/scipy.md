@@ -6,26 +6,26 @@ of 353 functions whose algorithm isn't in xsf.
 
 | `scipy.special`                         | SciPy                  | xsf-rust                   |
 | --------------------------------------- | ---------------------- | -------------------------- |
+| `bdtrik`, `bdtrin`                      | Boost                  | same                       |
 | `betainc`                               | Boost                  | same                       |
 | `betaincc`, `betainccinv`               | Boost                  | same                       |
 | `betaincinv`                            | Boost                  | same                       |
+| `btdtria`, `btdtrib`                    | Boost                  | same                       |
+| `chdtriv`                               | Boost                  | same                       |
 | `erfinv`                                | Boost                  | same                       |
 | `fdtr`                                  | Boost                  | same                       |
 | `fdtrc`                                 | Boost                  | same                       |
 | `fdtri`                                 | Boost                  | same                       |
 | `hyp1f1`                                | Boost; complex: xsf    | same                       |
+| `nbdtrik`, `nbdtrin`                    | Boost                  | same                       |
+| `pdtrik`                                | Boost                  | same                       |
 | `powm1`                                 | Boost                  | same                       |
 | `stdtr`                                 | Boost                  | same                       |
 | `stdtrit`                               | Boost                  | `stdtri`                   |
-| `bdtrik`, `bdtrin`                      | Boost                  |                            |
-| `btdtria`, `btdtrib`                    | Boost                  |                            |
-| `chdtriv`                               | Boost                  |                            |
 | `chndtr`, `chndtrix`                    | Boost                  |                            |
 | `chndtridf`, `chndtrinc`                | Boost                  |                            |
-| `nbdtrik`, `nbdtrin`                    | Boost                  |                            |
 | `ncfdtr`, `ncfdtri`                     | Boost                  |                            |
 | `nctdtr`, `nctdtrit`                    | Boost                  |                            |
-| `pdtrik`                                | Boost                  |                            |
 | `fdtridfd`                              | cdflib                 | same                       |
 | `ncfdtridfd`, `ncfdtridfn`, `ncfdtrinc` | cdflib                 | same                       |
 | `nctdtridf`, `nctdtrinc`                | cdflib                 | same                       |

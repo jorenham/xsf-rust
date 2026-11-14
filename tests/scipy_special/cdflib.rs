@@ -1,6 +1,30 @@
 use xsref::np_assert_allclose;
 
 #[test]
+fn test_pdtrik() {
+    // `TestPdtrik` in scipy/special/tests/test_cdflib.py
+    let cases = [
+        (1.897_610_755_368_228_5e-40, 100.0, 2.0),
+        (0.486_701_201_720_851_35, 100.0, 99.0),
+        (8.303_834_066_990_52e-69, 1000.0, 500.0),
+        (2.252_837_804_125_894e-227, 100_000.0, 90_000.0),
+    ];
+    for (p, m, k) in cases {
+        np_assert_allclose!([xsf::pdtrik(p, m)], [k], rtol = 1e-15);
+    }
+    for m in [10.0, 50.0, 500.0] {
+        np_assert_allclose!([xsf::pdtrik(xsf::pdtr(5.0, m), m)], [5.0], rtol = 1e-15);
+    }
+    assert_eq!(xsf::pdtrik(0.0, 0.5), 0.0);
+    assert_eq!(xsf::pdtrik(0.0, f64::INFINITY), 0.0);
+    assert!(xsf::pdtrik(0.5, f64::INFINITY).is_nan());
+    assert_eq!(xsf::pdtrik(0.5, 0.0), 0.0);
+    // p lies below pdtr(0, m) = exp(-m)
+    assert_eq!(xsf::pdtrik(0.95, 1e-6), 0.0);
+    assert!(xsf::pdtrik(1.0, 1.0).is_nan());
+}
+
+#[test]
 fn test_stdtridf() {
     // `test_students_t_functions_spot_checks` in scipy/special/tests/test_cdflib.py
     let cases = [
@@ -23,6 +47,99 @@ fn test_stdtridf() {
     assert_eq!(xsf::stdtridf(0.0, 1.0), 0.0);
     assert_eq!(xsf::stdtridf(1.0, -1.0), 0.0);
     assert_eq!(xsf::stdtridf(0.0, -40.0), f64::INFINITY);
+}
+
+#[test]
+fn test_bdtrik() {
+    // `test_bdtrik` in scipy/special/tests/test_cdflib.py
+    let cases = [
+        (6.110_236_824_190_975e-78, 100.0, 0.9, 10.0),
+        (4.018_825_542_119_935_7e-224, 1000.0, 0.9, 500.0),
+        (0.999_999_831_905_892_8, 1000.0, 0.5, 580.0),
+        (0.999_973_438_601_112_4, 100.0, 0.9, 99.0),
+    ];
+    for (y, n, p, k) in cases {
+        np_assert_allclose!([xsf::bdtrik(y, n, p)], [k], rtol = 1e-11);
+    }
+    // y lies below bdtr(0, 10, 0.5) = 2^-10
+    assert_eq!(xsf::bdtrik(1e-4, 10.0, 0.5), 0.0);
+    assert_eq!(xsf::bdtrik(0.5, 10.0, 0.0), 0.0);
+    assert_eq!(xsf::bdtrik(1.0, 10.0, 0.5), 10.0);
+    assert_eq!(xsf::bdtrik(0.5, 10.0, 1.0), 10.0);
+    assert!(xsf::bdtrik(0.5, f64::INFINITY, 0.5).is_nan());
+}
+
+#[test]
+fn test_bdtrin() {
+    for (k, n, p) in [(0.0, 1.0, 0.5), (3.0, 10.0, 0.25), (10.0, 3000.0, 0.01)] {
+        let y = xsf::bdtr(k, n as i32, p);
+        np_assert_allclose!([xsf::bdtrin(k, y, p)], [n], rtol = 1e-12);
+    }
+    assert_eq!(xsf::bdtrin(3.0, 0.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::bdtrin(3.0, 1.0, 0.5), 3.0);
+    assert_eq!(xsf::bdtrin(3.0, 0.0, 0.0), f64::INFINITY);
+    assert_eq!(xsf::bdtrin(3.0, 1.0, 1.0), 3.0);
+    assert!(xsf::bdtrin(3.0, 0.5, 0.0).is_nan());
+    assert!(xsf::bdtrin(3.0, 0.5, 1.0).is_nan());
+}
+
+#[test]
+fn test_btdtria_btdtrib() {
+    // `test_betainc_and_inverses` in scipy/special/tests/test_basic.py: `(a, b, x, p)`
+    let cases = [
+        (2.0, 4.0, 0.313_810_170_455_697_4, 0.5),
+        (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
+        (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
+        (
+            0.000_274_279_474_979_266_5,
+            289_206.031_25,
+            1.639_984_034_231_756e-56,
+            0.968_870_878_219_604_5,
+        ),
+        (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
+    ];
+    for (a, b, x, p) in cases {
+        np_assert_allclose!([xsf::btdtria(p, b, x)], [a], rtol = 1e-13);
+        np_assert_allclose!([xsf::btdtrib(a, p, x)], [b], rtol = 1e-13);
+    }
+    assert_eq!(xsf::btdtria(0.0, 2.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::btdtria(1.0, 2.0, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 0.0, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 1.0, 0.5), f64::INFINITY);
+    // the limits where the CDF is 1 (or 0 for `btdtrib` with `a = inf`) for all `a` or `b`
+    assert_eq!(xsf::btdtria(0.0, 2.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::btdtria(1.0, f64::INFINITY, 0.5), 0.0);
+    assert_eq!(xsf::btdtrib(2.0, 1.0, 1.0), f64::INFINITY);
+    assert_eq!(xsf::btdtrib(f64::INFINITY, 0.0, 0.5), 0.0);
+    assert!(xsf::btdtria(0.5, 2.0, 1.0).is_nan());
+    assert!(xsf::btdtria(0.5, f64::INFINITY, 0.5).is_nan());
+    assert!(xsf::btdtria(0.0, 2.0, 1.5).is_nan());
+    assert!(xsf::btdtrib(2.0, 0.5, 1.0).is_nan());
+    assert!(xsf::btdtrib(0.0, 0.5, 0.5).is_nan());
+    // a tiny root, by the symmetry `betainc(a, a, 1/2) = 1/2`
+    np_assert_allclose!([xsf::btdtria(0.5, 1e-200, 0.5)], [1e-200], rtol = 1e-13);
+    np_assert_allclose!([xsf::btdtrib(1e-200, 0.5, 0.5)], [1e-200], rtol = 1e-13);
+}
+
+#[test]
+fn test_chdtriv() {
+    for (v, x) in [(0.5, 0.1), (1.0, 1.0), (3.0, 10.0), (100.0, 80.0)] {
+        let p = xsf::chdtr(v, x);
+        np_assert_allclose!([xsf::chdtriv(p, x)], [v], rtol = 1e-13);
+    }
+    // `test_chdtriv_p_equals_1_returns_0` in scipy/special/tests/test_cdflib.py
+    assert_eq!(xsf::chdtriv(1.0, 0.1), 0.0);
+    assert_eq!(xsf::chdtriv(1.0, 100.0), 0.0);
+    assert_eq!(xsf::chdtriv(0.0, 1.0), f64::INFINITY);
+    assert!(xsf::chdtriv(0.5, f64::INFINITY).is_nan());
+    assert!(xsf::chdtriv(0.5, 0.0).is_nan());
+    // the smallest subnormal, which `x/2` loses, and the next one, with a root from mpmath
+    assert!(xsf::chdtriv(0.5, f64::from_bits(1)).is_nan());
+    np_assert_allclose!(
+        [xsf::chdtriv(0.5, f64::from_bits(2))],
+        [0.001_863_640_484_035_382_4],
+        rtol = 1e-13
+    );
 }
 
 #[test]
@@ -54,6 +171,32 @@ fn test_fdtridfd() {
     assert_eq!(xsf::fdtridfd(1.0, 0.0, 1e-300), 0.0);
     assert!(xsf::fdtridfd(1.0, 0.5, 0.0).is_nan());
     assert!(xsf::fdtridfd(0.0, 0.5, 1.0).is_nan());
+}
+
+#[test]
+fn test_nbdtrik_nbdtrin() {
+    // `test_inverses` in scipy/special/tests/test_cdflib.py: `(k, y, p, n)`
+    let cases = [
+        (5.0, 0.321_456_909_179_687_5, 0.25, 3.0),
+        (10.0, 3.820_379_007_878_081e-70, 0.15, 100.0),
+        (100.0, 0.975_574_722_927_043, 0.15, 10.0),
+        (2.0, 3.503_253_250_000_002e-73, 0.001, 25.0),
+        (2.0, 0.999_999_327_102_995_4, 0.999, 15.0),
+        (500.0, 0.999_999_999_860_317_8, 0.1, 15.0),
+        (0.0, 1.000_000_000_000_000_6e-10, 0.1, 10.0),
+    ];
+    for (k, y, p, n) in cases {
+        np_assert_allclose!([xsf::nbdtrin(k, y, p)], [n], rtol = 1e-8);
+        np_assert_allclose!([xsf::nbdtrik(y, n, p)], [k], rtol = 1e-8, atol = 1e-15);
+    }
+    // y lies below nbdtr(0, 10, 0.5) = 2^-10
+    assert_eq!(xsf::nbdtrik(1e-4, 10.0, 0.5), 0.0);
+    assert_eq!(xsf::nbdtrik(1.0, 10.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::nbdtrik(0.5, 10.0, 0.0), f64::INFINITY);
+    assert!(xsf::nbdtrik(0.5, 0.0, 0.5).is_nan());
+    assert_eq!(xsf::nbdtrin(3.0, 0.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::nbdtrin(3.0, 1.0, 0.5), 0.0);
+    assert!(xsf::nbdtrin(3.0, 0.5, 1.0).is_nan());
 }
 
 #[test]

@@ -10,7 +10,7 @@ use core::f64::consts::{LN_2, PI};
 
 use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::ldexp_f64;
-use crate::xsf::cephes::{betainc_xy, igam_fac, incbet_cf_factor, lbeta};
+use crate::xsf::cephes::{betainc_xy, igam, igam_fac, igamc, incbet_cf_factor, lbeta};
 use crate::xsf::{bracket_root_for_cdf_inversion, find_positive_root, find_root_chandrupatla};
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
@@ -61,6 +61,212 @@ pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| find_df_root(func, true))
 }
 
+/// Inverse of [`bdtr`](crate::bdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.bdtrik`][bdtrik].
+///
+/// The CDF $\I_{1-p}(n - k, k + 1)$ is continuous in `k`, so that `k` is real. If `y` lies below
+/// the CDF at $k = 0$, i.e. $(1 - p)^n$, 0 is returned.
+///
+/// [bdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrik.html
+///
+/// # See also
+/// - [`bdtr`](crate::bdtr): Binomial distribution function
+/// - [`bdtri`](crate::bdtri): Inverse of [`bdtr`](crate::bdtr) with respect to `p`
+/// - [`bdtrin`]: Inverse of [`bdtr`](crate::bdtr) with respect to `n`
+#[must_use]
+pub fn bdtrik(y: f64, n: f64, p: f64) -> f64 {
+    if !(0.0..=1.0).contains(&y) || !(n >= 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+        return f64::NAN;
+    }
+    // the CDF is 0 below k = n if p = 1
+    if y > 0.0 && (y == 1.0 || p == 1.0) {
+        return n;
+    }
+    // The CDF `betaincc(k + 1, n - k, p)` increases from (1 - p)^n at k = 0 to 1 at k = n, beyond
+    // which it stays 1.
+    invert_betainc(y, true, n, 1.0 - p, p, |k| ((n - k).max(0.0), k + 1.0))
+}
+
+/// Inverse of [`bdtr`](crate::bdtr) with respect to `n`
+///
+/// Corresponds to [`scipy.special.bdtrin`][bdtrin].
+///
+/// The CDF $\I_{1-p}(n - k, k + 1)$ is continuous in `n`, so that `n` is real.
+///
+/// [bdtrin]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrin.html
+///
+/// # See also
+/// - [`bdtr`](crate::bdtr): Binomial distribution function
+/// - [`bdtri`](crate::bdtri): Inverse of [`bdtr`](crate::bdtr) with respect to `p`
+/// - [`bdtrik`]: Inverse of [`bdtr`](crate::bdtr) with respect to `k`
+#[must_use]
+pub fn bdtrin(k: f64, y: f64, p: f64) -> f64 {
+    // As in SciPy, NaN if p is 0 or 1, where the CDF is 1 or 0 for all n > k, unless y is 0 or 1,
+    // which give the limits n = inf and n = k.
+    let p_is_valid = p > 0.0 && p < 1.0 || (p == 0.0 || p == 1.0) && (y == 0.0 || y == 1.0);
+    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && p_is_valid) {
+        return f64::NAN;
+    }
+    // The CDF `betaincc(k + 1, n - k, p)` decreases from 1 at n = k to 0 at n = inf. It is solved
+    // for `n - k`, which keeps its precision if `n` is close to `k`.
+    k + invert_betainc(y, false, f64::MAX, 1.0 - p, p, |nk| (nk, k + 1.0))
+}
+
+/// Inverse of [`betainc`](crate::betainc) with respect to `a`
+///
+/// Corresponds to [`scipy.special.btdtria`][btdtria].
+///
+/// Unlike in SciPy, NaN is returned for `x > 1` even if `p` is 0 or 1, instead of the limit.
+///
+/// [btdtria]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtria.html
+///
+/// # See also
+/// - [`betainc`](crate::betainc): Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`](crate::betainc) with respect to `x`
+/// - [`btdtrib`]: Inverse of [`betainc`](crate::betainc) with respect to `b`
+#[must_use]
+pub fn btdtria(p: f64, b: f64, x: f64) -> f64 {
+    if !btdtr_is_valid(p, b, x) {
+        return f64::NAN;
+    }
+    // the CDF decreases from 1 at a = 0 to 0 at a = inf
+    invert_betainc(p, false, f64::MAX, x, 1.0 - x, |a| (a, b))
+}
+
+/// Inverse of [`betainc`](crate::betainc) with respect to `b`
+///
+/// Corresponds to [`scipy.special.btdtrib`][btdtrib].
+///
+/// Unlike in SciPy, NaN is returned for `x > 1` even if `p` is 0 or 1, instead of the limit.
+///
+/// [btdtrib]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtrib.html
+///
+/// # See also
+/// - [`betainc`](crate::betainc): Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`](crate::betainc) with respect to `x`
+/// - [`btdtria`]: Inverse of [`betainc`](crate::betainc) with respect to `a`
+#[must_use]
+pub fn btdtrib(a: f64, p: f64, x: f64) -> f64 {
+    if !btdtr_is_valid(p, a, x) {
+        return f64::NAN;
+    }
+    // the CDF increases from 0 at b = 0 to 1 at b = inf
+    invert_betainc(p, true, f64::MAX, x, 1.0 - x, |b| (a, b))
+}
+
+/// Whether `p`, the other shape and `x` are valid arguments of [`btdtria`] and [`btdtrib`]. As in
+/// SciPy, the limits are also returned for `p` = 0 or 1 if the other shape is inf or `x = 1`, where
+/// the CDF doesn't depend on the shape that is solved for.
+fn btdtr_is_valid(p: f64, shape: f64, x: f64) -> bool {
+    let is_limit = p == 0.0 || p == 1.0;
+    (0.0..=1.0).contains(&p)
+        && shape > 0.0
+        && x > 0.0
+        && x <= 1.0
+        && (is_limit || shape.is_finite() && x < 1.0)
+}
+
+/// Inverse of [`chdtr`](crate::chdtr) with respect to `v`
+///
+/// Corresponds to [`scipy.special.chdtriv`][chdtriv].
+///
+/// [chdtriv]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.chdtriv.html
+///
+/// # See also
+/// - [`chdtr`](crate::chdtr): Chi-squared distribution function
+/// - [`chdtri`](crate::chdtri): Inverse of [`chdtrc`](crate::chdtrc) with respect to `x`
+/// - [`gdtrib`](crate::gdtrib): Inverse of [`gdtr`](crate::gdtr) with respect to `b`
+#[must_use]
+pub fn chdtriv(p: f64, x: f64) -> f64 {
+    if !(x > 0.0) {
+        return f64::NAN;
+    }
+    // chdtr(v, x) = gdtr(1/2, v/2, x) decreases from 1 at v = 0 to 0 at v = inf, also if x = inf
+    limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
+        // as in SciPy, NaN if x/2 underflows to 0, where the CDF would be 0 for all v
+        if 0.5 * x == 0.0 {
+            return f64::NAN;
+        }
+        2.0 * crate::gdtrib(0.5, p, x)
+    })
+}
+
+/// Inverse of [`nbdtr`](crate::nbdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.nbdtrik`][nbdtrik].
+///
+/// The CDF $\I_p(n, k + 1)$ is continuous in `k`, so that `k` is real. If `y` lies below the CDF at
+/// $k = 0$, i.e. $p^n$, 0 is returned.
+///
+/// [nbdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrik.html
+///
+/// # See also
+/// - [`nbdtr`](crate::nbdtr): Negative binomial distribution function
+/// - [`nbdtri`](crate::nbdtri): Inverse of [`nbdtr`](crate::nbdtr) with respect to `p`
+/// - [`nbdtrin`]: Inverse of [`nbdtr`](crate::nbdtr) with respect to `n`
+#[must_use]
+pub fn nbdtrik(y: f64, n: f64, p: f64) -> f64 {
+    if !(0.0..=1.0).contains(&y) || !(n > 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+        return f64::NAN;
+    }
+    // the CDF increases from p^n at k = 0 to 1 at k = inf
+    invert_betainc(y, true, f64::MAX, p, 1.0 - p, |k| (n, k + 1.0))
+}
+
+/// Inverse of [`nbdtr`](crate::nbdtr) with respect to `n`
+///
+/// Corresponds to [`scipy.special.nbdtrin`][nbdtrin].
+///
+/// The CDF $\I_p(n, k + 1)$ is continuous in `n`, so that `n` is real. Unlike in SciPy, the limits
+/// inf and 0 are returned if `y` is 0 or 1, instead of NaN. As in SciPy, NaN is returned if `p` is
+/// 0 or 1.
+///
+/// [nbdtrin]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.nbdtrin.html
+///
+/// # See also
+/// - [`nbdtr`](crate::nbdtr): Negative binomial distribution function
+/// - [`nbdtri`](crate::nbdtri): Inverse of [`nbdtr`](crate::nbdtr) with respect to `p`
+/// - [`nbdtrik`]: Inverse of [`nbdtr`](crate::nbdtr) with respect to `k`
+#[must_use]
+pub fn nbdtrin(k: f64, y: f64, p: f64) -> f64 {
+    // NaN if p is 0 or 1, where the CDF is 0 or 1 for all n > 0
+    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && p > 0.0 && p < 1.0) {
+        return f64::NAN;
+    }
+    // Unlike in SciPy, the root is found for n, instead of for n + k, which loses n if k >> n.
+    // The CDF decreases from 1 at n = 0 to 0 at n = inf.
+    invert_betainc(y, false, f64::MAX, p, 1.0 - p, |n| (n, k + 1.0))
+}
+
+/// Inverse of [`pdtr`](crate::pdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.pdtrik`][pdtrik].
+///
+/// The CDF $Q(k + 1, m)$ is continuous in `k`, so that `k` is real. If `p` lies below the CDF at
+/// $k = 0$, i.e. $e^{-m}$, 0 is returned. As in SciPy, NaN is returned if $p = 1$.
+///
+/// [pdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtrik.html
+///
+/// # See also
+/// - [`pdtr`](crate::pdtr): Poisson distribution function
+/// - [`pdtri`](crate::pdtri): Inverse of [`pdtr`](crate::pdtr) with respect to `m`
+#[must_use]
+pub fn pdtrik(p: f64, m: f64) -> f64 {
+    // as in SciPy, 0 if p = 0, also if m = inf
+    if !((0.0..1.0).contains(&p) && m >= 0.0 && (m.is_finite() || p == 0.0)) {
+        return f64::NAN;
+    }
+    // the CDF increases from exp(-m) at k = 0 to 1 at k = inf
+    invert_cdf(
+        p,
+        true,
+        f64::MAX,
+        |k| igamc(k + 1.0, m),
+        |k| igam(k + 1.0, m),
+    )
+}
+
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
 /// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
 fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {
@@ -76,6 +282,46 @@ fn limit_if_p_is_0_or_1(p: f64, increasing: bool) -> Option<f64> {
     } else {
         f64::INFINITY
     })
+}
+
+/// The root in `[MIN_POSITIVE, upper]` of `cdf(x) = p`, with the survival function `sf`, for a CDF
+/// that is `increasing` in `x`, or the limit if `p` is 0 or 1
+fn invert_cdf(
+    p: f64,
+    increasing: bool,
+    upper: f64,
+    cdf: impl Fn(f64) -> f64,
+    sf: impl Fn(f64) -> f64,
+) -> f64 {
+    limit_if_p_is_0_or_1(p, increasing).unwrap_or_else(|| {
+        find_positive_root(
+            cdf_minus_p(p, cdf, sf),
+            f64::MIN_POSITIVE,
+            upper,
+            increasing,
+        )
+    })
+}
+
+/// [`invert_cdf`] of `betainc(a, b, x)`, with `(a, b) = ab(v)`, given `y = 1 - x`, so that the CDF
+/// can also be a complement `betaincc(b, a, y)`, by swapping `x` and `y`
+fn invert_betainc(
+    p: f64,
+    increasing: bool,
+    upper: f64,
+    x: f64,
+    y: f64,
+    ab: impl Fn(f64) -> (f64, f64),
+) -> f64 {
+    let cdf = |v| {
+        let (a, b) = ab(v);
+        betainc_xy(a, b, x, y)
+    };
+    let sf = |v| {
+        let (a, b) = ab(v);
+        betainc_xy(b, a, y, x)
+    };
+    invert_cdf(p, increasing, upper, cdf, sf)
 }
 
 /// The degrees of freedom are searched for in `[8^-DF_K, 8^DF_K] ~ [5e-100, 2e99]`, like in cdflib

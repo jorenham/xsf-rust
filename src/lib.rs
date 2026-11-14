@@ -148,11 +148,20 @@
 //!
 //! ## Binomial distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`bdtr`]  | Cumulative distribution function |
-//! | [`bdtrc`] | Complement of [`bdtr`]           |
-//! | [`bdtri`] | Inverse of [`bdtr`]              |
+//! | Function   | Description                                            |
+//! | ---------- | ------------------------------------------------------ |
+//! | [`bdtr`]   | Cumulative distribution function                       |
+//! | [`bdtrc`]  | Complement of [`bdtr`]                                 |
+//! | [`bdtri`]  | Inverse of [`bdtr`]                                    |
+//! | [`bdtrik`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `k` |
+//! | [`bdtrin`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `n` |
+//!
+//! ## Beta distribution
+//!
+//! | Function    | Description                                                  |
+//! | ----------- | ------------------------------------------------------------ |
+//! | [`btdtria`] | Inverse of [`betainc(a, b, x)`](betainc) with respect to `a` |
+//! | [`btdtrib`] | Inverse of [`betainc(a, b, x)`](betainc) with respect to `b` |
 //!
 //! ## F distribution
 //!
@@ -197,11 +206,13 @@
 //!
 //! ## Negative binomial distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`nbdtr`]  | Cumulative distribution function |
-//! | [`nbdtrc`] | Complement of [`nbdtr`]          |
-//! | [`nbdtri`] | Inverse of [`nbdtr`]             |
+//! | Function    | Description                                              |
+//! | ----------- | -------------------------------------------------------- |
+//! | [`nbdtr`]   | Cumulative distribution function                         |
+//! | [`nbdtrc`]  | Complement of [`nbdtr`]                                  |
+//! | [`nbdtri`]  | Inverse of [`nbdtr`]                                     |
+//! | [`nbdtrik`] | Inverse of [`nbdtr(k, n, p)`](nbdtr) with respect to `k` |
+//! | [`nbdtrin`] | Inverse of [`nbdtr(k, n, p)`](nbdtr) with respect to `n` |
 //!
 //! ## Noncentral t distribution
 //!
@@ -223,11 +234,12 @@
 //!
 //! ## Poisson distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`pdtr`]  | Cumulative distribution function |
-//! | [`pdtrc`] | Complement of [`pdtr`]           |
-//! | [`pdtri`] | Inverse of [`pdtr`]              |
+//! | Function   | Description                                         |
+//! | ---------- | --------------------------------------------------- |
+//! | [`pdtr`]   | Cumulative distribution function                    |
+//! | [`pdtrc`]  | Complement of [`pdtr`]                              |
+//! | [`pdtri`]  | Inverse of [`pdtr`]                                 |
+//! | [`pdtrik`] | Inverse of [`pdtr(k, m)`](pdtr) with respect to `k` |
 //!
 //! ## Poisson binomial distribution
 //!
@@ -246,11 +258,12 @@
 //!
 //! ## Chi square distribution
 //!
-//! | Function   | Description                      |
-//! | ---------- | -------------------------------- |
-//! | [`chdtr`]  | Cumulative distribution function |
-//! | [`chdtrc`] | Complement of [`chdtr`]          |
-//! | [`chdtri`] | Inverse of [`chdtrc`]            |
+//! | Function    | Description                                           |
+//! | ----------- | ----------------------------------------------------- |
+//! | [`chdtr`]   | Cumulative distribution function                      |
+//! | [`chdtrc`]  | Complement of [`chdtr`]                               |
+//! | [`chdtri`]  | Inverse of [`chdtrc`]                                 |
+//! | [`chdtriv`] | Inverse of [`chdtr(v, x)`](chdtr) with respect to `v` |
 //!
 //! ## Kolmogorov distribution
 //!
