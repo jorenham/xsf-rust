@@ -156,6 +156,13 @@
 //! | [`bdtrik`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `k` |
 //! | [`bdtrin`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `n` |
 //!
+//! ## Beta distribution
+//!
+//! | Function    | Description                                                  |
+//! | ----------- | ------------------------------------------------------------ |
+//! | [`btdtria`] | Inverse of [`betainc(a, b, x)`](betainc) with respect to `a` |
+//! | [`btdtrib`] | Inverse of [`betainc(a, b, x)`](betainc) with respect to `b` |
+//!
 //! ## F distribution
 //!
 //! | Function     | Description                                            |

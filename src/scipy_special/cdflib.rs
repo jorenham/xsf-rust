@@ -146,6 +146,62 @@ pub fn bdtrin(k: f64, y: f64, p: f64) -> f64 {
     k + find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, false)
 }
 
+/// Inverse of [`betainc`] with respect to `a`
+///
+/// Corresponds to [`scipy.special.btdtria`][btdtria].
+///
+/// Unlike in SciPy, NaN is returned if `x > 1`, also if `p` is 0 or 1.
+///
+/// [btdtria]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtria.html
+///
+/// # See also
+/// - [`betainc`]: Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`] with respect to `x`
+/// - [`btdtrib`]: Inverse of [`betainc`] with respect to `b`
+#[must_use]
+pub fn btdtria(p: f64, b: f64, x: f64) -> f64 {
+    if !((0.0..=1.0).contains(&p) && b > 0.0 && x > 0.0 && x <= 1.0) {
+        return f64::NAN;
+    }
+    // The CDF decreases from 1 at a = 0 to 0 at a = inf. As in SciPy, the limits are also returned
+    // if b = inf or x = 1, where the CDF is 1 for all a.
+    limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
+        if b.is_infinite() || x == 1.0 {
+            return f64::NAN;
+        }
+        let func = cdf_minus_p(p, |a| betainc(a, b, x), |a| betaincc(a, b, x));
+        find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, false)
+    })
+}
+
+/// Inverse of [`betainc`] with respect to `b`
+///
+/// Corresponds to [`scipy.special.btdtrib`][btdtrib].
+///
+/// Unlike in SciPy, NaN is returned if `x > 1`, also if `p` is 0 or 1.
+///
+/// [btdtrib]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.btdtrib.html
+///
+/// # See also
+/// - [`betainc`]: Regularized incomplete beta function
+/// - [`betaincinv`](crate::betaincinv): Inverse of [`betainc`] with respect to `x`
+/// - [`btdtria`]: Inverse of [`betainc`] with respect to `a`
+#[must_use]
+pub fn btdtrib(a: f64, p: f64, x: f64) -> f64 {
+    if !(a > 0.0 && (0.0..=1.0).contains(&p) && x > 0.0 && x <= 1.0) {
+        return f64::NAN;
+    }
+    // The CDF increases from 0 at b = 0 to 1 at b = inf. As in SciPy, the limits are also returned
+    // if a = inf or x = 1, where the CDF is 0 or 1 for all b.
+    limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
+        if a.is_infinite() || x == 1.0 {
+            return f64::NAN;
+        }
+        let func = cdf_minus_p(p, |b| betainc(a, b, x), |b| betaincc(a, b, x));
+        find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, true)
+    })
+}
+
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
 /// `p > 1/2`, where `1 - p` is exact, so that the root keeps the precision of the smaller tail.
 fn cdf_minus_p(p: f64, cdf: impl Fn(f64) -> f64, sf: impl Fn(f64) -> f64) -> impl Fn(f64) -> f64 {
