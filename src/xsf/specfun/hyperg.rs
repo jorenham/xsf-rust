@@ -4,7 +4,7 @@
 //! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
-use core::f64::consts::PI;
+use core::f64::consts::{LN_2, PI};
 use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
@@ -81,13 +81,25 @@ fn rescale_term<T: Copy + Default + Mul<f64, Output = T>>(
 /// `|b + m| >= d`. So if `s <= 1/2`, they only grow for the (at most `2d + 2`) `m` with
 /// `|b + m| < d`, by at most `16^d (1 + d / e)^2` in all, with `e` the distance of `b` to the
 /// integers. It thus suffices that the `k` terms before shrink by `(2d + 4) 16^d (1 + d / e)^2`.
+///
+/// Likewise, `|t_m+1 / t_m| <= h / |b + m|` with `h = c |z|`, if `c >= max(|a + j| / (j + 1), 1)`
+/// for all `j >= m`. That is at most 1/2 if `|b + m| >= 2h`, and the (at most `4h + 1`) other
+/// terms grow by at most `e^(2h) (1 + 2h / e)^2` in all. So it also suffices that the `k` terms
+/// before those shrink by `(4h + 4) e^(2h) (1 + 2h / e)^2`, e.g. for `|z|` far below `-b`.
 fn rest_is_negligible(a: f64, b: f64, abs_z: f64, n: f64) -> bool {
     let d = (a - b).abs();
     let s = 2.0 * abs_z / (n + 1.0);
     let k = (-b - d).ceil() - n;
     let e = (b - b.round()).abs();
     let growth = (2.0 * d + 4.0).ln() + d * 16_f64.ln() + 2.0 * (d / e).ln_1p();
-    term_ratio(a, b, abs_z, n).is_some() || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
+    // c(j) bounds |a + m| / (m + 1) for m >= j; the h from c(n) gives a later j, for a smaller h
+    let c = |j: f64| ((a + j).abs() / (j + 1.0)).max(1.0);
+    let h = c(n.max(-b - 2.0 * c(n) * abs_z)) * abs_z;
+    let k_h = (-b - 2.0 * h).ceil() - n;
+    let growth_h = (4.0 * h + 4.0).ln() + 2.0 * h + 2.0 * (2.0 * h / e).ln_1p();
+    term_ratio(a, b, abs_z, n).is_some()
+        || (s <= 0.5 && k > 0.0 && -k * s.ln() >= growth)
+        || (k_h > 0.0 && k_h * LN_2 >= growth_h)
 }
 
 pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
