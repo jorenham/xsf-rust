@@ -438,11 +438,21 @@ fn test_hyp1f2_none() {
 
 #[test]
 fn test_pfq_extreme_products() {
+    // exact, where a partial product of the parameters is about 10^-320
+    let (tiny, huge) = (1e-160, 1e160);
+    assert_eq!(
+        hyppfq(&[-1.0, tiny, tiny, huge, huge], &[], 2.0),
+        Some(-1.0)
+    );
     // exact, where a partial product of the lower parameters is 2^-1023
     let (tiny, huge) = (f64::MIN_POSITIVE / 2.0, 2.0_f64.powi(1023));
     assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), Some(2.0));
     assert_eq!(hyp2f2(-1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
     assert_eq!(hyp3f2(-1.0, 1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
+    // the power of 2 of a product exceeds `i32`, and the second term overflows
+    let mut a = vec![huge; 4_198_404];
+    a.extend([-1.0, 16.0]);
+    assert_eq!(hyppfq(&a, &[], 2.0), None);
     // subnormal parameters (mpmath)
     for (actual, expected) in [
         (
@@ -528,10 +538,6 @@ fn test_hyppfq_special() {
     assert!(hyppfq(&[0.3, 0.7], &[1.5], 2.0).is_some_and(f64::is_nan));
     let (a, b) = ([0.5, 1.5, 2.5, 3.5], [1.25, 2.25, 3.25]);
     assert!(hyppfq(&a, &b, 2.0).is_some_and(f64::is_nan));
-    assert_eq!(
-        hyppfq(&[-3.0, 0.7], &[1.5], 2.0),
-        Some(hyp2f1(-3.0, 0.7, 1.5, 2.0))
-    );
     assert_eq!(hyppfq(&[2.0], &[], 3.0), Some(0.25));
     assert!(hyppfq(&[2.5], &[], 3.0).is_some_and(f64::is_nan));
     assert_eq!(hyppfq(&[2.5], &[], 1.0), Some(f64::INFINITY));
@@ -540,7 +546,51 @@ fn test_hyppfq_special() {
 }
 
 #[test]
+fn test_hyppfq_polynomial() {
+    // the exact sums of the terms (Python `fractions`), rounded
+    for (a, b, z, expected) in [
+        (&[-5.0, 2.5][..], &[][..], -0.3, 35.447_635_937_499_996),
+        (&[-10.0], &[2.5], 7.5, -0.230_642_806_801_874_54),
+        (&[-3.0, 0.7], &[1.5], 2.0, 0.049_600_000_000_000_05),
+        (
+            &[-6.0, 1.5, 2.25, -0.5],
+            &[3.5, 0.75, -8.0],
+            2.5,
+            -2.188_432_770_889_141_6,
+        ),
+        (
+            &[-20.0, 1.25, 1.5, 0.5],
+            &[1.75, 1.5, 3.5],
+            5.0,
+            20_470_378.725_082_297,
+        ),
+        (
+            &[-80.0, 2.5, 0.5, 0.5],
+            &[1.5, 1.5, 3.5],
+            20.0,
+            1.998_050_134_345_888_1e96,
+        ),
+        (
+            &[-7.0, 0.5, 1.5, 2.5, 3.5],
+            &[0.25, 1.25, 2.25, -9.5],
+            -1.75,
+            -132.181_417_408_943_6,
+        ),
+    ] {
+        let actual = hyppfq(a, b, z).unwrap();
+        assert!(
+            (actual - expected).abs() <= f64::EPSILON * expected.abs(),
+            "hyppfq({a:?}, {b:?}, {z}) = {actual} != {expected}"
+        );
+    }
+    // the sum cancels too much, but (1 - z)^70 does not
+    assert_eq!(hyppfq(&[-70.0], &[], 3.0), Some(2.0_f64.powi(70)));
+}
+
+#[test]
 fn test_hyppfq_none() {
+    // the sum cancels too much
+    assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
     assert_eq!(
         hyppfq(&[0.5, 1.5, 2.5, 3.5], &[1.25, 2.25, 3.25], 0.5),
