@@ -554,7 +554,7 @@ fn pole_distance(g: Dd) -> Option<f64> {
 /// the smallest distance to a pole there: for `f = ln Gamma`, `f'' < 1/d^2 + pi^2` if `g < 1/2`,
 /// and `f'' < 1/g + 1/g^2` if `g > 0`, and for `f = ln|sin(pi g)|`, `|f''| < (pi / 2d)^2` (since
 /// `|sin(pi g)| >= 2d`).
-fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
+pub(crate) fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
     if g.hi >= 13.0 {
         let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + lgam_stirling_corr(g.hi);
         // (the correction is below 0.01, and its error below eps)

@@ -35,6 +35,14 @@
 //! | [`elliprg`]      | Completely-symmetric elliptic integral of the second kind   |
 //! | [`elliprj`]      | Symmetric elliptic integral of the third kind               |
 //!
+//! # Ellipsoidal harmonics
+//!
+//! | Function         | Description                                              |
+//! | ---------------- | -------------------------------------------------------- |
+//! | [`ellip_harm`]   | Ellipsoidal harmonic functions $E^p_n(s)$                |
+//! | [`ellip_harm_2`] | Ellipsoidal harmonic functions $F^p_n(s)$                |
+//! | [`ellip_normal`] | Ellipsoidal harmonic normalization constants $\gamma^p_n$ |
+//!
 //! # Bessel functions
 //!
 //! | Function                | Description                                                       |
@@ -396,6 +404,28 @@
 //!
 //! Note that [`eval_sh_jacobi`] differs from `scipy.special.eval_sh_jacobi`, which is
 //! [`eval_gengegenbauer`] here (scipy/scipy#18988).
+//!
+//! The following functions compute the nodes and weights of Gauss quadrature, i.e. the roots of
+//! these polynomials:
+//!
+//! | Function                 | Roots of                |
+//! | ------------------------ | ----------------------- |
+//! | [`roots_jacobi`]         | $P_n^{(\alpha,\beta)}$  |
+//! | [`roots_sh_jacobi`]      | $P_n^{*(\alpha,\beta)}$ |
+//! | [`roots_gengegenbauer`]  | $G_n^{(p,q)}$           |
+//! | [`roots_legendre`]       | $P_n$                   |
+//! | [`roots_sh_legendre`]    | $P_n^*$                 |
+//! | [`roots_chebyshev_t`]    | $T_n$                   |
+//! | [`roots_chebyshev_u`]    | $U_n$                   |
+//! | [`roots_chebyshev_c`]    | $C_n$                   |
+//! | [`roots_chebyshev_s`]    | $S_n$                   |
+//! | [`roots_sh_chebyshev_t`] | $T_n^*$                 |
+//! | [`roots_sh_chebyshev_u`] | $U_n^*$                 |
+//! | [`roots_gegenbauer`]     | $C_n^{(\alpha)}$        |
+//! | [`roots_genlaguerre`]    | $L_n^{(\alpha)}$        |
+//! | [`roots_laguerre`]       | $L_n$                   |
+//! | [`roots_hermite_h`]      | $H_n$                   |
+//! | [`roots_hermite_he`]     | $He_n$                  |
 //!
 //! # Hypergeometric functions
 //!

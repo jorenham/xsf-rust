@@ -47,9 +47,9 @@ of 353 functions whose algorithm isn't in xsf.
 | `huber`, `pseudo_huber`                 | Cython                 | same                       |
 | `hyp0f1`                                | Cython                 | same                       |
 | `ndtri_exp`                             | Cython                 | same                       |
+| `ellip_harm`, `ellip_harm_2`            | Cython                 | same                       |
+| `ellip_normal`                          | Cython                 | same                       |
 | `spence`                                | xsf; complex: Cython   | same                       |
-| `ellip_harm`, `ellip_harm_2`            | Cython                 |                            |
-| `ellip_normal`                          | Cython                 |                            |
 | `assoc_laguerre`                        | Python                 | `eval_genlaguerre`         |
 | `diric`                                 | Python                 | same                       |
 | `factorial`                             | Python                 | same                       |
@@ -61,6 +61,14 @@ of 353 functions whose algorithm isn't in xsf.
 | `multigammaln`                          | Python                 | same                       |
 | `perm`                                  | Python                 | same                       |
 | `polygamma`                             | Python                 | same                       |
-| `roots_*` and their aliases             | Python                 |                            |
+| `roots_{jacobi,gegenbauer,legendre}`    | Python                 | same                       |
+| `roots_{laguerre,genlaguerre}`          | Python                 | same                       |
+| `roots_sh_legendre`                     | Python                 | same                       |
+| `roots_cheby{c,s,t,u}`                  | Python                 | `roots_chebyshev_*`        |
+| `roots_sh_cheby{t,u}`                   | Python                 | `roots_sh_chebyshev_*`     |
+| `roots_hermite`                         | Python                 | `roots_hermite_h`          |
+| `roots_hermitenorm`                     | Python                 | `roots_hermite_he`         |
+| `roots_sh_jacobi`                       | Python                 | `roots_gengegenbauer`      |
+| aliases of `roots_*`, e.g. `p_roots`    | Python                 |                            |
 | orthogonal polynomial classes           | Python                 |                            |
 | `sinc`                                  | NumPy                  | same                       |
