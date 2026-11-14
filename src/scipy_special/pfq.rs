@@ -32,6 +32,9 @@ const PFQ_NEGLIGIBLE: f64 = 1e-150;
 /// The sizes of the parameters for which `pfq_products` is exact enough for all $n$
 const PFQ_MODERATE: core::ops::RangeInclusive<f64> = 1e-30..=1e30;
 
+/// Most parameters in `a` or in `b` for which `pfq_products` is exact
+const PFQ_MAX_UNCHECKED: usize = 4;
+
 /// Below the logarithm of the smallest positive normal number
 const PFQ_LN_UNDERFLOW: f64 = -709.0;
 
@@ -123,8 +126,9 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
 
 /// The products of the $a_i + n$ and of the $b_j + n$, whose quotient is $t_{n+1} / (z t_n)$
 ///
-/// For up to four parameters each of a size in `PFQ_MODERATE`, an $a_i + n$ that is not zero is
-/// at least $2^{-100}$ and at most $2^{101}$, so that both products and their quotient are normal.
+/// For up to `PFQ_MAX_UNCHECKED` parameters each of a size in `PFQ_MODERATE`, an $a_i + n$ that is
+/// not zero is at least $2^{-100}$ and at most $2^{101}$, so that both products and their quotient
+/// are normal.
 fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
     let shifted = |p: T, &v: &f64| p * (T::from_f64(v) + n);
     let one = T::from_f64(1.0);
@@ -162,7 +166,8 @@ fn pfq_underflow_bound<T: SeriesReal>(term: T, z: f64) -> T {
 
 /// Whether `pfq_products` is not exact enough for these parameters
 fn pfq_extreme(a: &[f64], b: &[f64]) -> bool {
-    a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
+    let many = a.len().max(b.len()) > PFQ_MAX_UNCHECKED;
+    many || a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
 }
 
 /// $t_{n+1} / (z t_n)$, which is `checked` if the parameters are extreme
@@ -1048,8 +1053,9 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 /// $p = q + 1$ and $z \le -1$, it is the analytic continuation. A non-positive integer
 /// $a_i = -n$ makes it a polynomial of degree at most $n$.
 ///
-/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer. The result is
-/// then that of the function for the remaining $p$ and $q$:
+/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer. A polynomial is
+/// then the sum of its terms in double-double arithmetic, if that is accurate. Otherwise, the
+/// result is that of the function for the remaining $p$ and $q$:
 ///
 /// | $p$ | $q = 0$                   | $q = 1$                   | $q = 2$    |
 /// | --- | ------------------------- | ------------------------- | ---------- |
@@ -1068,7 +1074,7 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 ///
 /// # Returns `None`
 ///
-/// - for the other $p$ and $q$;
+/// - for the other $p$ and $q$, unless it is a polynomial;
 /// - where the function for $p$ and $q$ returns `None` or NaN;
 /// - if an argument is infinite.
 ///
@@ -1090,6 +1096,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     let Some(degree) = pfq_degree(&a, &b) else {
         return Some(f64::INFINITY);
     };
+    // a polynomial in double-double, which its few terms make cheap
+    let polynomial = || {
+        let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
+        accurate((y, err))
+    };
+    if let Some(y) = degree.is_finite().then(polynomial).flatten() {
+        return Some(y);
+    }
     let complex = a.len() == b.len() + 1 && z > 1.0 && degree.is_infinite();
     // the xsf functions are NaN where they are inaccurate
     let xsf = |y: f64| Some(y).filter(|y| !y.is_nan());
