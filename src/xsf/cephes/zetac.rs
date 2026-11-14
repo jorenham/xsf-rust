@@ -6,7 +6,7 @@
 
 use std::f64::consts::{E, FRAC_PI_2, TAU};
 
-use crate::utils::{MACHEP, SQRT2OPI};
+use crate::utils::{MACHEP, SQRT_FRAC_2_PI};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::cephes::zeta;
@@ -214,7 +214,7 @@ fn zeta_reflection(x: f64) -> f64 {
 
     /* Reduce the argument to sine */
     let x_shift = x % 4.0;
-    let mut small_term = -SQRT2OPI * (FRAC_PI_2 * x_shift).sin();
+    let mut small_term = -SQRT_FRAC_2_PI * (FRAC_PI_2 * x_shift).sin();
     small_term *= lanczos_sum_expg_scaled(x + 1.0) * zeta(x + 1.0, 1.0);
 
     /* Group large terms together to prevent overflow */

@@ -27,7 +27,7 @@ use core::cmp::Ordering;
 use core::f64::consts::{E as E_HI, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::utils::{LN_PI, LN_SQRT_2PI, pow2};
+use crate::utils::{LN_PI, LN_SQRT_TAU, pow2};
 
 /*************************************************************************
  * The basic routines taking double arguments, returning 1 (or 2) doubles
@@ -455,7 +455,7 @@ pub(crate) const LN_PI_DD: DoubleDouble = DoubleDouble {
 
 /// `ln(2 pi) / 2` in double-double precision
 pub(crate) const LN_SQRT_2PI_DD: DoubleDouble = DoubleDouble {
-    hi: LN_SQRT_2PI,
+    hi: LN_SQRT_TAU,
     lo: -3.878_294_158_067_241_4e-17,
 };
 const EPS: f64 = 4.930_380_657_631_32e-32; // 2^-104

@@ -6,6 +6,7 @@
 use core::iter::once;
 use core::ops::Range;
 
+use crate::utils::EPSILON_SQ;
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 
 /// Maximum number of QL iterations per eigenvalue, like in EISPACK's `tql1`
@@ -67,9 +68,7 @@ fn ql(d: &[f64], e: &[f64], z: &mut [f64]) -> Option<(Vec<f64>, i32)> {
             // `blocks`, or if `e[m]^2` underflows (as in `dsteqr`)
             let m = (l..n - 1)
                 .find(|&m| {
-                    e[m] * e[m]
-                        <= f64::EPSILON * f64::EPSILON * d[m].abs() * d[m + 1].abs()
-                            + f64::MIN_POSITIVE
+                    e[m] * e[m] <= EPSILON_SQ * d[m].abs() * d[m + 1].abs() + f64::MIN_POSITIVE
                 })
                 .unwrap_or(n - 1);
             if m == l {

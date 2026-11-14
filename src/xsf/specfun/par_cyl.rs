@@ -5,7 +5,7 @@
 
 use core::f64::consts::SQRT_2;
 
-use crate::utils::{SQRT_PI, SQRT_TAU};
+use crate::utils::{SQRT_PI, SQRT_TAU_DOWN};
 use crate::xsf::c64::C64;
 
 pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
@@ -55,7 +55,7 @@ pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
                 cpb[1] = cpdla(-1, z1);
             }
 
-            let mut cf1 = SQRT_TAU / ca0 - cpb[1];
+            let mut cf1 = SQRT_TAU_DOWN / ca0 - cpb[1];
             cpb[1] = cf1;
 
             // Unlike in xsf (scipy/xsf#537), up to D_{-n0}(z), like in specfun.f

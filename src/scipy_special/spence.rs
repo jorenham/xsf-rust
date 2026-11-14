@@ -7,7 +7,7 @@
 
 use num_complex::Complex64;
 
-use crate::utils::PISQ_6;
+use crate::utils::FRAC_PI_SQ_6;
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::zlog1_c64;
 
@@ -28,7 +28,7 @@ fn cspence(z: C64) -> C64 {
     //     # This step isn't necessary, but this series converges faster.
     //     return cspence_series0(z)
     // elif zabs(1 - z) > 1:
-    //     return -cspence_series1(z/(z - 1)) - PISQ_6 - 0.5*zlog1(z - 1)**2
+    //     return -cspence_series1(z/(z - 1)) - FRAC_PI_SQ_6 - 0.5*zlog1(z - 1)**2
     // else:
     //     return cspence_series1(z)
 
@@ -41,7 +41,7 @@ fn cspence(z: C64) -> C64 {
     } else if (C64::ONE - z).norm() > 1.0 {
         let zm1 = z - 1.0;
         let log_zm1 = zlog1_c64(zm1);
-        -cspence_series1(z / zm1) - PISQ_6 - 0.5 * (log_zm1 * log_zm1)
+        -cspence_series1(z / zm1) - FRAC_PI_SQ_6 - 0.5 * (log_zm1 * log_zm1)
     } else {
         cspence_series1(z)
     }
@@ -51,7 +51,7 @@ fn cspence(z: C64) -> C64 {
 #[inline]
 fn cspence_series0(z: C64) -> C64 {
     if z == C64::ZERO {
-        return c64(PISQ_6, 0.0);
+        return c64(FRAC_PI_SQ_6, 0.0);
     }
     // cdef:
     //     int n
@@ -85,8 +85,8 @@ fn cspence_series0(z: C64) -> C64 {
         }
     }
 
-    // return PISQ_6 - sum1 + zlog1(z)*sum2
-    c64(PISQ_6, 0.0) - sum1 + zlog1_c64(z) * sum2
+    // return FRAC_PI_SQ_6 - sum1 + zlog1(z)*sum2
+    c64(FRAC_PI_SQ_6, 0.0) - sum1 + zlog1_c64(z) * sum2
 }
 
 /// A series centered at z = 1 which enjoys faster convergence than the Taylor series.

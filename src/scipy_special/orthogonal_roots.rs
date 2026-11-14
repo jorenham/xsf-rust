@@ -10,7 +10,7 @@ use super::orthogonal_eval::{
     eval_gegenbauer, eval_genlaguerre, eval_hermite_h, eval_hermite_he, eval_jacobi, eval_legendre,
 };
 use super::tridiag::eigvals;
-use crate::utils::{MAXLOG, SQRT_PI, SQRT_TAU};
+use crate::utils::{MAXLOG, SQRT_PI, SQRT_TAU_DOWN};
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, LOG2, ldexp_f64, two_sum};
 use crate::xsf::cephes::incbet_lnpow;
 use crate::xsf::ln_gamma;
@@ -715,7 +715,17 @@ pub fn roots_hermite_he(n: usize) -> (Vec<f64>, Vec<f64>) {
     let bn = |k: f64| k.sqrt();
     let f = |n: i32, x| eval_hermite_he(n as u32, x);
     let df = |n: i32, x| f64::from(n) * f(n - 1, x);
-    gen_roots_and_weights(n, SQRT_TAU, an, bn, f, df, |_, _| 1.0, |x| -x, Symmetric)
+    gen_roots_and_weights(
+        n,
+        SQRT_TAU_DOWN,
+        an,
+        bn,
+        f,
+        df,
+        |_, _| 1.0,
+        |x| -x,
+        Symmetric,
+    )
 }
 
 /// Corresponds to `_compute_tauk`: the root of `tau - sin(tau) = c` of Lemma 3.1 in [^TTO], by
@@ -861,7 +871,7 @@ fn pbcf(n: usize, theta: f64) -> (f64, f64) {
     let u = p * (ai * (a_0 + a_1 / mu.powi(2) + a_2 / mu.powi(4))
         + aip * (b_0 + b_1 / mu.powi(2) + b_2 / mu.powi(4)) / mu.powf(8.0 / 6.0));
     // Prefactor for derivative of U
-    let pd = SQRT_TAU * mu.powf(2.0 / 6.0) / phi;
+    let pd = SQRT_TAU_DOWN * mu.powf(2.0 / 6.0) / phi;
     // Terms for derivative of U
     // https://dlmf.nist.gov/12.10#E46
     let c_0 = -(b1 * v0 + phip(1) * b0 * v1) / zeta;

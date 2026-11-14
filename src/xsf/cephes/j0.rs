@@ -8,7 +8,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{SQRT1OPI, SQRT2OPI};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_4};
 
@@ -152,10 +152,10 @@ pub(crate) fn j0(mut x: f64) -> f64 {
     if x < 10.0 {
         let xn = x - FRAC_PI_4;
         let p = p * xn.cos() - w * q * xn.sin();
-        return p * SQRT2OPI / x.sqrt();
+        return p * SQRT_FRAC_2_PI / x.sqrt();
     }
     let p = (p + w * q) * x.cos() + (p - w * q) * x.sin();
-    p * SQRT1OPI / x.sqrt()
+    p * FRAC_1_SQRT_PI / x.sqrt()
 }
 
 /* Bessel function of second kind, order zero  */
@@ -211,8 +211,8 @@ pub(crate) fn y0(x: f64) -> f64 {
     if x < 10.0 {
         let xn = x - FRAC_PI_4;
         let p = p * xn.sin() + w * q * xn.cos();
-        return p * SQRT2OPI / x.sqrt();
+        return p * SQRT_FRAC_2_PI / x.sqrt();
     }
     let p = (w * q - p) * x.cos() + (p + w * q) * x.sin();
-    p * SQRT1OPI / x.sqrt()
+    p * FRAC_1_SQRT_PI / x.sqrt()
 }

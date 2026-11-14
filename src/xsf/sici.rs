@@ -14,7 +14,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::expint::expi_c64;
 
@@ -47,7 +47,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
      * largely follows that of [1].
      */
 
-    const EULER: f64 = SCIPY_EULER;
+    const EULER: f64 = EGAMMA;
 
     if z == C64::INFINITY {
         return (c64(FRAC_PI_2, 0.0), C64::ZERO);
@@ -97,7 +97,7 @@ fn shichi_c64(z: C64) -> (C64, C64) {
     /* Compute sinh/cosh integrals at complex arguments. The algorithm
      * largely follows that of [1].
      */
-    const EULER: f64 = SCIPY_EULER;
+    const EULER: f64 = EGAMMA;
 
     if z == C64::INFINITY {
         return (C64::INFINITY, C64::INFINITY);

@@ -5,7 +5,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, PI};
 
 use num_complex::Complex64;
 
-use crate::utils::SQRT_TAU;
+use crate::utils::SQRT_TAU_DOWN;
 use crate::xsf::c64::{C64, ViaC64, c64};
 
 pub trait ErfArg: crate::sealed::Sealed {
@@ -213,12 +213,12 @@ pub fn voigt_profile(x: f64, sigma: f64, gamma: f64) -> f64 {
         return gamma / PI / (x * x + gamma * gamma);
     }
     if gamma == 0.0 {
-        return 1.0 / SQRT_TAU / sigma * (-(x / sigma) * (x / sigma) / 2.0).exp();
+        return 1.0 / SQRT_TAU_DOWN / sigma * (-(x / sigma) * (x / sigma) / 2.0).exp();
     }
 
     let zreal = x / sigma * INV_SQRT_2;
     let zimag = gamma / sigma * INV_SQRT_2;
     let z = c64(zreal, zimag);
     let w = crate::xsf::faddeeva::w(z);
-    w.re / sigma / SQRT_TAU
+    w.re / sigma / SQRT_TAU_DOWN
 }

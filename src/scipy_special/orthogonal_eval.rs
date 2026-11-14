@@ -7,7 +7,7 @@ use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{MAXGAM, SQRT_EPS, SQRT_PI};
+use crate::utils::{MAXGAM, SQRT_EPSILON, SQRT_PI};
 use crate::xsf::cephes::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -106,8 +106,8 @@ mod sealed {
 ///   `n < 1e5` (to bound its cost).
 /// - The recurrence replaces `series` only if that isn't finite, or if they differ by more than
 ///   `tol * growth`, the estimated effect of relative errors `tol` in the two starting values.
-///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPS <= |G_n|`, which
-///   limits that amplification to `1 / SQRT_EPS`), and 1 otherwise.
+///   `tol` is `HYP2F1_ETHRESH` if the recurrence is stable (`growth * SQRT_EPSILON <= |G_n|`, which
+///   limits that amplification to `1 / SQRT_EPSILON`), and 1 otherwise.
 fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Option<f64> {
     let (alpha, beta) = (c - 1.0, lam - c);
     if !(x.abs() < 1.0 && n > 2.0 && n < 1e5 && n.fract() != 0.0 && c > 0.0 && beta > -1.0) {
@@ -136,7 +136,7 @@ fn jacobi_hyp2f1_recurrence(x: f64, n: f64, lam: f64, c: f64, series: f64) -> Op
     let rec = recur(g0, g1);
     // the solutions with starting values (1, 0) and (0, 1)
     let growth = (recur(1.0, 0.0) * g0).abs() + (recur(0.0, 1.0) * g1).abs();
-    let stable = growth * SQRT_EPS <= rec.abs();
+    let stable = growth * SQRT_EPSILON <= rec.abs();
     let tol = if stable { HYP2F1_ETHRESH } else { 1.0 };
     (!series.is_finite() || (rec - series).abs() > tol * growth).then_some(rec)
 }

@@ -123,7 +123,7 @@
 
 use core::f64::consts::{LN_2, LN_10};
 
-use crate::utils::{MAXLOG, SQRT3};
+use crate::utils::{MAXLOG, SQRT_3};
 use crate::xsf::c64::{C64, c64};
 
 #[rustfmt::skip]
@@ -3755,7 +3755,7 @@ fn buni(
     nz = 0;
     let xx: f64 = z.re;
     let yy: f64 = z.im;
-    ax = xx.abs() * SQRT3;
+    ax = xx.abs() * SQRT_3;
     ay = yy.abs();
     iform = 1;
     if ay > ax {
@@ -6913,7 +6913,7 @@ fn uoik(
     }
     let zb: C64 = zr;
     let yy: f64 = zr.im;
-    ax = x.abs() * SQRT3;
+    ax = x.abs() * SQRT_3;
     ay = yy.abs();
     iform = 1;
     if ay > ax {

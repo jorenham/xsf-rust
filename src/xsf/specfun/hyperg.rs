@@ -11,7 +11,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::utils::{SCIPY_EULER, SQRT_EPS, mul_exp, pow2};
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
@@ -241,7 +241,7 @@ impl Term for C64 {
 }
 
 impl Term for DoubleDouble {
-    const EPS: f64 = f64::EPSILON * f64::EPSILON;
+    const EPS: f64 = EPSILON_SQ;
     fn norm(self) -> f64 {
         // `inf` on overflow, where the error terms of the products are NaN
         if self.is_finite() {
@@ -337,7 +337,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
     }
     let (a, z, ln_scale, phase) = if z.re < 0.0 {
         let DoubleDouble { hi, lo } = DoubleDouble::new(b) - a;
-        if hi <= 0.0 && lo.abs() > SQRT_EPS * (hi - hi.round()).abs() {
+        if hi <= 0.0 && lo.abs() > SQRT_EPSILON * (hi - hi.round()).abs() {
             return hg;
         }
         (hi, -z, z.re, z.im)
@@ -346,7 +346,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
     };
     let scale = c64(b.abs() * phase.cos(), b.abs() * phase.sin());
     hyp1f1_series(a, b, z, scale, ln_scale)
-        .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPS * m.norm())
+        .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPSILON * m.norm())
         .map_or(hg, |(m, _)| m / b.abs())
 }
 
@@ -405,7 +405,7 @@ fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
 
 /// Whether the value of `(value, error bound)` is finite and keeps at least half of its digits
 fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
-    hg.is_finite() && err <= SQRT_EPS * hg.abs()
+    hg.is_finite() && err <= SQRT_EPSILON * hg.abs()
 }
 
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
@@ -536,7 +536,7 @@ impl KummerSum {
 
     /// Whether the sum converged and loses at most half of its digits
     fn accurate(&self) -> bool {
-        self.converged && self.rs * SQRT_EPS <= self.hg.abs()
+        self.converged && self.rs * SQRT_EPSILON <= self.hg.abs()
     }
 
     /// By how much the sum cancels, or `inf` if it didn't converge
@@ -562,7 +562,7 @@ impl KummerSum {
         if hg.is_finite() {
             let rest_negligible = || rest_is_negligible(a, b, x, f64::from(terms));
             let truncated = !Self::negligible(self.rg, hg) || terms > 500 && !rest_negligible();
-            truncated || b < 0.0 && self.rs * SQRT_EPS > hg.abs()
+            truncated || b < 0.0 && self.rs * SQRT_EPSILON > hg.abs()
         } else {
             neg_b && !(hg.is_infinite() && terms_keep_sign(a, b, self.last_finite + 1))
         }
@@ -1051,7 +1051,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     //      (2) PSI_SPEC for computing psi function
     // ======================================================
 
-    const EL: f64 = SCIPY_EULER;
+    const EL: f64 = EGAMMA;
 
     let (a0, a1, a2, ga1, ua, ub);
 

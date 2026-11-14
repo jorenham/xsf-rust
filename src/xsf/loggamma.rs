@@ -20,7 +20,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{LN_PI, LN_SQRT_2PI, is_nonpos_int};
+use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::polevl::polevl;
 
@@ -50,7 +50,7 @@ fn loggamma_stirling(z: C64) -> C64 {
     let rz = 1.0 / z;
     let rzz = rz / z;
 
-    (z - 0.5) * z.ln() - z + LN_SQRT_2PI + rz * rzz.evalpoly(&coeffs)
+    (z - 0.5) * z.ln() - z + LN_SQRT_TAU + rz * rzz.evalpoly(&coeffs)
 }
 
 fn loggamma_recurrence(mut z: C64) -> C64 {

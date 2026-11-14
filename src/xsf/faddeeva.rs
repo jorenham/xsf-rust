@@ -130,7 +130,7 @@
 
 use core::f64::consts::FRAC_2_SQRT_PI;
 
-use crate::utils::{MAXLOG, SQRT1OPI, mul_exp};
+use crate::utils::{FRAC_1_SQRT_PI, MAXLOG, mul_exp};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::polevl::polevl;
 
@@ -562,7 +562,7 @@ pub(crate) fn w(z: C64) -> C64 {
                 // scale to avoid overflow
                 if x > ya {
                     let yax = ya / xs;
-                    let denom = SQRT1OPI / (xs + yax * ya);
+                    let denom = FRAC_1_SQRT_PI / (xs + yax * ya);
                     ret = c64(denom * yax, denom);
                 } else if ya.is_infinite() {
                     return if x.is_nan() || y < 0.0 {
@@ -572,13 +572,13 @@ pub(crate) fn w(z: C64) -> C64 {
                     };
                 } else {
                     let xya = xs / ya;
-                    let denom = SQRT1OPI / (xya * xs + ya);
+                    let denom = FRAC_1_SQRT_PI / (xya * xs + ya);
                     ret = c64(denom, denom * xya);
                 }
             } else {
                 // nu == 2, w(z) = i/sqrt(pi) * z / (z*z - 0.5)
                 let (dr, di) = (xs * xs - ya * ya - 0.5, 2.0 * xs * ya);
-                let denom = SQRT1OPI / (dr * dr + di * di);
+                let denom = FRAC_1_SQRT_PI / (dr * dr + di * di);
                 ret = c64(denom * (xs * di - ya * dr), denom * (xs * dr + ya * di));
             }
         } else {
@@ -596,7 +596,7 @@ pub(crate) fn w(z: C64) -> C64 {
             }
             {
                 // w(z) = i/sqrt(pi) / w:
-                let denom = SQRT1OPI / (wr * wr + wi * wi);
+                let denom = FRAC_1_SQRT_PI / (wr * wr + wi * wi);
                 ret = c64(denom * wi, denom * wr);
             }
         }
@@ -923,11 +923,11 @@ pub(crate) fn erfcx(x: f64) -> f64 {
             // continued-fraction expansion is faster
             if x > 5e7 {
                 // 1-term expansion, important to avoid overflow
-                return SQRT1OPI / x;
+                return FRAC_1_SQRT_PI / x;
             }
             /* 5-term expansion (rely on compiler for CSE), simplified from:
             ispi / (x+0.5/(x+1/(x+1.5/(x+2/x))))  */
-            return SQRT1OPI * ((x * x) * (x * x + 4.5) + 2.0)
+            return FRAC_1_SQRT_PI * ((x * x) * (x * x + 4.5) + 2.0)
                 / (x * ((x * x) * (x * x + 5.0) + 3.75));
         }
         return erfcx_y100(400.0 / (4.0 + x));
@@ -1089,11 +1089,11 @@ fn w_im(x: f64) -> f64 {
             // continued-fraction expansion is faster
             if x > 5e7 {
                 // 1-term expansion, important to avoid overflow
-                return SQRT1OPI / x;
+                return FRAC_1_SQRT_PI / x;
             }
             /* 5-term expansion (rely on compiler for CSE), simplified from:
             ispi / (x-0.5/(x-1/(x-1.5/(x-2/x))))  */
-            return SQRT1OPI * ((x * x) * (x * x - 4.5) + 2.0)
+            return FRAC_1_SQRT_PI * ((x * x) * (x * x - 4.5) + 2.0)
                 / (x * ((x * x) * (x * x - 5.0) + 3.75));
         }
         return w_im_y100(100.0 / (1.0 + x), x);
@@ -1103,11 +1103,12 @@ fn w_im(x: f64) -> f64 {
         // continued-fraction expansion is faster
         if x < -5e7 {
             // 1-term expansion, important to avoid overflow
-            return SQRT1OPI / x;
+            return FRAC_1_SQRT_PI / x;
         }
         /* 5-term expansion (rely on compiler for CSE), simplified from:
         ispi / (x+0.5/(x+1/(x+1.5/(x+2/x))))  */
-        return SQRT1OPI * ((x * x) * (x * x - 4.5) + 2.0) / (x * ((x * x) * (x * x - 5.0) + 3.75));
+        return FRAC_1_SQRT_PI * ((x * x) * (x * x - 4.5) + 2.0)
+            / (x * ((x * x) * (x * x - 5.0) + 3.75));
     }
     -w_im_y100(100.0 / (1.0 - x), -x)
 }

@@ -8,7 +8,7 @@
 //! (unused) status code is dropped. The `Si` and `Ci` values that xsf computes for finite
 //! `x > 1e9` are omitted, because they are always overwritten by the asymptotic expansion.
 
-use crate::utils::SCIPY_EULER;
+use crate::utils::EGAMMA;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::FRAC_PI_2;
 
@@ -212,7 +212,7 @@ pub(crate) fn sici(mut x: f64) -> (f64, f64) {
             s = -s;
         }
         let si = s;
-        let ci = SCIPY_EULER + x.ln() + c; /* real part if x < 0 */
+        let ci = EGAMMA + x.ln() + c; /* real part if x < 0 */
         return (si, ci);
     }
 

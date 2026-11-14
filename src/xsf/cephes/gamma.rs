@@ -8,7 +8,7 @@
 //! Unlike in xsf, the parity of `floor(|x|)` is determined with an `i64` instead of an `int`, which
 //! overflows (UB) for `|x| > 2^31`.
 
-use crate::utils::{LN_PI, LN_SQRT_2PI, MAXGAM, SQRT2PI};
+use crate::utils::{LN_PI, LN_SQRT_TAU, MAXGAM, SQRT_TAU};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor_real};
 use crate::xsf::trig::cephes_sinpi;
@@ -66,7 +66,7 @@ fn stirf(x: f64) -> f64 {
     } else {
         y = x.powf(x - 0.5) / y;
     }
-    SQRT2PI * y * w
+    SQRT_TAU * y * w
 }
 
 /// Gamma function
@@ -219,7 +219,7 @@ const MAXLGM: f64 = 2.556_348e305;
 /* In xsf, optimizations for this function are disabled for GCC on 32-bit systems, since they can
  * degrade its precision. Rust never reassociates or contracts floating point operations. */
 fn lgam_large_x(x: f64) -> f64 {
-    let q = (x - 0.5) * x.ln() - x + LN_SQRT_2PI;
+    let q = (x - 0.5) * x.ln() - x + LN_SQRT_TAU;
     if x > 1.0e8 {
         return q;
     }
@@ -320,7 +320,7 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
         return (lgam_large_x(x), sign);
     }
 
-    let q = (x - 0.5) * x.ln() - x + LN_SQRT_2PI;
+    let q = (x - 0.5) * x.ln() - x + LN_SQRT_TAU;
     (q + lgam_stirling_corr(x), sign)
 }
 
@@ -329,7 +329,7 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
 pub(crate) fn lgam_stirling_corr(x: f64) -> f64 {
     if x < 13.0 {
         // where `lgam` doesn't use Stirling's formula
-        return lgam(x) - ((x - 0.5) * x.ln() - x + LN_SQRT_2PI);
+        return lgam(x) - ((x - 0.5) * x.ln() - x + LN_SQRT_TAU);
     }
     let p = 1.0 / (x * x);
     polevl(p, &GAMMA_A) / x

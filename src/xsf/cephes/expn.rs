@@ -11,7 +11,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, MAXLOG, MINLOG, SCIPY_EULER, mul_exp};
+use crate::utils::{EGAMMA, MACHEP, MAXLOG, MINLOG, mul_exp};
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::rgamma;
 
@@ -226,7 +226,7 @@ pub fn expn(n: u32, x: f64) -> f64 {
     }
 
     /* Power series expansion, DLMF 8.19.8 */
-    let mut psi = -SCIPY_EULER - x.ln();
+    let mut psi = -EGAMMA - x.ln();
     for i in 1..n {
         psi += 1.0 / f64::from(i);
     }

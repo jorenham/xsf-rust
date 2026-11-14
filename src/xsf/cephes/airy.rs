@@ -7,7 +7,7 @@
 //!
 //! Unlike in xsf, `(status, ai, aip, bi, bip)` is returned instead of written to output pointers.
 
-use crate::utils::{MACHEP, SQRT1OPI, SQRT3, pow2};
+use crate::utils::{FRAC_1_SQRT_PI, MACHEP, SQRT_3, pow2};
 use crate::xsf::cephes::dd_real::{DoubleDouble, two_prod};
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use core::f64::consts::FRAC_PI_4;
@@ -281,7 +281,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         let zeta = -2.0 * x * t / 3.0;
         let (f, g) = sin_cos_theta(-x, t);
         let t = t.sqrt();
-        let k = SQRT1OPI / t;
+        let k = FRAC_1_SQRT_PI / t;
         let z = 1.0 / zeta;
         let zz = z * z;
         let uf = 1.0 + zz * polevl(zz, &AFN) / p1evl(zz, &AFD);
@@ -290,7 +290,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         bi = k * (g * uf + f * ug);
         let uf = 1.0 + zz * polevl(zz, &APFN) / p1evl(zz, &APFD);
         let ug = z * polevl(zz, &APGN) / p1evl(zz, &APGD);
-        let k = SQRT1OPI * t;
+        let k = FRAC_1_SQRT_PI * t;
         aip = -k * (g * uf + f * ug);
         bip = k * (f * uf - g * ug);
         return (0, ai, aip, bi, bip);
@@ -306,15 +306,15 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         let k = 2.0 * t * g;
         let z = 1.0 / zeta;
         let f = polevl(z, &AN) / polevl(z, &AD);
-        ai = SQRT1OPI * f / k;
-        let k = -0.5 * SQRT1OPI * t / g;
+        ai = FRAC_1_SQRT_PI * f / k;
+        let k = -0.5 * FRAC_1_SQRT_PI * t / g;
         let f = polevl(z, &APN) / polevl(z, &APD);
         aip = f * k;
 
         if x > 8.3203353 {
             /* zeta > 16 */
             let f = z * polevl(z, &BN16) / p1evl(z, &BD16);
-            let k = SQRT1OPI * g;
+            let k = FRAC_1_SQRT_PI * g;
             bi = k * (1.0 + f) / t;
             let f = z * polevl(z, &BPPN) / p1evl(z, &BPPD);
             bip = k * t * (1.0 + f);
@@ -349,7 +349,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         ai = uf - ug;
     }
     if (domflg & 2) == 0 {
-        bi = SQRT3 * (uf + ug);
+        bi = SQRT_3 * (uf + ug);
     }
 
     /* the deriviative of ai */
@@ -382,7 +382,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         aip = uf - ug;
     }
     if (domflg & 8) == 0 {
-        bip = SQRT3 * (uf + ug);
+        bip = SQRT_3 * (uf + ug);
     }
     (0, ai, aip, bi, bip)
 }

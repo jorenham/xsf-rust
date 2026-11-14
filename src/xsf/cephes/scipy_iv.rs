@@ -50,7 +50,7 @@
 
 use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
-use crate::utils::{MACHEP, SCIPY_EULER, mul_exp};
+use crate::utils::{EGAMMA, MACHEP, mul_exp};
 use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
@@ -290,7 +290,7 @@ fn temme_ik_series(v: f64, x: f64) -> (f64, f64) {
         sigma.sinh() / sigma
     };
     let gamma1 = if v.abs() < MACHEP {
-        -SCIPY_EULER
+        -EGAMMA
     } else {
         (0.5 / v) * (gp - gm) * c
     };

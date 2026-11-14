@@ -5,7 +5,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{MACHEP, SQRT_EPS};
+use crate::utils::{MACHEP, SQRT_EPSILON};
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
@@ -150,7 +150,7 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
         return None;
     }
     let (ha, hb) = (0.5 * a, 0.5 * b);
-    if ha <= 1.0 / SQRT_EPS {
+    if ha <= 1.0 / SQRT_EPSILON {
         let y0 = f64::MIN_POSITIVE;
         let (p0, q0) = (betainc_xy(ha, hb, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
         // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
