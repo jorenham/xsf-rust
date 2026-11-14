@@ -4,8 +4,8 @@
 
 use num_complex::Complex;
 
-use crate::utils::{cmul_exp, sin_cos_glibc};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::complex::{cmul_exp, sin_cos_glibc};
 use crate::xsf::trig::cosm1;
 
 /// Exponential of complex `z`
