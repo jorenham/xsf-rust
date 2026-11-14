@@ -150,6 +150,32 @@ fn test_fdtridfd() {
 }
 
 #[test]
+fn test_nbdtrik_nbdtrin() {
+    // `test_inverses` in scipy/special/tests/test_cdflib.py: `(k, y, p, n)`
+    let cases = [
+        (5.0, 0.321_456_909_179_687_5, 0.25, 3.0),
+        (10.0, 3.820_379_007_878_081e-70, 0.15, 100.0),
+        (100.0, 0.975_574_722_927_043, 0.15, 10.0),
+        (2.0, 3.503_253_250_000_002e-73, 0.001, 25.0),
+        (2.0, 0.999_999_327_102_995_4, 0.999, 15.0),
+        (500.0, 0.999_999_999_860_317_8, 0.1, 15.0),
+        (0.0, 1.000_000_000_000_000_6e-10, 0.1, 10.0),
+    ];
+    for (k, y, p, n) in cases {
+        np_assert_allclose!([xsf::nbdtrin(k, y, p)], [n], rtol = 1e-8);
+        np_assert_allclose!([xsf::nbdtrik(y, n, p)], [k], rtol = 1e-8, atol = 1e-15);
+    }
+    // y lies below nbdtr(0, 10, 0.5) = 2^-10
+    assert_eq!(xsf::nbdtrik(1e-4, 10.0, 0.5), 0.0);
+    assert_eq!(xsf::nbdtrik(1.0, 10.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::nbdtrik(0.5, 10.0, 0.0), f64::INFINITY);
+    assert!(xsf::nbdtrik(0.5, 0.0, 0.5).is_nan());
+    assert_eq!(xsf::nbdtrin(3.0, 0.0, 0.5), f64::INFINITY);
+    assert_eq!(xsf::nbdtrin(3.0, 1.0, 0.5), 0.0);
+    assert!(xsf::nbdtrin(3.0, 0.5, 1.0).is_nan());
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [
