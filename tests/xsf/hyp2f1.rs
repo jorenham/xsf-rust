@@ -721,6 +721,34 @@ fn test_hyp2f1_f64_euler_both_out_of_range() {
 }
 
 #[test]
+fn test_hyp2f1_f64_euler_inner_overflow() {
+    // Arb; the inner function of the Euler transformation overflows here, but its product with
+    // (1 - x)^(c - a - b) doesn't
+    let actual = [
+        xsf::hyp2f1(21.0, 43.0, 1e-276, -24.0),
+        xsf::hyp2f1(0.5, 20.0, 1e-233, -7.5e4),
+        xsf::hyp2f1(-15.5, 48.0, 5e-261, -78.0),
+        xsf::hyp2f1(34.0, -1.25, 2e-278, -1.7e4),
+        // also where (1 - x)^(c - a - b) underflows
+        xsf::hyp2f1(47.0, 43.0, 2e-237, -3000.0),
+        // also where the rounding of 1 - x matters
+        xsf::hyp2f1(1e14, 10.0, 1e-300, -1e-12),
+    ];
+    let desired = [
+        -3.248_055_641_674_947_7e228,
+        -2.347_637_291_530_230_8e229,
+        1.281_349_226_923_448_9e305,
+        8.831_616_558_293_24e284,
+        -1.238_995_047_182_927e80,
+        3.787_960_193_849_875e270,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // but not where that product is small, as the polynomial that the inner function is rounded
+    // to lacks the dominant part of the result then (Arb: 5.39e-167)
+    assert!(xsf::hyp2f1(22.0, 4098.5, 1e-189, -8e4).is_nan());
+}
+
+#[test]
 fn test_hyp2f1_f64_nan_if_lost() {
     // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 6.75e10
     // and -2.81e238 (Arb: 1.19e11 and -210)
