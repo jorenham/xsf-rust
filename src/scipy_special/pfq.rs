@@ -583,7 +583,9 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
         let (s, e) = two_sum(s, v);
         (e == 0.0).then_some(s)
     });
-    let uncertain = exact.is_none() && excess.abs() <= 8.0 * EPSILON_SQ * size;
+    // a bound on the rounding errors of the additions, each at most `EPSILON_SQ * size / 2`
+    let bound = (a.len() + b.len()).max(8) as f64 * EPSILON_SQ * size;
+    let uncertain = exact.is_none() && excess.abs() <= bound;
     (!uncertain).then_some(excess <= 0.0)
 }
 
@@ -1145,12 +1147,15 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
+/// and each $p = q + 1 \ge 4$.
+///
 /// It is:
 ///
 /// - 1 at $z = 0$, and for a $b_j = +\infty$ and a finite $z$ if $p \le q + 1$ or it is a
 ///   polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
-///   $\lt m$, and for $_1F_0$ at $z = 1$ if $a_1 > 0$;
+///   $\lt m$, for $_1F_0$ at $z = 1$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ at $z = 1$ if
+///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial;
 /// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, with the sign of its
 ///   last term, and otherwise at $z = +\infty$ for $p \le q$, with the sign of
 ///   $\prod_j \Gamma(b_j) / \prod_i \Gamma(a_i)$;
@@ -1161,7 +1166,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// # Returns `None`
 ///
 /// - for the other $p$ and $q$, unless it is a polynomial;
-/// - where it can't be computed accurately;
+/// - where it can't be computed accurately, for $p = q + 1 \ge 3$ as for [`hyp3f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1213,6 +1218,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2(a1, a2, a3, b1, b2, z),
+        _ if a.len() == b.len() + 1 => {
+            b.push(1.0);
+            pfq_real(a, b, z)
+        },
         _ => None,
     }
 }
