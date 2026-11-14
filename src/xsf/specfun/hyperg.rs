@@ -23,6 +23,10 @@ use crate::{digamma, gamma, gammaln, hyp0f1};
 /// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
 const MAX_TERMS: i32 = 100_000;
 
+/// The (exact) factor that keeps the terms of `chgm_poly` and `rescale_term` normal
+const LOG2_SCALE: i32 = 512;
+const SCALE: f64 = pow2(LOG2_SCALE);
+
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
 /// With `b + (j - 1)`, since `b + j - 1` loses the digits of `b` near 0, -1, -2, ...
@@ -38,6 +42,35 @@ fn kummer_term<T: Mul<f64, Output = T> + Div<f64, Output = T>>(t: T, a: f64, b: 
 fn term_ratio(a: f64, b: f64, abs_z: f64, n: f64) -> Option<f64> {
     let q = (a + n) / (n + 1.0) * (abs_z / (b + n));
     (q.abs() < 1.0 && b + n >= abs_z).then_some(q)
+}
+
+/// The series term `t / SCALE^k` as `(t, term, |term|)`, where `t` with `norm(t) = |t|` is first
+/// scaled by `SCALE` (raising `k`) if it is below `TINY`, and back once it is `TINY SCALE` again.
+///
+/// Unlike in xsf (scipy/xsf#544), for `b < 0` the terms of DLMF 13.2.2 can underflow before they
+/// grow again near `n = -b`, and that part of the sum would be lost, or rebuilt from a few bits.
+fn rescale_term<T: Copy + Default + Mul<f64, Output = T>>(
+    mut t: T,
+    norm: impl Fn(T) -> f64,
+    k: &mut u32,
+) -> (T, T, f64) {
+    // far enough from the subnormals for the double-double products to be exact
+    const TINY: f64 = pow2(-900);
+    let mut abs_t = norm(t);
+    if (f64::MIN_POSITIVE..TINY).contains(&abs_t) {
+        (t, abs_t, *k) = (t * SCALE, abs_t * SCALE, *k + 1);
+    } else if *k > 0 && abs_t >= TINY * SCALE {
+        (t, abs_t, *k) = (t * (1.0 / SCALE), abs_t * (1.0 / SCALE), *k - 1);
+    }
+    match *k {
+        0 => (t, t, abs_t),
+        // below 2^-1075 the term rounds to 0, which is slow to get by an underflow
+        1 if abs_t >= pow2(LOG2_SCALE - 1075) => {
+            let term = t * (1.0 / SCALE);
+            (t, term, norm(term))
+        },
+        _ => (t, T::default(), 0.0),
+    }
 }
 
 /// Whether the terms `t_m` (`m > n`) of DLMF 13.2.2 after a negligible `t_n` are negligible: if
@@ -273,7 +306,7 @@ fn hyp1f1_series(a: f64, b: f64, z: C64, scale: C64, log_scale: f64) -> Option<(
 ///   step of `C64`).
 ///
 /// A negligible `t_N` is skipped if the terms can grow again (see `term_ratio`), unless the sum
-/// overflowed.
+/// overflowed. Until then `rescale_term` keeps them from underflowing.
 ///
 /// For `a >= 0`, `b > 0` and `z >= 0` there is no cancellation, and the partial sums only
 /// overflow if the result does. For `-1 < a < 0` only the leading 1 cancels.
@@ -293,22 +326,23 @@ fn hyp1f1_sum<T: Term>(
     scale: T,
     mut log_scale: f64,
 ) -> Option<(T, f64)> {
-    let mut t = scale;
+    // the term `tn` as scaled `k` times by `rescale_term`
+    let (mut t, mut k) = (scale, 0);
     let mut sum = scale;
     let mut comp = T::default();
     let mut err = t.norm();
     for n in 0..MAX_TERMS {
         let n = f64::from(n);
-        t = next_term(t, n);
-        let mut norm = t.norm();
-        t.add_to(&mut sum, &mut comp);
+        let (mut tn, mut norm);
+        (t, tn, norm) = rescale_term(next_term(t, n), T::norm, &mut k);
+        tn.add_to(&mut sum, &mut comp);
         err += (n + 2.0) * norm;
         if log_scale < 0.0 && err > 1e250 {
             let s = log_scale.max(-600.0);
             log_scale -= s;
             let s = s.exp();
-            (t, sum, comp, err) = (t * s, sum * s, comp * s, err * s);
-            norm = t.norm();
+            (t, tn, sum, comp, err) = (t * s, tn * s, sum * s, comp * s, err * s);
+            norm = tn.norm();
         }
         if norm <= T::EPS * sum.norm() {
             let q = term_ratio(a, b, abs_z, n + 1.0);
@@ -362,8 +396,6 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
 /// whenever one is above `2^512` (e.g. `~ 1/b` for tiny `b`). Returns `scale M`, as `M` can
 /// overflow when `scale M` doesn't.
 fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
-    const LOG2_SCALE: i32 = 512;
-    const SCALE: f64 = pow2(LOG2_SCALE);
     let (mut d, mut p) = (0.0, 1.0);
     // `M = p 2^-e`
     let mut e = 0_i32;
