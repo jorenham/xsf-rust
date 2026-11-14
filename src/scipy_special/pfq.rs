@@ -458,7 +458,7 @@ pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
     })
 }
 
-/// The parameters `a` or `b` of a method for $p = q + 1$: an array, or a `Vec` if their number
+/// The parameters `a` or `b` of a method for ${}_pF_q$: an array, or a `Vec` if their number
 /// is only known at run time
 pub(crate) trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
 
@@ -783,6 +783,35 @@ fn shifted_lower(am: f64, v: f64) -> (f64, f64, f64) {
     (x, k, (x + k) / (x + k + (e1 + e2)))
 }
 
+/// The series of the term of $a_m$ of the algebraic part (DLMF 16.11.2), as its sum and
+/// absolute error, where `b` contains the 1 of $n!$ as its last parameter
+fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Option<(f64, f64)> {
+    let am = a.as_ref()[m];
+    // a_m instead of the 1 of n!, and 1 + a_m - b_j
+    let mut upper = b.clone();
+    for v in upper.as_mut() {
+        *v = 1.0 - (Dd::new(*v) - am).hi;
+    }
+    *upper.as_mut().last_mut()? = am;
+    // 1 + a_m - a_i, and their factors for the terms after t_k
+    let (mut lower, mut ks, mut factors) = (a.clone(), a.clone(), a.clone());
+    for (i, v) in lower.as_mut().iter_mut().enumerate() {
+        (*v, ks.as_mut()[i], factors.as_mut()[i]) = shifted_lower(am, *v);
+    }
+    // (the 1 of n!)
+    (lower.as_mut()[m], ks.as_mut()[m], factors.as_mut()[m]) = (1.0, 0.0, 1.0);
+    let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
+    let bound = |n| pfq_ratio_bound(up, low, 1.0 / z, n);
+    let series = once(1.0)
+        .chain(pfq_terms(up, low, -1.0 / z))
+        .zip((0_u32..).map(f64::from))
+        .map(|(t, n)| {
+            let ks_factors = ks.as_ref().iter().zip(factors.as_ref());
+            ks_factors.fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
+        });
+    Some(asymptotic_sum(series, pfq_settled(up, low), z, bound))
+}
+
 /// The algebraic part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.2, 16.11.7), with
 /// $\abs z$ instead of $-z$, as its 2 `terms`, or `None` if $a_1 - a_2$ is an integer (unless
 /// $a_2 = b_2$)
@@ -796,6 +825,7 @@ fn hyp2f2_alg(a: &[f64; 2], b: &[f64; 3], z: f64, terms: &mut [Option<Scaled>]) 
     if !cancels && (Dd::new(a[1]) - a[0]).is_integer() {
         return None;
     }
+    let series = |m| pfq_alg_series(a, b, m, z);
     let (b, ln_z) = (b.map(Dd::new), ln_dd(Dd::new(z.abs())));
     let count = if cancels { 1 } else { 2 };
     for m in 0..count {
@@ -810,16 +840,8 @@ fn hyp2f2_alg(a: &[f64; 2], b: &[f64; 3], z: f64, terms: &mut [Option<Scaled>]) 
         if den.iter().any(is_pole) {
             continue;
         }
-        let up = descending([am, 1.0 - bm[0].hi, 1.0 - bm[1].hi]);
-        let (x, k, factor) = shifted_lower(am, an);
-        let low = descending([x, 1.0]);
-        let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n);
-        let series = once(1.0).chain(pfq_terms(&up, &low, -1.0 / z));
-        let series = series.zip((0_u32..).map(f64::from));
-        let series = series.map(|(t, i)| if i > k { t * factor } else { t });
-        let sum = asymptotic_sum(series, pfq_settled(&up, &low), z, bound);
         let (num, den) = (num.iter().copied(), den.iter().copied());
-        terms[m] = Some(gamma_series(num, den, sum, -ln_z * am)?);
+        terms[m] = Some(gamma_series(num, den, series(m)?, -ln_z * am)?);
     }
     Some(())
 }
