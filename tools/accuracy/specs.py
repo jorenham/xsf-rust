@@ -1984,6 +1984,20 @@ def r_bdtri(k, n, y):
     )
 
 
+def r_bdtrik(y, n, p):
+    # real k in [0, n] such that bdtr(k, n, p) = y, or 0 if y lies below bdtr(0, n, p)
+    if y <= (1 - p) ** n:
+        return mp.mpf(0)
+    return n * _invert_unit(lambda u, v: _betainc(n * v, n * u + 1, 1 - p, p), y, 0.5)
+
+
+def r_bdtrin(k, y, p):
+    # real n >= k such that bdtr(k, n, p) = y, found for n - k
+    return k + _invert_pos(
+        lambda nk: _betainc(nk, k + 1, 1 - p, p), y, 1, decreasing=True
+    )
+
+
 def r_nbdtr(k, n, p):
     return _betainc(n, k + 1, p, 1 - p)
 
@@ -2800,6 +2814,25 @@ add(
         + nobreak("y", IN, U(0, 1).pretty()),
         n=2000,
     ),
+    timeout=120,
+    note="inv",
+)
+
+add(
+    "bdtrik",
+    "y n p",
+    r_bdtrik,
+    D(U(0, 1), LU(1, 1000), U(0, 1), n=2000),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+add(
+    "bdtrin",
+    "k y p",
+    r_bdtrin,
+    D(LU(1e-2, 1000), U(0, 1), U(0, 1), n=2000),
+    cpp=False,
     timeout=120,
     note="inv",
 )

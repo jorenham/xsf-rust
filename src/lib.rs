@@ -148,11 +148,13 @@
 //!
 //! ## Binomial distribution
 //!
-//! | Function  | Description                      |
-//! | --------- | -------------------------------- |
-//! | [`bdtr`]  | Cumulative distribution function |
-//! | [`bdtrc`] | Complement of [`bdtr`]           |
-//! | [`bdtri`] | Inverse of [`bdtr`]              |
+//! | Function   | Description                                            |
+//! | ---------- | ------------------------------------------------------ |
+//! | [`bdtr`]   | Cumulative distribution function                       |
+//! | [`bdtrc`]  | Complement of [`bdtr`]                                 |
+//! | [`bdtri`]  | Inverse of [`bdtr`]                                    |
+//! | [`bdtrik`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `k` |
+//! | [`bdtrin`] | Inverse of [`bdtr(k, n, p)`](bdtr) with respect to `n` |
 //!
 //! ## F distribution
 //!

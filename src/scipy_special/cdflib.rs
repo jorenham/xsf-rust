@@ -12,6 +12,7 @@ use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::ldexp_f64;
 use crate::xsf::cephes::{betainc_xy, igam_fac, incbet_cf_factor, lbeta};
 use crate::xsf::{bracket_root_for_cdf_inversion, find_positive_root, find_root_chandrupatla};
+use crate::{betainc, betaincc};
 
 /// Inverse of [`stdtr`](crate::stdtr) with respect to `nu`
 ///
@@ -59,6 +60,90 @@ pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
     );
     // fdtr(dfn, dfd, f) goes from 0 at dfd = 0 to chdtr(dfn, dfn f) at dfd = inf
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| find_df_root(func, true))
+}
+
+/// Inverse of [`bdtr`](crate::bdtr) with respect to `k`
+///
+/// Corresponds to [`scipy.special.bdtrik`][bdtrik].
+///
+/// The CDF `I_{1-p}(n - k, k + 1)` is continuous in `k`, so that `k` is real. If `y` lies below the
+/// CDF at `k = 0`, i.e. `(1 - p)^n`, 0 is returned.
+///
+/// [bdtrik]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrik.html
+///
+/// # See also
+/// - [`bdtr`](crate::bdtr): Binomial distribution function
+/// - [`bdtri`](crate::bdtri): Inverse of [`bdtr`](crate::bdtr) with respect to `p`
+/// - [`bdtrin`]: Inverse of [`bdtr`](crate::bdtr) with respect to `n`
+#[must_use]
+pub fn bdtrik(y: f64, n: f64, p: f64) -> f64 {
+    if !(0.0..=1.0).contains(&y) || !(n >= 0.0) || n.is_infinite() || !(0.0..=1.0).contains(&p) {
+        return f64::NAN;
+    }
+    if y == 0.0 {
+        return 0.0;
+    }
+    // the CDF is 0 below k = n if p = 1
+    if y == 1.0 || p == 1.0 {
+        return n;
+    }
+    // the CDF increases from (1 - p)^n at k = 0 to 1 at k = n, beyond which it stays 1
+    let func = cdf_minus_p(
+        y,
+        |k| {
+            if k < n {
+                betaincc(k + 1.0, n - k, p)
+            } else {
+                1.0
+            }
+        },
+        |k| {
+            if k < n {
+                betainc(k + 1.0, n - k, p)
+            } else {
+                0.0
+            }
+        },
+    );
+    find_positive_root(func, f64::MIN_POSITIVE, n, true)
+}
+
+/// Inverse of [`bdtr`](crate::bdtr) with respect to `n`
+///
+/// Corresponds to [`scipy.special.bdtrin`][bdtrin].
+///
+/// The CDF `I_{1-p}(n - k, k + 1)` is continuous in `n`, so that `n` is real.
+///
+/// [bdtrin]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bdtrin.html
+///
+/// # See also
+/// - [`bdtr`](crate::bdtr): Binomial distribution function
+/// - [`bdtri`](crate::bdtri): Inverse of [`bdtr`](crate::bdtr) with respect to `p`
+/// - [`bdtrik`]: Inverse of [`bdtr`](crate::bdtr) with respect to `k`
+#[must_use]
+pub fn bdtrin(k: f64, y: f64, p: f64) -> f64 {
+    if !(k.is_finite() && k >= 0.0 && (0.0..=1.0).contains(&y) && (0.0..=1.0).contains(&p)) {
+        return f64::NAN;
+    }
+    // the limits n = inf and n = k, as in SciPy also if p is 0 or 1
+    if y == 0.0 {
+        return f64::INFINITY;
+    }
+    if y == 1.0 {
+        return k;
+    }
+    // as in SciPy, NaN if p is 0 or 1, where the CDF is 1 or 0 for all n > k
+    if p == 0.0 || p == 1.0 {
+        return f64::NAN;
+    }
+    // The CDF decreases from 1 at n = k to 0 at n = inf. It is solved for `n - k`, which keeps
+    // its precision if `n` is close to `k`.
+    let func = cdf_minus_p(
+        y,
+        |nk| betaincc(k + 1.0, nk, p),
+        |nk| betainc(k + 1.0, nk, p),
+    );
+    k + find_positive_root(func, f64::MIN_POSITIVE, f64::MAX, false)
 }
 
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
