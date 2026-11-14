@@ -23,7 +23,7 @@ use crate::{digamma, gamma, gammaln, hyp0f1};
 /// The cost bound of `hyp1f1_sum`, and of the sum in `chgm` for non-integer `b < 0`
 const MAX_TERMS: i32 = 100_000;
 
-/// The (exact) factor that keeps the terms of `chgm_poly` and `rescale_term` normal
+/// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
 const LOG2_SCALE: i32 = 512;
 const SCALE: f64 = pow2(LOG2_SCALE);
 
@@ -1579,7 +1579,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // U(a, b, x) = x^(1-b) U(a-b+1, 2-b, x) (DLMF 13.2.40)
         let kummer = !il1 || (il2 && b < 1.0);
         let (n, c) = if kummer { (aa, 2.0 - b) } else { (a, b) };
-        let mut u = f64::NAN;
+        // U(n, c, x) = u 2^e, where u is scaled down (exactly) before it overflows, so that an
+        // infinite U has its sign
+        let (mut u, mut e) = (f64::NAN, 0_i32);
         if (cancels || !hu.is_finite()) && c + x >= 0.0 {
             // from U(0, c, x) = 1 (U(1, c, x) has coefficient 0)
             let mut u1 = 0.0;
@@ -1588,10 +1590,23 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
                 // U(k - 1, c, x) = (2k - c + x) U(k, c, x) - k (k - c + 1) U(k + 1, c, x)
                 let k = -f64::from(k);
                 (u, u1) = ((2.0 * k - c + x) * u - k * (k - c + 1.0) * u1, u);
+                if u.abs() > SCALE {
+                    (u, u1, e) = (u / SCALE, u1 / SCALE, e.saturating_add(LOG2_SCALE));
+                }
             }
         }
+        // m 2^e x^p, in log space if x^p, or its product with m, over- or underflows
+        let pow_scaled = |m: f64, e: i32, p: f64| {
+            let xp = x.powf(p);
+            if xp.is_normal() && (m * xp).is_normal() {
+                ldexp_f64(m * xp, e)
+            } else {
+                let l = ln_dd(DoubleDouble::new(x)) * p;
+                Scaled::new(m, e, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0)
+            }
+        };
         if u.is_finite() {
-            hu = if kummer { x.powf(1.0 - b) * u } else { u };
+            hu = pow_scaled(u, e, if kummer { 1.0 - b } else { 0.0 });
             // the recurrence is stable here, so this has (nearly) all digits
             *id = 15;
         } else {
