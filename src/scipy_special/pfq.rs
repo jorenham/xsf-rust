@@ -6,7 +6,7 @@
 
 use core::ops::Add;
 
-use crate::utils::{is_nonpos_int, pow2};
+use crate::utils::{EPSILON_SQ, is_nonpos_int, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
@@ -502,6 +502,45 @@ pub(crate) fn pfq_accurate<const N: usize>(a: &[f64; N], b: &[f64; N], z: f64) -
     accurate.map(|(y, _)| y)
 }
 
+/// Whether the series of ${}_{q+1}F_q$ diverges at $z = 1$, where $\sum_j b_j \le \sum_i a_i$
+/// for `b` without the 1 of $n!$, or `None` if that is uncertain
+///
+/// The sums are in double-double, as their rounding can change the sign of their difference.
+fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
+    let sum = |v: &[f64]| v.iter().fold(DoubleDouble::new(0.0), |s, &v| s + v);
+    let excess = (sum(b) - sum(a)).hi;
+    let size = a.iter().chain(b).map(|v| v.abs()).sum::<f64>();
+    // certain if no partial sum of the excess rounds
+    let mut terms = a.iter().map(|v| -v).chain(b.iter().copied());
+    let exact = terms.try_fold(0.0, |s, v| {
+        let (s, e) = two_sum(s, v);
+        (e == 0.0).then_some(s)
+    });
+    let uncertain = exact.is_none() && excess.abs() <= 8.0 * EPSILON_SQ * size;
+    (!uncertain).then_some(excess <= 0.0)
+}
+
+/// ${}_{q+1}F_q$ for finite arguments, where the last of `b` is the 1 of $n!$
+fn pfq_real<const N: usize>(a: [f64; N], b: [f64; N], z: f64) -> Option<f64> {
+    if z == 0.0 {
+        return Some(1.0);
+    }
+    // the degree of a polynomial, else infinity
+    let degree = first_zero(&a);
+    if first_zero(&b) < degree {
+        return Some(f64::INFINITY);
+    }
+    if degree.is_infinite() && z > 1.0 {
+        // complex
+        Some(f64::NAN)
+    } else if degree.is_infinite() && z == 1.0 {
+        // +inf where the series diverges, and no method where it converges
+        diverges_at_one(&a, &b[..N - 1])?.then_some(f64::INFINITY)
+    } else {
+        pfq_accurate(&descending(a), &descending(b), z)
+    }
+}
+
 /// Generalized hypergeometric function $_3F_2$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -523,7 +562,7 @@ pub(crate) fn pfq_accurate<const N: usize>(a: &[f64; N], b: &[f64; N], z: f64) -
 /// a polynomial of degree at most $n$, defined for all $z$.
 ///
 /// As in [`hyp2f1`](crate::hyp2f1), an $a_i$ equal to a $b_j$ cancels it, also if it is a
-/// non-positive integer, so that the result is that of `hyp2f1` for the other parameters, and
+/// non-positive integer, so that the result is the $_2F_1$ of the other parameters, and
 /// it is $+\infty$:
 ///
 /// - if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$;
@@ -556,31 +595,14 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
         return None;
     }
     let (a, b) = ([a1, a2, a3], [b1, b2, 1.0]);
+    // a common parameter cancels: 2F1, or 1F0 if that has one as well
     let mut pairs = (0..3).flat_map(|i| (0..2).map(move |j| (i, j)));
-    if let Some((i, j)) = pairs.find(|&(i, j)| a[i] == b[j]) {
-        // a common parameter cancels; NaN marks an unreliable result of `hyp2f1`
-        let y = crate::hyp2f1(a[(i + 1) % 3], a[(i + 2) % 3], b[1 - j], z);
-        return Some(y).filter(|y| !y.is_nan());
+    let Some((i, j)) = pairs.find(|&(i, j)| a[i] == b[j]) else {
+        return pfq_real(a, b, z);
+    };
+    let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j], 1.0]);
+    match a.iter().position(|&v| v == b[0]) {
+        Some(i) => pfq_real([a[1 - i]], [1.0], z),
+        None => pfq_real(a, b, z),
     }
-    if z == 0.0 {
-        return Some(1.0);
-    }
-    // the degree of a polynomial, else infinity
-    let degree = first_zero(&a);
-    if first_zero(&b) < degree {
-        return Some(f64::INFINITY);
-    }
-    if degree.is_infinite() {
-        if z > 1.0 {
-            // complex
-            return Some(f64::NAN);
-        } else if z == 1.0 && b1 + b2 <= a1 + a2 + a3 {
-            // the series diverges
-            return Some(f64::INFINITY);
-        } else if z == 1.0 {
-            return None;
-        }
-    }
-    let (a, b) = (descending(a), descending(b));
-    pfq_accurate(&a, &b, z)
 }

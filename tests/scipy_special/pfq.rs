@@ -73,18 +73,37 @@ fn test_hyp3f2_special() {
     // where the series diverges
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.0), Some(f64::INFINITY));
     assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1.5, 1.5, 1.0), Some(f64::INFINITY));
+    // b_1 + b_2 - a_1 - a_2 - a_3 = 2.8e-17 rounds to 0; the result is 2.5e15 (Arb)
+    let y = hyp3f2(5.0, 0.1, 0.2, 5.0, 0.300_000_000_000_000_04, 1.0);
+    assert!(y.is_none_or(|y| (y / 2.467_832_059_538_944e15 - 1.0).abs() < 1e-13));
+    // the excess 1e-300 is below the rounding of the double-double sums
+    let y = hyp3f2(
+        0.750_000_000_000_000_2,
+        2.5,
+        -1e-300,
+        1.750_000_000_000_000_2,
+        1.5,
+        1.0,
+    );
+    assert!(y.is_none_or(|y| (y / 0.499_999_999_999_999_85 - 1.0).abs() < 1e-13));
 
-    // a common parameter cancels
-    for z in [-2.5, 0.25, 0.95, 1.0] {
-        assert_eq!(
-            hyp3f2(1.5, 2.5, 3.5, 2.5, 6.5, z),
-            Some(hyp2f1(1.5, 3.5, 6.5, z))
-        );
-        assert_eq!(
-            hyp3f2(-2.0, 1.5, -3.0, 4.5, -2.0, z),
-            Some(hyp2f1(1.5, -3.0, 4.5, z))
-        );
+    // a common parameter cancels, also a non-positive integer
+    for z in [-30.0, 0.25, 0.95] {
+        assert_hyp3f2([1.5, 2.5, 3.25], [2.5, 6.5], z, hyp2f1(1.5, 3.25, 6.5, z));
+        assert_hyp3f2([-2.0, 1.5, -3.0], [4.5, -2.0], z, hyp2f1(1.5, -3.0, 4.5, z));
+        // two of them
+        assert_hyp3f2([1.5, 2.5, -3.0], [2.5, -3.0], z, (1.0 - z).powf(-1.5));
     }
+    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 6.5, 1.5).unwrap().is_nan());
+    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 1.5, 1.5).unwrap().is_nan());
+
+    // z < -1 with a common parameter; Arb references
+    // the factors of a coefficient of the continuation underflow, unlike their product
+    let (a, b) = ([80.25, 90.5, 3.5], [50.125, 3.5]);
+    assert_hyp3f2(a, b, -1000.0, -4.705_675_953_632_075e-278);
+    // a_1 - a_2 is nearly an integer
+    let a = [0.999_999_999_999_999_9, -20.000_000_000_000_004, 3.5];
+    assert_hyp3f2(a, [-60.75, 3.5], -2.0, 0.599_745_273_229_746_2);
 }
 
 #[test]
