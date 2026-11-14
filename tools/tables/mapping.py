@@ -2,6 +2,7 @@
 replaces: an `Entry` per table and signature. The other tables keep those of xsref.
 """
 
+import functools
 import math
 import sys
 from collections.abc import Callable
@@ -12,6 +13,8 @@ from typing import Final, Protocol
 import flint
 import mpmath as mp
 import specs
+
+import accuracy
 
 type Pred = Callable[[tuple[float, ...]], bool]  # of the f64 inputs
 type Value = mp.mpf | tuple[mp.mpf, mp.mpf]  # a reference, or (reference, scale)
@@ -1711,14 +1714,40 @@ def _gammaincinv_rules(upper: bool, at_one: float) -> tuple[Rule, ...]:
 
 
 RGAMMA: Final = (
-    "for a < 1, xsf-rust computes 1 / Gamma(a) with rgamma(a) instead of exp(-lgam(a)) "
-    "(scipy/xsf#456)"
+    "xsf-rust computes 1 / Gamma(a) with rgamma(a) instead of exp(-lgam(a)) for a < 1 "
+    "(scipy/xsf#456), and x^a e^-x / Gamma(a) in igam_fac with pow_rgamma instead of "
+    "exp(a ln(x) - x - lgam(a))"
 )
 
 
+@functools.cache
+def _rust() -> list[str]:
+    """The command of xsf-rust's dump program."""
+    return [*accuracy.build_rust(), "xsf"]
+
+
+@functools.cache
+def _rgamma(a: float) -> float:
+    """rgamma(a) of xsf-rust."""
+    return accuracy.run(_rust(), [("rgamma", (a,))])[0].real
+
+
+def _normal(y: float) -> bool:
+    return math.isfinite(y) and abs(y) >= sys.float_info.min
+
+
 def _igam_fac_rgamma(a: float, x: float) -> bool:
-    """Whether `igam_fac(a, x)` uses rgamma(a)."""
-    return a < 1 and abs(a - x) > 0.4 * a
+    """Whether `igam_fac(a, x)` uses rgamma(a): for a < 1, or where `pow_rgamma(x, a, 0, a, x)`
+    succeeds (the same operations, with the same libm)."""
+    if not (abs(a - x) > 0.4 * a and a <= 200):
+        return False
+    if a < 1:
+        return True
+    try:
+        p = math.pow(x, a / 2) * math.exp(-x / 2)
+    except OverflowError:
+        return False
+    return _normal(p) and _normal(p * _rgamma(a) * 1.0 * p)
 
 
 def _uses_rgamma(a: float, x: float, upper: bool) -> bool:
@@ -1754,11 +1783,13 @@ def _gammaincinv_out(upper: bool, floor: float) -> Out:
 
     def when(args: tuple[float, ...]) -> bool:
         a, y = args
-        if not 0 < a < 1:
+        if not 0 < a <= 200:
             return False
         with mp.workdps(20):
             x = float(ref(mp.mpf(a), mp.mpf(y)))
-        return _igam_fac_rgamma(a, x) or _uses_rgamma(a, x, upper != (y > 0.9))
+        return (
+            _igam_fac_rgamma(a, x) or a < 1 and _uses_rgamma(a, x, upper != (y > 0.9))
+        )
 
     return Out(
         "gammainccinv" if upper else "gammaincinv",
@@ -3139,7 +3170,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("itairy", "d-d_d_d_d"): Entry(tuple(_itairy_out(i) for i in range(4))),
     ("gammainc", "d_d-d"): Entry((_gammainc_out(False, 7e-16),)),
     ("gammaincc", "d_d-d"): Entry((_gammainc_out(True, 3e-15),)),
-    ("gammaincinv", "d_d-d"): Entry((_gammaincinv_out(False, 8e-16),)),
+    ("gammaincinv", "d_d-d"): Entry((_gammaincinv_out(False, 2e-15),)),
     ("gammainccinv", "d_d-d"): Entry((_gammaincinv_out(True, 2e-14),)),
     ("chdtr", "d_d-d"): Entry(
         (_distribution("chdtr", False, _half, "(v / 2, x / 2)"),)
