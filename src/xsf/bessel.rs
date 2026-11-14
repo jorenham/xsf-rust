@@ -1316,7 +1316,8 @@ fn itika(x: f64) -> (f64, f64) {
             r = 0.25 * r * (f64::from(2 * k) - 1.0) / (f64::from(2 * k) + 1.0) / f64::from(k * k)
                 * x2;
             ti += r;
-            if (r / ti).abs() < 1.0e-12 {
+            // Unlike in xsf, stop at machine epsilon instead of 1e-12, which loses up to 2e-13
+            if (r / ti).abs() < f64::EPSILON {
                 break;
             }
         }
@@ -1577,7 +1578,8 @@ fn ittika(x: f64) -> (f64, f64) {
         for k in 2..=50 {
             r = 0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
             tti += r;
-            if (r / tti).abs() < 1.0e-12 {
+            // Unlike in xsf, stop at machine epsilon instead of 1e-12, which loses up to 2e-13
+            if (r / tti).abs() < f64::EPSILON {
                 break;
             }
         }
