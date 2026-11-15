@@ -24,6 +24,45 @@ fn nm<T: Copy>(all: impl FnOnce(usize, usize) -> Vec<Vec<T>>, n: f64, m: f64) ->
     all(n as usize, m.abs() as usize)[n as usize][i as usize]
 }
 
+/// The number of zeros or numbers of the functions with a const `N`; must match `harness.cpp`
+const ZEROS_N: usize = 500;
+
+/// Element `k` (from 1) of `zeros`
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn kth<T: Copy>(zeros: &[T], k: f64) -> T {
+    zeros[k as usize - 1]
+}
+
+/// Component `i` (`x`, `n`, `m`, or `p` as 0 or 1) of zero `k` (from 1) of
+/// `bessel_j_jprime_zeros::<N>()`, for `N` in `100, 200, ..., 1200`
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn jnjnp(nt: f64, k: f64, i: usize) -> f64 {
+    macro_rules! by_nt {
+        ($($n:literal)*) => {
+            match nt as usize {
+                $($n => {
+                    let (x, n, m, p) = xsf::bessel_j_jprime_zeros::<$n>();
+                    let j = k as usize - 1;
+                    // J_0' = -J_1, so their shared zeros come in either order (by rounding); as
+                    // in the reference, the zero of J_1 is first
+                    let tie = |a: usize, b: usize| {
+                        b < $n && (n[a], p[a], n[b], p[b]) == (0, true, 1, false) && m[a] == m[b]
+                    };
+                    let (mut nj, mut pj) = (n[j], p[j]);
+                    if tie(j, j + 1) {
+                        (nj, pj) = (1, false);
+                    } else if j > 0 && tie(j - 1, j) {
+                        (nj, pj) = (0, true);
+                    }
+                    [x[j], nj.into(), m[j].into(), u8::from(pj).into()][i]
+                },)*
+                _ => panic!("unsupported N = {nt}"),
+            }
+        };
+    }
+    by_nt!(100 200 300 400 500 600 700 800 900 1000 1100 1200)
+}
+
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
     Some(match (f, a) {
@@ -472,7 +511,77 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("wilcoxon_pmf", &[n, k]) => xsf::wilcoxon_pmf(k, &xsf::wilcoxon_pmf_all(n as usize)),
         ("wilcoxon_cdf", &[n, k]) => xsf::wilcoxon_cdf(k, &xsf::wilcoxon_cdf_all(n as usize)),
         ("wilcoxon_sf", &[n, k]) => xsf::wilcoxon_sf(k, &xsf::wilcoxon_cdf_all(n as usize)),
-        _ => return eval_spheroidal(f, a),
+        _ => return eval_spheroidal(f, a).or_else(|| eval_xsf_zeros(f, a)),
+    })
+}
+
+/// Zeros, Gauss quadrature rules, and number sequences: element `k` (from 1), or `n` (from 0)
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn eval_xsf_zeros(f: &str, a: &[f64]) -> Option<f64> {
+    const N: usize = ZEROS_N;
+    Some(match (f, a) {
+        ("airy_ai_zeros.0", &[k]) => kth(&xsf::airy_ai_zeros::<N>()[0], k),
+        ("airy_ai_zeros.1", &[k]) => kth(&xsf::airy_ai_zeros::<N>()[1], k),
+        ("airy_ai_zeros.2", &[k]) => kth(&xsf::airy_ai_zeros::<N>()[2], k),
+        ("airy_ai_zeros.3", &[k]) => kth(&xsf::airy_ai_zeros::<N>()[3], k),
+        ("airy_bi_zeros.0", &[k]) => kth(&xsf::airy_bi_zeros::<N>()[0], k),
+        ("airy_bi_zeros.1", &[k]) => kth(&xsf::airy_bi_zeros::<N>()[1], k),
+        ("airy_bi_zeros.2", &[k]) => kth(&xsf::airy_bi_zeros::<N>()[2], k),
+        ("airy_bi_zeros.3", &[k]) => kth(&xsf::airy_bi_zeros::<N>()[3], k),
+        ("bessel_zeros.0", &[v, k]) => kth(&xsf::bessel_zeros::<N>(v as u32)[0], k),
+        ("bessel_zeros.1", &[v, k]) => kth(&xsf::bessel_zeros::<N>(v as u32)[1], k),
+        ("bessel_zeros.2", &[v, k]) => kth(&xsf::bessel_zeros::<N>(v as u32)[2], k),
+        ("bessel_zeros.3", &[v, k]) => kth(&xsf::bessel_zeros::<N>(v as u32)[3], k),
+        ("bessel_j_jprime_zeros.0", &[nt, k]) => jnjnp(nt, k, 0),
+        ("bessel_j_jprime_zeros.1", &[nt, k]) => jnjnp(nt, k, 1),
+        ("bessel_j_jprime_zeros.2", &[nt, k]) => jnjnp(nt, k, 2),
+        ("bessel_j_jprime_zeros.3", &[nt, k]) => jnjnp(nt, k, 3),
+        // zero `k` of the first `k` zeros
+        ("ber_zeros", &[k]) => kth(&xsf::ber_zeros(k as usize), k),
+        ("bei_zeros", &[k]) => kth(&xsf::bei_zeros(k as usize), k),
+        ("ker_zeros", &[k]) => kth(&xsf::ker_zeros(k as usize), k),
+        ("kei_zeros", &[k]) => kth(&xsf::kei_zeros(k as usize), k),
+        ("berp_zeros", &[k]) => kth(&xsf::berp_zeros(k as usize), k),
+        ("beip_zeros", &[k]) => kth(&xsf::beip_zeros(k as usize), k),
+        ("kerp_zeros", &[k]) => kth(&xsf::kerp_zeros(k as usize), k),
+        ("keip_zeros", &[k]) => kth(&xsf::keip_zeros(k as usize), k),
+        // node or weight `k` of the rule of degree `n`
+        ("roots_jacobi.0", &[n, k, a, b]) => kth(&xsf::roots_jacobi(n as usize, a, b).0, k),
+        ("roots_jacobi.1", &[n, k, a, b]) => kth(&xsf::roots_jacobi(n as usize, a, b).1, k),
+        ("roots_sh_jacobi.0", &[n, k, a, b]) => kth(&xsf::roots_sh_jacobi(n as usize, a, b).0, k),
+        ("roots_sh_jacobi.1", &[n, k, a, b]) => kth(&xsf::roots_sh_jacobi(n as usize, a, b).1, k),
+        ("roots_gengegenbauer.0", &[n, k, p, q]) => {
+            kth(&xsf::roots_gengegenbauer(n as usize, p, q).0, k)
+        },
+        ("roots_gengegenbauer.1", &[n, k, p, q]) => {
+            kth(&xsf::roots_gengegenbauer(n as usize, p, q).1, k)
+        },
+        ("roots_gegenbauer.0", &[n, k, a]) => kth(&xsf::roots_gegenbauer(n as usize, a).0, k),
+        ("roots_gegenbauer.1", &[n, k, a]) => kth(&xsf::roots_gegenbauer(n as usize, a).1, k),
+        ("roots_genlaguerre.0", &[n, k, a]) => kth(&xsf::roots_genlaguerre(n as usize, a).0, k),
+        ("roots_genlaguerre.1", &[n, k, a]) => kth(&xsf::roots_genlaguerre(n as usize, a).1, k),
+        (name, &[n, k]) if name.starts_with("roots_") => {
+            let roots = match name.rsplit_once('.')?.0 {
+                "roots_legendre" => xsf::roots_legendre,
+                "roots_sh_legendre" => xsf::roots_sh_legendre,
+                "roots_chebyshev_t" => xsf::roots_chebyshev_t,
+                "roots_chebyshev_u" => xsf::roots_chebyshev_u,
+                "roots_chebyshev_c" => xsf::roots_chebyshev_c,
+                "roots_chebyshev_s" => xsf::roots_chebyshev_s,
+                "roots_sh_chebyshev_t" => xsf::roots_sh_chebyshev_t,
+                "roots_sh_chebyshev_u" => xsf::roots_sh_chebyshev_u,
+                "roots_laguerre" => xsf::roots_laguerre,
+                "roots_hermite_h" => xsf::roots_hermite_h,
+                "roots_hermite_he" => xsf::roots_hermite_he,
+                _ => return None,
+            };
+            let (x, w) = roots(n as usize);
+            kth(if name.ends_with(".0") { &x } else { &w }, k)
+        },
+        // `n` from 0
+        ("bernoulli", &[n]) => xsf::bernoulli::<N>()[n as usize],
+        ("euler", &[n]) => xsf::euler::<N>()[n as usize],
+        _ => return None,
     })
 }
 
@@ -587,6 +696,29 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("kelvin.1", &[x]) => xsf::kelvin(x)[1],
         ("kelvin.2", &[x]) => xsf::kelvin(x)[2],
         ("kelvin.3", &[x]) => xsf::kelvin(x)[3],
+        _ => return eval_xsf_zeros_complex(f, a),
+    })
+}
+
+/// Complex zeros: element `k` (from 1); `c` is 1 for the complex zeros, and 0 for the real ones
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn eval_xsf_zeros_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
+    const N: usize = ZEROS_N;
+    Some(match (f, a) {
+        ("bessel_y0_zeros.0", &[c, k]) => kth(&xsf::bessel_y0_zeros::<N>(c != 0.0)[0], k),
+        ("bessel_y0_zeros.1", &[c, k]) => kth(&xsf::bessel_y0_zeros::<N>(c != 0.0)[1], k),
+        ("bessel_y1_zeros.0", &[c, k]) => kth(&xsf::bessel_y1_zeros::<N>(c != 0.0)[0], k),
+        ("bessel_y1_zeros.1", &[c, k]) => kth(&xsf::bessel_y1_zeros::<N>(c != 0.0)[1], k),
+        ("bessel_y1_prime_zeros.0", &[c, k]) => {
+            kth(&xsf::bessel_y1_prime_zeros::<N>(c != 0.0)[0], k)
+        },
+        ("bessel_y1_prime_zeros.1", &[c, k]) => {
+            kth(&xsf::bessel_y1_prime_zeros::<N>(c != 0.0)[1], k)
+        },
+        ("erf_zeros", &[k]) => kth(&xsf::erf_zeros::<N>(), k),
+        // zero `k` of the first `k` zeros
+        ("fresnel_zeros.0", &[k]) => kth(&xsf::fresnel_zeros(k as usize).0, k),
+        ("fresnel_zeros.1", &[k]) => kth(&xsf::fresnel_zeros(k as usize).1, k),
         _ => return None,
     })
 }
