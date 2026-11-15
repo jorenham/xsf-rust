@@ -1517,9 +1517,9 @@ pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
 ///
 /// Like in SciPy, both vectors also contain $D_1(z)$ if $n = 0$.
 ///
-/// Unlike in SciPy, the results are also correct for non-real $z$, where `cpbdn` in xsf uses
-/// $e^{-|z|^2/4}$ in place of $e^{-z^2/4}$, and both vectors have length $|n| + 1$ if $n < 0$,
-/// where SciPy returns $D_1(z)$ in place of $D_{-1}(z)$ for $n = -1$, and 3 values for $n < -1$.
+/// Unlike in SciPy, the results are also correct for non-real $z$, and both vectors have length
+/// $|n| + 1$ if $n < 0$, where SciPy returns $D_1(z)$ in place of $D_{-1}(z)$ for $n = -1$, and 3
+/// values for $n < -1$.
 ///
 /// # See also
 /// - [`pbdv_seq`]

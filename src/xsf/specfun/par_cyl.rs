@@ -1,5 +1,5 @@
 //! `cpbdn`, `cpdla`, `cpdsa`, and `gaih`, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@370171f).
+//! (scipy/xsf@7a006dc).
 //!
 //! `pow(2.0, y)` is written as `y.exp2()`, which is what LLVM optimizes it to anyway.
 
@@ -23,7 +23,6 @@ pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
 
     let x = z.re;
     let a0 = z.norm();
-    // Unlike in xsf (scipy/xsf#537), e^(-z^2 / 4) instead of e^(-|z|^2 / 4), like in specfun.f
     let ca0 = (-0.25 * z * z).exp();
     let mut n0 = 0;
 
@@ -58,7 +57,6 @@ pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
             let mut cf1 = SQRT_TAU_DOWN / ca0 - cpb[1];
             cpb[1] = cf1;
 
-            // Unlike in xsf (scipy/xsf#537), up to D_{-n0}(z), like in specfun.f
             for k in 2..=n0 {
                 let cf = (-z * cf1 + cf0) / (f64::from(k) - 1.0);
                 cpb[k as usize] = cf;
@@ -66,8 +64,6 @@ pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
                 cf1 = cf;
             }
         } else if a0 <= 3.0 {
-            // Unlike in xsf (scipy/xsf#537), the recurrence does not overwrite D_{-n0}(z) and
-            // D_{-n0-1}(z) with D_0(z) and D_1(z), like in specfun.f
             let mut cfa = cpdsa(-n0, z);
             cpb[n0 as usize] = cfa;
             let n1 = n0 + 1;
@@ -112,7 +108,6 @@ pub(crate) fn cpbdn(n: i32, z: C64, cpb: &mut [C64], cpd: &mut [C64]) {
             cpd[k] = -0.5 * z * cpb[k] + k as f64 * cpb[k - 1];
         }
     } else {
-        // Unlike in xsf (scipy/xsf#537), up to D_{-n0}'(z), like in specfun.f
         for k in 1..=n0 as usize {
             cpd[k] = 0.5 * z * cpb[k] - cpb[k - 1];
         }

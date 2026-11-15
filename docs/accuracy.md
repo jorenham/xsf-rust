@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.6.0+0.2.2, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`57f3866`](https://github.com/scipy/xsf/tree/57f3866c1c5ff53133edc6b415def5e9c2ef7449)), and
+it is translated from (commit [`7a006dc`](https://github.com/scipy/xsf/tree/7a006dcefccb0b3b04b6bfc491f02fc25977a900)), and
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
