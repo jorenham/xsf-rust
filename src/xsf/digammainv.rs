@@ -7,7 +7,8 @@ use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::{psi, zeta};
 use crate::xsf::tools::{NewtonRootFinderStatus, find_root_newton};
 
-/// Initial guess for `digammainv` using Minka (2000):
+/// Initial guess for `digammainv`, from T. Minka, "Estimating a Dirichlet distribution" (2000),
+/// Appendix C, <https://tminka.github.io/papers/dirichlet/minka-dirichlet.pdf>:
 ///   x0 = exp(y) + 0.5      if y >= -2.22
 ///   x0 = -1 / (y + gamma)  if y < -2.22
 /// where gamma = 0.5772... is the Euler-Mascheroni constant.
@@ -40,12 +41,11 @@ fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
 /// Inverse of the digamma function
 ///
 /// Computes $x > 0$ such that $\psi(x) = y$, where $\psi$ is the [`digamma`](crate::digamma)
-/// function, using Newton-Raphson iteration with an initial guess from Minka (2000) \[1\].
+/// function.
 ///
-/// Corresponds to `xsf::digammainv`.
+/// Corresponds to [`scipy.special.digammainv`][scipy] (new in SciPy 2.0).
 ///
-/// \[1\] T. Minka, "Estimating a Dirichlet distribution", 2000. Appendix C
-///     <https://tminka.github.io/papers/dirichlet/minka-dirichlet.pdf>
+/// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.digammainv.html
 ///
 /// # See also
 /// - [`digamma`](crate::digamma): The digamma function, $\psi(z)$
