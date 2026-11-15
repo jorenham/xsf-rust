@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/expn.h` (scipy/xsf@f2a68ec).
+//! Translated into pure Rust from `xsf/cephes/expn.h` (scipy/xsf@57f3866).
 //!
 //! Cephes Math Library Release 1.1:  March, 1985
 //! Copyright 1985 by Stephen L. Moshier
@@ -106,7 +106,6 @@ fn expn_large_n(n: u32, x: f64) -> f64 {
         }
     }
 
-    // Unlike in xsf, see `expn` (and with the exact -x instead of the rounded -lambda p)
     if x > MAXLOG {
         return mul_exp(res / (lambda + 1.0) / p, -x);
     }
@@ -152,9 +151,8 @@ pub fn expn(n: u32, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    // Unlike in xsf, not 0 from MAXLOG on, since E_n(x) ~ e^-x / x is subnormal up to ~ -MINLOG.
-    // There, e^-x is applied last with `mul_exp`, since rounding e^-x and the subnormal result
-    // separately can be off by a subnormal ulp, e.g. 0 instead of 5e-324 for E_0(738.5281143251407)
+    // E_n(x) ~ e^-x / x is subnormal for MAXLOG < x < -MINLOG. There, e^-x is applied last with
+    // `mul_exp`, since rounding e^-x first can turn a result of 5e-324 into 0.
     if x > -MINLOG {
         return 0.0;
     }
