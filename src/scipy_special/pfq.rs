@@ -1025,7 +1025,7 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
         // error of theta
         let t = sqrt_z * FRAC_2_PI_DD + nu * 0.5;
         let t = t - 2.0 * (0.5 * t.hi).round();
-        let dtheta = 4.0 * f64::EPSILON.powi(2) * (x + PI * nu.hi.abs());
+        let dtheta = 4.0 * EPSILON_SQ * (x + PI * nu.hi.abs());
         // (to first order in t.lo)
         let (cos, sin) = (cospi(t.hi), sinpi(t.hi));
         let (cos, sin) = (cos - PI * t.lo * sin, sin + PI * t.lo * cos);

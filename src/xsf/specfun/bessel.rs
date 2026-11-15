@@ -327,10 +327,9 @@ pub(crate) fn cyzo(kf: i32, kc: i32, zo: &mut [C64], zv: &mut [C64]) {
             // Unlike in xsf, the Newton step for `f(z) / prod(z - z_i)`, with the zeros `z_i` found
             // so far, is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
             // which overflow from the 140th zero on (that zero was inaccurate, the next ones NaN).
-            let mut zq = C64::ZERO;
-            for &zi in &zo[..nr - 1] {
-                zq += 1.0 / (z - zi);
-            }
+            let zq = zo[..nr - 1]
+                .iter()
+                .fold(C64::ZERO, |zq, &zi| zq + 1.0 / (z - zi));
             z -= zf / (zd - zq * zf);
             let w0 = w;
             w = z.norm();

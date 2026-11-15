@@ -139,8 +139,9 @@ fn vvla_qe(x: f64, va: f64, qe: f64) -> f64 {
         let x1 = -x;
         let pdl = dvla(x1, va);
         let gl = gamma2(-va);
-        let dsl = (PI * va).sin() * (PI * va).sin();
-        pv = dsl * gl / PI * pdl - (PI * va).cos() * pv;
+        let (s, c) = (PI * va).sin_cos();
+        let dsl = s * s;
+        pv = dsl * gl / PI * pdl - c * pv;
     }
     pv
 }
@@ -598,7 +599,7 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     let k = 1.0 / ((1.0 + e * e).sqrt() + e);
     let omega = X * X / 4.0 - a * X.ln() + FRAC_PI_4 + cgama(z, 0).im / 2.0;
     let rho = (2.0 * k / X).sqrt();
-    let f = c64(rho * omega.cos(), rho * omega.sin());
+    let f = rho * C64::cis(omega);
     let u = s * f;
     let du = u * c64(-0.5 / X, X / 2.0 - a / X) + ds * f;
     let (mut w, mut dw) = (u.re, du.re);

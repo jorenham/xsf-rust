@@ -95,7 +95,7 @@
 use core::cmp::Ordering;
 use core::f64::consts::{LN_2, PI};
 
-use crate::utils::neg_one_pow;
+use crate::utils::{neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
@@ -179,7 +179,7 @@ fn best_of(ys: impl IntoIterator<Item = Option<Scaled>>) -> Option<Scaled> {
 /// The exponent `k` that scales `|x|` to about 1 by `2^-k`, if `|x|` is outside `[2^-500, 2^500]`
 fn rescale_exp(x: f64) -> Option<i32> {
     // (|x| is finite and nonzero, so log2(|x|) is in [-1075, 1024])
-    let big = 2.0_f64.powi(500);
+    let big = pow2(500);
     let x = x.abs();
     (x != 0.0 && x.is_finite() && !(1.0 / big..=big).contains(&x)).then(|| x.log2().round() as i32)
 }
@@ -250,7 +250,7 @@ fn series_weighted(
     // `r + k` and `c + k`
     let (mut pk, mut rk, mut ck) = (p.hi, r.hi, c.hi);
     let (mut f0, mut f1) = (pk, rk / ck);
-    let tame = 2.0_f64.powi(-250)..=2.0_f64.powi(250);
+    let tame = pow2(-250)..=pow2(250);
     while k < kmax {
         let fw = f1 * w;
         if [f0, fw].into_iter().all(|f| tame.contains(&f.abs())) {

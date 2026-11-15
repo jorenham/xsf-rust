@@ -54,22 +54,12 @@ fn digamma_forward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
      * digamma(z + 1) = digamma(z) + 1/z.
      *
      * See https://dlmf.nist.gov/5.5#E2 */
-    let mut res = psiz;
-
-    for k in 0..n {
-        res += 1.0 / (z + f64::from(k));
-    }
-    res
+    (0..n).fold(psiz, |res, k| res + 1.0 / (z + f64::from(k)))
 }
 
 fn digamma_backward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
     /* Compute digamma(z - n) using digamma(z) and a recurrence relation. */
-    let mut res = psiz;
-
-    for k in 1..=n {
-        res -= 1.0 / (z - f64::from(k));
-    }
-    res
+    (1..=n).fold(psiz, |res, k| res - 1.0 / (z - f64::from(k)))
 }
 
 fn digamma_asymptotic_series(z: C64) -> C64 {
@@ -97,7 +87,7 @@ fn digamma_asymptotic_series(z: C64) -> C64 {
     let rzz = 1.0 / z / z;
     let mut zfac = C64::ONE;
 
-    if !(z.re.is_finite() && z.im.is_finite()) {
+    if !z.is_finite() {
         /* Check for infinity (or nan) and return early.
          * Result of division by complex infinity is implementation dependent.
          * and has been observed to vary between C++ stdlib and CUDA stdlib.

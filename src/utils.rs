@@ -1,4 +1,5 @@
 use core::f64::consts::PI;
+use core::ops::Neg;
 
 /// ln(pi)
 pub(crate) const LN_PI: f64 = 1.144_729_885_849_400_2;
@@ -45,7 +46,7 @@ pub(crate) fn mul_exp(m: f64, e: f64) -> f64 {
     m * h * h
 }
 
-/// An integer, or an integer-valued `f64`, as the exponent of `neg_one_pow`
+/// An integer, or an integer-valued `f64`, as the exponent of `neg_one_pow` and `neg_if_odd`
 pub(crate) trait Integer: Copy {
     fn is_even(self) -> bool;
 }
@@ -74,6 +75,13 @@ impl Integer for f64 {
 #[must_use]
 pub(crate) fn neg_one_pow<T: Integer>(n: T) -> f64 {
     if n.is_even() { 1.0 } else { -1.0 }
+}
+
+/// `(-1)^n x`
+#[inline]
+#[must_use]
+pub(crate) fn neg_if_odd<T: Integer, U: Neg<Output = U>>(n: T, x: U) -> U {
+    if n.is_even() { x } else { -x }
 }
 
 /// Whether `x` is zero or a negative integer, i.e. a pole of the Gamma function, as

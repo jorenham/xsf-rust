@@ -8,7 +8,7 @@
 //! Unlike in xsf, the parity of `floor(|x|)` is determined with an `i64` instead of an `int`, which
 //! overflows (UB) for `|x| > 2^31`.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, SQRT_TAU};
+use crate::utils::{LN_PI, LN_SQRT_TAU, SQRT_TAU, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor_real};
@@ -400,10 +400,7 @@ pub(crate) fn gammasgn(x: f64) -> f64 {
         return f64::NAN;
     }
     // sign of gamma for x in (-n, -n+1) for positive integer n is (-1)^n.
-    if (fx as i64) % 2 != 0 {
-        return -1.0;
-    }
-    1.0
+    neg_one_pow(fx as i64)
 }
 
 #[cfg(test)]

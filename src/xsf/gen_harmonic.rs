@@ -36,17 +36,12 @@ fn succ_f64(n: u64) -> f64 {
 // This function assumes 1 <= m <= n and `a` is finite.
 //
 fn sum_powers(m: u64, n: u64, a: f64) -> f64 {
-    let mut sum = 0.0;
+    let add_term = |sum: f64, i: u64| sum + (i as f64).powf(-a);
     if a >= 0.0 {
-        for i in (m..=n).rev() {
-            sum += (i as f64).powf(-a);
-        }
+        (m..=n).rev().fold(0.0, add_term)
     } else {
-        for i in m..=n {
-            sum += (i as f64).powf(-a);
-        }
+        (m..=n).fold(0.0, add_term)
     }
-    sum
 }
 
 //

@@ -121,11 +121,7 @@ pub(crate) fn series_eval_fixed_length(
     init_val: C64,
     num_terms: u64,
 ) -> C64 {
-    let mut result = init_val;
-    for _ in 0..num_terms {
-        result += g();
-    }
-    result
+    (0..num_terms).fold(init_val, |result, _| result + g())
 }
 
 /* Performs one step of Kahan summation. */

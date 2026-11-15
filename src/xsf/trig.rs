@@ -7,6 +7,7 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
+use crate::utils::neg_if_odd;
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::polevl::polevl;
@@ -111,7 +112,7 @@ pub(crate) fn sinpi_sub(x: f64, m: f64) -> f64 {
     let (s, e) = two_sum(x, -m);
     let n = s.round();
     let t = cephes_sinpi((s - n) + e);
-    if n % 2.0 == 0.0 { t } else { -t }
+    neg_if_odd(n, t)
 }
 
 /// Sine of complex `z`

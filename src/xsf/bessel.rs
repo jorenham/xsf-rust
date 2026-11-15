@@ -7,7 +7,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp, neg_if_odd};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
@@ -136,9 +136,7 @@ fn reflect_jy(jy: &mut C64, v: f64) -> bool {
     }
 
     let i = (v - 16384.0 * (v / 16384.0).floor()) as i32;
-    if i & 1 != 0 {
-        *jy = -*jy;
-    }
+    *jy = neg_if_odd(i, *jy);
     true
 }
 
@@ -483,7 +481,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if v.is_nan() || z.is_nan() {
         return cy;
     }
-    if kode == 1 && m == 2 && v == 0.0 && z.re == 0.0 && z.im == 0.0 {
+    if kode == 1 && m == 2 && v == 0.0 && z == C64::ZERO {
         cy.re = f64::NAN;
         cy.im = f64::INFINITY;
         return cy;
@@ -572,7 +570,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         sign = -1;
     }
 
-    if kode == 1 && z.re == 0.0 && z.im == 0.0 {
+    if kode == 1 && z == C64::ZERO {
         /* overflow */
         cy_y.re = f64::NEG_INFINITY;
         cy_y.im = 0.0;
@@ -1609,14 +1607,15 @@ fn ittika(x: f64) -> (f64, f64) {
         tti = tti * x.exp() / rc;
     }
     let ttk = if x <= 1.0 {
-        let e0 = (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln() + PI * PI / 24.0 + 0.5 * el * el;
-        let mut b1 = 1.5 - (el + (x / 2.0).ln());
+        let ln_half_x = (x / 2.0).ln();
+        let e0 = (0.5 * ln_half_x + el) * ln_half_x + PI * PI / 24.0 + 0.5 * el * el;
+        let mut b1 = 1.5 - (el + ln_half_x);
         let mut rs = 1.0;
         r = 1.0;
         for k in 2..=50 {
             r = 0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
             rs += 1.0 / f64::from(k);
-            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + ln_half_x));
             b1 += r2;
             if (r2 / b1).abs() < 1.0e-12 {
                 break;
@@ -1675,14 +1674,15 @@ fn ittjya(x: f64) -> (f64, f64) {
             }
         }
         ttj *= 0.125 * x * x;
-        let e0 = 0.5 * (FRAC_PI_SQ_6 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
-        let mut b1 = el + (x / 2.0).ln() - 1.5;
+        let ln_half_x = (x / 2.0).ln();
+        let e0 = 0.5 * (FRAC_PI_SQ_6 - el * el) - (0.5 * ln_half_x + el) * ln_half_x;
+        let mut b1 = el + ln_half_x - 1.5;
         let mut rs = 1.0;
         r = -1.0;
         for k in 2..=100 {
             r = -0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
             rs += 1.0 / f64::from(k);
-            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + ln_half_x));
             b1 += r2;
             if r2.abs() < b1.abs() * 1.0e-12 {
                 break;

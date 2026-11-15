@@ -175,7 +175,7 @@ pub(crate) fn cgama(mut z: C64, kf: i32) -> C64 {
     }
     if kf == 1 {
         let e = gr.exp();
-        c64(e * gi.cos(), e * gi.sin())
+        e * C64::cis(gi)
     } else {
         c64(gr, gi)
     }

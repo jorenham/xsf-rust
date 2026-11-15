@@ -310,6 +310,29 @@ fn cvqm(m: i32, q: f64) -> f64 {
     a0
 }
 
+/// The `q` part of the estimate `qm + m / 2` of the number of expansion coefficients `km`
+fn qm(q: f64) -> f64 {
+    if q <= 1.0 {
+        7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q
+    } else {
+        17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
+    }
+}
+
+/// The case code `kd` of `cva2` and `fcoef` for `Mcm` (`kf = 1`) or `Msm` (`kf = 2`) of order `m`,
+/// else 0
+///
+/// Unlike in xsf, where `mtu12` leaves `kd` uninitialized for other `kf`.
+fn kd(kf: i32, m: i32) -> i32 {
+    match (kf, m % 2 == 0) {
+        (1, true) => 1,
+        (1, false) => 2,
+        (2, false) => 3,
+        (2, true) => 4,
+        _ => 0,
+    }
+}
+
 #[allow(clippy::needless_range_loop, unused_assignments)]
 pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
     // =====================================================
@@ -395,10 +418,8 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
             }
         }
         return;
-    } else if q <= 1.0 {
-        7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q
     } else {
-        17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
+        qm(q)
     };
 
     // NOTE: if `qm` is NaN (q < -1e-7 or q NaN) or +inf (q == +inf), the C++ `(int)` cast is UB
@@ -665,30 +686,13 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
     //      (2) FCOEF for computing the expansion coefficients
     // ===============================================================
 
-    let mut kd = 0;
     let eps = 1.0e-14;
     let rd = 1.74532925199433e-2;
 
-    if kf == 1 && m == 2 * (m / 2) {
-        kd = 1;
-    }
-    if kf == 1 && m != 2 * (m / 2) {
-        kd = 2;
-    }
-    if kf == 2 && m != 2 * (m / 2) {
-        kd = 3;
-    }
-    if kf == 2 && m == 2 * (m / 2) {
-        kd = 4;
-    }
-
+    let kd = kd(kf, m);
     let a = cva2(kd, m, q);
 
-    let qm = if q <= 1.0 {
-        7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q
-    } else {
-        17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
-    };
+    let qm = qm(q);
 
     // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7);
     // g++ on x86-64 gives km = INT_MIN, i.e. csf = csd = 0 with Status::OK.
@@ -791,30 +795,12 @@ pub(crate) fn mtu12(
     // ==============================================================
 
     let eps = 1.0e-14;
-    // NOTE: in C++ `kd` is left uninitialized (UB to read) if kf is neither 1 nor 2; here it's 0.
-    let mut kd = 0;
     let mut nm = 0;
 
-    if (kf == 1) && (m % 2 == 0) {
-        kd = 1;
-    }
-    if (kf == 1) && (m % 2 != 0) {
-        kd = 2;
-    }
-    if (kf == 2) && (m % 2 != 0) {
-        kd = 3;
-    }
-    if (kf == 2) && (m % 2 == 0) {
-        kd = 4;
-    }
-
+    let kd = kd(kf, m);
     let a = cva2(kd, m, q);
 
-    let qm = if q <= 1.0 {
-        7.5 + 56.1 * q.sqrt() - 134.7 * q + 90.7 * q.sqrt() * q
-    } else {
-        17.0 + 3.1 * q.sqrt() - 0.126 * q + 0.0037 * q.sqrt() * q
-    };
+    let qm = qm(q);
 
     // NOTE: `(int)` is UB in C++ if `qm + 0.5 * m` is out of the int range or NaN (e.g. q >~ 7e7).
     // Rust's `as i32` saturates (NaN -> 0), so a huge qm returns NaNs (km >= 251), whereas g++ on

@@ -17,6 +17,7 @@ use super::common::{self, ExitStatus, abscmp, config, constants, is_horrible, so
 use super::rd::rd;
 use super::rf::agm_update;
 use super::typing::Num;
+use crate::utils::EPSILON_SQ;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::two_prod;
 
@@ -90,8 +91,7 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     // changes real results by a relative O(eps^2 ln(eps)) (https://dlmf.nist.gov/19.27.iii).
     let size = |a: T| a.real().abs().max(a.imag().abs());
     let valid = cct.iter().all(|a| a.ph_good());
-    let negligible =
-        |a: T| a.too_small() || (valid && size(a) < f64::EPSILON.powi(2) * size(cct[2]));
+    let negligible = |a: T| a.too_small() || (valid && size(a) < EPSILON_SQ * size(cct[2]));
     if negligible(cct[0]) {
         if negligible(cct[1]) {
             /* Special case -- also covers the case of z ~ zero. */

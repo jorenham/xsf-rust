@@ -8,7 +8,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_complex::Complex64;
 
-use crate::utils::neg_one_pow;
+use crate::utils::{neg_if_odd, neg_one_pow};
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
@@ -231,7 +231,7 @@ fn sph_bessel_j_f64(n: i64, x: f64) -> f64 {
     // j_n(-x) = (-1)^n * j_n(x) explicitly (DLMF 10.47.14).
     if x < 0.0 {
         let r = sph_bessel_j_f64(n, -x);
-        return if n % 2 == 0 { r } else { -r };
+        return neg_if_odd(n, r);
     }
 
     if x.is_infinite() {
@@ -286,7 +286,7 @@ fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
         return c64(1.0, 1.0) * f64::INFINITY;
     }
 
-    if z.re == 0.0 && z.im == 0.0 {
+    if z == C64::ZERO {
         if n == 0 {
             return C64::ONE;
         }
@@ -300,7 +300,7 @@ fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
     // j_n(-z) = (-1)^n * j_n(z) explicitly (DLMF 10.47.14).
     if z.is_real() && z.re < 0.0 {
         let r = sph_bessel_j_c64(n, c64(-z.re, 0.0));
-        return if n % 2 == 0 { r } else { -r };
+        return neg_if_odd(n, r);
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_j_c64(half(n), z);
@@ -343,7 +343,7 @@ fn sph_bessel_y_f64(n: i64, x: f64) -> f64 {
 
     if x < 0.0 {
         let r = sph_bessel_y_f64(n, -x);
-        return if n % 2 == 1 { r } else { -r };
+        return -neg_if_odd(n, r);
     }
 
     if x.is_infinite() {
@@ -367,7 +367,7 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
         return C64::NAN_RE;
     }
 
-    if z.re == 0.0 && z.im == 0.0 {
+    if z == C64::ZERO {
         // https://dlmf.nist.gov/10.52.E2
         return C64::NAN_RE;
     }
@@ -426,7 +426,7 @@ fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
 
     if x < 0.0 {
         let r = sph_bessel_i_f64(n, -x);
-        return if n % 2 == 0 { r } else { -r };
+        return neg_if_odd(n, r);
     }
 
     if x == 0.0 {
@@ -491,7 +491,7 @@ fn sph_bessel_i_c64(n: i64, z: C64) -> C64 {
     // i_n(-z) = (-1)^n * i_n(z); see sph_bessel_j note above.
     if z.is_real() && z.re < 0.0 {
         let r = sph_bessel_i_c64(n, c64(-z.re, 0.0));
-        return if n % 2 == 0 { r } else { -r };
+        return neg_if_odd(n, r);
     }
 
     sqrt_pi_2_div(z) * cyl_bessel_i_c64(half(n), z)
