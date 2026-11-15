@@ -1850,6 +1850,11 @@ def r_hyp1f2(a, b1, b2, z):
     return _arb("hyp1f2", a, b1, b2, z)
 
 
+def r_hyppfq_arb(name):
+    """The reference of the spec `name` of pFq for p <= q, as for `r_hyp2f2`."""
+    return lambda *args: _arb(name, *args)
+
+
 # ---------------------------------------------------------------- orthogonal polynomials
 
 
@@ -3944,6 +3949,24 @@ for name, args in [
         timeout=60,
         note="none",
     )
+for p, args, zmax in [
+    (3, "a1 a2 a3 b1 b2 b3 z", 1e3),
+    (2, "a1 a2 b1 b2 b3 z", 1e6),
+    (1, "a b1 b2 b3 z", 1e8),
+    (0, "b1 b2 z", 1e8),
+]:
+    params, call = len(args.split()) - 1, f"hyppfq{p}"
+    name = f"hyppfq#{p}f{params - p}"
+    add(
+        name,
+        args,
+        r_hyppfq_arb(name),
+        D(*[U(-10, 10)] * params, LU(1e-3, zmax, 0), n=2000, call=call),
+        D(*[LU(1e-3, 100, 0)] * params, LU(1e-3, zmax, 0), n=2000, call=call),
+        cpp=False,
+        timeout=60,
+        note="none",
+    )
 add(
     "hyp1f1#c",
     "a b re im",
@@ -4271,4 +4294,8 @@ ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
     "hyp3f2": lambda a1, a2, a3, b1, b2, z: z.hypgeom([a1, a2, a3], [b1, b2]),
     "hyp2f2": lambda a1, a2, b1, b2, z: z.hypgeom([a1, a2], [b1, b2]),
     "hyp1f2": lambda a, b1, b2, z: z.hypgeom([a], [b1, b2]),
+    **{
+        f"hyppfq#{p}f{q}": lambda *v, p=p: v[-1].hypgeom(list(v[:p]), list(v[p:-1]))
+        for p, q in [(3, 3), (2, 3), (1, 3), (0, 2)]
+    },
 }
