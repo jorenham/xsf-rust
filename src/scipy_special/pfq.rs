@@ -1027,20 +1027,13 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
 }
 
-/// `sqrt(v)` in double-double precision, for `v > 0`
-fn sqrt_dd(v: f64) -> Dd {
-    let s = v.sqrt();
-    // (one Newton step)
-    Dd::new(s) + (Dd::new(v) - Dd::new(s) * s) / (2.0 * s)
-}
-
 /// `v^(1 / k)` in double-double precision, for `v > 0`
 fn root_dd(v: f64, k: usize) -> Dd {
     let s = v.powf(1.0 / k as f64);
     let pow = |n: usize| (0..n).fold(Dd::new(1.0), |p, _| p * s);
     match k {
         1 => Dd::new(v),
-        2 => sqrt_dd(v),
+        2 => Dd::new(v).sqrt(),
         // (one Newton step)
         _ => Dd::new(s) + (Dd::new(v) - pow(k)) / (k as f64 * pow(k - 1).hi),
     }
@@ -1071,7 +1064,7 @@ fn alternating(iter: impl Iterator<Item = f64>, step: usize) -> impl Iterator<It
 /// - $A_0 = (s + 1) (s + 1 + \beta_1) (s + 1 + \beta_2)$.
 fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     let nu = Dd::new(a) - b[0] - b[1] + 0.5;
-    let sqrt_z = sqrt_dd(z.abs());
+    let sqrt_z = Dd::new(z.abs()).sqrt();
     let (x, beta) = (2.0 * sqrt_z.hi, b.map(|bj| 2.0 * bj - 2.0));
     // the terms t_k = c_k x^-k
     let terms = recurrence_terms(|k, t1, t2| {

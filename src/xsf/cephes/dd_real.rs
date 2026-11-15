@@ -380,6 +380,14 @@ impl DoubleDouble {
         Self { hi: s1, lo: s2 }
     }
 
+    /// `sqrt(self)` for `self > 0`
+    #[inline]
+    pub(crate) fn sqrt(self) -> Self {
+        let s = self.hi.sqrt();
+        // (one Newton step)
+        Self::new(s) + (self - Self::new(s) * s) / (2.0 * s)
+    }
+
     #[inline]
     pub(crate) fn ldexp(self, expt: i32) -> Self {
         // float128 * (2.0 ^ expt)
