@@ -11,10 +11,11 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
-use crate::utils::{LN_PI, LN_TAU, SQRT_PI};
+use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{
     betainc_xy, gamma, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
 };
@@ -172,10 +173,33 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
         f64::NAN
     } else if x == 0.0 {
         0.5
-    } else if nu > 1e150 {
-        // The 1/nu correction phi(x) (x^3 + x) / (4 nu) is negligible, and the terms of the
-        // continued fractions in `incbet` (~nu^2) can overflow
-        ndtr(x)
+    } else if nu > 1e9 {
+        // The normal limit with its 1/nu series, where 4 terms suffice: `incbet` loses up to ~300
+        // eps for huge nu (and its continued fraction terms ~nu^2 overflow).
+        //
+        // F(x) = Phi(x) - phi(x) (g_1(x) / nu + g_2(x) / nu^2 + ...)
+        // g_1(x) = (x^3 + x) / 4, g_2(x) = (3x^7 - 7x^5 - 5x^3 - 3x) / 96, ...
+        //
+        // `G` holds g_k(x) / x as polynomials in x^2, and their denominators. Where ndtr(x) doesn't
+        // underflow (|x| < 38.5), the first neglected term phi g_5 / nu^5 is relatively below
+        // 4.1e26 / nu^5 < 0.002 eps. Rounding x^2 costs phi(x) up to x^2 eps / 4, but the whole sum
+        // is relatively below 5.6e5 / nu, so F loses < 0.25 eps. Clamping x at +-40, where phi(x)
+        // underflows, keeps x^15 finite.
+        const G: [(&[f64], f64); 4] = [
+            (&[1.0, 1.0], 4.0),
+            (&[3.0, -7.0, -5.0, -3.0], 96.0),
+            (&[1.0, -11.0, 14.0, 6.0, -3.0, -15.0], 384.0),
+            (
+                &[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0],
+                92160.0,
+            ),
+        ];
+        let t = x.clamp(-40.0, 40.0);
+        let s = G
+            .iter()
+            .rev()
+            .fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
+        ndtr(x) - (-0.5 * t * t).exp() / SQRT_TAU * t * s
     } else if nu > STDTR_TAIL_NU && x < -STDTR_TAIL_X {
         stdtr_tail(nu, x)
     } else if nu == 1.0 {
