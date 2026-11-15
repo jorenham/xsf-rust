@@ -1239,8 +1239,24 @@ fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = 
     })
 }
 
-/// The sum of the two exponential parts of `pfq_exp` for $z < 0$ and $p = q - 1$, which have
-/// $x e^{\pm \pi i / \kappa}$ as $x$ (DLMF 16.11.8), relative to $e^{x \cos(\pi / \kappa)}$:
+/// `cos(pi / k)` and `sin(pi / k)` in double-double precision, for `k >= 2`
+fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
+    let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
+    // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
+    // are below 2^-106 from n = 21 on
+    let terms = successors(Some((1.0, Dd::new(1.0), phi)), |&(n, c, _)| {
+        let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
+        Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
+    });
+    let zero = (Dd::new(0.0), Dd::new(0.0));
+    terms
+        .take(20)
+        .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
+}
+
+/// The sum of the two exponential parts of `pfq_exp` for $z < 0$ and $p < q$, which have
+/// $x e^{\pm \pi i / \kappa}$ as $x$ (DLMF 16.11.8, 16.11.9), relative to
+/// $e^{x \cos(\pi / \kappa)}$:
 ///
 /// $$
 /// 2 \sum_k t_k \cos(\theta - \pi k / \kappa),
@@ -1258,8 +1274,7 @@ fn pfq_exp_cos(
 ) -> ((f64, f64), Dd) {
     let kf = kappa as f64;
     let x = kf * root.hi;
-    // cos(pi / kappa) and sin(pi / kappa)
-    let (cos, sin) = (Dd::new(0.0), Dd::new(1.0));
+    let (cos, sin) = cos_sin_pi_div(kappa);
     // theta / pi in double-double, reduced to [-1, 1], and a bound of the error of theta
     let turns = root * kf * sin * (FRAC_2_PI_DD * 0.5) + nu / kf;
     let t = turns - 2.0 * (0.5 * turns.hi).round();
@@ -1273,15 +1288,17 @@ fn pfq_exp_cos(
         let c = cospi(u) - PI * t.lo * sinpi(u);
         // (and the roundings of `u`, `cospi`, `sinpi`, the product, and the sum)
         let rounding = (dtheta + 2.0 * f64::EPSILON) * s.abs() + 3.0 * f64::EPSILON * (s * c).abs();
-        [s * c, s_err * c.abs() + rounding]
+        [s * c, s_err * c.abs() + rounding, s.abs()]
     });
-    let [sum, err] = sums.fold([0.0; 2], |u, v| [u[0] + v[0], u[1] + v[1]]);
-    ((2.0 * sum, 2.0 * err), cos)
+    let [sum, err, size] = sums.fold([0.0; 3], |u, v| [u[0] + v[0], u[1] + v[1], u[2] + v[2]]);
+    // the other exponentials of DLMF 16.11.9, with x e^(+-3 pi i / kappa), relative to these
+    let next = 2.0 * (x * (cospi(3.0 / kf) - cos.hi)).exp();
+    let others = if kappa == 2 { 0.0 } else { next };
+    ((2.0 * sum, 2.0 * (err + others * size)), cos)
 }
 
 /// The exponential part of the asymptotic expansion of ${}_pF_q$ for $p \le q$ (DLMF 16.11.1),
-/// with $\abs z^\nu$ instead of $z^\nu$, for $p \ge q - 1$ or $z > 0$, where `b` contains the 1
-/// of $n!$:
+/// with $\abs z^\nu$ instead of $z^\nu$, where `b` contains the 1 of $n!$:
 ///
 /// $$
 /// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)}
@@ -1323,9 +1340,8 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     gamma_series(num, den, series, l)
 }
 
-/// ${}_pF_q$ for $p \ge q - 1$, or $p \le q$ and $z > 0$, by its asymptotic expansion (DLMF
-/// 16.11.7 to 16.11.9), if its estimated relative error is at most `PFQ_TOL`, where `b`
-/// contains the 1 of $n!$
+/// ${}_pF_q$ for $p \le q$ by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), if its
+/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
 ///
 /// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
 /// $z < 0$ and $p = q$. The size of the other part is added to the error, for $z > 0$ as the
@@ -1334,9 +1350,6 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
-    if z < 0.0 && kappa > 2 {
-        return None;
-    }
     let mut terms = vec![None; a_ref.len()];
     pfq_alg(a, b, z, z > 0.0, &mut terms)?;
     let alg = terms.into_iter().flatten();
@@ -1346,6 +1359,8 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     } else if kappa == 1 {
         checked_f64(add_exp(alg)?, Some(exp))
     } else {
+        // (DLMF 16.11.9 for p <= q - 2 has the exponential part only; with the algebraic part,
+        // it is theorem 3 of Paris, https://arxiv.org/abs/1708.04824)
         checked_f64(add_exp(alg.chain([exp]))?, None)
     }
 }
@@ -1422,9 +1437,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$, unless it is a polynomial;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
-///   other $p = q$ and $p = q - 1$ as for [`hyp2f2`] and [`hyp1f2`], for $p \le q - 2$ for
-///   large $-z$, and for the other $p \le q$ for large $\abs z$ if two $a_i$ differ by an
-///   integer;
+///   other $p = q$ as for [`hyp2f2`], for the other $p < q$ as for [`hyp1f2`], and for the
+///   other $p \le q$ for large $\abs z$ if two $a_i$ differ by an integer;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///

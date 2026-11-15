@@ -783,6 +783,13 @@ fn test_hyppfq_asymptotic() {
     assert_hyppfq(&[0.5, 1.25], &b, -1e5, 0.007_402_197_567_641_71);
     assert_hyppfq(&[0.5, 1.25], &b, -1e8, 0.000_234_112_089_078_822_63);
     assert_hyppfq(&[0.5, 1.25, -2.625], &b4, -3e4, -91_536_564.254_330_46);
+    // p <= q - 2, where it oscillates and grows
+    assert_hyppfq(&[], &[0.25, 1.75], -1e7, 5.532_241_318_399_256e137);
+    assert_hyppfq(&[0.5], &b4, -1e8, -2.517_853_121_265_854e119);
+    // (the algebraic part is more than half of these)
+    let (a_alg, b_alg) = ([-0.375, 1.875], [3.25, 4.125, 5.5, 6.25]);
+    assert_hyppfq(&[-1.4], &b_alg[..3], -4e4, 10_094.591_796_559_325);
+    assert_hyppfq(&a_alg, &b_alg, -4e4, 9.716_270_976_402_212);
     // 1 + a_m - a_i and 1 + a_m - b_j are close to the same integer
     let a_near = [0.125, -4.875_000_000_000_001, 0.375];
     let b_near = [0.124_999_999_999_999_97, 15.5, -8.25];
@@ -790,6 +797,8 @@ fn test_hyppfq_asymptotic() {
     let a_pair = [-0.125, -5.125_000_000_000_001];
     let b_pair = [-0.125_000_000_000_000_06, 15.5, -8.25, 1.5];
     assert_hyppfq(&a_pair, &b_pair[..3], -1000.0, -36_610.554_660_278_02);
+    let a_pair4 = [-0.125, -5.124_999_999_999_999];
+    assert_hyppfq(&a_pair4, &b_pair, -1e4, -14_340_142.864_468_437);
     // overflow, with the sign of the Gamma functions
     assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
     assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
@@ -977,6 +986,7 @@ fn test_hyppfq_none() {
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], 1e5), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], -1e5), None);
+    assert_eq!(hyppfq(&[0.5, 1.5], &[1.25, 2.25, 3.25, 0.75], -1e6), None);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
     assert_eq!(hyppfq(&a, &b, -0.5), None);
