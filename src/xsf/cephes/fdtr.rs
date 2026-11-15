@@ -8,12 +8,11 @@
 use core::f64::consts::LN_2;
 
 use crate::utils::SQRT_EPSILON;
-use crate::xsf::cephes::beta::lbeta;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
-use crate::xsf::cephes::lgam1p;
+use crate::xsf::cephes::{lgam1p, ln_a_beta};
 use crate::xsf::expint::exp1;
 
 /// Complemented F distribution
@@ -68,6 +67,9 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         fdtr_chi2(a, x).1
     } else if let Some((q, _)) = fdtr_tiny_y(b, a, 1.0 / x).filter(|_| x >= f64::MIN_POSITIVE) {
         // Unlike in xsf, likewise `fdtr(b, a, 1 / x)` if `a x / b` is subnormal
+        q
+    } else if let Some((_, q)) = fdtr_tiny_w(a, b, x, w) {
+        // Unlike in xsf, also if `1 / x` overflows, or only `a x` is subnormal
         q
     } else {
         fdtr_betainc(b, a, w1, w)
@@ -133,7 +135,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
         b / (a + b)
     } else if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         p
-    } else if let Some(p) = fdtr_tiny_w(a, b, x, w) {
+    } else if let Some((p, _)) = fdtr_tiny_w(a, b, x, w) {
         p
     } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
         fdtr_betainc(a, b, w, w1)
@@ -146,25 +148,35 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     }
 }
 
-/// `fdtr` if `a x` or `w` is subnormal (as they round), `w < eps` and `b` is finite, else `None`
+/// `(fdtr, fdtrc)` if `a x` or `w` is subnormal (as they round), `w < eps` and `b` is finite, else
+/// `None`
 ///
-/// Unlike in xsf, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`.
-fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<f64> {
+/// Unlike in xsf, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`, and with
+/// [`ln_a_beta`], so that `fdtrc = O(A)` keeps its digits for a tiny `A`.
+fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<(f64, f64)> {
     let ax = a * x;
     let tiny = ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON && ax < f64::EPSILON;
-    if !(tiny && b < f64::INFINITY && x > 0.0) {
+    if !(tiny && a >= 2.0 * f64::MIN_POSITIVE && b < f64::INFINITY && x > 0.0) {
         return None;
     }
     let (ha, hb) = (0.5 * a, 0.5 * b);
+    let ln_ab = if b < 2.0 * f64::MIN_POSITIVE {
+        // `A B(A, B) = 1 + A / B` up to a relative `O(B)`, without the rounding of `B`
+        (a / b).ln_1p()
+    } else {
+        ln_a_beta(ha, hb)
+    };
     // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
-    let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
+    let ln_rest = ha * (a.ln() - (b + ax).ln()) - ln_ab;
+    let ln_p = ha * x.ln() + ln_rest;
     // `x^A` apart, unless it underflows, while the rest can be large
     let x_ha = x.powf(ha);
-    Some(if x_ha >= f64::MIN_POSITIVE {
+    let p = if x_ha >= f64::MIN_POSITIVE {
         x_ha * ln_rest.exp()
     } else {
-        (ha * x.ln() + ln_rest).exp()
-    })
+        ln_p.exp()
+    };
+    Some((p, -ln_p.exp_m1()))
 }
 
 /// `(w, 1 - w)` with `w = a x / (b + a x)`

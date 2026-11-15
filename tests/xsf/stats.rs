@@ -680,6 +680,33 @@ fn test_fdtrc_subnormal_w() {
 }
 
 #[test]
+fn test_fdtr_tiny_w() {
+    // `w` underflows or `a x` is subnormal, with a finite `b`, where `fdtrc = O(a)` for a tiny `a`,
+    // or `fdtr = O(b)` for a subnormal `b`; from Arb
+    let p = [
+        xsf::fdtrc(1e-307, 1.0, 5e-324),
+        xsf::fdtrc(1e-20, 1.0, 1e-320),
+        xsf::fdtrc(1e-10, 1.0, 1e-320),
+        xsf::fdtrc(6e-5, 1.0, 1e-315),
+        xsf::fdtrc(3e-4, 0.01, 1e-315),
+        xsf::fdtrc(0.01, 1e45, 1e-313),
+        xsf::fdtr(1e-10, 1.0, 1e-320),
+        xsf::fdtr(6e-307, 2.5e-323, 5e-324),
+    ];
+    let desired = [
+        7.263_599_949_158_365e-305,
+        3.921_326_185_559_873e-18,
+        3.806_196_858_474_085_4e-8,
+        0.021_850_396_135_364_984,
+        0.129_668_149_313_479_72,
+        0.973_408_713_466_907_7,
+        0.999_999_961_938_031_4,
+        4.117_213_715_343_721e-17,
+    ];
+    xsref::np_assert_allclose!(&p, &desired, rtol = 1e-14);
+}
+
+#[test]
 fn test_chdtr_fdtr_subnormal() {
     // reference values from mpmath; `x / 2`, `a x` or `w = a x / (b + a x)` is subnormal and rounds
     let p = [

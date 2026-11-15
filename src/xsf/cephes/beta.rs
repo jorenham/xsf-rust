@@ -12,7 +12,7 @@ use crate::utils::{LN_SQRT_TAU, is_nonpos_int, neg_one_pow};
 use crate::xsf::cephes::consts::{MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
-use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
+use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, lgam1p, psi, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::{PI, TAU};
@@ -384,4 +384,22 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y.ln()
+}
+
+/// Below this `a`, [`ln_a_beta`] uses Simpson's rule, which errs by `~a^5 / 100`, instead of
+/// `lbeta`, which loses `~|ln(a)| eps` against `ln(a)`
+const LN_A_BETA_TINY: f64 = 1e-3;
+
+/// `ln(a B(a, b))`, also where it is `O(a)`, for `a, b > 0`
+///
+/// For a small `a`, `a B(a, b) = (1 + a / b) Gamma(1 + a) Gamma(1 + b) / Gamma(1 + b + a)`, where
+/// `ln(Gamma(1 + b + a) / Gamma(1 + b))` is the integral of `psi` over `[1 + b, 1 + b + a]`.
+pub(crate) fn ln_a_beta(a: f64, b: f64) -> f64 {
+    if a < LN_A_BETA_TINY {
+        let c = 1.0 + b;
+        let int_psi = a / 6.0 * (psi(c) + 4.0 * psi(c + 0.5 * a) + psi(c + a));
+        (a / b).ln_1p() + lgam1p(a) - int_psi
+    } else {
+        lbeta(a, b) + a.ln()
+    }
 }
