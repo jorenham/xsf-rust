@@ -90,7 +90,7 @@ where
     (ret.to_f64(), terms)
 }
 
-/// Compute `iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+/// Compute $I_v(x) / I_{v-1}(x)$ of the modified Bessel function of the first kind
 ///
 /// # See also
 /// - [`iv_ratio_c`]: Complement of this ratio
@@ -130,10 +130,10 @@ pub fn iv_ratio(v: f64, x: f64) -> f64 {
     ret
 }
 
-/// Compute `1 - iv(v,x)/iv(v-1,x)` of the modified Bessel function of the first kind
+/// Compute $1 - I_v(x) / I_{v-1}(x)$ of the modified Bessel function of the first kind
 ///
 /// # See also
-/// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)` itself
+/// - [`iv_ratio`]: The ratio $I_v(x) / I_{v-1}(x)$ itself
 #[must_use]
 pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
     if v.is_nan() || x.is_nan() {
@@ -185,12 +185,12 @@ pub fn iv_ratio_c(v: f64, x: f64) -> f64 {
 
 /// Inverse of [`iv_ratio`] with respect to `x`
 ///
-/// Compute x such that `iv(v,x)/iv(v-1,x) = r` for v >= 0.5 and 0 <= r <= 1.
+/// Compute $x$ such that $I_v(x) / I_{v-1}(x) = r$ for $v \ge 0.5$ and $0 \le r \le 1$.
 ///
 /// Corresponds to `xsf::iv_ratioinv`.
 ///
 /// # See also
-/// - [`iv_ratio`]: The ratio `iv(v,x)/iv(v-1,x)`
+/// - [`iv_ratio`]: The ratio $I_v(x) / I_{v-1}(x)$
 #[must_use]
 pub fn iv_ratioinv(v: f64, r: f64) -> f64 {
     if v.is_nan() || r.is_nan() {

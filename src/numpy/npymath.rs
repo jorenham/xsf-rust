@@ -62,7 +62,7 @@ impl LogAddExpArg for f64 {
     }
 }
 
-/// ln(e<sup>x</sup> + e<sup>y</sup>)
+/// $\ln(e^x + e^y)$
 ///
 /// This function is useful in statistics where the calculated probabilities of events may be so
 /// small as to exceed the range of normal floating point numbers. In such cases the logarithm of
@@ -78,7 +78,7 @@ pub fn logaddexp<T: LogAddExpArg>(x: T, y: T) -> T {
     x.npy_logaddexp(y)
 }
 
-/// log<sub>2</sub>(2<sup>x</sup> + 2<sup>y</sup>)
+/// $\log_2(2^x + 2^y)$
 ///
 /// This function is useful in machine learning when the calculated probabilities of events may be
 /// so small as to exceed the range of normal floating point numbers. In such cases the base-2

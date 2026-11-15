@@ -301,7 +301,7 @@ pub fn cospi<T: TrigArg>(z: T) -> T {
     z.cospi()
 }
 
-/// Sine of the angle x given in degrees.
+/// Sine of the angle $x$ given in degrees.
 ///
 /// Corresponds to [`scipy.special.sindg`][scipy].
 ///
@@ -435,7 +435,7 @@ pub fn cosdg(mut x: f64) -> f64 {
     y
 }
 
-/// Tangent of angle x given in degrees
+/// Tangent of angle $x$ given in degrees
 ///
 /// Corresponds to [`scipy.special.tandg`][scipy].
 ///
@@ -451,7 +451,7 @@ pub fn tandg(x: f64) -> f64 {
     tancot(x, false)
 }
 
-/// Cotangent of the angle x given in degrees
+/// Cotangent of the angle $x$ given in degrees
 ///
 /// Corresponds to [`scipy.special.cotdg`][scipy].
 ///

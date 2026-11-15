@@ -141,8 +141,8 @@ fn airy_f64(x: f64) -> [f64; 4] {
 
 /// Airy functions and derivatives
 ///
-/// The Airy functions Ai(*z*) and Bi(*z*) are linearly independent solutions to the differential
-/// equation *y(z)'' - z y(z) = 0*,  Airy equation or Stokes equation.
+/// The Airy functions $\mathrm{Ai}(z)$ and $\mathrm{Bi}(z)$ are linearly independent solutions to
+/// the differential equation $y\'\'(z) - z y(z) = 0$,  Airy equation or Stokes equation.
 ///
 /// This corresponds to [`scipy.special.airy`][airy] in SciPy.
 ///
@@ -155,10 +155,10 @@ fn airy_f64(x: f64) -> [f64; 4] {
 ///   - [`Complex<f64>`](num_complex::Complex).
 ///
 /// # Returns
-/// - Ai(*z*)
-/// - Ai'(*z*)
-/// - Bi(*z*)
-/// - Bi'(*z*)
+/// - $\mathrm{Ai}(z)$
+/// - $\mathrm{Ai}\'(z)$
+/// - $\mathrm{Bi}(z)$
+/// - $\mathrm{Bi}\'(z)$
 ///
 /// # See also
 /// - [`airy_scaled`]: Exponentially scaled Airy functions and derivatives
@@ -169,8 +169,8 @@ pub fn airy<T: AiryArg>(z: T) -> [T; 4] {
 
 /// Exponentially scaled Airy functions and derivatives
 ///
-/// This scales Ai and Ai' by a factor exp(2/3 z<sup>3/2</sup>), and Bi and Bi' by
-/// exp(-2/3 |Re[z<sup>3/2</sup>]|).
+/// This scales $\mathrm{Ai}$ and $\mathrm{Ai}\'$ by a factor $\exp(\tfrac{2}{3} z^{3/2})$, and
+/// $\mathrm{Bi}$ and $\mathrm{Bi}\'$ by $\exp(-\tfrac{2}{3} \abs{\mathrm{Re}(z^{3/2})})$.
 ///
 /// This corresponds to [`scipy.special.airye`][airye] in SciPy.
 ///
@@ -180,10 +180,10 @@ pub fn airy<T: AiryArg>(z: T) -> [T; 4] {
 /// - `z`: Real ([`f64`]) or complex ([`Complex<f64>`](num_complex::Complex)) argument
 ///
 /// # Returns
-/// - exp(2/3 z<sup>3/2</sup>) Ai(z)
-/// - exp(2/3 z<sup>3/2</sup>) Ai'(z)
-/// - exp(-2/3 |Re[z<sup>3/2</sup>]|) Bi(z)
-/// - exp(-2/3 |Re[z<sup>3/2</sup>]|) Bi'(z)
+/// - $\exp(\tfrac{2}{3} z^{3/2}) \mathrm{Ai}(z)$
+/// - $\exp(\tfrac{2}{3} z^{3/2}) \mathrm{Ai}\'(z)$
+/// - $\exp(-\tfrac{2}{3} \abs{\mathrm{Re}(z^{3/2})}) \mathrm{Bi}(z)$
+/// - $\exp(-\tfrac{2}{3} \abs{\mathrm{Re}(z^{3/2})}) \mathrm{Bi}\'(z)$
 ///
 /// # See also
 /// - [`airy`]
@@ -353,7 +353,8 @@ fn itairy_impl(x: f64) -> [f64; 4] {
 
 /// Integrals of Airy functions
 ///
-/// Calculates the integrals of Ai(*t*), Bi(*t*), Ai(-*t*), and Bi(-*t*) for *t* from 0 to *x*.
+/// Calculates the integrals of $\mathrm{Ai}(t)$, $\mathrm{Bi}(t)$, $\mathrm{Ai}(-t)$, and
+/// $\mathrm{Bi}(-t)$ for $t$ from 0 to $x$.
 ///
 /// For negative `x`, the integrals run from 0 down to `x`.
 ///
@@ -365,10 +366,10 @@ fn itairy_impl(x: f64) -> [f64; 4] {
 /// - `x` - Upper limit of the integral
 ///
 /// # Returns
-/// - ∫<sub>[0, x]</sub> Ai(*t*) *dt*
-/// - ∫<sub>[0, x]</sub> Bi(*t*) *dt*
-/// - ∫<sub>[0, x]</sub> Ai(*-t*) *dt*
-/// - ∫<sub>[0, x]</sub> Bi(*-t*) *dt*
+/// - $\int_0^x \mathrm{Ai}(t) \dd t$
+/// - $\int_0^x \mathrm{Bi}(t) \dd t$
+/// - $\int_0^x \mathrm{Ai}(-t) \dd t$
+/// - $\int_0^x \mathrm{Bi}(-t) \dd t$
 ///
 /// # See also
 /// - [`airy`]: Airy functions and derivatives
@@ -770,13 +771,15 @@ pub(crate) fn airy_ai_zeros_vec(nt: usize) -> Vec<f64> {
 ///
 /// # Returns
 ///
-/// - Roots x<sub>k</sub> s.t. Ai(x<sub>k</sub>) = 0
-/// - Roots x'<sub>k</sub> s.t. Ai'(x'<sub>k</sub>) = 0
-/// - Critical points Ai(x'<sub>k</sub>), i.e. the values of Ai where its Ai' is zero
-/// - Slopes Ai'(x<sub>k</sub>) at roots x<sub>k</sub>, i.e. the values of Ai' where Ai is zero
+/// - Roots $x_k$ s.t. $\mathrm{Ai}(x_k) = 0$
+/// - Roots $x\'_k$ s.t. $\mathrm{Ai}\'(x\'_k) = 0$
+/// - Critical points $\mathrm{Ai}(x\'_k)$, i.e. the values of $\mathrm{Ai}$ where its
+///   $\mathrm{Ai}\'$ is zero
+/// - Slopes $\mathrm{Ai}\'(x_k)$ at roots $x_k$, i.e. the values of $\mathrm{Ai}\'$ where
+///   $\mathrm{Ai}$ is zero
 ///
 /// # See also
-/// - [`airy_bi_zeros`]: Zeros of Bi and Bi'
+/// - [`airy_bi_zeros`]: Zeros of $\mathrm{Bi}$ and $\mathrm{Bi}\'$
 #[doc(alias = "airyzo", alias = "ai_zeros")]
 #[must_use]
 #[inline]
@@ -792,13 +795,15 @@ pub fn airy_ai_zeros<const NT: usize>() -> [[f64; NT]; 4] {
 ///
 /// # Returns
 ///
-/// - Roots x<sub>k</sub> s.t. Bi(x<sub>k</sub>) = 0
-/// - Roots x'<sub>k</sub> s.t. Bi'(x'<sub>k</sub>) = 0
-/// - Critical points Bi(x'<sub>k</sub>), i.e. the values of Bi where its Bi' is zero
-/// - Slopes Bi'(x<sub>k</sub>) at roots x<sub>k</sub>, i.e. the values of Bi' where Bi is zero
+/// - Roots $x_k$ s.t. $\mathrm{Bi}(x_k) = 0$
+/// - Roots $x\'_k$ s.t. $\mathrm{Bi}\'(x\'_k) = 0$
+/// - Critical points $\mathrm{Bi}(x\'_k)$, i.e. the values of $\mathrm{Bi}$ where its
+///   $\mathrm{Bi}\'$ is zero
+/// - Slopes $\mathrm{Bi}\'(x_k)$ at roots $x_k$, i.e. the values of $\mathrm{Bi}\'$ where
+///   $\mathrm{Bi}$ is zero
 ///
 /// # See also
-/// - [`airy_ai_zeros`]: Zeros of Ai and Ai'
+/// - [`airy_ai_zeros`]: Zeros of $\mathrm{Ai}$ and $\mathrm{Ai}\'$
 #[doc(alias = "airyzo", alias = "bi_zeros")]
 #[must_use]
 #[inline]

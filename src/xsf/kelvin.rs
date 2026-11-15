@@ -202,39 +202,39 @@ fn klvna(x: f64) -> Klvna {
     }
 }
 
-/// Kelvin function *ber*
+/// Kelvin function $\ber$
 ///
 /// Corresponds to [`scipy.special.ber`][scipy]
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ber.html
 ///
 /// # See also
-/// - [`bei`] - Kelvin function *bei*
-/// - [`ker`] - Kelvin function *ker*
-/// - [`kei`] - Kelvin function *kei*
+/// - [`bei`] - Kelvin function $\bei$
+/// - [`ker`] - Kelvin function $\ker$
+/// - [`kei`] - Kelvin function $\kei$
 #[must_use]
 #[inline]
 pub fn ber(x: f64) -> f64 {
     kelvin(x)[0].re
 }
 
-/// Kelvin function *bei*
+/// Kelvin function $\bei$
 ///
 /// Corresponds to [`scipy.special.bei`][scipy]
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.bei.html
 ///
 /// # See also
-/// - [`ber`] - Kelvin function *ber*
-/// - [`ker`] - Kelvin function *ker*
-/// - [`kei`] - Kelvin function *kei*
+/// - [`ber`] - Kelvin function $\ber$
+/// - [`ker`] - Kelvin function $\ker$
+/// - [`kei`] - Kelvin function $\kei$
 #[must_use]
 #[inline]
 pub fn bei(x: f64) -> f64 {
     kelvin(x)[0].im
 }
 
-/// Kelvin function *ker*
+/// Kelvin function $\ker$
 ///
 /// Corresponds to [`scipy.special.ker`][scipy]
 ///
@@ -250,7 +250,7 @@ pub fn ker(x: f64) -> f64 {
     kelvin(x)[1].re
 }
 
-/// Kelvin function *kei*
+/// Kelvin function $\kei$
 ///
 /// Corresponds to [`scipy.special.kei`][scipy]
 ///
@@ -354,10 +354,10 @@ pub fn keip(x: f64) -> f64 {
 ///   <https://dlmf.nist.gov/10.61.E2>.
 ///
 /// # Returns
-/// - *Be*: [`ber`] + *i* [`bei`]
-/// - *Ke*: [`ker`] + *i* [`kei`]
-/// - *Be*': [`berp`] + *i* [`beip`]
-/// - *Ke*': [`kerp`] + *i* [`keip`]
+/// - $\mathrm{Be}$: [`ber`] + $i$ [`bei`]
+/// - $\mathrm{Ke}$: [`ker`] + $i$ [`kei`]
+/// - $\mathrm{Be}\'$: [`berp`] + $i$ [`beip`]
+/// - $\mathrm{Ke}\'$: [`kerp`] + $i$ [`keip`]
 ///
 /// # See also
 /// - [`ber`]

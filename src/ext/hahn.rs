@@ -107,7 +107,7 @@ fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
 /// - $1 \le x \le N - 1$: the three-term recurrence in $n$ (DLMF 18.22.2), since the sum
 ///   cancels catastrophically. For integer $x$ and $n > \min(x, N - x)$, where that recurrence
 ///   can be unstable, the difference equation in $x$ (DLMF 18.22.10) from $Q_n(0) = 1$ or
-///   $Q_n(N) = (-1)^n (\beta+1)_n / (\alpha+1)_n$, whichever is on the same side of
+///   $Q_n(N) = (-1)^n (\beta+1)\_n / (\alpha+1)\_n$, whichever is on the same side of
 ///   $A_{n-1} + C_{n-1}$ (DLMF 18.22.3) as $x$.
 /// - $x < 1$, and $x > N - 1$ (reflected to $N - x < 1$): the sum, whose terms after the first
 ///   then all have the same sign.

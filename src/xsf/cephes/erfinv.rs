@@ -7,11 +7,11 @@ use crate::xsf::cephes::ndtri::ndtri_central;
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_SQRT_PI, LN_2};
 
-/// Inverse of the error function [*erf(x)*](crate::erf)
+/// Inverse of the error function [$\erf(x)$](crate::erf)
 ///
-/// In the complex domain, there is no unique complex number w satisfying erf(w)=z.
+/// In the complex domain, there is no unique complex number $w$ satisfying $\erf(w) = z$.
 /// This indicates a true inverse function would be multivalued. When the domain restricts to the
-/// real, -1 < x < 1, there is a unique real number satisfying erf(erfinv(x))=x.
+/// real, $-1 < x < 1$, there is a unique real number satisfying $\erf(\erf^{-1}(x)) = x$.
 ///
 /// Note that unlike [`scipy.special.erfinv`][scipy], which uses the Boost implementation,
 /// this function uses the Cephes implementation, which can be less accurate in certain regions.
@@ -71,13 +71,15 @@ pub fn erfinv(y: f64) -> f64 {
     }
 }
 
-/// Inverse of the complementary error function [*erfc(x)*](crate::erfc)
+/// Inverse of the complementary error function [$\erfc(x)$](crate::erfc)
 ///
-/// In the complex domain, there is no unique complex number w satisfying erfc(w)=z.
+/// In the complex domain, there is no unique complex number $w$ satisfying $\erfc(w) = z$.
 /// This indicates a true inverse function would be multivalued. When the domain restricts to the
-/// real, 0 < x < 2, there is a unique real number satisfying erfc(erfcinv(x))=erfcinv(erfc(x)).
+/// real, $0 < x < 2$, there is a unique real number satisfying
+/// $\erfc(\erfc^{-1}(x)) = \erfc^{-1}(\erfc(x))$.
 ///
-/// It is related to inverse of the error function by erfcinv(1 - y) = [erfinv(y)](fn.erfinv.html).
+/// It is related to inverse of the error function by $\erfc^{-1}(1 - y) =$
+/// [$\erf^{-1}(y)$](fn.erfinv.html).
 ///
 /// Note that [`scipy.special.erfcinv`][scipy] also uses the Cephes implementation.
 ///

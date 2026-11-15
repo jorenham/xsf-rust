@@ -1,6 +1,6 @@
 use num_traits::{PrimInt, Unsigned};
 
-/// Factorial *n*!
+/// Factorial $n!$
 ///
 /// Pure rust implementation of [`scipy.special.factorial(n, exact=True)`][factorial].
 ///
@@ -26,13 +26,13 @@ use num_traits::{PrimInt, Unsigned};
 ///
 /// # See also
 /// - [`factorial_checked`]: factorial with overflow checking
-/// - [`multifactorial`]: multifactorial *n*!<sub>(*k*)</sub>
+/// - [`multifactorial`]: multifactorial $n!_{(k)}$
 #[inline]
 pub fn factorial<N: PrimInt + Unsigned>(n: N) -> N {
     multifactorial(n, N::one())
 }
 
-/// Factorial *n*! with overflow checking
+/// Factorial $n!$ with overflow checking
 ///
 /// # Examples
 ///
@@ -49,19 +49,19 @@ pub fn factorial_checked<N: PrimInt + Unsigned>(n: N) -> Option<N> {
     multifactorial_checked(n, N::one())
 }
 
-/// Multifactorial *n*!<sub>(*k*)</sub> for positive *k*
+/// Multifactorial $n!_{(k)}$ for positive $k$
 ///
 /// Corresponds to [`scipy.special.factorialk(n, k, exact=True)`][factorialk].
 ///
 /// [factorialk]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.factorialk.html
 ///
 /// # Panics
-/// - If *k* = 0 and *n* = 1, as 1<sup>∞</sup> is indeterminate.
-/// - If *k* = 0 and *n* > 1, as n<sup>∞</sup> is divergent.
+/// - If $k = 0$ and $n = 1$, as $1^\infty$ is indeterminate.
+/// - If $k = 0$ and $n > 1$, as $n^\infty$ is divergent.
 ///
 /// # See also
 /// - [`multifactorial_checked`]: multifactorial with overflow checking
-/// - [`factorial`]: factorial *n*!, the special case *k* = 1
+/// - [`factorial`]: factorial $n!$, the special case $k = 1$
 #[doc(alias = "factorialk", alias = "factorial2")]
 #[inline]
 pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
@@ -85,7 +85,7 @@ pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     }
 }
 
-/// Multifactorial *n*!<sub>(*k*)</sub> for positive *k* with overflow checking
+/// Multifactorial $n!_{(k)}$ for positive $k$ with overflow checking
 ///
 /// Corresponds to [`scipy.special.factorialk(n, k, exact=True)`][factorialk].
 ///
@@ -93,7 +93,7 @@ pub fn multifactorial<N: PrimInt + Unsigned>(n: N, k: N) -> N {
 ///
 /// # See also
 /// - [`multifactorial`]: unchecked multifactorial
-/// - [`factorial_checked`]: factorial *n*! with overflow checking
+/// - [`factorial_checked`]: factorial $n!$ with overflow checking
 #[doc(alias = "factorialk_checked", alias = "factorial2_checked")]
 #[inline]
 pub fn multifactorial_checked<N: PrimInt + Unsigned>(n: N, k: N) -> Option<N> {
