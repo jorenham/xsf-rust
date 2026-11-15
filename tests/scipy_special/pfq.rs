@@ -768,8 +768,17 @@ fn test_hyppfq_asymptotic() {
     // Arb references, where the series has too many terms
     let (a, b) = ([0.5, 1.25, 2.75], [1.5, 2.25, 3.25]);
     let a_neg = [-0.5, 1.25, 2.75];
+    let (a4, b4) = ([0.5, 1.25, 2.75, -3.375], [1.5, 2.25, 3.25, -4.125]);
     assert_hyppfq(&a, &b, 500.0, 2.494_168_748_039_884e210);
     assert_hyppfq(&a_neg, &b, 400.0, -2.048_065_752_931_792_7e164);
+    // z < 0, where the series cancels
+    assert_hyppfq(&a, &b, -200.0, 0.115_205_192_301_031_53);
+    assert_hyppfq(&a, &b, -1e4, 0.016_481_346_737_557_533);
+    assert_hyppfq(&a4, &b4, -80.0, 3_084.118_291_519_921_5);
+    // 1 + a_m - a_i and 1 + a_m - b_j are close to the same integer
+    let a_near = [0.125, -4.875_000_000_000_001, 0.375];
+    let b_near = [0.124_999_999_999_999_97, 15.5, -8.25];
+    assert_hyppfq(&a_near, &b_near, -30.0, 0.739_525_258_049_542_4);
     // overflow, with the sign of the Gamma functions
     assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
     assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
@@ -951,7 +960,7 @@ fn test_hyppfq_none() {
     // the sum cancels too much
     assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
-    // large z > 0 with integer a_i - a_j
+    // large |z| with integer a_i - a_j
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);

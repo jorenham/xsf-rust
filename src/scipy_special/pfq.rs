@@ -67,6 +67,10 @@ const HYP2F2_ASYMPTOTIC_FIRST: f64 = 30.0;
 /// and cheaper (for $z > 0$, the series is more accurate)
 const HYP1F2_ASYMPTOTIC_FIRST: f64 = 225.0;
 
+/// From this $-z$ on, `hyppfq` tries the asymptotic expansion of ${}_pF_q$ for $p = q$ before
+/// the series, as for `HYP2F2_ASYMPTOTIC_FIRST`
+const PFQ_ASYMPTOTIC_FIRST: f64 = 30.0;
+
 /// The arithmetic in which a series is summed, with the analogs of the `f64` constants
 trait SeriesReal: Real + Add<f64, Output = Self> {
     /// Relative rounding error of an operation
@@ -1244,20 +1248,27 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     gamma_series(num, den, series, nu * ln_dd(Dd::new(z.abs())) + z)
 }
 
-/// ${}_pF_q$ for $p = q$ and $z > 0$ by its asymptotic expansion (DLMF 16.11.7), if its
-/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
+/// ${}_pF_q$ for $p = q$ by its asymptotic expansion (DLMF 16.11.7), if its estimated relative
+/// error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
 ///
-/// Only the exponentially large part is used. The sizes of the terms of the algebraic part are
-/// added to the error, which has no bound yet where two $a_i$ differ by an integer (`None`).
+/// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
+/// $z < 0$. The size of the other part is added to the error, for $z > 0$ as the sizes of the
+/// terms of the algebraic part, which has no bound yet where two $a_i$ differ by an integer
+/// (`None`).
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
-    if z < 0.0 || b_ref.len() != a_ref.len() + 1 {
+    if b_ref.len() != a_ref.len() + 1 {
         return None;
     }
-    let mut sizes = vec![None; a_ref.len()];
-    pfq_alg(a, b, z, true, &mut sizes)?;
+    let mut terms = vec![None; a_ref.len()];
+    pfq_alg(a, b, z, z > 0.0, &mut terms)?;
+    let alg = add_exp(terms.into_iter().flatten());
     let exp = pfq_exp(a_ref, b_ref, z)?;
-    checked_f64(exp, add_exp(sizes.into_iter().flatten()))
+    if z > 0.0 {
+        checked_f64(exp, alg)
+    } else {
+        checked_f64(alg?, Some(exp))
+    }
 }
 
 /// The limit at $z = \pm\infty$ for finite parameters if cheap, with `b` without the 1 of $n!$
@@ -1331,8 +1342,9 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// # Returns `None`
 ///
 /// - for $p > q + 1$, unless it is a polynomial;
-/// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], and for
-///   the other $p \le q$ for large $\abs z$, e.g. for most $z < -30$ if $p = q$;
+/// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
+///   other $p = q$ as for [`hyp2f2`], and also for large $z > 0$ if two $a_i$ differ by an
+///   integer, and for the other $p < q$ for large $\abs z$;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1390,8 +1402,15 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         },
         _ if a.len() <= b.len() => {
             b.push(1.0);
-            let series = pfq_series_sorted(a.clone(), b.clone(), z);
-            series.or_else(|| pfq_asymptotic(&a, &b, z))
+            let series = || pfq_series_sorted(a.clone(), b.clone(), z);
+            let asymptotic = || pfq_asymptotic(&a, &b, z);
+            if degree.is_finite() {
+                series()
+            } else if -z < PFQ_ASYMPTOTIC_FIRST {
+                series().or_else(asymptotic)
+            } else {
+                asymptotic().or_else(series)
+            }
         },
         _ => None,
     }
