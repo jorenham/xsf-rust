@@ -97,6 +97,25 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Ill-conditioned near the zeros.
 
+## Ellipsoidal harmonics
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ellip_harm</code><sup>*†</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ [0, 2k]<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.4e-13</samp></td><td align="right" nowrap><samp>6.0e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ellip_harm</code><sup>*†</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>5.2e-13</samp></td><td align="right" nowrap><samp>2.1e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ellip_harm_2</code></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.5e-13</samp></td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ellip_normal</code></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.1e-12</samp></td><td align="right" nowrap><samp>2.4e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> Ill-conditioned near the zeros.
+
+<sup>†</sup> For $`s < k`$: $`A = \max\lvert E^p_n\rvert`$ over 129 points of $`[0, h]`$ or $`[h, k]`$, whichever has $`s`$.
+
 ## Bessel functions
 
 <table>
@@ -1253,8 +1272,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 ## Not covered
 
-- No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
-  `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
+- No mpmath reference: Mathieu (`mathieu_*`), and spheroidal wave functions (`prolate_*`,
+  `oblate_*`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`

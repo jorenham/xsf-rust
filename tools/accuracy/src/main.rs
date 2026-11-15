@@ -264,6 +264,12 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("ellipj.1", &[u, m]) => xsf::ellipj(u, m).1,
         ("ellipj.2", &[u, m]) => xsf::ellipj(u, m).2,
         ("ellipj.3", &[u, m]) => xsf::ellipj(u, m).3,
+        // ellipsoidal harmonics
+        ("ellip_harm", &[h2, k2, n, p, s, signm, signn]) => {
+            xsf::ellip_harm(h2, k2, n as u32, p as u32, s, signm, signn)
+        },
+        ("ellip_harm_2", &[h2, k2, n, p, s]) => xsf::ellip_harm_2(h2, k2, n as u32, p as u32, s),
+        ("ellip_normal", &[h2, k2, n, p]) => xsf::ellip_normal(h2, k2, n as u32, p as u32),
         // hypergeometric functions
         ("hyp0f0", &[z]) => xsf::hyp0f0(z),
         ("hyp1f0", &[a, z]) => xsf::hyp1f0(a, z),

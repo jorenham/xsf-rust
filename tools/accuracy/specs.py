@@ -706,6 +706,134 @@ def r_ellipeinc(phi, m):
         return mp.ellipe(phi, m)
 
 
+def _lame(h2, k2, n, p):
+    """E^p_n as (e0, e1, e2, R): E(s) = s^e0 |s^2 - h2|^(e1/2) |s^2 - k2|^(e2/2) R(s^2), the
+    type (K, L, M, N, in SciPy's order of p, see DLMF 29.12.1) and the monic polynomial R.
+
+    Not SciPy's method: in y = s^2, with A = y - h2 and B = y - k2, the Lame equation for E is
+    T R = -a R, with T = 4 y A B R'' + Q1 R' + Q0 R, where
+    Q1 = 2 (1 + 2 e0) A B + 2 y ((1 + 2 e1) B + (1 + 2 e2) A) and
+    Q0 = (e0 + e1 + 2 e0 e1) B + (e0 + e2 + 2 e0 e2) A + (e1 + e2 + 2 e1 e2 - n (n + 1)) y.
+    T maps the polynomials of degree m = (n - e0 - e1 - e2) / 2 to themselves, so R is an
+    eigenvector of its matrix; p counts up the eigenvalues a within each type."""
+    n, p = int(n), int(p)
+    r = n // 2
+    for e1, e2, size in [(0, 0, r + 1), (1, 0, n - r), (0, 1, n - r), (1, 1, r)]:
+        if p <= size:
+            break
+        p -= size
+    e0 = (n - e1 - e2) % 2
+    m = (n - e0 - e1 - e2) // 2
+    prod, total = h2 * k2, h2 + k2
+    # the coefficients (ascending in y) of R, R', and R'' in T R
+    q0 = [
+        -(e0 + e1 + 2 * e0 * e1) * k2 - (e0 + e2 + 2 * e0 * e2) * h2,
+        2 * (e0 + e1 + e2 + e0 * e1 + e0 * e2 + e1 * e2) - n * (n + 1),
+    ]
+    q1 = [
+        2 * (1 + 2 * e0) * prod,
+        -2 * (1 + 2 * e0) * total - 2 * (1 + 2 * e1) * k2 - 2 * (1 + 2 * e2) * h2,
+        2 * (1 + 2 * e0) + 4 * (1 + e1 + e2),
+    ]
+    q2 = [0, 4 * prod, -4 * total, 4]
+    t = mp.zeros(m + 1, m + 1)
+    for j in range(m + 1):
+        # T y^j = Q0 y^j + j Q1 y^(j - 1) + j (j - 1) 4 y A B y^(j - 2), without the y^(m + 1)
+        # term, which vanishes for j = m
+        for d, q in enumerate([q0, q1, q2]):
+            for i, c in enumerate(q):
+                if 0 <= i + j - d <= m:
+                    t[i + j - d, j] += mp.ff(j, d) * c
+    ev, er = mp.eig(t)
+    # the p-th smallest a = -ev
+    j = sorted(range(m + 1), key=lambda i: -mp.re(ev[i]))[p - 1]
+    return e0, e1, e2, [mp.re(er[i, j] / er[m, j]) for i in range(m + 1)]
+
+
+def _lame_eval(lame, s, a, b):
+    """E(s) of `_lame` with the prefactor signs +1, given a = s^2 - h2 and b = s^2 - k2."""
+    e0, e1, e2, r = lame
+    psi = s**e0 * mp.sqrt(abs(a)) ** e1 * mp.sqrt(abs(b)) ** e2
+    return psi * mp.polyval(r[::-1], s * s)
+
+
+def r_ellip_harm(h2, k2, n, p, s, signm, signn):
+    """E^p_n(s) of `_lame`, with the scale max |E| on [0, h] or [h, k] (whichever has s) if s < k;
+    its zeros are there."""
+    lame = _lame(h2, k2, n, p)
+    sign = signm ** lame[1] * signn ** lame[2]
+    e = sign * _lame_eval(lame, s, s * s - h2, s * s - k2)
+    if s * s >= k2:
+        return e
+    # a grid of t = h sin(phi) or t^2 = h2 cos^2(theta) + k2 sin^2(theta), denser at the ends
+    xs = [mp.pi / 2 * i / 128 for i in range(129)]
+    if s * s < h2:
+        ts = [(mp.sqrt(h2) * mp.sin(x), -h2 * mp.cos(x) ** 2) for x in xs]
+        pts = [(t, a, t * t - k2) for t, a in ts]
+    else:
+        d = k2 - h2
+        pts = [
+            (mp.sqrt(h2 + d * mp.sin(x) ** 2), d * mp.sin(x) ** 2, -d * mp.cos(x) ** 2)
+            for x in xs
+        ]
+    return e, max(abs(_lame_eval(lame, *pt)) for pt in pts)
+
+
+def _quad_rel(f, pts):
+    """`mp.quad` to a relative tolerance: its tolerance is absolute, so f is first scaled by a
+    rough integral."""
+    with mp.workdps(15):
+        c = mp.fabs(mp.quad(f, pts))
+    return c * mp.quad(lambda x: f(x) / c, pts)
+
+
+def r_ellip_harm_2(h2, k2, n, p, s):
+    """(2n + 1) E(s) times the integral over t in [s, inf) of 1 / (E(t)^2 sqrt((t^2 - h2)
+    (t^2 - k2))), with t^2 = k2 + v^2 and v = v_s e^x, which leaves v / (t E(t)^2 sqrt(t^2 - h2))
+    dx over x in [0, inf): smooth, also for s ~ k (v_s ~ 0)."""
+    lame = _lame(h2, k2, n, p)
+    vs = mp.sqrt(s * s - k2)
+
+    def f(x):
+        v = vs * mp.exp(x)
+        t = mp.sqrt(k2 + v * v)
+        a = k2 - h2 + v * v
+        return v / (t * _lame_eval(lame, t, a, v * v) ** 2 * mp.sqrt(a))
+
+    # v ~ sqrt(k2) is where the integrand changes from ~1 to ~v^(-2n - 1)
+    xk = mp.log(mp.sqrt(k2) / vs)
+    pts = [0, xk, xk + 3, mp.inf] if xk > 0 else [0, 3, mp.inf]
+    e = _lame_eval(lame, s, s * s - h2, vs * vs)
+    return (2 * n + 1) * e * _quad_rel(f, pts)
+
+
+def r_ellip_normal(h2, k2, n, p):
+    """8 (J2 I0 - J0 I2), the double integral split by y^2 - x^2, with the integrals Ji (of
+    y^i E(y)^2 / sqrt((k2 - y^2)(y^2 - h2)) over [h, k]) and Ii (of x^i E(x)^2 /
+    sqrt((h2 - x^2)(k2 - x^2)) over [0, h]); with y^2 = h2 cos^2(theta) + k2 sin^2(theta) and
+    x = h sin(phi), so that their integrands are smooth."""
+    lame = _lame(h2, k2, n, p)
+    d = k2 - h2
+
+    def j(i):
+        def f(theta):
+            a, b = d * mp.sin(theta) ** 2, -d * mp.cos(theta) ** 2
+            y2 = h2 + a
+            return y2 ** (i / 2 - 1 / 2) * _lame_eval(lame, mp.sqrt(y2), a, b) ** 2
+
+        return _quad_rel(f, [0, mp.pi / 4, mp.pi / 2])
+
+    def i_(i):
+        def f(phi):
+            x = mp.sqrt(h2) * mp.sin(phi)
+            a, b = -h2 * mp.cos(phi) ** 2, x * x - k2
+            return x**i * _lame_eval(lame, x, a, b) ** 2 / mp.sqrt(-b)
+
+        return _quad_rel(f, [0, mp.pi / 4, mp.pi / 2])
+
+    return 8 * (j(2) * i_(0) - j(0) * i_(2))
+
+
 def _arb(name, *args):
     """`ARB[name]` with increasing precision, until it is accurate to the working precision."""
     prec = mp.mp.prec
@@ -2927,6 +3055,84 @@ for i in range(4):
         note="zeros_c" if i != 2 else "",
     )
 
+section("Ellipsoidal harmonics")
+H2, K2 = "h\u00b2", "k\u00b2"
+LAME_HK = LU(1e-2, 1e2)
+LAME_S = LU(1e-12, 1e3)
+
+
+def lame_args(r: Random) -> tuple[float, float, int, int]:
+    """(h2, k2, n, p) with h2 and k2 - h2 sampled from `LAME_HK`, n in {0, ..., 10}, and p in
+    {1, ..., 2n + 1}."""
+    h2 = LAME_HK.sample(r)
+    n = r.randint(0, 10)
+    return h2, h2 + LAME_HK.sample(r), n, r.randint(1, 2 * n + 1)
+
+
+def lame_s(r: Random, k2: float) -> float:
+    """s = k (1 + t), with t sampled from `LAME_S`."""
+    return math.sqrt(k2) * (1 + LAME_S.sample(r))
+
+
+def lame_signs(r: Random) -> tuple[int, int]:
+    return r.choice((-1, 1)), r.choice((-1, 1))
+
+
+LAME = (
+    f"{nobreak(H2, IN, LAME_HK.pretty())} (log), "
+    + f"{nobreak(f'{K2} {MINUS} {H2}', IN, LAME_HK.pretty())} (log), "
+    + f"{nobreak('n', IN, Int(0, 10).pretty())}, "
+    + nobreak("p", IN, f"{{1, {ELLIPSIS}, 2n + 1}}")
+)
+LAME_LABEL = (
+    "h2, k2 - h2 in [0.01, 100] (log), n in {0, ..., 10}, p in {1, ..., 2n + 1}"
+)
+LAME_S_PRETTY = f"{nobreak('s', IN, f'k (1 + {LAME_S.pretty()})')} (log)"
+LAME_SIGNS = nobreak("signm, signn", IN, f"{{{PM}1}}")
+add(
+    "ellip_harm",
+    "h2 k2 n p s signm signn",
+    r_ellip_harm,
+    D(
+        sampler=lambda r: (
+            *(a := lame_args(r)),
+            r.uniform(0, 2 * math.sqrt(a[1])),
+            *lame_signs(r),
+        ),
+        label=f"{LAME_LABEL}, s in [0, 2k], signm, signn in +-1",
+        pretty=f"{LAME}, {nobreak('s', IN, '[0, 2k]')}, {LAME_SIGNS}",
+    ),
+    D(
+        sampler=lambda r: (
+            *(a := lame_args(r)),
+            lame_s(r, a[1]),
+            *lame_signs(r),
+        ),
+        label=f"{LAME_LABEL}, s in k (1 + [1e-12, 1e3]) (log), signm, signn in +-1",
+        pretty=f"{LAME}, {LAME_S_PRETTY}, {LAME_SIGNS}",
+    ),
+    cpp=False,
+    note="zeros_c lame",
+)
+add(
+    "ellip_harm_2",
+    "h2 k2 n p s",
+    r_ellip_harm_2,
+    D(
+        sampler=lambda r: (*(a := lame_args(r)), lame_s(r, a[1])),
+        label=f"{LAME_LABEL}, s in k (1 + [1e-12, 1e3]) (log)",
+        pretty=f"{LAME}, {LAME_S_PRETTY}",
+    ),
+    cpp=False,
+)
+add(
+    "ellip_normal",
+    "h2 k2 n p",
+    r_ellip_normal,
+    D(sampler=lame_args, label=LAME_LABEL, pretty=LAME, n=2000),
+    cpp=False,
+)
+
 section("Bessel functions")
 add(
     "bessel_j",
@@ -4665,6 +4871,10 @@ NOTES |= {
         r"Absolute error $`\sim 10^{-16}`$, so the relative error is large where the result is "
         r"close to 0, i.e. where $`x_j`$ dominates."
     ),
+    "lame": (
+        r"For $`s < k`$: $`A = \max\lvert E^p_n\rvert`$ over 129 points of $`[0, h]`$ or "
+        r"$`[h, k]`$, whichever has $`s`$."
+    ),
     "poly": (
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
@@ -4674,8 +4884,8 @@ NOTES |= {
 NOT_COVERED = """\
 ## Not covered
 
-- No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
-  `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
+- No mpmath reference: Mathieu (`mathieu_*`), and spheroidal wave functions (`prolate_*`,
+  `oblate_*`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`
