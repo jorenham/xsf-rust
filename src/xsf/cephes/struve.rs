@@ -256,15 +256,18 @@ fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let mut maxterm: f64 = 0.0;
 
     let mut cterm = (z / TAU).sqrt();
+    let half_z = if is_h { z / 2.0 } else { -z / 2.0 };
+    let mut bessel = 0.0;
 
     for n in 0..STRUVE_MAXITER {
-        if is_h {
-            term = cterm * cyl_bessel_j_f64(f64::from(n) + v + 0.5, z) / (f64::from(n) + 0.5);
-            cterm *= z / 2.0 / f64::from(n + 1);
+        let order = f64::from(n) + v + 0.5;
+        bessel = if is_h {
+            cyl_bessel_j_f64(order, z)
         } else {
-            term = cterm * iv(f64::from(n) + v + 0.5, z) / (f64::from(n) + 0.5);
-            cterm *= -z / 2.0 / f64::from(n + 1);
-        }
+            iv(order, z)
+        };
+        term = cterm * bessel / (f64::from(n) + 0.5);
+        cterm *= half_z / f64::from(n + 1);
         sum += term;
         if term.abs() > maxterm {
             maxterm = term.abs();
@@ -277,7 +280,11 @@ fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     *err = term.abs() + maxterm.abs() * 1e-16;
 
     /* Account for potential underflow of the Bessel functions */
-    *err += 1e-300 * cterm.abs();
+    // Unlike in xsf, only if the last one is not normal: where they can underflow, they decrease
+    // with n, so that any underflow implies that the last one is not normal
+    if !bessel.is_normal() {
+        *err += 1e-300 * cterm.abs();
+    }
 
     sum
 }

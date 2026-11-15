@@ -83,6 +83,18 @@ fn test_struve_h_l_accurate() {
 }
 
 #[test]
+fn test_struve_h_bessel_series_no_underflow() {
+    // large orders, where the coefficients (z/2)^n / n! of the Bessel series are large, but no
+    // Bessel function underflows (reference values from Arb)
+    let actual = [
+        xsf::struve_h(780.37, 288.403_150_312_66),
+        xsf::struve_h(824.714_790_883_217_1, 320.092_396_316_967_1),
+    ];
+    let expected = [6.968_982_334_069_738e-237, 1.200_536_822_257_174_5e-232];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-15);
+}
+
+#[test]
 fn test_struve_h_l_power_series_cancellation() {
     // power series whose largest term is 4e4 to 3e8 times the sum (reference values from Arb)
     let actual = [
