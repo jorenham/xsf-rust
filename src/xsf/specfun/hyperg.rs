@@ -1418,7 +1418,6 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
         0.471272992695363e-02,
         0.202681196887362e-02,
     ];
-    *id = 9;
     // DLMF 13.4.4, integration up to C=12/X
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
@@ -1449,6 +1448,9 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     };
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
+    // Unlike in xsf, the id is at most 9 (as in xsf) and less if a refinement loop doesn't converge,
+    // from the relative change of its last refinement
+    let (mut d_head, mut d_tail) = (0.0, 0.0);
     for m in (10..=100).step_by(5) {
         hu1 = 0.0;
         let g = if cubic { 0.5 } else { 0.5 * c } / f64::from(m);
@@ -1463,7 +1465,8 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
             hu1 += s * g;
             d += 2.0 * g;
         }
-        if (1.0 - hu0 / hu1).abs() < 1.0e-9 {
+        d_head = (1.0 - hu0 / hu1).abs();
+        if d_head < 1.0e-9 {
             break;
         }
         hu0 = hu1;
@@ -1507,13 +1510,25 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
         }
         // NOTE: in the first iteration `hu0` still holds a `hu1` of the first integral (the
         // second-to-last one if that loop converged, else the last one), not divided by `ga`.
-        if (1.0 - hu0 / hu2).abs() < 1.0e-9 {
+        d_tail = (1.0 - hu0 / hu2).abs();
+        if d_tail < 1.0e-9 {
             break;
         }
         hu0 = hu2;
     }
     hu2 /= ga;
     let hu = hu1 + hu2;
+    // An integral that is 0 (e.g. if its integrand underflows) adds no error. If U is 0 or
+    // infinite (e.g. if it under- or overflows) it has 9 digits as in xsf, else none if NaN.
+    let err = |d: f64, h: f64| if h == 0.0 { 0.0 } else { d * h.abs() };
+    let rel = (err(d_head, hu1) + err(d_tail, hu2)) / hu.abs();
+    *id = if hu == 0.0 || hu.is_infinite() {
+        9
+    } else if rel < 1.0 {
+        (-rel.log10()).min(9.0) as i32
+    } else {
+        0
+    };
     hu
 }
 
