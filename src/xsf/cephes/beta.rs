@@ -17,7 +17,7 @@ use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::{PI, TAU};
 
-const BETA_ASYMP_FACTOR: f64 = 1e6;
+pub(super) const BETA_ASYMP_FACTOR: f64 = 1e6;
 /// Below this `|b / a|`, `lbeta_ratio` uses `lgam_ratio`, and at or above it, for `a, b > 0`,
 /// Stirling's formula
 const STIRLING_RATIO: f64 = 0.125;
@@ -28,7 +28,8 @@ const BETA_TINY: f64 = 1e-9;
 ///
 /// Returns the sign as well, instead of through the `int *sgn` out-parameter.
 ///
-/// Unlike in xsf, `-b ln(a)` is `-b ln_a`, so that `ln_a = 0` gives `ln(a^b |B(a, b)|)`.
+/// Unlike in xsf, `-b ln(a)` is `-b ln_a`, so that `ln_a = 0` gives `ln(a^b |B(a, b)|)` (see
+/// `ln_pow_beta`).
 fn lbeta_asymp(a: f64, b: f64, ln_a: f64) -> (f64, i32) {
     let (mut r, sgn) = lgam_sgn(b);
     r -= b * ln_a;
@@ -386,6 +387,12 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y.ln()
+}
+
+/// `ln(a^b B(a, b))` for `a > BETA_ASYMP_FACTOR max(b, 1)` and `b > 0`, without the cancellation of
+/// `lbeta(a, b) + b ln(a)`, as `lbeta(a, b) = lgam(b) - b ln(a) + O(b^2 / a)` there
+pub(crate) fn ln_pow_beta(a: f64, b: f64) -> f64 {
+    lbeta_asymp(a, b, 0.0).0
 }
 
 /// Below this `a`, [`ln_a_beta`] uses Simpson's rule, which errs by `~a^5 / 100`, instead of

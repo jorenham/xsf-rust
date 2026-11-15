@@ -118,6 +118,34 @@ fn test_betainc_huge_b() {
 }
 
 #[test]
+fn test_betainc_huge_b_far_tail() {
+    // where avoiding the cancellation of `lbeta(a, b)` gains little or `b x` is subnormal; from Arb
+    let p = [
+        xsf::betainc(0.5, 1_000_000.5, 5e-324),
+        xsf::nbdtr(4_999_999, 3, 1e-101),
+        xsf::stdtr(1e7, -33.0),
+        xsf::betainc(
+            2.349_899_924_677_931_3,
+            6.456_904_856_945_78e123,
+            8.798_881_745_818_847e-248,
+        ),
+    ];
+    let p_ref = [
+        2.508_114_979_912_588e-159,
+        2.083_334_583_333_500_3e-284,
+        4.183_613_098_402_409e-239,
+        8.589_904_179_320_48e-291,
+    ];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 5e-14);
+    let p = xsf::betainc(
+        26.728_246_467_681_846,
+        69_889_658_245.139_68,
+        2.215_778_044_098_163_3e-21,
+    );
+    xsref::np_assert_allclose!(&[p], &[1.405_590_341_196_625e-290], rtol = 1e-13);
+}
+
+#[test]
 fn test_betainc_a_or_b_above_1e154() {
     assert_eq!(xsf::betainc(2.1e164, 4.6e5, 0.5), 0.0);
     xsref::np_assert_allclose!(&[xsf::betainc(381.0, 9.9e154, 0.5)], &[1.0], rtol = 1e-15);

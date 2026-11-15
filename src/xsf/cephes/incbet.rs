@@ -6,8 +6,9 @@
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
 use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_TAU_DOWN};
+use crate::xsf::cephes::beta::BETA_ASYMP_FACTOR;
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG, MINLOG};
-use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, psi, zeta};
+use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, ln_pow_beta, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
 use crate::xsf::trigamma;
@@ -102,12 +103,38 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
         // 32-bit x86, to prevent aggressive optimizations from degrading accuracy
         s = (s * t) * x.powf(a);
     } else {
-        let t = -lbeta(a, b) + u + s.ln();
+        let mut t = -lbeta(a, b) + u + s.ln();
+        if let Some(p) = incbet_ln_pow_asymp(a, b, x, t) {
+            t = p + s.ln();
+        }
         // Unlike in xsf, also 0 if `t` is NaN, as `lbeta` can be `inf - inf` if `a` and `b` are
         // both huge, where `x^a` underflows
         s = if t >= MINLOG { t.exp() } else { 0.0 };
     }
     s
+}
+
+/// The factor by which the rounding of `p ln(v) - lbeta(p, q)` beyond `|t| eps` must exceed all
+/// that of `incbet_ln_pow_asymp`, as the error of either form is random within its bound
+const INCBET_LN_POW_MIN_GAIN: f64 = 2.0;
+
+/// `p ln(v) - lbeta(p, q)` (`t`) as `p ln(q v) - ln_pow_beta(q, p)` if `q > BETA_ASYMP_FACTOR
+/// max(p, 1)` and the former rounds `INCBET_LN_POW_MIN_GAIN` times more, else `None`
+///
+/// Unlike in xsf, which loses the `p ln(q)` of `lbeta` (`lbeta_asymp`) to cancellation. On top of
+/// the `|t| eps` that both lose, the former rounds by up to `(p ln(q) + p |ln(v)|) eps`, the
+/// latter by up to `(p |ln(q v)| + p + |ln_pow_beta|) eps`, with `p eps` from rounding `q v`, so
+/// only if that is normal. Where `|t|` dominates, either may be the more accurate.
+fn incbet_ln_pow_asymp(p: f64, q: f64, v: f64, t: f64) -> Option<f64> {
+    let qv = q * v;
+    if q <= BETA_ASYMP_FACTOR * p.max(1.0) || qv < f64::MIN_POSITIVE {
+        return None;
+    }
+    let ln_qv = qv.ln();
+    let ln_pb = ln_pow_beta(q, p);
+    let excess = p * (q.ln() + v.ln().abs());
+    let bound_pow = p * (ln_qv.abs() + 1.0) + ln_pb.abs() + t.abs();
+    (excess >= INCBET_LN_POW_MIN_GAIN * bound_pow).then_some(p * ln_qv - ln_pb)
 }
 
 /// `ln(x) + psi(b)`, as `ln(b x)` for `b eps > 0.02`, where `psi(b)` is `ln(b)` up to `eps / 0.04`,
@@ -596,8 +623,14 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             // Unlike in xsf (scipy/xsf#358), the log of the larger (possibly rounded) of `x` and
             // `xc` is `ln_1p` of minus the smaller one.
             y += b * (-x).ln_1p() - lbeta(a, b);
+            if let Some(p) = incbet_ln_pow_asymp(a, b, x, y) {
+                y = p + b * (-x).ln_1p();
+            }
         } else {
             y = a * (-xc).ln_1p() + t - lbeta(a, b);
+            if let Some(p) = incbet_ln_pow_asymp(b, a, xc, y) {
+                y = p + a * (-xc).ln_1p();
+            }
         }
         y += (w / a).ln();
         if y < MINLOG { 0.0 } else { y.exp() }

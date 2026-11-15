@@ -515,6 +515,16 @@ fn test_ncfdtr_tiny_y() {
 }
 
 #[test]
+fn test_ncfdtr_huge_dfn() {
+    // where `-ln(B(dfn / 2 + i, dfd / 2))` cancels `dfd / 2 ln(y)`; from Arb
+    np_assert_allclose!(
+        [xsf::ncfdtr(5.623_413_251_903_491e303, 5.0, 1.0, 0.5)],
+        [0.075_235_246_146_512_18],
+        rtol = 1e-15
+    );
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

@@ -842,6 +842,25 @@ fn test_fdtr_stdtr_huge_df() {
 }
 
 #[test]
+fn test_fdtr_fdtrc_huge_dfn() {
+    // `dfn = 1e300`, where `-ln(B(dfn / 2, dfd / 2))` cancels `dfd / 2 ln(1 - w)`; from Arb
+    let bx = [(5.0, 0.5), (5.0, 2.0), (0.5, 0.5)];
+    let p = [
+        0.075_235_246_146_512_18,
+        0.776_495_071_123_322_7,
+        0.153_513_595_808_322_47,
+    ];
+    let q = [
+        0.924_764_753_853_487_8,
+        0.223_504_928_876_677_3,
+        0.846_486_404_191_677_5,
+    ];
+    let rtol = 1e-15;
+    xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtr(1e300, b, x)), &p, rtol = rtol);
+    xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtrc(1e300, b, x)), &q, rtol = rtol);
+}
+
+#[test]
 fn test_fdtr_fdtrc_exact_1mw() {
     // reference values from Arb; the Beta argument (`w` for fdtr, `1 - w` for fdtrc) is in
     // (1/2, 0.95], where its complement is inexact
