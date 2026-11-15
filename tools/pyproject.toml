@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "matplotlib==3.11.2",
   "mpmath==1.4.1",
   "polars==2.1.0",
   "pyrefly==1.4.1",

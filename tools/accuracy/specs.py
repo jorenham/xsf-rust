@@ -3954,6 +3954,7 @@ for p, args, zmax in [
     (2, "a1 a2 b1 b2 b3 z", 1e6),
     (1, "a b1 b2 b3 z", 1e8),
     (0, "b1 b2 z", 1e8),
+    (0, "b1 b2 b3 z", 1e8),
 ]:
     params, call = len(args.split()) - 1, f"hyppfq{p}"
     name = f"hyppfq#{p}f{params - p}"
@@ -4296,6 +4297,6 @@ ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
     "hyp1f2": lambda a, b1, b2, z: z.hypgeom([a], [b1, b2]),
     **{
         f"hyppfq#{p}f{q}": lambda *v, p=p: v[-1].hypgeom(list(v[:p]), list(v[p:-1]))
-        for p, q in [(3, 3), (2, 3), (1, 3), (0, 2)]
+        for p, q in [(3, 3), (2, 3), (1, 3), (0, 2), (0, 3)]
     },
 }
