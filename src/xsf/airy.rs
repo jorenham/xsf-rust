@@ -220,6 +220,7 @@ fn ai_tail(zeta: C64) -> C64 {
     (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
 }
 
+// Translated from `xsf/cpu/airy.h` (scipy/xsf@078fb3a)
 fn itairy_impl(x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute the integrals of Airy fnctions with
@@ -308,7 +309,7 @@ fn itairy_impl(x: f64) -> [f64; 4] {
     } else {
         let xp6 = 1.0 / (6.0 * PI * xe).sqrt();
         if xp6 == 0.0 {
-            // Unlike in xsf (scipy/xsf#448), return the limits as x -> inf once 6 pi xe overflows
+            // 6 pi xe overflows: the limits as x -> inf (DLMF 9.10.11, 9.7.7, 9.10.12)
             return [q0, f64::INFINITY, q1, 0.0];
         }
         let mut su1 = 1.0;
@@ -327,8 +328,9 @@ fn itairy_impl(x: f64) -> [f64; 4] {
         apt = q0 - (-xe).exp() * xp6 * su1;
         bpt = 2.0 * xe.exp() * xp6 * su2;
         if bpt.is_infinite() {
-            // Unlike in xsf (scipy/xsf#448), retry with `mul_exp` to avoid premature overflow
-            bpt = mul_exp(2.0 * xp6 * su2, xe);
+            // exp(xe) may overflow before bpt does
+            let g = (0.5 * xe).exp();
+            bpt = 2.0 * g * xp6 * su2 * g;
         }
         let mut su3 = 1.0;
         r = 1.0;
