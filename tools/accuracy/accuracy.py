@@ -408,6 +408,9 @@ IMPLS: Final = {"rust": "xsf-rust", "cpp": "xsf", "std": "std"}
 NA: Final = "\u2014"  # for functions that xsf does not have
 # footnote marks: *, dagger, double dagger, section sign, double bar, pilcrow
 FOOTNOTES: Final = "*\u2020\u2021\u00a7\u2016\u00b6"
+# the smallest error that is marked with `BAD_MARK`
+BAD: Final = 1e-6
+BAD_MARK: Final = "\u2757"  # heavy exclamation mark, a red emoji
 
 
 def fmt(x: float | str | None, ninf: int = 0) -> str:
@@ -419,7 +422,8 @@ def fmt(x: float | str | None, ninf: int = 0) -> str:
     if x == 0:
         s = "0"
     elif not math.isfinite(x):
-        s = f"{x} ({ninf})" if ninf else str(x)
+        # the number of infinite errors, after a no-break space to stay on one line
+        s = f"\u221e\u00a0({ninf})"
     else:
         s = f"{x:.1e}"
     return f"<samp>{s}</samp>"
@@ -430,9 +434,16 @@ def _err_key(cell: str) -> tuple[float, int] | None:
     if not cell.startswith("<samp>"):
         return None
     s = cell.removeprefix("<samp>").removesuffix("</samp>")
-    if s.startswith("inf"):
-        return (math.inf, int(s.partition("(")[2].rstrip(")") or 0))
+    if s.startswith("\u221e"):
+        return (math.inf, int(s.partition("(")[2].rstrip(")")))
     return (float(s), 0)
+
+
+def mark_bad(cell: str) -> str:
+    """Mark an error of at least `BAD`, or infinite errors, with a red `BAD_MARK` (GitHub drops
+    CSS colors, and its math can be neither bold nor monospace)."""
+    k = _err_key(cell.removeprefix("<b>").removesuffix("</b>"))
+    return cell if k is None or k[0] < BAD else BAD_MARK + cell
 
 
 def mark_best(errs: Iterable[str]) -> list[str]:
@@ -466,7 +477,8 @@ def table(impls: list[str], rows: list[list[str]]) -> str:
     for name, domain, n, *errs, same in rows:
         cells = [f"<td>{name}</td>", f"<td>{domain}</td>"]
         cells += [
-            f'<td align="right" nowrap>{x}</td>' for x in [n, *mark_best(errs), same]
+            f'<td align="right" nowrap>{x}</td>'
+            for x in [n, *map(mark_bad, mark_best(errs)), same]
         ]
         lines.append(f"<tr>{''.join(cells)}</tr>")
     lines += ["</tbody>", "</table>"]
@@ -494,8 +506,9 @@ it is translated from (commit [`{short}`](https://github.com/scipy/xsf/tree/{com
 the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
-- **inf (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
+- **\u221e (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
 - **bold**: the smallest peak or rms of a row (unless all are equal at the displayed precision)
+- **\u2757**: an error of {bad} or more, or infinite errors
 - **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
 - **same**: the share of inputs where xsf-rust and xsf return the same f64 (bit-identical)
 - **(log)**: sampled log-uniformly; **$`\\pm`$**: with a random sign
@@ -523,7 +536,14 @@ METHOD: Final = """\
 
 
 def render(results: list[Result], ver: dict[str, str]) -> str:
-    out = [HEADER.format(short=XSF_COMMIT[:7], commit=XSF_COMMIT, **ver).rstrip("\n")]
+    out = [
+        HEADER.format(
+            short=XSF_COMMIT[:7],
+            commit=XSF_COMMIT,
+            bad=f"$`10^{{{math.log10(BAD):.0f}}}`$",
+            **ver,
+        ).rstrip("\n")
+    ]
     group = None  # the heading of a group without a table, until one of its subgroups has one
     for title, level in specs.SECTIONS.items():
         heading = f"{'#' * level} {title}"

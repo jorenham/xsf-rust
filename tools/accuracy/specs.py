@@ -82,6 +82,12 @@ def nobreak(*parts: str) -> str:
     return s.replace(f"{PM}[", f"{PM}\u2060[").replace(f"{MINUS}[", f"{MINUS}\u2060[")
 
 
+def _var(argname: str) -> str:
+    """The argument of a real or imaginary part, e.g. "z" for "re" (Re z), or "" if real."""
+    name = GREEK.get(argname, argname)
+    return name[3:] if name.startswith(("Re\u00a0", "Im\u00a0")) else ""
+
+
 def wrap(s: str) -> str:
     """Put each argument's domain on its own line, i.e. break at the ", " between them (the ones
     outside brackets; within an argument's domain, `nobreak` leaves only those in intervals)."""
@@ -257,12 +263,13 @@ class Domain:
         )
 
     def pretty(self, argnames: Iterable[str]) -> str:
-        """Unicode description for the table; consecutive equal distributions are merged."""
+        """Unicode description for the table; consecutive equal distributions are merged, but
+        the real and imaginary parts of different arguments are not, to keep the lines short."""
         if self.pretty_label:
             return wrap(self.pretty_label)
         groups: list[tuple[list[str], Dist]] = []
         for a, d in zip(argnames, self.dists, strict=True):
-            if groups and groups[-1][1] == d:
+            if groups and groups[-1][1] == d and _var(groups[-1][0][-1]) == _var(a):
                 groups[-1][0].append(a)
             else:
                 groups.append(([a], d))
@@ -4834,10 +4841,11 @@ add(
         label="h in [-3, 3], positive definite R",
         pretty=f"{nobreak('h\u2081, h\u2082, h\u2083', IN, U(-3, 3).pretty())}, "
         + f"{nobreak('r\u2081\u2082, r\u2081\u2083', IN, U(-0.9, 0.9).pretty())}, "
+        + nobreak("r\u2082\u2083", IN, "r\u2081\u2082r\u2081\u2083")
+        # on two lines, to keep the column narrow
+        + "<br>"
         + nobreak(
-            "r\u2082\u2083",
-            IN,
-            f"r\u2081\u2082r\u2081\u2083 {PM} 0.9{SQRT}((1 {MINUS} r\u2081\u2082\u00b2)(1 {MINUS} r\u2081\u2083\u00b2))",
+            f"{PM} 0.9{SQRT}((1 {MINUS} r\u2081\u2082\u00b2)(1 {MINUS} r\u2081\u2083\u00b2))"
         ),
         n=1000,
     ),
