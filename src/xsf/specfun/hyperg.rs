@@ -11,6 +11,7 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
+use crate::ext::{Scaled, add_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
@@ -18,7 +19,6 @@ use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64, two_sum};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
-use crate::xsf::{Scaled, add_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::{digamma, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an

@@ -1,4 +1,4 @@
-use xsf::hahn_q;
+use xsf::eval_hahn;
 use xsref::np_assert_allclose;
 
 /// `(a)_k`
@@ -7,20 +7,20 @@ fn poch(a: f64, k: u32) -> f64 {
 }
 
 #[test]
-fn test_hahn_q_exact() {
+fn test_eval_hahn_exact() {
     // exact rational 3F2 sums
     let actual = [
-        hahn_q(2, 7, 0.5, 1.25, 2.0),
-        hahn_q(3, 7, 0.5, 1.25, 2.5),
-        hahn_q(4, 6, -0.5, -0.5, 9.0),
-        hahn_q(3, 6, -0.5, -0.5, -1.5),
-        hahn_q(40, 50, 3.0, 0.25, -2.0),
-        hahn_q(500, 1000, 0.5, 2.0, 300.5),
+        eval_hahn(2, 7, 0.5, 1.25, 2.0),
+        eval_hahn(3, 7, 0.5, 1.25, 2.5),
+        eval_hahn(4, 6, -0.5, -0.5, 9.0),
+        eval_hahn(3, 6, -0.5, -0.5, -1.5),
+        eval_hahn(40, 50, 3.0, 0.25, -2.0),
+        eval_hahn(500, 1000, 0.5, 2.0, 300.5),
         // the recurrence in n is unstable here
-        hahn_q(900, 1000, 0.5, 2.0, 50.0),
-        hahn_q(900, 1000, 0.5, 2.0, 950.0),
+        eval_hahn(900, 1000, 0.5, 2.0, 50.0),
+        eval_hahn(900, 1000, 0.5, 2.0, 950.0),
         // and the difference equation in x from x = 0
-        hahn_q(54, 54, 100.0, -0.875, 27.0),
+        eval_hahn(54, 54, 100.0, -0.875, 27.0),
     ];
     let desired = [
         -0.462_698_412_698_412_7,
@@ -37,16 +37,16 @@ fn test_hahn_q_exact() {
 }
 
 #[test]
-fn test_hahn_q_edges() {
+fn test_eval_hahn_edges() {
     // exact rational 3F2 sums; the recurrence in n is unstable for x near 0 (and N)
     let actual = [
-        hahn_q(100, 100, 0.0, 0.0, 1e-10),
-        hahn_q(100, 100, 0.0, 0.0, 1e-100),
-        hahn_q(100, 100, 0.0, 0.0, 100.0 - 1e-10),
-        hahn_q(100, 100, 0.5, 2.0, 1e-300),
+        eval_hahn(100, 100, 0.0, 0.0, 1e-10),
+        eval_hahn(100, 100, 0.0, 0.0, 1e-100),
+        eval_hahn(100, 100, 0.0, 0.0, 100.0 - 1e-10),
+        eval_hahn(100, 100, 0.5, 2.0, 1e-300),
         // no premature underflow for subnormal x
-        hahn_q(1000, 1000, 0.0, 0.0, -f64::from_bits(1)),
-        hahn_q(1000, 1000, 0.3, 1.7, -1e-310),
+        eval_hahn(1000, 1000, 0.0, 0.0, -f64::from_bits(1)),
+        eval_hahn(1000, 1000, 0.3, 1.7, -1e-310),
     ];
     let desired = [
         -1.820_210_918_965_873_8e47,
@@ -60,21 +60,21 @@ fn test_hahn_q_edges() {
 }
 
 #[test]
-fn test_hahn_q_domain() {
-    assert_eq!(hahn_q(0, 3, 0.5, 0.5, 1.5), 1.0);
-    assert_eq!(hahn_q(5, 5, 1.0, 2.0, 0.0), 1.0);
+fn test_eval_hahn_domain() {
+    assert_eq!(eval_hahn(0, 3, 0.5, 0.5, 1.5), 1.0);
+    assert_eq!(eval_hahn(5, 5, 1.0, 2.0, 0.0), 1.0);
     for q in [
-        hahn_q(4, 3, 0.5, 0.5, 1.0),
-        hahn_q(1, 3, -1.0, 0.5, 1.0),
-        hahn_q(1, 3, 0.5, f64::NAN, 1.0),
-        hahn_q(1, 3, 0.5, 0.5, f64::NAN),
+        eval_hahn(4, 3, 0.5, 0.5, 1.0),
+        eval_hahn(1, 3, -1.0, 0.5, 1.0),
+        eval_hahn(1, 3, 0.5, f64::NAN, 1.0),
+        eval_hahn(1, 3, 0.5, 0.5, f64::NAN),
     ] {
         assert!(q.is_nan());
     }
 }
 
 #[test]
-fn test_hahn_q_orthogonality() {
+fn test_eval_hahn_orthogonality() {
     // DLMF Table 18.19.1
     let (alpha, beta, big_n) = (0.5, 1.5, 6);
     let w = |x: u32| {
@@ -95,8 +95,8 @@ fn test_hahn_q_orthogonality() {
                 (0..=big_n)
                     .map(|x| {
                         let x_f = f64::from(x);
-                        w(x) * hahn_q(n, big_n, alpha, beta, x_f)
-                            * hahn_q(m, big_n, alpha, beta, x_f)
+                        w(x) * eval_hahn(n, big_n, alpha, beta, x_f)
+                            * eval_hahn(m, big_n, alpha, beta, x_f)
                     })
                     .sum::<f64>()
                     / h
@@ -108,11 +108,11 @@ fn test_hahn_q_orthogonality() {
 }
 
 #[test]
-fn test_hahn_q_jacobi_limit() {
+fn test_eval_hahn_jacobi_limit() {
     // DLMF 18.21.5
     let (alpha, beta, x, big_n) = (0.5, 1.5, 0.3, 1_000_000);
     for n in 1..5 {
-        let q = hahn_q(n, big_n, alpha, beta, x * f64::from(big_n));
+        let q = eval_hahn(n, big_n, alpha, beta, x * f64::from(big_n));
         let nf = f64::from(n);
         let p = xsf::eval_jacobi(nf, alpha, beta, 1.0 - 2.0 * x)
             / xsf::eval_jacobi(nf, alpha, beta, 1.0);
@@ -121,7 +121,7 @@ fn test_hahn_q_jacobi_limit() {
 }
 
 #[test]
-fn test_hahn_q_tl_moments() {
+fn test_eval_hahn_tl_moments() {
     // The weights of the sample TL-moments (Elamir & Seheult, 2003) are proportional to
     // binom(i - 1, s) binom(n - i, t) Q_{r-1}(i - s - 1; s, t, n - s - t - 1) (Hosking &
     // Balakrishnan, 2015).
@@ -135,7 +135,7 @@ fn test_hahn_q_tl_moments() {
                         sign * binom(r - 1, k) * binom(i - 1, r + s - 1 - k) * binom(n - i, t + k)
                     })
                     .sum();
-                let q = hahn_q(
+                let q = eval_hahn(
                     r - 1,
                     n - s - t - 1,
                     s.into(),

@@ -8,7 +8,7 @@
 
 use core::f64::consts::{LN_2, SQRT_2};
 
-use super::quadpack::quad_unimodal;
+use crate::ext::quadpack::quad_unimodal;
 use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{

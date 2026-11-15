@@ -1,6 +1,6 @@
 //! Translated from scipy/special/_ellip_harm.pxd
 
-use super::tridiag;
+use crate::ext::tridiag;
 use crate::utils::pow2;
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 

@@ -447,7 +447,7 @@
 //! | [`eval_laguerre`]       | Laguerre                             | $L_n(z)$                   |
 //! | [`eval_hermite_h`]      | Hermite (physicist's)                | $H_n(x)$                   |
 //! | [`eval_hermite_he`]     | Hermite (probabilist's)              | $He_n(x)$                  |
-//! | [`hahn_q`]              | Hahn                                 | $Q_n(x;\alpha,\beta,N)$    |
+//! | [`eval_hahn`]           | Hahn                                 | $Q_n(x;\alpha,\beta,N)$    |
 //!
 //! Note that [`eval_sh_jacobi`] differs from `scipy.special.eval_sh_jacobi`, which is
 //! [`eval_gengegenbauer`] here (scipy/scipy#18988).
@@ -678,6 +678,7 @@
     clippy::manual_midpoint
 )]
 
+mod ext;
 mod numpy;
 mod scipy_special;
 mod utils;
@@ -696,6 +697,7 @@ pub(crate) mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
+pub use ext::*;
 pub use numpy::*;
 pub use scipy_special::*;
 pub use xsf::*;

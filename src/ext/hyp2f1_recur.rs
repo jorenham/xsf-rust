@@ -102,7 +102,7 @@ use crate::xsf::cephes::dd_real::{
 };
 use crate::xsf::cephes::hyp2f1::{HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1};
 use crate::xsf::cephes::{lgam_sgn, lgam_stirling_corr, psi};
-use crate::xsf::trig::{cospi, sinpi};
+use crate::xsf::{cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.

@@ -8,13 +8,14 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::Add;
 
+use super::{Scaled, add_exp, fold_exp, ln_dd, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_sum,
 };
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
-use crate::xsf::{Scaled, add_exp, cospi, fold_exp, ln_dd, mul_gamma_ratio, sinpi};
+use crate::xsf::{cospi, sinpi};
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;

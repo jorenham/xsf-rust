@@ -14,11 +14,11 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
+use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
 use crate::utils::pow2;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
 use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
-use crate::xsf::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
