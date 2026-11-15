@@ -357,25 +357,13 @@ fn fcszo(kf: i32, nt: usize, zo: &mut [C64]) {
             it += 1;
             let (zf, zd) = if kf == 1 { cfc(z) } else { cfs(z) };
 
-            let mut zp = C64::ONE;
-            for i in 1..nr {
-                zp *= z - zo[i - 1];
-            }
-
-            let zfd = zf / zp;
-            let mut zq = C64::ZERO;
-            for i in 1..nr {
-                let mut zw = C64::ONE;
-                for j in 1..nr {
-                    if j == i {
-                        continue;
-                    }
-                    zw *= z - zo[j - 1];
-                }
-                zq += zw;
-            }
-            let zgd = (zd - zq * zfd) / zp;
-            z -= zfd / zgd;
+            // Unlike in xsf, the Newton step for `f(z) / prod(z - z_i)`, with the zeros `z_i` found
+            // so far, is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
+            // which overflow from the 332nd zero on (NaN).
+            let zq = zo[..nr - 1]
+                .iter()
+                .fold(C64::ZERO, |zq, &zi| zq + 1.0 / (z - zi));
+            z -= zf / (zd - zq * zf);
             let w0 = w;
             w = z.norm();
             if !((it <= 50) && (((w - w0) / w).abs() > 1.0e-12)) {
