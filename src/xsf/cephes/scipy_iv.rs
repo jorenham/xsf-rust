@@ -50,7 +50,7 @@
 
 use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
-use crate::utils::{EGAMMA, mul_exp};
+use crate::utils::{EGAMMA, mul_exp, neg_if_odd};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::{gamma, rgamma};
 use crate::xsf::trig::cephes_sinpi as sinpi;
@@ -199,7 +199,7 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
 
         /* Sum terms */
         i_sum += term;
-        k_sum += if n % 2 == 0 { term } else { -term };
+        k_sum += neg_if_odd(n, term);
 
         divisor *= v;
     }

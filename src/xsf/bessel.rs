@@ -7,7 +7,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use num_complex::Complex;
 use num_traits::ToPrimitive;
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp, neg_if_odd};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
@@ -136,9 +136,7 @@ fn reflect_jy(jy: &mut C64, v: f64) -> bool {
     }
 
     let i = (v - 16384.0 * (v / 16384.0).floor()) as i32;
-    if i & 1 != 0 {
-        *jy = -*jy;
-    }
+    *jy = neg_if_odd(i, *jy);
     true
 }
 
