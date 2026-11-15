@@ -66,6 +66,10 @@ GREEK = {
     "b2": "b\u2082",
     "b3": "b\u2083",
     "b4": "b\u2084",
+    "xr": "Re\u00a0x",
+    "xi": "Im\u00a0x",
+    "yr": "Re\u00a0y",
+    "yi": "Im\u00a0y",
 }
 
 
@@ -1168,6 +1172,18 @@ def r_xlogy(x, y):
 
 def r_xlog1py(x, y):
     return x * mp.log1p(y)
+
+
+def c_xlogy(xr, xi, yr, yi):
+    """x ln(y), but 0 if x = 0, like SciPy (also for y = 0)."""
+    x = mp.mpc(xr, xi)
+    return x * mp.log(mp.mpc(yr, yi)) if x else mp.mpc(0)
+
+
+def c_xlog1py(xr, xi, yr, yi):
+    """x ln(1 + y), but 0 if x = 0, like SciPy (also for y = -1)."""
+    x = mp.mpc(xr, xi)
+    return x * mp.log1p(mp.mpc(yr, yi)) if x else mp.mpc(0)
 
 
 def r_softplus(x):
@@ -2782,6 +2798,125 @@ def r_wilcoxon_sf(n, k):
     return mp.ldexp(sum(_wilcoxon_counts(int(n))[int(k) :]), -int(n))
 
 
+def _osc_cz(y, v, z, s=1):
+    """`osc_cz`: y with the scale s sqrt(|J_v(z)|^2 + |Y_v(z)|^2) for |z| > |v|."""
+    if abs(z) > abs(v):
+        return y, s * mp.sqrt(abs(mp.besselj(v, z)) ** 2 + abs(mp.bessely(v, z)) ** 2)
+    return y
+
+
+def c_besselje(v, re, im):
+    # J_v(z) e^-|Im z|
+    with wdps(xd(v, re, im)):
+        z, s = mp.mpc(re, im), mp.exp(-abs(im))
+        return _osc_cz(mp.besselj(v, z) * s, v, z, s)
+
+
+def c_besselye(v, re, im):
+    # Y_v(z) e^-|Im z|
+    with wdps(xd(v, re, im)):
+        z, s = mp.mpc(re, im), mp.exp(-abs(im))
+        return _osc_cz(mp.bessely(v, z) * s, v, z, s)
+
+
+def c_besselie(v, re, im):
+    # I_v(z) e^-|Re z|
+    return _cbessel(lambda v, z: mp.besseli(v, z) * mp.exp(-abs(z.real)), v, re, im)
+
+
+def c_besselke(v, re, im):
+    # K_v(z) e^z
+    return _cbessel(lambda v, z: mp.besselk(v, z) * mp.exp(z), v, re, im)
+
+
+def c_jvp(v, re, im, n):
+    with wdps(xd(v, re, im)):
+        z = mp.mpc(re, im)
+        return _osc_cz(_bessel_diff(mp.besselj, v, z, n, -1), v, z)
+
+
+def c_yvp(v, re, im, n):
+    with wdps(xd(v, re, im)):
+        z = mp.mpc(re, im)
+        return _osc_cz(_bessel_diff(mp.bessely, v, z, n, -1), v, z)
+
+
+def c_ivp(v, re, im, n):
+    with wdps(xd(v, re, im)):
+        return _bessel_diff(mp.besseli, v, mp.mpc(re, im), n, 1)
+
+
+def c_kvp(v, re, im, n):
+    with wdps(xd(v, re, im)):
+        return _bessel_diff(mp.besselk, v, mp.mpc(re, im), n, 1)
+
+
+def c_airy(re, im, scaled=False):
+    """Ai, Ai', Bi, Bi'; scaled like `airy_scaled`, i.e. Ai and Ai' by e^zeta, and Bi and Bi' by
+    e^-|Re zeta|, with zeta = 2/3 z^(3/2)."""
+    with wdps(xd(re, im) + 10):
+        z = mp.mpc(re, im)
+        ai, aip = mp.airyai(z), mp.airyai(z, derivative=1)
+        bi, bip = mp.airybi(z), mp.airybi(z, derivative=1)
+        if not scaled:
+            return [ai, aip, bi, bip]
+        zeta = 2 * z * mp.sqrt(z) / 3
+        ea, eb = mp.exp(zeta), mp.exp(-abs(zeta.real))
+        return [ai * ea, aip * ea, bi * eb, bip * eb]
+
+
+def c_erfcx(z):
+    return mp.exp(z * z) * mp.erfc(z)
+
+
+def c_dawsn(z):
+    return mp.sqrt(mp.pi) / 2 * mp.exp(-z * z) * mp.erfi(z)
+
+
+def c_ndtr(z):
+    return mp.erfc(-z / mp.sqrt(2)) / 2
+
+
+def c_log_ndtr(z):
+    # the principal branch; log1p for Re z > 0, where ndtr(z) can be close to 1
+    if z.real > 0:
+        return mp.log1p(-mp.erfc(z / mp.sqrt(2)) / 2)
+    return mp.log(c_ndtr(z))
+
+
+def c_fresnel(re, im):
+    with wdps(2 * xd(re, im)):
+        z = mp.mpc(re, im)
+        return mp.fresnels(z), mp.fresnelc(z)
+
+
+def c_hyp1f0(a, re, im):
+    with wdps(10):
+        return (1 - mp.mpc(re, im)) ** -a
+
+
+def c_hyp0f1(b, re, im):
+    # Arb, since mpmath's hyp0f1 can be far off for b < 0 (mpmath/mpmath#1216), with increasing
+    # precision until it is accurate to the working precision. For 4|z| > (b - 1)^2, the scale of
+    # 0F1(; b; z) = Gamma(b) (-z)^(-v/2) J_v(x), with v = b - 1 and x = 2 sqrt(-z).
+    prec = mp.mp.prec
+    while True:
+        with flint.ctx.workprec(prec):
+            y = flint.acb(re, im).hypgeom_0f1(b)
+        if y.rel_accuracy_bits() >= mp.mp.prec:
+            break
+        if prec > 2**14:
+            raise NoConvergence
+        prec *= 2
+    z = mp.mpc(re, im)
+    if 4 * abs(z) <= (b - 1) ** 2:
+        return mp.mpc(y)
+    with wdps(xd(b, re, im)):
+        v, x = b - 1, 2 * mp.sqrt(-z)
+        env = mp.sqrt(abs(mp.besselj(v, x)) ** 2 + abs(mp.bessely(v, x)) ** 2)
+        return mp.mpc(y), abs(mp.gamma(b)) * abs(z) ** (-v / 2) * env
+
+
 # ---------------------------------------------------------------- specs
 
 SPECS: list[Spec] = []
@@ -2872,6 +3007,15 @@ for i in range(4):
         dom2,
         note="airy",
     )
+for f, scaled in [("airy", False), ("airy_scaled", True)]:
+    for i in range(4):
+        add(
+            f"{f}[{i}]#c",
+            "re im",
+            lambda re, im, i=i, scaled=scaled: c_airy(re, im, scaled)[i],
+            CZ,
+            complex=True,
+        )
 for i in range(4):
     add(
         f"airy_integrals[{i}]",
@@ -2982,6 +3126,20 @@ for f, r in [
     )
 for f, r in [("hankel_1e", c_hankel1e), ("hankel_2e", c_hankel2e)]:
     add(f, "v re im", r, D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000), complex=True)
+for f, r in [
+    ("bessel_je", c_besselje),
+    ("bessel_ye", c_besselye),
+    ("bessel_ie", c_besselie),
+    ("bessel_ke", c_besselke),
+]:
+    add(
+        f"{f}#c",
+        "v re im",
+        r,
+        D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000),
+        complex=True,
+        note="osc_cz" if f in ("bessel_je", "bessel_ye") else "",
+    )
 add(
     "wright_bessel",
     "a b x",
@@ -3072,6 +3230,16 @@ for f, r in [("j", r_jvp), ("y", r_yvp), ("i", r_ivp), ("k", r_kvp)]:
         D(U(0, 20), U(0, 50), Int(1, 3)),
         cpp=False,
         note="osc" if f in "jy" else "",
+    )
+for f, r in [("j", c_jvp), ("y", c_yvp), ("i", c_ivp), ("k", c_kvp)]:
+    add(
+        f"bessel_{f}_prime#c",
+        "v re im n",
+        r,
+        D(U(-20, 20), U(-50, 50), U(-50, 50), Int(1, 3), n=5000),
+        complex=True,
+        cpp=False,
+        note="osc_cz" if f in "jy" else "",
     )
 for f, r in [("hankel_1_prime", c_hankel1p), ("hankel_2_prime", c_hankel2p)]:
     add(
@@ -3385,6 +3553,8 @@ section("Normal distribution", 3)
 add("ndtr", "x", r_ndtr, D(U(-10, 10)), D(LU(1e-300, 38, 0)))
 add("ndtri", "p", r_ndtri, D(U(0, 1)), D(LU(1e-300, 0.5)))
 add("log_ndtr", "x", r_log_ndtr, D(U(-20, 6)), D(LU(1e-300, 1e10, 0)))
+for f, r in [("ndtr", c_ndtr), ("log_ndtr", c_log_ndtr)]:
+    add(f"{f}#c", "re im", _c(r), CZ, complex=True)
 add("ndtri_exp", "y", r_ndtri_exp, D(U(-20, 0)), D(LU(1e-300, 1e300, -1)))
 add(
     "nrdtrimn",
@@ -3901,10 +4071,25 @@ add(
     D(U(-10, 10), U(0, 5), U(0, 5)),
     D(LU(1e-3, 1e3, 0), LU(1e-3, 1e3), LU(1e-3, 1e3)),
 )
-for f, r in [("erf", mp.erf), ("erfc", mp.erfc), ("wofz", c_wofz)]:
+for f, r in [
+    ("erf", mp.erf),
+    ("erfc", mp.erfc),
+    ("wofz", c_wofz),
+    ("erfcx", c_erfcx),
+    ("erfi", mp.erfi),
+    ("dawsn", c_dawsn),
+]:
     add(f"{f}#c", "re im", _c(r), D(U(-10, 10), U(-10, 10), n=5000), complex=True)
 add("fresnel.0", "x", r_fresnel_s, D(U(-10, 10)), D(LU(1e-300, 1e300, 0)))
 add("fresnel.1", "x", r_fresnel_c, D(U(-10, 10)), D(LU(1e-300, 1e300, 0)))
+for i in range(2):
+    add(
+        f"fresnel.{i}#c",
+        "re im",
+        lambda re, im, i=i: c_fresnel(re, im)[i],
+        D(U(-10, 10), U(-10, 10), n=5000),
+        complex=True,
+    )
 for i, f in enumerate(["plus.0", "plus.1", "minus.0", "minus.1"]):
     add(
         f"modified_fresnel_{f}",
@@ -4120,6 +4305,31 @@ add("hyp0f0", "z", r_hyp0f0, D(U(-700, 700)), cpp=False)
 add("hyp1f0", "a z", r_hyp1f0, D(U(-10, 10), U(-10, 1)), cpp=False)
 add("hyp0f1", "b z", r_hyp0f1, D(LU(1e-3, 1e6, 0), LU(1e-3, 1e6, 0)), note="osc_hyp0f1")
 add(
+    "hyp0f0#c",
+    "re im",
+    _c(mp.exp),
+    D(U(-700, 700), U(-700, 700), n=5000),
+    complex=True,
+    cpp=False,
+)
+add(
+    "hyp1f0#c",
+    "a re im",
+    c_hyp1f0,
+    D(U(-10, 10), U(-10, 10), U(-10, 10), n=5000),
+    complex=True,
+    cpp=False,
+)
+add(
+    "hyp0f1#c",
+    "b re im",
+    c_hyp0f1,
+    D(LU(1e-3, 100, 0), U(-50, 50), U(-50, 50), n=5000),
+    D(LU(100, 1e4, 0), U(-50, 50), U(-50, 50), n=2000),
+    complex=True,
+    note="osc_hyp0f1_c",
+)
+add(
     "hyp1f1",
     "a b x",
     r_hyp1f1,
@@ -4302,6 +4512,14 @@ add(
     D(LU(1e-300, 1e3, 0)),
     note="zeros",
 )
+add(
+    "riemann_zeta#c",
+    "re im",
+    _c(mp.zeta),
+    CZ,
+    D(U(-20, 20), LU(20, 1e3, 0), n=5000),
+    complex=True,
+)
 add("zetac", "x", r_zetac, D(U(-20, 20)), D(LU(1e-300, 1e3, 0)), note="zeros")
 
 section("Harmonic numbers", 3)
@@ -4379,6 +4597,16 @@ for f, r in [
     add(f, "x", r, D(U(-360, 360)), D(LU(1e-300, 1e14, 0)))
 add("cospi", "x", r_cospi, D(U(-10, 10)), D(LU(1e-300, 1e15, 0)))
 add("sinpi", "x", r_sinpi, D(U(-10, 10)), D(LU(1e-300, 1e15, 0)))
+for f, r in [("cospi", mp.cospi), ("sinpi", mp.sinpi)]:
+    add(
+        f"{f}#c",
+        "re im",
+        _c(r),
+        CZ,
+        D(LU(1e-300, 1e15, 0), LU(1e-300, 100, 0), n=5000),
+        complex=True,
+        note="zeros_c",
+    )
 add(
     "log1p",
     "x",
@@ -4390,6 +4618,15 @@ add(
 )
 add("log1pmx", "x", r_log1pmx, D(U(-1, 2)), D(LU(1e-300, 1, 0)), D(LU(1, 1e300)))
 add("expm1", "x", r_expm1, D(U(-2, 2)), D(LU(1e-300, 709, 0)), std=True)
+for f, r in [("log1p", mp.log1p), ("expm1", mp.expm1)]:
+    add(
+        f"{f}#c",
+        "re im",
+        _c(r),
+        CZ,
+        D(LU(1e-300, 1, 0), LU(1e-300, 1, 0), n=5000),
+        complex=True,
+    )
 add(
     "cosm1",
     "x",
@@ -4421,6 +4658,28 @@ add(
     r_xlog1py,
     D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300)),
     D(U(-10, 10), U(-1, 1)),
+)
+add(
+    "xlogy#c",
+    "xr xi yr yi",
+    c_xlogy,
+    D(U(-10, 10), U(-10, 10), U(-10, 10), U(-10, 10), n=5000),
+    D(
+        U(-10, 10),
+        U(-10, 10),
+        Offset(1, LU(1e-16, 1e-3, 0)),
+        LU(1e-16, 1e-3, 0),
+        n=5000,
+    ),
+    complex=True,
+)
+add(
+    "xlog1py#c",
+    "xr xi yr yi",
+    c_xlog1py,
+    D(U(-10, 10), U(-10, 10), U(-10, 10), U(-10, 10), n=5000),
+    D(U(-10, 10), U(-10, 10), LU(1e-300, 1, 0), LU(1e-300, 1, 0), n=5000),
+    complex=True,
 )
 for f, r in [("logaddexp", r_logaddexp), ("logaddexp2", r_logaddexp2)]:
     add(
@@ -4628,6 +4887,16 @@ NOTES |= {
         r"$`A = \sqrt{\pi/(2x)}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$."
     ),
     "osc_c": r"$`A = \sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$.",
+    "osc_cz": (
+        r"For $`\lvert z\rvert > \lvert v\rvert`$: "
+        r"$`A = s\sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$, with "
+        r"$`s = e^{-\lvert\mathrm{Im}\,z\rvert}`$ for `bessel_je` and `bessel_ye`, else 1."
+    ),
+    "osc_hyp0f1_c": (
+        r"For $`4\lvert z\rvert > (b - 1)^2`$, with $`x = 2\sqrt{-z}`$: "
+        r"$`A = \lvert\Gamma(b)\rvert \lvert x/2\rvert^{1-b} "
+        r"\sqrt{\lvert J_{b-1}(x)\rvert^2 + \lvert Y_{b-1}(x)\rvert^2}`$."
+    ),
     "kelvin": (
         r"$`A`$ = the modulus of the complex function, "
         r"e.g. $`\lvert\mathrm{ber}\,x + i\,\mathrm{bei}\,x\rvert`$ for `ber` and `bei`."
@@ -4679,8 +4948,11 @@ NOT_COVERED = """\
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`
+- Complex input: `sph_bessel_*`, `elliprc`, `elliprd`, `elliprf`, `elliprg`, `elliprj`, `sici`,
+  `shichi`, `spence`, `wrightomega`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta`
+  (NaN for non-real `z`, unless `q = 1`)
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
-  `extended_*_error` metrics, `kelvin` (its parts are above), and the other complex variants
+  `extended_*_error` metrics, and `kelvin` (its parts are above)
 """
 
 BY_NAME: Final = {s.name: s for s in SPECS}

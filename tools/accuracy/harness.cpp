@@ -171,6 +171,17 @@ static cd kelvin(double x, int index) {
     return o[index];
 }
 
+// Ai, Ai', Bi, or Bi' (index 0 to 3) of xsf::airy, or of xsf::airye if `scaled`, at x + iy
+static cd airyc(double x, double y, int index, bool scaled) {
+    cd o[4];
+    if (scaled) {
+        xsf::airye(cd(x, y), o[0], o[1], o[2], o[3]);
+    } else {
+        xsf::airy(cd(x, y), o[0], o[1], o[2], o[3]);
+    }
+    return o[index];
+}
+
 static bool eval(const std::string &f, const std::vector<double> &a, double &r, cd &rc, bool &cplx) {
 #define F1(name, expr)                                                                             \
     if (f == name && a.size() == 1) {                                                              \
@@ -549,6 +560,33 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("hankel_2", 3, xsf::cyl_hankel_2(a[0], cd(a[1], a[2])))
     C("hankel_1e", 3, xsf::cyl_hankel_1e(a[0], cd(a[1], a[2])))
     C("hankel_2e", 3, xsf::cyl_hankel_2e(a[0], cd(a[1], a[2])))
+    C("bessel_je", 3, xsf::cyl_bessel_je(a[0], cd(a[1], a[2])))
+    C("bessel_ye", 3, xsf::cyl_bessel_ye(a[0], cd(a[1], a[2])))
+    C("bessel_ie", 3, xsf::cyl_bessel_ie(a[0], cd(a[1], a[2])))
+    C("bessel_ke", 3, xsf::cyl_bessel_ke(a[0], cd(a[1], a[2])))
+    C("airy[0]", 2, airyc(a[0], a[1], 0, false))
+    C("airy[1]", 2, airyc(a[0], a[1], 1, false))
+    C("airy[2]", 2, airyc(a[0], a[1], 2, false))
+    C("airy[3]", 2, airyc(a[0], a[1], 3, false))
+    C("airy_scaled[0]", 2, airyc(a[0], a[1], 0, true))
+    C("airy_scaled[1]", 2, airyc(a[0], a[1], 1, true))
+    C("airy_scaled[2]", 2, airyc(a[0], a[1], 2, true))
+    C("airy_scaled[3]", 2, airyc(a[0], a[1], 3, true))
+    C("erfcx", 2, xsf::erfcx(cd(a[0], a[1])))
+    C("erfi", 2, xsf::erfi(cd(a[0], a[1])))
+    C("dawsn", 2, xsf::dawsn(cd(a[0], a[1])))
+    C("ndtr", 2, xsf::ndtr(cd(a[0], a[1])))
+    C("log_ndtr", 2, xsf::log_ndtr(cd(a[0], a[1])))
+    C("fresnel.0", 2, nthc<0>([&](cd &o0, cd &o1) { xsf::fresnel(cd(a[0], a[1]), o0, o1); }))
+    C("fresnel.1", 2, nthc<1>([&](cd &o0, cd &o1) { xsf::fresnel(cd(a[0], a[1]), o0, o1); }))
+    C("hyp0f1", 3, xsf::hyp0f1(a[0], cd(a[1], a[2])))
+    C("riemann_zeta", 2, xsf::riemann_zeta(cd(a[0], a[1])))
+    C("sinpi", 2, xsf::sinpi(cd(a[0], a[1])))
+    C("cospi", 2, xsf::cospi(cd(a[0], a[1])))
+    C("log1p", 2, xsf::log1p(cd(a[0], a[1])))
+    C("expm1", 2, xsf::expm1(cd(a[0], a[1])))
+    C("xlogy", 4, xsf::xlogy(cd(a[0], a[1]), cd(a[2], a[3])))
+    C("xlog1py", 4, xsf::xlog1py(cd(a[0], a[1]), cd(a[2], a[3])))
     C("modified_fresnel_plus.0", 1, nthc<0>([&](cd &o0, cd &o1) { xsf::modified_fresnel_plus(a[0], o0, o1); }))
     C("modified_fresnel_plus.1", 1, nthc<1>([&](cd &o0, cd &o1) { xsf::modified_fresnel_plus(a[0], o0, o1); }))
     C("modified_fresnel_minus.0", 1, nthc<0>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
