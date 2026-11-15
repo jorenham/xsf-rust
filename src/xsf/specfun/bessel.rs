@@ -1412,8 +1412,8 @@ pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64])
     // n > 251 and sy[251] is finite (c * x >~ 11.75), e.g. prolate_radial2_nocv(2, 200, 1, 300)
     // (confirmed with ASan).
     //
-    // NOTE: unlike the Fortran original, the C++ computes no dy[k], k >= 1, if |f| >= 1e300, and
-    // otherwise sets *nm = n - 1, so dy[n] is never computed. Reproduced as is.
+    // Unlike in xsf (scipy/xsf#331), `nm = n` after the full loop and `dy` is also computed after
+    // an overflow, as in the Fortran SPHY. Otherwise rmn2l discards converged results.
     if x < 1.0e-60 {
         for k in 0..=n {
             sy[k as usize] = -SPECFUN_INF;
@@ -1434,17 +1434,17 @@ pub(crate) fn sphy(x: f64, n: i32, nm: &mut i32, sy: &mut [f64], dy: &mut [f64])
     sy[1] = (sy[0] - x.sin()) / x;
     let mut f1 = sy[1];
 
+    *nm = n;
     for k in 2..=n {
         let f = ((2.0 * f64::from(k) - 1.0) * f1 / x) - f0;
         sy[k as usize] = f;
         if f.abs() >= SPECFUN_INF {
             *nm = k - 1;
-            return;
+            break;
         }
         f0 = f1;
         f1 = f;
     }
-    *nm = n - 1;
     for k in 1..=*nm {
         dy[k as usize] = sy[(k - 1) as usize] - (f64::from(k) + 1.0) * sy[k as usize] / x;
     }

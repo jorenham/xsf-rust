@@ -692,8 +692,8 @@ fn rmn2l(
     }
     let mut nm2 = 2 * nm + m;
     let cx = c * x;
-    // NOTE: sphy writes sy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k) and dy up
-    // to nm2 - 1, which is out of bounds of the 252-element buffers if
+    // NOTE: sphy writes sy and dy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k),
+    // which is out of bounds of the 252-element buffers if
     // nm2 = 2 * (25 + (n - m) / 2 + (int)c) + m >= 252.
     sphy(cx, nm2, &mut nm2, &mut sy, &mut dy);
     let mut r0 = reg;
@@ -1164,9 +1164,50 @@ pub(crate) fn rswfp(
         if rmn2l(m, n, c, x, kd, &df, r2f, r2d, &mut id) == Status::NoMemory {
             return Status::NoMemory;
         }
-        if id > -8 && rmn2sp(m, n, c, x, cv, kd, &df, r2f, r2d) == Status::NoMemory {
+        let small = |f: &mut f64, d: &mut f64| rmn2sp(m, n, c, x, cv, kd, &df, f, d);
+        let status = if id > -8 {
+            small(r2f, r2d)
+        } else {
+            r2_by_wronskian(m, n, c, x, kd, &df, kf, r1f, r1d, r2f, r2d, small)
+        };
+        if status == Status::NoMemory {
             return Status::NoMemory;
         }
+    }
+    Status::Ok
+}
+
+/// Replaces the rmn2l result `(r2f, r2d)` with that of `small` (rmn2sp or rmn2so) if the latter
+/// satisfies the Wronskian `R1 R2' - R1' R2 = 1 / (c (x^2 - kd))` (DLMF 30.11.7) more closely.
+/// Computes `(r1f, r1d)` with rmn1 if `kf == 2`.
+//
+// Unlike in xsf, rmn2l is not simply accepted when `id` is small enough: `id` only estimates the
+// convergence of its series, not the cancellation for small `c x`, so it can be far less accurate
+// than the small-argument method.
+fn r2_by_wronskian(
+    m: i32,
+    n: i32,
+    c: f64,
+    x: f64,
+    kd: i32,
+    df: &[f64],
+    kf: i32,
+    r1f: &mut f64,
+    r1d: &mut f64,
+    r2f: &mut f64,
+    r2d: &mut f64,
+    small: impl FnOnce(&mut f64, &mut f64) -> Status,
+) -> Status {
+    let (mut f, mut d) = (0.0, 0.0);
+    if small(&mut f, &mut d) == Status::NoMemory
+        || kf == 2 && rmn1(m, n, c, x, kd, df, r1f, r1d) == Status::NoMemory
+    {
+        return Status::NoMemory;
+    }
+    let w = c * (x * x - f64::from(kd));
+    let err = |f: f64, d: f64| ((*r1f * d - *r1d * f) * w - 1.0).abs();
+    if err(f, d) < err(*r2f, *r2d) {
+        (*r2f, *r2d) = (f, d);
     }
     Status::Ok
 }
@@ -1240,7 +1281,13 @@ pub(crate) fn rswfo(
         if x > 1e-8 && rmn2l(m, n, c, x, kd, &df, r2f, r2d, &mut id) == Status::NoMemory {
             return Status::NoMemory;
         }
-        if id > -1 && rmn2so(m, n, c, x, cv, kd, &df, r2f, r2d) == Status::NoMemory {
+        let small = |f: &mut f64, d: &mut f64| rmn2so(m, n, c, x, cv, kd, &df, f, d);
+        let status = if id > -1 {
+            small(r2f, r2d)
+        } else {
+            r2_by_wronskian(m, n, c, x, kd, &df, kf, r1f, r1d, r2f, r2d, small)
+        };
+        if status == Status::NoMemory {
             return Status::NoMemory;
         }
     }
