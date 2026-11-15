@@ -123,7 +123,7 @@
 
 use core::f64::consts::{LN_2, LN_10};
 
-use crate::utils::SQRT_3;
+use crate::utils::{SQRT_3, neg_if_odd};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
 
@@ -521,9 +521,7 @@ fn acai(
     cpn = arg.cos();
     spn = arg.sin();
     let mut cspn = c64(cpn, spn);
-    if inu % 2 == 1 {
-        cspn = -cspn;
-    }
+    cspn = neg_if_odd(inu, cspn);
     let mut c1 = cy[0];
     let mut c2 = y[0];
     if kode != 1 {
@@ -603,9 +601,7 @@ fn acon(
             let inu = fnu as i32;
             let arg = (fnu - f64::from(inu)) * sgn;
             let mut cspn = C64::cis(arg);
-            if inu % 2 == 1 {
-                cspn = -cspn;
-            }
+            cspn = neg_if_odd(inu, cspn);
             let mut iuf = 0;
             let mut c1 = s1;
             let mut c2 = y[0];
@@ -1140,9 +1136,7 @@ fn asyi(
                 bk = -bk;
             }
             p1 = c64(ak, bk);
-            if inu % 2 == 1 {
-                p1 = -p1;
-            }
+            p1 = neg_if_odd(inu, p1);
         }
         for k in 1..=il {
             let mut sqk = fdn - 1.0;
@@ -1552,9 +1546,7 @@ pub(crate) fn besh(
     let cpn = rhpi * arg.cos();
     let spn = -rhpi * arg.sin();
     let mut csgn = c64(spn, cpn);
-    if inuh % 2 == 1 {
-        csgn = -csgn;
-    }
+    csgn = neg_if_odd(inuh, csgn);
     let zt = c64(0.0, -fmm);
     let rtol = 1.0 / tol;
     let ascle = ufl * rtol;
@@ -1778,9 +1770,7 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
             arg = -arg;
         }
         csgn = C64::cis(arg);
-        if inu % 2 == 1 {
-            csgn = -csgn;
-        }
+        csgn = neg_if_odd(inu, csgn);
     }
     /* 40 */
     nz = binu(zn, fnu, kode, n, cy, rl, fnul, tol, elim, alim);
@@ -2020,9 +2010,7 @@ pub(crate) fn besj(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     let r1 = arg.cos();
     let r2 = arg.sin();
     let mut csgn = c64(r1, r2);
-    if inuh % 2 == 1 {
-        csgn = -csgn;
-    }
+    csgn = neg_if_odd(inuh, csgn);
     //
     // ZN IS IN THE RIGHT HALF PLANE
     //
@@ -6070,9 +6058,7 @@ fn unk1(
     let ifn: i32 = inu + n - 1;
     let ang: f64 = fnf * sgn;
     cspn = C64::cis(ang);
-    if ifn % 2 == 1 {
-        cspn = -cspn;
-    }
+    cspn = neg_if_odd(ifn, cspn);
     let asc: f64 = bry[0];
     kk = n;
     iuf = 0;
@@ -6627,9 +6613,7 @@ fn unk2(
     let ifn: i32 = inu + n - 1;
     ang = fnf * sgn;
     cspn = C64::cis(ang);
-    if ifn % 2 == 1 {
-        cspn = -cspn;
-    }
+    cspn = neg_if_odd(ifn, cspn);
     //
     // CS=COEFF OF THE J FUNCTION TO GET THE I FUNCTION.  I(FNU,Z) IS
     // COMPUTED FROM EXP(I*FNU*HPI)*J(FNU,-I*Z) WHERE Z IS IN THE FIRST
