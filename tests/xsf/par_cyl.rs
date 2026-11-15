@@ -1364,6 +1364,41 @@ fn test_pbdn_seq_negative_n() {
     }
 }
 
+#[test]
+fn test_pbdn_seq_negative_n_negative_re_z() {
+    // D_n(z) and D_n'(z) for n < 0 and Re z < 0, where forward recursion is unstable
+    // (50-digit references from mpmath)
+    let args = [
+        (-16, c64(-2.884, -9.053)),
+        (-5, c64(-2.0, 6.0)),
+        (-16, c64(-3.0, -9.0)),
+        (-1, c64(-2.0, -6.0)),
+    ];
+    let want = [
+        (
+            c64(3.282_032_988_232_229e-6, -1.071_815_358_362_385_1e-6),
+            c64(-9.831_054_987_031_267e-6, -6.982_356_587_798_762e-6),
+        ),
+        (
+            c64(-0.328_547_912_347_491_8, 0.281_452_981_899_441_07),
+            c64(-0.050_335_971_757_136_25, 0.964_512_286_922_147),
+        ),
+        (
+            c64(5.129_546_403_366_147e-6, -5.094_539_133_212_368e-7),
+            c64(-1.287_390_833_430_933_6e-5, -1.364_410_963_083_023_5e-5),
+        ),
+        (
+            c64(-280.122_253_120_009_53, 391.028_184_381_977_04),
+            c64(-1_409.020_478_644_613_6, -383.587_286_081_280_24),
+        ),
+    ];
+    for ((n, z), (dv, dp)) in args.into_iter().zip(want) {
+        let (y, yp) = xsf::pbdn_seq(n, z);
+        let k = n.unsigned_abs() as usize;
+        xsref::np_assert_allclose!(&[y[k], yp[k]], &[dv, dp], rtol = 1e-13);
+    }
+}
+
 /// Based on `scipy.special.tests.test_basic.TestParabolicCylinder.test_pbdn_seq`
 #[test]
 fn test_pbdn_seq_scipy() {
