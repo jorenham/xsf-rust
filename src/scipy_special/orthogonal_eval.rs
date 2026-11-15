@@ -7,7 +7,7 @@ use core::f64::consts::SQRT_2;
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{SQRT_EPSILON, SQRT_PI};
+use crate::utils::{SQRT_EPSILON, SQRT_PI, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
@@ -220,7 +220,7 @@ fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
 /// -1, or alpha far above beta). The reflected one can be nonfinite where the other one isn't.
 fn eval_jacobi_l_reflected<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -> Z {
     if is_classical(alpha, beta) && x.re() < 0.0 {
-        let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = neg_one_pow(n);
         eval_jacobi_l(n, beta, alpha, x * -1.0) * sign
     } else {
         eval_jacobi_l(n, alpha, beta, x)
@@ -294,13 +294,13 @@ impl JacobiArg<i32> for f64 {
         } else if x < 0.0 {
             // Unlike in xsf, use P_n(-x) = (-1)^n P_n(x), since the recurrence below starts at
             // x = 1 (as for `eval_jacobi_l`)
-            let sign = if n % 2 == 0 { 1.0 } else { -1.0 };
+            let sign = neg_one_pow(n);
             sign * (-x).eval_legendre(n)
         } else if x.abs() < 1e-5 {
             // Power series rather than recurrence due to loss of precision
             // http://functions.wolfram.com/Polynomials/LegendreP/02/
             let a = n / 2;
-            let mut d = if a % 2 == 0 { 1.0 } else { -1.0 };
+            let mut d = neg_one_pow(a);
             if n % 2 == 0 {
                 d *= -2.0 / crate::beta(f64::from(a) + 1.0, -0.5);
             } else {
@@ -527,7 +527,7 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
         // http://functions.wolfram.com/Polynomials/GegenbauerC3/02/
         let a = n / 2;
 
-        let mut d = if a % 2 == 0 { 1.0 } else { -1.0 };
+        let mut d = neg_one_pow(a);
         d /= crate::beta(alpha, 1.0 + a as f64);
         if n == 2 * a {
             d /= a as f64 + alpha;

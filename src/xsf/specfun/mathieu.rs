@@ -9,6 +9,7 @@
 use core::f64::consts::SQRT_2;
 
 use super::{Status, jynb, try_zeroed};
+use crate::utils::neg_one_pow;
 use crate::xsf::cephes::polevl::polevl;
 
 /// The `cv0` polynomials in `q` (highest degree first), as `(m, kd, q_max, coefficients)`
@@ -500,7 +501,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
                 }
             }
 
-            fc[0] = q / (a - 1.0 - (-1.0_f64).powf(f64::from(kd)) * q) * fc[1];
+            fc[0] = q / (a - 1.0 - neg_one_pow(kd) * q) * fc[1];
             s += fc[0] * fc[0];
             s0 = (1.0 / s).sqrt();
 
@@ -512,7 +513,7 @@ pub(crate) fn fcoef(kd: i32, m: i32, q: f64, a: f64, fc: &mut [f64]) {
         }
         // L45:
         fc[0] = 1.0e-100;
-        fc[1] = (a - 1.0 - (-1.0_f64).powf(f64::from(kd)) * q) / q * fc[0];
+        fc[1] = (a - 1.0 - neg_one_pow(kd) * q) / q * fc[0];
         sp = 0.0;
         u = fc[0];
         f1 = fc[1];
@@ -877,14 +878,13 @@ pub(crate) fn mtu12(
         for k in 1..=km {
             let k_ = k as usize;
             if kd == 1 {
-                *f1r += (-1.0_f64).powf(f64::from(ic + k)) * fg[k_ - 1] * bj1[k_ - 1] * bj2[k_ - 1];
+                *f1r += neg_one_pow(ic + k) * fg[k_ - 1] * bj1[k_ - 1] * bj2[k_ - 1];
             } else if kd == 2 || kd == 3 {
-                *f1r += (-1.0_f64).powf(f64::from(ic + k))
+                *f1r += neg_one_pow(ic + k)
                     * fg[k_ - 1]
-                    * (bj1[k_ - 1] * bj2[k_]
-                        + (-1.0_f64).powf(f64::from(kd)) * bj1[k_] * bj2[k_ - 1]);
+                    * (bj1[k_ - 1] * bj2[k_] + neg_one_pow(kd) * bj1[k_] * bj2[k_ - 1]);
             } else {
-                *f1r += (-1.0_f64).powf(f64::from(ic + k))
+                *f1r += neg_one_pow(ic + k)
                     * fg[k_ - 1]
                     * (bj1[k_ - 1] * bj2[k_ + 1] - bj1[k_ + 1] * bj2[k_ - 1]);
             }
@@ -901,19 +901,16 @@ pub(crate) fn mtu12(
         for k in 1..=km {
             let k_ = k as usize;
             if kd == 1 {
-                *d1r += (-1.0_f64).powf(f64::from(ic + k))
+                *d1r += neg_one_pow(ic + k)
                     * fg[k_ - 1]
                     * (c2 * bj1[k_ - 1] * dj2[k_ - 1] - c1 * dj1[k_ - 1] * bj2[k_ - 1]);
             } else if kd == 2 || kd == 3 {
-                *d1r += (-1.0_f64).powf(f64::from(ic + k))
+                *d1r += neg_one_pow(ic + k)
                     * fg[k_ - 1]
-                    * (c2
-                        * (bj1[k_ - 1] * dj2[k_]
-                            + (-1.0_f64).powf(f64::from(kd)) * bj1[k_] * dj2[k_ - 1])
-                        - c1 * (dj1[k_ - 1] * bj2[k_]
-                            + (-1.0_f64).powf(f64::from(kd)) * dj1[k_] * bj2[k_ - 1]));
+                    * (c2 * (bj1[k_ - 1] * dj2[k_] + neg_one_pow(kd) * bj1[k_] * dj2[k_ - 1])
+                        - c1 * (dj1[k_ - 1] * bj2[k_] + neg_one_pow(kd) * dj1[k_] * bj2[k_ - 1]));
             } else {
-                *d1r += (-1.0_f64).powf(f64::from(ic + k))
+                *d1r += neg_one_pow(ic + k)
                     * fg[k_ - 1]
                     * (c2 * (bj1[k_ - 1] * dj2[k_ + 1] - bj1[k_ + 1] * dj2[k_ - 1])
                         - c1 * (dj1[k_ - 1] * bj2[k_ + 1] - dj1[k_ + 1] * bj2[k_ - 1]));
@@ -934,13 +931,13 @@ pub(crate) fn mtu12(
     for k in 1..=km {
         let k_ = k as usize;
         if kd == 1 {
-            *f2r += (-1.0_f64).powf(f64::from(ic + k)) * fg[k_ - 1] * bj1[k_ - 1] * by2[k_ - 1];
+            *f2r += neg_one_pow(ic + k) * fg[k_ - 1] * bj1[k_ - 1] * by2[k_ - 1];
         } else if kd == 2 || kd == 3 {
-            *f2r += (-1.0_f64).powf(f64::from(ic + k))
+            *f2r += neg_one_pow(ic + k)
                 * fg[k_ - 1]
-                * (bj1[k_ - 1] * by2[k_] + (-1.0_f64).powf(f64::from(kd)) * bj1[k_] * by2[k_ - 1]);
+                * (bj1[k_ - 1] * by2[k_] + neg_one_pow(kd) * bj1[k_] * by2[k_ - 1]);
         } else {
-            *f2r += (-1.0_f64).powf(f64::from(ic + k))
+            *f2r += neg_one_pow(ic + k)
                 * fg[k_ - 1]
                 * (bj1[k_ - 1] * by2[k_ + 1] - bj1[k_ + 1] * by2[k_ - 1]);
         }
@@ -956,19 +953,16 @@ pub(crate) fn mtu12(
     for k in 1..=km {
         let k_ = k as usize;
         if kd == 1 {
-            *d2r += (-1.0_f64).powf(f64::from(ic + k))
+            *d2r += neg_one_pow(ic + k)
                 * fg[k_ - 1]
                 * (c2 * bj1[k_ - 1] * dy2[k_ - 1] - c1 * dj1[k_ - 1] * by2[k_ - 1]);
         } else if kd == 2 || kd == 3 {
-            *d2r += (-1.0_f64).powf(f64::from(ic + k))
+            *d2r += neg_one_pow(ic + k)
                 * fg[k_ - 1]
-                * (c2
-                    * (bj1[k_ - 1] * dy2[k_]
-                        + (-1.0_f64).powf(f64::from(kd)) * bj1[k_] * dy2[k_ - 1])
-                    - c1 * (dj1[k_ - 1] * by2[k_]
-                        + (-1.0_f64).powf(f64::from(kd)) * dj1[k_] * by2[k_ - 1]));
+                * (c2 * (bj1[k_ - 1] * dy2[k_] + neg_one_pow(kd) * bj1[k_] * dy2[k_ - 1])
+                    - c1 * (dj1[k_ - 1] * by2[k_] + neg_one_pow(kd) * dj1[k_] * by2[k_ - 1]));
         } else {
-            *d2r += (-1.0_f64).powf(f64::from(ic + k))
+            *d2r += neg_one_pow(ic + k)
                 * fg[k_ - 1]
                 * (c2 * (bj1[k_ - 1] * dy2[k_ + 1] - bj1[k_ + 1] * dy2[k_ - 1])
                     - c1 * (dj1[k_ - 1] * by2[k_ + 1] - dj1[k_ + 1] * by2[k_ - 1]));

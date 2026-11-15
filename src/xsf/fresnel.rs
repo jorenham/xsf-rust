@@ -5,7 +5,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::ffi::c_int;
 use num_complex::Complex;
 
-use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI, SQRT_TAU_DOWN};
+use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI, SQRT_TAU_DOWN, neg_one_pow};
 use crate::xsf::c64::{C64, c64};
 
 fn cfc(z: C64) -> (C64, C64) {
@@ -198,7 +198,7 @@ fn ffk(ks: i32, x: f64) -> (C64, C64) {
     let xa = x.abs();
     let x2 = x * x;
     let x4 = x2 * x2;
-    let sgn = (-1.0_f64).powi(ks);
+    let sgn = neg_one_pow(ks);
 
     if x == 0.0 {
         f.re = 0.5 * FRAC_PI_2.sqrt();

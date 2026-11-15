@@ -12,6 +12,7 @@
 //! Unlike in xsf, `(sn, cn, dn, phi)` is returned instead of written to output pointers, and the
 //! (unused) status code is dropped.
 
+use crate::utils::neg_one_pow;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::ellpk::ellpk;
 use core::f64::consts::PI;
@@ -131,7 +132,7 @@ pub(crate) fn ellpj(u: f64, m: f64) -> (f64, f64, f64, f64) {
             (cn / dn, -k1 * sn / dn, k1 / dn, cn.atan2(-k1 * sn))
         };
         let h = (0.5 * q).floor();
-        let s = if h % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        let s = neg_one_pow(h);
         return (s * sn, s * cn, dn, ph + h * PI);
     }
 

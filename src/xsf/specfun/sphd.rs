@@ -4,6 +4,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use super::{SPECFUN_INF, Status, lpmns, lqmns, sphj, sphy, try_zeroed};
+use crate::utils::neg_one_pow;
 use crate::xsf::tools::int_x86;
 
 pub(crate) fn aswfa(
@@ -354,7 +355,7 @@ fn kmn(
     }
 
     let dnp = if m == 0 { df[0] } else { dn[(m - 1) as usize] };
-    dn[m as usize] = (-1.0_f64).powf(f64::from(ip)) * dnp * cs
+    dn[m as usize] = neg_one_pow(ip) * dnp * cs
         / ((2.0 * f64::from(m) - 1.0)
             * (2.0 * f64::from(m) + 1.0 - 4.0 * f64::from(ip))
             * tp[m as usize]);
@@ -421,7 +422,7 @@ fn kmn(
     let sb0 = (f64::from(ip) + 1.0) * c.powf(f64::from(ip + 1))
         / (2.0 * f64::from(ip) * (f64::from(m) - 2.0) + 1.0)
         / (2.0 * f64::from(m) - 1.0);
-    *ck2 = (-1.0_f64).powf(f64::from(ip)) * sb0 * r4 * r5 * g0 / r1 * su0;
+    *ck2 = neg_one_pow(ip) * sb0 * r4 * r5 * g0 / r1 * su0;
 
     Status::Ok
 }
@@ -467,7 +468,7 @@ fn qstar(m: i32, n: i32, c: f64, ck1: f64, ck: &[f64], qs: &mut f64, qt: &mut f6
         }
         qs0 += ap[(m - l) as usize] * r;
     }
-    *qs = (-1.0_f64).powf(f64::from(ip)) * ck1 * (ck1 * qs0) / c;
+    *qs = neg_one_pow(ip) * ck1 * (ck1 * qs0) / c;
     *qt = -2.0 / ck1 * (*qs);
     Status::Ok
 }
@@ -591,7 +592,7 @@ fn rmn1(
 
     for k in 1..=nm {
         let l = 2 * k + m - n - 2 + ip;
-        let lg = if l % 4 == 0 { 1 } else { -1 };
+        let lg = neg_one_pow(l / 2);
 
         if k == 1 {
             r = r0;
@@ -605,7 +606,7 @@ fn rmn1(
         // NOTE: `sj[np]` (and `dj[np]` below) is out of bounds (C++ UB, panics here) once np >= 252
         // before convergence; since convergence is only checked for k > nm1 and np == n at
         // k == nm1 + 1, this always happens for n >= 252 (if sphj didn't overflow first).
-        *r1f += f64::from(lg) * r * df[(k - 1) as usize] * sj[np as usize];
+        *r1f += lg * r * df[(k - 1) as usize] * sj[np as usize];
 
         if (k > nm1) && ((*r1f - sw).abs() < r1f.abs() * eps) {
             break;
@@ -621,7 +622,7 @@ fn rmn1(
 
     for k in 1..=nm {
         let l = 2 * k + m - n - 2 + ip;
-        let lg = if l % 4 == 0 { 1 } else { -1 };
+        let lg = neg_one_pow(l / 2);
 
         if k == 1 {
             r = r0;
@@ -632,7 +633,7 @@ fn rmn1(
         }
 
         let np = m + 2 * k - 2 + ip;
-        sud += f64::from(lg) * r * df[(k - 1) as usize] * dj[np as usize];
+        sud += lg * r * df[(k - 1) as usize] * dj[np as usize];
 
         if (k > nm1) && ((sud - sw).abs() < sud.abs() * eps) {
             break;
@@ -726,7 +727,7 @@ fn rmn2l(
     // NOTE: `sw` is not reset here (nor before the `sud` loop below), unlike in rmn1.
     for k in 1..=nm {
         let l = 2 * k + m - n - 2 + ip;
-        let lg = if l % 4 == 0 { 1 } else { -1 };
+        let lg = neg_one_pow(l / 2);
 
         if k == 1 {
             r = r0;
@@ -740,7 +741,7 @@ fn rmn2l(
         // NOTE: `sy[np]` (and `dy[np]` below) is out of bounds (C++ UB, panics here) once np >= 252
         // before convergence; since convergence is only checked for k > nm1 and np == n at
         // k == nm1 + 1, this always happens for n >= 252 (if sphy didn't overflow first).
-        *r2f += f64::from(lg) * r * (df[(k - 1) as usize] * sy[np as usize]);
+        *r2f += lg * r * (df[(k - 1) as usize] * sy[np as usize]);
         eps1 = (*r2f - sw).abs();
         if k > nm1 && eps1 < r2f.abs() * eps {
             break;
@@ -772,7 +773,7 @@ fn rmn2l(
 
     for k in 1..=nm {
         let l = 2 * k + m - n - 2 + ip;
-        let lg = if l % 4 == 0 { 1 } else { -1 };
+        let lg = neg_one_pow(l / 2);
 
         if k == 1 {
             r = r0;
@@ -783,7 +784,7 @@ fn rmn2l(
         }
 
         np = m + 2 * k - 2 + ip;
-        sud += f64::from(lg) * r * (df[(k - 1) as usize] * dy[np as usize]);
+        sud += lg * r * (df[(k - 1) as usize] * dy[np as usize]);
         eps2 = (sud - sw).abs();
         if (k > nm1) && (eps2 < sud.abs() * eps) {
             break;
@@ -1043,7 +1044,7 @@ fn rmn2sp(
             gb = 1.0;
         }
         let spl = r1 * ga * gb * sf;
-        su1 += (-1.0_f64).powf(f64::from(j + m)) * dn[(k - 1) as usize] * spl;
+        su1 += neg_one_pow(j + m) * dn[(k - 1) as usize] * spl;
         let spd1 = f64::from(m) / (x * x - 1.0) * spl;
         let gc = 0.5 * f64::from(j) * (f64::from(j) + 1.0) / (f64::from(m) + 1.0);
         let mut sd = 1.0;
@@ -1056,7 +1057,7 @@ fn rmn2sp(
             sd += r4;
         }
         let spd2 = r1 * ga * gb * gc * sd;
-        sd1 += (-1.0_f64).powf(f64::from(j + m)) * dn[(k - 1) as usize] * (spd1 + spd2);
+        sd1 += neg_one_pow(j + m) * dn[(k - 1) as usize] * (spd1 + spd2);
     }
     let mut su2 = 0.0;
     let mut ki = ((f64::from(2 * m + 1) + ip) / 2.0) as i32;

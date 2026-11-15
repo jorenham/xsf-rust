@@ -95,6 +95,7 @@
 use core::cmp::Ordering;
 use core::f64::consts::{LN_2, PI};
 
+use crate::utils::neg_one_pow;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, LN_PI_DD, LN_SQRT_2PI_DD, LOG2, frexp_f64, ldexp_f64,
@@ -693,7 +694,7 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
     let term2 = mul_gamma_ratio([c], [a, cb, m1], || {
         let mut s2 = series_weighted(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
         // (-1)^m
-        s2.m *= if m % 2.0 == 0.0 { 1.0 } else { -1.0 };
+        s2.m *= neg_one_pow(m);
         Some(s2.with_l(-b * ln_1mt))
     })?;
     if m == 0.0 {

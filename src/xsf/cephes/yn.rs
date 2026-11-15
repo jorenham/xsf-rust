@@ -9,6 +9,7 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_4};
 
+use crate::utils::neg_one_pow;
 use crate::xsf::cephes::{y0, y1};
 
 /*                                                     yn.c
@@ -59,19 +60,12 @@ use crate::xsf::cephes::{y0, y1};
  *
  */
 pub(crate) fn yn(mut n: i32, x: f64) -> f64 {
-    let sign;
-
-    if n < 0 {
+    let sign = if n < 0 {
         n = n.wrapping_neg();
-        if (n & 1) == 0 {
-            /* -1**n */
-            sign = 1.0;
-        } else {
-            sign = -1.0;
-        }
+        neg_one_pow(n)
     } else {
-        sign = 1.0;
-    }
+        1.0
+    };
 
     if n == 0 {
         return sign * y0(x);
