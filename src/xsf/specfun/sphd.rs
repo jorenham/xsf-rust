@@ -692,8 +692,8 @@ fn rmn2l(
     }
     let mut nm2 = 2 * nm + m;
     let cx = c * x;
-    // NOTE: sphy writes sy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k) and dy up
-    // to nm2 - 1, which is out of bounds of the 252-element buffers if
+    // NOTE: sphy writes sy and dy up to index nm2 (unless |sy[k]| >= 1e300 for some smaller k),
+    // which is out of bounds of the 252-element buffers if
     // nm2 = 2 * (25 + (n - m) / 2 + (int)c) + m >= 252.
     sphy(cx, nm2, &mut nm2, &mut sy, &mut dy);
     let mut r0 = reg;

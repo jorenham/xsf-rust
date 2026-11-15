@@ -211,3 +211,22 @@ fn test_prolate_radial2_odd_m() {
         assert!(err <= 1e-11 && err_d <= 1e-11, "{m} {n}: {err} {err_d}");
     }
 }
+
+#[test]
+fn test_oblate_radial2_odd_n_minus_m() {
+    // (m, n, c, x) and the value and derivative, from the 50-digit reference of tools/accuracy
+    let args = [
+        (8, 17, 1.545_663_700_838_435_5, 2.760_593_070_143_822_4),
+        (9, 20, 8.055_171_388_779_955, 2.112_503_147_792_345),
+    ];
+    let want = [
+        (-19_665_978.748_180_08, 114_998_621.855_394_93),
+        (-0.187_611_440_287_595_83, 0.645_979_798_679_98),
+    ];
+    for ((m, n, c, x), (want, want_d)) in args.into_iter().zip(want) {
+        let (got, got_d) = xsf::oblate_radial2_nocv(m, n, c, x);
+        let err = (got - want).abs() / want.abs();
+        let err_d = (got_d - want_d).abs() / want_d.abs();
+        assert!(err <= 1e-11 && err_d <= 1e-11, "{m} {n}: {err} {err_d}");
+    }
+}
