@@ -757,6 +757,22 @@ fn test_hyppfq_series() {
 }
 
 #[test]
+fn test_hyppfq_asymptotic() {
+    // Arb references, where the series has too many terms
+    let (a, b) = ([0.5, 1.25, 2.75], [1.5, 2.25, 3.25]);
+    let a_neg = [-0.5, 1.25, 2.75];
+    assert_hyppfq(&a, &b, 500.0, 2.494_168_748_039_884e210);
+    assert_hyppfq(&a_neg, &b, 400.0, -2.048_065_752_931_792_7e164);
+    // overflow, with the sign of the Gamma functions
+    assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
+    // integer a_i - a_j, where the expansion has a limit only
+    let c = 1.0 + 2.0_f64.powi(-10);
+    let (a_int, b_int) = ([1.0, 1.0, 10.5], [c, c, 11.25]);
+    assert_hyppfq(&a_int, &b_int, 21.25, 739_410_485.211_035_5);
+}
+
+#[test]
 fn test_hyppfq_continuation() {
     // mpmath references at 50 and 120 digits
     let (a, b) = ([0.5, 1.25, 2.75, 3.375], [3.25, 4.75, 1.75]);
@@ -928,6 +944,8 @@ fn test_hyppfq_none() {
     // the sum cancels too much
     assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
+    // large z > 0 with integer a_i - a_j
+    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
     assert_eq!(hyppfq(&a, &b, -0.5), None);
