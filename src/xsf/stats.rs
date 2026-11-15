@@ -1133,7 +1133,7 @@ pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
 /// The probability of at most $k$ successes in the $n$ Bernoulli trials with the success
 /// probabilities `p`: $0$ if $k < 0$, and $1$ if $k \ge n$.
 ///
-/// Corresponds to [`scipy.special.poisson_binom_cdf`][scipy] (new in SciPy 2.0).
+/// Corresponds to [`scipy.special.poisson_binom_cdf`][scipy].
 ///
 /// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.poisson_binom_cdf.html
 ///

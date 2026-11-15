@@ -43,7 +43,7 @@ fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
 /// Computes $x > 0$ such that $\psi(x) = y$, where $\psi$ is the [`digamma`](crate::digamma)
 /// function.
 ///
-/// Corresponds to [`scipy.special.digammainv`][scipy] (new in SciPy 2.0).
+/// Corresponds to [`scipy.special.digammainv`][scipy].
 ///
 /// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.digammainv.html
 ///

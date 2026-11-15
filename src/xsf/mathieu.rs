@@ -267,7 +267,7 @@ pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Returns the even Mathieu function, $\mathrm{ce}_m(x,q)$, of order $m$ and parameter $q$
 /// evaluated at $x$ (in radians), and its derivative with respect to $x$.
 ///
-/// Corresponds to [`scipy.special.mathieu_ce`][scipy] (new in SciPy 2.0).
+/// Corresponds to [`scipy.special.mathieu_ce`][scipy].
 ///
 /// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_ce.html
 ///
@@ -288,7 +288,7 @@ pub fn mathieu_ce(m: u32, q: f64, x: f64) -> (f64, f64) {
 /// Returns the odd Mathieu function, $\mathrm{se}_m(x,q)$, of order $m$ and parameter $q$
 /// evaluated at $x$ (in radians), and its derivative with respect to $x$.
 ///
-/// Corresponds to [`scipy.special.mathieu_se`][scipy] (new in SciPy 2.0).
+/// Corresponds to [`scipy.special.mathieu_se`][scipy].
 ///
 /// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_se.html
 ///
