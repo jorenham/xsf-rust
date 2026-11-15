@@ -348,6 +348,60 @@ fn test_hypu_chgus() {
 }
 
 #[test]
+fn test_hypu_chgus_sinpi() {
+    // Arb; 124.033632, 2.17835e279, 5.0010e199, and 7.52252e149 (sin(pi b) near an integer b) in
+    // xsf
+    let abx = [
+        (3.5, 1.0 - 5e-9, 1e-180),
+        (0.2, 2.0 - 1e-12, 1e-280),
+        (3.0, 2.0 + 1e-12, 1e-200),
+        (2.5, 2.0 - 1e-10, 1e-150),
+    ];
+    let expected = [
+        124.033_634_780_699_4,
+        2.178_248_840_713_436_5e279,
+        5.000_000_002_299_904e199,
+        7.522_527_521_252_041e149,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_hypu_chgus_rounding() {
+    // Arb; 1.381478037678 and 3.443455701978e64 in xsf. Here chgus has fewer digits than it would
+    // claim without the rounding of 1 + a - b (first) and of its terms (second).
+    let abx = [
+        (
+            0.001_540_284_073_910_872_3,
+            0.999_999_968_212_571_8,
+            3.409_133_030_522_77e-108,
+        ),
+        (-50.3, 1.001, 0.999_999_999_999_999_9),
+    ];
+    let expected = [1.381_478_037_771_745_5, 3.443_455_703_062_540_5e64];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-14);
+}
+
+#[test]
+fn test_hypu_chguit_unconverged() {
+    // Arb; here the quadrature in chguit doesn't converge, so that chgu keeps chgus
+    let abx = [
+        (25.5, -1e-14, 1e-10),
+        (25.5, 1e-10, 1e-6),
+        (25.5, 2.000_000_000_1, 1e-6),
+    ];
+    let expected = [
+        1.270_443_779_292_559_8e-26,
+        1.270_106_821_887_141e-26,
+        3.238_802_988_847_028e-19,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-9);
+}
+
+#[test]
 fn test_hypu_b_near_zero() {
     // mpmath (scipy/xsf#533)
     let abx = [(2.5, -1e-12, 15.0), (0.75, -1e-13, 3.0), (2.5, 1e-12, 15.0)];

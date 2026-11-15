@@ -14,7 +14,7 @@ use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
+use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64, two_sum};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
@@ -1077,7 +1077,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if b != b.trunc() {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
-        if id1 >= ID_MIN {
+        if id1 >= ID_MIN && !chguit_preferred(a, b, x) {
             return hu;
         }
         hu1 = hu;
@@ -1159,12 +1159,13 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if hu.is_nan() && hu0.is_finite() {
         (hu, id) = (hu0, id0);
     }
-    // step 3
-    if id0 >= 9 && !hu0.is_nan() {
+    // step 3; unlike in xsf, also if step 1 has more digits than step 2, e.g. if chguit doesn't
+    // converge
+    if (id0 >= 9 || id0 > id) && !hu0.is_nan() {
         let tol = 10f64.powi(1 - id0) * hu0.abs();
         let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
         if !agrees {
-            return hu0;
+            (hu, id) = (hu0, id0);
         }
         id = id.max(id0);
     }
@@ -1346,12 +1347,17 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     hu
 }
 
-/// `chguit` integrates over `ln(1 + t)` for `|b - 1|` below this, where `chgus` loses over 3
-/// digits to cancellation (about `-log10|b - 1|`), so that `chgu` falls back to `chguit`
+/// `chgus` loses over 3 digits to cancellation for `|b - 1|` below this (about `-log10|b - 1|`)
 const B_NEAR_1: f64 = 1e-3;
 
 /// `b` is nearer to 1 than to any other integer for `|b - 1|` below this
 const B_NEAREST_1: f64 = 0.5;
+
+/// Whether `chgu` uses `chguit` at `(a, b)` even if `chgus` claims `ID_MIN` digits: for `b` near 1,
+/// within the region where `chguit` integrates over `ln(1 + t)` (`|b - 1| < B_NEAREST_1`, `x < 1`)
+fn chguit_preferred(a: f64, b: f64, x: f64) -> bool {
+    a >= 1.0 && (b - 1.0).abs() < B_NEAR_1 && x < 1.0
+}
 
 #[allow(clippy::let_and_return)]
 fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
@@ -1437,10 +1443,10 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // (DLMF 13.2.40), integrated over s = x t in log space, which can be finite where U or
     // x^(b-1) over- or underflows. The integrand peaks at s < b, so up to C = 12 + b.
     //
-    // Unlike in xsf, for b near 1 (where chgus cancels) and x < 1, up to C = 1/x and over
-    // ln(1 + t): the integrand is then ~ 1/t up to t ~ 1/x, which uniform panels in t can't
+    // Unlike in xsf, for b nearest 1 (where chgus cancels) and x < 1, up to C = 1/x and over
+    // ln(1 + t): the integrand is then ~ t^(b-2) up to t ~ 1/x, which uniform panels in t can't
     // resolve for small x
-    let log_map = !kummer && (b - 1.0).abs() < B_NEAR_1 && x < 1.0;
+    let log_map = !kummer && (b - 1.0).abs() < B_NEAREST_1 && x < 1.0;
     let c = if kummer {
         12.0 + b
     } else if log_map {
@@ -1746,7 +1752,14 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let gb = gamma2(b);
     let gab = gamma2(1.0 + a - b);
     let gb2 = gamma2(2.0 - b);
-    let hu0 = PI / (PI * b).sin();
+    // Unlike in xsf, with sinpi for -0.5 < b < 2.5, as sin(pi b) loses about eps / |b - n| near
+    // an integer n. Further out, gamma2(b) or gamma2(2 - b) is near a pole too, with an error that
+    // sin(pi b) partly cancels.
+    let hu0 = if b > -0.5 && b < 2.5 {
+        PI / cephes_sinpi(b)
+    } else {
+        PI / (PI * b).sin()
+    };
     let mut r1 = hu0 / (gab * gb);
     let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
@@ -1768,6 +1781,8 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = SPECFUN_INF;
+    // Unlike in xsf, the id also has the rounding errors of the terms, about j eps for term j
+    let mut terms = r1.abs() + r2.abs();
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
@@ -1779,6 +1794,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         hu += r1 - r2;
         s1 += r1;
         s2 += r2;
+        terms += f64::from(j) * (r1.abs() + r2.abs());
         let hua = hu.abs();
         if hua > hmax {
             hmax = hua;
@@ -1819,16 +1835,19 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             0.0
         }
     };
-    let e1 = 1e-15 + k(1.0 + a - b);
-    let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
-    // Unlike in xsf, also with the error of their common factor hu0 for b nearest 1, as rounding
-    // pi b loses about eps / |b - 1| in sin(pi b), so that chgu falls back to chguit (near other
-    // integers, the fallbacks are often worse)
-    let e0 = if (b - 1.0).abs() < B_NEAREST_1 {
-        f64::EPSILON / (b - 1.0).abs()
-    } else {
+    // Unlike in xsf, e1 also has the rounding error of 1 + a - b, times |digamma|, which is about
+    // 1 / |1 + a - b - n| near a pole n of gamma2
+    let (s, d_s) = two_sum(1.0, a);
+    let (aab, d_aab) = two_sum(s, -b);
+    let d = d_s + d_aab;
+    let e_ab = if d == 0.0 {
         0.0
+    } else {
+        (digamma(aab) * d).abs()
     };
-    *id = (*id).min((-(e0 + (e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
+    let e1 = 1e-15 + k(1.0 + a - b) + e_ab;
+    let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
+    let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
+    *id = (*id).min((-(err / hu.abs()).log10()) as i32);
     mul_exp(hu, lr2)
 }
