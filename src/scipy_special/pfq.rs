@@ -563,11 +563,7 @@ fn accurate((y, err): (f64, f64)) -> Option<f64> {
 
 /// `pfq_series` if it is `accurate`, after sorting the parameters, which tightens
 /// `pfq_ratio_bound`
-fn pfq_series_sorted<const P: usize, const Q: usize>(
-    a: [f64; P],
-    b: [f64; Q],
-    z: f64,
-) -> Option<f64> {
+fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
     accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
@@ -830,19 +826,13 @@ fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Optio
 /// `b` contains the 1 of $n!$ as its last parameter. The term of $a_m$ is $\abs z^{-a_m}$ times
 /// a ${}_{q+1}F_{p-1}$ series in $(-1)^{p+q+1} / z$, with the parameters $a_m$ and
 /// $1 + a_m - b_j$, and $1 + a_m - a_i$. It stays `None` if it vanishes, where
-/// $1 / \Gamma(b_j - a_m)$ does. If the last $a_p$ equals the last $b_q$, they cancel: no term
-/// of $a_p$, and no $\Gamma$ of them.
+/// $1 / \Gamma(b_j - a_m)$ does.
 fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
     let (_, lower) = b.as_ref().split_last()?;
-    // the parameters with a term and with Gamma factors
-    let (ga, gb) = match (a.as_ref().split_last(), lower.split_last()) {
-        (Some((ap, ga)), Some((bq, gb))) if ap == bq => (ga, gb),
-        _ => (a.as_ref(), lower),
-    };
     let ln_z = ln_dd(Dd::new(z.abs()));
-    let bs = gb.iter().copied().map(Dd::new);
-    for (m, &am) in ga.iter().enumerate() {
-        let others = skip(&ga, m).map(Dd::new);
+    let bs = lower.iter().copied().map(Dd::new);
+    for (m, &am) in a.as_ref().iter().enumerate() {
+        let others = skip(a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
             return None;
@@ -864,18 +854,24 @@ fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scale
 /// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
 /// $z < 0$. The size of the other part is added to the error.
 fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
-    // the algebraic part, `Some(None)` if it vanishes
-    let alg = |a| {
+    // the algebraic part
+    let alg = |a: [f64; 2]| {
         let mut terms = [None; 2];
-        pfq_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
-        Some(add_exp(terms.into_iter().flatten()))
+        if a[1] == b[1] {
+            // they cancel
+            pfq_alg(&[a[0]], &[b[0], 1.0], z, &mut terms)?;
+        } else {
+            pfq_alg(&a, &[b[0], b[1], 1.0], z, &mut terms)?;
+        }
+        Some(terms.into_iter().flatten())
     };
     let (y, other) = if z > 0.0 {
         // (its size is continuous in a_1, also at an integer a_1 - a_2)
         let nudged = [a[0] + f64::EPSILON.sqrt() * a[0].abs().max(1.0), a[1]];
-        (hyp2f2_exp(a, b, z)?, alg(a).or_else(|| alg(nudged))?)
+        let terms = alg(a).or_else(|| alg(nudged))?;
+        (hyp2f2_exp(a, b, z)?, add_exp(terms))
     } else {
-        (alg(a)??, Some(hyp2f2_exp(a, b, z)?))
+        (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
     checked_f64(y, other)
 }
@@ -947,7 +943,7 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
     let (mut a, mut b) = ([a1, a2], [b1, b2]);
     // a common parameter cancels, also at a pole; it becomes a_2 = b_2 = 1, which cancels like
-    // the 1 of n! in the series, and which `pfq_alg` recognizes
+    // the 1 of n! in the series, and which `hyp2f2_asymptotic` recognizes
     let pairs = [(0, 0), (0, 1), (1, 0), (1, 1)];
     if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
         (a, b) = ([a[1 - i], 1.0], [b[1 - j], 1.0]);
@@ -1182,7 +1178,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
-/// and each $p = q + 1 \ge 4$.
+/// and each other $p \le q + 1$.
 ///
 /// It is:
 ///
@@ -1200,8 +1196,9 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// # Returns `None`
 ///
-/// - for the other $p$ and $q$, unless it is a polynomial;
-/// - where it can't be computed accurately, for $p = q + 1 \ge 3$ as for [`hyp3f2`];
+/// - for $p > q + 1$, unless it is a polynomial;
+/// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], and for
+///   the other $p \le q$ for large $\abs z$, e.g. for most $z < -30$ if $p = q$;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1256,6 +1253,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         _ if a.len() == b.len() + 1 => {
             b.push(1.0);
             pfq_real(a, b, z)
+        },
+        _ if a.len() <= b.len() => {
+            b.push(1.0);
+            pfq_series_sorted(a, b, z)
         },
         _ => None,
     }
