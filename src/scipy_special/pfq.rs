@@ -67,8 +67,9 @@ const HYP2F2_ASYMPTOTIC_FIRST: f64 = 30.0;
 /// and cheaper (for $z > 0$, the series is more accurate)
 const HYP1F2_ASYMPTOTIC_FIRST: f64 = 225.0;
 
-/// From this $-z$ on, `hyppfq` tries the asymptotic expansion of ${}_pF_q$ for $p = q$ before
-/// the series, as for `HYP2F2_ASYMPTOTIC_FIRST`
+/// If the terms of the series of ${}_pF_q$ for $p \le q$ and $z < 0$ reach about this power of
+/// $e$ times the result, `hyppfq` tries the asymptotic expansion before the series, as for
+/// `HYP2F2_ASYMPTOTIC_FIRST` and `HYP1F2_ASYMPTOTIC_FIRST`
 const PFQ_ASYMPTOTIC_FIRST: f64 = 30.0;
 
 /// The arithmetic in which a series is summed, with the analogs of the `f64` constants
@@ -1430,9 +1431,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             b.push(1.0);
             let series = || pfq_series_sorted(a.clone(), b.clone(), z);
             let asymptotic = || pfq_asymptotic(&a, &b, z);
+            // the terms of the series for z < 0 reach about e^x, and the result
+            // e^(x cos(pi / kappa)), or a power of z for p = q
+            let kappa = (b.len() - a.len()) as f64;
+            let x = kappa * z.abs().powf(1.0 / kappa);
+            let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
             if degree.is_finite() {
                 series()
-            } else if -z < PFQ_ASYMPTOTIC_FIRST {
+            } else if z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST {
                 series().or_else(asymptotic)
             } else {
                 asymptotic().or_else(series)
