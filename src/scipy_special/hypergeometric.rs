@@ -8,10 +8,10 @@ use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
-/// Debye's expansion of $\Gamma(v) z^{(1-v)/2} I_{v-1}(2\sqrt{z})$ for real $z$ and large $|v|$
+/// Debye's expansion of `Gamma(v) z^((1-v)/2) I_{v-1}(2 sqrt(z))` for real `z` and large `|v|`
 ///
-/// Unlike in xsf (scipy/xsf#366), this also handles $z<0$ with $4|z| < (v-1)^2$, through Debye's
-/// expansion of $J_{v-1}(2\sqrt{-z})$ (DLMF 10.19.3).
+/// Unlike in xsf (scipy/xsf#366), this also handles `z<0` with `4|z| < (v-1)^2`, through Debye's
+/// expansion of `J_{v-1}(2 sqrt(-z))` (DLMF 10.19.3).
 #[inline]
 fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let arg = z.abs().sqrt();
@@ -115,18 +115,18 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
 
 /// Whether Debye's expansion in `hyp0f1_asy` is accurate (empirically to within ~50 eps)
 ///
-/// As in cephes `iv`, this is for $|v-1| > 50$. For $z<0$ its terms grow like $p^{-3k}$, with
-/// $p = \sqrt{1 - 4|z|/(v-1)^2}$, so then this is for $|v-1| p^3 > 50$.
+/// As in cephes `iv`, this is for `|v-1| > 50`. For `z<0` its terms grow like `p^(-3k)`, with
+/// `p = sqrt(1 - 4|z|/(v-1)^2)`, so then this is for `|v-1| p^3 > 50`.
 fn debye_is_accurate(v: f64, z: f64) -> bool {
     let v1 = (v - 1.0).abs();
     let p2 = 1.0 + 4.0 * z.min(0.0) / (v1 * v1);
     v1 * p2 * p2.sqrt() > 50.0
 }
 
-/// Maclaurin series $\sum_n z^n / ((v)_n n!)$ (DLMF 16.2.1)
+/// Maclaurin series `sum_n z^n / ((v)_n n!)` (DLMF 16.2.1)
 ///
-/// Only used for $|z| \le \max(|v|, 1)$, where the terms decrease rapidly, except near the poles
-/// at $n \approx -v$ if $v < 0$.
+/// Only used for `|z| <= max(|v|, 1)`, where the terms decrease rapidly, except near the poles
+/// at `n ~ -v` if `v < 0`.
 fn hyp0f1_series(v: f64, z: f64) -> f64 {
     let mut term = 1.0;
     let mut sum = 1.0;
@@ -156,7 +156,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
     } else if z.norm() < 1e-6 * (1.0 + v.abs()) {
         // both v and z small: truncate the Taylor series at O(z**2)
 
-        // need to do computations in this order, for otherwise $v\approx -z \ll 1$
+        // need to do computations in this order, for otherwise v ~ -z << 1
         // it can lose precision (as was reported for 32-bit linux, see scipy/scipy#6365)
         let t1 = 1.0 + z / v;
         let t2 = z * z / (2.0 * v * (v + 1.0));
