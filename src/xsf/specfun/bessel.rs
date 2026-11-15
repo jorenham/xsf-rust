@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@d54dd52).
+//! (scipy/xsf@1b77a39).
 
 #![allow(clippy::approx_constant)]
 
@@ -107,9 +107,6 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
     //          ZD --- Y0'(z) or Y1'(z) or Y1''(z)
     // ===========================================================
 
-    // Unlike in xsf, the coefficients have the exponents of the Fortran original (and of `jynbh`),
-    // which the C++ lost from the 3rd or 4th coefficient on, e.g. `a[3] = 0.607...` instead of
-    // `6.07...`, so that the zeros with `|z| > 12` had relative errors up to 1e-9.
     #[rustfmt::skip]
     const A: [f64; 12] = [
         -0.703125e-01, 0.112152099609375, -0.5725014209747314, 0.6074042001273483e+01,
