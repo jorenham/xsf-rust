@@ -52,6 +52,7 @@
 #include "xsf/digammainv.h"
 #include "xsf/ellip.h"
 #include "xsf/erf.h"
+#include "xsf/evalpoly.h"
 #include "xsf/expint.h"
 #include "xsf/gamma.h"
 #include "xsf/gen_harmonic.h"
@@ -138,6 +139,31 @@ template <int I> double lqmn(int n, int m, double x) {
     return o[I * rows * cols + m * cols + n];
 }
 
+// element `k` of the output of xsf::poisson_binom_pmf_all (I = 0) or xsf::poisson_binom_cdf_all
+// (I = 1) for the probabilities `p`
+template <int I> double poisson_binom_all(vec<const double> p, int k) {
+    std::vector<double> o(p.extent(0) + 1, NAN);
+    const vec<double> r(o.data(), p.extent(0) + 1);
+    if constexpr (I == 0) {
+        xsf::poisson_binom_pmf_all(p, r);
+    } else {
+        xsf::poisson_binom_cdf_all(p, r);
+    }
+    return o[k];
+}
+
+// `f` of the output of xsf::wilcoxon_pmf_all (I = 0) or xsf::wilcoxon_cdf_all (I = 1) for `n`
+template <int I, typename F> double wilcoxon_all(int n, F f) {
+    std::vector<double> o(n * (n + 1) / 2 + 1, NAN);
+    const vec<double> r(o.data(), n * (n + 1) / 2 + 1);
+    if constexpr (I == 0) {
+        xsf::wilcoxon_pmf_all(n, r);
+    } else {
+        xsf::wilcoxon_cdf_all(n, r);
+    }
+    return f(r);
+}
+
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
 static cd kelvin(double x, int index) {
     cd o[4];
@@ -161,6 +187,13 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
 #define F3(name, expr)                                                                             \
     if (f == name && a.size() == 3) {                                                              \
         const double x = a[0], y = a[1], z = a[2];                                                 \
+        r = (expr);                                                                                \
+        return true;                                                                               \
+    }
+// functions of an array: the K scalar arguments, followed by the elements `xs` of the array
+#define A(name, K, expr)                                                                           \
+    if (f == name && a.size() >= K) {                                                              \
+        const vec<const double> xs(a.data() + K, static_cast<int>(a.size()) - K);                  \
         r = (expr);                                                                                \
         return true;                                                                               \
     }
@@ -486,6 +519,14 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     // Wright's generalized Bessel function
     F3("wright_bessel", xsf::wright_bessel(x, y, z))
     F3("log_wright_bessel", xsf::log_wright_bessel(x, y, z))
+    // Poisson binomial and Wilcoxon signed-rank distributions: element `k` of the `_all` outputs
+    A("poisson_binom_pmf_all", 1, poisson_binom_all<0>(xs, i(a[0])))
+    A("poisson_binom_cdf_all", 1, poisson_binom_all<1>(xs, i(a[0])))
+    F2("wilcoxon_pmf_all", wilcoxon_all<0>(i(x), [&](auto t) { return t(i(y)); }))
+    F2("wilcoxon_cdf_all", wilcoxon_all<1>(i(x), [&](auto t) { return t(i(y)); }))
+    F2("wilcoxon_pmf", wilcoxon_all<0>(i(x), [&](auto t) { return xsf::wilcoxon_pmf(y, t); }))
+    F2("wilcoxon_cdf", wilcoxon_all<1>(i(x), [&](auto t) { return xsf::wilcoxon_cdf(y, t); }))
+    F2("wilcoxon_sf", wilcoxon_all<1>(i(x), [&](auto t) { return xsf::wilcoxon_sf(y, t); }))
     // complex functions
     C("gamma", 2, xsf::gamma(cd(a[0], a[1])))
     C("loggamma", 2, xsf::loggamma(cd(a[0], a[1])))
@@ -514,6 +555,12 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("modified_fresnel_minus.1", 1, nthc<1>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("sph_harm_y", 4, xsf::sph_harm_y(i(a[0]), i(a[1]), a[2], a[3]))
     C("sph_harm_y_all", 4, all_nm<cd>([&](mat<cd> r) { xsf::sph_harm_y_all(a[2], a[3], r); }, i(a[0]), i(a[1])))
+    // the coefficients follow z
+    if (f == "cevalpoly" && a.size() >= 3) {
+        rc = xsf::evalpoly(a.data() + 2, static_cast<int>(a.size()) - 3, cd(a[0], a[1]));
+        cplx = true;
+        return true;
+    }
     // for the reference tables (tools/tables/mapping.py); the parts are above
     C("kelvin.0", 1, kelvin(a[0], 0))
     C("kelvin.1", 1, kelvin(a[0], 1))
@@ -523,6 +570,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
 #undef F2
 #undef F3
 #undef F4
+#undef A
 #undef C
 #undef OUT2
 #undef OUT4
