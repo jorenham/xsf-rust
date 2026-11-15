@@ -598,7 +598,7 @@ fn pbwa_ode(a: f64, x: f64) -> (f64, f64) {
     let k = 1.0 / ((1.0 + e * e).sqrt() + e);
     let omega = X * X / 4.0 - a * X.ln() + FRAC_PI_4 + cgama(z, 0).im / 2.0;
     let rho = (2.0 * k / X).sqrt();
-    let f = c64(rho * omega.cos(), rho * omega.sin());
+    let f = rho * C64::cis(omega);
     let u = s * f;
     let du = u * c64(-0.5 / X, X / 2.0 - a / X) + ds * f;
     let (mut w, mut dw) = (u.re, du.re);

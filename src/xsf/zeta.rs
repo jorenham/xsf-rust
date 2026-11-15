@@ -22,7 +22,7 @@ fn rpow(x: f64, z: C64) -> C64 {
     // std::polar(pow(x, z.real()), z.imag() * log(x))
     let rho = x.powf(z.re);
     let theta = z.im * x.ln();
-    c64(rho * theta.cos(), rho * theta.sin())
+    rho * C64::cis(theta)
 }
 
 /// Log of absolute value of expansion coefficients for Euler-Maclaurin

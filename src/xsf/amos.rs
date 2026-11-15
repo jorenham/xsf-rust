@@ -4451,7 +4451,7 @@ fn rati(z: C64, fnu: f64, n: i32, cy: &mut [C64], tol: f64) {
 
     for _i in 2..=n {
         pt = cdfnu + t1 * rz + cy[k as usize];
-        if pt.re == 0.0 && pt.im == 0.0 {
+        if pt == C64::ZERO {
             pt = c64(tol, tol);
         }
         cy[(k - 1) as usize] = 1.0 / pt;
@@ -4949,7 +4949,7 @@ fn unhj(
         *bsum = sumb;
         l1 = 0;
         l2 = 30;
-        btol = tol * (bsum.re.abs() + bsum.im.abs());
+        btol = tol * bsum.l1_norm();
         atol = tol;
         pp = 1.0;
         ias = 0;

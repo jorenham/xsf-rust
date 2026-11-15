@@ -286,7 +286,7 @@ fn sph_bessel_j_c64(n: i64, z: C64) -> C64 {
         return c64(1.0, 1.0) * f64::INFINITY;
     }
 
-    if z.re == 0.0 && z.im == 0.0 {
+    if z == C64::ZERO {
         if n == 0 {
             return C64::ONE;
         }
@@ -367,7 +367,7 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
         return C64::NAN_RE;
     }
 
-    if z.re == 0.0 && z.im == 0.0 {
+    if z == C64::ZERO {
         // https://dlmf.nist.gov/10.52.E2
         return C64::NAN_RE;
     }

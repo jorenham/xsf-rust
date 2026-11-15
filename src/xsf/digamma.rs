@@ -87,7 +87,7 @@ fn digamma_asymptotic_series(z: C64) -> C64 {
     let rzz = 1.0 / z / z;
     let mut zfac = C64::ONE;
 
-    if !(z.re.is_finite() && z.im.is_finite()) {
+    if !z.is_finite() {
         /* Check for infinity (or nan) and return early.
          * Result of division by complex infinity is implementation dependent.
          * and has been observed to vary between C++ stdlib and CUDA stdlib.

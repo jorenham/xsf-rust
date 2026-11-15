@@ -150,7 +150,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
     } else if is_nonpos_int(v) {
         // poles
         f64::NAN.into()
-    } else if z.re == 0.0 && z.im == 0.0 && v != 0.0 {
+    } else if z == C64::ZERO && v != 0.0 {
         // zeros
         C64::ONE
     } else if z.norm() < 1e-6 * (1.0 + v.abs()) {

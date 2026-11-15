@@ -401,7 +401,7 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
     } else {
         (a, z, 0.0, 0.0)
     };
-    let scale = c64(b.abs() * phase.cos(), b.abs() * phase.sin());
+    let scale = b.abs() * C64::cis(phase);
     hyp1f1_series(a, b, z, scale, ln_scale)
         .filter(|&(m, err)| m.norm().is_normal() && err <= SQRT_EPSILON * m.norm())
         .map_or(hg, |(m, _)| m / b.abs())
@@ -452,7 +452,7 @@ fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(
 /// is negative only for the integers `k` between `-a` and `-b` (and `t_(k+1) = 0` for `k >= -a`
 /// if `a = 0, -1, ...`).
 fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
-    let poly = a <= 0.0 && a == a.trunc();
+    let poly = is_nonpos_int(a);
     let end = if poly { -a } else { (-a).max(-b) };
     f64::from(n).max((-a).min(-b).floor() + 1.0) >= end
 }

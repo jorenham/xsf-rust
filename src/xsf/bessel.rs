@@ -481,7 +481,7 @@ fn cyl_hankel_c64(mut v: f64, z: C64, kode: i32, m: i32) -> C64 {
     if v.is_nan() || z.is_nan() {
         return cy;
     }
-    if kode == 1 && m == 2 && v == 0.0 && z.re == 0.0 && z.im == 0.0 {
+    if kode == 1 && m == 2 && v == 0.0 && z == C64::ZERO {
         cy.re = f64::NAN;
         cy.im = f64::INFINITY;
         return cy;
@@ -570,7 +570,7 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
         sign = -1;
     }
 
-    if kode == 1 && z.re == 0.0 && z.im == 0.0 {
+    if kode == 1 && z == C64::ZERO {
         /* overflow */
         cy_y.re = f64::NEG_INFINITY;
         cy_y.im = 0.0;
