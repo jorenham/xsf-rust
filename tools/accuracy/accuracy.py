@@ -436,18 +436,18 @@ def _err_key(cell: str) -> tuple[float, int] | None:
 
 
 def mark_best(errs: Iterable[str]) -> list[str]:
-    """Make the smallest peak and the smallest rms bold, if unique at the displayed precision;
-    `errs` alternates peak and rms per implementation."""
+    """Make the smallest peaks and the smallest rms bold, unless all are equal at the displayed
+    precision; `errs` alternates peak and rms per implementation."""
     errs = list(errs)
     for j in range(2):
         keys = {
             c: k for c in range(j, len(errs), 2) if (k := _err_key(errs[c])) is not None
         }
-        if len(keys) > 1:
-            best = min(keys.values())
-            if list(keys.values()).count(best) == 1:
-                c = next(c for c, k in keys.items() if k == best)
-                errs[c] = f"<b>{errs[c]}</b>"
+        best = min(keys.values(), default=None)
+        if any(k != best for k in keys.values()):
+            for c, k in keys.items():
+                if k == best:
+                    errs[c] = f"<b>{errs[c]}</b>"
     return errs
 
 
@@ -459,7 +459,7 @@ def table(impls: list[str], rows: list[list[str]]) -> str:
         '<th rowspan="2">N</th>',
     ]
     head += [f'<th colspan="2">{IMPLS[i]}</th>' for i in impls]
-    head.append('<th rowspan="2">bit-identical</th>')
+    head.append('<th rowspan="2">same</th>')
     lines = ["<table>", "<thead>", f"<tr>{''.join(head)}</tr>"]
     lines.append("<tr>" + "<th>peak</th><th>rms</th>" * len(impls) + "</tr>")
     lines += ["</thead>", "<tbody>"]
@@ -495,9 +495,9 @@ the Rust standard library where it has the function.
 
 - **peak**: the largest error; **rms**: the root mean square of the finite errors
 - **inf (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
-- **bold**: the smallest peak or rms of a row (if unique at the displayed precision)
+- **bold**: the smallest peak or rms of a row (unless all are equal at the displayed precision)
 - **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
-- **bit-identical**: the share of inputs where xsf-rust and xsf return the same f64
+- **same**: the share of inputs where xsf-rust and xsf return the same f64 (bit-identical)
 - **(log)**: sampled log-uniformly; **$`\\pm`$**: with a random sign
 
 For reference, $`\\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
@@ -514,7 +514,7 @@ METHOD: Final = """\
   a function oscillates, it is the smaller of that and $`\\lvert y - f\\rvert / A`$, with the local
   amplitude $`A`$ given below the table. A result is exact if both overflow to the same infinity,
   or both underflow ($`\\lvert f\\rvert`$ < 2.2e-308).
-- bit-identical is rounded down, and counts any two NaNs as equal.
+- **same** is rounded down, and counts any two NaNs as equal.
 - Built on {platform}: xsf-rust with `{rustc}` (release profile), xsf with `{gxx}`
   (`-O2 -std=c++17`).
 - To regenerate, run `just accuracy` (needs `cargo`, `g++`, `uv`, and internet access to
@@ -543,7 +543,7 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
         for r in sec:
             sup = "".join(marks[note] for note in r.spec.note.split())
             name = f"<code>{r.spec.func}</code>" + (f"<sup>{sup}</sup>" if sup else "")
-            row = [name, r.domain, str(r.n)]
+            row = [name, r.domain, f"{r.n:,}"]
             for impl in impls:
                 s = r.stats.get(impl)
                 if s is None:
