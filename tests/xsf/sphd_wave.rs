@@ -192,3 +192,22 @@ fn test_prolate_radial2_even_m() {
         assert!(err <= 1e-11, "{m} {n}: {err}");
     }
 }
+
+#[test]
+fn test_prolate_radial2_odd_m() {
+    // (m, n, c, x) and the value and derivative, from the 50-digit reference of tools/accuracy
+    let args = [
+        (3, 3, 2.401_625_034_635_083_4, 1.506_863_321_817_658_6),
+        (1, 1, 5.009_278_793_547_867, 1.009_342_526_580_865_8),
+    ];
+    let want = [
+        (-0.543_740_693_117_230_4, 1.385_795_725_321_838_7),
+        (-0.692_220_356_888_025_6, 32.306_419_060_327_784),
+    ];
+    for ((m, n, c, x), (want, want_d)) in args.into_iter().zip(want) {
+        let (got, got_d) = xsf::prolate_radial2_nocv(m, n, c, x);
+        let err = (got - want).abs() / want.abs();
+        let err_d = (got_d - want_d).abs() / want_d.abs();
+        assert!(err <= 1e-11 && err_d <= 1e-11, "{m} {n}: {err} {err_d}");
+    }
+}

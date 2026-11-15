@@ -77,7 +77,9 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
             - f64::from(k + m) * pm[(k - 1) as usize])
             / (x * x - 1.0);
     }
-    let coef = neg_one_pow(m);
+    // Unlike in xsf (scipy/xsf#551), the Ferrers phase (-1)^m is only applied for |x| < 1, as
+    // DLMF 14.7.11 has none for x > 1.
+    let coef = if x.abs() > 1.0 { 1.0 } else { neg_one_pow(m) };
     for k in 1..=n {
         pm[k as usize] *= coef;
         pd[k as usize] *= coef;
