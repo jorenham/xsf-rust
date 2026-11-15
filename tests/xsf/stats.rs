@@ -681,10 +681,13 @@ fn test_fdtrc_subnormal_w() {
 
 #[test]
 fn test_fdtr_tiny_w() {
-    // `w` underflows or `a x` is subnormal, with a finite `b`, where `fdtrc = O(a)` for a tiny `a`,
-    // or `fdtr = O(b)` for a subnormal `b`; from Arb
+    // `w` underflows or `a x` is subnormal, with a finite `b`, where `fdtrc = O(a)` for a tiny (or
+    // subnormal) `a`, or `fdtr = O(b)` for a subnormal `b`; from Arb
     let p = [
         xsf::fdtrc(1e-307, 1.0, 5e-324),
+        xsf::fdtrc(1e-308, 1.0, 1e-320),
+        xsf::fdtrc(1e-310, 1e308, 1e-310),
+        xsf::fdtrc(4.4e-308, 1e308, 1e-310),
         xsf::fdtrc(1e-20, 1.0, 1e-320),
         xsf::fdtrc(1e-10, 1.0, 1e-320),
         xsf::fdtrc(6e-5, 1.0, 1e-315),
@@ -695,6 +698,9 @@ fn test_fdtr_tiny_w() {
     ];
     let desired = [
         7.263_599_949_158_365e-305,
+        7.237_048_719_471_299e-306,
+        7.138_593_445_859_812e-308,
+        3.127_590_211_779_119_6e-305,
         3.921_326_185_559_873e-18,
         3.806_196_858_474_085_4e-8,
         0.021_850_396_135_364_984,

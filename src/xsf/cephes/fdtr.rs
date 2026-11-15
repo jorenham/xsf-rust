@@ -7,12 +7,12 @@
 
 use core::f64::consts::LN_2;
 
-use crate::utils::SQRT_EPSILON;
+use crate::utils::{EGAMMA, SQRT_EPSILON};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
-use crate::xsf::cephes::{lgam1p, ln_a_beta};
+use crate::xsf::cephes::{lgam1p, ln_a_beta, psi};
 use crate::xsf::expint::exp1;
 
 /// Complemented F distribution
@@ -156,10 +156,17 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
 fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<(f64, f64)> {
     let ax = a * x;
     let tiny = ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON && ax < f64::EPSILON;
-    if !(tiny && a >= 2.0 * f64::MIN_POSITIVE && b < f64::INFINITY && x > 0.0) {
+    if !(tiny && b < f64::INFINITY && x > 0.0) {
         return None;
     }
     let (ha, hb) = (0.5 * a, 0.5 * b);
+    if a < 2.0 * f64::MIN_POSITIVE {
+        // `A` is subnormal and rounds: `ln(A B(A, B)) = ln(1 + A / B) - A (psi(1 + B) - psi(1))` up
+        // to `O(A^2)`, with the `A` terms as `a (...) / 2`
+        let ln_w = x.ln() + a.ln() - (b + ax).ln();
+        let ln_p = 0.5 * (a * (ln_w + EGAMMA + psi(1.0 + hb))) - (a / b).ln_1p();
+        return Some((ln_p.exp(), -ln_p.exp_m1()));
+    }
     let ln_ab = if b < 2.0 * f64::MIN_POSITIVE {
         // `A B(A, B) = 1 + A / B` up to a relative `O(B)`, without the rounding of `B`
         (a / b).ln_1p()
