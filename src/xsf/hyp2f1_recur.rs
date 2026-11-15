@@ -554,45 +554,76 @@ fn pole_distance(g: Dd) -> Option<f64> {
     (!(g.hi < 0.5 && d <= 0.0)).then_some(d)
 }
 
+/// The relative rounding error of a few `f64` operations, in the error bounds of `ln_gamma`
+const F64_ROUNDING: f64 = 4.0 * MACHEP;
+/// The relative rounding error of a few double-double operations, in the same
+const DD_ROUNDING: f64 = 4.0 * MACHEP * MACHEP;
+
 /// `ln|Gamma(g)|`, the sign of `Gamma(g)`, and a bound of the absolute error of the former, or
-/// `None` at (or too close to) a pole:
+/// `None` at a pole:
 ///
 /// - for `g >= 13`, by Stirling's formula in double-double, with the correction of cephes' `lgam`
 ///   (DLMF 5.11.1)
-/// - for `g <= -13`, by the reflection formula `Gamma(g) Gamma(1 - g) = pi / sin(pi g)`
-///   (DLMF 5.5.3), to first order in `g.lo`
+/// - for `g <= -13` or within `|g.lo|` of a pole, by the reflection formula
+///   `Gamma(g) Gamma(1 - g) = pi / sin(pi g)` (DLMF 5.5.3), with `ln_sinpi`
 /// - else by `lgam` at `g.hi`, to first order in `g.lo`
 ///
-/// The second-order terms `f'' g.lo^2 / 2` are bounded between `g.hi` and `g.hi + g.lo`, with `d`
-/// the smallest distance to a pole there: for `f = ln Gamma`, `f'' < 1/d^2 + pi^2` if `g < 1/2`,
-/// and `f'' < 1/g + 1/g^2` if `g > 0`, and for `f = ln|sin(pi g)|`, `|f''| < (pi / 2d)^2` (since
-/// `|sin(pi g)| >= 2d`).
+/// The second-order term `f'' g.lo^2 / 2` of `f = ln Gamma` is bounded between `g.hi` and
+/// `g.hi + g.lo`, with `d` the smallest distance to a pole there: `f'' < 1/d^2 + pi^2` if
+/// `g < 1/2`, and `f'' < 1/g + 1/g^2` if `g > 0`.
 pub(crate) fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
     if g.hi >= 13.0 {
         let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + lgam_stirling_corr(g.hi);
         // (the correction is below 0.01, and its error below eps)
         return Some((v, 1.0, 2.0 * MACHEP + 16.0 * MACHEP * MACHEP * v.hi.abs()));
     }
-    let d = pole_distance(g)?;
-    if g.hi <= -13.0 {
+    match pole_distance(g) {
+        Some(d) if g.hi > -13.0 => {
+            let (v, sign) = lgam_sgn(g.hi);
+            if !v.is_finite() {
+                return None;
+            }
+            let dpsi = psi(g.hi) * g.lo;
+            let err =
+                F64_ROUNDING * (v.abs() + dpsi.abs() + 1.0) + trigamma_lo(g, d) * g.lo.abs() / 2.0;
+            Some((Dd::new(v) + dpsi, f64::from(sign), err))
+        },
+        d => {
+            let (ln_sin, sign, sin_err) = ln_sinpi(g, d)?;
+            let (v, _, err) = ln_gamma(-g + 1.0)?;
+            let err = err + sin_err + DD_ROUNDING * (v.hi.abs() + ln_sin.hi.abs() + 1.0);
+            Some((LN_PI_DD - v - ln_sin, sign, err))
+        },
+    }
+}
+
+/// `ln|sin(pi g)|`, its sign, and a bound of its absolute error, for `g` at a distance `d` from
+/// the integers (`None` if within `|g.lo|` of one):
+///
+/// - to first order in `g.lo`, with the second-order term bounded by `|f''| < (pi / 2d)^2` for
+///   `f = ln|sin(pi g)|` (since `|sin(pi g)| >= 2d`)
+/// - else for `g = k + e`, by `ln|sin(pi e)| = ln(pi |e|) - x^2/6 - x^4/180 - ...` with `x = pi e`,
+///   whose tail is below `x^4/100` for `|x| <= pi/1000`; `None` if `e = 0`, or if `|e| > 1/1000`
+///   (only for `|g| > 2^42`)
+fn ln_sinpi(g: Dd, d: Option<f64>) -> Option<(Dd, f64, f64)> {
+    if let Some(d) = d {
         let s = sinpi(g.hi);
-        let (v, _, err) = ln_gamma(-g + 1.0)?;
         // d/dg ln|sin(pi g)| = pi cot(pi g)
         let dsin = PI * cospi(g.hi) / s * g.lo;
         let ln_sin = s.abs().ln();
-        let v = LN_PI_DD - v - (ln_sin + dsin);
-        let err = err
-            + 4.0 * MACHEP * (1.0 + ln_sin.abs() + dsin.abs())
+        let err = F64_ROUNDING * (1.0 + ln_sin.abs() + dsin.abs())
             + (PI / (2.0 * d) * g.lo).powi(2) / 2.0;
-        return Some((v, s.signum(), err));
+        return Some((Dd::new(ln_sin + dsin), s.signum(), err));
     }
-    let (v, sign) = lgam_sgn(g.hi);
-    if !v.is_finite() {
+    let k = g.hi.round();
+    let e = g - k;
+    if e.hi == 0.0 || e.hi.abs() > 1e-3 {
         return None;
     }
-    let dpsi = psi(g.hi) * g.lo;
-    let err = 4.0 * MACHEP * (v.abs() + dpsi.abs() + 1.0) + trigamma_lo(g, d) * g.lo.abs() / 2.0;
-    Some((Dd::new(v) + dpsi, f64::from(sign), err))
+    let ln_e = ln_dd(if e.hi < 0.0 { -e } else { e });
+    let x2 = (PI * e.hi).powi(2);
+    let err = DD_ROUNDING * (ln_e.hi.abs() + 2.0) + F64_ROUNDING * x2 + x2 * x2 / 100.0;
+    Some((LN_PI_DD + ln_e - x2 / 6.0, cospi(k) * e.hi.signum(), err))
 }
 
 /// `|g.lo|` times the bound of `(ln Gamma)''` in `ln_gamma` (0 if `g.lo = 0`, even if it overflows)
@@ -852,7 +883,18 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, hyp2f1_recur, recur_down};
+    use super::{Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, hyp2f1_recur, ln_gamma, recur_down};
+
+    #[test]
+    fn test_ln_gamma_near_pole() {
+        // Arb; `-n + e` with `e = +-1e-17` only in the low word
+        let ln_gamma_at =
+            |n: f64, e| ln_gamma(Dd { hi: -n, lo: e }).map(|(v, sign, _)| (v.hi, sign));
+        assert_eq!(ln_gamma_at(1.0, 1e-17), Some((39.143_946_580_898_78, -1.0)));
+        assert_eq!(ln_gamma_at(1.0, -1e-17), Some((39.143_946_580_898_78, 1.0)));
+        assert_eq!(ln_gamma_at(2.0, 1e-17), Some((38.450_799_400_338_83, 1.0)));
+        assert_eq!(ln_gamma_at(1.0, 0.0), None);
+    }
 
     #[test]
     fn test_recur_down_start_errors() {
