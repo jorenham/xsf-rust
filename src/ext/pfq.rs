@@ -1,8 +1,8 @@
-//! Generalized hypergeometric functions ${}_pF_q$ of real arguments.
+//! Generalized hypergeometric functions pFq of real arguments.
 //!
 //! The internal functions are generic over the numbers of parameters. They take the lower
-//! parameters together with the 1 of $n!$ as `b`, so that the terms of the series are
-//! $t_n = z^n \prod_i (a_i)_n / \prod_j (b_j)_n$.
+//! parameters together with the 1 of `n!` as `b`, so that the terms of the series are
+//! `t_n = z^n prod_i (a_i)_n / prod_j (b_j)_n`.
 
 use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
@@ -27,14 +27,14 @@ const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 /// Largest estimated relative error of a result
 const PFQ_TOL: f64 = 1e-13;
 
-/// Most parameters, with the 1 of $n!$, for which the rounding errors of the methods in `f64`
+/// Most parameters, with the 1 of `n!`, for which the rounding errors of the methods in `f64`
 /// are measured
 const PFQ_MEASURED_PARAMS: f64 = 6.0;
 
 /// Largest size of terms that add nothing to a sum, even if there are `PFQ_MAXITER` of them
 const PFQ_NEGLIGIBLE: f64 = 1e-150;
 
-/// The sizes of the parameters for which `pfq_products` is exact enough for all $n$
+/// The sizes of the parameters for which `pfq_products` is exact enough for all `n`
 const PFQ_MODERATE: core::ops::RangeInclusive<f64> = 1e-30..=1e30;
 
 /// Most parameters in `a` or in `b` for which `pfq_products` is exact
@@ -43,8 +43,8 @@ const PFQ_MAX_UNCHECKED: usize = 4;
 /// Below the logarithm of the smallest positive normal number
 const PFQ_LN_UNDERFLOW: f64 = -709.0;
 
-/// Largest distance of a parameter to a non-positive integer $-m$ at which its rounding error
-/// is counted for the whole tail of the series from $n = m$ on, as errors of that size are seen
+/// Largest distance of a parameter to a non-positive integer `-m` at which its rounding error
+/// is counted for the whole tail of the series from `n = m` on, as errors of that size are seen
 /// up to a distance of 0.01
 const PFQ_NEAR_INTEGER: f64 = 0.0625;
 
@@ -58,18 +58,18 @@ const PFQ_WENIGER_MAX_Z: f64 = -0.6;
 /// accurate there (measured)
 const PFQ_WENIGER_FIRST_Z: f64 = -1.5;
 
-/// From this $\abs z$ on, `hyp2f2` tries the asymptotic expansion before the series, as for
-/// $z < 0$ the terms of the series then reach about $e^{\abs z} > 10^{13}$, and the expansion
+/// From this `|z|` on, `hyp2f2` tries the asymptotic expansion before the series, as for
+/// `z < 0` the terms of the series then reach about `e^|z| > 10^13`, and the expansion
 /// is often accurate and cheaper
 const HYP2F2_ASYMPTOTIC_FIRST: f64 = 30.0;
 
-/// From this $-z$ on, `hyp1f2` tries the asymptotic expansion before the series, as the terms of
-/// the series then reach about $e^{2 \sqrt{-z}} > 10^{13}$, and the expansion is often accurate
-/// and cheaper (for $z > 0$, the series is more accurate)
+/// From this `-z` on, `hyp1f2` tries the asymptotic expansion before the series, as the terms of
+/// the series then reach about `e^(2 sqrt(-z)) > 10^13`, and the expansion is often accurate
+/// and cheaper (for `z > 0`, the series is more accurate)
 const HYP1F2_ASYMPTOTIC_FIRST: f64 = 225.0;
 
-/// If the terms of the series of ${}_pF_q$ for $p \le q$ and $z < 0$ reach about this power of
-/// $e$ times the result, `hyppfq` tries the asymptotic expansion before the series, as for
+/// If the terms of the series of pFq for `p <= q` and `z < 0` reach about this power of
+/// `e` times the result, `hyppfq` tries the asymptotic expansion before the series, as for
 /// `HYP2F2_ASYMPTOTIC_FIRST` and `HYP1F2_ASYMPTOTIC_FIRST`
 const PFQ_ASYMPTOTIC_FIRST: f64 = 30.0;
 
@@ -79,9 +79,9 @@ trait SeriesReal: Real + Add<f64, Output = Self> {
     const EPSILON: f64;
     /// Smallest size of a result that is that accurate: it did not underflow
     const MIN_POSITIVE: f64;
-    /// The mantissa, of size in $[1/2, 1)$, and the exponent
+    /// The mantissa, of size in `[1/2, 1)`, and the exponent
     fn frexp(self) -> (Self, i32);
-    /// `self` times $2^e$
+    /// `self` times `2^e`
     fn ldexp(self, e: i32) -> Self;
 }
 
@@ -113,14 +113,14 @@ impl SeriesReal for Dd {
     }
 }
 
-/// The smallest $n$ with $v + n = 0$ for a `v` in `params`, or infinity if there is none
+/// The smallest `n` with `v + n = 0` for a `v` in `params`, or infinity if there is none
 fn first_zero(params: &[f64]) -> f64 {
     let zeros = params.iter().filter(|&&v| is_nonpos_int(v));
     zeros.map(|v| -v).fold(f64::INFINITY, f64::min)
 }
 
-/// The degree of the polynomial if an $a_i$ is a non-positive integer, else infinity, or `None`
-/// at a pole, where a $(b_j)_n$ vanishes before
+/// The degree of the polynomial if an `a_i` is a non-positive integer, else infinity, or `None`
+/// at a pole, where a `(b_j)_n` vanishes before
 fn pfq_degree(a: &[f64], b: &[f64]) -> Option<f64> {
     let degree = first_zero(a);
     (first_zero(b) >= degree).then_some(degree)
@@ -131,7 +131,7 @@ fn is_pole(v: &Dd) -> bool {
     v.hi <= 0.0 && v.is_integer()
 }
 
-/// The $n$ from which on all $a_i + n$ and $b_j + n$ are positive
+/// The `n` from which on all `a_i + n` and `b_j + n` are positive
 fn pfq_settled(a: &[f64], b: &[f64]) -> f64 {
     a.iter().chain(b).fold(0.0, |n, &v| n.max(-v))
 }
@@ -148,11 +148,11 @@ fn descending<P: AsMut<[f64]>>(mut v: P) -> P {
     v
 }
 
-/// Bound on $|t_{m+1} / t_m|$ for all $m \ge n$, if all $a_i + n$ and $b_j + n$ are positive,
-/// except that for a longer `a` the unpaired $a_i + m$ are taken at $m = n$ (and they grow)
+/// Bound on `|t_{m+1} / t_m|` for all `m >= n`, if all `a_i + n` and `b_j + n` are positive,
+/// except that for a longer `a` the unpaired `a_i + m` are taken at `m = n` (and they grow)
 ///
-/// Each $a_i$ is paired with $b_i$: $(a_i + m) / (b_i + m)$ decreases to 1, or stays below 1.
-/// The other $1 / (b_j + m)$ decrease. This is tightest if `a` and `b` are sorted alike.
+/// Each `a_i` is paired with `b_i`: `(a_i + m) / (b_i + m)` decreases to 1, or stays below 1.
+/// The other `1 / (b_j + m)` decrease. This is tightest if `a` and `b` are sorted alike.
 fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     let paired = a.iter().zip(b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
     let unpaired_a = a.iter().skip(b.len()).map(|a| a + n);
@@ -160,17 +160,17 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     z.abs() * paired.product::<f64>() * unpaired_a.product::<f64>() / unpaired_b.product::<f64>()
 }
 
-/// The products of the $a_i + n$ and of the $b_j + n$, whose quotient is $t_{n+1} / (z t_n)$
+/// The products of the `a_i + n` and of the `b_j + n`, whose quotient is `t_{n+1} / (z t_n)`
 ///
 /// They and their quotient are normal for up to `PFQ_MAX_UNCHECKED` parameters with sizes in
-/// `PFQ_MODERATE`, as each nonzero $\abs{a_i + n}$ is then in $[2^{-100}, 2^{101}]$.
+/// `PFQ_MODERATE`, as each nonzero `|a_i + n|` is then in `[2^-100, 2^101]`.
 fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
     let shifted = |p: T, &v: &f64| p * (T::from_f64(v) + n);
     let one = T::from_f64(1.0);
     [a.iter().fold(one, shifted), b.iter().fold(one, shifted)]
 }
 
-/// $t_{n+1} / (z t_n)$ for any parameters and $n$, which is zero if it underflows, and infinite
+/// `t_{n+1} / (z t_n)` for any parameters and `n`, which is zero if it underflows, and infinite
 /// if it overflows or would be inexact, as it is not normal
 #[cold]
 fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
@@ -211,7 +211,7 @@ fn pfq_extreme(a: &[f64], b: &[f64]) -> bool {
     many || a.iter().chain(b).any(|v| !PFQ_MODERATE.contains(&v.abs()))
 }
 
-/// $t_{n+1} / (z t_n)$, which is `checked` if the parameters are extreme
+/// `t_{n+1} / (z t_n)`, which is `checked` if the parameters are extreme
 #[inline]
 fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
     if checked {
@@ -222,7 +222,7 @@ fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
     }
 }
 
-/// The terms $t_1, t_2, \dots$ of the series after $t_0 = 1$, in the arithmetic of `T`
+/// The terms `t_1, t_2, ...` of the series after `t_0 = 1`, in the arithmetic of `T`
 ///
 /// A term that underflows is a bound on it. The terms end before one that overflows or is NaN,
 /// or that is such a bound and not negligible.
@@ -249,7 +249,7 @@ fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item 
     })
 }
 
-/// The series $\sum_n t_n$ (DLMF 16.2.1) and an estimate of its absolute error
+/// The series `sum_n t_n` (DLMF 16.2.1) and an estimate of its absolute error
 ///
 /// The estimate is infinite if the series did not converge within `PFQ_MAXITER` terms, or if
 /// its terms overflow, or underflow before they become large again. If it converged, but its
@@ -259,7 +259,7 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
     (y, err)
 }
 
-/// `pfq_series`, and the root of the sum of its squared tails $s - s_n$, which is at least the
+/// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
     let (y, err, tails) = pfq_sum::<f64>(a, b, z, PFQ_MAXITER);
@@ -274,8 +274,8 @@ fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f6
 
 /// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms
 ///
-/// The rounding error of each ratio $t_{n+1} / t_n$ affects the terms after it, which sum to
-/// $s - s_n$ for the partial sum $s_n$ and the sum $s$. These errors are added in quadrature,
+/// The rounding error of each ratio `t_{n+1} / t_n` affects the terms after it, which sum to
+/// `s - s_n` for the partial sum `s_n` and the sum `s`. These errors are added in quadrature,
 /// like those of the partial sums. A part of them adds up instead, as `a + n` rounds alike
 /// for all `n` between two powers of 2. The constants are measured.
 fn pfq_sum<T: SeriesReal>(
@@ -339,18 +339,18 @@ fn pfq_sum<T: SeriesReal>(
 /// Weniger's delta transformation of the series, and an estimate of its absolute error
 ///
 /// This is a factorial Levin-type sequence transformation \[1\], which is used for
-/// ${}_pF_q$ in HypergeometricFunctions.jl \[2\]. For $z < 0$ it converges much faster than the
-/// series, and also for $z < -1$, where the series diverges. With the term $t_{n+1}$ as the
-/// remainder estimate of the partial sum $s_n$, its order $k$ is
+/// pFq in HypergeometricFunctions.jl \[2\]. For `z < 0` it converges much faster than the
+/// series, and also for `z < -1`, where the series diverges. With the term `t_{n+1}` as the
+/// remainder estimate of the partial sum `s_n`, its order `k` is
 ///
-/// $$
-/// \delta_k = {\sum_{j=0}^k c_j s_j / t_{j+1} \over \sum_{j=0}^k c_j / t_{j+1}} , \quad
-/// c_j = (-1)^j \binom k j (j + 1)_{k-1} ,
-/// $$
+/// ```text
+/// delta_k = (sum_{j=0}^k c_j s_j / t_{j+1}) / (sum_{j=0}^k c_j / t_{j+1}),
+/// c_j = (-1)^j binom(k, j) (j + 1)_{k-1},
+/// ```
 ///
-/// by the three-term recursion of its numerator and denominator. It is applied from the $n$
-/// where the terms start to alternate, so that the weights of the $s_j$ are positive. The same
-/// recursion for $|s_j|$ then gives their weighted mean, which scales the rounding errors.
+/// by the three-term recursion of its numerator and denominator. It is applied from the `n`
+/// where the terms start to alternate, so that the weights of the `s_j` are positive. The same
+/// recursion for `|s_j|` then gives their weighted mean, which scales the rounding errors.
 ///
 /// The estimate is infinite if the orders up to `PFQ_WENIGER_MAXITER` did not converge, or if a
 /// term overflows, or underflows before the terms become large again. It is `None` if the terms
@@ -437,11 +437,11 @@ pub(crate) fn pfq_weniger(
     Some((delta, f64::INFINITY))
 }
 
-/// $\Gamma(u) / \Gamma(w)$ and an estimate of its relative error, for `u` and `w` as `two_sum`s
+/// `Gamma(u) / Gamma(w)` and an estimate of its relative error, for `u` and `w` as `two_sum`s
 ///
 /// The low part `e` of an argument `x + e` is its rounding error, which matters near a pole.
-/// It is applied to first order: $\Gamma(x + e) \approx \Gamma(x) (1 + \psi(x) e)$, where the
-/// square of $\psi(x) e$ estimates the error of that.
+/// It is applied to first order: `Gamma(x + e) ~ Gamma(x) (1 + psi(x) e)`, where the
+/// square of `psi(x) e` estimates the error of that.
 ///
 /// The ratio is zero only if `w` is a pole, and `None` if it underflows or overflows.
 pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
@@ -464,7 +464,7 @@ pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
     })
 }
 
-/// The parameters `a` or `b` of a method for ${}_pF_q$: an array, or a `Vec` if their number
+/// The parameters `a` or `b` of a method for pFq: an array, or a `Vec` if their number
 /// is only known at run time
 pub(crate) trait Params: Clone + AsRef<[f64]> + AsMut<[f64]> {}
 
@@ -476,12 +476,12 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
     (0..v.len()).filter(move |&k| k != i).map(move |k| v[k])
 }
 
-/// The analytic continuation to $z < -1$ (DLMF 16.8.8) and an estimate of its absolute error, or
+/// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
-/// This is for $p = q + 1$, where `b` contains the 1 of $n!$, and no two $a_i$ may differ by an
-/// integer. It is a sum over $j$ of series in $1 / z$ with the parameters $a_j + 1 - b$ and
-/// $a_j + 1 - a$.
+/// This is for `p = q + 1`, where `b` contains the 1 of `n!`, and no two `a_i` may differ by an
+/// integer. It is a sum over `j` of series in `1 / z` with the parameters `a_j + 1 - b` and
+/// `a_j + 1 - a`.
 pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let one = b.as_ref().iter().position(|&v| v == 1.0)?;
     let (mut sum, mut err) = (0.0, 0.0);
@@ -539,13 +539,13 @@ pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, 
     Some((sum, err))
 }
 
-/// A method for $p = q + 1$, which returns the result and an estimate of its absolute error, or
+/// A method for `p = q + 1`, which returns the result and an estimate of its absolute error, or
 /// `None`
 type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 
-/// ${}_{q+1}F_q$ for $z < 1$, or for a polynomial, by the first method for `z` that is accurate
+/// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate
 ///
-/// `b` contains the 1 of $n!$.
+/// `b` contains the 1 of `n!`.
 pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let methods: &[Method<P>] = if first_zero(a.as_ref()).is_finite() || z > PFQ_WENIGER_MAX_Z {
@@ -573,8 +573,8 @@ fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
     accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
-/// Whether the series of ${}_{q+1}F_q$ diverges at $z = 1$, where $\sum_j b_j \le \sum_i a_i$
-/// for `b` without the 1 of $n!$, or `None` if that is uncertain
+/// Whether the series of `_{q+1}F_q` diverges at `z = 1`, where `sum_j b_j <= sum_i a_i`
+/// for `b` without the 1 of `n!`, or `None` if that is uncertain
 ///
 /// The sums are in double-double, as their rounding can change the sign of their difference.
 fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
@@ -593,7 +593,7 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
     (!uncertain).then_some(excess <= 0.0)
 }
 
-/// ${}_{q+1}F_q$ for finite arguments, where the last of `b` is the 1 of $n!$
+/// `_{q+1}F_q` for finite arguments, where the last of `b` is the 1 of `n!`
 fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
     if z == 0.0 {
         return Some(1.0);
@@ -689,7 +689,7 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
     }
 }
 
-/// Gauss's sum ${}_2F_1(a, b; c; 1)$ (DLMF 15.4.20), if it converges and its estimated relative
+/// Gauss's sum `2F1(a, b; c; 1)` (DLMF 15.4.20), if it converges and its estimated relative
 /// error is at most `PFQ_TOL`
 fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
     let c = Dd::new(c);
@@ -702,18 +702,18 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
     checked_f64(y, None).filter(|y| y.is_finite())
 }
 
-/// The sum of an asymptotic series in $1/z$ up to its smallest term from term `settled` on, and
+/// The sum of an asymptotic series in `1/z` up to its smallest term from term `settled` on, and
 /// an estimate of its absolute error
 ///
-/// From term `settled` on, all parameters plus $n$ must be positive. Before it, the terms may
-/// vanish or grow. From term `settled + |z|` on, the term ratios are about $n / \abs z$, so that
-/// growing terms keep growing. The size of a term $t_n$ is $\max(\abs{t_n}, \abs{t_{n+1}})$, as
-/// a $t_n$ of a recurrence of order 2 can vanish while $t_{n+1}$ does not. It stops at a term of
+/// From term `settled` on, all parameters plus `n` must be positive. Before it, the terms may
+/// vanish or grow. From term `settled + |z|` on, the term ratios are about `n / |z|`, so that
+/// growing terms keep growing. The size of a term `t_n` is `max(|t_n|, |t_{n+1}|)`, as
+/// a `t_n` of a recurrence of order 2 can vanish while `t_{n+1}` does not. It stops at a term of
 /// a negligible size if `ratio_bound(n) < 1`, so that the next terms are smaller.
 ///
-/// The error is the smallest size times $\sqrt{2 \pi \abs z}$, about the sum of the terms near
+/// The error is the smallest size times `sqrt(2 pi |z|)`, about the sum of the terms near
 /// it, plus rounding. For terms of one sign, the remainder can be half of that, as for
-/// $\sum_n n! / z^{n+1}$ with $z > 0$, whose term ratios are also about $n / z$.
+/// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`.
 fn asymptotic_sum(
     terms: impl Iterator<Item = f64>,
     settled: f64,
@@ -744,8 +744,8 @@ fn asymptotic_sum(
     best
 }
 
-/// The terms $t_0 = 1, t_1, \dots$ of a recurrence of order 2, where `next(k, t1, t2)` is $t_k$
-/// for $t_{k-1}$ and $t_{k-2}$, with $t_{-1} = 0$
+/// The terms `t_0 = 1, t_1, ...` of a recurrence of order 2, where `next(k, t1, t2)` is `t_k`
+/// for `t_{k-1}` and `t_{k-2}`, with `t_{-1} = 0`
 fn recurrence_terms(
     next: impl Fn(f64, f64, f64) -> f64 + Clone,
 ) -> impl Iterator<Item = f64> + Clone {
@@ -768,19 +768,19 @@ fn gamma_series(
     mul_gamma_ratio(num, den, || Some(y))
 }
 
-/// The exponentially large part of the asymptotic expansion of $_2F_2$ (DLMF 16.11.1, 16.11.7),
-/// with $\abs z^\nu$ instead of $z^\nu$:
+/// The exponentially large part of the asymptotic expansion of 2F2 (DLMF 16.11.1, 16.11.7),
+/// with `|z|^nu` instead of `z^nu`:
 ///
-/// $$
-/// {\Gamma(b_1) \Gamma(b_2) \over \Gamma(a_1) \Gamma(a_2)} e^z \abs z^\nu \sum_k c_k z^{-k},
-/// \qquad \nu = a_1 + a_2 - b_1 - b_2
-/// $$
+/// ```text
+/// Gamma(b_1) Gamma(b_2) / (Gamma(a_1) Gamma(a_2)) e^z |z|^nu sum_k c_k z^-k,
+/// nu = a_1 + a_2 - b_1 - b_2
+/// ```
 ///
-/// By the differential equation (DLMF 16.8.3), $c_0 = 1$ and
-/// $k c_k = A_1 c_{k-1} + A_0 c_{k-2}$, with $s = \nu + 1 - k$ and
+/// By the differential equation (DLMF 16.8.3), `c_0 = 1` and
+/// `k c_k = A_1 c_{k-1} + A_0 c_{k-2}`, with `s = nu + 1 - k` and
 ///
-/// - $A_1 = 2 s^2 + (2 b_1 + 2 b_2 - a_1 - a_2 - 1) s + b_1 b_2 - a_1 a_2$,
-/// - $A_0 = (s + 1) (s + b_1) (s + b_2)$.
+/// - `A_1 = 2 s^2 + (2 b_1 + 2 b_2 - a_1 - a_2 - 1) s + b_1 b_2 - a_1 a_2`,
+/// - `A_0 = (s + 1) (s + b_1) (s + b_2)`.
 fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     let nu = Dd::new(a[0]) + a[1] - b[0] - b[1];
     let (sum_a, sum_b, dprod) = (a[0] + a[1], b[0] + b[1], b[0] * b[1] - a[0] * a[1]);
@@ -799,12 +799,12 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     gamma_series(b.map(Dd::new), a.map(Dd::new), series, l)
 }
 
-/// `(x, k, factor)` for the rounded parameter `x = 1 + am - v` of a series, where $-k$ is the
-/// non-positive integer nearest to it: times `factor`, the terms after $t_k$ have the factor
-/// $x + k$ of the exact parameter if it is an `upper` one, and $1 / (x + k)$ if it is a lower one
+/// `(x, k, factor)` for the rounded parameter `x = 1 + am - v` of a series, where `-k` is the
+/// non-positive integer nearest to it: times `factor`, the terms after `t_k` have the factor
+/// `x + k` of the exact parameter if it is an `upper` one, and `1 / (x + k)` if it is a lower one
 ///
-/// The rounding error of `x` is large relative to a small $x + k$. An inexact upper `x` at $-k$
-/// would end the series, so that it is a few ulp from $-k$ instead.
+/// The rounding error of `x` is large relative to a small `x + k`. An inexact upper `x` at `-k`
+/// would end the series, so that it is a few ulp from `-k` instead.
 fn shifted(am: f64, v: f64, upper: bool) -> (f64, f64, f64) {
     let (s, e1) = two_sum(1.0, am);
     let (nearest, e2) = two_sum(s, -v);
@@ -846,8 +846,8 @@ fn shifted_params<P: Params>(
     (xs, Shifts { ks, factors })
 }
 
-/// The series of the term of $a_m$ of the algebraic part (DLMF 16.11.2), as its sum and
-/// absolute error, where `b` contains the 1 of $n!$ as its last parameter
+/// The series of the term of `a_m` of the algebraic part (DLMF 16.11.2), as its sum and
+/// absolute error, where `b` contains the 1 of `n!` as its last parameter
 ///
 /// With `sizes`, it is the sum of the sizes of its terms.
 fn pfq_alg_series<A: Params, B: Params>(
@@ -893,16 +893,16 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(asymptotic_sum(series, pfq_settled(up, low), scale, bound))
 }
 
-/// The terms of the algebraic part of the asymptotic expansion of ${}_pF_q$ for $p \le q$ (DLMF
-/// 16.11.2), with $\abs z$ instead of $-z$, or `None` if two $a_i$ differ by an integer
+/// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
+/// 16.11.2), with `|z|` instead of `-z`, or `None` if two `a_i` differ by an integer
 ///
-/// `b` contains the 1 of $n!$ as its last parameter. The term of $a_m$ is $\abs z^{-a_m}$ times
-/// a ${}_{q+1}F_{p-1}$ series in $(-1)^{p+q+1} / z$, with the parameters $a_m$ and
-/// $1 + a_m - b_j$, and $1 + a_m - a_i$. It stays `None` if it vanishes, where
-/// $1 / \Gamma(b_j - a_m)$ does.
+/// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
+/// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
+/// `1 + a_m - b_j`, and `1 + a_m - a_i`. It stays `None` if it vanishes, where
+/// `1 / Gamma(b_j - a_m)` does.
 ///
 /// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
-/// size of its factor. Their sum bounds the algebraic part at any phase of $z$ and of its terms.
+/// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
 fn pfq_alg<A: Params, B: Params>(
     a: &A,
     b: &B,
@@ -934,11 +934,11 @@ fn pfq_alg<A: Params, B: Params>(
     Some(())
 }
 
-/// $_2F_2$ by its asymptotic expansion (DLMF 16.11.7), if its estimated relative error is at
+/// 2F2 by its asymptotic expansion (DLMF 16.11.7), if its estimated relative error is at
 /// most `PFQ_TOL`
 ///
-/// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
-/// $z < 0$. The size of the other part is added to the error.
+/// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
+/// `z < 0`. The size of the other part is added to the error.
 fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
     // the algebraic part
     let alg = |a: [f64; 2]| {
@@ -1070,23 +1070,21 @@ fn alternating(iter: impl Iterator<Item = f64>, step: usize) -> impl Iterator<It
     iter.step_by(step).zip(signs).map(|(t, sign)| sign * t)
 }
 
-/// The exponential part of the asymptotic expansion of $_1F_2$ (DLMF 16.11.1, 16.11.8), with
-/// $x = 2 \sqrt{\abs z}$ and $\nu = a - b_1 - b_2 + 1/2$:
+/// The exponential part of the asymptotic expansion of 1F2 (DLMF 16.11.1, 16.11.8), with
+/// `x = 2 sqrt(|z|)` and `nu = a - b_1 - b_2 + 1/2`:
 ///
-/// $$
-/// {\Gamma(b_1) \Gamma(b_2) \over \Gamma(a)} {\abs z^{\nu / 2} \over \sqrt \pi}
-/// \begin{cases}
-///     \frac 1 2 e^x \sum_k c_k x^{-k} & z > 0 \\
-///     \sum_k c_k x^{-k} \cos(x + \pi (\nu - k) / 2) & z < 0
-/// \end{cases}
-/// $$
+/// ```text
+/// Gamma(b_1) Gamma(b_2) / Gamma(a) |z|^(nu/2) / sqrt(pi) S,
+/// S = 1/2 e^x sum_k c_k x^-k                    (z > 0)
+/// S = sum_k c_k x^-k cos(x + pi (nu - k) / 2)   (z < 0)
+/// ```
 ///
-/// For $z < 0$, it's the sum of the expansions with $e^{\pm i x}$. By the differential
-/// equation (DLMF 16.8.3) in $x$, $c_0 = 1$ and $2 k c_k = A_1 c_{k-1} + A_0 c_{k-2}$, with
-/// $s = \nu + 1 - k$, $\beta_j = 2 b_j - 2$, and
+/// For `z < 0`, it's the sum of the expansions with `e^(+-i x)`. By the differential
+/// equation (DLMF 16.8.3) in `x`, `c_0 = 1` and `2 k c_k = A_1 c_{k-1} + A_0 c_{k-2}`, with
+/// `s = nu + 1 - k`, `beta_j = 2 b_j - 2`, and
 ///
-/// - $A_1 = (2 s + \beta_1 + \beta_2 + 1) (s + 1) + (s + \beta_1) (s + \beta_2)$,
-/// - $A_0 = (s + 1) (s + 1 + \beta_1) (s + 1 + \beta_2)$.
+/// - `A_1 = (2 s + beta_1 + beta_2 + 1) (s + 1) + (s + beta_1) (s + beta_2)`,
+/// - `A_0 = (s + 1) (s + 1 + beta_1) (s + 1 + beta_2)`.
 fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     let nu = Dd::new(a) - b[0] - b[1] + 0.5;
     let sqrt_z = Dd::new(z.abs()).sqrt();
@@ -1131,11 +1129,11 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     mul_gamma_ratio(b.map(Dd::new), [Dd::new(a)], || Some(y))
 }
 
-/// $_1F_2$ by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
+/// 1F2 by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
 /// most `PFQ_TOL`
 ///
-/// For $z > 0$, only the exponentially large part is used, and the size of the algebraic part
-/// is added to the error. The terms with $e^{-x}$ are smaller than the truncation error.
+/// For `z > 0`, only the exponentially large part is used, and the size of the algebraic part
+/// is added to the error. The terms with `e^-x` are smaller than the truncation error.
 fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
     let exp = hyp1f2_exp(a, b, z)?;
     // the algebraic part, `None` if it vanishes
@@ -1217,14 +1215,14 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
 }
 
-/// The terms $t_k = c_k x^{-k}$ of the exponential part of the asymptotic expansion of
-/// ${}_pF_q$ for $p \le q$ (DLMF 16.11.1), where `b` contains the 1 of $n!$
+/// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
+/// pFq for `p <= q` (DLMF 16.11.1), where `b` contains the 1 of `n!`
 ///
-/// With $D = x {d \over dx}$ and $\kappa = q - p + 1$, the differential equation (DLMF 16.8.3) is
-/// $(\prod_j (D + \kappa (b_j - 1)) - x^\kappa \prod_i (D + \kappa a_i)) w = 0$, and each factor
-/// $D + g$ maps $e^x x^s$ to $e^x (x^{s+1} + (s + g) x^s)$. So $c_0 = 1$ and
-/// $\kappa k c_k = \sum_{m=1}^q d_{m+1}(\nu - k + m) c_{k-m}$, where $d_j(s)$ is the
-/// coefficient of $e^x x^{s+q+1-j}$ in the image of $e^x x^s$.
+/// With `D = x d/dx` and `kappa = q - p + 1`, the differential equation (DLMF 16.8.3) is
+/// `(prod_j (D + kappa (b_j - 1)) - x^kappa prod_i (D + kappa a_i)) w = 0`, and each factor
+/// `D + g` maps `e^x x^s` to `e^x (x^(s+1) + (s + g) x^s)`. So `c_0 = 1` and
+/// `kappa k c_k = sum_{m=1}^q d_{m+1}(nu - k + m) c_{k-m}`, where `d_j(s)` is the
+/// coefficient of `e^x x^(s+q+1-j)` in the image of `e^x x^s`.
 fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = f64> + Clone {
     let (q, kappa) = (b.len() - 1, (b.len() - a.len()) as f64);
     let left: Vec<f64> = b.iter().map(|bj| kappa * (bj - 1.0)).collect();
@@ -1272,17 +1270,17 @@ fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
         .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
 }
 
-/// The sum of the two exponential parts of `pfq_exp` for $z < 0$ and $p < q$, which have
-/// $x e^{\pm \pi i / \kappa}$ as $x$ (DLMF 16.11.8, 16.11.9), relative to
-/// $e^{x \cos(\pi / \kappa)}$:
+/// The sum of the two exponential parts of `pfq_exp` for `z < 0` and `p < q`, which have
+/// `x e^(+-pi i / kappa)` as `x` (DLMF 16.11.8, 16.11.9), relative to
+/// `e^(x cos(pi / kappa))`:
 ///
-/// $$
-/// 2 \sum_k t_k \cos(\theta - \pi k / \kappa),
-/// \qquad \theta = x \sin(\pi / \kappa) + \pi \nu / \kappa
-/// $$
+/// ```text
+/// 2 sum_k t_k cos(theta - pi k / kappa),
+/// theta = x sin(pi / kappa) + pi nu / kappa
+/// ```
 ///
-/// with its absolute error, and $\cos(\pi / \kappa)$, where `terms` are the $t_k = c_k x^{-k}$
-/// and `root` is $\abs z^{1 / \kappa}$.
+/// with its absolute error, and `cos(pi / kappa)`, where `terms` are the `t_k = c_k x^-k`
+/// and `root` is `|z|^(1 / kappa)`.
 fn pfq_exp_cos(
     terms: &(impl Iterator<Item = f64> + Clone),
     settled: f64,
@@ -1315,18 +1313,18 @@ fn pfq_exp_cos(
     ((2.0 * sum, 2.0 * (err + others * size)), cos)
 }
 
-/// The exponential part of the asymptotic expansion of ${}_pF_q$ for $p \le q$ (DLMF 16.11.1),
-/// with $\abs z^\nu$ instead of $z^\nu$, where `b` contains the 1 of $n!$:
+/// The exponential part of the asymptotic expansion of pFq for `p <= q` (DLMF 16.11.1),
+/// with `|z|^nu` instead of `z^nu`, where `b` contains the 1 of `n!`:
 ///
-/// $$
-/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)}
-/// (2 \pi)^{(1 - \kappa) / 2} \kappa^{-\nu - 1/2} e^x \abs x^\nu \sum_k c_k x^{-k},
-/// \qquad \nu = \sum_i a_i - \sum_j b_j + {\kappa - 1 \over 2}
-/// $$
+/// ```text
+/// prod_j Gamma(b_j) / prod_i Gamma(a_i)
+///     (2 pi)^((1 - kappa) / 2) kappa^(-nu - 1/2) e^x |x|^nu sum_k c_k x^-k,
+/// nu = sum_i a_i - sum_j b_j + (kappa - 1) / 2
+/// ```
 ///
-/// with $\kappa = q - p + 1$ and $x = \kappa z^{1 / \kappa}$, which is real for $z > 0$ or
-/// $p = q$. Otherwise, it is the sum of the two parts with $x = \kappa \abs z^{1 / \kappa}
-/// e^{\pm \pi i / \kappa}$.
+/// with `kappa = q - p + 1` and `x = kappa z^(1 / kappa)`, which is real for `z > 0` or
+/// `p = q`. Otherwise, it is the sum of the two parts with
+/// `x = kappa |z|^(1 / kappa) e^(+-pi i / kappa)`.
 fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let (_, lower) = b.split_last()?;
     let kappa = b.len() - a.len();
@@ -1358,13 +1356,13 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     gamma_series(num, den, series, l)
 }
 
-/// ${}_pF_q$ for $p \le q$ by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), if its
-/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
+/// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), if its
+/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of `n!`
 ///
-/// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
-/// $z < 0$ and $p = q$. The size of the other part is added to the error, for $z > 0$ as the
-/// sizes of the terms of the algebraic part, which has no bound yet where two $a_i$ differ by
-/// an integer (`None`). For $z < 0$ and $p < q$, it is the sum of both parts.
+/// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
+/// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
+/// sizes of the terms of the algebraic part, which has no bound yet where two `a_i` differ by
+/// an integer (`None`). For `z < 0` and `p < q`, it is the sum of both parts.
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
@@ -1383,7 +1381,7 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     }
 }
 
-/// The limit at $z = \pm\infty$ for finite parameters if cheap, with `b` without the 1 of $n!$
+/// The limit at `z = +-inf` for finite parameters if cheap, with `b` without the 1 of `n!`
 fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     if z.is_finite() {
         None
