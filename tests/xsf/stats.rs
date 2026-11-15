@@ -222,6 +222,18 @@ fn test_stdtri_tiny_p() {
     }
 }
 
+#[test]
+fn test_stdtri_tiny_nu() {
+    // |t| > f64::MAX for every p != 1/2 if nu < 1.5e-19 (Arb)
+    for nu in [5e-324, 1e-310, 1e-300, 1e-19] {
+        assert_eq!(xsf::stdtri(nu, 1e-300), f64::NEG_INFINITY);
+        assert_eq!(xsf::stdtri(nu, 0.5 - f64::EPSILON / 4.0), f64::NEG_INFINITY);
+        assert_eq!(xsf::stdtri(nu, 0.5), 0.0);
+        assert_eq!(xsf::stdtri(nu, 0.5 + f64::EPSILON / 2.0), f64::INFINITY);
+        assert_eq!(xsf::stdtri(nu, 0.7), f64::INFINITY);
+    }
+}
+
 xsref::tests! {
     test_ndtr_f64: "ndtr", "d-d", |x| xsf::ndtr(x[0]);
     test_ndtr_c64: "ndtr", "cd-cd", |x| xsf::ndtr(c64(x[0], x[1]));

@@ -227,6 +227,10 @@ pub fn stdtri(nu: f64, p: f64) -> f64 {
         f64::INFINITY
     } else if p == 0.5 {
         0.0
+    } else if nu < 1e-19 {
+        // |t| ~ sqrt(nu) / 2 (2q)^(-1/nu) (the leading term below) overflows, since 1 - 2q >= 2^-53
+        // gives |t| > e^1000, and that term is NaN if nu is subnormal
+        f64::INFINITY.copysign(p - 0.5)
     } else if nu.is_infinite() {
         ndtri(p)
     } else if nu == 1.0 {
