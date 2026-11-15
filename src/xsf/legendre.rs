@@ -9,6 +9,8 @@
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
 //!   (scipy/xsf#368).
+//! - The real `lqn` uses the backward recurrence for `x < -1.021` too, instead of the forward
+//!   one, which is unstable there.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::ops::{Index, IndexMut};
@@ -708,7 +710,9 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
         return;
     }
 
-    if x <= 1.021 {
+    // Unlike in xsf, this tests `|x|` instead of `x`: the forward recurrence is also unstable for
+    // `x < -1.021`, where the backward one works just like for `x > 1.021`.
+    if x.abs() <= 1.021 {
         let x2 = ((1.0 + x) / (1.0 - x)).abs();
         q0 = 0.5 * x2.ln();
         q1 = x * q0 - 1.0;
