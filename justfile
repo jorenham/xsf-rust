@@ -22,6 +22,9 @@ fmt *args:
 accuracy *args:
     uv run tools/accuracy/accuracy.py {{ args }}
 
+pfq-map *args:
+    uv run tools/accuracy/pfq_map.py {{ args }}
+
 [working-directory("tools")]
 lint-py:
     uv run ruff check
