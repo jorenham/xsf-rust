@@ -81,7 +81,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`cotdg`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.cotdg.html)                               | `cotdg`                                             |
 | [`dawsn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.dawsn.html)                               | `dawsn`                                             |
 | [`digamma`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.digamma.html)                           | `digamma`                                           |
-|                                                                                                                        | `digammainv`                                        |
+| [`digammainv`](https://scipy.github.io/devdocs/reference/generated/scipy.special.digammainv.html)                      | `digammainv`                                        |
 | [`diric`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.diric.html)                               | `diric`                                             |
 | [`ellip_harm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellip_harm.html)                     | `ellip_harm`                                        |
 | [`ellip_harm_2`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.ellip_harm_2.html)                 | `ellip_harm_2`                                      |
