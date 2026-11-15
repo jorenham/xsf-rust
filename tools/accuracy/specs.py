@@ -3852,7 +3852,7 @@ def hahn_domain(name: str, pretty: str, x: Callable[[Random, int], float]) -> Do
 
 
 add(
-    "hahn_q",
+    "eval_hahn",
     "n N alpha beta x",
     r_hahn_q,
     hahn_domain(

@@ -113,6 +113,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`eval_chebyu`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_chebyu.html)                   | `eval_chebyshev_u`                                  |
 | [`eval_gegenbauer`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_gegenbauer.html)           | `eval_gegenbauer`                                   |
 | [`eval_genlaguerre`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_genlaguerre.html)         | `eval_genlaguerre`                                  |
+|                                                                                                                        | `eval_hahn`                                         |
 | [`eval_hermite`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_hermite.html)                 | `eval_hermite_h`                                    |
 | [`eval_hermitenorm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_hermitenorm.html)         | `eval_hermite_he`                                   |
 | [`eval_jacobi`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.eval_jacobi.html)                   | `eval_jacobi`                                       |
@@ -164,7 +165,6 @@ lists the functions that SciPy computes with another library than xsf.
 | [`geterr`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.geterr.html)                             |                                                     |
 | [`h1vp`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.h1vp.html)                                 | `hankel_1_prime`                                    |
 | [`h2vp`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.h2vp.html)                                 | `hankel_2_prime`                                    |
-|                                                                                                                        | `hahn_q`                                            |
 | [`hankel1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel1.html)                           | `hankel_1`                                          |
 | [`hankel1e`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel1e.html)                         | `hankel_1e`                                         |
 | [`hankel2`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hankel2.html)                           | `hankel_2`                                          |

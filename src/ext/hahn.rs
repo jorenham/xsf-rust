@@ -120,7 +120,7 @@ fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
 ///   $Q_n(Nx; 0, 0, N) \to P_n(1 - 2x)$ as $N \to \infty$
 #[must_use]
 #[allow(non_snake_case)]
-pub fn hahn_q(n: u32, N: u32, alpha: f64, beta: f64, x: f64) -> f64 {
+pub fn eval_hahn(n: u32, N: u32, alpha: f64, beta: f64, x: f64) -> f64 {
     if !(alpha > -1.0 && beta > -1.0 && n <= N) {
         return f64::NAN;
     }
