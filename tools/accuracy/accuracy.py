@@ -379,19 +379,24 @@ def error_complex(y: complex, r: mp.mpc, scale: str | None = None) -> float:
     return float(e)
 
 
+# the unit roundoff, the smallest error the geometric mean counts, so that a few exact results do
+# not make it 0 (it is only 0 if all are exact)
+GMEAN_FLOOR: Final = 2.0**-53
+
+
 def stats(errs: list[float]) -> Stats | None:
-    """(peak, rms, number of infinite errors); the rms is over the finite errors."""
+    """(peak, geometric mean, number of infinite errors); the mean is over the finite errors."""
     if not errs:
         return None
     fin = [e for e in errs if math.isfinite(e)]
     peak = max(fin, default=0.0)
-    rms = (
-        peak * math.sqrt(math.fsum((e / peak) ** 2 for e in fin) / len(fin))
+    gmean = (
+        math.exp(math.fsum(math.log(max(e, GMEAN_FLOOR)) for e in fin) / len(fin))
         if peak
         else 0.0
     )
     nbad = len(errs) - len(fin)
-    return (math.inf if nbad else peak), (rms if fin else None), nbad
+    return (math.inf if nbad else peak), (gmean if fin else None), nbad
 
 
 def bits(x: complex) -> tuple[bytes | str, ...]:
@@ -447,8 +452,8 @@ def mark_bad(cell: str) -> str:
 
 
 def mark_best(errs: Iterable[str]) -> list[str]:
-    """Make the smallest peaks and the smallest rms bold, unless all are equal at the displayed
-    precision; `errs` alternates peak and rms per implementation."""
+    """Make the smallest peaks and the smallest gmean bold, unless all are equal at the displayed
+    precision; `errs` alternates peak and gmean per implementation."""
     errs = list(errs)
     for j in range(2):
         keys = {
@@ -472,7 +477,7 @@ def table(impls: list[str], rows: list[list[str]]) -> str:
     head += [f'<th colspan="2">{IMPLS[i]}</th>' for i in impls]
     head.append('<th rowspan="2">same</th>')
     lines = ["<table>", "<thead>", f"<tr>{''.join(head)}</tr>"]
-    lines.append("<tr>" + "<th>peak</th><th>rms</th>" * len(impls) + "</tr>")
+    lines.append("<tr>" + "<th>peak</th><th>gmean</th>" * len(impls) + "</tr>")
     lines += ["</thead>", "<tbody>"]
     for name, domain, n, *errs, same in rows:
         cells = [f"<td>{name}</td>", f"<td>{domain}</td>"]
@@ -505,9 +510,10 @@ Relative error versus mpmath of xsf-rust {crate}, the C++ [xsf](https://github.c
 it is translated from (commit [`{short}`](https://github.com/scipy/xsf/tree/{commit})), and
 the Rust standard library where it has the function.
 
-- **peak**: the largest error; **rms**: the root mean square of the finite errors
+- **peak**: the largest error; **gmean**: the geometric mean of the finite errors, each at least
+  $`2^{{-53}}`$ (0 if all are 0)
 - **\u221e (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
-- **bold**: the smallest peak or rms of a row (unless all are equal at the displayed precision)
+- **bold**: the smallest peak or gmean of a row (unless all are equal at the displayed precision)
 - **\u2757**: an error of {bad} or more, or infinite errors
 - **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
 - **same**: the share of inputs where xsf-rust and xsf return the same f64 (bit-identical)
