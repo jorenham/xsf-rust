@@ -5,7 +5,7 @@
 //! $t_n = z^n \prod_i (a_i)_n / \prod_j (b_j)_n$.
 
 use core::f64::consts::{PI, TAU};
-use core::iter::{once, successors};
+use core::iter::{from_fn, once, successors};
 use core::ops::Add;
 
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
@@ -1148,6 +1148,84 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     }
 }
 
+/// The terms $t_k = c_k x^{-k}$ of the exponential part of the asymptotic expansion of
+/// ${}_pF_q$ for $p \le q$ (DLMF 16.11.1), where `b` contains the 1 of $n!$
+///
+/// With $D = x {d \over dx}$ and $\kappa = q - p + 1$, the differential equation (DLMF 16.8.3) is
+/// $(\prod_j (D + \kappa (b_j - 1)) - x^\kappa \prod_i (D + \kappa a_i)) w = 0$, and each factor
+/// $D + g$ maps $e^x x^s$ to $e^x (x^{s+1} + (s + g) x^s)$. So $c_0 = 1$ and
+/// $\kappa k c_k = \sum_{m=1}^q d_{m+1}(\nu - k + m) c_{k-m}$, where $d_j(s)$ is the
+/// coefficient of $e^x x^{s+q+1-j}$ in the image of $e^x x^s$.
+fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = f64> + Clone {
+    let (q, kappa) = (b.len() - 1, (b.len() - a.len()) as f64);
+    let left: Vec<f64> = b.iter().map(|bj| kappa * (bj - 1.0)).collect();
+    let right: Vec<f64> = a.iter().map(|ai| kappa * ai).collect();
+    // the coefficients of e^x x^(s+n-j) in prod_(i<n) (D + g_i) e^x x^s, for j <= q + 1
+    let coefs = move |g: &[f64], s: f64| {
+        let mut c = vec![0.0; q + 2];
+        c[0] = 1.0;
+        for (i, &gi) in g.iter().enumerate() {
+            for j in (1..=i + 1).rev() {
+                c[j] += c[j - 1] * (s + (i + 1 - j) as f64 + gi);
+            }
+        }
+        c
+    };
+    // t_k, and the sums so far of t_(k+1), ..., t_(k+q)
+    let (mut k, mut t, mut sums) = (0.0, 1.0, vec![0.0; q]);
+    from_fn(move || {
+        let (term, l, r) = (t, coefs(&left, nu - k), coefs(&right, nu - k));
+        let mut scale = 1.0;
+        for (m, sum) in sums.iter_mut().enumerate() {
+            scale /= x;
+            *sum += (l[m + 2] - r[m + 2]) * scale * t;
+        }
+        k += 1.0;
+        t = sums[0] / (kappa * k);
+        sums.rotate_left(1);
+        sums[q - 1] = 0.0;
+        Some(term)
+    })
+}
+
+/// The exponentially large part of the asymptotic expansion of ${}_pF_q$ for $p = q$ (DLMF
+/// 16.11.1, 16.11.7), with $\abs z^\nu$ instead of $z^\nu$, where `b` contains the 1 of $n!$:
+///
+/// $$
+/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)} e^z \abs z^\nu \sum_k c_k z^{-k},
+/// \qquad \nu = \sum_i a_i - \sum_j b_j
+/// $$
+fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
+    let (_, lower) = b.split_last()?;
+    let sum_params = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
+    let nu = sum_params(a) - sum_params(lower);
+    // (the factors of the last coefficient are negative from here on)
+    let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(bj - 1.0));
+    let settled = (nu.hi + lower.len() as f64 + beta).max(0.0);
+    let series = asymptotic_sum(pfq_exp_terms(a, b, nu.hi, z), settled, z, |_| 0.0);
+    let (num, den) = (
+        lower.iter().copied().map(Dd::new),
+        a.iter().copied().map(Dd::new),
+    );
+    gamma_series(num, den, series, nu * ln_dd(Dd::new(z.abs())) + z)
+}
+
+/// ${}_pF_q$ for $p = q$ and $z > 0$ by its asymptotic expansion (DLMF 16.11.7), if its
+/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
+///
+/// Only the exponentially large part is used. The sizes of the terms of the algebraic part are
+/// added to the error, which has no bound yet where two $a_i$ differ by an integer (`None`).
+fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
+    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
+    if z < 0.0 || b_ref.len() != a_ref.len() + 1 {
+        return None;
+    }
+    let mut sizes = vec![None; a_ref.len()];
+    pfq_alg(a, b, z, true, &mut sizes)?;
+    let exp = pfq_exp(a_ref, b_ref, z)?;
+    checked_f64(exp, add_exp(sizes.into_iter().flatten()))
+}
+
 /// The limit at $z = \pm\infty$ for finite parameters if cheap, with `b` without the 1 of $n!$
 fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     if z.is_finite() {
@@ -1278,8 +1356,26 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         },
         _ if a.len() <= b.len() => {
             b.push(1.0);
-            pfq_series_sorted(a, b, z)
+            let series = pfq_series_sorted(a.clone(), b.clone(), z);
+            series.or_else(|| pfq_asymptotic(&a, &b, z))
         },
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pfq_asymptotic_integer_difference() {
+        // no expansion where two a_i differ by an integer, and an accurate one or none near it
+        // (Arb reference)
+        let c = 1.0 + pow2(-10);
+        let (b, z) = ([c, c, 11.25, 1.0], 21.25);
+        assert_eq!(pfq_asymptotic(&[1.0, 1.0, 10.5], &b, z), None);
+        let near = pfq_asymptotic(&[1.0, 1.0 + pow2(-20), 10.5], &b, z);
+        let expected = 739_413_030.005_544_4;
+        assert!(near.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected));
     }
 }
