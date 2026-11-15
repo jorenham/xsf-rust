@@ -632,8 +632,16 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// a polynomial of degree at most $n$, defined for all $z$.
 ///
 /// As in [`hyp2f1`](crate::hyp2f1), an $a_i$ equal to a $b_j$ cancels it, also if it is a
-/// non-positive integer, so that the result is the $_2F_1$ of the other parameters, and
-/// it is $+\infty$:
+/// non-positive integer, so that the result is the $_2F_1$ of the other parameters. Where that
+/// converges at $z = 1$, it is Gauss's sum [^3]
+///
+/// $$
+/// \hyp 2 1 {a_1\enspace a_2} b 1
+/// = {\Gamma(b) \ \Gamma(b - a_1 - a_2) \over \Gamma(b - a_1) \ \Gamma(b - a_2)}
+/// .
+/// $$
+///
+/// It is $+\infty$:
 ///
 /// - if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$;
 /// - at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial.
@@ -645,13 +653,15 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - at $z = 1$, and for $0.996 \lesssim z < 1$;
+/// - at $z = 1$, unless a parameter cancels so that Gauss's sum applies, and for
+///   $0.996 \lesssim z < 1$;
 /// - for $z < -1$ if two $a_i$ differ by an integer (nearly always for $z < -3$);
 /// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 /// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.8.E8>
+/// [^3]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.4.E20>
 ///
 /// # See also
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
@@ -673,8 +683,22 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
     let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j], 1.0]);
     match a.iter().position(|&v| v == b[0]) {
         Some(i) => pfq_real([a[1 - i]], [1.0], z),
+        None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_else(|| pfq_real(a, b, z)),
         None => pfq_real(a, b, z),
     }
+}
+
+/// Gauss's sum ${}_2F_1(a, b; c; 1)$ (DLMF 15.4.20), if it converges and its estimated relative
+/// error is at most `PFQ_TOL`
+fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
+    let c = Dd::new(c);
+    let excess = c - a - b;
+    if !(excess.hi > 0.0) {
+        return None;
+    }
+    let y = mul_gamma_ratio([c, excess], [c - a, c - b], || Scaled::new(1.0, 0, 0.0))?;
+    // its error bound can't tell if it overflows
+    checked_f64(y, None).filter(|y| y.is_finite())
 }
 
 /// The sum of an asymptotic series in $1/z$ up to its smallest term from term `settled` on, and

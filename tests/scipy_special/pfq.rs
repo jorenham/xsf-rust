@@ -99,6 +99,22 @@ fn test_hyp3f2_special() {
         // two of them
         assert_hyp3f2([1.5, 2.5, -3.0], [2.5, -3.0], z, (1.0 - z).powf(-1.5));
     }
+    // z = 1 with Gauss's sum (Arb reference), also for a tiny excess c - a - b (exact
+    // reference), and near a polynomial, where it cancels (exact and Arb references)
+    assert_hyp3f2([1.5, 2.5, 3.25], [2.5, 6.5], 1.0, 4.324_537_409_748_778);
+    let half_eps = f64::EPSILON / 2.0;
+    for (a1, a2) in [(0.1, 1.0), (1.0, 0.1)] {
+        let b = [5.0, 1.100_000_000_000_000_3];
+        assert_hyp3f2([a1, a2, 5.0], b, 1.0, 3.275_345_183_542_189_4e14);
+    }
+    for (a1, a2) in [(-1.0, 1.0 - half_eps), (1.0 - half_eps, -1.0)] {
+        assert_hyp3f2([a1, a2, 5.0], [1.0, 5.0], 1.0, half_eps);
+    }
+    let a = [-1.0 + half_eps, 1.0 + 2.0 * half_eps, 5.0];
+    assert_hyp3f2(a, [1.0, 5.0], 1.0, -2.0 * half_eps);
+    // just below f64::MAX (exact reference)
+    let y = hyp3f2(-536.0, -537.0, 5.0, 7.875_869_841_387_024, 5.0, 1.0);
+    assert!(y.is_none_or(|y| (y / 1.797_693_134_862_315_3e308 - 1.0).abs() < 1e-13));
     assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 6.5, 1.5).unwrap().is_nan());
     assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 1.5, 1.5).unwrap().is_nan());
 
