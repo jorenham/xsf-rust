@@ -115,7 +115,7 @@ pub fn erfcx<T: ErfArg>(z: T) -> T {
     z.erfcx()
 }
 
-/// Imaginary error function `-i erf(i z)` for real or complex input
+/// Imaginary error function $-i \erf(i z)$ for real or complex input
 ///
 /// Corresponds to [`scipy.special.erfi`][erfi].
 ///
@@ -128,10 +128,10 @@ pub fn erfi<T: ErfArg>(z: T) -> T {
     z.erfi()
 }
 
-/// Zeros of the error function `erf(z)` in the first quadrant of the complex plane
+/// Zeros of the error function $\erf(z)$ in the first quadrant of the complex plane
 ///
-/// Zeros in the other quadrants can be obtained by using the symmetries *erf(-z) = -erf(z)* and
-/// *erf(conj(z)) = conj(erf(z))*.
+/// Zeros in the other quadrants can be obtained by using the symmetries $\erf(-z) = -\erf(z)$
+/// and $\erf(\overline z) = \overline{\erf(z)}$.
 ///
 /// Corresponds to [`scipy.special.erf_zeros`][erf_zeros].
 ///
@@ -152,7 +152,7 @@ pub fn erf_zeros<const N: usize>() -> [Complex64; N] {
     zo.map(Into::into)
 }
 
-/// Dawson function `sqrt(pi)/2 * exp(-z^2) * erfi(z)` for real or complex input
+/// Dawson function $\sqrt\pi e^{-z^2} \erfi(z) / 2$ for real or complex input
 ///
 /// Corresponds to [`scipy.special.dawsn`][dawsn].
 ///
@@ -167,7 +167,7 @@ pub fn dawsn<T: ErfArg>(z: T) -> T {
     z.dawsn()
 }
 
-/// Faddeeva function `exp(-z^2) * erfc(-i z)`
+/// Faddeeva function $e^{-z^2} \erfc(-i z)$
 ///
 /// Corresponds to [`scipy.special.wofz`][wofz].
 ///

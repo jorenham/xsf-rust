@@ -129,10 +129,11 @@ pub fn ellipeinc(phi: f64, m: f64) -> f64 {
 /// - `m` - Parameter, `m <= 1`
 ///
 /// # Returns
-/// - *sn(u | m)* - sine amplitude
-/// - *cn(u | m)* - cosine amplitude
-/// - *dn(u | m)* - delta amplitude
-/// - phase *φ* s.t. *sn(u | m) = sin(φ)* and *cn(u | m) = cos(φ)*
+/// - $\mathrm{sn}(u \mid m)$ - sine amplitude
+/// - $\mathrm{cn}(u \mid m)$ - cosine amplitude
+/// - $\mathrm{dn}(u \mid m)$ - delta amplitude
+/// - phase $\phi$ s.t. $\mathrm{sn}(u \mid m) = \sin(\phi)$ and
+///   $\mathrm{cn}(u \mid m) = \cos(\phi)$
 ///
 /// # See also
 /// - [`ellipk`] - Complete elliptic integral of the first kind

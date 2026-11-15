@@ -28,7 +28,7 @@ use core::f64::consts::PI;
 /// [binom]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.binom.html
 ///
 /// # See also
-/// - [`comb`](crate::comb) integer version "n choose k"
+/// - [`comb`](crate::comb) integer version "$n$ choose $k$"
 #[must_use]
 #[inline]
 pub fn binom(n: f64, k: f64) -> f64 {

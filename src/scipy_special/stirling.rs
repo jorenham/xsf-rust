@@ -24,17 +24,17 @@ impl Stirling2Output for f64 {
     }
 }
 
-/// Stirling number of the second kind *S(n,k)*
+/// Stirling number of the second kind $S(n,k)$
 ///
-/// Stirling numbers of the second kind count the number of ways to partition a set with *n*
-/// elements into *k* non-empty subsets.
+/// Stirling numbers of the second kind count the number of ways to partition a set with $n$
+/// elements into $k$ non-empty subsets.
 ///
 /// For an unsigned integer return type `T`, this is a pure rust translation of
 /// [`scipy.special.stirling2(n, k, exact=True)`][stirling2].
 ///
 /// For `T = f64`, this corresponds to [`scipy.special.stirling2(n, k, exact=False)`][stirling2],
-/// which uses dynamic programming for *n <= 219* (*n <= 50* in SciPy), and else the asymptotic
-/// approximation of Temme \[1\] (relative error ~1e-6, worse for *k* close to *n*).
+/// which uses dynamic programming for $n \le 219$ ($n \le 50$ in SciPy), and else the asymptotic
+/// approximation of Temme \[1\] (relative error $\sim 10^{-6}$, worse for $k$ close to $n$).
 ///
 /// [stirling2]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.stirling2.html
 ///
@@ -61,8 +61,8 @@ impl Stirling2Output for f64 {
 /// - `T` (required): unsigned integer or `f64` return type
 ///
 /// # See also
-/// - [`comb`](crate::comb): *k*-combinations of *n* things, <sub>*n*</sub>C<sub>*k*</sub>
-/// - [`perm`](crate::perm): *k*-permutations of *n* things, <sub>*n*</sub>P<sub>*k*</sub>
+/// - [`comb`](crate::comb): $k$-combinations of $n$ things, $_nC_k$
+/// - [`perm`](crate::perm): $k$-permutations of $n$ things, $_nP_k$
 ///
 /// # Panics
 /// - For an integer `T`, this function will panic if the result does not fit in type `T`.

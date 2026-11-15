@@ -96,28 +96,41 @@ fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
 ///   \hyp{3}{2}{-n,\enspace n+\alpha+\beta+1,\enspace -x}{\alpha+1,\enspace -N}{1}
 /// $$
 ///
-/// where $n = 0, 1, \ldots, N$, see DLMF 18.20.5 [^DLMF]. For $\alpha, \beta > -1$ these are
-/// orthogonal on $x \in \\{0, 1, \ldots, N\\}$, see DLMF Table 18.19.1. The result is NaN if
+/// where $n = 0, 1, \ldots, N$, see [DLMF 18.20.5]. For $\alpha, \beta > -1$ these are
+/// orthogonal on $x \in \\{0, 1, \ldots, N\\}$, see [DLMF Table 18.19.1]. The result is NaN if
 /// `n > N`, or if `alpha` or `beta` isn't greater than -1.
 ///
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.20.E5>
+/// As $N \to \infty$, they tend to the Jacobi polynomials ([DLMF 18.21.5]):
+///
+/// $$
+/// \lim_{N \to \infty} Q_n(Nx; \alpha, \beta, N) =
+///   \frac{P_n^{(\alpha, \beta)}(1 - 2x)}{P_n^{(\alpha, \beta)}(1)}
+/// $$
+///
+/// so for $\alpha = \beta = 0$ to the Legendre polynomials $P_n(1 - 2x)$.
+///
+/// [DLMF 18.20.5]: https://dlmf.nist.gov/18.20.E5
+/// [DLMF Table 18.19.1]: https://dlmf.nist.gov/18.19.T1
+/// [DLMF 18.21.5]: https://dlmf.nist.gov/18.21.E5
 ///
 /// # Algorithm
 ///
-/// - $1 \le x \le N - 1$: the three-term recurrence in $n$ (DLMF 18.22.2), since the sum
+/// - $1 \le x \le N - 1$: the three-term recurrence in $n$ ([DLMF 18.22.2]), since the sum
 ///   cancels catastrophically. For integer $x$ and $n > \min(x, N - x)$, where that recurrence
-///   can be unstable, the difference equation in $x$ (DLMF 18.22.10) from $Q_n(0) = 1$ or
-///   $Q_n(N) = (-1)^n (\beta+1)_n / (\alpha+1)_n$, whichever is on the same side of
-///   $A_{n-1} + C_{n-1}$ (DLMF 18.22.3) as $x$.
+///   can be unstable, the difference equation in $x$ ([DLMF 18.22.10]) from $Q_n(0) = 1$ or
+///   $Q_n(N) = (-1)^n (\beta+1)\_n / (\alpha+1)\_n$, whichever is on the same side of
+///   $A_{n-1} + C_{n-1}$ ([DLMF 18.22.3]) as $x$.
 /// - $x < 1$, and $x > N - 1$ (reflected to $N - x < 1$): the sum, whose terms after the first
 ///   then all have the same sign.
 ///
+/// [DLMF 18.22.2]: https://dlmf.nist.gov/18.22.E2
+/// [DLMF 18.22.10]: https://dlmf.nist.gov/18.22.E10
+/// [DLMF 18.22.3]: https://dlmf.nist.gov/18.22.E3
+///
 /// # See also
-/// - [`eval_jacobi`](crate::eval_jacobi): Evaluate Jacobi polynomials $P_n^{(\alpha, \beta)}$,
-///   the limit $Q_n(Nx; \alpha, \beta, N) \to P_n^{(\alpha, \beta)}(1 - 2x) /
-///   P_n^{(\alpha, \beta)}(1)$ as $N \to \infty$ (DLMF 18.21.5)
-/// - [`legendre_p`](crate::legendre_p): Legendre polynomial of the first kind $P_n$, the limit
-///   $Q_n(Nx; 0, 0, N) \to P_n(1 - 2x)$ as $N \to \infty$
+/// - [`eval_jacobi`](crate::eval_jacobi): Jacobi polynomials $P_n^{(\alpha, \beta)}$
+/// - [`legendre_p`](crate::legendre_p): Legendre polynomials of the first kind $P_n$
+/// - [`hyp3f2`](crate::hyp3f2): Generalized hypergeometric function $_3F_2$
 #[must_use]
 #[allow(non_snake_case)]
 pub fn eval_hahn(n: u32, N: u32, alpha: f64, beta: f64, x: f64) -> f64 {

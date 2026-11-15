@@ -125,7 +125,7 @@ impl Hyp1F1Arg for Complex<f64> {
 /// - If `N` is so large that `N - 1` overflows `i32`.
 ///
 /// # See also
-/// - [`euler`]: Euler numbers E<sub>0</sub>, ..., E<sub>N-1</sub>
+/// - [`euler`]: Euler numbers $E_0,\dotsc,E_{N-1}$
 #[must_use]
 #[inline]
 pub fn bernoulli<const N: usize>() -> [f64; N] {
@@ -165,7 +165,7 @@ pub fn bernoulli<const N: usize>() -> [f64; N] {
 /// - If `N` is so large that `N - 1` overflows `i32`.
 ///
 /// # See also
-/// - [`bernoulli`]: Bernoulli numbers B<sub>0</sub>, ..., B<sub>N-1</sub>
+/// - [`bernoulli`]: Bernoulli numbers $B_0,\dotsc,B_{N-1}$
 #[must_use]
 #[inline]
 pub fn euler<const N: usize>() -> [f64; N] {

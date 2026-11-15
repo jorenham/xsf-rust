@@ -1,6 +1,6 @@
 use crate::LogAddExpArg;
 
-/// ln(1 + e<sup>x</sup>)
+/// $\ln(1 + e^x)$
 ///
 /// Corresponds to [`scipy.special.softplus`][softplus] in SciPy.
 ///

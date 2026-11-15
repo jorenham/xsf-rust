@@ -3,9 +3,9 @@ use core::f64::consts::PI;
 
 /// Normalized sinc function
 ///
-/// The sinc function is equal to sin(π*x*)/(π*x*) for any argument *x* ≠ 0.
-/// sinc(0) takes the limit value 1, making *sinc* not only everywhere continuous but also
-/// infinitely differentiable.
+/// The sinc function is equal to $\sin(\pi x) / (\pi x)$ for any argument $x \ne 0$.
+/// $\mathrm{sinc}(0)$ takes the limit value 1, making $\mathrm{sinc}$ not only everywhere
+/// continuous but also infinitely differentiable.
 ///
 /// See [NumPy's documentation](https://numpy.org/doc/stable/reference/generated/numpy.sinc.html)
 /// for more details.

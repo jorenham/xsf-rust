@@ -793,11 +793,11 @@ fn lambertw_f64(z: f64, k: isize) -> f64 {
 
 /// Lambert W function.
 ///
-/// The Lambert W function `W(z)` is defined as the inverse function of `w * exp(w)`. In other
-/// words, the value of `W(z)` is such that `z = W(z) * exp(W(z))` for any complex number `z`.
+/// The Lambert W function $W(z)$ is defined as the inverse function of $w e^w$. In other words,
+/// the value of $W(z)$ is such that $z = W(z) e^{W(z)}$ for any complex number $z$.
 ///
 /// The Lambert W function is a multivalued function with infinitely many branches. Each branch
-/// gives a separate solution of the equation `z = w exp(w)`. Here, the branches are indexed by the
+/// gives a separate solution of the equation $z = w e^w$. Here, the branches are indexed by the
 /// integer `k`.
 ///
 /// Corresponds to [`scipy.special.lambertw`][scipy].

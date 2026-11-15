@@ -328,8 +328,8 @@ fn mathieu_sem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
 
 /// Even modified Mathieu function of the first kind and its derivative
 ///
-/// Evaluates the even modified Mathieu function of the first kind, *Mc1<sub>m</sub>(x, q)*,
-/// and its derivative at *x* (given in degrees) for order *m* and parameter *q*.
+/// Evaluates the even modified Mathieu function of the first kind, $\mathrm{Mc1}_m(x, q)$,
+/// and its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modcem1`][scipy].
 ///
@@ -342,7 +342,7 @@ fn mathieu_sem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -359,8 +359,8 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 
 /// Odd modified Mathieu function of the first kind and its derivative
 ///
-/// Evaluates the odd modified Mathieu function of the first kind, *Ms1<sub>m</sub>(x, q)*, and its
-/// derivative at *x* (given in degrees) for order *m* and parameter *q*.
+/// Evaluates the odd modified Mathieu function of the first kind, $\mathrm{Ms1}_m(x, q)$, and its
+/// derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modsem1`][scipy].
 ///
@@ -373,7 +373,7 @@ pub fn mathieu_modcem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -390,8 +390,8 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 
 /// Even modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the even modified Mathieu function of the second kind, *Mc2<sub>m</sub>(x, q)*, and
-/// its derivative at *x* (given in degrees) for order *m* and parameter *q*.
+/// Evaluates the even modified Mathieu function of the second kind, $\mathrm{Mc2}_m(x, q)$, and
+/// its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modcem2`][scipy].
 ///
@@ -404,7 +404,7 @@ pub fn mathieu_modsem1(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///
@@ -421,8 +421,8 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 
 /// Odd modified Mathieu function of the second kind and its derivative
 ///
-/// Evaluates the odd modified Mathieu function of the second kind, *Ms2<sub>m</sub>(x, q)*, and
-/// its derivative at *x* (given in degrees) for order *m* and parameter *q*.
+/// Evaluates the odd modified Mathieu function of the second kind, $\mathrm{Ms2}_m(x, q)$, and
+/// its derivative at $x$ (given in degrees) for order $m$ and parameter $q$.
 ///
 /// Corresponds to [`scipy.special.mathieu_modsem2`][scipy].
 ///
@@ -435,7 +435,7 @@ pub fn mathieu_modcem2(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$
 ///
 /// Both are NaN if more than 250 Fourier coefficients are needed, i.e. for large `|q|` or `m`.
 ///

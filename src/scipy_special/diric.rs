@@ -6,9 +6,9 @@ use crate::xsf::cephes::dd_real::two_prod;
 ///
 /// It is defined as
 ///
-/// *D<sub>n</sub>(x) = sin(n x/2) / (n sin(x/2))*
+/// $D_n(x) = \sin(n x/2) / (n \sin(x/2))$
 ///
-/// for *n > 0*.
+/// for $n > 0$.
 ///
 /// Corresponds to [`scipy.special.diric`][diric] in SciPy.
 ///

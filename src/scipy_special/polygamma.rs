@@ -2,9 +2,9 @@
 
 use crate::utils::neg_one_pow;
 
-/// Polygamma function ψ<sup>(n)</sup>(x)
+/// Polygamma function $\psi^{(n)}(x)$
 ///
-/// The n-th derivative of the [`digamma`](crate::digamma) function.
+/// The $n$-th derivative of the [`digamma`](crate::digamma) function.
 ///
 /// Corresponds to [`scipy.special.polygamma`][polygamma] in scipy
 ///

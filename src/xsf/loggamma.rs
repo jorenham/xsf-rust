@@ -217,7 +217,7 @@ impl LogGammaArg for Complex<f64> {
     }
 }
 
-/// Principal branch of the logarithm of `gamma(z)`
+/// Principal branch of the logarithm of $\Gamma(z)$
 ///
 /// Corresponds to [`scipy.special.loggamma`][loggamma] in scipy
 ///
@@ -231,7 +231,7 @@ pub fn loggamma<T: LogGammaArg>(z: T) -> T {
     z.xsf_loggamma()
 }
 
-/// Reciprocal Gamma function `1 / gamma(z)`
+/// Reciprocal Gamma function $1 / \Gamma(z)$
 ///
 /// Corresponds to [`scipy.special.rgamma`][rgamma] in scipy
 ///

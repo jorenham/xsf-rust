@@ -388,20 +388,20 @@ impl FresnelArg for Complex<f64> {
     }
 }
 
-/// Fresnel integrals S(z) and C(z) for real or complex argument
+/// Fresnel integrals $S(z)$ and $C(z)$ for real or complex argument
 ///
 /// The Fresnel integrals are defined as:
-/// - S(z) = ∫₀ᶻ sin(π t² / 2) dt
-/// - C(z) = ∫₀ᶻ cos(π t² / 2) dt
+/// - $S(z) = \int_0^z \sin(\pi t^2 / 2) \dd t$
+/// - $C(z) = \int_0^z \cos(\pi t^2 / 2) \dd t$
 ///
-/// where the integrals are taken from 0 to z.
+/// where the integrals are taken from 0 to $z$.
 ///
 /// Corresponds to [`scipy.special.fresnel`][scipy]
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fresnel.html
 ///
 /// # See also
-/// - [`fresnel_zeros`] - Zeros of S(z) and C(z)
+/// - [`fresnel_zeros`] - Zeros of $S(z)$ and $C(z)$
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 /// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals
 #[must_use]
@@ -413,8 +413,8 @@ pub fn fresnel<T: FresnelArg>(z: T) -> (T, T) {
 /// Modified Fresnel positive integrals
 ///
 /// Computes the modified Fresnel integrals:
-/// - F₊(x) = ∫ₓ∞ exp(i t²) dt
-/// - K₊(x) = F₊(x) × exp(-i (x² + π/4)) / √π
+/// - $F_+(x) = \int_x^\infty \exp(i t^2) \dd t$
+/// - $K_+(x) = F_+(x) \times \exp(-i (x^2 + \pi/4)) / \sqrt\pi$
 ///
 /// Corresponds to [`scipy.special.modfresnelp`][scipy]
 ///
@@ -434,15 +434,15 @@ pub fn modified_fresnel_plus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// Modified Fresnel negative integrals
 ///
 /// Computes the modified Fresnel integrals:
-/// - F₋(x) = ∫ₓ∞ exp(-i t²) dt
-/// - K₋(x) = F₋(x) × exp(i (x² + π/4)) / √π
+/// - $F_-(x) = \int_x^\infty \exp(-i t^2) \dd t$
+/// - $K_-(x) = F_-(x) \times \exp(i (x^2 + \pi/4)) / \sqrt\pi$
 ///
 /// Corresponds to [`scipy.special.modfresnelm`][scipy]
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.modfresnelm.html
 ///
 /// # See also
-/// - [`fresnel`] - Standard Fresnel integrals S(z) and C(z)
+/// - [`fresnel`] - Standard Fresnel integrals $S(z)$ and $C(z)$
 /// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals
 #[doc(alias = "modfresnelm")]
 #[must_use]
@@ -452,9 +452,9 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
     (f.into(), k.into())
 }
 
-/// Zeros of Fresnel integrals S(z) and C(z)
+/// Zeros of Fresnel integrals $S(z)$ and $C(z)$
 ///
-/// Compute `nt` complex zeros of the Fresnel integrals S(z) and C(z).
+/// Compute `nt` complex zeros of the Fresnel integrals $S(z)$ and $C(z)$.
 ///
 /// Corresponds to [`scipy.special.fresnel_zeros`][scipy]
 ///
@@ -464,9 +464,9 @@ pub fn modified_fresnel_minus(x: f64) -> (Complex<f64>, Complex<f64>) {
 /// - if `nt` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
 ///
 /// # See also
-/// - [`fresnel`] - Fresnel integrals S(z) and C(z)
-/// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals F₊(x) and K₊(x)
-/// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals F₋(x) and K₋(x)
+/// - [`fresnel`] - Fresnel integrals $S(z)$ and $C(z)$
+/// - [`modified_fresnel_plus`] - Modified Fresnel positive integrals $F_+(x)$ and $K_+(x)$
+/// - [`modified_fresnel_minus`] - Modified Fresnel negative integrals $F_-(x)$ and $K_-(x)$
 #[doc(alias = "fresnelc_zeros", alias = "fresnels_zeros")]
 #[must_use]
 #[inline]
