@@ -209,7 +209,12 @@ def _u(x: float) -> str:
     """Unicode repr of a domain bound, e.g. 10^-3 with a superscript exponent."""
     sign = MINUS if x < 0 else ""
     a = abs(x)
-    named = {math.pi: "\u03c0", math.pi / 2: "\u03c0/2", -INV_E: "1/e"}
+    named = {
+        math.pi: "\u03c0",
+        2 * math.pi: "2\u03c0",
+        math.pi / 2: "\u03c0/2",
+        -INV_E: "1/e",
+    }
     if a in named:
         return sign + named[a]
     e = round(math.log10(a)) if a else 0
@@ -1817,6 +1822,278 @@ def c_pbdn(n, re, im):
 def r_pbwa(a, x):
     with wdps(20):
         return mp.pcfw(a, x), mp.diff(lambda t: mp.pcfw(a, t), x)
+
+
+# ---------------------------------------------------------------- Mathieu functions
+
+
+def _mathieu_matrix(odd, m, q, n):
+    """The first `n` rows of the symmetric tridiagonal matrix of the recurrence relations of
+    the Fourier coefficients (DLMF 28.4.5-8) of ce_m (or se_m, if `odd`), as its diagonal, its
+    off-diagonal, and the harmonics. For ce_2j it is symmetrized with sqrt(2) A_0, so that the
+    normalization (DLMF 28.4.9-12) is the 2-norm in each case."""
+    h0 = m % 2 or 2 * odd
+    harm = [h0 + 2 * k for k in range(n)]
+    d = [h * h for h in harm]
+    e = [q] * n
+    if h0 == 0:
+        e[0] = math.sqrt(2) * q if isinstance(q, float) else mp.sqrt(2) * q
+    elif h0 == 1:
+        d[0] = 1 - q if odd else 1 + q
+    return d, e, harm
+
+
+def _mathieu_size(h0, lam, q, tol, k0=0):
+    """A number of rows after which the Fourier coefficients are smaller than `tol` times the
+    one of index `k0` (or of the turning point, if later): beyond it, each is at most
+    |q| / (h^2 - lam - |q|) times the previous one, for the harmonic h."""
+    q, k, tail = abs(q), 0, 1.0
+    while tail > tol:
+        gap = (h0 + 2 * k) ** 2 - lam - q
+        if k > k0 and gap > 2 * q:
+            tail *= q / gap
+        k += 1
+    return k + 2
+
+
+def _mathieu_bisect(d, e, i):
+    """Eigenvalue `i` (from 0, ascending) of the symmetric tridiagonal matrix, in f64, by
+    bisection on the number of negative pivots (a Sturm sequence)."""
+    r = 2 * max(map(abs, e))
+    lo, hi = min(d) - r, sorted(d)[i] + r
+    while hi - lo > 1e-13 * max(abs(lo), abs(hi), 1.0):
+        x = (lo + hi) / 2
+        count, p = 0, 1.0
+        for k, dk in enumerate(d):
+            p = dk - x - (e[k - 1] ** 2 / p if k else 0.0)
+            p = p or 1e-300
+            count += p < 0
+        if count > i:
+            hi = x
+        else:
+            lo = x
+    return (lo + hi) / 2
+
+
+def _mathieu_ratios(lam, d, e, p):
+    """The solution x of the recurrence relations relative to x_p, by forward recurrence of
+    x_(k-1) / x_k up to k = p and backward recurrence of x_(k+1) / x_k down to it (both stable
+    if x_p is the largest), and the residual of row p, which is zero iff `lam` is an
+    eigenvalue."""
+    n = len(d)
+    x = [mp.mpf(1)] * n
+    s = r = mp.mpf(0)
+    for k in range(p):
+        s = e[k] / (lam - d[k] - (e[k - 1] * s if k else 0))
+        x[k] = s
+    for k in range(n - 1, p, -1):
+        r = e[k - 1] / (lam - d[k] - e[k] * r)
+        x[k] = r
+    for k in range(p - 1, -1, -1):
+        x[k] *= x[k + 1]
+    for k in range(p + 1, n):
+        x[k] *= x[k - 1]
+    return x, lam - d[p] - (e[p - 1] * s if p else 0) - e[p] * r
+
+
+def _mathieu_eig(odd, m, q, k0=0):
+    """The characteristic value a_m(q) (or b_m(q), if `odd`), the Fourier coefficients of ce_m
+    (se_m) as (harmonic, coefficient) pairs, and the index of the largest one. Each coefficient
+    is accurate to the working precision relative to itself, up to index `k0` at least.
+
+    The f64 bisection only selects the eigenvalue; it is found with Newton's method on the
+    residual g of `_mathieu_ratios`, whose derivative is the sum of x^2."""
+    i = (m - odd) // 2
+    qf = float(q)
+    h0 = m % 2 or 2 * odd
+    # the size of the f64 matrix, from an upper bound of the eigenvalue
+    n = _mathieu_size(h0, (h0 + 2 * i) ** 2 + 4 * abs(qf), qf, 1e-20)
+    lam0 = _mathieu_bisect(*_mathieu_matrix(odd, m, qf, n)[:2], i)
+    tol = mp.mpf(10) ** -(mp.mp.dps - 5)
+    n = _mathieu_size(h0, lam0, qf, float(tol) ** 2, k0)
+    d, e, harm = _mathieu_matrix(odd, m, q, n)
+    lam, p = mp.mpf(lam0), min(range(n), key=lambda k: abs(lam0 - d[k]))
+    for _ in range(50):
+        x, g = _mathieu_ratios(lam, d, e, p)
+        pmax = max(range(n), key=lambda k: abs(x[k]))
+        if pmax != p:
+            p = pmax
+            continue
+        norm2 = mp.fsum(t * t for t in x)
+        lam -= g / norm2
+        if abs(g) <= tol * norm2 * abs(lam):
+            break
+    else:
+        raise NoConvergence
+    if abs(lam - lam0) > 1e-6 * max(abs(lam0), 1.0):
+        raise NoConvergence
+    # the sign of the first coefficient is that of q^i, by continuity in q from q = 0
+    # (DLMF 28.4.13-16), as it is never zero; for q > 0 it is positive, as in specfun
+    s = mp.sign(x[0]) * (-1 if q < 0 and i % 2 else 1) / mp.sqrt(norm2)
+    c = [s * t for t in x]
+    if h0 == 0:
+        c[0] /= mp.sqrt(2)
+    return lam, list(zip(harm, c, strict=True)), p
+
+
+def _mathieu_cv(odd, m, q):
+    with wdps(15):
+        return _mathieu_eig(odd, int(m), q)[0]
+
+
+def r_mathieu_a(m, q):
+    return _mathieu_cv(0, m, q)
+
+
+def r_mathieu_b(m, q):
+    return _mathieu_cv(1, m, q)
+
+
+def _mathieu_coef(odd, m, q, k):
+    with wdps(15):
+        return _mathieu_eig(odd, int(m), q, int(k))[1][int(k)][1]
+
+
+def r_mathieu_even_coef(m, q, k):
+    return _mathieu_coef(0, m, q, k)
+
+
+def r_mathieu_odd_coef(m, q, k):
+    return _mathieu_coef(1, m, q, k)
+
+
+def _mathieu_sum(f):
+    """The value of f() -> (value, terms, scale), where the value is the sum of the terms (each
+    accurate to the working precision), with as many extra digits as the sum cancels relative
+    to the scale, and so that the last terms are negligible."""
+    extra = 15
+    while True:
+        with wdps(extra):
+            y, terms, scale = f()
+            lost = mp.log10(mp.fsum(map(abs, terms)) / scale)
+            last = max(map(abs, terms[-3:])) / scale
+            if lost + 15 <= extra and last < mp.mpf(10) ** -(mp.mp.dps - 10):
+                return y
+        extra = max(int(lost) + 25, extra + 20)
+        if mp.mp.dps + extra > 300:
+            raise NoConvergence
+
+
+def _mathieu_angular(odd, m, q, z, derivative=False):
+    """ce_m(z, q) (or se_m(z, q), if `odd`) or its derivative, as the Fourier series
+    DLMF 28.4.1-4, with the scale sqrt(y^2 + y'^2 / w), or sqrt(w y^2 + y'^2) for the
+    derivative, where w = max(|a - 2 q cos(2 z)|, 1) is the squared local frequency of
+    y'' + (a - 2 q cos(2 z)) y = 0 (DLMF 28.2.1)."""
+
+    def f():
+        lam, coef, _ = _mathieu_eig(odd, int(m), q)
+        if odd:
+            y = [c * mp.sin(h * z) for h, c in coef]
+            dy = [h * c * mp.cos(h * z) for h, c in coef]
+        else:
+            y = [c * mp.cos(h * z) for h, c in coef]
+            dy = [-h * c * mp.sin(h * z) for h, c in coef]
+        w = max(abs(lam - 2 * q * mp.cos(2 * z)), 1)
+        y1, dy1 = mp.fsum(y), mp.fsum(dy)
+        scale = mp.sqrt(y1 * y1 + dy1 * dy1 / w)
+        if derivative:
+            return (dy1, mp.sqrt(w) * scale), dy, mp.sqrt(w) * scale
+        return (y1, scale), y, scale
+
+    return _mathieu_sum(f)
+
+
+def r_mathieu_cem(m, q, x):
+    return _mathieu_angular(0, m, q, mp.radians(x))
+
+
+def r_mathieu_cemp(m, q, x):
+    return _mathieu_angular(0, m, q, mp.radians(x), True)
+
+
+def r_mathieu_sem(m, q, x):
+    return _mathieu_angular(1, m, q, mp.radians(x))
+
+
+def r_mathieu_semp(m, q, x):
+    return _mathieu_angular(1, m, q, mp.radians(x), True)
+
+
+def r_mathieu_ce(m, q, x):
+    return _mathieu_angular(0, m, q, x)
+
+
+def r_mathieu_cep(m, q, x):
+    return _mathieu_angular(0, m, q, x, True)
+
+
+def r_mathieu_se(m, q, x):
+    return _mathieu_angular(1, m, q, x)
+
+
+def r_mathieu_sep(m, q, x):
+    return _mathieu_angular(1, m, q, x, True)
+
+
+def _mathieu_bessel(f, n, x):
+    """f_k(x) for k = 0, ..., n and their derivatives, for f = J or Y, by recurrence in the
+    stable direction: backward for J, forward for Y."""
+    if f is mp.besselj:
+        b = [f(n + 1, x), f(n, x)]
+        for k in range(n, 0, -1):
+            b.append(2 * k / x * b[-1] - b[-2])
+        b.reverse()
+    else:
+        b = [f(0, x), f(1, x)]
+        for k in range(1, n + 1):
+            b.append(2 * k / x * b[-1] - b[-2])
+    return b, [-b[1]] + [(b[k - 1] - b[k + 1]) / 2 for k in range(1, n + 1)]
+
+
+def _mathieu_radial(odd, kind, m, q, z, derivative=False):
+    """Mc_m^(kind)(z, h) (or Ms_m^(kind)(z, h), if `odd`) with h = sqrt(q), or its derivative,
+    as the series of Bessel function products DLMF 28.24.2-5, with s the index of the largest
+    Fourier coefficient, so that the series doesn't cancel (unlike for s = 0, as in specfun).
+    The scale, where the function oscillates (2 q cosh(2 z) > a), is the modulus of the first
+    and second kind."""
+
+    def f():
+        lam, coef, s = _mathieu_eig(odd, int(m), q)
+        n, h0 = len(coef), coef[0][0]
+        u1, u2 = mp.sqrt(q) * mp.exp(-z), mp.sqrt(q) * mp.exp(z)
+        j1, dj1 = _mathieu_bessel(mp.besselj, n + s + h0, u1)
+
+        def at(b, k):
+            # J_(-k) = (-1)^k J_k, and so for Y and the derivatives
+            return b[k] if k >= 0 else (-1) ** k * b[-k]
+
+        def series(c2, dc2):
+            terms = []
+            for k in range(n):
+                t = 0
+                for sign, v1, v2 in [
+                    (1, k - s, k + s + h0),
+                    (-1 if odd else 1, k + s + h0, k - s),
+                ]:
+                    if derivative:
+                        t += sign * u2 * at(j1, v1) * at(dc2, v2)
+                        t -= sign * u1 * at(dj1, v1) * at(c2, v2)
+                    else:
+                        t += sign * at(j1, v1) * at(c2, v2)
+                t *= (-1) ** (k + (int(m) - odd) // 2) * coef[k][1] / coef[s][1]
+                terms.append(t / 2 if h0 == s == 0 else t)
+            return terms
+
+        t1 = series(*_mathieu_bessel(mp.besselj, n + s + h0, u2))
+        t2 = series(*_mathieu_bessel(mp.bessely, n + s + h0, u2))
+        y1, y2 = mp.fsum(t1), mp.fsum(t2)
+        y, terms = (y1, t1) if kind == 1 else (y2, t2)
+        if 2 * q * mp.cosh(2 * z) > lam:
+            scale = mp.sqrt(y1 * y1 + y2 * y2)
+            return (y, scale), terms, scale
+        return y, terms, abs(y)
+
+    return _mathieu_sum(f)
 
 
 # ---------------------------------------------------------------- zeta functions
@@ -4905,6 +5182,119 @@ for i in range(2):
         note="seq",
     )
 
+section("Mathieu functions")
+
+
+def mathieu_coef_domain(odd: int, q: Dist) -> Domain:
+    """(m, q, k) with k the index of one of the first floor(m / 2) + 7 coefficients, which the
+    output has for every q."""
+    m = Int(odd, 30)
+
+    def sampler(r: Random) -> tuple[float, float, int]:
+        order = m.sample(r)
+        return order, q.sample(r), r.randint(0, int(order) // 2 + 6)
+
+    log = " (log)" if _is_log(q) else ""
+    return D(
+        sampler=sampler,
+        label=f"m in {m.desc()}, q in {q.desc()}, k in {{0, ..., floor(m / 2) + 6}}",
+        pretty=f"{nobreak('m', IN, m.pretty())}, {nobreak('q', IN, q.pretty())}{log}, "
+        + nobreak("k", IN, f"{{0, {ELLIPSIS}, \u230am/2\u230b + 6}}"),
+        n=2000,
+    )
+
+
+def mathieu_mod_domain(odd: int, hi: float, osc: bool) -> Domain:
+    """(m, q, x) with q in [0, hi], where the modified Mathieu functions of order m oscillate,
+    2 q cosh(2 x) > m^2 (about the characteristic value), or where they do not."""
+    m, q, x = Int(odd, 30), U(0, hi), U(0, 3)
+
+    def sampler(r: Random) -> tuple[float, float, float]:
+        while True:
+            a = m.sample(r), q.sample(r), x.sample(r)
+            if (2 * a[1] * math.cosh(2 * a[2]) > a[0] ** 2) == osc:
+                return a
+
+    cond = f"2q cosh 2x {'>' if osc else '<'} m\u00b2"
+    return D(
+        sampler=sampler,
+        label=f"m in {m.desc()}, q in {q.desc()}, x in {x.desc()}, {cond}",
+        pretty=f"{nobreak('m', IN, m.pretty())}, {nobreak('q', IN, q.pretty())}, "
+        + f"{nobreak('x', IN, x.pretty())}, {nobreak(cond)}",
+        n=2000,
+    )
+
+
+for odd, f, r in [(0, "mathieu_a", r_mathieu_a), (1, "mathieu_b", r_mathieu_b)]:
+    add(
+        f,
+        "m q",
+        r,
+        D(Int(odd, 30), U(0, 10)),
+        D(Int(odd, 30), U(0, 100)),
+        D(Int(odd, 30), LU(1e-300, 1, 0)),
+        D(Int(odd, 30), LU(100, 1e4, 0)),
+        note="mathieu mathieu_cv zeros_c",
+    )
+for odd, f, r in [
+    (0, "mathieu_cem", [r_mathieu_cem, r_mathieu_cemp]),
+    (1, "mathieu_sem", [r_mathieu_sem, r_mathieu_semp]),
+]:
+    for i, ref in enumerate(r):
+        add(
+            f"{f}.{i}",
+            "m q x",
+            ref,
+            D(Int(odd, 30), U(0, 10), U(-360, 360), n=2000),
+            D(Int(odd, 30), U(0, 100), U(-360, 360), n=2000),
+            D(Int(odd, 30), LU(1e-300, 1, 0), U(-360, 360), n=2000),
+            D(Int(odd, 30), LU(100, 2000, 0), U(-360, 360), n=2000),
+            note="mathieu_osc",
+        )
+for odd, f, r in [
+    (0, "mathieu_ce", [r_mathieu_ce, r_mathieu_cep]),
+    (1, "mathieu_se", [r_mathieu_se, r_mathieu_sep]),
+]:
+    for i, ref in enumerate(r):
+        add(
+            f"{f}.{i}",
+            "m q x",
+            ref,
+            D(Int(odd, 30), U(0, 10), U(-2 * math.pi, 2 * math.pi), n=2000),
+            D(Int(odd, 30), U(0, 100), U(-2 * math.pi, 2 * math.pi), n=2000),
+            cpp=False,
+            note="mathieu_osc",
+        )
+for odd, f in enumerate(["mathieu_modcem", "mathieu_modsem"]):
+    for kind in (1, 2):
+        for i in range(2):
+            add(
+                f"{f}{kind}.{i}",
+                "m q x",
+                lambda m, q, x, odd=odd, kind=kind, i=i: _mathieu_radial(
+                    odd, kind, m, q, x, bool(i)
+                ),
+                mathieu_mod_domain(odd, 10, True),
+                mathieu_mod_domain(odd, 10, False),
+                mathieu_mod_domain(odd, 100, True),
+                D(Int(odd, 30), LU(1e-10, 1e3), U(0, 3), n=2000),
+                note="mathieu_mod",
+            )
+for odd, f, r in [
+    (0, "mathieu_even_coef", r_mathieu_even_coef),
+    (1, "mathieu_odd_coef", r_mathieu_odd_coef),
+]:
+    add(
+        f,
+        "m q k",
+        r,
+        mathieu_coef_domain(odd, U(0, 10)),
+        mathieu_coef_domain(odd, U(0, 100)),
+        mathieu_coef_domain(odd, LU(1e-7, 1e3)),
+        mathieu_coef_domain(odd, LU(1e-20, 1e-7)),
+        note="mathieu_coef zeros_c",
+    )
+
 section("Kelvin functions")
 for i, f in enumerate(["ber", "bei", "ker", "kei", "berp", "beip", "kerp", "keip"]):
     pos = f.startswith("k")
@@ -5390,14 +5780,39 @@ NOTES |= {
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
     ),
+    "mathieu": (
+        "Reference of this section: the eigenvalues and eigenvectors of the recurrence relations "
+        "[DLMF 28.4.5-8](https://dlmf.nist.gov/28.4#ii), the Fourier series "
+        "[28.4.1-4](https://dlmf.nist.gov/28.4#i), and the series of Bessel function products "
+        "[28.24.2-5](https://dlmf.nist.gov/28.24), in mpmath."
+    ),
+    "mathieu_cv": (
+        "For some $`m`$ and $`q`$, the result is the characteristic value of another order of "
+        "the same parity, which the other functions of this section then use. For $`m = 0`$ and "
+        r"$`\lvert q\rvert \lesssim 10^{-162}`$ it is NaN."
+    ),
+    "mathieu_osc": (
+        r"$`A = \sqrt{y^2 + y'^2 / w}`$ for $`y = \mathrm{ce}_m`$ or $`\mathrm{se}_m`$, and "
+        r"$`\sqrt{w y^2 + y'^2}`$ for $`y'`$, with "
+        r"$`w = \max(\lvert a - 2 q \cos 2x\rvert, 1)`$ and $`a`$ the characteristic value."
+    ),
+    "mathieu_mod": (
+        r"For $`2 q \cosh 2x > a`$, with $`a`$ the characteristic value: "
+        r"$`A = \sqrt{M^{(1)}(x)^2 + M^{(2)}(x)^2}`$ for the first and second kind $`M^{(j)}`$ "
+        r"(or their derivatives). For $`q \le 10^{-7}`$, the results are infinite for "
+        r"$`m \ge 4`$ (`modcem`) or $`m \ge 5`$ (`modsem`)."
+    ),
+    "mathieu_coef": (
+        r"Coefficient $`k`$ of the output. For $`q \le 10^{-7}`$, only the largest coefficient "
+        "and the two next to it are nonzero."
+    ),
 }
 
 NOT_COVERED = """\
 ## Not covered
 
-- No mpmath reference: Mathieu (`mathieu_*`), and spheroidal wave functions (`prolate_*`,
-  `oblate_*`)
-- Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
+- No mpmath reference: spheroidal wave functions (`prolate_*`, `oblate_*`)
+- Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
 - Complex input: `sph_bessel_*`, `elliprc`, `elliprd`, `elliprf`, `elliprg`, `elliprj`, `sici`,

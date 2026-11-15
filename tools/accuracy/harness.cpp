@@ -41,6 +41,7 @@
 #include "xsf/cpu/hyperu.h"
 #include "xsf/cpu/kelvin.h"
 #include "xsf/cpu/legendre.h"
+#include "xsf/cpu/mathieu_legacy.h"
 #include "xsf/cpu/orthogonal_eval.h"
 #include "xsf/cpu/par_cyl.h"
 #include "xsf/cpu/specfun.h"
@@ -181,6 +182,17 @@ template <int I> cd pbdn_seq(int n, cd z) {
     std::vector<cd> o(2 * len, NAN);
     xsf::specfun::cpbdn(m, z, o.data(), o.data() + len);
     return o[I * len + std::abs(n)];
+}
+
+// coefficient `k` of scipy.special.mathieu_even_coef (or mathieu_odd_coef, if `odd`), which is
+// Python code around xsf::specfun::fcoef
+static double mathieu_coef(bool odd, int m, double q, int k) {
+    // one more than in SciPy, as fcoef reads fc[km] (scipy/xsf#312)
+    double fc[252];
+    const int kd = odd ? (m % 2 ? 3 : 4) : (m % 2 ? 2 : 1);
+    const double a = odd ? xsf::sem_cva<double>(m, q) : xsf::cem_cva<double>(m, q);
+    xsf::specfun::fcoef(kd, m, q, a, fc);
+    return fc[k];
 }
 
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
@@ -512,6 +524,23 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("legendre_q_all.1", lqn<1>(i(x), y))
     F3("assoc_legendre_q_all.0", lqmn<0>(i(x), i(y), z))
     F3("assoc_legendre_q_all.1", lqmn<1>(i(x), i(y), z))
+    // Mathieu functions
+    F2("mathieu_a", xsf::cem_cva(x, y))
+    F2("mathieu_b", xsf::sem_cva(x, y))
+    F3("mathieu_cem.0", OUT2(0, xsf::cem(x, y, z, o0, o1)))
+    F3("mathieu_cem.1", OUT2(1, xsf::cem(x, y, z, o0, o1)))
+    F3("mathieu_sem.0", OUT2(0, xsf::sem(x, y, z, o0, o1)))
+    F3("mathieu_sem.1", OUT2(1, xsf::sem(x, y, z, o0, o1)))
+    F3("mathieu_modcem1.0", OUT2(0, xsf::mcm1(x, y, z, o0, o1)))
+    F3("mathieu_modcem1.1", OUT2(1, xsf::mcm1(x, y, z, o0, o1)))
+    F3("mathieu_modcem2.0", OUT2(0, xsf::mcm2(x, y, z, o0, o1)))
+    F3("mathieu_modcem2.1", OUT2(1, xsf::mcm2(x, y, z, o0, o1)))
+    F3("mathieu_modsem1.0", OUT2(0, xsf::msm1(x, y, z, o0, o1)))
+    F3("mathieu_modsem1.1", OUT2(1, xsf::msm1(x, y, z, o0, o1)))
+    F3("mathieu_modsem2.0", OUT2(0, xsf::msm2(x, y, z, o0, o1)))
+    F3("mathieu_modsem2.1", OUT2(1, xsf::msm2(x, y, z, o0, o1)))
+    F3("mathieu_even_coef", mathieu_coef(false, i(x), y, i(z)))
+    F3("mathieu_odd_coef", mathieu_coef(true, i(x), y, i(z)))
     // discrete distributions
     F3("bdtr", xsf::bdtr(x, i(y), z))
     F3("bdtrc", xsf::bdtrc(x, i(y), z))
