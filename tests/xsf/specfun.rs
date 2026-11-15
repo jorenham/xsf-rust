@@ -378,6 +378,40 @@ fn test_hypu_b_near_zero() {
 }
 
 #[test]
+fn test_hypu_b_near_one() {
+    // Arb; 45.474459, 258.47514, 231.697, -2.911784, -170.7502815, and 124.033632 in xsf
+    let abx = [
+        (1.0 - 1e-10, 1.0 - 1e-10, 1e-20),
+        (1.5, 1.0 + 1e-10, 1e-100),
+        (0.3, 1.0 + 1e-12, 1e-300),
+        (-0.5, 1.0 - 1e-12, 1e-5),
+        (
+            -2.810_724_254_002_024_7,
+            1.000_001_015_655_869_4,
+            3.496_646_304_636_083e-87,
+        ),
+        (3.5, 1.0 - 5e-9, 1e-180),
+    ];
+    let expected = [
+        45.474_486_089_040_32,
+        258.475_097_127_408_1,
+        231.692_340_668_562_74,
+        -2.911_763_413_684_127_5,
+        -170.750_281_478_621_47,
+        124.033_634_780_699_4,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_hypu_b_near_one_recurrence() {
+    // Arb; through the recurrence in a, where the relative condition number of U in a is 6e6
+    let actual = xsf::hypu(-5.1, 0.999_999_999_999, 0.329_999);
+    xsref::np_assert_allclose!([actual], [-0.000_200_046_396_593_785_78], rtol = 1e-9);
+}
+
+#[test]
 fn test_hypu_large_a() {
     // mpmath; NaN in xsf
     let actual = xsf::hypu(
