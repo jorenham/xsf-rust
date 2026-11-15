@@ -238,6 +238,20 @@ fn test_legendre_q_all_c64() {
 }
 
 #[test]
+fn test_legendre_q_all_f64_reflection() {
+    // Q_n(-x) = (-1)^(n+1) Q_n(x) and Q_n'(-x) = (-1)^n Q_n'(x), see DLMF 14.24.2
+    for x in [1.5, 951.41] {
+        let (qn, qd) = xsf::legendre_q_all(30, x);
+        let (qn_neg, qd_neg) = xsf::legendre_q_all(30, -x);
+        for n in 0..=30 {
+            let sign = if n % 2 == 0 { -1.0 } else { 1.0 };
+            assert_eq!(qn_neg[n], sign * qn[n], "n = {n}, x = -{x}");
+            assert_eq!(qd_neg[n], -sign * qd[n], "n = {n}, x = -{x}");
+        }
+    }
+}
+
+#[test]
 fn test_legendre_q_all_n0() {
     // computed with n = 1, since `lqn` writes at least 2 terms
     let (qn, qd) = xsf::legendre_q_all(1, 1.5);
