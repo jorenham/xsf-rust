@@ -4,7 +4,8 @@
 [![Crates.io Version](https://img.shields.io/crates/v/xsf?style=flat-square&color=333333)](https://crates.io/crates/xsf)
 [![docs.rs](https://img.shields.io/docsrs/xsf?style=flat-square&color=333333)](https://docs.rs/xsf/)
 
-- docs: [docs.rs/xsf](https://docs.rs/xsf/)
+- docs (release): [docs.rs/xsf](https://docs.rs/xsf/)
+- docs (dev): [jorenham.github.io/xsf-rust](https://jorenham.github.io/xsf-rust/xsf/)
 - crate: [crates.io/crates/xsf](https://crates.io/crates/xsf)
 - xsf (C++): [scipy/xsf](https://github.com/scipy/xsf/)
 
