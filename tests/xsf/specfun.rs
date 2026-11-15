@@ -365,6 +365,40 @@ fn test_hypu_chgus_sinpi() {
 }
 
 #[test]
+fn test_hypu_chgus_rounding() {
+    // Arb; 1.381478037678 and 3.443455701978e64 in xsf. Here chgus has fewer digits than it would
+    // claim without the rounding of 1 + a - b (first) and of its terms (second).
+    let abx = [
+        (
+            0.001_540_284_073_910_872_3,
+            0.999_999_968_212_571_8,
+            3.409_133_030_522_77e-108,
+        ),
+        (-50.3, 1.001, 0.999_999_999_999_999_9),
+    ];
+    let expected = [1.381_478_037_771_745_5, 3.443_455_703_062_540_5e64];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-14);
+}
+
+#[test]
+fn test_hypu_chguit_unconverged() {
+    // Arb; here the quadrature in chguit doesn't converge, so that chgu keeps chgus
+    let abx = [
+        (25.5, -1e-14, 1e-10),
+        (25.5, 1e-10, 1e-6),
+        (25.5, 2.000_000_000_1, 1e-6),
+    ];
+    let expected = [
+        1.270_443_779_292_559_8e-26,
+        1.270_106_821_887_141e-26,
+        3.238_802_988_847_028e-19,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-9);
+}
+
+#[test]
 fn test_hypu_b_near_zero() {
     // mpmath (scipy/xsf#533)
     let abx = [(2.5, -1e-12, 15.0), (0.75, -1e-13, 3.0), (2.5, 1e-12, 15.0)];
@@ -379,7 +413,8 @@ fn test_hypu_b_near_zero() {
 
 #[test]
 fn test_hypu_b_near_one() {
-    // Arb; 45.474459, 258.47514, 231.697, -2.911784, -170.7502815, and 124.033632 in xsf
+    // Arb; 45.474459, 258.47514, 231.697, -2.911784, -170.7502815, 124.033632, and 1.0000000013
+    // in xsf
     let abx = [
         (1.0 - 1e-10, 1.0 - 1e-10, 1e-20),
         (1.5, 1.0 + 1e-10, 1e-100),
@@ -391,6 +426,11 @@ fn test_hypu_b_near_one() {
             3.496_646_304_636_083e-87,
         ),
         (3.5, 1.0 - 5e-9, 1e-180),
+        (
+            2.110_640_198_025_144_7e-11,
+            1.000_000_150_899_142_3,
+            3.232_038_272_055_668e-25,
+        ),
     ];
     let expected = [
         45.474_486_089_040_32,
@@ -399,6 +439,7 @@ fn test_hypu_b_near_one() {
         -2.911_763_413_684_127_5,
         -170.750_281_478_621_47,
         124.033_634_780_699_4,
+        1.000_000_001_190_227,
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);

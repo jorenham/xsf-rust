@@ -14,7 +14,7 @@ use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64};
+use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64, two_sum};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
@@ -1030,8 +1030,9 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 ///      or if `chgubi` isn't finite with `ID_MIN` digits and step 1 has fewer than 9, unless a
 ///      finite `chgubi` has at least as many estimated digits as the recurrence (by the
 ///      cancellation of its two starting values)
-/// 3. If `hu0` has 9 to 11 digits (and isn't NaN), the result of step 2 only replaces it if the
-///    two agree within 10 times its error estimate (step 2 can be far off, e.g. for small `x`).
+/// 3. If `hu0` has 9 to 11 digits, or more than step 2 (and isn't NaN), the result of step 2 only
+///    replaces it if the two agree within 10 times its error estimate (step 2 can be far off, e.g.
+///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`.
 ///
 /// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
@@ -1157,12 +1158,18 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
     // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
 
-    // step 3
-    if id0 >= 9 && !hu0.is_nan() {
+    // Unlike in xsf, a NaN here doesn't replace a finite result of step 1, e.g. of chguit for
+    // subnormal x, where 1/x overflows
+    if hu.is_nan() && hu0.is_finite() {
+        (hu, id) = (hu0, id0);
+    }
+    // Step 3. Unlike in xsf, also if step 1 has more digits than step 2, e.g. if chguit doesn't
+    // converge
+    if (id0 >= 9 || id0 > id) && !hu0.is_nan() {
         let tol = 10f64.powi(1 - id0) * hu0.abs();
         let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
         if !agrees {
-            return hu0;
+            (hu, id) = (hu0, id0);
         }
         id = id.max(id0);
     }
@@ -1778,6 +1785,8 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hu = r1 - r2;
     let mut hmax: f64 = 0.0;
     let mut hmin: f64 = SPECFUN_INF;
+    // Unlike in xsf, the id also has the rounding errors of the terms, about j eps for term j
+    let mut terms = r1.abs() + r2.abs();
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
     // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
@@ -1789,6 +1798,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         hu += r1 - r2;
         s1 += r1;
         s2 += r2;
+        terms += f64::from(j) * (r1.abs() + r2.abs());
         let hua = hu.abs();
         if hua > hmax {
             hmax = hua;
@@ -1829,8 +1839,19 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             0.0
         }
     };
-    let e1 = 1e-15 + k(1.0 + a - b);
+    // Unlike in xsf, e1 also has the rounding error of 1 + a - b, times |digamma|, which is about
+    // 1 / |1 + a - b - n| near a pole n of gamma2
+    let (s, d_s) = two_sum(1.0, a);
+    let (aab, d_aab) = two_sum(s, -b);
+    let d = d_s + d_aab;
+    let e_ab = if d == 0.0 {
+        0.0
+    } else {
+        (digamma(aab) * d).abs()
+    };
+    let e1 = 1e-15 + k(1.0 + a - b) + e_ab;
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
-    *id = (*id).min((-((e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
+    let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
+    *id = (*id).min((-(err / hu.abs()).log10()) as i32);
     mul_exp(hu, lr2)
 }
