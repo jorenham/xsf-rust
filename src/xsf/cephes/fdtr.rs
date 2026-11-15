@@ -57,6 +57,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
+    let (w, w1) = fdtr_w(a, b, x);
     if b < 2.0 * f64::MIN_POSITIVE && a < f64::INFINITY && 0.0 < x && x < f64::INFINITY {
         // Unlike in xsf, the limit `A / (A + B)` of `I_y(B, A)` as `B -> 0`, as in `fdtr`
         a / (a + b)
@@ -69,8 +70,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         // Unlike in xsf, likewise `fdtr(b, a, 1 / x)` if `a x / b` is subnormal
         q
     } else {
-        let (w1, w) = fdtr_w(a, b, x);
-        fdtr_betainc(b, a, w, w1)
+        fdtr_betainc(b, a, w1, w)
     }
 }
 
@@ -133,27 +133,38 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
         b / (a + b)
     } else if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         p
+    } else if let Some(p) = fdtr_tiny_w(a, b, x, w) {
+        p
     } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
         fdtr_betainc(a, b, w, w1)
-    } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
-        // Unlike in xsf, if `a x` or `w` is subnormal, as they round: the chi-square CDF of `a x`,
-        // as `b > 1e291` or inf
+    } else if x > 0.0 {
+        // Unlike in xsf, if `w` is subnormal, as it rounds, while `b` is inf, or `a x >= eps`, so
+        // that `b > 1e291`: the chi-square CDF of `a x`
         fdtr_chi2(a, x).0
-    } else if x == 0.0 {
-        0.0
     } else {
-        // likewise, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`
-        let (ha, hb) = (0.5 * a, 0.5 * b);
-        // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
-        let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
-        // `x^A` apart, unless it underflows, while the rest can be large
-        let x_ha = x.powf(ha);
-        if x_ha >= f64::MIN_POSITIVE {
-            x_ha * ln_rest.exp()
-        } else {
-            (ha * x.ln() + ln_rest).exp()
-        }
+        0.0
     }
+}
+
+/// `fdtr` if `a x` or `w` is subnormal (as they round), `w < eps` and `b` is finite, else `None`
+///
+/// Unlike in xsf, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`.
+fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<f64> {
+    let ax = a * x;
+    let tiny = ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON && ax < f64::EPSILON;
+    if !(tiny && b < f64::INFINITY && x > 0.0) {
+        return None;
+    }
+    let (ha, hb) = (0.5 * a, 0.5 * b);
+    // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
+    let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
+    // `x^A` apart, unless it underflows, while the rest can be large
+    let x_ha = x.powf(ha);
+    Some(if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        (ha * x.ln() + ln_rest).exp()
+    })
 }
 
 /// `(w, 1 - w)` with `w = a x / (b + a x)`
