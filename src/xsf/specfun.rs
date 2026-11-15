@@ -26,6 +26,16 @@ pub(crate) use numbers::{bernob, eulerb};
 pub(crate) use par_cyl::cpbdn;
 pub(crate) use sphd::{aswfa, rswfo, rswfp, segv};
 
+/// The Newton step of specfun's zero finders, for `f(z) / prod(z - z_i)` with the zeros `z_i` found
+/// so far, given `f(z)` and `f'(z)`
+///
+/// Unlike in xsf, this is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
+/// which overflow (NaN) for many zeros, e.g. from the 140th of `cyzo` and the 332nd of `fcszo`.
+pub(crate) fn deflated_newton_step(z: C64, f: C64, df: C64, zeros: &[C64]) -> C64 {
+    let s = zeros.iter().fold(C64::ZERO, |s, &zi| s + 1.0 / (z - zi));
+    f / (df - s * f)
+}
+
 /// The `1e300` that specfun returns in place of infinity, e.g. `gamma2` at the poles
 pub(crate) const SPECFUN_INF: f64 = 1e300;
 

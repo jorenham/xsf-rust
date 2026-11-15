@@ -2,6 +2,7 @@
 
 use core::f64::consts::{FRAC_2_SQRT_PI, PI, TAU};
 
+use super::deflated_newton_step;
 use crate::utils::SQRT_PI;
 use crate::xsf::c64::{C64, c64};
 
@@ -16,6 +17,29 @@ fn cerf(z: C64, cer: &mut C64, cder: &mut C64) {
     // ==========================================================
 
     const EPS: f64 = 1.0e-12;
+
+    /// The sum over `n >= 1` of `term(n, ch, sh) / (n^2 + 4 x^2)`, with `ch` and `sh` the
+    /// `e^(-x^2 - n^2 / 4) cosh(n y)` and `.. sinh(n y)`, until it converges
+    ///
+    /// Unlike in xsf, the factor `e^(-x^2)` is in the terms, and they are sums of exponentials, as
+    /// `cosh(n y)` overflows (NaN) from `n y > 710`, e.g. at the 77th zero. There are more than
+    /// 100 terms where needed, as they peak at `n = 2 |y|`.
+    fn series(x: f64, y: f64, term: impl Fn(f64, f64, f64) -> f64) -> f64 {
+        let x2 = x * x;
+        let mut sum = 0.0;
+        let mut w = 0.0;
+        for n in 1..=(100.0 + 2.0 * y.abs()) as i32 {
+            let n = f64::from(n);
+            let e = |t: f64| (t - 0.25 * n * n - x2).exp();
+            let (ep, em) = (e(n * y), e(-n * y));
+            sum += term(n, 0.5 * (ep + em), 0.5 * (ep - em)) / (n * n + 4.0 * x2);
+            if ((sum - w) / sum).abs() < EPS {
+                break;
+            }
+            w = sum;
+        }
+        sum
+    }
 
     let mut er: f64;
     let mut r: f64;
@@ -69,33 +93,13 @@ fn cerf(z: C64, cer: &mut C64, cder: &mut C64) {
         let ss = (2.0 * x * y).sin();
         let er1 = (-x2).exp() * (1.0 - cs) / (TAU * x);
         let ei1 = (-x2).exp() * ss / (TAU * x);
-        let mut er2 = 0.0;
-        let mut w1 = 0.0;
-
-        for n in 1..=100 {
-            er2 += (-0.25 * f64::from(n) * f64::from(n)).exp() / (f64::from(n * n) + 4.0 * x2)
-                * (2.0 * x - 2.0 * x * (f64::from(n) * y).cosh() * cs
-                    + f64::from(n) * (f64::from(n) * y).sinh() * ss);
-            if ((er2 - w1) / er2).abs() < EPS {
-                break;
-            }
-            w1 = er2;
-        }
-
-        c0 = 2.0 * (-x2).exp() / PI;
+        let er2 = series(x, y, |n, ch, sh| {
+            let e0 = (-0.25 * n * n - x2).exp();
+            2.0 * x * e0 - 2.0 * x * ch * cs + n * sh * ss
+        });
+        c0 = 2.0 / PI;
         let err = cer.re + er1 + c0 * er2;
-        let mut ei2 = 0.0;
-        let mut w2 = 0.0;
-
-        for n in 1..=100 {
-            ei2 += (-0.25 * f64::from(n) * f64::from(n)).exp() / (f64::from(n * n) + 4.0 * x2)
-                * (2.0 * x * (f64::from(n) * y).cosh() * ss
-                    + f64::from(n) * (f64::from(n) * y).sinh() * cs);
-            if ((ei2 - w2) / ei2).abs() < EPS {
-                break;
-            }
-            w2 = ei2;
-        }
+        let ei2 = series(x, y, |n, ch, sh| 2.0 * x * ch * ss + n * sh * cs);
         *cer = c64(err, ei1 + c0 * ei2);
     }
     *cder = FRAC_2_SQRT_PI * (-z * z).exp();
@@ -114,11 +118,6 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
     let mut z: C64;
     let mut zf = C64::ZERO;
     let mut zd = C64::ZERO;
-    let mut zp: C64;
-    let mut zw: C64;
-    let mut zq: C64;
-    let mut zfd: C64;
-    let mut zgd: C64;
     let mut w0: f64;
     let mut w = 0.0;
 
@@ -133,25 +132,7 @@ pub(crate) fn cerzo(nt: i32, zo: &mut [C64]) {
         loop {
             it += 1;
             cerf(z, &mut zf, &mut zd);
-            zp = C64::ONE;
-
-            for i in 1..nr {
-                zp *= z - zo[(i - 1) as usize];
-            }
-            zfd = zf / zp;
-            zq = C64::ZERO;
-            for i in 1..nr {
-                zw = C64::ONE;
-                for j in 1..nr {
-                    if j == i {
-                        continue;
-                    }
-                    zw *= z - zo[(j - 1) as usize];
-                }
-                zq += zw;
-            }
-            zgd = (zd - zq * zfd) / zp;
-            z -= zfd / zgd;
+            z -= deflated_newton_step(z, zf, zd, &zo[..(nr - 1) as usize]);
             w0 = w;
             w = z.norm();
             if !((it <= 50) && (((w - w0) / w).abs() > 1.0e-11)) {

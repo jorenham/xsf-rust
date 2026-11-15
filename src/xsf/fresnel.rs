@@ -7,6 +7,7 @@ use num_complex::Complex;
 
 use crate::utils::{FRAC_1_SQRT_PI, SQRT_FRAC_2_PI, SQRT_TAU_DOWN, neg_one_pow};
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::specfun::deflated_newton_step;
 
 fn cfc(z: C64) -> (C64, C64) {
     // =========================================================
@@ -357,13 +358,7 @@ fn fcszo(kf: i32, nt: usize, zo: &mut [C64]) {
             it += 1;
             let (zf, zd) = if kf == 1 { cfc(z) } else { cfs(z) };
 
-            // Unlike in xsf, the Newton step for `f(z) / prod(z - z_i)`, with the zeros `z_i` found
-            // so far, is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
-            // which overflow from the 332nd zero on (NaN).
-            let zq = zo[..nr - 1]
-                .iter()
-                .fold(C64::ZERO, |zq, &zi| zq + 1.0 / (z - zi));
-            z -= zf / (zd - zq * zf);
+            z -= deflated_newton_step(z, zf, zd, &zo[..nr - 1]);
             let w0 = w;
             w = z.norm();
             if !((it <= 50) && (((w - w0) / w).abs() > 1.0e-12)) {
