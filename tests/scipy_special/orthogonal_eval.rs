@@ -703,6 +703,57 @@ fn test_eval_jacobi_alpha_m1() {
 }
 
 #[test]
+fn test_eval_jacobi_alpha_lt_minus_one_int_n_plus_beta() {
+    // for a non-integer degree with an integer `n + beta`, alpha < -1 and 0 < beta < 1, these were
+    // -2.77e8, -3.43e-3, 1.25e6 and 59.7 (Arb, Wolfram)
+    let actual = [
+        eval_jacobi(40.5, -1.1, 0.5, -0.6),
+        eval_jacobi(35.5, -3.3, 0.5, -0.5),
+        eval_jacobi(43.3, -3.2, 0.7, -0.6),
+        eval_jacobi(30.5, -1.01, 0.5, -0.6),
+    ];
+    let desired = [
+        -0.186_065_602_211_981_8,
+        0.007_921_956_643_473_752,
+        -0.078_826_187_314_334_7,
+        0.210_905_458_121_855_35,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
+fn test_eval_jacobi_alpha_lt_minus_one() {
+    // for a non-integer degree, where the recurrence in `a` of `hyp2f1` loses most digits, these
+    // were 1.32815e-4 and NaN twice (Arb, Wolfram)
+    let actual = [
+        eval_jacobi(
+            24.445_335_888_413_27,
+            -1.161_162_694_355_080_6,
+            2.285_495_589_620_469,
+            -0.295_343_040_857_555_7,
+        ),
+        eval_jacobi(
+            47.743_147_644_039_865,
+            -1.792_148_792_742_589_4,
+            3.642_566_215_580_538,
+            -0.752_167_001_210_858_3,
+        ),
+        eval_jacobi(
+            27.237_831_793_384_256,
+            -2.588_791_137_572_238,
+            1.204_770_221_612_834_6,
+            -0.541_727_570_598_916_4,
+        ),
+    ];
+    let desired = [
+        1.326_943_780_835_686_8e-4,
+        -0.003_454_508_238_536_124_4,
+        -2.685_625_233_703_272_5e-4,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
+}
+
+#[test]
 fn test_shifted_and_scaled() {
     // reference values from scipy.special
     let r = [
