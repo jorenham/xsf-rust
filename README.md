@@ -310,6 +310,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`pdtrik`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.pdtrik.html)                             | `pdtrik`                                            |
 | [`perm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.perm.html)                                 | `perm`, `pow_falling`                               |
 | [`poch`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.poch.html)                                 | `pow_rising`                                        |
+| [`poisson_binom_cdf`](https://scipy.github.io/devdocs/reference/generated/scipy.special.poisson_binom_cdf.html)        | `poisson_binom_cdf`                                 |
 |                                                                                                                        | `poisson_binom_cdf_all`                             |
 |                                                                                                                        | `poisson_binom_pmf_all`                             |
 | [`polygamma`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.polygamma.html)                       | `polygamma`, `trigamma`                             |
