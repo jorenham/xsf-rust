@@ -164,6 +164,25 @@ template <int I, typename F> double wilcoxon_all(int n, F f) {
     return f(r);
 }
 
+// order `v` of the values (I = 0) or derivatives (I = 1) of xsf::detail::pbdv or pbvv as `f`, with
+// the orders v - floor(v), ..., v (and v + 1 if v < 1)
+template <int I, typename F> double pb_seq(F f, double v, double x) {
+    const int num = std::abs(static_cast<int>(v)) + 3; // like xsf::pbdv and xsf::pbvv
+    std::vector<double> o(2 * num, NAN);
+    double pf, pd;
+    f(x, v, o.data(), o.data() + num, &pf, &pd);
+    return o[I * num + static_cast<int>(v)];
+}
+
+// order `n` of the values (I = 0) or derivatives (I = 1) of xsf::specfun::cpbdn, with the orders
+// 0, ..., n (at least 1 if n >= 0, like in SciPy)
+template <int I> cd pbdn_seq(int n, cd z) {
+    const int m = n < 0 ? n : std::max(n, 1), len = std::abs(m) + 2;
+    std::vector<cd> o(2 * len, NAN);
+    xsf::specfun::cpbdn(m, z, o.data(), o.data() + len);
+    return o[I * len + std::abs(n)];
+}
+
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
 static cd kelvin(double x, int index) {
     cd o[4];
@@ -407,6 +426,10 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("pbdv.1", OUT2(1, xsf::pbdv(x, y, o0, o1)))
     F2("pbvv.0", OUT2(0, xsf::pbvv(x, y, o0, o1)))
     F2("pbvv.1", OUT2(1, xsf::pbvv(x, y, o0, o1)))
+    F2("pbdv_seq.0", pb_seq<0>(xsf::detail::pbdv<double>, x, y))
+    F2("pbdv_seq.1", pb_seq<1>(xsf::detail::pbdv<double>, x, y))
+    F2("pbvv_seq.0", pb_seq<0>(xsf::detail::pbvv<double>, x, y))
+    F2("pbvv_seq.1", pb_seq<1>(xsf::detail::pbvv<double>, x, y))
     F2("pbwa.0", OUT2(0, xsf::pbwa(x, y, o0, o1)))
     F2("pbwa.1", OUT2(1, xsf::pbwa(x, y, o0, o1)))
     // zeta functions
@@ -592,6 +615,8 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("modified_fresnel_minus.0", 1, nthc<0>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("modified_fresnel_minus.1", 1, nthc<1>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("sph_harm_y", 4, xsf::sph_harm_y(i(a[0]), i(a[1]), a[2], a[3]))
+    C("pbdn_seq.0", 3, pbdn_seq<0>(i(a[0]), cd(a[1], a[2])))
+    C("pbdn_seq.1", 3, pbdn_seq<1>(i(a[0]), cd(a[1], a[2])))
     C("sph_harm_y_all", 4, all_nm<cd>([&](mat<cd> r) { xsf::sph_harm_y_all(a[2], a[3], r); }, i(a[0]), i(a[1])))
     // the coefficients follow z
     if (f == "cevalpoly" && a.size() >= 3) {
