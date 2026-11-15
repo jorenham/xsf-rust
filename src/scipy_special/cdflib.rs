@@ -13,7 +13,7 @@ use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
     betainc_xy, fdtr, fdtr_w, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
-    incbet_cf_factor, lbeta, ln_igam_fac,
+    incbet_cf_factor, lbeta, ln_a_beta, ln_igam_fac,
 };
 use crate::xsf::{
     bracket_root_for_cdf_inversion, erfcx, find_positive_root, find_root_chandrupatla, log1pmx,
@@ -843,10 +843,12 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     } else {
         xx = 1.0 - yy;
         // without the rounding of a subnormal `yy`
-        let ln_y = if prod.is_finite() {
-            yy.ln()
-        } else {
+        let ln_y = if !prod.is_finite() {
             dfd.ln() - dfn.ln() - f.ln()
+        } else if yy < f64::MIN_POSITIVE {
+            dfd.ln() - dsum.ln()
+        } else {
+            yy.ln()
         };
         (lnxx, lnyy) = ((-yy).ln_1p(), ln_y);
     }
@@ -858,7 +860,30 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     let b = (dfd / 2.0).max(f64::MIN_POSITIVE);
     // If `I_x(adn, b)` underflows, the beta terms are carried as multiples of `2^scale`, since the
     // terms below `icent` can still be significant, e.g. if x is tiny.
-    let (mut betdn, mut scale) = betainc_scaled(adn, b, xx, yy, lnxx, lnyy);
+    // Unlike in cdflib, if `yy` is subnormal or 0, as it rounds: `1 - I_y(b, adn)`, with (DLMF
+    // 8.17.7) `I_y(b, adn) = y^b / (b B(adn, b)) F(b, 1 - adn; b + 1; y)`. If `adn > 1 / eps`, its
+    // limit `Q(b, z)` as `adn -> inf`, with `z = adn y`, up to `O(1 / adn)`, which avoids
+    // cancelling `ln(y)` and `ln(adn)`. Else, or if `z` is subnormal, `z < eps` and the first term
+    // suffices: the next is `b (1 - adn) y / (b + 1)` relative, so `< z / 35` relative to `1 - I`.
+    // `z` avoids the rounding of `yy`, and the overflow of `adn / dsum` for a tiny `dsum` (where
+    // `adn dfd = z dsum` is normal if `z >= eps`).
+    let z = if prod.is_finite() {
+        let r = adn / dsum;
+        if r.is_finite() {
+            r * dfd
+        } else {
+            adn * dfd / dsum
+        }
+    } else {
+        adn / dfn / f * dfd
+    };
+    let (mut betdn, mut scale) = if yy >= f64::MIN_POSITIVE {
+        betainc_scaled(adn, b, xx, yy, lnxx, lnyy)
+    } else if adn * eps > 1.0 && z >= f64::MIN_POSITIVE {
+        (igamc(b, z), 0)
+    } else {
+        (-(b * lnyy - ln_a_beta(b, adn)).exp_m1(), 0)
+    };
     let scale_up = scale;
     let mut betup = betdn;
     let mut ssum = centwt * betdn;

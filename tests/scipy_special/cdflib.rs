@@ -469,6 +469,52 @@ fn test_ncfdtr_tiny_dfn() {
 }
 
 #[test]
+fn test_ncfdtr_tiny_y() {
+    // `y = dfd / (dfd + dfn f)` is subnormal or underflows, where the CDF is `O(dfd)`; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1.0, 1e-300, 1.0, 1e30),
+            xsf::ncfdtr(3.0, 1e-300, 10.0, 1e30),
+            xsf::ncfdtr(3.0, 1e-307, 10.0, 2e10),
+            xsf::ncfdtr(2.0, 1e-10, 5.0, 1e305),
+            xsf::ncfdtr(1e3, 1e-5, 3000.0, 1e306),
+        ],
+        [
+            3.801_930_019_202_814_4e-298,
+            3.793_291_507_335_005e-298,
+            3.647_089_212_193_191_6e-305,
+            3.622_445_085_184_745_5e-8,
+            0.003_567_790_470_883_453_7,
+        ],
+        rtol = 1e-14
+    );
+    // also with a subnormal `dfd`; Arb gives 1.8377721e-321
+    assert_eq!(xsf::ncfdtr(3.0, 5e-324, 10.0, 2.0), 1.84e-321);
+    // also where `dfn y` is not small; from mpmath, as Arb certifies too few bits here (the first
+    // two are `exp(-1 / f)`, the limit as `dfn -> inf`)
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1e308, 2.0, 1.0, 2.0),
+            xsf::ncfdtr(1e308, 2.0, 1.0, 0.95),
+            xsf::ncfdtr(f64::MAX, 1e-15, 0.5, 2.0),
+            xsf::ncfdtr(1e302, 1e-16, 100.0, 1.5),
+        ],
+        [
+            0.606_530_659_712_633_4,
+            0.349_018_070_931_319_9,
+            1.767_392_754_556_436_8e-14,
+            1.868_137_905_583_563_4e-15,
+        ],
+        rtol = 1e-14
+    );
+    // also where `dfn / (dfd + dfn f)` overflows; from mpmath, rounded to the nearest subnormal
+    assert_eq!(
+        xsf::ncfdtr(1e308, 1e-310, 1.0, 1e-310),
+        2.798_867_973_880_6e-311
+    );
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [
