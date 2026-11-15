@@ -902,8 +902,20 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
              */
             if d < 0.0 {
                 /* Try the power series first */
-                let err;
-                (y, err, _) = hyt2f1(a, b, c, x);
+                let (err, err_full);
+                (y, err, err_full) = hyt2f1(a, b, c, x);
+                // Unlike in xsf, a negative integer c - a or c - b uses the polynomial
+                // transformation (as for d >= 0) if its error estimate is smaller than that of `y`
+                // including the recurrence in `a`, and it shows `y` to be less accurate: `err`
+                // misses that error, and the recurrence in `c` below can lose all digits (e.g.
+                // across c = 0).
+                if neg_int_ca_or_cb && !(err_full < HYP2F1_ETHRESH) {
+                    let (f, _, f_full) = hys2f1(c - a, c - b, c, x);
+                    let z = s.powf(d) * f;
+                    if !(err_full <= f_full) && less_accurate(y, z, f_full) {
+                        return z;
+                    }
+                }
                 if err < HYP2F1_ETHRESH {
                     return y; // goto hypdon
                 }

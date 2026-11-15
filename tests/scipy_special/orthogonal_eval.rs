@@ -703,6 +703,25 @@ fn test_eval_jacobi_alpha_m1() {
 }
 
 #[test]
+fn test_eval_jacobi_alpha_lt_minus_one_int_n_plus_beta() {
+    // for a non-integer degree with an integer `n + beta`, alpha < -1 and 0 < beta < 1, these were
+    // -2.77e8, -3.43e-3, 1.25e6 and 59.7 (Arb, Wolfram)
+    let actual = [
+        eval_jacobi(40.5, -1.1, 0.5, -0.6),
+        eval_jacobi(35.5, -3.3, 0.5, -0.5),
+        eval_jacobi(43.3, -3.2, 0.7, -0.6),
+        eval_jacobi(30.5, -1.01, 0.5, -0.6),
+    ];
+    let desired = [
+        -0.186_065_602_211_981_8,
+        0.007_921_956_643_473_752,
+        -0.078_826_187_314_334_7,
+        0.210_905_458_121_855_35,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
 fn test_shifted_and_scaled() {
     // reference values from scipy.special
     let r = [

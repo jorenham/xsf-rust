@@ -484,6 +484,33 @@ fn test_hyp2f1_f64_c_lt_0() {
 }
 
 #[test]
+fn test_hyp2f1_f64_neg_int_c_minus_a_or_c_minus_b() {
+    // unlike in xsf: the transformation for a negative integer c - a or c - b if -1 < c - a - b < 0,
+    // where the recurrence in `a` was estimated as accurate, but isn't. These were 1.18e11, 24.58,
+    // 1.86e7, 61.73 and -1.73e13 (mpmath, Wolfram)
+    let actual = [
+        xsf::hyp2f1(-40.5, 40.9, -0.1, 0.8),
+        xsf::hyp2f1(-25.25, 25.7, -0.3, 0.75),
+        xsf::hyp2f1(-30.5, 31.2, 0.2, 0.85),
+        xsf::hyp2f1(35.6, -35.1, -0.4, 0.7),
+        xsf::hyp2f1(-45.5, 45.99, -0.01, 0.8),
+    ];
+    let desired = [
+        116.439_612_499_602_16,
+        24.543_627_215_364_04,
+        -15.110_473_882_473_225,
+        74.102_598_993_798_93,
+        -4.645_596_140_460_149,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but not where the series of that transformation doesn't terminate, as c - b is only near an
+    // integer, and x is near 1 (mpmath, Wolfram)
+    let actual = xsf::hyp2f1(-59.25, 70.1, 10.1, 0.999);
+    np_assert_allclose!([actual], [-1.622_052_617_419_225_7e-11], rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_parameters() {
     // unlike in xsf: the backward recurrence in c for large parameters (references: the direct sum
     // of the power series of the Pfaff transformation in high precision)
