@@ -534,6 +534,23 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
     }
 }
 
+/// `M(a, b, x)` for `x <= -30 - |b|`, from the series of DLMF 13.2.39 in double-double with the
+/// exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
+///
+/// Near a pole of `Gamma(b - a)`, whose reciprocal scales the `e^-x` part, rounding `b - a` and the
+/// recurrence in `a` lose all digits, and even the sign. The series needs over `-x` terms.
+fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
+    if !(30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
+        return None;
+    }
+    let ak = DoubleDouble::new(b) - a;
+    if ak >= 0.0 || (ak.hi.fract() == 0.0 && ak.lo.fract() == 0.0) {
+        return None;
+    }
+    let (hg, err) = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)?;
+    (hg.is_finite() && err <= f64::EPSILON * hg.abs()).then_some(hg)
+}
+
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
@@ -840,20 +857,10 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         return if a == 0.0 { 1.0 } else { x.exp() };
     }
 
-    // Unlike in xsf, for x < -30 - |b| and b - a < 0, first the series of DLMF 13.2.39 in
-    // double-double with the exact b - a, if its error bound is below eps: near a pole of
-    // Gamma(b - a), whose reciprocal scales the e^-x part, rounding b - a and the recurrence in a
-    // lose all digits, and even the sign.
-    //
-    // The series needs over -x terms.
-    if regular && a.is_finite() && (30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
-        let ak = DoubleDouble::new(b) - a;
-        if ak < 0.0 && (ak.hi.fract() != 0.0 || ak.lo.fract() != 0.0) {
-            let hg = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)
-                .filter(|&(hg, err)| hg.is_finite() && err <= f64::EPSILON * hg.abs());
-            if let Some((hg, _)) = hg {
-                return hg;
-            }
+    // Unlike in xsf, large negative x has its own methods (see `chgm_neg_x`)
+    if regular && a.is_finite() {
+        if let Some(hg) = chgm_neg_x(x, a, b) {
+            return hg;
         }
     }
     // Unlike in xsf (scipy/xsf#365), non-integer b < 0 has its own methods (see `chgm_neg_b`)
