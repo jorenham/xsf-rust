@@ -365,6 +365,32 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("assoc_legendre_q_all.1", &[n, m, x]) => {
             xsf::assoc_legendre_q_all(n as usize, m as usize, x).1[n as usize][m as usize]
         },
+        // Mathieu functions
+        ("mathieu_a", &[m, q]) => xsf::mathieu_a(m as u32, q),
+        ("mathieu_b", &[m, q]) => xsf::mathieu_b(m as u32, q),
+        ("mathieu_cem.0", &[m, q, x]) => xsf::mathieu_cem(m as u32, q, x).0,
+        ("mathieu_cem.1", &[m, q, x]) => xsf::mathieu_cem(m as u32, q, x).1,
+        ("mathieu_sem.0", &[m, q, x]) => xsf::mathieu_sem(m as u32, q, x).0,
+        ("mathieu_sem.1", &[m, q, x]) => xsf::mathieu_sem(m as u32, q, x).1,
+        ("mathieu_ce.0", &[m, q, x]) => xsf::mathieu_ce(m as u32, q, x).0,
+        ("mathieu_ce.1", &[m, q, x]) => xsf::mathieu_ce(m as u32, q, x).1,
+        ("mathieu_se.0", &[m, q, x]) => xsf::mathieu_se(m as u32, q, x).0,
+        ("mathieu_se.1", &[m, q, x]) => xsf::mathieu_se(m as u32, q, x).1,
+        ("mathieu_modcem1.0", &[m, q, x]) => xsf::mathieu_modcem1(m as u32, q, x).0,
+        ("mathieu_modcem1.1", &[m, q, x]) => xsf::mathieu_modcem1(m as u32, q, x).1,
+        ("mathieu_modcem2.0", &[m, q, x]) => xsf::mathieu_modcem2(m as u32, q, x).0,
+        ("mathieu_modcem2.1", &[m, q, x]) => xsf::mathieu_modcem2(m as u32, q, x).1,
+        ("mathieu_modsem1.0", &[m, q, x]) => xsf::mathieu_modsem1(m as u32, q, x).0,
+        ("mathieu_modsem1.1", &[m, q, x]) => xsf::mathieu_modsem1(m as u32, q, x).1,
+        ("mathieu_modsem2.0", &[m, q, x]) => xsf::mathieu_modsem2(m as u32, q, x).0,
+        ("mathieu_modsem2.1", &[m, q, x]) => xsf::mathieu_modsem2(m as u32, q, x).1,
+        // coefficient `k`; NaN for `None`
+        ("mathieu_even_coef", &[m, q, k]) => {
+            xsf::mathieu_even_coef(m as u32, q).map_or(f64::NAN, |c| c[k as usize])
+        },
+        ("mathieu_odd_coef", &[m, q, k]) => {
+            xsf::mathieu_odd_coef(m as u32, q).map_or(f64::NAN, |c| c[k as usize])
+        },
         // discrete distributions
         ("bdtr", &[k, n, p]) => xsf::bdtr(k, n as i32, p),
         ("bdtrc", &[k, n, p]) => xsf::bdtrc(k, n as i32, p),
