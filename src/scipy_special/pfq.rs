@@ -5,7 +5,7 @@
 //! $t_n = z^n \prod_i (a_i)_n / \prod_j (b_j)_n$.
 
 use core::f64::consts::{PI, TAU};
-use core::iter::{from_fn, once, successors};
+use core::iter::{from_fn, once, successors, zip};
 use core::ops::Add;
 
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
@@ -769,16 +769,51 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     gamma_series(b.map(Dd::new), a.map(Dd::new), series, l)
 }
 
-/// `(x, k, factor)` for the rounded lower parameter `x = 1 + am - v` of a series: times `factor`,
-/// the terms after $t_k$ have the factor $1 / (x + k)$ of the exact parameter
+/// `(x, k, factor)` for the rounded parameter `x = 1 + am - v` of a series, where $-k$ is the
+/// non-positive integer nearest to it: times `factor`, the terms after $t_k$ have the factor
+/// $x + k$ of the exact parameter if it is an `upper` one, and $1 / (x + k)$ if it is a lower one
 ///
-/// $-k$ is the non-positive integer nearest to `x`. The terms after $t_k$ have the factor
-/// $1 / (x + k)$, in which the rounding error of `x` is large relative to a small $x + k$.
-fn shifted_lower(am: f64, v: f64) -> (f64, f64, f64) {
+/// The rounding error of `x` is large relative to a small $x + k$. An inexact upper `x` at $-k$
+/// would end the series, so that it is a few ulp from $-k$ instead.
+fn shifted(am: f64, v: f64, upper: bool) -> (f64, f64, f64) {
     let (s, e1) = two_sum(1.0, am);
-    let (x, e2) = two_sum(s, -v);
-    let k = -x.round().min(0.0);
-    (x, k, (x + k) / (x + k + (e1 + e2)))
+    let (nearest, e2) = two_sum(s, -v);
+    let (k, e) = (-nearest.round().min(0.0), e1 + e2);
+    let offset = nearest + k;
+    let ends = upper && offset == 0.0 && e != 0.0;
+    // (more than an ulp of -k, also for k = 0)
+    let x = nearest - if ends { (k + 1.0) * f64::EPSILON } else { 0.0 };
+    let (rounded, exact) = (x + k, offset + e);
+    // (an upper parameter at -k is exact here: the series ends)
+    let upper_factor = if rounded == 0.0 { 1.0 } else { exact / rounded };
+    (x, k, if upper { upper_factor } else { rounded / exact })
+}
+
+/// The `k` and factors of the parameters of a series from `shifted`
+struct Shifts<P> {
+    ks: P,
+    factors: P,
+}
+
+impl<P: Params> Shifts<P> {
+    fn iter(&self) -> impl Iterator<Item = (&f64, &f64)> {
+        zip(self.ks.as_ref(), self.factors.as_ref())
+    }
+}
+
+/// `shifted(am, v, upper)` for each `v` of `params`, but with `value` as the parameter at `own`
+fn shifted_params<P: Params>(
+    params: &P,
+    am: f64,
+    upper: bool,
+    (own, value): (usize, f64),
+) -> (P, Shifts<P>) {
+    let (mut xs, mut ks, mut factors) = (params.clone(), params.clone(), params.clone());
+    for (i, &v) in params.as_ref().iter().enumerate() {
+        (xs.as_mut()[i], ks.as_mut()[i], factors.as_mut()[i]) = shifted(am, v, upper);
+    }
+    (xs.as_mut()[own], ks.as_mut()[own], factors.as_mut()[own]) = (value, 0.0, 1.0);
+    (xs, Shifts { ks, factors })
 }
 
 /// The series of the term of $a_m$ of the algebraic part (DLMF 16.11.2), as its sum and
@@ -793,30 +828,29 @@ fn pfq_alg_series<A: Params, B: Params>(
     sizes: bool,
 ) -> Option<(f64, f64)> {
     let am = a.as_ref()[m];
+    let last = b.as_ref().len().checked_sub(1)?;
     // a_m instead of the 1 of n!, and 1 + a_m - b_j
-    let mut upper = b.clone();
-    for v in upper.as_mut() {
-        *v = 1.0 - (Dd::new(*v) - am).hi;
-    }
-    *upper.as_mut().last_mut()? = am;
-    // 1 + a_m - a_i, and their factors for the terms after t_k
-    let (mut lower, mut ks, mut factors) = (a.clone(), a.clone(), a.clone());
-    for (i, v) in lower.as_mut().iter_mut().enumerate() {
-        (*v, ks.as_mut()[i], factors.as_mut()[i]) = shifted_lower(am, *v);
-    }
-    // (the 1 of n!)
-    (lower.as_mut()[m], ks.as_mut()[m], factors.as_mut()[m]) = (1.0, 0.0, 1.0);
+    let (mut upper, up_shifts) = shifted_params(b, am, true, (last, am));
+    // the 1 of n!, and 1 + a_m - a_i
+    let (mut lower, low_shifts) = shifted_params(a, am, false, (m, 1.0));
     let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
     let bound = |n| pfq_ratio_bound(up, low, 1.0 / z, n);
     // kappa = q - p + 1, as `b` contains the 1 of n!
     let kappa = b.as_ref().len() - a.as_ref().len();
+    // their k and factors, and the largest k with the factor of the terms after it
+    let shifts = || up_shifts.iter().chain(low_shifts.iter());
+    let (k_max, all) = shifts().fold((0.0_f64, 1.0), |(top, all), (&k, &f)| (k.max(top), all * f));
     let series = once(1.0)
         // in (-1)^(p+q+1) / z, where (-1)^(p+q+1) = (-1)^kappa
         .chain(pfq_terms(up, low, neg_one_pow(kappa) / z))
         .zip((0_u32..).map(f64::from))
         .map(|(t, n)| {
-            let ks_factors = ks.as_ref().iter().zip(factors.as_ref());
-            ks_factors.fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
+            // (one product is faster)
+            if n > k_max {
+                t * all
+            } else {
+                shifts().fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
+            }
         })
         .map(|t| if sizes { t.abs() } else { t });
     // the term ratios are about n^kappa / |z|
