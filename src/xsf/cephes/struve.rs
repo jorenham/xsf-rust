@@ -82,8 +82,10 @@ use core::f64::consts::{FRAC_2_SQRT_PI, TAU};
 
 use crate::utils::{SQRT_PI, neg_one_pow};
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
+use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gammasgn, iv, lgam, pow_rgamma, rgamma};
+use crate::xsf::{ln_dd, ln_gamma};
 
 const STRUVE_MAXITER: i32 = 10000;
 const STRUVE_SUM_EPS: f64 = 1e-16; /* be sure we are in the tail of the sum */
@@ -94,6 +96,23 @@ const STRUVE_GOOD_EPS: f64 = 1e-15;
 const STRUVE_ACCEPTABLE_EPS: f64 = 1e-7;
 const STRUVE_ACCEPTABLE_ATOL: f64 = 1e-300;
 
+/// `h^(v+k) / Gamma(v + dg) / exp(scale)` as `exp` of a double-double exponent, if normal
+///
+/// Unlike in xsf, this is used where `pow_rgamma` over- or underflows, instead of `exp` of the
+/// exponent in f64, whose relative error is about `eps` times the (often large) exponent.
+fn exp_rgamma_dd(h: f64, v: f64, k: i32, dg: f64, scale: f64) -> Option<f64> {
+    // (skip the slow double-double where it over- or underflows anyway)
+    let ln_t_approx = (v + f64::from(k)) * h.ln() - lgam(v + dg) - scale;
+    if !(MINLOG..MAXLOG).contains(&ln_t_approx) {
+        return None;
+    }
+    let v_dd = DoubleDouble::new(v);
+    let (ln_g, sign, _) = ln_gamma(v_dd + dg)?;
+    let ln_t = (v_dd + f64::from(k)) * ln_dd(DoubleDouble::new(h)) - ln_g - scale;
+    let t = sign * f64::from(ln_t.exp());
+    t.is_normal().then_some(t)
+}
+
 /*
  * Large-z expansion for Struve H and L
  * https://dlmf.nist.gov/11.6.1, https://dlmf.nist.gov/11.6.2
@@ -102,13 +121,13 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
     let sgn = if is_h { -1 } else { 1 };
 
     /* Asymptotic expansion divergenge point */
-    let m = z / 2.0;
-    let maxiter = if m <= 0.0 {
+    let half_z = z / 2.0;
+    let maxiter = if half_z <= 0.0 {
         0
-    } else if m > f64::from(STRUVE_MAXITER) {
+    } else if half_z > f64::from(STRUVE_MAXITER) {
         STRUVE_MAXITER
     } else {
-        m as i32
+        half_z as i32
     };
     if maxiter == 0 {
         *err = f64::INFINITY;
@@ -123,9 +142,11 @@ fn struve_asymp_large_z(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
 
     /* Evaluate sum */
     let mut term = f64::from(-sgn) / SQRT_PI
-        * pow_rgamma(z / 2.0, v, -1, v + 0.5, 0.0).unwrap_or_else(|| {
-            (-lgam(v + 0.5) + (v - 1.0) * (z / 2.0).ln()).exp() * gammasgn(v + 0.5)
-        });
+        * pow_rgamma(half_z, v, -1, v + 0.5, 0.0)
+            .or_else(|| exp_rgamma_dd(half_z, v, -1, 0.5, 0.0))
+            .unwrap_or_else(|| {
+                (-lgam(v + 0.5) + (v - 1.0) * half_z.ln()).exp() * gammasgn(v + 0.5)
+            });
     let mut sum = term;
     let mut maxterm: f64 = 0.0;
 
@@ -175,7 +196,8 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
 
     let sgn = if is_h { -1 } else { 1 };
 
-    let mut tmp = -lgam(v + 1.5) + (v + 1.0) * (z / 2.0).ln();
+    let half_z = z / 2.0;
+    let mut tmp = -lgam(v + 1.5) + (v + 1.0) * half_z.ln();
     if tmp < -600.0 || tmp > 600.0 {
         /* Scale exponent to postpone underflow/overflow */
         scaleexp = tmp / 2.0;
@@ -184,7 +206,8 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
         scaleexp = 0.0;
     }
 
-    let lead = pow_rgamma(z / 2.0, v, 1, v + 1.5, scaleexp);
+    let lead = pow_rgamma(half_z, v, 1, v + 1.5, scaleexp)
+        .or_else(|| exp_rgamma_dd(half_z, v, 1, 1.5, scaleexp));
     term = FRAC_2_SQRT_PI * lead.unwrap_or_else(|| tmp.exp() * gammasgn(v + 1.5));
     sum = term;
     let mut maxterm: f64 = 0.0;

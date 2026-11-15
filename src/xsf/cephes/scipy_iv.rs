@@ -51,11 +51,18 @@
 use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
 use crate::utils::{EGAMMA, mul_exp, neg_if_odd};
-use crate::xsf::cephes::consts::MACHEP;
+use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
+use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gamma, rgamma};
+use crate::xsf::ln_dd;
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
 const MAXITER: u64 = 500;
+/// The `|v eta|` beyond which both `I_v` and `K_v` over- or underflow, as the scales of the
+/// uniform expansion exceed `e^-MAXLOG`
+const IKV_UNIFORM_DD_MAX: f64 = 2.0 * MAXLOG;
+/// A bound of the rounding error of `v eta` in `f64`, relative to `hypot(v, x)`
+const V_ETA_APPROX_ERR: f64 = 32.0 * MACHEP;
 
 /*
  * Compute Iv from (AMS5 9.7.1), asymptotic expansion for large |z|
@@ -227,11 +234,31 @@ pub(crate) fn ikv_asymptotic_uniform(
     // Unlike in xsf, 1 + z^2 saturates instead of overflowing, where eta would be inf - inf.
     let z2p1 = (1.0 + z * z).min(f64::MAX);
     let t = 1.0 / z2p1.sqrt();
-    let eta = z2p1.sqrt() + (z / (1.0 + 1.0 / t)).ln();
-
-    let (i_scale, k_scale) = ((t / (TAU * v)).sqrt(), (PI * t / (2.0 * v)).sqrt());
-    let i_prefactor = i_scale * (v * eta).exp();
-    let k_prefactor = k_scale * (-v * eta).exp();
+    // Unlike in xsf, eta (DLMF 10.41.7) and v eta are in double-double where I_v or K_v can be
+    // finite, as the terms of eta are large and cancel (eta = 0 at the Laplace limit z = 0.6627).
+    // The low word of v eta goes into the scales.
+    let eta_approx = z2p1.sqrt() + (z / (1.0 + 1.0 / t)).ln();
+    let eta = if (v * eta_approx).abs() < IKV_UNIFORM_DD_MAX + V_ETA_APPROX_ERR * v / t {
+        let z_dd = DoubleDouble::new(x) / v;
+        let s = (z_dd * z_dd + 1.0).sqrt();
+        s + ln_dd(z_dd / (s + 1.0))
+    } else {
+        DoubleDouble::new(eta_approx)
+    };
+    let v_eta_approx = eta.hi * v;
+    let v_eta = if v_eta_approx.abs() < IKV_UNIFORM_DD_MAX {
+        eta * v
+    } else {
+        DoubleDouble::new(v_eta_approx)
+    };
+    // Unlike in xsf, 2 pi v and 2 v saturate instead of overflowing, where a zero scale would
+    // multiply an infinite exponential.
+    let (i_scale, k_scale) = (
+        (t / (TAU * v).min(f64::MAX)).sqrt() * v_eta.lo.exp(),
+        (PI * t / (2.0 * v).min(f64::MAX)).sqrt() * (-v_eta.lo).exp(),
+    );
+    let i_prefactor = i_scale * v_eta.hi.exp();
+    let k_prefactor = k_scale * (-v_eta.hi).exp();
     let (i_sum, k_sum) = ikv_asymptotic_uniform_sums(v, t);
 
     if let Some(k_value) = k_value {
@@ -251,7 +278,7 @@ pub(crate) fn ikv_asymptotic_uniform(
         if i_value.is_infinite() {
             let k_factor = if sign == 1 { 0.0 } else { FRAC_2_PI * sinpi(v) };
             *i_value =
-                mul_exp(i_scale * i_sum, v * eta) + mul_exp(k_factor * k_scale * k_sum, -v * eta);
+                mul_exp(i_scale * i_sum, v_eta.hi) + mul_exp(k_factor * k_scale * k_sum, -v_eta.hi);
         }
     }
 }
