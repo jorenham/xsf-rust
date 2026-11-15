@@ -5,7 +5,7 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
-use super::SPECFUN_INF;
+use super::{SPECFUN_INF, deflated_newton_step};
 use crate::utils::{EGAMMA, neg_one_pow};
 use crate::xsf::c64::{C64, c64};
 
@@ -321,13 +321,7 @@ pub(crate) fn cyzo(kf: i32, kc: i32, zo: &mut [C64], zv: &mut [C64]) {
         loop {
             it += 1;
             let (zf, zd) = cy01(kf, z);
-            // Unlike in xsf, the Newton step for `f(z) / prod(z - z_i)`, with the zeros `z_i` found
-            // so far, is `f / (f' - f sum 1 / (z - z_i))` instead of the quotient of the products,
-            // which overflow from the 140th zero on (that zero was inaccurate, the next ones NaN).
-            let zq = zo[..nr - 1]
-                .iter()
-                .fold(C64::ZERO, |zq, &zi| zq + 1.0 / (z - zi));
-            z -= zf / (zd - zq * zf);
+            z -= deflated_newton_step(z, zf, zd, &zo[..nr - 1]);
             let w0 = w;
             w = z.norm();
             if !(it <= 50 && ((w - w0) / w).abs() > 1.0e-12) {
