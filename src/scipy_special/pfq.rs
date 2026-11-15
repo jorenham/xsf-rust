@@ -8,7 +8,7 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{once, successors};
 use core::ops::Add;
 
-use crate::utils::{EPSILON_SQ, is_nonpos_int, pow2};
+use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, frexp_f64, ldexp_f64, two_sum,
@@ -804,23 +804,34 @@ fn pfq_alg_series<A: Params, B: Params>(a: &A, b: &B, m: usize, z: f64) -> Optio
     (lower.as_mut()[m], ks.as_mut()[m], factors.as_mut()[m]) = (1.0, 0.0, 1.0);
     let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
     let bound = |n| pfq_ratio_bound(up, low, 1.0 / z, n);
+    // kappa = q - p + 1, as `b` contains the 1 of n!
+    let kappa = b.as_ref().len() - a.as_ref().len();
     let series = once(1.0)
-        .chain(pfq_terms(up, low, -1.0 / z))
+        // in (-1)^(p+q+1) / z, where (-1)^(p+q+1) = (-1)^kappa
+        .chain(pfq_terms(up, low, neg_one_pow(kappa) / z))
         .zip((0_u32..).map(f64::from))
         .map(|(t, n)| {
             let ks_factors = ks.as_ref().iter().zip(factors.as_ref());
             ks_factors.fold(t, |t, (&k, &f)| if n > k { t * f } else { t })
         });
-    Some(asymptotic_sum(series, pfq_settled(up, low), z, bound))
+    // the term ratios are about n^kappa / |z|
+    let az = z.abs();
+    let scale = match kappa {
+        1 => az,
+        2 => az.sqrt(),
+        _ => az.powf(1.0 / kappa as f64),
+    };
+    Some(asymptotic_sum(series, pfq_settled(up, low), scale, bound))
 }
 
-/// The terms of the algebraic part of the asymptotic expansion of ${}_pF_q$ for $p = q$ (DLMF
-/// 16.11.2, 16.11.7), with $\abs z$ instead of $-z$, or `None` if two $a_i$ differ by an integer
+/// The terms of the algebraic part of the asymptotic expansion of ${}_pF_q$ for $p \le q$ (DLMF
+/// 16.11.2), with $\abs z$ instead of $-z$, or `None` if two $a_i$ differ by an integer
 ///
 /// `b` contains the 1 of $n!$ as its last parameter. The term of $a_m$ is $\abs z^{-a_m}$ times
-/// a ${}_{q+1}F_{p-1}$ series in $-1/z$, with the parameters $a_m$ and $1 + a_m - b_j$, and
-/// $1 + a_m - a_i$. It stays `None` if it vanishes, where $1 / \Gamma(b_j - a_m)$ does. If the
-/// last $a_p$ equals the last $b_q$, they cancel: no term of $a_p$, and no $\Gamma$ of them.
+/// a ${}_{q+1}F_{p-1}$ series in $(-1)^{p+q+1} / z$, with the parameters $a_m$ and
+/// $1 + a_m - b_j$, and $1 + a_m - a_i$. It stays `None` if it vanishes, where
+/// $1 / \Gamma(b_j - a_m)$ does. If the last $a_p$ equals the last $b_q$, they cancel: no term
+/// of $a_p$, and no $\Gamma$ of them.
 fn pfq_alg<A: Params, B: Params>(a: &A, b: &B, z: f64, terms: &mut [Option<Scaled>]) -> Option<()> {
     let (_, lower) = b.as_ref().split_last()?;
     // the parameters with a term and with Gamma factors
@@ -1033,27 +1044,6 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     mul_gamma_ratio(b.map(Dd::new), [Dd::new(a)], || Some(y))
 }
 
-/// The algebraic part of the asymptotic expansion of $_1F_2$ (DLMF 16.11.2, 16.11.8), with
-/// $\abs z$ instead of $-z$,
-///
-/// $$
-/// {\Gamma(b_1) \Gamma(b_2) \over \Gamma(b_1 - a) \Gamma(b_2 - a)} \abs z^{-a}
-/// \sum_n {\rpow a n \ \rpow{1 + a - b_1}{n} \ \rpow{1 + a - b_2}{n} \over z^n n!}
-/// ,
-/// $$
-///
-/// unless it vanishes (where $1 / \Gamma(b_j - a)$ does, which isn't checked here)
-fn hyp1f2_alg(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
-    let bm = b.map(|bj| Dd::new(bj) - a);
-    let up = descending([a, 1.0 - bm[0].hi, 1.0 - bm[1].hi]);
-    let bound = |n| pfq_ratio_bound(&up, &[1.0], 1.0 / z, n);
-    let series = once(1.0).chain(pfq_terms(&up, &[1.0], 1.0 / z));
-    // (the term ratios are about n^2 / |z|)
-    let sum = asymptotic_sum(series, pfq_settled(&up, &[1.0]), z.abs().sqrt(), bound);
-    let l = -ln_dd(Dd::new(z.abs())) * a;
-    gamma_series(b.map(Dd::new), bm, sum, l)
-}
-
 /// $_1F_2$ by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
 /// most `PFQ_TOL`
 ///
@@ -1061,16 +1051,13 @@ fn hyp1f2_alg(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
 /// is added to the error. The terms with $e^{-x}$ are smaller than the truncation error.
 fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
     let exp = hyp1f2_exp(a, b, z)?;
-    let vanishes = b.iter().any(|&bj| is_pole(&(Dd::new(bj) - a)));
-    let alg = if vanishes {
-        None
-    } else {
-        Some(hyp1f2_alg(a, b, z)?)
-    };
+    // the algebraic part, `None` if it vanishes
+    let mut alg = [None];
+    pfq_alg(&[a], &[b[0], b[1], 1.0], z, &mut alg)?;
     if z > 0.0 {
-        checked_f64(exp, alg)
+        checked_f64(exp, alg[0])
     } else {
-        checked_f64(add_exp(alg.into_iter().chain([exp]))?, None)
+        checked_f64(add_exp(alg.into_iter().flatten().chain([exp]))?, None)
     }
 }
 
