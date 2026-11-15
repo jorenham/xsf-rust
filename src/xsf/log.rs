@@ -1,6 +1,6 @@
 //! Translated into pure Rust from `xsf/log.h` and `xsf/cephes/unity.h` (scipy/xsf@e58388a). The
-//! real `log1p` uses `f64::ln_1p` from the Rust standard library instead, which (at least on Linux)
-//! is more accurate than the Cephes one in xsf.
+//! real `log1p` is the one of `xsf/log1p.rs` instead, which is more accurate than the Cephes one in
+//! xsf.
 
 use core::f64::consts::LN_2;
 
@@ -111,7 +111,7 @@ pub trait LogArg: crate::sealed::Sealed {
 impl LogArg for f64 {
     #[inline]
     fn xsf_log1p(self) -> Self {
-        self.ln_1p()
+        crate::xsf::log1p::log1p(self)
     }
 
     #[inline]

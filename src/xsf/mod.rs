@@ -39,6 +39,7 @@ mod kelvin;
 mod lambertw;
 mod legendre;
 pub(crate) mod log;
+mod log1p;
 mod log_exp;
 mod loggamma;
 mod mathieu;
