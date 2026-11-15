@@ -247,3 +247,31 @@ fn test_mathieu_huge_q() {
         }
     }
 }
+
+#[test]
+fn test_mathieu_ce_se_radians() {
+    // the same functions as `mathieu_cem` and `mathieu_sem`, of an angle in radians
+    for (m, q, deg) in [
+        (0, 1.0, 30.0),
+        (3, 5.0, 100.0),
+        (4, -2.5, 45.0),
+        (5, -10.0, 200.0),
+    ] {
+        let rad = f64::to_radians(deg);
+        for (actual, desired) in [
+            (xsf::mathieu_ce(m, q, rad), xsf::mathieu_cem(m, q, deg)),
+            (xsf::mathieu_se(m, q, rad), xsf::mathieu_sem(m, q, deg)),
+        ] {
+            xsref::np_assert_allclose!(
+                <[f64; 2]>::from(actual),
+                <[f64; 2]>::from(desired),
+                rtol = 1e-13
+            );
+        }
+    }
+    // NaN, as in SciPy, unlike `mathieu_sem`
+    for (q, x) in [(f64::NAN, 1.0), (f64::INFINITY, 1.0), (1.0, f64::NAN)] {
+        let (f, d) = xsf::mathieu_se(0, q, x);
+        assert!(f.is_nan() && d.is_nan());
+    }
+}
