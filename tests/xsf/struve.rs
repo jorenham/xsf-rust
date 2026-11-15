@@ -81,3 +81,19 @@ fn test_struve_h_l_accurate() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-15);
 }
+
+#[test]
+fn test_struve_h_l_power_series_cancellation() {
+    // power series whose largest term is 4e4 to 3e8 times the sum (reference values from Arb)
+    let actual = [
+        xsf::struve_h(-7.556_101_727_808_929_5, 15.297_459_023_655_978),
+        xsf::struve_h(0.049_505_315_039_433_12, 13.208_434_290_082_854),
+        xsf::struve_l(-34.020_820_230_172_97, 23.545_083_303_272_627),
+    ];
+    let expected = [
+        4.824_120_592_343_075e-5,
+        0.007_575_369_029_986_219_7,
+        0.000_419_673_272_353_247_93,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}

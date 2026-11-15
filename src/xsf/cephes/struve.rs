@@ -191,7 +191,9 @@ fn struve_power_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
 
     let mut cterm = DoubleDouble::new(term);
     let mut csum = DoubleDouble::new(sum);
-    let z2 = DoubleDouble::new(f64::from(sgn) * z * z);
+    // Unlike in xsf, z^2 is exact (instead of rounded) unless it or its rounding error under- or
+    // overflows: the n-th term would have n times its rounding error, which cancellation amplifies
+    let z2 = DoubleDouble::new(f64::from(sgn) * z) * DoubleDouble::new(z);
     let c2v = DoubleDouble::new(2.0 * v);
 
     for n in 0..STRUVE_MAXITER {
