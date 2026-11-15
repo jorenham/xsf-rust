@@ -552,6 +552,9 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
         sec = [r for r in results if r.spec.section == title]
         if not sec:
             continue
+        # the rows of a function together, in the order of their first row
+        rank = {f: i for i, f in enumerate(dict.fromkeys(r.spec.func for r in sec))}
+        sec.sort(key=lambda r: rank[r.spec.func])
         if level == 3 and group:
             out.append(group)
         group = None
