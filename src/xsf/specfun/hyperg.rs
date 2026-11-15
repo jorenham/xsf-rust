@@ -1154,6 +1154,11 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // NOTE: if none of the branches is taken (e.g. b = 0 and a < 0), `*md` is only set if
     // chgus/chgul was called (`hypu` passes an uninitialized `md`, but never reads it).
 
+    // Unlike in xsf, a NaN here doesn't replace a finite result of step 1, e.g. of chguit for
+    // subnormal x, where 1/x overflows
+    if hu.is_nan() && hu0.is_finite() {
+        (hu, id) = (hu0, id0);
+    }
     // step 3
     if id0 >= 9 && !hu0.is_nan() {
         let tol = 10f64.powi(1 - id0) * hu0.abs();
@@ -1341,6 +1346,13 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     hu
 }
 
+/// `chguit` integrates over `ln(1 + t)` for `|b - 1|` below this, where `chgus` loses over 3
+/// digits to cancellation (about `-log10|b - 1|`), so that `chgu` falls back to `chguit`
+const B_NEAR_1: f64 = 1e-3;
+
+/// `b` is nearer to 1 than to any other integer for `|b - 1|` below this
+const B_NEAREST_1: f64 = 0.5;
+
 #[allow(clippy::let_and_return)]
 fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // ======================================================
@@ -1418,28 +1430,53 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
         0.471272992695363e-02,
         0.202681196887362e-02,
     ];
-    // DLMF 13.4.4, integration up to C=12/X
+    // DLMF 13.4.4, integration up to C (12/X, or as below)
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
     // Unlike in xsf (scipy/xsf#380), with `kummer` this is x^(b-1) U(a, b, x) = U(a-b+1, 2-b, x)
     // (DLMF 13.2.40), integrated over s = x t in log space, which can be finite where U or
     // x^(b-1) over- or underflows. The integrand peaks at s < b, so up to C = 12 + b.
-    let c = if kummer { 12.0 + b } else { 12.0 / x };
+    //
+    // Unlike in xsf, for b near 1 (where chgus cancels) and x < 1, up to C = 1/x and over
+    // ln(1 + t): the integrand is then ~ 1/t up to t ~ 1/x, which uniform panels in t can't
+    // resolve for small x
+    let log_map = !kummer && (b - 1.0).abs() < B_NEAR_1 && x < 1.0;
+    let c = if kummer {
+        12.0 + b
+    } else if log_map {
+        1.0 / x
+    } else {
+        12.0 / x
+    };
     let lg = if kummer { gammaln(a) } else { 0.0 };
     let f = |t: f64| {
         if kummer {
             // s^(a-1) (s + x)^(b-a-1) e^(-s) / Gamma(a)
             (a1 * t.ln() + b1 * (t + x).ln() - t - lg).exp()
+        } else if log_map {
+            // without overflow, as (1 + t)^(b-2) ~ 1 / t
+            (-x * t).exp() * (t / (1.0 + t)).powf(a1) * (1.0 + t).powf(b - 2.0)
         } else {
             (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1)
         }
     };
     // Unlike in xsf (scipy/xsf#380), t = c u^3 for non-integer a < 4, which smooths the endpoint
     // singularity of t^(a-1), where the quadrature converges slowly (or not at all for a near 1)
-    let cubic = a < 4.0 && a != a.trunc();
-    // the integrand, times dt/du = 3 c u^2 if `cubic`
+    let int_a = a == a.trunc();
+    let cubic = a < 4.0 && !int_a;
+    let lc = c.ln_1p();
+    // the integrand, times dt/du = 3 c u^2 if `cubic`; if `log_map`, t = (1 + c)^v - 1 with
+    // v = u^3 for any non-integer a (as for `cubic`), else v = u
     let f_head = |u: f64| {
-        if cubic {
+        if log_map {
+            let (v, dv) = if int_a {
+                (u, 1.0)
+            } else {
+                (u * u * u, 3.0 * u * u)
+            };
+            let t = (lc * v).exp_m1();
+            dv * lc * (1.0 + t) * f(t)
+        } else if cubic {
             let v = c * u * u;
             3.0 * v * f(v * u)
         } else {
@@ -1453,7 +1490,7 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     let (mut d_head, mut d_tail) = (0.0, 0.0);
     for m in (10..=100).step_by(5) {
         hu1 = 0.0;
-        let g = if cubic { 0.5 } else { 0.5 * c } / f64::from(m);
+        let g = if cubic || log_map { 0.5 } else { 0.5 * c } / f64::from(m);
         let mut d = g;
         for _j in 1..=m {
             let mut s = 0.0;
@@ -1474,13 +1511,17 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     let ga = if kummer { 1.0 } else { gamma2(a) };
     hu1 /= ga;
     // DLMF 13.4.4 with substitution t=C/(1-u)
-    // integration u from 0 to 1, i.e. t from C=12/X to infinity
+    // integration u from 0 to 1, i.e. t from C to infinity
     let mut hu2 = 0.0;
     // Unlike in xsf (scipy/xsf#380), a non-finite integrand (0 * inf) is recomputed in log space,
     // unless b is infinite or Gamma(a) overflows (a > 171)
     let log_space = b1.is_finite() && a < 171.0;
     // the integrand times dt/du = t^2 / c
     let f_tail = |t: f64| {
+        // t^2 overflows for x < ~1e-150
+        if log_map {
+            return t / c * (t * f(t));
+        }
         let dt = t * t / c;
         if kummer {
             return dt * f(t);
@@ -1780,6 +1821,14 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     };
     let e1 = 1e-15 + k(1.0 + a - b);
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
-    *id = (*id).min((-((e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
+    // Unlike in xsf, also with the error of their common factor hu0 for b nearest 1, as rounding
+    // pi b loses about eps / |b - 1| in sin(pi b), so that chgu falls back to chguit (near other
+    // integers, the fallbacks are often worse)
+    let e0 = if (b - 1.0).abs() < B_NEAREST_1 {
+        f64::EPSILON / (b - 1.0).abs()
+    } else {
+        0.0
+    };
+    *id = (*id).min((-(e0 + (e1 * s1.abs() + e2 * s2.abs()) / hu.abs()).log10()) as i32);
     mul_exp(hu, lr2)
 }
