@@ -90,7 +90,7 @@ pub(crate) use kolmogorov::{
 pub use lanczos::lanczos_sum_expg_scaled;
 pub(crate) use lanczos::lgam_ratio;
 pub(crate) use nbdtr::{nbdtr, nbdtrc, nbdtri};
-pub(crate) use ndtr::{erf, erfc, ndtr};
+pub(crate) use ndtr::{erf, erfc, mul_exp_sq, ndtr};
 pub(crate) use ndtri::ndtri;
 pub(crate) use owens_t::owens_t;
 pub(crate) use pdtr::{pdtr, pdtrc, pdtri};

@@ -50,6 +50,13 @@ fn test_stdtridf() {
 }
 
 #[test]
+fn test_stdtridf_huge_df() {
+    // exact root (Arb), where one ulp of p moves it by 3.1e-10
+    let df = xsf::stdtridf(1.870_608_314_750_038e-12, -6.946_627_657_074_334);
+    np_assert_allclose!([df], [860_485_112.711_988_2], rtol = 1e-9);
+}
+
+#[test]
 fn test_bdtrik() {
     // `test_bdtrik` in scipy/special/tests/test_cdflib.py
     let cases = [
