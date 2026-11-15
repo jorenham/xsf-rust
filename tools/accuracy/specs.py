@@ -2679,6 +2679,109 @@ def c_sph_harm_y(n, m, theta, phi):
         return mp.spherharm(int(n), int(m), theta, phi)
 
 
+# ---------------------------------------------------------------- functions of arrays
+# The scalar arguments come first, followed by the elements of the array.
+
+
+def _exact(x):
+    return Fraction(*x.as_integer_ratio())
+
+
+def r_logsumexp(*xs):
+    """ln(sum e^x); near 0, ln(1 + (e^m - 1) + the sum of the other e^x) with m = max x, whose
+    two terms are accurate, so that they cancel only once (unlike the e^x - 1 of all x)."""
+    with wdps(20):
+        s = mp.fsum(map(mp.exp, xs))
+        if not 0.5 < s < 2:
+            return mp.log(s)
+        i = xs.index(max(xs))
+        rest = mp.fsum(mp.exp(x) for k, x in enumerate(xs) if k != i)
+        return mp.log1p(mp.expm1(xs[i]) + rest)
+
+
+def _softmax_sum(j, xs):
+    """sum e^(x_k - x_j) over k != j, with the exact differences, and without the x_k = -inf."""
+    j = int(j)
+    return mp.fsum(
+        mp.exp(mp.fsub(x, xs[j], exact=True))
+        for k, x in enumerate(xs)
+        if k != j and x != -mp.inf
+    )
+
+
+def r_softmax(j, *xs):
+    with wdps(20):
+        return 1 / (1 + _softmax_sum(j, xs))
+
+
+def r_log_softmax(j, *xs):
+    with wdps(20):
+        return -mp.log1p(_softmax_sum(j, xs))
+
+
+def c_cevalpoly(re, im, *c):
+    """The exact value, with Horner's rule in Gaussian rationals; `c` starts at the highest
+    degree."""
+    zr, zi = _exact(re), _exact(im)
+    yr = yi = Fraction(0)
+    for ck in map(_exact, c):
+        yr, yi = yr * zr - yi * zi + ck, yr * zi + yi * zr
+    return mp.mpc(
+        mp.fdiv(yr.numerator, yr.denominator), mp.fdiv(yi.numerator, yi.denominator)
+    )
+
+
+def _poisson_binom(p):
+    """The exact pmf of the number of successes as integers c_k / d: the coefficients of
+    prod (1 - p_i + p_i x), with the p_i = a_i / 2^e on a common denominator 2^e."""
+    ps = list(map(_exact, p))
+    e = max(f.denominator for f in ps)
+    c = [1]
+    for f in ps:
+        a = f.numerator * (e // f.denominator)
+        c = [x * (e - a) + y * a for x, y in zip([*c, 0], [0, *c], strict=True)]
+    return c, e ** len(ps)
+
+
+def r_poisson_binom_pmf(k, *p):
+    c, d = _poisson_binom(p)
+    return mp.fdiv(c[int(k)], d)
+
+
+def r_poisson_binom_cdf(k, *p):
+    c, d = _poisson_binom(p)
+    return mp.fdiv(sum(c[: int(k) + 1]), d)
+
+
+# the numbers of subsets of {1, ..., n} by their sum, for n = 0, 1, ...
+_WILCOXON_COUNTS = [[1]]
+
+
+def _wilcoxon_counts(n):
+    """The number of subsets of {1, ..., n} with the sum k, for k = 0, ..., n (n + 1) / 2: the
+    coefficients of prod (1 + x^j), so 2^n times the pmf of the signed-rank statistic."""
+    while len(_WILCOXON_COUNTS) <= n:
+        m = len(_WILCOXON_COUNTS)
+        c = [*_WILCOXON_COUNTS[-1], *[0] * m]
+        _WILCOXON_COUNTS.append(
+            [x + (c[k - m] if k >= m else 0) for k, x in enumerate(c)]
+        )
+    return _WILCOXON_COUNTS[n]
+
+
+def r_wilcoxon_pmf(n, k):
+    return mp.ldexp(_wilcoxon_counts(int(n))[int(k)], -int(n))
+
+
+def r_wilcoxon_cdf(n, k):
+    return mp.ldexp(sum(_wilcoxon_counts(int(n))[: int(k) + 1]), -int(n))
+
+
+def r_wilcoxon_sf(n, k):
+    """P(T >= k)."""
+    return mp.ldexp(sum(_wilcoxon_counts(int(n))[int(k) :]), -int(n))
+
+
 # ---------------------------------------------------------------- specs
 
 SPECS: list[Spec] = []
@@ -4340,6 +4443,161 @@ add(
     note="zeros_c",
 )
 
+section("Functions of arrays")
+
+
+def elements(r: Random, dist: Dist, n: int, inf: tuple[float, ...]) -> list[float]:
+    """`n` samples of `dist`, each replaced by one of `inf` with probability 1/4, but with at
+    least one finite."""
+    xs = [
+        r.choice(inf) if inf and r.random() < 0.25 else dist.sample(r) for _ in range(n)
+    ]
+    if not any(map(math.isfinite, xs)):
+        xs[r.randrange(n)] = dist.sample(r)
+    return xs
+
+
+def array(name: str, dist: Dist, inf: str = "", length: str = "\u207f") -> str:
+    """The pretty domain of an array of `length` elements of `dist`, or of the set `inf`."""
+    s = dist.pretty() + (f" \u222a {{{inf}}}" if inf else "")
+    if inf or not s.startswith(("[", f"{PM}[")):
+        s = f"({s})"
+    return nobreak(name, IN, s + length) + (" (log)" if _is_log(dist) else "")
+
+
+def xs_domain(dist: Dist, inf: tuple[float, ...] = (), index: bool = False) -> Domain:
+    """An array x of n in {1, ..., 20} elements (see `elements`), preceded by a random index j
+    into it if `index`."""
+
+    def sampler(r: Random) -> list[float]:
+        n = r.randint(1, 20)
+        xs = elements(r, dist, n, inf)
+        return [r.randrange(n), *xs] if index else xs
+
+    sign, pretty = ("+-", PM) if math.inf in inf else ("-", MINUS)
+    return D(
+        sampler=sampler,
+        label=f"x in {dist.desc()}^n"
+        + (f" or {sign}inf (1/4)" if inf else "")
+        + ", n in {1, ..., 20}"
+        + (", j in {0, ..., n - 1}" if index else ""),
+        pretty=f"{array('x', dist, f'{pretty}\u221e' if inf else '')}, "
+        + nobreak("n", IN, Int(1, 20).pretty())
+        + (f", {nobreak('j', IN, f'{{0, {ELLIPSIS}, n {MINUS} 1}}')}" if index else ""),
+    )
+
+
+INFS: Final = (-math.inf, math.inf)
+add(
+    "logsumexp",
+    "x",
+    r_logsumexp,
+    xs_domain(U(-50, 50)),
+    xs_domain(LU(1e-300, 1e300, 0)),
+    xs_domain(U(-50, 50), INFS),
+    cpp=False,
+    note="arr",
+)
+for f, r in [("softmax", r_softmax), ("log_softmax", r_log_softmax)]:
+    add(
+        f,
+        "j x",
+        r,
+        xs_domain(U(-50, 50), index=True),
+        xs_domain(LU(1e-300, 1e300, 0), index=True),
+        xs_domain(U(-50, 50), INFS[:1], index=True),
+        cpp=False,
+        note="arr elem" + (" log_softmax" if f == "log_softmax" else ""),
+    )
+
+
+def poly_domain(z: Dist, c: Dist) -> Domain:
+    """z, and the coefficients c of a polynomial of degree n in {0, ..., 20}."""
+    return D(
+        sampler=lambda r: (
+            z.sample(r),
+            z.sample(r),
+            *(c.sample(r) for _ in range(r.randint(0, 20) + 1)),
+        ),
+        label=f"re, im in {z.desc()}, c in {c.desc()}^(n + 1), n in {{0, ..., 20}}",
+        pretty=f"{nobreak(GREEK['re'] + ', ' + GREEK['im'], IN, z.pretty())}"
+        + (" (log)" if _is_log(z) else "")
+        + f", {array('c', c, length='\u207f\u207a\u00b9')}, "
+        + nobreak("n", IN, Int(0, 20).pretty()),
+    )
+
+
+add(
+    "cevalpoly",
+    "re im c",
+    c_cevalpoly,
+    poly_domain(U(-2, 2), U(-1, 1)),
+    poly_domain(LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0)),
+    complex=True,
+    note="zeros_c",
+)
+
+
+def ps_domain(dist: Dist) -> Domain:
+    """k in {0, ..., n}, and the probabilities p of n in {1, ..., 50} trials."""
+
+    def sampler(r: Random) -> list[float]:
+        n = r.randint(1, 50)
+        return [r.randint(0, n), *(dist.sample(r) for _ in range(n))]
+
+    return D(
+        sampler=sampler,
+        label=f"k in {{0, ..., n}}, p in {dist.desc()}^n, n in {{1, ..., 50}}",
+        pretty=f"{nobreak('k', IN, f'{{0, {ELLIPSIS}, n}}')}, {array('p', dist)}, "
+        + nobreak("n", IN, Int(1, 50).pretty()),
+        n=2000,
+    )
+
+
+for f, r in [
+    ("poisson_binom_cdf", r_poisson_binom_cdf),
+    ("poisson_binom_pmf_all", r_poisson_binom_pmf),
+    ("poisson_binom_cdf_all", r_poisson_binom_cdf),
+]:
+    add(
+        f,
+        "k p",
+        r,
+        ps_domain(U(0, 1)),
+        ps_domain(LU(1e-10, 0.1)),
+        ps_domain(Offset(1, LU(1e-10, 0.1), -1)),
+        cpp=f.endswith("_all"),
+        note="elem" if f.endswith("_all") else "",
+    )
+
+
+def wilcoxon_domain(lo: int, hi: int, n: int = 10000) -> Domain:
+    """n in {lo, ..., hi}, and k in {0, ..., n (n + 1) / 2}, the support."""
+    return D(
+        sampler=lambda r: (m := r.randint(lo, hi), r.randint(0, m * (m + 1) // 2)),
+        label=f"n in {{{lo}, ..., {hi}}}, k in {{0, ..., n (n + 1) / 2}}",
+        pretty=f"{nobreak('n', IN, Int(lo, hi).pretty())}, "
+        + nobreak("k", IN, f"{{0, {ELLIPSIS}, n(n + 1)/2}}"),
+        n=n,
+    )
+
+
+for f, r in [
+    ("wilcoxon_pmf_all", r_wilcoxon_pmf),
+    ("wilcoxon_cdf_all", r_wilcoxon_cdf),
+    ("wilcoxon_pmf", r_wilcoxon_pmf),
+    ("wilcoxon_cdf", r_wilcoxon_cdf),
+    ("wilcoxon_sf", r_wilcoxon_sf),
+]:
+    add(
+        f,
+        "n k",
+        r,
+        wilcoxon_domain(0, 50),
+        wilcoxon_domain(51, 300, 2000),
+        note={"wilcoxon_sf": "abs"}.get(f, "elem" if f.endswith("_all") else ""),
+    )
+
 NOTES = {
     "zeros_c": "Ill-conditioned near the zeros.",
     "zeros": "Ill-conditioned near the zeros, where the largest errors are.",
@@ -4397,6 +4655,16 @@ NOTES |= {
         r"The last order, $`v`$. For $`x > u`$, with $`u = v`$, or $`v + 1`$ for the derivative: "
         r"$`A = \Gamma(v + 1) (2/x)^v \sqrt{J_u(x)^2 + Y_u(x)^2}`$."
     ),
+    "arr": (
+        r"In the rows with $`\infty`$, each element is $`\pm\infty`$ with probability 1/4 (but "
+        r"at least one is finite), or only $`-\infty`$ for `softmax` and `log_softmax`, which can "
+        r"be NaN for $`+\infty`$, like in SciPy."
+    ),
+    "elem": r"Element $`j`$ or $`k`$ of the output.",
+    "log_softmax": (
+        r"Absolute error $`\sim 10^{-16}`$, so the relative error is large where the result is "
+        r"close to 0, i.e. where $`x_j`$ dominates."
+    ),
     "poly": (
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
@@ -4409,7 +4677,6 @@ NOT_COVERED = """\
 - No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
   `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
-- Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the

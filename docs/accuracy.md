@@ -1200,12 +1200,62 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Ill-conditioned near the zeros.
 
+## Functions of arrays
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>4.4e-17</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>2.0e-17</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ ([−50, 50] ∪ {±∞})ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.3e-17</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>7.5e-15</samp></td><td align="right" nowrap><samp>2.1e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.3e-14</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>7.6e-15</samp></td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.4e-01</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.0e-02</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.4e-01</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>cevalpoly</code><sup>§</sup></td><td>Re z, Im z ∈ [−2, 2]<br>c ∈ [−1, 1]ⁿ⁺¹<br>n ∈ {0, …, 20}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.1e-14</samp></td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap><samp>4.1e-14</samp></td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap>97.3%</td></tr>
+<tr><td><code>cevalpoly</code><sup>§</sup></td><td>Re z, Im z ∈ ±⁠[10⁻³, 1000] (log)<br>c ∈ ±⁠[10⁻³, 1000]ⁿ⁺¹ (log)<br>n ∈ {0, …, 20}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>9.3e-14</samp></td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap><samp>9.3e-14</samp></td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap>97.3%</td></tr>
+<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>2.7e-16</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>2.7e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_cdf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>8.6e-16</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap><samp>8.6e-16</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_cdf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_cdf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>9.4e-16</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap><samp>9.4e-16</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_pmf_all</code><sup>†</sup></td><td>n ∈ {0, …, 50}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>5.0e-30</samp></td><td align="right" nowrap><samp>7.3e-31</samp></td><td align="right" nowrap><samp>5.0e-30</samp></td><td align="right" nowrap><samp>7.3e-31</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_pmf_all</code><sup>†</sup></td><td>n ∈ {51, …, 300}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_cdf_all</code><sup>†</sup></td><td>n ∈ {0, …, 50}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.8e-30</samp></td><td align="right" nowrap><samp>5.6e-31</samp></td><td align="right" nowrap><samp>4.8e-30</samp></td><td align="right" nowrap><samp>5.6e-31</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_cdf_all</code><sup>†</sup></td><td>n ∈ {51, …, 300}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>2.2e-15</samp></td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>2.2e-15</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_pmf</code></td><td>n ∈ {0, …, 50}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>5.0e-30</samp></td><td align="right" nowrap><samp>7.2e-31</samp></td><td align="right" nowrap><samp>5.0e-30</samp></td><td align="right" nowrap><samp>7.2e-31</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_pmf</code></td><td>n ∈ {51, …, 300}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.3e-15</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>1.3e-15</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_cdf</code></td><td>n ∈ {0, …, 50}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.7e-30</samp></td><td align="right" nowrap><samp>5.9e-31</samp></td><td align="right" nowrap><samp>4.7e-30</samp></td><td align="right" nowrap><samp>5.9e-31</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_cdf</code></td><td>n ∈ {51, …, 300}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>2.2e-15</samp></td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>2.2e-15</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_sf</code><sup>‖</sup></td><td>n ∈ {0, …, 50}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.8e-30</samp></td><td align="right" nowrap><samp>5.7e-31</samp></td><td align="right" nowrap><samp>4.8e-30</samp></td><td align="right" nowrap><samp>5.7e-31</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>wilcoxon_sf</code><sup>‖</sup></td><td>n ∈ {51, …, 300}<br>k ∈ {0, …, n(n + 1)/2}</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>5.6e+66</samp></td><td align="right" nowrap><samp>1.2e+65</samp></td><td align="right" nowrap><samp>5.6e+66</samp></td><td align="right" nowrap><samp>1.2e+65</samp></td><td align="right" nowrap>100%</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> In the rows with $`\infty`$, each element is $`\pm\infty`$ with probability 1/4 (but at least one is finite), or only $`-\infty`$ for `softmax` and `log_softmax`, which can be NaN for $`+\infty`$, like in SciPy.
+
+<sup>†</sup> Element $`j`$ or $`k`$ of the output.
+
+<sup>‡</sup> Absolute error $`\sim 10^{-16}`$, so the relative error is large where the result is close to 0, i.e. where $`x_j`$ dominates.
+
+<sup>§</sup> Ill-conditioned near the zeros.
+
+<sup>‖</sup> Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny probabilities.
+
 ## Not covered
 
 - No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
   `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
-- Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the

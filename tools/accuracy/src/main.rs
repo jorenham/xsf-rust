@@ -409,6 +409,18 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         // Wright's generalized Bessel function
         ("wright_bessel", &[a, b, x]) => xsf::wright_bessel(a, b, x),
         ("log_wright_bessel", &[a, b, x]) => xsf::log_wright_bessel(a, b, x),
+        // functions of arrays: the scalar arguments, followed by the elements of the array
+        ("logsumexp", xs) => xsf::logsumexp(xs),
+        ("softmax", &[j, ref xs @ ..]) => xsf::softmax(xs)[j as usize],
+        ("log_softmax", &[j, ref xs @ ..]) => xsf::log_softmax(xs)[j as usize],
+        ("poisson_binom_cdf", &[k, ref p @ ..]) => xsf::poisson_binom_cdf(k as i64, p),
+        ("poisson_binom_pmf_all", &[k, ref p @ ..]) => xsf::poisson_binom_pmf_all(p)[k as usize],
+        ("poisson_binom_cdf_all", &[k, ref p @ ..]) => xsf::poisson_binom_cdf_all(p)[k as usize],
+        ("wilcoxon_pmf_all", &[n, k]) => xsf::wilcoxon_pmf_all(n as usize)[k as usize],
+        ("wilcoxon_cdf_all", &[n, k]) => xsf::wilcoxon_cdf_all(n as usize)[k as usize],
+        ("wilcoxon_pmf", &[n, k]) => xsf::wilcoxon_pmf(k, &xsf::wilcoxon_pmf_all(n as usize)),
+        ("wilcoxon_cdf", &[n, k]) => xsf::wilcoxon_cdf(k, &xsf::wilcoxon_cdf_all(n as usize)),
+        ("wilcoxon_sf", &[n, k]) => xsf::wilcoxon_sf(k, &xsf::wilcoxon_cdf_all(n as usize)),
         _ => return None,
     })
 }
@@ -447,6 +459,7 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("modified_fresnel_minus.1", &[x]) => xsf::modified_fresnel_minus(x).1,
         ("sph_harm_y", &[n, m, t, p]) => xsf::sph_harm_y(n as usize, m as isize, t, p),
         ("sph_harm_y_all", &[n, m, t, p]) => nm(|n, m| xsf::sph_harm_y_all(n, m, t, p), n, m),
+        ("cevalpoly", &[x, y, ref coeffs @ ..]) => xsf::cevalpoly(coeffs, c(x, y)),
         // for the reference tables (`tools/tables/mapping.py`); the parts are in `eval_xsf`
         ("kelvin.0", &[x]) => xsf::kelvin(x)[0],
         ("kelvin.1", &[x]) => xsf::kelvin(x)[1],
