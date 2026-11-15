@@ -50,6 +50,35 @@ fn test_stdtridf() {
 }
 
 #[test]
+fn test_stdtridf_huge_df() {
+    // exact roots for these p (mpmath), where one ulp of p moves df by ~4 df eps / t^4
+    let cases = [
+        (5.725_571_223_867_866e-300, -37.0, 1_999_999_827_619_752.5),
+        (2.753_624_118_617_303_3e-89, -20.0, 9_999_917_217_535_914.0),
+        (3.923_648_331_462_996e-258, -34.3, 4.998_482_408_078_162e18),
+    ];
+    for (p, t, root) in cases {
+        np_assert_allclose!([xsf::stdtridf(p, t)], [root], rtol = 5e-3);
+    }
+    // exact root (Arb), where one ulp of p moves it by 3.1e-10
+    let df = xsf::stdtridf(1.870_608_314_750_038e-12, -6.946_627_657_074_334);
+    np_assert_allclose!([df], [860_485_112.711_988_2], rtol = 1e-9);
+    // well-conditioned: one ulp of p moves the exact root (mpmath) by 2.2e-7
+    let df_well = xsf::stdtridf(5.481_156_308_467_968e-101, -21.301_636_747_720_302);
+    np_assert_allclose!([df_well], [98_646_633_323_521.9], rtol = 2e-6);
+    // p is 0.33 ulp above (t = -26.8) or rounds down (t = -26) the limit stdtr(inf, t) = ndtr(t),
+    // so stdtr(df, t) rounds to p for all df above ~1e21
+    for (p, t) in [
+        (1.615_616_783_902_316_5e-158, -26.8),
+        (2.476_063_315_503_389e-149, -26.0),
+    ] {
+        let df_huge = xsf::stdtridf(p, t);
+        assert!(df_huge > 1e21);
+        assert_eq!(xsf::stdtr(df_huge, t), p);
+    }
+}
+
+#[test]
 fn test_bdtrik() {
     // `test_bdtrik` in scipy/special/tests/test_cdflib.py
     let cases = [

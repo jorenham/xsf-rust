@@ -230,8 +230,8 @@ pub(crate) fn ndtr(a: f64) -> f64 {
 /// `m exp(c x^2)`, without amplifying the rounding error of `x^2`
 ///
 /// Like `expx2` of Cephes 2.9 (not in xsf), but with one `exp`. Only for a power of two `c < 0`
-/// (so that `c h^2` is exact) and `x^2` that doesn't overflow, as in `erfc` and `ndtr`.
-fn mul_exp_sq(m: f64, c: f64, x: f64) -> f64 {
+/// (so that `c h^2` is exact) and `x^2` that doesn't overflow, as in `erfc`, `ndtr` and `stdtr`.
+pub(crate) fn mul_exp_sq(m: f64, c: f64, x: f64) -> f64 {
     // Veltkamp's split x = h + (x - h), where h has at most 26 bits, so h^2 is exact
     const SPLITTER: f64 = pow2(27) + 1.0;
     let t = SPLITTER * x;

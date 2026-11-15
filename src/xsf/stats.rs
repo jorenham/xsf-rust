@@ -11,10 +11,14 @@ use core::f64::consts::{FRAC_1_PI, FRAC_1_SQRT_2, LN_2, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
-use crate::utils::{LN_PI, LN_TAU, SQRT_PI};
+use crate::utils::{LN_PI, LN_TAU, SQRT_PI, SQRT_TAU};
 use crate::xsf::bessel::{cyl_bessel_k_f64, cyl_bessel_ke_f64};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::{betainc_xy, gamma, incbet_pseries_sum, lgam, lgam1p};
+use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::polevl::polevl;
+use crate::xsf::cephes::{
+    betainc_xy, gamma, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
+};
 use crate::xsf::multivariate_normal::{LAGUERRE_W20, LAGUERRE_X20};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
@@ -169,10 +173,35 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
         f64::NAN
     } else if x == 0.0 {
         0.5
-    } else if nu > 1e150 {
-        // The 1/nu correction phi(x) (x^3 + x) / (4 nu) is negligible, and the terms of the
-        // continued fractions in `incbet` (~nu^2) can overflow
-        ndtr(x)
+    } else if nu > 1e9 {
+        // The normal limit with its 1/nu series, where 4 terms suffice: `incbet` loses up to ~300
+        // eps for huge nu (and its continued fraction terms ~nu^2 overflow).
+        //
+        // F(x) = Phi(x) - phi(x) (g_1(x) / nu + g_2(x) / nu^2 + ...)
+        // g_1(x) = (x^3 + x) / 4, g_2(x) = (3x^7 - 7x^5 - 5x^3 - 3x) / 96, ...
+        //
+        // `G` holds g_k(x) / x as polynomials in x^2, and their denominators. Where ndtr(x) doesn't
+        // underflow (|x| < 38.5), the first neglected term phi g_5 / nu^5 is relatively below
+        // 4.1e26 / nu^5 < 0.002 eps. Rounding x^2 costs phi(x) up to x^2 eps / 4, but the whole sum
+        // is relatively below 5.6e5 / nu, so F loses < 0.25 eps. Clamping x at +-40, where phi(x)
+        // underflows, keeps x^15 finite.
+        const G: [(&[f64], f64); 4] = [
+            (&[1.0, 1.0], 4.0),
+            (&[3.0, -7.0, -5.0, -3.0], 96.0),
+            (&[1.0, -11.0, 14.0, 6.0, -3.0, -15.0], 384.0),
+            (
+                &[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0],
+                92160.0,
+            ),
+        ];
+        let t = x.clamp(-40.0, 40.0);
+        let s = G
+            .iter()
+            .rev()
+            .fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
+        ndtr(x) - (-0.5 * t * t).exp() / SQRT_TAU * t * s
+    } else if nu > STDTR_TAIL_NU && x < -STDTR_TAIL_X {
+        stdtr_tail(nu, x)
     } else if nu == 1.0 {
         0.5 + FRAC_1_PI * x.atan()
     } else if nu == 2.0 {
@@ -205,6 +234,48 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
             };
         if x >= 0.0 { 1.0 - p } else { p }
     }
+}
+
+/// Above this `nu`, `stdtr` underflows below `x = -40`, where `stdtr_tail` clamps `x`
+const STDTR_TAIL_NU: f64 = 3e4;
+
+/// Below `-STDTR_TAIL_X`, the exponent `x^2 / 2` costs `incbet` more than the continued fractions
+/// lose near their mean at `|x| = 1`
+const STDTR_TAIL_X: f64 = 2.0;
+
+/// The terms `(-u)^(k - 3) / k` of `(log1pmx(u) + u^2 / 2) / u^3` up to this `k`: as
+/// `u = x^2 / nu < 40^2 / STDTR_TAIL_NU`, the next is below 1e-18 of their sum
+const STDTR_TAIL_LOG_TERMS: i32 = 16;
+
+/// `Gamma(a + 1/2) / (Gamma(a) sqrt(a)) - 1` with `a = nu / 2`, as a polynomial in `1 / nu`
+/// without a constant term, from the highest power down. The next term, `-399 / (8192 nu^5)`, is
+/// negligible if `nu > STDTR_TAIL_NU`.
+const STDTR_GAMMA_RATIO: [f64; 4] = [-21.0 / 2048.0, 5.0 / 128.0, 1.0 / 32.0, -1.0 / 4.0];
+
+/// The lower tail of `stdtr(nu, x)` for `nu > STDTR_TAIL_NU` and `x < -STDTR_TAIL_X`
+///
+/// Unlike `incbet` of `w = nu / (nu + x^2)`, where the rounding of the exponent
+/// `nu / 2 ln(w) ~ -x^2 / 2` costs ~`x^2 / 4` eps, this forms the exponent from the exact `x`:
+/// with `a = nu / 2` and `cf` from `incbet_cf_factor`, `I_w(a, 1/2) = cf w^a sqrt(1 - w) /
+/// (a B(a, 1/2))`, where `w^a = exp(-x^2 / 2 - a log1pmx(x^2 / nu))` and
+/// `sqrt(a) B(a, 1/2) = Gamma(a) sqrt(a pi) / Gamma(a + 1/2)`.
+fn stdtr_tail(nu: f64, x: f64) -> f64 {
+    // F underflows below -40 if nu > STDTR_TAIL_NU, and x^2 can overflow
+    let t = x.max(-40.0);
+    let a = 0.5 * nu;
+    let t2 = DoubleDouble::new(t) * t;
+    let xc = t2.hi / (nu + t2.hi);
+    let (cf, _) = incbet_cf_factor(a, 0.5, nu / (nu + t2.hi), xc);
+    let g = 1.0 + STDTR_GAMMA_RATIO.iter().fold(0.0, |s, &c| (s + c) / nu);
+    // `a log1pmx(u)` with `u = t^2 / nu`, whose f64 rounding would cost its size (up to ~20) in
+    // eps: its leading term `-a u^2 / 2` in double-double, and the rest in f64
+    let u = t2 / nu;
+    let rest = (3..=STDTR_TAIL_LOG_TERMS)
+        .rev()
+        .fold(0.0, |s, k| 1.0 / f64::from(k) - u.hi * s);
+    let e = u * u * (-0.5 * a) + a * u.hi.powi(3) * rest;
+    let m = 0.5 * cf * (xc / a).sqrt() / SQRT_PI * g * (-e.hi).exp() * (1.0 - e.lo);
+    mul_exp_sq(m, -0.5, t)
 }
 
 /// Inverse of [`stdtr`]
