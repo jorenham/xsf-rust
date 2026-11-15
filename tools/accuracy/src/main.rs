@@ -82,7 +82,10 @@ fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
         // incomplete gamma and beta functions
         ("gammainc", &[a, x]) => xsf::gammainc(a, x),
         ("gammaincc", &[a, x]) => xsf::gammaincc(a, x),
+        ("log_gammainc", &[a, x]) => xsf::log_gammainc(a, x),
+        ("log_gammaincc", &[a, x]) => xsf::log_gammaincc(a, x),
         ("betainc", &[a, b, x]) => xsf::betainc(a, b, x),
+        ("betaincc", &[a, b, x]) => xsf::betaincc(a, b, x),
         ("fdtr", &[a, b, x]) => xsf::fdtr(a, b, x),
         ("fdtrc", &[a, b, x]) => xsf::fdtrc(a, b, x),
         // elliptic integrals
@@ -233,6 +236,11 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("pbdv.1", &[v, x]) => xsf::pbdv(v, x).1,
         ("pbvv.0", &[v, x]) => xsf::pbvv(v, x).0,
         ("pbvv.1", &[v, x]) => xsf::pbvv(v, x).1,
+        // order `v` of the orders `v - floor(v), ..., v` (and `v + 1` if `v < 1`)
+        ("pbdv_seq.0", &[v, x]) => xsf::pbdv_seq(v, x).0[v as usize],
+        ("pbdv_seq.1", &[v, x]) => xsf::pbdv_seq(v, x).1[v as usize],
+        ("pbvv_seq.0", &[v, x]) => xsf::pbvv_seq(v, x).0[v as usize],
+        ("pbvv_seq.1", &[v, x]) => xsf::pbvv_seq(v, x).1[v as usize],
         ("pbwa.0", &[a, x]) => xsf::pbwa(a, x).0,
         ("pbwa.1", &[a, x]) => xsf::pbwa(a, x).1,
         // zeta functions
@@ -253,6 +261,7 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("gammaincinv", &[a, p]) => xsf::gammaincinv(a, p),
         ("gammainccinv", &[a, q]) => xsf::gammainccinv(a, q),
         ("betaincinv", &[a, b, y]) => xsf::betaincinv(a, b, y),
+        ("betainccinv", &[a, b, y]) => xsf::betainccinv(a, b, y),
         // elliptic functions and integrals
         ("ellipkm1", &[p]) => xsf::ellipkm1(p),
         ("elliprc", &[x, y]) => xsf::elliprc(x, y),
@@ -389,11 +398,18 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("chndtrinc", &[x, v, p]) => xsf::chndtrinc(x, v, p),
         ("ncfdtr", &[a, b, nc, x]) => xsf::ncfdtr(a, b, nc, x),
         ("ncfdtri", &[a, b, nc, p]) => xsf::ncfdtri(a, b, nc, p),
+        ("ncfdtridfd", &[a, p, nc, x]) => xsf::ncfdtridfd(a, p, nc, x),
+        ("ncfdtridfn", &[p, b, nc, x]) => xsf::ncfdtridfn(p, b, nc, x),
+        ("ncfdtrinc", &[a, b, p, x]) => xsf::ncfdtrinc(a, b, p, x),
         ("fdtri", &[a, b, y]) => xsf::fdtri(a, b, y),
+        ("fdtridfd", &[a, p, x]) => xsf::fdtridfd(a, p, x),
         ("stdtr", &[v, t]) => xsf::stdtr(v, t),
         ("stdtri", &[v, p]) => xsf::stdtri(v, p),
+        ("stdtridf", &[p, t]) => xsf::stdtridf(p, t),
         ("nctdtr", &[v, nc, t]) => xsf::nctdtr(v, nc, t),
         ("nctdtrit", &[v, nc, p]) => xsf::nctdtrit(v, nc, p),
+        ("nctdtridf", &[p, nc, t]) => xsf::nctdtridf(p, nc, t),
+        ("nctdtrinc", &[v, p, t]) => xsf::nctdtrinc(v, p, t),
         ("tukeylambdacdf", &[x, l]) => xsf::tukeylambdacdf(x, l),
         ("von_mises_cdf", &[k, x]) => xsf::von_mises_cdf(k, x),
         ("geninvgauss_pdf", &[x, p, b]) => xsf::geninvgauss_pdf(x, p, b),
@@ -499,6 +515,9 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("sph_harm_y", &[n, m, t, p]) => xsf::sph_harm_y(n as usize, m as isize, t, p),
         ("sph_harm_y_all", &[n, m, t, p]) => nm(|n, m| xsf::sph_harm_y_all(n, m, t, p), n, m),
         ("cevalpoly", &[x, y, ref coeffs @ ..]) => xsf::cevalpoly(coeffs, c(x, y)),
+        // order `n` of the orders `0, ..., n` (at least 1 if `n >= 0`)
+        ("pbdn_seq.0", &[n, x, y]) => xsf::pbdn_seq(n as i32, c(x, y)).0[n.abs() as usize],
+        ("pbdn_seq.1", &[n, x, y]) => xsf::pbdn_seq(n as i32, c(x, y)).1[n.abs() as usize],
         // for the reference tables (`tools/tables/mapping.py`); the parts are in `eval_xsf`
         ("kelvin.0", &[x]) => xsf::kelvin(x)[0],
         ("kelvin.1", &[x]) => xsf::kelvin(x)[1],

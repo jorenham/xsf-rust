@@ -17,7 +17,7 @@ inverse functions find the root of the reference of the function itself (see `_i
 """
 
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from random import Random
@@ -637,6 +637,20 @@ def r_gammaincc(a, x):
     return _gammainc_pq(a, x, True)
 
 
+def _log_gammainc_pq(a, x, upper):
+    """ln P(a, x) or ln Q(a, x), as the log1p of minus the complement where that is smaller."""
+    y = _gammainc_pq(a, x, upper)
+    return mp.log1p(-_gammainc_pq(a, x, not upper)) if y > 0.5 else mp.log(y)
+
+
+def r_log_gammainc(a, x):
+    return _log_gammainc_pq(a, x, False)
+
+
+def r_log_gammaincc(a, x):
+    return _log_gammainc_pq(a, x, True)
+
+
 def _cf_betainc(a, b, x, y):
     """I_x(a, b), with y = 1 - x, via the modified Lentz continued fraction (DLMF 8.17.22)."""
     if x == 0:
@@ -680,6 +694,11 @@ def _betainc(a, b, x, y):
 
 def r_betainc(a, b, x):
     return _betainc(a, b, x, 1 - x)
+
+
+def r_betaincc(a, b, x):
+    # 1 - I_x(a, b) = I_{1-x}(b, a) (DLMF 8.17.4), so the CF is of the smaller of the two
+    return _betainc(b, a, 1 - x, x)
 
 
 def r_fdtr(a, b, x):
@@ -968,6 +987,30 @@ def _invert_unit(F, target, x0, decreasing=False):
 
     s = _invert(G, mp.log(x0) - mp.log1p(-x0))
     return 1 / (1 + mp.exp(-s))
+
+
+def _only_root(G, lo, hi, n):
+    """Root of G in [lo, hi], which must be the only sign change of G (at 30 fewer digits) on a
+    grid of n + 1 points, so that the root is bracketed and, up to the grid, unique."""
+    ts = [lo + (hi - lo) * k / n for k in range(n + 1)]
+    with wdps(-30):
+        neg = [G(t) < 0 for t in ts]
+    ks = [k for k in range(n) if neg[k] != neg[k + 1]]
+    if len(ks) != 1:
+        raise ArithmeticError(f"{len(ks)} sign changes")
+    a, b = ts[ks[0]], ts[ks[0] + 1]
+    with wdps(10):
+        ga, gb = G(a), G(b)
+        if (ga < 0) == (gb < 0):
+            raise ArithmeticError("no bracket")
+        return _solve(G, a, b, ga, gb)
+
+
+def _only_root_pos(F, target):
+    """The only x in [1e-100, 1e12] with F(x) = target (see `_only_root`), on a grid in log space
+    with two points per decade."""
+    lo, hi = -100 * mp.ln10, 12 * mp.ln10
+    return mp.exp(_only_root(lambda t: F(mp.exp(t)) - target, lo, hi, 224))
 
 
 # ---------------------------------------------------------------- gamma and related
@@ -1763,6 +1806,14 @@ def r_pbvv(v, x):
         return mp.pcfv(a, x), mp.diff(lambda t: mp.pcfv(a, t), x)
 
 
+def c_pbdn(n, re, im):
+    # D_n(z) and D'_n(z) = z/2 D_n(z) - D_{n+1}(z) (DLMF 12.8.3)
+    with wdps(20 + xd(re, im)):
+        z = mp.mpc(re, im)
+        d = mp.pcfd(n, z)
+        return d, z / 2 * d - mp.pcfd(n + 1, z)
+
+
 def r_pbwa(a, x):
     with wdps(20):
         return mp.pcfw(a, x), mp.diff(lambda t: mp.pcfw(a, t), x)
@@ -1842,6 +1893,12 @@ def r_gammainccinv(a, q):
 
 def r_betaincinv(a, b, y):
     return _invert_unit(lambda x, z: _betainc(a, b, x, z), y, a / (a + b))
+
+
+def r_betainccinv(a, b, y):
+    return _invert_unit(
+        lambda x, z: _betainc(b, a, z, x), y, a / (a + b), decreasing=True
+    )
 
 
 # ---------------------------------------------------------------- elliptic
@@ -2435,6 +2492,26 @@ def r_fdtri(a, b, y):
     return _invert_pos(lambda x: r_fdtr(a, b, x), y, 1)
 
 
+def r_fdtridfd(a, p, x):
+    # b such that fdtr(a, b, x) = p
+    return _only_root_pos(lambda b: r_fdtr(a, b, x), p)
+
+
+def r_ncfdtridfd(a, p, nc, x):
+    # b such that ncfdtr(a, b, nc, x) = p
+    return _only_root_pos(lambda b: _ncfdtr_series(a, b, nc, x), p)
+
+
+def r_ncfdtridfn(p, b, nc, x):
+    # a such that ncfdtr(a, b, nc, x) = p
+    return _only_root_pos(lambda a: _ncfdtr_series(a, b, nc, x), p)
+
+
+def r_ncfdtrinc(a, b, p, x):
+    # nc such that ncfdtr(a, b, nc, x) = p, which decreases in nc
+    return _invert_pos(lambda nc: _ncfdtr_series(a, b, nc, x), p, 1, decreasing=True)
+
+
 def _stdtr_tail(v, t):
     """P(T <= -|t|) = I_x(v/2, 1/2) / 2, with x = v / (v + t^2)."""
     return _betainc(v / 2, mp.mpf(1) / 2, v / (v + t * t), t * t / (v + t * t)) / 2
@@ -2467,6 +2544,21 @@ def r_nctdtr(v, nc, t):
 def r_nctdtrit(v, nc, p):
     # in `asinh(t)`, since the tails can be as heavy as `|t|^-v`
     return mp.sinh(_invert(lambda s: r_nctdtr(v, nc, mp.sinh(s)) - p, mp.asinh(nc)))
+
+
+def r_stdtridf(p, t):
+    # v such that stdtr(v, t) = p, via the tail P(T <= -|t|), which is p or 1 - p
+    return _only_root_pos(lambda v: _stdtr_tail(v, t), p if t < 0 else 1 - p)
+
+
+def r_nctdtridf(p, nc, t):
+    # v such that nctdtr(v, nc, t) = p
+    return _only_root_pos(lambda v: r_nctdtr(v, nc, t), p)
+
+
+def r_nctdtrinc(v, p, t):
+    # nc such that nctdtr(v, nc, t) = p, which decreases from 1 to 0 in nc
+    return _invert(lambda nc: p - r_nctdtr(v, nc, t), t)
 
 
 def r_stdtri(v, p):
@@ -3065,6 +3157,43 @@ def add(name: str, args: str, ref: FunctionType, *domains: Domain, **kw: Any) ->
     )
 
 
+def root_domain(
+    fwd: str,
+    F: Callable[..., Any],
+    args: str,
+    dists: Mapping[str, Dist],
+    where: tuple[str, Callable[..., bool]] | None = None,
+    n: int = 500,
+) -> Domain:
+    """Domain of the inverse of `fwd` with respect to one of its arguments: the arguments of `fwd`
+    are sampled from `dists` (in order, and if given, until `where` holds for them), and in
+    `args`, p = F(...) at 20 digits, rounded to f64 (and resampled if 0 or 1), replaces the
+    argument, so that the root is near its sample."""
+    names = list(dists)
+    call = f"p = {fwd}({', '.join(names)})"
+    cond = f"{where[0]}, " if where else ""
+    pretty_cond = cond.replace(">=", "\u2265")
+    pretty_call = f"p = {fwd}({', '.join(GREEK.get(a, a) for a in names)})"
+
+    def sampler(r: Random) -> list[float]:
+        while True:
+            v = {k: d.sample(r) for k, d in dists.items()}
+            if where and not where[1](*v.values()):
+                continue
+            with mp.workdps(20):
+                v["p"] = float(F(*map(mp.mpf, v.values())))
+            if 0 < v["p"] < 1:
+                return [v[a] for a in args.split()]
+
+    dom = D(*dists.values())
+    return D(
+        sampler=sampler,
+        label=f"{dom.desc(names)}, {cond}{call}",
+        pretty=f"{dom.pretty(names)}<br>{pretty_cond}{pretty_call}",
+        n=n,
+    )
+
+
 INV_E = float(-1 / mp.e)  # the smallest f64 > -1/e
 if INV_E < -1 / mp.e:
     INV_E = math.nextafter(INV_E, 0)
@@ -3611,6 +3740,21 @@ add(
     timeout=120,
     note="inv",
 )
+add(
+    "fdtridfd",
+    "a p x",
+    r_fdtridfd,
+    # for x < 1, fdtr can have a maximum in b, and two roots
+    root_domain(
+        "fdtr",
+        r_fdtr,
+        "a p x",
+        {"a": LU(1e-2, 1e3), "b": LU(1e-2, 1e3), "x": LU(1, 1e3)},
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv root",
+)
 
 section("Noncentral F distribution", 3)
 add(
@@ -3626,6 +3770,41 @@ add(
     "a b nc p",
     r_ncfdtri,
     D(LU(1e-2, 1e3), LU(1e-2, 1e3), LU(1e-3, 1e3), U(0, 1), n=500),
+    cpp=False,
+    timeout=120,
+    note="inv",
+)
+NCF = {"a": LU(1e-2, 1e3), "b": LU(1e-2, 1e3), "nc": LU(1e-3, 100), "x": LU(1e-2, 100)}
+add(
+    "ncfdtridfd",
+    "a p nc x",
+    r_ncfdtridfd,
+    # for x < 1 + nc/a, ncfdtr can have a maximum in b, and two roots
+    root_domain(
+        "ncfdtr",
+        _ncfdtr_series,
+        "a p nc x",
+        NCF | {"x": LU(1, 1e3)},
+        where=("x >= 1 + nc/a", lambda a, b, nc, x: x >= 1 + nc / a),
+    ),
+    cpp=False,
+    timeout=300,
+    note="inv root",
+)
+add(
+    "ncfdtridfn",
+    "p b nc x",
+    r_ncfdtridfn,
+    root_domain("ncfdtr", _ncfdtr_series, "p b nc x", NCF),
+    cpp=False,
+    timeout=300,
+    note="inv root",
+)
+add(
+    "ncfdtrinc",
+    "a b p x",
+    r_ncfdtrinc,
+    root_domain("ncfdtr", _ncfdtr_series, "a b p x", NCF),
     cpp=False,
     timeout=120,
     note="inv",
@@ -3821,6 +4000,17 @@ add(
     timeout=120,
     note="inv",
 )
+add(
+    "stdtridf",
+    "p t",
+    r_stdtridf,
+    root_domain(
+        "stdtr", r_stdtr, "p t", {"nu": LU(1e-2, 1e3), "t": LU(1e-2, 10, 0)}, n=2000
+    ),
+    cpp=False,
+    timeout=120,
+    note="inv root",
+)
 
 section("Noncentral t distribution", 3)
 add(
@@ -3840,6 +4030,29 @@ add(
     D(LU(1e-2, 1e3), U(-10, 10), U(0, 1), n=500),
     cpp=False,
     timeout=120,
+    note="inv",
+)
+add(
+    "nctdtridf",
+    "p nc t",
+    r_nctdtridf,
+    root_domain(
+        "nctdtr",
+        r_nctdtr,
+        "p nc t",
+        {"nu": LU(1e-2, 1e3), "nc": U(-10, 10), "t": U(-20, 20)},
+    ),
+    cpp=False,
+    timeout=300,
+    note="inv root",
+)
+add(
+    "nctdtrinc",
+    "nu p t",
+    r_nctdtrinc,
+    D(LU(1e-2, 1e3), U(0, 1), U(-20, 20), n=500),
+    cpp=False,
+    timeout=300,
     note="inv",
 )
 
@@ -4207,7 +4420,12 @@ add(
     cpp=False,
     note="neg",
 )
-for f, r in [("gammainc", r_gammainc), ("gammaincc", r_gammaincc)]:
+for f, r in [
+    ("gammainc", r_gammainc),
+    ("gammaincc", r_gammaincc),
+    ("log_gammainc", r_log_gammainc),
+    ("log_gammaincc", r_log_gammaincc),
+]:
     add(
         f,
         "a x",
@@ -4215,18 +4433,21 @@ for f, r in [("gammainc", r_gammainc), ("gammaincc", r_gammaincc)]:
         D(U(0, 20), U(0, 50)),
         D(LU(1e-300, 1e5), LU(1e-300, 1e5)),
         A_PM_SQRT_A,
+        cpp=not f.startswith("log_"),
         timeout=60,
     )
-add(
-    "betainc",
-    "a b x",
-    r_betainc,
-    D(U(0, 10), U(0, 10), U(0, 1)),
-    D(LU(1e-5, 1e3), LU(1e-5, 1e3), U(0, 1)),
-    AB_MU_PM_SIGMA,
-    note="beta_dist",
-    timeout=60,
-)
+for f, r in [("betainc", r_betainc), ("betaincc", r_betaincc)]:
+    add(
+        f,
+        "a b x",
+        r,
+        D(U(0, 10), U(0, 10), U(0, 1)),
+        D(LU(1e-5, 1e3), LU(1e-5, 1e3), U(0, 1)),
+        AB_MU_PM_SIGMA,
+        cpp=f == "betainc",
+        note="beta_dist",
+        timeout=60,
+    )
 for f, r in [("gammaincinv", r_gammaincinv), ("gammainccinv", r_gammainccinv)]:
     add(
         f,
@@ -4237,15 +4458,17 @@ for f, r in [("gammaincinv", r_gammaincinv), ("gammainccinv", r_gammainccinv)]:
         timeout=120,
         note="inv",
     )
-add(
-    "betaincinv",
-    "a b y",
-    r_betaincinv,
-    D(U(0, 10), U(0, 10), U(0, 1), n=2000),
-    D(LU(1e-3, 1e3), LU(1e-3, 1e3), LU(1e-300, 1), n=2000),
-    timeout=120,
-    note="inv",
-)
+for f, r in [("betaincinv", r_betaincinv), ("betainccinv", r_betainccinv)]:
+    add(
+        f,
+        "a b y",
+        r,
+        D(U(0, 10), U(0, 10), U(0, 1), n=2000),
+        D(LU(1e-3, 1e3), LU(1e-3, 1e3), LU(1e-300, 1), n=2000),
+        cpp=f == "betaincinv",
+        timeout=120,
+        note="inv",
+    )
 for f, r in [
     ("gamma", mp.gamma),
     ("rgamma", mp.rgamma),
@@ -4651,15 +4874,17 @@ add(
 
 section("Parabolic cylinder functions")
 for f, r in [("pbdv", r_pbdv), ("pbvv", r_pbvv)]:
-    for i in range(2):
-        add(
-            f"{f}.{i}",
-            "v x",
-            lambda v, x, r=r, i=i: r(v, x)[i],
-            D(U(-10, 10), U(-10, 10), n=2000),
-            D(LU(20, 300, 0), U(-60, 60), n=2000),
-            note="zeros_c",
-        )
+    for seq in ["", "_seq"]:
+        for i in range(2):
+            add(
+                f"{f}{seq}.{i}",
+                "v x",
+                lambda v, x, r=r, i=i: r(v, x)[i],
+                # the sequences have non-negative orders
+                D(U(-10 if not seq else 0, 10), U(-10, 10), n=2000),
+                D(LU(20, 300, 0 if not seq else 1), U(-60, 60), n=2000),
+                note="zeros_c" + (" seq" if seq else ""),
+            )
 for i in range(2):
     add(
         f"pbwa.{i}",
@@ -4667,6 +4892,17 @@ for i in range(2):
         lambda a, x, i=i: r_pbwa(a, x)[i],
         D(U(-5, 5), U(-5, 5), n=2000),
         note="zeros_c",
+    )
+for i in range(2):
+    add(
+        f"pbdn_seq.{i}",
+        "n re im",
+        lambda n, re, im, i=i: c_pbdn(n, re, im)[i],
+        D(Int(0, 20), U(-10, 10), U(-10, 10), n=2000),
+        D(Int(-20, -1), U(-10, 10), U(-10, 10), n=2000),
+        D(Int(0, 100), U(-30, 30), U(-30, 30), n=1000),
+        complex=True,
+        note="seq",
     )
 
 section("Kelvin functions")
@@ -5077,6 +5313,12 @@ NOTES = {
     ),
     "beta_dist": r"$`\mu = a / (a + b)`$, $`\sigma^2 = \mu(1 - \mu) / (a + b + 1)`$.",
     "ncx2": r"$`\mu = v + \mathrm{nc}`$, $`\sigma^2 = 2(v + 2\,\mathrm{nc})`$.",
+    "root": (
+        r"Reference: the root of $`F(x) = p`$, with $`F`$ the forward reference, which must be the "
+        r"only sign change on a log-uniform grid of 225 points in $`[10^{-100}, 10^{12}]`$; the "
+        "inputs with more than one are left out."
+    ),
+    "seq": r"The element of order $`v`$ (or $`n`$) of the sequence.",
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about $`10^{-13}`$."
@@ -5156,8 +5398,8 @@ NOT_COVERED = """\
 - No mpmath reference: Mathieu (`mathieu_*`), and spheroidal wave functions (`prolate_*`,
   `oblate_*`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
-- Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
-  `round`
+- Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
+  integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
 - Complex input: `sph_bessel_*`, `elliprc`, `elliprd`, `elliprf`, `elliprg`, `elliprj`, `sici`,
   `shichi`, `spence`, `wrightomega`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta`
   (NaN for non-real `z`, unless `q = 1`)
