@@ -1365,6 +1365,54 @@ def r_sph_kp(n, x):
         return _sph(mp.besselk, n, x, True)
 
 
+def _riccati(f, n, x, derivative=False):
+    """x f_n(x) for the spherical Bessel function f_n of `_sph`, or its derivative
+    x f_(n-1)(x) - n f_n(x) (DLMF 10.51.2), with the scale sqrt(pi x / 2) times the Bessel
+    modulus for x > n + 1/2. Unlike (n + 1) f_n(x) - x f_(n+1)(x), this doesn't cancel for y_0 at
+    small x."""
+    with wdps(xd(n, x)):
+        if derivative:
+            y = x * _sph(f, n - 1, x) - n * _sph(f, n, x)
+        else:
+            y = x * _sph(f, n, x)
+        v = n + mp.mpf(1) / 2
+        return (y, mp.sqrt(mp.pi * x / 2) * _envelope(v, x)) if x > v else y
+
+
+def r_riccati_j(n, x):
+    return _riccati(mp.besselj, n, x)
+
+
+def r_riccati_y(n, x):
+    return _riccati(mp.bessely, n, x)
+
+
+def r_riccati_jp(n, x):
+    return _riccati(mp.besselj, n, x, True)
+
+
+def r_riccati_yp(n, x):
+    return _riccati(mp.bessely, n, x, True)
+
+
+def _lmbda(v, x, derivative=False):
+    """The Jahnke-Emden function c J_v(x) with c = Gamma(v + 1) (2/x)^v, or its derivative
+    -c J_(v+1)(x) (DLMF 10.6.6), with the scale c times the Bessel modulus where it oscillates."""
+    with wdps(xd(v, x)):
+        c = mp.gamma(v + 1) * (2 / x) ** v
+        u = v + 1 if derivative else v
+        y = (-c if derivative else c) * mp.besselj(u, x)
+        return (y, c * _envelope(u, x)) if x > u else y
+
+
+def r_lmbda(v, x):
+    return _lmbda(v, x)
+
+
+def r_lmbdap(v, x):
+    return _lmbda(v, x, True)
+
+
 # ---------------------------------------------------------------- integrals of Bessel and Struve
 
 
@@ -1971,6 +2019,33 @@ def r_sph_legendre_p(n, m, theta):
 
 def r_pmv(m, v, x):
     return _legenp(v, m, x)
+
+
+def _legenq(n, m, x):
+    """Q_n^m(x): the Ferrers function (mpmath type 2) for |x| < 1, and type 3 for x > 1. For
+    x < 0, Q_n^m(x) = (-1)^(n+m+1) Q_n^m(-x) (DLMF 14.7.18), which for x < -1 is the real
+    extension that `lqn` and `lqmn` compute."""
+    with wdps(xd(n) + 20):
+        sign = 1
+        if x < 0:
+            sign, x = (-1) ** int(n + m + 1), -x
+        return sign * mp.legenq(n, m, x, type=2 if x < 1 else 3)
+
+
+def r_legendre_q(n, x):
+    return _legenq(n, 0, x)
+
+
+def r_legendre_qp(n, x):
+    return mp.diff(lambda t: _legenq(n, 0, t), x)
+
+
+def r_assoc_legendre_q(n, m, x):
+    return _legenq(n, m, x)
+
+
+def r_assoc_legendre_qp(n, m, x):
+    return mp.diff(lambda t: _legenq(n, m, t), x)
 
 
 # ---------------------------------------------------------------- distributions
@@ -2834,6 +2909,17 @@ add(
     D(LU(0.5, 1e4), LU(1e-300, 1e4)),
 )
 add("iv_ratioinv", "v r", r_iv_ratioinv, D(U(0.5, 20), U(0, 1), n=2000), note="inv")
+for i, r in enumerate([r_lmbda, r_lmbdap]):
+    add(
+        f"jahnke_emden_lambda.{i}",
+        "v x",
+        r,
+        D(U(0, 20), U(0, 50)),
+        D(U(0, 100), LU(1e-300, 1e4)),
+        D(Int(0, 100), LU(1e-300, 1e4)),
+        cpp=False,
+        note="lmbda",
+    )
 
 section("Faster versions of common Bessel functions", 3)
 for f, r in [("j0", r_j0), ("j1", r_j1), ("y0", r_y0), ("y1", r_y1)]:
@@ -2908,6 +2994,18 @@ for f, r, rp in [("j", r_sph_j, r_sph_jp), ("y", r_sph_y, r_sph_yp)]:
 for f, r, rp in [("i", r_sph_i, r_sph_ip), ("k", r_sph_k, r_sph_kp)]:
     for g, ref in [(f"sph_bessel_{f}", r), (f"sph_bessel_{f}_prime", rp)]:
         add(g, "n x", ref, D(Int(0, 50), U(0, 50)), D(Int(0, 100), LU(1e-300, 700)))
+
+section("Riccati-Bessel functions", 3)
+for f, r, rp in [("j", r_riccati_j, r_riccati_jp), ("y", r_riccati_y, r_riccati_yp)]:
+    for i, ref in enumerate([r, rp]):
+        add(
+            f"riccati_{f}.{i}",
+            "n x",
+            ref,
+            D(Int(0, 100), U(0, 50)),
+            D(Int(0, 100), LU(1e-300, 1e4)),
+            note="riccati",
+        )
 
 section("Struve functions")
 add(
@@ -3722,18 +3820,33 @@ def nm_sampler(r: Random, hi: int = 50) -> tuple[int, int]:
     return n, r.randint(-n, n)
 
 
+def nm_nonneg(r: Random, hi: int) -> tuple[int, int]:
+    """`nm_sampler` with m in {0, ..., n}."""
+    n = r.randint(0, hi)
+    return n, r.randint(0, n)
+
+
+def legendre_note(f: str) -> str:
+    """The notes of `f`; an `_all` row follows the row of its scalar function, with the same
+    domains and reference."""
+    return "zeros_c all" if f.endswith("_all") else "zeros_c"
+
+
 NM = f"{nobreak('n', IN, Int(0, 50).pretty())}, {nobreak('m', IN, f'{{{MINUS}n, {ELLIPSIS}, n}}')}"
-add(
-    "legendre_p",
-    "n x",
-    r_legendre,
-    D(Int(0, 100), U(-1, 1)),
-    D(Int(0, 30), LU(1, 1e3, 0)),
-    note="zeros_c",
-)
+for f in ["legendre_p", "legendre_p_all"]:
+    add(
+        f,
+        "n x",
+        r_legendre,
+        D(Int(0, 100), U(-1, 1)),
+        D(Int(0, 30), LU(1, 1e3, 0)),
+        note=legendre_note(f),
+    )
 for f, r in [
     ("assoc_legendre_p", r_assoc_legendre_p),
+    ("assoc_legendre_p_all", r_assoc_legendre_p),
     ("assoc_legendre_p_norm", r_assoc_legendre_p_norm),
+    ("assoc_legendre_p_norm_all", r_assoc_legendre_p_norm),
 ]:
     add(
         f,
@@ -3744,38 +3857,70 @@ for f, r in [
             label="n in {0, ..., 50}, m in {-n, ..., n}, x in [-1, 1]",
             pretty=f"{NM}, {nobreak('x', IN, U(-1, 1).pretty())}",
         ),
-        note="zeros_c",
+        note=legendre_note(f),
     )
-add(
-    "sph_legendre_p",
-    "n m theta",
-    r_sph_legendre_p,
-    D(
-        sampler=lambda r: (*nm_sampler(r), r.uniform(0, math.pi)),
-        label="n in {0, ..., 50}, m in {-n, ..., n}, theta in [0, pi]",
-        pretty=f"{NM}, {nobreak(GREEK['theta'], IN, U(0, math.pi).pretty())}",
-    ),
-    note="zeros_c",
-)
-add(
-    "sph_harm_y",
-    "n m theta phi",
-    c_sph_harm_y,
-    D(
-        sampler=lambda r: (
-            *nm_sampler(r),
-            r.uniform(0, math.pi),
-            r.uniform(0, 2 * math.pi),
+for f in ["sph_legendre_p", "sph_legendre_p_all"]:
+    add(
+        f,
+        "n m theta",
+        r_sph_legendre_p,
+        D(
+            sampler=lambda r: (*nm_sampler(r), r.uniform(0, math.pi)),
+            label="n in {0, ..., 50}, m in {-n, ..., n}, theta in [0, pi]",
+            pretty=f"{NM}, {nobreak(GREEK['theta'], IN, U(0, math.pi).pretty())}",
         ),
-        label="n in {0, ..., 50}, m in {-n, ..., n}, theta in [0, pi], phi in [0, 2 pi]",
-        pretty=f"{NM}, {nobreak(GREEK['theta'], IN, U(0, math.pi).pretty())}, "
-        + nobreak(GREEK["phi"], IN, "[0, 2\u03c0]"),
-        n=5000,
-    ),
-    complex=True,
-    note="zeros_c",
-)
+        note=legendre_note(f),
+    )
+for f in ["sph_harm_y", "sph_harm_y_all"]:
+    add(
+        f,
+        "n m theta phi",
+        c_sph_harm_y,
+        D(
+            sampler=lambda r: (
+                *nm_sampler(r),
+                r.uniform(0, math.pi),
+                r.uniform(0, 2 * math.pi),
+            ),
+            label="n in {0, ..., 50}, m in {-n, ..., n}, theta in [0, pi], phi in [0, 2 pi]",
+            pretty=f"{NM}, {nobreak(GREEK['theta'], IN, U(0, math.pi).pretty())}, "
+            + nobreak(GREEK["phi"], IN, "[0, 2\u03c0]"),
+            n=5000,
+        ),
+        complex=True,
+        note=legendre_note(f),
+    )
 add("pmv", "m v x", r_pmv, D(Int(0, 10), U(-50, 50), U(-1, 1), n=5000), note="zeros_c")
+for i, r in enumerate([r_legendre_q, r_legendre_qp]):
+    add(
+        f"legendre_q_all.{i}",
+        "n x",
+        r,
+        D(Int(0, 100), U(-1, 1)),
+        D(Int(0, 30), LU(1, 1e3, 0)),
+        note="zeros_c all",
+    )
+for i, r in enumerate([r_assoc_legendre_q, r_assoc_legendre_qp]):
+    add(
+        f"assoc_legendre_q_all.{i}",
+        "n m x",
+        r,
+        D(
+            sampler=lambda r: (*nm_nonneg(r, 50), r.uniform(-1, 1)),
+            label="n in {0, ..., 50}, m in {0, ..., n}, x in [-1, 1]",
+            pretty=f"{nobreak('n', IN, Int(0, 50).pretty())}, "
+            + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, "
+            + nobreak("x", IN, U(-1, 1).pretty()),
+        ),
+        D(
+            sampler=lambda r: (*nm_nonneg(r, 30), LU(1, 1e3, 0).sample(r)),
+            label="n in {0, ..., 30}, m in {0, ..., n}, x in +-[1, 1e3] (log)",
+            pretty=f"{nobreak('n', IN, Int(0, 30).pretty())}, "
+            + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, "
+            + f"{nobreak('x', IN, LU(1, 1e3, 0).pretty())} (log)",
+        ),
+        note="zeros_c all",
+    )
 
 section("Orthogonal polynomials")
 
@@ -4239,6 +4384,19 @@ NOTES |= {
         r"Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny "
         "probabilities."
     ),
+    "all": (
+        "The last element: degree $`n`$ (and order $`m`$) of the output up to degree $`n`$ (and "
+        r"order $`\lvert m\rvert`$)."
+    ),
+    "riccati": (
+        r"Order $`n`$ of the output for the orders $`0, \ldots, 100`$ (`N = 101`). For "
+        r"$`x > n + 1/2`$: "
+        r"$`A = \sqrt{\pi x/2}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$."
+    ),
+    "lmbda": (
+        r"The last order, $`v`$. For $`x > u`$, with $`u = v`$, or $`v + 1`$ for the derivative: "
+        r"$`A = \Gamma(v + 1) (2/x)^v \sqrt{J_u(x)^2 + Y_u(x)^2}`$."
+    ),
     "poly": (
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
@@ -4251,7 +4409,6 @@ NOT_COVERED = """\
 - No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
   `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
-- All orders or degrees: `*_all`, `riccati_j`, `riccati_y`, `jahnke_emden_lambda`
 - Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`

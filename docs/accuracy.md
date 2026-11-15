@@ -136,6 +136,12 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 10⁴] (log)<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.8e-17</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.8e-17</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratioinv</code><sup>§</sup></td><td>v ∈ [0.5, 20]<br>r ∈ [0, 1]</td><td align="right" nowrap>2000</td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>‖</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>1.9e-13</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>‖</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>9.2e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>‖</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (11)</samp></td><td align="right" nowrap><samp>8.1e-01</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>‖</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>1.5e-13</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>‖</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>‖</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (14)</samp></td><td align="right" nowrap><samp>1.1e+295</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 </tbody>
 </table>
 
@@ -146,6 +152,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <sup>‡</sup> Ill-conditioned near the zeros.
 
 <sup>§</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+<sup>‖</sup> The last order, $`v`$. For $`x > u`$, with $`u = v`$, or $`v + 1`$ for the derivative: $`A = \Gamma(v + 1) (2/x)^v \sqrt{J_u(x)^2 + Y_u(x)^2}`$.
 
 ### Faster versions of common Bessel functions
 
@@ -261,6 +269,27 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 </table>
 
 <sup>*</sup> For $`x > n + 1/2`$: $`A = \sqrt{\pi/(2x)}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$.
+
+### Riccati-Bessel functions
+
+<table>
+<thead>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">bit-identical</th></tr>
+<tr><th>peak</th><th>rms</th><th>peak</th><th>rms</th></tr>
+</thead>
+<tbody>
+<tr><td><code>riccati_j.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (18)</samp></td><td align="right" nowrap><samp>7.9e-16</samp></td><td align="right" nowrap><samp>inf (18)</samp></td><td align="right" nowrap><samp>7.9e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_j.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (2962)</samp></td><td align="right" nowrap><samp>1.1e-01</samp></td><td align="right" nowrap><samp>inf (2962)</samp></td><td align="right" nowrap><samp>1.1e-01</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_j.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (17)</samp></td><td align="right" nowrap><samp>8.9e-16</samp></td><td align="right" nowrap><samp>inf (17)</samp></td><td align="right" nowrap><samp>8.9e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_j.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (3006)</samp></td><td align="right" nowrap><samp>1.1e-01</samp></td><td align="right" nowrap><samp>inf (3006)</samp></td><td align="right" nowrap><samp>1.1e-01</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_y.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (1)</samp></td><td align="right" nowrap><samp>6.7e-16</samp></td><td align="right" nowrap><samp>inf (1)</samp></td><td align="right" nowrap><samp>6.7e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_y.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (9329)</samp></td><td align="right" nowrap><samp>1.6e+238</samp></td><td align="right" nowrap><samp>inf (9329)</samp></td><td align="right" nowrap><samp>1.6e+238</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_y.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (2)</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap><samp>inf (2)</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>riccati_y.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>inf (9407)</samp></td><td align="right" nowrap><samp>7.2e+175</samp></td><td align="right" nowrap><samp>inf (9407)</samp></td><td align="right" nowrap><samp>7.2e+175</samp></td><td align="right" nowrap>100%</td></tr>
+</tbody>
+</table>
+
+<sup>*</sup> Order $`n`$ of the output for the orders $`0, \ldots, 100`$ (`N = 101`). For $`x > n + 1/2`$: $`A = \sqrt{\pi x/2}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$.
 
 ## Struve functions
 
@@ -817,15 +846,31 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tbody>
 <tr><td><code>legendre_p</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>2.7e-14</samp></td><td align="right" nowrap><samp>1.6e-12</samp></td><td align="right" nowrap><samp>2.7e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>legendre_p</code><sup>*</sup></td><td>n ∈ {0, …, 30}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_p_all</code><sup>*†</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>4.7e-12</samp></td><td align="right" nowrap><samp>9.1e-14</samp></td><td align="right" nowrap><samp>4.7e-12</samp></td><td align="right" nowrap><samp>9.1e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_p_all</code><sup>*†</sup></td><td>n ∈ {0, …, 30}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>assoc_legendre_p</code><sup>*</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.3e-12</samp></td><td align="right" nowrap><samp>2.2e-14</samp></td><td align="right" nowrap><samp>1.3e-12</samp></td><td align="right" nowrap><samp>2.2e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>assoc_legendre_p_all</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>assoc_legendre_p_norm</code><sup>*</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.1e-12</samp></td><td align="right" nowrap><samp>1.6e-14</samp></td><td align="right" nowrap><samp>1.1e-12</samp></td><td align="right" nowrap><samp>1.6e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>assoc_legendre_p_norm_all</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.5e-12</samp></td><td align="right" nowrap><samp>3.7e-14</samp></td><td align="right" nowrap><samp>2.5e-12</samp></td><td align="right" nowrap><samp>3.7e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>sph_legendre_p</code><sup>*</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>θ ∈ [0, π]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>2.6e-14</samp></td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>2.6e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>sph_legendre_p_all</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>θ ∈ [0, π]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>8.0e-13</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap><samp>8.0e-13</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>sph_harm_y</code><sup>*</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>θ ∈ [0, π]<br>φ ∈ [0, 2π]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>sph_harm_y_all</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {−n, …, n}<br>θ ∈ [0, π]<br>φ ∈ [0, 2π]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>9.3e-13</samp></td><td align="right" nowrap><samp>2.5e-14</samp></td><td align="right" nowrap><samp>9.3e-13</samp></td><td align="right" nowrap><samp>2.5e-14</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>pmv</code><sup>*</sup></td><td>m ∈ {0, …, 10}<br>v ∈ [−50, 50]<br>x ∈ [−1, 1]</td><td align="right" nowrap>5000</td><td align="right" nowrap><samp>1.1e-04</samp></td><td align="right" nowrap><samp>1.5e-06</samp></td><td align="right" nowrap><samp>1.1e-04</samp></td><td align="right" nowrap><samp>1.5e-06</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_q_all.0</code><sup>*†</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.8e-12</samp></td><td align="right" nowrap><samp>3.0e-14</samp></td><td align="right" nowrap><samp>1.8e-12</samp></td><td align="right" nowrap><samp>3.0e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_q_all.0</code><sup>*†</sup></td><td>n ∈ {0, …, 30}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>7.8e+183</samp></td><td align="right" nowrap><samp>8.1e+181</samp></td><td align="right" nowrap><samp>7.8e+183</samp></td><td align="right" nowrap><samp>8.1e+181</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_q_all.1</code><sup>*†</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.8e-12</samp></td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>2.8e-12</samp></td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>legendre_q_all.1</code><sup>*†</sup></td><td>n ∈ {0, …, 30}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>1.8e+182</samp></td><td align="right" nowrap><samp>1.8e+180</samp></td><td align="right" nowrap><samp>1.8e+182</samp></td><td align="right" nowrap><samp>1.8e+180</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>assoc_legendre_q_all.0</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {0, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>2.5e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>2.5e-12</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>assoc_legendre_q_all.0</code><sup>*†</sup></td><td>n ∈ {0, …, 30}<br>m ∈ {0, …, n}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>inf (3)</samp></b></td><td align="right" nowrap><samp>1.2e-02</samp></td><td align="right" nowrap><samp>inf (67)</samp></td><td align="right" nowrap><samp>1.2e-02</samp></td><td align="right" nowrap>99.3%</td></tr>
+<tr><td><code>assoc_legendre_q_all.1</code><sup>*†</sup></td><td>n ∈ {0, …, 50}<br>m ∈ {0, …, n}<br>x ∈ [−1, 1]</td><td align="right" nowrap>10000</td><td align="right" nowrap><samp>5.3e-12</samp></td><td align="right" nowrap><samp>6.7e-14</samp></td><td align="right" nowrap><samp>5.3e-12</samp></td><td align="right" nowrap><samp>6.7e-14</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>assoc_legendre_q_all.1</code><sup>*†</sup></td><td>n ∈ {0, …, 30}<br>m ∈ {0, …, n}<br>x ∈ ±⁠[1, 1000] (log)</td><td align="right" nowrap>10000</td><td align="right" nowrap><b><samp>inf (1)</samp></b></td><td align="right" nowrap><samp>1.4e-02</samp></td><td align="right" nowrap><samp>inf (75)</samp></td><td align="right" nowrap><samp>1.4e-02</samp></td><td align="right" nowrap>99.2%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Ill-conditioned near the zeros.
+
+<sup>†</sup> The last element: degree $`n`$ (and order $`m`$) of the output up to degree $`n`$ (and order $`\lvert m\rvert`$).
 
 ## Orthogonal polynomials
 
@@ -1160,7 +1205,6 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 - No mpmath reference: Mathieu (`mathieu_*`), spheroidal wave functions (`prolate_*`,
   `oblate_*`), and ellipsoidal harmonics (`ellip_harm`, `ellip_harm_2`, `ellip_normal`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`, `mathieu_*_coef`
-- All orders or degrees: `*_all`, `riccati_j`, `riccati_y`, `jahnke_emden_lambda`
 - Array input: `logsumexp`, `softmax`, `log_softmax`, `cevalpoly`, `poisson_binom_*`, `wilcoxon_*`
 - Exact integer functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`),
   `round`

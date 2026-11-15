@@ -10,6 +10,17 @@ use std::io::{self, BufRead, BufWriter, Write};
 
 use num_complex::Complex;
 
+/// The number of orders of `riccati_j` and `riccati_y`; must match `harness.cpp`
+const RICCATI_N: usize = 101;
+
+/// The element of degree `n` and order `m` of the output of an `_all` function `all(n, |m|)`,
+/// whose rows have the orders `0..=|m|`, followed by `-|m|..=-1`
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn nm<T: Copy>(all: impl FnOnce(usize, usize) -> Vec<Vec<T>>, n: f64, m: f64) -> T {
+    let i = if m < 0.0 { m.abs() + 1.0 } else { m };
+    all(n as usize, m.abs() as usize)[n as usize][i as usize]
+}
+
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn eval_xsf(f: &str, a: &[f64]) -> Option<f64> {
     Some(match (f, a) {
@@ -174,6 +185,14 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("sph_bessel_y_prime", &[n, x]) => xsf::sph_bessel_y_prime(n as i64, x),
         ("sph_bessel_i_prime", &[n, x]) => xsf::sph_bessel_i_prime(n as i64, x),
         ("sph_bessel_k_prime", &[n, x]) => xsf::sph_bessel_k_prime(n as i64, x),
+        // Riccati-Bessel functions: order `n` of the orders `0..RICCATI_N`
+        ("riccati_j.0", &[n, x]) => xsf::riccati_j::<RICCATI_N>(x).0[n as usize],
+        ("riccati_j.1", &[n, x]) => xsf::riccati_j::<RICCATI_N>(x).1[n as usize],
+        ("riccati_y.0", &[n, x]) => xsf::riccati_y::<RICCATI_N>(x).0[n as usize],
+        ("riccati_y.1", &[n, x]) => xsf::riccati_y::<RICCATI_N>(x).1[n as usize],
+        // the last order, `v`
+        ("jahnke_emden_lambda.0", &[v, x]) => xsf::jahnke_emden_lambda(v, x).0[v as usize],
+        ("jahnke_emden_lambda.1", &[v, x]) => xsf::jahnke_emden_lambda(v, x).1[v as usize],
         // integrals of Bessel and Struve functions
         ("it1j0y0.0", &[x]) => xsf::it1j0y0(x).0,
         ("it1j0y0.1", &[x]) => xsf::it1j0y0(x).1,
@@ -315,6 +334,22 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("assoc_legendre_p_norm", &[n, m, x]) => xsf::assoc_legendre_p_norm(n as i32, m as i32, x),
         ("sph_legendre_p", &[n, m, t]) => xsf::sph_legendre_p(n as i32, m as i32, t),
         ("pmv", &[m, v, x]) => xsf::pmv(m as i32, v, x),
+        // the last degree `n` (and order `m`) of the `_all` functions up to `n` (and `|m|`)
+        ("legendre_p_all", &[n, x]) => xsf::legendre_p_all(n as usize, x)[n as usize],
+        ("assoc_legendre_p_all", &[n, m, x]) => nm(|n, m| xsf::assoc_legendre_p_all(n, m, x), n, m),
+        ("assoc_legendre_p_norm_all", &[n, m, x]) => {
+            nm(|n, m| xsf::assoc_legendre_p_norm_all(n, m, x), n, m)
+        },
+        ("sph_legendre_p_all", &[n, m, t]) => nm(|n, m| xsf::sph_legendre_p_all(n, m, t), n, m),
+        ("legendre_q_all.0", &[n, x]) => xsf::legendre_q_all(n as usize, x).0[n as usize],
+        ("legendre_q_all.1", &[n, x]) => xsf::legendre_q_all(n as usize, x).1[n as usize],
+        // the rows have the orders `0..=m`
+        ("assoc_legendre_q_all.0", &[n, m, x]) => {
+            xsf::assoc_legendre_q_all(n as usize, m as usize, x).0[n as usize][m as usize]
+        },
+        ("assoc_legendre_q_all.1", &[n, m, x]) => {
+            xsf::assoc_legendre_q_all(n as usize, m as usize, x).1[n as usize][m as usize]
+        },
         // discrete distributions
         ("bdtr", &[k, n, p]) => xsf::bdtr(k, n as i32, p),
         ("bdtrc", &[k, n, p]) => xsf::bdtrc(k, n as i32, p),
@@ -411,6 +446,7 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("modified_fresnel_minus.0", &[x]) => xsf::modified_fresnel_minus(x).0,
         ("modified_fresnel_minus.1", &[x]) => xsf::modified_fresnel_minus(x).1,
         ("sph_harm_y", &[n, m, t, p]) => xsf::sph_harm_y(n as usize, m as isize, t, p),
+        ("sph_harm_y_all", &[n, m, t, p]) => nm(|n, m| xsf::sph_harm_y_all(n, m, t, p), n, m),
         // for the reference tables (`tools/tables/mapping.py`); the parts are in `eval_xsf`
         ("kelvin.0", &[x]) => xsf::kelvin(x)[0],
         ("kelvin.1", &[x]) => xsf::kelvin(x)[1],

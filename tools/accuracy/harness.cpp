@@ -7,6 +7,8 @@
 // The function names are those of the xsf-rust functions in specs.py, and must match
 // src/main.rs.
 
+#include <algorithm>
+#include <cmath>
 #include <complex>
 #include <cstdio>
 #include <cstdlib>
@@ -59,6 +61,7 @@
 #include "xsf/log.h"
 #include "xsf/log_exp.h"
 #include "xsf/loggamma.h"
+#include "xsf/mdspan.h"
 #include "xsf/multivariate_normal.h"
 #include "xsf/ndtri_exp.h"
 #include "xsf/orthogonal_eval.h"
@@ -85,6 +88,54 @@ template <int I, typename F> cd nthc(F f) {
     cd o[2];
     f(o[0], o[1]);
     return o[I];
+}
+
+template <typename T> using vec = xsf::cxx::mdspan<T, xsf::cxx::dextents<int, 1>>;
+template <typename T> using mat = xsf::cxx::mdspan<T, xsf::cxx::dextents<int, 2>>;
+
+// the number of orders of xsf::rctj and xsf::rcty; must match src/main.rs
+constexpr int RICCATI_N = 101;
+
+// order `n` of the values (I = 0) or derivatives (I = 1) of `f(x, values, derivatives)`, with the
+// orders 0, ..., RICCATI_N - 1
+template <int I, typename F> double riccati(F f, int n, double x) {
+    std::vector<double> o(2 * RICCATI_N, NAN);
+    f(x, vec<double>(o.data(), RICCATI_N), vec<double>(o.data() + RICCATI_N, RICCATI_N));
+    return o[I * RICCATI_N + n];
+}
+
+// the element of degree `n` and order `m` of the output of `f(res)` with the degrees 0, ..., n and
+// the orders 0, ..., |m|, followed by -|m|, ..., -1
+template <typename T, typename F> T all_nm(F f, int n, int m) {
+    const int cols = 2 * std::abs(m) + 1;
+    std::vector<T> o((n + 1) * cols, NAN);
+    f(mat<T>(o.data(), n + 1, cols));
+    return o[n * cols + (m < 0 ? m + cols : m)];
+}
+
+// degree `n` of xsf::legendre_p_all with the degrees 0, ..., n
+static double legendre_p_all(int n, double x) {
+    std::vector<double> o(n + 1, NAN);
+    xsf::legendre_p_all(x, vec<double>(o.data(), n + 1));
+    return o[n];
+}
+
+// degree `n` of the values (I = 0) or derivatives (I = 1) of xsf::lqn with the degrees 0, ..., n
+// (at least 1, like in SciPy)
+template <int I> double lqn(int n, double x) {
+    const int len = std::max(n, 1) + 1;
+    std::vector<double> o(2 * len, NAN);
+    xsf::lqn(x, vec<double>(o.data(), len), vec<double>(o.data() + len, len));
+    return o[I * len + n];
+}
+
+// the element of degree `n` and order `m` of the values (I = 0) or derivatives (I = 1) of xsf::lqmn
+// with the degrees 0, ..., n and orders 0, ..., m (at least 1, like in SciPy)
+template <int I> double lqmn(int n, int m, double x) {
+    const int rows = std::max(m, 1) + 1, cols = std::max(n, 1) + 1;
+    std::vector<double> o(2 * rows * cols, NAN);
+    xsf::lqmn(x, mat<double>(o.data(), rows, cols), mat<double>(o.data() + rows * cols, rows, cols));
+    return o[I * rows * cols + m * cols + n];
 }
 
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
@@ -265,6 +316,13 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("sph_bessel_y_prime", xsf::sph_bessel_y_jac(l(x), y))
     F2("sph_bessel_i_prime", xsf::sph_bessel_i_jac(l(x), y))
     F2("sph_bessel_k_prime", xsf::sph_bessel_k_jac(l(x), y))
+    // Riccati-Bessel functions
+    const auto rctj = [](double x, vec<double> rj, vec<double> dj) { xsf::rctj(x, rj, dj); };
+    const auto rcty = [](double x, vec<double> ry, vec<double> dy) { xsf::rcty(x, ry, dy); };
+    F2("riccati_j.0", riccati<0>(rctj, i(x), y))
+    F2("riccati_j.1", riccati<1>(rctj, i(x), y))
+    F2("riccati_y.0", riccati<0>(rcty, i(x), y))
+    F2("riccati_y.1", riccati<1>(rcty, i(x), y))
     // integrals of Bessel and Struve functions
     F1("it1j0y0.0", OUT2(0, xsf::it1j0y0(x, o0, o1)))
     F1("it1j0y0.1", OUT2(1, xsf::it1j0y0(x, o0, o1)))
@@ -374,6 +432,19 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F3("assoc_legendre_p_norm", xsf::assoc_legendre_p(xsf::assoc_legendre_norm, i(x), i(y), z, 2))
     F3("sph_legendre_p", xsf::sph_legendre_p(i(x), i(y), z))
     F3("pmv", xsf::pmv(x, y, z))
+    // the last degree n (and order m) of the outputs up to n (and |m|)
+    F2("legendre_p_all", legendre_p_all(i(x), y))
+    F3("assoc_legendre_p_all", all_nm<double>([&](mat<double> r) {
+           xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, z, 2, r);
+       }, i(x), i(y)))
+    F3("assoc_legendre_p_norm_all", all_nm<double>([&](mat<double> r) {
+           xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, z, 2, r);
+       }, i(x), i(y)))
+    F3("sph_legendre_p_all", all_nm<double>([&](mat<double> r) { xsf::sph_legendre_p_all(z, r); }, i(x), i(y)))
+    F2("legendre_q_all.0", lqn<0>(i(x), y))
+    F2("legendre_q_all.1", lqn<1>(i(x), y))
+    F3("assoc_legendre_q_all.0", lqmn<0>(i(x), i(y), z))
+    F3("assoc_legendre_q_all.1", lqmn<1>(i(x), i(y), z))
     // discrete distributions
     F3("bdtr", xsf::bdtr(x, i(y), z))
     F3("bdtrc", xsf::bdtrc(x, i(y), z))
@@ -442,6 +513,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("modified_fresnel_minus.0", 1, nthc<0>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("modified_fresnel_minus.1", 1, nthc<1>([&](cd &o0, cd &o1) { xsf::modified_fresnel_minus(a[0], o0, o1); }))
     C("sph_harm_y", 4, xsf::sph_harm_y(i(a[0]), i(a[1]), a[2], a[3]))
+    C("sph_harm_y_all", 4, all_nm<cd>([&](mat<cd> r) { xsf::sph_harm_y_all(a[2], a[3], r); }, i(a[0]), i(a[1])))
     // for the reference tables (tools/tables/mapping.py); the parts are above
     C("kelvin.0", 1, kelvin(a[0], 0))
     C("kelvin.1", 1, kelvin(a[0], 1))
