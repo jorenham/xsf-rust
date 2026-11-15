@@ -14,15 +14,31 @@ use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64, two_sum};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
-use crate::xsf::{Scaled, add_exp, ln_dd, mul_gamma_ratio};
+use crate::xsf::{Scaled, add_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::{digamma, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
 /// overflowing sum in `chgul`
 const MAX_TERMS: i32 = 100_000;
+
+/// The largest relative error bound that `chgm_neg_x_asymptotic` accepts (its bounds are at least
+/// 3x the actual errors, and up to about 100 eps for `|a|, |b| <= 100`)
+const NEG_X_ASYMPTOTIC_TOL: f64 = 128.0 * f64::EPSILON;
+/// The most terms of DLMF 13.7.2 that `chgm_neg_x_asymptotic` sums
+const NEG_X_ASYMPTOTIC_TERMS: u32 = 64;
+/// Covers the roundings in the error bound of `chgm_neg_x_asymptotic`. Its parts are sums and
+/// products of positive terms, chains of at most 32 operations, where the only differences
+/// `1 - 2 sigma^2 >= 1/2`, `1 - nu sigma >= 1 - 1/sqrt(2)` and `1 - sigma >= 1/2` have condition
+/// numbers of at most 1, 2.5 and 1, so each part is within `128 u` (`u = eps / 2`). The arguments
+/// of `exp` are at most `MAX_BOUND_EXP`, so it adds at most `2^13 u`, and `powf(nu, n)`
+/// (`n <= 64`) at most `2^13 u` as well; all well below `2^-30`.
+const BOUND_SLACK: f64 = 1.0 + 1.0 / pow2(30);
+/// The largest argument of `exp` in the error bound of `chgm_neg_x_asymptotic`
+const MAX_BOUND_EXP: f64 = 64.0;
 
 /// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
 const LOG2_SCALE: i32 = 512;
@@ -534,12 +550,18 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
     }
 }
 
+/// `M(a, b, x)` for `x <= -30 - |b|` from `chgm_neg_x_series`, or else from
+/// `chgm_neg_x_asymptotic`
+fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
+    chgm_neg_x_series(x, a, b).or_else(|| chgm_neg_x_asymptotic(x, a, b))
+}
+
 /// `M(a, b, x)` for `x <= -30 - |b|`, from the series of DLMF 13.2.39 in double-double with the
 /// exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
 ///
 /// Near a pole of `Gamma(b - a)`, whose reciprocal scales the `e^-x` part, rounding `b - a` and the
 /// recurrence in `a` lose all digits, and even the sign. The series needs over `-x` terms.
-fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
+fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
     if !(30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
         return None;
     }
@@ -549,6 +571,115 @@ fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
     }
     let (hg, err) = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)?;
     (hg.is_finite() && err <= f64::EPSILON * hg.abs()).then_some(hg)
+}
+
+/// `M(a, b, x)` for `x <= -30 - |b|` and `-x > 2 |b - 2a|`, by the asymptotic expansion of
+/// DLMF 13.7.2, if its error bound is at most `NEG_X_ASYMPTOTIC_TOL`. DLMF 13.2.41, averaged over
+/// both signs, gives, with `z = -x` and `q = b - a`,
+///
+/// ```text
+/// M(a, b, -z) = Gamma(b) / Gamma(q) Re[e^(-i pi a) U(a, b, z e^(-i pi))]
+///     + Gamma(b) / Gamma(a) cos(pi q) e^-z U(q, b, z)
+/// ```
+///
+/// The first term is `P S_n` plus the remainder of DLMF 13.7.4, with `P = Gamma(b) / Gamma(q) z^-a`
+/// and `S_n = sum_(k<n) t_k`, `t_k = (a)_k (1 - q)_k / (k! z^k)`, and the second term is only
+/// bounded. Both bounds are those of DLMF 13.7.5, with `sigma = |b - 2a| / z = |b - 2q| / z`: in
+/// region R3 (at `ph z = -pi`) for the remainder, and in R1 with `n = 1` for the second term.
+fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
+    const U: f64 = MACHEP;
+    let z = -x;
+    // (rounded up, as all bounds increase with it)
+    let r = (b - 2.0 * a).abs() * BOUND_SLACK;
+    if !(z >= 30.0 + b.abs() && z > 2.0 * r) {
+        return None;
+    }
+    let q = DoubleDouble::new(b) - a;
+    let (ln_gb, sign_b, err_gb) = ln_gamma(DoubleDouble::new(b))?;
+    let (ln_gq, sign_q, err_gq) = ln_gamma(q)?;
+    let (ln_ga, _, err_ga) = ln_gamma(DoubleDouble::new(a))?;
+    let ln_z = ln_dd(DoubleDouble::new(z));
+
+    // DLMF 13.7.6, 13.7.8 and 13.7.9 (in R3 with `nu sigma` for `sigma`), bounded from above
+    // without cancellation (see `BOUND_SLACK`): `nu <= (1 - 2 sigma^2)^(-1/2)` as `sqrt(y) >= y`
+    // for `0 <= y <= 1`, `|2a^2 - 2ab + b| = |2q^2 - 2qb + b| = |b - 2aq| <= |b| + 2 |a q|`, and
+    // Gautschi's inequality `chi(n) < sqrt(pi (n + 2) / 2)` (DLMF 5.6.4).
+    let sigma = r / z;
+    let nu = 1.0 / (1.0 - 2.0 * sigma * sigma).sqrt();
+    let rho_0 = (b.abs() + 2.0 * (a * q.hi).abs()) / 2.0;
+    let c_n = |n: f64| ((PI * (n + 2.0) / 2.0).sqrt() + sigma * nu * nu * n) * nu.powf(n);
+    let remainder = remainder_factor(nu * sigma, rho_0, c_n(1.0), z)?;
+
+    // The terms, each with at most 7 roundings per step (`fc` is within `u (1 + 3u)`, as the
+    // double-double plus binary64 sum errs by at most `2u^2` relative to its result), so that
+    // `|t_k| <= |t^_k| / (1 - gamma_7k)`, and the error bound `err_s` of their sum `s`.
+    let gamma_7 = |k: u32| 7.0 * f64::from(k) * U / (1.0 - 7.0 * f64::from(k) * U);
+    let (mut t, mut tail, mut err_s) = (1.0_f64, 0.0_f64, 0.0);
+    let (s, err_r) = (1..=NEG_X_ASYMPTOTIC_TERMS).find_map(|n| {
+        let k = f64::from(n - 1);
+        let (fa, fc) = (a + k, (-q + (k + 1.0)).hi);
+        let t_n = t * (fa * fc / ((k + 1.0) * z));
+        // the series ends at an exact zero, but an underflow loses the relative error bound
+        let underflow = t_n.abs() < f64::MIN_POSITIVE && (t_n != 0.0 || fa != 0.0 && fc != 0.0);
+        if underflow || t_n.abs() > t.abs() {
+            return Some(None);
+        }
+        let g = gamma_7(n);
+        let s = 1.0 + tail;
+        let err_r = remainder * c_n(f64::from(n)) * t_n.abs() / (1.0 - g);
+        // (leaving most of the tolerance to the roundings)
+        if err_r <= NEG_X_ASYMPTOTIC_TOL * s.abs() / 8.0 {
+            return Some(Some((s, err_r)));
+        }
+        tail += t_n;
+        err_s += g / (1.0 - g) * t_n.abs() + U * tail.abs();
+        t = t_n;
+        None
+    })??;
+    let err_s = err_s + U * s.abs();
+
+    // `P S^`, with the errors of `l` (and `fold_exp`'s), and the bound `e_p` of `exp(err) - 1`,
+    // where `exp(e) - 1 <= e (1 + e)` holds for small `e`
+    let l = ln_gb - ln_gq - ln_z * a;
+    let err_l =
+        err_gb + err_gq + 4.0 * U * U * (ln_gb.hi.abs() + ln_gq.hi.abs() + l.hi.abs() + 1.0);
+    let (hg, err_y) = Scaled::new(sign_b * sign_q * s, 0, err_l)?
+        .with_l(l)
+        .to_f64();
+    if !(hg.is_finite() && hg.abs() >= f64::MIN_POSITIVE && err_y <= 1e-10) {
+        return None;
+    }
+    let e_p = err_y * (1.0 + err_y);
+
+    // the bound of the second term relative to `hg`, with `|q (q - b + 1)| = |q (1 - a)|`
+    let q1 = q.hi;
+    let ln_u1 = (remainder_factor(sigma, rho_0, 1.0, z)? * (q1 * (1.0 - a)).abs() / z).ln_1p();
+    let ln_e = [
+        ln_gb.hi,
+        -ln_ga.hi,
+        -z,
+        -q1 * ln_z.hi,
+        ln_u1,
+        -hg.abs().ln(),
+    ];
+    let err_ln_e = err_gb
+        + err_ga
+        + q.lo.abs() * (ln_z.hi.abs() + 1.0)
+        + 8.0 * U * (ln_e.iter().map(|v| v.abs()).sum::<f64>() + 1.0);
+    let e_rel = (ln_e.iter().sum::<f64>() + err_ln_e).exp();
+
+    let rel = (e_p + (1.0 + e_p) * (err_s + err_r) / s.abs() + e_rel) * BOUND_SLACK;
+    (rel < 1.0 && rel / (1.0 - rel) <= NEG_X_ASYMPTOTIC_TOL).then_some(hg)
+}
+
+/// The factor `2 alpha exp(2 alpha rho C_1 / z)` of the remainder bound of DLMF 13.7.5, with
+/// `alpha` and `rho` of DLMF 13.7.9 for `s = sigma` (or `nu sigma` in R3) and
+/// `rho_0 = |2a^2 - 2ab + b| / 2`, or `None` if the argument of `exp` exceeds `MAX_BOUND_EXP`
+fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
+    let alpha = 1.0 / (1.0 - s);
+    let rho = rho_0 + s * (1.0 + s / 4.0) * alpha * alpha;
+    let w = 2.0 * alpha * rho * c_1 / z;
+    (w <= MAX_BOUND_EXP).then(|| 2.0 * alpha * w.exp())
 }
 
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
@@ -1861,4 +1992,17 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
     *id = (*id).min((-(err / hu.abs()).log10()) as i32);
     mul_exp(hu, lr2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::chgm_neg_x_asymptotic;
+
+    #[test]
+    fn test_chgm_neg_x_asymptotic_declines_poles() {
+        // `b - a` is -2, and rounds to -1 (`ln_gamma` declines both)
+        assert_eq!(chgm_neg_x_asymptotic(-1e5, 2.5, 0.5), None);
+        assert_eq!(chgm_neg_x_asymptotic(-1e5, 1.1, 0.1), None);
+        assert!(chgm_neg_x_asymptotic(-1e5, 1.5, 1.0).is_some());
+    }
 }

@@ -945,6 +945,34 @@ fn test_hyp1f1_large_x() {
 }
 
 #[test]
+fn test_hyp1f1_large_neg_x() {
+    // Arb; by the asymptotic expansion (DLMF 13.7.2), and these were off by 1.5e-12, 2.2e-10, 9.4e-9,
+    // NaN, NaN, and 7.4e-8 (`b < 0` with `b - a > 0`)
+    let abx = [
+        (2.0, 0.5, -200_000.0),
+        (5.3, 2.7, -300_000.0),
+        (3.56, 0.57, -960_000.0),
+        (1.5, 1.0, -100_000.0),
+        (0.7, 0.2, -500_000.0),
+        (
+            -0.026_409_147_075_936_53,
+            -0.016_413_995_763_569_625,
+            -220_344.727_139_557_83,
+        ),
+    ];
+    let expected = [
+        1.875_046_876_230_505_5e-11,
+        -1.626_960_239_562_368e-29,
+        -4.672_030_103_421_194_5e-23,
+        -8.920_821_300_999_49e-9,
+        -1.327_423_448_749_78e-4,
+        -0.855_782_844_358_104_9,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp1f1_neg_x_near_pole() {
     // Arb; b - a is within 1e-14 of -31, -14, and -82 (where it rounds to -82), and 1e-20 and
     // 6e-17 (above) of -1, i.e. near a zero of 1/Gamma(b - a), and these were -3.9e-75,
