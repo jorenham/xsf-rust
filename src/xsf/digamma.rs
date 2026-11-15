@@ -54,22 +54,12 @@ fn digamma_forward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
      * digamma(z + 1) = digamma(z) + 1/z.
      *
      * See https://dlmf.nist.gov/5.5#E2 */
-    let mut res = psiz;
-
-    for k in 0..n {
-        res += 1.0 / (z + f64::from(k));
-    }
-    res
+    (0..n).fold(psiz, |res, k| res + 1.0 / (z + f64::from(k)))
 }
 
 fn digamma_backward_recurrence(z: C64, psiz: C64, n: i32) -> C64 {
     /* Compute digamma(z - n) using digamma(z) and a recurrence relation. */
-    let mut res = psiz;
-
-    for k in 1..=n {
-        res -= 1.0 / (z - f64::from(k));
-    }
-    res
+    (1..=n).fold(psiz, |res, k| res - 1.0 / (z - f64::from(k)))
 }
 
 fn digamma_asymptotic_series(z: C64) -> C64 {

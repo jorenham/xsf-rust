@@ -57,10 +57,12 @@ fn qk21(f: &impl Fn(f64) -> f64, a: f64, b: f64) -> (f64, f64) {
     }
 
     let reskh = resk * 0.5;
-    let mut resasc = WGK[10] * (fc - reskh).abs();
-    for (j, (fval1, fval2)) in fv.into_iter().enumerate() {
-        resasc += WGK[j] * ((fval1 - reskh).abs() + (fval2 - reskh).abs());
-    }
+    let resasc = fv.into_iter().enumerate().fold(
+        WGK[10] * (fc - reskh).abs(),
+        |resasc, (j, (fval1, fval2))| {
+            resasc + WGK[j] * ((fval1 - reskh).abs() + (fval2 - reskh).abs())
+        },
+    );
 
     let result = resk * hlgth;
     let resabs = resabs * hlgth.abs();
