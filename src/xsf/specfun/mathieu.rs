@@ -657,7 +657,8 @@ fn rescale(fc: &mut [f64], u: &mut f64, f1: &mut f64, sp: &mut f64, sp_max: f64)
     }
 }
 
-pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64) -> Status {
+/// Unlike in xsf, `xr` is the argument in radians, as `cem` and `sem` also take radians.
+pub(crate) fn mtu0(kf: i32, m: i32, q: f64, xr: f64, csf: &mut f64, csd: &mut f64) -> Status {
     // ===============================================================
     // Purpose: Compute Mathieu functions cem(x,q) and sem(x,q)
     //          and their derivatives ( q ≥ 0 )
@@ -666,7 +667,7 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
     //                  KF=2 for computing sem(x,q) and sem'(x,q)
     //          m   --- Order of Mathieu functions
     //          q   --- Parameter of Mathieu functions
-    //          x   --- Argument of Mathieu functions (in degrees)
+    //          xr  --- Argument of Mathieu functions (in radians)
     // Output:  CSF --- cem(x,q) or sem(x,q)
     //          CSD --- cem'x,q) or sem'x,q)
     // Return value:
@@ -687,7 +688,6 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
     // ===============================================================
 
     let eps = 1.0e-14;
-    let rd = 1.74532925199433e-2;
 
     let kd = kd(kf, m);
     let a = cva2(kd, m, q);
@@ -708,7 +708,6 @@ pub(crate) fn mtu0(kf: i32, m: i32, q: f64, x: f64, csf: &mut f64, csd: &mut f64
     fcoef(kd, m, q, a, &mut fg);
 
     let ic = m / 2 + 1;
-    let xr = x * rd;
     *csf = 0.0;
     for k in 1..=km {
         if kd == 1 {

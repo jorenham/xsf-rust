@@ -503,7 +503,8 @@
 //! | Even                  | Odd                  | Description                                   |
 //! | --------------------- | -------------------- | --------------------------------------------- |
 //! | [`mathieu_a`]         | [`mathieu_b`]        | Characteristic value of the Mathieu functions |
-//! | [`mathieu_cem`]       | [`mathieu_sem`]      | Mathieu functions                             |
+//! | [`mathieu_ce`]        | [`mathieu_se`]       | Mathieu functions                             |
+//! | [`mathieu_cem`]       | [`mathieu_sem`]      | Mathieu functions, of an angle in degrees     |
 //! | [`mathieu_modcem1`]   | [`mathieu_modsem1`]  | Modified Mathieu functions of the first kind  |
 //! | [`mathieu_modcem2`]   | [`mathieu_modsem2`]  | Modified Mathieu functions of the second kind |
 //! | [`mathieu_even_coef`] | [`mathieu_odd_coef`] | Fourier coefficients for Mathieu functions    |

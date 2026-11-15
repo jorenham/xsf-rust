@@ -257,6 +257,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`lqn`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.lqn.html)                                   | `legendre_q_all`                                    |
 | [`mathieu_a`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_a.html)                       | `mathieu_a`                                         |
 | [`mathieu_b`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_b.html)                       | `mathieu_b`                                         |
+| [`mathieu_ce`](https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_ce.html)                      | `mathieu_ce`                                        |
 | [`mathieu_cem`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_cem.html)                   | `mathieu_cem`                                       |
 | [`mathieu_even_coef`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_even_coef.html)       | `mathieu_even_coef`                                 |
 | [`mathieu_modcem1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modcem1.html)           | `mathieu_modcem1`                                   |
@@ -264,6 +265,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`mathieu_modsem1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modsem1.html)           | `mathieu_modsem1`                                   |
 | [`mathieu_modsem2`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_modsem2.html)           | `mathieu_modsem2`                                   |
 | [`mathieu_odd_coef`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_odd_coef.html)         | `mathieu_odd_coef`                                  |
+| [`mathieu_se`](https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_se.html)                      | `mathieu_se`                                        |
 | [`mathieu_sem`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.mathieu_sem.html)                   | `mathieu_sem`                                       |
 | [`modfresnelm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.modfresnelm.html)                   | `modified_fresnel_minus`                            |
 | [`modfresnelp`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.modfresnelp.html)                   | `modified_fresnel_plus`                             |

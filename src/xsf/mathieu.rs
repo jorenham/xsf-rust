@@ -5,6 +5,11 @@
 //!
 //! Unlike in xsf, the characteristic values are NaN instead of 0 if `q` is NaN and `m > 12`, as
 //! the `double` -> `int` conversion saturates.
+//!
+//! `mathieu_ce` and `mathieu_se` are `mathieu_cem` and `mathieu_sem` of an angle in radians, unlike
+//! in SciPy, which computes them with the newer `xsf/mathieu.h` (that needs an eigensolver).
+
+use core::f64::consts::FRAC_PI_2;
 
 use num_traits::ToPrimitive;
 
@@ -57,7 +62,31 @@ fn sem_cva(m: f64, q: f64) -> f64 {
 }
 
 /* Mathieu functions */
-fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
+/// The unit of the angle `x` of `cem` and `sem`, as xsf's `AngleUnitPolicy`
+#[derive(Clone, Copy)]
+enum AngleUnit {
+    Degrees,
+    Radians,
+}
+
+impl AngleUnit {
+    fn to_radians(self, x: f64) -> f64 {
+        match self {
+            // `pi / 180` to 15 digits, as in specfun's `mtu0`
+            Self::Degrees => x * 1.745_329_251_994_33e-2,
+            Self::Radians => x,
+        }
+    }
+
+    fn quarter_turn(self) -> f64 {
+        match self {
+            Self::Degrees => 90.0,
+            Self::Radians => FRAC_PI_2,
+        }
+    }
+}
+
+fn cem(m: f64, q: f64, x: f64, unit: AngleUnit) -> (f64, f64) {
     let kf = 1;
     let (mut csf, mut csd) = (0.0, 0.0);
     if (m < 0.0) || (m != m.floor()) {
@@ -68,20 +97,20 @@ fn cem(m: f64, q: f64, x: f64) -> (f64, f64) {
         /* https://dlmf.nist.gov/28.2#E34 */
         let sgn = neg_one_pow(int_m / 2);
         let (f, d) = if int_m % 2 == 0 {
-            cem(m, -q, 90.0 - x)
+            cem(m, -q, unit.quarter_turn() - x, unit)
         } else {
-            sem(m, -q, 90.0 - x)
+            sem(m, -q, unit.quarter_turn() - x, unit)
         };
         return (sgn * f, -sgn * d);
     }
-    let status = mtu0(kf, int_m, q, x, &mut csf, &mut csd);
+    let status = mtu0(kf, int_m, q, unit.to_radians(x), &mut csf, &mut csd);
     if status != Status::Ok {
         return (f64::NAN, f64::NAN);
     }
     (csf, csd)
 }
 
-fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
+fn sem(m: f64, q: f64, x: f64, unit: AngleUnit) -> (f64, f64) {
     let kf = 2;
     let (mut csf, mut csd) = (0.0, 0.0);
     if (m < 0.0) || (m != m.floor()) {
@@ -94,13 +123,19 @@ fn sem(m: f64, q: f64, x: f64) -> (f64, f64) {
     if q < 0.0 {
         /* https://dlmf.nist.gov/28.2#E34 */
         let (sgn, (f, d)) = if int_m % 2 == 0 {
-            (-neg_one_pow(int_m / 2), sem(m, -q, 90.0 - x))
+            (
+                -neg_one_pow(int_m / 2),
+                sem(m, -q, unit.quarter_turn() - x, unit),
+            )
         } else {
-            (neg_one_pow(int_m / 2), cem(m, -q, 90.0 - x))
+            (
+                neg_one_pow(int_m / 2),
+                cem(m, -q, unit.quarter_turn() - x, unit),
+            )
         };
         return (sgn * f, -sgn * d);
     }
-    let status = mtu0(kf, int_m, q, x, &mut csf, &mut csd);
+    let status = mtu0(kf, int_m, q, unit.to_radians(x), &mut csf, &mut csd);
     if status != Status::Ok {
         return (f64::NAN, f64::NAN);
     }
@@ -165,9 +200,9 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 
 /// Even Mathieu function and its derivative
 ///
-/// Returns the even Mathieu function, *ce<sub>m</sub>(x, q)*, of order *m* and parameter *q*
-/// evaluated at *x* (given in degrees).
-/// Also returns the derivative with respect to *x* of *ce<sub>m</sub>(x, q)*.
+/// Returns the even Mathieu function, $\mathrm{ce}_m(x,q)$, of order $m$ and parameter $q$
+/// evaluated at $x$ (given in degrees).
+/// Also returns the derivative with respect to $x$ of $\mathrm{ce}_m(x,q)$.
 ///
 /// Corresponds to [`scipy.special.mathieu_cem`][scipy].
 ///
@@ -180,28 +215,26 @@ pub fn mathieu_b(m: u32, q: f64) -> f64 {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$ in radians
 ///
-/// Both are NaN for `|q|` above about 2103, or `m > 65536`.
+/// Both are NaN for $\abs{q}$ above about 2103, or $m > 65536$.
 ///
 /// # See also
 /// - [`mathieu_sem`]: Odd Mathieu function
+/// - [`mathieu_ce`]: The same, of an angle in radians
 /// - [`mathieu_a`]: Characteristic value of even Mathieu functions
 #[doc(alias = "cem")]
 #[must_use]
 #[inline]
 pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
-    if mathieu_cem_sem_unsupported(m, q) {
-        return (f64::NAN, f64::NAN);
-    }
-    cem(f64::from(m), q, x)
+    mathieu_cem_in(AngleUnit::Degrees, m, q, x)
 }
 
 /// Odd Mathieu function and its derivative
 ///
-/// Returns the odd Mathieu function, *se<sub>m</sub>(x, q)*, of order *m* and parameter *q*
-/// evaluated at *x* (given in degrees).
-/// Also returns the derivative with respect to *x* of *se<sub>m</sub>(x, q)*.
+/// Returns the odd Mathieu function, $\mathrm{se}_m(x,q)$, of order $m$ and parameter $q$
+/// evaluated at $x$ (given in degrees).
+/// Also returns the derivative with respect to $x$ of $\mathrm{se}_m(x,q)$.
 ///
 /// Corresponds to [`scipy.special.mathieu_sem`][scipy].
 ///
@@ -214,22 +247,83 @@ pub fn mathieu_cem(m: u32, q: f64, x: f64) -> (f64, f64) {
 ///
 /// # Returns
 /// - `y`: value of the function
-/// - `yp`: Value of the derivative w.r.t. *x*
+/// - `yp`: Value of the derivative w.r.t. $x$ in radians
 ///
-/// Both are NaN for `m > 0` and `|q|` above about 2103, or `m > 65536`.
+/// Both are NaN for $m > 0$ and $\abs{q}$ above about 2103, or $m > 65536$.
 ///
 /// # See also
 /// - [`mathieu_cem`]: Even Mathieu function
+/// - [`mathieu_se`]: The same, of an angle in radians
 /// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
 #[doc(alias = "sem")]
 #[must_use]
 #[inline]
 pub fn mathieu_sem(m: u32, q: f64, x: f64) -> (f64, f64) {
+    mathieu_sem_in(AngleUnit::Degrees, m, q, x)
+}
+
+/// Even Mathieu function and its derivative, of an angle in radians
+///
+/// Returns the even Mathieu function, $\mathrm{ce}_m(x,q)$, of order $m$ and parameter $q$
+/// evaluated at $x$ (in radians), and its derivative with respect to $x$.
+///
+/// Corresponds to [`scipy.special.mathieu_ce`][scipy] (new in SciPy 2.0).
+///
+/// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_ce.html
+///
+/// Both are NaN for $\abs{q}$ above about 2103, or $m > 65536$.
+///
+/// # See also
+/// - [`mathieu_se`]: Odd Mathieu function
+/// - [`mathieu_cem`]: The same, of an angle in degrees
+/// - [`mathieu_a`]: Characteristic value of even Mathieu functions
+#[must_use]
+#[inline]
+pub fn mathieu_ce(m: u32, q: f64, x: f64) -> (f64, f64) {
+    mathieu_cem_in(AngleUnit::Radians, m, q, x)
+}
+
+/// Odd Mathieu function and its derivative, of an angle in radians
+///
+/// Returns the odd Mathieu function, $\mathrm{se}_m(x,q)$, of order $m$ and parameter $q$
+/// evaluated at $x$ (in radians), and its derivative with respect to $x$.
+///
+/// Corresponds to [`scipy.special.mathieu_se`][scipy] (new in SciPy 2.0).
+///
+/// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.mathieu_se.html
+///
+/// Both are NaN for $m > 0$ and $\abs{q}$ above about 2103, or $m > 65536$, and for an
+/// infinite $q$, also if $m = 0$.
+///
+/// # See also
+/// - [`mathieu_ce`]: Even Mathieu function
+/// - [`mathieu_sem`]: The same, of an angle in degrees
+/// - [`mathieu_b`]: Characteristic value of odd Mathieu functions
+#[must_use]
+#[inline]
+pub fn mathieu_se(m: u32, q: f64, x: f64) -> (f64, f64) {
+    // unlike `mathieu_sem`, NaN for `m = 0` too, as in SciPy
+    if !q.is_finite() || x.is_nan() {
+        return (f64::NAN, f64::NAN);
+    }
+    mathieu_sem_in(AngleUnit::Radians, m, q, x)
+}
+
+/// `cem`, or NaN if `m` or `q` is unsupported
+fn mathieu_cem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
+    if mathieu_cem_sem_unsupported(m, q) {
+        return (f64::NAN, f64::NAN);
+    }
+    cem(f64::from(m), q, x, unit)
+}
+
+/// `sem`, or NaN if `m` or `q` is unsupported
+fn mathieu_sem_in(unit: AngleUnit, m: u32, q: f64, x: f64) -> (f64, f64) {
     // `sem` is `(0, 0)` for `m = 0`, whatever `q`
     if m > 0 && mathieu_cem_sem_unsupported(m, q) {
         return (f64::NAN, f64::NAN);
     }
-    sem(f64::from(m), q, x)
+    sem(f64::from(m), q, x, unit)
 }
 
 /// Even modified Mathieu function of the first kind and its derivative
