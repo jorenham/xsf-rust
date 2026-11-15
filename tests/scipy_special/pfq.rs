@@ -771,6 +771,10 @@ fn test_hyppfq_asymptotic() {
     let (a4, b4) = ([0.5, 1.25, 2.75, -3.375], [1.5, 2.25, 3.25, -4.125]);
     assert_hyppfq(&a, &b, 500.0, 2.494_168_748_039_884e210);
     assert_hyppfq(&a_neg, &b, 400.0, -2.048_065_752_931_792_7e164);
+    // p < q
+    assert_hyppfq(&[0.5, 1.25], &b, 1e5, 2.827_653_514_543_852_6e262);
+    assert_hyppfq(&[], &[0.25, 1.75], 1e7, 7.070_838_755_413_847_6e277);
+    assert_hyppfq(&[0.5], &b4, 1e8, -1.021_654_858_110_642_5e170);
     // z < 0, where the series cancels
     assert_hyppfq(&a, &b, -200.0, 0.115_205_192_301_031_53);
     assert_hyppfq(&a, &b, -1e4, 0.016_481_346_737_557_533);
@@ -782,6 +786,8 @@ fn test_hyppfq_asymptotic() {
     // overflow, with the sign of the Gamma functions
     assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
     assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyppfq(&[], &[0.25, 1.75], 1e9), Some(f64::INFINITY));
+    assert_eq!(hyppfq(&[-0.5, 1.25], &b, 1e7), Some(f64::NEG_INFINITY));
     // integer a_i - a_j, where the expansion has a limit only
     let c = 1.0 + 2.0_f64.powi(-10);
     let (a_int, b_int) = ([1.0, 1.0, 10.5], [c, c, 11.25]);
@@ -962,6 +968,7 @@ fn test_hyppfq_none() {
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
     // large |z| with integer a_i - a_j
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
+    assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], 1e5), None);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
     assert_eq!(hyppfq(&a, &b, -0.5), None);

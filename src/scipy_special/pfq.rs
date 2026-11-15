@@ -11,7 +11,7 @@ use core::ops::Add;
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
-    DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, frexp_f64, ldexp_f64, two_sum,
+    DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_sum,
 };
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{Scaled, add_exp, cospi, fold_exp, ln_dd, mul_gamma_ratio, sinpi};
@@ -1033,6 +1033,18 @@ fn sqrt_dd(v: f64) -> Dd {
     Dd::new(s) + (Dd::new(v) - Dd::new(s) * s) / (2.0 * s)
 }
 
+/// `v^(1 / k)` in double-double precision, for `v > 0`
+fn root_dd(v: f64, k: usize) -> Dd {
+    let s = v.powf(1.0 / k as f64);
+    let pow = |n: usize| (0..n).fold(Dd::new(1.0), |p, _| p * s);
+    match k {
+        1 => Dd::new(v),
+        2 => sqrt_dd(v),
+        // (one Newton step)
+        _ => Dd::new(s) + (Dd::new(v) - pow(k)) / (k as f64 * pow(k - 1).hi),
+    }
+}
+
 /// The terms of `iter` with an even index, with alternating signs
 fn even_alternating(iter: impl Iterator<Item = f64>) -> impl Iterator<Item = f64> {
     let signs = [1.0, -1.0].into_iter().cycle();
@@ -1226,30 +1238,44 @@ fn pfq_exp_terms(a: &[f64], b: &[f64], nu: f64, x: f64) -> impl Iterator<Item = 
     })
 }
 
-/// The exponentially large part of the asymptotic expansion of ${}_pF_q$ for $p = q$ (DLMF
-/// 16.11.1, 16.11.7), with $\abs z^\nu$ instead of $z^\nu$, where `b` contains the 1 of $n!$:
+/// The exponentially large part of the asymptotic expansion of ${}_pF_q$ for $p \le q$ (DLMF
+/// 16.11.1), with $\abs z^\nu$ instead of $z^\nu$, for $p = q$ or $z > 0$, where `b` contains
+/// the 1 of $n!$:
 ///
 /// $$
-/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)} e^z \abs z^\nu \sum_k c_k z^{-k},
-/// \qquad \nu = \sum_i a_i - \sum_j b_j
+/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)}
+/// (2 \pi)^{(1 - \kappa) / 2} \kappa^{-\nu - 1/2} e^x \abs x^\nu \sum_k c_k x^{-k},
+/// \qquad \nu = \sum_i a_i - \sum_j b_j + {\kappa - 1 \over 2}
 /// $$
+///
+/// with $\kappa = q - p + 1$ and $x = \kappa z^{1 / \kappa}$.
 fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let (_, lower) = b.split_last()?;
+    let kappa = b.len() - a.len();
+    let kf = kappa as f64;
     let sum_params = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
-    let nu = sum_params(a) - sum_params(lower);
+    let nu = sum_params(a) - sum_params(lower) + 0.5 * (kf - 1.0);
+    let root = root_dd(z.abs(), kappa) * z.signum();
+    let x = kf * root.hi;
     // (the factors of the last coefficient are negative from here on)
-    let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(bj - 1.0));
+    let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
     let settled = (nu.hi + lower.len() as f64 + beta).max(0.0);
-    let series = asymptotic_sum(pfq_exp_terms(a, b, nu.hi, z), settled, z, |_| 0.0);
-    let (num, den) = (
-        lower.iter().copied().map(Dd::new),
-        a.iter().copied().map(Dd::new),
-    );
-    gamma_series(num, den, series, nu * ln_dd(Dd::new(z.abs())) + z)
+    let (sum, err) = asymptotic_sum(pfq_exp_terms(a, b, nu.hi, x), settled, x, |_| 0.0);
+    // the other exponentials of DLMF 16.11.8 and 16.11.9, with x e^(+-2 pi i / kappa), relative
+    // to this one
+    let next = 2.0 * (x * (cospi(2.0 / kf) - 1.0)).exp();
+    let others = if kappa == 1 { 0.0 } else { next };
+    // (2 pi)^((1 - kappa) / 2) kappa^(-1/2) |z|^(nu / kappa) e^x
+    let ln_power = nu / kf * ln_dd(Dd::new(z.abs())) - ln_dd(Dd::new(kf)) * 0.5;
+    let l = ln_power - LN_SQRT_2PI_DD * (kf - 1.0) + root * kf;
+    let num = lower.iter().copied().map(Dd::new);
+    let den = a.iter().copied().map(Dd::new);
+    gamma_series(num, den, (sum, err + others * sum.abs()), l)
 }
 
-/// ${}_pF_q$ for $p = q$ by its asymptotic expansion (DLMF 16.11.7), if its estimated relative
-/// error is at most `PFQ_TOL`, where `b` contains the 1 of $n!$
+/// ${}_pF_q$ for $p = q$, or $p < q$ and $z > 0$, by its asymptotic expansion (DLMF 16.11.7 to
+/// 16.11.9), if its estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of
+/// $n!$
 ///
 /// Only the exponentially large part is used for $z > 0$, and only the algebraic part for
 /// $z < 0$. The size of the other part is added to the error, for $z > 0$ as the sizes of the
@@ -1257,7 +1283,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 /// (`None`).
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
-    if b_ref.len() != a_ref.len() + 1 {
+    if z < 0.0 && b_ref.len() != a_ref.len() + 1 {
         return None;
     }
     let mut terms = vec![None; a_ref.len()];
@@ -1343,8 +1369,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$, unless it is a polynomial;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
-///   other $p = q$ as for [`hyp2f2`], and also for large $z > 0$ if two $a_i$ differ by an
-///   integer, and for the other $p < q$ for large $\abs z$;
+///   other $p = q$ as for [`hyp2f2`], for the other $p < q$ for large $-z$, and for the other
+///   $p \le q$ for large $z > 0$ if two $a_i$ differ by an integer;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
