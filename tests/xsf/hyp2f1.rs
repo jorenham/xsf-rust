@@ -850,10 +850,10 @@ fn test_hyp2f1_f64_nan_if_lost() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_err_above_1() {
-    // NaN if the error estimate with the recurrences in `a` is above 1, instead of 9.47e-62 and
-    // 3.62e16 (Arb: 1.18e-64 and -7.42e9)
-    assert!(xsf::hyp2f1(702.2, 161.2, 0.1188, -0.4165).is_nan());
-    assert!(xsf::hyp2f1(198.4, 38.54, -105.4, -0.5366).is_nan());
+    // NaN if the error estimate with the recurrences in `a` is above 1, instead of -2.29e82 and
+    // 1.03e-13 (mpmath, Wolfram: 1.62e79 and -1.83e-18)
+    assert!(xsf::hyp2f1(640.0, -128.04, -9.5, 0.4248).is_nan());
+    assert!(xsf::hyp2f1(-688.5, 147.62, -28.5, 0.3898).is_nan());
     // but not for a polynomial, here T_10 near a root, which is accurate in absolute terms (Arb)
     let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
     assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
@@ -1016,4 +1016,45 @@ fn test_hyp2f1_f64_large_polynomials_fallback() {
         13_151_516.340_537_345,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
+fn test_hyp2f1_f64_recur_fallback() {
+    // unlike in xsf: also for non-polynomials, e.g. these were NaN, NaN and -4.97780468e-4, as the
+    // recurrence in `a` loses most digits (references: Arb, Wolfram)
+    let args = [
+        (
+            -43.529_522_885_417_2,
+            28.383_215_183_231_613,
+            0.854_350_304_768_644_3,
+            0.897_573_261_765_310_7,
+        ),
+        (
+            -58.796_657_619_884_186,
+            58.952_929_522_592_97,
+            29.157_322_653_045_57,
+            0.883_239_869_466_806_9,
+        ),
+        (
+            -39.412_194_877_145_126,
+            29.003_220_382_083_327,
+            -0.466_538_028_548_134_2,
+            0.506_549_476_044_837_8,
+        ),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        -7.612_508_003_367_2e-10,
+        1.293_748_287_447_791_2e-34,
+        -4.977_822_666_649_485e-4,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
+
+    // and these were 9.47e-62 and 3.62e16 in xsf, and NaN before (Arb, Wolfram)
+    let actual = [
+        xsf::hyp2f1(702.2, 161.2, 0.1188, -0.4165),
+        xsf::hyp2f1(198.4, 38.54, -105.4, -0.5366),
+    ];
+    let desired = [1.176_016_677_157_160_2e-64, -7_416_153_466.305_625];
+    np_assert_allclose!(actual, desired, rtol = 1e-9);
 }

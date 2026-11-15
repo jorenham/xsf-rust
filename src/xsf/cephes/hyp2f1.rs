@@ -958,10 +958,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
-        // Unlike in xsf, for a polynomial, the result of `hyp2f1_recur` instead if its error bound
-        // is below the estimate of `y`, or shows `y` to be less accurate.
-        let poly = neg_int_a || neg_int_b;
-        if let Some((alt, bound)) = inexact.filter(|&(_, e)| poly && e < HYP2F1_LOST) {
+        // Unlike in xsf, the result of `hyp2f1_recur` instead if its error bound is below the
+        // estimate of `y`, or shows `y` to be less accurate.
+        if let Some((alt, bound)) = inexact.filter(|&(_, e)| e < HYP2F1_LOST) {
             if !(err_full <= bound) || less_accurate(y, alt, bound) {
                 return alt;
             }
