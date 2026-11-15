@@ -258,9 +258,10 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         },
         ("hyp2f2", &[a1, a2, b1, b2, z]) => xsf::hyp2f2(a1, a2, b1, b2, z).unwrap_or(f64::NAN),
         ("hyp1f2", &[a, b1, b2, z]) => xsf::hyp1f2(a, b1, b2, z).unwrap_or(f64::NAN),
-        // p = q + 1
-        ("hyppfq", [ab @ .., z]) => {
-            let (a, b) = ab.split_at(ab.len() / 2 + 1);
+        // p = q + 1, or the p after the name
+        (name, [ab @ .., z]) if name.starts_with("hyppfq") => {
+            let p = name["hyppfq".len()..].parse();
+            let (a, b) = ab.split_at(p.unwrap_or(ab.len() / 2 + 1));
             xsf::hyppfq(a, b, *z).unwrap_or(f64::NAN)
         },
         _ => return eval_xsf_3(f, a),
