@@ -27,9 +27,11 @@ const BETA_TINY: f64 = 1e-9;
 /// Asymptotic expansion for  ln(|B(a, b)|) for a > ASYMP_FACTOR*max(|b|, 1).
 ///
 /// Returns the sign as well, instead of through the `int *sgn` out-parameter.
-fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
+///
+/// Unlike in xsf, `-b ln(a)` is `-b ln_a`, so that `ln_a = 0` gives `ln(a^b |B(a, b)|)`.
+fn lbeta_asymp(a: f64, b: f64, ln_a: f64) -> (f64, i32) {
     let (mut r, sgn) = lgam_sgn(b);
-    r -= b * a.ln();
+    r -= b * ln_a;
 
     /*
      * Evaluate the correction terms through the small ratios b/a and (1-b)/a
@@ -253,7 +255,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
 
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
-        (y, sign) = lbeta_asymp(a, b);
+        (y, sign) = lbeta_asymp(a, b, a.ln());
         return f64::from(sign) * y.exp();
     }
 
@@ -344,7 +346,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
-        (y, _) = lbeta_asymp(a, b);
+        (y, _) = lbeta_asymp(a, b, a.ln());
         return y;
     }
 
