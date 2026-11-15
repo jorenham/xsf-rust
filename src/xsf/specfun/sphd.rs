@@ -1021,8 +1021,9 @@ fn rmn2sp(
         if j < 0 {
             j = -j - 1;
         }
+        // Unlike in xsf, this is (m + 1) ... (m + j), as in the Fortran original
         let mut r1 = 1.0;
-        for j1 in 0..j {
+        for j1 in 1..=j {
             r1 *= f64::from(m + j1);
         }
         let mut r2 = 1.0;
