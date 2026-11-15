@@ -10,6 +10,7 @@ mod ellip_harm_2;
 mod factorial;
 mod hahn;
 mod hypergeometric;
+mod log_gammainc;
 mod logsumexp;
 mod ndtri_exp;
 mod orthogonal_eval;

@@ -10,6 +10,7 @@ mod ellip_harm_2;
 mod factorial;
 mod hahn;
 mod hypergeometric;
+mod log_gammainc;
 mod logsumexp;
 mod ndtri_exp;
 mod orthogonal_eval;
@@ -44,6 +45,7 @@ pub use ellip_harm_2::{ellip_harm_2, ellip_normal};
 pub use factorial::{factorial, factorial_checked, multifactorial, multifactorial_checked};
 pub use hahn::hahn_q;
 pub use hypergeometric::{hyp0f0, hyp0f1, hyp1f0};
+pub use log_gammainc::{log_gammainc, log_gammaincc};
 pub use logsumexp::{log_softmax, logsumexp, softmax};
 pub use ndtri_exp::ndtri_exp;
 pub use orthogonal_eval::{
