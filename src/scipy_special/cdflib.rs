@@ -12,8 +12,8 @@ use super::quadpack::quad_unimodal;
 use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
-    betainc_xy, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc, incbet_cf_factor,
-    lbeta, ln_igam_fac,
+    betainc_xy, fdtr, fdtr_w, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
+    incbet_cf_factor, lbeta, ln_igam_fac,
 };
 use crate::xsf::{
     bracket_root_for_cdf_inversion, erfcx, find_positive_root, find_root_chandrupatla, log1pmx,
@@ -802,14 +802,18 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     // the weights below are subnormal if `nc / 2 < MIN_POSITIVE`, where `nc` changes the CDF by
     // less than `nc / 2` relative
     if !(pnonc >= 2.0 * f64::MIN_POSITIVE) {
-        return crate::fdtr(dfn, dfd, f);
+        return fdtr(dfn, dfd, f);
     }
     if !(pnonc <= NC_MAX) {
         return f64::NAN;
     }
 
     let xnonc = pnonc / 2.0;
-    let icent = xnonc.floor().max(1.0);
+    // Unlike in cdflib, the first term `exp(-nc / 2) I_x(dfn / 2, dfd / 2)` separately if
+    // `dfn / 2 + dfd / 2 < 1 / 2`, as it can exceed the next by `~1 / (dfn / 2 + dfd / 2)`
+    // relative, past where the loop below stops, which then starts above it
+    let i_min = if dfn + dfd < 1.0 { 1.0 } else { 0.0 };
+    let icent = xnonc.floor().max(i_min + 1.0);
     let centwt = poisson_weight(icent, xnonc);
     let prod = dfn * f;
     let dsum = dfd + prod;
@@ -820,7 +824,7 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
         if prod >= eps {
             return cumchn(prod, dfn, pnonc);
         }
-        return crate::fdtr(dfn, dfd, f) * (-xnonc).exp();
+        return fdtr(dfn, dfd, f) * (-xnonc).exp();
     }
     // `dfd / dsum`, also if `prod` overflows
     let mut yy = if prod.is_finite() {
@@ -832,7 +836,8 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     // `ln` of the rounded complement would lose ~eps / min(xx, yy), which `b` or `adn` amplify
     let (lnxx, lnyy);
     if yy > 0.5 {
-        xx = prod / dsum;
+        // Unlike in cdflib, without the rounding of a subnormal `prod`
+        xx = fdtr_w(dfn, dfd, f).0;
         yy = 1.0 - xx;
         (lnxx, lnyy) = (xx.ln(), (-xx).ln_1p());
     } else {
@@ -847,7 +852,10 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     }
     let mut adn = dfn / 2.0 + icent;
     let mut aup = adn;
-    let b = dfd / 2.0;
+    // Unlike in cdflib, if `dfd / 2` is subnormal, where it rounds (e.g. to 0), the series for
+    // `b = MIN_POSITIVE` scaled by `dfd / (2 b)`, as its terms are `O(b)` (but the first if
+    // `dfn / 2 ~ b`, which is separate then)
+    let b = (dfd / 2.0).max(f64::MIN_POSITIVE);
     // If `I_x(adn, b)` underflows, the beta terms are carried as multiples of `2^scale`, since the
     // terms below `icent` can still be significant, e.g. if x is tiny.
     let (mut betdn, mut scale) = betainc_scaled(adn, b, xx, yy, lnxx, lnyy);
@@ -883,7 +891,7 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
         dnterm = dnterm * num / ((adn + b) * ldexp_f64(xx, shift));
         betdn += dnterm;
         ssum += xmult * betdn;
-        if !(xmult * betdn > eps * ssum && i > 0.0 && xmult >= f64::MIN_POSITIVE) {
+        if !(xmult * betdn > eps * ssum && i > i_min && xmult >= f64::MIN_POSITIVE) {
             break;
         }
     }
@@ -908,7 +916,12 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
         }
     }
 
-    ldexp_f64(ssum, scale)
+    let first = if i_min > 0.0 {
+        fdtr(dfn, dfd, f) * (-xnonc).exp()
+    } else {
+        0.0
+    };
+    ldexp_f64(ssum * (dfd / (2.0 * b)), scale) + first
 }
 
 /// Inverse of the noncentral F CDF with respect to `dfd`

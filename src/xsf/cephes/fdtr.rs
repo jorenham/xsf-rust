@@ -160,7 +160,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
 ///
 /// Unlike in xsf (scipy/xsf#358), `1 - w` is computed without cancellation and passed to
 /// `betainc_xy` as well.
-fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
+pub(crate) fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     let ax = a * x;
     if ax.is_infinite() && b.is_finite() {
         // Unlike in xsf, `w` is not inf / inf if `a x` overflows. Dividing by `x` first, since

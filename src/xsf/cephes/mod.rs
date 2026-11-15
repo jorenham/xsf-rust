@@ -65,7 +65,7 @@ pub(crate) use ellpj::ellpj;
 pub(crate) use ellpk::ellpk;
 pub use erfinv::*;
 pub use expn::*;
-pub(crate) use fdtr::{fdtr, fdtrc, fdtri};
+pub(crate) use fdtr::{fdtr, fdtr_w, fdtrc, fdtri};
 pub(crate) use fresnl::fresnl;
 pub(crate) use gamma::{gamma, gammasgn, lgam, lgam_sgn, lgam_stirling_corr};
 pub(crate) use gdtr::{gdtr, gdtrc};

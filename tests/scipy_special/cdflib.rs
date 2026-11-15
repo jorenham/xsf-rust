@@ -438,6 +438,34 @@ fn test_ncfdtr_tiny_dfn() {
         ],
         rtol = 1e-13
     );
+    // the first term `exp(-nc / 2) I_x(dfn / 2, dfd / 2)` is `~1 / (dfn + dfd)` times the next, or
+    // `dfd / 2` rounds, so that all terms are `O(dfd)`; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1e-308, 1e-308, 2000.0, 1e308),
+            xsf::ncfdtr(1e-308, 1e-308, 1400.0, 1e308),
+            xsf::ncfdtr(1e-308, 1e-308, 1000.0, 1e308),
+            xsf::ncfdtr(1e-10, 1e-10, 100.0, 1e5),
+            xsf::ncfdtr(1.5e-323, 1e-323, 1.0, 1.0),
+            xsf::ncfdtr(1e-307, 5e-324, 1.0, 1.0),
+        ],
+        [
+            3.508_561_193_501_441_6e-306,
+            5.280_872_943_510_046e-305,
+            3.562_288_203_370_643e-218,
+            3.522_301_887_002_290_3e-10,
+            0.242_612_263_885_053_36,
+            2.996_659_621_134_396e-17,
+        ],
+        rtol = 1e-14
+    );
+    assert_eq!(xsf::ncfdtr(1.0, 5e-324, 1.0, 1.0), 1.84e-321);
+    // `dfn f` is subnormal, but `x = dfn f / (dfd + dfn f)` is not; from Arb
+    np_assert_allclose!(
+        [xsf::ncfdtr(0.1, 1e-307, 1.0, 3e-323)],
+        [9.045_853_592_884_047e-308],
+        rtol = 1e-12
+    );
 }
 
 #[test]
