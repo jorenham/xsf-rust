@@ -249,6 +249,7 @@
 //!
 //! | Function                  | Description                           |
 //! | ------------------------- | ------------------------------------- |
+//! | [`poisson_binom_cdf`]     | Cumulative distribution function      |
 //! | [`poisson_binom_pmf_all`] | Full probability mass function        |
 //! | [`poisson_binom_cdf_all`] | Full cumulative distribution function |
 //!

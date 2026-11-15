@@ -1,5 +1,6 @@
 //! The complex `ndtr`, `log_ndtr`, `poisson_binom_{pmf,cdf}_all`, `cdf_cvm_inf`, and `cdf_cvm` are
-//! translated into pure Rust from `xsf/stats.h` (scipy/xsf@7e2417a).
+//! translated into pure Rust from `xsf/stats.h` (scipy/xsf@7e2417a), and `poisson_binom_cdf` from
+//! SciPy's `_poisson_binom_cdf_kernel` in `scipy/special/_gufuncs.cpp`.
 //!
 //! The `wilcoxon_{pmf,cdf}_all` and `wilcoxon_{pmf,cdf,sf}` functions are translated from
 //! `xsf/stats.h`. Unlike in xsf, a `k` that is out of range for `i64` (e.g. `inf`) saturates,
@@ -1110,6 +1111,7 @@ pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
 ///
 /// # See also
 /// - [`poisson_binom_pmf_all`]: Full PMF of a Poisson-Binomial distribution
+/// - [`poisson_binom_cdf`]: CDF at a single `k`
 #[must_use]
 #[inline]
 pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
@@ -1124,6 +1126,23 @@ pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
     }
     res[n] = 1.0;
     res
+}
+
+/// Poisson-Binomial cumulative distribution function
+///
+/// The probability of at most $k$ successes in the $n$ Bernoulli trials with the success
+/// probabilities `p`: $0$ if $k < 0$, and $1$ if $k \ge n$.
+///
+/// Corresponds to [`scipy.special.poisson_binom_cdf`][scipy] (new in SciPy 2.0).
+///
+/// [scipy]: https://scipy.github.io/devdocs/reference/generated/scipy.special.poisson_binom_cdf.html
+///
+/// # See also
+/// - [`poisson_binom_cdf_all`]: Full CDF, for many `k` with the same `p`
+#[must_use]
+#[inline]
+pub fn poisson_binom_cdf(k: i64, p: &[f64]) -> f64 {
+    take_from_discrete_cdf(&poisson_binom_cdf_all(p), k)
 }
 
 fn take_from_pmf(pmf: &[f64], k: i64) -> f64 {
