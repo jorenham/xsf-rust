@@ -974,9 +974,9 @@ fn test_hyp1f1_large_neg_x() {
 
 #[test]
 fn test_hyp1f1_neg_x_near_pole() {
-    // Arb; b - a is within 1e-14 of -31, -14, and -82 (where it rounds to -82), and 1e-20 and
-    // 6e-17 (above) of -1, i.e. near a zero of 1/Gamma(b - a), and these were -3.9e-75,
-    // -8.0e-118, -1.3e-153, 0, and 0
+    // Arb; b - a is within 1e-14 of -31, -14, and -82 (where it rounds to -82), 1e-20 and 6e-17
+    // (above) of -1, and -1 - 8.3e-17 (rounding to -1) for the last two, i.e. near a zero of
+    // 1/Gamma(b - a), and these were -3.9e-75, -8.0e-118, -1.3e-153, 0, 0, -0.0, and -0.0
     let abx = [
         (31.7, 0.699_999_999_999_988_6, -1000.0),
         (
@@ -991,6 +991,8 @@ fn test_hyp1f1_neg_x_near_pole() {
         ),
         (1.0, -1e-20, -1000.0),
         (0.3, -0.7, -50_000.0),
+        (1.1, 0.1, -1e5),
+        (1.1, 0.1, -1e6),
     ];
     let expected = [
         2.580_045_808_721_416_3e-75,
@@ -998,6 +1000,8 @@ fn test_hyp1f1_neg_x_near_pole() {
         5.634_897_230_748_735e-34,
         -1.002_006_024_120_725_1e-3,
         9.236_244_627_873_464e-18,
+        2.505_080_704_702_706_7e-21,
+        1.989_816_934_354_528_4e-22,
     ];
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);

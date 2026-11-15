@@ -1999,10 +1999,10 @@ mod tests {
     use super::chgm_neg_x_asymptotic;
 
     #[test]
-    fn test_chgm_neg_x_asymptotic_declines_poles() {
-        // `b - a` is -2, and rounds to -1 (`ln_gamma` declines both)
+    fn test_chgm_neg_x_asymptotic_poles() {
+        // `b - a` is -2 (a pole of `Gamma`), and -1 - 8.3e-17 (next to one)
         assert_eq!(chgm_neg_x_asymptotic(-1e5, 2.5, 0.5), None);
-        assert_eq!(chgm_neg_x_asymptotic(-1e5, 1.1, 0.1), None);
+        assert!(chgm_neg_x_asymptotic(-1e5, 1.1, 0.1).is_some());
         assert!(chgm_neg_x_asymptotic(-1e5, 1.5, 1.0).is_some());
     }
 }
