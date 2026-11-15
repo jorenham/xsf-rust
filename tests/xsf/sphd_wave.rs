@@ -177,3 +177,18 @@ fn test_segv_seq_too_long() {
 fn test_segv_seq_n_lt_m() {
     let _ = xsf::oblate_segv_seq(3, 1, 1.0);
 }
+
+#[test]
+fn test_prolate_radial2_even_m() {
+    // (m, n, c, x) and the value, from the 50-digit reference of tools/accuracy
+    let args = [
+        (2, 2, 6.221_945_950_927_403, 1.030_435_083_556_604_3),
+        (4, 4, 7.528_671_585_349_071_5, 1.187_896_200_379_608_5),
+    ];
+    let want = [-0.496_941_465_039_367_9, -0.136_632_067_090_712_2];
+    for ((m, n, c, x), want) in args.into_iter().zip(want) {
+        let (got, _) = xsf::prolate_radial2_nocv(m, n, c, x);
+        let err = (got - want).abs() / want.abs();
+        assert!(err <= 1e-11, "{m} {n}: {err}");
+    }
+}
