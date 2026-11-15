@@ -172,14 +172,15 @@ lists the functions that SciPy computes with another library than xsf.
 | [`hermitenorm`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hermitenorm.html)                   |                                                     |
 | [`huber`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.huber.html)                               | `huber`                                             |
 |                                                                                                                        | `hyp0f0`                                            |
-| [`hyp0f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html)                             | `hyp0f1`, `hyppfq`                                  |
+| [`hyp0f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html)                             | `hyp0f1`                                            |
 |                                                                                                                        | `hyp1f0`                                            |
-| [`hyp1f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html)                             | `hyp1f1`, `hyppfq`                                  |
+| [`hyp1f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html)                             | `hyp1f1`                                            |
 |                                                                                                                        | `hyp1f2`                                            |
-| [`hyp2f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp2f1.html)                             | `hyp2f1`, `hyppfq`                                  |
+| [`hyp2f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp2f1.html)                             | `hyp2f1`                                            |
 |                                                                                                                        | `hyp2f2`                                            |
 |                                                                                                                        | `hyp3f2`                                            |
 | [`hyperu`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyperu.html)                             | `hypu`                                              |
+|                                                                                                                        | `hyppfq`                                            |
 | [`i0`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0.html)                                     | `bessel_i0`                                         |
 | [`i0e`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i0e.html)                                   | `bessel_i0e`                                        |
 | [`i1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.i1.html)                                     | `bessel_i1`                                         |
