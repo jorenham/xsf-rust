@@ -125,3 +125,19 @@ fn test_struve_h_l_large_order() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_struve_l_large_z_iv() {
+    // the large-z expansion, where `iv` of large order was the largest error (Arb)
+    let actual = [
+        xsf::struve_l(-520.094_865_353_031_1, 361.026_378_627_839_9),
+        xsf::struve_l(-441.512_943_384_891_46, 305.847_377_211_526_63),
+        xsf::struve_l(-1_010.337_195_294_990_9, 701.198_096_234_033_9),
+    ];
+    let expected = [
+        35_323_083_951.276_2,
+        261_643_267.355_977_83,
+        5.708_755_380_857_371e21,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}

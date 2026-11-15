@@ -93,7 +93,30 @@ fn test_bessel_i_large_v_vanishing_term() {
         6.238_986_295_989_078e70,
         3.311_216_933_797_801_6e55,
     ];
-    np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+    np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
+fn test_bessel_i_large_v_cancellation() {
+    // Arb: the terms of v eta in the uniform asymptotic expansion are large and cancel
+    let actual = xsf::bessel_i(2_277.891_659_470_678, 1_606.489_035_500_860_8);
+    np_assert_allclose!(&[actual], &[2.428_397_242_152_805e72], rtol = 1e-15);
+}
+
+#[test]
+fn test_bessel_i_huge_v_laplace_limit() {
+    // x / v near the Laplace limit, where eta = 0, but v eta still over- or underflows
+    assert_eq!(xsf::bessel_i(1e100, 6.627_434_193_491_815e99), 0.0);
+    assert_eq!(
+        xsf::bessel_i(1e154, 6.627_434_193_491_816e153),
+        f64::INFINITY
+    );
+    assert_eq!(xsf::bessel_i(1e155, 6.627_434_193_491_815e154), 0.0);
+    // 2 pi v overflows
+    assert_eq!(
+        xsf::bessel_i(1e308, 6.627_434_193_491_816e307),
+        f64::INFINITY
+    );
 }
 
 #[test]
@@ -111,7 +134,7 @@ fn test_bessel_i_large_v_near_overflow() {
         1.087_560_322_184_507_3e308,
         1.042_772_683_333_504_7e308,
     ];
-    np_assert_allclose!(&actual, &expected, rtol = 1e-12);
+    np_assert_allclose!(&actual, &expected, rtol = 1e-15);
     // mpmath: 1.1e310
     assert_eq!(xsf::bessel_i(100.0, 725.0), f64::INFINITY);
 }
