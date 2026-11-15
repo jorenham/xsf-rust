@@ -5,14 +5,15 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::SQRT_EPSILON;
-use crate::xsf::cephes::beta::lbeta;
-use crate::xsf::cephes::chdtr::chdtr;
+use core::f64::consts::LN_2;
+
+use crate::utils::{EGAMMA, SQRT_EPSILON};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
 use crate::xsf::cephes::incbi::incbi;
-use crate::xsf::cephes::lgam1p;
+use crate::xsf::cephes::{lgam1p, ln_a_beta, psi};
+use crate::xsf::expint::exp1;
 
 /// Complemented F distribution
 ///
@@ -55,14 +56,23 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
     if (a <= 0.0) || (b <= 0.0) || (x < 0.0) {
         return f64::NAN;
     }
+    let (w, w1) = fdtr_w(a, b, x);
     if b < 2.0 * f64::MIN_POSITIVE && a < f64::INFINITY && 0.0 < x && x < f64::INFINITY {
         // Unlike in xsf, the limit `A / (A + B)` of `I_y(B, A)` as `B -> 0`, as in `fdtr`
         a / (a + b)
     } else if let Some((_, q)) = fdtr_tiny_y(a, b, x) {
         q
+    } else if b == f64::INFINITY {
+        // Unlike in xsf, where `w` is NaN: the chi-square survival function of `a x`, the limit
+        fdtr_chi2(a, x).1
+    } else if let Some((q, _)) = fdtr_tiny_y(b, a, 1.0 / x).filter(|_| x >= f64::MIN_POSITIVE) {
+        // Unlike in xsf, likewise `fdtr(b, a, 1 / x)` if `a x / b` is subnormal
+        q
+    } else if let Some((_, q)) = fdtr_tiny_w(a, b, x, w) {
+        // Unlike in xsf, also if `1 / x` overflows, or only `a x` is subnormal
+        q
     } else {
-        let (w1, w) = fdtr_w(a, b, x);
-        betainc_xy(0.5 * b, 0.5 * a, w, w1)
+        fdtr_betainc(b, a, w1, w)
     }
 }
 
@@ -125,34 +135,62 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
         b / (a + b)
     } else if let Some((p, _)) = fdtr_tiny_y(a, b, x) {
         p
+    } else if let Some((p, _)) = fdtr_tiny_w(a, b, x, w) {
+        p
     } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
-        betainc_xy(0.5 * a, 0.5 * b, w, w1)
-    } else if !(ax < f64::EPSILON && b < f64::INFINITY) {
-        // Unlike in xsf, if `a x` or `w` is subnormal, as they round: the chi-square CDF of `a x`,
-        // as `b > 1e291` or inf
-        chdtr(a, ax)
-    } else if x == 0.0 {
-        0.0
+        fdtr_betainc(a, b, w, w1)
+    } else if x > 0.0 {
+        // Unlike in xsf, if `w` is subnormal, as it rounds, while `b` is inf, or `a x >= eps`, so
+        // that `b > 1e291`: the chi-square CDF of `a x`
+        fdtr_chi2(a, x).0
     } else {
-        // likewise, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`
-        let (ha, hb) = (0.5 * a, 0.5 * b);
-        // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
-        let ln_rest = ha * (a.ln() - (b + ax).ln()) - lbeta(ha, hb) - ha.ln();
-        // `x^A` apart, unless it underflows, while the rest can be large
-        let x_ha = x.powf(ha);
-        if x_ha >= f64::MIN_POSITIVE {
-            x_ha * ln_rest.exp()
-        } else {
-            (ha * x.ln() + ln_rest).exp()
-        }
+        0.0
     }
+}
+
+/// `(fdtr, fdtrc)` if `a x` or `w` is subnormal (as they round), `w < eps` and `b` is finite, else
+/// `None`
+///
+/// Unlike in xsf, the first term `w^A / (A B(A, B))` of DLMF 8.17.7, with `A = a / 2`, and with
+/// [`ln_a_beta`], so that `fdtrc = O(A)` keeps its digits for a tiny `A`.
+fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<(f64, f64)> {
+    let ax = a * x;
+    let tiny = ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON && ax < f64::EPSILON;
+    if !(tiny && b < f64::INFINITY && x > 0.0) {
+        return None;
+    }
+    let (ha, hb) = (0.5 * a, 0.5 * b);
+    if a < 2.0 * f64::MIN_POSITIVE {
+        // `A` is subnormal and rounds: `ln(A B(A, B)) = ln(1 + A / B) - A (psi(1 + B) - psi(1))` up
+        // to `O(A^2)`, with the `A` terms as `a (...) / 2`
+        let ln_w = x.ln() + a.ln() - (b + ax).ln();
+        let ln_p = 0.5 * (a * (ln_w + EGAMMA + psi(1.0 + hb))) - (a / b).ln_1p();
+        return Some((ln_p.exp(), -ln_p.exp_m1()));
+    }
+    let ln_ab = if b < 2.0 * f64::MIN_POSITIVE {
+        // `A B(A, B) = 1 + A / B` up to a relative `O(B)`, without the rounding of `B`
+        (a / b).ln_1p()
+    } else {
+        ln_a_beta(ha, hb)
+    };
+    // `ln(w^A / (x^A A B(A, B)))`, with `ln(a / (b + a x))`, which can underflow
+    let ln_rest = ha * (a.ln() - (b + ax).ln()) - ln_ab;
+    let ln_p = ha * x.ln() + ln_rest;
+    // `x^A` apart, unless it underflows, while the rest can be large
+    let x_ha = x.powf(ha);
+    let p = if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        ln_p.exp()
+    };
+    Some((p, -ln_p.exp_m1()))
 }
 
 /// `(w, 1 - w)` with `w = a x / (b + a x)`
 ///
 /// Unlike in xsf (scipy/xsf#358), `1 - w` is computed without cancellation and passed to
 /// `betainc_xy` as well.
-fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
+pub(crate) fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     let ax = a * x;
     if ax.is_infinite() && b.is_finite() {
         // Unlike in xsf, `w` is not inf / inf if `a x` overflows. Dividing by `x` first, since
@@ -161,7 +199,71 @@ fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
         (1.0 / (1.0 + r), r / (1.0 + r))
     } else {
         let s = b + ax;
-        (ax / s, b / s)
+        // Unlike in xsf, without the rounding of a subnormal `a x`, in the division order that
+        // neither underflows nor overflows spuriously (at most one does)
+        let w = if ax < f64::MIN_POSITIVE {
+            let (u, v) = (a / s * x, x / s * a);
+            if u.is_finite() && v.is_finite() {
+                u.max(v)
+            } else {
+                u.min(v)
+            }
+        } else {
+            ax / s
+        };
+        (w, b / s)
+    }
+}
+
+/// `I_x(p / 2, q / 2)`, given `y = 1 - x`
+///
+/// Unlike in xsf, also if `q` is subnormal, where `q / 2` rounds (e.g. to 0), and
+/// `I_x(P, Q) = O(Q)` for `y > 0`. Then `(P + Q) / Q I_x(P, Q)`, whose log has a derivative in `Q`
+/// of about `|ln(y)| + ln(P + 1)`, is evaluated at `Q0 = MIN_POSITIVE` instead.
+fn fdtr_betainc(p: f64, q: f64, x: f64, y: f64) -> f64 {
+    let q0 = 2.0 * f64::MIN_POSITIVE;
+    if q < q0 && y > 0.0 {
+        q / q0 * ((p + q0) / (p + q)) * betainc_xy(0.5 * p, 0.5 * q0, x, y)
+    } else {
+        betainc_xy(0.5 * p, 0.5 * q, x, y)
+    }
+}
+
+/// `(chdtr(a, a x), chdtrc(a, a x))`, the limits as `b -> inf`
+///
+/// Unlike in xsf, also if `a x` is subnormal or underflows, as it rounds. Then
+/// `P = (a x / 2)^A / Gamma(A + 1)` with `A = a / 2`, up to a relative `~a x` (DLMF 8.7.1).
+fn fdtr_chi2(a: f64, x: f64) -> (f64, f64) {
+    let ax = a * x;
+    if ax >= 2.0 * f64::MIN_POSITIVE {
+        return igam_half(a, 0.5 * ax);
+    } else if x == 0.0 {
+        return (0.0, 1.0);
+    }
+    let ha = 0.5 * a;
+    // `ln((a / 2)^A / Gamma(A + 1))`, with `x^A` apart unless it underflows, as in `fdtr`, and
+    // with `a` instead of `A` in the products, as `A` can round
+    let ln_rest = a * (0.5 * (a.ln() - LN_2)) - lgam1p(ha);
+    let ln_p = a * (0.5 * x.ln()) + ln_rest;
+    let x_ha = x.powf(ha);
+    let p = if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        ln_p.exp()
+    };
+    (p, -ln_p.exp_m1())
+}
+
+/// `(P(d / 2, t), Q(d / 2, t))`
+///
+/// Unlike in xsf, also if `d` is subnormal, where `d / 2` can round. Then `Q = d / 2 E1(t)` for
+/// `t > 0`, up to a relative `O(d)` (DLMF 8.4.4, 5.7.1).
+fn igam_half(d: f64, t: f64) -> (f64, f64) {
+    if d < 2.0 * f64::MIN_POSITIVE && t > 0.0 {
+        let q = d * (0.5 * exp1(t));
+        (1.0 - q, q)
+    } else {
+        (igam(0.5 * d, t), igamc(0.5 * d, t))
     }
 }
 
@@ -183,7 +285,7 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
     let (ha, hb) = (0.5 * a, 0.5 * b);
     if ha <= 1.0 / SQRT_EPSILON {
         let y0 = f64::MIN_POSITIVE;
-        let (p0, q0) = (betainc_xy(ha, hb, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
+        let (p0, q0) = (fdtr_betainc(a, b, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
         // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
         let ln_r = b * (0.5 * (b.ln() - a.min(x).ln() - (a.max(x) * y0).ln()));
         // fdtr = p0 + q0 (1 - (y / y0)^B) has no cancellation
@@ -193,7 +295,8 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
     let s = 0.5 + (0.25 * b - 0.5) / a;
     let t = s * (b / x);
     if t >= f64::MIN_POSITIVE {
-        return Some((igamc(hb, t), igam(hb, t)));
+        let (p, q) = igam_half(b, t);
+        return Some((q, p));
     }
     // P(B, t) = t^B / Gamma(1 + B) for tiny t
     let ln_p = b * (0.5 * (s.ln() + b.ln() - x.ln())) - lgam1p(hb);

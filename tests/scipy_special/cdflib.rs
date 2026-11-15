@@ -416,6 +416,145 @@ fn test_ncfdtr_ncfdtri() {
 }
 
 #[test]
+fn test_ncfdtr_tiny_dfn() {
+    // `dfn / 2` rounds to 0, or is lost in `dfn / 2 + icent`, while `I_x(dfn / 2, dfd / 2)` depends
+    // on it relatively, e.g. `~dfd / dfn` if both are tiny; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(5e-324, 1e-300, 1.0, 1.0),
+            xsf::ncfdtr(5e-324, 2.0, 1.0, f64::MAX),
+            xsf::ncfdtr(1e-310, 1e-300, 3.0, 1.0),
+            xsf::ncfdtr(1e-80, 1e-290, 2.0, 1e-20),
+            xsf::ncfdtr(1e-180, 1e-184, 0.75, 1e12),
+            xsf::ncfdtr(0.003, 0.002, 300.0, 0.008),
+        ],
+        [
+            0.606_530_659_712_633_4,
+            0.606_530_659_712_633_5,
+            0.223_130_160_126_116_8,
+            3.678_794_411_714_423e-211,
+            6.872_205_567_352_987e-5,
+            2.872_768_058_013_942_6e-66,
+        ],
+        rtol = 1e-13
+    );
+    // the first term `exp(-nc / 2) I_x(dfn / 2, dfd / 2)` is `~1 / (dfn + dfd)` times the next, or
+    // `dfd / 2` rounds, so that all terms are `O(dfd)`; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1e-308, 1e-308, 2000.0, 1e308),
+            xsf::ncfdtr(1e-308, 1e-308, 1400.0, 1e308),
+            xsf::ncfdtr(1e-308, 1e-308, 1000.0, 1e308),
+            xsf::ncfdtr(1e-10, 1e-10, 100.0, 1e5),
+            xsf::ncfdtr(1.5e-323, 1e-323, 1.0, 1.0),
+            xsf::ncfdtr(1e-307, 5e-324, 1.0, 1.0),
+        ],
+        [
+            3.508_561_193_501_441_6e-306,
+            5.280_872_943_510_046e-305,
+            3.562_288_203_370_643e-218,
+            3.522_301_887_002_290_3e-10,
+            0.242_612_263_885_053_36,
+            2.996_659_621_134_396e-17,
+        ],
+        rtol = 1e-14
+    );
+    assert_eq!(xsf::ncfdtr(1.0, 5e-324, 1.0, 1.0), 1.84e-321);
+    // `dfn f` is subnormal, but `x = dfn f / (dfd + dfn f)` is not; from Arb
+    np_assert_allclose!(
+        [xsf::ncfdtr(0.1, 1e-307, 1.0, 3e-323)],
+        [9.045_853_592_884_047e-308],
+        rtol = 1e-12
+    );
+}
+
+#[test]
+fn test_ncfdtr_tiny_y() {
+    // `y = dfd / (dfd + dfn f)` is subnormal or underflows, where the CDF is `O(dfd)`; from Arb
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1.0, 1e-300, 1.0, 1e30),
+            xsf::ncfdtr(3.0, 1e-300, 10.0, 1e30),
+            xsf::ncfdtr(3.0, 1e-307, 10.0, 2e10),
+            xsf::ncfdtr(2.0, 1e-10, 5.0, 1e305),
+            xsf::ncfdtr(1e3, 1e-5, 3000.0, 1e306),
+        ],
+        [
+            3.801_930_019_202_814_4e-298,
+            3.793_291_507_335_005e-298,
+            3.647_089_212_193_191_6e-305,
+            3.622_445_085_184_745_5e-8,
+            0.003_567_790_470_883_453_7,
+        ],
+        rtol = 1e-14
+    );
+    // also with a subnormal `dfd`; Arb gives 1.8377721e-321
+    assert_eq!(xsf::ncfdtr(3.0, 5e-324, 10.0, 2.0), 1.84e-321);
+    // also where `dfn y` is not small; from mpmath, as Arb certifies too few bits here (the first
+    // two are `exp(-1 / f)`, the limit as `dfn -> inf`)
+    np_assert_allclose!(
+        [
+            xsf::ncfdtr(1e308, 2.0, 1.0, 2.0),
+            xsf::ncfdtr(1e308, 2.0, 1.0, 0.95),
+            xsf::ncfdtr(f64::MAX, 1e-15, 0.5, 2.0),
+            xsf::ncfdtr(1e302, 1e-16, 100.0, 1.5),
+        ],
+        [
+            0.606_530_659_712_633_4,
+            0.349_018_070_931_319_9,
+            1.767_392_754_556_436_8e-14,
+            1.868_137_905_583_563_4e-15,
+        ],
+        rtol = 1e-14
+    );
+    // also where `dfn / (dfd + dfn f)` overflows; from mpmath, rounded to the nearest subnormal
+    assert_eq!(
+        xsf::ncfdtr(1e308, 1e-310, 1.0, 1e-310),
+        2.798_867_973_880_6e-311
+    );
+}
+
+#[test]
+fn test_ncfdtr_huge_dfn() {
+    // where `-ln(B(dfn / 2 + i, dfd / 2))` cancels `dfd / 2 ln(y)`; from Arb
+    np_assert_allclose!(
+        [xsf::ncfdtr(5.623_413_251_903_491e303, 5.0, 1.0, 0.5)],
+        [0.075_235_246_146_512_18],
+        rtol = 1e-15
+    );
+}
+
+#[test]
+fn test_ncfdtr_huge_dfd() {
+    // where `-ln(B(dfn / 2 + i, dfd / 2))` cancels `(dfn / 2 + i) ln(x)` in the terms of the
+    // recurrences; from Arb
+    let p = [
+        xsf::ncfdtr(0.05, 1e300, 16.0, 400.0),
+        xsf::ncfdtr(1.0, 1e250, 24.0, 32.0),
+        xsf::ncfdtr(0.1, 1e200, 2000.0, 20001.0),
+        xsf::ncfdtr(
+            2.455_720_872_257_285_6e-14,
+            3.905_370_109_048_817_7e241,
+            0.001_165_616_947_566_066_6,
+            110_554_825_157.021_12,
+        ),
+    ];
+    let p_ref = [
+        0.720_886_832_696_006_1,
+        0.775_737_020_386_241,
+        0.504_460_496_202_887,
+        0.999_418_151_467_391_6,
+    ];
+    np_assert_allclose!(p, p_ref, rtol = 4e-15);
+    // d ln(p) / d ln(f) ~ dfn / 2 here, so the inverse has 2 / dfn times the error of `ncfdtr`
+    np_assert_allclose!(
+        [xsf::ncfdtri(0.001, 1e200, 0.01, 0.9)],
+        [7.559_458_169_039_486e-85],
+        rtol = 7e-11
+    );
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [

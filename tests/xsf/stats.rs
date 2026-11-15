@@ -630,6 +630,89 @@ fn test_fdtr_fdtrc_subnormal_1mw() {
 }
 
 #[test]
+fn test_fdtrc_subnormal_w() {
+    // reference values from Arb; `w = a x / (b + a x)` is subnormal or underflows, or `b = inf`,
+    // where `fdtrc` is the chi-square survival function of `a x`
+    let abx = [
+        (3.0, f64::INFINITY, 0.5),
+        (1e-20, f64::INFINITY, 1.0),
+        (0.01, 1e300, 1e-30),
+        (0.5, 1e308, 1e-8),
+        (1e-10, 1e300, 1e-20),
+        // `a x` is subnormal or underflows
+        (0.001, f64::INFINITY, 5e-324),
+        (2.7e-185, f64::INFINITY, 3.96e-318),
+        (1e-20, f64::INFINITY, 1e-310),
+    ];
+    let q = [
+        0.682_270_330_336_212_5,
+        2.308_381_668_776_966_3e-19,
+        0.308_584_120_241_167_6,
+        0.992_198_754_982_112_5,
+        3.459_674_209_291_373e-9,
+        0.313_213_691_198_101_83,
+        1.560_528_095_486_543e-182,
+        3.799_845_061_018_467e-18,
+    ];
+    xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtrc(a, b, x)), &q, rtol = 1e-14);
+    let p = xsf::fdtr(0.001, f64::INFINITY, 5e-324);
+    xsref::np_assert_allclose!(&[p], &[0.686_786_308_801_898_2], rtol = 1e-14);
+    // `a / 2` rounds; Arb gives 1.1026785e-320, i.e. 2232 times the smallest subnormal
+    assert_eq!(xsf::fdtrc(1.5e-323, f64::INFINITY, 5e-324), 1.103e-320);
+    // `a x` is just below `2 MIN_POSITIVE`; Arb gives 8.7427288e-321
+    assert_eq!(
+        xsf::fdtrc(2.5e-323, f64::INFINITY, 1_801_439_850_948_198.2),
+        8.745e-321
+    );
+    assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 1.0), 1.0);
+    assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 0.0), 0.0);
+    assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 0.0), 1.0);
+    // `a / 2` rounds, while `a x` is normal, or `fdtrc` is the gamma limit `Q(a / 2, t)` as `b` is
+    // large; Arb gives 1.7482875e-321 and 8.7427288e-321
+    assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 1e16), 1.75e-321);
+    assert_eq!(
+        xsf::fdtrc(2.5e-323, 1e20, 1_801_439_850_948_198.2),
+        8.745e-321
+    );
+    for (x, q) in [(0.0, 1.0), (1e-310, 1.0), (f64::INFINITY, 0.0)] {
+        assert_eq!(xsf::fdtrc(3.0, f64::INFINITY, x), q);
+    }
+}
+
+#[test]
+fn test_fdtr_tiny_w() {
+    // `w` underflows or `a x` is subnormal, with a finite `b`, where `fdtrc = O(a)` for a tiny (or
+    // subnormal) `a`, or `fdtr = O(b)` for a subnormal `b`; from Arb
+    let p = [
+        xsf::fdtrc(1e-307, 1.0, 5e-324),
+        xsf::fdtrc(1e-308, 1.0, 1e-320),
+        xsf::fdtrc(1e-310, 1e308, 1e-310),
+        xsf::fdtrc(4.4e-308, 1e308, 1e-310),
+        xsf::fdtrc(1e-20, 1.0, 1e-320),
+        xsf::fdtrc(1e-10, 1.0, 1e-320),
+        xsf::fdtrc(6e-5, 1.0, 1e-315),
+        xsf::fdtrc(3e-4, 0.01, 1e-315),
+        xsf::fdtrc(0.01, 1e45, 1e-313),
+        xsf::fdtr(1e-10, 1.0, 1e-320),
+        xsf::fdtr(6e-307, 2.5e-323, 5e-324),
+    ];
+    let desired = [
+        7.263_599_949_158_365e-305,
+        7.237_048_719_471_299e-306,
+        7.138_593_445_859_812e-308,
+        3.127_590_211_779_119_6e-305,
+        3.921_326_185_559_873e-18,
+        3.806_196_858_474_085_4e-8,
+        0.021_850_396_135_364_984,
+        0.129_668_149_313_479_72,
+        0.973_408_713_466_907_7,
+        0.999_999_961_938_031_4,
+        4.117_213_715_343_721e-17,
+    ];
+    xsref::np_assert_allclose!(&p, &desired, rtol = 1e-14);
+}
+
+#[test]
 fn test_chdtr_fdtr_subnormal() {
     // reference values from mpmath; `x / 2`, `a x` or `w = a x / (b + a x)` is subnormal and rounds
     let p = [
@@ -679,6 +762,26 @@ fn test_chdtr_fdtr_subnormal() {
     assert_eq!(xsf::ncfdtr(3.0 * tiny, 2.0 * tiny, 0.0, 1.0), 0.4);
     let q = xsf::fdtrc(16.0 * tiny, f64::MIN_POSITIVE, 1e-127);
     xsref::np_assert_allclose!(&[q], &[3.552_713_678_800_488_3e-15], rtol = 1e-15);
+    // from Arb; the small `fdtr` or `fdtrc` that is `O(df)` for the subnormal `df`
+    let pq = [
+        xsf::fdtr(1e-300, tiny, 1.0),
+        xsf::fdtr(1e-300, tiny, 1e300),
+        xsf::fdtrc(tiny, 1e-300, 1.0),
+        xsf::fdtrc(tiny, 1e-300, 1e-10),
+        xsf::fdtrc(3.0 * tiny, 1e-300, 1.0),
+        xsf::fdtrc(tiny, 1e-18, 1.0),
+        xsf::fdtrc(1e-310, 1.0, 1.0),
+    ];
+    let pq_ref = [
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        4.940_656_458_412_465e-24,
+        1.482_196_937_523_739_7e-23,
+        4.940_656_458_412_467e-306,
+        3.575_938_365_946_359e-308,
+    ];
+    xsref::np_assert_allclose!(&pq, &pq_ref, rtol = 1e-15);
 }
 
 #[test]
@@ -736,6 +839,25 @@ fn test_fdtr_stdtr_huge_df() {
     let p = [xsf::stdtr(1e20, -3.0), xsf::stdtr(1e20, 3.0)];
     let q = 0.001_349_898_031_630_094_6;
     xsref::np_assert_allclose!(&p, &[q, 1.0 - q], rtol = 1e-14);
+}
+
+#[test]
+fn test_fdtr_fdtrc_huge_dfn() {
+    // `dfn = 1e300`, where `-ln(B(dfn / 2, dfd / 2))` cancels `dfd / 2 ln(1 - w)`; from Arb
+    let bx = [(5.0, 0.5), (5.0, 2.0), (0.5, 0.5)];
+    let p = [
+        0.075_235_246_146_512_18,
+        0.776_495_071_123_322_7,
+        0.153_513_595_808_322_47,
+    ];
+    let q = [
+        0.924_764_753_853_487_8,
+        0.223_504_928_876_677_3,
+        0.846_486_404_191_677_5,
+    ];
+    let rtol = 1e-15;
+    xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtr(1e300, b, x)), &p, rtol = rtol);
+    xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtrc(1e300, b, x)), &q, rtol = rtol);
 }
 
 #[test]

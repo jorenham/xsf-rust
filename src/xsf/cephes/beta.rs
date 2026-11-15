@@ -12,12 +12,12 @@ use crate::utils::{LN_SQRT_TAU, is_nonpos_int, neg_one_pow};
 use crate::xsf::cephes::consts::{MAXGAM, MAXLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::incbet::incbet_corr;
-use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, rgamma};
+use crate::xsf::cephes::{gamma, gammasgn, lgam, lgam_ratio, lgam_sgn, lgam1p, psi, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::{PI, TAU};
 
-const BETA_ASYMP_FACTOR: f64 = 1e6;
+pub(super) const BETA_ASYMP_FACTOR: f64 = 1e6;
 /// Below this `|b / a|`, `lbeta_ratio` uses `lgam_ratio`, and at or above it, for `a, b > 0`,
 /// Stirling's formula
 const STIRLING_RATIO: f64 = 0.125;
@@ -27,9 +27,12 @@ const BETA_TINY: f64 = 1e-9;
 /// Asymptotic expansion for  ln(|B(a, b)|) for a > ASYMP_FACTOR*max(|b|, 1).
 ///
 /// Returns the sign as well, instead of through the `int *sgn` out-parameter.
-fn lbeta_asymp(a: f64, b: f64) -> (f64, i32) {
+///
+/// Unlike in xsf, `-b ln(a)` is `-b ln_a`, so that `ln_a = 0` gives `ln(a^b |B(a, b)|)` (see
+/// `ln_pow_beta`).
+fn lbeta_asymp(a: f64, b: f64, ln_a: f64) -> (f64, i32) {
     let (mut r, sgn) = lgam_sgn(b);
-    r -= b * a.ln();
+    r -= b * ln_a;
 
     /*
      * Evaluate the correction terms through the small ratios b/a and (1-b)/a
@@ -253,7 +256,7 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
 
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
-        (y, sign) = lbeta_asymp(a, b);
+        (y, sign) = lbeta_asymp(a, b, a.ln());
         return f64::from(sign) * y.exp();
     }
 
@@ -344,7 +347,7 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
-        (y, _) = lbeta_asymp(a, b);
+        (y, _) = lbeta_asymp(a, b, a.ln());
         return y;
     }
 
@@ -384,4 +387,28 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     }
 
     y.ln()
+}
+
+/// `ln(a^b B(a, b))` for `a > BETA_ASYMP_FACTOR max(b, 1)` and `b > 0`, without the cancellation of
+/// `lbeta(a, b) + b ln(a)`, as `lbeta(a, b) = lgam(b) - b ln(a) + O(b^2 / a)` there
+pub(crate) fn ln_pow_beta(a: f64, b: f64) -> f64 {
+    lbeta_asymp(a, b, 0.0).0
+}
+
+/// Below this `a`, [`ln_a_beta`] uses Simpson's rule, which errs by `~a^5 / 100`, instead of
+/// `lbeta`, which loses `~|ln(a)| eps` against `ln(a)`
+const LN_A_BETA_TINY: f64 = 1e-3;
+
+/// `ln(a B(a, b))`, also where it is `O(a)`, for `a, b > 0`
+///
+/// For a small `a`, `a B(a, b) = (1 + a / b) Gamma(1 + a) Gamma(1 + b) / Gamma(1 + b + a)`, where
+/// `ln(Gamma(1 + b + a) / Gamma(1 + b))` is the integral of `psi` over `[1 + b, 1 + b + a]`.
+pub(crate) fn ln_a_beta(a: f64, b: f64) -> f64 {
+    if a < LN_A_BETA_TINY {
+        let c = 1.0 + b;
+        let int_psi = a / 6.0 * (psi(c) + 4.0 * psi(c + 0.5 * a) + psi(c + a));
+        (a / b).ln_1p() + lgam1p(a) - int_psi
+    } else {
+        lbeta(a, b) + a.ln()
+    }
 }
