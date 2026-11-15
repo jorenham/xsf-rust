@@ -1,6 +1,12 @@
 # /// script
 # requires-python = ">=3.15"
-# dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2", "python-flint==0.9.0"]
+# dependencies = [
+#   "gmpy2==2.3.2",
+#   "mpmath==1.4.1",
+#   "numpy==2.5.4",
+#   "python-flint==0.9.0",
+#   "scipy==1.18.1",
+# ]
 # ///
 """Generate docs/accuracy.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
 
@@ -14,7 +20,8 @@ Steps:
 1. Generate the inputs of every domain in `specs.py` (seeded, so reproducible).
 2. Evaluate them with xsf-rust and Rust std (`cargo run` of the dump program in this
    directory), and with xsf (C++), using `harness.cpp` compiled with `g++ -O2` against
-   the xsf commit `XSF_COMMIT`, which is downloaded into `.cache/`.
+   the xsf commit `XSF_COMMIT`, which is downloaded into `.cache/`; where xsf lacks the
+   function, with SciPy or NumPy instead (see `scipy_funcs.py`).
 3. Compute the mpmath references in parallel (with `--jobs` worker processes, 8 by default);
    these are cached in `.cache/refs/`, keyed by the inputs, the source of the reference
    function (normalized, see `_source`), and the mpmath version.
@@ -55,6 +62,7 @@ from typing import Final, NamedTuple, Never
 
 import flint
 import mpmath as mp
+import scipy_funcs
 import specs
 
 XSF_COMMIT: Final = "bb5f99c1b15bf3a4143f95d2ad66dec75883a9eb"
@@ -88,7 +96,23 @@ class Result:
     domain: str
     n: int  # number of valid references
     stats: dict[str, Stats | None]  # by implementation
-    same: float | None  # share of bit-identical xsf-rust and xsf results
+    same: float | None  # share of bit-identical xsf-rust and xsf (or SciPy) results
+
+    @property
+    def notes(self) -> list[str]:
+        """Its footnotes: those of the spec, and SciPy's if it has SciPy instead of xsf."""
+        scipy = [scipy_funcs.FUNCS[self.spec.name][1]] if "scipy" in self.stats else []
+        return self.spec.note.split() + scipy
+
+    @property
+    def second(self) -> str | None:
+        """The name of what is in the second column, if anything."""
+        if "cpp" in self.stats:
+            return IMPLS["cpp"]
+        if "scipy" in self.stats:
+            numpy = scipy_funcs.FUNCS[self.spec.name][1] == scipy_funcs.NUMPY
+            return "NumPy" if numpy else "SciPy"
+        return None
 
 
 def log(*a: object) -> None:
@@ -411,8 +435,17 @@ def bits(x: complex) -> tuple[bytes | str, ...]:
 
 IMPLS: Final = {"rust": "xsf-rust", "cpp": "xsf", "std": "std"}
 NA: Final = "\u2014"  # for functions that xsf does not have
-# footnote marks: *, dagger, double dagger, section sign, double bar, pilcrow
-FOOTNOTES: Final = "*\u2020\u2021\u00a7\u2016\u00b6"
+# footnote marks: *, dagger, double dagger, section sign, double bar, pilcrow, **, two daggers
+FOOTNOTES: Final = (
+    "*",
+    "\u2020",
+    "\u2021",
+    "\u00a7",
+    "\u2016",
+    "\u00b6",
+    "**",
+    "\u2020\u2020",
+)
 # the smallest error that is marked with `BAD_MARK`
 BAD: Final = 1e-6
 BAD_MARK: Final = "\u2757"  # heavy exclamation mark, a red emoji
@@ -467,17 +500,18 @@ def mark_best(errs: Iterable[str]) -> list[str]:
     return errs
 
 
-def table(impls: list[str], rows: list[list[str]]) -> str:
-    """HTML table with a two-level head; markdown tables cannot span columns."""
+def table(names: list[str], rows: list[list[str]]) -> str:
+    """HTML table with a two-level head, with the implementation `names`; markdown tables
+    cannot span columns."""
     head = [
         '<th rowspan="2">Function</th>',
         '<th rowspan="2">Domain</th>',
         '<th rowspan="2">N</th>',
     ]
-    head += [f'<th colspan="2">{IMPLS[i]}</th>' for i in impls]
+    head += [f'<th colspan="2">{name}</th>' for name in names]
     head.append('<th rowspan="2">same</th>')
     lines = ["<table>", "<thead>", f"<tr>{''.join(head)}</tr>"]
-    lines.append("<tr>" + "<th>peak</th><th>gmean</th>" * len(impls) + "</tr>")
+    lines.append("<tr>" + "<th>peak</th><th>gmean</th>" * len(names) + "</tr>")
     lines += ["</thead>", "<tbody>"]
     for name, domain, n, *errs, same in rows:
         cells = [f"<td>{name}</td>", f"<td>{domain}</td>"]
@@ -508,15 +542,18 @@ HEADER: Final = """\
 
 Relative error versus mpmath of xsf-rust {crate}, the C++ [xsf](https://github.com/scipy/xsf)
 it is translated from (commit [`{short}`](https://github.com/scipy/xsf/tree/{commit})), and
-the Rust standard library where it has the function.
+the Rust standard library where it has the function. Where xsf lacks a function, SciPy {scipy}
+or NumPy {numpy} takes its place.
 
 - **peak**: the largest error; **gmean**: the geometric mean of the finite errors, each at least
   $`2^{{-53}}`$ (0 if all are 0)
 - **\u221e (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
 - **bold**: the smallest peak or gmean of a row (unless all are equal at the displayed precision)
 - **\u2757**: an error of {bad} or more, or infinite errors
-- **\u2014**: not in xsf (mostly SciPy's Cython or Python code)
-- **same**: the share of inputs where xsf-rust and xsf return the same f64 (bit-identical)
+- **\u2014**: in neither xsf nor SciPy (with the same definition); footnotes mark the rows with
+  SciPy or NumPy instead of xsf
+- **same**: the share of inputs where xsf-rust and xsf (or SciPy) return the same f64
+  (bit-identical)
 - **(log)**: sampled log-uniformly; **$`\\pm`$**: with a random sign
 
 For reference, $`\\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
@@ -547,6 +584,7 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
             short=XSF_COMMIT[:7],
             commit=XSF_COMMIT,
             bad=f"$`10^{{{math.log10(BAD):.0f}}}`$",
+            **scipy_funcs.VERSIONS,
             **ver,
         ).rstrip("\n")
     ]
@@ -565,16 +603,20 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
             out.append(group)
         group = None
         impls = ["rust", "cpp"] + (["std"] if any(r.spec.std for r in sec) else [])
-        # the notes of this section, as footnote marks in order of first use
+        # the notes of this section, as footnote marks in order of first use, SciPy's last
         notes = dict.fromkeys(note for r in sec for note in r.spec.note.split())
+        notes |= dict.fromkeys(note for r in sec for note in r.notes)
         marks = dict(zip(notes, FOOTNOTES[: len(notes)], strict=True))
         rows: list[list[str]] = []
         for r in sec:
-            sup = "".join(marks[note] for note in r.spec.note.split())
+            sup = "".join(marks[note] for note in r.notes)
             name = f"<code>{r.spec.func}</code>" + (f"<sup>{sup}</sup>" if sup else "")
             row = [name, r.domain, f"{r.n:,}"]
             for impl in impls:
-                s = r.stats.get(impl)
+                # SciPy in the xsf column, where xsf lacks the function
+                s = r.stats.get(
+                    "scipy" if impl == "cpp" and "scipy" in r.stats else impl
+                )
                 if s is None:
                     s = (NA, NA, 0) if impl == "cpp" else (None, None, 0)
                 row += [fmt(s[0], s[2]), fmt(s[1])]
@@ -585,8 +627,13 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
                     "100%" if r.same == 1 else f"{math.floor(1000 * r.same) / 10:.1f}%"
                 )
             rows.append(row)
-        out += [heading, table(impls, rows)]
-        out += [f"<sup>{m}</sup> {specs.NOTES[note]}" for note, m in marks.items()]
+        # the second column: xsf, or SciPy or NumPy where xsf lacks the function
+        used = {r.second for r in sec}
+        second = " / ".join(s for s in (IMPLS["cpp"], "SciPy", "NumPy") if s in used)
+        names = [(second or IMPLS[i]) if i == "cpp" else IMPLS[i] for i in impls]
+        out += [heading, table(names, rows)]
+        texts = specs.NOTES | scipy_funcs.NOTES
+        out += [f"<sup>{m}</sup> {texts[note]}" for note, m in marks.items()]
     out.append(specs.NOT_COVERED.rstrip("\n"))
     out.append(METHOD.format(**ver).rstrip("\n"))
     return "\n\n".join(out) + "\n"
@@ -666,6 +713,8 @@ def main() -> None:
             for impl, it in outs.items()
             if has(job, impl)
         }
+        if "cpp" not in ys and spec.name in scipy_funcs.FUNCS:
+            ys["scipy"] = scipy_funcs.evaluate(spec.name, args)
         ok = {i: r for i, r in enumerate(rr) if isinstance(r, list)}
         bad = [r for r in rr if isinstance(r, str)]
         if bad:
@@ -681,8 +730,8 @@ def main() -> None:
                     f"{spec.name}{args[i]} {impl}: {y[i]!r} ref={ok[i][0]} err={e:.2e}"
                 )
         same = None
-        if "cpp" in ys:
-            pairs = zip(ys["rust"], ys["cpp"], strict=True)
+        if (other := ys.get("cpp", ys.get("scipy"))) is not None:
+            pairs = zip(ys["rust"], other, strict=True)
             same = sum(bits(y) == bits(z) for y, z in pairs) / len(args)
         results.append(Result(spec, dom.pretty(spec.args), len(ok), st, same))
 

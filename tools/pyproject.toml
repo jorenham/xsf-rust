@@ -10,10 +10,13 @@ dependencies = []
 dev = [
   "matplotlib==3.11.2",
   "mpmath==1.4.1",
+  "numpy==2.5.4",
   "polars==2.1.0",
   "pyrefly==1.4.1",
   "python-flint==0.9.0",
   "ruff==0.17.3",
+  "scipy==1.18.1",
+  "scipy-stubs==1.18.1.1",
 ]
 
 [tool.uv]
@@ -27,3 +30,8 @@ search-path = ["accuracy", "tables"]
 [[tool.pyrefly.sub-config]]
 matches = "accuracy/specs.py"
 errors = { implicit-any-parameter = false, implicit-any-lambda = false }
+
+# the SciPy versions are lambdas of the untyped arguments of a spec
+[[tool.pyrefly.sub-config]]
+matches = "accuracy/scipy_funcs.py"
+errors = { implicit-any-lambda = false }

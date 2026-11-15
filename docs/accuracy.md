@@ -2,15 +2,18 @@
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
 it is translated from (commit [`bb5f99c`](https://github.com/scipy/xsf/tree/bb5f99c1b15bf3a4143f95d2ad66dec75883a9eb)), and
-the Rust standard library where it has the function.
+the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
+or NumPy 2.5.4 takes its place.
 
 - **peak**: the largest error; **gmean**: the geometric mean of the finite errors, each at least
   $`2^{-53}`$ (0 if all are 0)
 - **∞ (k)**: $`k`$ infinite errors, e.g. NaN, or a spurious overflow
 - **bold**: the smallest peak or gmean of a row (unless all are equal at the displayed precision)
 - **❗**: an error of $`10^{-6}`$ or more, or infinite errors
-- **—**: not in xsf (mostly SciPy's Cython or Python code)
-- **same**: the share of inputs where xsf-rust and xsf return the same f64 (bit-identical)
+- **—**: in neither xsf nor SciPy (with the same definition); footnotes mark the rows with
+  SciPy or NumPy instead of xsf
+- **same**: the share of inputs where xsf-rust and xsf (or SciPy) return the same f64
+  (bit-identical)
 - **(log)**: sampled log-uniformly; **$`\pm`$**: with a random sign
 
 For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
@@ -111,14 +114,14 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ellip_harm</code><sup>*†</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ [0, 2k]<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.4e-13</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ellip_harm</code><sup>*†</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.2e-13</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ellip_harm_2</code></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.5e-13</samp></td><td align="right" nowrap><samp>4.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ellip_normal</code></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.1e-12</samp></td><td align="right" nowrap><samp>5.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ellip_harm</code><sup>*†‡</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ [0, 2k]<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.4e-13</samp></td><td align="right" nowrap><b><samp>2.2e-16</samp></b></td><td align="right" nowrap><b><samp>2.0e-13</samp></b></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>35.7%</td></tr>
+<tr><td><code>ellip_harm</code><sup>*†‡</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)<br>signm, signn ∈ {±1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>5.2e-13</samp></b></td><td align="right" nowrap><b><samp>3.3e-16</samp></b></td><td align="right" nowrap>❗<samp>2.5e-05</samp></td><td align="right" nowrap><samp>1.1e-14</samp></td><td align="right" nowrap>25.3%</td></tr>
+<tr><td><code>ellip_harm_2</code><sup>‡</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}<br>s ∈ k (1 + [10⁻¹², 1000]) (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>4.5e-13</samp></b></td><td align="right" nowrap><b><samp>4.5e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (1992)</samp></td><td align="right" nowrap><samp>3.8e-14</samp></td><td align="right" nowrap>3.0%</td></tr>
+<tr><td><code>ellip_normal</code><sup>‡</sup></td><td>h² ∈ [0.01, 100] (log)<br>k² − h² ∈ [0.01, 100] (log)<br>n ∈ {0, …, 10}<br>p ∈ {1, …, 2n + 1}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.1e-12</samp></b></td><td align="right" nowrap><b><samp>5.2e-16</samp></b></td><td align="right" nowrap><samp>3.3e-11</samp></td><td align="right" nowrap><samp>2.0e-15</samp></td><td align="right" nowrap>4.6%</td></tr>
 </tbody>
 </table>
 
@@ -126,11 +129,13 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>†</sup> For $`s < k`$: $`A = \max\lvert E^p_n\rvert`$ over 129 points of $`[0, h]`$ or $`[h, k]`$, whichever has $`s`$.
 
+<sup>‡</sup> The second column is SciPy.
+
 ## Bessel functions
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -169,12 +174,12 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratio_c</code></td><td>v ∈ [0.5, 10⁴] (log)<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>iv_ratioinv</code><sup>‖</sup></td><td>v ∈ [0.5, 20]<br>r ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>jahnke_emden_lambda.0</code><sup>¶</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>∞ (11)</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>9.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>jahnke_emden_lambda.1</code><sup>¶</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>∞ (14)</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap><samp>4.0e-12</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>5.9e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>jahnke_emden_lambda.0</code><sup>¶**</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>∞ (11)</samp></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (11)</samp></td><td align="right" nowrap>❗<samp>2.8e-06</samp></td><td align="right" nowrap>34.9%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>9.3e-16</samp></td><td align="right" nowrap><samp>3.9e-12</samp></td><td align="right" nowrap><samp>9.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ [0, 100]<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.6e-12</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>jahnke_emden_lambda.1</code><sup>¶**</sup></td><td>v ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>∞ (14)</samp></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (14)</samp></td><td align="right" nowrap>❗<samp>5.3e-05</samp></td><td align="right" nowrap>33.8%</td></tr>
 </tbody>
 </table>
 
@@ -189,6 +194,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <sup>‖</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 <sup>¶</sup> The last order, $`v`$. For $`x > u`$, with $`u = v`$, or $`v + 1`$ for the derivative: $`A = \Gamma(v + 1) (2/x)^v \sqrt{J_u(x)^2 + Y_u(x)^2}`$.
+
+<sup>**</sup> The second column is SciPy, which wraps xsf here.
 
 ### Faster versions of common Bessel functions
 
@@ -261,26 +268,28 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>bessel_j_prime</code><sup>*</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.3e-13</samp></td><td align="right" nowrap><samp>9.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_j_prime</code><sup>†</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_y_prime</code><sup>*</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-14</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_y_prime</code><sup>†</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>7.2e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_i_prime</code></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_i_prime</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>1.2e-13</samp></td><td align="right" nowrap><samp>4.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_k_prime</code></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>3.0e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bessel_k_prime</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>7.5e-14</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>hankel_1_prime</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><samp>4.0e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>hankel_2_prime</code></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.3e-14</samp></td><td align="right" nowrap><samp>4.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>bessel_j_prime</code><sup>*‡</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.3e-13</samp></td><td align="right" nowrap><samp>9.2e-16</samp></td><td align="right" nowrap><samp>5.3e-13</samp></td><td align="right" nowrap><samp>9.2e-16</samp></td><td align="right" nowrap>99.6%</td></tr>
+<tr><td><code>bessel_j_prime</code><sup>†‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>98.6%</td></tr>
+<tr><td><code>bessel_y_prime</code><sup>*‡</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-14</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap><samp>3.1e-14</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
+<tr><td><code>bessel_y_prime</code><sup>†‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>7.2e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap><samp>7.2e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>98.8%</td></tr>
+<tr><td><code>bessel_i_prime</code><sup>‡</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>bessel_i_prime</code><sup>‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>1.2e-13</samp></td><td align="right" nowrap><b><samp>4.5e-16</samp></b></td><td align="right" nowrap><samp>1.2e-13</samp></td><td align="right" nowrap><samp>6.0e-16</samp></td><td align="right" nowrap>73.7%</td></tr>
+<tr><td><code>bessel_k_prime</code><sup>‡</sup></td><td>v ∈ [0, 20]<br>x ∈ [0, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>3.0e-16</samp></td><td align="right" nowrap><samp>2.8e-14</samp></td><td align="right" nowrap><samp>3.0e-16</samp></td><td align="right" nowrap>99.8%</td></tr>
+<tr><td><code>bessel_k_prime</code><sup>‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>7.5e-14</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap><samp>7.5e-14</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap>98.5%</td></tr>
+<tr><td><code>hankel_1_prime</code><sup>‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><b><samp>4.0e-16</samp></b></td><td align="right" nowrap><samp>8.6e-14</samp></td><td align="right" nowrap><samp>4.1e-16</samp></td><td align="right" nowrap>98.5%</td></tr>
+<tr><td><code>hankel_2_prime</code><sup>‡</sup></td><td>v ∈ [−20, 20]<br>Re z, Im z ∈ [−50, 50]<br>n ∈ {1, …, 3}</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>8.3e-14</samp></td><td align="right" nowrap><b><samp>4.1e-16</samp></b></td><td align="right" nowrap><samp>8.3e-14</samp></td><td align="right" nowrap><samp>4.2e-16</samp></td><td align="right" nowrap>98.7%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> For $`x > \lvert v\rvert`$: $`A = \sqrt{J_v(x)^2 + Y_v(x)^2}`$.
 
 <sup>†</sup> For $`\lvert z\rvert > \lvert v\rvert`$: $`A = s\sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$, with $`s = e^{-\lvert\mathrm{Im}\,z\rvert}`$ for `bessel_je` and `bessel_ye`, else 1.
+
+<sup>‡</sup> The second column is SciPy.
 
 ### Spherical Bessel functions
 
@@ -360,7 +369,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -369,8 +378,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>bdtrc</code><sup>*</sup></td><td>n ∈ {1, …, 1000} (log)<br>k ∈ {0, …, n}<br>p ∈ [0, 1]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>2.2e-13</samp></b></td><td align="right" nowrap><b><samp>2.3e-16</samp></b></td><td align="right" nowrap><samp>1.7e-12</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>73.5%</td></tr>
 <tr><td><code>bdtrc</code><sup>*</sup></td><td>n ∈ [1000, 2e9]<br>p ∈ [10⁻⁶, 1] (log)<br>k ∈ np ± 6σ</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>7.7e-12</samp></b></td><td align="right" nowrap><b><samp>1.3e-15</samp></b></td><td align="right" nowrap>❗<samp>1.1e-02</samp></td><td align="right" nowrap><samp>1.4e-11</samp></td><td align="right" nowrap>13.0%</td></tr>
 <tr><td><code>bdtri</code><sup>†</sup></td><td>n ∈ {1, …, 1000} (log)<br>k ∈ {0, …, n − 1}<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>6.0e-15</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>6.6e-13</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap>71.5%</td></tr>
-<tr><td><code>bdtrik</code><sup>†</sup></td><td>y ∈ [0, 1]<br>n ∈ [1, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.5e-13</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>bdtrin</code><sup>†</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>bdtrik</code><sup>†‡</sup></td><td>y ∈ [0, 1]<br>n ∈ [1, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.5e-13</samp></b></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap><samp>2.6e-13</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap>26.7%</td></tr>
+<tr><td><code>bdtrin</code><sup>†‡</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><b><samp>1.6e-16</samp></b></td><td align="right" nowrap><b><samp>2.4e-15</samp></b></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>33.9%</td></tr>
 </tbody>
 </table>
 
@@ -378,59 +387,69 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+<sup>‡</sup> The second column is SciPy, which uses Boost.Math here.
+
 ### Beta distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>btdtria</code><sup>*</sup></td><td>p ∈ [0, 1]<br>b ∈ [0.01, 100] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>btdtrib</code><sup>*</sup></td><td>a ∈ [0.01, 100] (log)<br>p, x ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>3.4e-15</samp></td><td align="right" nowrap><samp>2.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>btdtria</code><sup>*†</sup></td><td>p ∈ [0, 1]<br>b ∈ [0.01, 100] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>3.9e-15</samp></b></td><td align="right" nowrap><b><samp>2.4e-16</samp></b></td><td align="right" nowrap><samp>7.4e-15</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap>11.9%</td></tr>
+<tr><td><code>btdtrib</code><sup>*†</sup></td><td>a ∈ [0.01, 100] (log)<br>p, x ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>3.4e-15</samp></b></td><td align="right" nowrap><b><samp>2.4e-16</samp></b></td><td align="right" nowrap><samp>7.4e-15</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap>13.4%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+<sup>†</sup> The second column is SciPy, which uses Boost.Math here.
+
 ### F distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
 <tr><td><code>fdtr</code></td><td>a, b ∈ [10⁻³, 10⁶] (log)<br>x ∈ [10⁻³⁰, 10³⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.1e-12</samp></b></td><td align="right" nowrap><b><samp>1.7e-16</samp></b></td><td align="right" nowrap>❗<samp>5.4e+01</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap>46.1%</td></tr>
 <tr><td><code>fdtrc</code></td><td>a, b ∈ [10⁻³, 10⁶] (log)<br>x ∈ [10⁻³⁰, 10³⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.3e-13</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap>❗<samp>6.4e+01</samp></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap>46.2%</td></tr>
 <tr><td><code>fdtri</code><sup>*</sup></td><td>a, b ∈ [10⁻³, 1000] (log)<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>8.4e-13</samp></b></td><td align="right" nowrap><b><samp>2.3e-15</samp></b></td><td align="right" nowrap><samp>5.7e-10</samp></td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap>34.2%</td></tr>
-<tr><td><code>fdtridfd</code><sup>*†</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>x ∈ [1, 1000] (log)<br>p = fdtr(a, b, x)</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>4.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>fdtridfd</code><sup>*†‡</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>x ∈ [1, 1000] (log)<br>p = fdtr(a, b, x)</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>1.4e-12</samp></b></td><td align="right" nowrap><b><samp>4.7e-16</samp></b></td><td align="right" nowrap><samp>3.9e-11</samp></td><td align="right" nowrap><samp>2.0e-14</samp></td><td align="right" nowrap>5.6%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 <sup>†</sup> Reference: the root of $`F(x) = p`$, with $`F`$ the forward reference, which must be the only sign change on a log-uniform grid of 225 points in $`[10^{-100}, 10^{12}]`$; the inputs with more than one are left out.
+
+<sup>‡</sup> The second column is SciPy, which uses its cdflib here.
 
 ### Noncentral F distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ncfdtr</code></td><td>a, b ∈ [0.01, 1000] (log)<br>nc, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>4.8e-13</samp></td><td align="right" nowrap><samp>8.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ncfdtri</code><sup>*</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>4.9e-11</samp></td><td align="right" nowrap><samp>3.0e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ncfdtridfd</code><sup>*†</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [1, 1000] (log)<br>x ≥ 1 + nc/a<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>500</td><td align="right" nowrap>❗<samp>∞ (1)</samp></td><td align="right" nowrap><samp>1.7e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ncfdtridfn</code><sup>*†</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [0.01, 100] (log)<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>428</td><td align="right" nowrap>❗<samp>5.2e+00</samp></td><td align="right" nowrap><samp>5.5e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>ncfdtrinc</code><sup>*</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [0.01, 100] (log)<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>500</td><td align="right" nowrap>❗<samp>9.3e-01</samp></td><td align="right" nowrap><samp>5.0e-14</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>ncfdtr</code><sup>‡</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>4.8e-13</samp></b></td><td align="right" nowrap><samp>8.2e-16</samp></td><td align="right" nowrap>❗<samp>8.7e+01</samp></td><td align="right" nowrap><b><samp>7.5e-16</samp></b></td><td align="right" nowrap>11.4%</td></tr>
+<tr><td><code>ncfdtri</code><sup>*‡</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>4.9e-11</samp></b></td><td align="right" nowrap><b><samp>3.0e-15</samp></b></td><td align="right" nowrap>❗<samp>∞ (49)</samp></td><td align="right" nowrap><samp>1.4e-13</samp></td><td align="right" nowrap>2.4%</td></tr>
+<tr><td><code>ncfdtridfd</code><sup>*†§</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [1, 1000] (log)<br>x ≥ 1 + nc/a<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>500</td><td align="right" nowrap>❗<samp>∞ (1)</samp></td><td align="right" nowrap><b><samp>1.7e-14</samp></b></td><td align="right" nowrap>❗<b><samp>4.9e+101</samp></b></td><td align="right" nowrap>❗<samp>1.2e+17</samp></td><td align="right" nowrap>0.0%</td></tr>
+<tr><td><code>ncfdtridfn</code><sup>*†§</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [0.01, 100] (log)<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>428</td><td align="right" nowrap>❗<b><samp>5.2e+00</samp></b></td><td align="right" nowrap><b><samp>5.5e-15</samp></b></td><td align="right" nowrap>❗<samp>5.5e+101</samp></td><td align="right" nowrap>❗<samp>7.0e-03</samp></td><td align="right" nowrap>0.0%</td></tr>
+<tr><td><code>ncfdtrinc</code><sup>*§</sup></td><td>a, b ∈ [0.01, 1000] (log)<br>nc ∈ [10⁻³, 100] (log)<br>x ∈ [0.01, 100] (log)<br>p = ncfdtr(a, b, nc, x)</td><td align="right" nowrap>500</td><td align="right" nowrap>❗<b><samp>9.3e-01</samp></b></td><td align="right" nowrap><b><samp>5.0e-14</samp></b></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>5.9e-07</samp></td><td align="right" nowrap>0.0%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 <sup>†</sup> Reference: the root of $`F(x) = p`$, with $`F`$ the forward reference, which must be the only sign change on a log-uniform grid of 225 points in $`[10^{-100}, 10^{12}]`$; the inputs with more than one are left out.
+
+<sup>‡</sup> The second column is SciPy, which uses Boost.Math here.
+
+<sup>§</sup> The second column is SciPy, which uses its cdflib here.
 
 ### Gamma distribution
 
@@ -486,7 +505,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -495,12 +514,14 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>nbdtrc</code></td><td>k ∈ {0, …, 1000}<br>n ∈ {1, …, 1000}<br>p ∈ [0, 1]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>3.2e-13</samp></b></td><td align="right" nowrap><b><samp>7.6e-16</samp></b></td><td align="right" nowrap><samp>3.7e-12</samp></td><td align="right" nowrap><samp>3.2e-15</samp></td><td align="right" nowrap>18.0%</td></tr>
 <tr><td><code>nbdtrc</code></td><td>k, n ∈ {1, …, 2e9} (log)<br>p ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.8e-14</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>9.8e-09</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>95.8%</td></tr>
 <tr><td><code>nbdtri</code><sup>*</sup></td><td>k ∈ {0, …, 1000}<br>n ∈ {1, …, 1000}<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>9.1e-15</samp></b></td><td align="right" nowrap><b><samp>1.3e-16</samp></b></td><td align="right" nowrap><samp>2.8e-13</samp></td><td align="right" nowrap><samp>8.1e-15</samp></td><td align="right" nowrap>1.7%</td></tr>
-<tr><td><code>nbdtrik</code><sup>*</sup></td><td>y ∈ [0, 1]<br>n ∈ [0.01, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>nbdtrin</code><sup>*</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>2.7e-15</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>nbdtrik</code><sup>*†</sup></td><td>y ∈ [0, 1]<br>n ∈ [0.01, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.3e-14</samp></b></td><td align="right" nowrap><b><samp>1.7e-16</samp></b></td><td align="right" nowrap><samp>2.5e-14</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>49.0%</td></tr>
+<tr><td><code>nbdtrin</code><sup>*†</sup></td><td>k ∈ [0.01, 1000] (log)<br>y, p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.7e-15</samp></b></td><td align="right" nowrap><b><samp>2.1e-16</samp></b></td><td align="right" nowrap><samp>8.2e-14</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap>13.8%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+<sup>†</sup> The second column is SciPy, which uses Boost.Math here.
 
 ### Normal distribution
 
@@ -531,7 +552,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -540,46 +561,52 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>pdtrc</code></td><td>k ∈ {0, …, 100}<br>m ∈ [0, 100]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>8.9e-15</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap>62.3%</td></tr>
 <tr><td><code>pdtrc</code></td><td>m ∈ [10, 10⁹] (log)<br>k ∈ m ± 6√m</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.3e-14</samp></b></td><td align="right" nowrap><b><samp>2.5e-16</samp></b></td><td align="right" nowrap>❗<samp>7.2e-01</samp></td><td align="right" nowrap><samp>1.3e-15</samp></td><td align="right" nowrap>73.0%</td></tr>
 <tr><td><code>pdtri</code><sup>*</sup></td><td>k ∈ {0, …, 100}<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>9.1e-16</samp></b></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>1.5e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>92.3%</td></tr>
-<tr><td><code>pdtrik</code><sup>*</sup></td><td>p ∈ [0, 1]<br>m ∈ [0.01, 10⁴] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.4e-13</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>pdtrik</code><sup>*†</sup></td><td>p ∈ [0, 1]<br>m ∈ [0.01, 10⁴] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.4e-13</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>1.7e-13</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>43.3%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+<sup>†</sup> The second column is SciPy, which uses Boost.Math here.
 
 ### Student's t distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>stdtr</code></td><td>ν ∈ [10⁻³, 1000] (log)<br>t ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>6.6e-14</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>stdtr</code></td><td>ν ∈ [10⁻³, 10¹²] (log)<br>t ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>stdtri</code><sup>*</sup></td><td>ν ∈ [10⁻³, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>4.4e-13</samp></td><td align="right" nowrap><samp>7.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>stdtri</code><sup>*</sup></td><td>ν ∈ [1000, 10²⁰] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>stdtri</code><sup>*</sup></td><td>ν ∈ [1, 10²⁰] (log)<br>p ∈ [10⁻³²³, 10⁻¹⁰] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>2.7e-14</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>stdtridf</code><sup>*†</sup></td><td>ν ∈ [0.01, 1000] (log)<br>t ∈ ±⁠[0.01, 10] (log)<br>p = stdtr(ν, t)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>9.7e-12</samp></td><td align="right" nowrap><samp>6.9e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>stdtr</code><sup>‡</sup></td><td>ν ∈ [10⁻³, 1000] (log)<br>t ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>6.6e-14</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><b><samp>1.5e-14</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap>40.1%</td></tr>
+<tr><td><code>stdtr</code><sup>‡</sup></td><td>ν ∈ [10⁻³, 10¹²] (log)<br>t ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.3e-13</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>5.3e-16</samp></td><td align="right" nowrap>92.0%</td></tr>
+<tr><td><code>stdtri</code><sup>*‡</sup></td><td>ν ∈ [10⁻³, 1000] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>4.4e-13</samp></b></td><td align="right" nowrap><b><samp>7.3e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (49)</samp></td><td align="right" nowrap><samp>2.0e-15</samp></td><td align="right" nowrap>8.5%</td></tr>
+<tr><td><code>stdtri</code><sup>*‡</sup></td><td>ν ∈ [1000, 10²⁰] (log)<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.0e-15</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>1.1e-13</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap>20.0%</td></tr>
+<tr><td><code>stdtri</code><sup>*‡</sup></td><td>ν ∈ [1, 10²⁰] (log)<br>p ∈ [10⁻³²³, 10⁻¹⁰] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.7e-14</samp></b></td><td align="right" nowrap><b><samp>1.3e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (21)</samp></td><td align="right" nowrap><samp>5.0e-16</samp></td><td align="right" nowrap>43.0%</td></tr>
+<tr><td><code>stdtridf</code><sup>*†§</sup></td><td>ν ∈ [0.01, 1000] (log)<br>t ∈ ±⁠[0.01, 10] (log)<br>p = stdtr(ν, t)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>9.7e-12</samp></b></td><td align="right" nowrap><b><samp>6.9e-15</samp></b></td><td align="right" nowrap><samp>4.0e-11</samp></td><td align="right" nowrap><samp>5.8e-14</samp></td><td align="right" nowrap>1.7%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
 <sup>†</sup> Reference: the root of $`F(x) = p`$, with $`F`$ the forward reference, which must be the only sign change on a log-uniform grid of 225 points in $`[10^{-100}, 10^{12}]`$; the inputs with more than one are left out.
+
+<sup>‡</sup> The second column is SciPy, which uses Boost.Math here.
+
+<sup>§</sup> The second column is SciPy, which uses its cdflib here.
 
 ### Noncentral t distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>nctdtr</code></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>t ∈ [−20, 20]</td><td align="right" nowrap>1,000</td><td align="right" nowrap><samp>1.5e-14</samp></td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>nctdtr</code></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [0, 10]<br>t ∈ [−20, 0]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>2.6e-14</samp></td><td align="right" nowrap><samp>3.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>nctdtrit</code><sup>*</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>p ∈ [0, 1]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>3.0e-14</samp></td><td align="right" nowrap><samp>4.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>nctdtridf</code><sup>*†</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>t ∈ [−20, 20]<br>p = nctdtr(ν, nc, t)</td><td align="right" nowrap>429</td><td align="right" nowrap>❗<samp>∞ (9)</samp></td><td align="right" nowrap><samp>2.9e-11</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>nctdtrinc</code><sup>*</sup></td><td>ν ∈ [0.01, 1000] (log)<br>p ∈ [0, 1]<br>t ∈ [−20, 20]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>2.0e-13</samp></td><td align="right" nowrap><samp>6.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>nctdtr</code><sup>‡</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>t ∈ [−20, 20]</td><td align="right" nowrap>1,000</td><td align="right" nowrap><b><samp>1.5e-14</samp></b></td><td align="right" nowrap><b><samp>3.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (51)</samp></td><td align="right" nowrap><samp>2.8e-13</samp></td><td align="right" nowrap>13.9%</td></tr>
+<tr><td><code>nctdtr</code><sup>‡</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [0, 10]<br>t ∈ [−20, 0]</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>2.6e-14</samp></b></td><td align="right" nowrap><b><samp>3.9e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (84)</samp></td><td align="right" nowrap>❗<samp>4.0e-03</samp></td><td align="right" nowrap>0.8%</td></tr>
+<tr><td><code>nctdtrit</code><sup>*‡</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>p ∈ [0, 1]</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>3.0e-14</samp></b></td><td align="right" nowrap><b><samp>4.3e-16</samp></b></td><td align="right" nowrap><samp>9.2e-14</samp></td><td align="right" nowrap><samp>6.6e-16</samp></td><td align="right" nowrap>5.6%</td></tr>
+<tr><td><code>nctdtridf</code><sup>*†§</sup></td><td>ν ∈ [0.01, 1000] (log)<br>nc ∈ [−10, 10]<br>t ∈ [−20, 20]<br>p = nctdtr(ν, nc, t)</td><td align="right" nowrap>429</td><td align="right" nowrap>❗<samp>∞ (9)</samp></td><td align="right" nowrap><b><samp>2.9e-11</samp></b></td><td align="right" nowrap>❗<b><samp>6.3e+101</samp></b></td><td align="right" nowrap>❗<samp>1.8e+05</samp></td><td align="right" nowrap>0.0%</td></tr>
+<tr><td><code>nctdtrinc</code><sup>*§</sup></td><td>ν ∈ [0.01, 1000] (log)<br>p ∈ [0, 1]<br>t ∈ [−20, 20]</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>2.0e-13</samp></b></td><td align="right" nowrap><b><samp>6.1e-16</samp></b></td><td align="right" nowrap>❗<samp>1.6e-04</samp></td><td align="right" nowrap><samp>6.4e-09</samp></td><td align="right" nowrap>0.0%</td></tr>
 </tbody>
 </table>
 
@@ -587,11 +614,15 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>†</sup> Reference: the root of $`F(x) = p`$, with $`F`$ the forward reference, which must be the only sign change on a log-uniform grid of 225 points in $`[10^{-100}, 10^{12}]`$; the inputs with more than one are left out.
 
+<sup>‡</sup> The second column is SciPy, which uses Boost.Math here.
+
+<sup>§</sup> The second column is SciPy, which uses its cdflib here.
+
 ### Chi square distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -600,31 +631,35 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>chdtrc</code></td><td>v, x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>8.8e-15</samp></b></td><td align="right" nowrap><b><samp>1.7e-16</samp></b></td><td align="right" nowrap><samp>1.7e-13</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>51.2%</td></tr>
 <tr><td><code>chdtrc</code></td><td>v ∈ [10, 10⁸] (log)<br>x ∈ v ± 6√(2v)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.4e-13</samp></b></td><td align="right" nowrap><b><samp>2.4e-16</samp></b></td><td align="right" nowrap><samp>7.7e-07</samp></td><td align="right" nowrap><samp>4.8e-16</samp></td><td align="right" nowrap>71.9%</td></tr>
 <tr><td><code>chdtri</code><sup>*</sup></td><td>v ∈ [10⁻³, 1000] (log)<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.4e-13</samp></b></td><td align="right" nowrap><b><samp>4.9e-16</samp></b></td><td align="right" nowrap><samp>7.2e-13</samp></td><td align="right" nowrap><samp>6.4e-16</samp></td><td align="right" nowrap>54.2%</td></tr>
-<tr><td><code>chdtriv</code><sup>*</sup></td><td>p ∈ [0, 1]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>4.7e-15</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>chdtriv</code><sup>*†</sup></td><td>p ∈ [0, 1]<br>x ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>4.7e-15</samp></td><td align="right" nowrap><b><samp>1.6e-16</samp></b></td><td align="right" nowrap><b><samp>1.7e-15</samp></b></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>20.8%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
 
+<sup>†</sup> The second column is SciPy, which uses Boost.Math here.
+
 ### Noncentral chi square distribution
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>chndtr</code><sup>*</sup></td><td>x, v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.7e-12</samp></td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>chndtr</code><sup>*</sup></td><td>v ∈ [10⁻³, 10⁴]<br>nc ∈ [1, 10⁴] (log)<br>x ∈ μ ± 10σ (x > 0)</td><td align="right" nowrap>1,000</td><td align="right" nowrap><samp>8.3e-14</samp></td><td align="right" nowrap><samp>1.3e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>chndtri</code><sup>†</sup></td><td>p ∈ [0, 1]<br>v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>1.9e-10</samp></td><td align="right" nowrap><samp>9.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>chndtridf</code><sup>†</sup></td><td>x ∈ [10⁻³, 1000]<br>nc ∈ [10⁻³, 30] (log)<br>p ∈ [0, e^(−nc/2)]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>6.8e-13</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>chndtrinc</code><sup>†</sup></td><td>x, v ∈ [10⁻³, 1000] (log)<br>p ∈ (0, chdtr(v, x)]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>1.2e-12</samp></td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>chndtr</code><sup>*‡</sup></td><td>x, v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.7e-12</samp></b></td><td align="right" nowrap><b><samp>1.1e-15</samp></b></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>2.9e-15</samp></td><td align="right" nowrap>20.0%</td></tr>
+<tr><td><code>chndtr</code><sup>*‡</sup></td><td>v ∈ [10⁻³, 10⁴]<br>nc ∈ [1, 10⁴] (log)<br>x ∈ μ ± 10σ (x > 0)</td><td align="right" nowrap>1,000</td><td align="right" nowrap><b><samp>8.3e-14</samp></b></td><td align="right" nowrap><samp>1.3e-15</samp></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><b><samp>9.2e-16</samp></b></td><td align="right" nowrap>5.4%</td></tr>
+<tr><td><code>chndtri</code><sup>†‡</sup></td><td>p ∈ [0, 1]<br>v, nc ∈ [10⁻³, 1000] (log)</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>1.9e-10</samp></td><td align="right" nowrap><samp>9.1e-16</samp></td><td align="right" nowrap><b><samp>6.8e-11</samp></b></td><td align="right" nowrap><b><samp>7.7e-16</samp></b></td><td align="right" nowrap>11.4%</td></tr>
+<tr><td><code>chndtridf</code><sup>†‡</sup></td><td>x ∈ [10⁻³, 1000]<br>nc ∈ [10⁻³, 30] (log)<br>p ∈ [0, e^(−nc/2)]</td><td align="right" nowrap>500</td><td align="right" nowrap><samp>6.8e-13</samp></td><td align="right" nowrap><samp>3.7e-16</samp></td><td align="right" nowrap><b><samp>2.0e-14</samp></b></td><td align="right" nowrap><b><samp>2.5e-16</samp></b></td><td align="right" nowrap>11.4%</td></tr>
+<tr><td><code>chndtrinc</code><sup>†‡</sup></td><td>x, v ∈ [10⁻³, 1000] (log)<br>p ∈ (0, chdtr(v, x)]</td><td align="right" nowrap>500</td><td align="right" nowrap><b><samp>1.2e-12</samp></b></td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.9e-07</samp></td><td align="right" nowrap><b><samp>5.4e-16</samp></b></td><td align="right" nowrap>7.8%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> $`\mu = v + \mathrm{nc}`$, $`\sigma^2 = 2(v + 2\,\mathrm{nc})`$.
 
 <sup>†</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+<sup>‡</sup> The second column is SciPy, which uses Boost.Math here.
 
 ### Kolmogorov distribution
 
@@ -783,7 +818,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -819,9 +854,9 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>gammasgn</code></td><td>x ∈ [−200, 200]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>0</samp></td><td align="right" nowrap><samp>0</samp></td><td align="right" nowrap><samp>0</samp></td><td align="right" nowrap><samp>0</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>lgam1p</code></td><td>x ∈ [−0.9, 3]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.8e-15</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>4.8e-15</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>lgam1p</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 0.5] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.7e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>7.7e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>polygamma</code><sup>†</sup></td><td>n ∈ {1, …, 10}<br>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.1e-14</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>polygamma</code><sup>†</sup></td><td>n ∈ {1, …, 50}<br>x ∈ [10⁻³, 10⁵] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>multigammaln</code><sup>†</sup></td><td>d ∈ {1, …, 20}<br>a ∈ (d − 1)/2 + [10⁻³, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.3e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>polygamma</code><sup>†¶</sup></td><td>n ∈ {1, …, 10}<br>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.1e-14</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>1.4e-14</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>69.9%</td></tr>
+<tr><td><code>polygamma</code><sup>†¶</sup></td><td>n ∈ {1, …, 50}<br>x ∈ [10⁻³, 10⁵] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>3.9e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
+<tr><td><code>multigammaln</code><sup>†¶</sup></td><td>d ∈ {1, …, 20}<br>a ∈ (d − 1)/2 + [10⁻³, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>7.3e-16</samp></b></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>1.1e-14</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>82.9%</td></tr>
 <tr><td><code>pow_falling</code><sup>‡</sup></td><td>x ∈ [0, 10]<br>m ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 <tr><td><code>pow_falling</code><sup>‡</sup></td><td>x ∈ [10⁻³, 100] (log)<br>m ∈ ±⁠[10⁻³, 100] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>6.9e-15</samp></td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
 <tr><td><code>gammainc</code></td><td>a ∈ [0, 20]<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.9e-15</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>1.6e-14</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>78.0%</td></tr>
@@ -839,17 +874,17 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>betainc</code><sup>§</sup></td><td>a, b ∈ [0, 10]<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.3e-15</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap><samp>8.9e-15</samp></td><td align="right" nowrap><samp>3.0e-16</samp></td><td align="right" nowrap>58.9%</td></tr>
 <tr><td><code>betainc</code><sup>§</sup></td><td>a, b ∈ [10⁻⁵, 1000] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.1e-13</samp></b></td><td align="right" nowrap><b><samp>2.5e-16</samp></b></td><td align="right" nowrap><samp>1.6e-10</samp></td><td align="right" nowrap><samp>4.9e-16</samp></td><td align="right" nowrap>59.3%</td></tr>
 <tr><td><code>betainc</code><sup>§</sup></td><td>a, b ∈ [100, 10⁸] (log)<br>x ∈ μ ± 6σ</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.7e-12</samp></b></td><td align="right" nowrap><b><samp>1.8e-15</samp></b></td><td align="right" nowrap>❗<samp>7.9e-02</samp></td><td align="right" nowrap><samp>2.8e-11</samp></td><td align="right" nowrap>6.1%</td></tr>
-<tr><td><code>betaincc</code><sup>§</sup></td><td>a, b ∈ [0, 10]<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.3e-15</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>betaincc</code><sup>§</sup></td><td>a, b ∈ [10⁻⁵, 1000] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.6e-13</samp></td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>betaincc</code><sup>§</sup></td><td>a, b ∈ [100, 10⁸] (log)<br>x ∈ μ ± 6σ</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.7e-12</samp></td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>betaincc</code><sup>§**</sup></td><td>a, b ∈ [0, 10]<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.3e-15</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>45.3%</td></tr>
+<tr><td><code>betaincc</code><sup>§**</sup></td><td>a, b ∈ [10⁻⁵, 1000] (log)<br>x ∈ [0, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.6e-13</samp></td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>40.6%</td></tr>
+<tr><td><code>betaincc</code><sup>§**</sup></td><td>a, b ∈ [100, 10⁸] (log)<br>x ∈ μ ± 6σ</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.7e-12</samp></td><td align="right" nowrap><samp>1.8e-15</samp></td><td align="right" nowrap><b><samp>5.4e-15</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>28.3%</td></tr>
 <tr><td><code>gammaincinv</code><sup>‖</sup></td><td>a ∈ [0, 20]<br>p ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.6e-14</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap><samp>1.5e-13</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap>55.8%</td></tr>
 <tr><td><code>gammaincinv</code><sup>‖</sup></td><td>a ∈ [10⁻³, 10⁵] (log)<br>p ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>9.4e-14</samp></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap><samp>9.4e-14</samp></td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap>61.4%</td></tr>
 <tr><td><code>gammainccinv</code><sup>‖</sup></td><td>a ∈ [0, 20]<br>q ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.1e-14</samp></b></td><td align="right" nowrap><b><samp>1.8e-16</samp></b></td><td align="right" nowrap><samp>9.0e-14</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap>55.6%</td></tr>
 <tr><td><code>gammainccinv</code><sup>‖</sup></td><td>a ∈ [10⁻³, 10⁵] (log)<br>q ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.7e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap><samp>6.4e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>63.7%</td></tr>
 <tr><td><code>betaincinv</code><sup>‖</sup></td><td>a, b ∈ [0, 10]<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.8e-14</samp></b></td><td align="right" nowrap><b><samp>1.6e-16</samp></b></td><td align="right" nowrap><samp>4.9e-14</samp></td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap>50.1%</td></tr>
 <tr><td><code>betaincinv</code><sup>‖</sup></td><td>a, b ∈ [10⁻³, 1000] (log)<br>y ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>1.8e-13</samp></b></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>5.5e-16</samp></td><td align="right" nowrap>60.2%</td></tr>
-<tr><td><code>betainccinv</code><sup>‖</sup></td><td>a, b ∈ [0, 10]<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>6.2e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>betainccinv</code><sup>‖</sup></td><td>a, b ∈ [10⁻³, 1000] (log)<br>y ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>2.9e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>betainccinv</code><sup>‖**</sup></td><td>a, b ∈ [0, 10]<br>y ∈ [0, 1]</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>6.2e-15</samp></b></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap><samp>1.3e-14</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>33.9%</td></tr>
+<tr><td><code>betainccinv</code><sup>‖**</sup></td><td>a, b ∈ [10⁻³, 1000] (log)<br>y ∈ [10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.9e-14</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (58)</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap>85.0%</td></tr>
 </tbody>
 </table>
 
@@ -862,6 +897,10 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <sup>§</sup> $`\mu = a / (a + b)`$, $`\sigma^2 = \mu(1 - \mu) / (a + b + 1)`$.
 
 <sup>‖</sup> Reference: the mpmath root of the forward reference. Ill-conditioned where the forward function is flat, e.g. in its tails.
+
+<sup>¶</sup> The second column is SciPy.
+
+<sup>**</sup> The second column is SciPy, which uses Boost.Math here.
 
 ## Error function and Fresnel integrals
 
@@ -1385,7 +1424,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -1393,7 +1432,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>agm</code></td><td>a, b ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>5.3e-16</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>binom</code></td><td>n ∈ [0, 100]<br>k ∈ [0, n]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.7e-14</samp></b></td><td align="right" nowrap><b><samp>2.8e-16</samp></b></td><td align="right" nowrap><samp>3.7e-14</samp></td><td align="right" nowrap><samp>6.2e-16</samp></td><td align="right" nowrap>69.7%</td></tr>
 <tr><td><code>binom</code></td><td>n ∈ {0, …, 1000}<br>k ∈ {0, …, n}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>8.0e-16</samp></b></td><td align="right" nowrap><b><samp>1.4e-16</samp></b></td><td align="right" nowrap><samp>2.3e-12</samp></td><td align="right" nowrap><samp>3.3e-14</samp></td><td align="right" nowrap>24.1%</td></tr>
-<tr><td><code>diric</code><sup>*</sup></td><td>n ∈ {1, …, 20}<br>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>diric</code><sup>*†</sup></td><td>n ∈ {1, …, 20}<br>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.4e-16</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap><samp>4.1e-12</samp></td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap>65.9%</td></tr>
 <tr><td><code>sici.0</code></td><td>x ∈ [−30, 30]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.1e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>4.1e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>sici.0</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>sici.1</code><sup>*</sup></td><td>x ∈ [−30, 30]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.2e-12</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap><samp>3.2e-12</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>100%</td></tr>
@@ -1404,8 +1443,8 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>shichi.1</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>1.4e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>spence</code></td><td>x ∈ [0, 2]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.7e-15</samp></td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap><samp>3.7e-15</samp></td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>spence</code></td><td>x ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>softplus</code></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>softplus</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>softplus</code><sup>†</sup></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>softplus</code><sup>†</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>log1mexp</code></td><td>x ∈ [−20, 0]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>log1mexp</code></td><td>x ∈ −⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 </tbody>
@@ -1413,11 +1452,13 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 
 <sup>*</sup> Ill-conditioned near the zeros.
 
+<sup>†</sup> The second column is SciPy.
+
 ## Convenience functions
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th colspan="2">std</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy / NumPy</th><th colspan="2">std</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
@@ -1457,10 +1498,10 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>expm1</code></td><td>Re z, Im z ∈ ±⁠[10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>1.9e-16</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>97.7%</td></tr>
 <tr><td><code>cosm1</code><sup>*</sup></td><td>x ∈ [−π, π]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>cosm1</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>6.1e-13</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>6.1e-13</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>powm1</code></td><td>x ∈ [10⁻³, 1000] (log)<br>y ∈ [−5, 5]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>powm1</code></td><td>x ∈ 1 + ±⁠[10⁻¹⁵, 0.1] (log)<br>y ∈ ±⁠[10⁻³, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>powm1</code></td><td>x ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)<br>y ∈ ±⁠[10⁻³⁰⁰, 10⁻³] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>powm1</code></td><td>x ∈ [−10, 0]<br>y ∈ {−50, …, 50}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
+<tr><td><code>powm1</code><sup>†</sup></td><td>x ∈ [10⁻³, 1000] (log)<br>y ∈ [−5, 5]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>powm1</code><sup>†</sup></td><td>x ∈ 1 + ±⁠[10⁻¹⁵, 0.1] (log)<br>y ∈ ±⁠[10⁻³, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>3.1e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>powm1</code><sup>†</sup></td><td>x ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)<br>y ∈ ±⁠[10⁻³⁰⁰, 10⁻³] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>powm1</code><sup>†</sup></td><td>x ∈ [−10, 0]<br>y ∈ {−50, …, 50}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>xlogy</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)<br>y ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>xlogy</code></td><td>x ∈ [−10, 10]<br>y ∈ 1 + ±⁠[10⁻¹⁶, 10⁻³] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>xlogy</code></td><td>Re x, Im x ∈ [−10, 10]<br>Re y, Im y ∈ [−10, 10]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.5e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>99.6%</td></tr>
@@ -1469,41 +1510,45 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>xlog1py</code></td><td>x ∈ [−10, 10]<br>y ∈ [−1, 1]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.3e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><b><samp>2.1e-16</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>94.0%</td></tr>
 <tr><td><code>xlog1py</code></td><td>Re x, Im x ∈ [−10, 10]<br>Re y, Im y ∈ [−10, 10]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>2.7e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.7e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>99.4%</td></tr>
 <tr><td><code>xlog1py</code></td><td>Re x, Im x ∈ [−10, 10]<br>Re y, Im y ∈ ±⁠[10⁻³⁰⁰, 1] (log)</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>99.8%</td></tr>
-<tr><td><code>logaddexp</code><sup>*</sup></td><td>x, y ∈ [−100, 100]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>logaddexp</code><sup>*</sup></td><td>x, y ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>logaddexp2</code><sup>*</sup></td><td>x, y ∈ [−100, 100]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>logaddexp2</code><sup>*</sup></td><td>x, y ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
+<tr><td><code>logaddexp</code><sup>*‡</sup></td><td>x, y ∈ [−100, 100]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.4e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>logaddexp</code><sup>*‡</sup></td><td>x, y ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>logaddexp2</code><sup>*‡</sup></td><td>x, y ∈ [−100, 100]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>logaddexp2</code><sup>*‡</sup></td><td>x, y ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>exprel</code></td><td>x ∈ [−2, 2]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>exprel</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 709] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>100%</td></tr>
-<tr><td><code>sinc</code><sup>*</sup></td><td>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
-<tr><td><code>sinc</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10¹⁵] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.6e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>—</td></tr>
+<tr><td><code>sinc</code><sup>*‡</sup></td><td>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.9e-16</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap><samp>1.4e-12</samp></td><td align="right" nowrap><samp>5.7e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>21.2%</td></tr>
+<tr><td><code>sinc</code><sup>*‡</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10¹⁵] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.6e-16</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>2.0e+291</samp></td><td align="right" nowrap><samp>3.0e-16</samp></td><td align="right" nowrap></td><td align="right" nowrap></td><td align="right" nowrap>95.5%</td></tr>
 </tbody>
 </table>
 
 <sup>*</sup> Ill-conditioned near the zeros.
 
+<sup>†</sup> The second column is SciPy, which uses Boost.Math here.
+
+<sup>‡</sup> The second column is NumPy.
+
 ## Functions of arrays
 
 <table>
 <thead>
-<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf</th><th rowspan="2">same</th></tr>
+<tr><th rowspan="2">Function</th><th rowspan="2">Domain</th><th rowspan="2">N</th><th colspan="2">xsf-rust</th><th colspan="2">xsf / SciPy</th><th rowspan="2">same</th></tr>
 <tr><th>peak</th><th>gmean</th><th>peak</th><th>gmean</th></tr>
 </thead>
 <tbody>
-<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>logsumexp</code><sup>*</sup></td><td>x ∈ ([−50, 50] ∪ {±∞})ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.5e-15</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.3e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>softmax</code><sup>*†</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.6e-15</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>7.4e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>log_softmax</code><sup>*†‡</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>6.9e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>logsumexp</code><sup>*¶</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
+<tr><td><code>logsumexp</code><sup>*¶</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
+<tr><td><code>logsumexp</code><sup>*¶</sup></td><td>x ∈ ([−50, 50] ∪ {±∞})ⁿ<br>n ∈ {1, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>softmax</code><sup>*†¶</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.5e-15</samp></td><td align="right" nowrap><samp>2.1e-16</samp></td><td align="right" nowrap><samp>7.5e-15</samp></td><td align="right" nowrap><b><samp>2.0e-16</samp></b></td><td align="right" nowrap>75.3%</td></tr>
+<tr><td><code>softmax</code><sup>*†¶</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.3e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>2.3e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.7%</td></tr>
+<tr><td><code>softmax</code><sup>*†¶</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>7.6e-15</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap><b><samp>7.4e-15</samp></b></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>84.2%</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡¶</sup></td><td>x ∈ [−50, 50]ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>7.4e-16</samp></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>7.4e-16</samp></td><td align="right" nowrap>97.8%</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡¶</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰]ⁿ (log)<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
+<tr><td><code>log_softmax</code><sup>*†‡¶</sup></td><td>x ∈ ([−50, 50] ∪ {−∞})ⁿ<br>n ∈ {1, …, 20}<br>j ∈ {0, …, n − 1}</td><td align="right" nowrap>10,000</td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>6.9e-16</samp></td><td align="right" nowrap>❗<samp>1.0e+00</samp></td><td align="right" nowrap><samp>6.9e-16</samp></td><td align="right" nowrap>98.7%</td></tr>
 <tr><td><code>cevalpoly</code><sup>§</sup></td><td>Re z, Im z ∈ [−2, 2]<br>c ∈ [−1, 1]ⁿ⁺¹<br>n ∈ {0, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.1e-14</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap><samp>4.1e-14</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>97.3%</td></tr>
 <tr><td><code>cevalpoly</code><sup>§</sup></td><td>Re z, Im z ∈ ±⁠[10⁻³, 1000] (log)<br>c ∈ ±⁠[10⁻³, 1000]ⁿ⁺¹ (log)<br>n ∈ {0, …, 20}</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>9.3e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap><samp>9.3e-14</samp></td><td align="right" nowrap><samp>3.4e-16</samp></td><td align="right" nowrap>97.3%</td></tr>
-<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
-<tr><td><code>poisson_binom_cdf</code></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>—</td><td align="right" nowrap>—</td><td align="right" nowrap>—</td></tr>
+<tr><td><code>poisson_binom_cdf</code><sup>**</sup></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>8.3e-16</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_cdf</code><sup>**</sup></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap><samp>1.1e-15</samp></td><td align="right" nowrap><samp>1.5e-16</samp></td><td align="right" nowrap>100%</td></tr>
+<tr><td><code>poisson_binom_cdf</code><sup>**</sup></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.7e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [0, 1]ⁿ<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap><samp>9.6e-16</samp></td><td align="right" nowrap><samp>1.6e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ [10⁻¹⁰, 0.1]ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>poisson_binom_pmf_all</code><sup>†</sup></td><td>k ∈ {0, …, n}<br>p ∈ (1 − [10⁻¹⁰, 0.1])ⁿ (log)<br>n ∈ {1, …, 50}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap><samp>1.2e-15</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>100%</td></tr>
@@ -1532,6 +1577,10 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <sup>§</sup> Ill-conditioned near the zeros.
 
 <sup>‖</sup> Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny probabilities.
+
+<sup>¶</sup> The second column is SciPy.
+
+<sup>**</sup> The second column is SciPy, which wraps xsf here.
 
 ## Not covered
 
