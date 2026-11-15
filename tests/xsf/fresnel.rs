@@ -50,6 +50,22 @@ fn test_modified_fresnel_k_large_x() {
     xsref::np_assert_allclose!(&km, &k.map(|k| k.conj()), rtol = 1e-15);
 }
 
+#[test]
+fn test_fresnel_zeros_large() {
+    // The 400th zeros, via `mpmath.findroot` of `mpmath.fresnels` and `mpmath.fresnelc`
+    let (szo, czo) = xsf::fresnel_zeros(400);
+    xsref::np_assert_allclose!(
+        &szo[399..],
+        &[c64(40.000_012_423_593_72, 0.038_464_128_942_121_15)],
+        rtol = 1e-15
+    );
+    xsref::np_assert_allclose!(
+        &czo[399..],
+        &[c64(39.987_510_479_614_684, 0.038_473_665_945_137_306)],
+        rtol = 1e-15
+    );
+}
+
 /// Ported from `scipy.special.tests.test_basic.TestFresnel.test_fresnel_zeros`
 #[test]
 fn test_fresnel_zeros() {
