@@ -678,6 +678,7 @@
     clippy::manual_midpoint
 )]
 
+mod ext;
 mod numpy;
 mod scipy_special;
 mod utils;
@@ -696,6 +697,7 @@ pub(crate) mod sealed {
     impl Sealed for num_complex::Complex<f64> {}
 }
 
+pub use ext::*;
 pub use numpy::*;
 pub use scipy_special::*;
 pub use xsf::*;

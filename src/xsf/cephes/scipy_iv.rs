@@ -50,11 +50,11 @@
 
 use core::f64::consts::{FRAC_2_PI, PI, TAU};
 
+use crate::ext::ln_dd;
 use crate::utils::{EGAMMA, mul_exp, neg_if_odd};
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gamma, rgamma};
-use crate::xsf::ln_dd;
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
 const MAXITER: u64 = 500;

@@ -80,12 +80,12 @@
 
 use core::f64::consts::{FRAC_2_SQRT_PI, TAU};
 
+use crate::ext::{ln_dd, ln_gamma};
 use crate::utils::{SQRT_PI, neg_one_pow};
 use crate::xsf::bessel::{cyl_bessel_j_f64, cyl_bessel_y_f64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gammasgn, iv, lgam, pow_rgamma, rgamma};
-use crate::xsf::{ln_dd, ln_gamma};
 
 const STRUVE_MAXITER: i32 = 10000;
 const STRUVE_SUM_EPS: f64 = 1e-16; /* be sure we are in the tail of the sum */

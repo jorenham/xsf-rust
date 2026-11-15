@@ -7,7 +7,7 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use super::ellip_harm::{Lame, sq_sub};
-use super::quadpack::quad;
+use crate::ext::quadpack::quad;
 
 /// The relative tolerance of the integrals
 ///
