@@ -794,7 +794,7 @@ fn chgm_fallback(
 /// and `-x0` if `x0 < 0` (DLMF 13.2.39):
 ///
 /// 1. NaNs, and `a = 0` or `a = b` for finite non-pole `b`, return at once (scipy/xsf#365).
-/// 2. Non-integer `b - a < -1`, `30 + |b| < -x0 < 100000`: the series of DLMF 13.2.39 in
+/// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`: the series of DLMF 13.2.39 in
 ///    double-double with the exact `b - a`, if its error bound is below `eps` (no issue).
 /// 3. Non-integer `b < 0`: `chgm_neg_b`, if that is accurate (scipy/xsf#365).
 /// 4. `a = -n >= -10^6`, `b > 0`, `n x > b`, `x0 > -700`: `chgm_poly`, if finite (scipy/xsf#365).
@@ -840,7 +840,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         return if a == 0.0 { 1.0 } else { x.exp() };
     }
 
-    // Unlike in xsf, for x < -30 - |b| and b - a < -1, first the series of DLMF 13.2.39 in
+    // Unlike in xsf, for x < -30 - |b| and b - a < 0, first the series of DLMF 13.2.39 in
     // double-double with the exact b - a, if its error bound is below eps: near a pole of
     // Gamma(b - a), whose reciprocal scales the e^-x part, rounding b - a and the recurrence in a
     // lose all digits, and even the sign.
@@ -848,7 +848,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // The series needs over -x terms.
     if regular && a.is_finite() && (30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
         let ak = DoubleDouble::new(b) - a;
-        if ak < -1.0 && (ak.hi.fract() != 0.0 || ak.lo.fract() != 0.0) {
+        if ak < 0.0 && (ak.hi.fract() != 0.0 || ak.lo.fract() != 0.0) {
             let hg = chgm_series_dd(ak, DoubleDouble::new(b), -x, x)
                 .filter(|&(hg, err)| hg.is_finite() && err <= f64::EPSILON * hg.abs());
             if let Some((hg, _)) = hg {
