@@ -125,7 +125,7 @@ const INCBET_LN_POW_MIN_GAIN: f64 = 2.0;
 /// the `|t| eps` that both lose, the former rounds by up to `(p ln(q) + p |ln(v)|) eps`, the
 /// latter by up to `(p |ln(q v)| + p + |ln_pow_beta|) eps`, with `p eps` from rounding `q v`, so
 /// only if that is normal. Where `|t|` dominates, either may be the more accurate.
-fn incbet_ln_pow_asymp(p: f64, q: f64, v: f64, t: f64) -> Option<f64> {
+pub(crate) fn incbet_ln_pow_asymp(p: f64, q: f64, v: f64, t: f64) -> Option<f64> {
     let qv = q * v;
     if q <= BETA_ASYMP_FACTOR * p.max(1.0) || qv < f64::MIN_POSITIVE {
         return None;

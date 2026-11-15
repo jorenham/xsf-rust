@@ -13,7 +13,7 @@ use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
     betainc_xy, fdtr, fdtr_w, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
-    incbet_cf_factor, lbeta, ln_a_beta, ln_igam_fac,
+    incbet_cf_factor, incbet_ln_pow_asymp, lbeta, ln_a_beta, ln_igam_fac,
 };
 use crate::xsf::{
     bracket_root_for_cdf_inversion, erfcx, find_positive_root, find_root_chandrupatla, log1pmx,
@@ -462,13 +462,24 @@ fn is_pos_finite(x: f64) -> bool {
 const RESCALE: i32 = 500;
 
 /// `ln(x^a y^b / (a B(a, b)))`, with `y = 1 - x`, i.e. `ln(I_x(a, b) - I_x(a + 1, b))`
-/// (A&S 26.5.16)
-fn ln_beta_term(a: f64, b: f64, lnx: f64, lny: f64) -> f64 {
+/// (A&S 26.5.16), and whether it avoids the cancellation of `lbeta(a, b)`
+fn ln_beta_term(a: f64, b: f64, x: f64, y: f64, lnx: f64, lny: f64) -> (f64, bool) {
     // Unlike in cdflib, the limit if `a = dfn / 2` rounds to 0, as `a B(a, b) -> 1`
     if a == 0.0 {
-        return b * lny;
+        return (b * lny, false);
     }
-    -lbeta(a, b) - a.ln() + a * lnx + b * lny
+    let t = -lbeta(a, b) - a.ln() + a * lnx + b * lny;
+    // Unlike in cdflib, without the cancellation of `lbeta(a, b)` against `a ln(x)` or `b ln(y)`
+    // for a huge `b` or `a`, like the `I_x(a, b)` that the terms start from, if `x` or `y` is
+    // normal (a subnormal one is rounded here)
+    let ln_pow = |p, q, v: f64| incbet_ln_pow_asymp(p, q, v, t).filter(|_| v >= f64::MIN_POSITIVE);
+    if let Some(p) = ln_pow(a, b, x) {
+        (p - a.ln() + b * lny, true)
+    } else if let Some(p) = ln_pow(b, a, y) {
+        (p - a.ln() + a * lnx, true)
+    } else {
+        (t, false)
+    }
 }
 
 /// `(m, k)` with `I_x(a, b) = m 2^k`, where `m ~ 1` and `k < 0` if `I_x(a, b)` underflows, so that
@@ -478,7 +489,7 @@ fn betainc_scaled(a: f64, b: f64, x: f64, y: f64, lnx: f64, lny: f64) -> (f64, i
     if ix >= f64::MIN_POSITIVE {
         return (ix, 0);
     }
-    let ln_term = ln_beta_term(a, b, lnx, lny);
+    let (ln_term, _) = ln_beta_term(a, b, x, y, lnx, lny);
     if !ln_term.is_finite() {
         return (ix, 0);
     }
@@ -892,7 +903,9 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
     let mut i = icent;
 
     // x^adn y^b / (adn B(adn, b))
-    let mut dnterm = (ln_beta_term(adn, b, lnxx, lnyy) - f64::from(scale) * LN_2).exp();
+    let (ln_cent, asymp) = ln_beta_term(adn, b, xx, yy, lnxx, lnyy);
+    let cent_term = (ln_cent - f64::from(scale) * LN_2).exp();
+    let mut dnterm = cent_term;
 
     // Unlike in cdflib, at least once, as the central term underflows for a tiny `nc` while the
     // next need not, with `>` instead of `>=`, which never ends if `eps * ssum` underflows, and not
@@ -926,7 +939,14 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
 
     // x^(aup - 1) y^b / ((aup - 1) B(aup - 1, b)), with `aup - 1` not rounded to 0 if dfn < eps
     let a = dfn / 2.0 + (icent - 1.0);
-    let mut upterm = (ln_beta_term(a, b, lnxx, lnyy) - f64::from(scale) * LN_2).exp();
+    // Unlike in cdflib, from the first term of the down sum if that avoids the cancellation: the
+    // result depends on the difference of both sums, so their first terms should share their
+    // rounding error, which is independent for `a` and `adn` otherwise
+    let mut upterm = if asymp {
+        ldexp_f64(cent_term, scale_up - scale) * aup / ((a + b) * xx)
+    } else {
+        (ln_beta_term(a, b, xx, yy, lnxx, lnyy).0 - f64::from(scale) * LN_2).exp()
+    };
     betup = ldexp_f64(betup, scale_up - scale);
 
     loop {

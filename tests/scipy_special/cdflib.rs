@@ -525,6 +525,36 @@ fn test_ncfdtr_huge_dfn() {
 }
 
 #[test]
+fn test_ncfdtr_huge_dfd() {
+    // where `-ln(B(dfn / 2 + i, dfd / 2))` cancels `(dfn / 2 + i) ln(x)` in the terms of the
+    // recurrences; from Arb
+    let p = [
+        xsf::ncfdtr(0.05, 1e300, 16.0, 400.0),
+        xsf::ncfdtr(1.0, 1e250, 24.0, 32.0),
+        xsf::ncfdtr(0.1, 1e200, 2000.0, 20001.0),
+        xsf::ncfdtr(
+            2.455_720_872_257_285_6e-14,
+            3.905_370_109_048_817_7e241,
+            0.001_165_616_947_566_066_6,
+            110_554_825_157.021_12,
+        ),
+    ];
+    let p_ref = [
+        0.720_886_832_696_006_1,
+        0.775_737_020_386_241,
+        0.504_460_496_202_887,
+        0.999_418_151_467_391_6,
+    ];
+    np_assert_allclose!(p, p_ref, rtol = 4e-15);
+    // d ln(p) / d ln(f) ~ dfn / 2 here, so the inverse has 2 / dfn times the error of `ncfdtr`
+    np_assert_allclose!(
+        [xsf::ncfdtri(0.001, 1e200, 0.01, 0.9)],
+        [7.559_458_169_039_486e-85],
+        rtol = 7e-11
+    );
+}
+
+#[test]
 fn test_ncfdtrinc() {
     // `test_ncfdtr_ncfdtri` in scipy/special/tests/test_cdflib.py: `(dfn, dfd, nc, f, ncfdtr)`
     let cases = [
