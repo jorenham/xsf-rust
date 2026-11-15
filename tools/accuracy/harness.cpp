@@ -47,6 +47,7 @@
 #include "xsf/cpu/specfun.h"
 #include "xsf/cpu/sph_bessel.h"
 #include "xsf/cpu/sph_harm.h"
+#include "xsf/cpu/sphd_wave.h"
 #include "xsf/cpu/stats.h"
 #include "xsf/cpu/struve.h"
 #include "xsf/digamma.h"
@@ -195,6 +196,18 @@ static double mathieu_coef(bool odd, int m, double q, int k) {
     return fc[k];
 }
 
+// the last mode of the characteristic values of `segv_seq`; must match src/main.rs
+constexpr int SEGV_N = 20;
+
+// mode `n` of the characteristic values of the modes m, ..., SEGV_N, like `pro_cv_seq` (kd = 1)
+// and `obl_cv_seq` (kd = -1) of SciPy
+static double segv_seq(int m, int n, double c, int kd) {
+    double cv;
+    std::vector<double> eg(SEGV_N - m + 2, NAN);
+    xsf::specfun::segv(m, SEGV_N, c, kd, &cv, eg.data());
+    return eg[n - m];
+}
+
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
 static cd kelvin(double x, int index) {
     cd o[4];
@@ -245,6 +258,12 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
         r = (expr);                                                                                \
         return true;                                                                               \
     }
+#define F5(name, expr)                                                                             \
+    if (f == name && a.size() == 5) {                                                              \
+        const double x = a[0], y = a[1], z = a[2], w = a[3], v = a[4];                             \
+        r = (expr);                                                                                \
+        return true;                                                                               \
+    }
 // complex results; the complex arguments are passed as (real, imaginary) pairs
 #define C(name, n, expr)                                                                           \
     if (f == name && a.size() == n) {                                                              \
@@ -254,6 +273,13 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     }
 #define OUT2(I, call) nth<I>([&](double &o0, double &o1, double &, double &) { call; })
 #define OUT4(I, call) nth<I>([&](double &o0, double &o1, double &o2, double &o3) { call; })
+// the value (.0) and the derivative (.1) of a spheroidal wave function, without and with a given
+// characteristic value
+#define SW(name)                                                                                   \
+    F4(#name "_nocv.0", OUT2(0, xsf::name##_nocv(x, y, z, w, o0, o1)))                             \
+    F4(#name "_nocv.1", OUT2(1, xsf::name##_nocv(x, y, z, w, o0, o1)))                             \
+    F5(#name ".0", OUT2(0, xsf::name(x, y, z, w, v, o0, o1)))                                      \
+    F5(#name ".1", OUT2(1, xsf::name(x, y, z, w, v, o0, o1)))
     const auto l = [](double x) { return static_cast<long>(x); };
     const auto i = [](double x) { return static_cast<int>(x); };
     // gamma and related
@@ -444,6 +470,17 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("pbvv_seq.1", pb_seq<1>(xsf::detail::pbvv<double>, x, y))
     F2("pbwa.0", OUT2(0, xsf::pbwa(x, y, o0, o1)))
     F2("pbwa.1", OUT2(1, xsf::pbwa(x, y, o0, o1)))
+    // spheroidal wave functions
+    F3("prolate_segv", xsf::prolate_segv(x, y, z))
+    F3("oblate_segv", xsf::oblate_segv(x, y, z))
+    F3("prolate_segv_seq", segv_seq(i(x), i(y), z, 1))
+    F3("oblate_segv_seq", segv_seq(i(x), i(y), z, -1))
+    SW(prolate_aswfa)
+    SW(prolate_radial1)
+    SW(prolate_radial2)
+    SW(oblate_aswfa)
+    SW(oblate_radial1)
+    SW(oblate_radial2)
     // zeta functions
     F2("gen_harmonic", xsf::gen_harmonic(l(x), y))
     F4("normalized_gen_harmonic", xsf::normalized_gen_harmonic(l(x), l(y), l(z), w))
