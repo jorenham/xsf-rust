@@ -362,30 +362,32 @@
 //!
 //! # Gamma and related functions
 //!
-//! | Function         | Description                                                       |
-//! | ---------------- | ----------------------------------------------------------------- |
-//! | [`gamma`]        | Gamma function, $\Gamma(z)$                                       |
-//! | [`gammaln`]      | Log-gamma function, $\ln\abs{\Gamma(z)}$                          |
-//! | [`loggamma`]     | Principal branch of $\ln \Gamma(z)$                               |
-//! | [`gammasgn`]     | Sign of [`gamma`], $\sgn(\Gamma(z))$                              |
-//! | [`gammainc`]     | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$ |
-//! | [`gammaincinv`]  | Inverse of [`gammainc`], $P^{-1}(a,y)$                            |
-//! | [`gammaincc`]    | Regularized upper incomplete gamma function $Q(a,x) = 1 - P(a,x)$ |
-//! | [`gammainccinv`] | Inverse of [`gammaincc`], $Q^{-1}(a,y)$                           |
-//! | [`beta`]         | Beta function, $\B(a,b) = {\Gamma(a)\Gamma(b) \over \Gamma(a+b)}$ |
-//! | [`betaln`]       | Log-Beta function, $\ln\abs{\B(a,b)}$                             |
-//! | [`betainc`]      | Regularized incomplete beta function, $\I_x(a,b)$                 |
-//! | [`betaincinv`]   | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
-//! | [`betaincc`]     | Complement of [`betainc`], $1 - \I_x(a,b)$                        |
-//! | [`betainccinv`]  | Inverse of [`betaincc`]                                           |
-//! | [`digamma`]      | The digamma function, $\psi(z)$                                   |
-//! | [`digammainv`]   | Inverse of [`digamma`], $\psi^{-1}(y)$                            |
-//! | [`trigamma`]     | The trigamma function, $\psi\'(z)$                                |
-//! | [`polygamma`]    | The polygamma function, $\psi^{(n)}(x)$                           |
-//! | [`multigammaln`] | Log of multivariate gamma, sometimes called the generalized gamma |
-//! | [`rgamma`]       | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |
-//! | [`pow_rising`]   | Rising factorial $\rpow x m = {\Gamma(x+m) \over \Gamma(x)}$      |
-//! | [`pow_falling`]  | Falling factorial $\fpow x m = {\Gamma(x+1) \over \Gamma(x+1-m)}$ |
+//! | Function          | Description                                                       |
+//! | ----------------- | ----------------------------------------------------------------- |
+//! | [`gamma`]         | Gamma function, $\Gamma(z)$                                       |
+//! | [`gammaln`]       | Log-gamma function, $\ln\abs{\Gamma(z)}$                          |
+//! | [`loggamma`]      | Principal branch of $\ln \Gamma(z)$                               |
+//! | [`gammasgn`]      | Sign of [`gamma`], $\sgn(\Gamma(z))$                              |
+//! | [`gammainc`]      | Regularized lower incomplete gamma function $P(a,x) = 1 - Q(a,x)$ |
+//! | [`gammaincinv`]   | Inverse of [`gammainc`], $P^{-1}(a,y)$                            |
+//! | [`gammaincc`]     | Regularized upper incomplete gamma function $Q(a,x) = 1 - P(a,x)$ |
+//! | [`gammainccinv`]  | Inverse of [`gammaincc`], $Q^{-1}(a,y)$                           |
+//! | [`log_gammainc`]  | Log of [`gammainc`], $\ln P(a,x)$                                 |
+//! | [`log_gammaincc`] | Log of [`gammaincc`], $\ln Q(a,x)$                                |
+//! | [`beta`]          | Beta function, $\B(a,b) = {\Gamma(a)\Gamma(b) \over \Gamma(a+b)}$ |
+//! | [`betaln`]        | Log-Beta function, $\ln\abs{\B(a,b)}$                             |
+//! | [`betainc`]       | Regularized incomplete beta function, $\I_x(a,b)$                 |
+//! | [`betaincinv`]    | Inverse of [`betainc`], $\I_y^{-1}(a,b)$                          |
+//! | [`betaincc`]      | Complement of [`betainc`], $1 - \I_x(a,b)$                        |
+//! | [`betainccinv`]   | Inverse of [`betaincc`]                                           |
+//! | [`digamma`]       | The digamma function, $\psi(z)$                                   |
+//! | [`digammainv`]    | Inverse of [`digamma`], $\psi^{-1}(y)$                            |
+//! | [`trigamma`]      | The trigamma function, $\psi\'(z)$                                |
+//! | [`polygamma`]     | The polygamma function, $\psi^{(n)}(x)$                           |
+//! | [`multigammaln`]  | Log of multivariate gamma, sometimes called the generalized gamma |
+//! | [`rgamma`]        | Reciprocal of the gamma function, $\frac{1}{\Gamma(z)}$           |
+//! | [`pow_rising`]    | Rising factorial $\rpow x m = {\Gamma(x+m) \over \Gamma(x)}$      |
+//! | [`pow_falling`]   | Falling factorial $\fpow x m = {\Gamma(x+1) \over \Gamma(x+1-m)}$ |
 //!
 //! # Error function and Fresnel integrals
 //!

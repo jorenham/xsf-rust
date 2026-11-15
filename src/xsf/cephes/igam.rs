@@ -31,6 +31,7 @@ use core::f64::consts::{E, TAU};
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
 use crate::xsf::cephes::lanczos::{LANCZOS_G, lanczos_sum_expg_scaled};
 use crate::xsf::cephes::{erfc, lgam, lgam1p, pow_rgamma, rgamma};
+use crate::xsf::expint::exp1;
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
 
@@ -41,6 +42,10 @@ const IGAM_SMALL: f64 = 20.0;
 const IGAM_LARGE: f64 = 200.0;
 const IGAM_SMALLRATIO: f64 = 0.3;
 const IGAM_LARGERATIO: f64 = 4.5;
+// `igamc` uses `igamc_cf` only above this
+const IGAMC_CF_MIN_X: f64 = 1.1;
+// with a margin, as `igamc_cf` can overflow from `x ~ 1e38` where `igamc` underflows
+const IGAMC_CF_MAX_X: f64 = 1e20;
 
 /// If `x <= 1` and `m = a max(|ln(x)|, 1)` is at most this, `igamc` uses `igamc_series`, which is
 /// then `O(m)` with an absolute error below 0.04 eps, so `1 - igamc` is within 0.3 eps (measured)
@@ -163,8 +168,13 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
     if ax == 0.0 {
         return 0.0;
     }
+    igamc_cf(a, x) * ax
+}
 
-    /* continued fraction */
+/// The continued fraction of DLMF 8.9.2, i.e. `igamc(a, x) / igam_fac(a, x)`
+///
+/// Unlike in xsf, split out of `igamc_continued_fraction` for its log, where `igamc` underflows
+fn igamc_cf(a: f64, x: f64) -> f64 {
     let mut y = 1.0 - a;
     let mut z = x + y + 1.0;
     let mut c = 0.0;
@@ -203,15 +213,54 @@ fn igamc_continued_fraction(a: f64, x: f64) -> f64 {
             break;
         }
     }
+    ans
+}
 
-    ans * ax
+/// `(m, ln_f)` with `igamc(a, x) = m exp(ln_f)` for `x > a`, also where `igamc` underflows
+pub(crate) fn igamc_exp_scaled(a: f64, x: f64) -> (f64, f64) {
+    if x <= IGAMC_CF_MIN_X {
+        // `igamc` underflows here only for `a < 2e-307`, so that `igamc(a, x) = a E1(x)`
+        return (exp1(x), a.ln());
+    }
+    if x >= IGAMC_CF_MAX_X && x < 2.0 * a {
+        // `a` is then so large that the asymptotic series is accurate
+        return asymptotic_series_scaled(a, x, IGAMC);
+    }
+    let ln_fac = if a < 1.0 {
+        // `ln_igam_fac` overflows for tiny `a`
+        a * x.ln() - x - lgam(a)
+    } else {
+        ln_igam_fac(a, x)
+    };
+    let m = if x < IGAMC_CF_MAX_X {
+        igamc_cf(a, x)
+    } else {
+        igamc_large_x_sum(a, x) / x
+    };
+    (m, ln_fac)
+}
+
+/// The series `sum_k (a - 1) ... (a - k) / x^k` of DLMF 8.11.2, i.e.
+/// `x igamc(a, x) / igam_fac(a, x)`, for `x >= 2 a`, where its terms decrease at least as `2^-k`
+/// for `k <= x / 2`
+fn igamc_large_x_sum(a: f64, x: f64) -> f64 {
+    let mut term = 1.0;
+    let mut sum = 1.0;
+    for k in 1..IGAM_MAXITER {
+        term *= (a - f64::from(k)) / x;
+        sum += term;
+        if term.abs() <= MACHEP * sum.abs() {
+            break;
+        }
+    }
+    sum
 }
 
 /// The power series `sum_k x^k / ((a + 1) ... (a + k))` of DLMF 8.11.4, i.e.
 /// `igam(a, x) a / igam_fac(a, x)`, and whether it converged within `IGAM_MAXITER` terms
 ///
 /// Unlike in xsf, split out of `igam_series` for a scaled `igam`, where it underflows
-pub(crate) fn igam_series_sum(a: f64, x: f64) -> (f64, bool) {
+fn igam_series_sum(a: f64, x: f64) -> (f64, bool) {
     let mut r = a;
     let mut c = 1.0;
     let mut ans = 1.0;
@@ -282,13 +331,32 @@ fn asymptotic_series(a: f64, x: f64, func: i32) -> f64 {
     res + sgn * (-0.5 * a * eta * eta).exp() * sum / (TAU * a).sqrt()
 }
 
-/// `(m, ln_f)` with `igam(a, x) = m exp(ln_f)` for `x < a`, from the asymptotic series
-/// (DLMF 8.12.3), also where `igam` underflows
-pub(crate) fn igam_asymptotic_scaled(a: f64, x: f64) -> (f64, f64) {
+/// `(m, ln_f)` with `asymptotic_series(a, x, func) = m exp(ln_f)` for `x < a` if `func` is
+/// `IGAM`, else `x > a`, also where it underflows
+fn asymptotic_series_scaled(a: f64, x: f64, func: i32) -> (f64, f64) {
     let (eta, sum) = asymptotic_sum(a, x);
+    let sgn = if func == IGAM { -1.0 } else { 1.0 };
     // erfc(z) = exp(-z^2) erfcx(z)
-    let m = 0.5 * erfcx(-eta * (a / 2.0).sqrt()) - sum / (TAU * a).sqrt();
+    let m = 0.5 * erfcx(sgn * eta * (a / 2.0).sqrt()) + sgn * sum / (TAU * a).sqrt();
     (m, -0.5 * a * eta * eta)
+}
+
+/// `ln(x^a e^-x / Gamma(a + 1))`, i.e. `ln(P(a, x) - P(a + 1, x))` (A&S 6.5.21)
+pub(crate) fn ln_gamma_term(a: f64, x: f64) -> f64 {
+    ln_igam_fac(a, x) - a.ln()
+}
+
+/// `(m, ln_f)` with `igam(a, x) = m exp(ln_f)` for `x < a`, also where `igam` underflows
+pub(crate) fn igam_exp_scaled(a: f64, x: f64) -> Option<(f64, f64)> {
+    // P(a, x) = x^a e^-x / Gamma(a + 1) w (DLMF 8.11.4)
+    let ln_term = ln_gamma_term(a, x);
+    let (w, converged) = igam_series_sum(a, x);
+    if ln_term.is_finite() && converged {
+        return Some((w, ln_term));
+    }
+    // the asymptotic series, where the power series converges too slowly, near `x = a`
+    let (m, ln_f) = asymptotic_series_scaled(a, x, IGAM);
+    (m > 0.0 && ln_f.is_finite()).then_some((m, ln_f))
 }
 
 /// `eta` and the sum `sum_k c_k(eta) / a^k` of DLMF 8.12.3/8.12.4
@@ -474,7 +542,7 @@ pub(crate) fn igamc(a: f64, x: f64) -> f64 {
     }
 
     /* Everywhere else; see [2]. */
-    if x > 1.1 {
+    if x > IGAMC_CF_MIN_X {
         if x < a {
             1.0 - igam_series(a, x)
         } else {

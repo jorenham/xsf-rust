@@ -245,6 +245,8 @@ lists the functions that SciPy computes with another library than xsf.
 | [`log1p`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log1p.html)                               | `log1p`                                             |
 |                                                                                                                        | `log1pmx`                                           |
 | [`log_expit`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_expit.html)                       | `log_expit`                                         |
+| [`log_gammainc`](https://scipy.github.io/devdocs/reference/generated/scipy.special.log_gammainc.html)                  | `log_gammainc`                                      |
+| [`log_gammaincc`](https://scipy.github.io/devdocs/reference/generated/scipy.special.log_gammaincc.html)                | `log_gammaincc`                                     |
 | [`log_ndtr`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_ndtr.html)                         | `log_ndtr`                                          |
 | [`log_softmax`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_softmax.html)                   | `log_softmax`                                       |
 | [`log_wright_bessel`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.log_wright_bessel.html)       | `log_wright_bessel`                                 |

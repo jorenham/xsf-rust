@@ -12,8 +12,8 @@ use super::quadpack::quad_unimodal;
 use crate::utils::{SQRT_FRAC_2_PI, SQRT_PI, pow2};
 use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 use crate::xsf::cephes::{
-    betainc_xy, fdtr, fdtr_w, igam, igam_asymptotic_scaled, igam_fac, igam_series_sum, igamc,
-    incbet_cf_factor, incbet_ln_pow_asymp, lbeta, ln_a_beta, ln_igam_fac,
+    betainc_xy, fdtr, fdtr_w, igam, igam_exp_scaled, igam_fac, igamc, incbet_cf_factor,
+    incbet_ln_pow_asymp, lbeta, ln_a_beta, ln_gamma_term,
 };
 use crate::xsf::{
     bracket_root_for_cdf_inversion, erfcx, find_positive_root, find_root_chandrupatla, log1pmx,
@@ -507,29 +507,13 @@ fn scaled_exp(ln_term: f64, w: f64) -> (f64, i32) {
     ((ln_term - f64::from(k) * LN_2).exp() * w, k)
 }
 
-/// `ln(x^a e^-x / Gamma(a + 1))`, i.e. `ln(P(a, x) - P(a + 1, x))` (A&S 6.5.21)
-fn ln_gamma_term(a: f64, x: f64) -> f64 {
-    ln_igam_fac(a, x) - a.ln()
-}
-
 /// `(m, k)` with `P(a, x) = m 2^k`, as [`betainc_scaled`] for `I_x(a, b)`
 fn igam_scaled(a: f64, x: f64) -> (f64, i32) {
     let p = igam(a, x);
     if p >= f64::MIN_POSITIVE {
         return (p, 0);
     }
-    // P(a, x) = x^a e^-x / Gamma(a + 1) w (DLMF 8.11.4), with x below a if P(a, x) underflows
-    let ln_term = ln_gamma_term(a, x);
-    let (w, converged) = igam_series_sum(a, x);
-    if ln_term.is_finite() && converged {
-        return scaled_exp(ln_term, w);
-    }
-    // the asymptotic series, where the power series converges too slowly, near `x = a`
-    let (m, ln_f) = igam_asymptotic_scaled(a, x);
-    if !(m > 0.0 && ln_f.is_finite()) {
-        return (p, 0);
-    }
-    scaled_exp(ln_f, m)
+    igam_exp_scaled(a, x).map_or((p, 0), |(m, ln_f)| scaled_exp(ln_f, m))
 }
 
 /// Divides the `values` by powers of 2, adding their exponents to `scale`, while
