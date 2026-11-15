@@ -348,6 +348,23 @@ fn test_hypu_chgus() {
 }
 
 #[test]
+fn test_hypu_chgus_sinpi() {
+    // Arb; 2.17835e279, 5.0010e199, and 7.52252e149 (sin(pi b) near an integer b) in xsf
+    let abx = [
+        (0.2, 2.0 - 1e-12, 1e-280),
+        (3.0, 2.0 + 1e-12, 1e-200),
+        (2.5, 2.0 - 1e-10, 1e-150),
+    ];
+    let expected = [
+        2.178_248_840_713_436_5e279,
+        5.000_000_002_299_904e199,
+        7.522_527_521_252_041e149,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_b_near_zero() {
     // mpmath (scipy/xsf#533)
     let abx = [(2.5, -1e-12, 15.0), (0.75, -1e-13, 3.0), (2.5, 1e-12, 15.0)];
