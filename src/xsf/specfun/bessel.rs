@@ -974,19 +974,12 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also dl[1] (for |x| < 1e-100) or bl[1] /
-    // dl[1] (for x > 12, where *nm is 1 if n == 0), which is out of bounds for n == 0 with buffers
-    // of length n + 1. The caller (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also bl[1] / dl[1] (for x > 12, where *nm
+    // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
+    // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
-    if x.abs() < 1e-100 {
-        for k in 0..=n {
-            bl[k as usize] = 0.0;
-            dl[k as usize] = 0.0;
-        }
-        bl[0] = 1.0;
-        dl[1] = 0.5;
-        return;
-    }
+    // Unlike in xsf, there is no `|x| < 1e-100` branch, which set `bl[k] = 0` for `k >= 1` and
+    // `dl[1] = 0.5`, instead of 1 and 0. The series below is accurate there too.
     if x <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {

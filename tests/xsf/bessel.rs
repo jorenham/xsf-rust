@@ -1112,6 +1112,22 @@ fn test_jahnke_emden_lambda_huge_v() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_tiny_x() {
+    // Lambda_v(x) = 1 - x^2 / (4 (v + 1)) + O(x^4), so Lambda_v'(x) = -x / (2 (v + 1)) + O(x^3)
+    for v in [3.0, 3.25] {
+        for x in [0.0, 1e-101, 1e-50] {
+            let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+            let v0 = v - 3.0;
+            let dlr: Vec<f64> = (0..4)
+                .map(|k| -x / (2.0 * (v0 + f64::from(k) + 1.0)))
+                .collect();
+            assert_eq!(vl, [1.0; 4], "v = {v}, x = {x}");
+            np_assert_allclose!(&dl, &dlr, rtol = 1e-15);
+        }
+    }
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {
