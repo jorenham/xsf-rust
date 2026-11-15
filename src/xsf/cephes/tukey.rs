@@ -34,7 +34,8 @@ pub(crate) fn tukeylambdacdf(x: f64, lmbda: f64) -> f64 {
         if x >= 0.0 {
             return 1.0 / (1.0 + (-x).exp());
         }
-        return x.exp() / (1.0 + x.exp());
+        let ex = x.exp();
+        return ex / (1.0 + ex);
     }
 
     let pmin: f64 = 0.0;

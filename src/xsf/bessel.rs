@@ -1607,14 +1607,15 @@ fn ittika(x: f64) -> (f64, f64) {
         tti = tti * x.exp() / rc;
     }
     let ttk = if x <= 1.0 {
-        let e0 = (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln() + PI * PI / 24.0 + 0.5 * el * el;
-        let mut b1 = 1.5 - (el + (x / 2.0).ln());
+        let ln_half_x = (x / 2.0).ln();
+        let e0 = (0.5 * ln_half_x + el) * ln_half_x + PI * PI / 24.0 + 0.5 * el * el;
+        let mut b1 = 1.5 - (el + ln_half_x);
         let mut rs = 1.0;
         r = 1.0;
         for k in 2..=50 {
             r = 0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
             rs += 1.0 / f64::from(k);
-            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + ln_half_x));
             b1 += r2;
             if (r2 / b1).abs() < 1.0e-12 {
                 break;
@@ -1673,14 +1674,15 @@ fn ittjya(x: f64) -> (f64, f64) {
             }
         }
         ttj *= 0.125 * x * x;
-        let e0 = 0.5 * (FRAC_PI_SQ_6 - el * el) - (0.5 * (x / 2.0).ln() + el) * (x / 2.0).ln();
-        let mut b1 = el + (x / 2.0).ln() - 1.5;
+        let ln_half_x = (x / 2.0).ln();
+        let e0 = 0.5 * (FRAC_PI_SQ_6 - el * el) - (0.5 * ln_half_x + el) * ln_half_x;
+        let mut b1 = el + ln_half_x - 1.5;
         let mut rs = 1.0;
         r = -1.0;
         for k in 2..=100 {
             r = -0.25 * r * (f64::from(k) - 1.0) / f64::from(k * k * k) * x * x;
             rs += 1.0 / f64::from(k);
-            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + (x / 2.0).ln()));
+            let r2 = r * (rs + 1.0 / (2.0 * f64::from(k)) - (el + ln_half_x));
             b1 += r2;
             if r2.abs() < b1.abs() * 1.0e-12 {
                 break;

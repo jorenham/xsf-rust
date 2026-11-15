@@ -139,8 +139,9 @@ fn vvla_qe(x: f64, va: f64, qe: f64) -> f64 {
         let x1 = -x;
         let pdl = dvla(x1, va);
         let gl = gamma2(-va);
-        let dsl = (PI * va).sin() * (PI * va).sin();
-        pv = dsl * gl / PI * pdl - (PI * va).cos() * pv;
+        let (s, c) = (PI * va).sin_cos();
+        let dsl = s * s;
+        pv = dsl * gl / PI * pdl - c * pv;
     }
     pv
 }
