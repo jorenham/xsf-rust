@@ -13,6 +13,9 @@ use num_complex::Complex;
 /// The number of orders of `riccati_j` and `riccati_y`; must match `harness.cpp`
 const RICCATI_N: usize = 101;
 
+/// The last mode of `prolate_segv_seq` and `oblate_segv_seq`; must match `harness.cpp`
+const SEGV_N: u64 = 20;
+
 /// The element of degree `n` and order `m` of the output of an `_all` function `all(n, |m|)`,
 /// whose rows have the orders `0..=|m|`, followed by `-|m|..=-1`
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -469,8 +472,43 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("wilcoxon_pmf", &[n, k]) => xsf::wilcoxon_pmf(k, &xsf::wilcoxon_pmf_all(n as usize)),
         ("wilcoxon_cdf", &[n, k]) => xsf::wilcoxon_cdf(k, &xsf::wilcoxon_cdf_all(n as usize)),
         ("wilcoxon_sf", &[n, k]) => xsf::wilcoxon_sf(k, &xsf::wilcoxon_cdf_all(n as usize)),
-        _ => return None,
+        _ => return eval_spheroidal(f, a),
     })
+}
+
+/// Spheroidal wave functions: the value (`.0`) or the derivative (`.1`) of the mode `(m, n)`
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn eval_spheroidal(f: &str, a: &[f64]) -> Option<f64> {
+    let (name, derivative) = match f.rsplit_once('.') {
+        Some((name, i)) => (name, i == "1"),
+        None => (f, false),
+    };
+    let (m, n) = (*a.first()? as u64, *a.get(1)? as u64);
+    let (y, dy) = match (name, &a[2..]) {
+        ("prolate_segv", &[c]) => return Some(xsf::prolate_segv(m, n, c)),
+        ("oblate_segv", &[c]) => return Some(xsf::oblate_segv(m, n, c)),
+        // mode `n` of the modes `m..=SEGV_N`
+        ("prolate_segv_seq", &[c]) => {
+            return Some(xsf::prolate_segv_seq(m, SEGV_N, c)[(n - m) as usize]);
+        },
+        ("oblate_segv_seq", &[c]) => {
+            return Some(xsf::oblate_segv_seq(m, SEGV_N, c)[(n - m) as usize]);
+        },
+        ("prolate_aswfa_nocv", &[c, x]) => xsf::prolate_aswfa_nocv(m, n, c, x),
+        ("oblate_aswfa_nocv", &[c, x]) => xsf::oblate_aswfa_nocv(m, n, c, x),
+        ("prolate_radial1_nocv", &[c, x]) => xsf::prolate_radial1_nocv(m, n, c, x),
+        ("oblate_radial1_nocv", &[c, x]) => xsf::oblate_radial1_nocv(m, n, c, x),
+        ("prolate_radial2_nocv", &[c, x]) => xsf::prolate_radial2_nocv(m, n, c, x),
+        ("oblate_radial2_nocv", &[c, x]) => xsf::oblate_radial2_nocv(m, n, c, x),
+        ("prolate_aswfa", &[c, cv, x]) => xsf::prolate_aswfa(m, n, c, cv, x),
+        ("oblate_aswfa", &[c, cv, x]) => xsf::oblate_aswfa(m, n, c, cv, x),
+        ("prolate_radial1", &[c, cv, x]) => xsf::prolate_radial1(m, n, c, cv, x),
+        ("oblate_radial1", &[c, cv, x]) => xsf::oblate_radial1(m, n, c, cv, x),
+        ("prolate_radial2", &[c, cv, x]) => xsf::prolate_radial2(m, n, c, cv, x),
+        ("oblate_radial2", &[c, cv, x]) => xsf::oblate_radial2(m, n, c, cv, x),
+        _ => return None,
+    };
+    Some(if derivative { dy } else { y })
 }
 
 /// Complex-valued functions; the complex arguments are passed as (real, imaginary) pairs.

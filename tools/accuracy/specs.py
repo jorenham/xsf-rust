@@ -2096,6 +2096,279 @@ def _mathieu_radial(odd, kind, m, q, z, derivative=False):
     return _mathieu_sum(f)
 
 
+# ---------------------------------------------------------------- spheroidal wave functions
+
+# mpmath and Arb don't have these. With kd = 1 for the prolate and -1 for the oblate ones, they are
+# the functions of DLMF 30 with gamma^2 = kd c^2, in the normalization of Flammer, "Spheroidal
+# Wave Functions" (1957), which SciPy uses.
+
+
+def _sw_rows(m, n, g2, L):
+    """The rows (a, b, c) of the recurrence a e_(l-2) + (b - cv) e_l + c e_(l+2) = 0 of the
+    coefficients e_l of P_l^m in the angular function (DLMF 30.8.1) with gamma^2 = g2, for
+    l = n - 2 floor((n - m) / 2), ..., L: -A_k, B_k + gamma^2, and -C_k of DLMF 30.8.3 with
+    l = n + 2k, since e_l = (-1)^k a_(n,k) and cv = lambda + gamma^2."""
+    rows = []
+    for l in range(m + (n - m) % 2, L + 1, 2):
+        ll = l * (l + 1)
+        a = g2 * ((l - m - 1) * (l - m)) / ((2 * l - 3) * (2 * l - 1))
+        b = ll + g2 * (1 - mp.mpf(2 * (ll - 1 + m * m)) / ((2 * l - 1) * (2 * l + 3)))
+        c = g2 * ((l + m + 1) * (l + m + 2)) / ((2 * l + 3) * (2 * l + 5))
+        rows.append((a, b, c))
+    return rows
+
+
+def _sw_count(rows, x):
+    """The number of eigenvalues below x of the tridiagonal matrix `rows`: the negative terms of
+    its Sturm sequence."""
+    count, q, c0 = 0, 1, 0
+    for a, b, c in rows:
+        q = b - x - a * c0 / q or 1e-300
+        count += q < 0
+        c0 = c
+    return count
+
+
+def _sw_guess(rows, i):
+    """The eigenvalue of index i of the tridiagonal matrix `rows`, by bisection in f64."""
+    rows = [tuple(map(float, row)) for row in rows]
+    lo = min(b - abs(a) - abs(c) for a, b, c in rows)
+    hi = max(b + abs(a) + abs(c) for a, b, c in rows)
+    while True:
+        x = (lo + hi) / 2
+        if not lo < x < hi:
+            return x
+        if _sw_count(rows, x) > i:
+            hi = x
+        else:
+            lo = x
+
+
+def _sw_coef(rows, i, cv):
+    """The coefficients e_l of `_sw_rows` with e_n = 1 (row i), from the ratios e_l / e_(l+2)
+    below n (upward) and e_l / e_(l-2) above n (downward), which are the stable directions; and
+    the Newton step f / f' of the residual f(cv) of row i, which is zero at an eigenvalue."""
+    e = [mp.mpf(1)] * len(rows)
+    r = dr = 0  # the ratio, and its derivative w.r.t. cv
+    for j in range(i):
+        a, b, c = rows[j]
+        d = b - cv + a * r
+        r, dr = -c / d, c * (a * dr - 1) / d**2
+        e[j] = r
+    a = rows[i][0]
+    f, df = rows[i][1] - cv + a * r, a * dr - 1
+    r = dr = 0
+    for j in range(len(rows) - 1, i, -1):
+        a, b, c = rows[j]
+        d = b - cv + c * r
+        r, dr = -a / d, a * (c * dr - 1) / d**2
+        e[j] = r
+    c = rows[i][2]
+    f, df = f + c * r, df + c * dr
+    for j in range(i - 1, -1, -1):
+        e[j] *= e[j + 1]
+    for j in range(i + 1, len(rows)):
+        e[j] *= e[j - 1]
+    return e, f / df
+
+
+def _sw_cv(m, n, g2):
+    """The characteristic value of SciPy, lambda_n^m(gamma^2) + gamma^2 of DLMF 30.3 with
+    gamma^2 = g2, the coefficients e_l of `_sw_coef`, and their last degree L.
+
+    The matrix of `_sw_rows` is similar to a symmetric one with a nonzero off-diagonal, so its
+    eigenvalues are simple, and ordered like at gamma = 0, where they are l (l + 1). The
+    truncation at L is doubled until e_L is negligible."""
+    i = (n - m) // 2
+    tol = mp.mpf(10) ** -(mp.mp.dps + 10)
+    # e_(l+2) / e_l ~ -g2 / (4 l^2) (DLMF 30.8.7), so e_L is of the order of (c e / (2 L))^L
+    k, c, cv = 4, float(mp.sqrt(abs(g2))), None
+    while (n + 2 * k) * math.log10((n + 2 * k) / (1.4 * (1 + c))) < (
+        mp.mp.dps + 12 + 2 * m * math.log10(n + 2 * k)
+    ):
+        k += 1
+    while True:
+        L = n + 2 * k
+        rows = _sw_rows(m, n, g2, L)
+        if cv is None:
+            cv = mp.mpf(_sw_guess(rows, i))
+        for _ in range(30):
+            e, step = _sw_coef(rows, i, cv)
+            cv -= step
+            if abs(step) <= 1000 * mp.eps * max(1, abs(cv)):
+                break
+        else:
+            raise NoConvergence
+        if abs(e[-1]) * math.perm(L + m, 2 * m) <= tol * max(map(abs, e)):
+            break
+        k *= 2
+    d = mp.sqrt(tol) * max(1, abs(cv))
+    if (_sw_count(rows, cv - d), _sw_count(rows, cv + d)) != (i, i + 1):
+        raise NoConvergence
+    return cv, e, L
+
+
+def _sw_legendre(m, L, x):
+    """P_l^m(x) for l = 0, ..., L without the Condon-Shortley phase, by upward recurrence
+    (DLMF 14.10.3)."""
+    p = [mp.mpf(0)] * (L + 1)
+    p[m] = mp.fac2(2 * m - 1) * mp.sqrt(1 - x * x) ** m
+    for l in range(m, L):
+        p[l + 1] = ((2 * l + 1) * x * p[l] - (l + m) * p[l - 1]) / (l - m + 1)
+    return p
+
+
+def _sw_ang(m, n, c, x, kd):
+    """The angular function of the first kind S_mn(c, x), its derivative, and the characteristic
+    value. Normalized like in Flammer: S and P_n^m, or their derivatives if n - m is odd, are
+    equal at x = 0. The extra digits are for the cancellation, which grows like e^c."""
+    m, n = int(m), int(n)
+    with wdps(10 + int(c) // 2):
+        cv, e, L = _sw_cv(m, n, kd * c * c)
+        ls = range(m + (n - m) % 2, L + 1, 2)
+        p0, p = _sw_legendre(m, L, mp.mpf(0)), _sw_legendre(m, L, x)
+        # the values at 0, or the derivatives (DLMF 14.10.5)
+        at0 = [(l + m) * p0[l - 1] if (n - m) % 2 else p0[l] for l in ls]
+        norm = at0[(n - m) // 2] / mp.fdot(e, at0)
+        s = mp.fdot(e, [p[l] for l in ls])
+        ds = mp.fdot(e, [(l + m) * p[l - 1] - l * x * p[l] for l in ls]) / (1 - x * x)
+        return norm * s, norm * ds, cv
+
+
+def _sw_angular(m, n, c, x, kd):
+    """The angular function of the first kind S and its derivative. Where S oscillates, which
+    is where q = cv - kd c^2 x^2 - m^2 / p > 0 in (p S')' + q S = 0 with p = 1 - x^2, their
+    scales are A = sqrt(S^2 + p S'^2 / q), the envelope of S through its local extrema, and
+    sqrt(q / p) A. A diverges at a turning point (q = 0), so q is at least (p q'^2)^(1/3),
+    which it is at one Airy width from it."""
+    s, ds, cv = _sw_ang(m, n, c, x, kd)
+    p = 1 - x * x
+    q = cv - kd * (c * x) ** 2 - m * m / p
+    if q <= 0:
+        return s, ds
+    dq = -2 * x * (kd * c * c + (m / p) ** 2)
+    q = max(q, mp.cbrt(p * dq * dq))
+    a = mp.sqrt(s * s + p * ds * ds / q)
+    return (s, a), (ds, mp.sqrt(q / p) * a)
+
+
+def _sw_sph(kf, L, z):
+    """The spherical Bessel functions j_l(z) (kf = 1) or y_l(z) (kf = 2) for l = 0, ..., L + 1,
+    by downward resp. upward recurrence (DLMF 10.51.1), the stable directions."""
+    f = [mp.mpf(0)] * (L + 2)
+    if kf == 1:
+        s = mp.sqrt(mp.pi / (2 * z))
+        f[L + 1], f[L] = s * mp.besselj(L + 1.5, z), s * mp.besselj(L + 0.5, z)
+        for l in range(L, 0, -1):
+            f[l - 1] = (2 * l + 1) / z * f[l] - f[l + 1]
+    else:
+        f[0] = -mp.cos(z) / z
+        f[1] = (f[0] - mp.sin(z)) / z
+        for l in range(1, L + 1):
+            f[l + 1] = (2 * l + 1) / z * f[l] - f[l - 1]
+    return f
+
+
+def _sw_series(kf, m, n, c, x, kd, e, L):
+    """The radial function of the first or second kind (kf) and its derivative, by the series
+    of spherical Bessel functions DLMF 30.11.3 up to the degree L, with z = i x and
+    gamma = -i c for the oblate one, as in Flammer; and the relative size of its last term. The
+    series of the second kind only converges for x > 1."""
+    z = c * x
+    f = _sw_sph(kf, L, z)
+    s = ds = norm = t = mp.mpf(0)
+    for j, l in enumerate(range(m + (n - m) % 2, L + 1, 2)):
+        w = e[j] * math.perm(l + m, 2 * m)
+        norm += w
+        w *= (-1) ** ((l - n) // 2)
+        t = w * f[l]
+        s += t
+        ds += w * (l / z * f[l] - f[l + 1])  # DLMF 10.51.2
+    pre = (1 - kd / (x * x)) ** (mp.mpf(m) / 2) / norm
+    return pre * s, pre * (c * ds + m * kd / (x * (x * x - kd)) * s), abs(t / s)
+
+
+def _sw_taylor(m, c, kd, cv, x0, g0, dg0, x1):
+    """Continue a solution g of p g'' + 2 (m + 1) x g' - (cv - m (m + 1) - c^2 x^2) g = 0 with
+    p = x^2 - kd from x0 to x1 by its Taylor series at x0, which converges within the distance
+    to the singularity (1, or +-i for kd = -1); returns g(x1) and g'(x1). The radial functions
+    are p^(m/2) g."""
+    h, a, c2 = x1 - x0, 2 * x0, c * c
+    q, b, r = c2 * x0 * x0 + m * (m + 1) - cv, a * c2, -1 / (x0 * x0 - kd)
+    u = [mp.mpf(0), mp.mpf(0), g0, dg0]  # u[k + 2] = the coefficient of (x - x0)^k
+    g, dg, hk = g0 + dg0 * h, dg0, h  # hk = h^(k + 1)
+    small, k = 0, 0
+    while small < 5:
+        t = (k + 1) * (k + m + 1) * a * u[k + 3] + (k * (k + 2 * m + 1) + q) * u[k + 2]
+        t += b * u[k + 1] + c2 * u[k]
+        u.append(r * t / ((k + 2) * (k + 1)))
+        dt = (k + 2) * u[-1] * hk
+        t = dt * h / (k + 2)
+        g, dg, hk = g + t, dg + dt, hk * h
+        # the last terms are negligible, by their binary exponents
+        tiny = (
+            mp.mag(dt) + mp.mag(h)
+            < min(mp.mag(g), mp.mag(dg) + mp.mag(h)) - mp.mp.prec - 15
+        )
+        small = small + 1 if tiny else 0
+        k += 1
+    return g, dg
+
+
+def _sw_rad(kf, m, n, c, x, kd):
+    """The radial function of the first or second kind (kf), its derivative, and the
+    characteristic value. The second kind for x < 2 is continued from its series at x = 2 with
+    `_sw_taylor`, in steps of half the distance to the singularity. The extra digits are for the
+    cancellation, which grows like e^c."""
+    m, n = int(m), int(n)
+    with wdps(10 + int(c) // 2):
+        cv, e, L = _sw_cv(m, n, kd * c * c)
+        if kf == 1:
+            return *_sw_series(1, m, n, c, x, kd, e, L)[:2], cv
+        x0 = max(x, mp.mpf(2))
+        tol = mp.mpf(10) ** -(mp.mp.dps + 5)
+        # the terms of the series decrease like x0^-l
+        k = max(L - n, int((mp.mp.dps + 8) / mp.log10(x0))) // 2
+        while True:
+            L = n + 2 * k
+            e, _ = _sw_coef(_sw_rows(m, n, kd * c * c, L), (n - m) // 2, cv)
+            y, dy, last = _sw_series(2, m, n, c, x0, kd, e, L)
+            if last <= tol:
+                break
+            k *= 2
+        if x0 > x:
+            pm = (x0 * x0 - kd) ** (mp.mpf(m) / 2)
+            g = y / pm
+            dg = dy / pm - m * x0 * g / (x0 * x0 - kd)
+            while x0 > x:
+                rho = x0 - 1 if kd == 1 else mp.sqrt(x0 * x0 + 1)
+                x1 = max(x, x0 - rho / 2)
+                g, dg = _sw_taylor(m, c, kd, cv, x0, g, dg, x1)
+                x0 = x1
+            pm = (x * x - kd) ** (mp.mpf(m) / 2)
+            y, dy = pm * g, pm * (dg + m * x * g / (x * x - kd))
+        return y, dy, cv
+
+
+def _sw_radial(kf, m, n, c, x, kd):
+    """The radial function of the first or second kind (kf) and its derivative; where they
+    oscillate, with the modulus of the first and second kind as the scale."""
+    y, dy, cv = _sw_rad(kf, m, n, c, x, kd)
+    if (c * x) ** 2 <= cv + kd * m * m / (x * x - kd):
+        return y, dy
+    with mp.workdps(20):
+        z, dz, _ = _sw_rad(3 - kf, m, n, c, x, kd)
+    return (y, mp.hypot(y, z)), (dy, mp.hypot(dy, dz))
+
+
+def _sw_rad1(m, n, c, x, kd):
+    return _sw_radial(1, m, n, c, x, kd)
+
+
+def _sw_rad2(m, n, c, x, kd):
+    return _sw_radial(2, m, n, c, x, kd)
+
+
 # ---------------------------------------------------------------- zeta functions
 
 
@@ -5295,6 +5568,72 @@ for odd, f, r in [
         note="mathieu_coef zeros_c",
     )
 
+section("Spheroidal wave functions")
+SW_N = 20  # the largest n; must match `SEGV_N` of the dump programs
+
+
+def sw_domain(kd: int, c: Dist, x: Dist | None = None, cv: bool = False) -> Domain:
+    """(m, n, c, x) with m <= n <= SW_N: without x if it is None, and with the characteristic
+    value rounded to f64 after c if `cv`."""
+
+    def sampler(r: Random) -> list[float]:
+        n, m = nm_nonneg(r, SW_N)
+        args = [m, n, c.sample(r)]
+        if cv:
+            with mp.workdps(30):
+                args.append(float(_sw_cv(m, n, kd * mp.mpf(args[2]) ** 2)[0]))
+        return args if x is None else [*args, x.sample(r)]
+
+    dists = [("c", c)] if x is None else [("c", c), ("x", x)]
+    return D(
+        sampler=sampler,
+        label=f"n in {{0, ..., {SW_N}}}, m in {{0, ..., n}}, "
+        + ", ".join(f"{a} in {d.desc()}" for a, d in dists),
+        pretty=f"{nobreak('n', IN, Int(0, SW_N).pretty())}, "
+        + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, "
+        + ", ".join(
+            nobreak(a, IN, d.pretty()) + (" (log)" if _is_log(d) else "")
+            for a, d in dists
+        ),
+        n=2000,
+    )
+
+
+def sw_ref(r: FunctionType, kd: int, i: int, cv: bool) -> FunctionType:
+    """Output i of `r(m, n, c, x, kd)` as a function of (m, n, c, x), or of (m, n, c, cv, x)."""
+    if cv:
+        return lambda m, n, c, cv, x: r(m, n, c, x, kd)[i]
+    return lambda m, n, c, x: r(m, n, c, x, kd)[i]
+
+
+SW_C = (U(0, 10), U(10, 50))
+SW_KD = (("prolate", 1), ("oblate", -1))
+for seq in ("", "_seq"):
+    for f, kd in SW_KD:
+        add(
+            f"{f}_segv{seq}",
+            "m n c",
+            lambda m, n, c, kd=kd: _sw_cv(int(m), int(n), kd * c * c)[0],
+            *(sw_domain(kd, c) for c in SW_C),
+            note=" ".join(k for k, on in [("sw_seq", seq), ("zeros_c", kd < 0)] if on),
+        )
+for f, kd in SW_KD:
+    x_rad = Offset(1, LU(1e-3, 10)) if kd == 1 else LU(1e-3, 10)
+    for g, r, x, note in [
+        ("aswfa", _sw_angular, U(-1, 1), "sw_ang"),
+        ("radial1", _sw_rad1, x_rad, "sw_rad"),
+        ("radial2", _sw_rad2, x_rad, "sw_rad"),
+    ]:
+        for cv in (False, True):
+            for i in range(2):
+                add(
+                    f"{f}_{g}{'' if cv else '_nocv'}.{i}",
+                    "m n c cv x" if cv else "m n c x",
+                    sw_ref(r, kd, i, cv),
+                    *(sw_domain(kd, c, x, cv) for c in SW_C),
+                    note=f"{note} sw_cv" if cv else note,
+                )
+
 section("Kelvin functions")
 for i, f in enumerate(["ber", "bei", "ker", "kei", "berp", "beip", "kerp", "keip"]):
     pos = f.startswith("k")
@@ -5806,12 +6145,25 @@ NOTES |= {
         r"Coefficient $`k`$ of the output. For $`q \le 10^{-7}`$, only the largest coefficient "
         "and the two next to it are nonzero."
     ),
+    "sw_seq": r"Mode $`n`$ of the output for the modes $`m, \ldots, 20`$.",
+    "sw_cv": "With the characteristic value `cv` rounded to the nearest f64.",
+    "sw_ang": (
+        r"For $`q = \lambda \mp c^2 x^2 - m^2 / (1 - x^2) > 0`$ (prolate: $`-`$, oblate: $`+`$), "
+        r"with the characteristic value $`\lambda`$: "
+        r"$`A = \sqrt{S^2 + (1 - x^2) S'^2 / \hat q}`$ for the angular function $`S`$, and "
+        r"$`\sqrt{\hat q / (1 - x^2)}\,A`$ for $`S'`$, with "
+        r"$`\hat q = \max(q, ((1 - x^2) q'^2)^{1/3})`$."
+    ),
+    "sw_rad": (
+        r"For $`c^2 x^2 > \lambda \pm m^2 / (x^2 \mp 1)`$ (prolate: upper signs, oblate: lower): "
+        r"$`A = \sqrt{R_1^2 + R_2^2}`$ for the radial functions of the first and second kind "
+        r"$`R_1`$ and $`R_2`$, and $`\sqrt{R_1'^2 + R_2'^2}`$ for their derivatives."
+    ),
 }
 
 NOT_COVERED = """\
 ## Not covered
 
-- No mpmath reference: spheroidal wave functions (`prolate_*`, `oblate_*`)
 - Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
