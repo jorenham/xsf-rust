@@ -39,10 +39,11 @@
 //! 4. For `x < -1`, `w` is near 1 if `|x|` is large, and the series take about `|p| |x|` terms.
 //!    So we first try the 1/x transformation (DLMF 15.8.2), with its two `F(..; 1/x)` computed as
 //!    above (with `w = 1 / (1 - x)`), and only continue with the 4 combinations if its error bound
-//!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`. If `b - a` is an integer
-//!    (a pole of its Gamma factors), we use its limit instead (DLMF 15.8.9), whose series in `w`
-//!    has `psi` weights, so it can't be transformed or recurred like the others, and it can cancel
-//!    whatever the signs of the parameters (see `recip_log`), e.g. `F(-900.5, -800.5; 50; -40)`.
+//!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`. If `b - a` is near an
+//!    integer (a pole of its Gamma factors), we first try its two terms combined (DLMF 15.8.9 at an
+//!    integer), whose series in `w` has weights, so it can't be transformed or recurred like the
+//!    others, and it can cancel whatever the signs of the parameters (see `recip_log`), e.g.
+//!    `F(-900.5, -800.5; 50; -40)`.
 //!
 //! 5. If `-1 <= x < 0.9` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
 //!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
@@ -51,8 +52,8 @@
 //!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
 //!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
 //!    For `x >= 0.9`, where `w = x` is close to 1, we try it first instead, as in step 4. Its log
-//!    case (step 4) applies here too: if `b - a` is an integer for `x < 0`, or `c - a - b` for
-//!    `0 < x < 1` (DLMF 15.8.10).
+//!    case (step 4) applies here too: if `b - a` is near an integer for `x < 0`, or `c - a - b`
+//!    for `0 < x < 1` (DLMF 15.8.10).
 //!
 //! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
 //!    with other start values. Those of step 3 are sums of the same series, and can lose precision
@@ -89,12 +90,20 @@
 //! - A. Deano and J. Segura, "Transitory minimal solutions of hypergeometric recursions and
 //!   pseudoconvergence of associated continued fractions", Math. Comp. 76 (2007), 879-901.
 //!   <https://doi.org/10.1090/S0025-5718-07-01934-5>
+//! - R.C. Forrey, "Computing the hypergeometric function", J. Comput. Phys. 137 (1997), 79-100.
+//!   <https://doi.org/10.1006/jcph.1997.5794>
+//! - N. Michel and M.V. Stoitsov, "Fast computation of the Gauss hypergeometric function with all
+//!   its parameters complex with application to the Poschl-Teller-Ginocchio potential wave
+//!   functions", Comput. Phys. Commun. 178 (2008), 535-551.
+//!   <https://doi.org/10.1016/j.cpc.2007.11.007>
 //! - NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/5.5.E3>,
-//!   <https://dlmf.nist.gov/5.11.E1>, <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>
+//!   <https://dlmf.nist.gov/5.11.E1>, <https://dlmf.nist.gov/5.15.E9>,
+//!   <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>
 
 use core::cmp::Ordering;
 use core::f64::consts::{LN_2, PI};
 
+use crate::numpy::sinc;
 use crate::utils::{neg_one_pow, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{
@@ -111,6 +120,10 @@ pub(crate) const HYP2F1_RECUR_TOL: f64 = 1e-10;
 /// The largest error bound of steps 1 to 5 for which step 6 also tries the forms with
 /// `c > max(0, q)` (empirical)
 const HYP2F1_RECUR_SHIFT_TOL: f64 = 100.0 * HYP2F1_RECUR_TOL;
+
+/// The largest distance of `b - a` to an integer for which `hyp2f1_recip` first tries `recip_log`,
+/// as its two terms lose about the inverse of that distance
+const HYP2F1_RECUR_NEAR_INT: f64 = 1e-3;
 
 /// The maximum number of series terms plus recurrence steps, per combination
 const HYP2F1_RECUR_MAXITER: f64 = 1e6;
@@ -665,6 +678,63 @@ fn psi_dd(v: Dd) -> Option<(f64, f64)> {
     Some((y, err))
 }
 
+/// `(Gamma(v + e) / Gamma(v) - 1) / e` for `|e| <= HYP2F1_RECUR_NEAR_INT`, which is `psi(v)` at
+/// `e = 0`, and a bound of its absolute error, or `None` at a pole of either:
+///
+/// - for `v < 1/4`, by the reflection formula (DLMF 5.5.3), with `u = 1 - v - e` and
+///   `s = sin(pi v) / sin(pi (v + e))`:
+///
+///   ```text
+///   Gamma(v + e) / Gamma(v) = s Gamma(u + e) / Gamma(u)
+///   (s - 1) / e = -pi cos(pi (v + e/2)) sinc(e/2) / sin(pi (v + e))
+///   ```
+///
+/// - else as `expm1(e l) / e`, with `e l = ln Gamma(v + e) - ln Gamma(v)` from `v + n >= 13`,
+///   where it is `e psi(x) + e^3 psi''(x) / 24` at the midpoint `x` (DLMF 5.15.9 for `psi''`, up
+///   to `e^2 / (144 x^8)` and `e^4 / (320 x^4)` in `l`), minus the `ln(1 + e / (v + i))`, `i < n`.
+fn gamma_quot(v: Dd, e: Dd) -> Option<(f64, f64)> {
+    if v.hi < 0.25 && e.hi != 0.0 {
+        let (ve, mid) = (v + e, v + e * 0.5);
+        if v.is_integer() || ve.is_integer() {
+            return None;
+        }
+        // sin(pi g) or cos(pi g), from the distance of g to the nearest integer k
+        let reduced = |g: Dd, f: fn(f64) -> f64| {
+            let k = g.hi.round();
+            neg_one_pow(k) * f((g - k).hi)
+        };
+        let sin_ve = reduced(ve, sinpi);
+        let q_sin = -PI * reduced(mid, cospi) * sinc(0.5 * e.hi) / sin_ve;
+        // (a few roundings each of the sine and the cosine, which can be near 0)
+        let sin_err = 8.0 * MACHEP * (q_sin.abs() + PI / sin_ve.abs());
+        let (q, q_err) = gamma_quot(-ve + 1.0, e)?;
+        let y = q_sin + q * (1.0 + e.hi * q_sin);
+        let err = sin_err * (1.0 + (e.hi * q).abs()) + q_err * (1.0 + e.hi * q_sin).abs();
+        return Some((y, err + 2.0 * MACHEP * y.abs()));
+    }
+    let e = e.hi;
+    // `psi(v)` at e = 0, and for a subnormal `e`, where `e / (v + i)` and `e l` underflow, but
+    // this is within about `e (psi'(v) + psi(v)^2) / 2` of it
+    if !e.is_normal() {
+        return psi_dd(v);
+    }
+    let n = (13.0 - v.hi).ceil().max(0.0);
+    let (mut l, mut l_abs, mut i) = (0.0, 0.0, 0.0);
+    while i < n {
+        let t = (e / (v.hi + i)).ln_1p() / e;
+        (l, l_abs, i) = (l - t, l_abs + t.abs(), i + 1.0);
+    }
+    let x = v.hi + n + 0.5 * e;
+    let x2 = 1.0 / (x * x);
+    let psi2 = -x2 * (1.0 + 1.0 / x + x2 * (0.5 - x2 / 6.0));
+    let psi_x = psi(x);
+    l += psi_x + e * e / 24.0 * psi2;
+    let y = (e * l).exp_m1() / e;
+    // (the roundings of the terms, and of `psi` as in `psi_dd`)
+    let l_err = MACHEP * (4.0 * l_abs + 8.0 * (psi_x.abs() + 1.0));
+    Some((y, l_err * (1.0 + (e * y).abs()) + 2.0 * MACHEP * y.abs()))
+}
+
 /// `y()` times `Gamma(num_0) Gamma(num_1) ... / (Gamma(den_0) Gamma(den_1) ...)`, with the error
 /// bounds of their `ln_gamma` added; `y` is only evaluated if no argument is at a pole
 pub(crate) fn mul_gamma_ratio(
@@ -701,54 +771,71 @@ pub(crate) fn add_exp(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) 
     Some(Scaled::new(m, 0, err_abs / m.abs() + MACHEP)?.with_l(lmax))
 }
 
-/// `hyp2f1_recip` if `m = b - a` is a non-negative integer, by the limit `b - a -> m` of its
-/// transformation (DLMF 15.8.9), with `w = 1 / (1 - t)`:
+/// `hyp2f1_recip` if `m = b - a = n + eps >= 0` is within `HYP2F1_RECUR_NEAR_INT` of an integer
+/// `n`, where its two terms cancel, with the terms `k >= n` of the series of the first added to
+/// the second analytically (as Forrey 1997 and Michel and Stoitsov 2008 do). At `eps = 0`, that is
+/// the limit of the transformation (DLMF 15.8.9). With `w = 1 / (1 - t)`:
 ///
 /// ```text
 /// F(a, b; c; t) / Gamma(c) = (1 - t)^-a Gamma(m) / (Gamma(b) Gamma(c - a)) S_1
-///     + (-1)^m (1 - t)^-b / (Gamma(a) Gamma(c - b) m!) S_2
-/// S_1 = sum_(k < m) (a)_k (c - b)_k / ((1 - m)_k k!) w^k
+///     + (-1)^n (1 - t)^-b / (Gamma(a) Gamma(c - b) Gamma(m + 1)) S_2 / sinc(eps)
+/// S_1 = sum_(k < n) (a)_k (c - b)_k / ((1 - m)_k k!) w^k
 /// S_2 = sum_k (b)_k (c - a)_k / ((m + 1)_k k!) w^k beta_k
-/// beta_k = ln(1 - t) + psi(k + 1) + psi(m + k + 1) - psi(b + k) - psi(c - a + k)
+/// beta_k = (g(k - eps) / g(k) - 1) / eps
+///        = ln(1 - t) + psi(k + 1) + psi(m + k + 1) - psi(b + k) - psi(c - a + k) if eps = 0
 /// ```
 ///
 /// `S_2` is the series of step 2 of the second term of `hyp2f1_recip`, but with the weights
-/// `beta_k` of `series_weighted`. As `ln(1 - t) = -ln(w)`, its terms are
+/// `beta_k` of `series_weighted` (and `beta_0` by `gamma_quot`). Its terms are
 ///
 /// ```text
-/// t_k beta_k = -g'(k) / g(0)
+/// t_k beta_k = (g(k - eps) - g(k)) / (eps g(0))
 /// g(s) = Gamma(b + s) Gamma(c - a + s) / (Gamma(1 + s) Gamma(m + 1 + s)) w^s
 /// ```
 ///
 /// so they change sign where `|g|` peaks, and `S_2` cancels if that peak is far above `|g(0)|`
 /// (e.g. if `b (c - a) w / (m + 1)` is large), whatever the signs of `b` and `c - a`.
 fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
-    let (m, ca, cb) = ((b - a).hi, c - a, c - b);
-    let m1 = Dd::new(m + 1.0);
-    if series_too_long(b, ca, m1, w) || m > HYP2F1_RECUR_MAXITER {
+    let (one, m, ca, cb) = (Dd::new(1.0), b - a, c - a, c - b);
+    let n = m.hi.round();
+    let eps = m - n;
+    let (e, m1) = (eps.hi, m + 1.0);
+    let near_int = e.abs() <= HYP2F1_RECUR_NEAR_INT;
+    if !near_int || series_too_long(b, ca, m1, w) || n > HYP2F1_RECUR_MAXITER {
         return None;
     }
-    // beta_0 and a bound of its absolute error
-    let (beta, beta_err) = [(Dd::new(1.0), 1.0), (m1, 1.0), (b, -1.0), (ca, -1.0)]
+    // `(w^-eps - 1) / eps`, and a bound of its absolute error (`ln(1 - t)` if `eps` is 0 or
+    // subnormal, where `eps ln(1 - t)` underflows)
+    let ln_quot = if e.is_normal() {
+        let q = (e * ln_1mt.hi).exp_m1() / e;
+        (Dd::new(q), F64_ROUNDING * q.abs())
+    } else {
+        (ln_1mt, 0.0)
+    };
+    // `beta_0` and a bound of its absolute error, from the factors `1 + eps q` of
+    // `g(-eps) / g(0)`, with `q = sign * gamma_quot(v, sign * eps)`
+    let (beta, beta_err) = [(one - eps, 1.0), (one + n, 1.0), (b, -1.0), (ca, -1.0)]
         .into_iter()
-        .try_fold((ln_1mt, 0.0), |(beta, beta_err), (v, sign)| {
-            let (y, err) = psi_dd(v)?;
-            Some((beta + sign * y, beta_err + err))
+        .try_fold(ln_quot, |(beta, beta_err), (v, sign)| {
+            let (y, err) = gamma_quot(v, eps * sign)?;
+            let ratio = 1.0 + e * beta.hi;
+            let beta_err = beta_err * (1.0 + (e * y).abs()) + err * ratio.abs();
+            Some((beta + sign * y * ratio, beta_err))
         })?;
-    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs(), 0.0));
+    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs(), e));
     let mut budget = HYP2F1_RECUR_MAXITER;
     let term2 = mul_gamma_ratio([c], [a, cb, m1], || {
         let mut s2 = series_weighted(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
-        // (-1)^m
-        s2.m *= neg_one_pow(m);
+        // (-1)^n / sinc(eps)
+        s2.m *= neg_one_pow(n) / sinc(e);
         Some(s2.with_l(-b * ln_1mt))
     })?;
-    if m == 0.0 {
+    if n == 0.0 {
         // (S_1 is an empty sum)
         return add_exp([term2]);
     }
-    let s1 = series_weighted(a, cb, Dd::new(1.0 - m), w, &mut budget, None, m - 1.0)?;
-    let term1 = mul_gamma_ratio([c, Dd::new(m)], [b, ca], || Some(s1.with_l(-a * ln_1mt)))?;
+    let s1 = series_weighted(a, cb, one - m, w, &mut budget, None, n - 1.0)?;
+    let term1 = mul_gamma_ratio([c, m], [b, ca], || Some(s1.with_l(-a * ln_1mt)))?;
     add_exp([term1, term2])
 }
 
@@ -760,9 +847,8 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
 /// G(a, b) = Gamma(c) Gamma(b - a) / (Gamma(b) Gamma(c - a))
 /// ```
 ///
-/// If `b - a` is an integer (a pole of `G`; in step 5 with `0 < x < 1`, that's an integer
-/// `c - a - b`), it uses `recip_log` instead. Its error bound is large if `b - a` is close to an
-/// integer. `ln_1mx` is `ln(1 - x)`.
+/// If `b - a` is near an integer (a pole of `G`; in step 5 with `0 < x < 1`, that's `c - a - b`),
+/// it first tries `recip_log`. `ln_1mx` is `ln(1 - x)`.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     let ln_x = ln_dd(Dd::new(x.abs()));
@@ -786,13 +872,14 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         mul_gamma_ratio([c, b - a], [b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
     };
     let m = b - a;
-    if m.is_integer() {
-        let (a, b) = if m.hi < 0.0 { (b, a) } else { (a, b) };
-        // ln(-t) + ln(1 - 1/t) = ln(1 - t)
-        recip_log(a, b, c, w, ln_mt + ln_1mz)
-    } else {
-        add_exp([term(a, b)?, term(b, a)?])
+    let (p, q) = if m.hi < 0.0 { (b, a) } else { (a, b) };
+    // ln(-t) + ln(1 - 1/t) = ln(1 - t)
+    let log = recip_log(p, q, c, w, ln_mt + ln_1mz);
+    // (at an integer, the two terms have poles)
+    if m.is_integer() || err_of(log) <= HYP2F1_ETHRESH {
+        return log;
     }
+    min_err(log, term(a, b).and_then(|u| add_exp([u, term(b, a)?])))
 }
 
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
@@ -916,7 +1003,10 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, hyp2f1_recur, ln_gamma, recur_down};
+    use super::{
+        Dd, HYP2F1_RECUR_TOL, Scaled, coefs_c, gamma_quot, hyp2f1_recur, ln_gamma, psi_dd,
+        recur_down,
+    };
 
     #[test]
     fn test_ln_gamma_near_pole() {
@@ -927,6 +1017,41 @@ mod tests {
         assert_eq!(ln_gamma_at(1.0, -1e-17), Some((39.143_946_580_898_78, 1.0)));
         assert_eq!(ln_gamma_at(2.0, 1e-17), Some((38.450_799_400_338_83, 1.0)));
         assert_eq!(ln_gamma_at(1.0, 0.0), None);
+    }
+
+    #[test]
+    fn test_gamma_quot() {
+        // Arb; the last two are next to a pole
+        for (v, e, desired) in [
+            (2.5, 1e-3, 0.703_649_225_211_809_1_f64),
+            (1.0, -2.5e-4, -0.577_462_985_633_150_5),
+            (1000.0, 2.5e-4, 6.913_222_526_976_623),
+            (0.24, 1e-9, -4.406_160_326_799_55),
+            (-7.3, -3.3e-5, 4.336_750_268_419_202),
+            (-135.999_997_964, -2.0344e-6, -624_989_001.899_548_8),
+            (-399.999_999_998_5, 1e-12, -666_229_553.282_955_2),
+        ] {
+            let (y, err) = gamma_quot(Dd::new(v), Dd::new(e)).unwrap();
+            let tol = 1e-14 * desired.abs().max(1.0);
+            assert!((y - desired).abs() <= err && err <= tol, "{y} {err}");
+        }
+        // psi(v) at a subnormal e, whatever the branch, and to within the bound at the smallest
+        // normal ones, where e / (v + i) is subnormal
+        let tiny = f64::from_bits(1);
+        for (v, e, desired) in [
+            (1.0, tiny, -0.577_215_664_901_532_9),
+            (-7.3, -tiny, 4.337_307_305_510_05),
+            (0.3, 4.0 * f64::MIN_POSITIVE, -3.502_524_222_200_133),
+            (12.5, -f64::MIN_POSITIVE, 2.485_195_651_274_912_3),
+        ] {
+            let (y, err) = gamma_quot(Dd::new(v), Dd::new(e)).unwrap();
+            assert!((y - desired).abs() <= err && err <= 1e-14, "{y} {err}");
+        }
+        // psi at e = 0, and None at a pole of Gamma(v) or Gamma(v + e)
+        let (one, pole, e) = (Dd::new(1.0), Dd::new(-3.0), Dd::new(1.0 / 4096.0));
+        assert_eq!(gamma_quot(one, Dd::new(0.0)), psi_dd(one));
+        assert_eq!(gamma_quot(pole, e), None);
+        assert_eq!(gamma_quot(pole + e, -e), None);
     }
 
     #[test]
