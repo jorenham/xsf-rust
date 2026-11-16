@@ -251,6 +251,31 @@ fn test_elliprg() {
 }
 
 #[test]
+fn test_carlson_agm_opposite_sides() {
+    // `sqrt(y) + sqrt(z)` cancels, as y and z are on opposite sides of the negative real axis
+    let actual = [
+        xsf::elliprg(
+            ZERO,
+            c64(-0.043_153_604_557_475_89, -4.587_216_807_495_788e-11),
+            c64(-0.043_152_525_689_989_73, 4.587_102_124_165_941e-11),
+        ),
+        xsf::elliprf(
+            ZERO,
+            c64(-32.381_236_240_019_64, -1.313_732_024_864_238e-9),
+            c64(-32.381_233_357_033_56, 1.313_731_907_899_242_7e-9),
+        ),
+    ];
+    // Arb
+    let expected = [
+        // -1.1808784147862780597 - 0.16314440867208394994i
+        c64(-1.180_878_414_786_278, -0.163_144_408_672_083_95),
+        // 3.3401308097106122941 + 0.27588057685121374966i
+        c64(3.340_130_809_710_612, 0.275_880_576_851_213_75),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),

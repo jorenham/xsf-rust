@@ -16,13 +16,18 @@ use super::common::{ExitStatus, abscmp, config, constants, sort_by};
 use super::typing::Num;
 use super::{argcheck, common};
 
+/// The AGM step of `x` and `y`, given their sum `s`, which is updated as well
+///
+/// Unlike in xsf, the callers start with `s = sqrt(a) + sqrt(b)` as `common::sqrt_sum`, as it
+/// cancels if `a` and `b` are close to the negative real axis on opposite sides.
 #[inline]
-pub(super) fn agm_update<T: Num>(x: &mut T, y: &mut T) {
-    let xnext = (*x + *y) * 0.5;
+pub(super) fn agm_update<T: Num>(x: &mut T, y: &mut T, s: &mut T) {
+    let xnext = *s * 0.5;
     let ynext = (*x * *y).sqrt();
 
     *x = xnext;
     *y = ynext;
+    *s = xnext + ynext;
 }
 
 fn rf0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
@@ -31,6 +36,7 @@ fn rf0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
 
     let mut xm = x.sqrt();
     let mut ym = y.sqrt();
+    let mut s = common::sqrt_sum(x, y, xm, ym);
     let mut m = 0;
     while (xm - ym).abs() >= rsq * xm.abs().min(ym.abs()) {
         if m > config::MAX_ITER {
@@ -38,12 +44,12 @@ fn rf0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
             break;
         }
 
-        agm_update(&mut xm, &mut ym);
+        agm_update(&mut xm, &mut ym, &mut s);
 
         m += 1;
     }
 
-    let res = T::from(constants::PI) / (xm + ym);
+    let res = T::from(constants::PI) / s;
     (status, res)
 }
 
