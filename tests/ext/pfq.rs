@@ -230,18 +230,36 @@ fn test_hyp3f2_double_double() {
 }
 
 #[test]
+fn test_hyp3f2_conformal() {
+    // Wolfram references
+    for (a, b, z, expected) in [
+        // more than 10^4 terms
+        ([1.5, 2.5, 3.5], [0.5, 4.5], 0.999, 2.209_183_333_563_127e8),
+        (
+            [0.5, 0.5, 0.5],
+            [1.5, 1.5],
+            0.999_999,
+            1.088_792_804_483_117,
+        ),
+        // z < -1 with integer a_i - a_j, where the sequence transformation does not converge
+        ([1.0, 1.0, 1.0], [2.0, 2.0], -50.0, 0.185_539_903_706_652_44),
+        // the terms cancel too much
+        ([1.5, 2.5, 3.5], [0.5, 4.5], -1.0, -0.263_538_393_682_344_94),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
+}
+
+#[test]
 fn test_hyp3f2_none() {
-    // z = 1
+    // z = 1, and too close to it
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
-    // more than 10^4 terms
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.999), None);
-    // z < -1 with integer a_i - a_j, where the sequence transformation does not converge
-    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 2.0, -50.0), None);
-    // the same for a huge |z|, where its orders hardly change before they converge
+    assert_eq!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8), None);
+    // z < -1 with integer a_i - a_j for a huge |z|, where the orders of the sequence
+    // transformation hardly change before they converge
     assert_eq!(hyp3f2(2e-15, 1.0, 1.0, 2.0, 2.0, -1e150), None);
     // the terms cancel too much
     assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, -1.0), None);
     // a huge negative parameter
     assert_eq!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9), None);
 }
@@ -257,6 +275,8 @@ fn test_hyp3f2_underflow() {
     assert_eq!(hyp3f2(1e-320, 1.0, 1.0, 2.0, 2.0, 0.5), Some(1.0));
     // the first term underflows, and later ones are large
     assert_eq!(hyp3f2(1e-200, 1e-200, 500.0, 1.0, 1.0, 0.9), None);
+    // the first terms are negligible, and later ones overflow
+    assert_eq!(hyp3f2(1e-30, 1e-30, 500.0, 1.0, 1.0, 0.9), None);
     // the same at z = -1, where the series is summed by the sequence transformation
     assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 1e300, -1.0), Some(1.0));
     assert_eq!(hyp3f2(1e-200, 1e-200, -1500.5, 1.0, 1.0, -1.0), None);
@@ -1004,9 +1024,22 @@ fn test_hyppfq_none() {
     assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], -1e5), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[1.25, 2.25, 3.25, 0.75], -1e6), None);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
+    // z < -1 with integer a_i - a_j for a huge |z|
+    assert_eq!(hyppfq(&[1.0; 4], &[2.0; 3], -1e12), None);
+    // the conformal series has rounding errors from before a near-pole `b_j + n`
+    let (a, b) = ([-1.5, 0.75, -0.125, -77.75], [-3.75, -78.875, 21.5]);
+    assert_eq!(hyppfq(&a, &b, -2.0), None);
+    let a = [0.17549, -33.943, -0.1108, 0.011_587, 0.041_28];
+    let b = [-48.912, 0.001_225_3, 29.137, 0.009_330_8];
+    assert_eq!(hyppfq(&a, &b, -6.5618), None);
+}
+
+#[test]
+fn test_hyppfq_conformal() {
+    // the sum cancels too much; Wolfram reference
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
-    assert_eq!(hyppfq(&a, &b, -0.5), None);
-    // z < -1 with integer a_i - a_j
-    assert_eq!(hyppfq(&[1.0; 4], &[2.0; 3], -40.0), None);
-    assert_eq!(hyppfq(&[2.0; 4], &[1.0; 3], -3.0), None);
+    assert_hyppfq(&a, &b, -0.5, 891.432_204_916_963_3);
+    // z < -1 with integer a_i - a_j: Li_3(z) / z and (1 + 11 z + 11 z^2 + z^3) / (1 - z)^5
+    assert_hyppfq(&[1.0; 4], &[2.0; 3], -40.0, 0.361_479_025_355_404_44);
+    assert_hyppfq(&[2.0; 4], &[1.0; 3], -3.0, 0.039_062_5);
 }

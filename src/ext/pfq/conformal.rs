@@ -35,7 +35,7 @@ use core::array::from_fn;
 use core::f64::consts::PI;
 use core::iter::zip;
 
-use super::{Dd, PFQ_DD_MAXITER, SeriesReal, pfq_settled, root_dd};
+use super::{Dd, PFQ_DD_MAXITER, PFQ_TOL, Params, SeriesReal, pfq_settled, root_dd, skip};
 use crate::utils::pow2;
 
 /// Largest size of a negligible term, relative to the sum of the series
@@ -49,6 +49,20 @@ const CONFORMAL_EPS: f64 = pow2(-70);
 /// On 5525 points, this alone prevents 1 of the 8 wrong results of ending at the first
 /// negligible term, and `min_terms` alone all of them.
 const CONFORMAL_NEGLIGIBLE: u32 = 3;
+
+/// Smallest `-ln |w^n|` at the term `n = PFQ_DD_MAXITER` for which the series are summed
+///
+/// It is half of `-ln CONFORMAL_EPS`: on 2320 points, each series took at least 0.55 times
+/// `ln CONFORMAL_EPS / ln |w|` terms, so that below it the series would not end. Only a
+/// series with tiny parameters can end earlier.
+const CONFORMAL_MIN_DECAY: f64 = 24.0;
+
+/// The factor from the difference of the sums for `m = 3` and `m = 4` to the estimated error
+///
+/// On 5525 points, the error was at most 22 times that difference where it is below `PFQ_TOL`.
+/// As the difference is no bound, this keeps a wide margin: 100 would return a value for only
+/// 26 more of the 681 inputs in `docs/accuracy.md` that give `None`.
+const CONFORMAL_SAFETY: f64 = 1e3;
 
 /// The binomial coefficient `C(n, k)`, which is zero for `k > n`
 const fn binom(n: usize, k: usize) -> f64 {
@@ -266,10 +280,35 @@ pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64)
     (if converged { sum } else { Dd::NAN }, top)
 }
 
+/// `_{q+1}F_q` for `z < 1` by its series in `w` for `m = 4`, and an estimate of its absolute
+/// error, or `None` if the series converge too slowly or the rounding errors are too large
+///
+/// `b` contains the 1 of `n!`. Unlike in HypergeometricFunctions.jl, which has no estimate of
+/// the error, it is `CONFORMAL_SAFETY` times the difference to the sum for `m = 3`.
+pub(super) fn pfq_conformal<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    let one = b.as_ref().iter().position(|&v| v == 1.0)?;
+    let beta: Vec<f64> = skip(b, one).collect();
+    // the terms decrease at most about like `w^n`, the slowest for `m = 3`
+    let decay = -conformal_map(z, 3).hi.abs().ln() * f64::from(PFQ_DD_MAXITER);
+    if beta.is_empty() || !(decay >= CONFORMAL_MIN_DECAY) {
+        return None;
+    }
+    let (y4, top) = conformal_sum::<6>(a.as_ref(), &beta, z);
+    // The rounding errors of the partial sums, and those of the first terms, which the
+    // divisions by the `b_j + n` near zero amplify alike for both `m`. On those 5525 points,
+    // the difference accepts none of the sums that this rejects, which saves the other sum.
+    let distance = |b: &f64| (b - b.round().min(0.0)).abs().min(1.0);
+    let near_pole: f64 = beta.iter().map(distance).product();
+    let noise = Dd::EPSILON * top.max(1.0 / near_pole);
+    (noise <= PFQ_TOL * y4.hi.abs()).then(|| {
+        let (y3, _) = conformal_sum::<5>(a.as_ref(), &beta, z);
+        (y4.hi, CONFORMAL_SAFETY * (y4 - y3).hi.abs())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ext::pfq::PFQ_TOL;
 
     type F3 = Factor<5>;
     type F4 = Factor<6>;
@@ -393,6 +432,21 @@ mod tests {
             let ys = sums(&[500.0, a, a], &beta, 0.9);
             assert!(ys.iter().all(|y| y.hi.is_nan()), "a = {a}");
         }
+    }
+
+    #[test]
+    fn test_pfq_conformal() {
+        let (y, err) = pfq_conformal(&[1.0; 3], &[2.0, 2.0, 1.0], -50.0).unwrap();
+        assert!((y - 0.185_539_903_706_652_44).abs() <= f64::EPSILON && err <= PFQ_TOL * y);
+        // the series converge too slowly
+        assert_eq!(pfq_conformal(&[1.0; 3], &[2.0, 2.0, 1.0], -1e7), None);
+        // the partial sums are too large
+        assert_eq!(
+            pfq_conformal(&[70.5, 60.5, 50.5], &[2.5, 1.5, 1.0], -0.75),
+            None
+        );
+        // 1F0
+        assert_eq!(pfq_conformal(&[0.5], &[1.0], -0.75), None);
     }
 
     #[test]
