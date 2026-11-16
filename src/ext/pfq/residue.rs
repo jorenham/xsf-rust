@@ -17,6 +17,8 @@
 //! order. So `u` follows from the one for `n = 0`, which is the exponential of the Taylor series
 //! of the logarithms of the Gamma functions.
 
+use core::iter::{once, repeat};
+
 use super::Dd;
 use crate::utils::neg_one_pow;
 use crate::xsf::cephes::psi;
@@ -33,6 +35,12 @@ fn mul_linear(u: &mut [f64], r: f64, power: i32) {
             u[i] -= r * u[i - 1];
         }
     }
+}
+
+/// `mul_linear` for `u` and for the bounds on the sizes of the parts of its coefficients
+fn mul_linear_sized(u: &mut [Vec<f64>; 2], r: f64, power: i32) {
+    mul_linear(&mut u[0], r, power);
+    mul_linear(&mut u[1], r.abs() * f64::from(power), power);
 }
 
 /// `exp(c_1 eps + c_2 eps^2 + ...)` as a power series in `eps` up to the degree of the sum
@@ -67,6 +75,81 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
     // by the reflection formula (DLMF 5.5.3), for x and for d, (d + eps) Gamma(x + eps) is
     // +-Gamma(1 + d + eps) Gamma(1 - d - eps) / Gamma(1 - x - eps)
     taylor(1.0 + d) + sign * (taylor(1.0 - d) - taylor(1.0 - x.hi))
+}
+
+/// The residues of the class of `a_m` at `s = -a_m - n` for `n = 0, 1, ...`, without the factor
+/// of the one at `n = 0` if that were a simple pole
+///
+/// They end before a `t_n` that is not normal.
+pub(super) struct Residues {
+    /// The parameters `x` of the factors `x + n - eps` of the numerator and of the denominator
+    /// of the ratio of two integrands, in double-double as `x + n` is exact where it vanishes
+    up: Vec<Dd>,
+    low: Vec<Dd>,
+    /// The other factor of that ratio: `+-1 / z`
+    w: f64,
+    n: f64,
+    /// `t_n`
+    term: f64,
+    order: i32,
+    /// `u`, and bounds on the sizes of the parts of its coefficients
+    u: [Vec<f64>; 2],
+}
+
+impl Residues {
+    /// For the class of `a_m` and `z < 0`, where `b` is without the 1 of `n!`, and no `a_i` is
+    /// a non-positive integer
+    pub(super) fn of_class(a: &[f64], b: &[f64], m: usize, z: f64) -> Self {
+        let am = Dd::new(a[m]);
+        let diffs = a.iter().map(|&ai| Dd::new(ai) - am);
+        let degree = diffs.clone().filter(|d| d.is_integer()).count() - 1;
+        // Gamma(-s), the Gamma(a_i + s), and the 1 / Gamma(b_j + s), as the x, power and sign of
+        // Gamma(x + sign eps)^power
+        let gammas = once((am, 1, -1.0))
+            .chain(diffs.map(|d| (d, 1, 1.0)))
+            .chain(b.iter().map(|&bj| (Dd::new(bj) - am, -1, 1.0)));
+        // The logarithm of the integrand at n = 0 without the factors of the nearest poles, as
+        // its coefficients of eps, eps^2, ..., and the sizes of their parts, from (-z)^eps on.
+        let first = |l: f64| once(l).chain(repeat(0.0)).take(degree).collect::<Vec<_>>();
+        let mut coef = [(-z).ln(), (-z).ln().abs()].map(first);
+        for (x, power, sign) in gammas.clone() {
+            let mut signs = f64::from(power);
+            for j in 0..degree {
+                signs *= sign;
+                let c = signs * ln_gamma_coef(j as u32 + 1, x);
+                (coef[0][j], coef[1][j]) = (coef[0][j] + c, coef[1][j] + c.abs());
+            }
+        }
+        // those factors (d + sign eps)^-power: eps^-power for d = 0, else times d^-power
+        let (mut order, mut u) = (0, coef.map(|c| exp_series(&c)));
+        for (x, power, sign) in gammas {
+            match pole_distance(x) {
+                Some(0.0) => order += power,
+                Some(d) => mul_linear_sized(&mut u, sign / d, -power),
+                None => {},
+            }
+        }
+        // a_m and the 1 + a_m - b_j, over the 1 + a_m - a_i
+        let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
+        let low = a.iter().map(|&ai| am + 1.0 - ai).collect();
+        // (-1)^(p+q+1) / z
+        let w = neg_one_pow(a.len() + b.len() + 1) / z;
+        let (n, term) = (0.0, 1.0);
+        Self {
+            up,
+            low,
+            w,
+            n,
+            term,
+            order,
+            u,
+        }
+    }
+
+    /// The parameters `up` and `low` as `f64`
+    pub(super) fn params(&self) -> [Vec<f64>; 2] {
+        [&self.up, &self.low].map(|v| v.iter().copied().map(f64::from).collect())
+    }
 }
 
 #[cfg(test)]
@@ -148,5 +231,24 @@ mod tests {
         ] {
             check(j, Dd::new(x) - k, expected);
         }
+    }
+
+    /// Whether `y` is within a few ulp of an `expected` value of up to about 10
+    fn close(y: f64, expected: f64) -> bool {
+        (y - expected).abs() <= 1e-14
+    }
+
+    #[test]
+    fn test_of_class() {
+        // 2F1(1, 1; 2; z) = -ln(1 - z) / z = (ln(-z) + ln(1 - 1 / z)) / -z: a pole of order 2
+        let residues = Residues::of_class(&[1.0; 2], &[2.0], 0, -3.0);
+        assert_eq!(residues.order, 2);
+        assert!(close(residues.u[0][1], 3.0_f64.ln()));
+        // 3F2(1, 1, 1; 2, 2; z) = Li_2(z) / z, which is
+        // (ln(-z)^2 / 2 + pi^2 / 6 + Li_2(1 / z)) / -z: a pole of order 3
+        let (l, zeta_2) = (40.0_f64.ln(), PI * PI / 6.0);
+        let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, -40.0);
+        assert_eq!(residues.order, 3);
+        assert!(close(residues.u[0][2], l * l / 2.0 + zeta_2));
     }
 }
