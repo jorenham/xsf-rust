@@ -65,7 +65,7 @@ import mpmath as mp
 import scipy_funcs
 import specs
 
-XSF_COMMIT: Final = "bb5f99c1b15bf3a4143f95d2ad66dec75883a9eb"
+XSF_COMMIT: Final = "6466f5874842047b0abb898b21dda8763f3aa12e"
 XSF_URL: Final = f"https://codeload.github.com/scipy/xsf/tar.gz/{XSF_COMMIT}"
 
 HERE: Final = Path(__file__).resolve().parent
