@@ -935,6 +935,13 @@ fn test_fdtr_fdtrc_huge_dfn() {
 }
 
 #[test]
+fn test_fdtr_huge_dfn_rounded_w() {
+    // the power of the rounded `w` underflows, unlike that of `1 - (1 - w)`; from Arb
+    let p = xsf::fdtr(1.440_000_000_000_000_2e19, 2.0, 0.001_666_666_666_666_666_8);
+    xsref::np_assert_allclose!(&[p], &[2.650_396_553_004_479e-261], rtol = 1e-13);
+}
+
+#[test]
 fn test_fdtr_fdtrc_exact_1mw() {
     // reference values from Arb; the Beta argument (`w` for fdtr, `1 - w` for fdtrc) is in
     // (1/2, 0.95], where its complement is inexact

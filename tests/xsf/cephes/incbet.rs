@@ -195,6 +195,57 @@ fn test_betainc_rounded_complement() {
 }
 
 #[test]
+fn test_betainc_powers_above_maxgam() {
+    // unlike in xsf, `x^a (1 - x)^b / B(a, b)` also for `a + b >= MAXGAM`, without the rounding
+    // error of its log, which exp amplifies (Arb)
+    for &(a, b, x, p) in &[
+        (
+            27.761_162_944_341_528,
+            347.694_795_033_032_56,
+            0.002_174_611_338_736_042,
+            4.248_244_550_685_972e-33,
+        ),
+        (
+            8.340_643_494_608_209,
+            165.679_081_875_895_78,
+            0.016_364_990_382_773_295,
+            0.005_383_676_947_324_216,
+        ),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
+    }
+    for &(a, b, x, q) in &[
+        (
+            21.460_304_935_138_673,
+            383.836_873_027_948_6,
+            0.835_410_320_450_582_7,
+            5.718_638_150_171_36e-269,
+        ),
+        (
+            0.017_082_950_553_771_28,
+            577.937_975_069_782,
+            0.616_065_270_254_13,
+            2.850_487_731_908_210_5e-245,
+        ),
+        (0.5, 1000.0, 0.1, 9.816_333_152_380_631e-48),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-15);
+    }
+}
+
+#[test]
+fn test_betaincc_powers_huge_b() {
+    // `(1 - x)^b` of the rounded `1 - x` underflows, unlike that of the exact one, whose rounding
+    // error of `~|b ln(1 - x)| eps` remains (Arb)
+    for &(b, q) in &[
+        (1e19, 2.650_396_553_004_231e-261),
+        (6.7e18, 2.591_900_198_174_34e-175),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(1.0, b, 6e-17)], &[q], rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_betainc_edge_cases() {
     for &((a, b, x), expected) in &[
         ((0.0, 0.0, 0.0), f64::NAN),
