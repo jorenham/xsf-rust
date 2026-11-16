@@ -2018,13 +2018,22 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf, the id also has the rounding errors of the terms, about j eps for term j
     let mut terms = r1.abs() + r2.abs();
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
-    // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
+    // or j > 1 - b + x if b < 1, nor before j > x (the r2 terms grow until about then, e.g. from a
+    // tiny r2 for large b), and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
-    let jconv = if b < 1.0 { jmin + x } else { jmin };
+    // the first j where the loop can stop (only j > x if j > |b - 1| is out of reach)
+    let jstop = if jmin >= 150.0 {
+        x
+    } else if b < 1.0 {
+        jmin + x
+    } else {
+        jmin.max(x)
+    };
+    let r2_next = |r2: f64, j: f64| r2 * (a - b + j) / (j * (1.0 - b + j)) * x;
     for j in 1..151 {
         r1 = kummer_term(r1, a, b, j) * x;
-        r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
+        r2 = r2_next(r2, f64::from(j));
         hu += r1 - r2;
         s1 += r1;
         s2 += r2;
@@ -2038,7 +2047,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         // Unlike in xsf, the terms must be small, not their difference (which is also small if they
         // cancel, e.g. at j = 2 for U(10, 1e-17, 0.5))
-        if (f64::from(j) > jconv || jmin >= 150.0) && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
+        if f64::from(j) > jstop && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
             converged = true;
             break;
         }
@@ -2052,13 +2061,15 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // GCC/x86: INT_MIN, same as the saturated i32::MIN here) if `hmax` is 0 or inf.
     *id = (15.0 - (if d1 - d2 < 0.0 { d2 - d1 } else { d1 - d2 })) as i32;
     if !converged {
-        // the last terms, and the r1 terms that still grow (up to j = 300)
-        let mut rmax = (r1 - r2).abs();
-        for j in (151..=300).take_while(|&j| f64::from(j) <= jconv) {
+        // the last term, and the sum of the next 150 (which can be about sqrt(x) times their
+        // largest, e.g. for r2 terms that peak at j ~ x)
+        let mut rest = (r1 - r2).abs();
+        for j in 151..=300 {
             r1 = kummer_term(r1, a, b, j) * x;
-            rmax = rmax.max(r1.abs());
+            r2 = r2_next(r2, f64::from(j));
+            rest += (r1 - r2).abs();
         }
-        *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
+        *id = (*id).min((-(rest / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
     // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel

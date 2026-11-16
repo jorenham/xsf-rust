@@ -656,6 +656,23 @@ fn test_hypu_large_b() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 1.0000000026, 1.00000036, 1.000001, and 0.9999999976 in xsf, where the terms of the
+    // second series in `chgus` grow until j ~ x
+    let abx = [
+        (-5e-10, 162.4, 94.0),
+        (-1e-7, 167.5, 133.0),
+        (-4e-7, 171.5, 163.6),
+        (-1.24e-13, 143.69, 204.76),
+    ];
+    let expected = [
+        0.898_935_414_508_470_5,
+        0.999_994_633_555_940_3,
+        1.000_000_405_055_020_2,
+        1.000_000_000_000_514,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]
