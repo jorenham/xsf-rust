@@ -5,9 +5,9 @@
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
 
-use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_TAU_DOWN};
+use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_EPSILON, SQRT_TAU_DOWN};
 use crate::xsf::cephes::beta::BETA_ASYMP_FACTOR;
-use crate::xsf::cephes::consts::{MACHEP, MAXGAM, MAXLOG, MINLOG};
+use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, ln_pow_beta, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
@@ -81,9 +81,43 @@ fn incbet_pseries_sum_to(a: f64, b: f64, x: f64, z: f64) -> f64 {
     s + t1
 }
 
+/// `x^p`, given `y = 1 - x`
+///
+/// Unlike in xsf, the larger of `x` and `y`, which can be `1 -` the smaller rounded, is corrected,
+/// as `x^p` amplifies its rounding error `p` times: with `e = (1 - x) - y` (exact by Sterbenz),
+/// this is `(x + e)^p = x^p exp(p ln(1 + e / x))`.
+fn incbet_pow(x: f64, y: f64, p: f64) -> f64 {
+    if x <= y {
+        return x.powf(p);
+    }
+    let r = ((1.0 - x) - y) / x;
+    // to first order, which errs by `~(p r)^2 / 2`
+    if (p * r).abs() < SQRT_EPSILON {
+        return x.powf(p) * (1.0 + p * r);
+    }
+    // squared, as `x^p` can underflow where `(x + e)^p` does not, and by the log of the latter if
+    // `x^(p/2)` does too
+    let h = x.powf(0.5 * p);
+    if !h.is_normal() {
+        return (p * (-y).ln_1p()).exp();
+    }
+    let h = h * (0.5 * p * r.ln_1p()).exp();
+    h * h
+}
+
+/// `ln(x)`, given `y = 1 - x`, as `ln_1p(-y)` if `x` is the larger and not exactly `1 - y` (see
+/// `incbet_pow`), and else as in xsf, as the callers amplify a different rounding `a` times
+fn incbet_ln(x: f64, y: f64) -> f64 {
+    if x <= y || (1.0 - x) - y == 0.0 {
+        x.ln()
+    } else {
+        (-y).ln_1p()
+    }
+}
+
 /// Power series for incomplete beta integral.
 /// Use when b*x is small and x not too close to 1.
-fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
+fn incbet_pseries(a: f64, b: f64, x: f64, y: f64) -> f64 {
     // Unlike in xsf, `I_x(a, b) = 1 - O(a)` is computed as `1 - incbet_apser` for tiny `a`, up to
     // where the series cancels (`INCBET_APSER_COMPL_MAX`)
     if a * x.ln().abs().max(1.0 / b) <= INCBET_APSER_COMPL_MAX {
@@ -96,12 +130,14 @@ fn incbet_pseries(a: f64, b: f64, x: f64) -> f64 {
     }
     s += ai;
 
-    let u = a * x.ln();
-    if (a + b) < MAXGAM && u.abs() < MAXLOG {
-        let t = 1.0 / beta(a, b);
+    let u = a * incbet_ln(x, y);
+    // Unlike in xsf, also for `a + b >= MAXGAM` (see `incbet_xy`)
+    let bt = if u > -MAXLOG { beta(a, b) } else { 0.0 };
+    if bt >= f64::MIN_POSITIVE {
+        let t = 1.0 / bt;
         // `triple_product(s, t, pow(x, a))` in xsf, which only disables optimizations for gcc on
         // 32-bit x86, to prevent aggressive optimizations from degrading accuracy
-        s = (s * t) * x.powf(a);
+        s = (s * t) * incbet_pow(x, y, a);
     } else {
         let mut t = -lbeta(a, b) + u + s.ln();
         if let Some(p) = incbet_ln_pow_asymp(a, b, x, t) {
@@ -540,7 +576,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             break 'done bb / (aa + bb);
         }
         if (bb * xx) <= 1.0 && xx <= 0.95 {
-            break 'done incbet_pseries(aa, bb, xx);
+            break 'done incbet_pseries(aa, bb, xx, yy);
         }
         // Unlike in xsf, `I_x(a, b) = O(b)` is `incbet_apser(b, a, 1 - x)` for tiny `b`, i.e.
         // `b <= eps min(1, a)` as in TOMS 708. Being off by a relative ~`1.3 m^2`, with
@@ -576,7 +612,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
             if a <= INCBET_PSERIES_COMPL_MAX {
                 return incbet_pseries_compl(a, b, x);
             }
-            break 'done incbet_pseries(a, b, x);
+            break 'done incbet_pseries(a, b, x, xc);
         }
 
         // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708),
@@ -602,17 +638,24 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
          * a      b   _             _     _
          * x  (1-x)   | (a+b) / ( a | (a) | (b) ) .   */
 
-        let mut y = a * x.ln();
-        let mut t = b * xc.ln();
-        if (a + b) < MAXGAM && y.abs() < MAXLOG && t.abs() < MAXLOG {
-            t = xc.powf(b);
-            t *= x.powf(a);
+        let mut y = a * incbet_ln(x, xc);
+        let mut t = b * incbet_ln(xc, x);
+        // Unlike in xsf, also for `a + b >= MAXGAM` where `B(a, b)` and `x^a (1-x)^b / a` are normal,
+        // as the logarithms below lose `|ln(I_x(a, b))| eps`
+        let bt = if y + t - a.ln() > -MAXLOG {
+            beta(a, b)
+        } else {
+            0.0
+        };
+        if bt >= f64::MIN_POSITIVE {
+            t = incbet_pow(xc, x, b);
+            t *= incbet_pow(x, xc, a);
             if let Some(p) = incbet_subnormal_div_a_beta(a, b, t * w) {
                 break 'done p;
             }
             t /= a;
             t *= w;
-            t *= 1.0 / beta(a, b);
+            t *= 1.0 / bt;
             break 'done t;
         }
         /* Resort to logarithms.  */

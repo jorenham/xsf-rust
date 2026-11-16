@@ -194,6 +194,41 @@ fn test_beta_large_small_ratio() {
 }
 
 #[test]
+fn test_beta_asymp() {
+    // unlike in xsf, a^-b without the rounding error of b ln(a), which exp amplifies, for
+    // a > 1e6 max(|b|, 1) (Arb)
+    let ab = [
+        (37_618_796_785.225_79, 2.834_015_934_288_365),
+        (144_533_436.195_872_87, 36.632_685_299_784_3),
+        (142_008_366.748_303_83, 0.951_653_418_112_858),
+        (5e299, 0.25),
+        (1e8, -2.5),
+    ];
+    let expected = [
+        1.845_268_740_786_281_7e-30,
+        1.191_046_123_243_742_1e-258,
+        1.798_031_969_081_443e-8,
+        4.311_601_099_081_855_6e-75,
+        -9.453_086_791_256_859e19,
+    ];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-16);
+}
+
+#[test]
+fn test_beta_stirling_small_b() {
+    // unlike in xsf, without the cancellation of the Stirling correction of Gamma(b) for
+    // 5 <= b < 13 (Arb)
+    let ab = [
+        (19_830.289_790_282_997, 11.889_677_178_871_672),
+        (100_000.0, 8.25),
+    ];
+    let expected = [2.449_509_334_341_311e-44, 4.709_050_581_234_839e-38];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-16);
+}
+
+#[test]
 fn test_beta_negative_large_a() {
     // unlike in xsf, without the rounding error of a + b in sin(pi (a + b)) (mpmath, Wolfram)
     let ab = [
