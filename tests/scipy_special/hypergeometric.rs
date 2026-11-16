@@ -154,6 +154,85 @@ fn test_hyp0f1_complex_large_z() {
 }
 
 #[test]
+fn test_hyp0f1_near_poles() {
+    // where `b - 1` is not exact, which is amplified near the poles of Gamma(b); Arb references
+    np_assert_allclose!(
+        [
+            hyp0f1(-31.999_996_483_927_095, -48.410_101_072_009_944),
+            hyp0f1(-31.000_010_454_454_72, 84.215_513_283_229_77)
+        ],
+        [4.723_194_235_861_527, 0.095_074_906_605_175_92],
+        rtol = 1e-14
+    );
+    np_assert_allclose!(
+        [
+            hyp0f1(
+                -15.003_121_251_499_058,
+                c64(0.828_424_759_977_544_1, 18.026_879_250_310_117)
+            ),
+            hyp0f1(
+                -31.999_988_706_823_49,
+                c64(25.359_285_755_766_876, -33.027_826_633_854_495)
+            ),
+        ],
+        [
+            c64(0.335_420_362_037_963_1, -0.835_851_607_783_394_4),
+            c64(0.240_787_837_165_309_3, 0.380_332_237_847_745_34),
+        ],
+        rtol = 1e-14
+    );
+
+    // where the recurrence from the orders `b` and `b + 1` would be less accurate: `b + 1` rounds
+    // to 1, its two terms cancel, `2 sqrt(|z|)` is past the turning point `1 - b`, or the `sin(pi b)`
+    // term of `I_{b-1}` is negligible, or the gain is too small to be reliable; Arb references
+    // (here 2 sqrt(-z) is about the first zero of J_1, so rounding `b - 1` to -1 costs ~14%)
+    let z = -12.304_614_080_423_65;
+    for actual in [hyp0f1(1e-16, z), hyp0f1(1e-16, c64(z, 0.0)).re] {
+        np_assert_allclose!([actual], [2.197_705_466_158_317_3], rtol = 0.2);
+    }
+    np_assert_allclose!(
+        [hyp0f1(
+            -127.086_052_907_759_45,
+            c64(1_179.687_644_608_810_6, -1_589.740_742_745_845_2)
+        )],
+        [c64(0.004_507_218_203_138_257, 0.007_064_843_216_650_686)],
+        rtol = 1e-13
+    );
+    let (b, z) = (-255.878_361_452_585_15, -700_206.011_134_528_7);
+    let expected = -1.786_070_161_422_895_2e243;
+    np_assert_allclose!([hyp0f1(b, z)], [expected], rtol = 1e-13);
+    np_assert_allclose!([hyp0f1(b, c64(z, 0.0))], [c64(expected, 0.0)], rtol = 5e-13);
+    np_assert_allclose!(
+        [hyp0f1(
+            -511.999_956_923_477_9,
+            c64(35_623.457_087_526_804, 0.0)
+        )],
+        [c64(9.548_881_977_270_142e31, 0.0)],
+        rtol = 1e-12
+    );
+    np_assert_allclose!(
+        [hyp0f1(
+            -127.000_000_000_005_58,
+            c64(1_958.239_202_491_229_4, -383.322_084_776_425_24)
+        )],
+        [c64(-47_965_934_161.306_46, -54_008_764_700.608_65)],
+        rtol = 1e-13
+    );
+    np_assert_allclose!(
+        [hyp0f1(
+            -511.895_066_714_241_5,
+            c64(7_597.308_951_474_139, 0.0)
+        )],
+        [c64(4.411_420_808_676_181_4e-7, 0.0)],
+        rtol = 2e-13
+    );
+    let (b, z) = (-511.025_334_625_666_97, -65_088.852_030_151_46);
+    let expected = 5.575_669_507_071_876e68;
+    np_assert_allclose!([hyp0f1(b, z)], [expected], rtol = 2e-13);
+    np_assert_allclose!([hyp0f1(b, c64(z, 0.0))], [c64(expected, 0.0)], rtol = 2e-13);
+}
+
+#[test]
 fn test_hyp0f1_complex_prefactor_overflow() {
     // where Gamma(b) or |z|^((1-b)/2) over- or underflows; Arb references
     np_assert_allclose!(
