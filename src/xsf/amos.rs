@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@b1eb270).
+//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@3fa47a2).
 //!
 //! ```text
 //!
@@ -1018,8 +1018,8 @@ pub(crate) fn airy(mut z: C64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i32)
         }
         let nn = acai(zta, fnu, kode, mr, 1, &mut cy, rl, tol, elim, alim);
         if nn < 0 {
-            // Unlike in xsf, this is an overflow (as in the Fortran), not an underflow to 0.
             if nn == -1 {
+                *nz = 0;
                 *ierr = 2;
                 return C64::ZERO;
             }
