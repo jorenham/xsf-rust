@@ -337,8 +337,12 @@ mod rjimpl {
             /* bound fairly sharp even if p is large */
             conf.a = 0.5 * (x + y);
             conf.g = sqrt_prod(&[x, y]);
-            // Unlike in xsf, also if `a` underflows to 0, where the bound tends to 0
-            if conf.a == 0.0 || (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= 1.0 {
+            // Unlike in xsf, only if the relative error bound is below the rounding error (not 1),
+            // e.g. not for `y = 6e-29, z = 1e-21, p = 3e-9`, where the error is about `a / z`. And
+            // also if `a` underflows to 0, where the bound tends to 0.
+            if conf.a == 0.0
+                || (conf.a / z + conf.a / p) * ln_ratio(1.0, p, conf.a).abs() <= f64::EPSILON
+            {
                 return AsymFlag::Tinyy;
             }
         }

@@ -444,6 +444,21 @@ fn test_elliprj_wide_span() {
 }
 
 #[test]
+fn test_elliprj_tiny_y() {
+    // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
+    let actual = [
+        xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9),
+        xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9),
+    ];
+    // Arb
+    let expected = [
+        3.067_647_836_331_202e20, // 3.0676478363312025864e20
+        6.664_402_648_223_819e19, // 6.6644026482238192011e19
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj_huge_p() {
     // complex `x, y, z << p`, where the `s` of the main loop cancels
     let actual = [
