@@ -293,6 +293,28 @@ fn test_hyp0f1_c64_large_b() {
     ];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-15);
 
+    // Arb; |z| > b, where the Bessel function underflows (Debye's expansion, scipy/xsf#557)
+    let bz = [
+        (1000.0, c64(2000.0, 100.0)),
+        (1000.0, c64(-2000.0, 100.0)),
+        (1e12, c64(2e12, 1e11)),
+        (1e14, c64(2e14, 1e13)),
+    ];
+    let expected = [
+        c64(7.337_688_264_623_645, 0.734_749_622_069_595),
+        c64(0.134_387_641_620_190_2, 0.013_510_970_206_071_45),
+        c64(7.352_141_595_894_477, 0.737_674_716_148_388_2),
+        c64(7.352_141_595_908_852, 0.737_674_716_151_300_9),
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-14);
+
+    // Arb; on the branch cut, where `J_{b-1}` rounds to 0 near a zero
+    np_assert_allclose!(
+        [hyp0f1(1.400_800_854_970_417_8, c64(-2.25, 0.0))],
+        [c64(5.471_961_797_816_518e-17, 0.0)],
+        atol = 1e-16
+    );
+
     // Arb; the norm of the partial sums overflows, or the partial sums themselves
     let actual = [c64(0.0, 1.0), c64(0.2, 0.9)].map(|z| hyp0f1(6e-309, z));
     let expected = [
