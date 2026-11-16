@@ -710,6 +710,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     if let Some((y, _)) = inexact.filter(accurate) {
         return y;
     }
+    // Unlike in xsf, the result `y` of a transformation below is replaced by that of
+    // `hyp2f1_recur` if this shows `y` to be less accurate, or `y` is not finite
+    let or_recur = |y: f64| {
+        let worse = |&(alt, bound): &(f64, f64)| {
+            bound < HYP2F1_LOST && (!y.is_finite() || less_accurate(y, alt, bound))
+        };
+        inexact.filter(worse).map_or(y, |(alt, _)| alt)
+    };
 
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
@@ -777,12 +785,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 }
             }
         }
-        // Unlike in xsf, the result of `hyp2f1_recur` instead if it shows `euler` to be less
-        // accurate, or that is not finite
-        let worse = |&(alt, bound): &(f64, f64)| {
-            bound < HYP2F1_LOST && (!euler.is_finite() || less_accurate(euler, alt, bound))
-        };
-        return inexact.filter(worse).map_or(euler, |(alt, _)| alt);
+        return or_recur(euler);
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
         return f64::INFINITY; // goto hypdiv
@@ -856,7 +859,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 if e1 < MACHEP * u.abs().max(v.abs()) / (u + v).abs() {
                     return y1;
                 }
-                return u + v;
+                return or_recur(u + v);
             } else if x < -1.0 || lost && near(x, -1.0) {
                 // Unlike in xsf (scipy/xsf#470), also near x = -1 if `a` or `b` is lost (see
                 // above), as the power series diverges there if c - a - b <= -1.
@@ -866,9 +869,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 let w = x / (x - 1.0);
                 let recur = recur && w < HYP2F1_RECUR_NEAR1;
                 if a.abs() < b.abs() {
-                    return s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur);
+                    return or_recur(s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur));
                 }
-                return s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur);
+                return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur));
             }
 
             if ax > 1.0 {

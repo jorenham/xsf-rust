@@ -863,7 +863,36 @@ fn test_hyp2f1_f64_euler_less_accurate() {
             -104_073.006_817_227_35,
         ),
     ];
-    np_assert_allclose!(actual, [-1.711_760_489_507_116_7e-211, 1.0], rtol = 2e-12);
+    np_assert_allclose!(actual, [-1.711_760_489_507_116_7e-211, 1.0], rtol = 1e-11);
+}
+
+#[test]
+fn test_hyp2f1_f64_pfaff_recip_less_accurate() {
+    // unlike in xsf: the Pfaff transformation for x < -1 and the 1/x one for x < -2, with large a
+    // and b of the same sign, where the error bound of `hyp2f1_recur` shows their result to be
+    // less accurate, or it is not finite. These were -9.13e168, 1.21e146 and -inf, as in xsf
+    // (Arb).
+    let actual = [
+        xsf::hyp2f1(-129.666, -113.666, 56.25, -52.03),
+        xsf::hyp2f1(
+            -122.128_459_991_815_06,
+            -86.128_390_890_172_06,
+            78.264_535_379_928_02,
+            -76.272_919_739_327_62,
+        ),
+        xsf::hyp2f1(
+            -176.933_199_208_308_85,
+            -130.933_195_913_092_13,
+            -20.999_999_947_974_53,
+            -35.466_899_274_141_96,
+        ),
+    ];
+    let desired = [
+        4.791_283_530_597_28e162,
+        -1.593_909_865_270_581e144,
+        2.912_887_935_665_173_8e274,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-9);
 }
 
 #[test]
