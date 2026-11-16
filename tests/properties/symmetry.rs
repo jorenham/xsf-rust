@@ -25,10 +25,9 @@ fn near_pole(x: f64) -> bool {
 proptest! {
     #![proptest_config(config())]
 
-    // known: asymmetries for x < -1 or x > 0.9, e.g. hyp2f1(156.000001, 0.5, 43, -96) is NaN
     #[test]
-    fn hyp2f1(a in moderate(), b in moderate(), c in moderate(), x in -1.0..0.9_f64) {
-        // known: also near the poles of c
+    fn hyp2f1(a in moderate(), b in moderate(), c in moderate(), x in arg()) {
+        // known: asymmetries near the poles of c
         prop_assume!(!near_pole(c));
         let (ab, ba) = (xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x));
         // half the digits, for ill-conditioned parameters
