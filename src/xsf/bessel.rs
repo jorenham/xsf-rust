@@ -1965,6 +1965,26 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     dj[0] = x.cos();
 }
 
+/// `a * b / x + c` (as in xsf), where `a * b / x` is reordered as `a * (b / x)` or `a / x * b` and
+/// halved if it overflows, and is returned without `c` if it still does (so not as `inf - inf`)
+#[inline]
+fn mul_div_add(a: f64, b: f64, x: f64, c: f64) -> f64 {
+    #[cold]
+    fn reordered(a: f64, b: f64, x: f64, c: f64) -> f64 {
+        // halved, since `a * b / x` can be up to twice `f64::MAX` if `c` cancels it
+        let (a, c) = (0.5 * a, 0.5 * c);
+        let t = a * (b / x);
+        let t = if t.is_finite() { t } else { a / x * b };
+        if t.is_infinite() { t } else { 2.0 * (t + c) }
+    }
+    let t = a * b / x;
+    if t.is_finite() {
+        t + c
+    } else {
+        reordered(a, b, x, c)
+    }
+}
+
 fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     // ========================================================
     // Purpose: Compute Riccati-Bessel functions of the second
@@ -1976,43 +1996,31 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     //          NM --- Highest order computed
     // ========================================================
 
-    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written (for x >= 1e-60), so buffers of
-    // length 1 (n == 0) are out of bounds; riccati_y uses length 2 for N == 1.
+    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written, so buffers of length 1 (n == 0) are
+    // out of bounds; riccati_y uses length 2 for N == 1.
+    //
+    // Unlike in xsf, `x < 1e-60` is not special-cased with `-+1e300` sentinels, and the orders
+    // past `|ry| > 1e300` are not left unset. Instead, the orders that overflow are infinite, by
+    // dropping the negligible terms of `inf - inf` (here `ry[k - 2]` and `ry[k - 1]`), and the
+    // products of `k` and `ry[k - 1]` or `ry[k]` with `1 / x` are reordered if they overflow early.
     let n = ry.len() as i32 - 1;
 
-    let mut k;
     *nm = n;
-    if x < 1.0e-60 {
-        for k in 0..=n {
-            ry[k as usize] = -SPECFUN_INF;
-            dy[k as usize] = SPECFUN_INF;
-        }
-        ry[0] = -1.0;
-        dy[0] = 0.0;
-        return;
-    }
-
     ry[0] = -x.cos();
     ry[1] = ry[0] / x - x.sin();
     let mut rf0 = ry[0];
     let mut rf1 = ry[1];
 
-    k = 2;
-    while k <= n {
-        let rf2 = (2.0 * f64::from(k) - 1.0) * rf1 / x - rf0;
-        if rf2.abs() > SPECFUN_INF {
-            break;
-        }
+    for k in 2..=n {
+        let rf2 = mul_div_add(2.0 * f64::from(k) - 1.0, rf1, x, -rf0);
         ry[k as usize] = rf2;
         rf0 = rf1;
         rf1 = rf2;
-        k += 1;
     }
 
-    *nm = k - 1;
     dy[0] = x.sin();
-    for k in 1..=*nm {
-        dy[k as usize] = f64::from(-k) * ry[k as usize] / x + ry[(k - 1) as usize];
+    for k in 1..=n {
+        dy[k as usize] = mul_div_add(f64::from(-k), ry[k as usize], x, ry[(k - 1) as usize]);
     }
 }
 
