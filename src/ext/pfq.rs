@@ -18,6 +18,9 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
 mod conformal;
+mod residue;
+
+use residue::Residues;
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
@@ -481,16 +484,22 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 /// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
-/// This is for `p = q + 1`, where `b` contains the 1 of `n!`, and no two `a_i` may differ by an
-/// integer. It is a sum over `j` of series in `1 / z` with the parameters `a_j + 1 - b` and
-/// `a_j + 1 - a`.
+/// This is for `p = q + 1`, where `b` contains the 1 of `n!`. It is a sum over `j` of series in
+/// `1 / z` with the parameters `a_j + 1 - b` and `a_j + 1 - a`, or its limit where `a_i` differ
+/// by integers, which is `None` if it underflows or overflows.
 pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let one = b.as_ref().iter().position(|&v| v == 1.0)?;
+    let mut diffs = zip(a.as_ref(), 0..).flat_map(|(aj, j)| skip(a, j).map(move |ak| ak - aj));
+    if diffs.any(|d| d.fract() == 0.0) {
+        // the terms of DLMF 16.8.8 are infinite: their limit is the sum of the terms of `pfq_alg`
+        let b: Vec<f64> = skip(b, one).chain([1.0]).collect();
+        let mut terms = vec![None; a.as_ref().len()];
+        pfq_alg(a, &b, z, false, &mut terms)?;
+        let (y, err) = add_exp(terms.into_iter().flatten())?.to_f64();
+        return y.is_normal().then_some((y, err * y.abs()));
+    }
     let (mut sum, mut err) = (0.0, 0.0);
     for (j, &aj) in a.as_ref().iter().enumerate() {
-        if skip(a, j).any(|ak| (ak - aj).fract() == 0.0) {
-            return None;
-        }
         // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
         let ratios = skip(a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
         let ratios = ratios.chain(skip(b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
@@ -662,8 +671,6 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 ///
 /// - at $z = 1$, unless a parameter cancels so that Gauss's sum applies, and for
 ///   $1 - 10^{-5} \lesssim z < 1$;
-/// - for $z < -1$ if two $a_i$ differ by an integer: often for $z < -10$, and nearly always
-///   for $z \lesssim -10^6$;
 /// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -780,8 +787,35 @@ fn asymptotic_sum<T: Term>(
     best
 }
 
+/// The sum of a convergent series and an estimate of its absolute error, which is infinite if
+/// it did not converge within `PFQ_MAXITER` terms
+///
+/// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
+/// before it, and `ratio_bound` does not increase.
+fn convergent_sum<T: Term>(
+    terms: impl Iterator<Item = T>,
+    settled: f64,
+    ratio_bound: impl Fn(f64) -> f64,
+) -> (f64, f64) {
+    let (mut sum, mut abs_sum) = (0.0_f64, 0.0);
+    for (term, n) in terms.zip((0..PFQ_MAXITER).map(f64::from)) {
+        if !term.value().is_finite() {
+            break;
+        }
+        sum += term.value();
+        abs_sum += term.bound();
+        let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
+        // geometric bound on the remaining terms
+        let tail = term.bound() * rho / (1.0 - rho);
+        if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
+            return (sum, tail + n * f64::EPSILON * abs_sum);
+        }
+    }
+    (sum, f64::INFINITY)
+}
+
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
-/// about `n^kappa / |z|`
+/// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`
 fn pfq_alg_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -791,6 +825,7 @@ fn pfq_alg_sum<T: Term>(
 ) -> (f64, f64) {
     let az = z.abs();
     let scale = match kappa {
+        0 => return convergent_sum(terms, settled, ratio_bound),
         1 => az,
         2 => az.sqrt(),
         _ => az.powf(1.0 / kappa as f64),
@@ -940,13 +975,67 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
+/// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
+///
+/// The terms of these `a_i` are infinite, unlike the limit of their sum, which is the sum of
+/// the `Residues` at the poles that they share. It is the `term` of the first of the smallest
+/// of them, with the residue `(-1)^k / k!` of the Gamma function in place of each `Gamma(-k)`
+/// of its factor. The `term` stays `None` for the other `a_i`, and if the class has no residues.
+///
+/// The residues are complex for `z > 0`, where it is the sum of the bounds on their sizes, as
+/// with `sizes`.
+fn pfq_class_term(
+    a: &[f64],
+    b: &[f64],
+    m: usize,
+    z: f64,
+    sizes: bool,
+    term: &mut Option<Scaled>,
+) -> Option<()> {
+    let (am, lower) = (a[m], &b[..b.len() - 1]);
+    let others = skip(&a, m).map(Dd::new);
+    let diffs = others.clone().map(|ai| ai - am);
+    let before = |(d, i): (Dd, usize)| d.is_integer() && (d.hi < 0.0 || d.hi == 0.0 && i < m);
+    if diffs.clone().zip(0..).any(before) {
+        return Some(());
+    }
+    let residues = Residues::of_class(a, lower, m, z);
+    let [up, low] = residues.params().map(descending);
+    // (their order is final after the last zero factor, and their bounds are valid once all
+    // parameters plus n exceed 1)
+    let settled = pfq_settled(&up, &low).floor() + 2.0;
+    let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n) * Residues::growth_bound(&up, &low, n);
+    let sizes = sizes || z > 0.0;
+    let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
+    let (sum, err) = pfq_alg_sum(series, settled, b.len() - a.len(), z, bound);
+    if (sum, err) != (0.0, 0.0) {
+        let bs = lower.iter().copied().map(Dd::new);
+        let args = bs.clone().map(|bj| bj - am);
+        let poles = args.clone().filter(is_pole);
+        let sign = neg_one_pow(poles.clone().filter(|g| g.hi % 2.0 != 0.0).count());
+        // (Gamma(a_i - a_m) has the residue 1 for a_i = a_m)
+        let num = bs
+            .chain(diffs.filter(|d| d.hi != 0.0))
+            .chain(poles.map(|g| -g + 1.0));
+        let den = others.chain(args.filter(|g| !is_pole(g)));
+        let l = -ln_dd(Dd::new(z.abs())) * am;
+        let mut y = gamma_series(num, den, (sign * sum, err), l)?;
+        if sizes {
+            y.m = y.m.abs();
+        }
+        *term = Some(y);
+    }
+    Some(())
+}
+
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
-/// 16.11.2), with `|z|` instead of `-z`, or `None` if two `a_i` differ by an integer
+/// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows
 ///
 /// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
 /// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
 /// `1 + a_m - b_j`, and `1 + a_m - a_i`. It stays `None` if it vanishes, where
-/// `1 / Gamma(b_j - a_m)` does.
+/// `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term, by
+/// `pfq_class_term`, which for `z > 0` is a bound on its size.
 ///
 /// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
@@ -964,7 +1053,8 @@ fn pfq_alg<A: Params, B: Params>(
         let others = skip(a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            return None;
+            pfq_class_term(a.as_ref(), b.as_ref(), m, z, sizes, &mut terms[m])?;
+            continue;
         }
         let num = bs.clone().chain(diffs);
         let den = others.chain(bs.clone().map(|bj| bj - am));
@@ -999,10 +1089,7 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         Some(terms.into_iter().flatten())
     };
     let (y, other) = if z > 0.0 {
-        // (its size is continuous in a_1, also at an integer a_1 - a_2)
-        let nudged = [a[0] + f64::EPSILON.sqrt() * a[0].abs().max(1.0), a[1]];
-        let terms = alg(a).or_else(|| alg(nudged))?;
-        (hyp2f2_exp(a, b, z)?, add_exp(terms))
+        (hyp2f2_exp(a, b, z)?, add_exp(alg(a)?))
     } else {
         (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
@@ -1053,7 +1140,6 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///
 /// - for some $z < 0$, e.g. $-50 < z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$, and wider for
 ///   larger parameters;
-/// - for $z < 0$ beyond that if $a_1 - a_2$ is an integer (unless one of them cancels);
 /// - for some large parameters, also for $z > 0$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
@@ -1408,8 +1494,8 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 ///
 /// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
 /// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
-/// sizes of the terms of the algebraic part, which has no bound yet where two `a_i` differ by
-/// an integer (`None`). For `z < 0` and `p < q`, it is the sum of both parts.
+/// sizes of the terms of the algebraic part. For `z < 0` and `p < q`, it is the sum of both
+/// parts.
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
@@ -1500,8 +1586,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$, unless it is a polynomial;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
-///   other $p = q$ as for [`hyp2f2`], for the other $p < q$ as for [`hyp1f2`], and for the
-///   other $p \le q$ for large $\abs z$ if two $a_i$ differ by an integer;
+///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1595,13 +1680,24 @@ mod tests {
 
     #[test]
     fn test_pfq_asymptotic_integer_difference() {
-        // no expansion where two a_i differ by an integer, and an accurate one or none near it
-        // (Arb reference)
+        // the bound on the algebraic part is too large for equal a_i, and near them the
+        // expansion is accurate or `None` (Arb reference)
         let c = 1.0 + pow2(-10);
         let (b, z) = ([c, c, 11.25, 1.0], 21.25);
         assert_eq!(pfq_asymptotic(&[1.0, 1.0, 10.5], &b, z), None);
         let near = pfq_asymptotic(&[1.0, 1.0 + pow2(-20), 10.5], &b, z);
         let expected = 739_413_030.005_544_4;
         assert!(near.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected));
+    }
+
+    #[test]
+    fn test_pfq_asymptotic_nearly_cancelled() {
+        // equal a_i within sqrt(eps) of b_2 and b_3, where the algebraic part is about 1 and
+        // changes much with a_i: accurate or `None` (Arb reference)
+        let t = -pow2(-40);
+        let (root, root_2) = (f64::EPSILON.sqrt(), (2.0 * f64::EPSILON).sqrt());
+        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2, 1.0], 30.0);
+        let expected = -816_436.169_307_593_7_f64;
+        assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
     }
 }

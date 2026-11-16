@@ -166,6 +166,54 @@ fn test_hyp3f2_continuation() {
     ] {
         assert_hyp3f2(a, b, z, expected);
     }
+    // integer a_i - a_j, where it is a limit; Arb references, as the sum of the residues of the
+    // integrand of DLMF 16.5.1
+    for (a, b, z, expected) in [
+        // Li_2(z) / z
+        ([1.0, 1.0, 1.0], [2.0, 2.0], -50.0, 0.185_539_903_706_652_44),
+        (
+            [0.5, 1.5, 2.25],
+            [3.25, 4.75],
+            -100.0,
+            0.263_996_241_269_326_5,
+        ),
+        (
+            [2.5, 0.5, 1.5],
+            [1.25, 4.75],
+            -1e6,
+            0.001_256_920_615_740_740_4,
+        ),
+        // b_1 - a_1 and b_1 - a_2 are integers too
+        (
+            [1.0, 3.0, 2.5],
+            [2.0, 5.5],
+            -30.0,
+            0.048_293_858_423_504_636,
+        ),
+        // a huge |z|, where the sequence transformation does not converge
+        (
+            [2e-15, 1.0, 1.0],
+            [2.0, 2.0],
+            -1e150,
+            0.999_999_999_999_313_2,
+        ),
+        // a_1 - a_2 is so close to an integer that its distance to it is lost in an `f64`
+        (
+            [1e-10, 1.0, 1.0],
+            [2.0, 2.0],
+            -1e10,
+            0.999_999_997_897_414_9,
+        ),
+        // residues 1 and 2 nearly vanish at this z, unlike those after them (mpmath reference)
+        (
+            [0.125, 0.125, 0.375],
+            [-1.5, -0.333_950_201_884_253],
+            -13.364_862_417_958_138,
+            1.037_547_848_133_466,
+        ),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
 }
 
 #[test]
@@ -241,8 +289,6 @@ fn test_hyp3f2_conformal() {
             0.999_999,
             1.088_792_804_483_117,
         ),
-        // z < -1 with integer a_i - a_j, where the sequence transformation does not converge
-        ([1.0, 1.0, 1.0], [2.0, 2.0], -50.0, 0.185_539_903_706_652_44),
         // the terms cancel too much
         ([1.5, 2.5, 3.5], [0.5, 4.5], -1.0, -0.263_538_393_682_344_94),
     ] {
@@ -255,9 +301,6 @@ fn test_hyp3f2_none() {
     // z = 1, and too close to it
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
     assert_eq!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8), None);
-    // z < -1 with integer a_i - a_j for a huge |z|, where the orders of the sequence
-    // transformation hardly change before they converge
-    assert_eq!(hyp3f2(2e-15, 1.0, 1.0, 2.0, 2.0, -1e150), None);
     // the terms cancel too much
     assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
     // a huge negative parameter
@@ -402,9 +445,28 @@ fn test_hyp2f2_asymptotic() {
         // c_3 of the exponentially large part vanishes, but not c_4
         ([-1.5, -1.5], [-2.5, 1.5], 60.0, -4.921_886_930_234_788e21),
         ([-1.5, -1.5], [-2.5, 1.5], 100.0, -4.114_326_732_425_412e38),
+        // a_1 - a_2 is an integer, where the algebraic part is a limit
+        ([1.0, 2.0], [3.5, 4.75], -200.0, 0.043_106_214_672_287_14),
+        ([1.0, 1.0], [2.0, 2.0], -50.0, 0.089_784_773_406_593_58),
+        ([0.5, 2.5], [1.25, 3.0], -1e4, 0.008_371_495_152_126_434),
+        ([1.0, 3.0], [2.5, 4.75], 300.0, 1.900_125_531_576_091_6e123),
+        // so is b_1 - a_1
+        ([2.0, 3.0], [1.0, 4.5], -100.0, -2.565_124_215_174_344_6e-5),
+        // b_1 - a_1 is so close to an integer that its distance to it is lost in an `f64`
+        ([1.0, 1.0], [1e-10, 2.0], -1e10, -1.000_000_002_160_306_6),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
+    // residues 3 and 4 of the algebraic part nearly vanish at this z, unlike those after them:
+    // accurate or `None` (Arb reference)
+    let (b, z) = ([-1.5, -8.886_363_636_363_637], -110.305_786_588_507_15);
+    let y = hyp2f2(0.75, 0.75, b[0], b[1], z);
+    let expected = -0.205_817_644_249_452_2_f64;
+    assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
+    // equal a_i within sqrt(eps) of b_2, where the algebraic part changes much with a_1
+    let t = -(2.0_f64.powi(-40));
+    let b = [t - 1.0, t + f64::EPSILON.sqrt()];
+    assert_hyp2f2([t, t], b, 30.0, 18_916_422_175.581_42);
     // overflow
     assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
     assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
@@ -417,8 +479,8 @@ fn test_hyp2f2_asymptotic() {
 fn test_hyp2f2_none() {
     // the series cancels, and |z| is too small for the asymptotic expansion
     assert_eq!(hyp2f2(2.5, 3.25, -0.5, 1.75, -40.0), None);
-    // an integer a_1 - a_2
-    assert_eq!(hyp2f2(1.0, 2.0, 3.5, 4.75, -200.0), None);
+    // e^z times a polynomial, where the algebraic part vanishes
+    assert_eq!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0), None);
     // the result underflows
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), None);
     assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0), None);
@@ -844,6 +906,21 @@ fn test_hyppfq_asymptotic() {
     let c = 1.0 + 2.0_f64.powi(-10);
     let (a_int, b_int) = ([1.0, 1.0, 10.5], [c, c, 11.25]);
     assert_hyppfq(&a_int, &b_int, 21.25, 739_410_485.211_035_5);
+    // large |z| with integer a_i - a_j, where the algebraic part is the limit of DLMF 16.11.2,
+    // of which only a bound is used for z > 0
+    let (a_half, b_half) = ([0.5, 1.5, 2.5], [1.25, 2.25, 3.25, 0.75]);
+    assert_hyppfq(&a_half, &b_half[..3], 500.0, 1.490_249_682_266_956_5e211);
+    assert_hyppfq(&a_half, &b_half[..3], -200.0, 0.086_921_283_327_525_05);
+    let b_half3 = [1.75, 2.25, 3.25];
+    assert_hyppfq(&a_half[..2], &b_half3, 1e5, 2.998_583_212_151_733e262);
+    assert_hyppfq(&a_half[..2], &b_half3, -1e5, 0.007_069_421_929_959_013);
+    assert_hyppfq(&a_half[..2], &b_half, -1e6, -4.192_062_553_632_357e55);
+    // (a pole of order 3)
+    assert_hyppfq(&[1.0; 3], &[2.0; 3], -1e3, 0.028_834_862_048_815_51);
+    // (an a_i and a b_j also differ by integers)
+    let b_mixed = [0.5, 4.5, 2.25];
+    assert_hyppfq(&[1.5, 2.5], &b_mixed, -2e4, -6.818_735_291_796_145e-6);
+    assert_hyppfq(&[1.5, 2.5], &b_mixed, 2e4, 4.540_531_903_354_946e117);
 }
 
 #[test]
@@ -878,6 +955,43 @@ fn test_hyppfq_continuation() {
             &[3.25, 4.75, 1.75, 2.5],
             -1.25,
             0.987_921_427_741_094,
+        ),
+    ] {
+        assert_hyppfq(a, b, z, expected);
+    }
+    // integer a_i - a_j, where it is a limit; Arb references, as the sum of the residues of the
+    // integrand of DLMF 16.5.1
+    for (a, b, z, expected) in [
+        // Li_3(z) / z and Li_4(z) / z
+        (
+            &[1.0; 4][..],
+            &[2.0; 3][..],
+            -40.0,
+            0.361_479_025_355_404_44,
+        ),
+        (&[1.0; 4], &[2.0; 3], -1e12, 3.561_375_815_418_521_6e-9),
+        (&[1.0; 5], &[2.0; 4], -1e4, 0.037_150_546_634_823_31),
+        // (1 + 11 z + 11 z^2 + z^3) / (1 - z)^5
+        (&[2.0; 4], &[1.0; 3], -3.0, 0.039_062_5),
+        // the b_j - a_i are integers too
+        (
+            &[5.0, 5.0, 3.0, 3.0],
+            &[1.0, 4.0, 2.0],
+            -8.5,
+            -4.548_075_461_510_543e-6,
+        ),
+        (
+            &[5.0, 2.0, 5.0, 5.0],
+            &[1.0, 4.0, 4.0],
+            -6e10,
+            -3.215_020_574_792_095_3e-55,
+        ),
+        // two a_i of three differ from another by integers
+        (
+            &[0.25, 1.25, 3.25, 0.75],
+            &[2.0, 1.5, 0.375],
+            -1e3,
+            0.077_230_437_610_217_39,
         ),
     ] {
         assert_hyppfq(a, b, z, expected);
@@ -1018,14 +1132,6 @@ fn test_hyppfq_none() {
     // the sum cancels too much
     assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
-    // large |z| with integer a_i - a_j
-    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
-    assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], 1e5), None);
-    assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], -1e5), None);
-    assert_eq!(hyppfq(&[0.5, 1.5], &[1.25, 2.25, 3.25, 0.75], -1e6), None);
-    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], -200.0), None);
-    // z < -1 with integer a_i - a_j for a huge |z|
-    assert_eq!(hyppfq(&[1.0; 4], &[2.0; 3], -1e12), None);
     // the conformal series has rounding errors from before a near-pole `b_j + n`
     let (a, b) = ([-1.5, 0.75, -0.125, -77.75], [-3.75, -78.875, 21.5]);
     assert_eq!(hyppfq(&a, &b, -2.0), None);
@@ -1039,7 +1145,4 @@ fn test_hyppfq_conformal() {
     // the sum cancels too much; Wolfram reference
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
     assert_hyppfq(&a, &b, -0.5, 891.432_204_916_963_3);
-    // z < -1 with integer a_i - a_j: Li_3(z) / z and (1 + 11 z + 11 z^2 + z^3) / (1 - z)^5
-    assert_hyppfq(&[1.0; 4], &[2.0; 3], -40.0, 0.361_479_025_355_404_44);
-    assert_hyppfq(&[2.0; 4], &[1.0; 3], -3.0, 0.039_062_5);
 }
