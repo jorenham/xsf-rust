@@ -217,10 +217,15 @@ fn add_hi(v: Dd, k: f64) -> f64 {
 /// Each term `t_k` has at most `8 eps` more relative error than `t_(k-1)` (from `p + k`, `r + k`,
 /// `c + k` and 5 operations), and summing `k` terms adds at most `k eps` of `sum_j |t_j|`.
 ///
-/// With `weights = Some((beta_0, err))` (step 4), it sums `t_k beta_k` instead, with `err` bounding
-/// the error of `beta_0`, and
+/// With `weights = Some((beta_0, err, eps))` (step 4), it sums `t_k beta_k` instead, with `err`
+/// bounding the error of `beta_0`, and
 ///
-/// `beta_(k+1) = beta_k + 1/(k + 1) + 1/(c + k) - 1/(p + k) - 1/(r + k)`
+/// ```text
+/// beta_(k+1) = beta_k + (1 + eps beta_k) d_k
+/// 1 + eps d_k = (1 - eps/(p + k)) (1 - eps/(r + k)) / ((1 - eps/(k + 1)) (1 - eps/(c + k)))
+/// ```
+///
+/// i.e. `d_k = 1/(k + 1) + 1/(c + k) - 1/(p + k) - 1/(r + k)` if `eps = 0`.
 ///
 /// It sums through at most `t_kmax`. It's inlined, since the weights make the unweighted series
 /// about 5% slower otherwise.
@@ -232,15 +237,15 @@ fn series_weighted(
     c: Dd,
     w: Dd,
     budget: &mut f64,
-    weights: Option<(f64, f64)>,
+    weights: Option<(f64, f64, f64)>,
     kmax: f64,
 ) -> Option<Scaled> {
     let (w, w_lo) = (w.hi, w.lo);
     // from here on, the factors of the term ratios have constant signs
     let kmin = [-p.hi, -r.hi, -c.hi].into_iter().fold(0.0, f64::max).ceil();
     // `beta_k` and a bound of its absolute error, the sum of `|t_k|` times that bound, and the
-    // sum of `|parts|` of `beta_k - beta_(k-1)`
-    let (mut beta, mut beta_err) = weights.unwrap_or((1.0, 0.0));
+    // sum of `|parts|` of `d_(k-1)`
+    let (mut beta, mut beta_err, eps) = weights.unwrap_or((1.0, 0.0, 0.0));
     let (mut sum_err, mut d_abs) = (beta_err, 0.0);
     // The terms are `t 2^te`, and the sums are scaled by `2^-e`, since the terms can underflow
     // before `k = -c`, and be huge after it.
@@ -266,10 +271,18 @@ fn series_weighted(
         k += 1.0;
         if weights.is_some() {
             let parts = [1.0 / k, 1.0 / ck, -1.0 / pk, -1.0 / rk];
-            d_abs = parts.into_iter().map(f64::abs).sum();
-            beta += parts.into_iter().sum::<f64>();
-            // (2 roundings per part, and 4 additions)
-            beta_err += MACHEP * (5.0 * d_abs + beta.abs());
+            // the second-order terms of the denominator and the numerator of `1 + eps d`, and
+            // the inverse of that denominator
+            let (den, num) = (eps * parts[0] * parts[1], eps * parts[2] * parts[3]);
+            let scale = 1.0 / (1.0 - eps * (parts[0] + parts[1] - den));
+            let d = (parts.into_iter().sum::<f64>() + (num - den)) * scale;
+            let parts_abs = parts.into_iter().map(f64::abs).sum::<f64>();
+            d_abs = (parts_abs + num.abs() + den.abs()) * scale.abs();
+            let ratio = 1.0 + eps * beta;
+            beta += ratio * d;
+            // (the error of `beta_(k-1)`, and 2 roundings per part, and 4 additions)
+            beta_err = beta_err * (1.0 + (eps * d).abs())
+                + MACHEP * (5.0 * d_abs * ratio.abs() + beta.abs());
             sum_err += term_abs * beta_err;
         }
         // (the rounding of `term * beta` is within the `(k + 1) eps` of `sum_abs` below)
@@ -286,11 +299,12 @@ fn series_weighted(
         (f0, f1) = (pk / (k + 1.0), rk / ck);
         // For j >= k > kmin, both factors of the term ratio are positive and tend monotonically
         // to 1, so the ratio is at most `rho`, which bounds the rest of the series geometrically.
-        // With weights, the parts of `beta_j - beta_(j-1)` decrease as well, so
-        // `|beta_j| <= |beta_k| + (j - k) d_abs`.
+        // With weights, the parts of `d_j` decrease as well, and `|1 + eps beta_j|` grows by at
+        // most `u = 1 + |eps| d_abs` per term, which is in `rho`, so
+        // `|beta_j| <= |beta_k| + (j - k) u^(j-k) |1 + eps beta_k| d_abs`.
         if k > kmin {
-            let rho = w * f0.max(1.0) * f1.max(1.0);
-            let beta_max = beta.abs() + d_abs / (1.0 - rho);
+            let rho = w * f0.max(1.0) * f1.max(1.0) * (1.0 + eps.abs() * d_abs);
+            let beta_max = beta.abs() + (1.0 + eps * beta).abs() * d_abs / (1.0 - rho);
             if rho < 1.0 && term_abs * beta_max * rho / (1.0 - rho) <= sum.abs() * MACHEP / 2.0 {
                 break;
             }
@@ -721,7 +735,7 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
             let (y, err) = psi_dd(v)?;
             Some((beta + sign * y, beta_err + err))
         })?;
-    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs()));
+    let weights = Some((beta.hi, beta_err + MACHEP * beta.hi.abs(), 0.0));
     let mut budget = HYP2F1_RECUR_MAXITER;
     let term2 = mul_gamma_ratio([c], [a, cb, m1], || {
         let mut s2 = series_weighted(b, ca, m1, w, &mut budget, weights, f64::INFINITY)?;
