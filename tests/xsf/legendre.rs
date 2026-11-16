@@ -351,6 +351,46 @@ fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_off_axis() {
+    // NaN in xsf: `km` is not positive for `z = -0.389 - 1.0005i`, and the backward recurrence
+    // overflows for `z = 1e8 + 3e7i`; Arb references
+    let (q, d) = xsf::legendre_q_all(2, c64(-0.389, -1.0005));
+    xsref::np_assert_allclose!(
+        [q[0], q[1], q[2], d[0]],
+        [
+            c64(-0.189_288_021_445_159_6, 0.747_410_144_189_767_6),
+            c64(-0.178_583_110_395_970_47, -0.101_359_880_633_937_43),
+            c64(0.046_731_414_777_246_995, -0.046_552_978_818_228_626),
+            c64(0.459_296_280_510_478_77, 0.193_282_793_484_476_33),
+        ],
+        rtol = 1e-13
+    );
+    let (q, d) = xsf::legendre_q_all(2, c64(1e8, 3e7));
+    xsref::np_assert_allclose!(
+        [q[0], q[1], q[2], d[0]],
+        [
+            c64(9.174_311_926_605_505e-9, -2.752_293_577_981_651_6e-9),
+            c64(2.553_095_979_575_232e-17, -1.683_359_986_533_12e-17),
+            c64(7.515_919_205_927_693e-26, -8.988_215_707_910_789e-26),
+            c64(-7.659_287_938_725_697e-17, 5.050_079_959_599_361e-17),
+        ],
+        rtol = 1e-14
+    );
+    // finite before, but 4.7e-14 off in `Q_0`, as the recurrence overflowed; mpmath references
+    let (q, d) = xsf::legendre_q_all(7, c64(1e6, 3e5));
+    xsref::np_assert_allclose!(
+        [q[0], q[7], d[0], d[7]],
+        [
+            c64(9.174_311_926_607_384e-7, -2.752_293_577_983_898_4e-7),
+            c64(-1.214_582_083_191_448e-51, -1.275_706_366_917_626_5e-51),
+            c64(-7.659_287_938_729_013e-13, 5.050_079_959_607_096e-13),
+            c64(1.172_325_866_618_442e-56, 6.688_673_335_487_226e-57),
+        ],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_assoc_legendre_q_all_int_zero() {
     // `static_cast<T>(ls * (j + i - 1) * (j - i + 2))` with `ls = -1, i = 2, j = 0` is `+0.0`
     let q = xsf::assoc_legendre_q_all(2, 2, c64(1.00005, 0.0)).0[0][2];

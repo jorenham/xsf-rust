@@ -857,7 +857,9 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         let km = if z.norm() > 1.1 {
             40_i32.wrapping_add(n)
         } else {
-            (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z - 1.0).norm().ln()).floor())
+            // Unlike in xsf, this uses `|z| - 1` instead of `|z - 1|`, which is not positive for
+            // `z` far from 1 and left `cqf0` at zero (as in `lqmn_c64`)
+            (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z.norm() - 1.0).ln()).floor())
                 as i32
         };
 
@@ -868,6 +870,14 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
             if k <= n {
                 cqn[k] = cqf0;
+            }
+            // Unlike in xsf, this rescales by a power of 2 (as in `lqmn_c64`), since `cqf0` grows like
+            // `(2 z)^k` and overflowed for large `|z|`
+            if cqf0.l1_norm() > SPECFUN_BIG {
+                (cqf0, cqf1) = (cqf0 / SPECFUN_BIG, cqf1 / SPECFUN_BIG);
+                for j in k.min(n)..=n {
+                    cqn[j] /= SPECFUN_BIG;
+                }
             }
             cqf2 = cqf1;
             cqf1 = cqf0;
