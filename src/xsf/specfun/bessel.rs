@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@6466f58).
+//! (scipy/xsf@250c65c).
 
 #![allow(clippy::approx_constant)]
 
@@ -974,8 +974,6 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
     // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
-    // Unlike in xsf, there is no `|x| < 1e-100` branch, which set `bl[k] = 0` for `k >= 1` and
-    // `dl[1] = 0.5`, instead of 1 and 0. The series below is accurate there too.
     if x <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {
