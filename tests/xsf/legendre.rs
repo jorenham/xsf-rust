@@ -217,8 +217,16 @@ fn test_legendre_q_all_f64() {
     assert_eq!(qn.len(), 5);
     assert_eq!(qd.len(), 5);
 
-    assert_eq!(qn[..2], [LN_3 * 0.5, LN_3 * 0.25 - 1.0]);
-    assert_eq!(qd[..2], [4.0 / 3.0, 2.0 / 3.0 + 0.5 * LN_3]);
+    xsref::np_assert_allclose!(
+        &qn[..2],
+        &[LN_3 * 0.5, LN_3 * 0.25 - 1.0],
+        rtol = f64::EPSILON
+    );
+    xsref::np_assert_allclose!(
+        &qd[..2],
+        &[4.0 / 3.0, 2.0 / 3.0 + 0.5 * LN_3],
+        rtol = f64::EPSILON
+    );
 }
 
 #[test]
@@ -355,7 +363,8 @@ fn test_assoc_legendre_q_all_near_minus_one() {
             .chain(qd.iter().flatten())
             .zip(cqm.iter().flatten().chain(cqd.iter().flatten()))
         {
-            assert_eq!(*q, cq.re);
+            // not bit-identical, since only the real `Q_0` uses `ln_1p`
+            assert!((q - cq.re).abs() <= 1e-15 * q.abs(), "{q} != {}", cq.re);
         }
     }
     // mpmath: legenq(2, 1, -1.05, type=3) = 2.211389887900321167... (with the opposite sign)
@@ -370,7 +379,7 @@ fn test_assoc_legendre_q_all_large_x() {
     xsref::np_assert_allclose!(
         [qm[30][26], qd[30][26]],
         [8.065_789_716_549_577e-60, -2.755_046_337_773_331_8e-61],
-        rtol = 1e-13
+        rtol = 1e-14
     );
     let (cqm, cqd) = xsf::assoc_legendre_q_all(30, 26, c64(600.0, 400.0));
     xsref::np_assert_allclose!(
@@ -386,7 +395,7 @@ fn test_assoc_legendre_q_all_large_x() {
     xsref::np_assert_allclose!(
         [qm[31][26], qd[31][26]],
         [3.609_593_573_829_175e-288, -1.155_069_943_625_335_8e-296],
-        rtol = 1e-7
+        rtol = 1e-14
     );
     let (cqm, cqd) = xsf::assoc_legendre_q_all(110, 80, c64(1000.0, 500.0));
     xsref::np_assert_allclose!(

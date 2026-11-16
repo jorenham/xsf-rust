@@ -688,6 +688,20 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
     });
 }
 
+/// `Q_0(x) = ln |(1 + x) / (1 - x)| / 2` for real `x`
+///
+/// Unlike in xsf, this is `ln_1p` of the quotient minus 1 for `|x|` (and odd in `x`), since the
+/// quotient itself loses the digits of `x` for small or large `|x|`.
+fn q0_real(x: f64) -> f64 {
+    let a = x.abs();
+    let t = if a < 1.0 {
+        2.0 * a / (1.0 - a)
+    } else {
+        2.0 / (a - 1.0)
+    };
+    (0.5 * t.ln_1p()).copysign(x)
+}
+
 // ====================================================
 // Purpose: Compute Legendre functions Qn(x) & Qn'(x)
 // Input :  x  --- Argument of Qn(x)
@@ -711,8 +725,7 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
     }
 
     if x.abs() <= 1.021 {
-        let x2 = ((1.0 + x) / (1.0 - x)).abs();
-        q0 = 0.5 * x2.ln();
+        q0 = q0_real(x);
         q1 = x * q0 - 1.0;
         qn[0] = q0;
         qn[1] = q1;
@@ -977,7 +990,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     }
     let xs = ls * (1.0 - x * x);
     let xq = xs.sqrt();
-    let q0 = 0.5 * ((x + 1.0) / (x - 1.0)).abs().ln();
+    let q0 = q0_real(x);
     if x.abs() < 1.0001 {
         qm[(0, 0)] = q0;
         qm[(0, 1)] = x * q0 - 1.0;
