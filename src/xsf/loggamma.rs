@@ -22,7 +22,7 @@
 
 use crate::utils::{LN_PI, LN_SQRT_TAU, is_nonpos_int};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::polevl::polevl;
+use crate::xsf::complex::Num;
 
 use core::f64::consts::TAU;
 use num_complex::Complex;
@@ -108,15 +108,10 @@ const LOGGAMMA_TAYLOR_COEFFS: [f64; 23] = [
     -0.577_215_664_901_532_9,
 ];
 
-fn loggamma_taylor(mut z: C64) -> C64 {
-    z -= 1.0;
+/// `xsf::detail::loggamma_taylor`
+pub(crate) fn loggamma_taylor<T: Num>(z: T) -> T {
+    let z = z - 1.0;
     z * z.evalpoly(&LOGGAMMA_TAYLOR_COEFFS)
-}
-
-/// [`loggamma_taylor`] for real `x`
-pub(crate) fn loggamma_taylor_real(mut x: f64) -> f64 {
-    x -= 1.0;
-    x * polevl(x, &LOGGAMMA_TAYLOR_COEFFS)
 }
 
 /// `xsf::detail::zlog1` from `xsf/zlog1.h` (original author: Josh Wilson, 2016)

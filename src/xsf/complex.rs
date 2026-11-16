@@ -4,7 +4,9 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::ldexp_f64;
+use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::log::clog;
+use crate::xsf::trig::cephes_sinpi;
 
 /// Square root of complex `z`
 ///
@@ -430,6 +432,7 @@ pub(crate) trait Num:
     + Neg<Output = Self>
     + Mul<Output = Self>
     + Div<Output = Self>
+    + Add<f64, Output = Self>
     + Sub<f64, Output = Self>
     + Mul<f64, Output = Self>
     + Div<f64, Output = Self>
@@ -440,6 +443,10 @@ pub(crate) trait Num:
     fn sin(self) -> Self;
     /// `std::cos(x)`
     fn cos(self) -> Self;
+    /// `xsf::sinpi(x)`
+    fn sinpi(self) -> Self;
+    /// `xsf::evalpoly(coeffs, degree, x)`
+    fn evalpoly(self, coeffs: &[f64]) -> Self;
     /// `std::abs(x)`
     fn abs(self) -> f64;
     /// `std::real(x)`
@@ -464,6 +471,14 @@ impl Num for f64 {
     #[inline]
     fn cos(self) -> Self {
         f64::cos(self)
+    }
+    #[inline]
+    fn sinpi(self) -> Self {
+        cephes_sinpi(self)
+    }
+    #[inline]
+    fn evalpoly(self, coeffs: &[f64]) -> Self {
+        polevl(self, coeffs)
     }
     #[inline]
     fn abs(self) -> f64 {
@@ -499,6 +514,14 @@ impl Num for C64 {
     #[inline]
     fn cos(self) -> Self {
         C64::cos(self)
+    }
+    #[inline]
+    fn sinpi(self) -> Self {
+        C64::sinpi(self)
+    }
+    #[inline]
+    fn evalpoly(self, coeffs: &[f64]) -> Self {
+        C64::evalpoly(self, coeffs)
     }
     #[inline]
     fn abs(self) -> f64 {
