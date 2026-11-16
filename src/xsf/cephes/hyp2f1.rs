@@ -682,10 +682,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // integer 0 below, but the paths for polynomials lose it: their power series stops after its
     // tiny first term, or diverges for x < -1. Not for a subnormal one, where the series of
     // `hyp2f1_recur` underflow.
+    //
+    // Unlike in xsf, also try it for an integer `b - a` (up to `HYP2F1_EPS`) and x <= -9, where
+    // the paths below use the Pfaff transformation (DLMF 15.8.1): `hyt2f1` needs `1 - w` for its
+    // `w = x / (x - 1)` near 1, whose rounding loses about `log10(-x)` digits of it, while
+    // `hyp2f1_recur` uses the limit of the 1/x transformation (DLMF 15.8.9). Not for polynomials.
     let tiny = |t: f64| t < 0.0 && -t < HYP2F1_EPS && t.is_normal();
     let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer()) && !tiny(t.hi);
+    let int_far = |a: f64, b: f64| {
+        let t = b - a;
+        x < 0.0
+            && x / (x - 1.0) >= HYP2F1_RECUR_NEAR1
+            && (t - t.round()).abs() <= HYP2F1_EPS
+            && !(near_neg_int(a) || near_neg_int(b))
+    };
     let recur_first = |a: f64, b: f64, c: f64| {
-        let first = (recur && is_large(a, b, c) || tiny(a) || tiny(b))
+        let first = (recur && is_large(a, b, c) || tiny(a) || tiny(b) || int_far(a, b))
             && (tiny(c) || !near_neg_int(c))
             && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
                 .into_iter()
