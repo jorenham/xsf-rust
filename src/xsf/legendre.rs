@@ -9,6 +9,7 @@
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
 //!   (scipy/xsf#368).
+//! - `lqmn` rescales its backward recurrences, which overflow for large `|z|` and `m + n`.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::ops::{Index, IndexMut};
@@ -18,8 +19,9 @@ use num_complex::Complex64;
 
 use crate::utils;
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
-use crate::xsf::specfun::SPECFUN_INF;
+use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
 pub(crate) struct Mdspan<'a, T, const R: usize> {
@@ -686,6 +688,20 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
     });
 }
 
+/// `Q_0(x) = ln |(1 + x) / (1 - x)| / 2` for real `x`
+///
+/// Unlike in xsf, this is `ln_1p` of the quotient minus 1 for `|x|` (and odd in `x`), since the
+/// quotient itself loses the digits of `x` for small or large `|x|`.
+fn q0_real(x: f64) -> f64 {
+    let a = x.abs();
+    let t = if a < 1.0 {
+        2.0 * a / (1.0 - a)
+    } else {
+        2.0 / (a - 1.0)
+    };
+    (0.5 * t.ln_1p()).copysign(x)
+}
+
 // ====================================================
 // Purpose: Compute Legendre functions Qn(x) & Qn'(x)
 // Input :  x  --- Argument of Qn(x)
@@ -709,8 +725,7 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
     }
 
     if x.abs() <= 1.021 {
-        let x2 = ((1.0 + x) / (1.0 - x)).abs();
-        q0 = 0.5 * x2.ln();
+        q0 = q0_real(x);
         q1 = x * q0 - 1.0;
         qn[0] = q0;
         qn[1] = q1;
@@ -852,6 +867,99 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
     }
 }
 
+/// The `Q_n^m(z)` of `lqmn` and `lqmn_c64` for `|z| >= 1.0001`, from `Q_0^0(z) = q0` and
+/// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from `km`
+/// and the recurrence in the order; xsf writes these out separately for real and complex `z`, and
+/// the backward recurrences also for each of the orders 0 and 1
+fn lqmn_large<T: Num>(
+    z: T,
+    zq: T,
+    q0: T,
+    km: i32,
+    mut qm: Mdspan<'_, T, 2>,
+    ldexp: impl Fn(T, i32) -> T,
+) {
+    let m = int(qm.extent(0)) - 1;
+    let n = int(qm.extent(1)) - 1;
+    let l1 = |q: T| q.real().abs() + q.imag().abs();
+    let ldexp = |q: T, e: i32| if e == 0 { q } else { ldexp(q, e) };
+
+    let mut cs = [T::from(0.0); 2];
+    let mut ex = vec![[0; 2]; n as usize + 1];
+    for (i, qi0) in [(0, q0), (1, T::from(-1.0) / zq)] {
+        let i_ = f64::from(i);
+        let (mut qf0, mut qf1, mut qf2) = (T::from(0.0), T::from(1.0), T::from(0.0));
+        let mut sc = 0;
+        for k in (0..=km).rev() {
+            let k_ = f64::from(k);
+            qf0 = (z * (2.0 * k_ + 3.0) * qf1 - qf2 * (k_ + 2.0 - i_)) / (k_ + 1.0 + i_);
+            if k <= n {
+                qm[(i, k)] = qf0;
+                ex[k as usize][i as usize] = sc;
+            }
+            // Unlike in xsf, this rescales (by powers of 2), since the recurrence grows like
+            // `(2 z)^k`, which overflows for large `|z|` and `m + n`; `ex` keeps the scale of
+            // each stored value
+            if l1(qf0) > SPECFUN_BIG {
+                (qf0, qf1) = (qf0 / SPECFUN_BIG, qf1 / SPECFUN_BIG);
+                sc += 1;
+            }
+            qf2 = qf1;
+            qf1 = qf0;
+        }
+
+        for e in &mut ex {
+            e[i as usize] = SPECFUN_BIG_LOG2 * (e[i as usize] - sc);
+        }
+        cs[i as usize] = qi0 / qf0;
+    }
+
+    // `s c 2^k`, with `s` scaled to [0.5, 1) first, so that neither factor is subnormal
+    let seed = |s: T, c: T, k: i32| {
+        if k == 0 {
+            return s * c;
+        }
+        let a = -frexp_f64(l1(s)).1;
+        ldexp(s, a) * ldexp(c, k - a)
+    };
+    for j in 0..=n {
+        // Unlike in xsf, the normalization of the orders 0 and 1 is deferred to here, where it is
+        // lifted by `2^e` if they would be subnormal, since the recurrence in the order can raise
+        // them back into range
+        let o = ex[j as usize];
+        let seeds = |e: i32| [0, 1].map(|i| seed(qm[(i, j)], cs[i as usize], e + o[i as usize]));
+        let [mut q0, mut q1] = seeds(0);
+        let mut e = 0;
+        if l1(q0).max(l1(q1)) < f64::MIN_POSITIVE {
+            // to about `MIN_POSITIVE / EPSILON` for the larger one, where all its digits are normal
+            let k_min = frexp_f64(f64::MIN_POSITIVE / f64::EPSILON).1;
+            let k = |i: i32| frexp_f64(l1(qm[(i, j)])).1 + frexp_f64(l1(cs[i as usize])).1;
+            e = (0..2)
+                .filter(|&i| l1(qm[(i, j)]) != 0.0)
+                .map(|i| k(i) + o[i as usize])
+                .max()
+                .map_or(0, |k| (k_min - k).max(0));
+            [q0, q1] = seeds(e);
+        }
+        qm[(0, j)] = ldexp(q0, -e);
+        qm[(1, j)] = ldexp(q1, -e);
+        let lifted = e != 0;
+        for i in 0..=(m - 2) {
+            let (i_, j_) = (f64::from(i), f64::from(j));
+            let mut qf = z * -(2.0 * (i_ + 1.0)) / zq * q1 + q0 * ((j_ - i_) * (j_ + i_ + 1.0));
+            // the lifted values can overflow before they are scaled back, and their products
+            // before they cancel, also once the lift is undone
+            if lifted && l1(qf) > SPECFUN_BIG {
+                (qf, q1) = (qf / SPECFUN_BIG, q1 / SPECFUN_BIG);
+                e -= SPECFUN_BIG_LOG2;
+            }
+            qm[(i + 2, j)] = ldexp(qf, -e);
+            q0 = q1;
+            q1 = qf;
+        }
+    }
+}
+
 // ==========================================================
 // Purpose: Compute the associated Legendre functions of the
 //          second kind, Qmn(x) and Qmn'(x)
@@ -866,8 +974,6 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
 fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
-
-    let (mut q0, mut q1, mut qf, mut qf0, mut qf1, mut qf2);
 
     if x.abs() == 1.0 {
         for i in 0..=m {
@@ -884,7 +990,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     }
     let xs = ls * (1.0 - x * x);
     let xq = xs.sqrt();
-    q0 = 0.5 * ((x + 1.0) / (x - 1.0)).abs().ln();
+    let q0 = q0_real(x);
     if x.abs() < 1.0001 {
         qm[(0, 0)] = q0;
         qm[(0, 1)] = x * q0 - 1.0;
@@ -916,51 +1022,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
                 .wrapping_add(n)
                 .wrapping_mul((-1. - 1.8 * (x.abs() - 1.).ln()) as i32)
         };
-        qf2 = 0.0;
-        qf1 = 1.0;
-        qf0 = 0.0;
-        for k in (0..=km).rev() {
-            let k_ = f64::from(k);
-            qf0 = ((2.0 * k_ + 3.0) * x * qf1 - (k_ + 2.0) * qf2) / (k_ + 1.0);
-            if k <= n {
-                qm[(0, k)] = qf0;
-            }
-            qf2 = qf1;
-            qf1 = qf0;
-        }
-
-        for k in 0..=n {
-            qm[(0, k)] *= q0 / qf0;
-        }
-
-        qf2 = 0.0;
-        qf1 = 1.0;
-        for k in (0..=km).rev() {
-            let k_ = f64::from(k);
-            qf0 = ((2.0 * k_ + 3.0) * x * qf1 - (k_ + 1.0) * qf2) / (k_ + 2.0);
-            if k <= n {
-                qm[(1, k)] = qf0;
-            }
-            qf2 = qf1;
-            qf1 = qf0;
-        }
-
-        let q10 = -1.0 / xq;
-        for k in 0..=n {
-            qm[(1, k)] *= q10 / qf0;
-        }
-
-        for j in 0..=n {
-            q0 = qm[(0, j)];
-            q1 = qm[(1, j)];
-            for i in 0..=(m - 2) {
-                let (i_, j_) = (f64::from(i), f64::from(j));
-                qf = -2. * (i_ + 1.) * x / xq * q1 + (j_ - i_) * (j_ + i_ + 1.) * q0;
-                qm[(i + 2, j)] = qf;
-                q0 = q1;
-                q1 = qf;
-            }
-        }
+        lqmn_large(x, xq, q0, km, Mdspan::new(qm.data, qm.extents), ldexp_f64);
     }
 
     qd[(0, 0)] = ls / xs;
@@ -994,8 +1056,6 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     let m = int(cqm.extent(0)) - 1;
     let n = int(cqm.extent(1)) - 1;
 
-    let (mut cq0, mut cq1, mut cqf, mut cqf0, mut cqf1, mut cqf2);
-
     if z.re.abs() == 1.0 && z.is_real() {
         for i in 0..=m {
             for j in 0..=n {
@@ -1018,7 +1078,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     let zs = (1.0 - z * z) * f64::from(ls);
     let zq = zs.sqrt();
 
-    cq0 = ((1.0 + z) * f64::from(ls) / (1.0 - z)).ln() / 2.0;
+    let cq0 = ((1.0 + z) * f64::from(ls) / (1.0 - z)).ln() / 2.0;
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
@@ -1050,51 +1110,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
                 .wrapping_add(n)
                 .wrapping_mul((-1.0 - 1.8 * (xc - 1.).ln()) as i32)
         };
-        cqf2 = C64::ZERO;
-        cqf1 = C64::ONE;
-        cqf0 = C64::ZERO;
-        for k in (0..=km).rev() {
-            let k_ = f64::from(k);
-            cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
-            if k <= n {
-                cqm[(0, k)] = cqf0;
-            }
-            cqf2 = cqf1;
-            cqf1 = cqf0;
-        }
-
-        for k in 0..=n {
-            cqm[(0, k)] *= cq0 / cqf0;
-        }
-
-        cqf2 = C64::ZERO;
-        cqf1 = C64::ONE;
-        for k in (0..=km).rev() {
-            let k_ = f64::from(k);
-            cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 1.0)) / (k_ + 2.0);
-            if k <= n {
-                cqm[(1, k)] = cqf0;
-            }
-            cqf2 = cqf1;
-            cqf1 = cqf0;
-        }
-
-        let cq10 = -1.0 / zq;
-        for k in 0..=n {
-            cqm[(1, k)] *= cq10 / cqf0;
-        }
-
-        for j in 0..=n {
-            cq0 = cqm[(0, j)];
-            cq1 = cqm[(1, j)];
-            for i in 0..=(m - 2) {
-                let i_ = f64::from(i);
-                cqf = z * -(2.0 * (i_ + 1.0)) / zq * cq1 + cq0 * int_product(&[j - i, j + i + 1]);
-                cqm[(i + 2, j)] = cqf;
-                cq0 = cq1;
-                cq1 = cqf;
-            }
-        }
+        let ldexp = |z: C64, e| c64(ldexp_f64(z.re, e), ldexp_f64(z.im, e));
+        lqmn_large(z, zq, cq0, km, Mdspan::new(cqm.data, cqm.extents), ldexp);
     }
 
     cqd[(0, 0)] = f64::from(ls) / zs;

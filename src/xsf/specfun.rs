@@ -16,7 +16,7 @@ mod numbers;
 mod par_cyl;
 mod sphd;
 
-pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
+pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
 pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_minimal, hyp1f1_small_b};
@@ -38,6 +38,11 @@ pub(crate) fn deflated_newton_step(z: C64, f: C64, df: C64, zeros: &[C64]) -> C6
 
 /// The `1e300` that specfun returns in place of infinity, e.g. `gamma2` at the poles
 pub(crate) const SPECFUN_INF: f64 = 1e300;
+
+/// The magnitude above which some backward recurrences rescale (by this power of 2), since they
+/// would overflow otherwise
+pub(crate) const SPECFUN_BIG: f64 = pow2(SPECFUN_BIG_LOG2);
+pub(crate) const SPECFUN_BIG_LOG2: i32 = 512;
 
 /// `SPECFUN_CONVINF`: specfun's `+-1e300` sentinels as signed infinities
 pub(crate) fn specfun_convinf(x: f64) -> f64 {
@@ -71,7 +76,7 @@ pub(crate) fn try_zeroed(n: usize) -> Option<Vec<f64>> {
 
 use num_complex::Complex;
 
-use crate::utils::is_nonpos_int;
+use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {

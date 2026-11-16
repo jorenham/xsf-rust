@@ -1009,6 +1009,74 @@ fn test_riccati_n1() {
     assert_eq!(xsf::riccati_y::<1>(0.2), ([y[0]], [yp[0]]));
 }
 
+#[test]
+fn test_riccati_j_all_orders() {
+    // Arb; NaN or 0 in xsf above `msta1(x, 200)` (here 177), for `|x| >~ 4476`, and for
+    // `|x| < 1e-100`, and `rj[1]` cancels for `N = 2`
+    let (rj, dj) = xsf::riccati_j::<201>(10.0);
+    np_assert_allclose!(
+        [rj[200], dj[200]],
+        [4.359_433_049_621_081e-236, 8.751_636_342_177_128e-235],
+        rtol = 1e-14
+    );
+    let (rj, dj) = xsf::riccati_j::<3>(5000.0);
+    np_assert_allclose!(
+        [rj[2], dj[2]],
+        [0.987_873_519_167_095_7, -0.155_261_148_876_167_3],
+        rtol = 1e-13
+    );
+    let (rj, dj) = xsf::riccati_j::<3>(1e-150);
+    np_assert_allclose!(
+        [rj[0], rj[1], rj[2], dj[0], dj[1], dj[2]],
+        [
+            1e-150,
+            3.333_333_333_333_333e-301,
+            0.0,
+            1.0,
+            6.666_666_666_666_667e-151,
+            2e-301
+        ],
+        rtol = 1e-15
+    );
+    let (rj, dj) = xsf::riccati_j::<2>(1e-5);
+    np_assert_allclose!(
+        [rj[1], dj[1]],
+        [3.333_333_333_300_000_5e-11, 6.666_666_666_533_334e-6],
+        rtol = 1e-15
+    );
+}
+
+#[test]
+fn test_riccati_y_overflow() {
+    // Arb; `-+1e300` in xsf for `x < 1e-60`, and NaN past `|ry| > 1e300`
+    let (ry, dy) = xsf::riccati_y::<3>(1e-61);
+    np_assert_allclose!(
+        [ry[0], ry[1], ry[2], dy[0], dy[1], dy[2]],
+        [-1.0, -1e61, -3e122, 1e-61, 1e122, 6e183],
+        rtol = 1e-15
+    );
+    let (ry, dy) = xsf::riccati_y::<152>(1.0);
+    np_assert_allclose!(
+        [ry[148], dy[148]],
+        [-4.233_686_952_143_891_5e301, 6.265_713_172_700_605e303],
+        rtol = 1e-14
+    );
+    assert_eq!((ry[151], dy[151]), (f64::NEG_INFINITY, f64::INFINITY));
+    // `k ry[k - 1]` or `k ry[k]` overflows before the division by `x`
+    let (ry, _) = xsf::riccati_y::<522>(100.0);
+    np_assert_allclose!([ry[521]], [-1.940_212_970_375_218_5e306], rtol = 1e-14);
+    let (_, dy) = xsf::riccati_y::<245>(10.0);
+    np_assert_allclose!([dy[244]], [3.878_341_575_822_852_3e307], rtol = 1e-14);
+    // the reordered products overflow too, but `ry[k - 1]` cancels them
+    let (_, dy) = xsf::riccati_y::<245>(9.937_577_591_883_544);
+    np_assert_allclose!([dy[244]], [1.796_242_455_728_229_5e308], rtol = 1e-14);
+    let (_, dy) = xsf::riccati_y::<522>(99.439_790_658_471_24);
+    np_assert_allclose!([dy[521]], [1.764_702_935_338_309_7e308], rtol = 1e-14);
+    let (ry, dy) = xsf::riccati_y::<3>(0.0);
+    assert_eq!(ry, [-1.0, f64::NEG_INFINITY, f64::NEG_INFINITY]);
+    assert_eq!(dy, [0.0, f64::INFINITY, f64::INFINITY]);
+}
+
 // Based on `scipy.special.tests.test_basic.TestLambda.test_lmbda`
 #[test]
 fn test_jahnke_emden_lambda() {

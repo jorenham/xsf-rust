@@ -14,7 +14,7 @@ use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
-use crate::xsf::specfun::SPECFUN_INF;
+use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_INF};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
 
 // the arithmetic bounds are needed for `bessel_diff_formula` in `scipy_special::bessel_prime`, and
@@ -1899,21 +1899,22 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     // ========================================================
 
     // NOTE: rj[0] and rj[1] are always written (for |x| >= 1e-100), so buffers of length 1
-    // (n == 0) are out of bounds; riccati_j uses length 2 for N == 1. Otherwise, only
-    // rj[0..=*nm] / dj[0..=*nm] are written, with *nm <= n.
+    // (n == 0) are out of bounds; riccati_j uses length 2 for N == 1.
     //
-    // NOTE: for x NaN, +-inf, or |x| >= 2^31 / 1.1, msta1/msta2 hit their `(int)` UB (see there),
-    // so `*nm` may differ from C++, and the `+ 1` / `+ 5` in msta1 overflow (panic in debug builds)
-    // for x +-inf and |x| >= ~2^31.
+    // NOTE: for x NaN, +-inf, or |x| >= 2^31 / 1.1, msta2 hits its `(int)` UB (see msta1), and its
+    // `+ 5` / `+ 10` can overflow (panic in debug builds) for x +-inf and |x| >= ~2^31.
     let n = rj.len() as i32 - 1;
 
     *nm = n;
     if x.abs() < 1.0e-100 {
+        // Unlike in xsf, these are the leading terms `x^(k+1) / (2k+1)!!` (DLMF 10.53.1) instead
+        // of 0 (except `dj[0] = 1`)
+        let mut u = 1.0; // x^k / (2k+1)!!
         for k in 0..=n {
-            rj[k as usize] = 0.0;
-            dj[k as usize] = 0.0;
+            rj[k as usize] = u * x;
+            dj[k as usize] = f64::from(k + 1) * u;
+            u *= x / f64::from(2 * k + 3);
         }
-        dj[0] = 1.0;
         return;
     }
     rj[0] = x.sin();
@@ -1922,13 +1923,12 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     let rj1 = rj[1];
     let mut f = 0.0;
 
-    if n >= 2 {
-        let mut m = specfun::msta1(x, 200);
-        if m < n {
-            *nm = m;
-        } else {
-            m = specfun::msta2(x, n, 15);
-        }
+    // Unlike in xsf, this also recurs for `n = 1` if `|x| < 1`, where `rj[1]` cancels. It always
+    // starts at `msta2` and rescales (by powers of 2), instead of leaving the orders above
+    // `msta1(x, 200)` unset, and overflowing for `|x| >~ 4476`. The derivatives are of the
+    // unnormalized `f`, since `rj[k]` can underflow where `dj[k]` doesn't.
+    if n >= 2 || x.abs() < 1.0 {
+        let m = specfun::msta2(x, n, 15);
 
         let mut f0 = 0.0;
         let mut f1 = 1.0e-100;
@@ -1937,6 +1937,15 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
             f = (2.0 * f64::from(k) + 3.0) * f1 / x - f0;
             if k <= *nm {
                 rj[k as usize] = f;
+            }
+            if k < *nm {
+                dj[(k + 1) as usize] = f64::from(-(k + 1)) * f1 / x + f;
+            }
+            if f.abs() > SPECFUN_BIG {
+                (f, f1) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG);
+                for (r, d) in rj.iter_mut().zip(&mut *dj).skip(k as usize) {
+                    (*r, *d) = (*r / SPECFUN_BIG, *d / SPECFUN_BIG);
+                }
             }
             f0 = f1;
             f1 = f;
@@ -1948,11 +1957,31 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
         };
         for k in 0..=*nm {
             rj[k as usize] *= cs;
+            dj[k as usize] *= cs;
         }
+    } else {
+        dj[1] = -rj1 / x + rj0;
     }
     dj[0] = x.cos();
-    for k in 1..=*nm {
-        dj[k as usize] = f64::from(-k) * rj[k as usize] / x + rj[(k - 1) as usize];
+}
+
+/// `a * b / x + c` (as in xsf), where `a * b / x` is reordered as `a * (b / x)` or `a / x * b` and
+/// halved if it overflows, and is returned without `c` if it still does (so not as `inf - inf`)
+#[inline]
+fn mul_div_add(a: f64, b: f64, x: f64, c: f64) -> f64 {
+    #[cold]
+    fn reordered(a: f64, b: f64, x: f64, c: f64) -> f64 {
+        // halved, since `a * b / x` can be up to twice `f64::MAX` if `c` cancels it
+        let (a, c) = (0.5 * a, 0.5 * c);
+        let t = a * (b / x);
+        let t = if t.is_finite() { t } else { a / x * b };
+        if t.is_infinite() { t } else { 2.0 * (t + c) }
+    }
+    let t = a * b / x;
+    if t.is_finite() {
+        t + c
+    } else {
+        reordered(a, b, x, c)
     }
 }
 
@@ -1967,43 +1996,31 @@ fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {
     //          NM --- Highest order computed
     // ========================================================
 
-    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written (for x >= 1e-60), so buffers of
-    // length 1 (n == 0) are out of bounds; riccati_y uses length 2 for N == 1.
+    // NOTE: ry[0], ry[1] and dy[0], dy[1] are always written, so buffers of length 1 (n == 0) are
+    // out of bounds; riccati_y uses length 2 for N == 1.
+    //
+    // Unlike in xsf, `x < 1e-60` is not special-cased with `-+1e300` sentinels, and the orders
+    // past `|ry| > 1e300` are not left unset. Instead, the orders that overflow are infinite, by
+    // dropping the negligible terms of `inf - inf` (here `ry[k - 2]` and `ry[k - 1]`), and the
+    // products of `k` and `ry[k - 1]` or `ry[k]` with `1 / x` are reordered if they overflow early.
     let n = ry.len() as i32 - 1;
 
-    let mut k;
     *nm = n;
-    if x < 1.0e-60 {
-        for k in 0..=n {
-            ry[k as usize] = -SPECFUN_INF;
-            dy[k as usize] = SPECFUN_INF;
-        }
-        ry[0] = -1.0;
-        dy[0] = 0.0;
-        return;
-    }
-
     ry[0] = -x.cos();
     ry[1] = ry[0] / x - x.sin();
     let mut rf0 = ry[0];
     let mut rf1 = ry[1];
 
-    k = 2;
-    while k <= n {
-        let rf2 = (2.0 * f64::from(k) - 1.0) * rf1 / x - rf0;
-        if rf2.abs() > SPECFUN_INF {
-            break;
-        }
+    for k in 2..=n {
+        let rf2 = mul_div_add(2.0 * f64::from(k) - 1.0, rf1, x, -rf0);
         ry[k as usize] = rf2;
         rf0 = rf1;
         rf1 = rf2;
-        k += 1;
     }
 
-    *nm = k - 1;
     dy[0] = x.sin();
-    for k in 1..=*nm {
-        dy[k as usize] = f64::from(-k) * ry[k as usize] / x + ry[(k - 1) as usize];
+    for k in 1..=n {
+        dy[k as usize] = mul_div_add(f64::from(-k), ry[k as usize], x, ry[(k - 1) as usize]);
     }
 }
 
@@ -2044,8 +2061,8 @@ pub fn riccati_j<const N: usize>(x: f64) -> ([f64; N], [f64; N]) {
     }
 
     if N > 2 && (x.is_nan() || x.abs() > 1e9) {
-        // Unlike in SciPy, this avoids the `int` casts of `|x|` in `msta1` and `msta2`, which are
-        // undefined for NaN and `|x| >= 2**31 / 1.1`.
+        // Unlike in SciPy, this avoids the `int` casts of `|x|` in `msta2`, which are undefined for
+        // NaN and `|x| >= 2**31 / 1.1`.
         return (rj, dj);
     }
 
