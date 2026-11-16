@@ -57,6 +57,59 @@ fn test_hypu_tiny_a() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb, near b = 2; 1.1332942, 160.62366, 24.321023, and 0.71354002 in xsf
+    let abx = [
+        (2e-14, 2.0 - 2e-12, 1.5e-13),
+        (8e-14, 2.0 - 3e-14, 5e-16),
+        (1e-13, 2.0 + 1e-15, 5e-15),
+        (-3e-13, 2.0 - 1e-14, 1e-12),
+    ];
+    let expected = [
+        1.133_333_333_326_205_4,
+        160.999_999_999_844,
+        21.000_000_000_005_023,
+        0.699_999_999_991_843_7,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb, near integer b > 2; 100.97221, -8.7183826e10, 3.1884856e30, -4.2000327e45,
+    // 2.4406707e33, and -3.5897563e16 in xsf
+    let abx = [
+        (1e-10, 3.0 - 1e-12, 1e-6),
+        (-5e-16, 3.0 - 4e-15, 7.5e-14),
+        (2e-13, 4.0 - 1e-13, 5e-15),
+        (-7e-16, 5.0 + 1e-11, 1e-15),
+        (0.3, 40.0 + 1e-10, 2.0),
+        (
+            -2.325_973_271_272_150_5e-7,
+            2.999_999_999_999_592_8,
+            2.545_833_690_783_338_7e-12,
+        ),
+    ];
+    let expected = [
+        101.000_200_005_729_76,
+        -88_888_888_887.891_33,
+        3.199_999_999_989_569_5e30,
+        -4.200_000_001_503_388_5e45,
+        2.440_613_605_416_168_2e33,
+        -3.588_761_543_416_032e16,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; U(a + 1, b, x) overflows, or a step of its recurrence in b (NaN and inf in xsf)
+    let actual = [
+        xsf::hypu(0.05, 15.5, 2.5e-21),
+        xsf::hypu(0.001, 3.0, 1e-155),
+    ];
+    let expected = [6.367_508_711_417_84e307, 1.000_576_559_744_994e307];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb: 1.2125e-13, next to a zero, where DLMF 13.3.9 and the recurrence in a both cancel
+    let actual = xsf::hypu(-0.49, 1.999, 0.821_185_784_361_567_1);
+    assert!(actual.is_nan() || (actual / 1.212_531_236_482_603_3e-13 - 1.0).abs() < 1e-6);
 }
 
 #[test]
@@ -167,8 +220,9 @@ fn test_hypu_neg_a_large_b() {
     let expected = [-9_737_194_064.088_581, -4_550_121_582.442_501];
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-7);
 
-    // still NaN (mpmath: -inf), instead of a wrong 1 from `chgul`
-    assert!(xsf::hypu(-4.2e-66, 26.000_000_000_000_018, 1e-300).is_nan());
+    // Arb: -2.6e7458, instead of a wrong 1 from `chgul`
+    let actual = xsf::hypu(-4.2e-66, 26.000_000_000_000_018, 1e-300);
+    assert_eq!(actual, f64::NEG_INFINITY);
 }
 
 #[test]
