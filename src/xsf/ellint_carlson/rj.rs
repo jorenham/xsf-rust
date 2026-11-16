@@ -638,6 +638,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let mut sm = dm * 0.5;
     /* next */
     ellint_rj_updt!();
+    // `s^2 + delta / 4 = s beta`, see below
+    let mut w2 = sm * prm * pm * 4.0;
+    let norm = |a: T| a.real().abs().max(a.imag().abs());
 
     let mut m = 1;
     loop {
@@ -651,12 +654,38 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             status = ExitStatus::NIter;
             break;
         }
-        let rm = sm * ((delta * d4m / (sm * sm) + 1.0).sqrt() + 1.0);
+        let ss = sm * sm;
+        let u = delta * d4m / ss + 1.0;
+        // Unlike in xsf, `w = s sqrt(u)` as `sqrt(w2)` if `|u| < 2`, since `u` cancels as `u -> 0`,
+        // e.g. for `x, y << p << z`. The branch is that of `sqrt(u)`, i.e. `Re(w / s) >= 0` (`s` is
+        // inaccurate if `|u| >> 1`). But not if `w2` differs from `s^2 u` by more than the
+        // cancellation can explain, e.g. after a step where `d + r 4^-m` cancels, or if `s^2`
+        // underflows (in the max norm, which is cheaper).
+        let (wm, rm) = if u.real() * u.real() + u.imag() * u.imag() < 4.0
+            && norm(ss).is_normal()
+            && norm(w2 - ss * u) <= norm(ss) * 0.5
+        {
+            let w = w2.sqrt();
+            let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 {
+                -w
+            } else {
+                w
+            };
+            (w, sm + w)
+        } else {
+            let su = u.sqrt();
+            (sm * su, sm * (su + 1.0))
+        };
         ellint_rj_calc!();
-        sm = (rm * dm - delta * (d4m * d4m)) * 0.5 / (dm + rm * d4m);
+        let den = dm + rm * d4m;
+        sm = (rm * dm - delta * (d4m * d4m)) * 0.5 / den;
 
         /* next */
         ellint_rj_updt!();
+        // `w2 = s^2 + delta 4^-m` (of the next step) as `w r d beta / (d + r 4^-m)^2`, without
+        // cancellation, from `d^2 + delta 4^-3m = 2 d beta` with `beta = sqrt(p) (p + lam)`
+        // (https://dlmf.nist.gov/19.26.E23), where `p + lam = 4 p'`
+        w2 = wm * rm * (dm / den) * (prm * pm * 4.0 / den);
         m += 1;
     }
     /* Burn some extra cycles re-balancing Am as the "true" centroid */

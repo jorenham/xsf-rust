@@ -554,6 +554,52 @@ fn test_elliprj_subnormal() {
 }
 
 #[test]
+fn test_elliprj_negative_delta() {
+    // `(p - x) (p - y) (p - z) < 0`, e.g. for `x, y << p << z`
+    let actual = [
+        xsf::elliprj(
+            3.787_999_317_348_606e-231,
+            3.454_151_717_729_665e-20,
+            3.503_661_956_410_532_7,
+            3.710_444_382_416_047e-8,
+        ),
+        xsf::elliprj(1e-200, 1e-20, 1.0, 1e-8),
+        xsf::elliprj(7e5, 1.4e5, 4.7e8, 4e-8),
+    ];
+    // Arb
+    let expected = [
+        628_248_391.533_319_3,    // 628248391.53331926205
+        4_352_597_307.454_136,    // 4352597307.4541356094
+        6.526_307_207_698_169e-9, // 6.5263072076981690311e-9
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    let actual = [
+        xsf::elliprj(
+            c64(1.8e11, -3.5e11),
+            c64(6e8, 3e7),
+            c64(7e8, -8e8),
+            c64(9e-12, 5e-12),
+        ),
+        xsf::elliprj(
+            c64(2.7e6, -1.6e6),
+            c64(1.4e5, -8e4),
+            c64(1.2e5, -2.2e5),
+            c64(1e-11, 1.7e-11),
+        ),
+        // `d + r 4^-m` cancels in a step, after which `w2` is inf
+        xsf::elliprj(ONE * 1e-100, ONE * 1e-6, ONE * 1e30, c64(-3e102, 1e95)),
+    ];
+    // Arb
+    let expected = [
+        c64(8.193_228_841_310_918e-14, 1.099_562_954_582_950_9e-13),
+        c64(8.189_511_559_078_331e-8, 1.316_376_299_672_930_8e-7),
+        c64(-4.283_282_603_501_267e-116, -1.427_760_867_833_755_7e-123),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_carlson_near_conjugate() {
     // a conjugate pair close to the negative real axis
     let x = c64(-1e-4, 1e-30);
