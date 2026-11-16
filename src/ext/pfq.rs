@@ -683,10 +683,7 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 #[must_use]
 pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    let args = [a1, a2, a3, b1, b2, z];
-    if args.into_iter().any(f64::is_nan) {
-        return Some(f64::NAN);
-    } else if args.into_iter().any(f64::is_infinite) {
+    if ![a1, a2, a3, b1, b2, z].into_iter().all(f64::is_finite) {
         return hyppfq(&[a1, a2, a3], &[b1, b2], z);
     }
     let (a, b) = ([a1, a2, a3], [b1, b2, 1.0]);
@@ -1152,10 +1149,7 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///   $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$
 #[must_use]
 pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    let args = [a1, a2, b1, b2, z];
-    if args.into_iter().any(f64::is_nan) {
-        return Some(f64::NAN);
-    } else if args.into_iter().any(f64::is_infinite) {
+    if ![a1, a2, b1, b2, z].into_iter().all(f64::is_finite) {
         return hyppfq(&[a1, a2], &[b1, b2], z);
     } else if z == 0.0 {
         return Some(1.0);
@@ -1320,10 +1314,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///   $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$
 #[must_use]
 pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    let args = [a, b1, b2, z];
-    if args.into_iter().any(f64::is_nan) {
-        return Some(f64::NAN);
-    } else if args.into_iter().any(f64::is_infinite) {
+    if ![a, b1, b2, z].into_iter().all(f64::is_finite) {
         return hyppfq(&[a], &[b1, b2], z);
     } else if z == 0.0 {
         return Some(1.0);
