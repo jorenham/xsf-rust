@@ -905,7 +905,7 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             40_i32.wrapping_add(n)
         } else {
             // Unlike in xsf, this uses `|z| - 1` instead of `|z - 1|`, which is not positive for
-            // `z` far from 1 and left `cqf0` at zero (as in `lqmn_c64`)
+            // `z` far from 1 and left `cqf0` at zero (as in `lqmn_large`)
             (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z.norm() - 1.0).ln()).floor())
                 as i32
         };
@@ -918,8 +918,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             if k <= n {
                 cqn[k] = cqf0;
             }
-            // Unlike in xsf, this rescales by a power of 2 (as in `lqmn_c64`), since `cqf0` grows like
-            // `(2 z)^k` and overflowed for large `|z|`
+            // Unlike in xsf, this rescales by a power of 2 (as in `lqmn_large`), since `cqf0`
+            // grows like `(2 z)^k` and overflowed for large `|z|`
             if cqf0.l1_norm() > SPECFUN_BIG {
                 (cqf0, cqf1) = (cqf0 / SPECFUN_BIG, cqf1 / SPECFUN_BIG);
                 for j in k.min(n)..=n {
@@ -946,19 +946,22 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
 }
 
 /// The `Q_n^m(z)` of `lqmn` and `lqmn_c64` for `|z| >= 1.0001`, from `Q_0^0(z) = q0` and
-/// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from `km`
-/// and the recurrence in the order; xsf writes these out separately for real and complex `z`, and
-/// the backward recurrences also for each of the orders 0 and 1
-fn lqmn_large<T: Num>(
-    z: T,
-    zq: T,
-    q0: T,
-    km: i32,
-    mut qm: Mdspan<'_, T, 2>,
-    ldexp: impl Fn(T, i32) -> T,
-) {
+/// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from a
+/// start degree `km` and the recurrence in the order; xsf writes these out separately for real and
+/// complex `z`, and the backward recurrences also for each of the orders 0 and 1
+fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, ldexp: impl Fn(T, i32) -> T) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
+    // Unlike in xsf (scipy/xsf#368), `log(|x| - 1)` for real `x` (as for complex `z`) instead of
+    // `log(x - 1)`
+    let km = if z.abs() > 1.1 {
+        40_i32.wrapping_add(m).wrapping_add(n)
+    } else {
+        40_i32
+            .wrapping_add(m)
+            .wrapping_add(n)
+            .wrapping_mul((-1.0 - 1.8 * (z.abs() - 1.0).ln()) as i32)
+    };
     let l1 = |q: T| q.real().abs() + q.imag().abs();
     let ldexp = |q: T, e: i32| if e == 0 { q } else { ldexp(q, e) };
 
@@ -1091,16 +1094,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        // Unlike in xsf (scipy/xsf#368), this uses `log(|x| - 1)` instead of `log(x - 1)`.
-        let km = if x.abs() > 1.1 {
-            40_i32.wrapping_add(m).wrapping_add(n)
-        } else {
-            40_i32
-                .wrapping_add(m)
-                .wrapping_add(n)
-                .wrapping_mul((-1. - 1.8 * (x.abs() - 1.).ln()) as i32)
-        };
-        lqmn_large(x, xq, q0, km, Mdspan::new(qm.data, qm.extents), ldexp_f64);
+        lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents), ldexp_f64);
     }
 
     qd[(0, 0)] = ls / xs;
@@ -1180,16 +1174,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             }
         }
     } else {
-        let km = if xc > 1.1 {
-            40_i32.wrapping_add(m).wrapping_add(n)
-        } else {
-            40_i32
-                .wrapping_add(m)
-                .wrapping_add(n)
-                .wrapping_mul((-1.0 - 1.8 * (xc - 1.).ln()) as i32)
-        };
         let ldexp = |z: C64, e| c64(ldexp_f64(z.re, e), ldexp_f64(z.im, e));
-        lqmn_large(z, zq, cq0, km, Mdspan::new(cqm.data, cqm.extents), ldexp);
+        lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents), ldexp);
     }
 
     cqd[(0, 0)] = f64::from(ls) / zs;
