@@ -175,6 +175,22 @@ fn test_ai_zeros() {
 }
 
 #[test]
+fn test_ai_zeros_5() {
+    // the 5th zeros of Ai and Ai', and Ai and Ai' there (Arb)
+    let [a, ap, ai, aip] = xsf::airy_ai_zeros::<5>();
+    xsref::np_assert_allclose!(
+        [a[4], ap[4], ai[4], aip[4]],
+        [
+            -7.944_133_587_120_853,
+            -7.372_177_255_047_77,
+            0.342_301_244_411_623_8,
+            0.947_335_709_441_567_8,
+        ],
+        rtol = 2e-15
+    );
+}
+
+#[test]
 fn test_bi_zeros_0() {
     assert!(xsf::airy_bi_zeros::<0>().iter().all(|a| a.is_empty()));
 }
@@ -196,4 +212,20 @@ fn test_bi_zeros() {
     // >>> bip
     // array([ 0.60195789, -0.76031014,  0.83699101])
     xsref::np_assert_allclose!(&bip, &[0.601_957_89, -0.760_310_14, 0.836_991_01]);
+}
+
+#[test]
+fn test_bi_zeros_5() {
+    // the 5th zeros of Bi and Bi', and Bi and Bi' there (Arb)
+    let [b, bp, bi, bip] = xsf::airy_bi_zeros::<5>();
+    xsref::np_assert_allclose!(
+        [b[4], bp[4], bi[4], bip[4]],
+        [
+            -7.376_762_079_367_764,
+            -7.940_178_689_168_579,
+            -0.336_026_240_133_660_04,
+            0.929_983_638_568_026_6,
+        ],
+        rtol = 2e-15
+    );
 }
