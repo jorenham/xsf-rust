@@ -683,7 +683,6 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     ellint_rj_updt!();
     // `s^2 + delta / 4 = s beta`, see below
     let mut w2 = sm * prm * pm * 4.0;
-    let norm = |a: T| a.real().abs().max(a.imag().abs());
 
     // The sum of the `R_C` terms of the steps before `m`, `3 atan(sqrt(t)) / (sqrt(t) s)` with
     // `t = delta 4^-m / s^2`, as in xsf's last step
@@ -725,8 +724,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         // cancellation can explain, e.g. after a step where `d + r 4^-m` cancels, or if `s^2`
         // underflows (in the max norm, which is cheaper).
         let (wm, rm) = if u.real() * u.real() + u.imag() * u.imag() < 4.0
-            && norm(ss).is_normal()
-            && norm(w2 - ss * u) <= norm(ss) * 0.5
+            && ss.max_norm().is_normal()
+            && (w2 - ss * u).max_norm() <= ss.max_norm() * 0.5
         {
             let w = w2.sqrt();
             let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 {
@@ -743,7 +742,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         let den = dm + rm * d4m;
         let rd = rm * dm;
         let num = rd - delta * (d4m * d4m);
-        if norm(rd) > norm(num) * const { pow2(4) } {
+        if rd.max_norm() > num.max_norm() * const { pow2(4) } {
             rc_sum = Some(s_term(sm, d4m) + rc_term(dm, d4m));
         }
         sm = num * 0.5 / den;

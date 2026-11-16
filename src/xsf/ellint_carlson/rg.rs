@@ -91,9 +91,9 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     // Unlike in xsf (scipy/xsf#376), if all arguments are valid, those below eps^2 times the
     // largest one are treated as 0. This avoids the overflow of R_D(y, z, x) for tiny x, and
     // changes real results by a relative O(eps^2 ln(eps)) (https://dlmf.nist.gov/19.27.iii).
-    let size = |a: T| a.real().abs().max(a.imag().abs());
     let valid = cct.iter().all(|a| a.ph_good());
-    let negligible = |a: T| a.too_small() || (valid && size(a) < EPSILON_SQ * size(cct[2]));
+    let negligible =
+        |a: T| a.too_small() || (valid && a.max_norm() < EPSILON_SQ * cct[2].max_norm());
     if negligible(cct[0]) {
         if negligible(cct[1]) {
             /* Special case -- also covers the case of z ~ zero. */
