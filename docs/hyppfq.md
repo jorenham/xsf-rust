@@ -4,12 +4,12 @@ Where [`hyppfq`](https://docs.rs/xsf/latest/xsf/fn.hyppfq.html) returns `None`, 
 error versus the references of [`docs/accuracy.md`](accuracy.md) elsewhere, for $`p \le 4`$ and
 $`q \le 3`$.
 
-| axis | values                                                                                                    |
-| ---- | --------------------------------------------------------------------------------------------------------- |
-| x    | $`z`$, on a signed log scale with $`10^{-3} \le \lvert z \rvert \le 10^6`$, and below 1 for $`p = q + 1`$ |
-| y    | the scale $`s`$ from $`10^{-2}`$ to $`10^2`$, with each $`a_i`$ and $`b_j`$ uniform in $`[-s, s]`$        |
-| bin  | 4 random inputs                                                                                           |
-| eps  | the geometric mean of the finite errors of a bin, each at least $`2^{-53}`$, as in `docs/accuracy.md`     |
+| axis | values                                                                                                                           |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| x    | $`z`$, on a signed log scale with $`10^{-3} \le \lvert z \rvert \le 10^6`$, below 1 for $`p = q + 1`$, and below 0 for $`_2F_0`$ |
+| y    | the scale $`s`$ from $`10^{-2}`$ to $`10^2`$, with each $`a_i`$ and $`b_j`$ uniform in $`[-s, s]`$                               |
+| bin  | 4 random inputs                                                                                                                  |
+| eps  | the geometric mean of the finite errors of a bin, each at least $`2^{-53}`$, as in `docs/accuracy.md`                            |
 
 Blank bins (complex) and `None` panels hold for generic parameters, not e.g. where the series
 terminates.
