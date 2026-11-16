@@ -73,6 +73,7 @@ use num_complex::Complex;
 
 use crate::utils::is_nonpos_int;
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::two_sum;
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -319,9 +320,10 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
     let (mut p0, mut p1) = (xsf_hypu(a + m, b, x), 0.0);
     let (mut q0, mut q1) = (0.0, xsf_hypu(a + m + 1.0, b, x));
     for k in (1..=m as i32).rev() {
-        // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
-        let c = a + f64::from(k);
-        let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
+        // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x), with the
+        // rounding error e of c = a + k, which matters where they cancel (e.g. for tiny a)
+        let (c, e) = two_sum(a, f64::from(k));
+        let (s, t) = (2.0 * c - b + x + 2.0 * e, c * (c - b + 1.0 + e));
         (p0, p1) = (s * p0 - t * p1, p0);
         (q0, q1) = (s * q0 - t * q1, q0);
     }
