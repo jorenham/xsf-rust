@@ -244,6 +244,10 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     } else {
         let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
         let mut p = d.clone() + 1.0;
+        // Unlike in xsf, `binom(n + alpha, n)` is the product of `(k + alpha) / k` for
+        // `alpha > -1`, without the rounding of `n + alpha` in `jacobi_binom`, which costs up to
+        // about `ln(n) ulp(n)` (relative), e.g. for the weights of `roots_jacobi`.
+        let mut binom = alpha + 1.0;
         for kk in 0..n - 1 {
             let k = f64::from(kk) + 1.0;
             let t = 2.0 * (k - 1.0) + ab2;
@@ -251,8 +255,13 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
                 + d * (2.0 * k * (k + beta) * (t + 2.0)))
                 / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
             p = p + d.clone();
+            binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
-        p * jacobi_binom(f64::from(n), alpha)
+        if alpha > -1.0 {
+            p * binom
+        } else {
+            p * jacobi_binom(f64::from(n), alpha)
+        }
     }
 }
 
