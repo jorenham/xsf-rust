@@ -153,6 +153,44 @@ impl Residues {
     }
 }
 
+impl Iterator for Residues {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<(f64, f64)> {
+        if !self.term.is_normal() {
+            return None;
+        }
+        // (there is no residue for an order below 1)
+        let k = usize::try_from(self.order).unwrap_or(0);
+        let size = self.size[..k].iter().copied().fold(0.0, f64::max);
+        let weight = if k > 0 { self.u[k - 1] } else { 0.0 };
+        let item = (self.term * weight, self.term.abs() * size);
+        for &x in &self.up {
+            let c = f64::from(x + self.n);
+            if c == 0.0 {
+                (self.term, self.order) = (-self.term, self.order - 1);
+            } else {
+                self.term *= c;
+                mul_linear(&mut self.u, -1.0 / c);
+                mul_linear(&mut self.size, 1.0 / c.abs());
+            }
+        }
+        for &x in &self.low {
+            let c = f64::from(x + self.n);
+            if c == 0.0 {
+                (self.term, self.order) = (-self.term, self.order + 1);
+            } else {
+                self.term /= c;
+                div_linear(&mut self.u, -1.0 / c);
+                div_linear(&mut self.size, -1.0 / c.abs());
+            }
+        }
+        self.term *= self.w;
+        self.n += 1.0;
+        Some(item)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::f64::consts::{LN_2, PI};
@@ -248,5 +286,21 @@ mod tests {
         // for z > 0, with ln(z) -+ pi i, the bound holds for (ln(z)^2 - pi^2) / 2 + pi^2 / 6
         let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, 40.0);
         assert!(residues.size[2] >= (l * l + PI * PI) / 2.0 + zeta_2);
+    }
+
+    #[test]
+    fn test_residues() {
+        // no other a_i differs from a_m by an integer: the term of a_1 = 1 of
+        // 2F1(1, 1.5; 2; z), a series with the parameters 1 and 0 over 0.5
+        let mut residues = Residues::of_class(&[1.0, 1.5], &[2.0], 0, -3.0);
+        assert_eq!(residues.next(), Some((1.0, 1.0)));
+        assert_eq!(residues.next(), Some((0.0, 0.0)));
+        // 2F1(1, 1; 2; z): ln(-z), and the terms of ln(1 - 1 / z) from the simple poles after
+        // the zero factor of b_1
+        let mut residues = Residues::of_class(&[1.0; 2], &[2.0], 0, -3.0);
+        for expected in [3.0_f64.ln(), 1.0 / 3.0, -1.0 / 18.0] {
+            let (t, size) = residues.next().unwrap();
+            assert!(close(t, expected) && size >= t.abs(), "{t} {size}");
+        }
     }
 }
