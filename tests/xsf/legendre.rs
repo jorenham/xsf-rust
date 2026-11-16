@@ -362,3 +362,71 @@ fn test_assoc_legendre_q_all_near_minus_one() {
     let q = xsf::assoc_legendre_q_all(2, 1, -1.05).0[2][1];
     assert!((q + 2.211_389_887_900_321_2).abs() < 1e-15, "{q}");
 }
+
+#[test]
+fn test_assoc_legendre_q_all_large_x() {
+    // NaN in xsf, since the backward recurrences in `lqmn` overflow; Arb references
+    let (qm, qd) = xsf::assoc_legendre_q_all(30, 26, 907.57);
+    xsref::np_assert_allclose!(
+        [qm[30][26], qd[30][26]],
+        [8.065_789_716_549_577e-60, -2.755_046_337_773_331_8e-61],
+        rtol = 1e-13
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(30, 26, c64(600.0, 400.0));
+    xsref::np_assert_allclose!(
+        [cqm[30][26], cqd[30][26]],
+        [
+            c64(8.184_368_733_381_842e-57, 5.860_850_039_088_338e-57),
+            c64(-4.325_076_007_856_238e-58, -1.447_173_501_838_919e-59),
+        ],
+        rtol = 1e-13
+    );
+    // the orders 0 and 1 underflow, but the order recurrence raises them back into range
+    let (qm, qd) = xsf::assoc_legendre_q_all(31, 26, 1e10);
+    xsref::np_assert_allclose!(
+        [qm[31][26], qd[31][26]],
+        [3.609_593_573_829_175e-288, -1.155_069_943_625_335_8e-296],
+        rtol = 1e-7
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(110, 80, c64(1000.0, 500.0));
+    xsref::np_assert_allclose!(
+        [cqm[110][80], cqd[110][80]],
+        [
+            c64(6.002_372_596_505_569e-200, -1.541_295_560_633_932_2e-199),
+            c64(1.513_253_937_967_822_2e-201, 1.635_176_324_583_510_4e-200),
+        ],
+        rtol = 1e-13
+    );
+    // the lifted orders grow past the overflow threshold before they are scaled back
+    let (qm, qd) = xsf::assoc_legendre_q_all(400, 250, 10.0);
+    xsref::np_assert_allclose!(
+        [qm[400][250], qd[400][250]],
+        [8.776_894_642_465_389e156, -3.544_215_960_415_300_4e158],
+        rtol = 1e-13
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(400, 250, c64(10.0, 1.0));
+    xsref::np_assert_allclose!(
+        [cqm[400][250], cqd[400][250]],
+        [
+            c64(-9.462_528_891_795_308e155, -6.445_726_315_936_386e155),
+            c64(4.043_140_341_411_489e157, 2.192_738_476_456_626_5e157),
+        ],
+        rtol = 1e-13
+    );
+    // the products overflow before they cancel, after the lift is undone; mpmath references
+    let (qm, qd) = xsf::assoc_legendre_q_all(111, 315, 4960.0);
+    xsref::np_assert_allclose!(
+        [qm[111][315], qd[111][315]],
+        [-1.591_573_603_547_800_6e308, 3.593_876_527_546_9e306],
+        rtol = 1e-13
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(111, 315, c64(4960.0, 1.0));
+    xsref::np_assert_allclose!(
+        [cqm[111][315], cqd[111][315]],
+        [
+            c64(-1.591_164_238_540_185e308, 3.593_562_895_647_709_5e306),
+            c64(3.592_935_648_855_753_2e306, -8.186_936_570_392_784e304),
+        ],
+        rtol = 1e-13
+    );
+}

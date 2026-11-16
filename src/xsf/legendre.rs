@@ -9,6 +9,7 @@
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
 //!   (scipy/xsf#368).
+//! - `lqmn` rescales its backward recurrences, which overflow for large `|z|` and `m + n`.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::ops::{Index, IndexMut};
@@ -18,8 +19,9 @@ use num_complex::Complex64;
 
 use crate::utils;
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
-use crate::xsf::specfun::SPECFUN_INF;
+use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
 pub(crate) struct Mdspan<'a, T, const R: usize> {
@@ -856,34 +858,89 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
 /// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from `km`
 /// and the recurrence in the order; xsf writes these out separately for real and complex `z`, and
 /// the backward recurrences also for each of the orders 0 and 1
-fn lqmn_large<T: Num>(z: T, zq: T, q0: T, km: i32, mut qm: Mdspan<'_, T, 2>) {
+fn lqmn_large<T: Num>(
+    z: T,
+    zq: T,
+    q0: T,
+    km: i32,
+    mut qm: Mdspan<'_, T, 2>,
+    ldexp: impl Fn(T, i32) -> T,
+) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
+    let l1 = |q: T| q.real().abs() + q.imag().abs();
+    let ldexp = |q: T, e: i32| if e == 0 { q } else { ldexp(q, e) };
 
+    let mut cs = [T::from(0.0); 2];
+    let mut ex = vec![[0; 2]; n as usize + 1];
     for (i, qi0) in [(0, q0), (1, T::from(-1.0) / zq)] {
         let i_ = f64::from(i);
         let (mut qf0, mut qf1, mut qf2) = (T::from(0.0), T::from(1.0), T::from(0.0));
+        let mut sc = 0;
         for k in (0..=km).rev() {
             let k_ = f64::from(k);
             qf0 = (z * (2.0 * k_ + 3.0) * qf1 - qf2 * (k_ + 2.0 - i_)) / (k_ + 1.0 + i_);
             if k <= n {
                 qm[(i, k)] = qf0;
+                ex[k as usize][i as usize] = sc;
+            }
+            // Unlike in xsf, this rescales (by powers of 2), since the recurrence grows like
+            // `(2 z)^k`, which overflows for large `|z|` and `m + n`; `ex` keeps the scale of
+            // each stored value
+            if l1(qf0) > SPECFUN_BIG {
+                (qf0, qf1) = (qf0 / SPECFUN_BIG, qf1 / SPECFUN_BIG);
+                sc += 1;
             }
             qf2 = qf1;
             qf1 = qf0;
         }
 
-        for k in 0..=n {
-            qm[(i, k)] = qm[(i, k)] * (qi0 / qf0);
+        for e in &mut ex {
+            e[i as usize] = SPECFUN_BIG_LOG2 * (e[i as usize] - sc);
         }
+        cs[i as usize] = qi0 / qf0;
     }
 
+    // `s c 2^k`, with `s` scaled to [0.5, 1) first, so that neither factor is subnormal
+    let seed = |s: T, c: T, k: i32| {
+        if k == 0 {
+            return s * c;
+        }
+        let a = -frexp_f64(l1(s)).1;
+        ldexp(s, a) * ldexp(c, k - a)
+    };
     for j in 0..=n {
-        let (mut q0, mut q1) = (qm[(0, j)], qm[(1, j)]);
+        // Unlike in xsf, the normalization of the orders 0 and 1 is deferred to here, where it is
+        // lifted by `2^e` if they would be subnormal, since the recurrence in the order can raise
+        // them back into range
+        let o = ex[j as usize];
+        let seeds = |e: i32| [0, 1].map(|i| seed(qm[(i, j)], cs[i as usize], e + o[i as usize]));
+        let [mut q0, mut q1] = seeds(0);
+        let mut e = 0;
+        if l1(q0).max(l1(q1)) < f64::MIN_POSITIVE {
+            // to about `MIN_POSITIVE / EPSILON` for the larger one, where all its digits are normal
+            let k_min = frexp_f64(f64::MIN_POSITIVE / f64::EPSILON).1;
+            let k = |i: i32| frexp_f64(l1(qm[(i, j)])).1 + frexp_f64(l1(cs[i as usize])).1;
+            e = (0..2)
+                .filter(|&i| l1(qm[(i, j)]) != 0.0)
+                .map(|i| k(i) + o[i as usize])
+                .max()
+                .map_or(0, |k| (k_min - k).max(0));
+            [q0, q1] = seeds(e);
+        }
+        qm[(0, j)] = ldexp(q0, -e);
+        qm[(1, j)] = ldexp(q1, -e);
+        let lifted = e != 0;
         for i in 0..=(m - 2) {
             let (i_, j_) = (f64::from(i), f64::from(j));
-            let qf = z * -(2.0 * (i_ + 1.0)) / zq * q1 + q0 * ((j_ - i_) * (j_ + i_ + 1.0));
-            qm[(i + 2, j)] = qf;
+            let mut qf = z * -(2.0 * (i_ + 1.0)) / zq * q1 + q0 * ((j_ - i_) * (j_ + i_ + 1.0));
+            // the lifted values can overflow before they are scaled back, and their products
+            // before they cancel, also once the lift is undone
+            if lifted && l1(qf) > SPECFUN_BIG {
+                (qf, q1) = (qf / SPECFUN_BIG, q1 / SPECFUN_BIG);
+                e -= SPECFUN_BIG_LOG2;
+            }
+            qm[(i + 2, j)] = ldexp(qf, -e);
             q0 = q1;
             q1 = qf;
         }
@@ -952,7 +1009,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
                 .wrapping_add(n)
                 .wrapping_mul((-1. - 1.8 * (x.abs() - 1.).ln()) as i32)
         };
-        lqmn_large(x, xq, q0, km, Mdspan::new(qm.data, qm.extents));
+        lqmn_large(x, xq, q0, km, Mdspan::new(qm.data, qm.extents), ldexp_f64);
     }
 
     qd[(0, 0)] = ls / xs;
@@ -1040,7 +1097,8 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
                 .wrapping_add(n)
                 .wrapping_mul((-1.0 - 1.8 * (xc - 1.).ln()) as i32)
         };
-        lqmn_large(z, zq, cq0, km, Mdspan::new(cqm.data, cqm.extents));
+        let ldexp = |z: C64, e| c64(ldexp_f64(z.re, e), ldexp_f64(z.im, e));
+        lqmn_large(z, zq, cq0, km, Mdspan::new(cqm.data, cqm.extents), ldexp);
     }
 
     cqd[(0, 0)] = f64::from(ls) / zs;
