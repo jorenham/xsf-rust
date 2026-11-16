@@ -7,7 +7,7 @@
 use core::f64::consts::PI;
 
 use super::SPECFUN_INF;
-use crate::utils::LN_TAU;
+use crate::utils::{EGAMMA, LN_TAU};
 use crate::xsf::c64::{C64, c64};
 
 pub(crate) fn gamma2(x: f64) -> f64 {
@@ -202,7 +202,7 @@ pub(crate) fn psi_spec(x: f64) -> f64 {
         -0.83333333333333333e-01,
         0.4432598039215686,
     ];
-    let el = 0.5772156649015329;
+    let el = EGAMMA;
     let mut ps;
     let mut s = 0.0;
     let mut xa = x.abs();

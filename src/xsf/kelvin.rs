@@ -11,6 +11,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, FRAC_PI_4, PI, SQRT_2, TAU};
 
 use num_complex::Complex64;
 
+use crate::utils::EGAMMA;
 use crate::xsf::amos;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::specfun::{SPECFUN_INF, specfun_zconvinf};
@@ -83,7 +84,7 @@ fn klvna(x: f64) -> Klvna {
     //          HEI --- kei'x
     // ================================================
 
-    let el = 0.5772156649015329;
+    let el = EGAMMA;
 
     let (ber, bei, ger, gei, der, dei, her, hei);
 
