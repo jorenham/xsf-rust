@@ -74,7 +74,7 @@ fn clog1p_ddouble(zr: f64, zi: f64) -> C64 {
 // This expression suffers from cancellation when x < 0 and
 // y = +/-sqrt(2*fabs(x)). To get around this cancellation problem, we use
 // double-double precision when necessary.
-fn clog1p(mut z: C64) -> C64 {
+pub(crate) fn clog1p(mut z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
         z += 1.0;
         return clog(z);

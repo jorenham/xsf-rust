@@ -96,11 +96,12 @@ fn log_ndtr_f64(x: f64) -> f64 {
  * the principal branch of the log function log( exp(-z^2) w(i z) )
  */
 fn log_ndtr_c64(mut z: C64) -> C64 {
-    if z.re > 6.0 {
-        // Underflow. Close to the real axis, expand the log in log(1 - ndtr(-z)).
+    if z.re > 0.0 {
+        // Unlike in xsf, all of `Re z > 0` takes `ln_1p(-ndtr(-z))`, as the sum below cancels
+        // where `ndtr(-z)` is small; the sum remains for where `ndtr(-z)` overflows
         let w = crate::xsf::faddeeva::erfc_c64(z * FRAC_1_SQRT_2) * -0.5;
-        if w.norm() < 1e-8 {
-            return w;
+        if w.is_finite() {
+            return crate::xsf::log::clog1p(w);
         }
     }
 
