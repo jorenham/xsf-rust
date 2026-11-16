@@ -1053,14 +1053,14 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
 }
 
 /// `v^(1 / k)` in double-double precision, for `v > 0`
-fn root_dd(v: f64, k: usize) -> Dd {
-    let s = v.powf(1.0 / k as f64);
+fn root_dd(v: Dd, k: usize) -> Dd {
+    let s = v.hi.powf(1.0 / k as f64);
     let pow = |n: usize| (0..n).fold(Dd::new(1.0), |p, _| p * s);
     match k {
-        1 => Dd::new(v),
-        2 => Dd::new(v).sqrt(),
+        1 => v,
+        2 => v.sqrt(),
         // (one Newton step)
-        _ => Dd::new(s) + (Dd::new(v) - pow(k)) / (k as f64 * pow(k - 1).hi),
+        _ => Dd::new(s) + (v - pow(k)) / (k as f64 * pow(k - 1).hi),
     }
 }
 
@@ -1332,7 +1332,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let sum_params = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
     let nu = sum_params(a) - sum_params(lower) + 0.5 * (kf - 1.0);
     let real = z > 0.0 || kappa == 1;
-    let root = root_dd(z.abs(), kappa) * if real { z.signum() } else { 1.0 };
+    let root = root_dd(Dd::new(z.abs()), kappa) * if real { z.signum() } else { 1.0 };
     let x = kf * root.hi;
     // (the factors of the last coefficient are negative from here on)
     let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
@@ -1534,6 +1534,17 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_root_dd() {
+        // of a double-double with a low part
+        let v = Dd::new(10.0) / 3.0;
+        for k in 1..=5 {
+            let root = root_dd(v, k);
+            let pow = (0..k).fold(Dd::new(1.0), |p, _| p * root);
+            assert!((pow - v).hi.abs() <= pow2(-100) * v.hi, "k = {k}");
+        }
+    }
 
     #[test]
     fn test_pfq_asymptotic_integer_difference() {

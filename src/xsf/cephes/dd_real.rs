@@ -371,6 +371,26 @@ impl DoubleDouble {
         self * b + c
     }
 
+    /// The sum of the products of the pairs
+    ///
+    /// The products are accumulated by error-free transforms, with their corrections summed in
+    /// `f64`, which takes fewer operations than adding the double-double products.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "not yet used outside of the tests")
+    )]
+    pub(crate) fn dot(pairs: impl IntoIterator<Item = (Self, Self)>) -> Self {
+        let (mut sum, mut low) = (0.0, 0.0);
+        for (x, y) in pairs {
+            let (p, e) = two_prod(x.hi, y.hi);
+            let t;
+            (sum, t) = two_sum(sum, p);
+            low += t + (e + (x.hi * y.lo + x.lo * y.hi));
+        }
+        let (hi, lo) = two_sum(sum, low);
+        Self { hi, lo }
+    }
+
     #[inline]
     fn square(self) -> Self {
         let (p1, mut p2) = two_sqr(self.hi);
@@ -584,6 +604,28 @@ impl DoubleDouble {
 #[cfg(test)]
 mod tests {
     use super::DoubleDouble;
+    use crate::utils::pow2;
+
+    #[test]
+    fn test_dot() {
+        let one = DoubleDouble::new(1.0);
+        let third = one / 3.0;
+        // exact where the high parts of the products cancel
+        let x = DoubleDouble {
+            hi: 1.0,
+            lo: pow2(-80),
+        };
+        let y = DoubleDouble::dot([(x, one), (-one, one)]);
+        assert_eq!((y.hi, y.lo), (pow2(-80), 0.0));
+        // as accurate as the sum of the products
+        let pairs = [(third, third), (third * 7.0, -third), (x, third)];
+        let sum = pairs
+            .iter()
+            .fold(DoubleDouble::new(0.0), |s, &(a, b)| s + a * b);
+        let y = DoubleDouble::dot(pairs);
+        assert_eq!(y.hi, sum.hi);
+        assert!((y - sum).hi.abs() <= pow2(-100) * sum.hi.abs());
+    }
 
     #[test]
     fn test_cmp_nan_hi() {
