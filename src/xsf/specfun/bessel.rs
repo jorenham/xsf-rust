@@ -6,7 +6,8 @@
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::{SPECFUN_INF, deflated_newton_step};
-use crate::utils::{EGAMMA, neg_one_pow};
+use crate::utils::neg_one_pow;
+use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_y_c64};
 use crate::xsf::c64::{C64, c64};
 
 fn gam0(x: f64) -> f64 {
@@ -136,9 +137,13 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
         -0.4406481417852278e+14, 0.6065091351222699e+16,
     ];
 
+    // Unlike in xsf, AMOS takes over for |z| <= 20 from the power series (|z| <= 12) and the
+    // 12-term asymptotic expansion, which lose up to 4 digits to cancellation and truncation for
+    // 7 < |z| < 17, and so for the first 5 zeros.
+    const AMOS_MAX: f64 = 20.0;
+
     let a0 = z.norm();
     let mut z1 = z;
-    let z2 = z * z;
     // The C++ returns early for `a0 == 0`, with the same outputs as below
     let (cby0, cby1, cdy0, cdy1) = if a0 == 0.0 {
         (
@@ -152,56 +157,12 @@ fn cy01(kf: i32, z: C64) -> (C64, C64) {
             z1 = -z;
         }
 
-        let (mut cbj0, mut cbj1, mut cby0, mut cby1);
-        if a0 <= 12.0 {
-            cbj0 = C64::ONE;
-            let mut cr = C64::ONE;
-            for k in 1..=40 {
-                cr = -0.25 * cr * z2 / f64::from(k * k);
-                cbj0 += cr;
-                if cr.norm() < cbj0.norm() * 1.0e-15 {
-                    break;
-                }
-            }
-
-            cbj1 = C64::ONE;
-            cr = C64::ONE;
-            for k in 1..=40 {
-                cr = -0.25 * cr * z2 / (f64::from(k) * (f64::from(k) + 1.0));
-                cbj1 += cr;
-                if cr.norm() < cbj1.norm() * 1.0e-15 {
-                    break;
-                }
-            }
-
-            cbj1 *= 0.5 * z1;
-            let mut w0 = 0.0;
-            cr = C64::ONE;
-            let mut cs = C64::ZERO;
-            for k in 1..=40 {
-                w0 += 1.0 / f64::from(k);
-                cr = -0.25 * cr / f64::from(k * k) * z2;
-                let cp = cr * w0;
-                cs += cp;
-                if cp.norm() < cs.norm() * 1.0e-15 {
-                    break;
-                }
-            }
-
-            cby0 = FRAC_2_PI * ((z1 / 2.0).ln() + EGAMMA) * cbj0 - FRAC_2_PI * cs;
-            let mut w1 = 0.0;
-            cr = C64::ONE;
-            cs = C64::ONE;
-            for k in 1..=40 {
-                w1 += 1.0 / f64::from(k);
-                cr = -0.25 * cr / f64::from(k * (k + 1)) * z2;
-                let cp = cr * (2.0 * w1 + 1.0 / (f64::from(k) + 1.0));
-                cs += cp;
-                if cp.norm() < cs.norm() * 1.0e-15 {
-                    break;
-                }
-            }
-            cby1 = FRAC_2_PI * (((z1 / 2.0).ln() + EGAMMA) * cbj1 - 1.0 / z1 - 0.25 * z1 * cs);
+        let (cbj0, cbj1, mut cby0, mut cby1);
+        if a0 <= AMOS_MAX {
+            cbj0 = cyl_bessel_j_c64(0.0, z1);
+            cbj1 = cyl_bessel_j_c64(1.0, z1);
+            cby0 = cyl_bessel_y_c64(0.0, z1);
+            cby1 = cyl_bessel_y_c64(1.0, z1);
         } else {
             let mut k0 = 12;
             if a0 >= 35.0 {
