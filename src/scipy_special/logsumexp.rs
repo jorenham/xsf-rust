@@ -5,7 +5,8 @@ const NINF: f64 = f64::NEG_INFINITY;
 /// Return the maximum value in a slice of f64, propagating NaNs
 #[inline]
 fn fmax(xs: &[f64]) -> f64 {
-    xs.iter().fold(NINF, |a, &b| if a >= b { a } else { b })
+    xs.iter()
+        .fold(NINF, |a, &b| if a >= b || a.is_nan() { a } else { b })
 }
 
 /// Compute the log of the sum of exponentials of input elements
@@ -51,7 +52,7 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
     let s = xs.map(|x| (x - x_max).exp()).sum::<f64>();
 
     // Take log and undo shift
-    s.ln_1p() + m.ln() + x_max
+    (s / m).ln_1p() + m.ln() + x_max
 }
 
 /// Compute the softmax function
@@ -104,6 +105,8 @@ pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
     let x_max = if x_max.is_finite() { x_max } else { 0.0 };
 
     let xs0 = xs.iter().map(|&x| x - x_max).collect::<Vec<f64>>();
-    let s = xs0.iter().map(|&x| x.exp()).sum::<f64>().ln();
+    // Unlike in SciPy, `logsumexp` takes `ln_1p` of the terms below the maximum, as the result
+    // for the maximum is about minus their sum, which `ln` of the whole sum rounds away
+    let s = logsumexp(&xs0);
     xs0.iter().map(|&x| x - s).collect()
 }
