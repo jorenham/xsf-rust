@@ -221,7 +221,7 @@ fn ai_tail(zeta: C64) -> C64 {
     (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
 }
 
-// Translated from `xsf/cpu/airy.h` (scipy/xsf@12097d1)
+// Translated from `xsf/cpu/airy.h` (scipy/xsf@306433e)
 fn itairy_impl(x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute the integrals of Airy fnctions with
