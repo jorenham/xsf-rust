@@ -10,7 +10,7 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
 
-use crate::xsf::bessel::bessel_j_miller;
+use crate::xsf::bessel::{IT0_ASYMP, bessel_j_miller};
 use crate::xsf::cephes;
 use crate::xsf::specfun::specfun_convinf;
 
@@ -96,7 +96,6 @@ fn itsh0(x: f64) -> f64 {
     // Output:  TH0 --- Integration of H0(t) from 0 and x
     // ===================================================
 
-    let mut a = [0.0; 25];
     let mut s;
     let th0;
     let el = 0.57721566490153;
@@ -133,18 +132,7 @@ fn itsh0(x: f64) -> f64 {
             }
         }
         let s0 = s / (PI * x * x) + FRAC_2_PI * ((2.0 * x).ln() + el);
-        let mut a0 = 1.0;
-        let mut a1 = 5.0 / 8.0;
-        a[0] = a1;
-        for k in 1_u32..21 {
-            let kf = f64::from(k);
-            let af = (1.5 * (kf + 0.5) * (kf + 5.0 / 6.0) * a1
-                - 0.5 * (kf + 0.5) * (kf + 0.5) * (kf - 0.5) * a0)
-                / (kf + 1.0);
-            a[k as usize] = af;
-            a0 = a1;
-            a1 = af;
-        }
+        let a = IT0_ASYMP;
         let mut bf = 1.0;
         r = 1.0;
         for k in 1..11 {
@@ -172,9 +160,6 @@ fn itsl0(x: f64) -> f64 {
     // Output:  TL0 --- Integration of L0(t) from 0 to x
     // ===========================================================
 
-    // Number of terms of the asymptotic expansion for x > 40, where the last one is at most 2.2e-16
-    const NA: u32 = 25;
-    let mut a = [0.0; NA as usize];
     let mut s;
     let tl0;
     let el = 0.57721566490153;
@@ -204,21 +189,10 @@ fn itsl0(x: f64) -> f64 {
             }
         }
         let s0 = -s / (PI * x * x) + FRAC_2_PI * ((2.0 * x).ln() + el);
-        let mut a0 = 1.0;
-        let mut a1 = 5.0 / 8.0;
-        a[0] = a1;
-        for k in 1..NA {
-            let kf = f64::from(k);
-            let af = (1.5 * (kf + 0.50) * (kf + 5.0 / 6.0) * a1
-                - 0.5 * ((kf + 0.5) * (kf + 0.5)) * (kf - 0.5) * a0)
-                / (kf + 1.0);
-            a[k as usize] = af;
-            a0 = a1;
-            a1 = af;
-        }
         let mut ti = 1.0;
         r = 1.0;
-        for ak in a {
+        // all 25 terms for x > 40, where the last one is at most 2.2e-16
+        for ak in IT0_ASYMP {
             r /= x;
             ti += ak * r;
         }
