@@ -1437,7 +1437,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
 
     const EL: f64 = EGAMMA;
 
-    let (a0, a1, a2, ga1, ua, ub);
+    let (a1, n0, n2, ga1, ua, ub);
 
     // Unlike in xsf (scipy/xsf#380), NaN for |b - 1| >= 1000 (where n! overflows), without ~150 n
     // steps
@@ -1457,9 +1457,8 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     let ps = if xsf { psi_spec(a) } else { digamma(a) };
     let ga = if xsf { gamma2(a) } else { gamma(a) };
     if b > 0.0 {
-        a0 = a;
         a1 = a - f64::from(n);
-        a2 = a1;
+        (n0, n2) = (0, -n);
         // Unlike in xsf (scipy/xsf#380), Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because
         // `a1` rounds
         ga1 = if xsf {
@@ -1478,9 +1477,8 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
             rn1 / ga * h * h
         };
     } else {
-        a0 = a + f64::from(n);
-        a1 = a0;
-        a2 = a;
+        a1 = a + f64::from(n);
+        (n0, n2) = (n, 0);
         ga1 = if xsf { gamma2(a1) } else { gamma(a1) };
         ua = neg_one_pow(n - 1) / (rn * ga) * x.powf(f64::from(n));
         ub = rn1 / ga1;
@@ -1490,12 +1488,15 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     if !xsf && !normal {
         return f64::NAN;
     }
+    // Unlike in xsf, the factors of the series are a + (n0 + k - 1) (xsf has a0 + k - 1 with
+    // a0 = a + n0, and likewise for a2 = a + n2), which round once, as a +- n loses the low digits
+    // of a for large n, e.g. for U(0.936, 150, 170)
     let mut hm1 = 1.0;
     let mut r = 1.0;
     let mut hmax: f64 = 0.0;
     let mut h0 = 0.0;
     for k in 1..=150 {
-        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
+        r = r * (a + f64::from(n0 + k - 1)) * x / f64::from((n + k) * k);
         hm1 += r;
         let hu1 = hm1.abs();
 
@@ -1547,7 +1548,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
         }
 
         let hw = 2.0 * EL + ps + s1 - s2;
-        r = r * (a0 + f64::from(k) - 1.0) * x / f64::from((n + k) * k);
+        r = r * (a + f64::from(n0 + k - 1)) * x / f64::from((n + k) * k);
         t2 = r * hw;
         hm2 += t2;
         let hu2 = hm2.abs();
@@ -1571,7 +1572,7 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     }
     r = 1.0;
     for k in 1..n {
-        r = r * (a2 + f64::from(k) - 1.0) / f64::from((k - n) * k) * x;
+        r = r * (a + f64::from(n2 + k - 1)) / f64::from((k - n) * k) * x;
         hm3 += r;
     }
     let sa = ua * (hm1 + hm2);
