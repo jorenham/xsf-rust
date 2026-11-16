@@ -583,6 +583,61 @@ fn test_hyp2f1_f64_large_parameters() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_parameters_symmetric() {
+    // unlike in xsf: the backward recurrence in c, for b near a negative integer. With a and b
+    // swapped, these were 6.1391430e-14, NaN and -1.84547e-23 (Arb)
+    let args = [
+        (
+            36.0,
+            -104.000_000_924_581_27,
+            0.007_448_750_632_523_618,
+            0.660_972_613_333_070_1,
+        ),
+        (
+            61.0,
+            -193.000_000_276_607_7,
+            0.000_107_318_522_117_809_54,
+            0.640_187_432_370_559_9,
+        ),
+        (
+            59.0,
+            -173.000_000_007_594_25,
+            0.027_383_593_198_256_447,
+            0.636_724_798_755_143_5,
+        ),
+    ];
+    let desired = [
+        6.139_143_590_440_316e-14,
+        -2.595_642_189_371_232e-26,
+        -1.841_938_847_635_551e-23,
+    ];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-12);
+        assert_eq!(actual[0].to_bits(), actual[1].to_bits());
+    }
+
+    // and in both orders, but less accurate, or NaN (for 5.00e-90), where xsf gives -1.12e-31 and
+    // -5.92e11 (Arb)
+    let (a, b, c, x) = (
+        -205.999_999_477_863_13,
+        47.0,
+        3.639_032_470_739_815_5e-7,
+        0.717_901_721_185_673_1,
+    );
+    let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+    np_assert_allclose!(actual, [-8.131_786_695_096_852e-38; 2], rtol = 1e-10);
+    assert_eq!(actual[0].to_bits(), actual[1].to_bits());
+    let (a, b, c, x) = (
+        142.0,
+        -371.999_908_846_370_03,
+        2.059_971_790_437_242_8e-6,
+        0.861_317_158_082_100_4,
+    );
+    assert!(xsf::hyp2f1(a, b, c, x).is_nan() && xsf::hyp2f1(b, a, c, x).is_nan());
+}
+
+#[test]
 fn test_hyp2f1_f64_huge_c() {
     // unlike in xsf: these were NaN, and the first and fourth hung (Arb, or the limit 1)
     let (tx, rx) = std::sync::mpsc::channel();
@@ -876,10 +931,15 @@ fn test_hyp2f1_f64_nan_if_lost() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_err_above_1() {
-    // NaN if the error estimate with the recurrences in `a` is above 1, instead of -2.29e82 and
-    // 1.03e-13 (mpmath, Wolfram: 1.62e79 and -1.83e-18)
-    assert!(xsf::hyp2f1(640.0, -128.04, -9.5, 0.4248).is_nan());
-    assert!(xsf::hyp2f1(-688.5, 147.62, -28.5, 0.3898).is_nan());
+    // NaN if the error estimate with the recurrences in `a` is above 1, instead of -2.43e20 and
+    // 1.04e33 (Arb: -4.88e-39 and 1.33e-34), in either order of a and b
+    for (a, b, c, x) in [
+        (85.0, -171.999_998, 0.0369, 0.8847),
+        (100.0, -185.000_000_01, 0.0018, 0.866),
+    ] {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+    }
     // but not for a polynomial, here T_10 near a root, which is accurate in absolute terms (Arb)
     let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
     assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
@@ -895,6 +955,18 @@ fn test_hyp2f1_f64_nan_if_err_above_1() {
         0.783_576_573_101_434_1,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // and these, which were NaN in one order of a and b, where xsf gives -2.29e82 and 1.03e-13
+    // (Arb)
+    let args = [
+        (640.0, -128.04, -9.5, 0.4248),
+        (-688.5, 147.62, -28.5, 0.3898),
+    ];
+    let desired = [1.621_532_650_837_629_3e79, -1.825_420_437_271_943_6e-18];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-12);
+        assert_eq!(actual[0].to_bits(), actual[1].to_bits());
+    }
 }
 
 #[test]

@@ -870,6 +870,10 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
     }
+    // In a fixed order, as step 6 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
+    // first, which was more often accurate in our tests, e.g. for `F(-104.0000009, 36; 0.0074;
+    // 0.66)`, whose form `(c - a, c - b)` then has `n = 105` instead of 1.
+    let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
