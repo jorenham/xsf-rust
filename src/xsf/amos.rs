@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@3fa47a2).
+//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@9b1ddf4).
 //!
 //! ```text
 //!
@@ -1804,9 +1804,6 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
         cy[(i - 1) as usize] = atol * (zn * csgn);
         csgn = -csgn;
     }
-    // NOTE: This also clears an earlier `*ierr = 3`, which is therefore only reported if
-    // `xx >= 0.0`, or if the entire sequence underflows (the Fortran ZBESI doesn't reset it).
-    *ierr = 0;
     nz
 }
 
@@ -7196,5 +7193,22 @@ pub(crate) fn set_error_and_nan(code: SfError, value: &mut C64) {
     {
         value.re = f64::NAN;
         value.im = f64::NAN;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn besi_keeps_loss_of_significance_for_negative_re_z() {
+        // `|z| > 32768`, as in scipy/xsf#555; `e^-|Re z| I_0(z)` by mpmath at 40 digits
+        let z = c64(-95381.943943023245, 4346.9032242895491);
+        let expected = c64(0.000_604_213_545_988_240_9, 0.001_140_967_507_357_412_3);
+        let mut cy = [C64::ZERO];
+        let mut ierr = 0;
+        besi(z, 0.0, 2, 1, &mut cy, &mut ierr);
+        assert_eq!(ierr, 3);
+        assert!((cy[0] - expected).norm() <= 5e-14 * expected.norm());
     }
 }
