@@ -1,6 +1,6 @@
 # `scipy.special` functions that SciPy computes without xsf
 
-The 123 of the 338 functions of SciPy
+The 123 of the 337 functions of SciPy
 [v1.18.1](https://github.com/scipy/scipy/tree/v1.18.1/scipy/special) that it computes partly or
 entirely without xsf
 [`f7b85f5`](https://github.com/scipy/xsf/tree/f7b85f505a94fd398024478d2e747b01dd2d7a6d), what it
