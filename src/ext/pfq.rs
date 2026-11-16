@@ -484,16 +484,18 @@ fn skip(v: &impl AsRef<[f64]>, i: usize) -> impl Iterator<Item = f64> + Clone {
 /// The analytic continuation to `z < -1` (DLMF 16.8.8) and an estimate of its absolute error, or
 /// `None` if a factor of a coefficient overflows or underflows
 ///
-/// This is for `p = q + 1`, where `b` contains the 1 of `n!`, and no two `a_i` may differ by an
-/// integer. It is a sum over `j` of series in `1 / z` with the parameters `a_j + 1 - b` and
-/// `a_j + 1 - a`.
+/// This is for `p = q + 1`, where `b` contains the 1 of `n!`. It is a sum over `j` of series in
+/// `1 / z` with the parameters `a_j + 1 - b` and `a_j + 1 - a`, or its limit where `a_i` differ
+/// by integers.
 pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let one = b.as_ref().iter().position(|&v| v == 1.0)?;
+    let mut diffs = zip(a.as_ref(), 0..).flat_map(|(aj, j)| skip(a, j).map(move |ak| ak - aj));
+    if diffs.any(|d| d.fract() == 0.0) {
+        // the terms of DLMF 16.8.8 are infinite
+        return pfq_continuation_limit(a, skip(b, one), z);
+    }
     let (mut sum, mut err) = (0.0, 0.0);
     for (j, &aj) in a.as_ref().iter().enumerate() {
-        if skip(a, j).any(|ak| (ak - aj).fract() == 0.0) {
-            return None;
-        }
         // Gamma(a_k - a_j) / Gamma(a_k) and Gamma(b_k) / Gamma(b_k - a_j) for each k != j
         let ratios = skip(a, j).map(|ak| gamma_ratio(two_sum(ak, -aj), (ak, 0.0)));
         let ratios = ratios.chain(skip(b, one).map(|bk| gamma_ratio((bk, 0.0), two_sum(bk, -aj))));
@@ -542,6 +544,22 @@ pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, 
             + f64::MIN_POSITIVE * f.abs();
     }
     Some((sum, err))
+}
+
+/// `pfq_continuation` where `a_i` differ by integers, for `b` without the 1 of `n!`: the limit of
+/// DLMF 16.8.8, which is the sum of the terms of `pfq_alg`, and an estimate of its absolute error
+///
+/// It is `None` if it underflows or overflows.
+fn pfq_continuation_limit<P: Params>(
+    a: &P,
+    b: impl Iterator<Item = f64>,
+    z: f64,
+) -> Option<(f64, f64)> {
+    let b: Vec<f64> = b.chain([1.0]).collect();
+    let mut terms = vec![None; a.as_ref().len()];
+    pfq_alg(a, &b, z, false, &mut terms)?;
+    let (y, err) = add_exp(terms.into_iter().flatten())?.to_f64();
+    y.is_normal().then_some((y, err * y.abs()))
 }
 
 /// A method for `p = q + 1`, which returns the result and an estimate of its absolute error, or
@@ -665,8 +683,6 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 ///
 /// - at $z = 1$, unless a parameter cancels so that Gauss's sum applies, and for
 ///   $1 - 10^{-5} \lesssim z < 1$;
-/// - for $z < -1$ if two $a_i$ differ by an integer: often for $z < -10$, and nearly always
-///   for $z \lesssim -10^6$;
 /// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -783,8 +799,35 @@ fn asymptotic_sum<T: Term>(
     best
 }
 
+/// The sum of a convergent series and an estimate of its absolute error, which is infinite if
+/// it did not converge within `PFQ_MAXITER` terms
+///
+/// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
+/// before it, and `ratio_bound` does not increase.
+fn convergent_sum<T: Term>(
+    terms: impl Iterator<Item = T>,
+    settled: f64,
+    ratio_bound: impl Fn(f64) -> f64,
+) -> (f64, f64) {
+    let (mut sum, mut abs_sum) = (0.0_f64, 0.0);
+    for (term, n) in terms.zip((0..PFQ_MAXITER).map(f64::from)) {
+        if !term.value().is_finite() {
+            break;
+        }
+        sum += term.value();
+        abs_sum += term.bound();
+        let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
+        // geometric bound on the remaining terms
+        let tail = term.bound() * rho / (1.0 - rho);
+        if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
+            return (sum, tail + n * f64::EPSILON * abs_sum);
+        }
+    }
+    (sum, f64::INFINITY)
+}
+
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
-/// about `n^kappa / |z|`
+/// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`
 fn pfq_alg_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -794,6 +837,7 @@ fn pfq_alg_sum<T: Term>(
 ) -> (f64, f64) {
     let az = z.abs();
     let scale = match kappa {
+        0 => return convergent_sum(terms, settled, ratio_bound),
         1 => az,
         2 => az.sqrt(),
         _ => az.powf(1.0 / kappa as f64),
