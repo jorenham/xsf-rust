@@ -31,8 +31,6 @@ from mpmath.libmp import NoConvergence
 DBL_MAX: Final = 1.7976931348623157e308
 DPS: Final = 50  # the working digits of every reference
 
-# ---------------------------------------------------------------- sampling
-
 # Unicode math for the table, escaped to keep the source ASCII
 IN, MINUS, PM, ELLIPSIS, SQRT = "\u2208", "\u2212", "\u00b1", "\u2026", "\u221a"
 HALF, MU, SIGMA, GAMMA, EPSILON, PSI = (
@@ -335,9 +333,6 @@ class Spec:
     def func(self) -> str:
         """The function name, without the "#..." suffix."""
         return self.name.split("#")[0]
-
-
-# ---------------------------------------------------------------- references
 
 
 def wdps(extra):
@@ -961,9 +956,6 @@ def r_spence(x):
         return -mp.polylog(2, 1 - 1 / x) - mp.log(x) ** 2 / 2
 
 
-# ---------------------------------------------------------------- root finding
-
-
 def _solve(G, a, b, ga, gb):
     """Root of G in [a, b], where G(a) = ga and G(b) = gb have opposite signs (the Illinois
     method, with a bisection step every fourth iteration to guarantee progress)."""
@@ -1051,9 +1043,6 @@ def _only_root_pos(F, target):
     return mp.exp(_only_root(lambda t: F(mp.exp(t)) - target, lo, hi, 224))
 
 
-# ---------------------------------------------------------------- gamma and related
-
-
 def r_loggamma(x):
     with wdps(xd(x)):
         return mp.loggamma(x)
@@ -1103,9 +1092,6 @@ def r_stirling2(n, k):
     n, k = int(n), int(k)
     s = sum((-1) ** i * math.comb(k, i) * (k - i) ** n for i in range(k + 1))
     return mp.mpf(s // math.factorial(k))
-
-
-# ---------------------------------------------------------------- error function and normal
 
 
 def r_erfi(x):
@@ -1283,9 +1269,6 @@ def r_nrdtrisd(mean, p, x):
         return (x - mean) / _ncdf_inv(p)
 
 
-# ---------------------------------------------------------------- elementary
-
-
 def r_cosm1(x):
     with wdps(xd(x)):
         return -2 * mp.sin(x / 2) ** 2
@@ -1335,9 +1318,6 @@ def r_diric(n, x):
 
 def r_agm(a, b):
     return mp.agm(a, b)
-
-
-# ---------------------------------------------------------------- exponential and logarithmic
 
 
 def r_expit(x):
@@ -1450,9 +1430,6 @@ def r_huber(delta, r):
 
 def r_pseudo_huber(delta, r):
     return r * r / (mp.sqrt(1 + (r / delta) ** 2) + 1)
-
-
-# ---------------------------------------------------------------- Bessel
 
 
 def _sc(f, v, x):
@@ -1638,9 +1615,6 @@ def r_lmbdap(v, x):
     return _lmbda(v, x, True)
 
 
-# ---------------------------------------------------------------- integrals of Bessel and Struve
-
-
 def _int_j0(f, x):
     # int_0^x C_0(t) dt = x C_0(x) + pi x / 2 (C_1(x) H_0(x) - C_0(x) H_1(x)), DLMF 10.22.2
     with wdps(xd(x) + 10):
@@ -1752,9 +1726,6 @@ def r_itmodstruve0(x):
         return x * x / mp.pi * mp.hyper([1, 1], [1.5, 1.5, 2], x * x / 4)
 
 
-# ---------------------------------------------------------------- Kelvin and Airy functions
-
-
 def _kelvin(kind, x):
     """ber, bei, ker, kei (kind 0 to 3), or their derivatives (kind 4 to 7), with the modulus of
     the complex function (e.g. |ber + i bei|) as scale. ber and bei are even.
@@ -1827,9 +1798,6 @@ def _airy_int(x):
         return [ai, mp.sqrt(3) * (f + g), gn - fn, -mp.sqrt(3) * (fn + gn)]
 
 
-# ---------------------------------------------------------------- parabolic cylinder functions
-
-
 def r_pbdv(v, x):
     # D'_v(x) = x/2 D_v(x) - D_{v+1}(x), DLMF 12.8.3
     with wdps(20):
@@ -1855,9 +1823,6 @@ def c_pbdn(n, re, im):
 def r_pbwa(a, x):
     with wdps(20):
         return mp.pcfw(a, x), mp.diff(lambda t: mp.pcfw(a, t), x)
-
-
-# ---------------------------------------------------------------- Mathieu functions
 
 
 def _mathieu_matrix(odd, m, q, n):
@@ -2128,8 +2093,6 @@ def _mathieu_radial(odd, kind, m, q, z, derivative=False):
 
     return _mathieu_sum(f)
 
-
-# ---------------------------------------------------------------- spheroidal wave functions
 
 # mpmath and Arb don't have these. With kd = 1 for the prolate and -1 for the oblate ones, they are
 # the functions of DLMF 30 with gamma^2 = kd c^2, in the normalization of Flammer, "Spheroidal
@@ -2402,9 +2365,6 @@ def _sw_rad2(m, n, c, x, kd):
     return _sw_radial(2, m, n, c, x, kd)
 
 
-# ---------------------------------------------------------------- zeta functions
-
-
 def r_gen_harmonic(n, a):
     n = int(n)
     with wdps(20):
@@ -2417,9 +2377,6 @@ def r_normalized_gen_harmonic(j, k, n, a):
     with wdps(20):
         p = [mp.mpf(i) ** -a for i in range(1, int(n) + 1)]
         return mp.fsum(p[int(j) - 1 : int(k)]) / mp.fsum(p)
-
-
-# ---------------------------------------------------------------- exponential and trigonometric
 
 
 def r_exp1(x):
@@ -2463,9 +2420,6 @@ def r_fresnel_c(x):
         return mp.fresnelc(x)
 
 
-# ---------------------------------------------------------------- inverse incomplete gamma, beta
-
-
 def r_gammaincinv(a, p):
     return _invert_pos(lambda x: _gammainc_pq(a, x, False), p, a)
 
@@ -2482,9 +2436,6 @@ def r_betainccinv(a, b, y):
     return _invert_unit(
         lambda x, z: _betainc(b, a, z, x), y, a / (a + b), decreasing=True
     )
-
-
-# ---------------------------------------------------------------- elliptic
 
 
 def r_ellipkm1(p):
@@ -2540,9 +2491,6 @@ def _ellipj(u, m):
         n = int(mp.floor((u + mp.ellipk(m)) / (2 * mp.ellipk(m))))
         s = (-1) ** n
         return sn, cn, dn, n * mp.pi + mp.atan2(s * sn, s * cn)
-
-
-# ---------------------------------------------------------------- hypergeometric
 
 
 def r_hyp0f0(z):
@@ -2691,9 +2639,6 @@ def r_hyppfq_arb(name):
     return lambda *args: _arb(name, *args)
 
 
-# ---------------------------------------------------------------- orthogonal polynomials
-
-
 def _poly(f, *a):
     with wdps(xd(*a[:-1]) + 20):
         return f(*a)
@@ -2777,9 +2722,6 @@ def r_hahn_q(n, big_n, a, b, x):
     return mp.mpf(int(s.p)) / int(s.q)
 
 
-# ---------------------------------------------------------------- Legendre functions
-
-
 def _legenp(n, m, x):
     """The Ferrers function P_n^m(x), with the Condon-Shortley phase, for integer m. For integer n
     and x < 0, use P_n^m(x) = (-1)^(n+m) P_n^m(-x), since mpmath may not converge near x = -1."""
@@ -2834,9 +2776,6 @@ def r_assoc_legendre_q(n, m, x):
 
 def r_assoc_legendre_qp(n, m, x):
     return mp.diff(lambda t: _legenq(n, m, t), x)
-
-
-# ---------------------------------------------------------------- distributions
 
 
 def r_bdtr(k, n, p):
@@ -3232,9 +3171,6 @@ def r_cdf_cvm_inf(x):
             k += 1
 
 
-# ---------------------------------------------------------------- Kolmogorov-Smirnov
-
-
 def _smirnov_terms(n, x, js):
     """The terms binom(n, j) (x + j/n)^(j - 1) (1 - x - j/n)^(n - j) of the Birnbaum-Tingey sum,
     for j in js."""
@@ -3351,9 +3287,6 @@ def r_kolmogci(p):
     return _invert_pos(lambda x: _kolmogorov(x)[1], p, 1)
 
 
-# ---------------------------------------------------------------- other
-
-
 def _wright_bessel(a, b, x):
     """sum_k x^k / (k! Gamma(a k + b)); all terms are nonnegative for a, b, x >= 0."""
     s, t, k, peaked, last = mp.mpf(0), mp.mpf(1), 0, False, mp.mpf(0)
@@ -3389,9 +3322,6 @@ def r_wrightomega(x):
             if abs(dw) <= mp.eps * abs(w):
                 break
         return w
-
-
-# ---------------------------------------------------------------- complex
 
 
 def _c(f):
@@ -3502,8 +3432,7 @@ def c_sph_harm_y(n, m, theta, phi):
         return mp.spherharm(int(n), int(m), theta, phi)
 
 
-# ---------------------------------------------------------------- functions of arrays
-# The scalar arguments come first, followed by the elements of the array.
+# Functions of arrays: the scalar arguments come first, followed by the elements of the array.
 
 
 def _exact(x):
@@ -3722,9 +3651,6 @@ def c_hyp0f1(b, re, im):
         v, x = b - 1, 2 * mp.sqrt(-z)
         env = mp.sqrt(abs(mp.besselj(v, x)) ** 2 + abs(mp.bessely(v, x)) ** 2)
         return mp.mpc(y), abs(mp.gamma(b)) * abs(z) ** (-v / 2) * env
-
-
-# ---------------------------------------------------------------- zeros and Gauss quadrature
 
 
 def _airy_zeros(i, k, bi=False):
@@ -3984,8 +3910,6 @@ def r_gauss(f, i, n, k, *p):
     base, scale = {"t": ("t", 1), "u": ("u", 1), "c": ("t", 2), "s": ("u", 2)}[f[-1]]
     return _gauss(i, n, k, base, scale=scale, shift=f.startswith("sh_"))
 
-
-# ---------------------------------------------------------------- specs
 
 SPECS: list[Spec] = []
 # section titles, in order, with their heading level: 2 for the groups of the crate docs
