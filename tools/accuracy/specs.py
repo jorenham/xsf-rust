@@ -2601,6 +2601,10 @@ def r_hyp2f1(a, b, c, x):
             return _arb("hyp2f1", a, b, c, x)
 
 
+# the most terms of `_pfq_series`; z = 1 - 2.2e-5 in the hyp3f2 domain needs about 5 million
+PFQ_MAX_TERMS: Final = 10**7
+
+
 def _pfq_series(a, b, z):
     """The power series of pFq for p = q + 1 as an Arb ball, for |z| < 1 or a polynomial; `b`
     contains the 1 of n!.
@@ -2622,7 +2626,7 @@ def _pfq_series(a, b, z):
             # (the upper bound of |s|, so that this also ends if s has no accuracy left)
             if rho < 1 and rest <= tol * abs(s).upper():
                 return s + t + flint.arb(0, rest.upper())
-        if k > 10**6:
+        if k > PFQ_MAX_TERMS:
             raise NoConvergence
     return s
 
