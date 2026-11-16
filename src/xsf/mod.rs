@@ -8,6 +8,8 @@
 //!   a branch depends on it;
 //! - comments that contradict the code are corrected, e.g. the value returned on a domain error
 //!   is documented as NaN instead of 0.0.
+//!
+//! In comments, "Unlike in xsf" marks an intended change, and `NOTE:` a kept C++ quirk or UB.
 
 mod airy;
 mod alg;

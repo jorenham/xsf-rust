@@ -749,9 +749,9 @@ fn rmn2l(
         sw = *r2f;
     }
 
-    // NOTE: `(int)` of NaN or +-inf is UB in C++, which is reachable here, e.g. when `*R2f`
-    // overflows, as for `c == 0`. Like g++ on x86-64, `int_x86` gives INT_MIN, so that rswfp/rswfo
-    // skip rmn2sp/rmn2so, which would otherwise return NaN or 1e300.
+    // NOTE: `(int)` of NaN or +-inf is UB (see `int_x86`), and reachable here, e.g. when `*R2f`
+    // overflows, as for `c == 0`, so that rswfp/rswfo skip rmn2sp/rmn2so, which would otherwise
+    // return NaN or 1e300.
     let id1 = int_x86((eps1 / r2f.abs() + eps).log10());
     *r2f *= a0;
 
