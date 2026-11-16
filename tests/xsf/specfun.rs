@@ -1414,3 +1414,11 @@ fn test_hyp1f1_tiny_a_early_stop() {
     let expected = c64(1.000_000_000_000_773_4, -3.516_259_387_310_227e-13);
     xsref::np_assert_allclose!([actual], [expected], rtol = 1e-12);
 }
+
+#[test]
+fn test_bernoulli_small() {
+    // B_4, B_6, B_8 = -1/30, 1/42, -1/30
+    let b = xsf::bernoulli::<9>();
+    let expected = [-1.0 / 30.0, 1.0 / 42.0, -1.0 / 30.0];
+    xsref::np_assert_allclose!([b[4], b[6], b[8]], expected, rtol = 1e-15);
+}

@@ -3,6 +3,8 @@
 
 use core::f64::consts::FRAC_2_PI;
 
+use crate::xsf::cephes::riemann_zeta;
+
 #[allow(clippy::approx_constant)]
 pub(crate) fn bernob(n: i32, bn: &mut [f64]) {
     // ======================================
@@ -25,15 +27,9 @@ pub(crate) fn bernob(n: i32, bn: &mut [f64]) {
     // C++: for (m = 4; m < (n + 1); m += 2), where `n + 1` would overflow for n = i32::MAX
     for m in (4..=n).step_by(2) {
         r1 = -r1 * f64::from(m - 1) * f64::from(m) / (tpi * tpi);
-        let mut r2 = 1.0;
-        for k in 2..10001 {
-            let s = (1.0 / f64::from(k)).powf(f64::from(m));
-            r2 += s;
-            if s < 1e-15 {
-                break;
-            }
-        }
-        bn[m as usize] = r1 * r2;
+        // Unlike in xsf, `zeta(m)` is not summed until a term is below 1e-15, as the tail of
+        // that sum is far larger, e.g. 1.9e-12 for m = 4
+        bn[m as usize] = r1 * riemann_zeta(f64::from(m));
     }
 }
 
