@@ -3,6 +3,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::utils::pow2;
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::dd_real::ldexp_f64;
 use crate::xsf::log::clog;
 
 /// Square root of complex `z`
@@ -446,6 +447,8 @@ pub(crate) trait Num:
     fn imag(self) -> f64;
     /// Whether `x` (each part, if complex) is finite
     fn is_finite(self) -> bool;
+    /// `std::ldexp(x, e)`, i.e. `x 2^e` (each part, if complex)
+    fn ldexp(self, e: i32) -> Self;
 }
 
 impl Num for f64 {
@@ -477,6 +480,10 @@ impl Num for f64 {
     fn is_finite(self) -> bool {
         f64::is_finite(self)
     }
+    #[inline]
+    fn ldexp(self, e: i32) -> Self {
+        ldexp_f64(self, e)
+    }
 }
 
 impl Num for C64 {
@@ -507,6 +514,10 @@ impl Num for C64 {
     #[inline]
     fn is_finite(self) -> bool {
         C64::is_finite(self)
+    }
+    #[inline]
+    fn ldexp(self, e: i32) -> Self {
+        c64(ldexp_f64(self.re, e), ldexp_f64(self.im, e))
     }
 }
 

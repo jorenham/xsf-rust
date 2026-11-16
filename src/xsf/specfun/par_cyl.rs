@@ -4,8 +4,8 @@ use core::f64::consts::LN_2;
 
 use crate::utils::{SQRT_TAU, neg_if_odd, pow2};
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::dd_real::ldexp_f64;
 use crate::xsf::cephes::lgam;
+use crate::xsf::complex::Num;
 
 /// The minimum order `K` of the seeds `D_{-K}` and `D_{-K-1}` of the backward recurrence
 const SEED_MIN_ORDER: usize = 40;
@@ -97,13 +97,12 @@ fn pbdn_neg(z: C64, ca0: C64, cpb: &mut [C64]) {
     if z.im.abs() > z.re && r2 < SEED_NEAR * kk as f64 {
         kk = kk.max((SEED_FAR * r2).ceil() as usize);
     }
-    let ldexp = |c: C64, e: f64| c64(ldexp_f64(c.re, e as i32), ldexp_f64(c.im, e as i32));
     let (big, small) = (pow2(RESCALE_EXP), pow2(-RESCALE_EXP));
 
     // D_{-k} and D_{-k-1} are `cfb 2^e` and `cfa 2^e`
     let (mut cfb, mut cfa, mut e) = seeds(kk as f64, z);
     if kk == n0 {
-        cpb[n0] = ldexp(cfb, e);
+        cpb[n0] = cfb.ldexp(e as i32);
     }
     for k in (0..kk).rev() {
         let mut cf = z * cfb + (k as f64 + 1.0) * cfa;
@@ -112,7 +111,7 @@ fn pbdn_neg(z: C64, ca0: C64, cpb: &mut [C64]) {
             e += f64::from(RESCALE_EXP);
         }
         if k <= n0 {
-            cpb[k] = ldexp(cf, e);
+            cpb[k] = cf.ldexp(e as i32);
         }
         (cfa, cfb) = (cfb, cf);
     }
