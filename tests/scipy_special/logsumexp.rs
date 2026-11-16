@@ -104,6 +104,25 @@ fn test_log_softmax() {
     // test_log_softmax_scalar
     np_assert_allclose!(xsf::log_softmax(&[1.0]), [0.], rtol = 1e-13);
 
+    // near 0: -ln(1 + e^-40), which `ln` of the sum rounds to 0
+    let expect = [-4.248_354_255_291_589e-18, -40.0];
+    np_assert_allclose!(xsf::log_softmax(&[0.0, -40.0]), expect, rtol = 1e-15);
+
+    // a repeated maximum: -ln(2 + 1/e) and -1 - ln(2 + 1/e)
+    let expect = [
+        -0.861_994_804_058_251_1,
+        -0.861_994_804_058_251_1,
+        -1.861_994_804_058_251,
+    ];
+    np_assert_allclose!(xsf::log_softmax(&[0.0, 0.0, -1.0]), expect, rtol = 1e-15);
+
+    // NaN propagates past a larger element
+    assert!(
+        xsf::log_softmax(&[f64::NAN, f64::INFINITY, 0.0])
+            .iter()
+            .all(|y| y.is_nan())
+    );
+
     // test_log_softmax_translation
     let x = [0.0, 1.0, 2.0, 3.0];
     // Expected value computed using mpmath (with mpmath.mp.dps = 200)

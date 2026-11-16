@@ -5949,7 +5949,7 @@ for f, r in [("softmax", r_softmax), ("log_softmax", r_log_softmax)]:
         xs_domain(LU(1e-300, 1e300, 0), index=True),
         xs_domain(U(-50, 50), INFS[:1], index=True),
         cpp=False,
-        note="arr elem" + (" log_softmax" if f == "log_softmax" else ""),
+        note="arr elem",
     )
 
 
@@ -6119,10 +6119,6 @@ NOTES |= {
         r"be NaN for $`+\infty`$, like in SciPy."
     ),
     "elem": r"Element $`j`$ or $`k`$ of the output.",
-    "log_softmax": (
-        r"Absolute error $`\sim 10^{-16}`$, so the relative error is large where the result is "
-        r"close to 0, i.e. where $`x_j`$ dominates."
-    ),
     "lame": (
         r"For $`s < k`$: $`A = \max\lvert E^p_n\rvert`$ over 129 points of $`[0, h]`$ or "
         r"$`[h, k]`$, whichever has $`s`$."

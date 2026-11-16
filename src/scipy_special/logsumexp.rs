@@ -105,6 +105,8 @@ pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
     let x_max = if x_max.is_finite() { x_max } else { 0.0 };
 
     let xs0 = xs.iter().map(|&x| x - x_max).collect::<Vec<f64>>();
-    let s = xs0.iter().map(|&x| x.exp()).sum::<f64>().ln();
+    // Unlike in SciPy, `logsumexp` takes `ln_1p` of the terms below the maximum, as the result
+    // for the maximum is about minus their sum, which `ln` of the whole sum rounds away
+    let s = logsumexp(&xs0);
     xs0.iter().map(|&x| x - s).collect()
 }
