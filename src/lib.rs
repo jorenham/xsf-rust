@@ -170,7 +170,7 @@
 //! | [`fdtr`]     | Cumulative distribution function                       |
 //! | [`fdtrc`]    | Complement of [`fdtr`]                                 |
 //! | [`fdtri`]    | Inverse of [`fdtr`]                                    |
-//! | [`fdtridfd`] | Inverse of [`fdtr(a, b, x)`](fdtr) with respect to `b` |
+//! | [`fdtridfd`] | Inverse of [`fdtr`] with respect to `dfd`              |
 //!
 //! ## Noncentral F distribution
 //!

@@ -40,11 +40,11 @@ pub fn stdtridf(p: f64, t: f64) -> f64 {
     limit_if_p_is_0_or_1(p, t > 0.0).unwrap_or_else(|| find_df_root(func, t > 0.0))
 }
 
-/// Inverse of [`fdtr`](crate::fdtr) with respect to `b`
+/// Inverse of [`fdtr`](crate::fdtr) with respect to `dfd`
 ///
 /// Corresponds to [`scipy.special.fdtridfd`][fdtridfd].
 ///
-/// For `f < 1`, `fdtr` can peak in `b`, so that there can be two roots, of which one is returned.
+/// For `f < 1`, `fdtr` can peak in `dfd`, so that there can be two roots, of which one is returned.
 /// The same goes for [`ncfdtridfd`] and [`ncfdtridfn`].
 ///
 /// [fdtridfd]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.fdtridfd.html

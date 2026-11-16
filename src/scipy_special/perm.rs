@@ -20,6 +20,10 @@ use num_traits::{ConstOne, NumOps, Zero};
 /// The number of $k$-permutations of $n$, i.e. $n(n-1)(n-2) \cdots (n-k+1)$, which is 0 if $n$ is a
 /// non-negative integer below $k$ (unless a partial product overflows)
 ///
+/// # Panics
+/// - For an integer `N`, in debug builds, if a factor or partial product overflows (release builds
+///   wrap around).
+///
 /// # See also
 /// - [`comb`](crate::comb): $k$-combinations of $n$ things, $_nC_k$
 /// - [`factorial`](crate::factorial): factorial $n!$, the special case $k = n$
