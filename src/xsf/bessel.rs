@@ -2153,13 +2153,21 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
 
     let size = v1.to_usize().unwrap() + 1;
     let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
+    // Unlike in SciPy, these get `|x|`, and the derivatives are negated for `x < 0`, as
+    // `Lambda_v` is even: `lamv` returns the derivatives at `|x|`, and `lamn` loses accuracy for
+    // large negative `x` (e.g. 1e15 for `v = 2`, `x = -60`)
     if v == n.to_f64().unwrap() {
         let mut nm = 0;
         let n = v1.to_usize().unwrap().try_into().unwrap();
-        specfun::lamn(n, x, &mut nm, &mut vl, &mut dl);
+        specfun::lamn(n, x.abs(), &mut nm, &mut vl, &mut dl);
     } else {
         let mut vm = 0.0;
-        specfun::lamv(v1, x, &mut vm, &mut vl, &mut dl);
+        specfun::lamv(v1, x.abs(), &mut vm, &mut vl, &mut dl);
+    }
+    if x < 0.0 {
+        for d in &mut dl {
+            *d = -*d;
+        }
     }
 
     vl.resize(n + 1, f64::NAN);
