@@ -46,6 +46,24 @@ fn test_logsumexp() {
     );
 }
 
+#[test]
+fn test_logsumexp_tied_max() {
+    // ln(2 + 1/e)
+    let xs = [0.0, 0.0, -1.0];
+    np_assert_allclose!(
+        [xsf::logsumexp(&xs)],
+        [0.861_994_804_058_251_1],
+        rtol = 1e-15
+    );
+}
+
+#[test]
+fn test_logsumexp_nan() {
+    for xs in [[f64::NAN, 0.0], [f64::NAN, f64::INFINITY], [0.0, f64::NAN]] {
+        assert!(xsf::logsumexp(&xs).is_nan());
+    }
+}
+
 /// Corresponds to `TestSoftmax.test_softmax_fixtures`.
 #[test]
 fn test_softmax() {
