@@ -44,6 +44,7 @@
 
 use core::f64::consts::{FRAC_1_PI, PI};
 
+use crate::digamma;
 use crate::utils::{is_nonpos_int, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::lanczos::LANCZOS_G;
@@ -59,10 +60,6 @@ const HYP2F1_EPS: f64 = 1e-15;
  * at a reasonable level of accuracy. We've bumped the iteration limit to 3000,
  * and may adjust it again based on further analysis. */
 const HYP2F1_MAXITER: u64 = 3000;
-
-fn digamma(x: f64) -> f64 {
-    crate::digamma(x)
-}
 
 /// `tools::series_eval` with the tolerance and term limit of hyp2f1
 fn series_eval(g: impl FnMut() -> C64) -> C64 {

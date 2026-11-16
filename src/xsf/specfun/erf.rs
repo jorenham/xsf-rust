@@ -1,6 +1,6 @@
 //! `cerf` and `cerzo`, translated into pure Rust from `xsf/specfun/specfun.h` (scipy/xsf@65d313a).
 
-use core::f64::consts::{FRAC_2_SQRT_PI, PI, TAU};
+use core::f64::consts::{FRAC_2_PI, FRAC_2_SQRT_PI, PI, TAU};
 
 use super::deflated_newton_step;
 use crate::utils::SQRT_PI;
@@ -97,7 +97,7 @@ fn cerf(z: C64, cer: &mut C64, cder: &mut C64) {
             let e0 = (-0.25 * n * n - x2).exp();
             2.0 * x * e0 - 2.0 * x * ch * cs + n * sh * ss
         });
-        c0 = 2.0 / PI;
+        c0 = FRAC_2_PI;
         let err = cer.re + er1 + c0 * er2;
         let ei2 = series(x, y, |n, ch, sh| 2.0 * x * ch * ss + n * sh * cs);
         *cer = c64(err, ei1 + c0 * ei2);
