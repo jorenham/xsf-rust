@@ -113,6 +113,25 @@ fn test_hypu_tiny_a() {
 }
 
 #[test]
+fn test_hypu_tiny_a_x_below_b() {
+    // Arb, for x < b, where the asymptotic series is 1; 1220.1739 in xsf
+    let abx = [
+        (1e-15, 35.0 + 1e-14, 4.0),
+        (-1e-16, 54.0 - 1e-3, 9.3),
+        (1e-12, 51.0 - 1e-5, 19.0),
+        (4e-15, 28.0 + 1.4e-4, 5.9),
+    ];
+    let expected = [
+        1_829.955_866_859_770_1,
+        -50_259.716_622_619_83,
+        1.000_020_655_722_755_4,
+        1.000_001_176_181_804,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_hypu_x0() {
     // DLMF 13.2.7; +inf in xsf
     let actual = [xsf::hypu(0.0, 3.42, 0.0), xsf::hypu(-2.0, 5.0, 0.0)];
@@ -536,6 +555,14 @@ fn test_hypu_large_a() {
         3.282_468_195_642_108,
     );
     xsref::np_assert_allclose!([actual], [2.923_069_295_358_514e-124], rtol = 1e-13);
+
+    // Arb; by the asymptotic series, where chgus and chguit overflow, or chgus has too few digits
+    let actual = [
+        xsf::hypu(172.0, 173.000_000_000_000_03, 50.0),
+        xsf::hypu(171.0, 172.000_000_000_000_03, 50.0),
+    ];
+    let expected = [5.986_310_706_507_632e-293, 2.993_155_353_253_815_5e-291];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
 }
 
 #[test]

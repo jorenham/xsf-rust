@@ -1200,8 +1200,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
 /// Here (scipy/xsf#380):
 ///
-/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` excludes
-///    integer `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
+/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
+///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
 ///    the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
@@ -1214,7 +1214,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 ///      cancellation of its two starting values)
 /// 3. If `hu0` has 9 to 11 digits, or more than step 2 (and isn't NaN), the result of step 2 only
 ///    replaces it if the two agree within 10 times its error estimate (step 2 can be far off, e.g.
-///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`.
+///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`. If neither has `ID_ACCEPT`
+///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|`, and kept if it has more.
 ///
 /// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
@@ -1237,6 +1238,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf (scipy/xsf#380), chgus and chgul need 12 digits (instead of 9) to be returned
     // at once (step 1); chgubi needs as many to be kept as is (step 2)
     const ID_MIN: i32 = 12;
+    // results with fewer digits are flagged (and NaN in `hypu`)
+    const ID_ACCEPT: i32 = 6;
 
     let mut id1: i32 = 0;
     let mut hu = 0.0;
@@ -1252,10 +1255,11 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     let bl2 = (x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0));
     let bl3 = (x > 12.5) && (a >= 5.0) && (b >= a + 5.0);
     let bn = b.fract() == 0.0 && b != 0.0;
-    // Unlike in xsf (scipy/xsf#380), conservatively not for integer b > 1 and x <= |b - 2a|: the
-    // error bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for
-    // tiny a the series overestimates its digits
-    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !(bn && b > 1.0 && x <= (b - 2.0 * a).abs());
+    // Unlike in xsf (scipy/xsf#380), conservatively not for b > 1 and x <= |b - 2a|: the error
+    // bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for tiny a
+    // the series overestimates its digits (e.g. it is 1 for U(1e-15, 35 + 1e-14, 4) = 1830)
+    let unbounded = b > 1.0 && x <= (b - 2.0 * a).abs();
+    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !unbounded;
 
     let mut id = -100;
     let mut hu1 = 0.0;
@@ -1271,7 +1275,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf (scipy/xsf#380), chgul is also tried for a < 1 and b > a, with b zero or
     // non-integer, before the recurrence in a below (not for |a| < 1.1e-16, where `a + 1 - 1`
     // rounds to 0 in chgul)
-    let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0;
+    let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0 && !unbounded;
     if il1 || il2 || il3 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
@@ -1345,6 +1349,17 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if hu.is_nan() && hu0.is_finite() {
         (hu, id) = (hu0, id0);
     }
+    // Unlike in xsf, chgul is the last resort where it was skipped as `unbounded`, e.g. for
+    // U(172, 173 + 3e-14, 50), where chgus and chguit overflow, and U(171, 172 + 3e-14, 50), where
+    // chgus has too few digits
+    if unbounded && (hu.is_nan() || id < ID_ACCEPT) {
+        let mut id_l = 0;
+        let u = chgul(x, a, b, &mut id_l);
+        if hu.is_nan() || id_l > id {
+            (hu, id) = (u, id_l);
+            *md = 2;
+        }
+    }
     // Step 3. Unlike in xsf, also if step 1 has more digits than step 2, e.g. if chguit doesn't
     // converge
     if (id0 >= 9 || id0 > id) && !hu0.is_nan() {
@@ -1355,7 +1370,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         }
         id = id.max(id0);
     }
-    if id < 6 {
+    if id < ID_ACCEPT {
         *isfer = 6;
     }
     hu
