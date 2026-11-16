@@ -1128,6 +1128,50 @@ fn test_jahnke_emden_lambda_tiny_x() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_high_orders() {
+    // mpmath; the recurrence of `lamn` starts at order 328 for `x = 60`
+    let (vl, dl) = xsf::jahnke_emden_lambda(500, 60.0);
+    let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
+    let expected = [
+        0.064_658_649_612_803_2,
+        0.105_325_332_091_226_67,
+        0.165_358_932_985_256_56,
+        -0.005_927_303_686_869_632,
+        -0.007_924_190_401_755_885,
+        -0.009_937_421_238_798_044,
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
+fn test_jahnke_emden_lambda_negative_x() {
+    // mpmath: Lambda_v(-60) and Lambda_v'(-60) for v = 2 and 1.5
+    for (v, expected) in [
+        (2.0, [2.067_224_078_837_053_6e-4, -8.977_047_004_812_257e-5]),
+        (1.5, [7.894_440_028_306_55e-4, 2.934_810_510_600_466_6e-4]),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, -60.0);
+        let actual = [vl[vl.len() - 1], dl[dl.len() - 1]];
+        np_assert_allclose!(actual, expected, rtol = 1e-13);
+    }
+    // Lambda_v is even, so Lambda_v' is odd
+    for v in [2.0, 1.5, 500.0] {
+        for x in [2.0, 20.0, 60.0] {
+            let ((vl, dl), (vln, dln)) = (
+                xsf::jahnke_emden_lambda(v, x),
+                xsf::jahnke_emden_lambda(v, -x),
+            );
+            assert_eq!(vln, vl, "v = {v}, x = {x}");
+            assert_eq!(
+                dln,
+                dl.iter().map(|d| -d).collect::<Vec<_>>(),
+                "v = {v}, x = {x}"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {
