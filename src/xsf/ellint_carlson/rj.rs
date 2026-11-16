@@ -492,7 +492,22 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             AsymFlag::Hugep => {
                 /* Ref[2], Eq. 19.27.11 <https://dlmf.nist.gov/19.27.E11> */
                 (status, tmpres) = rf(xr, yr, zr, rerr * 0.5);
-                tmpres = 3.0 * (tmpres - 0.5 * constants::PI / pr.sqrt()) / pr;
+                // Unlike in xsf, with the next terms `6 R_G / p^2 - 9 pi c / (4 p^(5/2))`, so that
+                // the relative error is `O((c / p)^2)` instead of `O(c / p)`, with `c` the mean of
+                // `x, y, z`. They follow from expanding `1 / (t + p)` in the integral of `R_J`,
+                // where the finite part of `int t ((t + x) (t + y) (t + z))^(-1/2) dt` is
+                // `-4 R_G(x, y, z)`. The `R_G` term is at most `2 c / p` relative to `R_F`, as
+                // `R_G <= sqrt(c)` and `R_F >= 1 / sqrt(c)`, so it is skipped if that is below
+                // 2^-55.
+                if config.c / pr > const { pow2(-56) } {
+                    let (status_g, res_g) = rg(xr, yr, zr, rerr * 0.5);
+                    if status_g != ExitStatus::Success {
+                        status = status_g;
+                    }
+                    tmpres += 2.0 * res_g / pr;
+                }
+                let pi_term = 0.5 * constants::PI / pr.sqrt() * (1.0 + 1.5 * config.c / pr);
+                tmpres = 3.0 * (tmpres - pi_term) / pr;
             },
             AsymFlag::Tinyp => {
                 /* Ref[6], Table 2 and Theorem 11 (Eq. 4.12) */

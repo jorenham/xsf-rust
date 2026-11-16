@@ -491,6 +491,18 @@ fn test_elliprj_huge_p() {
         c64(2.823_207_063_998_397e119, -9.080_078_177_962_23e118),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // the asymptotic form for `z / p <= 5e-14`
+    let actual = [
+        xsf::elliprj(1.0, 2.0, 3.0, 1e14),
+        xsf::elliprj(0.0, 0.5, 7.0, 2e14),
+    ];
+    // Arb
+    let expected = [
+        2.180_837_335_167_910_8e-14, // 2.1808373351679106680e-14
+        1.551_984_603_581_836e-14,   // 1.5519846035818361032e-14
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]
