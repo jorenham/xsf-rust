@@ -1,4 +1,4 @@
-use core::f64::consts::{FRAC_PI_4, PI, SQRT_2};
+use core::f64::consts::{PI, SQRT_2};
 
 use num_complex::Complex64;
 
@@ -398,192 +398,6 @@ pub fn airy_integrals(mut x: f64) -> [f64; 4] {
     [apt, bpt, ant, bnt]
 }
 
-fn airyb(x: f64, ai: &mut f64, bi: &mut f64, ad: &mut f64, bd: &mut f64) {
-    // =======================================================
-    // Purpose: Compute Airy functions and their derivatives
-    // Input:   x  --- Argument of Airy function
-    // Output:  AI --- Ai(x)
-    //          BI --- Bi(x)
-    //          AD --- Ai'(x)
-    //          BD --- Bi'(x)
-    // =======================================================
-
-    const EPS: f64 = 1.0e-15;
-    const C1: f64 = 0.355028053887817;
-    const C2: f64 = 0.258819403792807;
-    const SR3: f64 = 1.732050807568877;
-
-    let mut km: i32;
-    let mut km2: i32;
-    let kmax: i32;
-    let mut ck = [0.0_f64; 52];
-    let mut dk = [0.0_f64; 52];
-    let mut r: f64;
-
-    km2 = 0;
-    let xa = x.abs();
-    let xq = xa.sqrt();
-    let mut xm = 8.0;
-    if x > 0.0 {
-        xm = 5.0;
-    }
-
-    if x == 0.0 {
-        *ai = C1;
-        *bi = SR3 * C1;
-        *ad = -C2;
-        *bd = SR3 * C2;
-        return;
-    }
-
-    if xa <= xm {
-        let mut fx = 1.0;
-        r = 1.0;
-        for k in 1..=40 {
-            r = r * x / (3.0 * f64::from(k)) * x / (3.0 * f64::from(k) - 1.0) * x;
-            fx += r;
-            if r.abs() < fx.abs() * EPS {
-                break;
-            }
-        }
-
-        let mut gx = x;
-        r = x;
-        for k in 1..=40 {
-            r = r * x / (3.0 * f64::from(k)) * x / (3.0 * f64::from(k) + 1.0) * x;
-            gx += r;
-            if r.abs() < gx.abs() * EPS {
-                break;
-            }
-        }
-
-        *ai = C1 * fx - C2 * gx;
-        *bi = SR3 * (C1 * fx + C2 * gx);
-
-        let mut df = 0.5 * x * x;
-        r = df;
-        for k in 1..=40 {
-            r = r * x / (3.0 * f64::from(k)) * x / (3.0 * f64::from(k) + 2.0) * x;
-            df += r;
-            if r.abs() < df.abs() * EPS {
-                break;
-            }
-        }
-
-        let mut dg = 1.0;
-        r = 1.0;
-        for k in 1..=40 {
-            r = r * x / (3.0 * f64::from(k)) * x / (3.0 * f64::from(k) - 2.0) * x;
-            dg += r;
-            if r.abs() < dg.abs() * EPS {
-                break;
-            }
-        }
-
-        *ad = C1 * df - C2 * dg;
-        *bd = SR3 * (C1 * df + C2 * dg);
-    } else {
-        // NOTE: `(int)(24.5 - xa)` is UB in C++ if `xa` is NaN or `xa > 24.5 + 2^31`:
-        // - huge `xa`: `km` is overwritten below (`xa > 15`)
-        // - NaN `x`: `km` is 0 here (INT_MIN in C++ on x86-64); all outputs are NaN either way
-        km = (24.5 - xa) as i32;
-        if xa < 6.0 {
-            km = 14;
-        }
-        if xa > 15.0 {
-            km = 10;
-        }
-
-        if x > 0.0 {
-            kmax = km;
-        } else {
-            // Choose cutoffs so that the remainder term in asymptotic
-            // expansion is epsilon size. The X<0 branch needs to be fast
-            // in order to make AIRYZO efficient
-            if xa > 70.0 {
-                km = 3;
-            }
-            if xa > 500.0 {
-                km = 2;
-            }
-            if xa > 1000.0 {
-                km = 1;
-            }
-
-            km2 = km;
-            if xa > 150.0 {
-                km2 = 1;
-            }
-            if xa > 3000.0 {
-                km2 = 0;
-            }
-            kmax = 2 * km + 1;
-        }
-        let xe = xa * xq / 1.5;
-        let xr1 = 1.0 / xe;
-        let xar = 1.0 / xq;
-        let xf = xar.sqrt();
-        let rp = 0.5641895835477563;
-        r = 1.0;
-        for k in 1..=kmax {
-            r = r * (6.0 * f64::from(k) - 1.0) / 216.0 * (6.0 * f64::from(k) - 3.0) / f64::from(k)
-                * (6.0 * f64::from(k) - 5.0)
-                / (2.0 * f64::from(k) - 1.0);
-            ck[(k - 1) as usize] = r;
-            dk[(k - 1) as usize] = -(6.0 * f64::from(k) + 1.0) / (6.0 * f64::from(k) - 1.0) * r;
-        }
-
-        if x > 0.0 {
-            let mut sai = 1.0;
-            let mut sad = 1.0;
-            r = 1.0;
-            for k in 1..=km {
-                r *= -xr1;
-                sai += ck[(k - 1) as usize] * r;
-                sad += dk[(k - 1) as usize] * r;
-            }
-            let mut sbi = 1.0;
-            let mut sbd = 1.0;
-            r = 1.0;
-            for k in 1..=km {
-                r *= xr1;
-                sbi += ck[(k - 1) as usize] * r;
-                sbd += dk[(k - 1) as usize] * r;
-            }
-            let xp1 = (-xe).exp();
-            *ai = 0.5 * rp * xf * xp1 * sai;
-            *bi = rp * xf / xp1 * sbi;
-            *ad = -0.5 * rp / xf * xp1 * sad;
-            *bd = rp / xf / xp1 * sbd;
-        } else {
-            let xcs = (xe + FRAC_PI_4).cos();
-            let xss = (xe + FRAC_PI_4).sin();
-            let mut ssa = 1.0;
-            let mut sda = 1.0;
-            r = 1.0;
-            let xr2 = 1.0 / (xe * xe);
-            for k in 1..=km {
-                r *= -xr2;
-                ssa += ck[(2 * k - 1) as usize] * r;
-                sda += dk[(2 * k - 1) as usize] * r;
-            }
-            let mut ssb = ck[0] * xr1;
-            let mut sdb = dk[0] * xr1;
-            r = xr1;
-            for k in 1..=km2 {
-                r *= -xr2;
-                ssb += ck[(2 * k) as usize] * r;
-                sdb += dk[(2 * k) as usize] * r;
-            }
-
-            *ai = rp * xf * (xss * ssa - xcs * ssb);
-            *bi = rp * xf * (xcs * ssa + xss * ssb);
-            *ad = -rp / xf * (xcs * sda + xss * sdb);
-            *bd = rp / xf * (xss * sda - xcs * sdb);
-        }
-    }
-}
-
 fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: &mut [f64]) {
     // ========================================================
     // Purpose: Compute the first NT zeros of Airy functions
@@ -603,10 +417,12 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
     //          XC(m) --- Ai(a') or Bi(b')
     //          XD(m) --- Ai'(a) or Bi'(b)
     //                    ( m --- Serial number of zeros )
-    // Routine called: AIRYB for computing Airy functions and
-    //                 their derivatives
     // =======================================================
 
+    // Unlike in xsf, the Newton steps evaluate `airy` instead of specfun's `airyb`, whose power
+    // series loses up to 5 digits to cancellation for -8 <= x < 0 (and so the first 5 zeros of
+    // each kind); `airy` is accurate there and also faster.
+    //
     // NOTE: for `kf` other than 1 or 2 (not reachable from the public API), `rt` stays 0, so
     // `err` is NaN and the Newton loops never terminate (in C++ as well).
     let mut rt = 0.0;
@@ -614,7 +430,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
     let mut u = 0.0;
     let mut u1 = 0.0;
     let mut x: f64;
-    let (mut ai, mut bi, mut ad, mut bd) = (0.0, 0.0, 0.0, 0.0);
+    let (mut ai, mut bi, mut ad, mut bd): (f64, f64, f64, f64);
     let mut err: f64;
 
     for i in 1..=nt {
@@ -642,7 +458,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         loop {
             x = rt0;
-            airyb(x, &mut ai, &mut bi, &mut ad, &mut bd);
+            [ai, ad, bi, bd] = airy_f64(x);
 
             if kf == 1 {
                 rt = rt0 - ai / ad;
@@ -659,7 +475,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         xa[(i - 1) as usize] = rt;
         if err > 1.0e-14 {
-            airyb(rt, &mut ai, &mut bi, &mut ad, &mut bd);
+            [_, ad, _, bd] = airy_f64(rt);
         }
 
         if kf == 1 {
@@ -699,7 +515,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         loop {
             x = rt0;
-            airyb(x, &mut ai, &mut bi, &mut ad, &mut bd);
+            [ai, ad, bi, bd] = airy_f64(x);
 
             if kf == 1 {
                 rt = rt0 - ad / (ai * x);
@@ -716,7 +532,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
         xb[(i - 1) as usize] = rt;
 
         if err > 1.0e-14 {
-            airyb(rt, &mut ai, &mut bi, &mut ad, &mut bd);
+            [ai, _, bi, _] = airy_f64(rt);
         }
 
         if kf == 1 {
