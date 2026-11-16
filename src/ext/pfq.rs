@@ -17,10 +17,6 @@ use crate::xsf::cephes::dd_real::{
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet used outside of the tests")
-)]
 mod conformal;
 
 /// Maximum number of terms of `pfq_series`
@@ -551,10 +547,12 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 
 /// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate
 ///
-/// `b` contains the 1 of `n!`.
+/// `b` contains the 1 of `n!`. Unless it is a polynomial, the last method is `pfq_conformal`,
+/// which is the slowest.
 pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
-    let methods: &[Method<P>] = if first_zero(a.as_ref()).is_finite() || z > PFQ_WENIGER_MAX_Z {
+    let polynomial = first_zero(a.as_ref()).is_finite();
+    let methods: &[Method<P>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
         &[pfq_weniger, series]
@@ -565,7 +563,9 @@ pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     } else {
         &[pfq_continuation, pfq_weniger]
     };
-    methods.iter().find_map(|method| accurate(method(a, b, z)?))
+    let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
+    let mut methods = methods.iter().chain(&last);
+    methods.find_map(|method| accurate(method(a, b, z)?))
 }
 
 /// The result `y`, if it is finite and its estimated absolute error is at most `PFQ_TOL |y|`
@@ -661,8 +661,9 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// If the relative error could exceed about $10^{-13}$:
 ///
 /// - at $z = 1$, unless a parameter cancels so that Gauss's sum applies, and for
-///   $0.996 \lesssim z < 1$;
-/// - for $z < -1$ if two $a_i$ differ by an integer (nearly always for $z < -3$);
+///   $1 - 10^{-5} \lesssim z < 1$;
+/// - for $z < -1$ if two $a_i$ differ by an integer: often for $z < -10$, and nearly always
+///   for $z \lesssim -10^6$;
 /// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
