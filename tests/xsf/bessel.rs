@@ -54,6 +54,20 @@ fn test_bessel_i_near_negative_integer() {
 }
 
 #[test]
+fn test_bessel_miller_normalization() {
+    // 2 < |z| < 21.8, where AMOS uses the Miller algorithm; Arb references
+    let actual = [
+        xsf::bessel_j(-0.3, c64(14.0, 3.0)),
+        xsf::bessel_i(0.3, c64(18.2, 0.5)),
+    ];
+    let expected = [
+        c64(0.732_258_715_423_858, -1.985_838_727_686_285_7),
+        c64(6_659_440.736_169_231, 3_519_109.449_188_194_2),
+    ];
+    np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_bessel_i_small_x_k_overflow() {
     // mpmath: besseli(46.408, 9.696e-6) = 8.8291863067264228e-306,
     // besseli(-40.00000109418565, 4.4076818963921526e-7) = 4.1828779773220576e306, and

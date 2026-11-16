@@ -1072,6 +1072,110 @@ I_OVERRIDES: Final = (
         " intermediate",
     ),
 )
+# AMOS's `rl` and `fnul`, computed as in `MACH` of `amos.rs`
+AMOS_DIG: Final = min(52 * math.log10(2), 18)
+AMOS_RL: Final = 1.2 * AMOS_DIG + 3
+AMOS_FNUL: Final = 10 + 6 * (AMOS_DIG - 3)
+
+
+def _amos_not_j(a: tuple[float, ...]) -> bool:
+    """Whether J_v(x) isn't computed by `besj`: NaN for a non-integer v and x < 0, `besh` for
+    `v <= fnul < x` (`amos_j`), or `ierr = 4` above `0.5 / eps`."""
+    v, x = a
+    nan = x < 0 and not v.is_integer()
+    return nan or abs(v) <= AMOS_FNUL < x or max(abs(v), abs(x)) > 2**51
+
+
+# `ZUNHJ_GAMA` of `amos.rs`: the power series of `zeta / w2` in `w2 = 1 - (x / n)^2` of `unhj`
+AMOS_GAMA: Final = (
+    6.29960524947436582e-01, 2.51984209978974633e-01, 1.54790300415655846e-01,
+    1.10713062416159013e-01, 8.57309395527394825e-02, 6.97161316958684292e-02,
+    5.86085671893713576e-02, 5.04698873536310685e-02, 4.42600580689154809e-02,
+    3.93720661543509966e-02, 3.54283195924455368e-02, 3.21818857502098231e-02,
+    2.94646240791157679e-02, 2.71581677112934479e-02, 2.51768272973861779e-02,
+    2.34570755306078891e-02, 2.19508390134907203e-02, 2.06210828235646240e-02,
+    1.94388240897880846e-02, 1.83810633800683158e-02, 1.74293213231963172e-02,
+    1.65685837786612353e-02, 1.57865285987918445e-02, 1.50729501494095594e-02,
+    1.44193250839954639e-02, 1.38184805735341786e-02, 1.32643378994276568e-02,
+    1.27517121970498651e-02, 1.22761545318762767e-02, 1.18338262398482403e-02,
+)  # fmt: skip
+
+
+def _amos_airy_arg(x: float, n: float) -> tuple[float, float]:
+    """The Airy argument `n^(2/3) zeta` of `unhj` for J_n(x) with x > 0, rounded as in AMOS (its
+    `C64` operations reduce to these, as the imaginary parts are 0 or negligible)."""
+    zb = x * (1 / n)
+    w2 = 1 - zb * zb
+    if abs(w2) <= 0.25:
+        p, suma, ap = 1.0, AMOS_GAMA[0], 1.0
+        if abs(w2) >= 2**-52:
+            for g in AMOS_GAMA[1:]:
+                p *= w2
+                suma += p * g
+                ap *= abs(w2)
+                if ap < 2**-52:
+                    break
+        zeta = (w2 * suma, 0.0)
+    elif w2 > 0:
+        return (1.0, 0.0)  # positive, so `airy` doesn't call `acai`
+    else:
+        # `w = t i`, `za = (1 + w) / zb`, and `zth = 3/2 (ln(za) - w)`, whose real part (from
+        # ln|za| ~ eps, clamped to >= 0) doesn't change `|zth| = -zth.im`, so its angle is 3 pi/2
+        t = math.sqrt(-w2)
+        zci = min(max(math.atan2(t / zb, 1 / zb), 0.0), 1.57079632679489662)
+        pp, ang = ((t - zci) * 1.5) ** (2 / 3), 4.71238898038468986 * (2 / 3)
+        zeta = (pp * math.cos(ang), max(pp * math.sin(ang), 0.0))
+    fn13 = n ** (1 / 3)
+    return (zeta[0] * (fn13 * fn13), zeta[1] * (fn13 * fn13))
+
+
+def _amos_acai_mlri(arg: tuple[float, float]) -> bool:
+    """Whether `airy` of `arg` calls `acai`, and that `mlri`, for Ai (order 1/3) or Ai' (2/3)."""
+    zr, zi = arg
+    if zr > 0 or math.hypot(zr, zi) <= 1:
+        return False
+    # `zta = 2/3 z sqrt(z)`, with `csqrt(z)` for `zr < 0`, and `|zta| = |zta.im|` where `zi = 0`
+    t = math.sqrt((-zr + math.hypot(zr, zi)) * 0.5)
+    rx, ry = abs(zi) / (2 * t), math.copysign(t, zi)
+    zta = ((zr * rx - zi * ry) * (2 / 3), (zr * ry + zi * rx) * (2 / 3))
+    az = abs(zta[1]) if zi == 0 else math.hypot(zta[0], zta[1])
+    return any(2 < az < AMOS_RL and az * az * 0.25 > f + 1 for f in (1 / 3, 2 / 3))
+
+
+def _amos_airy_mlri(a: tuple[float, ...]) -> bool:
+    """Whether `besj` computes J_v(x) with Airy functions (`binu` -> `buni` -> `uni2`), whose
+    `acai` uses `mlri`."""
+    v, x = abs(a[0]), abs(a[1])
+    # `binu` uses `buni` for `max(v, x) > fnul`, unless `asyi` for `2 x >= v^2`
+    if _amos_not_j(a) or max(v, x) <= AMOS_FNUL or 2 * x >= v * v:
+        return False
+    # `buni` evaluates `uni2` at the orders `v + nui` and `v + nui + 1` if `nui > 0`
+    nui = max(int(AMOS_FNUL - v) + 1, 0)
+    orders = (v + nui, v + nui + 1) if nui else (v,)
+    return any(_amos_acai_mlri(_amos_airy_arg(x, n)) for n in orders)
+
+
+def _amos_binu_mlri(a: tuple[float, ...]) -> bool:
+    """Whether `besj` computes J_v(x) with `mlri` in `binu`: outside of its power series
+    (`seri`), for `x < rl` and v <= fnul (else `buni`), or at `x = rl` unless `asyi`."""
+    v, x = abs(a[0]), abs(a[1])
+    if _amos_not_j(a) or x <= 2 or x * x / 4 <= v + 1 or v > AMOS_FNUL:
+        return False
+    return x < AMOS_RL or x == AMOS_RL and 2 * x < v * v
+
+
+J_AIRY_FLOOR: Final = Floor(
+    _amos_airy_mlri,
+    2e-15,
+    "AMOS's Miller algorithm (`mlri`) for Airy functions is more accurate than in xsf, but"
+    " rounds differently (7.1e-15 at (442, 481.23), where xsf has 1.8e-15)",
+)
+J_MILLER_FLOOR: Final = Floor(
+    _amos_binu_mlri,
+    5e-16,
+    "AMOS's Miller algorithm (`mlri`) is more accurate than in xsf, but its rounding depends"
+    " on the platform's libm (1.05e-15 at (6.67, 6.67) on macOS and Windows)",
+)
 I_FLOOR: Final = Floor(
     lambda a: a[0] < 0 and not a[0].is_integer(),
     3e-16,
@@ -1163,6 +1267,7 @@ def _bessel_v() -> dict[tuple[str, str], Entry]:
                 not_real("J_v"),
                 *_poles_at_0("J_v", _j_pole),
                 overrides=J_OVERRIDES,
+                floors=(J_AIRY_FLOOR, J_MILLER_FLOOR),
             ),
             entry("je", j, specs.ARB["bessel_j"], not_real("J_v")),
             entry(

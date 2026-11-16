@@ -141,6 +141,43 @@ fn test_hyp0f1_large_negative_z() {
 }
 
 #[test]
+fn test_hyp0f1_complex_large_z() {
+    // where `sqrt(-z)` is not exact, which shifts the argument of `J`; Arb references
+    np_assert_allclose!(
+        [hyp0f1(0.5, c64(-1e8, 10.0)), hyp0f1(2.3, c64(-1e6, 0.5))],
+        [
+            c64(0.813_200_097_194_249_9, 0.000_581_984_859_012_089_5),
+            c64(1.669_670_181_234_794_6e-6, -1.009_120_641_436_902_8e-9),
+        ],
+        rtol = 1e-14
+    );
+}
+
+#[test]
+fn test_hyp0f1_complex_prefactor_overflow() {
+    // where Gamma(b) or |z|^((1-b)/2) over- or underflows; Arb references
+    np_assert_allclose!(
+        [
+            hyp0f1(200.0, c64(-1e6, 0.0)),
+            hyp0f1(60.5, c64(-1.2e12, 0.0)),
+            hyp0f1(-200.5, c64(-1e6, 10.0)),
+            // the prefactor underflows, but not the result
+            hyp0f1(100.0, c64(-1e12, 6e8)),
+            // the prefactor overflows, but not the result (J_-201.5 itself has 3.7e-12 here)
+            hyp0f1(-200.5, c64(-6_419_513.856_144_281, 1_013.470_386_041_489_2)),
+        ],
+        [
+            c64(7.033_286_824_840_678e-227, 0.0),
+            c64(2.542_862_730_728_592_6e-282, 0.0),
+            c64(-7.063_051_849_311_629e226, -1.346_609_895_131_63e225),
+            c64(9.749_203_779_137_917e-182, 1.900_960_397_697_128_3e-182),
+            c64(1.791_080_341_627_737_6e308, -6.562_898_362_614_055e307),
+        ],
+        rtol = 1e-11
+    );
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion

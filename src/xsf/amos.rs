@@ -126,6 +126,7 @@ use core::f64::consts::{LN_2, LN_10};
 use crate::utils::{SQRT_3, neg_if_odd};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
+use crate::xsf::cephes::{gamma, poch};
 
 #[rustfmt::skip]
 const D1MACH: [f64; 5] = [
@@ -4148,8 +4149,9 @@ fn mlri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64) -> i32 {
     p2 = c64(scle, 0.0);
     let fnf: f64 = fnu - f64::from(ifnu);
     let tfnf: f64 = fnf + fnf;
-    bk = gamln(fkk + tfnf + 1.0) - gamln(fkk + 1.0) - gamln(tfnf + 1.0);
-    bk = bk.exp();
+    // Unlike in xsf, this binomial coefficient isn't `exp` of a difference of `gamln`s, which
+    // loses up to ~250 eps for `|z|` near `rl`
+    bk = poch(fkk + 1.0, tfnf) / gamma(tfnf + 1.0);
     sum = C64::ZERO;
     let km: i32 = kk - inu;
     for _ in 1..=km {
@@ -4193,8 +4195,11 @@ fn mlri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64) -> i32 {
     if kode == 2 {
         pt -= x;
     }
-    p1 = -fnf * rz.ln() + pt;
+    // Unlike in xsf, `exp(z)` is a separate factor, as the rounding of the sum in its argument
+    // loses ~|z| eps
+    p1 = -fnf * rz.ln();
     ap = gamln(1. + fnf);
+    let ez = pt.exp();
     pt = p1 - ap;
     //
     // THE DIVISION EXP(PT)/(SUM+P2) IS ALTERED TO AVOID OVERFLOW
@@ -4203,7 +4208,7 @@ fn mlri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64) -> i32 {
     p2 += sum;
     ap = p2.norm();
     p1 = c64(1. / ap, 0.0);
-    ck = pt.exp() * p1;
+    ck = ez * pt.exp() * p1;
     pt = p2.conj() * p1;
     let cnorm: C64 = ck * pt;
     for i in 0..n {
