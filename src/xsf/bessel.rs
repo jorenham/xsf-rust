@@ -1471,6 +1471,27 @@ pub(crate) const IT0_ASYMP: [f64; 25] = {
     a
 };
 
+/// `(int_0^x J0(t) dt, int_0^x Y0(t) dt)` by `n + 1` terms of each of the two sums of their
+/// asymptotic expansion, as in `ITJYA` (also used by `ITSH0` of specfun)
+pub(crate) fn itj0y0_asymp(x: f64, n: usize) -> (f64, f64) {
+    let mut bf = 1.0;
+    let mut r = 1.0;
+    for k in 1..=n {
+        r = -r / (x * x);
+        bf += IT0_ASYMP[2 * k - 1] * r;
+    }
+    let mut bg = IT0_ASYMP[0] / x;
+    r = 1.0 / x;
+    for k in 1..=n {
+        r = -r / (x * x);
+        bg += IT0_ASYMP[2 * k] * r;
+    }
+    let xp = x + FRAC_PI_4;
+    let rc = (2.0 / (PI * x)).sqrt();
+    let tj = 1.0 - rc * (bf * xp.cos() + bg * xp.sin());
+    (tj, rc * (bg * xp.cos() - bf * xp.sin()))
+}
+
 fn itjya(x: f64) -> (f64, f64) {
     // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40. That leaves the
     // power series below to x < 0.5, and the asymptotic expansion to x >= 40.
@@ -1516,23 +1537,7 @@ fn itjya(x: f64) -> (f64, f64) {
         }
         ty = (ty1 - x * ty2) * 2.0 / PI;
     } else {
-        let a = IT0_ASYMP;
-        let mut bf = 1.0;
-        let mut r = 1.0;
-        for k in 1..=8 {
-            r = -r / (x * x);
-            bf += a[2 * k - 1] * r;
-        }
-        let mut bg = a[0] / x;
-        r = 1.0 / x;
-        for k in 1..=8 {
-            r = -r / (x * x);
-            bg += a[2 * k] * r;
-        }
-        let xp = x + FRAC_PI_4;
-        let rc = (2.0 / (PI * x)).sqrt();
-        tj = 1.0 - rc * (bf * xp.cos() + bg * xp.sin());
-        ty = rc * (bg * xp.cos() - bf * xp.sin());
+        (tj, ty) = itj0y0_asymp(x, 8);
     }
     (tj, ty)
 }
