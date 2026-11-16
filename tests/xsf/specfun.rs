@@ -517,6 +517,28 @@ fn test_hypu_chguit_unconverged() {
 }
 
 #[test]
+fn test_hypu_chguit_overflow() {
+    // Arb; 2.11429e88, 2.80252e44, 5.5268225094e227, NaN, and NaN in xsf (inf before the
+    // integral without x^(1 - b) in `chguit`, as Gamma(a) U, or t^(a-1) in it, overflows)
+    let abx = [
+        (20.0, 7.0 - 2e-11, 6e-18),
+        (21.7, 5.0 + 2e-11, 1.8e-16),
+        (13.2, 8.0 - 1.2e-7, 4e-34),
+        (29.4, 85.76, 0.0032),
+        (26.8, 16.0 - 4e-14, 3.3e-22),
+    ];
+    let expected = [
+        2.114_360_915_592_612e88,
+        2.802_512_228_456_701_7e44,
+        5.526_822_512_984_652e227,
+        2.852_274_462_640_627_7e307,
+        6.940_743_519_297_277e306,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_b_near_zero() {
     // mpmath (scipy/xsf#533)
     let abx = [(2.5, -1e-12, 15.0), (0.75, -1e-13, 3.0), (2.5, 1e-12, 15.0)];

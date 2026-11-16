@@ -1203,6 +1203,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
+///      - an overflowing `chguit` is redone without `x^(1-b)` in the integral, unless step 1 has 9
+///        digits
 ///      - then, if neither this nor step 1 has `ID_ACCEPT` digits, the recurrence in `b` (for
 ///        `LOG_MAP_B <= b < 1000` and `x < 1`)
 ///    - `a < 1`, `b <= a`: `chguit` for `U(a-b+1, 2-b, x)`, times `x^(1-b)`; for `-1e5 <= b <= 0`
@@ -1301,7 +1303,22 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         // chguit does (e.g. U(150, 9, 0.1) = 2.23e-250)
         if !ubi || id < ID_MIN && hu.is_finite() {
             let mut id_it = 0;
-            let u = chguit(x, a, b, false, &mut id_it);
+            let mut u = chguit(x, a, b, false, &mut id_it);
+            // Unlike in xsf, an overflowing integral is redone without x^(1-b) (DLMF 13.2.40), as
+            // Gamma(a) U, or t^(a-1) in it, can overflow if U doesn't, e.g. for
+            // U(20, 7 - 2e-11, 6e-18) = 2.1e88. Then x^(1-b) is applied in halves, as it can
+            // overflow too. Only a finite result replaces the infinite one (e.g. not inf * 0 if
+            // U overflows and x^(1-b) underflows).
+            //
+            // This is skipped if step 1 has 9 digits, since step 3 then keeps it anyway.
+            if u.is_infinite() && id0 < 9 {
+                let h = x.powf(0.5 * (1.0 - b));
+                let mut id_k = 0;
+                let v = chguit(x, a, b, true, &mut id_k) * h * h;
+                if v.is_finite() {
+                    (u, id_it) = (v, id_k);
+                }
+            }
             if !ubi || u.is_finite() {
                 (hu, id) = (u, id_it);
                 *md = 4;
