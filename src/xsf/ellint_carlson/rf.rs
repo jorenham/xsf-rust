@@ -67,6 +67,13 @@ pub(super) fn rf<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::BadArgs, T::NAN);
     }
 
+    // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
+    // duplication step first raises the tiny one
+    if common::needs_duplication(&[x, y, z], f64::MIN_POSITIVE) {
+        let ([x, y, z], _) = common::duplicate([x, y, z]);
+        return rf(x, y, z, rerr);
+    }
+
     let mut cct1 = [x, y, z];
     sort_by(&mut cct1, abscmp);
     let mut xm = cct1[0];

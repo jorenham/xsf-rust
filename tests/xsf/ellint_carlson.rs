@@ -376,6 +376,61 @@ fn test_elliprj_wide_span() {
 }
 
 #[test]
+fn test_carlson_near_overflow_and_tiny() {
+    let max = f64::MAX;
+    let actual = [
+        xsf::elliprd(1e308, 1e308, 1e-310),
+        xsf::elliprd(1e300, max, 1e-320),
+        xsf::elliprf(max, max, 2.3e-308),
+        xsf::elliprc(1e-310, 1e308),
+        xsf::elliprc(5e-324, max),
+    ];
+    // Arb
+    let expected = [
+        3.000_000_000_000_005e-153,   // 3.0000000000000045497e-153
+        2.237_514_674_315_783_5e-144, // 2.2375146743157834977e-144
+        1.171_553_422_455_405e-154,   // 1.1715534224554048805e-154
+        1.570_796_326_794_896_6e-154, // 1.5707963267948966106e-154
+        1.171_553_422_455_405e-154,   // 1.1715534224554048805e-154
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // Arb: 1.0649531960466087604e-459
+    assert_eq!(xsf::elliprd(1e-310, 1.0, 1e308), 0.0);
+}
+
+#[test]
+fn test_elliprd_near_underflow() {
+    // Arb: 1.4838510888246176809e-308
+    let actual = xsf::elliprd(
+        6.563_076_568_5e-314,
+        1.934_902_900_344_399_3e211,
+        4.596_225_650_788_402e202,
+    );
+    xsref::np_assert_allclose!(&[actual], &[1.483_851_088_824_617_7e-308], rtol = 1e-15);
+
+    // subnormal results
+    let actual = [
+        xsf::elliprd(
+            2.090_469_145_209_479e199,
+            3.517_413_56e-316,
+            4.373_869_956_236_507e206,
+        ),
+        xsf::elliprd(
+            3.369_874_507_300_892e240,
+            1.5e-323,
+            1.015_772_415_001_386_8e190,
+        ),
+    ];
+    // Arb
+    let expected = [
+        2.890_804_844_202_84e-309, // 2.8908048442028413154e-309
+        1.608_858_969_021_95e-310, // 1.6088589690219311780e-310
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_elliprd_overflow() {
     // just below the overflow threshold, where `3 * adt` overflows
     let actual = xsf::elliprd(

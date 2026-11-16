@@ -1,5 +1,7 @@
 //! Translated into pure Rust from `xsf/ellint_carlson/ellint_common.hh` (scipy/xsf@d5182c3).
 
+use crate::utils::pow2;
+
 /* Number of correction terms in polynomial evaluation. */
 pub(super) const NPOLY: usize = 4;
 
@@ -126,6 +128,31 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
         f *= 2.0;
     }
     (f != 1.0).then_some(f)
+}
+
+/// Whether `scale_factor` with `min` can't downscale a huge argument because of a tiny one, i.e.
+/// if the largest argument is above 2^256 and more than `2^254 / min` (2^1276 for
+/// `f64::MIN_POSITIVE`) times the smallest one
+///
+/// Then a `duplicate` step raises the tiny ones to about the geometric mean of them and the
+/// largest one, and at least halves the largest one. Unscaled, sums of huge arguments may
+/// overflow, and results near the underflow threshold lose precision.
+pub(super) fn needs_duplication<T: super::typing::Num>(args: &[T], min: f64) -> bool {
+    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let amax = sizes.clone().fold(0.0, f64::max);
+    let amin = sizes.fold(f64::INFINITY, f64::min);
+    amax.is_finite() && amax > const { pow2(256) } && amax.log2() - amin.log2() > 254.0 - min.log2()
+}
+
+/// `(a + lam) / 4` for each argument `a`, i.e. the duplication step
+/// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) with homogeneity, and the halved square
+/// roots `sqrt(a) / 2`
+///
+/// Computed from the quartered arguments, so that it can't overflow.
+pub(super) fn duplicate<T: super::typing::Num>(xyz: [T; 3]) -> ([T; 3], [T; 3]) {
+    let sq = xyz.map(|a| a.sqrt() * 0.5);
+    let lam = sq[0] * sq[1] + sq[1] * sq[2] + sq[2] * sq[0];
+    (add_lambda(xyz.map(|a| a * 0.25), sq, lam), sq)
 }
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
