@@ -183,19 +183,16 @@ fn debye_is_accurate(v: f64, z: f64) -> bool {
 
 /// `B_{v-1}(x)` of the Bessel function `B = I` (with `s = 1`) or `J` (`s = -1`), given `B_v(x)`
 ///
-/// Unlike in xsf, if `v - 1` rounds, this can use the recurrence (DLMF 10.29.1, 10.6.1) from the
-/// orders `v` and `v + 1`, which are exact for `v <= -1/2`, below the turning point `|x| = mu`,
-/// with `mu = 1 - v` (past it, the error of `B_v` and `B_{v+1}` grows with `|x|`). Near the poles
-/// of `Gamma(v)`, the `sin(pi v)` term of `B_{v-1}` (DLMF 10.27.2, 10.2.3) amplifies the rounding
-/// error `d` of the order by `pi |cot(pi v)|` times its share of `B_{v-1}`, which is about
-/// `2 |sin(pi v)| e^(2 mu Re g)`, with `g = ln((1 + w) / t) - w`, `t = x / mu`, and
-/// `w = sqrt(1 + s t^2)` (DLMF 10.41.3-4, 10.19.3). The recurrence is used where this heuristic
-/// cost `amp` exceeds 4 times its own (also rough) error: its cancellation `kappa >= 1` times the
-/// error of `B_v` and `B_{v+1}`, empirically up to `|v| eps`, plus the `d |ln(x/2)|` that the
-/// rounded exponent `1 - v` of the prefactor `(x/2)^(1-v)` costs.
+/// Unlike in xsf, if `v - 1` rounds, this uses the recurrence (DLMF 10.29.1, 10.6.1) from the
+/// orders `v` and `v + 1` where its estimated error is below a quarter of that of `b(v - 1)`,
+/// which `sin(pi v)` amplifies near the poles of `Gamma(v)` (DLMF 10.27.2, 10.2.3).
 fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl Fn(f64) -> T) -> T {
     let mu = 1.0 - v;
     let d = two_sum(v, -1.0).1.abs();
+    // The error of `b(v - 1)`: the rounding error `d` of the order, times `pi |cot(pi v)|`, times
+    // the share of the `sin(pi v)` term, about `2 |sin(pi v)| e^(2 mu Re g)` (DLMF 10.41.3-4,
+    // 10.19.3). The orders `v`, `v + 1` are exact for `v <= -1/2`, and below the turning point
+    // `|x| = mu` (past it, the error of `B_v` and `B_{v+1}` grows with `|x|`).
     let amp = if v <= -0.5 && d > 0.0 && x.abs() < mu {
         let t = c64(x.real(), x.imag()) / mu;
         let w = (1.0 + s * t * t).sqrt();
@@ -211,7 +208,9 @@ fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl F
         let (t1, t2) = (T::from(2.0 * v) / x * b_v(), b(v + 1.0) * s);
         let r = t1 + t2;
         let kappa = (t1.abs() + t2.abs()) / r.abs();
-        // false if `r` overflows or underflows to zero
+        // The (also rough) error of `r`: its cancellation `kappa` times the error of `B_v` and
+        // `B_{v+1}` (empirically up to `|v| eps`), plus the `d |ln(x/2)|` that the rounded
+        // exponent `1 - v` of `(x/2)^(1-v)` costs. False if `r` overflows or underflows to zero.
         if 4.0 * (kappa * tol + d * (x.abs() / 2.0).ln().abs()) < amp {
             return r;
         }

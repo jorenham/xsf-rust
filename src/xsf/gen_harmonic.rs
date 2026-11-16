@@ -26,7 +26,7 @@ const ZETA_RATIO_THRESHOLD: f64 = 0.9;
 /// `(n + 1) as f64` without overflowing at `u64::MAX` (which rounds to 2**64 either way)
 #[inline]
 fn succ_f64(n: u64) -> f64 {
-    // Unlike in xsf, avoid integer overflow in n + 1 and k + 1 (UB for LLONG_MAX in C++)
+    // Unlike in xsf, saturates at u64::MAX instead of overflowing (UB in C++)
     n.saturating_add(1) as f64
 }
 
