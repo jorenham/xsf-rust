@@ -18,6 +18,8 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
 mod conformal;
+#[allow(dead_code)]
+mod residue;
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
