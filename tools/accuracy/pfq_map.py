@@ -17,14 +17,15 @@ Usage (from the repository root; or `just pfq-map`):
 
 Writes `docs/hyppfq-error.svg` and `docs/hyppfq-none.svg`, with a panel per p and q. Each panel
 bins random inputs by z (on a signed log scale) and by the scale s of the parameters, which are
-uniform in [-s, s]. The references are those of `specs.py`, cached as in `accuracy.py`.
+uniform in [-s, s]. `docs/hyppfq-error-int.svg` and `docs/hyppfq-none-int.svg` are the same for
+p >= 2, but with a_2 = a_1 + k, for a random integer k in [-3, 3]. The references are those of
+`specs.py`, cached as in `accuracy.py`.
 """
 
 import argparse
 import itertools
 import math
 import random
-import statistics
 from pathlib import Path
 from typing import Final
 
@@ -64,8 +65,11 @@ S_MIN: Final = -2
 S_MAX: Final = 2
 S_BINS: Final = 12
 
-# the domain index in the cache file names of the references
-MAP_DOMAIN: Final = 100
+# a_2 = a_1 + k in the maps of a_i that differ by integers, with |k| <= K_MAX
+K_MAX: Final = 3
+
+# the domain index in the cache file names of the references, without and with a_2 = a_1 + k
+MAP_DOMAINS: Final = {False: 100, True: 101}
 EPS: Final = 2.0**-52
 # the color levels of the error, in eps; at 1e16 no correct digits are left
 LEVELS: Final = [1, 4, 16, 64, 256, 1e3, 1e4, 1e6, 1e8, 1e16]
@@ -75,10 +79,13 @@ NOREF_COLOR: Final = "tan"
 type Grid = np.ndarray[tuple[int, int], np.dtype[np.float64]]
 
 
-def inputs(p: int, q: int, per_bin: int) -> list[tuple[int, int, accuracy.Args]]:
+def inputs(
+    p: int, q: int, per_bin: int, int_diff: bool
+) -> list[tuple[int, int, accuracy.Args]]:
     """`per_bin` random inputs (a_1, ..., a_p, b_1, ..., b_q, z) of each bin (i, j) of z and
-    s, except where z >= 1 for p = q + 1, where it is complex."""
-    rng = random.Random(f"{p}F{q}")
+    s, except where z >= 1 for p = q + 1, where it is complex. If `int_diff`, then
+    a_2 = a_1 + k for a random integer k in [-K_MAX, K_MAX]."""
+    rng = random.Random(f"{p}F{q}-int" if int_diff else f"{p}F{q}")
     out: list[tuple[int, int, accuracy.Args]] = []
     dx, ds = X_MAX / Z_BINS, (S_MAX - S_MIN) / S_BINS
     for i in range(2 * Z_BINS):
@@ -90,7 +97,11 @@ def inputs(p: int, q: int, per_bin: int) -> list[tuple[int, int, accuracy.Args]]
                 x = rng.uniform(x0, x0 + dx)
                 z = math.copysign(10 ** (abs(x) + Z_MIN), x)
                 s = 10 ** rng.uniform(S_MIN + j * ds, S_MIN + (j + 1) * ds)
-                ab = tuple(rng.uniform(-s, s) for _ in range(p + q))
+                ab = [rng.uniform(-s, s) for _ in range(p + q)]
+                if int_diff:
+                    # (a_1 on a grid of 2^-46, so that a_1 + k is exact for |a_1 + k| < 2^7)
+                    ab[0] = round(ab[0] * 2**46) / 2**46
+                    ab[1] = ab[0] + rng.randint(-K_MAX, K_MAX)
                 out.append((i, j, (*ab, z)))
     return out
 
@@ -100,49 +111,56 @@ def grids(
     ys: list[complex],
     refs: list[accuracy.Ref | str],
 ) -> tuple[Grid, Grid]:
-    """The median error in eps of each bin (NaN where it has no inputs, all are `None`, or
-    the others have no reference), and the share of `None` (NaN where it has no inputs)."""
+    """The geometric mean of the errors in eps of each bin, as in `accuracy.stats` (NaN where it
+    has no inputs, all are `None`, or the others have no reference or an infinite error), and the share of `None` (NaN where it has no inputs)."""
     errs: dict[tuple[int, int], list[float]] = {}
     nones: dict[tuple[int, int], list[bool]] = {}
     for (i, j, _), y, ref in zip(pts, ys, refs, strict=True):
         # (the dump program writes NaN for `None`, and `hyppfq` is only NaN where complex)
         nones.setdefault((i, j), []).append(math.isnan(y.real))
         if not math.isnan(y.real) and not isinstance(ref, str):
-            errs.setdefault((i, j), []).append(accuracy.error(y, ref) / EPS)
+            errs.setdefault((i, j), []).append(accuracy.error(y, ref))
     err = np.full((S_BINS, 2 * Z_BINS), np.nan)
     none = np.full((S_BINS, 2 * Z_BINS), np.nan)
     for (i, j), es in errs.items():
-        err[j, i] = statistics.median(es)
+        stats = accuracy.stats(es)
+        if stats and stats[1] is not None:
+            err[j, i] = stats[1] / EPS
     for (i, j), ns in nones.items():
         none[j, i] = sum(ns) / len(ns)
     return err, none
 
 
 def plot(
-    panels: dict[tuple[int, int], tuple[Grid, Grid]], none: bool, path: Path
+    panels: dict[tuple[int, int], tuple[Grid, Grid]],
+    ps: range,
+    none: bool,
+    title: str,
+    path: Path,
 ) -> None:
-    """A panel per p (rows) and q (columns): the share of `None`, or the median error. A bin
-    without inputs is blank: there it is complex."""
+    """A panel per p in `ps` (rows) and q (columns): the share of `None`, or the gmean of the error.
+    A bin without inputs is blank: there it is complex."""
     fig, axes = plt.subplots(
-        P_MAX + 1,
+        len(ps),
         Q_MAX + 1,
-        figsize=(12, 12),
+        figsize=(12, 2.4 * len(ps)),
         sharex=True,
         sharey=True,
         layout="constrained",
     )
     keys = [(NONE_COLOR, "None"), ("white", "complex")]
     if none:
-        fig.suptitle("hyppfq: share of None")
+        fig.suptitle(f"hyppfq: share of None{title}")
         norm, cmap, label = Normalize(0, 1), colormaps["Reds"], "share of None"
     else:
-        fig.suptitle("hyppfq: median relative error")
+        fig.suptitle(f"hyppfq: gmean of the relative error{title}")
         norm = BoundaryNorm(LEVELS, len(LEVELS) - 1)
         cmap, label = colormaps["viridis"].resampled(len(LEVELS) - 1), "eps"
         keys.insert(1, (NOREF_COLOR, "no reference"))
     kw = {"extent": (-X_MAX, X_MAX, S_MIN, S_MAX), "origin": "lower", "aspect": "auto"}
     im = None
-    for (p, q), ax in np.ndenumerate(axes):
+    for (row, q), ax in np.ndenumerate(axes):
+        p = ps[row]
         ax.set_title(f"{p}F{q}")
         if (p, q) not in panels:
             # (unless it is a polynomial)
@@ -203,21 +221,36 @@ def main() -> None:
     ap.add_argument("--per-bin", type=int, default=4, help="random inputs per bin")
     opts = ap.parse_args()
     mp.mp.dps = 30
-    pts = {pq: inputs(*pq, opts.per_bin) for pq in SPECS}
-    lines = [(f"hyppfq{p}", args) for (p, _), ps in pts.items() for _, _, args in ps]
+    # the figure pairs: with a_2 = a_1 + k or not, the file and title suffixes, and the rows p
+    figures = [
+        (False, "", "", range(P_MAX + 1)),
+        (True, "-int", ", $a_2 = a_1 + k$", range(2, P_MAX + 1)),
+    ]
+    pts = {
+        (pq, int_diff): inputs(*pq, opts.per_bin, int_diff)
+        for int_diff, *_, ps in figures
+        for pq in SPECS
+        if pq[0] in ps
+    }
+    lines = [(f"hyppfq{p}", args) for ((p, _), _), xs in pts.items() for *_, args in xs]
     ys = iter(accuracy.run([*accuracy.build_rust(), "xsf"], lines))
     jobs = [
-        accuracy.Job(specs.BY_NAME[name], MAP_DOMAIN, [args for _, _, args in pts[pq]])
-        for pq, name in SPECS.items()
+        accuracy.Job(
+            specs.BY_NAME[SPECS[pq]], MAP_DOMAINS[int_diff], [a for *_, a in xs]
+        )
+        for (pq, int_diff), xs in pts.items()
     ]
     refs = accuracy.compute_refs(jobs, not opts.no_cache, opts.jobs)
     panels = {
-        pq: grids(pts[pq], list(itertools.islice(ys, len(pts[pq]))), rs)
-        for pq, rs in zip(SPECS, refs, strict=True)
+        key: grids(xs, list(itertools.islice(ys, len(xs))), rs)
+        for (key, xs), rs in zip(pts.items(), refs, strict=True)
     }
     plt.rcParams["svg.hashsalt"] = "hyppfq"
-    for none, name in [(False, "error"), (True, "none")]:
-        plot(panels, none, accuracy.ROOT / "docs" / f"hyppfq-{name}.svg")
+    for int_diff, suffix, title, ps in figures:
+        sub = {pq: v for (pq, i), v in panels.items() if i == int_diff}
+        for none, name in [(False, "error"), (True, "none")]:
+            path = accuracy.ROOT / "docs" / f"hyppfq-{name}{suffix}.svg"
+            plot(sub, ps, none, title, path)
 
 
 if __name__ == "__main__":
