@@ -662,6 +662,28 @@ fn test_hyppfq_routing() {
 }
 
 #[test]
+fn test_hyppfq_2f0() {
+    // the Borel sum for z < 0 (Arb, as x^a1 U(a1, a1 - a2 + 1, x) with x = -1/z), symmetric in
+    // a1 and a2, also where x^a1 overflows (series)
+    for (a, z, expected) in [
+        ([0.3, 1.7], -0.5, 0.848_525_611_949_669_8),
+        ([-2.5, 0.75], -4.0, 88.108_287_408_568_78),
+        ([40.0, 2.5], -1e-3, 0.906_748_253_693_675_3),
+        ([1.5, 2.5], -1e-300, 1.0),
+        ([1.5, 2.5], -1e-308, 1.0),
+        ([1.5, 2.5], -1e-320, 1.0),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
+    // -1.000_327_845_432_870_3e-19)
+    assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);
+}
+
+#[test]
 fn test_hyppfq_cancel() {
     let z = 0.25;
     let f1f1 = Some(hyp1f1(0.5, 1.5, z));
