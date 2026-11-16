@@ -387,6 +387,29 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
     s.atan() / s
 }
 
+/// `R_J(x, y, z, p) = R_J(x', y', z', p') / 4 + 3 R_C(alpha^2, beta^2)` of the duplicated
+/// arguments ([DLMF 19.26.22](https://dlmf.nist.gov/19.26.E22)), with
+/// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
+/// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
+/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`, so that
+/// nothing over- or underflows
+fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
+    let (xyz, [sx, sy, sz]) = common::duplicate([x, y, z]);
+    // `sqrt(p) / 2`, exact for subnormal `p`
+    let sp = p.sqrt() * 0.5;
+    let p4 = p * 0.25;
+    let pd = p4 + (sx * sy + sy * sz + sz * sx);
+    // `d / 8 = d1 d23`
+    let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
+    let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
+    let (status_rc, res_rc) = rc(T::from(1.0), sp / d1 * (pd / d23) * 2.0, rerr);
+    let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
+    if status_rc != ExitStatus::Success {
+        status = status_rc;
+    }
+    (status, res * 0.25 + res_rc * 0.75 / d1 / d23)
+}
+
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
     use rjimpl::AsymFlag;
 
@@ -443,6 +466,12 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             return (ExitStatus::Singular, T::HUGE);
         }
         return (ExitStatus::BadArgs, T::NAN);
+    }
+
+    // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
+    // duplication step first raises the tiny one
+    if common::needs_duplication(&[xm, ym, zm, p], min) {
+        return rj_duplicated(xm, ym, zm, p, rerr, noasymp);
     }
 
     if classify.maybe_asymp && !noasymp {

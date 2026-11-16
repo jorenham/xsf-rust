@@ -399,8 +399,48 @@ fn test_elliprj_wide_span() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
-    // NaN instead of a wrong value if `rc` of the "huge z" case overflows (Arb: 3e-284)
-    assert!(xsf::elliprj(1e-320, 1e180, 1e208, 1e180).is_nan());
+    // a tiny argument prevents the downscaling of the huge ones
+    let actual = [
+        xsf::elliprj(1e-320, 1e180, 1e208, 1e180),
+        xsf::elliprj(1e-200, 1e120, 1e120, 1e20),
+        xsf::elliprj(1e-300, 1e150, 1e150, 1e150),
+        xsf::elliprj(0.5, 1e156, 1e158, 2.5e-323),
+    ];
+    // Arb
+    let expected = [
+        3e-284,                     // 2.9999999999999999995e-284
+        4.712_388_980_384_69e-130,  // 4.7123889803846899519e-130
+        2.356_194_490_192_345e-225, // 2.3561944901923449966e-225
+        1.577_252_122_957_69e-154,  // 1.5772521229576897772e-154
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    let actual = [
+        xsf::elliprj(
+            c64(1e-60, 1e-60),
+            c64(3e142, 3.5e142),
+            c64(1e120, 3e120),
+            c64(3e112, 9e112),
+        ),
+        xsf::elliprj(
+            c64(4e124, 2e125),
+            c64(2e-125, -1e-125),
+            c64(2.5e116, 2.6e116),
+            c64(3e140, -4e140),
+        ),
+        // the duplicated `x` and `y` are equal
+        xsf::elliprj(ZERO, ONE * 1e-130, ONE * 1e80, c64(-1e75, 1e74)),
+        // the duplicated `p` has a tiny imaginary part, which mustn't prevent the downscaling
+        xsf::elliprj(ONE * 1e-130, ONE * 1e150, ONE * 1e72, c64(-5e-82, -5e-81)),
+    ];
+    // Arb
+    let expected = [
+        c64(-4.372_042_713_197_493e-189, -3.982_831_329_114_256e-188),
+        c64(1.470_038_697_995_964_6e-202, 3.995_469_583_856_571_3e-203),
+        c64(-7.026_491_305_778_003e-113, -7.482_776_732_461_581e-114),
+        c64(4.460_686_995_705_570_6e-71, 4.929_003_648_729_797_4e-71),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]

@@ -110,21 +110,23 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 ///   arguments in the algorithms (e.g. `delta` in `rj`) can't overflow
 /// - otherwise `f^2` aims to scale the largest part to at most 2^254, near the top of that range,
 ///   so that tiny parts stay away from underflow
-/// - but huge arguments are downscaled only so far that the smallest nonzero part stays above
-///   `min`, and `None` if that leaves no downscaling, e.g. for `[1e300, 1e-310]` with
-///   `min = f64::MIN_POSITIVE`
+/// - but huge arguments are downscaled only so far that the smallest nonzero argument (in the max
+///   norm) stays above `min`, and the smallest nonzero part normal, and `None` if that leaves no
+///   downscaling, e.g. for `[1e300, 1e-310]` with `min = f64::MIN_POSITIVE`
 ///
 /// So the callers' own handling of tiny or huge arguments is still reachable.
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);
     let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
+    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let smin = sizes.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let e = amax.log2();
     if !(e.is_finite() && e.abs() > 256.0) {
         return None;
     }
     let mut f = ((254.0 - e) / 2.0).floor().exp2();
-    while f < 1.0 && amin * f * f < min {
+    while f < 1.0 && (smin * f * f < min || amin * f * f < f64::MIN_POSITIVE) {
         f *= 2.0;
     }
     (f != 1.0).then_some(f)
