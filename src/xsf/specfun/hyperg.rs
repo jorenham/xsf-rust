@@ -1996,12 +1996,20 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == SPECFUN_INF {
         r1 = 0.0;
     }
-    // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
-    // (and hu back with `mul_exp`)
+    // Unlike in xsf (scipy/xsf#380), if r2 overflows, or underflows for b > 1, the terms are scaled
+    // by 1/|r2| = exp(-lr2) (and hu back with `mul_exp`), unless r1 then overflows. Its terms grow
+    // by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) = 1.83.
+    // For b < 1, x^(1-b) only underflows for tiny x, where they don't grow.
     let mut lr2 = 0.0;
-    if r2.is_infinite() && r1.is_finite() && c.is_finite() {
+    let tiny = b > 1.0 && !r2.is_normal() && c != 0.0 && ga != SPECFUN_INF;
+    if (r2.is_infinite() || tiny) && c.is_finite() {
         lr2 = c.abs().ln() + (1.0 - b) * x.ln();
-        (r1, r2) = (r1 * (-lr2).exp(), r2.signum());
+        let r1s = r1 * (-lr2).exp();
+        if r1s.is_finite() {
+            (r1, r2) = (r1s, c.signum());
+        } else {
+            lr2 = 0.0;
+        }
     }
     let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;

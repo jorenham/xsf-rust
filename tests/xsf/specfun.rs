@@ -427,6 +427,20 @@ fn test_hypu_chgus() {
     // mpmath; inf in xsf
     let actual = xsf::hypu(100.2, 95.7, 0.000_426_150_094_022_470_2);
     xsref::np_assert_allclose!([actual], [1.797_665_191_584_464_4e308], rtol = 1e-13);
+
+    // Arb; here r2 is subnormal, but negligible (the terms of r1 overflow if scaled by 1/|r2|)
+    let abx = [
+        (1.0, -0.01, 1e-307),
+        (1.2, -0.01, 1e-307),
+        (2.0, -0.01, 1e-307),
+    ];
+    let expected = [
+        0.990_099_009_900_990_1,
+        0.897_529_488_896_726_7,
+        0.492_586_572_090_044_8,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
 }
 
 #[test]
@@ -628,6 +642,20 @@ fn test_hypu_large_b() {
     let expected = [2.870_107_296_557_804_4e-8, 172.021_142_044_546_17];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-11);
+
+    // Arb; 6.526, -0.04274, and NaN in xsf, where x^(1 - b) underflows in `chgus`
+    let abx = [
+        (0.0013, 148.6, 205.0),
+        (0.94, 165.43, 139.13),
+        (-16.24, 143.86, 191.27),
+    ];
+    let expected = [
+        0.994_721_980_416_835_8,
+        1.829_378_809_443_741_5,
+        -9.510_439_577_470_078e24,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]
