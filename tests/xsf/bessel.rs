@@ -1224,18 +1224,51 @@ fn test_jahnke_emden_lambda_tiny_x() {
 
 #[test]
 fn test_jahnke_emden_lambda_high_orders() {
-    // mpmath; the recurrence of `lamn` starts at order 328 for `x = 60`
-    let (vl, dl) = xsf::jahnke_emden_lambda(500, 60.0);
-    let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
-    let expected = [
-        0.064_658_649_612_803_2,
-        0.105_325_332_091_226_67,
-        0.165_358_932_985_256_56,
-        -0.005_927_303_686_869_632,
-        -0.007_924_190_401_755_885,
-        -0.009_937_421_238_798_044,
-    ];
-    np_assert_allclose!(actual, expected, rtol = 1e-13);
+    // mpmath (v = 500) and Arb (v = 500.5); xsf stops at order `msta1(60, 200) = 328`
+    for (v, expected) in [
+        (
+            500.0,
+            [
+                0.064_658_649_612_803_2,
+                0.105_325_332_091_226_67,
+                0.165_358_932_985_256_56,
+                -0.005_927_303_686_869_632,
+                -0.007_924_190_401_755_885,
+                -0.009_937_421_238_798_044,
+            ],
+        ),
+        (
+            500.5,
+            [
+                0.064_929_345_091_574_51,
+                0.105_622_626_797_108_82,
+                0.165_656_964_513_909_68,
+                -0.005_942_962_254_042_083,
+                -0.007_936_549_366_129_714,
+                -0.009_945_334_579_170_939,
+            ],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, 60.0);
+        let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
+        np_assert_allclose!(actual, expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_near_zero() {
+    // Arb; the highest orders are close to a zero of `J_v(x)`, which the recurrence rounds to 0
+    for (v, x, expected) in [(370.5, 383.972_410_969_705_27, -7.648_634_385_955_928e-56)] {
+        let (_, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([dl[dl.len() - 1]], [expected], rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_subnormal() {
+    // Arb; the derivatives are larger than the subnormal `Lambda_{v+1}(x)` they are formed from
+    let (_, dl) = xsf::jahnke_emden_lambda(42.5, 1e9);
+    assert_eq!(dl[42], -4e-323);
 }
 
 #[test]
