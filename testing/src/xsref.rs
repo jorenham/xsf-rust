@@ -255,15 +255,15 @@ fn same_class<T: TestOutputValue>(actual: T, expected: T, zeros: bool) -> bool {
 
 #[derive(Debug)]
 struct TestCase<T: TestOutput> {
-    pub r#in: Vec<f64>,
-    pub out: T,
+    r#in: Vec<f64>,
+    out: T,
     /// The check of each output
-    pub checks: Vec<Check>,
+    checks: Vec<Check>,
 }
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub enum TestError {
+enum TestError {
     Io(IOError),
     DataFormat,
 }
