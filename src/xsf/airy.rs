@@ -5,6 +5,7 @@ use num_complex::Complex64;
 use crate::utils::mul_exp;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes;
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
@@ -220,7 +221,7 @@ fn ai_tail(zeta: C64) -> C64 {
     (sum + 0.5) * (-zeta).exp() * (2.0 * H / PI) / (6.0 * zeta).sqrt()
 }
 
-// Translated from `xsf/cpu/airy.h` (scipy/xsf@078fb3a)
+// Translated from `xsf/cpu/airy.h` (scipy/xsf@306433e)
 fn itairy_impl(x: f64) -> [f64; 4] {
     // ======================================================
     // Purpose: Compute the integrals of Airy fnctions with
@@ -417,12 +418,10 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
     //          XC(m) --- Ai(a') or Bi(b')
     //          XD(m) --- Ai'(a) or Bi'(b)
     //                    ( m --- Serial number of zeros )
+    // Routine called: CEPHES::AIRY for computing Airy functions and
+    //                 their derivatives
     // =======================================================
 
-    // Unlike in xsf, the Newton steps evaluate `airy` instead of specfun's `airyb`, whose power
-    // series loses up to 5 digits to cancellation for -8 <= x < 0 (and so the first 5 zeros of
-    // each kind); `airy` is accurate there and also faster.
-    //
     // NOTE: for `kf` other than 1 or 2 (not reachable from the public API), `rt` stays 0, so
     // `err` is NaN and the Newton loops never terminate (in C++ as well).
     let mut rt = 0.0;
@@ -458,7 +457,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         loop {
             x = rt0;
-            [ai, ad, bi, bd] = airy_f64(x);
+            (_, ai, ad, bi, bd) = cephes::airy(x);
 
             if kf == 1 {
                 rt = rt0 - ai / ad;
@@ -475,7 +474,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         xa[(i - 1) as usize] = rt;
         if err > 1.0e-14 {
-            [_, ad, _, bd] = airy_f64(rt);
+            (_, _, ad, _, bd) = cephes::airy(rt);
         }
 
         if kf == 1 {
@@ -515,7 +514,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
         loop {
             x = rt0;
-            [ai, ad, bi, bd] = airy_f64(x);
+            (_, ai, ad, bi, bd) = cephes::airy(x);
 
             if kf == 1 {
                 rt = rt0 - ad / (ai * x);
@@ -532,7 +531,7 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
         xb[(i - 1) as usize] = rt;
 
         if err > 1.0e-14 {
-            [ai, _, bi, _] = airy_f64(rt);
+            (_, ai, _, bi, _) = cephes::airy(rt);
         }
 
         if kf == 1 {

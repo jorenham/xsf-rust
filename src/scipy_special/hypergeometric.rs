@@ -1,4 +1,4 @@
-//! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@b1eb270).
+//! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@fa36f89).
 
 use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
@@ -7,6 +7,7 @@ use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::{two_prod, two_sum};
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 use crate::xsf::complex::Num;
+use crate::xsf::log::clog1p;
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
@@ -52,6 +53,45 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     } else {
         (zeta - ln_sqrt_p1).exp() * u_corr_i
     }
+}
+
+/// `hyp0f1_asy` for complex `z`, if `I_{v-1}(2 sqrt(z))` over- or underflows
+///
+/// As in xsf, it is only used for `v > 1`, so without the `K` term of DLMF 10.27.2.
+///
+/// Unlike in xsf (scipy/xsf#557), this is `None` unless `|e^(v1 eta)|` is beyond `e^(+-MAXLOG/2)`,
+/// so also near `(-inf, -(v-1)^2/4]`, where `|e^(v1 eta)| = 1` and the expansion is invalid.
+fn hyp0f1_asy_c64(v: f64, z: C64) -> Option<C64> {
+    let arg = z.sqrt();
+    let v1 = v - 1.0;
+    let x = 2.0 * arg / v1;
+    let p1 = (1.0 + x * x).sqrt();
+
+    // `v1 eta = v1 (1 + ln(arg / v1) + d)`, with `d = 2 h - ln(1 + h)` and `h = (p1 - 1) / 2`
+    let h = x * x / (2.0 * (1.0 + p1));
+    let v1_d = v1 * (2.0 * h - clog1p(h));
+
+    // `|I_{v-1}(2 arg)|` is `|e^(v1 eta)|` up to a factor `(2 pi v1 |p1|)^(-1/2)`, for which
+    // `MAXLOG / 2` leaves room
+    if (v1_d.re + v1 * (1.0 + (arg.norm() / v1).ln())).abs() < MAXLOG / 2.0 {
+        return None;
+    }
+
+    // Unlike in xsf (scipy/xsf#557), the ~v1 ln(v1) terms of the exponent cancel analytically, as
+    // in `hyp0f1_asy`
+    let zeta = v1_d + lgam_stirling_corr(v1) - 0.5 * p1.ln();
+
+    // large-v asymptotic correction, DLMF 10.41.10
+    let pp = 1.0 / p1;
+    let p2 = pp * pp;
+    let p4 = p2 * p2;
+    let p6 = p4 * p2;
+    let u1 = (3.0 - 5.0 * p2) * pp / 24.0;
+    let u2 = (81.0 - 462.0 * p2 + 385.0 * p4) * p2 / 1152.0;
+    let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
+    let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
+
+    Some(zeta.exp() * u_corr_i)
 }
 
 /// `xsf::hyp0f1` for real `z`
@@ -177,8 +217,8 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         t1 + t2
     } else {
         // Unlike in xsf, the Maclaurin series is summed here like for real `z`, instead of using
-        // the Bessel functions, which over- or underflow for large `|v|`; they remain for where
-        // the partial sums overflow (for tiny `|v|`)
+        // the Bessel functions, which lose digits for large `|v|`, e.g. ~eps ln(Gamma(v)) through
+        // the logarithmic prefactor; they remain for where the partial sums overflow (tiny `|v|`)
         if z.norm() <= v.abs().max(1.0) {
             let sum = hyp0f1_series(v, z);
             if sum.is_finite() {
@@ -215,13 +255,18 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         let (gamma_v, arg_pow) = (crate::gamma(v), arg.powf(1.0 - v));
         let out = r * gamma_v * arg_pow;
         let normal = gamma_v.is_normal() && arg_pow.norm().is_normal() && out.norm().is_normal();
-        if normal || !r.is_finite() || r == C64::ZERO {
+        if !r.is_finite() || r == C64::ZERO {
+            // the Bessel function over- or underflows, or rounds to 0 near a zero
+            let asy = if v > 1.0 { hyp0f1_asy_c64(v, z) } else { None };
+            asy.unwrap_or(out)
+        } else if normal {
             out
         } else {
-            // Unlike in xsf, the prefactor is computed with logarithms (as for real `z`) if a
-            // factor over- or underflows, e.g. `Gamma(v)` for `v > 171.6`, together with the
-            // magnitude `m` of `r`, as their product may be finite and nonzero where it isn't.
-            // The phase is applied first, so that `e^Re(ln)` only overflows if the result does.
+            // Gamma(v) or the power over- or underflows
+            //
+            // Unlike in xsf (scipy/xsf#557), this is also done if a factor or the product is
+            // subnormal, and the phase is applied first, so that `e^Re(ln)` only overflows if the
+            // result does.
             let m = r.re.abs().max(r.im.abs());
             let ln = arg.ln() * (1.0 - v) + crate::gammaln(v) + m.ln();
             (r / m * C64::cis(ln.im) * crate::gammasgn(v)).mul_exp(ln.re)
