@@ -575,6 +575,20 @@ fn test_hypu_b_near_int() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 59304.064, 1.4934268e262, and 6.8120873e74 in xsf (NaN before the recurrence in b)
+    let abx = [
+        (32.0, 4.0 - 6e-14, 1.6e-13),
+        (25.0, 4.0 + 5e-13, 6e-96),
+        (90.0, 3.0 + 3e-14, 3e-106),
+    ];
+    let expected = [
+        59_381.105_544_359_43,
+        1.492_349_603_031_082_9e262,
+        6.730_761_625_464_286e74,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-14);
 }
 
 #[test]

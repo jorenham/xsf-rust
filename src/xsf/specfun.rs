@@ -385,8 +385,19 @@ fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64) {
 /// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
 /// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
 fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, i32) {
-    let n = (b - 1.0).floor();
-    let ((mut u0, id0), (mut u1, id1)) = (hypu_rec(a, b - n, x), hypu_rec(a, b - n + 1.0, x));
+    hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| hypu_rec(a, c, x))
+}
+
+/// `U(a, b, x)` by the forward recurrence in `b` (DLMF 13.3.8) from `U(a, c, x)` and its
+/// estimated number of digits by `start(c)` at `c = b - n` and `b - n + 1`
+pub(super) fn hypu_fwd_b(
+    a: f64,
+    b: f64,
+    x: f64,
+    n: f64,
+    start: impl Fn(f64) -> (f64, i32),
+) -> (f64, i32) {
+    let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
     let mut c = b - n + 1.0;

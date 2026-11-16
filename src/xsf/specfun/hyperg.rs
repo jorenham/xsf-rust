@@ -1203,6 +1203,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
+///      - then, if neither this nor step 1 has `ID_ACCEPT` digits, the recurrence in `b` (for
+///        `LOG_MAP_B <= b < 1000` and `x < 1`)
 ///    - `a < 1`, `b <= a`: `chguit` for `U(a-b+1, 2-b, x)`, times `x^(1-b)`; for `-1e5 <= b <= 0`
 ///      with `x^(1-b)` in the integral if that product isn't normal or step 1 overflowed
 ///    - `a < 1`, `b > a`: `chgubi` (nonzero integer `b`); the recurrence in `a > -1000` otherwise,
@@ -1303,6 +1305,21 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             if !ubi || u.is_finite() {
                 (hu, id) = (u, id_it);
                 *md = 4;
+            }
+        }
+        // Unlike in xsf, the forward recurrence in b if this and step 1 fail (e.g. near an integer
+        // b), from b - n near 1 and 2, where chguit integrates over ln(1 + t)
+        if (hu.is_nan() || id < ID_ACCEPT)
+            && id0 < ID_ACCEPT
+            && x < 1.0
+            && (LOG_MAP_B..1000.0).contains(&b)
+        {
+            let (u, id_b) = super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| {
+                let mut id_c = 0;
+                (chguit(x, a, c, false, &mut id_c), id_c)
+            });
+            if !u.is_nan() && (hu.is_nan() || id_b > id) {
+                (hu, id) = (u, id_b);
             }
         }
     } else if b <= a {
