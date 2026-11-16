@@ -150,20 +150,15 @@ mod rjimpl {
         if p != zero && p.ph_good() {
             /* "... either let x, y, z be real and nonnegative and at most one of
              * them be 0, ..." */
-            let mut flag = false;
-            if xyzreal_nonneg_atmost1z {
-                flag ^= true;
-            }
             /* "... or else let two of the variables x, y, z be nonzero and
              * conjugate complex with phase less in magnitude than pi and the
              * third variable be real and nonnegative." */
-            if argcheck::r1conj2(x, y, z)
+            // Unlike in xsf, either or both (not exclusive or), as two equal positive arguments are
+            // both real and conjugate, e.g. for `elliprj(1, 1, 2, -1 + i)`
+            return xyzreal_nonneg_atmost1z
+                || argcheck::r1conj2(x, y, z)
                 || argcheck::r1conj2(y, z, x)
-                || argcheck::r1conj2(z, x, y)
-            {
-                flag ^= true;
-            }
-            return flag;
+                || argcheck::r1conj2(z, x, y);
         }
         false
     }
