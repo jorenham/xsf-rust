@@ -374,13 +374,6 @@ fn test_pbdv_pbvv_v_rounding() {
 }
 
 #[test]
-fn test_pbdv_pbvv_neg_zero_v() {
-    // scipy/xsf#418
-    assert_eq!(xsf::pbdv(-0.0, 52.0), xsf::pbdv(0.0, 52.0));
-    assert_eq!(xsf::pbvv(-0.0, 5.0), xsf::pbvv(0.0, 5.0));
-}
-
-#[test]
 fn test_pbvv_extreme() {
     // v >= 0 and 7.5 < |x| <= 10, and v near an integer (reference values from mpmath)
     for (v, x, w, wp) in [
@@ -715,8 +708,8 @@ fn test_pbdv_pbvv_wronskian() {
 
 #[test]
 fn test_pbdv_pbvv_negative_zero_v() {
-    // unlike in xsf, v = -0.0 is the same as v = +0.0
-    for x in [-10.5, -5.0, 0.5, 5.0, 50.0] {
+    // unlike in xsf, v = -0.0 is the same as v = +0.0 (scipy/xsf#418)
+    for x in [-10.5, -5.0, 0.5, 5.0, 50.0, 52.0] {
         assert_eq!(xsf::pbdv(-0.0, x), xsf::pbdv(0.0, x), "pbdv(-0.0, {x})");
         assert_eq!(xsf::pbvv(-0.0, x), xsf::pbvv(0.0, x), "pbvv(-0.0, {x})");
     }
