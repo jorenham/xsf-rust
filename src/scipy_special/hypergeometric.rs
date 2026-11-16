@@ -5,6 +5,7 @@ use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64};
 use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
+use crate::xsf::complex::Num;
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
@@ -127,15 +128,16 @@ fn debye_is_accurate(v: f64, z: f64) -> bool {
 ///
 /// Only used for `|z| <= max(|v|, 1)`, where the terms decrease rapidly, except near the poles
 /// at `n ~ -v` if `v < 0`.
-fn hyp0f1_series(v: f64, z: f64) -> f64 {
-    let mut term = 1.0;
-    let mut sum = 1.0;
+fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
+    let mut term = T::from(1.0);
+    let mut sum = term;
     for n in 0..1000 {
         let n = f64::from(n);
-        term *= z / (v + n) / (n + 1.0);
-        sum += term;
+        term = term * (z / (v + n) / (n + 1.0));
+        sum = sum + term;
         // not before the term with the smallest |v + n|, e.g. 1 / (-7.000001)_8 ~ 1e6 / 7!
-        if term.abs() <= f64::EPSILON * sum.abs() && (v + n > -0.5 || term == 0.0) {
+        // `sum` is scaled first, as its complex `abs` can overflow
+        if term.abs() <= (sum * f64::EPSILON).abs() && (v + n > -0.5 || term.abs() == 0.0) {
             break;
         }
     }
@@ -162,6 +164,15 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         let t2 = z * z / (2.0 * v * (v + 1.0));
         t1 + t2
     } else {
+        // Unlike in xsf, the Maclaurin series is summed here like for real `z`, instead of using
+        // the Bessel functions, which over- or underflow for large `|v|`; they remain for where
+        // the partial sums overflow (for tiny `|v|`)
+        if z.norm() <= v.abs().max(1.0) {
+            let sum = hyp0f1_series(v, z);
+            if sum.is_finite() {
+                return sum;
+            }
+        }
         let (arg, r) = if z.re > 0.0 {
             let arg = z.sqrt();
             (arg, cyl_bessel_i_c64(v - 1.0, 2.0 * arg))
