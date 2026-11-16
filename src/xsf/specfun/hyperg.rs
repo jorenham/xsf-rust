@@ -5,7 +5,7 @@
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::{LN_2, PI};
-use core::ops::{Div, Mul, Range};
+use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
@@ -43,9 +43,6 @@ const MAX_BOUND_EXP: f64 = 64.0;
 /// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
 const LOG2_SCALE: i32 = 512;
 const SCALE: f64 = pow2(LOG2_SCALE);
-
-/// The `b` where `chgus` computes `sin(pi b)` with `sinpi` (empirical)
-const CHGUS_SINPI_B: Range<f64> = -0.5..2.5;
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
@@ -1951,19 +1948,22 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
     *id = 100;
     let ga = gamma2(a);
-    let gb = gamma2(b);
     let gab = gamma2(1.0 + a - b);
-    let gb2 = gamma2(2.0 - b);
-    // Unlike in xsf, with sinpi in `CHGUS_SINPI_B`, as sin(pi b) loses about eps / |b - n| near
-    // an integer n. Further out, gamma2(b) or gamma2(2 - b) is near a pole too, with an error that
-    // sin(pi b) partly cancels.
-    let hu0 = if CHGUS_SINPI_B.contains(&b) {
-        PI / cephes_sinpi(b)
+    // Unlike in xsf, with sinpi, as sin(pi b) loses about eps / |b - n| near an integer n, and
+    // reflected (DLMF 5.5.3) where gamma2(b) (b < -1) or gamma2(2 - b) (b > 3) loses as much
+    let hu0 = PI / cephes_sinpi(b);
+    let mut r1 = if b < -1.0 {
+        gamma2(1.0 - b) / gab
     } else {
-        PI / (PI * b).sin()
+        hu0 / (gab * gamma2(b))
     };
-    let mut r1 = hu0 / (gab * gb);
-    let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
+    // r2 without x^(1-b), which it is multiplied by last (as Gamma(b - 1) x^(1-b) can overflow)
+    let c = if b > 3.0 {
+        -gamma2(b - 1.0) / ga
+    } else {
+        hu0 / (ga * gamma2(2.0 - b))
+    };
+    let mut r2 = c * x.powf(1.0 - b);
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
     if ga == SPECFUN_INF {
         r2 = 0.0;
@@ -1973,7 +1973,6 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     }
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
     // (and hu back with `mul_exp`)
-    let c = hu0 / (ga * gb2);
     let mut lr2 = 0.0;
     if r2.is_infinite() && r1.is_finite() && c.is_finite() {
         lr2 = c.abs().ln() + (1.0 - b) * x.ln();

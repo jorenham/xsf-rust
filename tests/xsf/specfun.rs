@@ -438,6 +438,28 @@ fn test_hypu_chgus_sinpi() {
 }
 
 #[test]
+fn test_hypu_chgus_gamma_poles() {
+    // Arb; 0.850016, 0.729927, 3.86817017062829e-23, 8.2206319e32, and 1.3849818e92 in xsf
+    // (Gamma(b) or Gamma(2 - b) near a pole)
+    let abx = [
+        (0.3, -1.0 + 1e-14, 1e-100),
+        (-0.15, -1.0 + 2e-16, 1e-280),
+        (22.0, -1.0 - 3e-15, 1.6e-14),
+        (20.0, 3.0 - 1e-9, 1e-25),
+        (24.4, 6.0 - 7e-10, 1.8e-23),
+    ];
+    let expected = [
+        0.857_109_621_959_464_5,
+        1.057_517_111_631_981_5,
+        3.868_170_170_629_289_4e-23,
+        8.220_634_769_930_943e32,
+        1.384_981_943_556_528_2e92,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-15);
+}
+
+#[test]
 fn test_hypu_chgus_rounding() {
     // Arb; 1.381478037678 and 3.443455701978e64 in xsf. Here chgus has fewer digits than it would
     // claim without the rounding of 1 + a - b (first) and of its terms (second).
