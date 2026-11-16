@@ -331,6 +331,26 @@ fn test_assoc_legendre_q_all_n0_m0() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
+    // Arb: atanh(z), and acoth(z) for |z| > 1
+    for (z, q0) in [
+        (c64(1e-9, 2e-9), c64(1e-9, 2e-9)),
+        (
+            c64(-3e-7, 1e-7),
+            c64(-3.000_000_000_000_059_7e-7, 1.000_000_000_000_086_6e-7),
+        ),
+        (
+            c64(1e8, 3e7),
+            c64(9.174_311_926_605_505e-9, -2.752_293_577_981_651_6e-9),
+        ),
+        (c64(0.0, 1e-10), c64(0.0, 1e-10)),
+    ] {
+        let (qm, _) = xsf::assoc_legendre_q_all(0, 0, z);
+        xsref::np_assert_allclose!([qm[0][0]], [q0], rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_assoc_legendre_q_all_int_zero() {
     // `static_cast<T>(ls * (j + i - 1) * (j - i + 2))` with `ls = -1, i = 2, j = 0` is `+0.0`
     let q = xsf::assoc_legendre_q_all(2, 2, c64(1.00005, 0.0)).0[0][2];

@@ -21,6 +21,7 @@ use crate::utils;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
+use crate::xsf::log::clog1p;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
@@ -702,6 +703,23 @@ fn q0_real(x: f64) -> f64 {
     (0.5 * t.ln_1p()).copysign(x)
 }
 
+/// `Q_0(z) = ln(ls (1 + z) / (1 - z)) / 2` for complex `z`, with `ls = -1` for `|z| > 1`, else 1
+///
+/// Unlike in xsf, this is `atanh(z)` as a difference of `clog1p` for `|z| < 1/2`, and `acoth(z)`
+/// as the same of `1 / z` for `|z| > 2`, since the quotient itself loses the digits of `z` for
+/// small or large `|z|`. Each difference has the branch of the quotient, as the arguments of its
+/// terms differ by less than pi. In between, the quotient is accurate (while `1 / z` would lose
+/// the digits of `1 - 1 / z` near `z = 1`).
+fn q0_c64(z: C64) -> C64 {
+    let a = z.norm();
+    if (0.5..=2.0).contains(&a) {
+        let ls = if a > 1.0 { -1.0 } else { 1.0 };
+        return ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+    }
+    let w = if a > 2.0 { 1.0 / z } else { z };
+    (clog1p(w) - clog1p(-w)) / 2.0
+}
+
 // ====================================================
 // Purpose: Compute Legendre functions Qn(x) & Qn'(x)
 // Input :  x  --- Argument of Qn(x)
@@ -818,9 +836,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         }
         return;
     }
-    let ls = if z.norm() > 1.0 { -1.0 } else { 1.0 };
 
-    cq0 = ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+    cq0 = q0_c64(z);
     cq1 = z * cq0 - 1.0;
 
     cqn[0] = cq0;
@@ -1078,7 +1095,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     let zs = (1.0 - z * z) * f64::from(ls);
     let zq = zs.sqrt();
 
-    let cq0 = ((1.0 + z) * f64::from(ls) / (1.0 - z)).ln() / 2.0;
+    let cq0 = q0_c64(z);
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
