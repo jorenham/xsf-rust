@@ -976,10 +976,8 @@ fn chgm_fallback(
 
 /// Kummer's function `M(a, b, x)`.
 ///
-/// # Deviations from xsf
-///
-/// In the order of the code, where `x0` is the argument and, from 4 on, `a` and `x` are `b - a`
-/// and `-x0` if `x0 < 0` (DLMF 13.2.39):
+/// Unlike in xsf, in code order (`x0` is the argument; from 4 on, `a` and `x` are `b - a` and
+/// `-x0` if `x0 < 0`, DLMF 13.2.39):
 ///
 /// 1. NaNs, and `a = 0` or `a = b` for finite non-pole `b`, return at once (scipy/xsf#365).
 /// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
@@ -1192,10 +1190,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 
 /// Tricomi's function `U(a, b, x)`.
 ///
-/// # Deviations from xsf
-///
-/// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
-/// Here (scipy/xsf#380):
+/// Unlike in xsf (scipy/xsf#380), which returns the first of `chgus` and `chgul` with 9 digits,
+/// and else its step 2:
 ///
 /// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
 ///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise

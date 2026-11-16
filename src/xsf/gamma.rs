@@ -42,7 +42,7 @@ pub(crate) fn cgamma(z: C64) -> C64 {
 ///
 /// for $\Re(z) > 0$, and is extended to the complex plane by analytic continuation.
 ///
-/// # Type Parameters
+/// # Types
 /// - `T`: either [`f64`] or [`Complex<f64>`](num_complex::Complex)
 ///
 /// # See also

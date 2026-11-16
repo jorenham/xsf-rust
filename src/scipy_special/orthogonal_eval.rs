@@ -407,7 +407,7 @@ pub fn eval_legendre<N, Z: JacobiArg<N>>(n: N, z: Z) -> Z {
 ///
 /// $$ P_n^{*(\alpha,\beta)}(z) = P_n^{(\alpha,\beta)}(2z - 1) $$
 ///
-/// # Note
+/// # Notes
 ///
 /// This differs from [`scipy.special.eval_sh_jacobi`][docs], which evaluates the generalized
 /// Gegenbauer polynomial $G_n^{(p,q)}$ instead, i.e. [`eval_gengegenbauer`] (scipy/scipy#18988).
