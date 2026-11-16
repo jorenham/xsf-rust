@@ -1048,6 +1048,68 @@ fn test_hyp1f1_neg_b_cancellation() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_rounded_b_minus_a() {
+    // Arb; `b - a` rounds to (or near) an integer, which changes the terms of DLMF 13.2.39 a lot
+    let abx = [
+        (0.037, -0.963, -25.2),
+        (0.037, -1.963, -25.2),
+        (0.109, -5.891_000_001, -30.0),
+        (0.759, -0.241_000_000_001, -29.0),
+        // (an integer far beyond the terms that are summed)
+        (1e150, -1e-200, -1e-150),
+    ];
+    let expected = [
+        3.089_167_835_910_344e-10,
+        4.123_043_467_765_241e-9,
+        1.430_320_106_089_673e-7,
+        3.044_924_220_068_411_5e-11,
+        5.767_248_077_568_734e199,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // here the series in double-double is only accurate to 1e-11, so it shouldn't precede
+    // `hyp1f1_neg_b`
+    let actual = xsf::hyp1f1(
+        44.999_946_731_604_33,
+        -5.326_409_422_435_637_5e-5,
+        -52.614_841_190_696_32,
+    );
+    xsref::np_assert_allclose!([actual], [-1.332_909_333_817_075_8e-7], rtol = 1e-13);
+
+    // the sum overflows, and is redone with `e^(x - 1400)`, where `x - 1400` rounds
+    let actual = xsf::hyp1f1(10_000.0, -1e-309, -1e-7);
+    xsref::np_assert_allclose!([actual], [9.995_000_333_513_848e305], rtol = 1e-15);
+
+    // and here that redone sum underflows to 0
+    let actual = xsf::hyp1f1(1200.0, -60.3, -100.0);
+    xsref::np_assert_allclose!([actual], [-6.069_130_008_803_468e50], rtol = 1e-14);
+
+    // and here it is subnormal, but still accurate
+    let actual = xsf::hyp1f1(200_000.0, -1e-298, -0.001);
+    xsref::np_assert_allclose!([actual], [1.464_685_090_427_059_9e298], rtol = 1e-13);
+}
+
+#[test]
+fn test_hyp1f1_rounded_b_minus_a() {
+    // Arb; as above, but for `b > 0`
+    let abx = [
+        (1.037, 0.037, -25.2),
+        (2.3, 0.3, -30.0),
+        (1.963, 0.963, -25.2),
+        (1.547_000_001, 0.547, -29.0),
+    ];
+    let expected = [
+        -7.732_852_991_965_603e-9,
+        1.973_234_762_445_072_6e-10,
+        -2.861_749_604_034_37e-10,
+        -3.253_371_482_745_043_5e-12,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_large_a() {
     // Arb; DLMF 13.3.1 (forward in a) is unstable here, and these were 6.4e25, 0.99975004419684,
     // NaN, and NaN

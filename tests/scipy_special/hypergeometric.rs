@@ -131,6 +131,16 @@ fn test_hyp0f1_b_one() {
 }
 
 #[test]
+fn test_hyp0f1_large_negative_z() {
+    // where `sqrt(-z)` is not exact, which shifts the phase of `J`; Arb references
+    np_assert_allclose!(
+        [hyp0f1(2.5, -123_456.789), hyp0f1(0.25, -1e30)],
+        [-3.348_689_981_141_865_5e-6, -923.938_185_812_732],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion
@@ -229,6 +239,30 @@ fn test_hyp0f1_large_b() {
         [1.242_442_611_337_837e202],
         rtol = 1e-12
     );
+}
+
+#[test]
+fn test_hyp0f1_c64_large_b() {
+    // Arb; the Bessel functions over- or underflow here
+    let bz = [
+        (1000.0, c64(30.0, 40.0)),
+        (-500.5, c64(-20.0, 10.0)),
+        (150.25, c64(-60.0, -45.0)),
+    ];
+    let expected = [
+        c64(1.029_630_689_563_530_5, 0.041_205_970_834_947_474),
+        c64(1.040_562_667_171_689, -0.020_794_893_995_743_39),
+        c64(0.640_602_115_953_318_3, -0.198_368_510_709_189_82),
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-15);
+
+    // Arb; the norm of the partial sums overflows, or the partial sums themselves
+    let actual = [c64(0.0, 1.0), c64(0.2, 0.9)].map(|z| hyp0f1(6e-309, z));
+    let expected = [
+        c64(-8.217_785_411_823_984e307, 1.528_356_022_306_726_8e308),
+        c64(-3.690_208_731_438_365e307, 1.707_521_906_170_721_5e308),
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]

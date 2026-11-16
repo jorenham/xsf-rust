@@ -412,11 +412,11 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
         return hg;
     }
     let (a, z, ln_scale, phase) = if z.re < 0.0 {
-        let DoubleDouble { hi, lo } = DoubleDouble::new(b) - a;
-        if hi <= 0.0 && lo.abs() > SQRT_EPSILON * (hi - hi.round()).abs() {
+        let ak = DoubleDouble::new(b) - a;
+        if rounding_ratio(ak) > SQRT_EPSILON {
             return hg;
         }
-        (hi, -z, z.re, z.im)
+        (ak.hi, -z, z.re, z.im)
     } else {
         (a, z, 0.0, 0.0)
     };
@@ -479,6 +479,24 @@ fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
 /// Whether the value of `(value, error bound)` is finite and keeps at least half of its digits
 fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
     hg.is_finite() && err <= SQRT_EPSILON * hg.abs()
+}
+
+/// The largest relative error of `a.hi + k` for `a + k` over the integers `0 <= k < MAX_TERMS`, as
+/// in the factors `(a.hi)_n` of the series terms that `hyp1f1_sum` can reach; infinite if one is 0
+/// but its `a + k` isn't
+fn rounding_ratio(a: DoubleDouble) -> f64 {
+    if a.lo == 0.0 {
+        return 0.0;
+    }
+    let last = f64::from(MAX_TERMS - 1);
+    let dist = if a.hi > 0.0 {
+        a.hi
+    } else if a.hi < -last {
+        -a.hi - last
+    } else {
+        (a.hi - a.hi.round()).abs()
+    };
+    a.lo.abs() / dist
 }
 
 /// `(a, x)`, or `(b - a, -x)` of DLMF 13.2.39 for `x < 0`, with `b - a` also without rounding, e.g.
@@ -550,22 +568,25 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
     }
 }
 
-/// `M(a, b, x)` for `x <= -30 - |b|` from `chgm_neg_x_series`, or else from
+/// `M(a, b, x)` for `x < 0` from `chgm_neg_x_series`, or else (for `x <= -30 - |b|`) from
 /// `chgm_neg_x_asymptotic`
 fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
     chgm_neg_x_series(x, a, b).or_else(|| chgm_neg_x_asymptotic(x, a, b))
 }
 
-/// `M(a, b, x)` for `x <= -30 - |b|`, from the series of DLMF 13.2.39 in double-double with the
-/// exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
+/// `M(a, b, x)` for `x <= -30 - |b|`, or for `x < 0` and `b > 0` if rounding `b - a` errs by more
+/// than a rounding (see `rounding_ratio`), from the series of DLMF 13.2.39 in double-double with
+/// the exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
 ///
 /// Near a pole of `Gamma(b - a)`, whose reciprocal scales the `e^-x` part, rounding `b - a` and the
 /// recurrence in `a` lose all digits, and even the sign. The series needs over `-x` terms.
 fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
-    if !(30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
+    let ak = DoubleDouble::new(b) - a;
+    // (for `b < 0` see `chgm_neg_b`, where the series can need over `MAX_TERMS` terms)
+    let near = 0.0 < -x && b > 0.0 && rounding_ratio(ak) > f64::EPSILON;
+    if !(near || -x >= 30.0 + b.abs()) || -x >= f64::from(MAX_TERMS) {
         return None;
     }
-    let ak = DoubleDouble::new(b) - a;
     if ak >= 0.0 || (ak.hi.fract() == 0.0 && ak.lo.fract() == 0.0) {
         return None;
     }
@@ -683,26 +704,48 @@ fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
 }
 
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
-/// the series in double-double, if any loses at most half of its digits.
+/// the series in double-double, if any loses at most half of its digits. If rounding `b - a` (for
+/// `x < 0`) errs by more than a rounding (see `rounding_ratio`), the series in double-double comes
+/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
-    fn checked(x: f64, ends: bool, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
+    /// The series if it ends, with an error bound below `tol` relative to its value
+    fn checked(
+        x: f64,
+        ends: bool,
+        tol: f64,
+        series: impl Fn(f64) -> Option<(f64, f64)>,
+    ) -> Option<f64> {
         let mut hg = if ends { series(x) } else { None };
-        // if the partial sums overflow, `e^-1400 M` is summed instead
-        let mut ln_scale = 0.0;
+        // if the partial sums overflow, `e^-1400 M` is summed instead, with the rounding error `d`
+        // of `x - 1400` applied after, as that can be over `eps` relative to `x`
+        let (mut ln_scale, mut d) = (0.0, 0.0);
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
             ln_scale = 1400.0;
-            hg = series(x.min(0.0) - ln_scale);
+            let x0;
+            (x0, d) = two_sum(x.min(0.0), -ln_scale);
+            hg = series(x0);
         }
-        hg.filter(half_accurate)
-            .map(|(hg, _)| mul_exp(hg, ln_scale))
+        // (with the error of an underflow in the last 4 steps of `hyp1f1_sum`, each by up to half
+        // the smallest subnormal `MIN_POSITIVE eps`, as `err` underflows too)
+        let underflow = 2.0 * f64::MIN_POSITIVE * f64::EPSILON;
+        hg.filter(|&(hg, err)| hg.is_finite() && err + underflow <= tol * hg.abs())
+            .map(|(hg, _)| mul_exp(hg, ln_scale) * d.exp())
     }
     let (ak, xk) = kummer_args(x, a, b);
     // whether the series can end with a finite sum, i.e. within `MAX_TERMS` (see `term_ratio`)
     let ends = b + f64::from(MAX_TERMS) >= xk;
     let series_dd = |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0);
-    checked(x, ends, |x0| chgm_series(ak.hi, b, xk, x0))
+    // with an estimate of the error of rounding `b - a`, which changes the term `t_n` relatively by
+    // up to about `n r`, while `err` is at least `4 eps sum (n + 1) |t_n|` (see `hyp1f1_sum`)
+    let r = rounding_ratio(ak);
+    let series = |x0| {
+        chgm_series(ak.hi, b, xk, x0).map(|(hg, err)| (hg, err + r / (4.0 * f64::EPSILON) * err))
+    };
+    let small_rounding = r <= f64::EPSILON;
+    checked(x, ends, SQRT_EPSILON, series)
+        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, series_dd))
         .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, ends, series_dd))
+        .or_else(|| checked(x, ends, SQRT_EPSILON, series_dd))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
@@ -942,8 +985,9 @@ fn chgm_fallback(
 /// and `-x0` if `x0 < 0` (DLMF 13.2.39):
 ///
 /// 1. NaNs, and `a = 0` or `a = b` for finite non-pole `b`, return at once (scipy/xsf#365).
-/// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`: the series of DLMF 13.2.39 in
-///    double-double with the exact `b - a`, if its error bound is below `eps` (no issue).
+/// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
+///    `b - a` errs by more than a rounding: the series of DLMF 13.2.39 in double-double with the
+///    exact `b - a`, if its error bound is below `eps` (no issue).
 /// 3. Non-integer `b < 0`: `chgm_neg_b`, if that is accurate (scipy/xsf#365).
 /// 4. `a = -n >= -10^6`, `b > 0`, `n x > b`, `x0 > -700`: `chgm_poly`, if finite (scipy/xsf#365).
 /// 5. `a >= 2`, `b > 0`, or `a > -1`, `x > 30 + |b|`: the series in full (scipy/xsf#365).
@@ -988,7 +1032,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         return if a == 0.0 { 1.0 } else { x.exp() };
     }
 
-    // Unlike in xsf, large negative x has its own methods (see `chgm_neg_x`)
+    // Unlike in xsf, negative x has its own methods (see `chgm_neg_x`)
     if regular && a.is_finite() {
         if let Some(hg) = chgm_neg_x(x, a, b) {
             return hg;
