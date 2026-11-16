@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@bb5f99c).
+//! (scipy/xsf@250c65c).
 
 #![allow(clippy::approx_constant)]
 
@@ -393,8 +393,7 @@ pub(crate) fn jdzo(nt: i32, zo: &mut [f64], n: &mut [u32], m: &mut [u32], p: &mu
             (0.01088 * ntf) as usize + 10,
         )
     };
-    // Unlike in xsf, all orders `n <= xm` are searched (and `j'_{n,1} > n` for the others), since
-    // the `nm` above misses some, e.g. `j'_{26,1}` for `nt = 210`.
+    // Also search every order `n <= xm`, since the zeros of the others are `> xm` (DLMF 10.21.3)
     let nm = nm.max(xm as usize + 1);
 
     let mut l0 = 0;
@@ -414,9 +413,6 @@ pub(crate) fn jdzo(nt: i32, zo: &mut [f64], n: &mut [u32], m: &mut [u32], p: &mu
                         bjndd(x, i, &mut bj, &mut dj, &mut fj);
                         let x0 = x;
                         x -= dj[i - 1] / fj[i - 1];
-                        // Unlike in xsf, `x` is checked instead of the initial guess `x1` (as for
-                        // the zeros of Jn below), since `x1 > xm` misses e.g. `j'_{56,2}` for
-                        // `nt = 1121`.
                         if x > xm {
                             break 'l20;
                         }
@@ -978,8 +974,6 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
     // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
-    // Unlike in xsf, there is no `|x| < 1e-100` branch, which set `bl[k] = 0` for `k >= 1` and
-    // `dl[1] = 0.5`, instead of 1 and 0. The series below is accurate there too.
     if x <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {
