@@ -760,24 +760,29 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 return y;
             }
         }
+        let mut euler = p * y;
         if !p.is_normal() {
             // Unlike in xsf (scipy/xsf#471), split `s^d` in two if s > 0 and `y` is normal, as
             // their product can still be normal (e.g. for x << -1, where `y` is huge)
             if s > 0.0 && y.is_normal() {
                 let h = s.powf(d / 2.0);
-                return h * y * h;
-            }
-            // Unlike in xsf (scipy/xsf#471), else for x < 0 try the Pfaff series (as for x < -2
-            // below) and keep a normal result (e.g. about 1 for a tiny `b` and c < 0); not if
-            // their argument x / (x - 1) rounds to 1, as their error estimate misses that
-            if x < 0.0 && x / (x - 1.0) < 1.0 {
+                euler = h * y * h;
+            } else if x < 0.0 && x / (x - 1.0) < 1.0 {
+                // Unlike in xsf (scipy/xsf#471), else for x < 0 try the Pfaff series (as for
+                // x < -2 below) and keep a normal result (e.g. about 1 for a tiny `b` and c < 0);
+                // not if their argument x / (x - 1) rounds to 1, which their error estimate misses
                 let (y1, e1) = hys2f1_pfaff(a, b, c, x);
                 if e1 < HYP2F1_ETHRESH && y1.is_normal() {
                     return y1;
                 }
             }
         }
-        return p * y;
+        // Unlike in xsf, the result of `hyp2f1_recur` instead if it shows `euler` to be less
+        // accurate, or that is not finite
+        let worse = |&(alt, bound): &(f64, f64)| {
+            bound < HYP2F1_LOST && (!euler.is_finite() || less_accurate(euler, alt, bound))
+        };
+        return inexact.filter(worse).map_or(euler, |(alt, _)| alt);
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
         return f64::INFINITY; // goto hypdiv
