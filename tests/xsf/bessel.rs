@@ -1224,18 +1224,57 @@ fn test_jahnke_emden_lambda_tiny_x() {
 
 #[test]
 fn test_jahnke_emden_lambda_high_orders() {
-    // mpmath; the recurrence of `lamn` starts at order 328 for `x = 60`
-    let (vl, dl) = xsf::jahnke_emden_lambda(500, 60.0);
-    let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
-    let expected = [
-        0.064_658_649_612_803_2,
-        0.105_325_332_091_226_67,
-        0.165_358_932_985_256_56,
-        -0.005_927_303_686_869_632,
-        -0.007_924_190_401_755_885,
-        -0.009_937_421_238_798_044,
-    ];
-    np_assert_allclose!(actual, expected, rtol = 1e-13);
+    // mpmath (v = 500) and Arb (v = 500.5); xsf stops at order `msta1(60, 200) = 328`
+    for (v, expected) in [
+        (
+            500.0,
+            [
+                0.064_658_649_612_803_2,
+                0.105_325_332_091_226_67,
+                0.165_358_932_985_256_56,
+                -0.005_927_303_686_869_632,
+                -0.007_924_190_401_755_885,
+                -0.009_937_421_238_798_044,
+            ],
+        ),
+        (
+            500.5,
+            [
+                0.064_929_345_091_574_51,
+                0.105_622_626_797_108_82,
+                0.165_656_964_513_909_68,
+                -0.005_942_962_254_042_083,
+                -0.007_936_549_366_129_714,
+                -0.009_945_334_579_170_939,
+            ],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, 60.0);
+        let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
+        np_assert_allclose!(actual, expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_near_zero() {
+    // Arb; the highest orders are close to a zero of `J_v(x)`, which the recurrence rounds to 0
+    for (v, x, expected) in [
+        (370.5, 383.972_410_969_705_27, -7.648_634_385_955_928e-56),
+        (10.0, 18.433_463_666_966_58, 1.398_808_575_581_345_8e-4),
+        (4.0, 7.588_342_434_503_804, -0.031_079_002_653_488_355),
+    ] {
+        let (_, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([dl[dl.len() - 1]], [expected], rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_subnormal() {
+    // Arb; the derivatives are larger than the subnormal `Lambda_{v+1}(x)` they are formed from
+    for (v, x, expected) in [(42.5, 1e9, -4e-323), (169.0, 1e4, -1.5e-323)] {
+        let (_, dl) = xsf::jahnke_emden_lambda(v, x);
+        assert_eq!(dl[dl.len() - 1], expected, "v = {v}, x = {x}");
+    }
 }
 
 #[test]
@@ -1263,6 +1302,108 @@ fn test_jahnke_emden_lambda_negative_x() {
                 "v = {v}, x = {x}"
             );
         }
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_large_x() {
+    // Arb; NaN in xsf from about x = 4476, as the backward recurrences overflow
+    for (v, x, k, expected) in [
+        (
+            2.0,
+            5000.0,
+            2,
+            [2.126_507_932_532_124_6e-9, -2.919_271_034_712_797e-9],
+        ),
+        (
+            2.0,
+            9215.6,
+            2,
+            [6.780_524_556_275_264e-10, -3.916_157_000_109_374e-10],
+        ),
+        (
+            5000.5,
+            5000.0,
+            2,
+            [1.185_448_223_000_514_9e-10, -1.870_246_475_852_011e-11],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[k], dl[k]], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_large_v_and_x() {
+    // Arb; in xsf, the scale of `J_v(x)` underflows around order `x / 2`, and `J_v(x)` itself
+    // for `v > x`, which made these orders of magnitude off or 0
+    for (v, x, expected) in [
+        (
+            2542.59,
+            1764.81,
+            [2.365_382_472_695_595_7e-143, -9.539_856_558_966_074e-144],
+        ),
+        (
+            4485.0,
+            3156.13,
+            [5.456_508_530_235_721e-260, -2.244_000_327_982_604_5e-260],
+        ),
+        (
+            4421.5,
+            3132.18,
+            [4.873_607_538_273_819e-260, -2.023_149_554_161_378_5e-260],
+        ),
+        // above `msta1(x, 200)`, where the power series cancels
+        (
+            5016.0,
+            3363.0,
+            [7.165_465_027_825_305e-262, -2.757_026_551_415_938_5e-262],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_series_cancellation() {
+    // Arb; xsf sums the power series up to `x = 12`, which loses up to about 1e-12 there
+    for (v, expected) in [
+        (1.0, [-0.038_484_579_775_113_284, 0.010_677_986_802_471_08]),
+        (
+            1.5,
+            [-0.017_753_292_661_966_142, -0.008_619_580_458_152_027],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, 11.9);
+        np_assert_allclose!([vl[1], dl[1]], expected, rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_large_x_seeds() {
+    // Arb; xsf starts the recurrences from the asymptotic expansions of `J_v0(x)` and
+    // `J_{v0+1}(x)`, which lose up to about 4e-8 here
+    for (v, x, expected) in [
+        (
+            2.25,
+            12.3,
+            [-0.003_104_530_913_754_87, -0.008_465_513_461_267_032],
+        ),
+        (
+            13.25,
+            674_667.78,
+            [-1.015_759_064_595_633_6e-67, -6.505_120_550_041_504e-67],
+        ),
+        // `Lambda_41(x)` is subnormal
+        (
+            40.25,
+            1e9,
+            [3.152_575_638_733_010_5e-307, 2.160_038_828_520_150_6e-307],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-14);
     }
 }
 

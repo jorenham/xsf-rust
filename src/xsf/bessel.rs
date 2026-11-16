@@ -2168,7 +2168,8 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     let n1 = if n < 1 { 1 } else { n };
     let v1 = v0 + n1.to_f64().unwrap();
 
-    let size = v1.to_usize().unwrap() + 1;
+    // one more order, for the derivative of the highest
+    let size = v1.to_usize().unwrap() + 2;
     let (mut vl, mut dl) = (vec![f64::NAN; size], vec![f64::NAN; size]);
     if v == n.to_f64().unwrap() {
         let mut nm = 0;

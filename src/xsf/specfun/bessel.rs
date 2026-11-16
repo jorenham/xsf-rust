@@ -5,10 +5,11 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
-use super::{SPECFUN_INF, deflated_newton_step};
+use super::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF, deflated_newton_step};
 use crate::utils::neg_one_pow;
-use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_y_c64};
+use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_y_c64};
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 
 fn gam0(x: f64) -> f64 {
     // ================================================
@@ -931,95 +932,104 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also bl[1] / dl[1] (for |x| > 12, where *nm
-    // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
-    // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and for |x| > LAM_SERIES_MAX_X also
+    // bl[nm + 1] / dl[nm + 1] (unlike in xsf), where *nm is 1 if n == 0, which is out of bounds for
+    // n == 0 with buffers of length n + 2. The caller (jahnke_emden_lambda) passes n >= 1, so that's
+    // in bounds.
     *nm = n;
-    if x.abs() <= 12.0 {
+    if x.abs() <= LAM_SERIES_MAX_X {
         let x2 = x * x;
         for k in 0..=n {
-            let bk = lamn_series(f64::from(k), x2).0;
+            let bk = lamn_series(f64::from(k), x2);
             bl[k as usize] = bk;
             if k >= 1 {
                 dl[(k - 1) as usize] = -0.5 * x / f64::from(k) * bk;
             }
         }
-        let uk = lamn_series(f64::from(n) + 1.0, x2).0;
+        let uk = lamn_series(f64::from(n) + 1.0, x2);
         dl[n as usize] = -0.5 * x / (f64::from(n) + 1.0) * uk;
         return;
     }
     if n == 0 {
         *nm = 1;
     }
-    let mut m = msta1(x, 200);
-    if m < *nm {
-        *nm = m;
-    } else {
-        m = msta2(x, *nm, 15);
-    }
+    // Unlike in xsf, this does not stop at order `msta1(x, 200)`, like `lamv`
+    let m = msta2(x, *nm, 15);
     let mut bs = 0.0;
     let mut f = 0.0;
     let mut f0 = 0.0;
     let mut f1 = 1e-100;
+    // the rescalings so far, also kept in `dl` for each stored order
+    let mut scales = 0;
     for k in (0..=m).rev() {
         f = 2.0 * (f64::from(k) + 1.0) * f1 / x - f0;
-        if k <= *nm {
-            bl[k as usize] = f;
+        if k <= *nm + 1 {
+            (bl[k as usize], dl[k as usize]) = (f, f64::from(scales));
         }
         if k % 2 == 0 {
             bs += 2.0 * f;
+        }
+        // Unlike in xsf, this rescales (by powers of 2), since it overflows from about `x = 4476`,
+        // where `msta1` and `msta2` overestimate the start
+        if f.abs() > SPECFUN_BIG {
+            (f, f1, bs) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG, bs / SPECFUN_BIG);
+            scales += 1;
         }
         f0 = f1;
         f1 = f;
     }
     let bg = bs - f;
-    for k in 0..=*nm {
+    for k in 0..=*nm + 1 {
         bl[k as usize] /= bg;
     }
-    let mut r0 = 1.0;
-    for k in 1..=*nm {
-        r0 = 2.0 * r0 * f64::from(k) / x;
-        bl[k as usize] *= r0;
-    }
-    dl[0] = -0.5 * x * bl[1];
-    for k in 1..=*nm {
-        dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
-    }
-    // Unlike in xsf, the orders above `nm` are not left unset, but summed like for `|x| <= 12`
-    // where the error estimate of that sum is small enough
-    if *nm < n {
-        let series = |k: f64| match lamn_series(k, x * x) {
-            (bk, err) if bk.is_finite() && err <= LAMN_SERIES_RTOL * bk.abs() => bk,
-            _ => f64::NAN,
-        };
-        for k in *nm + 1..=n {
-            bl[k as usize] = series(f64::from(k));
-        }
-        for k in *nm + 1..n {
-            dl[k as usize] = -0.5 * x / f64::from(k + 1) * bl[(k + 1) as usize];
-        }
-        let n1 = f64::from(n) + 1.0;
-        dl[n as usize] = -0.5 * x / n1 * series(n1);
-    }
+    // Unlike in xsf, the derivatives are `Lambda_k'(x) = -x / (2 (k + 1)) Lambda_{k+1}(x)` like in
+    // `lamv`, since `2 k / x (Lambda_{k-1}(x) - Lambda_k(x))` cancels for `k >> x^2`
+    lam_scale_j(0.0, x, 1.0, scales, &mut bl[..=(*nm + 1) as usize], dl);
 }
 
-/// The largest error estimate relative to the sum for which `lamn` uses `lamn_series` above `nm`
-const LAMN_SERIES_RTOL: f64 = 1e-13;
+/// The largest `|x|` for which `lamn` and `lamv` sum the power series, instead of the recurrences
+//
+// Unlike in xsf (12), as the series loses about `e^|x| / 2` ulp to cancellation, which is more
+// than the recurrences lose from about `|x| = 5`
+const LAM_SERIES_MAX_X: f64 = 5.0;
 
 /// The power series of `Lambda_k(x)` in `x2 = x^2` (DLMF 10.2.2), summed to a relative 1e-15
-/// or 50 terms, and an estimate of its rounding and truncation errors
-fn lamn_series(k: f64, x2: f64) -> (f64, f64) {
-    let (mut bk, mut r, mut abs_sum) = (1.0, 1.0, 1.0);
+/// or 50 terms
+fn lamn_series(k: f64, x2: f64) -> f64 {
+    let (mut bk, mut r) = (1.0, 1.0);
     for i in 1..=50 {
         r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + k));
         bk += r;
-        abs_sum += r.abs();
 
         if r.abs() < bk.abs() * 1.0e-15 {
-            return (bk, abs_sum * f64::EPSILON);
+            break;
         }
     }
-    (bk, abs_sum * f64::EPSILON + r.abs())
+    bk
+}
+
+/// `Lambda_{v0 + k}(x) = fac (2/x)^k (v0 + 1)_k J_{v0 + k}(x)` in `vl[k]`, and
+/// `Lambda_{v0 + k - 1}'(x) = -x / (2 (v0 + k)) Lambda_{v0 + k}(x)` in `dl[k - 1]`, from
+/// `J_{v0 + k}(x) = vl[k] SPECFUN_BIG^(dl[k] - scales)`
+//
+// Unlike in xsf, the scale keeps its exponent apart, since it underflows around order `x / 2` for
+// `x >~ 1420`, and so does `J_{v0 + k}(x)` for large orders, while their product does not. The
+// derivatives are formed before that exponent is applied, as they can be larger than a subnormal
+// `Lambda_{v0 + k}(x)`.
+fn lam_scale_j(v0: f64, x: f64, fac: f64, scales: i32, vl: &mut [f64], dl: &mut [f64]) {
+    let (mut r0, mut e0) = (1.0, 0);
+    for k in 0..vl.len() {
+        if k > 0 {
+            let (m, e) = frexp_f64(r0 * (2.0 * (k as f64 + v0) / x));
+            (r0, e0) = (m, e0 + e);
+        }
+        let e = e0 - (scales - dl[k] as i32) * SPECFUN_BIG_LOG2;
+        let y = vl[k] * (fac * r0);
+        vl[k] = ldexp_f64(y, e);
+        if k > 0 {
+            dl[k - 1] = ldexp_f64(-0.5 * x / (k as f64 + v0) * y, e);
+        }
+    }
 }
 
 pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {
@@ -1037,12 +1047,10 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     //      (2) GAM0 for computing gamma function (|x| ≤ 1)
     // =========================================================
 
-    // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > 12 also vl[1] / dl[1]
-    // (out of bounds for v < 1 with buffers of length n + 1). The caller
-    // (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 1, so that's in bounds,
-    // and `(int)v` is not UB.
-    let rp2 = 0.63661977236758;
-
+    // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > LAM_SERIES_MAX_X also
+    // vl[1] / dl[1] and, unlike in xsf, vl[n + 1] / dl[n + 1] (out of bounds with buffers of length
+    // n + 1). The caller (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 2, so
+    // that's in bounds, and `(int)v` is not UB.
     if x < 0.0 {
         // Lambda_v is even, so its derivative is odd
         lamv(v, -x, vm, vl, dl);
@@ -1053,11 +1061,11 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     }
 
     let x2 = x * x;
-    let mut n = v as i32;
+    let n = v as i32;
     let v0 = v - f64::from(n);
     *vm = v;
 
-    if x <= 12.0 {
+    if x <= LAM_SERIES_MAX_X {
         for k in 0..=n {
             let vk = v0 + f64::from(k);
             let mut bk = 1.0;
@@ -1089,54 +1097,10 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
-    let k0 = if x >= 50.0 {
-        8
-    } else if x >= 35.0 {
-        10
-    } else {
-        11
-    };
-    let mut bjv0 = 0.0;
-    let mut bjv1 = 0.0;
-
-    for j in 0..=1 {
-        let vv = 4.0 * (f64::from(j) + v0) * (f64::from(j) + v0);
-        let mut px = 1.0;
-        let mut rp = 1.0;
-        for k in 1..=k0 {
-            // NOTE: `pow(y, 2.0)` is written as `y * y`, which is what GCC compiles it to.
-            rp = -0.78125e-2
-                * rp
-                * (vv - (4.0 * f64::from(k) - 3.0) * (4.0 * f64::from(k) - 3.0))
-                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
-                / (f64::from(k) * (2.0 * f64::from(k) - 1.0) * x2);
-            px += rp;
-        }
-
-        let mut qx = 1.0;
-        rp = 1.0;
-        for k in 1..=k0 {
-            rp = -0.78125e-2
-                * rp
-                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
-                * (vv - (4.0 * f64::from(k) + 1.0) * (4.0 * f64::from(k) + 1.0))
-                / (f64::from(k) * (2.0 * f64::from(k) + 1.0) * x2);
-            qx += rp;
-        }
-
-        qx = 0.125 * (vv - 1.0) * qx / x;
-        let xk = x - (0.5 * (f64::from(j) + v0) + 0.25) * PI;
-        let a0 = (rp2 / x).sqrt();
-        let ck = xk.cos();
-        let sk = xk.sin();
-
-        if j == 0 {
-            bjv0 = a0 * (px * ck - qx * sk);
-        }
-        if j == 1 {
-            bjv1 = a0 * (px * ck - qx * sk);
-        }
-    }
+    // Unlike in xsf, these are not the asymptotic expansions of `J_v0(x)` and `J_{v0+1}(x)`
+    // (DLMF 10.17.3), whose 8 to 11 terms lose up to 1e-11
+    let bjv0 = cyl_bessel_j_f64(v0, x);
+    let bjv1 = cyl_bessel_j_f64(v0 + 1.0, x);
 
     let mut ga;
     if v0 == 0.0 {
@@ -1151,7 +1115,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     dl[0] = -bjv1 + v0 / x * bjv0;
     vl[1] = bjv1;
     dl[1] = bjv0 - (1.0 + v0) / x * bjv1;
-    let mut r0 = 2.0 * (1.0 + v0) / x;
+    let r0 = 2.0 * (1.0 + v0) / x;
 
     if n <= 1 {
         vl[0] *= fac;
@@ -1161,23 +1125,23 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
+    // the rescalings of the backward recurrence, also kept in `dl` for each stored order
+    let mut scales = 0;
+    dl.fill(0.0);
     if n >= 2 && f64::from(n) <= 0.9 * x {
         let mut f0 = bjv0;
         let mut f1 = bjv1;
 
-        for k in 2..=n {
+        for k in 2..=n + 1 {
             let f = 2.0 * (f64::from(k) + v0 - 1.0) / x * f1 - f0;
             f0 = f1;
             f1 = f;
             vl[k as usize] = f;
         }
     } else if n >= 2 {
-        let mut m = msta1(x, 200);
-        if m < n {
-            n = m;
-        } else {
-            m = msta2(x, n, 15);
-        }
+        // Unlike in xsf, this does not stop at order `msta1(x, 200)`, above which it left NaN,
+        // since the rescaling keeps all orders finite
+        let m = msta2(x, n, 15);
 
         let mut f = 0.0;
         let mut f2 = 0.0;
@@ -1185,8 +1149,13 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
 
         for k in (0..=m).rev() {
             f = 2.0 * (v0 + f64::from(k) + 1.0) / x * f1 - f2;
-            if k <= n {
-                vl[k as usize] = f;
+            if k <= n + 1 {
+                (vl[k as usize], dl[k as usize]) = (f, f64::from(scales));
+            }
+            // Unlike in xsf, this rescales like `lamn` does
+            if f.abs() > SPECFUN_BIG {
+                (f, f1) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG);
+                scales += 1;
             }
             f2 = f1;
             f1 = f;
@@ -1198,19 +1167,14 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
             bjv1 / f2
         };
 
-        for k in 0..=n {
+        for k in 0..=n + 1 {
             vl[k as usize] *= cs;
         }
     }
 
-    vl[0] *= fac;
-    for j in 1..=n {
-        vl[j as usize] *= fac * r0;
-        dl[(j - 1) as usize] = -0.5 * x / (f64::from(j) + v0) * vl[j as usize];
-        r0 *= 2.0 * (f64::from(j) + v0 + 1.0) / x;
-    }
-
-    dl[n as usize] = 2.0 * (v0 + f64::from(n)) * (vl[(n - 1) as usize] - vl[n as usize]) / x;
+    // Unlike in xsf, `dl[n]` is also `-x / (2 (n + v0 + 1)) Lambda_{n+1}(x)`, from one more order of
+    // the recurrences, since `2 (n + v0) / x (Lambda_{n-1}(x) - Lambda_n(x))` cancels for `n >> x^2`
+    lam_scale_j(v0, x, fac, scales, &mut vl[..=(n + 1) as usize], dl);
     *vm = f64::from(n) + v0;
 }
 

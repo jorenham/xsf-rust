@@ -10,6 +10,8 @@
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
 //!   (scipy/xsf#368).
 //! - `lqmn` rescales its backward recurrences, which overflow for large `|z|` and `m + n`.
+//! - The complex `lqn` and `lqmn` take the imaginary parts for a tiny `Im z` from a lifted one,
+//!   since those of their seeds can be subnormal.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
 
 use core::ops::{Index, IndexMut};
@@ -21,6 +23,7 @@ use crate::utils;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 use crate::xsf::complex::Num;
+use crate::xsf::log::clog1p;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF};
 
 /// A mutable view of a row-major array, like `std::mdspan` with `R` extents and `int` indices
@@ -702,6 +705,68 @@ fn q0_real(x: f64) -> f64 {
     (0.5 * t.ln_1p()).copysign(x)
 }
 
+/// `Q_0(z) = ln(ls (1 + z) / (1 - z)) / 2` for complex `z`, with `ls = -1` for `|z| > 1`, else 1
+///
+/// Unlike in xsf, this is `atanh(z)` as a difference of `clog1p` for `|z| < 1/2`, and `acoth(z)`
+/// as the same of `1 / z` for `|z| > 2`, since the quotient itself loses the digits of `z` for
+/// small or large `|z|`. Each difference has the branch of the quotient, as the arguments of its
+/// terms differ by less than pi. In between, the quotient is accurate (while `1 / z` would lose
+/// the digits of `1 - 1 / z` near `z = 1`).
+fn q0_c64(z: C64) -> C64 {
+    let a = z.norm();
+    if (0.5..=2.0).contains(&a) {
+        let ls = if a > 1.0 { -1.0 } else { 1.0 };
+        return ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+    }
+    let w = if a > 2.0 { 1.0 / z } else { z };
+    (clog1p(w) - clog1p(-w)) / 2.0
+}
+
+/// Replaces the imaginary parts of `Q` and `Q'` (by `lq`, `lqn_c64` or `lqmn_c64`, up to degree
+/// plus order `n`) at `z` with a tiny `y = Im z` by those at `z` with `y` lifted by a power of 2
+/// to about `2^-36 d`, scaled back, with `d` the distance of `Re z` to `+-1` over `n + 1`, or
+/// `sqrt|Re z|` if smaller and `Re z != 0`
+///
+/// The imaginary parts of the seeds are about `y Q'(Re z)`, which can be subnormal while those
+/// of the results are not. Up to the lifted `y`, the imaginary parts are linear in `y` to about
+/// `2^-70 y` times the size of `Q'` near `Re z`, and the real parts do not depend on `y` to double
+/// precision, so they are kept. So are the imaginary parts that overflow in the lifted run,
+/// unless they are NaN.
+fn lq_lift_im<const R: usize>(
+    lq: fn(C64, Mdspan<'_, C64, R>, Mdspan<'_, C64, R>),
+    z: C64,
+    n: i32,
+    q: &mut Mdspan<'_, C64, R>,
+    dq: &mut Mdspan<'_, C64, R>,
+) {
+    let x = z.re.abs();
+    let mut d = (x - 1.0).abs() / f64::from(n + 1);
+    if x != 0.0 {
+        // the lifted `y^2` stays far below `|x|`, since the parts linear in `x` cancel to it
+        d = d.min(x.sqrt());
+    }
+    let y = z.im.abs();
+    // also not for `d = 0` (where the expansion does not hold), and NaN
+    if !(0.0 < y && y < d * const { utils::pow2(-37) } && d.is_finite()) {
+        return;
+    }
+    // at least 1, and the lifted `y` is at least `2^-37 d`, so that it is not lifted again
+    let s = frexp_f64(d).1 - 36 - frexp_f64(y).1;
+    let len = q.data.len();
+    let mut lifted = vec![C64::ZERO; 2 * len];
+    let (lq_, ldq) = lifted.split_at_mut(len);
+    lq(
+        c64(z.re, ldexp_f64(z.im, s)),
+        Mdspan::new(lq_, q.extents),
+        Mdspan::new(ldq, dq.extents),
+    );
+    for (c, l) in q.data.iter_mut().chain(dq.data.iter_mut()).zip(lifted) {
+        if l.im.is_finite() || c.im.is_nan() {
+            c.im = ldexp_f64(l.im, -s);
+        }
+    }
+}
+
 // ====================================================
 // Purpose: Compute Legendre functions Qn(x) & Qn'(x)
 // Input :  x  --- Argument of Qn(x)
@@ -818,9 +883,8 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         }
         return;
     }
-    let ls = if z.norm() > 1.0 { -1.0 } else { 1.0 };
 
-    cq0 = ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
+    cq0 = q0_c64(z);
     cq1 = z * cq0 - 1.0;
 
     cqn[0] = cq0;
@@ -840,7 +904,9 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         let km = if z.norm() > 1.1 {
             40_i32.wrapping_add(n)
         } else {
-            (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z - 1.0).norm().ln()).floor())
+            // Unlike in xsf, this uses `|z| - 1` instead of `|z - 1|`, which is not positive for
+            // `z` far from 1 and left `cqf0` at zero (as in `lqmn_c64`)
+            (f64::from(40_i32.wrapping_add(n)) * (-1.0 - 1.8 * (z.norm() - 1.0).ln()).floor())
                 as i32
         };
 
@@ -851,6 +917,14 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             cqf0 = (z * (2.0 * k_ + 3.0) * cqf1 - cqf2 * (k_ + 2.0)) / (k_ + 1.0);
             if k <= n {
                 cqn[k] = cqf0;
+            }
+            // Unlike in xsf, this rescales by a power of 2 (as in `lqmn_c64`), since `cqf0` grows like
+            // `(2 z)^k` and overflowed for large `|z|`
+            if cqf0.l1_norm() > SPECFUN_BIG {
+                (cqf0, cqf1) = (cqf0 / SPECFUN_BIG, cqf1 / SPECFUN_BIG);
+                for j in k.min(n)..=n {
+                    cqn[j] /= SPECFUN_BIG;
+                }
             }
             cqf2 = cqf1;
             cqf1 = cqf0;
@@ -865,6 +939,10 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
         let k_ = f64::from(k);
         cqd[k] = (z * k_ * cqn[k] - cqn[k - 1] * k_) / (z * z - 1.0);
     }
+
+    // Unlike in xsf, the imaginary parts for a tiny `Im z` are those at a lifted one, since the
+    // imaginary parts of the seeds of the recurrence can be subnormal
+    lq_lift_im(lqn_c64, z, n, &mut cqn, &mut cqd);
 }
 
 /// The `Q_n^m(z)` of `lqmn` and `lqmn_c64` for `|z| >= 1.0001`, from `Q_0^0(z) = q0` and
@@ -1078,7 +1156,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
     let zs = (1.0 - z * z) * f64::from(ls);
     let zq = zs.sqrt();
 
-    let cq0 = ((1.0 + z) * f64::from(ls) / (1.0 - z)).ln() / 2.0;
+    let cq0 = q0_c64(z);
     if xc < 1.0001 {
         cqm[(0, 0)] = cq0;
         cqm[(1, 0)] = -1.0 / zq;
@@ -1125,6 +1203,11 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
                 + int_product(&[i + j, j - i + 1]) / zq * cqm[(i - 1, j)];
         }
     }
+
+    // Unlike in xsf, the imaginary parts for a tiny `Im z` are those at a lifted one, since those
+    // of the seeds of the order recurrence can be subnormal, while those of the orders it raises
+    // back into range are not
+    lq_lift_im(lqmn_c64, z, m + n, &mut cqm, &mut cqd);
 }
 
 // Rust API
