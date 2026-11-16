@@ -666,6 +666,19 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let mut w2 = sm * prm * pm * 4.0;
     let norm = |a: T| a.real().abs().max(a.imag().abs());
 
+    // The sum of the `R_C` terms of the steps before `m`, `3 atan(sqrt(t)) / (sqrt(t) s)` with
+    // `t = delta 4^-m / s^2`, as in xsf's last step
+    let s_term = |s: T, d4m: f64| (delta * d4m / (s * s)).safe_atan_sqrt_div() * 3.0 / s;
+    // Unlike in xsf, the `R_C` terms are summed directly once the update of `s` cancels by more
+    // than 4 bits, e.g. for `x, y, z << p`, where `s` is lost while `r d ~ delta 4^-2m`. The term
+    // of a step is the `R_C` term of `rj_duplicated`, `6 4^-m R_C(1, 1 + e) / d` with
+    // `e = delta 4^-3m / d^2`.
+    let rc_term = |d: T, d4m: f64| {
+        let e = delta * d4m / d * (T::from(d4m) / d) * d4m;
+        e.safe_atan_sqrt_div() * (d4m * 6.0) / d
+    };
+    let mut rc_sum = None;
+
     let mut m = 1;
     loop {
         let a_am = am.abs();
@@ -677,6 +690,13 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         if m > config::MAX_ITER {
             status = ExitStatus::NIter;
             break;
+        }
+        if let Some(sum) = rc_sum {
+            ellint_rj_calc!();
+            rc_sum = Some(sum + rc_term(dm, d4m));
+            ellint_rj_updt!();
+            m += 1;
+            continue;
         }
         let ss = sm * sm;
         let u = delta * d4m / ss + 1.0;
@@ -702,7 +722,12 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         };
         ellint_rj_calc!();
         let den = dm + rm * d4m;
-        sm = (rm * dm - delta * (d4m * d4m)) * 0.5 / den;
+        let rd = rm * dm;
+        let num = rd - delta * (d4m * d4m);
+        if norm(rd) > norm(num) * const { pow2(4) } {
+            rc_sum = Some(s_term(sm, d4m) + rc_term(dm, d4m));
+        }
+        sm = num * 0.5 / den;
 
         /* next */
         ellint_rj_updt!();
@@ -764,9 +789,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct2[5] = e4;
     t = dot2(&cct1, &cct2) / constants::RDJ_DENOM + 1.0;
     tmp = tmp * t;
-    t = delta * d4m / (sm * sm);
     /* Use the library atan function, following Ref[4], Sec. 1.6.1. */
-    tmp = tmp + t.safe_atan_sqrt_div() * 3.0 / sm;
+    tmp = tmp + rc_sum.unwrap_or_else(|| s_term(sm, d4m));
 
     (status, tmp)
 }
