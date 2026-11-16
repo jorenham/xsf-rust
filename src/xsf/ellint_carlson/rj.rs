@@ -197,7 +197,13 @@ mod rjimpl {
 
         let pq = pn * xct1[2];
         let xypq = xy + pq;
-        (status_tmp, xct2[2]) = rc(xypq, pq, rerr);
+        // Unlike in xsf, in closed form if `x y z` or `pn q` under- or overflows
+        let closed = !((xy * z).is_normal() && pq.is_normal());
+        (status_tmp, xct2[2]) = if closed {
+            (ExitStatus::Success, rc_term(x, y, z, pn, -p))
+        } else {
+            rc(xypq, pq, rerr)
+        };
         if is_horrible(status_tmp) {
             return (status_tmp, 0.0);
         } else if is_troublesome(status_tmp) {
@@ -205,13 +211,45 @@ mod rjimpl {
         }
         xct1[0] = pn - z;
         xct1[1] = -3.0;
-        xct1[2] = 3.0 * (xy * z / xypq).sqrt();
+        xct1[2] = 3.0 * if closed { 1.0 } else { (xy * z / xypq).sqrt() };
 
         let mut tmpres = ndot2(&xct1, &xct2, 3);
+        // Unlike in xsf, NaN if the terms cancel to less than half of the digits, e.g. for tiny
+        // `x`, `y` and `p` (instead of a wrong value)
+        let size: f64 = (0..3).map(|i| (xct1[i] * xct2[i]).abs()).sum();
+        if size > const { pow2(26) } * tmpres.abs() {
+            return (ExitStatus::PrecLoss, f64::NAN);
+        }
         tmpres /= z - p;
         let res = tmpres;
 
         (status, res)
+    }
+
+    /// `sqrt(x y z / (x y + pn q)) R_C(x y + pn q, pn q)` of `rj_cpv_dispatch` for `x <= y`, i.e.
+    /// `sqrt(z) asinh(t) / sqrt(x y + pn q)` with `t = sqrt(x y / (pn q))`
+    /// ([DLMF 19.2.19](https://dlmf.nist.gov/19.2.E19)), from the square roots so that it can't
+    /// spuriously overflow
+    pub(super) fn rc_term(x: f64, y: f64, z: f64, pn: f64, q: f64) -> f64 {
+        if x == 0.0 {
+            return 0.0;
+        }
+        let [sx, sy, sp, sq] = [x, y, pn, q].map(f64::sqrt);
+        // `sx / sp <= 1`, as `pn - x = (z - x) (y + q) / (z + q) >= 0`
+        let t = (sx / sp) * (sy / sq);
+        // `n / (a b)`, dividing by the larger one first
+        let div = |n: f64, a: f64, b: f64| n / a.max(b) / a.min(b);
+        if t <= 1.0 {
+            div(z.sqrt() * (t.asinh() / t.hypot(1.0)), sp, sq)
+        } else {
+            // asinh(t) = ln(2 t) to double precision if `t` overflows
+            let asinh = if t.is_finite() {
+                t.asinh()
+            } else {
+                core::f64::consts::LN_2 + (sx / sp).ln() + (sy.ln() - sq.ln())
+            };
+            div(z.sqrt() * (asinh / t.recip().hypot(1.0)), sx, sy)
+        }
     }
 
     /* The notation follows the one used in the DLMF:
@@ -678,4 +716,32 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     tmp = tmp + t.safe_atan_sqrt_div() * 3.0 / sm;
 
     (status, tmp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rjimpl::rc_term;
+
+    #[test]
+    fn test_rc_term() {
+        let actual = [
+            // `t` overflows
+            rc_term(1.0, 1e300, 1e308, 1e300, 5e-324),
+            // `sqrt(z / (pn q))` overflows
+            rc_term(1.0, 1.0, 1e300, 2.0, 5e-324),
+            rc_term(1e-200, 1e-200, 2.0, 3e-200, 1e-210),
+            rc_term(0.5, 4.0, 9.0, 5.0, 1e-300),
+        ];
+        // Arb
+        let expected = [
+            3_729_131.831_412_505_7,     // 3729131.8314125056872
+            3.725_666_095_509_706e152,   // 3.7256660955097061359e152
+            1.648_515_727_704_121_5e201, // 1.6485157277041215091e201
+            733.176_604_211_949,         // 733.17660421194900136
+        ];
+        for (a, e) in actual.into_iter().zip(expected) {
+            assert!((a - e).abs() <= 1e-15 * e, "{a} != {e}");
+        }
+        assert_eq!(rc_term(0.0, 1e308, 1.0, 1e308, 5e-324), 0.0);
+    }
 }

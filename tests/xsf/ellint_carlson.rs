@@ -450,6 +450,37 @@ fn test_elliprd_overflow() {
 }
 
 #[test]
+fn test_elliprj_cauchy_tiny() {
+    // `x y` and `p q` of DLMF 19.20.14 underflow
+    let actual = [
+        xsf::elliprj(1e-200, 1e-200, 2.0, -1e-210),
+        xsf::elliprj(
+            2.019_721_825_240_665_8e-89,
+            9.884_994_718_949_991e-290,
+            0.059_862_056_219_694_17,
+            -1.542_244_902_286_615_6e-218,
+        ),
+        xsf::elliprj(1e-200, 1e-200, 2.0, -1.0),
+        // `sqrt(z / (pn q))` overflows
+        xsf::elliprj(1.0, 1.0, 1e300, -5e-324),
+        xsf::elliprj(0.0, 1.0, 1e300, -5e-324),
+    ];
+    // Arb
+    let expected = [
+        2.442_260_300_028_494_3e201,  // 2.4422603000284942741e201
+        5.562_045_504_719_261e118,    // 5.5620455047192613107e118
+        -488.672_336_815_068_3,       // -488.67233681506833085
+        1.116_660_107_882_071_9e-147, // 1.116660107882071864e-147
+        -3e-150,                      // -2.999999999999999921e-150
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // NaN (or else correct), as the terms of the transform cancel; Arb: -122.39924517639211
+    let actual = xsf::elliprj(1e-200, 1e-200, 2.0, -1e-200);
+    assert!(actual.is_nan() || (actual + 122.399_245_176_392_11).abs() < 1e-13);
+}
+
+#[test]
 fn test_elliprj_tiny_p() {
     let p = |k| 2.0_f64.powi(k);
     let actual = [
