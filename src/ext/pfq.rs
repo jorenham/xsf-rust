@@ -588,6 +588,23 @@ fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
     accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
+/// `series` for a polynomial, else `series` and `asymptotic` in turn, `series` first if
+/// `series_first`
+fn series_or_asymptotic(
+    polynomial: bool,
+    series_first: bool,
+    series: impl FnOnce() -> Option<f64>,
+    asymptotic: impl FnOnce() -> Option<f64>,
+) -> Option<f64> {
+    if polynomial {
+        series()
+    } else if series_first {
+        series().or_else(asymptotic)
+    } else {
+        asymptotic().or_else(series)
+    }
+}
+
 /// The sum of `v` in double-double
 fn sum_dd(v: &[f64]) -> Dd {
     v.iter().fold(Dd::new(0.0), |s, &v| s + v)
@@ -1180,13 +1197,8 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     };
     let series = || pfq_series_sorted(a, [b[0], b[1], 1.0], z);
     let asymptotic = || hyp2f2_asymptotic(a, b, z);
-    if degree.is_finite() {
-        series()
-    } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
-        series().or_else(asymptotic)
-    } else {
-        asymptotic().or_else(series)
-    }
+    let series_first = z.abs() < HYP2F2_ASYMPTOTIC_FIRST;
+    series_or_asymptotic(degree.is_finite(), series_first, series, asymptotic)
 }
 
 /// `v^(1 / k)` in double-double precision, for `v > 0`
@@ -1343,13 +1355,8 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     };
     let series = || pfq_series_sorted([a], [b[0], b[1], 1.0], z);
     let asymptotic = || hyp1f2_asymptotic(a, b, z);
-    if degree.is_finite() {
-        series()
-    } else if z > -HYP1F2_ASYMPTOTIC_FIRST {
-        series().or_else(asymptotic)
-    } else {
-        asymptotic().or_else(series)
-    }
+    let series_first = z > -HYP1F2_ASYMPTOTIC_FIRST;
+    series_or_asymptotic(degree.is_finite(), series_first, series, asymptotic)
 }
 
 /// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
@@ -1690,13 +1697,8 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             let kappa = (b.len() - a.len()) as f64;
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
-            if degree.is_finite() {
-                series()
-            } else if z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST {
-                series().or_else(asymptotic)
-            } else {
-                asymptotic().or_else(series)
-            }
+            let series_first = z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST;
+            series_or_asymptotic(degree.is_finite(), series_first, series, asymptotic)
         },
         _ => None,
     }
