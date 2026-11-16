@@ -72,8 +72,6 @@ K_MAX: Final = 3
 # the domain index in the cache file names of the references, without and with a_2 = a_1 + k
 MAP_DOMAINS: Final = {False: 100, True: 101}
 EPS: Final = 2.0**-52
-# the color levels of the error, in eps; at 1e16 no correct digits are left
-LEVELS: Final = [1, 4, 16, 64, 256, 1e3, 1e4, 1e6, 1e8, 1e16]
 NONE_COLOR: Final = "0.8"
 NOREF_COLOR: Final = "tan"
 
@@ -138,6 +136,7 @@ def plot(
     none: bool,
     title: str,
     path: Path,
+    levels: list[float],
 ) -> None:
     """A panel per p in `ps` (rows) and q (columns): the share of `None`, or the gmean of the error.
     A bin without inputs is blank: there it is complex."""
@@ -155,8 +154,8 @@ def plot(
         norm, cmap, label = Normalize(0, 1), colormaps["Reds"], "share of None"
     else:
         fig.suptitle(f"hyppfq: gmean of the relative error{title}")
-        norm = BoundaryNorm(LEVELS, len(LEVELS) - 1)
-        cmap, label = colormaps["viridis"].resampled(len(LEVELS) - 1), "eps"
+        norm = BoundaryNorm(levels, len(levels) - 1)
+        cmap, label = colormaps["viridis"].resampled(len(levels) - 1), "eps"
         keys.insert(1, (NOREF_COLOR, "no reference"))
     kw = {"extent": (-X_MAX, X_MAX, S_MIN, S_MAX), "origin": "lower", "aspect": "auto"}
     im = None
@@ -181,7 +180,7 @@ def plot(
                 )
             # (saturated at the outer levels)
             im = ax.imshow(
-                np.clip(err, LEVELS[0], LEVELS[-1]), cmap=cmap, norm=norm, **kw
+                np.clip(err, levels[0], levels[-1]), cmap=cmap, norm=norm, **kw
             )
     ticks = [-X_MAX, Z_MIN, 0, -Z_MIN, X_MAX]
     labels = [
@@ -202,12 +201,7 @@ def plot(
     assert im is not None
     bar = fig.colorbar(im, ax=axes, label=label, shrink=0.5)
     if not none:
-        bar.set_ticks(
-            LEVELS,
-            labels=[
-                f"{v:g}" if v < 1e4 else f"$10^{{{math.log10(v):.0f}}}$" for v in LEVELS
-            ],
-        )
+        bar.set_ticks(levels, labels=[f"{v:.0f}" for v in levels])
     handles = [Patch(facecolor=c, edgecolor="0.5", label=t) for c, t in keys]
     fig.legend(handles=handles, loc="outside lower center", ncols=len(keys))
     fig.savefig(path, metadata={"Date": None})
@@ -246,12 +240,18 @@ def main() -> None:
         key: grids(xs, list(itertools.islice(ys, len(xs))), rs)
         for (key, xs), rs in zip(pts.items(), refs, strict=True)
     }
+    # the color levels of the error in eps: powers of 4 up to the largest bin of all maps, but at
+    # most 2^52, where no digits are left
+    top = min(max(np.nanmax(err, initial=1.0) for err, _ in panels.values()), 2.0**52)
+    levels = [1.0, 4.0]
+    while levels[-1] < top:
+        levels.append(4 * levels[-1])
     plt.rcParams["svg.hashsalt"] = "hyppfq"
     for int_diff, suffix, title, ps in figures:
         sub = {pq: v for (pq, i), v in panels.items() if i == int_diff}
         for none, name in [(False, "error"), (True, "none")]:
             path = accuracy.ROOT / "docs" / "img" / f"hyppfq-{name}{suffix}.svg"
-            plot(sub, ps, none, title, path)
+            plot(sub, ps, none, title, path, levels)
 
 
 if __name__ == "__main__":
