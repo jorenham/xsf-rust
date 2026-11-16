@@ -453,6 +453,27 @@ fn test_hypu_b_near_one_recurrence() {
 }
 
 #[test]
+fn test_hypu_b_near_int() {
+    // Arb; 0.084043687, 1.3983195, 0.0034193771, 3.4728082e-7, and 7.3899616e-6 in xsf
+    let abx = [
+        (11.5, 2.0 + 2e-13, 1e-6),
+        (10.3, 2.0 - 1e-14, 1e-6),
+        (5.5, 1e-14, 5e-4),
+        (8.9, -1.0 - 3e-12, 4e-6),
+        (6.9, -2.0 - 3e-15, 6e-6),
+    ];
+    let expected = [
+        0.084_027_749_274_997_87,
+        1.395_660_734_247_923_6,
+        0.003_419_492_016_194_043_8,
+        3.484_572_598_279_22e-7,
+        6.899_556_502_797_434e-6,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_large_a() {
     // mpmath; NaN in xsf
     let actual = xsf::hypu(
