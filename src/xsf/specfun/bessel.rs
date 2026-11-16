@@ -932,11 +932,12 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] can be written, and for |x| > 12 also bl[nm + 1] / dl[nm + 1]
-    // (unlike in xsf), where *nm is 1 if n == 0, which is out of bounds for n == 0 with buffers of
-    // length n + 2. The caller (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and for |x| > LAM_SERIES_MAX_X also
+    // bl[nm + 1] / dl[nm + 1] (unlike in xsf), where *nm is 1 if n == 0, which is out of bounds for
+    // n == 0 with buffers of length n + 2. The caller (jahnke_emden_lambda) passes n >= 1, so that's
+    // in bounds.
     *nm = n;
-    if x.abs() <= 12.0 {
+    if x.abs() <= LAM_SERIES_MAX_X {
         let x2 = x * x;
         for k in 0..=n {
             let bk = lamn_series(f64::from(k), x2);
@@ -985,6 +986,12 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     // `lamv`, since `2 k / x (Lambda_{k-1}(x) - Lambda_k(x))` cancels for `k >> x^2`
     lam_scale_j(0.0, x, 1.0, scales, &mut bl[..=(*nm + 1) as usize], dl);
 }
+
+/// The largest `|x|` for which `lamn` and `lamv` sum the power series, instead of the recurrences
+//
+// Unlike in xsf (12), as the series loses about `e^|x| / 2` ulp to cancellation, which is more
+// than the recurrences lose from about `|x| = 5`
+const LAM_SERIES_MAX_X: f64 = 5.0;
 
 /// The power series of `Lambda_k(x)` in `x2 = x^2` (DLMF 10.2.2), summed to a relative 1e-15
 /// or 50 terms
@@ -1040,10 +1047,10 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     //      (2) GAM0 for computing gamma function (|x| ≤ 1)
     // =========================================================
 
-    // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > 12 also vl[1] / dl[1]
-    // and, unlike in xsf, vl[n + 1] / dl[n + 1] (out of bounds with buffers of length n + 1). The
-    // caller (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 2, so that's in
-    // bounds, and `(int)v` is not UB.
+    // NOTE: vl[0..=n] and dl[0..=n] are written with n = (int)v, and for x > LAM_SERIES_MAX_X also
+    // vl[1] / dl[1] and, unlike in xsf, vl[n + 1] / dl[n + 1] (out of bounds with buffers of length
+    // n + 1). The caller (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 2, so
+    // that's in bounds, and `(int)v` is not UB.
     if x < 0.0 {
         // Lambda_v is even, so its derivative is odd
         lamv(v, -x, vm, vl, dl);
@@ -1058,7 +1065,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     let v0 = v - f64::from(n);
     *vm = v;
 
-    if x <= 12.0 {
+    if x <= LAM_SERIES_MAX_X {
         for k in 0..=n {
             let vk = v0 + f64::from(k);
             let mut bk = 1.0;

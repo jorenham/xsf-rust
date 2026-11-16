@@ -1261,6 +1261,7 @@ fn test_jahnke_emden_lambda_near_zero() {
     for (v, x, expected) in [
         (370.5, 383.972_410_969_705_27, -7.648_634_385_955_928e-56),
         (10.0, 18.433_463_666_966_58, 1.398_808_575_581_345_8e-4),
+        (4.0, 7.588_342_434_503_804, -0.031_079_002_653_488_355),
     ] {
         let (_, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([dl[dl.len() - 1]], [expected], rtol = 1e-14);
@@ -1361,6 +1362,21 @@ fn test_jahnke_emden_lambda_large_v_and_x() {
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
+fn test_jahnke_emden_lambda_series_cancellation() {
+    // Arb; xsf sums the power series up to `x = 12`, which loses up to about 1e-12 there
+    for (v, expected) in [
+        (1.0, [-0.038_484_579_775_113_284, 0.010_677_986_802_471_08]),
+        (
+            1.5,
+            [-0.017_753_292_661_966_142, -0.008_619_580_458_152_027],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, 11.9);
+        np_assert_allclose!([vl[1], dl[1]], expected, rtol = 1e-14);
     }
 }
 
