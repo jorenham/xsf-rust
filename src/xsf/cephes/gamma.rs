@@ -330,15 +330,43 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
     (q + lgam_stirling_corr(x), sign)
 }
 
+/// Below this, `lgam_stirling_corr` subtracts Stirling's formula from `lgam`, which loses
+/// `|lgam(x)| eps` (measured: up to ~1e-15 relative to `Gamma`), and above it, until 13, it uses a
+/// recurrence, whose steps converge slowly for small `x`
+const STIRLING_CORR_RECUR_MIN: f64 = 5.0;
+
 /// The correction `lgam(x) - ((x - 1/2) ln(x) - x + ln(2 pi) / 2)` to Stirling's formula, for
 /// `x > 0`
-pub(crate) fn lgam_stirling_corr(x: f64) -> f64 {
-    if x < 13.0 {
+pub(crate) fn lgam_stirling_corr(mut x: f64) -> f64 {
+    if x < STIRLING_CORR_RECUR_MIN {
         // where `lgam` doesn't use Stirling's formula
         return lgam(x) - ((x - 0.5) * x.ln() - x + LN_SQRT_TAU);
     }
+    // Unlike in xsf, `corr(x) = corr(x + 1) + (x + 1/2) ln(1 + 1/x) - 1` up to `x >= 13`, as
+    // `lgam(x) - ...` above loses `|lgam(x)| eps` against `corr(x) ~ 1 / (12 x)`
+    let mut s = 0.0;
+    while x < 13.0 {
+        s += stirling_corr_step(x);
+        x += 1.0;
+    }
     let p = 1.0 / (x * x);
-    polevl(p, &GAMMA_A) / x
+    s + polevl(p, &GAMMA_A) / x
+}
+
+/// `(x + 1/2) ln(1 + 1/x) - 1 = sum_(j >= 1) u^(2j) / (2j + 1)`, with `u = 1 / (2x + 1)`, the
+/// series of `atanh(u) / u - 1`, without the cancellation
+fn stirling_corr_step(x: f64) -> f64 {
+    let u2 = (2.0 * x + 1.0).powi(-2);
+    let (mut t, mut k, mut s) = (u2, 3.0, 0.0);
+    loop {
+        let term = t / k;
+        s += term;
+        if term <= f64::EPSILON * s {
+            return s;
+        }
+        t *= u2;
+        k += 2.0;
+    }
 }
 
 /// Natural logarithm of Gamma function
@@ -411,5 +439,22 @@ mod tests {
         // floor(x) = -2^31 - 1 is odd, so Gamma(x) < 0, and floor(x) = -2^31 - 2 is even
         assert_eq!(super::lgam_sgn(-2_147_483_648.5).1, -1);
         assert_eq!(super::lgam_sgn(-2_147_483_649.5).1, 1);
+    }
+
+    /// Unlike in xsf, without the cancellation of `lgam(x) - ...` for `5 <= x < 13` (Arb)
+    #[test]
+    fn test_lgam_stirling_corr() {
+        for (x, expected) in [
+            (5.0, 0.016_644_691_189_821_193),
+            (7.3, 0.011_408_422_368_027_265),
+            (11.889_677_178_871_672, 0.007_007_231_720_446_712),
+            (12.999_999_999_999_998, 0.006_408_994_188_004_208),
+        ] {
+            let actual = super::lgam_stirling_corr(x);
+            assert!(
+                (actual / expected - 1.0).abs() < 4e-16,
+                "{x}: {actual:e} != {expected:e}"
+            );
+        }
     }
 }

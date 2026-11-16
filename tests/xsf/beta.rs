@@ -216,6 +216,19 @@ fn test_beta_asymp() {
 }
 
 #[test]
+fn test_beta_stirling_small_b() {
+    // unlike in xsf, without the cancellation of the Stirling correction of Gamma(b) for
+    // 5 <= b < 13 (Arb)
+    let ab = [
+        (19_830.289_790_282_997, 11.889_677_178_871_672),
+        (100_000.0, 8.25),
+    ];
+    let expected = [2.449_509_334_341_311e-44, 4.709_050_581_234_839e-38];
+    let actual = ab.map(|(a, b)| xsf::beta(a, b));
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-16);
+}
+
+#[test]
 fn test_beta_negative_large_a() {
     // unlike in xsf, without the rounding error of a + b in sin(pi (a + b)) (mpmath, Wolfram)
     let ab = [
