@@ -1009,6 +1009,43 @@ fn test_riccati_n1() {
     assert_eq!(xsf::riccati_y::<1>(0.2), ([y[0]], [yp[0]]));
 }
 
+#[test]
+fn test_riccati_j_all_orders() {
+    // Arb; NaN or 0 in xsf above `msta1(x, 200)` (here 177), for `|x| >~ 4476`, and for
+    // `|x| < 1e-100`, and `rj[1]` cancels for `N = 2`
+    let (rj, dj) = xsf::riccati_j::<201>(10.0);
+    np_assert_allclose!(
+        [rj[200], dj[200]],
+        [4.359_433_049_621_081e-236, 8.751_636_342_177_128e-235],
+        rtol = 1e-14
+    );
+    let (rj, dj) = xsf::riccati_j::<3>(5000.0);
+    np_assert_allclose!(
+        [rj[2], dj[2]],
+        [0.987_873_519_167_095_7, -0.155_261_148_876_167_3],
+        rtol = 1e-13
+    );
+    let (rj, dj) = xsf::riccati_j::<3>(1e-150);
+    np_assert_allclose!(
+        [rj[0], rj[1], rj[2], dj[0], dj[1], dj[2]],
+        [
+            1e-150,
+            3.333_333_333_333_333e-301,
+            0.0,
+            1.0,
+            6.666_666_666_666_667e-151,
+            2e-301
+        ],
+        rtol = 1e-15
+    );
+    let (rj, dj) = xsf::riccati_j::<2>(1e-5);
+    np_assert_allclose!(
+        [rj[1], dj[1]],
+        [3.333_333_333_300_000_5e-11, 6.666_666_666_533_334e-6],
+        rtol = 1e-15
+    );
+}
+
 // Based on `scipy.special.tests.test_basic.TestLambda.test_lmbda`
 #[test]
 fn test_jahnke_emden_lambda() {

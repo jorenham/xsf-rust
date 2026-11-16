@@ -16,7 +16,7 @@ mod numbers;
 mod par_cyl;
 mod sphd;
 
-pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta1, msta2, sphj, sphy};
+pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
 pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_minimal, hyp1f1_small_b};
