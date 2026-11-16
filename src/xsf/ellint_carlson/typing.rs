@@ -39,6 +39,12 @@ pub(crate) trait Num: complex::Num + PartialEq + Add<f64, Output = Self> {
     fn rg_dot2_acc(fac: f64, term: Self, acc: &mut Self, cor: &mut Self);
     /// `rjimpl::safe_atan_sqrt_div(x)`
     fn safe_atan_sqrt_div(self) -> Self;
+
+    /// The max norm `max(|Re x|, |Im x|)`
+    #[inline]
+    fn max_norm(self) -> f64 {
+        self.real().abs().max(self.imag().abs())
+    }
 }
 
 impl Num for f64 {

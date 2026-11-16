@@ -119,7 +119,7 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);
     let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
-    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let sizes = args.iter().map(|a| a.max_norm());
     let smin = sizes.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let e = amax.log2();
     if !(e.is_finite() && e.abs() > 256.0) {
@@ -140,7 +140,7 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
 /// largest one, and at least halves the largest one. Unscaled, sums of huge arguments may
 /// overflow, and results near the underflow threshold lose precision.
 pub(super) fn needs_duplication<T: super::typing::Num>(args: &[T], min: f64) -> bool {
-    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let sizes = args.iter().map(|a| a.max_norm());
     let amax = sizes.clone().fold(0.0, f64::max);
     let amin = sizes.fold(f64::INFINITY, f64::min);
     amax.is_finite() && amax > const { pow2(256) } && amax.log2() - amin.log2() > 254.0 - min.log2()
