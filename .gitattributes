@@ -1,6 +1,6 @@
 *                          text=auto eol=lf
 *.lock                     linguist-generated=true -diff merge=ours
 docs/accuracy.md           linguist-generated=true
-docs/*.svg                 linguist-generated=true -diff
+docs/img/*.svg             linguist-generated=true -diff
 tests/data/**/*.bin        linguist-generated=true binary
 tests/data/**/MANIFEST.tsv linguist-generated=true

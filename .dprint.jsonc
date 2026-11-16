@@ -1,5 +1,5 @@
 {
-  "excludes": ["**/*-lock.json", "**/*.lock", "docs/*.svg", "target/"],
+  "excludes": ["**/*-lock.json", "**/*.lock", "docs/img/*.svg", "target/"],
   "lineWidth": 100,
   "json": {
     "array.preferSingleLine": true,

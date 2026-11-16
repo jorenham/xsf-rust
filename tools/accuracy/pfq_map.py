@@ -15,11 +15,11 @@ Usage (from the repository root; or `just pfq-map`):
 
     uv run tools/accuracy/pfq_map.py [--no-cache] [--jobs N] [--per-bin N]
 
-Writes `docs/hyppfq-error.svg` and `docs/hyppfq-none.svg`, with a panel per p and q. Each panel
-bins random inputs by z (on a signed log scale) and by the scale s of the parameters, which are
-uniform in [-s, s]. `docs/hyppfq-error-int.svg` and `docs/hyppfq-none-int.svg` are the same for
-p >= 2, but with a_2 = a_1 + k, for a random integer k in [-3, 3]. The references are those of
-`specs.py`, cached as in `accuracy.py`.
+Writes `docs/img/hyppfq-error.svg` and `docs/img/hyppfq-none.svg`, with a panel per p and q.
+Each panel bins random inputs by z (on a signed log scale) and by the scale s of the parameters,
+which are uniform in [-s, s]. Their `-int` variants are the same for p >= 2, but with
+a_2 = a_1 + k, for a random integer k in [-3, 3]. The references are those of `specs.py`, cached
+as in `accuracy.py`.
 """
 
 import argparse
@@ -250,7 +250,7 @@ def main() -> None:
     for int_diff, suffix, title, ps in figures:
         sub = {pq: v for (pq, i), v in panels.items() if i == int_diff}
         for none, name in [(False, "error"), (True, "none")]:
-            path = accuracy.ROOT / "docs" / f"hyppfq-{name}{suffix}.svg"
+            path = accuracy.ROOT / "docs" / "img" / f"hyppfq-{name}{suffix}.svg"
             plot(sub, ps, none, title, path)
 
 
