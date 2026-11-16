@@ -797,6 +797,21 @@ fn test_hypu_int_b() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 2e-14);
 
+    // Arb; 5.9e-4, 0.4382008983836371, and 0.5039275260563122 in xsf (`a - n` loses the low
+    // digits of `a` in `chgubi`)
+    let abx = [
+        (0.936, 150.0, 170.0),
+        (0.3, 140.0, 150.0),
+        (0.43, 111.0, 106.9),
+    ];
+    let expected = [
+        0.046_627_861_862_793_184,
+        0.438_200_898_383_651_9,
+        0.503_927_526_056_324_3,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 8e-15);
+
     // Arb; the over- and underflows aren't NaN
     assert_eq!(xsf::hypu(171.61, 1.0, 2.0), 0.0);
     assert_eq!(xsf::hypu(-3.0 + 1e-15, 999.0, 1e-300), f64::NEG_INFINITY);
