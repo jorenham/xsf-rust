@@ -463,6 +463,10 @@ fn test_hyp2f2_asymptotic() {
     let y = hyp2f2(0.75, 0.75, b[0], b[1], z);
     let expected = -0.205_817_644_249_452_2_f64;
     assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
+    // equal a_i within sqrt(eps) of b_2, where the algebraic part changes much with a_1
+    let t = -(2.0_f64.powi(-40));
+    let b = [t - 1.0, t + f64::EPSILON.sqrt()];
+    assert_hyp2f2([t, t], b, 30.0, 18_916_422_175.581_42);
     // overflow
     assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
     assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
@@ -902,21 +906,21 @@ fn test_hyppfq_asymptotic() {
     let c = 1.0 + 2.0_f64.powi(-10);
     let (a_int, b_int) = ([1.0, 1.0, 10.5], [c, c, 11.25]);
     assert_hyppfq(&a_int, &b_int, 21.25, 739_410_485.211_035_5);
-    // large -z with integer a_i - a_j, where the algebraic part is the limit of DLMF 16.11.2
+    // large |z| with integer a_i - a_j, where the algebraic part is the limit of DLMF 16.11.2,
+    // of which only a bound is used for z > 0
     let (a_half, b_half) = ([0.5, 1.5, 2.5], [1.25, 2.25, 3.25, 0.75]);
+    assert_hyppfq(&a_half, &b_half[..3], 500.0, 1.490_249_682_266_956_5e211);
     assert_hyppfq(&a_half, &b_half[..3], -200.0, 0.086_921_283_327_525_05);
     let b_half3 = [1.75, 2.25, 3.25];
+    assert_hyppfq(&a_half[..2], &b_half3, 1e5, 2.998_583_212_151_733e262);
     assert_hyppfq(&a_half[..2], &b_half3, -1e5, 0.007_069_421_929_959_013);
     assert_hyppfq(&a_half[..2], &b_half, -1e6, -4.192_062_553_632_357e55);
     // (a pole of order 3)
     assert_hyppfq(&[1.0; 3], &[2.0; 3], -1e3, 0.028_834_862_048_815_51);
     // (an a_i and a b_j also differ by integers)
-    assert_hyppfq(
-        &[1.5, 2.5],
-        &[0.5, 4.5, 2.25],
-        -2e4,
-        -6.818_735_291_796_145e-6,
-    );
+    let b_mixed = [0.5, 4.5, 2.25];
+    assert_hyppfq(&[1.5, 2.5], &b_mixed, -2e4, -6.818_735_291_796_145e-6);
+    assert_hyppfq(&[1.5, 2.5], &b_mixed, 2e4, 4.540_531_903_354_946e117);
 }
 
 #[test]
@@ -1128,9 +1132,6 @@ fn test_hyppfq_none() {
     // the sum cancels too much
     assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
     assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
-    // large z > 0 with integer a_i - a_j
-    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[1.25, 2.25, 3.25], 500.0), None);
-    assert_eq!(hyppfq(&[0.5, 1.5], &[1.75, 2.25, 3.25], 1e5), None);
     // the conformal series has rounding errors from before a near-pole `b_j + n`
     let (a, b) = ([-1.5, 0.75, -0.125, -77.75], [-3.75, -78.875, 21.5]);
     assert_eq!(hyppfq(&a, &b, -2.0), None);

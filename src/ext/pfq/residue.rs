@@ -17,6 +17,7 @@
 //! order. So `u` follows from the one for `n = 0`, which is the exponential of the Taylor series
 //! of the logarithms of the Gamma functions.
 
+use core::f64::consts::PI;
 use core::iter::{once, repeat, zip};
 
 use super::Dd;
@@ -98,8 +99,10 @@ pub(super) struct Residues {
 }
 
 impl Residues {
-    /// For the class of `a_m` and `z < 0`, where `b` is without the 1 of `n!`, and no `a_i` is
-    /// a non-positive integer
+    /// For the class of `a_m`, where `b` is without the 1 of `n!`, and no `a_i` is a non-positive
+    /// integer
+    ///
+    /// For `z > 0`, where `ln(-z)` is `ln|z| -+ pi i`, only the bounds are valid.
     pub(super) fn of_class(a: &[f64], b: &[f64], m: usize, z: f64) -> Self {
         let am = Dd::new(a[m]);
         let diffs = a.iter().map(|&ai| Dd::new(ai) - am);
@@ -112,7 +115,8 @@ impl Residues {
         // The logarithm of the integrand at n = 0 without the factors of the nearest poles, as
         // its coefficients of eps, eps^2, ..., and the sizes of their parts, from (-z)^eps on.
         let first = |l: f64| once(l).chain(repeat(0.0)).take(degree).collect::<Vec<_>>();
-        let mut coef = [(-z).ln(), (-z).ln().abs()].map(first);
+        let (ln_z, pi) = (z.abs().ln(), if z > 0.0 { PI } else { 0.0 });
+        let mut coef = [ln_z, ln_z.abs() + pi].map(first);
         for (x, power, sign) in gammas.clone() {
             let mut signs = f64::from(power);
             for j in 0..degree {
@@ -295,6 +299,9 @@ mod tests {
         let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, -40.0);
         assert_eq!(residues.order, 3);
         assert!(close(residues.u[0][2], l * l / 2.0 + zeta_2));
+        // for z > 0, with ln(z) -+ pi i, the bound holds for (ln(z)^2 - pi^2) / 2 + pi^2 / 6
+        let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, 40.0);
+        assert!(residues.u[1][2] >= (l * l + PI * PI) / 2.0 + zeta_2);
     }
 
     #[test]
