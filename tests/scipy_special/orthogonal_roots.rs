@@ -60,6 +60,21 @@ fn test_roots_jacobi() {
     );
 }
 
+/// Weights on both sides of 0, where `P_(n-1)^(a+1, b+1)` is reflected (mpmath)
+#[test]
+fn test_roots_jacobi_weights() {
+    let (_, w) = xsf::roots_jacobi(100, 0.1, 2.2);
+    np_assert_allclose!(
+        [w[0], w[24], w[74]],
+        [
+            1.009_261_311_657_879_8e-9,
+            0.001_680_372_439_717_426,
+            0.062_922_235_602_756_22,
+        ],
+        rtol = 5e-15
+    );
+}
+
 #[test]
 fn test_roots_sh_jacobi() {
     let (a, b) = (0.5, -0.5);
