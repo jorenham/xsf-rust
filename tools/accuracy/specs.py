@@ -2687,7 +2687,7 @@ def r_hyp1f2(a, b1, b2, z):
 
 
 def r_hyppfq_arb(name):
-    """The reference of the spec `name` of pFq for p <= q, as for `r_hyp2f2`."""
+    """The reference of the spec `name` of pFq for p <= q or of 2F0, as for `r_hyp2f2`."""
     return lambda *args: _arb(name, *args)
 
 
@@ -5829,6 +5829,16 @@ for name, args in [
         timeout=60,
         note="none",
     )
+add(
+    "hyppfq#2f0",
+    "a1 a2 z",
+    r_hyppfq_arb("hyppfq#2f0"),
+    D(U(-10, 10), U(-10, 10), LU(1e-3, 1e6, -1), n=2000, call="hyppfq2"),
+    D(LU(1e-3, 100, 0), LU(1e-3, 100, 0), LU(1e-3, 1e6, -1), n=2000, call="hyppfq2"),
+    cpp=False,
+    timeout=60,
+    note="none",
+)
 for p, args, zmax in [
     (3, "a1 a2 a3 b1 b2 b3 z", 1e3),
     (2, "a1 a2 b1 b2 b3 z", 1e6),
@@ -6679,6 +6689,10 @@ ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
     "hyp3f2": lambda a1, a2, a3, b1, b2, z: z.hypgeom([a1, a2, a3], [b1, b2]),
     "hyp2f2": lambda a1, a2, b1, b2, z: z.hypgeom([a1, a2], [b1, b2]),
     "hyp1f2": lambda a, b1, b2, z: z.hypgeom([a], [b1, b2]),
+    # the Borel sum of the divergent series, for z < 0 (DLMF 13.6.21)
+    "hyppfq#2f0": lambda a1, a2, z: (
+        (-1 / z) ** a1 * (-1 / z).hypgeom_u(a1, a1 - a2 + 1)
+    ),
     **{
         f"hyppfq#{p}f{q}": lambda *v, p=p: v[-1].hypgeom(list(v[:p]), list(v[p:-1]))
         for p, q in [(3, 3), (2, 3), (1, 3), (0, 2), (0, 3)]

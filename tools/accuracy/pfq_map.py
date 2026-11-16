@@ -45,6 +45,7 @@ SPECS: Final = {
     (1, 0): "hyp1f0",
     (0, 1): "hyp0f1",
     (1, 1): "hyp1f1",
+    (2, 0): "hyppfq#2f0",
     (2, 1): "hyp2f1",
     (0, 2): "hyppfq#0f2",
     (1, 2): "hyp1f2",
@@ -83,14 +84,14 @@ def inputs(
     p: int, q: int, per_bin: int, int_diff: bool
 ) -> list[tuple[int, int, accuracy.Args]]:
     """`per_bin` random inputs (a_1, ..., a_p, b_1, ..., b_q, z) of each bin (i, j) of z and
-    s, except where z >= 1 for p = q + 1, where it is complex. If `int_diff`, then
-    a_2 = a_1 + k for a random integer k in [-K_MAX, K_MAX]."""
+    s, except where z >= 1 for p = q + 1, and where z > 0 for 2F0, where it is complex. If
+    `int_diff`, then a_2 = a_1 + k for a random integer k in [-K_MAX, K_MAX]."""
     rng = random.Random(f"{p}F{q}-int" if int_diff else f"{p}F{q}")
     out: list[tuple[int, int, accuracy.Args]] = []
     dx, ds = X_MAX / Z_BINS, (S_MAX - S_MIN) / S_BINS
     for i in range(2 * Z_BINS):
         x0 = -X_MAX + i * dx
-        if p == q + 1 and x0 >= -Z_MIN:
+        if (p == q + 1 and x0 >= -Z_MIN) or ((p, q) == (2, 0) and x0 >= 0):
             continue
         for j in range(S_BINS):
             for _ in range(per_bin):
