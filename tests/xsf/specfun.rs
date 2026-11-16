@@ -1422,3 +1422,14 @@ fn test_bernoulli_small() {
     let expected = [-1.0 / 30.0, 1.0 / 42.0, -1.0 / 30.0];
     xsref::np_assert_allclose!([b[4], b[6], b[8]], expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_bernoulli_table_and_overflow() {
+    let b = xsf::bernoulli::<263>();
+    assert_eq!(b[258], 1.335_278_418_735_463_4e306);
+    assert_eq!(b[256], -7.950_212_504_588_525e302);
+    assert_eq!(b[259], 0.0);
+    assert_eq!(b[260], f64::NEG_INFINITY);
+    assert_eq!(b[261], 0.0);
+    assert_eq!(b[262], f64::INFINITY);
+}
