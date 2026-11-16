@@ -709,20 +709,48 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
     checked_f64(y, None).filter(|y| y.is_finite())
 }
 
+/// A term of a series with a bound on its size
+trait Term: Copy {
+    fn value(self) -> f64;
+    fn bound(self) -> f64;
+}
+
+impl Term for f64 {
+    fn value(self) -> f64 {
+        self
+    }
+
+    fn bound(self) -> f64 {
+        self.abs()
+    }
+}
+
+/// A value and a bound on its size
+impl Term for (f64, f64) {
+    fn value(self) -> f64 {
+        self.0
+    }
+
+    fn bound(self) -> f64 {
+        self.1
+    }
+}
+
 /// The sum of an asymptotic series in `1/z` up to its smallest term from term `settled` on, and
 /// an estimate of its absolute error
 ///
 /// From term `settled` on, all parameters plus `n` must be positive. Before it, the terms may
 /// vanish or grow. From term `settled + |z|` on, the term ratios are about `n / |z|`, so that
-/// growing terms keep growing. The size of a term `t_n` is `max(|t_n|, |t_{n+1}|)`, as
-/// a `t_n` of a recurrence of order 2 can vanish while `t_{n+1}` does not. It stops at a term of
-/// a negligible size if `ratio_bound(n) < 1`, so that the next terms are smaller.
+/// growing terms keep growing. The size of a term `t_n` is the larger of the bounds on `t_n` and
+/// on `t_{n+1}`, as a `t_n` of a recurrence of order 2 can vanish while `t_{n+1}` does not. It
+/// stops at a term of a negligible size if `ratio_bound(n) < 1`, so that the next terms are
+/// smaller.
 ///
 /// The error is the smallest size times `sqrt(2 pi |z|)`, about the sum of the terms near
 /// it, plus rounding. For terms of one sign, the remainder can be half of that, as for
 /// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`.
-fn asymptotic_sum(
-    terms: impl Iterator<Item = f64>,
+fn asymptotic_sum<T: Term>(
+    terms: impl Iterator<Item = T>,
     settled: f64,
     z: f64,
     ratio_bound: impl Fn(f64) -> f64,
@@ -733,9 +761,10 @@ fn asymptotic_sum(
     let remainder = (TAU * z.abs()).sqrt().max(1.0);
     let mut terms = terms.peekable();
     for n in (0..PFQ_MAXITER).map(f64::from) {
-        let Some(t) = terms.next() else { break };
-        let size = t.abs().max(terms.peek().map_or(0.0, |next| next.abs()));
-        if !t.is_finite() || n >= settled + z.abs() && t.abs() >= prev {
+        let Some(term) = terms.next() else { break };
+        let (t, bound) = (term.value(), term.bound());
+        let size = bound.max(terms.peek().map_or(0.0, |next| next.bound()));
+        if !t.is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
         } else if n >= settled && size < min {
             min = size;
@@ -745,8 +774,8 @@ fn asymptotic_sum(
             }
         }
         sum += t;
-        abs_sum += t.abs();
-        prev = t.abs();
+        abs_sum += bound;
+        prev = bound;
     }
     best
 }
