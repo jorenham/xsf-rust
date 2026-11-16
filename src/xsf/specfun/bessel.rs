@@ -983,31 +983,13 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     if x <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {
-            let mut bk = 1.0;
-            let mut r = 1.0;
-            for i in 1..=50 {
-                r = -0.25 * r * x2 / (f64::from(i) * f64::from(i + k));
-                bk += r;
-
-                if r.abs() < bk.abs() * 1.0e-15 {
-                    break;
-                }
-            }
+            let bk = lamn_series(f64::from(k), x2).0;
             bl[k as usize] = bk;
             if k >= 1 {
                 dl[(k - 1) as usize] = -0.5 * x / f64::from(k) * bk;
             }
         }
-        let mut uk = 1.0;
-        let mut r = 1.0;
-        for i in 1..=50 {
-            r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i + n) + 1.0));
-            uk += r;
-
-            if r.abs() < uk.abs() * 1.0e-15 {
-                break;
-            }
-        }
+        let uk = lamn_series(f64::from(n) + 1.0, x2).0;
         dl[n as usize] = -0.5 * x / (f64::from(n) + 1.0) * uk;
         return;
     }
@@ -1048,6 +1030,41 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     for k in 1..=*nm {
         dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
     }
+    // Unlike in xsf, the orders above `nm` are not left unset, but summed like for `x <= 12`
+    // where the error estimate of that sum is small enough
+    if *nm < n {
+        let series = |k: f64| match lamn_series(k, x * x) {
+            (bk, err) if bk.is_finite() && err <= LAMN_SERIES_RTOL * bk.abs() => bk,
+            _ => f64::NAN,
+        };
+        for k in *nm + 1..=n {
+            bl[k as usize] = series(f64::from(k));
+        }
+        for k in *nm + 1..n {
+            dl[k as usize] = -0.5 * x / f64::from(k + 1) * bl[(k + 1) as usize];
+        }
+        let n1 = f64::from(n) + 1.0;
+        dl[n as usize] = -0.5 * x / n1 * series(n1);
+    }
+}
+
+/// The largest error estimate relative to the sum for which `lamn` uses `lamn_series` above `nm`
+const LAMN_SERIES_RTOL: f64 = 1e-13;
+
+/// The power series of `Lambda_k(x)` in `x2 = x^2` (DLMF 10.2.2), summed to a relative 1e-15
+/// or 50 terms, and an estimate of its rounding and truncation errors
+fn lamn_series(k: f64, x2: f64) -> (f64, f64) {
+    let (mut bk, mut r, mut abs_sum) = (1.0, 1.0, 1.0);
+    for i in 1..=50 {
+        r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + k));
+        bk += r;
+        abs_sum += r.abs();
+
+        if r.abs() < bk.abs() * 1.0e-15 {
+            return (bk, abs_sum * f64::EPSILON);
+        }
+    }
+    (bk, abs_sum * f64::EPSILON + r.abs())
 }
 
 pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {

@@ -1128,6 +1128,22 @@ fn test_jahnke_emden_lambda_tiny_x() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_high_orders() {
+    // mpmath; the recurrence of `lamn` starts at order 328 for `x = 60`
+    let (vl, dl) = xsf::jahnke_emden_lambda(500, 60.0);
+    let actual = [vl[329], vl[400], vl[500], dl[329], dl[400], dl[500]];
+    let expected = [
+        0.064_658_649_612_803_2,
+        0.105_325_332_091_226_67,
+        0.165_358_932_985_256_56,
+        -0.005_927_303_686_869_632,
+        -0.007_924_190_401_755_885,
+        -0.009_937_421_238_798_044,
+    ];
+    np_assert_allclose!(actual, expected, rtol = 1e-13);
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {
