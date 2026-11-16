@@ -949,7 +949,7 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
 /// `zq = sqrt(z^2 - 1)`, with the backward recurrences in the degree of the orders 0 and 1 from a
 /// start degree `km` and the recurrence in the order; xsf writes these out separately for real and
 /// complex `z`, and the backward recurrences also for each of the orders 0 and 1
-fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, ldexp: impl Fn(T, i32) -> T) {
+fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
     let m = int(qm.extent(0)) - 1;
     let n = int(qm.extent(1)) - 1;
     // Unlike in xsf (scipy/xsf#368), `log(|x| - 1)` for real `x` (as for complex `z`) instead of
@@ -963,7 +963,7 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>, ldexp: impl 
             .wrapping_mul((-1.0 - 1.8 * (z.abs() - 1.0).ln()) as i32)
     };
     let l1 = |q: T| q.real().abs() + q.imag().abs();
-    let ldexp = |q: T, e: i32| if e == 0 { q } else { ldexp(q, e) };
+    let ldexp = |q: T, e: i32| if e == 0 { q } else { q.ldexp(e) };
 
     let mut cs = [T::from(0.0); 2];
     let mut ex = vec![[0; 2]; n as usize + 1];
@@ -1094,7 +1094,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
             }
         }
     } else {
-        lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents), ldexp_f64);
+        lqmn_large(x, xq, q0, Mdspan::new(qm.data, qm.extents));
     }
 
     qd[(0, 0)] = ls / xs;
@@ -1174,8 +1174,7 @@ fn lqmn_c64(z: C64, mut cqm: Mdspan<'_, C64, 2>, mut cqd: Mdspan<'_, C64, 2>) {
             }
         }
     } else {
-        let ldexp = |z: C64, e| c64(ldexp_f64(z.re, e), ldexp_f64(z.im, e));
-        lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents), ldexp);
+        lqmn_large(z, zq, cq0, Mdspan::new(cqm.data, cqm.extents));
     }
 
     cqd[(0, 0)] = f64::from(ls) / zs;
