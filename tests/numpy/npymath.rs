@@ -1,29 +1,33 @@
 use xsref::np_assert_allclose;
 
-#[test]
-fn test_logaddexp_f32() {
-    let x = [1.0, 2.0, 3.0, 4.0, 5.0];
-    let y = [5.0, 4.0, 3.0, 2.0, 1.0];
-    let z = [6.0, 6.0, 6.0, 6.0, 6.0];
+/// NumPy's `TestLogAddExp(2).test_logaddexp(2)_values`: the log of 1 + 5, 2 + 4, ... = 6
+#[track_caller]
+fn check_logaddexp_values(
+    log: fn(f64) -> f64,
+    f_f64: fn(f64, f64) -> f64,
+    f_f32: fn(f32, f32) -> f32,
+) {
+    let x = [1.0, 2.0, 3.0, 4.0, 5.0].map(log);
+    let y = [5.0, 4.0, 3.0, 2.0, 1.0].map(log);
+    let z = [log(6.0); 5];
 
-    let xf = x.map(f64::log2);
-    let yf = y.map(f64::log2);
-    let zf = z.map(f64::log2);
+    let z64: Vec<f64> = x.iter().zip(&y).map(|(&a, &b)| f_f64(a, b)).collect();
+    np_assert_allclose!(z64, z, atol = 1e-15);
 
-    let zr: [f32; 5] = std::array::from_fn(|i| xsf::logaddexp2(xf[i] as f32, yf[i] as f32));
-    np_assert_allclose!(zr.map(f64::from), zf, atol = 1.5e-7);
+    let z32: Vec<f64> = x
+        .iter()
+        .zip(&y)
+        .map(|(&a, &b)| f64::from(f_f32(a as f32, b as f32)))
+        .collect();
+    np_assert_allclose!(z32, z, atol = 1.5e-7);
 }
 
 #[test]
-fn test_logaddexp_f64() {
-    let x = [1.0, 2.0, 3.0, 4.0, 5.0];
-    let y = [5.0, 4.0, 3.0, 2.0, 1.0];
-    let z = [6.0, 6.0, 6.0, 6.0, 6.0];
+fn test_logaddexp_values() {
+    check_logaddexp_values(f64::ln, xsf::logaddexp, xsf::logaddexp);
+}
 
-    let xf = x.map(f64::log2);
-    let yf = y.map(f64::log2);
-    let zf = z.map(f64::log2);
-
-    let zr: [f64; 5] = std::array::from_fn(|i| xsf::logaddexp2(xf[i], yf[i]));
-    np_assert_allclose!(zr, zf, atol = 1e-15);
+#[test]
+fn test_logaddexp2_values() {
+    check_logaddexp_values(f64::log2, xsf::logaddexp2, xsf::logaddexp2);
 }
