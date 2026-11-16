@@ -568,22 +568,25 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
     }
 }
 
-/// `M(a, b, x)` for `x <= -30 - |b|` from `chgm_neg_x_series`, or else from
+/// `M(a, b, x)` for `x < 0` from `chgm_neg_x_series`, or else (for `x <= -30 - |b|`) from
 /// `chgm_neg_x_asymptotic`
 fn chgm_neg_x(x: f64, a: f64, b: f64) -> Option<f64> {
     chgm_neg_x_series(x, a, b).or_else(|| chgm_neg_x_asymptotic(x, a, b))
 }
 
-/// `M(a, b, x)` for `x <= -30 - |b|`, from the series of DLMF 13.2.39 in double-double with the
-/// exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
+/// `M(a, b, x)` for `x <= -30 - |b|`, or for `x < 0` and `b > 0` if rounding `b - a` errs by more
+/// than a rounding (see `rounding_ratio`), from the series of DLMF 13.2.39 in double-double with
+/// the exact `b - a`, if that is a non-integer below 0 and the error bound is below `eps`.
 ///
 /// Near a pole of `Gamma(b - a)`, whose reciprocal scales the `e^-x` part, rounding `b - a` and the
 /// recurrence in `a` lose all digits, and even the sign. The series needs over `-x` terms.
 fn chgm_neg_x_series(x: f64, a: f64, b: f64) -> Option<f64> {
-    if !(30.0 + b.abs()..f64::from(MAX_TERMS)).contains(&-x) {
+    let ak = DoubleDouble::new(b) - a;
+    // (for `b < 0` see `chgm_neg_b`, where the series can need over `MAX_TERMS` terms)
+    let near = 0.0 < -x && b > 0.0 && rounding_ratio(ak) > f64::EPSILON;
+    if !(near || -x >= 30.0 + b.abs()) || -x >= f64::from(MAX_TERMS) {
         return None;
     }
-    let ak = DoubleDouble::new(b) - a;
     if ak >= 0.0 || (ak.hi.fract() == 0.0 && ak.lo.fract() == 0.0) {
         return None;
     }
@@ -982,8 +985,9 @@ fn chgm_fallback(
 /// and `-x0` if `x0 < 0` (DLMF 13.2.39):
 ///
 /// 1. NaNs, and `a = 0` or `a = b` for finite non-pole `b`, return at once (scipy/xsf#365).
-/// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`: the series of DLMF 13.2.39 in
-///    double-double with the exact `b - a`, if its error bound is below `eps` (no issue).
+/// 2. Non-integer `b - a < 0`, `30 + |b| < -x0 < 100000`, or `b > 0` and `0 < -x0` if rounding
+///    `b - a` errs by more than a rounding: the series of DLMF 13.2.39 in double-double with the
+///    exact `b - a`, if its error bound is below `eps` (no issue).
 /// 3. Non-integer `b < 0`: `chgm_neg_b`, if that is accurate (scipy/xsf#365).
 /// 4. `a = -n >= -10^6`, `b > 0`, `n x > b`, `x0 > -700`: `chgm_poly`, if finite (scipy/xsf#365).
 /// 5. `a >= 2`, `b > 0`, or `a > -1`, `x > 30 + |b|`: the series in full (scipy/xsf#365).
@@ -1028,7 +1032,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
         return if a == 0.0 { 1.0 } else { x.exp() };
     }
 
-    // Unlike in xsf, large negative x has its own methods (see `chgm_neg_x`)
+    // Unlike in xsf, negative x has its own methods (see `chgm_neg_x`)
     if regular && a.is_finite() {
         if let Some(hg) = chgm_neg_x(x, a, b) {
             return hg;

@@ -1091,6 +1091,25 @@ fn test_hyp1f1_neg_b_rounded_b_minus_a() {
 }
 
 #[test]
+fn test_hyp1f1_rounded_b_minus_a() {
+    // Arb; as above, but for `b > 0`
+    let abx = [
+        (1.037, 0.037, -25.2),
+        (2.3, 0.3, -30.0),
+        (1.963, 0.963, -25.2),
+        (1.547_000_001, 0.547, -29.0),
+    ];
+    let expected = [
+        -7.732_852_991_965_603e-9,
+        1.973_234_762_445_072_6e-10,
+        -2.861_749_604_034_37e-10,
+        -3.253_371_482_745_043_5e-12,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_large_a() {
     // Arb; DLMF 13.3.1 (forward in a) is unstable here, and these were 6.4e25, 0.99975004419684,
     // NaN, and NaN
