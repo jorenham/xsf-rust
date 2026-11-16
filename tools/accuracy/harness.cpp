@@ -1,4 +1,5 @@
-// Evaluates xsf (C++) functions for the accuracy table (see accuracy.py).
+// Evaluates xsf (C++) functions for the accuracy table and the test tables (see accuracy.py and
+// tools/tables/generate.py).
 //
 // Usage: harness < INPUT > OUTPUT
 //

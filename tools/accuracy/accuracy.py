@@ -3,7 +3,7 @@
 Usage (from the repository root; or `just accuracy`):
 
     uv run --project tools tools/accuracy/accuracy.py [--only NAME,... | --section TITLE]
-        [--no-cache] [--jobs N] [--arb-check]
+        [--no-cache] [--jobs N] [--n N] [--arb-check]
 
 Steps:
 
