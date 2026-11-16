@@ -241,7 +241,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         neg_int_b = true;
     }
 
-    let (mut err, mut err_full) = (0.0, 0.0);
+    let (mut err, err_full);
     let s = 1.0 - x;
     let y = 'done: {
         if x < -0.5 && !(neg_int_a || neg_int_b) {
@@ -369,6 +369,20 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             /* sum for t = 0 */
             let mut y = psi(1.0) + psi(1.0 + e) - psi(a + d1) - psi(b + d1) - ax;
             y *= rgamma(e + 1.0);
+            // Unlike in xsf, estimate the errors of both sums and their cancellation (scaled
+            // as the sums), as the `t`-th term is a product of about `t` roundings
+            let (mut y_err, mut y1_err) = (y.abs(), 1.0_f64);
+            // the relative error of `y` from the absolute error `e`, but no digit
+            // (`HYP2F1_LOST`) if `y` is 0 or either isn't finite, e.g. as the factors below
+            // over- or underflow
+            let rel_err = |e: f64, y: f64| {
+                let err = MACHEP * e / y.abs();
+                if err.is_finite() && y.is_finite() && y != 0.0 {
+                    err
+                } else {
+                    HYP2F1_LOST
+                }
+            };
 
             p = (a + d1) * (b + d1) * s * rgamma(e + 2.0); /* Poch for t=1 */
             t = 1.0;
@@ -376,12 +390,13 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 r = psi(1.0 + t) + psi(1.0 + t + e) - psi(a + t + d1) - psi(b + t + d1) - ax;
                 q = p * r;
                 y += q;
+                y_err += t * q.abs();
                 p *= s * (a + t + d1) / (t + 1.0);
                 p *= (b + t + d1) / (t + 1.0 + e);
                 t += 1.0;
                 if t > HYP2F1_MAXITER as f64 {
                     /* should never happen */
-                    err = 1.0;
+                    (err, err_full) = (1.0, 1.0);
                     break 'done f64::NAN;
                 }
                 if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
@@ -390,7 +405,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             }
 
             if id == 0.0 {
-                y *= gamma(c) / (gamma(a) * gamma(b));
+                let f = gamma(c) / (gamma(a) * gamma(b));
+                y *= f;
+                err = rel_err(y_err * f.abs(), y);
+                err_full = err;
                 break 'done y; // goto psidon
             }
 
@@ -409,25 +427,30 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                     t += 1.0;
                     p /= t;
                     y1 += p;
+                    y1_err += t * p.abs();
                 }
             }
             // nosum:
             p = gamma(c);
-            y1 *= gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
+            let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
+            (y1, y1_err) = (y1 * f1, y1_err * f1.abs());
 
-            y *= p * (rgamma(a + d2) * rgamma(b + d2));
+            let f = p * (rgamma(a + d2) * rgamma(b + d2));
+            (y, y_err) = (y * f, y_err * f.abs());
             if (aid & 1) != 0 {
                 y = -y;
             }
 
             q = s.powf(id); /* s to the id power */
             if id > 0.0 {
-                y *= q;
+                (y, y_err) = (y * q, y_err * q);
             } else {
-                y1 *= q;
+                (y1, y1_err) = (y1 * q, y1_err * q);
             }
 
             y += y1;
+            err = rel_err(y_err + y1_err, y);
+            err_full = err;
             // psidon:
             break 'done y;
         }
