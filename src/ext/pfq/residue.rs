@@ -151,6 +151,23 @@ impl Residues {
             size,
         }
     }
+
+    /// The parameters `up` and `low` as `f64`
+    pub(super) fn params(&self) -> [Vec<f64>; 2] {
+        [&self.up, &self.low].map(|v| v.iter().copied().map(f64::from).collect())
+    }
+
+    /// Bound on the ratio of the bounds on two successive residues from term `n` on, relative
+    /// to that on the ratio of their `t_n`, for the parameters `up` and `low` as `f64`, which
+    /// plus `n` must exceed 1
+    ///
+    /// It is the product of the sums of the sizes of the coefficients of `1 - eps / (x + n)`
+    /// and of `1 / (1 - eps / (x + n))`.
+    pub(super) fn growth_bound(up: &[f64], low: &[f64], n: f64) -> f64 {
+        let up = up.iter().map(|x| 1.0 + 1.0 / (x + n));
+        let low = low.iter().map(|x| (x + n) / (x + n - 1.0));
+        up.chain(low).product()
+    }
 }
 
 impl Iterator for Residues {

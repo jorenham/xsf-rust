@@ -18,8 +18,9 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
 mod conformal;
-#[allow(dead_code)]
 mod residue;
+
+use residue::Residues;
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
@@ -942,13 +943,70 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
+/// `pfq_alg_series` for the class of `a_m`: the series of its `Residues`
+///
+/// They are complex for `z > 0`, where it is the sum of the bounds on their sizes, as with
+/// `sizes`.
+fn pfq_class_series(a: &[f64], b: &[f64], m: usize, z: f64, sizes: bool) -> (f64, f64) {
+    let residues = Residues::of_class(a, &b[..b.len() - 1], m, z);
+    let [up, low] = residues.params().map(descending);
+    // (their order is final after the last zero factor, and their bounds are valid once all
+    // parameters plus n exceed 1)
+    let settled = pfq_settled(&up, &low).floor() + 2.0;
+    let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n) * Residues::growth_bound(&up, &low, n);
+    let sizes = sizes || z > 0.0;
+    let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
+    pfq_alg_sum(series, settled, b.len() - a.len(), z, bound)
+}
+
+/// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
+///
+/// The terms of these `a_i` are infinite, unlike the limit of their sum, which is the sum of
+/// the residues at the poles that they share, by `pfq_class_series`. It is the `term` of the
+/// first of the smallest of them, with the residue `(-1)^k / k!` of the Gamma function in place
+/// of each `Gamma(-k)` of its factor. The `term` stays `None` for the other `a_i`, and if the
+/// class has no residues.
+fn pfq_class_term(
+    a: &[f64],
+    b: &[f64],
+    m: usize,
+    z: f64,
+    sizes: bool,
+    term: &mut Option<Scaled>,
+) -> Option<()> {
+    let (am, bs) = (a[m], b[..b.len() - 1].iter().copied().map(Dd::new));
+    let others = skip(&a, m).map(Dd::new);
+    let diffs = others.clone().map(|ai| ai - am);
+    let before = |(d, i): (Dd, usize)| d.is_integer() && (d.hi < 0.0 || d.hi == 0.0 && i < m);
+    if diffs.clone().zip(0..).any(before) {
+        return Some(());
+    }
+    let args = bs.clone().map(|bj| bj - am);
+    let poles = args.clone().filter(is_pole);
+    let sign = neg_one_pow(poles.clone().filter(|g| g.hi % 2.0 != 0.0).count());
+    let residue = |d: Dd| if d.hi == 0.0 { Dd::new(1.0) } else { d };
+    let num = bs.chain(diffs.map(residue)).chain(poles.map(|g| -g + 1.0));
+    let den = others.chain(args.filter(|g| !is_pole(g)));
+    let (sum, err) = pfq_class_series(a, b, m, z, sizes);
+    if (sum, err) != (0.0, 0.0) {
+        let l = -ln_dd(Dd::new(z.abs())) * am;
+        let mut y = gamma_series(num, den, (sign * sum, err), l)?;
+        if sizes {
+            y.m = y.m.abs();
+        }
+        *term = Some(y);
+    }
+    Some(())
+}
+
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
-/// 16.11.2), with `|z|` instead of `-z`, or `None` if two `a_i` differ by an integer
+/// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows
 ///
 /// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
 /// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
 /// `1 + a_m - b_j`, and `1 + a_m - a_i`. It stays `None` if it vanishes, where
-/// `1 / Gamma(b_j - a_m)` does.
+/// `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term, by
+/// `pfq_class_term`, which for `z > 0` is a bound on its size.
 ///
 /// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
@@ -966,7 +1024,8 @@ fn pfq_alg<A: Params, B: Params>(
         let others = skip(a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            return None;
+            pfq_class_term(a.as_ref(), b.as_ref(), m, z, sizes, &mut terms[m])?;
+            continue;
         }
         let num = bs.clone().chain(diffs);
         let den = others.chain(bs.clone().map(|bj| bj - am));
@@ -1055,7 +1114,6 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///
 /// - for some $z < 0$, e.g. $-50 < z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$, and wider for
 ///   larger parameters;
-/// - for $z < 0$ beyond that if $a_1 - a_2$ is an integer (unless one of them cancels);
 /// - for some large parameters, also for $z > 0$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
@@ -1410,8 +1468,8 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
 ///
 /// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
 /// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
-/// sizes of the terms of the algebraic part, which has no bound yet where two `a_i` differ by
-/// an integer (`None`). For `z < 0` and `p < q`, it is the sum of both parts.
+/// sizes of the terms of the algebraic part. For `z < 0` and `p < q`, it is the sum of both
+/// parts.
 fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
@@ -1502,8 +1560,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$, unless it is a polynomial;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
-///   other $p = q$ as for [`hyp2f2`], for the other $p < q$ as for [`hyp1f2`], and for the
-///   other $p \le q$ for large $\abs z$ if two $a_i$ differ by an integer;
+///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
@@ -1597,8 +1654,8 @@ mod tests {
 
     #[test]
     fn test_pfq_asymptotic_integer_difference() {
-        // no expansion where two a_i differ by an integer, and an accurate one or none near it
-        // (Arb reference)
+        // the bound on the algebraic part is too large for equal a_i, and near them the
+        // expansion is accurate or `None` (Arb reference)
         let c = 1.0 + pow2(-10);
         let (b, z) = ([c, c, 11.25, 1.0], 21.25);
         assert_eq!(pfq_asymptotic(&[1.0, 1.0, 10.5], &b, z), None);
