@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@250c65c).
+//! (scipy/xsf@b2274af).
 
 #![allow(clippy::approx_constant)]
 
@@ -1043,7 +1043,15 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     // and `(int)v` is not UB.
     let rp2 = 0.63661977236758;
 
-    let x = x.abs();
+    if x < 0.0 {
+        // Lambda_v is even, so its derivative is odd
+        lamv(v, -x, vm, vl, dl);
+        for d in &mut dl[..=*vm as usize] {
+            *d = -*d;
+        }
+        return;
+    }
+
     let x2 = x * x;
     let mut n = v as i32;
     let v0 = v - f64::from(n);
