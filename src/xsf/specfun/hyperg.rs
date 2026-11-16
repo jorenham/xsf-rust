@@ -412,11 +412,11 @@ pub(crate) fn hyp1f1_small_b(a: f64, b: f64, z: C64, hg: C64) -> C64 {
         return hg;
     }
     let (a, z, ln_scale, phase) = if z.re < 0.0 {
-        let DoubleDouble { hi, lo } = DoubleDouble::new(b) - a;
-        if hi <= 0.0 && lo.abs() > SQRT_EPSILON * (hi - hi.round()).abs() {
+        let ak = DoubleDouble::new(b) - a;
+        if rounding_ratio(ak) > SQRT_EPSILON {
             return hg;
         }
-        (hi, -z, z.re, z.im)
+        (ak.hi, -z, z.re, z.im)
     } else {
         (a, z, 0.0, 0.0)
     };
@@ -479,6 +479,24 @@ fn terms_keep_sign(a: f64, b: f64, n: i32) -> bool {
 /// Whether the value of `(value, error bound)` is finite and keeps at least half of its digits
 fn half_accurate(&(hg, err): &(f64, f64)) -> bool {
     hg.is_finite() && err <= SQRT_EPSILON * hg.abs()
+}
+
+/// The largest relative error of `a.hi + k` for `a + k` over the integers `0 <= k < MAX_TERMS`, as
+/// in the factors `(a.hi)_n` of the series terms that `hyp1f1_sum` can reach; infinite if one is 0
+/// but its `a + k` isn't
+fn rounding_ratio(a: DoubleDouble) -> f64 {
+    if a.lo == 0.0 {
+        return 0.0;
+    }
+    let last = f64::from(MAX_TERMS - 1);
+    let dist = if a.hi > 0.0 {
+        a.hi
+    } else if a.hi < -last {
+        -a.hi - last
+    } else {
+        (a.hi - a.hi.round()).abs()
+    };
+    a.lo.abs() / dist
 }
 
 /// `(a, x)`, or `(b - a, -x)` of DLMF 13.2.39 for `x < 0`, with `b - a` also without rounding, e.g.
@@ -683,26 +701,48 @@ fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
 }
 
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
-/// the series in double-double, if any loses at most half of its digits.
+/// the series in double-double, if any loses at most half of its digits. If rounding `b - a` (for
+/// `x < 0`) errs by more than a rounding (see `rounding_ratio`), the series in double-double comes
+/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`.
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
-    fn checked(x: f64, ends: bool, series: impl Fn(f64) -> Option<(f64, f64)>) -> Option<f64> {
+    /// The series if it ends, with an error bound below `tol` relative to its value
+    fn checked(
+        x: f64,
+        ends: bool,
+        tol: f64,
+        series: impl Fn(f64) -> Option<(f64, f64)>,
+    ) -> Option<f64> {
         let mut hg = if ends { series(x) } else { None };
-        // if the partial sums overflow, `e^-1400 M` is summed instead
-        let mut ln_scale = 0.0;
+        // if the partial sums overflow, `e^-1400 M` is summed instead, with the rounding error `d`
+        // of `x - 1400` applied after, as that can be over `eps` relative to `x`
+        let (mut ln_scale, mut d) = (0.0, 0.0);
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
             ln_scale = 1400.0;
-            hg = series(x.min(0.0) - ln_scale);
+            let x0;
+            (x0, d) = two_sum(x.min(0.0), -ln_scale);
+            hg = series(x0);
         }
-        hg.filter(half_accurate)
-            .map(|(hg, _)| mul_exp(hg, ln_scale))
+        // (with the error of an underflow in the last 4 steps of `hyp1f1_sum`, each by up to half
+        // the smallest subnormal `MIN_POSITIVE eps`, as `err` underflows too)
+        let underflow = 2.0 * f64::MIN_POSITIVE * f64::EPSILON;
+        hg.filter(|&(hg, err)| hg.is_finite() && err + underflow <= tol * hg.abs())
+            .map(|(hg, _)| mul_exp(hg, ln_scale) * d.exp())
     }
     let (ak, xk) = kummer_args(x, a, b);
     // whether the series can end with a finite sum, i.e. within `MAX_TERMS` (see `term_ratio`)
     let ends = b + f64::from(MAX_TERMS) >= xk;
     let series_dd = |x0| chgm_series_dd(ak, DoubleDouble::new(b), xk, x0);
-    checked(x, ends, |x0| chgm_series(ak.hi, b, xk, x0))
+    // with an estimate of the error of rounding `b - a`, which changes the term `t_n` relatively by
+    // up to about `n r`, while `err` is at least `4 eps sum (n + 1) |t_n|` (see `hyp1f1_sum`)
+    let r = rounding_ratio(ak);
+    let series = |x0| {
+        chgm_series(ak.hi, b, xk, x0).map(|(hg, err)| (hg, err + r / (4.0 * f64::EPSILON) * err))
+    };
+    let small_rounding = r <= f64::EPSILON;
+    checked(x, ends, SQRT_EPSILON, series)
+        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, series_dd))
         .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, ends, series_dd))
+        .or_else(|| checked(x, ends, SQRT_EPSILON, series_dd))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
