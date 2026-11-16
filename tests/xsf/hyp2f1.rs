@@ -617,24 +617,69 @@ fn test_hyp2f1_f64_large_parameters_symmetric() {
         assert_eq!(actual[0].to_bits(), actual[1].to_bits());
     }
 
-    // and in both orders, but less accurate, or NaN (for 5.00e-90), where xsf gives -1.12e-31 and
-    // -5.92e11 (Arb)
-    let (a, b, c, x) = (
-        -205.999_999_477_863_13,
-        47.0,
-        3.639_032_470_739_815_5e-7,
-        0.717_901_721_185_673_1,
-    );
+    // and in both orders, but less accurate, where xsf gives -1.12e-31 and -5.92e11 (Arb)
+    let args = [
+        (
+            -205.999_999_477_863_13,
+            47.0,
+            3.639_032_470_739_815_5e-7,
+            0.717_901_721_185_673_1,
+        ),
+        (
+            142.0,
+            -371.999_908_846_370_03,
+            2.059_971_790_437_242_8e-6,
+            0.861_317_158_082_100_4,
+        ),
+    ];
+    let desired = [-8.131_786_695_096_852e-38, 5.001_223_601_725_287e-90];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-10);
+        assert_eq!(actual[0].to_bits(), actual[1].to_bits());
+    }
+}
+
+#[test]
+fn test_hyp2f1_f64_large_integer_a_near_integer_b() {
+    // unlike in xsf: the 1 - x transformation, for an integer a > 0, where one of its terms is a
+    // polynomial. These were 1.7143275e-23, NaN, -1.70622e-22, NaN and NaN, where xsf gives
+    // 3.28e21, 4.70e21, 3.56e91, -2.43e20 and 1.04e33 (Arb).
+    let args = [
+        (94.0, -172.000_005_2, 0.000_69, 0.796),
+        (
+            144.0,
+            -307.000_000_032_203_84,
+            1.071_284_073_337_459_3,
+            0.828_564_043_388_024_1,
+        ),
+        (
+            107.0,
+            -144.000_007_274_726_64,
+            0.145_391_050_054_173_58,
+            0.945_243_845_732_862_5,
+        ),
+        (85.0, -171.999_998, 0.0369, 0.8847),
+        (100.0, -185.000_000_01, 0.0018, 0.866),
+    ];
+    let desired = [
+        1.714_327_734_183_920_2e-23,
+        -2.344_890_839_413_483_4e-65,
+        -1.715_823_875_854_333_9e-22,
+        -4.884_956_947_532_335e-39,
+        1.330_815_061_015_127_8e-34,
+    ];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-13);
+        assert_eq!(actual[0].to_bits(), actual[1].to_bits());
+    }
+
+    // but not at the cost of the other forms, whose bounds can be smaller where the two terms of
+    // the transformation cancel, e.g. for x < -1 (Arb; xsf gives NaN)
+    let (a, b, c, x) = (194.001, 350.0, 55.065, -5.0);
     let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
-    np_assert_allclose!(actual, [-8.131_786_695_096_852e-38; 2], rtol = 1e-10);
-    assert_eq!(actual[0].to_bits(), actual[1].to_bits());
-    let (a, b, c, x) = (
-        142.0,
-        -371.999_908_846_370_03,
-        2.059_971_790_437_242_8e-6,
-        0.861_317_158_082_100_4,
-    );
-    assert!(xsf::hyp2f1(a, b, c, x).is_nan() && xsf::hyp2f1(b, a, c, x).is_nan());
+    np_assert_allclose!(actual, [-9.278_721_967_709_765e-268; 2], rtol = 1e-12);
 }
 
 #[test]
@@ -931,16 +976,9 @@ fn test_hyp2f1_f64_nan_if_lost() {
 
 #[test]
 fn test_hyp2f1_f64_nan_if_err_above_1() {
-    // NaN if the error estimate with the recurrences in `a` is above 1, instead of -2.43e20 and
-    // 1.04e33 (Arb: -4.88e-39 and 1.33e-34), in either order of a and b
-    for (a, b, c, x) in [
-        (85.0, -171.999_998, 0.0369, 0.8847),
-        (100.0, -185.000_000_01, 0.0018, 0.866),
-    ] {
-        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
-        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
-    }
-    // but not for a polynomial, here T_10 near a root, which is accurate in absolute terms (Arb)
+    // NaN if the error estimate with the recurrences in `a` is above 1 (no input is known to reach
+    // this, as `hyp2f1_recur` bounds the errors of those below), but not for a polynomial, here
+    // T_10 near a root, which is accurate in absolute terms (Arb)
     let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
     assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
     // and `hyp2f1_recur` bounds its error for these (Arb)
