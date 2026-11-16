@@ -1365,6 +1365,33 @@ fn test_jahnke_emden_lambda_large_v_and_x() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_large_x_seeds() {
+    // Arb; xsf starts the recurrences from the asymptotic expansions of `J_v0(x)` and
+    // `J_{v0+1}(x)`, which lose up to about 4e-8 here
+    for (v, x, expected) in [
+        (
+            2.25,
+            12.3,
+            [-0.003_104_530_913_754_87, -0.008_465_513_461_267_032],
+        ),
+        (
+            13.25,
+            674_667.78,
+            [-1.015_759_064_595_633_6e-67, -6.505_120_550_041_504e-67],
+        ),
+        // `Lambda_41(x)` is subnormal
+        (
+            40.25,
+            1e9,
+            [3.152_575_638_733_010_5e-307, 2.160_038_828_520_150_6e-307],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-14);
+    }
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {

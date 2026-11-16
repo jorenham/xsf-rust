@@ -7,7 +7,7 @@ use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF, deflated_newton_step};
 use crate::utils::neg_one_pow;
-use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_y_c64};
+use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_y_c64};
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 
@@ -1044,8 +1044,6 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     // and, unlike in xsf, vl[n + 1] / dl[n + 1] (out of bounds with buffers of length n + 1). The
     // caller (jahnke_emden_lambda) passes 1 <= v < 2^31 with buffers of length n + 2, so that's in
     // bounds, and `(int)v` is not UB.
-    let rp2 = 0.63661977236758;
-
     if x < 0.0 {
         // Lambda_v is even, so its derivative is odd
         lamv(v, -x, vm, vl, dl);
@@ -1092,54 +1090,10 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
-    let k0 = if x >= 50.0 {
-        8
-    } else if x >= 35.0 {
-        10
-    } else {
-        11
-    };
-    let mut bjv0 = 0.0;
-    let mut bjv1 = 0.0;
-
-    for j in 0..=1 {
-        let vv = 4.0 * (f64::from(j) + v0) * (f64::from(j) + v0);
-        let mut px = 1.0;
-        let mut rp = 1.0;
-        for k in 1..=k0 {
-            // NOTE: `pow(y, 2.0)` is written as `y * y`, which is what GCC compiles it to.
-            rp = -0.78125e-2
-                * rp
-                * (vv - (4.0 * f64::from(k) - 3.0) * (4.0 * f64::from(k) - 3.0))
-                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
-                / (f64::from(k) * (2.0 * f64::from(k) - 1.0) * x2);
-            px += rp;
-        }
-
-        let mut qx = 1.0;
-        rp = 1.0;
-        for k in 1..=k0 {
-            rp = -0.78125e-2
-                * rp
-                * (vv - (4.0 * f64::from(k) - 1.0) * (4.0 * f64::from(k) - 1.0))
-                * (vv - (4.0 * f64::from(k) + 1.0) * (4.0 * f64::from(k) + 1.0))
-                / (f64::from(k) * (2.0 * f64::from(k) + 1.0) * x2);
-            qx += rp;
-        }
-
-        qx = 0.125 * (vv - 1.0) * qx / x;
-        let xk = x - (0.5 * (f64::from(j) + v0) + 0.25) * PI;
-        let a0 = (rp2 / x).sqrt();
-        let ck = xk.cos();
-        let sk = xk.sin();
-
-        if j == 0 {
-            bjv0 = a0 * (px * ck - qx * sk);
-        }
-        if j == 1 {
-            bjv1 = a0 * (px * ck - qx * sk);
-        }
-    }
+    // Unlike in xsf, these are not the asymptotic expansions of `J_v0(x)` and `J_{v0+1}(x)`
+    // (DLMF 10.17.3), whose 8 to 11 terms lose up to 1e-11
+    let bjv0 = cyl_bessel_j_f64(v0, x);
+    let bjv1 = cyl_bessel_j_f64(v0 + 1.0, x);
 
     let mut ga;
     if v0 == 0.0 {
