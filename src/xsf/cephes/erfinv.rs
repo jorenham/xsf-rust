@@ -13,8 +13,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_SQRT_PI, LN_2};
 /// This indicates a true inverse function would be multivalued. When the domain restricts to the
 /// real, $-1 < x < 1$, there is a unique real number satisfying $\erf(\erf^{-1}(x)) = x$.
 ///
-/// Note that unlike [`scipy.special.erfinv`][scipy], which uses the Boost implementation,
-/// this function uses the Cephes implementation, which can be less accurate in certain regions.
+/// In some regions, this can be less accurate than [`scipy.special.erfinv`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfinv.html
 ///
@@ -26,6 +25,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_2_SQRT_PI, LN_2};
 #[must_use]
 #[inline]
 pub fn erfinv(y: f64) -> f64 {
+    // Cephes (SciPy wraps Boost `erf_inv`)
     /*
      * Inverse of the error function.
      *
@@ -81,7 +81,7 @@ pub fn erfinv(y: f64) -> f64 {
 /// It is related to inverse of the error function by $\erfc^{-1}(1 - y) =$
 /// [$\erf^{-1}(y)$](fn.erfinv.html).
 ///
-/// Note that [`scipy.special.erfcinv`][scipy] also uses the Cephes implementation.
+/// Corresponds to [`scipy.special.erfcinv`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.erfcinv.html
 ///

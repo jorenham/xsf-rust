@@ -317,9 +317,8 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
 /// This function is the quantile function (inverse CDF) of the Beta distribution.
 ///
 /// # Notes
-/// This function uses the `incbi` Cephes routine [^CEPHES], making it less accurate than
-/// [`scipy.special.betaincinv`][scipy], which wraps the Boost `ibeta_inv` routine [^BOOST].
-/// For example, with $10^3 < a < 10^5$ and $1/2 < b < 10$, the relative error is up to 5e-14 for
+/// This can be less accurate than [`scipy.special.betaincinv`][scipy]. For example, with
+/// $10^3 < a < 10^5$ and $1/2 < b < 10$, the relative error is up to 5e-14 for
 /// $10^{-300} \le y < 10^{-5}$, but for $a = 10^{10}$ it can be as large as 6e-5.
 ///
 /// # See also
@@ -332,8 +331,6 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincinv.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-/// [^CEPHES]: Cephes Math Library Release 2.4.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(
     alias = "inc_beta_inv",
     alias = "beta_inc_inv",
@@ -346,6 +343,7 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
     if a.is_nan() || b.is_nan() || y.is_nan() || a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&y) {
         f64::NAN
     } else {
+        // Cephes `incbi` (SciPy wraps Boost `ibeta_inv`)
         incbi(a, b, y).0
     }
 }
@@ -363,10 +361,8 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
 /// This function is the inverse survival function of the Beta distribution.
 ///
 /// # Notes
-/// This function uses the `incbi` Cephes routine [^CEPHES] for the root of $\I_{1-x}(b, a) = y$,
-/// refined by safeguarded Newton steps, whereas [`scipy.special.betainccinv`][scipy] wraps the
-/// Boost `ibetac_inv` routine [^BOOST]. For example, with $10^{-3} \le a, b \le 10^5$, the
-/// relative error is up to 4e-13, for $a = 10^{-3}$, where the root is ill-conditioned.
+/// With $10^{-3} \le a, b \le 10^5$, the relative error is up to 4e-13, for $a = 10^{-3}$, where
+/// the root is ill-conditioned.
 /// Where $1 - \I_x(a, b)$ rounds to $y$ over a range of $x$, e.g. for a subnormal $y$, the result
 /// can be anywhere in that range.
 ///
@@ -379,8 +375,6 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainccinv.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.4.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "ibetac_inv")]
 #[must_use]
 pub fn betainccinv(a: f64, b: f64, y: f64) -> f64 {
@@ -401,6 +395,8 @@ pub fn betainccinv(a: f64, b: f64, y: f64) -> f64 {
             f64::NAN
         };
     }
+    // Cephes `incbi` for the root of `I_{1-x}(b, a) = y`, then safeguarded Newton steps (SciPy
+    // wraps Boost `ibetac_inv`)
     let x = incbi(b, a, y).1;
     // `incbi` returns 1 if its root `t` rounds to 0, 0 for roots below eps in its reflected frame
     // or if `t` rounds to 1, and NaN if it fails, e.g. if `lgam(a + b)` overflows
