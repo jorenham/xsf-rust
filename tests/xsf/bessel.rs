@@ -1094,8 +1094,21 @@ fn test_bessel_y_zeros_mpmath() {
     let [z, v] = xsf::bessel_y0_zeros::<5>(false);
     let (zr, vr) = (13.361_097_473_872_763, -0.218_358_296_597_671_34);
     // in SciPy 1.18.1: 13.361097493, with relative error 1.4e-9
-    np_assert_allclose!(&[z[4].re], &[zr], rtol = 1e-13);
-    np_assert_allclose!(&[v[4].re], &[vr], rtol = 1e-12);
+    np_assert_allclose!(&[z[4].re], &[zr], rtol = 2e-15);
+    np_assert_allclose!(&[v[4].re], &[vr], rtol = 2e-15);
+
+    // complex zeros near |z| = 12, as above
+    let [z, v] = xsf::bessel_y0_zeros::<4>(true);
+    let zr = c64(-11.791_512_030_381_03, 0.548_819_118_378_619_2);
+    let vr = c64(-0.009_373_681_680_503_708, 0.402_304_542_938_848_1);
+    np_assert_allclose!(&[z[3]], &[zr], rtol = 2e-15);
+    np_assert_allclose!(&[v[3]], &[vr], rtol = 2e-15);
+    // mpmath.findroot(lambda z: mpmath.bessely(1, z, 1), z0), and bessely(1, z) there
+    let [z, v] = xsf::bessel_y1_prime_zeros::<5>(true);
+    let zr = c64(-11.706_175_218_894_689, 0.552_859_060_733_942_4);
+    let vr = c64(-0.009_544_376_760_384_838, 0.403_753_339_564_625_7);
+    np_assert_allclose!(&[z[4]], &[zr], rtol = 2e-15);
+    np_assert_allclose!(&[v[4]], &[vr], rtol = 2e-15);
 
     // the 200th zero, which is NaN in SciPy 1.18.1
     let [z, v] = xsf::bessel_y1_zeros::<200>(true);
