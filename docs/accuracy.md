@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`b2274af`](https://github.com/scipy/xsf/tree/b2274af358efba3e2406bee5556c85e77bab2fea)), and
+it is translated from (commit [`5d2c283`](https://github.com/scipy/xsf/tree/5d2c283e95092170c77d388d0f2cb239d5acb100)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 

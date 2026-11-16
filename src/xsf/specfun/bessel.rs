@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@b2274af).
+//! (scipy/xsf@5d2c283).
 
 #![allow(clippy::approx_constant)]
 
@@ -931,11 +931,11 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also bl[1] / dl[1] (for x > 12, where *nm
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also bl[1] / dl[1] (for |x| > 12, where *nm
     // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
     // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
-    if x <= 12.0 {
+    if x.abs() <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {
             let bk = lamn_series(f64::from(k), x2).0;
@@ -985,7 +985,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     for k in 1..=*nm {
         dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
     }
-    // Unlike in xsf, the orders above `nm` are not left unset, but summed like for `x <= 12`
+    // Unlike in xsf, the orders above `nm` are not left unset, but summed like for `|x| <= 12`
     // where the error estimate of that sum is small enough
     if *nm < n {
         let series = |k: f64| match lamn_series(k, x * x) {
