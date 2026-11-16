@@ -1060,10 +1060,7 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         Some(terms.into_iter().flatten())
     };
     let (y, other) = if z > 0.0 {
-        // (its size is continuous in a_1, also at an integer a_1 - a_2)
-        let nudged = [a[0] + f64::EPSILON.sqrt() * a[0].abs().max(1.0), a[1]];
-        let terms = alg(a).or_else(|| alg(nudged))?;
-        (hyp2f2_exp(a, b, z)?, add_exp(terms))
+        (hyp2f2_exp(a, b, z)?, add_exp(alg(a)?))
     } else {
         (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
