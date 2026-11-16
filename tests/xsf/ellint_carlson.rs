@@ -444,6 +444,21 @@ fn test_elliprj_wide_span() {
 }
 
 #[test]
+fn test_elliprj_tiny_y() {
+    // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
+    let actual = [
+        xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9),
+        xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9),
+    ];
+    // Arb
+    let expected = [
+        3.067_647_836_331_202e20, // 3.0676478363312025864e20
+        6.664_402_648_223_819e19, // 6.6644026482238192011e19
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj_huge_p() {
     // complex `x, y, z << p`, where the `s` of the main loop cancels
     let actual = [
@@ -474,6 +489,18 @@ fn test_elliprj_huge_p() {
         c64(2.668_916_024_651_172_6e-47, 2.181_170_936_616_011_3e-47),
         // 2.8232070639983970999e119 - 9.0800781779622300614e118i
         c64(2.823_207_063_998_397e119, -9.080_078_177_962_23e118),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // the asymptotic form for `z / p <= 5e-14`
+    let actual = [
+        xsf::elliprj(1.0, 2.0, 3.0, 1e14),
+        xsf::elliprj(0.0, 0.5, 7.0, 2e14),
+    ];
+    // Arb
+    let expected = [
+        2.180_837_335_167_910_8e-14, // 2.1808373351679106680e-14
+        1.551_984_603_581_836e-14,   // 1.5519846035818361032e-14
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
