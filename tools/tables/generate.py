@@ -24,6 +24,8 @@ not change the output, and a report per table goes to `.cache/reports/`.
 """
 
 import argparse
+import ast
+import functools
 import hashlib
 import json
 import math
@@ -228,12 +230,21 @@ def residual(task: tuple[str, str, Args]) -> float | None:
     return with_timeout(f)
 
 
+def code_hash(path: str) -> str:
+    """The hash of the code in `path`, without comments and formatting, so that only code
+    changes recompute the references."""
+    return hashlib.sha256(
+        ast.dump(ast.parse(Path(path).read_text())).encode()
+    ).hexdigest()
+
+
+@functools.cache
 def stamp() -> dict[str, str]:
     """What a cached reference depends on, other than its key."""
     return {
-        "generate.py": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "specs.py": hashlib.sha256(Path(specs.__file__).read_bytes()).hexdigest(),
-        "mapping.py": hashlib.sha256(Path(mapping.__file__).read_bytes()).hexdigest(),
+        "generate.py": code_hash(__file__),
+        "specs.py": code_hash(specs.__file__),
+        "mapping.py": code_hash(mapping.__file__),
         "mpmath": mp.__version__,
         "python-flint": flint.__version__,
         "flint": flint.__FLINT_VERSION__,
