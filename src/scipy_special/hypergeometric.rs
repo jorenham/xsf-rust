@@ -1,11 +1,13 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@fa36f89).
 
+use core::f64::consts::PI;
+
 use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
 use crate::xsf::cephes::dd_real::{two_prod, two_sum};
-use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
+use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, iv, lgam_stirling_corr};
 use crate::xsf::complex::Num;
 use crate::xsf::log::clog1p;
 
@@ -119,7 +121,8 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     } else if z > 0.0 {
         let arg = z.sqrt();
         let arg_exp = crate::xlogy(1.0 - v, arg) + crate::gammaln(v);
-        let bess_val = crate::xsf::cephes::iv(v - 1.0, 2.0 * arg);
+        let x = 2.0 * arg;
+        let bess_val = bessel_below(v, x, 1.0, || iv(v, x), |n| iv(n, x));
 
         // Unlike in xsf (scipy/xsf#366), v = 1 doesn't fall back to `hyp0f1_asy`, which divides
         // by |v - 1|.
@@ -136,7 +139,9 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let arg_pow = arg.powf(1.0 - v);
         let gamma_v = crate::gamma(v);
         let prefactor = arg_pow * gamma_v;
-        let mut bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
+        let x = 2.0 * arg;
+        let j_v = crate::bessel_j(v, x);
+        let mut bess_val = bessel_below(v, x, -1.0, || j_v, |n| crate::bessel_j(n, x));
         // Unlike in xsf, the rounding error `d` of `arg` is corrected for, as it shifts the phase
         // of `J` by `2 d`, up to `arg eps`. By DLMF 10.6.6 and 10.17.3, `a^(1-v) J_{v-1}(2 a)` at
         // `a = arg + d` is about `arg^(1-v) (J_{v-1}(x) cos 2d - J_v(x) sin 2d)` for `x = 2 arg`,
@@ -144,7 +149,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let (sq, sq_err) = two_prod(arg, arg);
         let d = (-z - sq - sq_err) / (2.0 * arg);
         let (sin, cos) = (2.0 * d).sin_cos();
-        let shift = -sin * crate::bessel_j(v, 2.0 * arg);
+        let shift = -sin * j_v;
         if shift.is_finite() {
             bess_val = bess_val * cos + shift;
         }
@@ -174,6 +179,44 @@ fn debye_is_accurate(v: f64, z: f64) -> bool {
     let v1 = (v - 1.0).abs();
     let p2 = 1.0 + 4.0 * z.min(0.0) / (v1 * v1);
     v1 * p2 * p2.sqrt() > 50.0
+}
+
+/// `B_{v-1}(x)` of the Bessel function `B = I` (with `s = 1`) or `J` (`s = -1`), given `B_v(x)`
+///
+/// Unlike in xsf, if `v - 1` rounds, this can use the recurrence (DLMF 10.29.1, 10.6.1) from the
+/// orders `v` and `v + 1`, which are exact for `v <= -1/2`, below the turning point `|x| = mu`,
+/// with `mu = 1 - v` (past it, the error of `B_v` and `B_{v+1}` grows with `|x|`). Near the poles
+/// of `Gamma(v)`, the `sin(pi v)` term of `B_{v-1}` (DLMF 10.27.2, 10.2.3) amplifies the rounding
+/// error `d` of the order by `pi |cot(pi v)|` times its share of `B_{v-1}`, which is about
+/// `2 |sin(pi v)| e^(2 mu Re g)`, with `g = ln((1 + w) / t) - w`, `t = x / mu`, and
+/// `w = sqrt(1 + s t^2)` (DLMF 10.41.3-4, 10.19.3). The recurrence is used where this heuristic
+/// cost `amp` exceeds 4 times its own (also rough) error: its cancellation `kappa >= 1` times the
+/// error of `B_v` and `B_{v+1}`, empirically up to `|v| eps`, plus the `d |ln(x/2)|` that the
+/// rounded exponent `1 - v` of the prefactor `(x/2)^(1-v)` costs.
+fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl Fn(f64) -> T) -> T {
+    let mu = 1.0 - v;
+    let d = two_sum(v, -1.0).1.abs();
+    let amp = if v <= -0.5 && d > 0.0 && x.abs() < mu {
+        let t = c64(x.real(), x.imag()) / mu;
+        let w = (1.0 + s * t * t).sqrt();
+        let g = ((1.0 + w) / t).norm().ln() - w.re;
+        let sin = crate::sinpi(v).abs();
+        let share = (2.0 * sin * (2.0 * mu * g).exp()).min(1.0);
+        PI * d * crate::cospi(v).abs() / sin * share
+    } else {
+        0.0
+    };
+    let tol = v.abs() * f64::EPSILON;
+    if amp > tol {
+        let (t1, t2) = (T::from(2.0 * v) / x * b_v(), b(v + 1.0) * s);
+        let r = t1 + t2;
+        let kappa = (t1.abs() + t2.abs()) / r.abs();
+        // false if `r` overflows or underflows to zero
+        if 4.0 * (kappa * tol + d * (x.abs() / 2.0).ln().abs()) < amp {
+            return r;
+        }
+    }
+    b(v - 1.0)
 }
 
 /// Maclaurin series `sum_n z^n / ((v)_n n!)` (DLMF 16.2.1)
@@ -232,7 +275,9 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             (-z, -1.0, cyl_bessel_j_c64)
         };
         let arg = w.sqrt();
-        let mut r = bessel(v - 1.0, 2.0 * arg);
+        let x = 2.0 * arg;
+        let r_v = bessel(v, x);
+        let mut r = bessel_below(v, x, s, || r_v, |n| bessel(n, x));
 
         // Unlike in xsf, the rounding error `d` of `arg` is corrected for (as for real `z`): it
         // shifts the argument of the Bessel function by `2 d`, up to `|arg| eps`. By DLMF 10.29.4
@@ -246,7 +291,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         let res_re = (w.re - diff) - (diff_err + re2_err - im2_err);
         let res = c64(res_re, (w.im - cross) - cross_err);
         if res != C64::ZERO {
-            let shift = s * res / arg * bessel(v, 2.0 * arg);
+            let shift = s * res / arg * r_v;
             if shift.is_finite() {
                 r += shift;
             }
