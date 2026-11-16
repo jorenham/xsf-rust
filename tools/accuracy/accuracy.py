@@ -172,7 +172,7 @@ def ref_task(task: tuple[str, Args]) -> Ref | str:
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(spec.timeout)
     try:
-        mp.mp.dps = spec.dps
+        mp.mp.dps = specs.DPS
         v = spec.ref(*map(mp.mpf, args))
         scale = None
         if isinstance(v, tuple):
@@ -255,7 +255,7 @@ def ref_key(spec: specs.Spec, args: list[Args]) -> str:
     default arguments and captured variables (by name, for functions)."""
     ref = spec.ref
     src = _sources(ref.__code__, {"": _source(ref.__code__)})
-    key: list[object] = [args, sorted(src.items()), spec.dps, mp.__version__]
+    key: list[object] = [args, sorted(src.items()), specs.DPS, mp.__version__]
     bound = [
         *(ref.__defaults__ or ()),
         *(c.cell_contents for c in ref.__closure__ or ()),
@@ -315,9 +315,8 @@ def arb_task(task: tuple[str, Args, Ref]) -> str:
     line that says whether Arb refutes it or cannot confirm it."""
     name, args, (value, scale) = task
     assert isinstance(value, str) and not isinstance(scale, list)
-    d = specs.BY_NAME[name].dps
-    for dps in (2 * d, 4 * d, 8 * d):
-        flint.ctx.dps = dps
+    for k in (2, 4, 8):
+        flint.ctx.dps = k * specs.DPS
         ref = flint.arb(value)
         tol = abs(ref) if scale is None else abs(ref).max(flint.arb(scale))
         y = specs.ARB[name](*map(flint.arb, args))
