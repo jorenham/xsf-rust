@@ -163,6 +163,38 @@ fn test_betainc_a_or_b_above_1e154() {
 }
 
 #[test]
+fn test_betainc_rounded_complement() {
+    // unlike in xsf, the rounding error of `1 - x` (or of `x` for `betaincc`) is not amplified
+    // `b` (or `a`) times by its power (Arb)
+    for &(a, b, x, p) in &[
+        (6.38, 137.3, 0.044, 0.539_843_994_381_909),
+        (9.2, 160.1, 0.05, 0.438_914_464_393_196_15),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
+    }
+    for &(a, b, x, q) in &[
+        (
+            0.199_062_019_161_482_08,
+            148.140_613_139_784_62,
+            0.005_561_625_815_702_902,
+            0.068_694_609_469_998_93,
+        ),
+        (1.2, 130.5, 0.3, 1.389_422_145_821_411_2e-20),
+        (0.5, 120.25, 0.1, 4.940_166_731_765_825e-7),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 2e-15);
+    }
+    // `1 - x` is exact here, so `ln(x)` is not replaced by `ln_1p(x - 1)`, whose different rounding
+    // the logarithm branch amplifies `a` times
+    let p = xsf::betainc(
+        1_353.021_564_937_913_4,
+        1.619_018_962_340_093,
+        0.591_241_638_948_332_1,
+    );
+    xsref::np_assert_allclose!(&[p], &[8.693_700_523_568e-308], rtol = 1e-15);
+}
+
+#[test]
 fn test_betainc_edge_cases() {
     for &((a, b, x), expected) in &[
         ((0.0, 0.0, 0.0), f64::NAN),
