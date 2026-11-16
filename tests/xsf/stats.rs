@@ -327,6 +327,20 @@ fn test_log_ndtr() {
     xsref::np_assert_allclose!(&y, &expected, rtol = 1e-14);
 }
 
+#[test]
+fn test_log_ndtr_c64_near_0() {
+    // mpmath `log1p(-erfc(z / sqrt(2)) / 2)`, where `ndtr(-z)` is small
+    let z = [
+        c64(5.901_265_878_562_874, 0.416_992_545_962_521_9),
+        c64(14.954_261_826_208_068, -13.987_176_952_180_263),
+    ];
+    let expected = [
+        c64(1.604_864_238_438_167_5e-9, 1.130_791_271_554_178e-9),
+        c64(1.372_077_595_497_844_8e-8, -8.778_794_038_055_874e-9),
+    ];
+    xsref::np_assert_allclose!(z.map(xsf::log_ndtr), expected, rtol = 5e-14);
+}
+
 xsref::tests! {
     test_ndtri: "ndtri", "d-d", |x| xsf::ndtri(x[0]);
 }
