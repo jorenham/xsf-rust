@@ -78,6 +78,7 @@ use num_complex::Complex;
 
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::ldexp_f64;
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -308,7 +309,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
 /// `a + m` in `[1, 2)`, with its estimated number of digits; NaN if a (heuristic) check finds that
-/// the recurrence is ill-conditioned
+/// the recurrence is ill-conditioned; for small `a` by `hypu_sum_b`, unless that cancels
 ///
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
 /// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1).
@@ -318,9 +319,18 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
         let (u, id) = hypu_rec(a - b + 1.0, 2.0 - b, x);
         return (x.powf(1.0 - b) * u, id);
     }
+    // Unlike in xsf, DLMF 13.3.9 for small a, where the recurrence in a can cancel without the
+    // check below noticing, e.g. for tiny a near an integer b
+    if a.abs() < 0.5 && (1.5..1000.0).contains(&b) {
+        let (u0, s) = hypu_sum_b(a, b, x);
+        let u = u0 + s;
+        if u.is_infinite() || u0.abs() + s.abs() < REC_MAX_CANCEL * u.abs() {
+            // the terms are taken to have 15 digits
+            return (u, digits_left(15, u0, s));
+        }
+    }
     let m = (1.0 - a).ceil();
-    // The two starting values are recurred separately, to detect their cancellation (the
-    // threshold 1e4 is empirical)
+    // The two starting values are recurred separately, to detect their cancellation
     let (mut p0, mut p1) = (xsf_hypu(a + m, b, x), 0.0);
     let (mut q0, mut q1) = (0.0, xsf_hypu(a + m + 1.0, b, x));
     for k in (1..=m as i32).rev() {
@@ -331,7 +341,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
         (q0, q1) = (s * q0 - t * q1, q0);
     }
     let u = p0 + q0;
-    if p0.abs() + q0.abs() < 1e4 * u.abs() {
+    if p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs() {
         // the starting values are taken to have 15 digits
         (u, digits_left(15, p0, q0))
     } else if (3.0..1000.0).contains(&b) {
@@ -343,11 +353,56 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
     }
 }
 
+/// The largest cancellation `(|p| + |q|) / |p + q|` of a sum that `hypu_rec` accepts (empirical)
+const REC_MAX_CANCEL: f64 = 1e4;
+
+/// The two terms of DLMF 13.3.9 for `|a| < 0.5` and `1.5 <= b < 1000`, i.e. of
+/// `U(a, b, x) = U(a, b - n, x) + a sum_j U(a + 1, b - j, x)` for `j < n` with `b - n` nearest 1
+/// (as `a + 1 > 0.5`, the `U(a + 1, c, x)` don't come back here)
+fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64) {
+    const LOG2_SCALE: i32 = 512;
+    const SCALE: f64 = pow2(LOG2_SCALE);
+    let n = (b - 1.0).round();
+    let u0 = xsf_hypu(a, b - n, x);
+    // U(a + 1, c, x) for c = b - n + 1, ..., b, by the forward recurrence in c (DLMF 13.3.8) from
+    // c = b - n and b - n + 1 (near 1 and 2, where `chguit` integrates over ln(1 + t))
+    let mut c = b - n + 1.0;
+    let mut v = [xsf_hypu(a + 1.0, c - 1.0, x), xsf_hypu(a + 1.0, c, x)];
+    // the sum is sum 2^e, as U(a + 1, c, x) can overflow where a U(a + 1, c, x) doesn't, e.g. for
+    // U(0.05, 15.5, 2.5e-21) = 6.4e307
+    let (mut sum, mut e) = (v[1], 0);
+    while c < b {
+        // U(a', c + 1, x) = ((c + x - 1) U(a', c, x) - (c - a' - 1) U(a', c - 1, x)) / x
+        let step = |v: [f64; 2]| ((c + x - 1.0) * v[1] - (c - a - 2.0) * v[0]) / x;
+        // scaled down (exactly) above SCALE, which keeps the sum finite, and while the step
+        // overflows, e.g. for U(0.001, 3, 1e-155) = 1.0e307 (but not below 1, to not underflow)
+        while v[1].is_finite() && (v[1].abs() > SCALE || v[1].abs() > 1.0 && step(v).is_infinite())
+        {
+            (v, sum, e) = (v.map(|t| t / SCALE), sum / SCALE, e + LOG2_SCALE);
+        }
+        v = [v[1], step(v)];
+        sum += v[1];
+        c += 1.0;
+    }
+    (u0, ldexp_f64(a * sum, e))
+}
+
 /// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
 /// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
 fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, i32) {
-    let n = (b - 1.0).floor();
-    let ((mut u0, id0), (mut u1, id1)) = (hypu_rec(a, b - n, x), hypu_rec(a, b - n + 1.0, x));
+    hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| hypu_rec(a, c, x))
+}
+
+/// `U(a, b, x)` by the forward recurrence in `b` (DLMF 13.3.8) from `U(a, c, x)` and its
+/// estimated number of digits by `start(c)` at `c = b - n` and `b - n + 1`
+pub(super) fn hypu_fwd_b(
+    a: f64,
+    b: f64,
+    x: f64,
+    n: f64,
+    start: impl Fn(f64) -> (f64, i32),
+) -> (f64, i32) {
+    let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
     let mut c = b - n + 1.0;

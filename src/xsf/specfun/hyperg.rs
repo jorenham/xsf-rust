@@ -5,7 +5,7 @@
 //! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::{LN_2, PI};
-use core::ops::{Div, Mul, Range};
+use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
@@ -43,9 +43,6 @@ const MAX_BOUND_EXP: f64 = 64.0;
 /// The (exact) factor that keeps the terms of `chgm_poly`, `rescale_term` and `chgul` in range
 const LOG2_SCALE: i32 = 512;
 const SCALE: f64 = pow2(LOG2_SCALE);
-
-/// The `b` where `chgus` computes `sin(pi b)` with `sinpi` (empirical)
-const CHGUS_SINPI_B: Range<f64> = -0.5..2.5;
 
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
@@ -1200,21 +1197,26 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// xsf returns the first of `chgus` and `chgul` with 9 digits, and else whatever its step 2 gives.
 /// Here (scipy/xsf#380):
 ///
-/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` excludes
-///    integer `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
+/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
+///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
 ///    the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
+///      - an overflowing `chguit` is redone without `x^(1-b)` in the integral, unless step 1 has 9
+///        digits
+///      - then, if neither this nor step 1 has `ID_ACCEPT` digits, the recurrence in `b` (for
+///        `LOG_MAP_B <= b < 1000` and `x < 1`)
 ///    - `a < 1`, `b <= a`: `chguit` for `U(a-b+1, 2-b, x)`, times `x^(1-b)`; for `-1e5 <= b <= 0`
 ///      with `x^(1-b)` in the integral if that product isn't normal or step 1 overflowed
 ///    - `a < 1`, `b > a`: `chgubi` (nonzero integer `b`); the recurrence in `a > -1000` otherwise,
-///      or if `chgubi` isn't finite with `ID_MIN` digits and step 1 has fewer than 9, unless a
+///      or if neither `chgubi` (finite) nor step 1 has `ID_MIN` digits, unless a
 ///      finite `chgubi` has at least as many estimated digits as the recurrence (by the
 ///      cancellation of its two starting values)
 /// 3. If `hu0` has 9 to 11 digits, or more than step 2 (and isn't NaN), the result of step 2 only
 ///    replaces it if the two agree within 10 times its error estimate (step 2 can be far off, e.g.
-///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`.
+///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`. If neither has `ID_ACCEPT`
+///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|`, and kept if it has more.
 ///
 /// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
@@ -1237,6 +1239,8 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf (scipy/xsf#380), chgus and chgul need 12 digits (instead of 9) to be returned
     // at once (step 1); chgubi needs as many to be kept as is (step 2)
     const ID_MIN: i32 = 12;
+    // results with fewer digits are flagged (and NaN in `hypu`)
+    const ID_ACCEPT: i32 = 6;
 
     let mut id1: i32 = 0;
     let mut hu = 0.0;
@@ -1252,10 +1256,11 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     let bl2 = (x > 5.0) && (x <= 12.5) && ((a >= 1.0) && (b >= a + 4.0));
     let bl3 = (x > 12.5) && (a >= 5.0) && (b >= a + 5.0);
     let bn = b.fract() == 0.0 && b != 0.0;
-    // Unlike in xsf (scipy/xsf#380), conservatively not for integer b > 1 and x <= |b - 2a|: the
-    // error bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for
-    // tiny a the series overestimates its digits
-    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !(bn && b > 1.0 && x <= (b - 2.0 * a).abs());
+    // Unlike in xsf (scipy/xsf#380), conservatively not for b > 1 and x <= |b - 2a|: the error
+    // bound of the series in chgul (DLMF 13.7.5) is only usable for x > |b - 2a|, and for tiny a
+    // the series overestimates its digits (e.g. it is 1 for U(1e-15, 35 + 1e-14, 4) = 1830)
+    let unbounded = b > 1.0 && x <= (b - 2.0 * a).abs();
+    let il3 = (a * (a - b + 1.0)).abs() / x <= 2.0 && !unbounded;
 
     let mut id = -100;
     let mut hu1 = 0.0;
@@ -1271,7 +1276,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Unlike in xsf (scipy/xsf#380), chgul is also tried for a < 1 and b > a, with b zero or
     // non-integer, before the recurrence in a below (not for |a| < 1.1e-16, where `a + 1 - 1`
     // rounds to 0 in chgul)
-    let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0;
+    let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0 && !unbounded;
     if il1 || il2 || il3 || il4 {
         hu = chgul(x, a, b, &mut id);
         *md = 2;
@@ -1298,10 +1303,40 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         // chguit does (e.g. U(150, 9, 0.1) = 2.23e-250)
         if !ubi || id < ID_MIN && hu.is_finite() {
             let mut id_it = 0;
-            let u = chguit(x, a, b, false, &mut id_it);
+            let mut u = chguit(x, a, b, false, &mut id_it);
+            // Unlike in xsf, an overflowing integral is redone without x^(1-b) (DLMF 13.2.40), as
+            // Gamma(a) U, or t^(a-1) in it, can overflow if U doesn't, e.g. for
+            // U(20, 7 - 2e-11, 6e-18) = 2.1e88. Then x^(1-b) is applied in halves, as it can
+            // overflow too. Only a finite result replaces the infinite one (e.g. not inf * 0 if
+            // U overflows and x^(1-b) underflows).
+            //
+            // This is skipped if step 1 has 9 digits, since step 3 then keeps it anyway.
+            if u.is_infinite() && id0 < 9 {
+                let h = x.powf(0.5 * (1.0 - b));
+                let mut id_k = 0;
+                let v = chguit(x, a, b, true, &mut id_k) * h * h;
+                if v.is_finite() {
+                    (u, id_it) = (v, id_k);
+                }
+            }
             if !ubi || u.is_finite() {
                 (hu, id) = (u, id_it);
                 *md = 4;
+            }
+        }
+        // Unlike in xsf, the forward recurrence in b if this and step 1 fail (e.g. near an integer
+        // b), from b - n near 1 and 2, where chguit integrates over ln(1 + t)
+        if (hu.is_nan() || id < ID_ACCEPT)
+            && id0 < ID_ACCEPT
+            && x < 1.0
+            && (LOG_MAP_B..1000.0).contains(&b)
+        {
+            let (u, id_b) = super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| {
+                let mut id_c = 0;
+                (chguit(x, a, c, false, &mut id_c), id_c)
+            });
+            if !u.is_nan() && (hu.is_nan() || id_b > id) {
+                (hu, id) = (u, id_b);
             }
         }
     } else if b <= a {
@@ -1327,10 +1362,10 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
             *md = 3;
         }
         // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
-        // or if chgubi has fewer than `ID_MIN` digits (or overflows) and chgul fewer than 9; a
-        // finite chgubi is only replaced if the recurrence has more estimated digits
+        // or if chgubi and chgul have fewer than `ID_MIN` digits (or chgubi overflows); a finite
+        // chgubi is only replaced if the recurrence has more estimated digits
         let failed = id < ID_MIN || !hu.is_finite();
-        if (!bn || failed && id0 < 9) && a > -1000.0 {
+        if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
             let (u, id_rec) = super::hypu_rec(a, b, x);
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) {
                 (hu, id) = (u, ID_MIN);
@@ -1345,6 +1380,17 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if hu.is_nan() && hu0.is_finite() {
         (hu, id) = (hu0, id0);
     }
+    // Unlike in xsf, chgul is the last resort where it was skipped as `unbounded`, e.g. for
+    // U(172, 173 + 3e-14, 50), where chgus and chguit overflow, and U(171, 172 + 3e-14, 50), where
+    // chgus has too few digits
+    if unbounded && (hu.is_nan() || id < ID_ACCEPT) {
+        let mut id_l = 0;
+        let u = chgul(x, a, b, &mut id_l);
+        if hu.is_nan() || id_l > id {
+            (hu, id) = (u, id_l);
+            *md = 2;
+        }
+    }
     // Step 3. Unlike in xsf, also if step 1 has more digits than step 2, e.g. if chguit doesn't
     // converge
     if (id0 >= 9 || id0 > id) && !hu0.is_nan() {
@@ -1355,7 +1401,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         }
         id = id.max(id0);
     }
-    if id < 6 {
+    if id < ID_ACCEPT {
         *isfer = 6;
     }
     hu
@@ -1422,7 +1468,15 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
             ga / (1..=n).map(|j| a - f64::from(j)).product::<f64>()
         };
         ua = neg_one_pow(n - 1) / (rn * ga1);
-        ub = rn1 / ga * x.powf(f64::from(-n));
+        // Unlike in xsf, with x^-n in two halves if it isn't normal (e.g. 150^-159), as the sum it
+        // multiplies (hm3) is about e^x
+        let xn = x.powf(f64::from(-n));
+        ub = if xn.is_normal() {
+            rn1 / ga * xn
+        } else {
+            let h = x.powf(-0.5 * f64::from(n));
+            rn1 / ga * h * h
+        };
     } else {
         a0 = a + f64::from(n);
         a1 = a0;
@@ -1936,19 +1990,22 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
     *id = 100;
     let ga = gamma2(a);
-    let gb = gamma2(b);
     let gab = gamma2(1.0 + a - b);
-    let gb2 = gamma2(2.0 - b);
-    // Unlike in xsf, with sinpi in `CHGUS_SINPI_B`, as sin(pi b) loses about eps / |b - n| near
-    // an integer n. Further out, gamma2(b) or gamma2(2 - b) is near a pole too, with an error that
-    // sin(pi b) partly cancels.
-    let hu0 = if CHGUS_SINPI_B.contains(&b) {
-        PI / cephes_sinpi(b)
+    // Unlike in xsf, with sinpi, as sin(pi b) loses about eps / |b - n| near an integer n, and
+    // reflected (DLMF 5.5.3) where gamma2(b) (b < -1) or gamma2(2 - b) (b > 3) loses as much
+    let hu0 = PI / cephes_sinpi(b);
+    let mut r1 = if b < -1.0 {
+        gamma2(1.0 - b) / gab
     } else {
-        PI / (PI * b).sin()
+        hu0 / (gab * gamma2(b))
     };
-    let mut r1 = hu0 / (gab * gb);
-    let mut r2 = hu0 * x.powf(1.0 - b) / (ga * gb2);
+    // r2 without x^(1-b), which it is multiplied by last (as Gamma(b - 1) x^(1-b) can overflow)
+    let c = if b > 3.0 {
+        -gamma2(b - 1.0) / ga
+    } else {
+        hu0 / (ga * gamma2(2.0 - b))
+    };
+    let mut r2 = c * x.powf(1.0 - b);
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
     if ga == SPECFUN_INF {
         r2 = 0.0;
@@ -1956,13 +2013,20 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == SPECFUN_INF {
         r1 = 0.0;
     }
-    // Unlike in xsf (scipy/xsf#380), if r2 overflows, the terms are scaled by 1/|r2| = exp(-lr2)
-    // (and hu back with `mul_exp`)
-    let c = hu0 / (ga * gb2);
+    // Unlike in xsf (scipy/xsf#380), if r2 overflows, or underflows for b > 1, the terms are scaled
+    // by 1/|r2| = exp(-lr2) (and hu back with `mul_exp`), unless r1 then overflows. Its terms grow
+    // by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) = 1.83.
+    // For b < 1, x^(1-b) only underflows for tiny x, where they don't grow.
     let mut lr2 = 0.0;
-    if r2.is_infinite() && r1.is_finite() && c.is_finite() {
+    let tiny = b > 1.0 && !r2.is_normal() && c != 0.0 && ga != SPECFUN_INF;
+    if (r2.is_infinite() || tiny) && c.is_finite() {
         lr2 = c.abs().ln() + (1.0 - b) * x.ln();
-        (r1, r2) = (r1 * (-lr2).exp(), r2.signum());
+        let r1s = r1 * (-lr2).exp();
+        if r1s.is_finite() {
+            (r1, r2) = (r1s, c.signum());
+        } else {
+            lr2 = 0.0;
+        }
     }
     let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;
@@ -1971,13 +2035,22 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf, the id also has the rounding errors of the terms, about j eps for term j
     let mut terms = r1.abs() + r2.abs();
     // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
-    // or j > 1 - b + x if b < 1, and the id of unconverged series is capped by the remaining terms
+    // or j > 1 - b + x if b < 1, nor before j > x (the r2 terms grow until about then, e.g. from a
+    // tiny r2 for large b), and the id of unconverged series is capped by the remaining terms
     let mut converged = false;
     let jmin = (b - 1.0).abs();
-    let jconv = if b < 1.0 { jmin + x } else { jmin };
+    // the first j where the loop can stop (only j > x if j > |b - 1| is out of reach)
+    let jstop = if jmin >= 150.0 {
+        x
+    } else if b < 1.0 {
+        jmin + x
+    } else {
+        jmin.max(x)
+    };
+    let r2_next = |r2: f64, j: f64| r2 * (a - b + j) / (j * (1.0 - b + j)) * x;
     for j in 1..151 {
         r1 = kummer_term(r1, a, b, j) * x;
-        r2 = r2 * (a - b + f64::from(j)) / (f64::from(j) * (1.0 - b + f64::from(j))) * x;
+        r2 = r2_next(r2, f64::from(j));
         hu += r1 - r2;
         s1 += r1;
         s2 += r2;
@@ -1991,7 +2064,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         // Unlike in xsf, the terms must be small, not their difference (which is also small if they
         // cancel, e.g. at j = 2 for U(10, 1e-17, 0.5))
-        if (f64::from(j) > jconv || jmin >= 150.0) && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
+        if f64::from(j) > jstop && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
             converged = true;
             break;
         }
@@ -2005,13 +2078,15 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // GCC/x86: INT_MIN, same as the saturated i32::MIN here) if `hmax` is 0 or inf.
     *id = (15.0 - (if d1 - d2 < 0.0 { d2 - d1 } else { d1 - d2 })) as i32;
     if !converged {
-        // the last terms, and the r1 terms that still grow (up to j = 300)
-        let mut rmax = (r1 - r2).abs();
-        for j in (151..=300).take_while(|&j| f64::from(j) <= jconv) {
+        // the last term, and the sum of the next 150 (which can be about sqrt(x) times their
+        // largest, e.g. for r2 terms that peak at j ~ x)
+        let mut rest = (r1 - r2).abs();
+        for j in 151..=300 {
             r1 = kummer_term(r1, a, b, j) * x;
-            rmax = rmax.max(r1.abs());
+            r2 = r2_next(r2, f64::from(j));
+            rest += (r1 - r2).abs();
         }
-        *id = (*id).min((-(rmax / hu.abs()).log10()) as i32);
+        *id = (*id).min((-(rest / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
     // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel

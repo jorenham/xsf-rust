@@ -63,6 +63,10 @@ pub(crate) fn gamma2(x: f64) -> f64 {
         } else {
             ga = SPECFUN_INF;
         }
+    } else if (-1.0..-0.5).contains(&x) {
+        // Unlike in xsf, Gamma(x + 1) / x, as the series of 1 / Gamma below loses about
+        // eps / |x + 1| near its zero at -1
+        ga = gamma2(x + 1.0) / x;
     } else {
         let mut r = 1.0;
         let mut z;
