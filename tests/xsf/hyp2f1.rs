@@ -283,6 +283,32 @@ fn test_hyp2f1_f64_x_lt_minus_2_b_minus_a_near_int() {
 }
 
 #[test]
+fn test_hyp2f1_f64_x_le_minus_9_b_minus_a_int() {
+    // unlike in xsf: these lost about log10(-x) digits in the Pfaff transformation, as
+    // 1.46036169e-33, 1.30940091e-33, -6.54168264e11, inf, -1297.62704740, 8.4284e-7 and
+    // 14742952.50335 (Arb)
+    let actual = [
+        xsf::hyp2f1(3.0, 3.0, 4.0, -372_415_317_227.624_4),
+        xsf::hyp2f1(3.0, 3.0, 6.0, -824_207_222_926.976_2),
+        xsf::hyp2f1(-0.5, -1.5, 4.0, -742_448_874.85),
+        xsf::hyp2f1(-1.97, -1.97, 5.84, -2.34e13),
+        xsf::hyp2f1(1.25, -0.75, -3.45, -58_000.0),
+        xsf::hyp2f1(0.375, 3.375, -1.5, -1e15),
+        xsf::hyp2f1(-2.25, 0.75, 7.5, -1e4),
+    ];
+    let desired = [
+        1.460_361_934_242_542_3e-33,
+        1.309_399_343_659_318e-33,
+        -654_168_241_771.272_2,
+        2.019_700_022_161_330_8e25,
+        -1_297.627_047_387_899,
+        8.408_236_071_439_006e-7,
+        14_742_952.503_354_19,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+}
+
+#[test]
 fn test_hyp2f1_f64_x_lt_minus_2_pfaff_overflow() {
     // unlike in xsf: these were NaN for a < b, as one of the Pfaff series overflows there, and
     // the 1/x transformation is NaN (Arb)
