@@ -38,6 +38,8 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
 
     let mut xm = x.sqrt();
     let mut ym = y.sqrt();
+    let mut s = common::sqrt_sum(x, y, xm, ym);
+    // not `s / 2`, which is less accurate here, as the later terms use the rounded `xm` and `ym`
     let mut dm = (xm + ym) * 0.5;
     let mut sum = -dm * dm;
     let mut cor = T::from(0.0);
@@ -49,7 +51,7 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
             break;
         }
 
-        agm_update(&mut xm, &mut ym);
+        agm_update(&mut xm, &mut ym, &mut s);
         /* Ref[1], Eq. 2.39 or Eq. (46) in the arXiv preprint */
         fac *= 2.0;
         dm = xm - ym;
@@ -58,7 +60,7 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         m += 1;
     }
 
-    let mut res = T::from(constants::PI) / (xm + ym);
+    let mut res = T::from(constants::PI) / s;
     res = res * ((sum + cor) * -0.5);
     (status, res)
 }

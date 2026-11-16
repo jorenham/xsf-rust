@@ -1,5 +1,7 @@
 //! Translated into pure Rust from `xsf/ellint_carlson/ellint_common.hh` (scipy/xsf@d5182c3).
 
+use crate::utils::pow2;
+
 /* Number of correction terms in polynomial evaluation. */
 pub(super) const NPOLY: usize = 4;
 
@@ -108,24 +110,51 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 ///   arguments in the algorithms (e.g. `delta` in `rj`) can't overflow
 /// - otherwise `f^2` aims to scale the largest part to at most 2^254, near the top of that range,
 ///   so that tiny parts stay away from underflow
-/// - but huge arguments are downscaled only so far that the smallest nonzero part stays above
-///   `min`, and `None` if that leaves no downscaling, e.g. for `[1e300, 1e-310]` with
-///   `min = f64::MIN_POSITIVE`
+/// - but huge arguments are downscaled only so far that the smallest nonzero argument (in the max
+///   norm) stays above `min`, and the smallest nonzero part normal, and `None` if that leaves no
+///   downscaling, e.g. for `[1e300, 1e-310]` with `min = f64::MIN_POSITIVE`
 ///
 /// So the callers' own handling of tiny or huge arguments is still reachable.
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);
     let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
+    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let smin = sizes.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let e = amax.log2();
     if !(e.is_finite() && e.abs() > 256.0) {
         return None;
     }
     let mut f = ((254.0 - e) / 2.0).floor().exp2();
-    while f < 1.0 && amin * f * f < min {
+    while f < 1.0 && (smin * f * f < min || amin * f * f < f64::MIN_POSITIVE) {
         f *= 2.0;
     }
     (f != 1.0).then_some(f)
+}
+
+/// Whether `scale_factor` with `min` can't downscale a huge argument because of a tiny one, i.e.
+/// if the largest argument is above 2^256 and more than `2^254 / min` (2^1276 for
+/// `f64::MIN_POSITIVE`) times the smallest one
+///
+/// Then a `duplicate` step raises the tiny ones to about the geometric mean of them and the
+/// largest one, and at least halves the largest one. Unscaled, sums of huge arguments may
+/// overflow, and results near the underflow threshold lose precision.
+pub(super) fn needs_duplication<T: super::typing::Num>(args: &[T], min: f64) -> bool {
+    let sizes = args.iter().map(|a| a.real().abs().max(a.imag().abs()));
+    let amax = sizes.clone().fold(0.0, f64::max);
+    let amin = sizes.fold(f64::INFINITY, f64::min);
+    amax.is_finite() && amax > const { pow2(256) } && amax.log2() - amin.log2() > 254.0 - min.log2()
+}
+
+/// `(a + lam) / 4` for each argument `a`, i.e. the duplication step
+/// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) with homogeneity, and the halved square
+/// roots `sqrt(a) / 2`
+///
+/// Computed from the quartered arguments, so that it can't overflow.
+pub(super) fn duplicate<T: super::typing::Num>(xyz: [T; 3]) -> ([T; 3], [T; 3]) {
+    let sq = xyz.map(|a| a.sqrt() * 0.5);
+    let lam = sq[0] * sq[1] + sq[1] * sq[2] + sq[2] * sq[0];
+    (add_lambda(xyz.map(|a| a * 0.25), sq, lam), sq)
 }
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`

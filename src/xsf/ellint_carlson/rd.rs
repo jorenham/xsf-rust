@@ -49,6 +49,15 @@ pub(super) fn rd<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::Singular, T::HUGE);
     }
 
+    // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
+    // duplication step first raises the tiny one, with
+    // R_D(x, y, z) = R_D(x', y', z') / 4 + 3 / (4 sqrt(z) z') (https://dlmf.nist.gov/19.26.E20)
+    if common::needs_duplication(&[x, y, z], f64::MIN_POSITIVE) {
+        let ([x, y, z], [_, _, sz]) = common::duplicate([x, y, z]);
+        let (status, res) = rd(x, y, z, rerr);
+        return (status, res * 0.25 + T::from(0.375) / sz / z);
+    }
+
     cct1[0] = x;
     cct1[1] = y;
     cct1[2] = z;

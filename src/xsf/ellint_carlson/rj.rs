@@ -150,20 +150,15 @@ mod rjimpl {
         if p != zero && p.ph_good() {
             /* "... either let x, y, z be real and nonnegative and at most one of
              * them be 0, ..." */
-            let mut flag = false;
-            if xyzreal_nonneg_atmost1z {
-                flag ^= true;
-            }
             /* "... or else let two of the variables x, y, z be nonzero and
              * conjugate complex with phase less in magnitude than pi and the
              * third variable be real and nonnegative." */
-            if argcheck::r1conj2(x, y, z)
+            // Unlike in xsf, either or both (not exclusive or), as two equal positive arguments are
+            // both real and conjugate, e.g. for `elliprj(1, 1, 2, -1 + i)`
+            return xyzreal_nonneg_atmost1z
+                || argcheck::r1conj2(x, y, z)
                 || argcheck::r1conj2(y, z, x)
-                || argcheck::r1conj2(z, x, y)
-            {
-                flag ^= true;
-            }
-            return flag;
+                || argcheck::r1conj2(z, x, y);
         }
         false
     }
@@ -197,7 +192,13 @@ mod rjimpl {
 
         let pq = pn * xct1[2];
         let xypq = xy + pq;
-        (status_tmp, xct2[2]) = rc(xypq, pq, rerr);
+        // Unlike in xsf, in closed form if `x y z` or `pn q` under- or overflows
+        let closed = !((xy * z).is_normal() && pq.is_normal());
+        (status_tmp, xct2[2]) = if closed {
+            (ExitStatus::Success, rc_term(x, y, z, pn, -p))
+        } else {
+            rc(xypq, pq, rerr)
+        };
         if is_horrible(status_tmp) {
             return (status_tmp, 0.0);
         } else if is_troublesome(status_tmp) {
@@ -205,13 +206,45 @@ mod rjimpl {
         }
         xct1[0] = pn - z;
         xct1[1] = -3.0;
-        xct1[2] = 3.0 * (xy * z / xypq).sqrt();
+        xct1[2] = 3.0 * if closed { 1.0 } else { (xy * z / xypq).sqrt() };
 
         let mut tmpres = ndot2(&xct1, &xct2, 3);
+        // Unlike in xsf, NaN if the terms cancel to less than half of the digits, e.g. for tiny
+        // `x`, `y` and `p` (instead of a wrong value)
+        let size: f64 = (0..3).map(|i| (xct1[i] * xct2[i]).abs()).sum();
+        if size > const { pow2(26) } * tmpres.abs() {
+            return (ExitStatus::PrecLoss, f64::NAN);
+        }
         tmpres /= z - p;
         let res = tmpres;
 
         (status, res)
+    }
+
+    /// `sqrt(x y z / (x y + pn q)) R_C(x y + pn q, pn q)` of `rj_cpv_dispatch` for `x <= y`, i.e.
+    /// `sqrt(z) asinh(t) / sqrt(x y + pn q)` with `t = sqrt(x y / (pn q))`
+    /// ([DLMF 19.2.19](https://dlmf.nist.gov/19.2.E19)), from the square roots so that it can't
+    /// spuriously overflow
+    pub(super) fn rc_term(x: f64, y: f64, z: f64, pn: f64, q: f64) -> f64 {
+        if x == 0.0 {
+            return 0.0;
+        }
+        let [sx, sy, sp, sq] = [x, y, pn, q].map(f64::sqrt);
+        // `sx / sp <= 1`, as `pn - x = (z - x) (y + q) / (z + q) >= 0`
+        let t = (sx / sp) * (sy / sq);
+        // `n / (a b)`, dividing by the larger one first
+        let div = |n: f64, a: f64, b: f64| n / a.max(b) / a.min(b);
+        if t <= 1.0 {
+            div(z.sqrt() * (t.asinh() / t.hypot(1.0)), sp, sq)
+        } else {
+            // asinh(t) = ln(2 t) to double precision if `t` overflows
+            let asinh = if t.is_finite() {
+                t.asinh()
+            } else {
+                core::f64::consts::LN_2 + (sx / sp).ln() + (sy.ln() - sq.ln())
+            };
+            div(z.sqrt() * (asinh / t.recip().hypot(1.0)), sx, sy)
+        }
     }
 
     /* The notation follows the one used in the DLMF:
@@ -354,6 +387,29 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
     s.atan() / s
 }
 
+/// `R_J(x, y, z, p) = R_J(x', y', z', p') / 4 + 3 R_C(alpha^2, beta^2)` of the duplicated
+/// arguments ([DLMF 19.26.22](https://dlmf.nist.gov/19.26.E22)), with
+/// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
+/// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
+/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`, so that
+/// nothing over- or underflows
+fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
+    let (xyz, [sx, sy, sz]) = common::duplicate([x, y, z]);
+    // `sqrt(p) / 2`, exact for subnormal `p`
+    let sp = p.sqrt() * 0.5;
+    let p4 = p * 0.25;
+    let pd = p4 + (sx * sy + sy * sz + sz * sx);
+    // `d / 8 = d1 d23`
+    let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
+    let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
+    let (status_rc, res_rc) = rc(T::from(1.0), sp / d1 * (pd / d23) * 2.0, rerr);
+    let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
+    if status_rc != ExitStatus::Success {
+        status = status_rc;
+    }
+    (status, res * 0.25 + res_rc * 0.75 / d1 / d23)
+}
+
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
     use rjimpl::AsymFlag;
 
@@ -410,6 +466,12 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             return (ExitStatus::Singular, T::HUGE);
         }
         return (ExitStatus::BadArgs, T::NAN);
+    }
+
+    // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
+    // duplication step first raises the tiny one
+    if common::needs_duplication(&[xm, ym, zm, p], min) {
+        return rj_duplicated(xm, ym, zm, p, rerr, noasymp);
     }
 
     if classify.maybe_asymp && !noasymp {
@@ -600,6 +662,22 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let mut sm = dm * 0.5;
     /* next */
     ellint_rj_updt!();
+    // `s^2 + delta / 4 = s beta`, see below
+    let mut w2 = sm * prm * pm * 4.0;
+    let norm = |a: T| a.real().abs().max(a.imag().abs());
+
+    // The sum of the `R_C` terms of the steps before `m`, `3 atan(sqrt(t)) / (sqrt(t) s)` with
+    // `t = delta 4^-m / s^2`, as in xsf's last step
+    let s_term = |s: T, d4m: f64| (delta * d4m / (s * s)).safe_atan_sqrt_div() * 3.0 / s;
+    // Unlike in xsf, the `R_C` terms are summed directly once the update of `s` cancels by more
+    // than 4 bits, e.g. for `x, y, z << p`, where `s` is lost while `r d ~ delta 4^-2m`. The term
+    // of a step is the `R_C` term of `rj_duplicated`, `6 4^-m R_C(1, 1 + e) / d` with
+    // `e = delta 4^-3m / d^2`.
+    let rc_term = |d: T, d4m: f64| {
+        let e = delta * d4m / d * (T::from(d4m) / d) * d4m;
+        e.safe_atan_sqrt_div() * (d4m * 6.0) / d
+    };
+    let mut rc_sum = None;
 
     let mut m = 1;
     loop {
@@ -613,12 +691,50 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             status = ExitStatus::NIter;
             break;
         }
-        let rm = sm * ((delta * d4m / (sm * sm) + 1.0).sqrt() + 1.0);
+        if let Some(sum) = rc_sum {
+            ellint_rj_calc!();
+            rc_sum = Some(sum + rc_term(dm, d4m));
+            ellint_rj_updt!();
+            m += 1;
+            continue;
+        }
+        let ss = sm * sm;
+        let u = delta * d4m / ss + 1.0;
+        // Unlike in xsf, `w = s sqrt(u)` as `sqrt(w2)` if `|u| < 2`, since `u` cancels as `u -> 0`,
+        // e.g. for `x, y << p << z`. The branch is that of `sqrt(u)`, i.e. `Re(w / s) >= 0` (`s` is
+        // inaccurate if `|u| >> 1`). But not if `w2` differs from `s^2 u` by more than the
+        // cancellation can explain, e.g. after a step where `d + r 4^-m` cancels, or if `s^2`
+        // underflows (in the max norm, which is cheaper).
+        let (wm, rm) = if u.real() * u.real() + u.imag() * u.imag() < 4.0
+            && norm(ss).is_normal()
+            && norm(w2 - ss * u) <= norm(ss) * 0.5
+        {
+            let w = w2.sqrt();
+            let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 {
+                -w
+            } else {
+                w
+            };
+            (w, sm + w)
+        } else {
+            let su = u.sqrt();
+            (sm * su, sm * (su + 1.0))
+        };
         ellint_rj_calc!();
-        sm = (rm * dm - delta * (d4m * d4m)) * 0.5 / (dm + rm * d4m);
+        let den = dm + rm * d4m;
+        let rd = rm * dm;
+        let num = rd - delta * (d4m * d4m);
+        if norm(rd) > norm(num) * const { pow2(4) } {
+            rc_sum = Some(s_term(sm, d4m) + rc_term(dm, d4m));
+        }
+        sm = num * 0.5 / den;
 
         /* next */
         ellint_rj_updt!();
+        // `w2 = s^2 + delta 4^-m` (of the next step) as `w r d beta / (d + r 4^-m)^2`, without
+        // cancellation, from `d^2 + delta 4^-3m = 2 d beta` with `beta = sqrt(p) (p + lam)`
+        // (https://dlmf.nist.gov/19.26.E23), where `p + lam = 4 p'`
+        w2 = wm * rm * (dm / den) * (prm * pm * 4.0 / den);
         m += 1;
     }
     /* Burn some extra cycles re-balancing Am as the "true" centroid */
@@ -673,9 +789,36 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     cct2[5] = e4;
     t = dot2(&cct1, &cct2) / constants::RDJ_DENOM + 1.0;
     tmp = tmp * t;
-    t = delta * d4m / (sm * sm);
     /* Use the library atan function, following Ref[4], Sec. 1.6.1. */
-    tmp = tmp + t.safe_atan_sqrt_div() * 3.0 / sm;
+    tmp = tmp + rc_sum.unwrap_or_else(|| s_term(sm, d4m));
 
     (status, tmp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rjimpl::rc_term;
+
+    #[test]
+    fn test_rc_term() {
+        let actual = [
+            // `t` overflows
+            rc_term(1.0, 1e300, 1e308, 1e300, 5e-324),
+            // `sqrt(z / (pn q))` overflows
+            rc_term(1.0, 1.0, 1e300, 2.0, 5e-324),
+            rc_term(1e-200, 1e-200, 2.0, 3e-200, 1e-210),
+            rc_term(0.5, 4.0, 9.0, 5.0, 1e-300),
+        ];
+        // Arb
+        let expected = [
+            3_729_131.831_412_505_7,     // 3729131.8314125056872
+            3.725_666_095_509_706e152,   // 3.7256660955097061359e152
+            1.648_515_727_704_121_5e201, // 1.6485157277041215091e201
+            733.176_604_211_949,         // 733.17660421194900136
+        ];
+        for (a, e) in actual.into_iter().zip(expected) {
+            assert!((a - e).abs() <= 1e-15 * e, "{a} != {e}");
+        }
+        assert_eq!(rc_term(0.0, 1e308, 1.0, 1e308, 5e-324), 0.0);
+    }
 }

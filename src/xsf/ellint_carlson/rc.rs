@@ -47,6 +47,13 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::Success, T::from(0.0));
     }
 
+    // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
+    // duplication step of R_C(x, y) = R_F(x, y, y) first raises the tiny one
+    if common::needs_duplication(&[x, y], f64::MIN_POSITIVE) {
+        let ([x, y, _], _) = common::duplicate([x, y, y]);
+        return rc(x, y, rerr);
+    }
+
     let mut am = (x + y * 2.0) / 3.0;
     let mut fterm = (am - x).abs() / ocrt(3.0 * rerr);
 

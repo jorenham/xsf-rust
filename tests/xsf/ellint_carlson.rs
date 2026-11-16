@@ -251,6 +251,31 @@ fn test_elliprg() {
 }
 
 #[test]
+fn test_carlson_agm_opposite_sides() {
+    // `sqrt(y) + sqrt(z)` cancels, as y and z are on opposite sides of the negative real axis
+    let actual = [
+        xsf::elliprg(
+            ZERO,
+            c64(-0.043_153_604_557_475_89, -4.587_216_807_495_788e-11),
+            c64(-0.043_152_525_689_989_73, 4.587_102_124_165_941e-11),
+        ),
+        xsf::elliprf(
+            ZERO,
+            c64(-32.381_236_240_019_64, -1.313_732_024_864_238e-9),
+            c64(-32.381_233_357_033_56, 1.313_731_907_899_242_7e-9),
+        ),
+    ];
+    // Arb
+    let expected = [
+        // -1.1808784147862780597 - 0.16314440867208394994i
+        c64(-1.180_878_414_786_278, -0.163_144_408_672_083_95),
+        // 3.3401308097106122941 + 0.27588057685121374966i
+        c64(3.340_130_809_710_612, 0.275_880_576_851_213_75),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),
@@ -288,6 +313,8 @@ fn test_elliprj() {
         xsf::elliprj(c64(-1.0, 1.0), c64(-1.0, -1.0), ONE, c64(2.0, 0.0)),
         xsf::elliprj(I, -I, ZERO, c64(1.0, -1.0)),
         xsf::elliprj(c64(-1.0, 1.0), c64(-1.0, -1.0), ONE, c64(-3.0, 1.0)),
+        // `x = y` are both real and conjugate (Arb)
+        xsf::elliprj(ONE, ONE, c64(2.0, 0.0), c64(-1.0, 1.0)),
     ];
     let expected = [
         c64(0.136_139_458_277_705_35, -0.382_075_616_244_271_67),
@@ -295,6 +322,7 @@ fn test_elliprj() {
         c64(0.941_483_588_412_202_4, 0.0),
         c64(1.826_011_522_900_931_7, 1.229_066_190_864_347_2),
         c64(-0.611_279_708_120_281_8, -1.068_403_839_000_680_7),
+        c64(0.104_049_921_394_109_93, -0.870_513_482_495_226_4),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
@@ -371,8 +399,138 @@ fn test_elliprj_wide_span() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
-    // NaN instead of a wrong value if `rc` of the "huge z" case overflows (Arb: 3e-284)
-    assert!(xsf::elliprj(1e-320, 1e180, 1e208, 1e180).is_nan());
+    // a tiny argument prevents the downscaling of the huge ones
+    let actual = [
+        xsf::elliprj(1e-320, 1e180, 1e208, 1e180),
+        xsf::elliprj(1e-200, 1e120, 1e120, 1e20),
+        xsf::elliprj(1e-300, 1e150, 1e150, 1e150),
+        xsf::elliprj(0.5, 1e156, 1e158, 2.5e-323),
+    ];
+    // Arb
+    let expected = [
+        3e-284,                     // 2.9999999999999999995e-284
+        4.712_388_980_384_69e-130,  // 4.7123889803846899519e-130
+        2.356_194_490_192_345e-225, // 2.3561944901923449966e-225
+        1.577_252_122_957_69e-154,  // 1.5772521229576897772e-154
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    let actual = [
+        xsf::elliprj(
+            c64(1e-60, 1e-60),
+            c64(3e142, 3.5e142),
+            c64(1e120, 3e120),
+            c64(3e112, 9e112),
+        ),
+        xsf::elliprj(
+            c64(4e124, 2e125),
+            c64(2e-125, -1e-125),
+            c64(2.5e116, 2.6e116),
+            c64(3e140, -4e140),
+        ),
+        // the duplicated `x` and `y` are equal
+        xsf::elliprj(ZERO, ONE * 1e-130, ONE * 1e80, c64(-1e75, 1e74)),
+        // the duplicated `p` has a tiny imaginary part, which mustn't prevent the downscaling
+        xsf::elliprj(ONE * 1e-130, ONE * 1e150, ONE * 1e72, c64(-5e-82, -5e-81)),
+    ];
+    // Arb
+    let expected = [
+        c64(-4.372_042_713_197_493e-189, -3.982_831_329_114_256e-188),
+        c64(1.470_038_697_995_964_6e-202, 3.995_469_583_856_571_3e-203),
+        c64(-7.026_491_305_778_003e-113, -7.482_776_732_461_581e-114),
+        c64(4.460_686_995_705_570_6e-71, 4.929_003_648_729_797_4e-71),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
+fn test_elliprj_huge_p() {
+    // complex `x, y, z << p`, where the `s` of the main loop cancels
+    let actual = [
+        xsf::elliprj(
+            c64(2.434_875_989_859_772_3e-65, 1.750_158_287_136_209_7e-64),
+            c64(1.044_768_750_117_806e-142, -5.208_424_787_526_351_4e-142),
+            c64(4.200_774_723_247_292_4e-148, -1.350_658_267_932_306_7e-147),
+            c64(3.391_585_525_825_345_6e16, -4_901_865_760_454_373.0),
+        ),
+        xsf::elliprj(
+            c64(4.159_703_414_425_362e-18, 9.219_247_547_662_372e-18),
+            c64(4.166_353_047_472_902_6e-113, -2.860_073_030_797_379_7e-112),
+            c64(3.591_730_786_123_497_3e-32, 2.645_721_806_903_236_4e-33),
+            c64(1.654_382_170_293_157_2e56, -4.648_375_043_565_432e56),
+        ),
+        xsf::elliprj(
+            c64(1.5e-130, 2.7e-130),
+            c64(2.4e-150, -8.6e-150),
+            c64(3.4e-133, -3.4e-132),
+            c64(2.2e-54, 2.5e-55),
+        ),
+    ];
+    // Arb
+    let expected = [
+        // 506655831072928195.07 - 315723949009506830.12i
+        c64(5.066_558_310_729_282e17, -3.157_239_490_095_068e17),
+        // 2.6689160246511727293e-47 + 2.1811709366160112656e-47i
+        c64(2.668_916_024_651_172_6e-47, 2.181_170_936_616_011_3e-47),
+        // 2.8232070639983970999e119 - 9.0800781779622300614e118i
+        c64(2.823_207_063_998_397e119, -9.080_078_177_962_23e118),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
+fn test_carlson_near_overflow_and_tiny() {
+    let max = f64::MAX;
+    let actual = [
+        xsf::elliprd(1e308, 1e308, 1e-310),
+        xsf::elliprd(1e300, max, 1e-320),
+        xsf::elliprf(max, max, 2.3e-308),
+        xsf::elliprc(1e-310, 1e308),
+        xsf::elliprc(5e-324, max),
+    ];
+    // Arb
+    let expected = [
+        3.000_000_000_000_005e-153,   // 3.0000000000000045497e-153
+        2.237_514_674_315_783_5e-144, // 2.2375146743157834977e-144
+        1.171_553_422_455_405e-154,   // 1.1715534224554048805e-154
+        1.570_796_326_794_896_6e-154, // 1.5707963267948966106e-154
+        1.171_553_422_455_405e-154,   // 1.1715534224554048805e-154
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // Arb: 1.0649531960466087604e-459
+    assert_eq!(xsf::elliprd(1e-310, 1.0, 1e308), 0.0);
+}
+
+#[test]
+fn test_elliprd_near_underflow() {
+    // Arb: 1.4838510888246176809e-308
+    let actual = xsf::elliprd(
+        6.563_076_568_5e-314,
+        1.934_902_900_344_399_3e211,
+        4.596_225_650_788_402e202,
+    );
+    xsref::np_assert_allclose!(&[actual], &[1.483_851_088_824_617_7e-308], rtol = 1e-15);
+
+    // subnormal results
+    let actual = [
+        xsf::elliprd(
+            2.090_469_145_209_479e199,
+            3.517_413_56e-316,
+            4.373_869_956_236_507e206,
+        ),
+        xsf::elliprd(
+            3.369_874_507_300_892e240,
+            1.5e-323,
+            1.015_772_415_001_386_8e190,
+        ),
+    ];
+    // Arb
+    let expected = [
+        2.890_804_844_202_84e-309, // 2.8908048442028413154e-309
+        1.608_858_969_021_95e-310, // 1.6088589690219311780e-310
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 }
 
 #[test]
@@ -392,6 +550,37 @@ fn test_elliprd_overflow() {
     // mpmath: 1.5e325 - 3.75e314 i
     let actual = xsf::elliprd(c64(1e-290, 1e-300), c64(1e-70, 0.0), c64(1e-290, 0.0));
     assert_eq!(actual, c64(INF, -INF));
+}
+
+#[test]
+fn test_elliprj_cauchy_tiny() {
+    // `x y` and `p q` of DLMF 19.20.14 underflow
+    let actual = [
+        xsf::elliprj(1e-200, 1e-200, 2.0, -1e-210),
+        xsf::elliprj(
+            2.019_721_825_240_665_8e-89,
+            9.884_994_718_949_991e-290,
+            0.059_862_056_219_694_17,
+            -1.542_244_902_286_615_6e-218,
+        ),
+        xsf::elliprj(1e-200, 1e-200, 2.0, -1.0),
+        // `sqrt(z / (pn q))` overflows
+        xsf::elliprj(1.0, 1.0, 1e300, -5e-324),
+        xsf::elliprj(0.0, 1.0, 1e300, -5e-324),
+    ];
+    // Arb
+    let expected = [
+        2.442_260_300_028_494_3e201,  // 2.4422603000284942741e201
+        5.562_045_504_719_261e118,    // 5.5620455047192613107e118
+        -488.672_336_815_068_3,       // -488.67233681506833085
+        1.116_660_107_882_071_9e-147, // 1.116660107882071864e-147
+        -3e-150,                      // -2.999999999999999921e-150
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // NaN (or else correct), as the terms of the transform cancel; Arb: -122.39924517639211
+    let actual = xsf::elliprj(1e-200, 1e-200, 2.0, -1e-200);
+    assert!(actual.is_nan() || (actual + 122.399_245_176_392_11).abs() < 1e-13);
 }
 
 #[test]
@@ -440,6 +629,52 @@ fn test_elliprj_subnormal() {
     assert_eq!(xsf::elliprj(0.0, 0.0, 1.0, 5e-324), INF);
     // Arb: 8.2588819190784932822e308
     assert_eq!(xsf::elliprj(0.0, 5e-324, 0.5, 1e-307), INF);
+}
+
+#[test]
+fn test_elliprj_negative_delta() {
+    // `(p - x) (p - y) (p - z) < 0`, e.g. for `x, y << p << z`
+    let actual = [
+        xsf::elliprj(
+            3.787_999_317_348_606e-231,
+            3.454_151_717_729_665e-20,
+            3.503_661_956_410_532_7,
+            3.710_444_382_416_047e-8,
+        ),
+        xsf::elliprj(1e-200, 1e-20, 1.0, 1e-8),
+        xsf::elliprj(7e5, 1.4e5, 4.7e8, 4e-8),
+    ];
+    // Arb
+    let expected = [
+        628_248_391.533_319_3,    // 628248391.53331926205
+        4_352_597_307.454_136,    // 4352597307.4541356094
+        6.526_307_207_698_169e-9, // 6.5263072076981690311e-9
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    let actual = [
+        xsf::elliprj(
+            c64(1.8e11, -3.5e11),
+            c64(6e8, 3e7),
+            c64(7e8, -8e8),
+            c64(9e-12, 5e-12),
+        ),
+        xsf::elliprj(
+            c64(2.7e6, -1.6e6),
+            c64(1.4e5, -8e4),
+            c64(1.2e5, -2.2e5),
+            c64(1e-11, 1.7e-11),
+        ),
+        // `d + r 4^-m` cancels in a step, after which `w2` is inf
+        xsf::elliprj(ONE * 1e-100, ONE * 1e-6, ONE * 1e30, c64(-3e102, 1e95)),
+    ];
+    // Arb
+    let expected = [
+        c64(8.193_228_841_310_918e-14, 1.099_562_954_582_950_9e-13),
+        c64(8.189_511_559_078_331e-8, 1.316_376_299_672_930_8e-7),
+        c64(-4.283_282_603_501_267e-116, -1.427_760_867_833_755_7e-123),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]
