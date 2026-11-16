@@ -878,6 +878,26 @@ fn airy_coefs(t: f64) -> (f64, f64, [[f64; 5]; 4]) {
 /// `|l|` beyond which a mantissa of moderate size times `e^l` under- or overflows
 const HUGE_EXP: f64 = 1000.0;
 
+/// `z` beyond which `airy_scaled_large` is used, since AMOS returns NaN for `z > 1.05e6`
+const AIRY_LARGE: f64 = 1e6;
+
+/// `airy_scaled(z)` for `z > AIRY_LARGE`, by the first two terms of DLMF 9.7.5-8, as the third
+/// is below 1e-19
+#[cold]
+fn airy_scaled_large(z: f64) -> [f64; 4] {
+    let z4 = z.sqrt().sqrt();
+    let q = 1.5 / (z * z.sqrt()); // 1 / zeta
+    let (u1, v1) = (5.0 / 72.0 * q, -7.0 / 72.0 * q);
+    let a = 0.5 / (SQRT_PI * z4);
+    let b = 0.5 * z4 / SQRT_PI;
+    [
+        a * (1.0 - u1),
+        -b * (1.0 - v1),
+        2.0 * a * (1.0 + u1),
+        2.0 * b * (1.0 + v1),
+    ]
+}
+
 /// `D_v(y)`, `D_v'(y)`, `Gamma(v + 1) V(-v - 1/2, y)` and its derivative, for `v >= 20`, `y >= 0`,
 /// as mantissas (with exponents `ea` for `D_v`, and `eb`), by 12.10.35-38
 fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
@@ -908,7 +928,13 @@ fn pbdv_airy(v: f64, y: f64) -> ([f64; 4], f64, f64) {
     let mu23 = mu2.cbrt(); // mu^(2/3)
     let mu43 = mu23 * mu23;
     let z = mu43 * zeta;
-    let [ai, aip, bi, bip] = if t > 1.0 { airy_scaled(z) } else { airy(z) };
+    let [ai, aip, bi, bip] = if z > AIRY_LARGE {
+        airy_scaled_large(z)
+    } else if t > 1.0 {
+        airy_scaled(z)
+    } else {
+        airy(z)
+    };
     // g(mu) / h(mu) = (1 + r) / 2 (12.10.14, 12.10.16)
     let g = 1.0 + 0.5 * ln_gamma_ratio(m).exp_m1();
     let pre = 2.0 * SQRT_PI * mu23.sqrt() * g * phi;

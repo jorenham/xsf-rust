@@ -728,6 +728,25 @@ fn test_pbdv_pbvv_huge_v() {
     assert_eq!(xsf::pbdv(-2.7e8, -8.9e-309), (0.0, -0.0));
     assert_eq!(xsf::pbvv(2.7e8, 0.0), (0.0, 0.0));
     assert_eq!(xsf::pbvv(-2.7e8, 0.0), (0.0, f64::INFINITY));
+
+    // Where D_v(x) and V_v(x) are both finite, beyond the reach of Arb and mpmath, so by the
+    // Wronskian D_v V_v' - D_v' V_v = sqrt(2 / pi) (DLMF 12.2.20)
+    for (v, x) in [
+        (1e8, 66_618.960_179_138_55),
+        (1e8, -66_618.960_179_138_55),
+        (5e8, 154_514.359_790_924_33),
+        (2e9, 318_251.764_506_346_9),
+    ] {
+        let (d, dp) = xsf::pbdv(v, x);
+        let (w, wp) = xsf::pbvv(v, x);
+        assert!(
+            d.is_normal() && w.is_normal(),
+            "v = {v}, x = {x}: {d:e}, {w:e}"
+        );
+        let wr = d * wp - dp * w;
+        let rel = (wr / (2.0 / core::f64::consts::PI).sqrt() - 1.0).abs();
+        assert!(rel < 1e-13, "v = {v}, x = {x}: {rel:e}");
+    }
 }
 
 /// `(v, x, dv, dp)`
