@@ -37,3 +37,11 @@ fn test_comb_rep() {
         }
     }
 }
+
+#[test]
+fn test_comb_no_overflow() {
+    // large results that fit in a u64, where the intermediate products used to overflow
+    assert_eq!(xsf::comb(63_u64, 29), 759_510_004_936_100_355);
+    assert_eq!(xsf::comb(67_u64, 33), 14_226_520_737_620_288_370);
+    assert_eq!(xsf::comb_rep(34_u64, 34), 14_226_520_737_620_288_370);
+}
