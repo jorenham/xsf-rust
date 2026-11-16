@@ -2156,15 +2156,7 @@ pub fn jahnke_emden_lambda<V: Into<f64>>(v: V, x: f64) -> (Vec<f64>, Vec<f64>) {
     if v == n.to_f64().unwrap() {
         let mut nm = 0;
         let n = v1.to_usize().unwrap().try_into().unwrap();
-        // Unlike in SciPy, `lamn` gets `|x|`, and the derivatives are negated for `x < 0`, as
-        // `Lambda_n` is even: `lamn` loses accuracy for large negative `x` (e.g. 1e15 for
-        // `v = 2`, `x = -60`)
-        specfun::lamn(n, x.abs(), &mut nm, &mut vl, &mut dl);
-        if x < 0.0 {
-            for d in &mut dl {
-                *d = -*d;
-            }
-        }
+        specfun::lamn(n, x, &mut nm, &mut vl, &mut dl);
     } else {
         let mut vm = 0.0;
         specfun::lamv(v1, x, &mut vm, &mut vl, &mut dl);
