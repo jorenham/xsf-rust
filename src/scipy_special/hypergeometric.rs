@@ -212,7 +212,20 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             }
         }
 
-        r * crate::gamma(v) * arg.powf(1.0 - v)
+        let (gamma_v, arg_pow) = (crate::gamma(v), arg.powf(1.0 - v));
+        let out = r * gamma_v * arg_pow;
+        let normal = gamma_v.is_normal() && arg_pow.norm().is_normal() && out.norm().is_normal();
+        if normal || !r.is_finite() || r == C64::ZERO {
+            out
+        } else {
+            // Unlike in xsf, the prefactor is computed with logarithms (as for real `z`) if a
+            // factor over- or underflows, e.g. `Gamma(v)` for `v > 171.6`, together with the
+            // magnitude `m` of `r`, as their product may be finite and nonzero where it isn't.
+            // The phase is applied first, so that `e^Re(ln)` only overflows if the result does.
+            let m = r.re.abs().max(r.im.abs());
+            let ln = arg.ln() * (1.0 - v) + crate::gammaln(v) + m.ln();
+            (r / m * C64::cis(ln.im) * crate::gammasgn(v)).mul_exp(ln.re)
+        }
     }
 }
 
