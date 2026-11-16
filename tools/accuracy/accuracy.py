@@ -1,19 +1,9 @@
-# /// script
-# requires-python = ">=3.15"
-# dependencies = [
-#   "gmpy2==2.3.2",
-#   "mpmath==1.4.1",
-#   "numpy==2.5.4",
-#   "python-flint==0.9.0",
-#   "scipy==1.18.1",
-# ]
-# ///
 """Generate docs/accuracy.md: compare xsf-rust, xsf (C++), and Rust std against mpmath.
 
 Usage (from the repository root; or `just accuracy`):
 
-    uv run tools/accuracy/accuracy.py [--only NAME,... | --section TITLE] [--no-cache] [--jobs N]
-        [--arb-check]
+    uv run --project tools tools/accuracy/accuracy.py [--only NAME,... | --section TITLE]
+        [--no-cache] [--jobs N] [--arb-check]
 
 Steps:
 

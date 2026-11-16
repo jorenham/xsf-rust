@@ -1,19 +1,8 @@
-# /// script
-# requires-python = ">=3.15"
-# dependencies = [
-#   "gmpy2==2.3.2",
-#   "matplotlib==3.11.2",
-#   "mpmath==1.4.1",
-#   "numpy==2.5.5",
-#   "python-flint==0.9.0",
-#   "scipy==1.18.1",
-# ]
-# ///
 """Plot where `hyppfq` returns `None`, and its accuracy elsewhere, for p <= 4 and q <= 3.
 
 Usage (from the repository root; or `just pfq-map`):
 
-    uv run tools/accuracy/pfq_map.py [--no-cache] [--jobs N] [--per-bin N]
+    uv run --project tools tools/accuracy/pfq_map.py [--no-cache] [--jobs N] [--per-bin N]
 
 Writes `docs/img/hyppfq-error.svg` and `docs/img/hyppfq-none.svg`, with a panel per p and q.
 Each panel bins random inputs by z (on a signed log scale) and by the scale s of the parameters,

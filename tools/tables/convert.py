@@ -1,12 +1,8 @@
-# /// script
-# requires-python = ">=3.15"
-# dependencies = ["polars==2.1.0"]
-# ///
 """Convert the xsref tables that the tests use into the flat format of `tests/data/xsref`.
 
 Usage (from the repository root, with a checkout of https://github.com/scipy/xsref):
 
-    uv run tools/tables/convert.py XSREF_DIR tests/data/xsref [--no-cap]
+    uv run --project tools tools/tables/convert.py XSREF_DIR tests/data/xsref [--no-cap]
 
 Steps:
 

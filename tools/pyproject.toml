@@ -1,5 +1,5 @@
-# Not a package: only the lint tools (locked in uv.lock, which dependabot updates) and their
-# config. The scripts declare their own dependencies as inline script metadata.
+# Not a package: the dependencies of the scripts and the lint tools (locked in uv.lock, which
+# dependabot updates), and their config.
 [project]
 name = "xsf-rust-tools"
 version = "0"
@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "gmpy2==2.3.2",
   "matplotlib==3.11.2",
   "mpmath==1.4.1",
   "numpy==2.5.4",

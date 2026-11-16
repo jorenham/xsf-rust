@@ -1,12 +1,8 @@
-# /// script
-# requires-python = ">=3.15"
-# dependencies = ["mpmath==1.4.1"]
-# ///
 """Print the coefficient tables of the uniform asymptotic expansions of `pbdv` (src/xsf/par_cyl.rs).
 
 Usage (from the repository root):
 
-    uv run tools/pbdv_tables.py
+    uv run --project tools tools/pbdv_tables.py
 
 - `U_POLY`, `V_POLY`: the polynomials u_s(t), v_s(t) of DLMF 12.10.9-13 for s <= 10.
 - `TURNING_POINT`: the Taylor series in eps = t - 1 of zeta, phi(zeta), and A_s, B_s, C_s, D_s
