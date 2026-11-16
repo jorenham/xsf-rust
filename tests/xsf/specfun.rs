@@ -812,6 +812,28 @@ fn test_hypu_int_b() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 8e-15);
 
+    // Arb; 0, inf, 0, 0, and NaN in xsf (n! overflows in `chgubi` for n > 170)
+    let abx = [
+        (0.936, 172.0, 197.0),
+        (1.5, 173.0, 3.0),
+        (5.5, 172.0, 150.0),
+        (1.5, -170.0, 2.0),
+        (1.5, -175.0, 2.0),
+    ];
+    let expected = [
+        0.039_699_178_704_971_555,
+        2.401_138_892_408_052_4e228,
+        3.952_873_928_825_523e-6,
+        4.384_667_341_835_304_7e-4,
+        4.201_507_804_107_285_5e-4,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-14);
+
+    // Arb; NaN in xsf, where x^-n and hm3 in `chgubi` under- and overflow
+    let actual = xsf::hypu(15.000_000_000_013_445, 864.0, 721.784_972_617_366_9);
+    xsref::np_assert_allclose!([actual], [2.869_995_870_011_826_5e-17], rtol = 1e-14);
+
     // Arb; the over- and underflows aren't NaN
     assert_eq!(xsf::hypu(171.61, 1.0, 2.0), 0.0);
     assert_eq!(xsf::hypu(-3.0 + 1e-15, 999.0, 1e-300), f64::NEG_INFINITY);
@@ -839,6 +861,41 @@ fn test_hypu_int_b() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+}
+
+#[test]
+fn test_hypu_int_b_overflow() {
+    // Arb; where x^n, the sum that it multiplies in `chgubi`, or Gamma(a) (for the last four) over-
+    // or underflow
+    let abx = [
+        (150.0, 3.0, 1e-200),
+        (170.0, 2.0, 1e-310),
+        (5.5, 999.0, 355.0),
+        (170.5, 701.0, 350.0),
+        (172.5, 2.0, 1e-310),
+        (172.5, 701.0, 350.0),
+        (-172.5, -150.0, 0.03),
+        (-175.5, -140.0, 0.01),
+    ];
+    let expected = [
+        2.625_414_310_389_023e139,
+        234_243.164_524_601_7,
+        1.187_305_823_643_144e165,
+        7.685_813_590_383_2e-294,
+        0.614_855_825_106_415_4,
+        8.708_663_934_780_86e-299,
+        4.485_540_746_959_017_7e282,
+        -7.551_826_164_911_572e279,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb (5.559_687_150_9e-319); a subnormal result, of subnormal terms
+    assert_eq!(xsf::hypu(170.5, -5.0, 0.1), 5.559_67e-319);
+
+    // Arb; `chgubi` has 11 digits, and the log form of `chguit` 5
+    let actual = xsf::hypu(179.974_230_932_242_34, 16.0, 0.217_669_248_525_814_85);
+    xsref::np_assert_allclose!([actual], [7.311_822_469_610_09e-308], rtol = 1e-12);
 }
 
 xsref::tests! {
