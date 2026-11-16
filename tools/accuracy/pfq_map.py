@@ -4,7 +4,9 @@
 #   "gmpy2==2.3.2",
 #   "matplotlib==3.11.2",
 #   "mpmath==1.4.1",
+#   "numpy==2.5.5",
 #   "python-flint==0.9.0",
+#   "scipy==1.18.1",
 # ]
 # ///
 """Plot where `hyppfq` returns `None`, and its accuracy elsewhere, for p <= 4 and q <= 3.
