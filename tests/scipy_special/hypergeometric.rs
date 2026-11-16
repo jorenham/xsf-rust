@@ -131,6 +131,16 @@ fn test_hyp0f1_b_one() {
 }
 
 #[test]
+fn test_hyp0f1_large_negative_z() {
+    // where `sqrt(-z)` is not exact, which shifts the phase of `J`; Arb references
+    np_assert_allclose!(
+        [hyp0f1(2.5, -123_456.789), hyp0f1(0.25, -1e30)],
+        [-3.348_689_981_141_865_5e-6, -923.938_185_812_732],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion

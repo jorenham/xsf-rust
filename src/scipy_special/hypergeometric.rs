@@ -4,6 +4,7 @@ use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64};
 use crate::xsf::cephes::consts::MAXLOG;
+use crate::xsf::cephes::dd_real::two_prod;
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 use crate::xsf::complex::Num;
 
@@ -95,7 +96,18 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let arg_pow = arg.powf(1.0 - v);
         let gamma_v = crate::gamma(v);
         let prefactor = arg_pow * gamma_v;
-        let bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
+        let mut bess_val = crate::bessel_j(v - 1.0, 2.0 * arg);
+        // Unlike in xsf, the rounding error `d` of `arg` is corrected for, as it shifts the phase
+        // of `J` by `2 d`, up to `arg eps`. By DLMF 10.6.6 and 10.17.3, `a^(1-v) J_{v-1}(2 a)` at
+        // `a = arg + d` is about `arg^(1-v) (J_{v-1}(x) cos 2d - J_v(x) sin 2d)` for `x = 2 arg`,
+        // exactly so to first order in `d`.
+        let (sq, sq_err) = two_prod(arg, arg);
+        let d = (-z - sq - sq_err) / (2.0 * arg);
+        let (sin, cos) = (2.0 * d).sin_cos();
+        let shift = -sin * crate::bessel_j(v, 2.0 * arg);
+        if shift.is_finite() {
+            bess_val = bess_val * cos + shift;
+        }
         let out = prefactor * bess_val;
         let prefactor_ok = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
 
