@@ -17,6 +17,12 @@ use crate::xsf::cephes::dd_real::{
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet used outside of the tests")
+)]
+mod conformal;
+
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
 

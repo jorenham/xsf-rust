@@ -375,10 +375,6 @@ impl DoubleDouble {
     ///
     /// The products are accumulated by error-free transforms, with their corrections summed in
     /// `f64`, which takes fewer operations than adding the double-double products.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "not yet used outside of the tests")
-    )]
     pub(crate) fn dot(pairs: impl IntoIterator<Item = (Self, Self)>) -> Self {
         let (mut sum, mut low) = (0.0, 0.0);
         for (x, y) in pairs {
