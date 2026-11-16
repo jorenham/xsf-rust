@@ -1049,9 +1049,9 @@ fn test_domain_ends() {
 
 #[test]
 fn test_pdtri_k_max() {
-    // `k + 1` overflows `int` in xsf
+    // `k + 1` overflows `int` in xsf; the median of Gamma(k + 1), from mpmath
     let m = xsf::pdtri(i32::MAX, 0.5);
-    assert!(m.is_finite() && m > f64::from(i32::MAX), "{m}");
+    xsref::np_assert_allclose!(&[m], &[2_147_483_647.666_666_7], rtol = 1e-15);
 }
 
 #[test]
@@ -1150,9 +1150,12 @@ fn test_cdf_cvm_inf_smoke() {
     assert!(xsf::cdf_cvm_inf(f64::NAN).is_nan());
     assert!(xsf::cdf_cvm_inf(-1.0).abs() <= f64::EPSILON);
 
-    let result = xsf::cdf_cvm_inf(0.5);
-    assert!(result.is_finite());
-    assert!(result > 0.0 && result < 1.0);
+    // reference value from Arb (python-flint) and mpmath
+    xsref::np_assert_allclose!(
+        &[xsf::cdf_cvm_inf(0.5)],
+        &[0.960_166_782_434_392_4],
+        rtol = 4e-15
+    );
 }
 
 #[test]
@@ -1178,16 +1181,18 @@ fn test_cdf_cvm_smoke() {
     assert!(xsf::cdf_cvm(lower, N).abs() <= f64::EPSILON);
     assert!((xsf::cdf_cvm(upper, N) - 1.0).abs() <= f64::EPSILON);
 
-    let result = xsf::cdf_cvm(0.5, N);
-    assert!(result.is_finite());
-    assert!((0.0..=1.0).contains(&result));
+    // reference value from mpmath (the series of Csorgo and Faraway (1996) summed to convergence)
+    xsref::np_assert_allclose!(
+        &[xsf::cdf_cvm(0.5, N)],
+        &[0.962_304_211_246_718_8],
+        rtol = 4e-15
+    );
 }
 
 #[test]
 fn test_cdf_cvm_nonfinite() {
     assert_eq!(xsf::cdf_cvm_inf(f64::INFINITY), 1.0);
     assert_eq!(xsf::cdf_cvm_inf(1e308), 1.0);
-    assert!(xsf::cdf_cvm_inf(f64::NAN).is_nan());
     for n in [-1, 10] {
         assert_eq!(xsf::cdf_cvm(f64::INFINITY, n), 1.0);
         assert!(xsf::cdf_cvm(f64::NAN, n).is_nan());

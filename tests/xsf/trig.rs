@@ -140,11 +140,12 @@ fn test_tandg_cotdg_near_poles() {
 
 #[test]
 fn test_degrees_loss_threshold() {
-    let x = 1e14;
-    assert!(xsf::sindg(x).abs() <= 1.0 && xsf::sindg(x) != 0.0);
-    assert!(xsf::cosdg(x).abs() <= 1.0 && xsf::cosdg(x) != 0.0);
-    assert!(xsf::tandg(x).is_finite() && xsf::tandg(x) != 0.0);
-    assert!(xsf::cotdg(x).is_finite() && xsf::cotdg(x) != 0.0);
+    // 1e14 = 280 (mod 360), and the reduction is exact
+    for f in [xsf::sindg, xsf::cosdg, xsf::tandg, xsf::cotdg] {
+        let y = f(1e14);
+        assert!(y.is_finite() && y != 0.0);
+        assert_eq!(y, f(280.0));
+    }
     // no result: total loss of precision
     for x in [next_up(1e14), -next_up(1e14), 1e300] {
         assert_eq!(xsf::sindg(x), 0.0);

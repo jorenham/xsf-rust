@@ -938,8 +938,12 @@ fn test_besselpoly_negative_a_and_poles() {
     ] {
         assert_eq!(xsf::besselpoly(a, lambda, v), expected, "{a} {lambda} {v}");
     }
-    // lambda + 1 rounds to an even integer, but is not a pole
-    assert!(xsf::besselpoly(1.0, -18_014_398_509_481_984.0, 0.0).is_finite());
+    // lambda + 1 rounds to an even integer, but is not a pole; reference value from mpmath
+    np_assert_allclose!(
+        [xsf::besselpoly(1.0, -18_014_398_509_481_984.0, 0.0)],
+        [-1.242_843_490_019_327_6e-17],
+        rtol = 1e-15
+    );
     assert_eq!(
         xsf::besselpoly(1.0, -4_503_599_627_370_499.0, 0.0),
         f64::INFINITY
