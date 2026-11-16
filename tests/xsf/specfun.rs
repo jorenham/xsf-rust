@@ -693,6 +693,20 @@ fn test_hypu_int_b() {
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 
+    // Arb; 1.00502, 1.00161, and 0.999999997 in xsf (x^-n underflows in `chgubi`)
+    let abx = [
+        (-1e-3, 160.0, 150.0),
+        (-3e-4, 165.0, 212.0),
+        (-2e-8, 152.0, 139.0),
+    ];
+    let expected = [
+        1.000_521_817_125_236_8,
+        1.001_171_575_012_627,
+        0.999_999_992_869_047_8,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-14);
+
     // Arb; the over- and underflows aren't NaN
     assert_eq!(xsf::hypu(171.61, 1.0, 2.0), 0.0);
     assert_eq!(xsf::hypu(-3.0 + 1e-15, 999.0, 1e-300), f64::NEG_INFINITY);

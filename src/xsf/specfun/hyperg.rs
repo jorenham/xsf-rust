@@ -1434,7 +1434,15 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
             ga / (1..=n).map(|j| a - f64::from(j)).product::<f64>()
         };
         ua = neg_one_pow(n - 1) / (rn * ga1);
-        ub = rn1 / ga * x.powf(f64::from(-n));
+        // Unlike in xsf, with x^-n in two halves if it isn't normal (e.g. 150^-159), as the sum it
+        // multiplies (hm3) is about e^x
+        let xn = x.powf(f64::from(-n));
+        ub = if xn.is_normal() {
+            rn1 / ga * xn
+        } else {
+            let h = x.powf(-0.5 * f64::from(n));
+            rn1 / ga * h * h
+        };
     } else {
         a0 = a + f64::from(n);
         a1 = a0;
