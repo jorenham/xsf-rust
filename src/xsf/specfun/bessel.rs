@@ -1,5 +1,5 @@
 //! Bessel functions of integer order, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@1b77a39).
+//! (scipy/xsf@bb5f99c).
 
 #![allow(clippy::approx_constant)]
 
