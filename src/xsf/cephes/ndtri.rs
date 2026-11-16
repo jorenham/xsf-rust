@@ -31,7 +31,7 @@ const NDTRI_Q0: [f64; 8] = [
 /* Approximation for interval z = sqrt(-2 log y ) between 2 and 8
  * i.e., y between exp(-2) = .135 and exp(-32) = 1.27e-14.
  */
-pub(crate) const NDTRI_P1: [f64; 9] = [
+const NDTRI_P1: [f64; 9] = [
     4.055_448_923_059_624_5,
     31.525_109_459_989_388,
     57.162_819_224_642_13,
@@ -42,7 +42,7 @@ pub(crate) const NDTRI_P1: [f64; 9] = [
     -3.504_246_268_278_482e-2,
     -8.574_567_851_546_854e-4,
 ];
-pub(crate) const NDTRI_Q1: [f64; 8] = [
+const NDTRI_Q1: [f64; 8] = [
     /* 1.00000000000000000000E0, */
     15.779_988_325_646_675,
     45.390_763_512_887_92,
@@ -58,7 +58,7 @@ pub(crate) const NDTRI_Q1: [f64; 8] = [
  * i.e., y between exp(-32) = 1.27e-14 and exp(-2048) = 3.67e-890.
  */
 
-pub(crate) const NDTRI_P2: [f64; 9] = [
+const NDTRI_P2: [f64; 9] = [
     3.237_748_917_769_460_3,
     6.915_228_890_689_842,
     3.938_810_252_924_744_4,
@@ -69,7 +69,7 @@ pub(crate) const NDTRI_P2: [f64; 9] = [
     2.658_069_746_867_375_5e-6,
     6.239_745_391_849_833e-9,
 ];
-pub(crate) const NDTRI_Q2: [f64; 8] = [
+const NDTRI_Q2: [f64; 8] = [
     /* 1.00000000000000000000E0, */
     6.024_270_393_647_42,
     3.679_835_638_561_608_7,
@@ -88,6 +88,20 @@ pub(super) fn ndtri_central(y: f64) -> f64 {
     let y2 = y * y;
     let x = y + y * (y2 * polevl(y2, &NDTRI_P0) / p1evl(y2, &NDTRI_Q0));
     x * SQRT_TAU
+}
+
+/// `-ndtri(y)` for `y <= exp(-2)`, given `x = sqrt(-2 ln(y))`
+pub(crate) fn ndtri_tail(x: f64) -> f64 {
+    let x0 = x - x.ln() / x;
+
+    let z = 1.0 / x;
+    let x1 = if x < 8.0 {
+        /* y > exp(-32) = 1.2664165549e-14 */
+        z * polevl(z, &NDTRI_P1) / p1evl(z, &NDTRI_Q1)
+    } else {
+        z * polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
+    };
+    x0 - x1
 }
 
 /// Inverse of Normal distribution function
@@ -141,17 +155,7 @@ pub(crate) fn ndtri(y0: f64) -> f64 {
         return ndtri_central(y - 0.5);
     }
 
-    let mut x = (-2.0 * y.ln()).sqrt();
-    let x0 = x - x.ln() / x;
-
-    let z = 1.0 / x;
-    let x1 = if x < 8.0 {
-        /* y > exp(-32) = 1.2664165549e-14 */
-        z * polevl(z, &NDTRI_P1) / p1evl(z, &NDTRI_Q1)
-    } else {
-        z * polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
-    };
-    x = x0 - x1;
+    let mut x = ndtri_tail((-2.0 * y.ln()).sqrt());
     if code != 0 {
         x = -x;
     }
