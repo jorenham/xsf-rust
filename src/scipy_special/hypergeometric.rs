@@ -2,9 +2,9 @@
 
 use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
-use crate::xsf::c64::{C64, ViaC64};
+use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
-use crate::xsf::cephes::dd_real::two_prod;
+use crate::xsf::cephes::dd_real::{two_prod, two_sum};
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, lgam_stirling_corr};
 use crate::xsf::complex::Num;
 
@@ -185,13 +185,32 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
                 return sum;
             }
         }
-        let (arg, r) = if z.re > 0.0 {
-            let arg = z.sqrt();
-            (arg, cyl_bessel_i_c64(v - 1.0, 2.0 * arg))
+        // `arg = sqrt(w)`, with `w = z` for `I` and `w = -z` for `J`
+        let (w, s, bessel): (_, _, fn(f64, C64) -> C64) = if z.re > 0.0 {
+            (z, 1.0, cyl_bessel_i_c64)
         } else {
-            let arg = (-z).sqrt();
-            (arg, cyl_bessel_j_c64(v - 1.0, 2.0 * arg))
+            (-z, -1.0, cyl_bessel_j_c64)
         };
+        let arg = w.sqrt();
+        let mut r = bessel(v - 1.0, 2.0 * arg);
+
+        // Unlike in xsf, the rounding error `d` of `arg` is corrected for (as for real `z`): it
+        // shifts the argument of the Bessel function by `2 d`, up to `|arg| eps`. By DLMF 10.29.4
+        // (10.6.6), `a^(1-v) I_{v-1}(2 a)` has the derivative `2 a^(1-v) I_v(2 a)` (with `J`:
+        // `-2 a^(1-v) J_v(2 a)`), and `d = (w - arg^2) / (2 arg)`, with the residual exact up to
+        // `O(eps^2 |w|)`.
+        let (re2, re2_err) = two_prod(arg.re, arg.re);
+        let (im2, im2_err) = two_prod(arg.im, arg.im);
+        let (diff, diff_err) = two_sum(re2, -im2);
+        let (cross, cross_err) = two_prod(2.0 * arg.re, arg.im);
+        let res_re = (w.re - diff) - (diff_err + re2_err - im2_err);
+        let res = c64(res_re, (w.im - cross) - cross_err);
+        if res != C64::ZERO {
+            let shift = s * res / arg * bessel(v, 2.0 * arg);
+            if shift.is_finite() {
+                r += shift;
+            }
+        }
 
         r * crate::gamma(v) * arg.powf(1.0 - v)
     }

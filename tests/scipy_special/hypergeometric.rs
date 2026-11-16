@@ -141,6 +141,19 @@ fn test_hyp0f1_large_negative_z() {
 }
 
 #[test]
+fn test_hyp0f1_complex_large_z() {
+    // where `sqrt(-z)` is not exact, which shifts the argument of `J`; Arb references
+    np_assert_allclose!(
+        [hyp0f1(0.5, c64(-1e8, 10.0)), hyp0f1(2.3, c64(-1e6, 0.5))],
+        [
+            c64(0.813_200_097_194_249_9, 0.000_581_984_859_012_089_5),
+            c64(1.669_670_181_234_794_6e-6, -1.009_120_641_436_902_8e-9),
+        ],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion
