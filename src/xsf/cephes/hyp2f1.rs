@@ -241,7 +241,7 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         neg_int_b = true;
     }
 
-    let (mut err, mut err_full) = (0.0, 0.0);
+    let (mut err, err_full);
     let s = 1.0 - x;
     let y = 'done: {
         if x < -0.5 && !(neg_int_a || neg_int_b) {
@@ -369,6 +369,20 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             /* sum for t = 0 */
             let mut y = psi(1.0) + psi(1.0 + e) - psi(a + d1) - psi(b + d1) - ax;
             y *= rgamma(e + 1.0);
+            // Unlike in xsf, estimate the errors of both sums and their cancellation (scaled
+            // as the sums), as the `t`-th term is a product of about `t` roundings
+            let (mut y_err, mut y1_err) = (y.abs(), 1.0_f64);
+            // the relative error of `y` from the absolute error `e`, but no digit
+            // (`HYP2F1_LOST`) if `y` is 0 or either isn't finite, e.g. as the factors below
+            // over- or underflow
+            let rel_err = |e: f64, y: f64| {
+                let err = MACHEP * e / y.abs();
+                if err.is_finite() && y.is_finite() && y != 0.0 {
+                    err
+                } else {
+                    HYP2F1_LOST
+                }
+            };
 
             p = (a + d1) * (b + d1) * s * rgamma(e + 2.0); /* Poch for t=1 */
             t = 1.0;
@@ -376,12 +390,13 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 r = psi(1.0 + t) + psi(1.0 + t + e) - psi(a + t + d1) - psi(b + t + d1) - ax;
                 q = p * r;
                 y += q;
+                y_err += t * q.abs();
                 p *= s * (a + t + d1) / (t + 1.0);
                 p *= (b + t + d1) / (t + 1.0 + e);
                 t += 1.0;
                 if t > HYP2F1_MAXITER as f64 {
                     /* should never happen */
-                    err = 1.0;
+                    (err, err_full) = (1.0, 1.0);
                     break 'done f64::NAN;
                 }
                 if !(y == 0.0 || (q / y).abs() > HYP2F1_EPS) {
@@ -390,7 +405,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             }
 
             if id == 0.0 {
-                y *= gamma(c) / (gamma(a) * gamma(b));
+                let f = gamma(c) / (gamma(a) * gamma(b));
+                y *= f;
+                err = rel_err(y_err * f.abs(), y);
+                err_full = err;
                 break 'done y; // goto psidon
             }
 
@@ -409,25 +427,30 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                     t += 1.0;
                     p /= t;
                     y1 += p;
+                    y1_err += t * p.abs();
                 }
             }
             // nosum:
             p = gamma(c);
-            y1 *= gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
+            let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
+            (y1, y1_err) = (y1 * f1, y1_err * f1.abs());
 
-            y *= p * (rgamma(a + d2) * rgamma(b + d2));
+            let f = p * (rgamma(a + d2) * rgamma(b + d2));
+            (y, y_err) = (y * f, y_err * f.abs());
             if (aid & 1) != 0 {
                 y = -y;
             }
 
             q = s.powf(id); /* s to the id power */
             if id > 0.0 {
-                y *= q;
+                (y, y_err) = (y * q, y_err * q);
             } else {
-                y1 *= q;
+                (y1, y1_err) = (y1 * q, y1_err * q);
             }
 
             y += y1;
+            err = rel_err(y_err + y1_err, y);
+            err_full = err;
             // psidon:
             break 'done y;
         }
@@ -710,6 +733,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     if let Some((y, _)) = inexact.filter(accurate) {
         return y;
     }
+    // Unlike in xsf, the result `y` of a transformation below is replaced by that of
+    // `hyp2f1_recur` if this shows `y` to be less accurate, or `y` is not finite
+    let or_recur = |y: f64| {
+        let worse = |&(alt, bound): &(f64, f64)| {
+            bound < HYP2F1_LOST && (!y.is_finite() || less_accurate(y, alt, bound))
+        };
+        inexact.filter(worse).map_or(y, |(alt, _)| alt)
+    };
 
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
@@ -760,24 +791,24 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 return y;
             }
         }
+        let mut euler = p * y;
         if !p.is_normal() {
             // Unlike in xsf (scipy/xsf#471), split `s^d` in two if s > 0 and `y` is normal, as
             // their product can still be normal (e.g. for x << -1, where `y` is huge)
             if s > 0.0 && y.is_normal() {
                 let h = s.powf(d / 2.0);
-                return h * y * h;
-            }
-            // Unlike in xsf (scipy/xsf#471), else for x < 0 try the Pfaff series (as for x < -2
-            // below) and keep a normal result (e.g. about 1 for a tiny `b` and c < 0); not if
-            // their argument x / (x - 1) rounds to 1, as their error estimate misses that
-            if x < 0.0 && x / (x - 1.0) < 1.0 {
+                euler = h * y * h;
+            } else if x < 0.0 && x / (x - 1.0) < 1.0 {
+                // Unlike in xsf (scipy/xsf#471), else for x < 0 try the Pfaff series (as for
+                // x < -2 below) and keep a normal result (e.g. about 1 for a tiny `b` and c < 0);
+                // not if their argument x / (x - 1) rounds to 1, which their error estimate misses
                 let (y1, e1) = hys2f1_pfaff(a, b, c, x);
                 if e1 < HYP2F1_ETHRESH && y1.is_normal() {
                     return y1;
                 }
             }
         }
-        return p * y;
+        return or_recur(euler);
     }
     if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
         return f64::INFINITY; // goto hypdiv
@@ -851,7 +882,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 if e1 < MACHEP * u.abs().max(v.abs()) / (u + v).abs() {
                     return y1;
                 }
-                return u + v;
+                return or_recur(u + v);
             } else if x < -1.0 || lost && near(x, -1.0) {
                 // Unlike in xsf (scipy/xsf#470), also near x = -1 if `a` or `b` is lost (see
                 // above), as the power series diverges there if c - a - b <= -1.
@@ -861,9 +892,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 let w = x / (x - 1.0);
                 let recur = recur && w < HYP2F1_RECUR_NEAR1;
                 if a.abs() < b.abs() {
-                    return s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur);
+                    return or_recur(s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur));
                 }
-                return s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur);
+                return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur));
             }
 
             if ax > 1.0 {

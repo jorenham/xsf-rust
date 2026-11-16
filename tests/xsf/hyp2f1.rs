@@ -795,6 +795,154 @@ fn test_hyp2f1_f64_near_log_case_subnormal() {
 }
 
 #[test]
+fn test_hyp2f1_f64_euler_less_accurate() {
+    // unlike in xsf: the Euler transformation for c - a - b <= -1, where the error bound of
+    // `hyp2f1_recur` shows its result to be less accurate, or it is NaN. These were -2.67114939e43,
+    // 9.3355057867e35, 1.44646143e52, -2.63504093e39, NaN and NaN, where xsf gives -1.16e75,
+    // 9.33553786e35, -8.15e94, 9.06e96, NaN and NaN (Arb; the last is -3.2e-380).
+    let actual = [
+        xsf::hyp2f1(
+            149.0,
+            -58.000_000_113_713_61,
+            7.299_145_857_088_6e-7,
+            0.867_785_987_917_887_4,
+        ),
+        xsf::hyp2f1(
+            189.0,
+            -34.000_000_011_475_83,
+            1.402_434_425_022_796e-7,
+            0.603_095_775_821_499_5,
+        ),
+        xsf::hyp2f1(
+            185.0,
+            -72.000_000_001_760_51,
+            7.112_741_701_785_648e-7,
+            0.862_145_321_628_877_1,
+        ),
+        xsf::hyp2f1(
+            136.0,
+            -67.000_000_408_327_13,
+            9.553_495_917_604_502e-5,
+            0.924_901_625_890_899_4,
+        ),
+        xsf::hyp2f1(
+            9.25,
+            18.249_999_924_909_204,
+            -200.970_431_389_678_9,
+            -90.432_270_031_215_2,
+        ),
+        xsf::hyp2f1(
+            241.809_503_456_775_5,
+            220.809_503_459_425_3,
+            -3.671_066_270_604_346_6,
+            -46.873_304_297_334_81,
+        ),
+    ];
+    let desired = [
+        -2.671_149_156_958_879e43,
+        9.335_505_797_691_043e35,
+        1.446_461_348_852_572_2e52,
+        -2.635_040_349_292_388_6e39,
+        -3.170_840_286_672_488e-5,
+        -0.0,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+    // with its power factor split in two, and for a subnormal `a`. These were -1.7145423e-211 and
+    // NaN, where xsf gives -0.0 and NaN (Arb).
+    let actual = [
+        xsf::hyp2f1(
+            98.0,
+            123.999_999_999_999_89,
+            3.056_448_506_561_903_6,
+            -71.034_095_119_307_55,
+        ),
+        xsf::hyp2f1(
+            1e-323,
+            1.0,
+            -159.831_265_506_034_78,
+            -104_073.006_817_227_35,
+        ),
+    ];
+    np_assert_allclose!(actual, [-1.711_760_489_507_116_7e-211, 1.0], rtol = 1e-11);
+}
+
+#[test]
+fn test_hyp2f1_f64_pfaff_recip_less_accurate() {
+    // unlike in xsf: the Pfaff transformation for x < -1 and the 1/x one for x < -2, with large a
+    // and b of the same sign, where the error bound of `hyp2f1_recur` shows their result to be
+    // less accurate, or it is not finite. These were -9.13e168, 1.21e146 and -inf, as in xsf
+    // (Arb).
+    let actual = [
+        xsf::hyp2f1(-129.666, -113.666, 56.25, -52.03),
+        xsf::hyp2f1(
+            -122.128_459_991_815_06,
+            -86.128_390_890_172_06,
+            78.264_535_379_928_02,
+            -76.272_919_739_327_62,
+        ),
+        xsf::hyp2f1(
+            -176.933_199_208_308_85,
+            -130.933_195_913_092_13,
+            -20.999_999_947_974_53,
+            -35.466_899_274_141_96,
+        ),
+    ];
+    let desired = [
+        4.791_283_530_597_28e162,
+        -1.593_909_865_270_581e144,
+        2.912_887_935_665_173_8e274,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-9);
+}
+
+#[test]
+fn test_hyp2f1_f64_psi_expansion_error() {
+    // unlike in xsf: the psi function expansion for x > 0.9 and an integer c - a - b has an error
+    // estimate, so this is replaced by the result of `hyp2f1_recur`. These were 1.36200088831e-8
+    // and 4.8456802331e-31, as in xsf (Arb).
+    let actual = [
+        xsf::hyp2f1(
+            -61.245_538_520_640_43,
+            52.213_688_621_304_07,
+            0.968_150_100_663_642_4,
+            0.957_677_717_016_758_5,
+        ),
+        xsf::hyp2f1(
+            -29.096_463_013_348_03,
+            81.222_637_166_243_06,
+            71.126_174_152_895_03,
+            0.912_150_259_055_036_1,
+        ),
+    ];
+    let desired = [1.362_000_886_533_284_2e-8, 4.845_680_233_889_792e-31];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
+    // and NaN if `hyp2f1_recur` fails, here for the Pfaff transformation for x < -1, where these
+    // were -3.65e101, 8.94e210 and 0 (as its factors underflow), while xsf gives -3.65e101, -inf
+    // and 0 (Arb: 1.11e100, -1.37e206, 5.52e108)
+    let actual = [
+        xsf::hyp2f1(
+            -138.545_281_542_796_86,
+            -85.545_281_542_796_86,
+            31.648_430_177_207_87,
+            -13.861_203_109_738_284,
+        ),
+        xsf::hyp2f1(
+            -127.831_990_937_567_51,
+            -164.831_990_937_567_53,
+            1.000_000_008_915_661,
+            -25.890_921_149_087_443,
+        ),
+        xsf::hyp2f1(
+            -161.765_346_696_296_83,
+            -108.765_346_696_296_83,
+            63.158_232_092_546_086,
+            -14.798_143_647_681_243,
+        ),
+    ];
+    assert!(actual.iter().all(|y| y.is_nan()), "{actual:?}");
+}
+
+#[test]
 fn test_hyp2f1_f64_huge_c() {
     // unlike in xsf: these were NaN, and the first and fourth hung (Arb, or the limit 1)
     let (tx, rx) = std::sync::mpsc::channel();
