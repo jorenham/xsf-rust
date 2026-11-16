@@ -11,69 +11,70 @@
 //!    - for `0 < x < 1`: `z = x / (x - 1)`, and `(p, q, s)` is `(a, c - b, 0)` or
 //!      `(c - a, b, c - a - b)`
 //!
-//! 2. With `w = z / (z - 1)` (so `0 <= w < 1`, and `w = x` if `x > 0`), for any `C`:
+//! 2. Sum `(1 - z)^p F(p, q; C; z) = F(p, C - q; C; w)` (DLMF 15.8.1) at `C = c`, with
+//!    `w = z / (z - 1)` (so `0 <= w < 1`, and `w = x` if `x > 0`).
+//!    - For `k > -p`, its terms have one sign while `C + k` and `C - q + k` do, e.g. for all `k` if
+//!      `C > max(0, q)`. So it cancels little if `p >= 0` or `|p|` is small.
+//!    - The twins `(p, q)` and `(c - q, c - p)` share this series, as `F` is symmetric in its
+//!      first two parameters, so the twin reuses its sum (if it succeeded).
+//!    - If `p = -n` is a negative integer (with `n <= HYP2F1_RECUR_MAXITER`), its terms can
+//!      alternate in sign and cancel. So unless its sum or that of `F(-n, q; c; z)` is within
+//!      `HYP2F1_ETHRESH`, we also recur up in the degree, from `F(0) = 1` and `F(-1)` to `F(-n)`
+//!      (DLMF 15.5.11), with the error bound of step 3, for `F(-n, c - q; c; w)` and the form
+//!      (DLMF 15.8.7) `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`, often
+//!      more stable if `c < 0`. The best of these is returned if its error bound is at most
+//!      `HYP2F1_RECUR_TOL`.
 //!
-//!    `(1 - z)^p F(p, q; C; z) = F(p, C - q; C; w)` (DLMF 15.8.1)
-//!
-//!    For `k > -p`, its terms have one sign while `C + k` and `C - q + k` do, e.g. for all `k` if
-//!    `C > max(0, q)`. So it cancels little if `p >= 0` or `|p|` is small. We sum it at `C = c`.
-//!    The twin combinations `(p, q)` and `(c - q, c - p)` share this series, as `F` is symmetric
-//!    in its first two parameters, so the twin reuses its sum (if it succeeded).
-//!
-//!    But if `p = -n` is a negative integer (with `n <= HYP2F1_RECUR_MAXITER`), its terms can
-//!    alternate in sign and cancel, e.g. for `F(-522, -123.5; 533.5; -0.9)`. So unless its sum or
-//!    that of `F(-n, q; c; z)` is within `HYP2F1_ETHRESH`, we also recur up in the degree, from
-//!    `F(0) = 1` and `F(-1)` to `F(-n)` (DLMF 15.5.11), with the error bound of step 3, for
-//!    `F(-n, c - q; c; w)` and the form (DLMF 15.8.7), often more stable if `c < 0`,
-//!
-//!    `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`
-//!
-//!    and return the best of these if its error bound is at most `HYP2F1_RECUR_TOL`.
-//!
-//! 3. If `c <= max(0, q)` and that loses too much precision, we also sum it at `C = c + n` and
+//! 3. If `c <= max(0, q)` and that loses too much precision, also sum it at `C = c + n` and
 //!    `C = c + n + 1`, with the smallest `n` with `c + n > max(0, q)`, and recur down to `C = c`
-//!    (DLMF 15.5.18). For `Re z < 1/2`, `F(p, q; c + n; z)` is minimal as `n -> inf` (Gil, Segura
-//!    and Temme 2007, sec. 3.2), so this is stable for `c + n` much larger than `|p|` and `|q|`,
-//!    but can be unstable in between (Deano and Segura 2007), so `recur_down` bounds its error.
+//!    (DLMF 15.5.18).
+//!    - For `Re z < 1/2`, `F(p, q; c + n; z)` is minimal as `n -> inf` (Gil, Segura and Temme
+//!      2007, sec. 3.2), so this is stable for `c + n` much larger than `|p|` and `|q|`.
+//!    - In between, it can be unstable (Deano and Segura 2007), so `recur_down` bounds its error.
 //!
-//! 4. For `x < -1`, `w` is near 1 if `|x|` is large, and the series take about `|p| |x|` terms.
-//!    So we first try the 1/x transformation (DLMF 15.8.2), with its two `F(..; 1/x)` computed as
-//!    above (with `w = 1 / (1 - x)`), and only continue with the 4 combinations if its error bound
-//!    (incl. the cancellation of its two terms) exceeds `HYP2F1_ETHRESH`. If `b - a` is near an
-//!    integer (a pole of its Gamma factors), we first try its two terms combined (DLMF 15.8.9 at an
-//!    integer), whose series in `w` has weights, so it can't be transformed or recurred like the
-//!    others, and it can cancel whatever the signs of the parameters (see `recip_log`), e.g.
-//!    `F(-900.5, -800.5; 50; -40)`.
+//! 4. For `x < -1`, first try the 1/x transformation (DLMF 15.8.2), as `w` is near 1 for large
+//!    `|x|`, where the series take about `|p| |x|` terms.
+//!    - Its two `F(..; 1/x)` are computed as above, with `w = 1 / (1 - x)`.
+//!    - The 4 combinations follow only if its error bound (incl. the cancellation of its two
+//!      terms) exceeds `HYP2F1_ETHRESH`.
+//!    - If `b - a` is near an integer (a pole of its Gamma factors), its two terms combined come
+//!      first (DLMF 15.8.9 at an integer). Their series in `w` has weights, so it can't be
+//!      transformed or recurred like the others, and it can cancel whatever the signs of the
+//!      parameters (see `recip_log`).
 //!
 //! 5. If `-1 <= x < 0.9` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try the same
 //!    transformation of `F(a, b; c; x)` if `x < 0` (i.e. DLMF 15.8.3), or of the Pfaff form
 //!    `(1 - x)^-b F(c - a, b; c; x / (x - 1))` if `0 < x < 1` (i.e. the 1 - x transformation,
-//!    DLMF 15.8.4). Its series are in `w = 1 / (1 - x)` or `w = 1 - x`. The 4 combinations can
-//!    all cancel if `a` and `b` are large with opposite signs and `0 < x < 1` (or with the same
-//!    sign and `x < 0`), e.g. `F(-975.2, 241.4; 0.00135; 0.39)`, while these two terms rarely do.
-//!    For `x >= 0.9`, where `w = x` is close to 1, we try it first instead, as in step 4. Its log
-//!    case (step 4) applies here too: if `b - a` is near an integer for `x < 0`, or `c - a - b`
-//!    for `0 < x < 1` (DLMF 15.8.10).
+//!    DLMF 15.8.4), with series in `w = 1 / (1 - x)` or `w = 1 - x`.
+//!    - The 4 combinations can all cancel if `a` and `b` are large with opposite signs and
+//!      `0 < x < 1` (or with the same sign and `x < 0`), while these two terms rarely do.
+//!    - For `x >= 0.9`, where `w = x` is close to 1, it is tried first instead, as in step 4.
+//!    - The log case of step 4 applies too: if `b - a` is near an integer for `x < 0`, or
+//!      `c - a - b` for `0 < x < 1` (DLMF 15.8.10).
 //!
 //! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
-//!    with other start values. Those of step 3 are sums of the same series, and can lose precision
-//!    for every `n`, e.g. if `p` is large and negative, while other forms at `c + n` don't. Here
-//!    `F(p, q; c + k; z)` is a multiple of (DLMF 15.8.1)
-//!    - `F(a, b; c + k; x)` for `(p, q, z) = (a, b, x)`
-//!    - `(1 - x)^k F(a + k, b + k; c + k; x)` for `(c - a, c - b, x)`
-//!    - `F(a, b + k; c + k; x)` for `(a, c - b, x / (x - 1))`
-//!    - `F(a + k, b; c + k; x)` for `(c - a, b, x / (x - 1))`
-//!
-//!    So for each of these, we compute `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1)
-//!    by steps 1 to 5, and recur down to `k = 0`, e.g. `F(758.1, 7.7; -151.2; -0.3)` from
-//!    `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`. If `z > 0`, the recurrence
-//!    need not be stable, but its error bound still holds. We skip those with `c > max(0, q)` (so
-//!    `n = 1`) unless steps 1 to 5 got within `HYP2F1_RECUR_SHIFT_TOL`: their start values at
-//!    `c + 1` and `c + 2` hardly differ from `F(a, b; c; x)`, and in our tests improved the bound
-//!    at most 15-fold.
+//!    from other start values: those of step 3 are sums of the same series, which can lose
+//!    precision for every `n` (e.g. if `p` is large and negative), while other forms at `c + n`
+//!    don't.
+//!    - `F(p, q; c + k; z)` is a multiple of (DLMF 15.8.1)
+//!      - `F(a, b; c + k; x)` for `(p, q, z) = (a, b, x)`
+//!      - `(1 - x)^k F(a + k, b + k; c + k; x)` for `(c - a, c - b, x)`
+//!      - `F(a, b + k; c + k; x)` for `(a, c - b, x / (x - 1))`
+//!      - `F(a + k, b; c + k; x)` for `(c - a, b, x / (x - 1))`
+//!    - For each, `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1) come from steps 1
+//!      to 5, then recur down to `k = 0`. If `z > 0`, the recurrence need not be stable, but its
+//!      error bound still holds.
+//!    - Those with `c > max(0, q)` (so `n = 1`) are skipped unless steps 1 to 5 got within
+//!      `HYP2F1_RECUR_SHIFT_TOL`: their start values at `c + 1` and `c + 2` hardly differ from
+//!      `F(a, b; c; x)`, and in our tests improved the bound at most 15-fold.
 //!
 //! Finally, return the result with the smallest error bound, which is too large if it exceeds
 //! `HYP2F1_RECUR_TOL`.
+//!
+//! For example, the sum of step 2 cancels for `F(-522, -123.5; 533.5; -0.9)`, the log case of
+//! step 4 for `F(-900.5, -800.5; 50; -40)`, and all 4 combinations for
+//! `F(-975.2, 241.4; 0.00135; 0.39)`. Step 6 gets `F(758.1, 7.7; -151.2; -0.3)` from
+//! `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
 //! is tiny, and so are `s ln(1 - x)` and the `ln Gamma` of the transformations. The values are
@@ -987,8 +988,8 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
         return None;
     }
     // In a fixed order, as step 6 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
-    // first, which was more often accurate in our tests, e.g. for `F(-104.0000009, 36; 0.0074;
-    // 0.66)`, whose form `(c - a, c - b)` then has `n = 105` instead of 1.
+    // first, which was more often accurate in our tests, e.g. for
+    // `F(-104 - 9e-7, 36; 0.0074; 0.66)`, whose form `(c - a, c - b)` then has `n = 105`, not 1.
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
