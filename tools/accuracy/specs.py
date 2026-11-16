@@ -18,7 +18,7 @@ inverse functions find the root of the reference of the function itself (see `_i
 
 import math
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from random import Random
 from types import FunctionType
@@ -183,6 +183,32 @@ class ILU:
 
     def pretty(self) -> str:
         return f"{{{_u(self.lo)}, {ELLIPSIS}, {_u(self.hi)}}}"
+
+
+@dataclass(frozen=True)
+class Each:
+    """Each integer in [lo, hi] in turn, from lo again for each new `rng` (one per sampling
+    run), so that `hi - lo + 1` samples have each one once."""
+
+    lo: int
+    hi: int
+    # the `rng` of the current run, and the number of samples drawn with it
+    _run: list[Any] = field(
+        default_factory=lambda: [None, 0], compare=False, repr=False
+    )
+
+    def sample(self, rng: Random) -> float:
+        if self._run[0] is not rng:
+            self._run[:] = [rng, 0]
+        i = self._run[1]
+        self._run[1] += 1
+        return float(self.lo + i % (self.hi - self.lo + 1))
+
+    def desc(self) -> str:
+        return f"each of {{{self.lo}, ..., {self.hi}}}"
+
+    def pretty(self) -> str:
+        return Int(self.lo, self.hi).pretty()
 
 
 @dataclass(frozen=True)
@@ -3698,6 +3724,267 @@ def c_hyp0f1(b, re, im):
         return mp.mpc(y), abs(mp.gamma(b)) * abs(z) ** (-v / 2) * env
 
 
+# ---------------------------------------------------------------- zeros and Gauss quadrature
+
+
+def _airy_zeros(i, k, bi=False):
+    """Output i of `airy_ai_zeros` (or `airy_bi_zeros`) for zero k: the zeros of Ai and Ai', the
+    value of Ai at the zero of Ai', and the value of Ai' at the zero of Ai."""
+    zero, f = (mp.airybizero, mp.airybi) if bi else (mp.airyaizero, mp.airyai)
+    k = int(k)
+    if i < 2:
+        return zero(k, i)
+    return f(zero(k, 1)) if i == 2 else f(zero(k), derivative=1)
+
+
+def _bessel_zero(i, v, k):
+    """Output i of `bessel_zeros`: zero k of J_v, J_v', Y_v, or Y_v'. Unlike `bessel_zeros`,
+    mpmath counts x = 0 as the first zero of J_0'."""
+    v, k = int(v), int(k)
+    if i < 2:
+        return mp.besseljzero(v, k + (i == 1 and v == 0), i)
+    return mp.besselyzero(v, k, i - 2)
+
+
+def _y_zero(i, kind, c, k):
+    """Output i of `bessel_y0_zeros`, `bessel_y1_zeros`, or `bessel_y1_prime_zeros` (kind 0 to
+    2): zero k of Y_0, Y_1, or Y_1', or the value there of Y_1, Y_0, or Y_1.
+
+    The complex zeros (c = 1) are zeros of Y_n(-z) = (-1)^n (Y_n(z) + 2i J_n(z)) (DLMF 10.11.6),
+    so by the leading terms of DLMF 10.17.3 and 10.17.4, they are near
+    -(k - (2 kind + 1) / 4) pi + i ln(3) / 2, except for the first ones of Y_1 and Y_1'. They are
+    found by Newton's method from there, and must not move by more than 1 (the spacing is pi)."""
+    n, d, k = int(kind == 1), int(kind == 2), int(k)
+    if not c:
+        z = mp.besselyzero(n + d, k, d)
+    else:
+        if kind and k == 1:
+            z0 = mp.mpc(-0.5, 0.8) if kind == 1 else mp.mpc(0.6, 0.9)
+        else:
+            z0 = mp.mpc(-(k - mp.mpf(2 * kind + 1) / 4) * mp.pi, mp.log(3) / 2)
+        z = mp.findroot(lambda z: mp.bessely(n + d, z, d), z0)
+        if abs(z - z0) > 1:
+            raise ArithmeticError(f"zero {z} is not near {z0}")
+    return z if i == 0 else mp.bessely(1 - n, z)
+
+
+# the zeros of `_jnjnp_zeros`, computed once per process
+_JNJNP: list[tuple[Any, int, int, int]] = []
+
+
+def _jnjnp_zeros():
+    """(x, n, m, p) of the zeros x of all J_n (p = 0) and J_n' (p = 1) below 72, in ascending
+    order, where x is zero m of J_n or J_n', counting x = 0 as zero 0 of J_0'.
+
+    The zeros are the sign changes on a grid with step 1/4, which is less than their spacing
+    (> 2), polished with `_solve` at 30 digits. The orders n < 72 have all of them, since the
+    zeros of J_n and J_n' are greater than n (DLMF 10.21.3). J_0' = -J_1 (DLMF 10.6.3), so they
+    share their zeros, which are listed as those of J_1 first."""
+    if not _JNJNP:
+        big_x = 72
+        with mp.workdps(30):
+            zeros = [(mp.mpf(0), 0, 0, 1)]
+            for n in range(big_x):
+                for p in range(int(n > 0) + 1):
+                    m = 0
+                    f = lambda x, n=n, p=p: mp.besselj(n, x, p)
+                    a, fa = mp.mpf(1) / 4, f(mp.mpf(1) / 4)
+                    while a < big_x:
+                        b = a + mp.mpf(1) / 4
+                        fb = f(b)
+                        if (fa < 0) != (fb < 0):
+                            m += 1
+                            zeros.append((_solve(f, a, b, fa, fb), n, m, p))
+                        a, fa = b, fb
+            zeros += [(x, 0, m, 1) for x, n, m, p in zeros if (n, p) == (1, 0)]
+            _JNJNP.extend(sorted(zeros, key=lambda z: (z[0], z[3])))
+    return _JNJNP
+
+
+def r_jnjnp(i, nt, k):
+    """Output i of `bessel_j_jprime_zeros`, for zero k; the count `nt` doesn't change them."""
+    zeros = _jnjnp_zeros()
+    if len(zeros) < 1200:
+        raise ArithmeticError("too few zeros")
+    return mp.mpf(zeros[int(k) - 1][i])
+
+
+def _kelvin_zero(kind, k):
+    """Zero k of ber, bei, ker, kei, ber', bei', ker', or kei' (`_kelvin` kind 0 to 7), from the
+    sign change within 1 of sqrt(2) pi (k + c / 8), by the leading terms of the expansions of
+    DLMF 10.67 (the spacing is sqrt(2) pi)."""
+    c = [-3, 1, -5, -1, 3, -1, -3, 1][kind]
+    x0 = mp.sqrt(2) * mp.pi * (k + mp.mpf(c) / 8)
+    f = lambda x: _kelvin(kind, x)[0]
+    a, b = x0 - 1, x0 + 1
+    fa, fb = f(a), f(b)
+    if (fa < 0) == (fb < 0):
+        raise ArithmeticError(f"no zero near {x0}")
+    return _solve(f, a, b, fa, fb)
+
+
+def _erf_zero(k):
+    """Zero k of erf in the first quadrant, by Newton's method from DLMF 7.13.1 and 7.13.2; it
+    must not move by more than a quarter of the spacing, about pi / (sqrt(2) lambda)."""
+    lam = mp.sqrt((k - mp.mpf(1) / 8) * mp.pi)
+    mu = mp.log(lam * mp.sqrt(2 * mp.pi))
+    t = (1 - mu + mu**2 / 2) / (16 * lam**3)
+    z0 = mp.mpc(lam - mu / (4 * lam) + t, lam + mu / (4 * lam) + t)
+    z = mp.findroot(
+        mp.erf, z0, solver="newton", df=lambda z: 2 / mp.sqrt(mp.pi) * mp.exp(-(z**2))
+    )
+    if abs(z - z0) > mp.pi / (4 * mp.sqrt(2) * lam):
+        raise ArithmeticError(f"zero {z} is not near {z0}")
+    return z
+
+
+def _fresnel_zero(i, k):
+    """Zero k of S (i = 0) or C (i = 1) in the first quadrant, by Newton's method from
+    DLMF 7.13.5 to 7.13.7; it must not move by more than a quarter of the spacing, about
+    2 / lambda."""
+    lam = 2 * mp.sqrt(k) if i == 0 else mp.sqrt(4 * k - 1)
+    alpha = 2 / mp.pi * mp.log(mp.pi * lam)
+    z0 = mp.mpc(
+        lam + alpha * (alpha * mp.pi - 4) / (8 * mp.pi * lam**3), alpha / (2 * lam)
+    )
+    f, df = (mp.fresnels, mp.sin) if i == 0 else (mp.fresnelc, mp.cos)
+    z = mp.findroot(f, z0, solver="newton", df=lambda z: df(mp.pi * z**2 / 2))
+    if abs(z - z0) > 1 / (2 * lam):
+        raise ArithmeticError(f"zero {z} is not near {z0}")
+    return z
+
+
+def _gauss_rule(base, n, k, a, b):
+    """Node and weight k (from 1, ascending) of the n-point Gauss rule of the Jacobi (base "j",
+    with alpha = a and beta = b), generalized Laguerre ("l", with alpha = a), or Hermite ("h")
+    polynomials.
+
+    The node is found by bisection to 30 digits with Sturm sequences: the number of zeros of p_n
+    above x is the number of sign changes of p_0(x), ..., p_n(x), with the recurrences of
+    DLMF 18.9.2 and Table 18.9.1 (normalized to positive leading coefficients). The weights are
+    c / ((1 - x^2) p_n'(x)^2) (Jacobi, with p_n' from DLMF 18.9.15),
+    Gamma(n + a + 1) / (n! x p_n'(x)^2) (Laguerre, with 18.9.23), and
+    2^(n-1) n! sqrt(pi) / (n p_(n-1)(x))^2 (Hermite)."""
+    one, a, b = mp.mpf(1), mp.mpf(a), mp.mpf(b)
+    if base == "j":
+        lo, hi = -one, one
+        p1 = lambda x: a + 1 + (a + b + 2) * (x - 1) / 2
+        s, t = a + b, a * a - b * b
+
+        def rec(j):
+            u = 2 * (j + 1) * (j + s + 1) * (2 * j + s)
+            return (
+                (2 * j + s) * (2 * j + s + 1) * (2 * j + s + 2) / u,
+                t * (2 * j + s + 1) / u,
+                2 * (j + a) * (j + b) * (2 * j + s + 2) / u,
+            )
+
+    elif base == "l":
+        lo, hi = mp.mpf(0), 4 * n + 2 * a + 10
+        p1 = lambda x: x - a - 1
+        rec = lambda j: (one, -(2 * j + a + 1), j * (j + a))
+    else:
+        lo, hi = -mp.sqrt(2 * n + 2), mp.sqrt(2 * n + 2)
+        p1 = lambda x: 2 * x
+        rec = lambda j: (2 * one, mp.mpf(0), 2 * one * j)
+    coef = [rec(j) for j in range(1, n)]
+
+    def above(x):
+        """The number of zeros of p_n above x."""
+        p, q, count = p1(x), one, 0
+        if p < 0:
+            count += 1
+        for aj, bj, cj in coef:
+            p, q = (aj * x + bj) * p - cj * q, p
+            if (p < 0) != (q < 0):
+                count += 1
+        return count
+
+    if (base == "h" or (base == "j" and a == b)) and 2 * k - 1 == n:
+        x = mp.mpf(0)  # the middle node of a symmetric rule
+    else:
+        while hi - lo > mp.mpf(10) ** -30 * max(abs(lo), abs(hi)):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if above(mid) > n - k else (lo, mid)
+        x = (lo + hi) / 2
+    if base == "j":
+        c = 2 ** (a + b + 1) * mp.gamma(n + a + 1) * mp.gamma(n + b + 1)
+        c /= mp.gamma(n + a + b + 1) * mp.factorial(n)
+        dp = (n + a + b + 1) / 2 * mp.jacobi(n - 1, a + 1, b + 1, x)
+        w = c / ((1 - x) * (1 + x) * dp**2)
+    elif base == "l":
+        w = mp.gamma(n + a + 1) / (
+            mp.factorial(n) * x * mp.laguerre(n - 1, a + 1, x) ** 2
+        )
+    else:
+        w = (
+            2 ** (n - 1)
+            * mp.factorial(n)
+            * mp.sqrt(mp.pi)
+            / (n * mp.hermite(n - 1, x)) ** 2
+        )
+    return x, w
+
+
+def _chebyshev_rule(base, n, k):
+    """Node and weight k (from 1, ascending) of the n-point Gauss rule of T_n (base "t") or U_n
+    ("u"), in closed form: the zeros of DLMF 18.5.1 and 18.5.2, and the weights of DLMF 3.5.23
+    for T_n, and pi / (n + 1) sin(k pi / (n + 1))^2 for U_n."""
+    if base == "t":
+        th = (2 * k - 1) * mp.pi / (2 * n)
+        return -mp.cos(th) if 2 * k - 1 != n else mp.mpf(0), mp.pi / n
+    th = k * mp.pi / (n + 1)
+    return -mp.cos(th) if 2 * k != n + 1 else mp.mpf(0), mp.pi / (n + 1) * mp.sin(
+        th
+    ) ** 2
+
+
+def _gauss(i, n, k, base, a=0, b=0, scale=1, shift=False):
+    """Node (i = 0) or weight (i = 1) k of the n-point rule of `_gauss_rule` or `_chebyshev_rule`,
+    for x = scale t, or for x = (1 + t) / 2 with shift, which multiply the weights by scale or by
+    2^(-a - b - 1) (for the Jacobi weight function)."""
+    n, k = int(n), int(k)
+    with wdps(xd(n) + 10):
+        if base in "tu":
+            a = b = mp.mpf(-1 if base == "t" else 1) / 2
+            t, w = _chebyshev_rule(base, n, k)
+        else:
+            t, w = _gauss_rule(base, n, k, a, b)
+        if shift:
+            return (1 + t) / 2 if i == 0 else w * 2 ** (-a - b - 1)
+        return scale * (t if i == 0 else w)
+
+
+def r_bernoulli(n):
+    return mp.bernoulli(int(n))
+
+
+def r_euler(n):
+    return mp.eulernum(int(n))
+
+
+def r_gauss(f, i, n, k, *p):
+    """Node (i = 0) or weight (i = 1) k of the n-point rule of `roots_{f}`, with its parameters
+    p, as a transformed Jacobi, Laguerre, or Hermite rule."""
+    p = [mp.mpf(x) for x in p]
+    match f:
+        case "jacobi" | "sh_jacobi":
+            return _gauss(i, n, k, "j", *p, shift=f.startswith("sh_"))
+        case "gengegenbauer":
+            return _gauss(i, n, k, "j", p[0] - p[1], p[1] - 1, shift=True)
+        case "legendre" | "sh_legendre":
+            return _gauss(i, n, k, "j", shift=f.startswith("sh_"))
+        case "gegenbauer":
+            return _gauss(i, n, k, "j", p[0] - 0.5, p[0] - 0.5)
+        case "genlaguerre" | "laguerre":
+            return _gauss(i, n, k, "l", *p)
+        case "hermite_h" | "hermite_he":
+            return _gauss(i, n, k, "h", scale=1 if f == "hermite_h" else mp.sqrt(2))
+    # the Chebyshev rules: C and S are 2 T and U of x / 2
+    base, scale = {"t": ("t", 1), "u": ("u", 1), "c": ("t", 2), "s": ("u", 2)}[f[-1]]
+    return _gauss(i, n, k, base, scale=scale, shift=f.startswith("sh_"))
+
+
 # ---------------------------------------------------------------- specs
 
 SPECS: list[Spec] = []
@@ -3804,6 +4091,41 @@ V_NEAR_HALF_INT = D(
 
 CZ = D(U(-20, 20), U(-20, 20), n=5000)
 
+# the number of zeros or numbers of the functions with a const `N`; must match src/main.rs and
+# harness.cpp
+ZEROS_N = 500
+
+
+def each_k(hi: int = ZEROS_N, lo: int = 1) -> Domain:
+    """Each k in {lo, ..., hi}, once."""
+    return D(Each(lo, hi), n=hi - lo + 1)
+
+
+def nk_domain(nd: Dist, params: Mapping[str, Dist], n: int = 1000) -> Domain:
+    """n from `nd`, k in {1, ..., n}, and the `params`."""
+
+    def sample(r: Random) -> tuple[float, ...]:
+        m = int(nd.sample(r))
+        return (m, r.randint(1, m), *(d.sample(r) for d in params.values()))
+
+    log = " (log)" if _is_log(nd) else ""
+    return D(
+        sampler=sample,
+        label=", ".join(
+            [f"n in {nd.desc()}", "k in {1, ..., n}"]
+            + [f"{a} in {d.desc()}" for a, d in params.items()]
+        ),
+        pretty=", ".join(
+            [
+                nobreak("n", IN, nd.pretty()) + log,
+                nobreak("k", IN, f"{{1, {ELLIPSIS}, n}}"),
+            ]
+            + [nobreak(GREEK.get(a, a), IN, d.pretty()) for a, d in params.items()]
+        ),
+        n=n,
+    )
+
+
 section("Airy functions")
 for i, f in enumerate(["Ai", "Ai'", "Bi", "Bi'"]):
     add(
@@ -3843,6 +4165,16 @@ for i in range(4):
         D(LU(1e-300, 1e3)),
         note="zeros_c" if i == 3 else "",
     )
+
+for f in ["ai", "bi"]:
+    for i in range(4):
+        add(
+            f"airy_{f}_zeros.{i}",
+            "k",
+            lambda k, i=i, bi=f == "bi": _airy_zeros(i, k, bi),
+            each_k(),
+            note="zeros_n",
+        )
 
 section("Elliptic functions and integrals")
 for f, r in [("ellipk", r_ellipk), ("ellipe", r_ellipe)]:
@@ -4077,6 +4409,50 @@ for i, r in enumerate([r_lmbda, r_lmbdap]):
         cpp=False,
         note="lmbda",
     )
+
+section("Zeros of Bessel functions", 3)
+for i in range(4):
+    add(
+        f"bessel_zeros.{i}",
+        "v k",
+        lambda v, k, i=i: _bessel_zero(i, v, k),
+        D(Int(0, 100), Int(1, ZEROS_N), n=1000),
+        note="zeros_n",
+    )
+for i in range(4):
+    add(
+        f"bessel_j_jprime_zeros.{i}",
+        "N k",
+        lambda nt, k, i=i: r_jnjnp(i, nt, k),
+        D(
+            sampler=lambda r: (nt := 100 * r.randint(1, 12), r.randint(1, nt)),
+            label="N in {100, 200, ..., 1200}, k in {1, ..., N}",
+            pretty=f"{nobreak('N', IN, f'{{100, 200, {ELLIPSIS}, 1200}}')}, "
+            + nobreak("k", IN, f"{{1, {ELLIPSIS}, N}}"),
+            n=1000,
+        ),
+        timeout=120,  # the first call per process finds all zeros
+        note="jnjnp",
+    )
+for kind, f in enumerate(["y0", "y1", "y1_prime"]):
+    for i in range(2):
+        add(
+            f"bessel_{f}_zeros.{i}",
+            "c k",
+            lambda c, k, i=i, kind=kind: _y_zero(i, kind, c, k),
+            *(
+                D(
+                    Int(c, c),
+                    Each(1, ZEROS_N),
+                    n=ZEROS_N,
+                    label=f"{label}, k in each of {{1, ..., {ZEROS_N}}}",
+                    pretty=f"{label}, {nobreak('k', IN, Int(1, ZEROS_N).pretty())}",
+                )
+                for c, label in enumerate(["real", "complex"])
+            ),
+            complex=True,
+            note="zeros_n y_zeros",
+        )
 
 section("Faster versions of common Bessel functions", 3)
 for f, r in [("j0", r_j0), ("j1", r_j1), ("y0", r_y0), ("y1", r_y1)]:
@@ -5091,6 +5467,17 @@ for i, f in enumerate(["plus.0", "plus.1", "minus.0", "minus.1"]):
         complex=True,
     )
 
+add("erf_zeros", "k", _erf_zero, each_k(), complex=True, note="zeros_n")
+for i in range(2):
+    add(
+        f"fresnel_zeros.{i}",
+        "k",
+        lambda k, i=i: _fresnel_zero(i, k),
+        each_k(),
+        complex=True,
+        note="zeros_k",
+    )
+
 section("Legendre functions")
 
 
@@ -5290,6 +5677,50 @@ add(
     ),
     note="zeros_c",
 )
+
+NK100 = Int(1, 100)
+GG = D(
+    sampler=lambda r: (
+        n := r.randint(1, 100),
+        r.randint(1, n),
+        (q := r.uniform(0.5, 10)) + r.uniform(-1, 10),
+        q,
+    ),
+    label="n in {1, ..., 100}, k in {1, ..., n}, p - q in [-1, 10], q in [0.5, 10]",
+    pretty=f"{nobreak('n', IN, NK100.pretty())}, "
+    + f"{nobreak('k', IN, f'{{1, {ELLIPSIS}, n}}')}, "
+    + f"{nobreak(f'p {MINUS} q', IN, U(-1, 10).pretty())}, "
+    + nobreak("q", IN, U(0.5, 10).pretty()),
+    n=1000,
+)
+AB = {"alpha": U(-1, 10), "beta": U(-1, 10)}
+for f, args, dom in [
+    ("jacobi", "alpha beta", nk_domain(NK100, AB)),
+    ("sh_jacobi", "alpha beta", nk_domain(NK100, AB)),
+    ("gengegenbauer", "p q", GG),
+    ("legendre", "", nk_domain(ILU(1, 1000), {})),
+    ("sh_legendre", "", nk_domain(ILU(1, 1000), {})),
+    *(
+        (f"{s}chebyshev_{t}", "", nk_domain(ILU(1, 1000), {}, 2000))
+        for s in ["", "sh_"]
+        for t in ["t", "u", "c", "s"]
+        if not (s and t in "cs")
+    ),
+    ("gegenbauer", "alpha", nk_domain(NK100, {"alpha": U(-0.5, 10)})),
+    ("genlaguerre", "alpha", nk_domain(NK100, {"alpha": U(-1, 10)})),
+    ("laguerre", "", nk_domain(ILU(1, 1000), {})),
+    ("hermite_h", "", nk_domain(ILU(1, 1000), {})),
+    ("hermite_he", "", nk_domain(ILU(1, 1000), {})),
+]:
+    for i in range(2):
+        add(
+            f"roots_{f}.{i}",
+            f"n k {args}".strip(),
+            lambda *a, f=f, i=i: r_gauss(f, i, *a),
+            dom,
+            cpp=False,
+            note="gauss",
+        )
 
 section("Hypergeometric functions")
 add("hyp0f0", "z", r_hyp0f0, D(U(-700, 700)), cpp=False)
@@ -5658,6 +6089,15 @@ for i, f in enumerate(["ber", "bei", "ker", "kei", "berp", "beip", "kerp", "keip
         note="kelvin",
     )
 
+for i, f in enumerate(["ber", "bei", "ker", "kei", "berp", "beip", "kerp", "keip"]):
+    add(
+        f"{f}_zeros",
+        "k",
+        lambda k, i=i: _kelvin_zero(i, k),
+        each_k(200),
+        note="zeros_k",
+    )
+
 section("Combinatorics")
 add("perm", "n k", r_ff, D(U(0, 100), Int(0, 30)), cpp=False)
 add(
@@ -5765,6 +6205,8 @@ add("shichi.1", "x", r_chi, D(U(-30, 30)), D(LU(1e-300, 1e3, 0)), note="zeros_c"
 add("spence", "x", r_spence, D(U(0, 2)), D(LU(1e-300, 1e300)))
 add("softplus", "x", r_softplus, D(U(-20, 20)), D(LU(1e-300, 1e300, 0)), cpp=False)
 add("log1mexp", "x", r_log1mexp, D(U(-20, 0)), D(LU(1e-300, 1e300, -1)))
+for f, r in [("bernoulli", r_bernoulli), ("euler", r_euler)]:
+    add(f, "n", r, each_k(ZEROS_N - 1, 0), note="numbers")
 
 section("Convenience functions")
 add("cbrt", "x", r_cbrt, D(LU(1e-300, 1e300, 0)), std=True)
@@ -6123,6 +6565,26 @@ NOTES |= {
         r"For $`s < k`$: $`A = \max\lvert E^p_n\rvert`$ over 129 points of $`[0, h]`$ or "
         r"$`[h, k]`$, whichever has $`s`$."
     ),
+    "zeros_n": (
+        r"Element $`k`$ of the outputs for `N = 500` (counting from 1): the zero $`k`$, or the "
+        "value there."
+    ),
+    "zeros_k": r"The last element: zero $`k`$ of the first $`k`$ (`nt = k`).",
+    "jnjnp": (
+        r"Element $`k`$ of the outputs for `N` zeros: the zero $`x_k`$, its order $`n_k`$, its "
+        r"serial number $`m_k`$, and whether it is a zero of $`J_{n_k}'`$ (1) or $`J_{n_k}`$ (0). "
+        r"The zeros of $`J_1`$ and $`J_0' = -J_1`$ come in either order, by rounding; they are "
+        r"compared as if $`J_1`$ is first."
+    ),
+    "y_zeros": (
+        r"The real zeros (`complex = false`), or the complex ones with "
+        r"$`\mathrm{Im}\, z > 0`$ (`complex = true`)."
+    ),
+    "gauss": (
+        r"Node (`.0`) or weight (`.1`) $`k`$ of the $`n`$-point rule, with the nodes in ascending "
+        "order."
+    ),
+    "numbers": r"Element $`n`$ of the output for `N = 500` (counting from 0).",
     "poly": (
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
@@ -6172,14 +6634,13 @@ NOTES |= {
 NOT_COVERED = """\
 ## Not covered
 
-- Zeros and coefficients: `*_zeros`, `bernoulli`, `euler`
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
 - Complex input: `sph_bessel_*`, `elliprc`, `elliprd`, `elliprf`, `elliprg`, `elliprj`, `sici`,
   `shichi`, `spence`, `wrightomega`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta`
   (NaN for non-real `z`, unless `q = 1`)
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
-  `extended_*_error` metrics, and `kelvin` (its parts are above)
+  `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
 """
 
 BY_NAME: Final = {s.name: s for s in SPECS}

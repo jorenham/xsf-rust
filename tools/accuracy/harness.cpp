@@ -208,6 +208,82 @@ static double segv_seq(int m, int n, double c, int kd) {
     return eg[n - m];
 }
 
+// the number of zeros or numbers of the functions with a const `N` in xsf-rust; must match
+// src/main.rs
+constexpr int ZEROS_N = 500;
+
+// output I at zero `k` (from 1) of xsf::airyzo for Ai (kf = 1) or Bi (kf = 2)
+template <int I> double airyzo(int kf, int k) {
+    std::vector<double> o(4 * ZEROS_N, NAN);
+    double *p = o.data();
+    xsf::airyzo(ZEROS_N, kf, p, p + ZEROS_N, p + 2 * ZEROS_N, p + 3 * ZEROS_N);
+    return o[I * ZEROS_N + k - 1];
+}
+
+// output I at zero `k` (from 1) of xsf::specfun::jyzo for the order `v`
+template <int I> double jyzo(int v, int k) {
+    std::vector<double> o(4 * ZEROS_N, NAN);
+    double *p = o.data();
+    xsf::specfun::jyzo(v, ZEROS_N, p, p + ZEROS_N, p + 2 * ZEROS_N, p + 3 * ZEROS_N);
+    return o[I * ZEROS_N + k - 1];
+}
+
+// output I (x, n, m, or p) of zero `k` (from 1) of xsf::specfun::jdzo for `nt` zeros, with the
+// array sizes of SciPy
+template <int I> double jdzo(int nt, int k) {
+    std::vector<double> zo(1401);
+    std::vector<int> n(1400), m(1400), p(1400);
+    xsf::specfun::jdzo(nt, zo.data(), n.data(), m.data(), p.data());
+    // J_0' = -J_1, so their shared zeros come in either order (by rounding); as in the
+    // reference, the zero of J_1 is first
+    auto tie = [&](int a, int b) {
+        return b < nt && n[a] == 0 && p[a] == 1 && n[b] == 1 && p[b] == 0 && m[a] == m[b];
+    };
+    int j = k - 1, nj = n[j], pj = p[j];
+    if (tie(j, j + 1)) {
+        nj = 1, pj = 0;
+    } else if (j > 0 && tie(j - 1, j)) {
+        nj = 0, pj = 1;
+    }
+    const double o[] = {zo[k], double(nj), double(m[j]), double(pj)};
+    return o[I];
+}
+
+// zero `k` (from 1) of the first `k` zeros of the Kelvin function `kd` (1 to 8)
+static double klvnzo(int kd, int k) {
+    std::vector<double> o(k, NAN);
+    xsf::klvnzo(k, kd, o.data());
+    return o[k - 1];
+}
+
+// output I at zero `k` (from 1) of xsf::specfun::cyzo, for the complex (`c` = 1) or real zeros
+template <int I> cd cyzo(int kf, int c, int k) {
+    std::vector<cd> o(2 * ZEROS_N);
+    xsf::specfun::cyzo(ZEROS_N, kf, c ? 0 : 1, o.data(), o.data() + ZEROS_N);
+    return o[I * ZEROS_N + k - 1];
+}
+
+// zero `k` (from 1) of xsf::specfun::cerzo
+static cd cerzo(int k) {
+    std::vector<cd> o(ZEROS_N);
+    xsf::specfun::cerzo(ZEROS_N, o.data());
+    return o[k - 1];
+}
+
+// zero `k` (from 1) of the first `k` zeros of C (kf = 1) or S (kf = 2) of xsf::fcszo
+static cd fcszo(int kf, int k) {
+    std::vector<cd> o(k);
+    xsf::fcszo(kf, k, o.data());
+    return o[k - 1];
+}
+
+// number `n` (from 0) of `f(ZEROS_N - 1, numbers)`, i.e. xsf::specfun::bernob or eulerb
+template <typename F> double numbers(F f, int n) {
+    std::vector<double> o(ZEROS_N, 0.0);
+    f(ZEROS_N - 1, o.data());
+    return o[n];
+}
+
 // Be, Ke, Be', or Ke' (index 0 to 3) of xsf::kelvin
 static cd kelvin(double x, int index) {
     cd o[4];
@@ -627,6 +703,42 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F2("wilcoxon_pmf", wilcoxon_all<0>(i(x), [&](auto t) { return xsf::wilcoxon_pmf(y, t); }))
     F2("wilcoxon_cdf", wilcoxon_all<1>(i(x), [&](auto t) { return xsf::wilcoxon_cdf(y, t); }))
     F2("wilcoxon_sf", wilcoxon_all<1>(i(x), [&](auto t) { return xsf::wilcoxon_sf(y, t); }))
+    // zeros and numbers: element `k` (from 1), or `n` (from 0)
+    F1("airy_ai_zeros.0", airyzo<0>(1, i(x)))
+    F1("airy_ai_zeros.1", airyzo<1>(1, i(x)))
+    F1("airy_ai_zeros.2", airyzo<2>(1, i(x)))
+    F1("airy_ai_zeros.3", airyzo<3>(1, i(x)))
+    F1("airy_bi_zeros.0", airyzo<0>(2, i(x)))
+    F1("airy_bi_zeros.1", airyzo<1>(2, i(x)))
+    F1("airy_bi_zeros.2", airyzo<2>(2, i(x)))
+    F1("airy_bi_zeros.3", airyzo<3>(2, i(x)))
+    F2("bessel_zeros.0", jyzo<0>(i(x), i(y)))
+    F2("bessel_zeros.1", jyzo<1>(i(x), i(y)))
+    F2("bessel_zeros.2", jyzo<2>(i(x), i(y)))
+    F2("bessel_zeros.3", jyzo<3>(i(x), i(y)))
+    F2("bessel_j_jprime_zeros.0", jdzo<0>(i(x), i(y)))
+    F2("bessel_j_jprime_zeros.1", jdzo<1>(i(x), i(y)))
+    F2("bessel_j_jprime_zeros.2", jdzo<2>(i(x), i(y)))
+    F2("bessel_j_jprime_zeros.3", jdzo<3>(i(x), i(y)))
+    F1("ber_zeros", klvnzo(1, i(x)))
+    F1("bei_zeros", klvnzo(2, i(x)))
+    F1("ker_zeros", klvnzo(3, i(x)))
+    F1("kei_zeros", klvnzo(4, i(x)))
+    F1("berp_zeros", klvnzo(5, i(x)))
+    F1("beip_zeros", klvnzo(6, i(x)))
+    F1("kerp_zeros", klvnzo(7, i(x)))
+    F1("keip_zeros", klvnzo(8, i(x)))
+    F1("bernoulli", numbers(xsf::specfun::bernob, i(x)))
+    F1("euler", numbers(xsf::specfun::eulerb, i(x)))
+    C("bessel_y0_zeros.0", 2, cyzo<0>(0, i(a[0]), i(a[1])))
+    C("bessel_y0_zeros.1", 2, cyzo<1>(0, i(a[0]), i(a[1])))
+    C("bessel_y1_zeros.0", 2, cyzo<0>(1, i(a[0]), i(a[1])))
+    C("bessel_y1_zeros.1", 2, cyzo<1>(1, i(a[0]), i(a[1])))
+    C("bessel_y1_prime_zeros.0", 2, cyzo<0>(2, i(a[0]), i(a[1])))
+    C("bessel_y1_prime_zeros.1", 2, cyzo<1>(2, i(a[0]), i(a[1])))
+    C("erf_zeros", 1, cerzo(i(a[0])))
+    C("fresnel_zeros.0", 1, fcszo(2, i(a[0])))
+    C("fresnel_zeros.1", 1, fcszo(1, i(a[0])))
     // complex functions
     C("gamma", 2, xsf::gamma(cd(a[0], a[1])))
     C("loggamma", 2, xsf::loggamma(cd(a[0], a[1])))
