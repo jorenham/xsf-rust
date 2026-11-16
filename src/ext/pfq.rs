@@ -18,8 +18,9 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi};
 
 mod conformal;
-#[allow(dead_code)]
 mod residue;
+
+use residue::Residues;
 
 /// Maximum number of terms of `pfq_series`
 const PFQ_MAXITER: u32 = 10_000;
@@ -942,16 +943,56 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
+/// The term of `pfq_alg` of the class of `a_m`, the `a_i` that differ from `a_m` by integers,
+/// for `z < 0`
+///
+/// The terms of these `a_i` are infinite, unlike the limit of their sum, which is the sum of
+/// the `Residues` at the poles that they share. It is the `term` of the first of the smallest
+/// of them, with the residue `(-1)^k / k!` of the Gamma function in place of each `Gamma(-k)`
+/// of its factor. The `term` stays `None` for the other `a_i`, and if the class has no residues.
+fn pfq_class_term(a: &[f64], b: &[f64], m: usize, z: f64, term: &mut Option<Scaled>) -> Option<()> {
+    let (am, lower) = (a[m], &b[..b.len() - 1]);
+    let others = skip(&a, m).map(Dd::new);
+    let diffs = others.clone().map(|ai| ai - am);
+    let before = |(d, i): (Dd, usize)| d.is_integer() && (d.hi < 0.0 || d.hi == 0.0 && i < m);
+    if diffs.clone().zip(0..).any(before) {
+        return Some(());
+    }
+    let residues = Residues::of_class(a, lower, m, z);
+    let [up, low] = residues.params().map(descending);
+    // (their order is final after the last zero factor, and their bounds are valid once all
+    // parameters plus n exceed 1)
+    let settled = pfq_settled(&up, &low).floor() + 2.0;
+    let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n) * Residues::growth_bound(&up, &low, n);
+    let (sum, err) = pfq_alg_sum(residues, settled, b.len() - a.len(), z, bound);
+    if (sum, err) != (0.0, 0.0) {
+        let bs = lower.iter().copied().map(Dd::new);
+        let args = bs.clone().map(|bj| bj - am);
+        let poles = args.clone().filter(is_pole);
+        let sign = neg_one_pow(poles.clone().filter(|g| g.hi % 2.0 != 0.0).count());
+        // (Gamma(a_i - a_m) has the residue 1 for a_i = a_m)
+        let num = bs
+            .chain(diffs.filter(|d| d.hi != 0.0))
+            .chain(poles.map(|g| -g + 1.0));
+        let den = others.chain(args.filter(|g| !is_pole(g)));
+        let l = -ln_dd(Dd::new(-z)) * am;
+        *term = Some(gamma_series(num, den, (sign * sum, err), l)?);
+    }
+    Some(())
+}
+
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
-/// 16.11.2), with `|z|` instead of `-z`, or `None` if two `a_i` differ by an integer
+/// 16.11.2), with `|z|` instead of `-z`, or `None` if two `a_i` differ by an integer and `z > 0`
 ///
 /// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
 /// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
 /// `1 + a_m - b_j`, and `1 + a_m - a_i`. It stays `None` if it vanishes, where
-/// `1 / Gamma(b_j - a_m)` does.
+/// `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term, by
+/// `pfq_class_term`.
 ///
 /// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
+/// It is `None` if two `a_i` differ by an integer.
 fn pfq_alg<A: Params, B: Params>(
     a: &A,
     b: &B,
@@ -966,7 +1007,12 @@ fn pfq_alg<A: Params, B: Params>(
         let others = skip(a, m).map(Dd::new);
         let diffs = others.clone().map(|ai| ai - am);
         if diffs.clone().any(Dd::is_integer) {
-            return None;
+            // (for z > 0, the residues are complex, and they have no sizes)
+            if z > 0.0 || sizes {
+                return None;
+            }
+            pfq_class_term(a.as_ref(), b.as_ref(), m, z, &mut terms[m])?;
+            continue;
         }
         let num = bs.clone().chain(diffs);
         let den = others.chain(bs.clone().map(|bj| bj - am));
@@ -1055,7 +1101,6 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///
 /// - for some $z < 0$, e.g. $-50 < z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$, and wider for
 ///   larger parameters;
-/// - for $z < 0$ beyond that if $a_1 - a_2$ is an integer (unless one of them cancels);
 /// - for some large parameters, also for $z > 0$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
@@ -1503,7 +1548,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// - for $p > q + 1$, unless it is a polynomial;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], for the other $p < q$ as for [`hyp1f2`], and for the
-///   other $p \le q$ for large $\abs z$ if two $a_i$ differ by an integer;
+///   other $p \le q$ for large $z > 0$ if two $a_i$ differ by an integer;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
