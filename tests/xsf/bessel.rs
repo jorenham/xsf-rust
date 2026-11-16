@@ -1267,6 +1267,34 @@ fn test_jahnke_emden_lambda_negative_x() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_large_x() {
+    // Arb; NaN in xsf from about x = 4476, as the backward recurrences overflow
+    for (v, x, k, expected) in [
+        (
+            2.0,
+            5000.0,
+            2,
+            [2.126_507_932_532_124_6e-9, -2.919_271_034_712_797e-9],
+        ),
+        (
+            2.0,
+            9215.6,
+            2,
+            [6.780_524_556_275_264e-10, -3.916_157_000_109_374e-10],
+        ),
+        (
+            5000.5,
+            5000.0,
+            2,
+            [1.185_448_223_000_514_9e-10, -1.870_246_475_852_011e-11],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[k], dl[k]], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {

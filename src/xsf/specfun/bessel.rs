@@ -5,7 +5,7 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
-use super::{SPECFUN_INF, deflated_newton_step};
+use super::{SPECFUN_BIG, SPECFUN_INF, deflated_newton_step};
 use crate::utils::neg_one_pow;
 use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_y_c64};
 use crate::xsf::c64::{C64, c64};
@@ -969,6 +969,14 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
         if k % 2 == 0 {
             bs += 2.0 * f;
         }
+        // Unlike in xsf, this rescales (by powers of 2), since it overflows from about `x = 4476`,
+        // where `msta1` and `msta2` overestimate the start
+        if f.abs() > SPECFUN_BIG {
+            (f, f1, bs) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG, bs / SPECFUN_BIG);
+            for b in bl[..=*nm as usize].iter_mut().skip(k as usize) {
+                *b /= SPECFUN_BIG;
+            }
+        }
         f0 = f1;
         f1 = f;
     }
@@ -1187,6 +1195,13 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
             f = 2.0 * (v0 + f64::from(k) + 1.0) / x * f1 - f2;
             if k <= n {
                 vl[k as usize] = f;
+            }
+            // Unlike in xsf, this rescales like `lamn` does
+            if f.abs() > SPECFUN_BIG {
+                (f, f1) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG);
+                for y in vl[..=n as usize].iter_mut().skip(k as usize) {
+                    *y /= SPECFUN_BIG;
+                }
             }
             f2 = f1;
             f1 = f;
