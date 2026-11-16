@@ -17,7 +17,7 @@
 //! order. So `u` follows from the one for `n = 0`, which is the exponential of the Taylor series
 //! of the logarithms of the Gamma functions.
 
-use core::iter::{once, repeat};
+use core::iter::{once, repeat, zip};
 
 use super::Dd;
 use crate::utils::neg_one_pow;
@@ -80,7 +80,8 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
 /// The residues of the class of `a_m` at `s = -a_m - n` for `n = 0, 1, ...`, without the factor
 /// of the one at `n = 0` if that were a simple pole
 ///
-/// They end before a `t_n` that is not normal.
+/// Each comes with a bound on its size: `|t_n|` times the largest of the bounds on the
+/// coefficients of `u` up to its own. They end before a `t_n` that is not normal.
 pub(super) struct Residues {
     /// The parameters `x` of the factors `x + n - eps` of the numerator and of the denominator
     /// of the ratio of two integrands, in double-double as `x + n` is exact where it vanishes
@@ -149,6 +150,50 @@ impl Residues {
     /// The parameters `up` and `low` as `f64`
     pub(super) fn params(&self) -> [Vec<f64>; 2] {
         [&self.up, &self.low].map(|v| v.iter().copied().map(f64::from).collect())
+    }
+
+    /// Bound on the ratio of the bounds on two successive residues from term `n` on, relative
+    /// to that on the ratio of their `t_n`, for the parameters `up` and `low` as `f64`, which
+    /// plus `n` must exceed 1
+    ///
+    /// It is the product of the sums of the sizes of the coefficients of `1 - eps / (x + n)`
+    /// and of `1 / (1 - eps / (x + n))`.
+    pub(super) fn growth_bound(up: &[f64], low: &[f64], n: f64) -> f64 {
+        let up = up.iter().map(|x| 1.0 + 1.0 / (x + n));
+        let low = low.iter().map(|x| (x + n) / (x + n - 1.0));
+        up.chain(low).product()
+    }
+}
+
+impl Iterator for Residues {
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<(f64, f64)> {
+        if !self.term.is_normal() {
+            return None;
+        }
+        // (there is no residue for an order below 1)
+        let k = usize::try_from(self.order).unwrap_or(0);
+        let weight = k.checked_sub(1).map_or(0.0, |i| self.u[0][i]);
+        let size = self.u[1][..k].iter().copied().fold(0.0, f64::max);
+        let item = (self.term * weight, self.term.abs() * size);
+        let factors = zip(&self.up, repeat(1)).chain(zip(&self.low, repeat(-1)));
+        for (&x, power) in factors {
+            let c = f64::from(x + self.n);
+            if c == 0.0 {
+                (self.term, self.order) = (-self.term, self.order - power);
+            } else {
+                self.term = if power > 0 {
+                    self.term * c
+                } else {
+                    self.term / c
+                };
+                mul_linear_sized(&mut self.u, -1.0 / c, power);
+            }
+        }
+        self.term *= self.w;
+        self.n += 1.0;
+        Some(item)
     }
 }
 
@@ -250,5 +295,21 @@ mod tests {
         let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, -40.0);
         assert_eq!(residues.order, 3);
         assert!(close(residues.u[0][2], l * l / 2.0 + zeta_2));
+    }
+
+    #[test]
+    fn test_residues() {
+        // no other a_i differs from a_m by an integer: the term of a_1 = 1 of
+        // 2F1(1, 1.5; 2; z), a series with the parameters 1 and 0 over 0.5
+        let mut residues = Residues::of_class(&[1.0, 1.5], &[2.0], 0, -3.0);
+        assert_eq!(residues.next(), Some((1.0, 1.0)));
+        assert_eq!(residues.next(), Some((0.0, 0.0)));
+        // 2F1(1, 1; 2; z): ln(-z), and the terms of ln(1 - 1 / z) from the simple poles after
+        // the zero factor of b_1
+        let mut residues = Residues::of_class(&[1.0; 2], &[2.0], 0, -3.0);
+        for expected in [3.0_f64.ln(), 1.0 / 3.0, -1.0 / 18.0] {
+            let (t, size) = residues.next().unwrap();
+            assert!(close(t, expected) && size >= t.abs(), "{t} {size}");
+        }
     }
 }
