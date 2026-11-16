@@ -1258,7 +1258,10 @@ fn test_jahnke_emden_lambda_high_orders() {
 #[test]
 fn test_jahnke_emden_lambda_near_zero() {
     // Arb; the highest orders are close to a zero of `J_v(x)`, which the recurrence rounds to 0
-    for (v, x, expected) in [(370.5, 383.972_410_969_705_27, -7.648_634_385_955_928e-56)] {
+    for (v, x, expected) in [
+        (370.5, 383.972_410_969_705_27, -7.648_634_385_955_928e-56),
+        (10.0, 18.433_463_666_966_58, 1.398_808_575_581_345_8e-4),
+    ] {
         let (_, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([dl[dl.len() - 1]], [expected], rtol = 1e-14);
     }
@@ -1267,8 +1270,10 @@ fn test_jahnke_emden_lambda_near_zero() {
 #[test]
 fn test_jahnke_emden_lambda_subnormal() {
     // Arb; the derivatives are larger than the subnormal `Lambda_{v+1}(x)` they are formed from
-    let (_, dl) = xsf::jahnke_emden_lambda(42.5, 1e9);
-    assert_eq!(dl[42], -4e-323);
+    for (v, x, expected) in [(42.5, 1e9, -4e-323), (169.0, 1e4, -1.5e-323)] {
+        let (_, dl) = xsf::jahnke_emden_lambda(v, x);
+        assert_eq!(dl[dl.len() - 1], expected, "v = {v}, x = {x}");
+    }
 }
 
 #[test]
@@ -1346,6 +1351,12 @@ fn test_jahnke_emden_lambda_large_v_and_x() {
             4421.5,
             3132.18,
             [4.873_607_538_273_819e-260, -2.023_149_554_161_378_5e-260],
+        ),
+        // above `msta1(x, 200)`, where the power series cancels
+        (
+            5016.0,
+            3363.0,
+            [7.165_465_027_825_305e-262, -2.757_026_551_415_938_5e-262],
         ),
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, x);

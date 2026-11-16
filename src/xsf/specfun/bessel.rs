@@ -932,32 +932,28 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     //          point for backward recurrence
     // =========================================================
 
-    // NOTE: bl[0..=n] and dl[0..=n] can be written, and also bl[1] / dl[1] (for |x| > 12, where *nm
-    // is 1 if n == 0), which is out of bounds for n == 0 with buffers of length n + 1. The caller
-    // (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
+    // NOTE: bl[0..=n] and dl[0..=n] can be written, and for |x| > 12 also bl[nm + 1] / dl[nm + 1]
+    // (unlike in xsf), where *nm is 1 if n == 0, which is out of bounds for n == 0 with buffers of
+    // length n + 2. The caller (jahnke_emden_lambda) passes n >= 1, so that's in bounds.
     *nm = n;
     if x.abs() <= 12.0 {
         let x2 = x * x;
         for k in 0..=n {
-            let bk = lamn_series(f64::from(k), x2).0;
+            let bk = lamn_series(f64::from(k), x2);
             bl[k as usize] = bk;
             if k >= 1 {
                 dl[(k - 1) as usize] = -0.5 * x / f64::from(k) * bk;
             }
         }
-        let uk = lamn_series(f64::from(n) + 1.0, x2).0;
+        let uk = lamn_series(f64::from(n) + 1.0, x2);
         dl[n as usize] = -0.5 * x / (f64::from(n) + 1.0) * uk;
         return;
     }
     if n == 0 {
         *nm = 1;
     }
-    let mut m = msta1(x, 200);
-    if m < *nm {
-        *nm = m;
-    } else {
-        m = msta2(x, *nm, 15);
-    }
+    // Unlike in xsf, this does not stop at order `msta1(x, 200)`, like `lamv`
+    let m = msta2(x, *nm, 15);
     let mut bs = 0.0;
     let mut f = 0.0;
     let mut f0 = 0.0;
@@ -966,7 +962,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     let mut scales = 0;
     for k in (0..=m).rev() {
         f = 2.0 * (f64::from(k) + 1.0) * f1 / x - f0;
-        if k <= *nm {
+        if k <= *nm + 1 {
             (bl[k as usize], dl[k as usize]) = (f, f64::from(scales));
         }
         if k % 2 == 0 {
@@ -982,49 +978,27 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
         f1 = f;
     }
     let bg = bs - f;
-    for k in 0..=*nm {
+    for k in 0..=*nm + 1 {
         bl[k as usize] /= bg;
     }
-    lam_scale_j(0.0, x, 1.0, scales, &mut bl[..=*nm as usize], dl);
-    dl[0] = -0.5 * x * bl[1];
-    for k in 1..=*nm {
-        dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
-    }
-    // Unlike in xsf, the orders above `nm` are not left unset, but summed like for `|x| <= 12`
-    // where the error estimate of that sum is small enough
-    if *nm < n {
-        let series = |k: f64| match lamn_series(k, x * x) {
-            (bk, err) if bk.is_finite() && err <= LAMN_SERIES_RTOL * bk.abs() => bk,
-            _ => f64::NAN,
-        };
-        for k in *nm + 1..=n {
-            bl[k as usize] = series(f64::from(k));
-        }
-        for k in *nm + 1..n {
-            dl[k as usize] = -0.5 * x / f64::from(k + 1) * bl[(k + 1) as usize];
-        }
-        let n1 = f64::from(n) + 1.0;
-        dl[n as usize] = -0.5 * x / n1 * series(n1);
-    }
+    // Unlike in xsf, the derivatives are `Lambda_k'(x) = -x / (2 (k + 1)) Lambda_{k+1}(x)` like in
+    // `lamv`, since `2 k / x (Lambda_{k-1}(x) - Lambda_k(x))` cancels for `k >> x^2`
+    lam_scale_j(0.0, x, 1.0, scales, &mut bl[..=(*nm + 1) as usize], dl);
 }
 
-/// The largest error estimate relative to the sum for which `lamn` uses `lamn_series` above `nm`
-const LAMN_SERIES_RTOL: f64 = 1e-13;
-
 /// The power series of `Lambda_k(x)` in `x2 = x^2` (DLMF 10.2.2), summed to a relative 1e-15
-/// or 50 terms, and an estimate of its rounding and truncation errors
-fn lamn_series(k: f64, x2: f64) -> (f64, f64) {
-    let (mut bk, mut r, mut abs_sum) = (1.0, 1.0, 1.0);
+/// or 50 terms
+fn lamn_series(k: f64, x2: f64) -> f64 {
+    let (mut bk, mut r) = (1.0, 1.0);
     for i in 1..=50 {
         r = -0.25 * r * x2 / (f64::from(i) * (f64::from(i) + k));
         bk += r;
-        abs_sum += r.abs();
 
         if r.abs() < bk.abs() * 1.0e-15 {
-            return (bk, abs_sum * f64::EPSILON);
+            break;
         }
     }
-    (bk, abs_sum * f64::EPSILON + r.abs())
+    bk
 }
 
 /// `Lambda_{v0 + k}(x) = fac (2/x)^k (v0 + 1)_k J_{v0 + k}(x)` in `vl[k]`, and
