@@ -143,6 +143,6 @@ pub(crate) use airy::airy_ai_zeros_vec;
 pub(crate) use cdflib::find_positive_root;
 pub(crate) use hyp2f1::Hyp2F1Arg;
 pub(crate) use loggamma::zlog1_c64;
-pub(crate) use specfun::Hyp1F1Arg;
+pub(crate) use specfun::{Hyp1F1Arg, xsf_hypu_digits};
 pub(crate) use stirling2::stirling2 as stirling2_float;
 pub(crate) use tools::{Real, bracket_root_for_cdf_inversion, find_root_chandrupatla};

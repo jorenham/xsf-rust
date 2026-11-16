@@ -222,18 +222,24 @@ pub fn hyp1f1<T: Hyp1F1Arg>(a: f64, b: f64, z: T) -> T {
 
 /// `xsf::hypu`
 fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
+    xsf_hypu_digits(a, b, x).0
+}
+
+/// `xsf_hypu` with the number of digits that `chgu` estimates
+pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32) {
     let mut out;
     let mut md = 0; /* method code --- not returned */
     let mut isfer = 0;
+    let mut digits = 0;
 
-    out = chgu(x, a, b, &mut md, &mut isfer);
+    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits);
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
     if isfer != 0 {
         out = f64::NAN;
     }
-    out
+    (out, digits)
 }
 
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$

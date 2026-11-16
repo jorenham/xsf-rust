@@ -1219,7 +1219,14 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 ///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|`, and kept if it has more.
 ///
 /// `ID_MIN` and the factor 10 are empirical.
-pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32) -> f64 {
+pub(crate) fn chgu(
+    x: f64,
+    mut a: f64,
+    mut b: f64,
+    md: &mut i32,
+    isfer: &mut i32,
+    digits: &mut i32,
+) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
     //          U(a,b,x)
@@ -1229,6 +1236,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     // Output:  HU --- U(a,b,x)
     //          MD --- Method code
     //          ISFER --- Error flag
+    //          DIGITS --- Estimated number of digits (unlike in xsf)
     // Routines called:
     //      (1) CHGUS for small x ( MD=1 )
     //      (2) CHGUL for large x ( MD=2 )
@@ -1269,6 +1277,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN && !chguit_preferred(a, b, x) {
+            *digits = id1;
             return hu;
         }
         hu1 = hu;
@@ -1281,6 +1290,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= ID_MIN {
+            *digits = id;
             return hu;
         }
         if id1 > id {
@@ -1352,6 +1362,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
         if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
+                *digits = id;
                 return hu;
             }
         }
@@ -1404,6 +1415,7 @@ pub(crate) fn chgu(x: f64, mut a: f64, mut b: f64, md: &mut i32, isfer: &mut i32
     if id < ID_ACCEPT {
         *isfer = 6;
     }
+    *digits = id;
     hu
 }
 

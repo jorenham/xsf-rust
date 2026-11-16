@@ -15,7 +15,7 @@ use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_sum,
 };
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
-use crate::xsf::{cospi, sinpi};
+use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
 
 mod conformal;
 mod residue;
@@ -1582,15 +1582,22 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
 ///   $_1F_0 = (1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
 ///
+/// For $p = 2$, $q = 0$ and $z \lt 0$, where the series diverges, it is its Borel sum
+/// $(-1/z)^{a_1} U(a_1, a_1 - a_2 + 1, -1/z)$ ([`hypu`](crate::hypu)) [^2], as in mpmath.
+///
 /// # Returns `None`
 ///
-/// - for $p > q + 1$, unless it is a polynomial;
+/// - for $p > q + 1$, unless it is a polynomial or $_2F_0$ with $z \lt 0$;
+/// - for $_2F_0$ where $U$ can't be computed accurately or $(-1/z)^{a_1}$ or $U$ isn't normal, and
+///   its series up to its smallest term isn't accurate either;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
 ///   table has a limit.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.6.E21>
 #[must_use]
 pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     if a.iter().chain(b).chain([&z]).any(|v| v.is_nan()) {
@@ -1635,6 +1642,35 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
         _ if z.is_infinite() => None,
+        // the Borel sum of the divergent series (DLMF 13.6.21), as in mpmath, if `chgu` estimates
+        // that U has the digits of PFQ_TOL; otherwise, or if a factor isn't normal (their product
+        // could be an over- times an underflow), the series up to its smallest term, as for tiny
+        // |z|
+        (&[a1, a2], &[]) if z < 0.0 => {
+            // the smaller |a_i| first, as x^a1 then overflows less often
+            let (a1, a2) = if a1.abs() <= a2.abs() {
+                (a1, a2)
+            } else {
+                (a2, a1)
+            };
+            let x = -1.0 / z;
+            let (p, (u, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
+            let terms = (0..).map(f64::from).scan(1.0, |t, n| {
+                let t_n = *t;
+                *t *= (a1 + n) * (a2 + n) * z / (n + 1.0);
+                Some(t_n)
+            });
+            let settled = (-a1).max(-a2).max(0.0).ceil();
+            // (with x capped, as sqrt(2 pi x) in the error estimate could overflow; it stays above
+            // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
+            // remainder)
+            let scale = x.min(f64::EPSILON.recip());
+            let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
+            let enough = f64::from(digits) >= -PFQ_TOL.log10();
+            (p.is_normal() && u.is_normal() && enough)
+                .then_some(p * u)
+                .or_else(series)
+        },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
         (&[a1, a2, a3], &[b1, b2]) => hyp3f2(a1, a2, a3, b1, b2, z),
