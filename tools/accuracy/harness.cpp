@@ -111,7 +111,7 @@ template <int I, typename F> double riccati(F f, int n, double x) {
 // the orders 0, ..., |m|, followed by -|m|, ..., -1
 template <typename T, typename F> T all_nm(F f, int n, int m) {
     const int cols = 2 * std::abs(m) + 1;
-    std::vector<T> o((n + 1) * cols, NAN);
+    std::vector<T> o(std::size_t(n + 1) * cols, NAN);
     f(mat<T>(o.data(), n + 1, cols));
     return o[n * cols + (m < 0 ? m + cols : m)];
 }
@@ -136,7 +136,7 @@ template <int I> double lqn(int n, double x) {
 // with the degrees 0, ..., n and orders 0, ..., m (at least 1, like in SciPy)
 template <int I> double lqmn(int n, int m, double x) {
     const int rows = std::max(m, 1) + 1, cols = std::max(n, 1) + 1;
-    std::vector<double> o(2 * rows * cols, NAN);
+    std::vector<double> o(std::size_t(2) * rows * cols, NAN);
     xsf::lqmn(x, mat<double>(o.data(), rows, cols), mat<double>(o.data() + rows * cols, rows, cols));
     return o[I * rows * cols + m * cols + n];
 }
