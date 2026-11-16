@@ -5,10 +5,11 @@
 
 use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI};
 
-use super::{SPECFUN_BIG, SPECFUN_INF, deflated_newton_step};
+use super::{SPECFUN_BIG, SPECFUN_BIG_LOG2, SPECFUN_INF, deflated_newton_step};
 use crate::utils::neg_one_pow;
 use crate::xsf::bessel::{cyl_bessel_j_c64, cyl_bessel_y_c64};
 use crate::xsf::c64::{C64, c64};
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64};
 
 fn gam0(x: f64) -> f64 {
     // ================================================
@@ -961,10 +962,12 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     let mut f = 0.0;
     let mut f0 = 0.0;
     let mut f1 = 1e-100;
+    // the rescalings so far, also kept in `dl` for each stored order
+    let mut scales = 0;
     for k in (0..=m).rev() {
         f = 2.0 * (f64::from(k) + 1.0) * f1 / x - f0;
         if k <= *nm {
-            bl[k as usize] = f;
+            (bl[k as usize], dl[k as usize]) = (f, f64::from(scales));
         }
         if k % 2 == 0 {
             bs += 2.0 * f;
@@ -973,9 +976,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
         // where `msta1` and `msta2` overestimate the start
         if f.abs() > SPECFUN_BIG {
             (f, f1, bs) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG, bs / SPECFUN_BIG);
-            for b in bl[..=*nm as usize].iter_mut().skip(k as usize) {
-                *b /= SPECFUN_BIG;
-            }
+            scales += 1;
         }
         f0 = f1;
         f1 = f;
@@ -984,11 +985,7 @@ pub(crate) fn lamn(n: i32, x: f64, nm: &mut i32, bl: &mut [f64], dl: &mut [f64])
     for k in 0..=*nm {
         bl[k as usize] /= bg;
     }
-    let mut r0 = 1.0;
-    for k in 1..=*nm {
-        r0 = 2.0 * r0 * f64::from(k) / x;
-        bl[k as usize] *= r0;
-    }
+    lam_scale_j(0.0, x, 1.0, scales, &mut bl[..=*nm as usize], dl);
     dl[0] = -0.5 * x * bl[1];
     for k in 1..=*nm {
         dl[k as usize] = 2.0 * f64::from(k) / x * (bl[(k - 1) as usize] - bl[k as usize]);
@@ -1028,6 +1025,22 @@ fn lamn_series(k: f64, x2: f64) -> (f64, f64) {
         }
     }
     (bk, abs_sum * f64::EPSILON + r.abs())
+}
+
+/// `Lambda_{v0 + k}(x) = fac (2/x)^k (v0 + 1)_k J_{v0 + k}(x)` in `vl[k]`, from
+/// `J_{v0 + k}(x) = vl[k] SPECFUN_BIG^(sk[k] - scales)`
+//
+// Unlike in xsf, the scale keeps its exponent apart, since it underflows around order `x / 2` for
+// `x >~ 1420`, and so does `J_{v0 + k}(x)` for large orders, while their product does not
+fn lam_scale_j(v0: f64, x: f64, fac: f64, scales: i32, vl: &mut [f64], sk: &[f64]) {
+    let (mut r0, mut e0) = (1.0, 0);
+    for (k, (y, &s)) in vl.iter_mut().zip(sk).enumerate() {
+        if k > 0 {
+            let (m, e) = frexp_f64(r0 * (2.0 * (k as f64 + v0) / x));
+            (r0, e0) = (m, e0 + e);
+        }
+        *y = ldexp_f64(*y * (fac * r0), e0 - (scales - s as i32) * SPECFUN_BIG_LOG2);
+    }
 }
 
 pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64]) {
@@ -1159,7 +1172,7 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
     dl[0] = -bjv1 + v0 / x * bjv0;
     vl[1] = bjv1;
     dl[1] = bjv0 - (1.0 + v0) / x * bjv1;
-    let mut r0 = 2.0 * (1.0 + v0) / x;
+    let r0 = 2.0 * (1.0 + v0) / x;
 
     if n <= 1 {
         vl[0] *= fac;
@@ -1169,6 +1182,9 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         return;
     }
 
+    // the rescalings of the backward recurrence, also kept in `dl` for each stored order
+    let mut scales = 0;
+    dl.fill(0.0);
     if n >= 2 && f64::from(n) <= 0.9 * x {
         let mut f0 = bjv0;
         let mut f1 = bjv1;
@@ -1194,14 +1210,12 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         for k in (0..=m).rev() {
             f = 2.0 * (v0 + f64::from(k) + 1.0) / x * f1 - f2;
             if k <= n {
-                vl[k as usize] = f;
+                (vl[k as usize], dl[k as usize]) = (f, f64::from(scales));
             }
             // Unlike in xsf, this rescales like `lamn` does
             if f.abs() > SPECFUN_BIG {
                 (f, f1) = (f / SPECFUN_BIG, f1 / SPECFUN_BIG);
-                for y in vl[..=n as usize].iter_mut().skip(k as usize) {
-                    *y /= SPECFUN_BIG;
-                }
+                scales += 1;
             }
             f2 = f1;
             f1 = f;
@@ -1218,11 +1232,9 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
         }
     }
 
-    vl[0] *= fac;
+    lam_scale_j(v0, x, fac, scales, &mut vl[..=n as usize], dl);
     for j in 1..=n {
-        vl[j as usize] *= fac * r0;
         dl[(j - 1) as usize] = -0.5 * x / (f64::from(j) + v0) * vl[j as usize];
-        r0 *= 2.0 * (f64::from(j) + v0 + 1.0) / x;
     }
 
     dl[n as usize] = 2.0 * (v0 + f64::from(n)) * (vl[(n - 1) as usize] - vl[n as usize]) / x;

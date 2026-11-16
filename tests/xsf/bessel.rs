@@ -1295,6 +1295,32 @@ fn test_jahnke_emden_lambda_large_x() {
 }
 
 #[test]
+fn test_jahnke_emden_lambda_large_v_and_x() {
+    // Arb; in xsf, the scale of `J_v(x)` underflows around order `x / 2`, and `J_v(x)` itself
+    // for `v > x`, which made these orders of magnitude off or 0
+    for (v, x, expected) in [
+        (
+            2542.59,
+            1764.81,
+            [2.365_382_472_695_595_7e-143, -9.539_856_558_966_074e-144],
+        ),
+        (
+            4485.0,
+            3156.13,
+            [5.456_508_530_235_721e-260, -2.244_000_327_982_604_5e-260],
+        ),
+        (
+            4421.5,
+            3132.18,
+            [4.873_607_538_273_819e-260, -2.023_149_554_161_378_5e-260],
+        ),
+    ] {
+        let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
+        np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-13);
+    }
+}
+
+#[test]
 fn test_jahnke_emden_lambda_nan() {
     // instead of out-of-bounds indexing in `lamn` and `lamv`
     for v in [2.0, 2.25] {
