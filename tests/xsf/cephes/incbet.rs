@@ -14,19 +14,17 @@ fn test_betainc_nontrivial() {
         (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
         // scipy/scipy#3761:
         (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
-        // scipy/scipy#4244 (NOTE: this results in a relative error of 5.134e-10)
-        // (
-        //     0.0002742794749792665,
-        //     289206.03125,
-        //     1.639984034231756e-56,
-        //     0.9688708782196045,
-        // ),
+        // scipy/scipy#4244:
+        (
+            0.000_274_279_474_979_266_5,
+            289_206.031_25,
+            1.639_984_034_231_756e-56,
+            0.968_870_878_219_604_5,
+        ),
         // scipy/scipy#12796:
         (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
     ] {
-        let p1 = xsf::betainc(a, b, x);
-        // NOTE: The original `rtol = 1e-15` is too strict for Cephes
-        xsref::np_assert_allclose!(&[p1], &[p], rtol = 1e-14);
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
 }
 
