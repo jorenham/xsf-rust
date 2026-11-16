@@ -31,9 +31,12 @@ const BETA_TINY: f64 = 1e-9;
 /// Unlike in xsf, `-b ln(a)` is `-b ln_a`, so that `ln_a = 0` gives `ln(a^b |B(a, b)|)` (see
 /// `ln_pow_beta`).
 fn lbeta_asymp(a: f64, b: f64, ln_a: f64) -> (f64, i32) {
-    let (mut r, sgn) = lgam_sgn(b);
-    r -= b * ln_a;
+    let (r, sgn) = lgam_sgn(b);
+    (r - b * ln_a + lbeta_asymp_corr(a, b), sgn)
+}
 
+/// The correction terms `ln(a^b |B(a, b)| / |Gamma(b)|)` of `lbeta_asymp`
+fn lbeta_asymp_corr(a: f64, b: f64) -> f64 {
     /*
      * Evaluate the correction terms through the small ratios b/a and (1-b)/a
      * instead of the products b*(1-b), b*b*(1-b)*(1-b) and a*a*a, which overflow
@@ -43,11 +46,7 @@ fn lbeta_asymp(a: f64, b: f64, ln_a: f64) -> (f64, i32) {
     let t = b / a;
     let u = (1.0 - b) / a;
 
-    r += t * (1.0 - b) / 2.0;
-    r += t * u * (1.0 - 2.0 * b) / 12.0;
-    r += -t * t * u * (1.0 - b) / 12.0;
-
-    (r, sgn)
+    t * (1.0 - b) / 2.0 + t * u * (1.0 - 2.0 * b) / 12.0 - t * t * u * (1.0 - b) / 12.0
 }
 
 /// `ln(|B(a, b)|)` and the sign of `B(a, b)` for `|b| < |a| / 8`, or `a > 0` and `b <= -a / 2`,
@@ -250,14 +249,21 @@ pub(crate) fn beta(mut a: f64, mut b: f64) -> f64 {
     if a.abs() < BETA_TINY {
         return (a + b) / a / b;
     }
-    if small_b(a, b) {
-        return gamma(b) * (-lgam_ratio(a, b)).exp();
-    }
-
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {
+        // Unlike in xsf, as `Gamma(b) a^-b exp(lbeta_asymp_corr)` if that is normal, as
+        // `exp(lbeta_asymp)` amplifies the rounding error of `b ln(a)` up to ~745 times. Here
+        // `a^-b` is squared from `a^(-b/2)`, which may be normal where `a^-b` is not.
+        let p = a.powf(-0.5 * b);
+        let r = gamma(b) * p * p * lbeta_asymp_corr(a, b).exp();
+        if r.is_normal() {
+            return r;
+        }
         /* Avoid loss of precision in lgam(a + b) - lgam(a) */
         (y, sign) = lbeta_asymp(a, b, a.ln());
         return f64::from(sign) * y.exp();
+    }
+    if small_b(a, b) {
+        return gamma(b) * (-lgam_ratio(a, b)).exp();
     }
 
     y = a + b;
