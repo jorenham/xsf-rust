@@ -37,8 +37,8 @@ pub(crate) fn cexp(z: C64) -> C64 {
 // precision.
 fn cexpm1(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
-        // NOTE(xsf-rust): `num_complex::Complex::exp` follows libc++'s special cases, which differ
-        // from glibc's `cexp` (used by libstdc++) only in the sign of the zero imaginary part of
+        // Unlike in xsf, `num_complex::Complex::exp` follows libc++, which differs from glibc's
+        // `cexp` (used by libstdc++) only in the sign of the zero imaginary part of
         // exp(-inf + i(+-inf | NaN)).
         return (Complex::from(z).exp() - 1.0).into();
     }
