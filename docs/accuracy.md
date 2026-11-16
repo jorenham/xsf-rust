@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`9b1ddf4`](https://github.com/scipy/xsf/tree/9b1ddf485a39fa2f9697a7a062dfc77c6ce0ff7e)), and
+it is translated from (commit [`85437bc`](https://github.com/scipy/xsf/tree/85437bc0338345a641ddea4e45f370edb102ecd5)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -585,7 +585,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>ndtri</code></td><td>p ∈ [10⁻³⁰⁰, 0.5] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>log_ndtr</code></td><td>x ∈ [−20, 6]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.0e-15</samp></b></td><td align="right" nowrap><b><samp>1.5e-16</samp></b></td><td align="right" nowrap><samp>6.7e-15</samp></td><td align="right" nowrap><samp>2.0e-16</samp></td><td align="right" nowrap>82.1%</td></tr>
 <tr><td><code>log_ndtr</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10¹⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>4.1e-16</samp></b></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>6.7e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>98.3%</td></tr>
-<tr><td><code>log_ndtr</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>9.7e-14</samp></b></td><td align="right" nowrap><b><samp>9.9e-16</samp></b></td><td align="right" nowrap>❗<samp>1.1e-06</samp></td><td align="right" nowrap><samp>1.9e-15</samp></td><td align="right" nowrap>65.6%</td></tr>
+<tr><td><code>log_ndtr</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>9.7e-14</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>9.7e-14</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap>94.1%</td></tr>
 <tr><td><code>ndtri_exp</code></td><td>y ∈ [−20, 0]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.8e-14</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>1.8e-14</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>ndtri_exp</code></td><td>y ∈ −⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>2.9e-14</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.9e-14</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>nrdtrimn</code><sup>*</sup></td><td>p ∈ [0, 1]<br>std ∈ [10⁻³, 1000] (log)<br>x ∈ [−10, 10]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.9e-13</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap><samp>4.9e-13</samp></td><td align="right" nowrap><samp>1.3e-16</samp></td><td align="right" nowrap>100%</td></tr>
