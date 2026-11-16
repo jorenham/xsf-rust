@@ -1536,11 +1536,12 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
 /// `chgus` loses over 3 digits to cancellation for `|b - 1|` below this (about `-log10|b - 1|`)
 const B_NEAR_1: f64 = 1e-3;
 
-/// `b` is nearer to 1 than to any other integer for `|b - 1|` below this
-const B_NEAREST_1: f64 = 0.5;
+/// `chguit` integrates over `ln(1 + t)` for `b` below this (and `x < 1`), where the integrand at
+/// `t` of order 1 isn't negligible (empirical; above it, it can overflow for tiny `x`)
+const LOG_MAP_B: f64 = 2.5;
 
 /// Whether `chgu` uses `chguit` at `(a, b)` even if `chgus` claims `ID_MIN` digits: for `b` near 1,
-/// within the region where `chguit` integrates over `ln(1 + t)` (`|b - 1| < B_NEAREST_1`, `x < 1`)
+/// within the region where `chguit` integrates over `ln(1 + t)` (`b < LOG_MAP_B`, `x < 1`)
 fn chguit_preferred(a: f64, b: f64, x: f64) -> bool {
     a >= 1.0 && (b - 1.0).abs() < B_NEAR_1 && x < 1.0
 }
@@ -1629,10 +1630,10 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // (DLMF 13.2.40), integrated over s = x t in log space, which can be finite where U or
     // x^(b-1) over- or underflows. The integrand peaks at s < b, so up to C = 12 + b.
     //
-    // Unlike in xsf, for b nearest 1 (where chgus cancels) and x < 1, up to C = 1/x and over
-    // ln(1 + t): the integrand is then ~ t^(b-2) up to t ~ 1/x, which uniform panels in t can't
-    // resolve for small x
-    let log_map = !kummer && (b - 1.0).abs() < B_NEAREST_1 && x < 1.0;
+    // Unlike in xsf, for b < LOG_MAP_B (e.g. near 0, 1 or 2, where chgus cancels) and x < 1, up
+    // to C = 1/x and over ln(1 + t): the integrand is then ~ t^(b-2) from t ~ 1 up to t ~ 1/x,
+    // which uniform panels in t can't resolve for small x
+    let log_map = !kummer && b < LOG_MAP_B && x < 1.0;
     let c = if kummer {
         12.0 + b
     } else if log_map {
@@ -1646,7 +1647,7 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
             // s^(a-1) (s + x)^(b-a-1) e^(-s) / Gamma(a)
             (a1 * t.ln() + b1 * (t + x).ln() - t - lg).exp()
         } else if log_map {
-            // without overflow, as (1 + t)^(b-2) ~ 1 / t
+            // without overflow of t^(a-1)
             (-x * t).exp() * (t / (1.0 + t)).powf(a1) * (1.0 + t).powf(b - 2.0)
         } else {
             (-x * t).exp() * t.powf(a1) * (1.0 + t).powf(b1)
