@@ -423,15 +423,16 @@ fn poly_up(n: f64, r: Dd, c: Dd, t: Dd) -> Option<Scaled> {
     recur_down(n - 1.0, y_1, y_0, coefs_a(n, r, c, t))
 }
 
-/// The polynomial forms of step 2 of `combs` with `p = -n`; `ln_1mx` is `ln(1 - x)`
-fn hyp2f1_poly(combs: Combinations, c: Dd, x: f64, w: Dd, ln_1mx: Dd) -> Option<Scaled> {
-    // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
+/// The polynomial forms of step 2 of `combs` with `p = -n`; `ln_1mx` is `ln(1 - x)`, and
+/// `(one_mz, ln_1mz)` is `1 - z` and its log
+fn hyp2f1_poly(
+    combs: Combinations,
+    c: Dd,
+    w: Dd,
+    ln_1mx: Dd,
+    (one_mz, ln_1mz): (Dd, Dd),
+) -> Option<Scaled> {
     let one = Dd::new(1.0);
-    let (one_mz, ln_1mz) = if x < 0.0 {
-        (one - x, ln_1mx)
-    } else {
-        (1.0 / (one - x), -ln_1mx)
-    };
     let is_poly = |p: Dd| p.is_integer() && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     combs
         .into_iter()
@@ -751,16 +752,23 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     let ln_x = ln_dd(Dd::new(x.abs()));
-    // z = 1/t, w = 1 / (1 - t), ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if 0 < x < 1)
-    let (z, w, ln_mt, ln_1mz) = if x < 0.0 {
-        (1.0 / x, one / (one - x), ln_x, ln_1mx - ln_x)
+    // z = 1/t, w = 1 / (1 - t), 1 - z, ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if
+    // 0 < x < 1)
+    let (z, w, one_mz, ln_mt, ln_1mz) = if x < 0.0 {
+        let one_mz = (Dd::new(x) - 1.0) / x;
+        (1.0 / x, one / (one - x), one_mz, ln_x, ln_1mx - ln_x)
     } else {
-        ((x - 1.0) / x, one - x, ln_x - ln_1mx, -ln_x)
+        ((x - 1.0) / x, one - x, one / x, ln_x - ln_1mx, -ln_x)
     };
-    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`
+    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`, also by its polynomial forms,
+    // e.g. for `F(c - a, 1 - a; ..)` in step 5 with an integer `a > 0`. Unlike in
+    // `hyp2f1_recur_dd`, this keeps the smaller bound even if both are within tolerance, since
+    // the two terms can cancel.
     let term = |a: Dd, b: Dd| {
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
-        let y = best_combination(neg_z_combinations(p, q, cc), cc, z, w, ln_1mz)?;
+        let combs = neg_z_combinations(p, q, cc);
+        let poly = hyp2f1_poly(combs, cc, w, ln_1mz, (one_mz, ln_1mz));
+        let y = min_err(poly, best_combination(combs, cc, z, w, ln_1mz))?;
         mul_gamma_ratio([c, b - a], [b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
     };
     let m = b - a;
@@ -786,8 +794,15 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         let combinations = [(a, cb, zero), (cb, a, cab), (ca, b, cab), (b, ca, zero)];
         (x / (x - 1.0), Dd::new(x), combinations)
     };
+    // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
+    let one = Dd::new(1.0);
+    let (one_mz, ln_1mz) = if x < 0.0 {
+        (one - x, ln_1mx)
+    } else {
+        (1.0 / (one - x), -ln_1mx)
+    };
     // the polynomial cases of step 2
-    let poly = hyp2f1_poly(combinations, c, x, w, ln_1mx);
+    let poly = hyp2f1_poly(combinations, c, w, ln_1mx, (one_mz, ln_1mz));
     if err_of(poly) <= HYP2F1_RECUR_TOL {
         return poly;
     }
@@ -870,6 +885,10 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
     }
+    // In a fixed order, as step 6 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
+    // first, which was more often accurate in our tests, e.g. for `F(-104.0000009, 36; 0.0074;
+    // 0.66)`, whose form `(c - a, c - b)` then has `n = 105` instead of 1.
+    let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
