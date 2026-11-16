@@ -18,6 +18,7 @@
 //! of the logarithms of the Gamma functions.
 
 use core::f64::consts::PI;
+use core::iter::{once, repeat};
 
 use super::{Dd, is_pole};
 use crate::utils::neg_one_pow;
@@ -79,6 +80,77 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
         },
     };
     sign * (sum / power - taylor(1.0 - x.hi))
+}
+
+/// The residues of the class of `a_m` at `s = -a_m - n` for `n = 0, 1, ...`, without the factor
+/// of the one at `n = 0` if that were a simple pole
+///
+/// Each comes with a bound on its size: `|t_n|` times the largest of the bounds on the
+/// coefficients of `u` up to its own. They end before a `t_n` that is not normal.
+pub(super) struct Residues {
+    /// The parameters `x` of the factors `x + n - eps` of the numerator and of the denominator
+    /// of the ratio of two integrands, in double-double as `x + n` is exact where it vanishes
+    up: Vec<Dd>,
+    low: Vec<Dd>,
+    /// The other factor of that ratio: `+-1 / z`
+    w: f64,
+    n: f64,
+    /// `t_n`
+    term: f64,
+    order: i32,
+    /// `u`, and bounds on the sizes of its coefficients
+    u: Vec<f64>,
+    size: Vec<f64>,
+}
+
+impl Residues {
+    /// For the class of `a_m`, where `b` is without the 1 of `n!`, and no `a_i` is a non-positive
+    /// integer
+    ///
+    /// For `z > 0`, where `ln(-z)` is `ln|z| -+ pi i`, only the bounds are valid.
+    pub(super) fn of_class(a: &[f64], b: &[f64], m: usize, z: f64) -> Self {
+        let am = Dd::new(a[m]);
+        let diffs = a.iter().map(|&ai| Dd::new(ai) - am);
+        let degree = diffs.clone().filter(|d| d.is_integer()).count() - 1;
+        // The logarithm of the integrand at n = 0 without its poles and zeros, as its
+        // coefficients of eps, eps^2, ..., and bounds on the sizes of their parts, from
+        // (-z)^eps on.
+        let ln_z = z.abs().ln();
+        let pi = if z > 0.0 { PI } else { 0.0 };
+        let first = |v: f64| once(v).chain(repeat(0.0)).take(degree).collect::<Vec<_>>();
+        let (mut coef, mut size, mut order) = (first(ln_z), first(ln_z.abs() + pi), 0);
+        // Gamma(-s), the Gamma(a_i + s), and the 1 / Gamma(b_j + s), as the x, power and sign of
+        // Gamma(x + sign eps)^power
+        let gammas = once((am, 1, -1.0))
+            .chain(diffs.map(|d| (d, 1, 1.0)))
+            .chain(b.iter().map(|&bj| (Dd::new(bj) - am, -1, 1.0)));
+        for (x, power, sign) in gammas {
+            order += if is_pole(&x) { power } else { 0 };
+            let mut signs = f64::from(power);
+            for (j, (coef, size)) in (1..).zip(coef.iter_mut().zip(&mut size)) {
+                signs *= sign;
+                let c = signs * ln_gamma_coef(j, x);
+                (*coef, *size) = (*coef + c, *size + c.abs());
+            }
+        }
+        // a_m and the 1 + a_m - b_j, over the 1 + a_m - a_i
+        let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
+        let low = a.iter().map(|&ai| am + 1.0 - ai).collect();
+        // (-1)^(p+q+1) / z
+        let w = neg_one_pow(a.len() + b.len() + 1) / z;
+        let (u, size) = (exp_series(&coef), exp_series(&size));
+        let (n, term) = (0.0, 1.0);
+        Self {
+            up,
+            low,
+            w,
+            n,
+            term,
+            order,
+            u,
+            size,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -154,5 +226,27 @@ mod tests {
                 "{j} {x} {k}: {c}"
             );
         }
+    }
+
+    /// Whether `y` is within a few ulp of an `expected` value of up to about 10
+    fn close(y: f64, expected: f64) -> bool {
+        (y - expected).abs() <= 1e-14
+    }
+
+    #[test]
+    fn test_of_class() {
+        // 2F1(1, 1; 2; z) = -ln(1 - z) / z = (ln(-z) + ln(1 - 1 / z)) / -z: a pole of order 2
+        let residues = Residues::of_class(&[1.0; 2], &[2.0], 0, -3.0);
+        assert_eq!(residues.order, 2);
+        assert!(close(residues.u[1], 3.0_f64.ln()));
+        // 3F2(1, 1, 1; 2, 2; z) = Li_2(z) / z, which is
+        // (ln(-z)^2 / 2 + pi^2 / 6 + Li_2(1 / z)) / -z: a pole of order 3
+        let (l, zeta_2) = (40.0_f64.ln(), PI * PI / 6.0);
+        let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, -40.0);
+        assert_eq!(residues.order, 3);
+        assert!(close(residues.u[2], l * l / 2.0 + zeta_2));
+        // for z > 0, with ln(z) -+ pi i, the bound holds for (ln(z)^2 - pi^2) / 2 + pi^2 / 6
+        let residues = Residues::of_class(&[1.0; 3], &[2.0; 2], 0, 40.0);
+        assert!(residues.size[2] >= (l * l + PI * PI) / 2.0 + zeta_2);
     }
 }
