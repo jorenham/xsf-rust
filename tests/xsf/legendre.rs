@@ -391,6 +391,179 @@ fn test_legendre_q_all_c64_off_axis() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_tiny_im() {
+    // the imaginary parts of the seeds were subnormal, so these are compared by component; Arb
+    // references
+    let parts = |q: num_complex::Complex64, d: num_complex::Complex64| [q.re, q.im, d.re, d.im];
+
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(1, 140, c64(10000.0, 1e-304));
+    xsref::np_assert_allclose!(
+        parts(cqm[1][140], cqd[1][140]),
+        [
+            6.327_269_914_478_720_4e234,
+            -1.265_478_793_247_977_9e-73,
+            -1.265_478_793_247_978e231,
+            3.796_535_621_848_62e-77,
+        ],
+        rtol = 1e-12
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(60, 120, c64(10000.0, 1e-100));
+    xsref::np_assert_allclose!(
+        parts(cqm[60][120], cqd[60][120]),
+        [
+            2.381_042_336_285_591_4e-16,
+            -1.452_435_860_331_049_8e-118,
+            -1.452_435_860_331_049_7e-18,
+            9.005_102_555_792_6e-121,
+        ],
+        rtol = 1e-13
+    );
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(40, 40, c64(3.0, 1e-280));
+    xsref::np_assert_allclose!(
+        parts(cqm[40][40], cqd[40][40]),
+        [
+            3.206_432_995_060_525e39,
+            -4.916_818_632_369_847e-240,
+            -4.916_818_632_369_847e40,
+            7.743_557_286_066_945e-239,
+        ],
+        rtol = 1e-14
+    );
+    let (cqn, cqd) = xsf::legendre_q_all(1, c64(10.0, 1e-280));
+    xsref::np_assert_allclose!(
+        parts(cqn[1], cqd[1]),
+        [
+            0.003_353_477_310_755_806,
+            -6.747_532_790_254_294e-284,
+            -0.000_674_753_279_025_429_4,
+            2.040_608_101_214_161_7e-284,
+        ],
+        rtol = 1e-14
+    );
+}
+
+#[test]
+fn test_legendre_q_all_c64_tiny_im_real_parts() {
+    // the real parts are those at `z` itself, which keep `Re z = 1e-40` and their values near the
+    // zeros of `Re Q_1` and `Re Q_2'`; Arb references (Ferrers), by part
+    let z = c64(1e-40, 1e-100);
+    let expected = [
+        [1e-40, 1e-100, 1.0, 2e-140],
+        [-1.0, 2e-140, 2e-40, 2e-100],
+        [-2e-40, -2e-100, -2.0, 8e-140],
+    ];
+    let (cqn, cqd) = xsf::legendre_q_all(2, z);
+    let (cqm, cqmd) = xsf::assoc_legendre_q_all(2, 0, z);
+    for (j, e) in expected.iter().enumerate() {
+        let (q, d) = (cqn[j], cqd[j]);
+        xsref::np_assert_allclose!([q.re, q.im, d.re, d.im], e, rtol = 1e-15);
+        assert_eq!((cqm[j][0], cqmd[j][0]), (q, d));
+    }
+
+    // these cancel in the recurrence (as do `Im Q_2` and `Im Q_2'` near 0.6232), so all parts
+    // are only accurate relative to the largest real or imaginary part
+    for (x, re, im) in [
+        (
+            0.833_556_559_600_964_8,
+            [
+                1.199_678_640_257_734,
+                2.131_319_626_955_773_2e-16,
+                -0.599_839_320_128_866_8,
+                3.276_717_531_228_073_6,
+                3.931_008_032_372_374,
+                3.276_717_531_228_074,
+            ],
+            [
+                3.276_717_531_228_073_7e-100,
+                3.931_008_032_372_374e-100,
+                3.276_717_531_228_074e-100,
+                1.789_958_980_540_111_4e-99,
+                2.147_375_555_891_480_2e-99,
+                2.969_261_390_251_824e-99,
+            ],
+        ),
+        (
+            0.623_174_709_782_724_5,
+            [
+                0.730_178_774_530_167_4,
+                -0.544_971_054_092_657_4,
+                -0.874_507_654_976_349_6,
+                1.634_913_162_277_973,
+                1.749_015_309_952_699_5,
+                4.725_715_661_779_876e-16,
+            ],
+            [
+                1.634_913_162_277_973_1e-100,
+                1.749_015_309_952_699_6e-100,
+                4.725_715_661_779_876e-116,
+                3.331_418_523_943_972e-100,
+                5.345_882_096_379_523e-100,
+                8.578_464_453_802_071e-100,
+            ],
+        ),
+    ] {
+        let (cqn, cqd) = xsf::legendre_q_all(2, c64(x, 1e-100));
+        let parts = |f: fn(&num_complex::Complex64) -> f64| {
+            cqn.iter().chain(&cqd).map(f).collect::<Vec<_>>()
+        };
+        xsref::np_assert_allclose!(parts(|q| q.re), re, rtol = 1e-15, atol = 4.0 * f64::EPSILON);
+        xsref::np_assert_allclose!(
+            parts(|q| q.im),
+            im,
+            rtol = 1e-15,
+            atol = 1e-99 * f64::EPSILON
+        );
+    }
+}
+
+#[test]
+fn test_assoc_legendre_q_all_c64_tiny_im_axis() {
+    // on and near the imaginary axis; Arb references (Ferrers), with
+    // `Q_20^20(z) = 2^20 20! z + O(z^3)`
+    for (n, m, z, q, d) in [
+        (
+            20,
+            20,
+            c64(0.0, 1e-320),
+            2.551_054_255_388_657e-296,
+            2.551_082_656_125_828_5e24,
+        ),
+        (
+            20,
+            20,
+            c64(1e-300, 1e-320),
+            2.551_054_255_388_657e-296,
+            2.551_082_656_125_828_5e24,
+        ),
+        (
+            20,
+            20,
+            c64(0.0, 1e-200),
+            2.551_082_656_125_828_5e-176,
+            2.551_082_656_125_828_5e24,
+        ),
+    ] {
+        let (cqm, cqd) = xsf::assoc_legendre_q_all(n, m, z);
+        xsref::np_assert_allclose!([cqm[n][m].im, cqd[n][m].re], [q, d], rtol = 1e-15);
+    }
+    let (cqm, cqd) = xsf::assoc_legendre_q_all(3, 2, c64(0.0, 1e-320));
+    assert_eq!(
+        (cqm[3][2], cqd[3][2]),
+        (c64(-8.0, 0.0), c64(0.0, 6.399_93e-319))
+    );
+}
+
+#[test]
+fn test_assoc_legendre_q_all_c64_tiny_im_lift_overflow() {
+    // the lifted run overflows here, so this imaginary part is kept; Arb reference (Ferrers)
+    let d = xsf::assoc_legendre_q_all(0, 33, c64(0.999_999_999_999_999_9, 1e-320)).1[0][33].im;
+    xsref::np_assert_allclose!([d], [-5.088_204_835_535_055e17], rtol = 1e-14);
+    // NaN without the lift, but about -5.6e650 (Arb)
+    let q = xsf::assoc_legendre_q_all(0, 100, c64(1.000_000_000_000_000_2, 1e-320)).0[0][100].im;
+    assert_eq!(q, f64::NEG_INFINITY);
+}
+
+#[test]
 fn test_assoc_legendre_q_all_int_zero() {
     // `static_cast<T>(ls * (j + i - 1) * (j - i + 2))` with `ls = -1, i = 2, j = 0` is `+0.0`
     let q = xsf::assoc_legendre_q_all(2, 2, c64(1.00005, 0.0)).0[0][2];
