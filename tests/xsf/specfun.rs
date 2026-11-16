@@ -132,6 +132,15 @@ fn test_hypu_tiny_a_x_below_b() {
 }
 
 #[test]
+fn test_hypu_tiny_a_x_near_b() {
+    // Arb, where the asymptotic series has 9 digits; 0.999995306 and 1.00000089 in xsf
+    let abx = [(1e-6, 690.0, 795.0), (-2e-7, 878.0, 957.0)];
+    let expected = [0.999_995_308_569_181_3, 1.000_000_887_955_178];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_x0() {
     // DLMF 13.2.7; +inf in xsf
     let actual = [xsf::hypu(0.0, 3.42, 0.0), xsf::hypu(-2.0, 5.0, 0.0)];
