@@ -780,6 +780,24 @@ fn asymptotic_sum<T: Term>(
     best
 }
 
+/// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
+/// about `n^kappa / |z|`
+fn pfq_alg_sum<T: Term>(
+    terms: impl Iterator<Item = T>,
+    settled: f64,
+    kappa: usize,
+    z: f64,
+    ratio_bound: impl Fn(f64) -> f64,
+) -> (f64, f64) {
+    let az = z.abs();
+    let scale = match kappa {
+        1 => az,
+        2 => az.sqrt(),
+        _ => az.powf(1.0 / kappa as f64),
+    };
+    asymptotic_sum(terms, settled, scale, ratio_bound)
+}
+
 /// The terms `t_0 = 1, t_1, ...` of a recurrence of order 2, where `next(k, t1, t2)` is `t_k`
 /// for `t_{k-1}` and `t_{k-2}`, with `t_{-1} = 0`
 fn recurrence_terms(
@@ -919,14 +937,7 @@ fn pfq_alg_series<A: Params, B: Params>(
             }
         })
         .map(|t| if sizes { t.abs() } else { t });
-    // the term ratios are about n^kappa / |z|
-    let az = z.abs();
-    let scale = match kappa {
-        1 => az,
-        2 => az.sqrt(),
-        _ => az.powf(1.0 / kappa as f64),
-    };
-    Some(asymptotic_sum(series, pfq_settled(up, low), scale, bound))
+    Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
