@@ -14,19 +14,21 @@ fn test_betaincinv_nontrivial() {
         (0.0342, 171.0, 1e-10, 0.552_699_169_018_070_9),
         // scipy/scipy#3761:
         (0.0342, 171.0, 8.423_131_693_547_97e-21, 0.25),
-        // scipy/scipy#4244 (NOTE: this results in a relative error of 4.0e-12)
-        // (
-        //     0.0002742794749792665,
-        //     289206.03125,
-        //     1.639984034231756e-56,
-        //     0.9688708782196045,
-        // ),
         // scipy/scipy#12796:
         (4.0, 99997.0, 0.000_194_784_157_889_212_1, 0.999_995),
     ] {
         let x1 = xsf::betaincinv(a, b, p);
         xsref::np_assert_allclose!(&[x1], &[x], rtol = 5e-13);
     }
+
+    // scipy/scipy#4244, at a looser rtol than SciPy's 5e-13: I_x(a, b) ~ x^a, so the relative
+    // error in x is about eps / a
+    let x = xsf::betaincinv(
+        0.000_274_279_474_979_266_5,
+        289_206.031_25,
+        0.968_870_878_219_604_5,
+    );
+    xsref::np_assert_allclose!(&[x], &[1.639_984_034_231_756e-56], rtol = 1e-12);
 }
 
 #[test]
@@ -56,8 +58,7 @@ fn test_betaincinv_tiny_y() {
         (14.0, 14.5, 1e-280, 2.934_391_500_664_242_4e-21),
         (3.5, 15.0, 4e-95, 1.329_075_142_928_922_7e-28),
         (10.0, 1.25, 2e-234, 3.982_659_092_143_654e-24),
-        // NOTE: This results in a relative error of 3.806e-11
-        // (4.0, 99997.0, 5e-88, 3.309800566862242e-27),
+        (4.0, 99997.0, 5e-88, 3.309_800_566_862_242e-27),
     ] {
         let x = xsf::betaincinv(a, b, y);
         xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-14);
