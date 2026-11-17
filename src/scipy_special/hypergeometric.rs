@@ -2,11 +2,12 @@
 
 use core::f64::consts::PI;
 
+use crate::ext::ln_dd;
 use crate::utils::is_nonpos_int;
 use crate::xsf::bessel::{cyl_bessel_i_c64, cyl_bessel_j_c64};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::MAXLOG;
-use crate::xsf::cephes::dd_real::{two_prod, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_prod, two_sum};
 use crate::xsf::cephes::{ikv_asymptotic_uniform_sums, iv, lgam_stirling_corr};
 use crate::xsf::complex::Num;
 use crate::xsf::log::clog1p;
@@ -19,42 +20,65 @@ const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 /// expansion of `J_{v-1}(2 sqrt(-z))` (DLMF 10.19.3).
 #[inline]
 fn hyp0f1_asy(v: f64, z: f64) -> f64 {
-    let arg = z.abs().sqrt();
-    let v1 = (v - 1.0).abs();
-    let x = 2.0 * arg / v1;
-    let p1 = (1.0 + z.signum() * x * x).sqrt();
-    let eta = p1 + x.ln() - crate::log1p(p1);
+    // Unlike in xsf, the exponents are in double-double, as they are about `ln(F)`, which amplifies
+    // their rounding errors, e.g. of `x = 2 arg / v1`, with `arg = sqrt(|z|)`, or of `v1 = |v - 1|`
+    let v1 = (Dd::new(v) - 1.0).abs();
+    // `z / v1`, with a huge `z` halved first (exact, as is the doubling of the normal quotient), as
+    // the division forms `v1 (z / v1)`, which may overflow near `f64::MAX`
+    let z_v1 = if z.abs() > f64::MAX / 16.0 {
+        Dd::new(0.5 * z) / v1 * 2.0
+    } else {
+        Dd::new(z) / v1
+    };
+    let x2 = z_v1 / v1 * 4.0; // sign(z) x^2
+    let p1 = (x2 + 1.0).sqrt();
 
     // Unlike in xsf (scipy/xsf#366), the ~v1 ln(v1) terms of the exponent cancel analytically
     // (Stirling's formula):
     //
     //   zeta = ln(Gamma(v) arg^(1-v) e^(v1 eta) / sqrt(2 pi v1))                (v > 1)
     //        = -ln(Gamma(v) 2 sin(pi v1) arg^v1 e^(-v1 eta) / sqrt(2 pi v1))    (v < 1)
-    //        = v1 (h - log1pmx(h)) + corr(v1),  h = (p1 - 1) / 2
-    let h = z.signum() * x * x / (2.0 * (1.0 + p1));
-    let zeta = v1 * (h - crate::log1pmx(h)) + lgam_stirling_corr(v1);
-    let ln_sqrt_p1 = 0.5 * p1.ln();
+    //        = v1 d + corr(v1),  d = 2 h - ln(1 + h),  h = (p1 - 1) / 2
+    let h = x2 / ((p1 + 1.0) * 2.0);
+    let v1_d = (h * 2.0 - ln_dd(h + 1.0)) * v1;
+    let zeta = v1_d + lgam_stirling_corr(v1.hi);
+    // (small and not multiplied by `v1`, so `f64` suffices, up to the low word of `p1`)
+    let ln_sqrt_p1 = Dd::new(0.5 * p1.hi.ln()) + 0.5 * p1.lo / p1.hi;
 
     // Unlike in xsf (scipy/xsf#366), the large-v asymptotic correction has 11 terms (DLMF 10.41.9)
     // instead of 4 (DLMF 10.41.10)
-    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1);
+    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1.hi, 1.0 / p1.hi);
 
     if v - 1.0 < 0.0 {
         // DLMF 10.27.2: I_{-v} = I_{v} + (2/pi) sin(pi*v) K_v
         // (or DLMF 10.2.3: J_{-v} = cos(pi*v) J_v - sin(pi*v) Y_v)
-        let out = (-zeta - ln_sqrt_p1).exp() * u_corr_k;
+        let out = exp_dd(-zeta - ln_sqrt_p1) * u_corr_k;
         let s = 2.0 * crate::sinpi(v);
+        // `v1 eta = v1 (1 + ln(x / 2)) + v1 d`
+        let v1_eta = (ln_dd(x2.abs() / 4.0) * 0.5 + 1.0) * v1 + v1_d;
         if z < 0.0 {
             // the J_v term relative to the Y_v term, with cos(pi v1) = -cos(pi v)
-            out * (1.0 - crate::cospi(v) / s * (2.0 * v1 * eta).exp() * u_corr_i / u_corr_k)
+            out * (1.0 - crate::cospi(v) / s * exp_dd(v1_eta * 2.0) * u_corr_i / u_corr_k)
         } else {
-            // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent
-            let i = (2.0 * v1 * eta - zeta - ln_sqrt_p1 - s.abs().ln()).exp();
+            // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent where `e^e`
+            // overflows
+            let e = v1_eta * 2.0 - zeta - ln_sqrt_p1;
+            let i = if e.hi < MAXLOG {
+                exp_dd(e) / s.abs()
+            } else {
+                exp_dd(e - s.abs().ln())
+            };
             out + i.copysign(s) * u_corr_i
         }
     } else {
-        (zeta - ln_sqrt_p1).exp() * u_corr_i
+        exp_dd(zeta - ln_sqrt_p1) * u_corr_i
     }
+}
+
+/// `e^x`, with the low word of `x` to first order (it is NaN where `x` overflowed)
+fn exp_dd(x: Dd) -> f64 {
+    let e = x.hi.exp();
+    if e.is_normal() { e + e * x.lo } else { e }
 }
 
 /// `hyp0f1_asy` for complex `z`, if the Bessel function over- or underflows
