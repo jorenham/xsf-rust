@@ -8,7 +8,7 @@
 
 use std::f64::consts::{LN_2, PI, TAU};
 
-use crate::utils::{LN_PI, LN_TAU, neg_one_pow};
+use crate::utils::{LN_PI, LN_TAU, neg_if_odd, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::gamma::cgamma;
 use crate::xsf::loggamma::cloggamma;
@@ -97,23 +97,20 @@ const ZETA_EM_LOG_ABS_COEFF_LOOKUP: [f64; 51] = [
     -1.830_945_594_603_746e2,
 ];
 
-/// Complex log of expansion coefficients for Euler-Maclaurin summation formula.
-fn zeta_em_log_coeff(n: usize) -> C64 {
-    let mut result = if n < 50 {
-        c64(ZETA_EM_LOG_ABS_COEFF_LOOKUP[n], 0.0)
+/// Log of the absolute value of the expansion coefficients for Euler-Maclaurin summation formula.
+///
+/// Unlike in xsf, the sign of B2n/(2n)! (negative for even n) is not a term pi*i of the log,
+/// whose rounding would give the terms a spurious imaginary part (wrong near the real axis).
+fn zeta_em_log_abs_coeff(n: usize) -> f64 {
+    if n < 50 {
+        ZETA_EM_LOG_ABS_COEFF_LOOKUP[n]
     } else {
         /* Asymptotic formula
          * Uses https://dlmf.nist.gov/24.11#E1 to approximate B_{2n} and
          * Stirling's approximation for (2n)!.
          */
-        c64(LN_2 - 2.0 * n as f64 * LN_TAU, 0.0)
-    };
-    if n % 2 == 0 {
-        /* B_{2n}/(2n)! is negative for even n. This contributes a term
-         * pi*i when taking the log. */
-        result += PI * C64::I;
+        LN_2 - 2.0 * n as f64 * LN_TAU
     }
-    result
 }
 
 /// Compute riemann_zeta for complex input z using the Euler-Maclaurin formula.
@@ -159,7 +156,7 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
     let mut log_poch = z.ln();
     let mut log_factor = -(z + 1.0) * big_n.ln();
     for k in 1..=m {
-        let term = (zeta_em_log_coeff(k) + log_factor + log_poch).exp();
+        let term = neg_if_odd(k + 1, (zeta_em_log_abs_coeff(k) + log_factor + log_poch).exp());
         result += term;
         if term.norm() / result.norm() <= f64::EPSILON {
             return result + pole;
@@ -172,7 +169,7 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
      * The error is bounded above by |(z + 2m + 1)/(z.real + 2m + 1) * T(m+1, n)|
      * See https://en.wikipedia.org/wiki/Riemann_zeta_function#Numerical_algorithms
      */
-    let mut error = (zeta_em_log_coeff(m + 1) + log_factor + log_poch)
+    let mut error = (zeta_em_log_abs_coeff(m + 1) + log_factor + log_poch)
         .exp()
         .norm();
     error *= ((z + 2.0 * m as f64 + 1.0) / (z.re + 2.0 * m as f64 + 1.0)).norm();
