@@ -344,7 +344,21 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
         f64::NAN
     } else {
         // Cephes `incbi` (SciPy wraps Boost `ibeta_inv`)
-        incbi(a, b, y).0
+        let x = incbi(a, b, y).0;
+        // Unlike in xsf, a root below 1/2 for `y > 1/2` is refined, as `incbi` returns `1 - t` of
+        // the root `t` near 1 if it ends in its reflected frame, which loses ~eps / x. Other roots
+        // (where `1 - (1 - x) != x`) are kept if their residual is within its rounding, which
+        // moves the root by up to ~eps / a for tiny `a`.
+        if y > 0.5 && x < 0.5 {
+            let tol = if 1.0 - (1.0 - x) == x {
+                0.0
+            } else {
+                BETAINCCINV_G_NOISE
+            };
+            betainccinv_refine(a, b, 1.0 - y, x, tol)
+        } else {
+            x
+        }
     }
 }
 
@@ -403,12 +417,16 @@ pub fn betainccinv(a: f64, b: f64, y: f64) -> f64 {
     if x == 1.0 {
         x
     } else {
-        betainccinv_refine(a, b, y, if x.is_nan() { 0.5 } else { x })
+        betainccinv_refine(a, b, y, if x.is_nan() { 0.5 } else { x }, 0.0)
     }
 }
 
 /// Enough for the bisection alone to narrow `ln(x)` from `[ln(5e-324), 0]` to `eps`
 const BETAINCCINV_MAXITER: usize = 64;
+
+/// The rounding error of the residual of `betainccinv_refine`, a few eps (2 eps is too few,
+/// measured)
+const BETAINCCINV_G_NOISE: f64 = 4.0 * f64::EPSILON;
 
 /// Refines the root `x` of `I_(1-x)(b, a) = y` by Newton steps in `ln(x)` on the log of the
 /// smaller side, safeguarded by bisection in `ln(x)` (as `rtsafe` in Numerical Recipes)
@@ -416,7 +434,9 @@ const BETAINCCINV_MAXITER: usize = 64;
 /// The root from `incbi` can be off, as `1 - t` of its root `t` near 1 (by ~eps / x), or if the
 /// rounding of `1 - y` in its reflected frame lands on a plateau of `I_x(a, b)`, and it is 0 for
 /// roots below eps.
-pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
+///
+/// It stops at a residual `|g| <= tol`.
+pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64, tol: f64) -> f64 {
     let lbeta_ab = lbeta(a, b);
     // `g(x)` is decreasing, and >= 0 at `lo` and <= 0 at `hi`
     let (mut lo, mut hi) = (0.0, 1.0);
@@ -433,13 +453,14 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
             let p = betainc_xy(a, b, x, 1.0 - x);
             (p, ((1.0 - y) / p).ln())
         };
+        if g.abs() <= tol {
+            break;
+        }
         if g > 0.0 {
             lo = x;
         } else if g < 0.0 {
             hi = x;
             p_hi = p;
-        } else if g == 0.0 {
-            break;
         } else {
             return f64::NAN;
         }

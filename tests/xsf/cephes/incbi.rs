@@ -82,7 +82,7 @@ fn test_betaincinv_small_y_near_1() {
 #[test]
 fn test_betaincinv_small_a_y_near_1() {
     // a <= 1 and y near 1, with the root far below where I_x(a, b) rounds to 1; reference values
-    // from Arb (for a = 1, the root is 1 - (1 - y)^(1/b)), with a condition number of ~1e6
+    // from Arb (for a = 1, the root is 1 - (1 - y)^(1/b))
     for &(a, b, y, ref_) in &[
         (0.15, 2.7e6, 0.999_999_7, 4.103_212_725_816_707e-6),
         (0.5, 1e8, 0.999_999_9, 1.418_699_271_051_264e-7),
@@ -90,7 +90,7 @@ fn test_betaincinv_small_a_y_near_1() {
         (1.0, 1e6, 0.999_999_9, 1.611_796_575_567_885_2e-5),
     ] {
         let x = xsf::betaincinv(a, b, y);
-        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-9);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-15);
     }
 }
 
@@ -144,20 +144,44 @@ fn test_betaincinv_tiny_a_or_b() {
 #[test]
 fn test_betaincinv_y_max() {
     // y = 1 - 2^-53, the largest f64 below 1; reference values from Arb, or for b = 1e300 from the
-    // limit Q(a, b x) = 1 - y. For a root near 0, the rounding of 1 - x alone moves it by up to
-    // ~eps / x, and for a root below eps, the rounding of I_x(a, b) by up to ~1e-2.
+    // limit Q(a, b x) = 1 - y
     let y = 1.0 - f64::EPSILON / 2.0;
-    for &(a, b, ref_, rtol) in &[
-        (0.01, 1e3, 0.028_382_173_017_582_47, 1e-14),
-        (0.001, 1e10, 2.651_928_480_581_199_2e-9, 1e-7),
-        (100.0, 1e5, 0.002_051_315_441_176_488_3, 1e-13),
-        (0.5, 1e300, 3.438_162_610_583_420_4e-299, 1e-2),
-        (0.1, 3.0, 0.999_985_766_388_452_3, 1e-15),
-        (1.0, 10.0, 0.974_617_112_613_867_6, 1e-15),
+    for &(a, b, ref_) in &[
+        (0.01, 1e3, 0.028_382_173_017_582_47),
+        (0.001, 1e10, 2.651_928_480_581_199_2e-9),
+        (100.0, 1e5, 0.002_051_315_441_176_488_3),
+        (0.5, 1e300, 3.438_162_610_583_420_4e-299),
+        (0.1, 3.0, 0.999_985_766_388_452_3),
+        (1.0, 10.0, 0.974_617_112_613_867_6),
     ] {
         let x = xsf::betaincinv(a, b, y);
-        xsref::np_assert_allclose!(&[x], &[ref_], rtol = rtol);
+        xsref::np_assert_allclose!(&[x], &[ref_], rtol = 1e-15);
     }
+}
+
+#[test]
+fn test_betaincinv_subnormal_root() {
+    // the root y^(1/a) for b = 1, correctly rounded, of 1.48e-323, 4.94e-324 (just above the
+    // smallest subnormal) and 1.4999 times that
+    for &(a, y, ref_) in &[
+        (0.000_387_012_010_057_834_45, 0.75, 1.5e-323),
+        (
+            1.491_353_120_956_665_7e-19,
+            1.0 - f64::EPSILON / 2.0,
+            5e-324,
+        ),
+        (0.000_686_561_583_716_619, 0.6, 5e-324),
+    ] {
+        assert_eq!(xsf::betaincinv(a, 1.0, y), ref_);
+    }
+}
+
+#[test]
+fn test_betaincinv_flat_residual() {
+    // the root y^(1/a) for b = 1; for tiny a, an eps in I_x(a, b) moves the root by ~eps / a, so
+    // that the accurate root from `incbi` is kept
+    let x = xsf::betaincinv(0.000_441_052_350_938_560_4, 1.0, 0.747_477_399_007_544_7);
+    xsref::np_assert_allclose!(&[x], &[2.560_470_962_127_161_4e-287], rtol = 1e-13);
 }
 
 #[test]

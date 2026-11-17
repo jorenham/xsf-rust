@@ -378,7 +378,7 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     // Unlike in xsf, `1 - w` is refined for `w > 1/2`, as it has lost the digits of `x` to
     // the rounding of `w` near 1 (e.g. for huge `a`)
     if w > 0.5 {
-        wc = betainccinv_refine(0.5 * b, 0.5 * a, p, wc);
+        wc = betainccinv_refine(0.5 * b, 0.5 * a, p, wc, 0.0);
         w = 1.0 - wc;
     }
     b * w / (a * wc)
