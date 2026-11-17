@@ -277,7 +277,8 @@ fn zeta_borwein(z: C64, eta_factor: C64) -> C64 {
     -result / eta_factor
 }
 
-/// Below this `|1 - 2^(1 - z)|`, Euler-Maclaurin is more accurate than the Borwein sum.
+/// Smallest `|1 - 2^(1 - z)|` for the Borwein sum: dividing by it at most doubles the
+/// absolute error of the eta sum.
 const ETA_FACTOR_MIN: f64 = 0.5;
 
 /// Compute riemann zeta for complex z and real part >= 0
