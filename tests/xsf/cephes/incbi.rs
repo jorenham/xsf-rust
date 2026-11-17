@@ -123,13 +123,7 @@ fn test_betaincinv_tiny_a_or_b() {
     // reference values from Arb; the first root is below eps (1 - x rounds to 1), with a condition
     // number of ~2e15
     for &(a, b, y, ref_, rtol) in &[
-        (
-            4.637_934_404_623_266e-16,
-            7.069_029_637_096_786,
-            0.999_999_999_999_981_8,
-            7.617_553_767_174_632e-19,
-            5e-2,
-        ),
+        (4.6e-16, 7.0625, 0.999_999_999_999_982, 8.938_851_980_122_498e-19, 5e-2),
         (7.07, 1e-10, 1e-10, 0.960_553_238_494_944_4, 1e-14),
     ] {
         let x = xsf::betaincinv(a, b, y);
@@ -172,8 +166,8 @@ fn test_betaincinv_subnormal_root() {
 fn test_betaincinv_flat_residual() {
     // the root y^(1/a) for b = 1; for tiny a, an eps in I_x(a, b) moves the root by ~eps / a, so
     // that the accurate root from `incbi` is kept
-    let x = xsf::betaincinv(0.000_441_052_350_938_560_4, 1.0, 0.747_477_399_007_544_7);
-    xsref::np_assert_allclose!(&[x], &[2.560_470_962_127_161_4e-287], rtol = 1e-13);
+    let x = xsf::betaincinv(0.000_45, 1.0, 0.74);
+    xsref::np_assert_allclose!(&[x], &[2.534_087_603_550_478_3e-291], rtol = 1e-13);
 }
 
 #[test]
@@ -317,12 +311,8 @@ fn test_betainccinv_subnormal_root() {
     ] {
         assert_eq!(xsf::betainccinv(a, 1.0, y), ref_);
     }
-    // the root 3.87e-324, from the leading term x^a / (a B(a, b)) of I_x(a, b) (mpmath)
-    let x = xsf::betainccinv(
-        0.001_108_048_779_638_058_7,
-        0.245_270_319_242_572_03,
-        0.563_633_518_905_1,
-    );
+    // the root 3.54e-324, from the leading term x^a / (a B(a, b)) of I_x(a, b) (mpmath)
+    let x = xsf::betainccinv(0.0011, 0.25, 0.561);
     assert_eq!(x, 5e-324);
 }
 

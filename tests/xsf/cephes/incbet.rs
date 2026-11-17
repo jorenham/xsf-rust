@@ -32,9 +32,9 @@ fn test_betainc_nontrivial() {
 fn test_betainc_slow_continued_fraction() {
     // reference values from mpmath
 
-    // large a + b near the mean
-    let p = xsf::betainc(1e8, 1e8, 0.499_996_464_466_102_9);
-    xsref::np_assert_allclose!(&[p], &[0.460_172_162_871_263_6], rtol = 5e-12);
+    // large a + b near the mean (Arb)
+    let p = xsf::betainc(1e8, 1e8, 0.499_996_5);
+    xsref::np_assert_allclose!(&[p], &[0.460_571_140_163_315], rtol = 5e-12);
 
     // x near 1 with small b
     for &(a, b, x, p) in &[
@@ -118,18 +118,17 @@ fn test_betainc_huge_b_far_tail() {
         xsf::betainc(0.5, 1_000_000.5, 5e-324),
         xsf::nbdtr(4_999_999, 3, 1e-101),
         xsf::stdtr(1e7, -33.0),
-        xsf::betainc(2.349_899_924_677_931_3, 6.456_904_856_945_78e123, 8.798_881_745_818_847e-248),
+        xsf::betainc(2.35, 6.5e123, 8.8e-248),
     ];
     let p_ref = [
         2.508_114_979_912_588e-159,
         2.083_334_583_333_500_3e-284,
         4.183_613_098_402_409e-239,
-        8.589_904_179_320_48e-291,
+        8.482_571_376_658_397e-291,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 5e-14);
-    let p =
-        xsf::betainc(26.728_246_467_681_846, 69_889_658_245.139_68, 2.215_778_044_098_163_3e-21);
-    xsref::np_assert_allclose!(&[p], &[1.405_590_341_196_625e-290], rtol = 1e-13);
+    let p = xsf::betainc(26.5, 7e10, 2.25e-21);
+    xsref::np_assert_allclose!(&[p], &[8.102_972_989_012_759e-288], rtol = 1e-13);
 }
 
 #[test]
@@ -160,12 +159,7 @@ fn test_betainc_rounded_complement() {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
     for &(a, b, x, q) in &[
-        (
-            0.199_062_019_161_482_08,
-            148.140_613_139_784_62,
-            0.005_561_625_815_702_902,
-            0.068_694_609_469_998_93,
-        ),
+        (0.2, 148.0, 0.0055, 0.070_177_266_364_094_78),
         (1.2, 130.5, 0.3, 1.389_422_145_821_411_2e-20),
         (0.5, 120.25, 0.1, 4.940_166_731_765_825e-7),
     ] {
@@ -182,34 +176,14 @@ fn test_betainc_powers_above_maxgam() {
     // unlike in xsf, `x^a (1 - x)^b / B(a, b)` also for `a + b >= MAXGAM`, without the rounding
     // error of its log, which exp amplifies (Arb)
     for &(a, b, x, p) in &[
-        (
-            27.761_162_944_341_528,
-            347.694_795_033_032_56,
-            0.002_174_611_338_736_042,
-            4.248_244_550_685_972e-33,
-        ),
-        (
-            8.340_643_494_608_209,
-            165.679_081_875_895_78,
-            0.016_364_990_382_773_295,
-            0.005_383_676_947_324_216,
-        ),
+        (27.75, 347.5, 0.002_175, 4.376_939_103_523_928e-33),
+        (8.375, 165.75, 0.016_375, 0.005_202_349_981_688_21),
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
     for &(a, b, x, q) in &[
-        (
-            21.460_304_935_138_673,
-            383.836_873_027_948_6,
-            0.835_410_320_450_582_7,
-            5.718_638_150_171_36e-269,
-        ),
-        (
-            0.017_082_950_553_771_28,
-            577.937_975_069_782,
-            0.616_065_270_254_13,
-            2.850_487_731_908_210_5e-245,
-        ),
+        (21.5, 384.0, 0.835, 1.235_818_663_325_846_7e-268),
+        (0.017, 578.0, 0.616, 2.947_526_556_664_428e-245),
         (0.5, 1000.0, 0.1, 9.816_333_152_380_631e-48),
     ] {
         xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-15);
@@ -292,27 +266,21 @@ fn test_betainc_tiny_a() {
 fn test_betainc_tiny_b_x_near_1() {
     // reference values from Arb; I_x(a, b) = O(b)
     for &(a, b, x, p) in &[
-        (
-            7.069_029_637_096_786,
-            4.637_934_404_623_266e-16,
-            0.999_999_999_999_930_9,
-            1.291_354_777_599_956_3e-14,
-        ),
+        (7.0625, 4.6e-16, 0.999_999_999_999_93, 1.280_177_414_830_059_2e-14),
         (2.0, 1e-12, 0.999_999_999_999_9, 2.893_329_531_165_079_5e-11),
         (0.5, 1e-20, 0.999_999_999_999, 2.901_733_759_901_274_8e-19),
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-14);
     }
     // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
-    let p =
-        xsf::betainc(240.444_389_643_372_94, 1.112_624_883_358_221_1e-10, 0.999_999_999_999_989);
-    xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 1e-14);
+    let p = xsf::betainc(240.5, 1.1e-10, 0.999_999_999_999_989);
+    xsref::np_assert_allclose!(&[p], &[2.869_220_790_765_373e-9], rtol = 1e-14);
     // the continued fractions are cut off (mpmath and Wolfram)
-    let p = xsf::betainc(434.632_567_688_369_9, 7.934_119_213_387_608e-11, 0.999_999_999_999_027_1);
-    xsref::np_assert_allclose!(&[p], &[1.666_795_093_743_553_9e-9], rtol = 1e-14);
+    let p = xsf::betainc(434.5, 8e-11, 0.999_999_999_999);
+    xsref::np_assert_allclose!(&[p], &[1.678_462_624_045_662_1e-9], rtol = 1e-14);
     // slowly converging continued fractions (mpmath and Wolfram)
-    let p = xsf::betainc(69.750_627_303_147_8, 8.144_470_607_898_787e-11, 0.999_999_999_965_863_6);
-    xsref::np_assert_allclose!(&[p], &[1.570_718_285_542_302_8e-9], rtol = 1e-14);
+    let p = xsf::betainc(69.75, 8.1e-11, 0.999_999_999_966);
+    xsref::np_assert_allclose!(&[p], &[1.562_466_699_912_095e-9], rtol = 1e-14);
     // b is not tiny, but `1 - I_(1-x)(b, a)` still cancels (mpmath and Wolfram)
     let p = xsf::betainc(3.0, 1e-4, 0.999_999_999_068_677_4);
     xsref::np_assert_allclose!(&[p], &[0.001_927_587_603_671_827_7], rtol = 1e-14);
@@ -370,12 +338,7 @@ fn test_betaincc_small_a() {
         (1e-6, 1.0, 1e-40, 9.209_916_233_148_987e-5),
         (0.001, 0.5, 1e-10, 0.024_114_975_970_909_96),
         (0.05, 1e100, 1e-101, 0.088_742_374_762_480_42),
-        (
-            3.464_166_003_487_626_4e-12,
-            3.465_839_753_112_206e186,
-            1.675_272_022_682_781e-188,
-            8.058_530_735_930_76e-12,
-        ),
+        (3.5e-12, 3.5e186, 1.7e-188, 8.061_164_342_672_798e-12),
     ] {
         xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[q], rtol = 1e-14);
     }
