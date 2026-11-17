@@ -472,6 +472,12 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
+    // Unlike in xsf, Debye's expansion of Y_v(x) is used where it is accurate (for real x,
+    // e^-|Im x| = 1).
+    if debye_is_accurate(v, x) {
+        return cyl_bessel_y_f64(v, x);
+    }
+
     let ye = cyl_bessel_ye_c64(v, c64(x, 0.0)).re;
     cyl_bessel_overflow(cyl_bessel_ye_c64, -1.0, v, x, ye)
 }
@@ -538,11 +544,11 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     cy_j
 }
 
-/// The `|v|` from which Debye's expansion is used for `J_v(x)`; below it AMOS is accurate to a
-/// few eps of the amplitude, and faster
+/// The `|v|` from which Debye's expansion is used for `J_v(x)` and `Y_v(x)`; below it AMOS is
+/// accurate to a few eps of the amplitude, and faster
 const DEBYE_MIN_V: f64 = 10.0;
 
-/// Whether Debye's expansion in `bessel_j_debye` is accurate to a few eps
+/// Whether Debye's expansion in `bessel_jy_debye` is accurate to a few eps
 ///
 /// Measured: with `w^2 = x^2 - v^2`, its 11 terms are for `1/w + 3 v^2/w^3 < 1/70`.
 fn debye_is_accurate(v: f64, x: f64) -> bool {
@@ -551,13 +557,13 @@ fn debye_is_accurate(v: f64, x: f64) -> bool {
     v.abs() >= DEBYE_MIN_V && x * sin2 * sin2.sqrt() > 70.0 * (1.0 + 2.0 * cos2)
 }
 
-/// `J_v(x)` by Debye's expansion (DLMF 10.19.6), for `debye_is_accurate(v, x)`
+/// `(J_v(x), Y_v(x))` by Debye's expansions (DLMF 10.19.6), for `debye_is_accurate(v, x)`
 ///
 /// With `x = |v| sec(beta)`, `w = |v| tan(beta)` and `S = sum_k U_k(i cot(beta)) / |v|^k`, this is
-/// `sqrt(2 / (pi w)) Re(S e^(-i xi))` for `xi = w - |v| beta - pi/4`. For `v < 0`, `beta - pi`
-/// replaces `beta` in `xi` (DLMF 10.4.6). The phase is in double-double, as its rounding error
-/// is the error of `J` relative to its amplitude.
-fn bessel_j_debye(v: f64, x: f64) -> f64 {
+/// `J_v - i Y_v = sqrt(2 / (pi w)) S e^(-i xi)` for `xi = w - |v| beta - pi/4`. For `v < 0`,
+/// `beta - pi` replaces `beta` in `xi` (DLMF 10.4.6). The phase is in double-double, as
+/// its rounding error is the error of `J` and `Y` relative to their amplitude.
+fn bessel_jy_debye(v: f64, x: f64) -> (f64, f64) {
     let (order, v) = (v, v.abs());
     // t = tan(beta / 2), u = tan(pi / 4 - beta / 2)
     let sum_xv = Dd::new(x) + v;
@@ -574,7 +580,9 @@ fn bessel_j_debye(v: f64, x: f64) -> f64 {
     let (hi, lo) = two_sum(x, -shift.hi);
     let (sin, cos) = Dd { hi, lo }.sin_cos();
     let (sin_lo, cos_lo) = shift.lo.sin_cos();
-    (FRAC_2_PI / w).sqrt() * sum.norm() * (cos * cos_lo + sin * sin_lo)
+    let amp = (FRAC_2_PI / w).sqrt() * sum.norm();
+    let (j, y) = (cos * cos_lo + sin * sin_lo, sin * cos_lo - cos * sin_lo);
+    (amp * j, amp * y)
 }
 
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
@@ -587,7 +595,7 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     // ~eps x for large |v|.
     if debye_is_accurate(v, x.abs()) {
         // J_v(-x) = (-1)^v J_v(x) for integer v (DLMF 10.11.1)
-        let j = bessel_j_debye(v, x.abs());
+        let j = bessel_jy_debye(v, x.abs()).0;
         return if x < 0.0 && v % 2.0 != 0.0 { -j } else { j };
     }
 
@@ -646,6 +654,10 @@ fn cyl_bessel_y_kode(mut v: f64, z: C64, kode: i32) -> C64 {
 pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
+    }
+    // Unlike in xsf, Debye's expansion is used where it is accurate, as for J.
+    if debye_is_accurate(v, x) {
+        return bessel_jy_debye(v, x).1;
     }
 
     let res = cyl_bessel_y_c64(v, c64(x, 0.0));
