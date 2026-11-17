@@ -1463,10 +1463,31 @@ fn test_hyp1f1_neg_b_underflow_recovered() {
     // Arb: -6.1e2002; the terms underflow to 0 from n = 476 on, long before n = -b
     let (a, b, x) = (-300.375, -12_891.875, 5129.625);
     assert_eq!(xsf::hyp1f1(a, b, x), f64::NEG_INFINITY);
-    // Arb: 1.4e3136; the alternating terms before n = -b overflow, even times e^-1400, so there
-    // is no reliable sign
+    // Arb: 1.4e3136; the alternating terms before n = -b overflow, even times e^-1400, and this
+    // was NaN
     let (a, b, x) = (-2147.625, -5933.125, 6410.875);
-    assert!(xsf::hyp1f1(a, b, x).is_nan());
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::INFINITY);
+}
+
+#[test]
+fn test_hyp1f1_neg_b_overflow() {
+    // Arb: -8.8e4542, -6.2e1144, -5.3e2627, -9.6e5488, -2.5e2596, -6.7e3338, -2.1e969, 2.5e980,
+    // 4.0e915, and 5.8e968; the series overflows even times e^-1400, and these were NaN
+    let abx = [
+        (3e5, -2.3, 90.0),
+        (6e5, -150.5, 2.0),
+        (-5e5, -90.5, -16.0),
+        (5e4, -0.5, 750.0),
+        (-9000.5, -70.6, -1050.0),
+        (17_000.5, -7500.3, 760.0),
+        (727.0, -54.5, 808.5),
+        (-1767.5, -1.9, -1022.0),
+        (-21_445.5, -1.2, -52.5),
+        (18_981.5, -3.2, 62.3),
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    assert_eq!(actual[..7], [f64::NEG_INFINITY; 7]);
+    assert_eq!(actual[7..], [f64::INFINITY; 3]);
 }
 
 #[test]
