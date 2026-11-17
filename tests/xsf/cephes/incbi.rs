@@ -166,8 +166,8 @@ fn test_betaincinv_subnormal_root() {
 fn test_betaincinv_flat_residual() {
     // the root y^(1/a) for b = 1; for tiny a, an eps in I_x(a, b) moves the root by ~eps / a, so
     // that the accurate root from `incbi` is kept
-    let x = xsf::betaincinv(0.000_45, 1.0, 0.74);
-    xsref::np_assert_allclose!(&[x], &[2.534_087_603_550_478_3e-291], rtol = 1e-13);
+    let x = xsf::betaincinv(0.000_441_052_350_938_560_4, 1.0, 0.747_477_399_007_544_7);
+    xsref::np_assert_allclose!(&[x], &[2.560_470_962_127_161_4e-287], rtol = 1e-13);
 }
 
 #[test]

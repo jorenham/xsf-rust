@@ -33,8 +33,8 @@ fn test_betainc_slow_continued_fraction() {
     // reference values from mpmath
 
     // large a + b near the mean (Arb)
-    let p = xsf::betainc(1e8, 1e8, 0.499_996_5);
-    xsref::np_assert_allclose!(&[p], &[0.460_571_140_163_315], rtol = 5e-12);
+    let p = xsf::betainc(1e8, 1e8, 0.499_996_464_466_102_9);
+    xsref::np_assert_allclose!(&[p], &[0.460_172_162_871_351_6], rtol = 5e-12);
 
     // x near 1 with small b
     for &(a, b, x, p) in &[
@@ -118,17 +118,18 @@ fn test_betainc_huge_b_far_tail() {
         xsf::betainc(0.5, 1_000_000.5, 5e-324),
         xsf::nbdtr(4_999_999, 3, 1e-101),
         xsf::stdtr(1e7, -33.0),
-        xsf::betainc(2.35, 6.5e123, 8.8e-248),
+        xsf::betainc(2.349_899_924_677_931_3, 6.456_904_856_945_78e123, 8.798_881_745_818_847e-248),
     ];
     let p_ref = [
         2.508_114_979_912_588e-159,
         2.083_334_583_333_500_3e-284,
         4.183_613_098_402_409e-239,
-        8.482_571_376_658_397e-291,
+        8.589_904_179_320_48e-291,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 5e-14);
-    let p = xsf::betainc(26.5, 7e10, 2.25e-21);
-    xsref::np_assert_allclose!(&[p], &[8.102_972_989_012_759e-288], rtol = 1e-13);
+    let p =
+        xsf::betainc(26.728_246_467_681_846, 69_889_658_245.139_68, 2.215_778_044_098_163_3e-21);
+    xsref::np_assert_allclose!(&[p], &[1.405_590_341_196_625e-290], rtol = 1e-13);
 }
 
 #[test]
@@ -177,7 +178,7 @@ fn test_betainc_powers_above_maxgam() {
     // error of its log, which exp amplifies (Arb)
     for &(a, b, x, p) in &[
         (27.75, 347.5, 0.002_175, 4.376_939_103_523_928e-33),
-        (8.375, 165.75, 0.016_375, 0.005_202_349_981_688_21),
+        (8.375, 166.0, 0.016_375, 0.005_248_296_203_700_165),
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
@@ -272,13 +273,13 @@ fn test_betainc_tiny_b_x_near_1() {
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-14);
     }
-    // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
+    // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (Arb, mpmath and Wolfram)
     let p = xsf::betainc(240.5, 1.1e-10, 0.999_999_999_999_989);
     xsref::np_assert_allclose!(&[p], &[2.869_220_790_765_373e-9], rtol = 1e-14);
-    // the continued fractions are cut off (mpmath and Wolfram)
+    // the continued fractions are cut off (Arb, mpmath and Wolfram)
     let p = xsf::betainc(434.5, 8e-11, 0.999_999_999_999);
     xsref::np_assert_allclose!(&[p], &[1.678_462_624_045_662_1e-9], rtol = 1e-14);
-    // slowly converging continued fractions (mpmath and Wolfram)
+    // slowly converging continued fractions (Arb, mpmath and Wolfram)
     let p = xsf::betainc(69.75, 8.1e-11, 0.999_999_999_966);
     xsref::np_assert_allclose!(&[p], &[1.562_466_699_912_095e-9], rtol = 1e-14);
     // b is not tiny, but `1 - I_(1-x)(b, a)` still cancels (mpmath and Wolfram)
@@ -332,7 +333,7 @@ fn test_betaincc_tails() {
 
 #[test]
 fn test_betaincc_small_a() {
-    // reference values from mpmath and Wolfram; 1 - I_x(a, b) = O(a), where `1 - betainc` cancels
+    // references from mpmath, Wolfram and Arb; 1 - I_x(a, b) = O(a), where `1 - betainc` cancels
     for &(a, b, x, q) in &[
         (2e-12, 1e300, 2.647_370_104_516_100_4e-301, 2e-12),
         (1e-6, 1.0, 1e-40, 9.209_916_233_148_987e-5),
