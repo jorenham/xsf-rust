@@ -625,13 +625,23 @@ fn test_bessel_jy_below_turning_point_recurrence() {
 #[test]
 fn test_bessel_jy_below_turning_point_recurrence_edges() {
     // Arb: besselj(v, x) and bessely(v, x); the lowest order of the recurrence is 10 (the least of
-    // the expansion), 9 (so AMOS), and 17
-    let vx = [(13.0, 10.0), (13.0, 9.5), (20.0, 16.0)];
-    let expected =
-        [0.028_972_083_926_776_766, 0.018_156_064_603_798_993, 0.017_328_746_227_591_996];
+    // the expansion), 9 (so AMOS), and 17, and at 70 it is one lower, as order 69 rounds to just
+    // outside the power series
+    let vx = [(13.0, 10.0), (13.0, 9.5), (20.0, 16.0), (70.0, 60.148_847_869_265_126)];
+    let expected = [
+        0.028_972_083_926_776_766,
+        0.018_156_064_603_798_993,
+        0.017_328_746_227_591_996,
+        0.001_575_026_341_020_990_7,
+    ];
     let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
     np_assert_allclose!(actual, expected, rtol = 3e-15);
-    let expected = [-1.363_454_319_803_315, -2.018_456_307_835_525_5, -1.567_173_990_858_811_6];
+    let expected = [
+        -1.363_454_319_803_315,
+        -2.018_456_307_835_525_5,
+        -1.567_173_990_858_811_6,
+        -5.676_985_765_349_779,
+    ];
     let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
     np_assert_allclose!(actual, expected, rtol = 3e-15);
 }

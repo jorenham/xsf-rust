@@ -679,9 +679,11 @@ fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
     if m < 1.0 {
         return None;
     }
+    // one order lower where `m` rounds to the edge of the range of `bessel_jy_airy`
+    let seeds = |m: f64| Some((m, bessel_jy_airy(v - m - 1.0, x)?, bessel_jy_airy(v - m, x)?));
+    let (m, mut jy0, mut jy1) = seeds(m).or_else(|| seeds(m + 1.0))?;
     // exact, as are the orders up to v
     let mut n = v - m;
-    let (mut jy0, mut jy1) = (bessel_jy_airy(n - 1.0, x)?, bessel_jy_airy(n, x)?);
     let mut j = jy1.0;
     while n < v {
         let c = 2.0 * n / x;
