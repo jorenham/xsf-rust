@@ -431,30 +431,10 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
                 }
             }
             // nosum:
-            p = gamma(c);
-            let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
-            let f = p * (rgamma(a + d2) * rgamma(b + d2));
-            q = s.powf(id); /* s to the id power */
-            // the factors `s^id` of `y` and `y1`, and their logarithms
-            let [(q0, l0), (q1, l1)] = if id > 0.0 {
-                [(q, id * ax), (1.0, 0.0)]
-            } else {
-                [(1.0, 0.0), (q, id * ax)]
-            };
-            // Unlike in xsf, if a factor of a sum leaves the normal range, their product is taken
-            // by logarithms (as for AMS55 #15.3.6 above): e.g. `f1` can underflow to 0 while
-            // `y1 f1 q` is the larger part of the result, which the error estimate can't see.
-            let by_logs = |f: f64, q: f64, l, num, den| {
-                if f.is_normal() && q.is_normal() {
-                    return (f, q, 0.0);
-                }
-                let (f, f_err) = exp_gamma_ratio(l, num, den);
-                (f, 1.0, f_err)
-            };
-            let (f1, q1, f1_err) = by_logs(f1, q1, l1, [e, c], [a + d1, b + d1]);
-            let (f, q0, f_err) = by_logs(f, q0, l0, [1.0, c], [a + d2, b + d2]);
-            (y1, y1_err) = (y1 * f1 * q1, (y1_err + f1_err * y1.abs()) * f1.abs() * q1);
-            (y, y_err) = (y * f * q0, (y_err + f_err * y.abs()) * f.abs() * q0);
+            // the two sums times their gamma factors, and `y` or `y1` times `s^id`
+            let (k, k1) = if id > 0.0 { (id, 0.0) } else { (0.0, id) };
+            (y1, y1_err) = times_gamma_ratio((y1, y1_err), s, k1, [e, c], [a + d1, b + d1]);
+            (y, y_err) = times_gamma_ratio((y, y_err), s, k, [1.0, c], [a + d2, b + d2]);
             if (aid & 1) != 0 {
                 y = -y;
             }
@@ -476,18 +456,42 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     (y, err, err_full)
 }
 
-/// `exp(l) Gamma(num_0) Gamma(num_1) / (Gamma(den_0) Gamma(den_1))` by `lgam_sgn`, and its relative
-/// rounding error in `MACHEP`
-fn exp_gamma_ratio(l: f64, num: [f64; 2], den: [f64; 2]) -> (f64, f64) {
-    let (mut w, mut w_abs, mut sign) = (l, l.abs(), 1);
-    for (gammas, power) in [(num, 1.0), (den, -1.0)] {
-        for (lg, sgngam) in gammas.map(lgam_sgn) {
-            (w, w_abs, sign) = (w + power * lg, w_abs + lg.abs(), sign * sgngam);
-        }
+/// `y s^k Gamma(num_0) Gamma(num_1) / (Gamma(den_0) Gamma(den_1))` and its error in `MACHEP`, from
+/// `y` and its error
+fn times_gamma_ratio(
+    (y, y_err): (f64, f64),
+    s: f64,
+    k: f64,
+    num: [f64; 2],
+    den: [f64; 2],
+) -> (f64, f64) {
+    let [n0, n1] = num.map(gamma);
+    let f = n0 * n1 * (rgamma(den[0]) * rgamma(den[1]));
+    let q = s.powf(k);
+    if f.is_normal() && q.is_normal() {
+        return (y * f * q, y_err * f.abs() * q);
     }
-    let y = f64::from(sign) * w.exp();
-    // (exactly 0 at a pole of the denominator)
-    (y, if y == 0.0 { 0.0 } else { w_abs })
+    // Unlike in xsf, by logarithms if a factor leaves the normal range: e.g. `f` can underflow to
+    // 0 while `y f` is the larger part of the result.
+    let ln_q = k * s.ln();
+    let (mut ln_f, mut ln_f_err, mut sign) = (ln_q, ln_q.abs(), y.signum());
+    for (x, power) in [(num[0], 1.0), (num[1], 1.0), (den[0], -1.0), (den[1], -1.0)] {
+        let (lg, lg_sign) = lgam_sgn(x);
+        (ln_f, ln_f_err, sign) = (
+            ln_f + power * lg,
+            ln_f_err + lg.abs(),
+            sign * f64::from(lg_sign),
+        );
+    }
+    if ln_f == f64::NEG_INFINITY {
+        // a pole of the denominator: exactly 0
+        return (0.0, 0.0);
+    }
+    let ln_y = y.abs().ln();
+    let fy = sign * (ln_f + ln_y).exp();
+    // the rounding of the exponent, which also covers that of `fy` if subnormal (as it is > 700)
+    let rounding = (ln_f_err + ln_y.abs()) * fy.abs().max(f64::MIN_POSITIVE);
+    (fy, (ln_f + y_err.ln()).exp() + rounding)
 }
 
 /*
@@ -997,8 +1001,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             if (ax - 1.0).abs() < HYP2F1_EPS {
                 /* |x| == 1.0   */
                 // Unlike in xsf, only at x = 1 itself: up to `HYP2F1_EPS` below it, 2F1 is finite
-                // for d <= 0, and differs from its value at 1 by about `(1 - x)^min(d, 1)` for
-                // d > 0, while the transformations of `hyt2f1` converge.
+                // for d <= 0, and differs from its value at 1 by about `(1 - x)^min(d, 1)` (times
+                // `ln(1 - x)` if d = 1) for d > 0, while the transformations of `hyt2f1` converge.
                 if x == 1.0 {
                     if neg_int_ca_or_cb {
                         if d >= 0.0 {
@@ -1108,4 +1112,32 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // hypf:
     (y, _, _) = hys2f1(c - a, c - b, c, x);
     s.powf(d) * y // goto hypdon
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_times_gamma_ratio_out_of_range() {
+        // Arb; `s^k` or the gamma factors underflow, but their product with `y` doesn't
+        for (s, k, den, desired) in [
+            (0.5, 2000.0, [1.0, 1.0], 8.709_809_816_217_217e-303),
+            (1.0, 0.0, [150.0, 150.0], 6.892_800_301_195_469e-222),
+        ] {
+            let (y, err) = times_gamma_ratio((1e300, 0.0), s, k, [1.0, 1.0], den);
+            let rel_err = err * MACHEP / desired;
+            assert!(
+                (y / desired - 1.0).abs() <= rel_err && rel_err < 1e-12,
+                "{y} {err}"
+            );
+        }
+        // a subnormal product (7.9e-324), and a pole of the denominator
+        let (y, err) = times_gamma_ratio((0.1, 0.0), 0.5, 1070.0, [1.0, 1.0], [1.0, 1.0]);
+        assert!((y - 7.905e-324).abs() <= err * MACHEP, "{y} {err}");
+        assert_eq!(
+            times_gamma_ratio((1e300, 1.0), 0.5, 2000.0, [1.0, 1.0], [-3.0, 1.0]),
+            (0.0, 0.0)
+        );
+    }
 }
