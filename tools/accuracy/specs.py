@@ -4224,73 +4224,38 @@ add(
 )
 
 section("Bessel functions")
-add(
-    "bessel_j",
-    "v x",
-    r_jv,
-    D(U(0, 20), U(0, 50)),
-    D(U(-100, 100), LU(1e-300, 1e4)),
-    note="osc",
-)
-add(
-    "bessel_y",
-    "v x",
-    r_yv,
-    D(U(0, 20), U(0, 50)),
-    D(U(-100, 100), LU(1e-300, 1e4)),
-    note="osc",
-)
-add("bessel_i", "v x", r_iv, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 700)))
-add("bessel_k", "v x", r_kv, D(U(0, 20), U(0, 50)), D(U(0, 100), LU(1e-300, 700)))
-add(
-    "bessel_je",
-    "v x",
-    r_jv,
-    D(U(0, 20), U(0, 50)),
-    D(U(-100, 100), LU(1e-300, 1e8)),
-    note="osc",
-)
-add(
-    "bessel_ye",
-    "v x",
-    r_yv,
-    D(U(0, 20), U(0, 50)),
-    D(U(-100, 100), LU(1e-300, 1e8)),
-    note="osc",
-)
-add("bessel_ie", "v x", r_ie, D(U(0, 20), U(0, 50)), D(U(-100, 100), LU(1e-300, 1e8)))
-add("bessel_ke", "v x", r_ke, D(U(0, 20), U(0, 50)), D(U(0, 100), LU(1e-300, 1e8)))
-for f, r in [
-    ("bessel_j", c_besselj),
-    ("bessel_y", c_bessely),
-    ("bessel_i", c_besseli),
-    ("bessel_k", c_besselk),
-    ("hankel_1", c_hankel1),
-    ("hankel_2", c_hankel2),
+for f, r, v, x_hi, note in [
+    ("bessel_j", r_jv, U(-100, 100), 1e4, "osc"),
+    ("bessel_y", r_yv, U(-100, 100), 1e4, "osc"),
+    ("bessel_i", r_iv, U(-100, 100), 700, ""),
+    ("bessel_k", r_kv, U(0, 100), 700, ""),
+    ("bessel_je", r_jv, U(-100, 100), 1e8, "osc"),
+    ("bessel_ye", r_yv, U(-100, 100), 1e8, "osc"),
+    ("bessel_ie", r_ie, U(-100, 100), 1e8, ""),
+    ("bessel_ke", r_ke, U(0, 100), 1e8, ""),
+]:
+    add(f, "v x", r, D(U(0, 20), U(0, 50)), D(v, LU(1e-300, x_hi)), note=note)
+for f, r, note in [
+    ("bessel_j#c", c_besselj, "osc_c"),
+    ("bessel_y#c", c_bessely, "osc_c"),
+    ("bessel_i#c", c_besseli, ""),
+    ("bessel_k#c", c_besselk, ""),
+    ("hankel_1#c", c_hankel1, ""),
+    ("hankel_2#c", c_hankel2, ""),
+    ("hankel_1e", c_hankel1e, ""),
+    ("hankel_2e", c_hankel2e, ""),
+    ("bessel_je#c", c_besselje, "osc_cz"),
+    ("bessel_ye#c", c_besselye, "osc_cz"),
+    ("bessel_ie#c", c_besselie, ""),
+    ("bessel_ke#c", c_besselke, ""),
 ]:
     add(
-        f"{f}#c",
+        f,
         "v re im",
         r,
         D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000),
         complex=True,
-        note="osc_c" if f in ("bessel_j", "bessel_y") else "",
-    )
-for f, r in [("hankel_1e", c_hankel1e), ("hankel_2e", c_hankel2e)]:
-    add(f, "v re im", r, D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000), complex=True)
-for f, r in [
-    ("bessel_je", c_besselje),
-    ("bessel_ye", c_besselye),
-    ("bessel_ie", c_besselie),
-    ("bessel_ke", c_besselke),
-]:
-    add(
-        f"{f}#c",
-        "v re im",
-        r,
-        D(U(-20, 20), U(-50, 50), U(-50, 50), n=5000),
-        complex=True,
-        note="osc_cz" if f in ("bessel_je", "bessel_ye") else "",
+        note=note,
     )
 add(
     "wright_bessel",
@@ -4307,20 +4272,8 @@ add(
     timeout=60,
     note="zeros_c",
 )
-add(
-    "iv_ratio",
-    "v x",
-    r_iv_ratio,
-    D(U(0.5, 20), U(0, 50)),
-    D(LU(0.5, 1e4), LU(1e-300, 1e4)),
-)
-add(
-    "iv_ratio_c",
-    "v x",
-    r_iv_ratio_c,
-    D(U(0.5, 20), U(0, 50)),
-    D(LU(0.5, 1e4), LU(1e-300, 1e4)),
-)
+for f, r in [("iv_ratio", r_iv_ratio), ("iv_ratio_c", r_iv_ratio_c)]:
+    add(f, "v x", r, D(U(0.5, 20), U(0, 50)), D(LU(0.5, 1e4), LU(1e-300, 1e4)))
 add("iv_ratioinv", "v r", r_iv_ratioinv, D(U(0.5, 20), U(0, 1), n=2000), note="inv")
 for i, r in enumerate([r_lmbda, r_lmbdap]):
     add(
@@ -5185,22 +5138,15 @@ add(
 
 section("Information Theory functions")
 add("entr", "x", r_entr, D(U(0, 2)), D(LU(1e-300, 1e300)), note="zeros_c")
-add(
-    "rel_entr",
-    "x y",
-    r_rel_entr,
-    D(LU(1e-3, 1e3), LU(1e-3, 1e3)),
-    D(LU(1e-300, 1e300), LU(1e-300, 1e300)),
-    note="zeros_c",
-)
-add(
-    "kl_div",
-    "x y",
-    r_kl_div,
-    D(LU(1e-3, 1e3), LU(1e-3, 1e3)),
-    D(LU(1e-300, 1e300), LU(1e-300, 1e300)),
-    note="zeros_c",
-)
+for f, r in [("rel_entr", r_rel_entr), ("kl_div", r_kl_div)]:
+    add(
+        f,
+        "x y",
+        r,
+        D(LU(1e-3, 1e3), LU(1e-3, 1e3)),
+        D(LU(1e-300, 1e300), LU(1e-300, 1e300)),
+        note="zeros_c",
+    )
 add("huber", "delta r", r_huber, D(U(0, 5), U(-10, 10)))
 add(
     "pseudo_huber",
