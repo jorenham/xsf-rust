@@ -3,6 +3,7 @@
 //! - <https://github.com/scipy/scipy/blob/7d279ba/scipy/special/_orthogonal.py>
 //!
 //! The nodes are in ascending order, and the weights sum to the integral of the weight function.
+//! Most weight functions are in [DLMF Table 18.3.1](https://dlmf.nist.gov/18.3.T1).
 
 use core::f64::consts::{LN_2, PI, SQRT_2};
 
@@ -176,7 +177,7 @@ fn check_n(n: usize) {
 ///
 /// The nodes are the roots of the Jacobi polynomial $P_n^{(\alpha,\beta)}$, and the rule is exact
 /// for polynomials of degree $2n - 1$ with the weight function $(1 - x)^\alpha (1 + x)^\beta$ on
-/// $[-1, 1]$ (A&S 22.2.1).
+/// $[-1, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -294,7 +295,7 @@ pub fn roots_sh_jacobi(n: usize, alpha: f64, beta: f64) -> (Vec<f64>, Vec<f64>) 
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_jacobi.html
 ///
 /// The nodes are the roots of $G_n^{(p,q)}$, and the rule is exact for polynomials of degree
-/// $2n - 1$ with the weight function $(1 - x)^{p-q} x^{q-1}$ on $[0, 1]$ (A&S 22.2.2).
+/// $2n - 1$ with the weight function $(1 - x)^{p-q} x^{q-1}$ on $[0, 1]$.
 ///
 /// For small $q$, the nodes and weights have relative errors up to about $2^{-54} / q$, from the
 /// rounding of $q - 1$ (also in SciPy).
@@ -323,7 +324,7 @@ pub fn roots_gengegenbauer(n: usize, p: f64, q: f64) -> (Vec<f64>, Vec<f64>) {
 ///
 /// The nodes are the roots of the Gegenbauer polynomial $C_n^{(\alpha)}$, and the rule is exact
 /// for polynomials of degree $2n - 1$ with the weight function $(1 - x^2)^{\alpha - 1/2}$ on
-/// $[-1, 1]$ (A&S 22.2.3). For $\alpha = 0$, these are the roots of $T_n$, see
+/// $[-1, 1]$. For $\alpha = 0$, these are the roots of $T_n$, see
 /// [`roots_chebyshev_t`].
 ///
 /// The weights are NaN if $C_n^{(\alpha)}$ overflows at all nodes, e.g. for $n = 150$ and
@@ -386,7 +387,7 @@ pub fn roots_gegenbauer(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_legendre.html
 ///
 /// The nodes are the roots of the Legendre polynomial $P_n$, and the rule is exact for
-/// polynomials of degree $2n - 1$ on $[-1, 1]$ (A&S 22.2.10).
+/// polynomials of degree $2n - 1$ on $[-1, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -413,7 +414,7 @@ pub fn roots_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_legendre.html
 ///
 /// The nodes are the roots of the shifted Legendre polynomial $P_n^*$, and the rule is exact for
-/// polynomials of degree $2n - 1$ on $[0, 1]$ (A&S 22.2.11).
+/// polynomials of degree $2n - 1$ on $[0, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -434,8 +435,7 @@ pub fn roots_sh_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebyt.html
 ///
 /// The nodes are the roots of the Chebyshev polynomial $T_n$, and the rule is exact for
-/// polynomials of degree $2n - 1$ with the weight function $1 / \sqrt{1 - x^2}$ on $[-1, 1]$
-/// (A&S 22.2.4).
+/// polynomials of degree $2n - 1$ with the weight function $1 / \sqrt{1 - x^2}$ on $[-1, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -460,8 +460,7 @@ pub fn roots_chebyshev_t(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebyu.html
 ///
 /// The nodes are the roots of the Chebyshev polynomial $U_n$, and the rule is exact for
-/// polynomials of degree $2n - 1$ with the weight function $\sqrt{1 - x^2}$ on $[-1, 1]$
-/// (A&S 22.2.5).
+/// polynomials of degree $2n - 1$ with the weight function $\sqrt{1 - x^2}$ on $[-1, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -493,7 +492,7 @@ pub fn roots_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebyc.html
 ///
 /// The nodes are the roots of $C_n(x) = 2 T_n(x / 2)$, and the rule is exact for polynomials of
-/// degree $2n - 1$ with the weight function $1 / \sqrt{1 - (x/2)^2}$ on $[-2, 2]$ (A&S 22.2.6).
+/// degree $2n - 1$ with the weight function $1 / \sqrt{1 - (x/2)^2}$ on $[-2, 2]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -513,7 +512,7 @@ pub fn roots_chebyshev_c(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_chebys.html
 ///
 /// The nodes are the roots of $S_n(x) = U_n(x / 2)$, and the rule is exact for polynomials of
-/// degree $2n - 1$ with the weight function $\sqrt{1 - (x/2)^2}$ on $[-2, 2]$ (A&S 22.2.7).
+/// degree $2n - 1$ with the weight function $\sqrt{1 - (x/2)^2}$ on $[-2, 2]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -533,7 +532,7 @@ pub fn roots_chebyshev_s(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_chebyt.html
 ///
 /// The nodes are the roots of $T_n^*(x) = T_n(2x - 1)$, and the rule is exact for polynomials of
-/// degree $2n - 1$ with the weight function $1 / \sqrt{x - x^2}$ on $[0, 1]$ (A&S 22.2.8).
+/// degree $2n - 1$ with the weight function $1 / \sqrt{x - x^2}$ on $[0, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -558,7 +557,7 @@ pub fn roots_sh_chebyshev_t(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_sh_chebyu.html
 ///
 /// The nodes are the roots of $U_n^*(x) = U_n(2x - 1)$, and the rule is exact for polynomials of
-/// degree $2n - 1$ with the weight function $\sqrt{x - x^2}$ on $[0, 1]$ (A&S 22.2.9).
+/// degree $2n - 1$ with the weight function $\sqrt{x - x^2}$ on $[0, 1]$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -585,7 +584,7 @@ pub fn roots_sh_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
 ///
 /// The nodes are the roots of the generalized Laguerre polynomial $L_n^{(\alpha)}$, and the rule
 /// is exact for polynomials of degree $2n - 1$ with the weight function $x^\alpha e^{-x}$ on
-/// $[0, \infty)$ (A&S 22.3.9).
+/// $[0, \infty)$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -638,8 +637,7 @@ pub fn roots_genlaguerre(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_laguerre.html
 ///
 /// The nodes are the roots of the Laguerre polynomial $L_n$, and the rule is exact for
-/// polynomials of degree $2n - 1$ with the weight function $e^{-x}$ on $[0, \infty)$
-/// (A&S 22.2.13).
+/// polynomials of degree $2n - 1$ with the weight function $e^{-x}$ on $[0, \infty)$.
 ///
 /// # Panics
 /// - if `n` is zero
@@ -662,7 +660,7 @@ const HERMITE_GW_MAX: usize = 150;
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_hermite.html
 ///
 /// The nodes are the roots of the Hermite polynomial $H_n$, and the rule is exact for polynomials
-/// of degree $2n - 1$ with the weight function $e^{-x^2}$ on $(-\infty, \infty)$ (A&S 22.2.14).
+/// of degree $2n - 1$ with the weight function $e^{-x^2}$ on $(-\infty, \infty)$.
 /// For $n > 150$, they are computed by the asymptotic method of Townsend, Trogdon, and Olver
 /// [^TTO].
 ///
@@ -697,8 +695,8 @@ pub fn roots_hermite_h(n: usize) -> (Vec<f64>, Vec<f64>) {
 /// [docs]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.roots_hermitenorm.html
 ///
 /// The nodes are the roots of the Hermite polynomial $He_n$, and the rule is exact for
-/// polynomials of degree $2n - 1$ with the weight function $e^{-x^2/2}$ on $(-\infty, \infty)$
-/// (A&S 22.2.15). For $n > 150$, they are scaled from [`roots_hermite_h`].
+/// polynomials of degree $2n - 1$ with the weight function $e^{-x^2/2}$ on $(-\infty, \infty)$.
+/// For $n > 150$, they are scaled from [`roots_hermite_h`].
 ///
 /// # Panics
 /// - if `n` is zero
