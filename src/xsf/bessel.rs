@@ -673,7 +673,7 @@ fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
     } else if v * (w.atanh() - w) < MAXLOG {
         (v - x / (1.0 - UNHJ_SERIES_MAX_W.powi(2)).sqrt()).ceil()
     } else {
-        // eta >= 2 MAXLOG, where J = 0 and Y = -inf
+        // eta >= MAXLOG, where Y ~ e^eta is near overflow: left to AMOS
         return None;
     };
     if m < 1.0 {
