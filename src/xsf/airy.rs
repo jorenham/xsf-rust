@@ -5,7 +5,8 @@ use num_complex::Complex64;
 use crate::utils::mul_exp;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes;
+use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::{self, TWO_THIRDS};
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
@@ -41,11 +42,47 @@ impl AiryArg for Complex64 {
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
-    let ai = amos_airy_or_biry(false, z, 0, kode);
+    let zeta = zeta_err(z);
+    // Unlike in xsf, Ai is unscaled here from its `airye` (below), as the e^-zeta of AMOS loses
+    // up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
+    let ai_kode = if zeta.is_some() { 2 } else { kode };
+    let ai = amos_airy_or_biry(false, z, 0, ai_kode);
     let bi = amos_airy_or_biry(true, z, 0, kode);
-    let aip = amos_airy_or_biry(false, z, 1, kode);
+    let aip = amos_airy_or_biry(false, z, 1, ai_kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
-    [ai, aip, bi, bip]
+    let Some((zta, d)) = zeta else {
+        return [ai, aip, bi, bip];
+    };
+    // Unlike in xsf, the rounding error d of zeta = zta + d is undone: the scaled Bi
+    // ~ e^(i Im zeta) is off by e^(-i Im d), Bi ~ e^zeta by e^-d = 1 - d, and
+    // e^-zeta = e^-zta (1 - d).
+    if kode == 2 {
+        let fb = c64(1.0, d.im);
+        return [ai, aip, bi * fb, bip * fb];
+    }
+    let (fa, fb) = ((C64::ONE - d) * C64::cis(-zta.im), C64::ONE + d);
+    let unscale = |w: C64| (w * fa).mul_exp(-zta.re);
+    [unscale(ai), unscale(aip), bi * fb, bip * fb]
+}
+
+/// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
+///
+/// This is `None` where AMOS doesn't evaluate Ai and Bi as functions of `zta`, i.e. for
+/// `|z| <= 1` and `|ph z| > pi/3`.
+fn zeta_err(z: C64) -> Option<(C64, C64)> {
+    let s = z.sqrt();
+    let zta = z * s * (2.0 / 3.0);
+    if z.norm() <= 1.0 || z.re <= 0.0 || zta.re < 0.0 {
+        return None;
+    }
+    let dd = DoubleDouble::new;
+    let (zr, zi, sr, si) = (dd(z.re), dd(z.im), dd(s.re), dd(s.im));
+    // sqrt(z) = s + (z - s^2) / (2 s)
+    let e = c64((zr - sr * sr + si * si).hi, (zi - sr * si * 2.0).hi) / (2.0 * s);
+    let ze = z * e;
+    let zeta_re = (zr * sr - zi * si + ze.re) * TWO_THIRDS;
+    let zeta_im = (zr * si + zi * sr + ze.im) * TWO_THIRDS;
+    Some((zta, c64((zeta_re - zta.re).hi, (zeta_im - zta.im).hi)))
 }
 
 /// `amos::airy` (Ai) or, for `bi`, `amos::biry` (Bi), or their derivative for `id = 1`, with its
