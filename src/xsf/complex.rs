@@ -593,13 +593,8 @@ mod tests {
     #[test]
     fn test_catan() {
         // mpmath
-        let actual = [
-            c64(0.5, 0.5),
-            c64(1e-5, 1.0),
-            c64(2.0, -3.0),
-            c64(1e300, 1.0),
-        ]
-        .map(|z| Complex::from(super::catan(z)));
+        let actual = [c64(0.5, 0.5), c64(1e-5, 1.0), c64(2.0, -3.0), c64(1e300, 1.0)]
+            .map(|z| Complex::from(super::catan(z)));
         let expected = [
             c64(0.553_574_358_897_045_2, 0.402_359_478_108_525_07),
             c64(0.785_400_663_397_448_3, 6.103_036_322_771_337),

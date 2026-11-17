@@ -86,12 +86,7 @@ fn test_ellipj_near_1() {
             // near -21 K
             -407.508_951_116_008_1,
             0.999_999_999_999_999_8,
-            [
-                -1.0,
-                9.183_585_813_193_36e-10,
-                1.492_943_359_303_742e-8,
-                -32.986_722_861_774_47,
-            ],
+            [-1.0, 9.183_585_813_193_36e-10, 1.492_943_359_303_742e-8, -32.986_722_861_774_47],
             1e-11,
         ),
         (
@@ -108,22 +103,14 @@ fn test_ellipj_near_1() {
         (
             720.0,
             1.0,
-            [
-                1.0,
-                4.064_461_604_84e-313,
-                4.064_461_604_84e-313,
-                core::f64::consts::FRAC_PI_2,
-            ],
+            [1.0, 4.064_461_604_84e-313, 4.064_461_604_84e-313, core::f64::consts::FRAC_PI_2],
             1e-10,
         ),
     ] {
         let (sn, cn, dn, ph) = xsf::ellipj(u, m);
         for (got, expected) in [sn, cn, dn, ph].into_iter().zip(expected) {
             let rel = (got - expected).abs() / expected.abs();
-            assert!(
-                rel < rtol,
-                "ellipj({u}, {m}): {got} != {expected} (rel = {rel:e})"
-            );
+            assert!(rel < rtol, "ellipj({u}, {m}): {got} != {expected} (rel = {rel:e})");
         }
     }
     // the smallest subnormal sech(u)
@@ -133,18 +120,12 @@ fn test_ellipj_near_1() {
     // dn near the quarter period, where 1 - m sn^2 cancels (reference value from mpmath)
     let (_, _, dn, _) = xsf::ellipj(12.706_487_231_104_472, 0.999_999_999_85);
     let expected = 1.224_806_159_815_916_4e-5;
-    assert!(
-        (dn - expected).abs() < 1e-13 * expected,
-        "{dn} != {expected}"
-    );
+    assert!((dn - expected).abs() < 1e-13 * expected, "{dn} != {expected}");
 
     // too large |u| to reduce by quarter periods
     for u in [-1e18, 1e17, 1e18] {
         let (sn, cn, dn, _) = xsf::ellipj(u, 0.999_999_999_9);
-        assert!(
-            sn.abs() <= 1.0 && cn.abs() <= 1.0 && dn.abs() <= 1.0,
-            "ellipj({u})"
-        );
+        assert!(sn.abs() <= 1.0 && cn.abs() <= 1.0 && dn.abs() <= 1.0, "ellipj({u})");
     }
 }
 

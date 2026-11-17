@@ -1779,21 +1779,13 @@ mod tests {
         let (num, den) = ([Dd::new(180.5)], [178.25, 1.5].map(Dd::new));
         let check = |y: Option<Scaled>, expected: f64, tol: f64| {
             let (y, err) = y.unwrap().to_f64();
-            assert!(
-                err <= tol && (y / expected - 1.0).abs() <= err,
-                "{y} != {expected}"
-            );
+            assert!(err <= tol && (y / expected - 1.0).abs() <= err, "{y} != {expected}");
         };
-        for (e, expected, tol) in [
-            (-75, -2.419_553_175_200_6e16, 1e-14),
-            (-60, -2.419_550_867_807_498_4e16, 1e-12),
-        ] {
+        for (e, expected, tol) in
+            [(-75, -2.419_553_175_200_6e16, 1e-14), (-60, -2.419_550_867_807_498_4e16, 1e-12)]
+        {
             let g = Dd::new(-3.0 + pow2(-40)) + pow2(e);
-            check(
-                mul_gammas(num.into_iter().chain([g]), den, one),
-                expected,
-                tol,
-            );
+            check(mul_gammas(num.into_iter().chain([g]), den, one), expected, tol);
         }
         // equal factors, whose errors are equal too
         let g = Dd::new(-8.000_005_264_759_276);

@@ -73,13 +73,7 @@ pub fn ellip_harm_2(h2: f64, k2: f64, n: u32, p: u32, s: f64) -> f64 {
     let integrand = |v: f64, t: f64| {
         let one_m_t2k2 = v * v * (1.0 + t * k);
         let one_m_t2h2 = one_m_t2k2 + t * t * (k2 - h2);
-        let i = lame.eval_with(
-            1.0 / t,
-            one_m_t2h2 / (t * t),
-            one_m_t2k2 / (t * t),
-            1.0,
-            1.0,
-        );
+        let i = lame.eval_with(1.0 / t, one_m_t2h2 / (t * t), one_m_t2k2 / (t * t), 1.0, 1.0);
         let r = e_s / i;
         2.0 / k * r * r / ((1.0 + t * k).sqrt() * one_m_t2h2.sqrt())
     };
@@ -92,13 +86,8 @@ pub fn ellip_harm_2(h2: f64, k2: f64, n: u32, p: u32, s: f64) -> f64 {
         (0.0, 0.0)
     };
     let w1 = k / s / (1.0 + v1);
-    let (res_w, err_w) = quad(
-        |w| integrand(1.0 - w, w * (2.0 - w) / k),
-        0.0,
-        w1.min(0.5),
-        0.0,
-        EPSREL,
-    );
+    let (res_w, err_w) =
+        quad(|w| integrand(1.0 - w, w * (2.0 - w) / k), 0.0, w1.min(0.5), 0.0, EPSREL);
     let (res, err) = (res_v + res_w, err_v + err_w);
     if err > 1e-10 * res.abs() + 1e-290 {
         return f64::NAN;

@@ -156,12 +156,7 @@ impl TestOutput for (Complex<f64>, Complex<f64>, Complex<f64>, Complex<f64>) {
 
     #[inline]
     fn from_row(row: &[f64]) -> Self {
-        (
-            c64(row[0], row[1]),
-            c64(row[2], row[3]),
-            c64(row[4], row[5]),
-            c64(row[6], row[7]),
-        )
+        (c64(row[0], row[1]), c64(row[2], row[3]), c64(row[4], row[5]), c64(row[6], row[7]))
     }
 
     #[inline]
@@ -486,11 +481,7 @@ where
     for case in cases {
         let actual = test_fn(&case.r#in);
         let values = actual.values();
-        assert_eq!(
-            values.len(),
-            case.checks.len(),
-            "{name}: a tolerance per output"
-        );
+        assert_eq!(values.len(), case.checks.len(), "{name}: a tolerance per output");
 
         // like in xsf, each output has its own tolerance
         let error = (values
@@ -573,10 +564,7 @@ mod tests {
         let bits = |x: &[f64]| x.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(inputs), bits(&row[..1]));
         assert_eq!(bits(outputs), bits(&row[1..5]));
-        assert_eq!(
-            bits(&checks.iter().map(|c| c.tol).collect::<Vec<_>>()),
-            bits(&row[5..])
-        );
+        assert_eq!(bits(&checks.iter().map(|c| c.tol).collect::<Vec<_>>()), bits(&row[5..]));
         // without the optional sections, the outputs are xsref's and have no scale
         assert!(
             checks
@@ -592,12 +580,7 @@ mod tests {
             [1.0, 2.0, 3.0, 1e-16, f64::INFINITY, 0.0, 0.0],
             [4.0, f64::NAN, 5.0, 0.0, 2e-15, 0.0, 8.0],
         ];
-        let status = [
-            Status::Computed,
-            Status::Legacy,
-            Status::Convention,
-            Status::Computed,
-        ];
+        let status = [Status::Computed, Status::Legacy, Status::Convention, Status::Computed];
         for flags in 0..4 {
             let (has_status, has_scales) = (flags & Table::STATUS != 0, flags == 3);
             let n = if flags & Table::SCALES == 0 { 5 } else { 7 };
@@ -612,21 +595,14 @@ mod tests {
             } else {
                 Default::default()
             };
-            let bytes = file(
-                [1, 2, 2],
-                flags,
-                &[(&rows[0][..n], 0, status0), (&rows[1][..n], 1, status1)],
-            );
+            let bytes =
+                file([1, 2, 2], flags, &[(&rows[0][..n], 0, status0), (&rows[1][..n], 1, status1)]);
             assert_eq!(bytes.len(), 20 + 2 * (8 * n + 1 + status0.len()));
 
             let cases = Table::parse(&bytes).unwrap().test_cases::<(f64, f64)>();
             assert_eq!((&cases[0].r#in, cases[0].out), (&vec![1.0], (2.0, 3.0)));
-            let checks = [
-                cases[0].checks[0],
-                cases[0].checks[1],
-                cases[1].checks[0],
-                cases[1].checks[1],
-            ];
+            let checks =
+                [cases[0].checks[0], cases[0].checks[1], cases[1].checks[0], cases[1].checks[1]];
             assert_eq!(checks.map(|c| c.tol), [1e-16, f64::INFINITY, 0.0, 2e-15]);
             assert_eq!(
                 checks.map(|c| c.scale),
@@ -645,11 +621,7 @@ mod tests {
 
     #[test]
     fn test_table_invalid() {
-        let valid = file(
-            [1, 1, 1],
-            0,
-            &[(&[1.0, 2.0, 0.0], 0, &[]), (&[3.0, 4.0, 0.0], 0, &[])],
-        );
+        let valid = file([1, 1, 1], 0, &[(&[1.0, 2.0, 0.0], 0, &[]), (&[3.0, 4.0, 0.0], 0, &[])]);
         assert!(Table::parse(&valid).is_ok());
 
         let invalid = |edit: fn(&mut Vec<u8>)| {
@@ -675,10 +647,8 @@ mod tests {
         // an input, an output, its tolerance, and its scale; a computed and a legacy output
         let flags = Table::STATUS | Table::SCALES;
         let valid = |row0: [f64; 4], status0: u8| {
-            let rows: [(&[f64], u8, &[u8]); 2] = [
-                (&row0, 0, &[status0]),
-                (&[3.0, 4.0, f64::INFINITY, 0.0], 0, &[0]),
-            ];
+            let rows: [(&[f64], u8, &[u8]); 2] =
+                [(&row0, 0, &[status0]), (&[3.0, 4.0, f64::INFINITY, 0.0], 0, &[0])];
             Table::parse(&file([1, 1, 1], flags, &rows)).is_ok()
         };
         assert!(valid([1.0, 2.0, 1e-15, 0.0], 1));
@@ -717,11 +687,7 @@ mod tests {
                 [0, 1].map(|i| fields[i].split(',').map(number).collect::<Vec<_>>());
             let scale = number(fields[2]);
             let error = if actual.len() == 2 {
-                table_error(
-                    c64(actual[0], actual[1]),
-                    c64(expected[0], expected[1]),
-                    scale,
-                )
+                table_error(c64(actual[0], actual[1]), c64(expected[0], expected[1]), scale)
             } else {
                 table_error(actual[0], expected[0], scale)
             };
@@ -750,10 +716,7 @@ mod tests {
             let convention = status == Status::Convention;
             assert_eq!(passes("f", &[0.0], check(status), -0.0), !convention);
             assert_eq!(passes("f", &[-0.0], check(status), 0.0), !convention);
-            assert_eq!(
-                passes("f", &[inf, 0.0], check(status), c64(inf, -0.0)),
-                !convention
-            );
+            assert_eq!(passes("f", &[inf, 0.0], check(status), c64(inf, -0.0)), !convention);
         }
         // a legacy output only has its error
         assert!(passes("f", &[inf], check(Status::Legacy), max));
@@ -817,11 +780,6 @@ mod tests {
         };
         let nan = Complex::new(f64::NAN, f64::NAN);
         assert!(passes("f", &[f64::NAN, f64::NAN], check, nan));
-        assert!(!passes(
-            "f",
-            &[f64::NAN, f64::NAN],
-            check,
-            c64(f64::NAN, 0.0)
-        ));
+        assert!(!passes("f", &[f64::NAN, f64::NAN], check, c64(f64::NAN, 0.0)));
     }
 }
