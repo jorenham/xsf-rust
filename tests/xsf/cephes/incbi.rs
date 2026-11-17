@@ -293,6 +293,32 @@ fn test_betainccinv_extreme() {
 }
 
 #[test]
+fn test_betainccinv_subnormal_root() {
+    // the root (1 - y)^(1/a) for b = 1, correctly rounded, of 1.48e-323, 4.94e-324 (just above the
+    // smallest subnormal), and 3.0e-324, 7.0e-324 and 2.0e-324 (around the rounding midpoints)
+    for &(a, y, ref_) in &[
+        (0.000_387_012_010_057_834_45, 0.25, 1.5e-323),
+        (1.491_353_120_956_665_7e-19, f64::EPSILON / 2.0, 5e-324),
+        (1.490_354_361_171_057e-19, f64::EPSILON / 2.0, 5e-324),
+        (1.492_051_429_058_461e-19, f64::EPSILON / 2.0, 5e-324),
+        (1.489_543_612_913_519_3e-19, f64::EPSILON / 2.0, 0.0),
+        // 1.4999 and 0.4999 times the smallest subnormal, where a Newton step crosses the
+        // midpoint
+        (0.000_686_561_583_716_619, 0.4, 5e-324),
+        (1e-19, 7.451_334_191_219_438e-17, 0.0),
+    ] {
+        assert_eq!(xsf::betainccinv(a, 1.0, y), ref_);
+    }
+    // the root 3.87e-324, from the leading term x^a / (a B(a, b)) of I_x(a, b) (mpmath)
+    let x = xsf::betainccinv(
+        0.001_108_048_779_638_058_7,
+        0.245_270_319_242_572_03,
+        0.563_633_518_905_1,
+    );
+    assert_eq!(x, 5e-324);
+}
+
+#[test]
 fn test_betainccinv_edge_cases() {
     let inf = f64::INFINITY;
     for &((a, b, y), expected) in &[

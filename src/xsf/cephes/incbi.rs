@@ -420,6 +420,8 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
     let lbeta_ab = lbeta(a, b);
     // `g(x)` is decreasing, and >= 0 at `lo` and <= 0 at `hi`
     let (mut lo, mut hi) = (0.0, 1.0);
+    // `p` at `hi`
+    let mut p_hi = f64::NAN;
     let mut step = f64::INFINITY;
     for _ in 0..BETAINCCINV_MAXITER {
         // `g = ln(I_(1-x)(b, a) / y)`, or `ln((1 - y) / I_x(a, b))` where `1 - y` is exact, and
@@ -435,14 +437,15 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
             lo = x;
         } else if g < 0.0 {
             hi = x;
+            p_hi = p;
         } else if g == 0.0 {
             break;
         } else {
             return f64::NAN;
         }
-        // the root is below the smallest subnormal
-        if hi == f64::from_bits(1) {
-            return 0.0;
+        // adjacent subnormals, which the bisection or Newton steps cannot resolve
+        if hi < f64::MIN_POSITIVE && hi - lo <= f64::from_bits(1) {
+            return betainccinv_round_subnormal(a, y, lo, hi, p_hi);
         }
         // within rounding of the root
         if hi - lo <= f64::EPSILON * lo {
@@ -472,4 +475,21 @@ pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
         x = xn;
     }
     x
+}
+
+/// The root of `betainccinv_refine` between the adjacent subnormals `lo < hi`, rounded to the
+/// nearest of them, given `p` at `hi` (`p_hi`)
+///
+/// Here `I_x(a, b) = C x^a`, up to a relative `O(b x)`, so that at the midpoint `m` (not a float),
+/// `I_m(a, b) = I_hi(a, b) (m / hi)^a` up to `O(b (hi - m))`, at most about 2 eps.
+fn betainccinv_round_subnormal(a: f64, y: f64, lo: f64, hi: f64, p_hi: f64) -> f64 {
+    // `(m / hi)^a - 1`, with `(hi - lo) / hi` first, as half of the subnormal `hi - lo` rounds
+    let r = (a * (-0.5 * ((hi - lo) / hi)).ln_1p()).exp_m1();
+    // whether `g(m) > 0`, with `p = 1 - I_x(a, b)` if `y < 1/2`, else `p = I_x(a, b)`
+    let above = if y < 0.5 {
+        p_hi - (1.0 - p_hi) * r > y
+    } else {
+        p_hi + p_hi * r < 1.0 - y
+    };
+    if above { hi } else { lo }
 }
