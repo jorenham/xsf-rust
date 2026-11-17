@@ -14,13 +14,8 @@ xsref::tests! {
 fn test_expit_subnormal() {
     // mpmath
     let x = [-709.0, -710.0, -730.0, -745.0, -746.0];
-    let desired = [
-        1.216_780_750_623_423e-308,
-        4.476_286_225_675_13e-309,
-        9.226_315e-318,
-        5e-324,
-        0.0,
-    ];
+    let desired =
+        [1.216_780_750_623_423e-308, 4.476_286_225_675_13e-309, 9.226_315e-318, 5e-324, 0.0];
     np_assert_allclose!(x.map(xsf::expit), desired, rtol = 1e-15, atol = 5e-324);
     assert_eq!(xsf::expit(f64::NEG_INFINITY), 0.0);
     assert!((xsf::expit(-89.0_f32) / 2.227_364e-39 - 1.0).abs() < 1e-6);
@@ -37,10 +32,7 @@ fn test_exprel_near_overflow() {
         1.258_739_962_544_279_3e308,
     ];
     np_assert_allclose!(x.map(xsf::exprel), desired, rtol = 1e-15);
-    assert_eq!(
-        [716.4, 717.0, f64::INFINITY].map(xsf::exprel),
-        [f64::INFINITY; 3]
-    );
+    assert_eq!([716.4, 717.0, f64::INFINITY].map(xsf::exprel), [f64::INFINITY; 3]);
     assert!((xsf::exprel(90.0_f32) / 1.356_003_7e37 - 1.0).abs() < 1e-6);
     assert_eq!([94.0, f32::INFINITY].map(xsf::exprel), [f32::INFINITY; 2]);
 }

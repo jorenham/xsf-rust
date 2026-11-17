@@ -1178,14 +1178,7 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
         // and `msta2`, where the zeros are NaN anyway (as for `v >~ 5000`).
         return [j, jp, y, yp];
     }
-    specfun::jyzo(
-        v.try_into().unwrap(),
-        N.try_into().unwrap(),
-        &mut j,
-        &mut jp,
-        &mut y,
-        &mut yp,
-    );
+    specfun::jyzo(v.try_into().unwrap(), N.try_into().unwrap(), &mut j, &mut jp, &mut y, &mut yp);
     [j, jp, y, yp]
 }
 

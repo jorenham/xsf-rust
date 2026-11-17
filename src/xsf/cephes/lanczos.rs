@@ -67,11 +67,7 @@ pub(crate) const LANCZOS_G: f64 = 6.024_680_040_776_73; // 6.0246800407767295837
 #[must_use]
 #[inline]
 pub fn lanczos_sum_expg_scaled(x: f64) -> f64 {
-    ratevl_fma(
-        x,
-        &LANCZOS_SUM_EXPG_SCALED_NUM,
-        &LANCZOS_SUM_EXPG_SCALED_DENOM,
-    )
+    ratevl_fma(x, &LANCZOS_SUM_EXPG_SCALED_NUM, &LANCZOS_SUM_EXPG_SCALED_DENOM)
 }
 
 /// `ln(Gamma(x + m) / Gamma(x))` for `x > 0` and `x + m > 0`

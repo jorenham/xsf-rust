@@ -373,13 +373,7 @@ pub(crate) fn bracket_root_for_cdf_inversion(
         }
         if reached_boundary {
             /* We've reached a boundary point without finding a root . */
-            return (
-                f64::NAN,
-                f64::NAN,
-                f64::NAN,
-                f64::NAN,
-                if search_left { 1 } else { 2 },
-            );
+            return (f64::NAN, f64::NAN, f64::NAN, f64::NAN, if search_left { 1 } else { 2 });
         }
         let step = (frontier - interior) * factor;
         interior = frontier;

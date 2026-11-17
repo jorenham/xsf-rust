@@ -49,11 +49,7 @@ fn test_small_y_tail() {
         (-1e7, -4_472.133_869_964_196),
         (-1e8, -14_142.134_882_976_301),
     ];
-    np_assert_allclose!(
-        cases.map(|(y, _)| xsf::ndtri_exp(y)),
-        cases.map(|(_, x)| x),
-        rtol = 1e-15
-    );
+    np_assert_allclose!(cases.map(|(y, _)| xsf::ndtri_exp(y)), cases.map(|(_, x)| x), rtol = 1e-15);
 }
 
 #[test]

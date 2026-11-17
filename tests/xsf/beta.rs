@@ -6,25 +6,17 @@ xsref::tests! {
 #[test]
 fn test_beta_lgam_ratio() {
     // unlike in xsf (scipy/scipy#26423): no cancellation in lgam(a + b) - lgam(a) for |b| << a
-    for (a, b, expected) in [
-        (999_999.0, 0.5, 0.001_772_454_958_690_183_8),
-        (300_000.0, -2.5, -46_598_342_334_957.34),
-    ] {
+    for (a, b, expected) in
+        [(999_999.0, 0.5, 0.001_772_454_958_690_183_8), (300_000.0, -2.5, -46_598_342_334_957.34)]
+    {
         let actual = xsf::beta(a, b);
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-15, "{actual:e} != {expected:e}");
     }
-    for (a, b, expected) in [
-        (1e100, 1e94, -1.481_551_105_796_410_7e95),
-        (10_000.0, 0.25, -1.014_553_193_217_846_2),
-    ] {
+    for (a, b, expected) in
+        [(1e100, 1e94, -1.481_551_105_796_410_7e95), (10_000.0, 0.25, -1.014_553_193_217_846_2)]
+    {
         let actual = xsf::betaln(a, b);
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-15, "{actual:e} != {expected:e}");
     }
 }
 
@@ -37,10 +29,7 @@ fn test_beta_reflected() {
         (5_000.25, -4_999.5, 0.304_878_142_880_374_1),
     ] {
         let actual = xsf::beta(a, b);
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-15, "{actual:e} != {expected:e}");
     }
     let actual = xsf::betaln(-1_000_000.25, 0.5);
     assert!((actual / -6.335_390_586_057_390_5 - 1.0).abs() < 5e-15);
@@ -52,24 +41,14 @@ fn test_beta_near_171() {
     // below -170.6
     for (a, b, expected) in [
         (-171.1, 0.5, -0.416_731_771_605_593_1),
-        (
-            -171.331_359_822_697_1,
-            0.004_863_556_345_095_009,
-            198.157_298_160_572_34,
-        ),
+        (-171.331_359_822_697_1, 0.004_863_556_345_095_009, 198.157_298_160_572_34),
         (171.5, -171.25, 0.025_871_582_394_479_65),
     ] {
         let actual = xsf::beta(a, b);
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-14, "{actual:e} != {expected:e}");
         let actual = xsf::betaln(a, b);
         let expected = expected.abs().ln();
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-14, "{actual:e} != {expected:e}");
     }
 }
 
@@ -84,10 +63,7 @@ fn test_beta_small_b() {
         (1e17, 1e-300, 1e300),
     ] {
         let actual = xsf::beta(a, b);
-        assert!(
-            (actual / expected - 1.0).abs() < 5e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 5e-15, "{actual:e} != {expected:e}");
     }
     let actual = xsf::betaln(0.3, 150.7);
     assert!((actual / -0.408_092_281_213_068_6 - 1.0).abs() < 5e-15);
@@ -108,12 +84,7 @@ fn test_beta_negint_huge() {
     // unlike in xsf (scipy/xsf#338), also for integers that don't fit in an `int` (Arb); the
     // beta table covers the other cases
     let n = 2.998_076_996_061_15e154;
-    let ab = [
-        (-n, 10.0),
-        (-n, 5.0),
-        (-n, n),
-        (-1_152_921_504_606_846_976.0, 3.0),
-    ];
+    let ab = [(-n, 10.0), (-n, 5.0), (-n, n), (-1_152_921_504_606_846_976.0, 3.0)];
     let actual = [xsf::beta(ab[3].0, ab[3].1)];
     xsref::np_assert_allclose!(&actual, &[-1.305_060_893_599_705e-54], rtol = 5e-14);
     let actual = ab.map(|(a, b)| xsf::betaln(a, b));
@@ -133,12 +104,7 @@ fn test_beta_negint_huge() {
 fn test_betaln_both_large() {
     // unlike in xsf, without the cancellation in lgam(a) + lgam(b) - lgam(a + b) (mpmath)
     // (a + b overflows for the last one)
-    let ab = [
-        (106.5, 765.0),
-        (9005.8, 1260.8),
-        (1.34e182, 3.03e182),
-        (1e308, 1e308),
-    ];
+    let ab = [(106.5, 765.0), (9005.8, 1260.8), (1.34e182, 3.03e182), (1e308, 1e308)];
     let expected = [
         -324.929_840_678_593_45,
         -3_826.675_079_633_965_7,
@@ -153,10 +119,7 @@ fn test_betaln_both_large() {
 fn test_beta_both_large() {
     // unlike in xsf, without the rounding error of ln(B), which exp amplifies |ln(B)| times
     // (mpmath)
-    let ab = [
-        (908.203_561_838_525_2, 316.086_166_185_082_73),
-        (505.0, 387.0),
-    ];
+    let ab = [(908.203_561_838_525_2, 316.086_166_185_082_73), (505.0, 387.0)];
     let expected = [3.433_213_801_808_419_6e-305, 1.287_464_042_485_924_4e-266];
     let actual = ab.map(|(a, b)| xsf::beta(a, b));
     xsref::np_assert_allclose!(&actual, &expected, rtol = 2e-15);
@@ -219,10 +182,7 @@ fn test_beta_asymp() {
 fn test_beta_stirling_small_b() {
     // unlike in xsf, without the cancellation of the Stirling correction of Gamma(b) for
     // 5 <= b < 13 (Arb)
-    let ab = [
-        (19_830.289_790_282_997, 11.889_677_178_871_672),
-        (100_000.0, 8.25),
-    ];
+    let ab = [(19_830.289_790_282_997, 11.889_677_178_871_672), (100_000.0, 8.25)];
     let expected = [2.449_509_334_341_311e-44, 4.709_050_581_234_839e-38];
     let actual = ab.map(|(a, b)| xsf::beta(a, b));
     xsref::np_assert_allclose!(&actual, &expected, rtol = 5e-16);

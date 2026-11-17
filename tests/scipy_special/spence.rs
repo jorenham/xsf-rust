@@ -42,12 +42,7 @@ fn test_spence_near_1_c64() {
 #[test]
 fn test_spence_huge_c64() {
     // mpmath: polylog(2, 1 - z), where |z|^2 or |z| overflows
-    let zs = [
-        c64(1e200, 1e200),
-        c64(-3e160, 2e155),
-        c64(0.0, -1e300),
-        c64(f64::MAX, f64::MAX),
-    ];
+    let zs = [c64(1e200, 1e200), c64(-3e160, 2e155), c64(0.0, -1e300), c64(f64::MAX, f64::MAX)];
     let expect = [
         c64(-106_198.961_811_644_83, -361.961_418_882_061_2),
         c64(-68_266.353_166_041_1, -1_160.854_434_866_919_6),
