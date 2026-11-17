@@ -517,6 +517,69 @@ fn test_legendre_q_all_c64_tiny_im_real_parts() {
 }
 
 #[test]
+fn test_legendre_q_all_c64_tiny_re() {
+    // the real part of `Q_0` lost the digits of `Re z` (scipy/xsf main as well), so these are
+    // compared by component; Arb references (mpmath's `legenq` type 2 for `|z| < 1`, else 3)
+    let parts = |q: &[num_complex::Complex64]| -> Vec<f64> {
+        q.iter().flat_map(|c| [c.re, c.im]).collect()
+    };
+    let z = c64(1e-10, 1.5);
+    let (q, d) = xsf::legendre_q_all(2, z);
+    let (qm, _) = xsf::assoc_legendre_q_all(2, 0, z);
+    let expected = [
+        3.076_923_076_923_077e-11,
+        -0.588_002_603_547_567_5,
+        -0.117_996_094_678_648_67,
+        -1.264_641_420_091_060_2e-11,
+        -4.629_597_634_363_833e-12,
+        0.028_510_088_746_824_26,
+    ];
+    xsref::np_assert_allclose!(parts(&q), expected, rtol = 1e-14);
+    xsref::np_assert_allclose!(
+        parts(&[qm[0][0], qm[1][0], qm[2][0]]),
+        expected,
+        rtol = 1e-14
+    );
+    xsref::np_assert_allclose!(
+        parts(&d),
+        [
+            0.307_692_307_692_307_7,
+            2.840_236_686_390_532_7e-11,
+            1.893_491_124_260_355e-11,
+            -0.126_464_142_009_106_02,
+            -0.046_295_976_343_638_33,
+            -9.536_875_738_826_48e-12,
+        ],
+        rtol = 1e-14
+    );
+
+    let (q, _) = xsf::legendre_q_all(3, c64(1e-12, -0.3));
+    xsref::np_assert_allclose!(
+        parts(&[q[0], q[3]]),
+        [
+            9.174_311_926_605_504e-13,
+            -0.291_456_794_477_867_1,
+            1.042_495_557_808_963,
+            2.608_689_170_191_196e-12,
+        ],
+        rtol = 1e-14
+    );
+    let (q, _) = xsf::legendre_q_all(3, c64(-3e-9, 50.0));
+    xsref::np_assert_allclose!(
+        parts(&[q[0], q[2], q[3]]),
+        [
+            -1.199_520_191_923_230_7e-12,
+            -0.019_997_333_973_150_53,
+            1.918_903_368_919_533_4e-16,
+            1.066_301_074_244_355e-6,
+            9.138_795_201_736_145e-9,
+            -2.192_823_601_526_560_7e-18,
+        ],
+        rtol = 1e-14
+    );
+}
+
+#[test]
 fn test_assoc_legendre_q_all_c64_tiny_im_axis() {
     // on and near the imaginary axis; Arb references (Ferrers), with
     // `Q_20^20(z) = 2^20 20! z + O(z^3)`
