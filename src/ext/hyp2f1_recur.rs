@@ -680,7 +680,7 @@ fn psi_dd(v: Dd) -> Option<(f64, f64)> {
     Some((y, err))
 }
 
-/// `(Gamma(v + e) / Gamma(v) - 1) / e` for `|e| <= HYP2F1_RECUR_NEAR_INT`, which is `psi(v)` at
+/// `(Gamma(v + e) / Gamma(v) - 1) / e` for `|e| <= 0.04`, which is `psi(v)` at
 /// `e = 0`, and a bound of its absolute error, or `None` at a pole of either:
 ///
 /// - for `v < 1/4`, by the reflection formula (DLMF 5.5.3), with `u = 1 - v - e` and
@@ -692,9 +692,10 @@ fn psi_dd(v: Dd) -> Option<(f64, f64)> {
 ///   ```
 ///
 /// - else as `expm1(e l) / e`, with `e l = ln Gamma(v + e) - ln Gamma(v)` from `v + n >= 13`,
-///   where it is `e psi(x) + e^3 psi''(x) / 24` at the midpoint `x` (DLMF 5.15.9 for `psi''`, up
-///   to `e^2 / (144 x^8)` and `e^4 / (320 x^4)` in `l`), minus the `ln(1 + e / (v + i))`, `i < n`.
-fn gamma_quot(v: Dd, e: Dd) -> Option<(f64, f64)> {
+///   where it is `e psi(x) + e^3 psi''(x) / 24 + e^5 psi''''(x) / 1920` at the midpoint `x`
+///   (DLMF 5.15.9 for the derivatives, up to about `e^2 / (80 x^10)` in `l`), minus the
+///   `ln(1 + e / (v + i))`, `i < n`.
+pub(crate) fn gamma_quot(v: Dd, e: Dd) -> Option<(f64, f64)> {
     if v.hi < 0.25 && e.hi != 0.0 {
         let (ve, mid) = (v + e, v + e * 0.5);
         if v.is_integer() || ve.is_integer() {
@@ -728,9 +729,10 @@ fn gamma_quot(v: Dd, e: Dd) -> Option<(f64, f64)> {
     }
     let x = v.hi + n + 0.5 * e;
     let x2 = 1.0 / (x * x);
-    let psi2 = -x2 * (1.0 + 1.0 / x + x2 * (0.5 - x2 / 6.0));
+    let psi2 = -x2 * (1.0 + 1.0 / x + x2 * (0.5 - x2 / 6.0 * (1.0 - x2)));
+    let psi4 = -6.0 * x2 * x2 * (1.0 + 2.0 / x + 5.0 / 3.0 * x2);
     let psi_x = psi(x);
-    l += psi_x + e * e / 24.0 * psi2;
+    l += psi_x + e * e / 24.0 * (psi2 + e * e / 80.0 * psi4);
     let y = (e * l).exp_m1() / e;
     // (the roundings of the terms, and of `psi` as in `psi_dd`)
     let l_err = MACHEP * (4.0 * l_abs + 8.0 * (psi_x.abs() + 1.0));
@@ -1030,6 +1032,9 @@ mod tests {
             (1000.0, 2.5e-4, 6.913_222_526_976_623),
             (0.24, 1e-9, -4.406_160_326_799_55),
             (-7.3, -3.3e-5, 4.336_750_268_419_202),
+            (0.98, 0.04, -0.570_759_743_970_275_3),
+            (13.5, -0.04, 2.436_589_945_228_180_4),
+            (-7.3, 0.02, 4.699_610_668_760_759),
             (-135.999_997_964, -2.0344e-6, -624_989_001.899_548_8),
             (-399.999_999_998_5, 1e-12, -666_229_553.282_955_2),
         ] {
