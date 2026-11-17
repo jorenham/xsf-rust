@@ -142,7 +142,8 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
     }
     let big_n = n as f64;
     let b = rpow(big_n, -z);
-    result += b * (0.5 + big_n / (z - 1.0));
+    // Unlike in xsf, b n is divided by z - 1, as n / (z - 1) overflows near z = 1
+    result += 0.5 * b + b * big_n / (z - 1.0);
     /* The terms of the Euler-Maclaurin
      * expansion below are T(k, n) = B2k/(2k)! * n^(1 - z - 2k) * z(z+1)...(z+2k-2).
      * We work with logarithms to avoid overflow in all cases at the expense of
