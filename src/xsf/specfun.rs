@@ -411,15 +411,22 @@ pub(super) fn hypu_fwd_b(
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
+    // and so are the rounding errors of each step, which can grow even if the starting values
+    // don't cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal
+    // solution
+    let (mut e0, mut e1) = (0.0, 0.0);
     let mut c = b - n + 1.0;
     while c < b {
         // U(a, c + 1, x) = ((c + x - 1) U(a, c, x) - (c - a - 1) U(a, c - 1, x)) / x
         let next = |u0: f64, u1: f64| ((c + x - 1.0) * u1 - (c - a - 1.0) * u0) / x;
+        let rounding =
+            f64::EPSILON * ((c + x - 1.0) * u1).abs().max(((c - a - 1.0) * u0).abs()) / x;
         (u0, u1) = (u1, next(u0, u1));
         (p0, p1) = (p1, next(p0, p1));
+        (e0, e1) = (e1, next(e0, e1) + rounding);
         c += 1.0;
     }
-    let id = digits_left(id_start, p1, u1 - p1);
+    let id = digits_left(id_start, p1, u1 - p1).min(-(e1 / u1).abs().log10() as i32);
     (if u1.is_finite() { u1 } else { f64::NAN }, id)
 }
 
@@ -435,7 +442,8 @@ fn subnormal_digits(u: f64, id: i32) -> i32 {
 
 /// The estimated number of digits of `p + q`, if `p` and `q` have `id` digits
 fn digits_left(id: i32, p: f64, q: f64) -> i32 {
-    (f64::from(id) - ((p.abs() + q.abs()) / (p + q).abs()).log10()) as i32
+    // the ratio is at least 1, but 0 or NaN (inf / inf) if the sum overflows
+    (f64::from(id) - ((p.abs() + q.abs()) / (p + q).abs()).log10().max(0.0)) as i32
 }
 
 /// Associated Legendre function for $|x| \leq 1$
