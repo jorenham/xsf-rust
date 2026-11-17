@@ -1488,3 +1488,22 @@ fn test_hyp2f1_f64_recur_fallback() {
     let desired = [1.176_016_677_157_160_2e-64, -7_416_153_466.305_625];
     np_assert_allclose!(actual, desired, rtol = 1e-9);
 }
+
+#[test]
+fn test_hyp2f1_f64_divergent_at_1() {
+    // unlike in xsf: the sign of the limit x -> 1- for c - a - b <= 0 (DLMF 15.4.21, 15.4.23; Arb
+    // at x = 1 - 2^-3000), where xsf has +inf for the first two and NaN for the last two
+    let inf = f64::INFINITY;
+    let actual = [
+        xsf::hyp2f1(-2.109, 0.891, -1.723, 1.0),
+        xsf::hyp2f1(1.5, -0.5, 1.0, 1.0),
+        xsf::hyp2f1(2.5, -1.5, 1.0, 1.0),
+        xsf::hyp2f1(-2.5, 7.5, 3.5, 1.0),
+        xsf::hyp2f1(202.75, 102.25, 303.0, 1.0),
+        xsf::hyp2f1(-99.25, -44.5, -231.875, 1.0),
+    ];
+    assert_eq!(actual, [-inf, -inf, inf, -inf, inf, -inf]);
+    // +inf at a non-positive integer c, as for x < 1
+    assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 1.0), inf);
+    assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 0.5), inf);
+}
