@@ -885,6 +885,17 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     min_err(log, term(a, b).and_then(|u| add_exp([u, term(b, a)?])))
 }
 
+/// `F(a, b; c; x)` by `hyp2f1_recip`: the 1/x transformation (step 4) if `x < 0`, or else the 1/t
+/// transformation of its Pfaff form (step 5), with `ln_1mx = ln(1 - x)`
+fn recip_of_x(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
+    if x < 0.0 {
+        hyp2f1_recip(a, b, c, x, ln_1mx)
+    } else {
+        // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
+        hyp2f1_recip(c - a, b, c, x, ln_1mx).map(|y| y.with_l(y.l - b * ln_1mx))
+    }
+}
+
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
 fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     // `z`, `w`, and the combinations `(p, q, s)` of step 1
@@ -911,14 +922,7 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         return poly;
     }
     // the 1/x transformation (step 4), or the 1/t transformation (step 5)
-    let try_recip = || {
-        if x < 0.0 {
-            hyp2f1_recip(a, b, c, x, ln_1mx)
-        } else {
-            // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
-            hyp2f1_recip(c - a, b, c, x, ln_1mx).map(|y| y.with_l(y.l - b * ln_1mx))
-        }
-    };
+    let try_recip = || recip_of_x(a, b, c, x, ln_1mx);
     // For x < -1 or x >= 0.9, first try that, as its series are much shorter if w is near 1.
     let recip_first = !(-1.0..HYP2F1_RECUR_NEAR1).contains(&x);
     let recip = recip_first.then(try_recip).flatten();
