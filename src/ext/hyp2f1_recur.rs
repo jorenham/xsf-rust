@@ -69,6 +69,12 @@
 //!      `HYP2F1_RECUR_SHIFT_TOL`: their start values at `c + 1` and `c + 2` hardly differ from
 //!      `F(a, b; c; x)`, and in our tests improved the bound at most 15-fold.
 //!
+//! 7. If they still do in the log case of steps 4 and 5, interpolate that transformation in `b`,
+//!    between Chebyshev nodes around the integer `b - a` (or `c - a - b`).
+//!    - `F` is entire in `b`, and off the integer the two terms lose only about the inverse of
+//!      the distance, while the series of `recip_log` can cancel completely.
+//!    - Its error bound is an estimate (see `recip_interp`), unlike those of the other steps.
+//!
 //! Finally, return the result with the smallest error bound, which is too large if it exceeds
 //! `HYP2F1_RECUR_TOL`.
 //!
@@ -83,7 +89,8 @@
 //! series terms and recurrence steps per combination, which is skipped (or only its step 3) if it
 //! would exceed that: about `(|p| w + 40) / (1 - w)` terms (but at least
 //! `(w (c - q) - c) / (1 - w)`), plus `max(0, q) - c` steps. Step 6 costs up to 8 times as much as
-//! steps 1 to 5, but only if those fail.
+//! steps 1 to 5, but only if those fail, and step 7 `HYP2F1_RECUR_NODES` times the transformation
+//! of step 4.
 //!
 //! # References
 //!
@@ -127,6 +134,11 @@ const HYP2F1_RECUR_SHIFT_TOL: f64 = 100.0 * HYP2F1_RECUR_TOL;
 /// as its two terms lose about the inverse of that distance (and for which `hyp2f1` first tries
 /// `hyp2f1_recur`)
 pub(crate) const HYP2F1_RECUR_NEAR_INT: f64 = 1e-3;
+
+/// The number of nodes of `recip_interp` (even, so that none is at the integer), and half the width
+/// of their interval in `b` (empirical: closer nodes cancel more, wider ones interpolate worse)
+const HYP2F1_RECUR_NODES: usize = 16;
+const HYP2F1_RECUR_NODE_WIDTH: f64 = 0.05;
 
 /// The maximum number of series terms plus recurrence steps, per combination
 const HYP2F1_RECUR_MAXITER: f64 = 1e6;
@@ -896,6 +908,39 @@ fn recip_of_x(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     }
 }
 
+/// Step 7: `recip_of_x` by polynomial interpolation in `b`, between Chebyshev nodes around
+/// `b - shift`, where `b - a` (or `c - a - b` if `x > 0`) is an integer.
+///
+/// Its error bound is heuristic: the bounds of the nodes, plus the distance to the interpolants
+/// through every other node, which estimates the error of the interpolation but doesn't bound it.
+fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<Scaled> {
+    const N: usize = HYP2F1_RECUR_NODES;
+    // the nodes relative to `b` (Chebyshev points of the first kind)
+    let offsets: [f64; N] = core::array::from_fn(|j| {
+        HYP2F1_RECUR_NODE_WIDTH * cospi((2 * j + 1) as f64 / (2 * N) as f64) - shift
+    });
+    let mut ys = [None; N];
+    for (y, o) in ys.iter_mut().zip(offsets) {
+        *y = Some(recip_of_x(a, b + o, c, x, ln_1mx)?);
+    }
+    // the interpolant at `b` through every `step`-th node from `first`
+    let interp = |first: usize, step: usize| {
+        let nodes = || ys.iter().flatten().zip(offsets).skip(first).step_by(step);
+        add_exp(nodes().map(|(&y, o)| {
+            // the Lagrange basis polynomial of this node at 0, with 3 roundings per factor
+            let basis = nodes().filter(|&(_, k)| k != o).map(|(_, k)| k / (k - o));
+            let m = y.m * basis.product::<f64>();
+            let err = y.err + (3 * N) as f64 * MACHEP;
+            Scaled { m, err, ..y }
+        }))
+    };
+    let full = interp(0, 1)?;
+    // the distance of `y` to `full`, relative to that (`add_exp` returns them as `m exp(l)`)
+    let dist = |y: Scaled| (y.m / full.m * (y.l - full.l).hi.exp() - 1.0).abs();
+    let err = full.err + dist(interp(0, 2)?).max(dist(interp(1, 2)?));
+    Some(Scaled { err, ..full })
+}
+
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
 fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     // `z`, `w`, and the combinations `(p, q, s)` of step 1
@@ -1005,6 +1050,14 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     if !(err <= HYP2F1_RECUR_TOL) {
         best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
+    // Step 7, with `eps` the distance of `b - a` (or `c - a - b` if `x > 0`) to an integer. Last,
+    // as its error bound is heuristic.
+    let m = if x < 0.0 { b - a } else { c - a - b };
+    let eps = (m - m.hi.round()).hi;
+    if !(err_of(best) <= HYP2F1_RECUR_TOL) && eps.abs() <= HYP2F1_RECUR_NEAR_INT {
+        let shift = if x < 0.0 { eps } else { -eps };
+        best = min_err(best, recip_interp(a, b, c, x, ln_1mx, shift));
+    }
     best
 }
 
@@ -1071,6 +1124,21 @@ mod tests {
         let (p, q, c, z) = (Dd::new(3.5), Dd::new(1.5), Dd::new(1.0), Dd::new(-0.5));
         let y_0 = recur_down(1.0, y(0.5, 0.0), y(0.8, 1e-6), coefs_c(p, q, c, z)).unwrap();
         assert!((y_0.m - 0.1).abs() < 1e-15 && y_0.err >= 1e-6, "{y_0:?}");
+    }
+
+    #[test]
+    fn test_hyp2f1_recur_interp() {
+        // Arb; step 7 at an integer `b - a` and `c - a - b`, and at 5e-4 from one: within its error
+        // bound
+        for (a, b, c, x, desired) in [
+            (-130.5, -106.5, 88.75, -56.25, -7.673_134_033_185_444e147),
+            (-209.25, 294.875, 145.625, 0.955, -1.377_551_721_883_881_6e-135),
+            (-129.875, -111.875_5, 121.5, -71.875, -2.123_783_401_591_176_3e153),
+            (-294.75, 181.0, -146.750_5, 0.984, -9.089_494_319_571_015e122),
+        ] {
+            let (y, err) = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64).unwrap();
+            assert!((y / desired - 1.0).abs() <= err && err <= HYP2F1_RECUR_TOL, "{y} {err}");
+        }
     }
 
     #[test]
