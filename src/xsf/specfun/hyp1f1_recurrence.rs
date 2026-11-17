@@ -230,10 +230,7 @@ fn backwards_recursion_on_b_for_negative_a(
     }
 
     debug_assert!(leading_a_shift > 1);
-    debug_assert_eq!(
-        a_b_shift + leading_a_shift + i32::from(a_b_shift == 0),
-        a_shift
-    );
+    debug_assert_eq!(a_b_shift + leading_a_shift + i32::from(a_b_shift == 0), a_shift);
     debug_assert_eq!(a_b_shift + trailing_b_shift, b_shift);
 
     if (trailing_b_shift == 0) && (b.abs() < 0.5) && a_b_shift != 0 {
@@ -348,10 +345,7 @@ pub(super) fn hyp1f1_neg_a(
     // `e^s` is applied like `e^z` for `z < 0` in `hypergeometric_1F1_imp`:
     let scaling = s.trunc();
     result *= (s - scaling).exp();
-    Some(apply_log_scaling(
-        result,
-        log_scaling.saturating_add(scaling as i64),
-    ))
+    Some(apply_log_scaling(result, log_scaling.saturating_add(scaling as i64)))
 }
 
 /// `result * e^log_scaling`, from `hypergeometric_1F1_imp`

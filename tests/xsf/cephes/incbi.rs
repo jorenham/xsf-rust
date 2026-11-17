@@ -23,11 +23,7 @@ fn test_betaincinv_nontrivial() {
 
     // scipy/scipy#4244, at a looser rtol than SciPy's 5e-13: I_x(a, b) ~ x^a, so the relative
     // error in x is about eps / a
-    let x = xsf::betaincinv(
-        0.000_274_279_474_979_266_5,
-        289_206.031_25,
-        0.968_870_878_219_604_5,
-    );
+    let x = xsf::betaincinv(0.000_274_279_474_979_266_5, 289_206.031_25, 0.968_870_878_219_604_5);
     xsref::np_assert_allclose!(&[x], &[1.639_984_034_231_756e-56], rtol = 1e-12);
 }
 
@@ -165,11 +161,7 @@ fn test_betaincinv_subnormal_root() {
     // smallest subnormal) and 1.4999 times that
     for &(a, y, ref_) in &[
         (0.000_387_012_010_057_834_45, 0.75, 1.5e-323),
-        (
-            1.491_353_120_956_665_7e-19,
-            1.0 - f64::EPSILON / 2.0,
-            5e-324,
-        ),
+        (1.491_353_120_956_665_7e-19, 1.0 - f64::EPSILON / 2.0, 5e-324),
         (0.000_686_561_583_716_619, 0.6, 5e-324),
     ] {
         assert_eq!(xsf::betaincinv(a, 1.0, y), ref_);
@@ -226,10 +218,7 @@ fn test_betaincinv_zero_ab() {
 fn test_betainccinv_a1_b1() {
     // betainccinv(1, 1, x) is 1 - x.
     let x = [0.0, 0.25, 1.0];
-    assert_eq!(
-        x.map(|xv| xsf::betainccinv(1.0, 1.0, xv)),
-        x.map(|xv| 1.0 - xv)
-    );
+    assert_eq!(x.map(|xv| xsf::betainccinv(1.0, 1.0, xv)), x.map(|xv| 1.0 - xv));
 }
 
 #[test]
@@ -243,12 +232,7 @@ fn test_betainccinv_nontrivial() {
         (0.125, 24.0, 0.75, 3.708_534_048_168_62e-17),
         (16.0, 0.75, 0.999_999_999_75, 5.440_875_927_741_863e-7),
         // scipy/scipy#4677
-        (
-            0.421_195_964_350_340_1,
-            16_939.046_996_018_118,
-            0.000_815_296_167_195_521,
-            1e-7,
-        ),
+        (0.421_195_964_350_340_1, 16_939.046_996_018_118, 0.000_815_296_167_195_521, 1e-7),
     ] {
         xsref::np_assert_allclose!(&[xsf::betainccinv(a, b, p)], &[x], rtol = 8e-15);
     }

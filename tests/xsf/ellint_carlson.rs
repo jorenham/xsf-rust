@@ -20,11 +20,7 @@ fn test_elliprc() {
     let expected = [PI, LN_2, 0.231_049_060_186_648_45];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
-    let actual = [
-        xsf::elliprc(ZERO, I),
-        xsf::elliprc(-I, I),
-        xsf::elliprc(I, -ONE),
-    ];
+    let actual = [xsf::elliprc(ZERO, I), xsf::elliprc(-I, I), xsf::elliprc(I, -ONE)];
     let expected = [
         c64(1.110_720_734_539_591_5, -1.110_720_734_539_591_5),
         c64(1.226_084_956_907_219_9, -0.344_711_369_887_676_8),
@@ -416,12 +412,7 @@ fn test_elliprj_wide_span() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
     let actual = [
-        xsf::elliprj(
-            c64(1e-60, 1e-60),
-            c64(3e142, 3.5e142),
-            c64(1e120, 3e120),
-            c64(3e112, 9e112),
-        ),
+        xsf::elliprj(c64(1e-60, 1e-60), c64(3e142, 3.5e142), c64(1e120, 3e120), c64(3e112, 9e112)),
         xsf::elliprj(
             c64(4e124, 2e125),
             c64(2e-125, -1e-125),
@@ -446,10 +437,7 @@ fn test_elliprj_wide_span() {
 #[test]
 fn test_elliprj_tiny_y() {
     // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
-    let actual = [
-        xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9),
-        xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9),
-    ];
+    let actual = [xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9), xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9)];
     // Arb
     let expected = [
         3.067_647_836_331_202e20, // 3.0676478363312025864e20
@@ -493,10 +481,7 @@ fn test_elliprj_huge_p() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
     // the asymptotic form for `z / p <= 5e-14`
-    let actual = [
-        xsf::elliprj(1.0, 2.0, 3.0, 1e14),
-        xsf::elliprj(0.0, 0.5, 7.0, 2e14),
-    ];
+    let actual = [xsf::elliprj(1.0, 2.0, 3.0, 1e14), xsf::elliprj(0.0, 0.5, 7.0, 2e14)];
     // Arb
     let expected = [
         2.180_837_335_167_910_8e-14, // 2.1808373351679106680e-14
@@ -532,25 +517,14 @@ fn test_carlson_near_overflow_and_tiny() {
 #[test]
 fn test_elliprd_near_underflow() {
     // Arb: 1.4838510888246176809e-308
-    let actual = xsf::elliprd(
-        6.563_076_568_5e-314,
-        1.934_902_900_344_399_3e211,
-        4.596_225_650_788_402e202,
-    );
+    let actual =
+        xsf::elliprd(6.563_076_568_5e-314, 1.934_902_900_344_399_3e211, 4.596_225_650_788_402e202);
     xsref::np_assert_allclose!(&[actual], &[1.483_851_088_824_617_7e-308], rtol = 1e-15);
 
     // subnormal results
     let actual = [
-        xsf::elliprd(
-            2.090_469_145_209_479e199,
-            3.517_413_56e-316,
-            4.373_869_956_236_507e206,
-        ),
-        xsf::elliprd(
-            3.369_874_507_300_892e240,
-            1.5e-323,
-            1.015_772_415_001_386_8e190,
-        ),
+        xsf::elliprd(2.090_469_145_209_479e199, 3.517_413_56e-316, 4.373_869_956_236_507e206),
+        xsf::elliprd(3.369_874_507_300_892e240, 1.5e-323, 1.015_772_415_001_386_8e190),
     ];
     // Arb
     let expected = [
@@ -563,11 +537,7 @@ fn test_elliprd_near_underflow() {
 #[test]
 fn test_elliprd_overflow() {
     // just below the overflow threshold, where `3 * adt` overflows
-    let actual = xsf::elliprd(
-        0.0,
-        1.965_996_116_174_601_3e-8,
-        1.190_184_710_917_690_7e-304,
-    );
+    let actual = xsf::elliprd(0.0, 1.965_996_116_174_601_3e-8, 1.190_184_710_917_690_7e-304);
     xsref::np_assert_allclose!(&[actual], &[1.797_693_134_862_315_2e308], rtol = 1e-15);
 
     // the first term of the sum overflows, and the sum itself (2e308), respectively
@@ -680,18 +650,8 @@ fn test_elliprj_negative_delta() {
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
     let actual = [
-        xsf::elliprj(
-            c64(1.8e11, -3.5e11),
-            c64(6e8, 3e7),
-            c64(7e8, -8e8),
-            c64(9e-12, 5e-12),
-        ),
-        xsf::elliprj(
-            c64(2.7e6, -1.6e6),
-            c64(1.4e5, -8e4),
-            c64(1.2e5, -2.2e5),
-            c64(1e-11, 1.7e-11),
-        ),
+        xsf::elliprj(c64(1.8e11, -3.5e11), c64(6e8, 3e7), c64(7e8, -8e8), c64(9e-12, 5e-12)),
+        xsf::elliprj(c64(2.7e6, -1.6e6), c64(1.4e5, -8e4), c64(1.2e5, -2.2e5), c64(1e-11, 1.7e-11)),
         // `d + r 4^-m` cancels in a step, after which `w2` is inf
         xsf::elliprj(ONE * 1e-100, ONE * 1e-6, ONE * 1e30, c64(-3e102, 1e95)),
     ];

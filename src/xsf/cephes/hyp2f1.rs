@@ -477,11 +477,8 @@ fn times_gamma_ratio(
     let (mut ln_f, mut ln_f_err, mut sign) = (ln_q, ln_q.abs(), y.signum());
     for (x, power) in [(num[0], 1.0), (num[1], 1.0), (den[0], -1.0), (den[1], -1.0)] {
         let (lg, lg_sign) = lgam_sgn(x);
-        (ln_f, ln_f_err, sign) = (
-            ln_f + power * lg,
-            ln_f_err + lg.abs(),
-            sign * f64::from(lg_sign),
-        );
+        (ln_f, ln_f_err, sign) =
+            (ln_f + power * lg, ln_f_err + lg.abs(), sign * f64::from(lg_sign));
     }
     if ln_f == f64::NEG_INFINITY {
         // a pole of the denominator: exactly 0
@@ -1127,10 +1124,7 @@ mod tests {
         ] {
             let (y, err) = times_gamma_ratio((1e300, 0.0), s, k, [1.0, 1.0], den);
             let rel_err = err * MACHEP / desired;
-            assert!(
-                (y / desired - 1.0).abs() <= rel_err && rel_err < 1e-12,
-                "{y} {err}"
-            );
+            assert!((y / desired - 1.0).abs() <= rel_err && rel_err < 1e-12, "{y} {err}");
         }
         // a subnormal product (7.9e-324), and a pole of the denominator
         let (y, err) = times_gamma_ratio((0.1, 0.0), 0.5, 1070.0, [1.0, 1.0], [1.0, 1.0]);

@@ -541,10 +541,7 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
     }
     // Kummer's Theorem for z = -1; c = 1 + a - b (DLMF 15.4.26)
     if (z + 1.0).norm() < HYP2F1_EPS && (1.0 + a - b - c).abs() < HYP2F1_EPS && !c_non_pos_int {
-        return c64(
-            four_gammas(a - b + 1.0, 0.5 * a + 1.0, a + 1.0, 0.5 * a - b + 1.0),
-            0.0,
-        );
+        return c64(four_gammas(a - b + 1.0, 0.5 * a + 1.0, a + 1.0, 0.5 * a - b + 1.0), 0.0);
     }
     let mut result;
     let c_minus_a_neg_int = c - a == (c - a).trunc() && c - a < 0.0;

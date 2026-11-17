@@ -8,10 +8,9 @@ xsref::tests! {
 #[test]
 fn test_digamma_near_negative_pole() {
     // just above a negative integer (reference values from mpmath)
-    for (x, expected) in [
-        (-0.999_999, -999_999.577_184_264_3),
-        (-2.999_999_9, -9_999_998.760_247_82),
-    ] {
+    for (x, expected) in
+        [(-0.999_999, -999_999.577_184_264_3), (-2.999_999_9, -9_999_998.760_247_82)]
+    {
         let rel = ((xsf::digamma(x) - expected) / expected).abs();
         assert!(rel < 1e-15, "x = {x}: rel = {rel:e}");
     }

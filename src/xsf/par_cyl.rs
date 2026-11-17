@@ -976,10 +976,7 @@ fn pb_maclaurin(a: f64, x: f64, c0: f64, c1: f64, e: f64) -> (f64, f64) {
     if x.abs() < 1e-150 {
         // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
         let (k, ex) = (const { pow2(600) }, e - 600.0 * LN_2);
-        return (
-            mul_exp(c0 * k + c1 * (x * k), ex),
-            mul_exp(c1 * k + a * c0 * (x * k), ex),
-        );
+        return (mul_exp(c0 * k + c1 * (x * k), ex), mul_exp(c1 * k + a * c0 * (x * k), ex));
     }
     // w = sum c_n x^n with c_{n+2} = (a c_n + c_{n-2} / 4) / ((n + 1) (n + 2))
     let mut c = [0.0, 0.0, c0, c1]; // c_{n-2}, c_{n-1}, c_n, c_{n+1}
@@ -1049,10 +1046,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
     if v >= 20.0 {
         let ([d, dp, ub, ubp], ea, eb) = pbdv_airy(v, y);
         let r = (ea - eb).exp(); // <= 1
-        return (
-            mul_exp(c * d * r - s * ub, eb),
-            mul_exp(s * ubp - c * dp * r, eb),
-        );
+        return (mul_exp(c * d * r - s * ub, eb), mul_exp(s * ubp - c * dp * r, eb));
     }
 
     let (ub, ea, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, y);
@@ -1074,10 +1068,7 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
         (s, eb)
     };
     // Ubar_v'(y) = y / 2 Ubar_v(y) - Ubar_{v+1}(y) (12.8.6)
-    (
-        c * dy - mul_exp(s * u0, eb),
-        mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy,
-    )
+    (c * dy - mul_exp(s * u0, eb), mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy)
 }
 
 /// `Ubar_{v+k}(y)` for `k = 0..=n + 1` and `v + n >= 20` as mantissas with the exponents `ea`, `eb`
@@ -1127,10 +1118,7 @@ fn pbvv_airy(v: f64, x: f64) -> (f64, f64) {
     } else {
         ((ea - eb).exp(), l)
     };
-    (
-        mul_exp(-s * d * r - c * ub, l),
-        mul_exp(s * dp * r + c * ubp, l),
-    )
+    (mul_exp(-s * d * r - c * ub, l), mul_exp(s * dp * r + c * ubp, l))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `0 <= v < 20`, `x >= 0`, by `V_v = Ubar_v / Gamma(v + 1)` (see
@@ -1139,10 +1127,7 @@ fn pbvv_recur(v: f64, x: f64) -> (f64, f64) {
     let x = x.min(100.0); // V_v(x) overflows for x > 57 anyway
     let (ub, _, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, x);
     let r = rgamma(v + 1.0);
-    (
-        mul_exp(r * ub[0], eb),
-        mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb),
-    )
+    (mul_exp(r * ub[0], eb), mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `v <= -20`, by `V_v(x) = Gamma(-v) / pi (D_v(-x) - cos(pi v) D_v(x))`
@@ -1165,10 +1150,7 @@ fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
     } else {
         (d * q - c * e, -dp * q - c * ep)
     };
-    (
-        mul_exp(SQRT_FRAC_2_PI * w, lv),
-        mul_exp(SQRT_FRAC_2_PI * wp, lv),
-    )
+    (mul_exp(SQRT_FRAC_2_PI * w, lv), mul_exp(SQRT_FRAC_2_PI * wp, lv))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `|v| >= 20` and `|x| sqrt|v| < 1`, by `pb_maclaurin` with the values
