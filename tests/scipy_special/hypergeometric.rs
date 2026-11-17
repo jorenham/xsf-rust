@@ -422,6 +422,15 @@ fn test_hyp0f1_turning_point() {
         -3.421_118_017_417_493_8e233,
     ];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
+
+    // further past it, where AMOS `J` lost ~eps sqrt(-z) through its phase
+    let bz = [
+        (862.613_983_289_161_3, -268_538.711_298_777),
+        (120.25, -1e7),
+    ];
+    // computed with Arb
+    let expected = [-1.738_070_427_133_91e-185, 3.570_732_130_117_078e-223];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 2e-15);
 }
 
 #[test]

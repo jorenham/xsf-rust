@@ -11,7 +11,8 @@ use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp, neg_if_odd};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
-use crate::xsf::cephes::dd_real::two_sum;
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, FRAC_PI_2_DD, two_sum};
+use crate::xsf::cephes::ikv_asymptotic_uniform_sums;
 use crate::xsf::expint::scaled_exp1;
 use crate::xsf::specfun;
 use crate::xsf::specfun::{SPECFUN_BIG, SPECFUN_INF};
@@ -448,9 +449,14 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
+    // Unlike in xsf, Debye's expansion of J_v(x) is used where it is accurate (for real x,
+    // e^-|Im x| = 1).
+    if debye_is_accurate(v, x.abs()) {
+        return cyl_bessel_j_f64(v, x);
+    }
+
     let je = cyl_bessel_je_c64(v, c64(x, 0.0)).re;
-    // Unlike in xsf (scipy/xsf#402), use the cephes fallback of J_v(x) (for real x,
-    // e^-|Im x| = 1) if AMOS underflowed.
+    // Unlike in xsf (scipy/xsf#402), use the cephes fallback of J_v(x) if AMOS underflowed.
     if amos_underflow(je, v, x) {
         return cyl_bessel_j_f64(v, x);
     }
@@ -532,11 +538,57 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     cy_j
 }
 
+/// The `|v|` from which Debye's expansion is used for `J_v(x)`; below it AMOS is accurate to a
+/// few eps of the amplitude, and faster
+const DEBYE_MIN_V: f64 = 10.0;
+
+/// Whether Debye's expansion in `bessel_j_debye` is accurate to a few eps
+///
+/// Measured: with `w^2 = x^2 - v^2`, its 11 terms are for `1/w + 3 v^2/w^3 < 1/70`.
+fn debye_is_accurate(v: f64, x: f64) -> bool {
+    let cos2 = (v / x).powi(2);
+    let sin2 = 1.0 - cos2;
+    v.abs() >= DEBYE_MIN_V && x * sin2 * sin2.sqrt() > 70.0 * (1.0 + 2.0 * cos2)
+}
+
+/// `J_v(x)` by Debye's expansion (DLMF 10.19.6), for `debye_is_accurate(v, x)`
+///
+/// With `x = |v| sec(beta)`, `w = |v| tan(beta)` and `S = sum_k U_k(i cot(beta)) / |v|^k`, this is
+/// `sqrt(2 / (pi w)) Re(S e^(-i xi))` for `xi = w - |v| beta - pi/4`. For `v < 0`, `beta - pi`
+/// replaces `beta` in `xi` (DLMF 10.4.6). The phase is in double-double, as its rounding error
+/// is the error of `J` relative to its amplitude.
+fn bessel_j_debye(v: f64, x: f64) -> f64 {
+    let (order, v) = (v, v.abs());
+    // t = tan(beta / 2), u = tan(pi / 4 - beta / 2)
+    let sum_xv = Dd::new(x) + v;
+    let t = ((Dd::new(x) - v) / sum_xv).sqrt();
+    let u = (1.0 - t) / (t + 1.0);
+    let w = t.hi * sum_xv.hi;
+    let mut beta = FRAC_PI_2_DD - u.atan().mul_pwr2(2.0);
+    if order < 0.0 {
+        beta = beta - FRAC_PI_2_DD.mul_pwr2(2.0);
+    }
+    let sum = ikv_asymptotic_uniform_sums(v, c64(0.0, v / w)).0;
+    // xi - arg(S) = x - shift, as w = x - |v| u
+    let shift = (u + beta) * v + FRAC_PI_2_DD.mul_pwr2(0.5) + sum.im.atan2(sum.re);
+    let (hi, lo) = two_sum(x, -shift.hi);
+    let (sin, cos) = Dd { hi, lo }.sin_cos();
+    let (sin_lo, cos_lo) = shift.lo.sin_cos();
+    (FRAC_2_PI / w).sqrt() * sum.norm() * (cos * cos_lo + sin * sin_lo)
+}
+
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     // Unlike in xsf, the integer test doesn't cast v to `int` (undefined behavior in C++ for
     // |v| >= 2^31).
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
+    }
+    // Unlike in xsf, Debye's expansion is used where it is accurate, as the phase of AMOS loses
+    // ~eps x for large |v|.
+    if debye_is_accurate(v, x.abs()) {
+        // J_v(-x) = (-1)^v J_v(x) for integer v (DLMF 10.11.1)
+        let j = bessel_j_debye(v, x.abs());
+        return if x < 0.0 && v % 2.0 != 0.0 { -j } else { j };
     }
 
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
