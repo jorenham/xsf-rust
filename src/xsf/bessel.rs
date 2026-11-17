@@ -654,29 +654,55 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
     Some((sum_shifted(ai, aip), -sum_shifted(bi, bip)))
 }
 
-/// `bessel_jy_airy`, recurred up in the order (DLMF 10.6.1) where its sums cancel for `x > v`
+/// `bessel_jy_airy`, recurred up in the order (DLMF 10.6.1) where its sums cancel
 ///
-/// There `eta < UNHJ_MIN_ETA_OSC`, and `eta` is convex in `v` with the slope `-atan(w)`, so it
-/// is large enough from `m` orders below `v` on.
+/// For `x > v`, `eta < UNHJ_MIN_ETA_OSC` there, and `eta` is convex in `v` with the slope
+/// `-atan(w)`, so it is large enough from `m` orders below `v` on.
+///
+/// For `x < v`, `eta < UNHJ_MIN_ETA` there, and `w <= UNHJ_SERIES_MAX_W` from `m` orders below
+/// `v` on. Only `Y` is stable upward, so `J` is `J_(v-m)` times the ratios `J_n / J_(n-1)` up to
+/// `v`, by their continued fraction (DLMF 10.10.1).
 fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
     let jy = bessel_jy_airy(v, x);
-    if jy.is_some() || !(x > v && v >= LARGE_ORDER_MIN_V) {
+    if jy.is_some() || !(v >= LARGE_ORDER_MIN_V && x > 0.0) {
         return jy;
     }
-    let w = ((x / v).powi(2) - 1.0).sqrt();
-    let m = ((UNHJ_MIN_ETA_OSC - v * (w - w.atan())) / w.atan()).ceil();
+    let w = (1.0 - (x / v).powi(2)).abs().sqrt();
+    let m = if x > v {
+        ((UNHJ_MIN_ETA_OSC - v * (w - w.atan())) / w.atan()).ceil()
+    } else if v * (w.atanh() - w) < MAXLOG {
+        (v - x / (1.0 - UNHJ_SERIES_MAX_W.powi(2)).sqrt()).ceil()
+    } else {
+        // eta >= 2 MAXLOG, where J = 0 and Y = -inf
+        return None;
+    };
     if m < 1.0 {
         return None;
     }
     // exact, as are the orders up to v
     let mut n = v - m;
     let (mut jy0, mut jy1) = (bessel_jy_airy(n - 1.0, x)?, bessel_jy_airy(n, x)?);
+    let mut j = jy1.0;
     while n < v {
         let c = 2.0 * n / x;
         (jy0, jy1) = (jy1, (c * jy1.0 - jy0.0, c * jy1.1 - jy0.1));
         n += 1.0;
     }
-    Some(jy1)
+    if x > v {
+        return Some(jy1);
+    }
+    // r = J_n / J_(n-1) at n = v - m + k; the tail of its continued fraction after k terms
+    // decays as ((1 - w) / (1 + w))^k
+    let mut k = m + (-f64::EPSILON.ln() / (2.0 * w.atanh())).ceil();
+    let mut r = 0.0;
+    while k > 0.0 {
+        r = 1.0 / (2.0 * (v - m + k) / x - r);
+        if k <= m {
+            j *= r;
+        }
+        k -= 1.0;
+    }
+    Some((j, jy1.1))
 }
 
 /// `(J_v(x), Y_v(x))` for `x > 0` by an expansion for large `|v|`, where one is accurate

@@ -618,6 +618,60 @@ fn test_bessel_jy_below_turning_point() {
 }
 
 #[test]
+fn test_bessel_jy_below_turning_point_recurrence() {
+    // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [0.82, 0.87] with eta < 4, where AMOS
+    // loses up to ~390 eps
+    let vx = [
+        (83.338_581_844_764_28, 72.513_344_947_507_26),
+        (70.0, 60.0),
+        (50.5, 43.0),
+        (40.0, 33.0),
+        (-62.5, 54.0),
+    ];
+    let expected = [
+        0.001_221_965_838_177_672_4,
+        0.001_436_386_052_336_167_7,
+        0.004_062_204_729_530_515,
+        0.004_058_987_686_471_918,
+        3.430_481_146_054_990_7,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    let expected = [
+        -6.374_882_954_654_264,
+        -6.180_085_145_468_044,
+        -2.988_764_285_772_928,
+        -3.501_917_079_225_303,
+        0.002_973_733_550_822_862_3,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
+#[test]
+fn test_bessel_jy_below_turning_point_recurrence_edges() {
+    // Arb: besselj(v, x) and bessely(v, x); the lowest order of the recurrence is 10 (the least of
+    // the expansion), 9 (so AMOS), and 17
+    let vx = [(13.0, 10.0), (13.0, 9.5), (20.0, 16.0)];
+    let expected = [
+        0.028_972_083_926_776_766,
+        0.018_156_064_603_798_993,
+        0.017_328_746_227_591_996,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    let expected = [
+        -1.363_454_319_803_315,
+        -2.018_456_307_835_525_5,
+        -1.567_173_990_858_811_6,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+}
+
+#[test]
 fn test_bessel_jy_above_turning_point() {
     // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [1.11, 1.36] with eta in [3, 6), where
     // AMOS loses up to ~200 eps of their amplitude
