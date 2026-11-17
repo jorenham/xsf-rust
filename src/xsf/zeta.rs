@@ -182,7 +182,7 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
 }
 
 /// Lookup table of coefficients for Algorithm 2 from Borwein 1995
-/// Borwein, Peter B.. “An efficient algorithm for the Riemann zeta function.” (1995).
+/// Borwein, Peter B.. "An efficient algorithm for the Riemann zeta function." (1995).
 ///
 /// Stores coefficients as dk / dn, where dn is the final coefficient.
 ///

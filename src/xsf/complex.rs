@@ -11,7 +11,7 @@ use crate::xsf::trig::cephes_sinpi;
 /// Square root of complex `z`
 ///
 /// This replaces `std::sqrt(std::complex<double>)` in C++. Unlike `num_complex::Complex::sqrt`,
-/// which uses the polar form, it avoids the cancellation in `|z| ± Re z`, and it scales `z` to
+/// which uses the polar form, it avoids the cancellation in `|z| +- Re z`, and it scales `z` to
 /// avoid premature overflow and underflow.
 ///
 /// Translated from FreeBSD's `lib/msun/src/s_csqrt.c`:

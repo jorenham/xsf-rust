@@ -249,8 +249,8 @@ pub(crate) fn series_eval_kahan<T: Real>(
 ///
 /// Reference
 /// ---------
-/// \[1\] Gautschi, W. (1967). “Computational Aspects of Three-Term
-///     Recurrence Relations.” SIAM Review, 9(1):24-82.
+/// \[1\] Gautschi, W. (1967). "Computational Aspects of Three-Term
+///     Recurrence Relations." SIAM Review, 9(1):24-82.
 pub(crate) struct ContinuedFractionSeriesGenerator<G, T> {
     cf: G, // continued fraction generator
     v: T,  // v[n] == f[n] - f[n-1], n >= 1

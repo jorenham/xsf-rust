@@ -135,9 +135,8 @@ impl LogArg for f64 {
     }
 }
 
-// NOTE(xsf-rust): the complex multiplication of num-complex doesn't do the C99 Annex G inf/NaN
-// recovery of C/C++ (e.g. `__muldc3`), so e.g. `xlogy(1+1j, inf+NaNj)` is `NaN+NaNj` here,
-// instead of `inf+infj`.
+// Unlike in xsf, the complex multiplication of num-complex has no C99 Annex G inf/NaN recovery
+// (e.g. `__muldc3`): `xlogy(1+1j, inf+NaNj)` is `NaN+NaNj`, not `inf+infj`.
 impl LogArg for Complex<f64> {
     #[inline]
     fn xsf_log1p(self) -> Self {
