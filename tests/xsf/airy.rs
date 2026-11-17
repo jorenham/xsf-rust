@@ -176,6 +176,24 @@ fn test_airy_c64_stokes_line() {
 }
 
 #[test]
+fn test_airy_c64_near_real_axis() {
+    // Arb: Im Bi and Im Bi' (also scaled) by component, as their size follows Im z
+    for sign in [1.0, -1.0] {
+        let z = c64(1.5, sign * 1e-20);
+        let [.., bi, bip] = xsf::airy(z);
+        let [.., ebi, ebip] = xsf::airy_scaled(z);
+        let actual = [bi.im, bip.im, ebi.im, ebip.im];
+        let expected = [
+            1.886_212_254_848_165_5e-20,
+            2.818_412_255_621_842_4e-20,
+            5.542_307_563_918_05e-21,
+            8.281_415_584_286_761e-21,
+        ];
+        xsref::np_assert_allclose!(&actual, &expected.map(|w| sign * w), rtol = 2e-15);
+    }
+}
+
+#[test]
 fn test_airy_c64_subnormal() {
     // Arb: acb(z).airy(); Ai'(z) = (3 + 3i) 2^-1074, with e^-zeta below it
     let z = c64(500_000.645_361_992_06, 866_025.031_184_198_1);

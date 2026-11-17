@@ -53,18 +53,23 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let Some((zta, d)) = zeta else {
         return [ai, aip, bi, bip];
     };
-    // Unlike in xsf, the rounding error d of zeta = zta + d is undone: e^-zeta = e^-zta (1 - d)
-    // for Ai, and Bi = +-i Ai + D for +-Im z > 0 (DLMF 9.2.10, 9.2.11) with D ~ e^zeta (DLMF
-    // 9.7.7), so AMOS' Bi = +-i Ai (1 + d) + D (1 - d), and Bi = Bi_amos (1 + d) -+ 2 d i Ai. The
-    // scaled D is off by e^(-i Im d) instead. On the real axis, the Ai part is left out (it is
-    // below e^(-2 zeta) of Bi there).
-    let sign = if z.im == 0.0 { 0.0 } else { z.im.signum() };
-    let s2d = d * c64(0.0, 2.0 * sign);
+    // Unlike in xsf, the rounding error d of zeta = zta + d is undone. AMOS evaluates
+    // Bi = sqrt(z) F(zta) and Bi' = z G(zta). With d zeta / dz = sqrt(z) and Bi'' = z Bi, to first
+    // order in d, Bi += d (Bi' - Bi / (2 z)) / sqrt(z) and Bi' += d (z Bi - Bi' / z) / sqrt(z).
+    // These are applied as factors of q = Bi' / Bi, as `z Bi` can overflow (q ~ sqrt(z) if Bi'
+    // does). The scaled ones are also off by e^-Re(d).
+    //
+    // Ai is unscaled from its `airye`, which varies slowly, by e^-zeta = e^-zta (1 - d).
+    let s = z.sqrt();
+    let q = Some(bip / bi)
+        .filter(|q| q.is_finite() && *q != C64::ZERO)
+        .unwrap_or(s);
+    let (bi, bip) = (
+        bi * (1.0 + d * (q - 0.5 / z) / s),
+        bip * (1.0 + d * (z / q - 1.0 / z) / s),
+    );
     if kode == 2 {
-        let fb = c64(1.0, d.im);
-        // `Ai e^-|Re zeta| = Ai_scaled e^(-2 Re zeta - i Im zeta)`
-        let fa = s2d * C64::cis(-zta.im) * (-2.0 * zta.re).exp();
-        return [ai, aip, bi * fb - fa * ai, bip * fb - fa * aip];
+        return [ai, aip, bi * (1.0 - d.re), bip * (1.0 - d.re)];
     }
     let (fa, ez) = ((C64::ONE - d) * C64::cis(-zta.im), (-zta.re).exp());
     // by component if `e^-zta.re` underflows, as `w fa e^-zta.re` may not
@@ -76,8 +81,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
             c64(mul_exp(w.re, -zta.re), mul_exp(w.im, -zta.re))
         }
     };
-    let (ai, aip, fb) = (unscale(ai), unscale(aip), C64::ONE + d);
-    [ai, aip, bi * fb - s2d * ai, bip * fb - s2d * aip]
+    [unscale(ai), unscale(aip), bi, bip]
 }
 
 /// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
