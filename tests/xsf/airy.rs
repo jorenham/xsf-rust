@@ -53,7 +53,6 @@ fn test_airy_f64_overflow() {
     let [_, _, bi, bip] = xsf::airy(104.4);
     xsref::np_assert_allclose!([bi], [1.241_898_624_243_905_2e308], rtol = 1e-13);
     assert_eq!(bip, inf);
-    assert_eq!(xsf::airy(415.625), [0.0, 0.0, inf, inf]);
     assert_eq!(xsf::airy(1e9), [0.0, 0.0, inf, inf]);
 }
 

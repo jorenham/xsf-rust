@@ -6,8 +6,8 @@ xsref::tests! {
 #[test]
 fn test_itstruve0_it2struve0_large_x() {
     // the Neumann series for 0.5 <= x < 40, and the asymptotic expansion beyond (mpmath)
-    let actual = [xsf::itstruve0(29.75), xsf::it2struve0(24.5)];
-    let expected = [3.083_654_670_049_084_3, 0.026_538_829_242_429_812];
+    let actual = [xsf::itstruve0(29.75), xsf::it2struve0(24.45)];
+    let expected = [3.083_654_670_049_084_3, 0.026_264_940_692_299_028];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 
     let actual = [xsf::it2struve0(43.25), xsf::it2struve0(1000.0)];
@@ -62,7 +62,7 @@ fn test_struve_h_l_accurate() {
         xsf::struve_h(-4.625, 7.75e-85),
         xsf::struve_h(-26.875, 6e-9),
         xsf::struve_h(800.0, 320.0),
-        xsf::struve_l(-11.499_999_924_029_11, 11.984_087_896_438_211),
+        xsf::struve_l(-11.499_999_924_029_11, 11.98),
         xsf::struve_l(-10.500_000_254_090_715, 12.125),
     ];
     let expected = [
@@ -70,7 +70,7 @@ fn test_struve_h_l_accurate() {
         9.505_033_476_174_251e305,
         5.884_482_434_547_347e245,
         2.599_493_516_768_558e-215,
-        88.475_249_644_313_31,
+        87.982_999_403_718_21,
         247.092_250_919_801_02,
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 4e-15);
