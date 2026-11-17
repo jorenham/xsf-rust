@@ -20,24 +20,25 @@ pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     if n < k {
         N::zero()
     } else {
-        choose(n + N::one(), k.min(n - k))
+        choose(n, k.min(n - k))
     }
 }
 
-/// `C(m - 1, k)`, as the product of `(m - j) / j` for `j = 1, ..., k`
+/// `C(n, k)`, as the product of `(n + 1 - j) / j` for `j = 1, ..., k`
 ///
 /// This only overflows if the result does.
-fn choose<N: PrimInt + Unsigned>(m: N, k: N) -> N {
+fn choose<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     // manual unrolling because fold and range require the `std::iter::Step` nightly trait
     let (mut val, mut j) = (N::one(), N::one());
     while j <= k {
-        val = if let Some(p) = val.checked_mul(&(m - j)) {
+        let m = n - (j - N::one());
+        val = if let Some(p) = val.checked_mul(&m) {
             p / j
         } else {
-            // `val (m - j)` is a multiple of `j`, so `j / g` divides `m - j`, as it is coprime
-            // to `val / g`; both factors are at most the result
+            // `val m` is a multiple of `j`, so `j / g` divides `m`, as it is coprime to `val / g`;
+            // both factors are at most the result
             let g = gcd(val, j);
-            val / g * ((m - j) / (j / g))
+            val / g * (m / (j / g))
         };
         j = j + N::one();
     }
@@ -77,6 +78,6 @@ pub fn comb_rep<N: PrimInt + Unsigned>(n: N, k: N) -> N {
     if n == N::zero() {
         if k == n { N::one() } else { N::zero() }
     } else {
-        choose(n + k, k.min(n - N::one()))
+        choose(n - N::one() + k, k.min(n - N::one()))
     }
 }
