@@ -57,15 +57,16 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     }
 }
 
-/// `hyp0f1_asy` for complex `z`, if `I_{v-1}(2 sqrt(z))` over- or underflows
+/// `hyp0f1_asy` for complex `z`, if the Bessel function over- or underflows
 ///
-/// As in xsf, it is only used for `v > 1`, so without the `K` term of DLMF 10.27.2.
+/// Unlike in xsf, this is also used for `v < 1`, with the `K` term of DLMF 10.27.2 (as in
+/// `hyp0f1_asy`), which overflows where `Gamma(v)` underflows.
 ///
 /// Unlike in xsf (scipy/xsf#557), this is `None` unless `|e^(v1 eta)|` is beyond `e^(+-MAXLOG/2)`,
 /// so also near `(-inf, -(v-1)^2/4]`, where `|e^(v1 eta)| = 1` and the expansion is invalid.
 fn hyp0f1_asy_c64(v: f64, z: C64) -> Option<C64> {
     let arg = z.sqrt();
-    let v1 = v - 1.0;
+    let v1 = (v - 1.0).abs();
     let x = 2.0 * arg / v1;
     let p1 = (1.0 + x * x).sqrt();
 
@@ -73,20 +74,30 @@ fn hyp0f1_asy_c64(v: f64, z: C64) -> Option<C64> {
     let h = x * x / (2.0 * (1.0 + p1));
     let v1_d = v1 * (2.0 * h - clog1p(h));
 
-    // `|I_{v-1}(2 arg)|` is `|e^(v1 eta)|` up to a factor `(2 pi v1 |p1|)^(-1/2)`, for which
-    // `MAXLOG / 2` leaves room
+    // `|I_{v1}(2 arg)|` and `|K_{v1}(2 arg)|` are `|e^(+-v1 eta)|` up to a factor of about
+    // `v1^(-1/2)`, for which `MAXLOG / 2` leaves room
     if (v1_d.re + v1 * (1.0 + (arg.norm() / v1).ln())).abs() < MAXLOG / 2.0 {
         return None;
     }
 
     // Unlike in xsf (scipy/xsf#557), the ~v1 ln(v1) terms of the exponent cancel analytically, as
     // in `hyp0f1_asy`
-    let zeta = v1_d + lgam_stirling_corr(v1) - 0.5 * p1.ln();
+    let corr = lgam_stirling_corr(v1);
+    let zeta = v1_d + corr;
+    let ln_sqrt_p1 = 0.5 * p1.ln();
 
     // Unlike in xsf, the large-v asymptotic correction has 11 terms instead of 4, as in `hyp0f1_asy`
-    let (u_corr_i, _) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1);
+    let (u_corr_i, u_corr_k) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1);
 
-    Some(zeta.exp() * u_corr_i)
+    if v > 1.0 {
+        return Some((zeta - ln_sqrt_p1).exp() * u_corr_i);
+    }
+    // DLMF 10.27.2 as in `hyp0f1_asy`, where `2 v1 eta - zeta` is the exponent of the `I` term
+    let s = 2.0 * crate::sinpi(v);
+    let k = (-zeta - ln_sqrt_p1).exp() * u_corr_k;
+    let i_exp = 2.0 * v1 * (1.0 + (arg / v1).ln()) + v1_d - corr;
+    let i = (i_exp - ln_sqrt_p1 - s.abs().ln()).exp() * u_corr_i;
+    Some(k + i * s.signum())
 }
 
 /// `xsf::hyp0f1` for real `z`
@@ -295,7 +306,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         let normal = gamma_v.is_normal() && arg_pow.norm().is_normal() && out.norm().is_normal();
         if !r.is_finite() || r == C64::ZERO {
             // the Bessel function over- or underflows, or rounds to 0 near a zero
-            let asy = if v > 1.0 { hyp0f1_asy_c64(v, z) } else { None };
+            let asy = if v == 1.0 { None } else { hyp0f1_asy_c64(v, z) };
             asy.unwrap_or(out)
         } else if normal {
             out
