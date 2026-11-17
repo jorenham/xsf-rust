@@ -744,19 +744,19 @@ impl Term for (f64, f64) {
     }
 }
 
-/// The sum of an asymptotic series in `1/z` up to its smallest term from term `settled` on, and
-/// an estimate of its absolute error
+/// The sum of an asymptotic series in `1/z` up to about its smallest term from term `settled`
+/// on, and an estimate of its absolute error
 ///
 /// From term `settled` on, all parameters plus `n` must be positive. Before it, the terms may
 /// vanish or grow. From term `settled + |z|` on, the term ratios are about `n / |z|`, so that
 /// growing terms keep growing. The size of a term `t_n` is the larger of the bounds on `t_n` and
-/// on `t_{n+1}`, as a `t_n` of a recurrence of order 2 can vanish while `t_{n+1}` does not. It
-/// stops at a term of a negligible size if `ratio_bound(n) < 1`, so that the next terms are
-/// smaller.
+/// on `t_{n+1}`, as a `t_n` of a recurrence of order 2 can vanish while `t_{n+1}` does not.
 ///
 /// The error is the smallest size times `sqrt(2 pi |z|)`, about the sum of the terms near
 /// it, plus rounding. For terms of one sign, the remainder can be half of that, as for
-/// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`.
+/// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`. The sum is the
+/// one whose error is smallest, as the rounding grows with `n`. It stops where the remainder is
+/// negligible if `ratio_bound(n) < 1`, so that the next terms are smaller.
 fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -764,7 +764,7 @@ fn asymptotic_sum<T: Term>(
     ratio_bound: impl Fn(f64) -> f64,
 ) -> (f64, f64) {
     let (mut sum, mut abs_sum, mut prev) = (0.0_f64, 0.0, f64::INFINITY);
-    // the smallest size, the sum before its term, and its error
+    // the smallest size, and the sum before a term with the smallest error
     let (mut min, mut best) = (f64::INFINITY, (sum, f64::INFINITY));
     let remainder = (TAU * z.abs()).sqrt().max(1.0);
     let mut terms = terms.peekable();
@@ -776,8 +776,11 @@ fn asymptotic_sum<T: Term>(
             break;
         } else if n >= settled && size < min {
             min = size;
-            best = (sum, remainder * min + n * f64::EPSILON * abs_sum);
-            if min <= f64::EPSILON * sum.abs() && ratio_bound(n) < 1.0 {
+            let err = remainder * min + n * f64::EPSILON * abs_sum;
+            if err < best.1 {
+                best = (sum, err);
+            }
+            if remainder * min <= f64::EPSILON * sum.abs() && ratio_bound(n) < 1.0 {
                 break;
             }
         }

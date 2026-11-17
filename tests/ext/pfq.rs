@@ -454,6 +454,14 @@ fn test_hyp2f2_asymptotic() {
         ([2.0, 3.0], [1.0, 4.5], -100.0, -2.565_124_215_174_344_6e-5),
         // b_1 - a_1 is so close to an integer that its distance to it is lost in an `f64`
         ([1.0, 1.0], [1e-10, 2.0], -1e10, -1.000_000_002_160_306_6),
+        // the terms of the algebraic part are below eps after a few, long before the smallest
+        ([0.25, 0.5], [1.75, -0.5], -1e5, 0.087_476_240_625_041_52),
+        (
+            [2.5, 0.5],
+            [0.25, -0.25],
+            -1e5,
+            -0.001_784_104_610_406_174_4,
+        ),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -470,6 +478,7 @@ fn test_hyp2f2_asymptotic() {
     // overflow
     assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
     assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
+    assert_eq!(hyp2f2(0.25, -0.5, 1.5, 3.5, 1e5), Some(f64::NEG_INFINITY));
     // also for a huge z, with the sign of Gamma(b_1)
     assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), Some(f64::INFINITY));
     assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), Some(f64::NEG_INFINITY));
@@ -907,6 +916,11 @@ fn test_hyppfq_asymptotic() {
     assert_hyppfq(&a, &b, -200.0, 0.115_205_192_301_031_53);
     assert_hyppfq(&a, &b, -1e4, 0.016_481_346_737_557_533);
     assert_hyppfq(&a4, &b4, -80.0, 3_084.118_291_519_921_5);
+    // (below eps after a few terms)
+    let (a_few, b_few) = ([0.5, 3.25, 0.25], [-1.25, -0.25, 0.75]);
+    assert_hyppfq(&a_few, &b_few, -1e5, 0.141_836_995_072_879_2);
+    let (a_few, b_few) = ([-0.5, 2.75, 3.25], [-1.5, -1.25, 1.75]);
+    assert_hyppfq(&a_few, &b_few, -3e4, 4.996_596_806_437_423e-13);
     // p = q - 1, where it oscillates
     assert_hyppfq(&[0.5, 1.25], &b, -1e5, 0.007_402_197_567_641_71);
     assert_hyppfq(&[0.5, 1.25], &b, -1e8, 0.000_234_112_089_078_822_63);
