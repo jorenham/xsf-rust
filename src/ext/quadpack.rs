@@ -95,11 +95,8 @@ pub(crate) fn quad(f: impl Fn(f64) -> f64, a: f64, b: f64, epsabs: f64, epsrel: 
             return (result, abserr);
         }
 
-        let (i, _) = intervals
-            .iter()
-            .enumerate()
-            .max_by(|(_, x), (_, y)| x.2.1.total_cmp(&y.2.1))
-            .unwrap();
+        let (i, _) =
+            intervals.iter().enumerate().max_by(|(_, x), (_, y)| x.2.1.total_cmp(&y.2.1)).unwrap();
         let (a1, b2, _) = intervals.swap_remove(i);
         let b1 = 0.5 * (a1 + b2);
         intervals.push((a1, b1, qk21(&f, a1, b1)));
@@ -128,11 +125,7 @@ pub(crate) fn quad_unimodal(
     for end in [b, a] {
         let (mut x, mut w, mut prev) = (mode, width, 0.0);
         while x != end {
-            let y = if end > x {
-                (x + w).min(end)
-            } else {
-                (x - w).max(end)
-            };
+            let y = if end > x { (x + w).min(end) } else { (x - w).max(end) };
             let (piece, _) = quad(&f, x.min(y), x.max(y), epsrel * sum, epsrel);
             sum += piece;
             if !(piece > prev || piece > f64::EPSILON * sum) {
@@ -153,28 +146,19 @@ mod tests {
     #[test]
     fn test_quad_smooth() {
         let (result, abserr) = quad(f64::sin, 0.0, PI, 0.0, 1e-13);
-        assert!(
-            (result - 2.0).abs() <= 4e-16 && abserr <= 2e-13,
-            "{result} {abserr}"
-        );
+        assert!((result - 2.0).abs() <= 4e-16 && abserr <= 2e-13, "{result} {abserr}");
 
         // reversed, and with a near-singularity at x = -0.001
         let (result, abserr) = quad(|x| 1.0 / (x + 0.001), 1.0, 0.0, 0.0, 1e-13);
         let expected = -1001.0_f64.ln();
-        assert!(
-            (result - expected).abs() <= 1e-15 && abserr <= 7e-13,
-            "{result} {abserr}"
-        );
+        assert!((result - expected).abs() <= 1e-15 && abserr <= 7e-13, "{result} {abserr}");
     }
 
     #[test]
     fn test_quad_limit() {
         // the endpoint singularity converges too slowly for 50 subintervals
         let (result, abserr) = quad(|x| 1.0 / x.sqrt(), 0.0, 1.0, 0.0, 1e-14);
-        assert!(
-            (result - 2.0).abs() <= abserr && abserr > 1e-14 * 2.0,
-            "{result} {abserr}"
-        );
+        assert!((result - 2.0).abs() <= abserr && abserr > 1e-14 * 2.0, "{result} {abserr}");
     }
 
     #[test]
@@ -183,10 +167,7 @@ mod tests {
         let f = |x: f64| (-0.5 * x * x / 1e-4).exp();
         let expected = 0.01 * SQRT_TAU;
         let result = quad_unimodal(f, f64::NEG_INFINITY, f64::INFINITY, 0.03, 0.01, 2e-14);
-        assert!(
-            (result - expected).abs() <= 1e-15 * expected,
-            "{result} {expected}"
-        );
+        assert!((result - expected).abs() <= 1e-15 * expected, "{result} {expected}");
 
         // the exponential decay on [0, inf), which has its maximum at the end
         let result = quad_unimodal(|x: f64| (-x).exp(), 0.0, f64::INFINITY, 0.0, 1e-3, 2e-14);

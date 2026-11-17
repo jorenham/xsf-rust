@@ -264,12 +264,7 @@ impl<G: FnMut() -> (T, T), T: Real> ContinuedFractionSeriesGenerator<G, T> {
         let (num, denom) = cf();
         let a = num;
         let b = denom;
-        Self {
-            cf,
-            v: a / b,
-            r: T::from_f64(0.0),
-            b,
-        }
+        Self { cf, v: a / b, r: T::from_f64(0.0), b }
     }
 
     /// `operator()`
@@ -373,13 +368,7 @@ pub(crate) fn bracket_root_for_cdf_inversion(
         }
         if reached_boundary {
             /* We've reached a boundary point without finding a root . */
-            return (
-                f64::NAN,
-                f64::NAN,
-                f64::NAN,
-                f64::NAN,
-                if search_left { 1 } else { 2 },
-            );
+            return (f64::NAN, f64::NAN, f64::NAN, f64::NAN, if search_left { 1 } else { 2 });
         }
         let step = (frontier - interior) * factor;
         interior = frontier;
@@ -533,9 +522,5 @@ pub(crate) const INT_OVERFLOW: f64 = 2_147_483_648.0;
 /// `(int)x` as compiled by g++ for x86-64 (`cvttsd2si`), i.e. INT_MIN if `x` is NaN or out of
 /// range, where it is undefined behavior in C++
 pub(crate) fn int_x86(x: f64) -> i32 {
-    if x > -INT_OVERFLOW - 1.0 && x < INT_OVERFLOW {
-        x as i32
-    } else {
-        i32::MIN
-    }
+    if x > -INT_OVERFLOW - 1.0 && x < INT_OVERFLOW { x as i32 } else { i32::MIN }
 }

@@ -140,15 +140,7 @@ impl Residues {
         // (-1)^(p+q+1) / z
         let w = neg_one_pow(a.len() + b.len() + 1) / z;
         let (n, term) = (0.0, 1.0);
-        Self {
-            up,
-            low,
-            w,
-            n,
-            term,
-            order,
-            u,
-        }
+        Self { up, low, w, n, term, order, u }
     }
 
     /// The parameters `up` and `low` as `f64`
@@ -187,11 +179,7 @@ impl Iterator for Residues {
             if c == 0.0 {
                 (self.term, self.order) = (-self.term, self.order - power);
             } else {
-                self.term = if power > 0 {
-                    self.term * c
-                } else {
-                    self.term / c
-                };
+                self.term = if power > 0 { self.term * c } else { self.term / c };
                 mul_linear_sized(&mut self.u, -1.0 / c, power);
             }
         }

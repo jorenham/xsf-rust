@@ -39,10 +39,7 @@ fn test_eval_real_degree_large() {
     np_assert_allclose!(actual, desired, rtol = 1e-11);
 
     // or near x = -1, where `hyp2f1` was inaccurate (mpmath)
-    let actual = [
-        xsf::eval_jacobi(15.8, -0.5, 8.7, -0.96),
-        xsf::eval_gegenbauer(40.7, 9.3, -0.99),
-    ];
+    let actual = [xsf::eval_jacobi(15.8, -0.5, 8.7, -0.96), xsf::eval_gegenbauer(40.7, 9.3, -0.99)];
     let desired = [37_787_979.694_627_58, -1.002_223_611_030_761_3e15];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 
@@ -52,11 +49,7 @@ fn test_eval_real_degree_large() {
         xsf::eval_jacobi(32.06, 3.2, 3.0, -0.88),
         xsf::eval_jacobi(17.32, 0.1, 3.0, -0.99),
     ];
-    let desired = [
-        64.703_859_369_457_89,
-        11.922_922_622_177_607,
-        1_132.803_574_409_967_7,
-    ];
+    let desired = [64.703_859_369_457_89, 11.922_922_622_177_607, 1_132.803_574_409_967_7];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
@@ -205,10 +198,8 @@ fn test_eval_genlaguerre_alpha_near_minus_one() {
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
     // and for subnormal n, where `1 / (n B(alpha + 1, n))` overflows (Arb: 1)
-    let actual = [
-        xsf::eval_genlaguerre(1e-310, -0.75, 0.0),
-        xsf::eval_jacobi(1e-310, -0.75, 0.0, 1.0),
-    ];
+    let actual =
+        [xsf::eval_genlaguerre(1e-310, -0.75, 0.0), xsf::eval_jacobi(1e-310, -0.75, 0.0, 1.0)];
     np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-15);
 
     // alpha >= -0.5 keeps `binom(n + alpha, n)`, also for n > 2^53 (mpmath: 0.999999999999998)
@@ -264,17 +255,13 @@ fn test_eval_jacobi_scipy() {
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         [-7.5, -1.5, -0.15, 0.0, 0.15, 1.5, 7.5],
         [61.875, 1.875, -0.6, -0.625, -0.6, 1.875, 61.875],
-        [
-            -535.9375, -2.1875, 0.214_375, 0.0, -0.214_375, 2.1875, 535.9375,
-        ],
+        [-535.9375, -2.1875, 0.214_375, 0.0, -0.214_375, 2.1875, 535.9375],
     ];
     let expect_h_nh = [
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         [-4.5, -0.5, 0.4, 0.5, 0.6, 1.5, 5.5],
         [33.375, 0.375, -0.435, -0.375, -0.285, 1.875, 40.875],
-        [
-            -275.3125, -0.3125, -0.1775, -0.3125, -0.4225, 2.1875, 337.1875,
-        ],
+        [-275.3125, -0.3125, -0.1775, -0.3125, -0.4225, 2.1875, 337.1875],
     ];
     let expect_nh_nh = [
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -321,17 +308,7 @@ fn test_eval_legendre_eq_legendre_f64() {
 #[test]
 fn test_eval_gegenbauer_eq_self() {
     // manual test cases
-    let xs = [
-        0.0,
-        1.0,
-        -1.0,
-        1e-6,
-        -1e-6,
-        2.0,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::NAN,
-    ];
+    let xs = [0.0, 1.0, -1.0, 1e-6, -1e-6, 2.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
     let zs = [c64(0.5, 0.0), c64(-0.5, 0.0), c64(1.0, 0.0), c64(-1.0, 0.0)];
     let ns = [0, 1, 2, 3, 4, 11];
     let alphas = [0.0, 0.5, 1.0, 2.0];
@@ -410,12 +387,7 @@ fn test_eval_genlaguerre_scipy() {
             1.354_166_666_666_666_7,
         ],
     ];
-    let expect = [
-        (0.0, expect_0),
-        (1.0, expect_1),
-        (0.5, expect_h),
-        (-0.5, expect_nh),
-    ];
+    let expect = [(0.0, expect_0), (1.0, expect_1), (0.5, expect_h), (-0.5, expect_nh)];
 
     for (alpha, expected) in expect {
         for (i, &n) in ns.iter().enumerate() {
@@ -534,9 +506,7 @@ fn test_eval_hermite_h() {
     test_orthogonal_poly::<u32, _, _>(
         eval_hermite_h,
         eval_hermite_h,
-        &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 2.0, &|x| {
-            8.0 * x * x * x - 12.0 * x
-        }],
+        &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 2.0, &|x| 8.0 * x * x * x - 12.0 * x],
     );
 }
 
@@ -557,44 +527,23 @@ fn test_eval_hermite_real_degree_neg_x() {
     ];
     np_assert_allclose!(h, h_expected, rtol = 1e-10);
 
-    let he = [
-        eval_hermite_he(2.5, -1.5),
-        eval_hermite_he(17.25, -6.0),
-        eval_hermite_he(-0.5, -9.5),
-    ];
-    let he_expected = [
-        2.234_925_546_810_356,
-        110_811_784_506.491_07,
-        1.824_056_114_304_247_2e19,
-    ];
+    let he =
+        [eval_hermite_he(2.5, -1.5), eval_hermite_he(17.25, -6.0), eval_hermite_he(-0.5, -9.5)];
+    let he_expected = [2.234_925_546_810_356, 110_811_784_506.491_07, 1.824_056_114_304_247_2e19];
     np_assert_allclose!(he, he_expected, rtol = 1e-10);
 }
 
 #[test]
 fn test_eval_hermite_negative_integer_degree_neg_x() {
     // mpmath; H_n has no parity for n < 0, e.g. H_{-1}(x) = sqrt(pi)/2 e^(x^2) erfc(x)
-    let h = [
-        eval_hermite_h(-1.0, -1.999),
-        eval_hermite_h(-3.0, -0.5),
-        eval_hermite_h(-50.0, -10.0),
-    ];
-    let h_expected = [
-        96.160_046_802_329_64,
-        0.773_837_912_638_887_6,
-        1.007_433_655_655_245e32,
-    ];
+    let h =
+        [eval_hermite_h(-1.0, -1.999), eval_hermite_h(-3.0, -0.5), eval_hermite_h(-50.0, -10.0)];
+    let h_expected = [96.160_046_802_329_64, 0.773_837_912_638_887_6, 1.007_433_655_655_245e32];
     np_assert_allclose!(h, h_expected, rtol = 1e-14);
 
-    let he = [
-        eval_hermite_he(-2.0, -2.5),
-        eval_hermite_he(-10.0, -5.0),
-        eval_hermite_he(-5.0, -0.1),
-    ];
-    let he_expected = [
-        142.740_828_644_349_21,
-        11_323_616.674_348_935,
-        0.194_271_792_571_189_13,
-    ];
+    let he =
+        [eval_hermite_he(-2.0, -2.5), eval_hermite_he(-10.0, -5.0), eval_hermite_he(-5.0, -0.1)];
+    let he_expected = [142.740_828_644_349_21, 11_323_616.674_348_935, 0.194_271_792_571_189_13];
     np_assert_allclose!(he, he_expected, rtol = 1e-14);
 }
 
@@ -616,23 +565,13 @@ fn test_eval_hermite_negative_degree_large_neg_x() {
     ];
     np_assert_allclose!(h, h_expected, rtol = 1e-12);
 
-    let he = [
-        eval_hermite_he(-300.0, -20.0),
-        eval_hermite_he(-452.5, -25.5),
-    ];
+    let he = [eval_hermite_he(-300.0, -20.0), eval_hermite_he(-452.5, -25.5)];
     let he_expected = [1.353_906_919_218_835e-105, 5.300_736_091_746_186e-184];
     np_assert_allclose!(he, he_expected, rtol = 1e-12);
 
     // n is too small for 1 - (1 - n) / 2 to keep it
-    let tiny = [
-        eval_hermite_h(-1e-20, -10.0),
-        eval_hermite_he(-1e-20, -10.0),
-    ];
-    np_assert_allclose!(
-        tiny,
-        [4.788_753_000_993_948e22, 14.130_199_579_030_07],
-        rtol = 1e-14
-    );
+    let tiny = [eval_hermite_h(-1e-20, -10.0), eval_hermite_he(-1e-20, -10.0)];
+    np_assert_allclose!(tiny, [4.788_753_000_993_948e22, 14.130_199_579_030_07], rtol = 1e-14);
 }
 
 #[test]
@@ -645,13 +584,8 @@ fn test_eval_hermite_neg_x_overflow() {
         eval_hermite_he(1.5, -2e154),
         eval_hermite_he(170.5, f64::NEG_INFINITY),
     ];
-    let h_expected = [
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::INFINITY,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-    ];
+    let h_expected =
+        [f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY];
     assert_eq!(h, h_expected);
 }
 
@@ -682,9 +616,7 @@ fn test_eval_chebyshev_t() {
     test_orthogonal_poly::<i32, _, _>(
         eval_chebyshev_t,
         eval_chebyshev_t,
-        &[&|_| 1.0, &|x| x, &|x| 2.0 * x * x - 1.0, &|x| {
-            4.0 * x * x * x - 3.0 * x
-        }],
+        &[&|_| 1.0, &|x| x, &|x| 2.0 * x * x - 1.0, &|x| 4.0 * x * x * x - 3.0 * x],
     );
 }
 
@@ -693,9 +625,7 @@ fn test_eval_chebyshev_u() {
     test_orthogonal_poly::<i32, _, _>(
         eval_chebyshev_u,
         eval_chebyshev_u,
-        &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 1.0, &|x| {
-            8.0 * x * x * x - 4.0 * x
-        }],
+        &[&|_| 1.0, &|x| 2.0 * x, &|x| 4.0 * x * x - 1.0, &|x| 8.0 * x * x * x - 4.0 * x],
     );
 }
 
@@ -782,11 +712,8 @@ fn test_eval_jacobi_alpha_lt_minus_one() {
             -0.541_727_570_598_916_4,
         ),
     ];
-    let desired = [
-        1.326_943_780_835_686_8e-4,
-        -0.003_454_508_238_536_124_4,
-        -2.685_625_233_703_272_5e-4,
-    ];
+    let desired =
+        [1.326_943_780_835_686_8e-4, -0.003_454_508_238_536_124_4, -2.685_625_233_703_272_5e-4];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
 }
 
@@ -821,14 +748,9 @@ fn test_shifted_and_scaled() {
     ];
     np_assert_allclose!(r, expected, rtol = 1e-13);
 
-    let c = [
-        xsf::eval_sh_legendre(3.0, c64(0.2, 0.1)),
-        xsf::eval_sh_chebyshev_u(1.5, c64(0.3, 0.2)),
-    ];
-    let expected = [
-        c64(0.54, 0.22),
-        c64(-1.550_356_818_307_985, 0.051_799_489_871_846_57),
-    ];
+    let c =
+        [xsf::eval_sh_legendre(3.0, c64(0.2, 0.1)), xsf::eval_sh_chebyshev_u(1.5, c64(0.3, 0.2))];
+    let expected = [c64(0.54, 0.22), c64(-1.550_356_818_307_985, 0.051_799_489_871_846_57)];
     np_assert_allclose!(c, expected, rtol = 1e-13);
 }
 

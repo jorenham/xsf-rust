@@ -363,10 +363,7 @@ fn div(mut a: C64, mut b: C64) -> C64 {
         } else if (a.is_infinite() || b.is_infinite()) && c.is_finite() && d.is_finite() {
             let a = box_inf(a);
             let b = box_inf(b);
-            return c64(
-                f64::INFINITY * (a * c + b * d),
-                f64::INFINITY * (b * c - a * d),
-            );
+            return c64(f64::INFINITY * (a * c + b * d), f64::INFINITY * (b * c - a * d));
         } else if (c.is_infinite() || d.is_infinite()) && a.is_finite() && b.is_finite() {
             let c = box_inf(c);
             let d = box_inf(d);
@@ -383,16 +380,7 @@ fn div(mut a: C64, mut b: C64) -> C64 {
 /// computed as NaN + NaN i, e.g. `(inf + inf i) * (1 + 0i)`.
 #[inline]
 fn mul(a: C64, b: C64) -> C64 {
-    let (
-        C64 {
-            re: mut a,
-            im: mut b,
-        },
-        C64 {
-            re: mut c,
-            im: mut d,
-        },
-    ) = (a, b);
+    let (C64 { re: mut a, im: mut b }, C64 { re: mut c, im: mut d }) = (a, b);
     let (ac, bd, ad, bc) = (a * c, b * d, a * d, b * c);
     let (mut x, mut y) = (ac - bd, ad + bc);
 
@@ -525,9 +513,6 @@ mod tests {
         let nan = f64::from_bits(0x7ff8_0000_0000_1234);
         let z = Complex::new(-0.0, nan);
         let w = Complex::from(C64::from(z));
-        assert_eq!(
-            [w.re.to_bits(), w.im.to_bits()],
-            [z.re.to_bits(), nan.to_bits()]
-        );
+        assert_eq!([w.re.to_bits(), w.im.to_bits()], [z.re.to_bits(), nan.to_bits()]);
     }
 }

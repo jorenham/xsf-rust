@@ -174,11 +174,7 @@ pub(crate) const MACH: (f64, f64, f64, f64, f64) = {
     let mut k1 = I1MACH[14] as i32;
     let k2 = I1MACH[15] as i32;
     let r1m5 = D1MACH[4];
-    let k = if k1.abs() > k2.abs() {
-        k2.abs()
-    } else {
-        k1.abs()
-    };
+    let k = if k1.abs() > k2.abs() { k2.abs() } else { k1.abs() };
     let elim = 2.303 * (k as f64 * r1m5 - 3.0);
     k1 = (I1MACH[13] - 1.0) as i32;
     let mut aa = r1m5 * k1 as f64;
@@ -3222,11 +3218,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                 //
                 fc = 1.;
                 // Unlike in xsf, ln(2/z) and p2 (2/z) below don't use `rz = 2/z` if it overflows.
-                smu = if rz.is_finite() {
-                    rz.ln()
-                } else {
-                    LN_2 - z.ln()
-                };
+                smu = if rz.is_finite() { rz.ln() } else { LN_2 - z.ln() };
                 fmu = smu * dnu;
                 csh = fmu.sinh();
                 cch = fmu.cosh();
@@ -3331,11 +3323,7 @@ fn bknu(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
                     kflag = 3;
                 }
                 p2 = s2 * css[(kflag - 1) as usize];
-                s2 = if rz.is_finite() {
-                    p2 * rz
-                } else {
-                    2.0 * p2 / z
-                };
+                s2 = if rz.is_finite() { p2 * rz } else { 2.0 * p2 / z };
                 s1 *= css[(kflag - 1) as usize];
                 if koded != 1 {
                     f = z.exp();
@@ -3772,13 +3760,9 @@ fn buni(
         // ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
         // -PI/3 <= ARG(Z) <= PI/3
         //
-        uni1(
-            z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim,
-        );
+        uni1(z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim);
     } else {
-        uni2(
-            z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim,
-        );
+        uni2(z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim);
     }
     if nw >= 0 {
         if nw != 0 {
@@ -4538,11 +4522,7 @@ fn seri(z: C64, fnu: f64, kode: i32, n: i32, y: &mut [C64], tol: f64, elim: f64,
         }
         acz = cz.norm();
         nn = n;
-        ck = if az < 2.0 * D1MACH[0] {
-            z.ln() - LN_2
-        } else {
-            half_z.ln()
-        };
+        ck = if az < 2.0 * D1MACH[0] { z.ln() - LN_2 } else { half_z.ln() };
         loop {
             // L10:
             dfnu = fnu + f64::from(nn - 1);
@@ -5221,9 +5201,7 @@ fn uni1(
     //
     fn_ = fnu.max(1.0);
     init = 0;
-    unik(
-        z, fn_, 1, 1, tol, &mut init, &mut phi, &mut zeta1, &mut zeta2, &mut sum, &mut cwrk,
-    );
+    unik(z, fn_, 1, 1, tol, &mut init, &mut phi, &mut zeta1, &mut zeta2, &mut sum, &mut cwrk);
     if kode != 1 {
         s1 = -zeta1 + fn_ * (fn_ / (z + zeta2));
     } else {
@@ -5473,9 +5451,7 @@ fn uni2(
     // CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //
     fn_ = fnu.max(1.0);
-    unhj(
-        zn, fn_, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-    );
+    unhj(zn, fn_, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
     if kode != 1 {
         cfn = c64(fnu, 0.0);
         s1 = -zeta1 + cfn * (cfn / (zb + zeta2));
@@ -6174,11 +6150,7 @@ fn unk1(
             // NOTE: `iflag` is still 0 here if all terms so far went through L110 (so `s2 == 0`),
             // in which case the C++ reads `csr[-1]` (UB); that factor is replaced by 1 here
             // (equivalent for any positive real factor).
-            s2 *= if iflag == 0 {
-                C64::ONE
-            } else {
-                csr[(iflag - 1) as usize]
-            };
+            s2 *= if iflag == 0 { C64::ONE } else { csr[(iflag - 1) as usize] };
             // Unlike in xsf: pi I overflow (see the module docs).
             if !s2.is_finite() {
                 return -1;
@@ -6740,11 +6712,7 @@ fn unk2(
         // NOTE: `iflag` is still 0 here if all terms so far went to L250 via the first `|rs1| >
         // elim` branch (so `s2 == 0`), in which case the C++ reads `csr[-1]` (UB); that factor is
         // replaced by 1 here (equivalent for any positive real factor).
-        s2 *= if iflag == 0 {
-            C64::ONE
-        } else {
-            csr[(iflag - 1) as usize]
-        };
+        s2 *= if iflag == 0 { C64::ONE } else { csr[(iflag - 1) as usize] };
         // Unlike in xsf: pi I overflow (see the module docs).
         if !s2.is_finite() {
             return -1;
@@ -6925,9 +6893,7 @@ fn uoik(
         if yy <= 0. {
             zn.re = -zn.re;
         }
-        unhj(
-            zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-        );
+        unhj(zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
         cz = zeta2 - zeta1;
         aarg = arg.norm();
     }
@@ -7009,9 +6975,7 @@ fn uoik(
             );
             cz = zeta2 - zeta1;
         } else {
-            unhj(
-                zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-            );
+            unhj(zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
             cz = zeta2 - zeta1;
             // NOTE: `abs(phi)` (not `abs(arg)` as in the Fortran) in the C++; kept as in the C++
             aarg = phi.norm();

@@ -43,11 +43,7 @@ fn bivariate_normal_sf_boundary(dh: f64, dk: f64, r: f64) -> Option<f64> {
     }
     if dh == f64::NEG_INFINITY {
         // elseif dh == -inf, if dk == -inf, p = 1; else p = phid(-dk); end
-        return Some(if dk == f64::NEG_INFINITY {
-            1.0
-        } else {
-            ndtr(-dk)
-        });
+        return Some(if dk == f64::NEG_INFINITY { 1.0 } else { ndtr(-dk) });
     }
     if dk == f64::NEG_INFINITY {
         // elseif dk == -inf, p = phid(-dh);
@@ -61,16 +57,9 @@ fn bivariate_normal_sf_boundary(dh: f64, dk: f64, r: f64) -> Option<f64> {
 }
 
 // Positive nodes and weights of symmetric Gauss-Legendre rules on [-1, 1].
-const BVN_W6: [f64; 3] = [
-    0.171_324_492_379_170_5,
-    0.360_761_573_048_138_4,
-    0.467_913_934_572_690_4,
-];
-const BVN_X6: [f64; 3] = [
-    0.932_469_514_203_152_2,
-    0.661_209_386_466_264_7,
-    0.238_619_186_083_197,
-];
+const BVN_W6: [f64; 3] =
+    [0.171_324_492_379_170_5, 0.360_761_573_048_138_4, 0.467_913_934_572_690_4];
+const BVN_X6: [f64; 3] = [0.932_469_514_203_152_2, 0.661_209_386_466_264_7, 0.238_619_186_083_197];
 
 const BVN_W12: [f64; 6] = [
     0.047_175_336_386_511_77,
@@ -239,16 +228,8 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
         return f64::NAN;
     }
     // phid(-40) underflows to 0, so |dh|, |dk| > 40 act as infinite (and can't overflow h*k below).
-    let dh = if dh.abs() > 40.0 {
-        f64::INFINITY.copysign(dh)
-    } else {
-        dh
-    };
-    let dk = if dk.abs() > 40.0 {
-        f64::INFINITY.copysign(dk)
-    } else {
-        dk
-    };
+    let dh = if dh.abs() > 40.0 { f64::INFINITY.copysign(dh) } else { dh };
+    let dk = if dk.abs() > 40.0 { f64::INFINITY.copysign(dk) } else { dk };
 
     // By symmetry, the CDF at (dh, dk) is the upper-tail probability at (-dh, -dk).
     let dh = -dh;
@@ -360,11 +341,7 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
             bvn = -bvn;
         } else {
             // else, if h < 0, L = phid(k)-phid(h); else, L = phid(-h)-phid(-k); end
-            let l = if h < 0.0 {
-                ndtr(k) - ndtr(h)
-            } else {
-                ndtr(-h) - ndtr(-k)
-            };
+            let l = if h < 0.0 { ndtr(k) - ndtr(h) } else { ndtr(-h) - ndtr(-k) };
             // bvn =  L - bvn;
             bvn = l - bvn;
         }

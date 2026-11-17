@@ -87,11 +87,7 @@ pub fn rel_entr(x_i: f64, y_i: f64) -> f64 {
     if x_i.is_nan() || y_i.is_nan() {
         f64::NAN
     } else if x_i <= 0.0 || y_i <= 0.0 {
-        if x_i == 0.0 && 0.0 <= y_i {
-            0.0
-        } else {
-            f64::INFINITY
-        }
+        if x_i == 0.0 && 0.0 <= y_i { 0.0 } else { f64::INFINITY }
     } else {
         let ratio = x_i / y_i;
         if 0.5 < ratio && ratio < 2.0 {
@@ -197,11 +193,7 @@ pub fn huber(delta: f64, r: f64) -> f64 {
         f64::INFINITY
     } else {
         let r_abs = r.abs();
-        if r_abs <= delta {
-            0.5 * r * r
-        } else {
-            delta * (r_abs - 0.5 * delta)
-        }
+        if r_abs <= delta { 0.5 * r * r } else { delta * (r_abs - 0.5 * delta) }
     }
 }
 

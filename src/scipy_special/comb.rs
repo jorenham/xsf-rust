@@ -20,11 +20,7 @@ use num_traits::{PrimInt, Unsigned};
 /// - [`binom`](crate::binom): the binomial coefficient as a floating point function
 #[inline]
 pub fn comb<N: PrimInt + Unsigned>(n: N, k: N) -> N {
-    if n < k {
-        N::zero()
-    } else {
-        choose(n, k.min(n - k))
-    }
+    if n < k { N::zero() } else { choose(n, k.min(n - k)) }
 }
 
 /// `C(n, k)`, as the product of `(n + 1 - j) / j` for `j = 1, ..., k`

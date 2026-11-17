@@ -562,15 +562,10 @@ fn radial(m: f64, n: f64, c: f64, cv: f64, x: f64, kd: i32, kf: i32) -> (f64, f6
     {
         return (f64::NAN, f64::NAN);
     }
-    let rswf = if kd == 1 {
-        specfun::rswfp
-    } else {
-        specfun::rswfo
-    };
+    let rswf = if kd == 1 { specfun::rswfp } else { specfun::rswfo };
     let (mut r1f, mut r1d, mut r2f, mut r2d) = (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
-    if rswf(
-        m as i32, n as i32, c, x, cv, kf, &mut r1f, &mut r1d, &mut r2f, &mut r2d,
-    ) == Status::NoMemory
+    if rswf(m as i32, n as i32, c, x, cv, kf, &mut r1f, &mut r1d, &mut r2f, &mut r2d)
+        == Status::NoMemory
     {
         return (f64::NAN, f64::NAN);
     }

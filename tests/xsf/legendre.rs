@@ -10,11 +10,7 @@ const LN_3: f64 = 1.098_612_288_668_109_8_f64;
 #[test]
 fn test_legendre_p_f64() {
     assert_eq!(
-        [
-            xsf::legendre_p(0, 0.0),
-            xsf::legendre_p(1, 0.0),
-            xsf::legendre_p(2, 0.0),
-        ],
+        [xsf::legendre_p(0, 0.0), xsf::legendre_p(1, 0.0), xsf::legendre_p(2, 0.0),],
         [1.0, 0.0, -0.5],
     );
 }
@@ -22,11 +18,7 @@ fn test_legendre_p_f64() {
 #[test]
 fn test_legendre_p_c64() {
     assert_eq!(
-        [
-            xsf::legendre_p(0, I),
-            xsf::legendre_p(1, I),
-            xsf::legendre_p(2, I),
-        ],
+        [xsf::legendre_p(0, I), xsf::legendre_p(1, I), xsf::legendre_p(2, I),],
         [c64(1.0, 0.0), I, c64(-2.0, 0.0)],
     );
 }
@@ -40,10 +32,7 @@ fn test_legendre_p_all_f64() {
 
 #[test]
 fn test_legendre_p_all_c64() {
-    assert_eq!(
-        xsf::legendre_p_all(2, I),
-        vec![c64(1.0, 0.0), I, c64(-2.0, 0.0)],
-    );
+    assert_eq!(xsf::legendre_p_all(2, I), vec![c64(1.0, 0.0), I, c64(-2.0, 0.0)],);
 }
 
 // sph_legendre_p
@@ -63,11 +52,7 @@ fn test_sph_legendre_p_f64() {
 #[test]
 fn test_sph_legendre_p_c64() {
     xsref::np_assert_allclose!(
-        &[
-            xsf::sph_legendre_p(0, 0, I),
-            xsf::sph_legendre_p(1, 0, I),
-            xsf::sph_legendre_p(1, 1, I),
-        ],
+        &[xsf::sph_legendre_p(0, 0, I), xsf::sph_legendre_p(1, 0, I), xsf::sph_legendre_p(1, 1, I),],
         &[
             c64(0.282_094_791_773_878_2, 0.0),
             c64(0.753_953_074_239_480_4, 0.0),
@@ -83,10 +68,7 @@ fn test_sph_legendre_p_c64() {
 fn test_sph_legendre_p_all_f64() {
     assert_eq!(
         xsf::sph_legendre_p_all(1, 1, 0.0),
-        vec![
-            vec![0.282_094_791_773_878_14, 0.0, 0.0],
-            vec![0.488_602_511_902_919_87, 0.0, 0.0],
-        ]
+        vec![vec![0.282_094_791_773_878_14, 0.0, 0.0], vec![0.488_602_511_902_919_87, 0.0, 0.0],]
     );
 }
 
@@ -97,11 +79,7 @@ fn test_sph_legendre_p_all_c64() {
 
     xsref::np_assert_allclose!(
         &pnm[0],
-        &[
-            c64(0.282_094_791_773_878_2, 0.0),
-            c64(0.0, 0.0),
-            c64(0.0, 0.0)
-        ],
+        &[c64(0.282_094_791_773_878_2, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
         atol = f64::EPSILON
     );
     xsref::np_assert_allclose!(
@@ -159,11 +137,7 @@ fn test_assoc_legendre_p_all_c64() {
         xsf::assoc_legendre_p_all(1, 1, I),
         vec![
             vec![c64(1.0, 0.0), c64(0.0, 0.0), c64(0.0, 0.0)],
-            vec![
-                c64(0.0, 1.0),
-                c64(-consts::SQRT_2, 0.0),
-                c64(consts::FRAC_1_SQRT_2, 0.0),
-            ],
+            vec![c64(0.0, 1.0), c64(-consts::SQRT_2, 0.0), c64(consts::FRAC_1_SQRT_2, 0.0),],
         ]
     );
 }
@@ -217,16 +191,8 @@ fn test_legendre_q_all_f64() {
     assert_eq!(qn.len(), 5);
     assert_eq!(qd.len(), 5);
 
-    xsref::np_assert_allclose!(
-        &qn[..2],
-        &[LN_3 * 0.5, LN_3 * 0.25 - 1.0],
-        rtol = f64::EPSILON
-    );
-    xsref::np_assert_allclose!(
-        &qd[..2],
-        &[4.0 / 3.0, 2.0 / 3.0 + 0.5 * LN_3],
-        rtol = f64::EPSILON
-    );
+    xsref::np_assert_allclose!(&qn[..2], &[LN_3 * 0.5, LN_3 * 0.25 - 1.0], rtol = f64::EPSILON);
+    xsref::np_assert_allclose!(&qd[..2], &[4.0 / 3.0, 2.0 / 3.0 + 0.5 * LN_3], rtol = f64::EPSILON);
 }
 
 #[test]
@@ -236,13 +202,7 @@ fn test_legendre_q_all_c64() {
     assert_eq!(qn.len(), 5);
     assert_eq!(qd.len(), 5);
 
-    assert_eq!(
-        qn[..2],
-        [
-            c64(0.0, consts::FRAC_PI_4),
-            c64(-1.0 - consts::FRAC_PI_4, 0.0),
-        ]
-    );
+    assert_eq!(qn[..2], [c64(0.0, consts::FRAC_PI_4), c64(-1.0 - consts::FRAC_PI_4, 0.0),]);
 }
 
 #[test]
@@ -263,17 +223,11 @@ fn test_legendre_q_all_f64_reflection() {
 fn test_legendre_q_all_n0() {
     // computed with n = 1, since `lqn` writes at least 2 terms
     let (qn, qd) = xsf::legendre_q_all(1, 1.5);
-    assert_eq!(
-        xsf::legendre_q_all(0, 1.5),
-        (qn[..1].to_vec(), qd[..1].to_vec())
-    );
+    assert_eq!(xsf::legendre_q_all(0, 1.5), (qn[..1].to_vec(), qd[..1].to_vec()));
 
     let z = c64(1.5, 0.0);
     let (qn, qd) = xsf::legendre_q_all(1, z);
-    assert_eq!(
-        xsf::legendre_q_all(0, z),
-        (qn[..1].to_vec(), qd[..1].to_vec())
-    );
+    assert_eq!(xsf::legendre_q_all(0, z), (qn[..1].to_vec(), qd[..1].to_vec()));
 }
 
 // assoc_legendre_q_all
@@ -335,14 +289,8 @@ fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
     // Arb: atanh(z), and acoth(z) for |z| > 1
     for (z, q0) in [
         (c64(1e-9, 2e-9), c64(1e-9, 2e-9)),
-        (
-            c64(-3e-7, 1e-7),
-            c64(-3.000_000_000_000_059_7e-7, 1.000_000_000_000_086_6e-7),
-        ),
-        (
-            c64(1e8, 3e7),
-            c64(9.174_311_926_605_505e-9, -2.752_293_577_981_651_6e-9),
-        ),
+        (c64(-3e-7, 1e-7), c64(-3.000_000_000_000_059_7e-7, 1.000_000_000_000_086_6e-7)),
+        (c64(1e8, 3e7), c64(9.174_311_926_605_505e-9, -2.752_293_577_981_651_6e-9)),
         (c64(0.0, 1e-10), c64(0.0, 1e-10)),
     ] {
         let (qm, _) = xsf::assoc_legendre_q_all(0, 0, z);
@@ -507,12 +455,7 @@ fn test_legendre_q_all_c64_tiny_im_real_parts() {
             cqn.iter().chain(&cqd).map(f).collect::<Vec<_>>()
         };
         xsref::np_assert_allclose!(parts(|q| q.re), re, rtol = 1e-15, atol = 4.0 * f64::EPSILON);
-        xsref::np_assert_allclose!(
-            parts(|q| q.im),
-            im,
-            rtol = 1e-15,
-            atol = 1e-99 * f64::EPSILON
-        );
+        xsref::np_assert_allclose!(parts(|q| q.im), im, rtol = 1e-15, atol = 1e-99 * f64::EPSILON);
     }
 }
 
@@ -535,11 +478,7 @@ fn test_legendre_q_all_c64_tiny_re() {
         0.028_510_088_746_824_26,
     ];
     xsref::np_assert_allclose!(parts(&q), expected, rtol = 1e-14);
-    xsref::np_assert_allclose!(
-        parts(&[qm[0][0], qm[1][0], qm[2][0]]),
-        expected,
-        rtol = 1e-14
-    );
+    xsref::np_assert_allclose!(parts(&[qm[0][0], qm[1][0], qm[2][0]]), expected, rtol = 1e-14);
     xsref::np_assert_allclose!(
         parts(&d),
         [
@@ -584,36 +523,15 @@ fn test_assoc_legendre_q_all_c64_tiny_im_axis() {
     // on and near the imaginary axis; Arb references (Ferrers), with
     // `Q_20^20(z) = 2^20 20! z + O(z^3)`
     for (n, m, z, q, d) in [
-        (
-            20,
-            20,
-            c64(0.0, 1e-320),
-            2.551_054_255_388_657e-296,
-            2.551_082_656_125_828_5e24,
-        ),
-        (
-            20,
-            20,
-            c64(1e-300, 1e-320),
-            2.551_054_255_388_657e-296,
-            2.551_082_656_125_828_5e24,
-        ),
-        (
-            20,
-            20,
-            c64(0.0, 1e-200),
-            2.551_082_656_125_828_5e-176,
-            2.551_082_656_125_828_5e24,
-        ),
+        (20, 20, c64(0.0, 1e-320), 2.551_054_255_388_657e-296, 2.551_082_656_125_828_5e24),
+        (20, 20, c64(1e-300, 1e-320), 2.551_054_255_388_657e-296, 2.551_082_656_125_828_5e24),
+        (20, 20, c64(0.0, 1e-200), 2.551_082_656_125_828_5e-176, 2.551_082_656_125_828_5e24),
     ] {
         let (cqm, cqd) = xsf::assoc_legendre_q_all(n, m, z);
         xsref::np_assert_allclose!([cqm[n][m].im, cqd[n][m].re], [q, d], rtol = 1e-15);
     }
     let (cqm, cqd) = xsf::assoc_legendre_q_all(3, 2, c64(0.0, 1e-320));
-    assert_eq!(
-        (cqm[3][2], cqd[3][2]),
-        (c64(-8.0, 0.0), c64(0.0, 6.399_93e-319))
-    );
+    assert_eq!((cqm[3][2], cqd[3][2]), (c64(-8.0, 0.0), c64(0.0, 6.399_93e-319)));
 }
 
 #[test]

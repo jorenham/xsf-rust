@@ -167,9 +167,7 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
      * The error is bounded above by |(z + 2m + 1)/(z.real + 2m + 1) * T(m+1, n)|
      * See https://en.wikipedia.org/wiki/Riemann_zeta_function#Numerical_algorithms
      */
-    let mut error = (zeta_em_log_coeff(m + 1) + log_factor + log_poch)
-        .exp()
-        .norm();
+    let mut error = (zeta_em_log_coeff(m + 1) + log_factor + log_poch).exp().norm();
     error *= ((z + 2.0 * m as f64 + 1.0) / (z.re + 2.0 * m as f64 + 1.0)).norm();
     // convert to relative error estimate
     error /= result.norm();
@@ -364,11 +362,7 @@ fn zeta_reflection(z: C64) -> C64 {
      * is handled because this is the only practical case where we should
      *  expect zeta(1 - z) == x for a real number x when z is not on the
      * real line. */
-    if result == C64::ONE {
-        factor
-    } else {
-        factor * result
-    }
+    if result == C64::ONE { factor } else { factor * result }
 }
 
 fn criemann_zeta(z: C64) -> C64 {

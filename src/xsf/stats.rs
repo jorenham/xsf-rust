@@ -190,16 +190,10 @@ pub fn stdtr(nu: f64, x: f64) -> f64 {
             (&[1.0, 1.0], 4.0),
             (&[3.0, -7.0, -5.0, -3.0], 96.0),
             (&[1.0, -11.0, 14.0, 6.0, -3.0, -15.0], 384.0),
-            (
-                &[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0],
-                92160.0,
-            ),
+            (&[15.0, -375.0, 2225.0, -2141.0, -939.0, -213.0, 915.0, 945.0], 92160.0),
         ];
         let t = x.clamp(-40.0, 40.0);
-        let s = G
-            .iter()
-            .rev()
-            .fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
+        let s = G.iter().rev().fold(0.0, |s, &(p, d)| (s + polevl(t * t, p) / d) / nu);
         ndtr(x) - (-0.5 * t * t).exp() / SQRT_TAU * t * s
     } else if nu > STDTR_TAIL_NU && x < -STDTR_TAIL_X {
         stdtr_tail(nu, x)
@@ -271,9 +265,7 @@ fn stdtr_tail(nu: f64, x: f64) -> f64 {
     // `a log1pmx(u)` with `u = t^2 / nu`, whose f64 rounding would cost its size (up to ~20) in
     // eps: its leading term `-a u^2 / 2` in double-double, and the rest in f64
     let u = t2 / nu;
-    let rest = (3..=STDTR_TAIL_LOG_TERMS)
-        .rev()
-        .fold(0.0, |s, k| 1.0 / f64::from(k) - u.hi * s);
+    let rest = (3..=STDTR_TAIL_LOG_TERMS).rev().fold(0.0, |s, k| 1.0 / f64::from(k) - u.hi * s);
     let e = u * u * (-0.5 * a) + a * u.hi.powi(3) * rest;
     let m = 0.5 * cf * (xc / a).sqrt() / SQRT_PI * g * (-e.hi).exp() * (1.0 - e.lo);
     mul_exp_sq(m, -0.5, t)
@@ -594,16 +586,9 @@ fn von_mises_cdf_left(k: f64, x: f64) -> f64 {
         sum += (-a).exp() * (r * g / norm);
     }
     // the `w` integral over `[0, min(c, 1/sqrt(2))]`, with an even integrand, unless negligible
-    let (h, e) = if c <= FRAC_1_SQRT_2 {
-        (c, a)
-    } else {
-        (FRAC_1_SQRT_2, k)
-    };
+    let (h, e) = if c <= FRAC_1_SQRT_2 { (c, a) } else { (FRAC_1_SQRT_2, k) };
     if e - a < 40.0 {
-        let g: f64 = VM_GL40
-            .iter()
-            .map(|&(z, w)| w * f(h * z, h * (1.0 - z), h))
-            .sum();
+        let g: f64 = VM_GL40.iter().map(|&(z, w)| w * f(h * z, h * (1.0 - z), h)).sum();
         sum += (-e).exp() * (h * g / norm);
     }
     sum
@@ -633,11 +618,7 @@ pub fn von_mises_cdf(k: f64, x: f64) -> f64 {
 
     let ix = (x / TAU).round();
     let x = x - ix * TAU;
-    let result = if x > 0.0 {
-        1.0 - von_mises_cdf_left(k, -x)
-    } else {
-        von_mises_cdf_left(k, x)
-    };
+    let result = if x > 0.0 { 1.0 - von_mises_cdf_left(k, -x) } else { von_mises_cdf_left(k, x) };
     result + ix
 }
 

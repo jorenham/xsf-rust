@@ -123,15 +123,9 @@ fn sem(m: f64, q: f64, x: f64, unit: AngleUnit) -> (f64, f64) {
     if q < 0.0 {
         /* https://dlmf.nist.gov/28.2#E34 */
         let (sgn, (f, d)) = if int_m % 2 == 0 {
-            (
-                -neg_one_pow(int_m / 2),
-                sem(m, -q, unit.quarter_turn() - x, unit),
-            )
+            (-neg_one_pow(int_m / 2), sem(m, -q, unit.quarter_turn() - x, unit))
         } else {
-            (
-                neg_one_pow(int_m / 2),
-                cem(m, -q, unit.quarter_turn() - x, unit),
-            )
+            (neg_one_pow(int_m / 2), cem(m, -q, unit.quarter_turn() - x, unit))
         };
         return (sgn * f, -sgn * d);
     }
@@ -545,11 +539,7 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // if m % 2:
     //     kd = 2
     // fc = _specfun.fcoef(kd, m, q, a)
-    let (fc, km) = if m % 2 == 0 {
-        fcoef::<1>(m, q)?
-    } else {
-        fcoef::<2>(m, q)?
-    };
+    let (fc, km) = if m % 2 == 0 { fcoef::<1>(m, q)? } else { fcoef::<2>(m, q)? };
 
     // return fc[:km]
     Some(fc[..km].to_vec())
@@ -581,11 +571,7 @@ pub fn mathieu_odd_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // if m % 2:
     //     kd = 3
     // fc = _specfun.fcoef(kd, m, q, b)
-    let (fc, km) = if m % 2 == 0 {
-        fcoef::<4>(m, q)?
-    } else {
-        fcoef::<3>(m, q)?
-    };
+    let (fc, km) = if m % 2 == 0 { fcoef::<4>(m, q)? } else { fcoef::<3>(m, q)? };
 
     // return fc[:km]
     Some(fc[..km].to_vec())

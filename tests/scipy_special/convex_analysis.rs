@@ -14,11 +14,7 @@ fn map2<const N: usize>(func: impl Fn(f64, f64) -> f64, xy: [(f64, f64); N]) -> 
 #[test]
 fn test_entr() {
     fn xfunc(x: f64) -> f64 {
-        if x < 0.0 {
-            f64::NEG_INFINITY
-        } else {
-            -xsf::xlogy(x, x)
-        }
+        if x < 0.0 { f64::NEG_INFINITY } else { -xsf::xlogy(x, x) }
     }
 
     let z = [f64::NEG_INFINITY, -1.0, -0.5, 0.0, 0.5, 1.0, f64::INFINITY];
@@ -51,10 +47,7 @@ fn test_kl_div() {
 #[test]
 fn test_kl_div_ratio_overflow() {
     // x / y underflows or overflows
-    let inputs = [
-        (1.126_513_958_653_338_2e-184, 1.521_698_452_194_790_4e258),
-        (1e300, 1e-10),
-    ];
+    let inputs = [(1.126_513_958_653_338_2e-184, 1.521_698_452_194_790_4e258), (1e300, 1e-10)];
     // mpmath, x * (log(x) - log(y)) - x + y
     let expected = [1.521_698_452_194_790_4e258, 7.128_013_788_281_542e302];
     np_assert_allclose!(map2(xsf::kl_div, inputs), expected, rtol = 1e-15);
@@ -89,11 +82,8 @@ fn test_rel_entr_gh_20710_near_zero() {
         (0.786_048_657_854_401, 0.786_048_657_854_236_7),
     ];
     // Known values produced using `x * mpmath.log(x / y)` with dps=30
-    let expected = [
-        -9.325_873_406_851_269e-15,
-        -3.258_504_577_274_724e-14,
-        1.643_130_076_445_403_3e-13,
-    ];
+    let expected =
+        [-9.325_873_406_851_269e-15, -3.258_504_577_274_724e-14, 1.643_130_076_445_403_3e-13];
     np_assert_allclose!(map2(xsf::rel_entr, inputs), expected, rtol = 1e-13);
 }
 
@@ -110,11 +100,8 @@ fn test_rel_entr_gh_20710_overflow() {
         (2.22e-308, 1e15),
     ];
     // Known values produced using `x * mpmath.log(x / y)` with dps=30
-    let expected = [
-        2_839.139_983_229_607,
-        -9.210_340_371_976_183e-198,
-        -1.649_321_200_807_447_5e-305,
-    ];
+    let expected =
+        [2_839.139_983_229_607, -9.210_340_371_976_183e-198, -1.649_321_200_807_447_5e-305];
     np_assert_allclose!(map2(xsf::rel_entr, inputs), expected, rtol = 1e-13);
 }
 
@@ -148,14 +135,7 @@ fn test_pseudo_huber_extreme() {
         (f64::INFINITY, 1.0),
     ];
     // mpmath, r^2 / (sqrt(1 + (r / delta)^2) + 1)
-    let expected = [
-        6.526_347_853_663_551e112,
-        0.5,
-        5e299,
-        1e-270,
-        1e100,
-        4.940_656_458_412_466e-24,
-        0.5,
-    ];
+    let expected =
+        [6.526_347_853_663_551e112, 0.5, 5e299, 1e-270, 1e100, 4.940_656_458_412_466e-24, 0.5];
     np_assert_allclose!(map2(xsf::pseudo_huber, inputs), expected, rtol = 1e-15);
 }

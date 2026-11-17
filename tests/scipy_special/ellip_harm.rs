@@ -8,12 +8,8 @@ fn ellip_harm_known(h2: f64, k2: f64, n: u32, p: u32, s: f64) -> f64 {
     let (sh, sk) = ((s2 - h2).abs().sqrt(), (s2 - k2).abs().sqrt());
     let root2 = ((h2 + k2) * (h2 + k2) - 3.0 * h2 * k2).abs().sqrt();
     let root3 = (4.0 * (h2 + k2) * (h2 + k2) - 15.0 * h2 * k2).sqrt();
-    let root3h = ((h2 + 2.0 * k2) * (h2 + 2.0 * k2) - 5.0 * h2 * k2)
-        .abs()
-        .sqrt();
-    let root3k = ((2.0 * h2 + k2) * (2.0 * h2 + k2) - 5.0 * h2 * k2)
-        .abs()
-        .sqrt();
+    let root3h = ((h2 + 2.0 * k2) * (h2 + 2.0 * k2) - 5.0 * h2 * k2).abs().sqrt();
+    let root3k = ((2.0 * h2 + k2) * (2.0 * h2 + k2) - 5.0 * h2 * k2).abs().sqrt();
     match (n, p) {
         (0, 1) => 1.0,
         (1, 1) => s,
@@ -37,12 +33,7 @@ fn ellip_harm_known(h2: f64, k2: f64, n: u32, p: u32, s: f64) -> f64 {
 
 #[test]
 fn test_ellip_harm() {
-    for (h2, k2, s) in [
-        (0.5, 2.0, 0.2),
-        (5.0, 8.0, 2.5),
-        (3.0, 100.0, 12.0),
-        (1e-3, 4e3, 0.7),
-    ] {
+    for (h2, k2, s) in [(0.5, 2.0, 0.2), (5.0, 8.0, 2.5), (3.0, 100.0, 12.0), (1e-3, 4e3, 0.7)] {
         for n in 0..=3 {
             for p in 1..=2 * n + 1 {
                 np_assert_allclose!(
@@ -94,15 +85,7 @@ fn test_ellip_harm_large_s() {
 fn test_ellip_harm_s_near_k() {
     // `s^2 - k2` cancels
     np_assert_allclose!(
-        [xsf::ellip_harm(
-            1.0,
-            2.0,
-            1,
-            3,
-            1.414_213_562_374_509_3,
-            1.0,
-            1.0
-        )],
+        [xsf::ellip_harm(1.0, 2.0, 1, 3, 1.414_213_562_374_509_3, 1.0, 1.0)],
         [2.000_060_244_115_435e-6],
         rtol = 1e-14
     );

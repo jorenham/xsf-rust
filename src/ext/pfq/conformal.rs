@@ -173,10 +173,7 @@ fn push<const M: usize>(x: &mut [Dd; M], w: Dd, new: Dd) {
 /// The number of terms after which the series in `w` for `m` may end, or infinity if the
 /// product of the `2 m a_i` in its first term underflows, so that its terms are lost
 fn min_terms(alpha: &[f64], beta: &[f64], w: f64, m: usize) -> f64 {
-    let first: f64 = alpha
-        .iter()
-        .map(|a| ((2 * m) as f64 * a).abs().min(1.0))
-        .product();
+    let first: f64 = alpha.iter().map(|a| ((2 * m) as f64 * a).abs().min(1.0)).product();
     if first < Dd::MIN_POSITIVE {
         return f64::INFINITY;
     }
@@ -210,19 +207,11 @@ pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64)
     // the factors are numbered from the last one, for the last parameter
     let shift = |j: usize| (j * m) as f64 - 1.0;
     let factor = |(j, param): (usize, Dd)| {
-        let rows = if j == 0 {
-            &Factor::<M>::LAST
-        } else {
-            &Factor::INNER
-        };
+        let rows = if j == 0 { &Factor::<M>::LAST } else { &Factor::INNER };
         Factor::new(rows, param, shift(j))
     };
     // 2 m (b_j - 1), in the lower factors `L`, and 2 m a_i, in the upper factors `R`
-    let lower: Vec<Dd> = beta
-        .iter()
-        .rev()
-        .map(|&b| (Dd::new(b) - 1.0) * scale)
-        .collect();
+    let lower: Vec<Dd> = beta.iter().rev().map(|&b| (Dd::new(b) - 1.0) * scale).collect();
     let upper = alpha.iter().rev().map(|&a| Dd::new(a) * scale);
     let mut l: Vec<_> = lower.iter().copied().enumerate().map(factor).collect();
     let mut r: Vec<_> = upper.enumerate().map(factor).collect();
@@ -324,22 +313,13 @@ mod tests {
     fn test_factor() {
         // by the formulas of the Julia code for q = 3, with 2 m a_j = 2.5 and
         // 2 m (b_j - 1) = -1.5: `R[:, 1]`, `R[:, 4]` and `Lt0` for n = 2, and `L[:, 1]`
-        assert_eq!(
-            coef(&F3::INNER, 2.5, 8.0, 2),
-            [14.5, 40.5, 55.5, 13.5, 20.0]
-        );
+        assert_eq!(coef(&F3::INNER, 2.5, 8.0, 2), [14.5, 40.5, 55.5, 13.5, 20.0]);
         assert_eq!(coef(&F3::LAST, 2.5, 0.0, 2), [14.5, 1.0, 2.5, -2.0, 0.0]);
         assert_eq!(coef(&F3::TAIL, 0.0, 8.0, 2), [14.0, 34.0, 48.0, 35.0, 10.0]);
-        assert_eq!(
-            coef(&F3::INNER, -1.5, 5.0, 0),
-            [-1.5, 34.5, 33.5, 11.5, 18.0]
-        );
+        assert_eq!(coef(&F3::INNER, -1.5, 5.0, 0), [-1.5, 34.5, 33.5, 11.5, 18.0]);
         let expected = [18.5, 78.0, 103.0, 78.0, 106.5, 0.0];
         assert_eq!(coef(&F4::INNER, 2.5, 11.0, 2), expected);
-        assert_eq!(
-            coef(&F4::LAST, 2.5, 0.0, 2),
-            [18.5, 0.5, 7.5, -10.5, 0.0, 0.0]
-        );
+        assert_eq!(coef(&F4::LAST, 2.5, 0.0, 2), [18.5, 0.5, 7.5, -10.5, 0.0, 0.0]);
         let expected = [19.0, 60.0, 110.0, 115.0, 63.0, 14.0];
         assert_eq!(coef(&F4::TAIL, 0.0, 11.0, 2), expected);
         let expected = [-1.5, 62.0, 47.0, 62.0, 86.5, 0.0];
@@ -348,10 +328,7 @@ mod tests {
 
     /// `conformal_sum` for m = 3 and m = 4
     fn sums(alpha: &[f64], beta: &[f64], z: f64) -> [Dd; 2] {
-        let (y3, y4) = (
-            conformal_sum::<5>(alpha, beta, z),
-            conformal_sum::<6>(alpha, beta, z),
-        );
+        let (y3, y4) = (conformal_sum::<5>(alpha, beta, z), conformal_sum::<6>(alpha, beta, z));
         [y3.0, y4.0]
     }
 
@@ -385,21 +362,14 @@ mod tests {
         ];
         for (alpha, beta, z, expected) in cases {
             for y in sums(alpha, beta, z) {
-                assert!(
-                    (y.hi - expected).abs() <= 2.0 * f64::EPSILON * expected,
-                    "z = {z}"
-                );
+                assert!((y.hi - expected).abs() <= 2.0 * f64::EPSILON * expected, "z = {z}");
             }
         }
         // beyond `f64` precision, with its largest partial sum
         let (y, top) = conformal_sum::<6>(&[2.0; 4], &[1.0; 3], -3.0);
         assert!((y - 0.039_062_5).hi.abs() <= CONFORMAL_EPS && top > 1e3);
         // no convergence within `PFQ_DD_MAXITER` terms
-        assert!(
-            sums(&[1.0; 3], &[2.0; 2], -1e12)
-                .iter()
-                .all(|y| y.hi.is_nan())
-        );
+        assert!(sums(&[1.0; 3], &[2.0; 2], -1e12).iter().all(|y| y.hi.is_nan()));
     }
 
     #[test]
@@ -441,10 +411,7 @@ mod tests {
         // the series converge too slowly
         assert_eq!(pfq_conformal(&[1.0; 3], &[2.0, 2.0, 1.0], -1e7), None);
         // the partial sums are too large
-        assert_eq!(
-            pfq_conformal(&[70.5, 60.5, 50.5], &[2.5, 1.5, 1.0], -0.75),
-            None
-        );
+        assert_eq!(pfq_conformal(&[70.5, 60.5, 50.5], &[2.5, 1.5, 1.0], -0.75), None);
         // 1F0
         assert_eq!(pfq_conformal(&[0.5], &[1.0], -0.75), None);
     }

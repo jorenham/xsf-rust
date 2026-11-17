@@ -155,9 +155,8 @@ pub fn pow_falling(x: f64, m: f64) -> f64 {
     let a = x - m + 1.0;
     // Reflection (DLMF 5.5.3), where the sine of x - m isn't affected by the rounding of `a`:
     // -x poch(1 - x, m - 1) sin(pi (x - m)) / sin(pi x)
-    let reflected = (a < 0.5 && x != x.floor())
-        .then(|| poch(1.0 - x, m - 1.0))
-        .filter(|p| p.is_normal());
+    let reflected =
+        (a < 0.5 && x != x.floor()).then(|| poch(1.0 - x, m - 1.0)).filter(|p| p.is_normal());
     if let Some(p) = reflected {
         // -x / sin(pi x), which is -1 / pi if sin(pi x) is subnormal
         let s = cephes_sinpi(x);

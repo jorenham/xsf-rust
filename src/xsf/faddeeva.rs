@@ -154,11 +154,7 @@ pub(crate) fn erf_c64(z: C64) -> C64 {
             exp(y^2) -> Inf but Im[w(y)] -> 0, so
             IEEE will give us a NaN when it should be Inf */
             if y * y > 720.0 {
-                if y > 0.0 {
-                    f64::INFINITY
-                } else {
-                    f64::NEG_INFINITY
-                }
+                if y > 0.0 { f64::INFINITY } else { f64::NEG_INFINITY }
             } else {
                 (y * y).exp() * w_im(y)
             },
@@ -255,11 +251,7 @@ pub(crate) fn erfc_c64(z: C64) -> C64 {
             exp(y^2) -> Inf but Im[w(y)] -> 0, so
             IEEE will give us a NaN when it should be Inf */
             if y * y > 720.0 {
-                if y > 0.0 {
-                    f64::NEG_INFINITY
-                } else {
-                    f64::INFINITY
-                }
+                if y > 0.0 { f64::NEG_INFINITY } else { f64::INFINITY }
             } else {
                 -(y * y).exp() * w_im(y)
             },
@@ -271,11 +263,7 @@ pub(crate) fn erfc_c64(z: C64) -> C64 {
             return c64(if x >= 0.0 { 0.0 } else { 2.0 }, 0.0);
         }
         return c64(
-            if x >= 0.0 {
-                (-x * x).exp() * erfcx(x)
-            } else {
-                2. - (-x * x).exp() * erfcx(-x)
-            },
+            if x >= 0.0 { (-x * x).exp() * erfcx(x) } else { 2. - (-x * x).exp() * erfcx(-x) },
             0.0,
         );
     }
@@ -313,11 +301,7 @@ pub(crate) fn dawson_c64(z: C64) -> C64 {
         }
         return c64(
             x, // preserve sign of 0
-            SPI2 * if y >= 0.0 {
-                y2.exp() - erfcx(y)
-            } else {
-                erfcx(-y) - y2.exp()
-            },
+            SPI2 * if y >= 0.0 { y2.exp() - erfcx(y) } else { erfcx(-y) - y2.exp() },
         );
     }
 
@@ -436,11 +420,7 @@ pub(crate) fn dawson_c64(z: C64) -> C64 {
 // [since we only use this in cases where sin(x) has already been computed]
 #[inline]
 fn sinc(x: f64, sinx: f64) -> f64 {
-    if x.abs() < 1e-4 {
-        1.0 - 0.166_666_666_666_666_66 * x * x
-    } else {
-        sinx / x
-    }
+    if x.abs() < 1e-4 { 1.0 - 0.166_666_666_666_666_66 * x * x } else { sinx / x }
 }
 
 // sinh(x) via Taylor series, accurate to machine precision for |x| < 1e-2
@@ -566,11 +546,7 @@ pub(crate) fn w(z: C64) -> C64 {
                     let denom = FRAC_1_SQRT_PI / (xs + yax * ya);
                     ret = c64(denom * yax, denom);
                 } else if ya.is_infinite() {
-                    return if x.is_nan() || y < 0.0 {
-                        C64::NAN
-                    } else {
-                        C64::ZERO
-                    };
+                    return if x.is_nan() || y < 0.0 { C64::NAN } else { C64::ZERO };
                 } else {
                     let xya = xs / ya;
                     let denom = FRAC_1_SQRT_PI / (xya * xs + ya);
@@ -758,10 +734,7 @@ pub(crate) fn w(z: C64) -> C64 {
         }
     }
     // finish:
-    ret + c64(
-        (0.5 * c) * y * (sum2 + sum3),
-        (0.5 * c) * (sum5 - sum4).copysign(z.re),
-    )
+    ret + c64((0.5 * c) * y * (sum2 + sum3), (0.5 * c) * (sum5 - sum4).copysign(z.re))
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -1118,11 +1091,7 @@ fn w_im(x: f64) -> f64 {
 pub(crate) fn erfi(x: f64) -> f64 {
     let z = x * x;
     if z > 720.0 {
-        if x > 0.0 {
-            f64::INFINITY
-        } else {
-            f64::NEG_INFINITY
-        }
+        if x > 0.0 { f64::INFINITY } else { f64::NEG_INFINITY }
     } else if z > MAXLOG {
         // Unlike in xsf, erfi is finite where only e^(x^2) overflows (x^2 < ~713.6)
         mul_exp(w_im(x), z)

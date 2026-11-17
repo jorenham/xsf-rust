@@ -28,12 +28,7 @@ fn test_wrightomega_inf_branch() {
         c64(f64::NEG_INFINITY, 3.0 * PI / 4.0),
         c64(f64::NEG_INFINITY, -3.0 * PI / 4.0),
     ];
-    let expected_results = [
-        c64(0.0, 0.0),
-        c64(0.0, -0.0),
-        c64(-0.0, 0.0),
-        c64(-0.0, -0.0),
-    ];
+    let expected_results = [c64(0.0, 0.0), c64(0.0, -0.0), c64(-0.0, 0.0), c64(-0.0, -0.0)];
     for i in 0..4 {
         let (p, expected) = (pts[i], expected_results[i]);
         let res = xsf::wrightomega(p);
@@ -58,10 +53,7 @@ fn test_wrightomega_inf() {
 #[test]
 fn test_wrightomega_huge() {
     // reference values from scipy.special.wrightomega
-    for (im, re) in [
-        (1e51, -117.431_839_742_696_33),
-        (1e308, -709.196_208_642_166),
-    ] {
+    for (im, re) in [(1e51, -117.431_839_742_696_33), (1e308, -709.196_208_642_166)] {
         for im in [im, -im] {
             let res = xsf::wrightomega(c64(0.0, im));
             np_assert_allclose!([res.re], [re], rtol = 1e-15);
@@ -99,10 +91,7 @@ fn test_wrightomega_real_series_crossover() {
     // the neighbours of the crossover at 1e20 (mpmath)
     let x = 1e20_f64.to_bits();
     let actual = [x - 1, x + 1].map(|b| xsf::wrightomega(f64::from_bits(b)));
-    let desired = [
-        99_999_999_999_999_983_569.948,
-        100_000_000_000_000_016_337.948,
-    ];
+    let desired = [99_999_999_999_999_983_569.948, 100_000_000_000_000_016_337.948];
     np_assert_allclose!(actual, desired, atol = 0.0, rtol = 2.0 * f64::EPSILON);
 }
 
@@ -118,11 +107,8 @@ fn test_wrightomega_exp_approximation_crossover() {
 #[test]
 fn test_wrightomega_real_versus_complex() {
     // x = np.linspace(-500, 500, 1001)
-    let res_f: Vec<f64> = (-500..=500)
-        .map(|x| xsf::wrightomega(f64::from(x)))
-        .collect();
-    let res_c: Vec<f64> = (-500..=500)
-        .map(|x| xsf::wrightomega(c64(f64::from(x), 0.0)).re)
-        .collect();
+    let res_f: Vec<f64> = (-500..=500).map(|x| xsf::wrightomega(f64::from(x))).collect();
+    let res_c: Vec<f64> =
+        (-500..=500).map(|x| xsf::wrightomega(c64(f64::from(x), 0.0)).re).collect();
     np_assert_allclose!(res_c, res_f, atol = 0.0, rtol = 1e-14);
 }

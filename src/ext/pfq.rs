@@ -316,10 +316,7 @@ fn pfq_sum<T: SeriesReal>(
         let tails = if sum == 0.0 {
             sum2.sqrt()
         } else {
-            ((n + 1.0) - 2.0 * (sum1 / sum) + sum2 / sum / sum)
-                .max(0.0)
-                .sqrt()
-                * sum.abs()
+            ((n + 1.0) - 2.0 * (sum1 / sum) + sum2 / sum / sum).max(0.0).sqrt() * sum.abs()
         };
         let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt());
         (rounding, tails)
@@ -1075,9 +1072,7 @@ fn pfq_class_term(
         let poles = args.clone().filter(is_pole);
         let sign = neg_one_pow(poles.clone().filter(|g| g.hi % 2.0 != 0.0).count());
         // (Gamma(a_i - a_m) has the residue 1 for a_i = a_m)
-        let num = bs
-            .chain(diffs.filter(|d| d.hi != 0.0))
-            .chain(poles.map(|g| -g + 1.0));
+        let num = bs.chain(diffs.filter(|d| d.hi != 0.0)).chain(poles.map(|g| -g + 1.0));
         let den = others.chain(args.filter(|g| !is_pole(g)));
         let l = -ln_dd(Dd::new(z.abs())) * am;
         let mut y = gamma_series(num, den, (sign * sum, err), l)?;
@@ -1453,9 +1448,7 @@ fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
         Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
     });
     let zero = (Dd::new(0.0), Dd::new(0.0));
-    terms
-        .take(20)
-        .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
+    terms.take(20).fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
 }
 
 /// The sum of the two exponential parts of `pfq_exp` for `z < 0` and `p < q`, which have
@@ -1702,11 +1695,7 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         // |z|
         (&[a1, a2], &[]) if z < 0.0 => {
             // the smaller |a_i| first, as x^a1 then overflows less often
-            let (a1, a2) = if a1.abs() <= a2.abs() {
-                (a1, a2)
-            } else {
-                (a2, a1)
-            };
+            let (a1, a2) = if a1.abs() <= a2.abs() { (a1, a2) } else { (a2, a1) };
             let x = -1.0 / z;
             let borel = |a1: f64, a2: f64| {
                 let (p, (u, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
@@ -1779,21 +1768,13 @@ mod tests {
         let (num, den) = ([Dd::new(180.5)], [178.25, 1.5].map(Dd::new));
         let check = |y: Option<Scaled>, expected: f64, tol: f64| {
             let (y, err) = y.unwrap().to_f64();
-            assert!(
-                err <= tol && (y / expected - 1.0).abs() <= err,
-                "{y} != {expected}"
-            );
+            assert!(err <= tol && (y / expected - 1.0).abs() <= err, "{y} != {expected}");
         };
-        for (e, expected, tol) in [
-            (-75, -2.419_553_175_200_6e16, 1e-14),
-            (-60, -2.419_550_867_807_498_4e16, 1e-12),
-        ] {
+        for (e, expected, tol) in
+            [(-75, -2.419_553_175_200_6e16, 1e-14), (-60, -2.419_550_867_807_498_4e16, 1e-12)]
+        {
             let g = Dd::new(-3.0 + pow2(-40)) + pow2(e);
-            check(
-                mul_gammas(num.into_iter().chain([g]), den, one),
-                expected,
-                tol,
-            );
+            check(mul_gammas(num.into_iter().chain([g]), den, one), expected, tol);
         }
         // equal factors, whose errors are equal too
         let g = Dd::new(-8.000_005_264_759_276);

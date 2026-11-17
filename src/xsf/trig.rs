@@ -100,11 +100,7 @@ pub(crate) fn cephes_cospi(mut x: f64) -> f64 {
         // We don't want to return -0.0
         return 0.0;
     }
-    if r < 1.0 {
-        -(PI * (r - 0.5)).sin()
-    } else {
-        (PI * (r - 1.5)).sin()
-    }
+    if r < 1.0 { -(PI * (r - 0.5)).sin() } else { (PI * (r - 1.5)).sin() }
 }
 
 /// sin(pi (x - m)), without the rounding error of x - m near an integer

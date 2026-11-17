@@ -86,44 +86,20 @@ fn gen_roots_and_weights(
         .collect();
     // A zero `r` is an underflow, with weight NaN, and the others 0 (relatively tiny), instead of
     // NaN for all.
-    let r_min = r
-        .iter()
-        .map(|ri| ri.abs())
-        .filter(|&ri| ri > 0.0)
-        .fold(f64::INFINITY, f64::min);
-    let r: Vec<f64> = r
-        .iter()
-        .map(|&ri| {
-            if ri.is_finite() {
-                ri / r_min
-            } else {
-                f64::INFINITY
-            }
-        })
-        .collect();
+    let r_min = r.iter().map(|ri| ri.abs()).filter(|&ri| ri > 0.0).fold(f64::INFINITY, f64::min);
+    let r: Vec<f64> =
+        r.iter().map(|&ri| if ri.is_finite() { ri / r_min } else { f64::INFINITY }).collect();
     let scale = mu0 / r.iter().map(|ri| 1.0 / (ri * ri)).sum::<f64>();
     let mut w: Vec<f64> = r.iter().map(|ri| scale / ri / ri).collect();
 
     match nodes {
         Plain => {},
         Symmetric => {
-            w = w
-                .iter()
-                .zip(w.iter().rev())
-                .map(|(a, b)| (a + b) / 2.0)
-                .collect();
-            x = x
-                .iter()
-                .zip(x.iter().rev())
-                .map(|(a, b)| (a - b) / 2.0)
-                .collect();
+            w = w.iter().zip(w.iter().rev()).map(|(a, b)| (a + b) / 2.0).collect();
+            x = x.iter().zip(x.iter().rev()).map(|(a, b)| (a - b) / 2.0).collect();
         },
         Shifted => {
-            x = x
-                .iter()
-                .zip(&dx)
-                .map(|(xi, dxi)| ((xi + 1.0) + dxi) / 2.0)
-                .collect();
+            x = x.iter().zip(&dx).map(|(xi, dxi)| ((xi + 1.0) + dxi) / 2.0).collect();
         },
     }
     (x, w)
@@ -219,10 +195,7 @@ pub fn roots_jacobi(n: usize, alpha: f64, beta: f64) -> (Vec<f64>, Vec<f64>) {
 /// Panics if `n` is zero, or if `alpha <= -1` or `beta <= -1`, like the `ValueError` in SciPy
 fn check_jacobi(n: usize, alpha: f64, beta: f64) {
     check_n(n);
-    assert!(
-        alpha > -1.0 && beta > -1.0,
-        "alpha and beta must be greater than -1"
-    );
+    assert!(alpha > -1.0 && beta > -1.0, "alpha and beta must be greater than -1");
 }
 
 /// The Gauss-Jacobi rule, with the weights summing to `mu0`
@@ -239,27 +212,13 @@ fn jacobi(n: usize, a: f64, b: f64, mu0: f64, nodes: Nodes) -> (Vec<f64>, Vec<f6
         }
     };
     let bn = |k: f64| {
-        let r = if k == 1.0 {
-            1.0
-        } else {
-            (k * (k - 2.0 + ab2) / (2.0 * k - 3.0 + ab2)).sqrt()
-        };
+        let r = if k == 1.0 { 1.0 } else { (k * (k - 2.0 + ab2) / (2.0 * k - 3.0 + ab2)).sqrt() };
         let s = ((k - 1.0 + (a + 1.0)) * (k - 1.0 + (b + 1.0)) / (2.0 * k - 1.0 + ab2)).sqrt();
         2.0 / (2.0 * k - 2.0 + ab2) * s * r
     };
     let f = |n, x| eval_jacobi(n, a, b, x);
     let df = |n, x| 0.5 * (f64::from(n) - 1.0 + ab2) * eval_jacobi(n - 1, a + 1.0, b + 1.0, x);
-    gen_roots_and_weights(
-        n,
-        mu0,
-        an,
-        bn,
-        f,
-        df,
-        one_minus_x2,
-        |x| b - a - ab2 * x,
-        nodes,
-    )
+    gen_roots_and_weights(n, mu0, an, bn, f, df, one_minus_x2, |x| b - a - ab2 * x, nodes)
 }
 
 /// Gauss-Jacobi (shifted) quadrature
@@ -477,10 +436,7 @@ pub fn roots_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
     // `[-1/2, 1/2]`, as in `roots_chebyshev_t`, which is more accurate near `t = 0` and `t = pi`.
     let rule = (1..=n).rev().map(|k| {
         let sin = crate::sinpi(k.min(n + 1 - k) as f64 / m);
-        (
-            crate::sinpi((m - 2.0 * k as f64) / (2.0 * m)),
-            PI * sin * sin / m,
-        )
+        (crate::sinpi((m - 2.0 * k as f64) / (2.0 * m)), PI * sin * sin / m)
     });
     rule.unzip()
 }
@@ -616,17 +572,8 @@ pub fn roots_genlaguerre(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
     } else {
         ln_gamma(Dd::new(alpha) + 1.0).map_or((f64::NAN, 0.0), |(l, _, _)| exp_scaled(l))
     };
-    let rule = gen_roots_and_weights(
-        n,
-        mu0,
-        an,
-        bn,
-        f,
-        df,
-        |x, dx| x + dx,
-        |x| alpha + 1.0 - x,
-        Plain,
-    );
+    let rule =
+        gen_roots_and_weights(n, mu0, an, bn, f, df, |x, dx| x + dx, |x| alpha + 1.0 - x, Plain);
     ldexp_weights(rule, e)
 }
 
@@ -714,17 +661,7 @@ pub fn roots_hermite_he(n: usize) -> (Vec<f64>, Vec<f64>) {
     let bn = |k: f64| k.sqrt();
     let f = |n: i32, x| eval_hermite_he(n as u32, x);
     let df = |n: i32, x| f64::from(n) * f(n - 1, x);
-    gen_roots_and_weights(
-        n,
-        SQRT_TAU_DOWN,
-        an,
-        bn,
-        f,
-        df,
-        |_, _| 1.0,
-        |x| -x,
-        Symmetric,
-    )
+    gen_roots_and_weights(n, SQRT_TAU_DOWN, an, bn, f, df, |_, _| 1.0, |x| -x, Symmetric)
 }
 
 /// Corresponds to `_compute_tauk`: the root of `tau - sin(tau) = c` of Lemma 3.1 in [^TTO], by
@@ -790,9 +727,7 @@ fn initial_nodes(n: usize) -> Vec<f64> {
     let zero = (n % 2 == 1).then_some(0.0);
     let xa = (1..=h.min(turnover + 1)).map(|k| initial_nodes_a(n, k as f64));
     let xb = ak.into_iter().rev().map(|ak| initial_nodes_b(n, ak));
-    zero.into_iter()
-        .chain(xa.chain(xb).map(f64::sqrt))
-        .collect()
+    zero.into_iter().chain(xa.chain(xb).map(f64::sqrt)).collect()
 }
 
 /// Corresponds to `_pbcf`: the parabolic cylinder function `U(a, x)` (DLMF 12.10.35) and its
@@ -917,11 +852,8 @@ fn newton(n: usize, x: &[f64]) -> (Vec<f64>, Vec<f64>) {
         x[0] = 0.0;
     }
     // Compute weights
-    let w: Vec<f64> = x
-        .iter()
-        .zip(ud)
-        .map(|(xi, udi)| (-xi * xi).exp() / (2.0 * udi * udi))
-        .collect();
+    let w: Vec<f64> =
+        x.iter().zip(ud).map(|(xi, udi)| (-xi * xi).exp() / (2.0 * udi * udi)).collect();
     (x, w)
 }
 
@@ -930,19 +862,8 @@ fn roots_hermite_asy(n: usize) -> (Vec<f64>, Vec<f64>) {
     let (nodes, weights) = newton(n, &initial_nodes(n));
     // Combine with negative parts (without the central zero of odd n)
     let skip = n % 2;
-    let x = nodes
-        .iter()
-        .skip(skip)
-        .rev()
-        .map(|x| -x)
-        .chain(nodes.iter().copied());
-    let w: Vec<f64> = weights
-        .iter()
-        .skip(skip)
-        .rev()
-        .chain(&weights)
-        .copied()
-        .collect();
+    let x = nodes.iter().skip(skip).rev().map(|x| -x).chain(nodes.iter().copied());
+    let w: Vec<f64> = weights.iter().skip(skip).rev().chain(&weights).copied().collect();
     // Scale weights
     let scale = SQRT_PI / w.iter().sum::<f64>();
     (x.collect(), w.into_iter().map(|wi| wi * scale).collect())

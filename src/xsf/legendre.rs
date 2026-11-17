@@ -81,9 +81,7 @@ pub(crate) const fn int(x: usize) -> i32 {
 /// The `int` product `static_cast<T>(a * b * ...)`, computed in `i64` (instead of `int`) to avoid
 /// overflow, so that, unlike a product of `f64`, a zero product is `+0.0`
 fn int_product(factors: &[i32]) -> f64 {
-    factors
-        .iter()
-        .fold(1_i64, |p, &x| p.wrapping_mul(i64::from(x))) as f64
+    factors.iter().fold(1_i64, |p, &x| p.wrapping_mul(i64::from(x))) as f64
 }
 
 // recur.h
@@ -270,11 +268,7 @@ fn assoc_legendre_p_recurrence_m_abs_m<const NORM: bool, T: Num>(
     m: i32,
     res: &mut [T; 2],
 ) {
-    let branch_cut_sign = if branch_cut == 3 {
-        T::from(-1.0)
-    } else {
-        T::from(1.0)
-    };
+    let branch_cut_sign = if branch_cut == 3 { T::from(-1.0) } else { T::from(1.0) };
     let m_abs = f64::from(m.wrapping_abs());
 
     let fac = if NORM {
@@ -656,18 +650,13 @@ pub(crate) fn sph_legendre_p_for_each_n_m<T: Num>(
             f(n, m, res_n);
         });
     });
-    sph_legendre_p_for_each_m_abs_m(
-        m.wrapping_neg(),
-        theta,
-        &mut res_m_abs_m,
-        |m, res_m_abs_m| {
-            res[0] = res_m_abs_m[1];
+    sph_legendre_p_for_each_m_abs_m(m.wrapping_neg(), theta, &mut res_m_abs_m, |m, res_m_abs_m| {
+        res[0] = res_m_abs_m[1];
 
-            sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
-                f(n, m, res_n);
-            });
-        },
-    );
+        sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
+            f(n, m, res_n);
+        });
+    });
 }
 
 fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
@@ -697,11 +686,7 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
 /// quotient itself loses the digits of `x` for small or large `|x|`.
 fn q0_real(x: f64) -> f64 {
     let a = x.abs();
-    let t = if a < 1.0 {
-        2.0 * a / (1.0 - a)
-    } else {
-        2.0 / (a - 1.0)
-    };
+    let t = if a < 1.0 { 2.0 * a / (1.0 - a) } else { 2.0 / (a - 1.0) };
     (0.5 * t.ln_1p()).copysign(x)
 }
 
@@ -766,11 +751,7 @@ fn lq_lift_im<const R: usize>(
     let len = q.data.len();
     let mut lifted = vec![C64::ZERO; 2 * len];
     let (lq_, ldq) = lifted.split_at_mut(len);
-    lq(
-        c64(z.re, ldexp_f64(z.im, s)),
-        Mdspan::new(lq_, q.extents),
-        Mdspan::new(ldq, dq.extents),
-    );
+    lq(c64(z.re, ldexp_f64(z.im, s)), Mdspan::new(lq_, q.extents), Mdspan::new(ldq, dq.extents));
     for (c, l) in q.data.iter_mut().chain(dq.data.iter_mut()).zip(lifted) {
         if l.im.is_finite() || c.im.is_nan() {
             c.im = ldexp_f64(l.im, -s);
@@ -1345,9 +1326,7 @@ macro_rules! impl_legendre_q_arg {
 
                 // [order][degree] -> [degree][order], without the padding of `mm` and `nn`
                 let by_degree = |q: &[$K]| -> Vec<Vec<$T>> {
-                    (0..=n)
-                        .map(|j| (0..=m).map(|i| q[i * (nn + 1) + j].into()).collect())
-                        .collect()
+                    (0..=n).map(|j| (0..=m).map(|i| q[i * (nn + 1) + j].into()).collect()).collect()
                 };
                 (by_degree(&qm), by_degree(&qd))
             }

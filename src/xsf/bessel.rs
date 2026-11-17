@@ -621,11 +621,7 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
     } else {
         w - w.atan()
     } * v;
-    let min_eta = if x <= v {
-        UNHJ_MIN_ETA
-    } else {
-        UNHJ_MIN_ETA_OSC
-    };
+    let min_eta = if x <= v { UNHJ_MIN_ETA } else { UNHJ_MIN_ETA_OSC };
     // from eta = 2 MAXLOG on, J = 0 and Y = -inf
     if !(eta.hi < 2.0 * MAXLOG && (w.hi <= UNHJ_SERIES_MAX_W || eta.hi >= min_eta)) {
         return None;
@@ -1152,14 +1148,7 @@ pub fn bessel_zeros<const N: usize>(v: u32) -> [[f64; N]; 4] {
         // and `msta2`, where the zeros are NaN anyway (as for `v >~ 5000`).
         return [j, jp, y, yp];
     }
-    specfun::jyzo(
-        v.try_into().unwrap(),
-        N.try_into().unwrap(),
-        &mut j,
-        &mut jp,
-        &mut y,
-        &mut yp,
-    );
+    specfun::jyzo(v.try_into().unwrap(), N.try_into().unwrap(), &mut j, &mut jp, &mut y, &mut yp);
     [j, jp, y, yp]
 }
 
@@ -2135,11 +2124,7 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
             f0 = f1;
             f1 = f;
         }
-        let cs = if rj0.abs() > rj1.abs() {
-            rj0 / f
-        } else {
-            rj1 / f0
-        };
+        let cs = if rj0.abs() > rj1.abs() { rj0 / f } else { rj1 / f0 };
         for k in 0..=*nm {
             rj[k as usize] *= cs;
             dj[k as usize] *= cs;
@@ -2163,11 +2148,7 @@ fn mul_div_add(a: f64, b: f64, x: f64, c: f64) -> f64 {
         if t.is_infinite() { t } else { 2.0 * (t + c) }
     }
     let t = a * b / x;
-    if t.is_finite() {
-        t + c
-    } else {
-        reordered(a, b, x, c)
-    }
+    if t.is_finite() { t + c } else { reordered(a, b, x, c) }
 }
 
 fn rcty(x: f64, nm: &mut i32, ry: &mut [f64], dy: &mut [f64]) {

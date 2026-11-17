@@ -57,11 +57,7 @@ pub(crate) fn aswfa(
     }
     sckb(m, n, c, &df, &mut ck);
     let x1 = 1.0 - x * x;
-    let a0 = if (m == 0) && (x1 == 0.0) {
-        1.0
-    } else {
-        x1.powf(0.5 * f64::from(m))
-    };
+    let a0 = if (m == 0) && (x1 == 0.0) { 1.0 } else { x1.powf(0.5 * f64::from(m)) };
     let mut su1 = ck[0];
     // NOTE: ck has 200 elements, so ck[k] (here and in the su2 loop below) is out of bounds (UB in
     // C++) if nm2 >= 200, i.e. if (n - m) / 2 + c >= 364 (only if the loop doesn't break before

@@ -80,11 +80,7 @@ pub fn logit<T: Float>(x: T) -> T {
 #[must_use]
 #[inline]
 pub fn log_expit<T: Float>(x: T) -> T {
-    if x.is_sign_negative() {
-        x - x.exp().ln_1p()
-    } else {
-        -(-x).exp().ln_1p()
-    }
+    if x.is_sign_negative() { x - x.exp().ln_1p() } else { -(-x).exp().ln_1p() }
 }
 
 /// Compute $\ln(1 - e^x)$

@@ -46,11 +46,7 @@ pub(crate) const SPECFUN_BIG_LOG2: i32 = 512;
 
 /// `SPECFUN_CONVINF`: specfun's `+-1e300` sentinels as signed infinities
 pub(crate) fn specfun_convinf(x: f64) -> f64 {
-    if x.abs() == SPECFUN_INF {
-        f64::INFINITY.copysign(x)
-    } else {
-        x
-    }
+    if x.abs() == SPECFUN_INF { f64::INFINITY.copysign(x) } else { x }
 }
 
 /// `SPECFUN_ZCONVINF` (only the real part is checked)
@@ -276,11 +272,7 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
         // 1 / Gamma(a) (not always +inf), and without rounding a - b + 1 onto a pole
         if is_nonpos_int(a) {
             // (-1)^m (b)_m for a = -m (DLMF 13.2.7), i.e. (-1)^m b^m for infinite b
-            let mut p = if b.is_infinite() {
-                b.powf(-a)
-            } else {
-                crate::pow_rising(b, -a)
-            };
+            let mut p = if b.is_infinite() { b.powf(-a) } else { crate::pow_rising(b, -a) };
             if (p == 0.0 || !p.is_finite()) && b.is_finite() && !is_nonpos_int(b) {
                 // `pow_rising` multiplies from b + m - 1 down, so unlike the product from b up,
                 // it can overflow before the factors near 0, e.g. for U(-172, 1/64, 0) = 2.1e307,

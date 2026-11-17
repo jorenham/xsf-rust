@@ -25,13 +25,7 @@ xsref::tests! {
 /// Based on the "cephes::erfcinv subnormal arguments" test in xsf
 #[test]
 fn test_erfcinv_subnormal() {
-    let y = [
-        5e-324,
-        1e-323,
-        1.5e-323,
-        f64::MIN_POSITIVE,
-        2.0 * f64::MIN_POSITIVE,
-    ];
+    let y = [5e-324, 1e-323, 1.5e-323, f64::MIN_POSITIVE, 2.0 * f64::MIN_POSITIVE];
     let actual = y.map(xsf::erfcinv);
     let expected = [
         27.213_293_210_812_95,

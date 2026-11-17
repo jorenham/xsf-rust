@@ -49,13 +49,7 @@ where
     f64: Mul<T, Output = T>,
 {
     fn new(vc: T, xc: T, c: T) -> Self {
-        Self {
-            a0: -(2.0 * vc - c) * xc,
-            as_: -2.0 * c * xc,
-            b0: 2.0 * (vc + xc),
-            bs: c,
-            k: 0,
-        }
+        Self { a0: -(2.0 * vc - c) * xc, as_: -2.0 * c * xc, b0: 2.0 * (vc + xc), bs: c, k: 0 }
     }
 
     /// `operator()`

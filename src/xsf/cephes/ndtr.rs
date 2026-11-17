@@ -218,11 +218,7 @@ pub(crate) fn ndtr(a: f64) -> f64 {
     } else {
         // Unlike in xsf, erfc(z) / 2 is erfcx(z) exp(-a^2 / 2) / 2 with the exponential of the
         // unrounded a: rounding z = |a| / sqrt(2) and z^2 costs up to ~z^2 ulp in exp(-z^2).
-        let y = if z * z < -MINLOG {
-            mul_exp_sq(0.5 * erfcx(z), -0.5, a)
-        } else {
-            0.0
-        };
+        let y = if z * z < -MINLOG { mul_exp_sq(0.5 * erfcx(z), -0.5, a) } else { 0.0 };
         if x > 0.0 { 1.0 - y } else { y }
     }
 }

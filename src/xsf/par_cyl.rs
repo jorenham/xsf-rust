@@ -709,9 +709,7 @@ fn pb_recur(
 fn pb_reflect(v0: f64, (c, s): (f64, f64), a: &[f64], b: impl Fn(usize) -> f64) -> Vec<f64> {
     let (c, s) = (c * cospi(v0), s * sinpi(v0));
     // cos(pi w) and sin(pi w) alternate in sign
-    (0..a.len())
-        .map(|k| (c * a[k] + s * b(k)) * neg_one_pow(k))
-        .collect()
+    (0..a.len()).map(|k| (c * a[k] + s * b(k)) * neg_one_pow(k)).collect()
 }
 
 // Uniform asymptotic expansions of D_v(x) = U(-v - 1/2, x) for large |v| (not in xsf), following
@@ -775,22 +773,14 @@ const TURNING_POINT: [[f64; 12]; 16] = [
 /// `u_s(t)` (or `v_s(t)`) from its `U_POLY` (or `V_POLY`) entry, or `i^s u_s(-i t)` if `bar`
 /// (DLMF 12.10.27)
 fn uv_poly(p: &[f64], s: usize, t: f64, bar: bool) -> f64 {
-    let r = if bar {
-        polevl(-t * t, p) * neg_one_pow(s / 2)
-    } else {
-        polevl(t * t, p)
-    };
+    let r = if bar { polevl(-t * t, p) * neg_one_pow(s / 2) } else { polevl(t * t, p) };
     if s % 2 == 1 { r * t } else { r }
 }
 
 /// `sinh(u) - u` (`hyperbolic`) or `u - sin(u)`, without cancellation for small `u >= 0`
 fn sin_tail(u: f64, hyperbolic: bool) -> f64 {
     if u >= 2.0 {
-        return if hyperbolic {
-            u.sinh() - u
-        } else {
-            u - u.sin()
-        };
+        return if hyperbolic { u.sinh() - u } else { u - u.sin() };
     }
     let sign = if hyperbolic { 1.0 } else { -1.0 };
     let (mut term, mut sum) = (u, 0.0);
@@ -932,11 +922,7 @@ fn pbdv_elementary(v: f64, x: f64) -> ([f64; 2], f64) {
     let s = (0.25 * x * x + a).sqrt();
     // gbar(mu) = (1 + 1/r) / (2 sqrt(2) mu h(mu)) (12.10.28, with r as in `ln_gamma_ratio`), and
     // e^(-mu^2 xibar) / (sqrt(2) mu h(mu) (t^2 + 1)^(1/4)) = e^l / sqrt(2 s) (12.10.15, 12.10.26)
-    let ln_xs = if x >= 0.0 {
-        (0.5 * x + s).ln()
-    } else {
-        a.ln() - (s - 0.5 * x).ln()
-    };
+    let ln_xs = if x >= 0.0 { (0.5 * x + s).ln() } else { a.ln() - (s - 0.5 * x).ln() };
     let l = -0.5 * x * s - a * ln_xs + 0.5 * a;
 
     let t = 0.5 * x / a.sqrt();
@@ -976,10 +962,7 @@ fn pb_maclaurin(a: f64, x: f64, c0: f64, c1: f64, e: f64) -> (f64, f64) {
     if x.abs() < 1e-150 {
         // Only the linear terms matter; scale by 2^600 to keep x out of the subnormals
         let (k, ex) = (const { pow2(600) }, e - 600.0 * LN_2);
-        return (
-            mul_exp(c0 * k + c1 * (x * k), ex),
-            mul_exp(c1 * k + a * c0 * (x * k), ex),
-        );
+        return (mul_exp(c0 * k + c1 * (x * k), ex), mul_exp(c1 * k + a * c0 * (x * k), ex));
     }
     // w = sum c_n x^n with c_{n+2} = (a c_n + c_{n-2} / 4) / ((n + 1) (n + 2))
     let mut c = [0.0, 0.0, c0, c1]; // c_{n-2}, c_{n-1}, c_n, c_{n+1}
@@ -1049,35 +1032,21 @@ fn pbdv_reflect(v: f64, y: f64) -> (f64, f64) {
     if v >= 20.0 {
         let ([d, dp, ub, ubp], ea, eb) = pbdv_airy(v, y);
         let r = (ea - eb).exp(); // <= 1
-        return (
-            mul_exp(c * d * r - s * ub, eb),
-            mul_exp(s * ubp - c * dp * r, eb),
-        );
+        return (mul_exp(c * d * r - s * ub, eb), mul_exp(s * ubp - c * dp * r, eb));
     }
 
     let (ub, ea, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, y);
     if ea < -HUGE_EXP {
         // D_v(y) underflows, and sin(pi v) Ubar_v(y) overflows unless v is tiny
         let ub = mul_exp(s, eb);
-        return if ub.is_infinite() {
-            (-ub, ub)
-        } else {
-            pbdv_large_neg_x(v, y)
-        };
+        return if ub.is_infinite() { (-ub, ub) } else { pbdv_large_neg_x(v, y) };
     }
     let (dy, dpy) = pbdv(v, y);
     let (u0, u1) = (ub[0], ub[1]);
     // sin(pi v) = pi v loses precision for subnormal v, so then ln|v| moves to the exponent
-    let (s, eb) = if v.is_subnormal() {
-        (PI.copysign(v), eb + v.abs().ln())
-    } else {
-        (s, eb)
-    };
+    let (s, eb) = if v.is_subnormal() { (PI.copysign(v), eb + v.abs().ln()) } else { (s, eb) };
     // Ubar_v'(y) = y / 2 Ubar_v(y) - Ubar_{v+1}(y) (12.8.6)
-    (
-        c * dy - mul_exp(s * u0, eb),
-        mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy,
-    )
+    (c * dy - mul_exp(s * u0, eb), mul_exp(s * (0.5 * y * u0 - u1), eb) - c * dpy)
 }
 
 /// `Ubar_{v+k}(y)` for `k = 0..=n + 1` and `v + n >= 20` as mantissas with the exponents `ea`, `eb`
@@ -1122,15 +1091,8 @@ fn pbvv_airy(v: f64, x: f64) -> (f64, f64) {
     }
     let (c, s) = (cospi(v), sinpi(v));
     // only D_v(y) remains at a half-integer v
-    let (r, l) = if c == 0.0 {
-        (1.0, g - eb)
-    } else {
-        ((ea - eb).exp(), l)
-    };
-    (
-        mul_exp(-s * d * r - c * ub, l),
-        mul_exp(s * dp * r + c * ubp, l),
-    )
+    let (r, l) = if c == 0.0 { (1.0, g - eb) } else { ((ea - eb).exp(), l) };
+    (mul_exp(-s * d * r - c * ub, l), mul_exp(s * dp * r + c * ubp, l))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `0 <= v < 20`, `x >= 0`, by `V_v = Ubar_v / Gamma(v + 1)` (see
@@ -1139,10 +1101,7 @@ fn pbvv_recur(v: f64, x: f64) -> (f64, f64) {
     let x = x.min(100.0); // V_v(x) overflows for x > 57 anyway
     let (ub, _, eb) = pbdv_ubar(v, (20.0 - v).ceil() as usize, x);
     let r = rgamma(v + 1.0);
-    (
-        mul_exp(r * ub[0], eb),
-        mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb),
-    )
+    (mul_exp(r * ub[0], eb), mul_exp(r * (0.5 * x * ub[0] - ub[1]), eb))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `v <= -20`, by `V_v(x) = Gamma(-v) / pi (D_v(-x) - cos(pi v) D_v(x))`
@@ -1155,20 +1114,13 @@ fn pbvv_elementary(v: f64, x: f64) -> (f64, f64) {
     // Gamma(-v) = sqrt(2 pi) e^(lg - l - l2)
     let lg = ln_gamma_ratio(-v - 0.5);
     // only D_v(y) remains for x < 0 at a half-integer v
-    let (q, lv) = if x < 0.0 && c == 0.0 {
-        (1.0, lg - l2)
-    } else {
-        ((l - l2).exp(), lg - l)
-    };
+    let (q, lv) = if x < 0.0 && c == 0.0 { (1.0, lg - l2) } else { ((l - l2).exp(), lg - l) };
     let (w, wp) = if x >= 0.0 {
         (e - c * d * q, -ep - c * dp * q)
     } else {
         (d * q - c * e, -dp * q - c * ep)
     };
-    (
-        mul_exp(SQRT_FRAC_2_PI * w, lv),
-        mul_exp(SQRT_FRAC_2_PI * wp, lv),
-    )
+    (mul_exp(SQRT_FRAC_2_PI * w, lv), mul_exp(SQRT_FRAC_2_PI * wp, lv))
 }
 
 /// `V_v(x)`, `V_v'(x)` for `|v| >= 20` and `|x| sqrt|v| < 1`, by `pb_maclaurin` with the values
@@ -1492,8 +1444,7 @@ pub fn pbvv_seq(v: f64, x: f64) -> (Vec<f64>, Vec<f64>) {
         // D_w(-x) / Gamma(w + 1) by the recurrence of V_w, since D_w(-x) can overflow
         let dg: fn(f64, f64) -> (f64, f64) = |w, y| (pbdv(w, y).0 * rgamma(w + 1.0), 0.0);
         let e = pb_recur(orders, y, dg, ca, 0.0);
-        vy.zip(e)
-            .map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
+        vy.zip(e).map(|(vy, e)| pb_reflect(v0, (-1.0, -1.0), &vy, |k| e[k]))
     } else {
         vy
     };

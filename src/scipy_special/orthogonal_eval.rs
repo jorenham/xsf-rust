@@ -257,11 +257,7 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
             p = p + d.clone();
             binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
-        if alpha > -1.0 {
-            p * binom
-        } else {
-            p * jacobi_binom(f64::from(n), alpha)
-        }
+        if alpha > -1.0 { p * binom } else { p * jacobi_binom(f64::from(n), alpha) }
     }
 }
 
@@ -273,11 +269,7 @@ impl JacobiArg<i32> for f64 {
         } else {
             // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
             let p = eval_jacobi_l_reflected(n, alpha, beta, self);
-            if p.is_finite() {
-                p
-            } else {
-                eval_jacobi_l(n, alpha, beta, self)
-            }
+            if p.is_finite() { p } else { eval_jacobi_l(n, alpha, beta, self) }
         }
     }
 
@@ -998,10 +990,8 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             // e^z last, in two halves since it can overflow while the result does not. Only for
             // n <= -1, since a = (1 + n) / 2 would round away a tiny n.
             let (g0, g1) = (0.5 - 0.5 * n, -0.5 * n);
-            let (k0, k1) = (
-                crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z),
-                crate::hyp1f1(1.0 + 0.5 * n, 1.5, -z),
-            );
+            let (k0, k1) =
+                (crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z), crate::hyp1f1(1.0 + 0.5 * n, 1.5, -z));
             let w = 2.0 * scale.sqrt() * x.abs();
             if g0 < MAXGAM {
                 let e = (0.5 * z).exp();

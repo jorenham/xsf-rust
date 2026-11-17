@@ -11,14 +11,8 @@ fn test_extended_absolute_error_f64() {
 
 #[test]
 fn test_extended_absolute_error_c64() {
-    assert_eq!(
-        xsf::extended_absolute_error(c64(1.0, 1.0), c64(1.0, 1.0)),
-        0.0
-    );
-    assert_eq!(
-        xsf::extended_absolute_error(c64(0.0, 0.0), c64(3.0, 4.0)),
-        5.0
-    );
+    assert_eq!(xsf::extended_absolute_error(c64(1.0, 1.0), c64(1.0, 1.0)), 0.0);
+    assert_eq!(xsf::extended_absolute_error(c64(0.0, 0.0), c64(3.0, 4.0)), 5.0);
 }
 
 #[test]
@@ -32,12 +26,6 @@ fn test_extended_relative_error_f64() {
 
 #[test]
 fn test_extended_relative_error_c64() {
-    assert_eq!(
-        xsf::extended_relative_error(c64(1.0, 1.0), c64(1.0, 1.0)),
-        0.0
-    );
-    assert_eq!(
-        xsf::extended_relative_error(c64(0.0, 0.0), c64(3.0, 4.0)),
-        1.0
-    );
+    assert_eq!(xsf::extended_relative_error(c64(1.0, 1.0), c64(1.0, 1.0)), 0.0);
+    assert_eq!(xsf::extended_relative_error(c64(0.0, 0.0), c64(3.0, 4.0)), 1.0);
 }

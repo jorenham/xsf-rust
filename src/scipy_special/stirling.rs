@@ -80,10 +80,7 @@ fn stirling2_exact<T: PrimInt + Unsigned>(n: u32, k: u32) -> T {
         return T::zero();
     } else if k == 2 {
         // S(n, 2) = 2^(n-1) - 1
-        return 129_u32
-            .checked_sub(n)
-            .and_then(|shift| T::from(u128::MAX >> shift))
-            .unwrap();
+        return 129_u32.checked_sub(n).and_then(|shift| T::from(u128::MAX >> shift)).unwrap();
     } else if n == k + 1 {
         // S(n, n-1) = C(n, 2) = n(n-1)/2
         return T::from(u128::from(n) * (u128::from(n) - 1) / 2).unwrap();

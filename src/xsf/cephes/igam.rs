@@ -149,11 +149,7 @@ fn igam_fac_exponent(a: f64, x: f64) -> f64 {
         // below loses ~a / x eps
         let r = x / fac;
         // where `igam_fac` underflows, `r` can be subnormal
-        let ln_r = if r >= f64::MIN_POSITIVE {
-            r.ln()
-        } else {
-            x.ln() - fac.ln()
-        };
+        let ln_r = if r >= f64::MIN_POSITIVE { r.ln() } else { x.ln() - fac.ln() };
         a * ln_r + (a - x)
     } else {
         let num = x - a - LANCZOS_G + 0.5;
@@ -232,11 +228,7 @@ pub(crate) fn igamc_exp_scaled(a: f64, x: f64) -> (f64, f64) {
     } else {
         ln_igam_fac(a, x)
     };
-    let m = if x < IGAMC_CF_MAX_X {
-        igamc_cf(a, x)
-    } else {
-        igamc_large_x_sum(a, x) / x
-    };
+    let m = if x < IGAMC_CF_MAX_X { igamc_cf(a, x) } else { igamc_large_x_sum(a, x) / x };
     (m, ln_fac)
 }
 
@@ -543,17 +535,9 @@ pub(crate) fn igamc(a: f64, x: f64) -> f64 {
 
     /* Everywhere else; see [2]. */
     if x > IGAMC_CF_MIN_X {
-        if x < a {
-            1.0 - igam_series(a, x)
-        } else {
-            igamc_continued_fraction(a, x)
-        }
+        if x < a { 1.0 - igam_series(a, x) } else { igamc_continued_fraction(a, x) }
     } else if x <= 0.5 {
-        if -0.4 / x.ln() < a {
-            1.0 - igam_series(a, x)
-        } else {
-            igamc_series(a, x)
-        }
+        if -0.4 / x.ln() < a { 1.0 - igam_series(a, x) } else { igamc_series(a, x) }
     } else if x * 1.1 < a {
         1.0 - igam_series(a, x)
     } else {

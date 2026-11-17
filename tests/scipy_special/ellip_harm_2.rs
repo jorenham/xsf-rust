@@ -6,11 +6,7 @@ use xsref::np_assert_allclose;
 /// The closed forms of `gamma_n^p` for `n <= 3`
 fn ellip_normal_known(h2: f64, k2: f64, n: u32, p: u32) -> f64 {
     let (hk, d) = (h2 * k2, k2 - h2);
-    let (s2, s3, s4) = (
-        h2 * h2 + k2 * k2,
-        h2.powi(3) + k2.powi(3),
-        h2.powi(4) + k2.powi(4),
-    );
+    let (s2, s3, s4) = (h2 * h2 + k2 * k2, h2.powi(3) + k2.powi(3), h2.powi(4) + k2.powi(4));
     let g2 = |sign: f64| {
         let r = (h2 * h2 + k2 * k2 - hk).sqrt();
         16.0 * PI / 405.0
@@ -87,11 +83,7 @@ fn test_ellip_harm_2() {
             xsf::ellip_harm_2(h2, k2, 1, p, s) / (3.0 * xsf::ellip_harm(h2, k2, 1, p, s, 1.0, 1.0))
         })
         .sum();
-    np_assert_allclose!(
-        [i1],
-        [1.0 / (s * ((s * s - h2) * (s * s - k2)).sqrt())],
-        rtol = 1e-14
-    );
+    np_assert_allclose!([i1], [1.0 / (s * ((s * s - h2) * (s * s - k2)).sqrt())], rtol = 1e-14);
 
     // values produced by code from arXiv:1204.0267
     let expected = [
@@ -135,13 +127,7 @@ fn test_ellip_harm_2_s_near_k() {
 fn test_ellip_harm_2_s_near_rounded_k() {
     // `k = sqrt(k2)` is rounded, and `s - k ~ 1e-12`; mpmath
     np_assert_allclose!(
-        [xsf::ellip_harm_2(
-            1.0,
-            1.000_000_02,
-            0,
-            1,
-            1.000_000_010_001
-        )],
+        [xsf::ellip_harm_2(1.0, 1.000_000_02, 0, 1, 1.000_000_010_001)],
         [10.240_061_121_404_25],
         rtol = 1e-14
     );
@@ -152,17 +138,9 @@ fn test_ellip_harm_2_large_s() {
     // `E_4^1(s)` overflows, and the result (~1e-450) underflows
     assert_eq!(xsf::ellip_harm_2(1.0, 4.0, 4, 1, 1e90), 0.0);
     // `F_1^1(s) ~ 1 / s^2`, where the integral `~ 1 / (3 s^3)` alone underflows
-    np_assert_allclose!(
-        [xsf::ellip_harm_2(1.0, 4.0, 1, 1, 1e110)],
-        [1e-220],
-        rtol = 1e-14
-    );
+    np_assert_allclose!([xsf::ellip_harm_2(1.0, 4.0, 1, 1, 1e110)], [1e-220], rtol = 1e-14);
     // `E_2^5(s)^2 ~ s^8` overflows; mpmath
-    np_assert_allclose!(
-        [xsf::ellip_harm_2(1.0, 4.0, 2, 5, 1e90)],
-        [1e-270],
-        rtol = 1e-14
-    );
+    np_assert_allclose!([xsf::ellip_harm_2(1.0, 4.0, 2, 5, 1e90)], [1e-270], rtol = 1e-14);
 }
 
 #[test]
@@ -195,26 +173,8 @@ fn test_ellip_potential() {
         [x, y, z]
     };
     for [l1, m1, n1, l2, m2, n2, h2, k2] in [
-        [
-            120.0,
-            19.0_f64.sqrt(),
-            2.0,
-            41.0,
-            17.0_f64.sqrt(),
-            2.0,
-            15.0,
-            25.0,
-        ],
-        [
-            120.0,
-            16.0_f64.sqrt(),
-            3.2,
-            21.0,
-            11.0_f64.sqrt(),
-            2.9,
-            11.0,
-            20.0,
-        ],
+        [120.0, 19.0_f64.sqrt(), 2.0, 41.0, 17.0_f64.sqrt(), 2.0, 15.0, 25.0],
+        [120.0, 16.0_f64.sqrt(), 3.2, 21.0, 11.0_f64.sqrt(), 2.9, 11.0, 20.0],
     ] {
         let e = |n, p, s| xsf::ellip_harm(h2, k2, n, p, s, 1.0, 1.0);
         let mut sum = 0.0_f64;
@@ -233,12 +193,7 @@ fn test_ellip_potential() {
             sum += xsum;
         }
         let (x1, x2) = (cartesian(l1, m1, n1, h2, k2), cartesian(l2, m2, n2, h2, k2));
-        let dist = x1
-            .iter()
-            .zip(x2)
-            .map(|(a, b)| (a - b) * (a - b))
-            .sum::<f64>()
-            .sqrt();
+        let dist = x1.iter().zip(x2).map(|(a, b)| (a - b) * (a - b)).sum::<f64>().sqrt();
         np_assert_allclose!([sum], [1.0 / dist], rtol = 1e-8);
     }
 }

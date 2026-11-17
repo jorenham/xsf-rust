@@ -92,23 +92,12 @@ fn test_sindg_cosdg_exact() {
 
 #[test]
 fn test_tandg_cotdg_exact() {
-    for (x, t) in [
-        (0.0, 0.0),
-        (45.0, 1.0),
-        (135.0, -1.0),
-        (-45.0, -1.0),
-        (180.0, 0.0),
-        (225.0, 1.0),
-    ] {
+    for (x, t) in
+        [(0.0, 0.0), (45.0, 1.0), (135.0, -1.0), (-45.0, -1.0), (180.0, 0.0), (225.0, 1.0)]
+    {
         assert_eq!(xsf::tandg(x), t, "tandg({x})");
     }
-    for (x, c) in [
-        (45.0, 1.0),
-        (90.0, 0.0),
-        (135.0, -1.0),
-        (-45.0, -1.0),
-        (270.0, 0.0),
-    ] {
+    for (x, c) in [(45.0, 1.0), (90.0, 0.0), (135.0, -1.0), (-45.0, -1.0), (270.0, 0.0)] {
         assert_eq!(xsf::cotdg(x), c, "cotdg({x})");
     }
     for x in [90.0, 270.0, -90.0] {
@@ -160,12 +149,7 @@ fn test_cosm1_edges() {
     assert_eq!(xsf::cosm1(0.0).to_bits(), 0.0_f64.to_bits());
     assert_eq!(xsf::cosm1(-0.0).to_bits(), 0.0_f64.to_bits());
     // the polynomial is used for |x| <= pi/4, and cos(x) - 1 beyond
-    for x in [
-        FRAC_PI_4,
-        next_up(FRAC_PI_4),
-        -FRAC_PI_4,
-        -next_up(FRAC_PI_4),
-    ] {
+    for x in [FRAC_PI_4, next_up(FRAC_PI_4), -FRAC_PI_4, -next_up(FRAC_PI_4)] {
         assert_close(xsf::cosm1(x), x.cos() - 1.0);
     }
     assert_close(xsf::cosm1(1e-5), -5e-11 + 1e-20 / 24.0);
@@ -174,10 +158,7 @@ fn test_cosm1_edges() {
 #[test]
 fn test_radian_edges() {
     assert_eq!(xsf::radian(0.0, 0.0, 0.0).to_bits(), 0.0_f64.to_bits());
-    assert_eq!(
-        xsf::radian(-0.0, -0.0, -0.0).to_bits(),
-        (-0.0_f64).to_bits()
-    );
+    assert_eq!(xsf::radian(-0.0, -0.0, -0.0).to_bits(), (-0.0_f64).to_bits());
     assert_eq!(xsf::radian(1.0, -60.0, 0.0), 0.0);
     assert_eq!(xsf::radian(-1.0, 59.0, 60.0), 0.0);
     assert_close(xsf::radian(180.0, 0.0, 0.0), PI);
@@ -189,13 +170,7 @@ fn test_radian_edges() {
 #[test]
 fn test_sinpi_cospi_complex_small_imag() {
     // |pi y| < 700, both signs of x and y
-    for (x, y) in [
-        (0.25, 222.8),
-        (-0.25, -222.8),
-        (0.75, -100.0),
-        (-1.25, 3.0),
-        (0.1, 0.0),
-    ] {
+    for (x, y) in [(0.25, 222.8), (-0.25, -222.8), (0.75, -100.0), (-1.25, 3.0), (0.1, 0.0)] {
         let (s, c) = (xsf::sinpi(c64(x, y)), xsf::cospi(c64(x, y)));
         let (sx, cx) = ((PI * x).sin(), (PI * x).cos());
         let (chy, shy) = ((PI * y).cosh(), (PI * y).sinh());
@@ -229,61 +204,28 @@ fn assert_same_or_close(actual: f64, expected: f64, what: &str) {
 fn test_sinpi_cospi_complex_large_imag() {
     // 700 <= |pi y|: below and beyond the overflow of cosh(pi y) at |y| ~ 226.2, and of
     // exp(|pi y| / 2) at |y| ~ 451.9
-    let xs = [
-        0.0, -0.0, 0.25, -0.25, 0.5, -0.5, 0.75, 1.0, -1.0, 1.75, 2.5, 1e-10, -3e-200,
-    ];
-    let ys = [
-        222.9,
-        225.0,
-        300.0,
-        451.0,
-        452.0,
-        1000.0,
-        1e300,
-        f64::INFINITY,
-    ];
+    let xs = [0.0, -0.0, 0.25, -0.25, 0.5, -0.5, 0.75, 1.0, -1.0, 1.75, 2.5, 1e-10, -3e-200];
+    let ys = [222.9, 225.0, 300.0, 451.0, 452.0, 1000.0, 1e300, f64::INFINITY];
     for x in xs {
         for y in ys.into_iter().flat_map(|y| [y, -y]) {
             let z = c64(x, y);
             let (sx, cx) = (xsf::sinpi(x), xsf::cospi(x));
             let (t, sgn) = (PI * y, y.signum());
             let (s, c) = (xsf::sinpi(z), xsf::cospi(z));
-            assert_same_or_close(
-                s.re,
-                mul_cosh_sinh_large(sx, t, 1.0),
-                &format!("sinpi({z}).re"),
-            );
-            assert_same_or_close(
-                s.im,
-                mul_cosh_sinh_large(cx, t, sgn),
-                &format!("sinpi({z}).im"),
-            );
-            assert_same_or_close(
-                c.re,
-                mul_cosh_sinh_large(cx, t, 1.0),
-                &format!("cospi({z}).re"),
-            );
-            assert_same_or_close(
-                c.im,
-                mul_cosh_sinh_large(-sx, t, sgn),
-                &format!("cospi({z}).im"),
-            );
+            assert_same_or_close(s.re, mul_cosh_sinh_large(sx, t, 1.0), &format!("sinpi({z}).re"));
+            assert_same_or_close(s.im, mul_cosh_sinh_large(cx, t, sgn), &format!("sinpi({z}).im"));
+            assert_same_or_close(c.re, mul_cosh_sinh_large(cx, t, 1.0), &format!("cospi({z}).re"));
+            assert_same_or_close(c.im, mul_cosh_sinh_large(-sx, t, sgn), &format!("cospi({z}).im"));
         }
     }
 
     // the cases of scipy/xsf#308
     let z = xsf::cospi(c64(0.0, 1000.0));
-    assert_eq!(
-        (z.re, z.im.to_bits()),
-        (f64::INFINITY, (-0.0_f64).to_bits())
-    );
+    assert_eq!((z.re, z.im.to_bits()), (f64::INFINITY, (-0.0_f64).to_bits()));
     let z = xsf::sinpi(c64(0.0, -300.0));
     assert_eq!((z.re, z.im), (0.0, f64::NEG_INFINITY));
     let z = xsf::cospi(c64(0.5, 1000.0));
-    assert_eq!(
-        (z.re.to_bits(), z.im),
-        (0.0_f64.to_bits(), f64::NEG_INFINITY)
-    );
+    assert_eq!((z.re.to_bits(), z.im), (0.0_f64.to_bits(), f64::NEG_INFINITY));
     let z = xsf::cospi(c64(0.25, 225.0));
     assert!(z.re > 0.0 && z.im < 0.0);
 

@@ -27,10 +27,7 @@ fn test_expn_large_n() {
         (u32::MAX, 1.0, 8.565_360_709_491_557e-11),
     ] {
         let actual = xsf::expn(n, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual:e} != {expected:e}");
     }
     assert_eq!(xsf::expn(u32::MAX, 0.0), 1.0 / f64::from(u32::MAX - 1));
 }
@@ -46,17 +43,10 @@ fn test_expn_subnormal() {
         (51, 4.169_514_667_5e-314),
     ] {
         let actual = xsf::expn(n, x);
-        assert!(
-            (actual - expected).abs() <= 5e-324,
-            "expn({n}, {x}) = {actual:e} != {expected:e}"
-        );
+        assert!((actual - expected).abs() <= 5e-324, "expn({n}, {x}) = {actual:e} != {expected:e}");
     }
     // just above half the smallest subnormal, in each of the three paths
-    for (n, x) in [
-        (0, 738.528_114_325_140_7),
-        (10, 738.514_767_187_870_7),
-        (52, 738.46),
-    ] {
+    for (n, x) in [(0, 738.528_114_325_140_7), (10, 738.514_767_187_870_7), (52, 738.46)] {
         assert_eq!(xsf::expn(n, x), f64::from_bits(1), "expn({n}, {x})");
     }
     // just below it (by 2.5e-14), where -lambda p (rounded) instead of -x gave 5e-324

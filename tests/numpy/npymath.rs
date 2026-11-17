@@ -14,11 +14,8 @@ fn check_logaddexp_values(
     let z64: Vec<f64> = x.iter().zip(&y).map(|(&a, &b)| f_f64(a, b)).collect();
     np_assert_allclose!(z64, z, atol = 1e-15);
 
-    let z32: Vec<f64> = x
-        .iter()
-        .zip(&y)
-        .map(|(&a, &b)| f64::from(f_f32(a as f32, b as f32)))
-        .collect();
+    let z32: Vec<f64> =
+        x.iter().zip(&y).map(|(&a, &b)| f64::from(f_f32(a as f32, b as f32))).collect();
     np_assert_allclose!(z32, z, atol = 1.5e-7);
 }
 

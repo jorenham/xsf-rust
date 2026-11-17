@@ -26,16 +26,11 @@ use crate::utils::LN_PI;
 pub fn multigammaln(a: f64, d: u32) -> f64 {
     let d_f64 = f64::from(d);
     let a_min = 0.5 * (d_f64 - 1.0);
-    assert!(
-        a > a_min,
-        "condition a ({a}) > 0.5 * (d-1) ({a_min}) not met"
-    );
+    assert!(a > a_min, "condition a ({a}) > 0.5 * (d-1) ({a_min}) not met");
 
     // res = (d * (d-1) * 0.25) * np.log(np.pi)
     // res += np.sum(loggam([(a - (j - 1.)/2) for j in range(1, d+1)]), axis=0)
     // return res
     d_f64 * (d_f64 - 1.0) * 0.25 * LN_PI
-        + (0..d)
-            .map(|j| crate::gammaln(a - f64::from(j) / 2.0))
-            .sum::<f64>()
+        + (0..d).map(|j| crate::gammaln(a - f64::from(j) / 2.0)).sum::<f64>()
 }

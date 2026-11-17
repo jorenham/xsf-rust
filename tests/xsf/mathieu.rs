@@ -163,19 +163,15 @@ fn test_mathieu_modcem1_large_x() {
     let u = f64::exp(x);
     let (f, d) = xsf::mathieu_modcem1(0, 1.0, x);
     let env = (f * f + (d / u) * (d / u)) * u;
-    assert!(
-        (env * core::f64::consts::FRAC_PI_2 - 1.0).abs() < 1e-6,
-        "{env}"
-    );
+    assert!((env * core::f64::consts::FRAC_PI_2 - 1.0).abs() < 1e-6, "{env}");
 }
 
 #[test]
 fn test_mathieu_coef() {
     // q = 0: ce_0 = 1 / sqrt(2) and se_1 = sin(z) (DLMF 28.4.13 and 28.4.15)
-    for (coefs, first) in [
-        (xsf::mathieu_even_coef(0, 0.0), FRAC_1_SQRT_2),
-        (xsf::mathieu_odd_coef(1, 0.0), 1.0),
-    ] {
+    for (coefs, first) in
+        [(xsf::mathieu_even_coef(0, 0.0), FRAC_1_SQRT_2), (xsf::mathieu_odd_coef(1, 0.0), 1.0)]
+    {
         let coefs = coefs.unwrap();
         xsref::np_assert_allclose!(&[coefs[0]], &[first], rtol = 1e-15);
         assert!(coefs[1..].iter().all(|&c| c == 0.0), "{coefs:?}");
@@ -260,12 +256,7 @@ fn test_mathieu_huge_q() {
 #[test]
 fn test_mathieu_ce_se_radians() {
     // the same functions as `mathieu_cem` and `mathieu_sem`, of an angle in radians
-    for (m, q, deg) in [
-        (0, 1.0, 30.0),
-        (3, 5.0, 100.0),
-        (4, -2.5, 45.0),
-        (5, -10.0, 200.0),
-    ] {
+    for (m, q, deg) in [(0, 1.0, 30.0), (3, 5.0, 100.0), (4, -2.5, 45.0), (5, -10.0, 200.0)] {
         let rad = f64::to_radians(deg);
         for (actual, desired) in [
             (xsf::mathieu_ce(m, q, rad), xsf::mathieu_cem(m, q, deg)),

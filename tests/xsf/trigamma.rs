@@ -28,10 +28,7 @@ fn test_trigamma_c64() {
     // reference values from xsf's test_trigamma.cpp
     for (z, expected) in [
         (c64(0.0, 8.0), c64(-0.007_812_5, -0.124_673_450_303_127_63)),
-        (
-            c64(-3.2, 0.1),
-            c64(15.207_350_644_973_363, 15.708_103_885_511_357),
-        ),
+        (c64(-3.2, 0.1), c64(15.207_350_644_973_363, 15.708_103_885_511_357)),
     ] {
         let rel = xsf::extended_relative_error(xsf::trigamma(z), expected);
         assert!(rel <= 1e-14, "z = {z}: rel = {rel:e}");

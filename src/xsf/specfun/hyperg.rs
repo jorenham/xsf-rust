@@ -316,11 +316,7 @@ impl Term for DoubleDouble {
     const EPS: f64 = EPSILON_SQ;
     fn norm(self) -> f64 {
         // `inf` on overflow, where the error terms of the products are NaN
-        if self.is_finite() {
-            self.hi.abs()
-        } else {
-            f64::INFINITY
-        }
+        if self.is_finite() { self.hi.abs() } else { f64::INFINITY }
     }
     fn add_to(self, sum: &mut Self, _: &mut Self) {
         *sum = *sum + self;
@@ -393,10 +389,7 @@ fn hyp1f1_sum<T: Term>(
                 return Some((sum, bound));
             }
             let s = (log_scale / 4.0).exp();
-            return sum
-                .norm()
-                .is_finite()
-                .then(|| (sum * s * s * s * s, bound * s * s * s * s));
+            return sum.norm().is_finite().then(|| (sum * s * s * s * s, bound * s * s * s * s));
         }
     }
     None
@@ -454,11 +447,7 @@ fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
 /// `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` (cf. DLMF 13.2.39), where `e^x0` is applied
 /// gradually for `x0 <= -700`, to avoid underflow
 fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
-    let s = if x0 > GRADUAL_EXP_X0 {
-        x0.min(0.0)
-    } else {
-        0.0
-    };
+    let s = if x0 > GRADUAL_EXP_X0 { x0.min(0.0) } else { 0.0 };
     hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
         .map(|(hg, err)| (hg.re, err))
 }
@@ -505,11 +494,7 @@ fn rounding_ratio(a: DoubleDouble) -> f64 {
 /// `(a, x)`, or `(b - a, -x)` of DLMF 13.2.39 for `x < 0`, with `b - a` also without rounding, e.g.
 /// to the integer -100 for `hyp1f1(99.7, -0.3, -800)`
 fn kummer_args(x: f64, a: f64, b: f64) -> (DoubleDouble, f64) {
-    if x < 0.0 {
-        (DoubleDouble::new(b) - a, -x)
-    } else {
-        (DoubleDouble::new(a), x)
-    }
+    if x < 0.0 { (DoubleDouble::new(b) - a, -x) } else { (DoubleDouble::new(a), x) }
 }
 
 /// `e^min(x0, 0) M(a, b, x)` for `a, x > 0` and non-integer `b < 0` as `K + I` (DLMF 13.2.42), if
@@ -564,11 +549,7 @@ pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
     let (ak, xk) = kummer_args(x, a, b);
     // the sums of M2 and M3 need over x terms
     let minimal = b < 0.0 && b != b.trunc() && ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
-    if hg.is_nan() && minimal {
-        chgm_minimal(ak, b, xk, x).unwrap_or(hg)
-    } else {
-        hg
-    }
+    if hg.is_nan() && minimal { chgm_minimal(ak, b, xk, x).unwrap_or(hg) } else { hg }
 }
 
 /// `M(a, b, x)` for `x < 0` from `chgm_neg_x_series`, or else (for `x <= -30 - |b|`) from
@@ -667,9 +648,7 @@ fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
     let l = ln_gb - ln_gq - ln_z * a;
     let err_l =
         err_gb + err_gq + 4.0 * U * U * (ln_gb.hi.abs() + ln_gq.hi.abs() + l.hi.abs() + 1.0);
-    let (hg, err_y) = Scaled::new(sign_b * sign_q * s, 0, err_l)?
-        .with_l(l)
-        .to_f64();
+    let (hg, err_y) = Scaled::new(sign_b * sign_q * s, 0, err_l)?.with_l(l).to_f64();
     if !(hg.is_finite() && hg.abs() >= f64::MIN_POSITIVE && err_y <= 1e-10) {
         return None;
     }
@@ -678,14 +657,7 @@ fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
     // the bound of the second term relative to `hg`, with `|q (q - b + 1)| = |q (1 - a)|`
     let q1 = q.hi;
     let ln_u1 = (remainder_factor(sigma, rho_0, 1.0, z)? * (q1 * (1.0 - a)).abs() / z).ln_1p();
-    let ln_e = [
-        ln_gb.hi,
-        -ln_ga.hi,
-        -z,
-        -q1 * ln_z.hi,
-        ln_u1,
-        -hg.abs().ln(),
-    ];
+    let ln_e = [ln_gb.hi, -ln_ga.hi, -z, -q1 * ln_z.hi, ln_u1, -hg.abs().ln()];
     let err_ln_e = err_gb
         + err_ga
         + q.lo.abs() * (ln_z.hi.abs() + 1.0)
@@ -859,11 +831,7 @@ impl KummerSum {
 
     /// By how much the sum cancels, or `inf` if it didn't converge
     fn cancellation(&self) -> f64 {
-        if self.converged {
-            self.rs / self.hg.abs()
-        } else {
-            f64::INFINITY
-        }
+        if self.converged { self.rs / self.hg.abs() } else { f64::INFINITY }
     }
 
     /// Whether the sum of a series with a < -1 and b > 0 doesn't converge or is estimated to lose
@@ -924,14 +892,7 @@ fn chgm_sum(a: f64, b: f64, x: f64, max_terms: i32) -> KummerSum {
             break;
         }
     }
-    KummerSum {
-        hg,
-        rg,
-        rs,
-        terms,
-        last_finite,
-        converged,
-    }
+    KummerSum { hg, rg, rs, terms, last_finite, converged }
 }
 
 /// What `chgm` tries in turn in place of its series `sum`, which gave `hg = e^min(x0, 0) sum.hg`
@@ -1777,11 +1738,7 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // v = u^3 for any non-integer a (as for `cubic`), else v = u
     let f_head = |u: f64| {
         if log_map {
-            let (v, dv) = if int_a {
-                (u, 1.0)
-            } else {
-                (u * u * u, 3.0 * u * u)
-            };
+            let (v, dv) = if int_a { (u, 1.0) } else { (u * u * u, 3.0 * u * u) };
             let t = (lc * v).exp_m1();
             dv * lc * (1.0 + t) * f(t)
         } else if cubic {
@@ -1909,11 +1866,7 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // (a + k - 1) (a - b + k) < 0 for k between 1 - a and b - a, so the terms keep their sign
         // there, and a sum that is +-inf at k >= k_inf stays +-inf
         let (lo, hi) = ((1.0 - a).min(b - a), (1.0 - a).max(b - a));
-        let k_inf = if f64::from(nm) < hi {
-            lo.floor()
-        } else {
-            f64::INFINITY
-        };
+        let k_inf = if f64::from(nm) < hi { lo.floor() } else { f64::INFINITY };
         // whether the sum stopped early, as a lower bound of |sum|
         let mut partial = false;
         for k in 1..=nm {
@@ -2052,17 +2005,9 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf, with sinpi, as sin(pi b) loses about eps / |b - n| near an integer n, and
     // reflected (DLMF 5.5.3) where gamma2(b) (b < -1) or gamma2(2 - b) (b > 3) loses as much
     let hu0 = PI / cephes_sinpi(b);
-    let mut r1 = if b < -1.0 {
-        gamma2(1.0 - b) / gab
-    } else {
-        hu0 / (gab * gamma2(b))
-    };
+    let mut r1 = if b < -1.0 { gamma2(1.0 - b) / gab } else { hu0 / (gab * gamma2(b)) };
     // r2 without x^(1-b), which it is multiplied by last (as Gamma(b - 1) x^(1-b) can overflow)
-    let c = if b > 3.0 {
-        -gamma2(b - 1.0) / ga
-    } else {
-        hu0 / (ga * gamma2(2.0 - b))
-    };
+    let c = if b > 3.0 { -gamma2(b - 1.0) / ga } else { hu0 / (ga * gamma2(2.0 - b)) };
     let xp = x.powf(1.0 - b);
     let mut r2 = c * xp;
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
@@ -2155,21 +2100,13 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
     // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel
     let k = |z: f64| {
-        if z < 0.0 && z.fract() != 0.0 {
-            f64::EPSILON * (z / cephes_sinpi(z)).abs()
-        } else {
-            0.0
-        }
+        if z < 0.0 && z.fract() != 0.0 { f64::EPSILON * (z / cephes_sinpi(z)).abs() } else { 0.0 }
     };
     // Unlike in xsf, e1 and e2 also have the rounding errors d of the arguments z of gamma2, times
     // |digamma(z)|, which is about 1 / |z - n| near a pole n (e.g. for 1 + a - b) and ln(z) for
     // large z (e.g. for 1 - b = 128.1, with d = 1.4e-14), and that of 1 - b times ln(x) for x^(1-b)
     let psi_err = |z: f64, d: f64| {
-        if d == 0.0 {
-            0.0
-        } else {
-            (digamma(z) * d).abs()
-        }
+        if d == 0.0 { 0.0 } else { (digamma(z) * d).abs() }
     };
     let (s, d_s) = two_sum(1.0, a);
     let (aab, d_aab) = two_sum(s, -b);
@@ -2184,11 +2121,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let e1 = 1e-15 + k(1.0 + a - b) + psi_err(aab, d_s + d_aab) + e_r1;
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b) + e_c + (d_bm * x.ln()).abs();
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
-    *id = if lost {
-        0
-    } else {
-        (*id).min((-(err / hu.abs()).log10()) as i32)
-    };
+    *id = if lost { 0 } else { (*id).min((-(err / hu.abs()).log10()) as i32) };
     lr2.map_or(hu, |l| mul_exp_dd(hu, l))
 }
 
@@ -2286,11 +2219,7 @@ mod tests {
         assert!(id >= 13 && digits_ok(u, 0.123_369_748_576_127_63, id));
         // x^(b-1) U(a, b, x) (Arb), where the error oscillates over the refinements, so that one
         // change is small by chance (9.548_667_857_677_493e-20 with 9 digits if that is final)
-        let (x, a, b) = (
-            6.294_217_108_153_153e-4,
-            21.564_919_933_139_418,
-            1.579_409_465_206_605_7,
-        );
+        let (x, a, b) = (6.294_217_108_153_153e-4, 21.564_919_933_139_418, 1.579_409_465_206_605_7);
         let u = chguit(x, a, b, true, &mut id);
         assert!(digits_ok(u, 9.548_667_779_662_119_8e-20, id));
     }
@@ -2305,11 +2234,7 @@ mod tests {
 
         // U(a, b, x) (Arb), where the rounding error 1.4e-14 of 1 - b = 128.1 makes Gamma(1 - b)
         // 6.9e-14 off (13.2 digits)
-        let (x, a, b) = (
-            1.922_426_784_912_072_6,
-            16.014_115_853_033_63,
-            -127.117_796_766_930_57,
-        );
+        let (x, a, b) = (1.922_426_784_912_072_6, 16.014_115_853_033_63, -127.117_796_766_930_57);
         let mut id = 0;
         let u = chgus(x, a, b, &mut id);
         assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
@@ -2323,14 +2248,7 @@ mod tests {
     fn test_chgu_subnormal_digits() {
         // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
         let (mut md, mut isfer, mut digits) = (0, 0, 0);
-        let u = chgu(
-            1.0,
-            170.0,
-            1.000_000_000_01,
-            &mut md,
-            &mut isfer,
-            &mut digits,
-        );
+        let u = chgu(1.0, 170.0, 1.000_000_000_01, &mut md, &mut isfer, &mut digits);
         assert_eq!((md, isfer), (4, 0));
         assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
         // the same for an early return, here of `chgul` (Arb)

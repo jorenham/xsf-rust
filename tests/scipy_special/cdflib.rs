@@ -68,10 +68,7 @@ fn test_stdtridf_huge_df() {
     np_assert_allclose!([df_well], [98_646_633_323_521.9], rtol = 2e-6);
     // p is 0.33 ulp above (t = -26.8) or rounds down (t = -26) the limit stdtr(inf, t) = ndtr(t),
     // so stdtr(df, t) rounds to p for all df above ~1e21
-    for (p, t) in [
-        (1.615_616_783_902_316_5e-158, -26.8),
-        (2.476_063_315_503_389e-149, -26.0),
-    ] {
+    for (p, t) in [(1.615_616_783_902_316_5e-158, -26.8), (2.476_063_315_503_389e-149, -26.0)] {
         let df_huge = xsf::stdtridf(p, t);
         assert!(df_huge > 1e21);
         assert_eq!(xsf::stdtr(df_huge, t), p);
@@ -315,11 +312,7 @@ fn test_chndtri_chndtridf_chndtrinc() {
     );
     // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from mpmath
     np_assert_allclose!(
-        [xsf::chndtri(
-            0.193_123_859_806_063_84,
-            0.004_028_403_030_778_61,
-            0.503_188_864_805_273_5
-        )],
+        [xsf::chndtri(0.193_123_859_806_063_84, 0.004_028_403_030_778_61, 0.503_188_864_805_273_5)],
         [5.426_817_558_374_058e-301],
         rtol = 1e-9
     );
@@ -395,28 +388,18 @@ fn test_ncfdtr_ncfdtri() {
             xsf::ncfdtr(1e-308, 2.0, 1.0, 1e308),
             xsf::ncfdtr(0.3, 1e-13, 1.0, 1e-320),
         ],
-        [
-            0.606_530_659_712_633_4,
-            0.716_531_310_573_789_3,
-            1.504_177_081_709_522e-59
-        ],
+        [0.606_530_659_712_633_4, 0.716_531_310_573_789_3, 1.504_177_081_709_522e-59],
         rtol = 1e-14
     );
     // `x` underflows, also if `dfn f` or `dfn / (dfd + dfn f)` does not; from mpmath
     np_assert_allclose!(
-        [
-            xsf::ncfdtr(1.0, 1e100, 1.0, 1e-300),
-            xsf::ncfdtr(1e-200, 1e124, 1.0, 1e-120),
-        ],
+        [xsf::ncfdtr(1.0, 1e100, 1.0, 1e-300), xsf::ncfdtr(1e-200, 1e124, 1.0, 1e-120),],
         [4.839_414_490_382_867e-151, 0.606_530_659_712_633_4],
         rtol = 1e-14
     );
     // `x` is subnormal and the noncentral chi-square limit is exact; from mpmath
     np_assert_allclose!(
-        [
-            xsf::ncfdtr(1.0, 1e308, 1.0, 1e-6),
-            xsf::ncfdtr(1.0, 1.7e308, 1.0, 3e-16),
-        ],
+        [xsf::ncfdtr(1.0, 1e308, 1.0, 1e-6), xsf::ncfdtr(1.0, 1.7e308, 1.0, 3e-16),],
         [4.839_414_490_382_786e-4, 8.382_111_776_228_172e-9],
         rtol = 1e-14
     );
@@ -537,10 +520,7 @@ fn test_ncfdtr_tiny_y() {
         rtol = 1e-14
     );
     // also where `dfn / (dfd + dfn f)` overflows; from mpmath, rounded to the nearest subnormal
-    assert_eq!(
-        xsf::ncfdtr(1e308, 1e-310, 1.0, 1e-310),
-        2.798_867_973_880_6e-311
-    );
+    assert_eq!(xsf::ncfdtr(1e308, 1e-310, 1.0, 1e-310), 2.798_867_973_880_6e-311);
 }
 
 #[test]
@@ -830,27 +810,17 @@ fn test_nctdtrit_edge_cases() {
         assert!(xsf::nctdtrit(df, nc, p).is_nan());
     }
     // `nc + ndtri(p)` if `df = inf` or `p = 1`
-    assert_eq!(
-        xsf::nctdtrit(f64::INFINITY, 2.0, 0.3),
-        2.0 + xsf::ndtri(0.3)
-    );
+    assert_eq!(xsf::nctdtrit(f64::INFINITY, 2.0, 0.3), 2.0 + xsf::ndtri(0.3));
     assert_eq!(xsf::nctdtrit(1.0, 1.0, 1.0), f64::INFINITY);
     // Unlike in SciPy, -inf if `p = 0`, instead of inf
     assert_eq!(xsf::nctdtrit(1.0, 1.0, 0.0), f64::NEG_INFINITY);
     // near `t = 0`, where the rounding of `nctdtr` can jump
-    for (df, nc, p) in [
-        (100.0, 1.0, 0.158_655_253_931_457_1),
-        (1.0, 30.0, xsf::ndtr(-30.0)),
-    ] {
+    for (df, nc, p) in [(100.0, 1.0, 0.158_655_253_931_457_1), (1.0, 30.0, xsf::ndtr(-30.0))] {
         assert!(xsf::nctdtrit(df, nc, p).abs() <= 1e-15);
     }
     // `stdtri` if `nc = 0`, also in the tails
     for p in [1e-300, 0.3, 1.0 - f64::EPSILON / 2.0] {
-        np_assert_allclose!(
-            [xsf::nctdtrit(5.0, 0.0, p)],
-            [xsf::stdtri(5.0, p)],
-            rtol = 1e-13
-        );
+        np_assert_allclose!([xsf::nctdtrit(5.0, 0.0, p)], [xsf::stdtri(5.0, p)], rtol = 1e-13);
     }
 }
 

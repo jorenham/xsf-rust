@@ -50,11 +50,7 @@ fn incbet_subnormal_div_a_beta(a: f64, b: f64, t: f64) -> Option<f64> {
         return None;
     }
     let r = b / (a + b);
-    Some(if r >= f64::MIN_POSITIVE {
-        t * r
-    } else {
-        t / (a + b) * b
-    })
+    Some(if r >= f64::MIN_POSITIVE { t * r } else { t / (a + b) * b })
 }
 
 /// The sum of the power series `x^a / B(a, b) (1 / a + sum_(n >= 1) (1 - b)_n / n! x^n / (a + n))`
@@ -108,11 +104,7 @@ fn incbet_pow(x: f64, y: f64, p: f64) -> f64 {
 /// `ln(x)`, given `y = 1 - x`, as `ln_1p(-y)` if `x` is the larger and not exactly `1 - y` (see
 /// `incbet_pow`), and else as in xsf, as the callers amplify a different rounding `a` times
 fn incbet_ln(x: f64, y: f64) -> f64 {
-    if x <= y || (1.0 - x) - y == 0.0 {
-        x.ln()
-    } else {
-        (-y).ln_1p()
-    }
+    if x <= y || (1.0 - x) - y == 0.0 { x.ln() } else { (-y).ln_1p() }
 }
 
 /// Power series for incomplete beta integral.
@@ -176,11 +168,7 @@ pub(crate) fn incbet_ln_pow_asymp(p: f64, q: f64, v: f64, t: f64) -> Option<f64>
 /// `ln(x) + psi(b)`, as `ln(b x)` for `b eps > 0.02`, where `psi(b)` is `ln(b)` up to `eps / 0.04`,
 /// which avoids the cancellation
 fn incbet_ln_x_psi(b: f64, x: f64) -> f64 {
-    if b * MACHEP <= 0.02 {
-        x.ln() + psi(b)
-    } else {
-        (b * x).ln()
-    }
+    if b * MACHEP <= 0.02 { x.ln() + psi(b) } else { (b * x).ln() }
 }
 
 /// `1 - I_x(a, b)` for small `a`, `b x <= 1` and `x <= 0.95`, as `-expm1(ln(I_x(a, b)))`
@@ -291,11 +279,7 @@ pub(crate) fn incbet_lnpow(a: f64, b: f64, x: f64, y: f64) -> f64 {
     let d = x * b - y * a;
     // 1 + d / a = c x / a can be close to 0, so its log is then computed directly
     let t = d / a;
-    let phi_a = if t > -0.5 {
-        log1pmx(t)
-    } else {
-        (c * x / a).ln() - t
-    };
+    let phi_a = if t > -0.5 { log1pmx(t) } else { (c * x / a).ln() - t };
     a * phi_a + b * log1pmx(-d / b) + 0.5 * (a / c * (b / TAU)).ln() + incbet_corr(a, b)
 }
 
@@ -377,11 +361,7 @@ fn incbet_basym(a: f64, b: f64, lambda: f64) -> f64 {
 /// `a > 1.3e154`).
 fn incbet_term(x: f64, k1: f64, k2: f64, k3: f64, k4: f64) -> f64 {
     let (num, den) = (x * k1 * k2, k3 * k4);
-    if num.is_finite() && den.is_finite() {
-        num / den
-    } else {
-        x * (k1 / k3) * (k2 / k4)
-    }
+    if num.is_finite() && den.is_finite() { num / den } else { x * (k1 / k3) * (k2 / k4) }
 }
 
 /// Continued fraction expansion #1 for incomplete beta integral
@@ -601,11 +581,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         let pseries_y = aa * yy <= 1.0 && 50.0 * (1.0 - bb.ln()) * yy < bb
             || bb <= INCBET_PSERIES_COMPL_MAX && aa * yy <= INCBET_PSERIES_COMPL_AY_MAX;
         flag = past_mean || pseries_y;
-        let (a, b, xc, x) = if flag {
-            (bb, aa, xx, yy)
-        } else {
-            (aa, bb, yy, xx)
-        };
+        let (a, b, xc, x) = if flag { (bb, aa, xx, yy) } else { (aa, bb, yy, xx) };
 
         if flag && (b * x) <= 1.0 && x <= 0.95 {
             // Unlike in xsf, the small `1 - I_x(a, b)` is computed directly for small `a`
@@ -642,11 +618,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
         let mut t = b * incbet_ln(xc, x);
         // Unlike in xsf, also for `a + b >= MAXGAM` where `B(a, b)` and `x^a (1-x)^b / a` are normal,
         // as the logarithms below lose `|ln(I_x(a, b))| eps`
-        let bt = if y + t - a.ln() > -MAXLOG {
-            beta(a, b)
-        } else {
-            0.0
-        };
+        let bt = if y + t - a.ln() > -MAXLOG { beta(a, b) } else { 0.0 };
         if bt >= f64::MIN_POSITIVE {
             t = incbet_pow(xc, x, b);
             t *= incbet_pow(x, xc, a);
@@ -726,12 +698,7 @@ pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-#[doc(
-    alias = "inc_beta",
-    alias = "beta_inc",
-    alias = "ibeta",
-    alias = "incbet"
-)]
+#[doc(alias = "inc_beta", alias = "beta_inc", alias = "ibeta", alias = "incbet")]
 #[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
     // Cephes `incbet` (SciPy wraps Boost `ibeta`)

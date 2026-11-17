@@ -85,11 +85,7 @@ fn test_trivariate_normal_cdf() {
         [-1.0, 0.0, 1.0, 0.9, 0.8, 0.7],
         [1.0, 2.0, -0.5, -0.4, 0.6, -0.1],
     ];
-    let expected = [
-        0.292_929_637_622_110_7,
-        0.157_894_486_614_603_12,
-        0.292_319_806_202_785_64,
-    ];
+    let expected = [0.292_929_637_622_110_7, 0.157_894_486_614_603_12, 0.292_319_806_202_785_64];
     let actual = args.map(|[h1, h2, h3, r12, r13, r23]| {
         xsf::trivariate_normal_cdf(h1, h2, h3, r12, r13, r23, 1e-14)
     });
@@ -105,14 +101,8 @@ fn test_trivariate_normal_cdf() {
     xsref::np_assert_allclose!([p], [p_ref], rtol = 1e-15);
 
     let inf = f64::INFINITY;
-    assert_eq!(
-        xsf::trivariate_normal_cdf(-inf, 0.0, 0.0, 0.2, -0.3, 0.4, 1e-7),
-        0.0
-    );
-    assert_eq!(
-        xsf::trivariate_normal_cdf(inf, inf, inf, 0.2, -0.3, 0.4, 1e-7),
-        1.0
-    );
+    assert_eq!(xsf::trivariate_normal_cdf(-inf, 0.0, 0.0, 0.2, -0.3, 0.4, 1e-7), 0.0);
+    assert_eq!(xsf::trivariate_normal_cdf(inf, inf, inf, 0.2, -0.3, 0.4, 1e-7), 1.0);
     assert_eq!(
         xsf::trivariate_normal_cdf(1.0, inf, 2.0, 0.2, -0.3, 0.4, 1e-7),
         xsf::bivariate_normal_cdf(1.0, 2.0, -0.3)

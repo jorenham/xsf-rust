@@ -56,10 +56,7 @@ fn test_bessel_i_near_negative_integer() {
 #[test]
 fn test_bessel_miller_normalization() {
     // 2 < |z| < 21.8, where AMOS uses the Miller algorithm; Arb references
-    let actual = [
-        xsf::bessel_j(-0.3, c64(14.0, 3.0)),
-        xsf::bessel_i(0.3, c64(18.2, 0.5)),
-    ];
+    let actual = [xsf::bessel_j(-0.3, c64(14.0, 3.0)), xsf::bessel_i(0.3, c64(18.2, 0.5))];
     let expected = [
         c64(0.732_258_715_423_858, -1.985_838_727_686_285_7),
         c64(6_659_440.736_169_231, 3_519_109.449_188_194_2),
@@ -77,11 +74,8 @@ fn test_bessel_i_small_x_k_overflow() {
         xsf::bessel_i(-40.000_001_094_185_65, 4.407_681_896_392_152_6e-7),
         xsf::bessel_i(-48.000_001, 9.813_429_518_583_089e-6),
     ];
-    let expected = [
-        8.829_186_306_726_423e-306,
-        4.182_877_977_322_057_6e306,
-        1.797_693_134_862_233_8e308,
-    ];
+    let expected =
+        [8.829_186_306_726_423e-306, 4.182_877_977_322_057_6e306, 1.797_693_134_862_233_8e308];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 
     // mpmath: besseli(-3.000053769783958, 0.5818348207903663) = 1.8e-19 (cancellation, not overflow)
@@ -121,16 +115,10 @@ fn test_bessel_i_large_v_cancellation() {
 fn test_bessel_i_huge_v_laplace_limit() {
     // x / v near the Laplace limit, where eta = 0, but v eta still over- or underflows
     assert_eq!(xsf::bessel_i(1e100, 6.627_434_193_491_815e99), 0.0);
-    assert_eq!(
-        xsf::bessel_i(1e154, 6.627_434_193_491_816e153),
-        f64::INFINITY
-    );
+    assert_eq!(xsf::bessel_i(1e154, 6.627_434_193_491_816e153), f64::INFINITY);
     assert_eq!(xsf::bessel_i(1e155, 6.627_434_193_491_815e154), 0.0);
     // 2 pi v overflows
-    assert_eq!(
-        xsf::bessel_i(1e308, 6.627_434_193_491_816e307),
-        f64::INFINITY
-    );
+    assert_eq!(xsf::bessel_i(1e308, 6.627_434_193_491_816e307), f64::INFINITY);
 }
 
 #[test]
@@ -295,10 +283,7 @@ fn test_bessel_jyi_near_overflow() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-12);
     // mpmath: 1.9e308 and 1.99e-37 (exp(-2x) underflows, so no retry)
-    for (v, x) in [
-        (-2.000_000_000_000_000_4, 3.057_653_761_164_066_6e-162),
-        (-840.25, 400.0),
-    ] {
+    for (v, x) in [(-2.000_000_000_000_000_4, 3.057_653_761_164_066_6e-162), (-840.25, 400.0)] {
         assert_eq!(xsf::bessel_ie(v, x), f64::INFINITY);
     }
     // Arb: 1.4501132090238621e-21
@@ -493,11 +478,7 @@ fn test_bessel_j_turning_point() {
     // Arb, by DLMF 10.20.4 up to A_1 and B_1: an ulp below x = v, where eta ~ v w^3 / 3 cancels
     // in its closed form
     let expected = [1.891_197_090_318_688e-8];
-    np_assert_allclose!(
-        [xsf::bessel_j(1e22, 9.999_999_999_999_998e21)],
-        expected,
-        rtol = 1e-15
-    );
+    np_assert_allclose!([xsf::bessel_j(1e22, 9.999_999_999_999_998e21)], expected, rtol = 1e-15);
 }
 
 #[test]
@@ -557,22 +538,13 @@ fn test_bessel_y_turning_point() {
     np_assert_allclose!([xsf::bessel_y(1e300, 1e300)], expected, rtol = 1e-15);
     // Arb, by DLMF 10.20.5 up to A_1 and B_1: an ulp below x = v
     let expected = [-3.918_787_372_858_491e-8];
-    np_assert_allclose!(
-        [xsf::bessel_y(1e22, 9.999_999_999_999_998e21)],
-        expected,
-        rtol = 1e-15
-    );
+    np_assert_allclose!([xsf::bessel_y(1e22, 9.999_999_999_999_998e21)], expected, rtol = 1e-15);
 }
 
 #[test]
 fn test_bessel_j_turning_point_negative_order() {
     // Arb: besselj(v, x) for v <= -10 below and around x = |v|
-    let vx = [
-        (-100.5, 95.0),
-        (-50.5, 20.0),
-        (-2000.5, 2020.0),
-        (-301.0, 270.0),
-    ];
+    let vx = [(-100.5, 95.0), (-50.5, 20.0), (-2000.5, 2020.0), (-301.0, 270.0)];
     let expected = [
         0.523_152_470_400_604_5,
         34_050_157_434_984.086,
@@ -621,13 +593,7 @@ fn test_bessel_jy_above_turning_point() {
 fn test_bessel_jy_above_turning_point_recurrence() {
     // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [1.11, 1.36] with eta < 3, where AMOS
     // loses up to ~80 eps of their amplitude
-    let vx = [
-        (20.0, 24.0),
-        (30.5, 35.0),
-        (33.0, 38.0),
-        (58.0, 65.0),
-        (-41.5, 47.5),
-    ];
+    let vx = [(20.0, 24.0), (30.5, 35.0), (33.0, 38.0), (58.0, 65.0), (-41.5, 47.5)];
     let expected = [
         0.161_912_651_664_495_28,
         0.145_025_859_216_876_58,
@@ -978,10 +944,7 @@ fn test_itj0y0_mid_x() {
         (xsf::it2j0y0(20.0).0, 2.877_310_607_840_809_7, 1e-15),
         (xsf::it2j0y0(21.28).1, 9.723_256_856_027_431e-6, 1e-10),
     ] {
-        assert!(
-            (actual / expected - 1.0).abs() < rtol,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < rtol, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1002,10 +965,7 @@ fn test_iti0k0_series_near_40() {
         (xsf::it2i0k0(39.25).0, 188_389_991_318_682.9),
         (xsf::it2i0k0(39.75).0, 304_585_988_297_001.7),
     ] {
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1017,26 +977,15 @@ fn test_iti0k0_large_x() {
         (xsf::it1i0k0(30.0).0, 795_538_858_184.723_6, 1e-12),
         (xsf::it1i0k0(40.0).0, 1.508_971_508_271_920_2e16, 1e-14),
         (xsf::it2i0k0(40.0).0, 387_326_525_512_364.4, 1e-14),
-        (
-            xsf::it2i0k0(12.014_948_790_755_168).1,
-            1.616_101_465_331_337_3e-7,
-            1e-14,
-        ),
-        (
-            xsf::it2i0k0(13.525_431_954_096_453).1,
-            3.023_995_513_484_374e-8,
-            1e-14,
-        ),
+        (xsf::it2i0k0(12.014_948_790_755_168).1, 1.616_101_465_331_337_3e-7, 1e-14),
+        (xsf::it2i0k0(13.525_431_954_096_453).1, 3.023_995_513_484_374e-8, 1e-14),
         (xsf::it2i0k0(1.0625).1, 0.184_084_183_639_630_33, 1e-14),
         (xsf::it2i0k0(30.0).1, 6.780_268_362_546_424e-16, 1e-14),
         (xsf::it2i0k0(39.5).1, 3.399_304_068_768_309e-20, 1e-14),
         (xsf::it2i0k0(40.0).1, 2.024_204_614_539_913_3e-20, 1e-14),
         (xsf::it2i0k0(100.0).1, 4.588_521_432_774_676e-47, 1e-14),
     ] {
-        assert!(
-            (actual / expected - 1.0).abs() < rtol,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < rtol, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1051,10 +1000,7 @@ fn test_itk0_mid_x() {
         (13.0, 1.570_795_574_915_093_5),
     ] {
         let actual = xsf::it1i0k0(x).1;
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-15, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1092,10 +1038,7 @@ fn test_besselpoly_large_a() {
         (200.0, 0.5, 5.0, 0.000_376_502_079_621_611_3),
     ] {
         let actual = xsf::besselpoly(a, lambda, v);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1109,10 +1052,7 @@ fn test_besselpoly_large_order() {
         (41.0, -1.0, 398.5, 2.303_483_041_345_722_4e-227),
     ] {
         let actual = xsf::besselpoly(a, lambda, v);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-12,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-12, "{actual:e} != {expected:e}");
     }
 }
 
@@ -1144,10 +1084,7 @@ fn test_besselpoly_gamma_overflow() {
         (5.0, -0.5, 210.25, 9.512_379_993_975_827e-255),
     ] {
         let actual = xsf::besselpoly(a, lambda, v);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-12,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-12, "{actual:e} != {expected:e}");
     }
     // `a^v` overflows, but `lambda` is infinite
     assert_eq!(xsf::besselpoly(1e-29, f64::INFINITY, -10.5), 0.0);
@@ -1171,10 +1108,7 @@ fn test_besselpoly_negative_a_and_poles() {
         (-0.5, 2.0, -1.0, 0.114_903_484_931_900_48),
     ] {
         let actual = xsf::besselpoly(a, lambda, v);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual:e} != {expected:e}");
     }
     assert!(xsf::besselpoly(-1.0, 0.0, 0.5).is_nan());
 
@@ -1195,10 +1129,7 @@ fn test_besselpoly_negative_a_and_poles() {
         [-1.242_843_490_019_327_6e-17],
         rtol = 1e-15
     );
-    assert_eq!(
-        xsf::besselpoly(1.0, -4_503_599_627_370_499.0, 0.0),
-        f64::INFINITY
-    );
+    assert_eq!(xsf::besselpoly(1.0, -4_503_599_627_370_499.0, 0.0), f64::INFINITY);
 }
 
 // Riccati-Bessel
@@ -1283,14 +1214,7 @@ fn test_riccati_j_all_orders() {
     let (rj, dj) = xsf::riccati_j::<3>(1e-150);
     np_assert_allclose!(
         [rj[0], rj[1], rj[2], dj[0], dj[1], dj[2]],
-        [
-            1e-150,
-            3.333_333_333_333_333e-301,
-            0.0,
-            1.0,
-            6.666_666_666_666_667e-151,
-            2e-301
-        ],
+        [1e-150, 3.333_333_333_333_333e-301, 0.0, 1.0, 6.666_666_666_666_667e-151, 2e-301],
         rtol = 1e-15
     );
     let (rj, dj) = xsf::riccati_j::<2>(1e-5);
@@ -1468,9 +1392,7 @@ fn test_jahnke_emden_lambda_tiny_x() {
         for x in [0.0, 1e-101, 1e-50] {
             let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
             let v0 = v - 3.0;
-            let dlr: Vec<f64> = (0..4)
-                .map(|k| -x / (2.0 * (v0 + f64::from(k) + 1.0)))
-                .collect();
+            let dlr: Vec<f64> = (0..4).map(|k| -x / (2.0 * (v0 + f64::from(k) + 1.0))).collect();
             assert_eq!(vl, [1.0; 4], "v = {v}, x = {x}");
             np_assert_allclose!(&dl, &dlr, rtol = 1e-15);
         }
@@ -1546,16 +1468,10 @@ fn test_jahnke_emden_lambda_negative_x() {
     // Lambda_v is even, so Lambda_v' is odd
     for v in [2.0, 1.5, 500.0] {
         for x in [2.0, 20.0, 60.0] {
-            let ((vl, dl), (vln, dln)) = (
-                xsf::jahnke_emden_lambda(v, x),
-                xsf::jahnke_emden_lambda(v, -x),
-            );
+            let ((vl, dl), (vln, dln)) =
+                (xsf::jahnke_emden_lambda(v, x), xsf::jahnke_emden_lambda(v, -x));
             assert_eq!(vln, vl, "v = {v}, x = {x}");
-            assert_eq!(
-                dln,
-                dl.iter().map(|d| -d).collect::<Vec<_>>(),
-                "v = {v}, x = {x}"
-            );
+            assert_eq!(dln, dl.iter().map(|d| -d).collect::<Vec<_>>(), "v = {v}, x = {x}");
         }
     }
 }
@@ -1564,24 +1480,9 @@ fn test_jahnke_emden_lambda_negative_x() {
 fn test_jahnke_emden_lambda_large_x() {
     // Arb; NaN in xsf from about x = 4476, as the backward recurrences overflow
     for (v, x, k, expected) in [
-        (
-            2.0,
-            5000.0,
-            2,
-            [2.126_507_932_532_124_6e-9, -2.919_271_034_712_797e-9],
-        ),
-        (
-            2.0,
-            9215.6,
-            2,
-            [6.780_524_556_275_264e-10, -3.916_157_000_109_374e-10],
-        ),
-        (
-            5000.5,
-            5000.0,
-            2,
-            [1.185_448_223_000_514_9e-10, -1.870_246_475_852_011e-11],
-        ),
+        (2.0, 5000.0, 2, [2.126_507_932_532_124_6e-9, -2.919_271_034_712_797e-9]),
+        (2.0, 9215.6, 2, [6.780_524_556_275_264e-10, -3.916_157_000_109_374e-10]),
+        (5000.5, 5000.0, 2, [1.185_448_223_000_514_9e-10, -1.870_246_475_852_011e-11]),
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([vl[k], dl[k]], expected, rtol = 1e-13);
@@ -1593,27 +1494,11 @@ fn test_jahnke_emden_lambda_large_v_and_x() {
     // Arb; in xsf, the scale of `J_v(x)` underflows around order `x / 2`, and `J_v(x)` itself
     // for `v > x`, which made these orders of magnitude off or 0
     for (v, x, expected) in [
-        (
-            2542.59,
-            1764.81,
-            [2.365_382_472_695_595_7e-143, -9.539_856_558_966_074e-144],
-        ),
-        (
-            4485.0,
-            3156.13,
-            [5.456_508_530_235_721e-260, -2.244_000_327_982_604_5e-260],
-        ),
-        (
-            4421.5,
-            3132.18,
-            [4.873_607_538_273_819e-260, -2.023_149_554_161_378_5e-260],
-        ),
+        (2542.59, 1764.81, [2.365_382_472_695_595_7e-143, -9.539_856_558_966_074e-144]),
+        (4485.0, 3156.13, [5.456_508_530_235_721e-260, -2.244_000_327_982_604_5e-260]),
+        (4421.5, 3132.18, [4.873_607_538_273_819e-260, -2.023_149_554_161_378_5e-260]),
         // above `msta1(x, 200)`, where the power series cancels
-        (
-            5016.0,
-            3363.0,
-            [7.165_465_027_825_305e-262, -2.757_026_551_415_938_5e-262],
-        ),
+        (5016.0, 3363.0, [7.165_465_027_825_305e-262, -2.757_026_551_415_938_5e-262]),
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-13);
@@ -1625,10 +1510,7 @@ fn test_jahnke_emden_lambda_series_cancellation() {
     // Arb; xsf sums the power series up to `x = 12`, which loses up to about 1e-12 there
     for (v, expected) in [
         (1.0, [-0.038_484_579_775_113_284, 0.010_677_986_802_471_08]),
-        (
-            1.5,
-            [-0.017_753_292_661_966_142, -0.008_619_580_458_152_027],
-        ),
+        (1.5, [-0.017_753_292_661_966_142, -0.008_619_580_458_152_027]),
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, 11.9);
         np_assert_allclose!([vl[1], dl[1]], expected, rtol = 1e-14);
@@ -1640,22 +1522,10 @@ fn test_jahnke_emden_lambda_large_x_seeds() {
     // Arb; xsf starts the recurrences from the asymptotic expansions of `J_v0(x)` and
     // `J_{v0+1}(x)`, which lose up to about 4e-8 here
     for (v, x, expected) in [
-        (
-            2.25,
-            12.3,
-            [-0.003_104_530_913_754_87, -0.008_465_513_461_267_032],
-        ),
-        (
-            13.25,
-            674_667.78,
-            [-1.015_759_064_595_633_6e-67, -6.505_120_550_041_504e-67],
-        ),
+        (2.25, 12.3, [-0.003_104_530_913_754_87, -0.008_465_513_461_267_032]),
+        (13.25, 674_667.78, [-1.015_759_064_595_633_6e-67, -6.505_120_550_041_504e-67]),
         // `Lambda_41(x)` is subnormal
-        (
-            40.25,
-            1e9,
-            [3.152_575_638_733_010_5e-307, 2.160_038_828_520_150_6e-307],
-        ),
+        (40.25, 1e9, [3.152_575_638_733_010_5e-307, 2.160_038_828_520_150_6e-307]),
     ] {
         let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
         np_assert_allclose!([vl[vl.len() - 1], dl[dl.len() - 1]], expected, rtol = 1e-14);

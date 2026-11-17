@@ -648,12 +648,7 @@
 //!
 
 #![forbid(unsafe_code)]
-#![warn(
-    missing_debug_implementations,
-    missing_docs,
-    rust_2018_idioms,
-    unreachable_pub
-)]
+#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms, unreachable_pub)]
 #![warn(clippy::pedantic)]
 // Allow the common porting idioms, to keep the Rust close to the C++
 #![allow(

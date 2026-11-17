@@ -5,8 +5,7 @@ const NINF: f64 = f64::NEG_INFINITY;
 /// Return the maximum value in a slice of f64, propagating NaNs
 #[inline]
 fn fmax(xs: &[f64]) -> f64 {
-    xs.iter()
-        .fold(NINF, |a, &b| if a >= b || a.is_nan() { a } else { b })
+    xs.iter().fold(NINF, |a, &b| if a >= b || a.is_nan() { a } else { b })
 }
 
 /// Compute the log of the sum of exponentials of input elements
@@ -43,9 +42,7 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
     }
 
     // for precision, these terms are separated out of the main sum.
-    let m: f64 = xs
-        .iter()
-        .fold(0.0, |acc, &x| if x == x_max { acc + 1.0 } else { acc });
+    let m: f64 = xs.iter().fold(0.0, |acc, &x| if x == x_max { acc + 1.0 } else { acc });
     let xs = xs.iter().map(|&x| if x == x_max { NINF } else { x });
 
     // Shift, exponentiate, and sum
