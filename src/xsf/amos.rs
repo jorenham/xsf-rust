@@ -4852,7 +4852,6 @@ fn unhj(
     let mut bsumr: f64;
     let mut bsumi: f64;
     let mut test: f64;
-    let ex1 = 1. / 3.;
     let ex2 = 2. / 3.;
     let hpi = 1.57079632679489662;
     let pi = 3.14159265358979324;
@@ -4894,7 +4893,8 @@ fn unhj(
     //
     // COMPUTE IN THE FOURTH QUADRANT
     //
-    let fn13: f64 = fnu.powf(ex1);
+    // Unlike in xsf, cbrt instead of pow, whose rounded exponent 1/3 loses eps ln(fnu) / 12.
+    let fn13: f64 = fnu.cbrt();
     let fn23: f64 = fn13 * fn13;
     let rfn13: f64 = 1.0 / fn13;
     w2 = 1.0 - zb * zb;

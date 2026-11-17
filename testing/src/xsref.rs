@@ -431,6 +431,9 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "cyl_bessel_y" if x.len() == 3 && x[0].abs() > 2f64.powi(51) && x[2] == 0.0 => {
             f64::INFINITY
         },
+        // the reference is off by 3e-11 (Arb): AMOS loses ~eps |z| of the phase here, and an ulp
+        // of the platform's cbrt in `unhj` moves Y_v by 2e-11
+        "cyl_bessel_y" if x == [-1_008.459_838_867_187_5, 16_229.25, 0.0] => 1e-10,
         // xsf overflows early for a complex z = x[1] + x[2] i
         "cyl_bessel_i" if x.len() == 3 && BESSEL_I_OVERFLOWS.contains(&x[0]) => f64::INFINITY,
         _ => 0.0,
