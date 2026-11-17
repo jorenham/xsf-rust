@@ -1642,9 +1642,9 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// # Returns `None`
 ///
 /// - for $p > q + 1$, unless it is a polynomial or $_2F_0$ with $z \lt 0$;
-/// - for $_2F_0$ where $U$ can't be computed accurately or $(-1/z)^{a_1}$ or $U$ isn't normal, and
-///   neither its series up to its smallest term nor its Weniger transformation is accurate, e.g.
-///   for some $z \lt -1$ or $a_1, a_2 \ll 0$;
+/// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
+///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
+///   Weniger transformation, e.g. for some $z \lt -1$ or $a_1, a_2 \ll 0$;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
@@ -1724,13 +1724,20 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
             // remainder)
             let scale = x.min(f64::EPSILON.recip());
-            let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
+            let series = || accurate(asymptotic_sum(terms.clone(), settled, scale, |_| 0.0));
+            // Try Weniger when both U evaluations and the truncated series miss the tolerance,
+            // with the rounding errors of the ratios up to `settled`, which its estimate misses
+            // (4 eps each, as in `pfq_weniger`, added linearly as `a + n` can round alike)
+            let weniger = || {
+                let (y, err) = pfq_weniger(&[a1, a2], &[1.0], z)?;
+                let drift = terms
+                    .clone()
+                    .zip(0..=settled as u32)
+                    .map(|(t, n)| f64::from(n) * t.abs());
+                accurate((y, err + 4.0 * f64::EPSILON * drift.sum::<f64>()))
+            };
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2
-            // and last, Weniger's transformation of the series, which also sums it to the Borel
-            // sum, e.g. for x near 10 and small a_i, where chgu has 12 digits and the smallest
-            // term is too large
-            let weniger = || accurate(pfq_weniger(&[a1, a2], &[1.0], z)?);
             borel(a1, a2)
                 .or_else(series)
                 .or_else(|| borel(a2, a1))
