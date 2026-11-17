@@ -729,16 +729,22 @@ fn test_hyppfq_2f0() {
         ([1.5, 2.5], -1e-300, 1.0),
         ([1.5, 2.5], -1e-308, 1.0),
         ([1.5, 2.5], -1e-320, 1.0),
+        // where `chguit` has more than 9 digits
+        ([2.25, 3.25], -2.0, 0.025_935_294_832_104_445),
+        ([1.25, 2.25], -1e3, 1.557_385_299_869_812_4e-4),
+        ([2.5, 3.25], -2.0, 0.018_699_308_601_436_784),
+        ([3.5, 7.5], -0.5, 0.008_273_723_913_148_375),
     ] {
         for a in [a, [a[1], a[0]]] {
             let actual = hyppfq(&a, &[], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
-    // with a1 and a2 swapped, as `chgu` estimates 9 digits for U(a1, a1 - a2 + 1, x) (Arb)
+    // with a1 and a2 swapped, as `chgu` estimates 12 digits for U(a1, a1 - a2 + 1, x), by `chgus`
+    // and `chguit` (Arb)
     for (a, z, expected) in [
-        ([2.25, 3.25], -2.0, 0.025_935_294_832_104_445),
-        ([1.25, 2.25], -1e3, 1.557_385_299_869_812_4e-4),
+        ([7.3, -7.69], -2.7, 169_644_321_290.509_92),
+        ([4.3, 7.0], -0.97, 5.585_769_788_936_731e-4),
     ] {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);

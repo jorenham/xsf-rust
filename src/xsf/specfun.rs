@@ -409,6 +409,8 @@ pub(super) fn hypu_fwd_b(
     start: impl Fn(f64) -> (f64, i32),
 ) -> (f64, i32) {
     let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
+    // (fewer for a subnormal start, as in `chgu`)
+    let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
     let mut c = b - n + 1.0;
@@ -419,8 +421,18 @@ pub(super) fn hypu_fwd_b(
         (p0, p1) = (p1, next(p0, p1));
         c += 1.0;
     }
-    let id = digits_left(id0.min(id1), p1, u1 - p1);
+    let id = digits_left(id_start, p1, u1 - p1);
     (if u1.is_finite() { u1 } else { f64::NAN }, id)
+}
+
+/// `id`, but at most the digits of a subnormal `u`, whose rounding error can be a few spacings
+/// (up to about 7 in the sum of a subnormal integrand in `chguit`, empirical)
+fn subnormal_digits(u: f64, id: i32) -> i32 {
+    const SPACINGS: f64 = 8.0;
+    if u == 0.0 || u.abs() >= f64::MIN_POSITIVE {
+        return id;
+    }
+    id.min((-(SPACINGS * f64::EPSILON * f64::MIN_POSITIVE / u.abs()).log10()) as i32)
 }
 
 /// The estimated number of digits of `p + q`, if `p` and `q` have `id` digits
