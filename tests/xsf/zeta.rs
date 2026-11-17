@@ -44,6 +44,7 @@ fn test_riemann_zeta_c64_near_eta_factor_zeros() {
     // 1 - 2^(1 - z) vanishes at 1 + 2 pi i k / ln(2) (reference values from Arb)
     for (z, expected) in [
         (c64(1.000_001, 1e-6), c64(500_000.577_215_737_7, -500_000.000_041_060_5)),
+        (c64(1.5, 1e-100), c64(2.612_375_348_685_488, -3.932_239_737_431_101_5e-100)),
         (c64(1.0, 1e-307), c64(0.577_215_664_901_532_9, -1.000_000_000_000_000_1e307)),
         (c64(0.0, 1e-307), c64(-0.5, -9.189_385_332_046_727e-308)),
         (c64(1e-300, 1e-300), c64(-0.5, -9.189_385_332_046_728e-301)),
@@ -58,8 +59,12 @@ fn test_riemann_zeta_c64_near_eta_factor_zeros() {
             c64(1.824_744_877_856_936_2, -0.216_035_216_066_775_78),
         ),
     ] {
-        let rel = (xsf::riemann_zeta(z) - expected).norm() / expected.norm();
-        assert!(rel < 1e-14, "riemann_zeta({z}): rel = {rel:e}");
+        // each part separately, as the norm hides e.g. Re zeta(1 + 1e-307i)
+        let w = xsf::riemann_zeta(z);
+        for (got, want) in [(w.re, expected.re), (w.im, expected.im)] {
+            let rel = (got - want).abs() / want.abs();
+            assert!(rel < 2e-14, "riemann_zeta({z}) = {w}: rel = {rel:e}");
+        }
     }
 }
 
