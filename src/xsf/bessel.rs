@@ -591,7 +591,7 @@ const UNHJ_SERIES_MAX_W: f64 = 0.49;
 
 /// The `eta` from which the sums of `amos::unhj` are accurate to a few eps beyond its power
 /// series (measured), for `x <= v`; below it their terms cancel
-const UNHJ_MIN_ETA: f64 = 6.0;
+const UNHJ_MIN_ETA: f64 = 4.0;
 
 /// `UNHJ_MIN_ETA` for `x > v`, where fewer terms cancel
 const UNHJ_MIN_ETA_OSC: f64 = 3.0;
