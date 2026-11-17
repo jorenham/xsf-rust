@@ -283,6 +283,21 @@ fn test_hyp0f1_complex_prefactor_overflow() {
 }
 
 #[test]
+fn test_hyp0f1_prefactor_overflow() {
+    // `Gamma(b) (-z)^((1-b)/2)` overflows, but not the result; Arb references
+    np_assert_allclose!(
+        [hyp0f1(-421.551_808_207_157_2, -688_130.703_894_470_9)],
+        [4.778_723_244_865_081e306],
+        rtol = 1e-14
+    );
+    np_assert_allclose!(
+        [hyp0f1(-49.348_226_434_036_14, -577_443_210_769_869.0)],
+        [-3.418_059_364_380_872_6e304],
+        rtol = 1e-12
+    );
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion

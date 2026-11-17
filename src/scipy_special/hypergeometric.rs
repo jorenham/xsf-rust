@@ -167,13 +167,6 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         }
     } else {
         let arg = (-z).sqrt();
-        let (prefactor, factors_normal) = if (v - 1.0).abs() > DEBYE_MIN_V1 {
-            gamma_pow(v, arg)
-        } else {
-            let (arg_pow, gamma_v) = (arg.powf(1.0 - v), crate::gamma(v));
-            let normal = arg_pow.is_normal() && gamma_v.is_normal();
-            (arg_pow * gamma_v, normal)
-        };
         let x = 2.0 * arg;
         // AMOS, as in xsf (SciPy uses Cephes `jv`)
         let j_v = crate::bessel_j(v, x);
@@ -189,14 +182,22 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         if shift.is_finite() {
             bess_val = bess_val * cos + shift;
         }
-        let out = prefactor * bess_val;
-        let prefactor_ok = factors_normal && prefactor.is_normal();
+        let (out, prefactor_ok) = if (v - 1.0).abs() > DEBYE_MIN_V1 {
+            (gamma_pow(v, arg, bess_val), true)
+        } else {
+            let (arg_pow, gamma_v) = (arg.powf(1.0 - v), crate::gamma(v));
+            let prefactor = arg_pow * gamma_v;
+            let normal = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
+            (prefactor * bess_val, normal)
+        };
 
-        // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows
+        // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows, with `J` in
+        // the exponent, as the prefactor alone can overflow where the result doesn't
         if prefactor_ok && out.is_normal() {
             out
         } else if bess_val.is_normal() {
-            (crate::xlogy(1.0 - v, arg) + crate::gammaln(v)).exp() * bess_val * crate::gammasgn(v)
+            let ln = crate::xlogy(1.0 - v, arg) + crate::gammaln(v) + bess_val.abs().ln();
+            ln.exp().copysign(bess_val) * crate::gammasgn(v)
         } else if 4.0 * -z < (v - 1.0).powi(2) && (v > 1.0 || !bess_val.is_finite()) {
             // Debye's expansion if J_{v-1}(2 sqrt(-z)) under- (or for v < 1, over-) flowed in its
             // non-oscillatory regime
@@ -207,22 +208,30 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     }
 }
 
-/// `Gamma(v) arg^(1-v)`, and whether its factors are normal, for `|v-1| > DEBYE_MIN_V1`
+/// `Gamma(v) arg^(1-v) j`, for `|v-1| > DEBYE_MIN_V1`
 ///
 /// Unlike in xsf, the ~v1 ln(v1) terms of its exponent cancel analytically (Stirling's formula, as
 /// in `hyp0f1_asy`), as the power `arg^(1-v)` loses ~eps v1 ln(arg).
-fn gamma_pow(v: f64, arg: f64) -> (f64, bool) {
+fn gamma_pow(v: f64, arg: f64, j: f64) -> f64 {
     // `ln(Gamma(v1 + 1) arg^-v1) = v1 (ln(v1 / arg) - 1) + ln(2 pi v1) / 2 + corr(v1)`
     let v1 = (Dd::new(v) - 1.0).abs();
     let e = (ln_dd(v1 / arg) - 1.0) * v1 + lgam_stirling_corr(v1.hi);
     let c = (2.0 * PI * v1.hi).sqrt();
     // DLMF 5.5.3: `Gamma(v) = pi v1 / (sin(pi v) Gamma(v1 + 1))` for `v < 1`
-    let (exp, f) = if v > 1.0 {
-        (exp_dd(e), c)
+    let (e, f) = if v > 1.0 {
+        (e, c)
     } else {
-        (exp_dd(-e), PI * v1.hi / (crate::sinpi(v) * c))
+        (-e, PI * v1.hi / (crate::sinpi(v) * c))
     };
-    (exp * f, exp.is_normal())
+    let exp = exp_dd(e);
+    let out = exp * f * j;
+    if (exp.is_normal() && out.is_normal()) || !j.is_normal() {
+        out
+    } else {
+        // `e^e` or a product over- or underflows, but maybe not the result
+        let m = f * j;
+        exp_dd(e + m.abs().ln()).copysign(m)
+    }
 }
 
 /// Whether Debye's expansion in `hyp0f1_asy` is accurate, i.e. more so than the Bessel functions
