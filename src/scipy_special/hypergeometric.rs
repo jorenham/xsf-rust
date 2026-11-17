@@ -366,7 +366,18 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         if !r.is_finite() || r == C64::ZERO {
             // the Bessel function over- or underflows, or rounds to 0 near a zero
             let asy = if v == 1.0 { None } else { hyp0f1_asy_c64(v, z) };
-            asy.unwrap_or(out)
+            asy.unwrap_or_else(|| {
+                // AMOS fails (NaN) for huge `v` or `|z|`. For `v - 1 > DEBYE_MIN_V1` on the axis,
+                // the real path (with `|J| <= 1`, DLMF 10.14.1) tells if the result underflows;
+                // elsewhere its phase can be lost, so this keeps the NaN.
+                if r.is_nan() && z.im == 0.0 && z.re < 0.0 && v - 1.0 > DEBYE_MIN_V1 {
+                    let f = hyp0f1_real(v, z.re);
+                    if f == 0.0 {
+                        return f.into();
+                    }
+                }
+                out
+            })
         } else if normal {
             out
         } else {

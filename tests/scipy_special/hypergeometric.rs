@@ -298,6 +298,41 @@ fn test_hyp0f1_prefactor_overflow() {
 }
 
 #[test]
+fn test_hyp0f1_complex_huge_b() {
+    // past the turning point `4 |z| = (b-1)^2`, where AMOS fails and the result underflows, as
+    // `Gamma(b) (-z)^((1-b)/2)` does and `|J_{b-1}| <= 1` (DLMF 10.14.1)
+    for (b, z) in [(1e18, -5e35), (3e10, -1e21)] {
+        for im in [0.0, -0.0] {
+            assert_eq!(hyp0f1(b, c64(z, im)), c64(0.0, 0.0));
+        }
+    }
+    // off the axis, where AMOS fails too, but the result need not underflow (mpmath contour
+    // quadrature: 1.45 + 0.198i, 1.18e26 + 1.02e26i, about -5.2e-318 + 3.1e-317i), no wrong 0
+    for (b, z) in [
+        (
+            3.334_286_344_827_101_4e17,
+            c64(-1.000_514_555_786_581_5e33, 1.501_255_051_533_844_6e34),
+        ),
+        (
+            3.876_701_454_231_036e19,
+            c64(-1.352_515_771_166_857_8e37, 2.029_426_880_398_685_5e38),
+        ),
+        (
+            3e15,
+            c64(-8.099_535_869_576_17e28, 1.215_321_563_150_820_3e30),
+        ),
+    ] {
+        let f = hyp0f1(b, z);
+        assert!(f.re != 0.0 || f.im != 0.0, "{f}");
+    }
+    // on the axis for small `b`, where the real path loses the phase (mpmath: 0.314, -5.35e-17,
+    // about -1.48e-323), no wrong value
+    for (b, z) in [(0.5, -1e32), (1.0, -1e64), (2.65, -1e300)] {
+        assert!(hyp0f1(b, c64(z, 0.0)).re.is_nan());
+    }
+}
+
+#[test]
 fn test_hyp0f1_large_b() {
     let bz = [
         // large-v asymptotic expansion
