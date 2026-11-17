@@ -1455,6 +1455,22 @@ fn itj0y0_neumann(x: f64) -> [f64; 4] {
     [tj, ttj, ty, tty]
 }
 
+/// The coefficients `a_k` of the asymptotic expansions of the integrals of `J0`, `Y0`, `H0` and
+/// `L0`, which `ITJYA`, `ITSH0` and `ITSL0` of specfun each compute with this recurrence
+pub(crate) const IT0_ASYMP: [f64; 25] = {
+    let mut a = [5.0 / 8.0; 25];
+    let (mut a0, mut k) = (1.0, 1);
+    while k < 25 {
+        let (kf, a1) = (k as f64, a[k - 1]);
+        a[k] = (1.5 * (kf + 0.5) * (kf + 5.0 / 6.0) * a1
+            - 0.5 * (kf + 0.5) * (kf + 0.5) * (kf - 0.5) * a0)
+            / (kf + 1.0);
+        a0 = a1;
+        k += 1;
+    }
+    a
+};
+
 fn itjya(x: f64) -> (f64, f64) {
     // Unlike in xsf (scipy/xsf#446), use the Neumann series for 0.5 <= x < 40. That leaves the
     // power series below to x < 0.5, and the asymptotic expansion to x >= 40.
@@ -1463,7 +1479,6 @@ fn itjya(x: f64) -> (f64, f64) {
         return (tj, ty);
     }
 
-    let mut a = [0.0; 18];
     let el = 0.5772156649015329;
     let eps = 1.0e-12;
 
@@ -1501,19 +1516,7 @@ fn itjya(x: f64) -> (f64, f64) {
         }
         ty = (ty1 - x * ty2) * 2.0 / PI;
     } else {
-        let mut a0 = 1.0;
-        let mut a1 = 5.0 / 8.0;
-        a[0] = a1;
-
-        for k in 1_u32..=16 {
-            let kf = f64::from(k);
-            let af = (1.5 * (kf + 0.5) * (kf + 5.0 / 6.0) * a1
-                - 0.5 * (kf + 0.5) * (kf + 0.5) * (kf - 0.5) * a0)
-                / (kf + 1.0);
-            a[k as usize] = af;
-            a0 = a1;
-            a1 = af;
-        }
+        let a = IT0_ASYMP;
         let mut bf = 1.0;
         let mut r = 1.0;
         for k in 1..=8 {
