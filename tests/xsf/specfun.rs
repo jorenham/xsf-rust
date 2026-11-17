@@ -640,6 +640,33 @@ fn test_hypu_b_near_one_cancel() {
     let actual = xsf::hypu(-166.125, 1.0099, 1e-4);
     xsref::np_assert_allclose!([actual], [9.921_163_464_098_675e297], rtol = 5e-15);
 
+    // Arb; 1e-2 <= |b - 1| < 2e-2, where the series cancel too (1.8e-13, 1.9e-13 and 6.3e-12 off
+    // in xsf)
+    let abx = [
+        (
+            -9.020_461_900_248_344,
+            0.988_292_371_968_017_2,
+            1.005_029_986_267_644_6e-11,
+        ),
+        (
+            -19.999_999_999_512_784,
+            0.982_396_189_761_965_6,
+            9.401_094_988_206_325e-8,
+        ),
+        (
+            -152.224_466_455_176_4,
+            1.011_810_039_356_033,
+            0.000_375_496_677_986_926_27,
+        ),
+    ];
+    let expected = [
+        -221_930.040_666_647_98,
+        2.283_020_666_022_678e18,
+        1.714_666_774_941_507_6e267,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-15);
+
     // Arb; the other methods are more accurate here
     let actual = [
         xsf::hypu(165.0, 1.0099, 0.01),
