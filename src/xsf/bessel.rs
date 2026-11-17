@@ -8,6 +8,7 @@ use num_complex::Complex;
 use num_traits::ToPrimitive;
 
 use crate::utils::{EGAMMA, FRAC_PI_SQ_6, mul_exp, neg_if_odd};
+use crate::xsf::airy::{airy, airy_scaled};
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::consts::{MAXLOG, MINLOG};
@@ -585,6 +586,66 @@ fn bessel_jy_debye(v: f64, x: f64) -> (f64, f64) {
     (amp * j, amp * y)
 }
 
+/// The `w` up to which `amos::unhj` sums power series (those are for `w^2 <= 1/4`)
+const UNHJ_SERIES_MAX_W: f64 = 0.49;
+
+/// The `eta` from which the sums of `amos::unhj` are accurate to a few eps beyond its power
+/// series (measured); below it their terms cancel
+const UNHJ_MIN_ETA: f64 = 6.0;
+
+/// The `w` up to which `eta` is summed by its series in `w`; the closed forms cancel to `~w^3`,
+/// and beyond it `v` is small for any `eta < 2 MAXLOG`
+const ETA_SERIES_MAX_W: f64 = 1e-3;
+
+/// `(J_v(x), Y_v(x))` by the uniform expansions in Airy functions (DLMF 10.20.4, 10.20.5) with
+/// `phi` and the sums of AMOS, or `None` where those are inaccurate
+///
+/// With `w = sqrt|1 - (x / v)^2|`, the Airy functions are at `+-t` for `eta = 2/3 t^(3/2)`:
+/// `v (atanh(w) - w)` for `x <= v`, else `v (w - atan(w))` (DLMF 10.20.2, 10.20.3). `eta` is in
+/// double-double, as it is the exponent or the phase of `J` and `Y`.
+fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
+    if !(v >= LARGE_ORDER_MIN_V && x > 0.0) {
+        return None;
+    }
+    let u = (Dd::new(v) - x) / v * ((Dd::new(v) + x) / v);
+    let w = if x == v { u } else { u.abs().sqrt() };
+    let eta = if w.hi <= ETA_SERIES_MAX_W {
+        // w^3 sum_k u^k / (2 k + 3), with u = 1 - (x / v)^2 = +-w^2
+        let tail = u.hi * (0.2 + u.hi * (1.0 / 7.0 + u.hi / 9.0));
+        u.abs() * w * (Dd::new(1.0) / 3.0 + tail)
+    } else if x <= v {
+        ((w + 1.0) * v / x).log() - w
+    } else {
+        w - w.atan()
+    } * v;
+    // from eta = 2 MAXLOG on, J = 0 and Y = -inf
+    if !(eta.hi < 2.0 * MAXLOG && (w.hi <= UNHJ_SERIES_MAX_W || eta.hi >= UNHJ_MIN_ETA)) {
+        return None;
+    }
+    let [mut phi, mut arg, mut zeta1, mut zeta2, mut asum, mut bsum] = [C64::ZERO; 6];
+    let (z, (tol, ..)) = (c64(x, 0.0), amos::MACH);
+    #[rustfmt::skip]
+    amos::unhj(z, v, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
+    let (phi, asum, bsum) = (phi.re, asum.re, bsum.re);
+    // J (Y) from Ai (-Bi) and its derivative
+    let sum = |f: f64, fp: f64| phi * (f * asum + fp * bsum);
+    let t = (1.5 * eta.hi).cbrt().powi(2);
+    if x <= v {
+        // Ai(t) e^eta and Bi(t) e^-eta
+        let [ai, aip, bi, bip] = airy_scaled(t);
+        let j = sum(ai, aip) * (1.0 - eta.lo);
+        let y = -sum(bi, bip) * (1.0 + eta.lo);
+        return Some((j * (-eta.hi).exp(), mul_exp(y, eta.hi)));
+    }
+    // The Airy functions at dt - t, to first order in the rounding error dt of -t, as
+    // f''(-t) = -t f(-t) for f = Ai, Bi.
+    let s = Dd::new(t).sqrt();
+    let dt = (s * t - eta * 1.5).hi / (1.5 * s.hi);
+    let sum_shifted = |f: f64, fp: f64| sum(f + fp * dt, fp - t * f * dt);
+    let [ai, aip, bi, bip] = airy(-t);
+    Some((sum_shifted(ai, aip), -sum_shifted(bi, bip)))
+}
+
 /// `(J_v(x), Y_v(x))` for `x > 0` by an expansion for large `|v|`, where one is accurate
 fn bessel_jy_large_order(v: f64, x: f64) -> Option<(f64, f64)> {
     debye_is_accurate(v, x).then(|| bessel_jy_debye(v, x))
@@ -593,7 +654,8 @@ fn bessel_jy_large_order(v: f64, x: f64) -> Option<(f64, f64)> {
 /// `J_v(x)` by `bessel_jy_large_order`, with `J_v(-x) = (-1)^v J_v(x)` for an integer `v`
 /// (DLMF 10.11.1)
 fn bessel_j_large_order(v: f64, x: f64) -> Option<f64> {
-    let (j, _) = bessel_jy_large_order(v, x.abs())?;
+    let x_abs = x.abs();
+    let (j, _) = bessel_jy_large_order(v, x_abs).or_else(|| bessel_jy_airy(v, x_abs))?;
     Some(if x < 0.0 && v % 2.0 != 0.0 { -j } else { j })
 }
 
@@ -603,8 +665,8 @@ pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
     }
-    // Unlike in xsf, an expansion for large |v| is used where one is accurate, as the phase of
-    // AMOS loses ~eps x there.
+    // Unlike in xsf, an expansion for large |v| is used where one is accurate, as the phase and
+    // the exponent of AMOS lose ~eps x there.
     if let Some(j) = bessel_j_large_order(v, x) {
         return j;
     }

@@ -4775,7 +4775,7 @@ fn uchk(y: C64, ascle: f64, tol: f64) -> i32 {
     }
 }
 
-fn unhj(
+pub(crate) fn unhj(
     z: C64,
     fnu: f64,
     ipmtr: i32,
