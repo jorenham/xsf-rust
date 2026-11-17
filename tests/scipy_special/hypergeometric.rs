@@ -178,8 +178,8 @@ fn test_hyp0f1_near_poles() {
         [c64(0.004_509_268_583_556_574, 0.007_071_343_041_396_766)],
         rtol = 1e-13
     );
-    let (b, z) = (-255.879, -700_206.0);
-    let expected = -1.795_061_091_116_758_4e243;
+    let (b, z) = (-255.878_361_452_585_15, -700_206.011_134_528_7);
+    let expected = -1.786_070_161_422_895_2e243;
     np_assert_allclose!([hyp0f1(b, z)], [expected], rtol = 1e-13);
     np_assert_allclose!([hyp0f1(b, c64(z, 0.0))], [c64(expected, 0.0)], rtol = 5e-13);
     np_assert_allclose!(
