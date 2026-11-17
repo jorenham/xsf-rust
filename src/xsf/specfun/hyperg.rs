@@ -1218,7 +1218,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// 3. If `hu0` has 9 to 11 digits, or more than step 2 (and isn't NaN), the result of step 2 only
 ///    replaces it if the two agree within 10 times its error estimate (step 2 can be far off, e.g.
 ///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`. If neither has `ID_ACCEPT`
-///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|`, and kept if it has more.
+///    digits, `chgul` is tried if step 1 skipped it for `x <= |b - 2a|` and step 2 had no recurrence
+///    in `b`, and kept if it has more.
 ///
 /// `ID_MIN` and the factor 10 are empirical.
 pub(crate) fn chgu(
@@ -1388,7 +1389,10 @@ pub(crate) fn chgu(
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
             let (u, id_rec) = super::hypu_rec(a, b, x);
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
-                (hu, id) = (u, ID_MIN);
+                // (at most `ID_MIN`, as the estimate of the recurrence in a misses its rounding
+                // errors, e.g. it gives 6.1e-5 with 15 estimated digits for U(-9.5, 2, x) = 9.5e-5,
+                // with x = 29.896902748015602 near a zero of U)
+                (hu, id) = (u, id_rec.min(ID_MIN));
             }
         }
     }
@@ -1402,8 +1406,11 @@ pub(crate) fn chgu(
     }
     // Unlike in xsf, chgul is the last resort where it was skipped as `unbounded`, e.g. for
     // U(172, 173 + 3e-14, 50), where chgus and chguit overflow, and U(171, 172 + 3e-14, 50), where
-    // chgus has too few digits
-    if unbounded && (hu.is_nan() || id < ID_ACCEPT) {
+    // chgus has too few digits. Not where step 2 has the recurrence in b (a < 1 and 3 <= b < 1000),
+    // as where it fails (near a negative integer a) the smallest term underestimates the error,
+    // e.g. it gives -9.8e7 for U(-3 - 5.6e-12, 904 + 1.2e-9, 442.7) = 1.8e69
+    let rec_b = a < 1.0 && (3.0..1000.0).contains(&b);
+    if unbounded && !rec_b && (hu.is_nan() || id < ID_ACCEPT) {
         let mut id_l = 0;
         let u = chgul(x, a, b, &mut id_l);
         if hu.is_nan() || id_l > id {
