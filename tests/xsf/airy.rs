@@ -148,6 +148,51 @@ fn test_airy_c64_large_re() {
 }
 
 #[test]
+fn test_airy_c64_stokes_line() {
+    // Arb: acb(z).airy(), and Bi e^-|Re zeta|; at ph z = pi/3, where the e^-zeta part of Bi is as
+    // large as its e^zeta part, and its conjugate
+    let z = c64(50.000_000_000_000_014, 86.602_540_378_443_86);
+    let expected = [
+        c64(0.054_699_249_999_691_67, -0.070_467_992_455_229_96),
+        c64(-0.825_965_298_485_187_2, 0.336_981_030_968_697_7),
+        c64(0.235_677_865_045_882_34, 0.122_054_143_239_856_78),
+        c64(0.756_651_800_328_036_9, 0.583_668_266_825_105_8),
+    ];
+    let scaled = [
+        c64(0.235_677_865_045_850_56, 0.122_054_143_239_840_32),
+        c64(0.756_651_800_327_934_9, 0.583_668_266_825_027),
+    ];
+    for (z, expected, scaled) in [
+        (z, expected, scaled),
+        (
+            z.conj(),
+            expected.map(|w| w.conj()),
+            scaled.map(|w| w.conj()),
+        ),
+    ] {
+        xsref::np_assert_allclose!(&xsf::airy(z), &expected, rtol = 1e-15);
+        xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &scaled, rtol = 1e-15);
+    }
+}
+
+#[test]
+fn test_airy_c64_subnormal() {
+    // Arb: acb(z).airy(); Ai'(z) = (3 + 3i) 2^-1074, with e^-zeta below it
+    let z = c64(500_000.645_361_992_06, 866_025.031_184_198_1);
+    let aip = xsf::airy(z)[1];
+    assert_eq!((aip.re, aip.im), (1.5e-323, 1.5e-323));
+}
+
+#[test]
+fn test_airy_c64_signed_zero_im() {
+    // the same bits for real `z` with +0 and -0 as imaginary part, as AMOS
+    for x in [2.5, 100.0] {
+        let bits = |im: f64| xsf::airy(c64(x, im)).map(|w| (w.re.to_bits(), w.im.to_bits()));
+        assert_eq!(bits(0.0), bits(-0.0));
+    }
+}
+
+#[test]
 fn test_airye_c64_large_re() {
     // Arb: acb(z).airy()[2:] e^-|Re zeta|
     let [_, _, bi, bip] = xsf::airy_scaled(c64(50.0, -10.0));

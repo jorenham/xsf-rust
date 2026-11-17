@@ -53,23 +53,40 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let Some((zta, d)) = zeta else {
         return [ai, aip, bi, bip];
     };
-    // Unlike in xsf, the rounding error d of zeta = zta + d is undone: the scaled Bi
-    // ~ e^(i Im zeta) is off by e^(-i Im d), Bi ~ e^zeta by e^-d = 1 - d, and
-    // e^-zeta = e^-zta (1 - d).
+    // Unlike in xsf, the rounding error d of zeta = zta + d is undone: e^-zeta = e^-zta (1 - d)
+    // for Ai, and Bi = +-i Ai + D for +-Im z > 0 (DLMF 9.2.10, 9.2.11) with D ~ e^zeta (DLMF
+    // 9.7.7), so AMOS' Bi = +-i Ai (1 + d) + D (1 - d), and Bi = Bi_amos (1 + d) -+ 2 d i Ai. The
+    // scaled D is off by e^(-i Im d) instead. On the real axis, the Ai part is left out (it is
+    // below e^(-2 zeta) of Bi there).
+    let sign = if z.im == 0.0 { 0.0 } else { z.im.signum() };
+    let s2d = d * c64(0.0, 2.0 * sign);
     if kode == 2 {
         let fb = c64(1.0, d.im);
-        return [ai, aip, bi * fb, bip * fb];
+        // `Ai e^-|Re zeta| = Ai_scaled e^(-2 Re zeta - i Im zeta)`
+        let fa = s2d * C64::cis(-zta.im) * (-2.0 * zta.re).exp();
+        return [ai, aip, bi * fb - fa * ai, bip * fb - fa * aip];
     }
-    let (fa, fb) = ((C64::ONE - d) * C64::cis(-zta.im), C64::ONE + d);
-    let unscale = |w: C64| (w * fa).mul_exp(-zta.re);
-    [unscale(ai), unscale(aip), bi * fb, bip * fb]
+    let (fa, ez) = ((C64::ONE - d) * C64::cis(-zta.im), (-zta.re).exp());
+    // by component if `e^-zta.re` underflows, as `w fa e^-zta.re` may not
+    let unscale = |w: C64| {
+        let w = w * fa;
+        if ez.is_normal() {
+            w * ez
+        } else {
+            c64(mul_exp(w.re, -zta.re), mul_exp(w.im, -zta.re))
+        }
+    };
+    let (ai, aip, fb) = (unscale(ai), unscale(aip), C64::ONE + d);
+    [ai, aip, bi * fb - s2d * ai, bip * fb - s2d * aip]
 }
 
 /// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
 ///
 /// This is `None` where AMOS doesn't evaluate Ai and Bi as functions of `zta`, i.e. for
-/// `|z| <= 1` and `|ph z| > pi/3`.
+/// `|z| <= 1` or `|ph z| > pi/3`.
 fn zeta_err(z: C64) -> Option<(C64, C64)> {
+    // as AMOS, with -0 as +0 for real `z`
+    let z = c64(z.re, z.im + 0.0);
     let s = z.sqrt();
     let zta = z * s * (2.0 / 3.0);
     if z.norm() <= 1.0 || z.re <= 0.0 || zta.re < 0.0 {
