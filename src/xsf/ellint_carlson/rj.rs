@@ -691,7 +691,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // than 4 bits, e.g. for `x, y, z << p`, where `s` is lost while `r d ~ delta 4^-2m`. The term
     // of a step is the `R_C` term of `rj_duplicated`, `6 4^-m R_C(1, 1 + e) / d` with
     // `e = delta 4^-3m / d^2`.
-    let rc_term = |d: T, d4m: f64| {
+    let step_rc_term = |d: T, d4m: f64| {
         let e = delta * d4m / d * (T::from(d4m) / d) * d4m;
         e.safe_atan_sqrt_div() * (d4m * 6.0) / d
     };
@@ -711,7 +711,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         }
         if let Some(sum) = rc_sum {
             ellint_rj_calc!();
-            rc_sum = Some(sum + rc_term(dm, d4m));
+            rc_sum = Some(sum + step_rc_term(dm, d4m));
             ellint_rj_updt!();
             m += 1;
             continue;
@@ -743,7 +743,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         let rd = rm * dm;
         let num = rd - delta * (d4m * d4m);
         if rd.max_norm() > num.max_norm() * const { pow2(4) } {
-            rc_sum = Some(s_term(sm, d4m) + rc_term(dm, d4m));
+            rc_sum = Some(s_term(sm, d4m) + step_rc_term(dm, d4m));
         }
         sm = num * 0.5 / den;
 
