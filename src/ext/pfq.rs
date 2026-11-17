@@ -8,7 +8,9 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::Add;
 
-use super::{Scaled, add_exp, fold_exp, ln_dd, mul_gamma_ratio};
+use super::{
+    Scaled, add_exp, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio, pole_distance, trigamma_lo,
+};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
@@ -52,6 +54,14 @@ const PFQ_LN_UNDERFLOW: f64 = -709.0;
 /// is counted for the whole tail of the series from `n = m` on, as errors of that size are seen
 /// up to a distance of 0.01
 const PFQ_NEAR_INTEGER: f64 = 0.0625;
+
+/// The `|x|` below which `ln_gamma` is by `lgam`, so that `gamma` and `rgamma` can be more accurate
+const PFQ_GAMMA_MAX: f64 = 13.0;
+
+/// Bound of the relative error of `gamma` and `rgamma` for `|x| < PFQ_GAMMA_MAX`, with the
+/// `1.5 eps` of the products of `gamma_pow` and `mul_gammas`: they are within `4.4 eps` at 1.3e7
+/// points (measured)
+const PFQ_GAMMA_ERR: f64 = 7.0 * f64::EPSILON;
 
 /// Maximum order of `pfq_weniger`
 const PFQ_WENIGER_MAXITER: usize = 40;
@@ -442,6 +452,12 @@ pub(crate) fn pfq_weniger(
     Some((delta, f64::INFINITY))
 }
 
+/// `psi(x) e`: the relative change of `Gamma(x)` by the low part `e` of its argument, to first
+/// order
+fn gamma_low((x, e): (f64, f64)) -> f64 {
+    if e == 0.0 { 0.0 } else { crate::digamma(x) * e }
+}
+
 /// `Gamma(u) / Gamma(w)` and an estimate of its relative error, for `u` and `w` as `two_sum`s
 ///
 /// The low part `e` of an argument `x + e` is its rounding error, which matters near a pole.
@@ -450,7 +466,6 @@ pub(crate) fn pfq_weniger(
 ///
 /// The ratio is zero only if `w` is a pole, and `None` if it underflows or overflows.
 pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
-    let low = |(x, e): (f64, f64)| if e == 0.0 { 0.0 } else { crate::digamma(x) * e };
     // `gamma` and `rgamma` are within 2.3 ulp for 99% of |x| <= 170 (measured)
     let (mut ratio, mut err) = (gamma(u.0) * rgamma(w.0), 3.0 * f64::EPSILON);
     if !ratio.is_normal() {
@@ -463,7 +478,7 @@ pub(crate) fn gamma_ratio(u: (f64, f64), w: (f64, f64)) -> Option<(f64, f64)> {
         err += f64::EPSILON * (ln_u.abs() + ln_w.abs());
     }
     ratio.is_normal().then(|| {
-        let (low_u, low_w) = (low(u), low(w));
+        let (low_u, low_w) = (gamma_low(u), gamma_low(w));
         let err = err + low_u * low_u + low_w * low_w;
         (ratio * (1.0 + low_u - low_w), err)
     })
@@ -849,6 +864,49 @@ fn recurrence_terms(
     terms.map(|(_, t, _)| t)
 }
 
+/// `Gamma(g)^power` for `power = +-1` and a bound of its relative error, if `|g| < PFQ_GAMMA_MAX`
+/// and that bound is below `ln_err`, the one of `ln_gamma`
+///
+/// It is to first order in `g.lo`: `Gamma(x + e) = Gamma(x) exp(u + t)` with `u = psi(x) e`,
+/// where `|t|` is at most the second-order term of `ln_gamma`.
+fn gamma_pow(g: Dd, power: f64, ln_err: f64) -> Option<(f64, f64)> {
+    if ln_err <= PFQ_GAMMA_ERR || g.hi.abs() >= PFQ_GAMMA_MAX {
+        return None;
+    }
+    let f: fn(f64) -> f64 = if power > 0.0 { gamma } else { rgamma };
+    let t = trigamma_lo(g, pole_distance(g)?) * g.lo.abs() / 2.0;
+    let u = power * gamma_low((g.hi, g.lo));
+    // |exp(u + t) - 1 - u| <= w^2 + |t| if w = |u| + |t| <= 1 (else `err >= ln_err`)
+    let (v, w) = (f(g.hi) * (1.0 + u), u.abs() + t);
+    let err = PFQ_GAMMA_ERR + w * w + t;
+    (v.is_normal() && err < ln_err).then_some((v, err))
+}
+
+/// `y` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, with the error bounds of the factors
+/// added, or `None` at a pole
+///
+/// Each factor is by `ln_gamma`, whose error for `|g| < PFQ_GAMMA_MAX` is that of a logarithm
+/// and grows with `|ln|Gamma(g)||`, or by `gamma_pow` if its error bound is smaller.
+fn mul_gammas(
+    num: impl IntoIterator<Item = Dd>,
+    den: impl IntoIterator<Item = Dd>,
+    mut y: Scaled,
+) -> Option<Scaled> {
+    let gammas = num.into_iter().map(|g| (g, 1.0));
+    for (g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
+        let (v, sign, v_err) = ln_gamma(g)?;
+        if let Some((v, v_err)) = gamma_pow(g, power, v_err) {
+            // (the product of the mantissas can't overflow)
+            let ((m, e), (v, k)) = (frexp_f64(y.m), frexp_f64(v));
+            (y.m, y.e, y.err) = (m * v, y.e + e + k, y.err + v_err);
+        } else {
+            (y.m, y.err) = (sign * y.m, y.err + v_err);
+            y = y.mul_exp(v * power);
+        }
+    }
+    Some(y)
+}
+
 /// `exp(l) sum` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, where `err` is the absolute
 /// error of `sum`
 fn gamma_series(
@@ -857,8 +915,7 @@ fn gamma_series(
     (sum, err): (f64, f64),
     l: Dd,
 ) -> Option<Scaled> {
-    let y = Scaled::new(sum, 0, err / sum.abs())?.with_l(l);
-    mul_gamma_ratio(num, den, || Some(y))
+    mul_gammas(num, den, Scaled::new(sum, 0, err / sum.abs())?.with_l(l))
 }
 
 /// The exponentially large part of the asymptotic expansion of 2F2 (DLMF 16.11.1, 16.11.7),
@@ -1260,7 +1317,7 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
             + 3.0 * f64::EPSILON * ((even * cos).abs() + (odd * sin).abs());
         Scaled::new(m, 0, err / m.abs())?.with_l(l)
     };
-    mul_gamma_ratio(b.map(Dd::new), [Dd::new(a)], || Some(y))
+    mul_gammas(b.map(Dd::new), [Dd::new(a)], y)
 }
 
 /// 1F2 by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
@@ -1712,6 +1769,41 @@ mod tests {
             let pow = (0..k).fold(Dd::new(1.0), |p, _| p * root);
             assert!((pow - v).hi.abs() <= pow2(-100) * v.hi, "k = {k}");
         }
+    }
+
+    #[test]
+    fn test_mul_gammas() {
+        // Gamma(g) Gamma(180.5) / (Gamma(178.25) Gamma(1.5)) for g = -3 + 2^-40 + lo, where the
+        // large arguments are by `ln_gamma`, and where (lo 2^40)^2 is negligible or not (mpmath)
+        let one = Scaled::new(1.0, 0, 0.0).unwrap();
+        let (num, den) = ([Dd::new(180.5)], [178.25, 1.5].map(Dd::new));
+        let check = |y: Option<Scaled>, expected: f64, tol: f64| {
+            let (y, err) = y.unwrap().to_f64();
+            assert!(
+                err <= tol && (y / expected - 1.0).abs() <= err,
+                "{y} != {expected}"
+            );
+        };
+        for (e, expected, tol) in [
+            (-75, -2.419_553_175_200_6e16, 1e-14),
+            (-60, -2.419_550_867_807_498_4e16, 1e-12),
+        ] {
+            let g = Dd::new(-3.0 + pow2(-40)) + pow2(e);
+            check(
+                mul_gammas(num.into_iter().chain([g]), den, one),
+                expected,
+                tol,
+            );
+        }
+        // equal factors, whose errors are equal too
+        let g = Dd::new(-8.000_005_264_759_276);
+        check(mul_gammas([g; 3], [], one), -104.541_370_932_890_13, 1e-14);
+        // the mantissa of `y` times `Gamma(g)` overflows
+        let (g, big) = (Dd::new(-3.0 + pow2(-40)), Scaled::new(1e300, 0, 0.0));
+        check(mul_gammas([g], [g], big.unwrap()), 1e300, 1e-14);
+        // a pole
+        assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
+        assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
     }
 
     #[test]

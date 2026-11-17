@@ -578,7 +578,7 @@ pub(crate) fn ln_dd(v: Dd) -> Dd {
 
 /// A lower bound `d` of the distance of `g.hi + [-|g.lo|, |g.lo|]` to the integers (negative if it
 /// contains one), or `None` if `g < 1/2` and `d <= 0`, i.e. at (or too close to) a pole of `Gamma`
-fn pole_distance(g: Dd) -> Option<f64> {
+pub(crate) fn pole_distance(g: Dd) -> Option<f64> {
     let d = (g.hi - g.hi.round()).abs() - g.lo.abs();
     (!(g.hi < 0.5 && d <= 0.0)).then_some(d)
 }
@@ -656,7 +656,7 @@ fn ln_sinpi(g: Dd, d: Option<f64>) -> Option<(Dd, f64, f64)> {
 }
 
 /// `|g.lo|` times the bound of `(ln Gamma)''` in `ln_gamma` (0 if `g.lo = 0`, even if it overflows)
-fn trigamma_lo(g: Dd, d: f64) -> f64 {
+pub(crate) fn trigamma_lo(g: Dd, d: f64) -> f64 {
     let lo = g.lo.abs();
     if lo == 0.0 {
         0.0
