@@ -253,7 +253,8 @@ fn test_hyp0f1_near_poles() {
     );
     let (b, z) = (-511.025_334_625_666_97, -65_088.852_030_151_46);
     let expected = 5.575_669_507_071_876e68;
-    np_assert_allclose!([hyp0f1(b, z)], [expected], rtol = 2e-13);
+    // (rounding `b - 1` costs ~4e-13 here)
+    np_assert_allclose!([hyp0f1(b, z)], [expected], rtol = 5e-13);
     np_assert_allclose!([hyp0f1(b, c64(z, 0.0))], [c64(expected, 0.0)], rtol = 2e-13);
 }
 
@@ -380,6 +381,16 @@ fn test_hyp0f1_large_b() {
         [1.242_442_611_337_837e202],
         rtol = 1e-12
     );
+}
+
+#[test]
+fn test_hyp0f1_turning_point() {
+    // below the turning point `z = -(b-1)^2/4`, where the Bessel functions lost ~eps |b| ln|b|
+    // through their prefactor
+    let bz = [(1501.0, -512_293.0), (-1499.5, -521_411.0)];
+    // computed with Arb
+    let expected = [4.951_925_098_315_959e-176, 7.295_375_461_642_578e179];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
 }
 
 #[test]
