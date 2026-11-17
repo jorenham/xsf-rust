@@ -154,6 +154,31 @@ fn test_hyp0f1_complex_large_z() {
 }
 
 #[test]
+fn test_hyp0f1_asymptotic_exponent() {
+    // Debye's expansion, whose exponent `~ln(F)` amplifies the rounding of `sqrt(z)` or of `b - 1`;
+    // Arb references
+    np_assert_allclose!(
+        [
+            hyp0f1(939.057_944_421_395_3, 20_339.081_075_605_93),
+            hyp0f1(-63.094_164_170_554_9, 69_347.254_782_623_26)
+        ],
+        [2_000_887_151.032_317_6, 9.690_592_382_911_296e293],
+        rtol = 5e-16
+    );
+    // where `v1 (z / v1)` overflows in the double-double division
+    np_assert_allclose!(
+        [hyp0f1(4.255_292_554_399_324e307, f64::MAX)],
+        [68.347_519_373_375_35],
+        rtol = 1e-15
+    );
+    // ... without changing the rounding where it doesn't (Arb: 7.7258348466947817)
+    assert_eq!(
+        hyp0f1(8.792_524_753_811_022e307, f64::MAX),
+        7.725_834_846_694_782
+    );
+}
+
+#[test]
 fn test_hyp0f1_near_poles() {
     // where `b - 1` is not exact, which is amplified near the poles of Gamma(b); Arb references
     np_assert_allclose!(
