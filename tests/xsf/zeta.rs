@@ -26,6 +26,10 @@ fn test_riemann_zeta_c64_moderate_imag() {
     // too few Borwein terms for 20 < |Im z| <= 50 (reference values from Arb)
     for (z, expected) in [
         (
+            c64(1.0, 27.194_160_850_963_16),
+            c64(1.901_727_442_929_379_8, 0.482_487_690_810_793_9),
+        ),
+        (
             c64(0.5, -40.0),
             c64(0.793_044_952_561_928_6, 1.041_274_614_651_065),
         ),
