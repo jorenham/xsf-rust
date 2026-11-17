@@ -9,11 +9,11 @@ use super::hyp1f1_recurrence::{
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
 use crate::ext::{Scaled, add_exp, ln_dd, ln_gamma, mul_gamma_ratio};
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_one_pow, pow2};
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes::consts::MACHEP;
-use crate::xsf::cephes::dd_real::{DoubleDouble, ldexp_f64, two_sum};
+use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
+use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, gamma, gammaln, hyp0f1};
@@ -1324,12 +1324,14 @@ pub(crate) fn chgu(
             // overflow too. Only a finite result replaces the infinite one (e.g. not inf * 0 if
             // U overflows and x^(1-b) underflows).
             //
-            // This is skipped if step 1 has 9 digits, since step 3 then keeps it anyway.
-            if u.is_infinite() && id0 < 9 {
+            // This is skipped if step 1 has 9 digits, since step 3 then keeps it anyway. After
+            // chgubi, it is also done for inf / inf, where Gamma(a) overflows as well, and then
+            // only used if it has more digits than chgubi.
+            if (u.is_infinite() || ubi && u.is_nan()) && id0 < 9 {
                 let h = x.powf(0.5 * (1.0 - b));
                 let (v, id_k) = chguit_id(a, b, true);
                 let v = v * h * h;
-                if v.is_finite() {
+                if v.is_finite() && (u.is_infinite() || id_k > id) {
                     (u, id_it) = (v, id_k);
                 }
             }
@@ -1451,56 +1453,58 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
 
     const EL: f64 = EGAMMA;
 
-    let (a1, n0, n2, ga1, ua, ub);
+    /// `y f(1) f(2) ... f(m)`, with `y` and the result as `(p, e)` for `p 2^e`
+    fn prod(y: (f64, i32), m: i32, f: impl Fn(f64) -> f64) -> (f64, i32) {
+        (1..=m).fold(y, |(p, e), j| {
+            let (p, k) = frexp_f64(p * f(f64::from(j)));
+            (p, e + k)
+        })
+    }
 
-    // Unlike in xsf (scipy/xsf#380), NaN for |b - 1| >= 1000 (where n! overflows), without ~150 n
-    // steps
+    // Unlike in xsf (scipy/xsf#380), NaN for |b - 1| >= 1000, without ~150 n steps
     if (b - 1.0).abs() >= 1000.0 {
         return f64::NAN;
     }
     *id = -100;
     let n = (b - 1.0).abs() as i32;
-    let mut rn1 = 1.0;
-    let mut rn = 1.0;
-    for j in 1..=n {
-        rn *= f64::from(j);
-        if j == n - 1 {
-            rn1 = rn;
-        }
-    }
     let ps = if xsf { psi_spec(a) } else { digamma(a) };
-    let ga = if xsf { gamma2(a) } else { gamma(a) };
-    if b > 0.0 {
-        a1 = a - f64::from(n);
-        (n0, n2) = (0, -n);
-        // Unlike in xsf (scipy/xsf#380), Gamma(a - n) = Gamma(a) / ((a - 1) ... (a - n)), because
-        // `a1` rounds
-        ga1 = if xsf {
-            gamma2(a1)
-        } else {
-            ga / (1..=n).map(|j| a - f64::from(j)).product::<f64>()
-        };
-        ua = neg_one_pow(n - 1) / (rn * ga1);
-        // Unlike in xsf, with x^-n in two halves if it isn't normal (e.g. 150^-159), as the sum it
-        // multiplies (hm3) is about e^x
-        let xn = x.powf(f64::from(-n));
-        ub = if xn.is_normal() {
-            rn1 / ga * xn
-        } else {
-            let h = x.powf(-0.5 * f64::from(n));
-            rn1 / ga * h * h
-        };
-    } else {
-        a1 = a + f64::from(n);
-        (n0, n2) = (n, 0);
-        ga1 = if xsf { gamma2(a1) } else { gamma(a1) };
-        ua = neg_one_pow(n - 1) / (rn * ga) * x.powf(f64::from(n));
-        ub = rn1 / ga1;
-    }
+    // Unlike in xsf, the prefactors `ua` and `ub` are products of ratios with their exponents
+    // apart (`p 2^e`), as n!, x^n and Gamma(a) over- or underflow where U(a, b, x) doesn't (e.g.
+    // for U(0.936, 172, 197)), and `a -+ n` rounds.
+    //
+    // 1 / Gamma(a) = rg, by Gamma(a) = Gamma(a0) (a - 1) ... (a - m) for a > 171, where it
+    // overflows, and Gamma(a0) = Gamma(a) (a0 - 1) ... (a0 + m) for a < -170, where it underflows.
+    // Beyond |m| = 1e5, rg is 0 or infinite, like U(a, b, x).
+    let m = (a - 171.0).clamp(0.0, 1e5).ceil() + (a + 170.0).clamp(-1e5, 0.0).floor();
+    let a0 = a - m;
+    let ga = if xsf { gamma2(a0) } else { gamma(a0) };
     // `chgubi` then retries with `psi_spec` and `gamma2`
-    let normal = ga.is_normal() && ga1.is_normal();
-    if !xsf && !normal {
+    if !xsf && !ga.is_normal() {
         return f64::NAN;
+    }
+    let (pg, eg) = frexp_f64(ga);
+    let shift = |j| if m > 0.0 { 1.0 / (a - j) } else { a0 - j };
+    let rg = prod((1.0 / pg, -eg), m.abs() as i32, shift);
+    // x^n = pn 2^(n ex)
+    let (px, ex) = frexp_f64(x);
+    let pn = px.powf(f64::from(n));
+    let (n0, n2, ua, mut ub);
+    if b > 0.0 {
+        (n0, n2) = (0, -n);
+        // (-1)^(n+1) / (n! Gamma(a - n)), by `ln_1p` for |a| < 1, as j - a rounds off a tiny a
+        ua = if a.abs() < 1.0 {
+            let l: f64 = (1..=n).map(|j| (-a / f64::from(j)).ln_1p()).sum();
+            (-rg.0 * l.exp(), rg.1)
+        } else {
+            prod((-rg.0, rg.1), n, |j| (j - a) / j)
+        };
+        // (n - 1)! / (x^n Gamma(a))
+        ub = prod((rg.0 / pn, rg.1 - n * ex), n - 1, |j| j);
+    } else {
+        (n0, n2) = (n, 0);
+        // (-1)^(n-1) x^n / (n! Gamma(a)) and (n - 1)! / Gamma(a + n)
+        ua = prod((-rg.0 * pn, rg.1 + n * ex), n, |j| -1.0 / j);
+        ub = prod((rg.0 / a, rg.1), n - 1, |j| j / (a + j));
     }
     // Unlike in xsf, the factors of the series are a + (n0 + k - 1) (xsf has a0 + k - 1 with
     // a0 = a + n0, and likewise for a2 = a + n2), which round once, as a +- n loses the low digits
@@ -1588,17 +1592,32 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     for k in 1..n {
         r = r * (a + f64::from(n2 + k - 1)) / f64::from((k - n) * k) * x;
         hm3 += r;
+        // Unlike in xsf, scaled down (exactly) above SCALE, as hm3 overflows where ub underflows
+        if hm3.abs() > SCALE {
+            (r, hm3, ub.1) = (r / SCALE, hm3 / SCALE, ub.1 + LOG2_SCALE);
+        }
     }
-    let sa = ua * (hm1 + hm2);
-    let sb = ub * hm3;
-    let hu = sa + sb;
+    // Unlike in xsf, the terms are added with the larger exponent of the nonzero ones split off
+    let (sa, sb) = (ua.0 * (hm1 + hm2), ub.0 * hm3);
+    let by_a = sb == 0.0 || sa != 0.0 && ua.1 > ub.1;
+    let e = if by_a { ua.1 } else { ub.1 };
+    let [ua, sa, sb] = [ua, (sa, ua.1), (sb, ub.1)].map(|(p, k)| ldexp_f64(p, k - e));
+    let hu = ldexp_f64(sa + sb, e);
+    // (as in xsf, inf - inf is NaN if both overflow)
+    let t = ldexp_f64(sa, e) + ldexp_f64(sb, e);
+    let hu = if hu.is_infinite() { t } else { hu };
     // Unlike in xsf (scipy/xsf#380), the digits are estimated from the rounding errors (of the
     // largest partial sums) and the truncation errors (the last terms) of the series. If `hu`
     // overflows (inf / inf) or underflows to 0 (0 / 0), `min` turns the NaN into 15 digits.
+    //
+    // Unlike in xsf, if n! overflows or Gamma(a) is shifted, an infinite `hu` has the digits of the
+    // sum without its exponent, as its sign can be a rounding error (e.g. for U(-160.5, 400, 300)).
+    let unscaled = hu.is_infinite() && (m != 0.0 || f64::from(n) > MAXGAM - 1.0);
+    let k = if unscaled { 0 } else { e };
     let lnx = x.ln().abs();
     let round = 1e-15 * (ua.abs() * (hmax1 * lnx + hmax) + sb.abs());
     let trunc = ua.abs() * (t1.abs() * lnx + t2.abs());
-    *id = (-((round + trunc) / hu.abs()).log10()).min(15.0) as i32;
+    *id = (-(ldexp_f64(round + trunc, k) / ldexp_f64(sa + sb, k).abs()).log10()).min(15.0) as i32;
     hu
 }
 
