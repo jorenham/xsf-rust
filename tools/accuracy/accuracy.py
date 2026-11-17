@@ -109,9 +109,6 @@ def log(*a: object) -> None:
     print(*a, file=sys.stderr, flush=True)
 
 
-# ---------------------------------------------------------------- evaluation
-
-
 def fetch_xsf() -> Path:
     inc = CACHE / f"xsf-{XSF_COMMIT}" / "include"
     if not inc.is_dir():
@@ -151,9 +148,6 @@ def run(cmd: list[str], lines: list[tuple[str, Args]]) -> list[complex]:
         res.append(re_im[0] if len(re_im) == 1 else complex(*re_im))
     assert len(res) == len(lines), (cmd, len(res), len(lines))
     return res
-
-
-# ---------------------------------------------------------------- references
 
 
 class Timeout(Exception):
@@ -351,9 +345,6 @@ def arb_check(jobs: list[Job], refs: list[list[Ref | str]], nproc: int) -> None:
     (CACHE / "arb_check.txt").write_text("".join(f"{line}\n" for line in lines))
 
 
-# ---------------------------------------------------------------- errors
-
-
 def error(y: complex, ref: Ref) -> float:
     """Relative error of `y` w.r.t. the reference (see the header of docs/accuracy.md)."""
     value, scale = ref
@@ -417,9 +408,6 @@ def bits(x: complex) -> tuple[bytes | str, ...]:
     not keep NaN payloads)."""
     parts = (x.real, x.imag) if isinstance(x, complex) else (x,)
     return tuple("nan" if math.isnan(p) else struct.pack("<d", p) for p in parts)
-
-
-# ---------------------------------------------------------------- output
 
 
 IMPLS: Final = {"rust": "xsf-rust", "cpp": "xsf", "std": "std"}
@@ -626,9 +614,6 @@ def render(results: list[Result], ver: dict[str, str]) -> str:
     out.append(specs.NOT_COVERED.rstrip("\n"))
     out.append(METHOD.format(**ver).rstrip("\n"))
     return "\n\n".join(out) + "\n"
-
-
-# ---------------------------------------------------------------- main
 
 
 def main() -> None:
