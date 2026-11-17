@@ -68,10 +68,7 @@ fn bjndd(x: f64, n: usize, bj: &mut [f64], dj: &mut [f64], fj: &mut [f64]) {
     let mut f1 = 1e-35;
 
     let m = (1..901)
-        .find(|&m| {
-            let m = m as f64;
-            (0.5 * (6.28 * m).log10() - m * (1.36 * x.abs() / m).log10()) as i32 > 20
-        })
+        .find(|&m| envj(m as f64, x.abs()) as i32 > 20)
         .unwrap_or(900);
     for k in (0..=m).rev() {
         f = 2.0 * (k as f64 + 1.0) * f1 / x - f0;
@@ -1188,35 +1185,13 @@ pub(crate) fn msta1(x: f64, mp: i32) -> i32 {
     // Output:  MSTA1 --- Starting point
     // ===================================================
 
-    // NOTE: the `(int)` casts below are UB in C++ for |x| >= 2^31 / 1.1 (~1.95e9) or NaN, and if
-    // the secant step is NaN, +-inf (e.g. for x == 0) or huge. Rust's `as i32` saturates
-    // (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. The `+ 1` / `+ 5` / `nn - n1` below can
-    // then overflow i32 (panics in debug builds). jynbh only calls this for x >= 1e-100 with
-    // n > 0.9 * x or x <= 300.
+    // NOTE: the `(int)` casts here and in `msta_secant` are UB in C++ for |x| >= 2^31 / 1.1
+    // (~1.95e9) or NaN, and if the secant step is NaN, +-inf (e.g. for x == 0) or huge. Rust's
+    // `as i32` saturates (NaN -> 0), whereas g++ on x86-64 yields INT_MIN. The `+ 1` here and the
+    // `+ 5` / `nn - n1` there can then overflow i32 (panics in debug builds). jynbh only calls
+    // this for x >= 1e-100 with n > 0.9 * x or x <= 300.
     let a0 = x.abs();
-    let mut n0 = (1.1 * a0) as i32 + 1;
-    let mut f0 = 0.5 * (6.28 * f64::from(n0)).log10()
-        - f64::from(n0) * (1.36 * a0 / f64::from(n0)).log10()
-        - f64::from(mp);
-    let mut n1 = n0 + 5;
-    let mut f1 = 0.5 * (6.28 * f64::from(n1)).log10()
-        - f64::from(n1) * (1.36 * a0 / f64::from(n1)).log10()
-        - f64::from(mp);
-    let mut nn = 0;
-    for _it in 1..=20 {
-        nn = (f64::from(n1) - f64::from(n1 - n0) / (1.0 - f0 / f1)) as i32;
-        let f = 0.5 * (6.28 * f64::from(nn)).log10()
-            - f64::from(nn) * (1.36 * a0 / f64::from(nn)).log10()
-            - f64::from(mp);
-        if (nn - n1).abs() < 1 {
-            break;
-        }
-        n0 = n1;
-        f0 = f1;
-        n1 = nn;
-        f1 = f;
-    }
-    nn
+    msta_secant(a0, (1.1 * a0) as i32 + 1, f64::from(mp))
 }
 
 pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
@@ -1230,44 +1205,40 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     // Output:  MSTA2 --- Starting point
     // ===================================================
 
-    // NOTE: the `(int)` casts below have the same UB as in msta1 (see there), and `nn + 10` can
-    // overflow as well.
-    let mut n0: i32;
-    let obj: f64;
-
+    // NOTE: the `(int)` casts here and in `msta_secant` have the same UB as in msta1 (see there),
+    // and the `+ 10` can overflow as well.
     let a0 = x.abs();
     let hmp = 0.5 * f64::from(mp);
-    let ejn =
-        0.5 * (6.28 * f64::from(n)).log10() - f64::from(n) * (1.36 * a0 / f64::from(n)).log10();
-    if ejn <= hmp {
-        obj = f64::from(mp);
-        n0 = (1.1 * a0) as i32 + 1;
+    let ejn = envj(f64::from(n), a0);
+    let (n0, obj) = if ejn <= hmp {
+        ((1.1 * a0) as i32 + 1, f64::from(mp))
     } else {
-        obj = hmp + ejn;
-        n0 = n;
-    }
-    let mut f0 = 0.5 * (6.28 * f64::from(n0)).log10()
-        - f64::from(n0) * (1.36 * a0 / f64::from(n0)).log10()
-        - obj;
+        (n, hmp + ejn)
+    };
+    msta_secant(a0, n0, obj) + 10
+}
+
+/// `ENVJ` of specfun: the estimated `-log10 |J_n(x)|` for `a0 = |x|`
+fn envj(n: f64, a0: f64) -> f64 {
+    0.5 * (6.28 * n).log10() - n * (1.36 * a0 / n).log10()
+}
+
+/// The root `n` of `envj(n, a0) = obj` by at most 20 secant steps from `n0` and `n0 + 5`, as in
+/// `MSTA1` and `MSTA2` of specfun
+fn msta_secant(a0: f64, mut n0: i32, obj: f64) -> i32 {
+    let mut f0 = envj(f64::from(n0), a0) - obj;
     let mut n1 = n0 + 5;
-    let mut f1 = 0.5 * (6.28 * f64::from(n1)).log10()
-        - f64::from(n1) * (1.36 * a0 / f64::from(n1)).log10()
-        - obj;
+    let mut f1 = envj(f64::from(n1), a0) - obj;
     let mut nn = 0;
     for _it in 1..=20 {
         nn = (f64::from(n1) - f64::from(n1 - n0) / (1.0 - f0 / f1)) as i32;
-        let f = 0.5 * (6.28 * f64::from(nn)).log10()
-            - f64::from(nn) * (1.36 * a0 / f64::from(nn)).log10()
-            - obj;
+        let f = envj(f64::from(nn), a0) - obj;
         if (nn - n1).abs() < 1 {
             break;
         }
-        n0 = n1;
-        f0 = f1;
-        n1 = nn;
-        f1 = f;
+        (n0, f0, n1, f1) = (n1, f1, nn, f);
     }
-    nn + 10
+    nn
 }
 
 pub(crate) fn sphj(x: f64, n: i32, nm: &mut i32, sj: &mut [f64], dj: &mut [f64]) {
