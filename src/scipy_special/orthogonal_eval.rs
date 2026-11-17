@@ -7,7 +7,7 @@ use core::f64::consts::{LN_2, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
 
-use crate::utils::{SQRT_EPSILON, SQRT_PI, neg_one_pow};
+use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
@@ -992,14 +992,15 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             // H_n(x) ~ sqrt(pi) e^(x^2) |x|^(-n-1) / Gamma(-n)
             return crate::gammasgn(-n) * f64::INFINITY;
         }
-        if n < 0.0 {
+        if n <= -1.0 {
             // Both terms are positive and can overflow before the 1 / Gamma factors bring them
             // back, so use Kummer's M(a, b, z) = e^z M(b - a, b, -z) (DLMF 13.2.39), and apply
-            // e^z last, in two halves since it can overflow while the result does not.
+            // e^z last, in two halves since it can overflow while the result does not. Only for
+            // n <= -1, since b - a would round away a tiny n, and the terms are fine there.
             let (g0, g1) = (0.5 - 0.5 * n, -0.5 * n);
             let (k0, k1) = (
-                crate::hyp1f1(1.0 - g0, 0.5, -z),
-                crate::hyp1f1(1.0 - g1, 1.5, -z),
+                crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z),
+                crate::hyp1f1(1.0 + 0.5 * n, 1.5, -z),
             );
             let w = 2.0 * scale.sqrt() * x.abs();
             if g0 < MAXGAM {
@@ -1014,11 +1015,14 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             }
             // 1 / Gamma or e^z would over- or underflow, so use logarithms, at the cost of a
             // relative error of about eps times the exponent
+            if k0.is_infinite() || k1.is_infinite() {
+                return f64::INFINITY;
+            }
             let l0 = k0.ln() - crate::gammaln(g0);
-            let l1 = (w * k1).ln() - crate::gammaln(g1);
+            let l1 = w.ln() + k1.ln() - crate::gammaln(g1);
             let l = l0.max(l1);
             let sum = (l0 - l).exp() + (l1 - l).exp();
-            return (SQRT_PI.ln() + scale * n * LN_2 + z + l + sum.ln()).exp();
+            return (0.5 * LN_PI + scale * n * LN_2 + z + l + sum.ln()).exp();
         }
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
