@@ -727,6 +727,28 @@ fn test_hypu_large_b() {
     let expected = [6.671_445_339_859_178e-286, 3.978_099_663_010_008e-289];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 1.029_625_838e-306, 7.489_818_350e-304, 4.094_197_594e-310, 5.499e-312, and 1.77e-314 in
+    // xsf, where x^(1 - b) in `chgus` is subnormal (the last three correctly rounded)
+    let actual = [
+        xsf::hypu(145.5, 150.5, 129.43),
+        xsf::hypu(124.5, 129.5, 275.4),
+    ];
+    let expected = [1.029_625_833_883_920_1e-306, 7.489_818_349_462_037e-304];
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+    let actual = [
+        xsf::hypu(100.5, 103.5, 1200.0),
+        xsf::hypu(136.5, 141.5, 193.68),
+        xsf::hypu(165.5, 170.5, 81.07),
+    ];
+    assert_eq!(
+        actual,
+        [
+            4.094_197_596_010_1e-310,
+            5.531_686_062_314e-312,
+            1.054_496_25e-314
+        ]
+    );
 }
 
 #[test]

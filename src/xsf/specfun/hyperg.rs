@@ -2044,7 +2044,8 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     } else {
         hu0 / (ga * gamma2(2.0 - b))
     };
-    let mut r2 = c * x.powf(1.0 - b);
+    let xp = x.powf(1.0 - b);
+    let mut r2 = c * xp;
     // Unlike in xsf (scipy/xsf#380), 1/Gamma is 0 at the poles (where gamma2 returns 1e300)
     if ga == SPECFUN_INF {
         r2 = 0.0;
@@ -2052,19 +2053,21 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == SPECFUN_INF {
         r1 = 0.0;
     }
-    // Unlike in xsf (scipy/xsf#380), if r2 overflows, or underflows for b > 1, the terms are scaled
-    // by 1/|r2| = exp(-lr2) (and hu back with `mul_exp`), unless r1 then overflows. Its terms grow
-    // by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) = 1.83.
-    // For b < 1, x^(1-b) only underflows for tiny x, where they don't grow.
-    let mut lr2 = 0.0;
-    let tiny = b > 1.0 && !r2.is_normal() && c != 0.0 && ga != SPECFUN_INF;
+    // Unlike in xsf (scipy/xsf#380), if r2 overflows, or x^(1-b) or r2 underflows for b > 1, the
+    // terms are scaled by 1/|r2| = exp(-lr2) (and hu back), unless r1 then overflows. Its terms
+    // grow by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) =
+    // 1.83, nor is the rounding error of a subnormal x^(1-b), e.g. 1e-9 for U(100.5, 103.5, 1200).
+    // For b < 1, x^(1-b) only underflows for tiny x, where they don't grow. lr2 is a
+    // double-double, as an ulp of |lr2| > 700 is 1e-13 of exp(lr2).
+    let mut lr2 = None;
+    // m exp(l), and 0 for m = 0 (e.g. r1 at a pole, where r1 exp(-lr2) can be 0 inf)
+    let mul_exp_dd = |m: f64, l| Scaled::new(m, 0, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0);
+    let tiny = b > 1.0 && !(xp.is_normal() && r2.is_normal()) && c != 0.0 && ga != SPECFUN_INF;
     if (r2.is_infinite() || tiny) && c.is_finite() {
-        lr2 = c.abs().ln() + (1.0 - b) * x.ln();
-        let r1s = r1 * (-lr2).exp();
+        let l = ln_dd(DoubleDouble::new(c.abs())) + ln_dd(DoubleDouble::new(x)) * (1.0 - b);
+        let r1s = mul_exp_dd(r1, -l);
         if r1s.is_finite() {
-            (r1, r2) = (r1s, c.signum());
-        } else {
-            lr2 = 0.0;
+            (r1, r2, lr2) = (r1s, c.signum(), Some(l));
         }
     }
     let (mut s1, mut s2) = (r1, r2);
@@ -2149,7 +2152,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
     *id = (*id).min((-(err / hu.abs()).log10()) as i32);
-    mul_exp(hu, lr2)
+    lr2.map_or(hu, |l| mul_exp_dd(hu, l))
 }
 
 #[cfg(test)]
