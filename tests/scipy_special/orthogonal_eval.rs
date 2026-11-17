@@ -599,6 +599,32 @@ fn test_eval_hermite_negative_integer_degree_neg_x() {
 }
 
 #[test]
+fn test_eval_hermite_negative_degree_large_neg_x() {
+    // Arb; these were inf or NaN, since the Kummer M terms overflow (or 1 / Gamma underflows)
+    // before their sum comes back into range; the last two use logarithms (hence the tolerance)
+    let h = [
+        eval_hermite_h(-300.0, -26.0),
+        eval_hermite_h(-300.0, -27.0),
+        eval_hermite_h(-452.0, -31.5),
+        eval_hermite_h(-400.5, -28.25),
+    ];
+    let h_expected = [
+        7.292_328_481_376_246e116,
+        1.080_723_992_709_821_7e144,
+        3.202_471_036_263_673e122,
+        5.967_529_707_942_022e76,
+    ];
+    np_assert_allclose!(h, h_expected, rtol = 1e-12);
+
+    let he = [
+        eval_hermite_he(-300.0, -20.0),
+        eval_hermite_he(-452.5, -25.5),
+    ];
+    let he_expected = [1.353_906_919_218_835e-105, 5.300_736_091_746_186e-184];
+    np_assert_allclose!(he, he_expected, rtol = 1e-12);
+}
+
+#[test]
 fn test_eval_hermite_neg_x_overflow() {
     // mpmath; x^2 overflows, and H_n(x) -> inf / Gamma(-n) for x -> -inf
     let h = [

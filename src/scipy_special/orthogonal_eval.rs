@@ -3,7 +3,7 @@
 //! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/orthogonal_eval.h>
 //! - <https://github.com/scipy/xsf/blob/e1800e8/include/xsf/cpu/orthogonal_eval.h>
 
-use core::f64::consts::SQRT_2;
+use core::f64::consts::{LN_2, SQRT_2};
 use core::ops::Range;
 use num_traits::Zero;
 
@@ -991,6 +991,34 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             //
             // H_n(x) ~ sqrt(pi) e^(x^2) |x|^(-n-1) / Gamma(-n)
             return crate::gammasgn(-n) * f64::INFINITY;
+        }
+        if n < 0.0 {
+            // Both terms are positive and can overflow before the 1 / Gamma factors bring them
+            // back, so use Kummer's M(a, b, z) = e^z M(b - a, b, -z) (DLMF 13.2.39), and apply
+            // e^z last, in two halves since it can overflow while the result does not.
+            let (g0, g1) = (0.5 - 0.5 * n, -0.5 * n);
+            let (k0, k1) = (
+                crate::hyp1f1(1.0 - g0, 0.5, -z),
+                crate::hyp1f1(1.0 - g1, 1.5, -z),
+            );
+            let w = 2.0 * scale.sqrt() * x.abs();
+            if g0 < MAXGAM {
+                let e = (0.5 * z).exp();
+                let h = SQRT_PI
+                    * (k0 * crate::rgamma(g0) + w * k1 * crate::rgamma(g1))
+                    * ((scale * n).exp2() * e)
+                    * e;
+                if h.is_finite() && h > f64::MIN_POSITIVE {
+                    return h;
+                }
+            }
+            // 1 / Gamma or e^z would over- or underflow, so use logarithms, at the cost of a
+            // relative error of about eps times the exponent
+            let l0 = k0.ln() - crate::gammaln(g0);
+            let l1 = (w * k1).ln() - crate::gammaln(g1);
+            let l = l0.max(l1);
+            let sum = (l0 - l).exp() + (l1 - l).exp();
+            return (SQRT_PI.ln() + scale * n * LN_2 + z + l + sum.ln()).exp();
         }
         let m0 = crate::hyp1f1(-0.5 * n, 0.5, z) * crate::rgamma(0.5 - 0.5 * n);
         let m1 = crate::hyp1f1(0.5 - 0.5 * n, 1.5, z) * crate::rgamma(-0.5 * n);
