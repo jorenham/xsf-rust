@@ -1302,6 +1302,11 @@ pub(crate) fn chgu(
     // step 1's best
     let (hu0, id0) = (hu, id.max(id1));
     if a >= 1.0 {
+        // `chguit` at `(a, b)` and its digits
+        let chguit_id = |a: f64, b: f64, kummer: bool| {
+            let mut id = 0;
+            (chguit(x, a, b, kummer, &mut id), id)
+        };
         // Unlike in xsf (scipy/xsf#380), chguit is used for b - 1 >= 1000, where chgubi gives up
         let ubi = bn && (bl1 || bl2 || bl3) && b - 1.0 < 1000.0;
         if ubi {
@@ -1312,8 +1317,7 @@ pub(crate) fn chgu(
         // digits, unless chgubi overflows (e.g. for b < -170, where chguit is often wrong too) or
         // chguit does (e.g. U(150, 9, 0.1) = 2.23e-250)
         if !ubi || id < ID_MIN && hu.is_finite() {
-            let mut id_it = 0;
-            let mut u = chguit(x, a, b, false, &mut id_it);
+            let (mut u, mut id_it) = chguit_id(a, b, false);
             // Unlike in xsf, an overflowing integral is redone without x^(1-b) (DLMF 13.2.40), as
             // Gamma(a) U, or t^(a-1) in it, can overflow if U doesn't, e.g. for
             // U(20, 7 - 2e-11, 6e-18) = 2.1e88. Then x^(1-b) is applied in halves, as it can
@@ -1323,8 +1327,8 @@ pub(crate) fn chgu(
             // This is skipped if step 1 has 9 digits, since step 3 then keeps it anyway.
             if u.is_infinite() && id0 < 9 {
                 let h = x.powf(0.5 * (1.0 - b));
-                let mut id_k = 0;
-                let v = chguit(x, a, b, true, &mut id_k) * h * h;
+                let (v, id_k) = chguit_id(a, b, true);
+                let v = v * h * h;
                 if v.is_finite() {
                     (u, id_it) = (v, id_k);
                 }
@@ -1341,10 +1345,8 @@ pub(crate) fn chgu(
             && x < 1.0
             && (LOG_MAP_B..1000.0).contains(&b)
         {
-            let (u, id_b) = super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| {
-                let mut id_c = 0;
-                (chguit(x, a, c, false, &mut id_c), id_c)
-            });
+            let (u, id_b) =
+                super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| chguit_id(a, c, false));
             if !u.is_nan() && (hu.is_nan() || id_b > id) {
                 (hu, id) = (u, id_b);
             }
