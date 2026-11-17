@@ -22,6 +22,32 @@ fn test_riemann_zeta_c64_extreme() {
 }
 
 #[test]
+fn test_riemann_zeta_c64_moderate_imag() {
+    // too few Borwein terms for 20 < |Im z| <= 50 (reference values from Arb)
+    for (z, expected) in [
+        (
+            c64(0.5, -40.0),
+            c64(0.793_044_952_561_928_6, 1.041_274_614_651_065),
+        ),
+        (
+            c64(-0.5, 45.0),
+            c64(7.121_401_947_237_887, 9.435_007_642_389_886),
+        ),
+        (
+            c64(3.0, 47.0),
+            c64(1.045_054_169_248_156, -0.166_468_454_920_766_37),
+        ),
+    ] {
+        let rel = (xsf::riemann_zeta(z) - expected).norm() / expected.norm();
+        assert!(rel < 1e-13, "riemann_zeta({z}): rel = {rel:e}");
+    }
+    // |zeta| is small here, so the condition number |z zeta'(z) / zeta(z)| is ~1e4
+    let expected = c64(-0.006_058_168_095_158_761, -0.005_369_758_200_077_69);
+    let rel = (xsf::riemann_zeta(c64(0.5, 48.0)) - expected).norm() / expected.norm();
+    assert!(rel < 1e-11, "rel = {rel:e}");
+}
+
+#[test]
 fn test_zeta_large_q() {
     // asymptotic expansion for q > 1e8 (reference value from mpmath)
     let (x, q) = (36.0, 1.1e8);
