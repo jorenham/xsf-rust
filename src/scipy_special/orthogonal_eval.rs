@@ -996,7 +996,7 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             // Both terms are positive and can overflow before the 1 / Gamma factors bring them
             // back, so use Kummer's M(a, b, z) = e^z M(b - a, b, -z) (DLMF 13.2.39), and apply
             // e^z last, in two halves since it can overflow while the result does not. Only for
-            // n <= -1, since b - a would round away a tiny n, and the terms are fine there.
+            // n <= -1, since a = (1 + n) / 2 would round away a tiny n.
             let (g0, g1) = (0.5 - 0.5 * n, -0.5 * n);
             let (k0, k1) = (
                 crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z),
@@ -1015,9 +1015,6 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             }
             // 1 / Gamma or e^z would over- or underflow, so use logarithms, at the cost of a
             // relative error of about eps times the exponent
-            if k0.is_infinite() || k1.is_infinite() {
-                return f64::INFINITY;
-            }
             let l0 = k0.ln() - crate::gammaln(g0);
             let l1 = w.ln() + k1.ln() - crate::gammaln(g1);
             let l = l0.max(l1);
