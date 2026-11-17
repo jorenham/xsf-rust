@@ -695,6 +695,38 @@ fn test_hypu_large_b() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 6.52e-237, 2.6069004e-98, 1.58498e-174, 1.466e-196, and -1.207e-253 in xsf, where the
+    // terms of the second series in `chgus` grow again after j = b - 1
+    let abx = [
+        (149.6, 146.67, 39.25),
+        (73.61, 79.99, 23.51),
+        (119.57, 116.57, 26.86),
+        (123.77, 128.58, 42.47),
+        (150.8, 157.76, 53.95),
+    ];
+    let expected = [
+        7.905_260_961_079_413e-242,
+        2.606_902_923_039_754_6e-98,
+        1.584_879_429_039_851e-174,
+        5.762_982_455_359_295e-200,
+        1.954_035_627_593_264e-258,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 1.0e-282 and NaN in xsf, where the r2 terms of `chgus` underflow before they grow again
+    let abx = [
+        (164.9, 168.900_01, 55.0),
+        (
+            164.914_526_311_873_2,
+            168.914_542_709_762_06,
+            57.478_114_398_572_89,
+        ),
+    ];
+    let expected = [6.671_445_339_859_178e-286, 3.978_099_663_010_008e-289];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]

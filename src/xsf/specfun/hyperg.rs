@@ -2073,27 +2073,23 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mut hmin: f64 = SPECFUN_INF;
     // Unlike in xsf, the id also has the rounding errors of the terms, about j eps for term j
     let mut terms = r1.abs() + r2.abs();
-    // Unlike in xsf (scipy/xsf#380), the series can't converge before j > |b - 1| (if < 150),
-    // or j > 1 - b + x if b < 1, nor before j > x (the r2 terms grow until about then, e.g. from a
-    // tiny r2 for large b), and the id of unconverged series is capped by the remaining terms
+    // Unlike in xsf (scipy/xsf#380), the series only converge once the terms of both can't grow
+    // again (see `term_ratio`), e.g. the r2 terms of U(123.77, 128.58, 42.47) after j = b - 1, and
+    // the id of unconverged series is capped by the remaining terms. These are kept from
+    // underflowing before that (see `rescale_term`), e.g. the r2 terms of U(164.9, 168.90001, 55)
+    // from j = 64.
     let mut converged = false;
-    let jmin = (b - 1.0).abs();
-    // the first j where the loop can stop (only j > x if j > |b - 1| is out of reach)
-    let jstop = if jmin >= 150.0 {
-        x
-    } else if b < 1.0 {
-        jmin + x
-    } else {
-        jmin.max(x)
-    };
+    // the terms r1 and r2 as scaled k1 and k2 times
+    let (mut t1, mut t2, mut k1, mut k2) = (r1, r2, 0, 0);
     let r2_next = |r2: f64, j: f64| r2 * (a - b + j) / (j * (1.0 - b + j)) * x;
     for j in 1..151 {
-        r1 = kummer_term(r1, a, b, j) * x;
-        r2 = r2_next(r2, f64::from(j));
+        let n = f64::from(j);
+        (t1, r1, _) = rescale_term(kummer_term(t1, a, b, j) * x, f64::abs, &mut k1);
+        (t2, r2, _) = rescale_term(r2_next(t2, n), f64::abs, &mut k2);
         hu += r1 - r2;
         s1 += r1;
         s2 += r2;
-        terms += f64::from(j) * (r1.abs() + r2.abs());
+        terms += n * (r1.abs() + r2.abs());
         let hua = hu.abs();
         if hua > hmax {
             hmax = hua;
@@ -2103,7 +2099,10 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         }
         // Unlike in xsf, the terms must be small, not their difference (which is also small if they
         // cancel, e.g. at j = 2 for U(10, 1e-17, 0.5))
-        if f64::from(j) > jstop && r1.abs() + r2.abs() < hu.abs() * 1e-15 {
+        if r1.abs() + r2.abs() < hu.abs() * 1e-15
+            && term_ratio(a, b, x, n).is_some()
+            && term_ratio(a - b + 1.0, 2.0 - b, x, n).is_some()
+        {
             converged = true;
             break;
         }
@@ -2121,8 +2120,8 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // largest, e.g. for r2 terms that peak at j ~ x)
         let mut rest = (r1 - r2).abs();
         for j in 151..=300 {
-            r1 = kummer_term(r1, a, b, j) * x;
-            r2 = r2_next(r2, f64::from(j));
+            (t1, r1, _) = rescale_term(kummer_term(t1, a, b, j) * x, f64::abs, &mut k1);
+            (t2, r2, _) = rescale_term(r2_next(t2, f64::from(j)), f64::abs, &mut k2);
             rest += (r1 - r2).abs();
         }
         *id = (*id).min((-(rest / hu.abs()).log10()) as i32);
@@ -2155,7 +2154,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{chgm_neg_x_asymptotic, chgu, chguit};
+    use super::{chgm_neg_x_asymptotic, chgu, chguit, chgus};
 
     /// Whether the relative error is within the estimated digits
     fn digits_ok(u: f64, expected: f64, id: i32) -> bool {
@@ -2185,6 +2184,15 @@ mod tests {
         );
         let u = chguit(x, a, b, true, &mut id);
         assert!(digits_ok(u, 9.548_667_779_662_119_8e-20, id));
+    }
+
+    #[test]
+    fn test_chgus_digits() {
+        // U(a, b, x) = 6.67e-286 (Arb), where the r2 terms underflow from j = 64 before they grow
+        // again after j = b - 1, so that the series can't converge in time
+        let mut id = 0;
+        chgus(55.0, 164.9, 168.900_01, &mut id);
+        assert!(id <= 0);
     }
 
     #[test]
