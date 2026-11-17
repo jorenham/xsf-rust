@@ -391,6 +391,21 @@ fn test_hyp0f1_turning_point() {
     // computed with Arb
     let expected = [4.951_925_098_315_959e-176, 7.295_375_461_642_578e179];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
+
+    // just above `|b-1| p^3 = 50`, with `p = sqrt(1 + 4z/(b-1)^2)`, where the 11 terms of Debye's
+    // expansion lost up to ~1e-11
+    let bz = [
+        (1001.0, -215_619.0),
+        (-999.5, -215_846.0),
+        (-1999.5, -913_836.0),
+    ];
+    // computed with Arb
+    let expected = [
+        1.039_046_359_128_989_3e-109,
+        2.992_759_281_182_759_5e109,
+        1.978_895_938_068_044_4e235,
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
 }
 
 #[test]
