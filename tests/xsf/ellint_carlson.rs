@@ -446,13 +446,13 @@ fn test_elliprj_huge_p() {
             c64(2.4e-65, 1.8e-64),
             c64(1e-142, -5.2e-142),
             c64(4.2e-148, -1.35e-147),
-            c64(3.391_585_525_825_345_6e16, -4_901_865_760_454_373.0),
+            c64(4e16, -2e15),
         ),
         xsf::elliprj(
             c64(4.16e-18, 9.22e-18),
             c64(4.2e-113, -2.86e-112),
             c64(3.6e-32, 2.6e-33),
-            c64(1.654_382_170_293_157_2e56, -4.648_375_043_565_432e56),
+            c64(1.32e56, -4e56),
         ),
         xsf::elliprj(
             c64(1.5e-130, 2.7e-130),
@@ -463,10 +463,10 @@ fn test_elliprj_huge_p() {
     ];
     // Arb
     let expected = [
-        // 499005464531753775.75 - 312878588404056402.80i
-        c64(4.990_054_645_317_538e17, -3.128_785_884_040_564e17),
-        // 2.6685697227237425492e-47 + 2.1810642228270654464e-47i
-        c64(2.668_569_722_723_742_6e-47, 2.181_064_222_827_065_6e-47),
+        // 400084498862560409.57 - 306435843021533679.75i
+        c64(4.000_844_988_625_604e17, -3.064_358_430_215_337e17),
+        // 3.0658237668252603484e-47 + 2.6265878247629335519e-47i
+        c64(3.065_823_766_825_260_6e-47, 2.626_587_824_762_933_7e-47),
         // 2.8232070639983970999e119 - 9.0800781779622300614e118i
         c64(2.823_207_063_998_397e119, -9.080_078_177_962_23e118),
     ];
@@ -526,7 +526,7 @@ fn test_elliprd_near_underflow() {
 fn test_elliprd_overflow() {
     // just below the overflow threshold, where `3 * adt` overflows
     let actual = xsf::elliprd(0.0, 1.965_996_116_174_601_3e-8, 1.190_184_710_917_690_7e-304);
-    xsref::np_assert_allclose!(&[actual], &[1.797_693_134_862_315_2e308], rtol = 1e-15);
+    xsref::np_assert_allclose!(&[actual], &[1.797_693_134_862_315_3e308], rtol = 1e-15);
 
     // the first term of the sum overflows, and the sum itself (2e308), respectively
     assert_eq!(xsf::elliprd(1e-290, 1e-70, 1e-290), INF);
@@ -539,7 +539,7 @@ fn test_elliprd_overflow() {
 
 #[test]
 fn test_elliprj_cauchy_tiny() {
-    // `x y` and `p q` of DLMF 19.20.14 underflow
+    // `x y` of DLMF 19.20.14 underflows, and `p q` as well in the first case
     let actual = [
         xsf::elliprj(1e-200, 1e-200, 2.0, -1e-210),
         xsf::elliprj(2e-89, 1e-289, 0.06, -1.5e-218),
