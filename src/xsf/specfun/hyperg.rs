@@ -702,7 +702,9 @@ fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits. If rounding `b - a` (for
 /// `x < 0`) errs by more than a rounding (see `rounding_ratio`), the series in double-double comes
-/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`.
+/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`. `hyp1f1_neg_b`
+/// comes last for `|a| > 1e5`, where its initial values can be slow (e.g. a polynomial of degree
+/// `-a`).
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     /// The series if it ends, with an error bound below `tol` relative to its value
     fn checked(
@@ -738,10 +740,13 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         chgm_series(ak.hi, b, xk, x0).map(|(hg, err)| (hg, err + r / (4.0 * f64::EPSILON) * err))
     };
     let small_rounding = r <= f64::EPSILON;
+    let huge_a = a.abs() > 1e5;
+    let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
     checked(x, ends, SQRT_EPSILON, series)
         .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, series_dd))
-        .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
+        .or_else(|| (!huge_a).then(neg_b).flatten())
         .or_else(|| checked(x, ends, SQRT_EPSILON, series_dd))
+        .or_else(|| huge_a.then(neg_b).flatten())
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
