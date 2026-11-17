@@ -55,6 +55,7 @@ use crate::utils::{EGAMMA, mul_exp, neg_if_odd};
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{gamma, rgamma};
+use crate::xsf::complex::Num;
 use crate::xsf::trig::cephes_sinpi as sinpi;
 
 const MAXITER: u64 = 500;
@@ -171,10 +172,10 @@ const IV_ASYMPTOTIC_UFACTORS: [[f64; IV_N_UFACTOR_TERMS]; IV_N_UFACTORS] = [
 /// expansions of `I_v` and `K_v` (AMS5 9.7.7 + 9.7.8), with `t = 1 / sqrt(1 + (x / v)^2)`, up to
 /// the first of two consecutive terms below `MACHEP`
 #[allow(clippy::needless_range_loop)]
-pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
+pub(crate) fn ikv_asymptotic_uniform_sums<T: Num>(v: f64, t: T) -> (T, T) {
     let t2 = t * t;
-    let mut i_sum = 1.0;
-    let mut k_sum = 1.0;
+    let mut i_sum = T::from(1.0);
+    let mut k_sum = T::from(1.0);
 
     let mut divisor = v;
     let mut prev_small = false;
@@ -183,19 +184,18 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
          * Evaluate u_k(t) with Horner's scheme;
          * (using the knowledge about which coefficients are zero)
          */
-        let mut term = 0.0;
+        let mut term = T::from(0.0);
         for k in (IV_N_UFACTOR_TERMS - 1 - 3 * n..IV_N_UFACTOR_TERMS - n).step_by(2) {
-            term *= t2;
-            term += IV_ASYMPTOTIC_UFACTORS[n][k];
+            term = term * t2 + IV_ASYMPTOTIC_UFACTORS[n][k];
         }
         for _ in (1..n).step_by(2) {
-            term *= t2;
+            term = term * t2;
         }
         if n % 2 == 1 {
-            term *= t;
+            term = term * t;
         }
 
-        term /= divisor;
+        term = term / divisor;
 
         /* Check convergence; u_k(t) itself can vanish, so wait for two small terms */
         let small = term.abs() < MACHEP;
@@ -205,8 +205,8 @@ pub(crate) fn ikv_asymptotic_uniform_sums(v: f64, t: f64) -> (f64, f64) {
         prev_small = small;
 
         /* Sum terms */
-        i_sum += term;
-        k_sum += neg_if_odd(n, term);
+        i_sum = i_sum + term;
+        k_sum = k_sum + neg_if_odd(n, term);
 
         divisor *= v;
     }
