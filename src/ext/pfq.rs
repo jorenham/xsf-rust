@@ -588,13 +588,17 @@ fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
     accurate(pfq_series(&descending(a), &descending(b), z))
 }
 
+/// The sum of `v` in double-double
+fn sum_dd(v: &[f64]) -> Dd {
+    v.iter().fold(Dd::new(0.0), |s, &v| s + v)
+}
+
 /// Whether the series of `_{q+1}F_q` diverges at `z = 1`, where `sum_j b_j <= sum_i a_i`
 /// for `b` without the 1 of `n!`, or `None` if that is uncertain
 ///
 /// The sums are in double-double, as their rounding can change the sign of their difference.
 fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
-    let sum = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
-    let excess = (sum(b) - sum(a)).hi;
+    let excess = (sum_dd(b) - sum_dd(a)).hi;
     let size = a.iter().chain(b).map(|v| v.abs()).sum::<f64>();
     // certain if no partial sum of the excess rounds
     let mut terms = a.iter().map(|v| -v).chain(b.iter().copied());
@@ -1462,8 +1466,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let (_, lower) = b.split_last()?;
     let kappa = b.len() - a.len();
     let kf = kappa as f64;
-    let sum_params = |v: &[f64]| v.iter().fold(Dd::new(0.0), |s, &v| s + v);
-    let nu = sum_params(a) - sum_params(lower) + 0.5 * (kf - 1.0);
+    let nu = sum_dd(a) - sum_dd(lower) + 0.5 * (kf - 1.0);
     let real = z > 0.0 || kappa == 1;
     let root = root_dd(Dd::new(z.abs()), kappa) * if real { z.signum() } else { 1.0 };
     let x = kf * root.hi;
