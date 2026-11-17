@@ -16,6 +16,13 @@ use core::f64::consts::FRAC_PI_4;
 const C1: f64 = 0.35502805388781723926;
 const C2: f64 = 0.258819403792806798405;
 const MAXAIRY: f64 = 103.892;
+/// The `|x|` from which the asymptotic expansions are used
+const AIRY_ASYMP_MIN: f64 = 2.09;
+/// From here to `AIRY_ASYMP_MIN`, `Ai` and `Ai'` are summed by `ai_taylor`, as the two Maclaurin
+/// series of `Ai` are 2 to 36 times larger than `Ai` there, and cancel
+const AI_TAYLOR_MIN: f64 = 0.75;
+/// `Ai(AIRY_ASYMP_MIN)` and `Ai'(AIRY_ASYMP_MIN)`
+const AI_ASYMP_MIN: (f64, f64) = (0.03042031836319838, -0.04708838543657824);
 /// Below this, the phase error of `sin_cos_theta`, ~ `theta` 2^-106, is ~ sqrt(eps)
 const MINAIRY: f64 = -1e16;
 /// 2/3 in double-double, as 2/3 - fl(2/3) = 2^-53 / 3
@@ -224,6 +231,27 @@ fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
     (t * a * TWO_THIRDS + FRAC_PI_4).sin_cos()
 }
 
+/// `(Ai(x), Ai'(x))` by the Taylor series of `Ai` at `x0 = AIRY_ASYMP_MIN`, for `x < x0`
+///
+/// As `Ai'' = x Ai`, its terms `a_n = Ai^(n)(x0) h^n / n!` with `h = x - x0` satisfy
+/// `n (n - 1) a_n = h^2 (x0 a_(n-2) + h a_(n-3))`. For `h < 0` the `Ai(x0)` and `Ai'(x0)` parts
+/// of the sum are both positive, so that they don't cancel.
+fn ai_taylor(x: f64) -> (f64, f64) {
+    let h = x - AIRY_ASYMP_MIN;
+    let (mut a2, mut a1, mut a) = (0.0, AI_ASYMP_MIN.0, AI_ASYMP_MIN.1 * h);
+    let (mut ai, mut aip) = (a1 + a, a);
+    let mut n = 2.0;
+    // a single term can be small
+    while a1.abs().max(a.abs()) > MACHEP * ai {
+        let next = h * h * (AIRY_ASYMP_MIN * a1 + h * a2) / (n * (n - 1.0));
+        (a2, a1, a) = (a1, a, next);
+        ai += a;
+        aip += n * a;
+        n += 1.0;
+    }
+    (ai, aip / h)
+}
+
 /// Airy function
 ///
 /// Solution of the differential equation
@@ -247,9 +275,9 @@ fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
 /// ```text
 /// Arithmetic  domain   function  # trials      peak         rms
 /// IEEE        -10, 0     Ai        10000       2.5e-16     3.8e-17
-/// IEEE          0, 10    Ai        10000       2.5e-14*    1.7e-15*
+/// IEEE          0, 10    Ai        10000       3.8e-15*    8.6e-16*
 /// IEEE        -10, 0     Ai'       10000       3.8e-16     7.7e-17
-/// IEEE          0, 10    Ai'       10000       1.8e-14*    1.4e-15*
+/// IEEE          0, 10    Ai'       10000       3.8e-15*    8.4e-16*
 /// IEEE        -10, 10    Bi        30000       3.9e-15     4.6e-16
 /// IEEE        -10, 10    Bi'       30000       3.8e-15     4.7e-16
 /// ```
@@ -273,7 +301,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         return (-1, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
     }
 
-    if x < -2.09 {
+    if x < -AIRY_ASYMP_MIN {
         // domflg = 15; (unused, since this branch always returns)
         let t = (-x).sqrt();
         let zeta = -2.0 * x * t / 3.0;
@@ -294,7 +322,13 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         return (0, ai, aip, bi, bip);
     }
 
-    if x >= 2.09 {
+    // Unlike in xsf, Ai and Ai' are summed by `ai_taylor` where their Maclaurin series cancel.
+    if (AI_TAYLOR_MIN..AIRY_ASYMP_MIN).contains(&x) {
+        domflg = 5;
+        (ai, aip) = ai_taylor(x);
+    }
+
+    if x >= AIRY_ASYMP_MIN {
         /* cbrt(9) */
         domflg = 5;
         let t = x.sqrt();
