@@ -115,9 +115,9 @@ fn test_hyp2f1_f64_c_minus_a_minus_b_le_minus_1() {
     // but the recurrence of the power series is inaccurate here (mpmath)
     let actual = [
         xsf::hyp2f1(-1.000_000_000_000_11, 2.000_002, 1e-6, 0.999_999_7),
-        xsf::hyp2f1(-49.5, 61.5, 6.5, 0.961_281_567_773_062_2),
+        xsf::hyp2f1(-49.5, 61.5, 6.5, 0.96),
     ];
-    let desired = [-2_000_000.033_618_169_8, -6.640_002_805_058_352e-5];
+    let desired = [-2_000_000.033_618_169_8, -8.458_289_503_668_05e-5];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
     // and here the power series without that recurrence is more accurate than both (mpmath)
@@ -221,11 +221,11 @@ fn test_hyp2f1_f64_x_lt_minus_2_b_minus_a_near_int() {
 #[test]
 fn test_hyp2f1_f64_x_le_minus_9_b_minus_a_int() {
     // unlike in xsf: these lost about log10(-x) digits in the Pfaff transformation, as
-    // 1.46036169e-33, 1.30940091e-33, -6.54168264e11, inf, -1297.62704740, 8.4284e-7 and
+    // 1.48876236e-33, 1.32938105e-33, -6.54168264e11, inf, -1297.62704740, 8.4284e-7 and
     // 14742952.50335 (Arb)
     let actual = [
-        xsf::hyp2f1(3.0, 3.0, 4.0, -372_415_317_227.624_4),
-        xsf::hyp2f1(3.0, 3.0, 6.0, -824_207_222_926.976_2),
+        xsf::hyp2f1(3.0, 3.0, 4.0, -3.7e11),
+        xsf::hyp2f1(3.0, 3.0, 6.0, -8.2e11),
         xsf::hyp2f1(-0.5, -1.5, 4.0, -742_448_874.85),
         xsf::hyp2f1(-1.97, -1.97, 5.84, -2.34e13),
         xsf::hyp2f1(1.25, -0.75, -3.45, -58_000.0),
@@ -233,8 +233,8 @@ fn test_hyp2f1_f64_x_le_minus_9_b_minus_a_int() {
         xsf::hyp2f1(-2.25, 0.75, 7.5, -1e4),
     ];
     let desired = [
-        1.460_361_934_242_542_3e-33,
-        1.309_399_343_659_318e-33,
+        1.488_762_887_248_107_1e-33,
+        1.329_379_117_616_510_5e-33,
         -654_168_241_771.272_2,
         2.019_700_022_161_330_8e25,
         -1_297.627_047_387_899,
@@ -347,12 +347,7 @@ fn test_hyp2f1_f64_tiny_negative_a_or_b() {
     let actual = [
         xsf::hyp2f1(-5e-324, -9.75, -5.5, -5800.0),
         xsf::hyp2f1(-1e-300, -120.5, -9.94, -0.5005),
-        xsf::hyp2f1(
-            -4.833_976_887_147_481e-28,
-            -1.075_991_900_035_736_5,
-            117.5,
-            -1.631_640_163_446_271_4,
-        ),
+        xsf::hyp2f1(-4.8e-28, -1.1, 117.5, -1.63),
     ];
     np_assert_allclose!(actual, [1.0, 1.0, 1.0], rtol = 1e-15);
     // also where the error estimates of the paths for polynomials say that no digit is correct
@@ -515,26 +510,23 @@ fn test_hyp2f1_f64_large_parameters() {
 #[test]
 fn test_hyp2f1_f64_large_parameters_symmetric() {
     // unlike in xsf: the backward recurrence in c, for b near a negative integer. With a and b
-    // swapped, these were 6.1391430e-14, NaN and -1.84547e-23 (Arb)
+    // swapped, these were 7.3575092e-14, NaN and -6.95925e-24 (Arb)
     let args = [
-        (36.0, -104.000_000_924_581_27, 0.007_448_750_632_523_618, 0.660_972_613_333_070_1),
-        (61.0, -193.000_000_276_607_7, 0.000_107_318_522_117_809_54, 0.640_187_432_370_559_9),
-        (59.0, -173.000_000_007_594_25, 0.027_383_593_198_256_447, 0.636_724_798_755_143_5),
+        (36.0, -104.0 - 9e-7, 0.0074, 0.66),
+        (61.0, -193.0 - 2.8e-7, 0.000_107, 0.64),
+        (59.0, -173.0 - 7.6e-9, 0.0274, 0.64),
     ];
     let desired =
-        [6.139_143_590_440_316e-14, -2.595_642_189_371_232e-26, -1.841_938_847_635_551e-23];
+        [7.357_509_219_073_461e-14, -1.626_123_558_941_129_7e-26, -6.960_243_881_349_578e-24];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
         np_assert_allclose!(actual, [y, y], rtol = 1e-12);
         assert_eq!(actual[0].to_bits(), actual[1].to_bits());
     }
 
-    // and in both orders, but less accurate, where xsf gives -1.12e-31 and -5.92e11 (Arb)
-    let args = [
-        (-205.999_999_477_863_13, 47.0, 3.639_032_470_739_815_5e-7, 0.717_901_721_185_673_1),
-        (142.0, -371.999_908_846_370_03, 2.059_971_790_437_242_8e-6, 0.861_317_158_082_100_4),
-    ];
-    let desired = [-8.131_786_695_096_852e-38, 5.001_223_601_725_287e-90];
+    // and in both orders, but less accurate, where xsf gives -3.75e-33 and 2.99e12 (Arb)
+    let args = [(-206.0 + 5.2e-7, 47.0, 3.6e-7, 0.72), (142.0, -372.0 + 9.1e-5, 2.1e-6, 0.86)];
+    let desired = [-6.514_961_820_519_327e-38, 7.812_813_451_522_689e-90];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
         np_assert_allclose!(actual, [y, y], rtol = 1e-10);
@@ -545,19 +537,19 @@ fn test_hyp2f1_f64_large_parameters_symmetric() {
 #[test]
 fn test_hyp2f1_f64_large_integer_a_near_integer_b() {
     // unlike in xsf: the 1 - x transformation, for an integer a > 0, where one of its terms is a
-    // polynomial. These were 1.7143275e-23, NaN, -1.70622e-22, NaN and NaN, where xsf gives
-    // 3.28e21, 4.70e21, 3.56e91, -2.43e20 and 1.04e33 (Arb).
+    // polynomial. These were 1.7143275e-23, NaN, -1.87323e-22, NaN and NaN, where xsf gives
+    // 3.28e21, 7.58e22, 8.07e91, -2.43e20 and 1.04e33 (Arb).
     let args = [
         (94.0, -172.000_005_2, 0.000_69, 0.796),
-        (144.0, -307.000_000_032_203_84, 1.071_284_073_337_459_3, 0.828_564_043_388_024_1),
-        (107.0, -144.000_007_274_726_64, 0.145_391_050_054_173_58, 0.945_243_845_732_862_5),
+        (144.0, -307.0 - 3.2e-8, 1.07, 0.83),
+        (107.0, -144.0 - 7.3e-6, 0.145, 0.945),
         (85.0, -171.999_998, 0.0369, 0.8847),
         (100.0, -185.000_000_01, 0.0018, 0.866),
     ];
     let desired = [
         1.714_327_734_183_920_2e-23,
-        -2.344_890_839_413_483_4e-65,
-        -1.715_823_875_854_333_9e-22,
+        -2.798_543_910_807_295e-65,
+        -1.871_761_033_753_452_6e-22,
         -4.884_956_947_532_335e-39,
         1.330_815_061_015_127_8e-34,
     ];
@@ -577,48 +569,28 @@ fn test_hyp2f1_f64_large_integer_a_near_integer_b() {
 #[test]
 fn test_hyp2f1_f64_large_parameters_near_log_case() {
     // unlike in xsf: the 1/x and 1 - x transformations for b - a or c - a - b within 1e-3 of an
-    // integer, where their two terms cancel. These were NaN, NaN, NaN, 5045.10, 2.85446e-42,
-    // -2.10040097e-48, -1.33612593e-30 and NaN, where xsf gives NaN, NaN, NaN, -6.30e5, -4.60e-31,
-    // 4.91e-36, -1.33612593e-30 and NaN (Arb).
+    // integer, where their two terms cancel. These were NaN, NaN, NaN, 4688.54, 2.89638e-42,
+    // -2.16715878e-48, -1.88005587e-30 and NaN, where xsf gives NaN, NaN, NaN, 4.84e3, 1.03e-31,
+    // 5.88e-38, -1.88005587e-30 and NaN (Arb).
     let args = [
-        (
-            1.067_991_006_224_531_5,
-            3.067_991_006_224_783,
-            251.944_533_468_430_34,
-            -524_766.946_807_754_8,
-        ),
-        (79.25, 85.250_000_000_004_06, -27.189_924_988_667_45, -411.196_046_385_367_37),
-        (
-            -312.005_332_961_308_1,
-            9.490_953_246_140_215,
-            -302.514_379_715_168,
-            0.999_969_249_567_770_6,
-        ),
-        (47.25, 1.515_823_608_068_357_4, 48.765_823_608_043_53, 0.999_999_983_276_599_6),
-        (
-            53.723_352_405_768_65,
-            27.723_352_405_733_93,
-            0.223_276_426_632_389_2,
-            -10.414_967_598_393_941,
-        ),
-        (-68.75, 107.253_180_514_676_2, 50.503_180_514_712_34, 0.997_643_094_167_421_5),
-        (114.983_629_861_934_43, -73.5, 40.483_631_636_408_51, 0.999_832_134_642_525_2),
-        (
-            46.248_983_755_486_364,
-            76.249_034_040_962_31,
-            -300.616_969_933_068_84,
-            -145.735_907_334_395_22,
-        ),
+        (1.07, 3.07 + 2.5e-13, 251.94, -524_766.9),
+        (79.25, 85.25 + 4e-12, -27.19, -411.2),
+        (-312.005, 9.5, -302.505 - 6e-14, 0.999_97),
+        (47.25, 1.5, 48.75 - 2.5e-11, 0.999_999_98),
+        (53.75, 27.75 - 3.5e-11, 0.22, -10.4),
+        (-68.75, 107.26, 50.51 + 3.6e-11, 0.9976),
+        (115.25, -73.5, 40.75 + 1.8e-6, 0.9998),
+        (46.25, 76.25 + 5e-5, -300.6, -145.7),
     ];
     let desired = [
-        0.000_133_321_625_967_283_37,
-        3.923_191_618_271_685e-188,
-        -1.004_442_761_838_202_5e19,
-        5_045.755_660_097_12,
-        2.854_518_702_963_358_4e-42,
-        -2.100_400_914_053_664e-48,
-        -1.336_126_136_781_424e-30,
-        5.100_698_578_405_863_5e-62,
+        0.000_131_036_002_073_166_09,
+        3.918_853_590_964_261e-188,
+        -1.038_538_785_178_233_9e19,
+        4_688.172_838_647_12,
+        2.896_395_178_110_93e-42,
+        -2.167_158_642_601_661_3e-48,
+        -1.880_055_697_263_691_3e-30,
+        5.591_540_566_735_008e-62,
     ];
     for ((a, b, c, x), y) in args.into_iter().zip(desired) {
         let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
@@ -666,15 +638,10 @@ fn test_hyp2f1_f64_near_log_case_subnormal() {
     // b - a or c - a - b within a subnormal of an integer, where that distance underflows in the
     // combined form of `hyp2f1_recur`. Unlike in xsf, the first two aren't NaN (Arb).
     let args = [
-        (5.4e-323, 7.0, -210.275_104_482_718_9, -12_265.527_016_707_92),
-        (2.0, 3.5e-323, 275.894_280_338_932_4, -114_255.775_671_582_33),
-        (4.535e-320, 155.797_939_435_726_56, 158.797_939_435_726_56, 0.999_987_642_957_534_8),
-        (
-            1.859_931_117e-315,
-            -79.835_149_143_084_76,
-            -78.835_149_143_084_76,
-            0.999_998_101_474_677_7,
-        ),
+        (5.4e-323, 7.0, -210.3, -12_265.5),
+        (2.0, 3.5e-323, 275.9, -114_255.8),
+        (4.535e-320, 155.75, 158.75, 0.999_987_6),
+        (1.859_931_117e-315, -79.875, -78.875, 0.999_998_1),
     ];
     for (a, b, c, x) in args {
         np_assert_allclose!(
@@ -688,78 +655,48 @@ fn test_hyp2f1_f64_near_log_case_subnormal() {
 #[test]
 fn test_hyp2f1_f64_euler_less_accurate() {
     // unlike in xsf: the Euler transformation for c - a - b <= -1, where the error bound of
-    // `hyp2f1_recur` shows its result to be less accurate, or it is NaN. These were -2.67114939e43,
-    // 9.3355057867e35, 1.44646143e52, -2.63504093e39, NaN and NaN, where xsf gives -1.16e75,
-    // 9.33553786e35, -8.15e94, 9.06e96, NaN and NaN (Arb; the last is -3.2e-380).
+    // `hyp2f1_recur` shows its result to be less accurate, or it is NaN. These were -1.74008243e44,
+    // 9.2789205253e35, 1.41743332e52, 1.02457247e39, NaN and NaN, where xsf gives 2.11e75,
+    // 9.27905840e35, 1.60e95, -3.41e97, NaN and NaN (Arb; the last is -2.8e-380).
     let actual = [
-        xsf::hyp2f1(149.0, -58.000_000_113_713_61, 7.299_145_857_088_6e-7, 0.867_785_987_917_887_4),
-        xsf::hyp2f1(
-            189.0,
-            -34.000_000_011_475_83,
-            1.402_434_425_022_796e-7,
-            0.603_095_775_821_499_5,
-        ),
-        xsf::hyp2f1(
-            185.0,
-            -72.000_000_001_760_51,
-            7.112_741_701_785_648e-7,
-            0.862_145_321_628_877_1,
-        ),
-        xsf::hyp2f1(
-            136.0,
-            -67.000_000_408_327_13,
-            9.553_495_917_604_502e-5,
-            0.924_901_625_890_899_4,
-        ),
-        xsf::hyp2f1(9.25, 18.249_999_924_909_204, -200.970_431_389_678_9, -90.432_270_031_215_2),
-        xsf::hyp2f1(
-            241.809_503_456_775_5,
-            220.809_503_459_425_3,
-            -3.671_066_270_604_346_6,
-            -46.873_304_297_334_81,
-        ),
+        xsf::hyp2f1(149.0, -58.0 - 1.1e-7, 7.3e-7, 0.87),
+        xsf::hyp2f1(189.0, -34.0 - 1.1e-8, 1.4e-7, 0.603),
+        xsf::hyp2f1(185.0, -72.0 - 1.8e-9, 7.1e-7, 0.862),
+        xsf::hyp2f1(136.0, -67.0 - 4.1e-7, 9.55e-5, 0.925),
+        xsf::hyp2f1(9.25, 18.25 - 7.5e-8, -200.97, -90.43),
+        xsf::hyp2f1(241.75, 220.75 + 2.65e-9, -3.67, -46.87),
     ];
     let desired = [
-        -2.671_149_156_958_879e43,
-        9.335_505_797_691_043e35,
-        1.446_461_348_852_572_2e52,
-        -2.635_040_349_292_388_6e39,
-        -3.170_840_286_672_488e-5,
+        -1.740_082_505_618_863_8e44,
+        9.278_920_509_129_896e35,
+        1.417_433_100_506_847_6e52,
+        1.024_572_396_591_105_2e39,
+        -3.130_221_533_372_943e-5,
         -0.0,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
-    // with its power factor split in two, and for a subnormal `a`. These were -1.7145423e-211 and
-    // NaN, where xsf gives -0.0 and NaN (Arb).
+    // with its power factor split in two, and for a subnormal `a`. These were -1.7311832e-211 and
+    // NaN, where xsf gives 0.0 and NaN (Arb).
     let actual = [
-        xsf::hyp2f1(98.0, 123.999_999_999_999_89, 3.056_448_506_561_903_6, -71.034_095_119_307_55),
-        xsf::hyp2f1(1e-323, 1.0, -159.831_265_506_034_78, -104_073.006_817_227_35),
+        xsf::hyp2f1(98.0, 124.0 - 1.1e-13, 3.06, -71.03),
+        xsf::hyp2f1(1e-323, 1.0, -159.8, -104_073.0),
     ];
-    np_assert_allclose!(actual, [-1.711_760_489_507_116_7e-211, 1.0], rtol = 1e-11);
+    np_assert_allclose!(actual, [-1.725_017_797_892_166_1e-211, 1.0], rtol = 1e-11);
 }
 
 #[test]
 fn test_hyp2f1_f64_pfaff_recip_less_accurate() {
     // unlike in xsf: the Pfaff transformation for x < -1 and the 1/x one for x < -2, with large a
     // and b of the same sign, where the error bound of `hyp2f1_recur` shows their result to be
-    // less accurate, or it is not finite. These were -9.13e168, 1.21e146 and -inf, as in xsf
+    // less accurate, or it is not finite. These were -9.13e168, 1.16e146 and -inf, as in xsf
     // (Arb).
     let actual = [
         xsf::hyp2f1(-129.666, -113.666, 56.25, -52.03),
-        xsf::hyp2f1(
-            -122.128_459_991_815_06,
-            -86.128_390_890_172_06,
-            78.264_535_379_928_02,
-            -76.272_919_739_327_62,
-        ),
-        xsf::hyp2f1(
-            -176.933_199_208_308_85,
-            -130.933_195_913_092_13,
-            -20.999_999_947_974_53,
-            -35.466_899_274_141_96,
-        ),
+        xsf::hyp2f1(-122.125, -86.125 + 6.9e-5, 78.26, -76.27),
+        xsf::hyp2f1(-176.9375, -130.9375 + 3.3e-6, -21.0 + 5.2e-8, -35.47),
     ];
     let desired =
-        [4.791_283_530_597_28e162, -1.593_909_865_270_581e144, 2.912_887_935_665_173_8e274];
+        [4.791_283_530_597_28e162, -1.531_524_570_886_761_4e144, 2.979_197_152_672_975e274];
     np_assert_allclose!(actual, desired, rtol = 1e-9);
 }
 
@@ -784,30 +721,15 @@ fn test_hyp2f1_f64_psi_expansion_error() {
     ];
     let desired = [1.362_000_886_533_284_2e-8, 4.845_680_233_889_792e-31];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
-    // and for the Pfaff transformation for x < -1, where these were -3.65e101, 8.94e210 and 0 (as
-    // its factors underflow), while xsf gives -3.65e101, -inf and 0 (Arb)
+    // and for the Pfaff transformation for x < -1, where these were -1.94e102, -1.95e210 and 0 (as
+    // its factors underflow), while xsf gives -1.96e102, inf and 0 (Arb)
     let actual = [
-        xsf::hyp2f1(
-            -138.545_281_542_796_86,
-            -85.545_281_542_796_86,
-            31.648_430_177_207_87,
-            -13.861_203_109_738_284,
-        ),
-        xsf::hyp2f1(
-            -127.831_990_937_567_51,
-            -164.831_990_937_567_53,
-            1.000_000_008_915_661,
-            -25.890_921_149_087_443,
-        ),
-        xsf::hyp2f1(
-            -161.765_346_696_296_83,
-            -108.765_346_696_296_83,
-            63.158_232_092_546_086,
-            -14.798_143_647_681_243,
-        ),
+        xsf::hyp2f1(-138.75, -85.75, 31.625, -13.86),
+        xsf::hyp2f1(-127.75, -164.75 - 2.8e-14, 1.0 + 8.9e-9, -25.89),
+        xsf::hyp2f1(-161.75, -108.75, 63.125, -14.8),
     ];
     let desired =
-        [1.113_473_584_828_216_5e100, -1.368_863_634_553_945_3e206, 5.524_897_482_842_279e108];
+        [1.476_521_363_124_945_4e100, 3.311_772_741_737_614_5e207, 5.121_708_481_485_257e107];
     np_assert_allclose!(actual, desired, rtol = 1e-9);
 }
 
@@ -1180,8 +1102,8 @@ fn test_hyp2f1_f64_large_integer_b_minus_a() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
     // and of the 1 - x transformation near x = 1 if c - a - b is an integer (Arb)
-    let actual = xsf::hyp2f1(-151.265_625, -167.078_125, -314.343_75, 0.996_171_893_522_054_3);
-    np_assert_allclose!([actual], [1.140_175_032_534_544_3e-91], rtol = 1e-12);
+    let actual = xsf::hyp2f1(-151.265_625, -167.078_125, -314.343_75, 0.996);
+    np_assert_allclose!([actual], [1.867_105_850_532_836e-91], rtol = 1e-12);
 }
 
 #[test]
@@ -1198,62 +1120,42 @@ fn test_hyp2f1_f64_large_polynomials() {
 
     // but their sums first, which are more accurate if their terms have one sign, e.g. this was
     // inf (Arb)
-    let actual = xsf::hyp2f1(
-        -193.331_054_687_5,
-        -361.893_861_580_878_37,
-        -784.331_054_687_5,
-        -8.501_040_652_827_827,
-    );
-    np_assert_allclose!([actual], [6.322_565_669_978_735e124], rtol = 1e-14);
+    let actual = xsf::hyp2f1(-193.25, -361.875, -784.25, -8.5);
+    np_assert_allclose!([actual], [5.602_051_816_485_101e124], rtol = 1e-14);
 }
 
 #[test]
 fn test_hyp2f1_f64_large_polynomials_fallback() {
     // unlike in xsf: the result of `hyp2f1_recur` above its tolerance if the other methods are
-    // worse, e.g. these were -2.17e161, -9.14e10, -3.46e71 and 1.3151516683e7 (references: Arb)
+    // worse, e.g. these were -3.97e161, 1.30e11, -4.37e70 and 1.3003887417e7 (references: Arb)
     let args = [
-        (-578.0, 43.025_054_517_833_25, -211.365_284_520_633_9, -0.069_048_681_694_701_13),
-        (-155.0, -13.114_295_459_606_085, -268.184_224_512_442_7, -5.777_086_149_646_716),
-        (-405.0, 284.751_961_714_356_3, -356.779_446_566_434_4, -0.159_163_126_801_461_27),
-        (-102.0, -11.303_623_418_304_845, -173.188_097_441_151_14, -5.633_877_370_886_577),
+        (-578.0, 43.03, -211.37, -0.07),
+        (-155.0, -13.11, -268.18, -5.78),
+        (-405.0, 284.75, -356.78, -0.16),
+        (-102.0, -11.3, -173.19, -5.63),
     ];
     let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
     let desired = [
-        6.286_253_119_942_306e-4,
-        -5_907_450_570.238_56,
-        3.872_322_967_067_562_6e-21,
-        13_151_516.340_537_345,
+        5.727_126_898_619_048e-4,
+        -6_321_179_103.061_271,
+        3.088_344_341_495_295_5e-21,
+        13_003_890.426_056_918,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
 #[test]
 fn test_hyp2f1_f64_recur_fallback() {
-    // unlike in xsf: also for non-polynomials, e.g. these were NaN, NaN and -4.97780468e-4, as the
+    // unlike in xsf: also for non-polynomials, e.g. these were NaN, NaN and -5.62543958e-4, as the
     // recurrence in `a` loses most digits (references: Arb, Wolfram)
     let args = [
-        (
-            -43.529_522_885_417_2,
-            28.383_215_183_231_613,
-            0.854_350_304_768_644_3,
-            0.897_573_261_765_310_7,
-        ),
-        (
-            -58.796_657_619_884_186,
-            58.952_929_522_592_97,
-            29.157_322_653_045_57,
-            0.883_239_869_466_806_9,
-        ),
-        (
-            -39.412_194_877_145_126,
-            29.003_220_382_083_327,
-            -0.466_538_028_548_134_2,
-            0.506_549_476_044_837_8,
-        ),
+        (-43.53, 28.38, 0.850_66, 0.8976),
+        (-58.8, 58.95, 29.1511, 0.883),
+        (-39.4122, 29.003_22, -0.466_54, 0.506_55),
     ];
     let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
     let desired =
-        [-7.612_508_003_367_2e-10, 1.293_748_287_447_791_2e-34, -4.977_822_666_649_485e-4];
+        [-7.920_164_213_871_762e-10, 1.473_319_142_367_457_4e-34, -5.625_453_919_713_718e-4];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
 
     // and these were 9.47e-62 and 3.62e16 in xsf, and NaN before (Arb, Wolfram)
@@ -1309,7 +1211,7 @@ fn test_hyp2f1_f64_near_polynomial() {
 #[test]
 fn test_hyp2f1_f64_just_below_1() {
     // unlike in xsf: x within 1e-13 below 1 is not x = 1, where xsf gives inf for c - a - b <= 0
-    // (the first three and the last) and the value at 1 else, here 32.27, 440.5 and -11.48 (Arb)
+    // (the first three and the last) and the value at 1 else, here 32.27, 440.5 and -7.106 (Arb)
     let x = 0.999_999_999_999_99;
     let actual = [
         xsf::hyp2f1(0.5, 0.7, 1.0, x),
@@ -1317,12 +1219,7 @@ fn test_hyp2f1_f64_just_below_1() {
         xsf::hyp2f1(-2.109, 0.891, -1.723, x),
         xsf::hyp2f1(0.5, 0.49, 1.0, x),
         xsf::hyp2f1(1.5, 2.25, 3.76, x),
-        xsf::hyp2f1(
-            0.811_967_063_739_473_8,
-            -0.040_193_225_520_462_45,
-            0.775_039_419_131_624_9,
-            0.999_999_999_999_997_6,
-        ),
+        xsf::hyp2f1(0.81, -0.04, 0.775, 0.999_999_999_999_997_6),
         xsf::hyp2f1(-3.5, 1.25, -2.5, x),
     ];
     let desired = [
@@ -1331,7 +1228,7 @@ fn test_hyp2f1_f64_just_below_1() {
         -11_864_866.701_448_103,
         9.532_032_686_970_835,
         115.683_428_221_038_92,
-        -0.300_327_095_218_461_3,
+        -0.256_813_810_821_179_77,
         -44_263.439_899_139_13,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
@@ -1345,13 +1242,8 @@ fn test_hyp2f1_f64_just_below_1() {
 fn test_hyp2f1_f64_psi_expansion_underflow() {
     // unlike in xsf: a gamma factor of the larger sum of the psi function expansion (AMS55
     // 15.3.10-12) underflows to 0, where xsf returns the other sum alone, here 0 (Arb)
-    let actual = xsf::hyp2f1(
-        -57.594_715_732_879_905,
-        251.371_049_675_285_8,
-        134.776_333_942_405_9,
-        0.961_971_941_183_459_1,
-    );
-    np_assert_allclose!([actual], [1.409_085_836_000_905_4e-19], rtol = 1e-8);
+    let actual = xsf::hyp2f1(-57.593_75, 251.375, 134.781_25, 0.962);
+    np_assert_allclose!([actual], [1.447_158_991_775_232_9e-19], rtol = 1e-8);
 }
 
 #[test]
