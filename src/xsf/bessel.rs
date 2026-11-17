@@ -449,10 +449,10 @@ fn cyl_bessel_je_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    // Unlike in xsf, Debye's expansion of J_v(x) is used where it is accurate (for real x,
-    // e^-|Im x| = 1).
-    if debye_is_accurate(v, x.abs()) {
-        return cyl_bessel_j_f64(v, x);
+    // Unlike in xsf, an expansion of J_v(x) for large |v| is used where one is accurate (for
+    // real x, e^-|Im x| = 1).
+    if let Some(j) = bessel_j_large_order(v, x) {
+        return j;
     }
 
     let je = cyl_bessel_je_c64(v, c64(x, 0.0)).re;
@@ -472,10 +472,10 @@ fn cyl_bessel_ye_f64(v: f64, x: f64) -> f64 {
         return f64::NAN;
     }
 
-    // Unlike in xsf, Debye's expansion of Y_v(x) is used where it is accurate (for real x,
-    // e^-|Im x| = 1).
-    if debye_is_accurate(v, x) {
-        return cyl_bessel_y_f64(v, x);
+    // Unlike in xsf, an expansion of Y_v(x) for large |v| is used where one is accurate (for
+    // real x, e^-|Im x| = 1).
+    if let Some((_, y)) = bessel_jy_large_order(v, x) {
+        return y;
     }
 
     let ye = cyl_bessel_ye_c64(v, c64(x, 0.0)).re;
@@ -544,9 +544,9 @@ fn cyl_bessel_j_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     cy_j
 }
 
-/// The `|v|` from which Debye's expansion is used for `J_v(x)` and `Y_v(x)`; below it AMOS is
-/// accurate to a few eps of the amplitude, and faster
-const DEBYE_MIN_V: f64 = 10.0;
+/// The `|v|` from which the expansions for large orders are used for `J_v(x)` and `Y_v(x)`; below
+/// it AMOS is accurate to a few eps of the amplitude, and faster
+const LARGE_ORDER_MIN_V: f64 = 10.0;
 
 /// Whether Debye's expansion in `bessel_jy_debye` is accurate to a few eps
 ///
@@ -554,7 +554,7 @@ const DEBYE_MIN_V: f64 = 10.0;
 fn debye_is_accurate(v: f64, x: f64) -> bool {
     let cos2 = (v / x).powi(2);
     let sin2 = 1.0 - cos2;
-    v.abs() >= DEBYE_MIN_V && x * sin2 * sin2.sqrt() > 70.0 * (1.0 + 2.0 * cos2)
+    v.abs() >= LARGE_ORDER_MIN_V && x * sin2 * sin2.sqrt() > 70.0 * (1.0 + 2.0 * cos2)
 }
 
 /// `(J_v(x), Y_v(x))` by Debye's expansions (DLMF 10.19.6), for `debye_is_accurate(v, x)`
@@ -585,18 +585,28 @@ fn bessel_jy_debye(v: f64, x: f64) -> (f64, f64) {
     (amp * j, amp * y)
 }
 
+/// `(J_v(x), Y_v(x))` for `x > 0` by an expansion for large `|v|`, where one is accurate
+fn bessel_jy_large_order(v: f64, x: f64) -> Option<(f64, f64)> {
+    debye_is_accurate(v, x).then(|| bessel_jy_debye(v, x))
+}
+
+/// `J_v(x)` by `bessel_jy_large_order`, with `J_v(-x) = (-1)^v J_v(x)` for an integer `v`
+/// (DLMF 10.11.1)
+fn bessel_j_large_order(v: f64, x: f64) -> Option<f64> {
+    let (j, _) = bessel_jy_large_order(v, x.abs())?;
+    Some(if x < 0.0 && v % 2.0 != 0.0 { -j } else { j })
+}
+
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
     // Unlike in xsf, the integer test doesn't cast v to `int` (undefined behavior in C++ for
     // |v| >= 2^31).
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
     }
-    // Unlike in xsf, Debye's expansion is used where it is accurate, as the phase of AMOS loses
-    // ~eps x for large |v|.
-    if debye_is_accurate(v, x.abs()) {
-        // J_v(-x) = (-1)^v J_v(x) for integer v (DLMF 10.11.1)
-        let j = bessel_jy_debye(v, x.abs()).0;
-        return if x < 0.0 && v % 2.0 != 0.0 { -j } else { j };
+    // Unlike in xsf, an expansion for large |v| is used where one is accurate, as the phase of
+    // AMOS loses ~eps x there.
+    if let Some(j) = bessel_j_large_order(v, x) {
+        return j;
     }
 
     let res = cyl_bessel_j_c64(v, c64(x, 0.0));
@@ -655,9 +665,9 @@ pub(crate) fn cyl_bessel_y_f64(v: f64, x: f64) -> f64 {
     if x < 0.0 {
         return f64::NAN;
     }
-    // Unlike in xsf, Debye's expansion is used where it is accurate, as for J.
-    if debye_is_accurate(v, x) {
-        return bessel_jy_debye(v, x).1;
+    // Unlike in xsf, an expansion for large |v| is used where one is accurate, as for J.
+    if let Some((_, y)) = bessel_jy_large_order(v, x) {
+        return y;
     }
 
     let res = cyl_bessel_y_c64(v, c64(x, 0.0));
