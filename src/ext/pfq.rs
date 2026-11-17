@@ -1726,10 +1726,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             let scale = x.min(f64::EPSILON.recip());
             let series = || accurate(asymptotic_sum(terms.clone(), settled, scale, |_| 0.0));
             // Try Weniger when both U evaluations and the truncated series miss the tolerance,
-            // with the rounding errors of the ratios up to `settled`, which its estimate misses
-            // (4 eps each, as in `pfq_weniger`, added linearly as `a + n` can round alike)
+            // plus the rounding errors accumulated up to `settled`, as `a + n` can round alike
             let weniger = || {
                 let (y, err) = pfq_weniger(&[a1, a2], &[1.0], z)?;
+                accurate((y, err))?;
                 let drift = terms
                     .clone()
                     .zip(0..=settled as u32)
