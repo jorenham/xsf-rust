@@ -1,10 +1,11 @@
-//! Evaluates xsf-rust or Rust std functions for the accuracy table (see `accuracy.py`).
+//! Evaluates xsf-rust or Rust std functions for the accuracy table and the test tables (see
+//! `accuracy.py` and `tools/tables/generate.py`).
 //!
 //! Usage: `xsf-accuracy {xsf|std} < INPUT > OUTPUT`
 //!
 //! Each input line is `<function> <arg>...`; each output line is the f64 result (or the real
-//! and imaginary parts of a complex result), printed in the shortest form that round-trips. The function names are those of `specs.py`, and must
-//! match the C++ harness `harness.cpp`.
+//! and imaginary parts of a complex result), printed in the shortest form that round-trips. The
+//! function names are those of `specs.py`, and must match the C++ harness `harness.cpp`.
 
 use std::io::{self, BufRead, BufWriter, Write};
 

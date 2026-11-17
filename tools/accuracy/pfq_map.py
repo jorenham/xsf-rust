@@ -100,7 +100,8 @@ def grids(
     refs: list[accuracy.Ref | str],
 ) -> tuple[Grid, Grid]:
     """The geometric mean of the errors in eps of each bin, as in `accuracy.stats` (NaN where it
-    has no inputs, all are `None`, or the others have no reference or an infinite error), and the share of `None` (NaN where it has no inputs)."""
+    has no inputs, all are `None`, or the others have no reference or an infinite error), and the
+    share of `None` (NaN where it has no inputs)."""
     errs: dict[tuple[int, int], list[float]] = {}
     nones: dict[tuple[int, int], list[bool]] = {}
     for (i, j, _), y, ref in zip(pts, ys, refs, strict=True):
