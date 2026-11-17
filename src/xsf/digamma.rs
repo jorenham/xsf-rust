@@ -3,6 +3,7 @@
 use core::f64::consts::PI;
 
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::complex::Num;
 
 // All of the following were computed with mpmath
 /// Location of the positive root
@@ -14,33 +15,17 @@ const DIGAMMA_NEGROOT: f64 = -0.504_083_008_264_455_4;
 /// Value of the negative root
 const DIGAMMA_NEGROOTVAL: f64 = 7.289_763_902_976_895e-17;
 
-fn digamma_zeta_series(z: f64, root: f64, rootval: f64) -> f64 {
-    let mut res = rootval;
-    let mut coeff = -1.0;
+/// `xsf::detail::digamma_zeta_series`
+fn digamma_zeta_series<T: Num>(z: T, root: f64, rootval: f64) -> T {
+    let mut res = T::from(rootval);
+    let mut coeff = T::from(-1.0);
 
     let z = z - root;
     for n in 1..100 {
-        coeff *= -z;
+        coeff = coeff * -z;
         let term = coeff * crate::xsf::cephes::zeta(f64::from(n + 1), root);
-        res += term;
+        res = res + term;
         if term.abs() < f64::EPSILON * res.abs() {
-            break;
-        }
-    }
-    res
-}
-
-/// `digamma_zeta_series` for complex `z`
-fn digamma_zeta_series_c(z: C64, root: f64, rootval: f64) -> C64 {
-    let mut res = c64(rootval, 0.0);
-    let mut coeff = c64(-1.0, 0.0);
-
-    let z = z - root;
-    for n in 1..100 {
-        coeff *= -z;
-        let term = coeff * crate::xsf::cephes::zeta(f64::from(n + 1), root);
-        res += term;
-        if term.norm() < f64::EPSILON * res.norm() {
             break;
         }
     }
@@ -151,7 +136,7 @@ fn digamma_c64(mut z: C64) -> C64 {
     }
     if (z - DIGAMMA_NEGROOT).norm() < 0.3 {
         // First negative root.
-        return digamma_zeta_series_c(z, DIGAMMA_NEGROOT, DIGAMMA_NEGROOTVAL);
+        return digamma_zeta_series(z, DIGAMMA_NEGROOT, DIGAMMA_NEGROOTVAL);
     }
 
     if z.re < 0.0 && z.im.abs() < smallabsz {
@@ -173,7 +158,7 @@ fn digamma_c64(mut z: C64) -> C64 {
     }
 
     if (z - DIGAMMA_POSROOT).norm() < 0.5 {
-        res += digamma_zeta_series_c(z, DIGAMMA_POSROOT, DIGAMMA_POSROOTVAL);
+        res += digamma_zeta_series(z, DIGAMMA_POSROOT, DIGAMMA_POSROOTVAL);
     } else if absz > smallabsz {
         res += digamma_asymptotic_series(z);
     } else if z.re >= 0.0 {
