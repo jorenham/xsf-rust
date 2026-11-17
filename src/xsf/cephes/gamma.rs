@@ -11,7 +11,7 @@
 use crate::utils::{EGAMMA, LN_PI, LN_SQRT_TAU, SQRT_TAU, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
-use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor_real};
+use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor};
 use crate::xsf::trig::cephes_sinpi;
 
 use core::f64::consts::PI;
@@ -274,10 +274,10 @@ pub(crate) fn lgam_sgn(mut x: f64) -> (f64, i32) {
     // below only has a small absolute error. Above 2 it has a small relative error already.
     if (x - 1.0).abs() < LOGGAMMA_TAYLOR_RADIUS {
         // (`+ 0.0` keeps lgam(1) = +0)
-        return (loggamma_taylor_real(x) + 0.0, 1);
+        return (loggamma_taylor(x) + 0.0, 1);
     }
     if x < 2.0 && x > 2.0 - LOGGAMMA_TAYLOR_RADIUS {
-        return ((x - 1.0).ln() + loggamma_taylor_real(x - 1.0), 1);
+        return ((x - 1.0).ln() + loggamma_taylor(x - 1.0), 1);
     }
 
     // Unlike in xsf (scipy/xsf#540), `-ln|x|` (to within `~|x|`) if `x` is subnormal, where `1 / x`

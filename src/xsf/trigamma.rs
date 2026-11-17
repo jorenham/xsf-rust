@@ -30,8 +30,7 @@ use core::f64::consts::PI;
 use num_complex::Complex;
 
 use crate::xsf::c64::{C64, ViaC64};
-use crate::xsf::cephes::polevl::polevl;
-use crate::xsf::trig::cephes_sinpi;
+use crate::xsf::complex::Num;
 
 const N: i32 = 10;
 
@@ -53,63 +52,33 @@ const COEFFS: [f64; 8] = [
 // digamma function, for complex argument, Computer Physics Communications, 1972
 // https://doi.org/10.1016/0010-4655(72)90012-4.
 
-/// `xsf::trigamma` for real `z`
-fn trigamma_f64(mut z: f64) -> f64 {
-    let x = z;
-    if x <= 0.0 {
-        // reflection formula http://dlmf.nist.gov/5.15.E6
-        let s = cephes_sinpi(z);
-        let c = PI / s;
-        return c * c - trigamma_f64(1.0 - z);
-    }
-
-    let mut psi = 0.0;
-    if x < f64::from(N) {
-        // recursion based on https://dlmf.nist.gov/5.15.E1
-        let n = (f64::from(N) - x.floor()) as i32;
-        psi += 1.0 / (z * z);
-        for v in 1..n {
-            let w = z + f64::from(v);
-            psi += 1.0 / (w * w);
-        }
-        z += f64::from(n);
-    }
-
-    // https://dlmf.nist.gov/5.15.E8
-    let t = 1.0 / z;
-    let w = t * t;
-    psi += t + 0.5 * w;
-    psi += t * w * polevl(w, &COEFFS);
-    psi
-}
-
-/// `xsf::trigamma` for complex `z`
-fn trigamma_c64(mut z: C64) -> C64 {
-    let x = z.re;
+/// `xsf::trigamma`
+fn trigamma_t<T: Num>(mut z: T) -> T {
+    let x = z.real();
     if x <= 0.0 {
         // reflection formula http://dlmf.nist.gov/5.15.E6
         let s = z.sinpi();
-        let c = PI / s;
-        return c * c - trigamma_c64(C64::ONE - z);
+        let c = T::from(PI) / s;
+        return c * c - trigamma_t(T::from(1.0) - z);
     }
 
-    let mut psi = C64::ZERO;
+    let mut psi = T::from(0.0);
     if x < f64::from(N) {
         // recursion based on https://dlmf.nist.gov/5.15.E1
         let n = (f64::from(N) - x.floor()) as i32;
-        psi += 1.0 / (z * z);
+        psi = psi + T::from(1.0) / (z * z);
         for v in 1..n {
             let w = z + f64::from(v);
-            psi += 1.0 / (w * w);
+            psi = psi + T::from(1.0) / (w * w);
         }
-        z += f64::from(n);
+        z = z + f64::from(n);
     }
 
     // https://dlmf.nist.gov/5.15.E8
-    let t = 1.0 / z;
+    let t = T::from(1.0) / z;
     let w = t * t;
-    psi += t + 0.5 * w;
-    psi += t * w * w.evalpoly(&COEFFS);
+    psi = psi + (t + w * 0.5);
+    psi = psi + t * w * w.evalpoly(&COEFFS);
     psi
 }
 
@@ -120,14 +89,14 @@ pub trait TrigammaArg: crate::sealed::Sealed {
 impl TrigammaArg for f64 {
     #[inline]
     fn trigamma(self) -> Self {
-        trigamma_f64(self)
+        trigamma_t(self)
     }
 }
 
 impl TrigammaArg for Complex<f64> {
     #[inline]
     fn trigamma(self) -> Self {
-        self.via(trigamma_c64)
+        self.via(trigamma_t::<C64>)
     }
 }
 
