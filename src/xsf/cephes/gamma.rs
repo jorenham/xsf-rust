@@ -8,7 +8,7 @@
 //! Unlike in xsf, the parity of `floor(|x|)` is determined with an `i64` instead of an `int`, which
 //! overflows (UB) for `|x| > 2^31`.
 
-use crate::utils::{LN_PI, LN_SQRT_TAU, SQRT_TAU, neg_one_pow};
+use crate::utils::{EGAMMA, LN_PI, LN_SQRT_TAU, SQRT_TAU, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::polevl::{p1evl, polevl};
 use crate::xsf::loggamma::{LOGGAMMA_TAYLOR_RADIUS, loggamma_taylor_real};
@@ -181,7 +181,7 @@ fn gamma_small(x: f64, z: f64) -> f64 {
         /* For this to have happened, x must have started as a negative integer. */
         f64::NAN
     } else {
-        z / ((1.0 + 0.577_215_664_901_532_9 * x) * x)
+        z / ((1.0 + EGAMMA * x) * x)
     }
 }
 
