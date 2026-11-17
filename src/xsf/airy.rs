@@ -239,10 +239,7 @@ fn itairy_impl(x: f64) -> [f64; 4] {
             }
             sum
         };
-        let (fx, gx) = (
-            sum(x, [-2.0, 1.0, -1.0]),
-            sum(0.5 * x * x, [-1.0, 2.0, 1.0]),
-        );
+        let (fx, gx) = (sum(x, [-2.0, 1.0, -1.0]), sum(0.5 * x * x, [-1.0, 2.0, 1.0]));
         (c1 * fx - c2 * gx, sr3 * (c1 * fx + c2 * gx))
     };
 
@@ -500,21 +497,10 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
 #[inline]
 fn airy_zeros<const NT: usize, const KF: i32>() -> [[f64; NT]; 4] {
-    let [mut x, mut xp, mut ai_xp, mut aip_x] = [
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-    ];
+    let [mut x, mut xp, mut ai_xp, mut aip_x] =
+        [[f64::NAN; NT], [f64::NAN; NT], [f64::NAN; NT], [f64::NAN; NT]];
     if NT > 0 {
-        airyzo(
-            NT.try_into().unwrap(),
-            KF,
-            &mut x,
-            &mut xp,
-            &mut ai_xp,
-            &mut aip_x,
-        );
+        airyzo(NT.try_into().unwrap(), KF, &mut x, &mut xp, &mut ai_xp, &mut aip_x);
     }
     [x, xp, ai_xp, aip_x]
 }
@@ -524,14 +510,7 @@ pub(crate) fn airy_ai_zeros_vec(nt: usize) -> Vec<f64> {
     let mut x = vec![f64::NAN; nt];
     let [mut xp, mut ai_xp, mut aip_x] = [x.clone(), x.clone(), x.clone()];
     if nt > 0 {
-        airyzo(
-            nt.try_into().unwrap(),
-            1,
-            &mut x,
-            &mut xp,
-            &mut ai_xp,
-            &mut aip_x,
-        );
+        airyzo(nt.try_into().unwrap(), 1, &mut x, &mut xp, &mut ai_xp, &mut aip_x);
     }
     x
 }

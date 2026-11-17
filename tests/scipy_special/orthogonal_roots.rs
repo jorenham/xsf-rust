@@ -14,10 +14,7 @@ fn assert_gauss((x, w): Rule, p: impl Fn(i32, f64) -> f64, mu0: f64, rtol: f64) 
     for k in (1..2 * n).filter(|&k| k != n) {
         let terms = x.iter().zip(&w).map(|(&xi, wi)| wi * p(k, xi));
         let (sum, abs) = terms.fold((0.0, 0.0), |(s, a), t| (s + t, a + t.abs()));
-        assert!(
-            sum.abs() <= rtol * abs,
-            "k = {k}: {sum:e} (sum of |terms| = {abs:e})"
-        );
+        assert!(sum.abs() <= rtol * abs, "k = {k}: {sum:e} (sum of |terms| = {abs:e})");
     }
 }
 
@@ -54,10 +51,7 @@ fn test_roots_jacobi() {
 
     // P_n^(0, 0) = P_n, and P_n^(a, a) is proportional to C_n^(a + 1/2)
     assert_eq!(xsf::roots_jacobi(6, 0.0, 0.0), xsf::roots_legendre(6));
-    assert_eq!(
-        xsf::roots_jacobi(6, 4.0, 4.0),
-        xsf::roots_gegenbauer(6, 4.5)
-    );
+    assert_eq!(xsf::roots_jacobi(6, 4.0, 4.0), xsf::roots_gegenbauer(6, 4.5));
 }
 
 /// Weights on both sides of 0, where `P_(n-1)^(a+1, b+1)` is reflected (mpmath)
@@ -66,11 +60,7 @@ fn test_roots_jacobi_weights() {
     let (_, w) = xsf::roots_jacobi(100, 0.1, 2.2);
     np_assert_allclose!(
         [w[0], w[24], w[74]],
-        [
-            1.009_261_311_657_879_8e-9,
-            0.001_680_372_439_717_426,
-            0.062_922_235_602_756_22,
-        ],
+        [1.009_261_311_657_879_8e-9, 0.001_680_372_439_717_426, 0.062_922_235_602_756_22,],
         rtol = 5e-15
     );
 }
@@ -92,17 +82,9 @@ fn test_roots_sh_jacobi() {
 fn test_roots_jacobi_extreme() {
     // the recurrence coefficients would cancel
     let (x, w) = xsf::roots_jacobi(3, -0.999_999_999_999, -0.999_999_999_9);
-    let desired = [
-        -0.999_999_999_966_666_7,
-        4.125_001_266_302_403e-11,
-        0.999_999_999_999_666_7,
-    ];
+    let desired = [-0.999_999_999_966_666_7, 4.125_001_266_302_403e-11, 0.999_999_999_999_666_7];
     np_assert_allclose!(x, desired, atol = 1e-15);
-    let desired = [
-        4_999_999_585.981_552,
-        1.333_333_333_292_010_5,
-        500_011_061_139.089_5,
-    ];
+    let desired = [4_999_999_585.981_552, 1.333_333_333_292_010_5, 500_011_061_139.089_5];
     np_assert_allclose!(w, desired, rtol = 1e-14);
 
     // the largest node rounds to 1
@@ -121,11 +103,7 @@ fn test_roots_jacobi_extreme() {
     let (_, w) = xsf::roots_jacobi(2, 1000.0, -0.999_999_98);
     np_assert_allclose!([w[1]], [2.686_802_069_732_627e300], rtol = 1e-13);
     let (_, w) = xsf::roots_sh_jacobi(3, 1500.0, 0.0);
-    let desired = [
-        4.732_855_623_184_923e-4,
-        1.859_542_816_943_685e-4,
-        6.982_674_308_258_493e-6,
-    ];
+    let desired = [4.732_855_623_184_923e-4, 1.859_542_816_943_685e-4, 6.982_674_308_258_493e-6];
     np_assert_allclose!(w, desired, rtol = 1e-14);
 
     // ln(mu0) = 19001 ln(2) + betaln(10001, 9001) would cancel
@@ -258,11 +236,7 @@ fn test_roots_laguerre() {
     np_assert_allclose!(w, [9_007_199_254_740_991.0, 0.25], rtol = 1e-15);
     // mu0 / sum(w) would overflow (Arb)
     let (_, w) = xsf::roots_genlaguerre(2, 170.0);
-    np_assert_allclose!(
-        w,
-        [3.905_394_184_064_997e306, 3.352_021_431_243_001_6e306],
-        rtol = 1e-14
-    );
+    np_assert_allclose!(w, [3.905_394_184_064_997e306, 3.352_021_431_243_001_6e306], rtol = 1e-14);
     // mu0 = gamma(alpha + 1) would overflow (Arb)
     let (_, w) = xsf::roots_genlaguerre(2, 170.7);
     np_assert_allclose!(
@@ -307,16 +281,8 @@ fn test_roots_hermite_asy() {
     let (x, w) = xsf::roots_hermite_he(200);
     let (y, v) = xsf::roots_hermite_h(200);
     let sqrt_2 = 2.0_f64.sqrt();
-    np_assert_allclose!(
-        x,
-        y.iter().map(|y| y * sqrt_2).collect::<Vec<_>>(),
-        rtol = 1e-15
-    );
-    np_assert_allclose!(
-        w,
-        v.iter().map(|v| v * sqrt_2).collect::<Vec<_>>(),
-        rtol = 1e-15
-    );
+    np_assert_allclose!(x, y.iter().map(|y| y * sqrt_2).collect::<Vec<_>>(), rtol = 1e-15);
+    np_assert_allclose!(w, v.iter().map(|v| v * sqrt_2).collect::<Vec<_>>(), rtol = 1e-15);
 }
 
 #[test]

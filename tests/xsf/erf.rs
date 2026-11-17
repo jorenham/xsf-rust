@@ -36,13 +36,7 @@ fn test_erfc_f64_tail() {
 fn test_erfc_f64_subnormal() {
     // mpmath
     let x = [26.65, 26.7, 27.0, 27.2, 27.3];
-    let desired = [
-        7.580_711_477_038_6e-311,
-        5.253_110_413_596e-312,
-        5.237_05e-319,
-        1e-323,
-        0.0,
-    ];
+    let desired = [7.580_711_477_038_6e-311, 5.253_110_413_596e-312, 5.237_05e-319, 1e-323, 0.0];
     xsref::np_assert_allclose!(x.map(xsf::erfc), desired, rtol = 1e-12, atol = 5e-324);
     assert_eq!(x.map(|x| xsf::erfc(-x)), [2.0; 5]);
 }
@@ -51,11 +45,7 @@ fn test_erfc_f64_subnormal() {
 fn test_erfi_f64_near_overflow() {
     // mpmath
     let x = [26.65, 26.7, 26.71];
-    let desired = [
-        5.912_168_581_618_709e306,
-        8.499_867_261_268_985e307,
-        1.449_459_118_932_731e308,
-    ];
+    let desired = [5.912_168_581_618_709e306, 8.499_867_261_268_985e307, 1.449_459_118_932_731e308];
     xsref::np_assert_allclose!(x.map(xsf::erfi), desired, rtol = 1e-13);
     xsref::np_assert_allclose!(x.map(|x| xsf::erfi(-x)), desired.map(|y| -y), rtol = 1e-13);
     assert_eq!(

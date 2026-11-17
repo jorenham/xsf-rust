@@ -451,10 +451,7 @@ mod tests {
             (12.999_999_999_999_998, 0.006_408_994_188_004_208),
         ] {
             let actual = super::lgam_stirling_corr(x);
-            assert!(
-                (actual / expected - 1.0).abs() < 4e-16,
-                "{x}: {actual:e} != {expected:e}"
-            );
+            assert!((actual / expected - 1.0).abs() < 4e-16, "{x}: {actual:e} != {expected:e}");
         }
     }
 }

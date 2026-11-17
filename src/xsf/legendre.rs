@@ -656,18 +656,13 @@ pub(crate) fn sph_legendre_p_for_each_n_m<T: Num>(
             f(n, m, res_n);
         });
     });
-    sph_legendre_p_for_each_m_abs_m(
-        m.wrapping_neg(),
-        theta,
-        &mut res_m_abs_m,
-        |m, res_m_abs_m| {
-            res[0] = res_m_abs_m[1];
+    sph_legendre_p_for_each_m_abs_m(m.wrapping_neg(), theta, &mut res_m_abs_m, |m, res_m_abs_m| {
+        res[0] = res_m_abs_m[1];
 
-            sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
-                f(n, m, res_n);
-            });
-        },
-    );
+        sph_legendre_p_for_each_n_from(n, m, theta, res_m_abs_m[1], res, |n, res_n| {
+            f(n, m, res_n);
+        });
+    });
 }
 
 fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
@@ -766,11 +761,7 @@ fn lq_lift_im<const R: usize>(
     let len = q.data.len();
     let mut lifted = vec![C64::ZERO; 2 * len];
     let (lq_, ldq) = lifted.split_at_mut(len);
-    lq(
-        c64(z.re, ldexp_f64(z.im, s)),
-        Mdspan::new(lq_, q.extents),
-        Mdspan::new(ldq, dq.extents),
-    );
+    lq(c64(z.re, ldexp_f64(z.im, s)), Mdspan::new(lq_, q.extents), Mdspan::new(ldq, dq.extents));
     for (c, l) in q.data.iter_mut().chain(dq.data.iter_mut()).zip(lifted) {
         if l.im.is_finite() || c.im.is_nan() {
             c.im = ldexp_f64(l.im, -s);

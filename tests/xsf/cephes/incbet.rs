@@ -118,11 +118,7 @@ fn test_betainc_huge_b_far_tail() {
         xsf::betainc(0.5, 1_000_000.5, 5e-324),
         xsf::nbdtr(4_999_999, 3, 1e-101),
         xsf::stdtr(1e7, -33.0),
-        xsf::betainc(
-            2.349_899_924_677_931_3,
-            6.456_904_856_945_78e123,
-            8.798_881_745_818_847e-248,
-        ),
+        xsf::betainc(2.349_899_924_677_931_3, 6.456_904_856_945_78e123, 8.798_881_745_818_847e-248),
     ];
     let p_ref = [
         2.508_114_979_912_588e-159,
@@ -131,11 +127,8 @@ fn test_betainc_huge_b_far_tail() {
         8.589_904_179_320_48e-291,
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 5e-14);
-    let p = xsf::betainc(
-        26.728_246_467_681_846,
-        69_889_658_245.139_68,
-        2.215_778_044_098_163_3e-21,
-    );
+    let p =
+        xsf::betainc(26.728_246_467_681_846, 69_889_658_245.139_68, 2.215_778_044_098_163_3e-21);
     xsref::np_assert_allclose!(&[p], &[1.405_590_341_196_625e-290], rtol = 1e-13);
 }
 
@@ -180,11 +173,7 @@ fn test_betainc_rounded_complement() {
     }
     // `1 - x` is exact here, so `ln(x)` is not replaced by `ln_1p(x - 1)`, whose different rounding
     // the logarithm branch amplifies `a` times
-    let p = xsf::betainc(
-        1_353.021_564_937_913_4,
-        1.619_018_962_340_093,
-        0.591_241_638_948_332_1,
-    );
+    let p = xsf::betainc(1_353.021_564_937_913_4, 1.619_018_962_340_093, 0.591_241_638_948_332_1);
     xsref::np_assert_allclose!(&[p], &[8.693_700_523_568e-308], rtol = 1e-15);
 }
 
@@ -231,10 +220,7 @@ fn test_betainc_powers_above_maxgam() {
 fn test_betaincc_powers_huge_b() {
     // `(1 - x)^b` of the rounded `1 - x` underflows, unlike that of the exact one, whose rounding
     // error of `~|b ln(1 - x)| eps` remains (Arb)
-    for &(b, q) in &[
-        (1e19, 2.650_396_553_004_231e-261),
-        (6.7e18, 2.591_900_198_174_34e-175),
-    ] {
+    for &(b, q) in &[(1e19, 2.650_396_553_004_231e-261), (6.7e18, 2.591_900_198_174_34e-175)] {
         xsref::np_assert_allclose!(&[xsf::betaincc(1.0, b, 6e-17)], &[q], rtol = 1e-13);
     }
 }
@@ -318,25 +304,14 @@ fn test_betainc_tiny_b_x_near_1() {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-14);
     }
     // b |ln(1 - x)| ~ 3e-9, where `1 - I_(1-x)(b, a)` cancels (mpmath and Wolfram)
-    let p = xsf::betainc(
-        240.444_389_643_372_94,
-        1.112_624_883_358_221_1e-10,
-        0.999_999_999_999_989,
-    );
+    let p =
+        xsf::betainc(240.444_389_643_372_94, 1.112_624_883_358_221_1e-10, 0.999_999_999_999_989);
     xsref::np_assert_allclose!(&[p], &[2.902_177_099_562_651e-9], rtol = 1e-14);
     // the continued fractions are cut off (mpmath and Wolfram)
-    let p = xsf::betainc(
-        434.632_567_688_369_9,
-        7.934_119_213_387_608e-11,
-        0.999_999_999_999_027_1,
-    );
+    let p = xsf::betainc(434.632_567_688_369_9, 7.934_119_213_387_608e-11, 0.999_999_999_999_027_1);
     xsref::np_assert_allclose!(&[p], &[1.666_795_093_743_553_9e-9], rtol = 1e-14);
     // slowly converging continued fractions (mpmath and Wolfram)
-    let p = xsf::betainc(
-        69.750_627_303_147_8,
-        8.144_470_607_898_787e-11,
-        0.999_999_999_965_863_6,
-    );
+    let p = xsf::betainc(69.750_627_303_147_8, 8.144_470_607_898_787e-11, 0.999_999_999_965_863_6);
     xsref::np_assert_allclose!(&[p], &[1.570_718_285_542_302_8e-9], rtol = 1e-14);
     // b is not tiny, but `1 - I_(1-x)(b, a)` still cancels (mpmath and Wolfram)
     let p = xsf::betainc(3.0, 1e-4, 0.999_999_999_068_677_4);
@@ -357,10 +332,7 @@ fn test_betainc_subnormal_ab() {
 fn test_betaincc_a1_b1() {
     // betaincc(1, 1, x) is 1 - x.
     let x = [0.0, 0.25, 1.0];
-    assert_eq!(
-        x.map(|xv| xsf::betaincc(1.0, 1.0, xv)),
-        x.map(|xv| 1.0 - xv)
-    );
+    assert_eq!(x.map(|xv| xsf::betaincc(1.0, 1.0, xv)), x.map(|xv| 1.0 - xv));
 }
 
 #[test]
@@ -374,12 +346,7 @@ fn test_betaincc_nontrivial() {
         (0.125, 24.0, 0.75, 3.708_534_048_168_62e-17),
         (16.0, 0.75, 0.999_999_999_75, 5.440_875_927_741_863e-7),
         // scipy/scipy#4677
-        (
-            0.421_195_964_350_340_1,
-            16_939.046_996_018_118,
-            0.000_815_296_167_195_521,
-            1e-7,
-        ),
+        (0.421_195_964_350_340_1, 16_939.046_996_018_118, 0.000_815_296_167_195_521, 1e-7),
     ] {
         xsref::np_assert_allclose!(&[xsf::betaincc(a, b, x)], &[p], rtol = 5e-15);
     }

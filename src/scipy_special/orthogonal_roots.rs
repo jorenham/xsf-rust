@@ -219,10 +219,7 @@ pub fn roots_jacobi(n: usize, alpha: f64, beta: f64) -> (Vec<f64>, Vec<f64>) {
 /// Panics if `n` is zero, or if `alpha <= -1` or `beta <= -1`, like the `ValueError` in SciPy
 fn check_jacobi(n: usize, alpha: f64, beta: f64) {
     check_n(n);
-    assert!(
-        alpha > -1.0 && beta > -1.0,
-        "alpha and beta must be greater than -1"
-    );
+    assert!(alpha > -1.0 && beta > -1.0, "alpha and beta must be greater than -1");
 }
 
 /// The Gauss-Jacobi rule, with the weights summing to `mu0`
@@ -249,17 +246,7 @@ fn jacobi(n: usize, a: f64, b: f64, mu0: f64, nodes: Nodes) -> (Vec<f64>, Vec<f6
     };
     let f = |n, x| eval_jacobi(n, a, b, x);
     let df = |n, x| 0.5 * (f64::from(n) - 1.0 + ab2) * eval_jacobi(n - 1, a + 1.0, b + 1.0, x);
-    gen_roots_and_weights(
-        n,
-        mu0,
-        an,
-        bn,
-        f,
-        df,
-        one_minus_x2,
-        |x| b - a - ab2 * x,
-        nodes,
-    )
+    gen_roots_and_weights(n, mu0, an, bn, f, df, one_minus_x2, |x| b - a - ab2 * x, nodes)
 }
 
 /// Gauss-Jacobi (shifted) quadrature
@@ -477,10 +464,7 @@ pub fn roots_chebyshev_u(n: usize) -> (Vec<f64>, Vec<f64>) {
     // `[-1/2, 1/2]`, as in `roots_chebyshev_t`, which is more accurate near `t = 0` and `t = pi`.
     let rule = (1..=n).rev().map(|k| {
         let sin = crate::sinpi(k.min(n + 1 - k) as f64 / m);
-        (
-            crate::sinpi((m - 2.0 * k as f64) / (2.0 * m)),
-            PI * sin * sin / m,
-        )
+        (crate::sinpi((m - 2.0 * k as f64) / (2.0 * m)), PI * sin * sin / m)
     });
     rule.unzip()
 }
@@ -616,17 +600,8 @@ pub fn roots_genlaguerre(n: usize, alpha: f64) -> (Vec<f64>, Vec<f64>) {
     } else {
         ln_gamma(Dd::new(alpha) + 1.0).map_or((f64::NAN, 0.0), |(l, _, _)| exp_scaled(l))
     };
-    let rule = gen_roots_and_weights(
-        n,
-        mu0,
-        an,
-        bn,
-        f,
-        df,
-        |x, dx| x + dx,
-        |x| alpha + 1.0 - x,
-        Plain,
-    );
+    let rule =
+        gen_roots_and_weights(n, mu0, an, bn, f, df, |x, dx| x + dx, |x| alpha + 1.0 - x, Plain);
     ldexp_weights(rule, e)
 }
 
@@ -714,17 +689,7 @@ pub fn roots_hermite_he(n: usize) -> (Vec<f64>, Vec<f64>) {
     let bn = |k: f64| k.sqrt();
     let f = |n: i32, x| eval_hermite_he(n as u32, x);
     let df = |n: i32, x| f64::from(n) * f(n - 1, x);
-    gen_roots_and_weights(
-        n,
-        SQRT_TAU_DOWN,
-        an,
-        bn,
-        f,
-        df,
-        |_, _| 1.0,
-        |x| -x,
-        Symmetric,
-    )
+    gen_roots_and_weights(n, SQRT_TAU_DOWN, an, bn, f, df, |_, _| 1.0, |x| -x, Symmetric)
 }
 
 /// Corresponds to `_compute_tauk`: the root of `tau - sin(tau) = c` of Lemma 3.1 in [^TTO], by

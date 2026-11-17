@@ -3772,13 +3772,9 @@ fn buni(
         // ASYMPTOTIC EXPANSION FOR I(FNU,Z) FOR LARGE FNU APPLIED IN
         // -PI/3 <= ARG(Z) <= PI/3
         //
-        uni1(
-            z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim,
-        );
+        uni1(z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim);
     } else {
-        uni2(
-            z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim,
-        );
+        uni2(z, gnu, kode, 2, &mut cy, &mut nw, nlast, fnul, tol, elim, alim);
     }
     if nw >= 0 {
         if nw != 0 {
@@ -5221,9 +5217,7 @@ fn uni1(
     //
     fn_ = fnu.max(1.0);
     init = 0;
-    unik(
-        z, fn_, 1, 1, tol, &mut init, &mut phi, &mut zeta1, &mut zeta2, &mut sum, &mut cwrk,
-    );
+    unik(z, fn_, 1, 1, tol, &mut init, &mut phi, &mut zeta1, &mut zeta2, &mut sum, &mut cwrk);
     if kode != 1 {
         s1 = -zeta1 + fn_ * (fn_ / (z + zeta2));
     } else {
@@ -5473,9 +5467,7 @@ fn uni2(
     // CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //
     fn_ = fnu.max(1.0);
-    unhj(
-        zn, fn_, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-    );
+    unhj(zn, fn_, 0, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
     if kode != 1 {
         cfn = c64(fnu, 0.0);
         s1 = -zeta1 + cfn * (cfn / (zb + zeta2));
@@ -6925,9 +6917,7 @@ fn uoik(
         if yy <= 0. {
             zn.re = -zn.re;
         }
-        unhj(
-            zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-        );
+        unhj(zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
         cz = zeta2 - zeta1;
         aarg = arg.norm();
     }
@@ -7009,9 +6999,7 @@ fn uoik(
             );
             cz = zeta2 - zeta1;
         } else {
-            unhj(
-                zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum,
-            );
+            unhj(zn, gnu, 1, tol, &mut phi, &mut arg, &mut zeta1, &mut zeta2, &mut asum, &mut bsum);
             cz = zeta2 - zeta1;
             // NOTE: `abs(phi)` (not `abs(arg)` as in the Fortran) in the C++; kept as in the C++
             aarg = phi.norm();

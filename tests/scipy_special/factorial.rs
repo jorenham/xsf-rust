@@ -73,20 +73,8 @@ fn test_multifactorial_k2_max() {
 #[test]
 fn test_multifactorial_k() {
     const N: [u64; 9] = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-    assert_eq!(
-        N.map(|n| xsf::multifactorial(n, 1)),
-        [1, 1, 2, 6, 24, 120, 720, 5040, 40320],
-    );
-    assert_eq!(
-        N.map(|n| xsf::multifactorial(n, 2)),
-        [1, 1, 2, 3, 8, 15, 48, 105, 384],
-    );
-    assert_eq!(
-        N.map(|n| xsf::multifactorial(n, 3)),
-        [1, 1, 2, 3, 4, 10, 18, 28, 80],
-    );
-    assert_eq!(
-        N.map(|n| xsf::multifactorial(n, 4)),
-        [1, 1, 2, 3, 4, 5, 12, 21, 32],
-    );
+    assert_eq!(N.map(|n| xsf::multifactorial(n, 1)), [1, 1, 2, 6, 24, 120, 720, 5040, 40320],);
+    assert_eq!(N.map(|n| xsf::multifactorial(n, 2)), [1, 1, 2, 3, 8, 15, 48, 105, 384],);
+    assert_eq!(N.map(|n| xsf::multifactorial(n, 3)), [1, 1, 2, 3, 4, 10, 18, 28, 80],);
+    assert_eq!(N.map(|n| xsf::multifactorial(n, 4)), [1, 1, 2, 3, 4, 5, 12, 21, 32],);
 }

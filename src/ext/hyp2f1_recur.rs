@@ -393,9 +393,7 @@ fn recur_down(n: f64, y_n: Scaled, y_n1: Scaled, coefs: impl Fn(f64) -> Coefs) -
     }
     let (u, err) = steps
         .into_iter()
-        .rfold((1.0_f64, 0.0), |(u, err), (t_m, rho)| {
-            (1.0 + u * rho, err + t_m * u.abs())
-        });
+        .rfold((1.0_f64, 0.0), |(u, err), (t_m, rho)| (1.0 + u * rho, err + t_m * u.abs()));
     let err = err + (y_n.err * u.abs() + y_n1.err * (1.0 - u).abs());
     Scaled::new(y0, e, err)
 }
