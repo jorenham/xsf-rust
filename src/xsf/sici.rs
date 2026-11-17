@@ -169,7 +169,7 @@ impl SiciArg for num_complex::Complex64 {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sici.html
 ///
-/// # Definitions
+/// # Definition
 ///
 /// $$
 /// \begin{align*}
@@ -202,7 +202,7 @@ pub fn sici<T: SiciArg>(z: T) -> (T, T) {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.shichi.html
 ///
-/// # Definitions
+/// # Definition
 ///
 /// $$
 /// \begin{align*}
