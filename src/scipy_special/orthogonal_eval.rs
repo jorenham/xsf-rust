@@ -257,7 +257,11 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
             p = p + d.clone();
             binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
-        if alpha > -1.0 { p * binom } else { p * jacobi_binom(f64::from(n), alpha) }
+        if alpha > -1.0 {
+            p * binom
+        } else {
+            p * jacobi_binom(f64::from(n), alpha)
+        }
     }
 }
 
@@ -269,7 +273,11 @@ impl JacobiArg<i32> for f64 {
         } else {
             // Unlike in xsf, x < 0 is reflected, unless that is nonfinite
             let p = eval_jacobi_l_reflected(n, alpha, beta, self);
-            if p.is_finite() { p } else { eval_jacobi_l(n, alpha, beta, self) }
+            if p.is_finite() {
+                p
+            } else {
+                eval_jacobi_l(n, alpha, beta, self)
+            }
         }
     }
 

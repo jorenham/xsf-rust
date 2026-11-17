@@ -307,9 +307,21 @@ fn temme_ik_series(v: f64, x: f64) -> (f64, f64) {
     let a = (x / 2.0).ln();
     let b = (v * a).exp();
     let sigma = -a * v;
-    let c = if v.abs() < MACHEP { 1.0 } else { sinpi(v) / (v * PI) };
-    let d = if sigma.abs() < MACHEP { 1.0 } else { sigma.sinh() / sigma };
-    let gamma1 = if v.abs() < MACHEP { -EGAMMA } else { (0.5 / v) * (gp - gm) * c };
+    let c = if v.abs() < MACHEP {
+        1.0
+    } else {
+        sinpi(v) / (v * PI)
+    };
+    let d = if sigma.abs() < MACHEP {
+        1.0
+    } else {
+        sigma.sinh() / sigma
+    };
+    let gamma1 = if v.abs() < MACHEP {
+        -EGAMMA
+    } else {
+        (0.5 / v) * (gp - gm) * c
+    };
     let gamma2 = (2.0 + gp + gm) * c / 2.0;
 
     /* initial values */
@@ -553,7 +565,11 @@ fn ikv_temme(mut v: f64, x: f64, Iv_p: Option<&mut f64>, Kv_p: Option<&mut f64>)
             /* reflection formula */
             // Unlike in xsf, without the K term if I overflowed: it vanishes for large x, and
             // `CF2_ik` is NaN for x >= 2^1023.
-            *Iv_p = if Iv.is_infinite() { Iv } else { Iv + FRAC_2_PI * sinpi(z) * Kv };
+            *Iv_p = if Iv.is_infinite() {
+                Iv
+            } else {
+                Iv + FRAC_2_PI * sinpi(z) * Kv
+            };
         }
         if let Some(Kv_p) = Kv_p {
             *Kv_p = Kv;

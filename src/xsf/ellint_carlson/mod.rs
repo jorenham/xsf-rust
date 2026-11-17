@@ -56,7 +56,9 @@ macro_rules! impl_carlson_arg {
             #[inline]
             fn elliprj(self, y: Self, z: Self, p: Self) -> Self {
                 let [x, y, z, p] = [self, y, z, p].map(Into::into);
-                rj::rj::<$U>(x, y, z, p, ELLINT_CARLSON_RERR, false).1.into()
+                rj::rj::<$U>(x, y, z, p, ELLINT_CARLSON_RERR, false)
+                    .1
+                    .into()
             }
         }
     };

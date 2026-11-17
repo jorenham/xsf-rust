@@ -111,7 +111,11 @@ pub(crate) fn csqrt(z: C64) -> C64 {
         // (unlike in FreeBSD) if `a == 0`, then `b / (2 t) = t sign(b)` in exact arithmetic, and
         // the latter is correctly rounded (unless `0.5 |b|` is subnormal and inexact), whereas the
         // former can be 1 ulp off
-        ry = if a == 0.0 { (scale * t).copysign(b) } else { scale * b / (2.0 * t) };
+        ry = if a == 0.0 {
+            (scale * t).copysign(b)
+        } else {
+            scale * b / (2.0 * t)
+        };
     } else {
         let t = ((-a + a.hypot(b)) * 0.5).sqrt();
         rx = scale * b.abs() / (2.0 * t);
@@ -377,7 +381,11 @@ const EXP_T: f64 = 709.0;
 
 /// `y.sin_cos()`, or `(y, 1)` for subnormal `y`, as in glibc's complex `exp`, `sin`, and `cos`
 pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
-    if y.abs() > f64::MIN_POSITIVE { y.sin_cos() } else { (y, 1.0) }
+    if y.abs() > f64::MIN_POSITIVE {
+        y.sin_cos()
+    } else {
+        (y, 1.0)
+    }
 }
 
 /// `f e^(x - t) w` for `x > t = EXP_T`, without overflowing prematurely, as in glibc
@@ -386,7 +394,11 @@ pub(crate) fn sin_cos_glibc(y: f64) -> (f64, f64) {
 /// saturates to `MAX f e^t w`.
 fn exp_mul_large(x: f64, f: f64, w: C64) -> C64 {
     let x = x - EXP_T;
-    let (x, w) = if x > EXP_T { (x - EXP_T, w * f * EXP_T.exp()) } else { (x, w * f) };
+    let (x, w) = if x > EXP_T {
+        (x - EXP_T, w * f * EXP_T.exp())
+    } else {
+        (x, w * f)
+    };
     // overflow if the original x > 3 t
     (if x > EXP_T { f64::MAX } else { x.exp() }) * w
 }
@@ -404,7 +416,11 @@ pub(crate) fn mul_cosh_sinh(x: f64, a: f64, b: f64) -> C64 {
 
 /// `w e^x` without overflowing prematurely, as in glibc's complex `exp`
 pub(crate) fn cmul_exp(w: C64, x: f64) -> C64 {
-    if x > EXP_T { exp_mul_large(x, EXP_T.exp(), w) } else { x.exp() * w }
+    if x > EXP_T {
+        exp_mul_large(x, EXP_T.exp(), w)
+    } else {
+        x.exp() * w
+    }
 }
 
 /// The arithmetic of `T` in C++, i.e. `double` or `std::complex<double>`

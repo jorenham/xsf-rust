@@ -77,7 +77,11 @@ pub(crate) fn bdtrc(k: f64, n: i32, p: f64) -> f64 {
 
     let dn = f64::from(n) - fk;
     if k == 0.0 {
-        if p < 0.01 { -(dn * (-p).ln_1p()).exp_m1() } else { 1.0 - (1.0 - p).powf(dn) }
+        if p < 0.01 {
+            -(dn * (-p).ln_1p()).exp_m1()
+        } else {
+            1.0 - (1.0 - p).powf(dn)
+        }
     } else {
         incbet(fk + 1.0, dn, p)
     }
@@ -150,7 +154,11 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
     if fk == 0.0 {
         let q = 1.0 - p;
         let qn = q.powf(dn);
-        if p < 0.5 { qn * (dn * ((1.0 - q) - p) / q).exp() } else { qn }
+        if p < 0.5 {
+            qn * (dn * ((1.0 - q) - p) / q).exp()
+        } else {
+            qn
+        }
     } else {
         incbet_xy(dn, fk + 1.0, 1.0 - p, p)
     }
@@ -217,10 +225,18 @@ pub(crate) fn bdtri(k: f64, n: i32, y: f64) -> f64 {
     }
 
     if fk == 0.0 {
-        if y > 0.8 { -(y.ln() / dn).exp_m1() } else { 1.0 - y.powf(1.0 / dn) }
+        if y > 0.8 {
+            -(y.ln() / dn).exp_m1()
+        } else {
+            1.0 - y.powf(1.0 / dn)
+        }
     } else {
         let dk = fk + 1.0;
         // 1 - y is exact for y >= 0.5
-        if y >= 0.5 { incbi(dk, dn, 1.0 - y).0 } else { 1.0 - incbi(dn, dk, y).0 }
+        if y >= 0.5 {
+            incbi(dk, dn, 1.0 - y).0
+        } else {
+            1.0 - incbi(dn, dk, y).0
+        }
     }
 }

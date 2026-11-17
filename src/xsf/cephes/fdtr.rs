@@ -178,7 +178,11 @@ fn fdtr_tiny_w(a: f64, b: f64, x: f64, w: f64) -> Option<(f64, f64)> {
     let ln_p = ha * x.ln() + ln_rest;
     // `x^A` apart, unless it underflows, while the rest can be large
     let x_ha = x.powf(ha);
-    let p = if x_ha >= f64::MIN_POSITIVE { x_ha * ln_rest.exp() } else { ln_p.exp() };
+    let p = if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        ln_p.exp()
+    };
     Some((p, -ln_p.exp_m1()))
 }
 
@@ -199,7 +203,11 @@ pub(crate) fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
         // neither underflows nor overflows spuriously (at most one does)
         let w = if ax < f64::MIN_POSITIVE {
             let (u, v) = (a / s * x, x / s * a);
-            if u.is_finite() && v.is_finite() { u.max(v) } else { u.min(v) }
+            if u.is_finite() && v.is_finite() {
+                u.max(v)
+            } else {
+                u.min(v)
+            }
         } else {
             ax / s
         };
@@ -238,7 +246,11 @@ fn fdtr_chi2(a: f64, x: f64) -> (f64, f64) {
     let ln_rest = a * (0.5 * (a.ln() - LN_2)) - lgam1p(ha);
     let ln_p = a * (0.5 * x.ln()) + ln_rest;
     let x_ha = x.powf(ha);
-    let p = if x_ha >= f64::MIN_POSITIVE { x_ha * ln_rest.exp() } else { ln_p.exp() };
+    let p = if x_ha >= f64::MIN_POSITIVE {
+        x_ha * ln_rest.exp()
+    } else {
+        ln_p.exp()
+    };
     (p, -ln_p.exp_m1())
 }
 

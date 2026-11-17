@@ -284,7 +284,11 @@ fn struve_bessel_series(v: f64, z: f64, is_h: bool, err: &mut f64) -> f64 {
 
     for n in 0..STRUVE_MAXITER {
         let order = f64::from(n) + v + 0.5;
-        bessel = if is_h { cyl_bessel_j_f64(order, z) } else { iv(order, z) };
+        bessel = if is_h {
+            cyl_bessel_j_f64(order, z)
+        } else {
+            iv(order, z)
+        };
         term = cterm * bessel / (f64::from(n) + 0.5);
         cterm *= half_z / f64::from(n + 1);
         sum += term;

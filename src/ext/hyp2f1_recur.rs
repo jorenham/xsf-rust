@@ -761,7 +761,9 @@ pub(crate) fn mul_gamma_ratio(
 pub(crate) fn add_exp(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Option<Scaled> {
     // the terms with `l` incl. `2^e`, scaled by `exp(-lmax)`, with `lmax` the largest `l`
     let terms = terms.into_iter().map(|y| (y, y.l + LOG2 * f64::from(y.e)));
-    let (_, lmax) = terms.clone().reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
+    let (_, lmax) = terms
+        .clone()
+        .reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
     let (m, err_abs) = terms.fold((0.0, 0.0), |(m, err_abs), (y, l)| {
         let r = l - lmax;
         let t = y.m * (r.hi.exp() * (1.0 + r.lo));
@@ -898,7 +900,11 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     };
     // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
     let one = Dd::new(1.0);
-    let (one_mz, ln_1mz) = if x < 0.0 { (one - x, ln_1mx) } else { (1.0 / (one - x), -ln_1mx) };
+    let (one_mz, ln_1mz) = if x < 0.0 {
+        (one - x, ln_1mx)
+    } else {
+        (1.0 / (one - x), -ln_1mx)
+    };
     // the polynomial cases of step 2
     let poly = hyp2f1_poly(combinations, c, w, ln_1mx, (one_mz, ln_1mz));
     if err_of(poly) <= HYP2F1_RECUR_TOL {

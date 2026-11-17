@@ -107,8 +107,11 @@ fn test_wrightomega_exp_approximation_crossover() {
 #[test]
 fn test_wrightomega_real_versus_complex() {
     // x = np.linspace(-500, 500, 1001)
-    let res_f: Vec<f64> = (-500..=500).map(|x| xsf::wrightomega(f64::from(x))).collect();
-    let res_c: Vec<f64> =
-        (-500..=500).map(|x| xsf::wrightomega(c64(f64::from(x), 0.0)).re).collect();
+    let res_f: Vec<f64> = (-500..=500)
+        .map(|x| xsf::wrightomega(f64::from(x)))
+        .collect();
+    let res_c: Vec<f64> = (-500..=500)
+        .map(|x| xsf::wrightomega(c64(f64::from(x), 0.0)).re)
+        .collect();
     np_assert_allclose!(res_c, res_f, atol = 0.0, rtol = 1e-14);
 }

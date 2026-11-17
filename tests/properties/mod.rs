@@ -20,5 +20,9 @@ fn config() -> Config {
         RngSeed::Random => RngSeed::Fixed(0),
         seed @ RngSeed::Fixed(_) => seed,
     };
-    Config { rng_seed, max_global_rejects: default.cases, ..default }
+    Config {
+        rng_seed,
+        max_global_rejects: default.cases,
+        ..default
+    }
 }

@@ -312,7 +312,11 @@ fn test_chndtri_chndtridf_chndtrinc() {
     );
     // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from mpmath
     np_assert_allclose!(
-        [xsf::chndtri(0.193_123_859_806_063_84, 0.004_028_403_030_778_61, 0.503_188_864_805_273_5)],
+        [xsf::chndtri(
+            0.193_123_859_806_063_84,
+            0.004_028_403_030_778_61,
+            0.503_188_864_805_273_5
+        )],
         [5.426_817_558_374_058e-301],
         rtol = 1e-9
     );

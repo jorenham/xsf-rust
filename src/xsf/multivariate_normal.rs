@@ -43,7 +43,11 @@ fn bivariate_normal_sf_boundary(dh: f64, dk: f64, r: f64) -> Option<f64> {
     }
     if dh == f64::NEG_INFINITY {
         // elseif dh == -inf, if dk == -inf, p = 1; else p = phid(-dk); end
-        return Some(if dk == f64::NEG_INFINITY { 1.0 } else { ndtr(-dk) });
+        return Some(if dk == f64::NEG_INFINITY {
+            1.0
+        } else {
+            ndtr(-dk)
+        });
     }
     if dk == f64::NEG_INFINITY {
         // elseif dk == -inf, p = phid(-dh);
@@ -228,8 +232,16 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
         return f64::NAN;
     }
     // phid(-40) underflows to 0, so |dh|, |dk| > 40 act as infinite (and can't overflow h*k below).
-    let dh = if dh.abs() > 40.0 { f64::INFINITY.copysign(dh) } else { dh };
-    let dk = if dk.abs() > 40.0 { f64::INFINITY.copysign(dk) } else { dk };
+    let dh = if dh.abs() > 40.0 {
+        f64::INFINITY.copysign(dh)
+    } else {
+        dh
+    };
+    let dk = if dk.abs() > 40.0 {
+        f64::INFINITY.copysign(dk)
+    } else {
+        dk
+    };
 
     // By symmetry, the CDF at (dh, dk) is the upper-tail probability at (-dh, -dk).
     let dh = -dh;
@@ -341,7 +353,11 @@ pub fn bivariate_normal_cdf(dh: f64, dk: f64, r: f64) -> f64 {
             bvn = -bvn;
         } else {
             // else, if h < 0, L = phid(k)-phid(h); else, L = phid(-h)-phid(-k); end
-            let l = if h < 0.0 { ndtr(k) - ndtr(h) } else { ndtr(-h) - ndtr(-k) };
+            let l = if h < 0.0 {
+                ndtr(k) - ndtr(h)
+            } else {
+                ndtr(-h) - ndtr(-k)
+            };
             // bvn =  L - bvn;
             bvn = l - bvn;
         }

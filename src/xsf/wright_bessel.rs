@@ -45,7 +45,11 @@ fn exp_rgamma(x: f64, y: f64) -> f64 {
 ///
 /// `x - 1` is exact for `1/2 <= x <= 2` (Sterbenz), and as accurate as `x` above that.
 fn ln_add(x: f64, y: f64) -> f64 {
-    if x < 0.5 { (x + y).ln() } else { ((x - 1.0) + y).ln_1p() }
+    if x < 0.5 {
+        (x + y).ln()
+    } else {
+        ((x - 1.0) + y).ln_1p()
+    }
 }
 
 fn wb_series(a: f64, b: f64, x: f64, nstart: u32, mut nstop: u32) -> f64 {
@@ -114,7 +118,11 @@ fn wb_large_a<const LOG_WB: bool>(a: f64, b: f64, x: f64) -> f64 {
     // Unlike in xsf, the maximum of k_max and k_max + 1, and for the log also if below 0,
     // against subnormal terms.
     let max_exponent = ln_term(f64::from(k_max)).max(ln_term(f64::from(k_max + 1)));
-    let max_exponent = if LOG_WB { max_exponent } else { max_exponent.max(0.0) };
+    let max_exponent = if LOG_WB {
+        max_exponent
+    } else {
+        max_exponent.max(0.0)
+    };
     for k in nstart..nstart + n {
         let term = (ln_term(f64::from(k)) - max_exponent).exp();
         // Unlike in xsf, the log keeps the first term apart, for `ln_add`

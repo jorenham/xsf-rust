@@ -52,7 +52,7 @@ fn test_sph_legendre_p_f64() {
 #[test]
 fn test_sph_legendre_p_c64() {
     xsref::np_assert_allclose!(
-        &[xsf::sph_legendre_p(0, 0, I), xsf::sph_legendre_p(1, 0, I), xsf::sph_legendre_p(1, 1, I),],
+        &[xsf::sph_legendre_p(0, 0, I), xsf::sph_legendre_p(1, 0, I), xsf::sph_legendre_p(1, 1, I)],
         &[
             c64(0.282_094_791_773_878_2, 0.0),
             c64(0.753_953_074_239_480_4, 0.0),

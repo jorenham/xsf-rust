@@ -550,7 +550,11 @@ fn hyp2f1_c64(mut a: f64, mut b: f64, c: f64, z: C64) -> C64 {
      * a polynomial through an Euler hypergeometric transformation.
      * (DLMF 15.8.1) */
     if c_minus_a_neg_int || c_minus_b_neg_int {
-        let max_degree = if c_minus_b_neg_int { (c - b).abs() } else { (c - a).abs() };
+        let max_degree = if c_minus_b_neg_int {
+            (c - b).abs()
+        } else {
+            (c - a).abs()
+        };
         if max_degree <= u64::MAX as f64 {
             result = (1.0 - z).powf(c - a - b);
             let series_generator = hypergeometric_series_generator(c - a, c - b, c, z);

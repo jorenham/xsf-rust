@@ -94,7 +94,11 @@ fn test_log_softmax() {
     np_assert_allclose!(xsf::log_softmax(&[0.0, 0.0, -1.0]), expect, rtol = 1e-15);
 
     // NaN propagates past a larger element
-    assert!(xsf::log_softmax(&[f64::NAN, f64::INFINITY, 0.0]).iter().all(|y| y.is_nan()));
+    assert!(
+        xsf::log_softmax(&[f64::NAN, f64::INFINITY, 0.0])
+            .iter()
+            .all(|y| y.is_nan())
+    );
 
     // test_log_softmax_translation
     let x = [0.0, 1.0, 2.0, 3.0];

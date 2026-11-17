@@ -37,7 +37,11 @@ fn succ_f64(n: u64) -> f64 {
 //
 fn sum_powers(m: u64, n: u64, a: f64) -> f64 {
     let add_term = |sum: f64, i: u64| sum + (i as f64).powf(-a);
-    if a >= 0.0 { (m..=n).rev().fold(0.0, add_term) } else { (m..=n).fold(0.0, add_term) }
+    if a >= 0.0 {
+        (m..=n).rev().fold(0.0, add_term)
+    } else {
+        (m..=n).fold(0.0, add_term)
+    }
 }
 
 //
@@ -124,7 +128,11 @@ pub fn gen_harmonic(n: u64, a: f64) -> f64 {
         //
         let z1 = zeta(a, 1.0);
         let znp1 = zeta(a, succ_f64(n));
-        if znp1 / z1 <= ZETA_RATIO_THRESHOLD { z1 - znp1 } else { sum_powers(1, n, a) }
+        if znp1 / z1 <= ZETA_RATIO_THRESHOLD {
+            z1 - znp1
+        } else {
+            sum_powers(1, n, a)
+        }
     }
 }
 

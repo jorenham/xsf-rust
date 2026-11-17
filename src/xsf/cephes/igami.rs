@@ -32,7 +32,11 @@ fn find_inverse_s(p: f64, q: f64) -> f64 {
         1.0,
     ];
 
-    let t = if p < 0.5 { (-2.0 * p.ln()).sqrt() } else { (-2.0 * q.ln()).sqrt() };
+    let t = if p < 0.5 {
+        (-2.0 * p.ln()).sqrt()
+    } else {
+        (-2.0 * q.ln()).sqrt()
+    };
     let s = t - polevl(t, &A) / polevl(t, &B);
     if p < 0.5 { -s } else { s }
 }

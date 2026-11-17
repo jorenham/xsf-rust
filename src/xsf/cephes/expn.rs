@@ -180,8 +180,11 @@ pub fn expn(n: u32, x: f64) -> f64 {
 
         loop {
             k += 1;
-            let (yk, xk) =
-                if k & 1 != 0 { (1.0, f64::from(n + (k - 1) / 2)) } else { (x, f64::from(k / 2)) };
+            let (yk, xk) = if k & 1 != 0 {
+                (1.0, f64::from(n + (k - 1) / 2))
+            } else {
+                (x, f64::from(k / 2))
+            };
             let pk = pkm1 * yk + pkm2 * xk;
             let qk = qkm1 * yk + qkm2 * xk;
             let t;

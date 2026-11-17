@@ -93,7 +93,9 @@ pub(crate) fn is_nonpos_int(x: f64) -> bool {
 /// The rows of a row-major matrix with `cols` columns, with the elements converted to `U`
 #[inline]
 pub(crate) fn vec_to_vecvec<T: Copy + Into<U>, U>(vec: &[T], cols: usize) -> Vec<Vec<U>> {
-    vec.chunks_exact(cols).map(|row| row.iter().map(|&x| x.into()).collect()).collect()
+    vec.chunks_exact(cols)
+        .map(|row| row.iter().map(|&x| x.into()).collect())
+        .collect()
 }
 
 #[cfg(test)]

@@ -193,7 +193,12 @@ fn test_ellip_potential() {
             sum += xsum;
         }
         let (x1, x2) = (cartesian(l1, m1, n1, h2, k2), cartesian(l2, m2, n2, h2, k2));
-        let dist = x1.iter().zip(x2).map(|(a, b)| (a - b) * (a - b)).sum::<f64>().sqrt();
+        let dist = x1
+            .iter()
+            .zip(x2)
+            .map(|(a, b)| (a - b) * (a - b))
+            .sum::<f64>()
+            .sqrt();
         np_assert_allclose!([sum], [1.0 / dist], rtol = 1e-8);
     }
 }

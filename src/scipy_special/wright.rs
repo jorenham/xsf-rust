@@ -32,7 +32,11 @@ fn add_round_down(a: f64, b: f64) -> f64 {
     }
 
     let (s, err) = two_sum(a, b);
-    if err < 0.0 { nextafter(s, f64::NEG_INFINITY) } else { s }
+    if err < 0.0 {
+        nextafter(s, f64::NEG_INFINITY)
+    } else {
+        s
+    }
 }
 
 fn wrightomega_ext(z: C64) -> C64 {
@@ -56,7 +60,11 @@ fn wrightomega_ext(z: C64) -> C64 {
         return if y.abs() <= pi / 2.0 {
             if y >= 0.0 { C64::ZERO } else { c64(0.0, -0.0) }
         } else {
-            if y >= 0.0 { c64(-0.0, 0.0) } else { c64(-0.0, -0.0) }
+            if y >= 0.0 {
+                c64(-0.0, 0.0)
+            } else {
+                c64(-0.0, -0.0)
+            }
         };
     } else if x.is_infinite() || y.is_infinite() {
         // Asymptotic for large z

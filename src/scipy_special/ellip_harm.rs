@@ -152,7 +152,13 @@ impl Lame {
             let (m_next, e_next) = frexp_f64(m * m_h);
             (m, e) = (m_next, e + e_next + e_h);
         }
-        Some(Self { h2, k2, odd, kind, coefs })
+        Some(Self {
+            h2,
+            k2,
+            odd,
+            kind,
+            coefs,
+        })
     }
 
     /// `ellip_harm_eval`

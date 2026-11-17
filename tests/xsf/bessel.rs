@@ -1392,7 +1392,9 @@ fn test_jahnke_emden_lambda_tiny_x() {
         for x in [0.0, 1e-101, 1e-50] {
             let (vl, dl) = xsf::jahnke_emden_lambda(v, x);
             let v0 = v - 3.0;
-            let dlr: Vec<f64> = (0..4).map(|k| -x / (2.0 * (v0 + f64::from(k) + 1.0))).collect();
+            let dlr: Vec<f64> = (0..4)
+                .map(|k| -x / (2.0 * (v0 + f64::from(k) + 1.0)))
+                .collect();
             assert_eq!(vl, [1.0; 4], "v = {v}, x = {x}");
             np_assert_allclose!(&dl, &dlr, rtol = 1e-15);
         }

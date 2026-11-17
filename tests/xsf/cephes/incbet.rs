@@ -153,9 +153,10 @@ fn test_betainc_a_or_b_above_1e154() {
 fn test_betainc_rounded_complement() {
     // unlike in xsf, the rounding error of `1 - x` (or of `x` for `betaincc`) is not amplified
     // `b` (or `a`) times by its power (Arb)
-    for &(a, b, x, p) in
-        &[(6.38, 137.3, 0.044, 0.539_843_994_381_909), (9.2, 160.1, 0.05, 0.438_914_464_393_196_15)]
-    {
+    for &(a, b, x, p) in &[
+        (6.38, 137.3, 0.044, 0.539_843_994_381_909),
+        (9.2, 160.1, 0.05, 0.438_914_464_393_196_15),
+    ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
     for &(a, b, x, q) in &[

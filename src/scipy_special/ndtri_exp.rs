@@ -14,7 +14,11 @@ use crate::xsf::cephes::ndtri::ndtri_tail;
 #[inline]
 fn ndtri_exp_small_y(y: f64) -> f64 {
     // sqrt(-2 * y) is faster and has more precision but overflows when y < -DBL_MAX * 0.5
-    let x = if y >= -f64::MAX * 0.5 { (-2.0 * y).sqrt() } else { SQRT_2 * (-y).sqrt() };
+    let x = if y >= -f64::MAX * 0.5 {
+        (-2.0 * y).sqrt()
+    } else {
+        SQRT_2 * (-y).sqrt()
+    };
     let r = -ndtri_tail(x);
 
     // P2/Q2 are fitted for 8 <= x <= 64 and inaccurate up to x ~ 2^18, so refine with a Newton step

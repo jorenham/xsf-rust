@@ -3,7 +3,10 @@ use xsref::np_assert_allclose;
 #[test]
 fn test_sinc() {
     // based on `numpy.lib.tests.test_function_base.TestSinc.test_simple`
-    let w = (-1..=1).map(|i| f64::from(i) * 0.01).map(xsf::sinc).collect::<Vec<f64>>();
+    let w = (-1..=1)
+        .map(|i| f64::from(i) * 0.01)
+        .map(xsf::sinc)
+        .collect::<Vec<f64>>();
     np_assert_allclose!(w.clone(), w.iter().copied().rev().collect::<Vec<_>>(), atol = 1e-15);
 }
 

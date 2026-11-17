@@ -8,8 +8,12 @@ fn ellip_harm_known(h2: f64, k2: f64, n: u32, p: u32, s: f64) -> f64 {
     let (sh, sk) = ((s2 - h2).abs().sqrt(), (s2 - k2).abs().sqrt());
     let root2 = ((h2 + k2) * (h2 + k2) - 3.0 * h2 * k2).abs().sqrt();
     let root3 = (4.0 * (h2 + k2) * (h2 + k2) - 15.0 * h2 * k2).sqrt();
-    let root3h = ((h2 + 2.0 * k2) * (h2 + 2.0 * k2) - 5.0 * h2 * k2).abs().sqrt();
-    let root3k = ((2.0 * h2 + k2) * (2.0 * h2 + k2) - 5.0 * h2 * k2).abs().sqrt();
+    let root3h = ((h2 + 2.0 * k2) * (h2 + 2.0 * k2) - 5.0 * h2 * k2)
+        .abs()
+        .sqrt();
+    let root3k = ((2.0 * h2 + k2) * (2.0 * h2 + k2) - 5.0 * h2 * k2)
+        .abs()
+        .sqrt();
     match (n, p) {
         (0, 1) => 1.0,
         (1, 1) => s,

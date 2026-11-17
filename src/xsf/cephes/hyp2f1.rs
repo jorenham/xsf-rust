@@ -81,7 +81,11 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     let (ya, ea) = hys2f1_min(a, c - b, c, w);
     let (yb, eb) = hys2f1_min(b, c - a, c, w);
     // if one of these overflows, its error estimate is NaN, so use the other
-    let (y, err, p) = if ea <= eb || eb.is_nan() { (ya, ea, a) } else { (yb, eb, b) };
+    let (y, err, p) = if ea <= eb || eb.is_nan() {
+        (ya, ea, a)
+    } else {
+        (yb, eb, b)
+    };
     ((1.0 - x).powf(-p) * y, err)
 }
 
@@ -373,7 +377,11 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // over- or underflow
             let rel_err = |e: f64, y: f64| {
                 let err = MACHEP * e / y.abs();
-                if err.is_finite() && y.is_finite() && y != 0.0 { err } else { HYP2F1_LOST }
+                if err.is_finite() && y.is_finite() && y != 0.0 {
+                    err
+                } else {
+                    HYP2F1_LOST
+                }
             };
 
             p = (a + d1) * (b + d1) * s * rgamma(e + 2.0); /* Poch for t=1 */
@@ -503,7 +511,11 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     };
 
     /* Don't cross c or zero */
-    let da = if (c < 0.0 && a <= c) || (c >= 0.0 && a >= c) { (a - c).round() } else { a.round() };
+    let da = if (c < 0.0 && a <= c) || (c >= 0.0 && a >= c) {
+        (a - c).round()
+    } else {
+        a.round()
+    };
     let mut t = a - da;
 
     debug_assert!(da != 0.0);
@@ -564,7 +576,11 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     }
     // `e |w s|` for a weight `w`, but inf (not NaN) if `e` is inf and `s` is 0
     let weigh = |w: f64, (s, _, e): (f64, f64, f64)| {
-        if e.is_infinite() { e } else { e * (w * s).abs() }
+        if e.is_infinite() {
+            e
+        } else {
+            e * (w * s).abs()
+        }
     };
     let start = weigh(g, start_f0) + weigh(h, start_f1);
     (f0, loss, (start + MACHEP * rounding) / f0.abs())
@@ -646,7 +662,11 @@ fn near_int(t: f64) -> bool {
 /// Whether `b - a` (for x <= -9) or `c - a - b` (for x >= 0.9) is near an integer, and `a` and `b`
 /// aren't non-positive integers (the polynomials)
 fn near_log(a: f64, b: f64, c: f64, x: f64) -> bool {
-    let (t, w) = if x < 0.0 { (b - a, x / (x - 1.0)) } else { (c - a - b, x) };
+    let (t, w) = if x < 0.0 {
+        (b - a, x / (x - 1.0))
+    } else {
+        (c - a - b, x)
+    };
     w >= HYP2F1_RECUR_NEAR1 && near_int(t) && !(near_neg_int(a) || near_neg_int(b))
 }
 

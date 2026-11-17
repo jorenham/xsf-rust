@@ -36,7 +36,10 @@ fn test_polygamma() {
     let expected = [-1.963_510_026_021_423_8, 0.934_802_200_544_679_3, -0.236_204_051_641_727_4];
     // assert_allclose(special.polygamma(n, x), expected, atol=1.5e-7, rtol=0)
     np_assert_allclose!(
-        n.iter().zip(x.iter()).map(|(&ni, &xi)| xsf::polygamma(ni, xi)).collect::<Vec<f64>>(),
+        n.iter()
+            .zip(x.iter())
+            .map(|(&ni, &xi)| xsf::polygamma(ni, xi))
+            .collect::<Vec<f64>>(),
         expected,
         atol = 1.5e-7,
         rtol = 0.0

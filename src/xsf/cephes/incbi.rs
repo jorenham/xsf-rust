@@ -89,7 +89,11 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
 
     // `I_x(aa, bb) = yy0`, or if `rflg`, `I_(1-x)(bb, aa) = 1 - yy0`
     let frame = |rflg| {
-        if rflg { (bb, aa, 1.0 - yy0) } else { (aa, bb, yy0) }
+        if rflg {
+            (bb, aa, 1.0 - yy0)
+        } else {
+            (aa, bb, yy0)
+        }
     };
     // Unlike in xsf, `a <= 1` or `b <= 1` with `y0 > 1/2` also starts with `rflg`, since
     // `I_x(a, b)` near 1 has lost the low digits of its complement.
@@ -293,7 +297,11 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
     }
 
     // done:
-    if rflg { (if x <= MACHEP { 1.0 - MACHEP } else { 1.0 - x }, x) } else { (x, 1.0 - x) }
+    if rflg {
+        (if x <= MACHEP { 1.0 - MACHEP } else { 1.0 - x }, x)
+    } else {
+        (x, 1.0 - x)
+    }
 }
 
 /// Inverse of the regularized incomplete Beta function, $y = \I_x(a, b)$
@@ -323,7 +331,12 @@ pub(super) fn incbi(aa: f64, bb: f64, yy0: f64) -> (f64, f64) {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincinv.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-#[doc(alias = "inc_beta_inv", alias = "beta_inc_inv", alias = "ibeta_inv", alias = "incbi")]
+#[doc(
+    alias = "inc_beta_inv",
+    alias = "beta_inc_inv",
+    alias = "ibeta_inv",
+    alias = "incbi"
+)]
 #[must_use]
 #[inline]
 pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
@@ -337,7 +350,11 @@ pub fn betaincinv(a: f64, b: f64, y: f64) -> f64 {
         // (where `1 - (1 - x) != x`) are kept if their residual is within its rounding, which
         // moves the root by up to ~eps / a for tiny `a`.
         if y > 0.5 && x < 0.5 {
-            let tol = if 1.0 - (1.0 - x) == x { 0.0 } else { BETAINCCINV_G_NOISE };
+            let tol = if 1.0 - (1.0 - x) == x {
+                0.0
+            } else {
+                BETAINCCINV_G_NOISE
+            };
             betainccinv_refine(a, b, 1.0 - y, x, tol)
         } else {
             x
@@ -397,7 +414,11 @@ pub fn betainccinv(a: f64, b: f64, y: f64) -> f64 {
     let x = incbi(b, a, y).1;
     // `incbi` returns 1 if its root `t` rounds to 0, 0 for roots below eps in its reflected frame
     // or if `t` rounds to 1, and NaN if it fails, e.g. if `lgam(a + b)` overflows
-    if x == 1.0 { x } else { betainccinv_refine(a, b, y, if x.is_nan() { 0.5 } else { x }, 0.0) }
+    if x == 1.0 {
+        x
+    } else {
+        betainccinv_refine(a, b, y, if x.is_nan() { 0.5 } else { x }, 0.0)
+    }
 }
 
 /// Enough for the bisection alone to narrow `ln(x)` from `[ln(5e-324), 0]` to `eps`
@@ -486,6 +507,10 @@ fn betainccinv_round_subnormal(a: f64, y: f64, lo: f64, hi: f64, p_hi: f64) -> f
     // `(m / hi)^a - 1`, with `(hi - lo) / hi` first, as half of the subnormal `hi - lo` rounds
     let r = (a * (-0.5 * ((hi - lo) / hi)).ln_1p()).exp_m1();
     // whether `g(m) > 0`, with `p = 1 - I_x(a, b)` if `y < 1/2`, else `p = I_x(a, b)`
-    let above = if y < 0.5 { p_hi - (1.0 - p_hi) * r > y } else { p_hi + p_hi * r < 1.0 - y };
+    let above = if y < 0.5 {
+        p_hi - (1.0 - p_hi) * r > y
+    } else {
+        p_hi + p_hi * r < 1.0 - y
+    };
     if above { hi } else { lo }
 }

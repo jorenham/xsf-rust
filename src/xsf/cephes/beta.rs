@@ -170,14 +170,22 @@ fn beta_negint(a: f64, b: f64) -> f64 {
     if b.fract() == 0.0 && b <= -a {
         let sgn = neg_one_pow(b);
         // B(1 - a - b, b) is a pole for b <= 0, which the rounding of 1 - a - b could hide
-        sgn * if b > 0.0 { beta(1.0 + (-a - b), b) } else { f64::INFINITY }
+        sgn * if b > 0.0 {
+            beta(1.0 + (-a - b), b)
+        } else {
+            f64::INFINITY
+        }
     } else {
         f64::INFINITY
     }
 }
 
 fn lbeta_negint(a: f64, b: f64) -> f64 {
-    if b.fract() == 0.0 && 0.0 < b && b <= -a { lbeta(1.0 + (-a - b), b) } else { f64::INFINITY }
+    if b.fract() == 0.0 && 0.0 < b && b <= -a {
+        lbeta(1.0 + (-a - b), b)
+    } else {
+        f64::INFINITY
+    }
 }
 
 /// Beta function
@@ -336,7 +344,11 @@ pub(crate) fn lbeta(mut a: f64, mut b: f64) -> f64 {
     if a.abs() < BETA_TINY {
         // `b / a` rounds before `ln_1p` if they nearly cancel, where `a + b` is exact (Sterbenz)
         let r = b / a;
-        let ln_y = if r < -0.5 { ((a + b) / a).abs().ln() } else { r.ln_1p() };
+        let ln_y = if r < -0.5 {
+            ((a + b) / a).abs().ln()
+        } else {
+            r.ln_1p()
+        };
         return ln_y - b.abs().ln();
     }
     if a.abs() > BETA_ASYMP_FACTOR * b.abs() && a > BETA_ASYMP_FACTOR {

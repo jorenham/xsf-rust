@@ -14,7 +14,11 @@ fn map2<const N: usize>(func: impl Fn(f64, f64) -> f64, xy: [(f64, f64); N]) -> 
 #[test]
 fn test_entr() {
     fn xfunc(x: f64) -> f64 {
-        if x < 0.0 { f64::NEG_INFINITY } else { -xsf::xlogy(x, x) }
+        if x < 0.0 {
+            f64::NEG_INFINITY
+        } else {
+            -xsf::xlogy(x, x)
+        }
     }
 
     let z = [f64::NEG_INFINITY, -1.0, -0.5, 0.0, 0.5, 1.0, f64::INFINITY];

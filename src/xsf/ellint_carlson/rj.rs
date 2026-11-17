@@ -276,7 +276,11 @@ mod rjimpl {
     /// Unlike in xsf (scipy/xsf#376), as `ln(c) + ln(x) - ln(y)` if `c x / y` overflows.
     pub(super) fn ln_ratio(c: f64, x: f64, y: f64) -> f64 {
         let r = c * x / y;
-        if r.is_finite() { r.ln() } else { c.ln() + x.ln() - y.ln() }
+        if r.is_finite() {
+            r.ln()
+        } else {
+            c.ln() + x.ln() - y.ln()
+        }
     }
 
     /// `R_C(a^2, p b^2)` for when `a^2` or `p b^2` under- or overflows, where
@@ -426,7 +430,11 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // that products of two of them don't underflow, or 2^-254 if complex (wider spans are
     // inaccurate there)
     let real = [x, y, z, p].iter().all(|a| argcheck::too_small(a.imag()));
-    let min = if real { f64::MIN_POSITIVE.sqrt() } else { const { pow2(-254) } };
+    let min = if real {
+        f64::MIN_POSITIVE.sqrt()
+    } else {
+        const { pow2(-254) }
+    };
     if let Some(f) = common::scale_factor(&[x, y, z, p], min) {
         let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
         return (status, res * f * f * f);
@@ -452,7 +460,11 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             let zr = zm.real();
             let pr = p.real();
             let (status, tmpres) = rjimpl::rj_cpv_dispatch(xr, yr, zr, pr, rerr);
-            let res = if is_horrible(status) { T::NAN } else { T::from(tmpres) };
+            let res = if is_horrible(status) {
+                T::NAN
+            } else {
+                T::from(tmpres)
+            };
             return (status, res);
         } else if classify.hit_pole {
             return (ExitStatus::Singular, T::HUGE);
@@ -714,7 +726,11 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
             && (w2 - ss * u).max_norm() <= ss.max_norm() * 0.5
         {
             let w = w2.sqrt();
-            let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 { -w } else { w };
+            let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 {
+                -w
+            } else {
+                w
+            };
             (w, sm + w)
         } else {
             let su = u.sqrt();

@@ -173,7 +173,10 @@ fn push<const M: usize>(x: &mut [Dd; M], w: Dd, new: Dd) {
 /// The number of terms after which the series in `w` for `m` may end, or infinity if the
 /// product of the `2 m a_i` in its first term underflows, so that its terms are lost
 fn min_terms(alpha: &[f64], beta: &[f64], w: f64, m: usize) -> f64 {
-    let first: f64 = alpha.iter().map(|a| ((2 * m) as f64 * a).abs().min(1.0)).product();
+    let first: f64 = alpha
+        .iter()
+        .map(|a| ((2 * m) as f64 * a).abs().min(1.0))
+        .product();
     if first < Dd::MIN_POSITIVE {
         return f64::INFINITY;
     }
@@ -207,11 +210,19 @@ pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64)
     // the factors are numbered from the last one, for the last parameter
     let shift = |j: usize| (j * m) as f64 - 1.0;
     let factor = |(j, param): (usize, Dd)| {
-        let rows = if j == 0 { &Factor::<M>::LAST } else { &Factor::INNER };
+        let rows = if j == 0 {
+            &Factor::<M>::LAST
+        } else {
+            &Factor::INNER
+        };
         Factor::new(rows, param, shift(j))
     };
     // 2 m (b_j - 1), in the lower factors `L`, and 2 m a_i, in the upper factors `R`
-    let lower: Vec<Dd> = beta.iter().rev().map(|&b| (Dd::new(b) - 1.0) * scale).collect();
+    let lower: Vec<Dd> = beta
+        .iter()
+        .rev()
+        .map(|&b| (Dd::new(b) - 1.0) * scale)
+        .collect();
     let upper = alpha.iter().rev().map(|&a| Dd::new(a) * scale);
     let mut l: Vec<_> = lower.iter().copied().enumerate().map(factor).collect();
     let mut r: Vec<_> = upper.enumerate().map(factor).collect();
@@ -369,7 +380,11 @@ mod tests {
         let (y, top) = conformal_sum::<6>(&[2.0; 4], &[1.0; 3], -3.0);
         assert!((y - 0.039_062_5).hi.abs() <= CONFORMAL_EPS && top > 1e3);
         // no convergence within `PFQ_DD_MAXITER` terms
-        assert!(sums(&[1.0; 3], &[2.0; 2], -1e12).iter().all(|y| y.hi.is_nan()));
+        assert!(
+            sums(&[1.0; 3], &[2.0; 2], -1e12)
+                .iter()
+                .all(|y| y.hi.is_nan())
+        );
     }
 
     #[test]

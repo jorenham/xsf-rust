@@ -132,14 +132,26 @@ fn kolmogorov_(x: f64) -> ThreeProbs {
     let (sf, cdf, pdf);
 
     if x.is_nan() {
-        return ThreeProbs { sf: f64::NAN, cdf: f64::NAN, pdf: f64::NAN };
+        return ThreeProbs {
+            sf: f64::NAN,
+            cdf: f64::NAN,
+            pdf: f64::NAN,
+        };
     }
     if x <= 0.0 {
-        return ThreeProbs { sf: 1.0, cdf: 0.0, pdf: 0.0 };
+        return ThreeProbs {
+            sf: 1.0,
+            cdf: 0.0,
+            pdf: 0.0,
+        };
     }
     /* x <= 0.040611972203751713 */
     if x <= PI / f64::from(-MIN_EXPABLE * 8).sqrt() {
-        return ThreeProbs { sf: 1.0, cdf: 0.0, pdf: 0.0 };
+        return ThreeProbs {
+            sf: 1.0,
+            cdf: 0.0,
+            pdf: 0.0,
+        };
     }
 
     if x <= KOLMOG_CUTOVER {
@@ -287,7 +299,11 @@ fn kolmogi_(psf: f64, pcdf: f64) -> f64 {
     loop {
         let x0 = x;
         let probs = kolmogorov_(x0);
-        let df = if pcdf < 0.5 { pcdf - probs.cdf } else { probs.sf - psf };
+        let df = if pcdf < 0.5 {
+            pcdf - probs.cdf
+        } else {
+            probs.sf - psf
+        };
 
         if df.abs() == 0.0 {
             break;
@@ -539,10 +555,18 @@ fn pow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
     let A = DoubleDouble::new(a) + b;
     let C = DoubleDouble::new(c) + d;
     if A == 0.0 {
-        return if C == 0.0 { DoubleDouble::NAN } else { DoubleDouble::new(0.0) };
+        return if C == 0.0 {
+            DoubleDouble::NAN
+        } else {
+            DoubleDouble::new(0.0)
+        };
     }
     if C == 0.0 {
-        return if A < 0.0 { -DoubleDouble::INFINITY } else { DoubleDouble::INFINITY };
+        return if A < 0.0 {
+            -DoubleDouble::INFINITY
+        } else {
+            DoubleDouble::INFINITY
+        };
     }
     let X = A / C;
     pow_d(X, m)
@@ -565,7 +589,11 @@ fn logpow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
     let A = DoubleDouble::new(a) + b;
     let C = DoubleDouble::new(c) + d;
     if A == 0.0 {
-        return if C == 0.0 { DoubleDouble::new(0.0) } else { -DoubleDouble::INFINITY };
+        return if C == 0.0 {
+            DoubleDouble::new(0.0)
+        } else {
+            -DoubleDouble::INFINITY
+        };
     }
     if C == 0.0 {
         return DoubleDouble::INFINITY;
@@ -610,16 +638,32 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     let mut use_upper_sum;
 
     if !(n > 0 && (0.0..=1.0).contains(&x)) {
-        return ThreeProbs { sf: f64::NAN, cdf: f64::NAN, pdf: f64::NAN };
+        return ThreeProbs {
+            sf: f64::NAN,
+            cdf: f64::NAN,
+            pdf: f64::NAN,
+        };
     }
     if n == 1 {
-        return ThreeProbs { sf: 1.0 - x, cdf: x, pdf: 1.0 };
+        return ThreeProbs {
+            sf: 1.0 - x,
+            cdf: x,
+            pdf: 1.0,
+        };
     }
     if x == 0.0 {
-        return ThreeProbs { sf: 1.0, cdf: 0.0, pdf: 1.0 };
+        return ThreeProbs {
+            sf: 1.0,
+            cdf: 0.0,
+            pdf: 1.0,
+        };
     }
     if x == 1.0 {
-        return ThreeProbs { sf: 0.0, cdf: 1.0, pdf: 0.0 };
+        return ThreeProbs {
+            sf: 0.0,
+            cdf: 1.0,
+            pdf: 0.0,
+        };
     }
 
     let (alpha, nxfl, nx) = mod_nx(n, x);
@@ -649,7 +693,11 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
     }
     /* Special case:  x is so big, the sf underflows double64 */
     if -2.0 * f64::from(n) * x * x < MINLOG {
-        return ThreeProbs { sf: 0.0, cdf: 1.0, pdf: 0.0 };
+        return ThreeProbs {
+            sf: 0.0,
+            cdf: 1.0,
+            pdf: 0.0,
+        };
     }
     /* Special case:  x >= 1 - 1/n */
     if nxfl >= n - 1 {
@@ -824,7 +872,11 @@ fn smirnovi_(n: i32, psf: f64, pcdf: f64) -> f64 {
         return x;
     }
 
-    let logpcdf = if pcdf < 0.5 { pcdf.ln() } else { (-psf).ln_1p() };
+    let logpcdf = if pcdf < 0.5 {
+        pcdf.ln()
+    } else {
+        (-psf).ln_1p()
+    };
 
     /*
      * STEP 4 Find bracket and initial estimate for use in N-R
@@ -899,7 +951,11 @@ fn smirnovi_(n: i32, psf: f64, pcdf: f64) -> f64 {
         debug_assert!(x > 0.0);
         {
             let probs = smirnov_(n, x0);
-            df = if pcdf < 0.5 { pcdf - probs.cdf } else { probs.sf - psf };
+            df = if pcdf < 0.5 {
+                pcdf - probs.cdf
+            } else {
+                probs.sf - psf
+            };
             dfdx = -probs.pdf;
         }
         if df == 0.0 {

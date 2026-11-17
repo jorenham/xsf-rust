@@ -139,7 +139,10 @@ impl Neg for DoubleDouble {
 
     #[inline]
     fn neg(self) -> Self {
-        Self { hi: -self.hi, lo: -self.lo }
+        Self {
+            hi: -self.hi,
+            lo: -self.lo,
+        }
     }
 }
 
@@ -327,7 +330,10 @@ impl DoubleDouble {
     #[inline]
     pub(crate) fn mul_pwr2(self, rhs: f64) -> Self {
         /* double-double * double,  where double is a power of 2. */
-        Self { hi: self.hi * rhs, lo: self.lo * rhs }
+        Self {
+            hi: self.hi * rhs,
+            lo: self.lo * rhs,
+        }
     }
 
     #[inline]
@@ -428,7 +434,10 @@ impl DoubleDouble {
     #[inline]
     pub(crate) fn ldexp(self, expt: i32) -> Self {
         // float128 * (2.0 ^ expt)
-        Self { hi: ldexp_f64(self.hi, expt), lo: ldexp_f64(self.lo, expt) }
+        Self {
+            hi: ldexp_f64(self.hi, expt),
+            lo: ldexp_f64(self.lo, expt),
+        }
     }
 
     pub(crate) fn frexp(self) -> (Self, i32) {
@@ -447,9 +456,15 @@ impl DoubleDouble {
 
     // Numeric limits
 
-    pub(crate) const NAN: Self = Self { hi: f64::NAN, lo: f64::NAN };
+    pub(crate) const NAN: Self = Self {
+        hi: f64::NAN,
+        lo: f64::NAN,
+    };
 
-    pub(crate) const INFINITY: Self = Self { hi: f64::INFINITY, lo: f64::INFINITY };
+    pub(crate) const INFINITY: Self = Self {
+        hi: f64::INFINITY,
+        lo: f64::INFINITY,
+    };
 }
 
 #[rustfmt::skip]
@@ -472,26 +487,40 @@ const INV_FACT: [DoubleDouble; 15] = [
 ];
 
 // Math constants
-const E: DoubleDouble = DoubleDouble { hi: E_HI, lo: 1.445_646_891_729_250_2e-16 };
+const E: DoubleDouble = DoubleDouble {
+    hi: E_HI,
+    lo: 1.445_646_891_729_250_2e-16,
+};
 
 /// `ln(2)` in double-double precision
-pub(crate) const LOG2: DoubleDouble = DoubleDouble { hi: LN_2, lo: 2.319_046_813_846_299_6e-17 };
+pub(crate) const LOG2: DoubleDouble = DoubleDouble {
+    hi: LN_2,
+    lo: 2.319_046_813_846_299_6e-17,
+};
 
 /// `ln(pi)` in double-double precision
-pub(crate) const LN_PI_DD: DoubleDouble =
-    DoubleDouble { hi: LN_PI, lo: 1.026_595_116_270_782_6e-17 };
+pub(crate) const LN_PI_DD: DoubleDouble = DoubleDouble {
+    hi: LN_PI,
+    lo: 1.026_595_116_270_782_6e-17,
+};
 
 /// `2 / pi` in double-double precision
-pub(crate) const FRAC_2_PI_DD: DoubleDouble =
-    DoubleDouble { hi: FRAC_2_PI, lo: -3.935_735_335_036_497e-17 };
+pub(crate) const FRAC_2_PI_DD: DoubleDouble = DoubleDouble {
+    hi: FRAC_2_PI,
+    lo: -3.935_735_335_036_497e-17,
+};
 
 /// `ln(2 pi) / 2` in double-double precision
-pub(crate) const LN_SQRT_2PI_DD: DoubleDouble =
-    DoubleDouble { hi: LN_SQRT_TAU, lo: -3.878_294_158_067_241_4e-17 };
+pub(crate) const LN_SQRT_2PI_DD: DoubleDouble = DoubleDouble {
+    hi: LN_SQRT_TAU,
+    lo: -3.878_294_158_067_241_4e-17,
+};
 
 /// `pi / 2` in double-double precision
-pub(crate) const FRAC_PI_2_DD: DoubleDouble =
-    DoubleDouble { hi: FRAC_PI_2, lo: 6.123_233_995_736_766e-17 };
+pub(crate) const FRAC_PI_2_DD: DoubleDouble = DoubleDouble {
+    hi: FRAC_PI_2,
+    lo: 6.123_233_995_736_766e-17,
+};
 
 /// `atan(j / 8)` in double-double precision
 #[rustfmt::skip]
@@ -627,12 +656,17 @@ mod tests {
         let one = DoubleDouble::new(1.0);
         let third = one / 3.0;
         // exact where the high parts of the products cancel
-        let x = DoubleDouble { hi: 1.0, lo: pow2(-80) };
+        let x = DoubleDouble {
+            hi: 1.0,
+            lo: pow2(-80),
+        };
         let y = DoubleDouble::dot([(x, one), (-one, one)]);
         assert_eq!((y.hi, y.lo), (pow2(-80), 0.0));
         // as accurate as the sum of the products
         let pairs = [(third, third), (third * 7.0, -third), (x, third)];
-        let sum = pairs.iter().fold(DoubleDouble::new(0.0), |s, &(a, b)| s + a * b);
+        let sum = pairs
+            .iter()
+            .fold(DoubleDouble::new(0.0), |s, &(a, b)| s + a * b);
         let y = DoubleDouble::dot(pairs);
         assert_eq!(y.hi, sum.hi);
         assert!((y - sum).hi.abs() <= pow2(-100) * sum.hi.abs());
@@ -664,7 +698,10 @@ mod tests {
     #[test]
     fn test_cmp_nan_hi() {
         // like in C++, the low words are compared if the high words are unordered
-        let nan = DoubleDouble { hi: f64::NAN, lo: 0.0 };
+        let nan = DoubleDouble {
+            hi: f64::NAN,
+            lo: 0.0,
+        };
         let zero = DoubleDouble::new(0.0);
         assert!(nan <= zero);
         assert!(nan <= 0.0);

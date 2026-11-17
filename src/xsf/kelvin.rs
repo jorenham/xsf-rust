@@ -187,7 +187,16 @@ fn klvna(x: f64) -> Klvna {
         der = xc1 * xe1 * (pp1 * cp0 + qp1 * sp0) - hei / PI;
         dei = xc1 * xe1 * (pp1 * sp0 - qp1 * cp0) + her / PI;
     }
-    Klvna { ber, bei, ger, gei, der, dei, her, hei }
+    Klvna {
+        ber,
+        bei,
+        ger,
+        gei,
+        der,
+        dei,
+        her,
+        hei,
+    }
 }
 
 /// Kelvin function $\ber$
@@ -417,7 +426,16 @@ fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
 
     for m in 1..=nt {
         loop {
-            let Klvna { ber, bei, ger, gei, der, dei, her, hei } = klvna(rt);
+            let Klvna {
+                ber,
+                bei,
+                ger,
+                gei,
+                der,
+                dei,
+                her,
+                hei,
+            } = klvna(rt);
             if kd == 1 {
                 rt -= ber / der;
             } else if kd == 2 {

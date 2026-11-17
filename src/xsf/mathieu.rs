@@ -539,7 +539,11 @@ pub fn mathieu_even_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // if m % 2:
     //     kd = 2
     // fc = _specfun.fcoef(kd, m, q, a)
-    let (fc, km) = if m % 2 == 0 { fcoef::<1>(m, q)? } else { fcoef::<2>(m, q)? };
+    let (fc, km) = if m % 2 == 0 {
+        fcoef::<1>(m, q)?
+    } else {
+        fcoef::<2>(m, q)?
+    };
 
     // return fc[:km]
     Some(fc[..km].to_vec())
@@ -571,7 +575,11 @@ pub fn mathieu_odd_coef(m: u32, q: f64) -> Option<Vec<f64>> {
     // if m % 2:
     //     kd = 3
     // fc = _specfun.fcoef(kd, m, q, b)
-    let (fc, km) = if m % 2 == 0 { fcoef::<4>(m, q)? } else { fcoef::<3>(m, q)? };
+    let (fc, km) = if m % 2 == 0 {
+        fcoef::<4>(m, q)?
+    } else {
+        fcoef::<3>(m, q)?
+    };
 
     // return fc[:km]
     Some(fc[..km].to_vec())

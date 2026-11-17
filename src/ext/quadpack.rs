@@ -95,8 +95,11 @@ pub(crate) fn quad(f: impl Fn(f64) -> f64, a: f64, b: f64, epsabs: f64, epsrel: 
             return (result, abserr);
         }
 
-        let (i, _) =
-            intervals.iter().enumerate().max_by(|(_, x), (_, y)| x.2.1.total_cmp(&y.2.1)).unwrap();
+        let (i, _) = intervals
+            .iter()
+            .enumerate()
+            .max_by(|(_, x), (_, y)| x.2.1.total_cmp(&y.2.1))
+            .unwrap();
         let (a1, b2, _) = intervals.swap_remove(i);
         let b1 = 0.5 * (a1 + b2);
         intervals.push((a1, b1, qk21(&f, a1, b1)));
@@ -125,7 +128,11 @@ pub(crate) fn quad_unimodal(
     for end in [b, a] {
         let (mut x, mut w, mut prev) = (mode, width, 0.0);
         while x != end {
-            let y = if end > x { (x + w).min(end) } else { (x - w).max(end) };
+            let y = if end > x {
+                (x + w).min(end)
+            } else {
+                (x - w).max(end)
+            };
             let (piece, _) = quad(&f, x.min(y), x.max(y), epsrel * sum, epsrel);
             sum += piece;
             if !(piece > prev || piece > f64::EPSILON * sum) {

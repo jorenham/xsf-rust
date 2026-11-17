@@ -26,7 +26,11 @@ pub(super) fn rc<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
     if argcheck::too_small(y.imag()) && (y.real() < 0.0) {
         /* Ref[2], Eq. 2.14 or Eq. (21) in the arXiv preprint */
         let (status, tmpres) = rc(x - y, -y, rerr);
-        let res = if is_horrible(status) { T::NAN } else { tmpres * (x / (x - y)).sqrt() };
+        let res = if is_horrible(status) {
+            T::NAN
+        } else {
+            tmpres * (x / (x - y)).sqrt()
+        };
         return (status, res);
     }
 

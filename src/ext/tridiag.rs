@@ -233,7 +233,12 @@ fn refine(d: &[f64], e: &[f64], w: f64, x: &mut [f64]) {
         if !max.is_finite() {
             return;
         }
-        let norm = y.iter().map(|yi| (yi / max) * (yi / max)).sum::<f64>().sqrt() * max;
+        let norm = y
+            .iter()
+            .map(|yi| (yi / max) * (yi / max))
+            .sum::<f64>()
+            .sqrt()
+            * max;
         for (xi, yi) in x.iter_mut().zip(y) {
             *xi = yi / norm;
         }
@@ -304,7 +309,11 @@ mod tests {
         (0..d.len())
             .map(|i| {
                 let below = if i > 0 { e[i - 1] * x[i - 1] } else { 0.0 };
-                let above = if i + 1 < d.len() { e[i] * x[i + 1] } else { 0.0 };
+                let above = if i + 1 < d.len() {
+                    e[i] * x[i + 1]
+                } else {
+                    0.0
+                };
                 (below + (d[i] - lambda) * x[i] + above).abs()
             })
             .fold(0.0, f64::max)
@@ -354,8 +363,16 @@ mod tests {
 
     #[test]
     fn test_eigvec_nan() {
-        assert!(eigvec(&[1.0, 1.0], &[1.0], f64::NAN).into_iter().all(f64::is_nan));
-        assert!(eigvec(&[1.0, f64::NAN], &[1.0], 1.0).into_iter().all(f64::is_nan));
+        assert!(
+            eigvec(&[1.0, 1.0], &[1.0], f64::NAN)
+                .into_iter()
+                .all(f64::is_nan)
+        );
+        assert!(
+            eigvec(&[1.0, f64::NAN], &[1.0], 1.0)
+                .into_iter()
+                .all(f64::is_nan)
+        );
     }
 
     /// `eigvals(d, e)` to within 2 ulp

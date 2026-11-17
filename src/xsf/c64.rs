@@ -380,7 +380,16 @@ fn div(mut a: C64, mut b: C64) -> C64 {
 /// computed as NaN + NaN i, e.g. `(inf + inf i) * (1 + 0i)`.
 #[inline]
 fn mul(a: C64, b: C64) -> C64 {
-    let (C64 { re: mut a, im: mut b }, C64 { re: mut c, im: mut d }) = (a, b);
+    let (
+        C64 {
+            re: mut a,
+            im: mut b,
+        },
+        C64 {
+            re: mut c,
+            im: mut d,
+        },
+    ) = (a, b);
     let (ac, bd, ad, bc) = (a * c, b * d, a * d, b * c);
     let (mut x, mut y) = (ac - bd, ad + bc);
 

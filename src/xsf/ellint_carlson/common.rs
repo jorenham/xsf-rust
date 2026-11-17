@@ -165,7 +165,11 @@ pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
     let s = sa + sb;
     if s.abs() < sa.abs() {
         let d = a - b;
-        if d.abs().is_finite() { d / (sa - sb) } else { (a * 0.5 - b * 0.5) / ((sa - sb) * 0.5) }
+        if d.abs().is_finite() {
+            d / (sa - sb)
+        } else {
+            (a * 0.5 - b * 0.5) / ((sa - sb) * 0.5)
+        }
     } else {
         s
     }

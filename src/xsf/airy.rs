@@ -84,7 +84,12 @@ fn airy_f64(x: f64) -> [f64; 4] {
         // e^(+-zeta.lo) = 1 +- zeta.lo
         let (ai, aip) = (ai * (1.0 - zeta.lo), aip * (1.0 - zeta.lo));
         let (bi, bip) = (bi * (1.0 + zeta.lo), bip * (1.0 + zeta.lo));
-        [mul_exp(ai, -zeta.hi), mul_exp(aip, -zeta.hi), mul_exp(bi, zeta.hi), mul_exp(bip, zeta.hi)]
+        [
+            mul_exp(ai, -zeta.hi),
+            mul_exp(aip, -zeta.hi),
+            mul_exp(bi, zeta.hi),
+            mul_exp(bip, zeta.hi),
+        ]
     } else {
         let (_, ai, aip, bi, bip) = cephes::airy(x);
         [ai, aip, bi, bip]

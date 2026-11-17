@@ -28,8 +28,11 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
     let v1 = (Dd::new(v) - 1.0).abs();
     // `z / v1`, with a huge `z` halved first (exact, as is the doubling of the normal quotient), as
     // the division forms `v1 (z / v1)`, which may overflow near `f64::MAX`
-    let z_v1 =
-        if z.abs() > f64::MAX / 16.0 { Dd::new(0.5 * z) / v1 * 2.0 } else { Dd::new(z) / v1 };
+    let z_v1 = if z.abs() > f64::MAX / 16.0 {
+        Dd::new(0.5 * z) / v1 * 2.0
+    } else {
+        Dd::new(z) / v1
+    };
     let x2 = z_v1 / v1 * 4.0; // sign(z) x^2
     let p1 = (x2 + 1.0).sqrt();
 
@@ -63,7 +66,11 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
             // with Gamma(v) = pi / (sin(pi v) Gamma(v1)), divided within the exponent where `e^e`
             // overflows
             let e = v1_eta * 2.0 - zeta - ln_sqrt_p1;
-            let i = if e.hi < MAXLOG { exp_dd(e) / s.abs() } else { exp_dd(e - s.abs().ln()) };
+            let i = if e.hi < MAXLOG {
+                exp_dd(e) / s.abs()
+            } else {
+                exp_dd(e - s.abs().ln())
+            };
             out + i.copysign(s) * u_corr_i
         }
     } else {
@@ -211,7 +218,11 @@ fn gamma_pow(v: f64, arg: f64, j: f64) -> f64 {
     let e = (ln_dd(v1 / arg) - 1.0) * v1 + lgam_stirling_corr(v1.hi);
     let c = (2.0 * PI * v1.hi).sqrt();
     // DLMF 5.5.3: `Gamma(v) = pi v1 / (sin(pi v) Gamma(v1 + 1))` for `v < 1`
-    let (e, f) = if v > 1.0 { (e, c) } else { (-e, PI * v1.hi / (crate::sinpi(v) * c)) };
+    let (e, f) = if v > 1.0 {
+        (e, c)
+    } else {
+        (-e, PI * v1.hi / (crate::sinpi(v) * c))
+    };
     let exp = exp_dd(e);
     let out = exp * f * j;
     if (exp.is_normal() && out.is_normal()) || !j.is_normal() {
@@ -321,8 +332,11 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             }
         }
         // `arg = sqrt(w)`, with `w = z` for `I` and `w = -z` for `J`
-        let (w, s, bessel): (_, _, fn(f64, C64) -> C64) =
-            if z.re > 0.0 { (z, 1.0, cyl_bessel_i_c64) } else { (-z, -1.0, cyl_bessel_j_c64) };
+        let (w, s, bessel): (_, _, fn(f64, C64) -> C64) = if z.re > 0.0 {
+            (z, 1.0, cyl_bessel_i_c64)
+        } else {
+            (-z, -1.0, cyl_bessel_j_c64)
+        };
         let arg = w.sqrt();
         let x = 2.0 * arg;
         let r_v = bessel(v, x);
@@ -393,7 +407,11 @@ impl HypergeometricArg for f64 {
 
     #[inline]
     fn hyp1f0(self, a: f64) -> Self {
-        if a > 0.0 && self == 1.0 { f64::NAN } else { (1.0 - self).powf(-a) }
+        if a > 0.0 && self == 1.0 {
+            f64::NAN
+        } else {
+            (1.0 - self).powf(-a)
+        }
     }
 
     #[inline]

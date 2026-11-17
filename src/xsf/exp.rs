@@ -52,7 +52,11 @@ fn cexpm1(z: C64) -> C64 {
     };
 
     // don't compute exp(zr) too, unless necessary
-    let y = if z.re > -1.0 { (ezr + 1.0) * z.im.sin() } else { z.re.exp() * z.im.sin() };
+    let y = if z.re > -1.0 {
+        (ezr + 1.0) * z.im.sin()
+    } else {
+        z.re.exp() * z.im.sin()
+    };
 
     c64(x, y)
 }

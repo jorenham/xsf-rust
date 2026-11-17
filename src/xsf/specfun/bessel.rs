@@ -67,7 +67,9 @@ fn bjndd(x: f64, n: usize, bj: &mut [f64], dj: &mut [f64], fj: &mut [f64]) {
     let mut f0 = 0.0;
     let mut f1 = 1e-35;
 
-    let m = (1..901).find(|&m| envj(m as f64, x.abs()) as i32 > 20).unwrap_or(900);
+    let m = (1..901)
+        .find(|&m| envj(m as f64, x.abs()) as i32 > 20)
+        .unwrap_or(900);
     for k in (0..=m).rev() {
         f = 2.0 * (k as f64 + 1.0) * f1 / x - f0;
         if k <= n {
@@ -1103,7 +1105,11 @@ pub(crate) fn lamv(v: f64, x: f64, vm: &mut f64, vl: &mut [f64], dl: &mut [f64])
             f1 = f;
         }
 
-        let cs = if bjv0.abs() > bjv1.abs() { bjv0 / f } else { bjv1 / f2 };
+        let cs = if bjv0.abs() > bjv1.abs() {
+            bjv0 / f
+        } else {
+            bjv1 / f2
+        };
 
         for k in 0..=n + 1 {
             vl[k as usize] *= cs;
@@ -1151,8 +1157,11 @@ pub(crate) fn msta2(x: f64, n: i32, mp: i32) -> i32 {
     let a0 = x.abs();
     let hmp = 0.5 * f64::from(mp);
     let ejn = envj(f64::from(n), a0);
-    let (n0, obj) =
-        if ejn <= hmp { ((1.1 * a0) as i32 + 1, f64::from(mp)) } else { (n, hmp + ejn) };
+    let (n0, obj) = if ejn <= hmp {
+        ((1.1 * a0) as i32 + 1, f64::from(mp))
+    } else {
+        (n, hmp + ejn)
+    };
     msta_secant(a0, n0, obj) + 10
 }
 

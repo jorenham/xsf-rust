@@ -304,8 +304,10 @@ fn test_hyp2f1_f64_euler_tiny_a() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-12);
     // and these are 1 to rounding
-    let actual =
-        [xsf::hyp2f1(1e-20, 3.0, 0.7, -1.0), xsf::hyp2f1(1e-20, 300.5, 0.7, -0.999_999_999_999_99)];
+    let actual = [
+        xsf::hyp2f1(1e-20, 3.0, 0.7, -1.0),
+        xsf::hyp2f1(1e-20, 300.5, 0.7, -0.999_999_999_999_99),
+    ];
     np_assert_allclose!(actual, [1.0, 1.0], rtol = 1e-14);
 }
 

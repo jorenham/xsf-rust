@@ -1010,7 +1010,9 @@ fn test_poisson_binom_smoke() {
     ];
 
     // np.linspace(1e-5, 1 - 1e-5, 51)
-    let p: Vec<f64> = (0..51).map(|i| 1e-5 + f64::from(i) * (1.0 - 2e-5) / 50.0).collect();
+    let p: Vec<f64> = (0..51)
+        .map(|i| 1e-5 + f64::from(i) * (1.0 - 2e-5) / 50.0)
+        .collect();
 
     let pmf = xsf::poisson_binom_pmf_all(&p);
     let cdf = xsf::poisson_binom_cdf_all(&p);
