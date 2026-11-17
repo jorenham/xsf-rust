@@ -26,7 +26,7 @@ const AI_ASYMP_MIN: (f64, f64) = (0.03042031836319838, -0.04708838543657824);
 /// Below this, the phase error of `sin_cos_theta`, ~ `theta` 2^-106, is ~ sqrt(eps)
 const MINAIRY: f64 = -1e16;
 /// 2/3 in double-double, as 2/3 - fl(2/3) = 2^-53 / 3
-const TWO_THIRDS: DoubleDouble = DoubleDouble {
+pub(crate) const TWO_THIRDS: DoubleDouble = DoubleDouble {
     hi: 2.0 / 3.0,
     lo: pow2(-53) / 3.0,
 };
