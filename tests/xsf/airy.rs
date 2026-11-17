@@ -162,14 +162,9 @@ fn test_airy_c64_stokes_line() {
         c64(0.235_677_865_045_850_56, 0.122_054_143_239_840_32),
         c64(0.756_651_800_327_934_9, 0.583_668_266_825_027),
     ];
-    for (z, expected, scaled) in [
-        (z, expected, scaled),
-        (
-            z.conj(),
-            expected.map(|w| w.conj()),
-            scaled.map(|w| w.conj()),
-        ),
-    ] {
+    for (z, expected, scaled) in
+        [(z, expected, scaled), (z.conj(), expected.map(|w| w.conj()), scaled.map(|w| w.conj()))]
+    {
         xsref::np_assert_allclose!(&xsf::airy(z), &expected, rtol = 1e-15);
         xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &scaled, rtol = 1e-15);
     }

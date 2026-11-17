@@ -64,10 +64,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     let q = Some(bip / bi)
         .filter(|q| q.is_finite() && *q != C64::ZERO)
         .unwrap_or(s);
-    let (bi, bip) = (
-        bi * (1.0 + d * (q - 0.5 / z) / s),
-        bip * (1.0 + d * (z / q - 1.0 / z) / s),
-    );
+    let (bi, bip) = (bi * (1.0 + d * (q - 0.5 / z) / s), bip * (1.0 + d * (z / q - 1.0 / z) / s));
     if kode == 2 {
         return [ai, aip, bi * (1.0 - d.re), bip * (1.0 - d.re)];
     }
