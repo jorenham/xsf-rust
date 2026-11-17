@@ -350,33 +350,23 @@ def error(y: complex, ref: Ref) -> float:
     value, scale = ref
     assert not isinstance(scale, list)
     if isinstance(value, list):
-        return error_complex(complex(y), mp.mpc(*value), scale)
-    assert isinstance(y, float)
-    r = mp.mpf(value)
-    if math.isnan(y):
-        return math.inf
-    if mp.isinf(r) or abs(r) > DBL_MAX:
-        return 0.0 if math.isinf(y) and (y > 0) == (r > 0) else math.inf
+        y, r = complex(y), mp.mpc(*value)
+        if math.isnan(y.real) or math.isnan(y.imag):
+            return math.inf
+        if abs(r) > DBL_MAX:
+            return 0.0 if math.isinf(abs(y)) else math.inf
+        if math.isinf(abs(y)):
+            return math.inf
+    else:
+        assert isinstance(y, float)
+        r = mp.mpf(value)
+        if math.isnan(y):
+            return math.inf
+        if mp.isinf(r) or abs(r) > DBL_MAX:
+            return 0.0 if math.isinf(y) and (y > 0) == (r > 0) else math.inf
     if abs(r) < DBL_MIN:  # underflow
         return 0.0 if abs(y) < DBL_MIN else float(abs(y - r) / DBL_MIN)
-    d = abs(mp.mpf(y) - r)
-    e = d / abs(r)
-    if scale is not None:
-        e = min(e, d / mp.mpf(scale))
-    return float(e)
-
-
-def error_complex(y: complex, r: mp.mpc, scale: str | None = None) -> float:
-    """|y - r| / |r|, with the same overflow, underflow, and scale rules as `error`."""
-    if math.isnan(y.real) or math.isnan(y.imag):
-        return math.inf
-    if abs(r) > DBL_MAX:
-        return 0.0 if math.isinf(abs(y)) else math.inf
-    if math.isinf(abs(y)):
-        return math.inf
-    if abs(r) < DBL_MIN:
-        return 0.0 if abs(y) < DBL_MIN else float(abs(y - r) / DBL_MIN)
-    d = abs(mp.mpc(y) - r)
+    d = abs(y - r)
     e = d / abs(r)
     if scale is not None:
         e = min(e, d / mp.mpf(scale))
