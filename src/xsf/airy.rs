@@ -73,42 +73,26 @@ fn airye_f64(z: f64) -> [f64; 4] {
 }
 
 fn airy_f64(x: f64) -> [f64; 4] {
-    let cephes = || {
-        let (_, ai, aip, bi, bip) = crate::xsf::cephes::airy(x);
-        [ai, aip, bi, bip]
-    };
-    /* For small arguments, use Cephes as it's slightly faster.
-     * For large arguments, use AMOS as it's more accurate.
-     */
-    // Unlike in xsf (scipy/xsf#532), Cephes is also used for x < -10, where its double-double
-    // phase makes it more accurate than AMOS.
-    if x > 10.0 {
-        let [ai, aip, bi, bip] = airy_c64(c64(x, 0.0), 1).map(|z| z.re);
-        // Unlike in xsf (scipy/xsf#310), Cephes or `airye` takes over where AMOS over- or
-        // underflows.
-        if x > 103.892 && x < 108.0 {
-            // Cephes returns (0, 0, inf, inf) for x > 103.892, while Bi(x) only overflows at
-            // x = 104.44 and Ai(x) underflows at x = 107.47, so `airye` is unscaled in between.
-            let [ai, aip, bi, bip] = airye_f64(x);
-            let zeta = 2.0 * x * x.sqrt() / 3.0;
-            [
-                mul_exp(ai, -zeta),
-                mul_exp(aip, -zeta),
-                mul_exp(bi, zeta),
-                mul_exp(bip, zeta),
-            ]
-        } else if bip.is_nan() {
-            // Bi' overflows first
-            cephes()
-        } else if ai == 0.0 {
-            // AMOS returns 0 for Ai(x) below about 1e-305
-            let [ai, aip, ..] = cephes();
-            [ai, aip, bi, bip]
-        } else {
-            [ai, aip, bi, bip]
-        }
+    // Unlike in xsf, Cephes is used instead of AMOS for x > 10 (and x < -10, scipy/xsf#532), as
+    // its double-double zeta makes it more accurate.
+    if x > 103.892 && x < 108.0 {
+        // Unlike in xsf (scipy/xsf#310), `airye` is unscaled here, as Cephes returns
+        // (0, 0, inf, inf) for x > 103.892, while Bi(x) only overflows at x = 104.44 and Ai(x)
+        // underflows at x = 107.47.
+        let [ai, aip, bi, bip] = airye_f64(x);
+        let zeta = cephes::zeta_dd(x, x.sqrt());
+        // e^(+-zeta.lo) = 1 +- zeta.lo
+        let (ai, aip) = (ai * (1.0 - zeta.lo), aip * (1.0 - zeta.lo));
+        let (bi, bip) = (bi * (1.0 + zeta.lo), bip * (1.0 + zeta.lo));
+        [
+            mul_exp(ai, -zeta.hi),
+            mul_exp(aip, -zeta.hi),
+            mul_exp(bi, zeta.hi),
+            mul_exp(bip, zeta.hi),
+        ]
     } else {
-        cephes()
+        let (_, ai, aip, bi, bip) = cephes::airy(x);
+        [ai, aip, bi, bip]
     }
 }
 

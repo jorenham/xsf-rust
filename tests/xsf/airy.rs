@@ -11,6 +11,20 @@ xsref::tests! {
 }
 
 #[test]
+fn test_airy_f64_large() {
+    // Arb: airyai(x), airyai(x, 1), airybi(x), airybi(x, 1)
+    #[rustfmt::skip]
+    let cases = [
+        (20.0, [1.691_672_868_670_540_4e-27, -7.586_391_625_748_354e-27, 2.103_765_049_651_104e25, 9.381_839_336_133_965e25]),
+        (50.0, [4.584_941_724_074_828_5e-104, -3.244_331_819_828_799e-103, 4.909_099_699_444_219_5e101, 3.468_798_779_545_976_5e102]),
+        (100.0, [2.634_482_152_088_184_6e-291, -2.635_140_361_604_409_7e-290, 6.041_223_996_670_201e288, 6.039_712_745_310_603e289]),
+    ];
+    for (x, expected) in cases {
+        xsref::np_assert_allclose!(&xsf::airy(x), &expected, rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_airy_f64_overflow() {
     // mpmath: airyai(x), airyai(x, 1), airybi(x), airybi(x, 1)
     xsref::np_assert_allclose!(

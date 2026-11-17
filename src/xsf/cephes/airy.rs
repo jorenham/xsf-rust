@@ -218,7 +218,7 @@ const APGD: [f64; 10] = [
 ];
 
 /// `zeta = 2/3 a^(3/2)` in double-double, given `t = sqrt(a)`
-fn zeta_dd(a: f64, t: f64) -> DoubleDouble {
+pub(crate) fn zeta_dd(a: f64, t: f64) -> DoubleDouble {
     // sqrt(a) = t + (a - t^2) / (2 t)
     let (tt, e) = two_prod(t, t);
     let t = DoubleDouble {
@@ -226,6 +226,15 @@ fn zeta_dd(a: f64, t: f64) -> DoubleDouble {
         lo: ((a - tt) - e) / (2.0 * t),
     };
     t * a * TWO_THIRDS
+}
+
+/// `e^zeta` for `zeta = 2/3 x^(3/2)`, given `t = sqrt(x)`
+///
+/// `zeta` is in double-double, as its rounding error (~ `zeta` eps) is the relative error of
+/// `e^zeta`.
+fn exp_zeta(x: f64, t: f64) -> f64 {
+    let zeta = zeta_dd(x, t);
+    zeta.hi.exp() * (1.0 + zeta.lo)
 }
 
 /// `sin` and `cos` of `theta = 2/3 a^(3/2) + pi/4`, given `t = sqrt(a)`
@@ -350,7 +359,8 @@ fn airy_impl(x: f64, scaled: bool) -> (i32, f64, f64, f64, f64) {
         domflg = 5;
         let t = x.sqrt();
         let zeta = 2.0 * x * t / 3.0;
-        let g = if scaled { 1.0 } else { zeta.exp() };
+        // Unlike in xsf, zeta is in double-double for e^zeta.
+        let g = if scaled { 1.0 } else { exp_zeta(x, t) };
         let t = t.sqrt();
         let k = 2.0 * t * g;
         let z = 1.0 / zeta;
@@ -434,10 +444,8 @@ fn airy_impl(x: f64, scaled: bool) -> (i32, f64, f64, f64, f64) {
         bip = SQRT_3 * (uf + ug);
     }
     if scaled && x > 0.0 {
-        // The series aren't scaled. zeta is in double-double, as its rounding error is the
-        // relative error of e^zeta.
-        let zeta = zeta_dd(x, x.sqrt());
-        let g = zeta.hi.exp() * (1.0 + zeta.lo);
+        // The series aren't scaled.
+        let g = exp_zeta(x, x.sqrt());
         if x < AIRY_ASYMP_MIN {
             (ai, aip) = (ai * g, aip * g);
         }
