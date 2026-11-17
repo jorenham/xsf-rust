@@ -593,6 +593,59 @@ fn test_hypu_b_near_one_recurrence() {
 }
 
 #[test]
+fn test_hypu_b_near_one_cancel() {
+    // Arb; 0.00354666023, -0.00410532296, -0.192757095, and 7.119e172 in xsf (the two series of
+    // DLMF 13.2.42 cancel, here also near zeros of U)
+    let abx = [
+        (
+            -0.056_635_517_479_212_36,
+            1.000_000_039_777_816_4,
+            1.417_381_804_653_536_6e-8,
+        ),
+        (
+            -0.063_925_708_762_279_1,
+            0.999_999_999_035_314_8,
+            9.429_167_746_765_604e-8,
+        ),
+        (
+            -4.083_168_773_834_823,
+            0.999_987_773_001_151_6,
+            4.969_885_307_388_012e-7,
+        ),
+    ];
+    let expected = [
+        0.003_546_661_069_829_69,
+        -0.004_105_300_291_470_05,
+        -0.192_757_094_020_925_53,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    let actual = xsf::hypu(
+        -108.048_671_397_557_14,
+        0.999_999_999_949_052_2,
+        9.822_176_387_052_842e-12,
+    );
+    xsref::np_assert_allclose!([actual], [7.106_291_122_209_209e172], rtol = 3e-12);
+
+    // Arb; near a pole of Gamma(a)
+    let actual = xsf::hypu(-168.02, 0.9983, 1e-38);
+    xsref::np_assert_allclose!([actual], [-1.435_814_008_821_082_3e302], rtol = 5e-15);
+
+    // Arb; at a pole of Gamma(a), where a - (b - 1) rounds to a
+    let actual = xsf::hypu(-168.0, 1.000_000_000_000_015, 1e-38);
+    xsref::np_assert_allclose!([actual], [2.526_075_744_973_415_8e302], rtol = 5e-15);
+
+    // Arb; at large |a| and |b - 1|
+    let actual = xsf::hypu(-166.125, 1.0099, 1e-4);
+    xsref::np_assert_allclose!([actual], [9.921_163_464_098_675e297], rtol = 5e-15);
+
+    // Arb: 2.79e-307, but 1/Gamma(a) underflows (and the fallback returns 0)
+    let actual = xsf::hypu(171.625, 1.009, 1e-20);
+    assert!((0.0..=2.790_460_095_786_538_4e-307).contains(&actual));
+}
+
+#[test]
 fn test_hypu_b_near_int() {
     // Arb; 0.084043687, 1.3983195, 0.0034193771, 3.4728082e-7, and 7.3899616e-6 in xsf
     let abx = [

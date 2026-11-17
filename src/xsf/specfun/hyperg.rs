@@ -8,15 +8,17 @@ use super::hyp1f1_recurrence::{
     MAX_SERIES_ITERATIONS, hyp1f1_b_recurrence, hyp1f1_neg_a, hyp1f1_neg_b,
 };
 use super::{SPECFUN_INF, cgama, gamma2, psi_spec};
-use crate::ext::{Scaled, add_exp, ln_dd, ln_gamma, mul_gamma_ratio};
-use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, pow2};
+use crate::ext::{Scaled, add_exp, gamma_quot, ln_dd, ln_gamma, mul_gamma_ratio};
+use crate::numpy::sinc;
+use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg_if_odd, pow2};
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
 use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::rgamma;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
-use crate::{digamma, gamma, gammaln, hyp0f1};
+use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 
 /// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
 /// overflowing sum in `chgul`
@@ -2027,6 +2029,12 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // DLMF 13.2.42 with prefactors rewritten according to
     // DLMF 5.5.3, M(a, b, x) with DLMF 13.2.2
 
+    if (b - 1.0).abs() < NEAR_1_DD {
+        // Unlike in xsf, in divided-difference form near b = 1, where the two series cancel
+        if let Some(hu) = chgus_near_1(x, a, b - 1.0, id) {
+            return hu;
+        }
+    }
     *id = 100;
     let ga = gamma2(a);
     let gab = gamma2(1.0 + a - b);
@@ -2173,6 +2181,70 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     lr2.map_or(hu, |l| mul_exp_dd(hu, l))
 }
 
+/// `chgus` uses `chgus_near_1` for `|b - 1|` below this (empirical: the peak error grows above it)
+const NEAR_1_DD: f64 = 1e-2;
+
+/// The relative error that `chgus_near_1` assumes for each of its terms
+const NEAR_1_ROUND: f64 = 8.0 * f64::EPSILON;
+
+/// `U(a, 1 + e, x)` by DLMF 13.2.42, as in `chgus`, but with the `k`th terms of its two series,
+/// both of order `1 / e`, combined into `e pi / sin(pi e) d_k` without cancellation; `None` if
+/// `1 / Gamma(a)` under- or overflows (unless at a pole), at a pole of `Gamma(a - e)`, or if the
+/// sum isn't finite
+fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
+    if a.abs() > MAXGAM {
+        return None;
+    }
+    let (ra, rp, pole) = (rgamma(a), rgamma(1.0 + e), is_nonpos_int(a));
+    if !ra.is_normal() && !pole {
+        return None;
+    }
+    // Gamma(1 + e) / Gamma(1 - e) = 1 + 2e q_1, and s = (1 / Gamma(a) - 1 / Gamma(a - e)) / e
+    // from Gamma(a) / Gamma(a - e) = 1 + e q_2, or at a pole a = -n by DLMF 5.5.3 as
+    // (-1)^n Gamma(1 - a + e) sin(pi e) / (pi e)
+    let (dd_1, dd_e) = (DoubleDouble::new(1.0), DoubleDouble::new(e));
+    let q_1 = gamma_quot(dd_1 - e, dd_e * 2.0)?.0;
+    let rm = rp * (1.0 + 2.0 * e * q_1);
+    let s = if pole {
+        let q = gamma_quot(dd_1 - a, dd_e)?.0;
+        neg_if_odd(a, gamma(1.0 - a) * (1.0 + e * q) * sinc(e))
+    } else {
+        -ra * gamma_quot(DoubleDouble::new(a) - e, dd_e)?.0
+    };
+    let lx = x.ln();
+    // d_k = (p_k - q_k) / e, with p_k = x^(k-e) (a - e)_k / (k! Gamma(a) Gamma(1 - e + k)) and
+    // q_k = x^k (a)_k / (k! Gamma(a - e) Gamma(1 + e + k)), so d_0 is the sum of
+    // (x^-e - 1) / (e Gamma(a) Gamma(1 - e)), (1 / Gamma(1 - e) - 1 / Gamma(1 + e)) / (e Gamma(a))
+    // and s / Gamma(1 + e)
+    let parts = [-lx * exprel(-e * lx) * ra * rm, 2.0 * q_1 * rp * ra, s * rp];
+    let mut d = parts[0] + parts[1] + parts[2];
+    let mut p = (-e * lx).exp() * ra * rm;
+    // `m` bounds the error of d_k, with each rounding error (`NEAR_1_ROUND`) taken as positive
+    let mut m = NEAR_1_ROUND * parts.iter().map(|t| t.abs()).sum::<f64>();
+    let (mut sum, mut err) = (d, m);
+    *id = 0;
+    // as many terms as `chgus` sums at most
+    for k in 0..300 {
+        let k = f64::from(k);
+        // p_(k+1) = p_k u x / (k + 1) and q_(k+1) = q_k v x / (k + 1), with
+        // u = (a - e + k) / (k + 1 - e), v = (a + k) / (k + 1 + e) and
+        // u - v = e (2a + k - 1 - e) / ((k + 1 - e) (k + 1 + e))
+        let v = (a + k) / (k + 1.0 + e);
+        let w = (2.0 * a + k - 1.0 - e) / ((k + 1.0 - e) * (k + 1.0 + e));
+        let t = x / (k + 1.0);
+        d = (d * v + p * w) * t;
+        m = (m * v.abs() + NEAR_1_ROUND * (p * w).abs()) * t;
+        p *= (a - e + k) / (k + 1.0 - e) * t;
+        sum += d;
+        err += m;
+        if k > x && d.abs() + m / NEAR_1_ROUND <= 0.25 * f64::EPSILON * sum.abs() {
+            *id = (-(err / sum.abs()).log10()) as i32;
+            break;
+        }
+    }
+    sum.is_finite().then_some(sum / sinc(e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{chgm_neg_x_asymptotic, chgu, chguit, chgus};
@@ -2225,6 +2297,10 @@ mod tests {
         let mut id = 0;
         let u = chgus(x, a, b, &mut id);
         assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
+
+        // U(a, b, x) (Arb), near b = 1, where 1 / Gamma(a) is near the underflow threshold
+        let u = chgus(1e-3, 171.3, 1.001, &mut id);
+        assert!(id >= 13 && digits_ok(u, 3.223_069_881_767_204_4e-308, id));
     }
 
     #[test]
