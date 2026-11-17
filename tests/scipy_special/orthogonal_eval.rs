@@ -23,7 +23,8 @@ fn test_eval_real_degree_large() {
     ];
     np_assert_allclose!(actual, desired, rtol = 2e-12);
 
-    // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (mpmath)
+    // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (Arb,
+    // mpmath)
     let actual = [
         xsf::eval_legendre(7.345, -0.9965),
         xsf::eval_jacobi(10.3, 0.0, 30.0, -0.9),
@@ -512,7 +513,8 @@ fn test_eval_hermite_h() {
 
 #[test]
 fn test_eval_hermite_real_degree_neg_x() {
-    // mpmath; these were NaN (the tolerance is limited by the accuracy of `hyp1f1`)
+    // the first from Arb and mpmath, the rest from mpmath; these were NaN (the tolerance is
+    // limited by the accuracy of `hyp1f1`)
     let h = [
         eval_hermite_h(2.625, -5.375),
         eval_hermite_h(3.3, -0.7),
@@ -591,7 +593,7 @@ fn test_eval_hermite_neg_x_overflow() {
 
 #[test]
 fn test_eval_hermite_real_degree_pos_x() {
-    // mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
+    // Arb, mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
     let h = [
         eval_hermite_h(41.75, 7.375),
         eval_hermite_h(41.375, 6.0),

@@ -60,12 +60,12 @@ fn test_stdtridf_huge_df() {
     for (p, t, root) in cases {
         np_assert_allclose!([xsf::stdtridf(p, t)], [root], rtol = 5e-3);
     }
-    // exact root (Arb), where one ulp of p moves it by 2.2e-10
-    let df = xsf::stdtridf(1.279_813_473_290_830_1e-12, -7.0);
-    np_assert_allclose!([df], [860_000_000.064_454_9], rtol = 1e-9);
-    // well-conditioned: one ulp of p moves the exact root (Arb) by 3.0e-7
-    let df_well = xsf::stdtridf(1.648_328_043_160_238_7e-100, -21.25);
-    np_assert_allclose!([df_well], [100_000_005_871_817.28], rtol = 2e-6);
+    // exact root (Arb), where one ulp of p moves it by 3.1e-10
+    let df = xsf::stdtridf(1.870_608_314_750_038e-12, -6.946_627_657_074_334);
+    np_assert_allclose!([df], [860_485_112.711_988_2], rtol = 1e-9);
+    // well-conditioned: one ulp of p moves the exact root (mpmath) by 2.2e-7
+    let df_well = xsf::stdtridf(5.481_156_308_467_968e-101, -21.301_636_747_720_302);
+    np_assert_allclose!([df_well], [98_646_633_323_521.9], rtol = 2e-6);
     // p is 0.33 ulp above (t = -26.8) or rounds down (t = -26) the limit stdtr(inf, t) = ndtr(t),
     // so stdtr(df, t) rounds to p for all df above ~1e21
     for (p, t) in [(1.615_616_783_902_316_5e-158, -26.8), (2.476_063_315_503_389e-149, -26.0)] {
