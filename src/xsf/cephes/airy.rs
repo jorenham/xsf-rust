@@ -221,10 +221,7 @@ fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
         hi: t,
         lo: ((a - tt) - e) / (2.0 * t),
     };
-    let theta = t * a * TWO_THIRDS + FRAC_PI_4;
-    let (s, c) = theta.hi.sin_cos();
-    let (sl, cl) = theta.lo.sin_cos();
-    (s * cl + c * sl, c * cl - s * sl)
+    (t * a * TWO_THIRDS + FRAC_PI_4).sin_cos()
 }
 
 /// Airy function

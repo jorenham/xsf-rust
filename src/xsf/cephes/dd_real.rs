@@ -404,6 +404,13 @@ impl DoubleDouble {
         Self::new(s) + (self - Self::new(s) * s) / (2.0 * s)
     }
 
+    /// `(sin(self), cos(self))`
+    pub(crate) fn sin_cos(self) -> (f64, f64) {
+        let (s, c) = self.hi.sin_cos();
+        let (sl, cl) = self.lo.sin_cos();
+        (s * cl + c * sl, c * cl - s * sl)
+    }
+
     #[inline]
     pub(crate) fn ldexp(self, expt: i32) -> Self {
         // float128 * (2.0 ^ expt)
