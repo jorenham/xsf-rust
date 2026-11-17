@@ -14,6 +14,9 @@ use crate::xsf::log::clog1p;
 
 const LN_MIN: f64 = -708.396_418_532_264_1; // f64::MIN_POSITIVE.ln()
 
+/// The `|v-1|` above which Debye's expansion is used, as in cephes `iv`
+const DEBYE_MIN_V1: f64 = 50.0;
+
 /// Debye's expansion of `Gamma(v) z^((1-v)/2) I_{v-1}(2 sqrt(z))` for real `z` and large `|v|`
 ///
 /// Unlike in xsf (scipy/xsf#366), this also handles `z<0` with `4|z| < (v-1)^2`, through Debye's
@@ -164,9 +167,15 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         }
     } else {
         let arg = (-z).sqrt();
-        let arg_pow = arg.powf(1.0 - v);
-        let gamma_v = crate::gamma(v);
-        let prefactor = arg_pow * gamma_v;
+        // below the turning point `4|z| = (v-1)^2`
+        let below = 4.0 * -z < (v - 1.0).powi(2);
+        let (prefactor, factors_normal) = if (v - 1.0).abs() > DEBYE_MIN_V1 && below {
+            gamma_pow(v, arg)
+        } else {
+            let (arg_pow, gamma_v) = (arg.powf(1.0 - v), crate::gamma(v));
+            let normal = arg_pow.is_normal() && gamma_v.is_normal();
+            (arg_pow * gamma_v, normal)
+        };
         let x = 2.0 * arg;
         // AMOS, as in xsf (SciPy uses Cephes `jv`)
         let j_v = crate::bessel_j(v, x);
@@ -183,7 +192,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
             bess_val = bess_val * cos + shift;
         }
         let out = prefactor * bess_val;
-        let prefactor_ok = arg_pow.is_normal() && gamma_v.is_normal() && prefactor.is_normal();
+        let prefactor_ok = factors_normal && prefactor.is_normal();
 
         // Unlike in xsf (scipy/xsf#366), fall back if a factor over- or underflows
         if prefactor_ok && out.is_normal() {
@@ -198,6 +207,25 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
             out
         }
     }
+}
+
+/// `Gamma(v) arg^(1-v)`, and whether its factors are normal, for `|v-1| > DEBYE_MIN_V1` below the
+/// turning point `arg = |v-1| / 2`
+///
+/// Unlike in xsf, the ~v1 ln(v1) terms of its exponent cancel analytically (Stirling's formula, as
+/// in `hyp0f1_asy`), as the power `arg^(1-v)` loses ~eps v1 ln(arg).
+fn gamma_pow(v: f64, arg: f64) -> (f64, bool) {
+    // `ln(Gamma(v1 + 1) arg^-v1) = v1 (ln(v1 / arg) - 1) + ln(2 pi v1) / 2 + corr(v1)`
+    let v1 = (Dd::new(v) - 1.0).abs();
+    let e = (ln_dd(v1 / arg) - 1.0) * v1 + lgam_stirling_corr(v1.hi);
+    let c = (2.0 * PI * v1.hi).sqrt();
+    // DLMF 5.5.3: `Gamma(v) = pi v1 / (sin(pi v) Gamma(v1 + 1))` for `v < 1`
+    let (exp, f) = if v > 1.0 {
+        (exp_dd(e), c)
+    } else {
+        (exp_dd(-e), PI * v1.hi / (crate::sinpi(v) * c))
+    };
+    (exp * f, exp.is_normal())
 }
 
 /// Whether Debye's expansion in `hyp0f1_asy` is accurate (empirically to within ~50 eps)
