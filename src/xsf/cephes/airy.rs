@@ -217,18 +217,23 @@ const APGD: [f64; 10] = [
     5.79912514929147598821E-9,
 ];
 
-/// `sin` and `cos` of `theta = 2/3 a^(3/2) + pi/4`, given `t = sqrt(a)`
-///
-/// Unlike in xsf (scipy/xsf#532), `theta` is computed in double-double, since its rounding error
-/// (~ `theta` eps) is the error of Ai, Bi, Ai', Bi' relative to their amplitude.
-fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
+/// `zeta = 2/3 a^(3/2)` in double-double, given `t = sqrt(a)`
+fn zeta_dd(a: f64, t: f64) -> DoubleDouble {
     // sqrt(a) = t + (a - t^2) / (2 t)
     let (tt, e) = two_prod(t, t);
     let t = DoubleDouble {
         hi: t,
         lo: ((a - tt) - e) / (2.0 * t),
     };
-    (t * a * TWO_THIRDS + FRAC_PI_4).sin_cos()
+    t * a * TWO_THIRDS
+}
+
+/// `sin` and `cos` of `theta = 2/3 a^(3/2) + pi/4`, given `t = sqrt(a)`
+///
+/// Unlike in xsf (scipy/xsf#532), `theta` is computed in double-double, since its rounding error
+/// (~ `theta` eps) is the error of Ai, Bi, Ai', Bi' relative to their amplitude.
+fn sin_cos_theta(a: f64, t: f64) -> (f64, f64) {
+    (zeta_dd(a, t) + FRAC_PI_4).sin_cos()
 }
 
 /// `(Ai(x), Ai'(x))` by the Taylor series of `Ai` at `x0 = AIRY_ASYMP_MIN`, for `x < x0`
@@ -286,6 +291,18 @@ fn ai_taylor(x: f64) -> (f64, f64) {
 /// `(ai, aip, bi, bip) = (0, 0, inf, inf)`) or `x < -1e16` (all NaN), and `0` otherwise. NaN
 /// input gives NaN outputs.
 pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
+    airy_impl(x, false)
+}
+
+/// `airy(x)` for `x >= 0`, with `Ai` and `Ai'` times `e^zeta`, and `Bi` and `Bi'` times
+/// `e^-zeta`, where `zeta = 2/3 x^(3/2)`. This doesn't over- or underflow for a large `x`.
+pub(crate) fn airye(x: f64) -> [f64; 4] {
+    let (_, ai, aip, bi, bip) = airy_impl(x, true);
+    [ai, aip, bi, bip]
+}
+
+/// Unlike in xsf, `scaled` leaves out the exponentials of `airy(x)`, for `airye`.
+fn airy_impl(x: f64, scaled: bool) -> (i32, f64, f64, f64, f64) {
     // Written on every path before returning, so these initial NaNs are never observed
     let mut ai = f64::NAN;
     let mut aip = f64::NAN;
@@ -293,7 +310,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
     let mut bip = f64::NAN;
 
     let mut domflg: i32 = 0;
-    if x > MAXAIRY {
+    if x > MAXAIRY && !scaled {
         return (-1, 0.0, 0.0, f64::INFINITY, f64::INFINITY);
     }
     // Unlike in xsf, NaN for x < MINAIRY, since the result has lost over half of its digits.
@@ -333,7 +350,7 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
         domflg = 5;
         let t = x.sqrt();
         let zeta = 2.0 * x * t / 3.0;
-        let g = zeta.exp();
+        let g = if scaled { 1.0 } else { zeta.exp() };
         let t = t.sqrt();
         let k = 2.0 * t * g;
         let z = 1.0 / zeta;
@@ -415,6 +432,16 @@ pub(crate) fn airy(x: f64) -> (i32, f64, f64, f64, f64) {
     }
     if (domflg & 8) == 0 {
         bip = SQRT_3 * (uf + ug);
+    }
+    if scaled && x > 0.0 {
+        // The series aren't scaled. zeta is in double-double, as its rounding error is the
+        // relative error of e^zeta.
+        let zeta = zeta_dd(x, x.sqrt());
+        let g = zeta.hi.exp() * (1.0 + zeta.lo);
+        if x < AIRY_ASYMP_MIN {
+            (ai, aip) = (ai * g, aip * g);
+        }
+        (bi, bip) = (bi / g, bip / g);
     }
     (0, ai, aip, bi, bip)
 }

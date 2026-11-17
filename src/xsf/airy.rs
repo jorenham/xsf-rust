@@ -41,63 +41,35 @@ impl AiryArg for Complex64 {
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
-    let mut id = 0;
-    let mut ierr = 0;
-    let mut nz = 0;
-
-    let mut ai = amos::airy(z, id, kode, &mut nz, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut ai);
-
-    nz = 0;
-    let mut bi = amos::biry(z, id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bi);
-
-    id = 1;
-    let mut aip = amos::airy(z, id, kode, &mut nz, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut aip);
-
-    nz = 0;
-    let mut bip = amos::biry(z, id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut bip);
-
+    let ai = amos_airy_or_biry(false, z, 0, kode);
+    let bi = amos_airy_or_biry(true, z, 0, kode);
+    let aip = amos_airy_or_biry(false, z, 1, kode);
+    let bip = amos_airy_or_biry(true, z, 1, kode);
     [ai, aip, bi, bip]
 }
 
+/// `amos::airy` (Ai) or, for `bi`, `amos::biry` (Bi), or their derivative for `id = 1`, with its
+/// error reported and NaN where it fails
+fn amos_airy_or_biry(bi: bool, z: C64, id: i32, kode: i32) -> C64 {
+    let (mut nz, mut ierr) = (0, 0);
+    let mut out = if bi {
+        amos::biry(z, id, kode, &mut ierr)
+    } else {
+        amos::airy(z, id, kode, &mut nz, &mut ierr)
+    };
+    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut out);
+    out
+}
+
 fn airye_f64(z: f64) -> [f64; 4] {
-    let mut id = 0;
-    let kode = 2; /* Exponential scaling */
-    let mut nz = 0;
-    let mut ierr = 0;
-    let (ai, aip, bi, bip);
-
-    if z < 0.0 {
-        ai = f64::NAN;
-    } else {
-        let mut cai = amos::airy(c64(z, 0.0), id, kode, &mut nz, &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cai);
-        ai = cai.re;
+    // Unlike in xsf, Cephes is used for z >= 0: it is faster than AMOS, whose series cancel for
+    // Ai and Ai' at z < 2.09, and it has no upper limit.
+    if z >= 0.0 {
+        return cephes::airye(z);
     }
-
-    nz = 0;
-    let mut cbi = amos::biry(c64(z, 0.0), id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cbi);
-    bi = cbi.re;
-
-    id = 1;
-    if z < 0.0 {
-        aip = f64::NAN;
-    } else {
-        let mut caip = amos::airy(c64(z, 0.0), id, kode, &mut nz, &mut ierr);
-        set_error_and_nan(ierr_to_sferr(nz, ierr), &mut caip);
-        aip = caip.re;
-    }
-
-    nz = 0;
-    let mut cbip = amos::biry(c64(z, 0.0), id, kode, &mut ierr);
-    set_error_and_nan(ierr_to_sferr(nz, ierr), &mut cbip);
-    bip = cbip.re;
-
-    [ai, aip, bi, bip]
+    // exponentially scaled
+    let bi = |id| amos_airy_or_biry(true, c64(z, 0.0), id, 2).re;
+    [f64::NAN, f64::NAN, bi(0), bi(1)]
 }
 
 fn airy_f64(x: f64) -> [f64; 4] {
