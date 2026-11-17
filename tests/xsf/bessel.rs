@@ -651,6 +651,29 @@ fn test_bessel_jy_above_turning_point_recurrence() {
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
 }
 
+#[test]
+fn test_bessel_jy_above_turning_point_recurrence_edges() {
+    // Arb: besselj(v, x) and bessely(v, x); the lowest order of the recurrence is 10 (the least of
+    // the expansion), 9 (so AMOS), and both reflection terms of a negative order are nonzero
+    let vx = [(15.0, 18.0), (16.0, 18.4), (16.0, 17.92), (-30.3, 36.0)];
+    let expected = [
+        0.235_592_357_774_215_22,
+        0.257_888_878_317_665_5,
+        0.260_626_196_074_620_45,
+        -0.117_522_568_584_565_39,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, atol = 1e-15);
+    let expected = [
+        0.080_480_924_919_380_9,
+        -0.006_919_837_599_588_943_5,
+        -0.071_686_960_171_829_57,
+        0.136_178_378_274_856_35,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, atol = 1e-15);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);
