@@ -167,9 +167,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         }
     } else {
         let arg = (-z).sqrt();
-        // below the turning point `4|z| = (v-1)^2`
-        let below = 4.0 * -z < (v - 1.0).powi(2);
-        let (prefactor, factors_normal) = if (v - 1.0).abs() > DEBYE_MIN_V1 && below {
+        let (prefactor, factors_normal) = if (v - 1.0).abs() > DEBYE_MIN_V1 {
             gamma_pow(v, arg)
         } else {
             let (arg_pow, gamma_v) = (arg.powf(1.0 - v), crate::gamma(v));
@@ -209,8 +207,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     }
 }
 
-/// `Gamma(v) arg^(1-v)`, and whether its factors are normal, for `|v-1| > DEBYE_MIN_V1` below the
-/// turning point `arg = |v-1| / 2`
+/// `Gamma(v) arg^(1-v)`, and whether its factors are normal, for `|v-1| > DEBYE_MIN_V1`
 ///
 /// Unlike in xsf, the ~v1 ln(v1) terms of its exponent cancel analytically (Stirling's formula, as
 /// in `hyp0f1_asy`), as the power `arg^(1-v)` loses ~eps v1 ln(arg).
