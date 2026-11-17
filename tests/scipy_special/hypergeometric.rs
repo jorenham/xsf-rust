@@ -387,6 +387,16 @@ fn test_hyp0f1_c64_large_b() {
     ];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-14);
 
+    // Arb; where 4 terms of Debye's expansion (DLMF 10.41.10) lose 1.7e-13
+    np_assert_allclose!(
+        [hyp0f1(
+            488.057_436_304_654_6,
+            c64(-1_393.074_142_875_748_3, 630.220_961_000_661_6)
+        )],
+        [c64(0.015_364_845_814_949_683, 0.055_111_263_922_340_78)],
+        rtol = 1e-15
+    );
+
     // Arb; on the branch cut, where `J_{b-1}` rounds to 0 near a zero
     np_assert_allclose!(
         [hyp0f1(1.400_800_854_970_417_8, c64(-2.25, 0.0))],

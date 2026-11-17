@@ -83,15 +83,8 @@ fn hyp0f1_asy_c64(v: f64, z: C64) -> Option<C64> {
     // in `hyp0f1_asy`
     let zeta = v1_d + lgam_stirling_corr(v1) - 0.5 * p1.ln();
 
-    // large-v asymptotic correction, DLMF 10.41.10
-    let pp = 1.0 / p1;
-    let p2 = pp * pp;
-    let p4 = p2 * p2;
-    let p6 = p4 * p2;
-    let u1 = (3.0 - 5.0 * p2) * pp / 24.0;
-    let u2 = (81.0 - 462.0 * p2 + 385.0 * p4) * p2 / 1152.0;
-    let u3 = (30375.0 - 369_603.0 * p2 + 765_765.0 * p4 - 425_425.0 * p6) * pp * p2 / 414_720.0;
-    let u_corr_i = 1.0 + u1 / v1 + u2 / (v1 * v1) + u3 / (v1 * v1 * v1);
+    // Unlike in xsf, the large-v asymptotic correction has 11 terms instead of 4, as in `hyp0f1_asy`
+    let (u_corr_i, _) = ikv_asymptotic_uniform_sums(v1, 1.0 / p1);
 
     Some(zeta.exp() * u_corr_i)
 }
