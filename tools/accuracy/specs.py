@@ -29,6 +29,7 @@ import mpmath as mp
 from mpmath.libmp import NoConvergence
 
 DBL_MAX: Final = 1.7976931348623157e308
+DPS: Final = 50  # the working digits of every reference
 
 # ---------------------------------------------------------------- sampling
 
@@ -326,7 +327,6 @@ class Spec:
     std: bool = False  # has a Rust std equivalent
     cpp: bool = True  # has an xsf (C++) equivalent
     complex: bool = False  # complex-valued
-    dps: int = 50
     timeout: int = 30
     note: str = ""  # space-separated keys into NOTES
     rust: ClassVar[bool] = True
