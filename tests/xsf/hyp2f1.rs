@@ -784,9 +784,8 @@ fn test_hyp2f1_f64_psi_expansion_error() {
     ];
     let desired = [1.362_000_886_533_284_2e-8, 4.845_680_233_889_792e-31];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
-    // and NaN if `hyp2f1_recur` fails, here for the Pfaff transformation for x < -1, where these
-    // were -3.65e101, 8.94e210 and 0 (as its factors underflow), while xsf gives -3.65e101, -inf
-    // and 0 (Arb: 1.11e100, -1.37e206, 5.52e108)
+    // and for the Pfaff transformation for x < -1, where these were -3.65e101, 8.94e210 and 0 (as
+    // its factors underflow), while xsf gives -3.65e101, -inf and 0 (Arb)
     let actual = [
         xsf::hyp2f1(
             -138.545_281_542_796_86,
@@ -807,7 +806,12 @@ fn test_hyp2f1_f64_psi_expansion_error() {
             -14.798_143_647_681_243,
         ),
     ];
-    assert!(actual.iter().all(|y| y.is_nan()), "{actual:?}");
+    let desired = [
+        1.113_473_584_828_216_5e100,
+        -1.368_863_634_553_945_3e206,
+        5.524_897_482_842_279e108,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-9);
 }
 
 #[test]
@@ -1351,21 +1355,60 @@ fn test_hyp2f1_f64_psi_expansion_underflow() {
         0.961_971_941_183_459_1,
     );
     np_assert_allclose!([actual], [1.409_085_836_000_905_4e-19], rtol = 1e-8);
-    // NaN if the sums cancel, where xsf gives 1.546e114 and 4.031e12 for 1.457e106 and -17.22
-    for (a, b, c, x) in [
-        (
+}
+
+#[test]
+fn test_hyp2f1_f64_log_case_cancels() {
+    // unlike in xsf: an integer b - a for x < 0, or c - a - b for 0 < x < 1 (the last two), where
+    // the limit of the 1/x or 1 - x transformation cancels: xsf gives 0, NaN, NaN, 1.546e114,
+    // 4.031e12 and -1.023e-35 (Arb)
+    let actual = [
+        xsf::hyp2f1(
+            -130.418_775_093_234_42,
+            -106.418_775_093_234_42,
+            88.856_372_682_317_61,
+            -56.245_432_735_360_47,
+        ),
+        xsf::hyp2f1(
+            105.156_886_643_629_43,
+            137.156_886_643_629_43,
+            -182.750_480_761_359_1,
+            -19.874_725_553_493_068,
+        ),
+        // (b - a is 8.5e-14 from an integer)
+        xsf::hyp2f1(
+            239.140_285_227_238_56,
+            215.140_285_227_238_48,
+            -205.592_429_360_656_38,
+            -74.104_306_399_188_25,
+        ),
+        xsf::hyp2f1(
             -90.742_720_082_337_5,
             -126.742_720_082_337_5,
             74.952_783_792_021_85,
             -27.715_208_173_162_505,
         ),
-        (
+        xsf::hyp2f1(
             -96.355_333_750_613_62,
             186.628_987_627_931_8,
             31.273_653_877_318_168,
             0.931_415_141_630_799_5,
         ),
-    ] {
-        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
-    }
+        // (a polynomial of degree 446)
+        xsf::hyp2f1(
+            -446.0,
+            51.175_743_959_464_85,
+            -35.824_256_040_535_104,
+            0.564_885_346_115_448_8,
+        ),
+    ];
+    let desired = [
+        -6.420_485_526_747_563e147,
+        3.824_051_115_085_687e-74,
+        -2.642_002_762_504_335e-297,
+        1.456_743_169_577_831_6e106,
+        -17.223_989_539_202_14,
+        -1.118_619_570_193_574e-35,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-11);
 }
