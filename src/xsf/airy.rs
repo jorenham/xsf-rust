@@ -42,6 +42,8 @@ impl AiryArg for Complex64 {
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
+    // as AMOS, with -0 as +0 for real `z`
+    let z = c64(z.re, z.im + 0.0);
     let zeta = zeta_err(z);
     // Unlike in xsf, Ai is unscaled here from its `airye` (below), as the e^-zeta of AMOS loses
     // up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
@@ -54,19 +56,20 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         return [ai, aip, bi, bip];
     };
     // Unlike in xsf, the rounding error d of zeta = zta + d is undone. AMOS evaluates
-    // Bi = sqrt(z) F(zta) and Bi' = z G(zta). With d zeta / dz = sqrt(z) and Bi'' = z Bi, to first
-    // order in d, Bi += d (Bi' - Bi / (2 z)) / sqrt(z) and Bi' += d (z Bi - Bi' / z) / sqrt(z).
-    // These are applied as factors of q = Bi' / Bi, as `z Bi` can overflow (q ~ sqrt(z) if Bi'
-    // does). The scaled ones are also off by e^-(|Re zeta| - |Re zta|), as Re zeta can be just
-    // below 0 where Re zta = 0.
-    //
-    // Ai is unscaled from its `airye`, which varies slowly, by e^-zeta = e^-zta (1 - d).
+    // w = sqrt(z) F(zta) and w' = z G(zta) for w = Bi. With d zeta / dz = sqrt(z) and w'' = z w,
+    // to first order in d, w += d (w' - w / (2 z)) / sqrt(z) and w' += d (z w - w' / z) / sqrt(z).
+    // These are applied as factors of q = w' / w, as `z w` can overflow (q ~ sqrt(z) if w' does).
     let s = z.sqrt();
-    let q = Some(bip / bi)
-        .filter(|q| q.is_finite() && *q != C64::ZERO)
-        .unwrap_or(s);
-    let (bi, bip) = (bi * (1.0 + d * (q - 0.5 / z) / s), bip * (1.0 + d * (z / q - 1.0 / z) / s));
+    let undo = |w: C64, wp: C64| {
+        let q = Some(wp / w)
+            .filter(|q| q.is_finite() && *q != C64::ZERO)
+            .unwrap_or(s);
+        (w * (1.0 + d * (q - 0.5 / z) / s), wp * (1.0 + d * (z / q - 1.0 / z) / s))
+    };
+    let (bi, bip) = undo(bi, bip);
     if kode == 2 {
+        // The scaling of AMOS is off as well, by e^-(|Re zeta| - |Re zta|), where Re zeta can be
+        // just below 0 if Re zta = 0.
         let dre = if d.re < -zta.re {
             -2.0 * zta.re - d.re
         } else {
@@ -74,6 +77,7 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         };
         return [ai, aip, bi * (1.0 - dre), bip * (1.0 - dre)];
     }
+    // Ai is unscaled from its `airye`, which varies slowly, by e^-zeta = e^-zta (1 - d).
     let (fa, ez) = ((C64::ONE - d) * C64::cis(-zta.im), (-zta.re).exp());
     // by component if `e^-zta.re` underflows, as `w fa e^-zta.re` may not
     let unscale = |w: C64| {
@@ -92,8 +96,6 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
 /// This is `None` where AMOS doesn't evaluate Ai and Bi as functions of `zta`, i.e. for
 /// `|z| <= 1` or `|ph z| > pi/3`.
 fn zeta_err(z: C64) -> Option<(C64, C64)> {
-    // as AMOS, with -0 as +0 for real `z`
-    let z = c64(z.re, z.im + 0.0);
     let s = z.sqrt();
     let zta = z * s * (2.0 / 3.0);
     if z.norm() <= 1.0 || z.re <= 0.0 || zta.re < 0.0 {
