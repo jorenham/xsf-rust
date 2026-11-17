@@ -1304,3 +1304,38 @@ fn test_hyp2f1_f64_near_polynomial() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 }
+
+#[test]
+fn test_hyp2f1_f64_just_below_1() {
+    // unlike in xsf: x within 1e-13 below 1 is not x = 1, where xsf gives inf for c - a - b <= 0
+    // (the first three and the last) and the value at 1 else, here 32.27, 440.5 and -11.48 (Arb)
+    let x = 0.999_999_999_999_99;
+    let actual = [
+        xsf::hyp2f1(0.5, 0.7, 1.0, x),
+        xsf::hyp2f1(0.5, 0.7, 1.0, 0.999_999_999_999_999_9),
+        xsf::hyp2f1(-2.109, 0.891, -1.723, x),
+        xsf::hyp2f1(0.5, 0.49, 1.0, x),
+        xsf::hyp2f1(1.5, 2.25, 3.76, x),
+        xsf::hyp2f1(
+            0.811_967_063_739_473_8,
+            -0.040_193_225_520_462_45,
+            0.775_039_419_131_624_9,
+            0.999_999_999_999_997_6,
+        ),
+        xsf::hyp2f1(-3.5, 1.25, -2.5, x),
+    ];
+    let desired = [
+        1_258.099_570_916_464,
+        3_095.910_120_747_267_7,
+        -11_864_866.701_448_103,
+        9.532_032_686_970_835,
+        115.683_428_221_038_92,
+        -0.300_327_095_218_461_3,
+        -44_263.439_899_139_13,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // but x = 1 is: Gauss's sum (DLMF 15.4.20) for c - a - b > 0, and the limit else
+    let actual = [xsf::hyp2f1(0.5, 0.2, 1.0, 1.0)];
+    np_assert_allclose!(actual, [1.449_724_260_959_791_1], rtol = 1e-15);
+    assert_eq!(xsf::hyp2f1(0.5, 0.7, 1.0, 1.0), f64::INFINITY);
+}
