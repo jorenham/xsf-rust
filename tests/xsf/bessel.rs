@@ -459,6 +459,48 @@ fn test_bessel_j_oscillatory() {
 }
 
 #[test]
+fn test_bessel_j_turning_point() {
+    // Arb: besselj(v, x) for v >= 10 below and around x = v, where AMOS loses ~eps of its exponent
+    // or phase
+    let vx = [
+        (1000.0, 950.0),
+        (300.0, 270.0),
+        (60.5, 3.25),
+        (50.0, 20.0),
+        (1000.0, 1005.0),
+        (5000.0, 5030.0),
+        (3000.5, 3010.0),
+        (301.0, -270.0),
+    ];
+    let expected = [
+        4.639_221_366_465_356e-7,
+        2.933_415_684_728_316_7e-6,
+        8.433_834_271_887_743e-71,
+        4.451_039_284_700_681e-16,
+        0.062_916_645_435_363_97,
+        0.006_749_289_286_719_537,
+        0.045_959_772_400_047_88,
+        -1.816_491_558_189_553_6e-6,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 1e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    // subnormal, rounded
+    np_assert_allclose!([xsf::bessel_j(903.75, 303.25)], [5.79e-322], rtol = 5e-3);
+    // DLMF 10.19.8: Ai(0) (2 / v)^(1/3)
+    let expected = [4.473_073_183_964_723e-101];
+    np_assert_allclose!([xsf::bessel_j(1e300, 1e300)], expected, rtol = 1e-15);
+    // Arb, by DLMF 10.20.4 up to A_1 and B_1: an ulp below x = v, where eta ~ v w^3 / 3 cancels
+    // in its closed form
+    let expected = [1.891_197_090_318_688e-8];
+    np_assert_allclose!(
+        [xsf::bessel_j(1e22, 9.999_999_999_999_998e21)],
+        expected,
+        rtol = 1e-15
+    );
+}
+
+#[test]
 fn test_bessel_y_oscillatory() {
     // Arb: bessely(v, x) for x > |v| >= 10, where AMOS lost ~eps x through its phase, and
     // Y_v(x) = 0 for v = 1e7 or x = 1e308
