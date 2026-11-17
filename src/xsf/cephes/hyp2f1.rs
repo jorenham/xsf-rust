@@ -1001,8 +1001,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             if (ax - 1.0).abs() < HYP2F1_EPS {
                 /* |x| == 1.0   */
                 // Unlike in xsf, only at x = 1 itself: up to `HYP2F1_EPS` below it, 2F1 is finite
-                // for d <= 0, and differs from its value at 1 by about `(1 - x)^min(d, 1)` for
-                // d > 0, while the transformations of `hyt2f1` converge.
+                // for d <= 0, and differs from its value at 1 by about `(1 - x)^min(d, 1)` (times
+                // `ln(1 - x)` if d = 1) for d > 0, while the transformations of `hyt2f1` converge.
                 if x == 1.0 {
                     if neg_int_ca_or_cb {
                         if d >= 0.0 {
