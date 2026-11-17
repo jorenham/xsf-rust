@@ -511,9 +511,9 @@ fn test_hyp2f1_f64_c_lt_0() {
 
 #[test]
 fn test_hyp2f1_f64_neg_int_c_minus_a_or_c_minus_b() {
-    // unlike in xsf: the transformation for a negative integer c - a or c - b if -1 < c - a - b < 0,
-    // where the recurrence in `a` was estimated as accurate, but isn't. These were 1.18e11, 24.58,
-    // 1.86e7, 61.73 and -1.73e13 (mpmath, Wolfram)
+    // unlike in xsf: by `hyp2f1_recur` if c - a or c - b is only near a negative integer and
+    // -1 < c - a - b < 0, where the recurrence in `a` is estimated as accurate, but isn't. These
+    // are 1.18e11, 24.58, 1.86e7, 61.73 and -1.73e13 in xsf (mpmath, Wolfram)
     let actual = [
         xsf::hyp2f1(-40.5, 40.9, -0.1, 0.8),
         xsf::hyp2f1(-25.25, 25.7, -0.3, 0.75),
@@ -528,10 +528,9 @@ fn test_hyp2f1_f64_neg_int_c_minus_a_or_c_minus_b() {
         74.102_598_993_798_93,
         -4.645_596_140_460_149,
     ];
-    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 
-    // but not where the series of that transformation doesn't terminate, as c - b is only near an
-    // integer, and x is near 1 (mpmath, Wolfram)
+    // also for x near 1 (mpmath, Wolfram)
     let actual = xsf::hyp2f1(-59.25, 70.1, 10.1, 0.999);
     np_assert_allclose!([actual], [-1.622_052_617_419_225_7e-11], rtol = 1e-12);
 }
@@ -1211,6 +1210,9 @@ fn test_hyp2f1_f64_euler_inner_overflow() {
         xsf::hyp2f1(47.0, 43.0, 2e-237, -3000.0),
         // also where the rounding of 1 - x matters
         xsf::hyp2f1(1e14, 10.0, 1e-300, -1e-12),
+        // also where that product is small, and the polynomial that the inner function is
+        // rounded to lacks the dominant part of the result
+        xsf::hyp2f1(22.0, 4098.5, 1e-189, -8e4),
     ];
     let desired = [
         -3.248_055_641_674_947_7e228,
@@ -1219,37 +1221,33 @@ fn test_hyp2f1_f64_euler_inner_overflow() {
         8.831_616_558_293_24e284,
         -1.238_995_047_182_927e80,
         3.787_960_193_849_875e270,
+        5.393_827_268_558_922e-167,
     ];
-    np_assert_allclose!(actual, desired, rtol = 1e-14);
-    // but not where that product is small, as the polynomial that the inner function is rounded
-    // to lacks the dominant part of the result then (Arb: 5.39e-167)
-    assert!(xsf::hyp2f1(22.0, 4098.5, 1e-189, -8e4).is_nan());
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 }
 
 #[test]
 fn test_hyp2f1_f64_nan_if_lost() {
-    // unlike in xsf: NaN if both error estimates say that no digit is correct, instead of 6.75e10
-    // and -2.81e238 (Arb: 1.19e11 and -210)
-    let args = [
-        (
+    // unlike in xsf: NaN if both error estimates say that no digit is correct (no input is known to
+    // reach this, as `hyp2f1_recur` bounds the errors of those below), where xsf gives 6.75e10 and
+    // -2.81e238 (Arb)
+    let actual = [
+        xsf::hyp2f1(
             -7.000_000_000_000_021,
             -208.513_348_904_413_08,
             0.5,
             0.471_817_095_982_536_96,
         ),
-        (
+        xsf::hyp2f1(
             -17.000_000_000_000_007,
             738.317_738_730_952_2,
             -128.5,
             -0.362_556_171_941_935_9,
         ),
     ];
-    assert!(
-        args.into_iter()
-            .all(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x).is_nan())
-    );
-    // but `hyp2f1_recur` bounds its error for these, which were 7.7e149, 2.4e7, -5.6e85 and 7.5e-4
-    // (Arb)
+    let desired = [119_399_279_643.698_67, -210.050_825_314_093_3];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // and these, which were 7.7e149, 2.4e7, -5.6e85 and 7.5e-4 (Arb)
     let actual = [
         xsf::hyp2f1(6.08e-26, -908.762, -19.967, 0.5),
         xsf::hyp2f1(-50.7, 0.1, 344.3, -1.0),
@@ -1506,4 +1504,28 @@ fn test_hyp2f1_f64_divergent_at_1() {
     // +inf at a non-positive integer c, as for x < 1
     assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 1.0), inf);
     assert_eq!(xsf::hyp2f1(0.5, 0.5, -3.0, 0.5), inf);
+}
+
+#[test]
+fn test_hyp2f1_f64_near_polynomial() {
+    // unlike in xsf: not the polynomial if a, b, c - a or c - b is only near a negative integer,
+    // e.g. c - a = -58 - 5e-15 for the first. These are 3.35e11, NaN, NaN, 4.6e49, -inf and
+    // -3.95e-6 in xsf (Arb)
+    let actual = [
+        xsf::hyp2f1(65.9, -57.6, 7.9, 0.861),
+        xsf::hyp2f1(8.8, 5.6, 2.8, -233.9),
+        xsf::hyp2f1(-3.000_000_000_000_001, 9.8, 7.0, -1.45),
+        xsf::hyp2f1(97.7, -11.000_000_000_000_002, -27.3, -0.649),
+        xsf::hyp2f1(-6.2, 3.4, -8.2, -4.4),
+        xsf::hyp2f1(-49.6, -83.999_999_999_999_94, -91.2, 0.773),
+    ];
+    let desired = [
+        -5.460_690_518_245_093e-10,
+        -7.659_905_486_275_666e-18,
+        26.565_667_750_000_028,
+        -11_568.209_528_386_858,
+        0.005_964_933_841_297_133,
+        1.981_179_670_464_318_1e-29,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
 }

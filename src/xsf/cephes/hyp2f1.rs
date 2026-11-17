@@ -640,7 +640,7 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
-    hyp2f1_impl(a, b, c, x, is_large(a, b, c) || near_log(a, b, c, x))
+    hyp2f1_impl(a, b, c, x, in_recur_regime(a, b, c, x))
 }
 
 /// Unlike in xsf, `hyp2f1_recur` is tried first if `max(|a|, |b|, |c|)` is at least this
@@ -670,9 +670,25 @@ fn near_log(a: f64, b: f64, c: f64, x: f64) -> bool {
     w >= HYP2F1_RECUR_NEAR1 && near_int(t) && !(near_neg_int(a) || near_neg_int(b))
 }
 
-/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` for large parameters and for
-/// `near_log`: if either holds for the outermost call (and not in the Pfaff transformation below
-/// for x <= -9)
+/// `a`, `b`, `c - a` and `c - b`: if one is a non-positive integer, 2F1 is a polynomial, or one
+/// times a power of `1 - x` (DLMF 15.8.1)
+fn poly_params(a: f64, b: f64, c: f64) -> [Dd; 4] {
+    [Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
+}
+
+/// Whether one of `poly_params` is a negative integer up to `HYP2F1_EPS`, but not exactly
+fn near_poly(a: f64, b: f64, c: f64) -> bool {
+    let near = |t: Dd| t.hi < -0.5 && near_neg_int(t.hi) && !t.is_integer();
+    poly_params(a, b, c).into_iter().any(near)
+}
+
+/// Whether `hyp2f1_impl` first tries `hyp2f1_recur`, if this also holds for the outermost call
+fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
+    is_large(a, b, c) || near_log(a, b, c, x) || near_poly(a, b, c)
+}
+
+/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
+/// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_ca_or_cb = false;
@@ -711,10 +727,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
 
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
-    // excludes c close to a non-positive integer, and a, b, c - a and c - b close to one unless
-    // exactly a negative integer (the polynomial cases), but none of them if tiny. The
-    // transformations below also use it, but only if the parameters of the outermost call are
-    // large (or `near_log`), so that the other results are unchanged.
+    // excludes c close to a non-positive integer (unless tiny), and a zero or subnormal negative
+    // a, b, c - a or c - b. The transformations below also use it, but only if the outermost call
+    // is `in_recur_regime`, so that the other results are unchanged.
     //
     // Unlike in xsf, a tiny negative `c` is not the integer 0 (see `near`), so it isn't excluded:
     // the paths below lose as much precision for it as for any other `c`.
@@ -733,15 +748,18 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // - at an integer `b - a` (up to `HYP2F1_EPS`), use the Pfaff transformation (DLMF 15.8.1),
     //   where `hyt2f1` needs `1 - w` for its `w = x / (x - 1)` near 1, whose rounding loses about
     //   `log10(-x)` digits of it
+    //
+    // Unlike in xsf, also try it for `near_poly`, where the paths below take 2F1 for the
+    // polynomial at that integer, whose series doesn't terminate: it diverges for x < -1, and
+    // can lose all digits elsewhere (it cancels by 1e43 for `F(65.9, -57.6; 7.9; 0.861)`, where
+    // c - a is -58 - 5e-15).
     let tiny = |t: f64| t < 0.0 && -t < HYP2F1_EPS && t.is_normal();
-    let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer()) && !tiny(t.hi);
+    // (0 or a negative subnormal)
+    let degenerate = |t: Dd| t.hi <= 0.0 && !t.hi.is_normal();
     let recur_first = |a: f64, b: f64, c: f64| {
-        let large_or_log = is_large(a, b, c) || near_log(a, b, c, x);
-        let first = (recur && large_or_log || tiny(a) || tiny(b))
+        let first = (recur && in_recur_regime(a, b, c, x) || tiny(a) || tiny(b))
             && (tiny(c) || !near_neg_int(c))
-            && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
-                .into_iter()
-                .any(near_poly);
+            && !poly_params(a, b, c).into_iter().any(degenerate);
         first.then(|| hyp2f1_recur(a, b, c, x)).flatten()
     };
     let accurate = |&(_, err): &(f64, f64)| err <= HYP2F1_RECUR_TOL;

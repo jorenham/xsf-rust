@@ -1,7 +1,8 @@
 //! The Gauss hypergeometric function `F(a, b; c; x)` for real `x < 1` and large real parameters,
 //! by backward recurrence in `c`. Not a port: `hyp2f1` (in `cephes/hyp2f1.rs`) tries it first for
 //! large parameters, where its series and transformations can lose all precision, for a tiny
-//! negative `a` or `b`, and near an integer `b - a` or `c - a - b` (the log case of steps 4 and 5).
+//! negative `a` or `b`, near a negative integer `a`, `b`, `c - a` or `c - b`, and near an integer
+//! `b - a` or `c - a - b` (the log case of steps 4 and 5).
 //!
 //! # Algorithm
 //!
