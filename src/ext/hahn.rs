@@ -113,20 +113,6 @@ fn hahn_q_big_n(n: u32, a1: f64, b1: f64) -> f64 {
 /// [DLMF Table 18.19.1]: https://dlmf.nist.gov/18.19.T1
 /// [DLMF 18.21.5]: https://dlmf.nist.gov/18.21.E5
 ///
-/// # Algorithm
-///
-/// - $1 \le x \le N - 1$: the three-term recurrence in $n$ ([DLMF 18.22.2]), since the sum
-///   cancels catastrophically. For integer $x$ and $n > \min(x, N - x)$, where that recurrence
-///   can be unstable, the difference equation in $x$ ([DLMF 18.22.10]) from $Q_n(0) = 1$ or
-///   $Q_n(N) = (-1)^n (\beta+1)\_n / (\alpha+1)\_n$, whichever is on the same side of
-///   $A_{n-1} + C_{n-1}$ ([DLMF 18.22.3]) as $x$.
-/// - $x < 1$, and $x > N - 1$ (reflected to $N - x < 1$): the sum, whose terms after the first
-///   then all have the same sign.
-///
-/// [DLMF 18.22.2]: https://dlmf.nist.gov/18.22.E2
-/// [DLMF 18.22.10]: https://dlmf.nist.gov/18.22.E10
-/// [DLMF 18.22.3]: https://dlmf.nist.gov/18.22.E3
-///
 /// # See also
 /// - [`eval_jacobi`](crate::eval_jacobi): Jacobi polynomials $P_n^{(\alpha, \beta)}$
 /// - [`legendre_p`](crate::legendre_p): Legendre polynomials of the first kind $P_n$
@@ -138,6 +124,8 @@ pub fn eval_hahn(n: u32, N: u32, alpha: f64, beta: f64, x: f64) -> f64 {
         return f64::NAN;
     }
     let (a1, b1, nf, big_nf) = (alpha + 1.0, beta + 1.0, f64::from(n), f64::from(N));
+    // x < 1 and x > N - 1 (reflected): the sum, whose terms after the first have one sign; in
+    // between, it can cancel catastrophically
     if x < 1.0 {
         hahn_q_sum(n, a1, b1, big_nf, x, 1.0)
     } else if x > big_nf - 1.0 {
