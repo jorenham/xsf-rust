@@ -1,7 +1,7 @@
 //! The Gauss hypergeometric function `F(a, b; c; x)` for real `x < 1` and large real parameters,
 //! by backward recurrence in `c`. Not a port: `hyp2f1` (in `cephes/hyp2f1.rs`) tries it first for
-//! large parameters, where its series and transformations can lose all precision, and for a tiny
-//! negative `a` or `b`.
+//! large parameters, where its series and transformations can lose all precision, for a tiny
+//! negative `a` or `b`, and near an integer `b - a` or `c - a - b` (the log case of steps 4 and 5).
 //!
 //! # Algorithm
 //!
@@ -123,8 +123,9 @@ pub(crate) const HYP2F1_RECUR_TOL: f64 = 1e-10;
 const HYP2F1_RECUR_SHIFT_TOL: f64 = 100.0 * HYP2F1_RECUR_TOL;
 
 /// The largest distance of `b - a` to an integer for which `hyp2f1_recip` first tries `recip_log`,
-/// as its two terms lose about the inverse of that distance
-const HYP2F1_RECUR_NEAR_INT: f64 = 1e-3;
+/// as its two terms lose about the inverse of that distance (and for which `hyp2f1` first tries
+/// `hyp2f1_recur`)
+pub(crate) const HYP2F1_RECUR_NEAR_INT: f64 = 1e-3;
 
 /// The maximum number of series terms plus recurrence steps, per combination
 const HYP2F1_RECUR_MAXITER: f64 = 1e6;

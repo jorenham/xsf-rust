@@ -14,7 +14,7 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
-use crate::ext::{HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
+use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
 use crate::utils::pow2;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
@@ -640,7 +640,7 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
-    hyp2f1_impl(a, b, c, x, is_large(a, b, c))
+    hyp2f1_impl(a, b, c, x, is_large(a, b, c) || near_log(a, b, c, x))
 }
 
 /// Unlike in xsf, `hyp2f1_recur` is tried first if `max(|a|, |b|, |c|)` is at least this
@@ -653,8 +653,26 @@ fn is_large(a: f64, b: f64, c: f64) -> bool {
     [a, b, c].into_iter().any(|v| v.abs() >= HYP2F1_RECUR_MIN)
 }
 
-/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` for large parameters: if those of the
-/// outermost call are large (and not in the Pfaff transformation below for x <= -9)
+/// Whether `t` is near an integer: for `b - a` or `c - a - b`, the two terms of the 1/x or the
+/// 1 - x transformation (DLMF 15.8.2, 15.8.4) then cancel, and `hyp2f1_recur` combines them
+fn near_int(t: f64) -> bool {
+    (t - t.round()).abs() <= HYP2F1_RECUR_NEAR_INT
+}
+
+/// Whether `b - a` (for x <= -9) or `c - a - b` (for x >= 0.9) is near an integer, and `a` and `b`
+/// aren't non-positive integers (the polynomials)
+fn near_log(a: f64, b: f64, c: f64, x: f64) -> bool {
+    let (t, w) = if x < 0.0 {
+        (b - a, x / (x - 1.0))
+    } else {
+        (c - a - b, x)
+    };
+    w >= HYP2F1_RECUR_NEAR1 && near_int(t) && !(near_neg_int(a) || near_neg_int(b))
+}
+
+/// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` for large parameters and for
+/// `near_log`: if either holds for the outermost call (and not in the Pfaff transformation below
+/// for x <= -9)
 fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_ca_or_cb = false;
@@ -696,7 +714,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // excludes c close to a non-positive integer, and a, b, c - a and c - b close to one unless
     // exactly a negative integer (the polynomial cases), but none of them if tiny. The
     // transformations below also use it, but only if the parameters of the outermost call are
-    // large, so that the other results are unchanged.
+    // large (or `near_log`), so that the other results are unchanged.
     //
     // Unlike in xsf, a tiny negative `c` is not the integer 0 (see `near`), so it isn't excluded:
     // the paths below lose as much precision for it as for any other `c`.
@@ -706,21 +724,20 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // tiny first term, or diverges for x < -1. Not for a subnormal one, where the series of
     // `hyp2f1_recur` underflow.
     //
-    // Unlike in xsf, also try it for an integer `b - a` (up to `HYP2F1_EPS`) and x <= -9, where
-    // the paths below use the Pfaff transformation (DLMF 15.8.1): `hyt2f1` needs `1 - w` for its
-    // `w = x / (x - 1)` near 1, whose rounding loses about `log10(-x)` digits of it, while
-    // `hyp2f1_recur` uses the limit of the 1/x transformation (DLMF 15.8.9). Not for polynomials.
+    // Unlike in xsf, also try it for `near_log`, where it combines the two terms of the 1/x or the
+    // 1 - x transformation, up to their limit at an integer (DLMF 15.8.9, 15.8.10), while the paths
+    // below:
+    //
+    // - add the two terms (for x < -2, and AMS55 #15.3.6 in `hyt2f1`), which loses about the
+    //   inverse of the distance to the integer
+    // - at an integer `b - a` (up to `HYP2F1_EPS`), use the Pfaff transformation (DLMF 15.8.1),
+    //   where `hyt2f1` needs `1 - w` for its `w = x / (x - 1)` near 1, whose rounding loses about
+    //   `log10(-x)` digits of it
     let tiny = |t: f64| t < 0.0 && -t < HYP2F1_EPS && t.is_normal();
     let near_poly = |t: Dd| near_neg_int(t.hi) && !(t.hi < 0.0 && t.is_integer()) && !tiny(t.hi);
-    let int_far = |a: f64, b: f64| {
-        let t = b - a;
-        x < 0.0
-            && x / (x - 1.0) >= HYP2F1_RECUR_NEAR1
-            && (t - t.round()).abs() <= HYP2F1_EPS
-            && !(near_neg_int(a) || near_neg_int(b))
-    };
     let recur_first = |a: f64, b: f64, c: f64| {
-        let first = (recur && is_large(a, b, c) || tiny(a) || tiny(b) || int_far(a, b))
+        let large_or_log = is_large(a, b, c) || near_log(a, b, c, x);
+        let first = (recur && large_or_log || tiny(a) || tiny(b))
             && (tiny(c) || !near_neg_int(c))
             && ![Dd::new(a), Dd::new(b), Dd::new(c) - a, Dd::new(c) - b]
                 .into_iter()
@@ -869,6 +886,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 // Unlike in xsf, round `b - a` only once, since the poles of `Gamma(b - a)` and
                 // `Gamma(a - b)` only cancel those of `p` and `q` at the same `b - a`
                 let e = b - a;
+                // Unlike in xsf, near an integer `b - a`, where `s p` and `y q` below cancel, first
+                // try `hyp2f1_recur` (as for `near_log`), unless it was tried above
+                if inexact.is_none() && near_int(e) {
+                    let log = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+                    if let Some((y, _)) = log.filter(accurate) {
+                        return y;
+                    }
+                }
                 p = hyp2f1_impl(a, 1.0 - c + a, 1.0 - e, 1.0 / x, recur);
                 q = hyp2f1_impl(b, 1.0 - c + b, 1.0 + e, 1.0 / x, recur);
                 p *= (-x).powf(-a);
