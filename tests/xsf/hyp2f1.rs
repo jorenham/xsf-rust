@@ -756,6 +756,40 @@ fn test_hyp2f1_f64_large_parameters_near_log_case() {
 }
 
 #[test]
+fn test_hyp2f1_f64_small_parameters_near_log_case() {
+    // unlike in xsf: also for small parameters, with c - a - b (for x >= 0.9) or b - a (for
+    // x < -2) within 1e-3 of an integer. The first four were NaN, where xsf gives 2.27784513,
+    // 4247.41591, -1673017043.2 and 12.27095. The others were -9.186935e-4, 1.31533e19, -883812,
+    // 1.3971776e-3 and -64173143.8372, as in xsf except for its 1.31530e19 and -64179200 (Arb).
+    let args = [
+        (0.5, 0.25, 0.750_000_001, 0.999),
+        (0.5, 2.5, 1.999_999_999_99, 0.9999),
+        (0.5, -1.5, -0.999_999_999, 0.999),
+        (0.5, 7.5, 7.999_999_999_99, 0.9999),
+        (-8.75, 8.875, 2.125_000_01, 0.985),
+        (-7.5, -7.500_000_000_01, 5.5, -1000.0),
+        (-2.5, -2.500_000_000_01, 5.5, -1000.0),
+        (1.5, 1.499_999_999_99, 5.5, -1000.0),
+        (-9.25, -9.249_999_999_99, 0.75, -6.5),
+    ];
+    let desired = [
+        2.277_844_918_975_149_3,
+        4_247.415_771_798_882,
+        -1_673_017_343.073_581,
+        12.271_558_655_659_248,
+        -9.192_870_681_661_742e-4,
+        1.314_998_615_206_617_7e19,
+        -883_900.539_293_860_8,
+        1.397_157_529_639_970_1e-3,
+        -64_173_143.838_225_69,
+    ];
+    for ((a, b, c, x), y) in args.into_iter().zip(desired) {
+        let actual = [xsf::hyp2f1(a, b, c, x), xsf::hyp2f1(b, a, c, x)];
+        np_assert_allclose!(actual, [y, y], rtol = 1e-14);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_near_log_case_subnormal() {
     // b - a or c - a - b within a subnormal of an integer, where that distance underflows in the
     // combined form of `hyp2f1_recur`. Unlike in xsf, the first two aren't NaN (Arb).
