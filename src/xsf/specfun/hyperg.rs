@@ -1699,6 +1699,21 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
         0.471272992695363e-02,
         0.202681196887362e-02,
     ];
+    /// The composite 60-point Gauss-Legendre rule for `f` over `m` panels of width `2 g` from 0
+    fn panels(m: i32, g: f64, f: impl Fn(f64) -> f64) -> f64 {
+        let (mut sum, mut d) = (0.0, g);
+        for _j in 1..=m {
+            let mut s = 0.0;
+            for k in 1..=30 {
+                let t1 = d + g * T[k - 1];
+                let t2 = d - g * T[k - 1];
+                s += W[k - 1] * (f(t1) + f(t2));
+            }
+            sum += s * g;
+            d += 2.0 * g;
+        }
+        sum
+    }
     // DLMF 13.4.4, integration up to C (12/X, or as below)
     let a1 = a - 1.0;
     let b1 = b - a - 1.0;
@@ -1758,19 +1773,8 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     // from the relative change of its last refinement
     let (mut d_head, mut d_tail) = (0.0, 0.0);
     for m in (10..=100).step_by(5) {
-        hu1 = 0.0;
         let g = if cubic || log_map { 0.5 } else { 0.5 * c } / f64::from(m);
-        let mut d = g;
-        for _j in 1..=m {
-            let mut s = 0.0;
-            for k in 1..=30 {
-                let t1 = d + g * T[k - 1];
-                let t2 = d - g * T[k - 1];
-                s += W[k - 1] * (f_head(t1) + f_head(t2));
-            }
-            hu1 += s * g;
-            d += 2.0 * g;
-        }
+        hu1 = panels(m, g, f_head);
         d_head = (1.0 - hu0 / hu1).abs();
         if d_head < 1.0e-9 {
             break;
@@ -1803,21 +1807,7 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
         }
     };
     for m in (2..=10).step_by(2) {
-        hu2 = 0.0;
-        let g = 0.5 / f64::from(m);
-        let mut d = g;
-        for _j in 1..=m {
-            let mut s = 0.0;
-            for k in 1..=30 {
-                let t1 = d + g * T[k - 1];
-                let t2 = d - g * T[k - 1];
-                let t3 = c / (1.0 - t1);
-                let t4 = c / (1.0 - t2);
-                s += W[k - 1] * (f_tail(t3) + f_tail(t4));
-            }
-            hu2 += s * g;
-            d += 2.0 * g;
-        }
+        hu2 = panels(m, 0.5 / f64::from(m), |u| f_tail(c / (1.0 - u)));
         // NOTE: in the first iteration `hu0` still holds a `hu1` of the first integral (the
         // second-to-last one if that loop converged, else the last one), not divided by `ga`.
         d_tail = (1.0 - hu0 / hu2).abs();
