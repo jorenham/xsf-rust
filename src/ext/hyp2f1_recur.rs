@@ -877,17 +877,18 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     } else {
         ((x - 1.0) / x, one - x, one / x, ln_x - ln_1mx, -ln_x)
     };
-    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`, also by its polynomial forms,
-    // e.g. for `F(c - a, 1 - a; ..)` in step 5 with an integer `a > 0`. Unlike in
-    // `hyp2f1_recur_dd`, this keeps the smaller bound even if both are within tolerance, since
-    // the two terms can cancel.
-    let term = |a: Dd, b: Dd| {
+    // `(-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`, also by its polynomial forms, e.g. for
+    // `F(c - a, 1 - a; ..)` in step 5 with an integer `a > 0`. Unlike in `hyp2f1_recur_dd`, this
+    // keeps the smaller bound even if both are within tolerance, since the two terms can cancel.
+    let series = |a: Dd, b: Dd| {
         let (p, q, cc) = (a, a - c + 1.0, a - b + 1.0);
         let combs = neg_z_combinations(p, q, cc);
         let poly = hyp2f1_poly(combs, cc, w, ln_1mz, (one_mz, ln_1mz));
         let y = min_err(poly, best_combination(combs, cc, z, w, ln_1mz))?;
-        mul_gamma_ratio([c, b - a], [b, c - a], || Some(y.with_l(y.l - a * ln_mt)))
+        Some(y.with_l(y.l - a * ln_mt))
     };
+    // the term `G(a, b) (-t)^-a F(a, a - c + 1; a - b + 1; 1/t)`
+    let term = |a: Dd, b: Dd| mul_gamma_ratio([c, b - a], [b, c - a], || series(a, b));
     let m = b - a;
     let (p, q) = if m.hi < 0.0 { (b, a) } else { (a, b) };
     // ln(-t) + ln(1 - 1/t) = ln(1 - t)
