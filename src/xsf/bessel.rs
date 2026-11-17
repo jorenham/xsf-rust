@@ -667,10 +667,13 @@ fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
     if jy.is_some() || !(v >= LARGE_ORDER_MIN_V && x > 0.0) {
         return jy;
     }
+    // eta = v |w - a| (DLMF 10.20.2, 10.20.3)
     let w = (1.0 - (x / v).powi(2)).abs().sqrt();
+    let a = if x > v { w.atan() } else { w.atanh() };
+    let eta = v * (w - a).abs();
     let m = if x > v {
-        ((UNHJ_MIN_ETA_OSC - v * (w - w.atan())) / w.atan()).ceil()
-    } else if v * (w.atanh() - w) < MAXLOG {
+        ((UNHJ_MIN_ETA_OSC - eta) / a).ceil()
+    } else if eta < MAXLOG {
         (v - x / (1.0 - UNHJ_SERIES_MAX_W.powi(2)).sqrt()).ceil()
     } else {
         // eta >= MAXLOG, where Y ~ e^eta is near overflow: left to AMOS
@@ -695,7 +698,7 @@ fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
     }
     // r = J_n / J_(n-1) at n = v - m + k; the tail of its continued fraction after k terms
     // decays as ((1 - w) / (1 + w))^k
-    let mut k = m + (-f64::EPSILON.ln() / (2.0 * w.atanh())).ceil();
+    let mut k = m + (-f64::EPSILON.ln() / (2.0 * a)).ceil();
     let mut r = 0.0;
     while k > 0.0 {
         r = 1.0 / (2.0 * (v - m + k) / x - r);
