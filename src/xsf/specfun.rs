@@ -333,28 +333,31 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
             return (u, digits_left(15, u0, s));
         }
     }
+    // The recurrence from U(a + m, b, x) and U(a + m + 1, b, x) with `id` digits, or None if they
+    // cancel. They are recurred separately, to detect that.
+    let rec = |m: f64, u0: f64, u1: f64, id: i32| {
+        let (mut p0, mut p1) = (u0, 0.0);
+        let (mut q0, mut q1) = (0.0, u1);
+        for k in (1..=m as i32).rev() {
+            // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
+            let c = a + f64::from(k);
+            let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
+            (p0, p1) = (s * p0 - t * p1, p0);
+            (q0, q1) = (s * q0 - t * q1, q0);
+        }
+        let u = p0 + q0;
+        (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs()).then(|| (u, digits_left(id, p0, q0)))
+    };
     let m = (1.0 - a).ceil();
-    // The two starting values are recurred separately, to detect their cancellation
-    let (mut p0, mut p1) = (xsf_hypu(a + m, b, x), 0.0);
-    let (mut q0, mut q1) = (0.0, xsf_hypu(a + m + 1.0, b, x));
-    for k in (1..=m as i32).rev() {
-        // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
-        let c = a + f64::from(k);
-        let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
-        (p0, p1) = (s * p0 - t * p1, p0);
-        (q0, q1) = (s * q0 - t * q1, q0);
+    let (u0, u1) = (xsf_hypu(a + m, b, x), xsf_hypu(a + m + 1.0, b, x));
+    // the starting values are taken to have 15 digits
+    let mut best = rec(m, u0, u1, 15);
+    // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
+    // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
+    if best.is_none() && (3.0..1000.0).contains(&b) {
+        best = Some(hypu_rec_b(a, b, x));
     }
-    let u = p0 + q0;
-    if p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs() {
-        // the starting values are taken to have 15 digits
-        (u, digits_left(15, p0, q0))
-    } else if (3.0..1000.0).contains(&b) {
-        // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
-        // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
-        hypu_rec_b(a, b, x)
-    } else {
-        (f64::NAN, 0)
-    }
+    best.unwrap_or((f64::NAN, 0))
 }
 
 /// The largest cancellation `(|p| + |q|) / |p + q|` of a sum that `hypu_rec` accepts (empirical)
