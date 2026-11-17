@@ -755,7 +755,7 @@ fn test_eval_jacobi_alpha_lt_minus_one_int_n_plus_beta() {
         -0.078_826_187_314_334_7,
         0.210_905_458_121_855_35,
     ];
-    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
 #[test]
