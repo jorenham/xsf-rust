@@ -1125,6 +1125,31 @@ fn test_hyp2f1_f64_large_polynomials() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_polynomials_in_1_over_x() {
+    // unlike in xsf: the polynomial in 1/x, i.e. the term of the 1/x transformation that is left
+    // for an integer a <= 0, e.g. these were 1.717382430e38, 6.50e50 and 7.6598e35 (references:
+    // Arb)
+    let args = [
+        (-390.0, -60.3187, -547.357, -4.72131),
+        (-315.0, -71.5, -426.5, -5.75),
+        (-253.0, -50.75, -446.5, -7.5),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired =
+        [1.717_382_032_883_699_5e38, 6.196_191_652_916_035_5e50, 7.661_996_786_019_798e35];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // and for an integer c - b <= 0, also with 0 < x < 1 (in 1 - 1/x), e.g. these were NaN and
+    // 1.057e-11 (Arb)
+    let actual = [
+        xsf::hyp2f1(-177.375, -108.5, -208.5, -18.25),
+        xsf::hyp2f1(-9.75, -958.25, -1022.25, 0.987),
+    ];
+    let desired = [6.812_936_622_801_884e131, 6.764_515_364_329_936e-12];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_polynomials_fallback() {
     // unlike in xsf: the result of `hyp2f1_recur` above its tolerance if the other methods are
     // worse, e.g. these were -3.97e161, 1.30e11, -4.37e70 and 1.3003887417e7 (references: Arb)
