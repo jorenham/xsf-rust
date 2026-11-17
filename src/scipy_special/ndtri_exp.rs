@@ -4,8 +4,7 @@
 use core::f64::consts::{FRAC_1_SQRT_2, SQRT_2};
 
 use crate::utils::SQRT_FRAC_2_PI;
-use crate::xsf::cephes::ndtri::{NDTRI_P1, NDTRI_P2, NDTRI_Q1, NDTRI_Q2};
-use crate::xsf::cephes::polevl::{p1evl, polevl};
+use crate::xsf::cephes::ndtri::ndtri_tail;
 
 /// Return inverse of log CDF of normal distribution for very small y
 ///
@@ -20,14 +19,7 @@ fn ndtri_exp_small_y(y: f64) -> f64 {
     } else {
         SQRT_2 * (-y).sqrt()
     };
-    let x0 = x - x.ln() / x;
-    let z = 1.0 / x;
-    let x1 = if x < 8.0 {
-        z * polevl(z, &NDTRI_P1) / p1evl(z, &NDTRI_Q1)
-    } else {
-        z * polevl(z, &NDTRI_P2) / p1evl(z, &NDTRI_Q2)
-    };
-    let r = x1 - x0;
+    let r = -ndtri_tail(x);
 
     // P2/Q2 are fitted for 8 <= x <= 64 and inaccurate up to x ~ 2^18, so refine with a Newton step
     // (DLMF 3.8.4) on log_ndtr(r) = log(erfcx(t) / 2) - t^2, with t = -r/sqrt(2), whose derivative
