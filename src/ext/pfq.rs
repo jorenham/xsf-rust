@@ -1648,7 +1648,11 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 (a2, a1)
             };
             let x = -1.0 / z;
-            let (p, (u, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
+            let borel = |a1: f64, a2: f64| {
+                let (p, (u, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
+                let enough = f64::from(digits) >= -PFQ_TOL.log10();
+                (p.is_normal() && u.is_normal() && enough).then_some(p * u)
+            };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;
                 *t *= (a1 + n) * (a2 + n) * z / (n + 1.0);
@@ -1660,10 +1664,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // remainder)
             let scale = x.min(f64::EPSILON.recip());
             let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
-            let enough = f64::from(digits) >= -PFQ_TOL.log10();
-            (p.is_normal() && u.is_normal() && enough)
-                .then_some(p * u)
-                .or_else(series)
+            // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
+            // chgubi instead of chguit for an integer a1 - a2
+            borel(a1, a2).or_else(series).or_else(|| borel(a2, a1))
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),

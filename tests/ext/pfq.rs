@@ -678,6 +678,14 @@ fn test_hyppfq_2f0() {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
+    // with a1 and a2 swapped, as `chgu` estimates 9 digits for U(a1, a1 - a2 + 1, x) (Arb)
+    for (a, z, expected) in [
+        ([2.25, 3.25], -2.0, 0.025_935_294_832_104_445),
+        ([1.25, 2.25], -1e3, 1.557_385_299_869_812_4e-4),
+    ] {
+        let actual = hyppfq(&a, &[], z).unwrap();
+        xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+    }
     // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
     // -1.000_327_845_432_870_3e-19)
     assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);
