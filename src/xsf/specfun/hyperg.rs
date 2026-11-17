@@ -1,8 +1,5 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
 //! (scipy/xsf@6406578).
-//!
-//! Unlike in xsf, the `double` -> `int` conversions are defined: they saturate, or (`int_x86`, see
-//! the NOTEs) give INT_MIN as g++ on x86-64 does.
 
 use core::f64::consts::{LN_2, PI};
 use core::ops::{Div, Mul};
@@ -150,8 +147,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
     // NOTE: uninitialized in C++, but always written before it is read (the `n` loop below
     // runs at least once).
     let mut chg = C64::ZERO;
-    // NOTE: `(int)fabs(b)` is UB for |b| >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN,
-    // which negates to INT_MIN (so b = -2^31 returns 1e300).
+    // NOTE: `(int)fabs(b)` is UB for |b| >= 2^31 (see `int_x86`); INT_MIN negates to INT_MIN, so
+    // b = -2^31 returns 1e300.
     if (b == 0.0) || (b == f64::from(int_x86(b.abs()).wrapping_neg())) {
         return c64(SPECFUN_INF, 0.0);
     }
@@ -171,8 +168,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         return (z.exp() - 1.0) / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
-        // NOTE: for a = -2^31, `(int)(-a)` is UB; like g++ on x86-64, `int_x86` gives INT_MIN, so
-        // the loop doesn't run and the result is 1. The C++ `k < (m + 1)` is written as `1..=m`:
+        // NOTE: for a = -2^31, `(int)(-a)` is UB (see `int_x86`), so the loop doesn't run and the
+        // result is 1. The C++ `k < (m + 1)` is written as `1..=m`:
         // for m = INT_MAX (a = -(2^31 - 1)) `m + 1` overflows (UB), and g++ -O2 then also runs
         // ~2^31 iterations (i.e. treats it as `k <= m`), giving NaN.
         let m = int_x86(-a);
@@ -194,8 +191,8 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         let mut la = 0;
         if a >= 2.0 {
             nl = 1;
-            // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
-            // `la + 1` overflows (and wraps, as with g++) for a in [2^31 - 1, 2^31).
+            // NOTE: `(int)a` is UB for a >= 2^31 (see `int_x86`). `la + 1` overflows (and wraps, as
+            // with g++) for a in [2^31 - 1, 2^31).
             la = int_x86(a);
             a -= f64::from(la.wrapping_add(1));
         }
@@ -1084,7 +1081,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     if a >= 2.0 {
         // preparing terms for DLMF 13.3.1
         nl = 1;
-        // NOTE: `(int)a` is UB for a >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN.
+        // NOTE: `(int)a` is UB for a >= 2^31 (see `int_x86`).
         la = int_x86(a);
         // Unlike in xsf (scipy/xsf#365), not if that takes over 10^6 steps, nor for the series
         // below with b < 0, where it is unstable (see `direct` below)

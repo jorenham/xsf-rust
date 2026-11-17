@@ -128,8 +128,8 @@ pub(crate) fn lpmv(x: f64, m: i32, v: f64) -> f64 {
             return f64::NAN;
         }
     }
-    // NOTE: `(int)vx` is UB for vx >= 2^31; like g++ on x86-64, `int_x86` gives INT_MIN, so that
-    // lpmv0 is called directly (instead of up-recursion with ~2^31 steps).
+    // NOTE: `(int)vx` is UB for vx >= 2^31 (see `int_x86`), so lpmv0 is called directly (instead
+    // of up-recursion with ~2^31 steps).
     let nv = int_x86(vx);
     let v0 = vx - f64::from(nv);
     if (nv > 2) && (nv > mx) {
