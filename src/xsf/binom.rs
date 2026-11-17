@@ -89,7 +89,7 @@ pub fn binom(n: f64, k: f64) -> f64 {
         // split k^n, which can overflow when the result doesn't
         den = k.abs().powf(n / 2.0);
         num = num / (PI * den) / den;
-        // Unlike in xsf, the unreachable `k <= 0` branch is omitted
+        // (xsf's unreachable `k <= 0` branch is omitted)
         kx = k.floor();
         let dk = k - kx;
         let sgn = neg_one_pow(kx);

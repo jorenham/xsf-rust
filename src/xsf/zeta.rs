@@ -5,9 +5,6 @@
 //! <https://colab.research.google.com/drive/1zMDSAJlXCLRqMMtJ0e9nDGjQ8iZCnmn5?usp=sharing>
 //!
 //! `set_error` is a no-op in our build of xsf, so the calls to it are omitted.
-//!
-//! Unlike in xsf, `zeta_euler_maclaurin` returns NaN if the number of terms doesn't fit in a
-//! `size_t` (UB in C++).
 
 use std::f64::consts::{LN_2, PI, TAU};
 
@@ -129,7 +126,7 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
     }
     let n = (z.im.abs() / 4.0).max(50.0);
     if n >= usize::MAX as f64 {
-        // Unlike in xsf, return NaN if the number of terms doesn't fit in a `size_t`.
+        // Unlike in xsf, NaN if the number of terms doesn't fit in a `size_t` (UB in C++)
         return C64::NAN;
     }
     let n = n as usize;
