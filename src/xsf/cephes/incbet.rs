@@ -714,9 +714,7 @@ pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
 /// incomplete Beta function.
 ///
 /// # Notes
-/// This function uses the `incbet` Cephes routine [^CEPHES], making it less accurate than
-/// [`scipy.special.betainc`][scipy], which wraps the Boost `ibeta` routine [^BOOST].
-/// Especially for small `x` the accuracy may be poor.
+/// This can be less accurate than [`scipy.special.betainc`][scipy], especially for small `x`.
 ///
 /// # See also
 /// - [`betaincinv`](crate::betaincinv): Inverse of the regularized incomplete Beta function
@@ -728,8 +726,6 @@ pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17>.
-/// [^CEPHES]: Cephes Math Library Release 2.3.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(
     alias = "inc_beta",
     alias = "beta_inc",
@@ -738,6 +734,7 @@ pub(crate) fn incbet_cf_factor(a: f64, b: f64, x: f64, y: f64) -> (f64, bool) {
 )]
 #[must_use]
 pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
+    // Cephes `incbet` (SciPy wraps Boost `ibeta`)
     betainc_xy(a, b, x, 1.0 - x)
 }
 
@@ -772,11 +769,6 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
 ///
 /// This function is the survival function of the Beta distribution.
 ///
-/// # Notes
-/// This function uses the `incbet` Cephes routine [^CEPHES] for $\I_{1-x}(b,a)$, given both $x$
-/// and $1 - x$, whereas [`scipy.special.betaincc`][scipy] wraps the Boost `ibetac` routine
-/// [^BOOST].
-///
 /// # See also
 /// - [`betainc`]: Regularized incomplete Beta function $\I_x(a,b)$
 /// - [`betainccinv`](crate::betainccinv): Inverse of the complement of the regularized incomplete
@@ -787,8 +779,6 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.betaincc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.17.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.3.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "ibetac")]
 #[must_use]
 pub fn betaincc(a: f64, b: f64, x: f64) -> f64 {
@@ -796,6 +786,8 @@ pub fn betaincc(a: f64, b: f64, x: f64) -> f64 {
     if x < 0.0 {
         f64::NAN
     } else {
+        // Cephes `incbet` for `I_{1-x}(b, a)`, given both `x` and `1 - x` (SciPy wraps Boost
+        // `ibetac`)
         betainc_xy(b, a, 1.0 - x, x)
     }
 }

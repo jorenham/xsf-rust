@@ -140,6 +140,7 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         let gamma_v = crate::gamma(v);
         let prefactor = arg_pow * gamma_v;
         let x = 2.0 * arg;
+        // AMOS, as in xsf (SciPy uses Cephes `jv`)
         let j_v = crate::bessel_j(v, x);
         let mut bess_val = bessel_below(v, x, -1.0, || j_v, |n| crate::bessel_j(n, x));
         // Unlike in xsf, the rounding error `d` of `arg` is corrected for, as it shifts the phase
@@ -422,11 +423,9 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 
 /// Confluent hypergeometric limit function $_0F_1\left[b\middle\| z\right]$ for real or complex $z$
 ///
-/// This is a translation of the [`scipy.special.hyp0f1`][hyp0f1] Cython implementation into Rust,
-/// as in [scipy/xsf][xsf], which uses AMOS (instead of Cephes) for $J_v$.
+/// Corresponds to [`scipy.special.hyp0f1`][hyp0f1].
 ///
 /// [hyp0f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html
-/// [xsf]: https://github.com/scipy/xsf
 ///
 /// # Notes
 ///

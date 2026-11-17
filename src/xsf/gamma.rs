@@ -73,10 +73,6 @@ pub fn gamma<T: GammaArg>(z: T) -> T {
 ///
 /// for $a > 0$ and $x \ge 0$, with $Q(a,x)$ the regularized upper incomplete gamma function.
 ///
-/// # Notes
-/// Unlike [`scipy.special.gammainc`][scipy], this wraps the `gammainc` Cephes routine [^CEPHES]
-/// rather than the Boost `gamma_p` routine [^BOOST].
-///
 /// # See also
 /// - [`gammaincc`]: Regularized upper incomplete gamma function, $Q(a,x)$
 /// - [`gammaincinv`]: Inverse of the regularized lower incomplete gamma function
@@ -87,8 +83,6 @@ pub fn gamma<T: GammaArg>(z: T) -> T {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammainc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.0.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_lr", alias = "gamma_p")]
 #[must_use]
 #[inline]
@@ -108,10 +102,6 @@ pub fn gammainc(a: f64, x: f64) -> f64 {
 ///
 /// for $a > 0$ and $x \ge 0$, with $P(a,x)$ the regularized lower incomplete gamma function.
 ///
-/// # Notes
-/// Unlike [`scipy.special.gammaincc`][scipy], this wraps the `gammaincc` Cephes routine [^CEPHES]
-/// rather than the Boost `gamma_q` routine [^BOOST].
-///
 /// # See also
 /// - [`gammainc`]: Regularized lower incomplete gamma function, $P(a,x)$
 /// - [`gammaincinv`]: Inverse of the regularized lower incomplete gamma function
@@ -122,8 +112,6 @@ pub fn gammainc(a: f64, x: f64) -> f64 {
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.gammaincc.html
 ///
 /// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/8.2.E4>.
-/// [^CEPHES]: Cephes Math Library Release 2.0.
-/// [^BOOST]: The Boost Developers. “Boost C++ Libraries”, <https://www.boost.org>.
 #[doc(alias = "gamma_ur", alias = "gamma_q")]
 #[must_use]
 #[inline]

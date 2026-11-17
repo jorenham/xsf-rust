@@ -127,10 +127,6 @@ fn expn_large_n(n: u32, x: f64) -> f64 {
 ///
 /// # Accuracy
 ///
-/// The routine employs either a power series, a continued
-/// fraction, or an asymptotic formula depending on the
-/// relative values of n and x.
-///
 /// ```text
 ///                      Relative error:
 /// arithmetic   domain     # trials      peak         rms
