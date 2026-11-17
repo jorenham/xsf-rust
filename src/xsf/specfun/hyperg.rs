@@ -1277,7 +1277,7 @@ pub(crate) fn chgu(
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN && !chguit_preferred(a, b, x) {
-            *digits = id1;
+            *digits = super::subnormal_digits(hu, id1);
             return hu;
         }
         hu1 = hu;
@@ -1290,7 +1290,7 @@ pub(crate) fn chgu(
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= ID_MIN {
-            *digits = id;
+            *digits = super::subnormal_digits(hu, id);
             return hu;
         }
         if id1 > id {
@@ -1366,7 +1366,7 @@ pub(crate) fn chgu(
         if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
-                *digits = id;
+                *digits = super::subnormal_digits(hu, id);
                 return hu;
             }
         }
@@ -1419,7 +1419,10 @@ pub(crate) fn chgu(
     if id < ID_ACCEPT {
         *isfer = 6;
     }
-    *digits = id;
+    // Unlike in xsf, a subnormal U has fewer digits (also at the returns above), which doesn't
+    // flag it (as no method does better), and isn't compared above (where it would favor other
+    // methods that cancel to a normal U, e.g. `chgus` near U(167.7, -4, 1.22) = 4.9e-318)
+    *digits = super::subnormal_digits(hu, id);
     hu
 }
 
@@ -1781,16 +1784,21 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     };
     let mut hu0 = 0.0;
     let mut hu1 = 0.0;
-    // Unlike in xsf, the id is at most 9 (as in xsf) and less if a refinement loop doesn't converge,
-    // from the relative change of its last refinement
-    let (mut d_head, mut d_tail) = (0.0, 0.0);
+    // Unlike in xsf, a refinement m (by dm) of an integral is only final if its last two relative
+    // changes (if there are two) are small, as one can be small by chance where the error
+    // oscillates. Their max times m / dm, about the error if it is ~ m^-p with p >= 1, gives the
+    // id (in xsf it is 9).
+    let (mut d_head, mut d_tail, mut d0) = (0.0, 0.0, 0.0);
     for m in (10..=100).step_by(5) {
         let g = if cubic || log_map { 0.5 } else { 0.5 * c } / f64::from(m);
         hu1 = panels(m, g, f_head);
-        d_head = (1.0 - hu0 / hu1).abs();
-        if d_head < 1.0e-9 {
+        let d = (1.0 - hu0 / hu1).abs();
+        d_head = d.max(d0) * f64::from(m / 5);
+        if d < 1.0e-9 && d0 < 1.0e-9 {
             break;
         }
+        // (the first "change" is from 0)
+        d0 = if m == 10 { 0.0 } else { d };
         hu0 = hu1;
     }
     let ga = if kummer { 1.0 } else { gamma2(a) };
@@ -1818,26 +1826,33 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
             ft
         }
     };
+    d0 = 0.0;
     for m in (2..=10).step_by(2) {
         hu2 = panels(m, 0.5 / f64::from(m), |u| f_tail(c / (1.0 - u)));
         // NOTE: in the first iteration `hu0` still holds a `hu1` of the first integral (the
         // second-to-last one if that loop converged, else the last one), not divided by `ga`.
-        d_tail = (1.0 - hu0 / hu2).abs();
-        if d_tail < 1.0e-9 {
+        let d = (1.0 - hu0 / hu2).abs();
+        d_tail = d.max(d0) * f64::from(m / 2);
+        if d < 1.0e-9 && d0 < 1.0e-9 {
             break;
         }
+        d0 = if m == 2 { 0.0 } else { d };
         hu0 = hu2;
     }
     hu2 /= ga;
     let hu = hu1 + hu2;
     // An integral that is 0 (e.g. if its integrand underflows) adds no error. If U is 0 or
     // infinite (e.g. if it under- or overflows) it has 9 digits as in xsf, else none if NaN.
-    let err = |d: f64, h: f64| if h == 0.0 { 0.0 } else { d * h.abs() };
-    let rel = (err(d_head, hu1) + err(d_tail, hu2)) / hu.abs();
+    // (relative to U, as d |h| can underflow)
+    let err = |d: f64, h: f64| if h == 0.0 { 0.0 } else { d * (h / hu).abs() };
+    let rel = err(d_head, hu1) + err(d_tail, hu2);
+    // the rounding error, which grows with the exponents in the integrand and ln Gamma(a)
+    // (empirical)
+    let rounding = 2.0 * f64::EPSILON * (1.0 + a.abs() + b.abs() + lg.abs());
     *id = if hu == 0.0 || hu.is_infinite() {
         9
     } else if rel < 1.0 {
-        (-rel.log10()).min(9.0) as i32
+        (-rel.max(rounding).log10()) as i32
     } else {
         0
     };
@@ -2140,7 +2155,12 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::chgm_neg_x_asymptotic;
+    use super::{chgm_neg_x_asymptotic, chgu, chguit};
+
+    /// Whether the relative error is within the estimated digits
+    fn digits_ok(u: f64, expected: f64, id: i32) -> bool {
+        (u / expected - 1.0).abs() < 10f64.powi(-id)
+    }
 
     #[test]
     fn test_chgm_neg_x_asymptotic_poles() {
@@ -2148,5 +2168,42 @@ mod tests {
         assert_eq!(chgm_neg_x_asymptotic(-1e5, 2.5, 0.5), None);
         assert!(chgm_neg_x_asymptotic(-1e5, 1.1, 0.1).is_some());
         assert!(chgm_neg_x_asymptotic(-1e5, 1.5, 1.0).is_some());
+    }
+
+    #[test]
+    fn test_chguit_digits() {
+        let mut id = 0;
+        // U(2.25, 0, 0.5) (Arb), with 15 digits (9 in xsf)
+        let u = chguit(0.5, 2.25, 0.0, false, &mut id);
+        assert!(id >= 13 && digits_ok(u, 0.123_369_748_576_127_63, id));
+        // x^(b-1) U(a, b, x) (Arb), where the error oscillates over the refinements, so that one
+        // change is small by chance (9.548_667_857_677_493e-20 with 9 digits if that is final)
+        let (x, a, b) = (
+            6.294_217_108_153_153e-4,
+            21.564_919_933_139_418,
+            1.579_409_465_206_605_7,
+        );
+        let u = chguit(x, a, b, true, &mut id);
+        assert!(digits_ok(u, 9.548_667_779_662_119_8e-20, id));
+    }
+
+    #[test]
+    fn test_chgu_subnormal_digits() {
+        // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
+        let (mut md, mut isfer, mut digits) = (0, 0, 0);
+        let u = chgu(
+            1.0,
+            170.0,
+            1.000_000_000_01,
+            &mut md,
+            &mut isfer,
+            &mut digits,
+        );
+        assert_eq!((md, isfer), (4, 0));
+        assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
+        // the same for an early return, here of `chgul` (Arb)
+        let u = chgu(1500.0, 100.0, 101.0, &mut md, &mut isfer, &mut digits);
+        assert_eq!(md, 2);
+        assert!(digits_ok(u, 2.459_654_426_579_829_3e-318, digits));
     }
 }
