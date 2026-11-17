@@ -44,6 +44,9 @@ const MAX_BOUND_EXP: f64 = 64.0;
 const LOG2_SCALE: i32 = 512;
 const SCALE: f64 = pow2(LOG2_SCALE);
 
+/// From this `x0` down, `chgm` applies `e^x0` gradually, as it nears the subnormals (`e^-708.4`)
+const GRADUAL_EXP_X0: f64 = -700.0;
+
 /// The term `t_j` of the series DLMF 13.2.2 without its factor `z`, from `t_(j-1)`.
 ///
 /// With `b + (j - 1)`, since `b + j - 1` loses the digits of `b` near 0, -1, -2, ...
@@ -452,7 +455,11 @@ fn chgm_poly(n: i32, b: f64, x: f64, scale: f64) -> f64 {
 /// `hyp1f1_series` for `M(a, b, x) e^min(x0, 0)` (cf. DLMF 13.2.39), where `e^x0` is applied
 /// gradually for `x0 <= -700`, to avoid underflow
 fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
-    let s = if x0 > -700.0 { x0.min(0.0) } else { 0.0 };
+    let s = if x0 > GRADUAL_EXP_X0 {
+        x0.min(0.0)
+    } else {
+        0.0
+    };
     hyp1f1_series(a, b, c64(x, 0.0), c64(s.exp(), 0.0), x0.min(0.0) - s)
         .map(|(hg, err)| (hg.re, err))
 }
@@ -1051,7 +1058,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     // Unlike in xsf (scipy/xsf#365), the polynomial M(-n, b, x) from `chgm_poly` if finite, up to
     // n = 10^6 (the cost bound of `hyp1f1_neg_a`)
     let poly = a < 0.0 && a == a.trunc() && a >= -MAX_SERIES_ITERATIONS && b > 0.0 && -a * x > b;
-    if poly && x0 > -700.0 {
+    if poly && x0 > GRADUAL_EXP_X0 {
         let p = chgm_poly(-a as i32, b, x, x0.min(0.0).exp());
         if p.is_finite() {
             return p;
@@ -1109,7 +1116,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
             // DLMF 13.2.39 (cf. above); unlike in xsf (scipy/xsf#365), also if the series doesn't
             // converge within 500 terms, and after 500 terms (finite if not `wrong`) with `mul_exp`
             // for x <= -700, where e^x can be subnormal
-            if x0 <= -700.0 && sum.terms > 500 {
+            if x0 <= GRADUAL_EXP_X0 && sum.terms > 500 {
                 hg = mul_exp(hg, x0);
             } else if x0 < 0.0 {
                 hg *= x0.exp();
