@@ -879,7 +879,7 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 
 // F
 
-/// CDF of the F distribution
+/// CDF of the F distribution with `dfn` and `dfd` degrees of freedom
 ///
 /// Corresponds to [`scipy.special.fdtr`][fdtr].
 ///
@@ -890,11 +890,11 @@ pub fn chdtri(df: f64, y: f64) -> f64 {
 /// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
-pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
-    crate::xsf::cephes::fdtr(a, b, x)
+pub fn fdtr(dfn: f64, dfd: f64, x: f64) -> f64 {
+    crate::xsf::cephes::fdtr(dfn, dfd, x)
 }
 
-/// Survival function of the F distribution
+/// Survival function of the F distribution with `dfn` and `dfd` degrees of freedom
 ///
 /// Corresponds to [`scipy.special.fdtrc`][fdtrc].
 ///
@@ -905,11 +905,11 @@ pub fn fdtr(a: f64, b: f64, x: f64) -> f64 {
 /// - [`fdtri`]: Quantile function
 #[must_use]
 #[inline]
-pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
-    crate::xsf::cephes::fdtrc(a, b, x)
+pub fn fdtrc(dfn: f64, dfd: f64, x: f64) -> f64 {
+    crate::xsf::cephes::fdtrc(dfn, dfd, x)
 }
 
-/// Quantile function of the F distribution
+/// Quantile function of the F distribution with `dfn` and `dfd` degrees of freedom
 ///
 /// Corresponds to [`scipy.special.fdtri`][fdtri].
 ///
@@ -920,8 +920,8 @@ pub fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
 /// - [`fdtrc`]: Survival function
 #[must_use]
 #[inline]
-pub fn fdtri(a: f64, b: f64, y: f64) -> f64 {
-    crate::xsf::cephes::fdtri(a, b, y)
+pub fn fdtri(dfn: f64, dfd: f64, y: f64) -> f64 {
+    crate::xsf::cephes::fdtri(dfn, dfd, y)
 }
 
 // Gamma

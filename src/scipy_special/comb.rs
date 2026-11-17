@@ -11,6 +11,9 @@ use num_traits::{PrimInt, Unsigned};
 /// # Types
 /// - `N`: Any unsigned integer
 ///
+/// # Panics
+/// - In debug builds, if the result does not fit in `N` (release builds wrap around).
+///
 /// # See also
 /// - [`comb_rep`]: choosing with replacement
 /// - [`perm`](crate::perm): $k$-permutations of $n$, $_nP_k$
@@ -66,6 +69,9 @@ fn gcd<N: PrimInt>(mut a: N, mut b: N) -> N {
 ///
 /// # Types
 /// - `N`: Any unsigned integer
+///
+/// # Panics
+/// - In debug builds, if the result does not fit in `N` (release builds wrap around).
 ///
 /// # See also
 /// - [`comb`]: $k$-combinations of $n$ without replacement
