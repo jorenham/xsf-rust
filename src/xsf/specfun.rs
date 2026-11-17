@@ -312,11 +312,13 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
-/// `a + m` in `[1, 2)`, with its estimated number of digits; NaN if a (heuristic) check finds that
-/// the recurrence is ill-conditioned; for small `a` by `hypu_sum_b`, unless that cancels
+/// `a + m` in `[1, 2)` (or `a + j` nearest 0, see below), with its estimated number of digits; NaN
+/// if a (heuristic) check finds that the recurrence is ill-conditioned; for small `a` by
+/// `hypu_sum_b`, unless that cancels
 ///
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
-/// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1).
+/// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1). A
+/// start `a + j` in `(-0.5, 0.5]` comes back here, but doesn't start near 0 again.
 fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
@@ -333,20 +335,27 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
             return (u, digits_left(15, u0, s));
         }
     }
+    // U(c - 1, b, x) = s U(c, b, x) - t U(c + 1, b, x), with (s, t) = `coef(c)`
+    let coef = |c: f64| (2.0 * c - b + x, c * (c - b + 1.0));
     // The recurrence from U(a + m, b, x) and U(a + m + 1, b, x) with `id` digits, or None if they
-    // cancel. They are recurred separately, to detect that.
+    // cancel. They are recurred separately, to detect that, and so is a rounding error of each
+    // step (as in `hypu_fwd_b`), but with the sign of the error so far, so that it doesn't cancel
+    // that (e.g. after a step that cancels, where the next one tends to undo the error).
     let rec = |m: f64, u0: f64, u1: f64, id: i32| {
         let (mut p0, mut p1) = (u0, 0.0);
         let (mut q0, mut q1) = (0.0, u1);
+        let (mut e0, mut e1) = (0.0, 0.0);
         for k in (1..=m as i32).rev() {
-            // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
-            let c = a + f64::from(k);
-            let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
+            let (s, t) = coef(a + f64::from(k));
+            let rounding = f64::EPSILON * (s * (p0 + q0)).abs().max((t * (p1 + q1)).abs());
             (p0, p1) = (s * p0 - t * p1, p0);
             (q0, q1) = (s * q0 - t * q1, q0);
+            let e = s * e0 - t * e1;
+            (e0, e1) = (e + rounding.copysign(if e == 0.0 { p0 + q0 } else { e }), e0);
         }
         let u = p0 + q0;
-        (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs()).then(|| (u, digits_left(id, p0, q0)))
+        (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs())
+            .then(|| (u, digits_left(id, p0, q0).min(-(e0 / u).abs().log10() as i32)))
     };
     let m = (1.0 - a).ceil();
     let (u0, u1) = (xsf_hypu(a + m, b, x), xsf_hypu(a + m + 1.0, b, x));
@@ -356,6 +365,26 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
     // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
     if best.is_none() && (3.0..1000.0).contains(&b) {
         best = Some(hypu_rec_b(a, b, x));
+    }
+    if a < -0.5 && (1.5..1000.0).contains(&b) {
+        // The step to a + j nearest 0 (the first or second) cancels for a near a negative integer
+        // and small x, e.g. by 1e7 for U(-2 - 1e-7, 5 - 1e-10, 0.005). Then the recurrence also
+        // starts from U(a + j, b, x) (by `hypu_sum_b`), and the result with more digits is kept.
+        let j = (-a).round();
+        let (mut v0, mut v1, mut cancel) = (u0, u1, 1.0);
+        for k in (j as i32 + 1..=m as i32).rev() {
+            let (s, t) = coef(a + f64::from(k));
+            let (f, g) = (s * v0, t * v1);
+            (v0, v1) = (f - g, v0);
+            cancel = f.abs().max(g.abs()) / v0.abs();
+        }
+        if cancel > REC_MAX_CANCEL {
+            let (v, id) = xsf_hypu_digits(a + j, b, x);
+            let near_0 = rec(j, v, v1, id.min(15));
+            if near_0.is_some_and(|(_, id)| best.is_none_or(|(_, id_best)| id > id_best)) {
+                best = near_0;
+            }
+        }
     }
     best.unwrap_or((f64::NAN, 0))
 }
