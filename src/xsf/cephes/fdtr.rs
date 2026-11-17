@@ -11,7 +11,7 @@ use crate::utils::{EGAMMA, SQRT_EPSILON};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
 use crate::xsf::cephes::incbet::{betainc_xy, incbet};
-use crate::xsf::cephes::incbi::incbi;
+use crate::xsf::cephes::incbi::{betainccinv_refine, incbi};
 use crate::xsf::cephes::{lgam1p, ln_a_beta, psi};
 use crate::xsf::expint::exp1;
 
@@ -362,19 +362,24 @@ pub(crate) fn fdtri(a: f64, b: f64, mut y: f64) -> f64 {
     /* If that is greater than y, then the solution w < .5.
      * Otherwise, solve at 1-y to remove cancellation in (b - b*w).  */
     // Unlike in xsf, the solution at the rounded `1 - p` is only used if that rounding loses
-    // less than the ~eps / w that the other branch loses in `1 - w`.
+    // less than the ~eps of the other branch.
     //
     // Tried if p is at least the mean `b / (a + b)` of w, or 1/2 (where `1 - p` is exact), and
     // not at `y = 1 - MACHEP`.
     let try_complement = w > y && y < 1.0 - MACHEP && p >= (b / (a + b)).min(0.5);
     if try_complement || y < 0.001 {
         w = incbi(0.5 * b, 0.5 * a, y).0;
-        // Kept if the error of `1 - p` relative to p is at most eps / w (w can far exceed its
-        // mean, e.g. for tiny b), or if w is NaN.
-        if w.is_nan() || (1.0 - y - p).abs() * w <= f64::EPSILON * p {
+        // Kept if the error of `1 - p` relative to p is at most eps, or if w is NaN.
+        if w.is_nan() || (1.0 - y - p).abs() <= f64::EPSILON * p {
             return (b - b * w) / (a * w);
         }
     }
-    w = incbi(0.5 * a, 0.5 * b, p).0;
-    b * w / (a * (1.0 - w))
+    let (mut w, mut wc) = incbi(0.5 * a, 0.5 * b, p);
+    // Unlike in xsf, `1 - w` is refined for `w > 1/2`, as it has lost the digits of `x` to
+    // the rounding of `w` near 1 (e.g. for huge `a`)
+    if w > 0.5 {
+        wc = betainccinv_refine(0.5 * b, 0.5 * a, p, wc);
+        w = 1.0 - wc;
+    }
+    b * w / (a * wc)
 }

@@ -416,7 +416,7 @@ const BETAINCCINV_MAXITER: usize = 64;
 /// The root from `incbi` can be off, as `1 - t` of its root `t` near 1 (by ~eps / x), or if the
 /// rounding of `1 - y` in its reflected frame lands on a plateau of `I_x(a, b)`, and it is 0 for
 /// roots below eps.
-fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
+pub(super) fn betainccinv_refine(a: f64, b: f64, y: f64, mut x: f64) -> f64 {
     let lbeta_ab = lbeta(a, b);
     // `g(x)` is decreasing, and >= 0 at `lo` and <= 0 at `hi`
     let (mut lo, mut hi) = (0.0, 1.0);

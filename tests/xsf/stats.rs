@@ -996,6 +996,28 @@ fn test_fdtri_small_p_large_dfn() {
 }
 
 #[test]
+fn test_fdtri_huge_dfn() {
+    // reference values from Arb; here `w = dfn x / (dfd + dfn x)` is close to 1
+    let x = [
+        xsf::fdtri(1e10, 4.0, 1e-14),
+        xsf::fdtri(1e8, 10.0, 1e-20),
+        xsf::fdtri(1_318_190.8, 1133.5, 4.9e-33),
+        xsf::fdtri(1e6, 1e3, 1e-100),
+        xsf::fdtri(1e9, 4.0, 1e-8),
+        xsf::fdtri(1e9, 2.0, 1e-7),
+    ];
+    let x_ref = [
+        0.055_799_129_486_423_39,
+        0.084_358_636_560_782_81,
+        0.630_147_551_837_172_9,
+        0.439_640_524_172_038_86,
+        0.092_868_680_485_509_71,
+        0.062_042_067_843_321_7,
+    ];
+    xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-15);
+}
+
+#[test]
 fn test_fdtri_tiny_dfd_p_eps() {
     // reference values from Arb; here `1 - p` rounds to `1 - 2^-53` and
     // `incbet(dfd/2, dfn/2, 1/2)` to 1
