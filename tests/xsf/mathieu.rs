@@ -1,3 +1,5 @@
+use core::f64::consts::FRAC_1_SQRT_2;
+
 xsref::tests! {
     test_mathieu_a: "cem_cva", "d_d-d", |x| xsref::with_int(x[0], |m| xsf::mathieu_a(m, x[1]));
     test_mathieu_b: "sem_cva", "d_d-d", |x| xsref::with_int(x[0], |m| xsf::mathieu_b(m, x[1]));
@@ -169,15 +171,22 @@ fn test_mathieu_modcem1_large_x() {
 
 #[test]
 fn test_mathieu_coef() {
-    for coefs in [
-        xsf::mathieu_even_coef(2, 1.0),
-        xsf::mathieu_odd_coef(1, 1.0),
-        xsf::mathieu_even_coef(0, 0.0),
-        xsf::mathieu_odd_coef(1, 0.0),
+    // q = 0: ce_0 = 1 / sqrt(2) and se_1 = sin(z) (DLMF 28.4.13 and 28.4.15)
+    for (coefs, first) in [
+        (xsf::mathieu_even_coef(0, 0.0), FRAC_1_SQRT_2),
+        (xsf::mathieu_odd_coef(1, 0.0), 1.0),
     ] {
         let coefs = coefs.unwrap();
-        assert!(!coefs.is_empty() && coefs.iter().all(|c| c.is_finite()));
+        xsref::np_assert_allclose!(&[coefs[0]], &[first], rtol = 1e-15);
+        assert!(coefs[1..].iter().all(|&c| c == 0.0), "{coefs:?}");
     }
+
+    // q = 1: the normalizations of DLMF 28.4.9 and 28.4.11
+    let a = xsf::mathieu_even_coef(2, 1.0).unwrap();
+    let b = xsf::mathieu_odd_coef(1, 1.0).unwrap();
+    let norm_a = a[0] * a[0] + a.iter().map(|c| c * c).sum::<f64>();
+    let norm_b = b.iter().map(|c| c * c).sum::<f64>();
+    xsref::np_assert_allclose!(&[norm_a, norm_b], &[1.0, 1.0], rtol = 1e-15);
 }
 
 #[test]
