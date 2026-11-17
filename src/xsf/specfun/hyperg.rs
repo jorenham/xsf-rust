@@ -2185,8 +2185,8 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     lr2.map_or(hu, |l| mul_exp_dd(hu, l))
 }
 
-/// `chgus` uses `chgus_near_1` for `|b - 1|` below this (empirical: the peak error grows above it)
-const NEAR_1_DD: f64 = 1e-2;
+/// `chgus` uses `chgus_near_1` for `|b - 1|` below this, the largest its `gamma_quot(.., 2e)` allows
+const NEAR_1_DD: f64 = 2e-2;
 
 /// `chgu` returns a `chgus_near_1` with fewer digits than this only after its other methods, for
 /// `a >= 1` or `x >= 1` (empirical; e.g. it has 12 at `U(16.5, 0.994, 0.1)`, and an error of
