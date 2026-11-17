@@ -411,9 +411,10 @@ pub(super) fn hypu_fwd_b(
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
-    // and so are the rounding errors of each step, which can grow even if the starting values
-    // don't cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal
-    // solution
+    // and so is a rounding error of each step, which can grow even if the starting values don't
+    // cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal solution.
+    // This is an estimate, not a bound, as the propagated errors can cancel; a bound by their
+    // absolute values is far too pessimistic where U is dominant.
     let (mut e0, mut e1) = (0.0, 0.0);
     let mut c = b - n + 1.0;
     while c < b {

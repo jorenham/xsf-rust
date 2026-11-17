@@ -310,6 +310,13 @@ fn test_hypu_near_neg_int_a_large_b() {
 }
 
 #[test]
+fn test_hypu_near_neg_int_a_huge_b() {
+    // Arb; by `chgul`, as there is no recurrence in b for b >= 1000
+    let actual = [xsf::hypu(-5.0 + 1e-13, 1200.1, 1050.0)];
+    xsref::np_assert_allclose!(actual, [-46_724_726_946.010_12], rtol = 1e-11);
+}
+
+#[test]
 fn test_hypu_poly() {
     // mpmath; -6.90e95, -4.94e187, and NaN in xsf
     let abx = [
