@@ -533,6 +533,21 @@ fn test_hyppfq_2f0() {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
+    // by Weniger's transformation, as `chgu` estimates 12 digits and the smallest term of the
+    // series is too large (Arb)
+    for (a, z, expected) in [
+        ([0.05, -0.06], -0.1, 1.000_286_818_712_551_8),
+        ([0.25, 0.25], -0.1, 0.994_172_149_016_540_8),
+        ([-0.25, 0.5], -0.075, 1.009_016_452_746_753),
+        ([-2.4, 2.75], -0.1875, 2.910_254_702_412_351),
+        ([-5.25, -4.375], -0.125, -0.045_913_183_847_017_91),
+        ([-30.125, -27.75], -0.00375, 0.028_847_183_245_871_523),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
     // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
     // -1.000_327_845_432_870_3e-19)
     assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);

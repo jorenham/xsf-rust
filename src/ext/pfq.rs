@@ -1643,7 +1643,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$, unless it is a polynomial or $_2F_0$ with $z \lt 0$;
 /// - for $_2F_0$ where $U$ can't be computed accurately or $(-1/z)^{a_1}$ or $U$ isn't normal, and
-///   its series up to its smallest term isn't accurate either;
+///   neither its series up to its smallest term nor its Weniger transformation is accurate, e.g.
+///   for some $z \lt -1$ or $a_1, a_2 \ll 0$;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
@@ -1726,7 +1727,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2
-            borel(a1, a2).or_else(series).or_else(|| borel(a2, a1))
+            // and last, Weniger's transformation of the series, which also sums it to the Borel
+            // sum, e.g. for x near 10 and small a_i, where chgu has 12 digits and the smallest
+            // term is too large
+            let weniger = || accurate(pfq_weniger(&[a1, a2], &[1.0], z)?);
+            borel(a1, a2)
+                .or_else(series)
+                .or_else(|| borel(a2, a1))
+                .or_else(weniger)
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
