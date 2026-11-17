@@ -118,14 +118,8 @@ mod tests {
         assert_eq!(SQRT_TAU.to_bits(), SQRT_TAU_DOWN.to_bits() + 1);
         assert_eq!(SQRT_TAU.to_bits(), (SQRT_2 * black_box(SQRT_PI)).to_bits());
         assert_eq!(SQRT_3.to_bits(), black_box(3.0_f64).sqrt().to_bits());
-        assert_eq!(
-            FRAC_PI_SQ_6.to_bits(),
-            1.644_934_066_848_226_4_f64.to_bits()
-        );
-        assert_eq!(
-            SQRT_EPSILON.to_bits(),
-            black_box(f64::EPSILON).sqrt().to_bits()
-        );
+        assert_eq!(FRAC_PI_SQ_6.to_bits(), 1.644_934_066_848_226_4_f64.to_bits());
+        assert_eq!(SQRT_EPSILON.to_bits(), black_box(f64::EPSILON).sqrt().to_bits());
         assert_eq!(FRAC_1_SQRT_PI.to_bits(), (1.0 / pi.sqrt()).to_bits());
         assert_eq!(SQRT_FRAC_2_PI.to_bits(), (2.0 / pi).sqrt().to_bits());
         assert_eq!(FRAC_2_PI.to_bits(), (2.0 / pi).to_bits());

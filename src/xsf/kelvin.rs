@@ -31,12 +31,8 @@ struct Klvna {
 const EPS: f64 = 1.0e-15;
 
 /// The offsets `[i, j, k]` of the ber x, bei x, ber'x and bei'x series (see `ber_term`)
-const BER_OFFSETS: [[f64; 3]; 4] = [
-    [0.0, -1.0, -1.0],
-    [0.0, 1.0, 1.0],
-    [1.0, 1.0, 1.0],
-    [0.0, -1.0, 1.0],
-];
+const BER_OFFSETS: [[f64; 3]; 4] =
+    [[0.0, -1.0, -1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
 
 /// The term `r_m = -r_(m-1) x4 / (4 m (m + i) (2m + j) (2m + k))` of a series with the offsets
 /// `[i, j, k]` of `BER_OFFSETS`, where `x4 = (x/2)^4`
@@ -424,9 +420,7 @@ fn klvnzo(nt: usize, kd: KelvinFunction) -> Vec<f64> {
     // ====================================================
 
     let mut zo = vec![f64::NAN; nt];
-    let mut rt0 = [
-        0.0, 2.84891, 5.02622, 1.71854, 3.91467, 6.03871, 3.77268, 2.66584, 4.93181,
-    ];
+    let mut rt0 = [0.0, 2.84891, 5.02622, 1.71854, 3.91467, 6.03871, 3.77268, 2.66584, 4.93181];
     let kd = kd as usize;
     let mut rt = rt0[kd];
 

@@ -264,10 +264,7 @@ mod tests {
         let actual = eigvals(&d, &e);
         for (k, lambda) in actual.into_iter().enumerate() {
             let expected = 2.0 - 2.0 * ((k + 1) as f64 * PI / (N + 1) as f64).cos();
-            assert!(
-                (lambda - expected).abs() <= 1e-15,
-                "{k}: {lambda} != {expected}"
-            );
+            assert!((lambda - expected).abs() <= 1e-15, "{k}: {lambda} != {expected}");
         }
     }
 
@@ -334,16 +331,8 @@ mod tests {
             (vec![1.0; 2], vec![1e-20], 1.0),
             // `lambda = 0` is a multiple eigenvalue, of the blocks split off at the tiny `e_i`
             (vec![0.0; 5], vec![1e-320, 1e-320, 1e-150, 1.0], 0.0),
-            (
-                vec![0.0; 7],
-                vec![1e-150, 1e-320, 1.0, 1e-300, 1.0, 1e-150],
-                0.0,
-            ),
-            (
-                vec![0.0; 7],
-                vec![1e-150, 1.0, 1e-300, 1.0, 1e-320, 1e-150],
-                0.0,
-            ),
+            (vec![0.0; 7], vec![1e-150, 1e-320, 1.0, 1e-300, 1.0, 1e-150], 0.0),
+            (vec![0.0; 7], vec![1e-150, 1.0, 1e-300, 1.0, 1e-320, 1e-150], 0.0),
             // `lambda = 1` is a double eigenvalue, up to `3e-16`
             (vec![0.0; 5], vec![3e-16, 1.0, 3e-16, 1.0], 1.0),
             (vec![0.0; 5], vec![3e-16, 1.0, 3e-16, 1.0], -1.0),
@@ -362,10 +351,7 @@ mod tests {
         let x = eigvec(&d, &e, f64::MAX);
         let scale = |v: &[f64]| v.iter().map(|&vi| ldexp_f64(vi, -1024)).collect::<Vec<_>>();
         let lambda = ldexp_f64(f64::MAX, -1024);
-        assert!(
-            residual(&scale(&d), &scale(&e), lambda, &x) <= 1e-15,
-            "{x:?}"
-        );
+        assert!(residual(&scale(&d), &scale(&e), lambda, &x) <= 1e-15, "{x:?}");
     }
 
     #[test]
@@ -401,11 +387,7 @@ mod tests {
     fn test_eigvals_split() {
         // each block is scaled separately
         assert_eigvals(&[1e308, 1e-100], &[0.0], &[1e-100, 1e308]);
-        assert_eigvals(
-            &[1e308, 0.0, 0.0],
-            &[0.0, 1e-100],
-            &[-1e-100, 1e-100, 1e308],
-        );
+        assert_eigvals(&[1e308, 0.0, 0.0], &[0.0, 1e-100], &[-1e-100, 1e-100, 1e308]);
     }
 
     #[test]
@@ -420,11 +402,7 @@ mod tests {
     #[test]
     fn test_eigvals_unscaled() {
         // scaling to `[0.5, 1)` would underflow `e^2`, and deflate the `0` block
-        assert_eigvals(
-            &[0.0, 0.0, 1e150],
-            &[1e-150, 1e-150],
-            &[-1e-150, 1e-150, 1e150],
-        );
+        assert_eigvals(&[0.0, 0.0, 1e150], &[1e-150, 1e-150], &[-1e-150, 1e-150, 1e150]);
     }
 
     #[test]

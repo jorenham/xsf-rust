@@ -758,10 +758,7 @@ pub(crate) fn w(z: C64) -> C64 {
         }
     }
     // finish:
-    ret + c64(
-        (0.5 * c) * y * (sum2 + sum3),
-        (0.5 * c) * (sum5 - sum4).copysign(z.re),
-    )
+    ret + c64((0.5 * c) * y * (sum2 + sum3), (0.5 * c) * (sum5 - sum4).copysign(z.re))
 }
 
 /////////////////////////////////////////////////////////////////////////

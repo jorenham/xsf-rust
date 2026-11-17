@@ -157,16 +157,8 @@ pub(crate) fn find_positive_root(
     }
     // Unlike in xsf, the absolute tolerance is 2 subnormal ulps instead of `1e-100`, so that roots
     // below `~1e-84` keep their relative precision, and subnormal ones end at adjacent values
-    let (result, root_status) = find_root_chandrupatla(
-        &func,
-        xl,
-        xr,
-        f_xl,
-        f_xr,
-        f64::EPSILON,
-        f64::from_bits(2),
-        100,
-    );
+    let (result, root_status) =
+        find_root_chandrupatla(&func, xl, xr, f_xl, f_xr, f64::EPSILON, f64::from_bits(2), 100);
     if root_status != 0 {
         /* The root finding return should only fail if there's a bug in our code. */
         return f64::NAN;

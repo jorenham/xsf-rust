@@ -32,10 +32,7 @@ fn test_gammainc_large_a() {
         (1e12, 999_970_000_000.0, 4.862_750_805_536_816e-198),
     ] {
         let actual = xsf::gammainc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-13,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-13, "{actual:e} != {expected:e}");
     }
     let q = xsf::gammaincc(1e8, 99_950_000.0);
     assert!((q / 0.999_999_714_535_786 - 1.0).abs() < 1e-15, "{q}");
@@ -48,32 +45,13 @@ fn test_gammainc_large_a_tails() {
     // unlike in xsf (scipy/scipy#26535): accurate for |x - a| > 0.4 a, where these were ~2e-11 off
     // (mpmath, Arb)
     for (a, x, expected) in [
-        (
-            4_539.614_661_308_867,
-            2_638.637_810_126_278_5,
-            1.053_583_186_114_541_3e-246,
-        ),
-        (
-            5_965.501_074_765_158,
-            3_523.337_672_155_038_5,
-            2.834_471_063_272_162_8e-306,
-        ),
-        (
-            4_532.911_009_098_821,
-            2_712.174_570_596_431_7,
-            6.239_827_729_196_435e-223,
-        ),
-        (
-            4_600.020_859_664_592_5,
-            2_684.110_636_552_072_3,
-            1.001_757_841_288_208e-246,
-        ),
+        (4_539.614_661_308_867, 2_638.637_810_126_278_5, 1.053_583_186_114_541_3e-246),
+        (5_965.501_074_765_158, 3_523.337_672_155_038_5, 2.834_471_063_272_162_8e-306),
+        (4_532.911_009_098_821, 2_712.174_570_596_431_7, 6.239_827_729_196_435e-223),
+        (4_600.020_859_664_592_5, 2_684.110_636_552_072_3, 1.001_757_841_288_208e-246),
     ] {
         let actual = xsf::gammainc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 3e-13,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 3e-13, "{actual:e} != {expected:e}");
     }
     let q = xsf::gammaincc(4_757.294_281_037_745, 7_144.513_767_033_158);
     let expected = 3.186_365_208_226_036_4e-199; // was 1.4e-11 off
@@ -101,10 +79,7 @@ fn test_gammainc_tiny_a() {
         (1e-200, 2.0, 4.890_051_070_806_111_5e-202),
     ] {
         let actual = xsf::gammaincc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-14,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual:e} != {expected:e}");
     }
     let x = xsf::gammainccinv(1e-200, 1e-210);
     assert!((x / 19.984_172_765_540_563 - 1.0).abs() < 1e-15, "{x}");
@@ -123,10 +98,7 @@ fn test_gammainc_tiny_a_near_1() {
         (1e-6, 0.3, 0.999_999_094_323_186_3),    // was 4.1e-16 off
     ] {
         let actual = xsf::gammainc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-16,
-            "{actual} != {expected}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-16, "{actual} != {expected}");
     }
 }
 
@@ -138,20 +110,14 @@ fn test_gammainc_small_a() {
         (1e-12, 0.3, 0.999_999_999_999_094_3),   // was 1.9e-15 off
     ] {
         let actual = xsf::gammainc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 4e-16,
-            "{actual} != {expected}"
-        );
+        assert!((actual / expected - 1.0).abs() < 4e-16, "{actual} != {expected}");
     }
     for (a, x, expected) in [
         (1e-10, 1.1, 1.859_909_045_564_036_6e-11), // was 1.7e-14 off
         (1e-6, 1.0, 2.193_841_588_705_092_2e-7),   // was 4.7e-15 off
     ] {
         let actual = xsf::gammaincc(a, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 2e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 2e-15, "{actual:e} != {expected:e}");
     }
 }
 

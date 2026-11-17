@@ -15,10 +15,7 @@ fn test_log_wright_bessel_near_zero() {
         (1e-4, 1.0, 1e-12, 1.000_057_715_007_667_5e-12), // was 5.8e-5 off
     ] {
         let actual = xsf::log_wright_bessel(a, b, x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-13,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-13, "{actual:e} != {expected:e}");
     }
 }
 

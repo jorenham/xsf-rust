@@ -58,11 +58,7 @@ pub fn fdtridfd(dfn: f64, p: f64, f: f64) -> f64 {
     if !(dfn > 0.0 && (0.0..=1.0).contains(&p) && is_pos_finite(f)) {
         return f64::NAN;
     }
-    let func = cdf_minus_p(
-        p,
-        |dfd| crate::fdtr(dfn, dfd, f),
-        |dfd| crate::fdtrc(dfn, dfd, f),
-    );
+    let func = cdf_minus_p(p, |dfd| crate::fdtr(dfn, dfd, f), |dfd| crate::fdtrc(dfn, dfd, f));
     // fdtr(dfn, dfd, f) goes from 0 at dfd = 0 to chdtr(dfn, dfn f) at dfd = inf
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| find_df_root(func, true))
 }
@@ -265,13 +261,7 @@ pub fn pdtrik(p: f64, m: f64) -> f64 {
         return f64::NAN;
     }
     // the CDF increases from exp(-m) at k = 0 to 1 at k = inf
-    invert_cdf(
-        p,
-        true,
-        f64::MAX,
-        |k| igamc(k + 1.0, m),
-        |k| igam(k + 1.0, m),
-    )
+    invert_cdf(p, true, f64::MAX, |k| igamc(k + 1.0, m), |k| igam(k + 1.0, m))
 }
 
 /// `cdf(x) - p`, which is computed as `(1 - p) - sf(x)` with the survival function `sf` if
@@ -301,12 +291,7 @@ fn invert_cdf(
     sf: impl Fn(f64) -> f64,
 ) -> f64 {
     limit_if_p_is_0_or_1(p, increasing).unwrap_or_else(|| {
-        find_positive_root(
-            cdf_minus_p(p, cdf, sf),
-            f64::MIN_POSITIVE,
-            upper,
-            increasing,
-        )
+        find_positive_root(cdf_minus_p(p, cdf, sf), f64::MIN_POSITIVE, upper, increasing)
     })
 }
 
@@ -763,12 +748,7 @@ pub fn ncfdtri(dfn: f64, dfd: f64, nc: f64, p: f64) -> f64 {
     }
     limit_if_p_is_0_or_1(p, true).unwrap_or_else(|| {
         // as low as the smallest subnormal, like `chndtri`
-        find_positive_root(
-            |f| cumfnc(f, dfn, dfd, nc) - p,
-            f64::from_bits(1),
-            f64::MAX,
-            true,
-        )
+        find_positive_root(|f| cumfnc(f, dfn, dfd, nc) - p, f64::from_bits(1), f64::MAX, true)
     })
 }
 
@@ -902,13 +882,7 @@ fn cumfnc(f: f64, dfn: f64, dfd: f64, pnonc: f64) -> f64 {
         // (all if `dfn < eps`), while `I_x(dfn / 2, b)` depends on it relatively
         adn = if i > 0.0 { adn - 1.0 } else { dfn / 2.0 };
         let num = adn + 1.0;
-        let shift = rescale(
-            betdn,
-            num,
-            (adn + b) * xx,
-            &mut scale,
-            &mut [&mut betdn, &mut ssum],
-        );
+        let shift = rescale(betdn, num, (adn + b) * xx, &mut scale, &mut [&mut betdn, &mut ssum]);
         // Unlike in cdflib, `xx` scaled first, as `(adn + b) xx` can round to a subnormal
         dnterm = dnterm * num / ((adn + b) * ldexp_f64(xx, shift));
         betdn += dnterm;
@@ -1010,12 +984,7 @@ pub fn ncfdtrinc(dfn: f64, dfd: f64, p: f64, f: f64) -> f64 {
     }
     // the CDF decreases in nc
     limit_if_p_is_0_or_1(p, false).unwrap_or_else(|| {
-        find_positive_root(
-            |nc| cumfnc(f, dfn, dfd, nc) - p,
-            f64::MIN_POSITIVE,
-            NC_MAX,
-            false,
-        )
+        find_positive_root(|nc| cumfnc(f, dfn, dfd, nc) - p, f64::MIN_POSITIVE, NC_MAX, false)
     })
 }
 
@@ -1148,10 +1117,7 @@ fn cumtnc(t: f64, df: f64, pnonc: f64) -> f64 {
         let dcent = lmbda * (-lmbda).exp();
         (dcent, dcent * lmbda.sqrt() / (0.75 * SQRT_PI))
     } else {
-        (
-            igam_fac(cent + 1.0, lmbda) / lmbda,
-            igam_fac(cent + 1.5, lmbda) / lmbda,
-        )
+        (igam_fac(cent + 1.0, lmbda) / lmbda, igam_fac(cent + 1.5, lmbda) / lmbda)
     };
     if dpnonc < 0.0 {
         ecent = -ecent;

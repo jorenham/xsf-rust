@@ -107,18 +107,8 @@ fn test_segv_seq_scipy() {
     ];
     for (m, n, c, pro, obl) in cases {
         for (name, got, want, last) in [
-            (
-                "pro",
-                xsf::prolate_segv_seq(m, n, c),
-                pro,
-                xsf::prolate_segv(m, n, c),
-            ),
-            (
-                "obl",
-                xsf::oblate_segv_seq(m, n, c),
-                obl,
-                xsf::oblate_segv(m, n, c),
-            ),
+            ("pro", xsf::prolate_segv_seq(m, n, c), pro, xsf::prolate_segv(m, n, c)),
+            ("obl", xsf::oblate_segv_seq(m, n, c), obl, xsf::oblate_segv(m, n, c)),
         ] {
             assert_eq!(got.len(), want.len());
             assert_eq!(got.last(), Some(&last));
@@ -133,23 +123,14 @@ fn test_segv_seq_scipy() {
 #[test]
 fn test_segv_seq_longest() {
     // `n - m = 199` is the largest difference accepted by SciPy
-    for (kd, seq) in [
-        (1, xsf::prolate_segv_seq(0, 199, 1.0)),
-        (-1, xsf::oblate_segv_seq(0, 199, 1.0)),
-    ] {
+    for (kd, seq) in
+        [(1, xsf::prolate_segv_seq(0, 199, 1.0)), (-1, xsf::oblate_segv_seq(0, 199, 1.0))]
+    {
         assert_eq!(seq.len(), 200);
         let want = if kd == 1 {
-            [
-                0.319_000_055_146_892_56,
-                10_100.500_015_471_911,
-                39_800.500_003_925_874,
-            ]
+            [0.319_000_055_146_892_56, 10_100.500_015_471_911, 39_800.500_003_925_874]
         } else {
-            [
-                -0.348_602_399_470_269_7,
-                10_099.499_990_717_593,
-                39_799.499_997_644_336,
-            ]
+            [-0.348_602_399_470_269_7, 10_099.499_990_717_593, 39_799.499_997_644_336]
         };
         for (g, w) in [seq[0], seq[100], seq[199]].into_iter().zip(want) {
             assert!((g - w).abs() <= 1e-12 * w.abs(), "{kd}: {g} vs {w}");

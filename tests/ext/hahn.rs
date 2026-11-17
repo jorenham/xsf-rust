@@ -135,13 +135,7 @@ fn test_eval_hahn_tl_moments() {
                         sign * binom(r - 1, k) * binom(i - 1, r + s - 1 - k) * binom(n - i, t + k)
                     })
                     .sum();
-                let q = eval_hahn(
-                    r - 1,
-                    n - s - t - 1,
-                    s.into(),
-                    t.into(),
-                    f64::from(i - s - 1),
-                );
+                let q = eval_hahn(r - 1, n - s - t - 1, s.into(), t.into(), f64::from(i - s - 1));
                 w / (binom(i - 1, s) * binom(n - i, t) * q)
             })
             .collect();

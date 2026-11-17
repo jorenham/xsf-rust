@@ -8,11 +8,7 @@ fn test_agm_simple() {
     let rtol = 1e-13;
 
     // Gauss's constant
-    np_assert_allclose!(
-        [1.0 / xsf::agm(1.0, SQRT_2)],
-        [0.834_626_841_674_073_2],
-        rtol = rtol
-    );
+    np_assert_allclose!([1.0 / xsf::agm(1.0, SQRT_2)], [0.834_626_841_674_073_2], rtol = rtol);
 
     // Wolfram Alpha, ArithmeticGeometricMean[a, b]
     let agm13 = 1.863_616_783_244_897;

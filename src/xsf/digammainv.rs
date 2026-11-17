@@ -23,13 +23,8 @@ fn digammainv_initial_guess(y: f64) -> f64 {
 ///   x_new = x_old - (psi(x_old) - y) / psi'(x_old)
 /// where psi'(x) = zeta(2, x) (the trigamma function).
 fn digammainv_newton_raphson(x: f64, y: f64) -> f64 {
-    let (res, status) = find_root_newton(
-        |x| (psi(x) - y, zeta(2.0, x)),
-        x,
-        4.0 * f64::EPSILON,
-        0.0,
-        100,
-    );
+    let (res, status) =
+        find_root_newton(|x| (psi(x) - y, zeta(2.0, x)), x, 4.0 * f64::EPSILON, 0.0, 100);
     match status {
         NewtonRootFinderStatus::MaxIterationsExceeded
         | NewtonRootFinderStatus::DerivativeZero
