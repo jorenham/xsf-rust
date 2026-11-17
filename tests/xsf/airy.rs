@@ -96,6 +96,24 @@ fn test_airy_c64_near_overflow() {
     xsref::np_assert_allclose!(&[ai, aip], &expected, rtol = 1e-12);
 }
 
+#[test]
+fn test_airye_f64_cephes() {
+    // Arb: airyai(x) e^zeta, airyai(x, 1) e^zeta, airybi(x) e^-zeta and airybi(x, 1) e^-zeta
+    // for zeta = 2/3 x^(3/2)
+    #[rustfmt::skip]
+    let cases = [
+        // AMOS cancels for Ai and Ai'
+        (1.5, [0.244_184_897_671_408_43, -0.331_419_979_686_364, 0.552_094_372_285_784_1, 0.554_230_756_391_805]),
+        (2.0, [0.230_164_918_652_511_6, -0.349_888_282_580_087_5, 0.500_437_254_304_095, 0.622_217_997_315_437_6]),
+        (5.0, [0.187_002_118_935_943_43, -0.427_035_544_351_945_2, 0.381_108_531_088_877_4, 0.831_878_259_124_801_4]),
+        // AMOS fails for x > 1.05e6
+        (2e6, [0.007_501_317_867_926_573, -10.608_465_465_431_054, 0.015_002_635_736_958_195, 21.216_930_928_674_223]),
+    ];
+    for (x, expected) in cases {
+        xsref::np_assert_allclose!(&xsf::airy_scaled(x), &expected, rtol = 2e-15);
+    }
+}
+
 xsref::tests! {
     test_airy_c64: "airy", "cd-cd_cd_cd_cd", |x| as_tuple(&xsf::airy(c64(x[0], x[1])));
     test_airye_f64: "airye", "d-d_d_d_d", |x| as_tuple(&xsf::airy_scaled(x[0]));

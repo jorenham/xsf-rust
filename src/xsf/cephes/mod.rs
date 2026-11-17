@@ -53,7 +53,7 @@ mod yv;
 mod zeta;
 mod zetac;
 
-pub(crate) use airy::airy;
+pub(crate) use airy::{airy, airye};
 pub(crate) use bdtr::{bdtr, bdtrc, bdtri};
 pub(crate) use besselpoly::besselpoly;
 pub(crate) use beta::{beta, lbeta, ln_a_beta, ln_pow_beta};
