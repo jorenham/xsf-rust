@@ -1390,7 +1390,8 @@ pub(crate) fn chgu(
             let (u, id_rec) = super::hypu_rec(a, b, x);
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
                 // (at most `ID_MIN`, as the estimate of the recurrence in a misses its rounding
-                // errors, e.g. U(-9.5, 2, 29.897) is 36% off with 15 estimated digits)
+                // errors, e.g. it gives 6.1e-5 with 15 estimated digits for U(-9.5, 2, x) = 9.5e-5,
+                // with x = 29.896902748015602 near a zero of U)
                 (hu, id) = (u, id_rec.min(ID_MIN));
             }
         }
