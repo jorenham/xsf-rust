@@ -1199,7 +1199,7 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// Unlike in xsf (scipy/xsf#380), which returns the first of `chgus` and `chgul` with 9 digits,
 /// and else its step 2:
 ///
-/// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
+/// 1. `chgus` (non-integer `b`, or 1), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
 ///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned (`chgus` not
 ///    if `chgus_deferred`); otherwise the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
@@ -1274,8 +1274,9 @@ pub(crate) fn chgu(
 
     let mut id = -100;
     let mut hu1 = 0.0;
-    // Unlike in xsf (scipy/xsf#380), also not for the integers |b| >= 2^31
-    if b != b.trunc() {
+    // Unlike in xsf (scipy/xsf#380), also not for the integers |b| >= 2^31, but for b = 1 (by
+    // `chgus_near_1`, which also holds there)
+    if b != b.trunc() || b == 1.0 {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN && !chgus_deferred(a, b, x, id1) {
@@ -2032,6 +2033,10 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         // Unlike in xsf, in divided-difference form near b = 1, where the two series cancel
         if let Some(hu) = chgus_near_1(x, a, b - 1.0, id) {
             return hu;
+        } else if b == 1.0 {
+            // DLMF 13.2.42 has no limit form here
+            *id = 0;
+            return f64::NAN;
         }
     }
     *id = 100;
@@ -2191,10 +2196,10 @@ const NEAR_1_ID_DEFER: i32 = 14;
 /// The relative error that `chgus_near_1` assumes for each of its terms
 const NEAR_1_ROUND: f64 = 8.0 * f64::EPSILON;
 
-/// `U(a, 1 + e, x)` by DLMF 13.2.42, as in `chgus`, but with the `k`th terms of its two series,
-/// both of order `1 / e`, combined into `e pi / sin(pi e) d_k` without cancellation; `None` if
-/// `1 / Gamma(a)` under- or overflows (unless at a pole), at a pole of `Gamma(a - e)`, or if the
-/// sum isn't finite
+/// `U(a, 1 + e, x)` by DLMF 13.2.42 (DLMF 13.2.9 for `e = 0`), as in `chgus`, but with the `k`th
+/// terms of its two series, both of order `1 / e`, combined into `e pi / sin(pi e) d_k` without
+/// cancellation; `None` if `1 / Gamma(a)` under- or overflows (unless at a pole), at a pole of
+/// `Gamma(a - e)`, or if the sum isn't finite
 fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
     if a.abs() > MAXGAM {
         return None;

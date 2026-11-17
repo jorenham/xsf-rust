@@ -667,6 +667,28 @@ fn test_hypu_b_near_one_cancel() {
 }
 
 #[test]
+fn test_hypu_b_one_small_a() {
+    // Arb; 0.0121547807106452, -0.147635975145256, and -3.5403980739e-5 in xsf (DLMF 13.3.7
+    // cancels near the zeros of U)
+    let ax = [
+        (-0.040_066_081_206_398_19, 1.186_782_123_234_391_8e-11),
+        (-0.031_365_424_999_681_31, 6.961_552_106_224_565e-17),
+    ];
+    let expected = [0.012_154_780_710_647_068, -0.147_635_975_145_240_85];
+    let actual = ax.map(|(a, x)| xsf::hypu(a, 1.0, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 3e-14);
+
+    // Arb; the relative condition numbers of U in a are 3e4 and 7e4
+    let ax = [
+        (-0.017_884_036_913_673_778, 3.002_462_249_449_102e-25),
+        (-0.038_610_143_988_774_756, 3.383_438_104_338_344e-12),
+    ];
+    let expected = [-3.540_398_072_921_225e-5, -1.325_756_475_271_633_5e-5];
+    let actual = ax.map(|(a, x)| xsf::hypu(a, 1.0, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 2e-11);
+}
+
+#[test]
 fn test_hypu_b_near_int() {
     // Arb; 0.084043687, 1.3983195, 0.0034193771, 3.4728082e-7, and 7.3899616e-6 in xsf
     let abx = [
