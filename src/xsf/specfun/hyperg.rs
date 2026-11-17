@@ -2053,6 +2053,10 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     if gab == SPECFUN_INF {
         r1 = 0.0;
     }
+    // Unlike in xsf, no digits if r1 or r2 is 0 but not at a pole (or as x^(1-b) underflows, see
+    // below), e.g. for U(115.7, -62.2, 4.86) = 5.3e-243, where r1 = Gamma(63.2) / inf and
+    // hu = 1.5e-226
+    let lost = r1 == 0.0 && gab != SPECFUN_INF || c == 0.0 && ga != SPECFUN_INF && xp != 0.0;
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, or x^(1-b) or r2 underflows for b > 1, the
     // terms are scaled by 1/|r2| = exp(-lr2) (and hu back), unless r1 then overflows. Its terms
     // grow by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) =
@@ -2151,7 +2155,11 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let e1 = 1e-15 + k(1.0 + a - b) + e_ab;
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
-    *id = (*id).min((-(err / hu.abs()).log10()) as i32);
+    *id = if lost {
+        0
+    } else {
+        (*id).min((-(err / hu.abs()).log10()) as i32)
+    };
     lr2.map_or(hu, |l| mul_exp_dd(hu, l))
 }
 

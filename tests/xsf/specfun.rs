@@ -768,6 +768,28 @@ fn test_hypu_large_neg_b() {
 }
 
 #[test]
+fn test_hypu_large_neg_b_gamma_overflow() {
+    // Arb; 1.498e-226, 3.47e-287, -2.36e-303, -4.65e-207, and -2.96e-314 in xsf, where
+    // Gamma(1 + a - b) overflows in `chgus`
+    let abx = [
+        (115.7, -62.2, 4.86),
+        (142.4, -28.5, 0.39),
+        (115.2, -67.99, 0.51),
+        (96.94, -85.08, 6.1),
+    ];
+    let expected = [
+        5.280_753_643_679_679e-243,
+        3.384_055_764_610_558_4e-280,
+        3.099_375_276_064_330_5e-241,
+        8.380_400_275_246_349e-209,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+    // (correctly rounded)
+    assert_eq!(xsf::hypu(163.0, -15.99, 0.18), 3.405_301_615e-315);
+}
+
+#[test]
 fn test_hypu_kummer_overflow() {
     // Arb; NaN or inf in xsf, where U(a - b + 1, 2 - b, x) or x^(1 - b) over- or underflows
     let abx = [
