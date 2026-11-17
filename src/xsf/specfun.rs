@@ -304,11 +304,9 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
             // Gamma(1 - b) / Gamma(a - b + 1). DLMF 13.2.20-22
             crate::pow_falling(-b, -a)
         }
-    } else if x < 1.0 && a > -0.25 && a < 0.3 && b == 1.0 {
-        // DLMF 13.3.7. Fixes scipy/scipy#15650
-        let a1 = a + 1.0;
-        (x + a + a1) * xsf_hypu(a1, 1.0, x) - a1 * a1 * xsf_hypu(a + 2.0, 1.0, x)
     } else {
+        // Unlike in xsf, not by DLMF 13.3.7 for b = 1, small a, and x < 1, which cancels near the
+        // zeros of U (`chgu` is accurate there)
         xsf_hypu(a, b, x)
     }
 }
