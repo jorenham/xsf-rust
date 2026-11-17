@@ -358,11 +358,7 @@ impl JacobiArg<i32> for f64 {
 /// $$
 ///
 /// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
+/// See [DLMF 18.5.7](https://dlmf.nist.gov/18.5.E7).
 ///
 /// # See also
 /// - [`eval_legendre`]: Evaluate Legendre polynomials, $P_n$
@@ -387,11 +383,7 @@ pub fn eval_jacobi<N, Z: JacobiArg<N>>(n: N, alpha: f64, beta: f64, z: Z) -> Z {
 /// $$
 ///
 /// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.42 [^AS] or DLMF 18.5.7 [^DLMF] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E7>
+/// See [DLMF 18.5.7](https://dlmf.nist.gov/18.5.E7).
 ///
 /// # See also
 /// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
@@ -591,11 +583,7 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
 /// $$
 ///
 /// When $n$ is an integer the result is a polynomial of degree $n$.
-/// See Abramowitz & Stegun 22.5.46 [^AS] or DLMF 18.5.9 [^DLMF] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E9>
+/// See [DLMF 18.5.9](https://dlmf.nist.gov/18.5.E9).
 ///
 /// # See also
 /// - [`eval_jacobi`]: Evaluate Jacobi polynomials, $P_n^{(\alpha, \beta)}$
@@ -684,10 +672,7 @@ fn chebyshev_recurrence(x: f64, p1: f64, p2: f64, range: Range<i32>) -> f64 {
 /// $$ T_n(z) = \hyp{2}{1}{-n,\enspace n}{1 \over 2}{-{z-1 \over 2}} $$
 ///
 /// When $n$ is an integer the result is an orthogonal polynomial of degree $\abs n$.
-/// See Abramowitz & Stegun (1972) eq. 22.5.47 [^AS] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// See [DLMF 15.9.5](https://dlmf.nist.gov/15.9.E5).
 ///
 /// # See also
 /// - [`eval_chebyshev_u`]: Evaluate Chebyshev polynomials of the second kind, $U_n$
@@ -712,10 +697,7 @@ pub fn eval_chebyshev_t<N, Z: ChebyshevArg<N>>(n: N, z: Z) -> Z {
 /// $$ U_n(z) = (n+1)\\ \hyp{2}{1}{-n,\enspace 2+n}{3 \over 2}{-{z-1 \over 2}} $$
 ///
 /// When $n$ is an integer the result is an orthogonal polynomial of degree $\abs n$.
-/// See Abramowitz & Stegun (1972) eq. 22.5.48 [^AS] for details.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-///   Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
+/// See [DLMF 15.9.6](https://dlmf.nist.gov/15.9.E6).
 ///
 /// # See also
 /// - [`eval_chebyshev_t`]: Evaluate Chebyshev polynomials of the first kind, $T_n$
@@ -894,12 +876,9 @@ impl LaguerreArg<i32> for f64 {
 ///
 /// $$ L_n^{(\alpha)}(z) = {n+\alpha \choose n} \\, \hyp 1 1 {-n} {1+\alpha} z $$
 ///
-/// When $n$ is an integer the result is a polynomial of degree $n$ [^AS] [^DLMF].
-/// The Laguerre polynomials, $L_n = L_n^{(0)}$, are the special case where $\alpha = 0$.
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E12>
+/// When $n$ is an integer the result is a polynomial of degree $n$, see
+/// [DLMF 18.5.12](https://dlmf.nist.gov/18.5.E12). The Laguerre polynomials, $L_n = L_n^{(0)}$,
+/// are the special case where $\alpha = 0$.
 ///
 /// # See also
 /// - [`eval_laguerre`]: Evaluate Laguerre polynomials, $L_n = L_n^{(0)}$
@@ -921,13 +900,8 @@ pub fn eval_genlaguerre<N, Z: LaguerreArg<N>>(n: N, alpha: f64, z: Z) -> Z {
 ///
 /// $$ L_n(z) = \hyp 1 1 {-n} 1 z $$
 ///
-/// See 22.5.16 and 22.5.54 in [^AS] for details.
-///
-/// When $n$ is an integer the result is a polynomial of degree $n$ [^DLMF].
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E12>
+/// When $n$ is an integer the result is a polynomial of degree $n$, see
+/// [DLMF 18.5.12](https://dlmf.nist.gov/18.5.E12).
 ///
 /// # See also
 /// - [`eval_genlaguerre`]: Evaluate generalized Laguerre polynomials, $L_n^{(\alpha)}$
@@ -1098,13 +1072,8 @@ impl HermiteArg<u32> for f64 {
 ///     {}_2F_0\left[-{n \over 2}, -{n-1 \over 2} \middle| -{2 \over x^2} \right]
 /// $$
 ///
-/// See 22.11.8 in [^AS] for details.
-///
-/// When `n: u32` the result is a polynomial of degree $n$ [^DLMF].
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E13>
+/// When `n: u32` the result is a polynomial of degree $n$, see
+/// [DLMF 18.5.13](https://dlmf.nist.gov/18.5.E13).
 ///
 /// # See also
 /// - [`eval_hermite_h`]: Evaluate physicists' Hermite polynomials, $H_n$
@@ -1137,13 +1106,8 @@ where
 ///     {}_2F_0\left[-{n \over 2}, -{n-1 \over 2} \middle| -{1 \over x^2} \right]
 /// $$
 ///
-/// See 22.11.8 in [^AS] for details.
-///
-/// When `n: u32` the result is a polynomial of degree $n$ [^DLMF].
-///
-/// [^AS]: Milton Abramowitz and Irene A. Stegun, eds. Handbook of Mathematical Functions with
-/// Formulas, Graphs, and Mathematical Tables. New York: Dover, 1972.
-/// [^DLMF]: NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/18.5.E13>
+/// When `n: u32` the result is a polynomial of degree $n$, see
+/// [DLMF 18.5.13](https://dlmf.nist.gov/18.5.E13).
 ///
 /// # See also
 /// - [`eval_hermite_he`]: Evaluate probabilists' (normalized) Hermite polynomials, $He_n$
