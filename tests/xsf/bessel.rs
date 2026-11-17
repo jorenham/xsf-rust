@@ -557,6 +557,96 @@ fn test_bessel_j_turning_point_negative_order() {
 }
 
 #[test]
+fn test_bessel_jy_below_turning_point() {
+    // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [0.80, 0.87] with eta in [4, 6), where
+    // AMOS loses up to ~430 eps
+    let vx = [
+        (77.264_841_492_886_82, 63.616_263_749_279_72),
+        (83.689_103_548_745_25, 71.430_835_724_982_23),
+        (60.0, 48.0),
+        (110.0, 95.0),
+        (-70.5, 58.5),
+    ];
+    let expected = [
+        0.000_163_471_623_958_521_48,
+        0.000_516_894_790_852_201_5,
+        0.000_245_751_851_522_892_3,
+        0.000_200_535_695_968_452_25,
+        20.631_660_341_613_38,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    let expected = [
+        -44.498_833_410_646_4,
+        -14.169_708_874_182_264,
+        -36.063_813_253_052_786,
+        -28.692_287_874_628_192,
+        0.000_393_271_029_089_817_3,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
+#[test]
+fn test_bessel_jy_below_turning_point_recurrence() {
+    // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [0.82, 0.87] with eta < 4, where AMOS
+    // loses up to ~390 eps
+    let vx = [
+        (83.338_581_844_764_28, 72.513_344_947_507_26),
+        (70.0, 60.0),
+        (50.5, 43.0),
+        (40.0, 33.0),
+        (-62.5, 54.0),
+    ];
+    let expected = [
+        0.001_221_965_838_177_672_4,
+        0.001_436_386_052_336_167_7,
+        0.004_062_204_729_530_515,
+        0.004_058_987_686_471_918,
+        3.430_481_146_054_990_7,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    let expected = [
+        -6.374_882_954_654_264,
+        -6.180_085_145_468_044,
+        -2.988_764_285_772_928,
+        -3.501_917_079_225_303,
+        0.002_973_733_550_822_862_3,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
+#[test]
+fn test_bessel_jy_below_turning_point_recurrence_edges() {
+    // Arb: besselj(v, x) and bessely(v, x); the lowest order of the recurrence is 10 (the least of
+    // the expansion), 9 (so AMOS), and 17, and at 70 it is one lower, as order 69 rounds to just
+    // outside the power series
+    let vx = [(13.0, 10.0), (13.0, 9.5), (20.0, 16.0), (70.0, 60.148_847_869_265_126)];
+    let expected = [
+        0.028_972_083_926_776_766,
+        0.018_156_064_603_798_993,
+        0.017_328_746_227_591_996,
+        0.001_575_026_341_020_990_7,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+    let expected = [
+        -1.363_454_319_803_315,
+        -2.018_456_307_835_525_5,
+        -1.567_173_990_858_811_6,
+        -5.676_985_765_349_779,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 3e-15);
+}
+
+#[test]
 fn test_bessel_jy_above_turning_point() {
     // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [1.11, 1.36] with eta in [3, 6), where
     // AMOS loses up to ~200 eps of their amplitude
