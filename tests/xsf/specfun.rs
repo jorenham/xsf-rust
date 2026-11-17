@@ -640,6 +640,27 @@ fn test_hypu_b_near_one_cancel() {
     let actual = xsf::hypu(-166.125, 1.0099, 1e-4);
     xsref::np_assert_allclose!([actual], [9.921_163_464_098_675e297], rtol = 5e-15);
 
+    // Arb; the other methods are more accurate here
+    let actual = [
+        xsf::hypu(165.0, 1.0099, 0.01),
+        xsf::hypu(16.5, 0.994, 0.1),
+        xsf::hypu(0.3, 0.9955, 6.7),
+    ];
+    let expected = [
+        3.703_508_884_277_675e-295,
+        2.397_573_509_052_701_8e-14,
+        0.558_249_828_304_120_8,
+    ];
+    xsref::np_assert_allclose!(actual, expected, rtol = 5e-15);
+
+    // Arb; the recurrence in a has 10 digits, the sum 13 (but estimates 11)
+    let actual = xsf::hypu(
+        -152.571_517_551_837_93,
+        0.997_562_922_686_568_3,
+        0.001_997_420_588_184_022,
+    );
+    xsref::np_assert_allclose!([actual], [1.190_151_804_933_915_8e266], rtol = 1e-13);
+
     // Arb: 2.79e-307, but 1/Gamma(a) underflows (and the fallback returns 0)
     let actual = xsf::hypu(171.625, 1.009, 1e-20);
     assert!((0.0..=2.790_460_095_786_538_4e-307).contains(&actual));
