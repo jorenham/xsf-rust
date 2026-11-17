@@ -654,12 +654,37 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
     Some((sum_shifted(ai, aip), -sum_shifted(bi, bip)))
 }
 
+/// `bessel_jy_airy`, recurred up in the order (DLMF 10.6.1) where its sums cancel for `x > v`
+///
+/// There `eta < UNHJ_MIN_ETA_OSC`, and `eta` is convex in `v` with the slope `-atan(w)`, so it
+/// is large enough from `m` orders below `v` on.
+fn bessel_jy_airy_recur(v: f64, x: f64) -> Option<(f64, f64)> {
+    let jy = bessel_jy_airy(v, x);
+    if jy.is_some() || !(x > v && v >= LARGE_ORDER_MIN_V) {
+        return jy;
+    }
+    let w = ((x / v).powi(2) - 1.0).sqrt();
+    let m = ((UNHJ_MIN_ETA_OSC - v * (w - w.atan())) / w.atan()).ceil();
+    if m < 1.0 {
+        return None;
+    }
+    // exact, as are the orders up to v
+    let mut n = v - m;
+    let (mut jy0, mut jy1) = (bessel_jy_airy(n - 1.0, x)?, bessel_jy_airy(n, x)?);
+    while n < v {
+        let c = 2.0 * n / x;
+        (jy0, jy1) = (jy1, (c * jy1.0 - jy0.0, c * jy1.1 - jy0.1));
+        n += 1.0;
+    }
+    Some(jy1)
+}
+
 /// `(J_v(x), Y_v(x))` for `x > 0` by an expansion for large `|v|`, where one is accurate
 fn bessel_jy_large_order(v: f64, x: f64) -> Option<(f64, f64)> {
     if debye_is_accurate(v, x) {
         return Some(bessel_jy_debye(v, x));
     }
-    let (j, y) = bessel_jy_airy(v.abs(), x)?;
+    let (j, y) = bessel_jy_airy_recur(v.abs(), x)?;
     if v > 0.0 {
         return Some((j, y));
     }

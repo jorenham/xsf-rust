@@ -617,6 +617,63 @@ fn test_bessel_jy_above_turning_point() {
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
 }
 
+#[test]
+fn test_bessel_jy_above_turning_point_recurrence() {
+    // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [1.11, 1.36] with eta < 3, where AMOS
+    // loses up to ~80 eps of their amplitude
+    let vx = [
+        (20.0, 24.0),
+        (30.5, 35.0),
+        (33.0, 38.0),
+        (58.0, 65.0),
+        (-41.5, 47.5),
+    ];
+    let expected = [
+        0.161_912_651_664_495_28,
+        0.145_025_859_216_876_58,
+        0.113_311_343_523_371_29,
+        0.030_263_581_939_060_775,
+        0.154_045_968_240_138_16,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 1e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    let expected = [
+        0.144_201_886_060_214_56,
+        0.123_597_316_078_740_12,
+        0.142_700_612_314_663_6,
+        0.143_263_581_238_127_85,
+        -0.058_755_646_317_514_87,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    // 11 ulp in the last one with the Windows libm (2 ulp on Linux)
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
+#[test]
+fn test_bessel_jy_above_turning_point_recurrence_edges() {
+    // Arb: besselj(v, x) and bessely(v, x); the lowest order of the recurrence is 10 (the least of
+    // the expansion), 9 (so AMOS), and both reflection terms of a negative order are nonzero
+    let vx = [(15.0, 18.0), (16.0, 18.4), (16.0, 17.92), (-30.3, 36.0)];
+    let expected = [
+        0.235_592_357_774_215_22,
+        0.257_888_878_317_665_5,
+        0.260_626_196_074_620_45,
+        -0.117_522_568_584_565_39,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, atol = 1e-15);
+    let expected = [
+        0.080_480_924_919_380_9,
+        -0.006_919_837_599_588_943_5,
+        -0.071_686_960_171_829_57,
+        0.136_178_378_274_856_35,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, atol = 1e-15);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);
