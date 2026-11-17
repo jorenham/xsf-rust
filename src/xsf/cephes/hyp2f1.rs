@@ -18,7 +18,7 @@ use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, 
 use crate::utils::pow2;
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
-use crate::xsf::cephes::{gamma, lgam_ratio, lgam_sgn, psi, rgamma};
+use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
@@ -759,6 +759,16 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         inexact.filter(worse).map_or(y, |(alt, _)| alt)
     };
 
+    // Unlike in xsf, the divergent 2F1 at x = 1 has the sign of its limit from below, that of
+    // `Gamma(c) / (Gamma(a) Gamma(b))` (DLMF 15.4.21, 15.4.23). Also for c - a - b <= -1, where
+    // the Euler transformation below is `inf * 0` if its gamma functions overflow.
+    if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
+        // (+inf at a pole of `Gamma(c)`, as for x < 1)
+        let pole = c <= 0.0 && near(c, c.round());
+        let sign = gammasgn(a) * gammasgn(b) * gammasgn(c);
+        return f64::INFINITY * if pole { 1.0 } else { sign }; // goto hypdiv
+    }
+
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
     // cancels `F(c, c - b; c; x) = (1 - x)^(b - c)` (DLMF 15.4.6). Only if c > 0, as for c < 0
@@ -827,10 +837,6 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         }
         return or_recur(euler);
     }
-    if d <= 0.0 && x == 1.0 && !(neg_int_a || neg_int_b) {
-        return f64::INFINITY; // goto hypdiv
-    }
-
     if ax < 1.0 || x == -1.0 {
         /* 2F1(a,b;b;x) = (1-x)**(-a) */
         if near(b, c) {
