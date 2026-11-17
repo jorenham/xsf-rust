@@ -646,7 +646,8 @@ fn test_bessel_jy_above_turning_point_recurrence() {
         -0.058_755_646_317_514_87,
     ];
     let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
-    np_assert_allclose!(actual, expected, rtol = 1e-15);
+    // 11 ulp in the last one with the Windows libm (2 ulp on Linux)
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
 }
 
