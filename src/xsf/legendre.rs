@@ -712,14 +712,25 @@ fn q0_real(x: f64) -> f64 {
 /// small or large `|z|`. Each difference has the branch of the quotient, as the arguments of its
 /// terms differ by less than pi. In between, the quotient is accurate (while `1 / z` would lose
 /// the digits of `1 - 1 / z` near `z = 1`).
+///
+/// Unlike in xsf, the real part `ln |(1 + w) / (1 - w)| / 2` (with `w` the `z` or `1 / z` above)
+/// is `ln_1p(4 Re w / |1 - w|^2) / 4` where `|(1 + w) / (1 - w)|^2` is within a factor 2 of 1,
+/// since the quotient and the difference lose the digits of a small `Re w`.
 fn q0_c64(z: C64) -> C64 {
     let a = z.norm();
-    if (0.5..=2.0).contains(&a) {
-        let ls = if a > 1.0 { -1.0 } else { 1.0 };
-        return ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0;
-    }
     let w = if a > 2.0 { 1.0 / z } else { z };
-    (clog1p(w) - clog1p(-w)) / 2.0
+    let mut q = if (0.5..=2.0).contains(&a) {
+        let ls = if a > 1.0 { -1.0 } else { 1.0 };
+        ((1.0 + z) * ls / (1.0 - z)).ln() / 2.0
+    } else {
+        (clog1p(w) - clog1p(-w)) / 2.0
+    };
+    // `|1 + w|^2 / |1 - w|^2 - 1`; outside, `ln` of the quotient is accurate
+    let t = 4.0 * w.re / (1.0 - w).norm_sqr();
+    if (-0.5..=1.0).contains(&t) {
+        q.re = t.ln_1p() / 4.0;
+    }
+    q
 }
 
 /// Replaces the imaginary parts of `Q` and `Q'` (by `lq`, `lqn_c64` or `lqmn_c64`, up to degree
