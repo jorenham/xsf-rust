@@ -24,7 +24,7 @@
 //! needed here. Note that the error terms of the products are only exact if they don't underflow.
 
 use core::cmp::Ordering;
-use core::f64::consts::{E as E_HI, FRAC_2_PI, LN_2};
+use core::f64::consts::{E as E_HI, FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, LN_2};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::utils::{LN_PI, LN_SQRT_TAU, pow2};
@@ -404,6 +404,27 @@ impl DoubleDouble {
         Self::new(s) + (self - Self::new(s) * s) / (2.0 * s)
     }
 
+    /// `atan(self)` for `self >= 0`
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn atan(self) -> Self {
+        if self > 1.0 {
+            return FRAC_PI_2_DD - (1.0 / self).atan();
+        }
+        // atan(t) = atan(t0) + atan(r), with t0 = j / 8 the multiple of 1/8 nearest to t
+        let j = (8.0 * self.hi).round();
+        let t0 = j / 8.0;
+        let r = (self - t0) / (self * t0 + 1.0);
+        // The Maclaurin series of atan(r) / r up to r^26 / 27 (|r| <= 1/16, so the next term is
+        // below 2^-116), times the least common multiple of its denominators, so that the
+        // coefficients are integers
+        let r2 = -r.square();
+        let mut sum = Self::new(0.0);
+        for n in (0..14).rev() {
+            sum = sum * r2 + ATAN_LCM / f64::from(2 * n + 1);
+        }
+        ATAN_EIGHTHS[j as usize] + sum * r / ATAN_LCM
+    }
+
     /// `(sin(self), cos(self))`
     pub(crate) fn sin_cos(self) -> (f64, f64) {
         let (s, c) = self.hi.sin_cos();
@@ -495,6 +516,28 @@ pub(crate) const LN_SQRT_2PI_DD: DoubleDouble = DoubleDouble {
     hi: LN_SQRT_TAU,
     lo: -3.878_294_158_067_241_4e-17,
 };
+
+/// `pi / 2` in double-double precision
+pub(crate) const FRAC_PI_2_DD: DoubleDouble = DoubleDouble {
+    hi: FRAC_PI_2,
+    lo: 6.123_233_995_736_766e-17,
+};
+
+/// `atan(j / 8)` in double-double precision
+#[rustfmt::skip]
+const ATAN_EIGHTHS: [DoubleDouble; 9] = [
+    DoubleDouble { hi: 0.0, lo: 0.0 },
+    DoubleDouble { hi: 0.124_354_994_546_761_44, lo: -3.125_324_142_453_938_3e-18 },
+    DoubleDouble { hi: 0.244_978_663_126_864_14, lo: 1.069_875_561_873_445_1e-17 },
+    DoubleDouble { hi: 0.358_770_670_270_572_25, lo: -2.462_381_558_263_863_5e-17 },
+    DoubleDouble { hi: 0.463_647_609_000_806_1, lo: 2.269_877_745_296_168_7e-17 },
+    DoubleDouble { hi: 0.558_599_315_343_562_4, lo: -5.455_630_548_591_626_4e-18 },
+    DoubleDouble { hi: 0.643_501_108_793_284_4, lo: 1.583_478_505_144_428_6e-17 },
+    DoubleDouble { hi: 0.718_829_999_621_624_5, lo: -2.147_838_844_445_698_3e-17 },
+    DoubleDouble { hi: FRAC_PI_4, lo: 3.061_616_997_868_383e-17 },
+];
+/// `lcm(1, 3, ..., 27)`
+const ATAN_LCM: f64 = 5_019_589_575.0;
 const EPS: f64 = 4.930_380_657_631_32e-32; // 2^-104
 
 impl DoubleDouble {
@@ -606,7 +649,7 @@ impl DoubleDouble {
 
 #[cfg(test)]
 mod tests {
-    use super::DoubleDouble;
+    use super::{DoubleDouble, FRAC_PI_2_DD};
     use crate::utils::pow2;
 
     #[test]
@@ -628,6 +671,34 @@ mod tests {
         let y = DoubleDouble::dot(pairs);
         assert_eq!(y.hi, sum.hi);
         assert!((y - sum).hi.abs() <= pow2(-100) * sum.hi.abs());
+    }
+
+    #[test]
+    fn test_atan() {
+        let atan = |p: f64, q: f64| (DoubleDouble::new(p) / q).atan();
+        // Machin-like formulas for pi / 4
+        for y in [
+            atan(1.0, 1.0),
+            atan(1.0, 2.0) + atan(1.0, 3.0),
+            atan(3.0, 1.0) - atan(1.0, 2.0),
+            atan(1.0, 3.0) * 2.0 + atan(1.0, 7.0),
+            atan(1.0, 5.0) * 4.0 - atan(1.0, 239.0),
+        ] {
+            assert!((y * 2.0 - FRAC_PI_2_DD).hi.abs() <= pow2(-104));
+        }
+        // references from mpmath
+        for (p, q, hi, lo) in [
+            (
+                1.0,
+                1e3,
+                9.999_996_666_668_666e-4,
+                9.354_834_016_115_978e-20,
+            ),
+            (7.0, 10.0, 0.610_725_964_389_208_6, 5.222_355_941_934_75e-17),
+        ] {
+            let err = atan(p, q) - DoubleDouble { hi, lo };
+            assert!(err.hi.abs() <= pow2(-104) * hi);
+        }
     }
 
     #[test]
