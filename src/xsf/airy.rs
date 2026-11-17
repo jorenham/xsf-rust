@@ -57,7 +57,8 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // Bi = sqrt(z) F(zta) and Bi' = z G(zta). With d zeta / dz = sqrt(z) and Bi'' = z Bi, to first
     // order in d, Bi += d (Bi' - Bi / (2 z)) / sqrt(z) and Bi' += d (z Bi - Bi' / z) / sqrt(z).
     // These are applied as factors of q = Bi' / Bi, as `z Bi` can overflow (q ~ sqrt(z) if Bi'
-    // does). The scaled ones are also off by e^-Re(d).
+    // does). The scaled ones are also off by e^-(|Re zeta| - |Re zta|), as Re zeta can be just
+    // below 0 where Re zta = 0.
     //
     // Ai is unscaled from its `airye`, which varies slowly, by e^-zeta = e^-zta (1 - d).
     let s = z.sqrt();
@@ -66,7 +67,12 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
         .unwrap_or(s);
     let (bi, bip) = (bi * (1.0 + d * (q - 0.5 / z) / s), bip * (1.0 + d * (z / q - 1.0 / z) / s));
     if kode == 2 {
-        return [ai, aip, bi * (1.0 - d.re), bip * (1.0 - d.re)];
+        let dre = if d.re < -zta.re {
+            -2.0 * zta.re - d.re
+        } else {
+            d.re
+        };
+        return [ai, aip, bi * (1.0 - dre), bip * (1.0 - dre)];
     }
     let (fa, ez) = ((C64::ONE - d) * C64::cis(-zta.im), (-zta.re).exp());
     // by component if `e^-zta.re` underflows, as `w fa e^-zta.re` may not

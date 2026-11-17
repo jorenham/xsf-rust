@@ -189,6 +189,22 @@ fn test_airy_c64_near_real_axis() {
 }
 
 #[test]
+fn test_airy_c64_scaled_zeta_re_below_zero() {
+    // Arb: Bi e^-|Re zeta| and Bi' e^-|Re zeta|, at ph z just below pi/3, where Re zeta = -5.5e-15
+    // but its rounded value is 0
+    let expected = [
+        c64(0.054_250_139_932_712_535, 0.139_399_474_750_160_3),
+        c64(-1.733_613_607_948_874_9, 1.348_329_937_932_414_5),
+    ];
+    for (z, expected) in [
+        (c64(30.0, 51.961_524_227_066_32), expected),
+        (c64(30.0, -51.961_524_227_066_32), expected.map(|w| w.conj())),
+    ] {
+        xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &expected, rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_airy_c64_subnormal() {
     // Arb: acb(z).airy(); Ai'(z) = (3 + 3i) 2^-1074, with e^-zeta below it
     let z = c64(500_000.645_361_992_06, 866_025.031_184_198_1);
