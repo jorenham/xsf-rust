@@ -525,6 +525,65 @@ fn test_bessel_y_oscillatory() {
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
 }
 
+#[test]
+fn test_bessel_y_turning_point() {
+    // Arb: bessely(v, x) for |v| >= 10 below and around x = |v|, where AMOS loses ~eps of its
+    // exponent or phase
+    let vx = [
+        (1000.0, 950.0),
+        (300.0, 270.0),
+        (60.5, 3.25),
+        (50.0, 20.0),
+        (1000.0, 1010.0),
+        (3000.5, 3010.0),
+        (-100.5, 95.0),
+        (-2000.5, 2020.0),
+    ];
+    let expected = [
+        -2_198.697_783_894_989,
+        -830.477_035_670_576_9,
+        -6.247_372_440_247_314e67,
+        -15_606_426_801_663.736,
+        0.006_232_063_932_500_365,
+        -0.017_754_079_052_189_897,
+        0.019_243_195_235_249_747,
+        0.026_065_963_491_770_55,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 1e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+    // DLMF 10.19.8: -Bi(0) (2 / v)^(1/3)
+    let expected = [-7.747_590_020_600_788e-101];
+    np_assert_allclose!([xsf::bessel_y(1e300, 1e300)], expected, rtol = 1e-15);
+    // Arb, by DLMF 10.20.5 up to A_1 and B_1: an ulp below x = v
+    let expected = [-3.918_787_372_858_491e-8];
+    np_assert_allclose!(
+        [xsf::bessel_y(1e22, 9.999_999_999_999_998e21)],
+        expected,
+        rtol = 1e-15
+    );
+}
+
+#[test]
+fn test_bessel_j_turning_point_negative_order() {
+    // Arb: besselj(v, x) for v <= -10 below and around x = |v|
+    let vx = [
+        (-100.5, 95.0),
+        (-50.5, 20.0),
+        (-2000.5, 2020.0),
+        (-301.0, 270.0),
+    ];
+    let expected = [
+        0.523_152_470_400_604_5,
+        34_050_157_434_984.086,
+        -0.039_467_973_608_718_98,
+        -1.816_491_558_189_553_6e-6,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 1e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);

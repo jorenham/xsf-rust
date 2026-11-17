@@ -648,14 +648,22 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
 
 /// `(J_v(x), Y_v(x))` for `x > 0` by an expansion for large `|v|`, where one is accurate
 fn bessel_jy_large_order(v: f64, x: f64) -> Option<(f64, f64)> {
-    debye_is_accurate(v, x).then(|| bessel_jy_debye(v, x))
+    if debye_is_accurate(v, x) {
+        return Some(bessel_jy_debye(v, x));
+    }
+    let (j, y) = bessel_jy_airy(v.abs(), x)?;
+    if v > 0.0 {
+        return Some((j, y));
+    }
+    // DLMF 10.4.6; AMOS handles an overflow of Y
+    let (s, c) = (cephes_sinpi(-v), cephes_cospi(-v));
+    y.is_finite().then_some((c * j - s * y, s * j + c * y))
 }
 
 /// `J_v(x)` by `bessel_jy_large_order`, with `J_v(-x) = (-1)^v J_v(x)` for an integer `v`
 /// (DLMF 10.11.1)
 fn bessel_j_large_order(v: f64, x: f64) -> Option<f64> {
-    let x_abs = x.abs();
-    let (j, _) = bessel_jy_large_order(v, x_abs).or_else(|| bessel_jy_airy(v, x_abs))?;
+    let (j, _) = bessel_jy_large_order(v, x.abs())?;
     Some(if x < 0.0 && v % 2.0 != 0.0 { -j } else { j })
 }
 
