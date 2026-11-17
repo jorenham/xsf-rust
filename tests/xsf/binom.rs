@@ -29,6 +29,29 @@ fn test_binom_large_k() {
 }
 
 #[test]
+fn test_binom_large_n() {
+    // unlike in xsf, `n >= 1e10 k` without `exp(-lbeta)`, which errs by up to ~1e3 eps here (Arb)
+    let nk = [
+        (2_467_198_972_239.182, 19.424_570_770_297_443),
+        (2_145_255_138_526.0, 23.0),
+        (6.853_882_129_587_282e248, 0.836_181_315_884_165_7),
+        (27_132.662_274_677_346, 2.579_539_995_968_121_7e-10),
+        (1e13, 0.059),
+    ];
+    let actual = nk.map(|(n, k)| xsf::binom(n, k));
+    let expected = [
+        1.197_922_460_130_211_1e223,
+        1.627_501_668_305_473e261,
+        1.253_563_604_787_780_2e208,
+        1.000_000_002_782_221_6,
+        6.033_665_105_512_786,
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    // Arb: 1.797_693_134_862_315_99e308, which rounds to inf
+    assert_eq!(xsf::binom(1.776_229_249_145_602e280, 1.1), f64::INFINITY);
+}
+
+#[test]
 fn test_binom_reflection() {
     // unlike in xsf (scipy/xsf#352): the reflection formula for |k| > 2e4 (the last case splits
     // `poch`)

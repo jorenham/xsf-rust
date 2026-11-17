@@ -3,10 +3,19 @@
 //! Original authors: Pauli Virtanen, Eric Moore
 
 use crate::utils::neg_one_pow;
-use crate::xsf::cephes::{beta, gamma, gammasgn, lbeta, poch};
+use crate::xsf::cephes::{beta, gamma, gammasgn, lbeta, poch, rgamma};
 use crate::xsf::trig::{cephes_sinpi, sinpi_sub};
 
 use core::f64::consts::PI;
+
+/// From this `n`, with `0 < k <= n / 1e10` and a finite `binom` (so `k < 30`), the first neglected
+/// terms of the ratio expansion in `binom`, `-k^2 (k - 1)^2 / (12 n^3)` and `~k / (120 n^4)`
+/// (DLMF 5.11.8), are below `1e-18`
+const BINOM_ASYMP_MIN: f64 = 100.0;
+
+/// Above this, the product in `binom` (measured: within ~5 ulp) may have rounded down from an
+/// overflow
+const BINOM_ASYMP_MAX: f64 = f64::MAX * (1.0 - 16.0 * f64::EPSILON);
 
 /// Binomial coefficient considered as a function of two real variables
 ///
@@ -80,6 +89,27 @@ pub fn binom(n: f64, k: f64) -> f64 {
 
     // general case
     if n >= 1e10 * k && k > 0.0 {
+        // Unlike in xsf, `n^k / Gamma(1 + k)` times the ratio `Gamma(1 + n) / Gamma(1 + n - k) /
+        // n^k` if that is normal, as `exp` below amplifies the rounding error of `ln(binom)` up
+        // to ~709 times.
+        //
+        // `n^k` is split if it overflows, as the result may not, and `rgamma(k) / k` (measured) is
+        // more accurate than `Gamma(1 + k)` or `k Gamma(k)`.
+        if n >= BINOM_ASYMP_MIN {
+            // ln of the ratio by DLMF 5.11.13 (z = n, a = 1, b = 1 - k), to O(k^3 / n^2)
+            let corr = k / n * (1.0 - k) * (0.5 + (2.0 * k - 1.0) / (12.0 * n));
+            let g = rgamma(k) / k;
+            let p = n.powf(k);
+            let r = if p.is_finite() {
+                p * g
+            } else {
+                let p = n.powf(0.5 * k);
+                p * g * p
+            } * corr.exp();
+            if r.is_normal() && r < BINOM_ASYMP_MAX {
+                return r;
+            }
+        }
         // avoid under/overflows intermediate results
         return (-lbeta(1.0 + n - k, 1.0 + k) - (n + 1.0).ln()).exp();
     }
