@@ -45,3 +45,29 @@ fn test_comb_no_overflow() {
     assert_eq!(xsf::comb(67_u64, 33), 14_226_520_737_620_288_370);
     assert_eq!(xsf::comb_rep(34_u64, 34), 14_226_520_737_620_288_370);
 }
+
+#[test]
+fn test_comb_max_n() {
+    // results that fit, at or near `N::MAX`
+    assert_eq!(xsf::comb(u64::MAX, 1), u64::MAX);
+    assert_eq!(xsf::comb_rep(1_u8, 255), 1);
+    assert_eq!(xsf::comb_rep(u8::MAX, 1), 255);
+    assert_eq!(xsf::comb_rep(2_u8, 254), 255);
+}
+
+#[test]
+fn test_comb_u8_exhaustive() {
+    // Pascal's triangle, saturated at u16::MAX, against every `u8` result that fits
+    let mut row = vec![1_u16];
+    for n in 0..=u8::MAX {
+        for (k, &c) in (0..=u8::MAX).zip(&row) {
+            if let Ok(c) = u8::try_from(c) {
+                assert_eq!(xsf::comb(n, k), c, "comb({n}, {k})");
+            }
+        }
+        let mut next = vec![1];
+        next.extend(row.windows(2).map(|w| w[0].saturating_add(w[1])));
+        next.push(1);
+        row = next;
+    }
+}
