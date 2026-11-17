@@ -228,14 +228,15 @@ fn gamma_pow(v: f64, arg: f64) -> (f64, bool) {
     (exp * f, exp.is_normal())
 }
 
-/// Whether Debye's expansion in `hyp0f1_asy` is accurate (empirically to within ~50 eps)
+/// Whether Debye's expansion in `hyp0f1_asy` is accurate, i.e. more so than the Bessel functions
 ///
-/// As in cephes `iv`, this is for `|v-1| > 50`. For `z<0` its terms grow like `p^(-3k)`, with
-/// `p = sqrt(1 - 4|z|/(v-1)^2)`, so then this is for `|v-1| p^3 > 50`.
+/// This is for `|v-1| > DEBYE_MIN_V1`. For `z<0` its terms grow like `(|v-1| p^3)^-k`,
+/// with `p = sqrt(1 - 4|z|/(v-1)^2)`, so then it is also for `|v-1| p^3 > 9 (1 + ln|v-1|)`, where
+/// the error of its 11 terms (measured: up to ~1000 eps) is about that of the Bessel functions.
 fn debye_is_accurate(v: f64, z: f64) -> bool {
     let v1 = (v - 1.0).abs();
     let p2 = 1.0 + 4.0 * z.min(0.0) / (v1 * v1);
-    v1 * p2 * p2.sqrt() > 50.0
+    v1 > DEBYE_MIN_V1 && v1 * p2 * p2.sqrt() > 9.0 * (1.0 + v1.ln())
 }
 
 /// `B_{v-1}(x)` of the Bessel function `B = I` (with `s = 1`) or `J` (`s = -1`), given `B_v(x)`
