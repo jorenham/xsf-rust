@@ -590,8 +590,11 @@ fn bessel_jy_debye(v: f64, x: f64) -> (f64, f64) {
 const UNHJ_SERIES_MAX_W: f64 = 0.49;
 
 /// The `eta` from which the sums of `amos::unhj` are accurate to a few eps beyond its power
-/// series (measured); below it their terms cancel
+/// series (measured), for `x <= v`; below it their terms cancel
 const UNHJ_MIN_ETA: f64 = 6.0;
+
+/// `UNHJ_MIN_ETA` for `x > v`, where fewer terms cancel
+const UNHJ_MIN_ETA_OSC: f64 = 3.0;
 
 /// The `w` up to which `eta` is summed by its series in `w`; the closed forms cancel to `~w^3`,
 /// and beyond it `v` is small for any `eta < 2 MAXLOG`
@@ -618,8 +621,13 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
     } else {
         w - w.atan()
     } * v;
+    let min_eta = if x <= v {
+        UNHJ_MIN_ETA
+    } else {
+        UNHJ_MIN_ETA_OSC
+    };
     // from eta = 2 MAXLOG on, J = 0 and Y = -inf
-    if !(eta.hi < 2.0 * MAXLOG && (w.hi <= UNHJ_SERIES_MAX_W || eta.hi >= UNHJ_MIN_ETA)) {
+    if !(eta.hi < 2.0 * MAXLOG && (w.hi <= UNHJ_SERIES_MAX_W || eta.hi >= min_eta)) {
         return None;
     }
     let [mut phi, mut arg, mut zeta1, mut zeta2, mut asum, mut bsum] = [C64::ZERO; 6];
