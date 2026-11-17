@@ -1564,3 +1564,33 @@ fn test_hyp2f1_f64_just_below_1() {
     np_assert_allclose!(actual, [1.449_724_260_959_791_1], rtol = 1e-15);
     assert_eq!(xsf::hyp2f1(0.5, 0.7, 1.0, 1.0), f64::INFINITY);
 }
+
+#[test]
+fn test_hyp2f1_f64_psi_expansion_underflow() {
+    // unlike in xsf: a gamma factor of the larger sum of the psi function expansion (AMS55
+    // 15.3.10-12) underflows to 0, where xsf returns the other sum alone, here 0 (Arb)
+    let actual = xsf::hyp2f1(
+        -57.594_715_732_879_905,
+        251.371_049_675_285_8,
+        134.776_333_942_405_9,
+        0.961_971_941_183_459_1,
+    );
+    np_assert_allclose!([actual], [1.409_085_836_000_905_4e-19], rtol = 1e-8);
+    // NaN if the sums cancel, where xsf gives 1.546e114 and 4.031e12 for 1.457e106 and -17.22
+    for (a, b, c, x) in [
+        (
+            -90.742_720_082_337_5,
+            -126.742_720_082_337_5,
+            74.952_783_792_021_85,
+            -27.715_208_173_162_505,
+        ),
+        (
+            -96.355_333_750_613_62,
+            186.628_987_627_931_8,
+            31.273_653_877_318_168,
+            0.931_415_141_630_799_5,
+        ),
+    ] {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+    }
+}

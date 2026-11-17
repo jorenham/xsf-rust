@@ -433,19 +433,30 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // nosum:
             p = gamma(c);
             let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
-            (y1, y1_err) = (y1 * f1, y1_err * f1.abs());
-
             let f = p * (rgamma(a + d2) * rgamma(b + d2));
-            (y, y_err) = (y * f, y_err * f.abs());
+            q = s.powf(id); /* s to the id power */
+            // the factors `s^id` of `y` and `y1`, and their logarithms
+            let [(q0, l0), (q1, l1)] = if id > 0.0 {
+                [(q, id * ax), (1.0, 0.0)]
+            } else {
+                [(1.0, 0.0), (q, id * ax)]
+            };
+            // Unlike in xsf, if a factor of a sum leaves the normal range, their product is taken
+            // by logarithms (as for AMS55 #15.3.6 above): e.g. `f1` can underflow to 0 while
+            // `y1 f1 q` is the larger part of the result, which the error estimate can't see.
+            let by_logs = |f: f64, q: f64, l, num, den| {
+                if f.is_normal() && q.is_normal() {
+                    return (f, q, 0.0);
+                }
+                let (f, f_err) = exp_gamma_ratio(l, num, den);
+                (f, 1.0, f_err)
+            };
+            let (f1, q1, f1_err) = by_logs(f1, q1, l1, [e, c], [a + d1, b + d1]);
+            let (f, q0, f_err) = by_logs(f, q0, l0, [1.0, c], [a + d2, b + d2]);
+            (y1, y1_err) = (y1 * f1 * q1, (y1_err + f1_err * y1.abs()) * f1.abs() * q1);
+            (y, y_err) = (y * f * q0, (y_err + f_err * y.abs()) * f.abs() * q0);
             if (aid & 1) != 0 {
                 y = -y;
-            }
-
-            q = s.powf(id); /* s to the id power */
-            if id > 0.0 {
-                (y, y_err) = (y * q, y_err * q);
-            } else {
-                (y1, y1_err) = (y1 * q, y1_err * q);
             }
 
             y += y1;
@@ -463,6 +474,20 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     };
     // done:
     (y, err, err_full)
+}
+
+/// `exp(l) Gamma(num_0) Gamma(num_1) / (Gamma(den_0) Gamma(den_1))` by `lgam_sgn`, and its relative
+/// rounding error in `MACHEP`
+fn exp_gamma_ratio(l: f64, num: [f64; 2], den: [f64; 2]) -> (f64, f64) {
+    let (mut w, mut w_abs, mut sign) = (l, l.abs(), 1);
+    for (gammas, power) in [(num, 1.0), (den, -1.0)] {
+        for (lg, sgngam) in gammas.map(lgam_sgn) {
+            (w, w_abs, sign) = (w + power * lg, w_abs + lg.abs(), sign * sgngam);
+        }
+    }
+    let y = f64::from(sign) * w.exp();
+    // (exactly 0 at a pole of the denominator)
+    (y, if y == 0.0 { 0.0 } else { w_abs })
 }
 
 /*
