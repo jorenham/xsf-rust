@@ -394,7 +394,8 @@ fn criemann_zeta(z: C64) -> C64 {
         return zeta_right_halfplane(z);
     }
     // Unlike in xsf, zeta(z) = -1/2 - z ln(2 pi) / 2 for tiny |z|, where 1 - z in the reflection
-    // formula rounds z away; the next term, about -z^2, is below eps / 2 relative to -1/2.
+    // formula loses precision in the real offset; the next term, about -z^2, is about eps / 2
+    // relative to -1/2.
     if z.norm_sqr() < f64::EPSILON / 4.0 {
         return -0.5 - LN_TAU / 2.0 * z;
     }
