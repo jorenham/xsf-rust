@@ -584,6 +584,39 @@ fn test_bessel_j_turning_point_negative_order() {
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
 }
 
+#[test]
+fn test_bessel_jy_above_turning_point() {
+    // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [1.11, 1.36] with eta in [3, 6), where
+    // AMOS loses up to ~200 eps of their amplitude
+    let vx = [
+        (81.046_006_211_873_38, 95.862_273_724_479_32),
+        (100.0, 115.0),
+        (150.0, 168.5),
+        (-70.5, 82.0),
+        (60.0, 70.0),
+    ];
+    let expected = [
+        0.002_786_135_086_496_126_6,
+        -0.038_196_043_224_737_4,
+        0.027_066_073_979_626_733,
+        0.017_885_916_555_457_456,
+        -0.124_230_136_973_084_74,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
+    let expected = [
+        -0.111_355_875_330_217_51,
+        -0.098_607_469_724_625_39,
+        -0.086_859_880_177_404_84,
+        -0.121_752_801_011_926,
+        0.046_233_208_026_780_416,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);
