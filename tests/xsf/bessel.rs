@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use num_complex::{Complex64, c64};
-use xsref::np_assert_allclose;
+use xsref::{np_assert_allclose, np_assert_equal};
 
 xsref::tests! {
     // Bessel J
@@ -421,6 +421,41 @@ fn test_bessel_jy_large_x() {
         0.000_836_700_874_927_345_2,
     ];
     np_assert_allclose!(&actual, &expected, rtol = 2e-14);
+}
+
+#[test]
+fn test_bessel_j_oscillatory() {
+    // Arb: besselj(v, x) for |x| > |v| >= 10, where AMOS lost ~eps |x| through its phase (up to
+    // 5e-7 near a zero), and J_v(x) = 0 or the wrong sign for x >= 1e17
+    let vx = [
+        (2_611.227_429_583_167, 2_502_847.069_861_547_6),
+        (-2_652.249_251_597_461_4, 598_667.409_649_828),
+        (-2_213.827_674_170_779, 2_202_672.283_575_972_5),
+        (861.613_983_289_161_3, 1_036.414_417_689_713_2),
+        (101.0, -1000.0),
+        (-101.0, -1000.0),
+        (-102.0, 1000.0),
+        (10.0, 80.0),
+        (1e7, 1e9),
+        (100.0, 1e20),
+        (100.5, 1e308),
+    ];
+    let expected = [
+        5.662_551_665_572_269e-5,
+        -8.122_052_923_768_204e-7,
+        -0.000_195_000_542_338_272_87,
+        -0.002_065_889_233_702_789_8,
+        0.021_152_705_375_840_766,
+        -0.021_152_705_375_840_766,
+        -0.015_948_981_493_722_39,
+        0.024_043_850_978_184_764,
+        4.785_055_993_128_89e-6,
+        6.698_009_040_703_428e-12,
+        3.617_580_596_934_688_3e-155,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_j(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
 }
 
 xsref::tests! {

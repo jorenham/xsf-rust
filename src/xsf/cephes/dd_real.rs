@@ -328,7 +328,7 @@ impl PartialOrd<f64> for DoubleDouble {
 
 impl DoubleDouble {
     #[inline]
-    fn mul_pwr2(self, rhs: f64) -> Self {
+    pub(crate) fn mul_pwr2(self, rhs: f64) -> Self {
         /* double-double * double,  where double is a power of 2. */
         Self {
             hi: self.hi * rhs,
@@ -405,7 +405,6 @@ impl DoubleDouble {
     }
 
     /// `atan(self)` for `self >= 0`
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn atan(self) -> Self {
         if self > 1.0 {
             return FRAC_PI_2_DD - (1.0 / self).atan();
