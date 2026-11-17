@@ -44,12 +44,6 @@ fn test_betainc_slow_continued_fraction() {
     ] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-10);
     }
-
-    // the result should stay within [0, 1] for huge a + b
-    assert!((0.0..=1.0).contains(&xsf::betainc(1e15, 1e15, 0.5)));
-    assert!((0.0..=1.0).contains(&xsf::betainc(2.0, 1e17, 2e-17)));
-    assert!((0.0..=1.0).contains(&xsf::fdtr(2e15, 2e15, 1.0)));
-    assert!((0.0..=1.0).contains(&xsf::fdtrc(2e15, 2e15, 1.0)));
 }
 
 #[test]
@@ -86,7 +80,9 @@ fn test_betainc_huge_ab_near_mean() {
     for a in [1e15, 1e20, 1e200] {
         xsref::np_assert_allclose!(&[xsf::betainc(a, a, 0.5)], &[0.5], rtol = 1e-15);
     }
-    xsref::np_assert_allclose!(&[xsf::fdtr(2e15, 2e15, 1.0)], &[0.5], rtol = 1e-15);
+    for f in [xsf::fdtr, xsf::fdtrc] {
+        xsref::np_assert_allclose!(&[f(2e15, 2e15, 1.0)], &[0.5], rtol = 1e-15);
+    }
 
     // reference values from Arb (python-flint), and mpmath quadrature for the last one
     for &(a, b, x, p) in &[
