@@ -592,7 +592,7 @@ fn test_bessel_jy_below_turning_point() {
 #[test]
 fn test_bessel_jy_below_turning_point_recurrence() {
     // Arb: besselj(v, x) and bessely(v, x) for x / |v| in [0.82, 0.87] with eta < 4, where AMOS
-    // loses up to ~390 eps
+    // loses up to ~280 eps
     let vx = [(83.375, 72.5), (70.0, 60.0), (50.5, 43.0), (40.0, 33.0), (-62.5, 54.0)];
     let expected = [
         0.001_187_826_402_904_425_9,
@@ -739,13 +739,13 @@ fn test_bessel_k_near_overflow() {
     let actual = [
         xsf::bessel_k(1.5, 1e-205),
         xsf::bessel_k(27.375, 1.44e-10),
-        xsf::bessel_ke(1.28, 2.4e-239),
+        xsf::bessel_ke(1.280_346_742_634_130_8, 2.382_283_514_915_581_2e-239),
         xsf::bessel_ke(46.4, 8.625e-6),
     ];
     let expected = [
         3.963_327_297_606_011e307,
         3.125_975_622_874_344_7e304,
-        2.966_245_421_984_68e305,
+        3.623_615_504_892_954e305,
         2.450_893_202_543_499_5e305,
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
