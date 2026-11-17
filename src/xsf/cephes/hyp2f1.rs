@@ -433,19 +433,15 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
             // nosum:
             p = gamma(c);
             let f1 = gamma(e) * p * (rgamma(a + d1) * rgamma(b + d1));
-            (y1, y1_err) = (y1 * f1, y1_err * f1.abs());
-
             let f = p * (rgamma(a + d2) * rgamma(b + d2));
-            (y, y_err) = (y * f, y_err * f.abs());
+            // `y` or `y1` times `s^id`
+            let q = (s.powf(id), id * ax); /* s to the id power */
+            let one = (1.0, 0.0);
+            let (q, q1) = if id > 0.0 { (q, one) } else { (one, q) };
+            (y1, y1_err) = times_gamma_ratio((y1, y1_err), f1, q1, [e, c], [a + d1, b + d1]);
+            (y, y_err) = times_gamma_ratio((y, y_err), f, q, [1.0, c], [a + d2, b + d2]);
             if (aid & 1) != 0 {
                 y = -y;
-            }
-
-            q = s.powf(id); /* s to the id power */
-            if id > 0.0 {
-                (y, y_err) = (y * q, y_err * q);
-            } else {
-                (y1, y1_err) = (y1 * q, y1_err * q);
             }
 
             y += y1;
@@ -463,6 +459,39 @@ fn hyt2f1(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     };
     // done:
     (y, err, err_full)
+}
+
+/// `y f q` and its error in `MACHEP`, from `y` and its error, the ratio
+/// `f = Gamma(num_0) Gamma(num_1) / (Gamma(den_0) Gamma(den_1))`, and `(q, ln(q))`
+fn times_gamma_ratio(
+    (y, y_err): (f64, f64),
+    f: f64,
+    (q, ln_q): (f64, f64),
+    num: [f64; 2],
+    den: [f64; 2],
+) -> (f64, f64) {
+    let yf = y * f;
+    let fy = yf * q;
+    if f.is_normal() && q.is_normal() && (y == 0.0 || (yf.is_normal() && fy.is_normal())) {
+        return (fy, y_err * f.abs() * q);
+    }
+    // Unlike in xsf, by logarithms if a factor or a product leaves the normal range: e.g. `f` can
+    // underflow to 0 while `y f` is the larger part of the result.
+    let (mut ln_f, mut ln_f_err, mut sign) = (ln_q, ln_q.abs(), y.signum());
+    for (x, power) in [(num[0], 1.0), (num[1], 1.0), (den[0], -1.0), (den[1], -1.0)] {
+        let (lg, lg_sign) = lgam_sgn(x);
+        (ln_f, ln_f_err, sign) =
+            (ln_f + power * lg, ln_f_err + lg.abs(), sign * f64::from(lg_sign));
+    }
+    if ln_f == f64::NEG_INFINITY {
+        // a pole of the denominator: exactly 0
+        return (0.0, 0.0);
+    }
+    let ln_y = y.abs().ln();
+    let fy = sign * (ln_f + ln_y).exp();
+    // the rounding of the exponent, which also covers that of `fy` if subnormal (as it is > 700)
+    let rounding = (ln_f_err + ln_y.abs()) * fy.abs().max(f64::MIN_POSITIVE);
+    (fy, (ln_f + y_err.ln()).exp() + rounding)
 }
 
 /*
@@ -1083,4 +1112,40 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // hypf:
     (y, _, _) = hys2f1(c - a, c - b, c, x);
     s.powf(d) * y // goto hypdon
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `times_gamma_ratio` with `q = s^k`
+    fn ratio(y: (f64, f64), s: f64, k: f64, num: [f64; 2], den: [f64; 2]) -> (f64, f64) {
+        let [n0, n1] = num.map(gamma);
+        let f = n0 * n1 * (rgamma(den[0]) * rgamma(den[1]));
+        times_gamma_ratio(y, f, (s.powf(k), k * s.ln()), num, den)
+    }
+
+    #[test]
+    fn test_times_gamma_ratio_out_of_range() {
+        // Arb; `s^k` or the gamma factors underflow, but their product with `y` doesn't
+        for (s, k, den, desired) in [
+            (0.5, 2000.0, [1.0, 1.0], 8.709_809_816_217_217e-303),
+            (1.0, 0.0, [150.0, 150.0], 6.892_800_301_195_469e-222),
+        ] {
+            let (y, err) = ratio((1e300, 0.0), s, k, [1.0, 1.0], den);
+            let rel_err = err * MACHEP / desired;
+            assert!((y / desired - 1.0).abs() <= rel_err && rel_err < 1e-12, "{y} {err}");
+        }
+        // normal factors, but `y f` underflows: 2^-1074 / Gamma(3) 2^1000 = 2^-75
+        let tiny = f64::from_bits(1);
+        let (y, err) = ratio((tiny, tiny), 0.5, -1000.0, [1.0, 1.0], [3.0, 1.0]);
+        let rel_err = err * MACHEP / 2f64.powi(-75);
+        assert!((y / 2f64.powi(-75) - 1.0).abs() <= rel_err && rel_err < 1e-12, "{y} {err}");
+        // subnormal products (0.1 2^-1022 and 7.9e-324), and a pole of the denominator
+        let (y, err) = ratio((0.1, 0.1), 0.5, 1022.0, [1.0, 1.0], [1.0, 1.0]);
+        assert!((y - 2.225_073_858_507_201_4e-309).abs() <= err * MACHEP, "{y} {err}");
+        let (y, err) = ratio((0.1, 0.0), 0.5, 1070.0, [1.0, 1.0], [1.0, 1.0]);
+        assert!((y - 7.905e-324).abs() <= err * MACHEP, "{y} {err}");
+        assert_eq!(ratio((1e300, 1.0), 0.5, 2000.0, [1.0, 1.0], [-3.0, 1.0]), (0.0, 0.0));
+    }
 }
