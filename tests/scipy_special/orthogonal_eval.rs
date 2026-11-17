@@ -23,15 +23,16 @@ fn test_eval_real_degree_large() {
     ];
     np_assert_allclose!(actual, desired, rtol = 2e-12);
 
-    // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (mpmath)
+    // but not if the starting values change `c - a - b = 0`, or the recurrence is unstable (Arb,
+    // mpmath)
     let actual = [
-        xsf::eval_legendre(7.344_542_190_030_112, -0.996_500_368_048_799_2),
+        xsf::eval_legendre(7.345, -0.9965),
         xsf::eval_jacobi(10.3, 0.0, 30.0, -0.9),
         xsf::eval_jacobi(10.000_001, 0.0, 30.0, -0.5),
         xsf::eval_jacobi(10.000_000_01, -0.99, 40.0, -0.3),
     ];
     let desired = [
-        -0.208_532_505_668_321_68,
+        -0.207_297_681_643_331_4,
         -1.648_343_464_373_981_2e28,
         13_912_033.739_818_575,
         34_691_102.898_867_61,
@@ -191,10 +192,10 @@ fn test_eval_genlaguerre_alpha_near_minus_one() {
 
     // also for 0 < n < 1 (Arb)
     let actual = [
-        xsf::eval_genlaguerre(0.117_437_084_084_326_67, -0.999_999_999_999_999_8, 0.334_97),
+        xsf::eval_genlaguerre(0.1, -0.999_999_999_999_999_8, 0.334_97),
         xsf::eval_jacobi(0.2, -0.999_999_999_999_999_7, -0.95, -0.5),
     ];
-    let desired = [-0.390_135_391_859_476_15, 0.625_966_941_316_431];
+    let desired = [-0.391_281_618_882_654_9, 0.625_966_941_316_431];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
 
     // and for subnormal n, where `1 / (n B(alpha + 1, n))` overflows (Arb: 1)
@@ -512,15 +513,16 @@ fn test_eval_hermite_h() {
 
 #[test]
 fn test_eval_hermite_real_degree_neg_x() {
-    // mpmath; these were NaN (the tolerance is limited by the accuracy of `hyp1f1`)
+    // the first from Arb and mpmath, the rest from mpmath; these were NaN (the tolerance is
+    // limited by the accuracy of `hyp1f1`)
     let h = [
-        eval_hermite_h(2.529_868_162_602_888_5, -5.382_735_923_248_713),
+        eval_hermite_h(2.625, -5.375),
         eval_hermite_h(3.3, -0.7),
         eval_hermite_h(-15.3, -8.0),
         eval_hermite_h(40.5, -3.0),
     ];
     let h_expected = [
-        -22_618_949_487.496_384,
+        -18_568_893_765.171_894,
         5.292_284_105_801_645,
         9.165_934_848_962_248e29,
         -6.302_852_583_554_227e31,
@@ -591,22 +593,22 @@ fn test_eval_hermite_neg_x_overflow() {
 
 #[test]
 fn test_eval_hermite_real_degree_pos_x() {
-    // mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
+    // Arb, mpmath; with `hypu` these were NaN or had relative errors of up to 7e-7
     let h = [
-        eval_hermite_h(41.745_832_381_668_095, 7.361_880_522_197_993),
-        eval_hermite_h(41.400_084_684_563_09, 5.996_470_470_350_591),
-        eval_hermite_he(38.573_797_839_021_19, 8.697_439_878_678_9),
+        eval_hermite_h(41.75, 7.375),
+        eval_hermite_h(41.375, 6.0),
+        eval_hermite_he(38.5625, 8.6875),
         eval_hermite_he(24.5, 3.0),
-        eval_hermite_h(46.801_133_288_584_765, 3.655_511_435_592_377),
-        eval_hermite_he(44.794_714_303_748_03, 5.925_757_848_223_792_5),
+        eval_hermite_h(46.8125, 3.65625),
+        eval_hermite_he(44.8125, 5.9375),
     ];
     let h_expected = [
-        1.160_090_641_113_988e43,
-        -1.200_809_248_211_909_1e38,
-        3.492_391_969_655_658_3e27,
+        1.268_756_886_333_502_9e43,
+        -9.263_448_559_927_809e37,
+        1.533_866_777_770_011_2e29,
         1_012_043_943_914.947,
-        4.759_278_617_763_297e38,
-        1.611_367_905_027_905_8e31,
+        4.828_573_730_463_694e38,
+        1.760_567_875_576_497e31,
     ];
     np_assert_allclose!(h, h_expected, rtol = 1e-12);
 }

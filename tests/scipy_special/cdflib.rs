@@ -276,8 +276,8 @@ fn test_chndtr() {
     );
     // the power series of the central term converges too slowly
     np_assert_allclose!(
-        [xsf::chndtr(99_448_457.707_916_78, 1.0, 1e8)],
-        [3.650_311_188_203_897e-168],
+        [xsf::chndtr(99_448_458.0, 1.0, 1e8)],
+        [3.651_789_655_849_327e-168],
         rtol = 1e-12
     );
     assert!(xsf::chndtr(1.0, 0.0, 1.0).is_nan());
@@ -310,14 +310,10 @@ fn test_chndtri_chndtridf_chndtrinc() {
         [35.257_285_899_505_4],
         rtol = 1e-10
     );
-    // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from mpmath
+    // a root far below 1e-100, with `d ln(x) / d ln(p) = 2 / df ~ 500`; from Arb
     np_assert_allclose!(
-        [xsf::chndtri(
-            0.193_123_859_806_063_84,
-            0.004_028_403_030_778_61,
-            0.503_188_864_805_273_5
-        )],
-        [5.426_817_558_374_058e-301],
+        [xsf::chndtri(0.193, 0.004, 0.5)],
+        [1.307_756_387_649_324e-303],
         rtol = 1e-9
     );
     // a subnormal root, with `d ln(x) / d ln(p) ~ 1000`; from mpmath
@@ -545,18 +541,13 @@ fn test_ncfdtr_huge_dfd() {
         xsf::ncfdtr(0.05, 1e300, 16.0, 400.0),
         xsf::ncfdtr(1.0, 1e250, 24.0, 32.0),
         xsf::ncfdtr(0.1, 1e200, 2000.0, 20001.0),
-        xsf::ncfdtr(
-            2.455_720_872_257_285_6e-14,
-            3.905_370_109_048_817_7e241,
-            0.001_165_616_947_566_066_6,
-            110_554_825_157.021_12,
-        ),
+        xsf::ncfdtr(2.5e-14, 4e241, 0.00125, 1.1e11),
     ];
     let p_ref = [
         0.720_886_832_696_006_1,
         0.775_737_020_386_241,
         0.504_460_496_202_887,
-        0.999_418_151_467_391_6,
+        0.999_376_053_519_803_3,
     ];
     np_assert_allclose!(p, p_ref, rtol = 4e-15);
     // d ln(p) / d ln(f) ~ dfn / 2 here, so the inverse has 2 / dfn times the error of `ncfdtr`

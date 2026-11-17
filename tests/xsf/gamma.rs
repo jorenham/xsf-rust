@@ -53,8 +53,8 @@ fn test_gammainc_large_a_tails() {
         let actual = xsf::gammainc(a, x);
         assert!((actual / expected - 1.0).abs() < 3e-13, "{actual:e} != {expected:e}");
     }
-    let q = xsf::gammaincc(4_757.294_281_037_745, 7_144.513_767_033_158);
-    let expected = 3.186_365_208_226_036_4e-199; // was 1.4e-11 off
+    let q = xsf::gammaincc(4_757.0, 7_144.0);
+    let expected = 3.356_618_642_771_360_5e-199; // was 4.5e-12 off
     assert!((q / expected - 1.0).abs() < 3e-13, "{q:e} != {expected:e}");
 }
 
@@ -162,11 +162,11 @@ fn test_gammasgn_large_negative() {
 
 #[test]
 fn test_gammaln_near_zeros() {
-    // mpmath
+    // Arb, mpmath
     let x = [
         0.999_999_999_999_999_9,
-        0.998_622_470_062_837_7,
-        1.999_999_999_999_969_1,
+        0.998_046_875,
+        2.0 - 3e-14,
         1.15,
         1.85,
         1.999_999_999_9,
@@ -175,8 +175,8 @@ fn test_gammaln_near_zeros() {
     ];
     let expected = [
         6.408_381_213_480_008e-17,
-        0.000_796_693_611_134_219_1,
-        -1.304_890_031_110_462_7e-14,
+        0.001_130_514_797_538_261_8,
+        -1.267_339_238_848_292e-14,
         -0.069_306_208_671_046_85,
         -0.055_923_813_019_657_244,
         -4.227_843_700_475_531_7e-11,
