@@ -123,15 +123,9 @@ fn sem(m: f64, q: f64, x: f64, unit: AngleUnit) -> (f64, f64) {
     if q < 0.0 {
         /* https://dlmf.nist.gov/28.2#E34 */
         let (sgn, (f, d)) = if int_m % 2 == 0 {
-            (
-                -neg_one_pow(int_m / 2),
-                sem(m, -q, unit.quarter_turn() - x, unit),
-            )
+            (-neg_one_pow(int_m / 2), sem(m, -q, unit.quarter_turn() - x, unit))
         } else {
-            (
-                neg_one_pow(int_m / 2),
-                cem(m, -q, unit.quarter_turn() - x, unit),
-            )
+            (neg_one_pow(int_m / 2), cem(m, -q, unit.quarter_turn() - x, unit))
         };
         return (sgn * f, -sgn * d);
     }

@@ -515,30 +515,12 @@ fn jynbh(n: i32, nmin: i32, x: f64, nm: &mut i32, bj: &mut [f64], by: &mut [f64]
     let mut by0: f64;
     let mut by1: f64;
 
-    let a: [f64; 4] = [
-        -0.0703125,
-        0.112152099609375,
-        -0.5725014209747314,
-        0.6074042001273483e+01,
-    ];
-    let b: [f64; 4] = [
-        0.0732421875,
-        -0.2271080017089844,
-        0.1727727502584457e+01,
-        -0.2438052969955606e+02,
-    ];
-    let a1: [f64; 4] = [
-        0.1171875,
-        -0.144195556640625,
-        0.6765925884246826,
-        -0.6883914268109947e+01,
-    ];
-    let b1: [f64; 4] = [
-        -0.1025390625,
-        0.2775764465332031,
-        -0.1993531733751297e+01,
-        0.2724882731126854e+02,
-    ];
+    let a: [f64; 4] = [-0.0703125, 0.112152099609375, -0.5725014209747314, 0.6074042001273483e+01];
+    let b: [f64; 4] =
+        [0.0732421875, -0.2271080017089844, 0.1727727502584457e+01, -0.2438052969955606e+02];
+    let a1: [f64; 4] = [0.1171875, -0.144195556640625, 0.6765925884246826, -0.6883914268109947e+01];
+    let b1: [f64; 4] =
+        [-0.1025390625, 0.2775764465332031, -0.1993531733751297e+01, 0.2724882731126854e+02];
 
     *nm = n;
     if x < 1.0e-100 {
@@ -759,9 +741,7 @@ pub(crate) fn jyzo(
     L = 0;
     'l10: loop {
         let x0 = x;
-        jyndd(
-            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-        );
+        jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
         x -= bjn / djn;
         if (x - x0).abs() > 1e-11 {
             continue 'l10;
@@ -786,9 +766,7 @@ pub(crate) fn jyzo(
         }
         // NOTE: `n + 10` overflows i32 for n > i32::MAX - 10 (C++ UB; Rust panics in debug builds).
         if L <= (n + 10) {
-            jyndd(
-                n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-            );
+            jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
             let h = djn.abs().atan2((fjn * bjn).abs().sqrt());
             // NOTE: `atan(h)` here, but `tan(h)` in the corresponding step for y_{N,L} below;
             // reproduced as is.
@@ -815,9 +793,7 @@ pub(crate) fn jyzo(
     L = 0;
     'l15: loop {
         let x0 = x;
-        jyndd(
-            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-        );
+        jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
         x -= djn / fjn;
         if (x - x0).abs() > 1e-11 {
             continue 'l15;
@@ -846,9 +822,7 @@ pub(crate) fn jyzo(
     L = 0;
     'l20: loop {
         let x0 = x;
-        jyndd(
-            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-        );
+        jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
         x -= byn / dyn_;
         if (x - x0).abs() > 1.0e-11 {
             continue 'l20;
@@ -871,9 +845,7 @@ pub(crate) fn jyzo(
             x = ry0[(L - 1) as usize] + (ry0[(L - 1) as usize] - ry0[(L - 2) as usize]);
         }
         if L <= n + 10 {
-            jyndd(
-                n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-            );
+            jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
             let h = dyn_.abs().atan2((fyn * byn).abs().sqrt());
             let b = -dyn_ / (byn * h.tan());
             x -= (h - FRAC_PI_2) / b;
@@ -898,9 +870,7 @@ pub(crate) fn jyzo(
     L = 0;
     'l25: loop {
         let x0 = x;
-        jyndd(
-            n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn,
-        );
+        jyndd(n, x, &mut bjn, &mut djn, &mut fjn, &mut byn, &mut dyn_, &mut fyn);
         x -= dyn_ / fyn;
         if (x - x0).abs() > 1.0e-11 {
             continue 'l25;

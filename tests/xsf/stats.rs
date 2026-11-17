@@ -115,11 +115,7 @@ fn test_stdtr_extreme() {
 fn test_stdtr_tail() {
     // Arb
     for &(nu, x, p) in &[
-        (
-            30_003.045_620_574_965,
-            -28.361_029_218_204_66,
-            6.189_730_117_557_256e-175,
-        ),
+        (30_003.045_620_574_965, -28.361_029_218_204_66, 6.189_730_117_557_256e-175),
         (5e4, -37.0, 5.762_069_766_213_904e-296),
         (1e5, -30.0, 3.689_268_436_111_116_6e-197),
         (2e5, -2.5, 0.006_210_062_456_181_062),
@@ -381,13 +377,8 @@ fn test_von_mises_cdf() {
 #[test]
 fn test_geninvgauss() {
     // (x, p, b), with the reference values from mpmath
-    let args = [
-        (0.01, 0.5, 1.0),
-        (1.0, 0.5, 1.0),
-        (5.0, 0.5, 1.0),
-        (0.3, -2.5, 10.0),
-        (7.0, 3.0, 0.25),
-    ];
+    let args =
+        [(0.01, 0.5, 1.0), (1.0, 0.5, 1.0), (5.0, 0.5, 1.0), (0.3, -2.5, 10.0), (7.0, 3.0, 0.25)];
     let logpdf = [
         -47.621_353_440_210_626,
         -0.918_938_533_204_672_8,
@@ -496,10 +487,7 @@ fn test_smirnovp_large_n() {
     let (n, x, h) = (50_000, 2e-3, 1e-8);
     let expected = (xsf::smirnov(n, x + h) - xsf::smirnov(n, x - h)) / (2.0 * h);
     let actual = xsf::smirnovp(n, x);
-    assert!(
-        ((actual - expected) / expected).abs() < 1e-6,
-        "{actual} != {expected}"
-    );
+    assert!(((actual - expected) / expected).abs() < 1e-6, "{actual} != {expected}");
 }
 
 #[test]
@@ -517,12 +505,7 @@ xsref::tests! {
 fn test_tukeylambdacdf_small_p_or_lambda() {
     // mpmath; the first is ill-conditioned (condition number ~2600)
     for (x, lambda, expected, tol) in [
-        (
-            -4.687_066_523_927_919_4,
-            0.212_969_479_099_442_08,
-            1.287_389_454_410_983_2e-13,
-            1e-12,
-        ),
+        (-4.687_066_523_927_919_4, 0.212_969_479_099_442_08, 1.287_389_454_410_983_2e-13, 1e-12),
         (-20.0, 9e-5, 2.024_340_980_204_265e-9, 1e-14),
         (-20.0, -9e-5, 2.098_545_034_667_178_4e-9, 1e-14),
         (3.0, 5e-5, 0.952_584_620_711_382_7, 1e-15),
@@ -581,17 +564,10 @@ fn test_fdtr_fdtrc_w_near_1() {
     let q = xsf::fdtrc(0.00118, 1.46e11, 0.00286);
     xsref::np_assert_allclose!(&[q], &[0.007_474_128_501_559_321], rtol = 1e-12);
     // `incbet` slightly exceeds 1 here (the true value is 4.6245e-10)
-    let p = xsf::fdtr(
-        458_884.656_463_958_03,
-        2.951_258_965_120_171e-11,
-        1_072.009_775_175_712_8,
-    );
+    let p = xsf::fdtr(458_884.656_463_958_03, 2.951_258_965_120_171e-11, 1_072.009_775_175_712_8);
     assert!((0.0..1e-9).contains(&p));
-    let q = xsf::fdtrc(
-        2.951_258_965_120_171e-11,
-        458_884.656_463_958_03,
-        0.000_932_827_314_784_597_3,
-    );
+    let q =
+        xsf::fdtrc(2.951_258_965_120_171e-11, 458_884.656_463_958_03, 0.000_932_827_314_784_597_3);
     assert!((0.0..1e-9).contains(&q));
 }
 
@@ -654,16 +630,8 @@ fn test_fdtr_fdtrc_df_below_eps() {
 #[test]
 fn test_fdtr_fdtrc_ax_overflow() {
     // reference values from Arb; `a x` overflows and `1 - w = b / (b + a x)` is tiny
-    let abx = [
-        (4e178, 0.006, 8e182),
-        (1e308, 10.0, 2.0),
-        (1e200, 1e-250, 1e200),
-    ];
-    let p = [
-        0.721_727_090_722_264_3,
-        0.891_178_018_914_151_3,
-        5.181_396_116_814_895_5e-248,
-    ];
+    let abx = [(4e178, 0.006, 8e182), (1e308, 10.0, 2.0), (1e200, 1e-250, 1e200)];
+    let p = [0.721_727_090_722_264_3, 0.891_178_018_914_151_3, 5.181_396_116_814_895_5e-248];
     let q = [0.278_272_909_277_735_74, 0.108_821_981_085_848_76, 1.0];
     let rtol = 1e-13;
     xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtr(a, b, x)), &p, rtol = rtol);
@@ -678,24 +646,9 @@ fn test_fdtr_fdtrc_ax_overflow() {
 #[test]
 fn test_fdtr_fdtrc_subnormal_1mw() {
     // reference values from Arb; `1 - w = b / (b + a x)` is subnormal or underflows
-    let abx = [
-        (2.0, 1e-278, 1e307),
-        (0.1, 1e-300, 1e300),
-        (1e8, 0.002, 1e308),
-        (1.0, 1.0, 1e308),
-    ];
-    let p = [
-        6.738_527_132_910_383e-276,
-        6.995_845_500_149_159e-298,
-        0.511_065_903_382_357_5,
-        1.0,
-    ];
-    let q = [
-        1.0,
-        1.0,
-        0.488_934_096_617_642_5,
-        6.366_197_723_675_813_5e-155,
-    ];
+    let abx = [(2.0, 1e-278, 1e307), (0.1, 1e-300, 1e300), (1e8, 0.002, 1e308), (1.0, 1.0, 1e308)];
+    let p = [6.738_527_132_910_383e-276, 6.995_845_500_149_159e-298, 0.511_065_903_382_357_5, 1.0];
+    let q = [1.0, 1.0, 0.488_934_096_617_642_5, 6.366_197_723_675_813_5e-155];
     let rtol = 1e-14;
     xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtr(a, b, x)), &p, rtol = rtol);
     xsref::np_assert_allclose!(&abx.map(|(a, b, x)| xsf::fdtrc(a, b, x)), &q, rtol = rtol);
@@ -734,20 +687,14 @@ fn test_fdtrc_subnormal_w() {
     // `a / 2` rounds; Arb gives 1.1026785e-320, i.e. 2232 times the smallest subnormal
     assert_eq!(xsf::fdtrc(1.5e-323, f64::INFINITY, 5e-324), 1.103e-320);
     // `a x` is just below `2 MIN_POSITIVE`; Arb gives 8.7427288e-321
-    assert_eq!(
-        xsf::fdtrc(2.5e-323, f64::INFINITY, 1_801_439_850_948_198.2),
-        8.745e-321
-    );
+    assert_eq!(xsf::fdtrc(2.5e-323, f64::INFINITY, 1_801_439_850_948_198.2), 8.745e-321);
     assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 1.0), 1.0);
     assert_eq!(xsf::fdtr(5e-324, f64::INFINITY, 0.0), 0.0);
     assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 0.0), 1.0);
     // `a / 2` rounds, while `a x` is normal, or `fdtrc` is the gamma limit `Q(a / 2, t)` as `b` is
     // large; Arb gives 1.7482875e-321 and 8.7427288e-321
     assert_eq!(xsf::fdtrc(5e-324, f64::INFINITY, 1e16), 1.75e-321);
-    assert_eq!(
-        xsf::fdtrc(2.5e-323, 1e20, 1_801_439_850_948_198.2),
-        8.745e-321
-    );
+    assert_eq!(xsf::fdtrc(2.5e-323, 1e20, 1_801_439_850_948_198.2), 8.745e-321);
     for (x, q) in [(0.0, 1.0), (1e-310, 1.0), (f64::INFINITY, 0.0)] {
         assert_eq!(xsf::fdtrc(3.0, f64::INFINITY, x), q);
     }
@@ -807,15 +754,9 @@ fn test_chdtr_fdtr_subnormal() {
     ];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-14);
     // the chi-square limit if `b = inf`
-    assert_eq!(
-        xsf::fdtr(1.0, f64::INFINITY, 1e-300),
-        xsf::chdtr(1.0, 1e-300)
-    );
+    assert_eq!(xsf::fdtr(1.0, f64::INFINITY, 1e-300), xsf::chdtr(1.0, 1e-300));
     // `x^(a / 2)` underflows, but the subnormal result does not; from mpmath
-    let p = [
-        xsf::fdtr(2.2, 1e-290, 1e-310),
-        xsf::ncfdtr(2.2, 1e-290, 0.0, 1e-310),
-    ];
+    let p = [xsf::fdtr(2.2, 1e-290, 1e-310), xsf::ncfdtr(2.2, 1e-290, 0.0, 1e-310)];
     xsref::np_assert_allclose!(&p, &[1.082_037_389_82e-312; 2], rtol = 1e-11);
     // `df / 2` rounds to 0
     let tiny = f64::from_bits(1);
@@ -888,12 +829,7 @@ fn test_bdtr_nbdtrc_large_n() {
 #[test]
 fn test_fdtr_stdtr_huge_df() {
     // reference values from mpmath (see `incbet_xy`)
-    let abx = [
-        (100.0, 1e20, 0.5),
-        (30.0, 1e20, 2.0),
-        (1e20, 30.0, 2.0),
-        (3.0, 1e14, 2.0),
-    ];
+    let abx = [(100.0, 1e20, 0.5), (30.0, 1e20, 2.0), (1e20, 30.0, 2.0), (3.0, 1e14, 2.0)];
     let p = [
         6.953_305_247_616_099e-6,
         0.999_079_317_603_851_4,
@@ -919,16 +855,8 @@ fn test_fdtr_stdtr_huge_df() {
 fn test_fdtr_fdtrc_huge_dfn() {
     // `dfn = 1e300`, where `-ln(B(dfn / 2, dfd / 2))` cancels `dfd / 2 ln(1 - w)`; from Arb
     let bx = [(5.0, 0.5), (5.0, 2.0), (0.5, 0.5)];
-    let p = [
-        0.075_235_246_146_512_18,
-        0.776_495_071_123_322_7,
-        0.153_513_595_808_322_47,
-    ];
-    let q = [
-        0.924_764_753_853_487_8,
-        0.223_504_928_876_677_3,
-        0.846_486_404_191_677_5,
-    ];
+    let p = [0.075_235_246_146_512_18, 0.776_495_071_123_322_7, 0.153_513_595_808_322_47];
+    let q = [0.924_764_753_853_487_8, 0.223_504_928_876_677_3, 0.846_486_404_191_677_5];
     let rtol = 1e-15;
     xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtr(1e300, b, x)), &p, rtol = rtol);
     xsref::np_assert_allclose!(&bx.map(|(b, x)| xsf::fdtrc(1e300, b, x)), &q, rtol = rtol);
@@ -945,14 +873,8 @@ fn test_fdtr_huge_dfn_rounded_w() {
 fn test_fdtr_fdtrc_exact_1mw() {
     // reference values from Arb; the Beta argument (`w` for fdtr, `1 - w` for fdtrc) is in
     // (1/2, 0.95], where its complement is inexact
-    let p = [
-        xsf::fdtr(1.76e5, 1e4, 1.031),
-        xsf::fdtr(1.2e7, 1.1e6, 1.0042),
-    ];
-    let q = [
-        xsf::fdtrc(5.165e4, 2.308e5, 0.987),
-        xsf::fdtrc(2.5e6, 3.3e7, 0.9976),
-    ];
+    let p = [xsf::fdtr(1.76e5, 1e4, 1.031), xsf::fdtr(1.2e7, 1.1e6, 1.0042)];
+    let q = [xsf::fdtrc(5.165e4, 2.308e5, 0.987), xsf::fdtrc(2.5e6, 3.3e7, 0.9976)];
     let p_ref = [0.981_513_729_308_534_3, 0.998_524_516_014_640_7];
     let q_ref = [0.971_070_538_485_072_5, 0.995_187_634_483_848_4];
     xsref::np_assert_allclose!(&p, &p_ref, rtol = 1e-15);
@@ -971,27 +893,15 @@ fn test_fdtri_tiny_p() {
         xsf::fdtri(3.0, 4.0, 1e-15),
         xsf::fdtri(100.0, 50.0, 1e-30),
     ];
-    let x_ref = [
-        4.372_813_139_522_666e-5,
-        7.238_446_978_136_566e-11,
-        0.061_376_206_282_273_02,
-    ];
+    let x_ref = [4.372_813_139_522_666e-5, 7.238_446_978_136_566e-11, 0.061_376_206_282_273_02];
     xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
 }
 
 #[test]
 fn test_fdtri_small_p_large_dfn() {
     // reference values from Arb; here `incbet(dfd/2, dfn/2, 1/2) > 1 - p`
-    let x = [
-        xsf::fdtri(1e4, 1e3, 1e-14),
-        xsf::fdtri(1e4, 1.0, 1e-14),
-        xsf::fdtri(1e3, 0.5, 1e-9),
-    ];
-    let x_ref = [
-        0.710_423_069_118_838,
-        0.016_644_796_655_940_685,
-        0.014_226_162_949_357_642,
-    ];
+    let x = [xsf::fdtri(1e4, 1e3, 1e-14), xsf::fdtri(1e4, 1.0, 1e-14), xsf::fdtri(1e3, 0.5, 1e-9)];
+    let x_ref = [0.710_423_069_118_838, 0.016_644_796_655_940_685, 0.014_226_162_949_357_642];
     xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
 }
 
@@ -1026,11 +936,7 @@ fn test_fdtri_tiny_dfd_p_eps() {
         xsf::fdtri(10.0, 1e-16, 1e-16),
         xsf::fdtri(100.0, 1e-16, 1e-16),
     ];
-    let x_ref = [
-        4.044_941_625_584_34e-16,
-        5.425_247_889_451_073e-16,
-        6.004_433_381_771_332e-16,
-    ];
+    let x_ref = [4.044_941_625_584_34e-16, 5.425_247_889_451_073e-16, 6.004_433_381_771_332e-16];
     xsref::np_assert_allclose!(&x, &x_ref, rtol = 1e-14);
 }
 
@@ -1136,10 +1042,7 @@ fn test_wilcoxon() {
             0.09375, 0.0625, 0.0625, 0.03125, 0.03125, 0.03125,
         ]
     );
-    assert_eq!(
-        xsf::wilcoxon_cdf_all(3),
-        [0.125, 0.25, 0.375, 0.625, 0.75, 0.875, 1.0]
-    );
+    assert_eq!(xsf::wilcoxon_cdf_all(3), [0.125, 0.25, 0.375, 0.625, 0.75, 0.875, 1.0]);
 
     let pmf = xsf::wilcoxon_pmf_all(3);
     assert_eq!(xsf::wilcoxon_pmf(3.0, &pmf), 0.25);
@@ -1173,11 +1076,7 @@ fn test_cdf_cvm_inf_smoke() {
     assert!(xsf::cdf_cvm_inf(-1.0).abs() <= f64::EPSILON);
 
     // reference value from Arb (python-flint) and mpmath
-    xsref::np_assert_allclose!(
-        &[xsf::cdf_cvm_inf(0.5)],
-        &[0.960_166_782_434_392_4],
-        rtol = 4e-15
-    );
+    xsref::np_assert_allclose!(&[xsf::cdf_cvm_inf(0.5)], &[0.960_166_782_434_392_4], rtol = 4e-15);
 }
 
 #[test]
@@ -1204,11 +1103,7 @@ fn test_cdf_cvm_smoke() {
     assert!((xsf::cdf_cvm(upper, N) - 1.0).abs() <= f64::EPSILON);
 
     // reference value from mpmath (the series of Csorgo and Faraway (1996) summed to convergence)
-    xsref::np_assert_allclose!(
-        &[xsf::cdf_cvm(0.5, N)],
-        &[0.962_304_211_246_718_8],
-        rtol = 4e-15
-    );
+    xsref::np_assert_allclose!(&[xsf::cdf_cvm(0.5, N)], &[0.962_304_211_246_718_8], rtol = 4e-15);
 }
 
 #[test]

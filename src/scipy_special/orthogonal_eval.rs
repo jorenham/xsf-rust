@@ -998,10 +998,8 @@ fn eval_hermite_impl(x: f64, n: f64, scale: f64) -> f64 {
             // e^z last, in two halves since it can overflow while the result does not. Only for
             // n <= -1, since a = (1 + n) / 2 would round away a tiny n.
             let (g0, g1) = (0.5 - 0.5 * n, -0.5 * n);
-            let (k0, k1) = (
-                crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z),
-                crate::hyp1f1(1.0 + 0.5 * n, 1.5, -z),
-            );
+            let (k0, k1) =
+                (crate::hyp1f1(0.5 + 0.5 * n, 0.5, -z), crate::hyp1f1(1.0 + 0.5 * n, 1.5, -z));
             let w = 2.0 * scale.sqrt() * x.abs();
             if g0 < MAXGAM {
                 let e = (0.5 * z).exp();

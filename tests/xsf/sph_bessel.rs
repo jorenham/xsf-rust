@@ -16,11 +16,8 @@ fn test_sph_bessel_j_exact() {
 fn test_sph_bessel_j_tiny_x() {
     // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x)
     let actual = [(1, 1.166e-222), (2, 1e-150), (5, 1e-60)].map(|(n, x)| xsf::sph_bessel_j(n, x));
-    let expected = [
-        3.886_666_666_666_666e-223,
-        6.666_666_666_666_667e-302,
-        9.620_009_620_009_619e-305,
-    ];
+    let expected =
+        [3.886_666_666_666_666e-223, 6.666_666_666_666_667e-302, 9.620_009_620_009_619e-305];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
@@ -33,12 +30,7 @@ fn test_sph_bessel_prime_tiny_x() {
         xsf::sph_bessel_i_prime(2, 7.5e-179),
         xsf::sph_bessel_i_prime(5, 1e-60),
     ];
-    let expected = [
-        1e-179,
-        2.857_142_857_142_857e-202,
-        1e-179,
-        4.810_004_810_004_809_4e-244,
-    ];
+    let expected = [1e-179, 2.857_142_857_142_857e-202, 1e-179, 4.810_004_810_004_809_4e-244];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
     // the same leading term n z^(n - 1) / (2n + 1)!! for complex z
@@ -177,11 +169,7 @@ fn test_sph_bessel_jn_prime() {
     //                 atol=1.5e-12, rtol=0)
     xsref::np_assert_allclose!(
         &s1[0],
-        &[
-            0.993_346_653_975_306_1,
-            0.066_400_380_670_322_24,
-            0.002_659_056_079_527_385_5,
-        ],
+        &[0.993_346_653_975_306_1, 0.066_400_380_670_322_24, 0.002_659_056_079_527_385_5,],
         atol = 1.5e-12
     );
     // assert_allclose(s1[1], [s10, s11, s12], atol=1.5e-12, rtol=0)
@@ -278,11 +266,7 @@ fn test_sph_bessel_kn_prime() {
     //                 atol=1.5e-12, rtol=0)
     xsref::np_assert_allclose!(
         &kn[0],
-        &[
-            6.430_296_297_844_567,
-            38.581_777_787_067_4,
-            585.156_963_103_855_6
-        ],
+        &[6.430_296_297_844_567, 38.581_777_787_067_4, 585.156_963_103_855_6],
         atol = 1.5e-12
     );
     // assert_allclose(kn[1], [kn0, kn1, kn2], atol=1.5e-9, rtol=0)

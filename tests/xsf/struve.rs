@@ -6,17 +6,11 @@ xsref::tests! {
 #[test]
 fn test_itstruve0_it2struve0_large_x() {
     // the Neumann series for 0.5 <= x < 40, and the asymptotic expansion beyond (mpmath)
-    let actual = [
-        xsf::itstruve0(29.746_969_855_043_805),
-        xsf::it2struve0(24.450_718_139_337_205),
-    ];
+    let actual = [xsf::itstruve0(29.746_969_855_043_805), xsf::it2struve0(24.450_718_139_337_205)];
     let expected = [3.083_870_170_792_807, 0.026_268_893_388_791_609];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 
-    let actual = [
-        xsf::it2struve0(43.234_469_249_914_99),
-        xsf::it2struve0(1000.0),
-    ];
+    let actual = [xsf::it2struve0(43.234_469_249_914_99), xsf::it2struve0(1000.0)];
     let expected = [0.014_722_474_596_212_911, 0.000_661_413_224_079_251_6];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
@@ -102,11 +96,8 @@ fn test_struve_h_l_power_series_cancellation() {
         xsf::struve_h(0.049_505_315_039_433_12, 13.208_434_290_082_854),
         xsf::struve_l(-34.020_820_230_172_97, 23.545_083_303_272_627),
     ];
-    let expected = [
-        4.824_120_592_343_075e-5,
-        0.007_575_369_029_986_219_7,
-        0.000_419_673_272_353_247_93,
-    ];
+    let expected =
+        [4.824_120_592_343_075e-5, 0.007_575_369_029_986_219_7, 0.000_419_673_272_353_247_93];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
@@ -118,11 +109,7 @@ fn test_struve_h_l_large_order() {
         xsf::struve_l(-176.739_829_968_973_7, 135.785_696_147_920_33),
         xsf::struve_l(-421.776_397_824_793_66, 238.513_623_635_582_8),
     ];
-    let expected = [
-        4.661_060_885_142_991e-270,
-        2_331_323_077_507.244,
-        -4.755_481_199_035_166_4e45,
-    ];
+    let expected = [4.661_060_885_142_991e-270, 2_331_323_077_507.244, -4.755_481_199_035_166_4e45];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
@@ -134,10 +121,6 @@ fn test_struve_l_large_z_iv() {
         xsf::struve_l(-441.512_943_384_891_46, 305.847_377_211_526_63),
         xsf::struve_l(-1_010.337_195_294_990_9, 701.198_096_234_033_9),
     ];
-    let expected = [
-        35_323_083_951.276_2,
-        261_643_267.355_977_83,
-        5.708_755_380_857_371e21,
-    ];
+    let expected = [35_323_083_951.276_2, 261_643_267.355_977_83, 5.708_755_380_857_371e21];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }

@@ -678,14 +678,7 @@ fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
     // the bound of the second term relative to `hg`, with `|q (q - b + 1)| = |q (1 - a)|`
     let q1 = q.hi;
     let ln_u1 = (remainder_factor(sigma, rho_0, 1.0, z)? * (q1 * (1.0 - a)).abs() / z).ln_1p();
-    let ln_e = [
-        ln_gb.hi,
-        -ln_ga.hi,
-        -z,
-        -q1 * ln_z.hi,
-        ln_u1,
-        -hg.abs().ln(),
-    ];
+    let ln_e = [ln_gb.hi, -ln_ga.hi, -z, -q1 * ln_z.hi, ln_u1, -hg.abs().ln()];
     let err_ln_e = err_gb
         + err_ga
         + q.lo.abs() * (ln_z.hi.abs() + 1.0)
@@ -2286,11 +2279,7 @@ mod tests {
         assert!(id >= 13 && digits_ok(u, 0.123_369_748_576_127_63, id));
         // x^(b-1) U(a, b, x) (Arb), where the error oscillates over the refinements, so that one
         // change is small by chance (9.548_667_857_677_493e-20 with 9 digits if that is final)
-        let (x, a, b) = (
-            6.294_217_108_153_153e-4,
-            21.564_919_933_139_418,
-            1.579_409_465_206_605_7,
-        );
+        let (x, a, b) = (6.294_217_108_153_153e-4, 21.564_919_933_139_418, 1.579_409_465_206_605_7);
         let u = chguit(x, a, b, true, &mut id);
         assert!(digits_ok(u, 9.548_667_779_662_119_8e-20, id));
     }
@@ -2305,11 +2294,7 @@ mod tests {
 
         // U(a, b, x) (Arb), where the rounding error 1.4e-14 of 1 - b = 128.1 makes Gamma(1 - b)
         // 6.9e-14 off (13.2 digits)
-        let (x, a, b) = (
-            1.922_426_784_912_072_6,
-            16.014_115_853_033_63,
-            -127.117_796_766_930_57,
-        );
+        let (x, a, b) = (1.922_426_784_912_072_6, 16.014_115_853_033_63, -127.117_796_766_930_57);
         let mut id = 0;
         let u = chgus(x, a, b, &mut id);
         assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
@@ -2323,14 +2308,7 @@ mod tests {
     fn test_chgu_subnormal_digits() {
         // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
         let (mut md, mut isfer, mut digits) = (0, 0, 0);
-        let u = chgu(
-            1.0,
-            170.0,
-            1.000_000_000_01,
-            &mut md,
-            &mut isfer,
-            &mut digits,
-        );
+        let u = chgu(1.0, 170.0, 1.000_000_000_01, &mut md, &mut isfer, &mut digits);
         assert_eq!((md, isfer), (4, 0));
         assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
         // the same for an early return, here of `chgul` (Arb)

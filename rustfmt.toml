@@ -6,3 +6,7 @@ match_block_trailing_comma = true
 newline_style = "Unix"
 use_field_init_shorthand = true
 use_try_shorthand = true
+
+# one line per call or array up to 88 columns (above, rustfmt warns in nested macros)
+fn_call_width = 88
+array_width = 88

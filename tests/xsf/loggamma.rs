@@ -41,10 +41,7 @@ fn test_rgamma_f64_near_overflow() {
         (-176.000_000_000_000_03, -5.624_744_700_046_412e306),
     ] {
         let actual = xsf::rgamma(x);
-        assert!(
-            (actual / expected - 1.0).abs() < 1e-15,
-            "{actual:e} != {expected:e}"
-        );
+        assert!((actual / expected - 1.0).abs() < 1e-15, "{actual:e} != {expected:e}");
     }
     assert_eq!(xsf::rgamma(-172.5), f64::NEG_INFINITY);
     assert_eq!(xsf::rgamma(-173.5), f64::INFINITY);

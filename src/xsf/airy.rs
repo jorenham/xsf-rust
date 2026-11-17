@@ -5,7 +5,8 @@ use num_complex::Complex64;
 use crate::utils::mul_exp;
 use crate::xsf::amos::{self, ierr_to_sferr, set_error_and_nan};
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::cephes;
+use crate::xsf::cephes::dd_real::DoubleDouble;
+use crate::xsf::cephes::{self, TWO_THIRDS};
 
 pub trait AiryArg: crate::sealed::Sealed + Sized {
     fn airy(self) -> [Self; 4];
@@ -41,11 +42,71 @@ impl AiryArg for Complex64 {
 /// Unlike in xsf, `airy` and `airye` share this implementation (xsf duplicates it), with
 /// `kode = 2` for exponential scaling.
 fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
-    let ai = amos_airy_or_biry(false, z, 0, kode);
+    let zeta = zeta_err(z);
+    // Unlike in xsf, Ai is unscaled here from its `airye` (below), as the e^-zeta of AMOS loses
+    // up to |zeta| eps, and flushes Ai to 0 below ~1e-305.
+    let ai_kode = if zeta.is_some() { 2 } else { kode };
+    let ai = amos_airy_or_biry(false, z, 0, ai_kode);
     let bi = amos_airy_or_biry(true, z, 0, kode);
-    let aip = amos_airy_or_biry(false, z, 1, kode);
+    let aip = amos_airy_or_biry(false, z, 1, ai_kode);
     let bip = amos_airy_or_biry(true, z, 1, kode);
-    [ai, aip, bi, bip]
+    let Some((zta, d)) = zeta else {
+        return [ai, aip, bi, bip];
+    };
+    // Unlike in xsf, the rounding error d of zeta = zta + d is undone. AMOS evaluates
+    // Bi = sqrt(z) F(zta) and Bi' = z G(zta). With d zeta / dz = sqrt(z) and Bi'' = z Bi, to first
+    // order in d, Bi += d (Bi' - Bi / (2 z)) / sqrt(z) and Bi' += d (z Bi - Bi' / z) / sqrt(z).
+    // These are applied as factors of q = Bi' / Bi, as `z Bi` can overflow (q ~ sqrt(z) if Bi'
+    // does). The scaled ones are also off by e^-(|Re zeta| - |Re zta|), as Re zeta can be just
+    // below 0 where Re zta = 0.
+    //
+    // Ai is unscaled from its `airye`, which varies slowly, by e^-zeta = e^-zta (1 - d).
+    let s = z.sqrt();
+    let q = Some(bip / bi)
+        .filter(|q| q.is_finite() && *q != C64::ZERO)
+        .unwrap_or(s);
+    let (bi, bip) = (bi * (1.0 + d * (q - 0.5 / z) / s), bip * (1.0 + d * (z / q - 1.0 / z) / s));
+    if kode == 2 {
+        let dre = if d.re < -zta.re {
+            -2.0 * zta.re - d.re
+        } else {
+            d.re
+        };
+        return [ai, aip, bi * (1.0 - dre), bip * (1.0 - dre)];
+    }
+    let (fa, ez) = ((C64::ONE - d) * C64::cis(-zta.im), (-zta.re).exp());
+    // by component if `e^-zta.re` underflows, as `w fa e^-zta.re` may not
+    let unscale = |w: C64| {
+        let w = w * fa;
+        if ez.is_normal() {
+            w * ez
+        } else {
+            c64(mul_exp(w.re, -zta.re), mul_exp(w.im, -zta.re))
+        }
+    };
+    [unscale(ai), unscale(aip), bi, bip]
+}
+
+/// AMOS' `zta = 2/3 z sqrt(z)` in double, and `zeta - zta` for the exact `zeta = 2/3 z^(3/2)`
+///
+/// This is `None` where AMOS doesn't evaluate Ai and Bi as functions of `zta`, i.e. for
+/// `|z| <= 1` or `|ph z| > pi/3`.
+fn zeta_err(z: C64) -> Option<(C64, C64)> {
+    // as AMOS, with -0 as +0 for real `z`
+    let z = c64(z.re, z.im + 0.0);
+    let s = z.sqrt();
+    let zta = z * s * (2.0 / 3.0);
+    if z.norm() <= 1.0 || z.re <= 0.0 || zta.re < 0.0 {
+        return None;
+    }
+    let dd = DoubleDouble::new;
+    let (zr, zi, sr, si) = (dd(z.re), dd(z.im), dd(s.re), dd(s.im));
+    // sqrt(z) = s + (z - s^2) / (2 s)
+    let e = c64((zr - sr * sr + si * si).hi, (zi - sr * si * 2.0).hi) / (2.0 * s);
+    let ze = z * e;
+    let zeta_re = (zr * sr - zi * si + ze.re) * TWO_THIRDS;
+    let zeta_im = (zr * si + zi * sr + ze.im) * TWO_THIRDS;
+    Some((zta, c64((zeta_re - zta.re).hi, (zeta_im - zta.im).hi)))
 }
 
 /// `amos::airy` (Ai) or, for `bi`, `amos::biry` (Bi), or their derivative for `id = 1`, with its
@@ -239,10 +300,7 @@ fn itairy_impl(x: f64) -> [f64; 4] {
             }
             sum
         };
-        let (fx, gx) = (
-            sum(x, [-2.0, 1.0, -1.0]),
-            sum(0.5 * x * x, [-1.0, 2.0, 1.0]),
-        );
+        let (fx, gx) = (sum(x, [-2.0, 1.0, -1.0]), sum(0.5 * x * x, [-1.0, 2.0, 1.0]));
         (c1 * fx - c2 * gx, sr3 * (c1 * fx + c2 * gx))
     };
 
@@ -500,21 +558,10 @@ fn airyzo(nt: i32, kf: i32, xa: &mut [f64], xb: &mut [f64], xc: &mut [f64], xd: 
 
 #[inline]
 fn airy_zeros<const NT: usize, const KF: i32>() -> [[f64; NT]; 4] {
-    let [mut x, mut xp, mut ai_xp, mut aip_x] = [
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-        [f64::NAN; NT],
-    ];
+    let [mut x, mut xp, mut ai_xp, mut aip_x] =
+        [[f64::NAN; NT], [f64::NAN; NT], [f64::NAN; NT], [f64::NAN; NT]];
     if NT > 0 {
-        airyzo(
-            NT.try_into().unwrap(),
-            KF,
-            &mut x,
-            &mut xp,
-            &mut ai_xp,
-            &mut aip_x,
-        );
+        airyzo(NT.try_into().unwrap(), KF, &mut x, &mut xp, &mut ai_xp, &mut aip_x);
     }
     [x, xp, ai_xp, aip_x]
 }
@@ -524,14 +571,7 @@ pub(crate) fn airy_ai_zeros_vec(nt: usize) -> Vec<f64> {
     let mut x = vec![f64::NAN; nt];
     let [mut xp, mut ai_xp, mut aip_x] = [x.clone(), x.clone(), x.clone()];
     if nt > 0 {
-        airyzo(
-            nt.try_into().unwrap(),
-            1,
-            &mut x,
-            &mut xp,
-            &mut ai_xp,
-            &mut aip_x,
-        );
+        airyzo(nt.try_into().unwrap(), 1, &mut x, &mut xp, &mut ai_xp, &mut aip_x);
     }
     x
 }

@@ -477,8 +477,5 @@ pub fn fresnel_zeros(nt: usize) -> (Vec<Complex<f64>>, Vec<Complex<f64>>) {
     let mut czo = vec![C64::NAN_RE; nt];
     fcszo(2, nt, &mut szo);
     fcszo(1, nt, &mut czo);
-    (
-        szo.into_iter().map(Into::into).collect(),
-        czo.into_iter().map(Into::into).collect(),
-    )
+    (szo.into_iter().map(Into::into).collect(), czo.into_iter().map(Into::into).collect())
 }
