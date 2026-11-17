@@ -1200,8 +1200,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 /// and else its step 2:
 ///
 /// 1. `chgus` (non-integer `b`), then `chgul` (any of `il1` to `il4`, where `il3` and `il4`
-///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned; otherwise
-///    the better of the two is kept as `(hu0, id0)`.
+///    exclude `b > 1` with `x <= |b - 2a|`). The first with `ID_MIN` digits is returned (`chgus` not
+///    if `chgus_deferred`); otherwise the better of the two is kept as `(hu0, id0)`.
 /// 2. One method by region:
 ///    - `a >= 1`: `chgubi` (nonzero integer `b < 1001`, any of `bl1` to `bl3`); `chguit`
 ///      otherwise, or if `chgubi` has fewer than `ID_MIN` digits and both are finite
@@ -1213,8 +1213,8 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
 ///      with `x^(1-b)` in the integral if that product isn't normal or step 1 overflowed
 ///    - `a < 1`, `b > a`: `chgubi` (nonzero integer `b`); the recurrence in `a > -1000` otherwise,
 ///      or if neither `chgubi` (finite) nor step 1 has `ID_MIN` digits, unless a
-///      finite `chgubi` has at least as many estimated digits as the recurrence (by the
-///      cancellation of its two starting values)
+///      finite `chgubi` (or `chgus_near_1` in step 1) has at least as many estimated digits as
+///      the recurrence (by the cancellation of its two starting values)
 /// 3. If `hu0` has 9 to 11 digits, or more than step 2 (and isn't NaN), the result of step 2 only
 ///    replaces it if the two agree within 10 times its error estimate (step 2 can be far off, e.g.
 ///    for small `x`). A NaN of step 2 doesn't replace a finite `hu0`. If neither has `ID_ACCEPT`
@@ -1278,7 +1278,7 @@ pub(crate) fn chgu(
     if b != b.trunc() {
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
-        if id1 >= ID_MIN && !chguit_preferred(a, b, x) {
+        if id1 >= ID_MIN && !chgus_deferred(a, b, x, id1) {
             *digits = super::subnormal_digits(hu, id1);
             return hu;
         }
@@ -1380,11 +1380,13 @@ pub(crate) fn chgu(
         }
         // Unlike in xsf (scipy/xsf#380), the recurrence in a is used if no other method applies,
         // or if chgubi and chgul have fewer than `ID_MIN` digits (or chgubi overflows); a finite
-        // chgubi is only replaced if the recurrence has more estimated digits
+        // chgubi is only replaced if the recurrence has more estimated digits, and so is
+        // `chgus_near_1`, as its estimate is conservative
         let failed = id < ID_MIN || !hu.is_finite();
+        let near_1 = (b - 1.0).abs() < NEAR_1_DD && id0 == id1 && hu0.is_finite();
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
             let (u, id_rec) = super::hypu_rec(a, b, x);
-            if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) {
+            if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
                 (hu, id) = (u, ID_MIN);
             }
         }
@@ -1626,17 +1628,14 @@ fn chgubi_with(x: f64, a: f64, b: f64, id: &mut i32, xsf: bool) -> f64 {
     hu
 }
 
-/// `chgus` loses over 3 digits to cancellation for `|b - 1|` below this (about `-log10|b - 1|`)
-const B_NEAR_1: f64 = 1e-3;
-
 /// `chguit` integrates over `ln(1 + t)` for `b` below this (and `x < 1`), where the integrand at
 /// `t` of order 1 isn't negligible (empirical; above it, it can overflow for tiny `x`)
 const LOG_MAP_B: f64 = 2.5;
 
-/// Whether `chgu` uses `chguit` at `(a, b)` even if `chgus` claims `ID_MIN` digits: for `b` near 1,
-/// within the region where `chguit` integrates over `ln(1 + t)` (`b < LOG_MAP_B`, `x < 1`)
-fn chguit_preferred(a: f64, b: f64, x: f64) -> bool {
-    a >= 1.0 && (b - 1.0).abs() < B_NEAR_1 && x < 1.0
+/// Whether `chgu` goes on to its other methods at `(a, b, x)` even if `chgus` claims `ID_MIN`
+/// digits (`id`), for `b` near 1
+fn chgus_deferred(a: f64, b: f64, x: f64, id: i32) -> bool {
+    (a >= 1.0 || x >= 1.0) && (b - 1.0).abs() < NEAR_1_DD && id < NEAR_1_ID_DEFER
 }
 
 #[allow(clippy::let_and_return)]
@@ -2183,6 +2182,11 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
 
 /// `chgus` uses `chgus_near_1` for `|b - 1|` below this (empirical: the peak error grows above it)
 const NEAR_1_DD: f64 = 1e-2;
+
+/// `chgu` returns a `chgus_near_1` with fewer digits than this only after its other methods, for
+/// `a >= 1` or `x >= 1` (empirical; e.g. it has 12 at `U(16.5, 0.994, 0.1)`, and an error of
+/// 5.6e-14, vs 9.2e-16 in `chguit`)
+const NEAR_1_ID_DEFER: i32 = 14;
 
 /// The relative error that `chgus_near_1` assumes for each of its terms
 const NEAR_1_ROUND: f64 = 8.0 * f64::EPSILON;
