@@ -2142,18 +2142,28 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             0.0
         }
     };
-    // Unlike in xsf, e1 also has the rounding error of 1 + a - b, times |digamma|, which is about
-    // 1 / |1 + a - b - n| near a pole n of gamma2
+    // Unlike in xsf, e1 and e2 also have the rounding errors d of the arguments z of gamma2, times
+    // |digamma(z)|, which is about 1 / |z - n| near a pole n (e.g. for 1 + a - b) and ln(z) for
+    // large z (e.g. for 1 - b = 128.1, with d = 1.4e-14), and that of 1 - b times ln(x) for x^(1-b)
+    let psi_err = |z: f64, d: f64| {
+        if d == 0.0 {
+            0.0
+        } else {
+            (digamma(z) * d).abs()
+        }
+    };
     let (s, d_s) = two_sum(1.0, a);
     let (aab, d_aab) = two_sum(s, -b);
-    let d = d_s + d_aab;
-    let e_ab = if d == 0.0 {
-        0.0
+    let (bm, d_bm) = two_sum(1.0, -b);
+    let e_r1 = if b < -1.0 { psi_err(bm, d_bm) } else { 0.0 };
+    let e_c = if b > 3.0 {
+        psi_err(-bm, d_bm)
     } else {
-        (digamma(aab) * d).abs()
+        let (b2, d_b2) = two_sum(2.0, -b);
+        psi_err(b2, d_b2)
     };
-    let e1 = 1e-15 + k(1.0 + a - b) + e_ab;
-    let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b);
+    let e1 = 1e-15 + k(1.0 + a - b) + psi_err(aab, d_s + d_aab) + e_r1;
+    let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b) + e_c + (d_bm * x.ln()).abs();
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
     *id = if lost {
         0
@@ -2204,6 +2214,17 @@ mod tests {
         let mut id = 0;
         chgus(55.0, 164.9, 168.900_01, &mut id);
         assert!(id <= 0);
+
+        // U(a, b, x) (Arb), where the rounding error 1.4e-14 of 1 - b = 128.1 makes Gamma(1 - b)
+        // 6.9e-14 off (13.2 digits)
+        let (x, a, b) = (
+            1.922_426_784_912_072_6,
+            16.014_115_853_033_63,
+            -127.117_796_766_930_57,
+        );
+        let mut id = 0;
+        let u = chgus(x, a, b, &mut id);
+        assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
     }
 
     #[test]
