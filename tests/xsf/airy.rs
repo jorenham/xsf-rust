@@ -190,7 +190,7 @@ fn test_airy_c64_near_real_axis() {
 
 #[test]
 fn test_airy_c64_scaled_zeta_re_below_zero() {
-    // Arb: Bi e^-|Re zeta| and Bi' e^-|Re zeta|, at ph z just below pi/3, where Re zeta = -5.5e-15
+    // Arb: Bi e^-|Re zeta| and Bi' e^-|Re zeta|, at ph z just above pi/3, where Re zeta = -5.5e-15
     // but its rounded value is 0
     let expected = [
         c64(0.054_250_139_932_712_535, 0.139_399_474_750_160_3),
