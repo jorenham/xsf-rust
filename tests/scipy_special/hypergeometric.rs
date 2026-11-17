@@ -406,6 +406,22 @@ fn test_hyp0f1_turning_point() {
         1.978_895_938_068_044_4e235,
     ];
     np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
+
+    // past the turning point, where the Bessel functions lost ~eps |b| ln|b| through their prefactor
+    let bz = [
+        (732.0, -163_204.0),
+        (1508.0, -683_246.0),
+        (-520.5, -149_822.0),
+        (-696.5, -307_912.0),
+    ];
+    // computed with Arb
+    let expected = [
+        -1.775_972_146_185_652_8e-129,
+        -1.014_882_538_628_246e-261,
+        5.006_641_664_901_066_5e158,
+        -3.421_118_017_417_493_8e233,
+    ];
+    np_assert_allclose!(bz.map(|(b, z)| hyp0f1(b, z)), expected, rtol = 1e-13);
 }
 
 #[test]
