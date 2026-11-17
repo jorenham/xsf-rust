@@ -44,6 +44,20 @@ fn test_airy_f64_overflow() {
 }
 
 #[test]
+fn test_airy_f64_ai_below_asymptotic() {
+    // Arb: airyai(x) and airyai(x, 1), where their Maclaurin series cancel
+    for (x, expected) in [
+        (0.75, [0.179_336_305_478_645_23, -0.193_175_208_104_376_46]),
+        (1.0, [0.135_292_416_312_881_42, -0.159_147_441_296_793_2]),
+        (1.5, [0.071_749_497_008_105_41, -0.097_382_012_842_301_32]),
+        (2.0, [0.034_924_130_423_274_38, -0.053_090_384_433_653_63]),
+    ] {
+        let [ai, aip, _, _] = xsf::airy(x);
+        xsref::np_assert_allclose!([ai, aip], expected, rtol = 1e-15);
+    }
+}
+
+#[test]
 fn test_airy_f64_large_negative() {
     // mpmath: airyai(x), airyai(x, 1), airybi(x), airybi(x, 1)
     let expected = [
