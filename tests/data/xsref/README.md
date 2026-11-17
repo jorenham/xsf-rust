@@ -11,7 +11,7 @@ They were generated with [`tools/tables/convert.py`](../../../tools/tables/conve
 ```sh
 git clone https://github.com/scipy/xsref /tmp/xsref
 git -C /tmp/xsref checkout c3e9f7b1697bea60113a8966f17de348caf6664c
-uv run tools/tables/convert.py /tmp/xsref tests/data/xsref
+uv run --project tools tools/tables/convert.py /tmp/xsref tests/data/xsref
 ```
 
 [`MANIFEST.tsv`](MANIFEST.tsv) lists the rows, the number of rows in xsref, the dimensions, and
@@ -42,8 +42,8 @@ tolerances by our own, for the tables of
 [`tools/tables/mapping.py`](../../../tools/tables/mapping.py):
 
 ```sh
-uv run tools/tables/convert.py /tmp/xsref /tmp/baseline
-uv run tools/tables/generate.py /tmp/baseline
+uv run --project tools tools/tables/convert.py /tmp/xsref /tmp/baseline
+uv run --project tools tools/tables/generate.py /tmp/baseline
 ```
 
 The inputs, the row order, and the row flags stay xsref's. Each output gets a status (see below):

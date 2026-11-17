@@ -73,6 +73,30 @@ wheels = [
 ]
 
 [[package]]
+name = "gmpy2"
+version = "2.3.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/3d/1c648af871024438207d5a017fb3f0ebc6da6b59bb9ff6f5047464a3192d/gmpy2-2.3.2.tar.gz", hash = "sha256:f20b7e2f8fd16f8d6846bb5b73359c3cc5aa41ec5cf266321d362f547c8fd097", size = 301349, upload-time = "2026-10-04T01:58:12.383Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/77/2a3b77c6ea4225381102b961e52678bbf6b61b3d198975989fc0dcc8f713/gmpy2-2.3.2-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:7d8e3c3d8455b83db5a4ec8d6c5b3e18d3cd3c187a1cb9f0d401bd8130b3f4f3", size = 862078, upload-time = "2026-10-04T01:57:18.925Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/c9/46334140102c1fc73b3dc3dcfd82e0477fb2ebf3b3670fb0ce144b17423c/gmpy2-2.3.2-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:6f3b2d0a5c304f218662ca79d39340b484c1aefe1b16ef6f74886da630eb1557", size = 713894, upload-time = "2026-10-04T01:57:20.337Z" },
+    { url = "https://files.pythonhosted.org/packages/97/2f/006c5d2117cc77581125a247864dfd51026d93242f737f115bacfdd57f86/gmpy2-2.3.2-cp315-cp315-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3ca29c2c74a359af928e310bc0378a5d0c8c29db876fcf8533d8fb3a8f292b13", size = 1669827, upload-time = "2026-10-04T01:57:21.907Z" },
+    { url = "https://files.pythonhosted.org/packages/47/68/c239da82b379d71732a95db6722b3cd9b5f7bb085caa6e4c74c12fb936da/gmpy2-2.3.2-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8834a8bf36a83a413438f2b7b7e166aaaea911c81c56dcfeca930225473a45f5", size = 1771324, upload-time = "2026-10-04T01:57:23.5Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/17/626d4cd542efaf721df22025ec84c6cb4a71ce4e8b28cdcc7ff340158918/gmpy2-2.3.2-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:a7a30207aa0a9f20bad7e51d62ee07948a88022ad06cafa9e9eae92451ba2f2b", size = 1690825, upload-time = "2026-10-04T01:57:25.102Z" },
+    { url = "https://files.pythonhosted.org/packages/54/05/ba9db39909fcb89543780ba928a683d408556d2d7147d3e425c0fe7844dc/gmpy2-2.3.2-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:456e38f556bb54b8a422fe14609b1a9585030f5a9eb4dfb59dee50441de69501", size = 1725871, upload-time = "2026-10-04T01:57:26.673Z" },
+    { url = "https://files.pythonhosted.org/packages/25/fd/de8197b844be028cdf8e901c96cd13dd2c9e55ac374643642b9ebb4a9c2f/gmpy2-2.3.2-cp315-cp315-win_amd64.whl", hash = "sha256:0f55dad59a3a48f8472d6eb0dc9c58ea74bb868fa9179a88bb8a984e525dd080", size = 1165628, upload-time = "2026-10-04T01:57:28.361Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/67/1e49fc02d018dbacb27274d08fa53f901d380ca2ca476e3c5d746d5339f8/gmpy2-2.3.2-cp315-cp315-win_arm64.whl", hash = "sha256:4af2c847f2e2fd952497602e879ebc001c6d54134032e3eb3dba404fc0abae71", size = 792690, upload-time = "2026-10-04T01:57:29.807Z" },
+    { url = "https://files.pythonhosted.org/packages/30/16/ce36aa786b66d9a8b35d66a8805bb2064e7ee59101c32ffded0f6f89e271/gmpy2-2.3.2-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:f4dfe25ea20e3a57331cf2a813c25ba010fb77a853c08c5092a69059a090469c", size = 876545, upload-time = "2026-10-04T01:57:31.285Z" },
+    { url = "https://files.pythonhosted.org/packages/80/92/cec57c6d6ee15938b8a4f25eb53a007e3c2434e31c7c0ade8184965de460/gmpy2-2.3.2-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:1c4614e538124a3276c3ada320f9d86ebfb7f972840a022ed392a568ea141012", size = 728030, upload-time = "2026-10-04T01:57:32.884Z" },
+    { url = "https://files.pythonhosted.org/packages/81/28/edfb58adb444979e206739e5badea48ba0028468a1ff5814f0dbec8760af/gmpy2-2.3.2-cp315-cp315t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:52a4399c8b3c7dba086083881839feb267b781ebf2ebad26481dde36fb65cea6", size = 1581412, upload-time = "2026-10-04T01:57:34.269Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/65/068c5e97a82ed876dad18a1525d6da8dbe509d8fb113a93288f3a11a2ed2/gmpy2-2.3.2-cp315-cp315t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cd2f6c413fecd871f1621bfdfa49cb1f5da3a47bc72ad732e96e155ac20071a5", size = 1679294, upload-time = "2026-10-04T01:57:35.846Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/51/1f223084ef545bf0ab65b1d2fee5ec56d1c4577a311b6c835cbcd03a34b0/gmpy2-2.3.2-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:c01a7a62283ff87e0cae8ae67e47462747723a042d1d960b5f0659dbb717374f", size = 1597659, upload-time = "2026-10-04T01:57:37.288Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/f1/71c816da2a8e44bc3261dde5d542cde23a320eb9dfab29b2f1803a432f14/gmpy2-2.3.2-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:ad342304d7e64a701ca06c3266522b24ad729b04ca21e63ba8e8b86413a92eb9", size = 1637750, upload-time = "2026-10-04T01:57:38.735Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/a1/4a3af27dff47ec1ec560a649c86634af590d3d9450947669eb96e1745601/gmpy2-2.3.2-cp315-cp315t-win_amd64.whl", hash = "sha256:5cba264fa5277776109bfc07f5e2b76090e93e48405dd82f464996e262255808", size = 1196319, upload-time = "2026-10-04T01:57:40.538Z" },
+    { url = "https://files.pythonhosted.org/packages/15/5a/a984287fc379b5d2b10d92fb8c5f13fa40ce533ea41fa2689c11569969d0/gmpy2-2.3.2-cp315-cp315t-win_arm64.whl", hash = "sha256:2fd58f6ffe547f2e37a0f47ba7b00bc3705b71176dff70a830c23b297fdb725f", size = 796061, upload-time = "2026-10-04T01:57:41.965Z" },
+]
+
+[[package]]
 name = "kiwisolver"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -416,6 +440,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "gmpy2" },
     { name = "matplotlib" },
     { name = "mpmath" },
     { name = "numpy" },
@@ -431,6 +456,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "gmpy2", specifier = "==2.3.2" },
     { name = "matplotlib", specifier = "==3.11.2" },
     { name = "mpmath", specifier = "==1.4.1" },
     { name = "numpy", specifier = "==2.5.4" },

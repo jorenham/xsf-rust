@@ -1,12 +1,9 @@
-# /// script
-# requires-python = ">=3.15"
-# dependencies = ["mpmath==1.4.1", "gmpy2==2.3.2", "python-flint==0.9.0"]
-# ///
 """Replace xsref's references and tolerances in tables of `tests/data/xsref` by our own.
 
 Usage (from the repository root; BASELINE holds xsref's tables as `convert.py` writes them):
 
-    uv run tools/tables/generate.py BASELINE [--only TABLE,...] [--no-cache] [--jobs N]
+    uv run --project tools tools/tables/generate.py BASELINE [--only TABLE,...] [--no-cache]
+        [--jobs N]
 
 For each entry of `mapping.ENTRIES`, every logical output of every row gets a status:
 

@@ -20,10 +20,10 @@ fmt *args:
     cargo fmt {{ args }}
 
 accuracy *args:
-    uv run tools/accuracy/accuracy.py {{ args }}
+    uv run --project tools tools/accuracy/accuracy.py {{ args }}
 
 pfq-map *args:
-    uv run tools/accuracy/pfq_map.py {{ args }}
+    uv run --project tools tools/accuracy/pfq_map.py {{ args }}
 
 [working-directory("tools")]
 lint-py:
