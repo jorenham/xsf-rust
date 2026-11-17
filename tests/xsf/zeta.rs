@@ -40,6 +40,23 @@ fn test_riemann_zeta_c64_moderate_imag() {
 }
 
 #[test]
+fn test_riemann_zeta_c64_near_eta_factor_zeros() {
+    // 1 - 2^(1 - z) vanishes at 1 + 2 pi i k / ln(2) (reference values from Arb)
+    for (z, expected) in [
+        (c64(1.000_001, 1e-6), c64(500_000.577_215_737_7, -500_000.000_041_060_5)),
+        (c64(1.0, 9.064_720_283_654_388), c64(1.346_579_542_836_317_2, 0.109_883_136_796_269_5)),
+        (c64(0.0, -9.064_720_283_654_388), c64(1.598_734_526_808_69, -0.278_338_669_639_082_5)),
+        (
+            c64(1.000_000_000_000_000_2, 18.129_440_567_308_777),
+            c64(1.824_744_877_856_936_2, -0.216_035_216_066_775_78),
+        ),
+    ] {
+        let rel = (xsf::riemann_zeta(z) - expected).norm() / expected.norm();
+        assert!(rel < 1e-14, "riemann_zeta({z}): rel = {rel:e}");
+    }
+}
+
+#[test]
 fn test_zeta_large_q() {
     // asymptotic expansion for q > 1e8 (reference value from mpmath)
     let (x, q) = (36.0, 1.1e8);

@@ -262,7 +262,9 @@ const ZETA_BORWEIN_COEFF: [f64; 50] = [
 ];
 
 /// Compute riemann_zeta for complex input z using Algorithm 2 from Borwein 1995.
-fn zeta_borwein(z: C64) -> C64 {
+///
+/// `eta_factor` is `1 - 2^(1 - z)`.
+fn zeta_borwein(z: C64, eta_factor: C64) -> C64 {
     let mut result = C64::ZERO;
     // Sum in reverse order because smaller terms come later.
     for k in (0..50_i32).rev() {
@@ -271,8 +273,11 @@ fn zeta_borwein(z: C64) -> C64 {
         let term = sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0) / den;
         result += term;
     }
-    -result / (1.0 - rpow(2.0, 1.0 - z))
+    -result / eta_factor
 }
+
+/// Below this `|1 - 2^(1 - z)|`, Euler-Maclaurin is more accurate than the Borwein sum.
+const ETA_FACTOR_MIN: f64 = 0.5;
 
 /// Compute riemann zeta for complex z and real part >= 0
 fn zeta_right_halfplane(z: C64) -> C64 {
@@ -289,7 +294,14 @@ fn zeta_right_halfplane(z: C64) -> C64 {
         }
         return zeta_euler_maclaurin(z);
     }
-    zeta_borwein(z)
+    // Unlike in xsf, Euler-Maclaurin is also used near the zeros 1 + 2 pi i k / ln(2) of
+    // eta_factor: the Borwein sum gives eta(z) = eta_factor zeta(z), and the division
+    // amplifies its rounding error by 1 / |eta_factor|.
+    let eta_factor = 1.0 - rpow(2.0, 1.0 - z);
+    if eta_factor.norm() < ETA_FACTOR_MIN {
+        return zeta_euler_maclaurin(z);
+    }
+    zeta_borwein(z, eta_factor)
 }
 
 /// exp(pi*z) for complex z.
