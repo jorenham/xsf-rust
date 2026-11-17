@@ -458,6 +458,31 @@ fn test_bessel_j_oscillatory() {
     np_assert_equal!(vx.map(|(v, x)| xsf::bessel_je(v, x)), actual);
 }
 
+#[test]
+fn test_bessel_y_oscillatory() {
+    // Arb: bessely(v, x) for x > |v| >= 10, where AMOS lost ~eps x through its phase, and
+    // Y_v(x) = 0 for v = 1e7 or x = 1e308
+    let vx = [
+        (2_611.227_429_583_167, 2_502_847.069_861_547_6),
+        (-2_652.249_251_597_461_4, 598_667.409_649_828),
+        (861.613_983_289_161_3, 1_036.414_417_689_713_2),
+        (-101.0, 1000.0),
+        (1e7, 1e9),
+        (-100.5, 1e308),
+    ];
+    let expected = [
+        -0.000_501_150_604_082_737_2,
+        -0.001_031_215_066_190_248,
+        -0.033_180_687_477_768_166,
+        0.013_872_810_696_637_188,
+        -2.477_407_606_524_094_2e-5,
+        3.617_580_596_934_688_3e-155,
+    ];
+    let actual = vx.map(|(v, x)| xsf::bessel_y(v, x));
+    np_assert_allclose!(actual, expected, rtol = 2e-15);
+    np_assert_equal!(vx.map(|(v, x)| xsf::bessel_ye(v, x)), actual);
+}
+
 xsref::tests! {
     // Bessel K
     test_bessel_k0: "cyl_bessel_k0", "d-d", |x| xsf::bessel_k0(x[0]);
