@@ -8,9 +8,9 @@
 
 #![allow(clippy::needless_late_init)]
 
-use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use core::f64::consts::{FRAC_2_PI, FRAC_PI_2, PI, TAU};
 
-use crate::xsf::bessel::{IT0_ASYMP, bessel_j_miller};
+use crate::xsf::bessel::{IT0_ASYMP, bessel_j_miller, itj0y0_asymp};
 use crate::xsf::cephes;
 use crate::xsf::specfun::specfun_convinf;
 
@@ -132,22 +132,7 @@ fn itsh0(x: f64) -> f64 {
             }
         }
         let s0 = s / (PI * x * x) + FRAC_2_PI * ((2.0 * x).ln() + el);
-        let a = IT0_ASYMP;
-        let mut bf = 1.0;
-        r = 1.0;
-        for k in 1..11 {
-            r = -r / (x * x);
-            bf += a[2 * k - 1] * r;
-        }
-        let mut bg = a[0] / x;
-        r = 1.0 / x;
-        for k in 1..=10 {
-            r = -r / (x * x);
-            bg += a[2 * k] * r;
-        }
-        let xp = x + FRAC_PI_4;
-        let ty = (2.0 / (PI * x)).sqrt() * (bg * xp.cos() - bf * xp.sin());
-        th0 = ty + s0;
+        th0 = itj0y0_asymp(x, 10).1 + s0;
     }
     th0
 }
