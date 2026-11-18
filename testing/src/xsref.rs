@@ -405,10 +405,8 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
     match name {
         // https://github.com/scipy/xsf/pull/85#issuecomment-3738637926
         "hyp2f1" if x[0] == -1.0 => f64::INFINITY,
-        // some of xsref's references are NaN for b = -1, a negative integer c and a real x
-        "hyp2f1" if x.len() == 4 && x[1] == -1.0 && x[2] < 0.0 && x[2].fract() == 0.0 => {
-            f64::INFINITY
-        },
+        // xsref's references are NaN
+        "hyp2f1" if HYP2F1_NAN_REFS.iter().any(|r| x == r) => f64::INFINITY,
         // xsf computes the wrong imaginary part of F+-(x) for x < 0, which is fixed in xsf-rust
         "modified_fresnel_plus" | "modified_fresnel_minus" if x[0] < 0.0 => f64::INFINITY,
         // xsf returns NaN for m = 10000
@@ -446,6 +444,10 @@ fn rtol_ill_conditioned(name: &str, x: &[f64]) -> f64 {
         _ => 0.0,
     }
 }
+
+/// The inputs of the real `hyp2f1` test cases where xsref's reference is NaN
+const HYP2F1_NAN_REFS: [[f64; 4]; 3] =
+    [[1.0, -1.0, -1.0, -1.0], [10.0, -1.0, -10.0, -1.0], [1.0, -1.0, -10.0, -10.0]];
 
 /// The orders of the complex `cyl_bessel_i` test cases where xsf overflows and the reference
 /// isn't finite

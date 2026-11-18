@@ -1442,8 +1442,8 @@ fn test_hyp2f1_f64_degree_1() {
         xsf::hyp2f1(-10.0, -1.0, -10.0, 1.0),
     ];
     assert_eq!(actual, [0.0; 3]);
-    // unlike in xsf: rounded only once, and not to 0 below 1e-15; xsf gives 0 (in this order of
-    // a and b), 0 and 2.2e-16 (references: exact)
+    // unlike in xsf: not rounded to 0 below 1e-15; xsf gives 0 (in this order of a and b), 0 and
+    // 2.2e-16 (references: exact)
     let x = 1.0 - f64::EPSILON / 2.0;
     let actual = [xsf::hyp2f1(-1.0, 1.0, 1.0, x), xsf::hyp2f1(1.0, -1.0, 1.0, x)];
     assert_eq!(actual, [f64::EPSILON / 2.0; 2]);
