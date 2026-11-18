@@ -564,6 +564,9 @@ fn test_hyppfq_2f0() {
     // where it stops with steps below its noise, but 1.2e-13 off by truncation (Arb)
     let y = hyppfq(&[-28.697, -30.146], &[], -16.155);
     assert!(y.is_none_or(|y| (y / -4.139_259_483_009_185e66 - 1.0).abs() <= 1e-13));
+    // and where only its last two steps are below its noise, 1.4e-13 off (Arb)
+    let y = hyppfq(&[-13.0541, -13.0541], &[], -8.2586);
+    assert!(y.is_none_or(|y| (y / -3.712_522_542_395_385e19 - 1.0).abs() <= 1e-13));
     // a terminating sum whose drift bound would overflow unscaled (Arb)
     let actual = hyppfq(&[-125.0, -1000.0], &[], -0.3).unwrap();
     xsref::np_assert_allclose!([actual], [-8.284_573_243_742_23e305], rtol = 1e-14);

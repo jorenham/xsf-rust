@@ -66,6 +66,10 @@ const PFQ_GAMMA_ERR: f64 = 7.0 * f64::EPSILON;
 /// Maximum order of `pfq_weniger`
 const PFQ_WENIGER_MAXITER: usize = 40;
 
+/// Number of the last steps of `pfq_weniger` in its double-double estimate where its noise
+/// stopped it (measured)
+const PFQ_WENIGER_STEPS: usize = 4;
+
 /// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
 const PFQ_WENIGER_MAX_Z: f64 = -0.6;
 
@@ -415,7 +419,9 @@ fn pfq_weniger<T: SeriesReal>(
         return Some((sum.to_f64(), eps * scale));
     }
     let mut rows = [[T::from_f64(0.0); 3]; PFQ_WENIGER_MAXITER];
-    let (mut delta, mut step) = (sum, f64::INFINITY);
+    let mut delta = sum;
+    // the last steps, the newest first
+    let mut steps = [f64::INFINITY; PFQ_WENIGER_STEPS];
     for k in 0..PFQ_WENIGER_MAXITER {
         let n = start + k as f64;
         term = term * (ratio(n) * T::from_f64(z));
@@ -441,24 +447,27 @@ fn pfq_weniger<T: SeriesReal>(
             rows[j] = core::array::from_fn(|l| rows[j + 1][l] - c * rows[j][l]);
         }
         let [num, den, abs] = rows[0];
-        let (last, next) = (step, num / den);
+        let next = num / den;
         let noise = eps * ((abs / den).to_f64().abs() + next.to_f64().abs() + scale);
         // the steps need not be below the rounding of the `f64` result, which only double-double
         // gets under (a NaN noise stays NaN)
         let rounding = f64::EPSILON * next.to_f64().abs();
         let tol = if noise < rounding { rounding } else { noise };
-        step = (next - delta).to_f64().abs();
+        steps.copy_within(..PFQ_WENIGER_STEPS - 1, 1);
+        steps[0] = (next - delta).to_f64().abs();
         delta = next;
         // delta is a weighted mean of the last one and of the one of that order from s_1
         // (NaN for k = 0). For a large |z| the weight of the latter is small, and so are the
         // steps, also while the two still differ, so it has to agree as well.
         let other = (rows[1][0] / rows[1][1] - delta).to_f64().abs();
-        if step <= tol && last <= tol && other <= tol {
+        if steps[0] <= tol && steps[1] <= tol && other <= tol {
             // In double-double, the steps also count, as they can be smaller than the error once
-            // the noise grows past them (e.g. by 4x per order for z = -16). The f64 estimate is
-            // the measured one.
+            // the noise grows past them (e.g. by 4x per order for z = -16). Then they can also dip
+            // far below the error where it changes sign, so the largest of the last few counts.
+            // The f64 estimate is the measured one.
             let err = if T::EPSILON < f64::EPSILON {
-                noise + step.max(last).max(other)
+                let counted = if noise < rounding { 2 } else { steps.len() };
+                noise + steps[..counted].iter().fold(other, |m, &s| m.max(s))
             } else {
                 tol
             };
