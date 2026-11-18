@@ -702,22 +702,36 @@ AIRY_OVERRIDES: Final = (
 )
 
 
-def _airy_out(i: int) -> Out:
+AIRYE_NAN: Final = Rule(
+    lambda a: a[0] < 0,
+    math.nan,
+    "the factor e^zeta of Ai and Ai' is not real for x < 0 (zeta = 2/3 x^(3/2) is imaginary)",
+)
+
+
+def _airy_out(i: int, scaled: bool = False) -> Out:
     """Ai, Ai', Bi, or Bi' (i = 0 to 3), like `specs._airy` but without the functions that
-    neither it nor its scale needs."""
+    neither it nor its scale needs; with `scaled`, Ai and Ai' times e^zeta, and Bi and Bi' times
+    e^-zeta (for x >= 0, and Bi, Bi' unscaled for x < 0, where Re zeta = 0)."""
     d, f = i % 2, (mp.airyai, mp.airybi)[i // 2]
+    sign = 1 - i // 2 * 2
 
     def ref(x: mp.mpf) -> Value:
         with specs.wdps(specs.xd(x) + 10):
             if x >= 0:
-                return f(x, derivative=d)
+                y = f(x, derivative=d)
+                return y * mp.exp(sign * 2 * x * mp.sqrt(x) / 3) if scaled else y
             ai, bi = mp.airyai(x, derivative=d), mp.airybi(x, derivative=d)
             return (ai, bi)[i // 2], mp.hypot(ai, bi)
 
     def arb(x: flint.arb) -> flint.arb:
-        return (x.airy_ai, x.airy_bi)[i // 2](derivative=d)
+        y = (x.airy_ai, x.airy_bi)[i // 2](derivative=d)
+        return y * (sign * 2 * x * x.sqrt() / 3).exp() if scaled and x >= 0 else y
 
-    return Out(f"airy[{i}]", (ref,), (arb,), overrides=AIRY_OVERRIDES)
+    if not scaled:
+        return Out(f"airy[{i}]", (ref,), (arb,), overrides=AIRY_OVERRIDES)
+    rules = (NAN, AIRYE_NAN) if i < 2 else (NAN,)
+    return Out(f"airy_scaled[{i}]", (ref,), (arb,), rules)
 
 
 def _real(
@@ -2906,6 +2920,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **{(name, "d-d"): Entry((_kelvin_out(kind),)) for kind, name in enumerate(KELVIN)},
     ("kelvin", "d-cd_cd_cd_cd"): Entry(tuple(_kelvin_complex_out(j) for j in range(4))),
     ("airy", "d-d_d_d_d"): Entry(tuple(_airy_out(i) for i in range(4))),
+    ("airye", "d-d_d_d_d"): Entry(tuple(_airy_out(i, scaled=True) for i in range(4))),
     ("fresnel", "d-d_d"): Entry(
         (
             Out("fresnel.0", (specs.r_fresnel_s,), (_fresnel_arb(0),), FRESNEL_RULES),
