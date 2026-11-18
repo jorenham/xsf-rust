@@ -1204,25 +1204,29 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                     // double-double (exact `c - a`, `c - b` and `d`) unless its bound straddles
                     // the overflow
                     if !y.is_normal() && d.is_finite() {
+                        // (by magnitude, so that the term update can't over- or underflow first)
+                        let (lo, hi) = if a.abs() < b.abs() { (a, b) } else { (b, a) };
                         let (mut sum, mut sum_abs, mut term, mut k) = (1.0_f64, 1.0, 1.0_f64, 0.0);
+                        let mut normal = true;
                         loop {
-                            // The terms from k on sum to at most `|t_k| e^u` for t > 0, with
-                            // `u = (|a| + k) (|b| + k) psi'(t)`, `psi'(t) < 1/t + 1/t^2`: their
-                            // sum is below `|t_k| F(|a| + k, |b| + k; c + k; 1)`, and Gamma is
-                            // log-convex. Plus the roundings of the terms and their sum.
+                            // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)`
+                            // with `A = |a| + k`, `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi'
+                            // decreases, `F <= e^u` with `u = A B psi'(t) < A B (1/t + 1/t^2)`
+                            // (DLMF 15.4.20). Plus the roundings, if all intermediates are normal.
                             let t = c - a.abs() - b.abs() - k;
-                            let u = (a.abs() + k) * (b.abs() + k) * (1.0 + 1.0 / t) / t;
+                            let u = (lo.abs() + k) / t * ((hi.abs() + k) * (1.0 + 1.0 / t));
                             let err = term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs;
-                            // (not if `term` underflows, or `u` is NaN for t <= 0)
-                            let normal = t > 0.0 && term.is_normal();
-                            if normal && err <= HYP2F1_ETHRESH * sum.abs() {
+                            let ok = normal && t > 0.0 && sum.is_finite();
+                            if ok && err <= HYP2F1_ETHRESH * sum.abs() {
                                 return sum;
                             }
-                            if !normal || k >= HYP2F1_MAXITER as f64 {
+                            if !ok || k >= HYP2F1_MAXITER as f64 {
                                 break;
                             }
-                            // (in this order, as |a + k| < c + k, so that it can't overflow first)
-                            term = term * ((a + k) / (c + k)) * ((b + k) / (k + 1.0));
+                            // (`|hi + k| < c + k`)
+                            let (p, q) = ((hi + k) / (c + k), (lo + k) / (k + 1.0));
+                            term *= p * q;
+                            normal = [p, q, p * q, term].iter().all(|v| v.is_normal());
                             (sum, sum_abs, k) = (sum + term, sum_abs + term.abs(), k + 1.0);
                         }
                         let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));

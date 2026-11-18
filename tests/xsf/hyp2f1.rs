@@ -791,17 +791,22 @@ fn test_hyp2f1_f64_huge_c() {
 
 #[test]
 fn test_hyp2f1_f64_huge_c_at_1() {
-    // unlike in xsf: these are NaN (0 for the last) in xsf, as `Gamma(c)` overflows in
-    // `F(a, b; c; 1)` (DLMF 15.4.20; Arb)
+    // unlike in xsf: these are NaN in xsf, as `Gamma(c)` overflows in `F(a, b; c; 1)`
+    // (DLMF 15.4.20; Arb)
     let actual = [
         xsf::hyp2f1(1.3, 6.5, 1e17, 1.0),
         xsf::hyp2f1(1.3, 6.5, 1e300, 1.0),
         xsf::hyp2f1(200.0, 0.5, 300.0, 1.0),
         xsf::hyp2f1(17.5, 250.5, 312.0, 1.0),
         xsf::hyp2f1(6.9e16, -469.5, 1.65e17, 1.0),
-        // a term with an overflowing denominator, and a slowly decaying series (d = 2.7e-14)
+        // a term with an overflowing denominator, and a slowly decaying series (d = 2.7e-14,
+        // 0 in xsf)
         xsf::hyp2f1(6e153, 6e153, 1e308, 1.0),
         xsf::hyp2f1(1e-15, 179.999_999_999_999_97, 180.0, 1.0),
+        // a sum close to `f64::MAX`, an overflowing `a b`, and an underflowing `a / c`
+        xsf::hyp2f1(1_946.607_092_231_488_2, 5_848_583_033.383_596, 19_141_581_561.342_18, 1.0),
+        xsf::hyp2f1(2e154, 2e154, 1e308, 1.0),
+        xsf::hyp2f1(1e-16, 2e307, 1e308, 1.0),
     ];
     let desired = [
         1.0,
@@ -811,6 +816,9 @@ fn test_hyp2f1_f64_huge_c_at_1() {
         3.695_150_263_060_27e-111,
         1.433_329_414_560_340_4,
         1.036_467_456_652_845,
+        1.797_693_134_862_289e308,
+        54.598_150_033_144_25,
+        1.0,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
     // overflows (+inf for both in xsf)
