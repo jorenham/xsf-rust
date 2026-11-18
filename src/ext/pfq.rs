@@ -1408,10 +1408,27 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         } else {
             pfq_alg(&a, &[b[0], b[1], 1.0], z, Alg::Value, &mut terms)?;
         }
-        Some(terms.into_iter().flatten())
+        // for `z > 0`, the terms lack the phase of (-z)^(-a_m), whose real part is cos(pi a_m)
+        // (the term of a class of `a_i` that differ by integers is a size, so it keeps its sign)
+        let class = a[1] != b[1] && (Dd::new(a[0]) - Dd::new(a[1])).is_integer();
+        let phased = z > 0.0 && !class;
+        Some(terms.into_iter().zip(a).filter_map(move |(t, a)| {
+            if !phased {
+                return t;
+            }
+            // (a zero phase drops the term)
+            let phase = cospi(a);
+            t.filter(|_| phase != 0.0).map(|y| y.mul_f64(phase))
+        }))
     };
     let (y, other) = if z > 0.0 {
-        (hyp2f2_exp(a, b, z)?, add_exp(alg(a)?))
+        let alg = alg(a)?;
+        // (no terms have no size, but terms that cancel leave their uncertainty)
+        let other = match alg.clone().next() {
+            None => None,
+            Some(_) => Some(add_exp(alg)?),
+        };
+        (hyp2f2_exp(a, b, z)?, other)
     } else {
         (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
