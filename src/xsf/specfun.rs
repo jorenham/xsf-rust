@@ -19,7 +19,7 @@ mod sphd;
 pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_minimal, hyp1f1_small_b};
+pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
@@ -88,7 +88,7 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        let hg = hyp1f1_neg_b_minimal(a, b, self, chgm(self, a, b));
+        let hg = hyp1f1_neg_b_fallback(a, b, self, chgm(self, a, b));
         hyp1f1_small_b(a, b, c64(self, 0.0), c64(hg, 0.0)).re
     }
 }
