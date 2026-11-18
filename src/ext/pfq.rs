@@ -750,15 +750,16 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// ,
 /// $$
 ///
-/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), and the
-/// analytic continuation for $z \le -1$ [^1]. A non-positive integer $a_i = -n$ makes it a
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1], and
+/// the analytic continuation for $z \le -1$ [^2]. A non-positive integer $a_i = -n$ makes it a
 /// polynomial of degree at most $n$, defined for all $z$. An $a_i$ equal to a $b_j$ cancels it,
 /// also if it is a non-positive integer.
 ///
 /// It is:
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
-///   $\lt m$, and at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial;
+///   $\lt m$, and at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial or
+///   that can't be determined (then `None`);
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
@@ -766,11 +767,13 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - at $z = 1$, unless an $a_i$ cancels a $b_j$, and for $1 - 10^{-5} \lesssim z < 1$;
+/// - for some $1 - 10^{-5} \lesssim z \le 1$, also where an $a_i$ cancels a $b_j$;
 /// - if the terms cancel too much (e.g. for large parameters), overflow, or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.8.E8>
 ///
 /// # See also
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
@@ -1457,6 +1460,7 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
 ///   $\lt m$;
+/// - $\pm\infty$ if it overflows, for large $z > 0$;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
@@ -1624,6 +1628,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
 ///   $\lt m$;
+/// - $\pm\infty$ if it overflows, for large $z > 0$;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
@@ -1631,9 +1636,9 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - for some $z < 0$: rarely if all $\abs a, \abs{b_j} \le 10$, but e.g. for about half of
-///   $-10^5 < z < -10^3$ if they are up to 100;
-/// - for about half of $z \lesssim -10^{32}$;
+/// - for some $z < 0$, e.g. for about 4% of $-10^3 < z < 0$ if all $\abs a, \abs{b_j} \le 10$,
+///   and about half of $-10^5 < z < -10^3$ if they are up to 100;
+/// - for about half of $-10^{40} < z < -10^{32}$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -2028,14 +2033,17 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///
 /// It is:
 ///
+/// - 1 at $z = 0$, and for a $b_j = +\infty$ and a finite $z$ if $p \le q + 1$ or it is a
+///   polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
 ///   $\lt m$;
 /// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ if
 ///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial;
+/// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, and at $z = +\infty$
+///   for $p \le q$ if it isn't a polynomial;
+/// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
 /// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
-///   $(1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN;
-/// - for an infinite argument, its limit, e.g. 1 for a $b_j = +\infty$, and $\pm\infty$ at
-///   $z = +\infty$ for $p \le q$.
+///   $(1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
 ///
 /// # Returns `None`
 ///
@@ -2044,7 +2052,8 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///   $z \ll -1$ or $\abs z \gtrsim 0.1$, large negative $a_i$, or nearly equal $a_i$;
 /// - for the other $p \le q + 1$ where it can't be computed accurately, as for [`hyp3f2`] if
 ///   $p = q + 1$, for [`hyp2f2`] if $p = q$, and for [`hyp1f2`] if $p < q$;
-/// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$.
+/// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
+///   table has a limit there.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///

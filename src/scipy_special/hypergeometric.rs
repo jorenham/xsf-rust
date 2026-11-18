@@ -493,7 +493,9 @@ pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
 /// _1F_0\left[a\middle\| z\right] = \sum\_{n=0}^\infty \rpow a n {z^n \over n!} = (1 - z)^{-a}
 /// $$
 ///
-/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)).
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), where the
+/// series converges for $\abs z < 1$, or terminates. It is NaN at $z = 1$ if $a > 0$, and for
+/// `f64` $z > 1$ if $a$ isn't an integer.
 ///
 /// # See also
 /// - [`hyp0f0`]: Hypergeometric function $_0F_0\left[\middle\| z\right]$
@@ -518,7 +520,7 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. It is NaN
-/// if $b$ is a non-positive integer, where it has a pole, and if an argument is NaN.
+/// if $b$ is a non-positive integer, where it has a pole, or $-\infty$, and if an argument is NaN.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///

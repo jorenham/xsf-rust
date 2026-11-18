@@ -202,8 +202,9 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// For `f64` $z$, it is NaN if the estimated accuracy of the result is too low, e.g. where its series
-/// cancels or doesn't converge and no other method applies.
+/// It is $+\infty$ at $b = 0$, but NaN there for some `f64` $z$. For `f64` $z$, it is also NaN if
+/// the estimated accuracy of the result is too low, e.g. where its series cancels or doesn't
+/// converge and no other method applies.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
