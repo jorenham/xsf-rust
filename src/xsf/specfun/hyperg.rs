@@ -2356,4 +2356,24 @@ mod tests {
         assert_eq!(md, 2);
         assert!(digits_ok(u, 2.459_654_426_579_829_3e-318, digits));
     }
+
+    #[test]
+    fn test_chgu_recurrence_digits() {
+        // U(a, b, x) (Arb) by the recurrence in a, with the digits of the result above `ID_MIN`
+        // (as in `xsf_hypu_digits`)
+        let check = |(a, b, x): (f64, f64, f64), expected: f64| {
+            let (mut md, mut isfer, mut digits, mut digits_rec) = (0, 0, 0, 0);
+            let u = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec);
+            let id = digits.max(digits_rec);
+            digits_ok(u, expected, id).then_some(id)
+        };
+        let abx = (-74.732_980_769_545_7, 16.998_976_626_644_733, 54.846_015_743_389_5);
+        assert!(check(abx, -1.217_158_820_032_597_6e121).is_some_and(|id| id >= 13));
+        // and not where it is 1.1e-13 off (Arb)
+        let abx = (-66.955_195_369_874_3, 20.368_509_564_101_117, 2.804_235_447_048_866_6);
+        assert!(check(abx, -3.583_173_073_665_220_5e107).is_some());
+        // or by DLMF 13.3.9, where the recurrence in b rounds (Arb)
+        assert!(check((-0.12, 205.35, 182.27), 0.391_020_291_655_937_16).is_some());
+        assert!(check((-0.0045, 204.8, 27.5), -4.721_267_467_382_317e97).is_some());
+    }
 }

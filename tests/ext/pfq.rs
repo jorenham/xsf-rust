@@ -539,6 +539,26 @@ fn test_hyppfq_2f0() {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
+    // for a1, a2 << 0, where U is by the recurrence in a, with more than 12 digits (Arb)
+    for (a, z, expected) in [
+        (
+            [-74.732_980_769_545_7, -90.731_957_396_190_44],
+            -0.018_232_864_984_737_352,
+            -1.299_723_984_597_117e-9,
+        ),
+        ([-34.93, -66.27], -0.006_84, -4.750_122_319_894_193e-13),
+        ([-36.63, -62.3], -0.0246, -3.100_751_888_157_884e-8),
+        ([-41.05, -42.52], -0.0134, -4.573_773_439_415_837e-13),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // but not the Borel sum where U by the recurrence is 1.1e-13 off (Arb)
+    let actual =
+        hyppfq(&[-66.955_195_369_874_3, -86.323_704_933_975_42], &[], -0.356_603_437_508_210_8);
+    xsref::np_assert_allclose!([actual.unwrap()], [-3.721_878_069_495_089e77], rtol = 1e-14);
     // the Weniger fallback (Arb)
     for (a, z, expected) in [
         ([0.05, -0.06], -0.1, 1.000_286_818_712_551_8),
