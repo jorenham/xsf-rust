@@ -452,9 +452,17 @@ fn pfq_weniger<T: SeriesReal>(
         // delta is a weighted mean of the last one and of the one of that order from s_1
         // (NaN for k = 0). For a large |z| the weight of the latter is small, and so are the
         // steps, also while the two still differ, so it has to agree as well.
-        let other = rows[1][0] / rows[1][1];
-        if step <= tol && last <= tol && (other - delta).to_f64().abs() <= tol {
-            return Some((delta.to_f64(), tol));
+        let other = (rows[1][0] / rows[1][1] - delta).to_f64().abs();
+        if step <= tol && last <= tol && other <= tol {
+            // In double-double, the steps also count, as they can be smaller than the error once
+            // the noise grows past them (e.g. by 4x per order for z = -16). The f64 estimate is
+            // the measured one.
+            let err = if T::EPSILON < f64::EPSILON {
+                noise + step.max(last).max(other)
+            } else {
+                tol
+            };
+            return Some((delta.to_f64(), err));
         }
         sum = sum + term;
     }
@@ -1785,11 +1793,12 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // `a + n` can round alike
             let weniger = |(y, err): (f64, f64), eps: f64| {
                 accurate((y, err))?;
+                // (each scaled, as their sum can overflow)
                 let drift = terms
                     .clone()
                     .zip(0..=settled as u32)
-                    .map(|(t, n)| f64::from(n) * t.abs());
-                accurate((y, err + 4.0 * eps * drift.sum::<f64>()))
+                    .map(|(t, n)| 4.0 * eps * f64::from(n) * t.abs());
+                accurate((y, err + drift.sum::<f64>()))
             };
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as

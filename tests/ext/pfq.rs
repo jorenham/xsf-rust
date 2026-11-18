@@ -561,6 +561,12 @@ fn test_hyppfq_2f0() {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
+    // where it stops with steps below its noise, but 1.2e-13 off by truncation (Arb)
+    let y = hyppfq(&[-28.697, -30.146], &[], -16.155);
+    assert!(y.is_none_or(|y| (y / -4.139_259_483_009_185e66 - 1.0).abs() <= 1e-13));
+    // a terminating sum whose drift bound would overflow unscaled (Arb)
+    let actual = hyppfq(&[-125.0, -1000.0], &[], -0.3).unwrap();
+    xsref::np_assert_allclose!([actual], [-8.284_573_243_742_23e305], rtol = 1e-14);
     // the Weniger fallback, after 1549 terms (Arb)
     let y = hyppfq(&[-1548.5, 1.000_000_000_000_028_4], &[], -0.001_953_124_999_999_999_8);
     assert!(y.is_none_or(|y| (y / 1.320_723_958_873_985_9e296 - 1.0).abs() <= 1e-13));
