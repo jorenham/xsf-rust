@@ -6117,7 +6117,7 @@ add(
     D(Int(-30, -1), *[U(-10, 10)] * 4, U(-10, 10), n=2000),
     cpp=False,
     timeout=60,
-    note="none",
+    note="nan",
 )
 add(
     "hyp2f2",
@@ -6129,7 +6129,7 @@ add(
     D(Int(-30, -1), *[U(-10, 10)] * 3, U(-30, 30), n=1000),
     cpp=False,
     timeout=60,
-    note="none",
+    note="nan",
 )
 add(
     "hyp1f2",
@@ -6141,7 +6141,7 @@ add(
     D(Int(-30, -1), *[U(-10, 10)] * 2, U(-225, 225), n=1000),
     cpp=False,
     timeout=60,
-    note="none",
+    note="nan",
 )
 for name, args in [
     ("hyppfq#4f3", "a1 a2 a3 a4 b1 b2 b3 z"),
@@ -6922,6 +6922,10 @@ NOTES = {
         "In the log-sampled complex row, the inf (449) of xsf-rust are 202 NaNs for normal results "
         "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)) and 247 for results that "
         "underflow; its largest finite error is 1.7e-4."
+    ),
+    "nan": (
+        "inf (k) counts the NaN results, where its error estimate says that none of its digits "
+        "are correct."
     ),
 }
 
