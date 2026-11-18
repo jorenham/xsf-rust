@@ -283,11 +283,13 @@ fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f6
     if err <= PFQ_TOL * y.abs() || err == f64::INFINITY {
         (y, err, tails)
     } else {
-        pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER)
+        let (y, err, tails) = pfq_sum::<Dd>(a, b, z, PFQ_DD_MAXITER);
+        (f64::from(y), err, tails)
     }
 }
 
-/// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms
+/// `pfq_series_tails` in the arithmetic of `T`, with at most `maxiter` terms, and with the sum
+/// in that arithmetic
 ///
 /// The rounding error of each ratio `t_{n+1} / t_n` affects the terms after it, which sum to
 /// `s - s_n` for the partial sum `s_n` and the sum `s`. These errors are added in quadrature,
@@ -298,7 +300,7 @@ fn pfq_sum<T: SeriesReal>(
     b: &impl AsRef<[f64]>,
     z: f64,
     maxiter: u32,
-) -> (f64, f64, f64) {
+) -> (T, f64, f64) {
     // generic over the storage of the parameters, as the sum is faster if it is compiled for
     // the numbers of parameters of its caller
     let (a, b) = (a.as_ref(), b.as_ref());
@@ -331,7 +333,7 @@ fn pfq_sum<T: SeriesReal>(
         if n == degree {
             // the series terminated
             let (rounding, tails) = estimates(n, s, sum1, sum2);
-            return (s, rounding, tails);
+            return (sum, rounding, tails);
         }
         // t_(n+1)
         let Some(term) = terms.next() else { break };
@@ -344,11 +346,11 @@ fn pfq_sum<T: SeriesReal>(
             let tail = t.abs() * rho / (1.0 - rho);
             if a.len() <= b.len() && rho < 1.0 && tail <= f64::EPSILON * s.abs() {
                 let (rounding, tails) = estimates(n, s, sum1, sum2);
-                return (s, rounding + tail, tails);
+                return (sum, rounding + tail, tails);
             }
         }
     }
-    (s, f64::INFINITY, f64::INFINITY)
+    (sum, f64::INFINITY, f64::INFINITY)
 }
 
 /// Weniger's delta transformation of the series, and an estimate of its absolute error
@@ -1680,7 +1682,7 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     // a polynomial is short enough for double-double
     let polynomial = || {
         let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
-        accurate((y, err))
+        accurate((f64::from(y), err))
     };
     if let Some(y) = degree.is_finite().then(polynomial).flatten() {
         return Some(y);
