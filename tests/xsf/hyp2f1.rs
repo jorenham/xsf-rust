@@ -1364,3 +1364,54 @@ fn test_hyp2f1_f64_c_near_pole() {
     let actual = [xsf::hyp2f1(-3.0, 2.0, -45.0 - 4e-14, 0.5)];
     np_assert_allclose!(actual, [1.068_974_630_021_141_6], rtol = 1e-15);
 }
+
+#[test]
+fn test_hyp2f1_f64_polynomial_neg_int_c() {
+    // unlike in xsf: the polynomial for a negative integer c below the integer a (or b), whose
+    // terms can cancel completely; xsf gives NaN or no correct digit (Arb, Wolfram)
+    let actual = [
+        xsf::hyp2f1(-186.0, -26.75, -333.0, -9.0),
+        xsf::hyp2f1(-2.5, -123.0, -618.0, -12.181_556_567_107_146),
+        xsf::hyp2f1(-282.0, 497.137_097_191_493_7, -301.0, -0.029_204_871_958_424_083),
+        // (by its Pfaff transformation)
+        xsf::hyp2f1(-192.346_044_530_068_72, -303.0, -310.0, 0.290_678_693_500_093),
+        // (b is an integer below c, so the polynomial is that of a)
+        xsf::hyp2f1(-359.0, -401.0, -400.0, 0.012_918_049_583_765_393),
+    ];
+    let desired = [
+        -5.330_688_234_478_712e36,
+        21.568_509_940_337_676,
+        1.457_505_009_443_554_2e-6,
+        9.959_364_424_242_371e-29,
+        0.009_283_916_262_782_09,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // the sign of an overflow, also for x > 1 (about 1.8e623 and -3.1e379)
+    assert_eq!(
+        xsf::hyp2f1(-150.0, 39.883_200_484_784_936, -155.0, -8_782.652_226_040_95),
+        f64::INFINITY
+    );
+    assert_eq!(xsf::hyp2f1(-227.0, -223.0, -400.0, 163.795_069_436_680_82), f64::NEG_INFINITY);
+    // a subnormal b, both a and b polynomial (of degree 2, not 1e6), a degree of 1e6 whose terms
+    // vanish after about 60, and x = 1 (DLMF 15.4.24)
+    let actual = [
+        xsf::hyp2f1(-1100.0, f64::from_bits(1), -1101.0, 2.0),
+        xsf::hyp2f1(-1e6, -2.0, -1_000_001.0, 0.25),
+        xsf::hyp2f1(-1e6, 2.0, -1_000_001.0, 0.25),
+        xsf::hyp2f1(-29.0, -27.0, -57.0, 1.0),
+    ];
+    let desired = [
+        223.050_453_452_347_38,
+        0.562_500_374_999_625,
+        1.777_776_592_593_777_8,
+        1.995_525_599_273_078_8e-15,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    assert_eq!(xsf::hyp2f1(-20.0, -20.0, -30.0, 1.0), 0.0);
+    // its terms cancel by 1e80, so NaN (or the exact sum), not that of the terms up to where the
+    // rest is negligible
+    let y = xsf::hyp2f1(-2048.0, 512.0, -2049.0, -0.25);
+    assert!(y.is_nan() || (y / 2.530_769_231_467_989e-50 - 1.0).abs() < 1e-13);
+    // a pole if a is not an integer, also if c - a rounds to one (in the Euler transformation)
+    assert_eq!(xsf::hyp2f1(-1.000_000_000_000_2, 0.25, -8192.0, 0.5), f64::INFINITY);
+}
