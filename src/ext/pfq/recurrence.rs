@@ -26,14 +26,14 @@
 use core::iter::zip;
 
 use super::{
-    Dd, PFQ_DD_MAXITER, Params, SeriesReal, accurate, descending, first_zero, is_normal,
-    pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
+    Dd, PFQ_DD_MAXITER, Params, SeriesReal, accurate, descending, first_zero, pfq_extreme,
+    pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
 /// The `m` for which the recurrence starts from the series at `b + m`, in the order in which
 /// they are tried
 ///
-/// Of 7107 results on 91004 points, 426 are from the last one and 537 from the one before it,
+/// Of 7136 results on 91004 points, 426 are from the last one and 537 from the one before it,
 /// and 8192 would give 273 more (measured).
 const RECURRENCE_STARTS: [u32; 10] = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
 
@@ -95,15 +95,11 @@ fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(
         let sizes = a.map(|ai| ai.abs() + size);
         let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
         let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
-        // no bound if the terms of c_0 or of the sum, c_3 or the quotient are not normal: an
-        // underflow then loses digits (in c_1 and c_2, fewer than the rounding of their terms
-        // without z does)
-        let normal = |size: f64| is_normal(Dd::new(size));
-        let bound = if normal(e0) && normal(terms) && is_normal(c3) && is_normal(next) {
-            RECURRENCE_EPSILON * terms / c3.hi.abs()
-        } else {
-            f64::INFINITY
-        };
+        // an underflow adds at most `f64::MIN_POSITIVE` to the sum, to the products c_0
+        // and c_3, and to the quotient; in c_1 and c_2, less than the rounding of their
+        // terms without z
+        let underflows = 1.0 + f[2].hi.abs() + next.hi.abs() + c3.hi.abs();
+        let bound = (RECURRENCE_EPSILON * terms + f64::MIN_POSITIVE * underflows) / c3.hi.abs();
         steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), bound));
         f = [next, f[0], f[1]];
     }
