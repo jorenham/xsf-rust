@@ -452,3 +452,76 @@ fn test_hyp0f1_nan() {
     assert!(hyp0f1(f64::NEG_INFINITY, 0.0).is_nan());
     assert!(hyp0f1(f64::NEG_INFINITY, c64(0.0, 0.0)).is_nan());
 }
+
+#[test]
+fn test_hyp0f1_small_z() {
+    // the terms after a near-zero `v + n` matter
+    let v = -1.999_999_999_999_999_8;
+    let z = 2f64.powi(-19);
+    np_assert_allclose!([hyp0f1(v, z)], [1.002_603_214_235_023_4], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(z, 0.0))],
+        [c64(1.002_603_214_235_023_4, 0.0)],
+        rtol = 1e-14
+    );
+
+    // `z * z` underflows
+    let v = 2f64.powi(-600);
+    np_assert_allclose!([hyp0f1(v, -v)], [1.204_959_932_551_442e-181], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(-v, 0.0))],
+        [c64(1.204_959_932_551_442e-181, 0.0)],
+        rtol = 1e-14
+    );
+}
+
+#[test]
+fn test_hyp0f1_tiny_v_overflow() {
+    let v = f64::from_bits(1);
+
+    // only the real part overflows
+    let res = hyp0f1(v, c64(-1e-8, 1e-100));
+    assert_eq!(res.re, f64::NEG_INFINITY);
+    np_assert_allclose!([res.im], [2.024_022_512_832_881e223], rtol = 1e-14);
+
+    // `1 / v` overflows
+    assert_eq!(hyp0f1(v, 1e-8), f64::INFINITY);
+    assert_eq!(hyp0f1(v, -1e-8), f64::NEG_INFINITY);
+}
+
+#[test]
+fn test_hyp0f1_tiny_v_unscaled() {
+    // `z / v` is exact, unlike `1 / v * z`
+    let v = 49.0 * 2f64.powi(-600);
+    np_assert_allclose!([hyp0f1(v, -v)], [5.904_303_669_502_066e-180], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(-v, 0.0))],
+        [c64(5.904_303_669_502_066e-180, 0.0)],
+        rtol = 1e-14
+    );
+
+    // `1 / v` overflows
+    // (`2^-1024` and `2^-1025` are subnormal)
+    let (v, expected) = (f64::from_bits(1 << 51), f64::from_bits(1 << 50));
+    assert_eq!(hyp0f1(v, -v), expected);
+    assert_eq!(hyp0f1(v, c64(-v, 0.0)), c64(expected, 0.0));
+
+    // the first three terms cancel, to about 1e-9 of their size (Arb)
+    let (v, z) = (2.828_005_925_933_391_5e-8, -2.828_005_965_921_478_8e-8);
+    np_assert_allclose!([hyp0f1(v, z)], [3.842_043_098_418_636e-17], rtol = 1e-7);
+}
+
+#[test]
+fn test_hyp0f1_scaled_retry() {
+    // `v + z` overflows
+    np_assert_allclose!([hyp0f1(1e308, 1e308)], [std::f64::consts::E], rtol = 1e-14);
+    assert_eq!(hyp0f1(f64::INFINITY, 1.0), 1.0);
+
+    // the scaled `z.im` underflows
+    let v = f64::from_bits(1);
+    let res = hyp0f1(v, c64(-1e-8, v));
+    np_assert_allclose!([res.im], [0.999_999_99], rtol = 1e-14);
+
+    // overflows, although the Bessel result is 2.4e-14 below the maximum
+    assert_eq!(hyp0f1(v, c64(2f64.powi(-50), 0.0)).re, f64::INFINITY);
+}

@@ -138,12 +138,10 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     } else if z == 0.0 && v != 0.0 {
         // zeros
         1.0
-    } else if z.abs() < 1e-6 * (1.0 + v.abs()) {
-        // both v and z small: truncate the Taylor series at O(z**2)
-        1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
     } else if z.abs() <= v.abs().max(1.0) {
         // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed here instead of using the
-        // Bessel functions, which lose digits near the poles and for large |v|.
+        // Bessel functions, which lose digits near the poles and for large |v|. Also for small
+        // `z`, as a near-zero `v + n` can amplify later terms.
         hyp0f1_series(v, z)
     } else if debye_is_accurate(v, z) {
         // Unlike in xsf (scipy/xsf#366), Debye's expansion is used wherever it is accurate, as the
@@ -287,15 +285,44 @@ fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl F
 /// Only used for `|z| <= max(|v|, 1)`, where the terms decrease rapidly, except near the poles
 /// at `n ~ -v` if `v < 0`.
 fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
-    let mut term = T::from(1.0);
-    let mut sum = term;
-    for n in 0..1000 {
+    // a tiny `v + n` can overflow the terms of a finite result: then the sum is retried times
+    // `2^-SHIFT`, but only then, as that underflows tiny results, e.g. for `v = -z << 1`
+    const SHIFT: i32 = 600;
+    let sum = hyp0f1_series_scaled(v, z, 0);
+    if sum.is_finite() {
+        sum
+    } else {
+        hyp0f1_series_scaled(v, z, -SHIFT).ldexp(SHIFT)
+    }
+}
+
+/// `2^shift` times the Maclaurin series
+fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
+    let one = T::from(1.0).ldexp(shift);
+    let mut term = if shift == 0 {
+        one * (z / v)
+    } else {
+        one / v * z
+    };
+    // the first two terms as `(v + z) / v`, which is exact where they cancel, e.g. `v ~ -z`, but
+    // not if `v + z` overflows, nor on the scaled retry, where the scaled `z.im` can underflow
+    let mut sum = match T::from(v) + z {
+        vz if shift == 0 && vz.is_finite() => vz / v,
+        _ => one + term,
+    };
+    // the larger part is cheaper than the complex `abs`, and as good for stopping
+    let size = |x: T| x.real().abs().max(x.imag().abs());
+    for n in 1..1000 {
         let n = f64::from(n);
-        term = term * (z / (v + n) / (n + 1.0));
+        // `1 / (v + n)` first only where `z / (v + n)` would overflow, as `term` is scaled down
+        term = if shift == 0 {
+            term * (z / (v + n) / (n + 1.0))
+        } else {
+            term / (v + n) * z / (n + 1.0)
+        };
         sum = sum + term;
         // not before the term with the smallest |v + n|, e.g. 1 / (-7.000001)_8 ~ 1e6 / 7!
-        // `sum` is scaled first, as its complex `abs` can overflow
-        if term.abs() <= (sum * f64::EPSILON).abs() && (v + n > -0.5 || term.abs() == 0.0) {
+        if size(term) <= size(sum) * (f64::EPSILON / 2.0) && (v + n > -0.5 || size(term) == 0.0) {
             break;
         }
     }
@@ -313,21 +340,14 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
     } else if z == C64::ZERO && v != 0.0 {
         // zeros
         C64::ONE
-    } else if z.norm() < 1e-6 * (1.0 + v.abs()) {
-        // both v and z small: truncate the Taylor series at O(z**2)
-
-        // need to do computations in this order, for otherwise v ~ -z << 1
-        // it can lose precision (as was reported for 32-bit linux, see scipy/scipy#6365)
-        let t1 = 1.0 + z / v;
-        let t2 = z * z / (2.0 * v * (v + 1.0));
-        t1 + t2
     } else {
         // Unlike in xsf, the Maclaurin series is summed here like for real `z`, instead of using
         // the Bessel functions, which lose digits for large `|v|`, e.g. ~eps ln(Gamma(v)) through
-        // the logarithmic prefactor; they remain for where the partial sums overflow (tiny `|v|`)
+        // the logarithmic prefactor. An overflow of the series is kept, e.g. for `v = 5e-324`, as
+        // within its rounding of `f64::MAX` the Bessel result is too rough to tell if it overflows.
         if z.norm() <= v.abs().max(1.0) {
             let sum = hyp0f1_series(v, z);
-            if sum.is_finite() {
+            if !sum.is_nan() {
                 return sum;
             }
         }
