@@ -288,6 +288,16 @@ fn test_hyp2f2_series() {
 }
 
 #[test]
+fn test_hyp2f2_asymptotic_errors() {
+    // two one-term algebraic series, whose phases make them add (Arb reference)
+    let (a, c) = (-2.0 + 49.0 * 2f64.powi(-52), -1.0 - 2f64.powi(-51));
+    assert_hyp2f2([a, c], [a + 1.0, c + 1.0], 49.0, 2.252_357_221_940_723_2e18);
+    // and where they do cancel (Arb reference)
+    let (a, c) = (-159.875, -159.875 + 2f64.powi(-45));
+    assert_hyp2f2([a, c], [a + 1.0, c + 1.0], 355.0, 1.032_653_437_407_810_2e154);
+}
+
+#[test]
 fn test_hyp2f2_polynomial() {
     // Arb references
     for (a, b, z, expected) in [
