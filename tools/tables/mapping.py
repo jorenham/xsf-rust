@@ -2688,6 +2688,178 @@ PBWA_NAN: Final = Rule(
 )
 
 
+def _hyp2f1_degree(a: float, b: float, c: float) -> int | None:
+    """The degree of 2F1 if a or b is a non-positive integer (the one closer to 0 ends it),
+    unless c is a pole before that."""
+    ends = [-int(v) for v in (a, b) if _nonpos_int(v)]
+    m = min(ends, default=None)
+    return None if m is None or _nonpos_int(c) and -m < c else m
+
+
+def _hyp2f1_poly(args: tuple[float, ...], m: int) -> Fraction:
+    """The polynomial 2F1 of degree m, also for c = -m - l with l >= 0 (DLMF 15.2.5), exactly."""
+    a, b, c, x = map(Fraction, args)
+    s = t = Fraction(1)
+    for k in range(m):
+        t *= (a + k) * (b + k) / ((c + k) * (k + 1)) * x
+        s += t
+    return s
+
+
+def _hyp2f1(a: mp.mpf, b: mp.mpf, c: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_hyp2f1`, but a polynomial exactly, and the real part for x > 1, where the rules
+    leave only real values (whose imaginary part is a rounding error)."""
+    args = tuple(map(float, (a, b, c, x)))
+    if (m := _hyp2f1_degree(*args[:3])) is not None:
+        f = _hyp2f1_poly(args, m)
+        return mp.mpf(f.numerator) / f.denominator
+    return mp.re(specs.r_hyp2f1(a, b, c, x))
+
+
+def _hyp2f1_arb(a: flint.arb, b: flint.arb, c: flint.arb, x: flint.arb) -> flint.arb:
+    """2F1 of Arb, but a polynomial exactly, where Arb can be NaN (for c = a or c = b) or too
+    wide (for large degrees) and has no exact zeros."""
+    args = tuple(map(float, (a, b, c, x)))
+    if (m := _hyp2f1_degree(*args[:3])) is None:
+        return x.hypgeom_2f1(a, b, c)
+    f = _hyp2f1_poly(args, m)
+    return flint.arb(flint.fmpq(f.numerator, f.denominator))
+
+
+def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
+    """Whether c is a non-positive integer before which no a or b ends the series, at x != 0."""
+    return _nonpos_int(a[2]) and _hyp2f1_degree(*a[:3]) is None and a[3] != 0
+
+
+def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
+    """Whether 2F1 is not real for x > 1: unless it is a polynomial, or (1 - x)^(c - a - b) times
+    one, for c - a or c - b a non-positive integer and an integer c - a - b (DLMF 15.8.1), or c
+    is a pole."""
+    p, q, c = map(Fraction, a[:3])
+    ends = any(v <= 0 and v.denominator == 1 for v in (c - p, c - q))
+    euler = ends and (c - p - q).denominator == 1
+    real = _hyp2f1_degree(*a[:3]) is not None or euler or _hyp2f1_pole(a)
+    return a[3] > 1 and not real
+
+
+def _hyp2f1_diverges(a: tuple[float, ...]) -> bool:
+    """Whether 2F1 diverges to +inf for x -> 1-, for a, b, c > 0 and c - a - b <= 0."""
+    p, q, c = map(Fraction, a[:3])
+    return a[3] == 1 and min(a[:3]) > 0 and c - p - q <= 0
+
+
+HYP2F1_EPS: Final = 1e-13  # as in xsf: up to this, a parameter counts as an integer
+
+
+def _near_nonpos_int(t: float) -> bool:
+    """Whether t is a non-positive integer up to `HYP2F1_EPS`, as in xsf."""
+    return t <= 0 and abs(t - round(t)) < HYP2F1_EPS
+
+
+def _xsf_c_eq_wrong(a: tuple[float, ...]) -> bool:
+    """Whether c = a = -m or c = b = -m with no a or b ending the series earlier, at x != 0,
+    except where xsf has a polynomial: for a = -1, and by `hyp2f1_neg_c_equal_bc` for b = c and
+    |x| < 1 or x = -1."""
+    p, q, c, x = a
+    own = p == -1 or q == c and (abs(x) < 1 or x == -1)
+    return (
+        _nonpos_int(c)
+        and c in (p, q)
+        and _hyp2f1_degree(p, q, c) == -c
+        and x != 0
+        and not own
+    )
+
+
+def _xsf_degree_1_zero(a: tuple[float, ...]) -> bool:
+    """Whether the polynomial 1 - a x / c for b = -1 (but a != -1) and an integer c < 0 is 0."""
+    p, q, c, x = a
+    return q == -1 and p != -1 and _nonpos_int(c) and Fraction(p) * Fraction(x) == c
+
+
+def _xsf_euler_rounds(a: tuple[float, ...]) -> bool:
+    """Whether xsf takes the Euler transformation (for c - a - b <= -1, x <= 1 or an integer
+    c - a - b, and a, b not polynomials) with c - a or c - b near a negative integer, where only
+    its rounded value is one."""
+    p, q, c = map(Fraction, a[:3])
+    d = a[2] - a[0] - a[1]  # rounded, as in xsf
+
+    def rounds(t: Fraction) -> bool:
+        return round(t) < 0 and _near_nonpos_int(float(t)) and t.denominator != 1
+
+    euler = d <= -1 and (a[3] <= 1 or abs(d - round(d)) <= HYP2F1_EPS)
+    poly = _near_nonpos_int(a[0]) or _near_nonpos_int(a[1])
+    return euler and not poly and (rounds(c - p) or rounds(c - q))
+
+
+def _hyp2f1_recur_first(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries `hyp2f1_recur`, for max(|a|, |b|, |c|) >= 10, unless c is near
+    (but not at) a non-positive integer and not tiny, or a, b, c - a or c - b (rounded) is 0 or a
+    negative subnormal."""
+    p, q, c = a[:3]
+    tiny_c = sys.float_info.min <= -c < HYP2F1_EPS
+    at_pole = _near_nonpos_int(c) and not (tiny_c or c.is_integer())
+    params = (p, q, float(Fraction(c) - Fraction(p)), float(Fraction(c) - Fraction(q)))
+    degenerate = any(-sys.float_info.min < t <= 0 for t in params)
+    return max(map(abs, a[:3])) >= 10 and not at_pole and not degenerate
+
+
+def _hyp2f1_neg_c_series(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries the series of the Pfaff transformations for -1 < x < 0, or the
+    power series for 0 < x < 1, for c - a - b <= -1 and a c < 0 that isn't an integer."""
+    p, q, c, x = a
+    pole = abs(c - round(c)) <= HYP2F1_EPS
+    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
+    return c - p - q <= -1 and c < 0 and not pole and not poly and 0 < abs(x) < 1
+
+
+HYP2F1_RULES: Final = (
+    Rule(
+        _hyp2f1_pole,
+        math.inf,
+        "+inf at a pole of c that no a or b ends the series before, for x != 0",
+    ),
+    Rule(
+        _hyp2f1_diverges,
+        math.inf,
+        "the limit for x -> 1- for a, b, c > 0 and c - a - b <= 0 (DLMF 15.4.21, 15.4.23)",
+    ),
+    Rule(_hyp2f1_complex, math.nan, "NaN for x > 1 where 2F1 is complex (DLMF 15.2.3)"),
+)
+HYP2F1_OVERRIDES: Final = (
+    Override(_hyp2f1_complex, "xsf has inf for x > 1 where 2F1 is complex (#1531)"),
+    Override(
+        _xsf_c_eq_wrong,
+        "xsf has inf, or (1 - x)^(-b) of DLMF 15.2.6 for c = a and |x| < 1, instead of the "
+        "polynomial of DLMF 15.2.5 for c = a = -m or c = b = -m (#1574)",
+    ),
+    Override(
+        _xsf_degree_1_zero,
+        "xsf has inf where the polynomial 1 - a x / c for b = -1 and an integer c < 0 is 0 "
+        "(#1573)",
+    ),
+    Override(
+        _xsf_euler_rounds,
+        "xsf takes c - a or c - b in its Euler transformation as a negative integer where only "
+        "its rounded value is one, and so the polynomial of that degree",
+    ),
+)
+HYP2F1_FLOORS: Final = (
+    Floor(
+        _hyp2f1_recur_first,
+        3e-15,
+        "xsf-rust first tries `hyp2f1_recur` for large parameters, and so rounds differently "
+        "(1.0e-14 at (24.17, 2.23, 1.49, 0.822), where xsf has 7.0e-16)",
+    ),
+    Floor(
+        _hyp2f1_neg_c_series,
+        2e-15,
+        "xsf-rust first tries a series instead of the Euler transformation (scipy/xsf#464), "
+        "and so rounds differently (5.8e-15 at (1.8, 1, -1.8, 0.95), where xsf has 7.8e-16)",
+    ),
+)
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -3532,6 +3704,18 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (NAN, PBWA_NAN),
             )
             for i in range(2)
+        )
+    ),
+    ("hyp2f1", "d_d_d_d-d"): Entry(
+        (
+            Out(
+                "hyp2f1",
+                (_hyp2f1,),
+                (_hyp2f1_arb,),
+                HYP2F1_RULES,
+                HYP2F1_OVERRIDES,
+                HYP2F1_FLOORS,
+            ),
         )
     ),
 }
