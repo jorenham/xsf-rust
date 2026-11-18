@@ -182,11 +182,12 @@ impl Scaled {
         (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
-    /// This times `f`, with the rounding of the product
+    /// This times `f`, where `f` is within 1 ulp
     pub(crate) fn mul_f64(self, f: f64) -> Self {
         Self {
             m: self.m * f,
-            err: self.err + MACHEP,
+            // (1 eps for `f` and 1 for the product)
+            err: self.err + 2.0 * MACHEP,
             ..self
         }
     }

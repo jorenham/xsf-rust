@@ -295,6 +295,9 @@ fn test_hyp2f2_asymptotic_errors() {
     // and where they do cancel (Arb reference)
     let (a, c) = (-159.875, -159.875 + 2f64.powi(-45));
     assert_hyp2f2([a, c], [a + 1.0, c + 1.0], 355.0, 1.032_653_437_407_810_2e154);
+    // the estimate is just too large, so this falls back to the series (Arb reference)
+    let (a, c) = (-199.5, -199.4375);
+    assert_hyp2f2([a, c], [a + 1.0, c + 1.0], 352.0, 1.334_619_473_051_105_3e153);
 }
 
 #[test]
