@@ -8,9 +8,7 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::Add;
 
-use super::{
-    Scaled, add_exp, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio, pole_distance, trigamma_lo,
-};
+use super::{Scaled, add_exp, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
@@ -55,13 +53,9 @@ const PFQ_LN_UNDERFLOW: f64 = -709.0;
 /// up to a distance of 0.01
 const PFQ_NEAR_INTEGER: f64 = 0.0625;
 
-/// The `|x|` below which `ln_gamma` is by `lgam`, so that `gamma` and `rgamma` can be more accurate
+/// The `|x|` below which `ln_gamma` is by `lgam`, so that `mul_gammas` shifts `x` to Stirling's
+/// formula
 const PFQ_GAMMA_MAX: f64 = 13.0;
-
-/// Bound of the relative error of `gamma` and `rgamma` for `|x| < PFQ_GAMMA_MAX`, with the
-/// `1.5 eps` of the products of `gamma_pow` and `mul_gammas`: they are within `4.4 eps` at 1.3e7
-/// points (measured)
-const PFQ_GAMMA_ERR: f64 = 7.0 * f64::EPSILON;
 
 /// Maximum order of `pfq_weniger`
 const PFQ_WENIGER_MAXITER: usize = 40;
@@ -907,45 +901,56 @@ fn recurrence_terms(
     terms.map(|(_, t, _)| t)
 }
 
-/// `Gamma(g)^power` for `power = +-1` and a bound of its relative error, if `|g| < PFQ_GAMMA_MAX`
-/// and that bound is below `ln_err`, the one of `ln_gamma`
-///
-/// It is to first order in `g.lo`: `Gamma(x + e) = Gamma(x) exp(u + t)` with `u = psi(x) e`,
-/// where `|t|` is at most the second-order term of `ln_gamma`.
-fn gamma_pow(g: Dd, power: f64, ln_err: f64) -> Option<(f64, f64)> {
-    if ln_err <= PFQ_GAMMA_ERR || g.hi.abs() >= PFQ_GAMMA_MAX {
-        return None;
-    }
-    let f: fn(f64) -> f64 = if power > 0.0 { gamma } else { rgamma };
-    let t = trigamma_lo(g, pole_distance(g)?) * g.lo.abs() / 2.0;
-    let u = power * gamma_low((g.hi, g.lo));
-    // |exp(u + t) - 1 - u| <= w^2 + |t| if w = |u| + |t| <= 1 (else `err >= ln_err`)
-    let (v, w) = (f(g.hi) * (1.0 + u), u.abs() + t);
-    let err = PFQ_GAMMA_ERR + w * w + t;
-    (v.is_normal() && err < ln_err).then_some((v, err))
-}
-
 /// `y` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, with the error bounds of the factors
-/// added, or `None` at a pole
+/// added, or `None` at a pole (or if the result is far out of range)
 ///
-/// Each factor is by `ln_gamma`, whose error for `|g| < PFQ_GAMMA_MAX` is that of a logarithm
-/// and grows with `|ln|Gamma(g)||`, or by `gamma_pow` if its error bound is smaller.
+/// Each factor is by `ln_gamma`, which for `|g| < PFQ_GAMMA_MAX` is at `g + n >= PFQ_GAMMA_MAX`
+/// instead, divided by the rising factorial `(g)_n` (DLMF 5.2.5). There it is Stirling's formula
+/// in double-double, whose error is smaller than that of `lgam` at `g`. The `(g)_n` are multiplied
+/// in double-double, and rounded once.
 fn mul_gammas(
     num: impl IntoIterator<Item = Dd>,
     den: impl IntoIterator<Item = Dd>,
     mut y: Scaled,
 ) -> Option<Scaled> {
+    // the product of the `(g)_n^-power`, as a mantissa and an exponent
+    // (`rising_e` is an `f64`, which sums exactly, as many tiny factors can take it out of the
+    // range of `i32`)
+    let (mut rising, mut rising_e) = (Dd::new(1.0), 0.0);
     let gammas = num.into_iter().map(|g| (g, 1.0));
-    for (g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
-        let (v, sign, v_err) = ln_gamma(g)?;
-        if let Some((v, v_err)) = gamma_pow(g, power, v_err) {
-            // (the product of the mantissas can't overflow)
-            let ((m, e), (v, k)) = (frexp_f64(y.m), frexp_f64(v));
-            (y.m, y.e, y.err) = (m * v, y.e + e + k, y.err + v_err);
-        } else {
-            (y.m, y.err) = (sign * y.m, y.err + v_err);
-            y = y.mul_exp(v * power);
+    for (mut g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
+        if g.hi.abs() < PFQ_GAMMA_MAX {
+            // (not the ceiling, which can give `g + n < PFQ_GAMMA_MAX` as the difference rounds)
+            let n = (PFQ_GAMMA_MAX - g.hi).floor() + 1.0;
+            let ks = (0_u32..).map(f64::from).take_while(|&k| k < n);
+            // `(g)_n` as a product of mantissas and an exponent, so that it is normal also for
+            // a tiny factor (the product is at least `2^-n`)
+            let (r, r_e) = ks.fold((Dd::new(1.0), 0), |(p, e), k| {
+                let (f, j) = (g + k).frexp();
+                (p * f, e + j)
+            });
+            // (else a factor is 0: `g` is a pole, where `ln_gamma` is `None`)
+            if r != 0.0 {
+                let (q, s) = if power > 0.0 {
+                    (rising / r, -r_e)
+                } else {
+                    (rising * r, r_e)
+                };
+                let (m, e) = q.frexp();
+                (rising, rising_e, g) = (m, rising_e + f64::from(e + s), g + n);
+            }
         }
+        let (v, sign, v_err) = ln_gamma(g)?;
+        (y.m, y.err) = (sign * y.m, y.err + v_err);
+        y = y.mul_exp(v * power);
+    }
+    if rising != 1.0 {
+        // (one eps bounds the rounding of `rising` to `rising.hi` and of the product of the
+        // mantissas, which can't overflow or underflow; `None` for an exponent beyond the range
+        // that `fold_exp` takes, which needs about a million tiny Gamma arguments)
+        let ((m, e), (r, k)) = (frexp_f64(y.m), frexp_f64(rising.hi));
+        let e = f64::from(y.e + e + k) + rising_e;
+        (y.m, y.e, y.err) = (m * r, (e.abs() <= 1e9).then_some(e as i32)?, y.err + f64::EPSILON);
     }
     Some(y)
 }
@@ -1899,6 +1904,14 @@ mod tests {
         // the mantissa of `y` times `Gamma(g)` overflows
         let (g, big) = (Dd::new(-3.0 + pow2(-40)), Scaled::new(1e300, 0, 0.0));
         check(mul_gammas([g], [g], big.unwrap()), 1e300, 1e-14);
+        // `PFQ_GAMMA_MAX - g` rounds to an integer, and `(g)_n` is below the normal range
+        check(
+            mul_gammas([Dd::new(-8.000_000_000_000_002)], [], one),
+            -13_962_052_416.203_12,
+            1e-15,
+        );
+        check(mul_gammas([Dd::new(1e-290)], [], one), 9.999_999_999_999_999e289, 1e-15);
+        check(mul_gammas([], [Dd::new(-1e-290)], one), -1e-290, 1e-15);
         // a pole
         assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
         assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
