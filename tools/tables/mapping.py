@@ -2777,43 +2777,60 @@ def _xsf_c_eq_wrong(a: tuple[float, ...]) -> bool:
 def _xsf_degree_1_zero(a: tuple[float, ...]) -> bool:
     """Whether the polynomial 1 - a x / c for b = -1 (but a != -1) and an integer c < 0 is 0."""
     p, q, c, x = a
-    return q == -1 and p != -1 and _nonpos_int(c) and Fraction(p) * Fraction(x) == c
+    neg_int_c = c < 0 and c.is_integer()
+    return q == -1 and p != -1 and neg_int_c and Fraction(p) * Fraction(x) == c
 
 
 def _xsf_euler_rounds(a: tuple[float, ...]) -> bool:
-    """Whether xsf takes the Euler transformation (for c - a - b <= -1, x <= 1 or an integer
-    c - a - b, and a, b not polynomials) with c - a or c - b near a negative integer, where only
-    its rounded value is one."""
+    """Whether xsf takes the Euler transformation (for x != 0, c - a - b <= -1, x <= 1 or an
+    integer c - a - b, and a, b not polynomials) with c - a or c - b near a negative integer,
+    where only its rounded value is one."""
     p, q, c = map(Fraction, a[:3])
     d = a[2] - a[0] - a[1]  # rounded, as in xsf
 
     def rounds(t: Fraction) -> bool:
         return round(t) < 0 and _near_nonpos_int(float(t)) and t.denominator != 1
 
-    euler = d <= -1 and (a[3] <= 1 or abs(d - round(d)) <= HYP2F1_EPS)
+    euler = a[3] != 0 and d <= -1 and (a[3] <= 1 or abs(d - round(d)) <= HYP2F1_EPS)
     poly = _near_nonpos_int(a[0]) or _near_nonpos_int(a[1])
     return euler and not poly and (rounds(c - p) or rounds(c - q))
 
 
+def _hyp2f1_returns_early(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust returns before it tries `hyp2f1_recur` (in `hyp2f1_impl`): for x = 0,
+    a = 0 or b = 0, c = inf and x <= 1, a = -1 or b = -1 and c != 0, or an integer c <= 0 with
+    c = a or c = b, or at x = 1 with an integer a or b < 0 above c."""
+    p, q, c, x = a
+    ends = any(_nonpos_int(t) and t > c for t in (p, q))
+    int_c = _nonpos_int(c) and (c in (p, q) or x == 1 and ends)
+    degree_1 = -1 in (p, q) and c != 0
+    return x == 0 or 0 in (p, q) or (c == math.inf and x <= 1) or degree_1 or int_c
+
+
 def _hyp2f1_recur_first(a: tuple[float, ...]) -> bool:
-    """Whether xsf-rust first tries `hyp2f1_recur`, for max(|a|, |b|, |c|) >= 10, unless c is near
-    (but not at) a non-positive integer and not tiny, or a, b, c - a or c - b (rounded) is 0 or a
-    negative subnormal."""
-    p, q, c = a[:3]
+    """Whether xsf-rust first tries `hyp2f1_recur`, for max(|a|, |b|, |c|) >= 10, unless it
+    returns before (`_hyp2f1_returns_early`), x >= 1 for a c that isn't a non-positive integer
+    (where `hyp2f1_recur` has no result), c is near (but not at) a non-positive integer and not
+    tiny, or a, b, c - a or c - b (rounded) is 0 or a negative subnormal."""
+    p, q, c, x = a
     tiny_c = sys.float_info.min <= -c < HYP2F1_EPS
     at_pole = _near_nonpos_int(c) and not (tiny_c or c.is_integer())
     params = (p, q, float(Fraction(c) - Fraction(p)), float(Fraction(c) - Fraction(q)))
     degenerate = any(-sys.float_info.min < t <= 0 for t in params)
-    return max(map(abs, a[:3])) >= 10 and not at_pole and not degenerate
+    no_result = x >= 1 and not _nonpos_int(c)
+    skipped = at_pole or degenerate or no_result or _hyp2f1_returns_early(a)
+    return max(map(abs, a[:3])) >= 10 and not skipped
 
 
 def _hyp2f1_neg_c_series(a: tuple[float, ...]) -> bool:
     """Whether xsf-rust first tries the series of the Pfaff transformations for -1 < x < 0, or the
-    power series for 0 < x < 1, for c - a - b <= -1 and a c < 0 that isn't an integer."""
+    power series for 0 < x < 1, for c - a - b <= -1 and a c < 0 that isn't an integer, unless
+    it first tries `hyp2f1_recur`."""
     p, q, c, x = a
     pole = abs(c - round(c)) <= HYP2F1_EPS
     poly = _near_nonpos_int(p) or _near_nonpos_int(q)
-    return c - p - q <= -1 and c < 0 and not pole and not poly and 0 < abs(x) < 1
+    series = c - p - q <= -1 and c < 0 and not pole and not poly and 0 < abs(x) < 1
+    return series and not _hyp2f1_recur_first(a)
 
 
 HYP2F1_RULES: Final = (
@@ -2842,7 +2859,7 @@ HYP2F1_OVERRIDES: Final = (
     ),
     Override(
         _xsf_degree_1_zero,
-        "xsf has inf where the polynomial 1 - a x / c for b = -1 and an integer c < 0 is 0 "
+        "xsf has NaN where the polynomial 1 - a x / c for b = -1 and an integer c < 0 is 0 "
         "(#1573)",
     ),
     Override(
