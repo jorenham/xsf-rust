@@ -519,8 +519,8 @@ fn hyp2f1_poly(
             if err_of(best) <= HYP2F1_ETHRESH {
                 return best;
             }
-            // (e.g. near a root: the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12, and the
-            // recurrences have error bounds of 2e-11)
+            // (e.g. near a root, where the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12 and
+            // the better recurrence has an error bound of 2e-11)
             min_err(best, poly_dd(n, r, c, w).map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
@@ -1044,8 +1044,11 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
     // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
     let (xm, xe) = x.frexp();
+    // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
+    // for `1 / (1 - x)` with `x = -1.3e308`. A term `t_k` has `k` factors `x`.
+    let x_err = (f64::from_bits(1) / x.hi.abs()).min(1.0);
     let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
-        DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs)
+        DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + x_err * k_sum_abs
     };
     while k < n {
         let (bm, be) = (b + k).frexp();
