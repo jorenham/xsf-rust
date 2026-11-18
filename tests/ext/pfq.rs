@@ -1213,3 +1213,9 @@ fn test_hyp_macro() {
     assert_eq!(hyp![next(), next(); next(); 0.1 * next()], hyppfq(&[1.0, 2.0], &[3.0], 0.4));
     assert_eq!(n, 4.0);
 }
+
+#[test]
+fn hyp2f2_series_sum_above_1e154() {
+    // the squared partial sums of the error estimate overflow
+    assert_hyp2f2([76.5, 4.25], [-0.25, -18.75], 200.0, 7.879_700_512_996_357e201);
+}

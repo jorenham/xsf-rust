@@ -284,6 +284,12 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
     (y, err)
 }
 
+/// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
+const PFQ_SQUARE_MAX: f64 = 1e150;
+
+/// The factor 2^-400 by which the units of those sums shrink once it is exceeded
+const PFQ_UNIT: f64 = f64::from_bits((1023 - 400) << 52);
+
 /// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
 fn pfq_series_tails(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> (f64, f64, f64) {
@@ -335,28 +341,35 @@ fn pfq_sum_terms<T: SeriesReal>(
     let mut sum = T::from_f64(1.0);
     // the partial sum as `f64`
     let mut s = sum.to_f64();
-    // the sums of s_n and s_n^2
-    let (mut sum1, mut sum2) = (0.0, 0.0_f64);
+    // the sums of s_n and s_n^2, in units of `unit` so that the squares don't overflow
+    let (mut sum1, mut sum2, mut unit) = (0.0, 0.0_f64, 1.0);
     // the rounding error, and the root of the sum of (s - s_n)^2
-    let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64| {
+    let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64| {
         // accurate enough for an estimate, relative to s so that its parts don't overflow
+        let root2 = sum2.sqrt() / unit;
         let tails = if sum == 0.0 {
-            sum2.sqrt()
+            root2
         } else {
+            let sum = sum * unit;
             ((n + 1.0) - 2.0 * (sum1 / sum) + sum2 / sum / sum)
                 .max(0.0)
                 .sqrt()
                 * sum.abs()
+                / unit
         };
-        let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt());
+        let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + root2);
         (rounding, tails)
     };
     for n in (0..maxiter).map(f64::from) {
-        sum1 += s;
-        sum2 += s * s;
+        if s.abs() * unit > PFQ_SQUARE_MAX {
+            // the squares would overflow, so the sums are rescaled (exactly, by a power of 2)
+            (sum1, sum2, unit) = (sum1 * PFQ_UNIT, sum2 * PFQ_UNIT * PFQ_UNIT, unit * PFQ_UNIT);
+        }
+        sum1 += s * unit;
+        sum2 += s * unit * (s * unit);
         if n == degree {
             // the series terminated
-            let (rounding, tails) = estimates(n, s, sum1, sum2);
+            let (rounding, tails) = estimates(n, s, sum1, sum2, unit);
             return (sum, rounding, tails);
         }
         // t_(n+1)
@@ -369,7 +382,7 @@ fn pfq_sum_terms<T: SeriesReal>(
             // geometric bound on the remaining terms, if the series converges (p <= q + 1)
             let tail = t.abs() * rho / (1.0 - rho);
             if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
-                let (rounding, tails) = estimates(n, s, sum1, sum2);
+                let (rounding, tails) = estimates(n, s, sum1, sum2, unit);
                 return (sum, rounding + tail, tails);
             }
         }
