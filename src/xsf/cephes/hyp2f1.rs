@@ -800,8 +800,13 @@ fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
 
 /// `2F1(a, b; c; 1)` by its series, if a bound of its tail shows that it is accurate
 fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
-    // (by magnitude, so that the term update can't over- or underflow first)
-    let (lo, hi) = if a.abs() < b.abs() { (a, b) } else { (b, a) };
+    // (by magnitude, so that the term update can't over- or underflow first, and then by sign, so
+    // that it is symmetric in `a` and `b`)
+    let (lo, hi) = if (a.abs(), a) < (b.abs(), b) {
+        (a, b)
+    } else {
+        (b, a)
+    };
     let (mut sum, mut sum_abs, mut term) = (1.0_f64, 1.0_f64, 1.0_f64);
     for k in (0..=HYP2F1_MAXITER).map(|k| k as f64) {
         // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with

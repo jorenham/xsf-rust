@@ -825,6 +825,9 @@ fn test_hyp2f1_f64_huge_c_at_1() {
     let c = 5.967_056_889_428_375e-309;
     assert_eq!(xsf::hyp2f1(-1.25, 1.125, c, 1.0), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(-1.25, 1.125, -c, 1.0), f64::NEG_INFINITY);
+    // symmetric in a and b, also for equal |a| and |b|
+    let (a, c) = (190.513_976_388_490_14, 19_977.707_966_310_958);
+    assert_eq!(xsf::hyp2f1(a, -a, c, 1.0), xsf::hyp2f1(-a, a, c, 1.0));
 }
 
 #[test]
