@@ -15,7 +15,7 @@
 //! `c - b` is close to a negative integer.
 
 use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
-use crate::utils::pow2;
+use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
@@ -105,7 +105,16 @@ fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     } else {
         (yb, eb, b)
     };
-    ((1.0 - x).powf(-p) * y, err)
+    // Unlike in xsf, for c `near_pole`, split the power factor if it isn't normal, as the product
+    // can still be (as for the Euler transformation in `hyp2f1_impl`)
+    let s = 1.0 - x;
+    let f = s.powf(-p);
+    if f.is_normal() || !near_pole(c) {
+        (f * y, err)
+    } else {
+        let h = s.powf(-p / 2.0);
+        (h * y * h, err)
+    }
 }
 
 /// Defining power series expansion of Gauss hypergeometric function.
@@ -164,6 +173,10 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     // the terms are scaled by `HYP2F1_SCALE^n_scaled` so that they don't underflow, and are only
     // summed (and counted in `loss`) if `n_scaled == 0`, as they are negligible otherwise
     let (mut n_scaled, mut i_scaled) = (0, 0);
+    // Unlike in xsf, for c `near_pole`, `loss` weighs each term by its index instead of counting
+    // the largest one once, as its rounding accumulates over the term ratios, and a term after
+    // the pole can be the largest
+    let (weigh, mut weighted) = (near_pole(h), 0.0);
     loop {
         // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0
         if h == 0.0 {
@@ -183,6 +196,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         }
         let t = if n_scaled == 0 { u } else { 0.0 };
         s += t;
+        weighted += m * t.abs();
         k = t.abs(); /* remember largest term summed */
         if k > umax {
             umax = k;
@@ -204,6 +218,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     }
 
     /* return estimated relative error */
+    let umax = if weigh { weighted } else { umax };
     let loss = (MACHEP * umax) / s.abs() + (MACHEP * (i - i_scaled) as f64);
 
     (s, loss, loss)
@@ -836,12 +851,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     }
 
     // Unlike in xsf, for c `near_pole`, sum the power series (or for x < 0 that of the Pfaff
-    // transformations, as it can stop early), or NaN if inaccurate: at c = -n + e it jumps by about
-    // `1 / e` at the term n + 1, which the paths below miss. Not if it terminates before that term,
-    // or if x / (x - 1) rounds to 1 or exceeds it (x >= 1).
+    // transformations, as it can stop early), or NaN if inaccurate: at c = -n + e its terms can
+    // jump by about `1 / e` at the term n + 1, which the paths below miss. Not if a or b is an
+    // integer that terminates it before that term, nor if x / (x - 1) rounds to 1 or exceeds it
+    // (x >= 1).
     let ic = c.round(); /* nearest integer to c */
-    let terminates = neg_int_a && ia > ic || neg_int_b && ib > ic;
-    if near_pole(c) && !terminates && x / (x - 1.0) < 1.0 {
+    // (whether a or b is an integer `is_int` that terminates the series before the term 1 - c)
+    let terminates = |is_int: fn(f64) -> bool| is_int(a) && ia > ic || is_int(b) && ib > ic;
+    if near_pole(c) && !terminates(is_nonpos_int) && x / (x - 1.0) < 1.0 {
         let (y, err) = if x > 0.0 {
             hys2f1_min(a, b, c, x)
         } else {
@@ -941,7 +958,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             if c <= 0.0 && near(c, ic) {
                 /* c is a negative integer */
                 /* check if termination before explosion */
-                if terminates {
+                if terminates(near_neg_int) {
                     break 'hypok;
                 }
                 return f64::INFINITY; // goto hypdiv

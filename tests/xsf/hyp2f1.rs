@@ -1294,6 +1294,21 @@ fn test_hyp2f1_f64_c_near_pole() {
         112.785_458_910_322_3,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // where the Pfaff power factor underflows, or a is near (not at) an integer that would
+    // terminate the series
+    let c = -1.0 + 2f64.powi(-45);
+    let actual = [
+        xsf::hyp2f1(c + 61.0, c + 31.0, c, -300_000.0),
+        xsf::hyp2f1(-1.0 + f64::EPSILON, 2.0, -2.0 + f64::EPSILON, -0.4),
+    ];
+    np_assert_allclose!(
+        actual,
+        [1.795_587_581_895_763e-295, 0.655_976_676_384_839_7],
+        rtol = 1e-13
+    );
+    // NaN if the series cancels more than its rounding estimate allows
+    let y = xsf::hyp2f1(0.1234, 7.1, -8.000_000_000_000_002, 0.010_557_580_327_416_858);
+    assert!(y.is_nan());
     // at c = -n it is a pole, unless the series terminates before the term n + 1
     assert_eq!(xsf::hyp2f1(1.25, 2.0, -45.0, -0.4), f64::INFINITY);
     let actual = [xsf::hyp2f1(-3.0, 2.0, -45.0 - 4e-14, 0.5)];
