@@ -1275,7 +1275,7 @@ fn test_hyp2f1_f64_log_case_cancels() {
 #[test]
 fn test_hyp2f1_f64_c_near_pole() {
     // unlike in xsf: c near (not at) a non-positive integer -n, where 2F1 is finite, and its power
-    // series jumps by about 1 / (c + n) at the term n + 1; xsf gives inf (Arb)
+    // series can jump by about 1 / (c + n) at the term n + 1; xsf gives inf (Arb)
     let actual = [
         xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.4),
         xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.99),
@@ -1306,6 +1306,10 @@ fn test_hyp2f1_f64_c_near_pole() {
         [1.795_587_581_895_763e-295, 0.655_976_676_384_839_7],
         rtol = 1e-13
     );
+    // where the terms are near overflow: 2F1(c, b; c; x) = (1 - x)^-b
+    let c = -300.0 + 2f64.powi(-44);
+    let actual = [xsf::hyp2f1(c, 300.0, c, 0.904)];
+    np_assert_allclose!(actual, [2.082_716_166_487_401_1e305], rtol = 1e-13);
     // NaN if the series cancels more than its rounding estimate allows
     let y = xsf::hyp2f1(0.1234, 7.1, -8.000_000_000_000_002, 0.010_557_580_327_416_858);
     assert!(y.is_nan());

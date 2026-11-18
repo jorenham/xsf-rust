@@ -76,14 +76,13 @@ fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
 
 /// Whether `c` is near, but not at, a non-positive integer: unlike in xsf, 2F1 has no pole there
 fn near_pole(c: f64) -> bool {
-    let ic = c.round();
-    c < 0.0 && c != ic && near(c, ic)
+    c < 0.0 && c != c.round() && near(c, c.round())
 }
 
 /// The series of the Pfaff transformations (DLMF 15.8.1) in `x / (x - 1)`, by `hys2f1_min`, with
 /// the smaller error estimate. Unlike in xsf, for c `near_pole`, that includes the rounding of
-/// `c - b` (or `c - a`) relative to its distance to an integer, which the pole of `(c)_k` near it
-/// amplifies (e.g. for a tiny `b`).
+/// `c - b` (or `c - a`) relative to its distance to an integer, which the pole of `1 / (c)_k`
+/// near it amplifies (e.g. for a tiny `b`).
 fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     let rounding = |t: f64| {
         let (d, e) = two_sum(c, -t);
@@ -175,7 +174,7 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     let (mut n_scaled, mut i_scaled) = (0, 0);
     // Unlike in xsf, for c `near_pole`, `loss` weighs each term by its index instead of counting
     // the largest one once, as its rounding accumulates over the term ratios, and a term after
-    // the pole can be the largest
+    // the pole can be the largest (times MACHEP before summing, so that it doesn't overflow)
     let (weigh, mut weighted) = (near_pole(h), 0.0);
     loop {
         // Unlike in xsf, only if c = 0, since the series is finite for a tiny c != 0
@@ -196,7 +195,9 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
         }
         let t = if n_scaled == 0 { u } else { 0.0 };
         s += t;
-        weighted += m * t.abs();
+        if weigh {
+            weighted += MACHEP * m * t.abs();
+        }
         k = t.abs(); /* remember largest term summed */
         if k > umax {
             umax = k;
@@ -218,8 +219,8 @@ fn hys2f1_series(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
     }
 
     /* return estimated relative error */
-    let umax = if weigh { weighted } else { umax };
-    let loss = (MACHEP * umax) / s.abs() + (MACHEP * (i - i_scaled) as f64);
+    let lost = if weigh { weighted } else { MACHEP * umax };
+    let loss = lost / s.abs() + (MACHEP * (i - i_scaled) as f64);
 
     (s, loss, loss)
 }
