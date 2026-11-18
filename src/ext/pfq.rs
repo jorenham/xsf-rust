@@ -758,8 +758,9 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// It is:
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
-///   polynomial of degree $\lt m$, and at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it
-///   is a polynomial or that can't be determined (then `None`);
+///   polynomial of degree $\lt m$, and at $z = 1$ for finite parameters if
+///   $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial or that can't be determined (then
+///   `None`);
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
@@ -2037,9 +2038,9 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///   if $p \le q + 1$ or it is a polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ if
-///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial or that can't be determined (then
-///   `None`);
+/// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ and finite
+///   parameters if $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial or that can't be
+///   determined (then `None`);
 /// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, and at $z = +\infty$
 ///   for $p \le q$ if it isn't a polynomial;
 /// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
