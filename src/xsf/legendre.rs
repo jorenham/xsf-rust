@@ -628,7 +628,7 @@ fn sph_legendre_p_for_each_n_from<T: Num>(
     }
 }
 
-pub(crate) fn sph_legendre_p_for_each_n<T: Num>(
+fn sph_legendre_p_for_each_n<T: Num>(
     n: i32,
     m: i32,
     theta: T,
@@ -665,7 +665,7 @@ pub(crate) fn sph_legendre_p_for_each_n_m<T: Num>(
     });
 }
 
-fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
+pub(crate) fn sph_legendre_p_t<T: Num>(n: i32, m: i32, theta: T) -> T {
     let mut res_n = [T::from(0.0); 2];
     sph_legendre_p_for_each_n(n, m, theta, &mut res_n, |_, _| {});
 

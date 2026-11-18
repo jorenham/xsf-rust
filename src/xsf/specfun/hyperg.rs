@@ -17,6 +17,7 @@ use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
 use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::rgamma;
+use crate::xsf::cexpm1;
 use crate::xsf::tools::{int_x86, kahan_step};
 use crate::xsf::trig::cephes_sinpi;
 use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
@@ -172,7 +173,14 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         return (1.0 + z / b) * z.exp();
     }
     if (a == 1.0) && (b == 2.0) {
-        return (z.exp() - 1.0) / z;
+        // Unlike in xsf, `expm1` near 0, where `exp(z) - 1` cancels (not beyond, where it can
+        // overflow, or cancel in its `cos(y) - 1`)
+        let em1 = if z.norm() < 1.0 {
+            cexpm1(z)
+        } else {
+            z.exp() - 1.0
+        };
+        return em1 / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
         // NOTE: for a = -2^31, `(int)(-a)` is UB (see `int_x86`), so the loop doesn't run and the
