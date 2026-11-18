@@ -797,11 +797,15 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
 
 /// A term of a series with a bound on its size
 trait Term: Copy {
-    fn value(self) -> f64;
+    /// The arithmetic in which the series is summed
+    type Value: SeriesReal;
+    fn value(self) -> Self::Value;
     fn bound(self) -> f64;
 }
 
 impl Term for f64 {
+    type Value = Self;
+
     fn value(self) -> f64 {
         self
     }
@@ -813,6 +817,8 @@ impl Term for f64 {
 
 /// A value and a bound on its size
 impl Term for (f64, f64) {
+    type Value = f64;
+
     fn value(self) -> f64 {
         self.0
     }
@@ -840,8 +846,9 @@ fn asymptotic_sum<T: Term>(
     settled: f64,
     z: f64,
     ratio_bound: impl Fn(f64) -> f64,
-) -> (f64, f64) {
-    let (mut sum, mut abs_sum, mut prev) = (0.0_f64, 0.0, f64::INFINITY);
+) -> (T::Value, f64) {
+    let eps = T::Value::EPSILON;
+    let (mut sum, mut abs_sum, mut prev) = (T::Value::from_f64(0.0), 0.0, f64::INFINITY);
     // the smallest size, and the sum before a term with the smallest error
     let (mut min, mut best) = (f64::INFINITY, (sum, f64::INFINITY));
     let remainder = (TAU * z.abs()).sqrt().max(1.0);
@@ -850,19 +857,19 @@ fn asymptotic_sum<T: Term>(
         let Some(term) = terms.next() else { break };
         let (t, bound) = (term.value(), term.bound());
         let size = bound.max(terms.peek().map_or(0.0, |next| next.bound()));
-        if !t.is_finite() || n >= settled + z.abs() && bound >= prev {
+        if !t.to_f64().is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
         } else if n >= settled && size < min {
             min = size;
-            let err = remainder * min + n * f64::EPSILON * abs_sum;
+            let err = remainder * min + n * eps * abs_sum;
             if err < best.1 {
                 best = (sum, err);
             }
-            if remainder * min <= f64::EPSILON * sum.abs() && ratio_bound(n) < 1.0 {
+            if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
                 break;
             }
         }
-        sum += t;
+        sum = sum + t;
         abs_sum += bound;
         prev = bound;
     }
@@ -874,7 +881,7 @@ fn asymptotic_sum<T: Term>(
 ///
 /// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
 /// before it, and `ratio_bound` does not increase.
-fn convergent_sum<T: Term>(
+fn convergent_sum<T: Term<Value = f64>>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     ratio_bound: impl Fn(f64) -> f64,
@@ -899,7 +906,7 @@ fn convergent_sum<T: Term>(
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
 /// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`, which
 /// also stands for `p > q + 1`
-fn pfq_alg_sum<T: Term>(
+fn pfq_alg_sum<T: Term<Value = f64>>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     kappa: usize,

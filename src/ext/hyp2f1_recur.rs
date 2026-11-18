@@ -137,7 +137,7 @@ use crate::xsf::cephes::dd_real::{
 };
 use crate::xsf::cephes::hyp2f1::{HYP2F1_ETHRESH, HYP2F1_RECUR_NEAR1};
 use crate::xsf::cephes::{lgam_sgn, lgam_stirling_corr, psi};
-use crate::xsf::{cospi, sinpi};
+use crate::xsf::{Real, cospi, sinpi};
 
 /// The largest accepted error bound. These bounds are pessimistic (the actual errors are usually
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
@@ -797,18 +797,27 @@ pub(crate) fn mul_gamma_ratio(
 
 /// The sum of the `terms`, with an error bound that includes their cancellation
 pub(crate) fn add_exp(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Option<Scaled> {
+    add_exp_in(terms, |r| r.hi.exp() * (1.0 + r.lo), MACHEP)
+}
+
+/// `add_exp` in the arithmetic of `T`, whose operations and `exp` have the relative error `eps`
+fn add_exp_in<T: Real>(
+    terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>,
+    exp: impl Fn(Dd) -> T,
+    eps: f64,
+) -> Option<Scaled> {
     // the terms with `l` incl. `2^e`, scaled by `exp(-lmax)`, with `lmax` the largest `l`
     let terms = terms.into_iter().map(|y| (y, y.l + LOG2 * f64::from(y.e)));
     let (_, lmax) = terms
         .clone()
         .reduce(|u, v| if u.1.hi >= v.1.hi { u } else { v })?;
-    let (m, err_abs) = terms.fold((0.0, 0.0), |(m, err_abs), (y, l)| {
-        let r = l - lmax;
-        let t = y.m * (r.hi.exp() * (1.0 + r.lo));
+    let (m, err_abs) = terms.fold((T::from_f64(0.0), 0.0), |(m, err_abs), (y, l)| {
+        let t = T::from_f64(y.m) * exp(l - lmax);
         // (3 eps for `exp(r)` and the products)
-        (m + t, err_abs + t.abs() * (y.err + 3.0 * MACHEP))
+        (m + t, err_abs + t.to_f64().abs() * (y.err + 3.0 * eps))
     });
-    // (and 1 eps for the sum)
+    // (and 1 eps for the sum, as an `f64`)
+    let m = m.to_f64();
     Some(Scaled::new(m, 0, err_abs / m.abs() + MACHEP)?.with_l(lmax))
 }
 
