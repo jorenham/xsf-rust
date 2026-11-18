@@ -1018,10 +1018,9 @@ fn test_hyp2f1_f64_nan_if_lost() {
 fn test_hyp2f1_f64_nan_if_err_above_1() {
     // NaN if the error estimate with the recurrences in `a` is above 1 (no input is known to reach
     // this, as `hyp2f1_recur` bounds the errors of those below), but not for a polynomial, here
-    // T_10 near a root, which is accurate in absolute terms, up to the 2.7e-15 from rounding
-    // (1 - x) / 2 (Arb)
+    // T_10 near a root, which is accurate in absolute terms (Arb)
     let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
-    assert!((actual - 6.835_808_657_661_923e-16).abs() < 3e-15);
+    assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
     // and `hyp2f1_recur` bounds its error for these (Arb)
     let actual = [
         xsf::hyp2f1(29.0, -29.1, 0.18, 0.86),
@@ -1157,15 +1156,10 @@ fn test_hyp2f1_f64_large_polynomials() {
     np_assert_allclose!(actual, desired, rtol = 1e-15);
     // but not where the low word of `1 / (1 - x)` is subnormal and so inexact, where that gave
     // 1.3e-4 and 1.3e-8 (exact)
-    let actual = [
-        xsf::hyp2f1(-7.692_307_692_292_307e-308, -1.0, 10.0, -1.3e308),
-        xsf::hyp2f1(-6.666_666_653_333_333e-306, -1.0, 100.0, -1.5e307),
-    ];
-    np_assert_allclose!(
-        actual,
-        [1.999_956_492_953_669_5e-12, 2.000_000_054_253_873e-9],
-        rtol = 1e-6
-    );
+    let actual = xsf::hyp2f1(-7.692_307_692_292_307e-308, -1.0, 10.0, -1.3e308);
+    np_assert_allclose!([actual], [1.999_956_492_953_669_5e-12], rtol = 1e-6);
+    let actual = xsf::hyp2f1(-6.666_666_653_333_333e-306, -1.0, 100.0, -1.5e307);
+    np_assert_allclose!([actual], [2.000_000_054_253_873e-9], rtol = 1e-9);
 }
 
 #[test]
