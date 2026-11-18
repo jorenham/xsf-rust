@@ -843,7 +843,8 @@ fn convergent_sum<T: Term>(
 }
 
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
-/// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`
+/// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`, which
+/// also stands for `p > q + 1`
 fn pfq_alg_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -1024,14 +1025,15 @@ fn pfq_alg_series<A: Params, B: Params>(
     let (mut lower, low_shifts) = shifted_params(a, am, false, (m, 1.0));
     let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
     let bound = |n| pfq_ratio_bound(up, low, 1.0 / z, n);
-    // kappa = q - p + 1, as `b` contains the 1 of n!
-    let kappa = b.as_ref().len() - a.as_ref().len();
+    // kappa = q - p + 1, or 0 for p > q + 1, where the series converges
+    let (p, q) = (a.as_ref().len(), last);
+    let kappa = (q + 1).saturating_sub(p);
     // their k and factors, and the largest k with the factor of the terms after it
     let shifts = || up_shifts.iter().chain(low_shifts.iter());
     let (k_max, all) = shifts().fold((0.0_f64, 1.0), |(top, all), (&k, &f)| (k.max(top), all * f));
     let series = once(1.0)
-        // in (-1)^(p+q+1) / z, where (-1)^(p+q+1) = (-1)^kappa
-        .chain(pfq_terms(up, low, neg_one_pow(kappa) / z))
+        // in (-1)^(p+q+1) / z
+        .chain(pfq_terms(up, low, neg_one_pow(p + q + 1) / z))
         .zip((0_u32..).map(f64::from))
         .map(|(t, n)| {
             // (one product is faster)
@@ -1077,7 +1079,7 @@ fn pfq_class_term(
     let bound = |n| pfq_ratio_bound(&up, &low, 1.0 / z, n) * Residues::growth_bound(&up, &low, n);
     let sizes = sizes || z > 0.0;
     let series = residues.map(|(t, size)| (if sizes { size } else { t }, size));
-    let (sum, err) = pfq_alg_sum(series, settled, b.len() - a.len(), z, bound);
+    let (sum, err) = pfq_alg_sum(series, settled, b.len().saturating_sub(a.len()), z, bound);
     if (sum, err) != (0.0, 0.0) {
         let bs = lower.iter().copied().map(Dd::new);
         let args = bs.clone().map(|bj| bj - am);
@@ -1100,6 +1102,8 @@ fn pfq_class_term(
 
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
 /// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows
+///
+/// For `p > q + 1` and `z < 0`, their series converge, and they sum to `pfq_borel`.
 ///
 /// `b` contains the 1 of `n!` as its last parameter. The term of `a_m` is `|z|^-a_m` times
 /// a `_{q+1}F_{p-1}` series in `(-1)^(p+q+1) / z`, with the parameters `a_m` and
@@ -1599,6 +1603,30 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     }
 }
 
+/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, as in mpmath, if
+/// accurate, where `b` contains the 1 of `n!`
+///
+/// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
+/// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
+/// to its smallest term, as for 2F0, or else its Weniger transformation.
+fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
+    let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
+    // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
+    let d = (a_ref.len() - b_ref.len()) as f64;
+    // (capped as for 2F0)
+    let scale = z.abs().powf(-1.0 / d).min(f64::EPSILON.recip());
+    let terms = once(1.0).chain(pfq_terms(a_ref, b_ref, z));
+    let settled = pfq_settled(a_ref, b_ref).ceil();
+    let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
+    let weniger = || accurate(pfq_weniger::<f64>(a, b, z)?);
+    let residues = || {
+        let mut terms = vec![None; a_ref.len()];
+        pfq_alg(a, b, z, false, &mut terms)?;
+        checked_f64(add_exp(terms.into_iter().flatten())?, None)
+    };
+    series().or_else(weniger).or_else(residues)
+}
+
 /// Generalized hypergeometric function $_pF_q$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -1646,14 +1674,24 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///   $_1F_0 = (1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
 ///
 /// For $p = 2$, $q = 0$ and $z \lt 0$, where the series diverges, it is its Borel sum
-/// $(-1/z)^{a_1} U(a_1, a_1 - a_2 + 1, -1/z)$ ([`hypu`](crate::hypu)) [^2], as in mpmath.
+/// $(-1/z)^{a_1} U(a_1, a_1 - a_2 + 1, -1/z)$ ([`hypu`](crate::hypu)) [^2], as in mpmath. For the
+/// other $p > q + 1$ and $z \lt 0$, it is the Borel sum as well, the Meijer G function [^3]
+///
+/// $$
+/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)}
+/// G^{1,p}\_{p,q+1} \left( -z ; {1 - a_1, \ldots, 1 - a_p \atop 0, 1 - b_1, \ldots, 1 - b_q} \right)
+/// .
+/// $$
 ///
 /// # Returns `None`
 ///
-/// - for $p > q + 1$, unless it is a polynomial or $_2F_0$ with $z \lt 0$;
+/// - for $p > q + 1$, unless it is a polynomial or $z \lt 0$;
 /// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
 ///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
 ///   Weniger transformation, e.g. for some $z \ll -1$ or $a_1, a_2 \ll 0$;
+/// - for the other $p > q + 1$ where its methods fail their accuracy checks: its series up to its
+///   smallest term, its Weniger transformation, and the sum of the residues of the Meijer G
+///   function, e.g. for some $\abs z \gtrsim 0.1$, or where $a_i$ nearly coincide;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
@@ -1662,6 +1700,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///
 /// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.6.E21>
+///
+/// [^3]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.18.E1>
 #[must_use]
 pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     if a.iter().chain(b).chain([&z]).any(|v| v.is_nan()) {
@@ -1778,6 +1818,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             } else {
                 asymptotic().or_else(series)
             }
+        },
+        _ if z < 0.0 => {
+            b.push(1.0);
+            pfq_borel(&a, &b, z)
         },
         _ => None,
     }

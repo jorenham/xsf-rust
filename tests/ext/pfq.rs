@@ -570,6 +570,33 @@ fn test_hyppfq_2f0() {
 }
 
 #[test]
+fn test_hyppfq_borel() {
+    // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, its Weniger
+    // transformation, or the residues of the Meijer G function, also for a_i that differ by
+    // integers (mpmath meijerg at 40 digits; Wolfram agrees for a_i = 3/4, 7/4, 11/4 and for the
+    // a_i that differ by 2)
+    for (a, b, z, expected) in [
+        (&[1.0, 2.0, 3.0][..], &[][..], -0.01, 0.946_071_933_519_652_4),
+        (&[1.5, -2.25, 0.75], &[], -0.05, 1.144_479_810_161_067_8),
+        (&[0.3, 1.7, 0.6], &[], -2.5, 0.790_728_400_803_319_9),
+        (&[0.5, 1.25, 2.5], &[], -1e4, 0.010_153_563_989_012_29),
+        (&[0.75, 1.75, 2.75], &[], -30.0, 0.049_226_365_267_863_18),
+        (&[1.5, 2.25, 0.75], &[3.5], -0.1, 0.936_956_810_640_734_1),
+        (&[2.5, -3.5, 1.5], &[0.5], -1e-300, 1.0),
+        (&[0.25, -1.75, 0.6, 1.1], &[], -40.0, 265.971_225_821_188_4),
+        (&[-12.5, 3.25, -7.75, 1.5], &[2.5], -0.002, 0.698_147_990_588_820_4),
+        (&[0.3, 1.7, 0.6, 2.2], &[1.5], -2.5, 0.743_181_240_510_237_2),
+        (&[0.25, 2.25, 0.6, 1.1], &[1.5], -5.0, 0.763_430_979_979_843_5),
+        (&[0.5, 1.25, -2.75, 3.5], &[1.5, 0.25], -1e6, 3.247_409_892_494_204_4e18),
+    ] {
+        let actual = hyppfq(a, b, z).unwrap();
+        xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+    }
+    // complex for z > 0, as for 2F0
+    assert_eq!(hyppfq(&[1.0, 2.0, 3.0], &[], 0.01), None);
+}
+
+#[test]
 fn test_hyppfq_cancel() {
     let z = 0.25;
     let f1f1 = Some(hyp1f1(0.5, 1.5, z));
