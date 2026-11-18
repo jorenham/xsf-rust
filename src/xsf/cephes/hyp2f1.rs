@@ -959,10 +959,16 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     // Unlike in xsf, for x > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
     // DLMF 15.4.6 if its exponent is an integer, else NaN (see below), as the Euler transformation
     // rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`. Not for an integer
-    // c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above).
-    if x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+    // c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above), nor for an exponent
+    // `near` an integer, which the paths below take as one, nor in the transformations, whose
+    // `c - a` or `c - b` can round to `c`.
+    if outer && x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
         let e = if a == c { b } else { a };
-        return if e == e.round() { s.powf(-e) } else { f64::NAN };
+        if e == e.round() {
+            return s.powf(-e);
+        } else if !near(e, e.round()) {
+            return f64::NAN;
+        }
     }
 
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
