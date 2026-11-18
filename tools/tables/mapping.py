@@ -2734,15 +2734,18 @@ def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
 
 
 def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
-    """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex: unless it is a
-    polynomial, or (1 - x)^(c - a - b) times one, for c - a or c - b a non-positive integer and
-    an integer c - a - b (DLMF 15.8.1), or c is a pole. Some others are real too, such as
+    """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex (its fallback): unless
+    a or b is a non-positive integer (a polynomial), or c - a or c - b is one and c - a - b is an
+    integer (DLMF 15.8.1), each up to `HYP2F1_EPS` and rounded as in xsf-rust, or c is a pole, or
+    c - a or c - b rounds to c > 0 (inf, as in xsf). Some others are real too, such as
     2F1(2, 2; 4; 2) = -3, whose logarithmic term vanishes."""
-    p, q, c = map(Fraction, a[:3])
-    ends = any(v <= 0 and v.denominator == 1 for v in (c - p, c - q))
-    euler = ends and (c - p - q).denominator == 1
-    real = _hyp2f1_degree(*a[:3]) is not None or euler or _hyp2f1_pole(a)
-    return a[3] > 1 and not real
+    p, q, c, x = a
+    d = c - p - q
+    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
+    int_d = abs(d - round(d)) < HYP2F1_EPS
+    euler = (_near_nonpos_int(c - p) or _near_nonpos_int(c - q)) and int_d
+    lost = c > 0 and c in (c - p, c - q)
+    return x > 1 and not (poly or euler or lost or _hyp2f1_pole(a))
 
 
 def _hyp2f1_diverges(a: tuple[float, ...]) -> bool:
@@ -2808,18 +2811,34 @@ def _hyp2f1_returns_early(a: tuple[float, ...]) -> bool:
 
 
 def _hyp2f1_recur_first(a: tuple[float, ...]) -> bool:
-    """Whether xsf-rust first tries `hyp2f1_recur`, for max(|a|, |b|, |c|) >= 10, unless it
-    returns before (`_hyp2f1_returns_early`), x >= 1 for a c that isn't a non-positive integer
-    (where `hyp2f1_recur` has no result), c is near (but not at) a non-positive integer and not
-    tiny, or a, b, c - a or c - b (rounded) is 0 or a negative subnormal."""
+    """Whether xsf-rust first tries `hyp2f1_recur` (`in_recur_regime`): for max(|a|, |b|, |c|)
+    >= 10, c - a - b (x >= 0.9) or b - a (x <= -9) within 1e-3 of an integer, and a, b not near
+    a non-positive integer, a, b, c - a or c - b near (but not at) a negative integer, or a tiny
+    negative a or b. Unless it returns before (`_hyp2f1_returns_early`), x >= 1 for a c that
+    isn't a non-positive integer (where `hyp2f1_recur` has no result), c is near (but not at) a
+    non-positive integer and not tiny, or a, b, c - a or c - b (rounded) is 0 or a negative
+    subnormal."""
     p, q, c, x = a
-    tiny_c = sys.float_info.min <= -c < HYP2F1_EPS
-    at_pole = _near_nonpos_int(c) and not (tiny_c or c.is_integer())
-    params = (p, q, float(Fraction(c) - Fraction(p)), float(Fraction(c) - Fraction(q)))
+    fp, fq, fc = map(Fraction, (p, q, c))
+    exact = (fp, fq, fc - fp, fc - fq)
+    params = tuple(map(float, exact))
+
+    def tiny(t: float) -> bool:
+        return sys.float_info.min <= -t < HYP2F1_EPS
+
+    def near_poly(t: Fraction) -> bool:
+        return float(t) < -0.5 and _near_nonpos_int(float(t)) and t.denominator != 1
+
+    diff, w = (q - p, x / (x - 1)) if x < 0 else (c - p - q, x)
+    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
+    near_log = w >= 0.9 and abs(diff - round(diff)) <= 1e-3 and not poly
+    large = max(map(abs, a[:3])) >= 10
+    regime = large or near_log or any(map(near_poly, exact)) or tiny(p) or tiny(q)
+    at_pole = _near_nonpos_int(c) and not (tiny(c) or c.is_integer())
     degenerate = any(-sys.float_info.min < t <= 0 for t in params)
     no_result = x >= 1 and not _nonpos_int(c)
     skipped = at_pole or degenerate or no_result or _hyp2f1_returns_early(a)
-    return max(map(abs, a[:3])) >= 10 and not skipped
+    return regime and not skipped
 
 
 def _hyp2f1_neg_c_series(a: tuple[float, ...]) -> bool:
@@ -2847,7 +2866,7 @@ HYP2F1_RULES: Final = (
     Rule(
         _hyp2f1_complex,
         math.nan,
-        "NaN for x > 1, where 2F1 is generally complex (DLMF 15.2.3)",
+        "NaN for x > 1 without a real closed form, where 2F1 is generally complex (DLMF 15.2.3)",
     ),
 )
 HYP2F1_OVERRIDES: Final = (
