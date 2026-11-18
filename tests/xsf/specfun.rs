@@ -759,6 +759,26 @@ fn test_hypu_kummer_overflow() {
 }
 
 #[test]
+fn test_hypu_kummer_gamma_overflow() {
+    // Arb; NaN in xsf, where Gamma(a - b + 1) overflows (the integral in log space loses about
+    // |b| ln|b| eps)
+    let abx = [
+        (0.5, -1000.0, 1.0),
+        (-0.5, -1000.0, 0.1),
+        (-2.5, -10_000.0, 10.0),
+        (0.25, -100_000.0, 100.0),
+    ];
+    let expected = [
+        0.031_595_130_627_487_096,
+        31.628_310_992_571_297,
+        10_023_139_114.893_204,
+        0.056_219_994_922_400_35,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-10);
+}
+
+#[test]
 fn test_hypu_int_b() {
     // Arb; NaN, NaN, NaN, and 4.534890e-44 (from `chgubi`) in xsf
     let abx = [(13.5, 25.0, 0.005), (1.0, -26.0, 0.02), (25.0, 2.0, 5.0), (30.0, -10.0, 2.0)];

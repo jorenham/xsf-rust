@@ -1403,12 +1403,17 @@ pub(crate) fn chgu(
         a -= b - 1.0;
         b = 2.0 - b;
         *md = 4;
-        hu = chguit(x, a, b, false, &mut id);
-        hu *= x.powf(1.0 - b00);
-        // Unlike in xsf (scipy/xsf#380), if this or the sum in chgul over- or underflows, x^(1-b)
-        // is moved into the integral, for -1e5 <= b <= 0 (where its integrand is bounded at 0; in
-        // log space it loses about |b| ln|b| eps)
-        if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
+        let kummer = (-1e5..=0.0).contains(&b00);
+        // (not if Gamma(a) overflows, as this is then 0 or NaN, and a NaN integral takes all the
+        // refinements of chguit; see below)
+        if !kummer || a <= MAXGAM {
+            hu = chguit(x, a, b, false, &mut id);
+            hu *= x.powf(1.0 - b00);
+        }
+        // Unlike in xsf (scipy/xsf#380), if this or the sum in chgul over- or underflows, or
+        // Gamma(a) overflows, x^(1-b) is moved into the integral, for -1e5 <= b <= 0 (where its
+        // integrand is bounded at 0; in log space it loses about |b| ln|b| eps)
+        if kummer && (a > MAXGAM || !hu.is_normal() || hu0.is_infinite()) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
                 *digits = super::subnormal_digits(hu, id.into()) as i32;
