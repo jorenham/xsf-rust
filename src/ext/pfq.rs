@@ -803,27 +803,15 @@ trait Term: Copy {
     fn bound(self) -> f64;
 }
 
-impl Term for f64 {
+impl<V: SeriesReal> Term for V {
     type Value = Self;
 
-    fn value(self) -> f64 {
+    fn value(self) -> V {
         self
     }
 
     fn bound(self) -> f64 {
-        self.abs()
-    }
-}
-
-impl Term for Dd {
-    type Value = Self;
-
-    fn value(self) -> Dd {
-        self
-    }
-
-    fn bound(self) -> f64 {
-        self.hi.abs()
+        self.to_f64().abs()
     }
 }
 
