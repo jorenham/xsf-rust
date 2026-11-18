@@ -1613,7 +1613,13 @@ fn test_hyp2f1_f64_x_gt_1() {
         assert!(xsf::hyp2f1(a, b, c, x).is_nan());
         assert!(xsf::hyp2f1(b, a, c, x).is_nan());
     }
-    // (but an exponent within `HYP2F1_EPS` of an integer counts as one: (-1/4)^2)
+    // (but an exponent within `HYP2F1_EPS` of an integer counts as one: (-1/4)^2 and 1)
     let actual = [xsf::hyp2f1(2.5, -1.999_999_999_999_999_8, 2.5, 1.25)];
     np_assert_allclose!(actual, [0.0625], rtol = 1e-14);
+    assert_eq!(xsf::hyp2f1(-2.0_f64.powi(-55), 2.5, 2.5, 1.25), 1.0);
+    // inf as in xsf where c - a rounds to c, as the skipped Euler transformation overflows (its
+    // polynomial of degree 128 is about 2^1223)
+    let c = 2.0_f64.powi(59);
+    assert_eq!(xsf::hyp2f1(24.0, c + 128.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(c + 128.0, 24.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
 }
