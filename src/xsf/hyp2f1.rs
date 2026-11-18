@@ -728,7 +728,7 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 /// degree at most $n$.
 ///
 /// For `f64` $z$, a finite result may be replaced by NaN if the internal error estimates say that
-/// none of its digits are correct.
+/// none of its digits are correct. For `f64` $z > 1$, the result is NaN where $_2F_1$ is complex.
 ///
 /// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
 /// defined by

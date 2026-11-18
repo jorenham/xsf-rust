@@ -1136,9 +1136,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur, false));
             }
 
+            // Unlike in xsf, NaN instead of inf for x > 1 (x < -1 returned above), where 2F1 is
+            // complex, as it jumps across its branch cut (DLMF 15.2.3). (Its real cases, the
+            // polynomials and their Euler transformations, are handled above.)
             if ax > 1.0 {
                 /* series diverges  */
-                return f64::INFINITY; // goto hypdiv
+                return f64::NAN;
             }
 
             p = c - a;

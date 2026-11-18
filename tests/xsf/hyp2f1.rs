@@ -1591,3 +1591,15 @@ fn test_hyp2f1_f64_neg_int_c_x_1() {
     let actual = [xsf::hyp2f1(-4.0, 2.0, -6.0, 1.0), xsf::hyp2f1(2.0, -4.0, -6.0, 1.0)];
     assert_eq!(actual, [14.0 / 3.0; 2]);
 }
+
+#[test]
+fn test_hyp2f1_f64_x_gt_1() {
+    // unlike in xsf: NaN where 2F1 is complex, in either order of a and b; xsf gives inf
+    for (a, b, c, x) in [(32.000_000_000_000_01, 75.0, 97.0, 2.0), (32.0, 75.0, 97.0, 2.0)] {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+    }
+    // (but real for a polynomial, and for (1 - x)^-2 (1 - x / 2) by DLMF 15.8.1; exact)
+    assert_eq!(xsf::hyp2f1(-2.0, 1.0, 3.0, 3.0), 0.5);
+    assert_eq!(xsf::hyp2f1(3.0, 1.0, 2.0, 3.0), -0.125);
+}
