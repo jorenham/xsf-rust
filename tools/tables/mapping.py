@@ -2686,7 +2686,7 @@ def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
     """The Ferrers function P_v^m(x) for an integer m (DLMF 14.3.1), as the product of
     ((1 + x) / (1 - x))^(m / 2) and the regularized 2F1(v + 1, -v; 1 - m; (1 - x) / 2), which
     for m > 0 is (v + 1)_m (-v)_m / m! z^m 2F1(v + m + 1, m - v; m + 1; z); for an integer v
-    and x < 0 with P_v^m(-x) = (-1)^(v + m) P_v^m(x) (DLMF 14.9.10)."""
+    and x < 0 with P_n^m(-x) = (-1)^(n + m) P_n^m(x) for its degree n (DLMF 14.9.10)."""
     with specs.wdps(specs.xd(v) + 20):
         if x < 0 and v == int(v):
             n = int(v) if v >= 0 else int(-v) - 1
@@ -2701,17 +2701,20 @@ def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
 
 
 def _pmv_scaled(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> Value:
-    """P_v^m(x), with the scale M = hypot(P, P_theta / (v + 1/2)) for x = cos(theta) and
-    |x| < 1, the local amplitude of its oscillation in theta, as for large v, P_v^m(cos theta) is
-    J_m((v + 1/2) theta) times a slowly varying factor (DLMF 14.15.11). Near the zeros, e.g.
-    P_n^m(0) = 0 for an integer degree n with n + m odd, the sum of xsf cancels down to an error
-    of about this size. P_theta = -sin(theta) P' with DLMF 14.10.4."""
+    """P_v^m(x), with the scale M = hypot(P, P_theta / (n + 1/2)) for x = cos(theta) near the
+    zero P_n^m(0) = 0 of an integer degree n with n + m odd and positive (DLMF 14.5.1), where
+    the sum of xsf cancels down to an error of about M. M is the local amplitude of its
+    oscillation in theta, as for large n, P_n^m(cos theta) is J_m((n + 1/2) theta) times a
+    slowly varying factor (DLMF 14.15.11), whose zeros are about pi / (n + 1/2) apart: "near" is
+    within that of theta = pi / 2. P_theta = -sin(theta) P' with DLMF 14.10.4."""
     with specs.wdps(specs.xd(v) + 20):
         p = _pmv(m, v, x)
-        if abs(x) == 1:
+        n = _pmv_degree(float(v))
+        zero = n.is_integer() and n + m > 0 and (n + m) % 2 == 1
+        if not zero or abs(x) == 1 or abs(mp.asin(x)) >= mp.pi / (n + mp.mpf(1) / 2):
             return p
         dp = -((m - v - 1) * _pmv(m, v + 1, x) + (v + 1) * x * p) / mp.sqrt(1 - x * x)
-        return p, mp.hypot(p, dp / (v + mp.mpf(1) / 2))
+        return p, mp.hypot(p, dp / (n + mp.mpf(1) / 2))
 
 
 def _pmv_arb(m: flint.arb, v: flint.arb, x: flint.arb) -> flint.arb | None:
@@ -2736,9 +2739,9 @@ PMV_RULES: Final = (
         "xsf takes the order m as a double, and it is NaN for a non-integer m",
     ),
     Rule(
-        lambda a: abs(a[2]) > 1,
+        lambda a: abs(a[2]) > 1 and a[0] != 0,
         math.nan,
-        "xsf only computes the Ferrers function for |x| <= 1",
+        "xsf has NaN for |x| > 1 and m != 0, where the Ferrers function has its sqrt(1 - x^2)",
     ),
     Rule(
         lambda a: (
