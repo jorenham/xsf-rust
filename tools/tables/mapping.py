@@ -2763,6 +2763,226 @@ PBWA_NAN: Final = Rule(
 )
 
 
+def _hyp2f1_degree(a: float, b: float, c: float) -> int | None:
+    """The degree of 2F1 if a or b is a non-positive integer (the one closer to 0 ends it),
+    unless c is a pole before that."""
+    ends = [-int(v) for v in (a, b) if _nonpos_int(v)]
+    m = min(ends, default=None)
+    return None if m is None or _nonpos_int(c) and -m < c else m
+
+
+def _hyp2f1_poly(args: tuple[float, ...], m: int) -> Fraction:
+    """The polynomial 2F1 of degree m, also for c = -m - l with l >= 0 (DLMF 15.2.5), exactly."""
+    a, b, c, x = map(Fraction, args)
+    s = t = Fraction(1)
+    for k in range(m):
+        t *= (a + k) * (b + k) / ((c + k) * (k + 1)) * x
+        s += t
+    return s
+
+
+def _hyp2f1(a: mp.mpf, b: mp.mpf, c: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """`specs.r_hyp2f1`, but a polynomial exactly, and the real part for x > 1, where the rules
+    leave only real values (whose imaginary part is a rounding error)."""
+    args = tuple(map(float, (a, b, c, x)))
+    if (m := _hyp2f1_degree(*args[:3])) is not None:
+        f = _hyp2f1_poly(args, m)
+        return mp.mpf(f.numerator) / f.denominator
+    return mp.re(specs.r_hyp2f1(a, b, c, x))
+
+
+def _hyp2f1_arb(a: flint.arb, b: flint.arb, c: flint.arb, x: flint.arb) -> flint.arb:
+    """The real part of 2F1 of Arb, or NaN, which Arb does not confirm, if it is not real.
+    But a polynomial exactly, where Arb can be NaN (for c = a or c = b) or too wide (for large
+    degrees) and has no exact zeros."""
+    args = tuple(map(float, (a, b, c, x)))
+    if (m := _hyp2f1_degree(*args[:3])) is None:
+        f = flint.acb(x).hypgeom_2f1(a, b, c)
+        return f.real if 0 in f.imag else flint.arb.nan()
+    f = _hyp2f1_poly(args, m)
+    return flint.arb(flint.fmpq(f.numerator, f.denominator))
+
+
+def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
+    """Whether c is a non-positive integer before which no a or b ends the series, at x != 0."""
+    return _nonpos_int(a[2]) and _hyp2f1_degree(*a[:3]) is None and a[3] != 0
+
+
+def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex (its fallback): unless
+    a, b, c - a or c - b (rounded) is a non-positive integer up to `HYP2F1_EPS`, where it is a
+    polynomial, or one times a power of 1 - x (DLMF 15.8.1), and else +inf, or c is near a pole
+    (+inf, relative to it as in xsf-rust, so c = -2^-55 isn't), or c - a or c - b rounds to
+    c > 0 (+inf). The table has none of these +inf rows, nor rows where a parameter is only near
+    an integer, as Arb confirms neither for the inputs as given. Some others are real too, such
+    as 2F1(2, 2; 4; 2) = -3, whose logarithmic term vanishes."""
+    p, q, c, x = a
+    poly = any(_near_nonpos_int(t) for t in (p, q, c - p, c - q))
+    pole = c <= 0 and abs(c - round(c)) <= HYP2F1_EPS * min(abs(round(c)), 1)
+    lost = c > 0 and c in (c - p, c - q)
+    return x > 1 and not (poly or pole or lost)
+
+
+def _hyp2f1_diverges(a: tuple[float, ...]) -> bool:
+    """Whether 2F1 diverges to +inf for x -> 1-, for a, b, c > 0 and c - a - b <= 0."""
+    p, q, c = map(Fraction, a[:3])
+    return a[3] == 1 and min(a[:3]) > 0 and c - p - q <= 0
+
+
+HYP2F1_EPS: Final = 1e-13  # as in xsf: up to this, a parameter counts as an integer
+
+
+def _near_nonpos_int(t: float) -> bool:
+    """Whether t is a non-positive integer up to `HYP2F1_EPS`, as in xsf."""
+    return t <= 0 and abs(t - round(t)) < HYP2F1_EPS
+
+
+def _xsf_c_eq_wrong(a: tuple[float, ...]) -> bool:
+    """Whether c = a = -m or c = b = -m with no a or b ending the series earlier, at x != 0,
+    except where xsf has a polynomial: for a = -1, and by `hyp2f1_neg_c_equal_bc` for b = c and
+    |x| < 1 or x = -1."""
+    p, q, c, x = a
+    own = p == -1 or q == c and (abs(x) < 1 or x == -1)
+    return (
+        _nonpos_int(c)
+        and c in (p, q)
+        and _hyp2f1_degree(p, q, c) == -c
+        and x != 0
+        and not own
+    )
+
+
+def _xsf_degree_1_zero(a: tuple[float, ...]) -> bool:
+    """Whether the polynomial 1 - a x / c for b = -1 (but a != -1) and an integer c < 0 is 0."""
+    p, q, c, x = a
+    neg_int_c = c < 0 and c.is_integer()
+    return q == -1 and p != -1 and neg_int_c and Fraction(p) * Fraction(x) == c
+
+
+def _xsf_euler_rounds(a: tuple[float, ...]) -> bool:
+    """Whether xsf takes the Euler transformation (for x != 0, c - a - b <= -1, x <= 1 or an
+    integer c - a - b, and a, b not polynomials) with c - a or c - b near a negative integer,
+    where only its rounded value is one."""
+    p, q, c = map(Fraction, a[:3])
+    d = a[2] - a[0] - a[1]  # rounded, as in xsf
+
+    def rounds(t: Fraction) -> bool:
+        return round(t) < 0 and _near_nonpos_int(float(t)) and t.denominator != 1
+
+    euler = a[3] != 0 and d <= -1 and (a[3] <= 1 or abs(d - round(d)) <= HYP2F1_EPS)
+    poly = _near_nonpos_int(a[0]) or _near_nonpos_int(a[1])
+    return euler and not poly and (rounds(c - p) or rounds(c - q))
+
+
+def _hyp2f1_returns_early(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust returns before it tries `hyp2f1_recur` (in `hyp2f1_impl`): for x = 0,
+    a = 0 or b = 0, c = inf and x <= 1, a = -1 or b = -1 and c != 0, or an integer c <= 0 with
+    c = a or c = b, or at x = 1 with an integer a or b < 0 above c."""
+    p, q, c, x = a
+    ends = any(_nonpos_int(t) and t > c for t in (p, q))
+    int_c = _nonpos_int(c) and (c in (p, q) or x == 1 and ends)
+    degree_1 = -1 in (p, q) and c != 0
+    return x == 0 or 0 in (p, q) or (c == math.inf and x <= 1) or degree_1 or int_c
+
+
+def _hyp2f1_recur_first(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries `hyp2f1_recur` (`in_recur_regime`): for max(|a|, |b|, |c|)
+    >= 10, c - a - b (x >= 0.9) or b - a (x <= -9) within 1e-3 of an integer, and a, b not near
+    a non-positive integer, a, b, c - a or c - b near (but not at) a negative integer, or a tiny
+    negative a or b. Unless it returns before (`_hyp2f1_returns_early`), x >= 1 for a c that
+    isn't a non-positive integer (where `hyp2f1_recur` has no result), c is near (but not at) a
+    non-positive integer and not tiny, or a, b, c - a or c - b (rounded) is 0 or a negative
+    subnormal."""
+    p, q, c, x = a
+    fp, fq, fc = map(Fraction, (p, q, c))
+    exact = (fp, fq, fc - fp, fc - fq)
+    params = tuple(map(float, exact))
+
+    def tiny(t: float) -> bool:
+        return sys.float_info.min <= -t < HYP2F1_EPS
+
+    def near_poly(t: Fraction) -> bool:
+        return float(t) < -0.5 and _near_nonpos_int(float(t)) and t.denominator != 1
+
+    diff, w = (q - p, x / (x - 1)) if x < 0 else (c - p - q, x)
+    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
+    near_log = w >= 0.9 and abs(diff - round(diff)) <= 1e-3 and not poly
+    large = max(map(abs, a[:3])) >= 10
+    regime = large or near_log or any(map(near_poly, exact)) or tiny(p) or tiny(q)
+    at_pole = _near_nonpos_int(c) and not (tiny(c) or c.is_integer())
+    degenerate = any(-sys.float_info.min < t <= 0 for t in params)
+    no_result = x >= 1 and not _nonpos_int(c)
+    skipped = at_pole or degenerate or no_result or _hyp2f1_returns_early(a)
+    return regime and not skipped
+
+
+def _hyp2f1_recur_large(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries `hyp2f1_recur` for max(|a|, |b|, |c|) >= 10."""
+    return max(map(abs, a[:3])) >= 10 and _hyp2f1_recur_first(a)
+
+
+def _hyp2f1_neg_c_series(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries the series of the Pfaff transformations for -1 < x < 0, or the
+    power series for 0 < x < 1, for c - a - b <= -1 and a c < 0 that isn't an integer, unless
+    it first tries `hyp2f1_recur`."""
+    p, q, c, x = a
+    pole = abs(c - round(c)) <= HYP2F1_EPS
+    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
+    series = c - p - q <= -1 and c < 0 and not pole and not poly and 0 < abs(x) < 1
+    return series and not _hyp2f1_recur_first(a)
+
+
+HYP2F1_RULES: Final = (
+    Rule(
+        _hyp2f1_pole,
+        math.inf,
+        "+inf at a pole of c that no a or b ends the series before, for x != 0",
+    ),
+    Rule(
+        _hyp2f1_diverges,
+        math.inf,
+        "the limit for x -> 1- for a, b, c > 0 and c - a - b <= 0 (DLMF 15.4.21, 15.4.23)",
+    ),
+    Rule(
+        _hyp2f1_complex,
+        math.nan,
+        "NaN for x > 1 without a real closed form, where 2F1 is generally complex (DLMF 15.2.3)",
+    ),
+)
+HYP2F1_OVERRIDES: Final = (
+    Override(_hyp2f1_complex, "xsf has inf for x > 1 where 2F1 is complex (#1531)"),
+    Override(
+        _xsf_c_eq_wrong,
+        "xsf has inf, or (1 - x)^(-b) of DLMF 15.2.6 for c = a and |x| < 1, instead of the "
+        "polynomial of DLMF 15.2.5 for c = a = -m or c = b = -m (#1574)",
+    ),
+    Override(
+        _xsf_degree_1_zero,
+        "xsf has NaN where the polynomial 1 - a x / c for b = -1 and an integer c < 0 is 0 "
+        "(#1573)",
+    ),
+    Override(
+        _xsf_euler_rounds,
+        "xsf takes c - a or c - b in its Euler transformation as a negative integer where only "
+        "its rounded value is one, and so the polynomial of that degree",
+    ),
+)
+HYP2F1_FLOORS: Final = (
+    Floor(
+        _hyp2f1_recur_large,
+        3e-15,
+        "xsf-rust first tries `hyp2f1_recur` for large parameters, and so rounds differently "
+        "(1.0e-14 at (24.17, 2.23, 1.49, 0.822), where xsf has 7.0e-16)",
+    ),
+    Floor(
+        _hyp2f1_neg_c_series,
+        2e-15,
+        "xsf-rust first tries a series instead of the Euler transformation (scipy/xsf#464), "
+        "and so rounds differently (5.8e-15 at (1.8, 1, -1.8, 0.95), where xsf has 7.8e-16)",
+    ),
+)
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -3608,6 +3828,18 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (NAN, PBWA_NAN),
             )
             for i in range(2)
+        )
+    ),
+    ("hyp2f1", "d_d_d_d-d"): Entry(
+        (
+            Out(
+                "hyp2f1",
+                (_hyp2f1,),
+                (_hyp2f1_arb,),
+                HYP2F1_RULES,
+                HYP2F1_OVERRIDES,
+                HYP2F1_FLOORS,
+            ),
         )
     ),
 }
