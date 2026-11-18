@@ -1215,7 +1215,7 @@ fn test_hyp_macro() {
 }
 
 #[test]
-fn hyp2f2_series_sum_above_1e154() {
+fn test_hyp2f2_series_sum_above_1e154() {
     // the squared partial sums of the error estimate overflow
     assert_hyp2f2([76.5, 4.25], [-0.25, -18.75], 200.0, 7.879_700_512_996_357e201);
 }

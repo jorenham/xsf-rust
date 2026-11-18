@@ -288,7 +288,7 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
 const PFQ_SQUARE_MAX: f64 = 1e150;
 
 /// The factor 2^-400 by which the units of those sums shrink once it is exceeded
-const PFQ_UNIT: f64 = f64::from_bits((1023 - 400) << 52);
+const PFQ_UNIT: f64 = pow2(-400);
 
 /// `pfq_series`, and the root of the sum of its squared tails `s - s_n`, which is at least the
 /// largest of them
@@ -361,7 +361,7 @@ fn pfq_sum_terms<T: SeriesReal>(
         (rounding, tails)
     };
     for n in (0..maxiter).map(f64::from) {
-        if s.abs() * unit > PFQ_SQUARE_MAX {
+        while s.abs() * unit > PFQ_SQUARE_MAX {
             // the squares would overflow, so the sums are rescaled (exactly, by a power of 2)
             (sum1, sum2, unit) = (sum1 * PFQ_UNIT, sum2 * PFQ_UNIT * PFQ_UNIT, unit * PFQ_UNIT);
         }
@@ -2238,6 +2238,15 @@ macro_rules! hyp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_pfq_sum_rescales_repeatedly() {
+        // the partial sum jumps from 1 to 1e300, whose square needs two rescalings
+        let (y, err, tails) =
+            pfq_sum_terms::<f64>(&[-1.0], &[1.0], 1.0, 2, [1e300].into_iter(), 1e-13);
+        assert_eq!(y, 1e300);
+        assert!(err.is_finite() && tails.is_finite());
+    }
 
     #[test]
     fn test_hyp2f0_miller_err() {
