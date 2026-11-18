@@ -1608,7 +1608,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 ///
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
-/// to its smallest term, as for 2F0, or else its Weniger transformation.
+/// to its smallest term, as for 2F0, or else its Weniger transformation, last in double-double,
+/// which is the slowest.
 fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
@@ -1619,12 +1620,17 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let settled = pfq_settled(a_ref, b_ref).ceil();
     let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
     let weniger = || accurate(pfq_weniger::<f64>(a, b, z)?);
+    // as for 2F0, where the rounding errors in f64 dominate
+    let weniger_dd = || accurate(pfq_weniger::<Dd>(a, b, z)?);
     let residues = || {
         let mut terms = vec![None; a_ref.len()];
         pfq_alg(a, b, z, false, &mut terms)?;
         checked_f64(add_exp(terms.into_iter().flatten())?, None)
     };
-    series().or_else(weniger).or_else(residues)
+    series()
+        .or_else(weniger)
+        .or_else(residues)
+        .or_else(weniger_dd)
 }
 
 /// Generalized hypergeometric function $_pF_q$ for real arguments
