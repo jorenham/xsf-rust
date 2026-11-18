@@ -443,14 +443,18 @@ fn pfq_weniger<T: SeriesReal>(
         let [num, den, abs] = rows[0];
         let (last, next) = (step, num / den);
         let noise = eps * ((abs / den).to_f64().abs() + next.to_f64().abs() + scale);
+        // the steps need not be below the rounding of the `f64` result, which only double-double
+        // gets under (a NaN noise stays NaN)
+        let rounding = f64::EPSILON * next.to_f64().abs();
+        let tol = if noise < rounding { rounding } else { noise };
         step = (next - delta).to_f64().abs();
         delta = next;
         // delta is a weighted mean of the last one and of the one of that order from s_1
         // (NaN for k = 0). For a large |z| the weight of the latter is small, and so are the
         // steps, also while the two still differ, so it has to agree as well.
         let other = rows[1][0] / rows[1][1];
-        if step <= noise && last <= noise && (other - delta).to_f64().abs() <= noise {
-            return Some((delta.to_f64(), noise));
+        if step <= tol && last <= tol && (other - delta).to_f64().abs() <= tol {
+            return Some((delta.to_f64(), tol));
         }
         sum = sum + term;
     }
@@ -1649,7 +1653,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// - for $p > q + 1$, unless it is a polynomial or $_2F_0$ with $z \lt 0$;
 /// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
 ///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
-///   Weniger transformation, e.g. for some $z \lt -1$ or $a_1, a_2 \ll 0$;
+///   Weniger transformation, e.g. for some $z \ll -1$ or $a_1, a_2 \ll 0$;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
@@ -1731,22 +1735,25 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             let scale = x.min(f64::EPSILON.recip());
             let series = || accurate(asymptotic_sum(terms.clone(), settled, scale, |_| 0.0));
             // Try Weniger when both U evaluations and the truncated series miss the tolerance,
-            // plus the rounding errors accumulated up to `settled`, as `a + n` can round alike
-            let weniger = || {
-                let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
+            // plus the rounding errors (of relative size `eps`) accumulated up to `settled`, as
+            // `a + n` can round alike
+            let weniger = |(y, err): (f64, f64), eps: f64| {
                 accurate((y, err))?;
                 let drift = terms
                     .clone()
                     .zip(0..=settled as u32)
                     .map(|(t, n)| f64::from(n) * t.abs());
-                accurate((y, err + 4.0 * f64::EPSILON * drift.sum::<f64>()))
+                accurate((y, err + 4.0 * eps * drift.sum::<f64>()))
             };
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
-            // chgubi instead of chguit for an integer a1 - a2
+            // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
+            // the rounding errors in f64 can dominate, where the terms before `settled` cancel
+            // or the partial sums grow (z < -1)
             borel(a1, a2)
                 .or_else(series)
                 .or_else(|| borel(a2, a1))
-                .or_else(weniger)
+                .or_else(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
+                .or_else(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),

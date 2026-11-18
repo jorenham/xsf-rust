@@ -546,6 +546,21 @@ fn test_hyppfq_2f0() {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
+    // the Weniger fallback in double-double, for z < -1 and where the terms cancel (Arb)
+    for (a, z, expected) in [
+        ([1.1, 1.15], -1.09, 0.513_551_761_026_235_1),
+        ([-1.47, -2.49], -1.76, -0.976_714_154_400_257_8),
+        ([-17.57, -20.06], -1.04, 5.336_115_439_600_885_6e16),
+        ([0.7, 0.8], -0.46, 0.835_046_888_976_750_3),
+        ([-3.29, -13.69], -0.178, -1.070_282_071_194_967_9),
+        ([-8.27, -33.08], -0.067, -0.114_157_126_503_264_89),
+        ([-14.93, -14.85], -0.32, -31_736.919_105_697_503),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
     // the Weniger fallback, after 1549 terms (Arb)
     let y = hyppfq(&[-1548.5, 1.000_000_000_000_028_4], &[], -0.001_953_124_999_999_999_8);
     assert!(y.is_none_or(|y| (y / 1.320_723_958_873_985_9e296 - 1.0).abs() <= 1e-13));
