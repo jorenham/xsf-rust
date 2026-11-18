@@ -1807,6 +1807,19 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     }
 }
 
+/// `add_exp` in double-double
+///
+/// The mantissas of the terms are scaled to `[1/2, 1)` first: a term whose `exp` underflows to
+/// zero is then below `2^-1021` of the largest one, which is within the error bound of that one.
+fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Option<Scaled> {
+    let terms = terms.into_iter().map(|mut y| {
+        let (m, k) = frexp_f64(y.m);
+        (y.m, y.e) = (m, y.e + k);
+        y
+    });
+    add_exp_in(terms, Dd::exp, Dd::EPSILON)
+}
+
 /// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
 /// its terms cancel, e.g. for nearly equal `a_i`, or the terms of their series do
 fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
@@ -1815,7 +1828,7 @@ fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> 
     }
     let mut terms = vec![None; a.as_ref().len()];
     pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
-    let alg = add_exp_in(terms.into_iter().flatten(), Dd::exp, Dd::EPSILON)?;
+    let alg = add_exp_dd(terms.into_iter().flatten())?;
     checked_f64(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?))
 }
 
@@ -2232,6 +2245,17 @@ mod tests {
         // in double-double, below `-PFQ_GAMMA_MAX`: Gamma(-30.5) / Gamma(-28.5)
         let y = mul_gammas_in([Dd::new(-30.5)], [Dd::new(-28.5)], one, true);
         check(y, 1.0 / (30.5 * 29.5), 1e-15);
+    }
+
+    #[test]
+    fn test_add_exp_dd() {
+        // 1 + 2^1023 e^-710, where `exp` underflows before it is times the mantissa (mpmath)
+        let one = Scaled::new(1.0, 0, 0.0).unwrap();
+        let big = Scaled::new(pow2(1023), 0, 0.0)
+            .unwrap()
+            .with_l(Dd::new(-710.0));
+        let (y, err) = add_exp_dd([one, big]).unwrap().to_f64();
+        assert!(err <= 1e-15 && (y / 1.402_349_450_878_746_4 - 1.0).abs() <= err, "{y}, {err}");
     }
 
     #[test]
