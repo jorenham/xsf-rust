@@ -420,8 +420,7 @@ pub(super) fn hyp1f1_b_recurrence(
 /// if its relative error is at most `sqrt(eps)`, first trying a farther start (with an error of at
 /// most 1e-12) where the series of `M(a, b + n, z)` hardly cancels if `a z < 0`.
 ///
-/// `None` for `|a| > 1e5` or `b < -1e5`, where the initial values or the recurrence are too slow
-/// (e.g. `m` sums a polynomial of degree `-a`).
+/// `None` for `b < -1e5`, where the recurrence is too slow.
 pub(super) fn hyp1f1_neg_b(a: f64, b: f64, z: f64, m: impl Fn(f64) -> f64) -> Option<f64> {
     let from = |n: f64, max_err| {
         hyp1f1_b_recurrence(a, b, z, n as i32, &m)
@@ -429,7 +428,7 @@ pub(super) fn hyp1f1_neg_b(a: f64, b: f64, z: f64, m: impl Fn(f64) -> f64) -> Op
             .map(|(hg, _)| hg)
     };
     let n = -b.floor();
-    if a.abs() > 1e5 || n > 1e5 {
+    if n > 1e5 {
         return None;
     }
     let b_far = if z > 0.0 { -a * z } else { a * -z / (1.0 - z) };

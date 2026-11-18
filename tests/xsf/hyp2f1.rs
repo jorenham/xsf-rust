@@ -1070,6 +1070,27 @@ fn test_hyp2f1_f64_large_c_lt_0() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_c_lt_0_second_solution() {
+    // unlike in xsf: for c < 0, from the second solution at 0 and one term of the 1/x
+    // transformation (or of the 1 - x transformation if 0 < x < 1), since the other term loses
+    // precision; xsf gives 8.29e102, 6.42e201, NaN and NaN (references: Arb)
+    let args = [
+        (-404.0, -124.75, -561.75, -8.25),
+        (-390.0, -183.25, -671.25, -22.5),
+        (-342.5, -186.25, -639.75, -36.25),
+        (761.5, 211.5, -483.25, 0.04),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        -3.962_625_779_100_878e105,
+        2.525_038_208_734_701_5e202,
+        -1.322_092_032_643_801_3e232,
+        3.140_497_898_387_16e-6,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_near_1() {
     // unlike in xsf: the 1 - x transformation of `hyp2f1_recur` for x >= 0.9, e.g. these were
     // -1.83e6, inf and NaN (references: Arb)
@@ -1122,6 +1143,31 @@ fn test_hyp2f1_f64_large_polynomials() {
     // inf (Arb)
     let actual = xsf::hyp2f1(-193.25, -361.875, -784.25, -8.5);
     np_assert_allclose!([actual], [5.602_051_816_485_101e124], rtol = 1e-14);
+}
+
+#[test]
+fn test_hyp2f1_f64_large_polynomials_in_1_over_x() {
+    // unlike in xsf: the polynomial in 1/x, i.e. the term of the 1/x transformation that is left
+    // for an integer a <= 0, e.g. these were 1.717382430e38, 6.50e50 and 7.6598e35 (references:
+    // Arb)
+    let args = [
+        (-390.0, -60.3187, -547.357, -4.72131),
+        (-315.0, -71.5, -426.5, -5.75),
+        (-253.0, -50.75, -446.5, -7.5),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired =
+        [1.717_382_032_883_699_5e38, 6.196_191_652_916_035_5e50, 7.661_996_786_019_798e35];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+
+    // and for an integer c - b <= 0, also with 0 < x < 1 (in 1 - 1/x), e.g. these were NaN and
+    // 1.057e-11 (Arb)
+    let actual = [
+        xsf::hyp2f1(-177.375, -108.5, -208.5, -18.25),
+        xsf::hyp2f1(-9.75, -958.25, -1022.25, 0.987),
+    ];
+    let desired = [6.812_936_622_801_884e131, 6.764_515_364_329_936e-12];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
 }
 
 #[test]
@@ -1270,4 +1316,51 @@ fn test_hyp2f1_f64_log_case_cancels() {
         -7.385_094_653_794_124e-36,
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
+}
+
+#[test]
+fn test_hyp2f1_f64_c_near_pole() {
+    // unlike in xsf: c near (not at) a non-positive integer -n, where 2F1 is finite, and its power
+    // series can jump by about 1 / (c + n) at the term n + 1; xsf gives inf (Arb)
+    let actual = [
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.4),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.99),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, 0.4),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, 0.9),
+        // (where the Pfaff transformation rounds c - b near -n)
+        xsf::hyp2f1(7.25, 1e-13, -2.0 + f64::EPSILON, -0.7),
+        xsf::hyp2f1(-2.75, 1e-13, -1.0 - f64::EPSILON, -0.3),
+    ];
+    let desired = [
+        1.022_933_013_832_101_3,
+        349.569_306_386_504_9,
+        3_671_424_765.509_292_6,
+        2.052_009_450_569_774_3e63,
+        -362.316_350_911_936_1,
+        112.785_458_910_322_3,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // where the Pfaff power factor underflows, or a is near (not at) an integer that would
+    // terminate the series
+    let c = -1.0 + 2f64.powi(-45);
+    let actual = [
+        xsf::hyp2f1(c + 61.0, c + 31.0, c, -300_000.0),
+        xsf::hyp2f1(-1.0 + f64::EPSILON, 2.0, -2.0 + f64::EPSILON, -0.4),
+    ];
+    np_assert_allclose!(
+        actual,
+        [1.795_587_581_895_763e-295, 0.655_976_676_384_839_7],
+        rtol = 1e-13
+    );
+    // where the terms are near overflow: 2F1(c, b; c; x) = (1 - x)^-b
+    let c = -300.0 + 2f64.powi(-44);
+    let actual = [xsf::hyp2f1(c, 300.0, c, 0.904)];
+    np_assert_allclose!(actual, [2.082_716_166_487_401_1e305], rtol = 1e-13);
+    // NaN if the series cancels more than its rounding estimate allows
+    let y = xsf::hyp2f1(0.1234, 7.1, -8.000_000_000_000_002, 0.010_557_580_327_416_858);
+    assert!(y.is_nan());
+    // at c = -n it is a pole, unless the series terminates before the term n + 1
+    assert_eq!(xsf::hyp2f1(1.25, 2.0, -45.0, -0.4), f64::INFINITY);
+    let actual = [xsf::hyp2f1(-3.0, 2.0, -45.0 - 4e-14, 0.5)];
+    np_assert_allclose!(actual, [1.068_974_630_021_141_6], rtol = 1e-15);
 }
