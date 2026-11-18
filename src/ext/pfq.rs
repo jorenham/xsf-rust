@@ -1977,6 +1977,27 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     }
 }
 
+/// Generalized hypergeometric function $_pF_q$ as `hyp![a_1, ..., a_p; b_1, ..., b_q; z]`
+///
+/// Shorthand for [`hyppfq`], where either list may be empty.
+///
+/// # Examples
+///
+/// ```
+/// use xsf::{hyp, hyppfq};
+///
+/// let y = hyp![1.0, 2.0; 3.0; -0.5];
+/// assert_eq!(y, hyppfq(&[1.0, 2.0], &[3.0], -0.5));
+/// // empty lists are allowed
+/// assert_eq!(hyp![; ; 0.0], Some(1.0));
+/// ```
+#[macro_export]
+macro_rules! hyp {
+    ($($a:expr),* $(,)? ; $($b:expr),* $(,)? ; $z:expr $(,)?) => {
+        $crate::hyppfq(&[$($a),*], &[$($b),*], $z)
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

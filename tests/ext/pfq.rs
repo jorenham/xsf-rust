@@ -1105,3 +1105,24 @@ fn test_hyppfq_conformal() {
     let (a, b) = ([10.5, 8.25, 9.75, 7.5], [0.5, 1.25, 0.75]);
     assert_hyppfq(&a, &b, -0.5, 891.432_204_916_963_3);
 }
+
+#[test]
+fn test_hyp_macro() {
+    use xsf::hyp;
+
+    assert_eq!(hyp![1.0, 2.0; 3.0; -0.5], hyppfq(&[1.0, 2.0], &[3.0], -0.5));
+    assert_eq!(hyp![1.0, 2.0, 3.0; 4.0, 5.0; 0.25,], hyppfq(&[1.0, 2.0, 3.0], &[4.0, 5.0], 0.25));
+    assert_eq!(hyp![0.5; 1.5,; 0.3], hyppfq(&[0.5], &[1.5], 0.3));
+    // empty lists
+    assert_eq!(hyp![; ; 0.7], hyppfq(&[], &[], 0.7));
+    assert_eq!(hyp![0.5; ; -0.3], hyppfq(&[0.5], &[], -0.3));
+    assert_eq!(hyp![; 1.5; 0.3], hyppfq(&[], &[1.5], 0.3));
+    // each argument is evaluated once, in order
+    let mut n = 0.0;
+    let mut next = || {
+        n += 1.0;
+        n
+    };
+    assert_eq!(hyp![next(), next(); next(); 0.1 * next()], hyppfq(&[1.0, 2.0], &[3.0], 0.4));
+    assert_eq!(n, 4.0);
+}
