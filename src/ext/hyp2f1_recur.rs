@@ -1034,7 +1034,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
-    // (the mantissas of `b + k` and `x`, so a subnormal `b` can't round the update)
+    // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
     let (xm, xe) = x.frexp();
     let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
         DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs)
@@ -1056,8 +1056,9 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
             return None;
         }
         // Stop once the rest is below `thr`: for b + k > 0, the ratios of the next terms are at
-        // most `r` (as |c + k| > n - k), so the rest is at most `|t_k| r / (1 - r)` (rounded up).
-        // Only if the sum hasn't cancelled, so that the full sum is at least `|sum| / 2`.
+        // most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to 1, so the rest
+        // is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the rounding of `sum` is
+        // at most `|sum| / 4`, so that the full sum is at least `|sum| / 2` (hence `2 tail` below).
         let bk = (b + k).hi;
         let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
         let abs = sum.hi.abs();
@@ -1083,7 +1084,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
 /// double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, of mantissas as in `poly_dd`
+    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`
     let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
     while k < n {
         let (num, num_e) = (cb + k).frexp();
