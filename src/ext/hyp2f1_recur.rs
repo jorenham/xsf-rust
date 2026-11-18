@@ -89,9 +89,8 @@
 //! Finally, return the result with the smallest error bound, which is too large if it exceeds
 //! `HYP2F1_RECUR_TOL`.
 //!
-//! For a non-positive integer `c`, where the steps above pass through the poles of `1 / (c)_k` or
-//! `Gamma(c)`, only the polynomial is computed, if `a` or `b` is a negative integer above `c`
-//! (DLMF 15.2.5): for any finite `x`, by its terms in double-double (see `hyp2f1_neg_int_c`).
+//! For an integer `c <= 0` below an integer `a` or `b < 0`, where the steps above pass through the
+//! poles of `1 / (c)_k`, only the polynomial is computed (DLMF 15.2.5), for any finite `x`.
 //!
 //! For example, the sum of step 2 cancels for `F(-522, -123.5; 533.5; -0.9)`, the log case of
 //! step 4 for `F(-900.5, -800.5; 50; -40)`, and all 4 combinations for
@@ -189,8 +188,8 @@ impl Scaled {
         self.with_l(self.l + l)
     }
 
-    /// The value as an `f64` (which can overflow or underflow), and its error bound, without the
-    /// rounding of an underflow (to a subnormal or 0)
+    /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
+    /// the rounding of an underflow)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
         (ldexp_f64(y.m, y.e), y.err)
@@ -1000,15 +999,14 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
-/// `F(a, b; c; x)` for a non-positive integer `c`, if `a` or `b` is a negative integer `-n` above
-/// it: the polynomial (DLMF 15.2.4, 15.2.5), whose terms can cancel by `1 / eps` or more, e.g.
-/// by 7e15 for `F(-186, -26.75; -333; -9)`. For `x < 1`, also that of its Pfaff transformation
-/// (DLMF 15.8.1), if the first is inaccurate (the Euler transformation, with `c - a` and
-/// `c - b`, is not a polynomial identity here). At `x = 1`, the Chu-Vandermonde product.
+/// `F(a, b; c; x)` for an integer `c <= 0` below an integer `a` or `b = -n < 0`: the polynomial
+/// (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
+/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
 fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     let is_poly =
         |p: Dd| p.is_integer() && p.hi > c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
-    // (`a >= b`, so if both are polynomial, this is the one of lower degree)
+    // (`a >= b`, so the lower degree)
     let (p, q) = if is_poly(a) {
         (a, b)
     } else if is_poly(b) {
@@ -1029,18 +1027,15 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
 }
 
-/// `F(-n, b; c; x)` for `n >= 1` and `c < -n` by its terms in double-double, with a bound of its
-/// rounding errors as in `series_weighted` (a few double-double operations per term instead of
-/// 8 `eps`), and of the terms it leaves out once they're below those
+/// `F(-n, b; c; x)` for `n >= 1` and `c < -n` by its terms in double-double, with an error bound
+/// as in `series_weighted`, plus the terms it skips
 fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
-    // (`b + k` and `x` scaled to `|m|` in `[0.5, 1)`, as the update can't round in the subnormal
-    // range then, e.g. for a subnormal `b`)
+    // (the mantissas of `b + k` and `x`, so a subnormal `b` can't round the update)
     let (xm, xe) = x.frexp();
-    // the bound of the rounding errors of the sum
     let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
         DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs)
     };
@@ -1060,13 +1055,9 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
-        // Stop once the rest is below the rounding of the sum: if b + k > 0, the ratios of the
-        // terms from here are at most `r`, as |c + k| > n - k, and (b + k) / (k + 1) tends
-        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`, which
-        // is at most `thr` if `|t_k| <= thr (1 - r) / r` (with `r` rounded up for `x.hi` and these
-        // operations, the bound rounded down, and `|t_k|` up for an underflow of `term`). Only if
-        // the rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least
-        // `|sum| / 2`.
+        // Stop once the rest is below `thr`: for b + k > 0, the ratios of the next terms are at
+        // most `r` (as |c + k| > n - k), so the rest is at most `|t_k| r / (1 - r)` (rounded up).
+        // Only if the sum hasn't cancelled, so that the full sum is at least `|sum| / 2`.
         let bk = (b + k).hi;
         let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
         let abs = sum.hi.abs();
@@ -1084,7 +1075,6 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
             e += s;
         }
     }
-    // (twice the `tail`, relative to the full sum, which is at least |sum| / 2)
     let err = MACHEP + (rounding(k, sum_abs, k_sum_abs) + 2.0 * tail) / sum.hi.abs();
     Scaled::new(sum.hi, e, err)
 }
@@ -1093,7 +1083,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
 /// double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, with `c - b + k` scaled to `|m|` in `[0.5, 1)` as in `poly_dd`
+    // the product `t 2^e`, of mantissas as in `poly_dd`
     let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
     while k < n {
         let (num, num_e) = (cb + k).frexp();
