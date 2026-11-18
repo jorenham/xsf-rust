@@ -1822,8 +1822,8 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 // moved by T times them (far enough to stand out from the error of U, and near
                 // enough to be linear). They may take half of PFQ_TOL, as y can depend much more
                 // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer. A move
-                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, which
-                // overestimates its change.
+                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, a
+                // larger step.
                 let moved = |v: f64, d: f64| {
                     let v_t = v + T * d;
                     let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
