@@ -1165,61 +1165,34 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         // (all of its terms)
         return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
     }
-    // Upper bounds on the ratio of the terms `n + 1` and `n`, and on its reciprocal (so a lower
-    // bound on the ratio), from the shifted factors: above their rounding, and infinite unless
-    // each factor is positive
-    let bounds = |n: f64| {
-        let shift = |x: &Dd| (*x + n).hi;
-        if !up.iter().chain(&low).all(|x| shift(x) > 0.0) {
-            return [f64::INFINITY; 2];
-        }
-        let unpaired = shift(&up[low.len()]) / z.abs();
-        if !unpaired.is_normal() {
-            return [f64::INFINITY; 2];
-        }
-        let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
-        let bounds = quotients.fold([unpaired, unpaired.recip()], |[above, below], f| {
-            [above * f.max(1.0), below * f.recip().max(1.0)]
-        });
-        bounds.map(|bound| bound * (1.0 + f64::EPSILON.sqrt()))
-    };
-    // Where the factors are positive, each paired one is monotone with the limit 1, and the
-    // unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear in `m`,
-    // with `w(n) = above`, and at least `w(m) / (above below)`.
+    // Where its factors are positive, each paired one of a term ratio is monotone with the limit
+    // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
+    // in `m`, with `w(n) = above`, and at least `w(m) / spread`.
     //
     // The product of `w(n)` to `w(m)` is at most 1 while `w(n) + w(m) <= 2`: no term up to there
-    // is larger than term `n`. And if the ratios are at least 1 from there on, the terms grow for
-    // good. The sum only ends at such an `n`, and so not at a term that a later one exceeds.
-    let closed = |n: f64| {
-        let [above, below] = bounds(n);
-        above * (1.0 + below) <= 2.0
+    // is larger than term `n`. And from `w(m) >= spread` on, the terms grow for good. The sum
+    // only ends at an `n` with `above + spread <= 2` (above their rounding), and so not at a
+    // term that a later one exceeds.
+    let ends = |n: f64| {
+        let shift = |x: &Dd| (*x + n).hi;
+        let unpaired = shift(&up[low.len()]) / z.abs();
+        let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
+        let [above, spread] = quotients.fold([unpaired, 1.0], |[above, spread], f| {
+            [above * f.max(1.0), spread * f.max(f.recip())]
+        });
+        let positive = up.iter().chain(&low).all(|x| shift(x) > 0.0);
+        positive && unpaired.is_normal() && (above + spread) * (1.0 + f64::EPSILON.sqrt()) <= 2.0
     };
-    let grows = |n: f64| bounds(n)[1] <= 1.0;
-    let Some(end) = (0..PFQ_MAXITER).find(|&n| closed(f64::from(n)) || grows(f64::from(n))) else {
-        return (Dd::new(1.0), f64::INFINITY);
-    };
-    // Where the terms grow for good before such an `n`, the bound on each ratio shows the same
-    // for the last run of `n`: back from there, `most` is the largest product of the bounds
-    // from `n` on.
-    let (mut run, mut most) = ((f64::INFINITY, f64::NEG_INFINITY), 0.0_f64);
-    if !closed(f64::from(end)) {
-        for n in (0..end).rev().map(f64::from) {
-            most = bounds(n)[0] * most.max(1.0);
-            if most <= 1.0 {
-                run = (n, run.1.max(n));
-            } else if run.0.is_finite() || !most.is_finite() {
-                break;
-            }
-        }
-    }
-    let ends = |n: f64| closed(n) || (run.0..=run.1).contains(&n);
-    let Some(start) = [run.0, f64::from(end)].into_iter().find(|&n| ends(n)) else {
+    // (the unpaired factor alone is above 1 after that)
+    let ns = (0..PFQ_MAXITER).map(f64::from);
+    let mut ns = ns.take_while(|&n| (up[low.len()] + n).hi <= z.abs());
+    let Some(start) = ns.find(|&n| ends(n)) else {
         return (Dd::new(1.0), f64::INFINITY);
     };
     let terms = zip(terms, (0_u32..).map(f64::from))
         .take_while(|&(_, n)| n < start || ends(n))
         .map(|(term, _)| term);
-    asymptotic_sum(terms, start, z, |n| bounds(n)[0])
+    asymptotic_sum(terms, start, z, |_| 0.0)
 }
 
 /// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
