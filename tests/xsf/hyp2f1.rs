@@ -1607,12 +1607,18 @@ fn test_hyp2f1_f64_x_gt_1() {
     assert_eq!(xsf::hyp2f1(20.0, c, c, 1.0 + f64::EPSILON), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(c, 20.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(-3.0, 2.5, 2.5, 3.0), -8.0);
-    // (and NaN otherwise, also where c - a - b rounds to an integer, and for x = inf)
+    // (and inf otherwise, as for the other complex powers, also where c - a - b rounds to an
+    // integer, and for x = inf)
     let c = 2.0_f64.powi(52);
     for (a, b, c, x) in [(0.5, 2.5, 2.5, 3.0), (1.25, c, c, 3.0), (0.5, 2.5, 2.5, f64::INFINITY)] {
-        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
-        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+        assert_eq!(xsf::hyp2f1(a, b, c, x), f64::INFINITY);
+        assert_eq!(xsf::hyp2f1(b, a, c, x), f64::INFINITY);
     }
+    // inf for (1 - x)^(c - a - b) times a polynomial (DLMF 15.8.1) where c - a - b rounds, here
+    // to -25.000000000000114, as it overflows (about 2^1294.6)
+    let c = -1024.0 + 2.0_f64.powi(-43);
+    assert_eq!(xsf::hyp2f1(c + 1.0, 24.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(24.0, c + 1.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
     // (but an exponent within `HYP2F1_EPS` of an integer counts as one: (-1/4)^2 and 1)
     let actual = [xsf::hyp2f1(2.5, -1.999_999_999_999_999_8, 2.5, 1.25)];
     np_assert_allclose!(actual, [0.0625], rtol = 1e-14);

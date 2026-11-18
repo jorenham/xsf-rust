@@ -729,9 +729,10 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// For `f64` $z$, a finite result may be replaced by NaN if the internal error estimates say that
 /// none of its digits are correct. For `f64` $z > 1$, where $_2F_1$ is generally complex, the
-/// result is NaN, unless it's a polynomial or a real power of $1 - z$ times one, or $+\infty$ for
-/// a non-positive integer $b$. Here, as for $z \le 1$, a parameter within about $10^{-13}$ of an
-/// integer can count as one.
+/// result is NaN, unless $a_1$, $a_2$, $b - a_1$ or $b - a_2$ is a non-positive integer, where it's
+/// a polynomial, or one times a power of $1 - z$, if that's real, and else $+\infty$, as it is for
+/// a non-positive integer $b$, or where $b - a_1$ or $b - a_2$ rounds to $b$. Here, as for
+/// $z \le 1$, a parameter within about $10^{-13}$ of an integer can count as one.
 ///
 /// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
 /// defined by
