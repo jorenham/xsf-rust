@@ -1274,7 +1274,7 @@ pub(crate) fn chgu(
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN && !chgus_deferred(a, b, x, id1) {
-            *digits = super::subnormal_digits(hu, id1);
+            *digits = super::subnormal_digits(hu, id1.into()) as i32;
             return hu;
         }
         hu1 = hu;
@@ -1287,7 +1287,7 @@ pub(crate) fn chgu(
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= ID_MIN {
-            *digits = super::subnormal_digits(hu, id);
+            *digits = super::subnormal_digits(hu, id.into()) as i32;
             return hu;
         }
         if id1 > id {
@@ -1346,6 +1346,7 @@ pub(crate) fn chgu(
         {
             let (u, id_b) =
                 super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| chguit_id(a, c, false));
+            let id_b = id_b as i32;
             if !u.is_nan() && (hu.is_nan() || id_b > id) {
                 (hu, id) = (u, id_b);
             }
@@ -1363,7 +1364,7 @@ pub(crate) fn chgu(
         if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
-                *digits = super::subnormal_digits(hu, id);
+                *digits = super::subnormal_digits(hu, id.into()) as i32;
                 return hu;
             }
         }
@@ -1381,6 +1382,7 @@ pub(crate) fn chgu(
         let near_1 = (b - 1.0).abs() < NEAR_1_DD && id0 == id1 && hu0.is_finite();
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
             let (u, id_rec) = super::hypu_rec(a, b, x);
+            let id_rec = id_rec as i32;
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
                 // (at most `ID_MIN`, as the estimate of the recurrence in a misses its rounding
                 // errors, e.g. it gives 6.1e-5 with 15 estimated digits for U(-9.5, 2, x) = 9.5e-5,
@@ -1427,7 +1429,7 @@ pub(crate) fn chgu(
     // Unlike in xsf, a subnormal U has fewer digits (also at the returns above), which doesn't
     // flag it (as no method does better), and isn't compared above (where it would favor other
     // methods that cancel to a normal U, e.g. `chgus` near U(167.7, -4, 1.22) = 4.9e-318)
-    *digits = super::subnormal_digits(hu, id);
+    *digits = super::subnormal_digits(hu, id.into()) as i32;
     hu
 }
 
