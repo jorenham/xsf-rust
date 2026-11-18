@@ -2639,6 +2639,34 @@ def r_hyppfq_arb(name):
     return lambda *args: _arb(name, *args)
 
 
+def _pfq_borel(a, b, z):
+    """pFq for p > q + 1 and z < 0: the Borel sum of the divergent series, as in mpmath's hyper.
+
+    That is the series up to a term below 10^(5 - dps) of its sum, from which it differs by
+    about that term, if its terms get that small after all a_i + n and b_j + n are positive;
+    otherwise the Meijer G function (DLMF 16.18.1), which mpmath's hyper only uses for p <= q + 3.
+    """
+    a, b, z = [mp.mpf(v) for v in a], [mp.mpf(v) for v in b], mp.mpf(z)
+    settled = max(0, *(math.ceil(-v) for v in (*a, *b)))
+    s, t, k, tol = mp.mpf(0), mp.mpf(1), 0, mp.mpf(10) ** (5 - mp.mp.dps)
+    while k <= settled + PFQ_MAX_TERMS:
+        s += t
+        u = t * z * mp.fprod(v + k for v in a) / mp.fprod(v + k for v in b) / (k + 1)
+        k += 1
+        if k > settled and abs(u) <= tol * abs(s):
+            return s
+        if k > settled and abs(u) >= abs(t):
+            break
+        t = u
+    g = mp.meijerg([[1 - v for v in a], []], [[0], [1 - v for v in b]], -z)
+    return g * mp.fprod(mp.gamma(v) for v in b) / mp.fprod(mp.gamma(v) for v in a)
+
+
+def r_hyppfq_borel(p):
+    """The reference of pFq for p > q + 1 and z < 0, of a_1, ..., a_p, b_1, ..., b_q and z."""
+    return lambda *args: _converged(_pfq_borel, args[:p], args[p:-1], args[-1])
+
+
 def _poly(f, *a):
     with wdps(xd(*a[:-1]) + 20):
         return f(*a)
@@ -5709,6 +5737,24 @@ add(
     timeout=60,
     note="none",
 )
+for p, args in [
+    (3, "a1 a2 a3 z"),
+    (3, "a1 a2 a3 b z"),
+    (4, "a1 a2 a3 a4 z"),
+    (4, "a1 a2 a3 a4 b z"),
+    (4, "a1 a2 a3 a4 b1 b2 z"),
+]:
+    params, call = len(args.split()) - 1, f"hyppfq{p}"
+    add(
+        f"hyppfq#{p}f{params - p}",
+        args,
+        r_hyppfq_borel(p),
+        D(*[U(-10, 10)] * params, LU(1e-3, 1e6, -1), n=1000, call=call),
+        D(*[LU(1e-3, 100, 0)] * params, LU(1e-3, 1e6, -1), n=1000, call=call),
+        cpp=False,
+        timeout=60,
+        note="none",
+    )
 for p, args, zmax in [
     (3, "a1 a2 a3 b1 b2 b3 z", 1e3),
     (2, "a1 a2 b1 b2 b3 z", 1e6),
