@@ -221,6 +221,12 @@ fn test_hyp3f2_recurrence() {
             1.097_287_567_318_436_7e-307,
             -3.169_232_623_501_818e244,
         ),
+        // down in a_1, as the steps in a lower parameter are unstable for z > 1/2
+        ([-150.5, 20.25, 0.5], [2.5, 1.5], 0.75, 0.025_047_672_505_746_516),
+        // z < 0, from the third start, as the series of the first two cancel too much
+        ([-220.25, -250.5, 30.5], [2.5, 1.5], -0.6, -2.331_472_191_451_277e74),
+        // in 8993 steps
+        ([-9000.5, 2.25, 0.75], [2.5, 1.5], 0.5, 0.001_489_134_401_576_868_4),
     ] {
         assert_hyp3f2(a, b, z, expected);
     }
