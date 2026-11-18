@@ -19,7 +19,7 @@ mod sphd;
 pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_minimal, hyp1f1_small_b};
+pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
@@ -88,7 +88,7 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
-        let hg = hyp1f1_neg_b_minimal(a, b, self, chgm(self, a, b));
+        let hg = hyp1f1_neg_b_fallback(a, b, self, chgm(self, a, b));
         hyp1f1_small_b(a, b, c64(self, 0.0), c64(hg, 0.0)).re
     }
 }
@@ -312,12 +312,14 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 }
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
-/// `a + m` in `[1, 2)`, with its estimated number of digits; NaN if a (heuristic) check finds that
-/// the recurrence is ill-conditioned; for small `a` by `hypu_sum_b`, unless that cancels
+/// `a + m` in `[1, 2)` (or `a + j` nearest 0, see below), with its estimated (fractional) number of
+/// digits; NaN if a (heuristic) check finds that the recurrence is ill-conditioned; for small `a`
+/// by `hypu_sum_b`, unless that cancels
 ///
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
-/// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1).
-fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
+/// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1). A
+/// start `a + j` in `(-0.5, 0.5]` comes back here, but doesn't start near 0 again.
+fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64) {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
         let (u, id) = hypu_rec(a - b + 1.0, 2.0 - b, x);
@@ -330,34 +332,63 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, i32) {
         let u = u0 + s;
         if u.is_infinite() || u0.abs() + s.abs() < REC_MAX_CANCEL * u.abs() {
             // the terms are taken to have 15 digits
-            return (u, digits_left(15, u0, s));
+            return (u, digits_left(15.0, u0, s));
         }
     }
+    // U(c - 1, b, x) = s U(c, b, x) - t U(c + 1, b, x), with (s, t) = `coef(c)`
+    let coef = |c: f64| (2.0 * c - b + x, c * (c - b + 1.0));
     // The recurrence from U(a + m, b, x) and U(a + m + 1, b, x) with `id` digits, or None if they
-    // cancel. They are recurred separately, to detect that.
-    let rec = |m: f64, u0: f64, u1: f64, id: i32| {
+    // cancel. They are recurred separately, to detect that, and so is a rounding error of each step
+    // (as in `hypu_fwd_b`).
+    let rec = |m: f64, u0: f64, u1: f64, id: f64| {
         let (mut p0, mut p1) = (u0, 0.0);
         let (mut q0, mut q1) = (0.0, u1);
+        let (mut e0, mut e1) = (0.0, 0.0);
         for k in (1..=m as i32).rev() {
-            // U(c - 1, b, x) = (2c - b + x) U(c, b, x) - c (c - b + 1) U(c + 1, b, x)
-            let c = a + f64::from(k);
-            let (s, t) = (2.0 * c - b + x, c * (c - b + 1.0));
+            let (s, t) = coef(a + f64::from(k));
+            let rounding = f64::EPSILON * (s * (p0 + q0)).abs().max((t * (p1 + q1)).abs());
             (p0, p1) = (s * p0 - t * p1, p0);
             (q0, q1) = (s * q0 - t * q1, q0);
+            // with the sign of the error so far, which it could cancel otherwise (e.g. after a
+            // step that cancels)
+            let e = s * e0 - t * e1;
+            (e0, e1) = (e + rounding.copysign(if e == 0.0 { p0 + q0 } else { e }), e0);
         }
         let u = p0 + q0;
-        (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs()).then(|| (u, digits_left(id, p0, q0)))
+        (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs())
+            .then(|| (u, digits_left(id, p0, q0).min(error_digits(e0, u))))
     };
     let m = (1.0 - a).ceil();
     let (u0, u1) = (xsf_hypu(a + m, b, x), xsf_hypu(a + m + 1.0, b, x));
     // the starting values are taken to have 15 digits
-    let mut best = rec(m, u0, u1, 15);
+    let mut best = rec(m, u0, u1, 15.0);
     // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
     // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
     if best.is_none() && (3.0..1000.0).contains(&b) {
         best = Some(hypu_rec_b(a, b, x));
     }
-    best.unwrap_or((f64::NAN, 0))
+    if a < -0.5 && (1.5..1000.0).contains(&b) {
+        // The step to a + j nearest 0 (the first or second) cancels for a near a negative integer
+        // and small x, e.g. by 1e7 for U(-2 - 1e-7, 5 - 1e-10, 0.005). Then the recurrence also
+        // starts from U(a + j, b, x) (which may use `hypu_sum_b`), and the result with more digits
+        // is kept.
+        let j = (-a).round();
+        let (mut v0, mut v1, mut cancel) = (u0, u1, 1.0);
+        for k in (j as i32 + 1..=m as i32).rev() {
+            let (s, t) = coef(a + f64::from(k));
+            let (f, g) = (s * v0, t * v1);
+            (v0, v1) = (f - g, v0);
+            cancel = f.abs().max(g.abs()) / v0.abs();
+        }
+        if cancel > REC_MAX_CANCEL {
+            let (v, id) = xsf_hypu_digits(a + j, b, x);
+            let near_0 = rec(j, v, v1, f64::from(id.min(15)));
+            if near_0.is_some_and(|(_, id)| best.is_none_or(|(_, id_best)| id > id_best)) {
+                best = near_0;
+            }
+        }
+    }
+    best.unwrap_or((f64::NAN, 0.0))
 }
 
 /// The largest cancellation `(|p| + |q|) / |p + q|` of a sum that `hypu_rec` accepts (empirical)
@@ -396,7 +427,7 @@ fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64) {
 
 /// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
 /// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
-fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, i32) {
+fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, f64) {
     hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| hypu_rec(a, c, x))
 }
 
@@ -407,8 +438,8 @@ pub(super) fn hypu_fwd_b(
     b: f64,
     x: f64,
     n: f64,
-    start: impl Fn(f64) -> (f64, i32),
-) -> (f64, i32) {
+    start: impl Fn(f64) -> (f64, f64),
+) -> (f64, f64) {
     let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // (fewer for a subnormal start, as in `chgu`)
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
@@ -430,24 +461,30 @@ pub(super) fn hypu_fwd_b(
         (e0, e1) = (e1, next(e0, e1) + rounding);
         c += 1.0;
     }
-    let id = digits_left(id_start, p1, u1 - p1).min(-(e1 / u1).abs().log10() as i32);
+    let id = digits_left(id_start, p1, u1 - p1).min(error_digits(e1, u1));
     (if u1.is_finite() { u1 } else { f64::NAN }, id)
 }
 
 /// `id`, but at most the digits of a subnormal `u`, whose rounding error can be a few spacings
 /// (up to about 7 in the sum of a subnormal integrand in `chguit`, empirical)
-fn subnormal_digits(u: f64, id: i32) -> i32 {
+fn subnormal_digits(u: f64, id: f64) -> f64 {
     const SPACINGS: f64 = 8.0;
     if u == 0.0 || u.abs() >= f64::MIN_POSITIVE {
         return id;
     }
-    id.min((-(SPACINGS * f64::EPSILON * f64::MIN_POSITIVE / u.abs()).log10()) as i32)
+    id.min(error_digits(SPACINGS * f64::EPSILON * f64::MIN_POSITIVE, u))
+}
+
+/// The number of digits of `u` with an error `e`, or 0 if that's NaN (e.g. for `e = u = 0`)
+fn error_digits(e: f64, u: f64) -> f64 {
+    let id = -(e / u).abs().log10();
+    if id.is_nan() { 0.0 } else { id }
 }
 
 /// The estimated number of digits of `p + q`, if `p` and `q` have `id` digits
-fn digits_left(id: i32, p: f64, q: f64) -> i32 {
+fn digits_left(id: f64, p: f64, q: f64) -> f64 {
     // the ratio is at least 1, but 0 or NaN (inf / inf) if the sum overflows
-    (f64::from(id) - ((p.abs() + q.abs()) / (p + q).abs()).log10().max(0.0)) as i32
+    id - ((p.abs() + q.abs()) / (p + q).abs()).log10().max(0.0)
 }
 
 /// Associated Legendre function for $|x| \leq 1$

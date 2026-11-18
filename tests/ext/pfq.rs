@@ -548,12 +548,71 @@ fn test_hyppfq_2f0() {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
+    // the Weniger fallback in double-double, for z < -1 and where the terms cancel (Arb)
+    for (a, z, expected) in [
+        ([1.1, 1.15], -1.09, 0.513_551_761_026_235_1),
+        ([-1.47, -2.49], -1.76, -0.976_714_154_400_257_8),
+        ([-17.57, -20.06], -1.04, 5.336_115_439_600_885_6e16),
+        ([0.7, 0.8], -0.46, 0.835_046_888_976_750_3),
+        ([-3.29, -13.69], -0.178, -1.070_282_071_194_967_9),
+        ([-8.27, -33.08], -0.067, -0.114_157_126_503_264_89),
+        ([-14.93, -14.85], -0.32, -31_736.919_105_697_503),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // where it stops with steps below its noise, but 1.2e-13 off by truncation (Arb)
+    let y = hyppfq(&[-28.697, -30.146], &[], -16.155);
+    assert!(y.is_none_or(|y| (y / -4.139_259_483_009_185e66 - 1.0).abs() <= 1e-13));
+    // and where only its last two steps are below its noise, 1.4e-13 off (Arb)
+    let y = hyppfq(&[-13.0541, -13.0541], &[], -8.2586);
+    assert!(y.is_none_or(|y| (y / -3.712_522_542_395_385e19 - 1.0).abs() <= 1e-13));
+    // a terminating sum whose drift bound would overflow unscaled (Arb)
+    let actual = hyppfq(&[-125.0, -1000.0], &[], -0.3).unwrap();
+    xsref::np_assert_allclose!([actual], [-8.284_573_243_742_23e305], rtol = 1e-14);
     // the Weniger fallback, after 1549 terms (Arb)
     let y = hyppfq(&[-1548.5, 1.000_000_000_000_028_4], &[], -0.001_953_124_999_999_999_8);
     assert!(y.is_none_or(|y| (y / 1.320_723_958_873_985_9e296 - 1.0).abs() <= 1e-13));
     // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
     // -1.000_327_845_432_870_3e-19)
     assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);
+}
+
+#[test]
+fn test_hyppfq_borel() {
+    // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, the residues
+    // of the Meijer G function, or its Weniger transformation (in f64 or double-double), also for
+    // a_i that differ by integers or lie near a negative one (mpmath meijerg at 40 digits;
+    // Wolfram agrees for a_i = 3/4, 7/4, 11/4 and for the a_i that differ by 2)
+    for (a, b, z, expected) in [
+        (&[1.0, 2.0, 3.0][..], &[][..], -0.01, 0.946_071_933_519_652_4),
+        (&[1.5, -2.25, 0.75], &[], -0.05, 1.144_479_810_161_067_8),
+        (&[0.3, 1.7, 0.6], &[], -2.5, 0.790_728_400_803_319_9),
+        (&[0.5, 1.25, 2.5], &[], -1e4, 0.010_153_563_989_012_29),
+        (&[0.75, 1.75, 2.75], &[], -30.0, 0.049_226_365_267_863_18),
+        (&[1.5, 2.25, 0.75], &[3.5], -0.1, 0.936_956_810_640_734_1),
+        (&[2.5, -3.5, 1.5], &[0.5], -1e-300, 1.0),
+        (&[0.25, -1.75, 0.6, 1.1], &[], -40.0, 265.971_225_821_188_4),
+        (&[-12.5, 3.25, -7.75, 1.5], &[2.5], -0.002, 0.698_147_990_588_820_4),
+        (&[0.3, 1.7, 0.6, 2.2], &[1.5], -2.5, 0.743_181_240_510_237_2),
+        (&[0.25, 2.25, 0.6, 1.1], &[1.5], -5.0, 0.763_430_979_979_843_5),
+        (&[0.5, 1.25, -2.75, 3.5], &[1.5, 0.25], -1e6, 3.247_409_892_494_204_4e18),
+        (&[1.2, 0.5, 1.75], &[], -0.06, 0.948_555_763_846_379_5),
+        (&[1.3, 0.8, 0.7], &[0.3], -0.3, 0.574_543_997_541_148_2),
+        (
+            &[-3.0 + 2f64.powi(-33), 2.375, 0.9375, -1.8125, -4.998_046_875],
+            &[],
+            -0.8125,
+            -761.523_562_944_142_1,
+        ),
+    ] {
+        let actual = hyppfq(a, b, z).unwrap();
+        xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+    }
+    // complex for z > 0, as for 2F0
+    assert_eq!(hyppfq(&[1.0, 2.0, 3.0], &[], 0.01), None);
 }
 
 #[test]

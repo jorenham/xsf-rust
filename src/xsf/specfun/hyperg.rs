@@ -1,6 +1,7 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
 //! (scipy/xsf@6406578).
 
+use core::cell::LazyCell;
 use core::f64::consts::{LN_2, PI};
 use core::ops::{Div, Mul};
 
@@ -23,6 +24,10 @@ use crate::{digamma, exprel, gamma, gammaln, hyp0f1};
 /// The cost bound of `hyp1f1_sum`, of the sum in `chgm` for non-integer `b < 0`, and of an
 /// overflowing sum in `chgul`
 const MAX_TERMS: i32 = 100_000;
+
+/// Above this `|a|`, `hyp1f1_neg_b` is only tried if `chgm` gives NaN, as its initial values can
+/// be slow there (e.g. a polynomial of degree `-a`)
+const NEG_B_MAX_A: f64 = 1e5;
 
 /// The largest relative error bound that `chgm_neg_x_asymptotic` accepts (its bounds are at least
 /// 3x the actual errors, and up to about 100 eps for `|a|, |b| <= 100`)
@@ -555,20 +560,23 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
     (err <= SQRT_EPSILON).then_some(hg)
 }
 
-/// Unlike in xsf: `hg` unless it is NaN, or else `M(a, b, x)` for non-integer `b < 0` from
-/// `chgm_minimal`, with `a` and `x` as in `kummer_args` if both are positive.
-///
-/// There the series of `M` cancels and DLMF 13.3.2 is unstable in both directions, e.g. for
-/// `hyp1f1(316.3, -1000.3, 100)`.
-pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
+/// Unlike in xsf: `hg` unless it is NaN, or else `M(a, b, x)` for non-integer `b < 0`
+/// - from `chgm_minimal`, with `a` and `x` as in `kummer_args` if both are positive, where the
+///   series of `M` cancels and DLMF 13.3.2 is unstable in both directions, e.g. for
+///   `hyp1f1(316.3, -1000.3, 100)`;
+/// - or else for finite `|a| > NEG_B_MAX_A` and `x` from `hyp1f1_neg_b`.
+pub(crate) fn hyp1f1_neg_b_fallback(a: f64, b: f64, x: f64, hg: f64) -> f64 {
+    if !(hg.is_nan() && b < 0.0 && b != b.trunc()) {
+        return hg;
+    }
     let (ak, xk) = kummer_args(x, a, b);
     // the sums of M2 and M3 need over x terms
-    let minimal = b < 0.0 && b != b.trunc() && ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
-    if hg.is_nan() && minimal {
-        chgm_minimal(ak, b, xk, x).unwrap_or(hg)
-    } else {
-        hg
-    }
+    let minimal = ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
+    let huge_a = a.abs() > NEG_B_MAX_A && a.is_finite() && x.is_finite();
+    let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
+    (minimal.then(|| chgm_minimal(ak, b, xk, x)).flatten())
+        .or_else(|| huge_a.then(neg_b).flatten())
+        .unwrap_or(hg)
 }
 
 /// `M(a, b, x)` for `x < 0` from `chgm_neg_x_series`, or else (for `x <= -30 - |b|`) from
@@ -702,24 +710,28 @@ fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
 /// `M(a, b, x)` for non-integer `b < 0` from the series, or else from `hyp1f1_neg_b`, or else from
 /// the series in double-double, if any loses at most half of its digits. If rounding `b - a` (for
 /// `x < 0`) errs by more than a rounding (see `rounding_ratio`), the series in double-double comes
-/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`.
+/// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`. `hyp1f1_neg_b`
+/// is skipped for `|a| > NEG_B_MAX_A`, where `chgm` is often accurate (see
+/// `hyp1f1_neg_b_fallback`).
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     /// The series if it ends, with an error bound below `tol` relative to its value
     fn checked(
         x: f64,
         ends: bool,
         tol: f64,
+        ln_max: impl Fn() -> f64,
         series: impl Fn(f64) -> Option<(f64, f64)>,
     ) -> Option<f64> {
         let mut hg = if ends { series(x) } else { None };
-        // if the partial sums overflow, `e^-1400 M` is summed instead, with the rounding error `d`
-        // of `x - 1400` applied after, as that can be over `eps` relative to `x`
+        // if the partial sums overflow, `e^-s M` with `s = ceil(ln_max)` is summed instead (an
+        // integer, as `exp` amplifies the rounding of a large argument), with the rounding error
+        // `d` of `x - s` applied after, as it can be over `eps` relative to `x`
         let (mut ln_scale, mut d) = (0.0, 0.0);
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
-            ln_scale = 1400.0;
+            ln_scale = ln_max().ceil();
             let x0;
             (x0, d) = two_sum(x.min(0.0), -ln_scale);
-            hg = series(x0);
+            hg = ln_scale.is_finite().then(|| series(x0)).flatten();
         }
         // (with the error of an underflow in the last 4 steps of `hyp1f1_sum`, each by up to half
         // the smallest subnormal `MIN_POSITIVE eps`, as `err` underflows too)
@@ -738,10 +750,25 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         chgm_series(ak.hi, b, xk, x0).map(|(hg, err)| (hg, err + r / (4.0 * f64::EPSILON) * err))
     };
     let small_rounding = r <= f64::EPSILON;
-    checked(x, ends, SQRT_EPSILON, series)
-        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, series_dd))
-        .or_else(|| hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b)))
-        .or_else(|| checked(x, ends, SQRT_EPSILON, series_dd))
+    // an estimate of `ln max_n |t_n|` for the terms `t_n` of `e^min(x, 0) M(ak, b, xk)`, summing
+    // the logarithms of their factors until they shrink (as in `term_ratio`)
+    let ln_max = LazyCell::new(|| {
+        let (mut ln_t, mut ln_max) = (x.min(0.0), x.min(0.0));
+        for n in (0..MAX_TERMS).map(f64::from) {
+            let ln_q = (ak + n).hi.abs().ln() - (n + 1.0).ln() + xk.ln() - (b + n).abs().ln();
+            if ln_q < 0.0 && b + n >= xk {
+                break;
+            }
+            ln_t += ln_q;
+            ln_max = ln_max.max(ln_t);
+        }
+        ln_max
+    });
+    let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
+    checked(x, ends, SQRT_EPSILON, || *ln_max, series)
+        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, || *ln_max, series_dd))
+        .or_else(|| (a.abs() <= NEG_B_MAX_A).then(neg_b).flatten())
+        .or_else(|| checked(x, ends, SQRT_EPSILON, || *ln_max, series_dd))
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion
@@ -1274,7 +1301,7 @@ pub(crate) fn chgu(
         hu = chgus(x, a, b, &mut id1);
         *md = 1;
         if id1 >= ID_MIN && !chgus_deferred(a, b, x, id1) {
-            *digits = super::subnormal_digits(hu, id1);
+            *digits = super::subnormal_digits(hu, id1.into()) as i32;
             return hu;
         }
         hu1 = hu;
@@ -1287,7 +1314,7 @@ pub(crate) fn chgu(
         hu = chgul(x, a, b, &mut id);
         *md = 2;
         if id >= ID_MIN {
-            *digits = super::subnormal_digits(hu, id);
+            *digits = super::subnormal_digits(hu, id.into()) as i32;
             return hu;
         }
         if id1 > id {
@@ -1344,8 +1371,11 @@ pub(crate) fn chgu(
             && x < 1.0
             && (LOG_MAP_B..1000.0).contains(&b)
         {
-            let (u, id_b) =
-                super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| chguit_id(a, c, false));
+            let (u, id_b) = super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| {
+                let (u, id) = chguit_id(a, c, false);
+                (u, f64::from(id))
+            });
+            let id_b = id_b as i32;
             if !u.is_nan() && (hu.is_nan() || id_b > id) {
                 (hu, id) = (u, id_b);
             }
@@ -1363,7 +1393,7 @@ pub(crate) fn chgu(
         if (!hu.is_normal() || hu0.is_infinite()) && (-1e5..=0.0).contains(&b00) {
             hu = chguit(x, a, b, true, &mut id);
             if hu0.is_infinite() {
-                *digits = super::subnormal_digits(hu, id);
+                *digits = super::subnormal_digits(hu, id.into()) as i32;
                 return hu;
             }
         }
@@ -1381,10 +1411,9 @@ pub(crate) fn chgu(
         let near_1 = (b - 1.0).abs() < NEAR_1_DD && id0 == id1 && hu0.is_finite();
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
             let (u, id_rec) = super::hypu_rec(a, b, x);
+            let id_rec = id_rec as i32;
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
-                // (at most `ID_MIN`, as the estimate of the recurrence in a misses its rounding
-                // errors, e.g. it gives 6.1e-5 with 15 estimated digits for U(-9.5, 2, x) = 9.5e-5,
-                // with x = 29.896902748015602 near a zero of U)
+                // (at most `ID_MIN`, as the estimate of the recurrence in a is not a bound)
                 (hu, id) = (u, id_rec.min(ID_MIN));
             }
         }
@@ -1427,7 +1456,7 @@ pub(crate) fn chgu(
     // Unlike in xsf, a subnormal U has fewer digits (also at the returns above), which doesn't
     // flag it (as no method does better), and isn't compared above (where it would favor other
     // methods that cancel to a normal U, e.g. `chgus` near U(167.7, -4, 1.22) = 4.9e-318)
-    *digits = super::subnormal_digits(hu, id);
+    *digits = super::subnormal_digits(hu, id.into()) as i32;
     hu
 }
 

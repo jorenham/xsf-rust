@@ -40,6 +40,53 @@ fn test_riemann_zeta_c64_moderate_imag() {
 }
 
 #[test]
+fn test_riemann_zeta_c64_near_eta_factor_zeros() {
+    // 1 - 2^(1 - z) vanishes at 1 + 2 pi i k / ln(2) (reference values from Arb)
+    for (z, expected) in [
+        (c64(1.000_001, 1e-6), c64(500_000.577_215_737_7, -500_000.000_041_060_5)),
+        (c64(1.5, 1e-100), c64(2.612_375_348_685_488, -3.932_239_737_431_101_5e-100)),
+        (c64(1.0, 1e-307), c64(0.577_215_664_901_532_9, -1.000_000_000_000_000_1e307)),
+        (c64(0.0, 1e-307), c64(-0.5, -9.189_385_332_046_727e-308)),
+        (c64(1e-300, 1e-300), c64(-0.5, -9.189_385_332_046_728e-301)),
+        (
+            c64(-1.606_574_395_346_453_3e-16, 2.407_500_379_740_984e-254),
+            c64(-0.499_999_999_999_999_83, -2.212_344_867_648_871_6e-254),
+        ),
+        (c64(1.0, 9.064_720_283_654_388), c64(1.346_579_542_836_317_2, 0.109_883_136_796_269_5)),
+        (c64(0.0, -9.064_720_283_654_388), c64(1.598_734_526_808_69, -0.278_338_669_639_082_5)),
+        (
+            c64(1.000_000_000_000_000_2, 18.129_440_567_308_777),
+            c64(1.824_744_877_856_936_2, -0.216_035_216_066_775_78),
+        ),
+    ] {
+        // each part separately, as the norm hides e.g. Re zeta(1 + 1e-307i)
+        let w = xsf::riemann_zeta(z);
+        for (got, want) in [(w.re, expected.re), (w.im, expected.im)] {
+            let rel = (got - want).abs() / want.abs();
+            assert!(rel < 2e-14, "riemann_zeta({z}) = {w}: rel = {rel:e}");
+        }
+    }
+}
+
+#[test]
+fn test_riemann_zeta_c64_small() {
+    // the reflection formula evaluates zeta(1 - z) next to its pole (reference values from Arb)
+    for (z, expected) in [
+        (c64(1e-6, -2e-6), c64(-0.500_000_918_935_523_7, 1.837_881_079_120_255_7e-6)),
+        (c64(1e-5, 1e-5), c64(-0.500_009_189_385_33, -9.189_585_969_693_889e-6)),
+        (c64(-1e-3, 3e-3), c64(-0.499_073_062_089_067_7, -0.002_750_778_612_088_271)),
+        (c64(0.1, -0.2), c64(-0.550_613_484_192_186_5, 0.219_207_672_013_450_7)),
+        (c64(-0.3, 1e-20), c64(-0.293_813_068_129_721_24, -5.089_726_696_918_256_5e-21)),
+    ] {
+        let w = xsf::riemann_zeta(z);
+        for (got, want) in [(w.re, expected.re), (w.im, expected.im)] {
+            let rel = (got - want).abs() / want.abs();
+            assert!(rel < 1e-15, "riemann_zeta({z}) = {w}: rel = {rel:e}");
+        }
+    }
+}
+
+#[test]
 fn test_zeta_large_q() {
     // asymptotic expansion for q > 1e8 (reference value from mpmath)
     let (x, q) = (36.0, 1.1e8);
