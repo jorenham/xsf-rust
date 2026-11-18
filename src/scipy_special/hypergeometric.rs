@@ -304,7 +304,12 @@ fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
     let size = |x: T| x.real().abs().max(x.imag().abs());
     for n in 0..1000 {
         let n = f64::from(n);
-        term = term / (v + n) * z / (n + 1.0);
+        // `1 / (v + n)` first only where `z / (v + n)` would overflow, as `term` is scaled down
+        term = if shift == 0 {
+            term * (z / (v + n) / (n + 1.0))
+        } else {
+            term / (v + n) * z / (n + 1.0)
+        };
         sum = sum + term;
         // not before the term with the smallest |v + n|, e.g. 1 / (-7.000001)_8 ~ 1e6 / 7!
         if size(term) <= size(sum) * (f64::EPSILON / 2.0) && (v + n > -0.5 || size(term) == 0.0) {
@@ -329,11 +334,9 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         // Unlike in xsf, the Maclaurin series is summed here like for real `z`, instead of using
         // the Bessel functions, which lose digits for large `|v|`, e.g. ~eps ln(Gamma(v)) through
         // the logarithmic prefactor; they remain for where the partial sums overflow (tiny `|v|`)
-        if z.norm() <= v.abs().max(1.0) {
-            let sum = hyp0f1_series(v, z);
-            if !sum.is_nan() {
-                return sum;
-            }
+        let series = (z.norm() <= v.abs().max(1.0)).then(|| hyp0f1_series(v, z));
+        if let Some(sum) = series.filter(|sum| sum.is_finite()) {
+            return sum;
         }
         // `arg = sqrt(w)`, with `w = z` for `I` and `w = -z` for `J`
         let (w, s, bessel): (_, _, fn(f64, C64) -> C64) = if z.re > 0.0 {
@@ -367,7 +370,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         let (gamma_v, arg_pow) = (crate::gamma(v), arg.powf(1.0 - v));
         let out = r * gamma_v * arg_pow;
         let normal = gamma_v.is_normal() && arg_pow.norm().is_normal() && out.norm().is_normal();
-        if !r.is_finite() || r == C64::ZERO {
+        let bessel_sum = if !r.is_finite() || r == C64::ZERO {
             // the Bessel function over- or underflows, or rounds to 0 near a zero
             let asy = if v == 1.0 { None } else { hyp0f1_asy_c64(v, z) };
             asy.unwrap_or_else(|| {
@@ -393,6 +396,22 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
             let m = r.re.abs().max(r.im.abs());
             let ln = arg.ln() * (1.0 - v) + crate::gammaln(v) + m.ln();
             (r / m * C64::cis(ln.im) * crate::gammasgn(v)).mul_exp(ln.re)
+        };
+
+        // A part of the series that overflows is kept where the Bessel result overflows too, e.g.
+        // `v = 5e-324`, but not where that is finite, as then the series is just above the maximum
+        match series {
+            Some(sum) if !sum.is_nan() => {
+                let pick = |a: f64, b: f64| {
+                    if a.is_finite() || !b.is_finite() {
+                        a
+                    } else {
+                        b
+                    }
+                };
+                c64(pick(sum.re, bessel_sum.re), pick(sum.im, bessel_sum.im))
+            },
+            _ => bessel_sum,
         }
     }
 }

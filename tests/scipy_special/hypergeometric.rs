@@ -488,3 +488,29 @@ fn test_hyp0f1_tiny_v_overflow() {
     assert_eq!(hyp0f1(v, 1e-8), f64::INFINITY);
     assert_eq!(hyp0f1(v, -1e-8), f64::NEG_INFINITY);
 }
+
+#[test]
+fn test_hyp0f1_tiny_v_unscaled() {
+    // `z / v` is exact, unlike `1 / v * z`
+    let v = 49.0 * 2f64.powi(-600);
+    np_assert_allclose!([hyp0f1(v, -v)], [5.904_303_669_502_066e-180], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(-v, 0.0))],
+        [c64(5.904_303_669_502_066e-180, 0.0)],
+        rtol = 1e-14
+    );
+
+    // `1 / v` overflows
+    // (`2^-1024` and `2^-1025` are subnormal)
+    let (v, expected) = (f64::from_bits(1 << 51), f64::from_bits(1 << 50));
+    assert_eq!(hyp0f1(v, -v), expected);
+    assert_eq!(hyp0f1(v, c64(-v, 0.0)), c64(expected, 0.0));
+}
+
+#[test]
+fn test_hyp0f1_overflow_borderline() {
+    // the imaginary part is just below `f64::MAX`
+    let res = hyp0f1(6e-309, c64(0.254_929_515_454_870_5, 0.9));
+    assert!(res.im.is_finite());
+    np_assert_allclose!([res.im], [1.797_693_134_862_315_3e308], rtol = 2e-14);
+}
