@@ -1460,3 +1460,47 @@ fn test_hyp2f1_f64_degree_1() {
         rtol = 1e-15
     );
 }
+
+#[test]
+fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
+    // unlike in xsf: for c = a = -m or c = b = -m, the polynomial of degree m of DLMF 15.2.5, also
+    // for x > 1 and m = 0; xsf gives inf, inf, 0.5, 2^-10, inf, (1 - x)^20 and inf (references:
+    // exact)
+    let actual = [
+        xsf::hyp2f1(10.0, -10.0, -10.0, 1.0),
+        xsf::hyp2f1(-10.0, -10.0, -10.0, -10.0),
+        xsf::hyp2f1(-10.0, 1.0, -10.0, -1.0),
+        xsf::hyp2f1(-10.0, 10.0, -10.0, -1.0),
+        xsf::hyp2f1(2.5, -3.0, -3.0, 3.0),
+        xsf::hyp2f1(-10.0, -20.0, -10.0, 1.0 / 3.0),
+        xsf::hyp2f1(0.0, 2.5, 0.0, 3.0),
+    ];
+    let desired = [184_756.0, 25_937_424_601.0, 1.0, 60_172.0, 225.0625, 44_458.0 / 59_049.0, 1.0];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // (whose terms cancel by 1e18 and 3e20; xsf gives inf and NaN)
+    let actual = [
+        xsf::hyp2f1(-50.0, -17.704_152_726_819_963, -50.0, 1.124_144_544_693_068),
+        xsf::hyp2f1(-51.0, -50.0, -50.0, 0.656_800_541_976_558_8),
+    ];
+    np_assert_allclose!(
+        actual,
+        [-4.974_610_285_018_047e-13, 4.887_745_972_669_103e-10],
+        rtol = 1e-14
+    );
+    // (exactly 0; xsf gives 0.5, 2^-10 and NaN)
+    let actual = [
+        xsf::hyp2f1(-9.0, 1.0, -9.0, -1.0),
+        xsf::hyp2f1(-9.0, -10.0, -9.0, 0.5),
+        xsf::hyp2f1(-10.0, -3.0, -10.0, 1.0),
+    ];
+    assert_eq!(actual, [0.0; 3]);
+    // (1 - x)^400 for a = b = c = -400, which overflows
+    assert_eq!(xsf::hyp2f1(-400.0, -400.0, -400.0, 6.984_779_578_287_557), f64::INFINITY);
+    // (the sum of (-1)^k for k <= 10001)
+    assert_eq!(xsf::hyp2f1(-10_001.0, 1.0, -10_001.0, -1.0), 0.0);
+    // ((1 - x)^m, where 1 - x rounds to 1; reference: Arb)
+    let actual = [xsf::hyp2f1(-1e20, -1e20, -1e20, 1e-20)];
+    np_assert_allclose!(actual, [0.367_879_441_171_442_33], rtol = 1e-15);
+    // (NaN for c = -inf)
+    assert!(xsf::hyp2f1(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, 0.5).is_nan());
+}

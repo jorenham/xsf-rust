@@ -14,10 +14,12 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
-use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
+use crate::ext::{
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd,
+};
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_prod, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
@@ -556,6 +558,32 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
     sum
 }
 
+/// Whether `sum_{k <= m} (b)_k x^k / k!` (DLMF 15.2.5) is exactly 0, as are all its terms and
+/// partial sums in `f64` (for `m <= HYP2F1_RECUR_MAXITER`)
+fn sums_to_zero(b: f64, m: f64, x: f64) -> bool {
+    // `p q` if exact: `two_prod` gives its rounding error exactly if `|p q| >= 2^-969`
+    // (2^53 times the smallest normal), else only if `p` or `q` is 0
+    let exact_prod = |p: f64, q: f64| {
+        let (r, err) = two_prod(p, q);
+        (err == 0.0 && (r.abs() >= const { pow2(53 - 1022) } || p == 0.0 || q == 0.0)).then_some(r)
+    };
+    let (mut t, mut sum, mut k) = (1.0, 1.0, 0.0);
+    while k < m && m <= HYP2F1_RECUR_MAXITER {
+        let (u, u_err) = two_sum(b, k);
+        let Some(q) = exact_prod(t, u).and_then(|p| exact_prod(p, x)) else {
+            return false;
+        };
+        let next = q / (k + 1.0);
+        let (s, s_err) = two_sum(sum, next);
+        // (`next` is exact iff `next (k + 1) = q` exactly)
+        if u_err != 0.0 || s_err != 0.0 || exact_prod(next, k + 1.0) != Some(q) {
+            return false;
+        }
+        (t, sum, k) = (next, s, k + 1.0);
+    }
+    sum == 0.0
+}
+
 /// Evaluate hypergeometric function by two-term recurrence in `a`.
 ///
 /// This avoids some of the loss of precision in the strongly alternating
@@ -770,7 +798,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     let d = c - a - b;
     let mut id = d.round();
 
-    if (a == 0.0 || b == 0.0) && c != 0.0 {
+    // Unlike in xsf, also for c = 0 (DLMF 15.2.5 for m = 0, see below)
+    if a == 0.0 || b == 0.0 {
         return 1.0;
     }
 
@@ -792,6 +821,32 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         let x = ldexp_f64(x, e_b - e_c);
         let exact = f64::from((Dd::new(c) - Dd::new(b) * x) / c);
         return if exact.is_nan() { rounded } else { exact };
+    }
+
+    let accurate = |&(_, err): &(f64, f64)| err <= HYP2F1_RECUR_TOL;
+    // Unlike in xsf, the polynomial of degree m of DLMF 15.2.5 for c = a = -m or c = b = -m, not
+    // (1 - x)^(-b) of DLMF 15.2.6 or inf.
+    //
+    // (only in the outermost call, as in the transformations c - a can round to c)
+    if outer && c.is_finite() && is_nonpos_int(c) && (a == c || b == c) {
+        // By `hyp2f1_recur` in double-double, else for a = b = c by (1 - x)^m (as both are that
+        // then), or 0 if exactly that, else by the paths below
+        let y = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+        if let Some((y, _)) = y.filter(accurate) {
+            return y;
+        }
+        if a == b {
+            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round)
+            let l = ln_dd(Dd::new(1.0) - x) * -c;
+            return if l.is_finite() {
+                l.hi.exp() * (1.0 + l.lo)
+            } else {
+                s.powf(-c)
+            };
+        }
+        if sums_to_zero(if a == c { b } else { a }, -c, x) {
+            return 0.0;
+        }
     }
 
     let neg_int_a = near_neg_int(a);
@@ -838,7 +893,6 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             && !poly_params(a, b, c).into_iter().any(degenerate);
         first.then(|| hyp2f1_recur(a, b, c, x)).flatten()
     };
-    let accurate = |&(_, err): &(f64, f64)| err <= HYP2F1_RECUR_TOL;
     // the result of `hyp2f1_recur` and its error bound, if that exceeds its tolerance
     let inexact = recur_first(a, b, c).map(Scaled::to_f64);
     if let Some((y, _)) = inexact.filter(accurate) {
