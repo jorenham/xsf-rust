@@ -520,8 +520,10 @@ fn hyp2f1_poly(
                 return best;
             }
             // (e.g. near a root, where the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12 and
-            // the better recurrence has an error bound of 2e-11)
-            min_err(best, poly_dd(n, r, c, w).map(|y| y.with_l(l)))
+            // the better recurrence has an error bound of 2e-11), only if accurate, as the
+            // rounding of `w` can make it less so than the paths of the caller
+            let y_dd = poly_dd(n, r, c, w).filter(|y| y.err <= HYP2F1_ETHRESH);
+            min_err(best, y_dd.map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
 }

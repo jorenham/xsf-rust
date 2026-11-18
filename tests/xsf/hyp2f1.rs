@@ -1155,9 +1155,17 @@ fn test_hyp2f1_f64_large_polynomials() {
     let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
     let desired = [-3.566_216_341_442_087e-9, -3.447_874_596_102_943_6, -388.081_847_556_405_76];
     np_assert_allclose!(actual, desired, rtol = 1e-15);
-    // but not where `1 / (1 - x)` is subnormal and so inexact, where that gave 1.3e-4 (exact)
-    let actual = xsf::hyp2f1(-7.692_307_692_292_307e-308, -1.0, 10.0, -1.3e308);
-    np_assert_allclose!([actual], [1.999_956_492_953_669_5e-12], rtol = 1e-6);
+    // but not where the low word of `1 / (1 - x)` is subnormal and so inexact, where that gave
+    // 1.3e-4 and 1.3e-8 (exact)
+    let actual = [
+        xsf::hyp2f1(-7.692_307_692_292_307e-308, -1.0, 10.0, -1.3e308),
+        xsf::hyp2f1(-6.666_666_653_333_333e-306, -1.0, 100.0, -1.5e307),
+    ];
+    np_assert_allclose!(
+        actual,
+        [1.999_956_492_953_669_5e-12, 2.000_000_054_253_873e-9],
+        rtol = 1e-6
+    );
 }
 
 #[test]
