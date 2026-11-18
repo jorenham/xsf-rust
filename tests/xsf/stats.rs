@@ -1122,5 +1122,6 @@ fn test_cdf_cvm_nonfinite() {
         assert_eq!(xsf::cdf_cvm(f64::INFINITY, n), 1.0);
         assert!(xsf::cdf_cvm(f64::NAN, n).is_nan());
     }
-    assert!(xsf::cdf_cvm(1e5, 1_000_000).is_nan());
+    assert_eq!(xsf::cdf_cvm(1e4, 1_000_000), 1.0);
+    assert_eq!(xsf::cdf_cvm(1e8, 1_000_000_000), 1.0);
 }
