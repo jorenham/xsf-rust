@@ -1774,8 +1774,9 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
     let [short, long] = MILLER_DECAY.map(steps);
     let ((y_short, _), (y, err)) =
         (long + shift <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
-    // (and the rounding of the quotient and of `y`, which loses digits if it is subnormal)
-    y.is_normal()
+    // (and the rounding of the quotient and of `y`; a subnormal `y` of the shifted run has lost
+    // digits that its estimate misses)
+    (shift == 0.0 || y.is_normal())
         .then(|| (y, (err + f64::EPSILON) * y.abs() + (y - y_short).abs()))
 }
 

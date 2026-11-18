@@ -710,6 +710,9 @@ fn test_hyppfq_2f0_miller_shifted() {
     assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
     // a subnormal result, ~8.63e-322 (Arb), is not that accurate
     assert_eq!(hyppfq(&[-2000.0, -2000.0], &[], -0.000_122_549_019_607_843_14), None);
+    // but one of the unshifted run can be accurate (Arb)
+    let y = hyppfq(&[600.0, 4600.0], &[], -0.000_514_2).unwrap();
+    assert!((y / 1.639_445_051_441_121_7e-308 - 1.0).abs() < 1e-13);
 }
 
 #[test]
