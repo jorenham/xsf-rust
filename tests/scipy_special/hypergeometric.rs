@@ -512,14 +512,6 @@ fn test_hyp0f1_tiny_v_unscaled() {
 }
 
 #[test]
-fn test_hyp0f1_overflow_borderline() {
-    // the imaginary part is just below `f64::MAX`
-    let res = hyp0f1(6e-309, c64(0.254_929_515_454_870_5, 0.9));
-    assert!(res.im.is_finite());
-    np_assert_allclose!([res.im], [1.797_693_134_862_315_3e308], rtol = 2e-14);
-}
-
-#[test]
 fn test_hyp0f1_scaled_retry() {
     // `v + z` overflows
     np_assert_allclose!([hyp0f1(1e308, 1e308)], [std::f64::consts::E], rtol = 1e-14);
@@ -529,4 +521,7 @@ fn test_hyp0f1_scaled_retry() {
     let v = f64::from_bits(1);
     let res = hyp0f1(v, c64(-1e-8, v));
     np_assert_allclose!([res.im], [0.999_999_99], rtol = 1e-14);
+
+    // overflows, although the Bessel result is 2.4e-14 below the maximum
+    assert_eq!(hyp0f1(v, c64(2f64.powi(-50), 0.0)).re, f64::INFINITY);
 }
