@@ -91,8 +91,9 @@
 //! Finally, return the result with the smallest error bound, which is too large if it exceeds
 //! `HYP2F1_RECUR_TOL`.
 //!
-//! For an integer `c <= 0` below an integer `a` or `b < 0`, where the steps above pass through the
-//! poles of `1 / (c)_k`, only the polynomial is computed (DLMF 15.2.5), for any finite `x`.
+//! For an integer `c <= 0` at or below an integer `a` or `b < 0`, where the steps above pass
+//! through the poles of `1 / (c)_k`, only the polynomial is computed (DLMF 15.2.5), for any finite
+//! `x`.
 //!
 //! For example, the sum of step 2 cancels for `F(-522, -123.5; 533.5; -0.9)`, the log case of
 //! step 4 for `F(-900.5, -800.5; 50; -40)`, and all 4 combinations for
@@ -157,7 +158,7 @@ const HYP2F1_RECUR_NODES: usize = 16;
 const HYP2F1_RECUR_NODE_WIDTH: f64 = 0.05;
 
 /// The maximum number of series terms plus recurrence steps, per combination
-const HYP2F1_RECUR_MAXITER: f64 = 1e6;
+pub(crate) const HYP2F1_RECUR_MAXITER: f64 = 1e6;
 
 /// The combinations `(p, q, s)` of step 1
 type Combinations = [(Dd, Dd, Dd); 4];
@@ -1009,13 +1010,13 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
-/// `F(a, b; c; x)` for an integer `c <= 0` below an integer `a` or `b = -n < 0`: the polynomial
-/// (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
-/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
-/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+/// `F(a, b; c; x)` for an integer `c <= 0` at or below an integer `a` or `b = -n < 0`: the
+/// polynomial (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by
+/// 7e15 for `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff
+/// transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
 fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     let is_poly =
-        |p: Dd| p.is_integer() && p.hi > c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+        |p: Dd| p.is_integer() && p.hi >= c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     // (`a >= b`, so the lower degree)
     let (p, q) = if is_poly(a) {
         (a, b)
@@ -1038,7 +1039,7 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
 }
 
 /// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
-/// `series_weighted`, plus the terms it skips if `c < -n`
+/// `series_weighted`, plus the terms it skips if `c <= -n`
 fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
@@ -1068,8 +1069,8 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
-        // Stop once the rest is below `thr`: for c < -n and b + k > 0, the ratios of the next
-        // terms are at most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to
+        // Stop once the rest is below `thr`: for c <= -n and b + k > 0, the ratios of the next
+        // terms are at most `r`, as |c + k| >= n - k and (b + k) / (k + 1) tends monotonically to
         // 1, so the rest is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the
         // rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2`
         // (hence `2 tail` below).
@@ -1080,7 +1081,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         let negligible = term_abs.max(f64::MIN_POSITIVE)
             <= thr * (1.0 - r) / r * (1.0 - 4.0 * MACHEP)
             && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
-        if c.hi < -n && bk > 0.0 && r < 1.0 && negligible {
+        if c.hi <= -n && bk > 0.0 && r < 1.0 && negligible {
             tail = thr;
             break;
         }
