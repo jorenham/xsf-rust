@@ -704,7 +704,7 @@ fn hyp2f1ra(a: f64, b: f64, c: f64, x: f64) -> (f64, f64, f64) {
 /// A "singularity" message is printed on overflow or
 /// in cases not addressed (such as x < -1).
 pub(crate) fn hyp2f1(a: f64, b: f64, c: f64, x: f64) -> f64 {
-    hyp2f1_impl(a, b, c, x, in_recur_regime(a, b, c, x))
+    hyp2f1_impl(a, b, c, x, in_recur_regime(a, b, c, x), true)
 }
 
 /// Unlike in xsf, `hyp2f1_recur` is tried first if `max(|a|, |b|, |c|)` is at least this
@@ -752,8 +752,9 @@ fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
 }
 
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
-/// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9)
-fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
+/// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9), and `outer`
+/// whether this is the outermost call
+fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 {
     let (mut p, mut q, mut r, mut y);
     let mut neg_int_ca_or_cb = false;
 
@@ -803,9 +804,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // tiny first term, or diverges for x < -1. Not for a subnormal one, where the series of
     // `hyp2f1_recur` underflow.
     //
-    // Unlike in xsf, also try it for a non-positive integer `c` if `a` or `b` is a negative integer
-    // above it, where it sums the polynomial in double-double, as the paths below lose all digits
-    // when its terms cancel (and can return NaN or the wrong sign of an overflow).
+    // Unlike in xsf, also try it in the outermost call for an integer c <= 0 below an integer
+    // a or b < 0 (DLMF 15.2.5): it sums that polynomial in double-double, as the paths below lose
+    // all digits when its terms cancel. Not in the transformations, where c - a can round to one.
     //
     // Unlike in xsf, also try it for `near_log`, where it combines the two terms of the 1/x or the
     // 1 - x transformation, up to their limit at an integer (DLMF 15.8.9, 15.8.10), while the paths
@@ -826,7 +827,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let degenerate = |t: Dd| t.hi <= 0.0 && !t.hi.is_normal();
     let recur_first = |a: f64, b: f64, c: f64| {
         let first = (recur && in_recur_regime(a, b, c, x) || tiny(a) || tiny(b))
-            && (tiny(c) || !near_neg_int(c) || c == c.round())
+            && (tiny(c) || !near_neg_int(c) || outer && c == c.round())
             && !poly_params(a, b, c).into_iter().any(degenerate);
         first.then(|| hyp2f1_recur(a, b, c, x)).flatten()
     };
@@ -905,7 +906,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
             }
         }
         let p = s.powf(d);
-        let y = hyp2f1_impl(c - a, c - b, c, x, recur);
+        let y = hyp2f1_impl(c - a, c - b, c, x, recur, false);
         // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur`, multiply its
         // scaled value by `s^d`, as their product can still be finite.
         //
@@ -997,8 +998,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                         return y;
                     }
                 }
-                p = hyp2f1_impl(a, 1.0 - c + a, 1.0 - e, 1.0 / x, recur);
-                q = hyp2f1_impl(b, 1.0 - c + b, 1.0 + e, 1.0 / x, recur);
+                p = hyp2f1_impl(a, 1.0 - c + a, 1.0 - e, 1.0 / x, recur, false);
+                q = hyp2f1_impl(b, 1.0 - c + b, 1.0 + e, 1.0 / x, recur, false);
                 p *= (-x).powf(-a);
                 q *= (-x).powf(-b);
                 t1 = gamma(c);
@@ -1020,9 +1021,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                 let w = x / (x - 1.0);
                 let recur = recur && w < HYP2F1_RECUR_NEAR1;
                 if a.abs() < b.abs() {
-                    return or_recur(s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur));
+                    return or_recur(s.powf(-a) * hyp2f1_impl(a, c - b, c, w, recur, false));
                 }
-                return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur));
+                return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur, false));
             }
 
             if ax > 1.0 {
@@ -1111,8 +1112,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
                     }
                     return s.powf(d) * z;
                 }
-                let mut d2 = hyp2f1_impl(a, b, e, x, recur);
-                let mut d1 = hyp2f1_impl(a, b, e + 1.0, x, recur);
+                let mut d2 = hyp2f1_impl(a, b, e, x, recur, false);
+                let mut d1 = hyp2f1_impl(a, b, e + 1.0, x, recur, false);
                 q = a + b + 1.0;
                 for _ in 0..aid {
                     r = e - 1.0;

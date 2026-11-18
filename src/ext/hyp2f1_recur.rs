@@ -189,7 +189,8 @@ impl Scaled {
         self.with_l(self.l + l)
     }
 
-    /// The value as an `f64` (which can overflow or underflow), and its error bound
+    /// The value as an `f64` (which can overflow or underflow), and its error bound, without the
+    /// rounding of an underflow (to a subnormal or 0)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
         (ldexp_f64(y.m, y.e), y.err)
@@ -1003,10 +1004,11 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
 /// it: the polynomial (DLMF 15.2.4, 15.2.5), whose terms can cancel by `1 / eps` or more, e.g.
 /// by 7e15 for `F(-186, -26.75; -333; -9)`. For `x < 1`, also that of its Pfaff transformation
 /// (DLMF 15.8.1), if the first is inaccurate (the Euler transformation, with `c - a` and
-/// `c - b`, is not a polynomial identity here).
+/// `c - b`, is not a polynomial identity here). At `x = 1`, the Chu-Vandermonde product.
 fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     let is_poly =
         |p: Dd| p.is_integer() && p.hi > c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+    // (`a >= b`, so if both are polynomial, this is the one of lower degree)
     let (p, q) = if is_poly(a) {
         (a, b)
     } else if is_poly(b) {
@@ -1015,8 +1017,11 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
         return None;
     };
     let n = -p.hi;
+    if x == 1.0 {
+        return chu_vandermonde(n, q, c);
+    }
     let direct = poly_dd(n, q, c, Dd::new(x));
-    if err_of(direct) <= HYP2F1_ETHRESH || x >= 1.0 {
+    if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
         return direct;
     }
     let one = Dd::new(1.0);
@@ -1031,8 +1036,13 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k) = (one, 1.0, 0.0, 0.0);
+    // (`b + k` and `x` scaled to `[0.5, 1)`, as the update can't round in the subnormal range then,
+    // e.g. for a subnormal `b`)
+    let (xm, xe) = x.frexp();
     while k < n {
-        t = t * ((b + k) * (k - n)) * x / ((c + k) * (k + 1.0));
+        let (bm, be) = (b + k).frexp();
+        t = t * (bm * (k - n)) * xm / ((c + k) * (k + 1.0));
+        te += be + xe;
         k += 1.0;
         if let Some(s) = rescale_exp(t.hi) {
             (t, te) = (t.ldexp(-s), te + s);
@@ -1053,6 +1063,33 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     }
     let err = MACHEP + DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) / sum.hi.abs();
     Scaled::new(sum.hi, e, err)
+}
+
+/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c < 1 - n`, in
+/// double-double
+fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
+    let cb = c - b;
+    // the product `t 2^e`, with `c - b + k` scaled to `[0.5, 1)` as in `poly_dd`
+    let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
+    while k < n {
+        let (num, num_e) = (cb + k).frexp();
+        if num.hi == 0.0 {
+            return Some(Scaled {
+                m: 0.0,
+                e: 0,
+                l: Dd::new(0.0),
+                err: 0.0,
+            });
+        }
+        t = t * num / (c + k);
+        k += 1.0;
+        e += num_e;
+        if let Some(s) = rescale_exp(t.hi) {
+            (t, e) = (t.ldexp(-s), e + s);
+        }
+    }
+    // (an addition, a product, and a division per factor)
+    Scaled::new(t.hi, e, MACHEP + 3.0 * n * DD_ROUNDING)
 }
 
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
@@ -1152,10 +1189,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // (beyond 1e15, the coefficients of the recurrence can overflow)
     let in_range =
         x != 0.0 && x.is_finite() && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v));
-    if in_range && c <= 0.0 && c == c.round() {
-        return hyp2f1_neg_int_c(Dd::new(a), Dd::new(b), Dd::new(c), x);
-    }
-    if !(in_range && x < 1.0) {
+    if !in_range {
         return None;
     }
     // In a fixed order, as step 7 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
@@ -1163,6 +1197,12 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // `F(-104 - 9e-7, 36; 0.0074; 0.66)`, whose form `(c - a, c - b)` then has `n = 105`, not 1.
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
+    if c.hi <= 0.0 && c.is_integer() {
+        return hyp2f1_neg_int_c(a, b, c, x);
+    }
+    if x >= 1.0 {
+        return None;
+    }
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
     let mut best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);
