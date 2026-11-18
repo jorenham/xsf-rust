@@ -1138,7 +1138,8 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
-/// `pfq_alg_series` for `p = q` in double-double, with the exact parameters
+/// `pfq_alg_series` for `p = q` in double-double, with the exact parameters, and an infinite
+/// error if no term bounds the rest
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
 fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
@@ -1159,7 +1160,16 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     };
     let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, ratio));
     let bound = |n| pfq_ratio_bound(&up_hi, &low_hi, 1.0 / z, n);
-    asymptotic_sum(terms, pfq_settled(&up_hi, &low_hi), z, bound)
+    // the terms can grow again where they settle, for a small `1 + a_m - a_i + n`: the sum only
+    // ends from where `bound` is below 1, as the terms then decrease until the `n / |z|` of
+    // their ratios takes over (which it does before `settled + |z|`)
+    let settled = pfq_settled(&up_hi, &low_hi).ceil();
+    let ns = (0..PFQ_MAXITER).map(|k| settled + f64::from(k));
+    let mut ns = ns.take_while(|&n| n <= settled + z.abs());
+    let Some(start) = ns.find(|&n| n > degree || bound(n) < 1.0) else {
+        return (Dd::new(1.0), f64::INFINITY);
+    };
+    asymptotic_sum(terms, start, z, bound)
 }
 
 /// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
