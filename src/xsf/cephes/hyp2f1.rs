@@ -956,6 +956,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         return if err < HYP2F1_ETHRESH { y } else { f64::NAN };
     }
 
+    // Unlike in xsf, for x > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
+    // DLMF 15.4.6 if its exponent is an integer, else NaN (see below), as the Euler transformation
+    // rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`. Not for an integer
+    // c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above).
+    if x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+        let e = if a == c { b } else { a };
+        return if e == e.round() { s.powf(-e) } else { f64::NAN };
+    }
+
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
     // cancels `F(c, c - b; c; x) = (1 - x)^(b - c)` (DLMF 15.4.6). Only if c > 0, as for c < 0
@@ -1139,17 +1148,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             // Unlike in xsf, NaN instead of inf for x > 1 (x < -1 returned above), where 2F1 is
             // generally complex, as it jumps across its branch cut (DLMF 15.2.3). (Most of its
             // real cases, the polynomials and their Euler transformations, are handled above.)
-            //
-            // For c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of DLMF 15.4.6 (NaN unless
-            // its exponent is an integer), which the Euler transformation above skips if `c - a`
-            // or `c - b` rounds to `c`.
             if ax > 1.0 {
                 /* series diverges  */
-                return match (a == c, b == c) {
-                    (true, _) => s.powf(-b),
-                    (_, true) => s.powf(-a),
-                    _ => f64::NAN,
-                };
+                return f64::NAN;
             }
 
             p = c - a;

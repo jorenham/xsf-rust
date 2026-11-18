@@ -1607,5 +1607,10 @@ fn test_hyp2f1_f64_x_gt_1() {
     assert_eq!(xsf::hyp2f1(20.0, c, c, 1.0 + f64::EPSILON), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(c, 20.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
     assert_eq!(xsf::hyp2f1(-3.0, 2.5, 2.5, 3.0), -8.0);
-    assert!(xsf::hyp2f1(0.5, 2.5, 2.5, 3.0).is_nan());
+    // (and NaN otherwise, also where c - a - b rounds to an integer, and for x = inf)
+    let c = 2.0_f64.powi(52);
+    for (a, b, c, x) in [(0.5, 2.5, 2.5, 3.0), (1.25, c, c, 3.0), (0.5, 2.5, 2.5, f64::INFINITY)] {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+    }
 }
