@@ -2717,11 +2717,13 @@ def _hyp2f1(a: mp.mpf, b: mp.mpf, c: mp.mpf, x: mp.mpf) -> mp.mpf:
 
 
 def _hyp2f1_arb(a: flint.arb, b: flint.arb, c: flint.arb, x: flint.arb) -> flint.arb:
-    """2F1 of Arb, but a polynomial exactly, where Arb can be NaN (for c = a or c = b) or too
-    wide (for large degrees) and has no exact zeros."""
+    """The real part of 2F1 of Arb, or NaN, which Arb does not confirm, if it is not real.
+    But a polynomial exactly, where Arb can be NaN (for c = a or c = b) or too wide (for large
+    degrees) and has no exact zeros."""
     args = tuple(map(float, (a, b, c, x)))
     if (m := _hyp2f1_degree(*args[:3])) is None:
-        return x.hypgeom_2f1(a, b, c)
+        f = flint.acb(x).hypgeom_2f1(a, b, c)
+        return f.real if 0 in f.imag else flint.arb.nan()
     f = _hyp2f1_poly(args, m)
     return flint.arb(flint.fmpq(f.numerator, f.denominator))
 
@@ -2732,9 +2734,10 @@ def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
 
 
 def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
-    """Whether 2F1 is not real for x > 1: unless it is a polynomial, or (1 - x)^(c - a - b) times
-    one, for c - a or c - b a non-positive integer and an integer c - a - b (DLMF 15.8.1), or c
-    is a pole."""
+    """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex: unless it is a
+    polynomial, or (1 - x)^(c - a - b) times one, for c - a or c - b a non-positive integer and
+    an integer c - a - b (DLMF 15.8.1), or c is a pole. Some others are real too, such as
+    2F1(2, 2; 4; 2) = -3, whose logarithmic term vanishes."""
     p, q, c = map(Fraction, a[:3])
     ends = any(v <= 0 and v.denominator == 1 for v in (c - p, c - q))
     euler = ends and (c - p - q).denominator == 1
@@ -2824,7 +2827,11 @@ HYP2F1_RULES: Final = (
         math.inf,
         "the limit for x -> 1- for a, b, c > 0 and c - a - b <= 0 (DLMF 15.4.21, 15.4.23)",
     ),
-    Rule(_hyp2f1_complex, math.nan, "NaN for x > 1 where 2F1 is complex (DLMF 15.2.3)"),
+    Rule(
+        _hyp2f1_complex,
+        math.nan,
+        "NaN for x > 1, where 2F1 is generally complex (DLMF 15.2.3)",
+    ),
 )
 HYP2F1_OVERRIDES: Final = (
     Override(_hyp2f1_complex, "xsf has inf for x > 1 where 2F1 is complex (#1531)"),
