@@ -46,7 +46,13 @@ const RECURRENCE_EPSILON: f64 = 17.0 * Dd::EPSILON;
 ///
 /// For `minus = 1` and the sizes of the arguments, no terms cancel: each is then the sum of the
 /// sizes of its terms, which is the scale of its rounding error.
-fn coefficients<T: SeriesReal>(u: T, [d1, d2, d3]: [T; 3], z: T, other: T, minus: f64) -> [T; 4] {
+fn lower_coefficients<T: SeriesReal>(
+    u: T,
+    [d1, d2, d3]: [T; 3],
+    z: T,
+    other: T,
+    minus: f64,
+) -> [T; 4] {
     let (m, sum) = (T::from_f64(minus), d1 + d2 + d3);
     // u - 1 and u - 2
     let (u1, u2) = (u + minus, u + 2.0 * minus);
@@ -58,42 +64,44 @@ fn coefficients<T: SeriesReal>(u: T, [d1, d2, d3]: [T; 3], z: T, other: T, minus
     ]
 }
 
-/// F at `b_j + k` by the series in double-double and an estimate of its absolute error, or
-/// `None` if it is not accurate
-fn recurrence_start(a: [f64; 3], bj: f64, other: f64, z: f64, k: f64) -> Option<(Dd, f64)> {
-    let u = Dd::new(bj) + k;
-    // the terms for `u` itself, which `pfq_terms` would round
-    let checked = pfq_extreme(&a, &[bj, other, 1.0]);
-    let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
+/// The series in double-double for the ratios `ratio(n)` of its terms, which can be those of
+/// more exact parameters than `a` and `b`, and an estimate of its absolute error, or `None` if
+/// it is not accurate
+fn recurrence_start(
+    a: [f64; 3],
+    b: [f64; 3],
+    z: f64,
+    ratio: impl Fn(f64) -> Dd,
+) -> Option<(Dd, f64)> {
     let terms = pfq_terms_of(first_zero(&a), z, ratio);
-    let b = descending([u.hi, other, 1.0]);
+    let b = descending(b);
     // (summed to the accuracy of double-double, as the steps can make its error larger)
     let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
     accurate((y.hi, err))?;
     Some((y, err))
 }
 
-/// F at `b_j` in `m` steps from the series at `b_j + m + k` for `k = 0, 1, 2`, the part of
-/// the estimate of its absolute error from the rounding errors, and that estimate, or `None`
-/// if one of the series is not accurate
-fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(f64, f64, f64)> {
-    let start = |k: u32| recurrence_start(a, bj, other, z, f64::from(m + k));
+/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, the part of the estimate of its
+/// absolute error from the rounding errors, and that estimate, or `None` if a start is `None`
+///
+/// `step(k)` gives the `c_i` of the relation `c_0 F_{k+3} + c_1 F_{k+2} + c_2 F_{k+1} + c_3 F_k
+/// = 0` between the F at `k` steps from the result, and the sizes of the terms of each `c_i`.
+fn recurrence_from(
+    m: u32,
+    start: impl Fn(f64) -> Option<(Dd, f64)>,
+    step: impl Fn(f64) -> ([Dd; 4], [f64; 4]),
+) -> Option<(f64, f64, f64)> {
+    let start = |k: u32| start(f64::from(m + k));
     let starts = [start(0)?, start(1)?, start(2)?];
-    // F at the three `b` above that of the next step, in ascending order
+    // `[F_{k+1}, F_{k+2}, F_{k+3}]` for the next step `k`
     let mut f = starts.map(|(y, _)| y);
     // of each step: the factors of those three in its F, and the bound of its rounding error
     let mut steps = Vec::with_capacity(m as usize);
     for k in (0..m).rev().map(f64::from) {
-        // F(b_j + k) from the relation at b = b_j + k + 3
-        let u = Dd::new(bj) + (k + 2.0);
-        let d = a.map(|ai| ai - u);
-        let [c0, c1, c2, c3] = coefficients(u, d, Dd::new(z), Dd::new(other), -1.0);
+        // (the sizes of the terms of c_0, c_1 and c_2 give those of the sum)
+        let ([c0, c1, c2, c3], [e0, e1, e2, _]) = step(k);
         let sum = c0 * f[2] + c1 * f[1] + c2 * f[0];
         let next = -sum / c3;
-        // the sizes of the terms of c_0, c_1 and c_2, and with them those of the sum
-        let size = u.hi.abs();
-        let sizes = a.map(|ai| ai.abs() + size);
-        let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
         let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
         // an underflow adds at most `f64::MIN_POSITIVE` to the sum, to the products c_0
         // and c_3, and to the quotient; in c_1 and c_2, less than the rounding of their
@@ -114,6 +122,49 @@ fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(
     Some((f[0].hi, rounding, rounding + series))
 }
 
+/// `recurrence_from` in the lower parameter `bj`, where `other` is the other one
+fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(f64, f64, f64)> {
+    let checked = pfq_extreme(&a, &[bj, other, 1.0]);
+    let start = |k: f64| {
+        // the terms for `u` itself, which `pfq_terms` would round
+        let u = Dd::new(bj) + k;
+        let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
+        recurrence_start(a, [u.hi, other, 1.0], z, ratio)
+    };
+    let step = |k: f64| {
+        // F(b_j + k) from the relation at b = b_j + k + 3
+        let u = Dd::new(bj) + (k + 2.0);
+        let size = u.hi.abs();
+        (
+            lower_coefficients(u, a.map(|ai| ai - u), Dd::new(z), Dd::new(other), -1.0),
+            lower_coefficients(size, a.map(|ai| ai.abs() + size), z.abs(), other.abs(), 1.0),
+        )
+    };
+    recurrence_from(m, start, step)
+}
+
+/// The first accurate result of `run(m)` for the `m` of `starts`, which ascend, and the estimate
+/// of its absolute error
+fn recurrence_first(
+    starts: impl IntoIterator<Item = u32>,
+    run: impl Fn(u32) -> Option<(f64, f64, f64)>,
+) -> Option<(f64, f64)> {
+    for m in starts {
+        // (a series that is not accurate may be for a larger `m`)
+        let Some((y, rounding, err)) = run(m) else {
+            continue;
+        };
+        if accurate((y, err)).is_some() {
+            return Some((y, err));
+        }
+        // a larger `m` ends with the same steps, after more of them
+        if accurate((y, rounding)).is_none() {
+            break;
+        }
+    }
+    None
+}
+
 /// 3F2 for `|z| < 1` by the recurrence in a lower parameter, and an estimate of its absolute
 /// error, or `None` if it is not 3F2 or not accurate
 pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
@@ -122,23 +173,10 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
     let &([1.0, large, small] | [large, 1.0, small] | [large, small, 1.0]) = b.as_ref() else {
         return None;
     };
+    let lower =
+        |(bj, other)| recurrence_first(RECURRENCE_STARTS, |m| lower_recurrence(a, bj, other, z, m));
     // first in the smaller one
-    for (bj, other) in [(small, large), (large, small)] {
-        for m in RECURRENCE_STARTS {
-            // (a series that is not accurate may be for a larger `m`)
-            let Some((y, rounding, err)) = recurrence_from(a, bj, other, z, m) else {
-                continue;
-            };
-            if accurate((y, err)).is_some() {
-                return Some((y, err));
-            }
-            // a larger `m` ends with the same steps, after more of them
-            if accurate((y, rounding)).is_none() {
-                break;
-            }
-        }
-    }
-    None
+    [(small, large), (large, small)].into_iter().find_map(lower)
 }
 
 #[cfg(test)]
