@@ -48,15 +48,26 @@ fn test_betainc_slow_continued_fraction() {
 
 #[test]
 fn test_betainc_large_ab() {
-    // reference values from mpmath
+    // reference values from Arb (python-flint)
     for &(a, b, x, p) in &[
-        (1e8, 2e8, 0.3333, 0.110_334_398_548_217_36),
-        (5e7, 8e7, 0.3846, 0.359_220_529_919_169_7),
-        (3e8, 1e9, 0.2307, 1.562_168_507_020_367_6e-9),
+        (1e8, 2e8, 0.3333, 0.110_334_398_548_114_66),
+        (5e7, 8e7, 0.3846, 0.359_220_529_919_147_1),
+        (3e8, 1e9, 0.2307, 1.562_168_507_010_937_3e-9),
         // tiny x with huge b, where 1 - x is rounded
         (13.0, 1e15, 1e-14, 0.208_443_523_605_136_1),
     ] {
-        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 5e-12);
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-14);
+    }
+}
+
+#[test]
+fn test_betainc_asymptotic_near_mean() {
+    // reference values from Arb (python-flint), where `1 - x` is rounded
+    for &(a, b, x, p) in &[
+        (10400.0, 62700.0, 0.1388, 0.003_442_840_703_653_337),
+        (79700.0, 96100.0, 0.4507, 0.012_620_958_518_076_243),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::betainc(a, b, x)], &[p], rtol = 1e-15);
     }
 }
 

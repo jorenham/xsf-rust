@@ -10,7 +10,7 @@ use core::f64::consts::LN_2;
 use crate::utils::{EGAMMA, SQRT_EPSILON};
 use crate::xsf::cephes::consts::MACHEP;
 use crate::xsf::cephes::igam::{igam, igamc};
-use crate::xsf::cephes::incbet::{betainc_xy, incbet};
+use crate::xsf::cephes::incbet::{betainc_xy, betainc_xy_lambda, incbet};
 use crate::xsf::cephes::incbi::{betainccinv_refine, incbi};
 use crate::xsf::cephes::{lgam1p, ln_a_beta, psi};
 use crate::xsf::expint::exp1;
@@ -72,7 +72,7 @@ pub(crate) fn fdtrc(a: f64, b: f64, x: f64) -> f64 {
         // Unlike in xsf, also if `1 / x` overflows, or only `a x` is subnormal
         q
     } else {
-        fdtr_betainc(b, a, w1, w)
+        fdtr_betainc(b, a, w1, w, Some(-fdtr_lambda(a, x, w1)))
     }
 }
 
@@ -138,7 +138,7 @@ pub(crate) fn fdtr(a: f64, b: f64, x: f64) -> f64 {
     } else if let Some((p, _)) = fdtr_tiny_w(a, b, x, w) {
         p
     } else if !(ax.min(w) < 2.0 * f64::MIN_POSITIVE && w < f64::EPSILON) {
-        fdtr_betainc(a, b, w, w1)
+        fdtr_betainc(a, b, w, w1, Some(fdtr_lambda(a, x, w1)))
     } else if x > 0.0 {
         // Unlike in xsf, if `w` is subnormal, as it rounds, while `b` is inf, or `a x >= eps`, so
         // that `b > 1e291`: the chi-square CDF of `a x`
@@ -215,17 +215,26 @@ pub(crate) fn fdtr_w(a: f64, b: f64, x: f64) -> (f64, f64) {
     }
 }
 
-/// `I_x(p / 2, q / 2)`, given `y = 1 - x`
+/// `lambda = A (1 - w) - B w = A (1 - x) (1 - w)` of `I_w(A, B)` in `fdtr`, with `A = a / 2`,
+/// `B = b / 2` and `w = a x / (b + a x)`, given `1 - w`
+///
+/// Unlike `lambda` from `w` and `1 - w`, this has only a small relative error, so that it does not
+/// amplify the rounding of `w` (see `incbet_xy`).
+fn fdtr_lambda(a: f64, x: f64, w1: f64) -> f64 {
+    0.5 * a * w1 * (1.0 - x)
+}
+
+/// `I_x(p / 2, q / 2)`, given `y = 1 - x` and `lambda` if known (see `incbet_xy`)
 ///
 /// Unlike in xsf, also if `q` is subnormal, where `q / 2` rounds (e.g. to 0), and
 /// `I_x(P, Q) = O(Q)` for `y > 0`. Then `(P + Q) / Q I_x(P, Q)`, whose log has a derivative in `Q`
 /// of about `|ln(y)| + ln(P + 1)`, is evaluated at `Q0 = MIN_POSITIVE` instead.
-fn fdtr_betainc(p: f64, q: f64, x: f64, y: f64) -> f64 {
+fn fdtr_betainc(p: f64, q: f64, x: f64, y: f64, lambda: Option<f64>) -> f64 {
     let q0 = 2.0 * f64::MIN_POSITIVE;
     if q < q0 && y > 0.0 {
         q / q0 * ((p + q0) / (p + q)) * betainc_xy(0.5 * p, 0.5 * q0, x, y)
     } else {
-        betainc_xy(0.5 * p, 0.5 * q, x, y)
+        betainc_xy_lambda(0.5 * p, 0.5 * q, x, y, lambda)
     }
 }
 
@@ -285,7 +294,7 @@ fn fdtr_tiny_y(a: f64, b: f64, x: f64) -> Option<(f64, f64)> {
     let (ha, hb) = (0.5 * a, 0.5 * b);
     if ha <= 1.0 / SQRT_EPSILON {
         let y0 = f64::MIN_POSITIVE;
-        let (p0, q0) = (fdtr_betainc(a, b, 1.0, y0), betainc_xy(hb, ha, y0, 1.0));
+        let (p0, q0) = (fdtr_betainc(a, b, 1.0, y0, None), betainc_xy(hb, ha, y0, 1.0));
         // B ln(y / y0), where `max(a, x) y0` is exact if `b` is normal
         let ln_r = b * (0.5 * (b.ln() - a.min(x).ln() - (a.max(x) * y0).ln()));
         // fdtr = p0 + q0 (1 - (y / y0)^B) has no cancellation

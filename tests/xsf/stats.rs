@@ -876,6 +876,18 @@ fn test_fdtr_fdtrc_exact_1mw() {
     xsref::np_assert_allclose!(&q, &q_ref, rtol = 1e-15);
 }
 
+#[test]
+fn test_fdtr_fdtrc_near_mean() {
+    // reference values from Arb, within ~3 standard deviations of the mean, where the rounding of
+    // `w` would be amplified ~`dfn + dfd` times
+    let p = [xsf::fdtr(3.4e6, 8.9e6, 0.9987), xsf::fdtr(6.1e6, 7.9e5, 0.99666)];
+    let q = [xsf::fdtrc(6.7e6, 3.4e6, 1.00176)];
+    let p_ref = [0.074_583_358_906_805_76, 0.023_866_291_181_763_397];
+    let q_ref = [0.030_944_149_108_297_337];
+    xsref::np_assert_allclose!(&p, &p_ref, rtol = 2e-15);
+    xsref::np_assert_allclose!(&q, &q_ref, rtol = 2e-15);
+}
+
 xsref::tests! {
     test_fdtri: "fdtri", "d_d_d-d", |x| xsf::fdtri(x[0], x[1], x[2]);
 }

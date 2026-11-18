@@ -55,7 +55,7 @@ pub(crate) fn nbdtrc(k: i32, n: i32, p: f64) -> f64 {
     let dk = f64::from(k) + 1.0;
     let dn = f64::from(n);
     // Unlike in xsf (scipy/xsf#358), `p` is passed as the exact `1 - (1 - p)`.
-    incbet_xy(dk, dn, 1.0 - p, p)
+    incbet_xy(dk, dn, 1.0 - p, p, None)
 }
 
 /// Negative binomial distribution

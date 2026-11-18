@@ -160,7 +160,7 @@ pub(crate) fn bdtr(k: f64, n: i32, p: f64) -> f64 {
             qn
         }
     } else {
-        incbet_xy(dn, fk + 1.0, 1.0 - p, p)
+        incbet_xy(dn, fk + 1.0, 1.0 - p, p, None)
     }
 }
 
