@@ -1488,6 +1488,10 @@ fn test_hyp1f1_neg_b_overflow() {
     let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
     assert_eq!(actual[..7], [f64::NEG_INFINITY; 7]);
     assert_eq!(actual[7..], [f64::INFINITY; 3]);
+
+    // Arb: 2.8e513; `b - a` rounds to the integer -2000, but the exact one has no zero factor
+    let (a, b, x) = (-1000.000_000_000_000_3, -3000.000_000_000_000_5, -10_000.0);
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::INFINITY);
 }
 
 #[test]

@@ -1,6 +1,7 @@
 //! Confluent hypergeometric functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
 //! (scipy/xsf@6406578).
 
+use core::cell::LazyCell;
 use core::f64::consts::{LN_2, PI};
 use core::ops::{Div, Mul};
 
@@ -715,16 +716,15 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         series: impl Fn(f64) -> Option<(f64, f64)>,
     ) -> Option<f64> {
         let mut hg = if ends { series(x) } else { None };
-        // if the partial sums overflow, `e^-s M` is summed instead, with the integer `s >= ln_max`
-        // (as `exp` amplifies the rounding of a large argument), so that its terms are at most 1,
-        // and with the rounding error `d` of `x - s` applied after, as that can be over `eps`
-        // relative to `x`
+        // if the partial sums overflow, `e^-s M` with `s = ceil(ln_max)` is summed instead (an
+        // integer, as `exp` amplifies the rounding of a large argument), with the rounding error
+        // `d` of `x - s` applied after, as it can be over `eps` relative to `x`
         let (mut ln_scale, mut d) = (0.0, 0.0);
         if hg.is_some_and(|(hg, _)| !hg.is_finite()) {
             ln_scale = ln_max().ceil();
             let x0;
             (x0, d) = two_sum(x.min(0.0), -ln_scale);
-            hg = series(x0);
+            hg = ln_scale.is_finite().then(|| series(x0)).flatten();
         }
         // (with the error of an underflow in the last 4 steps of `hyp1f1_sum`, each by up to half
         // the smallest subnormal `MIN_POSITIVE eps`, as `err` underflows too)
@@ -743,25 +743,26 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         chgm_series(ak.hi, b, xk, x0).map(|(hg, err)| (hg, err + r / (4.0 * f64::EPSILON) * err))
     };
     let small_rounding = r <= f64::EPSILON;
-    // `ln max_n |t_n|` for the terms `t_n` of `e^min(x, 0) M(ak, b, xk)`, up to where `term_ratio`
-    // shows that they shrink
-    let ln_max = || {
-        let mut ln_t = x.min(0.0);
-        let grows = |&n: &f64| term_ratio(ak.hi, b, xk, n).is_none();
-        (0..MAX_TERMS)
-            .map(f64::from)
-            .take_while(grows)
-            .fold(ln_t, |ln_max, n| {
-                ln_t += ((ak.hi + n) / (n + 1.0) * (xk / (b + n))).abs().ln();
-                ln_max.max(ln_t)
-            })
-    };
+    // an estimate of `ln max_n |t_n|` for the terms `t_n` of `e^min(x, 0) M(ak, b, xk)`, summing
+    // the logarithms of their factors until they shrink (as in `term_ratio`)
+    let ln_max = LazyCell::new(|| {
+        let (mut ln_t, mut ln_max) = (x.min(0.0), x.min(0.0));
+        for n in (0..MAX_TERMS).map(f64::from) {
+            let ln_q = (ak + n).hi.abs().ln() - (n + 1.0).ln() + xk.ln() - (b + n).abs().ln();
+            if ln_q < 0.0 && b + n >= xk {
+                break;
+            }
+            ln_t += ln_q;
+            ln_max = ln_max.max(ln_t);
+        }
+        ln_max
+    });
     let huge_a = a.abs() > 1e5;
     let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
-    checked(x, ends, SQRT_EPSILON, ln_max, series)
-        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, ln_max, series_dd))
+    checked(x, ends, SQRT_EPSILON, || *ln_max, series)
+        .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, || *ln_max, series_dd))
         .or_else(|| (!huge_a).then(neg_b).flatten())
-        .or_else(|| checked(x, ends, SQRT_EPSILON, ln_max, series_dd))
+        .or_else(|| checked(x, ends, SQRT_EPSILON, || *ln_max, series_dd))
         .or_else(|| huge_a.then(neg_b).flatten())
 }
 
