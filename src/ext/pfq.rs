@@ -871,7 +871,9 @@ fn mul_gammas(
     mut y: Scaled,
 ) -> Option<Scaled> {
     // the product of the `(g)_n^-power`, as a mantissa and an exponent
-    let (mut rising, mut rising_e) = (Dd::new(1.0), 0);
+    // (`rising_e` is an `f64`, which sums exactly, as many tiny factors can take it out of the
+    // range of `i32`)
+    let (mut rising, mut rising_e) = (Dd::new(1.0), 0.0);
     let gammas = num.into_iter().map(|g| (g, 1.0));
     for (mut g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
         if g.hi.abs() < PFQ_GAMMA_MAX {
@@ -892,7 +894,7 @@ fn mul_gammas(
                     (rising * r, r_e)
                 };
                 let (m, e) = q.frexp();
-                (rising, rising_e, g) = (m, rising_e + e + s, g + n);
+                (rising, rising_e, g) = (m, rising_e + f64::from(e + s), g + n);
             }
         }
         let (v, sign, v_err) = ln_gamma(g)?;
@@ -901,9 +903,10 @@ fn mul_gammas(
     }
     if rising != 1.0 {
         // (one eps bounds the rounding of `rising` to `rising.hi` and of the product of the
-        // mantissas, which can't overflow or underflow)
+        // mantissas, which can't overflow or underflow; the exponent is clamped as in `fold_exp`)
         let ((m, e), (r, k)) = (frexp_f64(y.m), frexp_f64(rising.hi));
-        (y.m, y.e, y.err) = (m * r, y.e + e + k + rising_e, y.err + f64::EPSILON);
+        let e = (f64::from(y.e + e + k) + rising_e).clamp(-1e9, 1e9) as i32;
+        (y.m, y.e, y.err) = (m * r, e, y.err + f64::EPSILON);
     }
     Some(y)
 }
