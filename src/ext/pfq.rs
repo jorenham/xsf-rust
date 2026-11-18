@@ -1701,6 +1701,52 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
         .or_else(weniger_dd)
 }
 
+/// The decays `exp(-m)` of `v_k` from where `hyp2f0_miller` recurs down: below `f64::EPSILON`, and
+/// further, as the difference of the two results estimates the truncation error
+const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
+
+/// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), and an estimate of its
+/// absolute error, or `None` if it would take more than `PFQ_DD_MAXITER` steps
+///
+/// With `x = -1/z`, the `v_k = (a1)_k (a2)_k / k! U(a1 + k, a1 - a2 + 1, x)` are the minimal
+/// solution of
+///
+/// `(a1 + k - 1) (a2 + k - 1) v_(k-1) = k ((a1 + a2 + 2 k - 1 + x) v_k - (k + 1) v_(k+1))`
+///
+/// and sum to `x^(-a1)`, so that 2F0 is `v_0 / sum_k v_k` (DLMF 13.6.21): without a gamma
+/// function, a power, or the rounded `x` and `a1 - a2 + 1`. It is in double-double, with a
+/// first-order estimate of its rounding errors, which the recurrence amplifies for `a1, a2 < 0`.
+fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
+    let x = Dd::new(-1.0) / z;
+    let sum = x + a1 + a2 - 1.0;
+    // v_0 / sum_k v_k from v_n = 1 and v_(n+1) = 0, and its relative rounding error
+    let ratio = |n: f64| {
+        let (mut v, mut e) = ([Dd::new(1.0), Dd::new(0.0)], [0.0; 2]);
+        let (mut total, mut e_total) = (v[0], 0.0);
+        for k in (1..=n as u32).rev().map(f64::from) {
+            let (p, q) = ((sum + 2.0 * k) * v[0], v[1] * (k + 1.0));
+            let den = (Dd::new(a1) + (k - 1.0)) * (Dd::new(a2) + (k - 1.0)) / k;
+            // the rounding error of this step, with the sign of the errors so far
+            let rounding = Dd::EPSILON * (p.hi.abs() + q.hi.abs());
+            let propagated = (sum.hi + 2.0 * k) * e[0] - (k + 1.0) * e[1];
+            e = [(propagated + rounding.copysign(propagated)) / den.hi, e[0]];
+            v = [(p - q) / den, v[0]];
+            total = total + v[0];
+            e_total += e[0].abs();
+        }
+        ((v[0] / total).hi, (e[0] / v[0].hi).abs() + (e_total / total.hi).abs())
+    };
+    // v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for large k (DLMF 13.8.11), which
+    // decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power of k (left to the
+    // truncation error), from where a1 + k and a2 + k are positive (and over at least m steps)
+    let settled = (-a1).max(-a2).max(0.0);
+    let steps = |m: f64| settled + m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi);
+    let [short, long] = MILLER_DECAY.map(steps);
+    let ((y_short, _), (y, err)) =
+        (long <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
+    Some((y, err * y.abs() + (y - y_short).abs()))
+}
+
 /// Generalized hypergeometric function $_pF_q$ for real arguments
 ///
 /// This function is not available in SciPy.
@@ -1761,8 +1807,9 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
 ///
 /// - for $p > q + 1$ and $z > 0$, unless it is a polynomial;
 /// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
-///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
-///   Weniger transformation, e.g. for some $z \ll -1$ or $a_1, a_2 \ll 0$;
+///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, its
+///   Weniger transformation, and the backward recurrence of $U$ in $a_1$, e.g. for some
+///   $z \ll -1$ or $a_1, a_2 \ll 0$;
 /// - for the other $p > q + 1$ where its methods fail their accuracy checks: its series up to its
 ///   smallest term, the sum of the residues of the Meijer G function, and its Weniger
 ///   transformation, e.g. for some $\abs z \gtrsim 0.1$, or where $a_i$ nearly coincide;
@@ -1881,12 +1928,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
             // the rounding errors in f64 can dominate, where the terms before `settled` cancel
-            // or the partial sums grow (z < -1)
+            // or the partial sums grow (z < -1); then Miller's algorithm, which is slower, but
+            // holds where U lacks a digit by the estimate of chgu
             borel(a1, a2)
                 .or_else(series)
                 .or_else(|| borel(a2, a1))
                 .or_else(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
                 .or_else(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
+                .or_else(|| accurate(hyp2f0_miller(a1, a2, z)?))
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
