@@ -683,12 +683,36 @@ fn test_hyppfq_2f0_miller() {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
-    // but not where its recurrence is unstable, 2.8e-3 off (Arb)
-    let y = hyppfq(&[-44.04, -60.33], &[], -0.0903);
-    assert!(y.is_none_or(|y| (y / 1.535_642_058_980_361_2e15 - 1.0).abs() <= 1e-13));
-    // nor where it estimates an error of 7.6e-13 (Arb)
-    let y = hyppfq(&[-74.73, -90.73], &[], -0.018_23);
-    assert!(y.is_none_or(|y| (y / -1.280_977_214_916_313_9e-9 - 1.0).abs() <= 1e-13));
+}
+
+#[test]
+fn test_hyppfq_2f0_miller_shifted() {
+    // Miller's algorithm from where all a_i + k > 0, as its sum cancels before (Arb)
+    for (a, z, expected) in [
+        ([-74.73, -90.73], -0.018_23, -1.280_977_214_916_313_9e-9),
+        ([-44.04, -60.33], -0.0903, 1.535_642_058_980_361_2e15),
+        ([-111.52, -110.52], -0.0137, -2.235_055_638_338_494e-13),
+        ([-122.89, -56.73], -0.0238, 519.670_814_874_989_4),
+        ([-238.57, -244.72], -0.0065, 5.655_119_399_242_013e-25),
+        ([-1606.98, 114.09], -6.78e-8, 1.012_508_691_661_776_5),
+        ([445.47, -1302.36], -4.21e-5, 63_016_049_258.297_64),
+        // (past a_1 + k = 0)
+        ([-100.0, -39.22], -0.0268, 0.312_116_603_209_507_8),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // where the recurrence amplifies its rounding errors past the tolerance
+    let (a, z) = ([-50.999_999_999_699_924, -104.536_535_990_336_39], -0.056_613_881_920_597_09);
+    let y = hyppfq(&a, &[], z);
+    assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
+    // a subnormal result, ~8.63e-322 (Arb), is not that accurate
+    assert_eq!(hyppfq(&[-2000.0, -2000.0], &[], -0.000_122_549_019_607_843_14), None);
+    // but one of the unshifted run can be accurate (Arb)
+    let y = hyppfq(&[600.0, 4600.0], &[], -0.000_514_2).unwrap();
+    assert!((y / 1.639_445_051_441_121_7e-308 - 1.0).abs() < 1e-13);
 }
 
 #[test]
