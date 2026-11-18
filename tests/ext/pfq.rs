@@ -708,6 +708,8 @@ fn test_hyppfq_2f0_miller_shifted() {
     let (a, z) = ([-50.999_999_999_699_924, -104.536_535_990_336_39], -0.056_613_881_920_597_09);
     let y = hyppfq(&a, &[], z);
     assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
+    // a subnormal result, ~8.63e-322 (Arb), is not that accurate
+    assert_eq!(hyppfq(&[-2000.0, -2000.0], &[], -0.000_122_549_019_607_843_14), None);
 }
 
 #[test]
