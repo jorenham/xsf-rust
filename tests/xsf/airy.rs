@@ -99,7 +99,14 @@ fn test_airy_c64_near_overflow() {
         c64(6.086_330_281_445_445e303, 1.360_456_903_014_940_5e304),
         c64(8.892_381_505_257_792e304, -1.228_420_803_265_360_1e305),
     ];
-    xsref::np_assert_allclose!(&xsf::airy(c64(-51.8, 89.7)), &expected, rtol = 1e-12);
+    xsref::np_assert_allclose!(&xsf::airy(c64(-51.8, 89.7)), &expected, rtol = 2e-15);
+    // Arb: airyai(z) and airybi(z) for z = -52.2 + 90.2j, where AMOS takes Ai' and Bi' to overflow
+    let [ai, _, bi, _] = xsf::airy(c64(-52.2, 90.2));
+    let expected = [
+        c64(7.975_579_981_739_534e306, 5.040_682_424_706_254e306),
+        c64(-5.040_682_424_706_254e306, 7.975_579_981_739_534e306),
+    ];
+    xsref::np_assert_allclose!(&[ai, bi], &expected, rtol = 2e-15);
     // Arb: airyai(z) and airyai(z, 1) for z = 101.5 exp(2 pi i / 3)
     let [ai, aip, _, _] = xsf::airy(Complex64::from_polar(101.5, 2.0 * PI / 3.0));
     let expected = [
@@ -144,6 +151,82 @@ fn test_airy_c64_large_re() {
     for (z, expected) in cases {
         xsref::np_assert_allclose!(&xsf::airy(z), &expected, rtol = 1e-15);
     }
+}
+
+#[test]
+fn test_airy_c64_large_phase() {
+    // Arb: acb(z).airy() and the scaled ones (e^zeta for Ai and Ai', e^-|Re zeta| for Bi and Bi'),
+    // for |ph z| > pi/3, and their conjugates
+    let cases = [
+        (
+            c64(-95.8, 14.4),
+            [
+                c64(-1.641_283_069_088_02e60, -2.984_218_827_895_379_3e59),
+                c64(-1.729_171_707_827_661_6e60, 1.632_703_823_389_417_4e61),
+                c64(2.984_218_827_895_379_3e59, -1.641_283_069_088_02e60),
+                c64(-1.632_703_823_389_417_4e61, -1.729_171_707_827_661_6e60),
+            ],
+            [
+                c64(0.065_902_575_103_500_7, -0.061_174_096_705_638_61),
+                c64(-0.648_587_509_119_586_3, -0.602_103_131_196_073_6),
+                c64(0.016_085_546_432_400_23, -0.088_468_495_573_251_79),
+                c64(-0.880_060_567_810_631_9, -0.093_205_871_955_009_94),
+            ],
+        ),
+        (
+            c64(30.0, 80.0),
+            [
+                c64(-2.390_496_929_241_727_3e54, -8.108_129_472_483_718e54),
+                c64(-2.450_298_168_293_716_2e55, 7.418_817_286_333_621e55),
+                c64(8.108_129_472_483_718e54, -2.390_496_929_241_727_3e54),
+                c64(-7.418_817_286_333_621e55, -2.450_298_168_293_716_2e55),
+            ],
+            [
+                c64(0.088_564_846_161_249_72, -0.027_675_892_243_092_602),
+                c64(-0.818_588_242_770_607_3, -0.255_757_090_837_983_37),
+                c64(0.089_000_875_527_667_57, -0.026_239_876_949_515_72),
+                c64(-0.814_344_709_349_130_4, -0.268_962_999_446_502_54),
+            ],
+        ),
+        (
+            c64(-600.0, 0.5),
+            [
+                c64(-1_357.798_706_186_429_9, 11_803.262_113_559_258),
+                c64(289_133.008_231_432_06, 33_143.593_967_670_23),
+                c64(-11_803.262_114_102_576, -1_357.798_706_124_158_1),
+                c64(-33_143.593_969_201_34, 289_133.008_218_124_2),
+            ],
+            [
+                c64(0.040_311_560_072_121_576, -0.040_295_338_283_865_154),
+                c64(-0.987_424_882_168_184, -0.987_033_128_763_382_6),
+                c64(-0.056_624_255_356_529_88, -0.006_513_821_341_515_287),
+                c64(-0.159_001_071_924_250_14, 1.387_069_195_877_931_8),
+            ],
+        ),
+    ];
+    for (z, expected, scaled) in cases {
+        for (z, expected, scaled) in [
+            (z, expected, scaled),
+            (z.conj(), expected.map(|w| w.conj()), scaled.map(|w| w.conj())),
+        ] {
+            xsref::np_assert_allclose!(&xsf::airy(z), &expected, rtol = 2e-15);
+            xsref::np_assert_allclose!(&xsf::airy_scaled(z), &scaled, rtol = 2e-15);
+        }
+    }
+}
+
+#[test]
+fn test_airy_c64_negative_real() {
+    // Arb: acb(z).airy(); Bi and Bi' are not scaled, as Re zeta = 0
+    let expected = [
+        c64(0.100_809_025_019_288_57, 0.0),
+        c64(-1.143_627_547_203_056_6, 0.0),
+        c64(0.043_226_419_093_977_925, 0.0),
+        c64(2.667_171_540_341_03, 0.0),
+    ];
+    let z = c64(-700.0, 0.0);
+    xsref::np_assert_allclose!(&xsf::airy(z), &expected, rtol = 2e-15);
+    xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &expected[2..], rtol = 2e-15);
 }
 
 #[test]
@@ -198,6 +281,22 @@ fn test_airy_c64_scaled_zeta_re_below_zero() {
     for (z, expected) in [
         (c64(30.0, 51.961_524_227_066_32), expected),
         (c64(30.0, -51.961_524_227_066_32), expected.map(|w| w.conj())),
+    ] {
+        xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &expected, rtol = 1e-15);
+    }
+}
+
+#[test]
+fn test_airy_c64_scaled_zeta_re_above_zero() {
+    // Arb: Bi e^-|Re zeta| and Bi' e^-|Re zeta|, at ph z just below pi/3, where Re zeta = 9.7e-14
+    // but its rounded value is below 0
+    let expected = [
+        c64(-0.005_327_918_203_229_043, 0.070_112_237_908_936_32),
+        c64(-3.082_427_605_065_668_3, 2.005_886_794_538_590_8),
+    ];
+    for (z, expected) in [
+        (c64(186.5, 323.027_475_611_595_6), expected),
+        (c64(186.5, -323.027_475_611_595_6), expected.map(|w| w.conj())),
     ] {
         xsref::np_assert_allclose!(&xsf::airy_scaled(z)[2..], &expected, rtol = 1e-15);
     }
