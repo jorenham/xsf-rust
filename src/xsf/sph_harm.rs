@@ -27,8 +27,7 @@ fn sph_harm_y_for_each_n_m(
 }
 
 fn sph_harm_y_t(n: i32, m: i32, theta: f64, phi: f64) -> C64 {
-    // Unlike in xsf, the phase is applied once, to the last degree (as the only one kept), instead
-    // of to each degree
+    // Unlike in xsf, the phase is applied once, as only the last degree is kept
     let mut res_n = C64::ZERO;
     sph_harm_y_next(m, phi, sph_legendre_p_t(n, m, theta), &mut res_n);
 
@@ -79,7 +78,7 @@ fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, C64, 2>) {
 ///
 /// # Panics
 /// - if `n` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
-/// - if `m` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
+/// - if `|m|` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
 ///
 /// # See also
 /// - [`sph_harm_y_all`]
@@ -88,7 +87,7 @@ fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, C64, 2>) {
 #[inline]
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
     assert!(n <= c_int::MAX as usize);
-    assert!(m.abs() <= c_int::MAX as isize);
+    assert!(m.unsigned_abs() <= c_int::MAX as usize);
     sph_harm_y_t(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi).into()
 }
 
