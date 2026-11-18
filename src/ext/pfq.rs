@@ -469,6 +469,22 @@ fn pfq_weniger<T: SeriesReal>(
     Some((delta.to_f64(), f64::INFINITY))
 }
 
+/// `pfq_weniger` if it is `accurate`, also with the rounding errors (of relative size `eps`)
+/// that the terms `t_n` accumulated up to `settled` added, as `a + n` can round alike
+fn accurate_weniger(
+    (y, err): (f64, f64),
+    terms: impl Iterator<Item = f64>,
+    settled: f64,
+    eps: f64,
+) -> Option<f64> {
+    accurate((y, err))?;
+    // (each scaled, as their sum can overflow)
+    let drift = terms
+        .zip(0..=settled as u32)
+        .map(|(t, n)| 4.0 * eps * f64::from(n) * t.abs());
+    accurate((y, err + drift.sum::<f64>()))
+}
+
 /// `psi(x) e`: the relative change of `Gamma(x)` by the low part `e` of its argument, to first
 /// order
 fn gamma_low((x, e): (f64, f64)) -> f64 {
@@ -1624,19 +1640,21 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let d = (a_ref.len() - b_ref.len()) as f64;
     // (capped as for 2F0)
     let scale = z.abs().powf(-1.0 / d).min(f64::EPSILON.recip());
-    let terms = once(1.0).chain(pfq_terms(a_ref, b_ref, z));
+    let terms = || once(1.0).chain(pfq_terms(a_ref, b_ref, z));
     let settled = pfq_settled(a_ref, b_ref).ceil();
-    let series = || accurate(asymptotic_sum(terms, settled, scale, |_| 0.0));
-    let weniger = || accurate(pfq_weniger::<f64>(a, b, z)?);
+    let series = || accurate(asymptotic_sum(terms(), settled, scale, |_| 0.0));
+    // also with the rounding errors of the terms, as for 2F0
+    let weniger = |weniger: (f64, f64), eps: f64| accurate_weniger(weniger, terms(), settled, eps);
+    let weniger_f64 = || weniger(pfq_weniger::<f64>(a, b, z)?, f64::EPSILON);
     // as for 2F0, where the rounding errors in f64 dominate
-    let weniger_dd = || accurate(pfq_weniger::<Dd>(a, b, z)?);
+    let weniger_dd = || weniger(pfq_weniger::<Dd>(a, b, z)?, Dd::EPSILON);
     let residues = || {
         let mut terms = vec![None; a_ref.len()];
         pfq_alg(a, b, z, false, &mut terms)?;
         checked_f64(add_exp(terms.into_iter().flatten())?, None)
     };
     series()
-        .or_else(weniger)
+        .or_else(weniger_f64)
         .or_else(residues)
         .or_else(weniger_dd)
 }
@@ -1788,17 +1806,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // remainder)
             let scale = x.min(f64::EPSILON.recip());
             let series = || accurate(asymptotic_sum(terms.clone(), settled, scale, |_| 0.0));
-            // Try Weniger when both U evaluations and the truncated series miss the tolerance,
-            // plus the rounding errors (of relative size `eps`) accumulated up to `settled`, as
-            // `a + n` can round alike
-            let weniger = |(y, err): (f64, f64), eps: f64| {
-                accurate((y, err))?;
-                // (each scaled, as their sum can overflow)
-                let drift = terms
-                    .clone()
-                    .zip(0..=settled as u32)
-                    .map(|(t, n)| 4.0 * eps * f64::from(n) * t.abs());
-                accurate((y, err + drift.sum::<f64>()))
+            // Try Weniger when both U evaluations and the truncated series miss the tolerance
+            let weniger = |weniger: (f64, f64), eps: f64| {
+                accurate_weniger(weniger, terms.clone(), settled, eps)
             };
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
