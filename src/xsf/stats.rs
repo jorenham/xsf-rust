@@ -1481,8 +1481,8 @@ pub fn cdf_cvm(x: f64, n: i32) -> f64 {
         return 1.0;
     }
     let cdf_inf = cdf_cvm_inf(x);
-    // Unlike in xsf, 1 where the asymptotic CDF rounds to 1 (x > ~7.3), as the finite-`n` one then
-    // does too, and `psi1_mod` converges slowly, e.g. `gamma(k + 1)` overflows for x > ~1500
+    // Unlike in xsf, 1 where the asymptotic CDF is 1 (x >= 8), as the finite-`n` one then rounds to
+    // 1 too, and `psi1_mod` converges slowly, e.g. `gamma(k + 1)` overflows for x > ~1500
     if cdf_inf == 1.0 {
         return 1.0;
     }

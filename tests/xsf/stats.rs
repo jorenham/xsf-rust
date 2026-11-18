@@ -1123,5 +1123,8 @@ fn test_cdf_cvm_nonfinite() {
         assert!(xsf::cdf_cvm(f64::NAN, n).is_nan());
     }
     assert_eq!(xsf::cdf_cvm(1e4, 1_000_000), 1.0);
+    // around where `cdf_cvm_inf` reaches 1; mpmath gives 1 - 3e-18 and 1 - 9e-19
+    xsref::np_assert_allclose!(&[xsf::cdf_cvm(7.75, 10_000)], &[1.0], rtol = 4e-15);
+    assert_eq!(xsf::cdf_cvm(8.0, 10_000), 1.0);
     assert_eq!(xsf::cdf_cvm(1e8, 1_000_000_000), 1.0);
 }
