@@ -8,7 +8,7 @@
 
 use std::f64::consts::{LN_2, PI, TAU};
 
-use crate::utils::{LN_PI, LN_TAU, neg_one_pow};
+use crate::utils::{LN_PI, LN_TAU, neg_if_odd, neg_one_pow};
 use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::gamma::cgamma;
 use crate::xsf::loggamma::cloggamma;
@@ -97,23 +97,20 @@ const ZETA_EM_LOG_ABS_COEFF_LOOKUP: [f64; 51] = [
     -1.830_945_594_603_746e2,
 ];
 
-/// Complex log of expansion coefficients for Euler-Maclaurin summation formula.
-fn zeta_em_log_coeff(n: usize) -> C64 {
-    let mut result = if n < 50 {
-        c64(ZETA_EM_LOG_ABS_COEFF_LOOKUP[n], 0.0)
+/// Log of the absolute value of the expansion coefficients for Euler-Maclaurin summation formula.
+///
+/// Unlike in xsf, the sign of B2n/(2n)! (negative for even n) is not a term pi*i of the log,
+/// whose rounding would give the terms a spurious imaginary part (wrong near the real axis).
+fn zeta_em_log_abs_coeff(n: usize) -> f64 {
+    if n < 50 {
+        ZETA_EM_LOG_ABS_COEFF_LOOKUP[n]
     } else {
         /* Asymptotic formula
          * Uses https://dlmf.nist.gov/24.11#E1 to approximate B_{2n} and
          * Stirling's approximation for (2n)!.
          */
-        c64(LN_2 - 2.0 * n as f64 * LN_TAU, 0.0)
-    };
-    if n % 2 == 0 {
-        /* B_{2n}/(2n)! is negative for even n. This contributes a term
-         * pi*i when taking the log. */
-        result += PI * C64::I;
+        LN_2 - 2.0 * n as f64 * LN_TAU
     }
-    result
 }
 
 /// Compute riemann_zeta for complex input z using the Euler-Maclaurin formula.
@@ -142,7 +139,11 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
     }
     let big_n = n as f64;
     let b = rpow(big_n, -z);
-    result += b * (0.5 + big_n / (z - 1.0));
+    // Unlike in xsf, b n is divided by z - 1, as n / (z - 1) overflows near z = 1, and this pole
+    // term is added after the tail: near z = 1 it dwarfs the real part, which would then end the
+    // tail too early.
+    let pole = b * big_n / (z - 1.0);
+    result += 0.5 * b;
     /* The terms of the Euler-Maclaurin
      * expansion below are T(k, n) = B2k/(2k)! * n^(1 - z - 2k) * z(z+1)...(z+2k-2).
      * We work with logarithms to avoid overflow in all cases at the expense of
@@ -155,19 +156,20 @@ fn zeta_euler_maclaurin(z: C64) -> C64 {
     let mut log_poch = z.ln();
     let mut log_factor = -(z + 1.0) * big_n.ln();
     for k in 1..=m {
-        let term = (zeta_em_log_coeff(k) + log_factor + log_poch).exp();
+        let term = neg_if_odd(k + 1, (zeta_em_log_abs_coeff(k) + log_factor + log_poch).exp());
         result += term;
         if term.norm() / result.norm() <= f64::EPSILON {
-            return result;
+            return result + pole;
         }
         log_poch += (z + (2 * k - 1) as f64).ln() + (z + (2 * k) as f64).ln();
         log_factor -= 2.0 * big_n.ln();
     }
+    result += pole;
     /* Euler-maclaurin absolute error estimate.
      * The error is bounded above by |(z + 2m + 1)/(z.real + 2m + 1) * T(m+1, n)|
      * See https://en.wikipedia.org/wiki/Riemann_zeta_function#Numerical_algorithms
      */
-    let mut error = (zeta_em_log_coeff(m + 1) + log_factor + log_poch)
+    let mut error = (zeta_em_log_abs_coeff(m + 1) + log_factor + log_poch)
         .exp()
         .norm();
     error *= ((z + 2.0 * m as f64 + 1.0) / (z.re + 2.0 * m as f64 + 1.0)).norm();
@@ -262,7 +264,9 @@ const ZETA_BORWEIN_COEFF: [f64; 50] = [
 ];
 
 /// Compute riemann_zeta for complex input z using Algorithm 2 from Borwein 1995.
-fn zeta_borwein(z: C64) -> C64 {
+///
+/// `eta_factor` is `1 - 2^(1 - z)`.
+fn zeta_borwein(z: C64, eta_factor: C64) -> C64 {
     let mut result = C64::ZERO;
     // Sum in reverse order because smaller terms come later.
     for k in (0..50_i32).rev() {
@@ -271,8 +275,12 @@ fn zeta_borwein(z: C64) -> C64 {
         let term = sign * (ZETA_BORWEIN_COEFF[k as usize] - 1.0) / den;
         result += term;
     }
-    -result / (1.0 - rpow(2.0, 1.0 - z))
+    -result / eta_factor
 }
+
+/// Smallest `|1 - 2^(1 - z)|` for the Borwein sum: dividing by it at most doubles the
+/// absolute error of the eta sum.
+const ETA_FACTOR_MIN: f64 = 0.5;
 
 /// Compute riemann zeta for complex z and real part >= 0
 fn zeta_right_halfplane(z: C64) -> C64 {
@@ -289,7 +297,14 @@ fn zeta_right_halfplane(z: C64) -> C64 {
         }
         return zeta_euler_maclaurin(z);
     }
-    zeta_borwein(z)
+    // Unlike in xsf, Euler-Maclaurin is also used near the zeros 1 + 2 pi i k / ln(2) of
+    // eta_factor: the Borwein sum gives eta(z) = eta_factor zeta(z), and the division
+    // amplifies its rounding error by 1 / |eta_factor|.
+    let eta_factor = 1.0 - rpow(2.0, 1.0 - z);
+    if eta_factor.norm() < ETA_FACTOR_MIN {
+        return zeta_euler_maclaurin(z);
+    }
+    zeta_borwein(z, eta_factor)
 }
 
 /// exp(pi*z) for complex z.
@@ -371,12 +386,38 @@ fn zeta_reflection(z: C64) -> C64 {
     }
 }
 
+/// Taylor coefficients of zeta(z) - 1/(z - 1) at z = 0 (DLMF 25.2.4), highest degree first,
+/// without the constant term 1/2.
+///
+/// Generated with mpmath as `[zeta(0, 1, k) / factorial(k) + 1 for k in range(13, 0, -1)]`.
+const ZETA_REGULAR_TAYLOR_COEFFS: [f64; 13] = [
+    6.539_904_805_891_015e-14,
+    -4.092_582_630_415_831e-14,
+    -9.406_895_665_666_177e-12,
+    1.497_007_594_190_113_8e-10,
+    -9.110_164_892_314_166e-10,
+    -5.764_675_979_949_394e-9,
+    1.686_158_263_892_200_7e-7,
+    -1.301_146_013_959_624_2e-6,
+    -1.940_896_320_456_038e-6,
+    1.207_004_994_288_350_5e-4,
+    -7.851_944_770_424_08e-4,
+    -3.178_227_954_292_425_5e-3,
+    0.081_061_466_795_327_26,
+];
+
 fn criemann_zeta(z: C64) -> C64 {
     if z.is_real() {
         return c64(crate::xsf::cephes::riemann_zeta(z.re), 0.0);
     }
     if z.re >= 0.5 {
         return zeta_right_halfplane(z);
+    }
+    // Unlike in xsf, the Taylor series at 0 is summed for |z| < 1/2, where the reflection formula
+    // amplifies the rounding of 1 - z by the pole of zeta(1 - z). With 1/(z - 1) = -1 + z/(z - 1),
+    // the constant -1/2 is split off exactly.
+    if z.norm_sqr() < 0.25 {
+        return -0.5 + z * (1.0 / (z - 1.0) + z.evalpoly(&ZETA_REGULAR_TAYLOR_COEFFS));
     }
     zeta_reflection(z)
 }

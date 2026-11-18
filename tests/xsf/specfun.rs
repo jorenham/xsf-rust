@@ -242,6 +242,28 @@ fn test_hypu_near_neg_int_a_huge_b() {
 }
 
 #[test]
+fn test_hypu_near_neg_int_a_small_x() {
+    // Arb; 9.8e-9 and 6.9e-12 off by the recurrence in a, whose step to a near 0 cancels
+    // (-2159.9538 for the first in xsf)
+    let abx =
+        [(-2.000_000_1, 4.999_999_999_9, 0.004_85), (-2.000_000_1, 2.999_999_999_9, 0.004_85)];
+    let expected = [-2_159.997_821_507_856, 11.952_552_198_173_894];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 3.6e-12 off by the recurrence in a, which underestimated its rounding errors (NaN in
+    // xsf)
+    let actual = xsf::hypu(-169.13, 0.986_37, 0.0116);
+    xsref::np_assert_allclose!([actual], [7.407_921_790_935_49e302], rtol = 1e-13);
+}
+
+#[test]
+fn test_hypu_zero_start_b() {
+    // Arb: 8.08e52; NaN, not 0 by the recurrence in b, whose starting values underflow to 0
+    assert!(xsf::hypu(180.0, 180.5, 0.5).is_nan());
+}
+
+#[test]
 fn test_hypu_poly() {
     // mpmath; -6.90e95, 7.04e186, and NaN in xsf
     let abx = [(-60.0, 30.0, 10.0), (-100.0, -5.01, 46.6), (-95.0, 15.0, 0.004)];
@@ -951,11 +973,10 @@ fn test_hyp1f1_beyond_500_terms() {
 
 #[test]
 fn test_hyp1f1_truncated() {
-    // Arb: -1.64e183 and 9.31e-145; 500 terms are too few, and these were 1.02e266 and 1.39e126
-    assert!(xsf::hyp1f1(-2e6 - 0.3, -600.5, 0.1).is_nan());
+    // Arb: 9.31e-145; 500 terms are too few, and this was 1.39e126
+    assert!(xsf::hyp1f1(-2e6 - 0.3, 2_880_000.5, 477.5).is_nan());
     // Arb: 2.7e84592; the terms shrink, but grow again near -b
     assert!(xsf::hyp1f1(-800.3, -100_000.5, 100_000.5).is_nan());
-    assert!(xsf::hyp1f1(-2e6 - 0.3, 2_880_000.5, 477.5).is_nan());
 }
 
 #[test]
@@ -1360,17 +1381,53 @@ fn test_hyp1f1_neg_b_large_a() {
 
 #[test]
 fn test_hyp1f1_neg_b_lossy() {
-    // Arb: -165.6, -183.1, -505.3, and -2.1e715; the series cancels, or overflows while its terms
-    // still change sign, within 500 terms
-    assert!(xsf::hyp1f1(1e5 + 0.3, -0.5, -0.1).is_nan());
-    assert!(xsf::hyp1f1(-1e5 - 0.3, -0.5, 0.1).is_nan());
-    assert!(xsf::hyp1f1(1e6 + 0.3, -0.5, -0.1).is_nan());
-    assert!(xsf::hyp1f1(-1e5 - 0.3, -600.5, 100.0).is_nan());
+    // Arb; the series cancels, and these were NaN, as DLMF 13.3.2 (backward in b) was only used
+    // for |a| <= 1e5 (the last one is 1.02e266 in xsf, with 500 terms; condition numbers up to 5e3)
+    let abx = [
+        (1e5 + 0.3, -0.5, -0.1),
+        (-1e5 - 0.3, -0.5, 0.1),
+        (1e6 + 0.3, -0.5, -0.1),
+        (2e5 + 0.3, -11.5, -0.8),
+        (-5e5 - 0.3, -4.5, 0.7),
+        (-999_999.5, -0.5, 1.0),
+        (-1e9, -0.5, 0.001),
+        (1e9, -3.5, -0.001),
+        (-2e6 - 0.3, -600.5, 0.1),
+    ];
+    let expected = [
+        -165.627_578_149_163_56,
+        -183.098_026_013_636_44,
+        -505.313_564_481_349_9,
+        -7.913_097_698_854_361e22,
+        3.184_596_604_282_593_5e12,
+        3_067.154_973_893_279,
+        1_860.641_821_443_564,
+        -56_673_709_553.866_39,
+        -1.636_045_890_210_927_6e183,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-12);
+    // Arb: -2.1e715; the series overflows while its terms still change sign, and this was NaN
+    assert_eq!(xsf::hyp1f1(-1e5 - 0.3, -600.5, 100.0), f64::NEG_INFINITY);
     // Arb: -7.8e1116 and -6.4e1081; the terms keep their sign after the overflow
     assert_eq!(xsf::hyp1f1(-0.3, -165.5, 2000.0), f64::NEG_INFINITY);
     assert_eq!(xsf::hyp1f1(-1.7, -0.5, 2500.0), f64::NEG_INFINITY);
     // Arb: 2.6e4157; a polynomial with positive terms
     assert_eq!(xsf::hyp1f1(-1e5, -1e6 - 0.5, 1e5), f64::INFINITY);
+}
+
+#[test]
+fn test_hyp1f1_neg_b_huge_a_sum() {
+    // Arb; the series can't end within 100000 terms, but the sum of `chgm` is accurate, unlike
+    // DLMF 13.3.2 (backward in b; errors up to 6e-13)
+    let abx = [
+        (-294_222.0, -99_996.25, 4.1),
+        (354_223.0, -99_993.75, -8.0),
+        (-324_422.5, -99_976.25, 68.5),
+    ];
+    let expected = [173_517.686_753_373_8, 2_041_616_625_311.223_3, 4.077_252_565_946_860_4e96];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
 }
 
 #[test]
@@ -1442,10 +1499,35 @@ fn test_hyp1f1_neg_b_underflow_recovered() {
     // Arb: -6.1e2002; the terms underflow to 0 from n = 476 on, long before n = -b
     let (a, b, x) = (-300.375, -12_891.875, 5129.625);
     assert_eq!(xsf::hyp1f1(a, b, x), f64::NEG_INFINITY);
-    // Arb: 1.4e3136; the alternating terms before n = -b overflow, even times e^-1400, so there
-    // is no reliable sign
+    // Arb: 1.4e3136; the alternating terms before n = -b overflow, even times e^-1400, and this
+    // was NaN
     let (a, b, x) = (-2147.625, -5933.125, 6410.875);
-    assert!(xsf::hyp1f1(a, b, x).is_nan());
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::INFINITY);
+}
+
+#[test]
+fn test_hyp1f1_neg_b_overflow() {
+    // Arb: -8.8e4542, -6.2e1144, -5.3e2627, -9.6e5488, -2.5e2596, -6.7e3338, -2.1e969, 2.5e980,
+    // 4.0e915, and 5.8e968; the series overflows even times e^-1400, and these were NaN
+    let abx = [
+        (3e5, -2.3, 90.0),
+        (6e5, -150.5, 2.0),
+        (-5e5, -90.5, -16.0),
+        (5e4, -0.5, 750.0),
+        (-9000.5, -70.6, -1050.0),
+        (17_000.5, -7500.3, 760.0),
+        (727.0, -54.5, 808.5),
+        (-1767.5, -1.9, -1022.0),
+        (-21_445.5, -1.2, -52.5),
+        (18_981.5, -3.2, 62.3),
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    assert_eq!(actual[..7], [f64::NEG_INFINITY; 7]);
+    assert_eq!(actual[7..], [f64::INFINITY; 3]);
+
+    // Arb: 2.8e513; `b - a` rounds to the integer -2000, but the exact one has no zero factor
+    let (a, b, x) = (-1_000.000_000_000_000_3, -3_000.000_000_000_000_5, -10_000.0);
+    assert_eq!(xsf::hyp1f1(a, b, x), f64::INFINITY);
 }
 
 #[test]
