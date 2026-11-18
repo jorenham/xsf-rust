@@ -173,8 +173,14 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
         return (1.0 + z / b) * z.exp();
     }
     if (a == 1.0) && (b == 2.0) {
-        // Unlike in xsf, `expm1` instead of `exp(z) - 1`, which cancels for small |z|
-        return cexpm1(z) / z;
+        // Unlike in xsf, `expm1` near 0, where `exp(z) - 1` cancels (not beyond, where it can
+        // overflow, or cancel in its `cos(y) - 1`)
+        let em1 = if z.norm() < 1.0 {
+            cexpm1(z)
+        } else {
+            z.exp() - 1.0
+        };
+        return em1 / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
         // NOTE: for a = -2^31, `(int)(-a)` is UB (see `int_x86`), so the loop doesn't run and the
