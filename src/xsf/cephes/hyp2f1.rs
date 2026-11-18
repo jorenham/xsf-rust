@@ -25,6 +25,10 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
 
 pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
+/// The largest heuristic error estimate with which the 1/x transformation (DLMF 15.8.2) replaces
+/// an accurate series of the Pfaff transformations, as that is often more accurate than its own
+/// estimate (empirical)
+const HYP2F1_RECIP_MAX_ERR: f64 = 1.0e-13;
 /// The estimated relative error from which `hyp2f1` returns NaN: if a sum is only rounding error,
 /// then its estimate is about 1/2 to 1.
 const HYP2F1_LOST: f64 = 0.5;
@@ -1061,6 +1065,14 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 // inaccurate
                 let (y1, e1) = hys2f1_pfaff(a, b, c, x);
                 let y1_ok = e1 < HYP2F1_ETHRESH;
+                // The rounding of `t` relative to its distance to the nearest pole of `Gamma(t)`.
+                // Unlike in xsf, at a pole of `Gamma(c - a)` or `Gamma(c - b)`, keep the series if
+                // it is accurate.
+                let pole = |t: f64| MACHEP * (t / (t - t.round().min(0.0))).abs();
+                let (pa, pb) = (pole(c - a), pole(c - b));
+                if y1_ok && !(pa + pb).is_finite() {
+                    return y1;
+                }
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
                  */
@@ -1096,18 +1108,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 y = t1 * gamma(-e) * (rgamma(a) * rgamma(c - b));
                 // Unlike in xsf, keep the series if its error estimate is smaller than the
                 // cancellation of `s p + y q`, or if it is accurate, unless a heuristic error
-                // estimate of `s p + y q` is smaller and below `HYP2F1_EPS` (as the series is often
-                // more accurate than its estimate).
+                // estimate of `s p + y q` is smaller and at most `HYP2F1_RECIP_MAX_ERR`, and `p`,
+                // `q` and the sum are normal (the estimate misses the rounding of a subnormal).
                 //
                 // That adds, for `p` and `q` by their share of the sum, their error estimates and
-                // the rounding of `b - a` and of `c - a` or `c - b`, each relative to its distance
-                // to the nearest pole of its gamma functions.
+                // the rounding of `b - a` and of `c - a` or `c - b`, each as in `pole`.
                 let (u, v) = (s * p, y * q);
                 let canc = MACHEP * u.abs().max(v.abs()) / (u + v).abs();
-                let pole = |t: f64| MACHEP * (t / (t - t.round().min(0.0))).abs();
                 let weigh = |t: f64, err: f64| (t / (u + v)).abs() * (err + pole(-e.abs()));
-                let full = canc + weigh(u, ep + pole(c - a)) + weigh(v, eq + pole(c - b));
-                if e1 < canc || y1_ok && !(full < e1.min(HYP2F1_EPS)) {
+                let full = canc + weigh(u, ep + pa) + weigh(v, eq + pb);
+                let normal = [p, q, u + v].into_iter().all(f64::is_normal);
+                if e1 < canc || y1_ok && !(normal && full < e1.min(HYP2F1_RECIP_MAX_ERR)) {
                     return y1;
                 }
                 return or_recur(u + v);

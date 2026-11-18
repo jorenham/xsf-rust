@@ -233,6 +233,9 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
     ];
     let desired = [1.258_875_876_921_877e-6, 1.003_134_633_107_021_5];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // or the terms of the 1/x transformation are subnormal: this is 9.37e-324 (Arb)
+    assert_eq!(xsf::hyp2f1(1.375, 6.875, 7.875, -1e235).to_bits(), 2);
 }
 
 #[test]
