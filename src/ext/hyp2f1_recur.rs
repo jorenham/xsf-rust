@@ -36,6 +36,9 @@
 //! 4. For `x < -1`, first try the 1/x transformation (DLMF 15.8.2), as `w` is near 1 for large
 //!    `|x|`, where the series take about `|p| |x|` terms.
 //!    - Its two `F(..; 1/x)` are computed as above, with `w = 1 / (1 - x)`.
+//!    - If `b - a` is not an integer and `a` or `c - b` is a non-positive integer, the term of `b`
+//!      is 0 (at a pole of its Gamma factors), which leaves that of `a`: for `a = -n`, the
+//!      polynomial in `1/x`.
 //!    - The 4 combinations follow only if its error bound (incl. the cancellation of its two
 //!      terms) exceeds `HYP2F1_ETHRESH`.
 //!    - If `b - a` is near an integer (a pole of its Gamma factors), its two terms combined come
@@ -894,7 +897,11 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     if m.is_integer() || err_of(log) <= HYP2F1_ETHRESH {
         return log;
     }
-    min_err(log, term(a, b).and_then(|u| add_exp([u, term(b, a)?])))
+    // (a term is 0 at a pole of its `Gamma(b) Gamma(c - a)`)
+    let is_zero = |&(a, b): &(Dd, Dd)| [b, c - a].iter().any(|g| g.hi <= 0.0 && g.is_integer());
+    let terms = [(a, b), (b, a)].into_iter().filter(|t| !is_zero(t));
+    let sum = terms.map(|(a, b)| term(a, b)).collect::<Option<Vec<_>>>();
+    min_err(log, sum.and_then(add_exp))
 }
 
 /// `F(a, b; c; x)` by `hyp2f1_recip`: the 1/x transformation (step 4) if `x < 0`, or else the 1/t
