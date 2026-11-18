@@ -282,6 +282,8 @@ fn test_hyp2f2_asymptotic_gamma_factors() {
         // a_1 - a_2 is small, so that the terms of the algebraic part cancel
         ([0.125, -0.046_875], [0.0625, -0.0625], -500.0, 0.091_856_794_837_619_5),
         ([-0.046_875, 0.1875], [-0.0625, 0.015_625], -5000.0, -0.305_131_497_954_354),
+        ([-0.0625, -0.031_25], [0.125, 0.0625], -1e4, -0.375_850_505_307_578_44),
+        ([-0.008, -0.005], [0.01, 0.0125], -16_000.0, 0.554_541_814_716_236_9),
         // the Gamma factors of the algebraic part are large
         ([1.5, 1.75], [4.75, -8.75], -200.0, -0.077_679_580_102_834_04),
         ([-5.5, -4.25], [2.75, 7.75], -1000.0, -73_846_233.289_640_3),
@@ -712,6 +714,8 @@ fn test_hyppfq_asymptotic() {
     // (small a_i - a_j, so that the terms of the algebraic part cancel)
     let (a_close, b_close) = ([0.03125, 0.125, 0.015_625], [-0.03125, 0.1875, -0.0625]);
     assert_hyppfq(&a_close, &b_close, -3e4, 1.004_849_422_125_088_7);
+    let (a_close, b_close) = ([-0.03, 0.08, -0.06], [0.015, -0.11, 0.03]);
+    assert_hyppfq(&a_close, &b_close, -6e4, 1.719_455_843_480_630_1);
     // (large Gamma factors)
     let (a_large, b_large) = ([1.5, 1.25, -0.5], [-9.25, -11.25, 4.5]);
     assert_hyppfq(&a_large, &b_large, -500.0, 2.827_497_437_819_951);
