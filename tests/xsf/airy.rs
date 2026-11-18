@@ -216,6 +216,17 @@ fn test_airy_c64_large_phase() {
 }
 
 #[test]
+fn test_airye_c64_large_zeta() {
+    // Arb: Ai e^zeta and Ai' e^zeta at |zeta| = 5.7e8, whose rounding error squared is 145 eps
+    let [ai, aip, ..] = xsf::airy_scaled(c64(-9e5, 1e5));
+    let expected = [
+        c64(0.006_642_650_257_930_512, -0.006_284_926_565_899_082_5),
+        c64(-6.321_131_862_627_363, -5.980_722_758_411_47),
+    ];
+    xsref::np_assert_allclose!(&[ai, aip], &expected, rtol = 2e-15);
+}
+
+#[test]
 fn test_airy_c64_negative_real() {
     // Arb: acb(z).airy(); Bi and Bi' are not scaled, as Re zeta = 0
     let expected = [

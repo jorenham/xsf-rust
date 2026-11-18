@@ -63,27 +63,25 @@ fn airy_c64(z: C64, kode: i32) -> [C64; 4] {
     // w'' = z w, to first order in d, w += d (w' - w / (2 z)) / sqrt(z) and
     // w' += d (z w - w' / z) / sqrt(z). These are applied as factors of q = w' / w, as `z w` can
     // overflow. If w' does, q ~ +-sqrt(z), as w ~ e^(+-zeta) there (+ where Ai decays).
+    //
+    // A w that AMOS scaled by e^zta is also off by e^d, which adds c = sqrt(z) to q.
     let s = z.sqrt();
     let q_inf = if decays { s } else { -s };
-    let undo = |w: C64, wp: C64| {
+    let undo = |w: C64, wp: C64, c: C64| {
         let q = Some(wp / w)
             .filter(|q| q.is_finite() && *q != C64::ZERO)
             .unwrap_or(q_inf);
-        (w * (1.0 + d * (q - 0.5 / z) / s), wp * (1.0 + d * (z / q - 1.0 / z) / s))
+        (w * (1.0 + d * (q - 0.5 / z + c) / s), wp * (1.0 + d * (z / q - 1.0 / z + c) / s))
     };
-    let (bi, bip) = undo(bi, bip);
+    let (bi, bip) = undo(bi, bip, C64::ZERO);
     // (a decaying Ai is its `airye` here, which varies slowly)
-    let (ai, aip) = if decays { (ai, aip) } else { undo(ai, aip) };
+    let c = if kode == 2 { s } else { C64::ZERO };
+    let (ai, aip) = if decays { (ai, aip) } else { undo(ai, aip, c) };
     if kode == 2 {
-        // The scaling of AMOS is off as well: that of Bi by e^-(|Re zeta| - |Re zta|), where
-        // Re zeta can be just across 0 from Re zta, and that of an Ai that doesn't decay by e^d.
+        // The scaling of Bi by AMOS is off as well, by e^-(|Re zeta| - |Re zta|), where Re zeta
+        // can be just across 0 from Re zta.
         let (a, e) = (zta.re.abs(), d.re * zta.re.signum());
         let fb = 1.0 - if e < -a { -2.0 * a - e } else { e };
-        let (ai, aip) = if decays {
-            (ai, aip)
-        } else {
-            (ai * (1.0 + d), aip * (1.0 + d))
-        };
         return [ai, aip, bi * fb, bip * fb];
     }
     if !decays {
