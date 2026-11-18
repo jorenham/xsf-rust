@@ -2681,6 +2681,78 @@ PBDV_FLOORS: Final = (
     ),
 )
 
+
+def _pmv(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> mp.mpf:
+    """The Ferrers function P_v^m(x) for an integer m (DLMF 14.3.1), as the product of
+    ((1 + x) / (1 - x))^(m / 2) and the regularized 2F1(v + 1, -v; 1 - m; (1 - x) / 2), which
+    for m > 0 is (v + 1)_m (-v)_m / m! z^m 2F1(v + m + 1, m - v; m + 1; z); for an integer v
+    and x < 0 with P_v^m(-x) = (-1)^(v + m) P_v^m(x) (DLMF 14.9.10)."""
+    with specs.wdps(specs.xd(v) + 20):
+        if x < 0 and v == int(v):
+            n = int(v) if v >= 0 else int(-v) - 1
+            return (-1) ** (n + int(m)) * _pmv(m, v, -x)
+        z = (1 - x) / 2
+        if m >= 0:
+            c = mp.rf(v + 1, m) * mp.rf(-v, m) / mp.factorial(m)
+            f = mp.hyp2f1(v + m + 1, m - v, m + 1, z, zeroprec=mp.mp.prec)
+            return (1 - x * x) ** (m / 2) / mp.mpf(2) ** m * c * f
+        f = mp.hyp2f1(v + 1, -v, 1 - m, z, zeroprec=mp.mp.prec)
+        return ((1 - x) / (1 + x)) ** (-m / 2) * f / mp.factorial(-m)
+
+
+def _pmv_scaled(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> Value:
+    """P_v^m(x), with the scale M = hypot(P, P_theta / (v + 1/2)) for x = cos(theta) and
+    |x| < 1, the local amplitude of its oscillation in theta, as for large v, P_v^m(cos theta) is
+    J_m((v + 1/2) theta) times a slowly varying factor (DLMF 14.15.11). Near the zeros, e.g.
+    P_n^m(0) = 0 for an integer degree n with n + m odd, the sum of xsf cancels down to an error
+    of about this size. P_theta = -sin(theta) P' with DLMF 14.10.4."""
+    with specs.wdps(specs.xd(v) + 20):
+        p = _pmv(m, v, x)
+        if abs(x) == 1:
+            return p
+        dp = -((m - v - 1) * _pmv(m, v + 1, x) + (v + 1) * x * p) / mp.sqrt(1 - x * x)
+        return p, mp.hypot(p, dp / (v + mp.mpf(1) / 2))
+
+
+def _pmv_arb(m: flint.arb, v: flint.arb, x: flint.arb) -> flint.arb | None:
+    """The same from the regularized 2F1 of Arb, or None at x = +-1, where its factor is 0 or
+    infinite."""
+    if abs(x) == 1:
+        return None
+    f = ((1 - x) / 2).hypgeom_2f1(v + 1, -v, 1 - m, regularized=True)
+    return ((1 + x) / (1 - x)) ** (m / 2) * f
+
+
+def _pmv_degree(v: float) -> float:
+    """The degree n of P_v = P_(-v-1) (DLMF 14.9.5) that xsf uses, v for v >= 0."""
+    return -v - 1 if v < 0 else v
+
+
+PMV_RULES: Final = (
+    NAN,
+    Rule(
+        lambda a: math.isfinite(a[0]) and not a[0].is_integer(),
+        math.nan,
+        "xsf takes the order m as a double, and it is NaN for a non-integer m",
+    ),
+    Rule(
+        lambda a: abs(a[2]) > 1,
+        math.nan,
+        "xsf only computes the Ferrers function for |x| <= 1",
+    ),
+    Rule(
+        lambda a: (
+            a[0] < 0
+            and _pmv_degree(a[1]).is_integer()
+            and _pmv_degree(a[1]) + a[0] + 1 <= 0
+        ),
+        math.nan,
+        "xsf has no formula for a negative order -k and an integer degree n < k, where "
+        "DLMF 14.9.3 does not help",
+    ),
+)
+
+
 PBWA_NAN: Final = Rule(
     lambda a: abs(a[0]) > 5 or abs(a[1]) > 5,
     math.nan,
@@ -3523,6 +3595,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             for i in range(2)
         )
     ),
+    ("pmv", "d_d_d-d"): Entry((Out("pmv", (_pmv_scaled,), (_pmv_arb,), PMV_RULES),)),
     ("pbwa", "d_d-d_d"): Entry(
         tuple(
             Out(

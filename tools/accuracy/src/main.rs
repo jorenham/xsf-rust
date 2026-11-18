@@ -391,7 +391,10 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("assoc_legendre_p", &[n, m, x]) => xsf::assoc_legendre_p(n as i32, m as i32, x),
         ("assoc_legendre_p_norm", &[n, m, x]) => xsf::assoc_legendre_p_norm(n as i32, m as i32, x),
         ("sph_legendre_p", &[n, m, t]) => xsf::sph_legendre_p(n as i32, m as i32, t),
-        ("pmv", &[m, v, x]) => xsf::pmv(m as i32, v, x),
+        // NaN for a non-integer `m`, like xsf
+        ("pmv", &[m, v, x]) => {
+            if m.fract() == 0.0 { xsf::pmv(m as i32, v, x) } else { f64::NAN }
+        }
         // the last degree `n` (and order `m`) of the `_all` functions up to `n` (and `|m|`)
         ("legendre_p_all", &[n, x]) => xsf::legendre_p_all(n as usize, x)[n as usize],
         ("assoc_legendre_p_all", &[n, m, x]) => nm(|n, m| xsf::assoc_legendre_p_all(n, m, x), n, m),
