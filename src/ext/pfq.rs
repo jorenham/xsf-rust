@@ -1627,8 +1627,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     }
 }
 
-/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, as in mpmath, if
-/// accurate, where `b` contains the 1 of `n!`
+/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, if accurate, where
+/// `b` contains the 1 of `n!`
 ///
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
@@ -1718,7 +1718,7 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
 ///
 /// # Returns `None`
 ///
-/// - for $p > q + 1$, unless it is a polynomial or $z \lt 0$;
+/// - for $p > q + 1$ and $z > 0$, unless it is a polynomial;
 /// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
 ///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
 ///   Weniger transformation, e.g. for some $z \ll -1$ or $a_1, a_2 \ll 0$;

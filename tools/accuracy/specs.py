@@ -2640,11 +2640,11 @@ def r_hyppfq_arb(name):
 
 
 def _pfq_borel(a, b, z):
-    """pFq for p > q + 1 and z < 0: the Borel sum of the divergent series, as in mpmath's hyper.
+    """pFq for p > q + 1 and z < 0: the Borel sum of the divergent series (DLMF 16.18.1).
 
-    That is the series up to a term below 10^(5 - dps) of its sum, from which it differs by
-    about that term, if its terms get that small after all a_i + n and b_j + n are positive;
-    otherwise the Meijer G function (DLMF 16.18.1), which mpmath's hyper only uses for p <= q + 3.
+    A truncation heuristic: the series up to the first term past all a_i + n, b_j + n <= 0 that is
+    below 10^(5 - dps) of its sum, or else, where the terms grow first, mpmath's meijerg. The
+    caller's `_converged` cross-checks it across precisions.
     """
     a, b, z = [mp.mpf(v) for v in a], [mp.mpf(v) for v in b], mp.mpf(z)
     settled = max(0, *(math.ceil(-v) for v in (*a, *b)))

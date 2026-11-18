@@ -579,8 +579,8 @@ fn test_hyppfq_2f0() {
 fn test_hyppfq_borel() {
     // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, the residues
     // of the Meijer G function, or its Weniger transformation (in f64 or double-double), also for
-    // a_i that differ by integers or lie near one (mpmath meijerg at 40 digits; Wolfram agrees
-    // for a_i = 3/4, 7/4, 11/4 and for the a_i that differ by 2)
+    // a_i that differ by integers or lie near a negative one (mpmath meijerg at 40 digits;
+    // Wolfram agrees for a_i = 3/4, 7/4, 11/4 and for the a_i that differ by 2)
     for (a, b, z, expected) in [
         (&[1.0, 2.0, 3.0][..], &[][..], -0.01, 0.946_071_933_519_652_4),
         (&[1.5, -2.25, 0.75], &[], -0.05, 1.144_479_810_161_067_8),
