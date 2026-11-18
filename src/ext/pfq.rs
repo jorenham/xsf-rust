@@ -1806,7 +1806,7 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             };
             let x = -1.0 / z;
             let borel = |a1: f64, a2: f64| {
-                let (p, (u, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
+                let (p, (u, _, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
                 let enough = f64::from(digits) >= -PFQ_TOL.log10();
                 (p.is_normal() && u.is_normal() && enough).then_some(p * u)
             };

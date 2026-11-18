@@ -1214,6 +1214,12 @@ pub(crate) fn chgm(mut x: f64, mut a: f64, b: f64) -> f64 {
     hg
 }
 
+/// The digits that `chgu` takes as accurate
+///
+/// Unlike in xsf (scipy/xsf#380), chgus and chgul need 12 digits (instead of 9) to be returned at
+/// once (step 1); chgubi needs as many to be kept as is (step 2).
+pub(super) const ID_MIN: i32 = 12;
+
 /// Tricomi's function `U(a, b, x)`.
 ///
 /// Unlike in xsf (scipy/xsf#380), which returns the first of `chgus` and `chgul` with 9 digits,
@@ -1249,6 +1255,7 @@ pub(crate) fn chgu(
     md: &mut i32,
     isfer: &mut i32,
     digits: &mut i32,
+    digits_rec: &mut i32,
 ) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
@@ -1260,6 +1267,8 @@ pub(crate) fn chgu(
     //          MD --- Method code
     //          ISFER --- Error flag
     //          DIGITS --- Estimated number of digits (unlike in xsf)
+    //          DIGITS_REC --- Estimated digits of HU by the recurrence in a, else unchanged
+    //                         (unlike in xsf)
     // Routines called:
     //      (1) CHGUS for small x ( MD=1 )
     //      (2) CHGUL for large x ( MD=2 )
@@ -1267,14 +1276,13 @@ pub(crate) fn chgu(
     //      (4) CHGUIT for numerical integration ( MD=4 )
     // =======================================================
 
-    // Unlike in xsf (scipy/xsf#380), chgus and chgul need 12 digits (instead of 9) to be returned
-    // at once (step 1); chgubi needs as many to be kept as is (step 2)
-    const ID_MIN: i32 = 12;
     // results with fewer digits are flagged (and NaN in `hypu`)
     const ID_ACCEPT: i32 = 6;
 
     let mut id1: i32 = 0;
     let mut hu = 0.0;
+    // the digits of the result of the recurrence in a, while `hu` is that
+    let mut id_rec_result = None;
 
     let aa = a - b + 1.0;
     *isfer = 0;
@@ -1410,11 +1418,11 @@ pub(crate) fn chgu(
         let failed = id < ID_MIN || !hu.is_finite();
         let near_1 = (b - 1.0).abs() < NEAR_1_DD && id0 == id1 && hu0.is_finite();
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
-            let (u, id_rec) = super::hypu_rec(a, b, x);
+            let (u, id_rec, id_result) = super::hypu_rec(a, b, x);
             let id_rec = id_rec as i32;
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
                 // (at most `ID_MIN`, as the estimate of the recurrence in a is not a bound)
-                (hu, id) = (u, id_rec.min(ID_MIN));
+                (hu, id, id_rec_result) = (u, id_rec.min(ID_MIN), Some(id_result as i32));
             }
         }
     }
@@ -1424,7 +1432,7 @@ pub(crate) fn chgu(
     // Unlike in xsf, a NaN here doesn't replace a finite result of step 1, e.g. of chguit for
     // subnormal x, where 1/x overflows
     if hu.is_nan() && hu0.is_finite() {
-        (hu, id) = (hu0, id0);
+        (hu, id, id_rec_result) = (hu0, id0, None);
     }
     // Unlike in xsf, chgul is the last resort where it was skipped as `unbounded`, e.g. for
     // U(172, 173 + 3e-14, 50), where chgus and chguit overflow, and U(171, 172 + 3e-14, 50), where
@@ -1436,7 +1444,7 @@ pub(crate) fn chgu(
         let mut id_l = 0;
         let u = chgul(x, a, b, &mut id_l);
         if hu.is_nan() || id_l > id {
-            (hu, id) = (u, id_l);
+            (hu, id, id_rec_result) = (u, id_l, None);
             *md = 2;
         }
     }
@@ -1446,7 +1454,7 @@ pub(crate) fn chgu(
         let tol = 10f64.powi(1 - id0) * hu0.abs();
         let agrees = hu == hu0 || hu0.is_finite() && (hu - hu0).abs() <= tol;
         if !agrees {
-            (hu, id) = (hu0, id0);
+            (hu, id, id_rec_result) = (hu0, id0, None);
         }
         id = id.max(id0);
     }
@@ -1457,6 +1465,9 @@ pub(crate) fn chgu(
     // flag it (as no method does better), and isn't compared above (where it would favor other
     // methods that cancel to a normal U, e.g. `chgus` near U(167.7, -4, 1.22) = 4.9e-318)
     *digits = super::subnormal_digits(hu, id.into()) as i32;
+    if let Some(id_result) = id_rec_result.filter(|_| hu.is_finite()) {
+        *digits_rec = super::subnormal_digits(hu, id.max(id_result).into()) as i32;
+    }
     hu
 }
 
@@ -2337,11 +2348,11 @@ mod tests {
     fn test_chgu_subnormal_digits() {
         // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
         let (mut md, mut isfer, mut digits) = (0, 0, 0);
-        let u = chgu(1.0, 170.0, 1.000_000_000_01, &mut md, &mut isfer, &mut digits);
+        let u = chgu(1.0, 170.0, 1.000_000_000_01, &mut md, &mut isfer, &mut digits, &mut 0);
         assert_eq!((md, isfer), (4, 0));
         assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
         // the same for an early return, here of `chgul` (Arb)
-        let u = chgu(1500.0, 100.0, 101.0, &mut md, &mut isfer, &mut digits);
+        let u = chgu(1500.0, 100.0, 101.0, &mut md, &mut isfer, &mut digits, &mut 0);
         assert_eq!(md, 2);
         assert!(digits_ok(u, 2.459_654_426_579_829_3e-318, digits));
     }
