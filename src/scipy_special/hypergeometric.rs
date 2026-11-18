@@ -304,8 +304,12 @@ fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
     } else {
         one / v * z
     };
-    // the first two terms as `(v + z) / v`, which is exact where they cancel, e.g. `v ~ -z`
-    let mut sum = (T::from(v) + z).ldexp(shift) / v;
+    // the first two terms as `(v + z) / v`, which is exact where they cancel, e.g. `v ~ -z`, but
+    // not if `v + z` overflows, nor on the scaled retry, where the scaled `z.im` can underflow
+    let mut sum = match T::from(v) + z {
+        vz if shift == 0 && vz.is_finite() => vz / v,
+        _ => one + term,
+    };
     // the larger part is cheaper than the complex `abs`, and as good for stopping
     let size = |x: T| x.real().abs().max(x.imag().abs());
     for n in 1..1000 {
