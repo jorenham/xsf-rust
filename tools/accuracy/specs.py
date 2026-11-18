@@ -3381,6 +3381,26 @@ def c_hyp2f1(a, b, c, re, im):
         return mp.hyp2f1(a, b, c, mp.mpc(re, im), maxterms=10**6)
 
 
+def c_wrightomega(re, im):
+    # the solution w of w + log(w) = z, by Newton's method from W_K(e^z), with the unwinding
+    # number K = ceil((Im z - pi) / (2 pi)), or for large |z|, where e^z can overflow, from
+    # z - log(z), or e^z itself if it is tiny
+    z = mp.mpc(re, im)
+    with wdps(10):
+        if abs(z) < 1e3:
+            w = mp.lambertw(mp.exp(z), int(mp.ceil((im - mp.pi) / (2 * mp.pi))))
+        elif re < 0 and abs(im) < mp.pi:
+            return mp.exp(z)  # w = e^(z - w), with |w| < 10^-434
+        else:
+            w = z - mp.log(z)
+        for _ in range(100):
+            dw = (w + mp.log(w) - z) / (1 + 1 / w)
+            w -= dw
+            if abs(dw) <= mp.eps * abs(w):
+                break
+        return w
+
+
 def _cbessel(f, v, re, im, osc=False):
     with wdps(xd(v, re, im)):
         z = mp.mpc(re, im)
@@ -6144,6 +6164,14 @@ add(
 section("Lambert W and related functions")
 add("lambertw", "x", r_lambertw, D(U(INV_E, 10)), D(LU(1e-300, 1e300)))
 add("wrightomega", "x", r_wrightomega, D(U(-20, 20)), D(LU(1e-300, 1e300, 0)))
+add(
+    "wrightomega#c",
+    "re im",
+    c_wrightomega,
+    CZ,
+    D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300, 0), n=5000),
+    complex=True,
+)
 add("lambertw#c", "re im", _c(c_lambertw), CZ, complex=True)
 
 section("Other special functions")
@@ -6170,6 +6198,29 @@ add("sici.1", "x", r_ci, D(U(-30, 30)), D(LU(1e-300, 1e300, 0)), note="zeros_c")
 add("shichi.0", "x", r_shi, D(U(-30, 30)), D(LU(1e-300, 1e3, 0)))
 add("shichi.1", "x", r_chi, D(U(-30, 30)), D(LU(1e-300, 1e3, 0)), note="zeros_c")
 add("spence", "x", r_spence, D(U(0, 2)), D(LU(1e-300, 1e300)))
+# Arb, which has Si, Ci, Shi, Chi, and Li2 with the same branch cuts on (-inf, 0] (Li2 on
+# [1, inf), so spence on (-inf, 0]); e^|Im z| (or e^|Re z|) overflows for |Im z| > 710
+for f, (g, h), (re, im) in [
+    ("sici", (flint.acb.si, flint.acb.ci), (1e300, 700)),
+    ("shichi", (flint.acb.shi, flint.acb.chi), (700, 1e300)),
+]:
+    for i, r in enumerate([g, h]):
+        add(
+            f"{f}.{i}#c",
+            "re im",
+            lambda re, im, r=r: _acb(r, mp.mpc(re, im)),
+            D(U(-30, 30), U(-30, 30), n=5000),
+            D(LU(1e-300, re, 0), LU(1e-300, im, 0), n=5000),
+            complex=True,
+        )
+add(
+    "spence#c",
+    "re im",
+    lambda re, im: _acb(lambda z: (1 - z).polylog(2), mp.mpc(re, im)),
+    D(U(-10, 10), U(-10, 10), n=5000),
+    D(LU(1e-300, 1e300, 0), LU(1e-300, 1e300, 0), n=5000),
+    complex=True,
+)
 add("softplus", "x", r_softplus, D(U(-20, 20)), D(LU(1e-300, 1e300, 0)), cpp=False)
 add("log1mexp", "x", r_log1mexp, D(U(-20, 0)), D(LU(1e-300, 1e300, -1)))
 for f, r in [("bernoulli", r_bernoulli), ("euler", r_euler)]:
@@ -6608,8 +6659,8 @@ NOT_COVERED = """\
 
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
-- Complex input: `sph_bessel_*`, `sici`, `shichi`, `spence`, `wrightomega`, `*legendre_p*`,
-  `*legendre_q_all`, `eval_*`, and `zeta` (NaN for non-real `z`, unless `q = 1`)
+- Complex input: `sph_bessel_*`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta` (NaN
+  for non-real `z`, unless `q = 1`, where it is `riemann_zeta`)
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
   `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
 """
