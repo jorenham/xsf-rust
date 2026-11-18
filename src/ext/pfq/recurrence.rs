@@ -1,30 +1,27 @@
 //! 3F2 for `|z| < 1` by a recurrence in a lower parameter `b`
 //!
-//! Where the series cancels, e.g. for large `a_i` and `z < 0`, it may not for `b + m` with a
-//! large `m`. With `(theta + b - 1) F(b) = (b - 1) F(b - 1)` for `theta = z d/dz` (DLMF 16.3.4
-//! with `n = 1`), the differential equation (DLMF 16.8.3) becomes
+//! The series can cancel at `b` and not at `b + m` for a large `m`, e.g. for large `a_i` and
+//! `z < 0`. With `u = b - 1`, `d_i = a_i - u` and the other lower parameter `b'`,
 //!
 //! ```text
 //! c_0 F(b) + c_1 F(b - 1) + c_2 F(b - 2) + c_3 F(b - 3) = 0,
 //! c_0 = z d_1 d_2 d_3,
 //! c_1 = u (z (d_1 d_2 + d_1 d_3 + d_2 d_3 + d_1 + d_2 + d_3 + 1) - (u - 1) (u - b')),
-//! c_2 = u (u - 1) (z (d_1 + d_2 + d_3 + 3) + 2 u - 2 - b'),
+//! c_2 = u (u - 1) (z (d_1 + d_2 + d_3 + 3) + 2 (u - 1) - b'),
 //! c_3 = u (u - 1) (u - 2) (z - 1),
 //! ```
 //!
-//! with `u = b - 1`, `d_i = a_i - u` and the other lower parameter `b'`. For `b -> inf`, `F(b)`
-//! tends to 1, and the solutions grow per step down by about 1, 1 and `z / (z - 1)`, so the
-//! recurrence is unstable downwards for `z > 1/2`. For `b` below the `a_i`, other solutions can
-//! also grow by many orders of magnitude.
+//! which is the differential equation (DLMF 16.8.3) with `(theta + b - 1) F(b) = (b - 1) F(b - 1)`
+//! for `theta = z d/dz` (DLMF 16.3.4 with `n = 1`).
 //!
-//! It is run in double-double from the series at `b + m + k` for `k = 0, 1, 2`. All `b + k` are
-//! exact in double-double, so that the only errors are those of the three series and the
-//! rounding errors of the steps. The result is linear in them: an error `e` of the `F(b + k)`
-//! of a step adds `g_k e` to it, where the `g_k` follow from the adjoint recurrence, upwards
-//! from `g_0 = 1`. The estimate of the absolute error of the result is the sum of the `|g_k|`
-//! times the bounds of the rounding errors and the estimates of the errors of the series. It
-//! is not a bound: the `g_k` are computed in `f64` from the rounded coefficients, and can be
-//! too small where they cancel.
+//! `F(b)` follows in `m` steps from the series at `b + m`, `b + m + 1` and `b + m + 2`, in
+//! double-double, in which each `b + k` is exact.
+//!
+//! The steps can make the errors of the series and their own rounding errors larger by many
+//! orders of magnitude, so the error of the result is estimated. An error `e` of the `F(b + k)`
+//! of a step adds `g_k e` to the result, where the `g_k` follow from the adjoint recurrence,
+//! upwards from `g_0 = 1`. The estimate is not a bound, as the `g_k` are computed in `f64` from
+//! the rounded coefficients.
 
 use core::iter::zip;
 
