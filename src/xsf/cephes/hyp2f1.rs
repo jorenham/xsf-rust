@@ -17,7 +17,7 @@
 use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
-use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
@@ -779,12 +779,19 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         return 1.0;
     }
 
-    if a == -1.0 && c != 0.0 {
-        let result = 1.0 - (b / c) * x; /* hyp2f1(-1, b; c; x) = 1 - (b/c)*x, c != 0 */
-        if result.abs() < 1e-15 {
-            return 0.0;
-        }
-        return result;
+    // Unlike in xsf, also for b = -1, where the paths below can give NaN. And as `(c - b x) / c`
+    // in double-double, instead of rounding results below 1e-15 to 0.
+    if (a == -1.0 || b == -1.0) && c != 0.0 {
+        let b = if a == -1.0 { b } else { a };
+        /* hyp2f1(-1, b; c; x) = 1 - (b/c)*x, c != 0 */
+        let rounded = 1.0 - (b / c) * x;
+        // As `(c' - b' x') / c'` for the significands `b'` and `c'` of `b` and `c`, and
+        // `x' = x 2^(e_b - e_c)`, so that the product (and its rounding error) is subnormal only
+        // if it is negligible next to `c'`, and NaN if it overflows
+        let ((b, e_b), (c, e_c)) = (frexp_f64(b), frexp_f64(c));
+        let x = ldexp_f64(x, e_b - e_c);
+        let exact = f64::from((Dd::new(c) - Dd::new(b) * x) / c);
+        return if exact.is_nan() { rounded } else { exact };
     }
 
     let neg_int_a = near_neg_int(a);
