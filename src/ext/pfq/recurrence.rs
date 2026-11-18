@@ -29,8 +29,8 @@
 use core::iter::zip;
 
 use super::{
-    Dd, PFQ_DD_MAXITER, Params, SeriesReal, accurate, descending, first_zero, pfq_extreme,
-    pfq_ratio, pfq_sum_terms, pfq_terms_of,
+    Dd, PFQ_DD_MAXITER, Params, SeriesReal, accurate, descending, first_zero, is_normal,
+    pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
 /// Smallest `m` for which the recurrence starts from the series at `b + m`. The next ones are
@@ -101,11 +101,14 @@ fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(
         let sizes = a.map(|ai| ai.abs() + size);
         let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
         let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
-        // an underflow adds at most `f64::MIN_POSITIVE` to the sum, to the products c_0
-        // and c_3, and to the quotient; in c_1 and c_2, less than the rounding of their
-        // terms without z
-        let factors = 1.0 + f[2].hi.abs() + next.hi.abs() + c3.hi.abs();
-        let rounding = (RECURRENCE_EPSILON * terms + f64::MIN_POSITIVE * factors) / c3.hi.abs();
+        // no bound where c_0, c_3, the sum or the quotient is not normal: there an underflow
+        // loses digits (within c_1 and c_2, less than the rounding of their terms without z)
+        let normal = |size: f64| is_normal(Dd::new(size));
+        let rounding = if normal(e0) && normal(terms) && is_normal(c3) && is_normal(next) {
+            RECURRENCE_EPSILON * terms / c3.hi.abs()
+        } else {
+            f64::INFINITY
+        };
         steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), rounding));
         f = [next, f[0], f[1]];
     }
