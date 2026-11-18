@@ -138,12 +138,10 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
     } else if z == 0.0 && v != 0.0 {
         // zeros
         1.0
-    } else if z.abs() < 1e-6 * (1.0 + v.abs()) {
-        // both v and z small: truncate the Taylor series at O(z**2)
-        1.0 + z / v + z * z / (2.0 * v * (v + 1.0))
     } else if z.abs() <= v.abs().max(1.0) {
         // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed here instead of using the
-        // Bessel functions, which lose digits near the poles and for large |v|.
+        // Bessel functions, which lose digits near the poles and for large |v|. This includes
+        // small `z`, where xsf truncates at O(z^2), dropping the terms after a near-zero `v + n`.
         hyp0f1_series(v, z)
     } else if debye_is_accurate(v, z) {
         // Unlike in xsf (scipy/xsf#366), Debye's expansion is used wherever it is accurate, as the
@@ -313,14 +311,6 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
     } else if z == C64::ZERO && v != 0.0 {
         // zeros
         C64::ONE
-    } else if z.norm() < 1e-6 * (1.0 + v.abs()) {
-        // both v and z small: truncate the Taylor series at O(z**2)
-
-        // need to do computations in this order, for otherwise v ~ -z << 1
-        // it can lose precision (as was reported for 32-bit linux, see scipy/scipy#6365)
-        let t1 = 1.0 + z / v;
-        let t2 = z * z / (2.0 * v * (v + 1.0));
-        t1 + t2
     } else {
         // Unlike in xsf, the Maclaurin series is summed here like for real `z`, instead of using
         // the Bessel functions, which lose digits for large `|v|`, e.g. ~eps ln(Gamma(v)) through

@@ -452,3 +452,25 @@ fn test_hyp0f1_nan() {
     assert!(hyp0f1(f64::NEG_INFINITY, 0.0).is_nan());
     assert!(hyp0f1(f64::NEG_INFINITY, c64(0.0, 0.0)).is_nan());
 }
+
+#[test]
+fn test_hyp0f1_small_z() {
+    // the terms after a near-zero `v + n` matter
+    let v = -1.999_999_999_999_999_8;
+    let z = 2f64.powi(-19);
+    np_assert_allclose!([hyp0f1(v, z)], [1.002_603_214_235_023_4], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(z, 0.0))],
+        [c64(1.002_603_214_235_023_4, 0.0)],
+        rtol = 1e-14
+    );
+
+    // `z * z` underflows
+    let v = 2f64.powi(-600);
+    np_assert_allclose!([hyp0f1(v, -v)], [1.204_959_932_551_442e-181], rtol = 1e-14);
+    np_assert_allclose!(
+        [hyp0f1(v, c64(-v, 0.0))],
+        [c64(1.204_959_932_551_442e-181, 0.0)],
+        rtol = 1e-14
+    );
+}
