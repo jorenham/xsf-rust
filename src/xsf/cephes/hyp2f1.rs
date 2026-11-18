@@ -798,6 +798,45 @@ fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
     is_large(a, b, c) || near_log(a, b, c, x) || near_poly(a, b, c)
 }
 
+/// `2F1(a, b; c; 1)` by its series, if a bound of its tail shows that it is accurate
+fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
+    // (by magnitude, so that the term update can't over- or underflow first)
+    let (lo, hi) = if a.abs() < b.abs() { (a, b) } else { (b, a) };
+    let (mut sum, mut sum_abs, mut term) = (1.0_f64, 1.0_f64, 1.0_f64);
+    for k in (0..=HYP2F1_MAXITER).map(|k| k as f64) {
+        // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with
+        // `A = |a| + k`, `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi' decreases, `F <= e^u`
+        // with `u = A B psi'(t) < A B (1/t + 1/t^2)` (DLMF 15.4.20). Plus the roundings, as all
+        // intermediates are normal.
+        let t = c - a.abs() - b.abs() - k;
+        if !(t > 0.0 && sum.is_finite()) {
+            return None;
+        }
+        let u = (lo.abs() + k) / t * ((hi.abs() + k) * (1.0 + 1.0 / t));
+        if term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs <= HYP2F1_ETHRESH * sum.abs() {
+            return Some(sum);
+        }
+        // (`|hi + k| < c + k`)
+        let (p, q) = ((hi + k) / (c + k), (lo + k) / (k + 1.0));
+        term *= p * q;
+        if ![p, q, p * q, term].iter().all(|v| v.is_normal()) {
+            return None;
+        }
+        (sum, sum_abs) = (sum + term, sum_abs + term.abs());
+    }
+    None
+}
+
+/// Gauss's sum `2F1(a, b; c; 1)` in double-double (with exact `c - a`, `c - b` and `c - a - b`),
+/// unless its error bound straddles the overflow
+fn hyp2f1_gauss_dd(a: f64, b: f64, c: f64) -> Option<f64> {
+    let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
+    let g = mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one).map(fold_exp)?;
+    let [lo, hi] = [1.0 - g.err, 1.0 + g.err].map(|f| ldexp_f64(g.m * f, g.e));
+    let ok = g.err <= HYP2F1_RECUR_TOL && lo.is_finite() == hi.is_finite();
+    ok.then(|| ldexp_f64(g.m, g.e))
+}
+
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
 /// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9), and `outer`
 /// whether this is the outermost call
@@ -1200,45 +1239,11 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                     }
                     y = gamma(c) * gamma(d) * (rgamma(p) * rgamma(r));
                     // Unlike in xsf, if a factor over- or underflows (e.g. `Gamma(c)` for
-                    // c > 171.6, where xsf gives NaN), by the series if provably accurate, else in
-                    // double-double (exact `c - a`, `c - b` and `d`) unless its bound straddles
-                    // the overflow
+                    // c > 171.6, where xsf gives NaN)
                     if !y.is_normal() && d.is_finite() {
-                        // (by magnitude, so that the term update can't over- or underflow first)
-                        let (lo, hi) = if a.abs() < b.abs() { (a, b) } else { (b, a) };
-                        let (mut sum, mut sum_abs, mut term, mut k) = (1.0_f64, 1.0, 1.0_f64, 0.0);
-                        let mut normal = true;
-                        loop {
-                            // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)`
-                            // with `A = |a| + k`, `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi'
-                            // decreases, `F <= e^u` with `u = A B psi'(t) < A B (1/t + 1/t^2)`
-                            // (DLMF 15.4.20). Plus the roundings, if all intermediates are normal.
-                            let t = c - a.abs() - b.abs() - k;
-                            let u = (lo.abs() + k) / t * ((hi.abs() + k) * (1.0 + 1.0 / t));
-                            let err = term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs;
-                            let ok = normal && t > 0.0 && sum.is_finite();
-                            if ok && err <= HYP2F1_ETHRESH * sum.abs() {
-                                return sum;
-                            }
-                            if !ok || k >= HYP2F1_MAXITER as f64 {
-                                break;
-                            }
-                            // (`|hi + k| < c + k`)
-                            let (p, q) = ((hi + k) / (c + k), (lo + k) / (k + 1.0));
-                            term *= p * q;
-                            normal = [p, q, p * q, term].iter().all(|v| v.is_normal());
-                            (sum, sum_abs, k) = (sum + term, sum_abs + term.abs(), k + 1.0);
-                        }
-                        let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
-                        let gauss =
-                            mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one);
-                        if let Some(g) = gauss.map(fold_exp).filter(|g| g.err <= HYP2F1_RECUR_TOL) {
-                            let [lo, hi] =
-                                [1.0 - g.err, 1.0 + g.err].map(|f| ldexp_f64(g.m * f, g.e));
-                            if lo.is_finite() == hi.is_finite() {
-                                return ldexp_f64(g.m, g.e);
-                            }
-                        }
+                        y = hyp2f1_series_at_1(a, b, c)
+                            .or_else(|| hyp2f1_gauss_dd(a, b, c))
+                            .unwrap_or(y);
                     }
                     return y; // goto hypdon
                 }
