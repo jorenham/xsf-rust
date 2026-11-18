@@ -242,6 +242,28 @@ fn test_hypu_near_neg_int_a_huge_b() {
 }
 
 #[test]
+fn test_hypu_near_neg_int_a_small_x() {
+    // Arb; 9.8e-9 and 6.9e-12 off by the recurrence in a, whose step to a near 0 cancels
+    // (-2159.9538 for the first in xsf)
+    let abx =
+        [(-2.000_000_1, 4.999_999_999_9, 0.004_85), (-2.000_000_1, 2.999_999_999_9, 0.004_85)];
+    let expected = [-2_159.997_821_507_856, 11.952_552_198_173_894];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; 3.6e-12 off by the recurrence in a, which underestimated its rounding errors (NaN in
+    // xsf)
+    let actual = xsf::hypu(-169.13, 0.986_37, 0.0116);
+    xsref::np_assert_allclose!([actual], [7.407_921_790_935_49e302], rtol = 1e-13);
+}
+
+#[test]
+fn test_hypu_zero_start_b() {
+    // Arb: 8.08e52; NaN, not 0 by the recurrence in b, whose starting values underflow to 0
+    assert!(xsf::hypu(180.0, 180.5, 0.5).is_nan());
+}
+
+#[test]
 fn test_hypu_poly() {
     // mpmath; -6.90e95, 7.04e186, and NaN in xsf
     let abx = [(-60.0, 30.0, 10.0), (-100.0, -5.01, 46.6), (-95.0, 15.0, 0.004)];
