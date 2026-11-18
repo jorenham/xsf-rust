@@ -23,7 +23,9 @@
 //!      `HYP2F1_ETHRESH`, we also recur up in the degree, from `F(0) = 1` and `F(-1)` to `F(-n)`
 //!      (DLMF 15.5.11), with the error bound of step 3, for `F(-n, c - q; c; w)` and the form
 //!      (DLMF 15.8.7) `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`, often
-//!      more stable if `c < 0`. The best of these is returned if its error bound is at most
+//!      more stable if `c < 0`. If neither is within `HYP2F1_ETHRESH` either, we also sum
+//!      `F(-n, c - q; c; w)` in double-double, as near a root both recurrences can lose about as
+//!      many digits as the sums. The best of these is returned if its error bound is at most
 //!      `HYP2F1_RECUR_TOL`.
 //!
 //! 3. If `c <= max(0, q)` and that loses too much precision, also sum it at `C = c + n` and
@@ -513,7 +515,13 @@ fn hyp2f1_poly(
                 let y = poly_up(n, q, q - c + (1.0 - n), one_mz)?;
                 Some(y.with_l(l_z))
             });
-            min_err(direct, min_err(y_w, y_1mz))
+            let best = min_err(direct, min_err(y_w, y_1mz));
+            if err_of(best) <= HYP2F1_ETHRESH {
+                return best;
+            }
+            // (e.g. near a root: the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12, and the
+            // recurrences have error bounds of 2e-11)
+            min_err(best, poly_dd(n, r, c, w).map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
 }
@@ -1027,8 +1035,8 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
 }
 
-/// `F(-n, b; c; x)` for `n >= 1` and `c < -n` by its terms in double-double, with an error bound
-/// as in `series_weighted`, plus the terms it skips
+/// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
+/// `series_weighted`, plus the terms it skips if `c < -n`
 fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
@@ -1055,11 +1063,11 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
-        // Stop once the rest is below `thr`: for b + k > 0, the ratios of the next terms are at
-        // most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to 1, so the
-        // rest is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the rounding of
-        // `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2` (hence
-        // `2 tail` below).
+        // Stop once the rest is below `thr`: for c < -n and b + k > 0, the ratios of the next
+        // terms are at most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to
+        // 1, so the rest is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the
+        // rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2`
+        // (hence `2 tail` below).
         let bk = (b + k).hi;
         let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
         let abs = sum.hi.abs();
@@ -1067,7 +1075,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         let negligible = term_abs.max(f64::MIN_POSITIVE)
             <= thr * (1.0 - r) / r * (1.0 - 4.0 * MACHEP)
             && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
-        if bk > 0.0 && r < 1.0 && negligible {
+        if c.hi < -n && bk > 0.0 && r < 1.0 && negligible {
             tail = thr;
             break;
         }

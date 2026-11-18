@@ -1018,9 +1018,9 @@ fn test_hyp2f1_f64_nan_if_lost() {
 fn test_hyp2f1_f64_nan_if_err_above_1() {
     // NaN if the error estimate with the recurrences in `a` is above 1 (no input is known to reach
     // this, as `hyp2f1_recur` bounds the errors of those below), but not for a polynomial, here
-    // T_10 near a root, which is accurate in absolute terms (Arb)
-    let actual = xsf::eval_chebyshev_t(10.0, -core::f64::consts::FRAC_1_SQRT_2);
-    assert!((actual - 6.835_808_657_661_923e-16).abs() < 1e-15);
+    // T_7 near a root, which is accurate in absolute terms (Arb)
+    let actual = xsf::eval_chebyshev_t(7.0, 0.433_883_739_117_558_2);
+    assert!((actual - 4.307_136_119_883_2e-16).abs() < 1e-15);
     // and `hyp2f1_recur` bounds its error for these (Arb)
     let actual = [
         xsf::hyp2f1(29.0, -29.1, 0.18, 0.86),
@@ -1143,6 +1143,17 @@ fn test_hyp2f1_f64_large_polynomials() {
     // inf (Arb)
     let actual = xsf::hyp2f1(-193.25, -361.875, -784.25, -8.5);
     np_assert_allclose!([actual], [5.602_051_816_485_101e124], rtol = 1e-14);
+
+    // and in double-double if those and the recurrences are inaccurate, e.g. near a root, where
+    // these were -3.5662163414410e-9, -3.4478745961026 and -388.081847556425 (Arb)
+    let args = [
+        (-8.0, 18.016_500_331_508_873, 10.805_295_997_850_628, 0.908_756_475_07),
+        (15.695_195_439_032_172, -283.0, -1.239_002_148_045_167_6, 0.022_551_819_176_619_81),
+        (-4.999_999_999_790_708, -270.0, -0.418_468_928_086_676_85, -0.026_109_555_998_151_627),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [-3.566_216_341_442_087e-9, -3.447_874_596_102_943_6, -388.081_847_556_405_76];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
 }
 
 #[test]
