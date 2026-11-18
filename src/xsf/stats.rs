@@ -18,7 +18,7 @@ use crate::xsf::c64::{C64, ViaC64, c64};
 use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::polevl::polevl;
 use crate::xsf::cephes::{
-    betainc_xy, gamma, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
+    betainc_xy, incbet_cf_factor, incbet_pseries_sum, lgam, lgam1p, mul_exp_sq,
 };
 use crate::xsf::multivariate_normal::{LAGUERRE_W20, LAGUERRE_X20};
 use crate::xsf::trig::{cephes_cospi, cephes_sinpi};
@@ -1407,14 +1407,16 @@ fn psi1_H(y: f64) -> f64 {
 
 fn psi1_term(k: i32, x: f64) -> f64 {
     // Compute the k-th term of the psi1 series expansion in equation 1.10
-    // of Csörgő, S. and Faraway, J. (1996).
+    // of Csörgő, S. and Faraway, J. (1996), divided by gamma(k + 1).
     let k_f = f64::from(k);
     let m = 2.0 * k_f + 1.0;
     let sx = 2.0 * x.sqrt();
     let y1 = x.powf(0.75);
     let y2 = x.powf(1.25);
-    let gamma_kp1_2 = gamma(k_f + 0.5);
-    let gamma_kp3_2 = gamma(k_f + 1.5);
+    // Unlike in xsf, the gamma functions are divided by gamma(k + 1) here, through a ratio that
+    // does not overflow at k ~ 170, where the series has not yet converged for x > ~1500.
+    let gamma_kp1_2 = (lgam(k_f + 0.5) - lgam(k_f + 1.0)).exp();
+    let gamma_kp3_2 = (k_f + 0.5) * gamma_kp1_2;
     let e1 = m * gamma_kp1_2 * psi1_G((4.0 * k_f + 3.0) / sx) / (9.0 * y1);
     let e2 = gamma_kp1_2 * psi1_H((4.0 * k_f + 1.0) / sx) / (72.0 * y2);
     let e3 = 2.0 * (m + 2.0) * gamma_kp3_2 * psi1_H((4.0 * k_f + 5.0) / sx) / (12.0 * y2);
@@ -1422,6 +1424,9 @@ fn psi1_term(k: i32, x: f64) -> f64 {
     let e5 = 7.0 * m * gamma_kp1_2 * psi1_G((4.0 * k_f + 5.0) / sx) / (144.0 * y1);
     e1 + e2 + e3 + e4 + e5
 }
+
+/// Iteration cap of the `psi1_mod` series, enough for x up to ~5e4.
+const PSI1_MAX_TERMS: i32 = 1024;
 
 fn psi1_mod(x: f64) -> f64 {
     // psi1 is defined in equation 1.10 in Csörgő, S. and Faraway, J. (1996).
@@ -1432,19 +1437,18 @@ fn psi1_mod(x: f64) -> f64 {
     // function pCvM in the package goftest (v1.1.1), permission granted
     // by Adrian Baddeley. Main difference in the implementation: the code
     // here keeps adding terms of the series until the terms are small enough.
-    let mut k = 0;
     let mut tot = 0.0;
-    loop {
-        let gamma_kp1 = gamma(f64::from(k) + 1.0);
-        let z = -psi1_term(k, x) / (PI * gamma_kp1);
+    for k in 0..PSI1_MAX_TERMS {
+        let z = -psi1_term(k, x) / PI;
         tot += z;
-        // also stop on NaN
-        if !(z.abs() >= 1e-7) {
-            break;
+        // Unlike in xsf, stop at a relative tolerance instead of `|z| < 1e-7`, which leaves an
+        // absolute error of up to 5e-9. Also stops on NaN.
+        if !(z.abs() > f64::EPSILON * tot.abs()) {
+            return tot;
         }
-        k += 1;
     }
-    tot
+    // not converged: the terms decay like exp(-k^2 / x)
+    f64::NAN
 }
 
 /// CDF of the Cramér-von Mises statistic for a finite sample size `n`
