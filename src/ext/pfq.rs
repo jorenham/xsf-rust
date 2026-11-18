@@ -19,6 +19,7 @@ use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
 
 mod conformal;
+mod recurrence;
 mod residue;
 
 use residue::Residues;
@@ -631,8 +632,8 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 
 /// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate
 ///
-/// `b` contains the 1 of `n!`. Unless it is a polynomial, the last method is `pfq_conformal`,
-/// which is the slowest.
+/// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
+/// which is the slowest, and for `|z| < 1` `pfq_recurrence`, which only applies to 3F2.
 pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
@@ -648,7 +649,9 @@ pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
         &[pfq_continuation, pfq_weniger::<f64>]
     };
     let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
-    let mut methods = methods.iter().chain(&last);
+    let recurrence: Option<Method<P>> =
+        (!polynomial && z.abs() < 1.0).then_some(recurrence::pfq_recurrence);
+    let mut methods = methods.iter().chain(&last).chain(&recurrence);
     methods.find_map(|method| accurate(method(a, b, z)?))
 }
 
