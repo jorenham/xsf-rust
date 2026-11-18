@@ -78,7 +78,7 @@ use num_complex::Complex;
 
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::ldexp_f64;
+use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -343,7 +343,8 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     let coef = |c: f64| (2.0 * c - b + x, c * (c - b + 1.0));
     // The recurrence from U(a + m, b, x) and U(a + m + 1, b, x) with `id` digits, or None if they
     // cancel. They are recurred separately, to detect that, and so is a rounding error of each step
-    // (as in `hypu_fwd_b`), and for the digits of the result also with the rounding of `coef(c)`.
+    // (as in `hypu_fwd_b`), and for the digits of the result also with an estimate of the rounding
+    // of `coef(c)`.
     let rec = |m: f64, u0: f64, u1: f64, id: f64| {
         let (mut p0, mut p1) = (u0, 0.0);
         let (mut q0, mut q1) = (0.0, u1);
@@ -354,13 +355,14 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
         let add =
             |e: f64, rounding: f64, u: f64| e + rounding.copysign(if e == 0.0 { u } else { e });
         for k in (1..=m as i32).rev() {
-            let c = a + f64::from(k);
+            let (c, c_err) = two_sum(a, f64::from(k));
             let (s, t) = coef(c);
             let (v0, v1) = (p0 + q0, p1 + q1);
             let rounding = f64::EPSILON * (s * v0).abs().max((t * v1).abs());
-            // (bounds of the rounding errors of s and t, including that of c)
-            let ds = f64::EPSILON * ((2.0 * c - b).abs() + x.abs());
-            let dt = 2.0 * f64::EPSILON * (c * ((c - b).abs() + 1.0)).abs();
+            // (the rounding errors of s and t, with those from the rounding `c_err` of c)
+            let ds = f64::EPSILON * ((2.0 * c - b).abs() + x.abs()) + 2.0 * c_err.abs();
+            let dt = 2.0 * f64::EPSILON * (c * ((c - b).abs() + 1.0)).abs()
+                + (2.0 * c - b + 1.0).abs() * c_err.abs();
             (p0, p1) = (s * p0 - t * p1, p0);
             (q0, q1) = (s * q0 - t * q1, q0);
             (e0, e1) = (add(s * e0 - t * e1, rounding, p0 + q0), e0);
