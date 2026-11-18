@@ -26,113 +26,126 @@
 //! is not a bound: the `g_k` are computed in `f64` from the rounded coefficients, and can be
 //! too small where they cancel.
 
-use core::iter::{successors, zip};
+use core::iter::zip;
 
 use super::{
     Dd, PFQ_DD_MAXITER, Params, SeriesReal, accurate, descending, first_zero, pfq_extreme,
     pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
-/// Largest `m` for which the recurrence starts from the series at `b + m`
+/// Smallest `m` for which the recurrence starts from the series at `b + m`. The next ones are
+/// `2 m`, `4 m`, ...
+const RECURRENCE_MIN_START: u32 = 8;
+
+/// Largest such `m`
 ///
 /// Of 7136 results on 91004 points, 426 are from it and 537 from half of it, and twice it gave
 /// 8 more results on 1351 points (measured).
-const RECURRENCE_MAX_START: f64 = 4096.0;
+const RECURRENCE_MAX_START: u32 = 4096;
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
-/// `z - 1` and the products with a sign are exact)
+/// `z - 1` and the products with `minus` are exact)
 const RECURRENCE_EPSILON: f64 = 17.0 * Dd::EPSILON;
 
-/// The coefficients `c_0, ..., c_3` for `sign = -1`. For `sign = 1` and the sizes of the
-/// arguments, each is the sum of the sizes of its terms instead, which do not cancel.
-fn coefficients<T: SeriesReal>(u: T, [d1, d2, d3]: [T; 3], z: T, other: T, sign: f64) -> [T; 4] {
-    let (s, sum) = (T::from_f64(sign), d1 + d2 + d3);
+/// The coefficients `[c_0, c_1, c_2, c_3]`, for `minus = -1`
+///
+/// For `minus = 1` and the sizes of the arguments, no terms cancel: each is then the sum of the
+/// sizes of its terms, which bounds its rounding error.
+fn coefficients<T: SeriesReal>(u: T, [d1, d2, d3]: [T; 3], z: T, other: T, minus: f64) -> [T; 4] {
+    let (m, sum) = (T::from_f64(minus), d1 + d2 + d3);
     // u - 1 and u - 2
-    let (u1, u2) = (u + sign, u + 2.0 * sign);
+    let (u1, u2) = (u + minus, u + 2.0 * minus);
     [
         d1 * d2 * d3 * z,
-        u * ((d1 * d2 + d1 * d3 + d2 * d3 + sum + 1.0) * z + s * u1 * (u + s * other)),
-        u * u1 * ((sum + 3.0) * z + u1 + u1 + s * other),
-        u * u1 * u2 * (z + sign),
+        u * ((d1 * d2 + d1 * d3 + d2 * d3 + sum + 1.0) * z + m * u1 * (u + m * other)),
+        u * u1 * ((sum + 3.0) * z + u1 + u1 + m * other),
+        u * u1 * u2 * (z + minus),
     ]
 }
 
-/// 3F2 for `|z| < 1` by the recurrence in a lower parameter `b_j`, and an estimate of its
-/// absolute error, or `None` if it is not 3F2 or the series that start it are not accurate
-///
-/// It starts at `b_j + m` for `m = 8, 16, ...`, until the result is accurate or its rounding
-/// errors alone are too large, first for the smaller `b_j`.
+/// F at `b_j + k` by the series in double-double and an estimate of its absolute error, or
+/// `None` if it is not accurate
+fn recurrence_start(a: [f64; 3], bj: f64, other: f64, z: f64, k: f64) -> Option<(Dd, f64)> {
+    let u = Dd::new(bj) + k;
+    // the terms for `u` itself, which `pfq_terms` would round
+    let checked = pfq_extreme(&a, &[bj, other, 1.0]);
+    let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
+    let terms = pfq_terms_of(first_zero(&a), z, ratio);
+    let b = descending([u.hi, other, 1.0]);
+    // (summed to the accuracy of double-double, as the steps can make its error larger)
+    let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
+    accurate((y.hi, err))?;
+    Some((y, err))
+}
+
+/// F at `b_j` in `m` steps from the series at `b_j + m + k` for `k = 0, 1, 2`, the part of
+/// the estimate of its absolute error from the rounding errors, and that estimate, or `None`
+/// if one of the series is not accurate
+fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(f64, f64, f64)> {
+    let start = |k: u32| recurrence_start(a, bj, other, z, f64::from(m + k));
+    let starts = [start(0)?, start(1)?, start(2)?];
+    // F at the three `b` above that of the next step, in ascending order
+    let mut f = starts.map(|(y, _)| y);
+    // of each step: the factors of those three in its F, and the bound of its rounding error
+    let mut steps = Vec::with_capacity(m as usize);
+    for k in (0..m).rev().map(f64::from) {
+        // F(b_j + k) from the relation at b = b_j + k + 3
+        let u = Dd::new(bj) + (k + 2.0);
+        let d = a.map(|ai| ai - u);
+        let [c0, c1, c2, c3] = coefficients(u, d, Dd::new(z), Dd::new(other), -1.0);
+        let sum = c0 * f[2] + c1 * f[1] + c2 * f[0];
+        let next = -sum / c3;
+        // the sizes of the terms of c_0, c_1 and c_2, and with them those of the sum
+        let size = u.hi.abs();
+        let sizes = a.map(|ai| ai.abs() + size);
+        let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
+        let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
+        // an underflow adds at most `f64::MIN_POSITIVE` to the sum, to the products c_0
+        // and c_3, and to the quotient; in c_1 and c_2, less than the rounding of their
+        // terms without z
+        let factors = 1.0 + f[2].hi.abs() + next.hi.abs() + c3.hi.abs();
+        let rounding = (RECURRENCE_EPSILON * terms + f64::MIN_POSITIVE * factors) / c3.hi.abs();
+        steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), rounding));
+        f = [next, f[0], f[1]];
+    }
+    // the `g_k` of the three F above each step, upwards from the result, and the bound of the
+    // rounding errors, which starts with that of the result
+    let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.5 * f64::EPSILON * f[0].hi.abs());
+    for (factors, step) in steps.iter().rev() {
+        rounding += g[0].abs() * step;
+        g = [g[0] * factors[0] + g[1], g[0] * factors[1] + g[2], g[0] * factors[2]];
+    }
+    let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
+    Some((f[0].hi, rounding, rounding + series))
+}
+
+/// 3F2 for `|z| < 1` by the recurrence in a lower parameter, and an estimate of its absolute
+/// error, or `None` if it is not 3F2 or not accurate
 pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
-    let (&[a1, a2, a3], &[_, _, _]) = (a.as_ref(), b.as_ref()) else {
+    let a: [f64; 3] = a.as_ref().try_into().ok()?;
+    // `b` is in descending order, and has the 1 of `n!`
+    let &([1.0, large, small] | [large, 1.0, small] | [large, small, 1.0]) = b.as_ref() else {
         return None;
     };
-    let one = b.as_ref().iter().position(|&v| v == 1.0)?;
-    // b_j and the other lower parameter
-    let lower = |j: usize| (b.as_ref()[j], b.as_ref()[3 - one - j]);
-    let (degree, checked) = (first_zero(a.as_ref()), pfq_extreme(a.as_ref(), b.as_ref()));
-    // F at `b_j + k` by the series in double-double and its absolute error, if it is accurate
-    let series = |j: usize, k: f64| {
-        let (bj, other) = lower(j);
-        let u = Dd::new(bj) + k;
-        // the terms for `u` itself, which `pfq_terms` would round
-        let ratio = |n| pfq_ratio::<Dd>(a.as_ref(), &[other, 1.0], n, checked) / (u + n);
-        let terms = pfq_terms_of(degree, z, ratio);
-        let mut rounded = b.clone();
-        rounded.as_mut()[j] = u.hi;
-        let rounded = descending(rounded);
-        // (summed to the accuracy of double-double, as the steps can make its error larger)
-        let (y, err, _) = pfq_sum_terms(a, &rounded, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
-        accurate((y.hi, err)).map(|_| (y, err))
-    };
-    // F at `b_j` from the series at `b_j + m + k`, the part of the estimate of its error from
-    // the rounding errors, and that estimate
-    let run = |j: usize, m: f64| {
-        let (bj, other) = lower(j);
-        let seeds = [series(j, m)?, series(j, m + 1.0)?, series(j, m + 2.0)?];
-        let mut f = seeds.map(|(y, _)| y);
-        // of each step, F(b_j + k) in terms of the three above it, and its rounding error
-        let mut steps = Vec::with_capacity(m as usize);
-        for k in (0..m as u32).rev().map(f64::from) {
-            // the relation at b = b_j + k + 3
-            let u = Dd::new(bj) + (k + 2.0);
-            let d = [a1, a2, a3].map(|ai| ai - u);
-            let [c0, c1, c2, c3] = coefficients(u, d, Dd::new(z), Dd::new(other), -1.0);
-            // the sizes of the terms of c_0, c_1 and c_2, which bound their rounding errors
-            let size = u.hi.abs();
-            let sizes = [a1, a2, a3].map(|ai| ai.abs() + size);
-            let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
-            let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
-            let next = -(c0 * f[2] + c1 * f[1] + c2 * f[0]) / c3;
-            // an underflow adds at most `f64::MIN_POSITIVE` to the sum, to the products c_0
-            // and c_3, and to the quotient; in c_1 and c_2, less than the rounding of their
-            // terms without z
-            let factors = 1.0 + f[2].hi.abs() + next.hi.abs() + c3.hi.abs();
-            let rounding = (RECURRENCE_EPSILON * terms + f64::MIN_POSITIVE * factors) / c3.hi.abs();
-            steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), rounding));
-            f = [next, f[0], f[1]];
+    // first in the smaller one
+    for (bj, other) in [(small, large), (large, small)] {
+        let mut m = RECURRENCE_MIN_START;
+        while m <= RECURRENCE_MAX_START {
+            // (`None` if a series is not accurate, which it may be for a larger `m`)
+            if let Some((y, rounding, err)) = recurrence_from(a, bj, other, z, m) {
+                if accurate((y, err)).is_some() {
+                    return Some((y, err));
+                }
+                // a larger `m` ends with the same steps, after more of them
+                if accurate((y, rounding)).is_none() {
+                    break;
+                }
+            }
+            m *= 2;
         }
-        // the factors of the errors of the last three F(b_j + k) in the result, upwards, and
-        // the bound of the rounding errors, with that of the result
-        let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.5 * f64::EPSILON * f[0].hi.abs());
-        for (row, step) in steps.iter().rev() {
-            rounding += g[0].abs() * step;
-            g = [g[0] * row[0] + g[1], g[0] * row[1] + g[2], g[0] * row[2]];
-        }
-        let series_err: f64 = zip(g, seeds).map(|(g, (_, err))| g.abs() * err).sum();
-        Some((f[0].hi, rounding, rounding + series_err))
-    };
-    let starts = || {
-        let doubled = successors(Some(8.0), |m| Some(2.0 * m));
-        doubled.take_while(|&m| m <= RECURRENCE_MAX_START)
-    };
-    // the smaller lower parameter first, as `b` is in descending order
-    let mut results = (0..3).rev().filter(|&j| j != one).flat_map(|j| {
-        let runs = starts().filter_map(move |m| run(j, m));
-        // a farther start ends with the same steps, after more of them
-        runs.take_while(|&(y, rounding, _)| accurate((y, rounding)).is_some())
-    });
-    results.find_map(|(y, _, err)| accurate((y, err)).map(|y| (y, err)))
+    }
+    None
 }
 
 #[cfg(test)]
