@@ -539,6 +539,30 @@ fn test_hyppfq_2f0() {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
+    // not the Borel sum where the rounding of x = -1/z or a1 - a2 + 1 changes it by more than
+    // 1e-13 (Arb)
+    for (a, z, expected) in [
+        (
+            [-1.968_075_690_757_376e-12, -6.000_000_000_001_97],
+            -734.029_490_840_056_6,
+            -3.700_105_420_631_436e7,
+        ),
+        (
+            [-129.715_870_814_732_23, -147.715_870_814_734_2],
+            -0.009_864_846_651_846_624,
+            1.152_931_589_568_623_8e-21,
+        ),
+        (
+            [-12.000_000_000_000_002, -41.429_461_690_122_9],
+            -9.964_632_067_709_93,
+            -2.947_780_833_978_018_3e65,
+        ),
+        ([-1e-48, -20.5], -30.0, -0.069_303_167_698_671_19),
+    ] {
+        if let Some(actual) = hyppfq(&a, &[], z) {
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-13);
+        }
+    }
     // the Weniger fallback (Arb)
     for (a, z, expected) in [
         ([0.05, -0.06], -0.1, 1.000_286_818_712_551_8),

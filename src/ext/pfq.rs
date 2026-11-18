@@ -12,7 +12,8 @@ use super::{Scaled, add_exp, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
-    DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_sum,
+    DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_prod,
+    two_sum,
 };
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
@@ -1805,10 +1806,36 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 (a2, a1)
             };
             let x = -1.0 / z;
+            // the rounding error of x (as x z is near -1, x z + 1 is exact)
+            let (xz, e) = two_prod(x, z);
+            let dx = -((xz + 1.0) + e) / z;
             let borel = |a1: f64, a2: f64| {
-                let (p, (u, _, digits)) = (x.powf(a1), xsf_hypu_digits(a1, a1 - a2 + 1.0, x));
-                let enough = f64::from(digits) >= -PFQ_TOL.log10();
-                (p.is_normal() && u.is_normal() && enough).then_some(p * u)
+                const T: f64 = pow2(20);
+                let y = |b: f64, x: f64| {
+                    let (p, (u, _, digits)) = (x.powf(a1), xsf_hypu_digits(a1, b, x));
+                    let enough = f64::from(digits) >= -PFQ_TOL.log10();
+                    (p.is_normal() && u.is_normal() && enough).then_some(p * u)
+                };
+                let (d, e1) = two_sum(a1, -a2);
+                let (b, e2) = two_sum(d, 1.0);
+                // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
+                // moved by T times them (far enough to stand out from the error of U, and near
+                // enough to be linear). They may take half of PFQ_TOL, as y can depend much more
+                // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer. A move
+                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, a
+                // larger step.
+                let moved = |v: f64, d: f64| {
+                    let v_t = v + T * d;
+                    let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
+                    if v_t == v && d != 0.0 {
+                        v + spacing.copysign(d)
+                    } else {
+                        v_t
+                    }
+                };
+                let (y, y_t) = (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
+                let rounding = (y_t - y).abs() / T;
+                (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs()).then_some(y)
             };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;
