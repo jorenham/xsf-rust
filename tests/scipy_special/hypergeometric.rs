@@ -505,6 +505,10 @@ fn test_hyp0f1_tiny_v_unscaled() {
     let (v, expected) = (f64::from_bits(1 << 51), f64::from_bits(1 << 50));
     assert_eq!(hyp0f1(v, -v), expected);
     assert_eq!(hyp0f1(v, c64(-v, 0.0)), c64(expected, 0.0));
+
+    // the first three terms cancel, to about 1e-9 of their size (Arb)
+    let (v, z) = (2.828_005_925_933_391_5e-8, -2.828_005_965_921_478_8e-8);
+    np_assert_allclose!([hyp0f1(v, z)], [3.842_043_098_418_636e-17], rtol = 1e-7);
 }
 
 #[test]

@@ -298,11 +298,17 @@ fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
 
 /// `2^shift` times the Maclaurin series
 fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
-    let mut term = T::from(1.0).ldexp(shift);
-    let mut sum = term;
+    let one = T::from(1.0).ldexp(shift);
+    let mut term = if shift == 0 {
+        one * (z / v)
+    } else {
+        one / v * z
+    };
+    // the first two terms as `(v + z) / v`, which is exact where they cancel, e.g. `v ~ -z`
+    let mut sum = (T::from(v) + z).ldexp(shift) / v;
     // the larger part is cheaper than the complex `abs`, and as good for stopping
     let size = |x: T| x.real().abs().max(x.imag().abs());
-    for n in 0..1000 {
+    for n in 1..1000 {
         let n = f64::from(n);
         // `1 / (v + n)` first only where `z / (v + n)` would overflow, as `term` is scaled down
         term = if shift == 0 {
