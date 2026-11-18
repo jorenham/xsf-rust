@@ -1309,6 +1309,20 @@ fn test_hyp2f1_f64_near_polynomial() {
 }
 
 #[test]
+fn test_hyp2f1_f64_tiny_c_integer_b() {
+    // unlike in xsf: c - b = -n + c is only near a negative integer, where the polynomial misses
+    // the tail of the series. These are inf in xsf (Arb).
+    let actual = [
+        xsf::hyp2f1(41.5, 4.0, -1.6e-154, -35_557.0),
+        xsf::hyp2f1(-42.25, 9.0, -1.5e-14, 0.9998),
+        xsf::hyp2f1(15.0, -34.25, -1e-15, 0.97),
+    ];
+    let desired =
+        [6.500_894_648_275_649_5e-24, -2.692_035_181_549_083_2e-9, 7.064_137_056_127_026e-5];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_just_below_1() {
     // unlike in xsf: x within 1e-13 below 1 is not x = 1, where xsf gives inf for c - a - b <= 0
     // (the first three and the last) and the value at 1 else, here 32.27, 440.5 and -7.106 (Arb)

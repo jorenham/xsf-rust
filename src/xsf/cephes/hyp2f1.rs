@@ -1295,7 +1295,10 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
      */
     // hypf:
     (y, _, _) = hys2f1(c - a, c - b, c, x);
-    s.powf(d) * y // goto hypdon
+    // Unlike in xsf, checked by `or_recur`: for `c - a` or `c - b` near (not at) a negative
+    // integer, e.g. for a tiny `c` and an integer `b`, this polynomial misses the tail of the
+    // series, which can dominate near x = 1
+    or_recur(s.powf(d) * y) // goto hypdon
 }
 
 #[cfg(test)]
