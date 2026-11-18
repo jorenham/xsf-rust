@@ -69,6 +69,24 @@ fn test_riemann_zeta_c64_near_eta_factor_zeros() {
 }
 
 #[test]
+fn test_riemann_zeta_c64_small() {
+    // the reflection formula evaluates zeta(1 - z) next to its pole (reference values from Arb)
+    for (z, expected) in [
+        (c64(1e-6, -2e-6), c64(-0.500_000_918_935_523_7, 1.837_881_079_120_255_7e-6)),
+        (c64(1e-5, 1e-5), c64(-0.500_009_189_385_33, -9.189_585_969_693_889e-6)),
+        (c64(-1e-3, 3e-3), c64(-0.499_073_062_089_067_7, -0.002_750_778_612_088_271)),
+        (c64(0.1, -0.2), c64(-0.550_613_484_192_186_5, 0.219_207_672_013_450_7)),
+        (c64(-0.3, 1e-20), c64(-0.293_813_068_129_721_24, -5.089_726_696_918_256_5e-21)),
+    ] {
+        let w = xsf::riemann_zeta(z);
+        for (got, want) in [(w.re, expected.re), (w.im, expected.im)] {
+            let rel = (got - want).abs() / want.abs();
+            assert!(rel < 1e-15, "riemann_zeta({z}) = {w}: rel = {rel:e}");
+        }
+    }
+}
+
+#[test]
 fn test_zeta_large_q() {
     // asymptotic expansion for q > 1e8 (reference value from mpmath)
     let (x, q) = (36.0, 1.1e8);

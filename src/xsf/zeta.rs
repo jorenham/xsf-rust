@@ -386,6 +386,26 @@ fn zeta_reflection(z: C64) -> C64 {
     }
 }
 
+/// Taylor coefficients of zeta(z) - 1/(z - 1) at z = 0 (DLMF 25.2.4), highest degree first,
+/// without the constant term 1/2.
+///
+/// Generated with mpmath as `[zeta(0, 1, k) / factorial(k) + 1 for k in range(13, 0, -1)]`.
+const ZETA_REGULAR_TAYLOR_COEFFS: [f64; 13] = [
+    6.539_904_805_891_015e-14,
+    -4.092_582_630_415_831e-14,
+    -9.406_895_665_666_177e-12,
+    1.497_007_594_190_113_8e-10,
+    -9.110_164_892_314_166e-10,
+    -5.764_675_979_949_394e-9,
+    1.686_158_263_892_200_7e-7,
+    -1.301_146_013_959_624_2e-6,
+    -1.940_896_320_456_038e-6,
+    1.207_004_994_288_350_5e-4,
+    -7.851_944_770_424_08e-4,
+    -3.178_227_954_292_425_5e-3,
+    0.081_061_466_795_327_26,
+];
+
 fn criemann_zeta(z: C64) -> C64 {
     if z.is_real() {
         return c64(crate::xsf::cephes::riemann_zeta(z.re), 0.0);
@@ -393,11 +413,11 @@ fn criemann_zeta(z: C64) -> C64 {
     if z.re >= 0.5 {
         return zeta_right_halfplane(z);
     }
-    // Unlike in xsf, zeta(z) = -1/2 - z ln(2 pi) / 2 for tiny |z|, where 1 - z in the reflection
-    // formula loses precision in the real offset; the next term, about -z^2, is about eps / 2
-    // relative to -1/2.
-    if z.norm_sqr() < f64::EPSILON / 4.0 {
-        return -0.5 - LN_TAU / 2.0 * z;
+    // Unlike in xsf, the Taylor series at 0 is summed for |z| < 1/2, where the reflection formula
+    // amplifies the rounding of 1 - z by the pole of zeta(1 - z). With 1/(z - 1) = -1 + z/(z - 1),
+    // the constant -1/2 is split off exactly.
+    if z.norm_sqr() < 0.25 {
+        return -0.5 + z * (1.0 / (z - 1.0) + z.evalpoly(&ZETA_REGULAR_TAYLOR_COEFFS));
     }
     zeta_reflection(z)
 }
