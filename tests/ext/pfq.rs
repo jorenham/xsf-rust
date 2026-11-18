@@ -331,7 +331,19 @@ fn test_hyp2f2_asymptotic_gamma_factors() {
         ([-0.046_875, 0.1875], [-0.0625, 0.015_625], -5000.0, -0.305_131_497_954_354),
         ([-0.0625, -0.031_25], [0.125, 0.0625], -1e4, -0.375_850_505_307_578_44),
         ([-0.008, -0.005], [0.01, 0.0125], -16_000.0, 0.554_541_814_716_236_9),
+        (
+            [-0.008_629_729_408_648_11, -0.005_077_050_360_388_232],
+            [0.010_536_830_963_144_745, 0.013_783_784_427_297_33],
+            -16_634.047_727_591_347,
+            0.570_530_374_389_448_6,
+        ),
         // the Gamma factors of the algebraic part are large
+        (
+            [2.280_379_798_760_627_4, 2.394_547_702_434_450_4],
+            [-1.949_645_532_661_522_3, -1.018_504_185_809_934_8],
+            -2_369.596_792_449_503_5,
+            1.501_206_621_894_914_6e-4,
+        ),
         ([1.5, 1.75], [4.75, -8.75], -200.0, -0.077_679_580_102_834_04),
         ([-5.5, -4.25], [2.75, 7.75], -1000.0, -73_846_233.289_640_3),
         // Gamma(b_1) is near the overflow threshold
@@ -405,6 +417,18 @@ fn test_hyp2f2_asymptotic() {
     // also for a huge z, with the sign of Gamma(b_1)
     assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), Some(f64::INFINITY));
     assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), Some(f64::NEG_INFINITY));
+}
+
+#[test]
+fn test_hyp2f2_asymptotic_double_double() {
+    // Arb references
+    for (a, b, z, expected) in [
+        // the terms of a series of the algebraic part cancel
+        ([-32.5, -29.75], [8.0, -3.75], -1500.0, 3.955_046_741_892_129e63),
+        ([-43.25, -62.125], [47.5, 30.75], -1640.0, -3.765_474_203_422_35e50),
+    ] {
+        assert_hyp2f2(a, b, z, expected);
+    }
 }
 
 #[test]
@@ -985,6 +1009,28 @@ fn test_hyppfq_asymptotic() {
     let b_mixed = [0.5, 4.5, 2.25];
     assert_hyppfq(&[1.5, 2.5], &b_mixed, -2e4, -6.818_735_291_796_145e-6);
     assert_hyppfq(&[1.5, 2.5], &b_mixed, 2e4, 4.540_531_903_354_946e117);
+}
+
+#[test]
+fn test_hyppfq_asymptotic_double_double() {
+    // Arb references, for p = q and z < 0
+    // (the terms of a series of the algebraic part cancel)
+    let a = [-19.313_050_582_041_633, -13.850_622_854_249_043, -2.763_519_547_786_056];
+    let b = [-31.346_275_528_683_137, -31.480_497_899_162_355, 17.040_681_912_798_888];
+    assert_hyppfq(&a, &b, -1_340.224_629_533_191, -5_982_750.795_680_105);
+    // (the terms of the series of a_3 grow again after its 1 + a_3 - a_i + n are positive)
+    let (a, b) = ([55.24, 55.240_001, -0.87, 51.03], [17.79, -39.49, -50.97, -46.83]);
+    assert_hyppfq(&a, &b, -3000.0, 100.085_095_585_652_68);
+    // (the terms of the series of a tiny a_1 grow after the second one, to 1e41 times its size:
+    // no bound shows that one of them bounds the rest)
+    let (a, b) = ([2.0_f64.powi(-60), 0.125, 0.25], [-79.5, -144.25, -239.5]);
+    assert_eq!(hyppfq(&a, &b, -1732.0), None);
+    // (and here they grow from the fourth one on, long before n = |z|)
+    let (a, b) = ([2.0_f64.powi(-70), -19.75, -29.625], [1.0, -219.75, -229.625]);
+    assert_eq!(hyppfq(&a, &b, -100.0), None);
+    // (the parameters of the series are positive from n = 2^60 on)
+    let (a, b) = ([0.5, 2.0_f64.powi(60)], [2.0_f64.powi(54), 1.25]);
+    assert_eq!(hyppfq(&a, &b, -1.75), None);
 }
 
 #[test]
