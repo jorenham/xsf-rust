@@ -182,12 +182,12 @@ impl Scaled {
         (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
-    /// This times `f`, where `f` is within 1 ulp
+    /// This times `f`, whose relative error is at most 3 eps
     pub(crate) fn mul_f64(self, f: f64) -> Self {
         Self {
             m: self.m * f,
-            // (1 eps for `f` and 1 for the product)
-            err: self.err + 2.0 * MACHEP,
+            // (and 1 eps for the product)
+            err: self.err + 4.0 * MACHEP,
             ..self
         }
     }

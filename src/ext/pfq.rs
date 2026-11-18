@@ -1419,7 +1419,13 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         }))
     };
     let (y, other) = if z > 0.0 {
-        (hyp2f2_exp(a, b, z)?, add_exp(alg(a)?))
+        let alg = alg(a)?;
+        // (no terms have no size, but terms that cancel leave their uncertainty)
+        let other = match alg.clone().next() {
+            None => None,
+            Some(_) => Some(add_exp(alg)?),
+        };
+        (hyp2f2_exp(a, b, z)?, other)
     } else {
         (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
