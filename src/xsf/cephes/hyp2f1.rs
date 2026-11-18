@@ -800,6 +800,15 @@ fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
     is_large(a, b, c) || near_log(a, b, c, x) || near_poly(a, b, c)
 }
 
+/// Term `k` of the series of `hyp2f1_series_at_1`, and its partial sums up to it
+#[derive(Clone, Copy)]
+struct SeriesStep {
+    k: f64,
+    term: f64,
+    sum: f64,
+    sum_abs: f64,
+}
+
 /// `2F1(a, b; c; 1)` by its series, if a bound of its tail shows that it is accurate
 fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
     // (by magnitude, so that the term update can't over- or underflow first, and then by sign, so
@@ -809,31 +818,37 @@ fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
     } else {
         (b, a)
     };
-    // `(k, t_k)`, while all intermediates are normal (`|hi + k| < c + k`)
-    let terms = iter::successors(Some((0.0, 1.0_f64)), |&(k, term)| {
-        let (p, q) = ((hi + k) / (c + k), (lo + k) / (k + 1.0));
-        let next = term * (p * q);
-        [p, q, p * q, next]
-            .iter()
-            .all(|v| v.is_normal())
-            .then_some((k + 1.0, next))
+    let first = SeriesStep {
+        k: 0.0,
+        term: 1.0,
+        sum: 1.0,
+        sum_abs: 1.0,
+    };
+    // (while all intermediates are normal, with `|hi + k| < c + k`)
+    let steps = iter::successors(Some(first), |s| {
+        let (p, q) = ((hi + s.k) / (c + s.k), (lo + s.k) / (s.k + 1.0));
+        let term = s.term * (p * q);
+        let normal = [p, q, p * q, term].iter().all(|v| v.is_normal());
+        let (sum, sum_abs) = (s.sum + term, s.sum_abs + term.abs());
+        normal.then_some(SeriesStep {
+            k: s.k + 1.0,
+            term,
+            sum,
+            sum_abs,
+        })
     });
     let t = |k| c - a.abs() - b.abs() - k;
-    terms
+    steps
         .take(HYP2F1_MAXITER as usize + 1)
-        .scan((0.0, 0.0), |(sum, sum_abs), (k, term)| {
-            (*sum, *sum_abs) = (*sum + term, *sum_abs + term.abs());
-            Some((k, term, *sum, *sum_abs))
-        })
-        .take_while(|&(k, _, sum, _)| t(k) > 0.0 && sum.is_finite())
+        .take_while(|s| t(s.k) > 0.0 && s.sum.is_finite())
         // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with `A = |a| + k`,
         // `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi' decreases, `F <= e^u` with
         // `u = A B psi'(t) < A B (1/t + 1/t^2)` (DLMF 15.4.20). Plus the roundings.
-        .find(|&(k, term, sum, sum_abs)| {
-            let u = (lo.abs() + k) / t(k) * ((hi.abs() + k) * (1.0 + 1.0 / t(k)));
-            term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs <= HYP2F1_ETHRESH * sum.abs()
+        .find(|s| {
+            let u = (lo.abs() + s.k) / t(s.k) * ((hi.abs() + s.k) * (1.0 + 1.0 / t(s.k)));
+            s.term.abs() * u.exp() + 8.0 * s.k * MACHEP * s.sum_abs <= HYP2F1_ETHRESH * s.sum.abs()
         })
-        .map(|(.., sum, _)| sum)
+        .map(|s| s.sum)
 }
 
 /// Gauss's sum `2F1(a, b; c; 1)` in double-double (with exact `c - a`, `c - b` and `c - a - b`),
