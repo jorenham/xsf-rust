@@ -953,16 +953,16 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
 /// non-positive integer nearest to it: times `factor`, the terms after `t_k` have the factor
 /// `x + k` of the exact parameter if it is an `upper` one, and `1 / (x + k)` if it is a lower one
 ///
-/// The rounding error of `x` is large relative to a small `x + k`. An inexact upper `x` at `-k`
-/// would end the series, so that it is a few ulp from `-k` instead.
+/// The rounding error of `x` is large relative to a small `x + k`. An inexact `x` at `-k` would
+/// end the series if upper, or divide by zero if lower, so that it is a few ulp from `-k` instead.
 fn shifted(am: f64, v: f64, upper: bool) -> (f64, f64, f64) {
     let (s, e1) = two_sum(1.0, am);
     let (nearest, e2) = two_sum(s, -v);
     let (k, e) = (-nearest.round().min(0.0), e1 + e2);
     let offset = nearest + k;
-    let ends = upper && offset == 0.0 && e != 0.0;
+    let lands = offset == 0.0 && e != 0.0;
     // (more than an ulp of -k, also for k = 0)
-    let x = nearest - if ends { (k + 1.0) * f64::EPSILON } else { 0.0 };
+    let x = nearest - if lands { (k + 1.0) * f64::EPSILON } else { 0.0 };
     let (rounded, exact) = (x + k, offset + e);
     // (an upper parameter at -k is exact here: the series ends)
     let upper_factor = if rounded == 0.0 { 1.0 } else { exact / rounded };
