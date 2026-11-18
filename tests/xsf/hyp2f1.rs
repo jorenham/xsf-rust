@@ -1432,3 +1432,31 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
     // a pole if a is not an integer, also if c - a rounds to one (in the Euler transformation)
     assert_eq!(xsf::hyp2f1(-1.000_000_000_000_2, 0.25, -8192.0, 0.5), f64::INFINITY);
 }
+
+#[test]
+fn test_hyp2f1_f64_degree_1() {
+    // unlike in xsf: `1 - a x / c` also for b = -1, where xsf gives NaN (references: exact)
+    let actual = [
+        xsf::hyp2f1(10.0, -1.0, -10.0, -1.0),
+        xsf::hyp2f1(1.0, -1.0, -10.0, -10.0),
+        xsf::hyp2f1(-10.0, -1.0, -10.0, 1.0),
+    ];
+    assert_eq!(actual, [0.0; 3]);
+    // unlike in xsf: rounded only once, and not to 0 below 1e-15; xsf gives 0 (in this order of
+    // a and b), 0 and 2.2e-16 (references: exact)
+    let x = 1.0 - f64::EPSILON / 2.0;
+    let actual = [xsf::hyp2f1(-1.0, 1.0, 1.0, x), xsf::hyp2f1(1.0, -1.0, 1.0, x)];
+    assert_eq!(actual, [f64::EPSILON / 2.0; 2]);
+    // (where `b x` is subnormal)
+    let t = f64::from_bits(1);
+    assert_eq!([xsf::hyp2f1(-1.0, t, t, 0.5), xsf::hyp2f1(t, -1.0, t, 0.5)], [0.5; 2]);
+    let actual = [
+        xsf::hyp2f1(-1.0, -18.0, -6.361_004_257_813_726, 0.353_389_125_434_095_84),
+        xsf::hyp2f1(-8.0, -1.0, 7.0, -0.874_999_999_999_999_8),
+    ];
+    np_assert_allclose!(
+        actual,
+        [1.745_358_090_684_158e-16, 2.537_652_627_714_643_4e-16],
+        rtol = 1e-15
+    );
+}

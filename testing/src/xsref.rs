@@ -405,6 +405,10 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
     match name {
         // https://github.com/scipy/xsf/pull/85#issuecomment-3738637926
         "hyp2f1" if x[0] == -1.0 => f64::INFINITY,
+        // some of xsref's references are NaN for b = -1, a negative integer c and a real x
+        "hyp2f1" if x.len() == 4 && x[1] == -1.0 && x[2] < 0.0 && x[2].fract() == 0.0 => {
+            f64::INFINITY
+        },
         // xsf computes the wrong imaginary part of F+-(x) for x < 0, which is fixed in xsf-rust
         "modified_fresnel_plus" | "modified_fresnel_minus" if x[0] < 0.0 => f64::INFINITY,
         // xsf returns NaN for m = 10000
