@@ -956,6 +956,21 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         return if err < HYP2F1_ETHRESH { y } else { f64::NAN };
     }
 
+    // Unlike in xsf, for x > 1 and c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of
+    // DLMF 15.4.6 if its exponent is an integer, else inf, as for the other powers (see below), as the
+    // Euler transformation rounds `c - a - b`, and skips it if `c - a` or `c - b` rounds to `c`.
+    // Not for an integer c <= 0, where c = a = -m is the polynomial of DLMF 15.2.5 (see above),
+    // nor for an exponent within `HYP2F1_EPS` of an integer, which the paths below can take as
+    // one, nor in the transformations, whose `c - a` or `c - b` can round to `c`.
+    if outer && x > 1.0 && (a == c || b == c) && !is_nonpos_int(c) {
+        let e = if a == c { b } else { a };
+        if e == e.round() {
+            return s.powf(-e);
+        } else if (e - e.round()).abs() >= HYP2F1_EPS {
+            return f64::INFINITY;
+        }
+    }
+
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
     // cancels `F(c, c - b; c; x) = (1 - x)^(b - c)` (DLMF 15.4.6). Only if c > 0, as for c < 0
@@ -1136,9 +1151,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 return or_recur(s.powf(-b) * hyp2f1_impl(b, c - a, c, w, recur, false));
             }
 
+            // Unlike in xsf, NaN instead of inf for x > 1 (x < -1 returned above), where 2F1 is
+            // generally complex, as it jumps across its branch cut (DLMF 15.2.3). But inf as in xsf
+            // where a, b, c - a or c - b is near a non-positive integer, where it is a polynomial
+            // or one times a power of 1 - x (DLMF 15.8.1), which is real for an integer exponent,
+            // and which the paths above can miss when its parameters round, e.g. `c - a - b` for
+            // (24, c + 1, c, 1 + 2^-52) with c = -1024 + 2^-43; or where `a` or `b` is `lost`
+            // (see above), e.g. for (24, c + 128, c, 1 + 2^-52) with c = 2^59.
             if ax > 1.0 {
                 /* series diverges  */
-                return f64::INFINITY; // goto hypdiv
+                let inf = lost || [a, b, c - a, c - b].into_iter().any(near_neg_int);
+                return if inf { f64::INFINITY } else { f64::NAN };
             }
 
             p = c - a;

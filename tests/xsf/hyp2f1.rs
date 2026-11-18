@@ -1591,3 +1591,41 @@ fn test_hyp2f1_f64_neg_int_c_x_1() {
     let actual = [xsf::hyp2f1(-4.0, 2.0, -6.0, 1.0), xsf::hyp2f1(2.0, -4.0, -6.0, 1.0)];
     assert_eq!(actual, [14.0 / 3.0; 2]);
 }
+
+#[test]
+fn test_hyp2f1_f64_x_gt_1() {
+    // unlike in xsf: NaN where 2F1 is complex, in either order of a and b; xsf gives inf
+    for (a, b, c, x) in [(32.000_000_000_000_01, 75.0, 97.0, 2.0), (32.0, 75.0, 97.0, 2.0)] {
+        assert!(xsf::hyp2f1(a, b, c, x).is_nan());
+        assert!(xsf::hyp2f1(b, a, c, x).is_nan());
+    }
+    // (but real for a polynomial, and for (1 - x)^-2 (1 - x / 2) by DLMF 15.8.1; exact)
+    assert_eq!(xsf::hyp2f1(-2.0, 1.0, 3.0, 3.0), 0.5);
+    assert_eq!(xsf::hyp2f1(3.0, 1.0, 2.0, 3.0), -0.125);
+    // and for c = b, (1 - x)^-a (DLMF 15.4.6), here 2^1040, even where c - a rounds to c
+    let c = 2.0_f64.powi(60);
+    assert_eq!(xsf::hyp2f1(20.0, c, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(c, 20.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(-3.0, 2.5, 2.5, 3.0), -8.0);
+    // (and inf otherwise, as for the other complex powers, also where c - a - b rounds to an
+    // integer, and for x = inf)
+    let c = 2.0_f64.powi(52);
+    for (a, b, c, x) in [(0.5, 2.5, 2.5, 3.0), (1.25, c, c, 3.0), (0.5, 2.5, 2.5, f64::INFINITY)] {
+        assert_eq!(xsf::hyp2f1(a, b, c, x), f64::INFINITY);
+        assert_eq!(xsf::hyp2f1(b, a, c, x), f64::INFINITY);
+    }
+    // inf for (1 - x)^(c - a - b) times a polynomial (DLMF 15.8.1) where c - a - b rounds, here
+    // to -25.000000000000114, as it overflows (about 2^1294.6)
+    let c = -1024.0 + 2.0_f64.powi(-43);
+    assert_eq!(xsf::hyp2f1(c + 1.0, 24.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(24.0, c + 1.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    // (but an exponent within `HYP2F1_EPS` of an integer counts as one: (-1/4)^2 and 1)
+    let actual = [xsf::hyp2f1(2.5, -1.999_999_999_999_999_8, 2.5, 1.25)];
+    np_assert_allclose!(actual, [0.0625], rtol = 1e-14);
+    assert_eq!(xsf::hyp2f1(-2.0_f64.powi(-55), 2.5, 2.5, 1.25), 1.0);
+    // inf as in xsf where c - a rounds to c, as the skipped Euler transformation overflows (its
+    // polynomial of degree 128 is about 2^1223)
+    let c = 2.0_f64.powi(59);
+    assert_eq!(xsf::hyp2f1(24.0, c + 128.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(c + 128.0, 24.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+}
