@@ -1517,3 +1517,29 @@ fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
     // (NaN for c = -inf)
     assert!(xsf::hyp2f1(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, 0.5).is_nan());
 }
+
+#[test]
+fn test_hyp2f1_f64_c_pole() {
+    // unlike in xsf: +inf at a pole of c (where no a or b ends the series before it) for any
+    // finite x != 0; xsf gives -inf for the first three, and NaN for the others
+    let actual = [
+        xsf::hyp2f1(10.0, 1.0, -10.0, 10.0),
+        xsf::hyp2f1(1.0, 1.0, -1.0, 10.0),
+        xsf::hyp2f1(5.0, 1.0, -9.0, 1.5),
+        xsf::hyp2f1(750.274_991_146_857_7, 22.0, -670.0, -7_048.169_400_335_604),
+        xsf::hyp2f1(-22.992_639_872_801_874, 54.0, -752.0, -6_207.512_565_903_636),
+        xsf::hyp2f1(
+            -4.673_419_326_051_837,
+            289.810_719_716_530_9,
+            -995.0,
+            -0.855_413_125_222_624_2,
+        ),
+    ];
+    assert_eq!(actual, [f64::INFINITY; 6]);
+    // (also for a non-integer a next to the integer above c, and for c = 0, where xsf gives 1.25
+    // and -inf; but NaN for c = -inf)
+    let actual =
+        [xsf::hyp2f1(-1.0 - f64::EPSILON, 1.0, -2.0, 0.5), xsf::hyp2f1(10.0, 1.0, 0.0, 10.0)];
+    assert_eq!(actual, [f64::INFINITY; 2]);
+    assert!(xsf::hyp2f1(1.0, 1.0, f64::NEG_INFINITY, 0.5).is_nan());
+}

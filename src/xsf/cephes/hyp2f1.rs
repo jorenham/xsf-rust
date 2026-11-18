@@ -933,6 +933,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     let ic = c.round(); /* nearest integer to c */
     // (whether a or b is an integer `is_int` that terminates the series before the term 1 - c)
     let terminates = |is_int: fn(f64) -> bool| is_int(a) && ia > ic || is_int(b) && ib > ic;
+    // Unlike in xsf, +inf at a pole of c (as below) for any finite x, where xsf can return -inf,
+    // NaN or a finite value. Not for c = a or c = b (see above).
+    let pole = c.is_finite() && is_nonpos_int(c) && !terminates(is_nonpos_int);
+    if pole && a != c && b != c && x.is_finite() {
+        return f64::INFINITY; // goto hypdiv
+    }
     if near_pole(c) && !terminates(is_nonpos_int) && x / (x - 1.0) < 1.0 {
         let (y, err) = if x > 0.0 {
             hys2f1_min(a, b, c, x)
