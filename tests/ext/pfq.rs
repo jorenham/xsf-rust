@@ -692,6 +692,24 @@ fn test_hyppfq_2f0_miller() {
 }
 
 #[test]
+fn test_hyppfq_2f0_hypu_tol() {
+    // U for a1 >= 1 where `chgu` goes on from its first methods with 12 digits, and Miller's
+    // algorithm would take too many steps or isn't accurate (Arb)
+    for (a, z, expected) in [
+        ([4.0, 4.5], -2.3, 5.149_428_916_838_061e-4),
+        ([5.5, 7.5], -1.0, 6.067_555_507_251_268_4e-5),
+        ([2.9, 2.8], -2.8, 0.009_916_196_734_627_417),
+        ([7.6, 6.8], -3.3, 1.827_708_981_196_445e-8),
+        ([7.0, 9.0], -1.8, 6.911_864_984_250_697e-8),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+}
+
+#[test]
 fn test_hyppfq_borel() {
     // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, the residues
     // of the Meijer G function, or its Weniger transformation (in f64 or double-double), also for
