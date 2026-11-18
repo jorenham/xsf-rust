@@ -356,7 +356,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64) {
         }
         let u = p0 + q0;
         (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs())
-            .then(|| (u, digits_left(id, p0, q0).min(-(e0 / u).abs().log10())))
+            .then(|| (u, digits_left(id, p0, q0).min(error_digits(e0, u))))
     };
     let m = (1.0 - a).ceil();
     let (u0, u1) = (xsf_hypu(a + m, b, x), xsf_hypu(a + m + 1.0, b, x));
@@ -433,16 +433,16 @@ fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, f64) {
 
 /// `U(a, b, x)` by the forward recurrence in `b` (DLMF 13.3.8) from `U(a, c, x)` and its
 /// estimated number of digits by `start(c)` at `c = b - n` and `b - n + 1`
-pub(super) fn hypu_fwd_b<D: Into<f64>>(
+pub(super) fn hypu_fwd_b(
     a: f64,
     b: f64,
     x: f64,
     n: f64,
-    start: impl Fn(f64) -> (f64, D),
+    start: impl Fn(f64) -> (f64, f64),
 ) -> (f64, f64) {
     let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // (fewer for a subnormal start, as in `chgu`)
-    let id_start = subnormal_digits(u0, id0.into()).min(subnormal_digits(u1, id1.into()));
+    let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
     // The first starting value is also recurred on its own, to estimate their cancellation
     let (mut p0, mut p1) = (u0, 0.0);
     // and so is a rounding error of each step, which can grow even if the starting values don't
@@ -461,7 +461,7 @@ pub(super) fn hypu_fwd_b<D: Into<f64>>(
         (e0, e1) = (e1, next(e0, e1) + rounding);
         c += 1.0;
     }
-    let id = digits_left(id_start, p1, u1 - p1).min(-(e1 / u1).abs().log10());
+    let id = digits_left(id_start, p1, u1 - p1).min(error_digits(e1, u1));
     (if u1.is_finite() { u1 } else { f64::NAN }, id)
 }
 
@@ -472,7 +472,13 @@ fn subnormal_digits(u: f64, id: f64) -> f64 {
     if u == 0.0 || u.abs() >= f64::MIN_POSITIVE {
         return id;
     }
-    id.min(-(SPACINGS * f64::EPSILON * f64::MIN_POSITIVE / u.abs()).log10())
+    id.min(error_digits(SPACINGS * f64::EPSILON * f64::MIN_POSITIVE, u))
+}
+
+/// The number of digits of `u` with an error `e`, or 0 if that's NaN (e.g. for `e = u = 0`)
+fn error_digits(e: f64, u: f64) -> f64 {
+    let id = -(e / u).abs().log10();
+    if id.is_nan() { 0.0 } else { id }
 }
 
 /// The estimated number of digits of `p + q`, if `p` and `q` have `id` digits

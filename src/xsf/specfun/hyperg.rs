@@ -1344,8 +1344,10 @@ pub(crate) fn chgu(
             && x < 1.0
             && (LOG_MAP_B..1000.0).contains(&b)
         {
-            let (u, id_b) =
-                super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| chguit_id(a, c, false));
+            let (u, id_b) = super::hypu_fwd_b(a, b, x, (b - 1.0).round(), |c| {
+                let (u, id) = chguit_id(a, c, false);
+                (u, f64::from(id))
+            });
             let id_b = id_b as i32;
             if !u.is_nan() && (hu.is_nan() || id_b > id) {
                 (hu, id) = (u, id_b);
@@ -1384,9 +1386,7 @@ pub(crate) fn chgu(
             let (u, id_rec) = super::hypu_rec(a, b, x);
             let id_rec = id_rec as i32;
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
-                // (at most `ID_MIN`, as the estimate of the recurrence in a misses its rounding
-                // errors, e.g. it gives 6.1e-5 with 15 estimated digits for U(-9.5, 2, x) = 9.5e-5,
-                // with x = 29.896902748015602 near a zero of U)
+                // (at most `ID_MIN`, as the estimate of the recurrence in a is not a bound)
                 (hu, id) = (u, id_rec.min(ID_MIN));
             }
         }

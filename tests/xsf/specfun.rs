@@ -258,6 +258,12 @@ fn test_hypu_near_neg_int_a_small_x() {
 }
 
 #[test]
+fn test_hypu_zero_start_b() {
+    // Arb: 8.08e52; NaN, not 0 by the recurrence in b, whose starting values underflow to 0
+    assert!(xsf::hypu(180.0, 180.5, 0.5).is_nan());
+}
+
+#[test]
 fn test_hypu_poly() {
     // mpmath; -6.90e95, 7.04e186, and NaN in xsf
     let abx = [(-60.0, 30.0, 10.0), (-100.0, -5.01, 46.6), (-95.0, 15.0, 0.004)];
