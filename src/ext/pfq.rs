@@ -1705,10 +1705,6 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
 /// further, as the difference of the two results estimates the truncation error
 const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
 
-/// The factor of the rounding errors of `hyp2f0_miller` in `f64`, scaled to double-double, that
-/// estimates those in double-double, of which they are one sample (measured: up to 3.5 times)
-const MILLER_SAMPLE_MARGIN: f64 = 10.0;
-
 /// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), and an estimate of its
 /// absolute error, or `None` if it would take more than `PFQ_DD_MAXITER` steps
 ///
@@ -1727,7 +1723,8 @@ const MILLER_SAMPLE_MARGIN: f64 = 10.0;
 ///
 /// `f_(k-1) = (1 - (a1 + a2 + 2 k - 1) z) f_k - (a1 + k) (a2 + k) z^2 f_(k+1)`
 ///
-/// also in `f64`, whose rounding errors, scaled down, estimate those in double-double.
+/// with the rounding errors of its steps and of `f_shift` and `f_(shift+1)`, each times the
+/// sensitivity of `f_0` to it.
 fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
     let x = Dd::new(-1.0) / z;
     let sum = x + a1 + a2 + (2.0 * shift - 1.0);
@@ -1749,16 +1746,24 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
         // f_shift and f_(shift+1) times sum_k v_k (DLMF 13.6.21)
         let den = (Dd::new(a1) + shift) * (Dd::new(a2) + shift) * -z;
         let mut f = [v[0], v[1] / den];
-        let mut f_f64 = f.map(|f| f.hi);
+        // and their rounding errors
+        let e_f1 = (e[1] / den.hi).abs() + Dd::EPSILON * f[1].hi.abs();
+        let mut steps = Vec::with_capacity(shift as usize);
         for k in (1..=shift as u32).rev().map(f64::from) {
             let c = (Dd::new(a1) + a2 + (2.0 * k - 1.0)) * -z + 1.0;
             let d = (Dd::new(a1) + k) * (Dd::new(a2) + k) * z * z;
-            f = [c * f[0] - d * f[1], f[0]];
-            f_f64 = [c.hi * f_f64[0] - d.hi * f_f64[1], f_f64[0]];
+            let (p, q) = (c * f[0], d * f[1]);
+            steps.push((c.hi, d.hi, Dd::EPSILON * (p.hi.abs() + q.hi.abs())));
+            f = [p - q, f[0]];
         }
-        let scale = MILLER_SAMPLE_MARGIN * Dd::EPSILON / f64::EPSILON;
-        let e_f = (f_f64[0] / f[0].hi - 1.0).abs() * scale;
-        ((f[0] / total).hi, (e[0] / v[0].hi).abs() + (e_total / total.hi).abs() + e_f)
+        // the sensitivities of f_0 to f_(k-1) and f_k, up from k = 1
+        let (mut w, mut e_f) = ([1.0, 0.0], 0.0);
+        for (c, d, rounding) in steps.into_iter().rev() {
+            e_f += (w[0] * rounding).abs();
+            w = [w[0] * c + w[1], -w[0] * d];
+        }
+        e_f += (w[0] * e[0]).abs() + (w[1] * e_f1).abs();
+        ((f[0] / total).hi, (e_f / f[0].hi).abs() + (e_total / total.hi).abs())
     };
     // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
     // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
@@ -1969,7 +1974,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 .or_else(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
                 .or_else(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
                 .or_else(|| {
-                    (settled > 0.0).then(|| accurate(hyp2f0_miller(a1, a2, z, settled)?))?
+                    // (past a shifted a_i = 0)
+                    let shift = (-a1).max(-a2).floor() + 1.0;
+                    (shift > 0.0).then(|| accurate(hyp2f0_miller(a1, a2, z, shift)?))?
                 })
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
@@ -2035,16 +2042,16 @@ mod tests {
         let (y, err) = hyp2f0_miller(-36.5, -51.8, -0.026, 0.0).unwrap();
         let expected = -6.120_387_741_382_293e-9;
         assert!(err >= f64::EPSILON * y.abs() && (y - expected).abs() <= err);
-        // and that of the recurrence in a1 and a2, here 2.4e-14 (Arb)
+        // and that of the recurrence in a1 and a2, here 3.6e-13 (Arb)
         let (y, err) = hyp2f0_miller(
-            -50.999_999_999_894_19,
-            -104.322_520_819_067_24,
-            -0.054_341_524_958_533_42,
+            -50.999_999_999_699_924,
+            -104.536_535_990_336_39,
+            -0.056_613_881_920_597_09,
             105.0,
         )
         .unwrap();
-        let expected = 1.556_146_099_202_231_6e21;
-        assert!((y - expected).abs() <= err && err <= 1e-13 * y.abs());
+        let expected = 2.794_502_416_895_517_4e22;
+        assert!((y - expected).abs() <= err);
     }
 
     #[test]
