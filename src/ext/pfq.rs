@@ -1716,6 +1716,7 @@ const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
 /// and sum to `x^(-a1)`, so that 2F0 is `v_0 / sum_k v_k` (DLMF 13.6.21): without a gamma
 /// function, a power, or the rounded `x` and `a1 - a2 + 1`. It is in double-double, with a
 /// first-order estimate of its rounding errors, which the recurrence amplifies for `a1, a2 < 0`.
+/// The estimate is not a bound: it propagates the errors of the steps with one choice of signs.
 fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
     let x = Dd::new(-1.0) / z;
     let sum = x + a1 + a2 - 1.0;
@@ -1736,15 +1737,17 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
         }
         ((v[0] / total).hi, (e[0] / v[0].hi).abs() + (e_total / total.hi).abs())
     };
-    // v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for large k (DLMF 13.8.11), which
-    // decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power of k (left to the
-    // truncation error), from where a1 + k and a2 + k are positive (and over at least m steps)
+    // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
+    // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
+    // of k (left to the truncation error), from where a1 + k and a2 + k are positive (and over at
+    // least m steps)
     let settled = (-a1).max(-a2).max(0.0);
     let steps = |m: f64| settled + m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi);
     let [short, long] = MILLER_DECAY.map(steps);
     let ((y_short, _), (y, err)) =
         (long <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
-    Some((y, err * y.abs() + (y - y_short).abs()))
+    // (and the rounding of the quotient and of `y`)
+    Some((y, (err + f64::EPSILON) * y.abs() + (y - y_short).abs()))
 }
 
 /// Generalized hypergeometric function $_pF_q$ for real arguments
@@ -1972,6 +1975,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_hyp2f0_miller_err() {
+        // the estimate covers the rounding of the result, here 2.5e-25 (Arb)
+        let (y, err) = hyp2f0_miller(-36.5, -51.8, -0.026).unwrap();
+        let expected = -6.120_387_741_382_293e-9;
+        assert!(err >= f64::EPSILON * y.abs() && (y - expected).abs() <= err);
+    }
 
     #[test]
     fn test_root_dd() {
