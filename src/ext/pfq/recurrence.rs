@@ -15,8 +15,8 @@
 //! for `theta = z d/dz` (DLMF 16.3.4 with `n = 1`).
 //!
 //! It can also cancel at an upper parameter `a < 0` and not at `a + m`, e.g. where its terms
-//! alternate up to `n = -a`, as for `z > 0` and positive other parameters. With `w = a + 1`, `e_j = b_j - w`, and `h_i = w - a_i` for
-//! the other two upper parameters,
+//! alternate up to `n = -a`, as for `z > 0` and positive other parameters. With `w = a + 1`,
+//! `e_j = b_j - w`, and `h_i = w - a_i` for the other two upper parameters,
 //!
 //! ```text
 //! c_0 F(a + 3) + c_1 F(a + 2) + c_2 F(a + 1) + c_3 F(a) = 0,
