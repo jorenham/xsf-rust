@@ -16,6 +16,7 @@
 
 use crate::ext::{
     HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd,
+    mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -1198,6 +1199,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                         return f64::INFINITY; // goto hypdiv
                     }
                     y = gamma(c) * gamma(d) * (rgamma(p) * rgamma(r));
+                    // Unlike in xsf, if a factor overflows or underflows (e.g. `Gamma(c)` for
+                    // c > 171.6, where xsf gives NaN), by the power series if accurate (e.g. for
+                    // a huge c), else by logarithms in double-double, with exact `c - a`, `c - b`
+                    // and `d` (if finite, i.e. for finite parameters)
+                    if !y.is_normal() && d.is_finite() {
+                        let (y, _, err) = hys2f1(a, b, c, x);
+                        if err < HYP2F1_ETHRESH {
+                            return y;
+                        }
+                        let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
+                        let gauss =
+                            mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one);
+                        if let Some((y, _)) = gauss.map(Scaled::to_f64).filter(accurate) {
+                            return y;
+                        }
+                    }
                     return y; // goto hypdon
                 }
                 if x < 0.0 && d <= -1.0 {
