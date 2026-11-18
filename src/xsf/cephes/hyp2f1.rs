@@ -836,18 +836,10 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             return y;
         }
         if a == b {
-            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round,
-            // and without the low word of `l` where `exp(l.hi)` overflows or underflows to 0, as it
-            // can be below -1 there)
+            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round)
             let l = ln_dd(Dd::new(1.0) - x) * -c;
-            let e = l.hi.exp();
-            return if !l.is_finite() {
-                s.powf(-c)
-            } else if e == 0.0 || e.is_infinite() {
-                e
-            } else {
-                e * (1.0 + l.lo)
-            };
+            let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
+            return y.map_or_else(|| s.powf(-c), |y| y.with_l(l).to_f64().0);
         }
         if sums_to_zero(if a == c { b } else { a }, -c, x) {
             return 0.0;
