@@ -997,6 +997,9 @@ fn test_hyppfq_asymptotic_double_double() {
     // (and here they grow from the fourth one on, long before n = |z|: none bounds the rest)
     let (a, b) = ([2.0_f64.powi(-70), -19.75, -29.625], [1.0, -219.75, -229.625]);
     assert_eq!(hyppfq(&a, &b, -100.0), None);
+    // (the parameters of the series are positive from n = 2^60 on)
+    let (a, b) = ([0.5, 2.0_f64.powi(60)], [2.0_f64.powi(54), 1.25]);
+    assert_eq!(hyppfq(&a, &b, -1.75), None);
 }
 
 #[test]

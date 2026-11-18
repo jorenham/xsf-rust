@@ -1143,9 +1143,11 @@ fn pfq_alg_series<A: Params, B: Params>(
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
 fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
-    let [up, low] = residue::series_params(a, &b[..b.len() - 1], m);
-    let [up_hi, low_hi] =
-        [&up, &low].map(|v| descending(v.iter().map(|x| x.hi).collect::<Vec<_>>()));
+    let [mut up, mut low] = residue::series_params(a, &b[..b.len() - 1], m);
+    // (so that the factors of a term ratio pair by size, with the smallest of `up` unpaired)
+    for v in [&mut up, &mut low] {
+        v.sort_unstable_by(|x, y| y.hi.total_cmp(&x.hi));
+    }
     let poles = up.iter().filter(|x| is_pole(x));
     let degree = poles.fold(f64::INFINITY, |n, x| n.min(-x.hi));
     let ratio = |n: f64| {
@@ -1159,48 +1161,62 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
         }
     };
     let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, ratio));
-    let bound = |n| pfq_ratio_bound(&up_hi, &low_hi, 1.0 / z, n);
-    // (on the inverse of the ratio)
-    let inverse = |n| pfq_ratio_bound(&low_hi, &up_hi, z, n);
-    // From `settled` on, each paired factor of a term ratio is monotone with the limit 1, and the
-    // unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear in `m`, with
-    // `w(n) = bound(n)`, and at least `w(m) / (bound(n) inverse(n))`.
+    if degree.is_finite() {
+        // (all of its terms)
+        return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
+    }
+    // Upper bounds on the ratio of the terms `n + 1` and `n`, and on its reciprocal (so a lower
+    // bound on the ratio), from the shifted factors: above their rounding, and infinite unless
+    // each factor is positive
+    let bounds = |n: f64| {
+        let shift = |x: &Dd| (*x + n).hi;
+        if !up.iter().chain(&low).all(|x| shift(x) > 0.0) {
+            return [f64::INFINITY; 2];
+        }
+        let unpaired = shift(&up[low.len()]) / z.abs();
+        let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
+        let bounds = quotients.fold([unpaired, unpaired.recip()], |[above, below], f| {
+            [above * f.max(1.0), below * f.recip().max(1.0)]
+        });
+        bounds.map(|bound| bound * (1.0 + f64::EPSILON.sqrt()))
+    };
+    // Where the factors are positive, each paired one is monotone with the limit 1, and the
+    // unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear in `m`,
+    // with `w(n) = above`, and at least `w(m) / (above below)`.
     //
     // The product of `w(n)` to `w(m)` is at most 1 while `w(n) + w(m) <= 2`: no term up to there
     // is larger than term `n`. And if the ratios are at least 1 from there on, the terms grow for
     // good. The sum only ends at such an `n`, and so not at a term that a later one exceeds.
-    let closed = |n: f64| n > degree || bound(n) * (1.0 + inverse(n)) <= 2.0;
-    let settled = pfq_settled(&up_hi, &low_hi).ceil();
-    let ns = || {
-        let ns = (0..PFQ_MAXITER).map(|k| settled + f64::from(k));
-        ns.take_while(|&n| n <= settled + z.abs())
+    let closed = |n: f64| {
+        let [above, below] = bounds(n);
+        above * (1.0 + below) <= 2.0
     };
-    // Where no `n` is such, the bound on each ratio shows the same for the last run of `n`: the
-    // terms grow for good from where `inverse(n) <= 1`, and back from there, `most` is the
-    // largest product of the bounds from `n` on.
-    let mut run = (f64::INFINITY, f64::NEG_INFINITY);
-    if !ns().any(closed) {
-        let Some(grows) = ns().find(|&n| inverse(n) <= 1.0) else {
-            return (Dd::new(1.0), f64::INFINITY);
-        };
-        let mut most = 0.0_f64;
-        for n in successors(Some(grows - 1.0), |n| Some(n - 1.0)).take_while(|&n| n >= settled) {
-            most = bound(n) * most.max(1.0);
+    let grows = |n: f64| bounds(n)[1] <= 1.0;
+    let Some(end) = (0..PFQ_MAXITER).find(|&n| closed(f64::from(n)) || grows(f64::from(n))) else {
+        return (Dd::new(1.0), f64::INFINITY);
+    };
+    // Where the terms grow for good before such an `n`, the bound on each ratio shows the same
+    // for the last run of `n`: back from there, `most` is the largest product of the bounds
+    // from `n` on.
+    let (mut run, mut most) = ((f64::INFINITY, f64::NEG_INFINITY), 0.0_f64);
+    if !closed(f64::from(end)) {
+        for n in (0..end).rev().map(f64::from) {
+            most = bounds(n)[0] * most.max(1.0);
             if most <= 1.0 {
                 run = (n, run.1.max(n));
-            } else if run.0.is_finite() {
+            } else if run.0.is_finite() || !most.is_finite() {
                 break;
             }
         }
     }
     let ends = |n: f64| closed(n) || (run.0..=run.1).contains(&n);
-    let Some(start) = ns().find(|&n| ends(n)) else {
+    let Some(start) = [run.0, f64::from(end)].into_iter().find(|&n| ends(n)) else {
         return (Dd::new(1.0), f64::INFINITY);
     };
     let terms = zip(terms, (0_u32..).map(f64::from))
         .take_while(|&(_, n)| n < start || ends(n))
         .map(|(term, _)| term);
-    asymptotic_sum(terms, start, z, bound)
+    asymptotic_sum(terms, start, z, |n| bounds(n)[0])
 }
 
 /// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
@@ -2190,6 +2206,17 @@ mod tests {
         // the terms of the series of a_1 grow from the fourth one on, long before `n = |z|`
         let (a, b) = ([pow2(-70), -19.75, -29.625], [1.0, -219.75, -229.625, 1.0]);
         assert!(pfq_alg_series_dd(&a, &b, 0, -100.0).1.is_infinite());
+        // the low parts of the parameters make the term after the one where they settle larger
+        let (s, u) = (pow2(-49), pow2(-52));
+        let (a, b) = ([s - 16.0, 1.0 + 3.0 * u], [1.0 + u, 2.0 * s - 16.0, 1.0]);
+        assert!(pfq_alg_series_dd(&a, &b, 0, -1.1 * s).1.is_infinite());
+    }
+
+    #[test]
+    fn test_pfq_alg_series_dd_polynomial() {
+        // of degree 0, which is below `|z|`
+        let (sum, err) = pfq_alg_series_dd(&[0.5, 0.75], &[1.5, 0.25, 1.0], 0, -0.5);
+        assert!(sum.hi == 1.0 && err <= Dd::EPSILON);
     }
 
     #[test]
