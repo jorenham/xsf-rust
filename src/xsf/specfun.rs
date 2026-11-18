@@ -343,24 +343,34 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     let coef = |c: f64| (2.0 * c - b + x, c * (c - b + 1.0));
     // The recurrence from U(a + m, b, x) and U(a + m + 1, b, x) with `id` digits, or None if they
     // cancel. They are recurred separately, to detect that, and so is a rounding error of each step
-    // (as in `hypu_fwd_b`).
+    // (as in `hypu_fwd_b`), and for the digits of the result also with the rounding of `coef(c)`.
     let rec = |m: f64, u0: f64, u1: f64, id: f64| {
         let (mut p0, mut p1) = (u0, 0.0);
         let (mut q0, mut q1) = (0.0, u1);
         let (mut e0, mut e1) = (0.0, 0.0);
+        let (mut f0, mut f1) = (0.0, 0.0);
+        // with the sign of the error so far, which it could cancel otherwise (e.g. after a step
+        // that cancels)
+        let add =
+            |e: f64, rounding: f64, u: f64| e + rounding.copysign(if e == 0.0 { u } else { e });
         for k in (1..=m as i32).rev() {
-            let (s, t) = coef(a + f64::from(k));
-            let rounding = f64::EPSILON * (s * (p0 + q0)).abs().max((t * (p1 + q1)).abs());
+            let c = a + f64::from(k);
+            let (s, t) = coef(c);
+            let (v0, v1) = (p0 + q0, p1 + q1);
+            let rounding = f64::EPSILON * (s * v0).abs().max((t * v1).abs());
+            // (bounds of the rounding errors of s and t, including that of c)
+            let ds = f64::EPSILON * ((2.0 * c - b).abs() + x.abs());
+            let dt = 2.0 * f64::EPSILON * (c * ((c - b).abs() + 1.0)).abs();
             (p0, p1) = (s * p0 - t * p1, p0);
             (q0, q1) = (s * q0 - t * q1, q0);
-            // with the sign of the error so far, which it could cancel otherwise (e.g. after a
-            // step that cancels)
-            let e = s * e0 - t * e1;
-            (e0, e1) = (e + rounding.copysign(if e == 0.0 { p0 + q0 } else { e }), e0);
+            (e0, e1) = (add(s * e0 - t * e1, rounding, p0 + q0), e0);
+            let coefs = ds * v0.abs() + dt * v1.abs();
+            (f0, f1) = (add(s * f0 - t * f1, rounding + coefs, p0 + q0), f0);
         }
         let u = p0 + q0;
+        let id = digits_left(id, p0, q0).min(error_digits(e0, u));
         (p0.abs() + q0.abs() < REC_MAX_CANCEL * u.abs())
-            .then(|| (u, digits_left(id, p0, q0).min(error_digits(e0, u))))
+            .then(|| (u, id, id.min(error_digits(f0, u))))
     };
     let m = (1.0 - a).ceil();
     let ((u0, id0, _), (u1, id1, _)) =
@@ -371,7 +381,8 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     // Unlike in xsf (scipy/xsf#380), the recurrence in b is used if the one in a cancels (for
     // large b and a << 0), e.g. for U(-60.2, 30.6, 10)
     if best.is_none() && (3.0..1000.0).contains(&b) {
-        best = Some(hypu_rec_b(a, b, x));
+        let (u, id) = hypu_rec_b(a, b, x);
+        best = Some((u, id, id));
     }
     if a < -0.5 && (1.5..1000.0).contains(&b) {
         // The step to a + j nearest 0 (the first or second) cancels for a near a negative integer
@@ -389,14 +400,14 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
         if cancel > REC_MAX_CANCEL {
             let (v, id, _) = xsf_hypu_digits(a + j, b, x);
             let near_0 = rec(j, v, v1, f64::from(id.min(15)));
-            if near_0.is_some_and(|(_, id)| best.is_none_or(|(_, id_best)| id > id_best)) {
+            if near_0.is_some_and(|(_, id, _)| best.is_none_or(|(_, id_best, _)| id > id_best)) {
                 (best, from_start) = (near_0, false);
             }
         }
     }
-    let (u, id) = best.unwrap_or((f64::NAN, 0.0));
+    let (u, id, id_coefs) = best.unwrap_or((f64::NAN, 0.0, 0.0));
     if from_start {
-        return (u, id, digits_lacking(id, f64::from(id0.min(id1))));
+        return (u, id, digits_lacking(id_coefs, f64::from(id0.min(id1))));
     }
     (u, id, capped(id))
 }
@@ -446,9 +457,9 @@ fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
 }
 
 /// The digits of a result with `id` estimated digits from values taken to have 15 digits: one
-/// less, as its error can be up to about 10 times the estimate (empirical), and less those that
-/// the values lack by their estimated `id_values` digits, but for those not below `ID_MIN` (unless
-/// `id - 1` is), as the estimates of `chgu` are often too low
+/// less, as the estimate isn't a bound (with `id`, a few results with 13 are 1.02e-13 off), and
+/// less those that the values lack by their estimated `id_values` digits, but for those not below
+/// `ID_MIN` (unless `id - 1` is), as the estimates of `chgu` are often too low
 fn digits_lacking(id: f64, id_values: f64) -> f64 {
     let (id, lack) = (id - 1.0, 15.0 - id_values.min(15.0));
     id.min((id - lack).max(f64::from(hyperg::ID_MIN)))

@@ -2375,8 +2375,8 @@ mod tests {
             let id = digits.max(digits_rec);
             digits_ok(u, expected, id).then_some(id)
         };
-        let expected = -4.511_498_909_168_436e202;
-        assert!(check((-117.94, 9.21, 31.5), expected).is_some_and(|id| id >= 13));
+        let expected = -3.557_016_705_996_316e29;
+        assert!(check((-22.41, 14.58, 48.4), expected).is_some_and(|id| id >= 13));
         // and not where it is 1.1e-13 off (Arb)
         let abx = (-66.955_195_369_874_3, 20.368_509_564_101_117, 2.804_235_447_048_866_6);
         assert!(check(abx, -3.583_173_073_665_220_5e107).is_some());
