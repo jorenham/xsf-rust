@@ -1397,7 +1397,7 @@ fn test_hyp1f1_neg_b_lossy() {
 #[test]
 fn test_hyp1f1_neg_b_huge_a_sum() {
     // Arb; the series can't end within 100000 terms, but the sum of `chgm` is accurate, unlike
-    // DLMF 13.3.2 (backward in b; errors up to 6e-13, and 1000x slower)
+    // DLMF 13.3.2 (backward in b; errors up to 6e-13)
     let abx = [
         (-294_222.0, -99_996.25, 4.1),
         (354_223.0, -99_993.75, -8.0),
