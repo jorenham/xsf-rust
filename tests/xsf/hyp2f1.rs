@@ -1392,13 +1392,20 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
         f64::INFINITY
     );
     assert_eq!(xsf::hyp2f1(-227.0, -223.0, -400.0, 163.795_069_436_680_82), f64::NEG_INFINITY);
-    // a subnormal b, both a and b polynomial (of degree 2, not 1e6), and x = 1 (DLMF 15.4.24)
+    // a subnormal b, both a and b polynomial (of degree 2, not 1e6), a degree of 1e6 whose terms
+    // vanish after about 60, and x = 1 (DLMF 15.4.24)
     let actual = [
         xsf::hyp2f1(-1100.0, f64::from_bits(1), -1101.0, 2.0),
         xsf::hyp2f1(-1e6, -2.0, -1_000_001.0, 0.25),
+        xsf::hyp2f1(-1e6, 2.0, -1_000_001.0, 0.25),
         xsf::hyp2f1(-29.0, -27.0, -57.0, 1.0),
     ];
-    let desired = [223.050_453_452_347_38, 0.562_500_374_999_625, 1.995_525_599_273_078_8e-15];
+    let desired = [
+        223.050_453_452_347_38,
+        0.562_500_374_999_625,
+        1.777_776_592_593_777_8,
+        1.995_525_599_273_078_8e-15,
+    ];
     np_assert_allclose!(actual, desired, rtol = 1e-15);
     assert_eq!(xsf::hyp2f1(-20.0, -20.0, -30.0, 1.0), 0.0);
     // a pole if a is not an integer, also if c - a rounds to one (in the Euler transformation)

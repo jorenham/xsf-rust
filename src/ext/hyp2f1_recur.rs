@@ -1029,15 +1029,16 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
 }
 
-/// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with a bound of its rounding
-/// errors as in `series_weighted` (a few double-double operations per term instead of 8 `eps`)
+/// `F(-n, b; c; x)` for `n >= 1` and `c < -n` by its terms in double-double, with a bound of its
+/// rounding errors as in `series_weighted` (a few double-double operations per term instead of
+/// 8 `eps`), and of the terms it leaves out once they're below those
 fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
-    let (mut sum, mut sum_abs, mut k_sum_abs, mut k) = (one, 1.0, 0.0, 0.0);
-    // (`b + k` and `x` scaled to `[0.5, 1)`, as the update can't round in the subnormal range then,
-    // e.g. for a subnormal `b`)
+    let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
+    // (`b + k` and `x` scaled to `|m|` in `[0.5, 1)`, as the update can't round in the subnormal
+    // range then, e.g. for a subnormal `b`)
     let (xm, xe) = x.frexp();
     while k < n {
         let (bm, be) = (b + k).frexp();
@@ -1055,13 +1056,25 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if !k_sum_abs.is_finite() {
             return None;
         }
+        // Stop once the rest is below the rounding of the sum: if b + k > 0, the ratios of the
+        // terms from here are at most `r`, as |c + k| > n - k, and (b + k) / (k + 1) tends
+        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`.
+        let bk = (b + k).hi;
+        let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0);
+        let rest = term_abs * r / (1.0 - r);
+        if bk > 0.0 && r < 1.0 && rest <= DD_ROUNDING * sum.hi.abs() {
+            tail = rest;
+            break;
+        }
         if let Some(s) = rescale_exp(sum_abs) {
             sum = sum.ldexp(-s);
             [sum_abs, k_sum_abs] = [sum_abs, k_sum_abs].map(|v| ldexp_f64(v, -s));
             e += s;
         }
     }
-    let err = MACHEP + DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) / sum.hi.abs();
+    // (twice the `tail`, relative to the full sum, which is at least |sum| / 2)
+    let rounding = DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs);
+    let err = MACHEP + (rounding + 2.0 * tail) / sum.hi.abs();
     Scaled::new(sum.hi, e, err)
 }
 
@@ -1069,7 +1082,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
 /// double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, with `c - b + k` scaled to `[0.5, 1)` as in `poly_dd`
+    // the product `t 2^e`, with `c - b + k` scaled to `|m|` in `[0.5, 1)` as in `poly_dd`
     let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
     while k < n {
         let (num, num_e) = (cb + k).frexp();
