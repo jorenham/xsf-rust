@@ -1016,7 +1016,7 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     };
     let n = -p.hi;
     let direct = poly_dd(n, q, c, Dd::new(x));
-    if err_of(direct) <= HYP2F1_ETHRESH || !(x < 1.0) {
+    if err_of(direct) <= HYP2F1_ETHRESH || x >= 1.0 {
         return direct;
     }
     let one = Dd::new(1.0);
