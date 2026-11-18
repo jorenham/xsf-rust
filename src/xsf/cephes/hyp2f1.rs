@@ -14,6 +14,8 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
+use core::iter;
+
 use crate::ext::{
     HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_recur,
     ln_dd, mul_gamma_ratio,
@@ -807,29 +809,31 @@ fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
     } else {
         (b, a)
     };
-    let (mut sum, mut sum_abs, mut term) = (1.0_f64, 1.0_f64, 1.0_f64);
-    for k in (0..=HYP2F1_MAXITER).map(|k| k as f64) {
-        // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with
-        // `A = |a| + k`, `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi' decreases, `F <= e^u`
-        // with `u = A B psi'(t) < A B (1/t + 1/t^2)` (DLMF 15.4.20). Plus the roundings, as all
-        // intermediates are normal.
-        let t = c - a.abs() - b.abs() - k;
-        if !(t > 0.0 && sum.is_finite()) {
-            return None;
-        }
-        let u = (lo.abs() + k) / t * ((hi.abs() + k) * (1.0 + 1.0 / t));
-        if term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs <= HYP2F1_ETHRESH * sum.abs() {
-            return Some(sum);
-        }
-        // (`|hi + k| < c + k`)
+    // `(k, t_k)`, while all intermediates are normal (`|hi + k| < c + k`)
+    let terms = iter::successors(Some((0.0, 1.0_f64)), |&(k, term)| {
         let (p, q) = ((hi + k) / (c + k), (lo + k) / (k + 1.0));
-        term *= p * q;
-        if ![p, q, p * q, term].iter().all(|v| v.is_normal()) {
-            return None;
-        }
-        (sum, sum_abs) = (sum + term, sum_abs + term.abs());
-    }
-    None
+        let next = term * (p * q);
+        [p, q, p * q, next]
+            .iter()
+            .all(|v| v.is_normal())
+            .then_some((k + 1.0, next))
+    });
+    let t = |k| c - a.abs() - b.abs() - k;
+    terms
+        .take(HYP2F1_MAXITER as usize + 1)
+        .scan((0.0, 0.0), |(sum, sum_abs), (k, term)| {
+            (*sum, *sum_abs) = (*sum + term, *sum_abs + term.abs());
+            Some((k, term, *sum, *sum_abs))
+        })
+        .take_while(|&(k, _, sum, _)| t(k) > 0.0 && sum.is_finite())
+        // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with `A = |a| + k`,
+        // `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi' decreases, `F <= e^u` with
+        // `u = A B psi'(t) < A B (1/t + 1/t^2)` (DLMF 15.4.20). Plus the roundings.
+        .find(|&(k, term, sum, sum_abs)| {
+            let u = (lo.abs() + k) / t(k) * ((hi.abs() + k) * (1.0 + 1.0 / t(k)));
+            term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs <= HYP2F1_ETHRESH * sum.abs()
+        })
+        .map(|(.., sum, _)| sum)
 }
 
 /// Gauss's sum `2F1(a, b; c; 1)` in double-double (with exact `c - a`, `c - b` and `c - a - b`),
