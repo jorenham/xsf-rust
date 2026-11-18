@@ -738,7 +738,7 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 ///
 /// This function is not available in SciPy.
 ///
-/// # Notes
+/// # Definition
 ///
 /// For $\abs z < 1$,
 ///
@@ -750,40 +750,27 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// ,
 /// $$
 ///
-/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)). For
-/// $z < -1$, it is the analytic continuation [^1] [^2]. A non-positive integer $a_i = -n$ makes it
-/// a polynomial of degree at most $n$, defined for all $z$.
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), and the
+/// analytic continuation for $z \le -1$ [^1]. A non-positive integer $a_i = -n$ makes it a
+/// polynomial of degree at most $n$, defined for all $z$. An $a_i$ equal to a $b_j$ cancels it,
+/// also if it is a non-positive integer.
 ///
-/// As in [`hyp2f1`](crate::hyp2f1), an $a_i$ equal to a $b_j$ cancels it, also if it is a
-/// non-positive integer, so that the result is the $_2F_1$ of the other parameters. Where that
-/// converges at $z = 1$, it is Gauss's sum [^3]
+/// It is:
 ///
-/// $$
-/// \hyp 2 1 {a_1\enspace a_2} b 1
-/// = {\Gamma(b) \ \Gamma(b - a_1 - a_2) \over \Gamma(b - a_1) \ \Gamma(b - a_2)}
-/// .
-/// $$
-///
-/// It is $+\infty$:
-///
-/// - if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$;
-/// - at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial.
-///
-/// It is NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is
-/// NaN. For an infinite argument, it is the limit as in [`hyppfq`].
+/// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
+///   $\lt m$, and at $z = 1$ if $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial;
+/// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
 /// If the relative error could exceed about $10^{-13}$:
 ///
-/// - at $z = 1$, unless a parameter cancels so that Gauss's sum applies, and for
-///   $1 - 10^{-5} \lesssim z < 1$;
-/// - if the terms cancel too much (e.g. large parameters), overflow or underflow;
+/// - at $z = 1$, unless an $a_i$ cancels a $b_j$, and for $1 - 10^{-5} \lesssim z < 1$;
+/// - if the terms cancel too much (e.g. for large parameters), overflow, or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
-/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.8.E8>
-/// [^3]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.4.E20>
 ///
 /// # See also
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
@@ -1452,9 +1439,7 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///
 /// This function is not available in SciPy.
 ///
-/// # Notes
-///
-/// For all $z$,
+/// # Definition
 ///
 /// $$
 /// \hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z
@@ -1465,13 +1450,15 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. A
-/// non-positive integer $a_i = -n$ makes it a polynomial of degree at most $n$.
+/// non-positive integer $a_i = -n$ makes it a polynomial of degree at most $n$. An $a_i$ equal to a
+/// $b_j$ cancels it, also if it is a non-positive integer.
 ///
-/// As in [`hyp3f2`], an $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
-/// that the result is the $_1F_1$ of the other parameters (or $e^z$), and it is $+\infty$ if a
-/// $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if
-/// an argument is NaN, and overflows to $\pm\infty$ for large $z > 0$. For an infinite
-/// argument, it is the limit as in [`hyppfq`].
+/// It is:
+///
+/// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
+///   $\lt m$;
+/// - NaN if an argument is NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
@@ -1621,9 +1608,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///
 /// This function is not available in SciPy.
 ///
-/// # Notes
-///
-/// For all $z$,
+/// # Definition
 ///
 /// $$
 /// \hyp 1 2 a {b_1\enspace b_2} z
@@ -1632,13 +1617,15 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. A
-/// non-positive integer $a = -n$ makes it a polynomial of degree $n$.
+/// non-positive integer $a = -n$ makes it a polynomial of degree $n$. An $a$ equal to a $b_j$
+/// cancels it, also if it is a non-positive integer.
 ///
-/// As in [`hyp2f2`], an $a$ equal to a $b_j$ cancels it, also if it is a non-positive integer, so
-/// that the result is the $_0F_1$ of the other $b_j$, and it is $+\infty$ if a $b_j$ is a
-/// non-positive integer $-m$, unless it is a polynomial of degree $\lt m$. It is NaN if an argument
-/// is NaN, and overflows to $\pm\infty$ for large $z > 0$. For an infinite argument, it is the
-/// limit as in [`hyppfq`].
+/// It is:
+///
+/// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
+///   $\lt m$;
+/// - NaN if an argument is NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
 ///
 /// # Returns `None`
 ///
@@ -1646,7 +1633,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///
 /// - for some $z < 0$: rarely if all $\abs a, \abs{b_j} \le 10$, but e.g. for about half of
 ///   $-10^5 < z < -10^3$ if they are up to 100;
-/// - for most $z \lesssim -10^{32}$;
+/// - for about half of $z \lesssim -10^{32}$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -2012,7 +1999,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///
 /// This function is not available in SciPy.
 ///
-/// # Notes
+/// # Definition
 ///
 /// For $p \le q$, and for $\abs z < 1$ if $p = q + 1$,
 ///
@@ -2025,11 +2012,12 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. For
-/// $p = q + 1$ and $z \le -1$, it is the analytic continuation. A non-positive integer
-/// $a_i = -n$ makes it a polynomial of degree at most $n$.
+/// $p = q + 1$ and $z \le -1$, it is the analytic continuation, and for $p > q + 1$ and $z < 0$,
+/// where the series diverges, its Borel sum, as in mpmath [^2] [^3]. A non-positive integer
+/// $a_i = -n$ makes it a polynomial of degree at most $n$, defined for all $z$.
 ///
-/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer or infinite. The
-/// supported $p$ and $q$ that remain are:
+/// Each $a_i$ equal to a $b_j$ cancels it, also if it is a non-positive integer or infinite. These
+/// $p$ and $q$ also have their own function:
 ///
 /// | $p$ | $q = 0$                   | $q = 1$                   | $q = 2$    |
 /// | --- | ------------------------- | ------------------------- | ---------- |
@@ -2038,46 +2026,25 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
-/// and each other $p \le q + 1$.
-///
 /// It is:
 ///
-/// - 1 at $z = 0$, and for a $b_j = +\infty$ and a finite $z$ if $p \le q + 1$ or it is a
-///   polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$, unless it is a polynomial of degree
-///   $\lt m$, for $_1F_0$ at $z = 1$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ at $z = 1$ if
+///   $\lt m$;
+/// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ if
 ///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial;
-/// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, with the sign of its
-///   last term, and otherwise at $z = +\infty$ for $p \le q$, with the sign of
-///   $\prod_j \Gamma(b_j) / \prod_i \Gamma(a_i)$;
-/// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
 /// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
-///   $_1F_0 = (1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
-///
-/// For $p = 2$, $q = 0$ and $z \lt 0$, where the series diverges, it is its Borel sum
-/// $(-1/z)^{a_1} U(a_1, a_1 - a_2 + 1, -1/z)$ ([`hypu`](crate::hypu)) [^2], as in mpmath. For the
-/// other $p > q + 1$ and $z \lt 0$, it is the Borel sum as well, the Meijer G function [^3]
-///
-/// $$
-/// {\prod_j \Gamma(b_j) \over \prod_i \Gamma(a_i)}
-/// G^{1,p}\_{p,q+1} \left( -z ; {1 - a_1, \ldots, 1 - a_p \atop 0, 1 - b_1, \ldots, 1 - b_q} \right)
-/// .
-/// $$
+///   $(1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN;
+/// - for an infinite argument, its limit, e.g. 1 for a $b_j = +\infty$, and $\pm\infty$ at
+///   $z = +\infty$ for $p \le q$.
 ///
 /// # Returns `None`
 ///
 /// - for $p > q + 1$ and $z > 0$, unless it is a polynomial;
-/// - for $_2F_0$ where all its methods fail their accuracy checks: $U$ in both parameter orders
-///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, its
-///   Weniger transformation, and the backward recurrence of $U$ in $a_1$, e.g. for some
-///   $z \ll -1$ or $a_1, a_2 \ll 0$;
-/// - for the other $p > q + 1$ where its methods fail their accuracy checks: its series up to its
-///   smallest term, the sum of the residues of the Meijer G function, and its Weniger
-///   transformation, e.g. for some $\abs z \gtrsim 0.1$, or where $a_i$ nearly coincide;
-/// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
-///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
-/// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
-///   table has a limit.
+/// - for $p > q + 1$ and $z < 0$ where its Borel sum can't be computed accurately, e.g. for some
+///   $z \ll -1$ or $\abs z \gtrsim 0.1$, large negative $a_i$, or nearly equal $a_i$;
+/// - for the other $p \le q + 1$ where it can't be computed accurately, as for [`hyp3f2`] if
+///   $p = q + 1$, for [`hyp2f2`] if $p = q$, and for [`hyp1f2`] if $p < q$;
+/// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///

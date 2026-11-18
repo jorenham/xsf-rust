@@ -710,9 +710,9 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 ///
 /// [hyp2f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp2f1.html
 ///
-/// # Notes
+/// # Definition
 ///
-/// This function is defined for $\abs z < 1$ as
+/// For $\abs z < 1$,
 ///
 /// $$
 /// \hyp 2 1 {a_1\enspace a_2} b z
@@ -722,39 +722,26 @@ impl Hyp2F1Arg for num_complex::Complex<f64> {
 /// ,
 /// $$
 ///
-/// and defined on the rest of the complex $z$-plane by analytic continuation [^1].
-/// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
-/// When defined, a non-positive integer $a_1$ or $a_2$ equal to $-n$ makes the result a polynomial of
-/// degree at most $n$.
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), and the
+/// analytic continuation elsewhere [^1]. A non-positive integer $a_1$ or $a_2$ equal to $-n$ makes
+/// it a polynomial of degree at most $n$.
 ///
-/// For `f64` $z$, a finite result may be replaced by NaN if the internal error estimates say that
-/// none of its digits are correct. For `f64` $z > 1$, where $_2F_1$ is generally complex, the
-/// result is NaN, unless $a_1$, $a_2$, $b - a_1$ or $b - a_2$ is a non-positive integer, where it's
-/// a polynomial, or one times a power of $1 - z$, if that's real. Otherwise, the result can also be
-/// $+\infty$, e.g. at a pole of $b$, or where $b - a_1$ or $b - a_2$ rounds to $b$. Here, as for
-/// $z \le 1$, a parameter within about $10^{-13}$ of an integer can count as one.
+/// For `f64` $z$, it is:
 ///
-/// The implementation for complex values of $z$ is described in [^2], except for $z$ in the region
-/// defined by
+/// - NaN where the internal error estimates say that none of its digits are correct;
+/// - NaN for $z > 1$, where it is generally complex, unless $a_1$, $a_2$, $b - a_1$ or $b - a_2$
+///   is a non-positive integer, so that it is a polynomial, or a polynomial times a power of
+///   $1 - z$, if that is real;
+/// - $+\infty$ e.g. at a pole of $b$, or where $b - a_1$ or $b - a_2$ rounds to $b$.
 ///
-/// $$
-/// 0.9 \le \abs z < 1.1 , \\
-/// \abs{1 - z} \ge 0.9 , \\
-/// \mathrm{Re}(z) \ge 0
-/// $$
-///
-/// in which the implementation follows [^4].
+/// Here, a parameter within about $10^{-13}$ of an integer can count as one.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/15.2>
-/// [^2]: S. Zhang and J.M. Jin, "Computation of Special Functions", Wiley 1996
-/// [^4]: J.L. Lopez and N.M. Temme, "New series expansions of the Gauss hypergeometric function",
-/// Adv Comput Math 39, 349-365 (2013). <https://doi.org/10.1007/s10444-012-9283-y>
 ///
 /// # See also
 /// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function,
 ///   $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
-///
 #[must_use]
 #[inline]
 pub fn hyp2f1<T: Hyp2F1Arg>(a: f64, b: f64, c: f64, z: T) -> T {
