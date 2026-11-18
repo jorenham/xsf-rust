@@ -8,7 +8,7 @@ use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
 use core::ops::Add;
 
-use super::{Scaled, add_exp, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
+use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
 use crate::xsf::Real;
 use crate::xsf::cephes::dd_real::{
@@ -935,6 +935,45 @@ fn recurrence_terms(
     terms.map(|(_, t, _)| t)
 }
 
+/// The coefficients `B_2k / (2k (2k - 1))` of Stirling's series (DLMF 5.11.1) in double-double,
+/// for `k = 16, ..., 1`
+#[rustfmt::skip]
+const STIRLING_DD: [Dd; 16] = [
+    Dd { hi: -15_238_221.539_407_415, lo: -8.767_745_224_906_25e-10 },
+    Dd { hi: 691_472.268_851_313, lo: 2.558_529_630_515_8e-11 },
+    Dd { hi: -36_108.771_253_724_99, lo: 5.897_583_353_514_365e-13 },
+    Dd { hi: 2_193.103_333_333_333_5, lo: -1.333_925_562_600_294_8e-13 },
+    Dd { hi: -156.848_284_626_002_03, lo: 9.391_823_141_715_389e-15 },
+    Dd { hi: 13.402_864_044_168_393, lo: -6.154_114_101_993_966e-16 },
+    Dd { hi: -1.392_432_216_905_901_1, lo: 1.583_705_698_923_030_3e-17 },
+    Dd { hi: 0.179_644_372_368_830_57, lo: -6.401_600_482_710_946e-19 },
+    Dd { hi: -0.029_550_653_594_771_242, lo: 4.861_760_957_508_855e-19 },
+    Dd { hi: 0.006_410_256_410_256_41, lo: 2.224_004_456_380_521_7e-19 },
+    Dd { hi: -0.001_917_526_917_526_917_6, lo: 1.067_570_277_687_247_5e-19 },
+    Dd { hi: 0.000_841_750_841_750_841_7, lo: 3.687_017_488_923_769_4e-20 },
+    Dd { hi: -0.000_595_238_095_238_095_3, lo: 5.369_382_187_547_26e-20 },
+    Dd { hi: 0.000_793_650_793_650_793_7, lo: 6.883_823_317_368_282e-22 },
+    Dd { hi: -0.002_777_777_777_777_778, lo: 1.060_108_790_874_715_4e-19 },
+    Dd { hi: 0.083_333_333_333_333_33, lo: 4.625_929_269_271_485e-18 },
+];
+
+/// The term `k = 17` of Stirling's series at `PFQ_GAMMA_MAX`, which bounds the sum of the terms
+/// after those of `STIRLING_DD` from there on
+const STIRLING_DD_REST: f64 = 6.7e-29;
+
+/// The `g < 0` down to which `mul_gammas_in` shifts `g` to `ln_gamma_stirling`, in about `|g|`
+/// steps
+const PFQ_GAMMA_DD_MIN: f64 = -1024.0;
+
+/// `ln Gamma(g)` for `g >= PFQ_GAMMA_MAX` by Stirling's series (DLMF 5.11.1) in double-double,
+/// its sign, and a bound on its absolute error
+fn ln_gamma_stirling(g: Dd) -> (Dd, f64, f64) {
+    let w = Dd::new(1.0) / (g * g);
+    let corr = STIRLING_DD.iter().fold(Dd::new(0.0), |s, &c| s * w + c) / g;
+    let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + corr;
+    (v, 1.0, STIRLING_DD_REST + Dd::EPSILON * v.hi.abs())
+}
+
 /// `y` times `v`, with the low part of the mantissa in the logarithm
 fn mul_dd(mut y: Scaled, v: Dd) -> Scaled {
     let p = v * y.m;
@@ -952,7 +991,19 @@ fn mul_dd(mut y: Scaled, v: Dd) -> Scaled {
 fn mul_gammas(
     num: impl IntoIterator<Item = Dd>,
     den: impl IntoIterator<Item = Dd>,
+    y: Scaled,
+) -> Option<Scaled> {
+    mul_gammas_in(num, den, y, false)
+}
+
+/// `mul_gammas` if not `dd`. Otherwise each factor is by `ln_gamma_stirling` at `g + n`, also for
+/// `PFQ_GAMMA_DD_MIN < g <= -PFQ_GAMMA_MAX`, where `ln_gamma` reflects `g` in `f64`, and the
+/// `(g)_n` are not rounded, so that the factors are as exact as double-double arithmetic.
+fn mul_gammas_in(
+    num: impl IntoIterator<Item = Dd>,
+    den: impl IntoIterator<Item = Dd>,
     mut y: Scaled,
+    dd: bool,
 ) -> Option<Scaled> {
     // the product of the `(g)_n^-power`, as a mantissa and an exponent
     // (`rising_e` is an `f64`, which sums exactly, as many tiny factors can take it out of the
@@ -960,7 +1011,8 @@ fn mul_gammas(
     let (mut rising, mut rising_e) = (Dd::new(1.0), 0.0);
     let gammas = num.into_iter().map(|g| (g, 1.0));
     for (mut g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
-        if g.hi.abs() < PFQ_GAMMA_MAX {
+        let min = if dd { PFQ_GAMMA_DD_MIN } else { -PFQ_GAMMA_MAX };
+        if min < g.hi && g.hi < PFQ_GAMMA_MAX {
             // (not the ceiling, which can give `g + n < PFQ_GAMMA_MAX` as the difference rounds)
             let n = (PFQ_GAMMA_MAX - g.hi).floor() + 1.0;
             let ks = (0_u32..).map(f64::from).take_while(|&k| k < n);
@@ -979,9 +1031,17 @@ fn mul_gammas(
                 };
                 let (m, e) = q.frexp();
                 (rising, rising_e, g) = (m, rising_e + f64::from(e + s), g + n);
+                if dd {
+                    // (the rounding of each factor of `(g)_n`)
+                    y.err += n * Dd::EPSILON;
+                }
             }
         }
-        let (v, sign, v_err) = ln_gamma(g)?;
+        let (v, sign, v_err) = if dd && g.hi >= PFQ_GAMMA_MAX {
+            ln_gamma_stirling(g)
+        } else {
+            ln_gamma(g)?
+        };
         (y.m, y.err) = (sign * y.m, y.err + v_err);
         y = y.mul_exp(v * power);
     }
@@ -991,7 +1051,13 @@ fn mul_gammas(
         // that `fold_exp` takes, which needs about a million tiny Gamma arguments)
         let ((m, e), (r, k)) = (frexp_f64(y.m), frexp_f64(rising.hi));
         let e = f64::from(y.e + e + k) + rising_e;
-        (y.m, y.e, y.err) = (m * r, (e.abs() <= 1e9).then_some(e as i32)?, y.err + f64::EPSILON);
+        y.e = (e.abs() <= 1e9).then_some(e as i32)?;
+        if dd {
+            (y.m, y.err) = (m, y.err + Dd::EPSILON);
+            y = mul_dd(y, rising.ldexp(-k));
+        } else {
+            (y.m, y.err) = (m * r, y.err + f64::EPSILON);
+        }
     }
     Some(y)
 }
@@ -1243,7 +1309,7 @@ enum Alg {
     Value,
     /// A bound on its size
     Sizes,
-    /// Its value for `p = q`, with its series in double-double
+    /// Its value for `p = q`, with its series and its factor in double-double
     Dd,
 }
 
@@ -1261,8 +1327,8 @@ enum Alg {
 /// With `Alg::Sizes`, each term is the sum of the sizes of the terms of its series, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
 ///
-/// With `Alg::Dd`, the series of each term is in double-double, except for the `a_i` that differ
-/// by integers.
+/// With `Alg::Dd`, the series and the factor of each term are in double-double, except for the
+/// `a_i` that differ by integers.
 fn pfq_alg<A: Params, B: Params>(
     a: &A,
     b: &B,
@@ -1290,7 +1356,7 @@ fn pfq_alg<A: Params, B: Params>(
         let mut y = if mode == Alg::Dd {
             let (sum, err) = pfq_alg_series_dd(a.as_ref(), b.as_ref(), m, z);
             let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
-            mul_gammas(num, den, mul_dd(y, sum))?
+            mul_gammas_in(num, den, mul_dd(y, sum), true)?
         } else {
             gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes)?, l)?
         };
@@ -1741,15 +1807,15 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     }
 }
 
-/// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` with its series in
-/// double-double, where their terms cancel
+/// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
+/// its terms cancel, e.g. for nearly equal `a_i`, or the terms of their series do
 fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     if z > 0.0 || a.as_ref().len() + 1 != b.as_ref().len() {
         return None;
     }
     let mut terms = vec![None; a.as_ref().len()];
     pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
-    let alg = add_exp(terms.into_iter().flatten())?;
+    let alg = add_exp_in(terms.into_iter().flatten(), Dd::exp, Dd::EPSILON)?;
     checked_f64(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?))
 }
 
@@ -2163,6 +2229,17 @@ mod tests {
         // a pole
         assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
         assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
+        // in double-double, below `-PFQ_GAMMA_MAX`: Gamma(-30.5) / Gamma(-28.5)
+        let y = mul_gammas_in([Dd::new(-30.5)], [Dd::new(-28.5)], one, true);
+        check(y, 1.0 / (30.5 * 29.5), 1e-15);
+    }
+
+    #[test]
+    fn test_ln_gamma_stirling() {
+        // where its error is the largest: Gamma(13) = 12!
+        let (v, sign, err) = ln_gamma_stirling(Dd::new(PFQ_GAMMA_MAX));
+        assert!(sign == 1.0 && err <= 1e-28);
+        assert!((v - ln_dd(Dd::new(479_001_600.0))).hi.abs() <= err);
     }
 
     #[test]

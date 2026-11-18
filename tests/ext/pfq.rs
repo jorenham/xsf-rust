@@ -420,6 +420,12 @@ fn test_hyp2f2_asymptotic_double_double() {
         // the terms of a series of the algebraic part cancel
         ([-32.5, -29.75], [8.0, -3.75], -1500.0, 3.955_046_741_892_129e63),
         ([-43.25, -62.125], [47.5, 30.75], -1640.0, -3.765_474_203_422_35e50),
+        // a_1 - a_2 is small, so that the terms of the algebraic part cancel
+        ([-0.0075, -0.0065], [0.01, 0.00625], -2800.0, 0.007_365_834_079_958_2),
+        ([0.0425, 0.0475], [-0.04, 0.0055], -3e5, 0.577_434_031_258_155_7),
+        ([2.5, 2.500_000_001], [-0.75, 1.25], -1e5, -7.313_762_124_125_236e-13),
+        // both, with Gamma functions far below zero
+        ([-18.25, -19.234_375], [1.25, 18.25], -2700.0, 1.319_031_511_167_807_6e36),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -1001,6 +1007,11 @@ fn test_hyppfq_asymptotic_double_double() {
     // (the parameters of the series are positive from n = 2^60 on)
     let (a, b) = ([0.5, 2.0_f64.powi(60)], [2.0_f64.powi(54), 1.25]);
     assert_eq!(hyppfq(&a, &b, -1.75), None);
+    // (small a_i - a_j, so that the terms of the algebraic part cancel)
+    let (a, b) = ([0.5, 0.501, 0.502], [1.25, -0.75, 2.5]);
+    assert_hyppfq(&a, &b, -2e5, -0.032_631_251_264_031_06);
+    let (a, b) = ([0.02, 0.03, 0.01, 0.04], [-0.01, 0.05, 0.06, -0.02]);
+    assert_hyppfq(&a, &b, -2e4, 0.711_858_233_663_966_2);
 }
 
 #[test]
