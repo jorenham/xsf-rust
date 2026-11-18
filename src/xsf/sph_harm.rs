@@ -4,26 +4,10 @@ use core::ffi::c_int;
 use num_complex::Complex64;
 
 use crate::xsf::c64::C64;
-use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n, sph_legendre_p_for_each_n_m};
+use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n_m, sph_legendre_p_t};
 
 fn sph_harm_y_next(m: i32, phi: f64, p: f64, res: &mut C64) {
     *res = (C64::I * f64::from(m) * phi).exp() * p;
-}
-
-fn sph_harm_y_for_each_n(
-    n: i32,
-    m: i32,
-    theta: f64,
-    phi: f64,
-    res: &mut C64,
-    mut f: impl FnMut(i32, i32, &C64),
-) {
-    let mut p = [0.0; 2];
-    sph_legendre_p_for_each_n(n, m, theta, &mut p, |n, p| {
-        sph_harm_y_next(m, phi, p[1], res);
-
-        f(n, m, res);
-    });
 }
 
 fn sph_harm_y_for_each_n_m(
@@ -43,8 +27,10 @@ fn sph_harm_y_for_each_n_m(
 }
 
 fn sph_harm_y_t(n: i32, m: i32, theta: f64, phi: f64) -> C64 {
+    // Unlike in xsf, the phase is applied once, to the last degree (as the only one kept), instead
+    // of to each degree
     let mut res_n = C64::ZERO;
-    sph_harm_y_for_each_n(n, m, theta, phi, &mut res_n, |_, _, _| {});
+    sph_harm_y_next(m, phi, sph_legendre_p_t(n, m, theta), &mut res_n);
 
     res_n
 }
