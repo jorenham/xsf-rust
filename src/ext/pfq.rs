@@ -875,13 +875,24 @@ fn mul_gammas(
     let gammas = num.into_iter().map(|g| (g, 1.0));
     for (mut g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
         if g.hi.abs() < PFQ_GAMMA_MAX {
-            let n = (PFQ_GAMMA_MAX - g.hi).ceil();
+            // (not the ceiling, which can give `g + n < PFQ_GAMMA_MAX` as the difference rounds)
+            let n = (PFQ_GAMMA_MAX - g.hi).floor() + 1.0;
             let ks = (0_u32..).map(f64::from).take_while(|&k| k < n);
-            let r = ks.fold(Dd::new(1.0), |p, k| p * (g + k));
-            // (else `g` is a pole, or `r` is not normal in double-double)
-            if r.hi.abs() >= <Dd as SeriesReal>::MIN_POSITIVE {
-                let (m, e) = if power > 0.0 { rising / r } else { rising * r }.frexp();
-                (rising, rising_e, g) = (m, rising_e + e, g + n);
+            // `(g)_n` as a product of mantissas and an exponent, so that it is normal also for
+            // a tiny factor (the product is at least `2^-n`)
+            let (r, r_e) = ks.fold((Dd::new(1.0), 0), |(p, e), k| {
+                let (f, j) = (g + k).frexp();
+                (p * f, e + j)
+            });
+            // (else a factor is 0: `g` is a pole, where `ln_gamma` is `None`)
+            if r != 0.0 {
+                let (q, s) = if power > 0.0 {
+                    (rising / r, -r_e)
+                } else {
+                    (rising * r, r_e)
+                };
+                let (m, e) = q.frexp();
+                (rising, rising_e, g) = (m, rising_e + e + s, g + n);
             }
         }
         let (v, sign, v_err) = ln_gamma(g)?;
@@ -889,7 +900,8 @@ fn mul_gammas(
         y = y.mul_exp(v * power);
     }
     if rising != 1.0 {
-        // (the product of the mantissas can't overflow; it and `rising.hi` round)
+        // (one eps bounds the rounding of `rising` to `rising.hi` and of the product of the
+        // mantissas, which can't overflow or underflow)
         let ((m, e), (r, k)) = (frexp_f64(y.m), frexp_f64(rising.hi));
         (y.m, y.e, y.err) = (m * r, y.e + e + k + rising_e, y.err + f64::EPSILON);
     }
@@ -1797,6 +1809,14 @@ mod tests {
         // the mantissa of `y` times `Gamma(g)` overflows
         let (g, big) = (Dd::new(-3.0 + pow2(-40)), Scaled::new(1e300, 0, 0.0));
         check(mul_gammas([g], [g], big.unwrap()), 1e300, 1e-14);
+        // `PFQ_GAMMA_MAX - g` rounds to an integer, and `(g)_n` is below the normal range
+        check(
+            mul_gammas([Dd::new(-8.000_000_000_000_002)], [], one),
+            -13_962_052_416.203_12,
+            1e-15,
+        );
+        check(mul_gammas([Dd::new(1e-290)], [], one), 9.999_999_999_999_999e289, 1e-15);
+        check(mul_gammas([], [Dd::new(-1e-290)], one), -1e-290, 1e-15);
         // a pole
         assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
         assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
