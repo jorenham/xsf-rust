@@ -1705,6 +1705,10 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
 /// further, as the difference of the two results estimates the truncation error
 const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
 
+/// The factor of the rounding errors of `hyp2f0_miller` in `f64`, scaled to double-double, that
+/// estimates those in double-double, of which they are one sample (measured: up to 3.5 times)
+const MILLER_SAMPLE_MARGIN: f64 = 10.0;
+
 /// 2F0 for `z < 0` by Miller's algorithm (DLMF 13.29.5 to 13.29.7), and an estimate of its
 /// absolute error, or `None` if it would take more than `PFQ_DD_MAXITER` steps
 ///
@@ -1717,16 +1721,23 @@ const MILLER_DECAY: [f64; 2] = [40.0, 60.0];
 /// function, a power, or the rounded `x` and `a1 - a2 + 1`. It is in double-double, with a
 /// first-order estimate of its rounding errors, which the recurrence amplifies for `a1, a2 < 0`.
 /// The estimate is not a bound: it propagates the errors of the steps with one choice of signs.
-fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
+///
+/// As the sum cancels unless `a1, a2 > 0`, it is that of `a1 + shift` and `a2 + shift`, and the
+/// `f_k = 2F0(a1 + k, a2 + k;; z)` then go down from `k = shift` by (DLMF 13.3.7)
+///
+/// `f_(k-1) = (1 - (a1 + a2 + 2 k - 1) z) f_k - (a1 + k) (a2 + k) z^2 f_(k+1)`
+///
+/// also in `f64`, whose rounding errors, scaled down, estimate those in double-double.
+fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
     let x = Dd::new(-1.0) / z;
-    let sum = x + a1 + a2 - 1.0;
+    let sum = x + a1 + a2 + (2.0 * shift - 1.0);
     // v_0 / sum_k v_k from v_n = 1 and v_(n+1) = 0, and its relative rounding error
     let ratio = |n: f64| {
         let (mut v, mut e) = ([Dd::new(1.0), Dd::new(0.0)], [0.0; 2]);
         let (mut total, mut e_total) = (v[0], 0.0);
         for k in (1..=n as u32).rev().map(f64::from) {
             let (p, q) = ((sum + 2.0 * k) * v[0], v[1] * (k + 1.0));
-            let den = (Dd::new(a1) + (k - 1.0)) * (Dd::new(a2) + (k - 1.0)) / k;
+            let den = (Dd::new(a1) + (shift + k - 1.0)) * (Dd::new(a2) + (shift + k - 1.0)) / k;
             // the rounding error of this step, with the sign of the errors so far
             let rounding = Dd::EPSILON * (p.hi.abs() + q.hi.abs());
             let propagated = (sum.hi + 2.0 * k) * e[0] - (k + 1.0) * e[1];
@@ -1735,17 +1746,29 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64) -> Option<(f64, f64)> {
             total = total + v[0];
             e_total += e[0].abs();
         }
-        ((v[0] / total).hi, (e[0] / v[0].hi).abs() + (e_total / total.hi).abs())
+        // f_shift and f_(shift+1) times sum_k v_k (DLMF 13.6.21)
+        let den = (Dd::new(a1) + shift) * (Dd::new(a2) + shift) * -z;
+        let mut f = [v[0], v[1] / den];
+        let mut f_f64 = f.map(|f| f.hi);
+        for k in (1..=shift as u32).rev().map(f64::from) {
+            let c = (Dd::new(a1) + a2 + (2.0 * k - 1.0)) * -z + 1.0;
+            let d = (Dd::new(a1) + k) * (Dd::new(a2) + k) * z * z;
+            f = [c * f[0] - d * f[1], f[0]];
+            f_f64 = [c.hi * f_f64[0] - d.hi * f_f64[1], f_f64[0]];
+        }
+        let scale = MILLER_SAMPLE_MARGIN * Dd::EPSILON / f64::EPSILON;
+        let e_f = (f_f64[0] / f[0].hi - 1.0).abs() * scale;
+        ((f[0] / total).hi, (e[0] / v[0].hi).abs() + (e_total / total.hi).abs() + e_f)
     };
     // A heuristic: v_k is about k^((a1 + a2) / 2 - 1) K_(a1 - a2)(2 sqrt(k x)) for k >> a1, a2
     // (DLMF 13.8.11), which decays by exp(-m) once 2 sqrt(k x) is |a1 - a2| + m, but for the power
     // of k (left to the truncation error), from where a1 + k and a2 + k are positive (and over at
     // least m steps)
-    let settled = (-a1).max(-a2).max(0.0);
+    let settled = (-a1 - shift).max(-a2 - shift).max(0.0);
     let steps = |m: f64| settled + m + ((a1 - a2).abs() + m).powi(2) / (4.0 * x.hi);
     let [short, long] = MILLER_DECAY.map(steps);
     let ((y_short, _), (y, err)) =
-        (long <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
+        (long + shift <= f64::from(PFQ_DD_MAXITER)).then(|| (ratio(short), ratio(long)))?;
     // (and the rounding of the quotient and of `y`)
     Some((y, (err + f64::EPSILON) * y.abs() + (y - y_short).abs()))
 }
@@ -1932,18 +1955,22 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
             // the rounding errors in f64 can dominate, where the terms before `settled` cancel
             // or the partial sums grow (z < -1); then Miller's algorithm, which is slower, but
-            // holds where U lacks a digit by the estimate of chgu; and last U for a >= 1 where
-            // chgu needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit
-            // (not for a < 1, where its other methods are slow and seldom gain the digit)
+            // holds where U lacks a digit by the estimate of chgu; then U for a >= 1 where chgu
+            // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
+            // for a < 1, where its other methods are slow and seldom gain the digit); and last
+            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before
             let hypu_tol = |a, b, x| xsf_hypu_min_digits(a, b, x, -PFQ_TOL.log10() as i32);
             borel(a1, a2, xsf_hypu_digits)
                 .or_else(series)
                 .or_else(|| borel(a2, a1, xsf_hypu_digits))
                 .or_else(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
                 .or_else(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
-                .or_else(|| accurate(hyp2f0_miller(a1, a2, z)?))
+                .or_else(|| accurate(hyp2f0_miller(a1, a2, z, 0.0)?))
                 .or_else(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
                 .or_else(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
+                .or_else(|| {
+                    (settled > 0.0).then(|| accurate(hyp2f0_miller(a1, a2, z, settled)?))?
+                })
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
@@ -2005,9 +2032,19 @@ mod tests {
     #[test]
     fn test_hyp2f0_miller_err() {
         // the estimate covers the rounding of the result, here 2.5e-25 (Arb)
-        let (y, err) = hyp2f0_miller(-36.5, -51.8, -0.026).unwrap();
+        let (y, err) = hyp2f0_miller(-36.5, -51.8, -0.026, 0.0).unwrap();
         let expected = -6.120_387_741_382_293e-9;
         assert!(err >= f64::EPSILON * y.abs() && (y - expected).abs() <= err);
+        // and that of the recurrence in a1 and a2, here 2.4e-14 (Arb)
+        let (y, err) = hyp2f0_miller(
+            -50.999_999_999_894_19,
+            -104.322_520_819_067_24,
+            -0.054_341_524_958_533_42,
+            105.0,
+        )
+        .unwrap();
+        let expected = 1.556_146_099_202_231_6e21;
+        assert!((y - expected).abs() <= err && err <= 1e-13 * y.abs());
     }
 
     #[test]
