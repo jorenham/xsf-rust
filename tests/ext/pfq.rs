@@ -1234,3 +1234,12 @@ fn test_hyp1f2_series_sum_near_max() {
     // the error estimate of the series sum 1.2e308 overflowed
     assert_hyp1f2(-2.0, [5e-308, 1.0], -2.0, 1.2e308);
 }
+
+#[test]
+fn test_hyppfq_series_sum_above_1e154_rounding_below() {
+    // the roundings of a + n and b + n go the other way
+    let (a, b) = (255.000_000_000_000_03, 254.999_999_999_999_97);
+    let y = hyppfq(&[a; 3], &[b; 3], 355.0).unwrap();
+    let expected = 1.494_655_400_472_756_6e154;
+    assert!((y - expected).abs() <= 5e-14 * expected, "{y} != {expected}");
+}

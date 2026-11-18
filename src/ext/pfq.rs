@@ -287,12 +287,6 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
 /// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
 const PFQ_SQUARE_MAX: f64 = 1e150;
 
-/// The factor of the rounding error where the sum of squares overflows unscaled
-///
-/// The rounding of `a + n` adds up more there than measured, e.g. 1.07e-13 against 8.3e-14 for
-/// `a = 256 - 2^-45` (3 times), `b = 256` (3 times), `z = 700`.
-const PFQ_OVERFLOW_SAFETY: f64 = 2.0;
-
 /// The factor 2^-400 by which the units of those sums shrink once it is exceeded
 const PFQ_UNIT: f64 = pow2(-400);
 
@@ -349,8 +343,12 @@ fn pfq_sum_terms<T: SeriesReal>(
     let mut s = sum.to_f64();
     // the sums of s_n and s_n^2, in units of `unit` so that the squares don't overflow
     let (mut sum1, mut sum2, mut unit) = (0.0, 0.0_f64, 1.0);
+    // the sum of |t_k|, in units of `unit`
+    let mut abs1 = 1.0;
+    // the roundings of a ratio t_(k+1) / t_k: each a_i + k and b_j + k, the product and the quotient
+    let ratio_roundings = 2.0 * (a.len() + b.len()) as f64 + 3.0;
     // the rounding error, and the root of the sum of (s - s_n)^2
-    let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64| {
+    let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64, abs1: f64| {
         // accurate enough for an estimate, relative to s so that its parts don't overflow
         let root2 = sum2.sqrt();
         let tails = if sum == 0.0 {
@@ -362,31 +360,32 @@ fn pfq_sum_terms<T: SeriesReal>(
                 .sqrt()
                 * sum.abs()
         };
-        // (the sums that overflow unscaled have a larger rounding error than measured for the
-        // others, which were all that was accepted)
-        let safety = if sum2 > f64::MAX * unit * unit {
-            PFQ_OVERFLOW_SAFETY
-        } else {
-            1.0
-        };
-        let rounding = T::EPSILON * safety * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + root2);
+        let mut rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + root2);
+        if sum2 > f64::MAX * unit * unit {
+            // The measured estimate was only accepted where the squares don't overflow. Beyond,
+            // t_k has at most k such roundings that all go the same way, so the sum has at most
+            // sum_k k |t_k| <= (n + 1) sum_k |t_k| of them.
+            rounding += T::EPSILON * (n + 1.0) * ratio_roundings * abs1;
+        }
         (rounding / unit, tails / unit)
     };
     for n in (0..maxiter).map(f64::from) {
         while s.abs() * unit > PFQ_SQUARE_MAX {
             // the squares would overflow, so the sums are rescaled (exactly, by a power of 2)
             (sum1, sum2, unit) = (sum1 * PFQ_UNIT, sum2 * PFQ_UNIT * PFQ_UNIT, unit * PFQ_UNIT);
+            abs1 *= PFQ_UNIT;
         }
         sum1 += s * unit;
         sum2 += s * unit * (s * unit);
         if n == degree {
             // the series terminated
-            let (rounding, tails) = estimates(n, s, sum1, sum2, unit);
+            let (rounding, tails) = estimates(n, s, sum1, sum2, unit, abs1);
             return (sum, rounding, tails);
         }
         // t_(n+1)
         let Some(term) = terms.next() else { break };
         let t = term.to_f64();
+        abs1 += t.abs() * unit;
         sum = sum + term;
         s = sum.to_f64();
         if n >= settled && t.abs() <= tol * s.abs() {
@@ -394,7 +393,7 @@ fn pfq_sum_terms<T: SeriesReal>(
             // geometric bound on the remaining terms, if the series converges (p <= q + 1)
             let tail = t.abs() * rho / (1.0 - rho);
             if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
-                let (rounding, tails) = estimates(n, s, sum1, sum2, unit);
+                let (rounding, tails) = estimates(n, s, sum1, sum2, unit, abs1);
                 return (sum, rounding + tail, tails);
             }
         }
