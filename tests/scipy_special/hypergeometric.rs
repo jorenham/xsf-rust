@@ -474,3 +474,17 @@ fn test_hyp0f1_small_z() {
         rtol = 1e-14
     );
 }
+
+#[test]
+fn test_hyp0f1_tiny_v_overflow() {
+    let v = f64::from_bits(1);
+
+    // only the real part overflows
+    let res = hyp0f1(v, c64(-1e-8, 1e-100));
+    assert_eq!(res.re, f64::NEG_INFINITY);
+    np_assert_allclose!([res.im], [2.024_022_512_832_881e223], rtol = 1e-14);
+
+    // `1 / v` overflows
+    assert_eq!(hyp0f1(v, 1e-8), f64::INFINITY);
+    assert_eq!(hyp0f1(v, -1e-8), f64::NEG_INFINITY);
+}

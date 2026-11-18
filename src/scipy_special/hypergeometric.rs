@@ -140,8 +140,8 @@ fn hyp0f1_real(v: f64, z: f64) -> f64 {
         1.0
     } else if z.abs() <= v.abs().max(1.0) {
         // Unlike in xsf (scipy/xsf#366), the Maclaurin series is summed here instead of using the
-        // Bessel functions, which lose digits near the poles and for large |v|. This includes
-        // small `z`, where xsf truncates at O(z^2), dropping the terms after a near-zero `v + n`.
+        // Bessel functions, which lose digits near the poles and for large |v|. Also for small
+        // `z`, as a near-zero `v + n` can amplify later terms.
         hyp0f1_series(v, z)
     } else if debye_is_accurate(v, z) {
         // Unlike in xsf (scipy/xsf#366), Debye's expansion is used wherever it is accurate, as the
@@ -285,15 +285,29 @@ fn bessel_below<T: Num>(v: f64, x: T, s: f64, b_v: impl FnOnce() -> T, b: impl F
 /// Only used for `|z| <= max(|v|, 1)`, where the terms decrease rapidly, except near the poles
 /// at `n ~ -v` if `v < 0`.
 fn hyp0f1_series<T: Num>(v: f64, z: T) -> T {
-    let mut term = T::from(1.0);
+    // a tiny `v + n` can overflow the terms of a finite result: then the sum is retried times
+    // `2^-SHIFT`, but only then, as that underflows tiny results, e.g. for `v = -z << 1`
+    const SHIFT: i32 = 600;
+    let sum = hyp0f1_series_scaled(v, z, 0);
+    if sum.is_finite() {
+        sum
+    } else {
+        hyp0f1_series_scaled(v, z, -SHIFT).ldexp(SHIFT)
+    }
+}
+
+/// `2^shift` times the Maclaurin series
+fn hyp0f1_series_scaled<T: Num>(v: f64, z: T, shift: i32) -> T {
+    let mut term = T::from(1.0).ldexp(shift);
     let mut sum = term;
+    // the larger part is cheaper than the complex `abs`, and as good for stopping
+    let size = |x: T| x.real().abs().max(x.imag().abs());
     for n in 0..1000 {
         let n = f64::from(n);
-        term = term * (z / (v + n) / (n + 1.0));
+        term = term / (v + n) * z / (n + 1.0);
         sum = sum + term;
         // not before the term with the smallest |v + n|, e.g. 1 / (-7.000001)_8 ~ 1e6 / 7!
-        // `sum` is scaled first, as its complex `abs` can overflow
-        if term.abs() <= (sum * f64::EPSILON).abs() && (v + n > -0.5 || term.abs() == 0.0) {
+        if size(term) <= size(sum) * (f64::EPSILON / 2.0) && (v + n > -0.5 || size(term) == 0.0) {
             break;
         }
     }
@@ -317,7 +331,7 @@ fn hyp0f1_cmplx(v: f64, z: C64) -> C64 {
         // the logarithmic prefactor; they remain for where the partial sums overflow (tiny `|v|`)
         if z.norm() <= v.abs().max(1.0) {
             let sum = hyp0f1_series(v, z);
-            if sum.is_finite() {
+            if !sum.is_nan() {
                 return sum;
             }
         }
