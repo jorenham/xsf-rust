@@ -1219,3 +1219,18 @@ fn test_hyp2f2_series_sum_above_1e154() {
     // the squared partial sums of the error estimate overflow
     assert_hyp2f2([76.5, 4.25], [-0.25, -18.75], 200.0, 7.879_700_512_996_357e201);
 }
+
+#[test]
+fn test_hyppfq_series_sum_above_1e154_rounding() {
+    // the rounding of a + n adds up, so the estimate of the f64 series was too small
+    let a = 255.999_999_999_999_97;
+    let y = hyppfq(&[a; 3], &[256.0; 3], 700.0).unwrap();
+    let expected = 1.014_232_054_734_890_5e304;
+    assert!((y - expected).abs() <= 5e-14 * expected, "{y} != {expected}");
+}
+
+#[test]
+fn test_hyp1f2_series_sum_near_max() {
+    // the error estimate of the series sum 1.2e308 overflowed
+    assert_hyp1f2(-2.0, [5e-308, 1.0], -2.0, 1.2e308);
+}

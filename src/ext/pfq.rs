@@ -287,6 +287,11 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
 /// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
 const PFQ_SQUARE_MAX: f64 = 1e150;
 
+/// The factor of the rounding error of sums that are rescaled, whose rounding of `a + n` adds up
+/// to more than measured for smaller sums (1.07e-13 against 8.3e-14 estimated for 3 of 256 - 2^-45
+/// over 3 of 256, at z = 700)
+const PFQ_RESCALED_SAFETY: f64 = 2.0;
+
 /// The factor 2^-400 by which the units of those sums shrink once it is exceeded
 const PFQ_UNIT: f64 = pow2(-400);
 
@@ -346,7 +351,7 @@ fn pfq_sum_terms<T: SeriesReal>(
     // the rounding error, and the root of the sum of (s - s_n)^2
     let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64| {
         // accurate enough for an estimate, relative to s so that its parts don't overflow
-        let root2 = sum2.sqrt() / unit;
+        let root2 = sum2.sqrt();
         let tails = if sum == 0.0 {
             root2
         } else {
@@ -355,10 +360,11 @@ fn pfq_sum_terms<T: SeriesReal>(
                 .max(0.0)
                 .sqrt()
                 * sum.abs()
-                / unit
         };
-        let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + root2);
-        (rounding, tails)
+        // (the rescaled sums have a larger rounding error than measured for the others)
+        let safety = if unit < 1.0 { PFQ_RESCALED_SAFETY } else { 1.0 };
+        let rounding = T::EPSILON * safety * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + root2);
+        (rounding / unit, tails / unit)
     };
     for n in (0..maxiter).map(f64::from) {
         while s.abs() * unit > PFQ_SQUARE_MAX {
