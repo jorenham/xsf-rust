@@ -478,6 +478,20 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         return rj_duplicated(xm, ym, zm, p, rerr, noasymp);
     }
 
+    // Unlike in xsf, also for complex input with `p` tiny relative to `x, y, z`, where the loop's
+    // `R_C` terms lose accuracy (`1 + delta / s^2` cancels to about `sqrt(p / x)`), as the step
+    // gets `2 beta / d` from `sqrt(p)` directly. Real input takes the "tiny p" form below, which
+    // is the same identity.
+    //
+    // (not if rounding moves the shifted arguments out of the domain, e.g. a real part to below 0)
+    let tiny_p = |a: &T| p.max_norm() <= config::ASYM_ZERO_UL * a.max_norm();
+    if !real && [xm, ym, zm].iter().all(tiny_p) {
+        let (status, res) = rj_duplicated(xm, ym, zm, p, rerr, noasymp);
+        if status != ExitStatus::BadArgs {
+            return (status, res);
+        }
+    }
+
     if classify.maybe_asymp && !noasymp {
         /* might be dealt with by asymptotic expansion of real-arg RJ */
         let mut tmpres = 0.0;
