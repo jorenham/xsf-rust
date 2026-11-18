@@ -791,9 +791,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
 
     // Unlike in xsf, for large parameters first try the backward recurrence in c of
     // `hyp2f1_recur`, since the series and transformations below can lose all precision then. This
-    // excludes c close to a non-positive integer (unless tiny), and a zero or subnormal negative
-    // a, b, c - a or c - b. The transformations below also use it, but only if the outermost call
-    // is `in_recur_regime`, so that the other results are unchanged.
+    // excludes c close to (but not at) a non-positive integer (unless tiny), and a zero or
+    // subnormal negative a, b, c - a or c - b. The transformations below also use it, but only if
+    // the outermost call is `in_recur_regime`, so that the other results are unchanged.
     //
     // Unlike in xsf, a tiny negative `c` is not the integer 0 (see `near`), so it isn't excluded:
     // the paths below lose as much precision for it as for any other `c`.
@@ -802,6 +802,10 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     // integer 0 below, but the paths for polynomials lose it: their power series stops after its
     // tiny first term, or diverges for x < -1. Not for a subnormal one, where the series of
     // `hyp2f1_recur` underflow.
+    //
+    // Unlike in xsf, also try it for a non-positive integer `c` if `a` or `b` is a negative integer
+    // above it, where it sums the polynomial in double-double, as the paths below lose all digits
+    // when its terms cancel (and can return NaN or the wrong sign of an overflow).
     //
     // Unlike in xsf, also try it for `near_log`, where it combines the two terms of the 1/x or the
     // 1 - x transformation, up to their limit at an integer (DLMF 15.8.9, 15.8.10), while the paths
@@ -822,7 +826,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
     let degenerate = |t: Dd| t.hi <= 0.0 && !t.hi.is_normal();
     let recur_first = |a: f64, b: f64, c: f64| {
         let first = (recur && in_recur_regime(a, b, c, x) || tiny(a) || tiny(b))
-            && (tiny(c) || !near_neg_int(c))
+            && (tiny(c) || !near_neg_int(c) || c == c.round())
             && !poly_params(a, b, c).into_iter().any(degenerate);
         first.then(|| hyp2f1_recur(a, b, c, x)).flatten()
     };
