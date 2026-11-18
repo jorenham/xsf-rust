@@ -556,20 +556,23 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
     (err <= SQRT_EPSILON).then_some(hg)
 }
 
-/// Unlike in xsf: `hg` unless it is NaN, or else `M(a, b, x)` for non-integer `b < 0` from
-/// `chgm_minimal`, with `a` and `x` as in `kummer_args` if both are positive.
-///
-/// There the series of `M` cancels and DLMF 13.3.2 is unstable in both directions, e.g. for
-/// `hyp1f1(316.3, -1000.3, 100)`.
-pub(crate) fn hyp1f1_neg_b_minimal(a: f64, b: f64, x: f64, hg: f64) -> f64 {
+/// Unlike in xsf: `hg` unless it is NaN, or else `M(a, b, x)` for non-integer `b < 0`
+/// - from `chgm_minimal`, with `a` and `x` as in `kummer_args` if both are positive, where the
+///   series of `M` cancels and DLMF 13.3.2 is unstable in both directions, e.g. for
+///   `hyp1f1(316.3, -1000.3, 100)`;
+/// - or else for finite `|a| > 1e5` and `x` from `hyp1f1_neg_b`, which `chgm_neg_b` skips there.
+pub(crate) fn hyp1f1_neg_b_fallback(a: f64, b: f64, x: f64, hg: f64) -> f64 {
+    if !(hg.is_nan() && b < 0.0 && b != b.trunc()) {
+        return hg;
+    }
     let (ak, xk) = kummer_args(x, a, b);
     // the sums of M2 and M3 need over x terms
-    let minimal = b < 0.0 && b != b.trunc() && ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
-    if hg.is_nan() && minimal {
-        chgm_minimal(ak, b, xk, x).unwrap_or(hg)
-    } else {
-        hg
-    }
+    let minimal = ak > 0.0 && 0.0 < xk && xk < f64::from(MAX_TERMS);
+    let huge_a = a.abs() > 1e5 && a.is_finite() && x.is_finite();
+    let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
+    (minimal.then(|| chgm_minimal(ak, b, xk, x)).flatten())
+        .or_else(|| huge_a.then(neg_b).flatten())
+        .unwrap_or(hg)
 }
 
 /// `M(a, b, x)` for `x < 0` from `chgm_neg_x_series`, or else (for `x <= -30 - |b|`) from
@@ -704,8 +707,8 @@ fn remainder_factor(s: f64, rho_0: f64, c_1: f64, z: f64) -> Option<f64> {
 /// the series in double-double, if any loses at most half of its digits. If rounding `b - a` (for
 /// `x < 0`) errs by more than a rounding (see `rounding_ratio`), the series in double-double comes
 /// before `hyp1f1_neg_b`, which rounds it too, if its error bound is below `eps`. `hyp1f1_neg_b`
-/// comes last for `|a| > 1e5`, where its initial values can be slow (e.g. a polynomial of degree
-/// `-a`).
+/// is skipped for `|a| > 1e5`, where its initial values can be slow (e.g. a polynomial of degree
+/// `-a`), and `chgm` is often accurate (see `hyp1f1_neg_b_fallback`).
 fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
     /// The series if it ends, with an error bound below `tol` relative to its value
     fn checked(
@@ -757,13 +760,11 @@ fn chgm_neg_b(x: f64, a: f64, b: f64) -> Option<f64> {
         }
         ln_max
     });
-    let huge_a = a.abs() > 1e5;
     let neg_b = || hyp1f1_neg_b(a, b, x, |b| chgm(x, a, b));
     checked(x, ends, SQRT_EPSILON, || *ln_max, series)
         .or_else(|| checked(x, ends && !small_rounding, f64::EPSILON, || *ln_max, series_dd))
-        .or_else(|| (!huge_a).then(neg_b).flatten())
+        .or_else(|| (a.abs() <= 1e5).then(neg_b).flatten())
         .or_else(|| checked(x, ends, SQRT_EPSILON, || *ln_max, series_dd))
-        .or_else(|| huge_a.then(neg_b).flatten())
 }
 
 /// `e^(x0/2 - x/2) M(a, b, x)` for `b, x > 0` and `c = b - 2a > 0` from Tricomi's expansion

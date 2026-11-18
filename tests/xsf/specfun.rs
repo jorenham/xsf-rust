@@ -1395,6 +1395,20 @@ fn test_hyp1f1_neg_b_lossy() {
 }
 
 #[test]
+fn test_hyp1f1_neg_b_huge_a_sum() {
+    // Arb; the series can't end within 100000 terms, but the sum of `chgm` is accurate, unlike
+    // DLMF 13.3.2 (backward in b; errors up to 6e-13, and 1000x slower)
+    let abx = [
+        (-294_222.0, -99_996.25, 4.1),
+        (354_223.0, -99_993.75, -8.0),
+        (-324_422.5, -99_976.25, 68.5),
+    ];
+    let expected = [173_517.686_753_373_8, 2_041_616_625_311.223_3, 4.077_252_565_946_860_4e96];
+    let actual = abx.map(|(a, b, x)| xsf::hyp1f1(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_hyp1f1_neg_b_unstable() {
     // Arb; DLMF 13.3.2 (backward in b from b + n > 0) is unstable here
     let abx = [
