@@ -187,12 +187,53 @@ fn test_hyp3f2_conformal() {
 }
 
 #[test]
+fn test_hyp3f2_recurrence() {
+    // the terms cancel too much, also in double-double; Arb references
+    for (a, b, z, expected) in [
+        // from the smaller lower parameter
+        ([50.5, 60.5, 70.5], [1.5, 2.5], -0.75, -0.001_405_626_005_107_606_3),
+        // from the larger one, as the steps to the smaller one cancel
+        (
+            [20.0, 19.0, -191.883_718_479_187_68],
+            [-0.550_007_120_797_645_4, 47.286_239_465_585_32],
+            0.164_230_372_686_943_13,
+            -0.003_420_261_981_933_175_4,
+        ),
+        // from the second start, as the errors of the series of the first grow too much; the
+        // b_1 + m + k of the starts are not floats
+        (
+            [94.378_191_005_498_73, 173.300_865_140_052, 147.500_025_613_686_18],
+            [-13.643_774_007_711_395, 17.503_608_568_778_155],
+            -0.008_800_179_444_837_896,
+            17_600_470_648.833_354,
+        ),
+        // b_1 is close to a pole
+        (
+            [55.702_960_750_015_784, 104.952_956_865_680_7, 26.757_585_999_689_19],
+            [-16.000_000_359_538_15, -0.049_520_245_084_025_07],
+            -0.363_135_541_088_158_7,
+            -5.398_186_830_203_316e27,
+        ),
+        // z is tiny, so that the low part of c_0 underflows, which adds little to the error
+        (
+            [2.427_499_880_600_77, -14.741_567_093_881_988, 25.381_848_363_326_903],
+            [-1.143_065_210_718_003_2e-299, -2.751_195_480_316_527_5e-250],
+            1.097_287_567_318_436_7e-307,
+            -3.169_232_623_501_818e244,
+        ),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+    }
+    // b_1 is subnormal, so that the last step divides by a product that underflows (Arb)
+    let y = hyp3f2(0.25, 1.2, 0.3, 1e-316, 2.0, 7e-9);
+    assert!(y.is_none_or(|y| (y / 3.150_000_064_610_025e306 - 1.0).abs() < 1e-13));
+}
+
+#[test]
 fn test_hyp3f2_none() {
     // z = 1, and too close to it
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
     assert_eq!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8), None);
-    // the terms cancel too much
-    assert_eq!(hyp3f2(50.5, 60.5, 70.5, 1.5, 2.5, -0.75), None);
     // a huge negative parameter
     assert_eq!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9), None);
 }
