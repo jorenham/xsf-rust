@@ -445,11 +445,12 @@ fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     (u0, ldexp_f64(a * sum, e), id)
 }
 
-/// The digits `id` of a result from values taken to have 15 digits, less those that the values
-/// lack by their estimated `id_values` digits, but not below `ID_MIN` (or `id`), as the estimates
-/// of `chgu` are often too low
+/// The digits of a result with `id` estimated digits from values taken to have 15 digits: one
+/// less, as its error can be up to about 10 times the estimate (empirical), and less those that
+/// the values lack by their estimated `id_values` digits, but for those not below `ID_MIN` (unless
+/// `id - 1` is), as the estimates of `chgu` are often too low
 fn digits_lacking(id: f64, id_values: f64) -> f64 {
-    let lack = 15.0 - id_values.min(15.0);
+    let (id, lack) = (id - 1.0, 15.0 - id_values.min(15.0));
     id.min((id - lack).max(f64::from(hyperg::ID_MIN)))
 }
 
