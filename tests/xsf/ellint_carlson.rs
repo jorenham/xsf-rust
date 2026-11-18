@@ -605,6 +605,18 @@ fn test_elliprj_tiny_p() {
         c64(51.752_360_261_895_41, -0.304_295_173_684_859_9),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // the duplication step rounds `Re x` below 0, or `Re p` to 0
+    let actual = [
+        xsf::elliprj(c64(1e-20, 1.0), c64(1e-20, 2.0), c64(1e-20, 3.0), c64(1e-20, 0.0)),
+        xsf::elliprj(c64(0.0, 1.0), c64(0.0, 2.0), c64(0.0, 3.0), c64(5e-324, 1e-14)),
+    ];
+    // Arb
+    let expected = [
+        c64(-19.226_711_474_154_413, -20.587_060_997_330_077),
+        c64(-13.924_594_681_017_782, -13.924_594_681_017_782),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 }
 
 #[test]
