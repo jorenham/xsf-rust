@@ -1143,6 +1143,23 @@ fn test_hyp2f1_f64_large_polynomials() {
     // inf (Arb)
     let actual = xsf::hyp2f1(-193.25, -361.875, -784.25, -8.5);
     np_assert_allclose!([actual], [5.602_051_816_485_101e124], rtol = 1e-14);
+
+    // and in double-double if those and the recurrences are inaccurate, e.g. near a root, where
+    // these were -3.5662163414410e-9, -3.4478745961026 and -388.081847556425 (Arb)
+    let args = [
+        (-8.0, 18.016_500_331_508_873, 10.805_295_997_850_628, 0.908_756_475_07),
+        (15.695_195_439_032_172, -283.0, -1.239_002_148_045_167_6, 0.022_551_819_176_619_81),
+        (-4.999_999_999_790_708, -270.0, -0.418_468_928_086_676_85, -0.026_109_555_998_151_627),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [-3.566_216_341_442_087e-9, -3.447_874_596_102_943_6, -388.081_847_556_405_76];
+    np_assert_allclose!(actual, desired, rtol = 1e-15);
+    // but not where the low word of `1 / (1 - x)` is subnormal and so inexact, where that gave
+    // 1.3e-4 and 1.3e-8 (exact)
+    let actual = xsf::hyp2f1(-7.692_307_692_292_307e-308, -1.0, 10.0, -1.3e308);
+    np_assert_allclose!([actual], [1.999_956_492_953_669_5e-12], rtol = 1e-6);
+    let actual = xsf::hyp2f1(-6.666_666_653_333_333e-306, -1.0, 100.0, -1.5e307);
+    np_assert_allclose!([actual], [2.000_000_054_253_873e-9], rtol = 1e-9);
 }
 
 #[test]
