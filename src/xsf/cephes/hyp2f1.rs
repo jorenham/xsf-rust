@@ -836,8 +836,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             return y;
         }
         if a == b {
-            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round)
-            let l = ln_dd(Dd::new(1.0) - x) * -c;
+            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round;
+            // for a tiny x by its series, as `ln_dd` is accurate only to about 2^-106 absolute)
+            let ln_1mx = if x.abs() < pow2(-27) {
+                let x = Dd::new(x);
+                -(x + x * x * (x / 3.0 + 0.5))
+            } else {
+                ln_dd(Dd::new(1.0) - x)
+            };
+            let l = ln_1mx * -c;
             let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
             return y.map_or_else(|| s.powf(-c), |y| y.with_l(l).to_f64().0);
         }

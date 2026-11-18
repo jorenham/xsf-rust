@@ -1510,6 +1510,10 @@ fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
     // (the smallest subnormal, which exp(ln((1 - x)^m)) rounds up to)
     let actual = xsf::hyp2f1(-1e7, -1e7, -1e7, 7.451_054_586_157_437e-5);
     assert_eq!(actual, f64::from_bits(1));
+    // (a tiny x and a huge m, where `ln(1 - x)` must be accurate relative to x; reference: mpmath)
+    let a = -12_772_208_543_222_726_656.0;
+    let actual = [xsf::hyp2f1(a, a, a, 2.0_f64.powi(-54))];
+    np_assert_allclose!(actual, [1.216_780_750_623_399e-308], rtol = 1e-15);
     // (NaN for c = -inf)
     assert!(xsf::hyp2f1(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, 0.5).is_nan());
 }
