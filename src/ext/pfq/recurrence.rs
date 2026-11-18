@@ -33,15 +33,12 @@ use super::{
     pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
-/// Smallest `m` for which the recurrence starts from the series at `b + m`. The next ones are
-/// `2 m`, `4 m`, ...
-const RECURRENCE_MIN_START: u32 = 8;
-
-/// Largest such `m`
+/// The `m` for which the recurrence starts from the series at `b + m`, in the order in which
+/// they are tried
 ///
-/// Of 7136 results on 91004 points, 426 are from it and 537 from half of it, and twice it gave
-/// 8 more results on 1351 points (measured).
-const RECURRENCE_MAX_START: u32 = 4096;
+/// Of 7107 results on 91004 points, 426 are from the last one and 537 from the one before it,
+/// and 8192 would give 273 more (measured).
+const RECURRENCE_STARTS: [u32; 10] = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
@@ -51,7 +48,7 @@ const RECURRENCE_EPSILON: f64 = 17.0 * Dd::EPSILON;
 /// The coefficients `[c_0, c_1, c_2, c_3]`, for `minus = -1`
 ///
 /// For `minus = 1` and the sizes of the arguments, no terms cancel: each is then the sum of the
-/// sizes of its terms, which bounds its rounding error.
+/// sizes of its terms, which is the scale of its rounding error.
 fn coefficients<T: SeriesReal>(u: T, [d1, d2, d3]: [T; 3], z: T, other: T, minus: f64) -> [T; 4] {
     let (m, sum) = (T::from_f64(minus), d1 + d2 + d3);
     // u - 1 and u - 2
@@ -101,22 +98,23 @@ fn recurrence_from(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(
         let sizes = a.map(|ai| ai.abs() + size);
         let [e0, e1, e2, _] = coefficients(size, sizes, z.abs(), other.abs(), 1.0);
         let terms = e0 * f[2].hi.abs() + e1 * f[1].hi.abs() + e2 * f[0].hi.abs();
-        // no bound where c_0, c_3, the sum or the quotient is not normal: there an underflow
-        // loses digits (within c_1 and c_2, less than the rounding of their terms without z)
+        // no bound if the terms of c_0 or of the sum, c_3 or the quotient are not normal: an
+        // underflow then loses digits (in c_1 and c_2, fewer than the rounding of their terms
+        // without z does)
         let normal = |size: f64| is_normal(Dd::new(size));
-        let rounding = if normal(e0) && normal(terms) && is_normal(c3) && is_normal(next) {
+        let bound = if normal(e0) && normal(terms) && is_normal(c3) && is_normal(next) {
             RECURRENCE_EPSILON * terms / c3.hi.abs()
         } else {
             f64::INFINITY
         };
-        steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), rounding));
+        steps.push(([c2, c1, c0].map(|c| -c.hi / c3.hi), bound));
         f = [next, f[0], f[1]];
     }
     // the `g_k` of the three F above each step, upwards from the result, and the bound of the
     // rounding errors, which starts with that of the result
     let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.5 * f64::EPSILON * f[0].hi.abs());
-    for (factors, step) in steps.iter().rev() {
-        rounding += g[0].abs() * step;
+    for (factors, bound) in steps.iter().rev() {
+        rounding += g[0].abs() * bound;
         g = [g[0] * factors[0] + g[1], g[0] * factors[1] + g[2], g[0] * factors[2]];
     }
     let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
@@ -133,19 +131,18 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
     };
     // first in the smaller one
     for (bj, other) in [(small, large), (large, small)] {
-        let mut m = RECURRENCE_MIN_START;
-        while m <= RECURRENCE_MAX_START {
-            // (`None` if a series is not accurate, which it may be for a larger `m`)
-            if let Some((y, rounding, err)) = recurrence_from(a, bj, other, z, m) {
-                if accurate((y, err)).is_some() {
-                    return Some((y, err));
-                }
-                // a larger `m` ends with the same steps, after more of them
-                if accurate((y, rounding)).is_none() {
-                    break;
-                }
+        for m in RECURRENCE_STARTS {
+            // (a series that is not accurate may be for a larger `m`)
+            let Some((y, rounding, err)) = recurrence_from(a, bj, other, z, m) else {
+                continue;
+            };
+            if accurate((y, err)).is_some() {
+                return Some((y, err));
             }
-            m *= 2;
+            // a larger `m` ends with the same steps, after more of them
+            if accurate((y, rounding)).is_none() {
+                break;
+            }
         }
     }
     None
