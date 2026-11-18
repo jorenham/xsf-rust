@@ -1040,6 +1040,10 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     // (`b + k` and `x` scaled to `|m|` in `[0.5, 1)`, as the update can't round in the subnormal
     // range then, e.g. for a subnormal `b`)
     let (xm, xe) = x.frexp();
+    // the bound of the rounding errors of the sum
+    let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
+        DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs)
+    };
     while k < n {
         let (bm, be) = (b + k).frexp();
         t = t * (bm * (k - n)) * xm / ((c + k) * (k + 1.0));
@@ -1058,11 +1062,15 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         }
         // Stop once the rest is below the rounding of the sum: if b + k > 0, the ratios of the
         // terms from here are at most `r`, as |c + k| > n - k, and (b + k) / (k + 1) tends
-        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`.
+        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`
+        // (rounded up for `x.hi`, these operations, and an underflow of `term`). Only if the
+        // rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2`.
         let bk = (b + k).hi;
-        let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0);
-        let rest = term_abs * r / (1.0 - r);
-        if bk > 0.0 && r < 1.0 && rest <= DD_ROUNDING * sum.hi.abs() {
+        let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
+        let rest = term_abs.max(f64::MIN_POSITIVE) * r / (1.0 - r);
+        let abs = sum.hi.abs();
+        let negligible = rest <= DD_ROUNDING * abs && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
+        if bk > 0.0 && r < 1.0 && negligible {
             tail = rest;
             break;
         }
@@ -1073,8 +1081,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         }
     }
     // (twice the `tail`, relative to the full sum, which is at least |sum| / 2)
-    let rounding = DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs);
-    let err = MACHEP + (rounding + 2.0 * tail) / sum.hi.abs();
+    let err = MACHEP + (rounding(k, sum_abs, k_sum_abs) + 2.0 * tail) / sum.hi.abs();
     Scaled::new(sum.hi, e, err)
 }
 

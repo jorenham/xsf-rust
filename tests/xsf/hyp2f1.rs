@@ -1408,6 +1408,10 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-15);
     assert_eq!(xsf::hyp2f1(-20.0, -20.0, -30.0, 1.0), 0.0);
+    // its terms cancel by 1e80, so NaN (or the exact sum), not that of the terms up to where the
+    // rest is negligible
+    let y = xsf::hyp2f1(-2048.0, 512.0, -2049.0, -0.25);
+    assert!(y.is_nan() || (y / 2.530_769_231_467_989e-50 - 1.0).abs() < 1e-13);
     // a pole if a is not an integer, also if c - a rounds to one (in the Euler transformation)
     assert_eq!(xsf::hyp2f1(-1.000_000_000_000_2, 0.25, -8192.0, 0.5), f64::INFINITY);
 }
