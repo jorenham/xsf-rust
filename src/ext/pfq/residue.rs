@@ -78,6 +78,15 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
     taylor(1.0 + d) + sign * (taylor(1.0 - d) - taylor(1.0 - x.hi))
 }
 
+/// The parameters of the series of the term of `a_m` (DLMF 16.11.2) in double-double: `a_m` and
+/// the `1 + a_m - b_j`, over the `1 + a_m - a_i`, where `b` is without the 1 of `n!`
+fn series_params(a: &[f64], b: &[f64], m: usize) -> [Vec<Dd>; 2] {
+    let am = Dd::new(a[m]);
+    let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
+    let low = a.iter().map(|&ai| am + 1.0 - ai).collect();
+    [up, low]
+}
+
 /// The residues of the class of `a_m` at `s = -a_m - n` for `n = 0, 1, ...`, without the factor
 /// of the one at `n = 0` if that were a simple pole
 ///
@@ -134,9 +143,7 @@ impl Residues {
                 None => {},
             }
         }
-        // a_m and the 1 + a_m - b_j, over the 1 + a_m - a_i
-        let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
-        let low = a.iter().map(|&ai| am + 1.0 - ai).collect();
+        let [up, low] = series_params(a, b, m);
         // (-1)^(p+q+1) / z
         let w = neg_one_pow(a.len() + b.len() + 1) / z;
         let (n, term) = (0.0, 1.0);

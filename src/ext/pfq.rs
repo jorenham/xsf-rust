@@ -570,7 +570,7 @@ pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, 
         // the terms of DLMF 16.8.8 are infinite: their limit is the sum of the terms of `pfq_alg`
         let b: Vec<f64> = skip(b, one).chain([1.0]).collect();
         let mut terms = vec![None; a.as_ref().len()];
-        pfq_alg(a, &b, z, false, &mut terms)?;
+        pfq_alg(a, &b, z, Alg::Value, &mut terms)?;
         let (y, err) = add_exp(terms.into_iter().flatten())?.to_f64();
         return y.is_normal().then_some((y, err * y.abs()));
     }
@@ -797,11 +797,15 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
 
 /// A term of a series with a bound on its size
 trait Term: Copy {
-    fn value(self) -> f64;
+    /// The arithmetic in which the series is summed
+    type Value: SeriesReal;
+    fn value(self) -> Self::Value;
     fn bound(self) -> f64;
 }
 
 impl Term for f64 {
+    type Value = Self;
+
     fn value(self) -> f64 {
         self
     }
@@ -813,6 +817,8 @@ impl Term for f64 {
 
 /// A value and a bound on its size
 impl Term for (f64, f64) {
+    type Value = f64;
+
     fn value(self) -> f64 {
         self.0
     }
@@ -840,8 +846,9 @@ fn asymptotic_sum<T: Term>(
     settled: f64,
     z: f64,
     ratio_bound: impl Fn(f64) -> f64,
-) -> (f64, f64) {
-    let (mut sum, mut abs_sum, mut prev) = (0.0_f64, 0.0, f64::INFINITY);
+) -> (T::Value, f64) {
+    let eps = T::Value::EPSILON;
+    let (mut sum, mut abs_sum, mut prev) = (T::Value::from_f64(0.0), 0.0, f64::INFINITY);
     // the smallest size, and the sum before a term with the smallest error
     let (mut min, mut best) = (f64::INFINITY, (sum, f64::INFINITY));
     let remainder = (TAU * z.abs()).sqrt().max(1.0);
@@ -850,19 +857,19 @@ fn asymptotic_sum<T: Term>(
         let Some(term) = terms.next() else { break };
         let (t, bound) = (term.value(), term.bound());
         let size = bound.max(terms.peek().map_or(0.0, |next| next.bound()));
-        if !t.is_finite() || n >= settled + z.abs() && bound >= prev {
+        if !t.to_f64().is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
         } else if n >= settled && size < min {
             min = size;
-            let err = remainder * min + n * f64::EPSILON * abs_sum;
+            let err = remainder * min + n * eps * abs_sum;
             if err < best.1 {
                 best = (sum, err);
             }
-            if remainder * min <= f64::EPSILON * sum.abs() && ratio_bound(n) < 1.0 {
+            if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
                 break;
             }
         }
-        sum += t;
+        sum = sum + t;
         abs_sum += bound;
         prev = bound;
     }
@@ -874,7 +881,7 @@ fn asymptotic_sum<T: Term>(
 ///
 /// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
 /// before it, and `ratio_bound` does not increase.
-fn convergent_sum<T: Term>(
+fn convergent_sum<T: Term<Value = f64>>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     ratio_bound: impl Fn(f64) -> f64,
@@ -899,7 +906,7 @@ fn convergent_sum<T: Term>(
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
 /// about `n^kappa / |z|`: by `asymptotic_sum`, or by `convergent_sum` for `kappa = 0`, which
 /// also stands for `p > q + 1`
-fn pfq_alg_sum<T: Term>(
+fn pfq_alg_sum<T: Term<Value = f64>>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     kappa: usize,
@@ -1165,6 +1172,15 @@ fn pfq_class_term(
     Some(())
 }
 
+/// What `pfq_alg` gives for each term
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Alg {
+    /// Its value
+    Value,
+    /// A bound on its size
+    Sizes,
+}
+
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
 /// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows
 ///
@@ -1176,15 +1192,16 @@ fn pfq_class_term(
 /// `1 / Gamma(b_j - a_m)` does. The `a_i` that differ by integers have one term, by
 /// `pfq_class_term`, which for `z > 0` is a bound on its size.
 ///
-/// With `sizes`, each term is the sum of the sizes of the terms of its series instead, times the
+/// With `Alg::Sizes`, each term is the sum of the sizes of the terms of its series, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
 fn pfq_alg<A: Params, B: Params>(
     a: &A,
     b: &B,
     z: f64,
-    sizes: bool,
+    mode: Alg,
     terms: &mut [Option<Scaled>],
 ) -> Option<()> {
+    let sizes = mode == Alg::Sizes;
     let (_, lower) = b.as_ref().split_last()?;
     let ln_z = ln_dd(Dd::new(z.abs()));
     let bs = lower.iter().copied().map(Dd::new);
@@ -1221,9 +1238,9 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         let mut terms = [None; 2];
         if a[1] == b[1] {
             // they cancel
-            pfq_alg(&[a[0]], &[b[0], 1.0], z, false, &mut terms)?;
+            pfq_alg(&[a[0]], &[b[0], 1.0], z, Alg::Value, &mut terms)?;
         } else {
-            pfq_alg(&a, &[b[0], b[1], 1.0], z, false, &mut terms)?;
+            pfq_alg(&a, &[b[0], b[1], 1.0], z, Alg::Value, &mut terms)?;
         }
         Some(terms.into_iter().flatten())
     };
@@ -1407,7 +1424,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
     let exp = hyp1f2_exp(a, b, z)?;
     // the algebraic part, `None` if it vanishes
     let mut alg = [None];
-    pfq_alg(&[a], &[b[0], b[1], 1.0], z, false, &mut alg)?;
+    pfq_alg(&[a], &[b[0], b[1], 1.0], z, Alg::Value, &mut alg)?;
     if z > 0.0 {
         checked_f64(exp, alg[0])
     } else {
@@ -1632,7 +1649,8 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
     let mut terms = vec![None; a_ref.len()];
-    pfq_alg(a, b, z, z > 0.0, &mut terms)?;
+    let mode = if z > 0.0 { Alg::Sizes } else { Alg::Value };
+    pfq_alg(a, b, z, mode, &mut terms)?;
     let alg = terms.into_iter().flatten();
     let exp = pfq_exp(a_ref, b_ref, z)?;
     if z > 0.0 {
@@ -1692,7 +1710,7 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let weniger_dd = || weniger(pfq_weniger::<Dd>(a, b, z)?, Dd::EPSILON);
     let residues = || {
         let mut terms = vec![None; a_ref.len()];
-        pfq_alg(a, b, z, false, &mut terms)?;
+        pfq_alg(a, b, z, Alg::Value, &mut terms)?;
         checked_f64(add_exp(terms.into_iter().flatten())?, None)
     };
     series()
