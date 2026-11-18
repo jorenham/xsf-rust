@@ -194,21 +194,18 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html
 ///
-/// # Notes
-///
-/// The confluent hypergeometric function is defined by the series
+/// # Definition
 ///
 /// $$
 /// M(a,b,z) = \hyp 1 1 a b z = \sum\_{n=0}^\infty  {\rpow a n \over \rpow b n} {z^n \over n!}
 /// $$
 ///
-/// See [^DLMF] for more details.
-/// Here $\rpow{\square}{n}$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// For `f64` $z$, NaN is returned if the estimated accuracy of the result is too low, e.g. if its
-/// series cancels or doesn't converge and no other method applies.
+/// Results at $b = 0$ can be unreliable. For `f64` $z$, it is NaN if the estimated accuracy of the
+/// result is too low, e.g. where its series cancels.
 ///
-/// [^DLMF]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
 /// # See also
 /// - [`hypu`]: Tricomi's confluent hypergeometric function $U(a,b,x)$

@@ -463,25 +463,20 @@ impl HypergeometricArg for num_complex::Complex<f64> {
 
 /// Hypergeometric function $_0F_0\left[\middle\| z\right]$ for real or complex $z$
 ///
-/// This function is currently not implemented in SciPy, but is straightforward to evaluate.
-/// Both [`f64`] and [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
+/// This function is not available in SciPy. Both [`f64`] and
+/// [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
 ///
-/// # Notes
-///
-/// This function is defined as
+/// # Definition
 ///
 /// $$
-/// _0F_0\left[ \middle\| z\right] = \sum\_{n=0}^\infty {z^n \over n!},
+/// _0F_0\left[ \middle\| z\right] = \sum\_{n=0}^\infty {z^n \over n!} = e^z
 /// $$
-///
-/// which is just the exponential function, $e^z$.
 ///
 /// # See also
 /// - [`hyp1f0`]: Hypergeometric function $_1F_0\left[a\middle\| z\right]$
 /// - [`hyp0f1`]: Confluent hypergeometric limit function, $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
-///
 #[inline]
 pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
     z.hyp0f0()
@@ -489,26 +484,24 @@ pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
 
 /// Hypergeometric function $_1F_0\left[a\middle\| z\right]$ for real or complex $z$
 ///
-/// This function is currently not implemented in SciPy, but is straightforward to evaluate.
-/// Both [`f64`] and [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
+/// This function is not available in SciPy. Both [`f64`] and
+/// [`num_complex::Complex<f64>`](num_complex::Complex) are accepted for `z`.
 ///
-/// # Notes
-///
-/// This function is defined as
+/// # Definition
 ///
 /// $$
-/// _1F_0\left[a\middle\| z\right] = \sum\_{n=0}^\infty \rpow a n {z^n \over n!}
+/// _1F_0\left[a\middle\| z\right] = \sum\_{n=0}^\infty \rpow a n {z^n \over n!} = (1 - z)^{-a}
 /// $$
 ///
-/// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
-/// It's also equal to $(1 - z)^{-a}$.
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), where the
+/// series converges for $\abs z < 1$, or terminates. It is NaN at $z = 1$ if $a > 0$, and for a
+/// finite `f64` $z > 1$ if $a$ is finite and not an integer.
 ///
 /// # See also
 /// - [`hyp0f0`]: Hypergeometric function $_0F_0\left[\middle\| z\right]$
 /// - [`hyp0f1`]: Confluent hypergeometric limit function, $_0F_1\left[b\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
-///
 #[inline]
 pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
     z.hyp1f0(a)
@@ -520,27 +513,21 @@ pub fn hyp1f0<T: HypergeometricArg>(a: f64, z: T) -> T {
 ///
 /// [hyp0f1]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html
 ///
-/// # Notes
-///
-/// This function is defined as
+/// # Definition
 ///
 /// $$
-/// _0F_1\left[b\middle\| z\right] = \sum\_{n=0}^\infty {1\over \rpow b n} {z^n \over n!}.
+/// _0F_1\left[b\middle\| z\right] = \sum\_{n=0}^\infty {1\over \rpow b n} {z^n \over n!}
 /// $$
 ///
-/// Here $\rpow \square n$ is the rising factorial; see [`pow_rising`](crate::pow_rising).
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1]. It is NaN
+/// if $b$ is a non-positive integer, where it has a pole, or $-\infty$, and if an argument is NaN.
 ///
-/// It's also the limit as $a \to \infty$ of $\hyp 1 1 a b {z/a}$, and satisfies the
-/// differential equation $z f\'\'(z) + b f\'(z) = f(z)$. See [^1] for more information.
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
 ///
 /// # See also
 /// - [`hyp1f0`]: Hypergeometric function, $_1F_0\left[a\middle\| z\right]$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
-///
-/// [^1]: Weisstein, Eric W. "Confluent Hypergeometric Limit Function." From MathWorld -- A Wolfram
-/// Resource. <https://mathworld.wolfram.com/ConfluentHypergeometricLimitFunction.html>
-///
 #[inline]
 pub fn hyp0f1<T: HypergeometricArg>(b: f64, z: T) -> T {
     z.hyp0f1(b)
