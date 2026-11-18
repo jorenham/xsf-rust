@@ -558,6 +558,20 @@ fn hyp2f1_neg_c_equal_bc(a: f64, b: f64, x: f64) -> f64 {
     sum
 }
 
+/// `(1 - x)^m`, by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round
+fn pow_1mx(x: f64, m: f64) -> f64 {
+    // (for a tiny x by its series, as `ln_dd` is accurate only to about 2^-106 absolute)
+    let ln_1mx = if x.abs() < pow2(-27) {
+        let x = Dd::new(x);
+        -(x + x * x * (x / 3.0 + 0.5))
+    } else {
+        ln_dd(Dd::new(1.0) - x)
+    };
+    let l = ln_1mx * m;
+    let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
+    y.map_or_else(|| (1.0 - x).powf(m), |y| y.with_l(l).to_f64().0)
+}
+
 /// Whether `sum_{k <= m} (b)_k x^k / k!` (DLMF 15.2.5) is exactly 0, as are all its terms and
 /// partial sums in `f64` (for `m <= HYP2F1_RECUR_MAXITER`)
 fn sums_to_zero(b: f64, m: f64, x: f64) -> bool {
@@ -836,17 +850,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             return y;
         }
         if a == b {
-            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round;
-            // for a tiny x by its series, as `ln_dd` is accurate only to about 2^-106 absolute)
-            let ln_1mx = if x.abs() < pow2(-27) {
-                let x = Dd::new(x);
-                -(x + x * x * (x / 3.0 + 0.5))
-            } else {
-                ln_dd(Dd::new(1.0) - x)
-            };
-            let l = ln_1mx * -c;
-            let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
-            return y.map_or_else(|| s.powf(-c), |y| y.with_l(l).to_f64().0);
+            return pow_1mx(x, -c);
         }
         if sums_to_zero(if a == c { b } else { a }, -c, x) {
             return 0.0;
