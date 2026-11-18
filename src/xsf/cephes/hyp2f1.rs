@@ -15,8 +15,8 @@
 //! `c - b` is close to a negative integer.
 
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd,
-    mul_gamma_ratio,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_recur,
+    ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -1199,20 +1199,41 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                         return f64::INFINITY; // goto hypdiv
                     }
                     y = gamma(c) * gamma(d) * (rgamma(p) * rgamma(r));
-                    // Unlike in xsf, if a factor overflows or underflows (e.g. `Gamma(c)` for
-                    // c > 171.6, where xsf gives NaN), by the power series if accurate (e.g. for
-                    // a huge c), else by logarithms in double-double, with exact `c - a`, `c - b`
-                    // and `d` (if finite, i.e. for finite parameters)
+                    // Unlike in xsf, if a factor over- or underflows (e.g. `Gamma(c)` for
+                    // c > 171.6, where xsf gives NaN), by the series if provably accurate, else in
+                    // double-double (exact `c - a`, `c - b` and `d`) unless its bound straddles
+                    // the overflow
                     if !y.is_normal() && d.is_finite() {
-                        let (y, _, err) = hys2f1(a, b, c, x);
-                        if err < HYP2F1_ETHRESH {
-                            return y;
+                        let (mut sum, mut sum_abs, mut term, mut k) = (1.0_f64, 1.0, 1.0_f64, 0.0);
+                        loop {
+                            // The terms from k on sum to at most `|t_k| e^u` for t > 0, with
+                            // `u = (|a| + k) (|b| + k) psi'(t)`, `psi'(t) < 1/t + 1/t^2`: their
+                            // sum is below `|t_k| F(|a| + k, |b| + k; c + k; 1)`, and Gamma is
+                            // log-convex. Plus the roundings of the terms and their sum.
+                            let t = c - a.abs() - b.abs() - k;
+                            let u = (a.abs() + k) * (b.abs() + k) * (1.0 + 1.0 / t) / t;
+                            let err = term.abs() * u.exp() + 8.0 * k * MACHEP * sum_abs;
+                            // (not if `term` underflows, or `u` is NaN for t <= 0)
+                            let normal = t > 0.0 && term.is_normal();
+                            if normal && err <= HYP2F1_ETHRESH * sum.abs() {
+                                return sum;
+                            }
+                            if !normal || k >= HYP2F1_MAXITER as f64 {
+                                break;
+                            }
+                            // (in this order, as |a + k| < c + k, so that it can't overflow first)
+                            term = term * ((a + k) / (c + k)) * ((b + k) / (k + 1.0));
+                            (sum, sum_abs, k) = (sum + term, sum_abs + term.abs(), k + 1.0);
                         }
                         let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
                         let gauss =
                             mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one);
-                        if let Some((y, _)) = gauss.map(Scaled::to_f64).filter(accurate) {
-                            return y;
+                        if let Some(g) = gauss.map(fold_exp).filter(|g| g.err <= HYP2F1_RECUR_TOL) {
+                            let [lo, hi] =
+                                [1.0 - g.err, 1.0 + g.err].map(|f| ldexp_f64(g.m * f, g.e));
+                            if lo.is_finite() == hi.is_finite() {
+                                return ldexp_f64(g.m, g.e);
+                            }
                         }
                     }
                     return y; // goto hypdon
