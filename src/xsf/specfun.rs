@@ -225,21 +225,22 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
     xsf_hypu_digits(a, b, x).0
 }
 
-/// `xsf_hypu` with the number of digits that `chgu` estimates
-pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32) {
+/// `xsf_hypu` with the numbers of digits that `chgu` estimates, as its methods compare them and
+/// for the result (more if by the recurrence in a)
+pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32, i32) {
     let mut out;
     let mut md = 0; /* method code --- not returned */
     let mut isfer = 0;
-    let mut digits = 0;
+    let (mut digits, mut digits_rec) = (0, i32::MIN);
 
-    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits);
+    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec);
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
     if isfer != 0 {
         out = f64::NAN;
     }
-    (out, digits)
+    (out, digits, digits.max(digits_rec))
 }
 
 /// Tricomi's confluent hypergeometric function $U(a,b,x)$
@@ -313,18 +314,20 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 
 /// `U(a, b, x)` for `a < 1` and `b > a` by the backward recurrence in `a` (DLMF 13.3.7), from
 /// `a + m` in `[1, 2)` (or `a + j` nearest 0, see below), with its estimated (fractional) number of
-/// digits; NaN if a (heuristic) check finds that the recurrence is ill-conditioned; for small `a`
-/// by `hypu_sum_b`, unless that cancels
+/// digits as `chgu` compares it and for the result; NaN if a (heuristic) check finds that the
+/// recurrence is ill-conditioned; for small `a` by `hypu_sum_b`, unless that cancels
 ///
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
 /// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1). A
 /// start `a + j` in `(-0.5, 0.5]` comes back here, but doesn't start near 0 again.
-fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64) {
+fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
-        let (u, id) = hypu_rec(a - b + 1.0, 2.0 - b, x);
-        return (x.powf(1.0 - b) * u, id);
+        let (u, id, id_result) = hypu_rec(a - b + 1.0, 2.0 - b, x);
+        return (x.powf(1.0 - b) * u, id, id_result);
     }
+    // the digits for the result, at most `ID_MIN`, as these estimates are not bounds
+    let capped = |id: f64| id.min(f64::from(hyperg::ID_MIN));
     // Unlike in xsf, DLMF 13.3.9 for small a, where the recurrence in a can cancel without the
     // check below noticing, e.g. for tiny a near an integer b
     if a.abs() < 0.5 && (1.5..1000.0).contains(&b) {
@@ -332,7 +335,8 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64) {
         let u = u0 + s;
         if u.is_infinite() || u0.abs() + s.abs() < REC_MAX_CANCEL * u.abs() {
             // the terms are taken to have 15 digits
-            return (u, digits_left(15.0, u0, s));
+            let id = digits_left(15.0, u0, s);
+            return (u, id, capped(id));
         }
     }
     // U(c - 1, b, x) = s U(c, b, x) - t U(c + 1, b, x), with (s, t) = `coef(c)`
@@ -381,14 +385,15 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64) {
             cancel = f.abs().max(g.abs()) / v0.abs();
         }
         if cancel > REC_MAX_CANCEL {
-            let (v, id) = xsf_hypu_digits(a + j, b, x);
+            let (v, id, _) = xsf_hypu_digits(a + j, b, x);
             let near_0 = rec(j, v, v1, f64::from(id.min(15)));
             if near_0.is_some_and(|(_, id)| best.is_none_or(|(_, id_best)| id > id_best)) {
                 best = near_0;
             }
         }
     }
-    best.unwrap_or((f64::NAN, 0.0))
+    let (u, id) = best.unwrap_or((f64::NAN, 0.0));
+    (u, id, capped(id))
 }
 
 /// The largest cancellation `(|p| + |q|) / |p + q|` of a sum that `hypu_rec` accepts (empirical)
@@ -428,7 +433,10 @@ fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64) {
 /// `U(a, b, x)` for `a < 1` and `3 <= b < 1000` by the forward recurrence in `b` (DLMF 13.3.8),
 /// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
 fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, f64) {
-    hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| hypu_rec(a, c, x))
+    hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| {
+        let (u, id, _) = hypu_rec(a, c, x);
+        (u, id)
+    })
 }
 
 /// `U(a, b, x)` by the forward recurrence in `b` (DLMF 13.3.8) from `U(a, c, x)` and its
