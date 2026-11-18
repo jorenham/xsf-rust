@@ -2736,15 +2736,16 @@ def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
 def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
     """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex (its fallback): unless
     a, b, c - a or c - b (rounded) is a non-positive integer up to `HYP2F1_EPS`, where it is a
-    polynomial, or one times a power of 1 - x (DLMF 15.8.1), and else +inf, or c is a pole up to
-    `HYP2F1_EPS` (+inf), or c - a or c - b rounds to c > 0 (+inf). The table has no +inf rows,
-    nor rows where a parameter is only near an integer, as Arb confirms neither for the inputs
-    as given. Some others are real too, such as 2F1(2, 2; 4; 2) = -3, whose logarithmic term
-    vanishes."""
+    polynomial, or one times a power of 1 - x (DLMF 15.8.1), and else +inf, or c is near a pole
+    (+inf, relative to it as in xsf-rust, so c = -2^-55 isn't), or c - a or c - b rounds to
+    c > 0 (+inf). The table has none of these +inf rows, nor rows where a parameter is only near
+    an integer, as Arb confirms neither for the inputs as given. Some others are real too, such
+    as 2F1(2, 2; 4; 2) = -3, whose logarithmic term vanishes."""
     p, q, c, x = a
-    poly = any(_near_nonpos_int(t) for t in (p, q, c, c - p, c - q))
+    poly = any(_near_nonpos_int(t) for t in (p, q, c - p, c - q))
+    pole = c <= 0 and abs(c - round(c)) <= HYP2F1_EPS * min(abs(round(c)), 1)
     lost = c > 0 and c in (c - p, c - q)
-    return x > 1 and not (poly or lost)
+    return x > 1 and not (poly or pole or lost)
 
 
 def _hyp2f1_diverges(a: tuple[float, ...]) -> bool:
