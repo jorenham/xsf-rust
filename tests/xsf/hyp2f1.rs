@@ -199,6 +199,40 @@ fn test_hyp2f1_f64_x_lt_minus_2() {
     let actual = [xsf::hyp2f1(-19.6, -4.1, 16.7, -9.9), xsf::hyp2f1(-4.2, -19.6, 14.6, -9.6)];
     let desired = [-1_046_594.825_411_287_6, -4_908_149.039_599_091];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // but the 1/x transformation if its error estimate is smaller than that of the Pfaff series,
+    // e.g. where it cancels, as xsf does. These were 1.37682208856282, -5.197163034404184e15,
+    // 7.081003593530957e-7, -183294.3855496918 and 4100386506.2481966 (Arb).
+    let args = [
+        (-1.8, -2.5, 5.0, -10.0),
+        (9.5, -4.9, -8.7, -1000.0),
+        (9.8, 7.4, 0.3, -5.0),
+        (-2.6, -6.1, 7.1, -50.0),
+        (-7.8, -5.6, 9.0, -100.0),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        1.376_822_088_562_981_8,
+        -5_197_163_034_410_069.0,
+        7.081_003_593_523_789e-7,
+        -183_294.385_549_550_82,
+        4_100_386_506.245_826_7,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // unlike in xsf, the Pfaff series is kept where both error estimates are too large, or `c - b`
+    // is near a pole of its gamma function (Arb)
+    let actual = [
+        xsf::hyp2f1(
+            0.076_598_182_228_762_47,
+            7.362_007_163_390_169,
+            -3.923_401_672_797_962_4,
+            -153.095_573_546_133_72,
+        ),
+        xsf::hyp2f1(-3.2, 1e-12, -3.000_000_04, -10.0),
+    ];
+    let desired = [1.258_875_876_921_877e-6, 1.003_134_633_107_021_5];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
 }
 
 #[test]

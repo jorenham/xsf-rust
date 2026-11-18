@@ -1056,13 +1056,11 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
 
             let mut t1 = (b - a).abs();
             if x < -2.0 && (t1 - t1.round()).abs() > HYP2F1_EPS {
-                // Unlike in xsf (scipy/xsf#465), first try the series of the Pfaff transformations
+                // Unlike in xsf (scipy/xsf#465), also sum the series of the Pfaff transformations
                 // as for x < -1, since the inner functions of the 1/x transformation can be
                 // inaccurate
                 let (y1, e1) = hys2f1_pfaff(a, b, c, x);
-                if e1 < HYP2F1_ETHRESH {
-                    return y1;
-                }
+                let y1_ok = e1 < HYP2F1_ETHRESH;
                 /* This transform has a pole for b-a integer, and
                  * may produce large cancellation errors for |1/x| close 1
                  */
@@ -1070,24 +1068,46 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 // `Gamma(a - b)` only cancel those of `p` and `q` at the same `b - a`
                 let e = b - a;
                 // Unlike in xsf, near an integer `b - a`, where `s p` and `y q` below cancel, first
-                // try `hyp2f1_recur` (as for `near_log`), unless it was tried above
-                if inexact.is_none() && near_int(e) {
+                // try `hyp2f1_recur` (as for `near_log`), unless it was tried above or the series
+                // is accurate
+                if inexact.is_none() && near_int(e) && !y1_ok {
                     let log = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
                     if let Some((y, _)) = log.filter(accurate) {
                         return y;
                     }
                 }
-                p = hyp2f1_impl(a, 1.0 - c + a, 1.0 - e, 1.0 / x, recur, false);
-                q = hyp2f1_impl(b, 1.0 - c + b, 1.0 + e, 1.0 / x, recur, false);
+                // Unlike in xsf, if the series is accurate, the inner functions are by `hyt2f1`,
+                // for its error estimate
+                let f = |a, b, c| {
+                    if y1_ok {
+                        let (y, _, err) = hyt2f1(a, b, c, 1.0 / x);
+                        (y, err)
+                    } else {
+                        (hyp2f1_impl(a, b, c, 1.0 / x, recur, false), f64::NAN)
+                    }
+                };
+                let (ep, eq);
+                (p, ep) = f(a, 1.0 - c + a, 1.0 - e);
+                (q, eq) = f(b, 1.0 - c + b, 1.0 + e);
                 p *= (-x).powf(-a);
                 q *= (-x).powf(-b);
                 t1 = gamma(c);
                 s = t1 * gamma(e) * (rgamma(b) * rgamma(c - a));
                 y = t1 * gamma(-e) * (rgamma(a) * rgamma(c - b));
                 // Unlike in xsf, keep the series if its error estimate is smaller than the
-                // cancellation of `s p + y q`
+                // cancellation of `s p + y q`, or if it is accurate, unless a heuristic error
+                // estimate of `s p + y q` is smaller and below `HYP2F1_EPS` (as the series is often
+                // more accurate than its estimate).
+                //
+                // That adds, for `p` and `q` by their share of the sum, their error estimates and
+                // the rounding of `b - a` and of `c - a` or `c - b`, each relative to its distance
+                // to the nearest pole of its gamma functions.
                 let (u, v) = (s * p, y * q);
-                if e1 < MACHEP * u.abs().max(v.abs()) / (u + v).abs() {
+                let canc = MACHEP * u.abs().max(v.abs()) / (u + v).abs();
+                let pole = |t: f64| MACHEP * (t / (t - t.round().min(0.0))).abs();
+                let weigh = |t: f64, err: f64| (t / (u + v)).abs() * (err + pole(-e.abs()));
+                let full = canc + weigh(u, ep + pole(c - a)) + weigh(v, eq + pole(c - b));
+                if e1 < canc || y1_ok && !(full < e1.min(HYP2F1_EPS)) {
                     return y1;
                 }
                 return or_recur(u + v);
