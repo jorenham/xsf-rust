@@ -1070,6 +1070,27 @@ fn test_hyp2f1_f64_large_c_lt_0() {
 }
 
 #[test]
+fn test_hyp2f1_f64_large_c_lt_0_second_solution() {
+    // unlike in xsf: for c < 0, from the second solution at 0 and one term of the 1/x
+    // transformation (or of the 1 - x transformation if 0 < x < 1), since the other term loses
+    // precision; xsf gives 8.29e102, 6.42e201, NaN and NaN (references: Arb)
+    let args = [
+        (-404.0, -124.75, -561.75, -8.25),
+        (-390.0, -183.25, -671.25, -22.5),
+        (-342.5, -186.25, -639.75, -36.25),
+        (761.5, 211.5, -483.25, 0.04),
+    ];
+    let actual = args.map(|(a, b, c, x)| xsf::hyp2f1(a, b, c, x));
+    let desired = [
+        -3.962_625_779_100_878e105,
+        2.525_038_208_734_701_5e202,
+        -1.322_092_032_643_801_3e232,
+        3.140_497_898_387_16e-6,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp2f1_f64_large_near_1() {
     // unlike in xsf: the 1 - x transformation of `hyp2f1_recur` for x >= 0.9, e.g. these were
     // -1.83e6, inf and NaN (references: Arb)

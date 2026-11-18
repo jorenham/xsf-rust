@@ -55,7 +55,15 @@
 //!    - The log case of step 4 applies too: if `b - a` is near an integer for `x < 0`, or
 //!      `c - a - b` for `0 < x < 1` (DLMF 15.8.10).
 //!
-//! 6. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
+//! 6. If `c < 0` and all error bounds so far exceed `HYP2F1_RECUR_TOL`, also try `F` from two
+//!    other solutions of its differential equation (DLMF 15.10.19): the second solution at 0,
+//!    `|x|^(1-c) F(a - c + 1, b - c + 1; 2 - c; x)`, and one term of the transformation of step 4
+//!    (or of step 5 if `0 < x < 1`).
+//!    - That replaces its other term, the one with a third parameter of at most 1
+//!      (`1 - |b - a|` if `x < 0`), by a solution with the third parameter `2 - c > 2`.
+//!    - For `c > 0`, it rarely had the smallest error bound in our tests.
+//!
+//! 7. If all error bounds still exceed `HYP2F1_RECUR_TOL`, recur down in `c` as in step 3, but
 //!    from other start values: those of step 3 are sums of the same series, which can lose
 //!    precision for every `n` (e.g. if `p` is large and negative), while other forms at `c + n`
 //!    don't.
@@ -67,11 +75,11 @@
 //!    - For each, `y_n` and `y_(n+1)` (with `n` as in step 3, but at least 1) come from steps 1
 //!      to 5, then recur down to `k = 0`. If `z > 0`, the recurrence need not be stable, but its
 //!      error bound still holds.
-//!    - Those with `c > max(0, q)` (so `n = 1`) are skipped unless steps 1 to 5 got within
+//!    - Those with `c > max(0, q)` (so `n = 1`) are skipped unless steps 1 to 6 got within
 //!      `HYP2F1_RECUR_SHIFT_TOL`: their start values at `c + 1` and `c + 2` hardly differ from
 //!      `F(a, b; c; x)`, and in our tests improved the bound at most 15-fold.
 //!
-//! 7. If they still do in the log case of steps 4 and 5, interpolate that transformation in `b`,
+//! 8. If they still do in the log case of steps 4 and 5, interpolate that transformation in `b`,
 //!    between Chebyshev nodes around the integer `b - a` (or `c - a - b`).
 //!    - `F` is entire in `b`, and off the integer the two terms lose only about the inverse of
 //!      the distance, while the series of `recip_log` can cancel completely.
@@ -82,7 +90,7 @@
 //!
 //! For example, the sum of step 2 cancels for `F(-522, -123.5; 533.5; -0.9)`, the log case of
 //! step 4 for `F(-900.5, -800.5; 50; -40)`, and all 4 combinations for
-//! `F(-975.2, 241.4; 0.00135; 0.39)`. Step 6 gets `F(758.1, 7.7; -151.2; -0.3)` from
+//! `F(-975.2, 241.4; 0.00135; 0.39)`. Step 7 gets `F(758.1, 7.7; -151.2; -0.3)` from
 //! `F(758.1, 159.7; 0.8; -0.3)` and `F(758.1, 160.7; 1.8; -0.3)`.
 //!
 //! The parameters are double-double, so that e.g. `C - q + k` is accurate if `q = c - b` and `c`
@@ -90,9 +98,9 @@
 //! kept as `m 2^e`, to avoid over- and underflow. The cost is at most `HYP2F1_RECUR_MAXITER`
 //! series terms and recurrence steps per combination, which is skipped (or only its step 3) if it
 //! would exceed that: about `(|p| w + 40) / (1 - w)` terms (but at least
-//! `(w (c - q) - c) / (1 - w)`), plus `max(0, q) - c` steps. Step 6 costs up to 8 times as much as
-//! steps 1 to 5, but only if those fail, and step 7 `HYP2F1_RECUR_NODES` times the transformation
-//! of step 4.
+//! `(w (c - q) - c) / (1 - w)`), plus `max(0, q) - c` steps. Step 6 costs at most as much as steps
+//! 1 to 4, and step 7 up to 8 times as much as steps 1 to 5, but only if those fail, and step 8
+//! `HYP2F1_RECUR_NODES` times the transformation of step 4.
 //!
 //! # References
 //!
@@ -109,7 +117,7 @@
 //!   <https://doi.org/10.1016/j.cpc.2007.11.007>
 //! - NIST Digital Library of Mathematical Functions, <https://dlmf.nist.gov/5.5.E3>,
 //!   <https://dlmf.nist.gov/5.11.E1>, <https://dlmf.nist.gov/5.15.E9>,
-//!   <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>
+//!   <https://dlmf.nist.gov/15.5>, <https://dlmf.nist.gov/15.8>, <https://dlmf.nist.gov/15.10.E19>
 
 use core::cmp::Ordering;
 use core::f64::consts::{LN_2, PI};
@@ -128,7 +136,7 @@ use crate::xsf::{cospi, sinpi};
 /// 10 to 300 times smaller), and the methods of the caller are often far worse if this fails.
 pub(crate) const HYP2F1_RECUR_TOL: f64 = 1e-10;
 
-/// The largest error bound of steps 1 to 5 for which step 6 also tries the forms with
+/// The largest error bound of steps 1 to 6 for which step 7 also tries the forms with
 /// `c > max(0, q)` (empirical)
 const HYP2F1_RECUR_SHIFT_TOL: f64 = 100.0 * HYP2F1_RECUR_TOL;
 
@@ -856,6 +864,39 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
     add_exp([term1, term2])
 }
 
+/// Step 6: `F(p, q; c; t)` for `p <= q` from `w5 = (-t)^-q F(q, q - c + 1; q - p + 1; 1/t)`, a term
+/// of `hyp2f1_recip` (with its `t < 0`), and the second solution at 0, by steps 1 to 3 (DLMF
+/// 15.10.19, solved for `F`):
+///
+/// ```text
+/// F(p, q; c; t) = Gamma(q - c + 1) Gamma(1 - p) / (Gamma(1 - c) Gamma(q - p + 1)) w5
+///     - Gamma(c - 1) Gamma(q - c + 1) Gamma(1 - p) / (Gamma(1 - c) Gamma(q) Gamma(c - p)) w2
+/// w2 = (-t)^(1-c) F(q - c + 1, p - c + 1; 2 - c; t)
+/// ```
+///
+/// `ln_mt` and `ln_1mt` are `ln(-t)` and `ln(1 - t)`.
+fn recip_connect(
+    (p, q, c): (Dd, Dd, Dd),
+    x: f64,
+    (ln_mt, ln_1mt): (Dd, Dd),
+    w5: impl FnOnce() -> Option<Scaled>,
+) -> Option<Scaled> {
+    // t and t / (t - 1), from x
+    let (t, w) = if x < 0.0 {
+        (x, Dd::new(x) / (Dd::new(x) - 1.0))
+    } else {
+        (x / (x - 1.0), Dd::new(x))
+    };
+    let (q2, p1, c1) = (q - c + 1.0, -p + 1.0, -c + 1.0);
+    let term5 = mul_gamma_ratio([q2, p1], [c1, q - p + 1.0], w5)?;
+    let term2 = mul_gamma_ratio([c - 1.0, q2, p1], [c1, q, c - p], || {
+        let combs = neg_z_combinations(q2, p - c + 1.0, c1 + 1.0);
+        let y = best_combination(combs, c1 + 1.0, t, w, ln_1mt)?;
+        Some(Scaled { m: -y.m, ..y }.mul_exp(c1 * ln_mt))
+    })?;
+    add_exp([term5, term2])
+}
+
 /// `F(a, b; c; t)` for `t < 0` by the 1/t transformation (steps 4 and 5, DLMF 15.8.2), where
 /// `t = x` if `x < 0`, and `t = x / (x - 1)` if `0 < x < 1`:
 ///
@@ -865,8 +906,9 @@ fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
 /// ```
 ///
 /// If `b - a` is near an integer (a pole of `G`; in step 5 with `0 < x < 1`, that's `c - a - b`),
-/// it first tries `recip_log`. `ln_1mx` is `ln(1 - x)`.
-fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
+/// it first tries `recip_log`. `ln_1mx` is `ln(1 - x)`. With `connect`, it is by `recip_connect`
+/// instead.
+fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Option<Scaled> {
     let one = Dd::new(1.0);
     let ln_x = ln_dd(Dd::new(x.abs()));
     // z = 1/t, w = 1 / (1 - t), 1 - z, ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if
@@ -892,7 +934,11 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     let m = b - a;
     let (p, q) = if m.hi < 0.0 { (b, a) } else { (a, b) };
     // ln(-t) + ln(1 - 1/t) = ln(1 - t)
-    let log = recip_log(p, q, c, w, ln_mt + ln_1mz);
+    let ln_1mt = ln_mt + ln_1mz;
+    if connect {
+        return recip_connect((p, q, c), x, (ln_mt, ln_1mt), || series(q, p));
+    }
+    let log = recip_log(p, q, c, w, ln_1mt);
     // (at an integer, the two terms have poles)
     if m.is_integer() || err_of(log) <= HYP2F1_ETHRESH {
         return log;
@@ -905,17 +951,17 @@ fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
 }
 
 /// `F(a, b; c; x)` by `hyp2f1_recip`: the 1/x transformation (step 4) if `x < 0`, or else the 1/t
-/// transformation of its Pfaff form (step 5), with `ln_1mx = ln(1 - x)`
-fn recip_of_x(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
+/// transformation of its Pfaff form (step 5), with `ln_1mx = ln(1 - x)`; with `connect`, step 6
+fn recip_of_x(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Option<Scaled> {
     if x < 0.0 {
-        hyp2f1_recip(a, b, c, x, ln_1mx)
+        hyp2f1_recip(a, b, c, x, ln_1mx, connect)
     } else {
         // F(a, b; c; x) = (1 - x)^-b F(c - a, b; c; x / (x - 1))
-        hyp2f1_recip(c - a, b, c, x, ln_1mx).map(|y| y.with_l(y.l - b * ln_1mx))
+        hyp2f1_recip(c - a, b, c, x, ln_1mx, connect).map(|y| y.with_l(y.l - b * ln_1mx))
     }
 }
 
-/// Step 7: `recip_of_x` by polynomial interpolation in `b`, between Chebyshev nodes around
+/// Step 8: `recip_of_x` by polynomial interpolation in `b`, between Chebyshev nodes around
 /// `b - shift`, where `b - a` (or `c - a - b` if `x > 0`) is an integer.
 ///
 /// Its error bound is heuristic: the bounds of the nodes, plus the distance to the interpolants
@@ -928,7 +974,7 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     });
     let mut ys = [None; N];
     for (y, o) in ys.iter_mut().zip(offsets) {
-        *y = Some(recip_of_x(a, b + o, c, x, ln_1mx)?);
+        *y = Some(recip_of_x(a, b + o, c, x, ln_1mx, false)?);
     }
     // the interpolant at `b` through every `step`-th node from `first`
     let interp = |first: usize, step: usize| {
@@ -974,7 +1020,7 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         return poly;
     }
     // the 1/x transformation (step 4), or the 1/t transformation (step 5)
-    let try_recip = || recip_of_x(a, b, c, x, ln_1mx);
+    let try_recip = || recip_of_x(a, b, c, x, ln_1mx, false);
     // For x < -1 or x >= 0.9, first try that, as its series are much shorter if w is near 1.
     let recip_first = !(-1.0..HYP2F1_RECUR_NEAR1).contains(&x);
     let recip = recip_first.then(try_recip).flatten();
@@ -1006,8 +1052,8 @@ pub(crate) fn fold_exp(y: Scaled) -> Scaled {
     Scaled { m, e, l, err }
 }
 
-/// Step 6: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, with
-/// `ln_1mx = ln(1 - x)`, where `err` is the error bound of steps 1 to 5
+/// Step 7: `F(a, b; c; x)` by recurring down in `c` from start values by `hyp2f1_recur_dd`, with
+/// `ln_1mx = ln(1 - x)`, where `err` is the error bound of steps 1 to 6
 fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Option<Scaled> {
     let x_dd = Dd::new(x);
     let z_pfaff = x_dd / (x_dd - 1.0);
@@ -1020,7 +1066,7 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
         (c - a, b, z_pfaff, 1.0, 0.0),
     ];
     best_of(forms.into_iter().map(|(p, q, z, i, j)| {
-        // (if c > max(0, q), only if steps 1 to 5 nearly succeeded, see the module docs)
+        // (if c > max(0, q), only if steps 1 to 6 nearly succeeded, see the module docs)
         let n = recur_start(q, c);
         if c.hi > q.hi.max(0.0) && err > HYP2F1_RECUR_SHIFT_TOL || n > HYP2F1_RECUR_MAXITER {
             return None;
@@ -1045,7 +1091,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
         return None;
     }
-    // In a fixed order, as step 6 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
+    // In a fixed order, as step 7 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
     // first, which was more often accurate in our tests, e.g. for
     // `F(-104 - 9e-7, 36; 0.0074; 0.66)`, whose form `(c - a, c - b)` then has `n = 105`, not 1.
     let (a, b) = if b > a { (b, a) } else { (a, b) };
@@ -1053,11 +1099,15 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
     let mut best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);
+    // step 6
+    if !(err_of(best) <= HYP2F1_RECUR_TOL) && c.hi < 0.0 {
+        best = min_err(best, recip_of_x(a, b, c, x, ln_1mx, true));
+    }
     let err = err_of(best);
     if !(err <= HYP2F1_RECUR_TOL) {
         best = min_err(best, hyp2f1_recur_shifted(a, b, c, x, ln_1mx, err));
     }
-    // Step 7, with `eps` the distance of `b - a` (or `c - a - b` if `x > 0`) to an integer. Last,
+    // Step 8, with `eps` the distance of `b - a` (or `c - a - b` if `x > 0`) to an integer. Last,
     // as its error bound is heuristic.
     let m = if x < 0.0 { b - a } else { c - a - b };
     let eps = (m - m.hi.round()).hi;
@@ -1135,13 +1185,25 @@ mod tests {
 
     #[test]
     fn test_hyp2f1_recur_interp() {
-        // Arb; step 7 at an integer `b - a` and `c - a - b`, and at 5e-4 from one: within its error
+        // Arb; step 8 at an integer `b - a` and `c - a - b`, and at 5e-4 from one: within its error
         // bound
         for (a, b, c, x, desired) in [
             (-130.5, -106.5, 88.75, -56.25, -7.673_134_033_185_444e147),
             (-209.25, 294.875, 145.625, 0.955, -1.377_551_721_883_881_6e-135),
             (-129.875, -111.875_5, 121.5, -71.875, -2.123_783_401_591_176_3e153),
             (-294.75, 181.0, -146.750_5, 0.984, -9.089_494_319_571_015e122),
+        ] {
+            let (y, err) = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64).unwrap();
+            assert!((y / desired - 1.0).abs() <= err && err <= HYP2F1_RECUR_TOL, "{y} {err}");
+        }
+    }
+
+    #[test]
+    fn test_hyp2f1_recur_connect() {
+        // Arb; step 6 for x < 0 and 0 < x < 1: within its error bound
+        for (a, b, c, x, desired) in [
+            (-430.375, -193.75, -651.5, -18.5, 9.891_276_940_572_099e225),
+            (786.875, 195.75, -474.75, 0.05, 2.450_524_293_296_754_5e-7),
         ] {
             let (y, err) = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64).unwrap();
             assert!((y / desired - 1.0).abs() <= err && err <= HYP2F1_RECUR_TOL, "{y} {err}");
