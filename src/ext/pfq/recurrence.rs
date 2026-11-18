@@ -14,8 +14,8 @@
 //! which is the differential equation (DLMF 16.8.3) with `(theta + b - 1) F(b) = (b - 1) F(b - 1)`
 //! for `theta = z d/dz` (DLMF 16.3.4 with `n = 1`).
 //!
-//! It can also cancel at an upper parameter `a < 0` and not at `a + m`, e.g. for `z > 0`, where
-//! its terms alternate up to `n = -a`. With `w = a + 1`, `e_j = b_j - w`, and `h_i = w - a_i` for
+//! It can also cancel at an upper parameter `a < 0` and not at `a + m`, e.g. where its terms
+//! alternate up to `n = -a`, as for `z > 0` and positive other parameters. With `w = a + 1`, `e_j = b_j - w`, and `h_i = w - a_i` for
 //! the other two upper parameters,
 //!
 //! ```text
