@@ -416,7 +416,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "msm1" if x[0] % 2.0 == 0.0 => 2e-7,
         "msm2" if x[0] % 2.0 == 0.0 => 2e-13,
         // the references of the derivatives are xsf's inaccurate values
-        "pbwa" if i == 1 => 1e-11,
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == 10.0 => 1e-8,
         // the references of V' are xsf's wrong values (scipy/xsf#374)
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == -10.0 => f64::INFINITY,
@@ -755,13 +754,13 @@ mod tests {
             let table = file([1, 2, 2], Table::STATUS, &[(&row, 0, &status)]);
             Table::parse(&table).unwrap().test_cases::<(f64, f64)>()
         };
-        // the rule for xsref's second output of `pbwa` only applies to that legacy output
-        let actual = |_: &[f64]| (1.0, 1.0 + 5e-12);
-        assert!(check("pbwa", &cases(1.0, [0, 0]), actual).is_ok());
-        assert!(check("pbwa", &cases(1.0, [1, 0]), actual).is_ok());
-        assert!(check("pbwa", &cases(1.0, [0, 1]), actual).is_err());
-        assert!(check("pbwa", &cases(1.0, [0, 0]), |_| (1.0 + 5e-12, 1.0)).is_err());
-        assert!(check("f", &cases(1.0, [0, 0]), actual).is_err());
+        // the rule for xsref's `msm2` at an even m only applies to its legacy outputs
+        let actual = |_: &[f64]| (1.0, 1.0 + 1e-13);
+        assert!(check("msm2", &cases(2.0, [0, 0]), actual).is_ok());
+        assert!(check("msm2", &cases(2.0, [1, 0]), actual).is_ok());
+        assert!(check("msm2", &cases(2.0, [0, 1]), actual).is_err());
+        assert!(check("msm2", &cases(1.0, [0, 0]), actual).is_err());
+        assert!(check("f", &cases(2.0, [0, 0]), actual).is_err());
         // the rule for the ill-conditioned `cyl_bessel_i` at v < -100 applies to any output
         let actual = |_: &[f64]| (1.0 + 5e-13, 1.0 + 5e-13);
         assert!(check("cyl_bessel_i", &cases(-150.5, [0, 0]), actual).is_ok());

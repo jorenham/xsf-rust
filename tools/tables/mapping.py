@@ -2684,7 +2684,7 @@ PBDV_FLOORS: Final = (
 PBWA_NAN: Final = Rule(
     lambda a: abs(a[0]) > 5 or abs(a[1]) > 5,
     math.nan,
-    "xsf only has Taylor series for |a| <= 5 and |x| <= 5",
+    "xsf and xsf-rust only compute W(a, x) for |a| <= 5 and |x| <= 5",
 )
 
 
