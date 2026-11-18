@@ -1501,6 +1501,9 @@ fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
     // ((1 - x)^m, where 1 - x rounds to 1; reference: Arb)
     let actual = [xsf::hyp2f1(-1e20, -1e20, -1e20, 1e-20)];
     np_assert_allclose!(actual, [0.367_879_441_171_442_33], rtol = 1e-15);
+    // (3^m and 2^-m, which overflow and underflow)
+    let actual = [-2.0, 0.5].map(|x| xsf::hyp2f1(-1e20, -1e20, -1e20, x));
+    assert_eq!(actual, [f64::INFINITY, 0.0]);
     // (NaN for c = -inf)
     assert!(xsf::hyp2f1(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, 0.5).is_nan());
 }

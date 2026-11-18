@@ -836,12 +836,16 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             return y;
         }
         if a == b {
-            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round)
+            // (by `ln(1 - x)` in double-double for x < 1, where it's finite, as `1 - x` can round,
+            // and with the low word of `l` only where `exp(l.hi)` is normal)
             let l = ln_dd(Dd::new(1.0) - x) * -c;
-            return if l.is_finite() {
-                l.hi.exp() * (1.0 + l.lo)
-            } else {
+            let e = l.hi.exp();
+            return if !l.is_finite() {
                 s.powf(-c)
+            } else if e.is_normal() {
+                e * (1.0 + l.lo)
+            } else {
+                e
             };
         }
         if sums_to_zero(if a == c { b } else { a }, -c, x) {
