@@ -494,8 +494,8 @@ pub fn hyp0f0<T: HypergeometricArg>(z: T) -> T {
 /// $$
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)), where the
-/// series converges for $\abs z < 1$, or terminates. It is NaN at $z = 1$ if $a > 0$, and for
-/// `f64` $z > 1$ if $a$ isn't an integer.
+/// series converges for $\abs z < 1$, or terminates. It is NaN at $z = 1$ if $a > 0$, and for a
+/// finite `f64` $z > 1$ if $a$ is finite and not an integer.
 ///
 /// # See also
 /// - [`hyp0f0`]: Hypergeometric function $_0F_0\left[\middle\| z\right]$
