@@ -244,15 +244,22 @@ fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
 /// A term that underflows is a bound on it. The terms end before one that overflows or is NaN,
 /// or that is such a bound and not negligible.
 fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item = T> {
-    // the degree of a polynomial, else infinity
-    let degree = first_zero(a);
     let checked = pfq_extreme(a, b);
+    pfq_terms_of(first_zero(a), z, move |n| pfq_ratio(a, b, n, checked))
+}
+
+/// `pfq_terms` of the ratios `ratio(n) = t_{n+1} / (z t_n)`, for the degree of a polynomial, else
+/// infinity
+fn pfq_terms_of<T: SeriesReal>(
+    degree: f64,
+    z: f64,
+    ratio: impl Fn(f64) -> T,
+) -> impl Iterator<Item = T> {
     // the largest term, which is small once the terms are only upper bounds
     let mut limit = f64::MAX;
     let indices = (0_u32..).map(f64::from);
     indices.scan(T::from_f64(1.0), move |term, n| {
-        let ratio: T = pfq_ratio(a, b, n, checked);
-        let next = *term * (ratio * T::from_f64(z));
+        let next = *term * (ratio(n) * T::from_f64(z));
         // (the terms after the last one of a polynomial are zero; tested last, as that is faster)
         *term = if next.to_f64().abs() < T::MIN_POSITIVE && n < degree {
             // the term or its ratio underflows, after which the terms can become large again:
@@ -303,6 +310,21 @@ fn pfq_sum<T: SeriesReal>(
     z: f64,
     maxiter: u32,
 ) -> (T, f64, f64) {
+    let terms = pfq_terms::<T>(a.as_ref(), b.as_ref(), z);
+    pfq_sum_terms(a, b, z, maxiter, terms, f64::EPSILON)
+}
+
+/// `pfq_sum` of the given terms `t_1, t_2, ...`, up to a bound on the rest of them of `tol` times
+/// the sum. The terms can be those of a more exact `b`.
+#[inline]
+fn pfq_sum_terms<T: SeriesReal>(
+    a: &impl AsRef<[f64]>,
+    b: &impl AsRef<[f64]>,
+    z: f64,
+    maxiter: u32,
+    mut terms: impl Iterator<Item = T>,
+    tol: f64,
+) -> (T, f64, f64) {
     // generic over the storage of the parameters, as the sum is faster if it is compiled for
     // the numbers of parameters of its caller
     let (a, b) = (a.as_ref(), b.as_ref());
@@ -328,7 +350,6 @@ fn pfq_sum<T: SeriesReal>(
         let rounding = T::EPSILON * ((4.0 + 0.25 * (n + 1.0).sqrt()) * tails + sum2.sqrt());
         (rounding, tails)
     };
-    let mut terms = pfq_terms::<T>(a, b, z);
     for n in (0..maxiter).map(f64::from) {
         sum1 += s;
         sum2 += s * s;
@@ -342,11 +363,11 @@ fn pfq_sum<T: SeriesReal>(
         let t = term.to_f64();
         sum = sum + term;
         s = sum.to_f64();
-        if n >= settled && t.abs() <= f64::EPSILON * s.abs() {
+        if n >= settled && t.abs() <= tol * s.abs() {
             let rho = pfq_ratio_bound(a, b, z, n + 1.0);
             // geometric bound on the remaining terms, if the series converges (p <= q + 1)
             let tail = t.abs() * rho / (1.0 - rho);
-            if a.len() <= b.len() && rho < 1.0 && tail <= f64::EPSILON * s.abs() {
+            if a.len() <= b.len() && rho < 1.0 && tail <= tol * s.abs() {
                 let (rounding, tails) = estimates(n, s, sum1, sum2);
                 return (sum, rounding + tail, tails);
             }
