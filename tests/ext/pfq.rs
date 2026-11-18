@@ -669,6 +669,29 @@ fn test_hyppfq_2f0() {
 }
 
 #[test]
+fn test_hyppfq_2f0_miller() {
+    // Miller's algorithm, where U lacks a digit and Weniger doesn't converge (Arb)
+    for (a, z, expected) in [
+        ([-25.76, -92.98], -0.0111, 3.688_195_274_697_654_4e-13),
+        ([-51.8, -36.5], -0.026, -6.120_387_741_382_293e-9),
+        ([-81.6, -89.2], -0.002_72, 4.957_519_047_755_375e-13),
+        ([2.2, 2.0], -1.5, 0.111_476_049_921_291_88),
+        ([2.0, 3.2], -1.6, 0.051_620_474_992_384_33),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // but not where its recurrence is unstable, 2.8e-3 off (Arb)
+    let y = hyppfq(&[-44.04, -60.33], &[], -0.0903);
+    assert!(y.is_none_or(|y| (y / 1.535_642_058_980_361_2e15 - 1.0).abs() <= 1e-13));
+    // nor where it estimates an error of 7.6e-13 (Arb)
+    let y = hyppfq(&[-74.73, -90.73], &[], -0.018_23);
+    assert!(y.is_none_or(|y| (y / -1.280_977_214_916_313_9e-9 - 1.0).abs() <= 1e-13));
+}
+
+#[test]
 fn test_hyppfq_borel() {
     // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, the residues
     // of the Meijer G function, or its Weniger transformation (in f64 or double-double), also for
