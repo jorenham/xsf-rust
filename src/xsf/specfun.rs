@@ -228,12 +228,17 @@ fn xsf_hypu(a: f64, b: f64, x: f64) -> f64 {
 /// `xsf_hypu` with the numbers of digits that `chgu` estimates, as its methods compare them and
 /// for the result (more if by the recurrence in a)
 pub(crate) fn xsf_hypu_digits(a: f64, b: f64, x: f64) -> (f64, i32, i32) {
+    xsf_hypu_min_digits(a, b, x, hyperg::ID_MIN)
+}
+
+/// `xsf_hypu_digits` with the `id_min` of `chgu`
+pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, i32, i32) {
     let mut out;
     let mut md = 0; /* method code --- not returned */
     let mut isfer = 0;
     let (mut digits, mut digits_rec) = (0, i32::MIN);
 
-    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec);
+    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }

@@ -16,7 +16,7 @@ use crate::xsf::cephes::dd_real::{
     two_sum,
 };
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
-use crate::xsf::{cospi, sinpi, xsf_hypu_digits};
+use crate::xsf::{cospi, sinpi, xsf_hypu_digits, xsf_hypu_min_digits};
 
 mod conformal;
 mod recurrence;
@@ -1885,10 +1885,10 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // the rounding error of x (as x z is near -1, x z + 1 is exact)
             let (xz, e) = two_prod(x, z);
             let dx = -((xz + 1.0) + e) / z;
-            let borel = |a1: f64, a2: f64| {
+            let borel = |a1: f64, a2: f64, hypu: fn(f64, f64, f64) -> (f64, i32, i32)| {
                 const T: f64 = pow2(20);
                 let y = |b: f64, x: f64| {
-                    let (p, (u, _, digits)) = (x.powf(a1), xsf_hypu_digits(a1, b, x));
+                    let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
                     let enough = f64::from(digits) >= -PFQ_TOL.log10();
                     (p.is_normal() && u.is_normal() && enough).then_some(p * u)
                 };
@@ -1932,13 +1932,18 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
             // the rounding errors in f64 can dominate, where the terms before `settled` cancel
             // or the partial sums grow (z < -1); then Miller's algorithm, which is slower, but
-            // holds where U lacks a digit by the estimate of chgu
-            borel(a1, a2)
+            // holds where U lacks a digit by the estimate of chgu; and last U for a >= 1 where
+            // chgu needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit
+            // (not for a < 1, where its other methods are slow and seldom gain the digit)
+            let hypu_tol = |a, b, x| xsf_hypu_min_digits(a, b, x, -PFQ_TOL.log10() as i32);
+            borel(a1, a2, xsf_hypu_digits)
                 .or_else(series)
-                .or_else(|| borel(a2, a1))
+                .or_else(|| borel(a2, a1, xsf_hypu_digits))
                 .or_else(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
                 .or_else(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
                 .or_else(|| accurate(hyp2f0_miller(a1, a2, z)?))
+                .or_else(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
+                .or_else(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
         },
         (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
