@@ -2735,17 +2735,15 @@ def _hyp2f1_pole(a: tuple[float, ...]) -> bool:
 
 def _hyp2f1_complex(a: tuple[float, ...]) -> bool:
     """Whether xsf-rust has NaN for x > 1, where 2F1 is generally complex (its fallback): unless
-    a or b is a non-positive integer (a polynomial), or c - a or c - b is one and c - a - b is an
-    integer (DLMF 15.8.1), each up to `HYP2F1_EPS` and rounded as in xsf-rust, or c is a pole, or
-    c - a or c - b rounds to c > 0 (inf, as in xsf). Some others are real too, such as
-    2F1(2, 2; 4; 2) = -3, whose logarithmic term vanishes."""
+    a, b, c - a or c - b (rounded) is a non-positive integer up to `HYP2F1_EPS`, where it is a
+    polynomial, or one times a power of 1 - x (DLMF 15.8.1), and else +inf (which Arb doesn't
+    confirm, so the table has none of those), or c is a pole, or c - a or c - b rounds to c > 0
+    (+inf). Some others are real too, such as 2F1(2, 2; 4; 2) = -3, whose logarithmic term
+    vanishes."""
     p, q, c, x = a
-    d = c - p - q
-    poly = _near_nonpos_int(p) or _near_nonpos_int(q)
-    int_d = abs(d - round(d)) < HYP2F1_EPS
-    euler = (_near_nonpos_int(c - p) or _near_nonpos_int(c - q)) and int_d
+    poly = any(_near_nonpos_int(t) for t in (p, q, c - p, c - q))
     lost = c > 0 and c in (c - p, c - q)
-    return x > 1 and not (poly or euler or lost or _hyp2f1_pole(a))
+    return x > 1 and not (poly or lost or _hyp2f1_pole(a))
 
 
 def _hyp2f1_diverges(a: tuple[float, ...]) -> bool:
