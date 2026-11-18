@@ -1633,7 +1633,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
 /// to its smallest term, as for 2F0, or else its Weniger transformation, last in double-double,
-/// which is the slowest.
+/// which is the slowest. The residues come first, as the steps of Weniger can stall where some
+/// terms nearly vanish, e.g. for an `a_i` near a non-positive integer.
 fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
@@ -1654,8 +1655,8 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
         checked_f64(add_exp(terms.into_iter().flatten())?, None)
     };
     series()
-        .or_else(weniger_f64)
         .or_else(residues)
+        .or_else(weniger_f64)
         .or_else(weniger_dd)
 }
 
@@ -1722,8 +1723,8 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
 ///   (or where $(-1/z)^{a_1}$ or $U$ isn't normal), its series up to its smallest term, and its
 ///   Weniger transformation, e.g. for some $z \ll -1$ or $a_1, a_2 \ll 0$;
 /// - for the other $p > q + 1$ where its methods fail their accuracy checks: its series up to its
-///   smallest term, its Weniger transformation, and the sum of the residues of the Meijer G
-///   function, e.g. for some $\abs z \gtrsim 0.1$, or where $a_i$ nearly coincide;
+///   smallest term, the sum of the residues of the Meijer G function, and its Weniger
+///   transformation, e.g. for some $\abs z \gtrsim 0.1$, or where $a_i$ nearly coincide;
 /// - where it can't be computed accurately: for $p = q + 1 \ge 3$ as for [`hyp3f2`], for the
 ///   other $p = q$ as for [`hyp2f2`], and for the other $p < q$ as for [`hyp1f2`];
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the

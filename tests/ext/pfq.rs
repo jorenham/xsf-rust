@@ -577,11 +577,10 @@ fn test_hyppfq_2f0() {
 
 #[test]
 fn test_hyppfq_borel() {
-    // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, its Weniger
-    // transformation (also in double-double, for the last two), or the residues of the Meijer G
-    // function, also for a_i that differ by
-    // integers (mpmath meijerg at 40 digits; Wolfram agrees for a_i = 3/4, 7/4, 11/4 and for the
-    // a_i that differ by 2)
+    // the Borel sum for p > q + 1 and z < 0, by the series up to its smallest term, the residues
+    // of the Meijer G function, or its Weniger transformation (in f64 or double-double), also for
+    // a_i that differ by integers or lie near one (mpmath meijerg at 40 digits; Wolfram agrees
+    // for a_i = 3/4, 7/4, 11/4 and for the a_i that differ by 2)
     for (a, b, z, expected) in [
         (&[1.0, 2.0, 3.0][..], &[][..], -0.01, 0.946_071_933_519_652_4),
         (&[1.5, -2.25, 0.75], &[], -0.05, 1.144_479_810_161_067_8),
@@ -597,6 +596,12 @@ fn test_hyppfq_borel() {
         (&[0.5, 1.25, -2.75, 3.5], &[1.5, 0.25], -1e6, 3.247_409_892_494_204_4e18),
         (&[1.2, 0.5, 1.75], &[], -0.06, 0.948_555_763_846_379_5),
         (&[1.3, 0.8, 0.7], &[0.3], -0.3, 0.574_543_997_541_148_2),
+        (
+            &[-3.0 + 2f64.powi(-33), 2.375, 0.9375, -1.8125, -4.998_046_875],
+            &[],
+            -0.8125,
+            -761.523_562_944_142_1,
+        ),
     ] {
         let actual = hyppfq(a, b, z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
