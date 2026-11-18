@@ -1062,16 +1062,20 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         }
         // Stop once the rest is below the rounding of the sum: if b + k > 0, the ratios of the
         // terms from here are at most `r`, as |c + k| > n - k, and (b + k) / (k + 1) tends
-        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`
-        // (rounded up for `x.hi`, these operations, and an underflow of `term`). Only if the
-        // rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2`.
+        // monotonically to 1. So they decrease, and the rest is at most `|t_k| r / (1 - r)`, which
+        // is at most `thr` if `|t_k| <= thr (1 - r) / r` (with `r` rounded up for `x.hi` and these
+        // operations, the bound rounded down, and `|t_k|` up for an underflow of `term`). Only if
+        // the rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least
+        // `|sum| / 2`.
         let bk = (b + k).hi;
         let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
-        let rest = term_abs.max(f64::MIN_POSITIVE) * r / (1.0 - r);
         let abs = sum.hi.abs();
-        let negligible = rest <= DD_ROUNDING * abs && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
+        let thr = DD_ROUNDING * abs;
+        let negligible = term_abs.max(f64::MIN_POSITIVE)
+            <= thr * (1.0 - r) / r * (1.0 - 4.0 * MACHEP)
+            && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
         if bk > 0.0 && r < 1.0 && negligible {
-            tail = rest;
+            tail = thr;
             break;
         }
         if let Some(s) = rescale_exp(sum_abs) {
