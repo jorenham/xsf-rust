@@ -345,7 +345,8 @@ fn pfq_sum_terms<T: SeriesReal>(
     let (mut sum1, mut sum2, mut unit) = (0.0, 0.0_f64, 1.0);
     // the sum of |t_k|, in units of `unit`
     let mut abs1 = 1.0;
-    // the roundings of a ratio t_(k+1) / t_k: each a_i + k and b_j + k, the product and the quotient
+    // the roundings of a ratio t_(k+1) / t_k: each a_i + k and b_j + k, the product and the
+    // quotient
     let ratio_roundings = 2.0 * (a.len() + b.len()) as f64 + 3.0;
     // the rounding error, and the root of the sum of (s - s_n)^2
     let estimates = |n: f64, sum: f64, sum1: f64, sum2: f64, unit: f64, abs1: f64| {
