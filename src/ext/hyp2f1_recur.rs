@@ -801,7 +801,7 @@ pub(crate) fn add_exp(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) 
 }
 
 /// `add_exp` in the arithmetic of `T`, whose operations and `exp` have the relative error `eps`
-fn add_exp_in<T: Real>(
+pub(crate) fn add_exp_in<T: Real>(
     terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>,
     exp: impl Fn(Dd) -> T,
     eps: f64,
