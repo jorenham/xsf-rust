@@ -1602,4 +1602,10 @@ fn test_hyp2f1_f64_x_gt_1() {
     // (but real for a polynomial, and for (1 - x)^-2 (1 - x / 2) by DLMF 15.8.1; exact)
     assert_eq!(xsf::hyp2f1(-2.0, 1.0, 3.0, 3.0), 0.5);
     assert_eq!(xsf::hyp2f1(3.0, 1.0, 2.0, 3.0), -0.125);
+    // and for c = b, (1 - x)^-a (DLMF 15.4.6), here 2^1040, even where c - a rounds to c
+    let c = 2.0_f64.powi(60);
+    assert_eq!(xsf::hyp2f1(20.0, c, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(c, 20.0, c, 1.0 + f64::EPSILON), f64::INFINITY);
+    assert_eq!(xsf::hyp2f1(-3.0, 2.5, 2.5, 3.0), -8.0);
+    assert!(xsf::hyp2f1(0.5, 2.5, 2.5, 3.0).is_nan());
 }

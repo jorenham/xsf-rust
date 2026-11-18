@@ -1137,11 +1137,19 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             }
 
             // Unlike in xsf, NaN instead of inf for x > 1 (x < -1 returned above), where 2F1 is
-            // complex, as it jumps across its branch cut (DLMF 15.2.3). (Its real cases, the
-            // polynomials and their Euler transformations, are handled above.)
+            // generally complex, as it jumps across its branch cut (DLMF 15.2.3). (Most of its
+            // real cases, the polynomials and their Euler transformations, are handled above.)
+            //
+            // For c = a or c = b, the power `(1 - x)^-b` or `(1 - x)^-a` of DLMF 15.4.6 (NaN unless
+            // its exponent is an integer), which the Euler transformation above skips if `c - a`
+            // or `c - b` rounds to `c`.
             if ax > 1.0 {
                 /* series diverges  */
-                return f64::NAN;
+                return match (a == c, b == c) {
+                    (true, _) => s.powf(-b),
+                    (_, true) => s.powf(-a),
+                    _ => f64::NAN,
+                };
             }
 
             p = c - a;
