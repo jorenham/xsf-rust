@@ -2841,6 +2841,11 @@ def _hyp2f1_recur_first(a: tuple[float, ...]) -> bool:
     return regime and not skipped
 
 
+def _hyp2f1_recur_large(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust first tries `hyp2f1_recur` for max(|a|, |b|, |c|) >= 10."""
+    return max(map(abs, a[:3])) >= 10 and _hyp2f1_recur_first(a)
+
+
 def _hyp2f1_neg_c_series(a: tuple[float, ...]) -> bool:
     """Whether xsf-rust first tries the series of the Pfaff transformations for -1 < x < 0, or the
     power series for 0 < x < 1, for c - a - b <= -1 and a c < 0 that isn't an integer, unless
@@ -2889,7 +2894,7 @@ HYP2F1_OVERRIDES: Final = (
 )
 HYP2F1_FLOORS: Final = (
     Floor(
-        _hyp2f1_recur_first,
+        _hyp2f1_recur_large,
         3e-15,
         "xsf-rust first tries `hyp2f1_recur` for large parameters, and so rounds differently "
         "(1.0e-14 at (24.17, 2.23, 1.49, 0.822), where xsf has 7.0e-16)",
