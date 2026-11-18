@@ -1174,6 +1174,9 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
             return [f64::INFINITY; 2];
         }
         let unpaired = shift(&up[low.len()]) / z.abs();
+        if !unpaired.is_normal() {
+            return [f64::INFINITY; 2];
+        }
         let quotients = zip(&up, &low).map(|(u, l)| shift(u) / shift(l));
         let bounds = quotients.fold([unpaired, unpaired.recip()], |[above, below], f| {
             [above * f.max(1.0), below * f.recip().max(1.0)]
@@ -2210,6 +2213,14 @@ mod tests {
         let (s, u) = (pow2(-49), pow2(-52));
         let (a, b) = ([s - 16.0, 1.0 + 3.0 * u], [1.0 + u, 2.0 * s - 16.0, 1.0]);
         assert!(pfq_alg_series_dd(&a, &b, 0, -1.1 * s).1.is_infinite());
+        // the bound of the unpaired factor underflows, and the terms grow to ~1e72 from the fifth
+        let c = (1..=10).map(|i| f64::from(i) / 16.0);
+        let a: Vec<_> = once(f64::from_bits(1)).chain(c.clone()).collect();
+        let b: Vec<_> = once(3.0)
+            .chain(c.map(|c| c - pow2(49)))
+            .chain([1.0])
+            .collect();
+        assert!(pfq_alg_series_dd(&a, &b, 0, -2.0).1.is_infinite());
     }
 
     #[test]
