@@ -539,8 +539,27 @@ fn test_hyppfq_2f0() {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
-    // not the Borel sum where the rounding of x = -1/z or a1 - a2 + 1 changes it by more than
-    // 1e-13 (Arb)
+    // for a1, a2 << 0, where U is by the recurrence in a, with more than 12 digits (Arb)
+    for (a, z, expected) in [
+        ([-36.96, -50.1], -0.009_96, 2.252_440_982_724_057e-13),
+        ([-37.14, -63.61], -0.0107, 4.832_372_813_708_457e-15),
+        ([-68.36, -79.5], -0.009_69, 4.287_653_719_473_163_5e-21),
+        ([-77.66, -116.73], -0.004_77, -4.990_584_018_414_777_5e-29),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // but not the Borel sum where U by the recurrence is 1.1e-13 off (Arb)
+    let actual =
+        hyppfq(&[-66.955_195_369_874_3, -86.323_704_933_975_42], &[], -0.356_603_437_508_210_8);
+    xsref::np_assert_allclose!([actual.unwrap()], [-3.721_878_069_495_089e77], rtol = 1e-14);
+    // nor where it is 2.2e-13 off by the rounding of the coefficients of the recurrence (Arb)
+    let a = [-121.661_194_083_177_43, -125.496_107_001_270_77];
+    let actual = hyppfq(&a, &[], -0.011_817_257_637_100_627);
+    assert!(actual.is_none_or(|y| (y / 6.013_041_362_636_676e-17 - 1.0).abs() < 1e-13));
+    // nor where the rounding of x = -1/z or a1 - a2 + 1 changes it by more than 1e-13 (Arb)
     for (a, z, expected) in [
         (
             [-1.968_075_690_757_376e-12, -6.000_000_000_001_97],
