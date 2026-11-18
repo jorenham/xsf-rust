@@ -417,7 +417,6 @@ fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
         "msm2" if x[0] % 2.0 == 0.0 => 2e-13,
         // the references of the derivatives are xsf's inaccurate values
         "pbwa" if i == 1 => 1e-11,
-        "pbdv" if i == 1 && x[0] <= -5.0 => 1e-12,
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == 10.0 => 1e-8,
         // the references of V' are xsf's wrong values (scipy/xsf#374)
         "pbvv" if i == 1 && x[0] > 0.0 && x[1] == -10.0 => f64::INFINITY,

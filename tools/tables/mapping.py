@@ -2590,6 +2590,104 @@ LOG_WRIGHT_OVERRIDES: Final = (
     ),
 )
 
+
+def _pbdv(v: mp.mpf, x: mp.mpf) -> tuple[mp.mpf, mp.mpf]:
+    """D_v(x) and D_v'(x) = x / 2 D_v(x) - D_{v+1}(x) (DLMF 12.8.3) from the power series of
+    U(-v - 1/2, x) at 0 (DLMF 12.4), since `mp.pcfd` does not converge for some integers v."""
+
+    def u(a: mp.mpf) -> mp.mpf:
+        c = mp.sqrt(mp.pi) * mp.mpf(2) ** (-a / 2)
+        u0 = c / mp.mpf(2) ** (mp.mpf(1) / 4) * mp.rgamma(a / 2 + mp.mpf(3) / 4)
+        u1 = -c * mp.mpf(2) ** (mp.mpf(1) / 4) * mp.rgamma(a / 2 + mp.mpf(1) / 4)
+        s = x * x / 2
+        even = mp.hyp1f1(a / 2 + mp.mpf(1) / 4, mp.mpf(1) / 2, s, zeroprec=mp.mp.prec)
+        odd = mp.hyp1f1(a / 2 + mp.mpf(3) / 4, mp.mpf(3) / 2, s, zeroprec=mp.mp.prec)
+        return mp.exp(-x * x / 4) * (u0 * even + u1 * x * odd)
+
+    with specs.wdps(30 + int(x * x / 2)):
+        a = -v - mp.mpf(1) / 2
+        d = u(a)
+        return d, x / 2 * d - u(a - 1)
+
+
+def _pcf_u(a: flint.acb, z: flint.acb) -> flint.acb:
+    """U(a, z) from its power series at 0 (DLMF 12.4)."""
+    quarter = flint.acb(1) / 4
+    u0 = flint.acb.pi().sqrt() * (-(a / 2 + quarter) * flint.acb(2).log()).exp()
+    u0 *= (a / 2 + 3 * quarter).rgamma()
+    u1 = -flint.acb.pi().sqrt() * (-(a / 2 - quarter) * flint.acb(2).log()).exp()
+    u1 *= (a / 2 + quarter).rgamma()
+    s = z * z / 2
+    even = s.hypgeom_1f1(a / 2 + quarter, flint.acb(1) / 2)
+    odd = s.hypgeom_1f1(a / 2 + 3 * quarter, flint.acb(3) / 2)
+    return (-z * z / 4).exp() * (u0 * even + u1 * z * odd)
+
+
+def _pcf_du(a: flint.acb, z: flint.acb) -> flint.acb:
+    """U'(a, z) = z / 2 U(a, z) - U(a - 1, z) (DLMF 12.8.3)."""
+    return z / 2 * _pcf_u(a, z) - _pcf_u(a - 1, z)
+
+
+def _pbdv_arb(i: int) -> Callable[[flint.arb, flint.arb], flint.arb]:
+    """D_v(x) = U(-v - 1/2, x) (i = 0) or its derivative (i = 1)."""
+
+    def arb(v: flint.arb, x: flint.arb) -> flint.arb:
+        a, z = flint.acb(-v - flint.arb(1) / 2), flint.acb(x)
+        return (_pcf_du if i else _pcf_u)(a, z).real
+
+    return arb
+
+
+def _pair_ref(
+    ref: Callable[[mp.mpf, mp.mpf], tuple[mp.mpf, mp.mpf]], i: int
+) -> Callable[[mp.mpf, mp.mpf], mp.mpf]:
+    """Output `i` of a reference with two outputs."""
+    return lambda a, b: ref(a, b)[i]
+
+
+def _pbwa_arb(i: int) -> Callable[[flint.arb, flint.arb], flint.arb]:
+    """W(a, x) (i = 0) or its derivative (i = 1) from U(i a, x e^(-i pi / 4)) (DLMF 12.14)."""
+
+    def arb(a: flint.arb, x: flint.arb) -> flint.arb:
+        ia = flint.acb(0, a)
+        rho = flint.arb.pi() / 8 + (flint.acb(1) / 2 + ia).lgamma().imag / 2
+        k = (1 + (2 * flint.arb.pi() * a).exp()).sqrt() - (flint.arb.pi() * a).exp()
+        phase = flint.acb(-flint.arb(1) / 4).exp_pi_i()
+        z = x * phase
+        u = (_pcf_du(ia, z) * phase) if i else _pcf_u(ia, z)
+        e = flint.acb(0, rho).exp()
+        return (k / 2).sqrt() * (flint.arb.pi() * a / 4).exp() * 2 * (e * u).real
+
+    return arb
+
+
+def _pbdv_recurrence(a: tuple[float, ...]) -> bool:
+    """Whether xsf-rust computes D_v(x) by recurrence from an order <= -20, like its `pbdv`."""
+    v, x = a
+    lo, hi = (1.0, 36.5) if v < 0 else (4.5, 53.0)
+    return abs(v) < 20 and (lo < x < 12 or hi <= x < 60)
+
+
+PBDV_FLOORS: Final = (
+    Floor(
+        _pbdv_recurrence,
+        2e-15,
+        "xsf-rust recurs up from an order <= -20, where xsf sums `dvsa` or `dvla`",
+    ),
+    Floor(
+        lambda a: -10 <= a[1] < -5.8 and -30 <= a[0] < -1e-15,
+        2e-15,
+        "xsf-rust sums `dvsa` (and D_{v-1}) instead of `dvla`",
+    ),
+)
+
+PBWA_NAN: Final = Rule(
+    lambda a: abs(a[0]) > 5 or abs(a[1]) > 5,
+    math.nan,
+    "xsf only has Taylor series for |a| <= 5 and |x| <= 5",
+)
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -3411,6 +3509,29 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 ),
                 LOG_WRIGHT_OVERRIDES,
             ),
+        )
+    ),
+    ("pbdv", "d_d-d_d"): Entry(
+        tuple(
+            Out(
+                f"pbdv.{i}",
+                (_pair_ref(_pbdv, i),),
+                (_pbdv_arb(i),),
+                (NAN,),
+                floors=PBDV_FLOORS,
+            )
+            for i in range(2)
+        )
+    ),
+    ("pbwa", "d_d-d_d"): Entry(
+        tuple(
+            Out(
+                f"pbwa.{i}",
+                (_pair_ref(specs.r_pbwa, i),),
+                (_pbwa_arb(i),),
+                (NAN, PBWA_NAN),
+            )
+            for i in range(2)
         )
     ),
 }
