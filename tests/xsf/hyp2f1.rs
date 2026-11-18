@@ -1543,3 +1543,14 @@ fn test_hyp2f1_f64_c_pole() {
     assert_eq!(actual, [f64::INFINITY; 2]);
     assert!(xsf::hyp2f1(1.0, 1.0, f64::NEG_INFINITY, 0.5).is_nan());
 }
+
+#[test]
+fn test_hyp2f1_f64_neg_int_c_x_1() {
+    // unlike in xsf: the Chu-Vandermonde product at x = 1 for a negative integer c below the
+    // integer a or b, also for small parameters; xsf gives NaN (references: exact)
+    let actual = [xsf::hyp2f1(-2.0, -3.0, -4.0, 1.0), xsf::hyp2f1(-3.0, -2.0, -4.0, 1.0)];
+    assert_eq!(actual, [0.0; 2]);
+    // (a nonzero product, where xsf is an ulp below)
+    let actual = [xsf::hyp2f1(-4.0, 2.0, -6.0, 1.0), xsf::hyp2f1(2.0, -4.0, -6.0, 1.0)];
+    assert_eq!(actual, [14.0 / 3.0; 2]);
+}
