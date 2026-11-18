@@ -1504,6 +1504,9 @@ fn test_hyp2f1_f64_c_eq_a_or_b_neg_int() {
     // (3^m and 2^-m, which overflow and underflow)
     let actual = [-2.0, 0.5].map(|x| xsf::hyp2f1(-1e20, -1e20, -1e20, x));
     assert_eq!(actual, [f64::INFINITY, 0.0]);
+    // (a subnormal (1 - x)^m; reference: mpmath)
+    let actual = [xsf::hyp2f1(-1_000_001.0, -1_000_001.0, -1_000_001.0, 0.000_708_5)];
+    np_assert_allclose!(actual, [1.559_546_624_838_864e-308], rtol = 1e-15);
     // (NaN for c = -inf)
     assert!(xsf::hyp2f1(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY, 0.5).is_nan());
 }
