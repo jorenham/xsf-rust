@@ -2711,7 +2711,7 @@ def _pmv_scaled(m: mp.mpf, v: mp.mpf, x: mp.mpf) -> Value:
         p = _pmv(m, v, x)
         n = _pmv_degree(float(v))
         zero = n.is_integer() and n + m > 0 and (n + m) % 2 == 1
-        if not zero or abs(x) == 1 or abs(mp.asin(x)) >= mp.pi / (n + mp.mpf(1) / 2):
+        if not zero or abs(x) >= 1 or abs(mp.asin(x)) >= mp.pi / (n + mp.mpf(1) / 2):
             return p
         dp = -((m - v - 1) * _pmv(m, v + 1, x) + (v + 1) * x * p) / mp.sqrt(1 - x * x)
         return p, mp.hypot(p, dp / (n + mp.mpf(1) / 2))
