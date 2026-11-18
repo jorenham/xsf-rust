@@ -841,18 +841,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
     // Unlike in xsf, the polynomial of degree m of DLMF 15.2.5 for c = a = -m or c = b = -m, not
     // (1 - x)^(-b) of DLMF 15.2.6 or inf.
     //
+    // Unlike in xsf, also at x = 1 for a or b a negative integer above c, the Chu-Vandermonde
+    // product of `hyp2f1_recur` (DLMF 15.4.24), as the paths below can give NaN there.
+    //
     // (only in the outermost call, as in the transformations c - a can round to c)
-    if outer && c.is_finite() && is_nonpos_int(c) && (a == c || b == c) {
+    let (c_eq, ends) = (a == c || b == c, |t: f64| is_nonpos_int(t) && t > c);
+    if outer && c.is_finite() && is_nonpos_int(c) && (c_eq || x == 1.0 && (ends(a) || ends(b))) {
         // By `hyp2f1_recur` in double-double, else for a = b = c by (1 - x)^m (as both are that
         // then), or 0 if exactly that, else by the paths below
         let y = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
         if let Some((y, _)) = y.filter(accurate) {
             return y;
         }
-        if a == b {
+        if a == b && b == c {
             return pow_1mx(x, -c);
         }
-        if sums_to_zero(if a == c { b } else { a }, -c, x) {
+        if c_eq && sums_to_zero(if a == c { b } else { a }, -c, x) {
             return 0.0;
         }
     }
