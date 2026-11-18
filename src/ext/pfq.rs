@@ -859,7 +859,7 @@ fn recurrence_terms(
 }
 
 /// `y` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, with the error bounds of the factors
-/// added, or `None` at a pole
+/// added, or `None` at a pole (or if the result is far out of range)
 ///
 /// Each factor is by `ln_gamma`, which for `|g| < PFQ_GAMMA_MAX` is at `g + n >= PFQ_GAMMA_MAX`
 /// instead, divided by the rising factorial `(g)_n` (DLMF 5.2.5). There it is Stirling's formula
@@ -903,10 +903,11 @@ fn mul_gammas(
     }
     if rising != 1.0 {
         // (one eps bounds the rounding of `rising` to `rising.hi` and of the product of the
-        // mantissas, which can't overflow or underflow; the exponent is clamped as in `fold_exp`)
+        // mantissas, which can't overflow or underflow; `None` for an exponent beyond the range
+        // that `fold_exp` takes, which needs about a million tiny Gamma arguments)
         let ((m, e), (r, k)) = (frexp_f64(y.m), frexp_f64(rising.hi));
-        let e = (f64::from(y.e + e + k) + rising_e).clamp(-1e9, 1e9) as i32;
-        (y.m, y.e, y.err) = (m * r, e, y.err + f64::EPSILON);
+        let e = f64::from(y.e + e + k) + rising_e;
+        (y.m, y.e, y.err) = (m * r, (e.abs() <= 1e9).then_some(e as i32)?, y.err + f64::EPSILON);
     }
     Some(y)
 }
