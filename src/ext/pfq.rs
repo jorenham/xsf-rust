@@ -1160,15 +1160,46 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     };
     let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, ratio));
     let bound = |n| pfq_ratio_bound(&up_hi, &low_hi, 1.0 / z, n);
-    // the terms can grow again where they settle, for a small `1 + a_m - a_i + n`: the sum only
-    // ends from where `bound` is below 1, as the terms then decrease until the `n / |z|` of
-    // their ratios takes over (which it does before `settled + |z|`)
+    // (on the inverse of the ratio)
+    let inverse = |n| pfq_ratio_bound(&low_hi, &up_hi, z, n);
+    // From `settled` on, each paired factor of a term ratio is monotone with the limit 1, and the
+    // unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear in `m`, with
+    // `w(n) = bound(n)`, and at least `w(m) / (bound(n) inverse(n))`.
+    //
+    // The product of `w(n)` to `w(m)` is at most 1 while `w(n) + w(m) <= 2`: no term up to there
+    // is larger than term `n`. And if the ratios are at least 1 from there on, the terms grow for
+    // good. The sum only ends at such an `n`, and so not at a term that a later one exceeds.
+    let closed = |n: f64| n > degree || bound(n) * (1.0 + inverse(n)) <= 2.0;
     let settled = pfq_settled(&up_hi, &low_hi).ceil();
-    let ns = (0..PFQ_MAXITER).map(|k| settled + f64::from(k));
-    let mut ns = ns.take_while(|&n| n <= settled + z.abs());
-    let Some(start) = ns.find(|&n| n > degree || bound(n) < 1.0) else {
+    let ns = || {
+        let ns = (0..PFQ_MAXITER).map(|k| settled + f64::from(k));
+        ns.take_while(|&n| n <= settled + z.abs())
+    };
+    // Where no `n` is such, the bound on each ratio shows the same for the last run of `n`: the
+    // terms grow for good from where `inverse(n) <= 1`, and back from there, `most` is the
+    // largest product of the bounds from `n` on.
+    let mut run = (f64::INFINITY, f64::NEG_INFINITY);
+    if !ns().any(closed) {
+        let Some(grows) = ns().find(|&n| inverse(n) <= 1.0) else {
+            return (Dd::new(1.0), f64::INFINITY);
+        };
+        let mut most = 0.0_f64;
+        for n in successors(Some(grows - 1.0), |n| Some(n - 1.0)).take_while(|&n| n >= settled) {
+            most = bound(n) * most.max(1.0);
+            if most <= 1.0 {
+                run = (n, run.1.max(n));
+            } else if run.0.is_finite() {
+                break;
+            }
+        }
+    }
+    let ends = |n: f64| closed(n) || (run.0..=run.1).contains(&n);
+    let Some(start) = ns().find(|&n| ends(n)) else {
         return (Dd::new(1.0), f64::INFINITY);
     };
+    let terms = zip(terms, (0_u32..).map(f64::from))
+        .take_while(|&(_, n)| n < start || ends(n))
+        .map(|(term, _)| term);
     asymptotic_sum(terms, start, z, bound)
 }
 
@@ -2152,6 +2183,13 @@ mod tests {
         // a pole
         assert!(mul_gammas([Dd::new(-2.0)], den, one).is_none());
         assert!(mul_gammas(num, [Dd::new(-2.0)], one).is_none());
+    }
+
+    #[test]
+    fn test_pfq_alg_series_dd_growing() {
+        // the terms of the series of a_1 grow from the fourth one on, long before `n = |z|`
+        let (a, b) = ([pow2(-70), -19.75, -29.625], [1.0, -219.75, -229.625, 1.0]);
+        assert!(pfq_alg_series_dd(&a, &b, 0, -100.0).1.is_infinite());
     }
 
     #[test]

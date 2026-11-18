@@ -991,6 +991,12 @@ fn test_hyppfq_asymptotic_double_double() {
     // (the terms of the series of a_3 grow again after its 1 + a_3 - a_i + n are positive)
     let (a, b) = ([55.24, 55.240_001, -0.87, 51.03], [17.79, -39.49, -50.97, -46.83]);
     assert_hyppfq(&a, &b, -3000.0, 100.085_095_585_652_68);
+    // (the terms of the series of a tiny a_1 grow after the second one, to 1e41 times its size)
+    let (a, b) = ([2.0_f64.powi(-60), 0.125, 0.25], [-79.5, -144.25, -239.5]);
+    assert_hyppfq(&a, &b, -1732.0, -2.501_502_047_745_914_6e27);
+    // (and here they grow from the fourth one on, long before n = |z|: none bounds the rest)
+    let (a, b) = ([2.0_f64.powi(-70), -19.75, -29.625], [1.0, -219.75, -229.625]);
+    assert_eq!(hyppfq(&a, &b, -100.0), None);
 }
 
 #[test]
