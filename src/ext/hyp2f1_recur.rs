@@ -1056,9 +1056,10 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
             return None;
         }
         // Stop once the rest is below `thr`: for b + k > 0, the ratios of the next terms are at
-        // most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to 1, so the rest
-        // is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the rounding of `sum` is
-        // at most `|sum| / 4`, so that the full sum is at least `|sum| / 2` (hence `2 tail` below).
+        // most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to 1, so the
+        // rest is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the rounding of
+        // `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2` (hence
+        // `2 tail` below).
         let bk = (b + k).hi;
         let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
         let abs = sum.hi.abs();
