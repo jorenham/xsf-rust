@@ -1413,9 +1413,12 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
         let class = a[1] != b[1] && (Dd::new(a[0]) - Dd::new(a[1])).is_integer();
         let phased = z > 0.0 && !class;
         Some(terms.into_iter().zip(a).filter_map(move |(t, a)| {
+            if !phased {
+                return t;
+            }
             // (a zero phase drops the term)
-            t.filter(|_| !phased || cospi(a) != 0.0)
-                .map(|y| if phased { y.mul_f64(cospi(a)) } else { y })
+            let phase = cospi(a);
+            t.filter(|_| phase != 0.0).map(|y| y.mul_f64(phase))
         }))
     };
     let (y, other) = if z > 0.0 {
