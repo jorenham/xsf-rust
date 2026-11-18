@@ -80,7 +80,7 @@ fn ln_gamma_coef(j: u32, x: Dd) -> f64 {
 
 /// The parameters of the series of the term of `a_m` (DLMF 16.11.2) in double-double: `a_m` and
 /// the `1 + a_m - b_j`, over the `1 + a_m - a_i`, where `b` is without the 1 of `n!`
-fn series_params(a: &[f64], b: &[f64], m: usize) -> [Vec<Dd>; 2] {
+pub(super) fn series_params(a: &[f64], b: &[f64], m: usize) -> [Vec<Dd>; 2] {
     let am = Dd::new(a[m]);
     let up = once(am).chain(b.iter().map(|&bj| am + 1.0 - bj)).collect();
     let low = a.iter().map(|&ai| am + 1.0 - ai).collect();

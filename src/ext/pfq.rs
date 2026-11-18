@@ -815,6 +815,18 @@ impl Term for f64 {
     }
 }
 
+impl Term for Dd {
+    type Value = Self;
+
+    fn value(self) -> Dd {
+        self
+    }
+
+    fn bound(self) -> f64 {
+        self.hi.abs()
+    }
+}
+
 /// A value and a bound on its size
 impl Term for (f64, f64) {
     type Value = f64;
@@ -933,6 +945,13 @@ fn recurrence_terms(
         Some((k + 1.0, next(k + 1.0, t1, t2), t1))
     });
     terms.map(|(_, t, _)| t)
+}
+
+/// `y` times `v`, with the low part of the mantissa in the logarithm
+fn mul_dd(mut y: Scaled, v: Dd) -> Scaled {
+    let p = v * y.m;
+    y.m = p.hi;
+    y.mul_exp(Dd::new(p.lo / p.hi))
 }
 
 /// `y` times `Gamma(num_0) ... / (Gamma(den_0) ...)`, with the error bounds of the factors
@@ -1119,6 +1138,30 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
+/// `pfq_alg_series` for `p = q` in double-double, with the exact parameters
+///
+/// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
+fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
+    let [up, low] = residue::series_params(a, &b[..b.len() - 1], m);
+    let [up_hi, low_hi] =
+        [&up, &low].map(|v| descending(v.iter().map(|x| x.hi).collect::<Vec<_>>()));
+    let poles = up.iter().filter(|x| is_pole(x));
+    let degree = poles.fold(f64::INFINITY, |n, x| n.min(-x.hi));
+    let ratio = |n: f64| {
+        let normal = |p: Dd| if is_normal(p) { p } else { Dd::NAN };
+        let prod = |v: &[Dd]| v.iter().fold(Dd::new(1.0), |p, &x| normal(p * (x + n)));
+        // in -1 / z
+        if n == degree {
+            Dd::new(0.0)
+        } else {
+            prod(&up) / (prod(&low) * -z)
+        }
+    };
+    let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, ratio));
+    let bound = |n| pfq_ratio_bound(&up_hi, &low_hi, 1.0 / z, n);
+    asymptotic_sum(terms, pfq_settled(&up_hi, &low_hi), z, bound)
+}
+
 /// The term of `pfq_alg` of the class of `a_m`: the `a_i` that differ from `a_m` by integers
 ///
 /// The terms of these `a_i` are infinite, unlike the limit of their sum, which is the sum of
@@ -1179,6 +1222,8 @@ enum Alg {
     Value,
     /// A bound on its size
     Sizes,
+    /// Its value for `p = q`, with its series in double-double
+    Dd,
 }
 
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
@@ -1194,6 +1239,9 @@ enum Alg {
 ///
 /// With `Alg::Sizes`, each term is the sum of the sizes of the terms of its series, times the
 /// size of its factor. Their sum bounds the algebraic part at any phase of `z` and of its terms.
+///
+/// With `Alg::Dd`, the series of each term is in double-double, except for the `a_i` that differ
+/// by integers.
 fn pfq_alg<A: Params, B: Params>(
     a: &A,
     b: &B,
@@ -1217,8 +1265,14 @@ fn pfq_alg<A: Params, B: Params>(
         if den.clone().any(|g| is_pole(&g)) {
             continue;
         }
-        let sum = pfq_alg_series(a, b, m, z, sizes)?;
-        let mut y = gamma_series(num, den, sum, -ln_z * am)?;
+        let l = -ln_z * am;
+        let mut y = if mode == Alg::Dd {
+            let (sum, err) = pfq_alg_series_dd(a.as_ref(), b.as_ref(), m, z);
+            let y = Scaled::new(1.0, 0, err / sum.hi.abs())?.with_l(l);
+            mul_gammas(num, den, mul_dd(y, sum))?
+        } else {
+            gamma_series(num, den, pfq_alg_series(a, b, m, z, sizes)?, l)?
+        };
         if sizes {
             y.m = y.m.abs();
         }
@@ -1329,12 +1383,14 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     };
     let series = || pfq_series_sorted(a, [b[0], b[1], 1.0], z);
     let asymptotic = || hyp2f2_asymptotic(a, b, z);
+    // last, as it is the slowest
+    let asymptotic_dd = || pfq_asymptotic_dd(&a, &[b[0], b[1], 1.0], z);
     if degree.is_finite() {
         series()
     } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
-        series().or_else(asymptotic)
+        series().or_else(asymptotic).or_else(asymptotic_dd)
     } else {
-        asymptotic().or_else(series)
+        asymptotic().or_else(series).or_else(asymptotic_dd)
     }
 }
 
@@ -1664,6 +1720,18 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     }
 }
 
+/// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` with its series in
+/// double-double, where their terms cancel
+fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
+    if z > 0.0 || a.as_ref().len() + 1 != b.as_ref().len() {
+        return None;
+    }
+    let mut terms = vec![None; a.as_ref().len()];
+    pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
+    let alg = add_exp(terms.into_iter().flatten())?;
+    checked_f64(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?))
+}
+
 /// The limit at `z = +-inf` for finite parameters if cheap, with `b` without the 1 of `n!`
 fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     if z.is_finite() {
@@ -1979,12 +2047,14 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             let kappa = (b.len() - a.len()) as f64;
             let x = kappa * z.abs().powf(1.0 / kappa);
             let cancellation = x * (1.0 - cospi(1.0 / kappa).max(0.0));
+            // last, as it is the slowest
+            let asymptotic_dd = || pfq_asymptotic_dd(&a, &b, z);
             if degree.is_finite() {
                 series()
             } else if z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST {
-                series().or_else(asymptotic)
+                series().or_else(asymptotic).or_else(asymptotic_dd)
             } else {
-                asymptotic().or_else(series)
+                asymptotic().or_else(series).or_else(asymptotic_dd)
             }
         },
         _ if z < 0.0 => {
