@@ -17,7 +17,7 @@
 use crate::ext::{HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd};
 use crate::utils::pow2;
 use crate::xsf::cephes::consts::MACHEP;
-use crate::xsf::cephes::dd_real::DoubleDouble as Dd;
+use crate::xsf::cephes::dd_real::{DoubleDouble as Dd, two_sum};
 use crate::xsf::cephes::{gamma, gammasgn, lgam_ratio, lgam_sgn, psi, rgamma};
 
 pub(crate) const HYP2F1_EPS: f64 = 1.0e-13;
@@ -74,12 +74,31 @@ fn hys2f1_min(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
     if loss < err { (series, loss) } else { (y, err) }
 }
 
+/// Whether `c` is near, but not at, a non-positive integer: unlike in xsf, 2F1 has no pole there
+fn near_pole(c: f64) -> bool {
+    let ic = c.round();
+    c < 0.0 && c != ic && near(c, ic)
+}
+
 /// The series of the Pfaff transformations (DLMF 15.8.1) in `x / (x - 1)`, by `hys2f1_min`, with
-/// the smaller error estimate
+/// the smaller error estimate. Unlike in xsf, for c `near_pole`, that includes the rounding of
+/// `c - b` (or `c - a`) relative to its distance to an integer, which the pole of `(c)_k` near it
+/// amplifies (e.g. for a tiny `b`).
 fn hys2f1_pfaff(a: f64, b: f64, c: f64, x: f64) -> (f64, f64) {
+    let rounding = |t: f64| {
+        let (d, e) = two_sum(c, -t);
+        if e == 0.0 {
+            0.0
+        } else {
+            (e / (d - d.round())).abs()
+        }
+    };
     let w = x / (x - 1.0);
-    let (ya, ea) = hys2f1_min(a, c - b, c, w);
-    let (yb, eb) = hys2f1_min(b, c - a, c, w);
+    let (ya, mut ea) = hys2f1_min(a, c - b, c, w);
+    let (yb, mut eb) = hys2f1_min(b, c - a, c, w);
+    if near_pole(c) {
+        (ea, eb) = (ea + rounding(b), eb + rounding(a));
+    }
     // if one of these overflows, its error estimate is NaN, so use the other
     let (y, err, p) = if ea <= eb || eb.is_nan() {
         (ya, ea, a)
@@ -816,6 +835,21 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
         return f64::INFINITY * if pole { 1.0 } else { sign }; // goto hypdiv
     }
 
+    // Unlike in xsf, for c `near_pole`, sum the power series (or for x < 0 that of the Pfaff
+    // transformations, as it can stop early), or NaN if inaccurate: at c = -n + e it jumps by about
+    // `1 / e` at the term n + 1, which the paths below miss. Not if it terminates before that term,
+    // or if x / (x - 1) rounds to 1 or exceeds it (x >= 1).
+    let ic = c.round(); /* nearest integer to c */
+    let terminates = neg_int_a && ia > ic || neg_int_b && ib > ic;
+    if near_pole(c) && !terminates && x / (x - 1.0) < 1.0 {
+        let (y, err) = if x > 0.0 {
+            hys2f1_min(a, b, c, x)
+        } else {
+            hys2f1_pfaff(a, b, c, x)
+        };
+        return if err < HYP2F1_ETHRESH { y } else { f64::NAN };
+    }
+
     // Unlike in xsf (scipy/xsf#470), not if `c - a` or `c - b` rounds to `c`, where the Euler
     // transformation (DLMF 15.8.1) loses `a` or `b` and returns about 1, as its power factor
     // cancels `F(c, c - b; c; x) = (1 - x)^(b - c)` (DLMF 15.4.6). Only if c > 0, as for c < 0
@@ -904,19 +938,13 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool) -> f64 {
 
     'hypf: {
         'hypok: {
-            if c <= 0.0 {
-                let ic = c.round(); /* nearest integer to c */
-                if near(c, ic) {
-                    /* c is a negative integer */
-                    /* check if termination before explosion */
-                    if neg_int_a && (ia > ic) {
-                        break 'hypok;
-                    }
-                    if neg_int_b && (ib > ic) {
-                        break 'hypok;
-                    }
-                    return f64::INFINITY; // goto hypdiv
+            if c <= 0.0 && near(c, ic) {
+                /* c is a negative integer */
+                /* check if termination before explosion */
+                if terminates {
+                    break 'hypok;
                 }
+                return f64::INFINITY; // goto hypdiv
             }
 
             if neg_int_a || neg_int_b {

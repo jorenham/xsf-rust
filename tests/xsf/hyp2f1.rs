@@ -1271,3 +1271,31 @@ fn test_hyp2f1_f64_log_case_cancels() {
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-11);
 }
+
+#[test]
+fn test_hyp2f1_f64_c_near_pole() {
+    // unlike in xsf: c near (not at) a non-positive integer -n, where 2F1 is finite, and its power
+    // series jumps by about 1 / (c + n) at the term n + 1; xsf gives inf (Arb)
+    let actual = [
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.4),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, -0.99),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, 0.4),
+        xsf::hyp2f1(1.25, 2.0, -45.0 - 4e-14, 0.9),
+        // (where the Pfaff transformation rounds c - b near -n)
+        xsf::hyp2f1(7.25, 1e-13, -2.0 + f64::EPSILON, -0.7),
+        xsf::hyp2f1(-2.75, 1e-13, -1.0 - f64::EPSILON, -0.3),
+    ];
+    let desired = [
+        1.022_933_013_832_101_3,
+        349.569_306_386_504_9,
+        3_671_424_765.509_292_6,
+        2.052_009_450_569_774_3e63,
+        -362.316_350_911_936_1,
+        112.785_458_910_322_3,
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+    // at c = -n it is a pole, unless the series terminates before the term n + 1
+    assert_eq!(xsf::hyp2f1(1.25, 2.0, -45.0, -0.4), f64::INFINITY);
+    let actual = [xsf::hyp2f1(-3.0, 2.0, -45.0 - 4e-14, 0.5)];
+    np_assert_allclose!(actual, [1.068_974_630_021_141_6], rtol = 1e-15);
+}
