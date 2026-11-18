@@ -185,12 +185,15 @@ fn pfq_products<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> [T; 2] {
     [a.iter().fold(one, shifted), b.iter().fold(one, shifted)]
 }
 
+/// Whether `v` is normal in the arithmetic of `T`
+fn is_normal<T: SeriesReal>(v: T) -> bool {
+    (T::MIN_POSITIVE..=f64::MAX).contains(&v.to_f64().abs())
+}
+
 /// `t_{n+1} / (z t_n)` for any parameters and `n`, which is zero if it underflows, and infinite
 /// if it overflows or would be inexact, as it is not normal
 #[cold]
 fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
-    // normal in the arithmetic of `T`
-    let is_normal = |v: T| (T::MIN_POSITIVE..=f64::MAX).contains(&v.to_f64().abs());
     // as mantissa and `i64` exponent, so that no partial product over- or underflows
     let product = |params: &[f64]| {
         let times = |(m, e): (T, i64), &v: &f64| {
@@ -367,16 +370,16 @@ fn pfq_sum<T: SeriesReal>(
 /// where the terms start to alternate, so that the weights of the `s_j` are positive. The same
 /// recursion for `|s_j|` then gives their weighted mean, which scales the rounding errors.
 ///
-/// The estimate is infinite if the orders up to `PFQ_WENIGER_MAXITER` did not converge, or if a
-/// term overflows, or underflows before the terms become large again. It is `None` if the terms
-/// only alternate after more than `PFQ_MAXITER` terms, or if a term before that overflows or
-/// underflows.
+/// It is computed in the arithmetic of `T`. The estimate is infinite if the orders up to
+/// `PFQ_WENIGER_MAXITER` did not converge, or if a term overflows, or underflows before the terms
+/// become large again. It is `None` if the terms only alternate after more than `PFQ_MAXITER`
+/// terms, or if a term before that overflows or underflows.
 ///
 /// 1. E. J. Weniger, "Nonlinear sequence transformations for the acceleration of convergence
 ///    and the summation of divergent series", Comput. Phys. Rep. 10 (1989), 189-371
 /// 2. R. M. Slevinsky, "Fast and stable rational approximation of generalized hypergeometric
 ///    functions", Numer. Algor. 98 (2025), 587-624, <https://doi.org/10.1007/s11075-024-01808-w>
-pub(crate) fn pfq_weniger(
+fn pfq_weniger<T: SeriesReal>(
     a: &impl AsRef<[f64]>,
     b: &impl AsRef<[f64]>,
     z: f64,
@@ -391,65 +394,67 @@ pub(crate) fn pfq_weniger(
     // the transformation starts at this n
     let start = settled.min(degree);
     let checked = pfq_extreme(a, b);
-    let ratio = |n| -> f64 { pfq_ratio(a, b, n, checked) };
+    let ratio = |n| -> T { pfq_ratio(a, b, n, checked) };
     // the rounding errors of the partial sums and of the terms (the factor is measured)
-    let eps = 4.0 * f64::EPSILON * pfq_rounding_scale(a, b);
-    let (mut term, mut sum) = (1.0_f64, 1.0_f64);
+    let eps = 4.0 * T::EPSILON * pfq_rounding_scale(a, b);
+    let one = T::from_f64(1.0);
+    let (mut term, mut sum) = (one, one);
     // the largest |s_n| before `start`
     let mut scale = 1.0_f64;
     for n in (0..start as u32).map(f64::from) {
-        term *= ratio(n) * z;
-        if !term.is_normal() {
+        term = term * (ratio(n) * T::from_f64(z));
+        if !is_normal(term) {
             // overflow or underflow
             return None;
         }
-        sum += term;
-        scale = scale.max(sum.abs());
+        sum = sum + term;
+        scale = scale.max(sum.to_f64().abs());
     }
     if start == degree {
         // the series terminated
-        return Some((sum, eps * scale));
+        return Some((sum.to_f64(), eps * scale));
     }
-    let mut rows = [[0.0; 3]; PFQ_WENIGER_MAXITER];
+    let mut rows = [[T::from_f64(0.0); 3]; PFQ_WENIGER_MAXITER];
     let (mut delta, mut step) = (sum, f64::INFINITY);
     for k in 0..PFQ_WENIGER_MAXITER {
         let n = start + k as f64;
-        term *= ratio(n) * z;
-        if !term.is_normal() {
+        term = term * (ratio(n) * T::from_f64(z));
+        if !is_normal(term) {
             // overflow, or underflow, after which the terms only matter if they can increase
-            let negligible =
-                term.abs() < 1.0 && a.len() <= b.len() && pfq_ratio_bound(a, b, z, n) <= 1.0;
+            let negligible = term.to_f64().abs() < 1.0
+                && a.len() <= b.len()
+                && pfq_ratio_bound(a, b, z, n) <= 1.0;
             let noise = eps * scale;
-            return Some((sum, if negligible { noise } else { f64::INFINITY }));
+            return Some((sum.to_f64(), if negligible { noise } else { f64::INFINITY }));
         }
         // the numerator, the denominator, and the numerator for |s_j|
-        rows[k] = [sum / term, 1.0 / term, sum.abs() / term];
+        rows[k] = [sum / term, one / term, sum.abs() / term];
         for j in (0..k).rev() {
             // the order of `rows[j]`, which starts at s_j
             let (m, i) = (j as f64, (k - j - 1) as f64);
             let c = if i == 0.0 {
-                1.0
+                one
             } else {
                 let (s, t) = (m + i, m + 2.0 * i);
-                (s + 1.0) * s / ((t + 1.0) * t)
+                T::from_f64((s + 1.0) * s) / T::from_f64((t + 1.0) * t)
             };
             rows[j] = core::array::from_fn(|l| rows[j + 1][l] - c * rows[j][l]);
         }
         let [num, den, abs] = rows[0];
-        let noise = eps * ((abs / den).abs() + (num / den).abs() + scale);
-        let last = step;
-        step = (num / den - delta).abs();
-        delta = num / den;
+        let (last, next) = (step, num / den);
+        let noise = eps * ((abs / den).to_f64().abs() + next.to_f64().abs() + scale);
+        step = (next - delta).to_f64().abs();
+        delta = next;
         // delta is a weighted mean of the last one and of the one of that order from s_1
         // (NaN for k = 0). For a large |z| the weight of the latter is small, and so are the
         // steps, also while the two still differ, so it has to agree as well.
         let other = rows[1][0] / rows[1][1];
-        if step <= noise && last <= noise && (other - delta).abs() <= noise {
-            return Some((delta, noise));
+        if step <= noise && last <= noise && (other - delta).to_f64().abs() <= noise {
+            return Some((delta.to_f64(), noise));
         }
-        sum += term;
+        sum = sum + term;
     }
-    Some((delta, f64::INFINITY))
+    Some((delta.to_f64(), f64::INFINITY))
 }
 
 /// `psi(x) e`: the relative change of `Gamma(x)` by the low part `e` of its argument, to first
@@ -579,13 +584,13 @@ pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let methods: &[Method<P>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
         &[series]
     } else if z > -1.0 {
-        &[pfq_weniger, series]
+        &[pfq_weniger::<f64>, series]
     } else if z == -1.0 {
-        &[pfq_weniger]
+        &[pfq_weniger::<f64>]
     } else if z >= PFQ_WENIGER_FIRST_Z {
-        &[pfq_weniger, pfq_continuation]
+        &[pfq_weniger::<f64>, pfq_continuation]
     } else {
-        &[pfq_continuation, pfq_weniger]
+        &[pfq_continuation, pfq_weniger::<f64>]
     };
     let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
     let mut methods = methods.iter().chain(&last);
@@ -1728,7 +1733,7 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // Try Weniger when both U evaluations and the truncated series miss the tolerance,
             // plus the rounding errors accumulated up to `settled`, as `a + n` can round alike
             let weniger = || {
-                let (y, err) = pfq_weniger(&[a1, a2], &[1.0], z)?;
+                let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
                 accurate((y, err))?;
                 let drift = terms
                     .clone()
