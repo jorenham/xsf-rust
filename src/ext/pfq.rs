@@ -1821,8 +1821,19 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
                 // moved by T times them (far enough to stand out from the error of U, and near
                 // enough to be linear). They may take half of PFQ_TOL, as y can depend much more
-                // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer.
-                let (y, y_t) = (y(b, x)?, y(b + T * (e1 + e2), x + T * dx)?);
+                // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer. A move
+                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, which
+                // overestimates its change.
+                let moved = |v: f64, d: f64| {
+                    let v_t = v + T * d;
+                    let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
+                    if v_t == v && d != 0.0 {
+                        v + spacing.copysign(d)
+                    } else {
+                        v_t
+                    }
+                };
+                let (y, y_t) = (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
                 let rounding = (y_t - y).abs() / T;
                 (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs()).then_some(y)
             };

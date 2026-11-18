@@ -577,6 +577,7 @@ fn test_hyppfq_2f0() {
             -0.011_817_257_637_100_627,
             6.013_041_362_636_676e-17,
         ),
+        ([-1e-48, -20.5], -30.0, -0.069_303_167_698_671_19),
     ] {
         if let Some(actual) = hyppfq(&a, &[], z) {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-13);
