@@ -474,7 +474,15 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
 
     // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
     // duplication step first raises the tiny one
-    if common::needs_duplication(&[xm, ym, zm, p], min) {
+    //
+    // Unlike in xsf, also for complex input with `p` tiny relative to `x, y, z`, where the loop's
+    // `R_C` terms lose accuracy (`1 + delta / s^2` cancels to about `sqrt(p / x)`), as the step
+    // gets `2 beta / d` from `sqrt(p)` directly. Real input takes the "tiny p" form below, which
+    // is the same identity.
+    let tiny_p = |a: &T| p.max_norm() <= config::ASYM_ZERO_UL * a.max_norm();
+    if common::needs_duplication(&[xm, ym, zm, p], min)
+        || (!real && [xm, ym, zm].iter().all(tiny_p))
+    {
         return rj_duplicated(xm, ym, zm, p, rerr, noasymp);
     }
 
