@@ -143,6 +143,7 @@ pub use zeta::{riemann_zeta, zeta, zetac};
 
 pub(crate) use airy::airy_ai_zeros_vec;
 pub(crate) use cdflib::find_positive_root;
+pub(crate) use exp::cexpm1;
 pub(crate) use hyp2f1::Hyp2F1Arg;
 pub(crate) use loggamma::zlog1_c64;
 pub(crate) use specfun::{Hyp1F1Arg, xsf_hypu_digits};

@@ -35,7 +35,7 @@ pub(crate) fn cexp(z: C64) -> C64 {
 // z.real = -log(cos(z.imag)).  There isn't a way around this problem  that
 // doesn't involve computing exp(z.real) and/or cos(z.imag) to higher
 // precision.
-fn cexpm1(z: C64) -> C64 {
+pub(crate) fn cexpm1(z: C64) -> C64 {
     if !z.re.is_finite() || !z.im.is_finite() {
         // Unlike in xsf, `num_complex::Complex::exp` follows libc++, which differs from glibc's
         // `cexp` (used by libstdc++) only in the sign of the zero imaginary part of

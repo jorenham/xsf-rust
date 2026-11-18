@@ -23,7 +23,9 @@
 //!      `HYP2F1_ETHRESH`, we also recur up in the degree, from `F(0) = 1` and `F(-1)` to `F(-n)`
 //!      (DLMF 15.5.11), with the error bound of step 3, for `F(-n, c - q; c; w)` and the form
 //!      (DLMF 15.8.7) `F(-n, q; c; z) = (c - q)_n / (c)_n F(-n, q; q - c - n + 1; 1 - z)`, often
-//!      more stable if `c < 0`. The best of these is returned if its error bound is at most
+//!      more stable if `c < 0`. If neither is within `HYP2F1_ETHRESH` either, we also sum
+//!      `F(-n, c - q; c; w)` in double-double, as near a root both recurrences can lose about as
+//!      many digits as the sums. The best of these is returned if its error bound is at most
 //!      `HYP2F1_RECUR_TOL`.
 //!
 //! 3. If `c <= max(0, q)` and that loses too much precision, also sum it at `C = c + n` and
@@ -88,6 +90,9 @@
 //!
 //! Finally, return the result with the smallest error bound, which is too large if it exceeds
 //! `HYP2F1_RECUR_TOL`.
+//!
+//! For an integer `c <= 0` below an integer `a` or `b < 0`, where the steps above pass through the
+//! poles of `1 / (c)_k`, only the polynomial is computed (DLMF 15.2.5), for any finite `x`.
 //!
 //! For example, the sum of step 2 cancels for `F(-522, -123.5; 533.5; -0.9)`, the log case of
 //! step 4 for `F(-900.5, -800.5; 50; -40)`, and all 4 combinations for
@@ -185,7 +190,8 @@ impl Scaled {
         self.with_l(self.l + l)
     }
 
-    /// The value as an `f64` (which can overflow or underflow), and its error bound
+    /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
+    /// the rounding of an underflow)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
         (ldexp_f64(y.m, y.e), y.err)
@@ -509,7 +515,15 @@ fn hyp2f1_poly(
                 let y = poly_up(n, q, q - c + (1.0 - n), one_mz)?;
                 Some(y.with_l(l_z))
             });
-            min_err(direct, min_err(y_w, y_1mz))
+            let best = min_err(direct, min_err(y_w, y_1mz));
+            if err_of(best) <= HYP2F1_ETHRESH {
+                return best;
+            }
+            // (e.g. near a root, where the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12 and
+            // the better recurrence has an error bound of 2e-11), only if accurate, as the
+            // rounding of `w` can make it less so than the paths of the caller
+            let y_dd = poly_dd(n, r, c, w).filter(|y| y.err <= HYP2F1_ETHRESH);
+            min_err(best, y_dd.map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
 }
@@ -995,6 +1009,118 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
+/// `F(a, b; c; x)` for an integer `c <= 0` below an integer `a` or `b = -n < 0`: the polynomial
+/// (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
+/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+    let is_poly =
+        |p: Dd| p.is_integer() && p.hi > c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+    // (`a >= b`, so the lower degree)
+    let (p, q) = if is_poly(a) {
+        (a, b)
+    } else if is_poly(b) {
+        (b, a)
+    } else {
+        return None;
+    };
+    let n = -p.hi;
+    if x == 1.0 {
+        return chu_vandermonde(n, q, c);
+    }
+    let direct = poly_dd(n, q, c, Dd::new(x));
+    if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
+        return direct;
+    }
+    let one = Dd::new(1.0);
+    let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one));
+    min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+}
+
+/// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
+/// `series_weighted`, plus the terms it skips if `c < -n`
+fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
+    let one = Dd::new(1.0);
+    // the term `t 2^te`, and the sums scaled by `2^-e`
+    let (mut t, mut te, mut e) = (one, 0, 0);
+    let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
+    // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
+    let (xm, xe) = x.frexp();
+    // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
+    // for `1 / (1 - x)` with `x = -1.3e308`. A term `t_k` has `k` factors `x`.
+    let x_err = (f64::from_bits(1) / x.hi.abs()).min(1.0);
+    let rounding = |k: f64, sum_abs: f64, k_sum_abs: f64| {
+        DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + x_err * k_sum_abs
+    };
+    while k < n {
+        let (bm, be) = (b + k).frexp();
+        t = t * (bm * (k - n)) * xm / ((c + k) * (k + 1.0));
+        te += be + xe;
+        k += 1.0;
+        if let Some(s) = rescale_exp(t.hi) {
+            (t, te) = (t.ldexp(-s), te + s);
+        }
+        let term = t.ldexp(te - e);
+        let term_abs = term.hi.abs();
+        sum = sum + term;
+        sum_abs += term_abs;
+        k_sum_abs += k * term_abs;
+        if !k_sum_abs.is_finite() {
+            return None;
+        }
+        // Stop once the rest is below `thr`: for c < -n and b + k > 0, the ratios of the next
+        // terms are at most `r`, as |c + k| > n - k and (b + k) / (k + 1) tends monotonically to
+        // 1, so the rest is at most `|t_k| r / (1 - r)` (with slack for rounding). Only if the
+        // rounding of `sum` is at most `|sum| / 4`, so that the full sum is at least `|sum| / 2`
+        // (hence `2 tail` below).
+        let bk = (b + k).hi;
+        let r = x.hi.abs() * (bk / (k + 1.0)).max(1.0) * (1.0 + 4.0 * MACHEP);
+        let abs = sum.hi.abs();
+        let thr = DD_ROUNDING * abs;
+        let negligible = term_abs.max(f64::MIN_POSITIVE)
+            <= thr * (1.0 - r) / r * (1.0 - 4.0 * MACHEP)
+            && rounding(k, sum_abs, k_sum_abs) <= abs / 4.0;
+        if c.hi < -n && bk > 0.0 && r < 1.0 && negligible {
+            tail = thr;
+            break;
+        }
+        if let Some(s) = rescale_exp(sum_abs) {
+            sum = sum.ldexp(-s);
+            [sum_abs, k_sum_abs] = [sum_abs, k_sum_abs].map(|v| ldexp_f64(v, -s));
+            e += s;
+        }
+    }
+    let err = MACHEP + (rounding(k, sum_abs, k_sum_abs) + 2.0 * tail) / sum.hi.abs();
+    Scaled::new(sum.hi, e, err)
+}
+
+/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c < 1 - n`, in
+/// double-double
+fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
+    let cb = c - b;
+    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`
+    let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
+    while k < n {
+        let (num, num_e) = (cb + k).frexp();
+        if num.hi == 0.0 {
+            return Some(Scaled {
+                m: 0.0,
+                e: 0,
+                l: Dd::new(0.0),
+                err: 0.0,
+            });
+        }
+        t = t * num / (c + k);
+        k += 1.0;
+        e += num_e;
+        if let Some(s) = rescale_exp(t.hi) {
+            (t, e) = (t.ldexp(-s), e + s);
+        }
+    }
+    // (an addition, a product, and a division per factor)
+    Scaled::new(t.hi, e, MACHEP + 3.0 * n * DD_ROUNDING)
+}
+
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
 fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
     // `z`, `w`, and the combinations `(p, q, s)` of step 1
@@ -1085,11 +1211,14 @@ fn hyp2f1_recur_shifted(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, err: f64) -> Op
     }))
 }
 
-/// `F(a, b; c; x)` for real `x < 1` with `x != 0` (see the module docs). Its error bound (that of
-/// `Scaled::to_f64`) is too large if it exceeds `HYP2F1_RECUR_TOL`.
+/// `F(a, b; c; x)` for real `x < 1` with `x != 0`, or any finite `x` for a non-positive integer
+/// `c` (see the module docs). Its error bound (that of `Scaled::to_f64`) is too large if it
+/// exceeds `HYP2F1_RECUR_TOL`.
 pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // (beyond 1e15, the coefficients of the recurrence can overflow)
-    if !(x < 1.0 && x != 0.0 && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v))) {
+    let in_range =
+        x != 0.0 && x.is_finite() && [a, b, c].iter().all(|v| (-1e15..=1e15).contains(v));
+    if !in_range {
         return None;
     }
     // In a fixed order, as step 7 is not symmetric in `a` and `b` (its `n` is from `q`): the larger
@@ -1097,6 +1226,12 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     // `F(-104 - 9e-7, 36; 0.0074; 0.66)`, whose form `(c - a, c - b)` then has `n = 105`, not 1.
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
+    if c.hi <= 0.0 && c.is_integer() {
+        return hyp2f1_neg_int_c(a, b, c, x);
+    }
+    if x >= 1.0 {
+        return None;
+    }
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
     let ln_1mx = ln_dd(Dd::new(1.0) - x);
     let mut best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);

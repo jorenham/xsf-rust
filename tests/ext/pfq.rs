@@ -282,12 +282,16 @@ fn test_hyp2f2_asymptotic_gamma_factors() {
         // a_1 - a_2 is small, so that the terms of the algebraic part cancel
         ([0.125, -0.046_875], [0.0625, -0.0625], -500.0, 0.091_856_794_837_619_5),
         ([-0.046_875, 0.1875], [-0.0625, 0.015_625], -5000.0, -0.305_131_497_954_354),
+        ([-0.0625, -0.031_25], [0.125, 0.0625], -1e4, -0.375_850_505_307_578_44),
+        ([-0.008, -0.005], [0.01, 0.0125], -16_000.0, 0.554_541_814_716_236_9),
         // the Gamma factors of the algebraic part are large
         ([1.5, 1.75], [4.75, -8.75], -200.0, -0.077_679_580_102_834_04),
         ([-5.5, -4.25], [2.75, 7.75], -1000.0, -73_846_233.289_640_3),
         // Gamma(b_1) is near the overflow threshold
         ([-0.5, 0.25], [171.0, 10.5], 700.0, -1.502_346_983_364_605_8e100),
         ([2.5, 3.75], [171.6, 0.25], -1e4, -1.548_924_264_912_872_6e-5),
+        ([0.25, 0.75], [1e-290, 1.5], -1e4, -2.870_495_954_723_938_5e288),
+        ([0.25, 0.75], [-1e-290, 1.5], -1e4, 2.870_495_954_723_938_5e288),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -317,6 +321,8 @@ fn test_hyp2f2_asymptotic() {
             -300.0,
             1_452_433.832_806_379,
         ),
+        // 1 + a_1 - a_2 is not 0, but rounds to it
+        ([0.1, 1.1], [-0.2, 0.3], 500.0, -2.514_071_867_080_611e220),
         // c_3 of the exponentially large part vanishes, but not c_4
         ([-1.5, -1.5], [-2.5, 1.5], 60.0, -4.921_886_930_234_788e21),
         ([-1.5, -1.5], [-2.5, 1.5], 100.0, -4.114_326_732_425_412e38),
@@ -532,6 +538,49 @@ fn test_hyppfq_2f0() {
     ] {
         let actual = hyppfq(&a, &[], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+    }
+    // for a1, a2 << 0, where U is by the recurrence in a, with more than 12 digits (Arb)
+    for (a, z, expected) in [
+        ([-36.96, -50.1], -0.009_96, 2.252_440_982_724_057e-13),
+        ([-37.14, -63.61], -0.0107, 4.832_372_813_708_457e-15),
+        ([-68.36, -79.5], -0.009_69, 4.287_653_719_473_163_5e-21),
+        ([-77.66, -116.73], -0.004_77, -4.990_584_018_414_777_5e-29),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // but not the Borel sum where U by the recurrence is 1.1e-13 off (Arb)
+    let actual =
+        hyppfq(&[-66.955_195_369_874_3, -86.323_704_933_975_42], &[], -0.356_603_437_508_210_8);
+    xsref::np_assert_allclose!([actual.unwrap()], [-3.721_878_069_495_089e77], rtol = 1e-14);
+    // nor where it is 2.2e-13 off by the rounding of the coefficients of the recurrence (Arb)
+    let a = [-121.661_194_083_177_43, -125.496_107_001_270_77];
+    let actual = hyppfq(&a, &[], -0.011_817_257_637_100_627);
+    assert!(actual.is_none_or(|y| (y / 6.013_041_362_636_676e-17 - 1.0).abs() < 1e-13));
+    // nor where the rounding of x = -1/z or a1 - a2 + 1 changes it by more than 1e-13 (Arb)
+    for (a, z, expected) in [
+        (
+            [-1.968_075_690_757_376e-12, -6.000_000_000_001_97],
+            -734.029_490_840_056_6,
+            -3.700_105_420_631_436e7,
+        ),
+        (
+            [-129.715_870_814_732_23, -147.715_870_814_734_2],
+            -0.009_864_846_651_846_624,
+            1.152_931_589_568_623_8e-21,
+        ),
+        (
+            [-12.000_000_000_000_002, -41.429_461_690_122_9],
+            -9.964_632_067_709_93,
+            -2.947_780_833_978_018_3e65,
+        ),
+        ([-1e-48, -20.5], -30.0, -0.069_303_167_698_671_19),
+    ] {
+        if let Some(actual) = hyppfq(&a, &[], z) {
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-13);
+        }
     }
     // the Weniger fallback (Arb)
     for (a, z, expected) in [
@@ -769,6 +818,8 @@ fn test_hyppfq_asymptotic() {
     // (small a_i - a_j, so that the terms of the algebraic part cancel)
     let (a_close, b_close) = ([0.03125, 0.125, 0.015_625], [-0.03125, 0.1875, -0.0625]);
     assert_hyppfq(&a_close, &b_close, -3e4, 1.004_849_422_125_088_7);
+    let (a_close, b_close) = ([-0.03, 0.08, -0.06], [0.015, -0.11, 0.03]);
+    assert_hyppfq(&a_close, &b_close, -6e4, 1.719_455_843_480_630_1);
     // (large Gamma factors)
     let (a_large, b_large) = ([1.5, 1.25, -0.5], [-9.25, -11.25, 4.5]);
     assert_hyppfq(&a_large, &b_large, -500.0, 2.827_497_437_819_951);

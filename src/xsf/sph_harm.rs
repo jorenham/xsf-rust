@@ -4,26 +4,10 @@ use core::ffi::c_int;
 use num_complex::Complex64;
 
 use crate::xsf::c64::C64;
-use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n, sph_legendre_p_for_each_n_m};
+use crate::xsf::legendre::{Mdspan, int, sph_legendre_p_for_each_n_m, sph_legendre_p_t};
 
 fn sph_harm_y_next(m: i32, phi: f64, p: f64, res: &mut C64) {
     *res = (C64::I * f64::from(m) * phi).exp() * p;
-}
-
-fn sph_harm_y_for_each_n(
-    n: i32,
-    m: i32,
-    theta: f64,
-    phi: f64,
-    res: &mut C64,
-    mut f: impl FnMut(i32, i32, &C64),
-) {
-    let mut p = [0.0; 2];
-    sph_legendre_p_for_each_n(n, m, theta, &mut p, |n, p| {
-        sph_harm_y_next(m, phi, p[1], res);
-
-        f(n, m, res);
-    });
 }
 
 fn sph_harm_y_for_each_n_m(
@@ -43,8 +27,9 @@ fn sph_harm_y_for_each_n_m(
 }
 
 fn sph_harm_y_t(n: i32, m: i32, theta: f64, phi: f64) -> C64 {
+    // Unlike in xsf, the phase is applied once, as only the last degree is kept
     let mut res_n = C64::ZERO;
-    sph_harm_y_for_each_n(n, m, theta, phi, &mut res_n, |_, _, _| {});
+    sph_harm_y_next(m, phi, sph_legendre_p_t(n, m, theta), &mut res_n);
 
     res_n
 }
@@ -93,7 +78,7 @@ fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, C64, 2>) {
 ///
 /// # Panics
 /// - if `n` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
-/// - if `m` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
+/// - if `|m|` is greater than [`c_int::MAX`](core::ffi::c_int::MAX)
 ///
 /// # See also
 /// - [`sph_harm_y_all`]
@@ -102,7 +87,7 @@ fn sph_harm_y_all_t(theta: f64, phi: f64, mut res: Mdspan<'_, C64, 2>) {
 #[inline]
 pub fn sph_harm_y(n: usize, m: isize, theta: f64, phi: f64) -> Complex64 {
     assert!(n <= c_int::MAX as usize);
-    assert!(m.abs() <= c_int::MAX as isize);
+    assert!(m.unsigned_abs() <= c_int::MAX as usize);
     sph_harm_y_t(n.try_into().unwrap(), m.try_into().unwrap(), theta, phi).into()
 }
 
