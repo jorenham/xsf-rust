@@ -1438,8 +1438,8 @@ fn psi1_mod(x: f64) -> f64 {
         let gamma_kp1 = gamma(f64::from(k) + 1.0);
         let z = -psi1_term(k, x) / (PI * gamma_kp1);
         tot += z;
-        // also stop on NaN
-        if !(z.abs() >= 1e-7) {
+        // Unlike in xsf, stop at a relative tolerance instead of `|z| < 1e-7`. Also stops on NaN.
+        if !(z.abs() > f64::EPSILON * tot.abs()) {
             break;
         }
         k += 1;
@@ -1480,7 +1480,13 @@ pub fn cdf_cvm(x: f64, n: i32) -> f64 {
     if x >= upper {
         return 1.0;
     }
-    let cdf = cdf_cvm_inf(x) * (1.0 + lower) + psi1_mod(x) / f64::from(n);
+    let cdf_inf = cdf_cvm_inf(x);
+    // Unlike in xsf, 1 where the asymptotic CDF is 1 (x >= 8), as the finite-`n` one then rounds to
+    // 1 too, and the terms of `psi1_mod` converge slowly and can overflow for large x
+    if cdf_inf == 1.0 {
+        return 1.0;
+    }
+    let cdf = cdf_inf * (1.0 + lower) + psi1_mod(x) / f64::from(n);
     // `clamp` propagates NaN like `std::min(std::max(cdf, 0.0), 1.0)`
     cdf.clamp(0.0, 1.0)
 }

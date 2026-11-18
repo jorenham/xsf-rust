@@ -1102,6 +1102,19 @@ fn test_cdf_cvm_smoke() {
 }
 
 #[test]
+fn test_cdf_cvm_finite_n() {
+    // reference values from mpmath (the series of Csorgo and Faraway (1996) summed to convergence)
+    for &(x, n, p) in &[
+        (0.3, 50, 0.864_968_825_999_295_4),
+        (1.0, 100, 0.997_617_780_218_287_6),
+        (1.5, 10, 0.999_963_160_218_789_8),
+        (2.0, 30, 0.999_993_433_827_002_8),
+    ] {
+        xsref::np_assert_allclose!(&[xsf::cdf_cvm(x, n)], &[p], rtol = 4e-15);
+    }
+}
+
+#[test]
 fn test_cdf_cvm_nonfinite() {
     assert_eq!(xsf::cdf_cvm_inf(f64::INFINITY), 1.0);
     assert_eq!(xsf::cdf_cvm_inf(1e308), 1.0);
@@ -1109,5 +1122,9 @@ fn test_cdf_cvm_nonfinite() {
         assert_eq!(xsf::cdf_cvm(f64::INFINITY, n), 1.0);
         assert!(xsf::cdf_cvm(f64::NAN, n).is_nan());
     }
-    assert!(xsf::cdf_cvm(1e4, 1_000_000).is_nan());
+    assert_eq!(xsf::cdf_cvm(1e4, 1_000_000), 1.0);
+    // around where `cdf_cvm_inf` reaches 1; mpmath gives 1 - 3e-18 and 1 - 9e-19
+    xsref::np_assert_allclose!(&[xsf::cdf_cvm(7.75, 10_000)], &[1.0], rtol = 4e-15);
+    assert_eq!(xsf::cdf_cvm(8.0, 10_000), 1.0);
+    assert_eq!(xsf::cdf_cvm(1e8, 1_000_000_000), 1.0);
 }
