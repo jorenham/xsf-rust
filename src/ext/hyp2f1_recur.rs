@@ -36,8 +36,9 @@
 //! 4. For `x < -1`, first try the 1/x transformation (DLMF 15.8.2), as `w` is near 1 for large
 //!    `|x|`, where the series take about `|p| |x|` terms.
 //!    - Its two `F(..; 1/x)` are computed as above, with `w = 1 / (1 - x)`.
-//!    - If `a` or `c - b` is a non-positive integer, the term of `b` is 0 (at a pole of its Gamma
-//!      factors), which leaves that of `a`: for `a = -n`, the polynomial in `1/x`.
+//!    - If `b - a` is not an integer and `a` or `c - b` is a non-positive integer, the term of `b`
+//!      is 0 (at a pole of its Gamma factors), which leaves that of `a`: for `a = -n`, the
+//!      polynomial in `1/x`.
 //!    - The 4 combinations follow only if its error bound (incl. the cancellation of its two
 //!      terms) exceeds `HYP2F1_ETHRESH`.
 //!    - If `b - a` is near an integer (a pole of its Gamma factors), its two terms combined come
