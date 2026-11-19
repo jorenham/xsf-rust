@@ -306,6 +306,10 @@ def arb_confirms(arb: mapping.Arb, args: Args, ref: Ref) -> bool | None:
 
 def nearest_f32(s: str) -> float:
     """The f32 nearest to the decimal `s` (ties to even), as an f64, with the sign of `s`."""
+    sign = -1.0 if s.startswith("-") else 1.0
+    exp10 = int(s.partition("e")[2] or 0)
+    if abs(exp10) > 400:  # far outside of the f32s, and too large for a `Fraction`
+        return math.copysign(math.inf if exp10 > 0 else 0.0, sign)
     v = abs(Fraction(s))  # exact, so that it rounds once
     e = v.numerator.bit_length() - v.denominator.bit_length()
     e += v >= Fraction(2) ** e  # 2^(e - 1) <= v < 2^e
@@ -313,7 +317,7 @@ def nearest_f32(s: str) -> float:
     m = round(v / Fraction(2) ** q)
     # from the midpoint of F32_MAX and 2^128 on, it rounds to 2^128
     x = math.inf if m * Fraction(2) ** q > F32_MAX else math.ldexp(m, q)
-    return -x if s.startswith("-") else x
+    return math.copysign(x, sign)
 
 
 def validated(
