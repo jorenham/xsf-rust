@@ -15,6 +15,7 @@ use crate::xsf::cephes::dd_real::{
     DoubleDouble as Dd, FRAC_2_PI_DD, LN_PI_DD, LN_SQRT_2PI_DD, frexp_f64, ldexp_f64, two_prod,
     two_sum,
 };
+use crate::xsf::cephes::hyp2f1::HYP2F1_LOST;
 use crate::xsf::cephes::{gamma, gammasgn, lgam, rgamma};
 use crate::xsf::{cospi, sinpi, xsf_hypu_digits, xsf_hypu_min_digits};
 
@@ -77,11 +78,12 @@ impl Estimate {
         Self::new(y, err)
     }
 
-    /// `y` with the relative error `err` before it is rounded to `f64`, which may overflow, but
-    /// a subnormal `y` is not that accurate
+    /// `y` with the relative error `err` before it is rounded to `f64`, which may overflow, plus
+    /// the spacing of a subnormal `y` relative to it
     fn rounded(y: f64, err: f64) -> Self {
         let normal = y.is_normal() || y.is_infinite();
-        Self::new(y, if normal { err } else { f64::INFINITY })
+        let spacing = f64::from_bits(1) / y.abs();
+        Self::new(y, if normal { err } else { err + spacing })
     }
 
     /// `y` as `f64`, with its relative error plus the size of `other` relative to it
@@ -102,6 +104,17 @@ impl Estimate {
     /// The result, if it is accurate
     fn accurate(self) -> Option<f64> {
         self.is_accurate().then_some(self.y)
+    }
+
+    /// The result, unless its estimated error says that no digit may be correct
+    fn trusted(self) -> Option<f64> {
+        // (relative to the exact result, which y can miss by `err |y|`: `err / (1 - err)`)
+        (self.err < HYP2F1_LOST * (1.0 - self.err)).then_some(self.y)
+    }
+
+    /// The trusted result, or NaN if there is none
+    fn or_nan(y: Option<Self>) -> f64 {
+        y.and_then(Self::trusted).unwrap_or(f64::NAN)
     }
 }
 
@@ -850,15 +863,16 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
 ///   polynomial of degree $\lt m$;
 /// - $\pm\infty$ at $z = 1$ for finite parameters if $b_1 + b_2 \le a_1 + a_2 + a_3$, the sign
 ///   of its limit from below, unless it is a polynomial or that can't be determined (then
-///   `None`);
+///   NaN);
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
-/// # Returns `None`
+/// # Returns NaN
 ///
-/// If the relative error could exceed about $10^{-13}$:
+/// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - for some $1 - 10^{-5} \lesssim z \le 1$, also where an $a_i$ cancels a $b_j$;
+/// - for many $1 - 10^{-5} \lesssim z \le 1$, also where an $a_i$ cancels a $b_j$;
+/// - for many $z \lesssim -10^{30}$;
 /// - if the terms cancel too much (e.g. for large parameters), overflow, or underflow;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -870,8 +884,8 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
 /// - [`hyp2f1`](crate::hyp2f1): Gauss' hypergeometric function, $\hyp 2 1 {a_1\enspace a_2} b z$
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 #[must_use]
-pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    hyp3f2_estimate(a1, a2, a3, b1, b2, z)?.accurate()
+pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> f64 {
+    Estimate::or_nan(hyp3f2_estimate(a1, a2, a3, b1, b2, z))
 }
 
 /// `hyp3f2` and an estimate of its relative error
@@ -1545,17 +1559,16 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Estimate> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $\pm\infty$ if it overflows, for large $z > 0$;
+/// - $\pm\infty$ where it detects that it overflows, for large $\abs z$, and otherwise NaN;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
-/// # Returns `None`
+/// # Returns NaN
 ///
-/// If the relative error could exceed about $10^{-13}$:
+/// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - for some $z < 0$, e.g. $-50 < z < -25$ if all $\abs{a_i}, \abs{b_j} \le 3$, and wider for
-///   larger parameters;
-/// - for some large parameters, also for $z > 0$;
+/// - for some large parameters, e.g. in random samples, for about 16% of $-10^3 < z < 0$ and 9% of
+///   $0 < z < 10^3$ if all $\abs{a_i}, \abs{b_j} \le 100$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -1566,8 +1579,8 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Estimate> {
 /// - [`hyp3f2`]: Generalized hypergeometric function,
 ///   $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$
 #[must_use]
-pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    hyp2f2_estimate(a1, a2, b1, b2, z)?.accurate()
+pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> f64 {
+    Estimate::or_nan(hyp2f2_estimate(a1, a2, b1, b2, z))
 }
 
 /// `hyp2f2` and an estimate of its relative error
@@ -1717,17 +1730,17 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $\pm\infty$ if it overflows, for large $z > 0$;
+/// - $\pm\infty$ where it detects that it overflows, for large $\abs z$, and otherwise NaN;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
-/// # Returns `None`
+/// # Returns NaN
 ///
-/// If the relative error could exceed about $10^{-13}$:
+/// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - for some $z < 0$, e.g. in random samples, for about 4% of $-10^3 < z < 0$ and half of
-///   $-10^{40} < z < -10^{32}$ if all $\abs a, \abs{b_j} \le 10$, and half of
-///   $-10^5 < z < -10^3$ if they are up to 100;
+/// - for about half of $z < -10^{40}$;
+/// - for some large parameters, e.g. in random samples, for about 13% of $-10^5 < z < -10^3$ and
+///   7% of $0 < z < 10^5$ if all $\abs a, \abs{b_j} \le 100$;
 /// - near a zero, or if the result underflows;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -1738,8 +1751,8 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
 /// - [`hyp2f2`]: Generalized hypergeometric function,
 ///   $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$
 #[must_use]
-pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
-    hyp1f2_estimate(a, b1, b2, z)?.accurate()
+pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> f64 {
+    Estimate::or_nan(hyp1f2_estimate(a, b1, b2, z))
 }
 
 /// `hyp1f2` and an estimate of its relative error
@@ -2357,6 +2370,13 @@ macro_rules! hyp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_estimate_absolute_at_tol() {
+        // `err / y` rounds to the float above `PFQ_TOL`
+        let y = 0.012_571_498_510_638_38;
+        assert!(Estimate::absolute((y, PFQ_TOL * y)).is_accurate());
+    }
 
     #[test]
     fn test_pfq_sum_rescales_repeatedly() {

@@ -3,7 +3,7 @@ use xsf::{hyp0f0, hyp0f1, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
-    let actual = hyp3f2(a[0], a[1], a[2], b[0], b[1], z).unwrap();
+    let actual = hyp3f2(a[0], a[1], a[2], b[0], b[1], z);
     assert!(
         (actual - expected).abs() <= 1e-13 * expected.abs(),
         "hyp3f2({a:?}, {b:?}, {z}) = {actual} != {expected}"
@@ -24,7 +24,7 @@ fn test_hyp3f2_series() {
     }
     // the parts of the error estimate would overflow (Arb)
     let y = hyp3f2(2.0, 1.0, 900.2, 4.5, 350.2, 0.8);
-    assert!(y.is_none_or(|y| (y / 3.717_681_528_889_451e152 - 1.0).abs() < 1e-13));
+    assert!(y.is_nan() || (y / 3.717_681_528_889_451e152 - 1.0).abs() < 1e-13);
 }
 
 #[test]
@@ -38,46 +38,46 @@ fn test_hyp3f2_polynomial() {
     ] {
         assert_hyp3f2(a, b, z, expected);
     }
-    assert_eq!(hyp3f2(0.0, 2.5, 3.5, -1.0, 2.0, 0.75), Some(1.0));
+    assert_eq!(hyp3f2(0.0, 2.5, 3.5, -1.0, 2.0, 0.75), 1.0);
 }
 
 #[test]
 fn test_hyp3f2_special() {
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.0), Some(1.0));
-    assert!(hyp3f2(f64::NAN, 2.5, 3.5, 0.5, 4.5, 0.25).unwrap().is_nan());
-    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NAN).unwrap().is_nan());
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.0), 1.0);
+    assert!(hyp3f2(f64::NAN, 2.5, 3.5, 0.5, 4.5, 0.25).is_nan());
+    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NAN).is_nan());
     // the limits of `hyppfq` for an infinite argument
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, f64::INFINITY, 0.25), Some(1.0));
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NEG_INFINITY), Some(0.0));
-    assert_eq!(hyp3f2(f64::INFINITY, 2.5, 3.5, 0.5, 4.5, 0.25), None);
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, f64::INFINITY, 0.25), 1.0);
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, f64::NEG_INFINITY), 0.0);
+    assert!(hyp3f2(f64::INFINITY, 2.5, 3.5, 0.5, 4.5, 0.25).is_nan());
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, -2.0, 0.25), Some(f64::INFINITY));
-    assert_eq!(hyp3f2(1.5, -3.0, 3.5, 0.5, -2.0, 0.25), Some(f64::INFINITY));
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, -2.0, 0.25), f64::INFINITY);
+    assert_eq!(hyp3f2(1.5, -3.0, 3.5, 0.5, -2.0, 0.25), f64::INFINITY);
 
     // complex for z > 1
-    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.5).unwrap().is_nan());
+    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.5).is_nan());
     // where the series diverges
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.0), Some(f64::INFINITY));
-    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1.5, 1.5, 1.0), Some(f64::INFINITY));
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.0), f64::INFINITY);
+    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1.5, 1.5, 1.0), f64::INFINITY);
     // with the sign of the late terms (gh-1645)
-    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, 0.5, 3.25, 1.0), Some(f64::NEG_INFINITY));
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, -0.5, 3.25, 1.0), Some(f64::NEG_INFINITY));
-    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, -0.25, 3.25, 1.0), Some(f64::INFINITY));
+    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, 0.5, 3.25, 1.0), f64::NEG_INFINITY);
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, -0.5, 3.25, 1.0), f64::NEG_INFINITY);
+    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, -0.25, 3.25, 1.0), f64::INFINITY);
     // the 2F1 left by a cancellation, with a zero excess
-    assert_eq!(hyp3f2(-2.0, -0.5, 1.25, -2.0, 0.75, 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp3f2(-2.0, -0.5, 1.25, -2.0, 0.75, 1.0), f64::NEG_INFINITY);
     let (a, b) = (
         [1.256_488_541_180_713_6, -0.452_965_067_141_963_83, 0.175_520_285_123_398_8],
         [0.968_097_853_412_922_8, -1.366_013_156_809_728_5],
     );
-    assert_eq!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0), f64::NEG_INFINITY);
     assert_eq!(hyppfq(&[0.5, 1.5, 2.5, 3.5], &[-0.5, 1.25, 2.25], 1.0), Some(f64::NEG_INFINITY));
     // b_1 + b_2 - a_1 - a_2 - a_3 = 2.8e-17 rounds to 0; the result is 2.5e15 (Arb)
     let y = hyp3f2(5.0, 0.1, 0.2, 5.0, 0.300_000_000_000_000_04, 1.0);
-    assert!(y.is_none_or(|y| (y / 2.467_832_059_538_944e15 - 1.0).abs() < 1e-13));
+    assert!(y.is_nan() || (y / 2.467_832_059_538_944e15 - 1.0).abs() < 1e-13);
     // the excess 1e-300 is below the rounding of the double-double sums
     let y = hyp3f2(0.750_000_000_000_000_2, 2.5, -1e-300, 1.750_000_000_000_000_2, 1.5, 1.0);
-    assert!(y.is_none_or(|y| (y / 0.499_999_999_999_999_85 - 1.0).abs() < 1e-13));
+    assert!(y.is_nan() || (y / 0.499_999_999_999_999_85 - 1.0).abs() < 1e-13);
 
     // a common parameter cancels, also a non-positive integer
     for z in [-30.0, 0.25, 0.95] {
@@ -101,9 +101,9 @@ fn test_hyp3f2_special() {
     assert_hyp3f2(a, [1.0, 5.0], 1.0, -2.0 * half_eps);
     // just below f64::MAX (exact reference)
     let y = hyp3f2(-536.0, -537.0, 5.0, 7.875_869_841_387_024, 5.0, 1.0);
-    assert!(y.is_none_or(|y| (y / 1.797_693_134_862_315_3e308 - 1.0).abs() < 1e-13));
-    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 6.5, 1.5).unwrap().is_nan());
-    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 1.5, 1.5).unwrap().is_nan());
+    assert!(y.is_nan() || (y / 1.797_693_134_862_315_3e308 - 1.0).abs() < 1e-13);
+    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 6.5, 1.5).is_nan());
+    assert!(hyp3f2(1.5, 2.5, 3.25, 2.5, 1.5, 1.5).is_nan());
 
     // z < -1 with a common parameter; Arb references
     // the factors of a coefficient of the continuation underflow, unlike their product
@@ -244,16 +244,19 @@ fn test_hyp3f2_recurrence() {
     }
     // b_1 is subnormal, so that the last step divides by a product that underflows (Arb)
     let y = hyp3f2(0.25, 1.2, 0.3, 1e-316, 2.0, 7e-9);
-    assert!(y.is_none_or(|y| (y / 3.150_000_064_610_025e306 - 1.0).abs() < 1e-13));
+    assert!(y.is_nan() || (y / 3.150_000_064_610_025e306 - 1.0).abs() < 1e-13);
 }
 
 #[test]
-fn test_hyp3f2_none() {
+fn test_hyp3f2_nan() {
     // z = 1, and too close to it
-    assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0), None);
-    assert_eq!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8), None);
+    assert!(hyp3f2(1.5, 2.5, 3.5, 0.5, 8.5, 1.0).is_nan());
+    assert!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8).is_nan());
     // a huge negative parameter
-    assert_eq!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9), None);
+    assert!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9).is_nan());
+    // a method with a NaN error estimate is not trusted, but another one is (Arb reference)
+    let y = hyp3f2(28.5, 1.25, 80.625, 20.125, 5.5, -1.125);
+    assert!((y / 0.014_103_262_754_441 - 1.0).abs() < 1e-3);
 }
 
 #[test]
@@ -262,21 +265,21 @@ fn test_hyp3f2_underflow() {
     let (a, b) = ([1e-170, 1e-170, 100.0], [1e-150, 2e-150]);
     assert_hyp3f2(a, b, 0.75, 8.034_690_221_294_95e19);
     // the terms underflow, and stay negligible
-    assert_eq!(hyp3f2(-30.0, 1.0, 1.0, 2.0, 2.0, 1e-20), Some(1.0));
-    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1e200, 1e200, 0.5), Some(1.0));
-    assert_eq!(hyp3f2(1e-320, 1.0, 1.0, 2.0, 2.0, 0.5), Some(1.0));
+    assert_eq!(hyp3f2(-30.0, 1.0, 1.0, 2.0, 2.0, 1e-20), 1.0);
+    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1e200, 1e200, 0.5), 1.0);
+    assert_eq!(hyp3f2(1e-320, 1.0, 1.0, 2.0, 2.0, 0.5), 1.0);
     // the first term underflows, and later ones are large
-    assert_eq!(hyp3f2(1e-200, 1e-200, 500.0, 1.0, 1.0, 0.9), None);
+    assert!(hyp3f2(1e-200, 1e-200, 500.0, 1.0, 1.0, 0.9).is_nan());
     // the first terms are negligible, and later ones overflow
-    assert_eq!(hyp3f2(1e-30, 1e-30, 500.0, 1.0, 1.0, 0.9), None);
+    assert!(hyp3f2(1e-30, 1e-30, 500.0, 1.0, 1.0, 0.9).is_nan());
     // the same at z = -1, where the series is summed by the sequence transformation
-    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 1e300, -1.0), Some(1.0));
-    assert_eq!(hyp3f2(1e-200, 1e-200, -1500.5, 1.0, 1.0, -1.0), None);
+    assert_eq!(hyp3f2(1.0, 1.0, 1.0, 2.0, 1e300, -1.0), 1.0);
+    assert!(hyp3f2(1e-200, 1e-200, -1500.5, 1.0, 1.0, -1.0).is_nan());
 }
 
 /// Asserts that `hyp2f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp2f2(a: [f64; 2], b: [f64; 2], z: f64, expected: f64) {
-    let actual = hyp2f2(a[0], a[1], b[0], b[1], z).unwrap();
+    let actual = hyp2f2(a[0], a[1], b[0], b[1], z);
     assert!(
         (actual - expected).abs() <= 1e-13 * expected.abs(),
         "hyp2f2({a:?}, {b:?}, {z}) = {actual} != {expected}"
@@ -327,24 +330,24 @@ fn test_hyp2f2_polynomial() {
 
 #[test]
 fn test_hyp2f2_special() {
-    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, 0.0), Some(1.0));
-    assert!(hyp2f2(f64::NAN, 2.5, 3.5, 4.5, 0.25).unwrap().is_nan());
-    assert!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NAN).unwrap().is_nan());
+    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, 0.0), 1.0);
+    assert!(hyp2f2(f64::NAN, 2.5, 3.5, 4.5, 0.25).is_nan());
+    assert!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NAN).is_nan());
     // the limits of `hyppfq` for an infinite argument
-    assert_eq!(hyp2f2(1.5, 2.5, f64::INFINITY, 4.5, 0.25), Some(1.0));
-    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NEG_INFINITY), Some(0.0));
-    assert_eq!(hyp2f2(1.5, -2.5, 3.5, 4.5, f64::INFINITY), Some(f64::NEG_INFINITY));
-    assert_eq!(hyp2f2(f64::INFINITY, 2.5, 3.5, 4.5, 0.25), None);
+    assert_eq!(hyp2f2(1.5, 2.5, f64::INFINITY, 4.5, 0.25), 1.0);
+    assert_eq!(hyp2f2(1.5, 2.5, 3.5, 4.5, f64::NEG_INFINITY), 0.0);
+    assert_eq!(hyp2f2(1.5, -2.5, 3.5, 4.5, f64::INFINITY), f64::NEG_INFINITY);
+    assert!(hyp2f2(f64::INFINITY, 2.5, 3.5, 4.5, 0.25).is_nan());
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
-    assert_eq!(hyp2f2(1.5, 2.5, 3.5, -2.0, 0.25), Some(f64::INFINITY));
-    assert_eq!(hyp2f2(1.5, -3.0, 3.5, -2.0, 0.25), Some(f64::INFINITY));
+    assert_eq!(hyp2f2(1.5, 2.5, 3.5, -2.0, 0.25), f64::INFINITY);
+    assert_eq!(hyp2f2(1.5, -3.0, 3.5, -2.0, 0.25), f64::INFINITY);
 
     // a common parameter cancels, also at a pole (Arb references of 1F1)
     assert_hyp2f2([1.5, 2.5], [3.5, 2.5], -2.5, 0.401_651_681_832_597_7);
     assert_hyp2f2([1.5, 2.5], [3.5, 2.5], 3.0, 4.636_813_090_326_332);
     assert_hyp2f2([-3.0, 2.5], [4.0, -3.0], -12.5, 0.010_921_207_435_195_95);
-    assert_eq!(hyp2f2(1.5, 2.5, 2.5, 1.5, -3.0), Some((-3.0_f64).exp()));
+    assert_eq!(hyp2f2(1.5, 2.5, 2.5, 1.5, -3.0), (-3.0_f64).exp());
 }
 
 #[test]
@@ -426,22 +429,22 @@ fn test_hyp2f2_asymptotic() {
         assert_hyp2f2(a, b, z, expected);
     }
     // residues 3 and 4 of the algebraic part nearly vanish at this z, unlike those after them:
-    // accurate or `None` (Arb reference)
+    // accurate or NaN (Arb reference)
     let (b, z) = ([-1.5, -8.886_363_636_363_637], -110.305_786_588_507_15);
     let y = hyp2f2(0.75, 0.75, b[0], b[1], z);
     let expected = -0.205_817_644_249_452_2_f64;
-    assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
+    assert!(y.is_nan() || (y - expected).abs() <= 1e-13 * expected.abs());
     // equal a_i within sqrt(eps) of b_2, where the algebraic part changes much with a_1
     let t = -(2.0_f64.powi(-40));
     let b = [t - 1.0, t + f64::EPSILON.sqrt()];
     assert_hyp2f2([t, t], b, 30.0, 18_916_422_175.581_42);
     // overflow
-    assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), Some(f64::INFINITY));
-    assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), Some(f64::INFINITY));
-    assert_eq!(hyp2f2(0.25, -0.5, 1.5, 3.5, 1e5), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp2f2(1.5, 2.25, 3.5, 4.75, 800.0), f64::INFINITY);
+    assert_eq!(hyp2f2(2.0, 4.0, 4.0, 7.5, 900.0), f64::INFINITY);
+    assert_eq!(hyp2f2(0.25, -0.5, 1.5, 3.5, 1e5), f64::NEG_INFINITY);
     // also for a huge z, with the sign of Gamma(b_1)
-    assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), Some(f64::INFINITY));
-    assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp2f2(1.5, 2.0, 2.5, 3.5, 1e300), f64::INFINITY);
+    assert_eq!(hyp2f2(1.5, 2.0, -2.5, 3.5, 1e300), f64::NEG_INFINITY);
 }
 
 #[test]
@@ -463,19 +466,30 @@ fn test_hyp2f2_asymptotic_double_double() {
 }
 
 #[test]
-fn test_hyp2f2_none() {
-    // the series cancels, and |z| is too small for the asymptotic expansion
-    assert_eq!(hyp2f2(2.5, 3.25, -0.5, 1.75, -40.0), None);
+fn test_hyp2f2_inaccurate() {
+    // the series cancels, and |z| is too small for the asymptotic expansion: about 8 digits, too
+    // few for `hyppfq` (Arb reference)
+    let y = hyp2f2(2.5, 3.25, -0.5, 1.75, -40.0);
+    assert!((y / 2.190_480_405_532_719e-4 - 1.0).abs() < 1e-7);
+    assert_eq!(hyppfq(&[2.5, 3.25], &[-0.5, 1.75], -40.0), None);
     // e^z times a polynomial, where the algebraic part vanishes
-    assert_eq!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0), None);
-    // the result underflows
-    assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), None);
-    assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0), None);
+    assert!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0).is_nan());
+    // an error of 0.499 of the result, which is twice the exact one (Arb: -503_991_821.928_347)
+    assert!(hyp2f2(-13.5, 1e-4, -39.5, -26.999_999_999_999_9, -74.5).is_nan());
+    // the result underflows to the smallest subnormal
+    assert!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0).is_nan());
+    // subnormal results, accurate to their spacing (mpmath references)
+    assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -709.0), 1.216_780_750_623_423e-308);
+    assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
+    // an overflow that it does not detect (Arb: 6.730_996_089e594)
+    assert!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0).is_nan());
+    // one that it detects, for a negative z (Arb: 1.306_688_482e355)
+    assert_eq!(hyp2f2(-160.5, 0.25, 1.0, 1.0, -1e4), f64::INFINITY);
 }
 
 /// Asserts that `hyp1f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp1f2(a: f64, b: [f64; 2], z: f64, expected: f64) {
-    let actual = hyp1f2(a, b[0], b[1], z).unwrap();
+    let actual = hyp1f2(a, b[0], b[1], z);
     assert!(
         (actual - expected).abs() <= 1e-13 * expected.abs(),
         "hyp1f2({a}, {b:?}, {z}) = {actual} != {expected}"
@@ -512,23 +526,23 @@ fn test_hyp1f2_polynomial() {
     }
     // its estimated absolute error is exactly the tolerance
     let y = hyp1f2(-2.0, 6.160_584_865_114_734, 7.458_449_265_939_545, 30.228_957_868_979_32);
-    assert_eq!(y, Some(0.012_571_498_510_638_38));
+    assert_eq!(y, 0.012_571_498_510_638_38);
 }
 
 #[test]
 fn test_hyp1f2_special() {
-    assert_eq!(hyp1f2(1.5, 3.5, 4.5, 0.0), Some(1.0));
-    assert!(hyp1f2(f64::NAN, 3.5, 4.5, 0.25).unwrap().is_nan());
-    assert!(hyp1f2(1.5, 3.5, 4.5, f64::NAN).unwrap().is_nan());
+    assert_eq!(hyp1f2(1.5, 3.5, 4.5, 0.0), 1.0);
+    assert!(hyp1f2(f64::NAN, 3.5, 4.5, 0.25).is_nan());
+    assert!(hyp1f2(1.5, 3.5, 4.5, f64::NAN).is_nan());
     // the limits of `hyppfq` for an infinite argument
-    assert_eq!(hyp1f2(1.5, f64::INFINITY, 4.5, 0.25), Some(1.0));
-    assert_eq!(hyp1f2(1.5, -2.5, 3.5, f64::INFINITY), Some(f64::NEG_INFINITY));
-    assert_eq!(hyp1f2(-3.0, 2.5, 3.5, f64::NEG_INFINITY), Some(f64::INFINITY));
-    assert_eq!(hyp1f2(1.5, 0.25, 0.5, f64::NEG_INFINITY), None);
+    assert_eq!(hyp1f2(1.5, f64::INFINITY, 4.5, 0.25), 1.0);
+    assert_eq!(hyp1f2(1.5, -2.5, 3.5, f64::INFINITY), f64::NEG_INFINITY);
+    assert_eq!(hyp1f2(-3.0, 2.5, 3.5, f64::NEG_INFINITY), f64::INFINITY);
+    assert!(hyp1f2(1.5, 0.25, 0.5, f64::NEG_INFINITY).is_nan());
 
     // a zero of (b_2)_n, also if the polynomial terminates after it
-    assert_eq!(hyp1f2(1.5, 3.5, -2.0, 0.25), Some(f64::INFINITY));
-    assert_eq!(hyp1f2(-3.0, 3.5, -2.0, 0.25), Some(f64::INFINITY));
+    assert_eq!(hyp1f2(1.5, 3.5, -2.0, 0.25), f64::INFINITY);
+    assert_eq!(hyp1f2(-3.0, 3.5, -2.0, 0.25), f64::INFINITY);
 
     // a common parameter cancels, also at a pole (Arb reference of 0F1)
     assert_hyp1f2(3.5, [3.5, 4.0], -12.5, -0.024_903_987_549_189_11);
@@ -558,21 +572,27 @@ fn test_hyp1f2_asymptotic() {
         assert_hyp1f2(a, b, z, expected);
     }
     // overflow
-    assert_eq!(hyp1f2(1.5, 0.5, 3.5, 2e5), Some(f64::INFINITY));
-    assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), Some(f64::NEG_INFINITY));
-    assert_eq!(hyp1f2(1.5, 2.25, 3.5, 2e5), Some(f64::INFINITY));
-    assert_eq!(hyp1f2(-0.5, 2.25, 3.5, 2e5), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp1f2(1.5, 0.5, 3.5, 2e5), f64::INFINITY);
+    assert_eq!(hyp1f2(1.5, -0.5, 3.5, 2e5), f64::NEG_INFINITY);
+    assert_eq!(hyp1f2(1.5, 2.25, 3.5, 2e5), f64::INFINITY);
+    assert_eq!(hyp1f2(-0.5, 2.25, 3.5, 2e5), f64::NEG_INFINITY);
     // also for a huge z
-    assert_eq!(hyp1f2(1.5, 2.5, 3.5, 1e100), Some(f64::INFINITY));
-    assert_eq!(hyp1f2(1.5, -2.5, 3.5, 1e100), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp1f2(1.5, 2.5, 3.5, 1e100), f64::INFINITY);
+    assert_eq!(hyp1f2(1.5, -2.5, 3.5, 1e100), f64::NEG_INFINITY);
 }
 
 #[test]
-fn test_hyp1f2_none() {
+fn test_hyp1f2_inaccurate() {
     // the series cancels, and |z| is too small for the asymptotic expansion
-    assert_eq!(hyp1f2(25.5, 1.25, 0.05, -4000.0), None);
-    // the phase 2 sqrt(-z) of the oscillating part is too large
-    assert_eq!(hyp1f2(0.5, 0.5, 0.25, -1e40), None);
+    assert!(hyp1f2(25.5, 1.25, 0.05, -4000.0).is_nan());
+    // the phase 2 sqrt(-z) of the oscillating part is large: about 11 digits (mpmath:
+    // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
+    let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
+    assert!((y / -98_243.753_444_667_18 - 1.0).abs() < 1e-11);
+    // an overflow that it does not detect (Arb: 2.617_687_386e341)
+    assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
+    // one that it detects, for a negative z (Arb: 1.026_573_294e324)
+    assert_eq!(hyp1f2(-120.5, 1.0, 1.0, -1e6), f64::INFINITY);
 }
 
 #[test]
@@ -582,9 +602,9 @@ fn test_pfq_extreme_products() {
     assert_eq!(hyppfq(&[-1.0, tiny, tiny, huge, huge], &[], 2.0), Some(-1.0));
     // exact, where a partial product of the lower parameters is 2^-1023
     let (tiny, huge) = (f64::MIN_POSITIVE / 2.0, 2.0_f64.powi(1023));
-    assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), Some(2.0));
-    assert_eq!(hyp2f2(-1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
-    assert_eq!(hyp3f2(-1.0, 1.0, 2.0, tiny, -huge, 1.0), Some(3.0));
+    assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), 2.0);
+    assert_eq!(hyp2f2(-1.0, 2.0, tiny, -huge, 1.0), 3.0);
+    assert_eq!(hyp3f2(-1.0, 1.0, 2.0, tiny, -huge, 1.0), 3.0);
     // the power of 2 of a product exceeds `i32`, and the second term overflows
     let mut a = vec![huge; 4_198_404];
     a.extend([-1.0, 16.0]);
@@ -595,7 +615,6 @@ fn test_pfq_extreme_products() {
         (hyp2f2(-3.0, -1.3e-315, -1.5e-45, 8e-317, 0.829), -7.693_166_057_368_33e45),
         (hyp3f2(-2.534, -1.4e-312, -3.0, -1.1e-249, -5e-147, 0.019), -3.783_943_130_613_643e82),
     ] {
-        let actual = actual.unwrap();
         assert!((actual - expected).abs() <= 1e-15 * expected.abs(), "{actual} != {expected}");
     }
 }
@@ -608,9 +627,12 @@ fn test_hyppfq_routing() {
     assert_eq!(hyppfq(&[], &[1.5], z), Some(hyp0f1(1.5, z)));
     assert_eq!(hyppfq(&[0.5], &[1.5], z), Some(hyp1f1(0.5, 1.5, z)));
     assert_eq!(hyppfq(&[0.3, 0.7], &[1.5], z), Some(hyp2f1(0.3, 0.7, 1.5, z)));
-    assert_eq!(hyppfq(&[0.5], &[1.5, 2.5], z), hyp1f2(0.5, 1.5, 2.5, z));
-    assert_eq!(hyppfq(&[0.5, -1.5], &[1.5, 2.5], z), hyp2f2(0.5, -1.5, 1.5, 2.5, z));
-    assert_eq!(hyppfq(&[0.5, 1.5, 3.5], &[2.25, 4.5], z), hyp3f2(0.5, 1.5, 3.5, 2.25, 4.5, z));
+    assert_eq!(hyppfq(&[0.5], &[1.5, 2.5], z), Some(hyp1f2(0.5, 1.5, 2.5, z)));
+    assert_eq!(hyppfq(&[0.5, -1.5], &[1.5, 2.5], z), Some(hyp2f2(0.5, -1.5, 1.5, 2.5, z)));
+    assert_eq!(
+        hyppfq(&[0.5, 1.5, 3.5], &[2.25, 4.5], z),
+        Some(hyp3f2(0.5, 1.5, 3.5, 2.25, 4.5, z))
+    );
 }
 
 #[test]

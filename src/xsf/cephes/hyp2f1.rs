@@ -32,9 +32,9 @@ pub(crate) const HYP2F1_ETHRESH: f64 = 1.0e-12;
 /// an accurate series of the Pfaff transformations, as that is often more accurate than its own
 /// estimate (empirical)
 const HYP2F1_RECIP_MAX_ERR: f64 = 1.0e-13;
-/// The estimated relative error from which `hyp2f1` returns NaN: if a sum is only rounding error,
-/// then its estimate is about 1/2 to 1.
-const HYP2F1_LOST: f64 = 0.5;
+/// The estimated relative error from which `hyp2f1` and the fixed-arity pFq functions return NaN:
+/// if a sum is only rounding error, then its estimate is about 1/2 to 1.
+pub(crate) const HYP2F1_LOST: f64 = 0.5;
 const HYP2F1_MAXITER: u64 = 10000;
 /// About `sqrt(f64::MAX)`, to rescale tiny terms exactly, far from overflow and underflow
 const HYP2F1_SCALE: f64 = pow2(512);
