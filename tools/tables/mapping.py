@@ -85,6 +85,7 @@ class Entry:
 
 
 NAN: Final = Rule(lambda a: any(map(math.isnan, a)), math.nan, "NaN propagates")
+COMPLEX_NAN: Final = Rule(NAN.when, complex(math.nan, math.nan), NAN.why)
 INF: Final = Rule(lambda a: a[0] == math.inf, math.inf, "the limit for x -> +inf")
 NEG_INF: Final = Rule(lambda a: a[0] == -math.inf, math.nan, "no limit for x -> -inf")
 POLE: Final = Rule(
@@ -680,12 +681,11 @@ def _kelvin_out(kind: int) -> Out:
 def _kelvin_complex_out(j: int) -> Out:
     """Be, Ke, Be', or Ke' (j = 0 to 3)"""
     parts = (2 * j, 2 * j + 1)
-    nan = complex(math.nan, math.nan)
     return Out(
         f"kelvin.{j}",
         tuple(_kelvin(k) for k in parts),
         tuple(_kelvin_arb(k) for k in parts),
-        (Rule(lambda a: a[0] < 0, nan, KE_NEGATIVE),) if j % 2 else (),
+        (Rule(lambda a: a[0] < 0, COMPLEX_NAN.value, KE_NEGATIVE),) if j % 2 else (),
         (KELVIN_OVERRIDE,),
     )
 
@@ -797,6 +797,35 @@ def _real(
     return Entry((Out(func, (ref,), (arb,), rules, overrides),))
 
 
+def _complex(
+    func: str,
+    ref: Callable[..., mp.mpc],
+    arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
+    rules: tuple[Rule, ...] = (),
+) -> Entry:
+    """A table with a complex output of complex inputs, which are (real, imaginary) pairs of
+    f64s: `ref` takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
+
+    def ref_part(part: int) -> Callable[..., mp.mpf]:
+        def value(*a: mp.mpf) -> mp.mpf:
+            return (mp.re, mp.im)[part](ref(*a))
+
+        return value
+
+    def arb_part(part: int) -> Arb:
+        def ball(*a: flint.arb) -> flint.arb:
+            # the bits that exp(z) and a periodic reduction of z lose to the magnitude of z
+            bits = max(math.frexp(float(x))[1] for x in a)
+            with flint.ctx.extraprec(max(bits, 0)):
+                z = arb(*(flint.acb(*a[k : k + 2]) for k in range(0, len(a), 2)))
+            return z.imag if part else z.real
+
+        return ball
+
+    refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
+    return Entry((Out(func, refs, arbs, rules),))
+
+
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
     """S (i = 0) or C (i = 1) with the normalization of scipy."""
     return _exp_square(lambda x: (x.fresnel_s, x.fresnel_c)[i](normalized=True))
@@ -885,6 +914,33 @@ EXPIT_OVERRIDE: Final = Override(
 LOG1P_DOMAIN: Final = Rule(lambda a: a[-1] < -1, math.nan, "log1p is not real below -1")
 # like in xsf, also where the logarithm is infinite
 X_ZERO: Final = Rule(lambda a: a[0] == 0, 0.0, "x log y = 0 for x = 0")
+COMPLEX_X_ZERO: Final = Rule(lambda a: a[0] == a[1] == 0, 0j, X_ZERO.why)
+
+
+def _log1p_at_inf(phase: float, name: str) -> Rule:
+    """The limit of ln(1 + z) for z -> inf with arg z = `phase`, like C's clog."""
+    return Rule(
+        lambda a: (
+            any(map(math.isinf, a))
+            and not any(map(math.isnan, a))
+            and math.atan2(a[1], a[0]).hex() == phase.hex()
+        ),
+        complex(math.inf, phase),
+        f"ln(1 + z) -> inf + {name} i for an infinite z with arg z = {name}, like C's clog",
+    )
+
+
+LOG1P_AT_INF: Final = (
+    *(
+        _log1p_at_inf(k * math.pi / 4, name)
+        for k, name in enumerate(("0", "pi/4", "pi/2", "3 pi/4", "pi"))
+    ),
+    Rule(
+        lambda a: any(map(math.isinf, a)) and any(map(math.isnan, a)),
+        complex(math.inf, math.nan),
+        "ln(1 + z) -> inf + NaN i for an infinite z with a NaN part, like C's clog",
+    ),
+)
 
 
 def _sign_at(x: float, n: float) -> float:
@@ -3305,6 +3361,20 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             Rule(lambda a: a[0] == -1, -math.inf, "the limit for x -> -1+"),
         ),
     ),
+    ("log1p", "cd-cd"): _complex(
+        "log1p",
+        specs._c(mp.log1p),
+        flint.acb.log1p,
+        (
+            *LOG1P_AT_INF,
+            COMPLEX_NAN,
+            Rule(
+                lambda a: a[0] == -1 and a[1] == 0 and math.copysign(1, a[1]) > 0,
+                complex(-math.inf, 0),
+                "ln(1 + z) -> -inf + 0i for z -> -1 along Im z = +0, like C's clog",
+            ),
+        ),
+    ),
     ("log1pmx", "d-d"): _real(
         "log1pmx", _log1pmx, lambda x: x.log1p() - x, (LOG1P_DOMAIN,)
     ),
@@ -3348,6 +3418,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         ),
     ),
+    ("xlogy", "cd_cd-cd"): _complex(
+        "xlogy", specs.c_xlogy, lambda x, y: x * y.log(), (COMPLEX_NAN, COMPLEX_X_ZERO)
+    ),
     ("xlog1py", "d_d-d"): _real(
         "xlog1py",
         specs.r_xlog1py,
@@ -3362,6 +3435,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             Rule(lambda a: a[0] < 0 and a[1] == -1, math.inf, "the limit for y -> -1+"),
         ),
     ),
+    ("xlog1py", "cd_cd-cd"): _complex(
+        "xlog1py", specs.c_xlog1py, lambda x, y: x * y.log1p()
+    ),
     ("sinpi", "d-d"): _real(
         "sinpi",
         specs.r_sinpi,
@@ -3372,12 +3448,14 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             "sin(pi n) = +-0 with the sign of (-1)^n n, like in xsf",
         ),
     ),
+    ("sinpi", "cd-cd"): _complex("sinpi", specs._c(mp.sinpi), flint.acb.sin_pi),
     ("cospi", "d-d"): _real(
         "cospi",
         specs.r_cospi,
         flint.arb.cos_pi,
         (Rule(lambda a: a[0] % 1 == 0.5, 0.0, "cos(pi (n + 1/2)) = +0, like in xsf"),),
     ),
+    ("cospi", "cd-cd"): _complex("cospi", specs._c(mp.cospi), flint.acb.cos_pi),
     ("sindg", "d-d"): _real("sindg", specs.r_sindg, _degrees(flint.arb.sin_pi)),
     ("cosdg", "d-d"): _real(
         "cosdg",
