@@ -13,6 +13,7 @@ from typing import Final, Protocol
 import flint
 import mpmath as mp
 import specs
+import spheroidal
 
 import accuracy
 
@@ -3142,6 +3143,46 @@ HYP2F1_FLOORS: Final = (
 )
 
 
+SW_MODE: Final = Rule(
+    lambda a: not 0 <= a[0] <= a[1], math.nan, "NaN outside of 0 <= m <= n"
+)
+SW_ANGLE: Final = Rule(
+    lambda a: not -1 < a[-1] < 1, math.nan, "NaN outside of -1 < x < 1"
+)
+SW_PROLATE_X: Final = Rule(lambda a: not a[-1] > 1, math.nan, "NaN outside of x > 1")
+
+
+def _spheroidal(
+    name: str, rules: tuple[Rule, ...], cvs: tuple[bool, ...] = (False, True)
+) -> dict[tuple[str, str], Entry]:
+    """The tables of a spheroidal wave function (`prolate_aswfa`, ..., `oblate_radial2`) and
+    its derivative: of (m, n, c, x) (`_nocv`), and of (m, n, c, cv, x) for `True` in `cvs`."""
+    shape, kind = name.split("_")
+    kd = 1 if shape == "prolate" else -1
+    angular = kind == "aswfa"
+    if angular:
+        refs, residual = spheroidal.angular, spheroidal.angular_residual(kd)
+    else:
+        refs = functools.partial(spheroidal.radial, int(kind[-1]))
+        residual = spheroidal.wronskian_residual(kd)
+
+    def entry(cv: bool) -> Entry:
+        outs = (
+            Out(
+                f"{name}{'' if cv else '_nocv'}.{i}",
+                (spheroidal.with_cv(refs(kd, i), kd, angular) if cv else refs(kd, i),),
+                rules=rules,
+            )
+            for i in range(2)
+        )
+        return Entry(tuple(outs), Identity(lambda a: True, residual))
+
+    return {
+        (f"{name}{'' if cv else '_nocv'}", f"d_d_d_d{'_d' * cv}-d_d"): entry(cv)
+        for cv in cvs
+    }
+
+
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("gamma", "d-d"): Entry((GAMMA,)),
     ("gammaln", "d-d"): Entry(
@@ -4011,4 +4052,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
             ),
         )
     ),
+    **_spheroidal("prolate_aswfa", (SW_MODE, SW_ANGLE)),
+    **_spheroidal("oblate_aswfa", (SW_MODE, SW_ANGLE)),
+    **_spheroidal("prolate_radial2", (SW_PROLATE_X,), (False,)),
+    **_spheroidal("oblate_radial1", (), (False,)),
+    **_spheroidal("oblate_radial2", (), (False,)),
 }
