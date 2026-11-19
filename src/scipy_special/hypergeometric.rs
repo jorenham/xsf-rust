@@ -481,7 +481,18 @@ impl HypergeometricArg for num_complex::Complex<f64> {
         if a > 0.0 && self.re == 1.0 && self.im == 0.0 {
             f64::NAN.into()
         } else {
-            self.via(|z| (1.0 - z).powf(-a))
+            self.via(|z| {
+                // `1 - z = w + r` exactly, as in the real `hyp1f0` (unless `w^-a` over- or
+                // underflows)
+                let (w_re, r) = two_sum(1.0, -z.re);
+                let w = c64(w_re, -z.im);
+                let p = w.powf(-a);
+                if r == 0.0 || !p.norm().is_normal() {
+                    p
+                } else {
+                    p * (clog1p(r / w) * -a).exp()
+                }
+            })
         }
     }
 

@@ -110,6 +110,16 @@ fn test_hyp1f0_c64() {
     np_assert_allclose!([xsf::hyp1f0(2.0, c64(2.0, 0.0))], [c64(1.0, 0.0)], atol = 1e-15);
 }
 
+#[test]
+fn test_hyp1f0_c64_inexact_1mz() {
+    // `1 - z` rounds to 1 for these `z`, and `a` amplifies that rounding (DLMF 15.4.6)
+    let (a, t) = (2f64.powi(60), 2f64.powi(-60));
+    let y = [c64(t, 0.0), c64(-t, 0.0), c64(t, t)].map(|z| xsf::hyp1f0(a, z));
+    let e = core::f64::consts::E;
+    let e_1pi = c64(e * 1f64.cos(), e * 1f64.sin());
+    np_assert_allclose!(y, [c64(e, 0.0), c64(1.0 / e, 0.0), e_1pi], rtol = 1e-15);
+}
+
 /// Corresponds to `scipy.special.tests.test_basic.TestHyper.test_hyp0f1`
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/tests/test_basic.py#L3144-L3168>
 #[test]
