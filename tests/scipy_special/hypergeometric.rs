@@ -44,6 +44,10 @@ fn test_hyp1f0_f64() {
     // mpmath: (1 - z)^-a, near `f64::MAX`
     let (a, z) = (-3.040_181_842_519_321_2e16, -2.334_671_903_392_507e-14);
     assert_eq!(xsf::hyp1f0(a, z), f64::from_bits(0x7fef_ffff_ffff_fffe));
+    let (a, z) = (1.311_547_269_609_478_6e16, 5.411_796_656_819_75e-14);
+    assert_eq!(xsf::hyp1f0(a, z), f64::MAX);
+    let (a, z) = (-4.230_104_975_855_333e16, 1.218_017_089_888_251_6e-16);
+    assert_eq!(xsf::hyp1f0(a, z), f64::from_bits(0x3f77_b2e7_0ac3_9ce7));
 }
 
 #[test]

@@ -441,7 +441,7 @@ impl HypergeometricArg for f64 {
             // of 1
             let c = -a * (r / w).ln_1p();
             if c.abs() < LN_2 {
-                p + p * c.exp_m1()
+                p.mul_add(c.exp_m1(), p)
             } else {
                 p * c.exp()
             }
