@@ -271,11 +271,10 @@ pub(super) fn incbet_corr(a: f64, b: f64) -> f64 {
 
 /// `x` and `y = 1 - x` in double-double, with the larger as `1 -` the smaller (see `incbet_pow`)
 fn incbet_xy_dd(x: f64, y: f64) -> (DoubleDouble, DoubleDouble) {
-    let one = DoubleDouble::new(1.0);
     if x <= y {
-        (DoubleDouble::new(x), one - x)
+        (DoubleDouble::new(x), DoubleDouble::ONE - x)
     } else {
-        (one - y, DoubleDouble::new(y))
+        (DoubleDouble::ONE - y, DoubleDouble::new(y))
     }
 }
 

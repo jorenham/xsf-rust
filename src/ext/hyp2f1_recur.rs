@@ -178,7 +178,7 @@ pub(crate) struct Scaled {
 impl Scaled {
     /// `Some(m 2^e)` if `m` is nonzero and `err` is finite
     pub(crate) fn new(m: f64, e: i32, err: f64) -> Option<Self> {
-        let l = Dd::new(0.0);
+        let l = Dd::ZERO;
         (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
@@ -500,7 +500,6 @@ fn hyp2f1_poly(
     ln_1mx: Dd,
     (one_mz, ln_1mz): (Dd, Dd),
 ) -> Option<Scaled> {
-    let one = Dd::new(1.0);
     let is_poly = |p: Dd| p.is_integer() && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     combs
         .into_iter()
@@ -515,7 +514,7 @@ fn hyp2f1_poly(
                 let mut budget = HYP2F1_RECUR_MAXITER;
                 Some(series_weighted(p, q, c, t, &mut budget, None, n)?.with_l(l))
             };
-            let direct = min_err(sum(q, one - one_mz, l_z), sum(r, w, l));
+            let direct = min_err(sum(q, Dd::ONE - one_mz, l_z), sum(r, w, l));
             if err_of(direct) <= HYP2F1_ETHRESH {
                 return direct;
             }
@@ -796,7 +795,7 @@ pub(crate) fn mul_gamma_ratio(
     let num = num.into_iter().map(|g| (g, 1.0));
     let mut gammas = num.chain(den.into_iter().map(|g| (g, -1.0)));
     let (ln_g, sign, err) =
-        gammas.try_fold((Dd::new(0.0), 1.0, 0.0), |(ln_g, sign, err), (g, power)| {
+        gammas.try_fold((Dd::ZERO, 1.0, 0.0), |(ln_g, sign, err), (g, power)| {
             let (v, v_sign, v_err) = ln_gamma(g)?;
             Some((ln_g + v * power, sign * v_sign, err + v_err))
         })?;
@@ -856,7 +855,7 @@ pub(crate) fn add_exp_in<T: Real>(
 /// so they change sign where `|g|` peaks, and `S_2` cancels if that peak is far above `|g(0)|`
 /// (e.g. if `b (c - a) w / (m + 1)` is large), whatever the signs of `b` and `c - a`.
 fn recip_log(a: Dd, b: Dd, c: Dd, w: Dd, ln_1mt: Dd) -> Option<Scaled> {
-    let (one, m, ca, cb) = (Dd::new(1.0), b - a, c - a, c - b);
+    let (one, m, ca, cb) = (Dd::ONE, b - a, c - a, c - b);
     let n = m.hi.round();
     let eps = m - n;
     let (e, m1) = (eps.hi, m + 1.0);
@@ -944,7 +943,7 @@ fn recip_connect(
 /// it first tries `recip_log`. `ln_1mx` is `ln(1 - x)`. With `connect`, it is by `recip_connect`
 /// instead.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Option<Scaled> {
-    let one = Dd::new(1.0);
+    let one = Dd::ONE;
     let ln_x = ln_dd(x.abs());
     // z = 1/t, w = 1 / (1 - t), 1 - z, ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if
     // 0 < x < 1)
@@ -1065,9 +1064,8 @@ pub(crate) fn hyp2f1_poly_dd(
         if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
             direct
         } else {
-            let one = Dd::new(1.0);
-            let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one), true);
-            min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+            let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - Dd::ONE), true);
+            min_err(direct, pfaff.map(|y| y.with_l(ln_dd(Dd::ONE - x) * n)))
         }
     };
     // (not if its mantissa is NaN or infinite, which `Scaled::new` accepts)
@@ -1078,10 +1076,9 @@ pub(crate) fn hyp2f1_poly_dd(
 /// `series_weighted`, plus the terms it skips if `c <= -n`. If `scale_c`, also with the mantissa
 /// of `c + k`, so that the term ratio can't overflow for a subnormal or huge `c`.
 fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
-    let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
-    let (mut t, mut te, mut e) = (one, 0, 0);
-    let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
+    let (mut t, mut te, mut e) = (Dd::ONE, 0, 0);
+    let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (Dd::ONE, 1.0, 0.0, 0.0, 0.0);
     // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
     let (xm, xe) = x.frexp();
     // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
@@ -1104,7 +1101,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
         // k 2^500 (see below), so they are below 2^-503 of `|term|` and `k |term|` (as
         // k <= `HYP2F1_RECUR_MAXITER`), negligible for the error bound and the stop rule.
         if !(k * t.ldexp(te - e).hi).is_finite() {
-            (sum, sum_abs, k_sum_abs, e) = (Dd::new(0.0), 0.0, 0.0, te);
+            (sum, sum_abs, k_sum_abs, e) = (Dd::ZERO, 0.0, 0.0, te);
         }
         let term = t.ldexp(te - e);
         let term_abs = term.hi.abs();
@@ -1148,7 +1145,7 @@ fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     // numerator is 0
     let product = (0..n as u32)
         .map(f64::from)
-        .try_fold((Dd::new(1.0), 0), |(t, e), k| {
+        .try_fold((Dd::ONE, 0), |(t, e), k| {
             let ((num, num_e), (den, den_e)) = ((cb + k).frexp(), (c + k).frexp());
             let t = (num.hi != 0.0).then(|| t * num / den)?;
             let e = e + num_e - den_e;
@@ -1160,7 +1157,7 @@ fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
         None => Some(Scaled {
             m: 0.0,
             e: 0,
-            l: Dd::new(0.0),
+            l: Dd::ZERO,
             err: 0.0,
         }),
     }
@@ -1174,17 +1171,16 @@ fn hyp2f1_recur_dd(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd) -> Option<Scaled> {
         let w = Dd::new(x) / (Dd::new(x) - 1.0);
         (x, w, neg_z_combinations(a, b, c))
     } else {
-        let (ca, cb, zero) = (c - a, c - b, Dd::new(0.0));
+        let (ca, cb, zero) = (c - a, c - b, Dd::ZERO);
         let cab = ca - b;
         let combinations = [(a, cb, zero), (cb, a, cab), (ca, b, cab), (b, ca, zero)];
         (x / (x - 1.0), Dd::new(x), combinations)
     };
     // 1 - z, which is 1 - x if x < 0, and 1 / (1 - x) else, and its log
-    let one = Dd::new(1.0);
     let (one_mz, ln_1mz) = if x < 0.0 {
-        (one - x, ln_1mx)
+        (Dd::ONE - x, ln_1mx)
     } else {
-        (1.0 / (one - x), -ln_1mx)
+        (1.0 / (Dd::ONE - x), -ln_1mx)
     };
     // the polynomial cases of step 2
     let poly = hyp2f1_poly(combinations, c, w, ln_1mx, (one_mz, ln_1mz));
@@ -1218,7 +1214,7 @@ pub(crate) fn fold_exp(y: Scaled) -> Scaled {
     let e = (f64::from(y.e) + k).clamp(-1e9, 1e9) as i32;
     // For an unclamped `k`, `exp(r.lo)` rounds to 1. It is left out, as `r` is huge for a clamped
     // `k`, where `m` must keep its sign.
-    let (m, l) = (y.m * r.hi.exp(), Dd::new(0.0));
+    let (m, l) = (y.m * r.hi.exp(), Dd::ZERO);
     // (the roundings of `exp` and the product, and `exp(r.lo)`)
     let err = y.err + 4.0 * MACHEP;
     Scaled { m, e, l, err }
@@ -1278,7 +1274,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
         return None;
     }
     // (`log1p` of `DoubleDouble` is only as accurate as that of `f64`, but `ln_dd` is accurate)
-    let ln_1mx = ln_dd(Dd::new(1.0) - x);
+    let ln_1mx = ln_dd(Dd::ONE - x);
     let mut best = hyp2f1_recur_dd(a, b, c, x, ln_1mx);
     // step 6
     if !(err_of(best) <= HYP2F1_RECUR_TOL) && c.hi < 0.0 {
@@ -1349,8 +1345,8 @@ mod tests {
             assert!((y - desired).abs() <= err && err <= 1e-14, "{y} {err}");
         }
         // psi at e = 0, and None at a pole of Gamma(v) or Gamma(v + e)
-        let (one, pole, e) = (Dd::new(1.0), Dd::new(-3.0), Dd::new(1.0 / 4096.0));
-        assert_eq!(gamma_quot(one, Dd::new(0.0)), psi_dd(one));
+        let (one, pole, e) = (Dd::ONE, Dd::new(-3.0), Dd::new(1.0 / 4096.0));
+        assert_eq!(gamma_quot(one, Dd::ZERO), psi_dd(one));
         assert_eq!(gamma_quot(pole, e), None);
         assert_eq!(gamma_quot(pole + e, -e), None);
     }
@@ -1359,7 +1355,7 @@ mod tests {
     fn test_recur_down_start_errors() {
         // y_0 = y_2 / 8 (as B_1 = 0), so the error of y_2 carries over, although u_1 = 0
         let y = |m, err| Scaled::new(m, 0, err).unwrap();
-        let (p, q, c, z) = (Dd::new(3.5), Dd::new(1.5), Dd::new(1.0), Dd::new(-0.5));
+        let (p, q, c, z) = (Dd::new(3.5), Dd::new(1.5), Dd::ONE, Dd::new(-0.5));
         let y_0 = recur_down(1.0, y(0.5, 0.0), y(0.8, 1e-6), coefs_c(p, q, c, z)).unwrap();
         assert!((y_0.m - 0.1).abs() < 1e-15 && y_0.err >= 1e-6, "{y_0:?}");
     }

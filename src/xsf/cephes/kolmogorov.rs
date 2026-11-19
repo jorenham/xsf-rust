@@ -460,12 +460,12 @@ fn pow_d(a: DoubleDouble, m: i32) -> DoubleDouble {
 
     if m <= 0 {
         if m == 0 {
-            return DoubleDouble::new(1.0);
+            return DoubleDouble::ONE;
         }
         return 1.0 / pow_d(a, -m);
     }
     if a == 0.0 {
-        return DoubleDouble::new(0.0);
+        return DoubleDouble::ZERO;
     }
     let ans = a.hi.powf(f64::from(m));
     let r = a.lo / a.hi;
@@ -498,7 +498,7 @@ fn pow2_scaled_d(a: DoubleDouble, m: i32) -> (DoubleDouble, i32) {
 
     if m <= 0 {
         if m == 0 {
-            return (DoubleDouble::new(1.0), 0);
+            return (DoubleDouble::ONE, 0);
         }
         let (ans, a_e1) = pow2_scaled_d(a, -m);
         let (ans, a_e2) = (1.0 / ans).frexp();
@@ -548,7 +548,7 @@ fn pow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
     /* Compute ((a+b)/(c+d)) ^ m */
     if m <= 0 {
         if m == 0 {
-            return DoubleDouble::new(1.0);
+            return DoubleDouble::ONE;
         }
         return pow4_d(c, d, a, b, -m);
     }
@@ -558,7 +558,7 @@ fn pow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
         return if C == 0.0 {
             DoubleDouble::NAN
         } else {
-            DoubleDouble::new(0.0)
+            DoubleDouble::ZERO
         };
     }
     if C == 0.0 {
@@ -584,13 +584,13 @@ fn logpow4_d(a: f64, b: f64, c: f64, d: f64, m: i32) -> DoubleDouble {
      *    == m * log( 1 + (a+b-c-d)/(c+d))
      */
     if m == 0 {
-        return DoubleDouble::new(0.0);
+        return DoubleDouble::ZERO;
     }
     let A = DoubleDouble::new(a) + b;
     let C = DoubleDouble::new(c) + d;
     if A == 0.0 {
         return if C == 0.0 {
-            DoubleDouble::new(0.0)
+            DoubleDouble::ZERO
         } else {
             -DoubleDouble::INFINITY
         };
@@ -631,8 +631,8 @@ fn compute_av(n: i32, x: f64, v: i32, cman: DoubleDouble, cexpt: i32) -> DoubleD
 }
 
 fn smirnov_(n: i32, x: f64) -> ThreeProbs {
-    let mut aj_sum = DoubleDouble::new(0.0);
-    let mut daj_sum = DoubleDouble::new(0.0);
+    let mut aj_sum = DoubleDouble::ZERO;
+    let mut daj_sum = DoubleDouble::ZERO;
     let (cdf, sf, mut pdf);
 
     let mut use_upper_sum;
@@ -739,10 +739,10 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
         let (mut start, mut step, mut n_terms) = (0, 1, n1mxfl + 1);
         let mut first_j = 0;
         let vmid = n / 2;
-        let mut cman = DoubleDouble::new(1.0);
+        let mut cman = DoubleDouble::ONE;
         let mut cexpt = 0;
         let (mut aj, mut daj_coeff);
-        let one_over_x = DoubleDouble::new(1.0) / x;
+        let one_over_x = DoubleDouble::ONE / x;
 
         if use_upper_sum {
             start = n;
@@ -752,14 +752,13 @@ fn smirnov_(n: i32, x: f64) -> ThreeProbs {
             let t1 = pow4_d(1.0, x, 1.0, 0.0, n - 1);
             aj = t1;
 
-            daj_coeff = f64::from(n - 1) / (DoubleDouble::new(1.0) + x);
+            daj_coeff = f64::from(n - 1) / (DoubleDouble::ONE + x);
             daj_coeff = daj_coeff + one_over_x;
         } else {
             let t2 = pow4_d(1.0, -x, 1.0, 0.0, n);
             aj = t2 / x;
 
-            daj_coeff =
-                (-1.0 - DoubleDouble::new(f64::from(n - 1)) * x) / (DoubleDouble::new(1.0) - x);
+            daj_coeff = (-1.0 - DoubleDouble::new(f64::from(n - 1)) * x) / (DoubleDouble::ONE - x);
             daj_coeff = daj_coeff / x;
             daj_coeff = daj_coeff + one_over_x;
         }

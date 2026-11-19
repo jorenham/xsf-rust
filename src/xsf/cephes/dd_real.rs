@@ -119,6 +119,9 @@ pub(crate) struct DoubleDouble {
 }
 
 impl DoubleDouble {
+    pub(crate) const ONE: Self = Self::new(1.0);
+    pub(crate) const ZERO: Self = Self::new(0.0);
+
     #[inline]
     pub(crate) const fn new(high: f64) -> Self {
         Self { hi: high, lo: 0.0 }
@@ -424,7 +427,7 @@ impl DoubleDouble {
         // below 2^-116), times the least common multiple of its denominators, so that the
         // coefficients are integers
         let r2 = -r.square();
-        let mut sum = Self::new(0.0);
+        let mut sum = Self::ZERO;
         for n in (0..14).rev() {
             sum = sum * r2 + ATAN_LCM / f64::from(2 * n + 1);
         }
@@ -563,7 +566,7 @@ impl DoubleDouble {
         let mut i = 0;
 
         if self.hi <= -709.0 {
-            return Self::new(0.0);
+            return Self::ZERO;
         }
 
         if self.hi >= 709.0 {
@@ -571,7 +574,7 @@ impl DoubleDouble {
         }
 
         if self == 0.0 {
-            return Self::new(1.0);
+            return Self::ONE;
         }
 
         if self == 1.0 {
@@ -625,7 +628,7 @@ impl DoubleDouble {
         approximately doubles the number of digits per iteration. */
 
         if self == 1.0 {
-            return Self::new(0.0);
+            return Self::ZERO;
         }
 
         if self.hi <= 0.0 {
@@ -660,7 +663,7 @@ mod tests {
 
     #[test]
     fn test_dot() {
-        let one = DoubleDouble::new(1.0);
+        let one = DoubleDouble::ONE;
         let third = one / 3.0;
         // exact where the high parts of the products cancel
         let x = DoubleDouble {
@@ -673,7 +676,7 @@ mod tests {
         let pairs = [(third, third), (third * 7.0, -third), (x, third)];
         let sum = pairs
             .iter()
-            .fold(DoubleDouble::new(0.0), |s, &(a, b)| s + a * b);
+            .fold(DoubleDouble::ZERO, |s, &(a, b)| s + a * b);
         let y = DoubleDouble::dot(pairs);
         assert_eq!(y.hi, sum.hi);
         assert!((y - sum).hi.abs() <= pow2(-100) * sum.hi.abs());
@@ -709,8 +712,7 @@ mod tests {
             hi: f64::NAN,
             lo: 0.0,
         };
-        let zero = DoubleDouble::new(0.0);
-        assert!(nan <= zero);
+        assert!(nan <= DoubleDouble::ZERO);
         assert!(nan <= 0.0);
     }
 }

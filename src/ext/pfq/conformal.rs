@@ -226,7 +226,7 @@ pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64)
     let upper = alpha.iter().rev().map(|&a| Dd::new(a) * scale);
     let mut l: Vec<_> = lower.iter().copied().enumerate().map(factor).collect();
     let mut r: Vec<_> = upper.enumerate().map(factor).collect();
-    let mut tail = Factor::new(&Factor::<M>::TAIL, Dd::new(0.0), shift(q));
+    let mut tail = Factor::new(&Factor::<M>::TAIL, Dd::ZERO, shift(q));
     let w = conformal_map(z, m);
     let n_min = min_terms(alpha, beta, w.hi, m);
     if n_min >= f64::from(PFQ_DD_MAXITER) {
@@ -235,13 +235,13 @@ pub(super) fn conformal_sum<const M: usize>(alpha: &[f64], beta: &[f64], z: f64)
     // The values `x_{n-k} w^k` of the sequences between the factors: `L[j]` takes `zs[j]` to
     // `zs[j + 1]`, and `R[j]` takes `zt[j - 1]`, or `zs[0]`, to `zt[j]`, or to `zs[q]` with
     // `tail`. `zs[0]` are the terms of the series.
-    let zero = [Dd::new(0.0); M];
+    let zero = [Dd::ZERO; M];
     let (mut zs, mut zt) = (vec![zero; q + 1], vec![zero; q]);
-    zs[0][M - 1] = Dd::new(1.0);
+    zs[0][M - 1] = Dd::ONE;
     for j in 0..q {
         zs[j + 1][M - 1] = l[j].dot(&zs[j], 0) / w;
     }
-    let (mut sum, mut top, mut n) = (Dd::new(1.0), 1.0_f64, 0);
+    let (mut sum, mut top, mut n) = (Dd::ONE, 1.0_f64, 0);
     // the number of the last terms that are negligible, and the sizes of the `M` terms before
     // (which can alternate in size, with a period up to the order of the recurrence)
     let (mut negligible, mut recent) = (0, [1.0_f64; M]);
@@ -350,7 +350,7 @@ mod tests {
                 // z = 1 - ((1 - w) / (1 + w))^m
                 let w = conformal_map(z, m);
                 let t = (1.0 - w) / (w + 1.0);
-                let pow = (0..m).fold(Dd::new(1.0), |p, _| p * t);
+                let pow = (0..m).fold(Dd::ONE, |p, _| p * t);
                 let err = (pow - (1.0 - Dd::new(z))).hi.abs();
                 assert!(err <= pow2(-90) * (1.0 - z), "m = {m}, z = {z}");
             }
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn test_factor_dot() {
         // the coefficients 8, 30, 52, 41, 12
-        let factor = Factor::new(&F3::TAIL, Dd::new(0.0), 8.0);
+        let factor = Factor::new(&F3::TAIL, Dd::ZERO, 8.0);
         let x = [1.0, 2.0, 3.0, 4.0, 5.0].map(Dd::new);
         assert_eq!(f64::from(factor.dot(&x, 0)), 410.0);
         assert_eq!(f64::from(factor.dot(&x, 1)), 505.0);

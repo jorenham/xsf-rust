@@ -615,7 +615,7 @@ fn bessel_jy_airy(v: f64, x: f64) -> Option<(f64, f64)> {
     let eta = if w.hi <= ETA_SERIES_MAX_W {
         // w^3 sum_k u^k / (2 k + 3), with u = 1 - (x / v)^2 = +-w^2
         let tail = u.hi * (0.2 + u.hi * (1.0 / 7.0 + u.hi / 9.0));
-        u.abs() * w * (Dd::new(1.0) / 3.0 + tail)
+        u.abs() * w * (Dd::ONE / 3.0 + tail)
     } else if x <= v {
         ((w + 1.0) * v / x).log() - w
     } else {
