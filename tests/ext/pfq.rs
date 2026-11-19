@@ -254,6 +254,9 @@ fn test_hyp3f2_nan() {
     assert!(hyp3f2(0.5, 0.5, 0.5, 1.5, 1.5, 1.0 - 1e-8).is_nan());
     // a huge negative parameter
     assert!(hyp3f2(0.5 - 1e12, 1.0, 1.5, 2.0, 2.5, -0.9).is_nan());
+    // a method with a NaN error estimate is not trusted, but another one is (Arb reference)
+    let y = hyp3f2(28.5, 1.25, 80.625, 20.125, 5.5, -1.125);
+    assert!((y / 0.014_103_262_754_441 - 1.0).abs() < 1e-3);
 }
 
 #[test]

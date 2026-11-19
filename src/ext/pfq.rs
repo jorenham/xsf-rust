@@ -2371,6 +2371,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_estimate_absolute_at_tol() {
+        // `err / y` rounds to the float above `PFQ_TOL`
+        let y = 0.012_571_498_510_638_38;
+        assert!(Estimate::absolute((y, PFQ_TOL * y)).is_accurate());
+    }
+
+    #[test]
     fn test_pfq_sum_rescales_repeatedly() {
         // the partial sum jumps from 1 to 1e300, whose square needs two rescalings
         let (y, err, tails) =
