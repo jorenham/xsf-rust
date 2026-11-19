@@ -38,6 +38,9 @@ fn test_hyp1f0_f64() {
     assert_eq!(xsf::hyp1f0(0.0, 2.0), 1.0);
     assert_eq!(xsf::hyp1f0(1.0, 2.0), -1.0);
     assert_eq!(xsf::hyp1f0(2.0, 2.0), 1.0);
+
+    // correctly rounded, where `1 - z` rounds up
+    assert_eq!(xsf::hyp1f0(-1.0, -0.1), 1.1);
 }
 
 #[test]

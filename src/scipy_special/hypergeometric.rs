@@ -1,6 +1,6 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@fa36f89).
 
-use core::f64::consts::PI;
+use core::f64::consts::{LN_2, PI};
 
 use crate::ext::ln_dd;
 use crate::utils::is_nonpos_int;
@@ -434,11 +434,16 @@ impl HypergeometricArg for f64 {
         // rounding of `w` by a large `a`, e.g. for `z = 2^-60` and `a = 2^60`
         let (w, r) = two_sum(1.0, -self);
         let p = w.powf(-a);
-        let corr = || (-a * (r / w).ln_1p()).exp();
         if r == 0.0 || r.is_nan() {
             p
         } else if p.is_normal() {
-            p * corr()
+            // `p e^c`, as `p + p (e^c - 1)` if `e^c > 1/2`, which is often within an ulp of 1
+            let c = -a * (r / w).ln_1p();
+            if c > -LN_2 {
+                p + p * c.exp_m1()
+            } else {
+                p * c.exp()
+            }
         } else if a.is_finite() {
             // (by its logarithm in double-double, where `w^-a` over- or underflows but
             // `(1 - z)^-a` might not, unless that is beyond `e^(+-2 MAXLOG)`)
