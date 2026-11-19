@@ -2725,17 +2725,12 @@ def _pfq_at_one(a, b):
                 )
         # (with the digits that its cancellation and a tiny excess lose, as in `r_hyp2f1`)
         extra = 20 + max(0, -math.floor(math.log10(excess)))
-        tries = 0
         while extra < 300:
             with wdps(extra):
                 s, top = _pfq_one_sum(a, b, excess)
                 if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
                     return s
-                # (a sum that is below the rounding at two precisions is 0)
-                if tries and abs(s) <= top * mp.mpf(10) ** (10 - mp.mp.dps):
-                    return mp.mpf(0)
                 extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
-                tries += 1
         raise NoConvergence
     kmin = math.floor(max(0, *(-v for v in (*a, *b)))) + 1
     negative = sum(v + k < 0 for k in range(kmin) for v in (*a, *b))
