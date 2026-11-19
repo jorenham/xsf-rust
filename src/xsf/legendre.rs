@@ -1382,6 +1382,9 @@ pub fn legendre_p_all<T: LegendrePArg>(n: usize, z: T) -> Vec<T> {
 
 /// Spherical Legendre polynomial of degree `n` and order `m`
 ///
+/// For complex `z` and odd `m`, the factor $\sin z$ is taken as its modulus $|\sin z|$, as in xsf,
+/// so the result is not analytic in `z`.
+///
 /// Corresponds to [`scipy.special.sph_legendre_p`][scipy].
 ///
 /// [scipy]: https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.sph_legendre_p.html
@@ -1398,6 +1401,9 @@ pub fn sph_legendre_p<T: LegendrePArg>(n: i32, m: i32, z: T) -> T {
 ///
 /// Output shape is `(n+1, 2m+1)`. The entry at `(j, i)` corresponds to degree `j` in `0..=n` and
 /// order `i` in `-m..=m`.
+///
+/// For complex `z`, the entries of odd order take a factor $\sin z$ as its modulus $|\sin z|$, as
+/// in xsf, so they are not analytic in `z`.
 ///
 /// Corresponds to [`scipy.special.sph_legendre_p_all`][scipy].
 ///
