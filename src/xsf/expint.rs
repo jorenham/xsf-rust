@@ -109,8 +109,10 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
             }
         }
         ce1 = (-z).exp() * zc;
-        if (x <= 0.0) && z.is_real() {
-            // Unlike in xsf, the side of the cut from the sign of `Im z`, as for the power series
+        // Unlike in xsf, not only on the cut: up to about `|Im z| = 1/2` from it, the fraction
+        // converges to the principal value, `pi` away from either side, so the side is taken
+        // from the sign of `Im z` there too
+        if (x < 0.0) && (z.im.abs() < 0.5) {
             ce1 -= PI.copysign(z.im) * C64::I;
         }
     }
