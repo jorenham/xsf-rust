@@ -2566,7 +2566,7 @@ def _hyp2f1_series(a, b, c, z):
             raise NoConvergence
 
 
-def _has_pole_or_poly(*v):
+def _has_nonpos_int(*v):
     """Whether some v is zero or a negative integer."""
     return any(u == int(u) <= 0 for u in v)
 
@@ -2576,9 +2576,8 @@ def r_hyp2f1(a, b, c, x):
     # sum the series directly (for x < 0 the series of the Pfaff transformation in x / (x - 1),
     # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits (else use
     # Arb).
-    if x == 1 and c <= a + b and not _has_pole_or_poly(a, b, c):
-        # (divergent: the infinity of the sign of the late terms)
-        return _pfq_at_one((a, b), (c,))
+    if x == 1 and (y := _pfq_at_one((a, b), (c,))) is not None:
+        return y
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
@@ -2628,20 +2627,24 @@ def _pfq_series(a, b, z):
     return s
 
 
-def _pfq_one_sum(a, b):
-    """The sum of pFq(1) for p = q + 1, sum(b) > sum(a), without a pole or a polynomial, in the
-    working precision, and its largest term.
+# the terms of the tail of `_pfq_one_sum` that are small in a row before it stops
+SMALL_STREAK: Final = 8
+
+
+def _pfq_one_sum(a, b, excess):
+    """The sum of pFq(1) for p = q + 1 and the exact `excess` = sum(b) - sum(a) > 0, without a pole
+    or a polynomial, in the working precision, and its largest term.
 
     The terms for k >= n (a few times the largest |a_i|, |b_j|) are K k^-e (1 + c_1 / k + ...),
-    where e = sum(b) - sum(a) + 1: the asymptotic series of the gamma functions in the terms
+    where e = excess + 1: the asymptotic series of the gamma functions in the terms
     (DLMF 5.11.1, 5.11.8 and 24.2.1) has coefficients of k^-m in the exponent of
 
         e_m = (-1)^(m+1) (sum_i B_(m+1)(a_i) - sum_j B_(m+1)(b_j)) / (m (m + 1)),
 
     and the terms sum to Hurwitz zeta functions (DLMF 25.11.1). The b_j include the 1 of n!."""
     a, b = [mp.mpf(v) for v in a], [mp.mpf(v) for v in b] + [mp.mpf(1)]
-    e = sum(b) - sum(a)
-    n = max(64, int(8 * max(abs(v) for v in (*a, *b))))
+    e = 1 + mp.mpf(excess.numerator) / excess.denominator
+    n = max(64, int(32 * max(abs(v) for v in (*a, *b))))
     s, t, top = mp.mpf(0), mp.mpf(1), mp.mpf(1)
     for k in range(n):
         if k:
@@ -2658,29 +2661,50 @@ def _pfq_one_sum(a, b):
         / (m * (m + 1))
         for m in range(1, 101)
     ]
-    c, small = [mp.mpf(1)], False
+    # (the c_j, and the same with |e_m|, which bounds them and is not small by chance; the terms
+    # are small for several j in a row, since the c_j of symmetric parameters vanish in streaks)
+    c, cabs, small = [mp.mpf(1)], [mp.mpf(1)], 0
     for j in range(101):
         if j:
             c.append(sum(m * em[m - 1] * c[j - m] for m in range(1, j + 1)) / j)
-        term = scale * c[j] * mp.zeta(e + j, n)
-        s += term
-        # (two in a row, since a coefficient can be small by chance)
-        if small and abs(term) <= mp.eps * abs(s) / 100:
+            cabs.append(
+                sum(m * abs(em[m - 1]) * cabs[j - m] for m in range(1, j + 1)) / j
+            )
+        zeta = mp.zeta(e + j, n)
+        s += scale * c[j] * zeta
+        small = small + 1 if abs(scale * cabs[j] * zeta) <= mp.eps * abs(s) / 100 else 0
+        if small == SMALL_STREAK:
             return s, top
-        small = abs(term) <= mp.eps * abs(s) / 100
     raise NoConvergence
 
 
 def _pfq_at_one(a, b):
-    """pFq(1) for p = q + 1 without a polynomial: the sum if it converges, which is if
-    sum(b) > sum(a), else the infinity of the sign of its terms, which is constant for k > -a_i,
-    -b_j."""
-    if sum(b) > sum(a):
-        # (with the digits that its cancellation loses, as in `r_hyp2f1`)
-        extra = 20
+    """pFq(1) for p = q + 1, with the conventions of `hyppfq`, or None for a polynomial.
+
+    Each a_i equal to a b_j cancels it. A b_j = -m is a pole, unless there is a polynomial of
+    degree < m. Else it is the sum if it converges, which is if sum(b) > sum(a) (exactly), else
+    the infinity of the sign of its terms, which is constant for k > -a_i, -b_j."""
+    a, b = list(a), list(b)
+    for v in [*a]:
+        if v in b:
+            a.remove(v)
+            b.remove(v)
+    if any(
+        _has_nonpos_int(v) and not any(_has_nonpos_int(u) and u > v for u in a)
+        for v in b
+    ):
+        return mp.inf
+    if _has_nonpos_int(*a):
+        return None
+    if not b:
+        return r_hyp1f0(a[0], 1)
+    excess = sum(map(Fraction, b)) - sum(map(Fraction, a))
+    if excess > 0:
+        # (with the digits that its cancellation and a tiny excess lose, as in `r_hyp2f1`)
+        extra = 20 + max(0, -math.floor(math.log10(excess)))
         while extra < 300:
             with wdps(extra):
-                s, top = _pfq_one_sum(a, b)
+                s, top = _pfq_one_sum(a, b, excess)
                 if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
                     return s
                 extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
@@ -2698,9 +2722,9 @@ def r_hyppfq(*args):
     # digits.
     p = len(args) // 2
     a, b, z = args[:p], args[p:-1], args[-1]
-    if z == 1 and not _has_pole_or_poly(*a):
-        return _pfq_at_one(a, b)
-    if z <= -1 and not _has_pole_or_poly(*a):
+    if z == 1 and (y := _pfq_at_one(a, b)) is not None:
+        return y
+    if z <= -1 and not _has_nonpos_int(*a):
         return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec
     while prec <= 2**14:
