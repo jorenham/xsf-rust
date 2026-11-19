@@ -41,6 +41,9 @@ fn test_hyp1f0_f64() {
 
     // correctly rounded, where `1 - z` rounds up
     assert_eq!(xsf::hyp1f0(-1.0, -0.1), 1.1);
+    // mpmath: (1 - z)^-a, near `f64::MAX`
+    let (a, z) = (-3.040_181_842_519_321_2e16, -2.334_671_903_392_507e-14);
+    assert_eq!(xsf::hyp1f0(a, z), f64::from_bits(0x7fef_ffff_ffff_fffe));
 }
 
 #[test]

@@ -437,9 +437,10 @@ impl HypergeometricArg for f64 {
         if r == 0.0 || r.is_nan() {
             p
         } else if p.is_normal() {
-            // `p e^c`, as `p + p (e^c - 1)` if `e^c > 1/2`, which is often within an ulp of 1
+            // `p e^c`, as `p + p (e^c - 1)` if `e^c` is in `(1/2, 2)`, as it is often within an ulp
+            // of 1
             let c = -a * (r / w).ln_1p();
-            if c > -LN_2 {
+            if c.abs() < LN_2 {
                 p + p * c.exp_m1()
             } else {
                 p * c.exp()
