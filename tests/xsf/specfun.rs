@@ -337,6 +337,14 @@ fn test_hypu_poly_rounded() {
     // Arb; d is negligible here, and the result with it less accurate than the polynomial of n
     let actual = xsf::hypu(-172.200_760_242_633_46, -22.200_760_242_633_46, 9.877_946_432_208_7);
     xsref::np_assert_allclose!([actual], [1.121_373_992_140_344_8e298], rtol = 1e-13);
+
+    // Arb; as above, but the result with d is by the recurrence in b, where it cancels
+    let actual =
+        xsf::hypu(-171.983_731_640_276_7, -6.983_731_640_276_682, 0.013_765_992_676_810_33);
+    xsref::np_assert_allclose!([actual], [5.402_798_766_765_826e291], rtol = 1e-8);
+    let actual =
+        xsf::hypu(-172.923_920_271_527_18, -8.923_920_271_527_182, 0.060_322_070_225_586_23);
+    xsref::np_assert_allclose!([actual], [-2.534_992_095_566_762_6e294], rtol = 1e-11);
 }
 
 #[test]
