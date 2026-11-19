@@ -4,16 +4,18 @@
 //!
 //! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_PI_2, LOG2_E, PI};
 
 use num_complex::Complex64;
 
 use crate::utils::{neg_if_odd, neg_one_pow};
+use crate::xsf::amos::MACH;
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
 };
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::dd_real::{LOG2, frexp_f64};
 use crate::xsf::complex::Num;
 
 pub trait SphBesselArg: crate::sealed::Sealed {
@@ -182,6 +184,111 @@ fn sph_bessel_ji_jac(f: fn(i64, f64) -> f64, c: f64, n: i64, x: f64) -> f64 {
 /// `std::sqrt(M_PI_2 / z)` for complex `z`
 fn sqrt_pi_2_div(z: C64) -> C64 {
     (FRAC_PI_2 / z).sqrt()
+}
+
+/// `out`, or unlike in xsf, `fallback()` (see [`sph_bessel_overflow`]) where `out` is not finite
+fn finite_or(out: C64, fallback: impl FnOnce() -> Option<C64>) -> C64 {
+    if out.is_finite() {
+        return out;
+    }
+    fallback().unwrap_or(out)
+}
+
+/// `(f_n(z), f_n'(z))` for complex `z` where they overflow, by the upward recurrence
+/// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` from `g_k = z exp(x) f_k` at `k = -1, 0`, and
+/// `f_n' = -s f_(n-1) - (n + 1) f_n / z`, for `y_n` (`s = -1`, `x = -|Im z|`, DLMF 10.51.1 and
+/// 10.51.2) and `k_n` (`s = 1`, `x = Re z`, DLMF 10.51.4 and 10.51.5).
+///
+/// `None` for `n > N_MAX`, as AMOS for `z = 0` and past its range, and where the rounding errors
+/// grow by more than `GROWTH_MAX`, about `exp(min(-2x, n (n + 1) / |z|))` (a measured heuristic),
+/// as the other solution grows faster for `x < 0`. A part is NaN unless its error interval
+/// overflows, or is finite with at least half of its digits correct, as an overflowing part can
+/// mask it, e.g. `Re k_2(1e-120 i) = 1e-241` with `Im k_2 = inf`.
+fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
+    // Past `2^+-E_MAX`, any nonzero part of the result over- or underflows
+    const E_MAX: i64 = 1 << 13;
+    // The limits on the steps and on the error growth
+    const N_MAX: i64 = 1 << 20;
+    const GROWTH_MAX: f64 = 1024.0;
+    // A bound on the roundings per step relative to `eps |a_k|`, also of `1 / z`
+    const ROUNDINGS: f64 = 8.0;
+
+    let r = z.norm();
+    let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
+    if !((0..=N_MAX).contains(&n) && r > 0.0 && r <= 0.5 / MACH.0 && growth <= GROWTH_MAX.ln()) {
+        return None;
+    }
+
+    // The binary exponent of the larger part
+    let exp2 = |g: C64| frexp_f64(g.re.abs().max(g.im.abs())).1;
+    // `1 / z = 2^-m / w`, as `1 / z` overflows for tiny `z`
+    let m = exp2(z).min(0);
+    let rw = C64::ONE / z.ldexp(-m);
+    // The partwise bound `|a b|` for `a >= 0`
+    let abs_mul = |a: C64, b: C64| {
+        let (re, im) = (b.re.abs(), b.im.abs());
+        c64(a.re * re + a.im * im, a.re * im + a.im * re)
+    };
+    // An underflow, in units of `2^de`
+    let tiny = |de: i64| {
+        let t = f64::MIN_POSITIVE.ldexp(de.clamp(-E_MAX, 0) as i32);
+        c64(t, t)
+    };
+    // `(f_0, f_1)` in units of `2^(e - m)`, rescaled so that all parts are below 1, and the new `e`
+    let rescale = |f_0: C64, f_1: C64, e: i64| {
+        let de = exp2(f_0).max(exp2(f_1));
+        (f_0.ldexp(-de), f_1.ldexp(-de), e + i64::from(de - m))
+    };
+
+    // `g_k` in units of `2^e`, so that only the result overflows (all `n` steps, as each one turns
+    // the phase), and its partwise bound `a_k >= |g_k|` plus the underflow, in units of `2^e_a` as
+    // it can grow much faster
+    let [a_m1, a_0] = [g_m1, g_0].map(|g| c64(g.re.abs(), g.im.abs()) + tiny(0));
+    let init = ((g_m1, g_0, 0), (a_m1, a_0, 0));
+    let ((g_m1, g_0, e), (a_m1, a_0, e_a)) =
+        (0..n).fold(init, |((g_m1, g_0, e), (a_m1, a_0, e_a)), k| {
+            let (c, t) = ((2 * k + 1) as f64, tiny(e - e_a));
+            (
+                rescale(g_0.ldexp(m), c * g_0 * rw + s * g_m1.ldexp(m), e),
+                rescale(a_0.ldexp(m) + t, c * abs_mul(a_0, rw) + a_m1.ldexp(m) + t, e_a),
+            )
+        });
+
+    // `exp(-x) = 2^q exp(t)` for `|t| <= ln(2) / 2` (reduced in double-double), so that only the
+    // final `ldexp` can overflow
+    let q = (-x * LOG2_E).round();
+    let exp_t = (-f64::from(LOG2 * q + x)).exp();
+    // The error is the smaller of the normwise `tol |f|` and the partwise `tol_a |a / z|`
+    let [tol, tol_a] = [GROWTH_MAX, ROUNDINGS].map(|c| c * np1(n) * f64::EPSILON);
+    // `p 2^e exp(t)` for a part, with its own scale so that a subnormal one rounds only once
+    let part = |p: f64, err: f64, e: i64| {
+        // `y_n(iy)` is real or imaginary
+        if s < 0.0 && z.re == 0.0 && p == 0.0 {
+            return p;
+        }
+        let (p, ep) = frexp_f64(p);
+        let (err, e) = (err.ldexp(-ep), (e + i64::from(ep)).clamp(-E_MAX, E_MAX) as i32);
+        let [lo, hi] = [-err, err].map(|d| ((p.abs() + d) * exp_t).ldexp(e).is_finite());
+        if p.abs() >= err && (!lo || hi && err <= f64::EPSILON.sqrt() * p.abs()) {
+            (p * exp_t).ldexp(e)
+        } else {
+            f64::NAN
+        }
+    };
+    // `f = g 2^e exp(-x) / z`, with the error from `a 2^e_a`
+    let d_a = e_a - e;
+    let scale = |g: C64, a: C64, e: i64| {
+        let de = exp2(g);
+        let a =
+            (abs_mul(a, rw) + tiny(-d_a)).ldexp((d_a - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
+        let g = g.ldexp(-de) * rw;
+        let min = tol * g.re.abs().max(g.im.abs());
+        let e = e + i64::from(de - m) + q as i64;
+        c64(part(g.re, min.min(tol_a * a.re), e), part(g.im, min.min(tol_a * a.im), e))
+    };
+    let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
+    let da = a_m1.ldexp(m) + np1(n) * abs_mul(a_0, rw);
+    Some((scale(g_0, a_0, e), scale(dg, da, e - i64::from(m))))
 }
 
 /// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence
@@ -385,7 +492,18 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
         return c64(sph_bessel_y_f64(n, z.re), 0.0);
     }
 
-    sqrt_pi_2_div(z) * cyl_bessel_y_c64(half(n), z)
+    let out = sqrt_pi_2_div(z) * cyl_bessel_y_c64(half(n), z);
+    finite_or(out, || sph_bessel_y_overflow(n, z).map(|f| f.0))
+}
+
+/// [`sph_bessel_overflow`] of `y_n`, from `y_(-1) = j_0` and `y_0`
+fn sph_bessel_y_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
+    // `sin z` and `cos z` times `exp(-|y|)`, as they overflow for `|y| > 710`
+    let (y, (sin_x, cos_x)) = (z.im.abs(), z.re.sin_cos());
+    // `cosh(y) exp(-|y|)` and `sinh(y) exp(-|y|)`
+    let (ch, sh) = ((1.0 + (-2.0 * y).exp()) / 2.0, (-(-2.0 * y).exp_m1() / 2.0).copysign(z.im));
+    let (sin_z, cos_z) = (c64(sin_x * ch, cos_x * sh), c64(cos_x * ch, -sin_x * sh));
+    sph_bessel_overflow(n, z, -1.0, sin_z, -cos_z, -y)
 }
 
 fn sph_bessel_y_jac_f64(n: i64, x: f64) -> f64 {
@@ -412,7 +530,9 @@ fn sph_bessel_y_jac_c64(n: i64, x: C64) -> C64 {
         return -sph_bessel_y_c64(1, x);
     }
 
-    sph_bessel_y_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_y_c64(n, x) / x
+    let out =
+        sph_bessel_y_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_y_c64(n, x) / x;
+    finite_or(out, || sph_bessel_y_overflow(n, x).map(|f| f.1))
 }
 
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
@@ -580,7 +700,14 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
         return c64(sph_bessel_k_f64(n, z.re), 0.0);
     }
 
-    sqrt_pi_2_div(z) * cyl_bessel_k_c64(half(n), z)
+    let out = sqrt_pi_2_div(z) * cyl_bessel_k_c64(half(n), z);
+    finite_or(out, || sph_bessel_k_overflow(n, z).map(|f| f.0))
+}
+
+/// [`sph_bessel_overflow`] of `k_n`, from `k_(-1) = k_0`
+fn sph_bessel_k_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
+    let g = FRAC_PI_2 * C64::cis(-z.im);
+    sph_bessel_overflow(n, z, 1.0, g, g, z.re)
 }
 
 fn sph_bessel_k_jac_f64(n: i64, x: f64) -> f64 {
@@ -601,7 +728,9 @@ fn sph_bessel_k_jac_c64(n: i64, x: C64) -> C64 {
         return -sph_bessel_k_c64(1, x);
     }
 
-    -sph_bessel_k_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_k_c64(n, x) / x
+    let out =
+        -sph_bessel_k_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_k_c64(n, x) / x;
+    finite_or(out, || sph_bessel_k_overflow(n, x).map(|f| f.1))
 }
 
 /// Spherical Bessel function of the first kind, $j_n(z)$
