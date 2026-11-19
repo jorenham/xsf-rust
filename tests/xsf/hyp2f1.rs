@@ -1551,6 +1551,75 @@ fn test_hyp2f1_f64_polynomial_neg_int_c_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_overflow() {
+    // unlike in xsf: polynomials for c > 0 or a non-integer c whose power series is not finite,
+    // e.g. of 1 - 4x/3 + x^2/2 and 1 - 8x + 8x^2 for the first two, where it stops at its first
+    // infinite term, or the recurrence in a gives NaN; xsf gives -inf for the first two
+    // (references: exact)
+    let (inf, max) = (f64::INFINITY, f64::MAX);
+    // (next to the pole c = -1, which the degree 2 passes)
+    let c_1 = -1.0 + f64::EPSILON / 2.0;
+    for ((a, b, c, x), desired) in [
+        ((-2.0, 2.0, 3.0, 1e308), inf),
+        ((-2.0, 2.0, 0.5, 1e308), inf),
+        ((-22.0, 18.049_542_264_449_997, 24.0, 6.296_222_190_809_398e148), inf),
+        ((-13.0, 2.362_904_706_447_58, 27.076_332_302_285_26, 1.248_008_371_891_642_5e96), -inf),
+        ((-3.0, -3.0, -28.791_853_612_315_794, 3.675_816_243_990_002e122), -inf),
+        ((-25.0, 36.527_592_225_483_26, -4.159_605_496_329_195_5, 4.708_584_498_582_971e71), inf),
+        (
+            (-6.0, -8.269_095_529_373_416, 2.511_868_208_292_315_6, -1.188_302_376_460_491_2e151),
+            inf,
+        ),
+        (
+            (-8.0, -4.555_226_504_260_197, -2.488_187_984_357_836, -2.120_778_378_045_006_4e159),
+            inf,
+        ),
+        // (just below the cutoff, which the double-double sum resolves)
+        ((-7.0, -6.219_584_855_883_66, 20.955_424_871_235_71, 1.171_551_334_021_426_5e45), max),
+        (
+            (-2.0, -0.976_556_258_795_454_8, -5.143_678_704_031_934_5, -4.090_963_831_756_783e155),
+            -max,
+        ),
+        // (where a term ratio over- or underflows, but the terms don't, and one with a finite
+        // value, which was -inf)
+        ((-2.0, -2.0, 1e-310, 1.0), inf),
+        ((-2.0, 1.0, 1e-310, 2.0), inf),
+        ((-2.0, -2.0, 1e-310, -3.0), inf),
+        ((-2.0, 2e200, 1e308, 1e300), inf),
+        ((-2.0, 1e308, 1e307, 2.0), 361.0),
+        ((-2.0, 1.0, c_1, 1e200), -inf),
+        ((-2.0, 1.0, c_1, -1e200), -inf),
+        // (Euler transformations whose c - a rounds to a negative integer, where the polynomial
+        // overflows, but not its product with (1 - x)^(c - a - b); xsf gives NaN and inf;
+        // references: Arb)
+        (
+            (20.0, 19.578_718_423_577_527, 3.761_908_130_024e-312, -1_240.829_428_855_755_4),
+            1.302_688_042_625_831_2e251,
+        ),
+        (
+            (44.0, 70.443_210_106_362_3, -3.5e-323, -1.226_182_118_621_034_2),
+            -6.120_084_936_549_461_6e302,
+        ),
+        // (finite by the other paths, e.g. the Pfaff series where (1 - x)^(c - a - b)
+        // underflows, which this leaves correctly rounded)
+        ((60.0, 1e-12, -1e-315, -300_000.0), 1.000_000_001_501_041_5e303),
+        ((2.0, 1.25, 2e-309, -8.000_976_562_5), 9.665_443_073_997_591e302),
+        (
+            (
+                -43.0,
+                -103.894_138_368_212_03,
+                4.176_330_477_074_113e-309,
+                -1.639_378_690_091_260_6e-18,
+            ),
+            -1.753_654_077_006_681_6e294,
+        ),
+    ] {
+        assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
+        assert_eq!(xsf::hyp2f1(b, a, c, x), desired);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_degree_1() {
     // unlike in xsf: `1 - a x / c` also for b = -1, where xsf gives NaN (references: exact)
     let actual = [

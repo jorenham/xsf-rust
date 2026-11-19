@@ -17,8 +17,8 @@
 use core::iter;
 
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_recur,
-    ln_dd, mul_gamma_ratio,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
+    hyp2f1_poly_dd, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -1069,18 +1069,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
         let p = s.powf(d);
         let y = hyp2f1_impl(c - a, c - b, c, x, recur, false);
-        // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur`, multiply its
-        // scaled value by `s^d`, as their product can still be finite.
+        // Unlike in xsf, for a tiny `c` and a non-finite `y`, multiply its scaled value by `s^d`,
+        // as their product can still be finite.
         //
         // Only if that is at least `1 / HYP2F1_ETHRESH`: the rounding of `c - a` and `c - b` (e.g.
         // to a negative integer, where `y` is a polynomial) loses a part of the result that
         // isn't proportional to `1 / c`.
-        if y.is_infinite() && c.abs() < HYP2F1_EPS {
+        let tiny_c = c.abs() < HYP2F1_EPS;
+        let rescale = |y: Scaled| {
             // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
             let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::new(1.0) - x);
-            let scaled = recur_first(c - a, c - b, c).map(|y| y.mul_exp(ln_p).to_f64());
+            let scaled = Some(y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
-            if let Some((y, _)) = scaled.filter(accurate).filter(large) {
+            scaled.filter(accurate).filter(large).map(|(y, _)| y)
+        };
+        if tiny_c && y.is_infinite() {
+            if let Some(y) = recur_first(c - a, c - b, c).and_then(rescale) {
                 return y;
             }
         }
@@ -1101,7 +1105,11 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 }
             }
         }
-        return or_recur(euler);
+        let euler = or_recur(euler);
+        // (the polynomial last, as the paths above can be more accurate)
+        let rescue = tiny_c && !y.is_finite() && !euler.is_finite();
+        let poly = rescue.then(|| hyp2f1_poly_dd(c - a, c - b, c, x)).flatten();
+        return poly.and_then(rescale).unwrap_or(euler);
     }
     if ax < 1.0 || x == -1.0 {
         /* 2F1(a,b;b;x) = (1-x)**(-a) */
@@ -1129,7 +1137,11 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 if terminates(near_neg_int) {
                     break 'hypok;
                 }
-                return f64::INFINITY; // goto hypdiv
+                // Unlike in xsf, the polynomial in scaled double-double for an integer a or b <= 0
+                // (in the outermost call, as the calling transformations have their own fallbacks)
+                let poly = outer.then(|| hyp2f1_poly_dd(a, b, c, x)).flatten();
+                let poly = poly.map(Scaled::to_f64).filter(accurate);
+                return poly.map_or(f64::INFINITY, |(y, _)| y); // else goto hypdiv
             }
 
             if neg_int_a || neg_int_b {
@@ -1337,12 +1349,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
-        // Unlike in xsf, an overflowing polynomial of an integer c <= 0 (see above) comes from
-        // `hyp2f1_recur` (unless it returned a value above): the power series stops at its first
-        // infinite term, whose sign can differ from that of the sum, and the recurrence in `a`
-        // can add infinities of both signs (NaN)
-        if inexact.is_none() && !y.is_finite() && is_nonpos_int(c) {
-            let poly = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+        // Unlike in xsf, retry a non-finite polynomial in scaled double-double (in the outermost
+        // call, as above): the power series stops at its first infinite term, whose sign can
+        // differ from that of the sum, and the recurrence in `a` can add infinities of both signs
+        // (NaN)
+        if outer && inexact.is_none() && !y.is_finite() && (neg_int_a || neg_int_b) {
+            let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
             if let Some((y, _)) = poly.filter(accurate) {
                 return y;
             }

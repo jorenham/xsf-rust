@@ -533,7 +533,7 @@ fn hyp2f1_poly(
             // (e.g. near a root, where the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12 and
             // the better recurrence has an error bound of 2e-11), only if accurate, as the
             // rounding of `w` can make it less so than the paths of the caller
-            let y_dd = poly_dd(n, r, c, w).filter(|y| y.err <= HYP2F1_ETHRESH);
+            let y_dd = poly_dd(n, r, c, w, false).filter(|y| y.err <= HYP2F1_ETHRESH);
             min_err(best, y_dd.map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
@@ -1027,14 +1027,27 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
-/// `F(a, b; c; x)` for an integer `c <= 0` at or below an integer `a` or `b = -n < 0`: the
-/// polynomial (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by
-/// 7e15 for `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff
-/// transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
-fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+/// `F(a, b; c; x)` for finite `x != 0` and an integer `a` or `b = -n < 0`, with `c` not an integer
+/// in `(-n, 0]`: the polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in
+/// double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
+/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+pub(crate) fn hyp2f1_poly_dd(
+    a: impl Into<Dd>,
+    b: impl Into<Dd>,
+    c: impl Into<Dd>,
+    x: f64,
+) -> Option<Scaled> {
+    if x == 0.0 || !x.is_finite() {
+        return None;
+    }
+    let (a, b, c) = (a.into(), b.into(), c.into());
+    // (`a >= b`, as in `hyp2f1_recur`, so the lower degree first)
+    let (a, b) = if b.hi > a.hi { (b, a) } else { (a, b) };
+    // (no factor of `(c)_n` is 0)
+    let no_pole = |p: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
     let is_poly =
-        |p: Dd| p.is_integer() && p.hi >= c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
-    // (`a >= b`, so the lower degree)
+        |p: Dd| p.is_integer() && no_pole(p) && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     let (p, q) = if is_poly(a) {
         (a, b)
     } else if is_poly(b) {
@@ -1043,21 +1056,26 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
         return None;
     };
     let n = -p.hi;
-    if x == 1.0 {
-        return chu_vandermonde(n, q, c);
-    }
-    let direct = poly_dd(n, q, c, Dd::new(x));
-    if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
-        return direct;
-    }
-    let one = Dd::new(1.0);
-    let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one));
-    min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+    let y = if x == 1.0 {
+        chu_vandermonde(n, q, c)
+    } else {
+        let direct = poly_dd(n, q, c, Dd::new(x), true);
+        if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
+            direct
+        } else {
+            let one = Dd::new(1.0);
+            let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one), true);
+            min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+        }
+    };
+    // (not if its mantissa is NaN or infinite, which `Scaled::new` accepts)
+    y.filter(|y| y.m.is_finite())
 }
 
 /// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
-/// `series_weighted`, plus the terms it skips if `c <= -n`
-fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
+/// `series_weighted`, plus the terms it skips if `c <= -n`. If `scale_c`, also with the mantissa
+/// of `c + k`, so that the term ratio can't overflow for a subnormal or huge `c`.
+fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
@@ -1072,8 +1090,9 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     };
     while k < n {
         let (bm, be) = (b + k).frexp();
-        t = t * (bm * (k - n)) * xm / ((c + k) * (k + 1.0));
-        te += be + xe;
+        let (cm, ce) = if scale_c { (c + k).frexp() } else { (c + k, 0) };
+        t = t * (bm * (k - n)) * xm / (cm * (k + 1.0));
+        te += be + xe - ce;
         k += 1.0;
         if let Some(s) = rescale_exp(t.hi) {
             (t, te) = (t.ldexp(-s), te + s);
@@ -1119,18 +1138,18 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     Scaled::new(sum.hi, e, err)
 }
 
-/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c < 1 - n`, in
-/// double-double
+/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c` not an integer in
+/// `(-n, 0]`, in double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`, or `None` if a
+    // the product `t 2^e`, with the mantissas of the factors as in `poly_dd`, or `None` if a
     // numerator is 0
     let product = (0..n as u32)
         .map(f64::from)
         .try_fold((Dd::new(1.0), 0), |(t, e), k| {
-            let (num, num_e) = (cb + k).frexp();
-            let t = (num.hi != 0.0).then(|| t * num / (c + k))?;
-            let e = e + num_e;
+            let ((num, num_e), (den, den_e)) = ((cb + k).frexp(), (c + k).frexp());
+            let t = (num.hi != 0.0).then(|| t * num / den)?;
+            let e = e + num_e - den_e;
             Some(rescale_exp(t.hi).map_or((t, e), |s| (t.ldexp(-s), e + s)))
         });
     match product {
@@ -1251,7 +1270,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     if c.hi <= 0.0 && c.is_integer() {
-        return hyp2f1_neg_int_c(a, b, c, x);
+        return hyp2f1_poly_dd(a, b, c, x);
     }
     if x >= 1.0 {
         return None;

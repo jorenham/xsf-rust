@@ -125,6 +125,13 @@ impl DoubleDouble {
     }
 }
 
+impl From<f64> for DoubleDouble {
+    #[inline]
+    fn from(x: f64) -> Self {
+        Self::new(x)
+    }
+}
+
 impl From<DoubleDouble> for f64 {
     #[inline]
     fn from(x: DoubleDouble) -> Self {
