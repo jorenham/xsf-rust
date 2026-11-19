@@ -669,6 +669,10 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     /* m = 0; */
     let mut d4m = 1.0;
     let mut pm = p;
+    // Whether `diff`, a sum that cancels `a`, lost more than 4 bits
+    let cancels = |a: T, diff: T| a.max_norm() > diff.max_norm() * const { pow2(4) };
+    // Whether the arguments are in the right half-plane, where `Re lam >= 0`
+    let right = xm.real() >= 0.0 && p.real() > 0.0;
     let mut prm;
     let mut lam;
     let mut dm;
@@ -701,6 +705,14 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
                 let dist = |i: usize| (pm - xyz[i]).abs();
                 let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
                 pl = xyzl[i] + (pm - xyz[i]);
+                // Unlike in xsf, if `p + lam` is negligible in the right half-plane, its real part is
+                // at least the lower bound `4^-m Re p`: rounded to the left of the imaginary axis,
+                // `p + lam` and the `R_C` terms can be on different branches.
+                let re = p.real() * d4m;
+                let tiny = pl.max_norm() <= config::ASYM_ZERO_UL * pm.max_norm();
+                if right && tiny && pl.real() < re {
+                    pl = pl + -pl.real() + re;
+                }
             }
             [xm, ym, zm] = xyzl.map(|a| a * 0.25);
             pm = pl * 0.25;
@@ -719,16 +731,29 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // `s^2 + delta / 4 = s beta`, see below
     let mut w2 = sm * prm * pm * 4.0;
 
+    // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
+    //
+    // Unlike in xsf, from `u` if `1 + t` cancels, e.g. after a step where `p + lam` cancels, as
+    // `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u` underflows.
+    let rc1 = |t: T, u: T| {
+        if !cancels(T::from(1.0), u) {
+            t.safe_atan_sqrt_div()
+        } else if u.max_norm().is_normal() {
+            rc(T::from(1.0), u, rerr).1
+        } else {
+            T::NAN
+        }
+    };
     // The sum of the `R_C` terms of the steps before `m`, `3 atan(sqrt(t)) / (sqrt(t) s)` with
     // `t = delta 4^-m / s^2`, as in xsf's last step
     let s_term = |s: T, d4m: f64| (delta * d4m / (s * s)).safe_atan_sqrt_div() * 3.0 / s;
     // Unlike in xsf, the `R_C` terms are summed directly once the update of `s` cancels by more
     // than 4 bits, e.g. for `x, y, z << p`, where `s` is lost while `r d ~ delta 4^-2m`. The term
     // of a step is the `R_C` term of `rj_duplicated`, `6 4^-m R_C(1, 1 + e) / d` with
-    // `e = delta 4^-3m / d^2`.
-    let step_rc_term = |d: T, d4m: f64| {
+    // `e = delta 4^-3m / d^2` and `1 + e = 2 beta / d`.
+    let step_rc_term = |d: T, d4m: f64, beta: T| {
         let e = delta * d4m / d * (T::from(d4m) / d) * d4m;
-        e.safe_atan_sqrt_div() * (d4m * 6.0) / d
+        rc1(e, beta * 2.0 / d) * (d4m * 6.0) / d
     };
     let mut rc_sum = None;
 
@@ -746,22 +771,23 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
         }
         if let Some(sum) = rc_sum {
             ellint_rj_calc!();
-            rc_sum = Some(sum + step_rc_term(dm, d4m));
             ellint_rj_updt!();
+            rc_sum = Some(sum + step_rc_term(dm, d4m * 4.0, prm * pm * 4.0));
             m += 1;
             continue;
         }
         let ss = sm * sm;
-        let u = delta * d4m / ss + 1.0;
+        let t = delta * d4m / ss;
+        let u = t + 1.0;
         // Unlike in xsf, `w = s sqrt(u)` as `sqrt(w2)` if `|u| < 2`, since `u` cancels as `u -> 0`,
         // e.g. for `x, y << p << z`. The branch is that of `sqrt(u)`, i.e. `Re(w / s) >= 0` (`s` is
         // inaccurate if `|u| >> 1`). But not if `w2` differs from `s^2 u` by more than the
         // cancellation can explain, e.g. after a step where `d + r 4^-m` cancels, or if `s^2`
         // underflows (in the max norm, which is cheaper).
-        let (wm, rm) = if u.real() * u.real() + u.imag() * u.imag() < 4.0
+        let by_w2 = u.real() * u.real() + u.imag() * u.imag() < 4.0
             && ss.max_norm().is_normal()
-            && (w2 - ss * u).max_norm() <= ss.max_norm() * 0.5
-        {
+            && (w2 - ss * u).max_norm() <= ss.max_norm() * 0.5;
+        let (wm, rm) = if by_w2 {
             let w = w2.sqrt();
             let w = if w.real() * sm.real() + w.imag() * sm.imag() < 0.0 {
                 -w
@@ -777,9 +803,14 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
         let den = dm + rm * d4m;
         let rd = rm * dm;
         let num = rd - delta * (d4m * d4m);
-        if rd.max_norm() > num.max_norm() * const { pow2(4) } {
-            rc_sum = Some(s_term(sm, d4m) + step_rc_term(dm, d4m));
-        }
+        // The `R_C` terms before this step, with `u = w2 / s^2` if that is the accurate one
+        let before = cancels(rd, num).then(|| {
+            if by_w2 {
+                rc1(t, w2 / ss) * 3.0 / sm
+            } else {
+                s_term(sm, d4m)
+            }
+        });
         sm = num * 0.5 / den;
 
         /* next */
@@ -787,7 +818,9 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
         // `w2 = s^2 + delta 4^-m` (of the next step) as `w r d beta / (d + r 4^-m)^2`, without
         // cancellation, from `d^2 + delta 4^-3m = 2 d beta` with `beta = sqrt(p) (p + lam)`
         // (https://dlmf.nist.gov/19.26.E23), where `p + lam = 4 p'`
-        w2 = wm * rm * (dm / den) * (prm * pm * 4.0 / den);
+        let beta = prm * pm * 4.0;
+        w2 = wm * rm * (dm / den) * (beta / den);
+        rc_sum = before.map(|sum| sum + step_rc_term(dm, d4m * 4.0, beta));
         m += 1;
     }
     /* Burn some extra cycles re-balancing Am as the "true" centroid */
