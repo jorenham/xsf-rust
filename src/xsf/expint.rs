@@ -50,7 +50,7 @@ fn exp1_f64(x: f64) -> f64 {
     (-x).exp() * t
 }
 
-fn exp1_c64(z: C64) -> C64 {
+pub(crate) fn exp1_c64(z: C64) -> C64 {
     // ====================================================
     // Purpose: Compute complex exponential integral E1(z)
     // Input :  z   --- Argument of E1(z)
