@@ -264,6 +264,18 @@ fn test_carlson_agm_opposite_sides() {
 }
 
 #[test]
+fn test_elliprg_negligible_imag_huge() {
+    // a negligible imaginary part doesn't prevent downscaling the huge arguments
+    let actual = xsf::elliprg(
+        c64(1.735_778_648_751_103e186, -3.309_532_202_948_146e-247),
+        c64(1.106_380_492_215_430_7e198, 2.695_124_182_909_526_7e-261),
+        c64(3.913_736_070_965_839e206, -6.593_607_292_907_775e-23),
+    );
+    let expected = c64(9.891_582_519_574_452e102, -8.332_346_327_267_998e-127);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),

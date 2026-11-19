@@ -111,14 +111,25 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 /// - otherwise `f^2` aims to scale the largest part to at most 2^254, near the top of that range,
 ///   so that tiny parts stay away from underflow
 /// - but huge arguments are downscaled only so far that the smallest nonzero argument (in the max
-///   norm) stays above `min`, and the smallest nonzero part normal, and `None` if that leaves no
-///   downscaling, e.g. for `[1e300, 1e-310]` with `min = f64::MIN_POSITIVE`
+///   norm) stays above `min`, and the smallest significant part normal, and `None` if that leaves
+///   no downscaling, e.g. for `[1e300, 1e-310]` with `min = f64::MIN_POSITIVE`
 ///
 /// So the callers' own handling of tiny or huge arguments is still reachable.
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);
-    let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
+    // an imaginary part below `EPSILON` times a positive real part may become subnormal, as that
+    // changes the argument by less than its rounding error (unlike a real part, or one that
+    // decides the side of the branch cut)
+    let significant = |a: &T| {
+        let im = Some(a.imag().abs()).filter(|&im| im >= f64::EPSILON * a.real());
+        [Some(a.real().abs()), im].into_iter().flatten()
+    };
+    let amin = args
+        .iter()
+        .flat_map(significant)
+        .filter(|&a| a > 0.0)
+        .fold(f64::INFINITY, f64::min);
     let sizes = args.iter().map(|a| a.max_norm());
     let smin = sizes.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let e = amax.log2();
