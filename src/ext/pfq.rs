@@ -996,8 +996,9 @@ impl Term for (f64, f64) {
 ///
 /// Before term `settled + |z|`, the terms can grow again after a small one, and then shrink to
 /// smaller ones, e.g. after a tiny `a_m` or a small positive `1 + a_m - a_i + n` of a term of
-/// the algebraic part of pFq. So the error of a sum is at least its distance to any later sum,
-/// less the error of that one, and infinite if the terms grew before `PFQ_MAXITER` ends them.
+/// the algebraic part of pFq. So the error of a sum is taken to be at least its distance to any
+/// later sum, less the error of that one (a heuristic, as that error is an estimate too), and
+/// infinite if `PFQ_MAXITER` ends the terms while the last is larger than the smallest.
 fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -1034,7 +1035,7 @@ fn asymptotic_sum<T: Term>(
         abs_sum += bound;
         prev = bound;
         // (at the cap, terms that grew after the smallest may still shrink to smaller ones)
-        if n + 1.0 == f64::from(PFQ_MAXITER) && n < settled + z.abs() && size > min {
+        if n + 1.0 == f64::from(PFQ_MAXITER) && size > min {
             best.1 = f64::INFINITY;
         }
     }
@@ -2534,6 +2535,22 @@ macro_rules! hyp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_asymptotic_sum_cap_after_hump() {
+        // small terms, a hump before term `settled + |z|`, then terms that shrink too slowly to
+        // end before the cap
+        let term = |n: u32| {
+            let t = match n {
+                0..5 => 10.0_f64.powi(-i32::try_from(n).unwrap()),
+                5..10 => 10.0_f64.powi(i32::try_from(n).unwrap() - 7),
+                _ => 1e3 * 0.9999_f64.powi(i32::try_from(n).unwrap() - 10),
+            };
+            (t, t)
+        };
+        let (_, err) = asymptotic_sum((0..).map(term), 0.0, 20.0, |_| 0.0);
+        assert_eq!(err, f64::INFINITY);
+    }
 
     #[test]
     fn test_estimate_absolute_at_tol() {
