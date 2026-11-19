@@ -119,18 +119,19 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
     scale_factor_of_parts(args, min, |a| [a.real().abs(), a.imag().abs()])
 }
 
-/// [`scale_factor`], but if all real parts are positive, an imaginary part below `EPSILON` times
-/// its real part may become subnormal or 0, a perturbation of the argument by less than `EPSILON`
-/// relative to it (not near a branch cut, where such a part can decide the result)
+/// [`scale_factor`], but a real part below `EPSILON` times its imaginary part may become subnormal
+/// or 0, and so may an imaginary part below `EPSILON` times its real part if all real parts are
+/// positive: a perturbation of the argument by less than `EPSILON` relative to it (not near a
+/// branch cut, where such a part can decide the result)
 ///
 /// For a retry where the unscaled arguments gave a non-finite result, since flushing such parts
-/// can still lose the relative accuracy of a tiny imaginary part of the result.
+/// can still lose the relative accuracy of a tiny part of the result.
 pub(super) fn relaxed_scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let right = args.iter().all(|a| a.real() > 0.0);
     scale_factor_of_parts(args, min, |a| {
-        let im = a.imag().abs();
+        let [re, im] = [a.real().abs(), a.imag().abs()];
         [
-            a.real().abs(),
+            if re < f64::EPSILON * im { 0.0 } else { re },
             if right && im < f64::EPSILON * a.real() {
                 0.0
             } else {

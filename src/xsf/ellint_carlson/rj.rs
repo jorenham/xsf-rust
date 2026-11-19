@@ -143,7 +143,10 @@ mod rjimpl {
         let x0 = x == zero;
         let y0 = y == zero;
         let z0 = z == zero;
-        if (pr > 0.0) && (xr >= 0.0) && !((y0 && (x0 || z0)) || (x0 && z0)) {
+        // Unlike in xsf, also for imaginary `p`, the limit of `Re p > 0` (as is subnormal `Re p`),
+        // e.g. if the rescaling in `rj` flushes `Re p`
+        let p_right = pr > 0.0 || (pr == 0.0 && pi != 0.0);
+        if p_right && (xr >= 0.0) && !((y0 && (x0 || z0)) || (x0 && z0)) {
             return true;
         }
         /* "Alternatively, if p != 0 and |ph p| < pi ..." */
@@ -419,8 +422,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
-    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible real
+    // or imaginary parts prevent that and the result is not finite, rescaled with those flushed
     let args = [x, y, z, p];
     let (_, min) = realness(args);
     let rescaled = |f: f64| {

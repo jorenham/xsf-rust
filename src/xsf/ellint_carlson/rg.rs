@@ -70,8 +70,8 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
-    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible real
+    // or imaginary parts prevent that and the result is not finite, rescaled with those flushed
     let rescaled = |f: f64| {
         let (status, res) = rg(x * f * f, y * f * f, z * f * f, rerr);
         (status, res / f)
