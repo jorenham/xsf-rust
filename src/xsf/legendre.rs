@@ -1,6 +1,6 @@
-//! Translated into pure Rust from `xsf/cpu/legendre.h` and `xsf/cpu/recur.h` (scipy/xsf@ab278eb),
-//! for `T` either `double` or `std::complex<double>`. The dual numbers of `xsf/cpu/dual.h`, which
-//! xsf uses for derivatives, are not translated.
+//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@ab278eb) and `xsf/cpu/recur.h`
+//! (scipy/xsf@b1eb270), for `T` either `double` or `std::complex<double>`. The dual numbers of
+//! `xsf/cpu/dual.h`, which xsf uses for derivatives, are not translated.
 //!
 //! Unlike in xsf:
 //! - The integer products in the (normalized) recurrence coefficients are computed in `f64`
