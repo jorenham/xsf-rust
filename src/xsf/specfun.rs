@@ -236,6 +236,17 @@ pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, 
     let (mut digits, mut digits_rec) = (0, i32::MIN);
 
     out = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
+    // Unlike in xsf, if a - b + 1 rounds to a non-positive integer (see `aa_rounding`), U is also
+    // computed with the rounding error d, and replaces the polynomial if the two disagree (the
+    // agreement test of step 3 of `chgu`)
+    let (rounded, d) = hyperg::aa_rounding(a, b);
+    if rounded {
+        let (mut md_d, mut isfer_d, mut digits_d, mut digits_rec_d) = (0, 0, 0, i32::MIN);
+        let u = chgu(x, a, b, d, &mut md_d, &mut isfer_d, &mut digits_d, &mut digits_rec_d, id_min);
+        if digits_d > 0 && (u - out).abs() > 10f64.powi(1 - digits_d) * u.abs() {
+            (out, isfer, digits, digits_rec) = (u, isfer_d, digits_d, digits_rec_d);
+        }
+    }
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
