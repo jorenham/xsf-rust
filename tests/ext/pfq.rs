@@ -618,6 +618,8 @@ fn test_hyp0f2() {
     assert!(hyp0f2(1.5, 2.5, f64::NAN).is_nan());
     // a pole
     assert_eq!(hyp0f2(-2.0, 1.5, 0.5), f64::INFINITY);
+    // it overflows (Arb: -2.448e647)
+    assert_eq!(hyp0f2(1.0, 1.0, -1e9), f64::NEG_INFINITY);
     assert_eq!(hyppfq(&[], &[1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
 }
 
