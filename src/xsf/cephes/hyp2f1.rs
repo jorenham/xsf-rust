@@ -14,8 +14,11 @@
 //! expansion (for `x > 0.9` and integer `c - a - b`) can differ from xsf when `a`, `b`, `c - a` or
 //! `c - b` is close to a negative integer.
 
+use core::iter;
+
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, hyp2f1_recur, ln_dd,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_recur,
+    ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -797,6 +800,67 @@ fn in_recur_regime(a: f64, b: f64, c: f64, x: f64) -> bool {
     is_large(a, b, c) || near_log(a, b, c, x) || near_poly(a, b, c)
 }
 
+/// Term `k` of the series of `hyp2f1_series_at_1`, and its partial sums up to it
+#[derive(Clone, Copy)]
+struct SeriesStep {
+    k: f64,
+    term: f64,
+    sum: f64,
+    sum_abs: f64,
+}
+
+/// `2F1(a, b; c; 1)` by its series, if a bound of its tail shows that it is accurate
+fn hyp2f1_series_at_1(a: f64, b: f64, c: f64) -> Option<f64> {
+    // (by magnitude, so that the term update can't over- or underflow first, and then by sign, so
+    // that it is symmetric in `a` and `b`)
+    let (lo, hi) = if (a.abs(), a) < (b.abs(), b) {
+        (a, b)
+    } else {
+        (b, a)
+    };
+    let first = SeriesStep {
+        k: 0.0,
+        term: 1.0,
+        sum: 1.0,
+        sum_abs: 1.0,
+    };
+    // (while all intermediates are normal, with `|hi + k| < c + k`)
+    let steps = iter::successors(Some(first), |s| {
+        let (p, q) = ((hi + s.k) / (c + s.k), (lo + s.k) / (s.k + 1.0));
+        let term = s.term * (p * q);
+        let normal = [p, q, p * q, term].iter().all(|v| v.is_normal());
+        let (sum, sum_abs) = (s.sum + term, s.sum_abs + term.abs());
+        normal.then_some(SeriesStep {
+            k: s.k + 1.0,
+            term,
+            sum,
+            sum_abs,
+        })
+    });
+    let t = |k| c - a.abs() - b.abs() - k;
+    steps
+        .take(HYP2F1_MAXITER as usize + 1)
+        .take_while(|s| t(s.k) > 0.0 && s.sum.is_finite())
+        // For t > 0, the tail from term k is at most `|t_k| F(A, B; c + k; 1)` with `A = |a| + k`,
+        // `B = |b| + k`, as `(k + 1)_j >= j!`, and as psi' decreases, `F <= e^u` with
+        // `u = A B psi'(t) < A B (1/t + 1/t^2)` (DLMF 15.4.20). Plus the roundings.
+        .find(|s| {
+            let u = (lo.abs() + s.k) / t(s.k) * ((hi.abs() + s.k) * (1.0 + 1.0 / t(s.k)));
+            s.term.abs() * u.exp() + 8.0 * s.k * MACHEP * s.sum_abs <= HYP2F1_ETHRESH * s.sum.abs()
+        })
+        .map(|s| s.sum)
+}
+
+/// Gauss's sum `2F1(a, b; c; 1)` in double-double (with exact `c - a`, `c - b` and `c - a - b`),
+/// unless its error bound straddles the overflow
+fn hyp2f1_gauss_dd(a: f64, b: f64, c: f64) -> Option<f64> {
+    let (c_dd, one) = (Dd::new(c), || Scaled::new(1.0, 0, 0.0));
+    let g = mul_gamma_ratio([c_dd, c_dd - a - b], [c_dd - a, c_dd - b], one).map(fold_exp)?;
+    let [lo, hi] = [1.0 - g.err, 1.0 + g.err].map(|f| ldexp_f64(g.m * f, g.e));
+    let ok = g.err <= HYP2F1_RECUR_TOL && lo.is_finite() == hi.is_finite();
+    ok.then(|| ldexp_f64(g.m, g.e))
+}
+
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
 /// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9), and `outer`
 /// whether this is the outermost call
@@ -1198,6 +1262,13 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                         return f64::INFINITY; // goto hypdiv
                     }
                     y = gamma(c) * gamma(d) * (rgamma(p) * rgamma(r));
+                    // Unlike in xsf, if a factor over- or underflows (e.g. `Gamma(c)` for
+                    // c > 171.6, where xsf gives NaN)
+                    if !y.is_normal() && d.is_finite() {
+                        y = hyp2f1_series_at_1(a, b, c)
+                            .or_else(|| hyp2f1_gauss_dd(a, b, c))
+                            .unwrap_or(y);
+                    }
                     return y; // goto hypdon
                 }
                 if x < 0.0 && d <= -1.0 {
