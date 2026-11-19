@@ -2511,6 +2511,8 @@ def r_hyp0f0(z):
 
 
 def r_hyp1f0(a, z):
+    if z == 1:
+        return mp.mpf(0) if a < 0 else mp.inf if a > 0 else mp.mpf(1)
     with wdps(10):
         return (1 - z) ** -a
 
@@ -2618,6 +2620,68 @@ def _pfq_series(a, b, z):
     return s
 
 
+def _pfq_one_sum(a, b):
+    """The sum of pFq(1) for p = q + 1, sum(b) > sum(a), without a pole or a polynomial, in the
+    working precision, and its largest term.
+
+    The terms for k >= n (a few times the largest |a_i|, |b_j|) are K k^-e (1 + c_1 / k + ...),
+    where e = sum(b) - sum(a) + 1: the asymptotic series of the gamma functions in the terms
+    (DLMF 5.11.1, 5.11.8 and 24.2.1) has coefficients of k^-m in the exponent of
+
+        e_m = (-1)^(m+1) (sum_i B_(m+1)(a_i) - sum_j B_(m+1)(b_j)) / (m (m + 1)),
+
+    and the terms sum to Hurwitz zeta functions (DLMF 25.11.1). The b_j include the 1 of n!."""
+    a, b = [mp.mpf(v) for v in a], [mp.mpf(v) for v in b] + [mp.mpf(1)]
+    e = sum(b) - sum(a)
+    n = max(64, int(8 * max(abs(v) for v in (*a, *b))))
+    s, t, top = mp.mpf(0), mp.mpf(1), mp.mpf(1)
+    for k in range(n):
+        s += t
+        top = max(top, abs(t))
+        t *= mp.fprod(v + k for v in a) / mp.fprod(v + k for v in b)
+    # (t is now the term k = n)
+    scale = mp.fprod(mp.gamma(v) for v in b) / mp.fprod(mp.gamma(v) for v in a)
+    em = [
+        (-1) ** (m + 1)
+        * (
+            sum(mp.bernpoly(m + 1, v) for v in a)
+            - sum(mp.bernpoly(m + 1, v) for v in b)
+        )
+        / (m * (m + 1))
+        for m in range(1, 101)
+    ]
+    c, small = [mp.mpf(1)], False
+    for j in range(101):
+        if j:
+            c.append(sum(m * em[m - 1] * c[j - m] for m in range(1, j + 1)) / j)
+        term = scale * c[j] * mp.zeta(e + j, n)
+        s += term
+        # (two in a row, since a coefficient can be small by chance)
+        if small and abs(term) <= mp.eps * abs(s) / 100:
+            return s, top
+        small = abs(term) <= mp.eps * abs(s) / 100
+    raise NoConvergence
+
+
+def _pfq_at_one(a, b):
+    """pFq(1) for p = q + 1 without a polynomial: the sum if it converges, which is if
+    sum(b) > sum(a), else the infinity of the sign of its terms, which is constant for k > -a_i,
+    -b_j."""
+    if sum(b) > sum(a):
+        # (with the digits that its cancellation loses, as in `r_hyp2f1`)
+        extra = 20
+        while extra < 300:
+            with wdps(extra):
+                s, top = _pfq_one_sum(a, b)
+                if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
+                    return +s
+                extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
+        raise NoConvergence
+    kmin = math.floor(max(0, *(-v for v in (*a, *b)))) + 1
+    negative = sum(v + k < 0 for k in range(kmin) for v in (*a, *b))
+    return -mp.inf if negative % 2 else mp.inf
+
+
 def r_hyppfq(*args):
     """pFq for p = q + 1, of a_1, ..., a_p, b_1, ..., b_q and z."""
     # mpmath's hyper can be far off for b < 0, like its hyp2f1 (mpmath/mpmath#1216), and Arb's
@@ -2626,6 +2690,8 @@ def r_hyppfq(*args):
     # digits.
     p = len(args) // 2
     a, b, z = args[:p], args[p:-1], args[-1]
+    if z == 1 and not any(v == int(v) <= 0 for v in a):
+        return _pfq_at_one(a, b)
     if z <= -1 and not any(v == int(v) <= 0 for v in a):
         return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec

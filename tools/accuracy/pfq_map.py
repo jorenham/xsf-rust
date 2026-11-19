@@ -51,6 +51,12 @@ Z_MIN: Final = -3
 Z_MAX: Final = 6
 Z_BINS: Final = 27
 X_MAX: Final = Z_MAX - Z_MIN
+# for p = q + 1, the single-point columns at these z, right of the others, `POINT_GAP` apart and
+# `POINT_WIDTH` wide (in x)
+POINT_ZS: Final = (-1.0, 1.0)
+POINT_WIDTH: Final = 0.75
+POINT_GAP: Final = 1.75
+NCOLS: Final = 2 * Z_BINS + len(POINT_ZS)
 # s in [10^S_MIN, 10^S_MAX], in S_BINS bins
 S_MIN: Final = -2
 S_MAX: Final = 2
@@ -72,19 +78,25 @@ def inputs(
     p: int, q: int, per_bin: int, int_diff: bool
 ) -> list[tuple[int, int, accuracy.Args]]:
     """`per_bin` random inputs (a_1, ..., a_p, b_1, ..., b_q, z) of each bin (i, j) of z and
-    s, except where z >= 1 for p = q + 1, and where z > 0 for p > q + 1, where it is complex. If
-    `int_diff`, then a_2 = a_1 + k for a random integer k in [-K_MAX, K_MAX]."""
+    s, except where z >= 1 for p = q + 1, and where z > 0 for p > q + 1, where it is complex. For
+    p = q + 1, the columns 2 * Z_BINS + k have z = `POINT_ZS[k]`. If `int_diff`, then
+    a_2 = a_1 + k for a random integer k in [-K_MAX, K_MAX]."""
     rng = random.Random(f"{p}F{q}-int" if int_diff else f"{p}F{q}")
     out: list[tuple[int, int, accuracy.Args]] = []
     dx, ds = X_MAX / Z_BINS, (S_MAX - S_MIN) / S_BINS
-    for i in range(2 * Z_BINS):
+    for i in range(2 * Z_BINS + (len(POINT_ZS) if p == q + 1 else 0)):
         x0 = -X_MAX + i * dx
-        if (p == q + 1 and x0 >= -Z_MIN) or (p > q + 1 and x0 >= 0):
+        if i < 2 * Z_BINS and (
+            (p == q + 1 and x0 >= -Z_MIN) or (p > q + 1 and x0 >= 0)
+        ):
             continue
         for j in range(S_BINS):
             for _ in range(per_bin):
-                x = rng.uniform(x0, x0 + dx)
-                z = math.copysign(10 ** (abs(x) + Z_MIN), x)
+                if i < 2 * Z_BINS:
+                    x = rng.uniform(x0, x0 + dx)
+                    z = math.copysign(10 ** (abs(x) + Z_MIN), x)
+                else:
+                    z = POINT_ZS[i - 2 * Z_BINS]
                 s = 10 ** rng.uniform(S_MIN + j * ds, S_MIN + (j + 1) * ds)
                 ab = [rng.uniform(-s, s) for _ in range(p + q)]
                 if int_diff:
@@ -110,8 +122,8 @@ def grids(
         nones.setdefault((i, j), []).append(math.isnan(y.real))
         if not math.isnan(y.real) and not isinstance(ref, str):
             errs.setdefault((i, j), []).append(accuracy.error(y, ref))
-    err = np.full((S_BINS, 2 * Z_BINS), np.nan)
-    none = np.full((S_BINS, 2 * Z_BINS), np.nan)
+    err = np.full((S_BINS, NCOLS), np.nan)
+    none = np.full((S_BINS, NCOLS), np.nan)
     for (i, j), es in errs.items():
         stats = accuracy.stats(es)
         if stats and stats[1] is not None:
@@ -130,7 +142,8 @@ def plot(
     levels: list[float],
 ) -> None:
     """A panel per p in `ps` (rows) and q (columns): the share of `None`, or the gmean of the error.
-    A bin without inputs is blank: there it is complex."""
+    A bin without inputs is blank: there it is complex. The narrow columns at the right are the
+    single points z = -1 and z = 1, for p = q + 1."""
     fig, axes = plt.subplots(
         len(ps),
         Q_MAX + 1,
@@ -148,7 +161,15 @@ def plot(
         norm = BoundaryNorm(levels, len(levels) - 1)
         cmap, label = colormaps["viridis"].resampled(len(levels) - 1), "eps"
         keys.insert(1, (NOREF_COLOR, "no reference"))
-    kw = {"extent": (-X_MAX, X_MAX, S_MIN, S_MAX), "origin": "lower", "aspect": "auto"}
+    # the columns of each image, and its x range: the bins of z, then each single point z
+    xs = [X_MAX + (k + 1) * POINT_GAP + k * POINT_WIDTH for k in range(len(POINT_ZS))]
+    blocks = [
+        (slice(0, 2 * Z_BINS), -X_MAX, X_MAX),
+        *(
+            (slice(2 * Z_BINS + k, 2 * Z_BINS + k + 1), x, x + POINT_WIDTH)
+            for k, x in enumerate(xs)
+        ),
+    ]
     im = None
     for (row, q), ax in np.ndenumerate(axes):
         p = ps[row]
@@ -158,10 +179,13 @@ def plot(
             ax.set_facecolor(NONE_COLOR)
             ax.text(0, (S_MIN + S_MAX) / 2, "None", ha="center", va="center")
             continue
-        err, share = panels[p, q]
-        if none:
-            im = ax.imshow(share, cmap=cmap, norm=norm, **kw)
-        else:
+        err_all, share_all = panels[p, q]
+        for cols, x0, x1 in blocks:
+            kw = {"extent": (x0, x1, S_MIN, S_MAX), "origin": "lower", "aspect": "auto"}
+            err, share = err_all[:, cols], share_all[:, cols]
+            if none:
+                im = ax.imshow(share, cmap=cmap, norm=norm, **kw)
+                continue
             for color, mask in [
                 (NONE_COLOR, share == 1),
                 (NOREF_COLOR, np.isnan(err) & (share < 1)),
@@ -173,6 +197,7 @@ def plot(
             im = ax.imshow(
                 np.clip(err, levels[0], levels[-1]), cmap=cmap, norm=norm, **kw
             )
+        ax.set_xlim(-X_MAX, xs[-1] + POINT_WIDTH)
     ticks = [-X_MAX, Z_MIN, 0, -Z_MIN, X_MAX]
     labels = [
         f"$-10^{{{Z_MAX}}}$",
@@ -181,8 +206,13 @@ def plot(
         "$1$",
         f"$10^{{{Z_MAX}}}$",
     ]
+    # (the single points: their labels are rotated, to fit)
+    ticks += [x + POINT_WIDTH / 2 for x in xs]
+    labels += [f"$z = {z:.0f}$" for z in POINT_ZS]
     for ax in axes[-1]:
         ax.set_xticks(ticks, labels)
+        for tick in ax.get_xticklabels()[-len(POINT_ZS) :]:
+            tick.set_rotation(90)
         ax.set_xlabel("z")
     for ax in axes[:, 0]:
         ax.set_yticks(
