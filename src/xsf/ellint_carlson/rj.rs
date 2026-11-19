@@ -143,10 +143,7 @@ mod rjimpl {
         let x0 = x == zero;
         let y0 = y == zero;
         let z0 = z == zero;
-        // Unlike in xsf, also for imaginary `p`, the limit of `Re p > 0` (as is subnormal `Re p`),
-        // e.g. if the rescaling in `rj` flushes `Re p`
-        let p_right = pr > 0.0 || (pr == 0.0 && pi != 0.0);
-        if p_right && (xr >= 0.0) && !((y0 && (x0 || z0)) || (x0 && z0)) {
+        if (pr > 0.0) && (xr >= 0.0) && !((y0 && (x0 || z0)) || (x0 && z0)) {
             return true;
         }
         /* "Alternatively, if p != 0 and |ph p| < pi ..." */
@@ -437,7 +434,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if res.is_finite() {
         return (status, res);
     }
-    common::relaxed_scale_factor(&args, min).map_or((status, res), rescaled)
+    // not flushing `Re p`: the algorithm needs `Re p > 0`, and the first `p + lambda` can cancel
+    // to about it, e.g. for `x, y, z, p = i, 4i, 9i, -11i` (scaled)
+    common::relaxed_scale_factor(&args, 1, min).map_or((status, res), rescaled)
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size

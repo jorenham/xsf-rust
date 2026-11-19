@@ -412,39 +412,35 @@ fn test_carlson_huge_negligible_real() {
             c64(5.704_000_764_113_375e-244, -2.547_345_192_149_236_5e-279),
             c64(5.398_519_435_655_003e34, -3.613_203_968_954_653e-58),
         ),
-        // also that of `p`, after which `Re p` underflows to 0
-        xsf::elliprj(
-            c64(5.562_687_881_026_025e-229, 8.408_702_735_083_716e-191),
-            c64(1.024_585_610_929_409_2e-65, -1.813_988_911_220_030_4e-17),
-            c64(8.444_133_432_393_632e-170, -6.297_646_097_031_968e189),
-            c64(6.953_293_450_357_209e-280, -1.822_807_472_585_999e-104),
-        ),
     ];
     let expected = [
         c64(5.642_182_268_591_743_5e115, 5.642_182_268_591_743_5e115),
         c64(5.965_420_762_787_378e-168, -6.028_323_376_004_016e-168),
-        c64(-7.302_125_522_441_984e-35, 7.302_125_522_441_984e-35),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]
-fn test_elliprj_imaginary_p() {
-    // the limit of `Re p > 0` (Wolfram; Arb and mpmath are inaccurate for the second)
-    let actual = [
-        xsf::elliprj(c64(1.0, 1.0), c64(2.0, -1.0), c64(3.0, 0.0), c64(0.0, 2.0)),
-        xsf::elliprj(
-            c64(1.043_155_444_981_761_3e-88, -5.565_490_407_805_559_5e135),
-            c64(1.142_710_787_031_183_8e-145, 3.370_965_858_974_056e-27),
-            c64(7.007_098_407_015_658e141, 1.559_315_032_887_089_7e-132),
-            c64(0.0, 2.694_388_702_830_613e-45),
-        ),
-    ];
-    let expected = [
-        c64(0.207_991_799_805_110_87, -0.323_142_501_049_185_4),
-        c64(1.781_293_768_892_485_5e-124, 0.0),
-    ];
-    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+fn test_elliprj_nearly_imaginary_p() {
+    // NaN for imaginary `p`, where the first `p + lambda` is 0 here (the integral is
+    // 0.10806392013989438 - 0.0030081533140647775i)
+    let i = |b| c64(0.0, b);
+    assert!(xsf::elliprj(i(1.0), i(4.0), i(9.0), i(-11.0)).is_nan());
+
+    // also if the rescaling retry flushes the other real parts, as `Re p < 0`
+    let s = 2.0_f64.powi(300);
+    let (z, p) = (c64(1e-15, 9.0 * s), c64(-1e-320, -11.0 * s));
+    assert!(xsf::elliprj(i(s), i(4.0 * s), z, p).is_nan());
+
+    // a wide span with a tiny `Re p > 0` (Wolfram, Arb and mpmath)
+    let actual = xsf::elliprj(
+        c64(1.043_155_444_981_761_3e-88, -5.565_490_407_805_559_5e135),
+        c64(1.142_710_787_031_183_8e-145, 3.370_965_858_974_056e-27),
+        c64(7.007_098_407_015_658e141, 1.559_315_032_887_089_7e-132),
+        c64(1e-300, 2.694_388_702_830_613e-45),
+    );
+    let expected = c64(1.781_293_768_892_485_5e-124, 0.0);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
 }
 
 #[test]

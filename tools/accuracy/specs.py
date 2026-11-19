@@ -6936,8 +6936,9 @@ NOTES = {
         "([#1658](https://github.com/jorenham/xsf-rust/issues/1658))."
     ),
     "rj_c": (
-        "In the log-sampled complex row, the inf (2) of xsf-rust are NaNs for normal results, where "
-        "all arguments are below 10⁻⁵ and span over 10¹⁵⁰; its largest finite error is 1.7e-4."
+        "In the log-sampled complex row, the inf (83) of xsf-rust are 39 NaNs for normal results "
+        "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)) and 44 for results that "
+        "underflow; its largest finite error is 1.7e-4."
     ),
     "nan": (
         "inf (k) counts the NaN results, where its error estimate says that none of its digits "

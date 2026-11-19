@@ -84,7 +84,7 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     if res.is_finite() {
         return (status, res);
     }
-    common::relaxed_scale_factor(&args, f64::MIN_POSITIVE).map_or((status, res), rescaled)
+    common::relaxed_scale_factor(&args, 0, f64::MIN_POSITIVE).map_or((status, res), rescaled)
 }
 
 fn rg_unscaled<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
