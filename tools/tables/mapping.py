@@ -877,9 +877,15 @@ def _log1pmx(x: mp.mpf) -> mp.mpf:
     return x if x == 0 else specs.r_log1pmx(x)
 
 
-def _logistic(sig: str, suffix: str, x_min: float) -> dict[tuple[str, str], Entry]:
+# the largest f64 and f32 whose exp is finite: ln of the largest one, rounded down (to the
+# multiples of 2^-17, the ulp of the f32s in [64, 128))
+LN_MAX: Final = math.log(sys.float_info.max)
+LN_MAX_F32: Final = math.floor(math.log((2 - 2.0**-23) * 2.0**127) * 2**17) / 2**17
+
+
+def _logistic(sig: str, suffix: str, ln_max: float) -> dict[tuple[str, str], Entry]:
     """The `expit`, `log_expit`, and `logit` tables of a float type, whose exp(-x) overflows
-    for x < `x_min`."""
+    for x < -`ln_max`."""
     return {
         ("expit", sig): _real(
             f"expit{suffix}",
@@ -887,8 +893,8 @@ def _logistic(sig: str, suffix: str, x_min: float) -> dict[tuple[str, str], Entr
             lambda x: 1 / (1 + (-x).exp()),
             overrides=(
                 Override(
-                    lambda a: a[0] < x_min,
-                    f"xsf returns 0 where exp(-x) overflows, for x < {x_min}",
+                    lambda a: a[0] < -ln_max,
+                    f"xsf returns 0 where exp(-x) overflows, for x < -{ln_max}",
                 ),
             ),
         ),
@@ -3341,8 +3347,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("exp2", "d-d"): _real("exp2", specs.r_exp2, lambda x: flint.arb(2) ** x),
     ("exp10", "d-d"): _real("exp10", specs.r_exp10, lambda x: flint.arb(10) ** x),
-    **_logistic("d-d", "", -709.78),
-    **_logistic("f-f", "_f32", -88.72),
+    **_logistic("d-d", "", LN_MAX),
+    **_logistic("f-f", "_f32", LN_MAX_F32),
     ("cbrt", "d-d"): _real("cbrt", specs.r_cbrt, lambda x: x.sgn() * abs(x).root(3)),
     ("cosm1", "d-d"): _real("cosm1", specs.r_cosm1, lambda x: x.cos() - 1),
     ("xlogy", "d_d-d"): _real(

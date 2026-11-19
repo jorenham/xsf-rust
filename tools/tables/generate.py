@@ -74,6 +74,7 @@ DENORM_MIN: Final = 5e-324
 ULP_AT_MAX: Final = EPS * DBL_MAX / 2
 F32_EPS: Final = 2.0**-23
 F32_MIN: Final = 2.0**-126
+F32_MAX: Final = (2 - 2.0**-23) * 2.0**127
 
 type Args = tuple[float, ...]
 type Ref = list[str | None]  # [value, scale or None]
@@ -303,10 +304,13 @@ def arb_confirms(arb: mapping.Arb, args: Args, ref: Ref) -> bool | None:
 
 
 def nearest_f32(s: str) -> float:
-    """The f32 nearest to the decimal `s` (ties to even), as an f64."""
-    v = mp.mpf(s)
+    """The f32 nearest to the decimal `s` (ties to even), as an f64, with the sign of `s`."""
+    v = abs(mp.mpf(s))
     q = max(mp.frexp(v)[1], -125) - 24  # the exponent of its ulp
-    return float(mp.ldexp(mp.nint(mp.ldexp(v, -q)), q))
+    x = float(mp.ldexp(mp.nint(mp.ldexp(v, -q)), q))
+    # from the midpoint of F32_MAX and 2^128 on, it rounds to 2^128
+    x = math.inf if x > F32_MAX else x
+    return -x if s.startswith("-") else x
 
 
 def validated(
