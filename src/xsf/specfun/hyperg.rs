@@ -2,7 +2,7 @@
 //! (scipy/xsf@6406578).
 
 use core::cell::LazyCell;
-use core::f64::consts::{LN_2, PI};
+use core::f64::consts::{FRAC_PI_2, LN_2, PI};
 use core::ops::{Div, Mul};
 
 use super::hyp1f1_recurrence::{
@@ -15,7 +15,7 @@ use crate::utils::{EGAMMA, EPSILON_SQ, SQRT_EPSILON, is_nonpos_int, mul_exp, neg
 use crate::xsf::bessel::cyl_bessel_j_f64;
 use crate::xsf::c64::{C64, c64};
 use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
-use crate::xsf::cephes::dd_real::{DoubleDouble, frexp_f64, ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{DoubleDouble, FRAC_PI_2_DD, frexp_f64, ldexp_f64, two_sum};
 use crate::xsf::cephes::rgamma;
 use crate::xsf::cexpm1;
 use crate::xsf::tools::{int_x86, kahan_step};
@@ -2101,6 +2101,9 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     hu
 }
 
+/// `pi - PI`, the error of the `f64` pi
+const PI_LO: f64 = 2.0 * FRAC_PI_2_DD.lo;
+
 fn chgus(x: f64, a: f64, b: f64, d: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
@@ -2253,10 +2256,17 @@ fn chgus(x: f64, a: f64, b: f64, d: f64, ln_prefactors: bool, id: &mut i32) -> f
         *id = (*id).min((-(rest / hu.abs()).log10()) as i32);
     }
     // Unlike in xsf (scipy/xsf#380), the id includes the errors of the sums s1 and s2, incl. those
-    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel
+    // of gamma2 and hu0 near their poles (z < 0), amplified if s1 and s2 cancel. For z < -1, gamma2
+    // reflects with sin(PI z), which loses the rounding of PI z (up to pi/2 eps |z|) and the error
+    // of PI (|z| PI_LO), over |sin(pi z)|.
     let k = |z: f64| {
         if z < 0.0 && z.fract() != 0.0 {
-            f64::EPSILON * (z / cephes_sinpi(z)).abs()
+            let rounding = if z < -1.0 {
+                FRAC_PI_2 * f64::EPSILON + PI_LO
+            } else {
+                f64::EPSILON
+            };
+            rounding * (z / cephes_sinpi(z)).abs()
         } else {
             0.0
         }
