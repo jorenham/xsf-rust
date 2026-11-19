@@ -199,7 +199,7 @@ const GROWTH_MAX: f64 = 1024.0;
 /// `1 / z`
 const ROUNDINGS: f64 = 8.0;
 
-/// `(f_n(z), f_n'(z))` for complex `z` where AMOS overflows, from the upward recurrence
+/// `(f_n(z), f_n'(z))` for complex `z` where the result is not finite, from the upward recurrence
 /// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` of `y_n` (`s = -1`, DLMF 10.51.1) and `k_n` (`s = 1`,
 /// DLMF 10.51.4), and `f_n' = -s f_(n-1) - (n + 1) f_n / z` (DLMF 10.51.2 and 10.51.5).
 ///
@@ -213,10 +213,12 @@ const ROUNDINGS: f64 = 8.0;
 /// Where that exceeds `GROWTH_MAX`, for `n > N_MAX`, and as AMOS for `z = 0` and past its range
 /// (`ierr = 4`), this is `None`.
 ///
-/// Otherwise, a part is NaN where it is below both the normwise error `GROWTH_MAX (n + 1) eps |f|`
-/// and its own error bound, as an overflowing part can mask it, e.g. `Re k_2(1e-120 i) = 1e-241`
-/// with `Im k_2 = inf`. The latter bound follows from `a_k >= |g_k|`, partwise, from the recurrence
-/// on the absolute values, plus the underflow, with a few roundings by `eps |a_k|` per step.
+/// Otherwise, a part is NaN unless its error interval overflows, or does not cross the overflow
+/// threshold and is at most `sqrt(eps)` of it, i.e. at least half of its digits are correct, as an
+/// overflowing part or an underflow can mask it, e.g. `Re k_2(1e-120 i) = 1e-241` with
+/// `Im k_2 = inf`. The error is the smaller of the normwise `GROWTH_MAX (n + 1) eps |f|` and the
+/// partwise bound from `a_k >= |g_k|`, from the recurrence on the absolute values plus the
+/// underflow, with a few roundings by `eps |a_k|` per step.
 fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
     let r = z.norm();
     let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
@@ -269,17 +271,21 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
         let de = exp2(g);
         let a = (abs_mul(a, rw) + tiny(e - e_a))
             .ldexp((e_a - e - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
-        let e = (e + i64::from(de - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
         let g = g.ldexp(-de) * rw;
         let min = tol * g.re.abs().max(g.im.abs());
+        // Each part with its own scale, so that a subnormal one rounds only once
         let part = |p: f64, a: f64| {
-            if p.abs() >= min.min(tol_a * a) {
-                p
+            let (p, ep) = frexp_f64(p);
+            let err = min.min(tol_a * a).ldexp(-ep);
+            let e = (e + i64::from(de + ep - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
+            let [lo, hi] = [-err, err].map(|d| ((p.abs() + d) * exp_t).ldexp(e).is_finite());
+            if p.abs() >= err && (!lo || hi && err <= f64::EPSILON.sqrt() * p.abs()) {
+                (p * exp_t).ldexp(e)
             } else {
                 f64::NAN
             }
         };
-        (c64(part(g.re, a.re), part(g.im, a.im)) * exp_t).ldexp(e)
+        c64(part(g.re, a.re), part(g.im, a.im))
     };
     let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
     let da = a_m1.ldexp(m) + np1(n) * abs_mul(a_0, rw);
@@ -494,8 +500,9 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
     sph_bessel_y_overflow(n, z).map_or(out, |f| f.0)
 }
 
-/// Unlike in xsf, recurs upward from `y_(-1) = j_0` and `y_0` where AMOS overflows, instead of
-/// returning NaN (see [`sph_bessel_overflow`])
+/// Unlike in xsf, recurs upward from `y_(-1) = j_0` and `y_0` where the result is not finite, from
+/// an overflow in AMOS or in the arithmetic around it, instead of returning it (see
+/// [`sph_bessel_overflow`])
 fn sph_bessel_y_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     // `sin z` and `cos z` times `exp(-|y|)`, as they overflow for `|y| > 710`
     let (y, (sin_x, cos_x)) = (z.im.abs(), z.re.sin_cos());
@@ -709,8 +716,9 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
     sph_bessel_k_overflow(n, z).map_or(out, |f| f.0)
 }
 
-/// Unlike in xsf, recurs upward from `k_(-1) = k_0` where AMOS overflows, instead of returning
-/// NaN (see [`sph_bessel_overflow`])
+/// Unlike in xsf, recurs upward from `k_(-1) = k_0` where the result is not finite, from an
+/// overflow in AMOS or in the arithmetic around it, instead of returning it (see
+/// [`sph_bessel_overflow`])
 fn sph_bessel_k_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     let g = FRAC_PI_2 * C64::cis(-z.im);
     sph_bessel_overflow(n, z, 1.0, g, g, z.re)

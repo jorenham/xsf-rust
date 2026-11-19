@@ -139,10 +139,13 @@ fn test_sph_bessel_complex_overflow() {
         xsref::np_assert_allclose!(actual.as_flattened(), expected.as_flattened(), rtol = 1e-13);
     }
 
-    // `exp(-x)` overflows, and `Re y_0 = 8.6761e289` underflows before the final scaling
-    let z = c(f64::from_bits(1), 1420.0);
-    let (y, dy) = (xsf::sph_bessel_y(0, z), xsf::sph_bessel_y_prime(0, z));
-    xsref::np_assert_allclose!(&[y.re, y.im, dy.re, dy.im], &[nan, inf, inf, nan]);
+    // `exp(-x)` overflows, and `Re y_0` (`8.6761e289`, `3.4704e294` and `1.7493e308`, just below
+    // `f64::MAX`) underflows before the final scaling, so that only a few digits are left
+    let cases = [(1, 1420.0), (40_000, 1420.0), (28_000, 1451.93)];
+    for z in cases.map(|(re, im)| c(f64::from_bits(re), im)) {
+        let (y, dy) = (xsf::sph_bessel_y(0, z), xsf::sph_bessel_y_prime(0, z));
+        xsref::np_assert_allclose!(&[y.re, y.im, dy.re, dy.im], &[nan, inf, inf, nan]);
+    }
 
     // Within the cutoff on the error growth `exp(n (n + 1) / |z|) = 1024` of the recurrence
     let z = c(-717.02, 1e-8);
