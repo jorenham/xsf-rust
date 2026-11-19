@@ -174,6 +174,7 @@ lists the functions that SciPy computes with another library than xsf.
 | [`huber`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.huber.html)                               | `huber`                                             |
 |                                                                                                                        | `hyp0f0`                                            |
 | [`hyp0f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp0f1.html)                             | `hyp0f1`                                            |
+|                                                                                                                        | `hyp0f2`                                            |
 |                                                                                                                        | `hyp1f0`                                            |
 | [`hyp1f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html)                             | `hyp1f1`                                            |
 |                                                                                                                        | `hyp1f2`                                            |

@@ -1,5 +1,5 @@
 use core::f64::consts::PI;
-use xsf::{hyp0f0, hyp0f1, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq};
+use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
@@ -593,6 +593,36 @@ fn test_hyp1f2_inaccurate() {
     assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
     // one that it detects, for a negative z (Arb: 1.026_573_294e324)
     assert_eq!(hyp1f2(-120.5, 1.0, 1.0, -1e6), f64::INFINITY);
+}
+
+#[test]
+fn test_hyp0f2() {
+    // the series, its cancellation for z < 0, and the asymptotic expansion (Arb)
+    for (b, z, expected) in [
+        ([1.5, 2.5], 0.5, 1.137_183_373_732_688_9),
+        ([0.25, -1.75], 3.0, 28.452_593_016_473_912),
+        ([1.5, 2.5], -50.0, 0.986_667_956_983_830_3),
+        ([-0.5, 3.25], -12.5, -4.132_555_224_551_472),
+        ([-3.5, 1.25], 200.0, 75_161_504.300_073_98),
+        ([1.5, 2.5], 1e4, 1.243_554_196_262_664_3e23),
+        ([2.5, 3.5], -1e6, -1.115_800_988_799_774_4e55),
+    ] {
+        let actual = hyp0f2(b[0], b[1], z);
+        assert!(
+            (actual - expected).abs() <= 1e-13 * expected.abs(),
+            "hyp0f2({b:?}, {z}) = {actual} != {expected}"
+        );
+    }
+    assert_eq!(hyp0f2(1.5, 2.5, 0.0), 1.0);
+    assert!(hyp0f2(f64::NAN, 2.5, 0.5).is_nan());
+    assert!(hyp0f2(1.5, 2.5, f64::NAN).is_nan());
+    // a pole
+    assert_eq!(hyp0f2(-2.0, 1.5, 0.5), f64::INFINITY);
+    // it overflows (Arb: -2.448e647)
+    assert_eq!(hyp0f2(1.0, 1.0, -1e9), f64::NEG_INFINITY);
+    // it overflows undetected (Arb: 1.093e552)
+    assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
+    assert_eq!(hyppfq(&[], &[1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
 }
 
 #[test]
