@@ -41,6 +41,25 @@ fn test_hyp1f0_f64() {
 }
 
 #[test]
+fn test_hyp1f0_f64_inexact_1mz() {
+    // `1 - z` rounds to 1 (gh-1613)
+    let (a, z) = (2f64.powi(60), 2f64.powi(-60));
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [E], rtol = 1e-15);
+    np_assert_allclose!([xsf::hyp1f0(-a, z)], [1.0 / E], rtol = 1e-15);
+    np_assert_allclose!([xsf::hyp1f0(a, -z)], [1.0 / E], rtol = 1e-15);
+
+    // mpmath: (1 - z)^-a
+    let (a, z) = (-4.694_146_575_744_287_4e17, -1.114_329_277_760_014e-16);
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [5.214_157_846_371_395e22], rtol = 1e-14);
+    let (a, z) = (2.161_946_778_091_621e17, -1.949_623_411_343_651_5e-15);
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [8.823_793_205_924_179e-184], rtol = 1e-14);
+
+    // `w^-a` overflows, but `(1 - z)^-a` does not
+    let a = -3.624_940_246_312_303_4e17;
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [8.463_801_622_536_752e306], rtol = 1e-12);
+}
+
+#[test]
 fn test_hyp1f0_c64() {
     assert_eq!(xsf::hyp1f0(-1.0, c64(-1.0, 0.0)), c64(2.0, 0.0));
     assert_eq!(xsf::hyp1f0(0.0, c64(-1.0, 0.0)), c64(1.0, 0.0));

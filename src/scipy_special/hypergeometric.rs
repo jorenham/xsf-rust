@@ -428,9 +428,21 @@ impl HypergeometricArg for f64 {
     #[inline]
     fn hyp1f0(self, a: f64) -> Self {
         if a > 0.0 && self == 1.0 {
-            f64::NAN
+            return f64::NAN;
+        }
+        // `1 - z = w + r` exactly, so that `(1 - z)^-a = w^-a (1 + r/w)^-a` does not amplify the
+        // rounding of `w` by a large `a`, e.g. for `z = 2^-60` and `a = 2^60`
+        let (w, r) = two_sum(1.0, -self);
+        let p = w.powf(-a);
+        if r == 0.0 || r.is_nan() {
+            p
+        } else if p.is_normal() {
+            p * (-a * (r / w).ln_1p()).exp()
+        } else if self < 1.0 {
+            // (near the over- or underflow, where `w^-a` might not be)
+            (-a * (-self).ln_1p()).exp()
         } else {
-            (1.0 - self).powf(-a)
+            p
         }
     }
 
