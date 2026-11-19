@@ -705,12 +705,11 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
                 let dist = |i: usize| (pm - xyz[i]).abs();
                 let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
                 pl = xyzl[i] + (pm - xyz[i]);
-                // Unlike in xsf, if `p + lam` is negligible in the right half-plane, its real part
-                // is at least the lower bound `4^-m Re p`: rounded to the left of the imaginary
-                // axis, `p + lam` and the `R_C` terms can be on different branches.
+                // Unlike in xsf, in the right half-plane the real part of `p + lam` is at least its
+                // lower bound `4^-m Re p`: rounded to the left of the imaginary axis, `p + lam` and
+                // the `R_C` terms can be on different branches.
                 let re = p.real() * d4m;
-                let tiny = pl.max_norm() <= config::ASYM_ZERO_UL * pm.max_norm();
-                if right && tiny && pl.real() < re {
+                if right && pl.real() < re {
                     pl = pl + -pl.real() + re;
                 }
             }
@@ -733,10 +732,12 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
 
     // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
     //
-    // Unlike in xsf, from `u` if `1 + t` cancels, e.g. after a step where `p + lam` cancels, as
-    // `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u` underflows.
+    // Unlike in xsf, from `u` if `1 + t` cancels in the right half-plane, e.g. after a step where
+    // `p + lam` cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u` underflows.
+    //
+    // (not elsewhere: `p + lam` can lose a tiny `Im p` there, and `u` its side of the cut)
     let rc1 = |t: T, u: T| {
-        if !cancels(T::from(1.0), u) {
+        if !(right && cancels(T::from(1.0), u)) {
             t.safe_atan_sqrt_div()
         } else if u.max_norm().is_normal() {
             rc(T::from(1.0), u, rerr).1
