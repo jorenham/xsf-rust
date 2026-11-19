@@ -1853,8 +1853,6 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// - if the result overflows or underflows, e.g. in random samples, for about 1% of
 ///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
-/// - for some integers $a_1 - a_2$, e.g. in random samples, for about 8% of
-///   $20 < \abs{a_1 - a_2} \le 100$;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
@@ -2323,10 +2321,11 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let dx = -((xz + 1.0) + e) / z;
             let borel = |a1: f64, a2: f64, hypu: fn(f64, f64, f64) -> (f64, i32, i32)| {
                 const T: f64 = pow2(20);
+                // with the digits that chgu estimates
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let enough = f64::from(digits) - CHGU_DIGITS_MARGIN >= -PFQ_TOL.log10();
-                    (p.is_normal() && u.is_normal() && enough).then_some(p * u)
+                    let digits = f64::from(digits) - CHGU_DIGITS_MARGIN;
+                    (p.is_normal() && u.is_normal()).then_some((p * u, digits))
                 };
                 let (d, e1) = two_sum(a1, -a2);
                 let (b, e2) = two_sum(d, 1.0);
@@ -2351,11 +2350,24 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                         v_t
                     }
                 };
-                let (y, y_t) = (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
-                let rounding = (y_t - y).abs() / T;
-                // (only if accurate: then its error is within `PFQ_TOL`)
-                let accurate = y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs();
-                accurate.then_some(Estimate::new(y, PFQ_TOL))
+                let ((y, digits), (y_t, digits_t)) =
+                    (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
+                let (digits, rounding) = (digits.min(digits_t), (y_t - y).abs() / T);
+                // (if accurate, its error is within `PFQ_TOL`)
+                let accurate = digits >= -PFQ_TOL.log10()
+                    && (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs());
+                let err = if accurate {
+                    PFQ_TOL
+                } else {
+                    // (above `PFQ_TOL`, or NaN for no estimate, as for an infinite y)
+                    let err = 10.0_f64.powf(-digits) + rounding / y.abs();
+                    if err < PFQ_INACCURATE {
+                        PFQ_INACCURATE
+                    } else {
+                        err
+                    }
+                };
+                Some(Estimate::new(y, err))
             };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;

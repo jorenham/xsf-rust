@@ -654,8 +654,15 @@ fn test_hyp2f0() {
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
-    // an integer a1 - a2 (Arb: 0.001_055_556_987)
-    assert!(hyp2f0(0.5, 90.5, -1e4).is_nan());
+    // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
+    for (a, z, expected) in [
+        ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
+        ([0.5, 90.5], -1e4, 0.001_055_556_987_423_832_8),
+    ] {
+        let actual = hyp2f0(a[0], a[1], z);
+        assert!((actual / expected - 1.0).abs() < 1e-12, "{actual} != {expected}");
+        assert_eq!(hyppfq(&a, &[], z), None);
+    }
 }
 
 #[test]
