@@ -489,6 +489,7 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("genhyperbolic_pdf", &[x, p, a, b]) => xsf::genhyperbolic_pdf(x, p, a, b),
         ("genhyperbolic_logpdf", &[x, p, a, b]) => xsf::genhyperbolic_logpdf(x, p, a, b),
         ("cdf_cvm_inf", &[x]) => xsf::cdf_cvm_inf(x),
+        ("cdf_cvm", &[x, n]) => xsf::cdf_cvm(x, n as i32),
         // Kolmogorov-Smirnov distributions
         ("smirnov", &[n, x]) => xsf::smirnov(n as i32, x),
         ("smirnovc", &[n, x]) => xsf::smirnovc(n as i32, x),

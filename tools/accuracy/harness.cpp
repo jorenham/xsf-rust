@@ -682,6 +682,7 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F4("genhyperbolic_pdf", xsf::cpu::genhyperbolic_pdf(x, y, z, w))
     F4("genhyperbolic_logpdf", xsf::cpu::genhyperbolic_logpdf(x, y, z, w))
     F1("cdf_cvm_inf", xsf::cpu::cdf_cvm_inf(x))
+    F2("cdf_cvm", xsf::cpu::cdf_cvm(x, i(y)))
     // Kolmogorov-Smirnov distributions
     F2("smirnov", xsf::cpu::smirnov(i(x), y))
     F2("smirnovc", xsf::cpu::smirnovc(i(x), y))

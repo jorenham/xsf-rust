@@ -3331,6 +3331,47 @@ def r_cdf_cvm_inf(x):
             k += 1
 
 
+def _cvm_psi1_mod(x):
+    """psi_1(x) - V(x)/12 of Csorgo and Faraway (1996), eq. 1.10, like xsf's psi1_mod."""
+
+    def g(y):
+        z = y * y / 4
+        b = mp.besselk(0.25, z) + mp.besselk(0.75, z)
+        return mp.exp(-z) * (y / 2) ** 1.5 * b / mp.sqrt(mp.pi)
+
+    def h(y):
+        z = y * y / 4
+        b = 2 * mp.besselk(0.25, z) + 3 * mp.besselk(0.75, z) - mp.besselk(1.25, z)
+        return mp.exp(-z) * (y / 2) ** 2.5 * b / mp.sqrt(mp.pi)
+
+    sx, y1, y2 = 2 * mp.sqrt(x), x**0.75, x**1.25
+    s, k = mp.mpf(0), 0
+    while True:
+        m, g1 = 2 * k + 1, mp.gamma(k + 0.5)
+        t = m * g1 * g((4 * k + 3) / sx) / (9 * y1)
+        t += g1 * h((4 * k + 1) / sx) / (72 * y2)
+        t += 2 * (m + 2) * mp.gamma(k + 1.5) * h((4 * k + 5) / sx) / (12 * y2)
+        t += 7 * m * g1 * (g((4 * k + 1) / sx) + g((4 * k + 5) / sx)) / (144 * y1)
+        t /= -mp.pi * mp.factorial(k)
+        s += t
+        if abs(t) <= mp.eps * abs(s):
+            return s
+        k += 1
+
+
+def r_cdf_cvm(x, n):
+    # Csorgo and Faraway (1996), eq. 1.8, like xsf: 0 and 1 outside of the support
+    # (1/(12 n), n/3), and clipped to [0, 1]
+    lo = 1 / (12 * n)
+    if x <= lo:
+        return mp.mpf(0)
+    if x >= n / 3:
+        return mp.mpf(1)
+    with wdps(10):
+        y = r_cdf_cvm_inf(x) * (1 + lo) + _cvm_psi1_mod(x) / n
+        return min(max(y, mp.mpf(0)), mp.mpf(1))
+
+
 def _smirnov_terms(n, x, js):
     """The terms binom(n, j) (x + j/n)^(j - 1) (1 - x - j/n)^(n - j) of the Birnbaum-Tingey sum,
     for j in js."""
@@ -5314,6 +5355,14 @@ add("log_expit", "x", r_log_expit, D(U(-20, 20)), D(LU(1e-300, 1e300, 0)))
 
 section("Cram\u00e9r-von Mises", 3)
 add("cdf_cvm_inf", "x", r_cdf_cvm_inf, D(U(0, 2)), D(LU(1e-3, 100)))
+add(
+    "cdf_cvm",
+    "x n",
+    r_cdf_cvm,
+    D(U(0, 2), Int(1, 1000), n=2000),
+    D(LU(1e-3, 100), Int(1, 1000), n=2000),
+    note="cvm",
+)
 
 section("Multivariate normal distribution", 3)
 add(
@@ -6910,6 +6959,10 @@ NOTES |= {
         r"or $`\sqrt{\mathrm{Ai}'(x)^2 + \mathrm{Bi}'(x)^2}`$ for the derivatives."
     ),
     "binom_dist": r"$`\sigma^2 = np(1 - p)`$.",
+    "cvm": (
+        "Reference: the approximation for finite $`n`$ that it computes, eq. 1.8 of Cs\u00f6rg\u0151 and "
+        "Faraway (1996), so this is the error of its evaluation, not of the approximation."
+    ),
     "tvn": "With `epsi` = $`10^{-14}`$, its lower bound.",
     "abs": (
         r"Absolute error $`\sim 10^{-16}`$ at best, so the relative error is large for tiny "
@@ -7011,8 +7064,7 @@ NOT_COVERED = """\
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
 - Complex input: `zeta` (NaN for non-real `z`, unless `q = 1`, where it is `riemann_zeta`)
-- Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
-  `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
+- Other: `lanczos_sum_expg_scaled` (internal) and the `extended_*_error` metrics
 """
 
 BY_NAME: Final = {s.name: s for s in SPECS}
