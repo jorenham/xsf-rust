@@ -2566,11 +2566,19 @@ def _hyp2f1_series(a, b, c, z):
             raise NoConvergence
 
 
+def _has_pole_or_poly(*v):
+    """Whether some v is zero or a negative integer."""
+    return any(u == int(u) <= 0 for u in v)
+
+
 def r_hyp2f1(a, b, c, x):
     # mpmath's hyp2f1 can be far off for large parameters (mpmath/mpmath#1216), so for x <= 0.95
     # sum the series directly (for x < 0 the series of the Pfaff transformation in x / (x - 1),
     # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits (else use
     # Arb).
+    if x == 1 and c <= a + b and not _has_pole_or_poly(a, b, c):
+        # (divergent: the infinity of the sign of the late terms)
+        return _pfq_at_one((a, b), (c,))
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
@@ -2636,10 +2644,10 @@ def _pfq_one_sum(a, b):
     n = max(64, int(8 * max(abs(v) for v in (*a, *b))))
     s, t, top = mp.mpf(0), mp.mpf(1), mp.mpf(1)
     for k in range(n):
+        if k:
+            t *= mp.fprod(v + k - 1 for v in a) / mp.fprod(v + k - 1 for v in b)
         s += t
         top = max(top, abs(t))
-        t *= mp.fprod(v + k for v in a) / mp.fprod(v + k for v in b)
-    # (t is now the term k = n)
     scale = mp.fprod(mp.gamma(v) for v in b) / mp.fprod(mp.gamma(v) for v in a)
     em = [
         (-1) ** (m + 1)
@@ -2674,7 +2682,7 @@ def _pfq_at_one(a, b):
             with wdps(extra):
                 s, top = _pfq_one_sum(a, b)
                 if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
-                    return +s
+                    return s
                 extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
         raise NoConvergence
     kmin = math.floor(max(0, *(-v for v in (*a, *b)))) + 1
@@ -2690,9 +2698,9 @@ def r_hyppfq(*args):
     # digits.
     p = len(args) // 2
     a, b, z = args[:p], args[p:-1], args[-1]
-    if z == 1 and not any(v == int(v) <= 0 for v in a):
+    if z == 1 and not _has_pole_or_poly(*a):
         return _pfq_at_one(a, b)
-    if z <= -1 and not any(v == int(v) <= 0 for v in a):
+    if z <= -1 and not _has_pole_or_poly(*a):
         return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec
     while prec <= 2**14:

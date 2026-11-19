@@ -143,7 +143,7 @@ def plot(
 ) -> None:
     """A panel per p in `ps` (rows) and q (columns): the share of `None`, or the gmean of the error.
     A bin without inputs is blank: there it is complex. The narrow columns at the right are the
-    single points z = -1 and z = 1, for p = q + 1."""
+    single points z = -1 and z = 1, for p = q + 1; the rest of that space is hatched."""
     fig, axes = plt.subplots(
         len(ps),
         Q_MAX + 1,
@@ -180,6 +180,16 @@ def plot(
             ax.text(0, (S_MIN + S_MAX) / 2, "None", ha="center", va="center")
             continue
         err_all, share_all = panels[p, q]
+        # (under the images: what they leave blank right of the grid, such as for p != q + 1)
+        ax.axvspan(
+            X_MAX,
+            xs[-1] + POINT_WIDTH,
+            facecolor="0.95",
+            edgecolor="0.7",
+            hatch="////",
+            lw=0,
+            zorder=-1,
+        )
         for cols, x0, x1 in blocks:
             kw = {"extent": (x0, x1, S_MIN, S_MAX), "origin": "lower", "aspect": "auto"}
             err, share = err_all[:, cols], share_all[:, cols]
@@ -224,7 +234,10 @@ def plot(
     if not none:
         bar.set_ticks(levels, labels=[f"{v:.0f}" for v in levels])
     handles = [Patch(facecolor=c, edgecolor="0.5", label=t) for c, t in keys]
-    fig.legend(handles=handles, loc="outside lower center", ncols=len(keys))
+    handles.append(
+        Patch(facecolor="0.95", edgecolor="0.7", hatch="////", label="not sampled")
+    )
+    fig.legend(handles=handles, loc="outside lower center", ncols=len(handles))
     fig.savefig(path, metadata={"Date": None})
 
 
