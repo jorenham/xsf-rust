@@ -194,6 +194,17 @@ fn test_prolate_radial2_odd_m() {
 }
 
 #[test]
+fn test_prolate_radial2_wronskian() {
+    // `R1 R2' - R1' R2 = 1 / (c (x^2 - 1))`
+    for (m, n, c, x) in [(1, 1, 1.0, 1.1), (1, 1, 10.0, 1.1), (1, 2, 5.0, 1.5)] {
+        let (r1f, r1d) = xsf::prolate_radial1_nocv(m, n, c, x);
+        let (r2f, r2d) = xsf::prolate_radial2_nocv(m, n, c, x);
+        let w = (r1f * r2d - r1d * r2f) * c * (x * x - 1.0);
+        assert!((w - 1.0).abs() < 1e-12, "{m} {n} {c} {x}: {w}");
+    }
+}
+
+#[test]
 fn test_oblate_radial2_odd_n_minus_m() {
     // (m, n, c, x) and the value and derivative, from the 50-digit reference of tools/accuracy
     let args = [
