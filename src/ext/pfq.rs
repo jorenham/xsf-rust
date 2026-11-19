@@ -1851,8 +1851,10 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - if the result underflows, e.g. in random samples, for about 9% of $-10^6 < z < 0$ if
-///   $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^6$;
+/// - if the result overflows or underflows, e.g. in random samples, for about 1% of
+///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
+/// - for some integers $a_1 - a_2$, e.g. in random samples, for about 8% of
+///   $20 < \abs{a_1 - a_2} \le 100$;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>

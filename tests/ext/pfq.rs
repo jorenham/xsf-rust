@@ -654,6 +654,8 @@ fn test_hyp2f0() {
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
+    // an integer a1 - a2 (Arb: 0.001_055_556_987)
+    assert!(hyp2f0(0.5, 90.5, -1e4).is_nan());
 }
 
 #[test]
