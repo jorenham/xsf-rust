@@ -5778,7 +5778,7 @@ for i, r in enumerate([c_legendre_q, c_legendre_qp]):
             n=2000,
         ),
         complex=True,
-        note="zeros_c all",
+        note="zeros_c all lq_unit",
     )
 for i, r in enumerate([c_legendre_q, c_legendre_qp]):
     add(
@@ -5813,7 +5813,7 @@ for i, r in enumerate([c_legendre_q, c_legendre_qp]):
             n=2000,
         ),
         complex=True,
-        note="zeros_c all",
+        note="zeros_c all lq_unit",
     )
 
 section("Orthogonal polynomials")
@@ -6857,6 +6857,12 @@ NOTES = {
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about $`10^{-13}`$."
+    ),
+    "lq_unit": (
+        r"In the rows near $`\lvert z\rvert = 1`$, the xsf-rust peaks are in "
+        r"$`1 \lt \lvert z\rvert \lt 1.0001`$, where type 3 uses the forward recurrence, and the "
+        r"xsf $`\infty`$ are in $`\lvert z\rvert \ge 1.0001`$ "
+        "([#1654](https://github.com/jorenham/xsf-rust/issues/1654))."
     ),
     "omega_cut": (
         r"In the near-cut row, the peak is where $`\mathrm{Im}\,z`$ is the f64 nearest to "
