@@ -1653,3 +1653,24 @@ fn test_amos_large_z() {
         rtol = 5e-15
     );
 }
+
+#[test]
+fn test_amos_orders_above_2_30() {
+    // based on scipy/xsf#513: the first was NaN (J_v(v) and Y_v(v) from DLMF 10.19.8)
+    let v30 = 2.0_f64.powi(30);
+    assert_eq!(xsf::bessel_ie(v30, 1.0), 0.0);
+    assert_eq!(xsf::bessel_k(v30, v30 - 1.0), 0.0);
+    assert_eq!(xsf::bessel_j(2.0 * v30, -1.0), 0.0);
+    let (v, j, y) = (1e15 + 1.0, 4.473_073_183_964_722e-6, -7.747_590_020_600_784e-6);
+    let actual = [xsf::bessel_j(v, c64(-v, 0.0)), xsf::hankel_1(v, c64(-v, 0.0))];
+    np_assert_allclose!(&actual, &[c64(-j, 0.0), c64(j, -y)], rtol = 1e-13);
+
+    // NaN before; I_v(ix) = e^(i pi v / 2) J_v(x) and K_v(-ix) = i pi / 2 e^(i pi v / 2) H1_v(x)
+    // (DLMF 10.27.6, 10.27.8), with J and Y from DLMF 10.19.6 (60 digits). The phase is only
+    // accurate to about `eps v`.
+    let (v, x) = (2.0 * v30 + 0.5, 4.0 * v30 + 2.0);
+    let actual = [xsf::bessel_i(v, c64(0.0, x)), xsf::bessel_k(v, c64(0.0, -x))];
+    let i = -9.107_019_807_551_605e-6;
+    let desired = [c64(i, i), c64(1.685_736_916_683_522e-5, -1.175_317_735_666_563_8e-5)];
+    np_assert_allclose!(&actual, &desired, rtol = 1e-5);
+}

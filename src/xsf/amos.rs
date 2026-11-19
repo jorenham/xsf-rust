@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@102de34).
+//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@0acbe5c).
 //!
 //! ```text
 //!
@@ -96,8 +96,6 @@
 //! Unlike in xsf:
 //! - The out-of-bounds read of `csr[-1]` in `unk1` and `unk2` (undefined behavior in C++) uses `1`
 //!   instead.
-//! - The phase factors of `besh`, `besj`, `uni2`, `unk1`, and `unk2` use `fnu mod 4` instead of
-//!   `(int) fnu` (undefined behavior in C++ for `fnu >= 2^31`), see `order_mod4`.
 //! - The complex `sqrt`, `exp`, and `log` are computed with the crate's `csqrt` (from FreeBSD),
 //!   `cexp`, and `clog`, which can differ from glibc's in the last bit.
 //! - Overflow threshold: a result overflows past `f64::MAX` instead of `exp(elim)`, as `asyi`
@@ -190,15 +188,6 @@ pub(crate) const MACH: (f64, f64, f64, f64, f64) = {
     let fnul = 10.0 + 6.0 * (dig - 3.0);
     (tol, elim, alim, rl, fnul)
 };
-
-/// The order `fnu >= 0` modulo 4, and its integer part, e.g. `(1.5, 1)` for `fnu = 5.5`.
-///
-/// Unlike in xsf (scipy/xsf#338), this avoids `(int)fnu`, which is UB for `fnu >= 2^31`. Only
-/// `fnu mod 4` is needed (for phase factors like `i^fnu`).
-fn order_mod4(fnu: f64) -> (f64, i32) {
-    let fnu4 = fnu % 4.0;
-    (fnu4, fnu4 as i32)
-}
 
 /// Whether `K_fnu(z) ~ gamma(fnu) / 2 (2 / |z|)^fnu` overflows, for `|z| <= tol` and `fnu > 1/2`
 /// (only `fnu > 0.95` can overflow as `|z| >= 5e-324`, and the estimate is too large for tiny fnu).
@@ -1542,10 +1531,10 @@ pub(crate) fn besh(
     // CALCULATE EXP(FNU*HPI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
     // WHEN FNU IS LARGE
     //
-    let (fnu4, inu) = order_mod4(fnu);
+    let inu = fnu as i64;
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
-    let arg = (fnu4 - f64::from(inu - ir)) * sgn;
+    let arg = (fnu - (inu - ir) as f64) * sgn;
     let rhpi = 1.0 / sgn;
     let cpn = rhpi * arg.cos();
     let spn = -rhpi * arg.sin();
@@ -1749,9 +1738,9 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     aa = 0.5 / tol;
     let bb = I1MACH[8] * 0.5;
     aa = aa.min(bb);
-    // As in besj and besh: for abs(z) > 0.5 / tol all significance is lost by argument reduction.
-    // INT_MAX / 2 is only needed for the order, which is converted to int.
-    if (az > 0.5 / tol) || (fn_ > aa) {
+    // As in besj and besh: for abs(z) or fn above 0.5 / tol all significance is lost by argument
+    // reduction.
+    if (az > 0.5 / tol) || (fn_ > 0.5 / tol) {
         *ierr = 4;
         return 0;
     }
@@ -1770,8 +1759,8 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
         // CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
         // WHEN FNU IS LARGE
         //
-        let inu = fnu as i32;
-        let mut arg = (fnu - f64::from(inu)) * pi;
+        let inu = fnu as i64;
+        let mut arg = (fnu - inu as f64) * pi;
         if yy < 0.0 {
             arg = -arg;
         }
@@ -2006,10 +1995,10 @@ pub(crate) fn besj(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     // WHEN FNU IS LARGE
     //
     ci.im = 1.0;
-    let (fnu4, inu) = order_mod4(fnu);
+    let inu = fnu as i64;
     let inuh = inu / 2;
     let ir = inu - 2 * inuh;
-    let arg = (fnu4 - f64::from(inu - ir)) * hpi;
+    let arg = (fnu - (inu - ir) as f64) * hpi;
     let r1 = arg.cos();
     let r2 = arg.sin();
     let mut csgn = c64(r1, r2);
@@ -2241,9 +2230,9 @@ pub(crate) fn besk(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     aa = 0.5 / tol;
     let bb = I1MACH[8] * 0.5;
     aa = aa.min(bb);
-    // As in besj and besh: for abs(z) > 0.5 / tol all significance is lost by argument reduction.
-    // INT_MAX / 2 is only needed for the order, which is converted to int.
-    if (az > 0.5 / tol) || (fn_ > aa) {
+    // As in besj and besh: for abs(z) or fn above 0.5 / tol all significance is lost by argument
+    // reduction.
+    if (az > 0.5 / tol) || (fn_ > 0.5 / tol) {
         *ierr = 4;
         return 0;
     }
@@ -2713,7 +2702,7 @@ fn binu(
         //
         // INCREMENT FNU+NN-1 UP TO FNUL, COMPUTE AND RECUR BACKWARD
         //
-        nui = (fnul - dfnu) as i32 + 1;
+        nui = (fnul - dfnu).max(-1.0) as i32 + 1;
         nui = if nui > 0 { nui } else { 0 };
         nw = buni(z, fnu, kode, nn, cy, nui, &mut nlast, fnul, tol, elim, alim);
         if nw < 0 {
@@ -5460,12 +5449,11 @@ fn uni2(
     zn = -z * ci;
     zb = z;
     cid = -ci;
-    let (fnu4, inu) = order_mod4(fnu);
-    let ang: f64 = hpi * (fnu4 - f64::from(inu));
+    let inu = fnu as i64;
+    let ang: f64 = hpi * (fnu - inu as f64);
     c2 = C64::cis(ang);
     let zar: C64 = c2;
-    in_ = inu + n - 1;
-    in_ %= 4;
+    in_ = ((inu + i64::from(n) - 1) % 4) as i32;
     c2 *= cip[in_ as usize];
     if yy <= 0.0 {
         zn = (-zn).conj();
@@ -5634,7 +5622,7 @@ fn uni2(
                     // C      STR = C2R*S1R - C2I*S1I
                     // C      C2I = C2R*S1I + C2I*S1R
                     // C      C2R = STR
-                    in_ = (inu + nd - 1) % 4;
+                    in_ = ((inu + i64::from(nd) - 1) % 4) as i32;
                     c2 = zar * cip[in_ as usize];
                     if yy <= 0.0 {
                         c2 = c2.conj();
@@ -6057,9 +6045,9 @@ fn unk1(
     // CSPN AND CSGN ARE COEFF OF K AND I FUNCIONS RESP.
     //
     let csgn: C64 = c64(0.0, sgn);
-    let (fnu4, inu) = order_mod4(fnu);
-    let fnf: f64 = fnu4 - f64::from(inu);
-    let ifn: i32 = inu + n - 1;
+    let inu = fnu as i64;
+    let fnf: f64 = fnu - inu as f64;
+    let ifn: i64 = inu + i64::from(n) - 1;
     let ang: f64 = fnf * sgn;
     cspn = C64::cis(ang);
     cspn = neg_if_odd(ifn, cspn);
@@ -6222,7 +6210,7 @@ fn unk1(
     s2 = cy[1];
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
-    fn_ = fnu.trunc() + f64::from(il);
+    fn_ = (inu + i64::from(il)) as f64;
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
@@ -6365,15 +6353,15 @@ fn unk2(
     let yy: f64 = zr.im;
     zn = -zr * C64::I;
     zb = zr;
-    let (fnu4, inu) = order_mod4(fnu);
-    let fnf: f64 = fnu4 - f64::from(inu);
+    let inu = fnu as i64;
+    let fnf: f64 = fnu - inu as f64;
     ang = -hpi * fnf;
     let car: f64 = ang.cos();
     let sar: f64 = ang.sin();
     let cpn: f64 = hpi * car;
     let spn: f64 = hpi * sar;
     c2 = c64(spn, -cpn);
-    kk = (inu % 4) + 1;
+    kk = (inu % 4) as i32 + 1;
     cs = cr1 * c2 * cip[(kk - 1) as usize];
     if yy <= 0.0 {
         zn = (-zn).conj();
@@ -6614,7 +6602,7 @@ fn unk2(
     if yy <= 0.0 {
         csgn = -csgn;
     }
-    let ifn: i32 = inu + n - 1;
+    let ifn: i64 = inu + i64::from(n) - 1;
     ang = fnf * sgn;
     cspn = C64::cis(ang);
     cspn = neg_if_odd(ifn, cspn);
@@ -6625,7 +6613,7 @@ fn unk2(
     // CONJUGATION SINCE THE I FUNCTION IS REAL ON THE POSITIVE REAL AXIS
     //
     cs = c64(car, -sar) * csgn;
-    let in_: i32 = (ifn % 4) + 1;
+    let in_: i32 = (ifn % 4) as i32 + 1;
     c2 = cip[(in_ - 1) as usize];
     cs *= c2.conj();
     let asc: f64 = bry[0];
@@ -6793,7 +6781,7 @@ fn unk2(
     s2 = cy[1];
     cs = csr[(iflag - 1) as usize];
     ascle = bry[(iflag - 1) as usize];
-    fn_ = fnu.trunc() + f64::from(il);
+    fn_ = (inu + i64::from(il)) as f64;
     for _i in 1..=il {
         // (`i` in the C++)
         c2 = s2;
