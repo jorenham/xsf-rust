@@ -59,6 +59,10 @@ fn test_hyp3f2_cancels_to_2f1() {
     // complex, where `hyp2f1` is +inf
     assert!(hyp3f2(1.75, 3.0, 4.0, 2.0, 4.0, 2.0).is_nan());
     assert!(hyppfq(&[1.75, 3.0], &[2.0], 2.0).is_some_and(f64::is_nan));
+    // complex, with c - a = -5 + 2^-51 (Arb: imaginary part -1.7e-13), which `hyp2f1` rounds
+    let (a, c, z) = (-3.645_644_290_993_088_6, -8.645_644_290_993_088, 5.231_771_887_127_298);
+    assert!(hyppfq(&[a, 3.0], &[c], z).is_some_and(f64::is_nan));
+    assert!(hyp3f2(a, 3.0, 4.0, c, 4.0, z).is_nan());
 }
 
 #[test]
