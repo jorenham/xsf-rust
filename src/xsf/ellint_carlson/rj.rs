@@ -705,9 +705,9 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
                 let dist = |i: usize| (pm - xyz[i]).abs();
                 let i = (1..3).fold(0, |i, j| if dist(j) < dist(i) { j } else { i });
                 pl = xyzl[i] + (pm - xyz[i]);
-                // Unlike in xsf, if `p + lam` is negligible in the right half-plane, its real part is
-                // at least the lower bound `4^-m Re p`: rounded to the left of the imaginary axis,
-                // `p + lam` and the `R_C` terms can be on different branches.
+                // Unlike in xsf, if `p + lam` is negligible in the right half-plane, its real part
+                // is at least the lower bound `4^-m Re p`: rounded to the left of the imaginary
+                // axis, `p + lam` and the `R_C` terms can be on different branches.
                 let re = p.real() * d4m;
                 let tiny = pl.max_norm() <= config::ASYM_ZERO_UL * pm.max_norm();
                 if right && tiny && pl.real() < re {
