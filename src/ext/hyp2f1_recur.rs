@@ -176,10 +176,10 @@ pub(crate) struct Scaled {
 }
 
 impl Scaled {
-    /// `Some(m 2^e)` if `m` is nonzero and `err` is finite
+    /// `Some(m 2^e)` if `m` is nonzero, and `m` and `err` are finite
     pub(crate) fn new(m: f64, e: i32, err: f64) -> Option<Self> {
         let l = Dd::new(0.0);
-        (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
+        (m != 0.0 && m.is_finite() && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
     /// This times `f`, whose relative error is at most 3 eps
@@ -1028,9 +1028,9 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
 }
 
 /// `F(a, b; c; x)` for an integer `a` or `b = -n < 0`, with `c` not an integer in `(-n, 0]`: the
-/// polynomial (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by
-/// 7e15 for `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff
-/// transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+/// polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in double-double, as its terms
+/// can cancel by `1 / eps` or more, e.g. by 7e15 for `F(-186, -26.75; -333; -9)`; if that is
+/// inaccurate for `x < 1`, its Pfaff transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
 fn hyp2f1_poly_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     // (no factor of `(c)_n` is 0)
     let no_pole = |p: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
@@ -1072,7 +1072,8 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
-    // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
+    // (the mantissas of `b + k`, `c + k` and `x`, which avoids subnormal rounding and overflow in
+    // the update)
     let (xm, xe) = x.frexp();
     // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
     // for `1 / (1 - x)` with `x = -1.3e308`. A term `t_k` has `k` factors `x`.
@@ -1081,9 +1082,9 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + x_err * k_sum_abs
     };
     while k < n {
-        let (bm, be) = (b + k).frexp();
-        t = t * (bm * (k - n)) * xm / ((c + k) * (k + 1.0));
-        te += be + xe;
+        let ((bm, be), (cm, ce)) = ((b + k).frexp(), (c + k).frexp());
+        t = t * (bm * (k - n)) * xm / (cm * (k + 1.0));
+        te += be + xe - ce;
         k += 1.0;
         if let Some(s) = rescale_exp(t.hi) {
             (t, te) = (t.ldexp(-s), te + s);
@@ -1129,18 +1130,18 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
     Scaled::new(sum.hi, e, err)
 }
 
-/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c < 1 - n`, in
-/// double-double
+/// `F(-n, b; c; 1) = (c - b)_n / (c)_n` (DLMF 15.4.24) for `n >= 1` and `c` not an integer in
+/// `(-n, 0]`, in double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`, or `None` if a
+    // the product `t 2^e`, with the mantissas of the factors as in `poly_dd`, or `None` if a
     // numerator is 0
     let product = (0..n as u32)
         .map(f64::from)
         .try_fold((Dd::new(1.0), 0), |(t, e), k| {
-            let (num, num_e) = (cb + k).frexp();
-            let t = (num.hi != 0.0).then(|| t * num / (c + k))?;
-            let e = e + num_e;
+            let ((num, num_e), (den, den_e)) = ((cb + k).frexp(), (c + k).frexp());
+            let t = (num.hi != 0.0).then(|| t * num / den)?;
+            let e = e + num_e - den_e;
             Some(rescale_exp(t.hi).map_or((t, e), |s| (t.ldexp(-s), e + s)))
         });
     match product {

@@ -1129,6 +1129,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 if terminates(near_neg_int) {
                     break 'hypok;
                 }
+                // Unlike in xsf, for a non-integer c and an integer a or b <= 0, the (finite)
+                // polynomial in double-double if accurate
+                let poly = hyp2f1_poly_f64(a, b, c, x).map(Scaled::to_f64);
+                if let Some((y, _)) = poly.filter(accurate) {
+                    return y;
+                }
                 return f64::INFINITY; // goto hypdiv
             }
 
@@ -1337,7 +1343,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
-        // Unlike in xsf, an overflowing polynomial is summed in double-double (unless
+        // Unlike in xsf, retry a non-finite polynomial result in scaled double-double (unless
         // `hyp2f1_recur` returned a value above): the power series stops at its first infinite
         // term, whose sign can differ from that of the sum, and the recurrence in `a` can add
         // infinities of both signs (NaN)

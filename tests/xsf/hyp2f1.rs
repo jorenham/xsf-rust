@@ -1552,11 +1552,13 @@ fn test_hyp2f1_f64_polynomial_neg_int_c_overflow() {
 
 #[test]
 fn test_hyp2f1_f64_polynomial_overflow() {
-    // unlike in xsf: the sign of an overflowing polynomial for c > 0 or a non-integer c, e.g. of
-    // 1 - 4x/3 + x^2/2 and 1 - 8x + 8x^2 for the first two, where the power series stops at its
-    // first infinite term, or the recurrence in a gives NaN; xsf gives -inf for the first two
+    // unlike in xsf: polynomials for c > 0 or a non-integer c whose power series is not finite,
+    // e.g. of 1 - 4x/3 + x^2/2 and 1 - 8x + 8x^2 for the first two, where it stops at its first
+    // infinite term, or the recurrence in a gives NaN; xsf gives -inf for the first two
     // (references: exact)
     let (inf, max) = (f64::INFINITY, f64::MAX);
+    // (next to the pole c = -1, which the degree 2 passes)
+    let c_1 = -1.0 + f64::EPSILON / 2.0;
     for ((a, b, c, x), desired) in [
         ((-2.0, 2.0, 3.0, 1e308), inf),
         ((-2.0, 2.0, 0.5, 1e308), inf),
@@ -1578,6 +1580,15 @@ fn test_hyp2f1_f64_polynomial_overflow() {
             (-2.0, -0.976_556_258_795_454_8, -5.143_678_704_031_934_5, -4.090_963_831_756_783e155),
             -max,
         ),
+        // (where a term ratio over- or underflows, but the terms don't, and one with a finite
+        // value, which was -inf)
+        ((-2.0, -2.0, 1e-310, 1.0), inf),
+        ((-2.0, 1.0, 1e-310, 2.0), inf),
+        ((-2.0, -2.0, 1e-310, -3.0), inf),
+        ((-2.0, 2e200, 1e308, 1e300), inf),
+        ((-2.0, 1e308, 1e307, 2.0), 361.0),
+        ((-2.0, 1.0, c_1, 1e200), -inf),
+        ((-2.0, 1.0, c_1, -1e200), -inf),
     ] {
         assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
         assert_eq!(xsf::hyp2f1(b, a, c, x), desired);
