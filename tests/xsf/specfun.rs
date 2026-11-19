@@ -446,12 +446,14 @@ fn test_hypu_chgus_rounding() {
 #[test]
 fn test_hypu_chgus_ln_prefactors() {
     // Arb; by `chgus` with its prefactors in log scale, near a pole of Gamma(a), where gamma2(a) is
-    // 3.6e-4 off (first), and where U overflows (second, 2.1e364)
+    // 3.6e-4 off (first), where U overflows (second, 2.1e364), and where the next term of r2
+    // overflows (third)
     let abx = [
         (-127.000_000_000_017_27, 33.542_329_647_346_07, 0.075_731_757_201_253_32),
         (-165.000_000_035_423_2, 37.311_632_646_547_174, 0.106_767_894_167_570_57),
+        (-112.999_999_777_333_51, 54.637_463_742_778_04, 0.074_055_281_066_504_95),
     ];
-    let expected = [1.213_066_519_523_452_2e274, f64::INFINITY];
+    let expected = [1.213_066_519_523_452_2e274, f64::INFINITY, -2.736_401_559_956_598e307];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
@@ -583,9 +585,9 @@ fn test_hypu_b_near_one_cancel() {
         xsf::hypu(-152.571_517_551_837_93, 0.997_562_922_686_568_3, 0.001_997_420_588_184_022);
     xsref::np_assert_allclose!([actual], [1.190_151_804_933_915_8e266], rtol = 1e-13);
 
-    // Arb: 2.79e-307, but 1/Gamma(a) underflows (and the fallback returns 0)
+    // Arb; where 1/Gamma(a) underflows, by `chgus` with its prefactors in log scale
     let actual = xsf::hypu(171.625, 1.009, 1e-20);
-    assert!((0.0..=2.790_460_095_786_538_4e-307).contains(&actual));
+    xsref::np_assert_allclose!([actual], [2.790_460_095_786_538_4e-307], rtol = 1e-14);
 }
 
 #[test]
