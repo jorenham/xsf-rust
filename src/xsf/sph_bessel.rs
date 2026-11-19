@@ -186,40 +186,33 @@ fn sqrt_pi_2_div(z: C64) -> C64 {
     (FRAC_PI_2 / z).sqrt()
 }
 
-/// Past `2^+-E_MAX`, every nonzero part of a result of [`sph_bessel_overflow`] over- or underflows
-const E_MAX: i64 = 1 << 13;
+/// `out`, or unlike in xsf, `fallback()` (see [`sph_bessel_overflow`]) where `out` is not finite
+fn finite_or(out: C64, fallback: impl FnOnce() -> Option<C64>) -> C64 {
+    if out.is_finite() {
+        return out;
+    }
+    fallback().unwrap_or(out)
+}
 
-/// A work limit on the order of [`sph_bessel_overflow`], which takes a step per order
-const N_MAX: i64 = 1 << 20;
-
-/// The cutoff of [`sph_bessel_overflow`] on its estimate of the error growth
-const GROWTH_MAX: f64 = 1024.0;
-
-/// A bound on the roundings per step of [`sph_bessel_overflow`], relative to `eps |a_k|`, also of
-/// `1 / z`
-const ROUNDINGS: f64 = 8.0;
-
-/// `(f_n(z), f_n'(z))` for complex `z` where the result is not finite, from the upward recurrence
-/// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` of `y_n` (`s = -1`, DLMF 10.51.1) and `k_n` (`s = 1`,
-/// DLMF 10.51.4), and `f_n' = -s f_(n-1) - (n + 1) f_n / z` (DLMF 10.51.2 and 10.51.5).
+/// `(f_n(z), f_n'(z))` for complex `z` where they overflow, by the upward recurrence
+/// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` from `g_k = z exp(x) f_k` at `k = -1, 0`, and
+/// `f_n' = -s f_(n-1) - (n + 1) f_n / z`, for `y_n` (`s = -1`, `x = -|Im z|`, DLMF 10.51.1 and
+/// 10.51.2) and `k_n` (`s = 1`, `x = Re z`, DLMF 10.51.4 and 10.51.5).
 ///
-/// The recurrence runs on `g_k = z exp(x) f_k / 2^e`, from `g_(-1)` and `g_0`, with `x = Re z` for
-/// `k_n` and `-|Im z|` for `y_n`, and the power of two `2^e` that keeps all parts of `g_(k-1)` and
-/// `g_k` below 1, so that the result only overflows at the end. It takes all `n` steps, also past
-/// the overflow, as each step turns the phase of `f_n`.
-///
-/// For `x < 0`, the other solution of the recurrence grows faster than `f_n`, which amplifies the
-/// rounding errors by about `exp(min(-2x, n (n + 1) / |z|))` (a heuristic estimate, measured).
-/// Where that exceeds `GROWTH_MAX`, for `n > N_MAX`, and as AMOS for `z = 0` and past its range
-/// (`ierr = 4`), this is `None`.
-///
-/// Otherwise, a part is NaN unless its error interval overflows, or does not cross the overflow
-/// threshold and is at most `sqrt(eps)` of it, i.e. at least half of its digits are correct, as an
-/// overflowing part or an underflow can mask it, e.g. `Re k_2(1e-120 i) = 1e-241` with
-/// `Im k_2 = inf`. The error is the smaller of the normwise `GROWTH_MAX (n + 1) eps |f|` and the
-/// partwise bound from `a_k >= |g_k|`, from the recurrence on the absolute values plus the
-/// underflow, with a few roundings by `eps |a_k|` per step.
+/// `None` for `n > N_MAX`, as AMOS for `z = 0` and past its range, and where the rounding errors
+/// grow by more than `GROWTH_MAX`, about `exp(min(-2x, n (n + 1) / |z|))` (a measured heuristic),
+/// as the other solution grows faster for `x < 0`. A part is NaN unless its error interval
+/// overflows, or is finite with at least half of its digits correct, as an overflowing part can
+/// mask it, e.g. `Re k_2(1e-120 i) = 1e-241` with `Im k_2 = inf`.
 fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
+    // Past `2^+-E_MAX`, any nonzero part of the result over- or underflows
+    const E_MAX: i64 = 1 << 13;
+    // The limits on the steps and on the error growth
+    const N_MAX: i64 = 1 << 20;
+    const GROWTH_MAX: f64 = 1024.0;
+    // A bound on the roundings per step relative to `eps |a_k|`, also of `1 / z`
+    const ROUNDINGS: f64 = 8.0;
+
     let r = z.norm();
     let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
     if !((0..=N_MAX).contains(&n) && r > 0.0 && r <= 0.5 / MACH.0 && growth <= GROWTH_MAX.ln()) {
@@ -236,65 +229,66 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
         let (re, im) = (b.re.abs(), b.im.abs());
         c64(a.re * re + a.im * im, a.re * im + a.im * re)
     };
-    // An underflow of `g`, in units of `2^de` and relative to `eps`
+    // An underflow, in units of `2^de`
     let tiny = |de: i64| {
         let t = f64::MIN_POSITIVE.ldexp(de.clamp(-E_MAX, 0) as i32);
         c64(t, t)
     };
-    let abs = |g: C64| c64(g.re.abs(), g.im.abs()) + tiny(0);
-    // `a_k` in units of `2^e_a`, with its own scale, as it can grow much faster than `g_k`
-    let init = ((g_m1, g_0, 0), (abs(g_m1), abs(g_0), 0));
+    // `(f_0, f_1)` in units of `2^(e - m)`, rescaled so that all parts are below 1, and the new `e`
+    let rescale = |f_0: C64, f_1: C64, e: i64| {
+        let de = exp2(f_0).max(exp2(f_1));
+        (f_0.ldexp(-de), f_1.ldexp(-de), e + i64::from(de - m))
+    };
+
+    // `g_k` in units of `2^e`, so that only the result overflows (all `n` steps, as each one turns
+    // the phase), and its partwise bound `a_k >= |g_k|` plus the underflow, in units of `2^e_a` as
+    // it can grow much faster
+    let [a_m1, a_0] = [g_m1, g_0].map(|g| c64(g.re.abs(), g.im.abs()) + tiny(0));
+    let init = ((g_m1, g_0, 0), (a_m1, a_0, 0));
     let ((g_m1, g_0, e), (a_m1, a_0, e_a)) =
         (0..n).fold(init, |((g_m1, g_0, e), (a_m1, a_0, e_a)), k| {
-            // `g_k` and `g_(k+1)` in units of `2^(e - m)`
-            let (g_0, g_1) = (g_0.ldexp(m), (2 * k + 1) as f64 * g_0 * rw + s * g_m1.ldexp(m));
-            let de = exp2(g_0).max(exp2(g_1));
-            let t = tiny(e - e_a);
-            let (a_0, a_1) =
-                (a_0.ldexp(m) + t, (2 * k + 1) as f64 * abs_mul(a_0, rw) + a_m1.ldexp(m) + t);
-            let da = exp2(a_0).max(exp2(a_1));
+            let (c, t) = ((2 * k + 1) as f64, tiny(e - e_a));
             (
-                (g_0.ldexp(-de), g_1.ldexp(-de), e + i64::from(de - m)),
-                (a_0.ldexp(-da), a_1.ldexp(-da), e_a + i64::from(da - m)),
+                rescale(g_0.ldexp(m), c * g_0 * rw + s * g_m1.ldexp(m), e),
+                rescale(a_0.ldexp(m) + t, c * abs_mul(a_0, rw) + a_m1.ldexp(m) + t, e_a),
             )
         });
 
-    // `g 2^e exp(-x) / z`, with `exp(-x) = 2^q exp(t)` for `|t| <= ln(2) / 2` (reduced in
-    // double-double), so that only the final `ldexp` can overflow
+    // `exp(-x) = 2^q exp(t)` for `|t| <= ln(2) / 2` (reduced in double-double), so that only the
+    // final `ldexp` can overflow
     let q = (-x * LOG2_E).round();
     let exp_t = (-f64::from(LOG2 * q + x)).exp();
-    let tol = GROWTH_MAX * np1(n) * f64::EPSILON;
-    // `y_n(iy)` is real or imaginary, and its zero part stays exactly zero
-    let exact_zero = |p: f64| s < 0.0 && z.re == 0.0 && p == 0.0;
-    let tol_a = ROUNDINGS * np1(n) * f64::EPSILON;
-    let scale = |g: C64, a: C64, e: i64, e_a: i64| {
+    // The error is the smaller of the normwise `tol |f|` and the partwise `tol_a |a / z|`
+    let [tol, tol_a] = [GROWTH_MAX, ROUNDINGS].map(|c| c * np1(n) * f64::EPSILON);
+    // `p 2^e exp(t)` for a part, with its own scale so that a subnormal one rounds only once
+    let part = |p: f64, err: f64, e: i64| {
+        // `y_n(iy)` is real or imaginary
+        if s < 0.0 && z.re == 0.0 && p == 0.0 {
+            return p;
+        }
+        let (p, ep) = frexp_f64(p);
+        let (err, e) = (err.ldexp(-ep), (e + i64::from(ep)).clamp(-E_MAX, E_MAX) as i32);
+        let [lo, hi] = [-err, err].map(|d| ((p.abs() + d) * exp_t).ldexp(e).is_finite());
+        if p.abs() >= err && (!lo || hi && err <= f64::EPSILON.sqrt() * p.abs()) {
+            (p * exp_t).ldexp(e)
+        } else {
+            f64::NAN
+        }
+    };
+    // `f = g 2^e exp(-x) / z`, with the error from `a 2^e_a`
+    let d_a = e_a - e;
+    let scale = |g: C64, a: C64, e: i64| {
         let de = exp2(g);
-        let a = (abs_mul(a, rw) + tiny(e - e_a))
-            .ldexp((e_a - e - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
+        let a =
+            (abs_mul(a, rw) + tiny(-d_a)).ldexp((d_a - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
         let g = g.ldexp(-de) * rw;
         let min = tol * g.re.abs().max(g.im.abs());
-        // Each part with its own scale, so that a subnormal one rounds only once
-        let part = |p: f64, a: f64| {
-            let err = if exact_zero(p) {
-                0.0
-            } else {
-                min.min(tol_a * a)
-            };
-            let (p, ep) = frexp_f64(p);
-            let err = err.ldexp(-ep);
-            let e = (e + i64::from(de + ep - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
-            let [lo, hi] = [-err, err].map(|d| ((p.abs() + d) * exp_t).ldexp(e).is_finite());
-            if p.abs() >= err && (!lo || hi && err <= f64::EPSILON.sqrt() * p.abs()) {
-                (p * exp_t).ldexp(e)
-            } else {
-                f64::NAN
-            }
-        };
-        c64(part(g.re, a.re), part(g.im, a.im))
+        let e = e + i64::from(de - m) + q as i64;
+        c64(part(g.re, min.min(tol_a * a.re), e), part(g.im, min.min(tol_a * a.im), e))
     };
     let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
     let da = a_m1.ldexp(m) + np1(n) * abs_mul(a_0, rw);
-    Some((scale(g_0, a_0, e, e_a), scale(dg, da, e - i64::from(m), e_a - i64::from(m))))
+    Some((scale(g_0, a_0, e), scale(dg, da, e - i64::from(m))))
 }
 
 /// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence
@@ -499,15 +493,10 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_y_c64(half(n), z);
-    if out.is_finite() {
-        return out;
-    }
-    sph_bessel_y_overflow(n, z).map_or(out, |f| f.0)
+    finite_or(out, || sph_bessel_y_overflow(n, z).map(|f| f.0))
 }
 
-/// Unlike in xsf, recurs upward from `y_(-1) = j_0` and `y_0` where the result is not finite, from
-/// an overflow in AMOS or in the arithmetic around it, instead of returning it (see
-/// [`sph_bessel_overflow`])
+/// [`sph_bessel_overflow`] of `y_n`, from `y_(-1) = j_0` and `y_0`
 fn sph_bessel_y_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     // `sin z` and `cos z` times `exp(-|y|)`, as they overflow for `|y| > 710`
     let (y, (sin_x, cos_x)) = (z.im.abs(), z.re.sin_cos());
@@ -543,10 +532,7 @@ fn sph_bessel_y_jac_c64(n: i64, x: C64) -> C64 {
 
     let out =
         sph_bessel_y_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_y_c64(n, x) / x;
-    if out.is_finite() {
-        return out;
-    }
-    sph_bessel_y_overflow(n, x).map_or(out, |f| f.1)
+    finite_or(out, || sph_bessel_y_overflow(n, x).map(|f| f.1))
 }
 
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
@@ -715,15 +701,10 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_k_c64(half(n), z);
-    if out.is_finite() {
-        return out;
-    }
-    sph_bessel_k_overflow(n, z).map_or(out, |f| f.0)
+    finite_or(out, || sph_bessel_k_overflow(n, z).map(|f| f.0))
 }
 
-/// Unlike in xsf, recurs upward from `k_(-1) = k_0` where the result is not finite, from an
-/// overflow in AMOS or in the arithmetic around it, instead of returning it (see
-/// [`sph_bessel_overflow`])
+/// [`sph_bessel_overflow`] of `k_n`, from `k_(-1) = k_0`
 fn sph_bessel_k_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     let g = FRAC_PI_2 * C64::cis(-z.im);
     sph_bessel_overflow(n, z, 1.0, g, g, z.re)
@@ -749,10 +730,7 @@ fn sph_bessel_k_jac_c64(n: i64, x: C64) -> C64 {
 
     let out =
         -sph_bessel_k_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_k_c64(n, x) / x;
-    if out.is_finite() {
-        return out;
-    }
-    sph_bessel_k_overflow(n, x).map_or(out, |f| f.1)
+    finite_or(out, || sph_bessel_k_overflow(n, x).map(|f| f.1))
 }
 
 /// Spherical Bessel function of the first kind, $j_n(z)$
