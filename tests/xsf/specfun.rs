@@ -456,6 +456,11 @@ fn test_hypu_chgus_ln_prefactors() {
     let expected = [1.213_066_519_523_452_2e274, f64::INFINITY, -2.736_401_559_956_598e307];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; the same, where the recurrence in b is 1e-3 off, with fewer than `ID_MIN` digits
+    let actual =
+        xsf::hypu(-115.999_999_998_708_15, 32.399_975_307_852_856, 0.001_329_101_958_466_425_9);
+    xsref::np_assert_allclose!([actual], [9.622_613_230_757_687e304], rtol = 1e-14);
 }
 
 #[test]
