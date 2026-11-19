@@ -70,6 +70,9 @@ fn test_hyp1f0_f64_inexact_1mz() {
     // a subnormal result, where `w^-a` underflows and `(1 + r/w)^-a` overflows
     let y = xsf::hyp1f0(720.0 * 2f64.powi(53), -2f64.powi(-53).next_up());
     np_assert_allclose!([y], [2.032_230_802_4e-313], rtol = 1e-9);
+
+    // a subnormal result with an exact `w^-a`, which needs the low word of its logarithm
+    assert_eq!(xsf::hyp1f0(2.0, -2f64.powi(512)), 2f64.powi(-1024));
 }
 
 #[test]

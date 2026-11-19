@@ -81,7 +81,14 @@ fn hyp0f1_asy(v: f64, z: f64) -> f64 {
 /// `e^x`, with the low word of `x` to first order (it is NaN where `x` overflowed)
 fn exp_dd(x: Dd) -> f64 {
     let e = x.hi.exp();
-    if e.is_normal() { e + e * x.lo } else { e }
+    if e.is_normal() {
+        e + e * x.lo
+    } else if e.is_subnormal() {
+        // (fused, as `e * x.lo` underflows)
+        e.mul_add(x.lo, e)
+    } else {
+        e
+    }
 }
 
 /// `hyp0f1_asy` for complex `z`, if the Bessel function over- or underflows
