@@ -1931,16 +1931,17 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     hu
 }
 
-/// For `b < 1`, whether `a - b + 1` rounds to an integer `n <= 0` that it isn't, and the rounding
-/// error `d = a - b + 1 - n` (that of `a - b`)
+/// Whether `a - b + 1` rounds to an integer `n <= 0` that it isn't, for `b < 1` and `a` not an
+/// integer `<= 0`, and the rounding error `d = a - b + 1 - n` (that of `a - b`)
 ///
 /// `U` is then not the polynomial of `n` (DLMF 13.2.8), but differs from it by about
-/// `|d (-n)! Gamma(1 - b) M(a, b, x)|` (DLMF 13.2.42), which can be far larger. For `b >= 1`, this
-/// is negligible (empirically).
+/// `|d (-n)! Gamma(1 - b) M(a, b, x)|` (DLMF 13.2.42), which can be far larger. This is only
+/// handled for `b < 1`. For an integer `a <= 0`, `U` is the polynomial of `a` (DLMF 13.2.7).
 pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
     let (s, d) = two_sum(a, -b);
     // (the rounding is exact if d is an integer: 0 below 2^53, where s + 1 is exact too)
-    (b < 1.0 && is_nonpos_int(s + 1.0) && d.fract() != 0.0, d)
+    let rounded = b < 1.0 && !is_nonpos_int(a) && is_nonpos_int(s + 1.0) && d.fract() != 0.0;
+    (rounded, d)
 }
 
 fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
@@ -1964,7 +1965,8 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), a (or aa) = -2^31 is excluded
     let is_nonpos_i32 = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
     let il1 = is_nonpos_i32(a);
-    // Unlike in xsf, not if only the rounding of aa is such an integer (see `aa_rounding`)
+    // Unlike in xsf, not for d != 0, where aa is only rounded to such an integer (see
+    // `aa_rounding`)
     let il2 = is_nonpos_i32(aa) && d == 0.0;
     let mut nm = 0;
     if il1 {
@@ -2076,7 +2078,9 @@ fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
         r = 1.0;
         let mut rmax: f64 = 1.0;
         for k in 1..=25 {
-            r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
+            // Unlike in xsf, with aa + d (as in `chgus`), as a - b + k can round to 0, which
+            // would end the series as if it terminated
+            r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k) + d) / (f64::from(k) * x);
             ra = r.abs();
             if ((k > 5) && (ra >= r0)) || (ra < 1e-15) {
                 break;
@@ -2124,9 +2128,9 @@ fn chgus(x: f64, a: f64, b: f64, d: f64, ln_prefactors: bool, id: &mut i32) -> f
     }
     *id = 100;
     let ga = gamma2(a);
-    // Unlike in xsf, where a - b + 1 = aa + d rounds to an integer aa (see `aa_rounding`), with
-    // 1 / Gamma(aa + d) = (-1)^aa (-aa)! d to first order in d (DLMF 5.5.3), and with aa + d in
-    // the terms of r2
+    // Unlike in xsf, for d != 0 (where a - b + 1 = aa + d is rounded to an integer aa, see
+    // `aa_rounding`), with 1 / Gamma(aa + d) = (-1)^aa (-aa)! d to first order in d (DLMF 5.5.3),
+    // and with aa + d in the terms of r2
     let (rounded, aa) = (d != 0.0, a - b + 1.0);
     let gab = if rounded {
         neg_if_odd(aa, 1.0 / (gamma(1.0 - aa) * d))

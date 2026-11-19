@@ -329,6 +329,16 @@ fn test_hypu_poly_rounded() {
     ];
     let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
     xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; for an integer a, U is the polynomial of a (DLMF 13.2.7)
+    let actual = xsf::hypu(-91.0, -7.000_000_000_000_001, 1.5);
+    xsref::np_assert_allclose!([actual], [2.103_429_582_028_915_4e131], rtol = 1e-13);
+
+    // Arb: 2.81e106; NaN (too few digits), not the polynomial -1.81e104
+    assert!(
+        xsf::hypu(-92.000_000_000_000_01, -20.000_000_000_000_007, 0.140_022_521_443_750_8)
+            .is_nan()
+    );
 }
 
 #[test]
