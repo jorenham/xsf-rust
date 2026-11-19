@@ -414,7 +414,8 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("assoc_legendre_q_all.1", &[n, m, x]) => {
             xsf::assoc_legendre_q_all(n as usize, m as usize, x).1[n as usize][m as usize]
         },
-        // Mathieu functions
+        // Mathieu functions; NaN for a negative or non-integer `m`, like the tests
+        (f, &[m, ..]) if f.starts_with("mathieu_") && (m < 0.0 || m.fract() != 0.0) => f64::NAN,
         ("mathieu_a", &[m, q]) => xsf::mathieu_a(m as u32, q),
         ("mathieu_b", &[m, q]) => xsf::mathieu_b(m as u32, q),
         ("mathieu_cem.0", &[m, q, x]) => xsf::mathieu_cem(m as u32, q, x).0,

@@ -403,12 +403,8 @@ pub fn with_int<N: TryFrom<i64>, T: TestOutput>(x: f64, f: impl FnOnce(N) -> T) 
 /// reference is less accurate than its tolerance; infinite if the reference is wrong
 fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
     match name {
-        // xsf returns NaN for m = 10000
-        "cem" | "sem" if x[0] == 1e4 => f64::INFINITY,
-        // xsf's `fcoef` is inaccurate for even m (scipy/xsf#343)
-        "sem" if x[0] % 2.0 == 0.0 => 1e-8,
         // the references for even m are xsf's values, which differ by up to 1e-7 (unverified,
-        // presumably also from `fcoef`)
+        // presumably from `fcoef`, scipy/xsf#343)
         "msm1" if x[0] % 2.0 == 0.0 => 2e-7,
         "msm2" if x[0] % 2.0 == 0.0 => 2e-13,
         // the references of the derivatives are xsf's inaccurate values
