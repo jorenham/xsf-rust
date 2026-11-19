@@ -137,6 +137,15 @@ fn test_eval_integer_degree_complex() {
         c64(-6_132_582_197.759_089, 5_746_717_837.856_203),
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // also for alpha near -1/2 and -1, where `alpha + 1/2` and `alpha + 1` are small (Arb, exact)
+    let e = f64::EPSILON / 4.0;
+    let actual = [
+        xsf::eval_gegenbauer(2.0, -0.499_999_999_999_999_83, c64(0.75, 0.125)),
+        xsf::eval_genlaguerre(1.0, -1.0 + 2.0 * e, c64(e, e)),
+    ];
+    let desired = [c64(0.226_562_499_999_999_83, -0.093_75), c64(e, -e)];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
 }
 
 #[test]

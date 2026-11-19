@@ -99,15 +99,21 @@ mod sealed {
 
         #[inline]
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
-            // Unlike in xsf, integer degrees use the recurrence of `eval_jacobi` (without its
-            // `binom(n + alpha, n)`), since the complex series cancels catastrophically for large
-            // degrees.
-            let (alpha, beta) = (c - 1.0, lam - c);
+            // Unlike in xsf, integer degrees of the Gegenbauer case `lam + 1 = 2c` use the
+            // recurrence of `eval_gegenbauer` (with x < 0 reflected), since the complex series
+            // cancels catastrophically for large degrees. It takes `alpha = lam / 2`, so that a
+            // small `c` keeps its digits (unlike `c - 1` in the Jacobi recurrence).
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
-            let p = super::int_degree(nu, alpha, beta).map(|n| {
-                super::eval_jacobi_l_reflected(n, alpha, beta, self)
-                    / super::jacobi_binom_l(n, alpha)
-            });
+            let p = super::int_degree(nu, c - 1.0, c - 1.0)
+                .filter(|_| lam + 1.0 == 2.0 * c)
+                .map(|n| {
+                    let p = |z| super::gegenbauer_hyp2f1_l(i64::from(n), 0.5 * lam, z);
+                    if self.re < 0.0 {
+                        crate::utils::neg_if_odd(n, p(-self))
+                    } else {
+                        p(self)
+                    }
+                });
             p.filter(OrthoPolyArg::is_finite)
                 .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
         }
@@ -208,11 +214,11 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         if self.is_nan() {
             return self;
         }
-        // Unlike in xsf, use the recurrence of the integer degrees for those (see above)
-        let p = int_degree(n, 0.0, 0.0).map(|n| match self.as_f64() {
-            Some(x) => Self::ZERO + x.eval_legendre(n),
-            None => eval_jacobi_l_reflected(n, 0.0, 0.0, self.clone()),
-        });
+        // Unlike in xsf, use the recurrence of the integer degrees for those (see above), for
+        // complex z in `hyp2f1_sh`
+        let p = int_degree(n, 0.0, 0.0)
+            .zip(self.as_f64())
+            .map(|(n, x)| Self::ZERO + x.eval_legendre(n));
         p.filter(sealed::OrthoPolyArg::is_finite)
             .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0))
     }
@@ -260,6 +266,10 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     } else {
         let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
         let mut p = d.clone() + 1.0;
+        // Unlike in xsf, `binom(n + alpha, n)` is the product of `(k + alpha) / k` for
+        // `alpha > -1`, without the rounding of `n + alpha` in `jacobi_binom`, which costs up to
+        // about `ln(n) ulp(n)` (relative), e.g. for the weights of `roots_jacobi`.
+        let mut binom = alpha + 1.0;
         for kk in 0..n - 1 {
             let k = f64::from(kk) + 1.0;
             let t = 2.0 * (k - 1.0) + ab2;
@@ -267,25 +277,14 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
                 + d * (2.0 * k * (k + beta) * (t + 2.0)))
                 / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
             p = p + d.clone();
+            binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
         if alpha > -1.0 {
-            p * jacobi_binom_l(n, alpha)
+            p * binom
         } else {
             p * jacobi_binom(f64::from(n), alpha)
         }
     }
-}
-
-/// `binom(n + alpha, n)` for `alpha > -1`, for `eval_jacobi_l`
-///
-/// Unlike in xsf, this is the product of `(k + alpha) / k`, without the rounding of `n + alpha` in
-/// `jacobi_binom`, which costs up to about `ln(n) ulp(n)` (relative), e.g. for the weights of
-/// `roots_jacobi`.
-fn jacobi_binom_l(n: i32, alpha: f64) -> f64 {
-    (1..n).fold(alpha + 1.0, |binom, k| {
-        let k = f64::from(k);
-        binom * ((k + 1.0 + alpha) / (k + 1.0))
-    })
 }
 
 impl JacobiArg<i32> for f64 {
@@ -876,6 +875,10 @@ impl LaguerreArg<i32> for f64 {
             // polynomial defined only for alpha > -1
             return f64::NAN;
         }
+        if n == 1 {
+            // as in xsf, unlike `eval_genlaguerre_l`
+            return -self + alpha + 1.0;
+        }
         eval_genlaguerre_l(n, alpha, self)
     }
 }
@@ -891,7 +894,8 @@ fn eval_genlaguerre_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, x: Z) -> Z {
     } else if n == 0 {
         return Z::ZERO + 1.0;
     } else if n == 1 {
-        return -x + alpha + 1.0;
+        // Unlike in xsf, `alpha + 1` first, which keeps its digits for alpha near -1
+        return -x + (alpha + 1.0);
     }
 
     let mut d = -x.clone() / (alpha + 1.0);
