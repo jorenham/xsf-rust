@@ -334,11 +334,9 @@ fn test_hypu_poly_rounded() {
     let actual = xsf::hypu(-91.0, -7.000_000_000_000_001, 1.5);
     xsref::np_assert_allclose!([actual], [2.103_429_582_028_915_4e131], rtol = 1e-13);
 
-    // Arb: 2.81e106; NaN (too few digits), not the polynomial -1.81e104
-    assert!(
-        xsf::hypu(-92.000_000_000_000_01, -20.000_000_000_000_007, 0.140_022_521_443_750_8)
-            .is_nan()
-    );
+    // Arb; d is negligible here, and the result with it less accurate than the polynomial of n
+    let actual = xsf::hypu(-172.200_760_242_633_46, -22.200_760_242_633_46, 9.877_946_432_208_7);
+    xsref::np_assert_allclose!([actual], [1.121_373_992_140_344_8e298], rtol = 1e-13);
 }
 
 #[test]
