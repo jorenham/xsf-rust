@@ -252,8 +252,8 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             return (p + q) / (n + c);
         }
         let d = jacobi_binom(n, a);
-        // the symmetric recurrence of `hyp2f1_sh` is like the one that failed above
-        let sym = a == b && !tried;
+        // the Legendre case of `hyp2f1_sh` is the recurrence that failed above
+        let sym = a == b && !(tried && a == 0.0);
         self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, sym) * d
     }
 
