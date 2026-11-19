@@ -1338,7 +1338,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
         // Unlike in xsf, an overflowing polynomial of an integer c <= 0 (see above) comes from
-        // `hyp2f1_recur` (unless already tried above): the power series stops at its first
+        // `hyp2f1_recur` (unless it returned a value above): the power series stops at its first
         // infinite term, whose sign can differ from that of the sum, and the recurrence in `a`
         // can add infinities of both signs (NaN)
         if inexact.is_none() && !y.is_finite() && is_nonpos_int(c) {
