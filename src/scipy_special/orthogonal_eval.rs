@@ -39,6 +39,13 @@ mod sealed {
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
             (self.clone() * -0.5 + 0.5).hyp2f1(-n, b, c)
         }
+
+        /// `hyp2f1_sh` by the recurrence of the integer degrees of the Gegenbauer case, if it
+        /// is used for `Self` and those parameters, and finite
+        #[inline]
+        fn hyp2f1_sh_recurrence(&self, _n: f64, _b: f64, _c: f64, _lam: f64) -> Option<Self> {
+            None
+        }
     }
 
     impl OrthoPolyArg for f64 {
@@ -99,16 +106,23 @@ mod sealed {
 
         #[inline]
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            self.hyp2f1_sh_recurrence(n, b, c, lam)
+                .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
+        }
+
+        #[inline]
+        fn hyp2f1_sh_recurrence(&self, n: f64, b: f64, c: f64, lam: f64) -> Option<Self> {
             // Unlike in xsf, integer degrees of the Gegenbauer case `lam + 1 = 2c` use the
             // recurrence of `eval_gegenbauer`, since the complex series cancels catastrophically
             // for large degrees. Its `alpha = lam / 2` keeps the digits of a small `c`, which
             // `c - 1` in the Jacobi recurrence rounds away (so `c > 0` is checked directly). For
-            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate.
+            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. A finite `lam`
+            // keeps the overflowed `inf == inf` out of the check of the Gegenbauer case.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
             let p = super::int_degree(nu, 0.0, 0.0)
-                .filter(|_| c > 0.0 && lam + 1.0 == 2.0 * c)
+                .filter(|_| c > 0.0 && lam.is_finite() && lam + 1.0 == 2.0 * c)
                 .map(|n| {
-                    let z = if self.re < 0.0 { -self } else { self };
+                    let z = if self.re < 0.0 { -*self } else { *self };
                     let mut p = if c == 1.0 {
                         super::eval_jacobi_l(n, 0.0, 0.0, z)
                     } else {
@@ -127,7 +141,6 @@ mod sealed {
                     p
                 });
             p.filter(OrthoPolyArg::is_finite)
-                .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
         }
     }
 }
@@ -514,26 +527,26 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             return Self::ZERO;
         }
 
-        let is_complex = self.as_f64().is_none();
-        let g = self.hyp2f1_sh(n, n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
+        let (b, c, lam) = (n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
+        let rec = self.hyp2f1_sh_recurrence(n, b, c, lam);
+        let recurs = rec.is_some();
+        let g = rec.unwrap_or_else(|| self.hyp2f1_sh(n, b, c, lam));
         let mut d =
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
             // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
             // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
-            // Unlike in xsf, complex z with -1/2 < alpha < 1/4 uses
-            // `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))` (DLMF 5.12.1, 5.5.1) where
-            // `hyp2f1_sh` uses the recurrence, which keeps the digits of `2 alpha` and
-            // `2 alpha + 1` that `n + 2 alpha - 1` rounds away (as in `binom_alpha`). The 2F1 is
-            // scaled by `2 alpha` first, since the prefactor can be subnormal for tiny alpha.
-            // Elsewhere, the rounded prefactor hides the cancelled series of the other degrees,
-            // or the singular 2F1 of `c = alpha + 1/2 <= 0`.
-            let recur = int_degree(n, 0.0, 0.0).is_some();
-            if is_complex && recur && alpha > -0.5 && alpha < 0.25 {
-                let b = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
-                if b.is_finite() {
-                    return g * (2.0 * alpha) * (b / n);
+            // Unlike in xsf, alpha < 1/4 uses `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))`
+            // (DLMF 5.12.1, 5.5.1) where the (complex) recurrence is finite, which keeps the
+            // digits of `2 alpha` and `2 alpha + 1` that `n + 2 alpha - 1` rounds away (as in
+            // `binom_alpha`). The 2F1 is scaled by `2 alpha` first, since the prefactor can be
+            // subnormal for tiny alpha. Elsewhere, the rounded prefactor hides the cancelled
+            // series, or the singular 2F1 of `c = alpha + 1/2 <= 0`.
+            if recurs && alpha < 0.25 {
+                let inv_beta = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
+                if inv_beta.is_finite() {
+                    return g * (2.0 * alpha) * (inv_beta / n);
                 }
             }
         }

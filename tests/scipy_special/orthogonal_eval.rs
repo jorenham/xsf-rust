@@ -173,10 +173,17 @@ fn test_eval_integer_degree_complex() {
         assert!(actual.norm() <= 1e-21, "{actual}");
     }
 
-    // but not with a wrong finite value where `alpha + 1/2` is a negative integer (mpmath)
-    let actual = xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01));
-    let desired = c64(10.419_197_521_792_457, 0.0);
-    assert!(!actual.is_finite() || (actual - desired).norm() <= 1e-13 * desired.norm());
+    // but not with a wrong finite value where `alpha + 1/2` is a negative integer, the
+    // recurrence overflows, or the overflowed parameters look symmetric (mpmath)
+    let cases = [
+        (xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01)), 10.419_197_521_792_457),
+        (xsf::eval_gegenbauer(171.0, 1e-310, c64(34.0, 0.0)), 12.881_371_905_539_124),
+        (xsf::eval_jacobi(1.0, 1.3e308, 6e307, c64(0.0, 0.0)), 3.5e307),
+    ];
+    for (actual, desired) in cases {
+        let ok = !actual.is_finite() || (actual - desired).norm() <= 1e-13 * desired;
+        assert!(ok, "actual: {actual}, desired: {desired}");
+    }
 
     // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
     let zero = c64(0.0, 0.0);
