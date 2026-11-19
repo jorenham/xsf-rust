@@ -729,6 +729,9 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     ellint_rj_updt!();
     // `s^2 + delta / 4 = s beta`, see below
     let mut w2 = sm * prm * pm * 4.0;
+    // `w r` and `d + r 4^-m` of the previous step, for `u` below (`u = 2 beta / d` at first)
+    let mut wr = T::from(0.5);
+    let mut den = T::from(1.0);
 
     // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
     //
@@ -751,10 +754,11 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // Unlike in xsf, the `R_C` terms are summed directly once the update of `s` cancels by more
     // than 4 bits, e.g. for `x, y, z << p`, where `s` is lost while `r d ~ delta 4^-2m`. The term
     // of a step is the `R_C` term of `rj_duplicated`, `6 4^-m R_C(1, 1 + e) / d` with
-    // `e = delta 4^-3m / d^2` and `1 + e = 2 beta / d`.
-    let step_rc_term = |d: T, d4m: f64, beta: T| {
+    // `e = delta 4^-3m / d^2` and `1 + e = 2 beta / d`, with the `p + lam` of `beta` as the last
+    // factor (it can be subnormal).
+    let step_rc_term = |d: T, d4m: f64, prm: T, pl: T| {
         let e = delta * d4m / d * (T::from(d4m) / d) * d4m;
-        rc1(e, beta * 2.0 / d) * (d4m * 6.0) / d
+        rc1(e, prm / d * (pl * 2.0)) * (d4m * 6.0) / d
     };
     let mut rc_sum = None;
 
@@ -773,7 +777,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
         if let Some(sum) = rc_sum {
             ellint_rj_calc!();
             ellint_rj_updt!();
-            rc_sum = Some(sum + step_rc_term(dm, d4m * 4.0, prm * pm * 4.0));
+            rc_sum = Some(sum + step_rc_term(dm, d4m * 4.0, prm, pm * 4.0));
             m += 1;
             continue;
         }
@@ -800,18 +804,18 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
             let su = u.sqrt();
             (sm * su, sm * (su + 1.0))
         };
+        // `u = w2 / s^2` if that is the accurate one, with the `p + lam` of `beta` as the last
+        // factor (`w2` can be subnormal for a normal `u`)
+        let pl = pm * 4.0;
+        let uw =
+            (by_w2 && cancels(T::from(1.0), u)).then(|| wr / ss * (dm / den) * (prm / den) * pl);
         ellint_rj_calc!();
-        let den = dm + rm * d4m;
+        den = dm + rm * d4m;
         let rd = rm * dm;
         let num = rd - delta * (d4m * d4m);
-        // The `R_C` terms before this step, with `u = w2 / s^2` if that is the accurate one
-        let before = cancels(rd, num).then(|| {
-            if by_w2 {
-                rc1(t, w2 / ss) * 3.0 / sm
-            } else {
-                s_term(sm, d4m)
-            }
-        });
+        // The `R_C` terms before this step
+        let before =
+            cancels(rd, num).then(|| uw.map_or_else(|| s_term(sm, d4m), |u| rc1(t, u) * 3.0 / sm));
         sm = num * 0.5 / den;
 
         /* next */
@@ -819,9 +823,9 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
         // `w2 = s^2 + delta 4^-m` (of the next step) as `w r d beta / (d + r 4^-m)^2`, without
         // cancellation, from `d^2 + delta 4^-3m = 2 d beta` with `beta = sqrt(p) (p + lam)`
         // (https://dlmf.nist.gov/19.26.E23), where `p + lam = 4 p'`
-        let beta = prm * pm * 4.0;
-        w2 = wm * rm * (dm / den) * (beta / den);
-        rc_sum = before.map(|sum| sum + step_rc_term(dm, d4m * 4.0, beta));
+        wr = wm * rm;
+        w2 = wr * (dm / den) * (prm * pm * 4.0 / den);
+        rc_sum = before.map(|sum| sum + step_rc_term(dm, d4m * 4.0, prm, pm * 4.0));
         m += 1;
     }
     /* Burn some extra cycles re-balancing Am as the "true" centroid */

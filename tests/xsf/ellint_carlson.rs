@@ -509,6 +509,13 @@ fn test_elliprj_nearly_imaginary_cancel() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
 
+    // where `s beta` is subnormal (Arb)
+    let a = 2.0_f64.powi(-28);
+    let p = c64(f64::MIN_POSITIVE, -11.0 * a);
+    let actual = xsf::elliprj(c64(0.0, a), c64(0.0, 4.0 * a), c64(0.0, 9.0 * a), p);
+    let expected = c64(475_270_146_947.483_76, -13_229_998_187.788_53);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-12);
+
     // NaN if the lower bound `4^-m Re p` of `Re(p + lambda)` underflows (Arb: 2.26497 - 0.0723348i)
     let c = |im| c64(5e-324, im);
     let (y, z) = (c(0.548_967_078_054_124_9), c(0.172_925_512_765_675_9));
