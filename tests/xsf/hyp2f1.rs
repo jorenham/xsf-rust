@@ -1589,6 +1589,27 @@ fn test_hyp2f1_f64_polynomial_overflow() {
         ((-2.0, 1e308, 1e307, 2.0), 361.0),
         ((-2.0, 1.0, c_1, 1e200), -inf),
         ((-2.0, 1.0, c_1, -1e200), -inf),
+        // (Euler transformations whose c - a rounds to a negative integer, where the polynomial
+        // overflows, but not its product with (1 - x)^(c - a - b); xsf gives NaN and inf;
+        // references: Arb)
+        (
+            (20.0, 19.578_718_423_577_527, 3.761_908_130_024e-312, -1_240.829_428_855_755_4),
+            1.302_688_042_625_831_2e251,
+        ),
+        (
+            (44.0, 70.443_210_106_362_3, -3.5e-323, -1.226_182_118_621_034_2),
+            -6.120_084_936_549_461_6e302,
+        ),
+        // (finite, by the paths for x < 1, which this leaves correctly rounded)
+        (
+            (
+                -43.0,
+                -103.894_138_368_212_03,
+                4.176_330_477_074_113e-309,
+                -1.639_378_690_091_260_6e-18,
+            ),
+            -1.753_654_077_006_681_6e294,
+        ),
     ] {
         assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
         assert_eq!(xsf::hyp2f1(b, a, c, x), desired);

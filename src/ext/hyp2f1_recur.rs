@@ -176,10 +176,10 @@ pub(crate) struct Scaled {
 }
 
 impl Scaled {
-    /// `Some(m 2^e)` if `m` is nonzero, and `m` and `err` are finite
+    /// `Some(m 2^e)` if `m` is nonzero and `err` is finite
     pub(crate) fn new(m: f64, e: i32, err: f64) -> Option<Self> {
         let l = Dd::new(0.0);
-        (m != 0.0 && m.is_finite() && err.is_finite()).then_some(Self { m, e, l, err })
+        (m != 0.0 && err.is_finite()).then_some(Self { m, e, l, err })
     }
 
     /// This times `f`, whose relative error is at most 3 eps
@@ -533,7 +533,7 @@ fn hyp2f1_poly(
             // (e.g. near a root, where the sum of `F(-8, 18.02; 10.81; 0.909)` cancels by 1e12 and
             // the better recurrence has an error bound of 2e-11), only if accurate, as the
             // rounding of `w` can make it less so than the paths of the caller
-            let y_dd = poly_dd(n, r, c, w).filter(|y| y.err <= HYP2F1_ETHRESH);
+            let y_dd = poly_dd(n, r, c, w, false).filter(|y| y.err <= HYP2F1_ETHRESH);
             min_err(best, y_dd.map(|y| y.with_l(l)))
         })
         .fold(None, min_err)
@@ -1048,12 +1048,12 @@ fn hyp2f1_poly_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     if x == 1.0 {
         return chu_vandermonde(n, q, c);
     }
-    let direct = poly_dd(n, q, c, Dd::new(x));
+    let direct = poly_dd(n, q, c, Dd::new(x), true);
     if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
         return direct;
     }
     let one = Dd::new(1.0);
-    let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one));
+    let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one), true);
     min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
 }
 
@@ -1062,18 +1062,20 @@ pub(crate) fn hyp2f1_poly_f64(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> 
     // (`a >= b`, as in `hyp2f1_recur`)
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let finite = x != 0.0 && x.is_finite();
-    finite.then(|| hyp2f1_poly_dd(Dd::new(a), Dd::new(b), Dd::new(c), x))?
+    let y = finite.then(|| hyp2f1_poly_dd(Dd::new(a), Dd::new(b), Dd::new(c), x))?;
+    // (not if its mantissa is NaN or infinite, which `Scaled::new` accepts)
+    y.filter(|y| y.m.is_finite())
 }
 
 /// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
-/// `series_weighted`, plus the terms it skips if `c <= -n`
-fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
+/// `series_weighted`, plus the terms it skips if `c <= -n`. If `scale_c`, also with the mantissa
+/// of `c + k`, so that the term ratio can't overflow for a subnormal or huge `c`.
+fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd, scale_c: bool) -> Option<Scaled> {
     let one = Dd::new(1.0);
     // the term `t 2^te`, and the sums scaled by `2^-e`
     let (mut t, mut te, mut e) = (one, 0, 0);
     let (mut sum, mut sum_abs, mut k_sum_abs, mut k, mut tail) = (one, 1.0, 0.0, 0.0, 0.0);
-    // (the mantissas of `b + k`, `c + k` and `x`, which avoids subnormal rounding and overflow in
-    // the update)
+    // (the mantissas of `b + k` and `x`, which avoids subnormal rounding in the update)
     let (xm, xe) = x.frexp();
     // The relative error of `x` if it was computed, as its low word can be subnormal, e.g.
     // for `1 / (1 - x)` with `x = -1.3e308`. A term `t_k` has `k` factors `x`.
@@ -1082,7 +1084,8 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         DD_ROUNDING * (8.0 * k_sum_abs + (k + 1.0) * sum_abs) + x_err * k_sum_abs
     };
     while k < n {
-        let ((bm, be), (cm, ce)) = ((b + k).frexp(), (c + k).frexp());
+        let (bm, be) = (b + k).frexp();
+        let (cm, ce) = if scale_c { (c + k).frexp() } else { (c + k, 0) };
         t = t * (bm * (k - n)) * xm / (cm * (k + 1.0));
         te += be + xe - ce;
         k += 1.0;

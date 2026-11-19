@@ -1069,8 +1069,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
         let p = s.powf(d);
         let y = hyp2f1_impl(c - a, c - b, c, x, recur, false);
-        // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur`, multiply its
-        // scaled value by `s^d`, as their product can still be finite.
+        // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur` (or is a
+        // polynomial, by `hyp2f1_poly_f64`), multiply its scaled value by `s^d`, as their product
+        // can still be finite.
         //
         // Only if that is at least `1 / HYP2F1_ETHRESH`: the rounding of `c - a` and `c - b` (e.g.
         // to a negative integer, where `y` is a polynomial) loses a part of the result that
@@ -1078,7 +1079,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         if y.is_infinite() && c.abs() < HYP2F1_EPS {
             // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
             let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::new(1.0) - x);
-            let scaled = recur_first(c - a, c - b, c).map(|y| y.mul_exp(ln_p).to_f64());
+            let inner =
+                recur_first(c - a, c - b, c).or_else(|| hyp2f1_poly_f64(c - a, c - b, c, x));
+            let scaled = inner.map(|y| y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
             if let Some((y, _)) = scaled.filter(accurate).filter(large) {
                 return y;
@@ -1129,7 +1132,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 if terminates(near_neg_int) {
                     break 'hypok;
                 }
-                // Unlike in xsf, for a non-integer c and an integer a or b <= 0, the (finite)
+                // Unlike in xsf, for a non-integer c and an integer a or b <= 0, the terminating
                 // polynomial in double-double if accurate
                 let poly = hyp2f1_poly_f64(a, b, c, x).map(Scaled::to_f64);
                 if let Some((y, _)) = poly.filter(accurate) {
