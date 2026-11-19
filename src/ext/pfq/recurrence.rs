@@ -40,7 +40,7 @@
 use core::iter::zip;
 
 use super::{
-    Dd, PFQ_DD_MAXITER, PFQ_MAXITER, Params, SeriesReal, accurate, descending, first_zero,
+    Dd, Estimate, PFQ_DD_MAXITER, PFQ_MAXITER, Params, SeriesReal, descending, first_zero,
     pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
@@ -103,8 +103,8 @@ fn recurrence_start(
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
     let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
-    accurate((y.hi, err))?;
-    Some((y, err))
+    let accurate = Estimate::absolute((y.hi, err)).is_accurate();
+    accurate.then_some((y, err))
 }
 
 /// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, the part of the estimate of its
@@ -202,11 +202,11 @@ fn recurrence_first(
         let Some((y, rounding, err)) = run(m) else {
             continue;
         };
-        if accurate((y, err)).is_some() {
+        if Estimate::absolute((y, err)).is_accurate() {
             return Some((y, err));
         }
         // a larger `m` ends with the same steps, after more of them
-        if accurate((y, rounding)).is_none() {
+        if !Estimate::absolute((y, rounding)).is_accurate() {
             break;
         }
     }

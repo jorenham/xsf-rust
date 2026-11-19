@@ -31,8 +31,96 @@ const PFQ_MAXITER: u32 = 10_000;
 /// about 20 times as long
 const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 
-/// Largest estimated relative error of a result
+/// Largest estimated relative error of an accurate result, after which no other method is tried
 const PFQ_TOL: f64 = 1e-13;
+
+/// Digits of the estimate of `chgu` that are not trusted, as it counts them by heuristics (that
+/// were up to 0.2 digits optimistic in sweeps)
+const CHGU_DIGITS_MARGIN: f64 = 1.0;
+
+/// The smallest estimated relative error above `PFQ_TOL`
+const PFQ_INACCURATE: f64 = f64::from_bits(PFQ_TOL.to_bits() + 1);
+
+/// A result and an estimate of its relative error, which is infinite if there is none
+#[derive(Clone, Copy, Debug)]
+struct Estimate {
+    y: f64,
+    err: f64,
+}
+
+impl Estimate {
+    /// `y` with the relative error `err`, where NaN is no estimate
+    fn new(y: f64, err: f64) -> Self {
+        let err = if err.is_nan() { f64::INFINITY } else { err };
+        Self { y, err }
+    }
+
+    /// A result that is exact, or of a function that is NaN where it is inaccurate
+    const fn exact(y: f64) -> Self {
+        Self { y, err: 0.0 }
+    }
+
+    /// `y` with the absolute error `err`, where a `y` that isn't finite or a NaN `err` has no
+    /// estimate
+    fn absolute((y, err): (f64, f64)) -> Self {
+        // (an exact `y = 0` as well)
+        let err = if !y.is_finite() || err.is_nan() {
+            f64::INFINITY
+        } else if err == 0.0 {
+            0.0
+        } else if err <= PFQ_TOL * y.abs() {
+            // (accurate if `err <= PFQ_TOL |y|`, as `err / |y|` may round past `PFQ_TOL`)
+            (err / y.abs()).min(PFQ_TOL)
+        } else {
+            (err / y.abs()).max(PFQ_INACCURATE)
+        };
+        Self::new(y, err)
+    }
+
+    /// `y` with the relative error `err` before it is rounded to `f64`, which may overflow, but
+    /// a subnormal `y` is not that accurate
+    fn rounded(y: f64, err: f64) -> Self {
+        let normal = y.is_normal() || y.is_infinite();
+        Self::new(y, if normal { err } else { f64::INFINITY })
+    }
+
+    /// `y` as `f64`, with its relative error plus the size of `other` relative to it
+    fn scaled(y: Scaled, other: Option<Scaled>) -> Self {
+        let y = fold_exp(y);
+        let err = other.map(fold_exp).map_or(0.0, |v| {
+            let size = v.m.abs() * (1.0 + v.err) / y.m.abs();
+            ldexp_f64(size, v.e.saturating_sub(y.e))
+        });
+        Self::rounded(ldexp_f64(y.m, y.e), y.err + err)
+    }
+
+    /// Whether its estimated error is at most `PFQ_TOL`
+    fn is_accurate(self) -> bool {
+        self.err <= PFQ_TOL
+    }
+
+    /// The result, if it is accurate
+    fn accurate(self) -> Option<f64> {
+        self.is_accurate().then_some(self.y)
+    }
+}
+
+/// The choice between the results of methods that are tried in order
+trait OrBetter {
+    /// This if it is accurate, else the one of it and `other()` with the smaller estimated
+    /// error, or this one if they are equal
+    fn or_better(self, other: impl FnOnce() -> Self) -> Self;
+}
+
+impl OrBetter for Option<Estimate> {
+    fn or_better(self, other: impl FnOnce() -> Self) -> Self {
+        match (self, self.is_some_and(Estimate::is_accurate)) {
+            (Some(_), true) => self,
+            (Some(y), false) => other().filter(|v| v.err < y.err).or(self),
+            (None, _) => other(),
+        }
+    }
+}
 
 /// Most parameters, with the 1 of `n!`, for which the rounding errors of the methods in `f64`
 /// are measured
@@ -62,9 +150,13 @@ const PFQ_GAMMA_MAX: f64 = 13.0;
 /// Maximum order of `pfq_weniger`
 const PFQ_WENIGER_MAXITER: usize = 40;
 
-/// Number of the last steps of `pfq_weniger` in its double-double estimate where its noise
-/// stopped it (measured)
+/// Number of the last steps of `pfq_weniger` in its estimate where its noise stopped it
+/// (measured)
 const PFQ_WENIGER_STEPS: usize = 4;
+
+/// Factor by which the error of the `f64` Weniger sum of 2F0 can exceed its estimate (up to 4 in
+/// sweeps of the `a_i` and `z` where it has digits)
+const HYP2F0_WENIGER_F64_MARGIN: f64 = 4.0;
 
 /// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
 const PFQ_WENIGER_MAX_Z: f64 = -0.6;
@@ -505,16 +597,11 @@ fn pfq_weniger<T: SeriesReal>(
         // steps, also while the two still differ, so it has to agree as well.
         let other = (rows[1][0] / rows[1][1] - delta).to_f64().abs();
         if steps[0] <= tol && steps[1] <= tol && other <= tol {
-            // In double-double, the steps also count, as they can be smaller than the error once
-            // the noise grows past them (e.g. by 4x per order for z = -16). Then they can also dip
-            // far below the error where it changes sign, so the largest of the last few counts.
-            // The f64 estimate is the measured one.
-            let err = if T::EPSILON < f64::EPSILON {
-                let counted = if noise < rounding { 2 } else { steps.len() };
-                noise + steps[..counted].iter().fold(other, |m, &s| m.max(s))
-            } else {
-                tol
-            };
+            // The steps also count, as they can be smaller than the error once the noise grows
+            // past them (e.g. by 4x per order for z = -16). Then they can also dip far below the
+            // error where it changes sign, so the largest of the last few (that it took) counts.
+            let counted = if noise < rounding { 2 } else { steps.len() }.min(k + 1);
+            let err = noise + steps[..counted].iter().fold(other, |m, &s| m.max(s));
             return Some((delta.to_f64(), err));
         }
         sum = sum + term;
@@ -522,20 +609,19 @@ fn pfq_weniger<T: SeriesReal>(
     Some((delta.to_f64(), f64::INFINITY))
 }
 
-/// `pfq_weniger` if it is `accurate`, also with the rounding errors (of relative size `eps`)
-/// that the terms `t_n` accumulated up to `settled` added, as `a + n` can round alike
-fn accurate_weniger(
+/// `pfq_weniger`, also with the rounding errors (of relative size `eps`) that the terms `t_n`
+/// accumulated up to `settled` added, as `a + n` can round alike
+fn weniger_drift(
     (y, err): (f64, f64),
     terms: impl Iterator<Item = f64>,
     settled: f64,
     eps: f64,
-) -> Option<f64> {
-    accurate((y, err))?;
+) -> Estimate {
     // (each scaled, as their sum can overflow)
     let drift = terms
         .zip(0..=settled as u32)
         .map(|(t, n)| 4.0 * eps * f64::from(n) * t.abs());
-    accurate((y, err + drift.sum::<f64>()))
+    Estimate::absolute((y, err + drift.sum::<f64>()))
 }
 
 /// `psi(x) e`: the relative change of `Gamma(x)` by the low part `e` of its argument, to first
@@ -655,11 +741,12 @@ pub(crate) fn pfq_continuation<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, 
 /// `None`
 type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 
-/// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate
+/// `_{q+1}F_q` for `z < 1`, or for a polynomial, by the first method for `z` that is accurate,
+/// else by the most accurate one
 ///
 /// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
 /// which is the slowest, and for `|z| < 1` `pfq_recurrence`, which only applies to 3F2.
-pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
+fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
     let methods: &[Method<P>] = if polynomial || z > PFQ_WENIGER_MAX_Z {
@@ -676,19 +763,13 @@ pub(crate) fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
     let recurrence: Option<Method<P>> =
         (!polynomial && z.abs() < 1.0).then_some(recurrence::pfq_recurrence);
-    let mut methods = methods.iter().chain(&last).chain(&recurrence);
-    methods.find_map(|method| accurate(method(a, b, z)?))
+    let methods = methods.iter().chain(&last).chain(&recurrence);
+    methods.fold(None, |y, method| y.or_better(|| method(a, b, z).map(Estimate::absolute)))
 }
 
-/// The result `y`, if it is finite and its estimated absolute error is at most `PFQ_TOL |y|`
-fn accurate((y, err): (f64, f64)) -> Option<f64> {
-    (y.is_finite() && err <= PFQ_TOL * y.abs()).then_some(y)
-}
-
-/// `pfq_series` if it is `accurate`, after sorting the parameters, which tightens
-/// `pfq_ratio_bound`
-fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Option<f64> {
-    accurate(pfq_series(&descending(a), &descending(b), z))
+/// `pfq_series` after sorting the parameters, which tightens `pfq_ratio_bound`
+fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Estimate {
+    Estimate::absolute(pfq_series(&descending(a), &descending(b), z))
 }
 
 /// The sum of `v` in double-double
@@ -722,20 +803,21 @@ fn late_sign(a: &[f64], b: &[f64]) -> f64 {
 }
 
 /// `_{q+1}F_q` for finite arguments, where the last of `b` is the 1 of `n!`
-fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
+fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
     if z == 0.0 {
-        return Some(1.0);
+        return Some(Estimate::exact(1.0));
     }
     let Some(degree) = pfq_degree(a.as_ref(), b.as_ref()) else {
-        return Some(f64::INFINITY);
+        return Some(Estimate::exact(f64::INFINITY));
     };
     if degree.is_infinite() && z > 1.0 {
         // complex
-        Some(f64::NAN)
+        Some(Estimate::exact(f64::NAN))
     } else if degree.is_infinite() && z == 1.0 {
         // +-inf where the series diverges, and no method where it converges
         let (a, b) = (a.as_ref(), b.as_ref());
-        diverges_at_one(a, b.split_last()?.1)?.then(|| f64::INFINITY * late_sign(a, b))
+        let diverges = diverges_at_one(a, b.split_last()?.1)?;
+        diverges.then(|| Estimate::exact(f64::INFINITY * late_sign(a, b)))
     } else {
         pfq_accurate(&descending(a), &descending(b), z)
     }
@@ -789,8 +871,13 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// - [`hyp1f1`](crate::hyp1f1): Kummer's confluent hypergeometric function, $\hyp 1 1 a b z$
 #[must_use]
 pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
+    hyp3f2_estimate(a1, a2, a3, b1, b2, z)?.accurate()
+}
+
+/// `hyp3f2` and an estimate of its relative error
+fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     if ![a1, a2, a3, b1, b2, z].into_iter().all(f64::is_finite) {
-        return hyppfq(&[a1, a2, a3], &[b1, b2], z);
+        return pfq_estimate(&[a1, a2, a3], &[b1, b2], z);
     }
     let (a, b) = ([a1, a2, a3], [b1, b2, 1.0]);
     // a common parameter cancels: 2F1, or 1F0 if that has one as well
@@ -801,14 +888,13 @@ pub fn hyp3f2(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Option<f64
     let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j], 1.0]);
     match a.iter().position(|&v| v == b[0]) {
         Some(i) => pfq_real([a[1 - i]], [1.0], z),
-        None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_else(|| pfq_real(a, b, z)),
+        None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_better(|| pfq_real(a, b, z)),
         None => pfq_real(a, b, z),
     }
 }
 
-/// Gauss's sum `2F1(a, b; c; 1)` (DLMF 15.4.20), if it converges and its estimated relative
-/// error is at most `PFQ_TOL`
-fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
+/// Gauss's sum `2F1(a, b; c; 1)` (DLMF 15.4.20), if it converges and is finite
+fn gauss_sum(a: f64, b: f64, c: f64) -> Option<Estimate> {
     let c = Dd::new(c);
     let excess = c - a - b;
     if !(excess.hi > 0.0) {
@@ -816,7 +902,7 @@ fn gauss_sum(a: f64, b: f64, c: f64) -> Option<f64> {
     }
     let y = mul_gamma_ratio([c, excess], [c - a, c - b], || Scaled::new(1.0, 0, 0.0))?;
     // its error bound can't tell if it overflows
-    checked_f64(y, None).filter(|y| y.is_finite())
+    Some(Estimate::scaled(y, None)).filter(|sum| sum.y.is_finite())
 }
 
 /// A term of a series with a bound on its size
@@ -1396,12 +1482,11 @@ fn pfq_alg<A: Params, B: Params>(
     Some(())
 }
 
-/// 2F2 by its asymptotic expansion (DLMF 16.11.7), if its estimated relative error is at
-/// most `PFQ_TOL`
+/// 2F2 by its asymptotic expansion (DLMF 16.11.7)
 ///
 /// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
 /// `z < 0`. The size of the other part is added to the error.
-fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
+fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Estimate> {
     // the algebraic part
     let alg = |a: [f64; 2]| {
         let mut terms = [None; 2];
@@ -1435,20 +1520,7 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<f64> {
     } else {
         (add_exp(alg(a)?)?, Some(hyp2f2_exp(a, b, z)?))
     };
-    checked_f64(y, other)
-}
-
-/// `y` as `f64`, if its relative error plus the size of `other` relative to it is at most
-/// `PFQ_TOL`, and if it does not underflow
-fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
-    let y = fold_exp(y);
-    let err = other.map(fold_exp).map_or(0.0, |v| {
-        let size = v.m.abs() * (1.0 + v.err) / y.m.abs();
-        ldexp_f64(size, v.e.saturating_sub(y.e))
-    });
-    // the result may overflow, but a subnormal one is not that accurate
-    let accurate = (y.err + err <= PFQ_TOL).then(|| ldexp_f64(y.m, y.e));
-    accurate.filter(|r| r.is_normal() || r.is_infinite())
+    Some(Estimate::scaled(y, other))
 }
 
 /// Generalized hypergeometric function $_2F_2$ for real arguments
@@ -1495,10 +1567,15 @@ fn checked_f64(y: Scaled, other: Option<Scaled>) -> Option<f64> {
 ///   $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$
 #[must_use]
 pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
+    hyp2f2_estimate(a1, a2, b1, b2, z)?.accurate()
+}
+
+/// `hyp2f2` and an estimate of its relative error
+fn hyp2f2_estimate(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     if ![a1, a2, b1, b2, z].into_iter().all(f64::is_finite) {
-        return hyppfq(&[a1, a2], &[b1, b2], z);
+        return pfq_estimate(&[a1, a2], &[b1, b2], z);
     } else if z == 0.0 {
-        return Some(1.0);
+        return Some(Estimate::exact(1.0));
     }
     let (mut a, mut b) = ([a1, a2], [b1, b2]);
     // a common parameter cancels, also at a pole; it becomes a_2 = b_2 = 1, which cancels like
@@ -1507,23 +1584,23 @@ pub fn hyp2f2(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
     if let Some((i, j)) = pairs.into_iter().find(|&(i, j)| a[i] == b[j]) {
         (a, b) = ([a[1 - i], 1.0], [b[1 - j], 1.0]);
         if a[0] == b[0] {
-            // (not if it underflows, as in `hyp2f2_asymptotic`)
-            return Some(z.exp()).filter(|r| r.is_normal() || r.is_infinite());
+            // (with the rounding of `exp`)
+            return Some(Estimate::rounded(z.exp(), f64::EPSILON));
         }
     }
     let Some(degree) = pfq_degree(&a, &b) else {
-        return Some(f64::INFINITY);
+        return Some(Estimate::exact(f64::INFINITY));
     };
-    let series = || pfq_series_sorted(a, [b[0], b[1], 1.0], z);
+    let series = || Some(pfq_series_sorted(a, [b[0], b[1], 1.0], z));
     let asymptotic = || hyp2f2_asymptotic(a, b, z);
     // last, as it is the slowest
     let asymptotic_dd = || pfq_asymptotic_dd(&a, &[b[0], b[1], 1.0], z);
     if degree.is_finite() {
         series()
     } else if z.abs() < HYP2F2_ASYMPTOTIC_FIRST {
-        series().or_else(asymptotic).or_else(asymptotic_dd)
+        series().or_better(asymptotic).or_better(asymptotic_dd)
     } else {
-        asymptotic().or_else(series).or_else(asymptotic_dd)
+        asymptotic().or_better(series).or_better(asymptotic_dd)
     }
 }
 
@@ -1604,20 +1681,19 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     mul_gammas(b.map(Dd::new), [Dd::new(a)], y)
 }
 
-/// 1F2 by its asymptotic expansion (DLMF 16.11.8), if its estimated relative error is at
-/// most `PFQ_TOL`
+/// 1F2 by its asymptotic expansion (DLMF 16.11.8)
 ///
 /// For `z > 0`, only the exponentially large part is used, and the size of the algebraic part
 /// is added to the error. The terms with `e^-x` are smaller than the truncation error.
-fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
+fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
     let exp = hyp1f2_exp(a, b, z)?;
     // the algebraic part, `None` if it vanishes
     let mut alg = [None];
     pfq_alg(&[a], &[b[0], b[1], 1.0], z, Alg::Value, &mut alg)?;
     if z > 0.0 {
-        checked_f64(exp, alg[0])
+        Some(Estimate::scaled(exp, alg[0]))
     } else {
-        checked_f64(add_exp(alg.into_iter().flatten().chain([exp]))?, None)
+        Some(Estimate::scaled(add_exp(alg.into_iter().flatten().chain([exp]))?, None))
     }
 }
 
@@ -1663,10 +1739,15 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<f64> {
 ///   $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$
 #[must_use]
 pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
+    hyp1f2_estimate(a, b1, b2, z)?.accurate()
+}
+
+/// `hyp1f2` and an estimate of its relative error
+fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     if ![a, b1, b2, z].into_iter().all(f64::is_finite) {
-        return hyppfq(&[a], &[b1, b2], z);
+        return pfq_estimate(&[a], &[b1, b2], z);
     } else if z == 0.0 {
-        return Some(1.0);
+        return Some(Estimate::exact(1.0));
     }
     let (mut a, mut b) = (a, [b1, b2]);
     // a common parameter cancels, also at a pole; it becomes a = b_2 = 1, which cancels like the
@@ -1675,16 +1756,16 @@ pub fn hyp1f2(a: f64, b1: f64, b2: f64, z: f64) -> Option<f64> {
         (a, b) = (1.0, [b[1 - j], 1.0]);
     }
     let Some(degree) = pfq_degree(&[a], &b) else {
-        return Some(f64::INFINITY);
+        return Some(Estimate::exact(f64::INFINITY));
     };
-    let series = || pfq_series_sorted([a], [b[0], b[1], 1.0], z);
+    let series = || Some(pfq_series_sorted([a], [b[0], b[1], 1.0], z));
     let asymptotic = || hyp1f2_asymptotic(a, b, z);
     if degree.is_finite() {
         series()
     } else if z > -HYP1F2_ASYMPTOTIC_FIRST {
-        series().or_else(asymptotic)
+        series().or_better(asymptotic)
     } else {
-        asymptotic().or_else(series)
+        asymptotic().or_better(series)
     }
 }
 
@@ -1828,14 +1909,14 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     gamma_series(num, den, series, l)
 }
 
-/// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), if its
-/// estimated relative error is at most `PFQ_TOL`, where `b` contains the 1 of `n!`
+/// pFq for `p <= q` by its asymptotic expansion (DLMF 16.11.7 to 16.11.9), where `b` contains
+/// the 1 of `n!`
 ///
 /// Only the exponentially large part is used for `z > 0`, and only the algebraic part for
 /// `z < 0` and `p = q`. The size of the other part is added to the error, for `z > 0` as the
 /// sizes of the terms of the algebraic part. For `z < 0` and `p < q`, it is the sum of both
 /// parts.
-fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
+fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     let kappa = b_ref.len() - a_ref.len();
     let mut terms = vec![None; a_ref.len()];
@@ -1844,13 +1925,13 @@ fn pfq_asymptotic<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
     let alg = terms.into_iter().flatten();
     let exp = pfq_exp(a_ref, b_ref, z)?;
     if z > 0.0 {
-        checked_f64(exp, add_exp(alg))
+        Some(Estimate::scaled(exp, add_exp(alg)))
     } else if kappa == 1 {
-        checked_f64(add_exp(alg)?, Some(exp))
+        Some(Estimate::scaled(add_exp(alg)?, Some(exp)))
     } else {
         // (DLMF 16.11.9 for p <= q - 2 has the exponential part only; with the algebraic part,
         // it is theorem 3 of Paris, https://arxiv.org/abs/1708.04824)
-        checked_f64(add_exp(alg.chain([exp]))?, None)
+        Some(Estimate::scaled(add_exp(alg.chain([exp]))?, None))
     }
 }
 
@@ -1869,14 +1950,14 @@ fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Optio
 
 /// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
 /// its terms cancel, e.g. for nearly equal `a_i`, or the terms of their series do
-fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<f64> {
+fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
     if z > 0.0 || a.as_ref().len() + 1 != b.as_ref().len() {
         return None;
     }
     let mut terms = vec![None; a.as_ref().len()];
     pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
     let alg = add_exp_dd(terms.into_iter().flatten())?;
-    checked_f64(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?))
+    Some(Estimate::scaled(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?)))
 }
 
 /// The limit at `z = +-inf` for finite parameters if cheap, with `b` without the 1 of `n!`
@@ -1901,15 +1982,15 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
     }
 }
 
-/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, if accurate, where
-/// `b` contains the 1 of `n!`
+/// pFq for `p > q + 1` and `z < 0`, where the series diverges: its Borel sum, where `b` contains
+/// the 1 of `n!`
 ///
 /// That is the Meijer G function of DLMF 16.5.1, whose residues at the poles of the
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
 /// to its smallest term, as for 2F0, or else its Weniger transformation, last in double-double,
 /// which is the slowest. The residues come first, as the steps of Weniger can stall where some
 /// terms nearly vanish, e.g. for an `a_i` near a non-positive integer.
-fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
+fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
     let d = (a_ref.len() - b_ref.len()) as f64;
@@ -1917,21 +1998,21 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<f64> {
     let scale = z.abs().powf(-1.0 / d).min(f64::EPSILON.recip());
     let terms = || once(1.0).chain(pfq_terms(a_ref, b_ref, z));
     let settled = pfq_settled(a_ref, b_ref).ceil();
-    let series = || accurate(asymptotic_sum(terms(), settled, scale, |_| 0.0));
+    let series = || Some(Estimate::absolute(asymptotic_sum(terms(), settled, scale, |_| 0.0)));
     // also with the rounding errors of the terms, as for 2F0
-    let weniger = |weniger: (f64, f64), eps: f64| accurate_weniger(weniger, terms(), settled, eps);
-    let weniger_f64 = || weniger(pfq_weniger::<f64>(a, b, z)?, f64::EPSILON);
+    let weniger = |weniger: (f64, f64), eps: f64| weniger_drift(weniger, terms(), settled, eps);
+    let weniger_f64 = || Some(weniger(pfq_weniger::<f64>(a, b, z)?, f64::EPSILON));
     // as for 2F0, where the rounding errors in f64 dominate
-    let weniger_dd = || weniger(pfq_weniger::<Dd>(a, b, z)?, Dd::EPSILON);
+    let weniger_dd = || Some(weniger(pfq_weniger::<Dd>(a, b, z)?, Dd::EPSILON));
     let residues = || {
         let mut terms = vec![None; a_ref.len()];
         pfq_alg(a, b, z, Alg::Value, &mut terms)?;
-        checked_f64(add_exp(terms.into_iter().flatten())?, None)
+        Some(Estimate::scaled(add_exp(terms.into_iter().flatten())?, None))
     };
     series()
-        .or_else(residues)
-        .or_else(weniger_f64)
-        .or_else(weniger_dd)
+        .or_better(residues)
+        .or_better(weniger_f64)
+        .or_better(weniger_dd)
 }
 
 /// The decays `exp(-m)` of `v_k` from where `hyp2f0_miller` recurs down: below `f64::EPSILON`, and
@@ -2077,17 +2158,23 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// [^3]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.18.E1>
 #[must_use]
 pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
+    pfq_estimate(a, b, z)?.accurate()
+}
+
+/// `hyppfq` and an estimate of its relative error, or `None` where it has no method
+fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    let exact = |y| Some(Estimate::exact(y));
     if a.iter().chain(b).chain([&z]).any(|v| v.is_nan()) {
-        return Some(f64::NAN);
+        return exact(f64::NAN);
     } else if z == 0.0 {
-        return Some(1.0);
+        return exact(1.0);
     }
     // each b_j cancels an equal a_i, if any
     let (mut a, mut b) = (a.to_vec(), b.to_vec());
     let mut cancel = |bj: &f64| a.iter().position(|ai| ai == bj).map(|i| a.remove(i));
     b.retain(|bj| cancel(bj).is_none());
     let Some(degree) = pfq_degree(&a, &b) else {
-        return Some(f64::INFINITY);
+        return exact(f64::INFINITY);
     };
     let complex = a.len() == b.len() + 1 && z > 1.0 && degree.is_infinite();
     if a.iter().chain(&b).any(|v| v.is_infinite()) {
@@ -2095,26 +2182,26 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
         let finite = a.iter().chain([&z]).all(|v| v.is_finite());
         let converges = a.len() <= b.len() + 1 || degree.is_finite();
         let one = finite && converges && !b.contains(&f64::NEG_INFINITY) && !complex;
-        return one.then_some(1.0);
+        return one.then_some(Estimate::exact(1.0));
     } else if let Some(y) = pfq_limit(&a, &b, z, degree) {
-        return Some(y);
+        return exact(y);
     }
     // a polynomial is short enough for double-double
-    let polynomial = || {
+    let polynomial = degree.is_finite().then(|| {
         let (y, err, _) = pfq_sum::<Dd>(&a, &[&b[..], &[1.0]].concat(), z, PFQ_DD_MAXITER);
-        accurate((f64::from(y), err))
-    };
-    if let Some(y) = degree.is_finite().then(polynomial).flatten() {
-        return Some(y);
+        Estimate::absolute((f64::from(y), err))
+    });
+    if polynomial.is_some_and(Estimate::is_accurate) {
+        return polynomial;
     }
     // the xsf functions are NaN where they are inaccurate
-    let xsf = |y: f64| Some(y).filter(|y| !y.is_nan());
-    match (a.as_slice(), b.as_slice()) {
-        (&[], &[]) => Some(crate::hyp0f0(z)),
+    let xsf = |y: f64| exact(y).filter(|_| !y.is_nan());
+    let y = match (a.as_slice(), b.as_slice()) {
+        (&[], &[]) => exact(crate::hyp0f0(z)),
         // +inf where it diverges, and NaN where it is complex
-        (&[a], &[]) if z == 1.0 && a > 0.0 => Some(f64::INFINITY),
-        (&[a], &[]) if !complex || a.fract() == 0.0 => Some(crate::hyp1f0(a, z)),
-        _ if complex => Some(f64::NAN),
+        (&[a], &[]) if z == 1.0 && a > 0.0 => exact(f64::INFINITY),
+        (&[a], &[]) if !complex || a.fract() == 0.0 => exact(crate::hyp1f0(a, z)),
+        _ if complex => exact(f64::NAN),
         (&[], &[b]) => xsf(crate::hyp0f1(b, z)),
         (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
         (&[a1, a2], &[b]) => xsf(crate::hyp2f1(a1, a2, b, z)),
@@ -2138,7 +2225,7 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 const T: f64 = pow2(20);
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let enough = f64::from(digits) >= -PFQ_TOL.log10();
+                    let enough = f64::from(digits) - CHGU_DIGITS_MARGIN >= -PFQ_TOL.log10();
                     (p.is_normal() && u.is_normal() && enough).then_some(p * u)
                 };
                 let (d, e1) = two_sum(a1, -a2);
@@ -2160,7 +2247,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
                 };
                 let (y, y_t) = (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
                 let rounding = (y_t - y).abs() / T;
-                (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs()).then_some(y)
+                // (only if accurate: then its error is within `PFQ_TOL`)
+                let accurate = y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs();
+                accurate.then_some(Estimate::new(y, PFQ_TOL))
             };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;
@@ -2172,10 +2261,13 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // 1e8, while past `settled` the terms alternate, so the first omitted one bounds the
             // remainder)
             let scale = x.min(f64::EPSILON.recip());
-            let series = || accurate(asymptotic_sum(terms.clone(), settled, scale, |_| 0.0));
+            let series = || {
+                let sum = asymptotic_sum(terms.clone(), settled, scale, |_| 0.0);
+                Some(Estimate::absolute(sum))
+            };
             // Try Weniger when both U evaluations and the truncated series miss the tolerance
             let weniger = |weniger: (f64, f64), eps: f64| {
-                accurate_weniger(weniger, terms.clone(), settled, eps)
+                Some(weniger_drift(weniger, terms.clone(), settled, eps))
             };
             // then with a1 and a2 swapped (DLMF 13.2.40), as chgu may take another method, e.g.
             // chgubi instead of chguit for an integer a1 - a2; then Weniger in double-double, as
@@ -2185,31 +2277,37 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
             // for a < 1, where its other methods are slow and seldom gain the digit); and last
             // Miller's algorithm from where all a_i + k > 0, as its sum cancels before
-            let hypu_tol = |a, b, x| xsf_hypu_min_digits(a, b, x, -PFQ_TOL.log10() as i32);
+            let hypu_tol = |a, b, x| {
+                xsf_hypu_min_digits(a, b, x, (CHGU_DIGITS_MARGIN - PFQ_TOL.log10()) as i32)
+            };
+            let miller = |shift| hyp2f0_miller(a1, a2, z, shift).map(Estimate::absolute);
             borel(a1, a2, xsf_hypu_digits)
-                .or_else(series)
-                .or_else(|| borel(a2, a1, xsf_hypu_digits))
-                .or_else(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
-                .or_else(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
-                .or_else(|| accurate(hyp2f0_miller(a1, a2, z, 0.0)?))
-                .or_else(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
-                .or_else(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
-                .or_else(|| {
+                .or_better(series)
+                .or_better(|| borel(a2, a1, xsf_hypu_digits))
+                .or_better(|| {
+                    let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
+                    weniger((y, HYP2F0_WENIGER_F64_MARGIN * err), f64::EPSILON)
+                })
+                .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
+                .or_better(|| miller(0.0))
+                .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
+                .or_better(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
+                .or_better(|| {
                     // (past a shifted a_i = 0)
                     let shift = (-a1).max(-a2).floor() + 1.0;
-                    (shift > 0.0).then(|| accurate(hyp2f0_miller(a1, a2, z, shift)?))?
+                    (shift > 0.0).then(|| miller(shift))?
                 })
         },
-        (&[a], &[b1, b2]) => hyp1f2(a, b1, b2, z),
-        (&[a1, a2], &[b1, b2]) => hyp2f2(a1, a2, b1, b2, z),
-        (&[a1, a2, a3], &[b1, b2]) => hyp3f2(a1, a2, a3, b1, b2, z),
+        (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
+        (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
+        (&[a1, a2, a3], &[b1, b2]) => hyp3f2_estimate(a1, a2, a3, b1, b2, z),
         _ if a.len() == b.len() + 1 => {
             b.push(1.0);
             pfq_real(a, b, z)
         },
         _ if a.len() <= b.len() => {
             b.push(1.0);
-            let series = || pfq_series_sorted(a.clone(), b.clone(), z);
+            let series = || Some(pfq_series_sorted(a.clone(), b.clone(), z));
             let asymptotic = || pfq_asymptotic(&a, &b, z);
             // the terms of the series for z < 0 reach about e^x, and the result
             // e^(x cos(pi / kappa)), or a power of z for p = q
@@ -2221,9 +2319,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             if degree.is_finite() {
                 series()
             } else if z > 0.0 || cancellation < PFQ_ASYMPTOTIC_FIRST {
-                series().or_else(asymptotic).or_else(asymptotic_dd)
+                series().or_better(asymptotic).or_better(asymptotic_dd)
             } else {
-                asymptotic().or_else(series).or_else(asymptotic_dd)
+                asymptotic().or_better(series).or_better(asymptotic_dd)
             }
         },
         _ if z < 0.0 => {
@@ -2231,7 +2329,8 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
             pfq_borel(&a, &b, z)
         },
         _ => None,
-    }
+    };
+    polynomial.or_better(|| y)
 }
 
 /// Generalized hypergeometric function $_pF_q$ as `hyp![a_1, ..., a_p; b_1, ..., b_q; z]`
@@ -2386,8 +2485,9 @@ mod tests {
         // expansion is accurate or `None` (Arb reference)
         let c = 1.0 + pow2(-10);
         let (b, z) = ([c, c, 11.25, 1.0], 21.25);
-        assert_eq!(pfq_asymptotic(&[1.0, 1.0, 10.5], &b, z), None);
-        let near = pfq_asymptotic(&[1.0, 1.0 + pow2(-20), 10.5], &b, z);
+        let accurate = |a: &[f64; 3]| pfq_asymptotic(a, &b, z).and_then(Estimate::accurate);
+        assert_eq!(accurate(&[1.0, 1.0, 10.5]), None);
+        let near = accurate(&[1.0, 1.0 + pow2(-20), 10.5]);
         let expected = 739_413_030.005_544_4;
         assert!(near.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected));
     }
@@ -2398,7 +2498,8 @@ mod tests {
         // changes much with a_i: accurate or `None` (Arb reference)
         let t = -pow2(-40);
         let (root, root_2) = (f64::EPSILON.sqrt(), (2.0 * f64::EPSILON).sqrt());
-        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2, 1.0], 30.0);
+        let y = pfq_asymptotic(&[t; 3], &[t - 1.0, t + root, t + root_2, 1.0], 30.0)
+            .and_then(Estimate::accurate);
         let expected = -816_436.169_307_593_7_f64;
         assert!(y.is_none_or(|y| (y - expected).abs() <= 1e-13 * expected.abs()));
     }

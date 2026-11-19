@@ -510,6 +510,9 @@ fn test_hyp1f2_polynomial() {
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
+    // its estimated absolute error is exactly the tolerance
+    let y = hyp1f2(-2.0, 6.160_584_865_114_734, 7.458_449_265_939_545, 30.228_957_868_979_32);
+    assert_eq!(y, Some(0.012_571_498_510_638_38));
 }
 
 #[test]
@@ -727,6 +730,27 @@ fn test_hyppfq_2f0() {
     // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
     // -1.000_327_845_432_870_3e-19)
     assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);
+}
+
+#[test]
+fn test_hyppfq_2f0_borel_digits() {
+    // where chgu claims the digits of `PFQ_TOL`, but the Borel sum is 1.5e-13 off (Arb)
+    let y =
+        hyppfq(&[-6.004_858_572_925_059, -21.079_297_738_677_543], &[], -151_588_853.883_445_23);
+    assert!(y.is_none_or(|y| (y / -1.040_990_391_775_226_8e184 - 1.0).abs() <= 1e-13));
+}
+
+#[test]
+fn test_hyppfq_2f0_weniger_f64() {
+    // where the noise that stops Weniger in f64 is below its error of 2.0e-13 and 1.4e-13 (Arb)
+    let z = -59_302.810_486_050_94;
+    for (a1, expected) in [
+        (-1.368_297_746_698_496_2e-15, 0.429_248_028_314_945_7),
+        (-1.137_055_427_506_450_3e-15, 0.525_705_111_529_719_7),
+    ] {
+        let y = hyppfq(&[a1, -2.999_999_999_999_947], &[], z);
+        assert!(y.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{y:?}");
+    }
 }
 
 #[test]
