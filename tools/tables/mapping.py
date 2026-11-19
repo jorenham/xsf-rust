@@ -848,6 +848,7 @@ def _complex_out(
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
+    floors: tuple[Floor, ...] = (),
 ) -> Out:
     """A complex output of complex inputs, which are (real, imaginary) pairs of f64s: `ref`
     takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
@@ -869,7 +870,7 @@ def _complex_out(
         return ball
 
     refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
-    return Out(func, refs, arbs, rules, overrides)
+    return Out(func, refs, arbs, rules, overrides, floors)
 
 
 def _complex(
@@ -1595,6 +1596,11 @@ LOG_AT_0: Final = Rule(
     lambda a: a[0] == 0, -math.inf, "the limit for x -> 0, like ln |x|"
 )
 
+COMPLEX_E1_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(math.inf, 0),
+    "E1(z) -> inf for z -> 0, like in xsf",
+)
 COMPLEX_EI_AT_0: Final = Rule(
     lambda a: a[0] == a[1] == 0,
     complex(-math.inf, -0.0),
@@ -1604,6 +1610,45 @@ COMPLEX_LOG_AT_0: Final = Rule(
     lambda a: a[0] == a[1] == 0,
     complex(-math.inf, math.nan),
     "-inf + NaN i at z = 0, like in xsf, as the limit of the imaginary part depends on arg z",
+)
+
+
+def _below_cut(xs: tuple[float, ...]) -> tuple[Rule, ...]:
+    """E1(x - 0i) = conj E1(x + 0i) on the cut, at each x < 0 of `xs`, as mpmath has no -0."""
+
+    def rule(x: float) -> Rule:
+        with mp.workdps(50):
+            e1 = complex(mp.conj(mp.e1(x)))
+        return Rule(
+            lambda a: a == (x, 0) and math.copysign(1, a[1]) < 0,
+            e1,
+            "E1(x - 0i) = conj E1(x + 0i) for x < 0, the limit from below the cut, like in xsf",
+        )
+
+    return tuple(map(rule, xs))
+
+
+def _e1_arb(z: flint.acb) -> flint.acb:
+    """E1(z), and -Ei(-x) - pi i on the cut x < 0 (the side of +0i, like mpmath), where the
+    imaginary part of Arb's E1 is lost to the size of the real part."""
+    if z.imag == 0 and z.real < 0:
+        return flint.acb(-(-z.real).ei(), -flint.arb.pi())
+    return z.expint(1)
+
+
+E1_FLOORS: Final = (
+    Floor(
+        lambda a: a[0] > 0 and 1 <= math.hypot(*a) <= 2,
+        9e-16,
+        "for Re z > 0 and 1 <= |z| <= 2, the real part of xsf-rust's clog can be 1 ulp from "
+        "glibc's, amplified by the cancellation in -gamma - ln z + z sum of the power series",
+    ),
+    Floor(
+        lambda a: math.hypot(*a) >= 40 and a[0] < -2 * abs(a[1]) and abs(a[1]) < 1,
+        3e-16,
+        "for |z| >= 40, Re z < -2 |Im z| and |Im z| < 1, xsf-rust integrates E1 from the cut "
+        "instead of using the continued fraction (#1670), and so rounds differently",
+    ),
 )
 
 
@@ -3817,6 +3862,18 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                         "NaN for x = -inf, like in xsf, not the limit 0 of Ci(|x|)",
                     ),
                 ),
+            ),
+        )
+    ),
+    ("exp1", "cd-cd"): Entry(
+        (
+            _complex_out(
+                "exp1",
+                specs._c(mp.e1),
+                _e1_arb,
+                (COMPLEX_E1_AT_0, *_below_cut((-19.999999, -19.9999991))),
+                (_e1_overflow(lambda a: a[0]),),
+                E1_FLOORS,
             ),
         )
     ),
