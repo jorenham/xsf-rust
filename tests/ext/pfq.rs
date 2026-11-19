@@ -510,6 +510,9 @@ fn test_hyp1f2_polynomial() {
     ] {
         assert_hyp1f2(a, b, z, expected);
     }
+    // its estimated absolute error is exactly the tolerance
+    let y = hyp1f2(-2.0, 6.160_584_865_114_734, 7.458_449_265_939_545, 30.228_957_868_979_32);
+    assert_eq!(y, Some(0.012_571_498_510_638_38));
 }
 
 #[test]

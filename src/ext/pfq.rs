@@ -34,6 +34,9 @@ const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 /// Largest estimated relative error of an accurate result, after which no other method is tried
 const PFQ_TOL: f64 = 1e-13;
 
+/// The smallest estimated relative error above `PFQ_TOL`
+const PFQ_INACCURATE: f64 = f64::from_bits(PFQ_TOL.to_bits() + 1);
+
 /// A result and an estimate of its relative error, which is infinite if there is none
 #[derive(Clone, Copy, Debug)]
 struct Estimate {
@@ -60,8 +63,11 @@ impl Estimate {
             f64::INFINITY
         } else if err == 0.0 {
             0.0
+        } else if err <= PFQ_TOL * y.abs() {
+            // (accurate if `err <= PFQ_TOL |y|`, as `err / |y|` may round past `PFQ_TOL`)
+            (err / y.abs()).min(PFQ_TOL)
         } else {
-            err / y.abs()
+            (err / y.abs()).max(PFQ_INACCURATE)
         };
         Self::new(y, err)
     }
