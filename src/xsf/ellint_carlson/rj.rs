@@ -393,8 +393,7 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
 /// arguments ([DLMF 19.26.22](https://dlmf.nist.gov/19.26.E22)), with
 /// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
 /// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
-/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`, so that
-/// nothing over- or underflows
+/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`
 fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
     let (xyz, [sx, sy, sz]) = common::duplicate([x, y, z]);
     // `sqrt(p) / 2`, exact for subnormal `p`
@@ -404,7 +403,12 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // `d / 8 = d1 d23`
     let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
     let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
-    let (status_rc, res_rc) = rc(T::from(1.0), sp / d1 * (pd / d23) * 2.0, rerr);
+    let u = sp / d1 * (pd / d23) * 2.0;
+    // Unlike in xsf, NaN if `p + lam` cancels and `u` underflows
+    if pd.abs() < p4.abs() && !u.max_norm().is_normal() {
+        return (ExitStatus::PrecLoss, T::NAN);
+    }
+    let (status_rc, res_rc) = rc(T::from(1.0), u, rerr);
     let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
     if status_rc != ExitStatus::Success {
         status = status_rc;
@@ -418,23 +422,42 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     }
 
     // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
-    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    // imaginary parts prevent that and the result is not finite, rescaled with those flushed, and
+    // then also with negligible real parts flushed if none is negative and the arguments are in
+    // the domain (flushed, two of `x, y, z` can become conjugate)
     let args = [x, y, z, p];
     let (_, min) = realness(args);
+    // A flushed real part becomes `MIN_POSITIVE`, not 0: on the imaginary axis, `p` can leave the
+    // domain, and `p + lam` cancel to 0, e.g. for `x, y, z, p = i, i, i, 1 - 15i` scaled (the
+    // other real parts are at least that already)
     let rescaled = |f: f64| {
-        let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
+        let [x, y, z, p] = args.map(|a| {
+            let s = a * f * f;
+            if a.real() > 0.0 && s.real() < f64::MIN_POSITIVE {
+                s + -s.real() + f64::MIN_POSITIVE
+            } else {
+                s
+            }
+        });
+        let (status, res) = rj(x, y, z, p, rerr, noasymp);
         (status, res * f * f * f)
     };
     if let Some(f) = common::scale_factor(&args, min) {
         return rescaled(f);
     }
-    let (status, res) = rj_unscaled(x, y, z, p, rerr, noasymp);
-    if res.is_finite() {
-        return (status, res);
+    let in_domain = || {
+        let mut xyz = [x, y, z];
+        sort_by(&mut xyz, rjimpl::rcmp);
+        rjimpl::good_args(xyz[0], xyz[1], xyz[2], p, &mut rjimpl::ArgCases::default())
+    };
+    let mut out = rj_unscaled(x, y, z, p, rerr, noasymp);
+    for flush_re in [false, true] {
+        if out.1.is_finite() || (flush_re && !in_domain()) {
+            break;
+        }
+        out = common::relaxed_scale_factor(&args, flush_re, min).map_or(out, rescaled);
     }
-    // unlike in `rg`, not with real parts flushed: then `p + lambda` can cancel at any step, e.g.
-    // for `x, y, z, p = i, i, i, 1 - 15i` scaled
-    common::relaxed_scale_factor(&args, false, min).map_or((status, res), rescaled)
+    out
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
