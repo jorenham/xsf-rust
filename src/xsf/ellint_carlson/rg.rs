@@ -66,17 +66,29 @@ fn rg0<T: Num>(x: T, y: T, rerr: f64) -> (ExitStatus, T) {
 }
 
 pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
-    let mut status = ExitStatus::Success;
     if super::argcheck::invalid_rerr(rerr, 1.0e-4) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled
-    if let Some(f) = common::scale_factor(&[x, y, z], f64::MIN_POSITIVE) {
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
+    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    let rescaled = |f: f64| {
         let (status, res) = rg(x * f * f, y * f * f, z * f * f, rerr);
-        return (status, res / f);
+        (status, res / f)
+    };
+    let args = [x, y, z];
+    if let Some(f) = common::scale_factor(&args, f64::MIN_POSITIVE) {
+        return rescaled(f);
     }
+    let (status, res) = rg_unscaled(x, y, z, rerr);
+    if res.is_finite() {
+        return (status, res);
+    }
+    common::relaxed_scale_factor(&args, f64::MIN_POSITIVE).map_or((status, res), rescaled)
+}
 
+fn rg_unscaled<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
+    let mut status = ExitStatus::Success;
     let mut cct = [x, y, z];
     sort_by(&mut cct, abscmp);
 

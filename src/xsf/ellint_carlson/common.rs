@@ -116,7 +116,37 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 ///
 /// So the callers' own handling of tiny or huge arguments is still reachable.
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
-    let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
+    scale_factor_of_parts(args, min, |a| [a.real().abs(), a.imag().abs()])
+}
+
+/// [`scale_factor`], but if all real parts are positive, an imaginary part below `EPSILON` times
+/// its real part may become subnormal or 0, a perturbation of the argument by less than `EPSILON`
+/// relative to it (not near a branch cut, where such a part can decide the result)
+///
+/// For a retry where the unscaled arguments gave a non-finite result, since flushing such parts
+/// can still lose the relative accuracy of a tiny imaginary part of the result.
+pub(super) fn relaxed_scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
+    let right = args.iter().all(|a| a.real() > 0.0);
+    scale_factor_of_parts(args, min, |a| {
+        let im = a.imag().abs();
+        [
+            a.real().abs(),
+            if right && im < f64::EPSILON * a.real() {
+                0.0
+            } else {
+                im
+            },
+        ]
+    })
+}
+
+/// [`scale_factor`] with the absolute real and imaginary `parts` of each argument
+fn scale_factor_of_parts<T: super::typing::Num>(
+    args: &[T],
+    min: f64,
+    parts: impl Fn(&T) -> [f64; 2],
+) -> Option<f64> {
+    let parts = args.iter().flat_map(&parts);
     let amax = parts.clone().fold(0.0, f64::max);
     let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let sizes = args.iter().map(|a| a.max_norm());
@@ -153,8 +183,22 @@ pub(super) fn needs_duplication<T: super::typing::Num>(args: &[T], min: f64) -> 
 /// Computed from the quartered arguments, so that it can't overflow.
 pub(super) fn duplicate<T: super::typing::Num>(xyz: [T; 3]) -> ([T; 3], [T; 3]) {
     let sq = xyz.map(|a| a.sqrt() * 0.5);
+    (add_lambda(xyz.map(|a| a * 0.25), sq, lambda(xyz, sq)), sq)
+}
+
+/// `lam / 4` of the duplication step, from the halved square roots `sq` of `xyz`
+///
+/// Its real part is nonnegative if those of `xyz` are, since each root is within `pi / 4` of the
+/// positive real axis, but it may round to below 0 if it cancels, e.g. for nearly imaginary
+/// `xyz`. Then that rounded real part is replaced by 0 (the exact one may be positive), so that
+/// the duplicated arguments stay in the domain.
+pub(super) fn lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3]) -> T {
     let lam = sq[0] * sq[1] + sq[1] * sq[2] + sq[2] * sq[0];
-    (add_lambda(xyz.map(|a| a * 0.25), sq, lam), sq)
+    if lam.real() < 0.0 && xyz.iter().all(|a| a.real() >= 0.0) {
+        lam + -lam.real()
+    } else {
+        lam
+    }
 }
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`

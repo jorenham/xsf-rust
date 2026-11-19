@@ -264,6 +264,70 @@ fn test_carlson_agm_opposite_sides() {
 }
 
 #[test]
+fn test_elliprg_negligible_imag_huge() {
+    // a negligible imaginary part doesn't prevent downscaling the huge arguments
+    let actual = xsf::elliprg(
+        c64(1.735_778_648_751_103e186, -3.309_532_202_948_146e-247),
+        c64(1.106_380_492_215_430_7e198, 2.695_124_182_909_526_7e-261),
+        c64(3.913_736_070_965_839e206, -6.593_607_292_907_775e-23),
+    );
+    let expected = c64(9.891_582_519_574_452e102, -8.332_346_327_267_998e-127);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+}
+
+#[test]
+fn test_carlson_huge_near_cut() {
+    // tiny imaginary parts next to a negative real part are not negligible
+    let p = |k| 2.0_f64.powi(k);
+    let [x, y, z] = [c64(-p(450), p(-797)), c64(-p(450), -p(-797)), c64(1.0, f64::MIN_POSITIVE)];
+    let actual = [xsf::elliprf(x, y, z), xsf::elliprd(x, y, z), xsf::elliprg(x, y, z)];
+    let expected = [
+        c64(1.606_891_115_915_371_2e-65, 0.0),
+        c64(1.031_865_770_122_304_8e-135, 0.0),
+        c64(-2.330_509_388_214_315e70, 0.0),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+
+    let x = c64(p(260), f64::from_bits(1));
+    let z = c64(p(260), 0.0);
+    let actual = [
+        xsf::elliprj(x, ZERO, z, c64(-p(260), 1.0)),
+        xsf::elliprj(x, ZERO, z, c64(-p(260), -1.0)),
+    ];
+    let expected = [
+        c64(-9.343_569_646_112_14e-118, -9.343_569_646_112_14e-118),
+        c64(-9.343_569_646_112_14e-118, 9.343_569_646_112_14e-118),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_carlson_huge_negligible_imag_finite() {
+    // negligible imaginary parts are flushed only if the result is not finite otherwise (Arb)
+    let p = |k| 2.0_f64.powi(k);
+    let z = c64(p(-826), p(-880));
+    let h = c64(p(450), 0.0);
+    let actual = [xsf::elliprc(h, z), xsf::elliprf(z, z, h), xsf::elliprd(z, h, z)];
+    let expected = [
+        c64(8.214_427_384_559_377e-66, -5.147_557_589_468_029e-85),
+        c64(8.214_427_384_559_377e-66, -5.147_557_589_468_029e-85),
+        c64(1.244_854_670_664_297_9e181, -6.910_331_588_418_35e164),
+    ];
+    for (a, e) in actual.iter().zip(expected) {
+        xsref::np_assert_allclose!([a.re, a.im], [e.re, e.im], rtol = 1e-15);
+    }
+
+    // just below 1.5 times the smallest subnormal
+    let z = c64(p(550), p(-550));
+    assert_eq!(xsf::elliprj(z, z, z, c64(p(800), 0.0)).re, f64::from_bits(1));
+
+    // NaN unscaled, so retried with the imaginary part flushed (Arb)
+    let h = c64(p(400), 0.0);
+    let res = xsf::elliprj(h + c64(0.0, f64::from_bits(1)), h, h, h * 2.0);
+    xsref::np_assert_allclose!([res.re], [1.551_519_687_348_157_6e-181], rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),
@@ -318,6 +382,19 @@ fn test_elliprj() {
     assert_eq!(xsf::elliprj(1.0, 1.0, INF, 1.0), 0.0);
     assert!(xsf::elliprj(-1.0, 1.0, 1.0, 1.0).is_nan());
     assert!(xsf::elliprj(1.0, 0.0, 0.0, 0.0).is_nan());
+}
+
+#[test]
+fn test_elliprj_nearly_imaginary_duplicated() {
+    // the duplication step keeps the real parts nonnegative where they cancel
+    let actual = xsf::elliprj(
+        c64(9.916_661_834_316_465e-77, -5.966_600_187_505_507e238),
+        c64(2.848_126_752_962_884_6e-29, 4.000_597_101_020_285_5e-234),
+        c64(4.782_444_515_529_445e-116, -5.405_461_544_153_664e21),
+        c64(9.584_517_345_332_541e93, 4.512_323_928_209_932_5e31),
+    );
+    let expected = c64(7.528_467_325_907_695e-212, 7.670_796_004_575_693e-212);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
 }
 
 #[test]

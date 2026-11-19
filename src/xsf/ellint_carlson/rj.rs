@@ -402,7 +402,7 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // `sqrt(p) / 2`, exact for subnormal `p`
     let sp = p.sqrt() * 0.5;
     let p4 = p * 0.25;
-    let pd = p4 + (sx * sy + sy * sz + sz * sx);
+    let pd = p4 + common::lambda([x, y, z], [sx, sy, sz]);
     // `d / 8 = d1 d23`
     let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
     let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
@@ -415,30 +415,51 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
 }
 
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
-    use rjimpl::AsymFlag;
-
-    let mut classify = rjimpl::ArgCases::default();
-    let mut cct1 = [T::from(0.0); 6];
-    let mut cct2 = [T::from(0.0); 6];
-
-    let mut status = ExitStatus::Success;
     if argcheck::invalid_rerr(rerr, 1.0e-4) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, not below 2^-511 so
-    // that products of two of them don't underflow, or 2^-254 if complex (wider spans are
-    // inaccurate there)
-    let real = [x, y, z, p].iter().all(|a| argcheck::too_small(a.imag()));
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
+    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    let args = [x, y, z, p];
+    let (_, min) = realness(args);
+    let rescaled = |f: f64| {
+        let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
+        (status, res * f * f * f)
+    };
+    if let Some(f) = common::scale_factor(&args, min) {
+        return rescaled(f);
+    }
+    let (status, res) = rj_unscaled(x, y, z, p, rerr, noasymp);
+    if res.is_finite() {
+        return (status, res);
+    }
+    common::relaxed_scale_factor(&args, min).map_or((status, res), rescaled)
+}
+
+/// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
+/// of the rescaling: 2^-511 so
+/// that products of two arguments don't underflow, or 2^-254 if complex (wider spans are
+/// inaccurate there)
+fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {
+    let real = args.iter().all(|a| argcheck::too_small(a.imag()));
     let min = if real {
         f64::MIN_POSITIVE.sqrt()
     } else {
         const { pow2(-254) }
     };
-    if let Some(f) = common::scale_factor(&[x, y, z, p], min) {
-        let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
-        return (status, res * f * f * f);
-    }
+    (real, min)
+}
+
+fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
+    use rjimpl::AsymFlag;
+
+    let (real, min) = realness([x, y, z, p]);
+    let mut classify = rjimpl::ArgCases::default();
+    let mut cct1 = [T::from(0.0); 6];
+    let mut cct2 = [T::from(0.0); 6];
+
+    let mut status = ExitStatus::Success;
 
     /* Put the symmetric arguments in the order of real parts. */
     cct1[0] = x;
