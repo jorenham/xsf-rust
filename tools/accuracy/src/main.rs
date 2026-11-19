@@ -679,6 +679,13 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("hyp1f0", &[a, x, y]) => xsf::hyp1f0(a, c(x, y)),
         ("hyp0f1", &[b, x, y]) => xsf::hyp0f1(b, c(x, y)),
         ("riemann_zeta", &[x, y]) => xsf::riemann_zeta(c(x, y)),
+        ("elliprc", &[xr, xi, yr, yi]) => xsf::elliprc(c(xr, xi), c(yr, yi)),
+        ("elliprd", &[xr, xi, yr, yi, zr, zi]) => xsf::elliprd(c(xr, xi), c(yr, yi), c(zr, zi)),
+        ("elliprf", &[xr, xi, yr, yi, zr, zi]) => xsf::elliprf(c(xr, xi), c(yr, yi), c(zr, zi)),
+        ("elliprg", &[xr, xi, yr, yi, zr, zi]) => xsf::elliprg(c(xr, xi), c(yr, yi), c(zr, zi)),
+        ("elliprj", &[xr, xi, yr, yi, zr, zi, pr, pi]) => {
+            xsf::elliprj(c(xr, xi), c(yr, yi), c(zr, zi), c(pr, pi))
+        },
         ("sinpi", &[x, y]) => xsf::sinpi(c(x, y)),
         ("cospi", &[x, y]) => xsf::cospi(c(x, y)),
         ("log1p", &[x, y]) => xsf::log1p(c(x, y)),

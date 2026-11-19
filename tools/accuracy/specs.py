@@ -3659,26 +3659,32 @@ def c_hyp1f0(a, re, im):
         return (1 - mp.mpc(re, im)) ** -a
 
 
-def c_hyp0f1(b, re, im):
-    # Arb, since mpmath's hyp0f1 can be far off for b < 0 (mpmath/mpmath#1216), with increasing
-    # precision until it is accurate to the working precision. For 4|z| > (b - 1)^2, the scale of
-    # 0F1(; b; z) = Gamma(b) (-z)^(-v/2) J_v(x), with v = b - 1 and x = 2 sqrt(-z).
+def _acb(f, *z):
+    """Arb's `f` of `acb` balls at the complex `z`, with increasing precision until it is accurate
+    to the working precision."""
     prec = mp.mp.prec
     while True:
         with flint.ctx.workprec(prec):
-            y = flint.acb(re, im).hypgeom_0f1(b)
+            y = f(*(flint.acb(w.real, w.imag) for w in map(mp.mpc, z)))
         if y.rel_accuracy_bits() >= mp.mp.prec:
-            break
+            return mp.mpc(y)
         if prec > 2**14:
             raise NoConvergence
         prec *= 2
+
+
+def c_hyp0f1(b, re, im):
+    # Arb, since mpmath's hyp0f1 can be far off for b < 0 (mpmath/mpmath#1216). For
+    # 4|z| > (b - 1)^2, the scale of 0F1(; b; z) = Gamma(b) (-z)^(-v/2) J_v(x), with v = b - 1 and
+    # x = 2 sqrt(-z).
     z = mp.mpc(re, im)
+    y = _acb(lambda w: w.hypgeom_0f1(b), z)
     if 4 * abs(z) <= (b - 1) ** 2:
-        return mp.mpc(y)
+        return y
     with wdps(xd(b, re, im)):
         v, x = b - 1, 2 * mp.sqrt(-z)
         env = mp.sqrt(abs(mp.besselj(v, x)) ** 2 + abs(mp.bessely(v, x)) ** 2)
-        return mp.mpc(y), abs(mp.gamma(b)) * abs(z) ** (-v / 2) * env
+        return y, abs(mp.gamma(b)) * abs(z) ** (-v / 2) * env
 
 
 def _airy_zeros(i, k, bi=False):
@@ -4043,6 +4049,23 @@ V_NEAR_HALF_INT = D(
 
 CZ = D(U(-20, 20), U(-20, 20), n=5000)
 
+
+def complex_parts(names: str, re: Dist, im: Dist, n: int = 5000) -> Domain:
+    """The complex arguments `names` (e.g. "x y z"), as (real, imaginary) pairs, with the real
+    parts from `re`, and the imaginary parts from `im`."""
+    vs = names.split()
+
+    def part(p: str, d: Dist) -> str:
+        s = nobreak(", ".join(f"{p} {v}" for v in vs), IN, d.pretty())
+        return s + (" (log)" if _is_log(d) else "")
+
+    return D(
+        *[d for _ in vs for d in (re, im)],
+        n=n,
+        pretty=f"{part('Re', re)}, {part('Im', im)}",
+    )
+
+
 # the number of zeros or numbers of the functions with a const `N`; must match src/main.rs and
 # harness.cpp
 ZEROS_N = 500
@@ -4163,6 +4186,24 @@ add(
     D(U(0, 10), U(0, 10), U(0, 10), U(0, 10)),
     D(LU(1e-300, 1e300), LU(1e-300, 1e300), LU(1e-300, 1e300), LU(1e-300, 1e300)),
 )
+# in the right half-plane, where Carlson's duplication algorithm converges to the integral; Arb,
+# since mpmath's complex elliprj can be inaccurate
+for f, r, names in [
+    ("elliprc", flint.acb.elliptic_rc, "x y"),
+    ("elliprd", flint.acb.elliptic_rd, "x y z"),
+    ("elliprf", flint.acb.elliptic_rf, "x y z"),
+    ("elliprg", flint.acb.elliptic_rg, "x y z"),
+    ("elliprj", flint.acb.elliptic_rj, "x y z p"),
+]:
+    add(
+        f"{f}#c",
+        " ".join(f"{v}r {v}i" for v in names.split()),
+        lambda *a, r=r: _acb(r, *(mp.mpc(*a[i : i + 2]) for i in range(0, len(a), 2))),
+        complex_parts(names, U(0, 10), U(-10, 10)),
+        complex_parts(names, LU(1e-300, 1e300), LU(1e-300, 1e300, 0)),
+        complex=True,
+        note="rj_c" if f == "elliprj" else "",
+    )
 for i in range(4):
     add(
         f"ellipj.{i}",
@@ -6432,6 +6473,11 @@ NOTES = {
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about $`10^{-13}`$."
     ),
+    "rj_c": (
+        "In the log-sampled complex row, the inf (449) of xsf-rust are 202 NaNs for normal results "
+        "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)) and 247 for results that "
+        "underflow; its largest finite error is 1.7e-4."
+    ),
 }
 
 NOTES |= {
@@ -6562,9 +6608,8 @@ NOT_COVERED = """\
 
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
-- Complex input: `sph_bessel_*`, `elliprc`, `elliprd`, `elliprf`, `elliprg`, `elliprj`, `sici`,
-  `shichi`, `spence`, `wrightomega`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta`
-  (NaN for non-real `z`, unless `q = 1`)
+- Complex input: `sph_bessel_*`, `sici`, `shichi`, `spence`, `wrightomega`, `*legendre_p*`,
+  `*legendre_q_all`, `eval_*`, and `zeta` (NaN for non-real `z`, unless `q = 1`)
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
   `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
 """
