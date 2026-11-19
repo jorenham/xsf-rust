@@ -1462,6 +1462,10 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
 ///
 /// The residues are complex for `z > 0`, where it is the sum of the bounds on their sizes, as
 /// with `sizes`.
+///
+/// For a polynomial, it is `None` for the class of its non-positive integer `a_i`, which the
+/// `Residues` exclude. The terms of the other classes vanish, with the `1 / Gamma(a_i)` of their
+/// factor.
 fn pfq_class_term(
     a: &[f64],
     b: &[f64],
@@ -1476,6 +1480,9 @@ fn pfq_class_term(
     let before = |(d, i): (Dd, usize)| d.is_integer() && (d.hi < 0.0 || d.hi == 0.0 && i < m);
     if diffs.clone().zip(0..).any(before) {
         return Some(());
+    }
+    if first_zero(a).is_finite() {
+        return (!is_nonpos_int(am)).then_some(());
     }
     let residues = Residues::of_class(a, lower, m, z);
     let [up, low] = residues.params().map(descending);
@@ -1518,7 +1525,8 @@ enum Alg {
 }
 
 /// The terms of the algebraic part of the asymptotic expansion of pFq for `p <= q` (DLMF
-/// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows
+/// 16.11.2), with `|z|` instead of `-z`, or `None` if a factor of a term overflows or underflows,
+/// or if a non-positive integer `a_i` differs from another `a_i` by an integer
 ///
 /// For `p > q + 1` and `z < 0`, their series converge, and they sum to `pfq_borel`.
 ///
