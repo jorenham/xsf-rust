@@ -1304,7 +1304,7 @@ fn hyp2f2_exp(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Scaled> {
     let settled = (nu.hi + 2.0 + b[0].max(b[1]).max(0.0)).max(0.0);
     // (without small divisors, the terms don't grow again before `settled + |z|`)
     let series = asymptotic_sum(terms, settled, z, |_| 0.0);
-    let l = nu * ln_dd(Dd::new(z.abs())) + z;
+    let l = nu * ln_dd(z.abs()) + z;
     gamma_series(b.map(Dd::new), a.map(Dd::new), series, l)
 }
 
@@ -1496,7 +1496,7 @@ fn pfq_class_term(
             .chain(diffs.filter(|d| d.hi != 0.0))
             .chain(poles.map(|g| -g + 1.0));
         let den = others.chain(args.filter(|g| !is_pole(g)));
-        let l = -ln_dd(Dd::new(z.abs())) * am;
+        let l = -ln_dd(z.abs()) * am;
         let mut y = gamma_series(num, den, (sign * sum, err), l)?;
         if sizes {
             y.m = y.m.abs();
@@ -1542,7 +1542,7 @@ fn pfq_alg<A: Params, B: Params>(
 ) -> Option<()> {
     let sizes = mode == Alg::Sizes;
     let (_, lower) = b.as_ref().split_last()?;
-    let ln_z = ln_dd(Dd::new(z.abs()));
+    let ln_z = ln_dd(z.abs());
     let bs = lower.iter().copied().map(Dd::new);
     for (m, &am) in a.as_ref().iter().enumerate() {
         let others = skip(a, m).map(Dd::new);
@@ -1694,7 +1694,8 @@ fn hyp2f2_estimate(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<Estimat
 }
 
 /// `v^(1 / k)` in double-double precision, for `v > 0`
-fn root_dd(v: Dd, k: usize) -> Dd {
+fn root_dd(v: impl Into<Dd>, k: usize) -> Dd {
+    let v = v.into();
     let s = v.hi.powf(1.0 / k as f64);
     let pow = |n: usize| (0..n).fold(Dd::new(1.0), |p, _| p * s);
     match k {
@@ -1739,7 +1740,7 @@ fn hyp1f2_exp(a: f64, b: [f64; 2], z: f64) -> Option<Scaled> {
     });
     // (the factors of A_0 are negative from here on)
     let settled = (nu.hi + 2.0 + beta[0].max(beta[1]).max(0.0)).max(0.0);
-    let l = nu * 0.5 * ln_dd(Dd::new(z.abs())) - LN_PI_DD * 0.5;
+    let l = nu * 0.5 * ln_dd(z.abs()) - LN_PI_DD * 0.5;
     // (the term ratios are about k / x, and without small divisors, the terms don't grow again
     // before `settled + x`)
     let y = if z > 0.0 {
@@ -2061,7 +2062,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
     let kf = kappa as f64;
     let nu = sum_dd(a) - sum_dd(lower) + 0.5 * (kf - 1.0);
     let real = z > 0.0 || kappa == 1;
-    let root = root_dd(Dd::new(z.abs()), kappa) * if real { z.signum() } else { 1.0 };
+    let root = root_dd(z.abs(), kappa) * if real { z.signum() } else { 1.0 };
     let x = kf * root.hi;
     // (the factors of the last coefficient are negative from here on)
     let beta = lower.iter().fold(0.0_f64, |m, bj| m.max(kf * (bj - 1.0)));
@@ -2078,7 +2079,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
         pfq_exp_cos(&terms, settled, kappa, root, nu)
     };
     // (2 pi)^((1 - kappa) / 2) kappa^(-1/2) |z|^(nu / kappa) e^x
-    let ln_power = nu / kf * ln_dd(Dd::new(z.abs())) - ln_dd(Dd::new(kf)) * 0.5;
+    let ln_power = nu / kf * ln_dd(z.abs()) - ln_dd(kf) * 0.5;
     let l = ln_power - LN_SQRT_2PI_DD * (kf - 1.0) + root * kf * growth;
     let num = lower.iter().copied().map(Dd::new);
     let den = a.iter().copied().map(Dd::new);
@@ -2694,7 +2695,7 @@ mod tests {
         // where its error is the largest: Gamma(13) = 12!
         let (v, sign, err) = ln_gamma_stirling(Dd::new(PFQ_GAMMA_MAX));
         assert!(sign == 1.0 && err <= 1e-28);
-        assert!((v - ln_dd(Dd::new(479_001_600.0))).hi.abs() <= err);
+        assert!((v - ln_dd(479_001_600.0)).hi.abs() <= err);
     }
 
     #[test]
