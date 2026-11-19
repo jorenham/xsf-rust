@@ -66,6 +66,32 @@ fn test_wrightomega_huge() {
 }
 
 #[test]
+fn test_wrightomega_pi_inside_strip() {
+    // `y = +-PI` is inside the strip `|y| < pi`, so that `omega(conj(z)) = conj(omega(z))` (mpmath)
+    for (x, re, im) in [
+        (-60.0, -8.756_510_762_696_52e-27, 1.072_363_287_723_564_2e-42),
+        (-3.0, -0.052_469_097_457_714_87, 6.781_426_556_467_746e-18),
+        (-2.0, -0.158_594_339_563_039_37, 2.308_304_536_576_337_7e-17),
+        (-1.5, -0.301_709_562_684_336, 5.291_317_630_438_808e-17),
+    ] {
+        for (y, im) in [(PI, im), (-PI, -im)] {
+            let res = xsf::wrightomega(c64(x, y));
+            np_assert_allclose!([res.re, res.im], [re, im], rtol = 1e-15);
+        }
+    }
+    // underflowing to the signed zeros of `exp(z)`
+    let neg_zero = (-0.0_f64).to_bits();
+    for x in [-800.0, f64::NEG_INFINITY] {
+        let res = xsf::wrightomega(c64(x, -PI));
+        assert_eq!([res.re.to_bits(), res.im.to_bits()], [neg_zero; 2]);
+    }
+
+    // the wing beyond the cut, `omega(z) = z - pi i - ln(pi i - z)` (mpmath)
+    let res = xsf::wrightomega(c64(-1e300, f64::from_bits(PI.to_bits() + 1)));
+    np_assert_allclose!([res.im], [3.216_245_299_353_273e-16], rtol = 1e-15);
+}
+
+#[test]
 fn test_wrightomega_singular() {
     let pts = [c64(-1.0, PI), c64(-1.0, -PI)];
     for p in pts {
