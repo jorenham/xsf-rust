@@ -66,6 +66,24 @@ fn test_wrightomega_huge() {
 }
 
 #[test]
+fn test_wrightomega_pi_inside_strip() {
+    // `y = +-PI` is inside the strip `|y| < pi`, so that `omega(conj(z)) = conj(omega(z))` (mpmath)
+    for (x, re, im) in [
+        (-60.0, -8.756_510_762_696_52e-27, 1.072_363_287_723_564_2e-42),
+        (-3.0, -0.052_469_097_457_714_87, 6.781_426_556_467_746e-18),
+        (-2.0, -0.158_594_339_563_039_37, 2.308_304_536_576_337_7e-17),
+        (-1.5, -0.301_709_562_684_336, 5.291_317_630_438_808e-17),
+    ] {
+        for (y, im) in [(PI, im), (-PI, -im)] {
+            let res = xsf::wrightomega(c64(x, y));
+            np_assert_allclose!([res.re, res.im], [re, im], rtol = 1e-15);
+        }
+    }
+    let res = xsf::wrightomega(c64(f64::NEG_INFINITY, -PI));
+    assert!(res.re == 0.0 && res.re.is_sign_negative() && res.im.is_sign_negative());
+}
+
+#[test]
 fn test_wrightomega_singular() {
     let pts = [c64(-1.0, PI), c64(-1.0, -PI)];
     for p in pts {

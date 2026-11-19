@@ -1,61 +1,33 @@
 //! Translated into pure Rust from `xsf/wright.h` (scipy/xsf@527cef1). Original author: Piers
 //! Lawrence (ACM TOMS 917).
 
-use crate::numpy::nextafter;
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::two_sum;
 use num_complex::Complex64;
 
 const TWOITERTOL: f64 = f64::EPSILON;
+/// `pi - PI`, the low word of `pi` in double-double
+const PI_LO: f64 = 1.224_646_799_147_353_2e-16;
 const I: C64 = C64::I;
-
-/// `a + b`, rounded up
-fn add_round_up(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() {
-        return f64::NAN;
-    }
-
-    let (s, err) = two_sum(a, b);
-    if err > 0.0 {
-        // fl(a + b) rounded down
-        nextafter(s, f64::INFINITY)
-    } else {
-        // fl(a + b) rounded up or didn't round
-        s
-    }
-}
-
-/// `a + b`, rounded down
-fn add_round_down(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() {
-        return f64::NAN;
-    }
-
-    let (s, err) = two_sum(a, b);
-    if err < 0.0 {
-        nextafter(s, f64::NEG_INFINITY)
-    } else {
-        s
-    }
-}
 
 fn wrightomega_ext(z: C64) -> C64 {
     let pi = core::f64::consts::PI;
-    let mut s = 1.0;
 
     // extract real and imaginary parts of z
     let (x, y) = (z.re, z.im);
 
     // compute if we are near the branch cuts
-    let mut ympi = y - pi;
-    let mut yppi = y + pi;
+    //
+    // Unlike in xsf, these use the exact pi, as `y = +-PI` lies inside the strip `|y| < pi`, but
+    // `y -+ PI` is 0 there, which put such `y` on a cut, for some `x` on its outer side.
+    let ympi = (y - pi) - PI_LO;
+    let yppi = (y + pi) + PI_LO;
     let near = 0.1e-1;
 
     // Test for floating point exceptions
     if x.is_nan() || y.is_nan() {
         // NaN output for NaN inpu
         return C64::NAN;
-    } else if x.is_infinite() && x.is_sign_negative() && (-pi < y) && (y <= pi) {
+    } else if x.is_infinite() && x.is_sign_negative() && yppi > 0.0 && ympi < 0.0 {
         // Signed zeros between branches
         return if y.abs() <= pi / 2.0 {
             if y >= 0.0 { C64::ZERO } else { c64(0.0, -0.0) }
@@ -82,7 +54,7 @@ fn wrightomega_ext(z: C64) -> C64 {
     if -2.0 < x && x <= 1.0 && 1.0 < y && y < 2.0 * pi {
         // Region 1: upper branch point
         // Series about z = -1 + Pi*I
-        let pz = (2.0 * (z + 1.0 - I * pi)).conj().sqrt().conj();
+        let pz = (2.0 * c64(x + 1.0, ympi)).conj().sqrt().conj();
         w = -1.0
             + (I + (1.0 / 3.0
                 + (-1.0 / 36.0 * I + (1.0 / 270.0 + 1.0 / 4320.0 * I * pz) * pz) * pz)
@@ -91,13 +63,13 @@ fn wrightomega_ext(z: C64) -> C64 {
     } else if -2.0 < x && x <= 1.0 && -2.0 * pi < y && y < -1.0 {
         // Region 2: lower branch point
         // Series about z = -1 - Pi*I
-        let pz = (2.0 * (z + 1.0 + I * pi)).conj().sqrt().conj();
+        let pz = (2.0 * c64(x + 1.0, yppi)).conj().sqrt().conj();
         w = -1.0
             + (-I
                 + (1.0 / 3.0 + (1.0 / 36.0 * I + (1.0 / 270.0 - 1.0 / 4320.0 * I * pz) * pz) * pz)
                     * pz)
                 * pz;
-    } else if x <= -2.0 && -pi < y && y <= pi {
+    } else if x <= -2.0 && yppi > 0.0 && ympi < 0.0 {
         // Region 3: between branch cuts
         // Series: About -infinity
         let pz = z.exp();
@@ -149,29 +121,11 @@ fn wrightomega_ext(z: C64) -> C64 {
     }
 
     // Regularize if near branch cuts
-    let z = if x <= -0.1e1 + near && (ympi.abs() <= near || yppi.abs() <= near) {
-        s = -1.0;
-        if ympi.abs() <= near {
-            /* Recompute ympi with directed rounding */
-            ympi = add_round_up(y, -pi);
-
-            if ympi <= 0.0 {
-                ympi = add_round_down(y, -pi);
-            }
-
-            x + I * ympi
-        } else {
-            // Recompute yppi with directed rounding
-            yppi = add_round_up(y, pi);
-
-            if yppi <= 0.0 {
-                yppi = add_round_down(y, pi);
-            }
-
-            x + I * yppi
-        }
+    let (s, z) = if x <= -0.1e1 + near && (ympi.abs() <= near || yppi.abs() <= near) {
+        let y = if ympi.abs() <= near { ympi } else { yppi };
+        (-1.0, c64(x, y))
     } else {
-        z
+        (1.0, z)
     };
 
     // Iteration one
