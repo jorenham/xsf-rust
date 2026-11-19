@@ -842,15 +842,15 @@ def _real(
     return Entry((Out(func, (ref,), (arb,), rules, overrides),))
 
 
-def _complex(
+def _complex_out(
     func: str,
     ref: Callable[..., mp.mpc],
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
-) -> Entry:
-    """A table with a complex output of complex inputs, which are (real, imaginary) pairs of
-    f64s: `ref` takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
+) -> Out:
+    """A complex output of complex inputs, which are (real, imaginary) pairs of f64s: `ref`
+    takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
 
     def ref_part(part: int) -> Callable[..., mp.mpf]:
         def value(*a: mp.mpf) -> mp.mpf:
@@ -869,7 +869,18 @@ def _complex(
         return ball
 
     refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
-    return Entry((Out(func, refs, arbs, rules, overrides),))
+    return Out(func, refs, arbs, rules, overrides)
+
+
+def _complex(
+    func: str,
+    ref: Callable[..., mp.mpc],
+    arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
+    rules: tuple[Rule, ...] = (),
+    overrides: tuple[Override, ...] = (),
+) -> Entry:
+    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides)`."""
+    return Entry((_complex_out(func, ref, arb, rules, overrides),))
 
 
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
