@@ -24,16 +24,6 @@ xsref::tests! {
 }
 
 #[test]
-fn test_modified_fresnel_negative_x() {
-    // `ffk` in xsf computes the imaginary part of F±(x) from its real part if x < 0;
-    // the reference values are from mpmath
-    let (fp, _) = xsf::modified_fresnel_plus(-1.0);
-    let (fm, _) = xsf::modified_fresnel_minus(-1.0);
-    xsref::np_assert_allclose!(&[fp.im], &[0.936_925_370_381_131_2], rtol = 1e-15);
-    xsref::np_assert_allclose!(&[fm.im], &[-0.936_925_370_381_131_2], rtol = 1e-15);
-}
-
-#[test]
 fn test_modified_fresnel_k_large_x() {
     // K+(x) = erfcx(e^(-i pi/4) x) / 2 (Arb), and K-(x) its conjugate
     let xs = [1e2, 1e3, 1e4, 1e200, f64::MAX];

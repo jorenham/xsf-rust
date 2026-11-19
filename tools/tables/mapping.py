@@ -690,6 +690,58 @@ def _kelvin_complex_out(j: int) -> Out:
     )
 
 
+MODIFIED_FRESNEL_OVERRIDE: Final = Override(
+    lambda a: a[0] < 0,
+    "xsf subtracts the updated real part from the imaginary part of F for x < 0, where "
+    "xsf-rust differs (scipy/xsf#367)",
+)
+
+
+def _modified_fresnel(k: int, part: int) -> Callable[[mp.mpf], mp.mpf]:
+    """Part (0 re, 1 im) of F+, K+, F-, K- (k = 0 to 3)."""
+
+    def ref(x: mp.mpf) -> mp.mpf:
+        if x == 0 and k % 2 and part:
+            return mp.mpf(0)  # K(0) = 1/2, where the phases cancel
+        z = specs.c_modified_fresnel(x)[k]
+        return z.imag if part else z.real
+
+    return ref
+
+
+def _modified_fresnel_arb(k: int, part: int) -> Callable[[flint.arb], flint.arb | None]:
+    """F+(x) = sqrt(pi/2) (1/2 - C(u) + i (1/2 - S(u))) with u = x sqrt(2/pi), K+(x) =
+    exp(-i (x^2 + pi/4)) F+(x) / sqrt(pi), and the conjugates for F- and K-."""
+
+    def arb(x: flint.arb) -> flint.arb | None:
+        if x == 0 and k % 2 and part:
+            return None  # the ball of the exact 0 cannot be told from 0
+        u = x * (2 / flint.arb.pi()).sqrt()
+        f = (flint.arb.pi() / 2).sqrt() * flint.acb(
+            0.5 - u.fresnel_c(normalized=True), 0.5 - u.fresnel_s(normalized=True)
+        )
+        if k % 2:
+            f *= (
+                -flint.acb(0, 1) * (x * x + flint.arb.pi() / 4)
+            ).exp() / flint.arb.pi().sqrt()
+        if k >= 2:
+            f = f.conjugate()
+        return f.imag if part else f.real
+
+    return arb
+
+
+def _modified_fresnel_out(sign: int, i: int) -> Out:
+    """F (i = 0) or K (i = 1) of the plus (sign = 0) or minus (sign = 1) functions."""
+    k = 2 * sign + i
+    return Out(
+        f"modified_fresnel_{('plus', 'minus')[sign]}.{i}",
+        tuple(_modified_fresnel(k, part) for part in range(2)),
+        tuple(_modified_fresnel_arb(k, part) for part in range(2)),
+        overrides=(MODIFIED_FRESNEL_OVERRIDE,) if i == 0 else (),
+    )
+
+
 AIRY_OVERRIDES: Final = (
     Override(
         lambda a: a[0] > 103,
@@ -3214,6 +3266,12 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     **{(name, "d-d"): Entry((_kelvin_out(kind),)) for kind, name in enumerate(KELVIN)},
     ("kelvin", "d-cd_cd_cd_cd"): Entry(tuple(_kelvin_complex_out(j) for j in range(4))),
+    **{
+        (f"modified_fresnel_{name}", "d-cd_cd"): Entry(
+            (_modified_fresnel_out(sign, 0), _modified_fresnel_out(sign, 1))
+        )
+        for sign, name in enumerate(("plus", "minus"))
+    },
     ("airy", "d-d_d_d_d"): Entry(tuple(_airy_out(i) for i in range(4))),
     ("airye", "d-d_d_d_d"): Entry(tuple(_airy_out(i, scaled=True) for i in range(4))),
     ("fresnel", "d-d_d"): Entry(

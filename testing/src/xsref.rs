@@ -403,8 +403,6 @@ pub fn with_int<N: TryFrom<i64>, T: TestOutput>(x: f64, f: impl FnOnce(N) -> T) 
 /// reference is less accurate than its tolerance; infinite if the reference is wrong
 fn rtol_min(name: &str, x: &[f64], i: usize) -> f64 {
     match name {
-        // xsf computes the wrong imaginary part of F+-(x) for x < 0, which is fixed in xsf-rust
-        "modified_fresnel_plus" | "modified_fresnel_minus" if x[0] < 0.0 => f64::INFINITY,
         // xsf returns NaN for m = 10000
         "cem" | "sem" if x[0] == 1e4 => f64::INFINITY,
         // xsf's `fcoef` is inaccurate for even m (scipy/xsf#343)
