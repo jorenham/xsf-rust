@@ -86,35 +86,70 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         } else {
             ce1 = -EL - z.ln() + z * ce1;
         }
+    } else if (x < xt) && (z.im.abs() < 1.0) {
+        // Unlike in xsf, as so close to the cut the fraction can miss part of the jump of `2 pi i`
+        // across it, E1 on the cut on the side of `z` (the principal value, approximated by the
+        // fraction, minus `pi i` times the sign of `Im z`) plus the integral of
+        // `E1'(t) = -exp(-t) / t` from there to `z`, with `exp(-x)` last, as it can overflow
+        // before E1 does
+        let pv = exp1_cf(c64(x, 0.0)).re;
+        let e1 = if z.im.abs() < -x * f64::MIN_POSITIVE {
+            // the integral is `i y / x` as `y^2` underflows, with `exp(-x)` in halves around the
+            // division, as `y / x` would lose bits as a subnormal, and `y exp(-x)` can overflow
+            let half = -x / 2.0;
+            c64(pv, 0.0).mul_exp(-x) - (c64(0.0, z.im).mul_exp(half) / x).mul_exp(half)
+        } else {
+            (pv - exp1_vertical(x, z.im)).mul_exp(-x)
+        };
+        ce1 = e1 - PI.copysign(z.im) * C64::I;
     } else {
-        // Continued fraction https://dlmf.nist.gov/6.9
-        //                  1     1     1     2     2     3     3
-        // E1 = exp(-z) * ----- ----- ----- ----- ----- ----- ----- ...
-        //                Z +   1 +   Z +   1 +   Z +   1 +   Z +
-        let mut zc = C64::ZERO;
-        let mut zd = 1.0 / z;
-        let mut zdc = zd;
-        zc += zdc;
-        for k in 1..501 {
-            let fk = f64::from(k);
-            zd = 1.0 / (zd * fk + 1.0);
-            zdc *= zd - 1.0;
-            zc += zdc;
-
-            zd = 1.0 / (zd * fk + z);
-            zdc *= z * zd - 1.0;
-            zc += zdc;
-            if (zdc.norm() <= zc.norm() * 1e-15) && (k > 20) {
-                break;
-            }
-        }
-        ce1 = (-z).exp() * zc;
-        if (x <= 0.0) && z.is_real() {
-            // Unlike in xsf, the side of the cut from the sign of `Im z`, as for the power series
-            ce1 -= PI.copysign(z.im) * C64::I;
-        }
+        ce1 = (-z).exp() * exp1_cf(z);
     }
     ce1
+}
+
+/// `exp(z) E1(z)` from the continued fraction of E1 <https://dlmf.nist.gov/6.9>
+///
+/// ```text
+///                  1     1     1     2     2     3     3
+/// E1 = exp(-z) * ----- ----- ----- ----- ----- ----- ----- ...
+///                Z +   1 +   Z +   1 +   Z +   1 +   Z +
+/// ```
+fn exp1_cf(z: C64) -> C64 {
+    let mut zc = C64::ZERO;
+    let mut zd = 1.0 / z;
+    let mut zdc = zd;
+    zc += zdc;
+    for k in 1..501 {
+        let fk = f64::from(k);
+        zd = 1.0 / (zd * fk + 1.0);
+        zdc *= zd - 1.0;
+        zc += zdc;
+
+        zd = 1.0 / (zd * fk + z);
+        zdc *= z * zd - 1.0;
+        zc += zdc;
+        if (zdc.norm() <= zc.norm() * 1e-15) && (k > 20) {
+            break;
+        }
+    }
+    zc
+}
+
+/// `exp(x)` times the integral of `exp(-t) / t` from `x` to `x + i y`, for `|y| < 1` and
+/// `|x| > 39`, from the Taylor series of `exp(-u) / (x + u)` at 0 up to `k = 19`, beyond which
+/// its terms `a_k (i y)^(k + 1) / (k + 1)` are below `EPSILON` relative to the first one, with
+/// `x a_k + a_(k - 1) = (-1)^k / k!`
+fn exp1_vertical(x: f64, y: f64) -> C64 {
+    let iy = c64(0.0, y);
+    let (.., sum) = (1..20).fold((1.0 / x, 1.0, iy, iy / x), |(a, f, p, sum), k| {
+        let k = f64::from(k);
+        let f = -f / k;
+        let a = (f - a) / x;
+        let p = p * iy;
+        (a, f, p, sum + p * (a / (k + 1.0)))
+    });
+    sum
 }
 
 fn expi_f64(x: f64) -> f64 {
