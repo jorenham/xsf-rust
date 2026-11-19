@@ -440,9 +440,10 @@ impl HypergeometricArg for f64 {
         } else if p.is_normal() {
             p * corr()
         } else if a.is_finite() {
-            // (in halves, as `(1 - z)^-a` can be normal or rounded otherwise where `w^-a` is not)
-            let h = w.abs().powf(-a / 2.0);
-            p.signum() * h * corr() * h
+            // (by its logarithm in double-double, where `w^-a` over- or underflows but
+            // `(1 - z)^-a` might not)
+            let y = ln_dd(Dd { hi: w, lo: r }.abs()) * -a;
+            p.signum() * y.hi.exp() * y.lo.exp()
         } else {
             p
         }
