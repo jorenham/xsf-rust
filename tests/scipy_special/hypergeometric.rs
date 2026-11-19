@@ -73,6 +73,8 @@ fn test_hyp1f0_f64_inexact_1mz() {
 
     // a subnormal result with an exact `w^-a`, which needs the low word of its logarithm
     assert_eq!(xsf::hyp1f0(2.0, -2f64.powi(512)), f64::MIN_POSITIVE / 4.0);
+    let y = xsf::hyp1f0(10.323_232_323_232_324, -2f64.powi(99));
+    assert_eq!(y, f64::from_bits(4_503_599_627_370_402));
 }
 
 #[test]

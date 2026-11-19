@@ -446,14 +446,10 @@ impl HypergeometricArg for f64 {
             let y = -a * ln.hi;
             p.signum()
                 * if y.abs() < 2.0 * MAXLOG {
+                    // (unlike `exp_dd`, with the low word of `y` for a subnormal result too)
                     let y = ln * -a;
-                    let e = exp_dd(y);
-                    // (with the low word of `y`, which `exp_dd` drops for a subnormal result)
-                    if e.is_subnormal() {
-                        e.mul_add(y.lo, e)
-                    } else {
-                        e
-                    }
+                    let e = y.hi.exp();
+                    if e.is_finite() { e.mul_add(y.lo, e) } else { e }
                 } else {
                     y.exp()
                 }
