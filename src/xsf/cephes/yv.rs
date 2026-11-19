@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cephes/yv.h` (scipy/xsf@09c93c7).
+//! Translated into pure Rust from `xsf/cephes/yv.h` (scipy/xsf@0acbe5c).
 //!
 //! Cephes Math Library Release 2.8:  June, 2000
 //! Copyright 1984, 1987, 2000 by Stephen L. Moshier
@@ -13,9 +13,8 @@ use crate::xsf::cephes::{jv, yn};
  * Bessel function of noninteger order
  */
 pub(crate) fn yv(v: f64, x: f64) -> f64 {
-    let n = v as i32;
-    if f64::from(n) == v {
-        let y = yn(n, x);
+    if v == v.floor() && v.abs() <= f64::from(i32::MAX) {
+        let y = yn(v as i32, x);
         return y;
     } else if v == v.floor() {
         /* Zero in denominator. */

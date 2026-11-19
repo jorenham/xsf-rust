@@ -109,7 +109,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@4d43e64)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@0acbe5c)
 
 fn rotate(z: C64, v: f64) -> C64 {
     let c = cephes_cospi(v);
@@ -402,7 +402,7 @@ fn cyl_bessel_k_kode(mut v: f64, z: C64, kode: i32) -> C64 {
     cy
 }
 
-/* AMOS rejects orders above INT_MAX / 2. For real z = x > 0, check if K_v(x)
+/* AMOS rejects orders above 0.5 / tol (~2e15). For real z = x > 0, check if K_v(x)
  * (times exp(x) if scaled) overflows, with the lower bound
  * K_v(x) >= sqrt(pi / (2 v)) (2 v / (e x))^v exp(-x^2 / (4 (v - 1))),
  * from Jensen's inequality on https://dlmf.nist.gov/10.32.E10 and
@@ -732,8 +732,6 @@ fn bessel_j_large_order(v: f64, x: f64) -> Option<f64> {
 }
 
 pub(crate) fn cyl_bessel_j_f64(v: f64, x: f64) -> f64 {
-    // Unlike in xsf, the integer test doesn't cast v to `int` (undefined behavior in C++ for
-    // |v| >= 2^31).
     if v != v.floor() && x < 0.0 {
         return f64::NAN;
     }
