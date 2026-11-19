@@ -1603,6 +1603,7 @@ fn test_hyp2f1_f64_polynomial_overflow() {
         // (finite by the other paths, e.g. the Pfaff series where (1 - x)^(c - a - b)
         // underflows, which this leaves correctly rounded)
         ((60.0, 1e-12, -1e-315, -300_000.0), 1.000_000_001_501_041_5e303),
+        ((2.0, 1.25, 2e-309, -8.000_976_562_5), 9.665_443_073_997_591e302),
         (
             (
                 -43.0,
