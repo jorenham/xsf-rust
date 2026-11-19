@@ -305,18 +305,17 @@ fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
     (int && is_classical(alpha, beta)).then_some(n as i32)
 }
 
-/// `int_degree` of `n`, or of `-b` if that is larger and the reflection is accurate, in the
+/// `int_degree` of `n`, or of `-b` if that is larger and close enough to `n + lam`, in the
 /// Gegenbauer case `sym` of `hyp2f1_sh` with `c > 0` and a finite `lam`
 ///
-/// The 2F1 has the parameters `-n` and `n + lam = b + d`, where `d` is the rounding error of `b`.
-/// The reflected one is `2F1(b, -b + lam) = 2F1(b, -n + d)`, which rounds `b + d` like the series,
-/// but also moves `-n` by `d`. That is accepted up to a rounding error of `n`, since `d` can be of
-/// order `n` (e.g. for `n` and `lam + 1` near 0, with an order-one effect for a tiny `c`).
+/// With `d = n + lam - b` for the supplied `b`, the reflected 2F1 is `2F1(b, -n + d; c; z)`,
+/// whereas the series uses `2F1(b, -n; c; z)`. Moving `-n` by `d` acts like moving it by about
+/// `d / c` for `c < 1`, which is accepted up to a rounding error of `n`.
 fn gegenbauer_int_degree(n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Option<i32> {
     let (s, err) = two_sum(n, lam);
-    // `s - b` is exact if it is small (Sterbenz)
+    // `s - b` is exact for the callers' `b` (Sterbenz, or the coarse grid of large values)
     let d = (s - b) + err;
-    let accurate = d.abs() <= MACHEP * n.abs();
+    let accurate = d.abs() <= MACHEP * n.abs() * c.min(1.0);
     let nu = if accurate { n.max(-b) } else { n };
     int_degree(nu, 0.0, 0.0).filter(|_| sym && c > 0.0 && lam.is_finite())
 }

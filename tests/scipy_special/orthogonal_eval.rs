@@ -235,6 +235,11 @@ fn test_eval_real_degree_origin() {
     let (n, a) = (-1.5 * f64::EPSILON, -1.0 + f64::EPSILON / 2.0);
     let actual = [xsf::eval_jacobi(n, a, a, 0.0), xsf::eval_jacobi(n, a, a, c64(0.0, 0.0)).re];
     np_assert_allclose!(actual, [0.25; 2], rtol = 1e-15);
+    // nor where that rounding is small next to `n` but not next to `c = a + 1` (mpmath:
+    // -1.7763568394002503e-16, to which the rounded `n + 2a + 1` itself costs a few percent)
+    let u = f64::EPSILON / 2.0;
+    let actual = xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0);
+    np_assert_allclose!([actual], [-1.776_356_839_400_250_3e-16], rtol = 0.05);
     // but by one that is an integer up to a rounding error of `n` (mpmath: 0.093683301849704395857)
     let a = -0.25 + f64::EPSILON / 2.0;
     let z = 0.25;
