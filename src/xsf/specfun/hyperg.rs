@@ -2315,7 +2315,7 @@ fn chgus_ln_prefactors(x: f64, a: f64, b: f64) -> Option<(f64, f64, DoubleDouble
     let bm = 1.0 - DoubleDouble::new(b);
     let (l1, sign1, err1) = ln_ratio(bm, bm + a)?;
     let (l2, sign2, err2) = ln_ratio(-bm, DoubleDouble::new(a))?;
-    let l2 = l2 + ln_dd(DoubleDouble::new(x)) * bm;
+    let l2 = l2 + ln_dd(x) * bm;
     let l = if l1.hi > l2.hi { l1 } else { l2 };
     let (r1, r2) = (sign1 * (l1 - l).exp().hi, -sign2 * (l2 - l).exp().hi);
     (r1.is_normal() && r2.is_normal()).then_some((r1, r2, l, (err1, err2)))
