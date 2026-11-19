@@ -78,6 +78,8 @@ def with_cv(ref: Ref, kd: int, any_cv_at_0: bool = False) -> Ref:
     parity its derivative (the angular functions)."""
 
     def f(m: mp.mpf, n: mp.mpf, c: mp.mpf, cv: mp.mpf, x: mp.mpf) -> mp.mpf | Pair:
+        if not mp.isfinite(cv):
+            raise ValueError(f"{cv} is not a characteristic value")
         if not (any_cv_at_0 and x == 0):
             exact = segv(kd)(m, n, c)
             if abs(cv - exact) > CV_RTOL * max(1, abs(exact)):
@@ -103,7 +105,8 @@ def _ode_residual(kd: int, m: int, n: int, c: mp.mpf, x: mp.mpf) -> mp.mpf:
         -2 * x * dy,
         (cv - kd * (c * x) ** 2 - m * m / p) * y,
     )
-    ode = abs(mp.fsum(terms)) / max(map(abs, terms))
+    # all terms vanish at x = 0 for the odd modes
+    ode = abs(mp.fsum(terms)) / (max(map(abs, terms)) or 1)
     return max(ode, abs(mp.diff(s(0), x) - dy) / (abs(y) + abs(dy)))
 
 

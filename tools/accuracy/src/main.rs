@@ -600,21 +600,19 @@ fn eval_spheroidal(f: &str, a: &[f64]) -> Option<f64> {
         Some((name, i)) => (name, i == "1"),
         None => (f, false),
     };
-    let (m, n) = (*a.first()?, *a.get(1)?);
-    // NaN for a negative or fractional m or n, like xsf
-    if [m, n].iter().any(|k| *k < 0.0 || k.fract() != 0.0) {
-        return Some(f64::NAN);
-    }
-    let (m, n) = (m as u64, n as u64);
+    let mode = |k: f64| (k >= 0.0 && k.fract() == 0.0).then_some(k as u64);
+    let modes = mode(*a.first()?).zip(mode(*a.get(1)?));
+    // the mode (0, 0) for a negative or fractional m or n, discarded below
+    let (m, n) = modes.unwrap_or_default();
     let (y, dy) = match (name, &a[2..]) {
-        ("prolate_segv", &[c]) => return Some(xsf::prolate_segv(m, n, c)),
-        ("oblate_segv", &[c]) => return Some(xsf::oblate_segv(m, n, c)),
+        ("prolate_segv", &[c]) => (xsf::prolate_segv(m, n, c), f64::NAN),
+        ("oblate_segv", &[c]) => (xsf::oblate_segv(m, n, c), f64::NAN),
         // mode `n` of the modes `m..=SEGV_N`
         ("prolate_segv_seq", &[c]) => {
-            return Some(xsf::prolate_segv_seq(m, SEGV_N, c)[(n - m) as usize]);
+            (xsf::prolate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
         },
         ("oblate_segv_seq", &[c]) => {
-            return Some(xsf::oblate_segv_seq(m, SEGV_N, c)[(n - m) as usize]);
+            (xsf::oblate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
         },
         ("prolate_aswfa_nocv", &[c, x]) => xsf::prolate_aswfa_nocv(m, n, c, x),
         ("oblate_aswfa_nocv", &[c, x]) => xsf::oblate_aswfa_nocv(m, n, c, x),
@@ -630,7 +628,12 @@ fn eval_spheroidal(f: &str, a: &[f64]) -> Option<f64> {
         ("oblate_radial2", &[c, cv, x]) => xsf::oblate_radial2(m, n, c, cv, x),
         _ => return None,
     };
-    Some(if derivative { dy } else { y })
+    Some(match modes {
+        // NaN for a negative or fractional m or n, like xsf
+        None => f64::NAN,
+        Some(_) if derivative => dy,
+        Some(_) => y,
+    })
 }
 
 /// Complex-valued functions; the complex arguments are passed as (real, imaginary) pairs.
