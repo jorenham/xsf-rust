@@ -481,6 +481,8 @@ fn test_hyp2f2_inaccurate() {
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
     // an overflow that it does not detect (Arb: 6.730_996_089e594)
     assert!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0).is_nan());
+    // one that it detects, for a negative z (Arb: 1.306_688_482e355)
+    assert_eq!(hyp2f2(-160.5, 0.25, 1.0, 1.0, -1e4), f64::INFINITY);
 }
 
 /// Asserts that `hyp1f2` is within a relative error of `1e-13` of `expected`
@@ -587,6 +589,8 @@ fn test_hyp1f2_inaccurate() {
     assert!((y / -98_243.753_444_667_18 - 1.0).abs() < 1e-11);
     // an overflow that it does not detect (Arb: 2.617_687_386e341)
     assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
+    // one that it detects, for a negative z (Arb: 1.026_573_294e324)
+    assert_eq!(hyp1f2(-120.5, 1.0, 1.0, -1e6), f64::INFINITY);
 }
 
 #[test]
