@@ -1261,6 +1261,7 @@ pub(crate) fn chgu(
     x: f64,
     mut a: f64,
     mut b: f64,
+    d: f64,
     md: &mut i32,
     isfer: &mut i32,
     digits: &mut i32,
@@ -1273,6 +1274,7 @@ pub(crate) fn chgu(
     // Input  : a  --- Parameter
     //          b  --- Parameter
     //          x  --- Argument  ( x > 0 )
+    //          D  --- Rounding error of a - b + 1 (unlike in xsf)
     // Output:  HU --- U(a,b,x)
     //          MD --- Method code
     //          ISFER --- Error flag
@@ -1435,7 +1437,7 @@ pub(crate) fn chgu(
         let failed = id < ID_MIN || !hu.is_finite();
         let near_1 = (b - 1.0).abs() < NEAR_1_DD && id0 == id1 && hu0.is_finite();
         if (!bn || failed && id0 < ID_MIN) && a > -1000.0 {
-            let (u, id_rec, id_result) = super::hypu_rec(a, b, x);
+            let (u, id_rec, id_result) = super::hypu_rec(a, d, b, x);
             let id_rec = id_rec as i32;
             if !u.is_nan() && (!bn || !hu.is_finite() || id_rec > id) && (!near_1 || id_rec > id0) {
                 // (at most `ID_MIN`, as the estimate of the recurrence in a is not a bound)
@@ -2411,12 +2413,12 @@ mod tests {
     fn test_chgu_subnormal_digits() {
         // U(170, 1 + 1e-11, 1) (Arb), by `chguit`, is subnormal, with 7.7 digits
         let (mut md, mut isfer, mut digits) = (0, 0, 0);
-        let u =
-            chgu(1.0, 170.0, 1.000_000_000_01, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
+        let (x, a, b) = (1.0, 170.0, 1.000_000_000_01);
+        let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
         assert_eq!((md, isfer), (4, 0));
         assert!(digits_ok(u, 9.220_520_059_940_690_4e-317, digits));
         // the same for an early return, here of `chgul` (Arb)
-        let u = chgu(1500.0, 100.0, 101.0, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
+        let u = chgu(1500.0, 100.0, 101.0, 0.0, &mut md, &mut isfer, &mut digits, &mut 0, ID_MIN);
         assert_eq!(md, 2);
         assert!(digits_ok(u, 2.459_654_426_579_829_3e-318, digits));
     }
@@ -2427,7 +2429,7 @@ mod tests {
         // (as in `xsf_hypu_digits`)
         let check = |(a, b, x): (f64, f64, f64), expected: f64| {
             let (mut md, mut isfer, mut digits, mut digits_rec) = (0, 0, 0, 0);
-            let u = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec, ID_MIN);
+            let u = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, ID_MIN);
             let id = digits.max(digits_rec);
             digits_ok(u, expected, id).then_some(id)
         };

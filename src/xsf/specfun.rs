@@ -235,7 +235,7 @@ pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, 
     let mut isfer = 0;
     let (mut digits, mut digits_rec) = (0, i32::MIN);
 
-    out = chgu(x, a, b, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
+    out = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
     if out == SPECFUN_INF {
         out = f64::INFINITY;
     }
@@ -322,10 +322,12 @@ pub fn hypu(a: f64, b: f64, x: f64) -> f64 {
 /// `chgu` calls this only for `a < 1`, and the starting values have `a >= 1`, so their `xsf_hypu`
 /// (i.e. `chgu`) calls don't come back here (or only once, if `a + m` rounds to just below 1). A
 /// start `a + j` in `(-0.5, 0.5]` comes back here, but doesn't start near 0 again.
-fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
+///
+/// Unlike in xsf, `a + a_lo` (for `b < 1`, `a - b + 1 + a_lo`) is the value before rounding.
+fn hypu_rec(a: f64, a_lo: f64, b: f64, x: f64) -> (f64, f64, f64) {
     if b < 1.0 {
         // DLMF 13.2.40; the recurrence is better behaved for b >= 1
-        let (u, id, id_result) = hypu_rec(a - b + 1.0, 2.0 - b, x);
+        let (u, id, id_result) = hypu_rec(a - b + 1.0, a_lo, 2.0 - b, x);
         return (x.powf(1.0 - b) * u, id, id_result);
     }
     // the digits for the result, at most `ID_MIN`, as these estimates are not bounds
@@ -333,7 +335,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     // Unlike in xsf, DLMF 13.3.9 for small a, where the recurrence in a can cancel without the
     // check below noticing, e.g. for tiny a near an integer b
     if a.abs() < 0.5 && (1.5..1000.0).contains(&b) {
-        let (u0, s, id_terms) = hypu_sum_b(a, b, x);
+        let (u0, s, id_terms) = hypu_sum_b(a + a_lo, b, x);
         let u = u0 + s;
         if u.is_infinite() || u0.abs() + s.abs() < REC_MAX_CANCEL * u.abs() {
             // the terms are taken to have 15 digits, but for the result have `id_terms`
@@ -358,6 +360,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
             |e: f64, rounding: f64, u: f64| e + rounding.copysign(if e == 0.0 { u } else { e });
         for k in (1..=m as i32).rev() {
             let (c, c_err) = two_sum(a, f64::from(k));
+            let (c, c_err) = two_sum(c, c_err + a_lo);
             let (s, t) = coef(c);
             let (v0, v1) = (p0 + q0, p1 + q1);
             let rounding = f64::EPSILON * (s * v0).abs().max((t * v1).abs());
@@ -378,7 +381,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
     };
     let m = (1.0 - a).ceil();
     let ((u0, id0, _), (u1, id1, _)) =
-        (xsf_hypu_digits(a + m, b, x), xsf_hypu_digits(a + m + 1.0, b, x));
+        (xsf_hypu_digits(a + m + a_lo, b, x), xsf_hypu_digits(a + m + 1.0 + a_lo, b, x));
     // the starting values are taken to have 15 digits, but for the result have `id0` and `id1`
     let mut best = rec(m, u0, u1, 15.0);
     let mut from_start = best.is_some();
@@ -402,7 +405,7 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
             cancel = f.abs().max(g.abs()) / v0.abs();
         }
         if cancel > REC_MAX_CANCEL {
-            let (v, id, _) = xsf_hypu_digits(a + j, b, x);
+            let (v, id, _) = xsf_hypu_digits(a + j + a_lo, b, x);
             let near_0 = rec(j, v, v1, f64::from(id.min(15)));
             if near_0.is_some_and(|(_, id, _)| best.is_none_or(|(_, id_best, _)| id > id_best)) {
                 (best, from_start) = (near_0, false);
@@ -475,7 +478,7 @@ fn digits_lacking(id: f64, id_values: f64) -> f64 {
 /// from `hypu_rec` at `b - n` and `b - n + 1` in `[1, 3)`, with its estimated number of digits
 fn hypu_rec_b(a: f64, b: f64, x: f64) -> (f64, f64) {
     hypu_fwd_b(a, b, x, (b - 1.0).floor(), |c| {
-        let (u, id, _) = hypu_rec(a, c, x);
+        let (u, id, _) = hypu_rec(a, 0.0, c, x);
         (u, id)
     })
 }
