@@ -3395,12 +3395,26 @@ MATHIEU_KM: Final = Override(
     "room for (scipy/xsf#312)",
 )
 
-MATHIEU_SEM_EVEN: Final = Floor(
-    lambda a: a[0] % 2 == 0 and a[0] >= 2 and abs(a[1]) > 1e-7,
-    4e-13,
+
+def _mathieu_sem_even(a: tuple[float, ...]) -> bool:
+    """An even order m >= 2, for |q| > 1e-7."""
+    return a[0] % 2 == 0 and a[0] >= 2 and abs(a[1]) > 1e-7
+
+
+MATHIEU_SEM_EVEN_WHY: Final = (
     "for an even m, `fcoef` compares against fc[k - 1] in its backward recurrence, unlike xsf "
-    "(scipy/xsf#343), and so rounds differently; at large x, both have the error of the "
-    "15-digit pi / 180 of specfun",
+    "(scipy/xsf#343), and so rounds differently"
+)
+MATHIEU_SEM_EVEN: Final = (
+    Floor(
+        lambda a: _mathieu_sem_even(a) and abs(a[2]) < 1000, 1e-14, MATHIEU_SEM_EVEN_WHY
+    ),
+    Floor(
+        lambda a: _mathieu_sem_even(a) and abs(a[2]) >= 1000,
+        4e-13,
+        f"{MATHIEU_SEM_EVEN_WHY}; at |x| >= 1000 degrees, both have the error of the 15-digit "
+        "pi / 180 of specfun",
+    ),
 )
 
 
@@ -4373,7 +4387,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                     ),
                 ),
                 overrides=(MATHIEU_KM,),
-                floors=(MATHIEU_SEM_EVEN,),
+                floors=MATHIEU_SEM_EVEN,
             )
             for i, ref in enumerate(
                 (mathieu.angular(1, False), mathieu.angular(1, True))
