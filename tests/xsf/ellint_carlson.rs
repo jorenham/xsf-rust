@@ -400,24 +400,25 @@ fn test_elliprj_nearly_imaginary_duplicated() {
 #[test]
 fn test_carlson_huge_negligible_real() {
     // a negligible real part doesn't prevent downscaling the huge arguments (Arb)
+    let (s, e) = (2.0_f64.powi(620), 2.0_f64.powi(-80));
     let actual = [
         xsf::elliprg(
             c64(3.160_931_853_621_509e-222, 2.546_737_660_160_885_7e232),
             c64(2.770_788_258_627_483_4e-250, 8.876_654_259_025_239e205),
             c64(3.515_741_291_918_735e211, 9.916_737_044_917_146e-127),
         ),
-        xsf::elliprj(
-            c64(3.252_281_333_249_279e-86, 9.628_653_385_766_011e269),
-            c64(1.804_605_791_678_615_8e-256, 1.821_374_505_004_775_8e-95),
-            c64(5.704_000_764_113_375e-244, -2.547_345_192_149_236_5e-279),
-            c64(5.398_519_435_655_003e34, -3.613_203_968_954_653e-58),
-        ),
+        xsf::elliprg(c64(1e-308, s), c64(0.0, e * s), c64(s, -e * s)) / s.sqrt(),
     ];
     let expected = [
         c64(5.642_182_268_591_743_5e115, 5.642_182_268_591_743_5e115),
-        c64(5.965_420_762_787_378e-168, -6.028_323_376_004_016e-168),
+        c64(0.641_920_478_949_122_3, 0.265_892_168_345_759_3),
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+
+    // but not if a real part is negative, where the terms of the arguments on both sides of the
+    // cut cancel (Arb: 2^310 (-21.4746 + 9.20807i))
+    let (y, z) = (c64(-s, e * s), c64(-s, -e * s));
+    assert!(xsf::elliprg(c64(1e-308, s), y, z).is_nan());
 }
 
 #[test]
@@ -445,6 +446,10 @@ fn test_elliprj_nearly_imaginary_p() {
     for im in [im, f64::from_bits(im.to_bits() - 1)] {
         assert!(xsf::elliprj(x, i(4.0 * s), i(9.0 * s), c64(1.0, im)).is_nan());
     }
+
+    // or at a later step (the integral is about 4.895e-164 + 2.002e-164i)
+    let p = c64(1.0, -15.0 * s);
+    assert!(xsf::elliprj(x, i(s), i(s), p).is_nan());
 
     // a wide span with a tiny `Re p > 0` (Wolfram, Arb, mpmath, and the integral of
     // https://dlmf.nist.gov/19.16.E2)

@@ -420,8 +420,7 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     }
 
     // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
-    // imaginary (and then also real) parts prevent that and the result is not finite, rescaled with
-    // those flushed
+    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
     let args = [x, y, z, p];
     let (_, min) = realness(args);
     let rescaled = |f: f64| {
@@ -431,24 +430,13 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if let Some(f) = common::scale_factor(&args, min) {
         return rescaled(f);
     }
-    let out = rj_unscaled(x, y, z, p, rerr, noasymp);
-    let bad_args = out.0 == ExitStatus::BadArgs;
-    let out = common::retry_relaxed(out, &args, 0, min, rescaled);
-    // Real parts are not flushed for arguments out of the domain, as that can move them into it
-    // (e.g. by making two of them conjugate), nor if the first `p + lambda` cancels, as that (and
-    // rounding) can change it by up to `EPSILON |lambda|`, e.g. for `x, y, z, p` scaled from
-    // `i, 4i, 9i, 1 - 11i`. Nor is `Re p` flushed, which the algorithm needs to be positive.
-    if out.1.is_finite() || bad_args || lambda_cancels([x, y, z], p) {
-        return out;
+    let (status, res) = rj_unscaled(x, y, z, p, rerr, noasymp);
+    if res.is_finite() {
+        return (status, res);
     }
-    common::retry_relaxed(out, &args, 3, min, rescaled)
-}
-
-/// Whether `|p + lambda|` of the first duplication step is below `|lambda| / 2`
-fn lambda_cancels<T: Num>(xyz: [T; 3], p: T) -> bool {
-    // quartered, so that it can't overflow
-    let lam = common::lambda(xyz, xyz.map(|a| a.sqrt() * 0.5));
-    (p * 0.25 + lam).abs() < lam.abs() * 0.5
+    // unlike in `rg`, not with real parts flushed: then `p + lambda` can cancel at any step, e.g.
+    // for `x, y, z, p = i, i, i, 1 - 15i` scaled
+    common::relaxed_scale_factor(&args, false, min).map_or((status, res), rescaled)
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size

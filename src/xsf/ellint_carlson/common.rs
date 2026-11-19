@@ -116,32 +116,35 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 ///
 /// So the callers' own handling of tiny or huge arguments is still reachable.
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
-    scale_factor_of_parts(args, min, |_, a| [a.real().abs(), a.imag().abs()])
+    scale_factor_of_parts(args, min, |a| [a.real().abs(), a.imag().abs()])
 }
 
-/// [`scale_factor`], but an imaginary part below `EPSILON` times its real part may become
-/// subnormal or 0 if all real parts are positive, and so may a positive real part below `EPSILON`
-/// times its imaginary part in the first `flush_re` arguments: a perturbation of the argument by
-/// less than `EPSILON` relative to it (not near a branch cut, where such a part can decide the
-/// result). A negative real part is kept, as its sign can decide the domain.
+/// [`scale_factor`], but if all real parts are positive, an imaginary part below `EPSILON` times
+/// its real part may become subnormal or 0, a perturbation of the argument by less than `EPSILON`
+/// relative to it (not near a branch cut, where such a part can decide the result), and so may a
+/// real part below `EPSILON` times its imaginary part if `flush_re`, and `None` if a real part is
+/// negative then
 ///
 /// For a retry where the unscaled arguments gave a non-finite result, since flushing such parts
 /// can still lose the relative accuracy of a tiny part of the result.
 pub(super) fn relaxed_scale_factor<T: super::typing::Num>(
     args: &[T],
-    flush_re: usize,
+    flush_re: bool,
     min: f64,
 ) -> Option<f64> {
+    if flush_re && args.iter().any(|a| a.real() < 0.0) {
+        return None;
+    }
     let right = args.iter().all(|a| a.real() > 0.0);
-    scale_factor_of_parts(args, min, |i, a| {
-        let [re, im] = [a.real(), a.imag().abs()];
+    scale_factor_of_parts(args, min, |a| {
+        let [re, im] = [a.real().abs(), a.imag().abs()];
         [
-            if i < flush_re && re > 0.0 && re < f64::EPSILON * im {
+            if flush_re && re < f64::EPSILON * im {
                 0.0
             } else {
-                re.abs()
+                re
             },
-            if right && im < f64::EPSILON * a.real() {
+            if right && im < f64::EPSILON * re {
                 0.0
             } else {
                 im
@@ -150,28 +153,13 @@ pub(super) fn relaxed_scale_factor<T: super::typing::Num>(
     })
 }
 
-/// `out` if its result is finite, or else retried with `rescaled` by the
-/// [`relaxed_scale_factor`] (if any)
-pub(super) fn retry_relaxed<T: super::typing::Num>(
-    out: (ExitStatus, T),
-    args: &[T],
-    flush_re: usize,
-    min: f64,
-    rescaled: impl Fn(f64) -> (ExitStatus, T),
-) -> (ExitStatus, T) {
-    if out.1.is_finite() {
-        return out;
-    }
-    relaxed_scale_factor(args, flush_re, min).map_or(out, rescaled)
-}
-
 /// [`scale_factor`] with the absolute real and imaginary `parts` of each argument
 fn scale_factor_of_parts<T: super::typing::Num>(
     args: &[T],
     min: f64,
-    parts: impl Fn(usize, &T) -> [f64; 2],
+    parts: impl Fn(&T) -> [f64; 2],
 ) -> Option<f64> {
-    let parts = args.iter().enumerate().flat_map(|(i, a)| parts(i, a));
+    let parts = args.iter().flat_map(&parts);
     let amax = parts.clone().fold(0.0, f64::max);
     let amin = parts.filter(|&a| a > 0.0).fold(f64::INFINITY, f64::min);
     let sizes = args.iter().map(|a| a.max_norm());
