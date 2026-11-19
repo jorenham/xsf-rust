@@ -432,6 +432,14 @@ fn test_hyp2f2_asymptotic() {
         // the terms of the algebraic part are below eps after a few, long before the smallest
         ([0.25, 0.5], [1.75, -0.5], -1e5, 0.087_476_240_625_041_52),
         ([2.5, 0.5], [0.25, -0.25], -1e5, -0.001_784_104_610_406_174_4),
+        // the terms of the series of a_2 grow again after a small one, from where
+        // 1 + a_2 - a_1 + n is small and positive, and then shrink to smaller ones
+        (
+            [80.649_718_544_819_85, -1.079_334_838_212_048_5],
+            [-462.060_008_081_445_2, -466.754_127_058_247],
+            -7_953.603_219_495_746,
+            -4.858_950_728_706_407e16,
+        ),
     ] {
         assert_hyp2f2(a, b, z, expected);
     }
@@ -1173,6 +1181,27 @@ fn test_hyppfq_asymptotic() {
     assert_hyppfq(&a_pair, &b_pair[..3], -1000.0, -36_610.554_660_278_02);
     let a_pair4 = [-0.125, -5.124_999_999_999_999];
     assert_hyppfq(&a_pair4, &b_pair, -1e4, -14_340_142.864_468_437);
+    // the terms of the series of a tiny a_1 grow after its second one, and then shrink to
+    // smaller ones: accurate or None
+    let a_tiny = [
+        -1.177_387_855_629_240_8e-18,
+        -15.152_718_139_177_594,
+        -6.428_157_404_437_108,
+        -7.171_717_841_041_328,
+    ];
+    let b_tiny = [
+        0.523_592_411_670_334_3,
+        -203.347_306_012_400_4,
+        -241.850_859_418_556_47,
+        -191.562_668_472_961_35,
+    ];
+    let y = hyppfq(&a_tiny, &b_tiny, -3_439.845_313_014_641);
+    assert!(y.is_none_or(|y| (y / 2.050_874_042_107_11 - 1.0).abs() <= 1e-13));
+    // (and here they are below eps of the sum after the second one, while their ratio is below
+    // 1, before they grow)
+    let a_tiny = [2.0_f64.powi(-65), -22.5, -27.375, -20.625];
+    let b_tiny = [0.25, -475.5, -346.375, -392.625];
+    assert_hyppfq(&a_tiny, &b_tiny, -7000.0, 2.755_031_164_893_358);
     // overflow, with the sign of the Gamma functions
     assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
     assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));

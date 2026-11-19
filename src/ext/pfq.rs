@@ -280,6 +280,32 @@ fn pfq_ratio_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
     z.abs() * paired.product::<f64>() * unpaired_a.product::<f64>() / unpaired_b.product::<f64>()
 }
 
+/// `pfq_ratio_bound`, but infinite unless the ratios `|t_{m+1} / t_m|` from `m = n` on stay
+/// at least 1 once they reach it, for a longer `a`
+///
+/// They are at most 1 up to the `m0` where `pfq_ratio_bound` is 1 with each unpaired `a_i + n`
+/// replaced by `x + m0`, for the largest unpaired `a_i = x`. From `m0` on they grow if the
+/// derivative of their log is positive: the `k` unpaired `a_i + m` add at least `k / (x + m)`,
+/// and a pair with `a_i > b_i` subtracts `(a_i - b_i) / ((a_i + m) (b_i + m))`. Times `x + m`,
+/// that is at most its value at `m0`, with `(x + m) / (a_i + m)` at least 1, as its factors
+/// then decrease or stay below 1.
+fn pfq_regrowth_bound(a: &[f64], b: &[f64], z: f64, n: f64) -> f64 {
+    let bound = pfq_ratio_bound(a, b, z, n);
+    let Some(unpaired) = a.get(b.len()..).filter(|v| !v.is_empty()) else {
+        return bound;
+    };
+    let (k, x) = (unpaired.len() as f64, unpaired[0]);
+    let paired = zip(a, b).map(|(a, b)| ((a + n) / (b + n)).max(1.0));
+    let m0 = (paired.product::<f64>() * z.abs()).powf(-k.recip()) - x;
+    let pulls = zip(a, b).filter(|(a, b)| a > b);
+    let pull = pulls.map(|(a, b)| (a - b) / (b + m0) * ((x + m0) / (a + m0)).max(1.0));
+    if m0 >= n && pull.sum::<f64>() <= k {
+        bound
+    } else {
+        f64::INFINITY
+    }
+}
+
 /// The products of the `a_i + n` and of the `b_j + n`, whose quotient is `t_{n+1} / (z t_n)`
 ///
 /// They and their quotient are normal for up to `PFQ_MAX_UNCHECKED` parameters with sizes in
@@ -966,7 +992,13 @@ impl Term for (f64, f64) {
 /// it, plus rounding. For terms of one sign, the remainder can be half of that, as for
 /// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`. The sum is the
 /// one whose error is smallest, as the rounding grows with `n`. It stops where the remainder is
-/// negligible if `ratio_bound(n) < 1`, so that the next terms are smaller.
+/// negligible if `ratio_bound(n) < 1`, so that no later term is larger before they grow for good.
+///
+/// Before term `settled + |z|`, the terms can grow again after a small one, and then shrink to
+/// smaller ones, e.g. after a tiny `a_m` or a small positive `1 + a_m - a_i + n` of a term of
+/// the algebraic part of pFq. So the error of a sum is taken to be at least its distance to any
+/// later sum, less the error of that one (a heuristic, as that error is an estimate too), and
+/// infinite if `PFQ_MAXITER` ends the terms while the last is larger than the smallest.
 fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -985,19 +1017,27 @@ fn asymptotic_sum<T: Term>(
         let size = bound.max(terms.peek().map_or(0.0, |next| next.bound()));
         if !t.to_f64().is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
-        } else if n >= settled && size < min {
-            min = size;
-            let err = remainder * min + n * eps * abs_sum;
+        } else if n >= settled {
+            // a later sum can disqualify the current best even when its term is larger
+            let err = remainder * size + n * eps * abs_sum;
+            best.1 = best.1.max((sum - best.0).to_f64().abs() - err);
             if err < best.1 {
                 best = (sum, err);
             }
-            if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
-                break;
+            if size < min {
+                min = size;
+                if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
+                    break;
+                }
             }
         }
         sum = sum + t;
         abs_sum += bound;
         prev = bound;
+        // (at the cap, terms that grew after the smallest may still shrink to smaller ones)
+        if n + 1.0 == f64::from(PFQ_MAXITER) && size > min {
+            best.1 = f64::INFINITY;
+        }
     }
     best
 }
@@ -1299,7 +1339,7 @@ fn pfq_alg_series<A: Params, B: Params>(
     // the 1 of n!, and 1 + a_m - a_i
     let (mut lower, low_shifts) = shifted_params(a, am, false, (m, 1.0));
     let (up, low) = (&*descending(upper.as_mut()), &*descending(lower.as_mut()));
-    let bound = |n| pfq_ratio_bound(up, low, 1.0 / z, n);
+    let bound = |n| pfq_regrowth_bound(up, low, 1.0 / z, n);
     // kappa = q - p + 1, or 0 for p > q + 1, where the series converges
     let (p, q) = (a.as_ref().len(), last);
     let kappa = (q + 1).saturating_sub(p);
@@ -2495,6 +2535,22 @@ macro_rules! hyp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_asymptotic_sum_cap_after_hump() {
+        // small terms, a hump before term `settled + |z|`, then terms that shrink too slowly to
+        // end before the cap
+        let term = |n: u32| {
+            let t = match n {
+                0..5 => 10.0_f64.powi(-i32::try_from(n).unwrap()),
+                5..10 => 10.0_f64.powi(i32::try_from(n).unwrap() - 7),
+                _ => 1e3 * 0.9999_f64.powi(i32::try_from(n).unwrap() - 10),
+            };
+            (t, t)
+        };
+        let (_, err) = asymptotic_sum((0..).map(term), 0.0, 20.0, |_| 0.0);
+        assert_eq!(err, f64::INFINITY);
+    }
 
     #[test]
     fn test_estimate_absolute_at_tol() {
