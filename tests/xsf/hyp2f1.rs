@@ -1526,6 +1526,31 @@ fn test_hyp2f1_f64_polynomial_neg_int_c() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_neg_int_c_overflow() {
+    // unlike in xsf: the sign of an overflowing polynomial for a negative integer c below the
+    // integer a or b, e.g. of 1 - 4x + 38/9 x^2 and 1 + 4/3 x + x^2 for the first two, where the
+    // power series stops at its first infinite term, or the recurrence in a gives NaN; xsf
+    // gives -inf for the first two (references: exact)
+    let inf = f64::INFINITY;
+    for ((a, b, c, x), desired) in [
+        ((-2.0, -20.0, -10.0, 1e308), inf),
+        ((-2.0, 2.0, -3.0, -1e308), inf),
+        ((5.0, -5.0, -7.0, -1.271_610_395_627_417_3e231), -inf),
+        ((-4.0, -5.0, -7.0, 4.334_366_077_440_268e137), inf),
+        // (by `hyp2f1_recur`, whose first term overflows at the scale of its sums)
+        ((-11.0, 24.0, -20.0, 1.146_319_809_459_681_3e308), inf),
+        ((-32.0, -136.199_875_679_093_6, -34.0, 8.858_494_428_306_513e307), inf),
+        // (just above the cutoff, by 3.5e-16 and 2.5e-16, which the double-double sum of
+        // `hyp2f1_recur` resolves)
+        ((-3.0, 2.0_f64.powi(-960), -4.0, 2.759_926_699_133_471_5e199), inf),
+        ((-2.0, 35.0, -40.0, -1.491_883_142_149_389e154), inf),
+    ] {
+        assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
+        assert_eq!(xsf::hyp2f1(b, a, c, x), desired);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_degree_1() {
     // unlike in xsf: `1 - a x / c` also for b = -1, where xsf gives NaN (references: exact)
     let actual = [
