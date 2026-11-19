@@ -434,7 +434,9 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if res.is_finite() {
         return (status, res);
     }
-    common::relaxed_scale_factor(&args, min).map_or((status, res), rescaled)
+    // unlike in `rg`, not with real parts flushed: then `p + lambda` can cancel at any step, e.g.
+    // for `x, y, z, p = i, i, i, 1 - 15i` scaled
+    common::relaxed_scale_factor(&args, false, min).map_or((status, res), rescaled)
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
