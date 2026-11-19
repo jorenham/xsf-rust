@@ -93,7 +93,14 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         // `E1'(t) = -exp(-t) / t` from there to `z`, with `exp(-x)` last, as it can overflow
         // before E1 does
         let pv = exp1_cf(c64(x, 0.0)).re;
-        ce1 = (pv - exp1_vertical(x, z.im)).mul_exp(-x) - PI.copysign(z.im) * C64::I;
+        let e1 = if z.im.abs() < -x * f64::MIN_POSITIVE {
+            // the integral is `i y / x` as `y^2` underflows, with `exp(-x)` first, as `y / x`
+            // would lose bits as a subnormal
+            c64(pv, 0.0).mul_exp(-x) - c64(0.0, z.im).mul_exp(-x) / x
+        } else {
+            (pv - exp1_vertical(x, z.im)).mul_exp(-x)
+        };
+        ce1 = e1 - PI.copysign(z.im) * C64::I;
     } else {
         ce1 = (-z).exp() * exp1_cf(z);
     }

@@ -56,4 +56,14 @@ fn test_exp1_c64_near_negative_real_cut_exp_overflow() {
     for (y, im) in [(0.0, -PI), (-0.0, PI)] {
         assert_eq!(xsf::exp1(c64(-710.0, y)).im, im);
     }
+    // `y / x` is subnormal (Arb)
+    for (x, y, im) in [
+        (-750.0, 1.48e-321, 100.780_067_417_471_7),
+        (-716.35, 1.48e-321, -3.141_592_653_589_528_4),
+        (-710.0, 5e-310, -3.141_435_330_014_711_5),
+    ] {
+        for (y, im) in [(y, im), (-y, -im)] {
+            np_assert_allclose!([xsf::exp1(c64(x, y)).im], [im], rtol = 1e-15);
+        }
+    }
 }
