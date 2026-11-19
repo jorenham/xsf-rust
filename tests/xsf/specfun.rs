@@ -219,19 +219,26 @@ fn test_hypu_large_neg_a_large_b() {
 
 #[test]
 fn test_hypu_near_neg_int_a_large_b() {
-    // NaN, as the recurrence in b is unstable past b = x (Arb: 4.67e33, 1.64e146, 4.06e71,
-    // -1.63e93, and 1.15e56), instead of -6.94e34, -5.00e146, -8.76e71, 3.06e92, and 1.39e56 (or
-    // -1.81e9 from `chgul`); NaN, or 15% to 17% off, in xsf
+    // NaN, as the recurrence in b is unstable past b = x (Arb: 4.67e33, 1.64e146, and -1.63e93),
+    // instead of -6.94e34, -5.00e146, and 3.06e92; NaN, or 15% to 17% off, in xsf
     let abx = [
         (-12.0 + 4e-15, 814.0 + 4e-7, 503.0),
         (-35.999_999_999_999_986, 839.121_528_298_220_1, 341.787_507_068_174_76),
-        (-43.999_999_999_999_97, 19.879_646_794_531_492, 0.164_247_209_584_363_92),
         (-6.000_000_000_000_011_5, 682.626_481_969_116_4, 257.665_363_374_949_04),
-        (-5.000_000_000_000_002, 72.000_168_440_354_41, 2.888_910_315_901_288_8),
     ];
     for (a, b, x) in abx {
         assert!(xsf::hypu(a, b, x).is_nan());
     }
+
+    // Arb; by `chgus` with its prefactors in log scale, where the recurrence in b is unstable too
+    // (-8.76e71 and 1.39e56)
+    let abx = [
+        (-43.999_999_999_999_97, 19.879_646_794_531_492, 0.164_247_209_584_363_92),
+        (-5.000_000_000_000_002, 72.000_168_440_354_41, 2.888_910_315_901_288_8),
+    ];
+    let expected = [4.055_452_862_354_479_6e71, 1.147_991_418_568_042_2e56];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
 }
 
 #[test]
@@ -437,6 +444,26 @@ fn test_hypu_chgus_rounding() {
 }
 
 #[test]
+fn test_hypu_chgus_ln_prefactors() {
+    // Arb; by `chgus` with its prefactors in log scale, near a pole of Gamma(a), where gamma2(a) is
+    // 3.6e-4 off (first), where U overflows (second, 2.1e364), and where the next term of r2
+    // overflows (third)
+    let abx = [
+        (-127.000_000_000_017_27, 33.542_329_647_346_07, 0.075_731_757_201_253_32),
+        (-165.000_000_035_423_2, 37.311_632_646_547_174, 0.106_767_894_167_570_57),
+        (-112.999_999_777_333_51, 54.637_463_742_778_04, 0.074_055_281_066_504_95),
+    ];
+    let expected = [1.213_066_519_523_452_2e274, f64::INFINITY, -2.736_401_559_956_598e307];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+
+    // Arb; the same, where the recurrence in b is 1e-3 off, with fewer than `ID_MIN` digits
+    let actual =
+        xsf::hypu(-115.999_999_998_708_15, 32.399_975_307_852_856, 0.001_329_101_958_466_425_9);
+    xsref::np_assert_allclose!([actual], [9.622_613_230_757_687e304], rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_chguit_unconverged() {
     // Arb; here the quadrature in chguit doesn't converge, so that chgu keeps chgus
     let abx = [(25.5, -1e-14, 1e-10), (25.5, 1e-10, 1e-6), (25.5, 2.000_000_000_1, 1e-6)];
@@ -563,9 +590,9 @@ fn test_hypu_b_near_one_cancel() {
         xsf::hypu(-152.571_517_551_837_93, 0.997_562_922_686_568_3, 0.001_997_420_588_184_022);
     xsref::np_assert_allclose!([actual], [1.190_151_804_933_915_8e266], rtol = 1e-13);
 
-    // Arb: 2.79e-307, but 1/Gamma(a) underflows (and the fallback returns 0)
+    // Arb; where 1/Gamma(a) underflows, by `chgus` with its prefactors in log scale
     let actual = xsf::hypu(171.625, 1.009, 1e-20);
-    assert!((0.0..=2.790_460_095_786_538_4e-307).contains(&actual));
+    xsref::np_assert_allclose!([actual], [2.790_460_095_786_538_4e-307], rtol = 1e-14);
 }
 
 #[test]

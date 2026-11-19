@@ -687,15 +687,18 @@ fn test_hyp2f0() {
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
     // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
-    // by a spacing (Arb: 2.675_976_546e231, 6.334_319_725e13, and 2.160_851_060e262)
+    // by a spacing (Arb: 2.675_976_546e231 and 2.160_851_060e262)
     assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
-    assert!(hyp2f0(-3.000_000_000_000_001_3, -5.875, -336_536.0).is_nan());
     assert!(hyp2f0(1.776_356_839_400_250_5e-15, -20.000_000_000_000_004, -1e13).is_nan());
     // the same, but where another method is accurate enough (Arb)
-    let (a1, a2) = (-15.000_000_000_000_012, -30.999_999_999_999_993);
-    let actual = hyp2f0(a1, a2, -1e7);
-    assert!((actual / 2.126_314_811_847_468_6e227 - 1.0).abs() < 1e-12, "{actual}");
-    assert_eq!(hyppfq(&[a1, a2], &[], -1e7), None);
+    for (a1, a2, z, expected) in [
+        (-15.000_000_000_000_012, -30.999_999_999_999_993, -1e7, 2.126_314_811_847_468_6e227),
+        (-3.000_000_000_000_001_3, -5.875, -336_536.0, 63_343_197_259_831.39),
+    ] {
+        let actual = hyp2f0(a1, a2, z);
+        assert!((actual / expected - 1.0).abs() < 1e-11, "{actual}");
+        assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    }
     // chgu's rounded a1 - b + 1 moves a2 by a spacing at 2.4e-9 from -7: 8 digits, too few for
     // `hyppfq` (Arb)
     let (a1, a2, z) = (-7.999_999_999_999_998, -7.000_000_002_437_216, -118_035_487.239_557_88);
