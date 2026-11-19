@@ -78,11 +78,12 @@ impl Estimate {
         Self::new(y, err)
     }
 
-    /// `y` with the relative error `err` before it is rounded to `f64`, which may overflow, but
-    /// a subnormal `y` is not that accurate
+    /// `y` with the relative error `err` before it is rounded to `f64`, which may overflow, plus
+    /// the spacing of a subnormal `y` relative to it
     fn rounded(y: f64, err: f64) -> Self {
         let normal = y.is_normal() || y.is_infinite();
-        Self::new(y, if normal { err } else { f64::INFINITY })
+        let spacing = f64::from_bits(1) / y.abs();
+        Self::new(y, if normal { err } else { err + spacing })
     }
 
     /// `y` as `f64`, with its relative error plus the size of `other` relative to it

@@ -471,9 +471,11 @@ fn test_hyp2f2_inaccurate() {
     assert_eq!(hyppfq(&[2.5, 3.25], &[-0.5, 1.75], -40.0), None);
     // e^z times a polynomial, where the algebraic part vanishes
     assert!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0).is_nan());
-    // the result underflows
-    assert!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6).is_nan());
+    // the result underflows to the smallest subnormal
     assert!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0).is_nan());
+    // subnormal results, accurate to their spacing (mpmath references)
+    assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -709.0), 1.216_780_750_623_423e-308);
+    assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
 }
 
 /// Asserts that `hyp1f2` is within a relative error of `1e-13` of `expected`
