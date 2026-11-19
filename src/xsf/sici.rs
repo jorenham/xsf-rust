@@ -53,7 +53,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
         return (c64(FRAC_PI_2, 0.0), C64::ZERO);
     }
     if z == C64::NEG_INFINITY {
-        return (c64(-FRAC_PI_2, 0.0), c64(0.0, PI));
+        return (c64(-FRAC_PI_2, 0.0), c64(0.0, PI.copysign(z.im)));
     }
 
     if z.norm() < 0.8 {
@@ -78,7 +78,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
         let si = c64(0.0, 0.5) * (e1m - e1p) + FRAC_PI_2.copysign(z.re);
         let mut ci = -0.5 * (e1p + e1m);
         if z.re < 0.0 {
-            ci += c64(0.0, if z.im >= 0.0 { PI } else { -PI });
+            ci += c64(0.0, PI.copysign(z.im));
         }
         return (si, ci);
     }

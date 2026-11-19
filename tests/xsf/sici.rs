@@ -10,6 +10,16 @@ xsref::tests! {
 }
 
 #[test]
+fn test_sici_c64_negative_real_cut() {
+    // the sign of `Im z` picks the side of the cut, also for `Im z = +-0` (DLMF 6.4.4)
+    for x in [-1.0, f64::NEG_INFINITY] {
+        for (y, im) in [(0.0, PI), (-0.0, -PI)] {
+            assert_eq!(xsf::sici(c64(x, y)).1.im, im);
+        }
+    }
+}
+
+#[test]
 fn test_sici_c64_huge_re() {
     // `Ci` keeps the imaginary part of the small `E1(+-iz)`
     let z = c64(2.981_344_618_416_097e61, 55.611_119_890_015_31);
