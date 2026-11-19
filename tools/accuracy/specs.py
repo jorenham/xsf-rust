@@ -2577,21 +2577,7 @@ def r_hyp2f1(a, b, c, x):
     # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits (else use
     # Arb).
     if x == 1:
-        if Fraction(c) - Fraction(a) - Fraction(b) > 0 and not _has_nonpos_int(a, b, c):
-            # Gauss's formula (DLMF 15.4.20), with exact differences and no cancellation
-            with wdps(20):
-                return (
-                    mp.gamma(c)
-                    * mp.gamma(mp.fsub(mp.fsub(c, a, exact=True), b, exact=True))
-                    * mp.rgamma(mp.fsub(c, a, exact=True))
-                    * mp.rgamma(mp.fsub(c, b, exact=True))
-                )
-        a, b = _cancel((a, b), (c,))
-        if (y := _pfq_at_one(a, b)) is not None:
-            return y
-        # (a polynomial)
-        with wdps(20):
-            return mp.hyper(a, b, 1)
+        return _pfq_at_one(*_cancel((a, b), (c,)))
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
@@ -2686,7 +2672,7 @@ def _pfq_one_sum(a, b, excess):
             )
         zeta = mp.zeta(e + j, n)
         s += scale * c[j] * zeta
-        small = small + 1 if abs(scale * cabs[j] * zeta) <= mp.eps * abs(s) / 100 else 0
+        small = small + 1 if abs(scale * cabs[j] * zeta) <= mp.eps * top / 100 else 0
         if small == SMALL_STREAK:
             return s, top
     raise NoConvergence
@@ -2704,7 +2690,7 @@ def _cancel(a, b):
 
 def _pfq_at_one(a, b):
     """pFq(1) for p = q + 1 with cancelled parameters (`_cancel`), with the conventions of
-    `hyppfq`, or None for a polynomial.
+    `hyppfq`.
 
     A b_j = -m is a pole, unless there is a polynomial of degree < m. Else it is the sum if it
     converges, which is if sum(b) > sum(a) (exactly), else the infinity of the sign of its terms, which is constant for k > -a_i, -b_j."""
@@ -2714,19 +2700,42 @@ def _pfq_at_one(a, b):
     ):
         return mp.inf
     if _has_nonpos_int(*a):
-        return None
+        # (a polynomial, exactly)
+        n = -int(max(v for v in a if _has_nonpos_int(v)))
+        t, s = Fraction(1), Fraction(0)
+        for k in range(n + 1):
+            s += t
+            num = Fraction(math.prod(Fraction(v) + k for v in a))
+            den = Fraction(math.prod(Fraction(v) + k for v in (*b, 1)))
+            t *= num / den
+        return mp.mpf(s.numerator) / s.denominator
     if not b:
         return r_hyp1f0(a[0], 1)
     excess = sum(map(Fraction, b)) - sum(map(Fraction, a))
     if excess > 0:
+        if len(a) == 2:
+            # Gauss's formula (DLMF 15.4.20), with exact differences and no cancellation
+            (a1, a2), (c,) = a, b
+            with wdps(20):
+                return (
+                    mp.gamma(c)
+                    * mp.gamma(mp.mpf(excess.numerator) / excess.denominator)
+                    * mp.rgamma(mp.fsub(c, a1, exact=True))
+                    * mp.rgamma(mp.fsub(c, a2, exact=True))
+                )
         # (with the digits that its cancellation and a tiny excess lose, as in `r_hyp2f1`)
         extra = 20 + max(0, -math.floor(math.log10(excess)))
+        tries = 0
         while extra < 300:
             with wdps(extra):
                 s, top = _pfq_one_sum(a, b, excess)
                 if s != 0 and top / abs(s) < mp.mpf(10) ** (extra - 15):
                     return s
+                # (a sum that is below the rounding at two precisions is 0)
+                if tries and abs(s) <= top * mp.mpf(10) ** (10 - mp.mp.dps):
+                    return mp.mpf(0)
                 extra = int(mp.log10(top / abs(s))) + 20 if s != 0 else 2 * extra
+                tries += 1
         raise NoConvergence
     kmin = math.floor(max(0, *(-v for v in (*a, *b)))) + 1
     negative = sum(v + k < 0 for k in range(kmin) for v in (*a, *b))
@@ -2742,9 +2751,7 @@ def r_hyppfq(*args):
     p = len(args) // 2
     a, b, z = args[:p], args[p:-1], args[-1]
     if z == 1:
-        a, b = _cancel(a, b)
-        if (y := _pfq_at_one(a, b)) is not None:
-            return y
+        return _pfq_at_one(*_cancel(a, b))
     if z <= -1 and not _has_nonpos_int(*a):
         return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec
