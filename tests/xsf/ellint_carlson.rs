@@ -465,6 +465,10 @@ fn test_elliprj_nearly_imaginary_p() {
     );
     assert!(actual.is_nan());
 
+    // but not if it underflows without cancellation (Arb: 4.17416e-438)
+    let a = 2.0_f64.powi(976);
+    assert_eq!(xsf::elliprj(a, a, a, f64::from_bits(1)), 0.0);
+
     // a negligible `Re x` that blocks rescaling, also if `p + lambda` cancels in the first step
     // (with `Im p` 1 ULP toward 0 too), or in a later one (Arb)
     let s = 2.0_f64.powi(360);

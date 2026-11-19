@@ -393,8 +393,7 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
 /// arguments ([DLMF 19.26.22](https://dlmf.nist.gov/19.26.E22)), with
 /// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
 /// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
-/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`, so that
-/// nothing over- or underflows
+/// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`
 fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
     let (xyz, [sx, sy, sz]) = common::duplicate([x, y, z]);
     // `sqrt(p) / 2`, exact for subnormal `p`
@@ -405,8 +404,8 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
     let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
     let u = sp / d1 * (pd / d23) * 2.0;
-    // Unlike in xsf, NaN if `u` underflows, e.g. where `p + lam` cancels
-    if !u.max_norm().is_normal() {
+    // Unlike in xsf, NaN if `p + lam` cancels and `u` underflows
+    if pd.abs() < p4.abs() && !u.max_norm().is_normal() {
         return (ExitStatus::PrecLoss, T::NAN);
     }
     let (status_rc, res_rc) = rc(T::from(1.0), u, rerr);
