@@ -842,15 +842,16 @@ def _real(
     return Entry((Out(func, (ref,), (arb,), rules, overrides),))
 
 
-def _complex(
+def _complex_out(
     func: str,
     ref: Callable[..., mp.mpc],
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
-) -> Entry:
-    """A table with a complex output of complex inputs, which are (real, imaginary) pairs of
-    f64s: `ref` takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
+    floors: tuple[Floor, ...] = (),
+) -> Out:
+    """A complex output of complex inputs, which are (real, imaginary) pairs of f64s: `ref`
+    takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
 
     def ref_part(part: int) -> Callable[..., mp.mpf]:
         def value(*a: mp.mpf) -> mp.mpf:
@@ -869,7 +870,18 @@ def _complex(
         return ball
 
     refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
-    return Entry((Out(func, refs, arbs, rules, overrides),))
+    return Out(func, refs, arbs, rules, overrides, floors)
+
+
+def _complex(
+    func: str,
+    ref: Callable[..., mp.mpc],
+    arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
+    rules: tuple[Rule, ...] = (),
+    overrides: tuple[Override, ...] = (),
+) -> Entry:
+    """A table with the complex output `_complex_out(func, ref, arb, rules, overrides)`."""
+    return Entry((_complex_out(func, ref, arb, rules, overrides),))
 
 
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
@@ -1583,6 +1595,87 @@ def _of_abs(f: Callable[[flint.arb], flint.arb]) -> Callable[[flint.arb], flint.
 LOG_AT_0: Final = Rule(
     lambda a: a[0] == 0, -math.inf, "the limit for x -> 0, like ln |x|"
 )
+
+COMPLEX_E1_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(math.inf, 0),
+    "E1(z) -> inf for z -> 0, like in xsf",
+)
+COMPLEX_EI_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(-math.inf, -0.0),
+    "Ei(z) -> -inf for z -> 0, as -inf - 0i like in xsf",
+)
+COMPLEX_LOG_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(-math.inf, math.nan),
+    "-inf + NaN i at z = 0, like in xsf, as the limit of the imaginary part depends on arg z",
+)
+
+
+def _below_cut(xs: tuple[float, ...]) -> tuple[Rule, ...]:
+    """E1(x - 0i) = conj E1(x + 0i) on the cut, at each x < 0 of `xs`, as mpmath has no -0."""
+
+    def rule(x: float) -> Rule:
+        with mp.workdps(50):
+            e1 = complex(mp.conj(mp.e1(x)))
+        return Rule(
+            lambda a: a == (x, 0) and math.copysign(1, a[1]) < 0,
+            e1,
+            "E1(x - 0i) = conj E1(x + 0i) for x < 0, the limit from below the cut, like in xsf",
+        )
+
+    return tuple(map(rule, xs))
+
+
+def _e1_arb(z: flint.acb) -> flint.acb:
+    """E1(z), and -Ei(-x) - pi i on the cut x < 0 (the side of +0i, like mpmath), where the
+    imaginary part of Arb's E1 is lost to the size of the real part."""
+    if z.imag == 0 and z.real < 0:
+        return flint.acb(-(-z.real).ei(), -flint.arb.pi())
+    return z.expint(1)
+
+
+E1_FLOORS: Final = (
+    Floor(
+        lambda a: a[0] > 0 and 1 <= math.hypot(*a) <= 2,
+        2e-15,
+        "for Re z > 0 and 1 <= |z| <= 2, the real part of xsf-rust's clog can be 1 ulp from "
+        "glibc's (or that of the libm on macOS and Windows), amplified by the cancellation in "
+        "-gamma - ln z + z sum of the power series",
+    ),
+    Floor(
+        lambda a: math.hypot(*a) >= 40 and a[0] < -2 * abs(a[1]) and abs(a[1]) < 1,
+        3e-16,
+        "for |z| >= 40, Re z < -2 |Im z| and |Im z| < 1, xsf-rust integrates E1 from the cut "
+        "instead of using the continued fraction (#1670), and so rounds differently",
+    ),
+)
+
+
+def _e1_overflow(re_w: Callable[[tuple[float, ...]], float]) -> Override:
+    """Where xsf's E1(w) overflows, with Re w = `re_w` of the inputs."""
+    return Override(
+        lambda a: re_w(a) < -LN_MAX,
+        "xsf multiplies the continued fraction of E1(w) by exp(-w) first, which overflows for "
+        "Re w < -709.78, and so has NaN parts where xsf-rust has the infinities (#1671)",
+    )
+
+
+def _off_axis(f: Callable[[mp.mpc], mp.mpc]) -> Callable[[mp.mpf, mp.mpf], mp.mpc]:
+    """`specs._c(f)` with |log10 |Re z / Im z|| more digits, which a part that vanishes on an
+    axis loses near it."""
+    ref = specs._c(f)
+
+    def value(re: mp.mpf, im: mp.mpf) -> mp.mpc:
+        with specs.wdps(abs(int(mp.log10(abs(re / im)))) if re and im else 0):
+            return ref(re, im)
+
+    return value
+
+
+# Shi and Chi from Ei(z) = -E1(-z) +- pi i and Ei(-z) = -E1(z) +- pi i
+SHICHI_OVERFLOW: Final = (_e1_overflow(lambda a: -abs(a[0])),)
 
 
 def _expn(n: mp.mpf, x: mp.mpf) -> mp.mpf:
@@ -3770,6 +3863,39 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                         "NaN for x = -inf, like in xsf, not the limit 0 of Ci(|x|)",
                     ),
                 ),
+            ),
+        )
+    ),
+    ("exp1", "cd-cd"): Entry(
+        (
+            _complex_out(
+                "exp1",
+                specs._c(mp.e1),
+                _e1_arb,
+                (COMPLEX_E1_AT_0, *_below_cut((-19.999999, -19.9999991))),
+                (_e1_overflow(lambda a: a[0]),),
+                E1_FLOORS,
+            ),
+        )
+    ),
+    ("expi", "cd-cd"): _complex(
+        "expi",
+        specs._c(mp.ei),
+        flint.acb.ei,
+        (COMPLEX_EI_AT_0,),
+        (_e1_overflow(lambda a: -a[0]),),
+    ),
+    ("shichi", "cd-cd_cd"): Entry(
+        (
+            _complex_out(
+                "shichi.0", _off_axis(mp.shi), flint.acb.shi, (), SHICHI_OVERFLOW
+            ),
+            _complex_out(
+                "shichi.1",
+                _off_axis(mp.chi),
+                flint.acb.chi,
+                (COMPLEX_LOG_AT_0,),
+                SHICHI_OVERFLOW,
             ),
         )
     ),
