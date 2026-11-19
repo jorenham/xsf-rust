@@ -690,44 +690,40 @@ fn test_hyp2f0() {
         assert!((actual / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-14, "{actual}");
     }
     // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
-    // by a spacing (Arb: 2.675_976_546e231 and 2.160_851_060e262)
-    assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
-    assert!(hyp2f0(1.776_356_839_400_250_5e-15, -20.000_000_000_000_004, -1e13).is_nan());
-    // the same, but where another method is accurate enough (Arb)
+    // by a spacing, and in the last an a2 at 2.4e-9 from -7 that it moves by one: U has no
+    // digits, or 8 to 11, where the residues are accurate (Arb)
     for (a1, a2, z, expected) in [
-        (-15.000_000_000_000_012, -30.999_999_999_999_993, -1e7, 2.126_314_811_847_468_6e227),
+        (-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10, 2.675_976_546_400_021e231),
+        (1.776_356_839_400_250_5e-15, -20.000_000_000_000_004, -1e13, 2.160_851_060_908_083e262),
+        (-15.000_000_000_000_012, -30.999_999_999_999_993, -1e7, 2.126_314_811_847_468_7e227),
         (-3.000_000_000_000_001_3, -5.875, -336_536.0, 63_343_197_259_831.39),
+        (
+            -7.999_999_999_999_998,
+            -7.000_000_002_437_216,
+            -118_035_487.239_557_88,
+            -1.240_805_934_615_225_3e61,
+        ),
     ] {
         let actual = hyp2f0(a1, a2, z);
-        assert!((actual / expected - 1.0).abs() < 1e-11, "{actual}");
-        assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+        assert!((actual / expected - 1.0).abs() < 1e-14, "{actual}");
+        assert_eq!(hyppfq(&[a1, a2], &[], z), Some(actual));
     }
-    // chgu's rounded a1 - b + 1 moves a2 by a spacing at 2.4e-9 from -7: 8 digits, too few for
-    // `hyppfq` (Arb)
-    let (a1, a2, z) = (-7.999_999_999_999_998, -7.000_000_002_437_216, -118_035_487.239_557_88);
-    let actual = hyp2f0(a1, a2, z);
-    assert!((actual / -1.240_805_934_615_225_2e61 - 1.0).abs() < 1e-7, "{actual}");
-    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
     // the result is subnormal (Arb: 2.792_686_307e-324), or underflows (Arb: 2.002_611_525e-334)
     assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
     assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);
     assert!(hyp2f0(20.5, 200.5, -1e14).is_nan());
     // the polynomial 1 + 2 z overflows (Arb: -2.000_000_000_000_000_02e308)
     assert_eq!(hyp2f0(-1.0, -2.0, -1e308), f64::NEG_INFINITY);
-    // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
-    for (a, z, expected) in [
-        ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
-        ([0.5, 90.5], -1e4, 0.001_055_556_987_423_832_8),
-    ] {
-        let actual = hyp2f0(a[0], a[1], z);
-        assert!((actual / expected - 1.0).abs() < 1e-12, "{actual} != {expected}");
-        assert_eq!(hyppfq(&a, &[], z), None);
-    }
-    // chgu estimates 12 digits of the Borel sum, which has 11.8 (Arb: -2.953_959_436_326_337e85)
+    // the Borel sum with fewer digits than `hyppfq` needs, for a_i that differ by an integer
+    // (Arb)
+    let actual = hyp2f0(0.5, 90.5, -1e4);
+    assert!((actual / 0.001_055_556_987_423_832_8 - 1.0).abs() < 1e-12, "{actual}");
+    assert_eq!(hyppfq(&[0.5, 90.5], &[], -1e4), None);
+    // chgu estimates 12 digits of the Borel sum, which has 11.8, where the residues of a_i that
+    // differ by an integer are accurate (Arb)
     let (a1, a2, z) = (-33.469_052_875_157_17, -30.469_052_875_157_17, -36.589_122_667_683_775);
-    let actual = hyp2f0(a1, a2, z);
-    assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-11, "{actual}");
-    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    let actual = hyppfq(&[a1, a2], &[], z).unwrap();
+    assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-14, "{actual}");
     // the Weniger sum, with 3.7 digits, where hyppfq has U (Arb: 2.968_695_239_976_95e209)
     let (a1, a2, z) = (-62.084_104_456_978_59, -49.999_999_999_996_75, -249.109_088_375_704_2);
     let actual = hyp2f0(a1, a2, z);
@@ -1049,6 +1045,63 @@ fn test_hyppfq_2f0_chgu() {
     for a in [a, [a[1], a[0]]] {
         assert_eq!(hyppfq(&a, &[], -3.414_969_771_4), Some(f64::INFINITY));
     }
+}
+
+#[test]
+fn test_hyppfq_2f0_residues() {
+    // the residues in double-double, where U lacks a digit by the estimate of chgu and the other
+    // methods fail: the two terms cancel, an a_i is near a negative integer, or the a_i are large
+    // (Arb)
+    for (a, z, expected) in [
+        (
+            [-0.630_819_077_138_073, -0.275_665_062_986_481_63],
+            -7.558_864_736_580_486,
+            0.040_883_462_433_760_266,
+        ),
+        (
+            [-2.119_115_473_067_204, -2.859_944_142_412_956_6],
+            -36.660_124_137_565_52,
+            -329.568_040_645_147_56,
+        ),
+        (
+            [-0.094_507_904_192_269_51, -0.325_624_596_942_675_3],
+            -258.944_637_515_321_4,
+            0.000_730_242_530_534_494_1,
+        ),
+        (
+            [14.268_010_365_162_187, 5.147_607_270_817_833],
+            -0.810_709_749_254_161_2,
+            6.120_460_595_313_305e-6,
+        ),
+        (
+            [-61.036_263_054_217_294, -59.649_519_065_312_376],
+            -23.359_289_672_927_265,
+            -2.744_638_996_882_791e163,
+        ),
+        (
+            [-6.004_858_572_925_059, -21.079_297_738_677_543],
+            -151_588_853.883_445_23,
+            -1.040_990_391_775_226_8e184,
+        ),
+        ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // where the result overflows (Arb: 2.119_933_336_826_352e381)
+    let (a, z) = ([-66.319_864_448_545_77, -31.004_863_381_873_136], -48_506.922_888_667_235);
+    assert_eq!(hyppfq(&a, &[], z), Some(f64::INFINITY));
+    // but not within its error of the threshold, where it rounds to -f64::MAX or to -inf (Arb)
+    let (a, z) = ([-7.000_000_000_000_008, -2.999_999_999_999_999_6], -1.016_898_363_184_092_2e46);
+    let actual = hyppfq(&a, &[], z);
+    assert!(actual.is_none_or(|y| (y / -f64::MAX - 1.0).abs() <= 1e-13), "{actual:?}");
+    let (a, z) = ([-31.054_392_382_065_505, -30.054_392_339_243_95], -832_485_448.947_283_6);
+    assert!([None, Some(f64::NEG_INFINITY)].contains(&hyppfq(&a, &[], z)));
+    // nor where it underflows (Arb: 3.169e-395), as for a subnormal one
+    let (a, z) = ([82.468_601_872_360_3, 58.426_626_520_618_98], -113_336.361_826_738_76);
+    assert_eq!(hyppfq(&a, &[], z), None);
 }
 
 #[test]

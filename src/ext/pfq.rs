@@ -96,6 +96,16 @@ impl Estimate {
         Self::rounded(ldexp_f64(y.m, y.e), y.err + err)
     }
 
+    /// `scaled`, or `None` if `y` overflows at only one end of the interval of its error
+    fn scaled_certain(y: Scaled) -> Option<Self> {
+        let y = fold_exp(y);
+        let sum = Self::rounded(ldexp_f64(y.m, y.e), y.err);
+        // (fused, as a rounded `1 + err` can hide an end above the threshold; an end is NaN for
+        // the infinite `m` of an exponent that `fold_exp` clamps)
+        let overflows = |err: f64| !ldexp_f64(y.m.mul_add(err, y.m), y.e).is_finite();
+        (overflows(-sum.err) == overflows(sum.err)).then_some(sum)
+    }
+
     /// Whether its estimated error is at most `PFQ_TOL`
     fn is_accurate(self) -> bool {
         self.err <= PFQ_TOL
@@ -1397,8 +1407,8 @@ fn pfq_alg_series<A: Params, B: Params>(
     Some(pfq_alg_sum(series, pfq_settled(up, low), kappa, z, bound))
 }
 
-/// `pfq_alg_series` for `p = q` in double-double, with the exact parameters, and an infinite
-/// error if no term bounds the rest
+/// `pfq_alg_series` for `p = q` or `p > q + 1` in double-double, with the exact parameters, and
+/// an infinite error if no term bounds the rest
 ///
 /// A product of the factors of a term ratio that isn't normal is less exact, and ends the terms.
 fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
@@ -1412,17 +1422,27 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let ratio = |n: f64| {
         let normal = |p: Dd| if is_normal(p) { p } else { Dd::NAN };
         let prod = |v: &[Dd]| v.iter().fold(Dd::ONE, |p, &x| normal(p * (x + n)));
-        // in -1 / z
+        // in (-1)^(p+q+1) / z
         if n == degree {
             Dd::ZERO
         } else {
-            prod(&up) / (prod(&low) * -z)
+            prod(&up) / (prod(&low) * (neg_one_pow(a.len() + b.len()) * z))
         }
     };
     let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
         // (all of its terms)
         return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
+    } else if up.len() < low.len() {
+        // (it converges for p > q + 1)
+        //
+        // The bound is on the factors that are shifted in double-double, as `x.hi + n` is not
+        // the rounded `x + n` where that nearly vanishes, from where all of them are positive.
+        let shifted = |v: &[Dd], n: f64| v.iter().map(|&x| (x + n).hi).collect::<Vec<_>>();
+        let bound = |n| pfq_ratio_bound(&shifted(&up, n), &shifted(&low, n), 1.0 / z, 0.0);
+        let positive_from = |x: &Dd| (-*x).floor().hi + 1.0;
+        let settled = up.iter().chain(&low).map(positive_from).fold(0.0, f64::max);
+        return convergent_sum(terms, settled, bound);
     }
     // Where its factors are positive, each paired one of a term ratio is monotone with the limit
     // 1, and the unpaired one grows. So for `m >= n` the ratio is at most a `w(m)` that is linear
@@ -1521,7 +1541,7 @@ enum Alg {
     Value,
     /// A bound on its size
     Sizes,
-    /// Its value for `p = q`, with its series and its factor in double-double
+    /// Its value for `p = q` or `p > q + 1`, with its series and its factor in double-double
     Dd,
 }
 
@@ -1938,8 +1958,8 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - if the result underflows, or overflows undetected, e.g. in random samples, for about 1% of
-///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
+/// - if the result underflows, e.g. in random samples, for about 2% of $-10^6 < z < 0$ if
+///   $\abs{a_1}, \abs{a_2} \le 100$, and for more of $z < -10^{12}$, or overflows undetected;
 /// - near a zero, also an exact one of a polynomial;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
@@ -2134,15 +2154,25 @@ fn add_exp_dd(terms: impl IntoIterator<Item = Scaled, IntoIter: Clone>) -> Optio
     add_exp_in(terms, Dd::exp, Dd::EPSILON)
 }
 
+/// The sum of the terms of `pfq_alg` in double-double, for `p = q` or `p > q + 1`
+fn pfq_alg_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Scaled> {
+    let mut terms = vec![None; a.as_ref().len()];
+    pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
+    add_exp_dd(terms.into_iter().flatten())
+}
+
+/// pFq for `p > q + 1` and `z < 0` by `pfq_alg_dd`, or `None` if it may or may not overflow
+fn pfq_borel_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
+    Estimate::scaled_certain(pfq_alg_dd(a, b, z)?)
+}
+
 /// pFq for `p = q` and `z < 0` by the algebraic part of `pfq_asymptotic` in double-double, where
 /// its terms cancel, e.g. for nearly equal `a_i`, or the terms of their series do
 fn pfq_asymptotic_dd<A: Params, B: Params>(a: &A, b: &B, z: f64) -> Option<Estimate> {
     if z > 0.0 || a.as_ref().len() + 1 != b.as_ref().len() {
         return None;
     }
-    let mut terms = vec![None; a.as_ref().len()];
-    pfq_alg(a, b, z, Alg::Dd, &mut terms)?;
-    let alg = add_exp_dd(terms.into_iter().flatten())?;
+    let alg = pfq_alg_dd(a, b, z)?;
     Some(Estimate::scaled(alg, Some(pfq_exp(a.as_ref(), b.as_ref(), z)?)))
 }
 
@@ -2518,8 +2548,10 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             // holds where U lacks a digit by the estimate of chgu; then U for a >= 1 where chgu
             // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
             // for a < 1, where its other methods are slow and seldom gain the digit); then
-            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before; and last U
-            // with the digits of PFQ_TOL
+            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before; then U
+            // with the digits of PFQ_TOL; and last the residues of `pfq_borel` in double-double:
+            // the two series of U (DLMF 13.2.42), which lose digits in chgu where they cancel or
+            // near a pole of a Gamma function
             let hypu_tol = |a, b, x| {
                 xsf_hypu_min_digits(a, b, x, (CHGU_DIGITS_MARGIN - PFQ_TOL.log10()) as i32)
             };
@@ -2542,6 +2574,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 })
                 .or_better(|| borel(a1, a2, xsf_hypu_digits, 0.0))
                 .or_better(|| borel(a2, a1, xsf_hypu_digits, 0.0))
+                .or_better(|| pfq_borel_dd(&[a1, a2], &[1.0], z))
         },
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),
@@ -2700,6 +2733,35 @@ mod tests {
         // in double-double, below `-PFQ_GAMMA_MAX`: Gamma(-30.5) / Gamma(-28.5)
         let y = mul_gammas_in([Dd::new(-30.5)], [Dd::new(-28.5)], one, true);
         check(y, 1.0 / (30.5 * 29.5), 1e-15);
+    }
+
+    #[test]
+    fn test_pfq_borel_dd() {
+        // the Borel sum for p > q + 1, whose series are in -1 / z (2F0; Arb) or in 1 / z (3F0;
+        // mpmath meijerg)
+        for (a, z, expected) in [
+            (vec![0.3, 1.7], -2.5, 0.651_478_922_494_888_7),
+            (vec![0.3, 1.7, 0.6], -2.5, 0.790_728_400_803_319_9),
+        ] {
+            let y = pfq_borel_dd(&a, &[1.0], z).unwrap();
+            assert!(y.err < 8.0 * f64::EPSILON, "{y:?}");
+            assert!((y.y / expected - 1.0).abs() <= y.err, "{y:?}");
+        }
+    }
+
+    #[test]
+    fn test_scaled_certain() {
+        // m (1 + err) 2^1024 is above the overflow threshold, unlike with `1 + err` rounded,
+        // for the err = 3.25390625 eps after `fold_exp`
+        let (m, err) = (1.0 - 3.5 * f64::EPSILON, 1.253_906_25 * f64::EPSILON);
+        assert!(Estimate::scaled_certain(Scaled::new(m, 1024, err).unwrap()).is_none());
+        // (finite at both ends)
+        let y = Estimate::scaled_certain(Scaled::new(m, 1024, 0.0).unwrap()).unwrap();
+        assert!(y.y < f64::MAX, "{y:?}");
+        // an exponent that `fold_exp` clamps overflows at both ends
+        let l = Dd::new(2.5e12);
+        let y = Estimate::scaled_certain(Scaled::new(-1.0, 0, 0.0).unwrap().with_l(l)).unwrap();
+        assert!(y.y == f64::NEG_INFINITY && y.is_accurate(), "{y:?}");
     }
 
     #[test]
