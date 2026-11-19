@@ -147,6 +147,12 @@ fn test_sph_bessel_complex_overflow() {
         xsref::np_assert_allclose!(&[y.re, y.im, dy.re, dy.im], &[nan, inf, inf, nan]);
     }
 
+    // NaN where the error interval of the nonzero part of `y_n(iy)` crosses `f64::MAX`, as for
+    // `Im y_190 = -1.7977e308` (finite) and `Im y_65' = 1.7977e308` (overflows)
+    let y = xsf::sph_bessel_y(190, c(0.0, 3.319_797_795_277_489_5));
+    let dy = xsf::sph_bessel_y_prime(65, c(0.0, 720.031_463_373_729_7));
+    xsref::np_assert_allclose!(&[y.re, y.im, dy.re, dy.im], &[0.0, nan, 0.0, nan]);
+
     // Within the cutoff on the error growth `exp(n (n + 1) / |z|) = 1024` of the recurrence
     let z = c(-717.02, 1e-8);
     let (k, dk) = (xsf::sph_bessel_k(70, z), xsf::sph_bessel_k_prime(70, z));

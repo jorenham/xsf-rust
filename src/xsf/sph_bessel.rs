@@ -263,9 +263,9 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
     // double-double), so that only the final `ldexp` can overflow
     let q = (-x * LOG2_E).round();
     let exp_t = (-f64::from(LOG2 * q + x)).exp();
-    // The zero part of `y_n(iy)`, real or imaginary, is exact
     let tol = GROWTH_MAX * np1(n) * f64::EPSILON;
-    let tol = if s < 0.0 && z.re == 0.0 { 0.0 } else { tol };
+    // `y_n(iy)` is real or imaginary, and its zero part stays exactly zero
+    let exact_zero = |p: f64| s < 0.0 && z.re == 0.0 && p == 0.0;
     let tol_a = ROUNDINGS * np1(n) * f64::EPSILON;
     let scale = |g: C64, a: C64, e: i64, e_a: i64| {
         let de = exp2(g);
@@ -275,8 +275,13 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
         let min = tol * g.re.abs().max(g.im.abs());
         // Each part with its own scale, so that a subnormal one rounds only once
         let part = |p: f64, a: f64| {
+            let err = if exact_zero(p) {
+                0.0
+            } else {
+                min.min(tol_a * a)
+            };
             let (p, ep) = frexp_f64(p);
-            let err = min.min(tol_a * a).ldexp(-ep);
+            let err = err.ldexp(-ep);
             let e = (e + i64::from(de + ep - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
             let [lo, hi] = [-err, err].map(|d| ((p.abs() + d) * exp_t).ldexp(e).is_finite());
             if p.abs() >= err && (!lo || hi && err <= f64::EPSILON.sqrt() * p.abs()) {
