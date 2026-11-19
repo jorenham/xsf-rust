@@ -110,6 +110,39 @@ fn test_hyp1f0_c64() {
     np_assert_allclose!([xsf::hyp1f0(2.0, c64(2.0, 0.0))], [c64(1.0, 0.0)], atol = 1e-15);
 }
 
+#[test]
+fn test_hyp1f0_c64_inexact_1mz() {
+    // `1 - z` rounds to 1 for these `z`, and `a` amplifies that rounding (DLMF 15.4.6)
+    let (a, t) = (2f64.powi(60), 2f64.powi(-60));
+    let y = [c64(t, 0.0), c64(-t, 0.0), c64(t, t)].map(|z| xsf::hyp1f0(a, z));
+    let e = core::f64::consts::E;
+    let e_1pi = c64(e * 1f64.cos(), e * 1f64.sin());
+    np_assert_allclose!(y, [c64(e, 0.0), c64(1.0 / e, 0.0), e_1pi], rtol = 1e-15);
+
+    // near the unit circle, e.g. `|1 - z|^2 = 1 + 2^-110` for the second
+    let z = [c64(2f64.powi(-54), 2f64.powi(-27)), c64(2f64.powi(-55), 2f64.powi(-27))];
+    let y = [2f64.powi(64), -2f64.powi(64)].map(|a| xsf::hyp1f0(a, z[0]).norm());
+    np_assert_allclose!(y, [2.2844e222, 4.3775e-223], rtol = 1e-4);
+    let y = [2f64.powi(120), -2f64.powi(120)].map(|a| xsf::hyp1f0(a, z[1]).norm());
+    np_assert_allclose!(y, [4.377_491_037_053_05e-223, 2.284_413_586_539_76e222], rtol = 1e-12);
+
+    // a tiny imaginary part
+    let y = xsf::hyp1f0(5.0 * 2f64.powi(59), c64(-3.0 * 2f64.powi(-54), 2f64.powi(-220)));
+    np_assert_allclose!([y.im], [5.912_748_258_875_43e-257], rtol = 1e-12);
+
+    // special values and signed zeros as for `(1 - z)^-a`
+    let t = 2f64.powi(-60);
+    assert_eq!(xsf::hyp1f0(0.0, c64(f64::NAN, 0.0)), c64(1.0, 0.0));
+    let y = xsf::hyp1f0(f64::MAX, c64(t, f64::INFINITY));
+    assert!(y.re.is_nan() && y.im.is_nan());
+    let y = xsf::hyp1f0(f64::INFINITY, c64(0.125, 0.125));
+    assert!(y.re.is_nan() && y.im.is_nan());
+    let y = xsf::hyp1f0(0.0, c64(0.125, -0.125));
+    assert_eq!((y.re, y.im.to_bits()), (1.0, 0f64.to_bits()));
+    let y = xsf::hyp1f0(-0.25, c64(-t, f64::from_bits(1)));
+    assert_eq!((y.re, y.im.to_bits()), (1.0, (-0.0f64).to_bits()));
+}
+
 /// Corresponds to `scipy.special.tests.test_basic.TestHyper.test_hyp0f1`
 /// <https://github.com/scipy/scipy/blob/55053f8/scipy/special/tests/test_basic.py#L3144-L3168>
 #[test]
