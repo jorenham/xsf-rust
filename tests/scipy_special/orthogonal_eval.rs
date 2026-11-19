@@ -219,6 +219,43 @@ fn test_eval_integer_degree_complex() {
 }
 
 #[test]
+fn test_eval_real_degree_origin() {
+    // the small values near the origin don't drown in rounding errors of order 1 (exact:
+    // T_3 = 4x^3 - 3x, U_3 = 8x^3 - 4x, U_{-n-2} = -U_n)
+    let actual = [
+        xsf::eval_chebyshev_t(3.0, 1e-10),
+        xsf::eval_chebyshev_u(3.0, 1e-10),
+        xsf::eval_chebyshev_t(-3.0, 1e-30),
+        xsf::eval_chebyshev_u(-5.0, -1e-30),
+    ];
+    np_assert_allclose!(actual, [-3e-10, -4e-10, -3e-30, -4e-30], rtol = 1e-15);
+
+    // but not by a reflected degree `-n - lam` that is an integer only after rounding (mpmath:
+    // 0.2500000000000000577 and -1.7763568394002503e-16, to which the rounded `n + 2a + 1`
+    // itself costs a few percent), or with infinite parameters
+    let u = f64::EPSILON / 2.0;
+    let actual = [
+        xsf::eval_jacobi(-3.0 * u, -1.0 + u, -1.0 + u, 0.0),
+        xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0),
+    ];
+    np_assert_allclose!(actual, [0.25, -1.776_356_839_400_250_3e-16], rtol = 0.05);
+    // nor by one from a `lam = 2a + 1` that rounds to an exact `n + lam` (mpmath), where the
+    // series keeps none of the digits
+    let a = 0.250_000_000_000_000_06;
+    let actual = [xsf::eval_jacobi(-2.5, a, a, -1e-16)];
+    np_assert_allclose!(actual, [-5.426_659_300_410_11e-18], atol = 1e-17);
+    assert!(xsf::eval_jacobi(1.0, f64::INFINITY, f64::INFINITY, 1e-8).is_nan());
+
+    // and the complex recurrence still uses such a degree away from the origin (mpmath:
+    // 0.093683301849704395857, 0.032611483202643810132)
+    let a = -0.25 + u;
+    let actual =
+        [-100.5, -63.500_000_000_000_01].map(|n| xsf::eval_jacobi(n, a, a, c64(0.25, 0.0)).re);
+    let desired = [0.093_683_301_849_704_4, 0.032_611_483_202_643_81];
+    np_assert_allclose!(actual, desired, rtol = 5e-14);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [
