@@ -1,5 +1,5 @@
-//! Associated Legendre functions, translated into pure Rust from `xsf/specfun/specfun.h`
-//! (scipy/xsf@65d313a).
+//! Associated Legendre functions, translated into pure Rust from `xsf/cpu/specfun/specfun.h`
+//! (scipy/xsf@60e72c6).
 
 use core::f64::consts::PI;
 
@@ -77,9 +77,8 @@ pub(crate) fn lpmns(m: i32, n: i32, x: f64, pm: &mut [f64], pd: &mut [f64]) {
             - f64::from(k + m) * pm[(k - 1) as usize])
             / (x * x - 1.0);
     }
-    // Unlike in xsf (scipy/xsf#551), the Ferrers phase (-1)^m is only applied for |x| < 1, as
-    // DLMF 14.7.11 has none for x > 1.
-    let coef = if x.abs() > 1.0 { 1.0 } else { neg_one_pow(m) };
+    // no Ferrers phase (-1)^m (DLMF 14.6.1) for x > 1 (DLMF 14.6.3)
+    let coef = if m % 2 == 0 || x > 1.0 { 1.0 } else { -1.0 };
     for k in 1..=n {
         pm[k as usize] *= coef;
         pd[k as usize] *= coef;
