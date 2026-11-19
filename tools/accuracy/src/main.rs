@@ -600,7 +600,12 @@ fn eval_spheroidal(f: &str, a: &[f64]) -> Option<f64> {
         Some((name, i)) => (name, i == "1"),
         None => (f, false),
     };
-    let (m, n) = (*a.first()? as u64, *a.get(1)? as u64);
+    let (m, n) = (*a.first()?, *a.get(1)?);
+    // NaN for a negative or fractional m or n, like xsf
+    if [m, n].iter().any(|k| *k < 0.0 || k.fract() != 0.0) {
+        return Some(f64::NAN);
+    }
+    let (m, n) = (m as u64, n as u64);
     let (y, dy) = match (name, &a[2..]) {
         ("prolate_segv", &[c]) => return Some(xsf::prolate_segv(m, n, c)),
         ("oblate_segv", &[c]) => return Some(xsf::oblate_segv(m, n, c)),
