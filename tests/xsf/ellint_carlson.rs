@@ -450,18 +450,30 @@ fn test_elliprj_nearly_imaginary_p() {
     let (x, y) = (c64(1e-308, s), c64(4e-308, -s));
     assert!(xsf::elliprj(x, y, c64(s, 0.0), c64(-s, s)).is_nan());
 
-    // NaN if the first `p + lambda` cancels, so that a negligible `Re x` can decide it (the
-    // integral is about 3.0025e-164 - 8.358e-166i, also with `Im p` 1 ULP toward 0)
+    // a negligible `Re x` that blocks rescaling, also if `p + lambda` cancels in the first step
+    // (with `Im p` 1 ULP toward 0 too), or in a later one (Arb)
     let s = 2.0_f64.powi(360);
     let x = c64(1e-308, s);
     let im = -11.0 * s;
-    for im in [im, f64::from_bits(im.to_bits() - 1)] {
-        assert!(xsf::elliprj(x, i(4.0 * s), i(9.0 * s), c64(1.0, im)).is_nan());
-    }
-
-    // or at a later step (the integral is about 4.895e-164 + 2.002e-164i)
-    let p = c64(1.0, -15.0 * s);
-    assert!(xsf::elliprj(x, i(s), i(s), p).is_nan());
+    let actual = [
+        xsf::elliprj(x, i(4.0 * s), i(9.0 * s), c64(1.0, im)),
+        xsf::elliprj(x, i(4.0 * s), i(9.0 * s), c64(1.0, f64::from_bits(im.to_bits() - 1))),
+        xsf::elliprj(x, i(s), i(s), c64(1.0, -15.0 * s)),
+        // a huge `Im x` next to tiny real parts (#1655)
+        xsf::elliprj(
+            c64(3.252_281_333_249_279e-86, 9.628_653_385_766_011e269),
+            c64(1.804_605_791_678_615_8e-256, 1.821_374_505_004_775_8e-95),
+            c64(5.704_000_764_113_375e-244, -2.547_345_192_149_236_5e-279),
+            c64(5.398_519_435_655_003e34, -3.613_203_968_954_653e-58),
+        ),
+    ];
+    let expected = [
+        c64(3.002_500_299_932_586_4e-164, -8.357_998_873_287_521e-166),
+        c64(3.002_500_299_932_587e-164, -8.357_998_873_287_536e-166),
+        c64(4.895_118_724_650_793e-164, 2.001_918_454_026_923_3e-164),
+        c64(5.965_420_762_787_378e-168, -6.028_323_376_004_016e-168),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 
     // a wide span with a tiny `Re p > 0` (Wolfram, Arb, mpmath, and the integral of
     // https://dlmf.nist.gov/19.16.E2)

@@ -418,23 +418,36 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     }
 
     // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
-    // imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    // imaginary parts prevent that and the result is not finite, rescaled with those flushed, and
+    // then also with negligible real parts flushed if none is negative, as in `rg`
     let args = [x, y, z, p];
     let (_, min) = realness(args);
+    // A flushed real part becomes `MIN_POSITIVE`, not 0: on the imaginary axis, `p` can leave the
+    // domain, and `p + lam` cancel to 0, e.g. for `x, y, z, p = i, i, i, 1 - 15i` scaled (the
+    // other real parts are at least that already)
     let rescaled = |f: f64| {
-        let (status, res) = rj(x * f * f, y * f * f, z * f * f, p * f * f, rerr, noasymp);
+        let [x, y, z, p] = args.map(|a| {
+            let s = a * f * f;
+            if a.real() > 0.0 && s.real() < f64::MIN_POSITIVE {
+                s + -s.real() + f64::MIN_POSITIVE
+            } else {
+                s
+            }
+        });
+        let (status, res) = rj(x, y, z, p, rerr, noasymp);
         (status, res * f * f * f)
     };
     if let Some(f) = common::scale_factor(&args, min) {
         return rescaled(f);
     }
-    let (status, res) = rj_unscaled(x, y, z, p, rerr, noasymp);
-    if res.is_finite() {
-        return (status, res);
+    let mut out = rj_unscaled(x, y, z, p, rerr, noasymp);
+    for flush_re in [false, true] {
+        if out.1.is_finite() {
+            break;
+        }
+        out = common::relaxed_scale_factor(&args, flush_re, min).map_or(out, rescaled);
     }
-    // unlike in `rg`, not with real parts flushed: then `p + lambda` can cancel at any step, e.g.
-    // for `x, y, z, p = i, i, i, 1 - 15i` scaled
-    common::relaxed_scale_factor(&args, false, min).map_or((status, res), rescaled)
+    out
 }
 
 /// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
