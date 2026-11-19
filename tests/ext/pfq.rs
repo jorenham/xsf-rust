@@ -1197,6 +1197,11 @@ fn test_hyppfq_asymptotic() {
     ];
     let y = hyppfq(&a_tiny, &b_tiny, -3_439.845_313_014_641);
     assert!(y.is_none_or(|y| (y / 2.050_874_042_107_11 - 1.0).abs() <= 1e-13));
+    // (and here they are below eps of the sum after the second one, while their ratio is below
+    // 1, before they grow)
+    let a_tiny = [2.0_f64.powi(-65), -22.5, -27.375, -20.625];
+    let y = hyppfq(&a_tiny, &[0.25, -475.5, -346.375, -392.625], -7000.0);
+    assert!(y.is_none_or(|y| (y / 2.755_031_164_893_358 - 1.0).abs() <= 1e-13));
     // overflow, with the sign of the Gamma functions
     assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
     assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
