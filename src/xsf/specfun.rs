@@ -238,9 +238,9 @@ pub(crate) fn xsf_hypu_min_digits(a: f64, b: f64, x: f64, id_min: i32) -> (f64, 
     out = chgu(x, a, b, 0.0, &mut md, &mut isfer, &mut digits, &mut digits_rec, id_min);
     // Unlike in xsf, if a - b + 1 rounds to an integer n <= 0 that it isn't (only for b < 1, see
     // `aa_rounding`), U is also computed with the rounding error d. That result replaces the
-    // polynomial of n if it has enough digits to be returned, and the two disagree by the
-    // agreement test of step 3 of `chgu`, but with a digit less, as the estimate isn't a bound
-    // (see `digits_lacking`). This test is heuristic.
+    // original evaluation if it has enough digits to be returned, and the two disagree by the test
+    // of step 3 of `chgu`, but allowing ten times as much disagreement, as the estimate isn't a
+    // bound (see `digits_lacking`). This test is heuristic.
     let (rounded, d) = hyperg::aa_rounding(a, b);
     if rounded {
         let (mut md_d, mut isfer_d, mut digits_d, mut digits_rec_d) = (0, 0, 0, i32::MIN);
