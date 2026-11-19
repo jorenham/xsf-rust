@@ -48,6 +48,10 @@ pub(crate) fn cexpm1(z: C64) -> C64 {
         -1.0
     } else {
         ezr = z.re.exp_m1();
+        if ezr.is_infinite() {
+            // Unlike in xsf, scaled where e^x overflows (the -1 is negligible then)
+            return cexp(z);
+        }
         ezr * z.im.cos() + cosm1(z.im)
     };
 
