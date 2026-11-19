@@ -33,9 +33,9 @@
 //!
 //! For `z < 0` it also cancels at large upper parameters `a > 0`, and less at `a - m`. The last
 //! relation then gives `F(a)` in `m` steps up from the series at `a - m`, `a - m - 1` and
-//! `a - m - 2`. Per step up, its solutions grow by about 1, 1 and `1 / (1 - z)`, so this is
-//! mostly stable. For more than one large `a_i`, the starts of the steps in one come from the
-//! steps in the next, not from the series.
+//! `a - m - 2`. Per step up, its solutions grow by 1, 1 and `1 / (1 - z)` in the limit of large
+//! `w` for fixed other parameters, so this is mostly stable. For more than one large `a_i`, the
+//! starts of the steps in one come from the steps in the next, not from the series.
 //!
 //! The steps can make the errors of the series and their own rounding errors larger by many
 //! orders of magnitude, so the error of the result is estimated. An error `e` of the F at `k`
@@ -44,6 +44,7 @@
 //! the rounded coefficients.
 
 use core::array::from_fn;
+use core::cell::Cell;
 use core::iter::{once, zip};
 
 use super::{
@@ -63,6 +64,14 @@ const RECURRENCE_STARTS: [u32; 10] = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 
 /// and `a - 3`, which are not negative, as a step up divides by the `c_0` of the lowest one,
 /// which is small near -1 and -2
 const RAISED_MIN: f64 = 3.0;
+
+/// Most steps of the recurrences up in the upper parameters plus terms of the series that they
+/// start from, of all numbers of steps that are tried together: up in three of them, each try
+/// is 13 recurrences from 27 series, which can take much longer than the other methods
+///
+/// Of 1927 results on 126504 points, 1880 are within it, and twice as much gives 37 more
+/// (measured).
+const RAISED_WORK: u32 = 2 * PFQ_MAXITER;
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
@@ -210,16 +219,35 @@ fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Optio
 /// F and an estimate of its absolute error by `recurrence_from` up in each upper parameter from
 /// `a[i]` on that is at least `RAISED_MIN`, in at most `m` steps, or by the series if there is
 /// none, where `b` are the lower parameters
-fn raised_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(Dd, f64)> {
+///
+/// It is `None` if a series is not accurate, or if `work` runs out: what is left of
+/// `RAISED_WORK`.
+fn raised_recurrence(
+    a: [f64; 3],
+    i: usize,
+    b: [f64; 2],
+    z: f64,
+    m: u32,
+    work: &Cell<u32>,
+) -> Option<(Dd, f64)> {
     let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
         let b1 = [b[0], b[1], 1.0];
         let checked = pfq_extreme(&a, &b1);
-        return recurrence_start(a, b1, z, |n| pfq_ratio::<Dd>(&a, &b1, n, checked));
+        // (a series can end past the work that is left, and is then not used)
+        let ratio = |n| {
+            work.set(work.get().saturating_sub(1));
+            pfq_ratio::<Dd>(&a, &b1, n, checked)
+        };
+        return recurrence_start(a, b1, z, ratio).filter(|_| work.get() > 0);
     };
+    // (so that the lowest start is not negative)
+    let m = m.min(a[i] as u32 - 2);
+    work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
-        // (exact, as it is nearer to zero than a_i)
+        // exact: a_i < 2^53 and the integer k <= a_i are multiples of the spacing of the
+        // `f64` at a_i, and so is a_i - k, which is in [0, a_i]
         let lowered = from_fn(|j| if j == i { a[i] - k } else { a[j] });
-        raised_recurrence(lowered, i + 1, b, z, m)
+        raised_recurrence(lowered, i + 1, b, z, m, work)
     };
     let step = |k: f64| {
         // F(a_i - k) from the relation at a = a_i - k - 3, whose F are in the reverse order
@@ -228,8 +256,7 @@ fn raised_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Opti
         sizes.reverse();
         (c, sizes)
     };
-    // (so that the lowest start is not negative)
-    let (y, _, err) = recurrence_from(m.min(a[i] as u32 - 2), start, step)?;
+    let (y, _, err) = recurrence_from(m, start, step)?;
     Some((y, err))
 }
 
@@ -285,12 +312,13 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
             return None;
         }
         // first in all steps of the largest upper parameter, `a[0]`, then in fewer, which make
-        // the errors less large, while the series are accurate (for fewer steps, they cancel more)
+        // the errors less large and the series cancel more, while there is work left
         let longest = a[0] as u32 - 2;
         let fewer = RECURRENCE_STARTS.into_iter().rev().filter(|&m| m < longest);
-        let run = |m| raised_recurrence(a, 0, [large, small], z, m);
-        let mut runs = once(longest).chain(fewer).map_while(run);
-        runs.find_map(|(y, err)| accurate(y, err))
+        let work = Cell::new(RAISED_WORK);
+        let tries = once(longest).chain(fewer).take_while(|_| work.get() > 0);
+        let run = |m| raised_recurrence(a, 0, [large, small], z, m, &work);
+        tries.filter_map(run).find_map(|(y, err)| accurate(y, err))
     };
     // first in the smaller lower parameter, then in the negative upper ones, and last up in the
     // large upper ones for z < 0, each in at most as many steps as the series has terms
@@ -348,7 +376,7 @@ mod tests {
             ([14.25, 9.5, 0.5], [0.75, -2.25], -0.3, 16),
             ([8.5, 6.25, 4.0], [3.5, 1.25], -0.9, 4),
         ] {
-            let result = raised_recurrence(a, 0, [b1, b2], z, m);
+            let result = raised_recurrence(a, 0, [b1, b2], z, m, &Cell::new(RAISED_WORK));
             let result = result.and_then(|(y, err)| accurate(y, err));
             assert_estimate(result, a, descending([b1, b2, 1.0]), z);
         }
