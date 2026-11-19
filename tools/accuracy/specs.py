@@ -4202,6 +4202,7 @@ for f, r, names in [
         complex_parts(names, U(0, 10), U(-10, 10)),
         complex_parts(names, LU(1e-300, 1e300), LU(1e-300, 1e300, 0)),
         complex=True,
+        note="rj_c" if f == "elliprj" else "",
     )
 for i in range(4):
     add(
@@ -6471,6 +6472,11 @@ NOTES = {
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about $`10^{-13}`$."
+    ),
+    "rj_c": (
+        "In the log-sampled complex row, the inf (449) of xsf-rust are 202 NaNs for normal results "
+        "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)) and 247 for results that "
+        "underflow; its largest finite error is 1.7e-4."
     ),
 }
 
