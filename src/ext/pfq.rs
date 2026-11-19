@@ -997,7 +997,7 @@ impl Term for (f64, f64) {
 /// Before term `settled + |z|`, the terms can grow again after a small one, and then shrink to
 /// smaller ones, e.g. after a tiny `a_m` or a small positive `1 + a_m - a_i + n` of a term of
 /// the algebraic part of pFq. So the error of a sum is at least its distance to any later sum,
-/// less the error of that one.
+/// less the error of that one, and infinite if the terms grew before `PFQ_MAXITER` ends them.
 fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -1033,6 +1033,10 @@ fn asymptotic_sum<T: Term>(
         sum = sum + t;
         abs_sum += bound;
         prev = bound;
+        // (at the cap, terms that grew after the smallest may still shrink to smaller ones)
+        if n + 1.0 == f64::from(PFQ_MAXITER) && n < settled + z.abs() && size > min {
+            best.1 = f64::INFINITY;
+        }
     }
     best
 }
