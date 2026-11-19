@@ -15,6 +15,7 @@ use num_complex::Complex;
 
 use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, ViaC64, c64};
+use crate::xsf::cephes::consts::MAXLOG;
 
 fn exp1_f64(x: f64) -> f64 {
     // ============================================
@@ -103,7 +104,13 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         };
         ce1 = e1 - PI.copysign(z.im) * C64::I;
     } else {
-        ce1 = (-z).exp() * exp1_cf(z);
+        let zc = exp1_cf(z);
+        ce1 = if x < -MAXLOG {
+            // Unlike in xsf, `exp(-x)` last, as it overflows before E1 does
+            (c64(0.0, -z.im).exp() * zc).mul_exp(-x)
+        } else {
+            (-z).exp() * zc
+        };
     }
     ce1
 }
@@ -189,7 +196,13 @@ fn expi_f64(x: f64) -> f64 {
             r = r * f64::from(k) / x;
             ei += r;
         }
-        x.exp() / x * ei
+        if x > MAXLOG {
+            // Unlike in xsf, `exp(x)` in two halves, as it overflows before `Ei(x)` does
+            let e = (x / 2.0).exp();
+            e * (e / x * ei)
+        } else {
+            x.exp() / x * ei
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use core::f64::consts::PI;
+use core::f64::consts::{FRAC_PI_4, PI};
 
 use num_complex::c64;
 use xsref::np_assert_allclose;
@@ -65,6 +65,21 @@ fn test_exp1_c64_near_negative_real_cut_exp_overflow() {
     ] {
         for (y, im) in [(y, im), (-y, -im)] {
             np_assert_allclose!([xsf::exp1(c64(x, y)).im], [im], rtol = 1e-15);
+        }
+    }
+}
+
+#[test]
+fn test_expi_exp1_beyond_exp_overflow() {
+    // `exp(712)` overflows, but `Ei(712)` and `E1(-712 + i)` do not (Arb)
+    np_assert_allclose!([xsf::expi(712.0)], [2.321_680_084_105_211_5e306], rtol = 1e-15);
+    for (x, y, re, im) in [
+        (-712.0, 1.0, -1.257_154_343_466_966_8e306, 1.951_858_270_179_216_4e306),
+        (-716.6, 3.0 * FRAC_PI_4, 1.617_350_753_780_958_3e308, 1.628_036_603_138_279_5e308),
+    ] {
+        for (y, im) in [(y, im), (-y, -im)] {
+            let res = xsf::exp1(c64(x, y));
+            np_assert_allclose!([res.re, res.im], [re, im], rtol = 1e-15);
         }
     }
 }

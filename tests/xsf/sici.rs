@@ -1,6 +1,7 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use num_complex::c64;
+use xsref::np_assert_allclose;
 
 xsref::tests! {
     test_sici_f64: "sici", "d-d_d", |x| xsf::sici(x[0]);
@@ -31,7 +32,7 @@ fn test_sici_c64_huge_re() {
         c64(-7.448_138_578_702_911e-39, -2.258_051_079_572_012_8e-38),
         c64(-7.448_138_578_702_911e-39, -PI),
     ];
-    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+    np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
 
 #[test]
@@ -41,4 +42,15 @@ fn test_sici_c64_negative_imag_axis() {
         let (si, ci) = xsf::sici(c64(0.0, -y));
         assert_eq!((si.re, ci.im), (0.0, -FRAC_PI_2));
     }
+}
+
+#[test]
+fn test_sici_c64_beyond_exp_overflow() {
+    // `exp(710)` overflows, but Si and Ci do not (Arb)
+    let (si, ci) = xsf::sici(c64(0.0, 710.0));
+    let desired = [0.0, 1.575_457_844_103_100_7e305, 1.575_457_844_103_100_7e305, FRAC_PI_2];
+    np_assert_allclose!([si.re, si.im, ci.re, ci.im], desired, rtol = 1e-15);
+    let (si, ci) = xsf::sici(c64(1.0, 710.0));
+    let (a, b) = (1.324_498_826_579_209_2e305, 8.530_916_358_913_208e304);
+    np_assert_allclose!([si.re, si.im, ci.re, ci.im], [a, b, b, -a], rtol = 1e-15);
 }
