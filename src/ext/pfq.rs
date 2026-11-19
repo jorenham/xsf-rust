@@ -1801,7 +1801,7 @@ fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
 /// It is:
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer and $z \ne 0$;
-/// - $\pm\infty$ if it overflows, for large $\abs z$;
+/// - $\pm\infty$ where it detects that it overflows, for large $\abs z$, and otherwise NaN;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
