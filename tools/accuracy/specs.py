@@ -1857,11 +1857,12 @@ def _mathieu_matrix(odd, m, q, n):
 def _mathieu_size(h0, lam, q, tol, k0=0):
     """A number of rows after which the Fourier coefficients are smaller than `tol` times the
     one of index `k0` (or of the turning point, if later): beyond it, each is at most
-    |q| / (h^2 - lam - |q|) times the previous one, for the harmonic h."""
+    |q| / (h^2 - lam - |q|) times the previous one, for the harmonic h. The gap must exceed
+    2 |q| + 1, since that of the row of `lam` itself is 0 up to rounding for q = 0."""
     q, k, tail = abs(q), 0, 1.0
     while tail > tol:
         gap = (h0 + 2 * k) ** 2 - lam - q
-        if k > k0 and gap > 2 * q:
+        if k > k0 and gap > 2 * q + 1:
             tail *= q / gap
         k += 1
     return k + 2
@@ -1939,8 +1940,9 @@ def _mathieu_eig(odd, m, q, k0=0):
     if abs(lam - lam0) > 1e-6 * max(abs(lam0), 1.0):
         raise NoConvergence
     # the sign of the first coefficient is that of q^i, by continuity in q from q = 0
-    # (DLMF 28.4.13-16), as it is never zero; for q > 0 it is positive, as in specfun
-    s = mp.sign(x[0]) * (-1 if q < 0 and i % 2 else 1) / mp.sqrt(norm2)
+    # (DLMF 28.4.13-16), as it is never zero for q != 0; for q > 0 it is positive, as in
+    # specfun; for q = 0, only coefficient i is nonzero, and positive (cos(m z) or sin(m z))
+    s = mp.sign(x[0] if q else x[i]) * (-1 if q < 0 and i % 2 else 1) / mp.sqrt(norm2)
     c = [s * t for t in x]
     if h0 == 0:
         c[0] /= mp.sqrt(2)
