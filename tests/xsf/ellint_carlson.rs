@@ -464,6 +464,72 @@ fn test_elliprj_nearly_imaginary_p() {
 }
 
 #[test]
+fn test_elliprj_nearly_imaginary_cancel() {
+    // `p + lambda` cancels to rounding noise in the first step (Arb)
+    let rj = |e: f64| xsf::elliprj(c64(e, 1.0), c64(e, 4.0), c64(e, 9.0), c64(e, -11.0));
+    let x = c64(1e-20, 1.0);
+    let actual = [
+        rj(1e-5),
+        rj(1e-10),
+        rj(1e-16),
+        rj(1e-20),
+        rj(1e-300),
+        xsf::elliprj(c64(1e-20, -1.0), c64(1e-20, -4.0), c64(1e-20, -9.0), c64(1e-20, 11.0)),
+        xsf::elliprj(ZERO, c64(1e-30, 4.0), c64(1e-30, 9.0), c64(1e-30, -6.0)),
+        // in the second and third step
+        xsf::elliprj(x, x, x, c64(1e-20, -15.0)),
+        xsf::elliprj(x, x, x, c64(1e-20, -63.0)),
+        // to the left of the imaginary axis
+        xsf::elliprj(
+            c64(4.474_347_940_814_568e-33, -24.022_291_057_907_644),
+            c64(4.474_347_940_814_568e-33, -3.185_473_969_853_751),
+            c64(4.474_347_940_814_568e-33, -24.0),
+            c64(4.474_347_940_814_568e-33, 911.661_966_189_504_5),
+        ),
+        // in the eleventh step, where it is not negligible
+        xsf::elliprj(
+            c64(1.270_044_622_016_335_7e-213, 8.846_463_798_237_172),
+            c64(5e-324, 0.002_158_110_463_198_337_3),
+            c64(0.0, 0.001_077_764_749_758_734_6),
+            c64(1.136_426_608_358_368_5e-30, -1_477_429.516_167_255_8),
+        ),
+    ];
+    let expected = [
+        c64(0.108_063_759_433_333_95, -0.003_007_992_608_451_945_6),
+        c64(0.108_063_920_138_287_32, -0.003_008_153_312_457_716_8),
+        c64(0.108_063_920_139_894_38, -0.003_008_153_314_064_776),
+        c64(0.108_063_920_139_894_38, -0.003_008_153_314_064_777_6),
+        c64(0.108_063_920_139_894_38, -0.003_008_153_314_064_777_6),
+        c64(0.108_063_920_139_894_38, 0.003_008_153_314_064_777_6),
+        c64(0.223_280_575_032_133_25, 0.001_136_428_124_214_924),
+        c64(0.176_181_737_250_065_22, 0.072_051_668_386_978_52),
+        c64(0.039_133_136_225_438_95, 0.026_116_877_617_553_11),
+        c64(0.000_708_473_680_389_505_8, -0.000_472_991_720_576_317_77),
+        c64(2.421_074_041_680_476e-6, 2.417_363_009_911_755_5e-6),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+
+    // where `s beta` is subnormal (Arb)
+    let a = 2.0_f64.powi(-28);
+    let p = c64(f64::MIN_POSITIVE, -11.0 * a);
+    let actual = xsf::elliprj(c64(0.0, a), c64(0.0, 4.0 * a), c64(0.0, 9.0 * a), p);
+    let expected = c64(475_270_146_947.483_76, -13_229_998_187.788_53);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-12);
+
+    // NaN if the lower bound `4^-m Re p` of `Re(p + lambda)` underflows (Arb: 2.26497 - 0.0723348i)
+    let c = |im| c64(5e-324, im);
+    let (y, z) = (c(0.548_967_078_054_124_9), c(0.172_925_512_765_675_9));
+    assert!(xsf::elliprj(c(1.0), y, z, c(-1.464_874_055_611_607_8)).is_nan());
+
+    // not finite for a conjugate pair where `p + lambda` loses the tiny `Im p`
+    // (Arb: -5.484067219012265e-11 + 4.285892810353008e-12i)
+    let x = c64(-1.0, 2.0_f64.powi(-24));
+    let z = c64(2.0_f64.powi(64), 0.0);
+    let p = c64(-256.999_999_999_999_94, -(2.0_f64.powi(-1020)));
+    assert!(!xsf::elliprj(x, x.conj(), z, p).is_finite());
+}
+
+#[test]
 fn test_carlson_huge_and_tiny_args() {
     let p = |k| 2.0_f64.powi(k);
     // the tiny imaginary part must not be flushed to 0
