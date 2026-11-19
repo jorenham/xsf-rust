@@ -53,6 +53,7 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
   without one needs an identity. Its tolerance is the error of xsf (C++), or at most the largest
   error of xsf-rust where the mapping marks xsf as wrong, and at least the floor of the mapping
   where xsf-rust uses another method than xsf, or where the error depends on the platform's libm.
+  For an `f32` output, it is at least the `f32` epsilon.
 - convention: a rule of the mapping, which xsf-rust must follow already, and which must pass
   xsref's test, unless the mapping marks xsf as wrong there.
 - legacy: where our reference timed out.
@@ -61,17 +62,17 @@ The inputs, the row order, and the row flags stay xsref's. Each output gets a st
 
 Each logical output of each row has a status:
 
-| Status       | Reference                              | Checked before the tolerance       |
-| ------------ | -------------------------------------- | ---------------------------------- |
-| 0 legacy     | xsref's, with xsref's tolerance        |                                    |
-| 1 computed   | the `f64` nearest to the true value    | NaN and the infinities             |
-| 2 convention | a rule, e.g. NaN outside of the domain | NaN, the infinities, and the zeros |
+| Status       | Reference                                      | Checked before the tolerance       |
+| ------------ | ---------------------------------------------- | ---------------------------------- |
+| 0 legacy     | xsref's, with xsref's tolerance                |                                    |
+| 1 computed   | the `f64` (or `f32`) nearest to the true value | NaN and the infinities             |
+| 2 convention | a rule, e.g. NaN outside of the domain         | NaN, the infinities, and the zeros |
 
-An output passes if its error is at most `4 max(eps, tol)`. The error is xsf's
-`extended_relative_error`, or its `extended_absolute_error` over the scale (the local amplitude of
-an oscillating function, the size of the terms that cancel in a sum near its zeros, 1 for an
-absolute error, the smallest normal `f64` for a subnormal reference without one, or 0 for none)
-if that is smaller.
+An output passes if its error is at most `4 max(eps, tol)`, with `eps` the `f64::EPSILON`. The error
+is xsf's `extended_relative_error`, or its `extended_absolute_error` over the scale (the local
+amplitude of an oscillating function, the size of the terms that cancel in a sum near its zeros, 1
+for an absolute error, the smallest normal `f64` (or `f32`) for a subnormal reference without one,
+or 0 for none) if that is smaller.
 [`testing/metric_vectors.tsv`](../../../testing/metric_vectors.tsv) has test vectors.
 
 ## Format (version 1)
