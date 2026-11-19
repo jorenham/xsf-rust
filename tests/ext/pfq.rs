@@ -1,5 +1,5 @@
 use core::f64::consts::PI;
-use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq};
+use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f0, hyp2f1, hyp2f2, hyp3f2, hyppfq};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
@@ -623,6 +623,80 @@ fn test_hyp0f2() {
     // it overflows undetected (Arb: 1.093e552)
     assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
     assert_eq!(hyppfq(&[], &[1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
+}
+
+#[test]
+fn test_hyp2f0() {
+    // the Borel sum for z < 0 (Arb: `(-1/z)^a1 U(a1, a1 - a2 + 1, -1/z)`, and mpmath)
+    for (a, z, expected) in [
+        ([1.5, 2.5], -0.01, 0.964_059_468_995_989_7),
+        ([0.5, 1.25], -2.0, 0.606_215_898_670_491_7),
+        ([2.5, -1.5], -50.0, 1_611.766_578_245_452_8),
+        ([-0.75, 3.25], -0.5, 2.041_085_184_015_574),
+        ([4.5, 0.25], -1e4, 0.071_227_775_698_633),
+        // a polynomial
+        ([-3.0, 2.5], 0.5, -1.109_375),
+        ([-3.0, 2.5], -4.0, 2971.0),
+    ] {
+        let actual = hyp2f0(a[0], a[1], z);
+        assert!(
+            (actual - expected).abs() <= 1e-13 * expected.abs(),
+            "hyp2f0({a:?}, {z}) = {actual} != {expected}"
+        );
+    }
+    assert_eq!(hyp2f0(1.5, 2.5, 0.0), 1.0);
+    // the series diverges
+    assert!(hyp2f0(1.5, 2.5, 0.5).is_nan());
+    assert!(hyp2f0(f64::NAN, 2.5, -0.5).is_nan());
+    assert!(hyp2f0(1.5, 2.5, f64::NAN).is_nan());
+    assert_eq!(hyppfq(&[1.5, 2.5], &[], -0.75), Some(hyp2f0(1.5, 2.5, -0.75)));
+    // a1 is a spacing from -31, past which a1 - (a1 - a2 + 1) + 1 rounds (Arb: 3.457_054_166e108)
+    let (a1, a2) = (-31.000_000_000_000_004, -41.5);
+    assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
+    assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
+    // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
+    // by a spacing (Arb: 2.675_976_546e231, 6.334_319_725e13, and 2.160_851_060e262)
+    assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
+    assert!(hyp2f0(-3.000_000_000_000_001_3, -5.875, -336_536.0).is_nan());
+    assert!(hyp2f0(1.776_356_839_400_250_5e-15, -20.000_000_000_000_004, -1e13).is_nan());
+    // the same, but where another method is accurate enough (Arb)
+    let (a1, a2) = (-15.000_000_000_000_012, -30.999_999_999_999_993);
+    let actual = hyp2f0(a1, a2, -1e7);
+    assert!((actual / 2.126_314_811_847_468_6e227 - 1.0).abs() < 1e-12, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], -1e7), None);
+    // chgu's rounded a1 - b + 1 moves a2 by a spacing at 2.4e-9 from -7: 8 digits, too few for
+    // `hyppfq` (Arb)
+    let (a1, a2, z) = (-7.999_999_999_999_998, -7.000_000_002_437_216, -118_035_487.239_557_88);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / -1.240_805_934_615_225_2e61 - 1.0).abs() < 1e-7, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    // the result is subnormal (Arb: 2.792_686_307e-324), or underflows (Arb: 2.002_611_525e-334)
+    assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
+    assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);
+    assert!(hyp2f0(20.5, 200.5, -1e14).is_nan());
+    // the polynomial 1 + 2 z overflows (Arb: -2.000_000_000_000_000_02e308)
+    assert_eq!(hyp2f0(-1.0, -2.0, -1e308), f64::NEG_INFINITY);
+    // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
+    for (a, z, expected) in [
+        ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
+        ([0.5, 90.5], -1e4, 0.001_055_556_987_423_832_8),
+    ] {
+        let actual = hyp2f0(a[0], a[1], z);
+        assert!((actual / expected - 1.0).abs() < 1e-12, "{actual} != {expected}");
+        assert_eq!(hyppfq(&a, &[], z), None);
+    }
+    // chgu estimates 12 digits of the Borel sum, which has 11.8 (Arb: -2.953_959_436_326_337e85)
+    let (a1, a2, z) = (-33.469_052_875_157_17, -30.469_052_875_157_17, -36.589_122_667_683_775);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-11, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    // the Weniger sum, with 3.7 digits (Arb: 2.968_695_239_976_95e209)
+    let (a1, a2, z) = (-62.084_104_456_978_59, -49.999_999_999_996_75, -249.109_088_375_704_2);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 3e-4, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    // the zero 1 - 0.5 * 2 of a polynomial, where the error estimate is not 0
+    assert!(hyp2f0(-1.0, 0.5, 2.0).is_nan());
 }
 
 #[test]

@@ -178,6 +178,7 @@ lists the functions that SciPy computes with another library than xsf.
 |                                                                                                                        | `hyp1f0`                                            |
 | [`hyp1f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp1f1.html)                             | `hyp1f1`                                            |
 |                                                                                                                        | `hyp1f2`                                            |
+|                                                                                                                        | `hyp2f0`                                            |
 | [`hyp2f1`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.hyp2f1.html)                             | `hyp2f1`                                            |
 |                                                                                                                        | `hyp2f2`                                            |
 |                                                                                                                        | `hyp3f2`                                            |

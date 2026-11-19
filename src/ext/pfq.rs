@@ -1825,6 +1825,50 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
     Estimate::or_nan(pfq_estimate(&[], &[b1, b2], z))
 }
 
+/// Generalized hypergeometric function $_2F_0$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Definition
+///
+/// $$
+/// _2F_0\left[a_1\enspace a_2\middle\| z\right]
+/// = \sum\_{n=0}^\infty \rpow{a_1}{n} \ \rpow{a_2}{n} {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1], and for
+/// $z < 0$, where the series diverges, its Borel sum, as in mpmath [^2]. A non-positive integer
+/// $a_i = -n$ makes it a polynomial of degree at most $n$, defined for all $z$.
+///
+/// It is:
+///
+/// - $\pm\infty$ where it detects that it overflows, for large $\abs z$, and otherwise NaN;
+/// - NaN for $z > 0$, where the series diverges, unless it is a polynomial, and if an argument is
+///   NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
+///
+/// # Returns NaN
+///
+/// Where its internal error estimate says that none of its digits are correct:
+///
+/// - if the result underflows, or overflows undetected, e.g. in random samples, for about 1% of
+///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
+/// - near a zero, also an exact one of a polynomial;
+/// - for some infinite arguments, as for [`hyppfq`].
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.6.E21>
+///
+/// # See also
+/// - [`hyp1f0`](crate::hyp1f0): Hypergeometric function, $_1F_0\left[a\middle\| z\right]$
+/// - [`hypu`](crate::hypu): Confluent hypergeometric function, $U(a_1,a_2,x)$
+#[must_use]
+pub fn hyp2f0(a1: f64, a2: f64, z: f64) -> f64 {
+    Estimate::or_nan(pfq_estimate(&[a1, a2], &[], z))
+}
+
 /// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
 /// pFq for `p <= q` (DLMF 16.11.1), where `b` contains the 1 of `n!`
 ///
@@ -2178,7 +2222,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// | --- | ------------------------- | ------------------------- | ---------- |
 /// | 0   | [`hyp0f0`](crate::hyp0f0) | [`hyp0f1`](crate::hyp0f1) | [`hyp0f2`] |
 /// | 1   | [`hyp1f0`](crate::hyp1f0) | [`hyp1f1`](crate::hyp1f1) | [`hyp1f2`] |
-/// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
+/// | 2   | [`hyp2f0`]                | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
 /// It is:
@@ -2279,19 +2323,29 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let dx = -((xz + 1.0) + e) / z;
             let borel = |a1: f64, a2: f64, hypu: fn(f64, f64, f64) -> (f64, i32, i32)| {
                 const T: f64 = pow2(20);
+                const POLE_SPACINGS: f64 = 8.0;
+                // with the digits that chgu estimates
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let enough = f64::from(digits) - CHGU_DIGITS_MARGIN >= -PFQ_TOL.log10();
-                    (p.is_normal() && u.is_normal() && enough).then_some(p * u)
+                    let digits = f64::from(digits) - CHGU_DIGITS_MARGIN;
+                    (p.is_normal() && u.is_normal()).then_some((p * u, digits))
                 };
                 let (d, e1) = two_sum(a1, -a2);
                 let (b, e2) = two_sum(d, 1.0);
+                // chgu takes U as a polynomial where its `a1 - b + 1` (that should be a2) rounds to
+                // a non-positive integer
+                let (s, f1) = two_sum(a1, -b);
+                let (a2_rounded, f2) = two_sum(s, 1.0);
+                if is_nonpos_int(a2_rounded) && a2_rounded != a2 {
+                    return None;
+                }
                 // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
                 // moved by T times them (far enough to stand out from the error of U, and near
-                // enough to be linear). They may take half of PFQ_TOL, as y can depend much more
-                // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer. A move
-                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, a
-                // larger step.
+                // enough to be linear). That of chgu's `a1 - b + 1` adds to that of b, as chgu
+                // then returns about U at `b = a1 - a2_rounded + 1`. They may take half of
+                // PFQ_TOL, as y can depend much more on b and x than on a_i and z, e.g. for an a2
+                // near a nonpositive integer. A move that would round away (e.g. that of b for a
+                // tiny a1) is a spacing instead, a larger step.
                 let moved = |v: f64, d: f64| {
                     let v_t = v + T * d;
                     let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
@@ -2301,11 +2355,37 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                         v_t
                     }
                 };
-                let (y, y_t) = (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
-                let rounding = (y_t - y).abs() / T;
-                // (only if accurate: then its error is within `PFQ_TOL`)
-                let accurate = y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs();
-                accurate.then_some(Estimate::new(y, PFQ_TOL))
+                let db = ((e1 + e2).abs() + (f1 + f2).abs()).copysign(e1 + e2);
+                let ((y, digits), (y_t, digits_t)) = (y(b, x)?, y(moved(b, db), moved(x, dx))?);
+                let (digits, rounding) = (digits.min(digits_t), (y_t - y).abs() / T);
+                // (if accurate, its error is within `PFQ_TOL`)
+                let accurate = digits >= -PFQ_TOL.log10()
+                    && (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs());
+                let err = if accurate {
+                    PFQ_TOL
+                } else {
+                    // Within a few spacings of a non-positive integer n (also 0), the rounding of
+                    // chgu's a2 can move a cancellation in U, so only an accurate y is kept there
+                    // (unless U is the polynomial of a2 = n).
+                    let n = a2_rounded.round().min(0.0);
+                    let spacing = f64::EPSILON * a1.abs().max(b.abs()).max(1.0);
+                    let near =
+                        (a2 - n).abs().min((a2_rounded - n).abs()) <= POLE_SPACINGS * spacing;
+                    if near && (a2 != n || a2_rounded != n) {
+                        return None;
+                    }
+                    // (with the rounding doubled, as y can curve within the move, e.g. for an a1
+                    // near a non-positive integer; above `PFQ_TOL`, or NaN for no estimate, as for
+                    // an infinite y)
+                    let err = 10.0_f64.powf(-digits) + 2.0 * rounding / y.abs();
+                    if err < PFQ_INACCURATE {
+                        PFQ_INACCURATE
+                    } else {
+                        err
+                    }
+                };
+                // (with the spacing of a subnormal y)
+                Some(Estimate::rounded(y, err))
             };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;

@@ -485,6 +485,7 @@
 //! | [`hyp1f1`] | Confluent hypergeometric function       | $\hyp 1 1 a b z$                                             |
 //! | [`hyp0f2`] | Generalized hypergeometric function     | $_0F_2\left[b_1\enspace b_2\middle\| z\right]$               |
 //! | [`hyp1f2`] | Generalized hypergeometric function     | $\hyp 1 2 a {b_1\enspace b_2} z$                             |
+//! | [`hyp2f0`] | Generalized hypergeometric function     | $_2F_0\left[a_1\enspace a_2\middle\| z\right]$               |
 //! | [`hyp2f1`] | Gauss' hypergeometric function          | $\hyp 2 1 {a_1\enspace a_2} b z$                             |
 //! | [`hyp2f2`] | Generalized hypergeometric function     | $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$             |
 //! | [`hyp3f2`] | Generalized hypergeometric function     | $\hyp 3 2 {a_1\enspace a_2\enspace a_3} {b_1\enspace b_2} z$ |
