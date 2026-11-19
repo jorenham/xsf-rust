@@ -63,6 +63,10 @@ fn test_hyp1f0_f64_inexact_1mz() {
     let z = -3.0 * 2f64.powi(-54);
     assert_eq!(xsf::hyp1f0(-2f64.powi(67), z), f64::INFINITY);
     assert_eq!(xsf::hyp1f0(2f64.powi(67), z), 0.0);
+    assert_eq!(xsf::hyp1f0(-2f64.powi(150), z), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(2f64.powi(150), z), 0.0);
+    assert_eq!(xsf::hyp1f0(-f64::MAX, -2f64.powi(64)), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(f64::MAX, -2f64.powi(64)), 0.0);
     // a subnormal result, where `w^-a` underflows and `(1 + r/w)^-a` overflows
     let y = xsf::hyp1f0(720.0 * 2f64.powi(53), -2f64.powi(-53).next_up());
     np_assert_allclose!([y], [2.032_230_802_4e-313], rtol = 1e-9);

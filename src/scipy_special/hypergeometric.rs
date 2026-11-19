@@ -441,9 +441,15 @@ impl HypergeometricArg for f64 {
             p * corr()
         } else if a.is_finite() {
             // (by its logarithm in double-double, where `w^-a` over- or underflows but
-            // `(1 - z)^-a` might not)
-            let y = ln_dd(Dd { hi: w, lo: r }.abs()) * -a;
-            p.signum() * y.hi.exp() * y.lo.exp()
+            // `(1 - z)^-a` might not, unless that is beyond `e^(+-2 MAXLOG)`)
+            let ln = ln_dd(Dd { hi: w, lo: r }.abs());
+            let y = -a * ln.hi;
+            p.signum()
+                * if y.abs() < 2.0 * MAXLOG {
+                    exp_dd(ln * -a)
+                } else {
+                    y.exp()
+                }
         } else {
             p
         }
