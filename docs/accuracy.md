@@ -830,8 +830,12 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tbody>
 <tr><td><code>cdf_cvm_inf</code></td><td>x ∈ [0, 2]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>6.5e-14</samp></b></td><td align="right" nowrap><b><samp>1.8e-15</samp></b></td><td align="right" nowrap><samp>3.4e-12</samp></td><td align="right" nowrap><samp>5.6e-15</samp></td><td align="right" nowrap>50.1%</td></tr>
 <tr><td><code>cdf_cvm_inf</code></td><td>x ∈ [10⁻³, 100] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>6.8e-14</samp></b></td><td align="right" nowrap><b><samp>9.7e-16</samp></b></td><td align="right" nowrap><samp>1.7e-09</samp></td><td align="right" nowrap><samp>3.1e-15</samp></td><td align="right" nowrap>80.6%</td></tr>
+<tr><td><code>cdf_cvm</code><sup>*</sup></td><td>x ∈ [0, 2]<br>n ∈ {1, …, 1000}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>5.4e-14</samp></b></td><td align="right" nowrap><b><samp>1.8e-15</samp></b></td><td align="right" nowrap><samp>3.3e-12</samp></td><td align="right" nowrap><samp>5.3e-15</samp></td><td align="right" nowrap>48.1%</td></tr>
+<tr><td><code>cdf_cvm</code><sup>*</sup></td><td>x ∈ [10⁻³, 100] (log)<br>n ∈ {1, …, 1000}</td><td align="right" nowrap>2,000</td><td align="right" nowrap><b><samp>2.9e-12</samp></b></td><td align="right" nowrap><b><samp>8.3e-16</samp></b></td><td align="right" nowrap><samp>1.5e-09</samp></td><td align="right" nowrap><samp>2.7e-15</samp></td><td align="right" nowrap>81.3%</td></tr>
 </tbody>
 </table>
+
+<sup>*</sup> Reference: the approximation for finite $`n`$ that it computes, eq. 1.8 of Csörgő and Faraway (1996), so this is the error of its evaluation, not of the approximation.
 
 ### Multivariate normal distribution
 
@@ -1798,8 +1802,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
 - Complex input: `zeta` (NaN for non-real `z`, unless `q = 1`, where it is `riemann_zeta`)
-- Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
-  `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
+- Other: `lanczos_sum_expg_scaled` (internal) and the `extended_*_error` metrics
 
 ## Method
 
