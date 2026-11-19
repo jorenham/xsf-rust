@@ -20,6 +20,7 @@ mod sealed {
         + crate::xsf::Hyp1F1Arg
         + num_traits::NumOps<f64>
         + num_traits::NumOps
+        + core::ops::Neg<Output = Self>
         + Clone
     {
         const ZERO: Self;
@@ -244,10 +245,6 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     } else {
         let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
         let mut p = d.clone() + 1.0;
-        // Unlike in xsf, `binom(n + alpha, n)` is the product of `(k + alpha) / k` for
-        // `alpha > -1`, without the rounding of `n + alpha` in `jacobi_binom`, which costs up to
-        // about `ln(n) ulp(n)` (relative), e.g. for the weights of `roots_jacobi`.
-        let mut binom = alpha + 1.0;
         for kk in 0..n - 1 {
             let k = f64::from(kk) + 1.0;
             let t = 2.0 * (k - 1.0) + ab2;
@@ -255,14 +252,25 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
                 + d * (2.0 * k * (k + beta) * (t + 2.0)))
                 / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
             p = p + d.clone();
-            binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
         if alpha > -1.0 {
-            p * binom
+            p * jacobi_binom_l(n, alpha)
         } else {
             p * jacobi_binom(f64::from(n), alpha)
         }
     }
+}
+
+/// `binom(n + alpha, n)` for `alpha > -1`, for `eval_jacobi_l`
+///
+/// Unlike in xsf, this is the product of `(k + alpha) / k`, without the rounding of `n + alpha` in
+/// `jacobi_binom`, which costs up to about `ln(n) ulp(n)` (relative), e.g. for the weights of
+/// `roots_jacobi`.
+fn jacobi_binom_l(n: i32, alpha: f64) -> f64 {
+    (1..n).fold(alpha + 1.0, |binom, k| {
+        let k = f64::from(k);
+        binom * ((k + 1.0 + alpha) / (k + 1.0))
+    })
 }
 
 impl JacobiArg<i32> for f64 {
@@ -831,36 +839,38 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
 }
 
 impl LaguerreArg<i32> for f64 {
-    /// Corresponds to `xsf::detail::eval_genlaguerre_l`
-    // Integer-degree L_n^(alpha)(x) by forward recurrence on the normalized values
-    // p_k = L_k^(alpha)(x) / binom(k + alpha, k) and their differences d_k = p_k - p_{k-1}:
-    //   d_{k+1} = (k d_k - x p_k) / (k + alpha + 1),  p_{k+1} = p_k + d_{k+1},
-    // starting from p_0 = 1, d_0 = 0.
     #[inline]
     fn eval_genlaguerre(self, n: i32, alpha: f64) -> Self {
-        let x = self;
-        if alpha <= -1.0 || alpha.is_nan() || x.is_nan() {
+        if alpha <= -1.0 || alpha.is_nan() || self.is_nan() {
             // polynomial defined only for alpha > -1
             return f64::NAN;
         }
-
-        if n < 0 {
-            return 0.0;
-        } else if n == 0 {
-            return 1.0;
-        } else if n == 1 {
-            return -x + alpha + 1.0;
-        }
-
-        let mut d = -x / (alpha + 1.0);
-        let mut p = d + 1.0;
-        for kk in 0..n - 1 {
-            let k = f64::from(kk) + 1.0;
-            d = -x / (k + alpha + 1.0) * p + (k / (k + alpha + 1.0)) * d;
-            p += d;
-        }
-        binom_alpha(f64::from(n), alpha) * p
+        eval_genlaguerre_l(n, alpha, self)
     }
+}
+
+/// Corresponds to `xsf::detail::eval_genlaguerre_l`, for `alpha > -1`
+// Integer-degree L_n^(alpha)(x) by forward recurrence on the normalized values
+// p_k = L_k^(alpha)(x) / binom(k + alpha, k) and their differences d_k = p_k - p_{k-1}:
+//   d_{k+1} = (k d_k - x p_k) / (k + alpha + 1),  p_{k+1} = p_k + d_{k+1},
+// starting from p_0 = 1, d_0 = 0.
+fn eval_genlaguerre_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, x: Z) -> Z {
+    if n < 0 {
+        return Z::ZERO;
+    } else if n == 0 {
+        return Z::ZERO + 1.0;
+    } else if n == 1 {
+        return -x + alpha + 1.0;
+    }
+
+    let mut d = -x.clone() / (alpha + 1.0);
+    let mut p = d.clone() + 1.0;
+    for kk in 0..n - 1 {
+        let k = f64::from(kk) + 1.0;
+        d = -x.clone() / (k + alpha + 1.0) * p.clone() + d * (k / (k + alpha + 1.0));
+        p = p + d.clone();
+    }
+    p * binom_alpha(f64::from(n), alpha)
 }
 
 /// Evaluate generalized Laguerre polynomial $L_n^{(\alpha)}$ at a point.
