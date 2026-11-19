@@ -152,10 +152,29 @@ fn test_eval_integer_degree_complex() {
     let desired = c64(-7.606_673_349_914_896e74, -2.979_424_348_047_212e74);
     np_assert_allclose!([actual], [desired], rtol = 1e-14);
 
+    // and where `alpha + 1/2 - 1` rounds to -1, or the prefactor overflows for tiny alpha (mpmath)
+    let actual = [
+        xsf::eval_gegenbauer(171.0, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
+        xsf::eval_gegenbauer(1000.0, 1e-310, c64(0.75, 0.125)),
+    ];
+    let desired = [
+        c64(0.0, 9.532_255_825_720_248e-4),
+        c64(8.465_527_655_970_144e-234, 4.776_235_568_205_383_5e-235),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // but not with a wrong finite value where `alpha + 1/2` is a negative integer (mpmath)
+    let actual = xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01));
+    let desired = c64(10.419_197_521_792_457, 0.0);
+    assert!(!actual.is_finite() || (actual - desired).norm() <= 1e-13 * desired.norm());
+
     // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
     let zero = c64(0.0, 0.0);
     assert_eq!(xsf::eval_legendre(9.0, zero), zero);
     assert_eq!(xsf::eval_legendre(9.0, c64(0.0, 1e-25)), c64(0.0, 2.460_937_5e-25));
+    assert_eq!(xsf::eval_legendre(51.0, zero), zero);
+    // and the even degrees real
+    assert_eq!(xsf::eval_legendre(2.0, c64(-0.0, 0.01)), c64(-0.500_15, 0.0));
     assert_eq!(xsf::eval_chebyshev_u(3.0, zero), zero);
     assert_eq!(xsf::eval_gegenbauer(7.0, 3.75, zero), zero);
 }
