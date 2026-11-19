@@ -120,6 +120,26 @@ fn test_eval_integer_degree_f64() {
 }
 
 #[test]
+fn test_eval_integer_degree_complex() {
+    // complex z with an integer degree uses the recurrence, where the series cancels (mpmath, Arb)
+    let actual = [
+        xsf::eval_chebyshev_t(97.0, c64(-0.160_374_780_437_770_65, -0.156_540_295_830_070_12)),
+        xsf::eval_chebyshev_u(-60.0, c64(0.5, -0.75)),
+        xsf::eval_gegenbauer(45.0, 3.75, c64(-0.625, 0.375)),
+        xsf::eval_laguerre(50.0, c64(44.296_328_520_227_21, -0.751_454_817_007_129_3)),
+        xsf::eval_genlaguerre(40.0, 2.5, c64(30.0, 10.0)),
+    ];
+    let desired = [
+        c64(-615_681.779_834_917_3, 2_153_058.832_413_583_4),
+        c64(-1.436_822_892_208_527e18, -4.290_823_921_740_318_5e18),
+        c64(214_374_579_713.687_27, -1_922_101_990_974.212_2),
+        c64(-194_943_212.130_009_5, 306_564_745.405_629_2),
+        c64(-6_132_582_197.759_089, 5_746_717_837.856_203),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [

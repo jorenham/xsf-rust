@@ -96,6 +96,21 @@ mod sealed {
         fn re(&self) -> f64 {
             self.re
         }
+
+        #[inline]
+        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+            // Unlike in xsf, integer degrees use the recurrence of `eval_jacobi` (without its
+            // `binom(n + alpha, n)`), since the complex series cancels catastrophically for large
+            // degrees.
+            let (alpha, beta) = (c - 1.0, lam - c);
+            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+            let p = super::int_degree(nu, alpha, beta).map(|n| {
+                super::eval_jacobi_l_reflected(n, alpha, beta, self)
+                    / super::jacobi_binom_l(n, alpha)
+            });
+            p.filter(OrthoPolyArg::is_finite)
+                .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
+        }
     }
 }
 
@@ -839,6 +854,14 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
         if alpha <= -1.0 {
             // polynomial defined only for alpha > -1
             return Self::ZERO + f64::NAN;
+        }
+        // Unlike in xsf, complex z with an integer degree uses the recurrence of the `i32` degrees,
+        // since the complex series cancels catastrophically for large degrees.
+        let l = int_degree(n, alpha, 0.0)
+            .filter(|_| self.as_f64().is_none())
+            .map(|n| eval_genlaguerre_l(n, alpha, self.clone()));
+        if let Some(l) = l.filter(sealed::OrthoPolyArg::is_finite) {
+            return l;
         }
 
         let d = binom_alpha(n, alpha);
