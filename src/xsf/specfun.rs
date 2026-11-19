@@ -492,10 +492,11 @@ pub(super) fn hypu_fwd_b(
     let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // (fewer for a subnormal start, as in `chgu`)
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
-    // The first starting value is also recurred on its own, to estimate their cancellation, but
-    // from 1 (and scaled at the end), as its part of U can overflow where U doesn't, e.g. for
-    // U(-164, 9 - 0.016, 0.014) = 3.9e306, where they cancel by 1e5. As the recurrence from 1 can
-    // overflow too, e.g. for U(150, 71 + 1e-14, 0.0005) = 5.3e68, it is scaled down by `SCALE`.
+    // To estimate how much the starting values cancel, the recurrence also runs from (1, 0), and
+    // its result is scaled by the first starting value at the end, as the part of U from that can
+    // overflow where U doesn't, e.g. for U(-164, 9 - 0.016, 0.014) = 3.9e306, where they cancel by
+    // 1e5. As the recurrence from (1, 0) can overflow too, e.g. for U(150, 71 + 1e-14, 0.0005) =
+    // 5.3e68, both of its values are scaled down by `SCALE` after each step that takes it above.
     let (u_start, mut p0, mut p1, mut p_exp) = (u0, 1.0, 0.0, 0);
     // A rounding error of each step is recurred as well, as it can grow even if the starting values
     // don't cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal
