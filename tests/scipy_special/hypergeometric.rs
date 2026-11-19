@@ -118,6 +118,18 @@ fn test_hyp1f0_c64_inexact_1mz() {
     let e = core::f64::consts::E;
     let e_1pi = c64(e * 1f64.cos(), e * 1f64.sin());
     np_assert_allclose!(y, [c64(e, 0.0), c64(1.0 / e, 0.0), e_1pi], rtol = 1e-15);
+
+    // where `e^c` over- or underflows, but `(1 - z)^-a` does not
+    let z = c64(2f64.powi(-54), 2f64.powi(-27));
+    let y = [2f64.powi(64), -2f64.powi(64)].map(|a| xsf::hyp1f0(a, z).norm());
+    np_assert_allclose!(y, [2.2844e222, 4.3775e-223], rtol = 1e-4);
+
+    // special values and signed zeros as for `(1 - z)^-a`
+    let t = 2f64.powi(-60);
+    assert_eq!(xsf::hyp1f0(0.0, c64(f64::NAN, 0.0)), c64(1.0, 0.0));
+    assert_eq!(xsf::hyp1f0(f64::INFINITY, c64(t, 0.0)), c64(1.0, 0.0));
+    let y = xsf::hyp1f0(-0.25, c64(-t, f64::from_bits(1)));
+    assert_eq!((y.re, y.im.to_bits()), (1.0, (-0.0f64).to_bits()));
 }
 
 /// Corresponds to `scipy.special.tests.test_basic.TestHyper.test_hyp0f1`

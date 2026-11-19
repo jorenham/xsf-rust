@@ -482,15 +482,25 @@ impl HypergeometricArg for num_complex::Complex<f64> {
             f64::NAN.into()
         } else {
             self.via(|z| {
-                // `1 - z = w + r` exactly, as in the real `hyp1f0` (unless `w^-a` over- or
-                // underflows)
+                // `1 - z = w + r` exactly, as in the real `hyp1f0`, so that
+                // `(1 - z)^-a = w^-a e^c` with `c = -a ln(1 + r/w)`
                 let (w_re, r) = two_sum(1.0, -z.re);
                 let w = c64(w_re, -z.im);
                 let p = w.powf(-a);
-                if r == 0.0 || !p.norm().is_normal() {
-                    p
+                if !(a * r).is_normal() {
+                    return p;
+                }
+                let c = clog1p(r / w) * -a;
+                if p.norm().is_normal() && c.re.abs() < MAXLOG {
+                    // (by a real factor where `c` is real, to keep the signed zeros of `p`)
+                    if c.im == 0.0 {
+                        p * c.re.exp()
+                    } else {
+                        p * c.exp()
+                    }
                 } else {
-                    p * (clog1p(r / w) * -a).exp()
+                    // (by the sum of the logarithms, where a factor over- or underflows)
+                    (w.ln() * -a + c).exp()
                 }
             })
         }
