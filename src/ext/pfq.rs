@@ -1017,7 +1017,7 @@ fn asymptotic_sum<T: Term>(
         if !t.to_f64().is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
         } else if n >= settled {
-            // (the `err` of a `size >= min` is not below `best.1`, unless that grew)
+            // a later sum can disqualify the current best even when its term is larger
             let err = remainder * size + n * eps * abs_sum;
             best.1 = best.1.max((sum - best.0).to_f64().abs() - err);
             if err < best.1 {
