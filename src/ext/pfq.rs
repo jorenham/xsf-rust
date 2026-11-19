@@ -2381,7 +2381,8 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                         err
                     }
                 };
-                Some(Estimate::new(y, err))
+                // (with the spacing of a subnormal y)
+                Some(Estimate::rounded(y, err))
             };
             let terms = (0..).map(f64::from).scan(1.0, |t, n| {
                 let t_n = *t;

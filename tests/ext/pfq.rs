@@ -664,6 +664,10 @@ fn test_hyp2f0() {
     let actual = hyp2f0(a1, a2, -1e7);
     assert!((actual / 2.126_314_811_847_468_6e227 - 1.0).abs() < 1e-12, "{actual}");
     assert_eq!(hyppfq(&[a1, a2], &[], -1e7), None);
+    // the result is subnormal (Arb: 2.792_686_307e-324), or underflows (Arb: 2.002_611_525e-334)
+    assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
+    assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);
+    assert!(hyp2f0(20.5, 200.5, -1e14).is_nan());
     // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
     for (a, z, expected) in [
         ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
