@@ -877,10 +877,41 @@ def _log1pmx(x: mp.mpf) -> mp.mpf:
     return x if x == 0 else specs.r_log1pmx(x)
 
 
-EXPIT_OVERRIDE: Final = Override(
-    lambda a: a[0] < -709.78,
-    "xsf returns 0 where exp(-x) overflows, for x < -709.78",
-)
+def _logistic(sig: str, suffix: str, x_min: float) -> dict[tuple[str, str], Entry]:
+    """The `expit`, `log_expit`, and `logit` tables of a float type, whose exp(-x) overflows
+    for x < `x_min`."""
+    return {
+        ("expit", sig): _real(
+            f"expit{suffix}",
+            specs.r_expit,
+            lambda x: 1 / (1 + (-x).exp()),
+            overrides=(
+                Override(
+                    lambda a: a[0] < x_min,
+                    f"xsf returns 0 where exp(-x) overflows, for x < {x_min}",
+                ),
+            ),
+        ),
+        ("log_expit", sig): _real(
+            f"log_expit{suffix}", specs.r_log_expit, lambda x: -(-x).exp().log1p()
+        ),
+        ("logit", sig): _real(
+            f"logit{suffix}",
+            specs.r_logit,
+            lambda p: p.log() - (-p).log1p(),
+            (
+                Rule(
+                    lambda a: not 0 <= a[0] <= 1,
+                    math.nan,
+                    "expit takes values in [0, 1]",
+                ),
+                Rule(lambda a: a[0] == 0, -math.inf, "expit(x) -> 0 for x -> -inf"),
+                Rule(lambda a: a[0] == 1, math.inf, "expit(x) -> 1 for x -> +inf"),
+            ),
+        ),
+    }
+
+
 # of the last input
 LOG1P_DOMAIN: Final = Rule(lambda a: a[-1] < -1, math.nan, "log1p is not real below -1")
 # like in xsf, also where the logarithm is infinite
@@ -3310,27 +3341,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("exp2", "d-d"): _real("exp2", specs.r_exp2, lambda x: flint.arb(2) ** x),
     ("exp10", "d-d"): _real("exp10", specs.r_exp10, lambda x: flint.arb(10) ** x),
-    ("expit", "d-d"): _real(
-        "expit",
-        specs.r_expit,
-        lambda x: 1 / (1 + (-x).exp()),
-        overrides=(EXPIT_OVERRIDE,),
-    ),
-    ("log_expit", "d-d"): _real(
-        "log_expit", specs.r_log_expit, lambda x: -(-x).exp().log1p()
-    ),
-    ("logit", "d-d"): _real(
-        "logit",
-        specs.r_logit,
-        lambda p: p.log() - (-p).log1p(),
-        (
-            Rule(
-                lambda a: not 0 <= a[0] <= 1, math.nan, "expit takes values in [0, 1]"
-            ),
-            Rule(lambda a: a[0] == 0, -math.inf, "expit(x) -> 0 for x -> -inf"),
-            Rule(lambda a: a[0] == 1, math.inf, "expit(x) -> 1 for x -> +inf"),
-        ),
-    ),
+    **_logistic("d-d", "", -709.78),
+    **_logistic("f-f", "_f32", -88.72),
     ("cbrt", "d-d"): _real("cbrt", specs.r_cbrt, lambda x: x.sgn() * abs(x).root(3)),
     ("cosm1", "d-d"): _real("cosm1", specs.r_cosm1, lambda x: x.cos() - 1),
     ("xlogy", "d_d-d"): _real(
