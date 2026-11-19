@@ -141,6 +141,13 @@ def _nonpos_int(x: float) -> bool:
     return math.isfinite(x) and x <= 0 and x.is_integer()
 
 
+COMPLEX_POLE: Final = Rule(
+    lambda a: a[1] == 0 and _nonpos_int(a[0]),
+    complex(math.nan, math.nan),
+    "a pole at z = 0, -1, -2, ..., whose limit depends on the direction",
+)
+
+
 def _sum_nonpos_int(a: tuple[float, ...]) -> bool:
     """Whether the exact sum of the two inputs is a non-positive integer."""
     if not all(map(math.isfinite, a)):
@@ -3325,6 +3332,9 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 ),
             ),
         )
+    ),
+    ("digamma", "cd-cd"): _complex(
+        "digamma", specs._c(mp.digamma), flint.acb.digamma, (COMPLEX_POLE,)
     ),
     ("erf", "d-d"): Entry(
         (Out("erf", (specs.r_erf,), (flint.arb.erf,), _limits(-1, 1)),)
