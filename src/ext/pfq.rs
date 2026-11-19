@@ -56,10 +56,11 @@ impl Estimate {
         Self { y, err: 0.0 }
     }
 
-    /// `y` with the absolute error `err`, where a `y` that isn't finite has no estimate
+    /// `y` with the absolute error `err`, where a `y` that isn't finite or a NaN `err` has no
+    /// estimate
     fn absolute((y, err): (f64, f64)) -> Self {
         // (an exact `y = 0` as well)
-        let err = if !y.is_finite() {
+        let err = if !y.is_finite() || err.is_nan() {
             f64::INFINITY
         } else if err == 0.0 {
             0.0
