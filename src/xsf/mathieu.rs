@@ -72,8 +72,8 @@ enum AngleUnit {
 impl AngleUnit {
     fn to_radians(self, x: f64) -> f64 {
         match self {
-            // `pi / 180` to 15 digits, as in specfun's `mtu0`
-            Self::Degrees => x * 1.745_329_251_994_33e-2,
+            // Unlike in xsf, the f64 pi / 180 (xsf has 15 digits)
+            Self::Degrees => x.to_radians(),
             Self::Radians => x,
         }
     }
