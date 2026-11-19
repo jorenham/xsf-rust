@@ -2322,6 +2322,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             let dx = -((xz + 1.0) + e) / z;
             let borel = |a1: f64, a2: f64, hypu: fn(f64, f64, f64) -> (f64, i32, i32)| {
                 const T: f64 = pow2(20);
+                const POLE_SPACINGS: f64 = 8.0;
                 // with the digits that chgu estimates
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
@@ -2360,17 +2361,20 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 let err = if accurate {
                     PFQ_TOL
                 } else {
-                    // Near a non-positive integer, y changes with chgu's a2 about as much as that
-                    // a2 does relative to its distance from it, so a rounded a2 adds that ratio.
-                    let shift = (a2_rounded - a2).abs();
-                    let pole = if shift > 0.0 && a2 < 0.0 {
-                        let n = a2.round();
-                        shift / (a2 - n).abs().min((a2_rounded - n).abs())
-                    } else {
-                        0.0
-                    };
-                    // (above `PFQ_TOL`, or NaN for no estimate, as for an infinite y)
-                    let err = 10.0_f64.powf(-digits) + rounding / y.abs() + pole;
+                    // Within a few spacings of a non-positive integer n (also 0), the rounding of
+                    // chgu's a2 can move a cancellation in U, so only an accurate y is kept there
+                    // (unless U is the polynomial of a2 = n).
+                    let n = a2_rounded.round().min(0.0);
+                    let spacing = f64::EPSILON * a1.abs().max(b.abs()).max(1.0);
+                    let near =
+                        (a2 - n).abs().min((a2_rounded - n).abs()) <= POLE_SPACINGS * spacing;
+                    if near && (a2 != n || a2_rounded != n) {
+                        return None;
+                    }
+                    // (with the rounding doubled, as y can curve within the move, e.g. for an a1
+                    // near a non-positive integer; above `PFQ_TOL`, or NaN for no estimate, as for
+                    // an infinite y)
+                    let err = 10.0_f64.powf(-digits) + 2.0 * rounding / y.abs();
                     if err < PFQ_INACCURATE {
                         PFQ_INACCURATE
                     } else {
