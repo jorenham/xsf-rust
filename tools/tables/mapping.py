@@ -846,27 +846,39 @@ def _real(
 def _complex_out(
     func: str,
     ref: Callable[..., mp.mpc],
-    arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
+    arb: (
+        Callable[[flint.acb], flint.acb]
+        | Callable[[flint.acb, flint.acb], flint.acb]
+        | Callable[[flint.arb, flint.acb], flint.acb | None]
+    ),
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
     floors: tuple[Floor, ...] = (),
+    reals: int = 0,
 ) -> Out:
-    """A complex output of complex inputs, which are (real, imaginary) pairs of f64s: `ref`
-    takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
+    """A complex output of `reals` real inputs and then complex inputs, which are (real,
+    imaginary) pairs of f64s: `ref` takes the parts as `mpf`s, and `arb` the real inputs as
+    `arb`s and the complex ones as `acb`s (or returns None where it can't check)."""
 
-    def ref_part(part: int) -> Callable[..., mp.mpf]:
-        def value(*a: mp.mpf) -> mp.mpf:
-            return (mp.re, mp.im)[part](ref(*a))
+    def ref_part(part: int) -> Callable[..., Value]:
+        def value(*a: mp.mpf) -> Value:
+            # agree and confirm relative to |f|, like the table metric, as a scale (which
+            # a complex output does not keep)
+            y = ref(*a)
+            return (mp.re, mp.im)[part](y), abs(y)
 
         return value
 
+    f: Callable[..., flint.acb | None] = arb
+
     def arb_part(part: int) -> Arb:
-        def ball(*a: flint.arb) -> flint.arb:
+        def ball(*a: flint.arb) -> flint.arb | None:
             # the bits that exp(z) and a periodic reduction of z lose to the magnitude of z
             bits = max(math.frexp(float(x))[1] for x in a)
             with flint.ctx.extraprec(max(bits, 0)):
-                z = arb(*(flint.acb(*a[k : k + 2]) for k in range(0, len(a), 2)))
-            return z.imag if part else z.real
+                pairs = (flint.acb(*a[k : k + 2]) for k in range(reals, len(a), 2))
+                z = f(*a[:reals], *pairs)
+            return None if z is None else z.imag if part else z.real
 
         return ball
 
@@ -1436,13 +1448,17 @@ def _amos_airy_mlri(a: tuple[float, ...]) -> bool:
     return any(_amos_acai_mlri(_amos_airy_arg(x, n)) for n in orders)
 
 
-def _amos_binu_mlri(a: tuple[float, ...]) -> bool:
-    """Whether `besj` computes J_v(x) with `mlri` in `binu`: outside of its power series
-    (`seri`), for `x < rl` and v <= fnul (else `buni`), or at `x = rl` unless `asyi`."""
-    v, x = abs(a[0]), abs(a[1])
-    if _amos_not_j(a) or x <= 2 or x * x / 4 <= v + 1 or v > AMOS_FNUL:
+def _amos_mlri(v: float, az: float) -> bool:
+    """Whether `binu` computes I_v(z) (v >= 0) with `mlri` at |z| = az: outside of its power
+    series (`seri`), for `az < rl` and v <= fnul (else `buni`), or at `az = rl` unless `asyi`."""
+    if az <= 2 or az * az / 4 <= v + 1 or v > AMOS_FNUL:
         return False
-    return x < AMOS_RL or x == AMOS_RL and 2 * x < v * v
+    return az < AMOS_RL or az == AMOS_RL and 2 * az < v * v
+
+
+def _amos_binu_mlri(a: tuple[float, ...]) -> bool:
+    """Whether `besj` computes J_v(x) with `mlri` in `binu`."""
+    return not _amos_not_j(a) and _amos_mlri(abs(a[0]), abs(a[1]))
 
 
 J_AIRY_FLOOR: Final = Floor(
@@ -1579,6 +1595,225 @@ def _bessel_v() -> dict[tuple[str, str], Entry]:
                 overrides=(K_OVERRIDE,),
             ),
             entry("ke", specs.r_ke, ke, cut("K_v"), k0),
+        ]
+    )
+
+
+# the most digits that `_cbessel` adds for a part far below the modulus (to stay below 300)
+LOST_DIGITS: Final = 150
+# the digits that `_overflows` evaluates a reference with, the lower of `generate.DPS`
+OVERFLOW_DPS: Final = 50
+
+
+# mpmath's J_v, Y_v, and I_v with `SERIES`, for large |z| (and K_v, whose series diverges for
+# |z| >= 1, without it)
+BESSEL_J: Final = functools.partial(mp.besselj, **SERIES)
+BESSEL_Y: Final = functools.partial(mp.bessely, **SERIES)
+BESSEL_I: Final = functools.partial(mp.besseli, **SERIES)
+
+
+def _besselk(v: mp.mpf, z: mp.mpc) -> mp.mpc:
+    """`mp.besselk`, but continued from -z for Re z < 0 (DLMF 10.34.2), where its asymptotic
+    series is wrong, and of t = |Im z| for Re z = 0 (DLMF 10.27.8), where its real part has only
+    the absolute precision of |K_v(z)|."""
+    m = 1 if z.imag >= 0 else -1
+    if z.real < 0:  # z = -z e^(m pi i)
+        return mp.expjpi(-m * v) * mp.besselk(v, -z) - m * 1j * mp.pi * BESSEL_I(v, -z)
+    if z.real == 0 and z.imag != 0:  # z = t e^(m pi i / 2)
+        t = abs(z.imag)
+        h = BESSEL_J(v, t) - m * 1j * BESSEL_Y(v, t)
+        return -m * 1j * mp.pi / 2 * mp.expjpi(-m * v / 2) * h
+    return mp.besselk(v, z)
+
+
+def _cbessel(
+    f: str,
+) -> tuple[
+    Callable[[mp.mpf, mp.mpf, mp.mpf], mp.mpc],
+    Callable[[flint.arb, flint.acb], flint.acb | None],
+]:
+    """The reference (of v, Re z, Im z) and the Arb version (of v, z) of J_v, Y_v, I_v, K_v,
+    H1_v, or H2_v (`f` is j, y, i, k, 1, or 2) of a complex z; with an `e` suffix, scaled like
+    AMOS's `kode = 2`: J_v and Y_v by e^-|Im z|, I_v by e^-|Re z|, K_v by e^z, and H1_v and
+    H2_v by e^-iz and e^iz."""
+    s = 3 - 2 * int(f[0]) if f[0] in "12" else 0  # 1 for H1, -1 for H2
+    scaled = f.endswith("e")
+
+    def exponent[Z: (mp.mpc, flint.acb)](z: Z) -> Z | mp.mpf | flint.arb:
+        match f[0]:
+            case "j" | "y":
+                return -abs(z.imag)
+            case "i":
+                return -abs(z.real)
+            case "k":
+                return z
+            case _:
+                return -1j * s * z
+
+    def ref(v: mp.mpf, re: mp.mpf, im: mp.mpf) -> mp.mpc:
+        y = value(v, re, im, 0)
+        # a part far below |y| has only the absolute precision of |y|, so it needs more digits
+        lost = max(
+            (int(mp.log10(abs(y) / abs(p))) for p in (y.real, y.imag) if p), default=0
+        )
+        return value(v, re, im, min(lost, LOST_DIGITS)) if lost else y
+
+    def value(v: mp.mpf, re: mp.mpf, im: mp.mpf, lost: int) -> mp.mpc:
+        with specs.wdps(specs.xd(v, re, im) + lost):
+            z = mp.mpc(re, im)
+            if not s:
+                y = {
+                    "j": BESSEL_J,
+                    "y": BESSEL_Y,
+                    "i": BESSEL_I,
+                    "k": _besselk,
+                }[f[0]](v, z)
+            elif s * im > 0:
+                # H decays here, so that J_v +- i Y_v cancels (DLMF 10.27.8)
+                y = -2j * s / mp.pi * mp.expjpi(-s * v / 2) * _besselk(v, -1j * s * z)
+            else:
+                y = BESSEL_J(v, z) + 1j * s * BESSEL_Y(v, z)
+            return y * mp.exp(exponent(z)) if scaled else y
+
+    def arb(v: flint.arb, z: flint.acb) -> flint.acb | None:
+        nu = flint.acb(v)
+        # with up to 4 times the precision, until the ball can confirm a reference
+        for k in range(3):
+            with flint.ctx.extraprec(flint.ctx.prec * (2**k - 1)):
+                if not s:
+                    g = {
+                        "j": z.bessel_j,
+                        "y": z.bessel_y,
+                        "i": z.bessel_i,
+                        "k": z.bessel_k,
+                    }
+                    y = g[f[0]](nu)
+                elif s * z.imag > 0:
+                    k_v = (-1j * s * z).bessel_k(nu)
+                    y = (
+                        k_v
+                        * flint.acb(-s * v / 2).exp_pi_i()
+                        * (-2j * s)
+                        / flint.arb.pi()
+                    )
+                else:
+                    y = z.bessel_j(nu) + 1j * s * z.bessel_y(nu)
+                if scaled:
+                    y *= exponent(z).exp()
+                if y.rel_accuracy_bits() >= ARB_BITS:
+                    return y
+        return None
+
+    return ref, arb
+
+
+def _k_overflows(a: tuple[float, ...]) -> bool:
+    """`cyl_bessel_k_overflows` of xsf: whether K_v(x) overflows for x > 0 and |v| > 2^30, by
+    the lower bound sqrt(pi / (2 v)) (2 v / (e x))^v e^(-x^2 / (4 (v - 1))) (DLMF 10.32.10)."""
+    v, x, y = abs(a[0]), a[1], a[2]
+    if v <= (2**31 - 1) * 0.5 or y != 0 or not 0 < x < math.inf:
+        return False
+    logk = (
+        v * (math.log(v / x * 2) - 1)
+        - x / (v - 1) * x / 4
+        - math.log(v / (math.pi / 2)) / 2
+    )
+    return logk > LOG_MAX
+
+
+def _amos_range(a: tuple[float, ...]) -> bool:
+    """Whether |v| or |z| is above AMOS's range (`ierr = 4`)."""
+    return max(abs(a[0]), math.hypot(a[1], a[2])) > AMOS_ORDERS
+
+
+def _overflows(f: str) -> Pred:
+    """Whether a part of `f` (as in `_cbessel`) overflows off the real axis z >= 0, where AMOS
+    returns NaN for it (`ierr = 2`)."""
+    ref = _cbessel(f)[0]
+
+    def when(a: tuple[float, ...]) -> bool:
+        if a[2] == 0 and a[1] >= 0 or _amos_range(a):
+            return False
+        with mp.workdps(OVERFLOW_DPS):
+            y = ref(*map(mp.mpf, a))
+        return any(math.isinf(float(p)) for p in (y.real, y.imag))
+
+    return when
+
+
+AMOS_RANGE: Final = Rule(
+    _amos_range,
+    complex(math.nan, math.nan),
+    "AMOS returns NaN for |v| or |z| above 2^51 (`ierr = 4`)",
+)
+CBESSEL_AT_0: Final = Rule(
+    lambda a: a[1] == a[2] == 0,
+    complex(math.nan, math.nan),
+    "a singularity at z = 0, whose limit depends on the direction (like AMOS's `ierr = 1`)",
+)
+
+
+# K_v(z) for Re z < 0 continues I_v(-z) (DLMF 10.34.2)
+MLRI_FLOOR: Final = Floor(
+    lambda a: a[1] < 0 and _amos_mlri(abs(a[0]), math.hypot(a[1], a[2])),
+    1e-15,
+    "AMOS's Miller algorithm (`mlri`) takes its binomial coefficient from `poch`, unlike"
+    " xsf, and so rounds differently (3.35e-15 at K_v(-1e-30 - 3.33i) with v = -1.58e-15,"
+    " where xsf has 8e-16)",
+)
+
+
+def _bessel_c() -> dict[tuple[str, str], Entry]:
+    """The tables of K_v and of the exponentially scaled J_v, Y_v, I_v, K_v, H1_v, and H2_v, of
+    real order v and complex z."""
+
+    def entry(
+        f: str,
+        *rules: Rule,
+        overrides: tuple[Override, ...] = (),
+        floors: tuple[Floor, ...] = (),
+    ) -> tuple[tuple[str, str], Entry]:
+        func = f"bessel_{f}" if f[0] in "jyik" else f"hankel_{f}"
+        ref, arb = _cbessel(f)
+        out = _complex_out(func, ref, arb, rules, overrides, floors, reals=1)
+        return (f"cyl_{func}", "d_cd-cd"), Entry((out,))
+
+    return dict(
+        [
+            entry(
+                "k",
+                Rule(
+                    _k_overflows,
+                    complex(math.inf, 0),
+                    "K_v(x) overflows for x > 0 and |v| > 2^30, by a lower bound, like in xsf",
+                ),
+                AMOS_RANGE,
+                CBESSEL_AT_0,
+                Rule(
+                    _overflows("k"),
+                    complex(math.nan, math.nan),
+                    "AMOS returns NaN where a part overflows off the real axis z >= 0"
+                    " (`ierr = 2`)",
+                ),
+                overrides=(
+                    Override(
+                        lambda a: a[2] == 0 and K_OVERRIDE.when(a[:2]), K_OVERRIDE.why
+                    ),
+                    Override(
+                        lambda a: abs(a[0]) == 10 and a[1] == a[2] == -1e-30,
+                        "xsf returns NaN where |K_v(z)| exceeds AMOS's overflow threshold"
+                        " e^elim (about 1e304), but not the largest f64, which"
+                        " K_10(-1e-30 - 1e-30 i) of about 5.8e306 does",
+                    ),
+                ),
+                floors=(MLRI_FLOOR,),
+            ),
+            entry("je"),
+            entry("ye"),
+            entry("ie"),
+            entry("ke"),
+            entry("1e"),
+            entry("2e"),
         ]
     )
 
@@ -3830,6 +4065,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     **_bessel(0),
     **_bessel(1),
     **_bessel_v(),
+    **_bessel_c(),
     ("exp1", "d-d"): _real(
         "exp1",
         specs.r_exp1,
