@@ -1475,8 +1475,9 @@ pub(crate) fn chgu(
         }
         id = id.max(id0);
     }
-    // Unlike in xsf, `chgus` is retried with `chgus_ln_prefactors` for fewer than `ID_MIN` digits,
-    // a finite a, and a finite non-integer b, and kept if it has more
+    // Unlike in xsf, `chgus` is retried with `chgus_ln_prefactors` for fewer than `ID_MIN` digits
+    // (even if at least `ID_ACCEPT`), a finite a, and a finite non-integer b, and kept if it has
+    // more
     if id < ID_MIN && a_arg.is_finite() && b_arg.is_finite() && b_arg != b_arg.trunc() {
         let mut id_ln = 0;
         let u = chgus(x, a_arg, b_arg, true, &mut id_ln);
