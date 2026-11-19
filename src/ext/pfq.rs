@@ -2347,7 +2347,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         // +inf where it diverges, and NaN where it is complex
         (&[a], &[]) if z == 1.0 && a > 0.0 => exact(f64::INFINITY),
         (&[a], &[]) if !complex || a.fract() == 0.0 => exact(crate::hyp1f0(a, z)),
-        // Unlike in xsf, NaN where `hyp2f1` is +-inf, as it can then be complex; else real, e.g.
+        // NaN where `hyp2f1` is +-inf, as it can then be complex; else real, e.g.
         // where it is rational
         (&[a1, a2], &[b]) if complex => {
             let y = crate::hyp2f1(a1, a2, b, z);
