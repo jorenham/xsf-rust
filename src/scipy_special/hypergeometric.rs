@@ -1,6 +1,6 @@
 //! `hyp0f1` is translated into pure Rust from `xsf/cpu/hyp0f1.h` (scipy/xsf@fa36f89).
 
-use core::f64::consts::PI;
+use core::f64::consts::{LN_2, PI};
 
 use crate::ext::ln_dd;
 use crate::utils::is_nonpos_int;
@@ -428,9 +428,39 @@ impl HypergeometricArg for f64 {
     #[inline]
     fn hyp1f0(self, a: f64) -> Self {
         if a > 0.0 && self == 1.0 {
-            f64::NAN
+            return f64::NAN;
+        }
+        // `1 - z = w + r` exactly, so that `(1 - z)^-a = w^-a (1 + r/w)^-a` does not amplify the
+        // rounding of `w` by a large `a`, e.g. for `z = 2^-60` and `a = 2^60`
+        let (w, r) = two_sum(1.0, -self);
+        let p = w.powf(-a);
+        if r == 0.0 || r.is_nan() {
+            p
+        } else if p.is_normal() {
+            // `p e^c`, as `p + p (e^c - 1)` if `e^c` is in `(1/2, 2)`, as it is often within an ulp
+            // of 1
+            let c = -a * (r / w).ln_1p();
+            if c.abs() < LN_2 {
+                p.mul_add(c.exp_m1(), p)
+            } else {
+                p * c.exp()
+            }
+        } else if a.is_finite() {
+            // (by its logarithm in double-double, where `w^-a` over- or underflows but
+            // `(1 - z)^-a` might not, unless that is beyond `e^(+-2 MAXLOG)`)
+            let ln = ln_dd(Dd { hi: w, lo: r }.abs());
+            let y = -a * ln.hi;
+            p.signum()
+                * if y.abs() < 2.0 * MAXLOG {
+                    // (unlike `exp_dd`, with the low word of `y` for a subnormal result too)
+                    let y = ln * -a;
+                    let e = y.hi.exp();
+                    if e.is_finite() { e.mul_add(y.lo, e) } else { e }
+                } else {
+                    y.exp()
+                }
         } else {
-            (1.0 - self).powf(-a)
+            p
         }
     }
 

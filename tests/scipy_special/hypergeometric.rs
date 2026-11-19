@@ -38,6 +38,53 @@ fn test_hyp1f0_f64() {
     assert_eq!(xsf::hyp1f0(0.0, 2.0), 1.0);
     assert_eq!(xsf::hyp1f0(1.0, 2.0), -1.0);
     assert_eq!(xsf::hyp1f0(2.0, 2.0), 1.0);
+
+    // correctly rounded, where `1 - z` rounds up
+    assert_eq!(xsf::hyp1f0(-1.0, -0.1), 1.1);
+    // mpmath: (1 - z)^-a, near `f64::MAX`
+    let (a, z) = (-3.040_181_842_519_321_2e16, -2.334_671_903_392_507e-14);
+    assert_eq!(xsf::hyp1f0(a, z), f64::from_bits(0x7fef_ffff_ffff_fffe));
+    let (a, z) = (1.311_547_269_609_478_6e16, 5.411_796_656_819_75e-14);
+    assert_eq!(xsf::hyp1f0(a, z), f64::MAX);
+    let (a, z) = (-4.230_104_975_855_333e16, 1.218_017_089_888_251_6e-16);
+    assert_eq!(xsf::hyp1f0(a, z), f64::from_bits(0x3f77_b2e7_0ac3_9ce7));
+}
+
+#[test]
+fn test_hyp1f0_f64_inexact_1mz() {
+    // `1 - z` rounds to 1 (gh-1613)
+    let (a, z) = (2f64.powi(60), 2f64.powi(-60));
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [E], rtol = 1e-15);
+    np_assert_allclose!([xsf::hyp1f0(-a, z)], [1.0 / E], rtol = 1e-15);
+    np_assert_allclose!([xsf::hyp1f0(a, -z)], [1.0 / E], rtol = 1e-15);
+
+    // mpmath: (1 - z)^-a
+    let (a, z) = (-4.694_146_575_744_287_4e17, -1.114_329_277_760_014e-16);
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [5.214_157_846_371_395e22], rtol = 1e-14);
+    let (a, z) = (2.161_946_778_091_621e17, -1.949_623_411_343_651_5e-15);
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [8.823_793_205_924_179e-184], rtol = 1e-14);
+
+    // `w^-a` overflows, but `(1 - z)^-a` does not
+    let a = -3.624_940_246_312_303_4e17;
+    np_assert_allclose!([xsf::hyp1f0(a, z)], [8.463_801_622_536_752e306], rtol = 1e-12);
+
+    // where both `w^-a` and `(1 - z)^-a` over- or underflow
+    assert_eq!(xsf::hyp1f0(-16.0, -2f64.powi(64)), f64::INFINITY);
+    let z = -3.0 * 2f64.powi(-54);
+    assert_eq!(xsf::hyp1f0(-2f64.powi(67), z), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(2f64.powi(67), z), 0.0);
+    assert_eq!(xsf::hyp1f0(-2f64.powi(150), z), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(2f64.powi(150), z), 0.0);
+    assert_eq!(xsf::hyp1f0(-f64::MAX, -2f64.powi(64)), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(f64::MAX, -2f64.powi(64)), 0.0);
+    // a subnormal result, where `w^-a` underflows and `(1 + r/w)^-a` overflows
+    let y = xsf::hyp1f0(720.0 * 2f64.powi(53), -2f64.powi(-53).next_up());
+    np_assert_allclose!([y], [2.032_230_802_4e-313], rtol = 1e-9);
+
+    // a subnormal result with an exact `w^-a`, which needs the low word of its logarithm
+    assert_eq!(xsf::hyp1f0(2.0, -2f64.powi(512)), f64::MIN_POSITIVE / 4.0);
+    let y = xsf::hyp1f0(10.323_232_323_232_324, -2f64.powi(99));
+    assert_eq!(y, f64::from_bits(4_503_599_627_370_402));
 }
 
 #[test]
