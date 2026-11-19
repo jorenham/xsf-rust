@@ -1595,6 +1595,42 @@ LOG_AT_0: Final = Rule(
     lambda a: a[0] == 0, -math.inf, "the limit for x -> 0, like ln |x|"
 )
 
+COMPLEX_EI_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(-math.inf, -0.0),
+    "Ei(z) -> -inf for z -> 0, as -inf - 0i like in xsf",
+)
+COMPLEX_LOG_AT_0: Final = Rule(
+    lambda a: a[0] == a[1] == 0,
+    complex(-math.inf, math.nan),
+    "-inf + NaN i at z = 0, like in xsf, as the limit of the imaginary part depends on arg z",
+)
+
+
+def _e1_overflow(re_w: Callable[[tuple[float, ...]], float]) -> Override:
+    """Where xsf's E1(w) overflows, with Re w = `re_w` of the inputs."""
+    return Override(
+        lambda a: re_w(a) < -LN_MAX,
+        "xsf multiplies the continued fraction of E1(w) by exp(-w) first, which overflows for "
+        "Re w < -709.78, and so has NaN parts where xsf-rust has the infinities (#1671)",
+    )
+
+
+def _off_axis(f: Callable[[mp.mpc], mp.mpc]) -> Callable[[mp.mpf, mp.mpf], mp.mpc]:
+    """`specs._c(f)` with |log10 |Re z / Im z|| more digits, which a part that vanishes on an
+    axis loses near it."""
+    ref = specs._c(f)
+
+    def value(re: mp.mpf, im: mp.mpf) -> mp.mpc:
+        with specs.wdps(abs(int(mp.log10(abs(re / im)))) if re and im else 0):
+            return ref(re, im)
+
+    return value
+
+
+# Shi and Chi from Ei(z) = -E1(-z) +- pi i and Ei(-z) = -E1(z) +- pi i
+SHICHI_OVERFLOW: Final = (_e1_overflow(lambda a: -abs(a[0])),)
+
 
 def _expn(n: mp.mpf, x: mp.mpf) -> mp.mpf:
     """`specs.r_expn` of the integer part of n, to which xsf and xsf-rust truncate n (like
@@ -3781,6 +3817,27 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                         "NaN for x = -inf, like in xsf, not the limit 0 of Ci(|x|)",
                     ),
                 ),
+            ),
+        )
+    ),
+    ("expi", "cd-cd"): _complex(
+        "expi",
+        specs._c(mp.ei),
+        flint.acb.ei,
+        (COMPLEX_EI_AT_0,),
+        (_e1_overflow(lambda a: -a[0]),),
+    ),
+    ("shichi", "cd-cd_cd"): Entry(
+        (
+            _complex_out(
+                "shichi.0", _off_axis(mp.shi), flint.acb.shi, (), SHICHI_OVERFLOW
+            ),
+            _complex_out(
+                "shichi.1",
+                _off_axis(mp.chi),
+                flint.acb.chi,
+                (COMPLEX_LOG_AT_0,),
+                SHICHI_OVERFLOW,
             ),
         )
     ),
