@@ -844,7 +844,7 @@ fn pfq_series_sorted(a: impl Params, b: impl Params, z: f64) -> Estimate {
 
 /// The sum of `v` in double-double
 fn sum_dd(v: &[f64]) -> Dd {
-    v.iter().fold(Dd::new(0.0), |s, &v| s + v)
+    v.iter().fold(Dd::ZERO, |s, &v| s + v)
 }
 
 /// Whether the series of `_{q+1}F_q` diverges at `z = 1`, where `sum_j b_j <= sum_i a_i`
@@ -1172,8 +1172,8 @@ const PFQ_GAMMA_DD_MIN: f64 = -1024.0;
 /// `ln Gamma(g)` for `g >= PFQ_GAMMA_MAX` by Stirling's series (DLMF 5.11.1) in double-double,
 /// its sign, and a bound on its absolute error
 fn ln_gamma_stirling(g: Dd) -> (Dd, f64, f64) {
-    let w = Dd::new(1.0) / (g * g);
-    let corr = STIRLING_DD.iter().fold(Dd::new(0.0), |s, &c| s * w + c) / g;
+    let w = Dd::ONE / (g * g);
+    let corr = STIRLING_DD.iter().fold(Dd::ZERO, |s, &c| s * w + c) / g;
     let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + corr;
     (v, 1.0, STIRLING_DD_REST + Dd::EPSILON * v.hi.abs())
 }
@@ -1212,7 +1212,7 @@ fn mul_gammas_in(
     // the product of the `(g)_n^-power`, as a mantissa and an exponent
     // (`rising_e` is an `f64`, which sums exactly, as many tiny factors can take it out of the
     // range of `i32`)
-    let (mut rising, mut rising_e) = (Dd::new(1.0), 0.0);
+    let (mut rising, mut rising_e) = (Dd::ONE, 0.0);
     let gammas = num.into_iter().map(|g| (g, 1.0));
     for (mut g, power) in gammas.chain(den.into_iter().map(|g| (g, -1.0))) {
         let min = if dd { PFQ_GAMMA_DD_MIN } else { -PFQ_GAMMA_MAX };
@@ -1222,7 +1222,7 @@ fn mul_gammas_in(
             let ks = (0_u32..).map(f64::from).take_while(|&k| k < n);
             // `(g)_n` as a product of mantissas and an exponent, so that it is normal also for
             // a tiny factor (the product is at least `2^-n`)
-            let (r, r_e) = ks.fold((Dd::new(1.0), 0), |(p, e), k| {
+            let (r, r_e) = ks.fold((Dd::ONE, 0), |(p, e), k| {
                 let (f, j) = (g + k).frexp();
                 (p * f, e + j)
             });
@@ -1410,15 +1410,15 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let degree = poles.fold(f64::INFINITY, |n, x| n.min(-x.hi));
     let ratio = |n: f64| {
         let normal = |p: Dd| if is_normal(p) { p } else { Dd::NAN };
-        let prod = |v: &[Dd]| v.iter().fold(Dd::new(1.0), |p, &x| normal(p * (x + n)));
+        let prod = |v: &[Dd]| v.iter().fold(Dd::ONE, |p, &x| normal(p * (x + n)));
         // in -1 / z
         if n == degree {
-            Dd::new(0.0)
+            Dd::ZERO
         } else {
             prod(&up) / (prod(&low) * -z)
         }
     };
-    let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
+    let terms = once(Dd::ONE).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
         // (all of its terms)
         return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
@@ -1445,7 +1445,7 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
     let ns = (0..PFQ_MAXITER).map(f64::from);
     let mut ns = ns.take_while(|&n| (up[low.len()] + n).hi <= z.abs());
     let Some(start) = ns.find(|&n| ends(n)) else {
-        return (Dd::new(1.0), f64::INFINITY);
+        return (Dd::ONE, f64::INFINITY);
     };
     let terms = zip(terms, (0_u32..).map(f64::from))
         .take_while(|&(_, n)| n < start || ends(n))
@@ -1697,7 +1697,7 @@ fn hyp2f2_estimate(a1: f64, a2: f64, b1: f64, b2: f64, z: f64) -> Option<Estimat
 fn root_dd(v: impl Into<Dd>, k: usize) -> Dd {
     let v = v.into();
     let s = v.hi.powf(1.0 / k as f64);
-    let pow = |n: usize| (0..n).fold(Dd::new(1.0), |p, _| p * s);
+    let pow = |n: usize| (0..n).fold(Dd::ONE, |p, _| p * s);
     match k {
         1 => v,
         2 => v.sqrt(),
@@ -1991,11 +1991,11 @@ fn cos_sin_pi_div(k: usize) -> (Dd, Dd) {
     let phi = 2.0 / (FRAC_2_PI_DD * k as f64);
     // n, and the terms n - 1 of their Taylor series, of the degrees 2 n - 2 and 2 n - 1, which
     // are below 2^-106 from n = 21 on
-    let terms = successors(Some((1.0, Dd::new(1.0), phi)), |&(n, c, _)| {
+    let terms = successors(Some((1.0, Dd::ONE, phi)), |&(n, c, _)| {
         let next = -(c * phi * phi) / ((2.0 * n - 1.0) * (2.0 * n));
         Some((n + 1.0, next, next * phi / (2.0 * n + 1.0)))
     });
-    let zero = (Dd::new(0.0), Dd::new(0.0));
+    let zero = (Dd::ZERO, Dd::ZERO);
     terms
         .take(20)
         .fold(zero, |(cos, sin), (_, c, s)| (cos + c, sin + s))
@@ -2074,7 +2074,7 @@ fn pfq_exp(a: &[f64], b: &[f64], z: f64) -> Option<Scaled> {
         // relative to this one
         let next = 2.0 * (x * (cospi(2.0 / kf) - 1.0)).exp();
         let others = if kappa == 1 { 0.0 } else { next };
-        ((sum, err + others * sum.abs()), Dd::new(1.0))
+        ((sum, err + others * sum.abs()), Dd::ONE)
     } else {
         pfq_exp_cos(&terms, settled, kappa, root, nu)
     };
@@ -2221,7 +2221,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
     let sum = x + a1 + a2 + (2.0 * shift - 1.0);
     // v_0 / sum_k v_k from v_n = 1 and v_(n+1) = 0, and its relative rounding error
     let ratio = |n: f64| {
-        let (mut v, mut e) = ([Dd::new(1.0), Dd::new(0.0)], [0.0; 2]);
+        let (mut v, mut e) = ([Dd::ONE, Dd::ZERO], [0.0; 2]);
         let (mut total, mut e_total) = (v[0], 0.0);
         for k in (1..=n as u32).rev().map(f64::from) {
             let (p, q) = ((sum + 2.0 * k) * v[0], v[1] * (k + 1.0));
@@ -2636,7 +2636,7 @@ mod tests {
         let v = Dd::new(10.0) / 3.0;
         for k in 1..=5 {
             let root = root_dd(v, k);
-            let pow = (0..k).fold(Dd::new(1.0), |p, _| p * root);
+            let pow = (0..k).fold(Dd::ONE, |p, _| p * root);
             assert!((pow - v).hi.abs() <= pow2(-100) * v.hi, "k = {k}");
         }
     }

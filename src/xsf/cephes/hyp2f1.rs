@@ -572,7 +572,7 @@ fn pow_1mx(x: f64, m: f64) -> f64 {
         let x = Dd::new(x);
         -(x + x * x * (x / 3.0 + 0.5))
     } else {
-        ln_dd(Dd::new(1.0) - x)
+        ln_dd(Dd::ONE - x)
     };
     let l = ln_1mx * m;
     let y = Scaled::new(1.0, 0, 0.0).filter(|_| l.is_finite());
@@ -1078,7 +1078,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         let tiny_c = c.abs() < HYP2F1_EPS;
         let rescale = |y: Scaled| {
             // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
-            let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::new(1.0) - x);
+            let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::ONE - x);
             let scaled = Some(y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
             scaled.filter(accurate).filter(large).map(|(y, _)| y)

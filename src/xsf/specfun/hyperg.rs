@@ -478,9 +478,9 @@ fn chgm_series(a: f64, b: f64, x: f64, x0: f64) -> Option<(f64, f64)> {
 
 /// `chgm_series` in double-double, with `log_scale = min(x0, 0)`.
 fn chgm_series_dd(a: DoubleDouble, b: DoubleDouble, x: f64, x0: f64) -> Option<(f64, f64)> {
-    let one = DoubleDouble::new(1.0);
     let next_term = |t, n| t * (a + n) * x / ((b + n) * (n + 1.0));
-    hyp1f1_sum(a.hi, b.hi, x, next_term, one, x0.min(0.0)).map(|(hg, err)| (hg.hi, err))
+    hyp1f1_sum(a.hi, b.hi, x, next_term, DoubleDouble::ONE, x0.min(0.0))
+        .map(|(hg, err)| (hg.hi, err))
 }
 
 /// Whether the terms `t_m` (`m >= n`) of DLMF 13.2.2 with `z > 0` have one sign: `t_(k+1) / t_k`
@@ -549,7 +549,7 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
         (c * d - 1.0).abs() <= f64::EPSILON
     })?;
     // e^-x M2 and e^-x M3, with their absolute errors
-    let (a2, b1) = (a - b + 1.0, DoubleDouble::new(1.0) - b);
+    let (a2, b1) = (a - b + 1.0, DoubleDouble::ONE - b);
     let (m2, err2) = chgm_series_dd(a2, b1 + 1.0, x, -x).filter(half_accurate)?;
     let (m3, err3) = chgm_series_dd(a2 + 1.0, b1 + 2.0, x, -x).filter(half_accurate)?;
     let ar = a.hi / g;
@@ -2266,7 +2266,7 @@ fn chgus_near_1(x: f64, a: f64, e: f64, id: &mut i32) -> Option<f64> {
     // Gamma(1 + e) / Gamma(1 - e) = 1 + 2e q_1, and s = (1 / Gamma(a) - 1 / Gamma(a - e)) / e
     // from Gamma(a) / Gamma(a - e) = 1 + e q_2, or at a pole a = -n by DLMF 5.5.3 as
     // (-1)^n Gamma(1 - a + e) sin(pi e) / (pi e)
-    let (dd_1, dd_e) = (DoubleDouble::new(1.0), DoubleDouble::new(e));
+    let (dd_1, dd_e) = (DoubleDouble::ONE, DoubleDouble::new(e));
     let q_1 = gamma_quot(dd_1 - e, dd_e * 2.0)?.0;
     let rm = rp * (1.0 + 2.0 * e * q_1);
     let s = if pole {
