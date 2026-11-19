@@ -1078,7 +1078,7 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if let Some(s) = rescale_exp(t.hi) {
             (t, te) = (t.ldexp(-s), te + s);
         }
-        // If the term overflows at the scale of the sums (e.g. the first for x = 1e308), restart
+        // If k times the term overflows at the scale of the sums (e.g. the first for x = 1e308), restart
         // them at its own: `sum_abs` is at most 2^500 and `k_sum_abs` at most k 2^500 (see
         // below), so they are below 2^-503 of `|term|` and `k |term|` (as
         // k <= `HYP2F1_RECUR_MAXITER`), negligible for the error bound and the stop rule.
