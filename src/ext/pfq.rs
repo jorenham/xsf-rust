@@ -34,6 +34,10 @@ const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 /// Largest estimated relative error of an accurate result, after which no other method is tried
 const PFQ_TOL: f64 = 1e-13;
 
+/// Digits of the estimate of `chgu` that are not trusted, as it counts them by heuristics (that
+/// were up to 0.2 digits optimistic in sweeps)
+const CHGU_DIGITS_MARGIN: f64 = 1.0;
+
 /// The smallest estimated relative error above `PFQ_TOL`
 const PFQ_INACCURATE: f64 = f64::from_bits(PFQ_TOL.to_bits() + 1);
 
@@ -2217,7 +2221,7 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 const T: f64 = pow2(20);
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let enough = f64::from(digits) >= -PFQ_TOL.log10();
+                    let enough = f64::from(digits) - CHGU_DIGITS_MARGIN >= -PFQ_TOL.log10();
                     (p.is_normal() && u.is_normal() && enough).then_some(p * u)
                 };
                 let (d, e1) = two_sum(a1, -a2);
@@ -2269,7 +2273,9 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
             // for a < 1, where its other methods are slow and seldom gain the digit); and last
             // Miller's algorithm from where all a_i + k > 0, as its sum cancels before
-            let hypu_tol = |a, b, x| xsf_hypu_min_digits(a, b, x, -PFQ_TOL.log10() as i32);
+            let hypu_tol = |a, b, x| {
+                xsf_hypu_min_digits(a, b, x, (CHGU_DIGITS_MARGIN - PFQ_TOL.log10()) as i32)
+            };
             let miller = |shift| hyp2f0_miller(a1, a2, z, shift).map(Estimate::absolute);
             borel(a1, a2, xsf_hypu_digits)
                 .or_better(series)

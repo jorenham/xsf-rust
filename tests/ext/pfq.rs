@@ -733,6 +733,14 @@ fn test_hyppfq_2f0() {
 }
 
 #[test]
+fn test_hyppfq_2f0_borel_digits() {
+    // where chgu claims the digits of `PFQ_TOL`, but the Borel sum is 1.5e-13 off (Arb)
+    let y =
+        hyppfq(&[-6.004_858_572_925_059, -21.079_297_738_677_543], &[], -151_588_853.883_445_23);
+    assert!(y.is_none_or(|y| (y / -1.040_990_391_775_226_8e184 - 1.0).abs() <= 1e-13));
+}
+
+#[test]
 fn test_hyppfq_2f0_weniger_f64() {
     // where the noise that stops Weniger in f64 is below its error of 2.0e-13 (Arb)
     let y = hyppfq(
