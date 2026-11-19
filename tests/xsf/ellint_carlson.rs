@@ -378,6 +378,18 @@ fn test_elliprj() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 
+    // based on scipy/xsf#568: equal positive real arguments (mpmath)
+    let half = c64(0.5, 0.0);
+    let actual = [
+        xsf::elliprj(half, half, half, c64(-2.0, 0.1)),
+        xsf::elliprj(ONE, ONE, ONE, c64(-1.0, -1e-3)),
+    ];
+    let expected = [
+        c64(-1.259_664_965_962_783_9, -1.226_063_044_216_320_5),
+        c64(-0.563_913_158_248_595, 1.665_754_193_026_62),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+
     assert_eq!(xsf::elliprj(1.0, 1.0, 1.0, INF), 0.0);
     assert_eq!(xsf::elliprj(1.0, 1.0, INF, 1.0), 0.0);
     assert!(xsf::elliprj(-1.0, 1.0, 1.0, 1.0).is_nan());

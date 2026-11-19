@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/ellint_carlson/_rj.hh` (scipy/xsf@d5182c3).
+//! Translated into pure Rust from `xsf/ellint_carlson/_rj.hh` (scipy/xsf@86e1a7d).
 //!
 //! ```text
 //! References
@@ -153,8 +153,6 @@ mod rjimpl {
             /* "... or else let two of the variables x, y, z be nonzero and
              * conjugate complex with phase less in magnitude than pi and the
              * third variable be real and nonnegative." */
-            // Unlike in xsf, either or both (not exclusive or), as two equal positive arguments are
-            // both real and conjugate, e.g. for `elliprj(1, 1, 2, -1 + i)`
             return xyzreal_nonneg_atmost1z
                 || argcheck::r1conj2(x, y, z)
                 || argcheck::r1conj2(y, z, x)
