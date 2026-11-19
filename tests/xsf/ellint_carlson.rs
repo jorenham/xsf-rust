@@ -276,6 +276,32 @@ fn test_elliprg_negligible_imag_huge() {
 }
 
 #[test]
+fn test_carlson_huge_near_cut() {
+    // tiny imaginary parts next to a negative real part are not negligible
+    let p = |k| 2.0_f64.powi(k);
+    let [x, y, z] = [c64(-p(450), p(-797)), c64(-p(450), -p(-797)), c64(1.0, f64::MIN_POSITIVE)];
+    let actual = [xsf::elliprf(x, y, z), xsf::elliprd(x, y, z), xsf::elliprg(x, y, z)];
+    let expected = [
+        c64(1.606_891_115_915_371_2e-65, 0.0),
+        c64(1.031_865_770_122_304_8e-135, 0.0),
+        c64(-2.330_509_388_214_315e70, 0.0),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+
+    let x = c64(p(260), f64::from_bits(1));
+    let z = c64(p(260), 0.0);
+    let actual = [
+        xsf::elliprj(x, ZERO, z, c64(-p(260), 1.0)),
+        xsf::elliprj(x, ZERO, z, c64(-p(260), -1.0)),
+    ];
+    let expected = [
+        c64(-9.343_569_646_112_14e-118, -9.343_569_646_112_14e-118),
+        c64(-9.343_569_646_112_14e-118, 9.343_569_646_112_14e-118),
+    ];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),

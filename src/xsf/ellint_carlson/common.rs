@@ -118,11 +118,12 @@ pub(super) fn sort_by<T: Copy>(arr: &mut [T], comp: impl Fn(&T, &T) -> bool) {
 pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Option<f64> {
     let parts = args.iter().flat_map(|a| [a.real().abs(), a.imag().abs()]);
     let amax = parts.clone().fold(0.0, f64::max);
-    // an imaginary part below `EPSILON` times a positive real part may become subnormal, as that
-    // changes the argument by less than its rounding error (unlike a real part, or one that
-    // decides the side of the branch cut)
+    // if all real parts are positive, an imaginary part below `EPSILON` times its real part may
+    // become subnormal, as that changes the argument by less than its rounding error (not near a
+    // branch cut, where it can decide the result)
+    let right = args.iter().all(|a| a.real() > 0.0);
     let significant = |a: &T| {
-        let im = Some(a.imag().abs()).filter(|&im| im >= f64::EPSILON * a.real());
+        let im = Some(a.imag().abs()).filter(|&im| !right || im >= f64::EPSILON * a.real());
         [Some(a.real().abs()), im].into_iter().flatten()
     };
     let amin = args
@@ -171,7 +172,8 @@ pub(super) fn duplicate<T: super::typing::Num>(xyz: [T; 3]) -> ([T; 3], [T; 3]) 
 ///
 /// Its real part is nonnegative if those of `xyz` are, since each root is within `pi / 4` of the
 /// positive real axis, but it may round to below 0 if it cancels, e.g. for nearly imaginary
-/// `xyz`. Then it is 0, so that the duplicated arguments stay in the domain.
+/// `xyz`. Then that rounded real part is replaced by 0 (the exact one may be positive), so that
+/// the duplicated arguments stay in the domain.
 pub(super) fn lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3]) -> T {
     let lam = sq[0] * sq[1] + sq[1] * sq[2] + sq[2] * sq[0];
     if lam.real() < 0.0 && xyz.iter().all(|a| a.real() >= 0.0) {
