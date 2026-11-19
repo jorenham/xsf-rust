@@ -99,7 +99,7 @@ fn recurrence_start(
     z: f64,
     ratio: impl Fn(f64) -> Dd,
 ) -> Option<(Dd, f64)> {
-    let terms = pfq_terms_of(first_zero(&a), z, ratio);
+    let terms = pfq_terms_of(first_zero(&a), z, |n, t: Dd| t * (ratio(n) * Dd::new(z)));
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
     let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);

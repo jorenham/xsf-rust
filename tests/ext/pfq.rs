@@ -741,6 +741,12 @@ fn test_pfq_extreme_products() {
     assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), 2.0);
     assert_eq!(hyp2f2(-1.0, 2.0, tiny, -huge, 1.0), 3.0);
     assert_eq!(hyp3f2(-1.0, 1.0, 2.0, tiny, -huge, 1.0), 3.0);
+    // a term ratio that over- or underflows before it is multiplied by z (the exact sums of the
+    // terms, from Python `fractions`, rounded)
+    let (a, b, z) = ([-1.0, 2.0_f64.powi(600)], [2.0, 2.0_f64.powi(-425)], f64::MIN_POSITIVE);
+    assert_eq!(hyppfq(&a, &b, z), Some(-3.0));
+    let (a, z) = ([-3.0, -f64::from_bits(1)], 2.0_f64.powi(500));
+    assert_eq!(hyppfq(&a, &[1.5], z), Some(2.640_637_803_924_586e127));
     // the power of 2 of a product exceeds `i32`, and the second term overflows
     let mut a = vec![huge; 4_198_404];
     a.extend([-1.0, 16.0]);

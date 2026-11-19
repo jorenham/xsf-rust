@@ -321,11 +321,9 @@ fn is_normal<T: SeriesReal>(v: T) -> bool {
     (T::MIN_POSITIVE..=f64::MAX).contains(&v.to_f64().abs())
 }
 
-/// `t_{n+1} / (z t_n)` for any parameters and `n`, which is zero if it underflows, and infinite
-/// if it overflows or would be inexact, as it is not normal
-#[cold]
-fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
-    // as mantissa and `i64` exponent, so that no partial product over- or underflows
+/// `t_{n+1} / (z t_n)` for any parameters and `n`, as a mantissa and an `i64` exponent, so that
+/// no partial product over- or underflows
+fn pfq_frexp_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> (T, i64) {
     let product = |params: &[f64]| {
         let times = |(m, e): (T, i64), &v: &f64| {
             let (vm, ve) = (T::from_f64(v) + n).frexp();
@@ -335,8 +333,20 @@ fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
         params.iter().fold((T::from_f64(1.0), 0), times)
     };
     let ((num, ne), (den, de)) = (product(a), product(b));
-    // beyond `i32`, it over- or underflows anyway
-    let ratio = (num / den).ldexp((ne - de).clamp(i32::MIN.into(), i32::MAX.into()) as i32);
+    (num / den, ne - de)
+}
+
+/// `m` times `2^e`, where beyond `i32` it over- or underflows anyway
+fn ldexp_i64<T: SeriesReal>(m: T, e: i64) -> T {
+    m.ldexp(e.clamp(i32::MIN.into(), i32::MAX.into()) as i32)
+}
+
+/// `t_{n+1} / (z t_n)` for any parameters and `n`, which is zero if it underflows, and infinite
+/// if it overflows or would be inexact, as it is not normal
+#[cold]
+fn pfq_checked_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64) -> T {
+    let (ratio, e) = pfq_frexp_ratio::<T>(a, b, n);
+    let ratio = ldexp_i64(ratio, e);
     let ln_abs = |params: &[f64]| params.iter().map(|v| (v + n).abs().ln()).sum::<f64>();
     if is_normal(ratio) {
         ratio
@@ -371,27 +381,49 @@ fn pfq_ratio<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, checked: bool) -> T {
     }
 }
 
+/// The term `t_{n+1}` after `term = t_n`, with a ratio that is `checked` if the parameters are
+/// extreme
+#[inline]
+fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checked: bool) -> T {
+    let ratio = pfq_ratio::<T>(a, b, n, checked) * T::from_f64(z);
+    if is_normal(ratio) {
+        term * ratio
+    } else {
+        pfq_rescaled_next(a, b, n, z, term, term * ratio)
+    }
+}
+
+/// `pfq_next` from the mantissas and exponents of its factors, as `t_{n+1} / t_n` can over- or
+/// underflow where `t_{n+1}` is normal; or `next`, as computed, if `t_{n+1}` is not normal either
+#[cold]
+#[inline(never)]
+fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, next: T) -> T {
+    let (ratio, e) = pfq_frexp_ratio::<T>(a, b, n);
+    let ((zm, ze), (tm, te)) = (frexp_f64(z), term.frexp());
+    let rescaled = ldexp_i64(tm * (ratio * T::from_f64(zm)), e + i64::from(ze + te));
+    if is_normal(rescaled) { rescaled } else { next }
+}
+
 /// The terms `t_1, t_2, ...` of the series after `t_0 = 1`, in the arithmetic of `T`
 ///
 /// A term that underflows is a bound on it. The terms end before one that overflows or is NaN,
 /// or that is such a bound and not negligible.
 fn pfq_terms<T: SeriesReal>(a: &[f64], b: &[f64], z: f64) -> impl Iterator<Item = T> {
     let checked = pfq_extreme(a, b);
-    pfq_terms_of(first_zero(a), z, move |n| pfq_ratio(a, b, n, checked))
+    pfq_terms_of(first_zero(a), z, move |n, term| pfq_next(a, b, n, z, term, checked))
 }
 
-/// `pfq_terms` of the ratios `ratio(n) = t_{n+1} / (z t_n)`, for the degree of a polynomial, else
-/// infinity
+/// `pfq_terms` with `next(n, t_n) = t_{n+1}`, for the degree of a polynomial, else infinity
 fn pfq_terms_of<T: SeriesReal>(
     degree: f64,
     z: f64,
-    ratio: impl Fn(f64) -> T,
+    next: impl Fn(f64, T) -> T,
 ) -> impl Iterator<Item = T> {
     // the largest term, which is small once the terms are only upper bounds
     let mut limit = f64::MAX;
     let indices = (0_u32..).map(f64::from);
     indices.scan(T::from_f64(1.0), move |term, n| {
-        let next = *term * (ratio(n) * T::from_f64(z));
+        let next = next(n, *term);
         // (the terms after the last one of a polynomial are zero; tested last, as that is faster)
         *term = if next.to_f64().abs() < T::MIN_POSITIVE && n < degree {
             // the term or its ratio underflows, after which the terms can become large again:
@@ -573,7 +605,6 @@ fn pfq_weniger<T: SeriesReal>(
     // the transformation starts at this n
     let start = settled.min(degree);
     let checked = pfq_extreme(a, b);
-    let ratio = |n| -> T { pfq_ratio(a, b, n, checked) };
     // the rounding errors of the partial sums and of the terms (the factor is measured)
     let eps = 4.0 * T::EPSILON * pfq_rounding_scale(a, b);
     let one = T::from_f64(1.0);
@@ -581,7 +612,7 @@ fn pfq_weniger<T: SeriesReal>(
     // the largest |s_n| before `start`
     let mut scale = 1.0_f64;
     for n in (0..start as u32).map(f64::from) {
-        term = term * (ratio(n) * T::from_f64(z));
+        term = pfq_next(a, b, n, z, term, checked);
         if !is_normal(term) {
             // overflow or underflow
             return None;
@@ -599,7 +630,7 @@ fn pfq_weniger<T: SeriesReal>(
     let mut steps = [f64::INFINITY; PFQ_WENIGER_STEPS];
     for k in 0..PFQ_WENIGER_MAXITER {
         let n = start + k as f64;
-        term = term * (ratio(n) * T::from_f64(z));
+        term = pfq_next(a, b, n, z, term, checked);
         if !is_normal(term) {
             // overflow, or underflow, after which the terms only matter if they can increase
             let negligible = term.to_f64().abs() < 1.0
@@ -1387,7 +1418,7 @@ fn pfq_alg_series_dd(a: &[f64], b: &[f64], m: usize, z: f64) -> (Dd, f64) {
             prod(&up) / (prod(&low) * -z)
         }
     };
-    let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, ratio));
+    let terms = once(Dd::new(1.0)).chain(pfq_terms_of(degree, 1.0, |n, t| t * ratio(n)));
     if degree.is_finite() {
         // (all of its terms)
         return asymptotic_sum(terms, degree + 1.0, z, |_| 0.0);
