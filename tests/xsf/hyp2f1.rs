@@ -1540,6 +1540,8 @@ fn test_hyp2f1_f64_polynomial_neg_int_c_overflow() {
         // (by `hyp2f1_recur`, whose first term overflows at the scale of its sums)
         ((-11.0, 24.0, -20.0, 1.146_319_809_459_681_3e308), inf),
         ((-32.0, -136.199_875_679_093_6, -34.0, 8.858_494_428_306_513e307), inf),
+        // (finite, as the error bound of `hyp2f1_recur` straddles the overflow)
+        ((-2.0, -5.274_249_146_091_144e-307, -6.0, 1.011_202_388_360_052_7e308), -f64::MAX),
     ] {
         assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
         assert_eq!(xsf::hyp2f1(b, a, c, x), desired);

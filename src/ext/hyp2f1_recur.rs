@@ -202,10 +202,13 @@ impl Scaled {
     }
 
     /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
-    /// the rounding of an underflow)
+    /// the rounding of an underflow), which is infinite if the value overflows but the bound
+    /// allows a finite one
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
-        (ldexp_f64(y.m, y.e), y.err)
+        let v = ldexp_f64(y.m, y.e);
+        let straddles = v.is_infinite() && ldexp_f64(y.m * (1.0 - y.err), y.e).is_finite();
+        (v, if straddles { f64::INFINITY } else { y.err })
     }
 }
 
@@ -1079,7 +1082,8 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
             (t, te) = (t.ldexp(-s), te + s);
         }
         // If the term overflows at the scale of the sums (e.g. the first for x = 1e308), restart
-        // them at its own: they are at most 2^500 (see below), so below 2^-500 of it.
+        // them at its own: they are at most 2^500 (see below), so below 2^-503 of it (as
+        // k <= `HYP2F1_RECUR_MAXITER`), negligible for the error bound and the stop rule.
         if !(k * t.ldexp(te - e).hi).is_finite() {
             (sum, sum_abs, k_sum_abs, e) = (Dd::new(0.0), 0.0, 0.0, te);
         }
