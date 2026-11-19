@@ -6187,6 +6187,7 @@ add(
         n=2000,
     ),
     complex=True,
+    note="omega_cut",
 )
 add("lambertw#c", "re im", _c(c_lambertw), CZ, complex=True)
 
@@ -6539,6 +6540,11 @@ NOTES = {
     "none": (
         "inf (k) counts the `None` results, where it cannot compute the result to a relative "
         "error of about $`10^{-13}`$."
+    ),
+    "omega_cut": (
+        r"In the near-cut row, the peak is where $`\mathrm{Im}\,z`$ is the f64 nearest to "
+        r"$`-\pi`$: both return the value across the lower cut "
+        "([#1658](https://github.com/jorenham/xsf-rust/issues/1658))."
     ),
     "rj_c": (
         "In the log-sampled complex row, the inf (449) of xsf-rust are 202 NaNs for normal results "
