@@ -2652,6 +2652,8 @@ def _pfq_one_sum(a, b, excess):
         s += t
         top = max(top, abs(t))
     scale = mp.fprod(mp.gamma(v) for v in b) / mp.fprod(mp.gamma(v) for v in a)
+    # (each term gains at least 3 bits, with n above)
+    terms = max(101, mp.mp.prec // 3)
     em = [
         (-1) ** (m + 1)
         * (
@@ -2659,12 +2661,12 @@ def _pfq_one_sum(a, b, excess):
             - sum(mp.bernpoly(m + 1, v) for v in b)
         )
         / (m * (m + 1))
-        for m in range(1, 101)
+        for m in range(1, terms)
     ]
     # (the c_j, and the same with |e_m|, which bounds them and is not small by chance; the terms
     # are small for several j in a row, since the c_j of symmetric parameters vanish in streaks)
     c, cabs, small = [mp.mpf(1)], [mp.mpf(1)], 0
-    for j in range(101):
+    for j in range(terms):
         if j:
             c.append(sum(m * em[m - 1] * c[j - m] for m in range(1, j + 1)) / j)
             cabs.append(
@@ -2690,10 +2692,20 @@ def _cancel(a, b):
 
 def _pfq_at_one(a, b):
     """pFq(1) for p = q + 1 with cancelled parameters (`_cancel`), with the conventions of
-    `hyppfq`.
+    `hyppfq`, evaluated with all parameter arithmetic exact."""
+    # (the binary64 parameters and their integer offsets span this many bits)
+    exps = [math.frexp(v)[1] for v in (*a, *b, 1) if v]
+    with mp.workprec(mp.mp.prec + max(exps) - min(exps) + 64):
+        y = _pfq_at_one_exact(a, b)
+    return +y
+
+
+def _pfq_at_one_exact(a, b):
+    """The body of `_pfq_at_one`.
 
     A b_j = -m is a pole, unless there is a polynomial of degree < m. Else it is the sum if it
-    converges, which is if sum(b) > sum(a) (exactly), else the infinity of the sign of its terms, which is constant for k > -a_i, -b_j."""
+    converges, which is if sum(b) > sum(a) (exactly), else the infinity of the sign of its terms,
+    which is constant for k > -a_i, -b_j."""
     if any(
         _has_nonpos_int(v) and not any(_has_nonpos_int(u) and u > v for u in a)
         for v in b
