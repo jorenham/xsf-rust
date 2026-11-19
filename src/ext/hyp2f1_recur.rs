@@ -1118,27 +1118,26 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
 /// double-double
 fn chu_vandermonde(n: f64, b: Dd, c: Dd) -> Option<Scaled> {
     let cb = c - b;
-    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`
-    let (mut t, mut e, mut k) = (Dd::new(1.0), 0, 0.0);
-    while k < n {
-        let (num, num_e) = (cb + k).frexp();
-        if num.hi == 0.0 {
-            return Some(Scaled {
-                m: 0.0,
-                e: 0,
-                l: Dd::new(0.0),
-                err: 0.0,
-            });
-        }
-        t = t * num / (c + k);
-        k += 1.0;
-        e += num_e;
-        if let Some(s) = rescale_exp(t.hi) {
-            (t, e) = (t.ldexp(-s), e + s);
-        }
+    // the product `t 2^e`, with the mantissas of the numerators as in `poly_dd`, or `None` if a
+    // numerator is 0
+    let product = (0..n as u32)
+        .map(f64::from)
+        .try_fold((Dd::new(1.0), 0), |(t, e), k| {
+            let (num, num_e) = (cb + k).frexp();
+            let t = (num.hi != 0.0).then(|| t * num / (c + k))?;
+            let e = e + num_e;
+            Some(rescale_exp(t.hi).map_or((t, e), |s| (t.ldexp(-s), e + s)))
+        });
+    match product {
+        // (an addition, a product, and a division per factor)
+        Some((t, e)) => Scaled::new(t.hi, e, MACHEP + 3.0 * n * DD_ROUNDING),
+        None => Some(Scaled {
+            m: 0.0,
+            e: 0,
+            l: Dd::new(0.0),
+            err: 0.0,
+        }),
     }
-    // (an addition, a product, and a division per factor)
-    Scaled::new(t.hi, e, MACHEP + 3.0 * n * DD_ROUNDING)
 }
 
 /// `F(a, b; c; x)` by steps 1 to 5, with `ln_1mx = ln(1 - x)`
