@@ -484,7 +484,7 @@ impl HypergeometricArg for num_complex::Complex<f64> {
             self.via(|z| {
                 if z.im == 0.0 && z.re < 1.0 {
                     c64(z.re.hyp1f0(a), 0.0)
-                } else if z.norm() < 0.5 {
+                } else if z.norm() < 0.5 && a.is_finite() && a != 0.0 {
                     // `e^(-a ln(1 - z))`, as `powf` computes it for `|1 - z|` in `[0.5, 2]` off the
                     // axes, but without the rounding of `1 - z`, which a large `a` amplifies
                     (clog1p(-z) * -a).exp()

@@ -135,6 +135,10 @@ fn test_hyp1f0_c64_inexact_1mz() {
     assert_eq!(xsf::hyp1f0(0.0, c64(f64::NAN, 0.0)), c64(1.0, 0.0));
     let y = xsf::hyp1f0(f64::MAX, c64(t, f64::INFINITY));
     assert!(y.re.is_nan() && y.im.is_nan());
+    let y = xsf::hyp1f0(f64::INFINITY, c64(0.125, 0.125));
+    assert!(y.re.is_nan() && y.im.is_nan());
+    let y = xsf::hyp1f0(0.0, c64(0.125, -0.125));
+    assert_eq!((y.re, y.im.to_bits()), (1.0, 0f64.to_bits()));
     let y = xsf::hyp1f0(-0.25, c64(-t, f64::from_bits(1)));
     assert_eq!((y.re, y.im.to_bits()), (1.0, (-0.0f64).to_bits()));
 }
