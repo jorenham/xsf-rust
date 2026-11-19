@@ -249,6 +249,21 @@ fn test_hypu_near_neg_int_a_huge_b() {
 }
 
 #[test]
+fn test_hypu_near_neg_int_a_rec_b_overflow() {
+    // Near overflow, the part of U from the first starting value of the recurrence in b can
+    // overflow, which must not hide how much the two cancel.
+    //
+    // Arb; 1.9e-8 off
+    let actual = xsf::hypu(-132.000_000_151_444_9, 35.851_331_264_848_13, 0.036_698_619_726_327_96);
+    xsref::np_assert_allclose!([actual], [-3.741_694_105_239_787e305], rtol = 1e-7);
+
+    // NaN, as they cancel too much (Arb: 9.62e304)
+    let actual =
+        xsf::hypu(-115.999_999_998_708_15, 32.399_975_307_852_856, 0.001_329_101_958_466_425_9);
+    assert!(actual.is_nan());
+}
+
+#[test]
 fn test_hypu_near_neg_int_a_small_x() {
     // Arb; 9.8e-9 and 6.9e-12 off by the recurrence in a, whose step to a near 0 cancels
     // (-2159.9538 for the first in xsf)

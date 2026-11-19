@@ -490,8 +490,10 @@ pub(super) fn hypu_fwd_b(
     let ((mut u0, id0), (mut u1, id1)) = (start(b - n), start(b - n + 1.0));
     // (fewer for a subnormal start, as in `chgu`)
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
-    // The first starting value is also recurred on its own, to estimate their cancellation
-    let (mut p0, mut p1) = (u0, 0.0);
+    // The first starting value is also recurred on its own, to estimate their cancellation, but
+    // from 1 (and scaled at the end), as its part of U can overflow where U doesn't, e.g. for
+    // U(-164, 9 - 0.016, 0.014) = 3.9e306, where they cancel by 1e5
+    let (u_start, mut p0, mut p1) = (u0, 1.0, 0.0);
     // and so is a rounding error of each step, which can grow even if the starting values don't
     // cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal solution.
     // This is an estimate, not a bound, as the propagated errors can cancel; a bound by their
@@ -508,7 +510,14 @@ pub(super) fn hypu_fwd_b(
         (e0, e1) = (e1, next(e0, e1) + rounding);
         c += 1.0;
     }
-    let id = digits_left(id_start, p1, u1 - p1).min(error_digits(e1, u1));
+    // (the fraction of U from the first starting value; no digits if that overflows)
+    let w = p1 * (u_start / u1);
+    let id = if w.is_finite() {
+        digits_left(id_start, w, 1.0 - w)
+    } else {
+        0.0
+    };
+    let id = id.min(error_digits(e1, u1));
     (if u1.is_finite() { u1 } else { f64::NAN }, id)
 }
 
