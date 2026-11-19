@@ -742,13 +742,15 @@ fn test_hyppfq_2f0_borel_digits() {
 
 #[test]
 fn test_hyppfq_2f0_weniger_f64() {
-    // where the noise that stops Weniger in f64 is below its error of 2.0e-13 (Arb)
-    let y = hyppfq(
-        &[-1.368_297_746_698_496_2e-15, -2.999_999_999_999_947],
-        &[],
-        -59_302.810_486_050_94,
-    );
-    assert!(y.is_none_or(|y| (y / 0.429_248_028_314_945_7 - 1.0).abs() <= 1e-13));
+    // where the noise that stops Weniger in f64 is below its error of 2.0e-13 and 1.4e-13 (Arb)
+    let z = -59_302.810_486_050_94;
+    for (a1, expected) in [
+        (-1.368_297_746_698_496_2e-15, 0.429_248_028_314_945_7),
+        (-1.137_055_427_506_450_3e-15, 0.525_705_111_529_719_7),
+    ] {
+        let y = hyppfq(&[a1, -2.999_999_999_999_947], &[], z);
+        assert!(y.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{y:?}");
+    }
 }
 
 #[test]

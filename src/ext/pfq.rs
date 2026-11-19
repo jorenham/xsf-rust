@@ -154,6 +154,10 @@ const PFQ_WENIGER_MAXITER: usize = 40;
 /// (measured)
 const PFQ_WENIGER_STEPS: usize = 4;
 
+/// Factor by which the error of the `f64` Weniger sum of 2F0 can exceed its estimate (up to 4 in
+/// sweeps of the `a_i` and `z` where it has digits)
+const HYP2F0_WENIGER_F64_MARGIN: f64 = 4.0;
+
 /// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
 const PFQ_WENIGER_MAX_Z: f64 = -0.6;
 
@@ -2280,7 +2284,10 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             borel(a1, a2, xsf_hypu_digits)
                 .or_better(series)
                 .or_better(|| borel(a2, a1, xsf_hypu_digits))
-                .or_better(|| weniger(pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?, f64::EPSILON))
+                .or_better(|| {
+                    let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
+                    weniger((y, HYP2F0_WENIGER_F64_MARGIN * err), f64::EPSILON)
+                })
                 .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
                 .or_better(|| miller(0.0))
                 .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
