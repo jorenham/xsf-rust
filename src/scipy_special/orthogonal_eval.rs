@@ -558,20 +558,28 @@ fn eval_gegenbauer_l(n: i64, alpha: f64, x: f64) -> f64 {
         return sign * p;
     }
 
-    let mut d = x - 1.0;
-    let mut p = x;
-    for kk in 0..n - 1 {
-        let k = kk as f64 + 1.0;
-        d = (2.0 * (k + alpha) / (k + 2.0 * alpha)) * (x - 1.0) * p + (k / (k + 2.0 * alpha)) * d;
-        p += d;
-    }
-
+    let p = gegenbauer_hyp2f1_l(n, alpha, x);
     let n = n as f64;
     if (alpha / n).abs() < 1e-8 {
         // avoid loss of precision
         return sign * 2.0 * alpha / n * p;
     }
     sign * crate::binom(n + 2.0 * alpha - 1.0, n) * p
+}
+
+/// `C_n^(alpha)(x) / binom(n + 2 alpha - 1, n)` by the recurrence of `eval_gegenbauer_l`, for
+/// `n >= 1`, i.e. `2F1(-n, n + 2 alpha; alpha + 1/2; (1 - x) / 2)`
+fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
+    let xm1 = x.clone() - 1.0;
+    let mut d = xm1.clone();
+    let mut p = x;
+    for kk in 0..n - 1 {
+        let k = kk as f64 + 1.0;
+        d = xm1.clone() * (2.0 * (k + alpha) / (k + 2.0 * alpha)) * p.clone()
+            + d * (k / (k + 2.0 * alpha));
+        p = p + d.clone();
+    }
+    p
 }
 
 /// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
