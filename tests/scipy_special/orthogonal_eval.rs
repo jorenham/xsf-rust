@@ -146,6 +146,18 @@ fn test_eval_integer_degree_complex() {
     ];
     let desired = [c64(0.226_562_499_999_999_83, -0.093_75), c64(e, -e)];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // and for large degrees, where the binomial prefactor rounded to 0 (Arb)
+    let actual = xsf::eval_gegenbauer(1000.0, -0.499_999_999_999_999_9, c64(0.75, 0.125));
+    let desired = c64(-7.606_673_349_914_896e74, -2.979_424_348_047_212e74);
+    np_assert_allclose!([actual], [desired], rtol = 1e-14);
+
+    // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
+    let zero = c64(0.0, 0.0);
+    assert_eq!(xsf::eval_legendre(9.0, zero), zero);
+    assert_eq!(xsf::eval_legendre(9.0, c64(0.0, 1e-25)), c64(0.0, 2.460_937_5e-25));
+    assert_eq!(xsf::eval_chebyshev_u(3.0, zero), zero);
+    assert_eq!(xsf::eval_gegenbauer(7.0, 3.75, zero), zero);
 }
 
 #[test]

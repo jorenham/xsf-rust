@@ -100,19 +100,31 @@ mod sealed {
         #[inline]
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, integer degrees of the Gegenbauer case `lam + 1 = 2c` use the
-            // recurrence of `eval_gegenbauer` (with x < 0 reflected), since the complex series
-            // cancels catastrophically for large degrees. It takes `alpha = lam / 2`, so that a
-            // small `c` keeps its digits (unlike `c - 1` in the Jacobi recurrence).
+            // recurrence of `eval_gegenbauer`, since the complex series cancels catastrophically
+            // for large degrees. Its `alpha = lam / 2` keeps the digits of a small `c`, which
+            // `c - 1` in the Jacobi recurrence rounds away. For c = 1 (Legendre), the Jacobi
+            // recurrence is exact and more accurate.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
             let p = super::int_degree(nu, c - 1.0, c - 1.0)
                 .filter(|_| lam + 1.0 == 2.0 * c)
                 .map(|n| {
-                    let p = |z| super::gegenbauer_hyp2f1_l(i64::from(n), 0.5 * lam, z);
-                    if self.re < 0.0 {
-                        crate::utils::neg_if_odd(n, p(-self))
+                    let z = if self.re < 0.0 { -self } else { self };
+                    let mut p = if c == 1.0 {
+                        super::eval_jacobi_l(n, 0.0, 0.0, z)
                     } else {
-                        p(self)
+                        super::gegenbauer_hyp2f1_l(i64::from(n), 0.5 * lam, z)
+                    };
+                    if self.re < 0.0 {
+                        p = crate::utils::neg_if_odd(n, p);
+                    } else if self.re == 0.0 {
+                        // the parity (-1)^n makes Re (odd n) or Im (even n) zero
+                        if n % 2 == 0 {
+                            p.im = 0.0;
+                        } else {
+                            p.re = 0.0;
+                        }
                     }
+                    p
                 });
             p.filter(OrthoPolyArg::is_finite)
                 .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
@@ -508,6 +520,13 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
             // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
+            // Unlike in xsf, complex z uses `1 / (n B(2 alpha, n))` (DLMF 5.12.1) for small
+            // alpha, which keeps the digits of `2 alpha` and `2 alpha + 1` that `n + 2 alpha - 1`
+            // rounds away (as in `binom_alpha`).
+            if self.as_f64().is_none() && alpha < 0.25 && n > 0.0 {
+                let b = 1.0 / n / crate::beta(2.0 * alpha, n);
+                d = if b.is_finite() { b } else { d };
+            }
         }
         self.hyp2f1_sh(n, n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha) * d
     }
