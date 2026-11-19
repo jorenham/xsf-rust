@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@102de34).
+//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@102de34).
 //!
 //! ```text
 //!
@@ -110,7 +110,7 @@
 //! - Tiny z: `besh` and `besk` only reject `z = 0` for its magnitude alone, as `bknu` and `seri`
 //!   compute K and I for any tiny z.
 //! - Inner `airy` failure: `uni2` and `unk2` fail if `airy` does (`ierr = 3` is only a loss of
-//!   precision) instead of using its 0 (for `|z| > ~7e8`).
+//!   precision) instead of using its 0.
 
 // The C++ literals and the control flow of the line-by-line Fortran translation are kept verbatim.
 // E.g. `t1.max(12.0).min(60.0)` maps NaN to 12, `t1.clamp(12.0, 60.0)` would not.
