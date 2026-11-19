@@ -2629,6 +2629,9 @@ def _pfq_series(a, b, z):
 
 # the terms of the tail of `_pfq_one_sum` that are small in a row before it stops
 SMALL_STREAK: Final = 8
+# the largest |a_i|, |b_j| of `_pfq_one_sum`, as sampled in `pfq_map.py` (|a_i|, |b_j| <= 100),
+# since its tail is unchecked for larger ones
+ONE_SUM_MAX: Final = 128
 
 
 def _pfq_one_sum(a, b, excess):
@@ -2735,6 +2738,8 @@ def _pfq_at_one_exact(a, b):
                     * mp.rgamma(mp.fsub(c, a1, exact=True))
                     * mp.rgamma(mp.fsub(c, a2, exact=True))
                 )
+        if max(abs(v) for v in (*a, *b)) > ONE_SUM_MAX:
+            raise NoConvergence
         # (with the digits that its cancellation and a tiny excess lose, as in `r_hyp2f1`)
         extra = 20 + max(0, -math.floor(math.log10(excess)))
         while extra < 300:
