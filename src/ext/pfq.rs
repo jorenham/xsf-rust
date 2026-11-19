@@ -35,8 +35,8 @@ const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 /// Largest estimated relative error of an accurate result, after which no other method is tried
 const PFQ_TOL: f64 = 1e-13;
 
-/// Digits of the estimate of `chgu` that are not trusted, as it counts them by heuristics (that
-/// were up to 0.2 digits optimistic in sweeps)
+/// Digits of U beyond those of `PFQ_TOL` that `chgu` must estimate for the Borel sum of 2F0 to be
+/// taken before the other methods, as these are often more accurate (measured)
 const CHGU_DIGITS_MARGIN: f64 = 1.0;
 
 /// The smallest estimated relative error above `PFQ_TOL`
@@ -2339,6 +2339,9 @@ pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
     pfq_estimate(a, b, z)?.accurate()
 }
 
+/// The signature of `xsf_hypu_digits`, U with the digits that `chgu` estimates
+type Hypu = fn(f64, f64, f64) -> (f64, i32, i32);
+
 /// `hyppfq` and an estimate of its relative error, or `None` where it has no method
 fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
     let exact = |y| Some(Estimate::exact(y));
@@ -2407,14 +2410,14 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             // the rounding error of x (as x z is near -1, x z + 1 is exact)
             let (xz, e) = two_prod(x, z);
             let dx = -((xz + 1.0) + e) / z;
-            let borel = |a1: f64, a2: f64, hypu: fn(f64, f64, f64) -> (f64, i32, i32)| {
+            let borel = |a1: f64, a2: f64, hypu: Hypu, margin: f64| {
                 const T: f64 = pow2(20);
                 const POLE_SPACINGS: f64 = 8.0;
                 // with the digits that chgu estimates
                 let y = |b: f64, x: f64| {
                     let (p, (u, _, digits)) = (x.powf(a1), hypu(a1, b, x));
-                    let digits = f64::from(digits) - CHGU_DIGITS_MARGIN;
-                    (p.is_normal() && u.is_normal()).then_some((p * u, digits))
+                    let digits = f64::from(digits) - margin;
+                    (p.is_normal() && u.is_normal()).then_some((p, u, digits))
                 };
                 let (d, e1) = two_sum(a1, -a2);
                 let (b, e2) = two_sum(d, 1.0);
@@ -2442,11 +2445,22 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                     }
                 };
                 let db = ((e1 + e2).abs() + (f1 + f2).abs()).copysign(e1 + e2);
-                let ((y, digits), (y_t, digits_t)) = (y(b, x)?, y(moved(b, db), moved(x, dx))?);
-                let (digits, rounding) = (digits.min(digits_t), (y_t - y).abs() / T);
-                // (if accurate, its error is within `PFQ_TOL`)
+                let ((p, u, digits), (p_t, u_t, digits_t)) =
+                    (y(b, x)?, y(moved(b, db), moved(x, dx))?);
+                // (relative to y, also where it overflows)
+                let rounding = ((p_t / p) * u_t - u).abs() / u.abs() / T;
+                let (y, digits) = (p * u, digits.min(digits_t));
+                // (with the rounding doubled, as y can curve within the move, e.g. for an a1 near a
+                // non-positive integer)
+                let err = 10.0_f64.powf(-digits) + 2.0 * rounding;
+                // (if accurate, U has the digits of `PFQ_TOL` plus the margin, and the rounding
+                // moves y by at most `PFQ_TOL / 2`; an infinite y overflows by more than `err`)
                 let accurate = digits >= -PFQ_TOL.log10()
-                    && (y.is_infinite() || rounding <= PFQ_TOL / 2.0 * y.abs());
+                    && if y.is_infinite() {
+                        (p / (1.0 + err) * u).is_infinite()
+                    } else {
+                        rounding <= PFQ_TOL / 2.0
+                    };
                 let err = if accurate {
                     PFQ_TOL
                 } else {
@@ -2460,14 +2474,11 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                     if near && (a2 != n || a2_rounded != n) {
                         return None;
                     }
-                    // (with the rounding doubled, as y can curve within the move, e.g. for an a1
-                    // near a non-positive integer; above `PFQ_TOL`, or NaN for no estimate, as for
-                    // an infinite y)
-                    let err = 10.0_f64.powf(-digits) + 2.0 * rounding / y.abs();
-                    if err < PFQ_INACCURATE {
-                        PFQ_INACCURATE
+                    // (above `PFQ_TOL`, or NaN for no estimate, as for an infinite y)
+                    if y.is_infinite() {
+                        f64::NAN
                     } else {
-                        err
+                        err.max(PFQ_INACCURATE)
                     }
                 };
                 // (with the spacing of a subnormal y)
@@ -2497,28 +2508,31 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
             // or the partial sums grow (z < -1); then Miller's algorithm, which is slower, but
             // holds where U lacks a digit by the estimate of chgu; then U for a >= 1 where chgu
             // needs the digits of PFQ_TOL of its first methods, so that it goes on to chguit (not
-            // for a < 1, where its other methods are slow and seldom gain the digit); and last
-            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before
+            // for a < 1, where its other methods are slow and seldom gain the digit); then
+            // Miller's algorithm from where all a_i + k > 0, as its sum cancels before; and last U
+            // with the digits of PFQ_TOL
             let hypu_tol = |a, b, x| {
                 xsf_hypu_min_digits(a, b, x, (CHGU_DIGITS_MARGIN - PFQ_TOL.log10()) as i32)
             };
             let miller = |shift| hyp2f0_miller(a1, a2, z, shift).map(Estimate::absolute);
-            borel(a1, a2, xsf_hypu_digits)
+            borel(a1, a2, xsf_hypu_digits, CHGU_DIGITS_MARGIN)
                 .or_better(series)
-                .or_better(|| borel(a2, a1, xsf_hypu_digits))
+                .or_better(|| borel(a2, a1, xsf_hypu_digits, CHGU_DIGITS_MARGIN))
                 .or_better(|| {
                     let (y, err) = pfq_weniger::<f64>(&[a1, a2], &[1.0], z)?;
                     weniger((y, HYP2F0_WENIGER_F64_MARGIN * err), f64::EPSILON)
                 })
                 .or_better(|| weniger(pfq_weniger::<Dd>(&[a1, a2], &[1.0], z)?, Dd::EPSILON))
                 .or_better(|| miller(0.0))
-                .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol))?)
-                .or_better(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol))?)
+                .or_better(|| (a1 >= 1.0).then(|| borel(a1, a2, hypu_tol, CHGU_DIGITS_MARGIN))?)
+                .or_better(|| (a2 >= 1.0).then(|| borel(a2, a1, hypu_tol, CHGU_DIGITS_MARGIN))?)
                 .or_better(|| {
                     // (past a shifted a_i = 0)
                     let shift = (-a1).max(-a2).floor() + 1.0;
                     (shift > 0.0).then(|| miller(shift))?
                 })
+                .or_better(|| borel(a1, a2, xsf_hypu_digits, 0.0))
+                .or_better(|| borel(a2, a1, xsf_hypu_digits, 0.0))
         },
         (&[a], &[b1, b2]) => hyp1f2_estimate(a, b1, b2, z),
         (&[a1, a2], &[b1, b2]) => hyp2f2_estimate(a1, a2, b1, b2, z),

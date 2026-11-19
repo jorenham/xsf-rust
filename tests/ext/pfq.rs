@@ -685,8 +685,10 @@ fn test_hyp2f0() {
     // a1 is a spacing from -31, past which a1 - (a1 - a2 + 1) + 1 rounds (Arb: 3.457_054_166e108)
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
-    assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
-    assert_eq!(hyppfq(&[a2, a1], &[], -100.0), None);
+    for a in [[a1, a2], [a2, a1]] {
+        let actual = hyppfq(&a, &[], -100.0).unwrap();
+        assert!((actual / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-14, "{actual}");
+    }
     // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
     // by a spacing (Arb: 2.675_976_546e231 and 2.160_851_060e262)
     assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
@@ -726,11 +728,12 @@ fn test_hyp2f0() {
     let actual = hyp2f0(a1, a2, z);
     assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-11, "{actual}");
     assert_eq!(hyppfq(&[a1, a2], &[], z), None);
-    // the Weniger sum, with 3.7 digits (Arb: 2.968_695_239_976_95e209)
+    // the Weniger sum, with 3.7 digits, where hyppfq has U (Arb: 2.968_695_239_976_95e209)
     let (a1, a2, z) = (-62.084_104_456_978_59, -49.999_999_999_996_75, -249.109_088_375_704_2);
     let actual = hyp2f0(a1, a2, z);
     assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 3e-4, "{actual}");
-    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    let actual = hyppfq(&[a1, a2], &[], z).unwrap();
+    assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 1e-14, "{actual}");
     // the zero 1 - 0.5 * 2 of a polynomial, where the error estimate is not 0
     assert!(hyp2f0(-1.0, 0.5, 2.0).is_nan());
 }
@@ -983,6 +986,68 @@ fn test_hyppfq_2f0_hypu_tol() {
             let actual = hyppfq(&a, &[], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
+    }
+}
+
+#[test]
+fn test_hyppfq_2f0_chgu() {
+    // where U has the digits of the tolerance, but not those beyond (Arb)
+    for (a, z, expected) in [
+        (
+            [0.426_888_586_508_577_86, 0.520_572_398_653_129_9],
+            -4.231_846_256_386_015,
+            0.723_332_978_613_73,
+        ),
+        (
+            [-1.551_522_628_340_824, -1.383_752_833_722_752],
+            -4.665_207_575_026_064,
+            -4.942_797_210_602_93,
+        ),
+        (
+            [0.791_211_332_690_890_1, 0.991_733_912_074_225_5],
+            -4.008_904_464_785_383,
+            0.407_420_222_646_740_3,
+        ),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z).unwrap();
+            xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
+        }
+    }
+    // where chgus would claim 13 digits without the rounding of pi z in gamma2 (Arb)
+    for (a, z, expected) in [
+        (
+            [-52.086_010_359_946_73, -21.984_045_607_822_907],
+            -13.677_918_500_493_34,
+            3.597_641_568_386_878e109,
+        ),
+        (
+            [-22.983_102_797_885_714, -35.543_635_003_749_316],
+            -43.587_828_860_606_53,
+            -1.313_003_920_498_504_4e87,
+        ),
+    ] {
+        for a in [a, [a[1], a[0]]] {
+            let actual = hyppfq(&a, &[], z);
+            assert!(actual.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{actual:?}");
+        }
+    }
+    // U with 13 digits, but not 14, where the rounding of x adds to its error (Arb)
+    let (a, z) = ([-41.063_445_135_539_524, -85.142_031_763_609_13], -244.069_262_850_980_4);
+    for a in [a, [a[1], a[0]]] {
+        let actual = hyppfq(&a, &[], z).unwrap();
+        assert!((actual / 4.147_636_829_929_707_7e304 - 1.0).abs() <= 1.5e-13, "{actual}");
+    }
+    // where x^a1 U with 13 digits, but not 14, rounds to infinity, but the result is finite (Arb)
+    let (a, z) = ([-41.529_323_181_743_06, -152.000_000_000_000_7], -3.414_969_771_369_697);
+    for a in [a, [a[1], a[0]]] {
+        let actual = hyppfq(&a, &[], z);
+        let expected = 1.797_693_134_862_228_7e308;
+        assert!(actual.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{actual:?}");
+    }
+    // and where the result overflows by 1.3e-9 (Arb: 1.797_693_137_280_425e308)
+    for a in [a, [a[1], a[0]]] {
+        assert_eq!(hyppfq(&a, &[], -3.414_969_771_4), Some(f64::INFINITY));
     }
 }
 
