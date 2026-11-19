@@ -1558,7 +1558,7 @@ fn hyp2f2_asymptotic(a: [f64; 2], b: [f64; 2], z: f64) -> Option<Estimate> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $\pm\infty$ if it overflows, for large $z > 0$;
+/// - $\pm\infty$ where it detects that it overflows, for large $z > 0$, and otherwise NaN;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
@@ -1729,7 +1729,7 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $\pm\infty$ if it overflows, for large $z > 0$;
+/// - $\pm\infty$ where it detects that it overflows, for large $z > 0$, and otherwise NaN;
 /// - NaN if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///

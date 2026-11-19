@@ -479,6 +479,8 @@ fn test_hyp2f2_inaccurate() {
     // subnormal results, accurate to their spacing (mpmath references)
     assert_eq!(hyp2f2(1.0, 2.0, 1.0, 2.0, -709.0), 1.216_780_750_623_423e-308);
     assert_eq!(hyp2f2(80.0, 80.5, 100.0, 100.0, -1e6), 9.244e-321);
+    // an overflow that it does not detect (Arb: 6.730_996_089e594)
+    assert!(hyp2f2(100.0, 100.5, 1.0, 2.0, 750.0).is_nan());
 }
 
 /// Asserts that `hyp1f2` is within a relative error of `1e-13` of `expected`
@@ -583,6 +585,8 @@ fn test_hyp1f2_inaccurate() {
     // `gamma(1/4) x^(3/8) besselj(-3/4, 2 sqrt(x))` for x = -z)
     let y = hyp1f2(0.5, 0.5, 0.25, -1e40);
     assert!((y / -98_243.753_444_667_18 - 1.0).abs() < 1e-11);
+    // an overflow that it does not detect (Arb: 2.617_687_386e341)
+    assert!(hyp1f2(100.0, 200.0, 200.0, 5e5).is_nan());
 }
 
 #[test]
