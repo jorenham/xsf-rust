@@ -57,6 +57,11 @@ fn test_hyp1f0_f64_inexact_1mz() {
     // `w^-a` overflows, but `(1 - z)^-a` does not
     let a = -3.624_940_246_312_303_4e17;
     np_assert_allclose!([xsf::hyp1f0(a, z)], [8.463_801_622_536_752e306], rtol = 1e-12);
+
+    // at the over- and underflow thresholds
+    assert_eq!(xsf::hyp1f0(-16.0, -2f64.powi(64)), f64::INFINITY);
+    assert_eq!(xsf::hyp1f0(19.545_454_545_454_543, -2f64.powi(55)), f64::from_bits(1));
+    assert_eq!(xsf::hyp1f0(5.0, 2f64.powi(215)), -f64::from_bits(1));
 }
 
 #[test]

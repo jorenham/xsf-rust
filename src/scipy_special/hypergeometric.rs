@@ -434,13 +434,15 @@ impl HypergeometricArg for f64 {
         // rounding of `w` by a large `a`, e.g. for `z = 2^-60` and `a = 2^60`
         let (w, r) = two_sum(1.0, -self);
         let p = w.powf(-a);
+        let corr = || (-a * (r / w).ln_1p()).exp();
         if r == 0.0 || r.is_nan() {
             p
         } else if p.is_normal() {
-            p * (-a * (r / w).ln_1p()).exp()
-        } else if self < 1.0 {
-            // (near the over- or underflow, where `w^-a` might not be)
-            (-a * (-self).ln_1p()).exp()
+            p * corr()
+        } else if a.is_finite() {
+            // (in halves, as `(1 - z)^-a` can be normal or rounded otherwise where `w^-a` is not)
+            let h = w.abs().powf(-a / 2.0);
+            p.signum() * h * corr() * h
         } else {
             p
         }
