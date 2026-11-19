@@ -285,6 +285,17 @@ fn test_assoc_legendre_q_all_n0_m0() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_q0_tiny_and_large_x() {
+    // mpmath: legenq(0, 0, x, type=2), and type=3 for |x| > 1
+    for (x, q0) in [(1e-10, 1e-10), (-1e-6, -1.000_000_000_000_333_3e-6)] {
+        let (qn, _) = xsf::legendre_q_all(1, x);
+        xsref::np_assert_allclose!([qn[0]], [q0], rtol = 5e-16);
+    }
+    let (qm, _) = xsf::assoc_legendre_q_all(1, 1, 1e6);
+    xsref::np_assert_allclose!([qm[0][0]], [1.000_000_000_000_333_3e-6], rtol = 5e-16);
+}
+
+#[test]
 fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
     // Arb: atanh(z), and acoth(z) for |z| > 1
     for (z, q0) in [

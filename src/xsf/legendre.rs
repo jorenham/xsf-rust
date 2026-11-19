@@ -1,6 +1,6 @@
-//! Translated into pure Rust from `xsf/legendre.h` and `xsf/recur.h` (scipy/xsf@5fa6ea3), for `T`
-//! either `double` or `std::complex<double>`. The dual numbers of `xsf/dual.h`, which xsf uses for
-//! derivatives, are not translated.
+//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@ab278eb) and `xsf/cpu/recur.h`
+//! (scipy/xsf@b1eb270), for `T` either `double` or `std::complex<double>`. The dual numbers of
+//! `xsf/cpu/dual.h`, which xsf uses for derivatives, are not translated.
 //!
 //! Unlike in xsf:
 //! - The integer products in the (normalized) recurrence coefficients are computed in `f64`
@@ -686,18 +686,15 @@ fn sph_legendre_p_all_t<T: Num>(theta: T, mut res: Mdspan<'_, T, 2>) {
     });
 }
 
-/// `Q_0(x) = ln |(1 + x) / (1 - x)| / 2` for real `x`
-///
-/// Unlike in xsf, this is `ln_1p` of the quotient minus 1 for `|x|` (and odd in `x`), since the
-/// quotient itself loses the digits of `x` for small or large `|x|`.
-fn q0_real(x: f64) -> f64 {
-    let a = x.abs();
-    let t = if a < 1.0 {
-        2.0 * a / (1.0 - a)
+/// `Q_0(x) = ln |(1 + x) / (1 - x)| / 2` without cancellation, for real `x != +-1`
+fn lq0(x: f64) -> f64 {
+    let ax = x.abs();
+    let t = if ax < 1.0 {
+        2.0 * ax / (1.0 - ax)
     } else {
-        2.0 / (a - 1.0)
+        2.0 / (ax - 1.0)
     };
-    (0.5 * t.ln_1p()).copysign(x)
+    (t.ln_1p() / 2.0).copysign(x)
 }
 
 /// `Q_0(z) = ln(ls (1 + z) / (1 - z)) / 2` for complex `z`, with `ls = -1` for `|z| > 1`, else 1
@@ -792,7 +789,7 @@ fn lqn(x: f64, mut qn: Mdspan<'_, f64, 1>, mut qd: Mdspan<'_, f64, 1>) {
     }
 
     if x.abs() <= 1.021 {
-        q0 = q0_real(x);
+        q0 = lq0(x);
         q1 = x * q0 - 1.0;
         qn[0] = q0;
         qn[1] = q1;
@@ -1073,7 +1070,7 @@ fn lqmn(x: f64, mut qm: Mdspan<'_, f64, 2>, mut qd: Mdspan<'_, f64, 2>) {
     }
     let xs = ls * (1.0 - x * x);
     let xq = xs.sqrt();
-    let q0 = q0_real(x);
+    let q0 = lq0(x);
     if x.abs() < 1.0001 {
         qm[(0, 0)] = q0;
         qm[(0, 1)] = x * q0 - 1.0;
