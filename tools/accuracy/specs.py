@@ -1567,6 +1567,19 @@ def r_sph_kp(n, x):
         return _sph(mp.besselk, n, x, True)
 
 
+def _csph(f, n, re, im, derivative=False, osc=False):
+    """`_sph` at z = re + i im; if `osc`, with the scale of `_sph_osc` (with moduli) for
+    |z| > n + 1/2."""
+    with wdps(xd(n, re, im)):
+        z = mp.mpc(re, im)
+        y = _sph(f, n, z, derivative)
+        if osc and abs(z) > n + 0.5:
+            v = n + mp.mpf(1) / 2
+            env = mp.sqrt(abs(mp.besselj(v, z)) ** 2 + abs(mp.bessely(v, z)) ** 2)
+            return y, mp.sqrt(mp.pi / (2 * abs(z))) * env
+        return y
+
+
 def _riccati(f, n, x, derivative=False):
     """x f_n(x) for the spherical Bessel function f_n of `_sph`, or its derivative
     x f_(n-1)(x) - n f_n(x) (DLMF 10.51.2), with the scale sqrt(pi x / 2) times the Bessel
@@ -2729,6 +2742,79 @@ def r_laguerre(n, x):
     return _poly(mp.laguerre, n, 0, x)
 
 
+def _cpoly(f, *a):
+    """Arb's f(z, *p) for the arguments (*p, re, im), with z = re + i im, since mpmath's hyp2f1
+    can be wrong (mpmath#1216)."""
+    *p, re, im = a
+    with wdps(xd(*p) + 20):
+        return _acb(f, mp.mpc(re, im), *p)
+
+
+def _gengegenbauer(z, n, p, q):
+    return (
+        (2 * z - 1).jacobi_p(n, p - q, q - 1)
+        * (n + 1).gamma()
+        * (n + p).gamma()
+        / (2 * n + p).gamma()
+    )
+
+
+def c_jacobi(n, a, b, re, im):
+    return _cpoly(flint.acb.jacobi_p, n, a, b, re, im)
+
+
+def c_sh_jacobi(n, a, b, re, im):
+    return _cpoly(lambda z, n, a, b: (2 * z - 1).jacobi_p(n, a, b), n, a, b, re, im)
+
+
+def c_gengegenbauer(n, p, q, re, im):
+    return _cpoly(_gengegenbauer, n, p, q, re, im)
+
+
+def c_gegenbauer(n, a, re, im):
+    return _cpoly(flint.acb.gegenbauer_c, n, a, re, im)
+
+
+def c_chebyt(n, re, im):
+    return _cpoly(flint.acb.chebyshev_t, n, re, im)
+
+
+def c_chebyu(n, re, im):
+    return _cpoly(flint.acb.chebyshev_u, n, re, im)
+
+
+def c_chebyc(n, re, im):
+    return _cpoly(lambda z, n: 2 * (z / 2).chebyshev_t(n), n, re, im)
+
+
+def c_chebys(n, re, im):
+    return _cpoly(lambda z, n: (z / 2).chebyshev_u(n), n, re, im)
+
+
+def c_sh_chebyt(n, re, im):
+    return _cpoly(lambda z, n: (2 * z - 1).chebyshev_t(n), n, re, im)
+
+
+def c_sh_chebyu(n, re, im):
+    return _cpoly(lambda z, n: (2 * z - 1).chebyshev_u(n), n, re, im)
+
+
+def c_legendre(n, re, im):
+    return _cpoly(flint.acb.legendre_p, n, re, im)
+
+
+def c_sh_legendre(n, re, im):
+    return _cpoly(lambda z, n: (2 * z - 1).legendre_p(n), n, re, im)
+
+
+def c_genlaguerre(n, a, re, im):
+    return _cpoly(flint.acb.laguerre_l, n, a, re, im)
+
+
+def c_laguerre(n, re, im):
+    return _cpoly(flint.acb.laguerre_l, n, re, im)
+
+
 def r_hermite_h(n, x):
     return _poly(mp.hermite, n, x)
 
@@ -2804,6 +2890,48 @@ def r_assoc_legendre_q(n, m, x):
 
 def r_assoc_legendre_qp(n, m, x):
     return mp.diff(lambda t: _legenq(n, m, t), x)
+
+
+def c_legendre_p(n, m, re, im):
+    """The Ferrers function P_n^m(z) (Arb, mpmath type 2), continued off [-1, 1]."""
+    return _acb(lambda z: z.legendre_p(int(n), int(m), 2), mp.mpc(re, im))
+
+
+def c_assoc_legendre_p_norm(n, m, re, im):
+    with wdps(xd(n) + 20):
+        c = (2 * n + 1) / 2 * mp.factorial(n - m) / mp.factorial(n + m)
+        return mp.sqrt(c) * c_legendre_p(n, m, re, im)
+
+
+def c_sph_legendre_p(n, m, re, im):
+    """The analytic continuation in theta, with sin(theta) for the sqrt(1 - z^2) of the Ferrers
+    function at z = cos(theta)."""
+    with wdps(xd(n, re, im) + 20):
+        t = mp.mpc(re, im)
+        z = mp.cos(t)
+        c = (2 * n + 1) / (4 * mp.pi) * mp.factorial(n - m) / mp.factorial(n + m)
+        y = mp.sqrt(c) * c_legendre_p(n, m, z.real, z.imag)
+        return y * (mp.sin(t) / mp.sqrt(1 - z * z)) ** abs(int(m))
+
+
+def _clegenq(n, m, z):
+    """Q_n^m(z) like `lqn` and `lqmn`: the Ferrers function for |z| < 1, else type 3, but with
+    the principal sqrt(z^2 - 1) for (z + 1)^(m/2) (z - 1)^(m/2), which flips the sign for odd m
+    and Re z < 0."""
+    if abs(z) < 1:
+        return _acb(lambda w: w.legendre_q(int(n), int(m), 2), z)
+    s = mp.sign(mp.re(mp.sqrt(z * z - 1) / (mp.sqrt(z + 1) * mp.sqrt(z - 1))))
+    return s ** int(m) * _acb(lambda w: w.legendre_q(int(n), int(m), 3), z)
+
+
+def c_legendre_q(n, m, re, im):
+    with wdps(xd(n) + 20):
+        return _clegenq(n, m, mp.mpc(re, im))
+
+
+def c_legendre_qp(n, m, re, im):
+    with wdps(xd(n) + 20):
+        return mp.diff(lambda z: _clegenq(n, m, z), mp.mpc(re, im))
 
 
 def r_bdtr(k, n, p):
@@ -4507,6 +4635,25 @@ for f, r, rp in [("j", r_sph_j, r_sph_jp), ("y", r_sph_y, r_sph_yp)]:
 for f, r, rp in [("i", r_sph_i, r_sph_ip), ("k", r_sph_k, r_sph_kp)]:
     for g, ref in [(f"sph_bessel_{f}", r), (f"sph_bessel_{f}_prime", rp)]:
         add(g, "n x", ref, D(Int(0, 50), U(0, 50)), D(Int(0, 100), LU(1e-300, 700)))
+# j and y grow like e^|Im z|, and i and k like e^|Re z|, which overflows beyond 700
+for f, b, (re, im) in [
+    ("j", mp.besselj, (1e4, 700)),
+    ("y", mp.bessely, (1e4, 700)),
+    ("i", mp.besseli, (700, 1e4)),
+    ("k", mp.besselk, (700, 1e4)),
+]:
+    for d in [False, True]:
+        add(
+            f"sph_bessel_{f}{'_prime' if d else ''}#c",
+            "n re im",
+            lambda n, re, im, b=b, d=d: _csph(
+                b, n, re, im, d, b in (mp.besselj, mp.bessely)
+            ),
+            D(Int(0, 50), U(-50, 50), U(-50, 50), n=5000),
+            D(Int(0, 100), LU(1e-300, re, 0), LU(1e-300, im, 0), n=5000),
+            complex=True,
+            note="osc_sph_c" if f in "jy" else "",
+        )
 
 section("Riccati-Bessel functions", 3)
 for f, r, rp in [("j", r_riccati_j, r_riccati_jp), ("y", r_riccati_y, r_riccati_yp)]:
@@ -5551,6 +5698,92 @@ for i, r in enumerate([r_assoc_legendre_q, r_assoc_legendre_qp]):
         note="zeros_c all",
     )
 
+# complex z: in the square [-1, 1] + [-1, 1] i, which avoids the branch cuts (-inf, -1] and
+# [1, inf) of the Ferrers functions
+ZC = nobreak("Re\u00a0z,", "Im\u00a0z", IN, U(-1, 1).pretty())
+for f in ["legendre_p", "legendre_p_all"]:
+    add(
+        f"{f}#c",
+        "n re im",
+        lambda n, re, im: c_legendre_p(n, 0, re, im),
+        D(Int(0, 100), U(-1, 1), U(-1, 1), n=5000),
+        D(Int(0, 30), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), n=5000),
+        complex=True,
+        note=legendre_note(f),
+    )
+for f, r in [
+    ("assoc_legendre_p", c_legendre_p),
+    ("assoc_legendre_p_all", c_legendre_p),
+    ("assoc_legendre_p_norm", c_assoc_legendre_p_norm),
+    ("assoc_legendre_p_norm_all", c_assoc_legendre_p_norm),
+]:
+    add(
+        f"{f}#c",
+        "n m re im",
+        r,
+        D(
+            sampler=lambda r: (*nm_sampler(r), r.uniform(-1, 1), r.uniform(-1, 1)),
+            label="n in {0, ..., 50}, m in {-n, ..., n}, re, im in [-1, 1]",
+            pretty=f"{NM}, {ZC}",
+            n=5000,
+        ),
+        complex=True,
+        note=legendre_note(f),
+    )
+for f in ["sph_legendre_p", "sph_legendre_p_all"]:
+    add(
+        f"{f}#c",
+        "n m re im",
+        c_sph_legendre_p,
+        D(
+            sampler=lambda r: (*nm_sampler(r), r.uniform(0, math.pi), r.uniform(-2, 2)),
+            label="n in {0, ..., 50}, m in {-n, ..., n}, re theta in [0, pi], im theta in [-2, 2]",
+            pretty=f"{NM}, {nobreak('Re ' + GREEK['theta'], IN, U(0, math.pi).pretty())}, "
+            + nobreak("Im " + GREEK["theta"], IN, U(-2, 2).pretty()),
+            n=5000,
+        ),
+        complex=True,
+        note=legendre_note(f),
+    )
+for i, r in enumerate([c_legendre_q, c_legendre_qp]):
+    add(
+        f"legendre_q_all.{i}#c",
+        "n re im",
+        lambda n, re, im, r=r: r(n, 0, re, im),
+        D(Int(0, 100), U(-1, 1), U(-1, 1), n=5000),
+        D(Int(0, 30), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), n=5000),
+        complex=True,
+        note="zeros_c all",
+    )
+for i, r in enumerate([c_legendre_q, c_legendre_qp]):
+    add(
+        f"assoc_legendre_q_all.{i}#c",
+        "n m re im",
+        r,
+        D(
+            sampler=lambda r: (*nm_nonneg(r, 50), r.uniform(-1, 1), r.uniform(-1, 1)),
+            label="n in {0, ..., 50}, m in {0, ..., n}, re, im in [-1, 1]",
+            pretty=f"{nobreak('n', IN, Int(0, 50).pretty())}, "
+            + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, {ZC}",
+            n=5000,
+        ),
+        D(
+            sampler=lambda r: (
+                *nm_nonneg(r, 30),
+                LU(1e-3, 1e3, 0).sample(r),
+                LU(1e-3, 1e3, 0).sample(r),
+            ),
+            label="n in {0, ..., 30}, m in {0, ..., n}, re, im in +-[1e-3, 1e3] (log)",
+            pretty=f"{nobreak('n', IN, Int(0, 30).pretty())}, "
+            + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, "
+            + nobreak("Re\u00a0z,", "Im\u00a0z", IN, LU(1e-3, 1e3, 0).pretty())
+            + " (log)",
+            n=5000,
+        ),
+        complex=True,
+        note="zeros_c all",
+    )
+
 section("Orthogonal polynomials")
 
 
@@ -5594,6 +5827,58 @@ poly("eval_legendre", "n x", r_legendre, [U(-1, 1)], 100)
 poly("eval_sh_legendre", "n x", r_sh_legendre, [U(0, 1)], 100)
 poly("eval_genlaguerre", "n alpha x", r_genlaguerre, [U(-1, 10), U(0, 50)])
 poly("eval_laguerre", "n x", r_laguerre, [U(0, 50)])
+
+
+def cpoly(
+    name: str,
+    args: str,
+    ref: FunctionType,
+    dists: list[Dist],
+    int_n: int = 50,
+    cpp: bool = True,
+) -> None:
+    """`poly` for complex z, with an integer-valued and a real `f64` degree; `dists` ends with
+    the distributions of Re z and Im z."""
+    add(
+        f"{name}#c",
+        f"{args} re im",
+        ref,
+        D(Int(0, int_n), *dists, n=5000),
+        D(U(0, int_n), *dists, n=5000),
+        cpp=cpp,
+        complex=True,
+        note="zeros_c poly_c",
+    )
+
+
+# Im z in +-1/2 the width of the real domain of Re z
+cpoly(
+    "eval_jacobi", "n alpha beta", c_jacobi, [U(-1, 10), U(-1, 10), U(-1, 1), U(-1, 1)]
+)
+cpoly(
+    "eval_sh_jacobi",
+    "n alpha beta",
+    c_sh_jacobi,
+    [U(-1, 10), U(-1, 10), U(0, 1), U(-0.5, 0.5)],
+    cpp=False,
+)
+cpoly(
+    "eval_gengegenbauer",
+    "n p q",
+    c_gengegenbauer,
+    [U(1, 10), U(0.5, 1), U(0, 1), U(-0.5, 0.5)],
+)
+cpoly("eval_gegenbauer", "n alpha", c_gegenbauer, [U(-0.5, 10), U(-1, 1), U(-1, 1)])
+cpoly("eval_chebyshev_t", "n", c_chebyt, [U(-1, 1), U(-1, 1)], 100)
+cpoly("eval_chebyshev_u", "n", c_chebyu, [U(-1, 1), U(-1, 1)], 100)
+cpoly("eval_chebyshev_c", "n", c_chebyc, [U(-2, 2), U(-2, 2)], 100)
+cpoly("eval_chebyshev_s", "n", c_chebys, [U(-2, 2), U(-2, 2)], 100)
+cpoly("eval_sh_chebyshev_t", "n", c_sh_chebyt, [U(0, 1), U(-0.5, 0.5)], 100)
+cpoly("eval_sh_chebyshev_u", "n", c_sh_chebyu, [U(0, 1), U(-0.5, 0.5)], 100)
+cpoly("eval_legendre", "n", c_legendre, [U(-1, 1), U(-1, 1)], 100)
+cpoly("eval_sh_legendre", "n", c_sh_legendre, [U(0, 1), U(-0.5, 0.5)], 100)
+cpoly("eval_genlaguerre", "n alpha", c_genlaguerre, [U(-1, 10), U(0, 50), U(-25, 25)])
+cpoly("eval_laguerre", "n", c_laguerre, [U(0, 50), U(-25, 25)])
 for f, r in [("eval_hermite_h", r_hermite_h), ("eval_hermite_he", r_hermite_he)]:
     add(
         f,
@@ -6563,6 +6848,11 @@ NOTES |= {
         r"$`A = \sqrt{\pi/(2x)}\,\sqrt{J_{n+1/2}(x)^2 + Y_{n+1/2}(x)^2}`$."
     ),
     "osc_c": r"$`A = \sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$.",
+    "osc_sph_c": (
+        r"For $`\lvert z\rvert > n + 1/2`$: "
+        r"$`A = \sqrt{\pi/(2\lvert z\rvert)}\,"
+        r"\sqrt{\lvert J_{n+1/2}(z)\rvert^2 + \lvert Y_{n+1/2}(z)\rvert^2}`$."
+    ),
     "osc_cz": (
         r"For $`\lvert z\rvert > \lvert v\rvert`$: "
         r"$`A = s\sqrt{\lvert J_v(z)\rvert^2 + \lvert Y_v(z)\rvert^2}`$, with "
@@ -6634,6 +6924,7 @@ NOTES |= {
         r"Rows with $`n \in \{\ldots\}`$ use an integer degree (`i32`, or `u32` for Hermite), "
         "the others an `f64` degree."
     ),
+    "poly_c": r"Complex $`z`$ has an `f64` degree, also in the rows with $`n \in \{\ldots\}`$.",
     "mathieu": (
         "Reference of this section: the eigenvalues and eigenvectors of the recurrence relations "
         "[DLMF 28.4.5-8](https://dlmf.nist.gov/28.4#ii), the Fourier series "
@@ -6681,8 +6972,7 @@ NOT_COVERED = """\
 
 - Exact functions: `comb`, `comb_rep`, `factorial`, `multifactorial` (and `_checked`) on unsigned
   integers, where an error is a wrong integer, not a rounding error, and `round`, which is exact
-- Complex input: `sph_bessel_*`, `*legendre_p*`, `*legendre_q_all`, `eval_*`, and `zeta` (NaN
-  for non-real `z`, unless `q = 1`, where it is `riemann_zeta`)
+- Complex input: `zeta` (NaN for non-real `z`, unless `q = 1`, where it is `riemann_zeta`)
 - Other: `cdf_cvm` (an approximation itself), `lanczos_sum_expg_scaled` (internal), the
   `extended_*_error` metrics, `kelvin`, and `kelvin_zeros` (their parts are above)
 """
