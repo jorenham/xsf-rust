@@ -120,6 +120,105 @@ fn test_eval_integer_degree_f64() {
 }
 
 #[test]
+fn test_eval_integer_degree_complex() {
+    // complex z with an integer degree uses the recurrence, where the series cancels (mpmath, Arb)
+    let actual = [
+        xsf::eval_chebyshev_t(97.0, c64(-0.160_374_780_437_770_65, -0.156_540_295_830_070_12)),
+        xsf::eval_chebyshev_u(-60.0, c64(0.5, -0.75)),
+        xsf::eval_gegenbauer(45.0, 3.75, c64(-0.625, 0.375)),
+        xsf::eval_laguerre(50.0, c64(44.296_328_520_227_21, -0.751_454_817_007_129_3)),
+        xsf::eval_genlaguerre(40.0, 2.5, c64(30.0, 10.0)),
+    ];
+    let desired = [
+        c64(-615_681.779_834_917_3, 2_153_058.832_413_583_4),
+        c64(-1.436_822_892_208_527e18, -4.290_823_921_740_318_5e18),
+        c64(214_374_579_713.687_27, -1_922_101_990_974.212_2),
+        c64(-194_943_212.130_009_5, 306_564_745.405_629_2),
+        c64(-6_132_582_197.759_089, 5_746_717_837.856_203),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-13);
+
+    // also for alpha near -1/2 and -1, where `alpha + 1/2` and `alpha + 1` are small (Arb, exact)
+    let e = f64::EPSILON / 4.0;
+    let actual = [
+        xsf::eval_gegenbauer(2.0, -0.499_999_999_999_999_83, c64(0.75, 0.125)),
+        xsf::eval_genlaguerre(1.0, -1.0 + 2.0 * e, c64(e, e)),
+    ];
+    let desired = [c64(0.226_562_499_999_999_83, -0.093_75), c64(e, -e)];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // and for large degrees, where the binomial prefactor rounded to 0 (Arb)
+    let actual = xsf::eval_gegenbauer(1000.0, -0.499_999_999_999_999_9, c64(0.75, 0.125));
+    let desired = c64(-7.606_673_349_914_896e74, -2.979_424_348_047_212e74);
+    np_assert_allclose!([actual], [desired], rtol = 1e-14);
+
+    // and where `alpha + 1/2 - 1` rounds to -1, the prefactor overflows for tiny alpha, or the
+    // product overflows before it is scaled down (mpmath)
+    let actual = [
+        xsf::eval_gegenbauer(171.0, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
+        xsf::eval_gegenbauer(1000.0, 1e-310, c64(0.75, 0.125)),
+        xsf::eval_gegenbauer(200.0, 0.2, c64(0.0, 17.43)),
+    ];
+    let desired = [
+        c64(0.0, 9.532_255_825_720_248e-4),
+        c64(8.465_527_655_970_144e-234, 4.776_235_568_205_383_5e-235),
+        c64(1.081_191_070_283_941_4e306, 0.0),
+    ];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // as the Gegenbauer recurrence, where the Jacobi one overflows (mpmath, via U_n)
+    let actual = xsf::eval_jacobi(100_000.0, 0.5, 0.5, c64(0.0, 0.0069));
+    let desired = c64(8.226_656_351_555_531e296, 0.0);
+    np_assert_allclose!([actual], [desired], rtol = 3e-14);
+
+    // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
+    // 2.67e-312 + 2.57e-312i and 2.67e-22 + 2.57e-22i)
+    for alpha in [1e-310, 1e-20] {
+        let actual = xsf::eval_gegenbauer(200.5, alpha, c64(0.0, 0.01));
+        assert!(actual.norm() <= 1e-21, "{actual}");
+    }
+
+    // but not with a wrong finite value where `alpha + 1/2` is a negative integer, the
+    // overflowed parameters look symmetric, or the degree is negative (mpmath, exact)
+    let cases = [
+        (xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01)), 10.419_197_521_792_457),
+        (xsf::eval_jacobi(1.0, 1.3e308, 6e307, c64(0.0, 0.0)), 3.5e307),
+        (xsf::eval_gegenbauer(-2.0, 2f64.powi(-60), c64(1e100, 0.0)), 0.0),
+    ];
+    for (actual, desired) in cases {
+        let ok = !actual.is_finite() || (actual - desired).norm() <= 1e-13 * desired;
+        assert!(ok, "actual: {actual}, desired: {desired}");
+    }
+    // and the series where the recurrence overflows (mpmath: 12.881371905539124)
+    let actual = xsf::eval_gegenbauer(171.0, 1e-310, c64(34.0, 0.0));
+    assert!(actual.re.is_nan() && actual.im.is_nan(), "{actual}");
+    // and nearly equal parameters aren't symmetric: like the real x, not `-(a + 2) / 4` (exact:
+    // 4.109481173084667e208)
+    let a = 2f64.powi(400);
+    let b = f64::from_bits(a.to_bits() + 1);
+    let actual = xsf::eval_jacobi(2.0, a, b, c64(0.0, 0.0));
+    assert_eq!(actual, c64(xsf::eval_jacobi(2.0, a, b, 0.0), 0.0));
+
+    // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
+    let zero = c64(0.0, 0.0);
+    assert_eq!(xsf::eval_legendre(9.0, zero), zero);
+    let p = xsf::eval_legendre(9.0, c64(0.0, 1e-25));
+    assert_eq!(p.re, 0.0);
+    np_assert_allclose!([p.im], [2.460_937_5e-25], rtol = 1e-15);
+    assert_eq!(xsf::eval_legendre(51.0, zero), zero);
+    // and the even degrees real
+    assert_eq!(xsf::eval_legendre(2.0, c64(-0.0, 0.01)), c64(-0.500_15, 0.0));
+    assert_eq!(xsf::eval_chebyshev_u(3.0, zero), zero);
+    assert_eq!(xsf::eval_gegenbauer(7.0, 3.75, zero), zero);
+
+    // and near the origin, the small part doesn't drown in rounding errors of order 1 (exact)
+    let z = c64(1e-30, 1e-20);
+    let actual = [xsf::eval_chebyshev_u(3.0, z), xsf::eval_legendre(3.0, z)];
+    let desired = [c64(-4e-30, -4e-20), c64(-1.5e-30, -1.5e-20)];
+    np_assert_allclose!(actual.map(|p| p.re), desired.map(|p| p.re), rtol = 1e-14);
+    np_assert_allclose!(actual.map(|p| p.im), desired.map(|p| p.im), rtol = 1e-14);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [

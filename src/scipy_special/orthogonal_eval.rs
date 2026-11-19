@@ -34,11 +34,30 @@ mod sealed {
         /// The real part
         fn re(&self) -> f64;
 
-        /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded)
+        /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded), and `sym` says if
+        /// `lam + 1 = 2c` (the Gegenbauer case)
         #[inline]
-        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
-            (self.clone() * -0.5 + 0.5).hyp2f1(-n, b, c)
+        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Self {
+            self.hyp2f1_sh_recurrence(n, b, c, lam, sym)
+                .unwrap_or_else(|| self.hyp2f1_sh_series(n, b, c, lam))
         }
+
+        /// `hyp2f1_sh` by the recurrence of the integer degrees of the Gegenbauer case, if it
+        /// is used for `Self` and those parameters, and finite
+        #[inline]
+        fn hyp2f1_sh_recurrence(
+            &self,
+            _n: f64,
+            _b: f64,
+            _c: f64,
+            _lam: f64,
+            _sym: bool,
+        ) -> Option<Self> {
+            None
+        }
+
+        /// `hyp2f1_sh` without `hyp2f1_sh_recurrence`
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self;
     }
 
     impl OrthoPolyArg for f64 {
@@ -65,7 +84,7 @@ mod sealed {
         }
 
         #[inline]
-        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
             // hypergeometric series cancels catastrophically for large non-integer degrees.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
@@ -95,6 +114,54 @@ mod sealed {
         #[inline]
         fn re(&self) -> f64 {
             self.re
+        }
+
+        #[inline]
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
+            crate::hyp2f1(-n, b, c, self * -0.5 + 0.5)
+        }
+
+        #[inline]
+        fn hyp2f1_sh_recurrence(
+            &self,
+            n: f64,
+            b: f64,
+            c: f64,
+            lam: f64,
+            sym: bool,
+        ) -> Option<Self> {
+            // Unlike in xsf, integer degrees of the Gegenbauer case `lam + 1 = 2c` use the
+            // recurrence of `eval_gegenbauer`, since the complex series cancels catastrophically
+            // for large degrees. Its `alpha = lam / 2` keeps the digits of a small `c`, which
+            // `c - 1` in the Jacobi recurrence rounds away (so `c > 0` is checked directly). For
+            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
+            // z = 1, and lose the small values near the origin (as the power series in
+            // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
+            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+            let p = super::int_degree(nu, 0.0, 0.0)
+                .filter(|_| sym && c > 0.0)
+                .map(|n| {
+                    let z = if self.re < 0.0 { -*self } else { *self };
+                    let mut p = if z.norm() < 1e-5 {
+                        super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, z)
+                    } else if c == 1.0 {
+                        super::eval_jacobi_l(n, 0.0, 0.0, z)
+                    } else {
+                        super::gegenbauer_hyp2f1_l(i64::from(n), 0.5 * lam, z)
+                    };
+                    if self.re < 0.0 {
+                        p = crate::utils::neg_if_odd(n, p);
+                    } else if self.re == 0.0 {
+                        // the parity (-1)^n makes Re (odd n) or Im (even n) zero
+                        if n % 2 == 0 {
+                            p.im = 0.0;
+                        } else {
+                            p.re = 0.0;
+                        }
+                    }
+                    p
+                });
+            p.filter(OrthoPolyArg::is_finite)
         }
     }
 }
@@ -161,6 +228,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         // degrees, since the series cancels catastrophically for large degrees, unless the
         // recurrence is nonfinite.
         let p = int_degree(n, a, b).map(|n| eval_jacobi_l_reflected(n, a, b, self.clone()));
+        let tried = p.is_some();
         if let Some(p) = p.filter(sealed::OrthoPolyArg::is_finite) {
             return p;
         }
@@ -184,7 +252,9 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             return (p + q) / (n + c);
         }
         let d = jacobi_binom(n, a);
-        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0) * d
+        // the Legendre case of `hyp2f1_sh` is the recurrence that failed above
+        let sym = a == b && !(tried && a == 0.0);
+        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, sym) * d
     }
 
     /// Corresponds to `xsf::detail::eval_legendre`
@@ -193,13 +263,13 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         if self.is_nan() {
             return self;
         }
-        // Unlike in xsf, use the recurrence of the integer degrees for those (see above)
-        let p = int_degree(n, 0.0, 0.0).map(|n| match self.as_f64() {
-            Some(x) => Self::ZERO + x.eval_legendre(n),
-            None => eval_jacobi_l_reflected(n, 0.0, 0.0, self.clone()),
-        });
+        // Unlike in xsf, use the recurrence of the integer degrees for those (see above), for
+        // complex z in `hyp2f1_sh`
+        let p = int_degree(n, 0.0, 0.0)
+            .zip(self.as_f64())
+            .map(|(n, x)| Self::ZERO + x.eval_legendre(n));
         p.filter(sealed::OrthoPolyArg::is_finite)
-            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0))
+            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0, true))
     }
 }
 
@@ -245,6 +315,10 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
     } else {
         let mut d = (x.clone() - 1.0) * ab2 / (2.0 * (alpha + 1.0));
         let mut p = d.clone() + 1.0;
+        // Unlike in xsf, `binom(n + alpha, n)` is the product of `(k + alpha) / k` for
+        // `alpha > -1`, without the rounding of `n + alpha` in `jacobi_binom`, which costs up to
+        // about `ln(n) ulp(n)` (relative), e.g. for the weights of `roots_jacobi`.
+        let mut binom = alpha + 1.0;
         for kk in 0..n - 1 {
             let k = f64::from(kk) + 1.0;
             let t = 2.0 * (k - 1.0) + ab2;
@@ -252,25 +326,14 @@ fn eval_jacobi_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, beta: f64, x: Z) -
                 + d * (2.0 * k * (k + beta) * (t + 2.0)))
                 / (2.0 * (k + alpha + 1.0) * ((k - 1.0) + ab2) * t);
             p = p + d.clone();
+            binom *= (k + 1.0 + alpha) / (k + 1.0);
         }
         if alpha > -1.0 {
-            p * jacobi_binom_l(n, alpha)
+            p * binom
         } else {
             p * jacobi_binom(f64::from(n), alpha)
         }
     }
-}
-
-/// `binom(n + alpha, n)` for `alpha > -1`, for `eval_jacobi_l`
-///
-/// Unlike in xsf, this is the product of `(k + alpha) / k`, without the rounding of `n + alpha` in
-/// `jacobi_binom`, which costs up to about `ln(n) ulp(n)` (relative), e.g. for the weights of
-/// `roots_jacobi`.
-fn jacobi_binom_l(n: i32, alpha: f64) -> f64 {
-    (1..n).fold(alpha + 1.0, |binom, k| {
-        let k = f64::from(k);
-        binom * ((k + 1.0 + alpha) / (k + 1.0))
-    })
 }
 
 impl JacobiArg<i32> for f64 {
@@ -488,14 +551,31 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             return Self::ZERO;
         }
 
+        let (b, c, lam) = (n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
+        let rec = self.hyp2f1_sh_recurrence(n, b, c, lam, true);
+        let recurs = rec.is_some();
+        let g = rec.unwrap_or_else(|| self.hyp2f1_sh_series(n, b, c, lam));
         let mut d =
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
             // Unlike in xsf (scipy/scipy#25818), fall back to the equivalent binomial if a Gamma
             // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
+            // Unlike in xsf, alpha < 1/4 uses `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))`
+            // (DLMF 5.12.1, 5.5.1) for the positive degrees where the (complex) recurrence is
+            // finite, which keeps the digits of `2 alpha` and `2 alpha + 1` that
+            // `n + 2 alpha - 1` rounds away (as in `binom_alpha`). The 2F1 is scaled by `2 alpha`
+            // first, since the prefactor can be subnormal for tiny alpha. Elsewhere, the rounded
+            // prefactor hides the cancelled series, or the singular 2F1 of `c = alpha + 1/2 <= 0`
+            // (and the negative degrees use `1 / Gamma(1 + n)`).
+            if recurs && n > 0.0 && alpha < 0.25 {
+                let inv_beta = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
+                if inv_beta.is_finite() {
+                    return g * (2.0 * alpha) * (inv_beta / n);
+                }
+            }
         }
-        self.hyp2f1_sh(n, n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha) * d
+        g * d
     }
 }
 
@@ -582,6 +662,20 @@ fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
     p
 }
 
+/// `gegenbauer_hyp2f1_l` by the three-term recurrence (DLMF 18.9.1) of the normalized values
+/// `g_k = C_k^(alpha)(x) / binom(k + 2 alpha - 1, k)`, for `n >= 1` and `alpha > -1/2`:
+///   (k + 2 alpha) g_{k+1} = 2 (k + alpha) x g_k - k g_{k-1},  g_0 = 1,  g_1 = x
+fn gegenbauer_hyp2f1_origin<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, x: Z) -> Z {
+    let (mut g0, mut g1) = (Z::ZERO + 1.0, x.clone());
+    let x2 = x * 2.0;
+    for k in 1..n {
+        let k = f64::from(k);
+        let g2 = (x2.clone() * (k + alpha) * g1.clone() - g0 * k) / (k + 2.0 * alpha);
+        (g0, g1) = (g1, g2);
+    }
+    g1
+}
+
 /// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
 ///
 /// Corresponds to [`scipy.special.eval_gegenbauer`][docs], and `xsf::eval_gegenbauer`.
@@ -623,12 +717,12 @@ pub trait ChebyshevArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
     #[inline]
     fn eval_chebyshev_t(self, n: f64) -> Self {
-        self.hyp2f1_sh(n, n, 0.5, 0.0)
+        self.hyp2f1_sh(n, n, 0.5, 0.0, true)
     }
 
     #[inline]
     fn eval_chebyshev_u(self, n: f64) -> Self {
-        self.hyp2f1_sh(n, n + 2.0, 1.5, 2.0) * (n + 1.0)
+        self.hyp2f1_sh(n, n + 2.0, 1.5, 2.0, true) * (n + 1.0)
     }
 }
 
@@ -840,6 +934,14 @@ impl<Z: sealed::OrthoPolyArg> LaguerreArg<f64> for Z {
             // polynomial defined only for alpha > -1
             return Self::ZERO + f64::NAN;
         }
+        // Unlike in xsf, complex z with an integer degree uses the recurrence of the `i32` degrees,
+        // since the complex series cancels catastrophically for large degrees.
+        let l = int_degree(n, alpha, 0.0)
+            .filter(|_| self.as_f64().is_none())
+            .map(|n| eval_genlaguerre_l(n, alpha, self.clone()));
+        if let Some(l) = l.filter(sealed::OrthoPolyArg::is_finite) {
+            return l;
+        }
 
         let d = binom_alpha(n, alpha);
         self.hyp1f1(-n, alpha + 1.0) * d
@@ -852,6 +954,10 @@ impl LaguerreArg<i32> for f64 {
         if alpha <= -1.0 || alpha.is_nan() || self.is_nan() {
             // polynomial defined only for alpha > -1
             return f64::NAN;
+        }
+        if n == 1 {
+            // as in xsf, unlike `eval_genlaguerre_l`
+            return -self + alpha + 1.0;
         }
         eval_genlaguerre_l(n, alpha, self)
     }
@@ -868,7 +974,8 @@ fn eval_genlaguerre_l<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, x: Z) -> Z {
     } else if n == 0 {
         return Z::ZERO + 1.0;
     } else if n == 1 {
-        return -x + alpha + 1.0;
+        // Unlike in xsf, `alpha + 1` first, which keeps its digits for alpha near -1
+        return -x + (alpha + 1.0);
     }
 
     let mut d = -x.clone() / (alpha + 1.0);
