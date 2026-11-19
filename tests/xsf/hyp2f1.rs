@@ -1551,6 +1551,40 @@ fn test_hyp2f1_f64_polynomial_neg_int_c_overflow() {
 }
 
 #[test]
+fn test_hyp2f1_f64_polynomial_overflow() {
+    // unlike in xsf: the sign of an overflowing polynomial for c > 0 or a non-integer c, e.g. of
+    // 1 - 4x/3 + x^2/2 and 1 - 8x + 8x^2 for the first two, where the power series stops at its
+    // first infinite term, or the recurrence in a gives NaN; xsf gives -inf for the first two
+    // (references: exact)
+    let (inf, max) = (f64::INFINITY, f64::MAX);
+    for ((a, b, c, x), desired) in [
+        ((-2.0, 2.0, 3.0, 1e308), inf),
+        ((-2.0, 2.0, 0.5, 1e308), inf),
+        ((-22.0, 18.049_542_264_449_997, 24.0, 6.296_222_190_809_398e148), inf),
+        ((-13.0, 2.362_904_706_447_58, 27.076_332_302_285_26, 1.248_008_371_891_642_5e96), -inf),
+        ((-3.0, -3.0, -28.791_853_612_315_794, 3.675_816_243_990_002e122), -inf),
+        ((-25.0, 36.527_592_225_483_26, -4.159_605_496_329_195_5, 4.708_584_498_582_971e71), inf),
+        (
+            (-6.0, -8.269_095_529_373_416, 2.511_868_208_292_315_6, -1.188_302_376_460_491_2e151),
+            inf,
+        ),
+        (
+            (-8.0, -4.555_226_504_260_197, -2.488_187_984_357_836, -2.120_778_378_045_006_4e159),
+            inf,
+        ),
+        // (just below the cutoff, which the double-double sum resolves)
+        ((-7.0, -6.219_584_855_883_66, 20.955_424_871_235_71, 1.171_551_334_021_426_5e45), max),
+        (
+            (-2.0, -0.976_556_258_795_454_8, -5.143_678_704_031_934_5, -4.090_963_831_756_783e155),
+            -max,
+        ),
+    ] {
+        assert_eq!(xsf::hyp2f1(a, b, c, x), desired);
+        assert_eq!(xsf::hyp2f1(b, a, c, x), desired);
+    }
+}
+
+#[test]
 fn test_hyp2f1_f64_degree_1() {
     // unlike in xsf: `1 - a x / c` also for b = -1, where xsf gives NaN (references: exact)
     let actual = [

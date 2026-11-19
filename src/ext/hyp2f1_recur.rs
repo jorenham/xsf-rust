@@ -1027,13 +1027,15 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
-/// `F(a, b; c; x)` for an integer `c <= 0` at or below an integer `a` or `b = -n < 0`: the
+/// `F(a, b; c; x)` for an integer `a` or `b = -n < 0`, with `c` not an integer in `(-n, 0]`: the
 /// polynomial (DLMF 15.2.5) in double-double, as its terms can cancel by `1 / eps` or more, e.g. by
 /// 7e15 for `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff
 /// transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
-fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+fn hyp2f1_poly_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+    // (no factor of `(c)_n` is 0)
+    let no_pole = |p: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
     let is_poly =
-        |p: Dd| p.is_integer() && p.hi >= c.hi && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
+        |p: Dd| p.is_integer() && no_pole(p) && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
     // (`a >= b`, so the lower degree)
     let (p, q) = if is_poly(a) {
         (a, b)
@@ -1053,6 +1055,14 @@ fn hyp2f1_neg_int_c(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
     let one = Dd::new(1.0);
     let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one));
     min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+}
+
+/// `F(a, b; c; x)` by `hyp2f1_poly_dd` for any finite `x != 0`
+pub(crate) fn hyp2f1_poly_f64(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
+    // (`a >= b`, as in `hyp2f1_recur`)
+    let (a, b) = if b > a { (b, a) } else { (a, b) };
+    let finite = x != 0.0 && x.is_finite();
+    finite.then(|| hyp2f1_poly_dd(Dd::new(a), Dd::new(b), Dd::new(c), x))?
 }
 
 /// `F(-n, b; c; x)` for `n >= 1` by its terms in double-double, with an error bound as in
@@ -1251,7 +1261,7 @@ pub(crate) fn hyp2f1_recur(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
     let (a, b) = if b > a { (b, a) } else { (a, b) };
     let (a, b, c) = (Dd::new(a), Dd::new(b), Dd::new(c));
     if c.hi <= 0.0 && c.is_integer() {
-        return hyp2f1_neg_int_c(a, b, c, x);
+        return hyp2f1_poly_dd(a, b, c, x);
     }
     if x >= 1.0 {
         return None;

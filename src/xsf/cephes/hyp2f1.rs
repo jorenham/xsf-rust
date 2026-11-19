@@ -17,8 +17,8 @@
 use core::iter;
 
 use crate::ext::{
-    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp, hyp2f1_recur,
-    ln_dd, mul_gamma_ratio,
+    HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
+    hyp2f1_poly_f64, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -1337,12 +1337,12 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
-        // Unlike in xsf, an overflowing polynomial of an integer c <= 0 (see above) comes from
-        // `hyp2f1_recur` (unless it returned a value above): the power series stops at its first
-        // infinite term, whose sign can differ from that of the sum, and the recurrence in `a`
-        // can add infinities of both signs (NaN)
-        if inexact.is_none() && !y.is_finite() && is_nonpos_int(c) {
-            let poly = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+        // Unlike in xsf, an overflowing polynomial is summed in double-double (unless
+        // `hyp2f1_recur` returned a value above): the power series stops at its first infinite
+        // term, whose sign can differ from that of the sum, and the recurrence in `a` can add
+        // infinities of both signs (NaN)
+        if inexact.is_none() && !y.is_finite() && (neg_int_a || neg_int_b) {
+            let poly = hyp2f1_poly_f64(a, b, c, x).map(Scaled::to_f64);
             if let Some((y, _)) = poly.filter(accurate) {
                 return y;
             }
