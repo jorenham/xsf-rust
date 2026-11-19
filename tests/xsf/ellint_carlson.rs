@@ -302,6 +302,27 @@ fn test_carlson_huge_near_cut() {
 }
 
 #[test]
+fn test_carlson_huge_negligible_imag_finite() {
+    // negligible imaginary parts are flushed only if the result is not finite otherwise (Arb)
+    let p = |k| 2.0_f64.powi(k);
+    let z = c64(p(-826), p(-880));
+    let h = c64(p(450), 0.0);
+    let actual = [xsf::elliprc(h, z), xsf::elliprf(z, z, h), xsf::elliprd(z, h, z)];
+    let expected = [
+        c64(8.214_427_384_559_377e-66, -5.147_557_589_468_029e-85),
+        c64(8.214_427_384_559_377e-66, -5.147_557_589_468_029e-85),
+        c64(1.244_854_670_664_297_9e181, -6.910_331_588_418_35e164),
+    ];
+    for (a, e) in actual.iter().zip(expected) {
+        xsref::np_assert_allclose!([a.re, a.im], [e.re, e.im], rtol = 1e-15);
+    }
+
+    // just below 1.5 times the smallest subnormal
+    let z = c64(p(550), p(-550));
+    assert_eq!(xsf::elliprj(z, z, z, c64(p(800), 0.0)).re, f64::from_bits(1));
+}
+
+#[test]
 fn test_elliprj() {
     let actual = [
         xsf::elliprj(0.0, 1.0, 2.0, 3.0),
