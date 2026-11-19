@@ -2360,8 +2360,17 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 let err = if accurate {
                     PFQ_TOL
                 } else {
+                    // Near a non-positive integer, y changes with chgu's a2 about as much as that
+                    // a2 does relative to its distance from it, so a rounded a2 adds that ratio.
+                    let shift = (a2_rounded - a2).abs();
+                    let pole = if shift > 0.0 && a2 < 0.0 {
+                        let n = a2.round();
+                        shift / (a2 - n).abs().min((a2_rounded - n).abs())
+                    } else {
+                        0.0
+                    };
                     // (above `PFQ_TOL`, or NaN for no estimate, as for an infinite y)
-                    let err = 10.0_f64.powf(-digits) + rounding / y.abs();
+                    let err = 10.0_f64.powf(-digits) + rounding / y.abs() + pole;
                     if err < PFQ_INACCURATE {
                         PFQ_INACCURATE
                     } else {

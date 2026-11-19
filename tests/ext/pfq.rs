@@ -654,6 +654,13 @@ fn test_hyp2f0() {
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
+    // a1 a few spacings from -6 and -15, which chgu's a1 - b + 1 moves by one: by half the
+    // distance (Arb: 2.675_976_546e231), or by 1/7 of it, the error (Arb: 2.126_314_811e227)
+    assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
+    let (a1, a2) = (-15.000_000_000_000_012, -30.999_999_999_999_993);
+    let actual = hyp2f0(a1, a2, -1e7);
+    assert!((actual / 2.126_314_811_847_468_6e227 - 1.0).abs() < 0.15, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], -1e7), None);
     // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
     for (a, z, expected) in [
         ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
