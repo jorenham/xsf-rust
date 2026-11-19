@@ -239,6 +239,11 @@ fn test_eval_real_degree_origin() {
         xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0),
     ];
     np_assert_allclose!(actual, [0.25, -1.776_356_839_400_250_3e-16], rtol = 0.05);
+    // nor by one from a `lam = 2a + 1` that rounds to an exact `n + lam` (mpmath), where the
+    // series keeps none of the digits
+    let a = 0.250_000_000_000_000_06;
+    let actual = [xsf::eval_jacobi(-2.5, a, a, -1e-16)];
+    np_assert_allclose!(actual, [-5.426_659_300_410_11e-18], atol = 1e-17);
     assert!(xsf::eval_jacobi(1.0, f64::INFINITY, f64::INFINITY, 1e-8).is_nan());
 
     // and the complex recurrence still uses such a degree away from the origin (mpmath:

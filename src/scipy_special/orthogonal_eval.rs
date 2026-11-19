@@ -15,8 +15,8 @@ use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 /// The degrees `n` with an exact `n - 1`
 const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
 
-/// The `|x|` below which the integer degrees of the Gegenbauer case of `hyp2f1_sh` use
-/// `gegenbauer_hyp2f1_origin`
+/// The `|x|` below which `hyp2f1_sh` uses `gegenbauer_hyp2f1_origin` for the integer degrees of
+/// the Gegenbauer case: the odd ones for real x, and all of them for complex x
 const ORIGIN_RADIUS: f64 = 1e-5;
 
 mod sealed {
@@ -40,7 +40,7 @@ mod sealed {
         fn re(&self) -> f64;
 
         /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded), and `sym` says if
-        /// `lam + 1 = 2c` (the Gegenbauer case)
+        /// `lam + 1 = 2c` (the Gegenbauer case), with an exact `lam` for real x
         #[inline]
         fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Self {
             self.hyp2f1_sh_recurrence(n, b, c, lam, sym)
@@ -109,8 +109,9 @@ mod sealed {
             // Unlike in xsf, odd integer degrees of the Gegenbauer case use the three-term
             // recurrence near the origin (as for complex z), where the series cancels
             // catastrophically to their small values (the even ones don't vanish there).
-            // The degree `-b` is used only if `b = n + lam` holds exactly (the 2F1 is symmetric in
-            // `n` and `-n - lam`), and infinite parameters are left to the series.
+            // The degree `-b` is used only if the supplied `n + lam` is exactly `b` (the 2F1 is
+            // symmetric in `n` and `-n - lam`), for which `lam` must be exact as well (see `sym`),
+            // and infinite parameters are left to the series.
             let exact = super::two_sum(n, lam) == (b, 0.0);
             let nu = if exact { n.max(-b) } else { n };
             super::int_degree(nu, 0.0, 0.0)
@@ -280,8 +281,10 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             return (p + q) / (n + c);
         }
         let d = jacobi_binom(n, a);
-        // the Legendre case of `hyp2f1_sh` is the recurrence that failed above
-        let sym = a == b && !(tried && a == 0.0);
+        // the Legendre case of `hyp2f1_sh` is the recurrence that failed above, and the real
+        // one needs an exact `lam = 2a + 1`
+        let exact_lam = self.as_f64().is_none() || two_sum(a + b, 1.0).1 == 0.0;
+        let sym = a == b && !(tried && a == 0.0) && exact_lam;
         self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, sym) * d
     }
 
