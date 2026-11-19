@@ -79,8 +79,16 @@ fn test_wrightomega_pi_inside_strip() {
             np_assert_allclose!([res.re, res.im], [re, im], rtol = 1e-15);
         }
     }
-    let res = xsf::wrightomega(c64(f64::NEG_INFINITY, -PI));
-    assert!(res.re == 0.0 && res.re.is_sign_negative() && res.im.is_sign_negative());
+    // underflowing to the signed zeros of `exp(z)`
+    let neg_zero = (-0.0_f64).to_bits();
+    for x in [-800.0, f64::NEG_INFINITY] {
+        let res = xsf::wrightomega(c64(x, -PI));
+        assert_eq!([res.re.to_bits(), res.im.to_bits()], [neg_zero; 2]);
+    }
+
+    // the wing beyond the cut, `omega(z) = z - pi i - ln(pi i - z)` (mpmath)
+    let res = xsf::wrightomega(c64(-1e300, f64::from_bits(PI.to_bits() + 1)));
+    np_assert_allclose!([res.im], [3.216_245_299_353_273e-16], rtol = 1e-15);
 }
 
 #[test]

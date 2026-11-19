@@ -17,8 +17,9 @@ fn wrightomega_ext(z: C64) -> C64 {
 
     // compute if we are near the branch cuts
     //
-    // Unlike in xsf, these use the exact pi, as `y = +-PI` lies inside the strip `|y| < pi`, but
-    // `y -+ PI` is 0 there, which put such `y` on a cut, for some `x` on its outer side.
+    // Unlike in xsf, these distances are compensated for `pi - PI`, as `y = +-PI` lies inside the
+    // strip `|y| < pi`, but `y -+ PI` is 0 there, which put such `y` on a cut, for some `x` on its
+    // outer side.
     let ympi = (y - pi) - PI_LO;
     let yppi = (y + pi) + PI_LO;
     let near = 0.1e-1;
@@ -73,11 +74,13 @@ fn wrightomega_ext(z: C64) -> C64 {
         // Region 3: between branch cuts
         // Series: About -infinity
         let pz = z.exp();
-        w = (1.0 + (-1.0 + (3.0 / 2.0 + (-8.0 / 3.0 + 125.0 / 24.0 * pz) * pz) * pz) * pz) * pz;
-        if w == C64::ZERO {
+        if pz == C64::ZERO {
             // sf_error(underflow)
-            return w;
+            //
+            // Unlike in xsf, `pz` itself, as the series loses the sign of a zero real part
+            return pz;
         }
+        w = (1.0 + (-1.0 + (3.0 / 2.0 + (-8.0 / 3.0 + 125.0 / 24.0 * pz) * pz) * pz) * pz) * pz;
     } else if (-2.0 < x && x <= 1.0 && -1.0 <= y && y <= 1.0)
         || ((-2.0 < x) && (x - 0.1e1) * (x - 0.1e1) + y * y <= pi * pi)
     {
@@ -93,12 +96,12 @@ fn wrightomega_ext(z: C64) -> C64 {
         let (t, pz) = if x <= -0.105e1 && pi < y && y - pi <= -0.75e0 * (x + 0.1e1) {
             // Region 5: Top wing
             // Negative log series
-            let t = z - I * pi;
+            let t = c64(x, ympi);
             (t, (-t).ln())
         } else if x <= -0.105e1 && 0.75e0 * (x + 0.1e1) < y + pi && y + pi <= 0.0e0 {
             // Region 6: Bottom wing
             // Negative log series
-            let t = z + I * pi;
+            let t = c64(x, yppi);
             (t, (-t).ln())
         } else {
             // Region 7: Everywhere else
