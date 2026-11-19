@@ -664,6 +664,12 @@ fn test_hyp2f0() {
     let actual = hyp2f0(a1, a2, -1e7);
     assert!((actual / 2.126_314_811_847_468_6e227 - 1.0).abs() < 1e-12, "{actual}");
     assert_eq!(hyppfq(&[a1, a2], &[], -1e7), None);
+    // chgu's rounded a1 - b + 1 moves a2 by a spacing at 2.4e-9 from -7: 8 digits, too few for
+    // `hyppfq` (Arb)
+    let (a1, a2, z) = (-7.999_999_999_999_998, -7.000_000_002_437_216, -118_035_487.239_557_88);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / -1.240_805_934_615_225_2e61 - 1.0).abs() < 1e-7, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
     // the result is subnormal (Arb: 2.792_686_307e-324), or underflows (Arb: 2.002_611_525e-334)
     assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
     assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);

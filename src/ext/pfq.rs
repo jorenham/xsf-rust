@@ -2333,16 +2333,18 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 let (b, e2) = two_sum(d, 1.0);
                 // chgu takes U as a polynomial where its `a1 - b + 1` (that should be a2) rounds to
                 // a non-positive integer
-                let a2_rounded = a1 - b + 1.0;
+                let (s, f1) = two_sum(a1, -b);
+                let (a2_rounded, f2) = two_sum(s, 1.0);
                 if is_nonpos_int(a2_rounded) && a2_rounded != a2 {
                     return None;
                 }
                 // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
                 // moved by T times them (far enough to stand out from the error of U, and near
-                // enough to be linear). They may take half of PFQ_TOL, as y can depend much more
-                // on b and x than on a_i and z, e.g. for an a2 near a nonpositive integer. A move
-                // that would round away (e.g. that of b for a tiny a1) is a spacing instead, a
-                // larger step.
+                // enough to be linear). That of chgu's `a1 - b + 1` adds to that of b, as chgu
+                // then returns about U at `b = a1 - a2_rounded + 1`. They may take half of
+                // PFQ_TOL, as y can depend much more on b and x than on a_i and z, e.g. for an a2
+                // near a nonpositive integer. A move that would round away (e.g. that of b for a
+                // tiny a1) is a spacing instead, a larger step.
                 let moved = |v: f64, d: f64| {
                     let v_t = v + T * d;
                     let spacing = (f64::EPSILON * v.abs()).max(f64::MIN_POSITIVE);
@@ -2352,8 +2354,8 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                         v_t
                     }
                 };
-                let ((y, digits), (y_t, digits_t)) =
-                    (y(b, x)?, y(moved(b, e1 + e2), moved(x, dx))?);
+                let db = ((e1 + e2).abs() + (f1 + f2).abs()).copysign(e1 + e2);
+                let ((y, digits), (y_t, digits_t)) = (y(b, x)?, y(moved(b, db), moved(x, dx))?);
                 let (digits, rounding) = (digits.min(digits_t), (y_t - y).abs() / T);
                 // (if accurate, its error is within `PFQ_TOL`)
                 let accurate = digits >= -PFQ_TOL.log10()
