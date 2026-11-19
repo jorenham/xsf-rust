@@ -472,7 +472,7 @@ def generate(
         if (r, i) not in rules
     }
     todo = [t for ts in tasks.values() for lo_hi in ts for t in lo_hi]
-    refs = references(todo, use_cache, pool)
+    refs = references(todo, use_cache, pool) if todo else {}
     lines = [(entry.outs[i].func, inputs[r]) for r, i in cells]
     rust, xsf = (
         dict(zip(cells, accuracy.run(cmd, lines), strict=True)) for cmd in cmds
