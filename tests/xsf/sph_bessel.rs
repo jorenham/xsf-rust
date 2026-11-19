@@ -66,7 +66,7 @@ fn test_sph_bessel_complex_real_overflow() {
 }
 
 /// Where AMOS overflows (#1652): each part is infinite with the sign of the exact one, or close to
-/// it (exact: the upward recurrence in mpmath)
+/// it (exact: the upward recurrence in mpmath), or NaN as from AMOS where that doesn't apply
 #[test]
 fn test_sph_bessel_complex_overflow() {
     let c = num_complex::c64;
@@ -109,6 +109,21 @@ fn test_sph_bessel_complex_overflow() {
                 c(-0.001_666_748_202_095_432_4, 0.000_756_134_610_297_511),
             ],
         ),
+        // `exp(-x)` underflows and `2^e` overflows
+        (16500, c(10000.0, 1.0), [c(-inf, inf), c(inf, -inf), c(-inf, -inf), c(inf, inf)]),
+        // `1 / z` overflows
+        (0, c(0.0, 1e-310), [c(0.0, inf), c(-inf, 0.0), c(-FRAC_PI_2, -inf), c(inf, 0.0)]),
+        // `k_1(-1) = 0`, so the first step cancels
+        (
+            200,
+            c(-1.0, 1e-310),
+            [
+                c(inf, 1.016_860_265_749_292_2e126),
+                c(inf, 2.054_032_505_023_626_1e128),
+                c(-inf, -1.593_321_907_432_099e126),
+                c(-inf, -3.218_549_788_308_514_4e128),
+            ],
+        ),
     ];
     let parts = |w: [num_complex::Complex64; 4]| w.map(|w| [w.re, w.im]);
     for (n, z, expected) in cases {
@@ -120,6 +135,18 @@ fn test_sph_bessel_complex_overflow() {
         ];
         let (actual, expected) = (parts(actual), parts(expected));
         xsref::np_assert_allclose!(actual.as_flattened(), expected.as_flattened(), rtol = 1e-13);
+    }
+
+    // `exp(-x)` overflows, and `Re y_0`, at `1e-315 |y_0|`, keeps the precision of a subnormal
+    let y = xsf::sph_bessel_y(0, c(1e-315, 1420.0));
+    xsref::np_assert_allclose!(&[y.re], &[1.756_062_678_602_985_2e298], rtol = 1e-5);
+    assert_eq!(y.im, inf);
+
+    // NaN where the recurrence of `k_n` is unstable (`k_300(z)` is `-inf + inf i`), past the range
+    // of AMOS, and for an infinite `z`
+    for (n, z) in [(300, c(-800.0, 1.0)), (0, c(0.0, 2.0_f64.powi(52))), (1, c(inf, 1.0))] {
+        assert!(xsf::sph_bessel_k(n, z).re.is_nan());
+        assert!(xsf::sph_bessel_k_prime(n, z).re.is_nan());
     }
 }
 

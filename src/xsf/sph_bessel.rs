@@ -4,17 +4,18 @@
 //!
 //! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::{FRAC_PI_2, LN_2, LOG2_E, PI};
 
 use num_complex::Complex64;
 
 use crate::utils::{neg_if_odd, neg_one_pow};
+use crate::xsf::amos::MACH;
 use crate::xsf::bessel::{
     cyl_bessel_i_c64, cyl_bessel_j_c64, cyl_bessel_j_f64, cyl_bessel_k_c64, cyl_bessel_k_f64,
     cyl_bessel_y_c64,
 };
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::frexp_f64;
+use crate::xsf::cephes::dd_real::{LOG2, frexp_f64};
 use crate::xsf::complex::Num;
 
 pub trait SphBesselArg: crate::sealed::Sealed {
@@ -188,41 +189,54 @@ fn sqrt_pi_2_div(z: C64) -> C64 {
 /// Past `2^+-E_MAX`, every nonzero part of a result of [`sph_bessel_overflow`] over- or underflows
 const E_MAX: i64 = 1 << 13;
 
-/// The highest order of [`sph_bessel_overflow`], as it takes a step per order
+/// A work limit on the order of [`sph_bessel_overflow`], which takes a step per order
 const N_MAX: i64 = 1 << 20;
+
+/// The largest error growth of [`sph_bessel_overflow`], `2^10`, as a natural logarithm
+const LN_GROWTH_MAX: f64 = 10.0 * LN_2;
 
 /// `(f_n(z), f_n'(z))` for complex `z` where AMOS overflows, from the upward recurrence
 /// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` of `y_n` (`s = -1`, DLMF 10.51.1) and `k_n` (`s = 1`,
 /// DLMF 10.51.4), and `f_n' = -s f_(n-1) - (n + 1) f_n / z` (DLMF 10.51.2 and 10.51.5).
 ///
 /// The recurrence runs on `g_k = z exp(x) f_k / 2^e`, from `g_(-1)` and `g_0`, with `x = Re z` for
-/// `k_n` and `-|Im z|` for `y_n`, and the power of two `2^e` that keeps `|g_k| < 1` apart, so that the
-/// result only overflows at the end. It takes all `n` steps, also past the overflow, as each step
-/// turns the phase of `f_n`.
-fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> (C64, C64) {
-    if !(0..=N_MAX).contains(&n) {
-        // NaN, as from AMOS
-        return (C64::NAN, C64::NAN);
+/// `k_n` and `-|Im z|` for `y_n`, and the power of two `2^e` that keeps all parts of `g_(k-1)` and
+/// `g_k` below 1, so that the result only overflows at the end. It takes all `n` steps, also past
+/// the overflow, as each step turns the phase of `f_n`.
+///
+/// For `x < 0`, the other solution of the recurrence grows faster than `f_n`, which amplifies the
+/// rounding errors by up to `exp(min(-2x, n (n + 1) / |z|))` (measured). Where that exceeds `2^10`,
+/// for `n > N_MAX`, and as AMOS for `z = 0` and past its range (`ierr = 4`), this is `None`.
+fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
+    let r = z.norm();
+    let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
+    if !((0..=N_MAX).contains(&n) && r > 0.0 && r <= 0.5 / MACH.0 && growth <= LN_GROWTH_MAX) {
+        return None;
     }
 
-    // `1 / z`, as dividing by a tiny `z` overflows for `|g| > 2^-600 |z|` (see `C64` division)
-    let rz = C64::ONE / z;
-    let (g_m1, g_0, e) = (0..n).fold((g_m1, g_0, 0_i64), |(g_m1, g_0, e), k| {
-        let g_1 = (2 * k + 1) as f64 * g_0 * rz + s * g_m1;
-        let (_, de) = frexp_f64(g_1.re.abs().max(g_1.im.abs()));
-        (g_0.ldexp(-de), g_1.ldexp(-de), e + i64::from(de))
+    // The binary exponent of the larger part
+    let exp2 = |g: C64| frexp_f64(g.re.abs().max(g.im.abs())).1;
+    // `1 / z = 2^-m / w`, as `1 / z` overflows for tiny `z`
+    let m = exp2(z).min(0);
+    let rw = C64::ONE / z.ldexp(-m);
+    let (g_m1, g_0, e) = (0..n).fold((g_m1, g_0, 0), |(g_m1, g_0, e), k| {
+        // `g_k` and `g_(k+1)` in units of `2^(e - m)`
+        let (g_0, g_1) = (g_0.ldexp(m), (2 * k + 1) as f64 * g_0 * rw + s * g_m1.ldexp(m));
+        let de = exp2(g_0).max(exp2(g_1));
+        (g_0.ldexp(-de), g_1.ldexp(-de), e + i64::from(de - m))
     });
 
-    // `g 2^e exp(-x) / z`, with `g` normalized first, and `exp(-x)` in halves, as either factor
-    // can overflow where their product doesn't
-    let h = (-x / 2.0).exp();
-    let scale = |g: C64| {
-        let (_, de) = frexp_f64(g.re.abs().max(g.im.abs()));
-        #[expect(clippy::cast_possible_truncation, reason = "clamped")]
-        let e = (e + i64::from(de)).clamp(-E_MAX, E_MAX) as i32;
-        ((g.ldexp(-de) * rz * h).ldexp(e / 2) * h).ldexp(e - e / 2)
+    // `g 2^e exp(-x) / z`, with `exp(-x) = 2^q exp(t)` for `|t| <= ln(2) / 2` (reduced in
+    // double-double), so that only the final `ldexp` can overflow
+    let q = (-x * LOG2_E).round();
+    let exp_t = (-f64::from(LOG2 * q + x)).exp();
+    let scale = |g: C64, e: i64| {
+        let de = exp2(g);
+        let e = (e + i64::from(de - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
+        (g.ldexp(-de) * rw * exp_t).ldexp(e)
     };
-    (scale(g_0), scale(-s * g_m1 - np1(n) * g_0 * rz))
+    let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
+    Some((scale(g_0, e), scale(dg, e - i64::from(m))))
 }
 
 /// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence
@@ -427,15 +441,14 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_y_c64(half(n), z);
-    if !out.is_finite() {
-        sph_bessel_y_overflow(n, z).0
-    } else {
-        out
+    if out.is_finite() {
+        return out;
     }
+    sph_bessel_y_overflow(n, z).map_or(out, |f| f.0)
 }
 
 /// Unlike in xsf, where AMOS overflows, see [`sph_bessel_overflow`]
-fn sph_bessel_y_overflow(n: i64, z: C64) -> (C64, C64) {
+fn sph_bessel_y_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     // `sin z` and `cos z` times `exp(-|y|)`, as they overflow for `|y| > 710`
     let (y, (sin_x, cos_x)) = (z.im.abs(), z.re.sin_cos());
     // `cosh(y) exp(-|y|)` and `sinh(y) exp(-|y|)`
@@ -470,11 +483,10 @@ fn sph_bessel_y_jac_c64(n: i64, x: C64) -> C64 {
 
     let out =
         sph_bessel_y_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_y_c64(n, x) / x;
-    if !out.is_finite() {
-        sph_bessel_y_overflow(n, x).1
-    } else {
-        out
+    if out.is_finite() {
+        return out;
     }
+    sph_bessel_y_overflow(n, x).map_or(out, |f| f.1)
 }
 
 fn sph_bessel_i_f64(n: i64, x: f64) -> f64 {
@@ -643,15 +655,14 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
     }
 
     let out = sqrt_pi_2_div(z) * cyl_bessel_k_c64(half(n), z);
-    if !out.is_finite() {
-        sph_bessel_k_overflow(n, z).0
-    } else {
-        out
+    if out.is_finite() {
+        return out;
     }
+    sph_bessel_k_overflow(n, z).map_or(out, |f| f.0)
 }
 
 /// Unlike in xsf, where AMOS overflows, see [`sph_bessel_overflow`]
-fn sph_bessel_k_overflow(n: i64, z: C64) -> (C64, C64) {
+fn sph_bessel_k_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     let g = FRAC_PI_2 * C64::cis(-z.im);
     sph_bessel_overflow(n, z, 1.0, g, g, z.re)
 }
@@ -676,11 +687,10 @@ fn sph_bessel_k_jac_c64(n: i64, x: C64) -> C64 {
 
     let out =
         -sph_bessel_k_c64(n.wrapping_sub(1), x) - c64(np1(n), 0.0) * sph_bessel_k_c64(n, x) / x;
-    if !out.is_finite() {
-        sph_bessel_k_overflow(n, x).1
-    } else {
-        out
+    if out.is_finite() {
+        return out;
     }
+    sph_bessel_k_overflow(n, x).map_or(out, |f| f.1)
 }
 
 /// Spherical Bessel function of the first kind, $j_n(z)$
