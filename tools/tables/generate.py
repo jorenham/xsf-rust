@@ -32,6 +32,7 @@ import struct
 import sys
 from collections import Counter
 from collections.abc import Callable
+from fractions import Fraction
 from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Final, NamedTuple
@@ -305,11 +306,13 @@ def arb_confirms(arb: mapping.Arb, args: Args, ref: Ref) -> bool | None:
 
 def nearest_f32(s: str) -> float:
     """The f32 nearest to the decimal `s` (ties to even), as an f64, with the sign of `s`."""
-    v = abs(mp.mpf(s))
-    q = max(mp.frexp(v)[1], -125) - 24  # the exponent of its ulp
-    x = float(mp.ldexp(mp.nint(mp.ldexp(v, -q)), q))
+    v = abs(Fraction(s))  # exact, so that it rounds once
+    e = v.numerator.bit_length() - v.denominator.bit_length()
+    e += v >= Fraction(2) ** e  # 2^(e - 1) <= v < 2^e
+    q = max(e, -125) - 24  # the exponent of its ulp
+    m = round(v / Fraction(2) ** q)
     # from the midpoint of F32_MAX and 2^128 on, it rounds to 2^128
-    x = math.inf if x > F32_MAX else x
+    x = math.inf if m * Fraction(2) ** q > F32_MAX else math.ldexp(m, q)
     return -x if s.startswith("-") else x
 
 
