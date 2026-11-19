@@ -9,6 +9,7 @@ use num_traits::Zero;
 
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
 use crate::xsf::cephes::consts::MAXGAM;
+use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
 /// The degrees `n` with an exact `n - 1`
@@ -107,7 +108,7 @@ mod sealed {
         ) -> Option<Self> {
             // Unlike in xsf, integer degrees of the Gegenbauer case use the three-term recurrence
             // near the origin (as for complex z), since the series cancels catastrophically there.
-            super::gegenbauer_int_degree(n, b, c, sym)
+            super::gegenbauer_int_degree(n, b, c, lam, sym)
                 .filter(|_| self.abs() < super::ORIGIN_RADIUS)
                 .map(|n| super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, *self))
                 .filter(OrthoPolyArg::is_finite)
@@ -158,7 +159,7 @@ mod sealed {
             // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
             // z = 1, and lose the small values near the origin (as the power series in
             // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
-            super::gegenbauer_int_degree(n, b, c, sym)
+            super::gegenbauer_int_degree(n, b, c, lam, sym)
                 .map(|n| {
                     let z = if self.re < 0.0 { -*self } else { *self };
                     let mut p = if z.norm() < super::ORIGIN_RADIUS {
@@ -304,10 +305,15 @@ fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
     (int && is_classical(alpha, beta)).then_some(n as i32)
 }
 
-/// `int_degree` of the larger of `n` and `-n - lam` (the 2F1 of `hyp2f1_sh` is symmetric in
-/// them) in its Gegenbauer case `sym` with `c > 0`
-fn gegenbauer_int_degree(n: f64, b: f64, c: f64, sym: bool) -> Option<i32> {
-    int_degree(n.max(-b), 0.0, 0.0).filter(|_| sym && c > 0.0)
+/// `int_degree` of `n`, or of `-b` if that is larger and `b = n + lam` holds exactly, in the
+/// Gegenbauer case `sym` of `hyp2f1_sh` with `c > 0` and a finite `lam`
+///
+/// The 2F1 is symmetric in `n` and `-b` only if `-b + lam = -n`, and a rounded `b` can be an
+/// integer where the exact `n + lam` isn't (with an order-one effect for a tiny `c`).
+fn gegenbauer_int_degree(n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Option<i32> {
+    let exact = two_sum(n, lam) == (b, 0.0);
+    let nu = if exact { n.max(-b) } else { n };
+    int_degree(nu, 0.0, 0.0).filter(|_| sym && c > 0.0 && lam.is_finite())
 }
 
 /// `eval_jacobi_l`, where `Re x < 0` is reflected (DLMF Table 18.6.1) if `alpha, beta > -1`

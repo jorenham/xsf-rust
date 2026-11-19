@@ -219,7 +219,7 @@ fn test_eval_integer_degree_complex() {
 }
 
 #[test]
-fn test_eval_chebyshev_real_degree_origin() {
+fn test_eval_real_degree_origin() {
     // the small values near the origin don't drown in rounding errors of order 1 (exact:
     // T_3 = 4x^3 - 3x, U_3 = 8x^3 - 4x, U_{-n-2} = -U_n)
     let actual = [
@@ -229,6 +229,15 @@ fn test_eval_chebyshev_real_degree_origin() {
         xsf::eval_chebyshev_u(-5.0, -1e-30),
     ];
     np_assert_allclose!(actual, [-3e-10, -4e-10, -3e-30, -4e-30], rtol = 1e-15);
+
+    // but not by a reflected degree `-n - lam` that is an integer only after rounding (mpmath:
+    // 0.2500000000000000577), and infinite parameters give NaN
+    let (n, a) = (-1.5 * f64::EPSILON, -1.0 + f64::EPSILON / 2.0);
+    let actual = [xsf::eval_jacobi(n, a, a, 0.0), xsf::eval_jacobi(n, a, a, c64(0.0, 0.0)).re];
+    np_assert_allclose!(actual, [0.25; 2], rtol = 1e-15);
+    let inf = f64::INFINITY;
+    assert!(xsf::eval_jacobi(1.0, inf, inf, 1e-8).is_nan());
+    assert!(xsf::eval_jacobi(1.0, inf, inf, c64(1e-8, 0.0)).re.is_nan());
 }
 
 #[test]
