@@ -4054,7 +4054,8 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     **_spheroidal("prolate_aswfa", (SW_MODE, SW_ANGLE)),
     **_spheroidal("oblate_aswfa", (SW_MODE, SW_ANGLE)),
-    **_spheroidal("prolate_radial2", (SW_PROLATE_X,), (False,)),
+    **_spheroidal("prolate_radial1", (SW_PROLATE_X,), (True,)),
+    **_spheroidal("prolate_radial2", (SW_PROLATE_X,)),
     **_spheroidal("oblate_radial1", (), (False,)),
     **_spheroidal("oblate_radial2", (), (False,)),
 }
