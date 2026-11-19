@@ -1,5 +1,5 @@
 //! Translated into pure Rust from `xsf/cephes/igam.h` and `xsf/cephes/igam_asymp_coeff.h`
-//! (scipy/xsf@3682d38).
+//! (scipy/xsf@b6c79b5).
 //!
 //! Cephes Math Library Release 2.0:  April, 1987
 //! Copyright 1985, 1987 by Stephen L. Moshier
@@ -316,7 +316,7 @@ fn igamc_series(a: f64, x: f64) -> f64 {
 
     let logx = x.ln();
     let term = -(a * logx - lgam1p(a)).exp_m1();
-    // `rgamma` for a < 1, as in `igam_fac`
+    // Unlike in xsf, `rgamma` for all a < 1, not only for a < MACHEP, as in `igam_fac`
     if a < 1.0 {
         return term - (a * logx).exp() * rgamma(a) * sum;
     }
@@ -470,8 +470,9 @@ pub(crate) fn igam(a: f64, x: f64) -> f64 {
         return asymptotic_series(a, x, IGAM);
     }
 
-    // Unlike in xsf (scipy/xsf#456), `1 - igamc` is also used if `igam = 1 - O(m)` (see
-    // `IGAM_COMPLEMENT_MAX`), where `igam_series` is a few eps off, and can exceed 1 or underflow.
+    // Unlike in xsf, `1 - igamc` is used not only for a < MACHEP, but wherever `igam = 1 - O(m)`
+    // (see `IGAM_COMPLEMENT_MAX`), where `igam_series` is a few eps off, and can exceed 1 or
+    // underflow.
     if (x > 1.0 && x > a) || a * x.ln().abs().max(1.0) <= IGAM_COMPLEMENT_MAX {
         return 1.0 - igamc(a, x);
     }

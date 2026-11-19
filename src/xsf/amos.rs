@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@9b1ddf4).
+//! Translated into pure Rust from `xsf/amos/amos.h` (scipy/xsf@102de34).
 //!
 //! ```text
 //!
@@ -963,7 +963,10 @@ pub(crate) fn airy(mut z: C64, id: i32, kode: i32, nz: &mut i32, ierr: &mut i32)
     let bb = I1MACH[8] * 0.5;
     aa = if aa > bb { bb } else { aa };
     aa = aa.powf(tth);
-    if az > aa {
+    // As in besj and besh: for abs(zeta) > 0.5 / tol, with zeta = 2/3 z**1.5, all significance is
+    // lost by argument reduction. The INT_MAX / 2 in aa is not needed here, since z is never
+    // converted to int.
+    if az > (0.5 / tol).powf(tth) {
         *ierr = 4;
         *nz = 0;
         return C64::ZERO;
@@ -1746,7 +1749,9 @@ pub(crate) fn besi(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     aa = 0.5 / tol;
     let bb = I1MACH[8] * 0.5;
     aa = aa.min(bb);
-    if (az > aa) || (fn_ > aa) {
+    // As in besj and besh: for abs(z) > 0.5 / tol all significance is lost by argument reduction.
+    // INT_MAX / 2 is only needed for the order, which is converted to int.
+    if (az > 0.5 / tol) || (fn_ > aa) {
         *ierr = 4;
         return 0;
     }
@@ -2236,7 +2241,9 @@ pub(crate) fn besk(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     aa = 0.5 / tol;
     let bb = I1MACH[8] * 0.5;
     aa = aa.min(bb);
-    if (az > aa) || (fn_ > aa) {
+    // As in besj and besh: for abs(z) > 0.5 / tol all significance is lost by argument reduction.
+    // INT_MAX / 2 is only needed for the order, which is converted to int.
+    if (az > 0.5 / tol) || (fn_ > aa) {
         *ierr = 4;
         return 0;
     }
@@ -3003,7 +3010,10 @@ pub(crate) fn biry(mut z: C64, id: i32, kode: i32, ierr: &mut i32) -> C64 {
     bb = I1MACH[8] * 0.5;
     aa = aa.min(bb);
     aa = aa.powf(tth);
-    if az > aa {
+    // As in besj and besh: for abs(zeta) > 0.5 / tol, with zeta = 2/3 z**1.5, all significance is
+    // lost by argument reduction. The INT_MAX / 2 in aa is not needed here, since z is never
+    // converted to int.
+    if az > (0.5 / tol).powf(tth) {
         *ierr = 4;
         return C64::ZERO;
     }

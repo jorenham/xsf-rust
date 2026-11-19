@@ -933,12 +933,13 @@ fn test_bessel_amos_large_order_near_overflow() {
 }
 
 #[test]
-fn test_bessel_amos_huge_z_airy_failure() {
-    // AMOS's Airy functions fail for |z| > ~7e8, so these are NaN instead of 0.
-    // Arb: hankel2(86.5, 1e15 + 700j) = -2.2e296 + 1.3e296j and bessely(86.5, 1e10 + 10j) = 0.077 +
-    // 0.043j
-    assert!(xsf::hankel_2(86.5, c64(1e15, 700.0)).re.is_nan());
-    assert!(xsf::bessel_y(86.5, c64(1e10, 10.0)).re.is_nan());
+fn test_bessel_amos_huge_z() {
+    // up to `|z| = 0.5 / eps`, but the phase is only accurate to about `eps |z|` (Arb)
+    let y = xsf::bessel_y(86.5, c64(1e10, 10.0));
+    let desired = c64(0.076_723_556_342_248_09, 0.042_838_532_018_034_78);
+    np_assert_allclose!(&[y], &[desired], rtol = 1e-5);
+    let h2 = xsf::hankel_2(86.5, c64(1e15, 700.0));
+    np_assert_allclose!([h2.norm()], [2.559_041_882_177_221e296], rtol = 1e-12);
     // Arb: bessely(-86.5, 1e15 + 10j) = sin(86.5 pi) besselj(86.5, 1e15 + 10j)
     let y = xsf::bessel_y(-86.5, c64(1e15, 10.0));
     np_assert_allclose!(
@@ -1628,4 +1629,27 @@ fn test_jahnke_emden_lambda_nan() {
             assert!(vl.iter().chain(&dl).all(|y| y.is_nan()), "v = {v}, x = {x}");
         }
     }
+}
+
+#[test]
+fn test_amos_large_z() {
+    // based on scipy/xsf#509: hankel_1 returned 0, the others NaN (mpmath)
+    let h1 = xsf::hankel_1(86.0, c64(1e9, 0.0));
+    np_assert_allclose!(
+        [h1.re, h1.im],
+        [-2.468_749_115_424_341e-5, 5.210_331_359_590_961e-6],
+        rtol = 1e-6
+    );
+    let actual = [xsf::bessel_ie(0.0, 2e9), xsf::bessel_ke(10.0, 2e9)];
+    np_assert_allclose!(
+        actual,
+        [8.920_620_581_321_394e-6, 2.802_495_678_086_199_5e-5],
+        rtol = 5e-15
+    );
+    let [ai, _, bi, _] = xsf::airy_scaled(2e6);
+    np_assert_allclose!(
+        [ai, bi],
+        [0.007_501_317_867_926_573, 0.015_002_635_736_958_194],
+        rtol = 5e-15
+    );
 }
