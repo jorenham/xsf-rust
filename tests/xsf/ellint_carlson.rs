@@ -320,6 +320,11 @@ fn test_carlson_huge_negligible_imag_finite() {
     // just below 1.5 times the smallest subnormal
     let z = c64(p(550), p(-550));
     assert_eq!(xsf::elliprj(z, z, z, c64(p(800), 0.0)).re, f64::from_bits(1));
+
+    // NaN unscaled, so retried with the imaginary part flushed (Arb)
+    let h = c64(p(400), 0.0);
+    let res = xsf::elliprj(h + c64(0.0, f64::from_bits(1)), h, h, h * 2.0);
+    xsref::np_assert_allclose!([res.re], [1.551_519_687_348_157_6e-181], rtol = 1e-15);
 }
 
 #[test]

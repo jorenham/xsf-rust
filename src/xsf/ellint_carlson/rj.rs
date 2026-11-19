@@ -437,7 +437,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     common::relaxed_scale_factor(&args, min).map_or((status, res), rescaled)
 }
 
-/// Whether all arguments are real, and the smallest argument size of the rescaling: 2^-511 so
+/// Whether all arguments are real (imaginary parts 0 or subnormal), and the smallest argument size
+/// of the rescaling: 2^-511 so
 /// that products of two arguments don't underflow, or 2^-254 if complex (wider spans are
 /// inaccurate there)
 fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {

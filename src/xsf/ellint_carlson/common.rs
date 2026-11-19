@@ -120,8 +120,8 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
 }
 
 /// [`scale_factor`], but if all real parts are positive, an imaginary part below `EPSILON` times
-/// its real part may become subnormal, as that changes the argument by less than its rounding
-/// error (not near a branch cut, where it can decide the result)
+/// its real part may become subnormal or 0, a perturbation of the argument by less than `EPSILON`
+/// relative to it (not near a branch cut, where such a part can decide the result)
 ///
 /// For a retry where the unscaled arguments gave a non-finite result, since flushing such parts
 /// can still lose the relative accuracy of a tiny imaginary part of the result.
