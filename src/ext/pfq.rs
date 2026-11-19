@@ -6,7 +6,7 @@
 
 use core::f64::consts::{PI, TAU};
 use core::iter::{from_fn, once, successors, zip};
-use core::ops::Add;
+use core::ops::{Add, ControlFlow};
 
 use super::{Scaled, add_exp, add_exp_in, fold_exp, ln_dd, ln_gamma, mul_gamma_ratio};
 use crate::utils::{EPSILON_SQ, is_nonpos_int, neg_one_pow, pow2};
@@ -902,21 +902,25 @@ fn convergent_sum<T: Term<Value = f64>>(
     settled: f64,
     ratio_bound: impl Fn(f64) -> f64,
 ) -> (f64, f64) {
-    let (mut sum, mut abs_sum) = (0.0_f64, 0.0);
-    for (term, n) in terms.zip((0..PFQ_MAXITER).map(f64::from)) {
-        if !term.value().is_finite() {
-            break;
-        }
-        sum += term.value();
-        abs_sum += term.bound();
-        let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
-        // geometric bound on the remaining terms
-        let tail = term.bound() * rho / (1.0 - rho);
-        if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
-            return (sum, tail + n * f64::EPSILON * abs_sum);
-        }
+    // the partial sums, until the tail is negligible
+    let sums = terms
+        .zip((0..PFQ_MAXITER).map(f64::from))
+        .take_while(|(term, _)| term.value().is_finite())
+        .try_fold((0.0_f64, 0.0), |(sum, abs_sum), (term, n)| {
+            let (sum, abs_sum) = (sum + term.value(), abs_sum + term.bound());
+            let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
+            // geometric bound on the remaining terms
+            let tail = term.bound() * rho / (1.0 - rho);
+            if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
+                ControlFlow::Break((sum, tail + n * f64::EPSILON * abs_sum))
+            } else {
+                ControlFlow::Continue((sum, abs_sum))
+            }
+        });
+    match sums {
+        ControlFlow::Break(sum_err) => sum_err,
+        ControlFlow::Continue((sum, _)) => (sum, f64::INFINITY),
     }
-    (sum, f64::INFINITY)
 }
 
 /// The sum of the series in `1 / z` of a term of the algebraic part, where the term ratios are
