@@ -167,7 +167,7 @@ fn test_eval_integer_degree_complex() {
     np_assert_allclose!(actual, desired, rtol = 1e-14);
     // as the Gegenbauer recurrence, where the Jacobi one overflows (mpmath, via U_n)
     let actual = xsf::eval_jacobi(100_000.0, 0.5, 0.5, c64(0.0, 0.0069));
-    let desired = c64(8.226_656_351_555_53e296, 0.0);
+    let desired = c64(8.226_656_351_555_531e296, 0.0);
     np_assert_allclose!([actual], [desired], rtol = 3e-14);
 
     // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
