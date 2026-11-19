@@ -3396,26 +3396,13 @@ MATHIEU_KM: Final = Override(
 )
 
 
-def _mathieu_sem_even(a: tuple[float, ...]) -> bool:
-    """An even order m >= 2, for |q| > 1e-7."""
-    return a[0] % 2 == 0 and a[0] >= 2 and abs(a[1]) > 1e-7
-
-
-MATHIEU_SEM_EVEN_WHY: Final = (
-    "for an even m, `fcoef` compares against fc[k - 1] in its backward recurrence, unlike xsf "
-    "(scipy/xsf#343), and so rounds differently"
-)
-MATHIEU_SEM_EVEN: Final = (
-    Floor(
-        lambda a: _mathieu_sem_even(a) and abs(a[2]) < 1000, 1e-14, MATHIEU_SEM_EVEN_WHY
-    ),
-    Floor(
-        lambda a: _mathieu_sem_even(a) and abs(a[2]) >= 1000,
-        4e-13,
-        f"{MATHIEU_SEM_EVEN_WHY}; at |x| >= 1000 degrees, both have the error of the 15-digit "
-        "pi / 180 of specfun",
-    ),
-)
+def _mathieu_floor(tol: float, why: str) -> Floor:
+    """A floor of `ce_m` or `se_m` at all x, which xsf-rust converts from degrees differently."""
+    return Floor(
+        lambda a: True,
+        tol,
+        f"unlike xsf, the f64 pi / 180 (xsf has 15 digits){why}, and so rounds differently",
+    )
 
 
 ENTRIES: Final[dict[tuple[str, str], Entry]] = {
@@ -4366,6 +4353,7 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                 (ref,),
                 rules=(_mathieu_m(0, "ce_m"),),
                 overrides=(MATHIEU_KM,),
+                floors=(_mathieu_floor(7e-14, ""),),
             )
             for i, ref in enumerate(
                 (mathieu.angular(0, False), mathieu.angular(0, True))
@@ -4387,7 +4375,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
                     ),
                 ),
                 overrides=(MATHIEU_KM,),
-                floors=MATHIEU_SEM_EVEN,
+                floors=(
+                    _mathieu_floor(
+                        1.4e-13,
+                        "; for an even m, `fcoef` compares against fc[k - 1] in its "
+                        "backward recurrence (scipy/xsf#343)",
+                    ),
+                ),
             )
             for i, ref in enumerate(
                 (mathieu.angular(1, False), mathieu.angular(1, True))
