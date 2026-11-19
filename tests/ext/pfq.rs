@@ -49,6 +49,19 @@ fn test_hyp3f2_cancels_to_1f0() {
 }
 
 #[test]
+fn test_hyp3f2_cancels_to_2f1() {
+    // 2F1(2, 2; 1; z) = (1 + z) / (1 - z)^3, also past the radius of convergence
+    assert_eq!(hyp3f2(2.0, 2.0, 3.0, 1.0, 3.0, 2.0), -3.0);
+    assert_eq!(hyppfq(&[2.0, 2.0, 3.0], &[1.0, 3.0], 2.0), Some(-3.0));
+    assert_eq!(hyppfq(&[2.0, 2.0], &[1.0], 2.0), Some(-3.0));
+    // 2F1(5/2, 1; 3/2; z) = (1 - z/3) / (1 - z)^2
+    assert_hyp3f2([1.0, 2.5, 1.0], [1.0, 1.5], 10.0, -7.0 / 243.0);
+    // complex, where `hyp2f1` is +inf
+    assert!(hyp3f2(1.75, 3.0, 4.0, 2.0, 4.0, 2.0).is_nan());
+    assert!(hyppfq(&[1.75, 3.0], &[2.0], 2.0).is_some_and(f64::is_nan));
+}
+
+#[test]
 fn test_hyp3f2_special() {
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.0), 1.0);
     assert!(hyp3f2(f64::NAN, 2.5, 3.5, 0.5, 4.5, 0.25).is_nan());

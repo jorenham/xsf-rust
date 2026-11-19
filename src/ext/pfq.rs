@@ -891,7 +891,8 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
 ///   of its limit from below, unless it is a polynomial or that can't be determined (then
 ///   NaN);
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial or cancels to
-///   $(1 - z)^{-a_i}$ with an integer $a_i$, and if an argument is NaN;
+///   $(1 - z)^{-a_i}$ with an integer $a_i$ or to a $_2F_1$ where [`hyp2f1`](crate::hyp2f1) is
+///   finite, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
 /// # Returns NaN
@@ -931,6 +932,8 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
         // the closed form of `pfq_estimate` is also real for z > 1 if `a` is an integer
         Some(i) => pfq_estimate(&[a[1 - i]], &[], z),
         None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_better(|| pfq_real(a, b, z)),
+        // `pfq_real` is NaN there, as complex, but this 2F1 can be real
+        None if z > 1.0 && first_zero(&a).is_infinite() => pfq_estimate(&a, &b[..1], z),
         None => pfq_real(a, b, z),
     }
 }
@@ -2280,8 +2283,9 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, and at $z = +\infty$
 ///   for $p \le q$ if it isn't a polynomial;
 /// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
-/// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial or
-///   $(1 - z)^{-a_1}$ with an integer $a_1$, and if an argument is NaN.
+/// - NaN for $p = q + 1$ and $z > 1$, where it is complex, unless it is a polynomial,
+///   $(1 - z)^{-a_1}$ with an integer $a_1$, or a $_2F_1$ where [`hyp2f1`](crate::hyp2f1) is
+///   finite, and if an argument is NaN.
 ///
 /// # Returns `None`
 ///
@@ -2343,6 +2347,12 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
         // +inf where it diverges, and NaN where it is complex
         (&[a], &[]) if z == 1.0 && a > 0.0 => exact(f64::INFINITY),
         (&[a], &[]) if !complex || a.fract() == 0.0 => exact(crate::hyp1f0(a, z)),
+        // Unlike in xsf, NaN where `hyp2f1` is +-inf, as it can then be complex; else real, e.g.
+        // where it is rational
+        (&[a1, a2], &[b]) if complex => {
+            let y = crate::hyp2f1(a1, a2, b, z);
+            exact(if y.is_finite() { y } else { f64::NAN })
+        },
         _ if complex => exact(f64::NAN),
         (&[], &[b]) => xsf(crate::hyp0f1(b, z)),
         (&[a], &[b]) => xsf(crate::hyp1f1(a, b, z)),
