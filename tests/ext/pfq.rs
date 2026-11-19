@@ -685,6 +685,16 @@ fn test_hyp2f0() {
         assert!((actual / expected - 1.0).abs() < 1e-12, "{actual} != {expected}");
         assert_eq!(hyppfq(&a, &[], z), None);
     }
+    // chgu estimates 12 digits of the Borel sum, which has 11.8 (Arb: -2.953_959_436_326_337e85)
+    let (a1, a2, z) = (-33.469_052_875_157_17, -30.469_052_875_157_17, -36.589_122_667_683_775);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-11, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
+    // the Weniger sum, with 3.7 digits (Arb: 2.968_695_239_976_95e209)
+    let (a1, a2, z) = (-62.084_104_456_978_59, -49.999_999_999_996_75, -249.109_088_375_704_2);
+    let actual = hyp2f0(a1, a2, z);
+    assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 3e-4, "{actual}");
+    assert_eq!(hyppfq(&[a1, a2], &[], z), None);
     // the zero 1 - 0.5 * 2 of a polynomial, where the error estimate is not 0
     assert!(hyp2f0(-1.0, 0.5, 2.0).is_nan());
 }
