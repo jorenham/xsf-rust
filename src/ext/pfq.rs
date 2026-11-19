@@ -864,7 +864,8 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
 /// - $\pm\infty$ at $z = 1$ for finite parameters if $b_1 + b_2 \le a_1 + a_2 + a_3$, the sign
 ///   of its limit from below, unless it is a polynomial or that can't be determined (then
 ///   NaN);
-/// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
+/// - NaN for $z > 1$, where it is complex, unless it is a polynomial or cancels to
+///   $(1 - z)^{-a_i}$ with an integer $a_i$, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
 ///
 /// # Returns NaN
@@ -901,7 +902,8 @@ fn hyp3f2_estimate(a1: f64, a2: f64, a3: f64, b1: f64, b2: f64, z: f64) -> Optio
     };
     let (a, b) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[1 - j], 1.0]);
     match a.iter().position(|&v| v == b[0]) {
-        Some(i) => pfq_real([a[1 - i]], [1.0], z),
+        // the closed form of `pfq_estimate` is also real for z > 1 if `a` is an integer
+        Some(i) => pfq_estimate(&[a[1 - i]], &[], z),
         None if z == 1.0 => gauss_sum(a[0], a[1], b[0]).or_better(|| pfq_real(a, b, z)),
         None => pfq_real(a, b, z),
     }

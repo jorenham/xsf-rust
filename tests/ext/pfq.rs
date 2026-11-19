@@ -42,6 +42,13 @@ fn test_hyp3f2_polynomial() {
 }
 
 #[test]
+fn test_hyp3f2_cancels_to_1f0() {
+    // 1F0(a;;2) = (1 - 2)^-a, also past the radius of convergence
+    assert_eq!(hyp3f2(2.0, 2.0, 3.0, 2.0, 3.0, 2.0), 1.0);
+    assert_eq!(hyp3f2(3.0, 2.0, 3.0, 2.0, 3.0, 2.0), -1.0);
+}
+
+#[test]
 fn test_hyp3f2_special() {
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 0.0), 1.0);
     assert!(hyp3f2(f64::NAN, 2.5, 3.5, 0.5, 4.5, 0.25).is_nan());
