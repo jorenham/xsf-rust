@@ -152,16 +152,26 @@ fn test_eval_integer_degree_complex() {
     let desired = c64(-7.606_673_349_914_896e74, -2.979_424_348_047_212e74);
     np_assert_allclose!([actual], [desired], rtol = 1e-14);
 
-    // and where `alpha + 1/2 - 1` rounds to -1, or the prefactor overflows for tiny alpha (mpmath)
+    // and where `alpha + 1/2 - 1` rounds to -1, the prefactor overflows for tiny alpha, or the
+    // product overflows before it is scaled down (mpmath)
     let actual = [
         xsf::eval_gegenbauer(171.0, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
         xsf::eval_gegenbauer(1000.0, 1e-310, c64(0.75, 0.125)),
+        xsf::eval_gegenbauer(200.0, 0.2, c64(0.0, 17.43)),
     ];
     let desired = [
         c64(0.0, 9.532_255_825_720_248e-4),
         c64(8.465_527_655_970_144e-234, 4.776_235_568_205_383_5e-235),
+        c64(1.081_191_070_283_941_4e306, 0.0),
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+
+    // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
+    // 2.67e-312 + 2.57e-312i and 2.67e-22 + 2.57e-22i)
+    for alpha in [1e-310, 1e-20] {
+        let actual = xsf::eval_gegenbauer(200.5, alpha, c64(0.0, 0.01));
+        assert!(actual.norm() <= 1e-21, "{actual}");
+    }
 
     // but not with a wrong finite value where `alpha + 1/2` is a negative integer (mpmath)
     let actual = xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01));

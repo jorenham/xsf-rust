@@ -523,14 +523,17 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
             // Unlike in xsf, complex z with -1/2 < alpha < 1/4 uses
-            // `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))` (DLMF 5.12.1, 5.5.1), which keeps
-            // the digits of `2 alpha` and `2 alpha + 1` that `n + 2 alpha - 1` rounds away (as in
-            // `binom_alpha`). The 2F1 is scaled by `2 alpha` first, since the prefactor can be
-            // subnormal for tiny alpha. Below -1/2, `c = alpha + 1/2` can make the 2F1 singular.
-            if is_complex && alpha > -0.5 && alpha < 0.25 && n > 0.0 {
+            // `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))` (DLMF 5.12.1, 5.5.1) where
+            // `hyp2f1_sh` uses the recurrence, which keeps the digits of `2 alpha` and
+            // `2 alpha + 1` that `n + 2 alpha - 1` rounds away (as in `binom_alpha`). The 2F1 is
+            // scaled by `2 alpha` first, since the prefactor can be subnormal for tiny alpha.
+            // Elsewhere, the rounded prefactor hides the cancelled series of the other degrees,
+            // or the singular 2F1 of `c = alpha + 1/2 <= 0`.
+            let recur = int_degree(n, 0.0, 0.0).is_some();
+            if is_complex && recur && alpha > -0.5 && alpha < 0.25 {
                 let b = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
                 if b.is_finite() {
-                    return g * (2.0 * alpha) * b / n;
+                    return g * (2.0 * alpha) * (b / n);
                 }
             }
         }
