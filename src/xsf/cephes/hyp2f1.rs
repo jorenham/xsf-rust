@@ -861,6 +861,21 @@ fn hyp2f1_gauss_dd(a: f64, b: f64, c: f64) -> Option<f64> {
     ok.then(|| ldexp_f64(g.m, g.e))
 }
 
+/// Unlike in xsf, `y` of `hyp2f1_recur` as an `f64` and its error bound, but if it overflows while
+/// the bound allows a finite value, `alt()` if that is in the bound (finite, of the same sign, and
+/// at least the lower bound): near the cutoff, `y` can round either way
+fn recur_or_finite(y: Scaled, alt: impl FnOnce() -> f64) -> (f64, f64) {
+    let y = fold_exp(y);
+    let (v, lo) = (ldexp_f64(y.m, y.e), ldexp_f64(y.m * (1.0 - y.err), y.e));
+    if v.is_infinite() && lo.is_finite() {
+        let alt = alt();
+        if alt.is_finite() && alt.signum() == v.signum() && alt.abs() >= lo.abs() {
+            return (alt, y.err);
+        }
+    }
+    (v, y.err)
+}
+
 /// `hyp2f1`, where `recur` is whether to try `hyp2f1_recur` in its regime: if the outermost call
 /// is `in_recur_regime` (and not in the Pfaff transformation below for x <= -9), and `outer`
 /// whether this is the outermost call
@@ -973,8 +988,9 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
             && !poly_params(a, b, c).into_iter().any(degenerate);
         first.then(|| hyp2f1_recur(a, b, c, x)).flatten()
     };
-    // the result of `hyp2f1_recur` and its error bound, if that exceeds its tolerance
-    let inexact = recur_first(a, b, c).map(Scaled::to_f64);
+    // the result of `hyp2f1_recur` and its error bound, if that exceeds its tolerance (or near an
+    // overflow, the power series if that agrees)
+    let inexact = recur_first(a, b, c).map(|y| recur_or_finite(y, || hyt2f1(a, b, c, x).0));
     if let Some((y, _)) = inexact.filter(accurate) {
         return y;
     }

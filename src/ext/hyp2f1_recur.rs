@@ -202,13 +202,10 @@ impl Scaled {
     }
 
     /// The value as an `f64` (which can overflow or underflow), and its error bound (not counting
-    /// the rounding of an underflow), which is infinite if the value overflows but the bound
-    /// allows a finite one
+    /// the rounding of an underflow)
     pub(crate) fn to_f64(self) -> (f64, f64) {
         let y = fold_exp(self);
-        let v = ldexp_f64(y.m, y.e);
-        let straddles = v.is_infinite() && ldexp_f64(y.m * (1.0 - y.err), y.e).is_finite();
-        (v, if straddles { f64::INFINITY } else { y.err })
+        (ldexp_f64(y.m, y.e), y.err)
     }
 }
 
