@@ -8,6 +8,7 @@
 use crate::utils::{EGAMMA, FRAC_PI_SQ_6, SQRT_EPSILON, SQRT_TAU_DOWN};
 use crate::xsf::cephes::beta::BETA_ASYMP_FACTOR;
 use crate::xsf::cephes::consts::{MACHEP, MAXLOG, MINLOG};
+use crate::xsf::cephes::dd_real::DoubleDouble;
 use crate::xsf::cephes::{beta, lbeta, lgam_stirling_corr, ln_pow_beta, psi, zeta};
 use crate::xsf::faddeeva::erfcx;
 use crate::xsf::log::log1pmx;
@@ -266,6 +267,23 @@ fn incbet_maxiter(a: f64, b: f64, x: f64) -> f64 {
 /// correction to Stirling's formula of `ln(Gamma)` (`lgam_stirling_corr`)
 pub(super) fn incbet_corr(a: f64, b: f64) -> f64 {
     lgam_stirling_corr(a + b) - lgam_stirling_corr(a) - lgam_stirling_corr(b)
+}
+
+/// `x` and `y = 1 - x` in double-double, with the larger as `1 -` the smaller (see `incbet_pow`)
+fn incbet_xy_dd(x: f64, y: f64) -> (DoubleDouble, DoubleDouble) {
+    let one = DoubleDouble::new(1.0);
+    if x <= y {
+        (DoubleDouble::new(x), one - x)
+    } else {
+        (one - y, DoubleDouble::new(y))
+    }
+}
+
+/// `lambda = a y - b x` by a compensated dot product, with `y = 1 - x` exact for the smaller of `x`
+/// and `y` (see `incbet_xy_dd`)
+fn incbet_lambda(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    let (x, y) = incbet_xy_dd(x, y);
+    DoubleDouble::dot([(DoubleDouble::new(a), y), (DoubleDouble::new(-b), x)]).hi
 }
 
 /// `ln(x^a y^b / B(a, b))` for `a, b >= 13` and `x <= a / (a + b)`, with `y = 1 - x`
@@ -544,14 +562,15 @@ fn incbet_cf(a: f64, z: f64, mut k2: f64, mut k6: f64, step: f64, nmax: f64) -> 
 /// incbet underflow                     0.0
 /// ```
 pub(super) fn incbet(aa: f64, bb: f64, xx: f64) -> f64 {
-    incbet_xy(aa, bb, xx, 1.0 - xx)
+    incbet_xy(aa, bb, xx, 1.0 - xx, None)
 }
 
-/// `incbet(aa, bb, xx)`, given `yy = 1 - xx`
+/// `incbet(aa, bb, xx)`, given `yy = 1 - xx`, and `lambda = aa yy - bb xx` if it is known more
+/// accurately than from `xx` and `yy` (as in `fdtr`)
 ///
 /// Unlike in xsf (scipy/xsf#358), `yy` is passed, which is exact also if `xx` is rounded (e.g. in
 /// `fdtr`).
-pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
+pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64, lambda: Option<f64>) -> f64 {
     let mut flag = false;
 
     if aa <= 0.0 || bb <= 0.0 {
@@ -617,7 +636,9 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64) -> f64 {
 
         // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708),
         // where it is generally more accurate than the continued fractions.
-        let lambda = a * xc - b * x;
+        // Unlike in xsf, `lambda` is a compensated dot product (see `incbet_lambda`), as it cancels
+        let lambda =
+            lambda.map_or_else(|| incbet_lambda(a, b, x, xc), |l| if flag { -l } else { l });
         if a.min(b) > 100.0 && lambda <= 0.03 * a.min(b) {
             break 'done incbet_basym(a, b, lambda);
         }
@@ -740,6 +761,11 @@ pub fn betainc(a: f64, b: f64, x: f64) -> f64 {
 
 /// `betainc(a, b, x)`, given `y = 1 - x`, which is exact also if `x` is rounded
 pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    betainc_xy_lambda(a, b, x, y, None)
+}
+
+/// `betainc_xy(a, b, x, y)`, given `lambda = a y - b x` if known (see `incbet_xy`)
+pub(crate) fn betainc_xy_lambda(a: f64, b: f64, x: f64, y: f64, lambda: Option<f64>) -> f64 {
     if (a < 0.0 || b < 0.0 || !(0.0..=1.0).contains(&x))
         || (a.is_nan() || b.is_nan())
         || (a == 0.0 && b == 0.0)
@@ -751,7 +777,7 @@ pub(crate) fn betainc_xy(a: f64, b: f64, x: f64, y: f64) -> f64 {
     } else if a.is_infinite() || b == 0.0 {
         if y > 0.0 { 0.0 } else { 1.0 }
     } else {
-        incbet_xy(a, b, x, y)
+        incbet_xy(a, b, x, y, lambda)
     }
 }
 
