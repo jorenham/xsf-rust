@@ -967,6 +967,11 @@ impl Term for (f64, f64) {
 /// `sum_n n! / z^(n+1)` with `z > 0`, whose term ratios are also about `n / z`. The sum is the
 /// one whose error is smallest, as the rounding grows with `n`. It stops where the remainder is
 /// negligible if `ratio_bound(n) < 1`, so that the next terms are smaller.
+///
+/// Before term `settled + |z|`, the terms can grow again after a small one, and then shrink to
+/// smaller ones, e.g. after a tiny `a_m` or a small positive `1 + a_m - a_i + n` of a term of
+/// the algebraic part of pFq. So the error of a sum is at least its distance to any later sum,
+/// less the error of that one.
 fn asymptotic_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
@@ -985,14 +990,18 @@ fn asymptotic_sum<T: Term>(
         let size = bound.max(terms.peek().map_or(0.0, |next| next.bound()));
         if !t.to_f64().is_finite() || n >= settled + z.abs() && bound >= prev {
             break;
-        } else if n >= settled && size < min {
-            min = size;
-            let err = remainder * min + n * eps * abs_sum;
+        } else if n >= settled {
+            // (the `err` of a `size >= min` is not below `best.1`, unless that grew)
+            let err = remainder * size + n * eps * abs_sum;
+            best.1 = best.1.max((sum - best.0).to_f64().abs() - err);
             if err < best.1 {
                 best = (sum, err);
             }
-            if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
-                break;
+            if size < min {
+                min = size;
+                if remainder * min <= eps * sum.to_f64().abs() && ratio_bound(n) < 1.0 {
+                    break;
+                }
             }
         }
         sum = sum + t;
