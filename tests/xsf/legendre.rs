@@ -296,6 +296,26 @@ fn test_assoc_legendre_q_all_q0_tiny_and_large_x() {
 }
 
 #[test]
+fn test_assoc_legendre_q_all_large_x_and_z() {
+    // where the backward recurrences are rescaled; mpmath: legenq(n, m, x, type=3), and Arb for
+    // complex z
+    for (x, n, m, q) in [
+        (1e7, 0, 0, 1.000_000_000_000_003_4e-7),
+        (1e8, 0, 0, 1e-8),
+        (907.57, 30, 26, 8.065_789_716_549_577e-60),
+    ] {
+        let (qm, _) = xsf::assoc_legendre_q_all(n, m, x);
+        xsref::np_assert_allclose!([qm[n][m]], [q], rtol = 5e-15);
+    }
+    let (qm, _) = xsf::assoc_legendre_q_all(3, 2, c64(1e8, 3e7));
+    xsref::np_assert_allclose!(
+        [qm[3][2]],
+        [c64(3.789_872_471_995_64e-33, -8.841_146_634_093_655e-33)],
+        rtol = 5e-15
+    );
+}
+
+#[test]
 fn test_assoc_legendre_q_all_q0_tiny_and_large_z() {
     // Arb: atanh(z), and acoth(z) for |z| > 1
     for (z, q0) in [

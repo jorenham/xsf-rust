@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@ab278eb) and `xsf/cpu/recur.h`
+//! Translated into pure Rust from `xsf/cpu/legendre.h` (scipy/xsf@10f45ae) and `xsf/cpu/recur.h`
 //! (scipy/xsf@b1eb270), for `T` either `double` or `std::complex<double>`. The dual numbers of
 //! `xsf/cpu/dual.h`, which xsf uses for derivatives, are not translated.
 //!
@@ -9,7 +9,8 @@
 //!   panicking in debug builds.
 //! - The real `lqmn` uses `log(|x| - 1)` (like the complex `lqmn`) instead of `log(x - 1)`
 //!   (scipy/xsf#368).
-//! - `lqmn` rescales its backward recurrences, which overflow for large `|z|` and `m + n`.
+//! - `lqmn` keeps the scale of each value of its rescaled backward recurrences apart, instead of
+//!   rescaling the stored values, which can become subnormal (scipy/xsf#571).
 //! - The complex `lqn` and `lqmn` take the imaginary parts for a tiny `Im z` from a lifted one,
 //!   since those of their seeds can be subnormal.
 //! - The complex `sin` and `cos` (for complex `theta`) follow glibc only for finite arguments.
@@ -917,7 +918,7 @@ fn lqn_c64(z: C64, mut cqn: Mdspan<'_, C64, 1>, mut cqd: Mdspan<'_, C64, 1>) {
             if k <= n {
                 cqn[k] = cqf0;
             }
-            // Unlike in xsf, this rescales by a power of 2 (as in `lqmn_large`), since `cqf0`
+            // Unlike in xsf, this rescales by a power of 2 (as xsf's `lqmn` does), since `cqf0`
             // grows like `(2 z)^k` and overflowed for large `|z|`
             if cqf0.l1_norm() > SPECFUN_BIG {
                 (cqf0, cqf1) = (cqf0 / SPECFUN_BIG, cqf1 / SPECFUN_BIG);
@@ -977,9 +978,11 @@ fn lqmn_large<T: Num>(z: T, zq: T, q0: T, mut qm: Mdspan<'_, T, 2>) {
                 qm[(i, k)] = qf0;
                 ex[k as usize][i as usize] = sc;
             }
-            // Unlike in xsf, this rescales (by powers of 2), since the recurrence grows like
-            // `(2 z)^k`, which overflows for large `|z|` and `m + n`; `ex` keeps the scale of
-            // each stored value
+            // rescaled by powers of 2, since the recurrence grows like `(2 z)^k`, which overflows
+            // for large `|z|` and `m + n`
+            //
+            // Unlike in xsf (scipy/xsf#571), `ex` keeps the scale of each stored value, instead of
+            // rescaling the stored values, which can become subnormal
             if l1(qf0) > SPECFUN_BIG {
                 (qf0, qf1) = (qf0 / SPECFUN_BIG, qf1 / SPECFUN_BIG);
                 sc += 1;
