@@ -2205,7 +2205,8 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
 /// `Gamma(a_i + s)` sum to `pfq_alg`. For small `|z|`, where those cancel, it is the series up
 /// to its smallest term, as for 2F0, or else its Weniger transformation, last in double-double,
 /// which is the slowest. The residues come first, as the steps of Weniger can stall where some
-/// terms nearly vanish, e.g. for an `a_i` near a non-positive integer.
+/// terms nearly vanish, e.g. for an `a_i` near a non-positive integer. Where none of these is
+/// accurate, the residues are in double-double, as for 2F0.
 fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let (a_ref, b_ref) = (a.as_ref(), b.as_ref());
     // the term ratios are about n^d |z|, so that the terms are smallest near n = |z|^(-1/d)
@@ -2229,6 +2230,7 @@ fn pfq_borel<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
         .or_better(residues)
         .or_better(weniger_f64)
         .or_better(weniger_dd)
+        .or_better(|| pfq_borel_dd(a, b, z))
 }
 
 /// The decays `exp(-m)` of `v_k` from where `hyp2f0_miller` recurs down: below `f64::EPSILON`, and
@@ -2362,7 +2364,8 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///
 /// - for $p > q + 1$ and $z > 0$, unless it is a polynomial;
 /// - for $p > q + 1$ and $z < 0$ where its Borel sum can't be computed accurately, e.g. for some
-///   $z \ll -1$ or $\abs z \gtrsim 0.1$, large negative $a_i$, or nearly equal $a_i$;
+///   $\abs z \lesssim 1$ and $\abs{a_i} \gtrsim 10$, or $a_i$ that are nearly equal or differ
+///   by integers, and where it underflows;
 /// - for the other $p \le q + 1$ where it can't be computed accurately, as for [`hyp3f2`] if
 ///   $p = q + 1$, for [`hyp2f2`] if $p = q$, and for [`hyp1f2`] if $p < q$;
 /// - for the other infinite arguments, unless $p \le 2$ and $q \le 1$ where the function in the
