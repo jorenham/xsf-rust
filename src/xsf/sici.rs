@@ -16,7 +16,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use crate::utils::EGAMMA;
 use crate::xsf::c64::{C64, c64};
-use crate::xsf::expint::expi_c64;
+use crate::xsf::expint::{exp1_c64, expi_c64};
 
 fn sici_power_series(sgn: i32, z: C64) -> (C64, C64) {
     /* DLMF 6.6.5 and 6.6.6. If sgn = -1 computes si/ci, and if sgn = 1
@@ -53,7 +53,7 @@ fn sici_c64(z: C64) -> (C64, C64) {
         return (c64(FRAC_PI_2, 0.0), C64::ZERO);
     }
     if z == C64::NEG_INFINITY {
-        return (c64(-FRAC_PI_2, 0.0), c64(0.0, PI));
+        return (c64(-FRAC_PI_2, 0.0), c64(0.0, PI.copysign(z.im)));
     }
 
     if z.norm() < 0.8 {
@@ -68,27 +68,31 @@ fn sici_c64(z: C64) -> (C64, C64) {
         return (si, ci);
     }
 
-    // DLMF 6.5.5/6.5.6 plus DLMF 6.4.4/6.4.6/6.4.7
     let jz = C64::I * z;
+    if z.re != 0.0 {
+        // Unlike in xsf, DLMF 6.5.5/6.5.6 with `E1` itself, not through `Ei(w) = -E1(-w) +- pi i`,
+        // whose `pi i` cancel only after absorbing the imaginary part of a small `E1`, e.g. for
+        // huge `Re z`. Odd `Si` and DLMF 6.4.4 extend them to `Re z < 0`.
+        let e1p = exp1_c64(jz);
+        let e1m = exp1_c64(-jz);
+        let si = c64(0.0, 0.5) * (e1m - e1p) + FRAC_PI_2.copysign(z.re);
+        let mut ci = -0.5 * (e1p + e1m);
+        if z.re < 0.0 {
+            ci += c64(0.0, PI.copysign(z.im));
+        }
+        return (si, ci);
+    }
+
+    // on the imaginary axis, `E1(+-iz)` is on its branch cut, so through `Ei` (DLMF 6.5.5/6.5.6 plus
+    // DLMF 6.4.4/6.4.6/6.4.7)
     let term1 = expi_c64(jz);
     let term2 = expi_c64(-jz);
-    let mut si = c64(0.0, -0.5) * (term1 - term2);
+    let si = c64(0.0, -0.5) * (term1 - term2);
     let mut ci = 0.5 * (term1 + term2);
-    if z.re == 0.0 {
-        if z.im > 0.0 {
-            ci += c64(0.0, FRAC_PI_2);
-        } else if z.im < 0.0 {
-            ci -= c64(0.0, FRAC_PI_2);
-        }
-    } else if z.re > 0.0 {
-        si -= FRAC_PI_2;
-    } else {
-        si += FRAC_PI_2;
-        if z.im >= 0.0 {
-            ci += c64(0.0, PI);
-        } else {
-            ci -= c64(0.0, PI);
-        }
+    if z.im > 0.0 {
+        ci += c64(0.0, FRAC_PI_2);
+    } else if z.im < 0.0 {
+        ci -= c64(0.0, FRAC_PI_2);
     }
     (si, ci)
 }
