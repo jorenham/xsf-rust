@@ -1,3 +1,5 @@
+use core::f64::consts::PI;
+
 use num_complex::c64;
 use xsref::np_assert_allclose;
 
@@ -34,5 +36,24 @@ fn test_exp1_c64_near_negative_real_cut() {
         for (y, im) in [(-y, im), (y, -im)] {
             np_assert_allclose!([xsf::exp1(c64(x, y)).im], [im], rtol = 1e-15);
         }
+    }
+}
+
+#[test]
+fn test_exp1_c64_near_negative_real_cut_exp_overflow() {
+    // `exp(710)` overflows, but E1 does not, on both sides of `|Im z| = 1` (Arb)
+    let below_one = f64::from_bits(1.0_f64.to_bits() - 1);
+    for (x, y, re, im) in [
+        (-710.0, 0.75, -2.307_759_350_779_169_3e305, 2.145_345_040_598_677_4e305),
+        (-709.8, below_one, -1.397_299_739_654_388e305, 2.169_427_256_952_295e305),
+        (-709.8, 1.0, -1.397_299_739_654_387_9e305, 2.169_427_256_952_295_3e305),
+    ] {
+        for (y, im) in [(y, im), (-y, -im)] {
+            let res = xsf::exp1(c64(x, y));
+            np_assert_allclose!([res.re, res.im], [re, im], rtol = 1e-15);
+        }
+    }
+    for (y, im) in [(0.0, -PI), (-0.0, PI)] {
+        assert_eq!(xsf::exp1(c64(-710.0, y)).im, im);
     }
 }

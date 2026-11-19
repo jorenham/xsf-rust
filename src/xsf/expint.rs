@@ -88,17 +88,19 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         }
     } else if (x < xt) && (z.im.abs() < 1.0) {
         // Unlike in xsf, as so close to the cut the fraction can miss part of the jump of `2 pi i`
-        // across it, E1 on the cut (the principal value from the fraction, on the side of `z`)
-        // plus the integral of `E1'(t) = -exp(-t) / t` from there to `z`
+        // across it, E1 on the cut on the side of `z` (the principal value, approximated by the
+        // fraction, minus `pi i` times the sign of `Im z`) plus the integral of
+        // `E1'(t) = -exp(-t) / t` from there to `z`, with `exp(-x)` last, as it can overflow
+        // before E1 does
         let pv = exp1_cf(c64(x, 0.0)).re;
-        ce1 = c64(pv, -PI.copysign(z.im)) - (-x).exp() * exp1_vertical(x, z.im);
+        ce1 = (pv - exp1_vertical(x, z.im)).mul_exp(-x) - PI.copysign(z.im) * C64::I;
     } else {
-        ce1 = exp1_cf(z);
+        ce1 = (-z).exp() * exp1_cf(z);
     }
     ce1
 }
 
-/// E1 from its continued fraction <https://dlmf.nist.gov/6.9>
+/// `exp(z) E1(z)` from the continued fraction of E1 <https://dlmf.nist.gov/6.9>
 ///
 /// ```text
 ///                  1     1     1     2     2     3     3
@@ -123,7 +125,7 @@ fn exp1_cf(z: C64) -> C64 {
             break;
         }
     }
-    (-z).exp() * zc
+    zc
 }
 
 /// `exp(x)` times the integral of `exp(-t) / t` from `x` to `x + i y`, for `|y| < 1` and
