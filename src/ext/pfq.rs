@@ -108,7 +108,8 @@ impl Estimate {
 
     /// The result, unless its estimated error says that no digit may be correct
     fn trusted(self) -> Option<f64> {
-        (self.err < HYP2F1_LOST).then_some(self.y)
+        // (relative to the exact result, which y can miss by `err |y|`: `err / (1 - err)`)
+        (self.err < HYP2F1_LOST * (1.0 - self.err)).then_some(self.y)
     }
 
     /// The trusted result, or NaN if there is none

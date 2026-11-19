@@ -474,6 +474,8 @@ fn test_hyp2f2_inaccurate() {
     assert_eq!(hyppfq(&[2.5, 3.25], &[-0.5, 1.75], -40.0), None);
     // e^z times a polynomial, where the algebraic part vanishes
     assert!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0).is_nan());
+    // an error of 0.499 of the result, which is twice the exact one (Arb: -503_991_821.928_347)
+    assert!(hyp2f2(-13.5, 1e-4, -39.5, -26.999_999_999_999_9, -74.5).is_nan());
     // the result underflows to the smallest subnormal
     assert!(hyp2f2(1.0, 2.0, 1.0, 2.0, -745.0).is_nan());
     // subnormal results, accurate to their spacing (mpmath references)
