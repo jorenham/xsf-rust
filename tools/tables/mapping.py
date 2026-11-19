@@ -606,12 +606,32 @@ def _ndtr_arb(x: flint.arb) -> flint.arb:
     return q if x <= 0 else 1 - q
 
 
-def _erfcx_arb(x: flint.arb) -> flint.arb:
+def _erfcx_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return x.erfc() * (x * x).exp()
 
 
-def _dawsn_arb(x: flint.arb) -> flint.arb:
+def _dawsn_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
+
+
+def _wofz_arb(z: flint.acb) -> flint.acb:
+    """w(z) = e^(-z^2) erfc(-i z)."""
+    return (-z * z).exp() * (-flint.acb(0, 1) * z).erfc()
+
+
+# w(x) = e^(-x^2) + 2i D(x) / sqrt(pi) for a real x, with Dawson's D(x) ~ 1 / (2x)
+WOFZ_AT_INF: Final = (
+    Rule(
+        lambda a: a[0] == math.inf and a[1] == 0,
+        0j,
+        "w(z) -> 0 + 0i for z -> +inf along Im z = +-0",
+    ),
+    Rule(
+        lambda a: a[0] == -math.inf and a[1] == 0,
+        complex(0, -0.0),
+        "w(z) -> 0 - 0i for z -> -inf along Im z = +-0",
+    ),
+)
 
 
 def _ndtri_arb(p: flint.arb) -> flint.arb:
@@ -810,6 +830,7 @@ def _complex(
     ref: Callable[..., mp.mpc],
     arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
     rules: tuple[Rule, ...] = (),
+    overrides: tuple[Override, ...] = (),
 ) -> Entry:
     """A table with a complex output of complex inputs, which are (real, imaginary) pairs of
     f64s: `ref` takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
@@ -831,7 +852,7 @@ def _complex(
         return ball
 
     refs, arbs = (ref_part(0), ref_part(1)), (arb_part(0), arb_part(1))
-    return Entry((Out(func, refs, arbs, rules),))
+    return Entry((Out(func, refs, arbs, rules, overrides),))
 
 
 def _fresnel_arb(i: int) -> Callable[[flint.arb], flint.arb]:
@@ -985,6 +1006,58 @@ LOG1P_AT_INF: Final = (
         complex(math.inf, math.nan),
         "ln(1 + z) -> inf + NaN i for an infinite z with a NaN part, like C's clog",
     ),
+)
+
+
+def _expm1(re: mp.mpf, im: mp.mpf) -> mp.mpc:
+    """e^z - 1 = expm1(x) cos y - 2 sin^2(y/2) + i e^x sin y, since the complex `mp.expm1`
+    loses the real part where e^x cos y - 1 cancels."""
+    with specs.wdps(specs.xd(re, im)):
+        real = mp.expm1(re) * mp.cos(im) - 2 * mp.sin(im / 2) ** 2
+        return mp.mpc(real, mp.exp(re) * mp.sin(im))
+
+
+def _expm1_at_inf(re: float, im: float) -> Rule:
+    """The limit of e^z - 1 = e^x (cos y + i sin y) - 1 for x -> +inf, where cos y and sin y
+    have the signs of `re` and `im`."""
+    value = complex(re * math.inf, im * math.inf)
+    return Rule(
+        lambda a: (
+            a[0] == math.inf
+            and math.isfinite(a[1])
+            and a[1] != 0
+            and (math.copysign(1, math.cos(a[1])), math.copysign(1, math.sin(a[1])))
+            == (re, im)
+        ),
+        value,
+        f"e^z - 1 -> {value} for Re z -> +inf, with a finite y = Im z != 0 where cos y and"
+        " sin y have these signs, like C's cexp",
+    )
+
+
+EXPM1_AT_INF: Final = (
+    Rule(
+        lambda a: a[0] == math.inf and not math.isfinite(a[1]),
+        complex(math.inf, math.nan),
+        "e^z - 1 -> inf + NaN i for Re z -> +inf, with an infinite or NaN Im z, like C's cexp",
+    ),
+    Rule(
+        lambda a: a[0] == -math.inf and not math.isfinite(a[1]),
+        complex(-1, 0),
+        "e^z - 1 -> -1 + 0i for Re z -> -inf, with an infinite or NaN Im z, like C's cexp",
+    ),
+    COMPLEX_NAN,
+    Rule(
+        lambda a: math.isfinite(a[0]) and math.isinf(a[1]),
+        COMPLEX_NAN.value,
+        "e^z - 1 has no limit for Im z -> +-inf, with a finite Re z",
+    ),
+    Rule(
+        lambda a: a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) > 0,
+        complex(math.inf, 0),
+        "e^z - 1 -> inf + 0i for z -> +inf along Im z = +0, like C's cexp",
+    ),
+    *(_expm1_at_inf(re, im) for re in (1, -1) for im in (1, -1)),
 )
 
 
@@ -2481,8 +2554,7 @@ def _voigt_arb(x: flint.arb, sigma: flint.arb, gamma: flint.arb) -> flint.arb:
         return (-((x / sigma) ** 2) / 2).exp() / (
             abs(sigma) * (2 * flint.arb.pi()).sqrt()
         )
-    z = flint.acb(x, gamma) / (sigma * flint.arb(2).sqrt())
-    w = (-z * z).exp() * (-flint.acb(0, 1) * z).erfc()
+    w = _wofz_arb(flint.acb(x, gamma) / (sigma * flint.arb(2).sqrt()))
     return w.real / (sigma * (2 * flint.arb.pi()).sqrt())
 
 
@@ -3364,8 +3436,13 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ("erfcx", "d-d"): Entry(
         (Out("erfcx", (specs.r_erfcx,), (_erfcx_arb,), _limits(math.inf, 0)),)
     ),
+    ("erfcx", "cd-cd"): _complex("erfcx", specs._c(specs.c_erfcx), _erfcx_arb),
     ("dawsn", "d-d"): Entry(
         (Out("dawsn", (specs.r_dawsn,), (_dawsn_arb,), _limits(-0.0, 0.0)),)
+    ),
+    ("dawsn", "cd-cd"): _complex("dawsn", specs._c(specs.c_dawsn), _dawsn_arb),
+    ("wofz", "cd-cd"): _complex(
+        "wofz", specs._c(specs.c_wofz), _wofz_arb, (*WOFZ_AT_INF, COMPLEX_NAN)
     ),
     ("erfcinv", "d-d"): Entry(
         (
@@ -3429,6 +3506,19 @@ ENTRIES: Final[dict[tuple[str, str], Entry]] = {
     ),
     ("expm1", "d-d"): _real(
         "expm1", specs.r_expm1, flint.arb.expm1, _limits(-1, math.inf)
+    ),
+    ("expm1", "cd-cd"): _complex(
+        "expm1",
+        _expm1,
+        flint.acb.expm1,
+        EXPM1_AT_INF,
+        (
+            Override(
+                lambda a: LN_MAX < a[0] < math.inf,
+                "xsf has inf * 0 = NaN in Im(e^z - 1) where e^x overflows, for a finite"
+                f" Re z > {LN_MAX} (#1724)",
+            ),
+        ),
     ),
     ("exprel", "d-d"): _real(
         "exprel",
