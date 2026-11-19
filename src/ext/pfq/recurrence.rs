@@ -107,8 +107,9 @@ fn recurrence_start(
     accurate.then_some((y, err))
 }
 
-/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, the part of the estimate of its
-/// absolute error from the rounding errors, and that estimate, or `None` if a start is `None`
+/// F in `m` steps from `start(m + k)` for `k = 0, 1, 2`, in double-double, the part of the
+/// estimate of its absolute error from the rounding errors of the steps, and that estimate, or
+/// `None` if a start is `None`
 ///
 /// `step(k)` gives the `c_i` of the relation `c_0 F_{k+3} + c_1 F_{k+2} + c_2 F_{k+1} + c_3 F_k
 /// = 0` between the F at `k` steps from the result, and the sizes of the terms of each `c_i`.
@@ -116,7 +117,7 @@ fn recurrence_from(
     m: u32,
     start: impl Fn(f64) -> Option<(Dd, f64)>,
     step: impl Fn(f64) -> ([Dd; 4], [f64; 4]),
-) -> Option<(f64, f64, f64)> {
+) -> Option<(Dd, f64, f64)> {
     let start = |k: u32| start(f64::from(m + k));
     let starts = [start(0)?, start(1)?, start(2)?];
     // `[F_{k+1}, F_{k+2}, F_{k+3}]` for the next step `k`
@@ -138,18 +139,18 @@ fn recurrence_from(
         f = [next, f[0], f[1]];
     }
     // the `g_k` of the three F above each step, upwards from the result, and the bound of the
-    // rounding errors, which starts with that of the result
-    let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.5 * f64::EPSILON * f[0].hi.abs());
+    // rounding errors
+    let (mut g, mut rounding) = ([1.0_f64, 0.0, 0.0], 0.0);
     for (factors, bound) in steps.iter().rev() {
         rounding += g[0].abs() * bound;
         g = [g[0] * factors[0] + g[1], g[0] * factors[1] + g[2], g[0] * factors[2]];
     }
     let series: f64 = zip(g, starts).map(|(g, (_, err))| g.abs() * err).sum();
-    Some((f[0].hi, rounding, rounding + series))
+    Some((f[0], rounding, rounding + series))
 }
 
 /// `recurrence_from` in the lower parameter `bj`, where `other` is the other one
-fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(f64, f64, f64)> {
+fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(Dd, f64, f64)> {
     let checked = pfq_extreme(&a, &[bj, other, 1.0]);
     let start = |k: f64| {
         // the terms for `u` itself, which `pfq_terms` would round
@@ -169,8 +170,19 @@ fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<
     recurrence_from(m, start, step)
 }
 
+/// `upper_coefficients` of the relation in the upper parameter `a[i]` at `a = w - 1`, and the
+/// sizes of their terms
+fn upper_step(a: [f64; 3], i: usize, b: [f64; 2], z: f64, w: Dd) -> ([Dd; 4], [f64; 4]) {
+    let others = [a[(i + 1) % 3], a[(i + 2) % 3]];
+    let size = |v: f64| v.abs() + w.hi.abs();
+    (
+        upper_coefficients(w, b.map(|bj| bj - w), others.map(|ai| w - ai), Dd::new(z), -1.0),
+        upper_coefficients(w.hi.abs(), b.map(size), others.map(size), z.abs(), 1.0),
+    )
+}
+
 /// `recurrence_from` down in the upper parameter `a[i]`, where `b` are the lower ones
-fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(f64, f64, f64)> {
+fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Option<(Dd, f64, f64)> {
     let (others, b1) = ([a[(i + 1) % 3], a[(i + 2) % 3]], [b[0], b[1], 1.0]);
     let checked = pfq_extreme(&a, &b1);
     let start = |k: f64| {
@@ -179,34 +191,33 @@ fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Optio
         let ratio = |n| pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n);
         recurrence_start([u.hi, others[0], others[1]], b1, z, ratio)
     };
-    let step = |k: f64| {
-        // F(a_i + k) from the relation at a = a_i + k
-        let w = Dd::new(a[i]) + (k + 1.0);
-        let size = |v: f64| v.abs() + w.hi.abs();
-        (
-            upper_coefficients(w, b.map(|bj| bj - w), others.map(|ai| w - ai), Dd::new(z), -1.0),
-            upper_coefficients(w.hi.abs(), b.map(size), others.map(size), z.abs(), 1.0),
-        )
-    };
-    recurrence_from(m, start, step)
+    // F(a_i + k) from the relation at a = a_i + k
+    recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
+}
+
+/// `y` as `f64` and the estimate `err` of its absolute error plus its rounding, if that is
+/// accurate
+fn accurate(y: Dd, err: f64) -> Option<(f64, f64)> {
+    let y = (y.hi, err + 0.5 * f64::EPSILON * y.hi.abs());
+    Estimate::absolute(y).is_accurate().then_some(y)
 }
 
 /// The first accurate result of `run(m)` for the `m` of `starts`, which ascend, and the estimate
 /// of its absolute error
 fn recurrence_first(
     starts: impl IntoIterator<Item = u32>,
-    run: impl Fn(u32) -> Option<(f64, f64, f64)>,
+    run: impl Fn(u32) -> Option<(Dd, f64, f64)>,
 ) -> Option<(f64, f64)> {
     for m in starts {
         // (a series that is not accurate may be for a larger `m`)
         let Some((y, rounding, err)) = run(m) else {
             continue;
         };
-        if Estimate::absolute((y, err)).is_accurate() {
-            return Some((y, err));
+        if let Some(result) = accurate(y, err) {
+            return Some(result);
         }
         // a larger `m` ends with the same steps, after more of them
-        if !Estimate::absolute((y, rounding)).is_accurate() {
+        if accurate(y, rounding).is_none() {
             break;
         }
     }
