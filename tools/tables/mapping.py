@@ -846,27 +846,39 @@ def _real(
 def _complex_out(
     func: str,
     ref: Callable[..., mp.mpc],
-    arb: Callable[[flint.acb], flint.acb] | Callable[[flint.acb, flint.acb], flint.acb],
+    arb: (
+        Callable[[flint.acb], flint.acb]
+        | Callable[[flint.acb, flint.acb], flint.acb]
+        | Callable[[flint.arb, flint.acb], flint.acb | None]
+    ),
     rules: tuple[Rule, ...] = (),
     overrides: tuple[Override, ...] = (),
     floors: tuple[Floor, ...] = (),
+    reals: int = 0,
 ) -> Out:
-    """A complex output of complex inputs, which are (real, imaginary) pairs of f64s: `ref`
-    takes the parts as `mpf`s and `arb` the inputs as `acb`s."""
+    """A complex output of `reals` real inputs and then complex inputs, which are (real,
+    imaginary) pairs of f64s: `ref` takes the parts as `mpf`s, and `arb` the real inputs as
+    `arb`s and the complex ones as `acb`s (or returns None where it can't check)."""
 
-    def ref_part(part: int) -> Callable[..., mp.mpf]:
-        def value(*a: mp.mpf) -> mp.mpf:
-            return (mp.re, mp.im)[part](ref(*a))
+    def ref_part(part: int) -> Callable[..., Value]:
+        def value(*a: mp.mpf) -> Value:
+            # agree and confirm relative to |f|, like the table metric, as a scale (which
+            # a complex output does not keep)
+            y = ref(*a)
+            return (mp.re, mp.im)[part](y), abs(y)
 
         return value
 
+    f: Callable[..., flint.acb | None] = arb
+
     def arb_part(part: int) -> Arb:
-        def ball(*a: flint.arb) -> flint.arb:
+        def ball(*a: flint.arb) -> flint.arb | None:
             # the bits that exp(z) and a periodic reduction of z lose to the magnitude of z
             bits = max(math.frexp(float(x))[1] for x in a)
             with flint.ctx.extraprec(max(bits, 0)):
-                z = arb(*(flint.acb(*a[k : k + 2]) for k in range(0, len(a), 2)))
-            return z.imag if part else z.real
+                pairs = (flint.acb(*a[k : k + 2]) for k in range(reals, len(a), 2))
+                z = f(*a[:reals], *pairs)
+            return None if z is None else z.imag if part else z.real
 
         return ball
 
