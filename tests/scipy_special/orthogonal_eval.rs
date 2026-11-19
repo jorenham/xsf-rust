@@ -197,12 +197,20 @@ fn test_eval_integer_degree_complex() {
     // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
     let zero = c64(0.0, 0.0);
     assert_eq!(xsf::eval_legendre(9.0, zero), zero);
-    assert_eq!(xsf::eval_legendre(9.0, c64(0.0, 1e-25)), c64(0.0, 2.460_937_5e-25));
+    let p = xsf::eval_legendre(9.0, c64(0.0, 1e-25));
+    assert_eq!(p.re, 0.0);
+    np_assert_allclose!([p.im], [2.460_937_5e-25], rtol = 1e-15);
     assert_eq!(xsf::eval_legendre(51.0, zero), zero);
     // and the even degrees real
     assert_eq!(xsf::eval_legendre(2.0, c64(-0.0, 0.01)), c64(-0.500_15, 0.0));
     assert_eq!(xsf::eval_chebyshev_u(3.0, zero), zero);
     assert_eq!(xsf::eval_gegenbauer(7.0, 3.75, zero), zero);
+
+    // and near the origin, the small part doesn't drown in rounding errors of order 1 (exact)
+    let z = c64(1e-30, 1e-20);
+    let actual = [xsf::eval_chebyshev_u(3.0, z), xsf::eval_legendre(3.0, z)];
+    let desired = [c64(-4e-30, -4e-20), c64(-1.5e-30, -1.5e-20)];
+    np_assert_allclose!(actual, desired, rtol = 1e-14);
 }
 
 #[test]

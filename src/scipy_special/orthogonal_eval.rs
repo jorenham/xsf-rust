@@ -134,13 +134,17 @@ mod sealed {
             // recurrence of `eval_gegenbauer`, since the complex series cancels catastrophically
             // for large degrees. Its `alpha = lam / 2` keeps the digits of a small `c`, which
             // `c - 1` in the Jacobi recurrence rounds away (so `c > 0` is checked directly). For
-            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate.
+            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
+            // z = 1, and lose the small values near the origin (as the power series in
+            // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
             let p = super::int_degree(nu, 0.0, 0.0)
                 .filter(|_| sym && c > 0.0)
                 .map(|n| {
                     let z = if self.re < 0.0 { -*self } else { *self };
-                    let mut p = if c == 1.0 {
+                    let mut p = if z.norm() < 1e-5 {
+                        super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, z)
+                    } else if c == 1.0 {
                         super::eval_jacobi_l(n, 0.0, 0.0, z)
                     } else {
                         super::gegenbauer_hyp2f1_l(i64::from(n), 0.5 * lam, z)
@@ -224,6 +228,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
         // degrees, since the series cancels catastrophically for large degrees, unless the
         // recurrence is nonfinite.
         let p = int_degree(n, a, b).map(|n| eval_jacobi_l_reflected(n, a, b, self.clone()));
+        let tried = p.is_some();
         if let Some(p) = p.filter(sealed::OrthoPolyArg::is_finite) {
             return p;
         }
@@ -247,7 +252,9 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             return (p + q) / (n + c);
         }
         let d = jacobi_binom(n, a);
-        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, a == b) * d
+        // the symmetric recurrence of `hyp2f1_sh` is like the one that failed above
+        let sym = a == b && !tried;
+        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, sym) * d
     }
 
     /// Corresponds to `xsf::detail::eval_legendre`
@@ -653,6 +660,20 @@ fn gegenbauer_hyp2f1_l<Z: sealed::OrthoPolyArg>(n: i64, alpha: f64, x: Z) -> Z {
         p = p + d.clone();
     }
     p
+}
+
+/// `gegenbauer_hyp2f1_l` by the three-term recurrence (DLMF 18.9.1) of the normalized values
+/// `g_k = C_k^(alpha)(x) / binom(k + 2 alpha - 1, k)`, for `n >= 1` and `alpha > -1/2`:
+///   (k + 2 alpha) g_{k+1} = 2 (k + alpha) x g_k - k g_{k-1},  g_0 = 1,  g_1 = x
+fn gegenbauer_hyp2f1_origin<Z: sealed::OrthoPolyArg>(n: i32, alpha: f64, x: Z) -> Z {
+    let (mut g0, mut g1) = (Z::ZERO + 1.0, x.clone());
+    let x2 = x * 2.0;
+    for k in 1..n {
+        let k = f64::from(k);
+        let g2 = (x2.clone() * (k + alpha) * g1.clone() - g0 * k) / (k + 2.0 * alpha);
+        (g0, g1) = (g1, g2);
+    }
+    g1
 }
 
 /// Evaluate Gegenbauer polynomial $C_n^{(\alpha)}$ at a point.
