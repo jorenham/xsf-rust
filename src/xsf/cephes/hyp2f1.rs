@@ -1069,20 +1069,22 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         }
         let p = s.powf(d);
         let y = hyp2f1_impl(c - a, c - b, c, x, recur, false);
-        // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur` (or is a
-        // polynomial, by `hyp2f1_poly_dd`), multiply its scaled value by `s^d`, as their product
-        // can still be finite.
+        // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur`, multiply its
+        // scaled value by `s^d`, as their product can still be finite.
         //
         // Only if that is at least `1 / HYP2F1_ETHRESH`: the rounding of `c - a` and `c - b` (e.g.
         // to a negative integer, where `y` is a polynomial) loses a part of the result that
         // isn't proportional to `1 / c`.
-        if y.is_infinite() && c.abs() < HYP2F1_EPS {
+        let tiny_c = y.is_infinite() && c.abs() < HYP2F1_EPS;
+        let rescale = |inner: Option<Scaled>| {
             // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
             let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::new(1.0) - x);
-            let inner = recur_first(c - a, c - b, c).or_else(|| hyp2f1_poly_dd(c - a, c - b, c, x));
             let scaled = inner.map(|y| y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
-            if let Some((y, _)) = scaled.filter(accurate).filter(large) {
+            scaled.filter(accurate).filter(large).map(|(y, _)| y)
+        };
+        if tiny_c {
+            if let Some(y) = rescale(recur_first(c - a, c - b, c)) {
                 return y;
             }
         }
@@ -1103,7 +1105,15 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 }
             }
         }
-        return or_recur(euler);
+        let euler = or_recur(euler);
+        // Unlike in xsf, else the same for a polynomial `y`, by `hyp2f1_poly_dd` (only here, as
+        // the paths above can be more accurate)
+        if tiny_c && !euler.is_finite() {
+            if let Some(y) = rescale(hyp2f1_poly_dd(c - a, c - b, c, x)) {
+                return y;
+            }
+        }
+        return euler;
     }
     if ax < 1.0 || x == -1.0 {
         /* 2F1(a,b;b;x) = (1-x)**(-a) */
@@ -1131,8 +1141,8 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 if terminates(near_neg_int) {
                     break 'hypok;
                 }
-                // Unlike in xsf, for a non-integer c and an integer a or b <= 0, the terminating
-                // polynomial in double-double if accurate
+                // Unlike in xsf, for an integer a or b <= 0, the terminating polynomial in
+                // double-double if accurate
                 let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
                 if let Some((y, _)) = poly.filter(accurate) {
                     return y;
