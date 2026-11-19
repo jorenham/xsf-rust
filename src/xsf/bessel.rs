@@ -109,7 +109,7 @@ impl BesselArg for Complex<f64> {
     }
 }
 
-// Translated from `xsf/cpu/bessel.h` (scipy/xsf@0acbe5c)
+// Translated from `xsf/cpu/bessel.h` (scipy/xsf@a828b14)
 
 fn rotate(z: C64, v: f64) -> C64 {
     let c = cephes_cospi(v);
@@ -2131,9 +2131,8 @@ fn rctj(x: f64, nm: &mut i32, rj: &mut [f64], dj: &mut [f64]) {
     let mut f = 0.0;
 
     // Unlike in xsf, this also recurs for `n = 1` if `|x| < 1`, where `rj[1]` cancels. It always
-    // starts at `msta2` and rescales (by powers of 2), instead of leaving the orders above
-    // `msta1(x, 200)` unset, and overflowing for `|x| >~ 4476`. The derivatives are of the
-    // unnormalized `f`, since `rj[k]` can underflow where `dj[k]` doesn't.
+    // starts at `msta2`, instead of leaving the orders above `msta1(x, 200)` unset. The
+    // derivatives are of the unnormalized `f`, since `rj[k]` can underflow where `dj[k]` doesn't.
     if n >= 2 || x.abs() < 1.0 {
         let m = specfun::msta2(x, n, 15);
 

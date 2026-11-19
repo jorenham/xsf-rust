@@ -1282,19 +1282,13 @@ fn test_riccati_n1() {
 
 #[test]
 fn test_riccati_j_all_orders() {
-    // Arb; NaN or 0 in xsf above `msta1(x, 200)` (here 177), for `|x| >~ 4476`, and for
-    // `|x| < 1e-100`, and `rj[1]` cancels for `N = 2`
+    // Arb; NaN or 0 in xsf above `msta1(x, 200)` (here 177) and for `|x| < 1e-100`, and `rj[1]`
+    // cancels for `N = 2`
     let (rj, dj) = xsf::riccati_j::<201>(10.0);
     np_assert_allclose!(
         [rj[200], dj[200]],
         [4.359_433_049_621_081e-236, 8.751_636_342_177_128e-235],
         rtol = 1e-14
-    );
-    let (rj, dj) = xsf::riccati_j::<3>(5000.0);
-    np_assert_allclose!(
-        [rj[2], dj[2]],
-        [0.987_873_519_167_095_7, -0.155_261_148_876_167_3],
-        rtol = 1e-13
     );
     let (rj, dj) = xsf::riccati_j::<3>(1e-150);
     np_assert_allclose!(
@@ -1308,6 +1302,19 @@ fn test_riccati_j_all_orders() {
         [3.333_333_333_300_000_5e-11, 6.666_666_666_533_334e-6],
         rtol = 1e-15
     );
+}
+
+/// Ported from xsf's `test_rctj.cpp` (rtol 1e-13 instead of 1e-12)
+#[test]
+fn test_riccati_j_large_x() {
+    fn check<const N: usize>(x: f64, rj_n: f64, dj_n: f64) {
+        let (rj, dj) = xsf::riccati_j::<N>(x);
+        np_assert_allclose!([rj[N - 1], dj[N - 1]], [rj_n, dj_n], rtol = 1e-13);
+    }
+    check::<3>(5000.0, 0.987_873_519_167_095_8, -0.155_261_148_876_167_32);
+    check::<6>(10000.0, 0.951_695_947_040_993_8, -0.307_042_254_603_583_53);
+    check::<31>(20000.0, -0.600_733_011_725_298, -0.799_449_513_798_901_8);
+    check::<5501>(5000.0, 2.236_532_392_121_206_7e-65, 1.026_728_990_451_556e-65);
 }
 
 #[test]

@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`10f45ae`](https://github.com/scipy/xsf/tree/10f45ae43e4a53b221ee9ef3b51bda654ded3306)), and
+it is translated from (commit [`a828b14`](https://github.com/scipy/xsf/tree/a828b14d2bfe7be656a40c161d15e8b3ef9adfb2)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -406,9 +406,9 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 </thead>
 <tbody>
 <tr><td><code>riccati_j.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.6e-15</samp></b></td><td align="right" nowrap><samp>4.0e-16</samp></td><td align="right" nowrap>❗<samp>∞ (18)</samp></td><td align="right" nowrap><samp>4.0e-16</samp></td><td align="right" nowrap>98.6%</td></tr>
-<tr><td><code>riccati_j.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.0e-14</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (2962)</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>67.6%</td></tr>
+<tr><td><code>riccati_j.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.0e-14</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (2948)</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>67.7%</td></tr>
 <tr><td><code>riccati_j.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.6e-15</samp></b></td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap>❗<samp>∞ (17)</samp></td><td align="right" nowrap><samp>3.8e-16</samp></td><td align="right" nowrap>38.7%</td></tr>
-<tr><td><code>riccati_j.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.7e-14</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (3006)</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>66.2%</td></tr>
+<tr><td><code>riccati_j.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>2.7e-14</samp></b></td><td align="right" nowrap><b><samp>1.2e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (2997)</samp></td><td align="right" nowrap><samp>1.8e-16</samp></td><td align="right" nowrap>66.3%</td></tr>
 <tr><td><code>riccati_y.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.1e-15</samp></b></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>❗<samp>∞ (1)</samp></td><td align="right" nowrap><samp>3.3e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
 <tr><td><code>riccati_y.0</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [10⁻³⁰⁰, 10⁴] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>1.7e-15</samp></b></td><td align="right" nowrap><b><samp>1.1e-16</samp></b></td><td align="right" nowrap>❗<samp>∞ (9329)</samp></td><td align="right" nowrap>❗<samp>2.3e+04</samp></td><td align="right" nowrap>5.5%</td></tr>
 <tr><td><code>riccati_y.1</code><sup>*</sup></td><td>n ∈ {0, …, 100}<br>x ∈ [0, 50]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><b><samp>3.3e-15</samp></b></td><td align="right" nowrap><samp>3.2e-16</samp></td><td align="right" nowrap>❗<samp>∞ (2)</samp></td><td align="right" nowrap><samp>3.2e-16</samp></td><td align="right" nowrap>99.9%</td></tr>
