@@ -119,9 +119,9 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
     scale_factor_of_parts(args, min, |_, a| [a.real().abs(), a.imag().abs()])
 }
 
-/// [`scale_factor`], but a positive real part below `EPSILON` times its imaginary part may become
-/// subnormal or 0, except in the last `kept` arguments, and so may an imaginary part below
-/// `EPSILON` times its real part if all real parts are positive: a perturbation of the argument by
+/// [`scale_factor`], but an imaginary part below `EPSILON` times its real part may become
+/// subnormal or 0 if all real parts are positive, and so may a positive real part below `EPSILON`
+/// times its imaginary part in the first `flush_re` arguments: a perturbation of the argument by
 /// less than `EPSILON` relative to it (not near a branch cut, where such a part can decide the
 /// result). A negative real part is kept, as its sign can decide the domain.
 ///
@@ -129,11 +129,10 @@ pub(super) fn scale_factor<T: super::typing::Num>(args: &[T], min: f64) -> Optio
 /// can still lose the relative accuracy of a tiny part of the result.
 pub(super) fn relaxed_scale_factor<T: super::typing::Num>(
     args: &[T],
-    kept: usize,
+    flush_re: usize,
     min: f64,
 ) -> Option<f64> {
     let right = args.iter().all(|a| a.real() > 0.0);
-    let flush_re = args.len().saturating_sub(kept);
     scale_factor_of_parts(args, min, |i, a| {
         let [re, im] = [a.real(), a.imag().abs()];
         [
@@ -149,6 +148,21 @@ pub(super) fn relaxed_scale_factor<T: super::typing::Num>(
             },
         ]
     })
+}
+
+/// `out` if its result is finite, or else retried with `rescaled` by the
+/// [`relaxed_scale_factor`] (if any)
+pub(super) fn retry_relaxed<T: super::typing::Num>(
+    out: (ExitStatus, T),
+    args: &[T],
+    flush_re: usize,
+    min: f64,
+    rescaled: impl Fn(f64) -> (ExitStatus, T),
+) -> (ExitStatus, T) {
+    if out.1.is_finite() {
+        return out;
+    }
+    relaxed_scale_factor(args, flush_re, min).map_or(out, rescaled)
 }
 
 /// [`scale_factor`] with the absolute real and imaginary `parts` of each argument

@@ -427,12 +427,27 @@ fn test_elliprj_nearly_imaginary_p() {
     let i = |b| c64(0.0, b);
     assert!(xsf::elliprj(i(1.0), i(4.0), i(9.0), i(-11.0)).is_nan());
 
-    // also if the rescaling retry flushes the other real parts, as `Re p < 0`
+    // also with a tiny `Re p < 0`, which blocks rescaling
     let s = 2.0_f64.powi(300);
     let (z, p) = (c64(1e-15, 9.0 * s), c64(-1e-320, -11.0 * s));
     assert!(xsf::elliprj(i(s), i(4.0 * s), z, p).is_nan());
 
-    // a wide span with a tiny `Re p > 0` (Wolfram, Arb and mpmath)
+    // NaN for `x, y` that are not conjugate, even if their real parts are negligible
+    let s = 2.0_f64.powi(450);
+    let (x, y) = (c64(1e-308, s), c64(4e-308, -s));
+    assert!(xsf::elliprj(x, y, c64(s, 0.0), c64(-s, s)).is_nan());
+
+    // NaN if the first `p + lambda` cancels, so that a negligible `Re x` can decide it (the
+    // integral is about 3.0025e-164 - 8.358e-166i, also with `Im p` 1 ULP toward 0)
+    let s = 2.0_f64.powi(360);
+    let x = c64(1e-308, s);
+    let im = -11.0 * s;
+    for im in [im, f64::from_bits(im.to_bits() - 1)] {
+        assert!(xsf::elliprj(x, i(4.0 * s), i(9.0 * s), c64(1.0, im)).is_nan());
+    }
+
+    // a wide span with a tiny `Re p > 0` (Wolfram, Arb, mpmath, and the integral of
+    // https://dlmf.nist.gov/19.16.E2)
     let actual = xsf::elliprj(
         c64(1.043_155_444_981_761_3e-88, -5.565_490_407_805_559_5e135),
         c64(1.142_710_787_031_183_8e-145, 3.370_965_858_974_056e-27),

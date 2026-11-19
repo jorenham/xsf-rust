@@ -70,8 +70,9 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
         return (ExitStatus::BadRerr, T::NAN);
     }
 
-    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible real
-    // or imaginary parts prevent that and the result is not finite, rescaled with those flushed
+    // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
+    // imaginary (and then also real) parts prevent that and the result is not finite, rescaled with
+    // those flushed
     let rescaled = |f: f64| {
         let (status, res) = rg(x * f * f, y * f * f, z * f * f, rerr);
         (status, res / f)
@@ -80,11 +81,9 @@ pub(super) fn rg<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
     if let Some(f) = common::scale_factor(&args, f64::MIN_POSITIVE) {
         return rescaled(f);
     }
-    let (status, res) = rg_unscaled(x, y, z, rerr);
-    if res.is_finite() {
-        return (status, res);
-    }
-    common::relaxed_scale_factor(&args, 0, f64::MIN_POSITIVE).map_or((status, res), rescaled)
+    let out = rg_unscaled(x, y, z, rerr);
+    let out = common::retry_relaxed(out, &args, 0, f64::MIN_POSITIVE, rescaled);
+    common::retry_relaxed(out, &args, 3, f64::MIN_POSITIVE, rescaled)
 }
 
 fn rg_unscaled<T: Num>(x: T, y: T, z: T, rerr: f64) -> (ExitStatus, T) {
