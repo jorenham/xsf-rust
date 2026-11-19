@@ -244,9 +244,8 @@ def code_hash(path: str) -> str:
 def stamp() -> dict[str, str]:
     """What a cached reference depends on, other than its key."""
     return {
-        "generate.py": code_hash(__file__),
+        **{p.name: code_hash(str(p)) for p in sorted(HERE.glob("*.py"))},
         "specs.py": code_hash(specs.__file__),
-        "mapping.py": code_hash(mapping.__file__),
         "mpmath": mp.__version__,
         "python-flint": flint.__version__,
         "flint": flint.__FLINT_VERSION__,
@@ -473,7 +472,7 @@ def generate(
         if (r, i) not in rules
     }
     todo = [t for ts in tasks.values() for lo_hi in ts for t in lo_hi]
-    refs = references(todo, use_cache, pool)
+    refs = references(todo, use_cache, pool) if todo else {}
     lines = [(entry.outs[i].func, inputs[r]) for r, i in cells]
     rust, xsf = (
         dict(zip(cells, accuracy.run(cmd, lines), strict=True)) for cmd in cmds
