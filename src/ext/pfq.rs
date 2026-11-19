@@ -1843,6 +1843,7 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// It is:
 ///
+/// - $\pm\infty$ where it detects that it overflows, for large $\abs z$, and otherwise NaN;
 /// - NaN for $z > 0$, where the series diverges, unless it is a polynomial, and if an argument is
 ///   NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
@@ -1851,7 +1852,7 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// Where its internal error estimate says that none of its digits are correct:
 ///
-/// - if the result overflows or underflows, e.g. in random samples, for about 1% of
+/// - if the result underflows, or overflows undetected, e.g. in random samples, for about 1% of
 ///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
 /// - near a zero, also an exact one of a polynomial;
 /// - for some infinite arguments, as for [`hyppfq`].

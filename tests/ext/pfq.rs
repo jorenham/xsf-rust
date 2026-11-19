@@ -674,6 +674,8 @@ fn test_hyp2f0() {
     assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
     assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);
     assert!(hyp2f0(20.5, 200.5, -1e14).is_nan());
+    // the polynomial 1 + 2 z overflows (Arb: -2.000_000_000_000_000_02e308)
+    assert_eq!(hyp2f0(-1.0, -2.0, -1e308), f64::NEG_INFINITY);
     // the Borel sum with fewer digits than `hyppfq` needs (Arb references)
     for (a, z, expected) in [
         ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
