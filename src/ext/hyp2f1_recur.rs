@@ -1078,6 +1078,11 @@ fn poly_dd(n: f64, b: Dd, c: Dd, x: Dd) -> Option<Scaled> {
         if let Some(s) = rescale_exp(t.hi) {
             (t, te) = (t.ldexp(-s), te + s);
         }
+        // If the term overflows at the scale of the sums (e.g. the first for x = 1e308), restart
+        // them at its own: they are at most 2^500 (see below), so below 2^-500 of it.
+        if !(k * t.ldexp(te - e).hi).is_finite() {
+            (sum, sum_abs, k_sum_abs, e) = (Dd::new(0.0), 0.0, 0.0, te);
+        }
         let term = t.ldexp(te - e);
         let term_abs = term.hi.abs();
         sum = sum + term;

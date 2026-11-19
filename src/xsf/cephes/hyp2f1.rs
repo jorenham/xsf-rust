@@ -1337,6 +1337,17 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // hypok:
         let (y, err, err_full) = hyt2f1(a, b, c, x);
 
+        // Unlike in xsf, if the polynomial of an integer c <= 0 (see above) overflows, by
+        // `hyp2f1_recur`: the power series stops at its first infinite term, whose sign can
+        // differ from that of the sum, and the recurrence in `a` can add infinities of both
+        // signs (NaN)
+        if !y.is_finite() && is_nonpos_int(c) {
+            let poly = hyp2f1_recur(a, b, c, x).map(Scaled::to_f64);
+            if let Some((y, _)) = poly.filter(accurate) {
+                return y;
+            }
+        }
+
         // Unlike in xsf, the result of `hyp2f1_recur` instead if its error bound is below the
         // estimate of `y`, or shows `y` to be less accurate.
         if let Some((alt, bound)) = inexact.filter(|&(_, e)| e < HYP2F1_LOST) {
