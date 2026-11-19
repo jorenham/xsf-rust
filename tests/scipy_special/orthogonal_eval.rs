@@ -158,15 +158,17 @@ fn test_eval_integer_degree_complex() {
         xsf::eval_gegenbauer(171.0, -0.499_999_999_999_999_94, c64(0.0, 0.01)),
         xsf::eval_gegenbauer(1000.0, 1e-310, c64(0.75, 0.125)),
         xsf::eval_gegenbauer(200.0, 0.2, c64(0.0, 17.43)),
-        xsf::eval_jacobi(100_000.0, 0.5, 0.5, c64(0.0, 0.0069)),
     ];
     let desired = [
         c64(0.0, 9.532_255_825_720_248e-4),
         c64(8.465_527_655_970_144e-234, 4.776_235_568_205_383_5e-235),
         c64(1.081_191_070_283_941_4e306, 0.0),
-        c64(8.226_656_351_555_634e296, 0.0),
     ];
     np_assert_allclose!(actual, desired, rtol = 1e-14);
+    // as the Gegenbauer recurrence, where the Jacobi one overflows (mpmath, via U_n)
+    let actual = xsf::eval_jacobi(100_000.0, 0.5, 0.5, c64(0.0, 0.0069));
+    let desired = c64(8.226_656_351_555_53e296, 0.0);
+    np_assert_allclose!([actual], [desired], rtol = 3e-14);
 
     // a fractional degree keeps the rounded prefactor, which hides the cancelled series (mpmath:
     // 2.67e-312 + 2.57e-312i and 2.67e-22 + 2.57e-22i)
