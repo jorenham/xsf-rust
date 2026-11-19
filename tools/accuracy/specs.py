@@ -2576,8 +2576,22 @@ def r_hyp2f1(a, b, c, x):
     # sum the series directly (for x < 0 the series of the Pfaff transformation in x / (x - 1),
     # DLMF 15.8.1), with 20 more digits than it loses to cancellation, up to 300 digits (else use
     # Arb).
-    if x == 1 and (y := _pfq_at_one((a, b), (c,))) is not None:
-        return y
+    if x == 1:
+        if Fraction(c) - Fraction(a) - Fraction(b) > 0 and not _has_nonpos_int(a, b, c):
+            # Gauss's formula (DLMF 15.4.20), with exact differences and no cancellation
+            with wdps(20):
+                return (
+                    mp.gamma(c)
+                    * mp.gamma(mp.fsub(mp.fsub(c, a, exact=True), b, exact=True))
+                    * mp.rgamma(mp.fsub(c, a, exact=True))
+                    * mp.rgamma(mp.fsub(c, b, exact=True))
+                )
+        a, b = _cancel((a, b), (c,))
+        if (y := _pfq_at_one(a, b)) is not None:
+            return y
+        # (a polynomial)
+        with wdps(20):
+            return mp.hyper(a, b, 1)
     w = x / (x - 1) if x < 0 else x
     if w > 0.95 or a == int(a) <= 0 or b == int(b) <= 0 or c == int(c) <= 0:
         with wdps(20):
@@ -2648,7 +2662,7 @@ def _pfq_one_sum(a, b, excess):
     s, t, top = mp.mpf(0), mp.mpf(1), mp.mpf(1)
     for k in range(n):
         if k:
-            t *= mp.fprod(v + k - 1 for v in a) / mp.fprod(v + k - 1 for v in b)
+            t *= mp.fprod(v + (k - 1) for v in a) / mp.fprod(v + (k - 1) for v in b)
         s += t
         top = max(top, abs(t))
     scale = mp.fprod(mp.gamma(v) for v in b) / mp.fprod(mp.gamma(v) for v in a)
@@ -2678,17 +2692,22 @@ def _pfq_one_sum(a, b, excess):
     raise NoConvergence
 
 
-def _pfq_at_one(a, b):
-    """pFq(1) for p = q + 1, with the conventions of `hyppfq`, or None for a polynomial.
-
-    Each a_i equal to a b_j cancels it. A b_j = -m is a pole, unless there is a polynomial of
-    degree < m. Else it is the sum if it converges, which is if sum(b) > sum(a) (exactly), else
-    the infinity of the sign of its terms, which is constant for k > -a_i, -b_j."""
+def _cancel(a, b):
+    """The parameters `a` and `b` without each a_i equal to a b_j, as in `hyppfq`."""
     a, b = list(a), list(b)
     for v in [*a]:
         if v in b:
             a.remove(v)
             b.remove(v)
+    return a, b
+
+
+def _pfq_at_one(a, b):
+    """pFq(1) for p = q + 1 with cancelled parameters (`_cancel`), with the conventions of
+    `hyppfq`, or None for a polynomial.
+
+    A b_j = -m is a pole, unless there is a polynomial of degree < m. Else it is the sum if it
+    converges, which is if sum(b) > sum(a) (exactly), else the infinity of the sign of its terms, which is constant for k > -a_i, -b_j."""
     if any(
         _has_nonpos_int(v) and not any(_has_nonpos_int(u) and u > v for u in a)
         for v in b
@@ -2722,8 +2741,10 @@ def r_hyppfq(*args):
     # digits.
     p = len(args) // 2
     a, b, z = args[:p], args[p:-1], args[-1]
-    if z == 1 and (y := _pfq_at_one(a, b)) is not None:
-        return y
+    if z == 1:
+        a, b = _cancel(a, b)
+        if (y := _pfq_at_one(a, b)) is not None:
+            return y
     if z <= -1 and not _has_nonpos_int(*a):
         return _converged(mp.hyper, a, b, z)
     prec = 2 * mp.mp.prec
