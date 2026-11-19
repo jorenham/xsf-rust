@@ -1295,6 +1295,8 @@ pub(crate) fn chgu(
     let mut id_rec_result = None;
 
     let aa = a - b + 1.0;
+    // (as a and b change for b <= a < 1)
+    let (a_arg, b_arg) = (a, b);
     *isfer = 0;
     // NOTE: `(int)a` (and `(int)aa` below) is UB in C++ if out of `int` range (incl.
     // inf/NaN; GCC/x86 gives INT_MIN); here it saturates. Either way an out-of-range value never
@@ -1316,7 +1318,7 @@ pub(crate) fn chgu(
     // Unlike in xsf (scipy/xsf#380), also not for the integers |b| >= 2^31, but for b = 1 (by
     // `chgus_near_1`, which also holds there)
     if b != b.trunc() || b == 1.0 {
-        hu = chgus(x, a, b, &mut id1);
+        hu = chgus(x, a, b, false, &mut id1);
         *md = 1;
         if id1 >= id_min && !chgus_deferred(a, b, x, id1) {
             *digits = super::subnormal_digits(hu, id1.into()) as i32;
@@ -1472,6 +1474,16 @@ pub(crate) fn chgu(
             (hu, id, id_rec_result) = (hu0, id0, None);
         }
         id = id.max(id0);
+    }
+    // Unlike in xsf, `chgus` with `chgus_ln_prefactors` is the last resort for a finite a and a
+    // finite non-integer b
+    if id < ID_ACCEPT && a_arg.is_finite() && b_arg.is_finite() && b_arg != b_arg.trunc() {
+        let mut id_ln = 0;
+        let u = chgus(x, a_arg, b_arg, true, &mut id_ln);
+        if id_ln > id {
+            (hu, id, id_rec_result) = (u, id_ln, None);
+            *md = 1;
+        }
     }
     if id < ID_ACCEPT {
         *isfer = 6;
@@ -2069,7 +2081,7 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+fn chgus(x: f64, a: f64, b: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
     //          U(a,b,x) for small argument x
@@ -2123,7 +2135,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf, no digits if r1 or r2 is 0 but not at a pole (or as x^(1-b) underflows, see
     // below), e.g. for U(115.7, -62.2, 4.86) = 5.3e-243, where r1 = Gamma(63.2) / inf and
     // hu = 1.5e-226
-    let lost = r1 == 0.0 && gab != SPECFUN_INF || c == 0.0 && ga != SPECFUN_INF && xp != 0.0;
+    let mut lost = r1 == 0.0 && gab != SPECFUN_INF || c == 0.0 && ga != SPECFUN_INF && xp != 0.0;
     // Unlike in xsf (scipy/xsf#380), if r2 overflows, or x^(1-b) or r2 underflows for b > 1, the
     // terms are scaled by 1/|r2| = exp(-lr2) (and hu back), unless r1 then overflows. Its terms
     // grow by up to about e^x, so a tiny r2 isn't negligible, e.g. for U(0.94, 165.43, 139.13) =
@@ -2140,6 +2152,18 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         if r1s.is_finite() {
             (r1, r2, lr2) = (r1s, c.signum(), Some(l));
         }
+    }
+    // Unlike in xsf, `chgu` can retry with both prefactors by `chgus_ln_prefactors`, e.g. where
+    // gamma2 loses digits near a pole of Gamma(a) or Gamma(1 + a - b) (3.6e-4 of Gamma(a) for
+    // U(-127 - 1.7e-11, 33.5, 0.076) = 1.2e274), or r2 or its next term overflows (for
+    // U(-113 + 2.2e-7, 54.6, 0.074) = -2.7e307)
+    let mut ln_err = None;
+    if ln_prefactors {
+        let Some((r1s, r2s, l, err)) = chgus_ln_prefactors(x, a, b) else {
+            *id = 0;
+            return f64::NAN;
+        };
+        (r1, r2, lr2, lost, ln_err) = (r1s, r2s, Some(l), false, Some(err));
     }
     let (mut s1, mut s2) = (r1, r2);
     let mut hu = r1 - r2;
@@ -2231,13 +2255,36 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     };
     let e1 = 1e-15 + k(1.0 + a - b) + psi_err(aab, d_s + d_aab) + e_r1;
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b) + e_c + (d_bm * x.ln()).abs();
+    let (e1, e2) = ln_err.map_or((e1, e2), |(e1, e2)| (1e-15 + e1, 1e-15 + e2));
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
-    *id = if lost {
+    // (none for the retry if the series haven't converged, as their terms can grow again past the
+    // ones that bound the rest, e.g. near j = b - 1 for U(-12 + 4e-15, 814 + 4e-7, 503) = 4.7e33)
+    *id = if lost || ln_err.is_some() && !converged {
         0
     } else {
         (*id).min((-(err / hu.abs()).log10()) as i32)
     };
     lr2.map_or(hu, |l| mul_exp_dd(hu, l))
+}
+
+/// The prefactors `Gamma(1 - b) / Gamma(1 + a - b)` and `-Gamma(b - 1) / Gamma(a) x^(1-b)` of
+/// `chgus`, as `exp(l)` times `r1` and `r2`, with `l` the larger of their logarithms, and the error
+/// bounds of these logarithms; `None` at a pole, or if the smaller isn't normal (as the terms of
+/// either series can grow by about e^x)
+///
+/// (by `ln_gamma` of the exact arguments, so reflected with sinpi near the poles)
+fn chgus_ln_prefactors(x: f64, a: f64, b: f64) -> Option<(f64, f64, DoubleDouble, (f64, f64))> {
+    let ln_ratio = |num, den| {
+        let ((n, n_sign, n_err), (d, d_sign, d_err)) = (ln_gamma(num)?, ln_gamma(den)?);
+        Some((n - d, n_sign * d_sign, n_err + d_err))
+    };
+    let bm = 1.0 - DoubleDouble::new(b);
+    let (l1, sign1, err1) = ln_ratio(bm, bm + a)?;
+    let (l2, sign2, err2) = ln_ratio(-bm, DoubleDouble::new(a))?;
+    let l2 = l2 + ln_dd(DoubleDouble::new(x)) * bm;
+    let l = if l1.hi > l2.hi { l1 } else { l2 };
+    let (r1, r2) = (sign1 * (l1 - l).exp().hi, -sign2 * (l2 - l).exp().hi);
+    (r1.is_normal() && r2.is_normal()).then_some((r1, r2, l, (err1, err2)))
 }
 
 /// `chgus` uses `chgus_near_1` for `|b - 1|` below this, the largest its `gamma_quot(.., 2e)` allows
@@ -2344,18 +2391,18 @@ mod tests {
         // U(a, b, x) = 6.67e-286 (Arb), where the r2 terms underflow from j = 64 before they grow
         // again after j = b - 1, so that the series can't converge in time
         let mut id = 0;
-        chgus(55.0, 164.9, 168.900_01, &mut id);
+        chgus(55.0, 164.9, 168.900_01, false, &mut id);
         assert!(id <= 0);
 
         // U(a, b, x) (Arb), where the rounding error 1.4e-14 of 1 - b = 128.1 makes Gamma(1 - b)
         // 6.9e-14 off (13.2 digits)
         let (x, a, b) = (1.922_426_784_912_072_6, 16.014_115_853_033_63, -127.117_796_766_930_57);
         let mut id = 0;
-        let u = chgus(x, a, b, &mut id);
+        let u = chgus(x, a, b, false, &mut id);
         assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
 
         // U(a, b, x) (Arb), near b = 1, where 1 / Gamma(a) is near the underflow threshold
-        let u = chgus(1e-3, 171.3, 1.001, &mut id);
+        let u = chgus(1e-3, 171.3, 1.001, false, &mut id);
         assert!(id >= 13 && digits_ok(u, 3.223_069_881_767_204_4e-308, id));
     }
 
