@@ -108,7 +108,7 @@ fn exp_rgamma_dd(h: f64, v: f64, k: i32, dg: f64, scale: f64) -> Option<f64> {
     }
     let v_dd = DoubleDouble::new(v);
     let (ln_g, sign, _) = ln_gamma(v_dd + dg)?;
-    let ln_t = (v_dd + f64::from(k)) * ln_dd(DoubleDouble::new(h)) - ln_g - scale;
+    let ln_t = (v_dd + f64::from(k)) * ln_dd(h) - ln_g - scale;
     let t = sign * f64::from(ln_t.exp());
     t.is_normal().then_some(t)
 }

@@ -619,7 +619,8 @@ fn best_combination(combs: Combinations, c: Dd, z: f64, w: Dd, ln_1mx: Dd) -> Op
 
 /// `ln(v)` for `v > 0`, after scaling `v` to `[1, 2)` by a power of 2, since `DoubleDouble::log`
 /// fails for `v` beyond about `e^709` (as it computes `exp(-ln(v))`)
-pub(crate) fn ln_dd(v: Dd) -> Dd {
+pub(crate) fn ln_dd(v: impl Into<Dd>) -> Dd {
+    let v = v.into();
     let (_, k) = frexp_f64(v.hi);
     v.ldexp(1 - k).log() + LOG2 * f64::from(k - 1)
 }
@@ -648,7 +649,8 @@ const DD_ROUNDING: f64 = 4.0 * MACHEP * MACHEP;
 /// The second-order term `f'' g.lo^2 / 2` of `f = ln Gamma` is bounded between `g.hi` and
 /// `g.hi + g.lo`, with `d` the smallest distance to a pole there: `f'' < 1/d^2 + pi^2` if
 /// `g < 1/2`, and `f'' < 1/g + 1/g^2` if `g > 0`.
-pub(crate) fn ln_gamma(g: Dd) -> Option<(Dd, f64, f64)> {
+pub(crate) fn ln_gamma(g: impl Into<Dd>) -> Option<(Dd, f64, f64)> {
+    let g = g.into();
     if g.hi >= 13.0 {
         let v = (g - 0.5) * ln_dd(g) - g + LN_SQRT_2PI_DD + lgam_stirling_corr(g.hi);
         // (the correction is below 0.01, and its error below eps)
@@ -943,7 +945,7 @@ fn recip_connect(
 /// instead.
 fn hyp2f1_recip(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, connect: bool) -> Option<Scaled> {
     let one = Dd::new(1.0);
-    let ln_x = ln_dd(Dd::new(x.abs()));
+    let ln_x = ln_dd(x.abs());
     // z = 1/t, w = 1 / (1 - t), 1 - z, ln(-t) and ln(1 - z), from x (e.g. w = 1 - x if
     // 0 < x < 1)
     let (z, w, one_mz, ln_mt, ln_1mz) = if x < 0.0 {

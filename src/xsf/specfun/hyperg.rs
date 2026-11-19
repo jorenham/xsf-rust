@@ -562,7 +562,7 @@ fn chgm_minimal(a: DoubleDouble, b: f64, x: f64, x0: f64) -> Option<f64> {
     // (and about 10 roundings for the rest)
     let err_k = err2 / m2 + err3 / m3 + 5.0 * f64::EPSILON + err_g;
     let k = Scaled::new(b1.hi / den, 0, err_k)?;
-    let i = Scaled::new(-m2, 0, err2 / m2)?.with_l(ln_dd(DoubleDouble::new(x)) * b1 + x0.max(0.0));
+    let i = Scaled::new(-m2, 0, err2 / m2)?.with_l(ln_dd(x) * b1 + x0.max(0.0));
     let i = mul_gamma_ratio([a2, -b1], [b1, a], || Some(i))?;
     let (hg, err) = add_exp([k.with_l(DoubleDouble::new(x0.min(0.0))), i])?.to_f64();
     (err <= SQRT_EPSILON).then_some(hg)
@@ -635,10 +635,10 @@ fn chgm_neg_x_asymptotic(x: f64, a: f64, b: f64) -> Option<f64> {
         return None;
     }
     let q = DoubleDouble::new(b) - a;
-    let (ln_gb, sign_b, err_gb) = ln_gamma(DoubleDouble::new(b))?;
+    let (ln_gb, sign_b, err_gb) = ln_gamma(b)?;
     let (ln_gq, sign_q, err_gq) = ln_gamma(q)?;
-    let (ln_ga, _, err_ga) = ln_gamma(DoubleDouble::new(a))?;
-    let ln_z = ln_dd(DoubleDouble::new(z));
+    let (ln_ga, _, err_ga) = ln_gamma(a)?;
+    let ln_z = ln_dd(z);
 
     // DLMF 13.7.6, 13.7.8 and 13.7.9 (in R3 with `nu sigma` for `sigma`), bounded from above
     // without cancellation (see `BOUND_SLACK`): `nu <= (1 - 2 sigma^2)^(-1/2)` as `sqrt(y) >= y`
@@ -2024,7 +2024,7 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
             if xp.is_normal() && (m * xp).is_normal() || !(m.is_finite() && x.is_finite()) {
                 ldexp_f64(m * xp, e)
             } else {
-                let l = ln_dd(DoubleDouble::new(x)) * p;
+                let l = ln_dd(x) * p;
                 Scaled::new(m, e, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0)
             }
         };
@@ -2135,7 +2135,7 @@ fn chgus(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     let mul_exp_dd = |m: f64, l| Scaled::new(m, 0, 0.0).map_or(0.0, |y| y.with_l(l).to_f64().0);
     let tiny = b > 1.0 && !(xp.is_normal() && r2.is_normal()) && c != 0.0 && ga != SPECFUN_INF;
     if (r2.is_infinite() || tiny) && c.is_finite() {
-        let l = ln_dd(DoubleDouble::new(c.abs())) + ln_dd(DoubleDouble::new(x)) * (1.0 - b);
+        let l = ln_dd(c.abs()) + ln_dd(x) * (1.0 - b);
         let r1s = mul_exp_dd(r1, -l);
         if r1s.is_finite() {
             (r1, r2, lr2) = (r1s, c.signum(), Some(l));
