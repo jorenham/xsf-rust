@@ -72,7 +72,7 @@ fn test_hyp1f0_f64_inexact_1mz() {
     np_assert_allclose!([y], [2.032_230_802_4e-313], rtol = 1e-9);
 
     // a subnormal result with an exact `w^-a`, which needs the low word of its logarithm
-    assert_eq!(xsf::hyp1f0(2.0, -2f64.powi(512)), 2f64.powi(-1024));
+    assert_eq!(xsf::hyp1f0(2.0, -2f64.powi(512)), f64::MIN_POSITIVE / 4.0);
 }
 
 #[test]
