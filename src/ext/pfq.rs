@@ -1748,6 +1748,8 @@ fn hyp1f2_asymptotic(a: f64, b: [f64; 2], z: f64) -> Option<Estimate> {
 ///
 /// # See also
 /// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1(b; z)$
+/// - [`hyp0f2`]: Generalized hypergeometric function,
+///   $_0F_2\left[b_1\enspace b_2\middle\| z\right]$
 /// - [`hyp2f2`]: Generalized hypergeometric function,
 ///   $\hyp 2 2 {a_1\enspace a_2} {b_1\enspace b_2} z$
 #[must_use]
@@ -1780,6 +1782,47 @@ fn hyp1f2_estimate(a: f64, b1: f64, b2: f64, z: f64) -> Option<Estimate> {
     } else {
         asymptotic().or_better(series)
     }
+}
+
+/// Generalized hypergeometric function $_0F_2$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Definition
+///
+/// $$
+/// _0F_2\left[b_1\enspace b_2\middle\| z\right]
+/// = \sum\_{n=0}^\infty {1 \over \rpow{b_1}{n} \ \rpow{b_2}{n}} {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
+///
+/// It is:
+///
+/// - $+\infty$ if a $b_j$ is a non-positive integer and $z \ne 0$;
+/// - $\pm\infty$ if it overflows, for large $z > 0$;
+/// - NaN if an argument is NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
+///
+/// # Returns NaN
+///
+/// Where its internal error estimate says that none of its digits are correct:
+///
+/// - for most $z < -10^{40}$;
+/// - for some large parameters, e.g. in random samples, for about 7% of $-10^8 < z < 0$ if
+///   $\abs{b_1}, \abs{b_2} \le 100$;
+/// - near a zero;
+/// - for some infinite arguments, as for [`hyppfq`].
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// # See also
+/// - [`hyp0f1`](crate::hyp0f1): Confluent hypergeometric limit function, $_0F_1(b; z)$
+/// - [`hyp1f2`]: Generalized hypergeometric function, $\hyp 1 2 a {b_1\enspace b_2} z$
+#[must_use]
+pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
+    Estimate::or_nan(pfq_estimate(&[], &[b1, b2], z))
 }
 
 /// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
@@ -2133,7 +2176,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///
 /// | $p$ | $q = 0$                   | $q = 1$                   | $q = 2$    |
 /// | --- | ------------------------- | ------------------------- | ---------- |
-/// | 0   | [`hyp0f0`](crate::hyp0f0) | [`hyp0f1`](crate::hyp0f1) |            |
+/// | 0   | [`hyp0f0`](crate::hyp0f0) | [`hyp0f1`](crate::hyp0f1) | [`hyp0f2`] |
 /// | 1   | [`hyp1f0`](crate::hyp1f0) | [`hyp1f1`](crate::hyp1f1) | [`hyp1f2`] |
 /// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |

@@ -8,6 +8,6 @@ pub(crate) mod quadpack;
 pub(crate) mod tridiag;
 
 pub use hahn::eval_hahn;
-pub use pfq::{hyp1f2, hyp2f2, hyp3f2, hyppfq};
+pub use pfq::{hyp0f2, hyp1f2, hyp2f2, hyp3f2, hyppfq};
 
 pub(crate) use hyp2f1_recur::*;
