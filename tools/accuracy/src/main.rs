@@ -600,40 +600,37 @@ fn eval_spheroidal(f: &str, a: &[f64]) -> Option<f64> {
         Some((name, i)) => (name, i == "1"),
         None => (f, false),
     };
-    let mode = |k: f64| (k >= 0.0 && k.fract() == 0.0).then_some(k as u64);
-    let modes = mode(*a.first()?).zip(mode(*a.get(1)?));
-    // the mode (0, 0) for a negative or fractional m or n, discarded below
-    let (m, n) = modes.unwrap_or_default();
-    let (y, dy) = match (name, &a[2..]) {
-        ("prolate_segv", &[c]) => (xsf::prolate_segv(m, n, c), f64::NAN),
-        ("oblate_segv", &[c]) => (xsf::oblate_segv(m, n, c), f64::NAN),
+    let eval: &dyn Fn(u64, u64) -> (f64, f64) = match (name, a.get(2..)?) {
+        ("prolate_segv", &[c]) => &move |m, n| (xsf::prolate_segv(m, n, c), f64::NAN),
+        ("oblate_segv", &[c]) => &move |m, n| (xsf::oblate_segv(m, n, c), f64::NAN),
         // mode `n` of the modes `m..=SEGV_N`
         ("prolate_segv_seq", &[c]) => {
-            (xsf::prolate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
+            &move |m, n| (xsf::prolate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
         },
         ("oblate_segv_seq", &[c]) => {
-            (xsf::oblate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
+            &move |m, n| (xsf::oblate_segv_seq(m, SEGV_N, c)[(n - m) as usize], f64::NAN)
         },
-        ("prolate_aswfa_nocv", &[c, x]) => xsf::prolate_aswfa_nocv(m, n, c, x),
-        ("oblate_aswfa_nocv", &[c, x]) => xsf::oblate_aswfa_nocv(m, n, c, x),
-        ("prolate_radial1_nocv", &[c, x]) => xsf::prolate_radial1_nocv(m, n, c, x),
-        ("oblate_radial1_nocv", &[c, x]) => xsf::oblate_radial1_nocv(m, n, c, x),
-        ("prolate_radial2_nocv", &[c, x]) => xsf::prolate_radial2_nocv(m, n, c, x),
-        ("oblate_radial2_nocv", &[c, x]) => xsf::oblate_radial2_nocv(m, n, c, x),
-        ("prolate_aswfa", &[c, cv, x]) => xsf::prolate_aswfa(m, n, c, cv, x),
-        ("oblate_aswfa", &[c, cv, x]) => xsf::oblate_aswfa(m, n, c, cv, x),
-        ("prolate_radial1", &[c, cv, x]) => xsf::prolate_radial1(m, n, c, cv, x),
-        ("oblate_radial1", &[c, cv, x]) => xsf::oblate_radial1(m, n, c, cv, x),
-        ("prolate_radial2", &[c, cv, x]) => xsf::prolate_radial2(m, n, c, cv, x),
-        ("oblate_radial2", &[c, cv, x]) => xsf::oblate_radial2(m, n, c, cv, x),
+        ("prolate_aswfa_nocv", &[c, x]) => &move |m, n| xsf::prolate_aswfa_nocv(m, n, c, x),
+        ("oblate_aswfa_nocv", &[c, x]) => &move |m, n| xsf::oblate_aswfa_nocv(m, n, c, x),
+        ("prolate_radial1_nocv", &[c, x]) => &move |m, n| xsf::prolate_radial1_nocv(m, n, c, x),
+        ("oblate_radial1_nocv", &[c, x]) => &move |m, n| xsf::oblate_radial1_nocv(m, n, c, x),
+        ("prolate_radial2_nocv", &[c, x]) => &move |m, n| xsf::prolate_radial2_nocv(m, n, c, x),
+        ("oblate_radial2_nocv", &[c, x]) => &move |m, n| xsf::oblate_radial2_nocv(m, n, c, x),
+        ("prolate_aswfa", &[c, cv, x]) => &move |m, n| xsf::prolate_aswfa(m, n, c, cv, x),
+        ("oblate_aswfa", &[c, cv, x]) => &move |m, n| xsf::oblate_aswfa(m, n, c, cv, x),
+        ("prolate_radial1", &[c, cv, x]) => &move |m, n| xsf::prolate_radial1(m, n, c, cv, x),
+        ("oblate_radial1", &[c, cv, x]) => &move |m, n| xsf::oblate_radial1(m, n, c, cv, x),
+        ("prolate_radial2", &[c, cv, x]) => &move |m, n| xsf::prolate_radial2(m, n, c, cv, x),
+        ("oblate_radial2", &[c, cv, x]) => &move |m, n| xsf::oblate_radial2(m, n, c, cv, x),
         _ => return None,
     };
-    Some(match modes {
-        // NaN for a negative or fractional m or n, like xsf
-        None => f64::NAN,
-        Some(_) if derivative => dy,
-        Some(_) => y,
-    })
+    let mode = |k: f64| (k >= 0.0 && k.fract() == 0.0).then_some(k as u64);
+    // NaN for a negative or fractional m or n, like xsf
+    let Some((m, n)) = mode(a[0]).zip(mode(a[1])) else {
+        return Some(f64::NAN);
+    };
+    let (y, dy) = eval(m, n);
+    Some(if derivative { dy } else { y })
 }
 
 /// Complex-valued functions; the complex arguments are passed as (real, imaginary) pairs.
