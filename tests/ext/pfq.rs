@@ -663,6 +663,8 @@ fn test_hyp2f0() {
         assert!((actual / expected - 1.0).abs() < 1e-12, "{actual} != {expected}");
         assert_eq!(hyppfq(&a, &[], z), None);
     }
+    // the zero 1 - 0.5 * 2 of a polynomial, where the error estimate is not 0
+    assert!(hyp2f0(-1.0, 0.5, 2.0).is_nan());
 }
 
 #[test]

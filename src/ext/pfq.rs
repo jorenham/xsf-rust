@@ -1853,6 +1853,7 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
 ///
 /// - if the result overflows or underflows, e.g. in random samples, for about 1% of
 ///   $-10^6 < z < 0$ if $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^{12}$;
+/// - near a zero, also an exact one of a polynomial;
 /// - for some infinite arguments, as for [`hyppfq`].
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
