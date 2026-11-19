@@ -78,7 +78,7 @@ use num_complex::Complex;
 
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::c64::{C64, ViaC64, c64};
-use crate::xsf::cephes::dd_real::{ldexp_f64, two_sum};
+use crate::xsf::cephes::dd_real::{frexp_f64, ldexp_f64, two_sum};
 
 pub trait Hyp1F1Arg: crate::sealed::Sealed {
     fn hyp1f1(self, a: f64, b: f64) -> Self;
@@ -419,13 +419,15 @@ fn hypu_rec(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
 /// The largest cancellation `(|p| + |q|) / |p + q|` of a sum that `hypu_rec` accepts (empirical)
 const REC_MAX_CANCEL: f64 = 1e4;
 
+/// The power of 2 by which the recurrences in `b` scale down (exactly) values that can overflow
+const LOG2_SCALE: i32 = 512;
+const SCALE: f64 = pow2(LOG2_SCALE);
+
 /// The two terms of DLMF 13.3.9 for `|a| < 0.5` and `1.5 <= b < 1000`, i.e. of
 /// `U(a, b, x) = U(a, b - n, x) + a sum_j U(a + 1, b - j, x)` for `j < n` with `b - n` nearest 1
 /// (as `a + 1 > 0.5`, the `U(a + 1, c, x)` don't come back here), and the estimated digits of
 /// the `U` that it starts from and of the sum
 fn hypu_sum_b(a: f64, b: f64, x: f64) -> (f64, f64, f64) {
-    const LOG2_SCALE: i32 = 512;
-    const SCALE: f64 = pow2(LOG2_SCALE);
     let n = (b - 1.0).round();
     let (u0, id0, _) = xsf_hypu_digits(a, b - n, x);
     // U(a + 1, c, x) for c = b - n + 1, ..., b, by the forward recurrence in c (DLMF 13.3.8) from
@@ -492,12 +494,13 @@ pub(super) fn hypu_fwd_b(
     let id_start = subnormal_digits(u0, id0).min(subnormal_digits(u1, id1));
     // The first starting value is also recurred on its own, to estimate their cancellation, but
     // from 1 (and scaled at the end), as its part of U can overflow where U doesn't, e.g. for
-    // U(-164, 9 - 0.016, 0.014) = 3.9e306, where they cancel by 1e5
-    let (u_start, mut p0, mut p1) = (u0, 1.0, 0.0);
-    // and so is a rounding error of each step, which can grow even if the starting values don't
-    // cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal solution.
-    // This is an estimate, not a bound, as the propagated errors can cancel; a bound by their
-    // absolute values is far too pessimistic where U is dominant.
+    // U(-164, 9 - 0.016, 0.014) = 3.9e306, where they cancel by 1e5. As the recurrence from 1 can
+    // overflow too, e.g. for U(150, 71 + 1e-14, 0.0005) = 5.3e68, it is scaled down by `SCALE`.
+    let (u_start, mut p0, mut p1, mut p_exp) = (u0, 1.0, 0.0, 0);
+    // A rounding error of each step is recurred as well, as it can grow even if the starting values
+    // don't cancel, e.g. past b = x for a near a negative integer, where U is nearly the minimal
+    // solution. This is an estimate, not a bound, as the propagated errors can cancel; a bound by
+    // their absolute values is far too pessimistic where U is dominant.
     let (mut e0, mut e1) = (0.0, 0.0);
     let mut c = b - n + 1.0;
     while c < b {
@@ -507,11 +510,16 @@ pub(super) fn hypu_fwd_b(
             f64::EPSILON * ((c + x - 1.0) * u1).abs().max(((c - a - 1.0) * u0).abs()) / x;
         (u0, u1) = (u1, next(u0, u1));
         (p0, p1) = (p1, next(p0, p1));
+        if p1.abs() > SCALE {
+            (p0, p1, p_exp) = (p0 / SCALE, p1 / SCALE, p_exp + LOG2_SCALE);
+        }
         (e0, e1) = (e1, next(e0, e1) + rounding);
         c += 1.0;
     }
-    // (the fraction of U from the first starting value; no digits if that overflows)
-    let w = p1 * (u_start / u1);
+    // (the fraction of U from the first starting value, p1 2^p_exp u_start / u1, where u_start and
+    // u1 can be subnormal or large; no digits if it isn't finite)
+    let ((m_start, e_start), (m_u, e_u)) = (frexp_f64(u_start), frexp_f64(u1));
+    let w = ldexp_f64(p1 * m_start / m_u, p_exp + e_start - e_u);
     let id = if w.is_finite() {
         digits_left(id_start, w, 1.0 - w)
     } else {

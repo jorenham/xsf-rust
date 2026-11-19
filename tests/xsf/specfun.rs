@@ -264,6 +264,19 @@ fn test_hypu_near_neg_int_a_rec_b_overflow() {
 }
 
 #[test]
+fn test_hypu_large_a_rec_b_scaled() {
+    // Arb; by the recurrence in b, whose estimate of the cancellation of its starting values must
+    // not overflow (for the first) or underflow (for the second, which starts from 1.9e-310)
+    let abx = [
+        (150.0, 71.000_000_000_000_01, 0.0005),
+        (171.593_147_790_543_47, 111.000_000_000_229_19, 0.021_056_558_171_103_76),
+    ];
+    let expected = [5.300_938_642_354_42e68, 2.493_295_096_359_109e52];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-14);
+}
+
+#[test]
 fn test_hypu_near_neg_int_a_small_x() {
     // Arb; 9.8e-9 and 6.9e-12 off by the recurrence in a, whose step to a near 0 cancels
     // (-2159.9538 for the first in xsf)
