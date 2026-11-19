@@ -614,6 +614,18 @@ def _dawsn_arb[B: (flint.arb, flint.acb)](x: B) -> B:
     return flint.arb.pi().sqrt() / 2 * (-x * x).exp() * x.erfi()
 
 
+def _zero_signs(
+    when: Callable[[tuple[float, ...], float], bool],
+    value: Callable[[float], complex],
+    why: str,
+) -> tuple[Rule, Rule]:
+    """The `Rule`s for both signs s = +-1 of a zero part of the result."""
+    return (
+        Rule(lambda a: when(a, 1.0), value(1.0), why),
+        Rule(lambda a: when(a, -1.0), value(-1.0), why),
+    )
+
+
 def _wofz_arb(z: flint.acb) -> flint.acb:
     """w(z) = e^(-z^2) erfc(-i z)."""
     return (-z * z).exp() * (-flint.acb(0, 1) * z).erfc()
@@ -631,10 +643,10 @@ WOFZ_AT_INF: Final = (
         complex(0, -0.0),
         "w(z) -> 0 - 0i for z -> -inf along Im z = +-0",
     ),
-    Rule(
-        lambda a: a[0] == 0 and math.isnan(a[1]),
-        complex(math.nan, 0),
-        "w(z) = NaN + 0i for z = +-0 + NaN i, as w(iy) = erfcx(y) is real",
+    *_zero_signs(
+        lambda a, s: a[0] == 0 and math.copysign(1, a[0]) == s and math.isnan(a[1]),
+        lambda s: complex(math.nan, s * 0.0),
+        "w(z) = NaN + 0i for z = 0 + NaN i, with the sign of Re z, as w(iy) = erfcx(y) is real",
     ),
 )
 
@@ -1047,14 +1059,20 @@ EXPM1_AT_INF: Final = (
         "e^z - 1 -> inf + NaN i for Re z -> +inf, with an infinite or NaN Im z, like C's cexp",
     ),
     Rule(
-        lambda a: a[0] == -math.inf,
+        lambda a: a[0] == -math.inf and not math.isfinite(a[1]),
         complex(-1, 0),
-        "e^z - 1 -> -1 + 0i for Re z -> -inf, like C's cexp",
+        "e^z - 1 -> -1 + 0i for Re z -> -inf, with an infinite or NaN Im z, like C's cexp",
     ),
-    Rule(
-        lambda a: math.isnan(a[0]) and a[1] == 0,
-        complex(math.nan, 0),
-        "e^z - 1 = NaN + 0i for z = NaN +- 0i, with the sign of Im z, like C's cexp",
+    *_zero_signs(
+        lambda a, s: a[0] == -math.inf and math.copysign(1, math.sin(a[1])) == s,
+        lambda s: complex(-1, s * 0.0),
+        "e^z - 1 -> -1 + 0i for Re z -> -inf, with a finite Im z and the sign of sin(Im z),"
+        " like C's cexp",
+    ),
+    *_zero_signs(
+        lambda a, s: math.isnan(a[0]) and a[1] == 0 and math.copysign(1, a[1]) == s,
+        lambda s: complex(math.nan, s * 0.0),
+        "e^z - 1 = NaN + 0i for z = NaN + 0i, with the sign of Im z, like C's cexp",
     ),
     COMPLEX_NAN,
     Rule(
@@ -1062,10 +1080,10 @@ EXPM1_AT_INF: Final = (
         COMPLEX_NAN.value,
         "e^z - 1 has no limit for Im z -> +-inf, with a finite Re z",
     ),
-    Rule(
-        lambda a: a[0] == math.inf and a[1] == 0,
-        complex(math.inf, 0),
-        "e^z - 1 -> inf +- 0i for z -> +inf along Im z = +-0, with its sign, like C's cexp",
+    *_zero_signs(
+        lambda a, s: a[0] == math.inf and a[1] == 0 and math.copysign(1, a[1]) == s,
+        lambda s: complex(math.inf, s * 0.0),
+        "e^z - 1 -> inf + 0i for z -> +inf along Im z = 0, with its sign, like C's cexp",
     ),
     *(_expm1_at_inf(re, im) for re in (1, -1) for im in (1, -1)),
 )
