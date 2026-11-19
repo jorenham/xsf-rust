@@ -679,6 +679,54 @@ fn eval_xsf_complex(f: &str, a: &[f64]) -> Option<Complex<f64>> {
         ("hyp1f0", &[a, x, y]) => xsf::hyp1f0(a, c(x, y)),
         ("hyp0f1", &[b, x, y]) => xsf::hyp0f1(b, c(x, y)),
         ("riemann_zeta", &[x, y]) => xsf::riemann_zeta(c(x, y)),
+        ("sph_bessel_j", &[n, x, y]) => xsf::sph_bessel_j(n as i64, c(x, y)),
+        ("sph_bessel_y", &[n, x, y]) => xsf::sph_bessel_y(n as i64, c(x, y)),
+        ("sph_bessel_i", &[n, x, y]) => xsf::sph_bessel_i(n as i64, c(x, y)),
+        ("sph_bessel_k", &[n, x, y]) => xsf::sph_bessel_k(n as i64, c(x, y)),
+        ("sph_bessel_j_prime", &[n, x, y]) => xsf::sph_bessel_j_prime(n as i64, c(x, y)),
+        ("sph_bessel_y_prime", &[n, x, y]) => xsf::sph_bessel_y_prime(n as i64, c(x, y)),
+        ("sph_bessel_i_prime", &[n, x, y]) => xsf::sph_bessel_i_prime(n as i64, c(x, y)),
+        ("sph_bessel_k_prime", &[n, x, y]) => xsf::sph_bessel_k_prime(n as i64, c(x, y)),
+        // orthogonal polynomials, with an `f64` degree
+        ("eval_jacobi", &[n, a, b, x, y]) => xsf::eval_jacobi(n, a, b, c(x, y)),
+        ("eval_sh_jacobi", &[n, a, b, x, y]) => xsf::eval_sh_jacobi(n, a, b, c(x, y)),
+        ("eval_gengegenbauer", &[n, p, q, x, y]) => xsf::eval_gengegenbauer(n, p, q, c(x, y)),
+        ("eval_gegenbauer", &[n, a, x, y]) => xsf::eval_gegenbauer(n, a, c(x, y)),
+        ("eval_chebyshev_t", &[n, x, y]) => xsf::eval_chebyshev_t(n, c(x, y)),
+        ("eval_chebyshev_u", &[n, x, y]) => xsf::eval_chebyshev_u(n, c(x, y)),
+        ("eval_chebyshev_c", &[n, x, y]) => xsf::eval_chebyshev_c(n, c(x, y)),
+        ("eval_chebyshev_s", &[n, x, y]) => xsf::eval_chebyshev_s(n, c(x, y)),
+        ("eval_sh_chebyshev_t", &[n, x, y]) => xsf::eval_sh_chebyshev_t(n, c(x, y)),
+        ("eval_sh_chebyshev_u", &[n, x, y]) => xsf::eval_sh_chebyshev_u(n, c(x, y)),
+        ("eval_legendre", &[n, x, y]) => xsf::eval_legendre(n, c(x, y)),
+        ("eval_sh_legendre", &[n, x, y]) => xsf::eval_sh_legendre(n, c(x, y)),
+        ("eval_genlaguerre", &[n, a, x, y]) => xsf::eval_genlaguerre(n, a, c(x, y)),
+        ("eval_laguerre", &[n, x, y]) => xsf::eval_laguerre(n, c(x, y)),
+        // Legendre functions, and the last degree `n` (and order `m`) of the `_all` functions
+        ("legendre_p", &[n, x, y]) => xsf::legendre_p(n as i32, c(x, y)),
+        ("assoc_legendre_p", &[n, m, x, y]) => xsf::assoc_legendre_p(n as i32, m as i32, c(x, y)),
+        ("assoc_legendre_p_norm", &[n, m, x, y]) => {
+            xsf::assoc_legendre_p_norm(n as i32, m as i32, c(x, y))
+        },
+        ("sph_legendre_p", &[n, m, x, y]) => xsf::sph_legendre_p(n as i32, m as i32, c(x, y)),
+        ("legendre_p_all", &[n, x, y]) => xsf::legendre_p_all(n as usize, c(x, y))[n as usize],
+        ("assoc_legendre_p_all", &[n, m, x, y]) => {
+            nm(|n, m| xsf::assoc_legendre_p_all(n, m, c(x, y)), n, m)
+        },
+        ("assoc_legendre_p_norm_all", &[n, m, x, y]) => {
+            nm(|n, m| xsf::assoc_legendre_p_norm_all(n, m, c(x, y)), n, m)
+        },
+        ("sph_legendre_p_all", &[n, m, x, y]) => {
+            nm(|n, m| xsf::sph_legendre_p_all(n, m, c(x, y)), n, m)
+        },
+        ("legendre_q_all.0", &[n, x, y]) => xsf::legendre_q_all(n as usize, c(x, y)).0[n as usize],
+        ("legendre_q_all.1", &[n, x, y]) => xsf::legendre_q_all(n as usize, c(x, y)).1[n as usize],
+        ("assoc_legendre_q_all.0", &[n, m, x, y]) => {
+            xsf::assoc_legendre_q_all(n as usize, m as usize, c(x, y)).0[n as usize][m as usize]
+        },
+        ("assoc_legendre_q_all.1", &[n, m, x, y]) => {
+            xsf::assoc_legendre_q_all(n as usize, m as usize, c(x, y)).1[n as usize][m as usize]
+        },
         ("sici.0", &[x, y]) => xsf::sici(c(x, y)).0,
         ("sici.1", &[x, y]) => xsf::sici(c(x, y)).1,
         ("shichi.0", &[x, y]) => xsf::shichi(c(x, y)).0,

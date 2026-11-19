@@ -118,27 +118,27 @@ template <typename T, typename F> T all_nm(F f, int n, int m) {
 }
 
 // degree `n` of xsf::legendre_p_all with the degrees 0, ..., n
-static double legendre_p_all(int n, double x) {
-    std::vector<double> o(n + 1, NAN);
-    xsf::legendre_p_all(x, vec<double>(o.data(), n + 1));
+template <typename T> T legendre_p_all(int n, T x) {
+    std::vector<T> o(n + 1, NAN);
+    xsf::legendre_p_all(x, vec<T>(o.data(), n + 1));
     return o[n];
 }
 
 // degree `n` of the values (I = 0) or derivatives (I = 1) of xsf::lqn with the degrees 0, ..., n
 // (at least 1, like in SciPy)
-template <int I> double lqn(int n, double x) {
+template <int I, typename T> T lqn(int n, T x) {
     const int len = std::max(n, 1) + 1;
-    std::vector<double> o(2 * len, NAN);
-    xsf::lqn(x, vec<double>(o.data(), len), vec<double>(o.data() + len, len));
+    std::vector<T> o(2 * len, NAN);
+    xsf::lqn(x, vec<T>(o.data(), len), vec<T>(o.data() + len, len));
     return o[I * len + n];
 }
 
 // the element of degree `n` and order `m` of the values (I = 0) or derivatives (I = 1) of xsf::lqmn
 // with the degrees 0, ..., n and orders 0, ..., m (at least 1, like in SciPy)
-template <int I> double lqmn(int n, int m, double x) {
+template <int I, typename T> T lqmn(int n, int m, T x) {
     const int rows = std::max(m, 1) + 1, cols = std::max(n, 1) + 1;
-    std::vector<double> o(std::size_t(2) * rows * cols, NAN);
-    xsf::lqmn(x, mat<double>(o.data(), rows, cols), mat<double>(o.data() + rows * cols, rows, cols));
+    std::vector<T> o(std::size_t(2) * rows * cols, NAN);
+    xsf::lqmn(x, mat<T>(o.data(), rows, cols), mat<T>(o.data() + rows * cols, rows, cols));
     return o[I * rows * cols + m * cols + n];
 }
 
@@ -783,6 +783,43 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     C("fresnel.1", 2, nthc<1>([&](cd &o0, cd &o1) { xsf::fresnel(cd(a[0], a[1]), o0, o1); }))
     C("hyp0f1", 3, xsf::hyp0f1(a[0], cd(a[1], a[2])))
     C("riemann_zeta", 2, xsf::riemann_zeta(cd(a[0], a[1])))
+    C("sph_bessel_j", 3, xsf::sph_bessel_j(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_y", 3, xsf::sph_bessel_y(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_i", 3, xsf::sph_bessel_i(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_k", 3, xsf::sph_bessel_k(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_j_prime", 3, xsf::sph_bessel_j_jac(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_y_prime", 3, xsf::sph_bessel_y_jac(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_i_prime", 3, xsf::sph_bessel_i_jac(l(a[0]), cd(a[1], a[2])))
+    C("sph_bessel_k_prime", 3, xsf::sph_bessel_k_jac(l(a[0]), cd(a[1], a[2])))
+    C("eval_jacobi", 5, xsf::eval_jacobi(a[0], a[1], a[2], cd(a[3], a[4])))
+    C("eval_gengegenbauer", 5, xsf::eval_sh_jacobi(a[0], a[1], a[2], cd(a[3], a[4])))
+    C("eval_gegenbauer", 4, xsf::eval_gegenbauer(a[0], a[1], cd(a[2], a[3])))
+    C("eval_chebyshev_t", 3, xsf::eval_chebyt(a[0], cd(a[1], a[2])))
+    C("eval_chebyshev_u", 3, xsf::eval_chebyu(a[0], cd(a[1], a[2])))
+    C("eval_chebyshev_c", 3, xsf::eval_chebyc(a[0], cd(a[1], a[2])))
+    C("eval_chebyshev_s", 3, xsf::eval_chebys(a[0], cd(a[1], a[2])))
+    C("eval_sh_chebyshev_t", 3, xsf::eval_sh_chebyt(a[0], cd(a[1], a[2])))
+    C("eval_sh_chebyshev_u", 3, xsf::eval_sh_chebyu(a[0], cd(a[1], a[2])))
+    C("eval_legendre", 3, xsf::eval_legendre(a[0], cd(a[1], a[2])))
+    C("eval_sh_legendre", 3, xsf::eval_sh_legendre(a[0], cd(a[1], a[2])))
+    C("eval_genlaguerre", 4, xsf::eval_genlaguerre(a[0], a[1], cd(a[2], a[3])))
+    C("eval_laguerre", 3, xsf::eval_laguerre(a[0], cd(a[1], a[2])))
+    C("legendre_p", 3, xsf::legendre_p(i(a[0]), cd(a[1], a[2])))
+    C("assoc_legendre_p", 4, xsf::assoc_legendre_p(xsf::assoc_legendre_unnorm, i(a[0]), i(a[1]), cd(a[2], a[3]), 2))
+    C("assoc_legendre_p_norm", 4, xsf::assoc_legendre_p(xsf::assoc_legendre_norm, i(a[0]), i(a[1]), cd(a[2], a[3]), 2))
+    C("sph_legendre_p", 4, xsf::sph_legendre_p(i(a[0]), i(a[1]), cd(a[2], a[3])))
+    C("legendre_p_all", 3, legendre_p_all(i(a[0]), cd(a[1], a[2])))
+    C("assoc_legendre_p_all", 4, all_nm<cd>([&](mat<cd> r) {
+          xsf::assoc_legendre_p_all(xsf::assoc_legendre_unnorm, cd(a[2], a[3]), 2, r);
+      }, i(a[0]), i(a[1])))
+    C("assoc_legendre_p_norm_all", 4, all_nm<cd>([&](mat<cd> r) {
+          xsf::assoc_legendre_p_all(xsf::assoc_legendre_norm, cd(a[2], a[3]), 2, r);
+      }, i(a[0]), i(a[1])))
+    C("sph_legendre_p_all", 4, all_nm<cd>([&](mat<cd> r) { xsf::sph_legendre_p_all(cd(a[2], a[3]), r); }, i(a[0]), i(a[1])))
+    C("legendre_q_all.0", 3, lqn<0>(i(a[0]), cd(a[1], a[2])))
+    C("legendre_q_all.1", 3, lqn<1>(i(a[0]), cd(a[1], a[2])))
+    C("assoc_legendre_q_all.0", 4, lqmn<0>(i(a[0]), i(a[1]), cd(a[2], a[3])))
+    C("assoc_legendre_q_all.1", 4, lqmn<1>(i(a[0]), i(a[1]), cd(a[2], a[3])))
     C("sici.0", 2, nthc<0>([&](cd &o0, cd &o1) { xsf::sici(cd(a[0], a[1]), o0, o1); }))
     C("sici.1", 2, nthc<1>([&](cd &o0, cd &o1) { xsf::sici(cd(a[0], a[1]), o0, o1); }))
     C("shichi.0", 2, nthc<0>([&](cd &o0, cd &o1) { xsf::shichi(cd(a[0], a[1]), o0, o1); }))
