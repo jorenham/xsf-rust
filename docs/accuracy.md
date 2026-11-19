@@ -1541,6 +1541,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>wrightomega</code></td><td>x ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>1.0e-15</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>wrightomega</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>3.6e-15</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>99.7%</td></tr>
 <tr><td><code>wrightomega</code></td><td>Re z, Im z ∈ ±⁠[10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>1.9e-16</samp></b></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><samp>2.2e-16</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>98.7%</td></tr>
+<tr><td><code>wrightomega</code></td><td>Re z ∈ [−20, −1]<br>Im z ∈ ±(π + ±⁠[10⁻¹⁶, 10⁻³]) (log)</td><td align="right" nowrap>2,000</td><td align="right" nowrap>❗<samp>1.1e+10</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>❗<samp>1.1e+10</samp></td><td align="right" nowrap><samp>2.9e-16</samp></td><td align="right" nowrap>99.6%</td></tr>
 </tbody>
 </table>
 
