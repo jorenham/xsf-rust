@@ -110,7 +110,8 @@ pub(crate) fn exp1_c64(z: C64) -> C64 {
         }
         ce1 = (-z).exp() * zc;
         if (x <= 0.0) && z.is_real() {
-            ce1 -= PI * C64::I;
+            // Unlike in xsf, the side of the cut from the sign of `Im z`, as for the power series
+            ce1 -= PI.copysign(z.im) * C64::I;
         }
     }
     ce1
