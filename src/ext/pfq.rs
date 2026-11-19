@@ -2328,6 +2328,12 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
                 };
                 let (d, e1) = two_sum(a1, -a2);
                 let (b, e2) = two_sum(d, 1.0);
+                // chgu takes U as a polynomial where its `a1 - b + 1` (that should be a2) rounds to
+                // a non-positive integer
+                let a2_rounded = a1 - b + 1.0;
+                if is_nonpos_int(a2_rounded) && a2_rounded != a2 {
+                    return None;
+                }
                 // The rounding errors of b and x change y by about (y_t - y) / T, with b and x
                 // moved by T times them (far enough to stand out from the error of U, and near
                 // enough to be linear). They may take half of PFQ_TOL, as y can depend much more

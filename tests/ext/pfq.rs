@@ -650,6 +650,10 @@ fn test_hyp2f0() {
     assert!(hyp2f0(f64::NAN, 2.5, -0.5).is_nan());
     assert!(hyp2f0(1.5, 2.5, f64::NAN).is_nan());
     assert_eq!(hyppfq(&[1.5, 2.5], &[], -0.75), Some(hyp2f0(1.5, 2.5, -0.75)));
+    // a1 is a spacing from -31, past which a1 - (a1 - a2 + 1) + 1 rounds (Arb: 3.457_054_166e108)
+    let (a1, a2) = (-31.000_000_000_000_004, -41.5);
+    assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
+    assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
 }
 
 #[test]
