@@ -174,16 +174,25 @@ fn test_eval_integer_degree_complex() {
     }
 
     // but not with a wrong finite value where `alpha + 1/2` is a negative integer, the
-    // recurrence overflows, or the overflowed parameters look symmetric (mpmath)
+    // overflowed parameters look symmetric, or the degree is negative (mpmath, exact)
     let cases = [
         (xsf::eval_gegenbauer(172.0, -86.5, c64(0.0, 0.01)), 10.419_197_521_792_457),
-        (xsf::eval_gegenbauer(171.0, 1e-310, c64(34.0, 0.0)), 12.881_371_905_539_124),
         (xsf::eval_jacobi(1.0, 1.3e308, 6e307, c64(0.0, 0.0)), 3.5e307),
+        (xsf::eval_gegenbauer(-2.0, 2f64.powi(-60), c64(1e100, 0.0)), 0.0),
     ];
     for (actual, desired) in cases {
         let ok = !actual.is_finite() || (actual - desired).norm() <= 1e-13 * desired;
         assert!(ok, "actual: {actual}, desired: {desired}");
     }
+    // and the series where the recurrence overflows (mpmath: 12.881371905539124)
+    let actual = xsf::eval_gegenbauer(171.0, 1e-310, c64(34.0, 0.0));
+    assert!(actual.re.is_nan() && actual.im.is_nan(), "{actual}");
+    // and nearly equal parameters aren't symmetric: like the real x, not `-(a + 2) / 4` (exact:
+    // 4.109481173084667e208)
+    let a = 2f64.powi(400);
+    let b = f64::from_bits(a.to_bits() + 1);
+    let actual = xsf::eval_jacobi(2.0, a, b, c64(0.0, 0.0));
+    assert_eq!(actual, c64(xsf::eval_jacobi(2.0, a, b, 0.0), 0.0));
 
     // the odd degrees are zero at the origin, and imaginary on the imaginary axis (exact)
     let zero = c64(0.0, 0.0);

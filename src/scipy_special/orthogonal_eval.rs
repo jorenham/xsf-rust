@@ -34,18 +34,30 @@ mod sealed {
         /// The real part
         fn re(&self) -> f64;
 
-        /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded)
+        /// `2F1(-n, b; c; (1 - x) / 2)`, where `b` is `n + lam` (rounded), and `sym` says if
+        /// `lam + 1 = 2c` (the Gegenbauer case)
         #[inline]
-        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
-            (self.clone() * -0.5 + 0.5).hyp2f1(-n, b, c)
+        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Self {
+            self.hyp2f1_sh_recurrence(n, b, c, lam, sym)
+                .unwrap_or_else(|| self.hyp2f1_sh_series(n, b, c, lam))
         }
 
         /// `hyp2f1_sh` by the recurrence of the integer degrees of the Gegenbauer case, if it
         /// is used for `Self` and those parameters, and finite
         #[inline]
-        fn hyp2f1_sh_recurrence(&self, _n: f64, _b: f64, _c: f64, _lam: f64) -> Option<Self> {
+        fn hyp2f1_sh_recurrence(
+            &self,
+            _n: f64,
+            _b: f64,
+            _c: f64,
+            _lam: f64,
+            _sym: bool,
+        ) -> Option<Self> {
             None
         }
+
+        /// `hyp2f1_sh` without `hyp2f1_sh_recurrence`
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self;
     }
 
     impl OrthoPolyArg for f64 {
@@ -72,7 +84,7 @@ mod sealed {
         }
 
         #[inline]
-        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
             // Unlike in xsf, use the recurrence in the degree if -1 < x < 1, since the
             // hypergeometric series cancels catastrophically for large non-integer degrees.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
@@ -105,22 +117,27 @@ mod sealed {
         }
 
         #[inline]
-        fn hyp2f1_sh(self, n: f64, b: f64, c: f64, lam: f64) -> Self {
-            self.hyp2f1_sh_recurrence(n, b, c, lam)
-                .unwrap_or_else(|| crate::hyp2f1(-n, b, c, self * -0.5 + 0.5))
+        fn hyp2f1_sh_series(self, n: f64, b: f64, c: f64, _lam: f64) -> Self {
+            crate::hyp2f1(-n, b, c, self * -0.5 + 0.5)
         }
 
         #[inline]
-        fn hyp2f1_sh_recurrence(&self, n: f64, b: f64, c: f64, lam: f64) -> Option<Self> {
+        fn hyp2f1_sh_recurrence(
+            &self,
+            n: f64,
+            b: f64,
+            c: f64,
+            lam: f64,
+            sym: bool,
+        ) -> Option<Self> {
             // Unlike in xsf, integer degrees of the Gegenbauer case `lam + 1 = 2c` use the
             // recurrence of `eval_gegenbauer`, since the complex series cancels catastrophically
             // for large degrees. Its `alpha = lam / 2` keeps the digits of a small `c`, which
             // `c - 1` in the Jacobi recurrence rounds away (so `c > 0` is checked directly). For
-            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. A finite `lam`
-            // keeps the overflowed `inf == inf` out of the check of the Gegenbauer case.
+            // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate.
             let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
             let p = super::int_degree(nu, 0.0, 0.0)
-                .filter(|_| c > 0.0 && lam.is_finite() && lam + 1.0 == 2.0 * c)
+                .filter(|_| sym && c > 0.0)
                 .map(|n| {
                     let z = if self.re < 0.0 { -*self } else { *self };
                     let mut p = if c == 1.0 {
@@ -230,7 +247,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             return (p + q) / (n + c);
         }
         let d = jacobi_binom(n, a);
-        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0) * d
+        self.hyp2f1_sh(n, n + a + b + 1.0, a + 1.0, a + b + 1.0, a == b) * d
     }
 
     /// Corresponds to `xsf::detail::eval_legendre`
@@ -245,7 +262,7 @@ impl<Z: sealed::OrthoPolyArg> JacobiArg<f64> for Z {
             .zip(self.as_f64())
             .map(|(n, x)| Self::ZERO + x.eval_legendre(n));
         p.filter(sealed::OrthoPolyArg::is_finite)
-            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0))
+            .unwrap_or_else(|| self.hyp2f1_sh(n, n + 1.0, 1.0, 1.0, true))
     }
 }
 
@@ -528,9 +545,9 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
         }
 
         let (b, c, lam) = (n + 2.0 * alpha, alpha + 0.5, 2.0 * alpha);
-        let rec = self.hyp2f1_sh_recurrence(n, b, c, lam);
+        let rec = self.hyp2f1_sh_recurrence(n, b, c, lam, true);
         let recurs = rec.is_some();
-        let g = rec.unwrap_or_else(|| self.hyp2f1_sh(n, b, c, lam));
+        let g = rec.unwrap_or_else(|| self.hyp2f1_sh_series(n, b, c, lam));
         let mut d =
             crate::gamma(n + 2.0 * alpha) / crate::gamma(1.0 + n) / crate::gamma(2.0 * alpha);
         if !d.is_finite() || (1.0 + n).max(2.0 * alpha) >= MAXGAM {
@@ -538,12 +555,13 @@ impl<Z: sealed::OrthoPolyArg + From<f64>> GegenbauerArg<f64> for Z {
             // function overflows.
             d = crate::binom(n + 2.0 * alpha - 1.0, n);
             // Unlike in xsf, alpha < 1/4 uses `2 alpha / (n (n + 2 alpha) B(2 alpha + 1, n))`
-            // (DLMF 5.12.1, 5.5.1) where the (complex) recurrence is finite, which keeps the
-            // digits of `2 alpha` and `2 alpha + 1` that `n + 2 alpha - 1` rounds away (as in
-            // `binom_alpha`). The 2F1 is scaled by `2 alpha` first, since the prefactor can be
-            // subnormal for tiny alpha. Elsewhere, the rounded prefactor hides the cancelled
-            // series, or the singular 2F1 of `c = alpha + 1/2 <= 0`.
-            if recurs && alpha < 0.25 {
+            // (DLMF 5.12.1, 5.5.1) for the positive degrees where the (complex) recurrence is
+            // finite, which keeps the digits of `2 alpha` and `2 alpha + 1` that
+            // `n + 2 alpha - 1` rounds away (as in `binom_alpha`). The 2F1 is scaled by `2 alpha`
+            // first, since the prefactor can be subnormal for tiny alpha. Elsewhere, the rounded
+            // prefactor hides the cancelled series, or the singular 2F1 of `c = alpha + 1/2 <= 0`
+            // (and the negative degrees use `1 / Gamma(1 + n)`).
+            if recurs && n > 0.0 && alpha < 0.25 {
                 let inv_beta = 1.0 / ((n + 2.0 * alpha) * crate::beta(2.0 * alpha + 1.0, n));
                 if inv_beta.is_finite() {
                     return g * (2.0 * alpha) * (inv_beta / n);
@@ -678,12 +696,12 @@ pub trait ChebyshevArg<N>: sealed::OrthoPolyArg {
 impl<Z: sealed::OrthoPolyArg> ChebyshevArg<f64> for Z {
     #[inline]
     fn eval_chebyshev_t(self, n: f64) -> Self {
-        self.hyp2f1_sh(n, n, 0.5, 0.0)
+        self.hyp2f1_sh(n, n, 0.5, 0.0, true)
     }
 
     #[inline]
     fn eval_chebyshev_u(self, n: f64) -> Self {
-        self.hyp2f1_sh(n, n + 2.0, 1.5, 2.0) * (n + 1.0)
+        self.hyp2f1_sh(n, n + 2.0, 1.5, 2.0, true) * (n + 1.0)
     }
 }
 
