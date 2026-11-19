@@ -146,8 +146,8 @@ const PFQ_GAMMA_MAX: f64 = 13.0;
 /// Maximum order of `pfq_weniger`
 const PFQ_WENIGER_MAXITER: usize = 40;
 
-/// Number of the last steps of `pfq_weniger` in its double-double estimate where its noise
-/// stopped it (measured)
+/// Number of the last steps of `pfq_weniger` in its estimate where its noise stopped it
+/// (measured)
 const PFQ_WENIGER_STEPS: usize = 4;
 
 /// Largest `z` for `pfq_weniger`, above which the series needs less time (measured)
@@ -589,16 +589,11 @@ fn pfq_weniger<T: SeriesReal>(
         // steps, also while the two still differ, so it has to agree as well.
         let other = (rows[1][0] / rows[1][1] - delta).to_f64().abs();
         if steps[0] <= tol && steps[1] <= tol && other <= tol {
-            // In double-double, the steps also count, as they can be smaller than the error once
-            // the noise grows past them (e.g. by 4x per order for z = -16). Then they can also dip
-            // far below the error where it changes sign, so the largest of the last few counts.
-            // The f64 estimate is the measured one.
-            let err = if T::EPSILON < f64::EPSILON {
-                let counted = if noise < rounding { 2 } else { steps.len() };
-                noise + steps[..counted].iter().fold(other, |m, &s| m.max(s))
-            } else {
-                tol
-            };
+            // The steps also count, as they can be smaller than the error once the noise grows
+            // past them (e.g. by 4x per order for z = -16). Then they can also dip far below the
+            // error where it changes sign, so the largest of the last few (that it took) counts.
+            let counted = if noise < rounding { 2 } else { steps.len() }.min(k + 1);
+            let err = noise + steps[..counted].iter().fold(other, |m, &s| m.max(s));
             return Some((delta.to_f64(), err));
         }
         sum = sum + term;
