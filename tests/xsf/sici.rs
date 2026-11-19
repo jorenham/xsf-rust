@@ -33,3 +33,12 @@ fn test_sici_c64_huge_re() {
     ];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
 }
+
+#[test]
+fn test_sici_c64_negative_imag_axis() {
+    // `Si(-iy) = -i Shi(y)`, `Ci(-iy) = Chi(y) - pi i / 2` (DLMF 6.5.3/6.5.4), also for `y >= 40`
+    for y in [39.0, 40.0, 100.0] {
+        let (si, ci) = xsf::sici(c64(0.0, -y));
+        assert_eq!((si.re, ci.im), (0.0, -FRAC_PI_2));
+    }
+}
