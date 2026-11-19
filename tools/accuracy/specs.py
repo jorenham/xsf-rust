@@ -2915,23 +2915,27 @@ def c_sph_legendre_p(n, m, re, im):
 
 
 def _clegenq(n, m, z):
-    """Q_n^m(z) like `lqn` and `lqmn`: the Ferrers function for |z| < 1, else type 3, but with
+    """Q_n^m like `lqn` and `lqmn` at z: the Ferrers function for |z| < 1, else type 3, but with
     the principal sqrt(z^2 - 1) for (z + 1)^(m/2) (z - 1)^(m/2), which flips the sign for odd m
-    and Re z < 0."""
-    if abs(z) < 1:
-        return _acb(lambda w: w.legendre_q(int(n), int(m), 2), z)
-    s = mp.sign(mp.re(mp.sqrt(z * z - 1) / (mp.sqrt(z + 1) * mp.sqrt(z - 1))))
-    return s ** int(m) * _acb(lambda w: w.legendre_q(int(n), int(m), 3), z)
+    and Re z < 0. As a function with the type and sign at z, so that its derivative does not
+    difference across |z| = 1 or Re z = 0."""
+    t, s = 2, 1
+    if abs(z) >= 1:
+        t = 3
+        s = mp.sign(mp.re(mp.sqrt(z * z - 1) / (mp.sqrt(z + 1) * mp.sqrt(z - 1))))
+    return lambda w: s ** int(m) * _acb(lambda u: u.legendre_q(int(n), int(m), t), w)
 
 
 def c_legendre_q(n, m, re, im):
     with wdps(xd(n) + 20):
-        return _clegenq(n, m, mp.mpc(re, im))
+        z = mp.mpc(re, im)
+        return _clegenq(n, m, z)(z)
 
 
 def c_legendre_qp(n, m, re, im):
     with wdps(xd(n) + 20):
-        return mp.diff(lambda z: _clegenq(n, m, z), mp.mpc(re, im))
+        z = mp.mpc(re, im)
+        return mp.diff(_clegenq(n, m, z), z)
 
 
 def r_bdtr(k, n, p):
@@ -5745,6 +5749,21 @@ for f in ["sph_legendre_p", "sph_legendre_p_all"]:
         complex=True,
         note=legendre_note(f),
     )
+
+
+def near_unit_circle(r: Random) -> tuple[float, float]:
+    """(Re z, Im z) with |z| in 1 +- [1e-12, 1e-2] (log), and arg z in [-pi, pi]."""
+    a, t = Offset(1, LU(1e-12, 1e-2, 0)).sample(r), r.uniform(-math.pi, math.pi)
+    return a * math.cos(t), a * math.sin(t)
+
+
+# where `lqn` and `lqmn` switch from the Ferrers function to type 3 (and xsf, at |z| = 1.0001,
+# from the forward to the backward recurrence)
+UNIT_C = (
+    nobreak("|z|", IN, f"1 {PM} {LU(1e-12, 1e-2).pretty()}")
+    + f" (log), {nobreak('arg z', IN, U(-math.pi, math.pi).pretty())}"
+)
+UNIT_C_LABEL = "|z| in 1 +- [1e-12, 1e-2] (log), arg z in [-pi, pi]"
 for i, r in enumerate([c_legendre_q, c_legendre_qp]):
     add(
         f"legendre_q_all.{i}#c",
@@ -5752,6 +5771,12 @@ for i, r in enumerate([c_legendre_q, c_legendre_qp]):
         lambda n, re, im, r=r: r(n, 0, re, im),
         D(Int(0, 100), U(-1, 1), U(-1, 1), n=5000),
         D(Int(0, 30), LU(1e-3, 1e3, 0), LU(1e-3, 1e3, 0), n=5000),
+        D(
+            sampler=lambda r: (Int(0, 30).sample(r), *near_unit_circle(r)),
+            label=f"n in {{0, ..., 30}}, {UNIT_C_LABEL}",
+            pretty=f"{nobreak('n', IN, Int(0, 30).pretty())}, {UNIT_C}",
+            n=2000,
+        ),
         complex=True,
         note="zeros_c all",
     )
@@ -5779,6 +5804,13 @@ for i, r in enumerate([c_legendre_q, c_legendre_qp]):
             + nobreak("Re\u00a0z,", "Im\u00a0z", IN, LU(1e-3, 1e3, 0).pretty())
             + " (log)",
             n=5000,
+        ),
+        D(
+            sampler=lambda r: (*nm_nonneg(r, 30), *near_unit_circle(r)),
+            label=f"n in {{0, ..., 30}}, m in {{0, ..., n}}, {UNIT_C_LABEL}",
+            pretty=f"{nobreak('n', IN, Int(0, 30).pretty())}, "
+            + f"{nobreak('m', IN, f'{{0, {ELLIPSIS}, n}}')}, {UNIT_C}",
+            n=2000,
         ),
         complex=True,
         note="zeros_c all",
