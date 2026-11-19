@@ -65,6 +65,64 @@ fn test_sph_bessel_complex_real_overflow() {
     assert_eq!(xsf::sph_bessel_k_prime(1, c(1e-300, 0.0)), c(-inf, 0.0));
 }
 
+/// Where AMOS overflows (#1652): each part is infinite with the sign of the exact one, or close to
+/// it (exact: the upward recurrence in mpmath)
+#[test]
+fn test_sph_bessel_complex_overflow() {
+    let c = num_complex::c64;
+    let inf = f64::INFINITY;
+    let cases = [
+        // `y_3(z) ~ -15 / z^4`
+        (
+            3,
+            c(7.786_555_624_829_038e-143, 5.533_972_046_040_827e-144),
+            [c(-inf, inf), c(inf, -inf), c(inf, -inf), c(-inf, inf)],
+        ),
+        (
+            16,
+            c(1.792_190_853_037_550_6e-24, 8.774_374_231_597_158e-154),
+            [
+                c(-inf, 7.867_208_883_950_437e+292),
+                c(inf, -inf),
+                c(inf, -1.235_778_281_703_752_5e+293),
+                c(-inf, inf),
+            ],
+        ),
+        (
+            47,
+            c(-6.303_641_341_263_501e-08, 4.350_847_073_631_233e-248),
+            [
+                c(-inf, -4.122_211_410_107_205e+179),
+                c(-inf, -3.204_312_367_409_637e+188),
+                c(inf, 6.475_154_541_268_409e+179),
+                c(inf, 5.033_322_096_630_516e+188),
+            ],
+        ),
+        // `sin z` and `cos z` overflow
+        (
+            69,
+            c(1.711_550_130_702_050_8e-165, 856.830_233_793_455_2),
+            [
+                c(-inf, 7.814_716_409_066_995_5e+202),
+                c(7.831_240_838_920_502e+202, inf),
+                c(0.001_673_147_087_091_012_4, -0.000_756_668_577_395_661_5),
+                c(-0.001_666_748_202_095_432_4, 0.000_756_134_610_297_511),
+            ],
+        ),
+    ];
+    let parts = |w: [num_complex::Complex64; 4]| w.map(|w| [w.re, w.im]);
+    for (n, z, expected) in cases {
+        let actual = [
+            xsf::sph_bessel_y(n, z),
+            xsf::sph_bessel_y_prime(n, z),
+            xsf::sph_bessel_k(n, z),
+            xsf::sph_bessel_k_prime(n, z),
+        ];
+        let (actual, expected) = (parts(actual), parts(expected));
+        xsref::np_assert_allclose!(actual.as_flattened(), expected.as_flattened(), rtol = 1e-13);
+    }
+}
+
 #[test]
 fn test_sph_bessel_small_x_underflow() {
     // mpmath: sqrt(pi / (2 x)) * besselj(n + 1/2, x) etc.
