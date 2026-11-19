@@ -279,8 +279,8 @@ fn incbet_xy_dd(x: f64, y: f64) -> (DoubleDouble, DoubleDouble) {
     }
 }
 
-/// `lambda = a y - b x`, with `y = 1 - x` exact for the smaller of `x` and `y` (see
-/// `incbet_xy_dd`), rounded once
+/// `lambda = a y - b x` by a compensated dot product, with `y = 1 - x` exact for the smaller of `x`
+/// and `y` (see `incbet_xy_dd`)
 fn incbet_lambda(a: f64, b: f64, x: f64, y: f64) -> f64 {
     let (x, y) = incbet_xy_dd(x, y);
     DoubleDouble::dot([(DoubleDouble::new(a), y), (DoubleDouble::new(-b), x)]).hi
@@ -636,8 +636,7 @@ pub(super) fn incbet_xy(aa: f64, bb: f64, xx: f64, yy: f64, lambda: Option<f64>)
 
         // Unlike in xsf (scipy/xsf#358), `incbet_basym` is used near the mean (as in TOMS 708),
         // where it is generally more accurate than the continued fractions.
-        // Unlike in xsf, `lambda` is rounded only once, as `incbet_basym` amplifies its error
-        // ~`max(a, b)` times
+        // Unlike in xsf, `lambda` is a compensated dot product (see `incbet_lambda`), as it cancels
         let lambda =
             lambda.map_or_else(|| incbet_lambda(a, b, x, xc), |l| if flag { -l } else { l });
         if a.min(b) > 100.0 && lambda <= 0.03 * a.min(b) {
