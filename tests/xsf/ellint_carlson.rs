@@ -321,6 +321,19 @@ fn test_elliprj() {
 }
 
 #[test]
+fn test_elliprj_nearly_imaginary_duplicated() {
+    // the duplication step keeps the real parts nonnegative where they cancel
+    let actual = xsf::elliprj(
+        c64(9.916_661_834_316_465e-77, -5.966_600_187_505_507e238),
+        c64(2.848_126_752_962_884_6e-29, 4.000_597_101_020_285_5e-234),
+        c64(4.782_444_515_529_445e-116, -5.405_461_544_153_664e21),
+        c64(9.584_517_345_332_541e93, 4.512_323_928_209_932_5e31),
+    );
+    let expected = c64(7.528_467_325_907_695e-212, 7.670_796_004_575_693e-212);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-15);
+}
+
+#[test]
 fn test_carlson_huge_and_tiny_args() {
     let p = |k| 2.0_f64.powi(k);
     // the tiny imaginary part must not be flushed to 0

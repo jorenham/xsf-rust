@@ -402,7 +402,7 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // `sqrt(p) / 2`, exact for subnormal `p`
     let sp = p.sqrt() * 0.5;
     let p4 = p * 0.25;
-    let pd = p4 + (sx * sy + sy * sz + sz * sx);
+    let pd = p4 + common::lambda([x, y, z], [sx, sy, sz]);
     // `d / 8 = d1 d23`
     let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
     let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);

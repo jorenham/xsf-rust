@@ -153,8 +153,21 @@ pub(super) fn needs_duplication<T: super::typing::Num>(args: &[T], min: f64) -> 
 /// Computed from the quartered arguments, so that it can't overflow.
 pub(super) fn duplicate<T: super::typing::Num>(xyz: [T; 3]) -> ([T; 3], [T; 3]) {
     let sq = xyz.map(|a| a.sqrt() * 0.5);
+    (add_lambda(xyz.map(|a| a * 0.25), sq, lambda(xyz, sq)), sq)
+}
+
+/// `lam / 4` of the duplication step, from the halved square roots `sq` of `xyz`
+///
+/// Its real part is nonnegative if those of `xyz` are, since each root is within `pi / 4` of the
+/// positive real axis, but it may round to below 0 if it cancels, e.g. for nearly imaginary
+/// `xyz`. Then it is 0, so that the duplicated arguments stay in the domain.
+pub(super) fn lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3]) -> T {
     let lam = sq[0] * sq[1] + sq[1] * sq[2] + sq[2] * sq[0];
-    (add_lambda(xyz.map(|a| a * 0.25), sq, lam), sq)
+    if lam.real() < 0.0 && xyz.iter().all(|a| a.real() >= 0.0) {
+        lam + -lam.real()
+    } else {
+        lam
+    }
 }
 
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
