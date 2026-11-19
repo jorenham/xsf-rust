@@ -1825,6 +1825,48 @@ pub fn hyp0f2(b1: f64, b2: f64, z: f64) -> f64 {
     Estimate::or_nan(pfq_estimate(&[], &[b1, b2], z))
 }
 
+/// Generalized hypergeometric function $_2F_0$ for real arguments
+///
+/// This function is not available in SciPy.
+///
+/// # Definition
+///
+/// $$
+/// _2F_0\left[a_1\enspace a_2\middle\| z\right]
+/// = \sum\_{n=0}^\infty \rpow{a_1}{n} \ \rpow{a_2}{n} {z^n \over n!}
+/// ,
+/// $$
+///
+/// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1], and for
+/// $z < 0$, where the series diverges, its Borel sum, as in mpmath [^2]. A non-positive integer
+/// $a_i = -n$ makes it a polynomial of degree at most $n$, defined for all $z$.
+///
+/// It is:
+///
+/// - NaN for $z > 0$, where the series diverges, unless it is a polynomial, and if an argument is
+///   NaN;
+/// - for an infinite argument, the limit as in [`hyppfq`].
+///
+/// # Returns NaN
+///
+/// Where its internal error estimate says that none of its digits are correct:
+///
+/// - if the result underflows, e.g. in random samples, for about 9% of $-10^6 < z < 0$ if
+///   $\abs{a_1}, \abs{a_2} \le 100$, and for many $z < -10^6$;
+/// - for some infinite arguments, as for [`hyppfq`].
+///
+/// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.2>
+///
+/// [^2]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.6.E21>
+///
+/// # See also
+/// - [`hyp1f0`](crate::hyp1f0): Hypergeometric function, $_1F_0\left[a\middle\| z\right]$
+/// - [`hypu`](crate::hypu): Confluent hypergeometric function, $U(a_1,a_2,x)$
+#[must_use]
+pub fn hyp2f0(a1: f64, a2: f64, z: f64) -> f64 {
+    Estimate::or_nan(pfq_estimate(&[a1, a2], &[], z))
+}
+
 /// The terms `t_k = c_k x^-k` of the exponential part of the asymptotic expansion of
 /// pFq for `p <= q` (DLMF 16.11.1), where `b` contains the 1 of `n!`
 ///
@@ -2178,7 +2220,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 /// | --- | ------------------------- | ------------------------- | ---------- |
 /// | 0   | [`hyp0f0`](crate::hyp0f0) | [`hyp0f1`](crate::hyp0f1) | [`hyp0f2`] |
 /// | 1   | [`hyp1f0`](crate::hyp1f0) | [`hyp1f1`](crate::hyp1f1) | [`hyp1f2`] |
-/// | 2   |                           | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
+/// | 2   | [`hyp2f0`]                | [`hyp2f1`](crate::hyp2f1) | [`hyp2f2`] |
 /// | 3   |                           |                           | [`hyp3f2`] |
 ///
 /// It is:

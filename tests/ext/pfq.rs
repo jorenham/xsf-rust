@@ -1,5 +1,5 @@
 use core::f64::consts::PI;
-use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f1, hyp2f2, hyp3f2, hyppfq};
+use xsf::{hyp0f0, hyp0f1, hyp0f2, hyp1f0, hyp1f1, hyp1f2, hyp2f0, hyp2f1, hyp2f2, hyp3f2, hyppfq};
 
 /// Asserts that `hyp3f2` is within a relative error of `1e-13` of `expected`
 fn assert_hyp3f2(a: [f64; 3], b: [f64; 2], z: f64, expected: f64) {
@@ -623,6 +623,33 @@ fn test_hyp0f2() {
     // it overflows undetected (Arb: 1.093e552)
     assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
     assert_eq!(hyppfq(&[], &[1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
+}
+
+#[test]
+fn test_hyp2f0() {
+    // the Borel sum for z < 0 (Arb: `(-1/z)^a1 U(a1, a1 - a2 + 1, -1/z)`, and mpmath)
+    for (a, z, expected) in [
+        ([1.5, 2.5], -0.01, 0.964_059_468_995_989_7),
+        ([0.5, 1.25], -2.0, 0.606_215_898_670_491_7),
+        ([2.5, -1.5], -50.0, 1_611.766_578_245_452_8),
+        ([-0.75, 3.25], -0.5, 2.041_085_184_015_574),
+        ([4.5, 0.25], -1e4, 0.071_227_775_698_633),
+        // a polynomial
+        ([-3.0, 2.5], 0.5, -1.109_375),
+        ([-3.0, 2.5], -4.0, 2971.0),
+    ] {
+        let actual = hyp2f0(a[0], a[1], z);
+        assert!(
+            (actual - expected).abs() <= 1e-13 * expected.abs(),
+            "hyp2f0({a:?}, {z}) = {actual} != {expected}"
+        );
+    }
+    assert_eq!(hyp2f0(1.5, 2.5, 0.0), 1.0);
+    // the series diverges
+    assert!(hyp2f0(1.5, 2.5, 0.5).is_nan());
+    assert!(hyp2f0(f64::NAN, 2.5, -0.5).is_nan());
+    assert!(hyp2f0(1.5, 2.5, f64::NAN).is_nan());
+    assert_eq!(hyppfq(&[1.5, 2.5], &[], -0.75), Some(hyp2f0(1.5, 2.5, -0.75)));
 }
 
 #[test]

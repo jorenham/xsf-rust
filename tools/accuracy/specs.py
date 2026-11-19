@@ -2651,8 +2651,12 @@ def r_hyp0f2(b1, b2, z):
     return _arb("hyp0f2", b1, b2, z)
 
 
+def r_hyp2f0(a1, a2, z):
+    return _arb("hyp2f0", a1, a2, z)
+
+
 def r_hyppfq_arb(name):
-    """The reference of the spec `name` of pFq for p <= q or of 2F0, as for `r_hyp2f2`."""
+    """The reference of the spec `name` of pFq for p <= q, as for `r_hyp2f2`."""
     return lambda *args: _arb(name, *args)
 
 
@@ -6157,6 +6161,16 @@ add(
     timeout=60,
     note="nan",
 )
+add(
+    "hyp2f0",
+    "a1 a2 z",
+    r_hyp2f0,
+    D(*[U(-10, 10)] * 2, LU(1e-3, 1e6, -1), n=2000),
+    D(*[LU(1e-3, 100, 0)] * 2, LU(1e-3, 1e6, -1), n=2000),
+    cpp=False,
+    timeout=60,
+    note="nan",
+)
 for name, args in [
     ("hyppfq#4f3", "a1 a2 a3 a4 b1 b2 b3 z"),
     ("hyppfq#5f4", "a1 a2 a3 a4 a5 b1 b2 b3 b4 z"),
@@ -6172,16 +6186,6 @@ for name, args in [
         timeout=60,
         note="none",
     )
-add(
-    "hyppfq#2f0",
-    "a1 a2 z",
-    r_hyppfq_arb("hyppfq#2f0"),
-    D(U(-10, 10), U(-10, 10), LU(1e-3, 1e6, -1), n=2000, call="hyppfq2"),
-    D(LU(1e-3, 100, 0), LU(1e-3, 100, 0), LU(1e-3, 1e6, -1), n=2000, call="hyppfq2"),
-    cpp=False,
-    timeout=60,
-    note="none",
-)
 for p, args in [
     (3, "a1 a2 a3 z"),
     (3, "a1 a2 a3 b z"),
@@ -7122,9 +7126,7 @@ ARB: Final[dict[str, Callable[..., flint.arb | flint.acb]]] = {
     "hyp1f2": lambda a, b1, b2, z: z.hypgeom([a], [b1, b2]),
     "hyp0f2": lambda b1, b2, z: z.hypgeom([], [b1, b2]),
     # the Borel sum of the divergent series, for z < 0 (DLMF 13.6.21)
-    "hyppfq#2f0": lambda a1, a2, z: (
-        (-1 / z) ** a1 * (-1 / z).hypgeom_u(a1, a1 - a2 + 1)
-    ),
+    "hyp2f0": lambda a1, a2, z: (-1 / z) ** a1 * (-1 / z).hypgeom_u(a1, a1 - a2 + 1),
     **{
         f"hyppfq#{p}f{q}": lambda *v, p=p: v[-1].hypgeom(list(v[:p]), list(v[p:-1]))
         for p, q in [(3, 3), (2, 3), (1, 3), (0, 3)]

@@ -333,6 +333,7 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("hyp2f2", &[a1, a2, b1, b2, z]) => xsf::hyp2f2(a1, a2, b1, b2, z),
         ("hyp1f2", &[a, b1, b2, z]) => xsf::hyp1f2(a, b1, b2, z),
         ("hyp0f2", &[b1, b2, z]) => xsf::hyp0f2(b1, b2, z),
+        ("hyp2f0", &[a1, a2, z]) => xsf::hyp2f0(a1, a2, z),
         // p = q + 1, or the p after the name, and NaN for `None`
         (name, [ab @ .., z]) if name.starts_with("hyppfq") => {
             let p = name["hyppfq".len()..].parse();
