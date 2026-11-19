@@ -7077,7 +7077,7 @@ NOTES = {
     ),
     "rj_c": (
         "In the log-sampled complex row, the inf (2) of xsf-rust are NaNs for normal results, "
-        "where three tiny arguments next to a larger one underflow "
+        "where intermediates underflow for three tiny arguments next to a larger one "
         "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)); its largest finite error "
         "is 1.7e-4."
     ),

@@ -450,6 +450,21 @@ fn test_elliprj_nearly_imaginary_p() {
     let (x, y) = (c64(1e-308, s), c64(4e-308, -s));
     assert!(xsf::elliprj(x, y, c64(s, 0.0), c64(-s, s)).is_nan());
 
+    // also if flushing them would make them conjugate (Arb: 2.42484e-163 - 3.23129e-163i)
+    let s = 2.0_f64.powi(360);
+    let (x, y) = (c64(2.0_f64.powi(-1024), s), c64(2.0_f64.powi(-1018), -s));
+    assert!(xsf::elliprj(x, y, c64(s, 0.0), i(s)).is_nan());
+
+    // NaN if `p + lambda` cancels in a duplication step for a wide span, where the `R_C` argument
+    // underflows (Arb: 7.33688e-218 - 5.51996e-218i)
+    let actual = xsf::elliprj(
+        c64(1e-308, -4.361_399_083_161_572_3e133),
+        c64(1e-170, -1e-33),
+        c64(0.0, -5.554_010_425_978_977e151),
+        c64(2.0_f64.powi(-582), 4.921_712_707_964_019e142),
+    );
+    assert!(actual.is_nan());
+
     // a negligible `Re x` that blocks rescaling, also if `p + lambda` cancels in the first step
     // (with `Im p` 1 ULP toward 0 too), or in a later one (Arb)
     let s = 2.0_f64.powi(360);

@@ -128,7 +128,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 </tbody>
 </table>
 
-<sup>*</sup> In the log-sampled complex row, the inf (2) of xsf-rust are NaNs for normal results, where three tiny arguments next to a larger one underflow ([#1655](https://github.com/jorenham/xsf-rust/issues/1655)); its largest finite error is 1.7e-4.
+<sup>*</sup> In the log-sampled complex row, the inf (2) of xsf-rust are NaNs for normal results, where intermediates underflow for three tiny arguments next to a larger one ([#1655](https://github.com/jorenham/xsf-rust/issues/1655)); its largest finite error is 1.7e-4.
 
 <sup>†</sup> Ill-conditioned near the zeros.
 

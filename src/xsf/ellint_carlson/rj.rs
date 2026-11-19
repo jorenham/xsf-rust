@@ -404,7 +404,12 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     // `d / 8 = d1 d23`
     let d1 = common::sqrt_sum(p4, x * 0.25, sp, sx);
     let d23 = common::sqrt_sum(p4, y * 0.25, sp, sy) * common::sqrt_sum(p4, z * 0.25, sp, sz);
-    let (status_rc, res_rc) = rc(T::from(1.0), sp / d1 * (pd / d23) * 2.0, rerr);
+    let u = sp / d1 * (pd / d23) * 2.0;
+    // Unlike in xsf, NaN if `u` underflows, e.g. where `p + lam` cancels
+    if !u.max_norm().is_normal() {
+        return (ExitStatus::PrecLoss, T::NAN);
+    }
+    let (status_rc, res_rc) = rc(T::from(1.0), u, rerr);
     let (mut status, res) = rj(xyz[0], xyz[1], xyz[2], pd, rerr, noasymp);
     if status_rc != ExitStatus::Success {
         status = status_rc;
@@ -419,7 +424,8 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
 
     // Unlike in xsf (scipy/xsf#376), huge or tiny arguments are rescaled, and if negligible
     // imaginary parts prevent that and the result is not finite, rescaled with those flushed, and
-    // then also with negligible real parts flushed if none is negative, as in `rg`
+    // then also with negligible real parts flushed if none is negative and the arguments are in
+    // the domain (flushed, two of `x, y, z` can become conjugate)
     let args = [x, y, z, p];
     let (_, min) = realness(args);
     // A flushed real part becomes `MIN_POSITIVE`, not 0: on the imaginary axis, `p` can leave the
@@ -440,9 +446,14 @@ pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if let Some(f) = common::scale_factor(&args, min) {
         return rescaled(f);
     }
+    let in_domain = || {
+        let mut xyz = [x, y, z];
+        sort_by(&mut xyz, rjimpl::rcmp);
+        rjimpl::good_args(xyz[0], xyz[1], xyz[2], p, &mut rjimpl::ArgCases::default())
+    };
     let mut out = rj_unscaled(x, y, z, p, rerr, noasymp);
     for flush_re in [false, true] {
-        if out.1.is_finite() {
+        if out.1.is_finite() || (flush_re && !in_domain()) {
             break;
         }
         out = common::relaxed_scale_factor(&args, flush_re, min).map_or(out, rescaled);
