@@ -8,7 +8,7 @@ use core::ops::Range;
 use num_traits::Zero;
 
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
-use crate::xsf::cephes::consts::MAXGAM;
+use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
@@ -305,14 +305,19 @@ fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
     (int && is_classical(alpha, beta)).then_some(n as i32)
 }
 
-/// `int_degree` of `n`, or of `-b` if that is larger and `b = n + lam` holds exactly, in the
+/// `int_degree` of `n`, or of `-b` if that is larger and the reflection is accurate, in the
 /// Gegenbauer case `sym` of `hyp2f1_sh` with `c > 0` and a finite `lam`
 ///
-/// The 2F1 is symmetric in `n` and `-b` only if `-b + lam = -n`, and a rounded `b` can be an
-/// integer where the exact `n + lam` isn't (with an order-one effect for a tiny `c`).
+/// The 2F1 has the parameters `-n` and `n + lam = b + d`, where `d` is the rounding error of `b`.
+/// The reflected one is `2F1(b, -b + lam) = 2F1(b, -n + d)`, which rounds `b + d` like the series,
+/// but also moves `-n` by `d`. That is accepted up to a rounding error of `n`, since `d` can be of
+/// order `n` (e.g. for `n` and `lam + 1` near 0, with an order-one effect for a tiny `c`).
 fn gegenbauer_int_degree(n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Option<i32> {
-    let exact = two_sum(n, lam) == (b, 0.0);
-    let nu = if exact { n.max(-b) } else { n };
+    let (s, err) = two_sum(n, lam);
+    // `s - b` is exact if it is small (Sterbenz)
+    let d = (s - b) + err;
+    let accurate = d.abs() <= MACHEP * n.abs();
+    let nu = if accurate { n.max(-b) } else { n };
     int_degree(nu, 0.0, 0.0).filter(|_| sym && c > 0.0 && lam.is_finite())
 }
 

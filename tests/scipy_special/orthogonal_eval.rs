@@ -235,6 +235,12 @@ fn test_eval_real_degree_origin() {
     let (n, a) = (-1.5 * f64::EPSILON, -1.0 + f64::EPSILON / 2.0);
     let actual = [xsf::eval_jacobi(n, a, a, 0.0), xsf::eval_jacobi(n, a, a, c64(0.0, 0.0)).re];
     np_assert_allclose!(actual, [0.25; 2], rtol = 1e-15);
+    // but by one that is an integer up to a rounding error of `n` (mpmath: 0.093683301849704395857)
+    let a = -0.25 + f64::EPSILON / 2.0;
+    let z = 0.25;
+    let actual =
+        [xsf::eval_jacobi(-100.5, a, a, z), xsf::eval_jacobi(-100.5, a, a, c64(z, 0.0)).re];
+    np_assert_allclose!(actual, [0.093_683_301_849_704_4; 2], rtol = 5e-15);
     let inf = f64::INFINITY;
     assert!(xsf::eval_jacobi(1.0, inf, inf, 1e-8).is_nan());
     assert!(xsf::eval_jacobi(1.0, inf, inf, c64(1e-8, 0.0)).re.is_nan());
