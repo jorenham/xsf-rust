@@ -1320,7 +1320,7 @@ pub(crate) fn chgu(
     // Unlike in xsf (scipy/xsf#380), also not for the integers |b| >= 2^31, but for b = 1 (by
     // `chgus_near_1`, which also holds there)
     if b != b.trunc() || b == 1.0 {
-        hu = chgus(x, a, b, false, &mut id1);
+        hu = chgus(x, a, b, d, false, &mut id1);
         *md = 1;
         if id1 >= id_min && !chgus_deferred(a, b, x, id1) {
             *digits = super::subnormal_digits(hu, id1.into()) as i32;
@@ -1333,7 +1333,7 @@ pub(crate) fn chgu(
     // rounds to 0 in chgul)
     let il4 = a < 1.0 && b > a && !bn && a + 1.0 != 1.0 && !unbounded;
     if il1 || il2 || il3 || il4 {
-        hu = chgul(x, a, b, &mut id);
+        hu = chgul(x, a, b, d, &mut id);
         *md = 2;
         if id >= id_min {
             *digits = super::subnormal_digits(hu, id.into()) as i32;
@@ -1461,7 +1461,7 @@ pub(crate) fn chgu(
     let rec_b = a < 1.0 && (3.0..1000.0).contains(&b);
     if unbounded && !rec_b && (hu.is_nan() || id < ID_ACCEPT) {
         let mut id_l = 0;
-        let u = chgul(x, a, b, &mut id_l);
+        let u = chgul(x, a, b, d, &mut id_l);
         if hu.is_nan() || id_l > id {
             (hu, id, id_rec_result) = (u, id_l, None);
             *md = 2;
@@ -1482,7 +1482,7 @@ pub(crate) fn chgu(
     // more
     if id < ID_MIN && a_arg.is_finite() && b_arg.is_finite() && b_arg != b_arg.trunc() {
         let mut id_ln = 0;
-        let u = chgus(x, a_arg, b_arg, true, &mut id_ln);
+        let u = chgus(x, a_arg, b_arg, d, true, &mut id_ln);
         if id_ln > id {
             (hu, id, id_rec_result) = (u, id_ln, None);
             *md = 1;
@@ -1931,7 +1931,20 @@ fn chguit(x: f64, a: f64, b: f64, kummer: bool, id: &mut i32) -> f64 {
     hu
 }
 
-fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
+/// Whether `a - b + 1` rounds to an integer `n <= 0` that it isn't, for `b < 1` and `a` not an
+/// integer `<= 0`, and the rounding error `d = a - b + 1 - n` (that of `a - b`)
+///
+/// `U` is then not the polynomial of `n` (DLMF 13.2.8), but differs from it by about
+/// `|d (-n)! Gamma(1 - b) M(a, b, x)|` (DLMF 13.2.42), which can be far larger. This is only
+/// handled for `b < 1`. For an integer `a <= 0`, `U` is the polynomial of `a` (DLMF 13.2.7).
+pub(crate) fn aa_rounding(a: f64, b: f64) -> (bool, f64) {
+    let (s, d) = two_sum(a, -b);
+    // (the rounding is exact if d is an integer: 0 below 2^53, where s + 1 is exact too)
+    let rounded = b < 1.0 && !is_nonpos_int(a) && is_nonpos_int(s + 1.0) && d.fract() != 0.0;
+    (rounded, d)
+}
+
+fn chgul(x: f64, a: f64, b: f64, d: f64, id: &mut i32) -> f64 {
     // =======================================================
     // Purpose: Compute the confluent hypergeometric function
     //          U(a,b,x) for large argument x
@@ -1952,7 +1965,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     // Unlike in xsf (scipy/xsf#380), a (or aa) = -2^31 is excluded
     let is_nonpos_i32 = |z: f64| z == z.trunc() && f64::from(i32::MIN) < z && z <= 0.0;
     let il1 = is_nonpos_i32(a);
-    let il2 = is_nonpos_i32(aa);
+    // Unlike in xsf, not for d != 0, where aa is only rounded to such an integer (see
+    // `aa_rounding`)
+    let il2 = is_nonpos_i32(aa) && d == 0.0;
     let mut nm = 0;
     if il1 {
         nm = -a as i32;
@@ -2063,7 +2078,9 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
         r = 1.0;
         let mut rmax: f64 = 1.0;
         for k in 1..=25 {
-            r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k)) / (f64::from(k) * x);
+            // Unlike in xsf, with aa + d (as in `chgus`), as a - b + k can round to 0, which
+            // would end the series as if it terminated
+            r = -r * (a + f64::from(k) - 1.0) * (a - b + f64::from(k) + d) / (f64::from(k) * x);
             ra = r.abs();
             if ((k > 5) && (ra >= r0)) || (ra < 1e-15) {
                 break;
@@ -2084,7 +2101,7 @@ fn chgul(x: f64, a: f64, b: f64, id: &mut i32) -> f64 {
     hu
 }
 
-fn chgus(x: f64, a: f64, b: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
+fn chgus(x: f64, a: f64, b: f64, d: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
     // ======================================================
     // Purpose: Compute confluent hypergeometric function
     //          U(a,b,x) for small argument x
@@ -2111,7 +2128,15 @@ fn chgus(x: f64, a: f64, b: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
     }
     *id = 100;
     let ga = gamma2(a);
-    let gab = gamma2(1.0 + a - b);
+    // Unlike in xsf, for d != 0 (where a - b + 1 = aa + d is rounded to an integer aa, see
+    // `aa_rounding`), with 1 / Gamma(aa + d) = (-1)^aa (-aa)! d to first order in d (DLMF 5.5.3),
+    // and with aa + d in the terms of r2
+    let (rounded, aa) = (d != 0.0, a - b + 1.0);
+    let gab = if rounded {
+        neg_if_odd(aa, 1.0 / (gamma(1.0 - aa) * d))
+    } else {
+        gamma2(1.0 + a - b)
+    };
     // Unlike in xsf, with sinpi, as sin(pi b) loses about eps / |b - n| near an integer n, and
     // reflected (DLMF 5.5.3) where gamma2(b) (b < -1) or gamma2(2 - b) (b > 3) loses as much
     let hu0 = PI / cephes_sinpi(b);
@@ -2182,7 +2207,7 @@ fn chgus(x: f64, a: f64, b: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
     let mut converged = false;
     // the terms r1 and r2 as scaled k1 and k2 times
     let (mut t1, mut t2, mut k1, mut k2) = (r1, r2, 0, 0);
-    let r2_next = |r2: f64, j: f64| r2 * (a - b + j) / (j * (1.0 - b + j)) * x;
+    let r2_next = |r2: f64, j: f64| r2 * (a - b + j + d) / (j * (1.0 - b + j)) * x;
     for j in 1..151 {
         let n = f64::from(j);
         (t1, r1, _) = rescale_term(kummer_term(t1, a, b, j) * x, f64::abs, &mut k1);
@@ -2256,7 +2281,13 @@ fn chgus(x: f64, a: f64, b: f64, ln_prefactors: bool, id: &mut i32) -> f64 {
         let (b2, d_b2) = two_sum(2.0, -b);
         psi_err(b2, d_b2)
     };
-    let e1 = 1e-15 + k(1.0 + a - b) + psi_err(aab, d_s + d_aab) + e_r1;
+    // (that first order of 1 / Gamma(aa + d) has a relative error of about d psi(1 - aa))
+    let (z_gab, z_psi, d_psi) = if rounded {
+        (aa, 1.0 - aa, d)
+    } else {
+        (1.0 + a - b, aab, d_s + d_aab)
+    };
+    let e1 = 1e-15 + k(z_gab) + psi_err(z_psi, d_psi) + e_r1;
     let e2 = 1e-15 + k(a) + k(b) + k(2.0 - b) + e_c + (d_bm * x.ln()).abs();
     let (e1, e2) = ln_err.map_or((e1, e2), |(e1, e2)| (1e-15 + e1, 1e-15 + e2));
     let err = e1 * s1.abs() + e2 * s2.abs() + f64::EPSILON * terms;
@@ -2394,18 +2425,18 @@ mod tests {
         // U(a, b, x) = 6.67e-286 (Arb), where the r2 terms underflow from j = 64 before they grow
         // again after j = b - 1, so that the series can't converge in time
         let mut id = 0;
-        chgus(55.0, 164.9, 168.900_01, false, &mut id);
+        chgus(55.0, 164.9, 168.900_01, 0.0, false, &mut id);
         assert!(id <= 0);
 
         // U(a, b, x) (Arb), where the rounding error 1.4e-14 of 1 - b = 128.1 makes Gamma(1 - b)
         // 6.9e-14 off (13.2 digits)
         let (x, a, b) = (1.922_426_784_912_072_6, 16.014_115_853_033_63, -127.117_796_766_930_57);
         let mut id = 0;
-        let u = chgus(x, a, b, false, &mut id);
+        let u = chgus(x, a, b, 0.0, false, &mut id);
         assert!(digits_ok(u, 5.652_129_176_700_298e-35, id));
 
         // U(a, b, x) (Arb), near b = 1, where 1 / Gamma(a) is near the underflow threshold
-        let u = chgus(1e-3, 171.3, 1.001, false, &mut id);
+        let u = chgus(1e-3, 171.3, 1.001, 0.0, false, &mut id);
         assert!(id >= 13 && digits_ok(u, 3.223_069_881_767_204_4e-308, id));
     }
 

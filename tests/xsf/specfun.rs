@@ -313,6 +313,41 @@ fn test_hypu_poly() {
 }
 
 #[test]
+fn test_hypu_poly_rounded() {
+    // Arb; a - b + 1 rounds to an integer n <= 0 that it isn't, so U isn't the polynomial of n
+    let abx = [
+        (-41.5, -9.499_999_999_999_996, 0.01),
+        (-91.220_878_184_567_61, -30.220_878_184_567_614, 0.003_424_066_749_045_187),
+        (-57.325_279_439_759_16, -12.325_279_439_759_154, 0.007_836_746_477_758_269),
+        (-71.410_561_758_249_66, -30.410_561_758_249_66, 0.001_208_869_644_849_045_3),
+    ];
+    let expected = [
+        3.457_054_166_467_876_3e25,
+        1.686_881_284_975_158_9e100,
+        -1.071_537_677_821_328_2e49,
+        3.145_557_125_921_138e66,
+    ];
+    let actual = abx.map(|(a, b, x)| xsf::hypu(a, b, x));
+    xsref::np_assert_allclose!(actual, expected, rtol = 1e-13);
+
+    // Arb; for an integer a, U is the polynomial of a (DLMF 13.2.7)
+    let actual = xsf::hypu(-91.0, -7.000_000_000_000_001, 1.5);
+    xsref::np_assert_allclose!([actual], [2.103_429_582_028_915_4e131], rtol = 1e-13);
+
+    // Arb; d is negligible here, and the result with it less accurate than the polynomial of n
+    let actual = xsf::hypu(-172.200_760_242_633_46, -22.200_760_242_633_46, 9.877_946_432_208_7);
+    xsref::np_assert_allclose!([actual], [1.121_373_992_140_344_8e298], rtol = 1e-13);
+
+    // Arb; as above, but the result with d is by the recurrence in b, where it cancels
+    let actual =
+        xsf::hypu(-171.983_731_640_276_7, -6.983_731_640_276_682, 0.013_765_992_676_810_33);
+    xsref::np_assert_allclose!([actual], [5.402_798_766_765_826e291], rtol = 1e-8);
+    let actual =
+        xsf::hypu(-172.923_920_271_527_18, -8.923_920_271_527_182, 0.060_322_070_225_586_23);
+    xsref::np_assert_allclose!([actual], [-2.534_992_095_566_762_6e294], rtol = 1e-11);
+}
+
+#[test]
 fn test_hypu_poly_overflow() {
     // Arb: 1.46e336, -1.38e338, and -2.24e367; -inf, inf, and NaN in xsf
     assert_eq!(xsf::hypu(-181.0, 1.0, 30.2), f64::INFINITY);

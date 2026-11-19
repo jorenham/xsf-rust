@@ -686,6 +686,7 @@ fn test_hyp2f0() {
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     assert_eq!(hyppfq(&[a1, a2], &[], -100.0), None);
+    assert_eq!(hyppfq(&[a2, a1], &[], -100.0), None);
     // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
     // by a spacing (Arb: 2.675_976_546e231 and 2.160_851_060e262)
     assert!(hyp2f0(-5.999_999_999_999_998, -22.999_999_999_999_996, -1e10).is_nan());
