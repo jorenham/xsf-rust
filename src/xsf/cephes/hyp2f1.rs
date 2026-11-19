@@ -18,7 +18,7 @@ use core::iter;
 
 use crate::ext::{
     HYP2F1_RECUR_MAXITER, HYP2F1_RECUR_NEAR_INT, HYP2F1_RECUR_TOL, Scaled, fold_exp,
-    hyp2f1_poly_f64, hyp2f1_recur, ln_dd, mul_gamma_ratio,
+    hyp2f1_poly_dd, hyp2f1_recur, ln_dd, mul_gamma_ratio,
 };
 use crate::utils::{is_nonpos_int, pow2};
 use crate::xsf::cephes::consts::MACHEP;
@@ -1070,7 +1070,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         let p = s.powf(d);
         let y = hyp2f1_impl(c - a, c - b, c, x, recur, false);
         // Unlike in xsf, if `y` overflows for a tiny `c` and is by `hyp2f1_recur` (or is a
-        // polynomial, by `hyp2f1_poly_f64`), multiply its scaled value by `s^d`, as their product
+        // polynomial, by `hyp2f1_poly_dd`), multiply its scaled value by `s^d`, as their product
         // can still be finite.
         //
         // Only if that is at least `1 / HYP2F1_ETHRESH`: the rounding of `c - a` and `c - b` (e.g.
@@ -1079,8 +1079,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         if y.is_infinite() && c.abs() < HYP2F1_EPS {
             // (in double-double, as a large `d` amplifies the rounding of `d` and `s`)
             let ln_p = (Dd::new(c) - a - b) * ln_dd(Dd::new(1.0) - x);
-            let inner =
-                recur_first(c - a, c - b, c).or_else(|| hyp2f1_poly_f64(c - a, c - b, c, x));
+            let inner = recur_first(c - a, c - b, c).or_else(|| hyp2f1_poly_dd(c - a, c - b, c, x));
             let scaled = inner.map(|y| y.mul_exp(ln_p).to_f64());
             let large = |&(y, _): &(f64, f64)| y.abs() * HYP2F1_ETHRESH >= 1.0;
             if let Some((y, _)) = scaled.filter(accurate).filter(large) {
@@ -1134,7 +1133,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
                 }
                 // Unlike in xsf, for a non-integer c and an integer a or b <= 0, the terminating
                 // polynomial in double-double if accurate
-                let poly = hyp2f1_poly_f64(a, b, c, x).map(Scaled::to_f64);
+                let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
                 if let Some((y, _)) = poly.filter(accurate) {
                     return y;
                 }
@@ -1351,7 +1350,7 @@ fn hyp2f1_impl(a: f64, b: f64, c: f64, x: f64, recur: bool, outer: bool) -> f64 
         // term, whose sign can differ from that of the sum, and the recurrence in `a` can add
         // infinities of both signs (NaN)
         if inexact.is_none() && !y.is_finite() && (neg_int_a || neg_int_b) {
-            let poly = hyp2f1_poly_f64(a, b, c, x).map(Scaled::to_f64);
+            let poly = hyp2f1_poly_dd(a, b, c, x).map(Scaled::to_f64);
             if let Some((y, _)) = poly.filter(accurate) {
                 return y;
             }

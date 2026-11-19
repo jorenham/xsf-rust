@@ -1027,16 +1027,27 @@ fn recip_interp(a: Dd, b: Dd, c: Dd, x: f64, ln_1mx: Dd, shift: f64) -> Option<S
     Some(Scaled { err, ..full })
 }
 
-/// `F(a, b; c; x)` for an integer `a` or `b = -n < 0`, with `c` not an integer in `(-n, 0]`: the
-/// polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in double-double, as its terms
-/// can cancel by `1 / eps` or more, e.g. by 7e15 for `F(-186, -26.75; -333; -9)`; if that is
-/// inaccurate for `x < 1`, its Pfaff transformation (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
-fn hyp2f1_poly_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
+/// `F(a, b; c; x)` for finite `x != 0` and an integer `a` or `b = -n < 0`, with `c` not an integer
+/// in `(-n, 0]`: the polynomial (DLMF 15.2.4, or 15.2.5 for an integer `c <= -n`) in
+/// double-double, as its terms can cancel by `1 / eps` or more, e.g. by 7e15 for
+/// `F(-186, -26.75; -333; -9)`; if that is inaccurate for `x < 1`, its Pfaff transformation
+/// (DLMF 15.8.1); at `x = 1`, Chu-Vandermonde
+pub(crate) fn hyp2f1_poly_dd(
+    a: impl Into<Dd>,
+    b: impl Into<Dd>,
+    c: impl Into<Dd>,
+    x: f64,
+) -> Option<Scaled> {
+    if x == 0.0 || !x.is_finite() {
+        return None;
+    }
+    let (a, b, c) = (a.into(), b.into(), c.into());
+    // (`a >= b`, as in `hyp2f1_recur`, so the lower degree first)
+    let (a, b) = if b.hi > a.hi { (b, a) } else { (a, b) };
     // (no factor of `(c)_n` is 0)
     let no_pole = |p: Dd| p.hi >= c.hi || !(c.hi <= 0.0 && c.is_integer());
     let is_poly =
         |p: Dd| p.is_integer() && no_pole(p) && (1.0..=HYP2F1_RECUR_MAXITER).contains(&-p.hi);
-    // (`a >= b`, so the lower degree)
     let (p, q) = if is_poly(a) {
         (a, b)
     } else if is_poly(b) {
@@ -1045,24 +1056,18 @@ fn hyp2f1_poly_dd(a: Dd, b: Dd, c: Dd, x: f64) -> Option<Scaled> {
         return None;
     };
     let n = -p.hi;
-    if x == 1.0 {
-        return chu_vandermonde(n, q, c);
-    }
-    let direct = poly_dd(n, q, c, Dd::new(x), true);
-    if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
-        return direct;
-    }
-    let one = Dd::new(1.0);
-    let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one), true);
-    min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
-}
-
-/// `F(a, b; c; x)` by `hyp2f1_poly_dd` for any finite `x != 0`
-pub(crate) fn hyp2f1_poly_f64(a: f64, b: f64, c: f64, x: f64) -> Option<Scaled> {
-    // (`a >= b`, as in `hyp2f1_recur`)
-    let (a, b) = if b > a { (b, a) } else { (a, b) };
-    let finite = x != 0.0 && x.is_finite();
-    let y = finite.then(|| hyp2f1_poly_dd(Dd::new(a), Dd::new(b), Dd::new(c), x))?;
+    let y = if x == 1.0 {
+        chu_vandermonde(n, q, c)
+    } else {
+        let direct = poly_dd(n, q, c, Dd::new(x), true);
+        if err_of(direct) <= HYP2F1_ETHRESH || x > 1.0 {
+            direct
+        } else {
+            let one = Dd::new(1.0);
+            let pfaff = poly_dd(n, c - q, c, Dd::new(x) / (Dd::new(x) - one), true);
+            min_err(direct, pfaff.map(|y| y.with_l(ln_dd(one - x) * n)))
+        }
+    };
     // (not if its mantissa is NaN or infinite, which `Scaled::new` accepts)
     y.filter(|y| y.m.is_finite())
 }
