@@ -10,9 +10,9 @@ For each entry of `mapping.ENTRIES`, every logical output of every row gets a st
 - convention (2): the inputs match a `mapping.Rule`, which xsf-rust must follow, and which must
   pass xsref's test (so xsref may differ where its tolerance allows it).
 - computed (1): the mpmath reference at both `DPS`, which must agree to `AGREE`, round to the
-  same f64, and be confirmed by Arb where its Arb version applies (or by an identity, without
-  one). xsf-rust must be NaN or an infinity exactly where the reference is. The tolerance is
-  the error of xsf (C++) in the table metric (see `tolerance`).
+  same f64 (or f32, for an f32 output), and be confirmed by Arb where its Arb version applies
+  (or by an identity, without one). xsf-rust must be NaN or an infinity exactly where the
+  reference is. The tolerance is the error of xsf (C++) in the table metric (see `tolerance`).
 - legacy (0): the reference timed out, so xsref's value and tolerance stay.
 
 Anything else is an error, and then no table is written. The inputs, their order, and the row
@@ -63,14 +63,17 @@ ARB_DPS: Final = (75, 150, 300)
 TIMEOUT: Final = 60  # seconds per evaluation
 IDENTITY_ROWS: Final = 32  # the inputs that the identity of a table is checked on
 CHANGES: Final = 12  # the changed references of an output that a report lists
-# xsf counts as wrong from this error (half of the digits lost)
+# xsf counts as wrong from this error (half of the digits lost), for an f64 and an f32 output
 XSF_WRONG: Final = 2.0**-26
+XSF_WRONG_F32: Final = 2.0**-12
 
 EPS: Final = sys.float_info.epsilon
 DBL_MIN: Final = sys.float_info.min
 DBL_MAX: Final = sys.float_info.max
 DENORM_MIN: Final = 5e-324
 ULP_AT_MAX: Final = EPS * DBL_MAX / 2
+F32_EPS: Final = 2.0**-23
+F32_MIN: Final = 2.0**-126
 
 type Args = tuple[float, ...]
 type Ref = list[str | None]  # [value, scale or None]
@@ -299,26 +302,38 @@ def arb_confirms(arb: mapping.Arb, args: Args, ref: Ref) -> bool | None:
     return False
 
 
+def nearest_f32(s: str) -> float:
+    """The f32 nearest to the decimal `s` (ties to even), as an f64."""
+    v = mp.mpf(s)
+    q = max(mp.frexp(v)[1], -125) - 24  # the exponent of its ulp
+    return float(mp.ldexp(mp.nint(mp.ldexp(v, -q)), q))
+
+
 def validated(
-    lo: Ref, hi: Ref, arb: mapping.Arb | None, args: Args
+    lo: Ref, hi: Ref, arb: mapping.Arb | None, args: Args, f32: bool
 ) -> tuple[float, float, bool]:
-    """The f64 value and scale (0 for none) of a part of a reference, and whether Arb
-    confirms it. Its evaluations `lo` and `hi` must agree to `AGREE` and round to the same
-    f64s."""
+    """The f64 (or with `f32`, f32) value and the scale (0 for none) of a part of a reference,
+    and whether Arb confirms it. Its evaluations `lo` and `hi` must agree to `AGREE` and round
+    to the same values."""
     mp.mp.dps = DPS[1]
     (v_lo, s_lo), (v_hi, s_hi) = ([mp.mpf(x or "0") for x in r] for r in (lo, hi))
     require(mp.isfinite(v_hi), f"{v_hi} is not finite, which needs a rule")
     bound = AGREE * max(abs(v_hi), s_hi)
     close = abs(v_lo - v_hi) <= bound and abs(s_lo - s_hi) <= bound
-    # the nearest f64s of the decimal strings
-    (f_lo, scale_lo), (f, scale) = ([float(x or "0") for x in r] for r in (lo, hi))
+    # the nearest f64s (or f32s) of the decimal strings
+    near = nearest_f32 if f32 else float
+    (f_lo, scale_lo), (f, scale) = (
+        (near(v or "0"), float(s or "0")) for v, s in (lo, hi)
+    )
     require(close and (f_lo, scale_lo) == (f, scale), f"{lo} and {hi} differ")
 
     confirmed = None if arb is None else arb_confirms(arb, args, hi)
     require(confirmed is not False, f"Arb does not confirm {hi}")
-    # a scale must be a normal f64, and a subnormal f has the absolute precision of DBL_MIN
+    # a scale must be a normal f64, and a subnormal f has the absolute precision of the
+    # smallest normal number
+    tiny = F32_MIN if f32 else DBL_MIN
     if not DBL_MIN <= scale <= DBL_MAX:
-        scale = DBL_MIN if 0 < abs(f) < DBL_MIN else 0.0
+        scale = tiny if 0 < abs(f) < tiny else 0.0
     return f, scale, bool(confirmed)
 
 
@@ -351,16 +366,22 @@ class Result(NamedTuple):
 
 
 def tolerance(
-    c: Computed, override: mapping.Override | None, budget: float, floor: float
+    c: Computed,
+    override: mapping.Override | None,
+    budget: float,
+    floor: float,
+    f32: bool,
 ) -> float:
     """The tolerance of a computed output: the error of xsf, so that the test (which accepts
     4 max(eps, tol)) means "at most 4 times less accurate than xsf". Under an override it is
     at most `budget`, the largest error of xsf-rust there, and an error of xsf above
-    `XSF_WRONG` needs one. It is at least `floor`, the floor of the mapping there."""
+    `XSF_WRONG` needs one. It is at least `floor`, the floor of the mapping there, and for an
+    f32 output, the f32 eps (the eps of the test is that of f64)."""
     tol = min(c.e_xsf, budget) if override else c.e_xsf
     errors = f"xsf-rust: {c.e_rust:.2e}, xsf: {c.e_xsf:.2e}"
-    require(tol <= XSF_WRONG, f"xsf is wrong, which needs an override ({errors})")
-    tol = max(tol, floor)
+    wrong = XSF_WRONG_F32 if f32 else XSF_WRONG
+    require(tol <= wrong, f"xsf is wrong, which needs an override ({errors})")
+    tol = max(tol, floor, F32_EPS if f32 else 0)
     require(c.e_rust <= 4 * max(EPS, tol), f"xsf-rust fails the test ({errors})")
     return tol
 
@@ -415,8 +436,9 @@ def generate(
     pool: Pool,
 ) -> Result:
     entry = mapping.ENTRIES[table, sig]
-    # an f32 output ("f") needs an f32 evaluation path first
-    widths = [{"d": 1, "cd": 2}[t] for t in sig.split("-")[1].split("_")]
+    types = sig.split("-")[1].split("_")
+    widths = [{"f": 1, "d": 1, "cd": 2}[t] for t in types]
+    f32 = [t == "f" for t in types]
     assert len(entry.outs) == len(widths) == old.n_tol and sum(widths) == old.n_out
     n = len(widths)
     starts = [old.n_in + sum(widths[:i]) for i in range(n)]
@@ -483,7 +505,7 @@ def generate(
             else:
                 arbs = out.arbs or (None,) * widths[i]
                 checked = [
-                    validated(refs[lo], refs[hi], arb, inputs[r])
+                    validated(refs[lo], refs[hi], arb, inputs[r], f32[i])
                     for (lo, hi), arb in zip(tasks[r, i], arbs, strict=True)
                 ]
                 f = value(tuple(f for f, _, _ in checked))
@@ -518,7 +540,7 @@ def generate(
         override, floor = overrides[r, i], floors[r, i]
         try:
             tol = tolerance(
-                c, override, budgets[i, override], floor.tol if floor else 0
+                c, override, budgets[i, override], floor.tol if floor else 0, f32[i]
             )
         except Problem as e:
             problems.append(f"[{i}] at {inputs[r]}: {e}")
@@ -526,7 +548,7 @@ def generate(
         ref = struct.pack(f"<{widths[i]}d", *parts(c.ref))
         new[r, i] = Cell(COMPUTED, ref, struct.pack("<d", tol), c.scale)
         if override:
-            notes[i][f"override: {override.why}"] += tol != c.e_xsf
+            notes[i][f"override: {override.why}"] += c.e_xsf > budgets[i, override]
         if floor:
             notes[i][f"floor {floor.tol:g}: {floor.why}"] += tol == floor.tol
         described[i][inputs[r]] = (c, tol)

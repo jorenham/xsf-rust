@@ -458,6 +458,10 @@ static bool eval(const std::string &f, const std::vector<double> &a, double &r, 
     F1("expit", xsf::expit(x))
     F1("logit", xsf::logit(x))
     F1("log_expit", xsf::log_expit(x))
+    // in f32, for the f32 test tables
+    F1("expit_f32", xsf::expit(float(x)))
+    F1("logit_f32", xsf::logit(float(x)))
+    F1("log_expit_f32", xsf::log_expit(float(x)))
     F1("exprel", xsf::exprel(x))
     F1("log1mexp", xsf::log1mexp(x))
     F1("log1pmx", xsf::log1pmx(x))

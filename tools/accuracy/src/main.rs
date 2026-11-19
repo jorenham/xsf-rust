@@ -188,6 +188,10 @@ fn eval_xsf_2(f: &str, a: &[f64]) -> Option<f64> {
         ("expit", &[x]) => xsf::expit(x),
         ("logit", &[p]) => xsf::logit(p),
         ("log_expit", &[x]) => xsf::log_expit(x),
+        // in f32, for the f32 test tables
+        ("expit_f32", &[x]) => xsf::expit(x as f32).into(),
+        ("logit_f32", &[p]) => xsf::logit(p as f32).into(),
+        ("log_expit_f32", &[x]) => xsf::log_expit(x as f32).into(),
         ("exprel", &[x]) => xsf::exprel(x),
         ("log1mexp", &[x]) => xsf::log1mexp(x),
         ("log1pmx", &[x]) => xsf::log1pmx(x),
