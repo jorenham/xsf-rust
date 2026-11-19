@@ -769,11 +769,9 @@ pub(crate) fn gamma_quot(v: Dd, e: Dd) -> Option<(f64, f64)> {
         return psi_dd(v);
     }
     let n = (13.0 - v.hi).ceil().max(0.0);
-    let (mut l, mut l_abs, mut i) = (0.0, 0.0, 0.0);
-    while i < n {
-        let t = (e / (v.hi + i)).ln_1p() / e;
-        (l, l_abs, i) = (l - t, l_abs + t.abs(), i + 1.0);
-    }
+    let (mut l, l_abs) = (0..n as u32)
+        .map(|i| (e / (v.hi + f64::from(i))).ln_1p() / e)
+        .fold((0.0, 0.0), |(l, l_abs), t| (l - t, l_abs + t.abs()));
     let x = v.hi + n + 0.5 * e;
     let x2 = 1.0 / (x * x);
     let psi2 = -x2 * (1.0 + 1.0 / x + x2 * (0.5 - x2 / 6.0 * (1.0 - x2)));
