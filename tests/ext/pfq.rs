@@ -60,6 +60,18 @@ fn test_hyp3f2_special() {
     // where the series diverges
     assert_eq!(hyp3f2(1.5, 2.5, 3.5, 0.5, 4.5, 1.0), Some(f64::INFINITY));
     assert_eq!(hyp3f2(1.0, 1.0, 1.0, 1.5, 1.5, 1.0), Some(f64::INFINITY));
+    // with the sign of the late terms (gh-1645)
+    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, 0.5, 3.25, 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp3f2(1.5, 2.5, 3.5, -0.5, 3.25, 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyp3f2(-0.5, 2.5, 3.5, -0.25, 3.25, 1.0), Some(f64::INFINITY));
+    // the 2F1 left by a cancellation, with a zero excess
+    assert_eq!(hyp3f2(-2.0, -0.5, 1.25, -2.0, 0.75, 1.0), Some(f64::NEG_INFINITY));
+    let (a, b) = (
+        [1.256_488_541_180_713_6, -0.452_965_067_141_963_83, 0.175_520_285_123_398_8],
+        [0.968_097_853_412_922_8, -1.366_013_156_809_728_5],
+    );
+    assert_eq!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyppfq(&[0.5, 1.5, 2.5, 3.5], &[-0.5, 1.25, 2.25], 1.0), Some(f64::NEG_INFINITY));
     // b_1 + b_2 - a_1 - a_2 - a_3 = 2.8e-17 rounds to 0; the result is 2.5e15 (Arb)
     let y = hyp3f2(5.0, 0.1, 0.2, 5.0, 0.300_000_000_000_000_04, 1.0);
     assert!(y.is_none_or(|y| (y / 2.467_832_059_538_944e15 - 1.0).abs() < 1e-13));

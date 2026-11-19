@@ -715,6 +715,12 @@ fn diverges_at_one(a: &[f64], b: &[f64]) -> Option<bool> {
     (!uncertain).then_some(excess <= 0.0)
 }
 
+/// The sign of `prod Gamma(a_i) / prod Gamma(b_j)`, and so of the late terms of the series for
+/// `z > 0`, as `(v)_n = Gamma(v + n) / Gamma(v)`
+fn late_sign(a: &[f64], b: &[f64]) -> f64 {
+    a.iter().chain(b).map(|&v| gammasgn(v)).product()
+}
+
 /// `_{q+1}F_q` for finite arguments, where the last of `b` is the 1 of `n!`
 fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
     if z == 0.0 {
@@ -727,8 +733,9 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
         // complex
         Some(f64::NAN)
     } else if degree.is_infinite() && z == 1.0 {
-        // +inf where the series diverges, and no method where it converges
-        diverges_at_one(a.as_ref(), b.as_ref().split_last()?.1)?.then_some(f64::INFINITY)
+        // +-inf where the series diverges, and no method where it converges
+        let (a, b) = (a.as_ref(), b.as_ref());
+        diverges_at_one(a, b.split_last()?.1)?.then(|| f64::INFINITY * late_sign(a, b))
     } else {
         pfq_accurate(&descending(a), &descending(b), z)
     }
@@ -758,8 +765,9 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<f64> {
 /// It is:
 ///
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
-///   polynomial of degree $\lt m$, and at $z = 1$ for finite parameters if
-///   $b_1 + b_2 \le a_1 + a_2 + a_3$, unless it is a polynomial or that can't be determined (then
+///   polynomial of degree $\lt m$;
+/// - $\pm\infty$ at $z = 1$ for finite parameters if $b_1 + b_2 \le a_1 + a_2 + a_3$, the sign
+///   of its limit from below, unless it is a polynomial or that can't be determined (then
 ///   `None`);
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial, and if an argument is NaN;
 /// - for an infinite argument, the limit as in [`hyppfq`].
@@ -1884,7 +1892,7 @@ fn pfq_limit(a: &[f64], b: &[f64], z: f64, degree: f64) -> Option<f64> {
         Some(f64::INFINITY * (1.0 - 2.0 * parity))
     } else if z > 0.0 && a.len() <= b.len() {
         // the sign of the exponentially large term (DLMF 16.11)
-        Some(f64::INFINITY * a.iter().chain(b).map(|&v| gammasgn(v)).product::<f64>())
+        Some(f64::INFINITY * late_sign(a, b))
     } else if (b.len()..=b.len() + 1).contains(&a.len()) && a.iter().all(|&v| v > 0.0) {
         // all terms of DLMF 16.11 vanish
         (z < 0.0).then_some(0.0)
@@ -2042,9 +2050,10 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///   if $p \le q + 1$ or it is a polynomial, unless it is complex;
 /// - $+\infty$ if a $b_j$ is a non-positive integer $-m$ and $z \ne 0$, unless it is a
 ///   polynomial of degree $\lt m$;
-/// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and for $p = q + 1 \ge 3$ and finite
-///   parameters if $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial or that can't be
-///   determined (then `None`);
+/// - $+\infty$ at $z = 1$ for $_1F_0$ if $a_1 > 0$, and $\pm\infty$, the sign of its limit from
+///   below, for $p = q + 1 \ge 3$ after cancellations and finite parameters if
+///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial or that can't be determined (then
+///   `None`);
 /// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, and at $z = +\infty$
 ///   for $p \le q$ if it isn't a polynomial;
 /// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
