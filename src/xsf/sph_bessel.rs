@@ -195,6 +195,10 @@ const N_MAX: i64 = 1 << 20;
 /// The cutoff of [`sph_bessel_overflow`] on its estimate of the error growth
 const GROWTH_MAX: f64 = 1024.0;
 
+/// A bound on the roundings per step of [`sph_bessel_overflow`], relative to `eps |a_k|`, also of
+/// `1 / z`
+const ROUNDINGS: f64 = 8.0;
+
 /// `(f_n(z), f_n'(z))` for complex `z` where AMOS overflows, from the upward recurrence
 /// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` of `y_n` (`s = -1`, DLMF 10.51.1) and `k_n` (`s = 1`,
 /// DLMF 10.51.4), and `f_n' = -s f_(n-1) - (n + 1) f_n / z` (DLMF 10.51.2 and 10.51.5).
@@ -209,8 +213,10 @@ const GROWTH_MAX: f64 = 1024.0;
 /// Where that exceeds `GROWTH_MAX`, for `n > N_MAX`, and as AMOS for `z = 0` and past its range
 /// (`ierr = 4`), this is `None`.
 ///
-/// Otherwise, the error of a part is about `GROWTH_MAX (n + 1) eps |f|` at most, so a smaller part
-/// is NaN, as an overflowing part masks it, e.g. `Re k_2(1e-120 i) = 1e-241` with `Im k_2 = inf`.
+/// Otherwise, a part is NaN where it is below both the normwise error `GROWTH_MAX (n + 1) eps |f|`
+/// and its own error bound, as an overflowing part can mask it, e.g. `Re k_2(1e-120 i) = 1e-241`
+/// with `Im k_2 = inf`. The latter bound follows from `a_k >= |g_k|`, partwise, from the recurrence
+/// on the absolute values, plus the underflow, with a few roundings by `eps |a_k|` per step.
 fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
     let r = z.norm();
     let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
@@ -223,30 +229,61 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
     // `1 / z = 2^-m / w`, as `1 / z` overflows for tiny `z`
     let m = exp2(z).min(0);
     let rw = C64::ONE / z.ldexp(-m);
-    let (g_m1, g_0, e) = (0..n).fold((g_m1, g_0, 0), |(g_m1, g_0, e), k| {
-        // `g_k` and `g_(k+1)` in units of `2^(e - m)`
-        let (g_0, g_1) = (g_0.ldexp(m), (2 * k + 1) as f64 * g_0 * rw + s * g_m1.ldexp(m));
-        let de = exp2(g_0).max(exp2(g_1));
-        (g_0.ldexp(-de), g_1.ldexp(-de), e + i64::from(de - m))
-    });
+    // The partwise bound `|a b|` for `a >= 0`
+    let abs_mul = |a: C64, b: C64| {
+        let (re, im) = (b.re.abs(), b.im.abs());
+        c64(a.re * re + a.im * im, a.re * im + a.im * re)
+    };
+    // An underflow of `g`, in units of `2^de` and relative to `eps`
+    let tiny = |de: i64| {
+        let t = f64::MIN_POSITIVE.ldexp(de.clamp(-E_MAX, 0) as i32);
+        c64(t, t)
+    };
+    let abs = |g: C64| c64(g.re.abs(), g.im.abs()) + tiny(0);
+    // `a_k` in units of `2^e_a`, with its own scale, as it can grow much faster than `g_k`
+    let init = ((g_m1, g_0, 0), (abs(g_m1), abs(g_0), 0));
+    let ((g_m1, g_0, e), (a_m1, a_0, e_a)) =
+        (0..n).fold(init, |((g_m1, g_0, e), (a_m1, a_0, e_a)), k| {
+            // `g_k` and `g_(k+1)` in units of `2^(e - m)`
+            let (g_0, g_1) = (g_0.ldexp(m), (2 * k + 1) as f64 * g_0 * rw + s * g_m1.ldexp(m));
+            let de = exp2(g_0).max(exp2(g_1));
+            let t = tiny(e - e_a);
+            let (a_0, a_1) =
+                (a_0.ldexp(m) + t, (2 * k + 1) as f64 * abs_mul(a_0, rw) + a_m1.ldexp(m) + t);
+            let da = exp2(a_0).max(exp2(a_1));
+            (
+                (g_0.ldexp(-de), g_1.ldexp(-de), e + i64::from(de - m)),
+                (a_0.ldexp(-da), a_1.ldexp(-da), e_a + i64::from(da - m)),
+            )
+        });
 
     // `g 2^e exp(-x) / z`, with `exp(-x) = 2^q exp(t)` for `|t| <= ln(2) / 2` (reduced in
     // double-double), so that only the final `ldexp` can overflow
     let q = (-x * LOG2_E).round();
     let exp_t = (-f64::from(LOG2 * q + x)).exp();
-    // A part below the error is NaN, but the zero part of `y_n(iy)`, real or imaginary, is exact
+    // The zero part of `y_n(iy)`, real or imaginary, is exact
     let tol = GROWTH_MAX * np1(n) * f64::EPSILON;
     let tol = if s < 0.0 && z.re == 0.0 { 0.0 } else { tol };
-    let scale = |g: C64, e: i64| {
+    let tol_a = ROUNDINGS * np1(n) * f64::EPSILON;
+    let scale = |g: C64, a: C64, e: i64, e_a: i64| {
         let de = exp2(g);
+        let a = (abs_mul(a, rw) + tiny(e - e_a))
+            .ldexp((e_a - e - i64::from(de)).clamp(-E_MAX, E_MAX) as i32);
         let e = (e + i64::from(de - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
         let g = g.ldexp(-de) * rw;
         let min = tol * g.re.abs().max(g.im.abs());
-        let part = |p: f64| if p.abs() >= min { p } else { f64::NAN };
-        (c64(part(g.re), part(g.im)) * exp_t).ldexp(e)
+        let part = |p: f64, a: f64| {
+            if p.abs() >= min.min(tol_a * a) {
+                p
+            } else {
+                f64::NAN
+            }
+        };
+        (c64(part(g.re, a.re), part(g.im, a.im)) * exp_t).ldexp(e)
     };
     let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
-    Some((scale(g_0, e), scale(dg, e - i64::from(m))))
+    let da = a_m1.ldexp(m) + np1(n) * abs_mul(a_0, rw);
+    Some((scale(g_0, a_0, e, e_a), scale(dg, da, e - i64::from(m), e_a - i64::from(m))))
 }
 
 /// `f_n(x)` for `n >= 0` and `x > 0`, from `f_0 = s0` and `f_1 = s1` by the upward recurrence

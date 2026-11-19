@@ -71,7 +71,6 @@ fn test_sph_bessel_complex_real_overflow() {
 fn test_sph_bessel_complex_overflow() {
     let c = num_complex::c64;
     let (inf, nan) = (f64::INFINITY, f64::NAN);
-    // NaN for a part below the error of the overflowing one
     let cases = [
         // `y_3(z) ~ -15 / z^4`
         (
@@ -82,20 +81,30 @@ fn test_sph_bessel_complex_overflow() {
         (
             16,
             c(1.792_190_853_037_550_6e-24, 8.774_374_231_597_158e-154),
-            [c(-inf, nan), c(inf, nan), c(inf, nan), c(-inf, nan)],
+            [
+                c(-inf, 7.867_208_883_950_437e+292),
+                c(inf, -inf),
+                c(inf, -1.235_778_281_703_752_5e+293),
+                c(-inf, inf),
+            ],
         ),
         (
             47,
             c(-6.303_641_341_263_501e-08, 4.350_847_073_631_233e-248),
-            [c(-inf, nan), c(-inf, nan), c(inf, nan), c(inf, nan)],
+            [
+                c(-inf, -4.122_211_410_107_205e+179),
+                c(-inf, -3.204_312_367_409_637e+188),
+                c(inf, 6.475_154_541_268_409e+179),
+                c(inf, 5.033_322_096_630_516e+188),
+            ],
         ),
         // `sin z` and `cos z` overflow
         (
             69,
             c(1.711_550_130_702_050_8e-165, 856.830_233_793_455_2),
             [
-                c(-inf, nan),
-                c(nan, inf),
+                c(-inf, 7.814_716_409_066_995_5e+202),
+                c(7.831_240_838_920_502e+202, inf),
                 c(0.001_673_147_087_091_012_4, -0.000_756_668_577_395_661_5),
                 c(-0.001_666_748_202_095_432_4, 0.000_756_134_610_297_511),
             ],
@@ -103,11 +112,20 @@ fn test_sph_bessel_complex_overflow() {
         // `exp(-x)` underflows and `2^e` overflows
         (16500, c(10000.0, 1.0), [c(-inf, inf), c(inf, -inf), c(-inf, -inf), c(inf, inf)]),
         // `1 / z` overflows, and the zero parts of `y_n(iy)` are exact
-        (0, c(0.0, 1e-310), [c(0.0, inf), c(-inf, 0.0), c(nan, -inf), c(inf, nan)]),
-        // `Re k_2 = 1.0472e-241` and `Im k_2' = -2.0944e-121`
+        (0, c(0.0, 1e-310), [c(0.0, inf), c(-inf, 0.0), c(-FRAC_PI_2, -inf), c(inf, nan)]),
+        // NaN for a part below its error, `Re k_2 = 1.0472e-241` and `Im k_2' = -2.0944e-121`
         (2, c(0.0, 1e-120), [c(0.0, -inf), c(inf, 0.0), c(nan, inf), c(-inf, nan)]),
         // `k_1(-1) = 0`, so the first step cancels
-        (200, c(-1.0, 1e-310), [c(inf, nan), c(inf, nan), c(-inf, nan), c(-inf, nan)]),
+        (
+            200,
+            c(-1.0, 1e-310),
+            [
+                c(inf, 1.016_860_265_749_292_2e126),
+                c(inf, 2.054_032_505_023_626_1e128),
+                c(-inf, -1.593_321_907_432_099e126),
+                c(-inf, -3.218_549_788_308_514_4e128),
+            ],
+        ),
     ];
     let parts = |w: [num_complex::Complex64; 4]| w.map(|w| [w.re, w.im]);
     for (n, z, expected) in cases {
