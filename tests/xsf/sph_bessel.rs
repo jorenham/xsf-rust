@@ -70,7 +70,8 @@ fn test_sph_bessel_complex_real_overflow() {
 #[test]
 fn test_sph_bessel_complex_overflow() {
     let c = num_complex::c64;
-    let inf = f64::INFINITY;
+    let (inf, nan) = (f64::INFINITY, f64::NAN);
+    // NaN for a part below the error of the overflowing one
     let cases = [
         // `y_3(z) ~ -15 / z^4`
         (
@@ -81,49 +82,32 @@ fn test_sph_bessel_complex_overflow() {
         (
             16,
             c(1.792_190_853_037_550_6e-24, 8.774_374_231_597_158e-154),
-            [
-                c(-inf, 7.867_208_883_950_437e+292),
-                c(inf, -inf),
-                c(inf, -1.235_778_281_703_752_5e+293),
-                c(-inf, inf),
-            ],
+            [c(-inf, nan), c(inf, nan), c(inf, nan), c(-inf, nan)],
         ),
         (
             47,
             c(-6.303_641_341_263_501e-08, 4.350_847_073_631_233e-248),
-            [
-                c(-inf, -4.122_211_410_107_205e+179),
-                c(-inf, -3.204_312_367_409_637e+188),
-                c(inf, 6.475_154_541_268_409e+179),
-                c(inf, 5.033_322_096_630_516e+188),
-            ],
+            [c(-inf, nan), c(-inf, nan), c(inf, nan), c(inf, nan)],
         ),
         // `sin z` and `cos z` overflow
         (
             69,
             c(1.711_550_130_702_050_8e-165, 856.830_233_793_455_2),
             [
-                c(-inf, 7.814_716_409_066_995_5e+202),
-                c(7.831_240_838_920_502e+202, inf),
+                c(-inf, nan),
+                c(nan, inf),
                 c(0.001_673_147_087_091_012_4, -0.000_756_668_577_395_661_5),
                 c(-0.001_666_748_202_095_432_4, 0.000_756_134_610_297_511),
             ],
         ),
         // `exp(-x)` underflows and `2^e` overflows
         (16500, c(10000.0, 1.0), [c(-inf, inf), c(inf, -inf), c(-inf, -inf), c(inf, inf)]),
-        // `1 / z` overflows
-        (0, c(0.0, 1e-310), [c(0.0, inf), c(-inf, 0.0), c(-FRAC_PI_2, -inf), c(inf, 0.0)]),
+        // `1 / z` overflows, and the zero parts of `y_n(iy)` are exact
+        (0, c(0.0, 1e-310), [c(0.0, inf), c(-inf, 0.0), c(nan, -inf), c(inf, nan)]),
+        // `Re k_2 = 1.0472e-241` and `Im k_2' = -2.0944e-121`
+        (2, c(0.0, 1e-120), [c(0.0, -inf), c(inf, 0.0), c(nan, inf), c(-inf, nan)]),
         // `k_1(-1) = 0`, so the first step cancels
-        (
-            200,
-            c(-1.0, 1e-310),
-            [
-                c(inf, 1.016_860_265_749_292_2e126),
-                c(inf, 2.054_032_505_023_626_1e128),
-                c(-inf, -1.593_321_907_432_099e126),
-                c(-inf, -3.218_549_788_308_514_4e128),
-            ],
-        ),
+        (200, c(-1.0, 1e-310), [c(inf, nan), c(inf, nan), c(-inf, nan), c(-inf, nan)]),
     ];
     let parts = |w: [num_complex::Complex64; 4]| w.map(|w| [w.re, w.im]);
     for (n, z, expected) in cases {
@@ -137,14 +121,26 @@ fn test_sph_bessel_complex_overflow() {
         xsref::np_assert_allclose!(actual.as_flattened(), expected.as_flattened(), rtol = 1e-13);
     }
 
-    // `exp(-x)` overflows, and `Re y_0`, at `1e-315 |y_0|`, keeps the precision of a subnormal
-    let y = xsf::sph_bessel_y(0, c(1e-315, 1420.0));
-    xsref::np_assert_allclose!(&[y.re], &[1.756_062_678_602_985_2e298], rtol = 1e-5);
-    assert_eq!(y.im, inf);
+    // `exp(-x)` overflows, and `Re y_0 = 8.6761e289` underflows before the final scaling
+    let z = c(f64::from_bits(1), 1420.0);
+    let (y, dy) = (xsf::sph_bessel_y(0, z), xsf::sph_bessel_y_prime(0, z));
+    xsref::np_assert_allclose!(&[y.re, y.im, dy.re, dy.im], &[nan, inf, inf, nan]);
 
-    // NaN where the recurrence of `k_n` is unstable (`k_300(z)` is `-inf + inf i`), past the range
-    // of AMOS, and for an infinite `z`
-    for (n, z) in [(300, c(-800.0, 1.0)), (0, c(0.0, 2.0_f64.powi(52))), (1, c(inf, 1.0))] {
+    // Within the cutoff on the error growth `exp(n (n + 1) / |z|) = 1024` of the recurrence
+    let z = c(-717.02, 1e-8);
+    let (k, dk) = (xsf::sph_bessel_k(70, z), xsf::sph_bessel_k_prime(70, z));
+    let expected = [
+        -1.711_718_179_477_103e307,
+        1.717_596_095_670_766e299,
+        1.717_596_095_670_765_9e307,
+        -1.723_474_510_911_305e299,
+    ];
+    xsref::np_assert_allclose!(&[k.re, k.im, dk.re, dk.im], &expected, rtol = 1e-12);
+
+    // NaN past that cutoff (`k_300(-800 + i) = -inf + inf i`), past the range of AMOS, and for an
+    // infinite `z`
+    let cases = [(70, c(-717.01, 1e-8)), (300, c(-800.0, 1.0)), (0, c(0.0, 2.0_f64.powi(52)))];
+    for (n, z) in cases.into_iter().chain([(1, c(inf, 1.0))]) {
         assert!(xsf::sph_bessel_k(n, z).re.is_nan());
         assert!(xsf::sph_bessel_k_prime(n, z).re.is_nan());
     }

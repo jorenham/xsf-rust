@@ -4,7 +4,7 @@
 //!
 //! Unlike in xsf, the order `n` is always 64-bit (C++ `long` is 32-bit on Windows).
 
-use core::f64::consts::{FRAC_PI_2, LN_2, LOG2_E, PI};
+use core::f64::consts::{FRAC_PI_2, LOG2_E, PI};
 
 use num_complex::Complex64;
 
@@ -192,8 +192,8 @@ const E_MAX: i64 = 1 << 13;
 /// A work limit on the order of [`sph_bessel_overflow`], which takes a step per order
 const N_MAX: i64 = 1 << 20;
 
-/// The largest error growth of [`sph_bessel_overflow`], `2^10`, as a natural logarithm
-const LN_GROWTH_MAX: f64 = 10.0 * LN_2;
+/// The cutoff of [`sph_bessel_overflow`] on its estimate of the error growth
+const GROWTH_MAX: f64 = 1024.0;
 
 /// `(f_n(z), f_n'(z))` for complex `z` where AMOS overflows, from the upward recurrence
 /// `f_(k+1) = (2k + 1) f_k / z + s f_(k-1)` of `y_n` (`s = -1`, DLMF 10.51.1) and `k_n` (`s = 1`,
@@ -205,12 +205,16 @@ const LN_GROWTH_MAX: f64 = 10.0 * LN_2;
 /// the overflow, as each step turns the phase of `f_n`.
 ///
 /// For `x < 0`, the other solution of the recurrence grows faster than `f_n`, which amplifies the
-/// rounding errors by up to `exp(min(-2x, n (n + 1) / |z|))` (measured). Where that exceeds `2^10`,
-/// for `n > N_MAX`, and as AMOS for `z = 0` and past its range (`ierr = 4`), this is `None`.
+/// rounding errors by about `exp(min(-2x, n (n + 1) / |z|))` (a heuristic estimate, measured).
+/// Where that exceeds `GROWTH_MAX`, for `n > N_MAX`, and as AMOS for `z = 0` and past its range
+/// (`ierr = 4`), this is `None`.
+///
+/// Otherwise, the error of a part is about `GROWTH_MAX (n + 1) eps |f|` at most, so a smaller part
+/// is NaN, as an overflowing part masks it, e.g. `Re k_2(1e-120 i) = 1e-241` with `Im k_2 = inf`.
 fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> Option<(C64, C64)> {
     let r = z.norm();
     let growth = (-2.0 * x).min(n as f64 * np1(n) / r);
-    if !((0..=N_MAX).contains(&n) && r > 0.0 && r <= 0.5 / MACH.0 && growth <= LN_GROWTH_MAX) {
+    if !((0..=N_MAX).contains(&n) && r > 0.0 && r <= 0.5 / MACH.0 && growth <= GROWTH_MAX.ln()) {
         return None;
     }
 
@@ -230,10 +234,16 @@ fn sph_bessel_overflow(n: i64, z: C64, s: f64, g_m1: C64, g_0: C64, x: f64) -> O
     // double-double), so that only the final `ldexp` can overflow
     let q = (-x * LOG2_E).round();
     let exp_t = (-f64::from(LOG2 * q + x)).exp();
+    // A part below the error is NaN, but the zero part of `y_n(iy)`, real or imaginary, is exact
+    let tol = GROWTH_MAX * np1(n) * f64::EPSILON;
+    let tol = if s < 0.0 && z.re == 0.0 { 0.0 } else { tol };
     let scale = |g: C64, e: i64| {
         let de = exp2(g);
         let e = (e + i64::from(de - m) + q as i64).clamp(-E_MAX, E_MAX) as i32;
-        (g.ldexp(-de) * rw * exp_t).ldexp(e)
+        let g = g.ldexp(-de) * rw;
+        let min = tol * g.re.abs().max(g.im.abs());
+        let part = |p: f64| if p.abs() >= min { p } else { f64::NAN };
+        (c64(part(g.re), part(g.im)) * exp_t).ldexp(e)
     };
     let dg = -s * g_m1.ldexp(m) - np1(n) * g_0 * rw;
     Some((scale(g_0, e), scale(dg, e - i64::from(m))))
@@ -447,7 +457,8 @@ fn sph_bessel_y_c64(n: i64, z: C64) -> C64 {
     sph_bessel_y_overflow(n, z).map_or(out, |f| f.0)
 }
 
-/// Unlike in xsf, where AMOS overflows, see [`sph_bessel_overflow`]
+/// Unlike in xsf, recurs upward from `y_(-1) = j_0` and `y_0` where AMOS overflows, instead of
+/// returning NaN (see [`sph_bessel_overflow`])
 fn sph_bessel_y_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     // `sin z` and `cos z` times `exp(-|y|)`, as they overflow for `|y| > 710`
     let (y, (sin_x, cos_x)) = (z.im.abs(), z.re.sin_cos());
@@ -661,7 +672,8 @@ fn sph_bessel_k_c64(n: i64, z: C64) -> C64 {
     sph_bessel_k_overflow(n, z).map_or(out, |f| f.0)
 }
 
-/// Unlike in xsf, where AMOS overflows, see [`sph_bessel_overflow`]
+/// Unlike in xsf, recurs upward from `k_(-1) = k_0` where AMOS overflows, instead of returning
+/// NaN (see [`sph_bessel_overflow`])
 fn sph_bessel_k_overflow(n: i64, z: C64) -> Option<(C64, C64)> {
     let g = FRAC_PI_2 * C64::cis(-z.im);
     sph_bessel_overflow(n, z, 1.0, g, g, z.re)
