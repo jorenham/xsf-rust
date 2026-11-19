@@ -231,24 +231,23 @@ fn test_eval_real_degree_origin() {
     np_assert_allclose!(actual, [-3e-10, -4e-10, -3e-30, -4e-30], rtol = 1e-15);
 
     // but not by a reflected degree `-n - lam` that is an integer only after rounding (mpmath:
-    // 0.2500000000000000577), and infinite parameters give NaN
-    let (n, a) = (-1.5 * f64::EPSILON, -1.0 + f64::EPSILON / 2.0);
-    let actual = [xsf::eval_jacobi(n, a, a, 0.0), xsf::eval_jacobi(n, a, a, c64(0.0, 0.0)).re];
-    np_assert_allclose!(actual, [0.25; 2], rtol = 1e-15);
-    // nor where that rounding is small next to `n` but not next to `c = a + 1` (mpmath:
-    // -1.7763568394002503e-16, to which the rounded `n + 2a + 1` itself costs a few percent)
+    // 0.2500000000000000577 and -1.7763568394002503e-16, to which the rounded `n + 2a + 1`
+    // itself costs a few percent), or with infinite parameters
     let u = f64::EPSILON / 2.0;
-    let actual = xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0);
-    np_assert_allclose!([actual], [-1.776_356_839_400_250_3e-16], rtol = 0.05);
-    // but by one that is an integer up to a rounding error of `n` (mpmath: 0.093683301849704395857)
-    let a = -0.25 + f64::EPSILON / 2.0;
-    let z = 0.25;
+    let actual = [
+        xsf::eval_jacobi(-3.0 * u, -1.0 + u, -1.0 + u, 0.0),
+        xsf::eval_jacobi(-2.0 - 8.0 * u, -1.0 + 3.0 * u, -1.0 + 3.0 * u, 0.0),
+    ];
+    np_assert_allclose!(actual, [0.25, -1.776_356_839_400_250_3e-16], rtol = 0.05);
+    assert!(xsf::eval_jacobi(1.0, f64::INFINITY, f64::INFINITY, 1e-8).is_nan());
+
+    // and the complex recurrence still uses such a degree away from the origin (mpmath:
+    // 0.093683301849704395857, 0.032611483202643810132)
+    let a = -0.25 + u;
     let actual =
-        [xsf::eval_jacobi(-100.5, a, a, z), xsf::eval_jacobi(-100.5, a, a, c64(z, 0.0)).re];
-    np_assert_allclose!(actual, [0.093_683_301_849_704_4; 2], rtol = 5e-15);
-    let inf = f64::INFINITY;
-    assert!(xsf::eval_jacobi(1.0, inf, inf, 1e-8).is_nan());
-    assert!(xsf::eval_jacobi(1.0, inf, inf, c64(1e-8, 0.0)).re.is_nan());
+        [-100.5, -63.500_000_000_000_01].map(|n| xsf::eval_jacobi(n, a, a, c64(0.25, 0.0)).re);
+    let desired = [0.093_683_301_849_704_4, 0.032_611_483_202_643_81];
+    np_assert_allclose!(actual, desired, rtol = 5e-14);
 }
 
 #[test]

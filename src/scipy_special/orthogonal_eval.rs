@@ -8,7 +8,7 @@ use core::ops::Range;
 use num_traits::Zero;
 
 use crate::utils::{LN_PI, SQRT_EPSILON, SQRT_PI, neg_one_pow};
-use crate::xsf::cephes::consts::{MACHEP, MAXGAM};
+use crate::xsf::cephes::consts::MAXGAM;
 use crate::xsf::cephes::dd_real::two_sum;
 use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 
@@ -106,9 +106,15 @@ mod sealed {
             lam: f64,
             sym: bool,
         ) -> Option<Self> {
-            // Unlike in xsf, integer degrees of the Gegenbauer case use the three-term recurrence
-            // near the origin (as for complex z), since the series cancels catastrophically there.
-            super::gegenbauer_int_degree(n, b, c, lam, sym)
+            // Unlike in xsf, odd integer degrees of the Gegenbauer case use the three-term
+            // recurrence near the origin (as for complex z), where the series cancels
+            // catastrophically to their small values (the even ones don't vanish there).
+            // The degree `-b` is used only if `b = n + lam` holds exactly (the 2F1 is symmetric in
+            // `n` and `-n - lam`), and infinite parameters are left to the series.
+            let exact = super::two_sum(n, lam) == (b, 0.0);
+            let nu = if exact { n.max(-b) } else { n };
+            super::int_degree(nu, 0.0, 0.0)
+                .filter(|&nu| nu % 2 == 1 && sym && c > 0.0 && lam.is_finite())
                 .filter(|_| self.abs() < super::ORIGIN_RADIUS)
                 .map(|n| super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, *self))
                 .filter(OrthoPolyArg::is_finite)
@@ -159,7 +165,9 @@ mod sealed {
             // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
             // z = 1, and lose the small values near the origin (as the power series in
             // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
-            super::gegenbauer_int_degree(n, b, c, lam, sym)
+            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
+            let p = super::int_degree(nu, 0.0, 0.0)
+                .filter(|_| sym && c > 0.0)
                 .map(|n| {
                     let z = if self.re < 0.0 { -*self } else { *self };
                     let mut p = if z.norm() < super::ORIGIN_RADIUS {
@@ -180,8 +188,8 @@ mod sealed {
                         }
                     }
                     p
-                })
-                .filter(OrthoPolyArg::is_finite)
+                });
+            p.filter(OrthoPolyArg::is_finite)
         }
     }
 }
@@ -303,21 +311,6 @@ fn is_classical(alpha: f64, beta: f64) -> bool {
 fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
     let int = n.fract() == 0.0 && (1.0..=1e5).contains(&n);
     (int && is_classical(alpha, beta)).then_some(n as i32)
-}
-
-/// `int_degree` of `n`, or of `-b` if that is larger and close enough to `n + lam`, in the
-/// Gegenbauer case `sym` of `hyp2f1_sh` with `c > 0` and a finite `lam`
-///
-/// With `d = n + lam - b` for the supplied `b`, the reflected 2F1 is `2F1(b, -n + d; c; z)`,
-/// whereas the series uses `2F1(b, -n; c; z)`. Moving `-n` by `d` acts like moving it by about
-/// `d / c` for `c < 1`, which is accepted up to a rounding error of `n`.
-fn gegenbauer_int_degree(n: f64, b: f64, c: f64, lam: f64, sym: bool) -> Option<i32> {
-    let (s, err) = two_sum(n, lam);
-    // `s - b` is exact for the callers' `b` (Sterbenz, or the coarse grid of large values)
-    let d = (s - b) + err;
-    let accurate = d.abs() <= MACHEP * n.abs() * c.min(1.0);
-    let nu = if accurate { n.max(-b) } else { n };
-    int_degree(nu, 0.0, 0.0).filter(|_| sym && c > 0.0 && lam.is_finite())
 }
 
 /// `eval_jacobi_l`, where `Re x < 0` is reflected (DLMF Table 18.6.1) if `alpha, beta > -1`
