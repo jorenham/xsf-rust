@@ -14,6 +14,10 @@ use crate::xsf::cephes::hyp2f1::{HYP2F1_EPS, HYP2F1_ETHRESH};
 /// The degrees `n` with an exact `n - 1`
 const EXACT_N_MINUS_1: core::ops::RangeInclusive<f64> = 1.0..=2.0 / f64::EPSILON;
 
+/// The `|x|` below which the integer degrees of the Gegenbauer case of `hyp2f1_sh` use
+/// `gegenbauer_hyp2f1_origin`
+const ORIGIN_RADIUS: f64 = 1e-5;
+
 mod sealed {
     pub trait OrthoPolyArg:
         crate::xsf::Hyp2F1Arg
@@ -91,6 +95,23 @@ mod sealed {
             let y = crate::hyp2f1(-n, b, c, self * -0.5 + 0.5);
             super::jacobi_hyp2f1_recurrence(self, nu, lam, c, y).unwrap_or(y)
         }
+
+        #[inline]
+        fn hyp2f1_sh_recurrence(
+            &self,
+            n: f64,
+            b: f64,
+            c: f64,
+            lam: f64,
+            sym: bool,
+        ) -> Option<Self> {
+            // Unlike in xsf, integer degrees of the Gegenbauer case use the three-term recurrence
+            // near the origin (as for complex z), since the series cancels catastrophically there.
+            super::gegenbauer_int_degree(n, b, c, sym)
+                .filter(|_| self.abs() < super::ORIGIN_RADIUS)
+                .map(|n| super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, *self))
+                .filter(OrthoPolyArg::is_finite)
+        }
     }
 
     impl OrthoPolyArg for num_complex::Complex<f64> {
@@ -137,12 +158,10 @@ mod sealed {
             // c = 1 (Legendre), the Jacobi recurrence is exact and more accurate. Both start at
             // z = 1, and lose the small values near the origin (as the power series in
             // `eval_gegenbauer_l`), where the three-term recurrence keeps them.
-            let nu = n.max(-b); // the 2F1 is symmetric in n and -n - lam
-            let p = super::int_degree(nu, 0.0, 0.0)
-                .filter(|_| sym && c > 0.0)
+            super::gegenbauer_int_degree(n, b, c, sym)
                 .map(|n| {
                     let z = if self.re < 0.0 { -*self } else { *self };
-                    let mut p = if z.norm() < 1e-5 {
+                    let mut p = if z.norm() < super::ORIGIN_RADIUS {
                         super::gegenbauer_hyp2f1_origin(n, 0.5 * lam, z)
                     } else if c == 1.0 {
                         super::eval_jacobi_l(n, 0.0, 0.0, z)
@@ -160,8 +179,8 @@ mod sealed {
                         }
                     }
                     p
-                });
-            p.filter(OrthoPolyArg::is_finite)
+                })
+                .filter(OrthoPolyArg::is_finite)
         }
     }
 }
@@ -283,6 +302,12 @@ fn is_classical(alpha: f64, beta: f64) -> bool {
 fn int_degree(n: f64, alpha: f64, beta: f64) -> Option<i32> {
     let int = n.fract() == 0.0 && (1.0..=1e5).contains(&n);
     (int && is_classical(alpha, beta)).then_some(n as i32)
+}
+
+/// `int_degree` of the larger of `n` and `-n - lam` (the 2F1 of `hyp2f1_sh` is symmetric in
+/// them) in its Gegenbauer case `sym` with `c > 0`
+fn gegenbauer_int_degree(n: f64, b: f64, c: f64, sym: bool) -> Option<i32> {
+    int_degree(n.max(-b), 0.0, 0.0).filter(|_| sym && c > 0.0)
 }
 
 /// `eval_jacobi_l`, where `Re x < 0` is reflected (DLMF Table 18.6.1) if `alpha, beta > -1`

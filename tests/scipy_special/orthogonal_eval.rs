@@ -219,6 +219,19 @@ fn test_eval_integer_degree_complex() {
 }
 
 #[test]
+fn test_eval_chebyshev_real_degree_origin() {
+    // the small values near the origin don't drown in rounding errors of order 1 (exact:
+    // T_3 = 4x^3 - 3x, U_3 = 8x^3 - 4x, U_{-n-2} = -U_n)
+    let actual = [
+        xsf::eval_chebyshev_t(3.0, 1e-10),
+        xsf::eval_chebyshev_u(3.0, 1e-10),
+        xsf::eval_chebyshev_t(-3.0, 1e-30),
+        xsf::eval_chebyshev_u(-5.0, -1e-30),
+    ];
+    np_assert_allclose!(actual, [-3e-10, -4e-10, -3e-30, -4e-30], rtol = 1e-15);
+}
+
+#[test]
 fn test_eval_jacobi_alpha_near_minus_one() {
     // `binom(n + alpha, n)` lost the digits of `alpha + 1`, and `hyp2f1` treated it as 0 (Arb)
     let actual = [
