@@ -1639,9 +1639,10 @@ def _e1_arb(z: flint.acb) -> flint.acb:
 E1_FLOORS: Final = (
     Floor(
         lambda a: a[0] > 0 and 1 <= math.hypot(*a) <= 2,
-        9e-16,
+        2e-15,
         "for Re z > 0 and 1 <= |z| <= 2, the real part of xsf-rust's clog can be 1 ulp from "
-        "glibc's, amplified by the cancellation in -gamma - ln z + z sum of the power series",
+        "glibc's (or that of the libm on macOS and Windows), amplified by the cancellation in "
+        "-gamma - ln z + z sum of the power series",
     ),
     Floor(
         lambda a: math.hypot(*a) >= 40 and a[0] < -2 * abs(a[1]) and abs(a[1]) < 1,
