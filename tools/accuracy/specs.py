@@ -2646,7 +2646,7 @@ def _pfq_one_sum(a, b, excess):
 
     and the terms sum to Hurwitz zeta functions (DLMF 25.11.1). The b_j include the 1 of n!."""
     a, b = [mp.mpf(v) for v in a], [mp.mpf(v) for v in b] + [mp.mpf(1)]
-    q = flint.fmpq(excess.numerator, excess.denominator)
+    q = flint.fmpq(int(excess.numerator), int(excess.denominator))
     n = max(64, int(32 * max(abs(v) for v in (*a, *b))))
     s, t, top = mp.mpf(0), mp.mpf(1), mp.mpf(1)
     for k in range(n):
