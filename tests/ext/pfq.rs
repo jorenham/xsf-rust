@@ -223,6 +223,27 @@ fn test_hyp3f2_conformal() {
 }
 
 #[test]
+fn test_hyp3f2_long_series() {
+    // near z = 1, the terms cancel in `f64`, and the series in double-double takes more than
+    // 2500 terms; Arb references
+    for (a, b, z, expected) in [
+        ([30.0, -0.015_625, -23.125], [-1.75, 0.359_375], 0.98, -167_348_338.199_215),
+        ([12.5, 0.6875, -10.125], [-0.015_625, 0.171_875], 0.995, 13_118_233.367_026_178),
+        // more than 10^4 terms
+        ([0.468_75, -0.031_25, -0.8125], [-24.25, -17.5], 0.99, -2.407_886_558_460_386e90),
+        // terms below half an ulp of the sum, which `f64` drops
+        ([6e-30, 12.0, 13.0], [7.0, 11.0], 0.999, 1.000_000_000_000_594_9),
+    ] {
+        assert_hyp3f2(a, b, z, expected);
+        assert_eq!(hyppfq(&a, &b, z), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], z)));
+    }
+    // the terms cancel too much, also in double-double (Arb reference)
+    let (y, expected) =
+        (hyp3f2(-84.75, 59.5, 5.75, 17.25, 39.25, 0.996), 1.206_571_594_222_440_5e-6);
+    assert!(y.is_nan() || (y - expected).abs() <= 1e-13 * expected, "{y}");
+}
+
+#[test]
 fn test_hyp3f2_recurrence() {
     // the terms cancel too much, also in double-double; Arb references
     for (a, b, z, expected) in [

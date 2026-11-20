@@ -32,6 +32,12 @@ const PFQ_MAXITER: u32 = 10_000;
 /// about 20 times as long
 const PFQ_DD_MAXITER: u32 = PFQ_MAXITER / 4;
 
+/// Maximum number of terms of `pfq_series_long`
+///
+/// Of 199 `None` of 3F2 on 20000 points, it gives 13, and twice as many terms would give 4
+/// more, in up to twice the time (measured).
+const PFQ_LONG_MAXITER: u32 = 2 * PFQ_MAXITER;
+
 /// Largest estimated relative error of an accurate result, after which no other method is tried
 const PFQ_TOL: f64 = 1e-13;
 
@@ -457,6 +463,14 @@ pub(crate) fn pfq_series(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -
     (y, err)
 }
 
+/// The series in double-double with up to `PFQ_LONG_MAXITER` terms, if it is accurate, as near
+/// `z = 1` it can need more than `pfq_series`, and an `f64` sum can drop its small terms
+fn pfq_series_long(a: &impl AsRef<[f64]>, b: &impl AsRef<[f64]>, z: f64) -> Option<(f64, f64)> {
+    let (y, err, _) = pfq_sum::<Dd>(a, b, z, PFQ_LONG_MAXITER);
+    let y = (f64::from(y), err);
+    Estimate::absolute(y).is_accurate().then_some(y)
+}
+
 /// Largest partial sum, in units of `unit`, whose square is added to the sums of squares
 const PFQ_SQUARE_MAX: f64 = 1e150;
 
@@ -825,7 +839,8 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 /// else by the most accurate one
 ///
 /// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
-/// which is the slowest, and for `|z| < 1` `pfq_recurrence`, which only applies to 3F2.
+/// which is the slowest, and for `|z| < 1` `pfq_recurrence`, which only applies to 3F2, and
+/// `pfq_series_long`.
 fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
@@ -841,9 +856,12 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
         &[pfq_continuation, pfq_weniger::<f64>]
     };
     let last: Option<Method<P>> = (!polynomial).then_some(conformal::pfq_conformal);
-    let recurrence: Option<Method<P>> =
-        (!polynomial && z.abs() < 1.0).then_some(recurrence::pfq_recurrence);
-    let methods = methods.iter().chain(&last).chain(&recurrence);
+    let inside: &[Method<P>] = if !polynomial && z.abs() < 1.0 {
+        &[recurrence::pfq_recurrence, pfq_series_long]
+    } else {
+        &[]
+    };
+    let methods = methods.iter().chain(&last).chain(inside);
     methods.fold(None, |y, method| y.or_better(|| method(a, b, z).map(Estimate::absolute)))
 }
 
