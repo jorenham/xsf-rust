@@ -80,6 +80,9 @@ mod rjimpl {
         pub(super) retry_caupv: bool,   /* should use Cauchy principal value */
         pub(super) good_infinity: bool, /* the "good" kind of directed infinity */
         pub(super) hit_pole: bool,      /* singular */
+        // Unlike in xsf, whether `lam` is real outside the right half-plane, i.e. for real
+        // `x, y, z` or a conjugate pair and a real third
+        pub(super) real_lam: bool,
     }
 
     /* Comparison function by the real part. */
@@ -155,10 +158,11 @@ mod rjimpl {
             /* "... or else let two of the variables x, y, z be nonzero and
              * conjugate complex with phase less in magnitude than pi and the
              * third variable be real and nonnegative." */
-            return xyzreal_nonneg_atmost1z
+            classify.real_lam = xyzreal_nonneg_atmost1z
                 || argcheck::r1conj2(x, y, z)
                 || argcheck::r1conj2(y, z, x)
                 || argcheck::r1conj2(z, x, y);
+            return classify.real_lam;
         }
         false
     }
@@ -838,6 +842,11 @@ fn rj_unscaled<T: Num>(
             // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
                 pl = common::add_lambda_p(pm, xyz, xyzl);
+                // Unlike in xsf, `Im(p + lam) = 4^-m Im p` if `lam` is real: the shift by a complex
+                // `a` can lose a tiny `Im p`, and with it the side of the branch cut
+                if classify.real_lam {
+                    pl = (p - p.real()) * d4m + pl.real();
+                }
                 // Unlike in xsf, in the right half-plane the real part of `p + lam` is at least its
                 // lower bound `4^-m Re p`: rounded to the left of the imaginary axis, `p + lam` and
                 // the `R_C` terms can be on different branches.
@@ -879,12 +888,13 @@ fn rj_unscaled<T: Num>(
 
     // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
     //
-    // Unlike in xsf, from `u` if `1 + t` cancels in the right half-plane, e.g. after a step where
-    // `p + lam` cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u` underflows.
+    // Unlike in xsf, from `u` if `1 + t` cancels in the right half-plane or if `lam` is real, e.g.
+    // after a step where `p + lam` cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u`
+    // underflows.
     //
     // (not elsewhere: `p + lam` can lose a tiny `Im p` there, and `u` its side of the cut)
     let rc1 = |t: T, u: T| {
-        if !(right && cancels(T::from(1.0), u)) {
+        if !((right || classify.real_lam) && cancels(T::from(1.0), u)) {
             t.safe_atan_sqrt_div()
         } else if u.max_norm().is_normal() {
             rc(T::from(1.0), u, rerr).1
