@@ -54,8 +54,8 @@ use core::cell::Cell;
 use core::iter::{once, zip};
 
 use super::{
-    Dd, Estimate, PFQ_DD_MAXITER, PFQ_MAXITER, Params, SeriesReal, descending, first_zero,
-    pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
+    Dd, Estimate, PFQ_DD_MAXITER, PFQ_LONG_MAXITER, PFQ_MAXITER, PFQ_TOL, Params, SeriesReal,
+    descending, first_zero, pfq_extreme, pfq_ratio, pfq_sum_terms, pfq_terms_of,
 };
 
 /// The `m` for which the recurrence steps down from the series at `b + m`, in the order in which
@@ -75,6 +75,13 @@ const RAISED_MIN: f64 = 3.0;
 /// Of 1927 results on 126504 points, 1880 are within it, and twice as much gives 37 more
 /// (measured).
 const RAISED_WORK: u32 = 2 * PFQ_MAXITER;
+
+/// Most steps and series terms of all tries of `pfq_recurrence_balanced` together: the terms of
+/// three starts of `PFQ_LONG_MAXITER` each
+///
+/// Of its 82 results without it on 1059 points where the other methods are not accurate, 80 are
+/// within it (measured).
+const BALANCED_WORK: u32 = 3 * PFQ_LONG_MAXITER;
 
 /// Bound of the rounding error of a step, relative to the sizes of the terms of its sum:
 /// `Dd::EPSILON` for each of its at most 17 inexact operations in a row (`u - 1`, `u - 2`,
@@ -393,6 +400,40 @@ pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<
     // (exact, as `small + k` is in `(small, 0)`)
     let start = |k: f64| raised_first(a, [small + k, large], z, &work);
     recurrence_first(toward_zero(small), |m| lower_steps(a, small, large, z, m, start))
+}
+
+/// 3F2 for `|z| < 1` by the steps down in a negative upper parameter from about the most steps
+/// whose rounding errors are within half of the tolerance, and an estimate of its absolute error,
+/// or `None` if it is not 3F2 or not accurate
+///
+/// With fewer steps, the series at their start cancels more, and with more, their rounding errors
+/// grow more, which can leave a narrow range of steps that those of `toward_zero` miss. The series
+/// have up to `PFQ_LONG_MAXITER` terms, as near `z = 1` they can need more than
+/// `PFQ_DD_MAXITER` where `a_i + m` is near 0. All of them and the steps share `BALANCED_WORK`.
+///
+/// The search is a heuristic: it bisects as if the estimate of the rounding errors grew with the
+/// steps and only too few steps made a start inaccurate, which the long series near `z = 1` and
+/// the rounding of the starts can break, and it returns the first accurate result it finds.
+pub(super) fn pfq_recurrence_balanced<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    let (a, b) = params_3f2(a, b)?;
+    let work = Cell::new(BALANCED_WORK);
+    let balanced = |i| {
+        let run = |m| upper_recurrence(a, i, b, z, m, PFQ_LONG_MAXITER, &work);
+        // the most steps in `[1, steps_to_zero)` that are within, by bisection
+        let (mut low, mut high) = (0, steps_to_zero(a[i]));
+        while low + 1 < high {
+            let m = low.midpoint(high);
+            let y = run(m);
+            if let Some(y) = y.and_then(|(y, _, err)| accurate(y, err)) {
+                return Some(y);
+            }
+            // within half of the tolerance, which leaves the other half to the series
+            let within = y.is_none_or(|(y, rounding, _)| 2.0 * rounding <= PFQ_TOL * y.hi.abs());
+            if within { low = m } else { high = m }
+        }
+        None
+    };
+    (0..3).find_map(balanced)
 }
 
 #[cfg(test)]
