@@ -175,11 +175,7 @@ pub(crate) fn cchg(mut a: f64, b: f64, mut z: C64) -> C64 {
     if (a == 1.0) && (b == 2.0) {
         // `expm1` only near 0: `exp(z) - 1` cancels there, but `expm1` overflows for large Re z
         let near_zero = z.re.abs() < 1.0 && z.im.abs() < 1.0;
-        let em1 = if near_zero {
-            cexpm1(z)
-        } else {
-            z.exp() - 1.0
-        };
+        let em1 = if near_zero { cexpm1(z) } else { z.exp() - 1.0 };
         return em1 / z;
     }
     if (a == f64::from(a as i32)) && (a < 0.0) {
