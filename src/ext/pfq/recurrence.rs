@@ -181,14 +181,26 @@ fn recurrence_from(
     Some((f[0], rounding, rounding + series))
 }
 
-/// `recurrence_from` in the lower parameter `bj`, where `other` is the other one
-fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<(Dd, f64, f64)> {
+/// `recurrence_from` in the lower parameter `bj`, where `other` is the other one, or `None` if a
+/// series is not accurate or `work` runs out, of which each step and term takes one
+fn lower_recurrence(
+    a: [f64; 3],
+    bj: f64,
+    other: f64,
+    z: f64,
+    m: u32,
+    work: &Cell<u32>,
+) -> Option<(Dd, f64, f64)> {
     let checked = pfq_extreme(&a, &[bj, other, 1.0]);
+    work.set(work.get().checked_sub(m)?);
     let start = |k: f64| {
         // the terms for `u` itself, which `pfq_terms` would round
         let u = Dd::new(bj) + k;
-        let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
-        recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER, ratio)
+        let ratio = |n| {
+            work.set(work.get() - 1);
+            pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n)
+        };
+        recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER.min(work.get()), ratio)
     };
     lower_steps(a, bj, other, z, m, start)
 }
@@ -310,14 +322,14 @@ fn accurate(y: Dd, err: f64) -> Option<(f64, f64)> {
 fn recurrence_first(
     starts: impl IntoIterator<Item = u32>,
     run: impl Fn(u32) -> Option<(Dd, f64, f64)>,
-) -> Option<(f64, f64)> {
+) -> Option<(Dd, f64)> {
     for m in starts {
         // (a series that is not accurate may be for a larger `m`)
         let Some((y, rounding, err)) = run(m) else {
             continue;
         };
-        if let Some(result) = accurate(y, err) {
-            return Some(result);
+        if accurate(y, err).is_some() {
+            return Some((y, err));
         }
         // a larger `m` ends with the same steps, after more of them
         if accurate(y, rounding).is_none() {
@@ -373,21 +385,21 @@ fn params_3f2<P: Params>(a: &P, b: &P) -> Option<([f64; 3], [f64; 2])> {
 /// or `None` if it is not 3F2 or not accurate
 pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
     let (a, [large, small]) = params_3f2(a, b)?;
-    let lower =
-        |(bj, other)| recurrence_first(RECURRENCE_STARTS, |m| lower_recurrence(a, bj, other, z, m));
+    let lower = |(bj, other)| {
+        let run = |m| lower_recurrence(a, bj, other, z, m, &Cell::new(u32::MAX));
+        recurrence_first(RECURRENCE_STARTS, run)
+    };
     let upper = |i: usize| {
         let run =
             |m| upper_recurrence(a, i, [large, small], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX));
         recurrence_first(toward_zero(a[i]), run)
     };
-    let raised = || {
-        let work = Cell::new(RAISED_WORK);
-        raised_first(a, [large, small], z, &work).and_then(|(y, err)| accurate(y, err))
-    };
+    let raised = || raised_first(a, [large, small], z, &Cell::new(RAISED_WORK));
     // first in the smaller lower parameter, then in the negative upper ones, and last up in the
     // large upper ones for z < 0, each in at most as many steps as the series has terms
     let lowers = [(small, large), (large, small)].into_iter().find_map(lower);
-    lowers.or_else(|| (0..3).find_map(upper)).or_else(raised)
+    let (y, err) = lowers.or_else(|| (0..3).find_map(upper)).or_else(raised)?;
+    accurate(y, err)
 }
 
 /// 3F2 for `|z| < 1` by the steps down in a negative smaller lower parameter from where
@@ -399,7 +411,9 @@ pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<
     let work = Cell::new(3 * RAISED_WORK);
     // (exact, as `small + k` is in `(small, 0)`)
     let start = |k: f64| raised_first(a, [small + k, large], z, &work);
-    recurrence_first(toward_zero(small), |m| lower_steps(a, small, large, z, m, start))
+    let (y, err) =
+        recurrence_first(toward_zero(small), |m| lower_steps(a, small, large, z, m, start))?;
+    accurate(y, err)
 }
 
 /// 3F2 for `|z| < 1` by the steps down in a negative upper parameter from about the most steps
@@ -474,6 +488,7 @@ mod tests {
             let result = recurrence_first([m], |m| {
                 upper_recurrence(a, 2, [b1, b2], z, m, PFQ_DD_MAXITER, &Cell::new(u32::MAX))
             });
+            let result = result.and_then(|(y, err)| accurate(y, err));
             assert_estimate(result, a, descending([b1, b2, 1.0]), z);
         }
     }
