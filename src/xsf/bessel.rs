@@ -34,6 +34,8 @@ pub trait BesselArg:
     fn bessel_y(self, v: f64) -> Self;
     fn bessel_ye(self, v: f64) -> Self;
     fn bessel_i(self, v: f64) -> Self;
+    /// `bessel_i` as in xsf, where the overflow of a part makes both inf or NaN
+    fn bessel_i_xsf(self, v: f64) -> Self;
     fn bessel_ie(self, v: f64) -> Self;
     fn bessel_k(self, v: f64) -> Self;
     fn bessel_ke(self, v: f64) -> Self;
@@ -59,6 +61,10 @@ impl BesselArg for f64 {
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
         crate::xsf::cephes::iv(v, self)
+    }
+    #[inline]
+    fn bessel_i_xsf(self, v: f64) -> Self {
+        self.bessel_i(v)
     }
     #[inline]
     fn bessel_ie(self, v: f64) -> Self {
@@ -93,6 +99,10 @@ impl BesselArg for Complex<f64> {
     }
     #[inline]
     fn bessel_i(self, v: f64) -> Self {
+        self.via(|z| cyl_bessel_i_amos(v, z, true))
+    }
+    #[inline]
+    fn bessel_i_xsf(self, v: f64) -> Self {
         self.via(|z| cyl_bessel_i_c64(v, z))
     }
     #[inline]
@@ -355,7 +365,14 @@ fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
     c64(part(ie.re, cy.re), part(ie.im, cy.im))
 }
 
-pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
+pub(crate) fn cyl_bessel_i_c64(v: f64, z: C64) -> C64 {
+    cyl_bessel_i_amos(v, z, false)
+}
+
+/// With `by_part`, unlike in xsf, a part below `f64::MAX` stays finite where the other overflows.
+/// Only for the value of `bessel_i`, as a sum of such values (e.g. a derivative) can be inf where
+/// xsf is NaN.
+fn cyl_bessel_i_amos(mut v: f64, z: C64, by_part: bool) -> C64 {
     let kode = 1;
     let mut sign = 1.0;
 
@@ -376,8 +393,12 @@ pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {
                 cy.re = f64::INFINITY;
             }
             cy.im = 0.0;
-        } else {
+        } else if by_part {
             cy = cyl_bessel_i_overflow(v, z);
+        } else {
+            cy = cyl_bessel_ie_c64(v * sign, z);
+            cy.re *= f64::INFINITY;
+            cy.im *= f64::INFINITY;
         }
     }
 

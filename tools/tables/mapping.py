@@ -1866,6 +1866,17 @@ def _i_part_overflows(a: tuple[float, ...]) -> bool:
     return math.isinf(float(i.real.mid())) != math.isinf(float(i.imag.mid()))
 
 
+def _k_reflection_overflows(a: tuple[float, ...]) -> bool:
+    """Whether the K_-v(z) of xsf's reflection for a non-integer v < 0 (DLMF 10.27.2) overflows,
+    which makes its I_v(z) NaN where a part of it overflows."""
+    v, x, y = a
+    if v >= 0 or v.is_integer():
+        return False
+    with flint.ctx.workprec(128):
+        k = flint.acb(x, y).bessel_k(flint.arb(-v))
+    return float(abs(k).log().mid()) > LOG_MAX
+
+
 I_PART_OVERRIDES: Final = (
     Override(
         lambda a: a[0] >= 0 and _i_part_overflows(a),
@@ -1873,7 +1884,7 @@ I_PART_OVERRIDES: Final = (
         " (`ierr = 2`)",
     ),
     Override(
-        lambda a: a[0] < 0 and not a[0].is_integer() and _i_part_overflows(a),
+        lambda a: _k_reflection_overflows(a) and _i_part_overflows(a),
         "xsref has the finite part where the other part of I_v(z) overflows, but xsf is NaN"
         " there, by the K_-v(z) of its reflection (DLMF 10.27.2)",
     ),
