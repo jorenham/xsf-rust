@@ -252,6 +252,24 @@ fn test_bessel_ie_negative_order_large_imag() {
 }
 
 #[test]
+fn test_bessel_ye_large_order_large_imag() {
+    // Arb: |z| < v, where e^-2|Im z| underflows (was half the value)
+    let z = [
+        c64(-56.628_806_048_134_02, 642.064_090_486_218_4),
+        c64(0.874_908_836_744_878, 654.491_289_262_904_2),
+        c64(-76.629_816_771_216_21, 610.825_715_575_559_7),
+    ];
+    let expected = [
+        c64(2.074_005_539_824_065e-266, -2.802_308_574_285_694_5e-266),
+        c64(1.171_146_111_371_311_2e-281, -4.330_334_894_877_472e-280),
+        c64(4.744_524_902_874_874e-229, 1.499_209_524_082_626e-228),
+    ];
+    np_assert_allclose!(&z.map(|z| xsf::bessel_ye(1000.0, z)), &expected, rtol = 3e-13);
+    let conj = |z: [Complex64; 3]| z.map(|z| z.conj());
+    np_assert_allclose!(&conj(z).map(|z| xsf::bessel_ye(1000.0, z)), &conj(expected), rtol = 3e-13);
+}
+
+#[test]
 fn test_bessel_k_huge_order_overflow() {
     // K_v(x) and e^x K_v(x) overflow (DLMF 10.41.2, 10.41.4); for the last, ln(e^x K_v(x)) = 3.5e8
     let inf = f64::INFINITY;
