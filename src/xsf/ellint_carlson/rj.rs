@@ -394,13 +394,26 @@ pub(super) fn safe_atan_sqrt_div(x: f64) -> f64 {
 /// `R_C(alpha^2, beta^2) = 2 R_C(1, 2 beta / d) / d` by duplication
 /// ([DLMF 19.26.18](https://dlmf.nist.gov/19.26.E18)) and
 /// `d = alpha + beta = (sqrt(p) + sqrt(x)) (sqrt(p) + sqrt(y)) (sqrt(p) + sqrt(z))`
-fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
-    let (xyz, sq) = common::duplicate([x, y, z]);
-    let xyz4 = [x, y, z].map(|a| a * 0.25);
-    // `sqrt(p) / 2`, exact for subnormal `p`
-    let sp = p.sqrt() * 0.5;
-    let p4 = p * 0.25;
-    let mut pd = p4 + common::lambda([x, y, z], sq);
+///
+/// The arguments are scaled by `h^2` first (`R_J` is homogeneous of degree -3/2), i.e. quartered
+/// for `h = 1 / 2`.
+fn rj_duplicated<T: Num>(
+    x: T,
+    y: T,
+    z: T,
+    p: T,
+    h: f64,
+    rerr: f64,
+    noasymp: bool,
+) -> (ExitStatus, T) {
+    // `sqrt(a) h`, exact for subnormal `a` if `h = 1 / 2`
+    let sq = [x, y, z].map(|a| a.sqrt() * h);
+    let sp = p.sqrt() * h;
+    let xyz4 = [x, y, z].map(|a| a * (h * h));
+    let p4 = p * (h * h);
+    let lam = common::lambda([x, y, z], sq);
+    let xyz = common::add_lambda(xyz4, sq, lam);
+    let mut pd = p4 + lam;
     // Like in the loop, from the nearest shifted argument if it cancels, but only the parts that
     // cancel themselves: in the other one, the shift can lose a tiny part of `p`, and with it the
     // side of the branch cut that `p` is on
@@ -415,7 +428,22 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
         let imag_source = if cancels(T::imag) { pl } else { pd };
         pd = imag_source + -imag_source.real() + re;
     }
-    // `d / 8 = d1 d23 2^de` and `2 beta / d` with all factors as `frexp`, so that no partial
+    // Unlike in xsf, not quartered (`h = 1`) if that rounds a subnormal `p - a` and the square
+    // root sum of `p` and `a` cancels, which is formed from it, or `p + lam` cancels, which is
+    // formed from that of the nearest `a` (any `a` counts here)
+    let rounded = |i: usize| {
+        let d = p4 - xyz4[i];
+        d.too_small() && d * 4.0 != p - [x, y, z][i]
+    };
+    let cancels = |i: usize| pd.abs() < p4.abs() || (sp + sq[i]).abs() < sp.abs();
+    if h < 1.0 && (0..3).any(|i| rounded(i) && cancels(i)) {
+        return rj_duplicated(x, y, z, p, 1.0, rerr, noasymp);
+    }
+    // NaN if the unquartered duplicated arguments overflow
+    if h >= 1.0 && !(xyz.iter().all(|a| a.is_finite()) && pd.is_finite()) {
+        return (ExitStatus::PrecLoss, T::NAN);
+    }
+    // `d h^3 = d1 d23 2^de` and `2 beta / d` with all factors as `frexp`, so that no partial
     // product or quotient under- or overflows (near the branch cut, a factor of `d` and `p + lam`
     // can be tiny next to a huge `sqrt(p)`)
     let factor = |i: usize| common::sqrt_sum_frexp(p4, xyz4[i], sp, sq[i]);
@@ -436,7 +464,8 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if status_rc != ExitStatus::Success {
         status = status_rc;
     }
-    (status, res * 0.25 + (res_rc * 0.75 / d1 / d23).ldexp(-de))
+    let c = 2.0 * h * h * h;
+    (status, res * c + (res_rc * (3.0 * c) / d1 / d23).ldexp(-de))
 }
 
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
@@ -542,7 +571,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
     // duplication step first raises the tiny one
     if common::needs_duplication(&[xm, ym, zm, p], min) {
-        return rj_duplicated(xm, ym, zm, p, rerr, noasymp);
+        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
     }
 
     // Unlike in xsf, also for complex input with `p` tiny relative to `x, y, z`, where the loop's
@@ -553,7 +582,7 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
     // (not if rounding moves the shifted arguments out of the domain, e.g. a real part to below 0)
     let tiny_p = |a: &T| p.max_norm() <= config::ASYM_ZERO_UL * a.max_norm();
     if !real && [xm, ym, zm].iter().all(tiny_p) {
-        let (status, res) = rj_duplicated(xm, ym, zm, p, rerr, noasymp);
+        let (status, res) = rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
         if status != ExitStatus::BadArgs {
             return (status, res);
         }
