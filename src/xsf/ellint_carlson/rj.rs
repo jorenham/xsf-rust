@@ -401,11 +401,15 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     let sp = p.sqrt() * 0.5;
     let p4 = p * 0.25;
     let pd = p4 + common::lambda([x, y, z], sq);
-    // `d / 8 = d1 d23`
-    let [d1, d2, d3] = core::array::from_fn(|i| common::sqrt_sum(p4, xyz4[i], sp, sq[i]));
-    let d23 = d2 * d3;
-    let u = sp / d1 * (pd / d23) * 2.0;
-    // Unlike in xsf, NaN if `p + lam` cancels and `u` underflows
+    // `d / 8 = d1 d23 2^de` and `2 beta / d` with all factors as `frexp`, so that no partial
+    // product or quotient under- or overflows (near the branch cut, a factor of `d` and `p + lam`
+    // can be tiny next to a huge `sqrt(p)`)
+    let factor = |i: usize| common::sqrt_sum_frexp(p4, xyz4[i], sp, sq[i]);
+    let [(d1, e1), (d2, e2), (d3, e3)] = core::array::from_fn(factor);
+    let (d23, de) = (d2 * d3, e1 + e2 + e3);
+    let [(spm, spe), (pdm, pde)] = [sp, pd].map(common::frexp);
+    let u = (spm / d1 * (pdm / d23)).ldexp(spe + pde - de + 1);
+    // Unlike in xsf, NaN if `p + lam` cancels and `u` isn't normal, i.e. under- or overflows
     if pd.abs() < p4.abs() && !u.max_norm().is_normal() {
         return (ExitStatus::PrecLoss, T::NAN);
     }
@@ -414,7 +418,7 @@ fn rj_duplicated<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (E
     if status_rc != ExitStatus::Success {
         status = status_rc;
     }
-    (status, res * 0.25 + res_rc * 0.75 / d1 / d23)
+    (status, res * 0.25 + (res_rc * 0.75 / d1 / d23).ldexp(-de))
 }
 
 pub(super) fn rj<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (ExitStatus, T) {
