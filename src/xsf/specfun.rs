@@ -19,7 +19,10 @@ mod sphd;
 pub(crate) use bessel::{cyzo, jdzo, jynb, jyzo, lamn, lamv, msta2, sphj, sphy};
 pub(crate) use erf::cerzo;
 pub(crate) use gamma::{cgama, gamma2, psi_spec};
-pub(crate) use hyperg::{cchg, chgm, chgu, hyp1f1_neg_b_fallback, hyp1f1_small_b};
+pub(crate) use hyperg::{
+    cchg, chgm, chgu, hyp1f1_neg_b_fallback, hyp1f1_pole_poly_c64, hyp1f1_pole_poly_f64,
+    hyp1f1_small_b,
+};
 pub(crate) use legendre::{lpmns, lpmv, lqmns};
 pub(crate) use mathieu::{cva2, fcoef, mtu0, mtu12};
 pub(crate) use numbers::{bernob, eulerb};
@@ -88,6 +91,12 @@ impl Hyp1F1Arg for f64 {
     #[inline]
     fn hyp1f1(self, a: f64, b: f64) -> Self {
         // `xsf::hyp1f1`
+        if self.is_nan() {
+            return f64::NAN;
+        }
+        if let Some(p) = hyp1f1_pole_poly_f64(a, b, self) {
+            return p;
+        }
         let hg = hyp1f1_neg_b_fallback(a, b, self, chgm(self, a, b));
         hyp1f1_small_b(a, b, c64(self, 0.0), c64(hg, 0.0)).re
     }
@@ -100,6 +109,9 @@ impl Hyp1F1Arg for Complex<f64> {
         self.via(|z| {
             if a.is_nan() || b.is_nan() || z.is_nan() {
                 return C64::NAN;
+            }
+            if let Some(p) = hyp1f1_pole_poly_c64(a, b, z) {
+                return p;
             }
             let mut outz = hyp1f1_small_b(a, b, z, cchg(a, b, z));
             if outz.re == SPECFUN_INF {
@@ -202,8 +214,10 @@ pub fn euler<const N: usize>() -> [f64; N] {
 ///
 /// with the rising factorial $\rpow \square n$ ([`pow_rising`](crate::pow_rising)) [^1].
 ///
-/// Results at $b = 0$ can be unreliable. For `f64` $z$, it is NaN if the estimated accuracy of the
-/// result is too low, e.g. where its series cancels.
+/// For integers $b \le a \le 0$ with $-a \le 10^6$, it is the polynomial of degree $-a$ that the
+/// series gives before its pole (in particular the truncated exponential series for $a = b$).
+/// Results at $b = 0$ can be unreliable otherwise. For `f64` $z$, it is NaN if the estimated
+/// accuracy of the result is too low, e.g. where its series cancels.
 ///
 /// [^1]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/13.2#E2>
 ///
