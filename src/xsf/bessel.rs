@@ -327,35 +327,32 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
     res == 0.0 && x != 0.0 && (v >= 0.0 || v == v.floor())
 }
 
+/// The smallest part of `e^-|Re z| I_v(z)`, relative to `|I_v(z)|`, kept for `Re z < 0`, where AMOS
+/// rotates it from `-z` (DLMF 10.34.1) with an error relative to `|I_v(z)|`.
+const I_ROTATED_PART_MIN: f64 = 1.0 / 16.0;
+
 /// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
 ///
 /// xsf multiplies both parts of `e^-|Re z| I_v(z)` by inf, which also loses a part below
-/// `f64::MAX`. So this unscales each part instead, unless AMOS has it as 0, by total cancellation
-/// or underflow, or it is subnormal and could be finite, as it lost digits then.
+/// `f64::MAX`. So this unscales each normal part instead, unless the rotation for `Re z < 0`
+/// cancelled it.
 fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
     let ie = cyl_bessel_ie_c64(v, z);
-    let exact = if z.re < 0.0 {
-        // I_v(z) = e^(+-i pi v) I_v(-z) (DLMF 10.34.1), as in AMOS, but with an exact cos(pi v)
-        // and sin(pi v): their rounding errors would swamp a much smaller part
-        let s = if z.im < 0.0 { -1.0 } else { 1.0 } * cephes_sinpi(v);
-        cyl_bessel_ie_c64(v, -z) * c64(cephes_cospi(v), s)
+    let cy = ie.mul_exp(z.re.abs());
+    let min = if z.re < 0.0 {
+        I_ROTATED_PART_MIN * ie.norm()
     } else {
-        ie
+        0.0
     };
-    let x = z.re.abs();
-    let cy = exact.mul_exp(x);
-    // one subnormal ulp below each part
-    let ulp = f64::from_bits(1);
-    let low = c64(exact.re.abs() - ulp, exact.im.abs() - ulp).mul_exp(x);
-    // NaN where AMOS has 0 (as in xsf), or for a subnormal part unless one ulp less overflows too
-    let part = |amos: f64, p: f64, y: f64, y_low: f64| {
-        if amos == 0.0 || (!p.is_normal() && y_low.is_finite()) {
-            f64::NAN
-        } else {
+    // as in xsf for a part that lost its digits to underflow or cancellation
+    let part = |p: f64, y: f64| {
+        if p.is_normal() && p.abs() >= min {
             y
+        } else {
+            p * f64::INFINITY
         }
     };
-    c64(part(ie.re, exact.re, cy.re, low.re), part(ie.im, exact.im, cy.im, low.im))
+    c64(part(ie.re, cy.re), part(ie.im, cy.im))
 }
 
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {

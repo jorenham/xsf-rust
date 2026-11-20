@@ -1873,7 +1873,7 @@ I_PART_OVERRIDES: Final = (
         " (`ierr = 2`)",
     ),
     Override(
-        lambda a: a[0] < 0 and _i_part_overflows(a),
+        lambda a: a[0] < 0 and not a[0].is_integer() and _i_part_overflows(a),
         "xsref has the finite part where the other part of I_v(z) overflows, but xsf is NaN"
         " there, by the K_-v(z) of its reflection (DLMF 10.27.2)",
     ),
