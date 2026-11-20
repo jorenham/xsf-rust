@@ -33,9 +33,10 @@
 //!
 //! For `z < 0` it also cancels at large upper parameters `a > 0`, and less at `a - m`. The last
 //! relation then gives `F(a)` in `m` steps up from the series at `a - m`, `a - m - 1` and
-//! `a - m - 2`. Per step up, its solutions grow by 1, 1 and `1 / (1 - z)` in the limit of large
-//! `w` for fixed other parameters, so this is mostly stable. For more than one large `a_i`, the
-//! starts of the steps in one come from the steps in the next, not from the series.
+//! `a - m - 2`. The limiting characteristic roots of a step up, for large `w` and fixed other
+//! parameters, are 1, 1 and `1 / (1 - z)`: none is above 1, but the repeated root at 1 leaves
+//! room for the errors to grow. For more than one large `a_i`, the starts of the steps in one
+//! come from the steps in the next, not from the series.
 //!
 //! The steps can make the errors of the series and their own rounding errors larger by many
 //! orders of magnitude, so the error of the result is estimated. An error `e` of the F at `k`
@@ -113,17 +114,18 @@ fn upper_coefficients<T: SeriesReal>(w: T, e: [T; 2], h: [T; 2], z: T, minus: f6
 
 /// The series in double-double for the ratios `ratio(n)` of its terms, which can be those of
 /// more exact parameters than `a` and `b`, and an estimate of its absolute error, or `None` if
-/// it is not accurate
+/// it is not accurate within `maxiter` terms
 fn recurrence_start(
     a: [f64; 3],
     b: [f64; 3],
     z: f64,
+    maxiter: u32,
     ratio: impl Fn(f64) -> Dd,
 ) -> Option<(Dd, f64)> {
     let terms = pfq_terms_of(first_zero(&a), z, |n, t: Dd| t * (ratio(n) * Dd::new(z)));
     let (a, b) = (descending(a), descending(b));
     // (summed to the accuracy of double-double, as the steps can make its error larger)
-    let (y, err, _) = pfq_sum_terms(&a, &b, z, PFQ_DD_MAXITER, terms, Dd::EPSILON);
+    let (y, err, _) = pfq_sum_terms(&a, &b, z, maxiter, terms, Dd::EPSILON);
     let accurate = Estimate::absolute((y.hi, err)).is_accurate();
     accurate.then_some((y, err))
 }
@@ -177,7 +179,7 @@ fn lower_recurrence(a: [f64; 3], bj: f64, other: f64, z: f64, m: u32) -> Option<
         // the terms for `u` itself, which `pfq_terms` would round
         let u = Dd::new(bj) + k;
         let ratio = |n| pfq_ratio::<Dd>(&a, &[other, 1.0], n, checked) / (u + n);
-        recurrence_start(a, [u.hi, other, 1.0], z, ratio)
+        recurrence_start(a, [u.hi, other, 1.0], z, PFQ_DD_MAXITER, ratio)
     };
     let step = |k: f64| {
         // F(b_j + k) from the relation at b = b_j + k + 3
@@ -210,7 +212,7 @@ fn upper_recurrence(a: [f64; 3], i: usize, b: [f64; 2], z: f64, m: u32) -> Optio
         // the terms for `u` itself, as for a lower parameter
         let u = Dd::new(a[i]) + k;
         let ratio = |n| pfq_ratio::<Dd>(&others, &b1, n, checked) * (u + n);
-        recurrence_start([u.hi, others[0], others[1]], b1, z, ratio)
+        recurrence_start([u.hi, others[0], others[1]], b1, z, PFQ_DD_MAXITER, ratio)
     };
     // F(a_i + k) from the relation at a = a_i + k
     recurrence_from(m, start, |k| upper_step(a, i, b, z, Dd::new(a[i]) + (k + 1.0)))
@@ -233,12 +235,13 @@ fn raised_recurrence(
     let Some(i) = (i..3).find(|&i| a[i] >= RAISED_MIN) else {
         let b1 = [b[0], b[1], 1.0];
         let checked = pfq_extreme(&a, &b1);
-        // (a series can end past the work that is left, and is then not used)
+        // one of the work for each term, of which there are at most `maxiter`
+        let maxiter = PFQ_DD_MAXITER.min(work.get());
         let ratio = |n| {
-            work.set(work.get().saturating_sub(1));
+            work.set(work.get() - 1);
             pfq_ratio::<Dd>(&a, &b1, n, checked)
         };
-        return recurrence_start(a, b1, z, ratio).filter(|_| work.get() > 0);
+        return recurrence_start(a, b1, z, maxiter, ratio);
     };
     // (so that the lowest start is not negative)
     let m = m.min(a[i] as u32 - 2);
@@ -380,5 +383,19 @@ mod tests {
             let result = result.and_then(|(y, err)| accurate(y, err));
             assert_estimate(result, a, descending([b1, b2, 1.0]), z);
         }
+    }
+
+    #[test]
+    fn test_raised_recurrence_work() {
+        // the work that it takes is enough, and one less is not
+        let run = |work| {
+            let work = Cell::new(work);
+            let result = raised_recurrence([12.5, 0.75, 0.25], 0, [2.5, 1.5], -0.5, 8, &work);
+            (result.map(|(y, err)| (y.hi.to_bits(), err.to_bits())), work.get())
+        };
+        let (expected, left) = run(RAISED_WORK);
+        assert!(expected.is_some());
+        assert_eq!(run(RAISED_WORK - left), (expected, 0));
+        assert_eq!(run(RAISED_WORK - left - 1).0, None);
     }
 }
