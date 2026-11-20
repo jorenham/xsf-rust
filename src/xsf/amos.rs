@@ -100,7 +100,7 @@
 //!   `cexp`, and `clog`, which can differ from glibc's in the last bit.
 //! - Overflow threshold: a result overflows past `f64::MAX` instead of `exp(elim)`, as `asyi`
 //!   computes the exponential itself, and `bknu`, `uni1`, and `uni2` scale the result near it,
-//!   see `on_scale`.
+//!   see `on_scale`; for I, by the evaluated values of the uniform expansions, see `i_max_log`.
 //! - K underflow: an underflow of K in the continuation to `Re(z) < 0` isn't an overflow, as the
 //!   I term dominates there.
 //! - pi I overflow: an overflow of the pi I term of that continuation is reported, as I is
@@ -203,6 +203,43 @@ fn small_z_k_overflows(z: C64, fnu: f64) -> bool {
 /// Unlike in xsf, the upper bound is `ln(f64::MAX)` instead of `elim` (overflow threshold).
 fn on_scale(e: f64, elim: f64) -> bool {
     (-elim..=MAXLOG).contains(&e)
+}
+
+/// The largest estimate of the log of a uniform expansion of I of order `fnu` at `z` that is on
+/// scale: that of a value that, times `tol`, doesn't overflow.
+///
+/// Unlike in xsf, the value then overflows only if it isn't finite once evaluated, as the
+/// estimates omit factors (the series, and in the coarse ones about `(2 pi |z|)^(-1/2)`) that can
+/// bring it back below `f64::MAX`. That's unless AMOS reports a loss of significance there
+/// (`ierr = 3`), as the rounding error of the estimate, about `max(fnu, |z|) eps`, can then
+/// reach 1. K keeps `on_scale`, as its refined estimate can miss an overflow, such as of
+/// `K_10(-1e-30 i) = -1.9e308`.
+fn i_max_log(fnu: f64, z: C64, tol: f64) -> f64 {
+    // As in `besi`
+    let aa = (0.5 / tol).min(I1MACH[8] * 0.5).sqrt();
+    if fnu.max(z.norm()) > aa {
+        MAXLOG
+    } else {
+        MAXLOG - tol.ln()
+    }
+}
+
+/// Whether `exp(e)` is on scale for I, i.e. neither underflows past `exp(-elim)` nor exceeds
+/// `exp(emax)`, from `i_max_log`.
+fn i_on_scale(e: f64, elim: f64, emax: f64) -> bool {
+    (-elim..=emax).contains(&e)
+}
+
+/// `exp(e) * css`, for the scale factor `css` of a uniform expansion near the exponent extremes.
+///
+/// Unlike in xsf, `e` can exceed `ln(f64::MAX)` here (see `i_max_log`), so then it's scaled
+/// first.
+fn scaled_exp(e: f64, css: f64) -> f64 {
+    if e > MAXLOG {
+        (e + css.ln()).exp()
+    } else {
+        e.exp() * css
+    }
 }
 
 #[rustfmt::skip]
@@ -3832,6 +3869,10 @@ fn buni(
             }
         }
         y[(n - 1) as usize] = s2 * cscr;
+        // Unlike in xsf (see `i_max_log`)
+        if !y[(n - 1) as usize].is_finite() {
+            return -1;
+        }
         if n == 1 {
             return nz;
         }
@@ -3843,11 +3884,13 @@ fn buni(
             s2 = (fnu + fnui) * rz * s2 + s1;
             s1 = st;
             st = s2 * cscr;
+            if !st.is_finite() {
+                return -1;
+            }
             y[(k - 1) as usize] = st;
             fnui -= 1.0;
             k -= 1;
             if iflag < 3 {
-                st = s2 * cscr;
                 str = st.re.abs();
                 sti = st.im.abs();
                 stm = str.max(sti);
@@ -5211,6 +5254,7 @@ fn uni1(
     let mut bry: [f64; 3] = [1e3 * D1MACH[0] / tol, 0., 0.];
     bry[1] = 1.0 / bry[0];
     bry[2] = D1MACH[1];
+    let emax = i_max_log(fnu, z, tol);
     //
     // CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //
@@ -5224,7 +5268,7 @@ fn uni1(
     }
 
     rs1 = s1.re;
-    if !on_scale(rs1, elim) {
+    if !i_on_scale(rs1, elim, emax) {
         if rs1 > 0. {
             *nz = -1;
             return;
@@ -5255,7 +5299,7 @@ fn uni1(
                 // TEST FOR UNDERFLOW AND OVERFLOW
                 //
                 rs1 = s1.re;
-                if !on_scale(rs1, elim) {
+                if !i_on_scale(rs1, elim, emax) {
                     break 'l110; // goto L110;
                 }
                 if i == 1 {
@@ -5267,7 +5311,7 @@ fn uni1(
                     //
                     aphi = phi.norm();
                     rs1 += aphi.ln();
-                    if !on_scale(rs1, elim) {
+                    if !i_on_scale(rs1, elim, emax) {
                         break 'l110; // goto L110;
                     }
                     if i == 1 {
@@ -5282,7 +5326,7 @@ fn uni1(
                 // SCALE S1 IF CABS(S1) < ASCLE
                 //
                 s2 = phi * sum;
-                s1 = s1.re.exp() * css[(iflag - 1) as usize] * C64::cis(s1.im);
+                s1 = scaled_exp(s1.re, css[(iflag - 1) as usize]) * C64::cis(s1.im);
                 s2 *= s1;
                 if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
                     break 'l110; // goto L110;
@@ -5291,8 +5335,14 @@ fn uni1(
                 cy[(i - 1) as usize] = s2;
                 m = nd - i + 1;
                 y[(m - 1) as usize] = s2 * csr[(iflag - 1) as usize];
+                // Unlike in xsf (see `i_max_log`)
+                if !y[(m - 1) as usize].is_finite() {
+                    *nz = -1;
+                    return;
+                }
             }
             /* 80 */
+            // No overflow check here, as the callers ask for at most 2 orders.
             if nd > 2 {
                 rz = 2.0 / z;
                 s1 = cy[0];
@@ -5461,6 +5511,7 @@ fn uni2(
         cid = -cid;
         c2 = c2.conj();
     }
+    let emax = i_max_log(fnu, z, tol);
     //
     // CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
     //
@@ -5473,7 +5524,7 @@ fn uni2(
         s1 = -zeta1 + zeta2;
     }
     rs1 = s1.re;
-    if !on_scale(rs1, elim) {
+    if !i_on_scale(rs1, elim, emax) {
         if rs1 > 0. {
             *nz = -1;
             return;
@@ -5505,7 +5556,7 @@ fn uni2(
                 // TEST FOR UNDERFLOW AND OVERFLOW
                 //
                 rs1 = s1.re;
-                if !on_scale(rs1, elim) {
+                if !i_on_scale(rs1, elim, emax) {
                     break 'l50; // goto L50;
                 }
                 if i == 1 {
@@ -5518,7 +5569,7 @@ fn uni2(
                     aphi = phi.norm();
                     aarg = arg.norm();
                     rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
-                    if !on_scale(rs1, elim) {
+                    if !i_on_scale(rs1, elim, emax) {
                         break 'l50; // goto L50;
                     }
                     if i == 1 {
@@ -5540,7 +5591,7 @@ fn uni2(
                     return;
                 }
                 s2 = phi * (ai * asum + dai * bsum);
-                c2r = s1.re.exp() * css[(iflag - 1) as usize].re;
+                c2r = scaled_exp(s1.re, css[(iflag - 1) as usize].re);
                 c2i = s1.im;
                 s1 = c2r * C64::cis(c2i);
                 s2 *= s1;
@@ -5554,8 +5605,14 @@ fn uni2(
                 s2 *= c2;
                 cy[(i - 1) as usize] = s2;
                 y[(j - 1) as usize] = s2 * csr[(iflag - 1) as usize];
+                // Unlike in xsf (see `i_max_log`)
+                if !y[(j - 1) as usize].is_finite() {
+                    *nz = -1;
+                    return;
+                }
                 c2 *= cid;
             }
+            // No overflow check here, as the callers ask for at most 2 orders.
             if nd > 2 {
                 rz = 2.0 / z;
                 bry[1] = 1.0 / bry[0];
@@ -5843,6 +5900,7 @@ fn unk1(
     fn_ = fnu;
     nz = 0;
     let x: f64 = z.re;
+    let emax = i_max_log(fnu, z, tol);
     zr = z;
     if x < 0.0 {
         zr = -z;
@@ -6117,7 +6175,7 @@ fn unk1(
             rs1 = s1.re;
             'l100: {
                 'l110: {
-                    if !on_scale(rs1, elim) {
+                    if !i_on_scale(rs1, elim, emax) {
                         break 'l110; // goto L110;
                     }
                     if kdflg == 1 {
@@ -6129,7 +6187,7 @@ fn unk1(
                         //
                         aphi = phid.norm();
                         rs1 += aphi.ln();
-                        if !on_scale(rs1, elim) {
+                        if !i_on_scale(rs1, elim, emax) {
                             break 'l110; // goto L110;
                         }
                         if kdflg == 1 {
@@ -6143,7 +6201,7 @@ fn unk1(
                     s2 = csgn * phid * sumd;
                     c2r = s1.re;
                     c2i = s1.im;
-                    c2m = c2r.exp() * css[(iflag - 1) as usize].re;
+                    c2m = scaled_exp(c2r, css[(iflag - 1) as usize].re);
                     s1 = c2m * C64::cis(c2i);
                     s2 *= s1;
                     if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
@@ -6346,6 +6404,7 @@ fn unk2(
     // THE UNDERFLOW LIMIT
     //
     let x: f64 = z.re;
+    let emax = i_max_log(fnu, z, tol);
     zr = z;
     if x < 0.0 {
         zr = -z;
@@ -6672,7 +6731,7 @@ fn unk2(
         //
         rs1 = s1.re;
         'l250: {
-            if !on_scale(rs1, elim) {
+            if !i_on_scale(rs1, elim, emax) {
                 if rs1 > 0.0 {
                     return -1;
                 }
@@ -6690,7 +6749,7 @@ fn unk2(
                 aarg = argd.norm();
                 // NOTE: the C++ has `0.25f` here, which is exact, so it's the same as `0.25`
                 rs1 += aphi.ln() - 0.25 * aarg.ln() - aic;
-                if !on_scale(rs1, elim) {
+                if !i_on_scale(rs1, elim, emax) {
                     if rs1 > 0.0 {
                         return -1;
                     }
@@ -6714,7 +6773,7 @@ fn unk2(
             s2 = cs * phid * (ai * asumd + dai * bsumd);
             c2r = s1.re;
             c2i = s1.im;
-            c2m = c2r.exp() * css[(iflag - 1) as usize].re;
+            c2m = scaled_exp(c2r, css[(iflag - 1) as usize].re);
             s1 = c2m * C64::cis(c2i);
             s2 *= s1;
             if iflag == 1 && uchk(s2, bry[0], tol) != 0 {
@@ -6930,7 +6989,12 @@ fn uoik(
 
     /*  OVERFLOW TEST  */
     // Unlike in xsf: overflow threshold (see the module docs).
-    if rcz > MAXLOG {
+    let rmax = if ikflg == 1 {
+        i_max_log(fnu, z, tol)
+    } else {
+        MAXLOG
+    };
+    if rcz > rmax {
         return -1;
     }
     if rcz >= alim {
@@ -6938,7 +7002,7 @@ fn uoik(
         if iform == 2 {
             rcz -= 0.25 * aarg.ln() + aic;
         }
-        if rcz > MAXLOG {
+        if rcz > rmax {
             return -1;
         }
     } else {
