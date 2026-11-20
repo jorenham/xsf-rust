@@ -1084,6 +1084,29 @@ fn test_hyppfq_borel() {
     }
     // complex for z > 0, as for 2F0
     assert_eq!(hyppfq(&[1.0, 2.0, 3.0], &[], 0.01), None);
+    // a polynomial whose terms cancel, with a_i that differ by an integer, has no residues (Arb)
+    for (a, b, z, expected) in [
+        (
+            &[-200.0, -200.0, 0.5],
+            &[][..],
+            -0.001_225_490_196_078_431_4,
+            1.184_410_924_689_460_4e165,
+        ),
+        (
+            &[-2000.0, -2000.0, 0.5],
+            &[0.3],
+            -0.000_122_549_019_607_843_14,
+            -0.023_231_370_699_859_81,
+        ),
+    ] {
+        let actual = hyppfq(a, b, z);
+        assert!(actual.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{actual:?}");
+    }
+    // but the residues of other a_i that differ by an integer vanish (exact: 2.02e326, 5.64e324)
+    let a = [-100.0, 1.5, 1.5, 2.25, 2.75];
+    for b in [[0.5, 0.5], [0.7, 0.9]] {
+        assert_eq!(hyppfq(&a, &b, -1.0), Some(f64::INFINITY));
+    }
 }
 
 #[test]
