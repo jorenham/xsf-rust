@@ -1858,9 +1858,13 @@ def _i_nan(a: tuple[float, ...]) -> bool:
 
 
 def _i_part_overflows(a: tuple[float, ...]) -> bool:
-    """Whether one part of I_v(z) overflows, but not the other."""
-    y = _i_ball(a)
-    return math.isinf(float(y.real.mid())) != math.isinf(float(y.imag.mid()))
+    """Whether one part of I_v(z) overflows, but not the other, off the real axis or for a
+    non-integer v at x < 0 (else xsf has `inf + 0i`)."""
+    v, x, y = a
+    if y == 0 and (x >= 0 or v.is_integer()):
+        return False
+    i = _i_ball(a)
+    return math.isinf(float(i.real.mid())) != math.isinf(float(i.imag.mid()))
 
 
 I_PART_OVERRIDE: Final = Override(

@@ -329,27 +329,47 @@ fn amos_underflow(res: f64, v: f64, x: f64) -> bool {
 
 /// `I_v(z)` for `v >= 0` where AMOS overflowed, off the real axis or for a non-integer `v`.
 ///
-/// Unlike in xsf, a part that doesn't overflow stays finite: this unscales `e^-|Re z| I_v(z)` per
-/// part, or if that underflowed, recurs down `I_v = I_{v+2} + 2 (v+1) / z I_{v+1}`
-/// (DLMF 10.29.1) from the higher orders, which are smaller.
+/// xsf multiplies both parts of `e^-|Re z| I_v(z)` by inf, which also loses a part below
+/// `f64::MAX`. So this unscales each normal part of `e^-|Re z| I_v(z)`, and recurs the others
+/// down `I_v = I_{v+2} + 2 (v+1) / z I_{v+1}` (DLMF 10.29.1) from the higher orders, which are
+/// smaller. A zero or subnormal scaled part lost its digits to underflow.
 fn cyl_bessel_i_overflow(v: f64, z: C64) -> C64 {
-    let ie = cyl_bessel_ie_c64(v, z);
-    if ie != C64::ZERO {
-        return ie.mul_exp(z.re.abs());
+    let ie = if z.re < 0.0 {
+        // I_v(z) = e^(+-i pi v) I_v(-z) (DLMF 10.34.1), as in AMOS, but with an exact cos(pi v)
+        // and sin(pi v): their rounding errors would swamp a much smaller part
+        let s = if z.im < 0.0 { -1.0 } else { 1.0 } * cephes_sinpi(v);
+        let c = cephes_cospi(v);
+        cyl_bessel_ie_c64(v, -z) * c64(c, s)
+    } else {
+        cyl_bessel_ie_c64(v, z)
+    };
+    let mut cy = ie.mul_exp(z.re.abs());
+    if ie.re.is_normal() && ie.im.is_normal() {
+        return cy;
     }
     let (i1, _) = amos1(amos::besi, z, v + 1.0, 1);
     let (i2, _) = amos1(amos::besi, z, v + 2.0, 1);
     // halved, as a term can overflow where only the sum does
     let t = (v + 1.0) / z * i1;
     let half = i2 * 0.5 + t;
-    // only for |2 t| + |i2| <= 2 |I_v| (in quarters, which stay finite), so that the errors of i1
-    // and i2 grow by at most 2 relative to |I_v|
-    let small = (t * 0.5).norm() + (i2 * 0.25).norm() <= half.norm();
-    if i2.is_finite() && t.is_finite() && small {
-        return half * 2.0;
+    // a part only for |2 t| + |i2| <= 2 |part| (in quarters, which stay finite), so that the errors
+    // of i1 and i2 (relative to their norms) grow by at most 2 relative to the part
+    let bound = (t * 0.5).norm() + (i2 * 0.25).norm();
+    let part = |p: f64| {
+        if i2.is_finite() && t.is_finite() && bound <= p.abs() {
+            2.0 * p
+        } else {
+            // as in xsf for a part that underflowed to 0 (0 times inf)
+            f64::NAN
+        }
+    };
+    if !ie.re.is_normal() {
+        cy.re = part(half.re);
     }
-    // as in xsf: 0 times inf
-    C64::NAN
+    if !ie.im.is_normal() {
+        cy.im = part(half.im);
+    }
+    cy
 }
 
 pub(crate) fn cyl_bessel_i_c64(mut v: f64, z: C64) -> C64 {

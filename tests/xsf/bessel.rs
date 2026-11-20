@@ -909,11 +909,11 @@ fn test_bessel_amos_i_leading_exponential_overflow() {
 
 #[test]
 fn test_bessel_amos_i_overflow_by_series() {
-    // the real part overflows, unlike the estimates without the series (Arb, halved)
-    let (v, z) = (100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
-    let i = xsf::bessel_i(v, z);
-    let half = c64(8.988_699_091_463_565e307, -6.116_621_289_670_503e303);
-    assert!(is_near(i, half, v, z), "{i}");
+    // the real part overflows, unlike the estimates without the series (Arb, halved; a half-ulp
+    // change of Im z changes the imaginary part by 1.67e-9)
+    let i = xsf::bessel_i(100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
+    assert!(i.re == f64::INFINITY, "{i}");
+    assert!(near_part(i.im, -6.116_621_289_670_503e303, 1.67e-9), "{i}");
     // the exponent has a rounding error of about 1 (DLMF 10.41.3: -2.28e308 (1 + i))
     let i = xsf::bessel_i(2_060_697_274_498_541.2, c64(-1_365_713_557_945_105.0, 0.0));
     assert!(i.re.is_nan() && i.im.is_nan(), "{i}");
@@ -921,21 +921,50 @@ fn test_bessel_amos_i_overflow_by_series() {
 
 #[test]
 fn test_bessel_amos_i_overflow_by_part() {
-    // the imaginary part is within the error of `f64::MAX`, the real part isn't (Arb, halved)
-    let (v, z) = (385.75, c64(716.044_300_663_178_2, 32_760.175_578_041_82));
-    let i = xsf::bessel_i(v, z);
-    let half = c64(4.098_878_142_449_450_5e307, 8.988_465_674_332_536e307);
-    assert!(i.re.is_finite() && is_near(i, half, v, z), "{i}");
+    // per part, within the change from a half-ulp change of Re z or Im z (Arb, halved)
+    let i = xsf::bessel_i(385.75, c64(716.044_300_663_178_2, 32_760.175_578_041_82));
+    assert!(near_part(i.re, 4.098_878_142_449_450_5e307, 4.0e-12), "{i}");
+    assert!(i.im == f64::INFINITY, "{i}");
     // the value before the rotation to z overflows (Arb: |I| = 1.7977003e308), but not its parts
-    let (v, z) = (1500.25, c64(-1_440.844_949_792_818_9, 0.0));
-    let i = xsf::bessel_i(v, z);
-    let half = c64(6.355_830_397_878_139e307, 6.355_830_397_878_139e307);
-    assert!(is_near(i, half, v, z), "{i}");
-    // the reflection to v < 0 keeps the finite part (Arb, halved: the K term is about 1e-312)
-    let (v, z) = (-100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
-    let i = xsf::bessel_i(v, z);
-    let half = c64(8.988_699_091_463_565e307, -6.116_621_289_670_503e303);
-    assert!(is_near(i, half, -v, z), "{i}");
+    let i = xsf::bessel_i(1500.25, c64(-1_440.844_949_792_818_9, 0.0));
+    assert!(near_part(i.re, 6.355_830_397_878_139e307, 1.64e-13), "{i}");
+    assert!(near_part(i.im, 6.355_830_397_878_139e307, 1.64e-13), "{i}");
+    // the reflection to v < 0 keeps the finite part (the K term is about 1e-312)
+    let i = xsf::bessel_i(-100.25, c64(715.712_422_528_251_9, 1_499.513_771_509_891_7));
+    assert!(i.re == f64::INFINITY, "{i}");
+    assert!(near_part(i.im, -6.116_621_289_670_503e303, 1.67e-9), "{i}");
+    // above `f64::MAX` by 6.8e-14, but a half-ulp change of Im z changes the real part by 1.75e-11
+    let i = xsf::bessel_i(385.75, c64(718.220_743_426_067_4, 32_760.5));
+    assert!(near_part(i.re, 8.988_465_674_312_192e307, 1.75e-11), "{i}");
+    assert!(i.im == f64::INFINITY, "{i}");
+    // the real part is 1e-25 times the imaginary part, from Im z alone, as cos(pi v) = 0
+    let i = xsf::bessel_i(171.5, c64(-734.340_839_421_059_9, -1e-25));
+    assert!(near_part(i.re, -1.362_244_045_523_158e283, 5.8e-14), "{i}");
+    assert!(i.im == f64::INFINITY, "{i}");
+}
+
+#[test]
+fn test_bessel_amos_i_overflow_by_part_lost() {
+    // the imaginary part underflows to 0 or a subnormal in `e^-|Re z| I_v(z)`, and I_1 overflows
+    // (Arb: 3.6e-13 and 7.3e-10)
+    for y in [5e-324, 1e-320] {
+        let i = xsf::bessel_i(0.0, c64(720.0, y));
+        assert!(i.re == f64::INFINITY && i.im.is_nan(), "{i}");
+    }
+    // `e^-|Re z| I_v(z)` underflows to 0, and the real part is too small for the recurrence (Arb:
+    // 3.45e283 - 2.39e308i)
+    let i = xsf::bessel_i(1500.5, c64(-1_441.2, -1e-25));
+    assert!(i.re.is_nan() && i.im == f64::NEG_INFINITY, "{i}");
+}
+
+/// Whether `x` is within `rtol` of the exact `2 h` (halved to stay finite), or overflows where
+/// `rtol` can reach `f64::MAX`.
+fn near_part(x: f64, h: f64, rtol: f64) -> bool {
+    if x.is_infinite() {
+        x.is_sign_negative() == h.is_sign_negative() && h.abs() * (1.0 + rtol) >= f64::MAX / 2.0
+    } else {
+        (x / 2.0 - h).abs() <= rtol * h.abs()
+    }
 }
 
 /// Whether each part of `y` is within AMOS's error of that of the exact value `2 half` (halved to
