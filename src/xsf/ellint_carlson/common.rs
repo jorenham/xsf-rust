@@ -1,6 +1,7 @@
 //! Translated into pure Rust from `xsf/ellint_carlson/ellint_common.hh` (scipy/xsf@d5182c3).
 
 use crate::utils::pow2;
+use crate::xsf::cephes::dd_real::frexp_f64;
 
 /* Number of correction terms in polynomial evaluation. */
 pub(super) const NPOLY: usize = 4;
@@ -219,6 +220,13 @@ pub(super) fn lambda<T: super::typing::Num>(xyz: [T; 3], sq: [T; 3]) -> T {
     }
 }
 
+/// `(m, e)` with `x = m 2^e` and `m` in [1/2, 1) in the max norm, also for a subnormal `x` (with
+/// `e = 0` for 0, infinities and NaN)
+pub(super) fn frexp<T: super::typing::Num>(x: T) -> (T, i32) {
+    let e = frexp_f64(x.max_norm()).1;
+    (x.ldexp(-e), e)
+}
+
 /// `sqrt(a) + sqrt(b)`, given the square roots `sa` and `sb`
 ///
 /// Unlike in xsf (scipy/xsf#409), as `(a - b) / (sqrt(a) - sqrt(b))` if it cancels (halved if
@@ -235,6 +243,22 @@ pub(super) fn sqrt_sum<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> T {
     } else {
         s
     }
+}
+
+/// [`sqrt_sum`] as [`frexp`]
+///
+/// A subnormal sum is the quotient of `sqrt_sum`, which lost precision. It is divided at a normal
+/// scale instead, from `a - b`, which is the exact difference of the given `a` and `b` if it is
+/// subnormal.
+pub(super) fn sqrt_sum_frexp<T: super::typing::Num>(a: T, b: T, sa: T, sb: T) -> (T, i32) {
+    let s = sqrt_sum(a, b, sa, sb);
+    // 0 is exact for `a = b = 0`, and an underflowed quotient otherwise
+    if !s.too_small() || a == b {
+        return frexp(s);
+    }
+    let (m, e) = frexp(a - b);
+    let (m, k) = frexp(m / (sa - sb));
+    (m, e + k)
 }
 
 /// `[x + lam, y + lam, z + lam]` of the duplication step, where `lam` is the sum of the pairwise

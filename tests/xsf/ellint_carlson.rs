@@ -682,6 +682,18 @@ fn test_elliprj_wide_span_complex() {
 }
 
 #[test]
+fn test_elliprj_tiny_square_root_sum() {
+    let x = c64(-8.492_010_046_825_438e99, 4.925_013_126_945_802e-253);
+    let actual = [
+        // `sqrt(p) / 2` over the tiny `sqrt(p) + sqrt(x)` of the duplication step overflows
+        xsf::elliprj(x, x.conj(), ONE * 7.564_518_093_696_574e-224, c64(x.re, -x.im / 2.0)),
+    ];
+    // Arb
+    let expected = [c64(9.383_207_441_725_736e-76, 7.992_940_847_747_7e202)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-15);
+}
+
+#[test]
 fn test_elliprj_tiny_y() {
     // `y <= 1e-26` but not small enough for the "tiny y" asymptotic case
     let actual = [xsf::elliprj(0.0, 1e-21, 6e-29, 3e-9), xsf::elliprj(5e-37, 1e-30, 1e-19, 2e-9)];
