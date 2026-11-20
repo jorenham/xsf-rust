@@ -26,7 +26,7 @@ fn fmax(xs: &[f64]) -> f64 {
 ///
 /// # Notes
 ///
-/// Unlike the SciPy version, this implementation only supports 1-dimensional slices, and doesn't
+/// Unlike the SciPy version, this implementation only supports 1-dimensional sequences, and doesn't
 /// support complex numbers at the moment.
 ///
 /// # See also
@@ -34,7 +34,8 @@ fn fmax(xs: &[f64]) -> f64 {
 /// - [`softmax`]
 #[must_use]
 #[allow(clippy::missing_panics_doc)]
-pub fn logsumexp(xs: &[f64]) -> f64 {
+pub fn logsumexp(xs: impl AsRef<[f64]>) -> f64 {
+    let xs = xs.as_ref();
     let x_max = fmax(xs);
 
     // fast-path for -/+inf and NaN
@@ -78,7 +79,8 @@ pub fn logsumexp(xs: &[f64]) -> f64 {
 /// - [`log_softmax`]
 /// - [`logsumexp`]
 #[must_use]
-pub fn softmax(xs: &[f64]) -> Vec<f64> {
+pub fn softmax(xs: impl AsRef<[f64]>) -> Vec<f64> {
+    let xs = xs.as_ref();
     let x_max = fmax(xs);
     let exs0 = xs.iter().map(|&x| (x - x_max).exp()).collect::<Vec<f64>>();
     let s = exs0.iter().sum::<f64>().recip();
@@ -100,7 +102,8 @@ pub fn softmax(xs: &[f64]) -> Vec<f64> {
 /// - [`softmax`]
 /// - [`logsumexp`]
 #[must_use]
-pub fn log_softmax(xs: &[f64]) -> Vec<f64> {
+pub fn log_softmax(xs: impl AsRef<[f64]>) -> Vec<f64> {
+    let xs = xs.as_ref();
     let x_max = fmax(xs);
     let x_max = if x_max.is_finite() { x_max } else { 0.0 };
 
