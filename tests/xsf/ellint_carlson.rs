@@ -564,12 +564,119 @@ fn test_elliprj_nearly_imaginary_cancel() {
     let (y, z) = (c(0.548_967_078_054_124_9), c(0.172_925_512_765_675_9));
     assert!(xsf::elliprj(c(1.0), y, z, c(-1.464_874_055_611_607_8)).is_nan());
 
-    // not finite for a conjugate pair where `p + lambda` loses the tiny `Im p`
-    // (Arb: -5.484067219012265e-11 + 4.285892810353008e-12i)
+    // a conjugate pair with a tiny `Im p` (Arb)
     let x = c64(-1.0, 2.0_f64.powi(-24));
     let z = c64(2.0_f64.powi(64), 0.0);
     let p = c64(-256.999_999_999_999_94, -(2.0_f64.powi(-1020)));
-    assert!(!xsf::elliprj(x, x.conj(), z, p).is_finite());
+    let actual = xsf::elliprj(x, x.conj(), z, p);
+    let expected = c64(-5.484_067_219_012_265e-11, 4.285_892_810_353_007_5e-12);
+    xsref::np_assert_allclose!(&[actual], &[expected], rtol = 1e-13);
+}
+
+#[test]
+fn test_elliprj_conjugate_cut() {
+    // a conjugate pair with `p` near `-lambda` and a tiny `Im p` (Arb)
+    let x = c64(-0.269_822_709_532_446_47, 0.103_570_618_267_107_2);
+    let (y, z) = (x.conj(), ZERO);
+    let expected = c64(-29.989_358_762_276_39, 83.216_442_883_721_38);
+    for pi in [-7.837_813_607_397_922e-21, -1e-100, -1e-300] {
+        let p = c64(-0.289_017_590_377_695_1, pi);
+        for [a, b, c] in [[x, y, z], [y, x, z], [z, x, y], [z, y, x], [x, z, y], [y, z, x]] {
+            xsref::np_assert_allclose!(
+                &[xsf::elliprj(a, b, c, p), xsf::elliprj(a, b, c, p.conj())],
+                &[expected, expected.conj()],
+                rtol = 1e-13
+            );
+        }
+    }
+
+    // and with `p` near `-lambda` of the steps 0, 1 and 2 (Arb)
+    let x = c64(2.0_f64.powi(-200), 0.0);
+    let y = c64(1.0, 2.0);
+    for (pr, expected) in [
+        (-2.236_067_977_499_79, c64(-0.762_778_196_568_029_6, 0.828_385_166_894_746_5)),
+        (-11.651_457_212_829_742, c64(-0.254_346_363_442_386, 0.107_783_055_278_282_39)),
+        (-48.817_624_918_411_6, c64(-0.067_612_796_497_439_43, 0.013_527_579_279_401_574)),
+    ] {
+        let p = c64(pr, -1e-100);
+        for [a, b, c] in [[x, y, y.conj()], [y, y.conj(), x], [y.conj(), x, y]] {
+            xsref::np_assert_allclose!(
+                &[xsf::elliprj(a, b, c, p), xsf::elliprj(a, b, c, p.conj())],
+                &[expected, expected.conj()],
+                rtol = 2e-13
+            );
+        }
+    }
+
+    // an exact pair where rounding gives `lambda` a tiny imaginary part, near the cut and with a
+    // tiny `Im p` (Arb)
+    let x = c64(-2.583_169_022_335_466, 1.251_316_297_465_678_4e-70);
+    let y = c64(8.112_302_455_109_168e-7, 0.0);
+    let p = c64(-3.525_393_241_933_433, 2.880_059_528_591_252e-140);
+    let actual = [xsf::elliprj(x, y, x.conj(), p)];
+    let expected = [c64(-320.523_995_035_498_9, -2.663_686_039_152_461_5)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+
+    // and with a subnormal `Im p`, which `4^-m Im p` rounds to 0 in the steps (Arb)
+    for (x, z, p, expected) in [
+        (
+            c64(391.945_997_773_030_4, 155.956_030_228_474_33),
+            c64(7.968_794_498_639_412e33, 0.0),
+            c64(-3.846_870_561_155_529e35, 2.293_954_062_989_63e-309),
+            c64(-3.206_047_660_640_072_3e-51, -1.954_913_392_456_703_8e-53),
+        ),
+        (
+            c64(1.0, 1.0),
+            ZERO,
+            c64(-1e32, -5e-324),
+            c64(-4.121_030_609_847_326_3e-32, 4.712_388_980_384_689_5e-48),
+        ),
+        (
+            c64(-1.848_896_916_592_894e24, 1.501_031_164_846_787_4e-53),
+            ZERO,
+            c64(-2.416_826_398_198_505e26, -4e-323),
+            c64(-1.651_932_324_420_299_7e-36, 1.263_886_626_718_720_3e-39),
+        ),
+    ] {
+        let actual = [xsf::elliprj(x, x.conj(), z, p)];
+        xsref::np_assert_allclose!(&actual, &[expected], rtol = 1e-13);
+    }
+
+    // not a pair: conjugate only up to a subnormal imaginary part (Arb)
+    let x = c64(-1.0, 5e-324);
+    let actual = [xsf::elliprj(x, x, c64(0.25, 0.0), c64(-1.0, -4.0))];
+    let expected = [c64(1.431_004_976_908_286_7, -0.043_252_977_798_958_4)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
+}
+
+#[test]
+fn test_elliprj_real_cut() {
+    // real `x, y, z` with `p` near `-lambda` of the steps 0, 1 and 2 and a tiny `Im p` (Arb)
+    let at_3 = c64(-0.544_010_195_874_729_4, 0.589_048_622_548_086_2);
+    for (pr, expected) in [
+        (-3.0_f64.next_up(), at_3),
+        (-3.0, at_3),
+        (-3.0_f64.next_down(), at_3),
+        (-15.0, c64(-0.175_527_524_442_984_58, 0.073_631_077_818_510_78)),
+        (-63.0, c64(-0.046_138_727_260_895_78, 0.009_203_884_727_313_847)),
+    ] {
+        let p = c64(pr, -1e-20);
+        xsref::np_assert_allclose!(
+            &[xsf::elliprj(ONE, ONE, ONE, p), xsf::elliprj(ONE, ONE, ONE, p.conj())],
+            &[expected, expected.conj()],
+            rtol = 1e-13
+        );
+    }
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "overflows a debug stack (#1765)")]
+fn test_elliprj_real_cut_huge_p() {
+    // real `x, y, z` with a huge `p`, whose distance to them overflows (Arb)
+    let x = c64(2.0_f64.powi(-256), 0.0);
+    let actual = [xsf::elliprj(x, x, x, c64(-f64::MAX, f64::MAX))];
+    let expected = [c64(-2.839_325_246_800_259_7e-270, -2.839_325_246_800_259_7e-270)];
+    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
 }
 
 #[test]

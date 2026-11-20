@@ -579,6 +579,11 @@ fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {
     (real, min)
 }
 
+/// The scale of the `|Im p|` that `rj_unscaled` raises a tinier one to for real `lam` and
+/// `Re p < 0`, relative to the distance from `p` to `0, x, y, z`: chosen to keep `4^-m Im p` from
+/// underflowing in the steps, while the result changes only by about as much
+const MIN_IM_P: f64 = pow2(-60);
+
 fn rj_unscaled<T: Num>(
     x: T,
     y: T,
@@ -628,6 +633,32 @@ fn rj_unscaled<T: Num>(
         }
         return (ExitStatus::BadArgs, T::NAN);
     }
+
+    // Unlike in xsf, keep `lam` real for real `x, y, z` or an exact conjugate pair and a real
+    // third, which the steps keep: its rounding error can outweigh a tiny `Im p`
+    let pair = |a: T, b: T, c: T| a.real() == b.real() && a.imag() == -b.imag() && c.imag() == 0.0;
+    let real_lam = [xm, ym, zm].iter().all(|a| a.imag() == 0.0)
+        || pair(xm, ym, zm)
+        || pair(ym, zm, xm)
+        || pair(zm, xm, ym);
+    // Unlike in xsf, then a tiny `Im p` left of the imaginary axis is raised to 1 to 2 times
+    // `MIN_IM_P` times the distance from `p` to `0, x, y, z` (in the max norm, so that the one to
+    // `0` is finite): it only selects the side of the cut, which `p + lam` then keeps in every
+    // loop step
+    let tiny_im = |dist: f64| p.imag().abs() < MIN_IM_P * dist;
+    let p = if real_lam && p.real() < 0.0 && p.imag() != 0.0 && tiny_im(p.max_norm()) {
+        let dist = [xm, ym, zm]
+            .map(|a| (p - a).max_norm())
+            .into_iter()
+            .fold(p.max_norm(), f64::min);
+        if tiny_im(dist) {
+            common::frexp(p - p.real()).0 * (2.0 * MIN_IM_P * dist) + p.real()
+        } else {
+            p
+        }
+    } else {
+        p
+    };
 
     // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
     // duplication step first raises the tiny one
@@ -822,6 +853,9 @@ fn rj_unscaled<T: Num>(
             cct1[2] = zm.sqrt();
             cct2[0] = cct1[2];
             lam = ndot2(&cct1, &cct2, 3);
+            if real_lam {
+                lam = T::from(lam.real());
+            }
             dm = common::sqrt_sum(pm, xm, prm, cct1[0])
                 * common::sqrt_sum(pm, ym, prm, cct1[1])
                 * common::sqrt_sum(pm, zm, prm, cct1[2]);
@@ -838,6 +872,11 @@ fn rj_unscaled<T: Num>(
             // `a` the closest of `x, y, z`.
             if pl.abs() < pm.abs() {
                 pl = common::add_lambda_p(pm, xyz, xyzl);
+                // Unlike in xsf, restore `Im(p + lam) = 4^-m Im p` for real `lam`: a complex `a`
+                // can round away a tiny `Im p`
+                if real_lam {
+                    pl = (p - p.real()) * d4m + pl.real();
+                }
                 // Unlike in xsf, in the right half-plane the real part of `p + lam` is at least its
                 // lower bound `4^-m Re p`: rounded to the left of the imaginary axis, `p + lam` and
                 // the `R_C` terms can be on different branches.
@@ -879,12 +918,14 @@ fn rj_unscaled<T: Num>(
 
     // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
     //
-    // Unlike in xsf, from `u` if `1 + t` cancels in the right half-plane, e.g. after a step where
-    // `p + lam` cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u` underflows.
+    // Unlike in xsf, evaluate `R_C` from `u` if `1 + t` cancels, e.g. after a step where `p + lam`
+    // cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there, but only where `u` keeps the side of the cut:
+    // in the right half-plane, and for real `lam`, where `Im(p + lam) = 4^-m Im p` (see
+    // `MIN_IM_P`). NaN if `u` underflows.
     //
-    // (not elsewhere: `p + lam` can lose a tiny `Im p` there, and `u` its side of the cut)
+    // (elsewhere `p + lam` can lose a tiny `Im p`, and `u` its side of the cut)
     let rc1 = |t: T, u: T| {
-        if !(right && cancels(T::from(1.0), u)) {
+        if !((right || real_lam) && cancels(T::from(1.0), u)) {
             t.safe_atan_sqrt_div()
         } else if u.max_norm().is_normal() {
             rc(T::from(1.0), u, rerr).1
