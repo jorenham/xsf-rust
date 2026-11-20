@@ -38,6 +38,11 @@
 //! room for the errors to grow. For more than one large `a_i`, the starts of the steps in one
 //! come from the steps in the next, not from the series.
 //!
+//! For a large negative `b` and `z < 0`, the steps down from `b + m > 0` can make the errors
+//! larger by many orders of magnitude where `b + k` is positive, and much less where it is
+//! negative. They then start where `b + m` is about -8, -16, ..., from the steps up in the large
+//! upper parameters there.
+//!
 //! The steps can make the errors of the series and their own rounding errors larger by many
 //! orders of magnitude, so the error of the result is estimated. An error `e` of the F at `k`
 //! steps from the result adds `g_k e` to it, where the `g_k` follow from the adjoint recurrence,
@@ -313,16 +318,15 @@ fn toward_zero(v: f64) -> impl Iterator<Item = u32> {
 
 /// F by `raised_recurrence` for `z < 0`, first in all steps of the largest upper parameter,
 /// `a[0]`, then in fewer, which make the errors less large and the series cancel more, while
-/// there is work left, and the estimate of its absolute error, if that is accurate
-fn raised_first(a: [f64; 3], b: [f64; 2], z: f64) -> Option<(Dd, f64)> {
+/// there is `work` left, and the estimate of its absolute error, if that is accurate
+fn raised_first(a: [f64; 3], b: [f64; 2], z: f64, work: &Cell<u32>) -> Option<(Dd, f64)> {
     if z >= 0.0 || !(RAISED_MIN..f64::from(PFQ_MAXITER)).contains(&a[0]) {
         return None;
     }
     let longest = a[0] as u32 - 2;
     let fewer = RECURRENCE_STARTS.into_iter().rev().filter(|&m| m < longest);
-    let work = Cell::new(RAISED_WORK);
     let tries = once(longest).chain(fewer).take_while(|_| work.get() > 0);
-    let run = |m| raised_recurrence(a, 0, b, z, m, &work);
+    let run = |m| raised_recurrence(a, 0, b, z, m, work);
     let mut results = tries.filter_map(run);
     results.find(|&(y, err)| accurate(y, err).is_some())
 }
@@ -348,11 +352,26 @@ pub(super) fn pfq_recurrence<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f6
         let run = |m| upper_recurrence(a, i, [large, small], z, m);
         recurrence_first(toward_zero(a[i]), run)
     };
-    let raised = || raised_first(a, [large, small], z).and_then(|(y, err)| accurate(y, err));
+    let raised = || {
+        let work = Cell::new(RAISED_WORK);
+        raised_first(a, [large, small], z, &work).and_then(|(y, err)| accurate(y, err))
+    };
     // first in the smaller lower parameter, then in the negative upper ones, and last up in the
     // large upper ones for z < 0, each in at most as many steps as the series has terms
     let lowers = [(small, large), (large, small)].into_iter().find_map(lower);
     lowers.or_else(|| (0..3).find_map(upper)).or_else(raised)
+}
+
+/// 3F2 for `|z| < 1` by the steps down in a negative smaller lower parameter from where
+/// `raised_first` gives F, and an estimate of its absolute error, or `None` if it is not 3F2 or
+/// not accurate
+pub(super) fn pfq_recurrence_lowered<P: Params>(a: &P, b: &P, z: f64) -> Option<(f64, f64)> {
+    let (a, [large, small]) = params_3f2(a, b)?;
+    // one `RAISED_WORK` for each of the three starts, shared by all `m`
+    let work = Cell::new(3 * RAISED_WORK);
+    // (exact, as `small + k` is in `(small, 0)`)
+    let start = |k: f64| raised_first(a, [small + k, large], z, &work);
+    recurrence_first(toward_zero(small), |m| lower_steps(a, small, large, z, m, start))
 }
 
 #[cfg(test)]
