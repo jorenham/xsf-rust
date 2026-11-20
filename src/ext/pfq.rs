@@ -405,19 +405,31 @@ fn pfq_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, checke
     if is_normal(ratio) {
         term * ratio
     } else {
-        pfq_rescaled_next(a, b, n, z, term, term * ratio)
+        pfq_rescaled_next(a, b, n, z, term).unwrap_or_else(|| term * ratio)
     }
 }
 
+/// `pfq_next` without its fallback to the rounded ratio, which can have more rounding errors, so
+/// `None` where `t_{n+1}` is not normal
+fn pfq_normal_next(a: &[f64], b: &[f64], n: f64, z: f64, term: f64, checked: bool) -> Option<f64> {
+    let ratio = pfq_ratio::<f64>(a, b, n, checked) * z;
+    let next = if is_normal(ratio) {
+        term * ratio
+    } else {
+        pfq_rescaled_next(a, b, n, z, term)?
+    };
+    next.is_normal().then_some(next)
+}
+
 /// `pfq_next` from the mantissas and exponents of its factors, as `t_{n+1} / t_n` can over- or
-/// underflow where `t_{n+1}` is normal; or `next`, as computed, if `t_{n+1}` is not normal either
+/// underflow where `t_{n+1}` is normal; `None` if `t_{n+1}` is not normal either
 #[cold]
 #[inline(never)]
-fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T, next: T) -> T {
+fn pfq_rescaled_next<T: SeriesReal>(a: &[f64], b: &[f64], n: f64, z: f64, term: T) -> Option<T> {
     let (ratio, e) = pfq_frexp_ratio::<T>(a, b, n);
     let ((zm, ze), (tm, te)) = (frexp_f64(z), term.frexp());
     let rescaled = ldexp_i64(tm * (ratio * T::from_f64(zm)), e + i64::from(ze + te));
-    if is_normal(rescaled) { rescaled } else { next }
+    is_normal(rescaled).then_some(rescaled)
 }
 
 /// The terms `t_1, t_2, ...` of the series after `t_0 = 1`, in the arithmetic of `T`
@@ -900,7 +912,7 @@ type Method<P> = fn(&P, &P, f64) -> Option<(f64, f64)>;
 /// `b` contains the 1 of `n!`. Unless it is a polynomial, the last methods are `pfq_conformal`,
 /// which is the slowest, and for `|z| < 1` `pfq_recurrence`, `pfq_series_long`,
 /// `pfq_recurrence_lowered`, `pfq_recurrence_balanced` and `pfq_recurrence_nested`, of which all
-/// but `pfq_series_long` only apply to 3F2.
+/// but `pfq_series_long` only apply to 3F2, and then `pfq_overflow`.
 fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
     let series: Method<P> = |a, b, z| Some(pfq_series(a, b, z));
     let polynomial = first_zero(a.as_ref()).is_finite();
@@ -928,7 +940,71 @@ fn pfq_accurate<P: Params>(a: &P, b: &P, z: f64) -> Option<Estimate> {
         &[]
     };
     let methods = methods.iter().chain(&last).chain(inside);
-    methods.fold(None, |y, method| y.or_better(|| method(a, b, z).map(Estimate::absolute)))
+    let y = methods.fold(None, |y, method| y.or_better(|| method(a, b, z).map(Estimate::absolute)));
+    if polynomial {
+        y
+    } else {
+        y.or_better(|| pfq_overflow(a.as_ref(), b.as_ref(), z))
+    }
+}
+
+/// Most terms that `pfq_overflow` follows
+///
+/// Of its 57 results without it on 1657 points where the other methods are not accurate, 55 are
+/// within it, and 54 within half of it (measured).
+const PFQ_OVERFLOW_MAXITER: u32 = 4 * PFQ_MAXITER;
+
+/// `+-inf` for `0 < z < 1` where the series shows that `_{q+1}F_q` overflows, else `None`
+///
+/// From the first `n >= pfq_settled` on, the terms have the sign of `t_n`. Once the sum of their
+/// sizes is at least `2^1025`, and that of the terms before at most `2^1023`, the result has that
+/// sign and a size of at least `2^1024`. Each term has at most `pfq_ratio_roundings` roundings per
+/// step before it, and each sum one per term.
+fn pfq_overflow(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
+    if z <= 0.0 {
+        return None;
+    }
+    let (settled, checked) = (pfq_settled(a, b), pfq_extreme(a, b));
+    let roundings = pfq_ratio_roundings(a, b) + 1.0;
+    let next = |n, term| pfq_normal_next(a, b, n, z, term, checked);
+    let indices = (0..PFQ_OVERFLOW_MAXITER).map(f64::from);
+
+    // the sum of the sizes of the terms before `settled`, and the first term after them
+    let (before, mut t) = indices
+        .clone()
+        .take_while(|&n| n < settled)
+        .try_fold((0.0, 1.0), |(sum, t): (f64, f64), n| Some((sum + t.abs(), next(n, t)?)))?;
+
+    // the sum of the sizes of the terms from `settled` on, and `t`, both in units of `2^e`
+    let mut after = 0.0;
+    let mut e = 0;
+    for n in indices.skip_while(|&n| n < settled) {
+        // the sum in [1/2, 1), exactly, and t with it, which is exact unless it underflows
+        let (m, k) = frexp_f64(after + t.abs());
+        after = m;
+        e += k;
+        t = ldexp_f64(t, -k);
+        if !t.is_normal() {
+            return None;
+        }
+        // (a bound of the relative rounding errors, with a factor 2 to spare)
+        let err = (n + 1.0) * roundings * f64::EPSILON;
+        // (the lower bound `>= 2^1025` by its exponent, as it can be beyond `f64`)
+        if before * (1.0 + err) <= pow2(1023) && frexp_f64(after * (1.0 - err)).1 + e > 1025 {
+            return Some(Estimate::exact(f64::INFINITY.copysign(t)));
+        }
+        let next = next(n, t)?;
+        if next.abs() < t.abs() {
+            // the rest is at most a geometric series (the computed `rho` can be below the exact
+            // bound, which only costs a result)
+            let rho = pfq_ratio_bound(a, b, z, n + 1.0);
+            if rho < 1.0 && before + ldexp_f64(after + next.abs() / (1.0 - rho), e) < pow2(1023) {
+                return None;
+            }
+        }
+        t = next;
+    }
+    None
 }
 
 /// `pfq_series` after sorting the parameters, which tightens `pfq_ratio_bound`
@@ -1015,6 +1091,7 @@ fn pfq_real<P: Params>(a: P, b: P, z: f64) -> Option<Estimate> {
 /// - $\pm\infty$ at $z = 1$ for finite parameters if $b_1 + b_2 \le a_1 + a_2 + a_3$, the sign
 ///   of its limit from below, unless it is a polynomial or that can't be determined (then
 ///   NaN);
+/// - $\pm\infty$ where it detects that it overflows, for $0 < z < 1$;
 /// - NaN for $z > 1$, where it is complex, unless it is a polynomial or cancels to
 ///   $(1 - z)^{-a_i}$ with an integer $a_i$ or to a $_2F_1$ that is a rational function of $z$,
 ///   and if an argument is NaN;
@@ -2437,6 +2514,7 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///   below, for $p = q + 1 \ge 3$ after cancellations and finite parameters if
 ///   $\sum_j b_j \le \sum_i a_i$, unless it is a polynomial or that can't be determined (then
 ///   `None`);
+/// - $\pm\infty$ for $p = q + 1 \ge 3$ and $0 < z < 1$ where it detects that it overflows;
 /// - infinite at $z = \pm\infty$ if it is a polynomial of degree $\ge 1$, and at $z = +\infty$
 ///   for $p \le q$ if it isn't a polynomial;
 /// - 0 at $z = -\infty$ for $q \le p \le q + 1$ if all $a_i > 0$;
