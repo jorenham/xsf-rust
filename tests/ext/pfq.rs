@@ -52,16 +52,16 @@ fn test_hyp3f2_cancels_to_1f0() {
 fn test_hyp3f2_cancels_to_2f1() {
     // 2F1(2, 2; 1; z) = (1 + z) / (1 - z)^3, also past the radius of convergence
     assert_eq!(hyp3f2(2.0, 2.0, 3.0, 1.0, 3.0, 2.0), -3.0);
-    assert_eq!(hyppfq(&[2.0, 2.0, 3.0], &[1.0, 3.0], 2.0), Some(-3.0));
-    assert_eq!(hyppfq(&[2.0, 2.0], &[1.0], 2.0), Some(-3.0));
+    assert_eq!(hyppfq([2.0, 2.0, 3.0], [1.0, 3.0], 2.0), Some(-3.0));
+    assert_eq!(hyppfq([2.0, 2.0], [1.0], 2.0), Some(-3.0));
     // 2F1(5/2, 1; 3/2; z) = (1 - z/3) / (1 - z)^2
     assert_hyp3f2([1.0, 2.5, 1.0], [1.0, 1.5], 10.0, -7.0 / 243.0);
     // complex, where `hyp2f1` is +inf
     assert!(hyp3f2(1.75, 3.0, 4.0, 2.0, 4.0, 2.0).is_nan());
-    assert!(hyppfq(&[1.75, 3.0], &[2.0], 2.0).is_some_and(f64::is_nan));
+    assert!(hyppfq([1.75, 3.0], [2.0], 2.0).is_some_and(f64::is_nan));
     // complex, with c - a = -5 + 2^-51 (Arb: imaginary part -1.7e-13), which `hyp2f1` rounds
     let (a, c, z) = (-3.645_644_290_993_088_6, -8.645_644_290_993_088, 5.231_771_887_127_298);
-    assert!(hyppfq(&[a, 3.0], &[c], z).is_some_and(f64::is_nan));
+    assert!(hyppfq([a, 3.0], [c], z).is_some_and(f64::is_nan));
     assert!(hyp3f2(a, 3.0, 4.0, c, 4.0, z).is_nan());
 }
 
@@ -95,7 +95,7 @@ fn test_hyp3f2_special() {
         [0.968_097_853_412_922_8, -1.366_013_156_809_728_5],
     );
     assert_eq!(hyp3f2(a[0], a[1], a[2], b[0], b[1], 1.0), f64::NEG_INFINITY);
-    assert_eq!(hyppfq(&[0.5, 1.5, 2.5, 3.5], &[-0.5, 1.25, 2.25], 1.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyppfq([0.5, 1.5, 2.5, 3.5], [-0.5, 1.25, 2.25], 1.0), Some(f64::NEG_INFINITY));
     // b_1 + b_2 - a_1 - a_2 - a_3 = 2.8e-17 rounds to 0; the result is 2.5e15 (Arb)
     let y = hyp3f2(5.0, 0.1, 0.2, 5.0, 0.300_000_000_000_000_04, 1.0);
     assert!(y.is_nan() || (y / 2.467_832_059_538_944e15 - 1.0).abs() < 1e-13);
@@ -236,7 +236,7 @@ fn test_hyp3f2_long_series() {
         ([2.4e-26, 12.0, 13.0], [7.0, 11.0], 0.996, 1.000_000_000_000_148_7),
     ] {
         assert_hyp3f2(a, b, z, expected);
-        assert_eq!(hyppfq(&a, &b, z), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], z)));
+        assert_eq!(hyppfq(a, b, z), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], z)));
     }
     // the terms cancel too much, also in double-double (Arb reference)
     let (y, expected) =
@@ -359,7 +359,7 @@ fn test_hyp3f2_recurrence() {
     let y = hyp3f2(0.25, 1.2, 0.3, 1e-316, 2.0, 7e-9);
     assert!(y.is_nan() || (y / 3.150_000_064_610_025e306 - 1.0).abs() < 1e-13);
     // the steps up make the errors too large where b_2 - a_3 = -2, as F is then tiny (Arb)
-    let y = hyppfq(&[90.0, 80.0, 0.5], &[0.75, -1.5], -0.7);
+    let y = hyppfq([90.0, 80.0, 0.5], [0.75, -1.5], -0.7);
     assert!(y.is_none_or(|y| (y / -2.343_795_263_623_968e-17 - 1.0).abs() < 1e-13));
 }
 
@@ -401,10 +401,10 @@ fn test_hyp3f2_overflow() {
     assert_eq!(hyp3f2(90.5, 90.5, 0.25, 13.5, -46.25, 0.95), f64::NEG_INFINITY);
     assert_eq!(hyp3f2(50.0, 50.0, 50.0, 1.0, 1.0, 0.999_999), f64::INFINITY);
     let (a, b) = ([30.5, 20.25, 10.75, 5.5, 1.25], [-40.5, -30.25, 2.5, 3.5]);
-    assert_eq!(hyppfq(&a, &b, 0.9999), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a, b, 0.9999), Some(f64::INFINITY));
     // the terms shrink fast after a large t_1, but the sum is about 1 (Arb: |F - 1| < 5e-250)
     for a2 in [1e-150, -1e-150] {
-        let y = hyppfq(&[1e300, a2, 1.0], &[1e100, 1e100], 2e-200);
+        let y = hyppfq([1e300, a2, 1.0], [1e100, 1e100], 2e-200);
         assert!(y.is_none_or(|y| (y - 1.0).abs() < 1e-13), "{y:?}");
     }
 }
@@ -611,7 +611,7 @@ fn test_hyp2f2_inaccurate() {
     // few for `hyppfq` (Arb reference)
     let y = hyp2f2(2.5, 3.25, -0.5, 1.75, -40.0);
     assert!((y / 2.190_480_405_532_719e-4 - 1.0).abs() < 1e-7);
-    assert_eq!(hyppfq(&[2.5, 3.25], &[-0.5, 1.75], -40.0), None);
+    assert_eq!(hyppfq([2.5, 3.25], [-0.5, 1.75], -40.0), None);
     // e^z times a polynomial, where the algebraic part vanishes
     assert!(hyp2f2(2.0, 3.0, 1.0, 1.0, -100.0).is_nan());
     // an error of 0.499 of the result, which is twice the exact one (Arb: -503_991_821.928_347)
@@ -762,7 +762,7 @@ fn test_hyp0f2() {
     assert_eq!(hyp0f2(1.0, 1.0, -1e9), f64::NEG_INFINITY);
     // it overflows undetected (Arb: 1.093e552)
     assert!(hyp0f2(200.0, 200.0, 4e8).is_nan());
-    assert_eq!(hyppfq(&[], &[1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
+    assert_eq!(hyppfq([], [1.5, 2.5], -0.75), Some(hyp0f2(1.5, 2.5, -0.75)));
 }
 
 #[test]
@@ -789,12 +789,12 @@ fn test_hyp2f0() {
     assert!(hyp2f0(1.5, 2.5, 0.5).is_nan());
     assert!(hyp2f0(f64::NAN, 2.5, -0.5).is_nan());
     assert!(hyp2f0(1.5, 2.5, f64::NAN).is_nan());
-    assert_eq!(hyppfq(&[1.5, 2.5], &[], -0.75), Some(hyp2f0(1.5, 2.5, -0.75)));
+    assert_eq!(hyppfq([1.5, 2.5], [], -0.75), Some(hyp2f0(1.5, 2.5, -0.75)));
     // a1 is a spacing from -31, past which a1 - (a1 - a2 + 1) + 1 rounds (Arb: 3.457_054_166e108)
     let (a1, a2) = (-31.000_000_000_000_004, -41.5);
     assert!((hyp2f0(a1, a2, -100.0) / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-6);
     for a in [[a1, a2], [a2, a1]] {
-        let actual = hyppfq(&a, &[], -100.0).unwrap();
+        let actual = hyppfq(a, [], -100.0).unwrap();
         assert!((actual / 3.457_054_166_467_876e108 - 1.0).abs() < 1e-14, "{actual}");
     }
     // an a_i a few spacings from a non-positive integer, which chgu's rounded a1 - b + 1 moves
@@ -814,11 +814,11 @@ fn test_hyp2f0() {
     ] {
         let actual = hyp2f0(a1, a2, z);
         assert!((actual / expected - 1.0).abs() < 1e-14, "{actual}");
-        assert_eq!(hyppfq(&[a1, a2], &[], z), Some(actual));
+        assert_eq!(hyppfq([a1, a2], [], z), Some(actual));
     }
     // the result is subnormal (Arb: 2.792_686_307e-324), or underflows (Arb: 2.002_611_525e-334)
     assert!(hyp2f0(20.5, 200.5, -3.2e13).is_nan());
-    assert_eq!(hyppfq(&[20.5, 200.5], &[], -3.2e13), None);
+    assert_eq!(hyppfq([20.5, 200.5], [], -3.2e13), None);
     assert!(hyp2f0(20.5, 200.5, -1e14).is_nan());
     // the polynomial 1 + 2 z overflows (Arb: -2.000_000_000_000_000_02e308)
     assert_eq!(hyp2f0(-1.0, -2.0, -1e308), f64::NEG_INFINITY);
@@ -826,17 +826,17 @@ fn test_hyp2f0() {
     // (Arb)
     let actual = hyp2f0(0.5, 90.5, -1e4);
     assert!((actual / 0.001_055_556_987_423_832_8 - 1.0).abs() < 1e-12, "{actual}");
-    assert_eq!(hyppfq(&[0.5, 90.5], &[], -1e4), None);
+    assert_eq!(hyppfq([0.5, 90.5], [], -1e4), None);
     // chgu estimates 12 digits of the Borel sum, which has 11.8, where the residues of a_i that
     // differ by an integer are accurate (Arb)
     let (a1, a2, z) = (-33.469_052_875_157_17, -30.469_052_875_157_17, -36.589_122_667_683_775);
-    let actual = hyppfq(&[a1, a2], &[], z).unwrap();
+    let actual = hyppfq([a1, a2], [], z).unwrap();
     assert!((actual / -2.953_959_436_326_337e85 - 1.0).abs() < 1e-14, "{actual}");
     // the Weniger sum, with 3.7 digits, where hyppfq has U (Arb: 2.968_695_239_976_95e209)
     let (a1, a2, z) = (-62.084_104_456_978_59, -49.999_999_999_996_75, -249.109_088_375_704_2);
     let actual = hyp2f0(a1, a2, z);
     assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 3e-4, "{actual}");
-    let actual = hyppfq(&[a1, a2], &[], z).unwrap();
+    let actual = hyppfq([a1, a2], [], z).unwrap();
     assert!((actual / 2.968_695_239_976_95e209 - 1.0).abs() < 1e-14, "{actual}");
     // the zero 1 - 0.5 * 2 of a polynomial, where the error estimate is not 0
     assert!(hyp2f0(-1.0, 0.5, 2.0).is_nan());
@@ -846,7 +846,7 @@ fn test_hyp2f0() {
 fn test_pfq_extreme_products() {
     // exact, where a partial product of the parameters is about 10^-320
     let (tiny, huge) = (1e-160, 1e160);
-    assert_eq!(hyppfq(&[-1.0, tiny, tiny, huge, huge], &[], 2.0), Some(-1.0));
+    assert_eq!(hyppfq([-1.0, tiny, tiny, huge, huge], [], 2.0), Some(-1.0));
     // exact, where a partial product of the lower parameters is 2^-1023
     let (tiny, huge) = (f64::MIN_POSITIVE / 2.0, 2.0_f64.powi(1023));
     assert_eq!(hyp1f2(-1.0, tiny, -huge, 1.0), 2.0);
@@ -855,13 +855,13 @@ fn test_pfq_extreme_products() {
     // a term ratio that over- or underflows before it is multiplied by z (the exact sums of the
     // terms, from Python `fractions`, rounded)
     let (a, b, z) = ([-1.0, 2.0_f64.powi(600)], [2.0, 2.0_f64.powi(-425)], f64::MIN_POSITIVE);
-    assert_eq!(hyppfq(&a, &b, z), Some(-3.0));
+    assert_eq!(hyppfq(a, b, z), Some(-3.0));
     let (a, z) = ([-3.0, -f64::from_bits(1)], 2.0_f64.powi(500));
-    assert_eq!(hyppfq(&a, &[1.5], z), Some(2.640_637_803_924_586e127));
+    assert_eq!(hyppfq(a, [1.5], z), Some(2.640_637_803_924_586e127));
     // the power of 2 of a product exceeds `i32`, and the second term overflows
     let mut a = vec![huge; 4_198_404];
     a.extend([-1.0, 16.0]);
-    assert_eq!(hyppfq(&a, &[], 2.0), None);
+    assert_eq!(hyppfq(&a, [], 2.0), None);
     // subnormal parameters (Arb)
     for (actual, expected) in [
         (hyp1f2(1.5e-309, 1.5e-319, -2.102, -4.284), 188_562_247_355.745_18),
@@ -875,17 +875,14 @@ fn test_pfq_extreme_products() {
 #[test]
 fn test_hyppfq_routing() {
     let z = -0.75;
-    assert_eq!(hyppfq(&[], &[], z), Some(hyp0f0(z)));
-    assert_eq!(hyppfq(&[2.5], &[], z), Some(hyp1f0(2.5, z)));
-    assert_eq!(hyppfq(&[], &[1.5], z), Some(hyp0f1(1.5, z)));
-    assert_eq!(hyppfq(&[0.5], &[1.5], z), Some(hyp1f1(0.5, 1.5, z)));
-    assert_eq!(hyppfq(&[0.3, 0.7], &[1.5], z), Some(hyp2f1(0.3, 0.7, 1.5, z)));
-    assert_eq!(hyppfq(&[0.5], &[1.5, 2.5], z), Some(hyp1f2(0.5, 1.5, 2.5, z)));
-    assert_eq!(hyppfq(&[0.5, -1.5], &[1.5, 2.5], z), Some(hyp2f2(0.5, -1.5, 1.5, 2.5, z)));
-    assert_eq!(
-        hyppfq(&[0.5, 1.5, 3.5], &[2.25, 4.5], z),
-        Some(hyp3f2(0.5, 1.5, 3.5, 2.25, 4.5, z))
-    );
+    assert_eq!(hyppfq([], [], z), Some(hyp0f0(z)));
+    assert_eq!(hyppfq([2.5], [], z), Some(hyp1f0(2.5, z)));
+    assert_eq!(hyppfq([], [1.5], z), Some(hyp0f1(1.5, z)));
+    assert_eq!(hyppfq([0.5], [1.5], z), Some(hyp1f1(0.5, 1.5, z)));
+    assert_eq!(hyppfq([0.3, 0.7], [1.5], z), Some(hyp2f1(0.3, 0.7, 1.5, z)));
+    assert_eq!(hyppfq([0.5], [1.5, 2.5], z), Some(hyp1f2(0.5, 1.5, 2.5, z)));
+    assert_eq!(hyppfq([0.5, -1.5], [1.5, 2.5], z), Some(hyp2f2(0.5, -1.5, 1.5, 2.5, z)));
+    assert_eq!(hyppfq([0.5, 1.5, 3.5], [2.25, 4.5], z), Some(hyp3f2(0.5, 1.5, 3.5, 2.25, 4.5, z)));
 }
 
 #[test]
@@ -906,7 +903,7 @@ fn test_hyppfq_2f0() {
         ([3.5, 7.5], -0.5, 0.008_273_723_913_148_375),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
@@ -916,7 +913,7 @@ fn test_hyppfq_2f0() {
         ([7.3, -7.69], -2.7, 169_644_321_290.509_92),
         ([4.3, 7.0], -0.97, 5.585_769_788_936_731e-4),
     ] {
-        let actual = hyppfq(&a, &[], z).unwrap();
+        let actual = hyppfq(a, [], z).unwrap();
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
     // for a1, a2 << 0, where U is by the recurrence in a, with more than 12 digits (Arb)
@@ -927,17 +924,17 @@ fn test_hyppfq_2f0() {
         ([-77.66, -116.73], -0.004_77, -4.990_584_018_414_777_5e-29),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
     // but not the Borel sum where U by the recurrence is 1.1e-13 off (Arb)
     let actual =
-        hyppfq(&[-66.955_195_369_874_3, -86.323_704_933_975_42], &[], -0.356_603_437_508_210_8);
+        hyppfq([-66.955_195_369_874_3, -86.323_704_933_975_42], [], -0.356_603_437_508_210_8);
     xsref::np_assert_allclose!([actual.unwrap()], [-3.721_878_069_495_089e77], rtol = 1e-14);
     // nor where it is 2.2e-13 off by the rounding of the coefficients of the recurrence (Arb)
     let a = [-121.661_194_083_177_43, -125.496_107_001_270_77];
-    let actual = hyppfq(&a, &[], -0.011_817_257_637_100_627);
+    let actual = hyppfq(a, [], -0.011_817_257_637_100_627);
     assert!(actual.is_none_or(|y| (y / 6.013_041_362_636_676e-17 - 1.0).abs() < 1e-13));
     // nor where the rounding of x = -1/z or a1 - a2 + 1 changes it by more than 1e-13 (Arb)
     for (a, z, expected) in [
@@ -958,7 +955,7 @@ fn test_hyppfq_2f0() {
         ),
         ([-1e-48, -20.5], -30.0, -0.069_303_167_698_671_19),
     ] {
-        if let Some(actual) = hyppfq(&a, &[], z) {
+        if let Some(actual) = hyppfq(a, [], z) {
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-13);
         }
     }
@@ -971,7 +968,7 @@ fn test_hyppfq_2f0() {
         ([-2.4, 2.75], -0.1875, 2.910_254_702_412_351),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
@@ -986,32 +983,31 @@ fn test_hyppfq_2f0() {
         ([-14.93, -14.85], -0.32, -31_736.919_105_697_503),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
     // where it stops with steps below its noise, but 1.2e-13 off by truncation (Arb)
-    let y = hyppfq(&[-28.697, -30.146], &[], -16.155);
+    let y = hyppfq([-28.697, -30.146], [], -16.155);
     assert!(y.is_none_or(|y| (y / -4.139_259_483_009_185e66 - 1.0).abs() <= 1e-13));
     // and where only its last two steps are below its noise, 1.4e-13 off (Arb)
-    let y = hyppfq(&[-13.0541, -13.0541], &[], -8.2586);
+    let y = hyppfq([-13.0541, -13.0541], [], -8.2586);
     assert!(y.is_none_or(|y| (y / -3.712_522_542_395_385e19 - 1.0).abs() <= 1e-13));
     // a terminating sum whose drift bound would overflow unscaled (Arb)
-    let actual = hyppfq(&[-125.0, -1000.0], &[], -0.3).unwrap();
+    let actual = hyppfq([-125.0, -1000.0], [], -0.3).unwrap();
     xsref::np_assert_allclose!([actual], [-8.284_573_243_742_23e305], rtol = 1e-14);
     // the Weniger fallback, after 1549 terms (Arb)
-    let y = hyppfq(&[-1548.5, 1.000_000_000_000_028_4], &[], -0.001_953_124_999_999_999_8);
+    let y = hyppfq([-1548.5, 1.000_000_000_000_028_4], [], -0.001_953_124_999_999_999_8);
     assert!(y.is_none_or(|y| (y / 1.320_723_958_873_985_9e296 - 1.0).abs() <= 1e-13));
     // `chgu` estimates too few digits, and `(-1/z)^a1 U` gives 5.9e-19 (Arb:
     // -1.000_327_845_432_870_3e-19)
-    assert_eq!(hyppfq(&[-10.5, -9.5], &[], -0.033_448_280_861_346_91), None);
+    assert_eq!(hyppfq([-10.5, -9.5], [], -0.033_448_280_861_346_91), None);
 }
 
 #[test]
 fn test_hyppfq_2f0_borel_digits() {
     // where chgu claims the digits of `PFQ_TOL`, but the Borel sum is 1.5e-13 off (Arb)
-    let y =
-        hyppfq(&[-6.004_858_572_925_059, -21.079_297_738_677_543], &[], -151_588_853.883_445_23);
+    let y = hyppfq([-6.004_858_572_925_059, -21.079_297_738_677_543], [], -151_588_853.883_445_23);
     assert!(y.is_none_or(|y| (y / -1.040_990_391_775_226_8e184 - 1.0).abs() <= 1e-13));
 }
 
@@ -1023,7 +1019,7 @@ fn test_hyppfq_2f0_weniger_f64() {
         (-1.368_297_746_698_496_2e-15, 0.429_248_028_314_945_7),
         (-1.137_055_427_506_450_3e-15, 0.525_705_111_529_719_7),
     ] {
-        let y = hyppfq(&[a1, -2.999_999_999_999_947], &[], z);
+        let y = hyppfq([a1, -2.999_999_999_999_947], [], z);
         assert!(y.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{y:?}");
     }
 }
@@ -1039,7 +1035,7 @@ fn test_hyppfq_2f0_miller() {
         ([2.0, 3.2], -1.6, 0.051_620_474_992_384_33),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
@@ -1060,18 +1056,18 @@ fn test_hyppfq_2f0_miller_shifted() {
         ([-100.0, -39.22], -0.0268, 0.312_116_603_209_507_8),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
     // where the recurrence amplifies its rounding errors past the tolerance
     let (a, z) = ([-50.999_999_999_699_924, -104.536_535_990_336_39], -0.056_613_881_920_597_09);
-    let y = hyppfq(&a, &[], z);
+    let y = hyppfq(a, [], z);
     assert!(y.is_none_or(|y| (y / 2.794_502_416_895_517_4e22 - 1.0).abs() < 1e-13));
     // a subnormal result, ~8.63e-322 (Arb), is not that accurate
-    assert_eq!(hyppfq(&[-2000.0, -2000.0], &[], -0.000_122_549_019_607_843_14), None);
+    assert_eq!(hyppfq([-2000.0, -2000.0], [], -0.000_122_549_019_607_843_14), None);
     // but one of the unshifted run can be accurate (Arb)
-    let y = hyppfq(&[600.0, 4600.0], &[], -0.000_514_2).unwrap();
+    let y = hyppfq([600.0, 4600.0], [], -0.000_514_2).unwrap();
     assert!((y / 1.639_445_051_441_121_7e-308 - 1.0).abs() < 1e-13);
 }
 
@@ -1087,7 +1083,7 @@ fn test_hyppfq_2f0_hypu_tol() {
         ([7.0, 9.0], -1.8, 6.911_864_984_250_697e-8),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
@@ -1114,7 +1110,7 @@ fn test_hyppfq_2f0_chgu() {
         ),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
@@ -1132,26 +1128,26 @@ fn test_hyppfq_2f0_chgu() {
         ),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z);
+            let actual = hyppfq(a, [], z);
             assert!(actual.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{actual:?}");
         }
     }
     // U with 13 digits, but not 14, where the rounding of x adds to its error (Arb)
     let (a, z) = ([-41.063_445_135_539_524, -85.142_031_763_609_13], -244.069_262_850_980_4);
     for a in [a, [a[1], a[0]]] {
-        let actual = hyppfq(&a, &[], z).unwrap();
+        let actual = hyppfq(a, [], z).unwrap();
         assert!((actual / 4.147_636_829_929_707_7e304 - 1.0).abs() <= 1.5e-13, "{actual}");
     }
     // where x^a1 U with 13 digits, but not 14, rounds to infinity, but the result is finite (Arb)
     let (a, z) = ([-41.529_323_181_743_06, -152.000_000_000_000_7], -3.414_969_771_369_697);
     for a in [a, [a[1], a[0]]] {
-        let actual = hyppfq(&a, &[], z);
+        let actual = hyppfq(a, [], z);
         let expected = 1.797_693_134_862_228_7e308;
         assert!(actual.is_none_or(|y| (y / expected - 1.0).abs() <= 1e-13), "{actual:?}");
     }
     // and where the result overflows by 1.3e-9 (Arb: 1.797_693_137_280_425e308)
     for a in [a, [a[1], a[0]]] {
-        assert_eq!(hyppfq(&a, &[], -3.414_969_771_4), Some(f64::INFINITY));
+        assert_eq!(hyppfq(a, [], -3.414_969_771_4), Some(f64::INFINITY));
     }
 }
 
@@ -1194,22 +1190,22 @@ fn test_hyppfq_2f0_residues() {
         ([0.5, 190.0], -100.0, 0.007_268_927_663_459_597),
     ] {
         for a in [a, [a[1], a[0]]] {
-            let actual = hyppfq(&a, &[], z).unwrap();
+            let actual = hyppfq(a, [], z).unwrap();
             xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
         }
     }
     // where the result overflows (Arb: 2.119_933_336_826_352e381)
     let (a, z) = ([-66.319_864_448_545_77, -31.004_863_381_873_136], -48_506.922_888_667_235);
-    assert_eq!(hyppfq(&a, &[], z), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a, [], z), Some(f64::INFINITY));
     // but not within its error of the threshold, where it rounds to -f64::MAX or to -inf (Arb)
     let (a, z) = ([-7.000_000_000_000_008, -2.999_999_999_999_999_6], -1.016_898_363_184_092_2e46);
-    let actual = hyppfq(&a, &[], z);
+    let actual = hyppfq(a, [], z);
     assert!(actual.is_none_or(|y| (y / -f64::MAX - 1.0).abs() <= 1e-13), "{actual:?}");
     let (a, z) = ([-31.054_392_382_065_505, -30.054_392_339_243_95], -832_485_448.947_283_6);
-    assert!([None, Some(f64::NEG_INFINITY)].contains(&hyppfq(&a, &[], z)));
+    assert!([None, Some(f64::NEG_INFINITY)].contains(&hyppfq(a, [], z)));
     // nor where it underflows (Arb: 3.169e-395), as for a subnormal one
     let (a, z) = ([82.468_601_872_360_3, 58.426_626_520_618_98], -113_336.361_826_738_76);
-    assert_eq!(hyppfq(&a, &[], z), None);
+    assert_eq!(hyppfq(a, [], z), None);
 }
 
 #[test]
@@ -1244,7 +1240,7 @@ fn test_hyppfq_borel() {
         xsref::np_assert_allclose!([actual], [expected], rtol = 1e-14);
     }
     // complex for z > 0, as for 2F0
-    assert_eq!(hyppfq(&[1.0, 2.0, 3.0], &[], 0.01), None);
+    assert_eq!(hyppfq([1.0, 2.0, 3.0], [], 0.01), None);
     // a polynomial whose terms cancel, with a_i that differ by an integer, has no residues (Arb)
     for (a, b, z, expected) in [
         (
@@ -1266,7 +1262,7 @@ fn test_hyppfq_borel() {
     // but the residues of other a_i that differ by an integer vanish (exact: 2.02e326, 5.64e324)
     let a = [-100.0, 1.5, 1.5, 2.25, 2.75];
     for b in [[0.5, 0.5], [0.7, 0.9]] {
-        assert_eq!(hyppfq(&a, &b, -1.0), Some(f64::INFINITY));
+        assert_eq!(hyppfq(a, b, -1.0), Some(f64::INFINITY));
     }
 }
 
@@ -1333,42 +1329,42 @@ fn test_hyppfq_borel_residues() {
     }
     // but not within its error of the overflow threshold, where it rounds to f64::MAX (mpmath)
     let a = [-2.553_111_606_766_203, -2.553_111_499_272_675_6, -2.553_111_780_257_576_7];
-    let actual = hyppfq(&a, &[], -8.199_439_242_455_9e118);
+    let actual = hyppfq(a, [], -8.199_439_242_455_9e118);
     assert!(actual.is_none_or(|y| (y / f64::MAX - 1.0).abs() <= 1e-13), "{actual:?}");
     // far above it (the logarithm of its largest residue is about 2.5e12)
     let (a, b) = ([-10_000_000_000.25, 0.25, 0.625], [-9_999_999_999.25]);
-    assert_eq!(hyppfq(&a, &b, -1e100), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a, b, -1e100), Some(f64::INFINITY));
 }
 
 #[test]
 fn test_hyppfq_cancel() {
     let z = 0.25;
     let f1f1 = Some(hyp1f1(0.5, 1.5, z));
-    assert_eq!(hyppfq(&[0.5, 2.5], &[2.5, 1.5], z), f1f1);
+    assert_eq!(hyppfq([0.5, 2.5], [2.5, 1.5], z), f1f1);
     // also a non-positive integer, which would make it a polynomial
-    assert_eq!(hyppfq(&[-3.0, 0.5], &[1.5, -3.0], z), f1f1);
+    assert_eq!(hyppfq([-3.0, 0.5], [1.5, -3.0], z), f1f1);
     // each b_j cancels one a_i
-    assert_eq!(hyppfq(&[2.5, 2.5], &[2.5], z), Some(hyp1f0(2.5, z)));
-    assert_eq!(hyppfq(&[1.0, 2.0], &[2.0, 1.0], z), Some(hyp0f0(z)));
-    assert_eq!(hyppfq(&[1.0, 2.0, 3.0, 4.0, 5.0], &[5.0, 4.0, 3.0, 2.0], z), Some(hyp1f0(1.0, z)));
+    assert_eq!(hyppfq([2.5, 2.5], [2.5], z), Some(hyp1f0(2.5, z)));
+    assert_eq!(hyppfq([1.0, 2.0], [2.0, 1.0], z), Some(hyp0f0(z)));
+    assert_eq!(hyppfq([1.0, 2.0, 3.0, 4.0, 5.0], [5.0, 4.0, 3.0, 2.0], z), Some(hyp1f0(1.0, z)));
 }
 
 #[test]
 fn test_hyppfq_special() {
-    assert_eq!(hyppfq(&[0.5], &[-2.0], 0.0), Some(1.0));
+    assert_eq!(hyppfq([0.5], [-2.0], 0.0), Some(1.0));
     // a pole, unless it is a polynomial of a lower degree
-    assert_eq!(hyppfq(&[], &[-2.0], 0.5), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&[-3.0], &[-2.0], 0.5), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&[-1.0], &[-2.0], 0.5), Some(1.25));
+    assert_eq!(hyppfq([], [-2.0], 0.5), Some(f64::INFINITY));
+    assert_eq!(hyppfq([-3.0], [-2.0], 0.5), Some(f64::INFINITY));
+    assert_eq!(hyppfq([-1.0], [-2.0], 0.5), Some(1.25));
     // complex for p = q + 1 and z > 1, unless it is a polynomial or (1 - z)^-a
-    assert!(hyppfq(&[0.3, 0.7], &[1.5], 2.0).is_some_and(f64::is_nan));
+    assert!(hyppfq([0.3, 0.7], [1.5], 2.0).is_some_and(f64::is_nan));
     let (a, b) = ([0.5, 1.5, 2.5, 3.5], [1.25, 2.25, 3.25]);
-    assert!(hyppfq(&a, &b, 2.0).is_some_and(f64::is_nan));
-    assert_eq!(hyppfq(&[2.0], &[], 3.0), Some(0.25));
-    assert!(hyppfq(&[2.5], &[], 3.0).is_some_and(f64::is_nan));
-    assert_eq!(hyppfq(&[2.5], &[], 1.0), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&[-2.5], &[], 1.0), Some(0.0));
-    assert!(hyppfq(&[0.5], &[f64::NAN], 0.5).is_some_and(f64::is_nan));
+    assert!(hyppfq(a, b, 2.0).is_some_and(f64::is_nan));
+    assert_eq!(hyppfq([2.0], [], 3.0), Some(0.25));
+    assert!(hyppfq([2.5], [], 3.0).is_some_and(f64::is_nan));
+    assert_eq!(hyppfq([2.5], [], 1.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq([-2.5], [], 1.0), Some(0.0));
+    assert!(hyppfq([0.5], [f64::NAN], 0.5).is_some_and(f64::is_nan));
 }
 
 #[test]
@@ -1376,47 +1372,47 @@ fn test_hyppfq_infinite() {
     let inf = f64::INFINITY;
     // equal infinities cancel, and z = 0 wins
     let f1f1 = Some(hyp1f1(0.5, 1.5, 0.25));
-    assert_eq!(hyppfq(&[0.5, inf], &[inf, 1.5], 0.25), f1f1);
-    assert_eq!(hyppfq(&[inf], &[-inf], 0.0), Some(1.0));
+    assert_eq!(hyppfq([0.5, inf], [inf, 1.5], 0.25), f1f1);
+    assert_eq!(hyppfq([inf], [-inf], 0.0), Some(1.0));
     // a polynomial, with the sign of its last term
-    assert_eq!(hyppfq(&[-2.0], &[2.5], -inf), Some(inf));
-    assert_eq!(hyppfq(&[-3.0], &[2.5], inf), Some(-inf));
-    assert_eq!(hyppfq(&[-3.0], &[-4.5], -inf), Some(-inf));
-    assert_eq!(hyppfq(&[-3.0, 2.5], &[-3.5, 4.5], inf), Some(inf));
-    assert_eq!(hyppfq(&[-3.0], &[], inf), Some(-inf));
-    assert_eq!(hyppfq(&[0.0, 2.5], &[1.5], -inf), Some(1.0));
+    assert_eq!(hyppfq([-2.0], [2.5], -inf), Some(inf));
+    assert_eq!(hyppfq([-3.0], [2.5], inf), Some(-inf));
+    assert_eq!(hyppfq([-3.0], [-4.5], -inf), Some(-inf));
+    assert_eq!(hyppfq([-3.0, 2.5], [-3.5, 4.5], inf), Some(inf));
+    assert_eq!(hyppfq([-3.0], [], inf), Some(-inf));
+    assert_eq!(hyppfq([0.0, 2.5], [1.5], -inf), Some(1.0));
     // for p <= q at z = +inf, with the sign of prod Gamma(b_j) / prod Gamma(a_i)
-    assert_eq!(hyppfq(&[], &[], inf), Some(inf));
-    assert_eq!(hyppfq(&[0.5], &[1.5], inf), Some(inf));
-    assert_eq!(hyppfq(&[], &[-2.5], inf), Some(-inf));
-    assert_eq!(hyppfq(&[-2.5], &[1.5], inf), Some(-inf));
-    assert_eq!(hyppfq(&[-1.5, 2.5], &[-0.5, -1.75, 2.25], inf), Some(-inf));
+    assert_eq!(hyppfq([], [], inf), Some(inf));
+    assert_eq!(hyppfq([0.5], [1.5], inf), Some(inf));
+    assert_eq!(hyppfq([], [-2.5], inf), Some(-inf));
+    assert_eq!(hyppfq([-2.5], [1.5], inf), Some(-inf));
+    assert_eq!(hyppfq([-1.5, 2.5], [-0.5, -1.75, 2.25], inf), Some(-inf));
     // for q <= p <= q + 1 at z = -inf if all a_i > 0
-    assert_eq!(hyppfq(&[], &[], -inf), Some(0.0));
-    assert_eq!(hyppfq(&[1.5], &[-2.5], -inf), Some(0.0));
-    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[-0.5, -2.25], -inf), Some(0.0));
+    assert_eq!(hyppfq([], [], -inf), Some(0.0));
+    assert_eq!(hyppfq([1.5], [-2.5], -inf), Some(0.0));
+    assert_eq!(hyppfq([1.5, 2.5, 3.5], [-0.5, -2.25], -inf), Some(0.0));
     // the functions of p <= 2 and q <= 1, which have no limit for 0F1(0.25; z)
-    assert_eq!(hyppfq(&[-2.5], &[], -inf), Some(inf));
-    assert_eq!(hyppfq(&[2.0], &[], inf), Some(0.0));
-    assert_eq!(hyppfq(&[-1.5], &[-0.5], -inf), Some(-inf));
-    assert_eq!(hyppfq(&[], &[0.25], -inf), None);
+    assert_eq!(hyppfq([-2.5], [], -inf), Some(inf));
+    assert_eq!(hyppfq([2.0], [], inf), Some(0.0));
+    assert_eq!(hyppfq([-1.5], [-0.5], -inf), Some(-inf));
+    assert_eq!(hyppfq([], [0.25], -inf), None);
     // complex for p = q + 1
-    assert!(hyppfq(&[2.5], &[], inf).is_some_and(f64::is_nan));
-    assert!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, 4.5], inf).is_some_and(f64::is_nan));
+    assert!(hyppfq([2.5], [], inf).is_some_and(f64::is_nan));
+    assert!(hyppfq([1.5, 2.5, 3.5], [0.5, 4.5], inf).is_some_and(f64::is_nan));
     // the terms n >= 1 vanish for a b_j = +inf, unless it is complex
-    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], -10.0), Some(1.0));
-    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], 1.0), Some(1.0));
-    assert_eq!(hyppfq(&[-2.0, 2.5, 3.5], &[0.5, inf], 2.0), Some(1.0));
-    assert_eq!(hyppfq(&[1.5, 2.5, 3.5], &[0.5, inf], 2.0), None);
+    assert_eq!(hyppfq([1.5, 2.5, 3.5], [0.5, inf], -10.0), Some(1.0));
+    assert_eq!(hyppfq([1.5, 2.5, 3.5], [0.5, inf], 1.0), Some(1.0));
+    assert_eq!(hyppfq([-2.0, 2.5, 3.5], [0.5, inf], 2.0), Some(1.0));
+    assert_eq!(hyppfq([1.5, 2.5, 3.5], [0.5, inf], 2.0), None);
     // p > q + 1 diverges, unless it is a polynomial
-    assert_eq!(hyppfq(&[0.5, 1.5, 2.5], &[inf], 0.5), None);
-    assert_eq!(hyppfq(&[-2.0, 1.5, 2.5], &[inf], 0.5), Some(1.0));
+    assert_eq!(hyppfq([0.5, 1.5, 2.5], [inf], 0.5), None);
+    assert_eq!(hyppfq([-2.0, 1.5, 2.5], [inf], 0.5), Some(1.0));
     // a pole wins
-    assert_eq!(hyppfq(&[1.5], &[-2.0, inf], 0.25), Some(inf));
+    assert_eq!(hyppfq([1.5], [-2.0, inf], 0.25), Some(inf));
     // no limit
-    assert_eq!(hyppfq(&[1.5], &[-inf], 0.25), None);
-    assert_eq!(hyppfq(&[1.5], &[inf], inf), None);
-    assert_eq!(hyppfq(&[inf], &[2.5], 0.25), None);
+    assert_eq!(hyppfq([1.5], [-inf], 0.25), None);
+    assert_eq!(hyppfq([1.5], [inf], inf), None);
+    assert_eq!(hyppfq([inf], [2.5], 0.25), None);
 }
 
 #[test]
@@ -1438,7 +1434,7 @@ fn test_hyppfq_polynomial() {
         );
     }
     // the sum cancels too much, but (1 - z)^70 does not
-    assert_eq!(hyppfq(&[-70.0], &[], 3.0), Some(2.0_f64.powi(70)));
+    assert_eq!(hyppfq([-70.0], [], 3.0), Some(2.0_f64.powi(70)));
 }
 
 /// Asserts that `hyppfq` is within a relative error of `1e-13` of `expected`
@@ -1487,18 +1483,15 @@ fn test_hyppfq_series() {
 #[test]
 fn test_hyppfq_series_flat() {
     // the sum of the |t_k| is just above 2^-20 (Arb reference)
-    let y = hyppfq(&[-1.59065e-7, -1.000_000_001_4, 2.0, 3.0], &[1.0; 3], 0.999_25).unwrap();
+    let y = hyppfq([-1.59065e-7, -1.000_000_001_4, 2.0, 3.0], [1.0; 3], 0.999_25).unwrap();
     let expected = 1.000_000_953_674_056;
     assert!((y - expected).abs() <= 1e-15 * expected, "{y} != {expected}");
     // a ratio bound that rounds to below 1 bounds no tail, so the f64 sum is kept, though it
     // is wrong as well (#1784)
     let (a, b) = (f64::from_bits(0x44f4_0000_0000_0003), f64::from_bits(0x44f4_0000_0000_0000));
     let c = -2_000.000_000_000_000_2;
-    let y = hyppfq(
-        &[5e-19, 1.0, a, a, c, c],
-        &[0.01, b, b, -1_999.95, -1_999.95],
-        0.999_999_999_999_999,
-    );
+    let y =
+        hyppfq([5e-19, 1.0, a, a, c, c], [0.01, b, b, -1_999.95, -1_999.95], 0.999_999_999_999_999);
     assert_eq!(y, Some(1.0));
 }
 
@@ -1566,7 +1559,7 @@ fn test_hyppfq_asymptotic() {
         -241.850_859_418_556_47,
         -191.562_668_472_961_35,
     ];
-    let y = hyppfq(&a_tiny, &b_tiny, -3_439.845_313_014_641);
+    let y = hyppfq(a_tiny, b_tiny, -3_439.845_313_014_641);
     assert!(y.is_none_or(|y| (y / 2.050_874_042_107_11 - 1.0).abs() <= 1e-13));
     // (and here they are below eps of the sum after the second one, while their ratio is below
     // 1, before they grow)
@@ -1574,10 +1567,10 @@ fn test_hyppfq_asymptotic() {
     let b_tiny = [0.25, -475.5, -346.375, -392.625];
     assert_hyppfq(&a_tiny, &b_tiny, -7000.0, 2.755_031_164_893_358);
     // overflow, with the sign of the Gamma functions
-    assert_eq!(hyppfq(&a, &b, 800.0), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&a_neg, &b, 800.0), Some(f64::NEG_INFINITY));
-    assert_eq!(hyppfq(&[], &[0.25, 1.75], 1e9), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&[-0.5, 1.25], &b, 1e7), Some(f64::NEG_INFINITY));
+    assert_eq!(hyppfq(a, b, 800.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a_neg, b, 800.0), Some(f64::NEG_INFINITY));
+    assert_eq!(hyppfq([], [0.25, 1.75], 1e9), Some(f64::INFINITY));
+    assert_eq!(hyppfq([-0.5, 1.25], b, 1e7), Some(f64::NEG_INFINITY));
     // integer a_i - a_j, where the expansion has a limit only
     let c = 1.0 + 2.0_f64.powi(-10);
     let (a_int, b_int) = ([1.0, 1.0, 10.5], [c, c, 11.25]);
@@ -1612,13 +1605,13 @@ fn test_hyppfq_asymptotic_double_double() {
     // (the terms of the series of a tiny a_1 grow after the second one, to 1e41 times its size:
     // no bound shows that one of them bounds the rest)
     let (a, b) = ([2.0_f64.powi(-60), 0.125, 0.25], [-79.5, -144.25, -239.5]);
-    assert_eq!(hyppfq(&a, &b, -1732.0), None);
+    assert_eq!(hyppfq(a, b, -1732.0), None);
     // (and here they grow from the fourth one on, long before n = |z|)
     let (a, b) = ([2.0_f64.powi(-70), -19.75, -29.625], [1.0, -219.75, -229.625]);
-    assert_eq!(hyppfq(&a, &b, -100.0), None);
+    assert_eq!(hyppfq(a, b, -100.0), None);
     // (the parameters of the series are positive from n = 2^60 on)
     let (a, b) = ([0.5, 2.0_f64.powi(60)], [2.0_f64.powi(54), 1.25]);
-    assert_eq!(hyppfq(&a, &b, -1.75), None);
+    assert_eq!(hyppfq(a, b, -1.75), None);
     // (small a_i - a_j, so that the terms of the algebraic part cancel)
     let (a, b) = ([0.5, 0.501, 0.502], [1.25, -0.75, 2.5]);
     assert_hyppfq(&a, &b, -2e5, -0.032_631_251_264_031_06);
@@ -1741,11 +1734,11 @@ fn test_hyppfq_closed_forms() {
 fn test_hyppfq_at_one() {
     // +inf where the series diverges, for sum(b) <= sum(a)
     let a = [0.5, 1.5, 2.5, 3.5];
-    assert_eq!(hyppfq(&a, &[1.25, 2.25, 3.25], 1.0), Some(f64::INFINITY));
-    assert_eq!(hyppfq(&a, &[1.25, 2.25, 4.5], 1.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a, [1.25, 2.25, 3.25], 1.0), Some(f64::INFINITY));
+    assert_eq!(hyppfq(a, [1.25, 2.25, 4.5], 1.0), Some(f64::INFINITY));
     // no method where it converges, as to zeta(6) (30/0011 of the formulas above)
-    assert_eq!(hyppfq(&a, &[1.25, 2.25, 4.75], 1.0), None);
-    assert_eq!(hyppfq(&[1.0; 7], &[2.0; 6], 1.0), None);
+    assert_eq!(hyppfq(a, [1.25, 2.25, 4.75], 1.0), None);
+    assert_eq!(hyppfq([1.0; 7], [2.0; 6], 1.0), None);
     // sum(b) - sum(a) = 2^-99 - 254 2^-200 > 0 is within the rounding errors of the sums
     let pow2 = |n| 2.0_f64.powi(n);
     let mut a = vec![0.5, 0.5, pow2(-54), pow2(-54), pow2(-99)];
@@ -1758,14 +1751,14 @@ fn test_hyppfq_at_one() {
 #[test]
 fn test_hyppfq_none() {
     // the sum cancels too much
-    assert_eq!(hyppfq(&[-60.0, 0.5, 0.5], &[1.5, 1.5, 1.5], 200.0), None);
-    assert_eq!(hyppfq(&[0.5, 1.5], &[], 0.5), None);
+    assert_eq!(hyppfq([-60.0, 0.5, 0.5], [1.5, 1.5, 1.5], 200.0), None);
+    assert_eq!(hyppfq([0.5, 1.5], [], 0.5), None);
     // the conformal series has rounding errors from before a near-pole `b_j + n`
     let (a, b) = ([-1.5, 0.75, -0.125, -77.75], [-3.75, -78.875, 21.5]);
-    assert_eq!(hyppfq(&a, &b, -2.0), None);
+    assert_eq!(hyppfq(a, b, -2.0), None);
     let a = [0.17549, -33.943, -0.1108, 0.011_587, 0.041_28];
     let b = [-48.912, 0.001_225_3, 29.137, 0.009_330_8];
-    assert_eq!(hyppfq(&a, &b, -6.5618), None);
+    assert_eq!(hyppfq(a, b, -6.5618), None);
 }
 
 #[test]
@@ -1779,20 +1772,20 @@ fn test_hyppfq_conformal() {
 fn test_hyp_macro() {
     use xsf::hyp;
 
-    assert_eq!(hyp![1.0, 2.0; 3.0; -0.5], hyppfq(&[1.0, 2.0], &[3.0], -0.5));
-    assert_eq!(hyp![1.0, 2.0, 3.0; 4.0, 5.0; 0.25,], hyppfq(&[1.0, 2.0, 3.0], &[4.0, 5.0], 0.25));
-    assert_eq!(hyp![0.5; 1.5,; 0.3], hyppfq(&[0.5], &[1.5], 0.3));
+    assert_eq!(hyp![1.0, 2.0; 3.0; -0.5], hyppfq([1.0, 2.0], [3.0], -0.5));
+    assert_eq!(hyp![1.0, 2.0, 3.0; 4.0, 5.0; 0.25,], hyppfq([1.0, 2.0, 3.0], [4.0, 5.0], 0.25));
+    assert_eq!(hyp![0.5; 1.5,; 0.3], hyppfq([0.5], [1.5], 0.3));
     // empty lists
-    assert_eq!(hyp![; ; 0.7], hyppfq(&[], &[], 0.7));
-    assert_eq!(hyp![0.5; ; -0.3], hyppfq(&[0.5], &[], -0.3));
-    assert_eq!(hyp![; 1.5; 0.3], hyppfq(&[], &[1.5], 0.3));
+    assert_eq!(hyp![; ; 0.7], hyppfq([], [], 0.7));
+    assert_eq!(hyp![0.5; ; -0.3], hyppfq([0.5], [], -0.3));
+    assert_eq!(hyp![; 1.5; 0.3], hyppfq([], [1.5], 0.3));
     // each argument is evaluated once, in order
     let mut n = 0.0;
     let mut next = || {
         n += 1.0;
         n
     };
-    assert_eq!(hyp![next(), next(); next(); 0.1 * next()], hyppfq(&[1.0, 2.0], &[3.0], 0.4));
+    assert_eq!(hyp![next(), next(); next(); 0.1 * next()], hyppfq([1.0, 2.0], [3.0], 0.4));
     assert_eq!(n, 4.0);
 }
 
@@ -1806,7 +1799,7 @@ fn test_hyp2f2_series_sum_above_1e154() {
 fn test_hyppfq_series_sum_above_1e154_rounding() {
     // the rounding of a + n adds up, so the estimate of the f64 series was too small
     let a = 255.999_999_999_999_97;
-    let y = hyppfq(&[a; 3], &[256.0; 3], 700.0).unwrap();
+    let y = hyppfq([a; 3], [256.0; 3], 700.0).unwrap();
     let expected = 1.014_232_054_734_890_5e304;
     assert!((y - expected).abs() <= 5e-14 * expected, "{y} != {expected}");
 }
@@ -1821,7 +1814,7 @@ fn test_hyp1f2_series_sum_near_max() {
 fn test_hyppfq_series_sum_above_1e154_rounding_below() {
     // the roundings of a + n and b + n go the other way
     let (a, b) = (255.000_000_000_000_03, 254.999_999_999_999_97);
-    let y = hyppfq(&[a; 3], &[b; 3], 355.0).unwrap();
+    let y = hyppfq([a; 3], [b; 3], 355.0).unwrap();
     let expected = 1.494_655_400_472_756_6e154;
     assert!((y - expected).abs() <= 5e-14 * expected, "{y} != {expected}");
 }

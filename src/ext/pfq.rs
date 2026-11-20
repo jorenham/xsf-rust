@@ -2539,8 +2539,8 @@ fn hyp2f0_miller(a1: f64, a2: f64, z: f64, shift: f64) -> Option<(f64, f64)> {
 ///
 /// [^3]: NIST Digital Library of Mathematical Functions <https://dlmf.nist.gov/16.18.E1>
 #[must_use]
-pub fn hyppfq(a: &[f64], b: &[f64], z: f64) -> Option<f64> {
-    pfq_estimate(a, b, z)?.accurate()
+pub fn hyppfq(a: impl AsRef<[f64]>, b: impl AsRef<[f64]>, z: f64) -> Option<f64> {
+    pfq_estimate(a.as_ref(), b.as_ref(), z)?.accurate()
 }
 
 /// The signature of `xsf_hypu_digits`, U with the digits that `chgu` estimates
@@ -2786,14 +2786,14 @@ fn pfq_estimate(a: &[f64], b: &[f64], z: f64) -> Option<Estimate> {
 /// use xsf::{hyp, hyppfq};
 ///
 /// let y = hyp![1.0, 2.0; 3.0; -0.5];
-/// assert_eq!(y, hyppfq(&[1.0, 2.0], &[3.0], -0.5));
+/// assert_eq!(y, hyppfq([1.0, 2.0], [3.0], -0.5));
 /// // empty lists are allowed
 /// assert_eq!(hyp![; ; 0.0], Some(1.0));
 /// ```
 #[macro_export]
 macro_rules! hyp {
     ($($a:expr),* $(,)? ; $($b:expr),* $(,)? ; $z:expr $(,)?) => {
-        $crate::hyppfq(&[$($a),*], &[$($b),*], $z)
+        $crate::hyppfq([$($a),*], [$($b),*], $z)
     };
 }
 

@@ -50,8 +50,8 @@ fn xsf_cevalpoly(coeffs: &[f64], z: C64) -> C64 {
 #[doc(alias = "evalpoly", alias = "polynomial")]
 #[must_use]
 #[inline]
-pub fn cevalpoly(coeffs: &[f64], z: Complex<f64>) -> Complex<f64> {
-    z.via(|z| cevalpoly_c64(coeffs, z))
+pub fn cevalpoly(coeffs: impl AsRef<[f64]>, z: Complex<f64>) -> Complex<f64> {
+    z.via(|z| cevalpoly_c64(coeffs.as_ref(), z))
 }
 
 /// [`cevalpoly`] for [`C64`]

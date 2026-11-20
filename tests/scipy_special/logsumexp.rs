@@ -11,7 +11,7 @@ fn test_logsumexp() {
     let rtol: f64 = f64::EPSILON.sqrt() * 4.0;
 
     // Test with zero-size array
-    assert_eq!(xsf::logsumexp(&[]), f64::NEG_INFINITY);
+    assert_eq!(xsf::logsumexp([]), f64::NEG_INFINITY);
 
     // Test whether logsumexp() function correctly handles large inputs.
     let xs = (0..200).map(f64::from).collect::<Vec<f64>>();
@@ -21,7 +21,7 @@ fn test_logsumexp() {
     // Now test with large numbers
     let xs = [1000.0, 1000.0];
     let desired = 1000.0 + LN_2;
-    np_assert_allclose!([xsf::logsumexp(&xs)], [desired], rtol = rtol);
+    np_assert_allclose!([xsf::logsumexp(xs)], [desired], rtol = rtol);
 
     let (x, n) = (10_000.0, 1_000);
     let xs = vec![x; n];
@@ -33,32 +33,32 @@ fn test_logsumexp() {
     np_assert_allclose!([xsf::logsumexp(&xs).exp()], [ys.iter().sum::<f64>()], rtol = rtol);
 
     // Handling special values properly
-    assert!(xsf::logsumexp(&[f64::NAN]).is_nan());
-    assert_eq!(xsf::logsumexp(&[f64::INFINITY]), f64::INFINITY);
-    assert_eq!(xsf::logsumexp(&[f64::NEG_INFINITY]), f64::NEG_INFINITY);
-    assert_eq!(xsf::logsumexp(&[f64::NEG_INFINITY, f64::NEG_INFINITY]), f64::NEG_INFINITY);
+    assert!(xsf::logsumexp([f64::NAN]).is_nan());
+    assert_eq!(xsf::logsumexp([f64::INFINITY]), f64::INFINITY);
+    assert_eq!(xsf::logsumexp([f64::NEG_INFINITY]), f64::NEG_INFINITY);
+    assert_eq!(xsf::logsumexp([f64::NEG_INFINITY, f64::NEG_INFINITY]), f64::NEG_INFINITY);
 }
 
 #[test]
 fn test_logsumexp_tied_max() {
     // ln(2 + 1/e)
     let xs = [0.0, 0.0, -1.0];
-    np_assert_allclose!([xsf::logsumexp(&xs)], [0.861_994_804_058_251_1], rtol = 1e-15);
+    np_assert_allclose!([xsf::logsumexp(xs)], [0.861_994_804_058_251_1], rtol = 1e-15);
 }
 
 #[test]
 fn test_logsumexp_nan() {
     for xs in [[f64::NAN, 0.0], [f64::NAN, f64::INFINITY], [0.0, f64::NAN]] {
-        assert!(xsf::logsumexp(&xs).is_nan());
+        assert!(xsf::logsumexp(xs).is_nan());
     }
 }
 
 /// Corresponds to `TestSoftmax.test_softmax_fixtures`.
 #[test]
 fn test_softmax() {
-    np_assert_allclose!(xsf::softmax(&[1000.0, 0.0, 0.0, 0.0]), [1.0, 0.0, 0.0, 0.0], rtol = 1e-13);
-    np_assert_allclose!(xsf::softmax(&[1.0, 1.0]), [0.5, 0.5], rtol = 1e-13);
-    np_assert_allclose!(xsf::softmax(&[0.0, 1.0]), [1.0 / (1.0 + E), E / (1.0 + E)], rtol = 1e-13);
+    np_assert_allclose!(xsf::softmax([1000.0, 0.0, 0.0, 0.0]), [1.0, 0.0, 0.0, 0.0], rtol = 1e-13);
+    np_assert_allclose!(xsf::softmax([1.0, 1.0]), [0.5, 0.5], rtol = 1e-13);
+    np_assert_allclose!(xsf::softmax([0.0, 1.0]), [1.0 / (1.0 + E), E / (1.0 + E)], rtol = 1e-13);
 
     // Expected value computed using mpmath (with mpmath.mp.dps = 200) and then
     // converted to float.
@@ -69,33 +69,33 @@ fn test_softmax() {
         0.236_882_818_089_910_13,
         0.643_914_259_887_972_2,
     ];
-    np_assert_allclose!(xsf::softmax(&x), expected, rtol = 1e-13);
+    np_assert_allclose!(xsf::softmax(x), expected, rtol = 1e-13);
 
     // Translation property.  If all the values are changed by the same amount,
     // the softmax result does not change.
-    np_assert_allclose!(xsf::softmax(&x.map(|x| x + 100.0)), expected, rtol = 1e-13);
+    np_assert_allclose!(xsf::softmax(x.map(|x| x + 100.0)), expected, rtol = 1e-13);
 }
 
 /// Corresponds to `TestLogSoftmax.*`
 #[test]
 fn test_log_softmax() {
     // test_log_softmax_basic
-    np_assert_allclose!(xsf::log_softmax(&[1000.0, 1.0]), [0., -999.], rtol = 1e-13);
+    np_assert_allclose!(xsf::log_softmax([1000.0, 1.0]), [0., -999.], rtol = 1e-13);
 
     // test_log_softmax_scalar
-    np_assert_allclose!(xsf::log_softmax(&[1.0]), [0.], rtol = 1e-13);
+    np_assert_allclose!(xsf::log_softmax([1.0]), [0.], rtol = 1e-13);
 
     // near 0: -ln(1 + e^-40), which `ln` of the sum rounds to 0
     let expect = [-4.248_354_255_291_589e-18, -40.0];
-    np_assert_allclose!(xsf::log_softmax(&[0.0, -40.0]), expect, rtol = 1e-15);
+    np_assert_allclose!(xsf::log_softmax([0.0, -40.0]), expect, rtol = 1e-15);
 
     // a repeated maximum: -ln(2 + 1/e) and -1 - ln(2 + 1/e)
     let expect = [-0.861_994_804_058_251_1, -0.861_994_804_058_251_1, -1.861_994_804_058_251];
-    np_assert_allclose!(xsf::log_softmax(&[0.0, 0.0, -1.0]), expect, rtol = 1e-15);
+    np_assert_allclose!(xsf::log_softmax([0.0, 0.0, -1.0]), expect, rtol = 1e-15);
 
     // NaN propagates past a larger element
     assert!(
-        xsf::log_softmax(&[f64::NAN, f64::INFINITY, 0.0])
+        xsf::log_softmax([f64::NAN, f64::INFINITY, 0.0])
             .iter()
             .all(|y| y.is_nan())
     );
@@ -109,9 +109,9 @@ fn test_log_softmax() {
         -1.440_189_698_561_195_3,
         -0.440_189_698_561_195_33,
     ];
-    np_assert_allclose!(xsf::log_softmax(&x), expect, rtol = 1e-13);
+    np_assert_allclose!(xsf::log_softmax(x), expect, rtol = 1e-13);
 
     // Translation property.  If all the values are changed by the same amount,
     // the softmax result does not change.
-    np_assert_allclose!(xsf::log_softmax(&x.map(|x| x + 100.0)), expect, rtol = 1e-13);
+    np_assert_allclose!(xsf::log_softmax(x.map(|x| x + 100.0)), expect, rtol = 1e-13);
 }

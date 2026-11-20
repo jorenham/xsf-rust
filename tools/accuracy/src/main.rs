@@ -517,9 +517,9 @@ fn eval_xsf_3(f: &str, a: &[f64]) -> Option<f64> {
         ("poisson_binom_cdf_all", &[k, ref p @ ..]) => xsf::poisson_binom_cdf_all(p)[k as usize],
         ("wilcoxon_pmf_all", &[n, k]) => xsf::wilcoxon_pmf_all(n as usize)[k as usize],
         ("wilcoxon_cdf_all", &[n, k]) => xsf::wilcoxon_cdf_all(n as usize)[k as usize],
-        ("wilcoxon_pmf", &[n, k]) => xsf::wilcoxon_pmf(k, &xsf::wilcoxon_pmf_all(n as usize)),
-        ("wilcoxon_cdf", &[n, k]) => xsf::wilcoxon_cdf(k, &xsf::wilcoxon_cdf_all(n as usize)),
-        ("wilcoxon_sf", &[n, k]) => xsf::wilcoxon_sf(k, &xsf::wilcoxon_cdf_all(n as usize)),
+        ("wilcoxon_pmf", &[n, k]) => xsf::wilcoxon_pmf(k, xsf::wilcoxon_pmf_all(n as usize)),
+        ("wilcoxon_cdf", &[n, k]) => xsf::wilcoxon_cdf(k, xsf::wilcoxon_cdf_all(n as usize)),
+        ("wilcoxon_sf", &[n, k]) => xsf::wilcoxon_sf(k, xsf::wilcoxon_cdf_all(n as usize)),
         _ => return eval_spheroidal(f, a).or_else(|| eval_xsf_zeros(f, a)),
     })
 }

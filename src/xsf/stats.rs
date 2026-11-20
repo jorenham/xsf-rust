@@ -1091,7 +1091,8 @@ fn poisson_binom_pmf_all_impl(p: &[f64], res: &mut [f64]) {
 /// - [`poisson_binom_cdf_all`]: Full CDF of a Poisson-Binomial distribution
 #[must_use]
 #[inline]
-pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
+pub fn poisson_binom_pmf_all(p: impl AsRef<[f64]>) -> Vec<f64> {
+    let p = p.as_ref();
     let mut res = vec![0.0; p.len() + 1];
     poisson_binom_pmf_all_impl(p, &mut res);
     res
@@ -1111,7 +1112,8 @@ pub fn poisson_binom_pmf_all(p: &[f64]) -> Vec<f64> {
 /// - [`poisson_binom_cdf`]: CDF at a single `k`
 #[must_use]
 #[inline]
-pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
+pub fn poisson_binom_cdf_all(p: impl AsRef<[f64]>) -> Vec<f64> {
+    let p = p.as_ref();
     let n = p.len();
     let mut res = vec![0.0; n + 1];
 
@@ -1138,7 +1140,7 @@ pub fn poisson_binom_cdf_all(p: &[f64]) -> Vec<f64> {
 /// - [`poisson_binom_cdf_all`]: Full CDF, for many `k` with the same `p`
 #[must_use]
 #[inline]
-pub fn poisson_binom_cdf(k: i64, p: &[f64]) -> f64 {
+pub fn poisson_binom_cdf(k: i64, p: impl AsRef<[f64]>) -> f64 {
     take_from_discrete_cdf(&poisson_binom_cdf_all(p), k)
 }
 
@@ -1246,11 +1248,11 @@ pub fn wilcoxon_cdf_all(n: usize) -> Vec<f64> {
 /// - [`wilcoxon_pmf_all`]: Full PMF of the Wilcoxon signed-rank statistic
 #[must_use]
 #[inline]
-pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
+pub fn wilcoxon_pmf(k: f64, pmf: impl AsRef<[f64]>) -> f64 {
     if k.is_nan() {
         return f64::NAN;
     }
-    take_from_pmf(pmf, k as i64)
+    take_from_pmf(pmf.as_ref(), k as i64)
 }
 
 /// CDF of the Wilcoxon signed-rank statistic, from a precomputed table
@@ -1265,11 +1267,11 @@ pub fn wilcoxon_pmf(k: f64, pmf: &[f64]) -> f64 {
 /// - [`wilcoxon_sf`]: Survival function
 #[must_use]
 #[inline]
-pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
+pub fn wilcoxon_cdf(k: f64, cdf: impl AsRef<[f64]>) -> f64 {
     if k.is_nan() {
         return f64::NAN;
     }
-    take_from_discrete_cdf(cdf, k as i64)
+    take_from_discrete_cdf(cdf.as_ref(), k as i64)
 }
 
 /// Survival function of the Wilcoxon signed-rank statistic, from a precomputed table
@@ -1284,12 +1286,12 @@ pub fn wilcoxon_cdf(k: f64, cdf: &[f64]) -> f64 {
 /// - [`wilcoxon_cdf`]: Cumulative distribution function
 #[must_use]
 #[inline]
-pub fn wilcoxon_sf(k: f64, cdf: &[f64]) -> f64 {
+pub fn wilcoxon_sf(k: f64, cdf: impl AsRef<[f64]>) -> f64 {
     if k.is_nan() {
         return f64::NAN;
     }
     // Unlike in xsf, `k - 1` saturates instead of overflowing for `k = -inf`.
-    1.0 - take_from_discrete_cdf(cdf, (k as i64).saturating_sub(1))
+    1.0 - take_from_discrete_cdf(cdf.as_ref(), (k as i64).saturating_sub(1))
 }
 
 // Negative Binomial

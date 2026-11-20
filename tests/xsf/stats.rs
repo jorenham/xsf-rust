@@ -1033,7 +1033,7 @@ fn test_poisson_binom_smoke() {
 fn test_poisson_binom_cdf() {
     // SciPy's `poisson_binom_cdf` docstring example
     let p = [0.2, 0.4, 0.6];
-    let actual = [-1, 0, 1, 2, 3, 4].map(|k| xsf::poisson_binom_cdf(k, &p));
+    let actual = [-1, 0, 1, 2, 3, 4].map(|k| xsf::poisson_binom_cdf(k, p));
     xsref::np_assert_allclose!(actual, [0.0, 0.192, 0.656, 0.952, 1.0, 1.0], rtol = 1e-15);
 }
 
