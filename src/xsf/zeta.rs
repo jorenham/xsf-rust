@@ -1,4 +1,4 @@
-//! The complex `riemann_zeta` is translated into pure Rust from `xsf/zeta.h` (scipy/xsf@09c93c7).
+//! The complex `riemann_zeta` is translated into pure Rust from `xsf/zeta.h` (scipy/xsf@3cf1b75).
 //!
 //! Complex riemann-zeta function implementation based on Python implementation
 //! written by Matt Haberland (@mdhaber) in:
@@ -413,10 +413,9 @@ fn criemann_zeta(z: C64) -> C64 {
     if z.re >= 0.5 {
         return zeta_right_halfplane(z);
     }
-    // Unlike in xsf, the Taylor series at 0 is summed for |z| < 1/2, where the reflection formula
-    // amplifies the rounding of 1 - z by the pole of zeta(1 - z). With 1/(z - 1) = -1 + z/(z - 1),
-    // the constant -1/2 is split off exactly.
-    if z.norm_sqr() < 0.25 {
+    if z.norm() < 0.5 {
+        // The reflection evaluates zeta(1 - z) next to its pole. Sum the Taylor series instead,
+        // with 1/(z - 1) = -1 + z/(z - 1) so that the constant -1/2 is exact.
         return -0.5 + z * (1.0 / (z - 1.0) + z.evalpoly(&ZETA_REGULAR_TAYLOR_COEFFS));
     }
     zeta_reflection(z)

@@ -1,7 +1,7 @@
 # Accuracy
 
 Relative error versus mpmath of xsf-rust 0.7.0-dev, the C++ [xsf](https://github.com/scipy/xsf)
-it is translated from (commit [`1f5f57b`](https://github.com/scipy/xsf/tree/1f5f57b82224f77447991cdbaa106dc824a5ea0b)), and
+it is translated from (commit [`3cf1b75`](https://github.com/scipy/xsf/tree/3cf1b757a2e35c5e184f24da557839ec3aa9d9a1)), and
 the Rust standard library where it has the function. Where xsf lacks a function, SciPy 1.18.1
 or NumPy 2.5.4 takes its place.
 
@@ -1579,7 +1579,7 @@ For reference, $`\varepsilon`$ = 2.2e-16. See [Method](#method) for the details.
 <tr><td><code>zeta</code></td><td>x ∈ 1 + [10⁻¹⁵, 1000] (log)<br>q ∈ [10⁻³⁰⁰, 10³⁰⁰] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>4.7e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>4.7e-16</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>100%</td></tr>
 <tr><td><code>riemann_zeta</code><sup>*</sup></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>5.8e-13</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap><samp>5.8e-13</samp></td><td align="right" nowrap><samp>3.6e-16</samp></td><td align="right" nowrap>71.8%</td></tr>
 <tr><td><code>riemann_zeta</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.4e-14</samp></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap><b><samp>3.3e-14</samp></b></td><td align="right" nowrap><samp>1.2e-16</samp></td><td align="right" nowrap>99.6%</td></tr>
-<tr><td><code>riemann_zeta</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>2.4e-14</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap><samp>2.4e-14</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap>98.5%</td></tr>
+<tr><td><code>riemann_zeta</code></td><td>Re z, Im z ∈ [−20, 20]</td><td align="right" nowrap>5,000</td><td align="right" nowrap><samp>2.4e-14</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap><samp>2.4e-14</samp></td><td align="right" nowrap><samp>6.8e-16</samp></td><td align="right" nowrap>98.6%</td></tr>
 <tr><td><code>riemann_zeta</code></td><td>Re z ∈ [−20, 20]<br>Im z ∈ ±⁠[20, 1000] (log)</td><td align="right" nowrap>5,000</td><td align="right" nowrap><b><samp>1.9e-12</samp></b></td><td align="right" nowrap><b><samp>4.5e-15</samp></b></td><td align="right" nowrap><samp>2.1e-09</samp></td><td align="right" nowrap><samp>4.6e-15</samp></td><td align="right" nowrap>65.8%</td></tr>
 <tr><td><code>zetac</code><sup>*</sup></td><td>x ∈ [−20, 20]</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>1.3e-13</samp></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap><b><samp>1.2e-13</samp></b></td><td align="right" nowrap><samp>1.9e-16</samp></td><td align="right" nowrap>92.7%</td></tr>
 <tr><td><code>zetac</code><sup>*</sup></td><td>x ∈ ±⁠[10⁻³⁰⁰, 1000] (log)</td><td align="right" nowrap>10,000</td><td align="right" nowrap><samp>3.2e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap><samp>3.2e-14</samp></td><td align="right" nowrap><samp>1.1e-16</samp></td><td align="right" nowrap>99.8%</td></tr>
