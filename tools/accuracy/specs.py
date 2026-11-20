@@ -4549,7 +4549,6 @@ for f, r, names in [
         complex_parts(names, U(0, 10), U(-10, 10)),
         complex_parts(names, LU(1e-300, 1e300), LU(1e-300, 1e300, 0)),
         complex=True,
-        note="rj_c" if f == "elliprj" else "",
     )
 for i in range(4):
     add(
@@ -7076,12 +7075,6 @@ NOTES = {
         r"In the near-cut row, the peak is where $`\mathrm{Im}\,z`$ is the f64 nearest to "
         r"$`-\pi`$: both return the value across the lower cut "
         "([#1658](https://github.com/jorenham/xsf-rust/issues/1658))."
-    ),
-    "rj_c": (
-        "In the log-sampled complex row, the inf (2) of xsf-rust are NaNs for normal results, "
-        "where intermediates underflow for three tiny arguments next to a larger one "
-        "([#1655](https://github.com/jorenham/xsf-rust/issues/1655)); its largest finite error "
-        "is 1.7e-4."
     ),
     "nan": (
         "inf (k) counts the NaN results, where its error estimate says that none of its digits "

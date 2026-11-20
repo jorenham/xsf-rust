@@ -799,6 +799,11 @@ fn rj_unscaled<T: Num>(x: T, y: T, z: T, p: T, rerr: f64, noasymp: bool) -> (Exi
 
     ellint_rj_calc!();
     let mut sm = dm * 0.5;
+    // Unlike in xsf, the step also comes first for complex arguments if both `delta` and `s^2`
+    // underflow: the loop's `R_C` terms need both, the step's neither
+    if !real && delta.too_small() && (sm * sm).too_small() {
+        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp);
+    }
     /* next */
     ellint_rj_updt!();
     // `s^2 + delta / 4 = s beta`, see below
