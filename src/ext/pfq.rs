@@ -1076,27 +1076,28 @@ fn asymptotic_sum<T: Term>(
     best
 }
 
-/// The sum of a convergent series and an estimate of its absolute error, which is infinite if
-/// it did not converge within `PFQ_MAXITER` terms
+/// The sum of a convergent series, in the arithmetic of its terms, and an estimate of its
+/// absolute error, which is infinite if it did not converge within `PFQ_MAXITER` terms
 ///
 /// From term `settled` on, the bound on each term is at most `ratio_bound(n)` times the one
 /// before it, and `ratio_bound` does not increase.
-fn convergent_sum<T: Term<Value = f64>>(
+fn convergent_sum<T: Term>(
     terms: impl Iterator<Item = T>,
     settled: f64,
     ratio_bound: impl Fn(f64) -> f64,
-) -> (f64, f64) {
+) -> (T::Value, f64) {
+    let eps = T::Value::EPSILON;
     // the partial sums, until the tail is negligible
     let sums = terms
         .zip((0..PFQ_MAXITER).map(f64::from))
-        .take_while(|(term, _)| term.value().is_finite())
-        .try_fold((0.0_f64, 0.0), |(sum, abs_sum), (term, n)| {
+        .take_while(|(term, _)| term.value().to_f64().is_finite())
+        .try_fold((T::Value::from_f64(0.0), 0.0), |(sum, abs_sum), (term, n)| {
             let (sum, abs_sum) = (sum + term.value(), abs_sum + term.bound());
             let rho = if n >= settled { ratio_bound(n) } else { 1.0 };
             // geometric bound on the remaining terms
             let tail = term.bound() * rho / (1.0 - rho);
-            if rho < 1.0 && tail <= f64::EPSILON * sum.abs() {
-                ControlFlow::Break((sum, tail + n * f64::EPSILON * abs_sum))
+            if rho < 1.0 && tail <= eps * sum.to_f64().abs() {
+                ControlFlow::Break((sum, tail + n * eps * abs_sum))
             } else {
                 ControlFlow::Continue((sum, abs_sum))
             }
