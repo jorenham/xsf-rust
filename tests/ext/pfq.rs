@@ -237,9 +237,10 @@ fn test_hyp3f2_long_series() {
         assert_hyp3f2(a, b, z, expected);
         assert_eq!(hyppfq(&a, &b, z), Some(hyp3f2(a[0], a[1], a[2], b[0], b[1], z)));
     }
-    // the terms cancel too much, also in double-double (Arb: 1.2065715942224405e-6)
-    let y = hyp3f2(-84.75, 59.5, 5.75, 17.25, 39.25, 0.996);
-    assert!(y.is_nan() || (y - 1.206_571_594_222_440_5e-6).abs() <= 1e-13 * y.abs(), "{y}");
+    // the terms cancel too much, also in double-double (Arb reference)
+    let (y, expected) =
+        (hyp3f2(-84.75, 59.5, 5.75, 17.25, 39.25, 0.996), 1.206_571_594_222_440_5e-6);
+    assert!(y.is_nan() || (y - expected).abs() <= 1e-13 * expected, "{y}");
 }
 
 #[test]
