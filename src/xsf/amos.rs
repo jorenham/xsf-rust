@@ -1,4 +1,4 @@
-//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@0acbe5c).
+//! Translated into pure Rust from `xsf/cpu/amos/amos.h` (scipy/xsf@1f5f57b).
 //!
 //! ```text
 //!
@@ -4770,8 +4770,8 @@ fn s1s2(zr: C64, s1: &mut C64, s2: &mut C64, ascle: f64, alim: f64, iuf: &mut i3
         *s1 = C64::ZERO;
         as1 = 0.;
         if aln >= -alim {
-            c1 = s1d.ln() - zr - zr;
-            *s1 = c1.exp();
+            c1 = s1d.ln() - xx - xx;
+            *s1 = c1.exp() * C64::cis(-2.0 * zr.im);
             as1 = s1.norm();
             *iuf += 1;
         }
