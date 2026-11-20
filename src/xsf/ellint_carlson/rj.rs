@@ -579,6 +579,11 @@ fn realness<T: Num>(args: [T; 4]) -> (bool, f64) {
     (real, min)
 }
 
+/// The `|Im p|` that `rj_unscaled` raises a tinier one to for real `lam` and `Re p < 0`, relative
+/// to the distance from `p` to `0, x, y, z`: the largest that leaves the result unchanged, to keep
+/// `4^-m Im p` the farthest from underflow in the steps
+const MIN_IM_P: f64 = pow2(-60);
+
 fn rj_unscaled<T: Num>(
     x: T,
     y: T,
@@ -628,6 +633,28 @@ fn rj_unscaled<T: Num>(
         }
         return (ExitStatus::BadArgs, T::NAN);
     }
+
+    // Unlike in xsf, keep `lam` real for real `x, y, z` or an exact conjugate pair and a real
+    // third, which the steps keep: its rounding error can outweigh a tiny `Im p`
+    let pair = |a: T, b: T, c: T| a.real() == b.real() && a.imag() == -b.imag() && c.imag() == 0.0;
+    let real_lam = [xm, ym, zm].iter().all(|a| a.imag() == 0.0)
+        || pair(xm, ym, zm)
+        || pair(ym, zm, xm)
+        || pair(zm, xm, ym);
+    // Unlike in xsf, then a tiny `Im p` left of the imaginary axis is raised to about `MIN_IM_P`
+    // times the distance from `p` to `0, x, y, z`: it only selects the side of the cut, which
+    // `p + lam` keeps in every step
+    let p = if real_lam && p.real() < 0.0 && p.imag() != 0.0 {
+        let dist = [T::from(0.0), xm, ym, zm].map(|a| (p - a).abs());
+        let lift = MIN_IM_P * dist.into_iter().fold(f64::INFINITY, f64::min);
+        if p.imag().abs() < lift {
+            common::frexp(p - p.real()).0 * lift + p.real()
+        } else {
+            p
+        }
+    } else {
+        p
+    };
 
     // Unlike in xsf (scipy/xsf#376), if a tiny argument prevents the downscaling of a huge one, a
     // duplication step first raises the tiny one
@@ -808,13 +835,6 @@ fn rj_unscaled<T: Num>(
     let cancels = |a: T, diff: T| a.max_norm() > diff.max_norm() * const { pow2(4) };
     // Whether the arguments are in the right half-plane, where `Re lam >= 0`
     let right = xm.real() >= 0.0 && p.real() > 0.0;
-    // Unlike in xsf, keep `lam` real for real `x, y, z` or an exact conjugate pair and a real
-    // third, which the steps keep: its rounding error can outweigh a tiny `Im p`
-    let pair = |a: T, b: T, c: T| a.real() == b.real() && a.imag() == -b.imag() && c.imag() == 0.0;
-    let real_lam = [xm, ym, zm].iter().all(|a| a.imag() == 0.0)
-        || pair(xm, ym, zm)
-        || pair(ym, zm, xm)
-        || pair(zm, xm, ym);
     let mut prm;
     let mut lam;
     let mut dm;
@@ -894,11 +914,12 @@ fn rj_unscaled<T: Num>(
 
     // `R_C(1, u) = atan(sqrt(t)) / sqrt(t)` with `t = u - 1`
     //
-    // Unlike in xsf, from `u` if `1 + t` cancels in the right half-plane or if `lam` is real, e.g.
-    // after a step where `p + lam` cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there. NaN if `u`
-    // underflows.
+    // Unlike in xsf, evaluate `R_C` from `u` if `1 + t` cancels, e.g. after a step where `p + lam`
+    // cancels, as `R_C(1, u) ~ ln(4 / u) / 2` there, but only where `u` keeps the side of the cut:
+    // in the right half-plane, and for real `lam`, where `Im(p + lam) = 4^-m Im p` (see
+    // `MIN_IM_P`). NaN if `u` underflows.
     //
-    // (not elsewhere: `p + lam` can lose a tiny `Im p` there, and `u` its side of the cut)
+    // (elsewhere `p + lam` can lose a tiny `Im p`, and `u` its side of the cut)
     let rc1 = |t: T, u: T| {
         if !((right || real_lam) && cancels(T::from(1.0), u)) {
             t.safe_atan_sqrt_div()

@@ -609,19 +609,38 @@ fn test_elliprj_conjugate_cut() {
     }
 
     // an exact pair where rounding gives `lambda` a tiny imaginary part, near the cut and with a
-    // subnormal `Im p` (Arb)
+    // tiny `Im p` (Arb)
     let x = c64(-2.583_169_022_335_466, 1.251_316_297_465_678_4e-70);
     let y = c64(8.112_302_455_109_168e-7, 0.0);
     let p = c64(-3.525_393_241_933_433, 2.880_059_528_591_252e-140);
     let actual = [xsf::elliprj(x, y, x.conj(), p)];
     let expected = [c64(-320.523_995_035_498_9, -2.663_686_039_152_461_5)];
     xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-14);
-    let x = c64(391.945_997_773_030_4, 155.956_030_228_474_33);
-    let z = c64(7.968_794_498_639_412e33, 0.0);
-    let p = c64(-3.846_870_561_155_529e35, 2.293_954_062_989_63e-309);
-    let actual = [xsf::elliprj(x, x.conj(), z, p)];
-    let expected = [c64(-3.206_047_660_640_072_3e-51, -1.954_913_392_456_703_8e-53)];
-    xsref::np_assert_allclose!(&actual, &expected, rtol = 1e-13);
+
+    // and with a subnormal `Im p`, which `4^-m Im p` rounds to 0 in the steps (Arb)
+    for (x, z, p, expected) in [
+        (
+            c64(391.945_997_773_030_4, 155.956_030_228_474_33),
+            c64(7.968_794_498_639_412e33, 0.0),
+            c64(-3.846_870_561_155_529e35, 2.293_954_062_989_63e-309),
+            c64(-3.206_047_660_640_072_3e-51, -1.954_913_392_456_703_8e-53),
+        ),
+        (
+            c64(1.0, 1.0),
+            ZERO,
+            c64(-1e32, -5e-324),
+            c64(-4.121_030_609_847_326_3e-32, 4.712_388_980_384_689_5e-48),
+        ),
+        (
+            c64(-1.848_896_916_592_894e24, 1.501_031_164_846_787_4e-53),
+            ZERO,
+            c64(-2.416_826_398_198_505e26, -4e-323),
+            c64(-1.651_932_324_420_299_7e-36, 1.263_886_626_718_720_3e-39),
+        ),
+    ] {
+        let actual = [xsf::elliprj(x, x.conj(), z, p)];
+        xsref::np_assert_allclose!(&actual, &[expected], rtol = 1e-13);
+    }
 
     // not a pair: conjugate only up to a subnormal imaginary part (Arb)
     let x = c64(-1.0, 5e-324);
