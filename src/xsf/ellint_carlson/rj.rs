@@ -481,6 +481,12 @@ fn rj_duplicated<T: Num>(
     (status, res * c + (res_rc * (3.0 * c) / d1 / d23).ldexp(-de))
 }
 
+/// Whether `a` is below `sqrt(f64::MIN_POSITIVE)`, the bound for `delta` and `s^2` of the loop:
+/// step `m` needs `delta 4^-2m`, which underflows long before `delta` does
+fn underflows_in_loop<T: Num>(a: T) -> bool {
+    a.max_norm() < f64::MIN_POSITIVE.sqrt()
+}
+
 /// The most evaluations that a call of [`rj`] nests, i.e. its rescalings, duplication steps and
 /// real fallbacks: a hard bound on the recursion. A huge `p` next to tiny `x, y, z` takes 384
 /// steps, which quarter it from at most 2^1024 to 2^256.
@@ -514,14 +520,14 @@ fn rj_nested<T: Num>(
     // then also with negligible real parts flushed if none is negative and the arguments are in
     // the domain (flushed, two of `x, y, z` can become conjugate)
     let args = [x, y, z, p];
-    let (_, min) = realness(args);
-    // A flushed real part becomes `MIN_POSITIVE`, not 0: on the imaginary axis, `p` can leave the
-    // domain, and `p + lam` cancel to 0, e.g. for `x, y, z, p = i, i, i, 1 - 15i` scaled (the
-    // other real parts are at least that already)
+    let (real, min) = realness(args);
+    // A real part that is flushed by downscaling becomes `MIN_POSITIVE`, not 0: on the imaginary
+    // axis, `p` can leave the domain, and `p + lam` cancel to 0, e.g. for
+    // `x, y, z, p = i, i, i, 1 - 15i` scaled (the other real parts are at least that already)
     let rescaled = |f: f64| {
         let [x, y, z, p] = args.map(|a| {
             let s = a * f * f;
-            if a.real() > 0.0 && s.real() < f64::MIN_POSITIVE {
+            if f < 1.0 && a.real() > 0.0 && s.real() < f64::MIN_POSITIVE {
                 s + -s.real() + f64::MIN_POSITIVE
             } else {
                 s
@@ -532,6 +538,15 @@ fn rj_nested<T: Num>(
     };
     if let Some(f) = common::scale_factor(&args, min) {
         return rescaled(f);
+    }
+    // Unlike in xsf, complex arguments are also upscaled if `delta` underflows in the loop: its
+    // `R_C` terms need the precision of `delta`. Not if that takes them out of the domain, where a
+    // subnormal imaginary part counts as 0.
+    if !real && underflows_in_loop((p - x) * (p - y) * (p - z)) {
+        let out = common::upscale_factor(&args).map(rescaled);
+        if let Some(out) = out.filter(|out| out.0 != ExitStatus::BadArgs) {
+            return out;
+        }
     }
     let in_domain = || {
         let mut xyz = [x, y, z];
@@ -844,9 +859,15 @@ fn rj_unscaled<T: Num>(
     ellint_rj_calc!();
     let mut sm = dm * 0.5;
     // Unlike in xsf, the step also comes first for complex arguments if both `delta` and `s^2`
-    // underflow: the loop's `R_C` terms need both, the step's neither
-    if !real && delta.too_small() && (sm * sm).too_small() {
-        return rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp, left);
+    // still underflow in the loop after upscaling: its `R_C` terms need both, the step's neither
+    //
+    // (not if the shifted arguments leave the domain: a subnormal imaginary part counts as 0, but
+    // can make theirs normal)
+    if !real && underflows_in_loop(delta) && underflows_in_loop(sm * sm) {
+        let (status, res) = rj_duplicated(xm, ym, zm, p, 0.5, rerr, noasymp, left);
+        if status != ExitStatus::BadArgs {
+            return (status, res);
+        }
     }
     /* next */
     ellint_rj_updt!();
@@ -1012,7 +1033,8 @@ fn rj_unscaled<T: Num>(
 #[cfg(test)]
 mod tests {
     use super::rjimpl::rc_term;
-    use super::{Cell, ExitStatus, Num, pow2, rj_nested};
+    use super::{C64, Cell, ExitStatus, Num, pow2, rj_nested};
+    use crate::xsf::c64::c64;
 
     /// Whether `rj` nests `n` evaluations: it is finite with that many, and NaN with fewer
     fn nests<T: Num>(x: T, y: T, z: T, p: T, n: u32) -> bool {
@@ -1028,6 +1050,9 @@ mod tests {
         assert!(nests(t, t, t, pow2(264), 5));
         // the asymptotic fallback for a huge `z` doesn't make up for its direct evaluation
         assert!(nests(1.0, 1.0, 1e50, 1.0, 2));
+        // the duplication step and the upscaling alternate
+        let [x, y, z] = [0.0, f64::from_bits(1), pow2(253)].map(C64::from);
+        assert!(nests(x, y, z, c64(pow2(-1020), pow2(-1020)), 5));
     }
 
     #[test]
