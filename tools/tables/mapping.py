@@ -2,6 +2,7 @@
 replaces: an `Entry` per table and signature. The other tables keep those of xsref.
 """
 
+import cmath
 import functools
 import math
 import sys
@@ -15,6 +16,7 @@ import mathieu
 import mpmath as mp
 import specs
 import spheroidal
+from mpmath.libmp import NoConvergence
 
 import accuracy
 
@@ -52,11 +54,14 @@ class Override:
 class Floor:
     """Where `when` holds, the rounding errors of xsf-rust can exceed those of xsf by more than
     the test allows, because it uses another method, or because they depend on the platform's
-    libm, so the tolerance is at least `tol`."""
+    libm, so the tolerance is at least `tol` (or `tol` of the inputs)."""
 
     when: Pred
-    tol: float
+    tol: float | Callable[[tuple[float, ...]], float]
     why: str
+
+    def at(self, a: tuple[float, ...]) -> float:
+        return self.tol(a) if callable(self.tol) else self.tol
 
 
 @dataclass(frozen=True)
@@ -1448,12 +1453,24 @@ def _amos_airy_mlri(a: tuple[float, ...]) -> bool:
     return any(_amos_acai_mlri(_amos_airy_arg(x, n)) for n in orders)
 
 
+def _amos_seri(v: float, az: float) -> bool:
+    """Whether `binu` computes I_v(z) (v >= 0) with its power series (`seri`) at |z| = az."""
+    return az <= 2 or az * az / 4 <= v + 1
+
+
 def _amos_mlri(v: float, az: float) -> bool:
-    """Whether `binu` computes I_v(z) (v >= 0) with `mlri` at |z| = az: outside of its power
-    series (`seri`), for `az < rl` and v <= fnul (else `buni`), or at `az = rl` unless `asyi`."""
-    if az <= 2 or az * az / 4 <= v + 1 or v > AMOS_FNUL:
+    """Whether `binu` computes I_v(z) (v >= 0) with `mlri` at |z| = az: outside of `seri`, for
+    `az < rl` and v <= fnul (else `buni`), or at `az = rl` unless `asyi`."""
+    if _amos_seri(v, az) or v > AMOS_FNUL:
         return False
     return az < AMOS_RL or az == AMOS_RL and 2 * az < v * v
+
+
+def _amos_buni(v: float, az: float) -> bool:
+    """Whether `binu` computes I_v(z) (v >= 0) with its uniform asymptotic expansion (`buni`)
+    at |z| = az: outside of `seri` and `asyi`, for v or az above fnul."""
+    asyi = az >= AMOS_RL and (v <= 1 or 2 * az >= v * v)
+    return not _amos_seri(v, az) and not asyi and max(v, az) > AMOS_FNUL
 
 
 def _amos_binu_mlri(a: tuple[float, ...]) -> bool:
@@ -1612,6 +1629,46 @@ BESSEL_Y: Final = functools.partial(mp.bessely, **SERIES)
 BESSEL_I: Final = functools.partial(mp.besseli, **SERIES)
 
 
+def _arb_besseli(z: flint.acb, v: flint.acb) -> flint.acb:
+    """Arb's I_v(z) of a real v, but of -z for Re z < 0 (DLMF 10.34.1), and for v < 0 by the
+    reflection I_v = I_-v + (2 / pi) sin(-v pi) K_-v (DLMF 10.27.2), where Arb's own can be far
+    less accurate (at v = -222061.87, no bit for z from 1e4 to 1e6 at 256 or 1024 bits, and
+    180 of 256 at z = 1e9), or for an integer v < 0 as I_-v (DLMF 10.27.1), where 0 K_-v would
+    be NaN at z = 0."""
+    if z.real < 0:
+        m = 1 if z.imag >= 0 else -1
+        return (m * v).exp_pi_i() * _arb_besseli(-z, v)
+    if v.real < 0 and v.real.is_integer():
+        return z.bessel_i(-v)
+    if v.real < 0:
+        return z.bessel_i(-v) + 2 * (-v).sin_pi() / flint.arb.pi() * z.bessel_k(-v)
+    return z.bessel_i(v)
+
+
+def _besseli(v: mp.mpf, z: mp.mpc) -> mp.mpc:
+    """`BESSEL_I`, but for v < 0, or where it does not converge (as at v = -222061.87,
+    z = -99500.88), `_arb_besseli` to the precision of mpmath: mpmath's I_v of a large v < 0
+    misses the I_-v term of DLMF 10.27.2 (5.3e-7 for I_-1500.3(1000) = 271.7)."""
+    if v >= 0:
+        try:
+            # of a real z as such, so that a real I_v(z) has no spurious imaginary part
+            return mp.mpc(BESSEL_I(v, z.real if z.imag == 0 else z))
+        except NoConvergence:
+            pass
+
+    def ball(x: mp.mpf) -> flint.arb:
+        man, exp = x.man_exp  # of |x|
+        return flint.arb((int(mp.sign(x) * man), int(exp)))
+
+    # with up to 16 times the precision, until it has that of mpmath
+    for k in (2, 4, 8, 16):
+        with flint.ctx.workprec(k * mp.mp.prec):
+            y = _arb_besseli(flint.acb(ball(z.real), ball(z.imag)), flint.acb(ball(v)))
+            if y.rel_accuracy_bits() >= mp.mp.prec:
+                return mp.mpc(y.mid())
+    raise NoConvergence
+
+
 def _besselk(v: mp.mpf, z: mp.mpc) -> mp.mpc:
     """`mp.besselk`, but continued from -z for Re z < 0 (DLMF 10.34.2), where its asymptotic
     series is wrong, and of t = |Im z| for Re z = 0 (DLMF 10.27.8), where its real part has only
@@ -1665,7 +1722,7 @@ def _cbessel(
                 y = {
                     "j": BESSEL_J,
                     "y": BESSEL_Y,
-                    "i": BESSEL_I,
+                    "i": _besseli,
                     "k": _besselk,
                 }[f[0]](v, z)
             elif s * im > 0:
@@ -1684,7 +1741,7 @@ def _cbessel(
                     g = {
                         "j": z.bessel_j,
                         "y": z.bessel_y,
-                        "i": z.bessel_i,
+                        "i": functools.partial(_arb_besseli, z),
                         "k": z.bessel_k,
                     }
                     y = g[f[0]](nu)
@@ -1763,6 +1820,162 @@ MLRI_FLOOR: Final = Floor(
 )
 
 
+# AMOS's exponent `elim` of `MACH` (`amos.rs`), below which it underflows to 0
+AMOS_ELIM: Final = 2.303 * (1021 * math.log10(2) - 3)
+
+
+@functools.cache
+def _i_ball(a: tuple[float, ...]) -> flint.acb:
+    """`_arb_besseli` of v, Re z, Im z = `a`, to some 30 digits."""
+    with flint.ctx.workprec(128):
+        return _arb_besseli(flint.acb(a[1], a[2]), flint.acb(a[0]))
+
+
+def _i_log(a: tuple[float, ...]) -> float:
+    """log |I_v(z)| (NaN for 0)."""
+    return float(abs(_i_ball(a)).log().mid())
+
+
+def _i_overflows(a: tuple[float, ...]) -> bool:
+    """Whether a part of I_v(z) overflows."""
+    y = _i_ball(a)
+    return any(math.isinf(float(p.mid())) for p in (y.real, y.imag))
+
+
+def _i_nan(a: tuple[float, ...]) -> bool:
+    """Whether xsf's I_v(x) is NaN where it overflows (`ierr = 2`) for a non-integer v: for
+    v < 0 where the reflection's K_-v(x) overflows (always for x < 0, DLMF 10.34.2), and for
+    v > 0 and x < 0, where its scaled e^-|x| I_v(x), which it multiplies by inf, underflows."""
+    v, x, y = a
+    if y != 0 or v.is_integer() or not _i_overflows(a):
+        return False
+    if x > 0:
+        with flint.ctx.workprec(128):
+            k = flint.arb(x).bessel_k(flint.arb(-v))
+        return v < 0 and float(k.log().mid()) > LOG_MAX
+    return v < 0 or _i_log(a) - abs(x) < -AMOS_ELIM
+
+
+def _i_inf_parts(a: tuple[float, ...]) -> tuple[float, float] | None:
+    """The signs of the parts of I_v(x) where it overflows for x < 0 and a non-integer v > 0,
+    which xsf multiplies by inf (like those of e^-|x| I_v(x), DLMF 10.34.1)."""
+    v, x, y = a
+    if y != 0 or x >= 0 or v < 0 or v.is_integer() or not _i_overflows(a):
+        return None
+    z = _i_ball(a)
+    return math.copysign(1, float(z.real.mid())), math.copysign(1, float(z.imag.mid()))
+
+
+I_INF_PARTS: Final = tuple(
+    Rule(
+        lambda a, s=s: _i_inf_parts(a) == s,
+        complex(s[0] * math.inf, s[1] * math.inf),
+        "xsf multiplies the parts of e^-|x| I_v(x) by inf where I_v(x) overflows for x < 0 and"
+        " a non-integer v > 0 (`ierr = 2`), also a finite part",
+    )
+    for s in ((1, 1), (1, -1), (-1, 1), (-1, -1))
+)
+
+
+# the v, x where xsf's I_v(x) is inf or NaN by AMOS's overflow estimates, but finite
+I_XSF_OVERFLOWS: Final = frozenset(
+    {
+        (-3924.6118098546276, -3014.674352211202),
+        (-3335.494571461091, -2625.4322978503146),
+        (-2788.0489248475815, 2263.1571134109936),
+        (-2668.8684195003475, -2184.1218292765852),
+        (-1132.1097734380971, -1206.4331179722487),
+        (-769.2450846741729, -222.1367844710475),
+        (-6.503008119422979, -702.9162243698082),
+        (-4.459833059957743, -701.2833420596811),
+        (-1.5876101040647947, 708.7573394419455),
+        (-1.0, 705.0594208184201),
+        (-1.0, 711.7616144954159),
+        (-0.8639773753008169, -710.5989777651879),
+        (-0.3860217425896735, -706.8139465780555),
+        (-0.3801216397241145, -705.4448989462691),
+        (-0.2839255202894213, -704.6090722336703),
+        (-0.16289478302865046, 705.3369708567036),
+        (-0.1514511295996579, 712.0395102323898),
+        (0.0, -706.6664690477907),
+        (0.0, -704.483049251185),
+        (0.0, 710.3243512462369),
+        (0.09247220959218949, 713.0660842159232),
+        (0.36569742188504284, 711.2754621966587),
+        (0.4393050228783326, 707.8964445227208),
+        (1.4690970479640764, 710.8577813915292),
+        (3.281321478213661, 703.7654055475073),
+        (4.78641566018431, -705.1803580260265),
+        (8.0, -707.0853938534622),
+        (54.0994671244485, 711.8546736182462),
+        (1490.4913701991877, -1431.4438898359167),
+    }
+)
+I_OVERRIDE: Final = Override(
+    lambda a: a[2] == 0 and a[:2] in I_XSF_OVERFLOWS,
+    "xsf's AMOS overflows by its estimates, which exceed e^elim (about 1e304), at these inputs"
+    " where xsf-rust's I is finite (xsf from 6.1e301 at I_v(-2184.12) with v = -2668.87)",
+)
+I_MLRI_FLOOR: Final = Floor(
+    lambda a: _amos_mlri(abs(a[0]), math.hypot(a[1], a[2])),
+    9e-16,
+    "AMOS's Miller algorithm (`mlri`) takes its binomial coefficient from `poch`, unlike xsf,"
+    " and so rounds differently (3.2e-15 at I_-0.47(4.95), where xsf has 7e-16)",
+)
+I_BUNI_FLOOR: Final = Floor(
+    lambda a: _amos_buni(abs(a[0]), math.hypot(a[1], a[2])),
+    6e-15,
+    "AMOS's uniform asymptotic expansion (`buni`) rounds differently from xsf, as its complex"
+    " `sqrt` (FreeBSD's), `exp`, and `log` can differ from glibc's in the last bit (2.2e-14 at"
+    " I_-69(205.85), where xsf has 2.6e-15)",
+)
+
+
+def _seri_floor(a: tuple[float, ...]) -> float:
+    """eps max(|v ln(w / 2)|, ln Gamma(|v| + 1)), with w = z or -z in Re w >= 0: the change of
+    the exponent v ln(w / 2) - ln Gamma(|v| + 1) of `seri` by about an ulp of its largest term."""
+    v, x, y = abs(a[0]), a[1], a[2]
+    w = complex(x, y) if x >= 0 else complex(-x, -y)
+    # as AMOS, ln(w) - ln(2), as w / 2 can underflow
+    ln = cmath.log(w) - math.log(2)
+    return sys.float_info.epsilon * max(abs(v * ln), math.lgamma(v + 1))
+
+
+I_SERI_FLOOR: Final = Floor(
+    lambda a: any(a[1:]) and _amos_seri(abs(a[0]), math.hypot(*a[1:])),
+    _seri_floor,
+    "AMOS's power series (`seri`) scales by e^(v ln(z / 2) - ln Gamma(v + 1)), whose terms"
+    " depend on the platform's libm, so the exponent can differ in its last bit (2.8e-14 = 128"
+    " eps, an ulp of -243.6, from Linux to macOS and Windows at I_82.89(3.35))",
+)
+
+
+def _reflection_floor(a: tuple[float, ...]) -> float:
+    """0.3 max(|v|, 1) eps |K_-v / I_v|, at least the floors of I_-v (that of `seri` times the
+    share |I_-v / I_v| of I_-v in I_v): the change of s K_-v in I_v = I_-v + s K_-v (DLMF
+    10.27.2) by that of s = 2 / pi sin(-v pi), relative to I_v. For
+    Re z < 0, it takes the upper bound |K_-v(w)| + pi |I_-v(w)| of |K_-v(z)|, with w = -z
+    (DLMF 10.34.2). 0.3 rounds up the 0.22 that the failing rows need."""
+    v, x, y = a
+    with flint.ctx.workprec(128):
+        w, nu = flint.acb(abs(x), y), flint.arb(-v)
+        i_v, i_nu = abs(_i_ball(a)), abs(w.bessel_i(nu))
+        k = abs(w.bessel_k(nu)) + flint.arb.pi() * i_nu * (x < 0)
+        ratio, share = float((k / i_v).mid()), float((i_nu / i_v).mid())
+    tol = 0.3 * max(-v, 1) * sys.float_info.epsilon * ratio
+    seri = I_SERI_FLOOR.at(a) * share if I_SERI_FLOOR.when(a) else 0
+    methods = (f.at(a) for f in (I_MLRI_FLOOR, I_BUNI_FLOOR) if f.when(a))
+    return max(tol, seri, *methods)
+
+
+I_REFLECTION_FLOOR: Final = Floor(
+    lambda a: a[0] < 0 and not a[0].is_integer() and not I_OVERRIDE.when(a),
+    _reflection_floor,
+    "xsf's sin(v pi) of the reflection (scipy/xsf#383) can cancel the error of AMOS's K_-v"
+    " (2.5e-14 at I_-85.67(0.187), where xsf has 3.6e-15)",
+)
+
+
 def _bessel_c() -> dict[tuple[str, str], Entry]:
     """The tables of K_v and of the exponentially scaled J_v, Y_v, I_v, K_v, H1_v, and H2_v, of
     real order v and complex z."""
@@ -1807,6 +2020,36 @@ def _bessel_c() -> dict[tuple[str, str], Entry]:
                     ),
                 ),
                 floors=(MLRI_FLOOR,),
+            ),
+            entry(
+                "i",
+                AMOS_RANGE,
+                Rule(
+                    lambda a: a[1] == a[2] == 0 and a[0] < 0 and not a[0].is_integer(),
+                    complex(math.nan, math.nan),
+                    "a singularity at z = 0 for v < 0 not an integer, whose limit depends on"
+                    " the direction (DLMF 10.30.1)",
+                ),
+                Rule(
+                    lambda a: _i_log(a) < -AMOS_ELIM,
+                    complex(0, 0),
+                    "AMOS underflows to 0 below e^-elim (about 4e-305)",
+                ),
+                Rule(
+                    _i_nan,
+                    complex(math.nan, math.nan),
+                    "AMOS returns NaN where I_v(x) overflows for a non-integer v < 0 and x < 0, or"
+                    " x > 0 where the K_-v(x) of DLMF 10.27.2 overflows, and for v > 0 and x < 0"
+                    " where xsf's e^-|x| I_v(x) times inf is NaN, as AMOS underflows it to 0",
+                ),
+                Rule(
+                    lambda a: a[2] == 0 and a[1] > 0 and _i_overflows(a),
+                    complex(math.inf, 0),
+                    "xsf returns inf where I_v(x) overflows for x > 0 (`ierr = 2`)",
+                ),
+                *I_INF_PARTS,
+                overrides=(I_OVERRIDE,),
+                floors=(I_REFLECTION_FLOOR, I_SERI_FLOOR, I_MLRI_FLOOR, I_BUNI_FLOOR),
             ),
             entry("je"),
             entry("ye"),
