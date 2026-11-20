@@ -2581,11 +2581,23 @@ pub(crate) fn besy(z: C64, fnu: f64, kode: i32, n: i32, cy: &mut [C64], ierr: &m
     let (tol, elim, ..) = MACH;
     let exr = xx.cos();
     let exi = xx.sin();
-    let mut ey = 0.0;
     let tay = (yy + yy).abs();
-    if tay < elim {
-        ey = (-tay).exp();
-    }
+    let ey = if tay < elim {
+        (-tay).exp()
+    } else {
+        // Unlike in xsf, apply e^-2|y| as (e^-|y|)^2 if it underflows, as for |z| < fnu the
+        // scaled H that grows with |y| can be large enough for the product not to.
+        let ey = (-yy.abs()).exp();
+        let h = if yy < 0.0 {
+            &mut cwrk[..]
+        } else {
+            &mut cy[..n as usize]
+        };
+        for h in h {
+            *h *= ey;
+        }
+        ey
+    };
     if yy < 0.0 {
         /* 90 */
         c1 = c64(exr, exi);
